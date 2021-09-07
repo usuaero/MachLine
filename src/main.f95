@@ -1,5 +1,11 @@
 program main
+
+    use math
+    use json
+    use json_xtnsn
+
     implicit none
+
     character(100) :: input_file
 
     ! Welcome message
@@ -24,5 +30,5 @@ program main
     write(*,*) "MFTran called with input file ", input_file
     write(*,*)
     write(*,*) "Loading input..."
-    
+
 end program main

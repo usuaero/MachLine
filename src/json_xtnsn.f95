@@ -1,20 +1,20 @@
-module myjson_m
+module json_xtnsn
 
-    use json_m
+    use json
     implicit none
 
     logical :: json_found
 
-    interface myjson_get
-        module procedure :: myjson_value_get_real, myjson_file_get_real
-        module procedure :: myjson_value_get_integer, myjson_file_get_integer
-        module procedure :: myjson_value_get_string, myjson_file_get_string
-    end interface myjson_get
+    interface json_xtnsn_get
+        module procedure :: json_xtnsn_value_get_real, json_xtnsn_file_get_real
+        module procedure :: json_xtnsn_value_get_integer, json_xtnsn_file_get_integer
+        module procedure :: json_xtnsn_value_get_string, json_xtnsn_file_get_string
+    end interface json_xtnsn_get
 
 contains
 
 
-    subroutine myjson_value_get_real(json, name, value, default_value)
+    subroutine json_xtnsn_value_get_real(json, name, value, default_value)
         implicit none
         type(json_value),intent(in),pointer :: json
         character(len=*), intent(in) :: name
@@ -32,10 +32,10 @@ contains
                 STOP
             end if
         end if
-    end subroutine myjson_value_get_real
+    end subroutine json_xtnsn_value_get_real
     
     
-    subroutine myjson_value_get_integer(json, name, value, default_value)
+    subroutine json_xtnsn_value_get_integer(json, name, value, default_value)
         implicit none
         type(json_value),intent(in),pointer :: json
         character(len=*), intent(in) :: name
@@ -54,10 +54,10 @@ contains
             end if
         end if
     
-    end subroutine myjson_value_get_integer
+    end subroutine json_xtnsn_value_get_integer
     
     
-    subroutine myjson_value_get_string(json, name, value, default_value)
+    subroutine json_xtnsn_value_get_string(json, name, value, default_value)
         implicit none
         type(json_value), intent(in), pointer :: json
         character(len=*), intent(in) :: name
@@ -76,10 +76,10 @@ contains
             end if
         end if
     
-    end subroutine myjson_value_get_string
+    end subroutine json_xtnsn_value_get_string
     
     
-    subroutine myjson_file_get_real(json, name, value, default_value)
+    subroutine json_xtnsn_file_get_real(json, name, value, default_value)
         implicit none
         type(json_file) :: json
         character(len=*), intent(in) :: name
@@ -98,10 +98,10 @@ contains
             end if
         end if
     
-    end subroutine myjson_file_get_real
+    end subroutine json_xtnsn_file_get_real
     
     
-    subroutine myjson_file_get_integer(json, name, value, default_value)
+    subroutine json_xtnsn_file_get_integer(json, name, value, default_value)
         implicit none
         type(json_file) :: json
         character(len=*), intent(in) :: name
@@ -119,10 +119,10 @@ contains
                 STOP
             end if
         end if
-    end subroutine myjson_file_get_integer
+    end subroutine json_xtnsn_file_get_integer
     
     
-    subroutine myjson_file_get_string(json, name, value)
+    subroutine json_xtnsn_file_get_string(json, name, value)
         implicit none
         type(json_file) :: json
         character(len=*), intent(in) :: name
@@ -135,7 +135,7 @@ contains
         end if
     
         value = trim(value)
-    end subroutine myjson_file_get_string
+    end subroutine json_xtnsn_file_get_string
     
     
     subroutine json_check()
@@ -163,4 +163,4 @@ contains
     
     end subroutine print_json_error_message
 
-end module myjson_m
+end module json_xtnsn

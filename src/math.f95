@@ -1,12 +1,10 @@
-module math_m
-#ifdef dnad
-    use dnadmod
-#define real type(dual)
-#endif
+module math
 
     implicit none
     REAL, parameter :: pi = 3.1415926535897932
+    
 contains
+
 
 subroutine math_plane_normal(p1,p2,p3,ans)
     implicit none
@@ -17,6 +15,7 @@ subroutine math_plane_normal(p1,p2,p3,ans)
     call math_cross_product(a,b,ans)
 end subroutine math_plane_normal
 
+
 real function math_max(dim,vec)
     implicit none
     integer :: dim,i
@@ -26,6 +25,7 @@ real function math_max(dim,vec)
         if(vec(i) > math_max) math_max = vec(i)
     end do
 end function math_max
+
 
 real function math_length(dim,p1,p2)
     implicit none
@@ -56,6 +56,7 @@ real function math_mag(n,vec)
     math_mag = sqrt(dot_product(vec,vec))
 end function math_mag
 
+
 subroutine math_cross_product(a,b,c)
     implicit none
     real :: a(3),b(3),c(3)
@@ -63,6 +64,7 @@ subroutine math_cross_product(a,b,c)
     c(2) = a(3)*b(1)-a(1)*b(3);
     c(3) = a(1)*b(2)-a(2)*b(1);
 end subroutine math_cross_product
+
 
 subroutine math_rot_x(vec,th)
     implicit none
@@ -81,6 +83,7 @@ subroutine math_rot_x(vec,th)
     vec = ans
 end subroutine math_rot_x
 
+
 subroutine math_rot_y(vec,th)
     implicit none
     real :: vec(3),th,rm(3,3),ans(3)
@@ -97,6 +100,7 @@ subroutine math_rot_y(vec,th)
         ans = matmul(rm,vec)
         vec = ans
 end subroutine math_rot_y
+
 
 subroutine math_rot_z(vec,th)
     implicit none
@@ -116,8 +120,7 @@ subroutine math_rot_z(vec,th)
 end subroutine math_rot_z
 
 
-!-----------------------------------------------------------------------------------------------------------
-      subroutine math_matinv(n,a,ai)
+subroutine math_matinv(n,a,ai)
       implicit none
 !
 ! This sobroutine inverts a matrix "a" and returns the inverse in "ai"
@@ -273,77 +276,77 @@ END SUBROUTINE math_AXB_LUD
 !  * in combination with LUBKSB to solve linear equations or to  *
 !  * invert a matrix. Return code is 1, if matrix is singular.   *
 !  ***************************************************************
- Subroutine math_LUDCMP(A,N,INDX,D,CODE)
- implicit none
- integer, PARAMETER :: NMAX=100
- REAL, parameter :: TINY=1.5D-16
- real  AMAX,DUM, SUM, A(N,N)!,VV(N)
- real,allocatable,dimension(:) :: VV
- INTEGER N, CODE, D, INDX(N)
- integer :: I,J,K,IMAX
+Subroutine math_LUDCMP(A,N,INDX,D,CODE)
+  implicit none
+  integer, PARAMETER :: NMAX=100
+  REAL, parameter :: TINY=1.5D-16
+  real  AMAX,DUM, SUM, A(N,N)!,VV(N)
+  real,allocatable,dimension(:) :: VV
+  INTEGER N, CODE, D, INDX(N)
+  integer :: I,J,K,IMAX
 
- allocate(VV(N))
+  allocate(VV(N))
 
- D=1; CODE=0; IMAX = 0
+  D=1; CODE=0; IMAX = 0
 
- DO I=1,N
-   AMAX=0.0
-   DO J=1,N
-     IF (ABS(A(I,J)).GT.AMAX) AMAX=ABS(A(I,J))
-   END DO ! j loop
-   IF(AMAX.LT.TINY) THEN
-     CODE = 1
-     RETURN
-   END IF
-   VV(I) = 1.0 / AMAX
- END DO ! i loop
+  DO I=1,N
+    AMAX=0.0
+    DO J=1,N
+      IF (ABS(A(I,J)).GT.AMAX) AMAX=ABS(A(I,J))
+    END DO ! j loop
+    IF(AMAX.LT.TINY) THEN
+      CODE = 1
+      RETURN
+    END IF
+    VV(I) = 1.0 / AMAX
+  END DO ! i loop
 
- DO J=1,N
-   DO I=1,J-1
-     SUM = A(I,J)
-     DO K=1,I-1
-       SUM = SUM - A(I,K)*A(K,J)
-     END DO ! k loop
-     A(I,J) = SUM
-   END DO ! i loop
-   AMAX = 0.0
-   DO I=J,N
-     SUM = A(I,J)
-     DO K=1,J-1
-       SUM = SUM - A(I,K)*A(K,J)
-     END DO ! k loop
-     A(I,J) = SUM
-     DUM = VV(I)*ABS(SUM)
-     IF(DUM.GE.AMAX) THEN
-       IMAX = I
-       AMAX = DUM
-     END IF
-   END DO ! i loop
+  DO J=1,N
+    DO I=1,J-1
+      SUM = A(I,J)
+      DO K=1,I-1
+        SUM = SUM - A(I,K)*A(K,J)
+      END DO ! k loop
+      A(I,J) = SUM
+    END DO ! i loop
+    AMAX = 0.0
+    DO I=J,N
+      SUM = A(I,J)
+      DO K=1,J-1
+        SUM = SUM - A(I,K)*A(K,J)
+      END DO ! k loop
+      A(I,J) = SUM
+      DUM = VV(I)*ABS(SUM)
+      IF(DUM.GE.AMAX) THEN
+        IMAX = I
+        AMAX = DUM
+      END IF
+    END DO ! i loop
 
-   IF(J.NE.IMAX) THEN
-     DO K=1,N
-       DUM = A(IMAX,K)
-       A(IMAX,K) = A(J,K)
-       A(J,K) = DUM
-     END DO ! k loop
-     D = -D
-     VV(IMAX) = VV(J)
-   END IF
+    IF(J.NE.IMAX) THEN
+      DO K=1,N
+        DUM = A(IMAX,K)
+        A(IMAX,K) = A(J,K)
+        A(J,K) = DUM
+      END DO ! k loop
+      D = -D
+      VV(IMAX) = VV(J)
+    END IF
 
-   INDX(J) = IMAX
-   IF(ABS(A(J,J)) < TINY) A(J,J) = TINY
+    INDX(J) = IMAX
+    IF(ABS(A(J,J)) < TINY) A(J,J) = TINY
 
-   IF(J.NE.N) THEN
-     DUM = 1.0 / A(J,J)
-     DO I=J+1,N
-       A(I,J) = A(I,J)*DUM
-     END DO ! i loop
-   END IF
- END DO ! j loop
+    IF(J.NE.N) THEN
+      DUM = 1.0 / A(J,J)
+      DO I=J+1,N
+        A(I,J) = A(I,J)*DUM
+      END DO ! i loop
+    END IF
+  END DO ! j loop
 
- deallocate(VV)
- RETURN
- END subroutine math_LUDCMP
+  deallocate(VV)
+  RETURN
+END subroutine math_LUDCMP
 
 
 !  ******************************************************************
@@ -485,4 +488,4 @@ END SUBROUTINE math_AXB_LUD
       end subroutine quadratic_fit
 
 
-end module math_m
+end module math
