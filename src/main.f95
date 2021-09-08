@@ -46,4 +46,7 @@ program main
     ! Initialize surface mesh
     call body_mesh%initialize(input_json)
 
+    ! Output results
+    call body_mesh%output_results()
+
 end program main

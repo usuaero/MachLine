@@ -6,6 +6,7 @@ The following are prerequisites for compiling MFTran:
 
 * GNU Make (version>=4.2)
 * gcc (version>=9.3)
+* gnuplot
 
 ## Installation
 To install, navigate to the root directory and execute
