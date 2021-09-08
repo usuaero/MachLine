@@ -1,3 +1,19 @@
 {
+    "flow" : {
 
+    },
+    "geometry" : {
+        "surface_mesh" : {
+            "file" : "dev/meshes/supersonic_wing_body_med_res.vtk"
+        },
+        "volume_mesh" : {
+
+        }
+    },
+    "solver" : {
+
+    },
+    "output" : {
+
+    }
 }
