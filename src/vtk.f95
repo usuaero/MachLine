@@ -46,7 +46,7 @@ contains
             ! Initialize panels
             do i=1,N_panel
                 read(1,*) N, i1, i2, i3
-                panels(i) = panel(N, i1, i2, i3, vertices(i1,:), vertices(i2,:), vertices(i3,:))
+                panels(i) = panel(N, i1+1, i2+1, i3+1, vertices(i1+1,:), vertices(i2+1,:), vertices(i3+1,:))
             end do
 
         close(1)
@@ -93,7 +93,7 @@ contains
             ! Write out panels
             write(1,'(a i20 i20)') "POLYGONS", N_panel, panel_info_size
             do i=1,N_panel
-                write(1,101) panels(i)%N, panels(i)%i1, panels(i)%i2, panels(i)%i3
+                write(1,101) panels(i)%N, panels(i)%i1-1, panels(i)%i2-1, panels(i)%i3-1
             end do
 
         close(1)
