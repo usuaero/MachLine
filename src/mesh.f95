@@ -35,7 +35,7 @@ contains
 
         implicit none
 
-        class(surface_mesh),intent(out) :: t
+        class(surface_mesh),intent(inout) :: t
         type(json_value),pointer,intent(in) :: settings
         character(len=:),allocatable :: extension
         integer :: loc
@@ -64,7 +64,7 @@ contains
 
         implicit none
 
-        class(surface_mesh),intent(out) :: t
+        class(surface_mesh),intent(inout) :: t
         character(len=:),allocatable,intent(in) :: output_file
 
         ! Write out data
