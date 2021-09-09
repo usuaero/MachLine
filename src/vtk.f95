@@ -3,10 +3,11 @@ module vtk
     use geometry
 
     implicit none
+
     
 contains
 
-    subroutine load_vtk(mesh_file, N_vert, N_panel, vertices, panels)
+    subroutine load_surface_vtk(mesh_file, N_vert, N_panel, vertices, panels)
 
         implicit none
 
@@ -49,16 +50,16 @@ contains
 
         close(1)
     
-    end subroutine load_vtk
+    end subroutine load_surface_vtk
 
 
-    subroutine write_surface_vtk(filename, vertices, panels)
+    subroutine write_surface_vtk(output_file, vertices, panels)
 
         implicit none
 
-        character(len=:),allocatable,intent(in) :: filename
-        real,dimension(:,:),allocatable,intent(in) :: vertices
-        type(panel),dimension(:),allocatable,intent(in) :: panels
+        character(len=:),allocatable,intent(in) :: output_file
+        real,dimension(:,:),intent(in) :: vertices
+        type(panel),dimension(:),intent(in) :: panels
         integer :: i, N_vert, N_panel, panel_info_size
 
         ! Formats for writing out results
@@ -66,7 +67,8 @@ contains
         101 format(i20, ' ', i20, ' ', i20) ! Panel indices
 
         ! Open file
-        open(1, file=filename)
+        open(1, file=output_file)
+            write(*,*) "Made it into file"
 
             ! Write header
             write(1,*) "# vtk DataFile Version 3.0"
@@ -75,16 +77,20 @@ contains
 
             ! Write out vertices
             N_vert = size(vertices)/3
+            write(*,*) N_vert
             write(1,*) "DATASET POLYDATA"
             write(1,*) "POINTS", N_vert, "float"
             do i=1,N_vert
                 write(1,100) vertices(i,1), vertices(i,2), vertices(i,3)
+                write(*,*) size(vertices)
             end do
+            write(*,*) "Made it past vertices"
 
             ! Determine panel info size
             panel_info_size = 0
             N_panel = size(panels)
             do i=1,N_panel
+                write(*,*) 
                 panel_info_size = panel_info_size + panels(i)%N + 1
             end do
             
@@ -93,6 +99,7 @@ contains
             do i=1,N_panel
                 write(1,101) panels(i)%i1, panels(i)%i2, panels(i)%i3
             end do
+            write(*,*) "Made it past panels"
 
         close(1)
         

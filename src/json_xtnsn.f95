@@ -1,3 +1,4 @@
+! Extends the original JSON module for usability
 module json_xtnsn
 
     use json

@@ -26,6 +26,7 @@
 !  HISTORY
 !    Joseph A. Levin : March 2012
 !    Jacob Williams : 2/8/2013 : Extensive modifications to the original code.
+!       Cory Goates : 2021 More modifications
 !
 !  SEE ALSO
 !    [1] http://github.com/jacobwilliams/json-fortran [json-fortran development site]
