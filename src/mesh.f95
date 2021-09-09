@@ -1,9 +1,11 @@
+! Types and subroutines for meshes
 module mesh
 
     use json
     use json_xtnsn
     use vtk
     use geometry
+    use adt
 
     implicit none
 
@@ -14,6 +16,7 @@ module mesh
         real,allocatable,dimension(:,:) :: vertices
         type(panel),allocatable,dimension(:) :: panels
         character(len=:),allocatable :: mesh_file
+        type(alternating_digital_tree) :: vertex_tree
 
         contains
 
@@ -38,7 +41,7 @@ contains
         class(surface_mesh),intent(inout) :: t
         type(json_value),pointer,intent(in) :: settings
         character(len=:),allocatable :: extension
-        integer :: loc
+        integer :: loc, i
 
         ! Get mesh file
         call json_get(settings, 'file', t%mesh_file)
@@ -56,6 +59,15 @@ contains
 
         ! Display mesh info
         write(*,*) "    Surface mesh has", t%N_vert, "vertices and", t%N_panel, "panels."
+
+        ! Set number of dimensions for ADT
+        t%vertex_tree%N_dims = 3
+
+        ! Load into alternating digital tree
+        do i=1,t%N_vert
+            call t%vertex_tree%add(t%vertices(i,:))
+        end do
+
     
     end subroutine surface_mesh_initialize
 

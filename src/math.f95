@@ -1,3 +1,4 @@
+! Generic math subroutines
 module math
 
     implicit none
