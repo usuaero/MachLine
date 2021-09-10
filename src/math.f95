@@ -13,7 +13,7 @@ subroutine math_plane_normal(p1,p2,p3,ans)
 
     a = p2 - p1
     b = p3 - p1
-    call math_cross_product(a,b,ans)
+    ans = cross(a,b)
 end subroutine math_plane_normal
 
 
@@ -58,13 +58,39 @@ real function math_mag(n,vec)
 end function math_mag
 
 
-subroutine math_cross_product(a,b,c)
+function cross(a, b) result(c)
+
     implicit none
-    real :: a(3),b(3),c(3)
-    c(1) = a(2)*b(3)-a(3)*b(2);
-    c(2) = a(3)*b(1)-a(1)*b(3);
-    c(3) = a(1)*b(2)-a(2)*b(1);
-end subroutine math_cross_product
+
+    real :: a(3), b(3), c(3)
+
+    c(1) = a(2)*b(3) - a(3)*b(2)
+    c(2) = a(3)*b(1) - a(1)*b(3)
+    c(3) = a(1)*b(2) - a(2)*b(1)
+
+end function cross
+
+
+function inner(a, b) result(c)
+
+  implicit none
+  real, dimension(3) :: a, b
+  real :: c
+
+  c = a(1)*b(1)+a(2)*b(2)+a(3)*b(3)
+
+end function inner
+
+
+function norm(a) result(c)
+
+  implicit none
+  real, dimension(3) :: a
+  real :: c
+
+  c = sqrt(inner(a, a))
+
+end function norm
 
 
 subroutine math_rot_x(vec,th)
@@ -131,6 +157,7 @@ subroutine math_matinv(n,a,ai)
 ! d  - Work array, an n by 2n real array used by the subroutine.
 ! io - Work array, a 1-dimensional integer array of length n used by the subroutine.
 !
+      ! THIS FUNCTION SHOULD NEVER BE CALLED! NEVER INVERT A MARTIX EXPLICITLY!
       integer :: n,i,j,k,m,itmp
       real :: a(n,n),ai(n,n),tmp,r !,d(n,2*n)
 !      integer :: io(n)

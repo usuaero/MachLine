@@ -1,9 +1,7 @@
 ! Subroutines for I/O with VTK files
 module vtk_mod
 
-    use base_panel_mod
-    use tri_panel_mod
-    use quad_panel_mod
+    use panel_mod
     use vertex_mod
 
     implicit none
@@ -19,9 +17,7 @@ contains
         integer,intent(out) :: N_verts, N_panels
         character(len=200) :: dummy_read
         type(vertex),dimension(:),allocatable,intent(inout) :: vertices
-        type(panel_pointer),dimension(:),allocatable,intent(inout) :: panels
-        type(tri_panel),pointer :: dummy_tri
-        type(quad_panel),pointer :: dummy_quad
+        type(panel),dimension(:),allocatable,intent(inout) :: panels
         integer :: i, N, i1, i2, i3, i4
 
         ! Open file
@@ -67,15 +63,11 @@ contains
 
                 ! Initialize trigonal panel
                 if (N == 3) then
-                    allocate(dummy_tri)
-                    call dummy_tri%init(vertices(i1+1), vertices(i2+1), vertices(i3+1)) ! Need +1 because VTK is 0-indexed
-                    panels(i)%ptr => dummy_tri
+                    call panels(i)%init_3(vertices(i1+1), vertices(i2+1), vertices(i3+1)) ! Need +1 because VTK is 0-indexed
 
                 ! Initialize quadrilateral panel
                 else
-                    allocate(dummy_quad)
-                    call dummy_quad%init(vertices(i1+1), vertices(i2+1), vertices(i3+1), vertices(i4+1))
-                    panels(i)%ptr => dummy_quad
+                    call panels(i)%init_4(vertices(i1+1), vertices(i2+1), vertices(i3+1), vertices(i4+1))
                 end if
 
             end do
@@ -91,7 +83,7 @@ contains
 
         character(len=:),allocatable,intent(in) :: output_file
         type(vertex),dimension(:),intent(in) :: vertices
-        type(panel_pointer),dimension(:),intent(in) :: panels
+        type(panel),dimension(:),intent(in) :: panels
         integer :: i, N_verts, N_panels, panel_info_size, j
 
         ! Open file
@@ -117,7 +109,7 @@ contains
             panel_info_size = 0
             N_panels = size(panels)
             do i=1,N_panels
-                panel_info_size = panel_info_size + panels(i)%ptr%N + 1
+                panel_info_size = panel_info_size + panels(i)%N + 1
             end do
             
             ! Write out panels
@@ -125,11 +117,11 @@ contains
             do i=1,N_panels
 
                 ! Number of vertices
-                write(1,'(i1) ',advance='no') panels(i)%ptr%N
+                write(1,'(i1) ',advance='no') panels(i)%N
 
                 ! Indices of each vertex
-                do j=1,panels(i)%ptr%N
-                    write(1,'(i20) ',advance='no') panels(i)%ptr%vertices(j)%ptr%index-1
+                do j=1,panels(i)%N
+                    write(1,'(i20) ',advance='no') panels(i)%vertices(j)%ptr%index-1
                 end do
                 write(1,*)
 

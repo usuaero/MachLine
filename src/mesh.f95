@@ -5,9 +5,7 @@ module mesh_mod
     use json_xtnsn_mod
     use vtk_mod
     use vertex_mod
-    use base_panel_mod
-    use tri_panel_mod
-    use quad_panel_mod
+    use panel_mod
     use adt_mod
 
     implicit none
@@ -17,7 +15,7 @@ module mesh_mod
 
         integer :: N_verts, N_panels
         type(vertex),allocatable,dimension(:) :: vertices
-        type(panel_pointer),allocatable,dimension(:) :: panels
+        type(panel),allocatable,dimension(:) :: panels
         character(len=:),allocatable :: mesh_file
         type(alternating_digital_tree) :: vertex_tree
 

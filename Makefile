@@ -5,9 +5,7 @@ all:
 	src/json.f95 \
 	src/json_xtnsn.f95 \
 	src/vertex.f95 \
-	src/base_panel.f95 \
-	src/tri_panel.f95 \
-	src/quad_panel.f95 \
+	src/panel.f95 \
 	src/adt.f95 \
 	src/vtk.f95 \
 	src/mesh.f95 \
