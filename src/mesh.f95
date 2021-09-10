@@ -1,11 +1,14 @@
 ! Types and subroutines for meshes
-module mesh
+module mesh_mod
 
-    use json
-    use json_xtnsn
-    use vtk
-    use geometry
-    use adt
+    use json_mod
+    use json_xtnsn_mod
+    use vtk_mod
+    use vertex_mod
+    use base_panel_mod
+    use tri_panel_mod
+    use quad_panel_mod
+    use adt_mod
 
     implicit none
 
@@ -105,4 +108,4 @@ contains
     end subroutine surface_mesh_output_results
 
     
-end module mesh
+end module mesh_mod

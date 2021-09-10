@@ -1,5 +1,5 @@
 ! Generic math subroutines
-module math
+module math_mod
 
     implicit none
     REAL, parameter :: pi = 3.1415926535897932
@@ -489,4 +489,4 @@ END subroutine math_LUDCMP
       end subroutine quadratic_fit
 
 
-end module math
+end module math_mod

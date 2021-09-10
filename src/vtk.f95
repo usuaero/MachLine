@@ -1,7 +1,10 @@
 ! Subroutines for I/O with VTK files
-module vtk
+module vtk_mod
 
-    use geometry
+    use base_panel_mod
+    use tri_panel_mod
+    use quad_panel_mod
+    use vertex_mod
 
     implicit none
 
@@ -138,4 +141,4 @@ contains
     end subroutine write_surface_vtk
 
     
-end module vtk
+end module vtk_mod

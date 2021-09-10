@@ -1,7 +1,7 @@
 ! Describes and handles an alternating digital tree which stores a set of vertices in 3-space
-module adt
+module adt_mod
 
-    use geometry
+    use vertex_mod
 
     type alternating_digital_tree
 
@@ -41,7 +41,6 @@ contains
         real,dimension(3) :: p_mid
         integer,intent(in) :: level
         integer :: dir
-        real :: div
 
         ! Check if current node already exists
         if (associated(curr)) then
@@ -140,4 +139,4 @@ contains
     
     end subroutine adt_write_vtk
 
-end module adt
+end module adt_mod

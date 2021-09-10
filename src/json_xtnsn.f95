@@ -1,7 +1,7 @@
 ! Extends the original JSON module for usability
-module json_xtnsn
+module json_xtnsn_mod
 
-    use json
+    use json_mod
     implicit none
 
     logical :: json_found
@@ -164,4 +164,4 @@ contains
     
     end subroutine print_json_error_message
 
-end module json_xtnsn
+end module json_xtnsn_mod

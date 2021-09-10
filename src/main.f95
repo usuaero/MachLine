@@ -1,9 +1,9 @@
 program main
 
-    use math
-    use json
-    use json_xtnsn
-    use mesh
+    use math_mod
+    use json_mod
+    use json_xtnsn_mod
+    use mesh_mod
 
     implicit none
 
