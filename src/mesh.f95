@@ -12,10 +12,9 @@ module mesh
 
     type surface_mesh
 
-        integer :: N_vert, N_panel
-        real,allocatable,dimension(:,:) :: vertices
-        type(vertex),allocatable,dimension(:) :: vertex_objects
-        type(panel),allocatable,dimension(:) :: panels
+        integer :: N_verts, N_panels
+        type(vertex),allocatable,dimension(:) :: vertices
+        type(panel_pointer),allocatable,dimension(:) :: panels
         character(len=:),allocatable :: mesh_file
         type(alternating_digital_tree) :: vertex_tree
 
@@ -23,7 +22,6 @@ module mesh
 
             procedure :: initialize => surface_mesh_initialize
             procedure :: output_results => surface_mesh_output_results
-            procedure :: calc_inv_panel_vertex_mapping => surface_mesh_calc_inverse_panel_vertex_mapping
 
     end type surface_mesh
 
@@ -36,101 +34,62 @@ module mesh
 contains
 
 
-    subroutine surface_mesh_initialize(t, settings)
+    subroutine surface_mesh_initialize(this, settings)
 
         implicit none
 
-        class(surface_mesh),intent(inout) :: t
+        class(surface_mesh),intent(inout) :: this
         type(json_value),pointer,intent(in) :: settings
         character(len=:),allocatable :: extension
+        real,dimension(3) :: p_min, p_max
         integer :: loc, i
 
         ! Get mesh file
-        call json_get(settings, 'file', t%mesh_file)
-        t%mesh_file = trim(t%mesh_file)
-        write(*,*) "    Initializing surface mesh from file:", t%mesh_file
+        call json_get(settings, 'file', this%mesh_file)
+        this%mesh_file = trim(this%mesh_file)
+        write(*,*) "    Initializing surface mesh from file: ", this%mesh_file
 
         ! Determine the type of mesh file
-        loc = index(t%mesh_file, '.')
-        extension = t%mesh_file(loc:len(t%mesh_file))
+        loc = index(this%mesh_file, '.')
+        extension = this%mesh_file(loc:len(this%mesh_file))
 
         ! Load vtk
         if (extension .eq. '.vtk') then
-            call load_surface_vtk(t%mesh_file, t%N_vert, t%N_panel, t%vertices, t%panels)
+            call load_surface_vtk(this%mesh_file, this%N_verts, this%N_panels, this%vertices, this%panels)
         end if
 
-        ! Load vertices into object array
-        allocate(t%vertex_objects(t%N_vert))
-        do i=1,t%N_vert
-            t%vertex_objects(i)%p = t%vertices(i,:)
-        end do
-
         ! Display mesh info
-        write(*,*) "    Surface mesh has", t%N_vert, "vertices and", t%N_panel, "panels."
+        write(*,*) "    Surface mesh has", this%N_verts, "vertices and", this%N_panels, "panels."
 
-        ! Set bounds of alternating digital tree
-        t%vertex_tree%p_min = minval(t%vertices, 1)
-        t%vertex_tree%p_max = maxval(t%vertices, 1)
+        ! Determine bounds of alternating digital tree
+        p_min = this%vertices(1)%loc
+        p_max = this%vertices(1)%loc
+        do i=2,this%N_verts
+
+            ! Check mins
+            p_min(1) = min(this%vertices(i)%loc(1), p_min(1))
+            p_min(2) = min(this%vertices(i)%loc(2), p_min(2))
+            p_min(3) = min(this%vertices(i)%loc(3), p_min(3))
+
+            ! Check maxs
+            p_max(1) = max(this%vertices(i)%loc(1), p_max(1))
+            p_max(2) = max(this%vertices(i)%loc(2), p_max(2))
+            p_max(3) = max(this%vertices(i)%loc(3), p_max(3))
+
+        end do
+        
+        ! Store
+        this%vertex_tree%p_min = p_min
+        this%vertex_tree%p_max = p_max
 
         ! Load vertices into alternating digital tree
         write(*,*)
         write(*,*) "    Loading vertices into ADT..."
-        do i=1,t%N_vert
-            call t%vertex_tree%add(t%vertices(i,:))
+        do i=1,this%N_verts
+            call this%vertex_tree%add(this%vertices(i))
         end do
-
-        ! Run inverse vertex mapping
-        call t%calc_inv_panel_vertex_mapping()
     
     end subroutine surface_mesh_initialize
-
-
-    subroutine surface_mesh_calc_inverse_panel_vertex_mapping(t)
-
-        implicit none
-
-        class (surface_mesh),intent(inout) :: t
-        integer :: i,j
-
-        ! Loop through panels and add their indices to each vertex's list of neighboring panels
-        do i=1,t%N_panel
-
-            ! Vertex 1
-            do j=1,20
-                if (t%vertex_objects(t%panels(i)%i1)%neighboring_panels(j) == -1) then
-                    t%vertex_objects(i)%neighboring_panels(j) = i
-                    exit
-                end if
-            end do
-
-            ! Vertex 2
-            do j=1,20
-                if (t%vertex_objects(t%panels(i)%i2)%neighboring_panels(j) == -1) then
-                    t%vertex_objects(i)%neighboring_panels(j) = i
-                    exit
-                end if
-            end do
-
-            ! Vertex 3
-            do j=1,20
-                write(*,*) t%panels(i)%i3
-                if (t%vertex_objects(t%panels(i)%i3)%neighboring_panels(j) == -1) then
-                    t%vertex_objects(i)%neighboring_panels(j) = i
-                    exit
-                end if
-            end do
-
-        end do
-
-        do i=1,t%N_vert
-            write(*,*)
-            write(*,*)
-            write(*,*)
-            write(*,*)
-            write(*,*) t%vertex_objects(i)%neighboring_panels
-        end do
-    
-    end subroutine surface_mesh_calc_inverse_panel_vertex_mapping
 
 
     subroutine surface_mesh_output_results(t, output_file)
