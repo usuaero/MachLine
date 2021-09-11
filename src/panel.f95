@@ -19,8 +19,9 @@ module panel_mod
 
         contains
 
-            procedure :: init_3 => panel_init_3
-            procedure :: init_4 => panel_init_4
+            procedure :: panel_init_3
+            procedure :: panel_init_4
+            generic :: init => panel_init_3, panel_init_4
             procedure :: init_common =>panel_init_common
             procedure :: calc_area => panel_calc_area
             procedure :: calc_normal => panel_calc_normal
@@ -163,7 +164,7 @@ contains
 
         class(panel),intent(in) :: this
         integer,intent(in) :: i
-        real,dimension(3),intent(out) :: loc
+        real,dimension(3) :: loc
 
         loc = this%vertices(i)%ptr%loc
 

@@ -61,13 +61,13 @@ contains
                     stop
                 end if
 
-                ! Initialize trigonal panel
+                ! Initialize triangular panel
                 if (N == 3) then
-                    call panels(i)%init_3(vertices(i1+1), vertices(i2+1), vertices(i3+1)) ! Need +1 because VTK is 0-indexed
+                    call panels(i)%init(vertices(i1+1), vertices(i2+1), vertices(i3+1)) ! Need +1 because VTK is 0-indexed
 
                 ! Initialize quadrilateral panel
                 else
-                    call panels(i)%init_4(vertices(i1+1), vertices(i2+1), vertices(i3+1), vertices(i4+1))
+                    call panels(i)%init(vertices(i1+1), vertices(i2+1), vertices(i3+1), vertices(i4+1))
                 end if
 
             end do
