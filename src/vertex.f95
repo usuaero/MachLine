@@ -13,6 +13,7 @@ module vertex_mod
         logical :: on_kutta_edge
         integer :: index ! Index of this vertex in the mesh
         type(list) :: panels ! List of panels which connect to this vertex
+        real :: phi = 0 ! Perturbation doublet strength
 
         contains
 

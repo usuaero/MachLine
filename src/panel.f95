@@ -16,6 +16,7 @@ module panel_mod
         real,dimension(3) :: normal ! Normal vector
         real,dimension(:,:),allocatable :: midpoints
         real :: A ! Surface area
+        real :: phi_n = 0 ! Perturbation source strength
 
         contains
 

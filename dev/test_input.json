@@ -1,10 +1,13 @@
 {
     "flow" : {
-
+        "V_inf" : [-100.0, 0.0, 0.0],
+        "M_inf" : 1.6,
+        "gamma" : 1.4
     },
     "geometry" : {
         "surface_mesh" : {
-            "file" : "dev/meshes/supersonic_wing_body_med_res.vtk"
+            "file" : "dev/meshes/supersonic_wing_body_med_res.vtk",
+            "wake_shedding_angle" : 90.0
         },
         "volume_mesh" : {
 

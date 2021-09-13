@@ -4,6 +4,8 @@ program main
     use json_mod
     use json_xtnsn_mod
     use mesh_mod
+    use flow_mod
+    use panel_solver_mod
 
     implicit none
 
@@ -19,6 +21,8 @@ program main
                                  volume_mesh_settings
     type(surface_mesh) :: body_mesh
     type(cart_volume_mesh) :: volume_mesh
+    type(flow) :: freestream_flow
+    type(panel_solver) :: linear_solver
 
     ! Welcome message
     write(*,*) "           /"
@@ -46,7 +50,7 @@ program main
 
     ! Load settings from input file
     write(*,*)
-    write(*,*) "Loading input..."
+    write(*,*) "Loading input"
     call input_json%load_file(filename=input_file)
     call json_check()
     call input_json%get('flow', flow_settings)
@@ -56,11 +60,33 @@ program main
 
     ! Initialize surface mesh
     call json_get(geometry_settings, 'surface_mesh', surface_mesh_settings)
-    call body_mesh%initialize(surface_mesh_settings)
+    call body_mesh%init(surface_mesh_settings)
+
+    ! Initialize flow
+    call freestream_flow%init(flow_settings)
+
+    write(*,*)
+    write(*,*) "Initializing"
+
+    ! Locate Kutta edges
+    call body_mesh%locate_kutta_edges(freestream_flow)
+
+    ! Initialize wake mesh
+
+    write(*,*)
+    write(*,*) "Running flow solvers"
+
+    ! Initialize panel solver
+    call linear_solver%init(solver_settings)
+
+    ! Run solver
+    call linear_solver%solve(body_mesh, freestream_flow)
 
     ! Output results
     write(*,*)
-    write(*,*) "Writing results to file..."
+    write(*,*) "Post-processing"
+    write(*,*)
+    write(*,*) "    Writing results to file..."
     call json_get(output_settings, 'file', output_file)
     call body_mesh%output_results(output_file)
 

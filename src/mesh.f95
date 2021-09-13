@@ -7,6 +7,8 @@ module mesh_mod
     use vertex_mod
     use panel_mod
     use adt_mod
+    use flow_mod
+    use math_mod
 
     implicit none
 
@@ -18,11 +20,13 @@ module mesh_mod
         type(panel),allocatable,dimension(:) :: panels
         character(len=:),allocatable :: mesh_file
         type(alternating_digital_tree) :: vertex_tree
+        real :: kutta_angle, C_kutta_angle
 
         contains
 
-            procedure :: initialize => surface_mesh_initialize
+            procedure :: init => surface_mesh_init
             procedure :: output_results => surface_mesh_output_results
+            procedure :: locate_kutta_edges => surface_mesh_locate_kutta_edges
 
     end type surface_mesh
 
@@ -35,7 +39,7 @@ module mesh_mod
 contains
 
 
-    subroutine surface_mesh_initialize(this, settings)
+    subroutine surface_mesh_init(this, settings)
 
         implicit none
 
@@ -85,12 +89,17 @@ contains
 
         ! Load vertices into alternating digital tree
         write(*,*)
-        write(*,*) "    Loading vertices into ADT..."
+        write(*,'(a)',advance='no') "     Loading vertices into ADT..."
         do i=1,this%N_verts
             call this%vertex_tree%add(this%vertices(i))
         end do
+        write(*,*) "Done."
+
+        ! Store other settings
+        call json_get(settings, 'wake_shedding_angle', this%kutta_angle)
+        this%C_kutta_angle = cos(this%kutta_angle*pi/180.0)
     
-    end subroutine surface_mesh_initialize
+    end subroutine surface_mesh_init
 
 
     subroutine surface_mesh_output_results(t, output_file)
@@ -105,5 +114,74 @@ contains
     
     end subroutine surface_mesh_output_results
 
+
+    subroutine surface_mesh_locate_kutta_edges(this, freestream_flow)
+
+        implicit none
+
+        class(surface_mesh),intent(inout) :: this
+        type(flow),intent(in) :: freestream_flow
+        integer :: i, j, m, n, N_shared_verts, N_kutta_edges
+        real,dimension(3) :: d
+        logical :: abutting
+        real :: distance
+
+        write(*,*)
+        write(*,'(a)',advance='no') "     Locating wake-shedding edges..."
+
+        ! Loop through each pair of panels
+        N_kutta_edges = 0
+        do i=1,this%N_panels
+            do j=i+1,this%N_panels
+
+                ! Initialize for this panel pair
+                n_shared_verts = 0
+                abutting = .false.
+
+                ! Check if the panels are abutting
+                abutting_loop: do m=1,this%panels(i)%N
+                    do n=1,this%panels(j)%N
+
+                        ! Get distance between vertices
+                        d = this%panels(i)%get_vertex_loc(m)-this%panels(j)%get_vertex_loc(n)
+                        distance = norm(d)
+
+                        ! Check distance
+                        if (distance < 1e-10) then
+
+                            ! Previously found a shared vertex
+                            if (n_shared_verts == 1) then
+                                abutting = .true.
+                                exit abutting_loop
+
+                            ! First shared vertex
+                            else
+                                n_shared_verts = 1
+                            end if
+
+                        end if
+
+                    end do
+                end do abutting_loop
+
+                if (abutting) then
+
+                    ! Check angle between panels
+                    if (inner(this%panels(i)%normal, this%panels(j)%normal) < this%C_kutta_angle) then
+
+                        ! Check angle with freestream
+                        if (inner(this%panels(i)%normal, freestream_flow%V_inf) > 0.0 .or. &
+                            inner(this%panels(j)%normal, freestream_flow%V_inf) > 0.0) then
+                            N_kutta_edges = N_kutta_edges + 1
+                        end if
+                    end if
+                end if
+
+            end do
+        end do
+
+        write(*,*) "Done. Found", N_kutta_edges, "wake-shedding edges."
+
+    end subroutine surface_mesh_locate_kutta_edges
     
 end module mesh_mod
