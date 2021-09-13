@@ -1,6 +1,8 @@
 ! Types for geometric objects
 module vertex_mod
 
+    use linked_list_mod
+
     implicit none
 
 
@@ -9,8 +11,8 @@ module vertex_mod
 
         real,dimension(3) :: loc, cp ! Location and associated control point
         logical :: on_kutta_edge
-        integer,dimension(20) :: neighboring_panels = -1
         integer :: index ! Index of this vertex in the mesh
+        type(list) :: panels ! List of panels which connect to this vertex
 
         contains
 
@@ -44,5 +46,6 @@ contains
         this%index = index
 
     end subroutine vertex_init
+
     
 end module vertex_mod

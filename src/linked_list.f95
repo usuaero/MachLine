@@ -55,6 +55,7 @@ module linked_list_mod
   contains
     final :: list_finalizer
     procedure :: len => list_length
+    procedure :: append => list_append_item
   end type list
 
   ! interfaces:
@@ -111,7 +112,7 @@ contains
 !    Finalizes the components of the given list.
 !
   pure subroutine list_append_item( this, item )
-    type(list), intent(inout) :: this
+    class(list), intent(inout) :: this
     class(*), intent(in) :: item
 
     if (associated(this%tail)) then

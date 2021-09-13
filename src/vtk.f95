@@ -18,7 +18,7 @@ contains
         character(len=200) :: dummy_read
         type(vertex),dimension(:),allocatable,intent(inout) :: vertices
         type(panel),dimension(:),allocatable,intent(inout) :: panels
-        integer :: i, N, i1, i2, i3, i4
+        integer :: i, j, N, i1, i2, i3, i4
 
         ! Open file
         open(1, file=mesh_file)
@@ -57,17 +57,28 @@ contains
                 else if (dummy_read(1:2) == '4 ') then
                     read(dummy_read,*) N, i1, i2, i3, i4
                 else
-                    write(*,*) "MFTran supports only trigonal and quadrilateral panels."
+                    write(*,*) "MFTran supports only triangular and quadrilateral panels."
                     stop
                 end if
 
                 ! Initialize triangular panel
                 if (N == 3) then
-                    call panels(i)%init(vertices(i1+1), vertices(i2+1), vertices(i3+1)) ! Need +1 because VTK is 0-indexed
+                    call panels(i)%init(vertices(i1+1), vertices(i2+1), vertices(i3+1)) ! Need +1 because VTK uses 0-based indexing
+
+                    ! Add panel index to vertices
+                    call vertices(i1+1)%panels%append(i)
+                    call vertices(i2+1)%panels%append(i)
+                    call vertices(i3+1)%panels%append(i)
 
                 ! Initialize quadrilateral panel
                 else
                     call panels(i)%init(vertices(i1+1), vertices(i2+1), vertices(i3+1), vertices(i4+1))
+
+                    ! Add panel index to vertices
+                    call vertices(i1+1)%panels%append(i)
+                    call vertices(i2+1)%panels%append(i)
+                    call vertices(i3+1)%panels%append(i)
+                    call vertices(i4+1)%panels%append(i)
                 end if
 
             end do
