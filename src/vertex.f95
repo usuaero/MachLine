@@ -13,6 +13,8 @@ module vertex_mod
         logical :: on_kutta_edge ! Whether this vertex is on a Kutta edge
         logical :: in_kutta_edge ! Whether this vertex is not an endpoint for a chain of Kutta edges (i.e. has two attached edges)
         integer :: index ! Index of this vertex in the mesh
+        integer :: index_in_kutta_vertices ! Index of this vertex in the list of Kutta vertices
+        integer :: parent = 0 ! Index of the vertex this vertex's strength is determined by (for a wake vertex)
         type(list) :: panels ! List of panels which connect to this vertex
         real :: phi = 0 ! Perturbation doublet strength
 

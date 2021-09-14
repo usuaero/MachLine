@@ -24,6 +24,7 @@
 
     },
     "output" : {
-        "file" : "dev/results/supersonic_wing_body_med_res.vtk"
+        "body_file" : "dev/results/supersonic_wing_body_med_res.vtk",
+        "wake_file" : "dev/results/supersonic_wing_body_med_res_wake.vtk"
     }
 }
