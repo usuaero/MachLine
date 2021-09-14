@@ -4,7 +4,7 @@ module panel_solver_mod
     use json_xtnsn_mod
     use panel_mod
     use vertex_mod
-    use mesh_mod
+    use surface_mesh_mod
     use flow_mod
     use math_mod
 

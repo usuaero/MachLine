@@ -17,6 +17,9 @@ module panel_mod
         real,dimension(:,:),allocatable :: midpoints
         real :: A ! Surface area
         real :: phi_n = 0 ! Perturbation source strength
+        logical :: on_kutta_edge
+        logical :: wake_panel ! Whether this panel belongs to a wake
+        logical :: shock_panel ! Whether this panel belongs to a shock
 
         contains
 
@@ -27,6 +30,7 @@ module panel_mod
             procedure :: calc_area => panel_calc_area
             procedure :: calc_normal => panel_calc_normal
             procedure :: get_vertex_loc => panel_get_vertex_loc
+            procedure :: get_vertex_index => panel_get_vertex_index
 
     end type panel
 
@@ -170,5 +174,18 @@ contains
         loc = this%vertices(i)%ptr%loc
 
     end function panel_get_vertex_loc
+
+
+    function panel_get_vertex_index(this, i) result(index)
+
+        implicit none
+
+        class(panel),intent(in) :: this
+        integer,intent(in) :: i
+        integer :: index
+
+        index = this%vertices(i)%ptr%index
+
+    end function panel_get_vertex_index
     
 end module panel_mod

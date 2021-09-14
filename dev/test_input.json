@@ -7,7 +7,14 @@
     "geometry" : {
         "surface_mesh" : {
             "file" : "dev/meshes/supersonic_wing_body_med_res.vtk",
-            "wake_shedding_angle" : 90.0
+            "wake_model" : {
+                "wake_shedding_angle" : 90.0,
+                "trefftz_length" : 100.0,
+                "N_panels" : 50
+            },
+            "shock_model" : {
+
+            }
         },
         "volume_mesh" : {
 

@@ -10,7 +10,8 @@ module vertex_mod
         ! A vertex in 3-space
 
         real,dimension(3) :: loc, cp ! Location and associated control point
-        logical :: on_kutta_edge
+        logical :: on_kutta_edge ! Whether this vertex is on a Kutta edge
+        logical :: in_kutta_edge ! Whether this vertex is not an endpoint for a chain of Kutta edges (i.e. has two attached edges)
         integer :: index ! Index of this vertex in the mesh
         type(list) :: panels ! List of panels which connect to this vertex
         real :: phi = 0 ! Perturbation doublet strength

@@ -1,5 +1,5 @@
 ! Types and subroutines for meshes
-module mesh_mod
+module surface_mesh_mod
 
     use json_mod
     use json_xtnsn_mod
@@ -18,15 +18,20 @@ module mesh_mod
         integer :: N_verts, N_panels
         type(vertex),allocatable,dimension(:) :: vertices
         type(panel),allocatable,dimension(:) :: panels
+        type(vertex),allocatable,dimension(:) :: wake_vertices
+        type(panel),allocatable,dimension(:) :: wake_panels
+        type(list) :: kutta_vertices
         character(len=:),allocatable :: mesh_file
         type(alternating_digital_tree) :: vertex_tree
-        real :: kutta_angle, C_kutta_angle
+        real :: kutta_angle, C_kutta_angle, trefftz_length
+        integer :: N_wake_panels, N_kutta_edges
 
         contains
 
             procedure :: init => surface_mesh_init
             procedure :: output_results => surface_mesh_output_results
             procedure :: locate_kutta_edges => surface_mesh_locate_kutta_edges
+            procedure :: initialize_wake => surface_mesh_initialize_wake
 
     end type surface_mesh
 
@@ -95,8 +100,10 @@ contains
         end do
         write(*,*) "Done."
 
-        ! Store other settings
-        call json_get(settings, 'wake_shedding_angle', this%kutta_angle)
+        ! Store other settings for wake models
+        call json_get(settings, 'wake_model.wake_shedding_angle', this%kutta_angle)
+        call json_get(settings, 'wake_model.trefftz_length', this%trefftz_length)
+        call json_get(settings, 'wake_model.N_panels', this%N_wake_panels)
         this%C_kutta_angle = cos(this%kutta_angle*pi/180.0)
     
     end subroutine surface_mesh_init
@@ -123,6 +130,7 @@ contains
         type(flow),intent(in) :: freestream_flow
         integer :: i, j, m, n, N_shared_verts, N_kutta_edges
         real,dimension(3) :: d
+        integer,dimension(2) :: shared_verts
         logical :: abutting
         real :: distance
 
@@ -152,11 +160,13 @@ contains
                             ! Previously found a shared vertex
                             if (n_shared_verts == 1) then
                                 abutting = .true.
+                                shared_verts(2) = this%panels(i)%get_vertex_index(m)
                                 exit abutting_loop
 
                             ! First shared vertex
                             else
                                 n_shared_verts = 1
+                                shared_verts(1) = this%panels(i)%get_vertex_index(m)
                             end if
 
                         end if
@@ -172,7 +182,40 @@ contains
                         ! Check angle with freestream
                         if (inner(this%panels(i)%normal, freestream_flow%V_inf) > 0.0 .or. &
                             inner(this%panels(j)%normal, freestream_flow%V_inf) > 0.0) then
+
+                            ! Update number of Kutta edges
                             N_kutta_edges = N_kutta_edges + 1
+
+                            ! Set toggle for vertices
+                            if (this%vertices(shared_verts(1))%on_kutta_edge) then
+
+                                ! If it's already on one, then this means it's also in one
+                                this%vertices(shared_verts(1))%in_kutta_edge = .true.
+
+                            else
+
+                                ! Add the first time
+                                this%vertices(shared_verts(1))%on_kutta_edge = .true.
+                                call this%kutta_vertices%append(this%vertices(shared_verts(2)))
+
+                            end if
+
+                            ! Do the same for the other vertex
+                            if (this%vertices(shared_verts(2))%on_kutta_edge) then
+
+                                this%vertices(shared_verts(2))%in_kutta_edge = .true.
+
+                            else
+
+                                this%vertices(shared_verts(2))%on_kutta_edge = .true.
+                                call this%kutta_vertices%append(this%vertices(shared_verts(2)))
+
+                            end if
+
+                            ! Set toggle for panels
+                            this%panels(i)%on_kutta_edge = .true.
+                            this%panels(j)%on_kutta_edge = .true.
+
                         end if
                     end if
                 end if
@@ -183,5 +226,48 @@ contains
         write(*,*) "Done. Found", N_kutta_edges, "wake-shedding edges."
 
     end subroutine surface_mesh_locate_kutta_edges
-    
-end module mesh_mod
+
+
+    subroutine surface_mesh_initialize_wake(this, freestream_flow)
+
+        implicit none
+
+        class(surface_mesh),intent(inout) :: this
+        type(flow),intent(in) :: freestream_flow
+        real :: distance, vertex_separation
+        real,dimension(3) :: loc, start
+        integer :: i, j, ind
+
+        ! Initialize wake
+        write(*,*)
+        write(*,'(a)',advance='no') "     Initializing wake..."
+
+        ! Allocate storage
+        allocate(this%wake_vertices(this%kutta_vertices%len()*(this%N_wake_panels+1)))
+        allocate(this%wake_panels(this%N_kutta_edges*this%N_wake_panels))
+
+        ! Determine vertex placement
+        do i=1,this%kutta_vertices%len()
+
+            ! Determine distance from origin to Kutta vertex in direction of the flow
+            call get_item(this%kutta_vertices, i, start)
+            distance = inner(start, freestream_flow%u_inf)
+
+            ! Determine vertex separation
+            vertex_separation = distance/this%N_wake_panels
+
+            ! Place vertices
+            do j=1,this%N_wake_panels+1
+
+                ! Determine location
+                ind = (i-1)*(this%N_wake_panels+1)+j
+                loc = start+vertex_separation*(j-1)*freestream_flow%u_inf
+
+                ! Initialize vertex
+                call this%wake_vertices(ind)%init(loc, ind)
+            end do
+        end do
+
+    end subroutine surface_mesh_initialize_wake
+
+end module surface_mesh_mod

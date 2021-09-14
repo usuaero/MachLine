@@ -12,6 +12,7 @@ module flow_mod
         real :: M_inf ! Freestream Mach number
         real :: gamma ! Ratio of specific heats
         real :: V_inf_mag
+        real,dimension(3) :: u_inf
 
         contains
 
@@ -48,6 +49,7 @@ contains
 
         ! Derived quantities
         this%V_inf_mag = norm(this%V_inf)
+        this%u_inf = this%V_inf/this%V_inf_mag
 
     end subroutine flow_init
 

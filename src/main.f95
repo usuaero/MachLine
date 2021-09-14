@@ -3,7 +3,7 @@ program main
     use math_mod
     use json_mod
     use json_xtnsn_mod
-    use mesh_mod
+    use surface_mesh_mod
     use flow_mod
     use panel_solver_mod
 
@@ -72,6 +72,7 @@ program main
     call body_mesh%locate_kutta_edges(freestream_flow)
 
     ! Initialize wake mesh
+    call body_mesh%initialize_wake(freestream_flow)
 
     write(*,*)
     write(*,*) "Running flow solvers"
