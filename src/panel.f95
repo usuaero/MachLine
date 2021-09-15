@@ -17,6 +17,7 @@ module panel_mod
         real,dimension(:,:),allocatable :: midpoints
         real,dimension(3) :: centroid
         real,dimension(3,3) :: A_t ! Local coordinate transform matrix
+        real,dimension(:,:),allocatable :: vertices_local ! Location of the vertices described in local coords
         real :: A ! Surface area
         real :: phi_n = 0 ! Perturbation source strength
         logical :: on_kutta_edge
@@ -28,7 +29,7 @@ module panel_mod
             procedure :: panel_init_3
             procedure :: panel_init_4
             generic :: init => panel_init_3, panel_init_4
-            procedure :: init_common =>panel_init_common
+            procedure :: calc_derived_properties =>panel_calc_derived_properties
             procedure :: calc_area => panel_calc_area
             procedure :: calc_normal => panel_calc_normal
             procedure :: calc_centroid => panel_calc_centroid
@@ -55,13 +56,14 @@ contains
 
         ! Allocate vertex array
         allocate(this%vertices(this%N))
+        allocate(this%vertices_local(this%N,3))
 
         ! Store info
         this%vertices(1)%ptr => v1
         this%vertices(2)%ptr => v2
         this%vertices(3)%ptr => v3
 
-        call this%init_common()
+        call this%calc_derived_properties()
 
     end subroutine panel_init_3
 
@@ -79,6 +81,7 @@ contains
 
         ! Allocate vertex array
         allocate(this%vertices(this%N))
+        allocate(this%vertices_local(this%N,3))
 
         ! Store info
         this%vertices(1)%ptr => v1
@@ -86,13 +89,14 @@ contains
         this%vertices(3)%ptr => v3
         this%vertices(4)%ptr => v4
 
-        call this%init_common()
+        call this%calc_derived_properties()
 
     end subroutine panel_init_4
 
 
-    subroutine panel_init_common(this)
-        ! Initializes attributes common to both types of panels
+    subroutine panel_calc_derived_properties(this)
+        ! Initializes properties based on the location of the vertices.
+        ! Should be called when panel geometry is updated.
 
         implicit none
 
@@ -114,8 +118,11 @@ contains
 
         ! Calculate centroid
         call this%calc_centroid()
-    
-    end subroutine panel_init_common
+
+        ! Calculate coordinate transform
+        call this%calc_coord_transform()
+
+    end subroutine panel_calc_derived_properties
 
 
     subroutine panel_calc_area(this)
@@ -195,6 +202,7 @@ contains
 
         class(panel),intent(inout) :: this
         real,dimension(3) :: d
+        integer :: i
 
         ! Choose first edge tangent as local xi-axis
         ! (will need to be projected for quadrilateral panel)
@@ -206,6 +214,11 @@ contains
 
         ! Calculate eta axis from the other two
         this%A_t(2,:) = cross(this%normal, this%A_t(1,:))
+
+        ! Transform vertex coords
+        do i=1,this%N
+            this%vertices_local(i,:) = matmul(this%A_t, this%get_vertex_loc(i))
+        end do
 
     end subroutine panel_calc_coord_transform
 

@@ -349,4 +349,19 @@ contains
 
     end subroutine surface_mesh_initialize_wake
 
+
+    subroutine surface_mesh_update_wake(this)
+
+        implicit none
+
+        class(surface_mesh),intent(inout) :: this
+        integer :: i
+
+        ! Update panel properties since vertices were moved
+        do i=1,this%N_wake_panels
+            call this%wake_panels(i)%calc_derived_properties
+        end do
+    
+    end subroutine surface_mesh_update_wake
+
 end module surface_mesh_mod
