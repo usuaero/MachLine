@@ -15,6 +15,8 @@ module panel_mod
         type(vertex_pointer),dimension(:),allocatable :: vertices
         real,dimension(3) :: normal ! Normal vector
         real,dimension(:,:),allocatable :: midpoints
+        real,dimension(3) :: centroid
+        real,dimension(3,3) :: A_t ! Local coordinate transform matrix
         real :: A ! Surface area
         real :: phi_n = 0 ! Perturbation source strength
         logical :: on_kutta_edge
@@ -29,6 +31,8 @@ module panel_mod
             procedure :: init_common =>panel_init_common
             procedure :: calc_area => panel_calc_area
             procedure :: calc_normal => panel_calc_normal
+            procedure :: calc_centroid => panel_calc_centroid
+            procedure :: calc_coord_transform => panel_calc_coord_transform
             procedure :: get_vertex_loc => panel_get_vertex_loc
             procedure :: get_vertex_index => panel_get_vertex_index
 
@@ -107,6 +111,9 @@ contains
 
         ! Calculate area
         call this%calc_area()
+
+        ! Calculate centroid
+        call this%calc_centroid()
     
     end subroutine panel_init_common
 
@@ -161,6 +168,46 @@ contains
         this%normal = this%normal/norm(this%normal)
 
     end subroutine panel_calc_normal
+
+
+    subroutine panel_calc_centroid(this)
+
+        implicit none
+
+        class(panel),intent(inout) :: this
+        real,dimension(3) :: sum = 0
+        integer :: i
+
+        ! Get average of corner points
+        do i=1,this%N
+            sum = sum + this%get_vertex_loc(i)
+        end do
+
+        ! Set centroid
+        this%centroid = sum/this%N
+
+    end subroutine panel_calc_centroid
+
+
+    subroutine panel_calc_coord_transform(this)
+
+        implicit none
+
+        class(panel),intent(inout) :: this
+        real,dimension(3) :: d
+
+        ! Choose first edge tangent as local xi-axis
+        ! (will need to be projected for quadrilateral panel)
+        d = this%get_vertex_loc(2)-this%get_vertex_loc(1)
+        this%A_t(1,:) = d/norm(d)
+
+        ! Panel normal is the zeta axis
+        this%A_t(3,:) = this%normal
+
+        ! Calculate eta axis from the other two
+        this%A_t(2,:) = cross(this%normal, this%A_t(1,:))
+
+    end subroutine panel_calc_coord_transform
 
 
     function panel_get_vertex_loc(this, i) result(loc)

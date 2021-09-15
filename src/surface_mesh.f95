@@ -273,7 +273,7 @@ contains
         ! Determine sizes
         N_kutta_verts = this%kutta_vertices%len()
         this%N_wake_verts = N_kutta_verts*(this%N_wake_panels_streamwise+1)
-        this%N_wake_panels = this%N_kutta_edges*this%N_wake_panels_streamwise
+        this%N_wake_panels = this%N_kutta_edges*this%N_wake_panels_streamwise*2
 
         ! Allocate storage
         allocate(this%wake_vertices(this%N_wake_verts))
@@ -316,20 +316,31 @@ contains
             ! Create panels heading downstream
             do j=1,this%N_wake_panels_streamwise
 
-                ! Determine index of panel
-                ind = (i-1)*this%N_wake_panels_streamwise+j
+                ! Determine index of first triangular panel
+                ind = (i-1)*this%N_wake_panels_streamwise*2+2*j-1
 
                 ! Determine vertex indices
                 i1 = (i_start-1)*(this%N_wake_panels_streamwise+1)+j
                 i2 = (i_start-1)*(this%N_wake_panels_streamwise+1)+j+1
                 i3 = (i_stop-1)*(this%N_wake_panels_streamwise+1)+j+1
-                i4 = (i_stop-1)*(this%N_wake_panels_streamwise+1)+j
 
                 ! Initialize
                 call this%wake_panels(ind)%init(this%wake_vertices(i1),&
                                                 this%wake_vertices(i2),&
-                                                this%wake_vertices(i3),&
-                                                this%wake_vertices(i4))
+                                                this%wake_vertices(i3))
+
+                ! Determine index of second triangular panel
+                ind = (i-1)*this%N_wake_panels_streamwise*2+2*j
+
+                ! Determine vertex indices
+                i1 = (i_start-1)*(this%N_wake_panels_streamwise+1)+j
+                i2 = (i_stop-1)*(this%N_wake_panels_streamwise+1)+j+1
+                i3 = (i_stop-1)*(this%N_wake_panels_streamwise+1)+j
+
+                ! Initialize
+                call this%wake_panels(ind)%init(this%wake_vertices(i1),&
+                                                this%wake_vertices(i2),&
+                                                this%wake_vertices(i3))
 
             end do
         end do

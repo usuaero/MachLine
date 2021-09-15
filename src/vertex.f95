@@ -15,7 +15,7 @@ module vertex_mod
         integer :: index ! Index of this vertex in the mesh
         integer :: index_in_kutta_vertices ! Index of this vertex in the list of Kutta vertices
         integer :: parent = 0 ! Index of the vertex this vertex's strength is determined by (for a wake vertex)
-        type(list) :: panels ! List of panels which connect to this vertex
+        type(list) :: panels ! List of indices for the panels which connect to this vertex
         real :: phi = 0 ! Perturbation doublet strength
 
         contains
