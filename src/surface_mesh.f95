@@ -25,7 +25,7 @@ module surface_mesh_mod
         type(kutta_edge),allocatable,dimension(:) :: kutta_edges
         character(len=:),allocatable :: mesh_file
         type(alternating_digital_tree) :: vertex_tree
-        real :: kutta_angle, C_kutta_angle, trefftz_length
+        real :: kutta_angle, C_kutta_angle, trefftz_distance
         integer :: N_wake_panels_streamwise, N_kutta_edges
 
         contains
@@ -104,7 +104,7 @@ contains
 
         ! Store other settings for wake models
         call json_get(settings, 'wake_model.wake_shedding_angle', this%kutta_angle)
-        call json_get(settings, 'wake_model.trefftz_length', this%trefftz_length)
+        call json_get(settings, 'wake_model.trefftz_distance', this%trefftz_distance)
         call json_get(settings, 'wake_model.N_panels', this%N_wake_panels_streamwise)
         this%C_kutta_angle = cos(this%kutta_angle*pi/180.0)
     
@@ -134,7 +134,7 @@ contains
 
         class(surface_mesh),intent(inout) :: this
         type(flow),intent(in) :: freestream_flow
-        integer :: i, j, m, n, N_shared_verts, N_kutta_edges
+        integer :: i, j, m, n, N_shared_verts
         real,dimension(3) :: d
         integer,dimension(2) :: shared_verts
         type(list) :: kutta_edge_starts, kutta_edge_stops
@@ -145,7 +145,7 @@ contains
         write(*,'(a)',advance='no') "     Locating wake-shedding edges..."
 
         ! Loop through each pair of panels
-        N_kutta_edges = 0
+        this%N_kutta_edges = 0
         do i=1,this%N_panels
             do j=i+1,this%N_panels
 
@@ -191,7 +191,7 @@ contains
                             inner(this%panels(j)%normal, freestream_flow%V_inf) > 0.0) then
 
                             ! Update number of Kutta edges
-                            N_kutta_edges = N_kutta_edges + 1
+                            this%N_kutta_edges = this%N_kutta_edges + 1
 
                             ! Store in starts and stops list
                             call kutta_edge_starts%append(shared_verts(1))
@@ -237,8 +237,8 @@ contains
         end do
 
         ! Create array of Kutta edges
-        allocate(this%kutta_edges(N_kutta_edges))
-        do i=1,N_kutta_edges
+        allocate(this%kutta_edges(this%N_kutta_edges))
+        do i=1,this%N_kutta_edges
 
             ! Get indices of starting and ending vertices
             call get_item(kutta_edge_starts, i, m)
@@ -249,7 +249,7 @@ contains
 
         end do
 
-        write(*,*) "Done. Found", N_kutta_edges, "wake-shedding edges."
+        write(*,*) "Done. Found", this%N_kutta_edges, "wake-shedding edges."
 
     end subroutine surface_mesh_locate_kutta_edges
 
@@ -285,7 +285,7 @@ contains
             ! Determine distance from origin to Kutta vertex in direction of the flow
             call get_item(this%kutta_vertices, i, kutta_vert_ind)
             start = this%vertices(kutta_vert_ind)%loc
-            distance = inner(start, freestream_flow%u_inf)
+            distance = this%trefftz_distance-inner(start, freestream_flow%u_inf)
 
             ! Determine vertex separation
             vertex_separation = distance/this%N_wake_panels_streamwise
@@ -307,6 +307,7 @@ contains
         end do
 
         ! Initialize wake panels
+        write(*,*) this%N_kutta_edges
         do i=1,this%N_kutta_edges
 
             ! Determine which Kutta vertices this panel lies between
