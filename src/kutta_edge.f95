@@ -8,7 +8,7 @@ module kutta_edge_mod
 
         type(vertex),pointer :: v1, v2
         integer :: i1, i2 ! Indices of the end vertices in the mesh vertex array
-        !integer :: i1, i2 ! Indices of the end vertices in the Kutta vertex list
+        integer :: i1_kutta_vert, i2_kutta_vert ! Indices of the end vertices in the Kutta vertex list
 
         contains
 

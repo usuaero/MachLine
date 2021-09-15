@@ -307,7 +307,6 @@ contains
         end do
 
         ! Initialize wake panels
-        write(*,*) this%N_kutta_edges
         do i=1,this%N_kutta_edges
 
             ! Determine which Kutta vertices this panel lies between

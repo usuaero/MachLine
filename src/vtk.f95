@@ -138,6 +138,28 @@ contains
 
             end do
 
+            ! Write out panel normals
+            write(1,'(a i20)') "CELL_DATA", N_panels
+            write(1,'(a)') "NORMALS panel_normals float"
+            do i=1,N_panels
+                write(1,100) panels(i)%normal(1), panels(i)%normal(2), panels(i)%normal(3)
+            end do
+
+            ! Panel source strengths
+            write(1,'(a)') "SCALARS phi_n float 1"
+            write(1,'(a)') "LOOKUP_TABLE default"
+            do i=1,N_panels
+                write(1,'(f20.12)') panels(i)%phi_n
+            end do
+
+            ! Vertex doublet strengths
+            write(1, '(a i20)') "POINT_DATA", N_verts
+            write(1,'(a)') "SCALARS phi float 1"
+            write(1,'(a)') "LOOKUP_TABLE default"
+            do i=1,N_verts
+                write(1,'(f20.12)') vertices(i)%phi
+            end do
+
         close(1)
         
     
