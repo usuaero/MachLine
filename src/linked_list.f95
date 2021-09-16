@@ -56,7 +56,7 @@ module linked_list_mod
     final :: list_finalizer
     procedure :: len => list_length
     procedure :: append => list_append_item
-    procedure :: delete => list_delete_node_integer
+    procedure :: delete => list_delete_integer
     procedure :: get_item_character => list_get_item_character
     procedure :: get_item_complex => list_get_item_complex
     procedure :: get_item_integer => list_get_item_integer
@@ -410,14 +410,13 @@ contains
   end subroutine list_get_item_real
 
 
-  subroutine list_delete_node_integer(this, int, stat, errmsg)
+  subroutine list_delete_integer(this, int)
+    ! Deletes any items in the list which equal int
 
     implicit none
 
     class(list), intent(inout) :: this
     integer,intent(in) :: int
-    integer,intent(out), optional :: stat
-    character(*),intent(out), optional :: errmsg
     type(node),pointer :: curr_node, prev_node, del_node
     integer :: curr_val
     logical :: first = .true.
@@ -430,13 +429,16 @@ contains
     if (.not. this%is_in(int)) then
       return
     end if
+    write(*,*)
 
     ! Loop through list
-    do while(associated(curr_node))
+    do while(.not. associated(prev_node, this%tail))
 
       ! Check if this node is the value
       call get_item(curr_node, curr_val)
+      write(*,'(i10)',advance='no') curr_val
       if (curr_val == int) then
+        write(*,*) "<-deleting"
 
         ! If it's the first node, set the head pointer
         if (first) then
@@ -445,6 +447,11 @@ contains
         ! Otherwise, set the previous node's pointer
         else
           prev_node%next => curr_node%next
+        end if
+
+        ! Check if we're deleting the tail
+        if (associated(curr_node, this%tail)) then
+          this%tail => prev_node
         end if
 
         ! Update length
@@ -459,6 +466,7 @@ contains
         deallocate(del_node)
 
       else
+        write(*,*)
 
         ! Move pointers
         prev_node => curr_node
@@ -466,9 +474,11 @@ contains
 
       end if
 
+      first = .false.
+
     end do
 
-  end subroutine list_delete_node_integer
+  end subroutine list_delete_integer
 !===============================================================================
 
 !===============================================================================

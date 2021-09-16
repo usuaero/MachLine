@@ -350,11 +350,15 @@ contains
                         bottom_panel_ind = this%kutta_edges(k)%bottom_panel
 
                         ! Remove bottom panel index from original vertex
+                        write(*,*) "About to delete"
                         call this%vertices(ind)%panels%delete(bottom_panel_ind)
+                        write(*,*) "Finished delete"
 
                         ! Add to cloned vertex
                         if (.not. this%vertices(new_ind)%panels%is_in(bottom_panel_ind)) then
+                            write(*,*) "About to append"
                             call this%vertices(new_ind)%panels%append(bottom_panel_ind)
+                            write(*,*) "Finished append"
                         end if
 
                         ! If there are any panels attached to this vertex and abutting the bottom panel, shift them over as well
@@ -382,6 +386,8 @@ contains
                     end if
 
                 end do
+
+                ! Update bottom panels to point to cloned vertex
 
                 ! Update clone index
                 j = j + 1
