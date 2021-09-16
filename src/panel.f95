@@ -23,6 +23,7 @@ module panel_mod
         logical :: on_kutta_edge
         logical :: wake_panel ! Whether this panel belongs to a wake
         logical :: shock_panel ! Whether this panel belongs to a shock
+        integer :: i1, i2, i3, i4 ! Indices of this panel's vertices in the mesh vertex array
 
         contains
 
@@ -43,13 +44,14 @@ module panel_mod
 contains
 
 
-    subroutine panel_init_3(this, v1, v2, v3)
+    subroutine panel_init_3(this, v1, v2, v3, i1, i2, i3)
         ! Initializes a 3-panel
 
         implicit none
 
         class(panel),intent(inout) :: this
         type(vertex),intent(in),target :: v1, v2, v3
+        integer,intent(in) :: i1, i2, i3
 
         ! Set number of sides
         this%N = 3
@@ -62,19 +64,23 @@ contains
         this%vertices(1)%ptr => v1
         this%vertices(2)%ptr => v2
         this%vertices(3)%ptr => v3
+        this%i1 = i1
+        this%i2 = i2
+        this%i3 = i3
 
         call this%calc_derived_properties()
 
     end subroutine panel_init_3
 
 
-    subroutine panel_init_4(this, v1, v2, v3, v4)
+    subroutine panel_init_4(this, v1, v2, v3, v4, i1, i2, i3, i4)
         ! Initializes a panel with 4 sides
 
         implicit none
 
         class(panel),intent(inout) :: this
         type(vertex),intent(in),target :: v1, v2, v3, v4
+        integer,intent(in) :: i1, i2, i3, i4
         
         ! Set number of sides
         this%N = 4
@@ -88,6 +94,10 @@ contains
         this%vertices(2)%ptr => v2
         this%vertices(3)%ptr => v3
         this%vertices(4)%ptr => v4
+        this%i1 = i1
+        this%i2 = i2
+        this%i3 = i3
+        this%i4 = i4
 
         call this%calc_derived_properties()
 

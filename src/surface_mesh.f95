@@ -261,7 +261,7 @@ contains
 
         implicit none
 
-        class(surface_mesh),intent(inout) :: this
+        class(surface_mesh),intent(inout),target :: this
         integer :: i, j, k, N_clones, ind, panel_ind, new_ind, N_kutta_verts
         type(vertex),dimension(:),allocatable :: cloned_vertices, new_vertices
         logical,dimension(:),allocatable :: need_cloned
@@ -329,6 +329,36 @@ contains
         ! Replace old vertex array with new vertex array
         call move_alloc(new_vertices, this%vertices)
         this%N_verts = this%N_verts + N_clones
+
+        ! Fix vertex pointers in Kutta edge objects (necessary due to the moved allocation above)
+        do i=1,this%N_kutta_edges
+
+            this%kutta_edges(i)%v1 => this%vertices(this%kutta_edges(i)%i1)
+            this%kutta_edges(i)%v2 => this%vertices(this%kutta_edges(i)%i2)
+
+        end do
+
+        ! Fix vertex pointers in panel objects
+        do i=1,this%N_panels
+
+            ! 3-sided panel
+            if (this%panels(i)%N == 3) then
+
+                this%panels(i)%vertices(1)%ptr => this%vertices(this%panels(i)%i1)
+                this%panels(i)%vertices(2)%ptr => this%vertices(this%panels(i)%i2)
+                this%panels(i)%vertices(3)%ptr => this%vertices(this%panels(i)%i3)
+
+            ! 4-sided panel
+            else
+
+                this%panels(i)%vertices(1)%ptr => this%vertices(this%panels(i)%i1)
+                this%panels(i)%vertices(2)%ptr => this%vertices(this%panels(i)%i2)
+                this%panels(i)%vertices(3)%ptr => this%vertices(this%panels(i)%i3)
+                this%panels(i)%vertices(4)%ptr => this%vertices(this%panels(i)%i4)
+
+            end if
+
+        end do
 
         write(*,*) "Done. Cloned", N_clones, "vertices. Mesh now has", this%N_verts, "vertices."
 
@@ -409,7 +439,8 @@ contains
                 ! Initialize
                 call this%wake_panels(ind)%init(this%wake_vertices(i1),&
                                                 this%wake_vertices(i2),&
-                                                this%wake_vertices(i3))
+                                                this%wake_vertices(i3),&
+                                                i1, i2, i3)
 
                 ! Determine index of second triangular panel
                 ind = (i-1)*this%N_wake_panels_streamwise*2+2*j
@@ -422,7 +453,8 @@ contains
                 ! Initialize
                 call this%wake_panels(ind)%init(this%wake_vertices(i1),&
                                                 this%wake_vertices(i2),&
-                                                this%wake_vertices(i3))
+                                                this%wake_vertices(i3),&
+                                                i1, i2, i3)
 
             end do
         end do
