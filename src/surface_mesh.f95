@@ -360,11 +360,16 @@ contains
                         ! If there are any panels attached to this vertex and abutting the bottom panel, shift them over as well
                         do m=1,this%panels(bottom_panel_ind)%abutting_panels%len()
 
+                            ! Get the index of the panel abutting this bottom panel
                             call this%panels(bottom_panel_ind)%abutting_panels%get(m, abutting_panel_ind)
-                            if (this%panels(abutting_panel_ind)%touches_vertex(m)) then
+
+                            ! Check if it touches the current index
+                            if (this%panels(abutting_panel_ind)%touches_vertex(ind)) then
 
                                 ! Remove from original vertex
+                                write(*,*) "About to delete"
                                 call this%vertices(ind)%panels%delete(abutting_panel_ind)
+                                write(*,*) "Finished delete"
 
                                 ! Add to cloned vertex
                                 if (.not. this%vertices(new_ind)%panels%is_in(abutting_panel_ind)) then
@@ -375,18 +380,6 @@ contains
                         end do
 
                     end if
-
-                end do
-
-                ! Store its neighbor panels (while deleting those panels from its parent)
-                ! The cloned vertex gets the "bottom" panels, the original gets the "top"
-                do k=1,new_vertices(ind)%panels%len()
-
-                    ! Get panel index
-                    call new_vertices(ind)%panels%get(k, panel_ind)
-
-                    ! Store
-                    call new_vertices(new_ind)%panels%append(panel_ind)
 
                 end do
 
