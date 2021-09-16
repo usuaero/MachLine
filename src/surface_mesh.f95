@@ -1,4 +1,4 @@
-! Types and subroutines for meshes
+! A surface mesh type encompassing a body, wakes, and shocks
 module surface_mesh_mod
 
     use json_mod
@@ -31,18 +31,17 @@ module surface_mesh_mod
         contains
 
             procedure :: init => surface_mesh_init
+            procedure :: init_with_flow => surface_mesh_init_with_flow
             procedure :: output_results => surface_mesh_output_results
             procedure :: locate_kutta_edges => surface_mesh_locate_kutta_edges
+            procedure :: clone_kutta_vertices => surface_mesh_clone_kutta_vertices
             procedure :: initialize_wake => surface_mesh_initialize_wake
+            procedure :: calc_vertex_normals => surface_mesh_calc_vertex_normals
+            procedure :: update_wake => surface_mesh_update_wake
 
     end type surface_mesh
-
-
-    type cart_volume_mesh
-
-    end type cart_volume_mesh
-
     
+
 contains
 
 
@@ -111,20 +110,20 @@ contains
     end subroutine surface_mesh_init
 
 
-    subroutine surface_mesh_output_results(this, body_file, wake_file)
+    subroutine surface_mesh_init_with_flow(this, freestream_flow)
 
         implicit none
 
         class(surface_mesh),intent(inout) :: this
-        character(len=:),allocatable,intent(in) :: body_file, wake_file
+        type(flow),intent(in) :: freestream_flow
 
-        ! Write out data for body
-        call write_surface_vtk(body_file, this%vertices, this%panels)
-        
-        ! Write out data for wake
-        call write_surface_vtk(wake_file, this%wake_vertices, this%wake_panels)
+        ! Call subroutines which initialize flow-dependent properties
+        call this%locate_kutta_edges(freestream_flow)
+        call this%clone_kutta_vertices()
+        call this%calc_vertex_normals()
+        call this%initialize_wake(freestream_flow)
     
-    end subroutine surface_mesh_output_results
+    end subroutine surface_mesh_init_with_flow
 
 
     subroutine surface_mesh_locate_kutta_edges(this, freestream_flow)
@@ -134,11 +133,11 @@ contains
 
         class(surface_mesh),intent(inout) :: this
         type(flow),intent(in) :: freestream_flow
-        integer :: i, j, m, n, N_shared_verts
+        integer :: i, j, m, n
         real,dimension(3) :: d
         integer,dimension(2) :: shared_verts
         type(list) :: kutta_edge_starts, kutta_edge_stops
-        logical :: abutting
+        logical :: abutting, already_found_shared
         real :: distance
 
         write(*,*)
@@ -149,46 +148,48 @@ contains
         do i=1,this%N_panels
             do j=i+1,this%N_panels
 
-                ! Initialize for this panel pair
-                n_shared_verts = 0
-                abutting = .false.
+                ! Check angle between panels
+                if (inner(this%panels(i)%normal, this%panels(j)%normal) < this%C_kutta_angle) then
 
-                ! Check if the panels are abutting
-                abutting_loop: do m=1,this%panels(i)%N
-                    do n=1,this%panels(j)%N
+                    ! Check angle of panel normal with freestream
+                    if (inner(this%panels(i)%normal, freestream_flow%V_inf) > 0.0 .or. &
+                        inner(this%panels(j)%normal, freestream_flow%V_inf) > 0.0) then
 
-                        ! Get distance between vertices
-                        d = this%panels(i)%get_vertex_loc(m)-this%panels(j)%get_vertex_loc(n)
-                        distance = norm(d)
+                        ! Initialize for this panel pair
+                        already_found_shared = .false.
+                        abutting = .false.
 
-                        ! Check distance
-                        if (distance < 1e-10) then
+                        ! Check if the panels are abutting
+                        abutting_loop: do m=1,this%panels(i)%N
+                            do n=1,this%panels(j)%N
 
-                            ! Previously found a shared vertex
-                            if (n_shared_verts == 1) then
-                                abutting = .true.
-                                shared_verts(2) = this%panels(i)%get_vertex_index(m)
-                                exit abutting_loop
+                                ! Get distance between vertices
+                                d = this%panels(i)%get_vertex_loc(m)-this%panels(j)%get_vertex_loc(n) ! More robust than checking vertex indices
+                                distance = norm(d)
 
-                            ! First shared vertex
-                            else
-                                n_shared_verts = 1
-                                shared_verts(1) = this%panels(i)%get_vertex_index(m)
-                            end if
+                                ! Check distance
+                                if (distance < 1e-10) then
 
-                        end if
+                                    ! First shared vertex
+                                    if (.not. already_found_shared) then
+                                        already_found_shared = .true.
+                                        shared_verts(1) = this%panels(i)%get_vertex_index(m)
 
-                    end do
-                end do abutting_loop
+                                    ! Previously found a shared vertex
+                                    else
+                                        abutting = .true.
+                                        shared_verts(2) = this%panels(i)%get_vertex_index(m)
+                                        exit abutting_loop
+                                    end if
 
-                if (abutting) then
+                                end if
 
-                    ! Check angle between panels
-                    if (inner(this%panels(i)%normal, this%panels(j)%normal) < this%C_kutta_angle) then
+                            end do
+                        end do abutting_loop
 
-                        ! Check angle with freestream
-                        if (inner(this%panels(i)%normal, freestream_flow%V_inf) > 0.0 .or. &
-                            inner(this%panels(j)%normal, freestream_flow%V_inf) > 0.0) then
+                        if (abutting) then
+
+                            ! If it's gotten to this point, it is a Kutta edge
 
                             ! Update number of Kutta edges
                             this%N_kutta_edges = this%N_kutta_edges + 1
@@ -197,7 +198,7 @@ contains
                             call kutta_edge_starts%append(shared_verts(1))
                             call kutta_edge_stops%append(shared_verts(2))
 
-                            ! Set toggle for vertices
+                            ! Store the fact that these vertices belong to a Kutta edge
                             if (this%vertices(shared_verts(1))%on_kutta_edge) then
 
                                 ! If it's already on one, then this means it's also in one
@@ -225,7 +226,7 @@ contains
 
                             end if
 
-                            ! Set toggle for panels
+                            ! Store the fact that the panels have a Kutta edge
                             this%panels(i)%on_kutta_edge = .true.
                             this%panels(j)%on_kutta_edge = .true.
 
@@ -252,6 +253,87 @@ contains
         write(*,*) "Done. Found", this%N_kutta_edges, "wake-shedding edges."
 
     end subroutine surface_mesh_locate_kutta_edges
+
+
+    subroutine surface_mesh_clone_kutta_vertices(this)
+        ! Takes vertices which lie within Kutta edges and splits them into two.
+        ! Handles rearranging of necessary dependencies.
+
+        implicit none
+
+        class(surface_mesh),intent(inout) :: this
+        integer :: i, j, k, N_clones, ind, panel_ind, new_ind, N_kutta_verts
+        type(vertex),dimension(:),allocatable :: cloned_vertices, new_vertices
+        logical,dimension(:),allocatable :: need_cloned
+
+        write(*,*)
+        write(*,'(a)',advance='no') "     Cloning vertices on wake-shedding edges..."
+
+        ! Allocate array which will store which Kutta vertices need to be cloned
+        allocate(need_cloned(this%kutta_vertices%len()))
+
+        ! Determine number of vertices which need to be cloned
+        N_kutta_verts = this%kutta_vertices%len()
+        N_clones = 0
+        do i=1,N_kutta_verts
+
+            ! Get the vertex index
+            call get_item(this%kutta_vertices, i, ind)
+
+            ! Check if it is *in* a Kutta edge
+            if (this%vertices(ind)%in_kutta_edge) then
+                N_clones = N_clones + 1
+                need_cloned(i) = .true.
+            end if
+
+        end do
+
+        ! Allocate new memory
+        allocate(new_vertices(N_clones+this%N_verts))
+        new_vertices(1:this%N_verts) = this%vertices
+
+        ! Initialize clones
+        j = 1
+        do i=1,N_kutta_verts
+
+            ! Check if this vertex needs to be cloned
+            if (need_cloned(i)) then
+
+                ! Initialize nex vertex
+                call get_item(this%kutta_vertices, i, ind)
+                new_ind = this%N_verts+j ! Will be at position N_verts+j in the new vertex array
+                call new_vertices(new_ind)%init(new_vertices(ind)%loc, new_ind)
+
+                ! Store that it is on and in a Kutta edge (probably unecessary at this point, but let's be consistent)
+                new_vertices(new_ind)%on_kutta_edge = .true.
+                new_vertices(new_ind)%in_kutta_edge = .true.
+
+                ! Store its neighbor panels (while deleting those panels from its parent)
+                do k=1,new_vertices(ind)%panels%len()
+
+                    ! Get panel index
+                    call get_item(new_vertices(ind)%panels, k, panel_ind)
+
+                    ! Store
+                    call new_vertices(new_ind)%panels%append(panel_ind)
+
+                end do
+
+                ! Update clone index
+                j = j + 1
+
+            end if
+
+        end do
+
+        ! Replace old vertex array with new vertex array
+        call move_alloc(new_vertices, this%vertices)
+        this%N_verts = this%N_verts + N_clones
+
+        write(*,*) "Done. Cloned", N_clones, "vertices. Mesh now has", this%N_verts, "vertices."
+
+
+    end subroutine surface_mesh_clone_kutta_vertices
 
 
     subroutine surface_mesh_initialize_wake(this, freestream_flow)
@@ -350,6 +432,42 @@ contains
     end subroutine surface_mesh_initialize_wake
 
 
+    subroutine surface_mesh_calc_vertex_normals(this)
+        ! Initializes the normal vectors associated with each vertex.
+        ! Must be called only once the Kutta edge search has been completed.
+        ! If the vertex is not *in* a Kutta edge, then it only has one normal
+        ! vector associated with it.
+
+        implicit none
+
+        class(surface_mesh),intent(inout) :: this
+        real,dimension(3) :: sum = 0
+        integer :: i, j, N, ind
+
+        write(*,*)
+        write(*,'(a)',advance='no') "     Calculating vertex normals..."
+
+        ! Loop through vertices
+        do j=1,this%N_verts
+
+            ! Loop through neighboring panels and compute the average of their normal vectors
+            N = this%vertices(j)%panels%len()
+            do i=1,N
+                call get_item(this%vertices(j)%panels, i, ind)
+                sum = sum + this%panels(ind)%normal
+            end do
+
+            ! Store
+            this%vertices(j)%normal = sum/N
+            this%vertices(j)%normal = this%vertices(j)%normal/norm(this%vertices(j)%normal)
+
+        end do
+
+        write(*,*) "Done."
+
+    end subroutine surface_mesh_calc_vertex_normals
+
+
     subroutine surface_mesh_update_wake(this)
 
         implicit none
@@ -363,5 +481,21 @@ contains
         end do
     
     end subroutine surface_mesh_update_wake
+
+
+    subroutine surface_mesh_output_results(this, body_file, wake_file)
+
+        implicit none
+
+        class(surface_mesh),intent(inout) :: this
+        character(len=:),allocatable,intent(in) :: body_file, wake_file
+
+        ! Write out data for body
+        call write_surface_vtk(body_file, this%vertices, this%panels)
+        
+        ! Write out data for wake
+        call write_surface_vtk(wake_file, this%wake_vertices, this%wake_panels)
+    
+    end subroutine surface_mesh_output_results
 
 end module surface_mesh_mod

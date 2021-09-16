@@ -10,6 +10,8 @@ module vtk_mod
 contains
 
     subroutine load_surface_vtk(mesh_file, N_verts, N_panels, vertices, panels)
+        ! Loads a surface mesh from a vtk file. Only a body.
+        ! Needs to be updated to automatically delete duplicate vertices.
 
         implicit none
 

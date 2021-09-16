@@ -17,6 +17,7 @@ module vertex_mod
         integer :: parent = 0 ! Index of the vertex this vertex's strength is determined by (for a wake vertex)
         type(list) :: panels ! List of indices for the panels which connect to this vertex
         real :: phi = 0 ! Perturbation doublet strength
+        real,dimension(3) :: normal ! Normal vector associated with this control point
 
         contains
 

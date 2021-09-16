@@ -20,7 +20,6 @@ program main
                                  surface_mesh_settings,&
                                  volume_mesh_settings
     type(surface_mesh) :: body_mesh
-    type(cart_volume_mesh) :: volume_mesh
     type(flow) :: freestream_flow
     type(panel_solver) :: linear_solver
 
@@ -44,8 +43,18 @@ program main
     ! Set up run
     call json_initialize()
 
-    ! Get input file
+    ! Get input file from command line
     call getarg(1, input_file)
+
+    ! Get input file from user
+    if (input_file == '') then
+        write(*,*) "Please specify an input file:"
+        read(*,'(a)') input_file
+        input_file = trim(input_file)
+    end if
+
+    ! Let user know what input file is being used
+    write(*,*)
     write(*,*) "MFTran called with input file ", input_file
 
     ! Load settings from input file
@@ -68,11 +77,8 @@ program main
     write(*,*)
     write(*,*) "Initializing"
 
-    ! Locate Kutta edges
-    call body_mesh%locate_kutta_edges(freestream_flow)
-
-    ! Initialize wake mesh
-    call body_mesh%initialize_wake(freestream_flow)
+    ! Perform flow-dependent initialization on the surface mesh
+    call body_mesh%init_with_flow(freestream_flow)
 
     write(*,*)
     write(*,*) "Running flow solvers"
