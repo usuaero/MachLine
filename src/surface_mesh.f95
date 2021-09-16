@@ -133,11 +133,11 @@ contains
 
         class(surface_mesh),intent(inout) :: this
         type(flow),intent(in) :: freestream_flow
-        integer :: i, j, m, n
+        integer :: i, j, m, n, mm, temp, top_panel, bottom_panel
         real,dimension(3) :: d
         integer,dimension(2) :: shared_verts
-        type(list) :: kutta_edge_starts, kutta_edge_stops
-        logical :: abutting, already_found_shared
+        type(list) :: kutta_edge_starts, kutta_edge_stops, top_panels, bottom_panels
+        logical :: abutting, already_found_shared, is_kutta_edge
         real :: distance
 
         write(*,*)
@@ -148,55 +148,72 @@ contains
         do i=1,this%N_panels
             do j=i+1,this%N_panels
 
-                ! Check angle between panels
-                if (inner(this%panels(i)%normal, this%panels(j)%normal) < this%C_kutta_angle) then
+                ! Initialize for this panel pair
+                already_found_shared = .false.
+                abutting = .false.
 
-                    ! Check angle of panel normal with freestream
-                    if (inner(this%panels(i)%normal, freestream_flow%V_inf) > 0.0 .or. &
-                        inner(this%panels(j)%normal, freestream_flow%V_inf) > 0.0) then
+                ! Check if the panels are abutting
+                abutting_loop: do m=1,this%panels(i)%N
+                    do n=1,this%panels(j)%N
 
-                        ! Initialize for this panel pair
-                        already_found_shared = .false.
-                        abutting = .false.
+                        ! Get distance between vertices
+                        d = this%panels(i)%get_vertex_loc(m)-this%panels(j)%get_vertex_loc(n) ! More robust than checking vertex indices
+                        distance = norm(d)
 
-                        ! Check if the panels are abutting
-                        abutting_loop: do m=1,this%panels(i)%N
-                            do n=1,this%panels(j)%N
+                        ! Check distance
+                        if (distance < 1e-10) then
 
-                                ! Get distance between vertices
-                                d = this%panels(i)%get_vertex_loc(m)-this%panels(j)%get_vertex_loc(n) ! More robust than checking vertex indices
-                                distance = norm(d)
+                            ! First shared vertex
+                            if (.not. already_found_shared) then
+                                already_found_shared = .true.
+                                shared_verts(1) = this%panels(i)%get_vertex_index(m)
+                                mm = m
 
-                                ! Check distance
-                                if (distance < 1e-10) then
+                            ! Previously found a shared vertex
+                            else
+                                abutting = .true.
+                                shared_verts(2) = this%panels(i)%get_vertex_index(m)
+                                exit abutting_loop
+                            end if
 
-                                    ! First shared vertex
-                                    if (.not. already_found_shared) then
-                                        already_found_shared = .true.
-                                        shared_verts(1) = this%panels(i)%get_vertex_index(m)
+                        end if
 
-                                    ! Previously found a shared vertex
-                                    else
-                                        abutting = .true.
-                                        shared_verts(2) = this%panels(i)%get_vertex_index(m)
-                                        exit abutting_loop
-                                    end if
+                    end do
+                end do abutting_loop
 
-                                end if
+                if (abutting) then
 
-                            end do
-                        end do abutting_loop
+                    is_kutta_edge = .false.
 
-                        if (abutting) then
+                    ! Check angle between panels
+                    if (inner(this%panels(i)%normal, this%panels(j)%normal) < this%C_kutta_angle) then
 
-                            ! If it's gotten to this point, it is a Kutta edge
+                        ! Check angle of panel normal with freestream
+                        if (inner(this%panels(i)%normal, freestream_flow%V_inf) > 0.0 .or. &
+                            inner(this%panels(j)%normal, freestream_flow%V_inf) > 0.0) then
+
+                            ! Check order the vertices were stored in
+                            if (mm == 1 .and. m == this%panels(i)%N) then
+
+                                ! Rearrange so the Kutta edge proceeds in the counterclockwise direction around the "top" panel
+                                ! I'll use "top" and "bottom" to refer to panels neighboring a Kutta edge. These terms are arbitrary but consistent.
+                                temp = shared_verts(2)
+                                shared_verts(2) = shared_verts(1)
+                                shared_verts(1) = temp
+
+                            end if
 
                             ! Update number of Kutta edges
                             this%N_kutta_edges = this%N_kutta_edges + 1
+                            is_kutta_edge = .true.
 
                             ! Store in starts and stops list
                             call kutta_edge_starts%append(shared_verts(1))
                             call kutta_edge_stops%append(shared_verts(2))
+
+                            ! Store top and bottom panels (i is top, j is bottom)
+                            call top_panels%append(i)
+                            call bottom_panels%append(j)
 
                             ! Store the fact that these vertices belong to a Kutta edge
                             if (this%vertices(shared_verts(1))%on_kutta_edge) then
@@ -230,8 +247,22 @@ contains
                             this%panels(i)%on_kutta_edge = .true.
                             this%panels(j)%on_kutta_edge = .true.
 
+                            ! Store opposing panels
+                            call this%panels(i)%opposing_kutta_panels%append(j)
+                            call this%panels(j)%opposing_kutta_panels%append(i)
+
                         end if
                     end if
+
+                    ! If abutting but not a Kutta edge
+                    if (.not. is_kutta_edge) then
+
+                        ! Add to each others' list
+                        call this%panels(i)%abutting_panels%append(j)
+                        call this%panels(j)%abutting_panels%append(i)
+
+                    end if
+
                 end if
 
             end do
@@ -244,9 +275,11 @@ contains
             ! Get indices of starting and ending vertices
             call kutta_edge_starts%get(i, m)
             call kutta_edge_stops%get(i, n)
+            call top_panels%get(i, top_panel)
+            call bottom_panels%get(i, bottom_panel)
 
             ! Store
-            call this%kutta_edges(i)%init(this%vertices(m), this%vertices(n), m, n)
+            call this%kutta_edges(i)%init(m, n, top_panel, bottom_panel)
 
         end do
 
@@ -262,7 +295,7 @@ contains
         implicit none
 
         class(surface_mesh),intent(inout),target :: this
-        integer :: i, j, k, N_clones, ind, panel_ind, new_ind, N_kutta_verts
+        integer :: i, j, k, m, N_clones, ind, panel_ind, new_ind, N_kutta_verts, bottom_panel_ind, abutting_panel_ind
         type(vertex),dimension(:),allocatable :: cloned_vertices, new_vertices
         logical,dimension(:),allocatable :: need_cloned
 
@@ -285,7 +318,6 @@ contains
                 N_clones = N_clones + 1
                 need_cloned(i) = .true.
             end if
-
         end do
 
         ! Allocate new memory
@@ -299,7 +331,7 @@ contains
             ! Check if this vertex needs to be cloned
             if (need_cloned(i)) then
 
-                ! Initialize nex vertex
+                ! Initialize new vertex
                 call this%kutta_vertices%get(i, ind)
                 new_ind = this%N_verts+j ! Will be at position N_verts+j in the new vertex array
                 call new_vertices(new_ind)%init(new_vertices(ind)%loc, new_ind)
@@ -308,7 +340,46 @@ contains
                 new_vertices(new_ind)%on_kutta_edge = .true.
                 new_vertices(new_ind)%in_kutta_edge = .true.
 
+                ! Remove bottom panels from top vertex and give them to the bottom vertex
+                do k=1,this%N_kutta_edges
+
+                    ! Check if this vertex belongs to this Kutta edge
+                    if (this%kutta_edges(k)%i1 == ind .or. this%kutta_edges(k)%i2 == ind) then
+
+                        ! Get bottom panel index
+                        bottom_panel_ind = this%kutta_edges(k)%bottom_panel
+
+                        ! Remove bottom panel index from original vertex
+                        call this%vertices(ind)%panels%delete(bottom_panel_ind)
+
+                        ! Add to cloned vertex
+                        if (.not. this%vertices(new_ind)%panels%is_in(bottom_panel_ind)) then
+                            call this%vertices(new_ind)%panels%append(bottom_panel_ind)
+                        end if
+
+                        ! If there are any panels attached to this vertex and abutting the bottom panel, shift them over as well
+                        do m=1,this%panels(bottom_panel_ind)%abutting_panels%len()
+
+                            call this%panels(bottom_panel_ind)%abutting_panels%get(m, abutting_panel_ind)
+                            if (this%panels(abutting_panel_ind)%touches_vertex(m)) then
+
+                                ! Remove from original vertex
+                                call this%vertices(ind)%panels%delete(abutting_panel_ind)
+
+                                ! Add to cloned vertex
+                                if (.not. this%vertices(new_ind)%panels%is_in(abutting_panel_ind)) then
+                                    call this%vertices(new_ind)%panels%append(abutting_panel_ind)
+                                end if
+
+                            end if
+                        end do
+
+                    end if
+
+                end do
+
                 ! Store its neighbor panels (while deleting those panels from its parent)
+                ! The cloned vertex gets the "bottom" panels, the original gets the "top"
                 do k=1,new_vertices(ind)%panels%len()
 
                     ! Get panel index
@@ -329,14 +400,6 @@ contains
         ! Replace old vertex array with new vertex array
         call move_alloc(new_vertices, this%vertices)
         this%N_verts = this%N_verts + N_clones
-
-        ! Fix vertex pointers in Kutta edge objects (necessary due to the moved allocation above)
-        do i=1,this%N_kutta_edges
-
-            this%kutta_edges(i)%v1 => this%vertices(this%kutta_edges(i)%i1)
-            this%kutta_edges(i)%v2 => this%vertices(this%kutta_edges(i)%i2)
-
-        end do
 
         ! Fix vertex pointers in panel objects
         do i=1,this%N_panels
@@ -422,8 +485,8 @@ contains
         do i=1,this%N_kutta_edges
 
             ! Determine which Kutta vertices this panel lies between
-            i_start = this%kutta_edges(i)%v1%index_in_kutta_vertices
-            i_stop = this%kutta_edges(i)%v2%index_in_kutta_vertices
+            i_start = this%vertices(this%kutta_edges(i)%i1)%index_in_kutta_vertices
+            i_stop = this%vertices(this%kutta_edges(i)%i2)%index_in_kutta_vertices
 
             ! Create panels heading downstream
             do j=1,this%N_wake_panels_streamwise

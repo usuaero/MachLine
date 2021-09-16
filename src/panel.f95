@@ -20,10 +20,12 @@ module panel_mod
         real,dimension(:,:),allocatable :: vertices_local ! Location of the vertices described in local coords
         real :: A ! Surface area
         real :: phi_n = 0 ! Perturbation source strength
-        logical :: on_kutta_edge
+        logical :: on_kutta_edge ! Whether this panel belongs to a Kutta edge
         logical :: wake_panel ! Whether this panel belongs to a wake
         logical :: shock_panel ! Whether this panel belongs to a shock
         integer :: i1, i2, i3, i4 ! Indices of this panel's vertices in the mesh vertex array
+        type(list) :: opposing_kutta_panels ! Indices of panels opposite this one on the Kutta edge(s)
+        type(list) :: abutting_panels ! Indices of panels abutting this one (not across Kutta edge)
 
         contains
 
@@ -37,6 +39,7 @@ module panel_mod
             procedure :: calc_coord_transform => panel_calc_coord_transform
             procedure :: get_vertex_loc => panel_get_vertex_loc
             procedure :: get_vertex_index => panel_get_vertex_index
+            procedure :: touches_vertex => panel_touches_vertex
 
     end type panel
 
@@ -257,5 +260,29 @@ contains
         index = this%vertices(i)%ptr%index
 
     end function panel_get_vertex_index
+
+
+    function panel_touches_vertex(this, i) result(touches)
+
+        implicit none
+
+        class(panel),intent(in) :: this
+        integer,intent(in) :: i
+        logical touches
+
+        touches = .false.
+
+        ! 3-sided panel
+        if (this%N == 3) then
+            if (this%i1 == i .or. this%i2 == i .or. this%i3 == i) then
+                touches = .true.
+            end if
+        else
+            if (this%i1 == i .or. this%i2 == i .or. this%i3 == i .or. this%i4 == i) then
+                touches = .true.
+            end if
+        end if
+
+    end function panel_touches_vertex
     
 end module panel_mod

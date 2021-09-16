@@ -6,9 +6,8 @@ module kutta_edge_mod
 
     type kutta_edge
 
-        type(vertex),pointer :: v1, v2
         integer :: i1, i2 ! Indices of the end vertices in the mesh vertex array
-        integer :: i1_kutta_vert, i2_kutta_vert ! Indices of the end vertices in the Kutta vertex list
+        integer :: top_panel, bottom_panel ! Indices of the top and bottom panels for this Kutta vertex
 
         contains
 
@@ -20,21 +19,21 @@ module kutta_edge_mod
 contains
 
 
-    subroutine kutta_edge_init(this, v1, v2, i1, i2)
+    subroutine kutta_edge_init(this, i1, i2, top_panel, bottom_panel)
 
         implicit none
 
         class(kutta_edge),intent(inout) :: this
-        type(vertex),intent(in),target :: v1, v2
         integer,intent(in) :: i1, i2
-
-        ! Point to vertices
-        this%v1 => v1
-        this%v2 => v2
+        integer,intent(in) :: top_panel, bottom_panel
 
         ! Store indices
         this%i1 = i1
         this%i2 = i2
+
+        ! Store panels
+        this%top_panel = top_panel
+        this%bottom_panel = bottom_panel
     
     end subroutine kutta_edge_init
     

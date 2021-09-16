@@ -56,13 +56,14 @@ module linked_list_mod
     final :: list_finalizer
     procedure :: len => list_length
     procedure :: append => list_append_item
-    procedure :: delete => list_delete_node
+    procedure :: delete => list_delete_node_integer
     procedure :: get_item_character => list_get_item_character
     procedure :: get_item_complex => list_get_item_complex
     procedure :: get_item_integer => list_get_item_integer
     procedure :: get_item_logical => list_get_item_logical
     procedure :: get_item_real => list_get_item_real
     generic :: get => get_item_character, get_item_complex, get_item_integer, get_item_logical, get_item_real
+    procedure :: is_in => list_is_in_integer
   end type list
 
   ! interfaces:
@@ -154,6 +155,34 @@ contains
     this%num_nodes = 0
     if (associated(this%head)) nullify(this%head)
   end subroutine list_finalizer
+
+
+  function list_is_in_integer(this, item) result(is_in)
+
+    class(list),intent(in) :: this
+    integer,intent(in) :: item
+    type(node) :: curr_node
+    integer :: curr_item
+    integer :: i
+    logical :: is_in
+
+    ! Loop through items in list
+    is_in = .false.
+    do i=1,this%num_nodes
+      
+      ! Get node
+      call get_node(this, i, curr_node)
+
+      ! Compare
+      call this%get(i, curr_item)
+      if (curr_item == item) then
+        is_in = .true.
+        return
+      end if
+
+    end do
+
+  end function list_is_in_integer
 !===============================================================================
 
 !===============================================================================
@@ -381,47 +410,65 @@ contains
   end subroutine list_get_item_real
 
 
-  subroutine list_delete_node(this, iNode, stat, errmsg)
+  subroutine list_delete_node_integer(this, int, stat, errmsg)
 
     implicit none
 
     class(list), intent(inout) :: this
-    integer, intent(in) :: iNode
-    integer, intent(out), optional :: stat
-    character(*), intent(out), optional :: errmsg
-    type(node) :: node_to_delete, node_before
+    integer,intent(in) :: int
+    integer,intent(out), optional :: stat
+    character(*),intent(out), optional :: errmsg
+    type(node),pointer :: curr_node, prev_node, del_node
+    integer :: curr_val
+    logical :: first = .true.
 
-    ! Get the relevant node
-    call list_get_node(this, iNode, node_to_delete, stat, errmsg)
+    ! Start at the head
+    curr_node => this%head
+    prev_node => this%head
 
-    ! Check it was found
-    if (.not. stat == -1) then
-
-      ! If it's the first node, set the head pointer
-      if (iNode == 1) then
-        this%head => node_to_delete%next
-
-      ! Otherwise, set the previous node's pointer
-      else
-        call list_get_node(this, iNode-1, node_before, stat, errmsg)
-        node_before%next => node_to_delete%next
-      end if
-
-      ! If it's the last node, set the tail pointer
-      if (iNode == this%num_nodes) then
-        call list_get_node(this, iNode-2, node_before, stat, errmsg) ! Go 2 before so we can use the pointer already there
-        this%tail => node_before%next
-      end if
-
-      ! Deallocate
-      deallocate(node_to_delete%item)
-
-      ! Update length
-      this%num_nodes = this%num_nodes - 1
-
+    ! Check if it's in the list
+    if (.not. this%is_in(int)) then
+      return
     end if
 
-  end subroutine list_delete_node
+    ! Loop through list
+    do while(associated(curr_node))
+
+      ! Check if this node is the value
+      call get_item(curr_node, curr_val)
+      if (curr_val == int) then
+
+        ! If it's the first node, set the head pointer
+        if (first) then
+          this%head => curr_node%next
+
+        ! Otherwise, set the previous node's pointer
+        else
+          prev_node%next => curr_node%next
+        end if
+
+        ! Update length
+        this%num_nodes = this%num_nodes - 1
+
+        ! Move pointers
+        del_node => curr_node
+        curr_node => curr_node%next
+
+        ! Deallocate
+        deallocate(del_node%item)
+        deallocate(del_node)
+
+      else
+
+        ! Move pointers
+        prev_node => curr_node
+        curr_node => curr_node%next
+
+      end if
+
+    end do
+
+  end subroutine list_delete_node_integer
 !===============================================================================
 
 !===============================================================================
