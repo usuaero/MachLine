@@ -56,6 +56,13 @@ module linked_list_mod
     final :: list_finalizer
     procedure :: len => list_length
     procedure :: append => list_append_item
+    procedure :: delete => list_delete_node
+    procedure :: get_item_character => list_get_item_character
+    procedure :: get_item_complex => list_get_item_complex
+    procedure :: get_item_integer => list_get_item_integer
+    procedure :: get_item_logical => list_get_item_logical
+    procedure :: get_item_real => list_get_item_real
+    generic :: get => get_item_character, get_item_complex, get_item_integer, get_item_logical, get_item_real
   end type list
 
   ! interfaces:
@@ -161,7 +168,7 @@ contains
 !        -3   node not found (iNode exceeds list bounds)
 !
   subroutine list_get_item_character( this, iNode, chVal, stat, errmsg )
-    type(list), intent(in) :: this
+    class(list), intent(in) :: this
     integer, intent(in) :: iNode
     character(*), intent(out) :: chVal
     integer, intent(out), optional :: stat
@@ -206,7 +213,7 @@ contains
 !        -3   node not found (iNode exceeds list bounds)
 !
   subroutine list_get_item_complex( this, iNode, cVal, stat, errmsg )
-    type(list), intent(in) :: this
+    class(list), intent(in) :: this
     integer, intent(in) :: iNode
     complex, intent(out) :: cVal
     integer, intent(out), optional :: stat
@@ -251,7 +258,7 @@ contains
 !        -3   node not found (iNode exceeds list bounds)
 !
   subroutine list_get_item_integer( this, iNode, iVal, stat, errmsg )
-    type(list), intent(in) :: this
+    class(list), intent(in) :: this
     integer, intent(in) :: iNode
     integer, intent(out) :: iVal
     integer, intent(out), optional :: stat
@@ -296,7 +303,7 @@ contains
 !        -3   node not found (iNode exceeds list bounds)
 !
   subroutine list_get_item_logical( this, iNode, lVal, stat, errmsg )
-    type(list), intent(in) :: this
+    class(list), intent(in) :: this
     integer, intent(in) :: iNode
     logical, intent(out) :: lVal
     integer, intent(out), optional :: stat
@@ -341,7 +348,7 @@ contains
 !        -3   node not found (inode exceeds list bounds)
 !
   subroutine list_get_item_real( this, inode, rval, stat, errmsg )
-    type(list), intent(in) :: this
+    class(list), intent(in) :: this
     integer, intent(in) :: inode
     real, intent(out) :: rval
     integer, intent(out), optional :: stat
@@ -372,6 +379,49 @@ contains
       end select
     end if
   end subroutine list_get_item_real
+
+
+  subroutine list_delete_node(this, iNode, stat, errmsg)
+
+    implicit none
+
+    class(list), intent(inout) :: this
+    integer, intent(in) :: iNode
+    integer, intent(out), optional :: stat
+    character(*), intent(out), optional :: errmsg
+    type(node) :: node_to_delete, node_before
+
+    ! Get the relevant node
+    call list_get_node(this, iNode, node_to_delete, stat, errmsg)
+
+    ! Check it was found
+    if (.not. stat == -1) then
+
+      ! If it's the first node, set the head pointer
+      if (iNode == 1) then
+        this%head => node_to_delete%next
+
+      ! Otherwise, set the previous node's pointer
+      else
+        call list_get_node(this, iNode-1, node_before, stat, errmsg)
+        node_before%next => node_to_delete%next
+      end if
+
+      ! If it's the last node, set the tail pointer
+      if (iNode == this%num_nodes) then
+        call list_get_node(this, iNode-2, node_before, stat, errmsg) ! Go 2 before so we can use the pointer already there
+        this%tail => node_before%next
+      end if
+
+      ! Deallocate
+      deallocate(node_to_delete%item)
+
+      ! Update length
+      this%num_nodes = this%num_nodes - 1
+
+    end if
+
+  end subroutine list_delete_node
 !===============================================================================
 
 !===============================================================================

@@ -242,8 +242,8 @@ contains
         do i=1,this%N_kutta_edges
 
             ! Get indices of starting and ending vertices
-            call get_item(kutta_edge_starts, i, m)
-            call get_item(kutta_edge_stops, i, n)
+            call kutta_edge_starts%get(i, m)
+            call kutta_edge_stops%get(i, n)
 
             ! Store
             call this%kutta_edges(i)%init(this%vertices(m), this%vertices(n), m, n)
@@ -278,7 +278,7 @@ contains
         do i=1,N_kutta_verts
 
             ! Get the vertex index
-            call get_item(this%kutta_vertices, i, ind)
+            call this%kutta_vertices%get(i, ind)
 
             ! Check if it is *in* a Kutta edge
             if (this%vertices(ind)%in_kutta_edge) then
@@ -300,7 +300,7 @@ contains
             if (need_cloned(i)) then
 
                 ! Initialize nex vertex
-                call get_item(this%kutta_vertices, i, ind)
+                call this%kutta_vertices%get(i, ind)
                 new_ind = this%N_verts+j ! Will be at position N_verts+j in the new vertex array
                 call new_vertices(new_ind)%init(new_vertices(ind)%loc, new_ind)
 
@@ -312,7 +312,7 @@ contains
                 do k=1,new_vertices(ind)%panels%len()
 
                     ! Get panel index
-                    call get_item(new_vertices(ind)%panels, k, panel_ind)
+                    call new_vertices(ind)%panels%get(k, panel_ind)
 
                     ! Store
                     call new_vertices(new_ind)%panels%append(panel_ind)
@@ -395,7 +395,7 @@ contains
         do i=1,N_kutta_verts
 
             ! Determine distance from origin to Kutta vertex in direction of the flow
-            call get_item(this%kutta_vertices, i, kutta_vert_ind)
+            call this%kutta_vertices%get(i, kutta_vert_ind)
             start = this%vertices(kutta_vert_ind)%loc
             distance = this%trefftz_distance-inner(start, freestream_flow%u_inf)
 
@@ -485,7 +485,7 @@ contains
             ! Loop through neighboring panels and compute the average of their normal vectors
             N = this%vertices(j)%panels%len()
             do i=1,N
-                call get_item(this%vertices(j)%panels, i, ind)
+                call this%vertices(j)%panels%get(i, ind)
                 sum = sum + this%panels(ind)%normal
             end do
 
