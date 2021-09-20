@@ -296,7 +296,7 @@ contains
 
         class(surface_mesh),intent(inout),target :: this
         integer :: i, j, k, m, N_clones, ind, panel_ind, new_ind, N_kutta_verts, bottom_panel_ind, abutting_panel_ind
-        type(vertex),dimension(:),allocatable :: cloned_vertices, new_vertices
+        type(vertex),dimension(:),allocatable :: cloned_vertices, temp_vertices
         logical,dimension(:),allocatable :: need_cloned
 
         write(*,*)
@@ -320,9 +320,12 @@ contains
             end if
         end do
 
-        ! Allocate new memory
-        allocate(new_vertices(N_clones+this%N_verts))
-        new_vertices(1:this%N_verts) = this%vertices
+        ! Extend allocation of vertex array
+        allocate(temp_vertices, source=this%vertices)
+        deallocate(this%vertices)
+        allocate(this%vertices(this%N_verts + N_clones))
+        this%vertices(1:this%N_verts) = temp_vertices
+        this%N_verts = this%N_verts + N_clones
 
         ! Initialize clones
         j = 1
@@ -331,14 +334,16 @@ contains
             ! Check if this vertex needs to be cloned
             if (need_cloned(i)) then
 
-                ! Initialize new vertex
+                ! Get information for the vertex clone
                 call this%kutta_vertices%get(i, ind)
                 new_ind = this%N_verts+j ! Will be at position N_verts+j in the new vertex array
-                call new_vertices(new_ind)%init(new_vertices(ind)%loc, new_ind)
+
+                ! Initialize new vertex
+                call this%vertices(new_ind)%init(this%vertices(ind)%loc, new_ind)
 
                 ! Store that it is on and in a Kutta edge (probably unecessary at this point, but let's be consistent)
-                new_vertices(new_ind)%on_kutta_edge = .true.
-                new_vertices(new_ind)%in_kutta_edge = .true.
+                this%vertices(new_ind)%on_kutta_edge = .true.
+                this%vertices(new_ind)%in_kutta_edge = .true.
 
                 ! Remove bottom panels from top vertex and give them to the bottom vertex
                 do k=1,this%N_kutta_edges
@@ -352,14 +357,15 @@ contains
                         ! Remove bottom panel index from original vertex
                         write(*,*) "About to delete"
                         call this%vertices(ind)%panels%delete(bottom_panel_ind)
-                        write(*,*) "Finished delete"
+                        write(*,*) "    Deleted"
 
                         ! Add to cloned vertex
+                        write(*,*) "About to append on edge"
                         if (.not. this%vertices(new_ind)%panels%is_in(bottom_panel_ind)) then
-                            write(*,*) "About to append"
+                            write(*,*) "    Appending"
                             call this%vertices(new_ind)%panels%append(bottom_panel_ind)
-                            write(*,*) "Finished append"
                         end if
+                        write(*,*) "    Appended"
 
                         ! If there are any panels attached to this vertex and abutting the bottom panel, shift them over as well
                         do m=1,this%panels(bottom_panel_ind)%abutting_panels%len()
@@ -373,12 +379,15 @@ contains
                                 ! Remove from original vertex
                                 write(*,*) "About to delete"
                                 call this%vertices(ind)%panels%delete(abutting_panel_ind)
-                                write(*,*) "Finished delete"
+                                write(*,*) "    Deleted"
 
                                 ! Add to cloned vertex
+                                write(*,*) "About to append on abutting"
                                 if (.not. this%vertices(new_ind)%panels%is_in(abutting_panel_ind)) then
+                                    write(*,*) "    Appending"
                                     call this%vertices(new_ind)%panels%append(abutting_panel_ind)
                                 end if
+                                write(*,*) "    Appended"
 
                             end if
                         end do
@@ -395,10 +404,6 @@ contains
             end if
 
         end do
-
-        ! Replace old vertex array with new vertex array
-        call move_alloc(new_vertices, this%vertices)
-        this%N_verts = this%N_verts + N_clones
 
         ! Fix vertex pointers in panel objects
         do i=1,this%N_panels
@@ -543,11 +548,14 @@ contains
 
         ! Loop through vertices
         do j=1,this%N_verts
+            write(*,*) j
 
             ! Loop through neighboring panels and compute the average of their normal vectors
             N = this%vertices(j)%panels%len()
             do i=1,N
+                write(*,*) "    Getting panel index"
                 call this%vertices(j)%panels%get(i, ind)
+                write(*,*) "    Got panel index"
                 sum = sum + this%panels(ind)%normal
             end do
 

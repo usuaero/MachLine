@@ -49,9 +49,9 @@ module linked_list_mod
 
   type :: list
     private
-    integer :: num_nodes = 0
     type(node), pointer :: head => null()
     type(node), pointer :: tail => null()
+    integer :: num_nodes = 0
   contains
     final :: list_finalizer
     procedure :: len => list_length
@@ -117,20 +117,35 @@ contains
 !===============================================================================
 !  list_append_item:
 !
-!    Finalizes the components of the given list.
+!    Adds an item to the end of the list.
 !
-  pure subroutine list_append_item( this, item )
+  pure subroutine list_append_item(this, item)
     class(list), intent(inout) :: this
     class(*), intent(in) :: item
 
-    if (associated(this%tail)) then
+    ! Add to end of list
+    if (this%num_nodes > 0) then
+
+      ! Allocate memory
       allocate(this%tail%next, source=node(item))
+
+      ! Associate
       this%tail => this%tail%next
+
+    ! If list is currently empty, add at the head
     else
+
+      ! Allocate memory
       allocate(this%head, source=node(item))
+      
+      ! Associate
       this%tail => this%head
+
     end if
+
+    ! Update number of nodes
     this%num_nodes = this%num_nodes + 1
+
   end subroutine list_append_item
 !===============================================================================
 
@@ -161,20 +176,22 @@ contains
 
     class(list),intent(in) :: this
     integer,intent(in) :: item
-    type(node) :: curr_node
     integer :: curr_item
     integer :: i
     logical :: is_in
 
     ! Loop through items in list
     is_in = .false.
+    write(*,*) this%num_nodes
     do i=1,this%num_nodes
+      write(*,*) i
       
-      ! Get node
-      call get_node(this, i, curr_node)
+      ! Get item
+      write(*,*) "    Getting item"
+      call this%get(i, curr_item)
+      write(*,*) "    Got item"
 
       ! Compare
-      call this%get(i, curr_item)
       if (curr_item == item) then
         is_in = .true.
         return
@@ -419,37 +436,33 @@ contains
     integer,intent(in) :: int
     type(node),pointer :: curr_node, prev_node, del_node
     integer :: curr_val
-    logical :: first = .true.
-
-    ! Start at the head
-    curr_node => this%head
-    prev_node => this%head
 
     ! Check if it's in the list
     if (.not. this%is_in(int)) then
       return
     end if
-    write(*,*)
+
+    ! Start at the head
+    curr_node => this%head
+    prev_node => null()
 
     ! Loop through list
     do while(.not. associated(prev_node, this%tail))
 
       ! Check if this node is the value
       call get_item(curr_node, curr_val)
-      write(*,'(i10)',advance='no') curr_val
       if (curr_val == int) then
-        write(*,*) "<-deleting"
 
-        ! If it's the first node, set the head pointer
-        if (first) then
+        ! If we're deleting the head node, move the head pointer
+        if (associated(curr_node, this%head)) then
           this%head => curr_node%next
 
-        ! Otherwise, set the previous node's pointer
+        ! Otherwise, move the previous node's pointer
         else
           prev_node%next => curr_node%next
         end if
 
-        ! Check if we're deleting the tail
+        ! If we're deleting the tail node, move the tail pointer
         if (associated(curr_node, this%tail)) then
           this%tail => prev_node
         end if
@@ -457,7 +470,7 @@ contains
         ! Update length
         this%num_nodes = this%num_nodes - 1
 
-        ! Move pointers
+        ! Move pointers (prev_node doesn't move if curr_node is getting deleted)
         del_node => curr_node
         curr_node => curr_node%next
 
@@ -466,15 +479,12 @@ contains
         deallocate(del_node)
 
       else
-        write(*,*)
 
         ! Move pointers
         prev_node => curr_node
         curr_node => curr_node%next
 
       end if
-
-      first = .false.
 
     end do
 

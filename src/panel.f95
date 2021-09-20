@@ -268,7 +268,7 @@ contains
 
         class(panel),intent(in) :: this
         integer,intent(in) :: i
-        logical touches
+        logical :: touches
 
         touches = .false.
 
