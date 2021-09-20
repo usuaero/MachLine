@@ -295,7 +295,7 @@ contains
         implicit none
 
         class(surface_mesh),intent(inout),target :: this
-        integer :: i, j, k, m, N_clones, ind, panel_ind, new_ind, N_kutta_verts, bottom_panel_ind, abutting_panel_ind
+        integer :: i, j, k, m, N_clones, ind, new_ind, N_kutta_verts, bottom_panel_ind, abutting_panel_ind
         type(vertex),dimension(:),allocatable :: cloned_vertices, temp_vertices
         logical,dimension(:),allocatable :: need_cloned
 
@@ -355,17 +355,12 @@ contains
                         bottom_panel_ind = this%kutta_edges(k)%bottom_panel
 
                         ! Remove bottom panel index from original vertex
-                        write(*,*) "About to delete"
                         call this%vertices(ind)%panels%delete(bottom_panel_ind)
-                        write(*,*) "    Deleted"
 
                         ! Add to cloned vertex
-                        write(*,*) "About to append on edge"
                         if (.not. this%vertices(new_ind)%panels%is_in(bottom_panel_ind)) then
-                            write(*,*) "    Appending"
                             call this%vertices(new_ind)%panels%append(bottom_panel_ind)
                         end if
-                        write(*,*) "    Appended"
 
                         ! If there are any panels attached to this vertex and abutting the bottom panel, shift them over as well
                         do m=1,this%panels(bottom_panel_ind)%abutting_panels%len()
@@ -377,17 +372,12 @@ contains
                             if (this%panels(abutting_panel_ind)%touches_vertex(ind)) then
 
                                 ! Remove from original vertex
-                                write(*,*) "About to delete"
                                 call this%vertices(ind)%panels%delete(abutting_panel_ind)
-                                write(*,*) "    Deleted"
 
                                 ! Add to cloned vertex
-                                write(*,*) "About to append on abutting"
                                 if (.not. this%vertices(new_ind)%panels%is_in(abutting_panel_ind)) then
-                                    write(*,*) "    Appending"
                                     call this%vertices(new_ind)%panels%append(abutting_panel_ind)
                                 end if
-                                write(*,*) "    Appended"
 
                             end if
                         end do
@@ -397,6 +387,15 @@ contains
                 end do
 
                 ! Update bottom panels to point to cloned vertex
+                do k=1,this%vertices(new_ind)%panels%len()
+
+                    ! Get panel index
+                    call this%vertices(new_ind)panels%get(k, bottom_panel_ind)
+
+                    ! Update
+                    call this%panels(bottom_panel_ind)%point_to_vertex_clone(this%vertices(new_ind))
+
+                end do
 
                 ! Update clone index
                 j = j + 1
@@ -405,7 +404,7 @@ contains
 
         end do
 
-        ! Fix vertex pointers in panel objects
+        ! Fix vertex pointers in panel objects (redundant for cloned vertices)
         do i=1,this%N_panels
 
             ! 3-sided panel
@@ -431,6 +430,42 @@ contains
 
 
     end subroutine surface_mesh_clone_kutta_vertices
+
+
+    subroutine surface_mesh_calc_vertex_normals(this)
+        ! Initializes the normal vectors associated with each vertex.
+        ! Must be called only once the Kutta edge search has been completed.
+        ! If the vertex is not *in* a Kutta edge, then it only has one normal
+        ! vector associated with it.
+
+        implicit none
+
+        class(surface_mesh),intent(inout) :: this
+        real,dimension(3) :: sum = 0
+        integer :: i, j, N, ind
+
+        write(*,*)
+        write(*,'(a)',advance='no') "     Calculating vertex normals..."
+
+        ! Loop through vertices
+        do j=1,this%N_verts
+
+            ! Loop through neighboring panels and compute the average of their normal vectors
+            N = this%vertices(j)%panels%len()
+            do i=1,N
+                call this%vertices(j)%panels%get(i, ind)
+                sum = sum + this%panels(ind)%normal
+            end do
+
+            ! Store
+            this%vertices(j)%normal = sum/N
+            this%vertices(j)%normal = this%vertices(j)%normal/norm(this%vertices(j)%normal)
+
+        end do
+
+        write(*,*) "Done."
+
+    end subroutine surface_mesh_calc_vertex_normals
 
 
     subroutine surface_mesh_initialize_wake(this, freestream_flow)
@@ -529,45 +564,6 @@ contains
         write(*,*) "Done."
 
     end subroutine surface_mesh_initialize_wake
-
-
-    subroutine surface_mesh_calc_vertex_normals(this)
-        ! Initializes the normal vectors associated with each vertex.
-        ! Must be called only once the Kutta edge search has been completed.
-        ! If the vertex is not *in* a Kutta edge, then it only has one normal
-        ! vector associated with it.
-
-        implicit none
-
-        class(surface_mesh),intent(inout) :: this
-        real,dimension(3) :: sum = 0
-        integer :: i, j, N, ind
-
-        write(*,*)
-        write(*,'(a)',advance='no') "     Calculating vertex normals..."
-
-        ! Loop through vertices
-        do j=1,this%N_verts
-            write(*,*) j
-
-            ! Loop through neighboring panels and compute the average of their normal vectors
-            N = this%vertices(j)%panels%len()
-            do i=1,N
-                write(*,*) "    Getting panel index"
-                call this%vertices(j)%panels%get(i, ind)
-                write(*,*) "    Got panel index"
-                sum = sum + this%panels(ind)%normal
-            end do
-
-            ! Store
-            this%vertices(j)%normal = sum/N
-            this%vertices(j)%normal = this%vertices(j)%normal/norm(this%vertices(j)%normal)
-
-        end do
-
-        write(*,*) "Done."
-
-    end subroutine surface_mesh_calc_vertex_normals
 
 
     subroutine surface_mesh_update_wake(this)

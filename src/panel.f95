@@ -40,6 +40,7 @@ module panel_mod
             procedure :: get_vertex_loc => panel_get_vertex_loc
             procedure :: get_vertex_index => panel_get_vertex_index
             procedure :: touches_vertex => panel_touches_vertex
+            procedure :: point_to_vertex_clone => panel_point_to_vertex_clone
 
     end type panel
 
@@ -284,5 +285,51 @@ contains
         end if
 
     end function panel_touches_vertex
+
+
+    subroutine panel_point_to_vertex_clone(this, vertex)
+        ! Updates the panel to point to this new vertex (assumed to be clone of a current vertex)
+
+        implicit none
+
+        class(panel),intent(inout) :: this
+        type(vertex),intent(in),target :: vertex
+
+        ! Check which vertex this will replace
+        if (norm(this%vertices(1)%ptr%loc-vertex%loc) < 1e-10) then
+
+            ! Update pointer
+            this%vertices(1)%ptr => vertex
+
+            ! Update index
+            this%i1 = vertex%index
+
+        else if (norm(this%vertices(2)%ptr%loc-vertex%loc) < 1e-10) then
+
+            ! Update pointer
+            this%vertices(2)%ptr => vertex
+
+            ! Update index
+            this%i2 = vertex%index
+
+        else if (norm(this%vertices(3)%ptr%loc-vertex%loc) < 1e-10) then
+
+            ! Update pointer
+            this%vertices(3)%ptr => vertex
+
+            ! Update index
+            this%i3 = vertex%index
+
+        else if (this%N == 4 .and. norm(this%vertices(4)%ptr%loc-vertex%loc) < 1e-10) then
+
+            ! Update pointer
+            this%vertices(4)%ptr => vertex
+
+            ! Update index
+            this%i4 = vertex%index
+
+        end if
+    
+    end subroutine panel_point_to_vertex_clone
     
 end module panel_mod

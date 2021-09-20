@@ -173,29 +173,29 @@ contains
 
 
   function list_is_in_integer(this, item) result(is_in)
+    ! Checks if the integer item is in the list
 
     class(list),intent(in) :: this
     integer,intent(in) :: item
-    integer :: curr_item
+    type(node),pointer :: curr_node
     integer :: i
     logical :: is_in
 
     ! Loop through items in list
     is_in = .false.
-    write(*,*) this%num_nodes
-    do i=1,this%num_nodes
-      write(*,*) i
+    curr_node => this%head
+    i = 1
+    do while(associated(curr_node))
       
-      ! Get item
-      write(*,*) "    Getting item"
-      call this%get(i, curr_item)
-      write(*,*) "    Got item"
-
       ! Compare
-      if (curr_item == item) then
+      if (curr_node == item) then
         is_in = .true.
         return
       end if
+
+      ! Move pointer forward
+      curr_node => curr_node%next
+      i = i + 1
 
     end do
 
