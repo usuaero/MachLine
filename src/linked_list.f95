@@ -49,9 +49,9 @@ module linked_list_mod
 
   type :: list
     private
+    integer :: num_nodes = 0
     type(node), pointer :: head => null()
     type(node), pointer :: tail => null()
-    integer :: num_nodes = 0
   contains
     final :: list_finalizer
     procedure :: len => list_length
@@ -123,23 +123,23 @@ contains
     class(list), intent(inout) :: this
     class(*), intent(in) :: item
 
-    ! Add to end of list
-    if (this%num_nodes > 0) then
-
-      ! Allocate memory
-      allocate(this%tail%next, source=node(item))
-
-      ! Associate
-      this%tail => this%tail%next
-
     ! If list is currently empty, add at the head
-    else
+    if (this%num_nodes == 0) then
 
       ! Allocate memory
       allocate(this%head, source=node(item))
       
-      ! Associate
+      ! Associate the tail
       this%tail => this%head
+
+    ! Add to end of list
+    else
+
+      ! Allocate memory
+      allocate(this%tail%next, source=node(item))
+
+      ! Associate the tail
+      this%tail => this%tail%next
 
     end if
 
@@ -506,7 +506,7 @@ contains
     integer, intent(out), optional :: stat
     character(*), intent(out), optional :: errmsg
     ! local variables:
-    integer :: i, istat, list_len
+    integer :: i, istat
     type(node), pointer :: current_node
 
 
@@ -522,7 +522,6 @@ contains
         current_node => current_node%next
       end do
       nVal = current_node
-      current_node => null()
     end if
 
     if (present(stat)) stat = istat

@@ -327,6 +327,13 @@ contains
         this%vertices(1:this%N_verts) = temp_vertices
         this%N_verts = this%N_verts + N_clones
 
+        ! Fix vertex pointers in panel objects (necessary because this%vertices got reallocated)
+        do i=1,this%N_panels
+            do j=1,this%panels(i)%N
+                this%panels(i)%vertices(j)%ptr => this%vertices(this%panels(i)%vertex_indices(j))
+            end do
+        end do
+
         ! Initialize clones
         j = 1
         do i=1,N_kutta_verts
@@ -336,7 +343,7 @@ contains
 
                 ! Get information for the vertex clone
                 call this%kutta_vertices%get(i, ind)
-                new_ind = this%N_verts+j ! Will be at position N_verts+j in the new vertex array
+                new_ind = this%N_verts-N_clones+j ! Will be at position N_verts-N_clones+j in the new vertex array
 
                 ! Initialize new vertex
                 call this%vertices(new_ind)%init(this%vertices(ind)%loc, new_ind)
@@ -390,7 +397,7 @@ contains
                 do k=1,this%vertices(new_ind)%panels%len()
 
                     ! Get panel index
-                    call this%vertices(new_ind)panels%get(k, bottom_panel_ind)
+                    call this%vertices(new_ind)%panels%get(k, bottom_panel_ind)
 
                     ! Update
                     call this%panels(bottom_panel_ind)%point_to_vertex_clone(this%vertices(new_ind))
@@ -399,28 +406,6 @@ contains
 
                 ! Update clone index
                 j = j + 1
-
-            end if
-
-        end do
-
-        ! Fix vertex pointers in panel objects (redundant for cloned vertices)
-        do i=1,this%N_panels
-
-            ! 3-sided panel
-            if (this%panels(i)%N == 3) then
-
-                this%panels(i)%vertices(1)%ptr => this%vertices(this%panels(i)%i1)
-                this%panels(i)%vertices(2)%ptr => this%vertices(this%panels(i)%i2)
-                this%panels(i)%vertices(3)%ptr => this%vertices(this%panels(i)%i3)
-
-            ! 4-sided panel
-            else
-
-                this%panels(i)%vertices(1)%ptr => this%vertices(this%panels(i)%i1)
-                this%panels(i)%vertices(2)%ptr => this%vertices(this%panels(i)%i2)
-                this%panels(i)%vertices(3)%ptr => this%vertices(this%panels(i)%i3)
-                this%panels(i)%vertices(4)%ptr => this%vertices(this%panels(i)%i4)
 
             end if
 
@@ -460,6 +445,7 @@ contains
             ! Store
             this%vertices(j)%normal = sum/N
             this%vertices(j)%normal = this%vertices(j)%normal/norm(this%vertices(j)%normal)
+            this%vertices(j)%phi = this%vertices(j)%normal(3)
 
         end do
 

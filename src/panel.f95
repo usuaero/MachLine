@@ -23,7 +23,7 @@ module panel_mod
         logical :: on_kutta_edge ! Whether this panel belongs to a Kutta edge
         logical :: wake_panel ! Whether this panel belongs to a wake
         logical :: shock_panel ! Whether this panel belongs to a shock
-        integer :: i1, i2, i3, i4 ! Indices of this panel's vertices in the mesh vertex array
+        integer,dimension(:),allocatable :: vertex_indices ! Indices of this panel's vertices in the mesh vertex array
         type(list) :: opposing_kutta_panels ! Indices of panels opposite this one on the Kutta edge(s)
         type(list) :: abutting_panels ! Indices of panels abutting this one (not across Kutta edge)
 
@@ -63,14 +63,15 @@ contains
         ! Allocate vertex array
         allocate(this%vertices(this%N))
         allocate(this%vertices_local(this%N,3))
+        allocate(this%vertex_indices(this%N))
 
         ! Store info
         this%vertices(1)%ptr => v1
         this%vertices(2)%ptr => v2
         this%vertices(3)%ptr => v3
-        this%i1 = i1
-        this%i2 = i2
-        this%i3 = i3
+        this%vertex_indices(1) = i1
+        this%vertex_indices(2) = i2
+        this%vertex_indices(3) = i3
 
         call this%calc_derived_properties()
 
@@ -92,16 +93,17 @@ contains
         ! Allocate vertex array
         allocate(this%vertices(this%N))
         allocate(this%vertices_local(this%N,3))
+        allocate(this%vertex_indices(this%N))
 
         ! Store info
         this%vertices(1)%ptr => v1
         this%vertices(2)%ptr => v2
         this%vertices(3)%ptr => v3
         this%vertices(4)%ptr => v4
-        this%i1 = i1
-        this%i2 = i2
-        this%i3 = i3
-        this%i4 = i4
+        this%vertex_indices(1) = i1
+        this%vertex_indices(2) = i2
+        this%vertex_indices(3) = i3
+        this%vertex_indices(4) = i4
 
         call this%calc_derived_properties()
 
@@ -270,65 +272,50 @@ contains
         class(panel),intent(in) :: this
         integer,intent(in) :: i
         logical :: touches
+        integer :: j
 
         touches = .false.
 
-        ! 3-sided panel
-        if (this%N == 3) then
-            if (this%i1 == i .or. this%i2 == i .or. this%i3 == i) then
+        ! Loop through vertices
+        do j=1,this%N
+
+            ! Check index
+            if (this%vertex_indices(j) == i) then
                 touches = .true.
+                return
             end if
-        else
-            if (this%i1 == i .or. this%i2 == i .or. this%i3 == i .or. this%i4 == i) then
-                touches = .true.
-            end if
-        end if
+
+        end do
 
     end function panel_touches_vertex
 
 
-    subroutine panel_point_to_vertex_clone(this, vertex)
+    subroutine panel_point_to_vertex_clone(this, clone)
         ! Updates the panel to point to this new vertex (assumed to be clone of a current vertex)
 
         implicit none
 
         class(panel),intent(inout) :: this
-        type(vertex),intent(in),target :: vertex
+        type(vertex),intent(in),target :: clone
+        integer :: i
 
-        ! Check which vertex this will replace
-        if (norm(this%vertices(1)%ptr%loc-vertex%loc) < 1e-10) then
+        ! Loop through vertices
+        do i=1,this%N
 
-            ! Update pointer
-            this%vertices(1)%ptr => vertex
+            ! Check which vertex this will replace
+            if (norm(this%vertices(i)%ptr%loc-clone%loc) < 1e-10) then
 
-            ! Update index
-            this%i1 = vertex%index
+                ! Update pointer
+                this%vertices(i)%ptr => clone
 
-        else if (norm(this%vertices(2)%ptr%loc-vertex%loc) < 1e-10) then
+                ! Update index
+                this%vertex_indices(i) = clone%index
 
-            ! Update pointer
-            this%vertices(2)%ptr => vertex
+                return
 
-            ! Update index
-            this%i2 = vertex%index
+            end if
 
-        else if (norm(this%vertices(3)%ptr%loc-vertex%loc) < 1e-10) then
-
-            ! Update pointer
-            this%vertices(3)%ptr => vertex
-
-            ! Update index
-            this%i3 = vertex%index
-
-        else if (this%N == 4 .and. norm(this%vertices(4)%ptr%loc-vertex%loc) < 1e-10) then
-
-            ! Update pointer
-            this%vertices(4)%ptr => vertex
-
-            ! Update index
-            this%i4 = vertex%index
-
-        end if
+        end do
     
     end subroutine panel_point_to_vertex_clone
     
