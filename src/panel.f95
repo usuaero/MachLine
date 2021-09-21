@@ -41,6 +41,7 @@ module panel_mod
             procedure :: get_vertex_index => panel_get_vertex_index
             procedure :: touches_vertex => panel_touches_vertex
             procedure :: point_to_vertex_clone => panel_point_to_vertex_clone
+            procedure :: get_source_potential => panel_get_source_potential
 
     end type panel
 
@@ -318,5 +319,49 @@ contains
         end do
     
     end subroutine panel_point_to_vertex_clone
+
+
+    function panel_get_source_potential(this, eval_point) result(phi)
+
+        implicit none
+
+        class(panel),intent(inout) :: this
+        real,dimension(3),intent(in) :: eval_point
+    
+    end function panel_get_source_potential
+
+
+    function panel_calc_H_1_1_3(this, eval_point) result(val)
+
+        implicit none
+
+        class(panel),intent(inout) :: this
+        real,dimension(3),intent(in) :: eval_point
+        real,dimension(3) :: r
+        real :: h, val = 0
+        integer :: i
+
+        ! Transform to panel coordinates
+        r = eval_point-this%centroid
+        r = matmul(this%A_t, r)
+        h = r(3)
+
+        ! Check for coplanar point
+        if (abs(h) < 1e-10) then
+
+            ! Coplanar checks
+
+        ! Calculate H(1,1,3) at point not coplanar with panel
+        else
+
+            ! Loop through edges
+            do i=1,this%N
+
+            end do
+
+        end if
+
+    end function panel_calc_H_1_1_3
+
     
 end module panel_mod
