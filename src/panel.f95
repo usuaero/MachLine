@@ -44,7 +44,9 @@ module panel_mod
             procedure :: get_vertex_index => panel_get_vertex_index
             procedure :: touches_vertex => panel_touches_vertex
             procedure :: point_to_vertex_clone => panel_point_to_vertex_clone
-            procedure :: get_source_potential => panel_get_source_potential
+            procedure :: get_source_potential_influence => panel_get_source_potential_influence
+            procedure :: get_doublet_potential_influence => panel_get_doublet_potential_influence
+            procedure :: calc_hH_1_1_3 => panel_calc_hH_1_1_3
 
     end type panel
 
@@ -376,7 +378,7 @@ contains
     end subroutine panel_point_to_vertex_clone
 
 
-    function panel_get_source_potential(this, eval_point) result(phi)
+    function panel_get_source_potential_influence(this, eval_point) result(phi)
 
         implicit none
 
@@ -384,10 +386,24 @@ contains
         real,dimension(3),intent(in) :: eval_point
         real :: phi
     
-    end function panel_get_source_potential
+    end function panel_get_source_potential_influence
 
 
-    function panel_calc_H_1_1_3(this, eval_point) result(val)
+    function panel_get_doublet_potential_influence(this, eval_point) result(phi)
+
+        implicit none
+
+        class(panel),intent(inout) :: this
+        real,dimension(3),intent(in) :: eval_point
+        real :: phi, hH113
+
+        ! Get fundamental integrals
+        hH113 = this%calc_hH_1_1_3(eval_point)
+    
+    end function panel_get_doublet_potential_influence
+
+
+    function panel_calc_hH_1_1_3(this, eval_point) result(val)
 
         implicit none
 
@@ -474,7 +490,7 @@ contains
 
                     end do
 
-                    val = val/abs(h)
+                    val = val*sign(h)
 
                 end if
 
@@ -502,7 +518,7 @@ contains
                 ! Check if point is in panel
                 ! Analytically, phi will either be +/-2pi or 0
                 if (phi > 3.0 .or. phi < -3.0) then
-                    val = 2.0*pi
+                    val = 2.0*pi*sign(h)
                 else
                     val = 0.0
                 end if
@@ -523,11 +539,11 @@ contains
                 val = val + atan2(S_beta, C_beta)
             end do
 
-            val = val/abs(h)
+            val = val*sign(h)
 
         end if
 
-    end function panel_calc_H_1_1_3
+    end function panel_calc_hH_1_1_3
 
     
 end module panel_mod
