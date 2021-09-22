@@ -1,5 +1,5 @@
 all:
-	gfortran -O2 -fdefault-real-8 -o mftran.exe \
+	gfortran -O2 -fdefault-real-8 -fbounds-check -o mftran.exe \
 	src/linked_list.f95 \
 	src/math.f95 \
 	src/json.f95 \

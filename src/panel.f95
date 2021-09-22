@@ -12,12 +12,14 @@ module panel_mod
         ! A panel with an arbitrary number of sides
 
         integer :: N ! Number of sides/vertices
+        integer :: index ! Index of this panel in the mesh array
         type(vertex_pointer),dimension(:),allocatable :: vertices
         real,dimension(3) :: normal ! Normal vector
         real,dimension(:,:),allocatable :: midpoints
         real,dimension(3) :: centroid
         real,dimension(3,3) :: A_t ! Local coordinate transform matrix
         real,dimension(:,:),allocatable :: vertices_local ! Location of the vertices described in local coords
+        real,dimension(:,:),allocatable :: t_hat, t_hat_local ! Edge unit tangents
         real :: A ! Surface area
         real :: phi_n = 0 ! Perturbation source strength
         logical :: on_kutta_edge ! Whether this panel belongs to a Kutta edge
@@ -37,6 +39,7 @@ module panel_mod
             procedure :: calc_normal => panel_calc_normal
             procedure :: calc_centroid => panel_calc_centroid
             procedure :: calc_coord_transform => panel_calc_coord_transform
+            procedure :: calc_edge_tangents => panel_calc_edge_tangents
             procedure :: get_vertex_loc => panel_get_vertex_loc
             procedure :: get_vertex_index => panel_get_vertex_index
             procedure :: touches_vertex => panel_touches_vertex
@@ -49,14 +52,14 @@ module panel_mod
 contains
 
 
-    subroutine panel_init_3(this, v1, v2, v3, i1, i2, i3)
+    subroutine panel_init_3(this, v1, v2, v3, i1, i2, i3, index)
         ! Initializes a 3-panel
 
         implicit none
 
         class(panel),intent(inout) :: this
         type(vertex),intent(in),target :: v1, v2, v3
-        integer,intent(in) :: i1, i2, i3
+        integer,intent(in) :: i1, i2, i3, index
 
         ! Set number of sides
         this%N = 3
@@ -73,20 +76,21 @@ contains
         this%vertex_indices(1) = i1
         this%vertex_indices(2) = i2
         this%vertex_indices(3) = i3
+        this%index = index
 
         call this%calc_derived_properties()
 
     end subroutine panel_init_3
 
 
-    subroutine panel_init_4(this, v1, v2, v3, v4, i1, i2, i3, i4)
+    subroutine panel_init_4(this, v1, v2, v3, v4, i1, i2, i3, i4, index)
         ! Initializes a panel with 4 sides
 
         implicit none
 
         class(panel),intent(inout) :: this
         type(vertex),intent(in),target :: v1, v2, v3, v4
-        integer,intent(in) :: i1, i2, i3, i4
+        integer,intent(in) :: i1, i2, i3, i4, index
         
         ! Set number of sides
         this%N = 4
@@ -105,6 +109,7 @@ contains
         this%vertex_indices(2) = i2
         this%vertex_indices(3) = i3
         this%vertex_indices(4) = i4
+        this%index = index
 
         call this%calc_derived_properties()
 
@@ -138,6 +143,9 @@ contains
 
         ! Calculate coordinate transform
         call this%calc_coord_transform()
+
+        ! Calculate edge tangents
+        call this%calc_edge_tangents()
 
     end subroutine panel_calc_derived_properties
 
@@ -240,6 +248,53 @@ contains
     end subroutine panel_calc_coord_transform
 
 
+    subroutine panel_calc_edge_tangents(this)
+
+        implicit none
+
+        class(panel),intent(inout) :: this
+        real,dimension(3) :: d
+        integer :: i
+
+        ! Allocate memory
+        allocate(this%t_hat(this%N,3))
+        allocate(this%t_hat_local(this%N,3))
+
+        ! Calculate tangents
+        do i=1,this%N
+
+            ! Calculate difference based on index
+            ! Edge tangent i starts at vertex i
+            if (i==this%N) then
+                d = this%get_vertex_loc(1)-this%get_vertex_loc(i)
+            else
+                d = this%get_vertex_loc(i+1)-this%get_vertex_loc(i)
+            end if
+
+            ! Calculate tangent
+            this%t_hat(i,:) = d/norm(d)
+
+        end do
+
+        ! Calculate tangents in local coordinates
+        do i=1,this%N
+
+            ! Calculate difference based on index
+            ! Edge tangent i starts at vertex i
+            if (i==this%N) then
+                d = this%vertices_local(1,:)-this%vertices_local(i,:)
+            else
+                d = this%vertices_local(i+1,:)-this%vertices_local(i,:)
+            end if
+
+            ! Calculate tangent
+            this%t_hat_local(i,:) = d/norm(d)
+
+        end do
+    
+    end subroutine panel_calc_edge_tangents
+
+
     function panel_get_vertex_loc(this, i) result(loc)
 
         implicit none
@@ -304,7 +359,7 @@ contains
         do i=1,this%N
 
             ! Check which vertex this will replace
-            if (norm(this%vertices(i)%ptr%loc-clone%loc) < 1e-10) then
+            if (norm(this%get_vertex_loc(i)-clone%loc) < 1e-10) then
 
                 ! Update pointer
                 this%vertices(i)%ptr => clone
@@ -327,6 +382,7 @@ contains
 
         class(panel),intent(inout) :: this
         real,dimension(3),intent(in) :: eval_point
+        real :: phi
     
     end function panel_get_source_potential
 
@@ -337,27 +393,137 @@ contains
 
         class(panel),intent(inout) :: this
         real,dimension(3),intent(in) :: eval_point
-        real,dimension(3) :: r
-        real :: h, val = 0
+        real,dimension(3) :: r, r_in_plane, d, d1, d2
+        real :: h, phi, S_beta, C_beta
+        real,dimension(:),allocatable :: a, g2, l1, l2, l1l2, s1, s2, c1, c2
+        real :: val
         integer :: i
+
+        ! Allocate arrays
+        allocate(a(this%N))
+        allocate(g2(this%N))
+        allocate(l1(this%N))
+        allocate(l2(this%N))
+        allocate(l1l2(this%N))
+        allocate(s1(this%N))
+        allocate(s2(this%N))
+        allocate(c1(this%N))
+        allocate(c2(this%N))
 
         ! Transform to panel coordinates
         r = eval_point-this%centroid
         r = matmul(this%A_t, r)
+        r_in_plane = r
+        r_in_plane(3) = 0
         h = r(3)
 
-        ! Check for coplanar point
+        ! Calculate intermediate quantities
+        do i=1,this%N
+
+            ! Perpendicular distance from projected point to edge
+            d = this%vertices_local(i,:)-r_in_plane
+            a(i) = norm(cross(d, this%t_hat_local(i,:)))
+
+            ! Integration lengths on edges
+            l1(i) = sqrt(norm(d)**2-a(i)**2)
+            if (i == this%N) then
+                d = this%vertices_local(1,:)-r_in_plane
+            else
+                d = this%vertices_local(i+1,:)-r_in_plane
+            end if
+            l2(i) = sqrt(norm(d)**2-a(i)**2)
+
+        end do
+
+        ! Calculate perpendicular distance to edges
+        g2 = a**2+h**2
+
+        ! Other intermediate quantities
+        l1l2 = l1*l2
+        s1 = sqrt(l1**2+g2)
+        s2 = sqrt(l2**2+g2)
+        c1 = g2+abs(h)*s1
+        c2 = g2+abs(h)*s2
+
+        ! Check location of point relative to the panel
+        val = 0.0
         if (abs(h) < 1e-10) then
 
-            ! Coplanar checks
+            ! Check if point is colinear with edge
+            if (any(g2 == 0.0)) then
 
-        ! Calculate H(1,1,3) at point not coplanar with panel
+                ! Check if point is on edge
+                if (any(l1l2 < 0.0)) then
+                    write(*,*) "Error: Evaluation point", eval_point, "is on an edge of panel", this%index
+                    stop
+                
+                ! Not on edge
+                else
+
+                    ! Calculate H(1,1,3) using complicated formulation
+                    ! Loop through edges
+                    do i=1,this%N
+
+                        ! Calculate sine and cosine
+                        S_beta = a(i)*( l2(i) - l1(i) + ( abs(h) * ( l2(i)**2 - l1(i)**2 ) / ( l2(i) * s1(i) + l1(i) * s2(i) )))
+                        C_beta = g2(i) + abs(h)*( s1(i) + s2(i) ) + l1(i)*l2(i) + &
+                                 (h**2 * ( g2(i) + l1(i)**2 + l2(i)**2 )/( s1(i)*s2(i) + l1(i)*l2(i)))
+
+                        ! Add to influence
+                        val = val + atan2(S_beta, C_beta)
+
+                    end do
+
+                    val = val/abs(h)
+
+                end if
+
+            ! Point is coplanar but not colinear
+            else
+
+                ! Loop through vertices to find total angle swept
+                phi = 0
+                do i=1,this%N
+
+                    ! Get displacement vectors
+                    d1 = this%vertices_local(i,:)-r_in_plane
+                    if (i == this%N) then
+                        d2 = this%vertices_local(1,:)-r_in_plane
+                    else
+                        d2 = this%vertices_local(i+1,:)-r_in_plane
+                    end if
+
+                    ! Calculate angle swept
+                    d = cross(d1, d2)
+                    phi = phi + asin(norm(d)/(norm(d1)*norm(d2)))
+
+                end do
+
+                ! Check if point is in panel
+                ! Analytically, phi will either be +/-2pi or 0
+                if (phi > 3.0 .or. phi < -3.0) then
+                    val = 2.0*pi
+                else
+                    val = 0.0
+                end if
+
+            end if
+
+        ! Calculate H(1,1,3) at point not coplanar with panel (simple formulation)
         else
 
             ! Loop through edges
             do i=1,this%N
 
+                ! Calculate sine and cosine
+                S_beta = a(i) * ( l2(i)*c1(i) - l1(i)*c2(i) )
+                C_beta = c1(i)*c2(i) + a(i)**2 * l1(i)*l2(i)
+
+                ! Add to influence
+                val = val + atan2(S_beta, C_beta)
             end do
+
+            val = val/abs(h)
 
         end if
 

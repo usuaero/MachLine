@@ -58,7 +58,8 @@ contains
         ! Get mesh file
         call json_get(settings, 'file', this%mesh_file)
         this%mesh_file = trim(this%mesh_file)
-        write(*,*) "    Initializing surface mesh from file: ", this%mesh_file
+        write(*,*)
+        write(*,*) "    Reading surface mesh in from file: ", this%mesh_file
 
         ! Determine the type of mesh file
         loc = index(this%mesh_file, '.')
@@ -70,6 +71,7 @@ contains
         end if
 
         ! Display mesh info
+        write(*,*)
         write(*,*) "    Surface mesh has", this%N_verts, "vertices and", this%N_panels, "panels."
 
         ! Determine bounds of alternating digital tree
@@ -93,13 +95,13 @@ contains
         this%vertex_tree%p_min = p_min
         this%vertex_tree%p_max = p_max
 
-        ! Load vertices into alternating digital tree
-        write(*,*)
-        write(*,'(a)',advance='no') "     Loading vertices into ADT..."
-        do i=1,this%N_verts
-            call this%vertex_tree%add(this%vertices(i))
-        end do
-        write(*,*) "Done."
+        !! Load vertices into alternating digital tree
+        !write(*,*)
+        !write(*,'(a)',advance='no') "     Loading vertices into ADT..."
+        !do i=1,this%N_verts
+        !    call this%vertex_tree%add(this%vertices(i))
+        !end do
+        !write(*,*) "Done."
 
         ! Store other settings for wake models
         call json_get(settings, 'wake_model.wake_shedding_angle', this%kutta_angle)
@@ -528,7 +530,7 @@ contains
                 call this%wake_panels(ind)%init(this%wake_vertices(i1),&
                                                 this%wake_vertices(i2),&
                                                 this%wake_vertices(i3),&
-                                                i1, i2, i3)
+                                                i1, i2, i3, ind)
 
                 ! Determine index of second triangular panel
                 ind = (i-1)*this%N_wake_panels_streamwise*2+2*j
@@ -542,12 +544,12 @@ contains
                 call this%wake_panels(ind)%init(this%wake_vertices(i1),&
                                                 this%wake_vertices(i2),&
                                                 this%wake_vertices(i3),&
-                                                i1, i2, i3)
+                                                i1, i2, i3, ind)
 
             end do
         end do
 
-        write(*,*) "Done."
+        write(*,*) "Done. Created", this%N_wake_verts, "wake vertices and", this%N_wake_panels, "wake panels."
 
     end subroutine surface_mesh_initialize_wake
 

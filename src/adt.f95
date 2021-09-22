@@ -46,7 +46,7 @@ contains
         if (associated(curr)) then
 
             ! Send to left (lesser) node
-            if (point%loc(dir) < curr%div) then
+            if (point%loc(curr%dir) < curr%div) then
                 p_mid = p_max
                 p_mid(curr%dir) = curr%div
                 call t%recursive_add(curr%left, point, level+1, p_min, p_mid)
@@ -68,7 +68,7 @@ contains
             curr%p_max = p_max
 
             ! Determine sorting direction
-            curr%dir = modulo(level, 3)
+            curr%dir = modulo(level, 3)+1
 
             ! Get dividing location
             curr%div = 0.5*(p_min(curr%dir)+p_max(curr%dir))

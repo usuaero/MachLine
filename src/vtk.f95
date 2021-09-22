@@ -66,7 +66,7 @@ contains
                 ! Initialize triangular panel
                 if (N == 3) then
                     call panels(i)%init(vertices(i1+1), vertices(i2+1), vertices(i3+1),&
-                                        i1+1, i2+1, i3+1) ! Need +1 because VTK uses 0-based indexing
+                                        i1+1, i2+1, i3+1, i) ! Need +1 because VTK uses 0-based indexing
 
                     ! Add panel index to vertices
                     call vertices(i1+1)%panels%append(i)
@@ -76,7 +76,7 @@ contains
                 ! Initialize quadrilateral panel
                 else
                     call panels(i)%init(vertices(i1+1), vertices(i2+1), vertices(i3+1), vertices(i4+1),&
-                                        i1+1, i2+1, i3+1,i4+1)
+                                        i1+1, i2+1, i3+1, i4+1, i)
 
                     ! Add panel index to vertices
                     call vertices(i1+1)%panels%append(i)
