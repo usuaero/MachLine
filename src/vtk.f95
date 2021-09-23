@@ -59,7 +59,7 @@ contains
                 else if (dummy_read(1:2) == '4 ') then
                     read(dummy_read,*) N, i1, i2, i3, i4
                 else
-                    write(*,*) "MFTran supports only triangular and quadrilateral panels."
+                    write(*,*) "MFTran supports only triangular panels."
                     stop
                 end if
 
@@ -75,14 +75,16 @@ contains
 
                 ! Initialize quadrilateral panel
                 else
-                    call panels(i)%init(vertices(i1+1), vertices(i2+1), vertices(i3+1), vertices(i4+1),&
-                                        i1+1, i2+1, i3+1, i4+1, i)
+                    write(*,*) "MFTran cannot currently handle quadrilateral panels."
+                    stop
+                    !call panels(i)%init(vertices(i1+1), vertices(i2+1), vertices(i3+1), vertices(i4+1),&
+                    !                    i1+1, i2+1, i3+1, i4+1, i)
 
-                    ! Add panel index to vertices
-                    call vertices(i1+1)%panels%append(i)
-                    call vertices(i2+1)%panels%append(i)
-                    call vertices(i3+1)%panels%append(i)
-                    call vertices(i4+1)%panels%append(i)
+                    !! Add panel index to vertices
+                    !call vertices(i1+1)%panels%append(i)
+                    !call vertices(i2+1)%panels%append(i)
+                    !call vertices(i3+1)%panels%append(i)
+                    !call vertices(i4+1)%panels%append(i)
                 end if
 
             end do

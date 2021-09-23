@@ -11,7 +11,7 @@ module panel_mod
     type panel
         ! A panel with an arbitrary number of sides
 
-        integer :: N ! Number of sides/vertices
+        integer :: N = 3 ! Number of sides/vertices
         integer :: index ! Index of this panel in the mesh array
         type(vertex_pointer),dimension(:),allocatable :: vertices
         real,dimension(3) :: normal ! Normal vector
@@ -22,6 +22,9 @@ module panel_mod
         real,dimension(:,:),allocatable :: t_hat, t_hat_local ! Edge unit tangents
         real :: A ! Surface area
         real :: phi_n = 0 ! Perturbation source strength
+        real :: mu_0_1, mu_x_1, mu_y_1 ! Influence of vertex 1 on the doublet integral parameters
+        real :: mu_0_2, mu_x_2, mu_y_2 ! Influence of vertex 2 on the doublet integral parameters
+        real :: mu_0_3, mu_x_3, mu_y_3 ! Influence of vertex 3 on the doublet integral parameters
         logical :: on_kutta_edge ! Whether this panel belongs to a Kutta edge
         logical :: wake_panel ! Whether this panel belongs to a wake
         logical :: shock_panel ! Whether this panel belongs to a shock
@@ -33,7 +36,7 @@ module panel_mod
 
             procedure :: panel_init_3
             procedure :: panel_init_4
-            generic :: init => panel_init_3, panel_init_4
+            generic :: init => panel_init_3 !, panel_init_4 ! I only want to deal with 3-sided panels for now
             procedure :: calc_derived_properties =>panel_calc_derived_properties
             procedure :: calc_area => panel_calc_area
             procedure :: calc_normal => panel_calc_normal
@@ -44,7 +47,8 @@ module panel_mod
             procedure :: get_vertex_index => panel_get_vertex_index
             procedure :: touches_vertex => panel_touches_vertex
             procedure :: point_to_vertex_clone => panel_point_to_vertex_clone
-            procedure :: get_source_potential_influence => panel_get_source_potential_influence
+            procedure :: get_source_potential => panel_get_source_potential
+            procedure :: get_source_velocity => panel_get_source_velocity
             procedure :: get_doublet_potential_influence => panel_get_doublet_potential_influence
             procedure :: calc_hH_1_1_3 => panel_calc_hH_1_1_3
 
@@ -230,6 +234,7 @@ contains
         class(panel),intent(inout) :: this
         real,dimension(3) :: d
         integer :: i
+        real :: dx1, dx2, dy1, dy2, det
 
         ! Choose first edge tangent as local xi-axis
         ! (will need to be projected for quadrilateral panel)
@@ -246,6 +251,29 @@ contains
         do i=1,this%N
             this%vertices_local(i,:) = matmul(this%A_t, this%get_vertex_loc(i))
         end do
+
+        ! Determine influence of vertex doublet strengths on integral parameters
+        ! Preliminaries
+        dx1 = this%vertices_local(1,1)-this%centroid(1)
+        dx2 = this%vertices_local(2,1)-this%centroid(1)
+        dy1 = this%vertices_local(1,2)-this%centroid(2)
+        dy2 = this%vertices_local(2,2)-this%centroid(2)
+        det = dx1*dy2-dx2*dy1
+
+        ! Influence on mu_0
+        this%mu_0_1 = 1/3
+        this%mu_0_2 = 1/3
+        this%mu_0_3 = 1/3
+
+        ! Influence on mu_x
+        this%mu_x_1 = 1/(3*det)*(2*dy2+dy1)
+        this%mu_x_2 = 1/(3*det)*(-dy2-2*dy1)
+        this%mu_x_3 = 1/(3*det)*(-dy2+dy1)
+
+        ! Influence on mu_y
+        this%mu_y_1 = 1/(3*det)*(-2*dx2-dx1)
+        this%mu_y_2 = 1/(3*det)*(dx2+2*dx1)
+        this%mu_y_3 = 1/(3*det)*(dx2-dx1)
 
     end subroutine panel_calc_coord_transform
 
@@ -378,15 +406,32 @@ contains
     end subroutine panel_point_to_vertex_clone
 
 
-    function panel_get_source_potential_influence(this, eval_point) result(phi)
+    function panel_get_source_potential(this, eval_point) result(phi)
 
         implicit none
 
         class(panel),intent(inout) :: this
         real,dimension(3),intent(in) :: eval_point
         real :: phi
+
+        ! Get H(1,1,1)
     
-    end function panel_get_source_potential_influence
+    end function panel_get_source_potential
+
+
+    function panel_get_source_velocity(this, eval_point) result(vel)
+
+        implicit none
+
+        class(panel),intent(inout) :: this
+        real,dimension(3),intent(in) :: eval_point
+        real,dimension(3) :: vel
+        real :: hH113
+
+        ! Get H(2,1,3), H(1,2,3), and hH(1,1,3)
+        hH113 = this%calc_hH_1_1_3(eval_point)
+    
+    end function panel_get_source_velocity
 
 
     function panel_get_doublet_potential_influence(this, eval_point) result(phi)
@@ -411,20 +456,9 @@ contains
         real,dimension(3),intent(in) :: eval_point
         real,dimension(3) :: r, r_in_plane, d, d1, d2
         real :: h, phi, S_beta, C_beta
-        real,dimension(:),allocatable :: a, g2, l1, l2, l1l2, s1, s2, c1, c2
+        real,dimension(3) :: a, g2, l1, l2, l1l2, s1, s2, c1, c2
         real :: val
         integer :: i
-
-        ! Allocate arrays
-        allocate(a(this%N))
-        allocate(g2(this%N))
-        allocate(l1(this%N))
-        allocate(l2(this%N))
-        allocate(l1l2(this%N))
-        allocate(s1(this%N))
-        allocate(s2(this%N))
-        allocate(c1(this%N))
-        allocate(c2(this%N))
 
         ! Transform to panel coordinates
         r = eval_point-this%centroid
@@ -490,7 +524,7 @@ contains
 
                     end do
 
-                    val = val*sign(h)
+                    val = sign(val, h)
 
                 end if
 
@@ -518,7 +552,7 @@ contains
                 ! Check if point is in panel
                 ! Analytically, phi will either be +/-2pi or 0
                 if (phi > 3.0 .or. phi < -3.0) then
-                    val = 2.0*pi*sign(h)
+                    val = sign(2.0*pi, h)
                 else
                     val = 0.0
                 end if
@@ -539,7 +573,7 @@ contains
                 val = val + atan2(S_beta, C_beta)
             end do
 
-            val = val*sign(h)
+            val = sign(val, h)
 
         end if
 
