@@ -20,6 +20,7 @@ module panel_mod
         real,dimension(3,3) :: A_t ! Local coordinate transform matrix
         real,dimension(:,:),allocatable :: vertices_local ! Location of the vertices described in local coords
         real,dimension(:,:),allocatable :: t_hat, t_hat_local ! Edge unit tangents
+        real,dimension(:,:),allocatable :: n_hat, n_hat_local ! Edge unit outward normals
         real :: A ! Surface area
         real :: phi_n = 0 ! Perturbation source strength
         real :: mu_0_1, mu_x_1, mu_y_1 ! Influence of vertex 1 on the doublet integral parameters
@@ -289,6 +290,8 @@ contains
         ! Allocate memory
         allocate(this%t_hat(this%N,3))
         allocate(this%t_hat_local(this%N,3))
+        allocate(this%n_hat(this%N,3))
+        allocate(this%n_hat_local(this%N,3))
 
         ! Calculate tangents
         do i=1,this%N
@@ -303,22 +306,15 @@ contains
 
             ! Calculate tangent
             this%t_hat(i,:) = d/norm(d)
+            this%t_hat_local(i,:) = matmul(this%A_t, this%t_hat(i,:))
 
         end do
 
-        ! Calculate tangents in local coordinates
+        ! Calculate outward normals
         do i=1,this%N
 
-            ! Calculate difference based on index
-            ! Edge tangent i starts at vertex i
-            if (i==this%N) then
-                d = this%vertices_local(1,:)-this%vertices_local(i,:)
-            else
-                d = this%vertices_local(i+1,:)-this%vertices_local(i,:)
-            end if
-
-            ! Calculate tangent
-            this%t_hat_local(i,:) = d/norm(d)
+            this%n_hat(i,:) = cross(this%t_hat(i,:), this%normal)
+            this%n_hat_local(i,:) = matmul(this%A_t, this%n_hat(i,:))
 
         end do
     

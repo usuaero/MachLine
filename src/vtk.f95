@@ -77,6 +77,9 @@ contains
                 else
                     write(*,*) "MFTran cannot currently handle quadrilateral panels."
                     stop
+
+                    ! TODO: Initialize quads with two tris
+
                     !call panels(i)%init(vertices(i1+1), vertices(i2+1), vertices(i3+1), vertices(i4+1),&
                     !                    i1+1, i2+1, i3+1, i4+1, i)
 
