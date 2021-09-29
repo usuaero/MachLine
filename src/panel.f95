@@ -21,6 +21,7 @@ module panel_mod
         real,dimension(:,:),allocatable :: vertices_local ! Location of the vertices described in local coords
         real,dimension(:,:),allocatable :: t_hat, t_hat_local ! Edge unit tangents
         real,dimension(:,:),allocatable :: n_hat, n_hat_local ! Edge unit outward normals
+        real,dimension(:),allocatable :: l ! Edge lengths
         real :: A ! Surface area
         real :: phi_n = 0 ! Perturbation source strength
         real :: mu_0_1, mu_x_1, mu_y_1 ! Influence of vertex 1 on the doublet integral parameters
@@ -288,6 +289,7 @@ contains
         integer :: i
 
         ! Allocate memory
+        allocate(this%l(this%N))
         allocate(this%t_hat(this%N,3))
         allocate(this%t_hat_local(this%N,3))
         allocate(this%n_hat(this%N,3))
@@ -304,8 +306,11 @@ contains
                 d = this%get_vertex_loc(i+1)-this%get_vertex_loc(i)
             end if
 
+            ! Calculate edge length
+            this%l(i) = norm(d)
+
             ! Calculate tangent
-            this%t_hat(i,:) = d/norm(d)
+            this%t_hat(i,:) = d/this%l(i)
             this%t_hat_local(i,:) = matmul(this%A_t, this%t_hat(i,:))
 
         end do
@@ -466,18 +471,13 @@ contains
         ! Calculate intermediate quantities
         do i=1,this%N
 
-            ! Perpendicular distance from projected point to edge
+            ! Perpendicular distance in plane from evaluation point to edge
             d = this%vertices_local(i,:)-r_in_plane
-            a(i) = norm(cross(d, this%t_hat_local(i,:)))
+            a(i) = inner(d, this%n_hat_local(i,:))
 
             ! Integration lengths on edges
-            l1(i) = sqrt(norm(d)**2-a(i)**2)
-            if (i == this%N) then
-                d = this%vertices_local(1,:)-r_in_plane
-            else
-                d = this%vertices_local(i+1,:)-r_in_plane
-            end if
-            l2(i) = sqrt(norm(d)**2-a(i)**2)
+            l1(i) = inner(d, this%t_hat_local(i,:))
+            l2(i) = l1(i)+this%l(i)
 
         end do
 
