@@ -33,6 +33,7 @@ module panel_mod
         integer,dimension(:),allocatable :: vertex_indices ! Indices of this panel's vertices in the mesh vertex array
         type(list) :: opposing_kutta_panels ! Indices of panels opposite this one on the Kutta edge(s)
         type(list) :: abutting_panels ! Indices of panels abutting this one (not across Kutta edge)
+        logical :: xy_sym, xz_sym, yz_sym ! Whether this panel is reflected about any planes
 
         contains
 

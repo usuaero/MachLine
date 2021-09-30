@@ -30,10 +30,12 @@ module surface_mesh_mod
         real,dimension(:,:),allocatable :: control_points
         real,dimension(:),allocatable :: phi_cp
         real :: control_point_offset
+        logical :: xy_sym, xz_sym, yz_sym ! Whether the mesh is to be mirrored about any planes
 
         contains
 
             procedure :: init => surface_mesh_init
+            procedure :: load_adt => surface_mesh_load_adt
             procedure :: init_with_flow => surface_mesh_init_with_flow
             procedure :: output_results => surface_mesh_output_results
             procedure :: locate_kutta_edges => surface_mesh_locate_kutta_edges
@@ -56,8 +58,7 @@ contains
         class(surface_mesh),intent(inout) :: this
         type(json_value),pointer,intent(in) :: settings
         character(len=:),allocatable :: extension
-        real,dimension(3) :: p_min, p_max
-        integer :: loc, i
+        integer :: loc
 
         ! Get mesh file
         call json_get(settings, 'file', this%mesh_file)
@@ -77,6 +78,37 @@ contains
         ! Display mesh info
         write(*,*)
         write(*,*) "    Surface mesh has", this%N_verts, "vertices and", this%N_panels, "panels."
+
+        ! Load into adt
+        !call this%load_adt()
+
+        ! Get symmetry settings
+        call json_xtnsn_get(settings, 'symmetry.xy', this%xy_sym, .false.)
+        call json_xtnsn_get(settings, 'symmetry.xz', this%xz_sym, .false.)
+        call json_xtnsn_get(settings, 'symmetry.yz', this%yz_sym, .false.)
+
+        ! Store settings for wake models
+        call json_xtnsn_get(settings, 'wake_model.wake_shedding_angle', this%kutta_angle, 90.0)
+        call json_xtnsn_get(settings, 'wake_model.trefftz_distance', this%trefftz_distance, 100.0)
+        call json_xtnsn_get(settings, 'wake_model.N_panels', this%N_wake_panels_streamwise, 20)
+        this%C_kutta_angle = cos(this%kutta_angle*pi/180.0)
+
+        ! Store boundary condition settings
+        call json_get(settings, 'boundary_conditions.control_point_offset', this%control_point_offset)
+    
+    end subroutine surface_mesh_init
+
+
+    subroutine surface_mesh_load_adt(this)
+
+        implicit none
+
+        class(surface_mesh),intent(inout) :: this
+        real,dimension(3) :: p_min, p_max
+        integer :: i
+
+        write(*,*)
+        write(*,'(a)',advance='no') "     Loading vertices into ADT..."
 
         ! Determine bounds of alternating digital tree
         p_min = this%vertices(1)%loc
@@ -99,24 +131,14 @@ contains
         this%vertex_tree%p_min = p_min
         this%vertex_tree%p_max = p_max
 
-        !! Load vertices into alternating digital tree
-        !write(*,*)
-        !write(*,'(a)',advance='no') "     Loading vertices into ADT..."
-        !do i=1,this%N_verts
-        !    call this%vertex_tree%add(this%vertices(i))
-        !end do
-        !write(*,*) "Done."
+        ! Load vertices into alternating digital tree
+        do i=1,this%N_verts
+            call this%vertex_tree%add(this%vertices(i))
+        end do
+        write(*,*) "Done."
 
-        ! Store settings for wake models
-        call json_get(settings, 'wake_model.wake_shedding_angle', this%kutta_angle)
-        call json_get(settings, 'wake_model.trefftz_distance', this%trefftz_distance)
-        call json_get(settings, 'wake_model.N_panels', this%N_wake_panels_streamwise)
-        this%C_kutta_angle = cos(this%kutta_angle*pi/180.0)
 
-        ! Store boundary condition settings
-        call json_get(settings, 'boundary_conditions.control_point_offset', this%control_point_offset)
-    
-    end subroutine surface_mesh_init
+    end subroutine surface_mesh_load_adt
 
 
     subroutine surface_mesh_init_with_flow(this, freestream_flow)

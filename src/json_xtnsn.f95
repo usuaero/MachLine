@@ -10,6 +10,7 @@ module json_xtnsn_mod
         module procedure :: json_xtnsn_value_get_real, json_xtnsn_file_get_real
         module procedure :: json_xtnsn_value_get_integer, json_xtnsn_file_get_integer
         module procedure :: json_xtnsn_value_get_string, json_xtnsn_file_get_string
+        module procedure :: json_xtnsn_value_get_logical, json_xtnsn_file_get_logical
     end interface json_xtnsn_get
 
 contains
@@ -25,7 +26,6 @@ contains
         call json_get(json, name, value, json_found)
         if(json_failed() .or. (.not. json_found)) then
             if (present(default_value)) then
-                write(*,*) trim(name),' set to ',default_value
                 value = default_value
                 call json_clear_exceptions()
             else
@@ -46,7 +46,6 @@ contains
         call json_get(json, name, value, json_found)
         if((.not.json_found) .or. json_failed()) then
             if (present(default_value)) then
-                write(*,*) trim(name),' set to ',default_value
                 value = default_value
                 call json_clear_exceptions()
             else
@@ -68,7 +67,6 @@ contains
         call json_get(json, name, value, json_found)
         if((.not.json_found) .or. json_failed()) then
             if (present(default_value)) then
-                write(*,*) trim(name), ' set to ', default_value
                 value = default_value
                 call json_clear_exceptions()
             else
@@ -78,6 +76,27 @@ contains
         end if
     
     end subroutine json_xtnsn_value_get_string
+    
+    
+    subroutine json_xtnsn_value_get_logical(json, name, value, default_value)
+        implicit none
+        type(json_value), intent(in), pointer :: json
+        character(len=*), intent(in) :: name
+        logical, intent(out) :: value
+        logical, intent(in), optional :: default_value
+    
+        call json_get(json, name, value, json_found)
+        if((.not.json_found) .or. json_failed()) then
+            if (present(default_value)) then
+                value = default_value
+                call json_clear_exceptions()
+            else
+                write(*,*) 'Error: Unable to read required value: ', name
+                STOP
+            end if
+        end if
+    
+    end subroutine json_xtnsn_value_get_logical
     
     
     subroutine json_xtnsn_file_get_real(json, name, value, default_value)
@@ -90,7 +109,6 @@ contains
         call json%get(name, value)
         if(json_failed()) then
             if (present(default_value)) then
-                write(*,*) trim(name), ' set to ', default_value
                 value = default_value
                 call json_clear_exceptions()
             else
@@ -112,7 +130,6 @@ contains
         call json%get(name, value)
         if(json_failed()) then
             if (present(default_value)) then
-                write(*,*) trim(name),' set to ',default_value
                 value = default_value
                 call json_clear_exceptions()
             else
@@ -137,6 +154,21 @@ contains
     
         value = trim(value)
     end subroutine json_xtnsn_file_get_string
+    
+    
+    subroutine json_xtnsn_file_get_logical(json, name, value)
+        implicit none
+        type(json_file) :: json
+        character(len=*), intent(in) :: name
+        logical, intent(out) :: value
+    
+        call json%get(name, value)
+        if(json_failed()) then
+            write(*,*) 'Error: Unable to read required value: ',name
+            STOP
+        end if
+    
+    end subroutine json_xtnsn_file_get_logical
     
     
     subroutine json_check()
