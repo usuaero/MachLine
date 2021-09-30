@@ -457,7 +457,7 @@ contains
         real,dimension(3),intent(in) :: eval_point
         real,dimension(3) :: r, r_in_plane, d, d1, d2
         real :: h, phi, S_beta, C_beta
-        real,dimension(3) :: a, g2, l1, l2, l1l2, s1, s2, c1, c2
+        real,dimension(3) :: a, g2, l1, l2, s1, s2, c1, c2
         real :: val
         integer :: i
 
@@ -485,9 +485,8 @@ contains
         g2 = a**2+h**2
 
         ! Other intermediate quantities
-        l1l2 = l1*l2
-        s1 = sqrt(l1**2+g2)
-        s2 = sqrt(l2**2+g2)
+        s1 = sqrt(l1**2+g2) ! Distance to first vertex (at this point, this method is more efficient than taking the norm)
+        s2 = sqrt(l2**2+g2) ! Distance to second vertex
         c1 = g2+abs(h)*s1
         c2 = g2+abs(h)*s2
 
@@ -499,7 +498,7 @@ contains
             if (any(g2 == 0.0)) then
 
                 ! Check if point is on edge
-                if (any(l1l2 < 0.0)) then
+                if (any(l1*l2 < 0.0)) then
                     write(*,*) "Error: Evaluation point", eval_point, "is on an edge of panel", this%index
                     stop
                 

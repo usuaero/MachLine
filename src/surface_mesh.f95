@@ -27,6 +27,9 @@ module surface_mesh_mod
         type(alternating_digital_tree) :: vertex_tree
         real :: kutta_angle, C_kutta_angle, trefftz_distance
         integer :: N_wake_panels_streamwise, N_kutta_edges
+        real,dimension(:,:),allocatable :: control_points
+        real,dimension(:),allocatable :: phi_cp
+        real :: control_point_offset
 
         contains
 
@@ -37,6 +40,7 @@ module surface_mesh_mod
             procedure :: clone_kutta_vertices => surface_mesh_clone_kutta_vertices
             procedure :: initialize_wake => surface_mesh_initialize_wake
             procedure :: calc_vertex_normals => surface_mesh_calc_vertex_normals
+            procedure :: place_control_points => surface_mesh_place_control_points
             procedure :: update_wake => surface_mesh_update_wake
 
     end type surface_mesh
@@ -103,11 +107,14 @@ contains
         !end do
         !write(*,*) "Done."
 
-        ! Store other settings for wake models
+        ! Store settings for wake models
         call json_get(settings, 'wake_model.wake_shedding_angle', this%kutta_angle)
         call json_get(settings, 'wake_model.trefftz_distance', this%trefftz_distance)
         call json_get(settings, 'wake_model.N_panels', this%N_wake_panels_streamwise)
         this%C_kutta_angle = cos(this%kutta_angle*pi/180.0)
+
+        ! Store boundary condition settings
+        call json_get(settings, 'boundary_conditions.control_point_offset', this%control_point_offset)
     
     end subroutine surface_mesh_init
 
@@ -124,6 +131,7 @@ contains
         call this%clone_kutta_vertices()
         call this%calc_vertex_normals()
         call this%initialize_wake(freestream_flow)
+        call this%place_control_points()
     
     end subroutine surface_mesh_init_with_flow
 
@@ -421,14 +429,12 @@ contains
 
     subroutine surface_mesh_calc_vertex_normals(this)
         ! Initializes the normal vectors associated with each vertex.
-        ! Must be called only once the Kutta edge search has been completed.
-        ! If the vertex is not *in* a Kutta edge, then it only has one normal
-        ! vector associated with it.
+        ! Must be called only once Kutta edge vertices have been cloned.
 
         implicit none
 
         class(surface_mesh),intent(inout) :: this
-        real,dimension(3) :: sum = 0
+        real,dimension(3) :: sum
         integer :: i, j, N, ind
 
         write(*,*)
@@ -439,15 +445,14 @@ contains
 
             ! Loop through neighboring panels and compute the average of their normal vectors
             N = this%vertices(j)%panels%len()
+            sum = 0
             do i=1,N
                 call this%vertices(j)%panels%get(i, ind)
                 sum = sum + this%panels(ind)%normal
             end do
 
             ! Store
-            this%vertices(j)%normal = sum/N
-            this%vertices(j)%normal = this%vertices(j)%normal/norm(this%vertices(j)%normal)
-            this%vertices(j)%phi = this%vertices(j)%normal(3)
+            this%vertices(j)%normal = sum/norm(sum)
 
         end do
 
@@ -554,6 +559,38 @@ contains
     end subroutine surface_mesh_initialize_wake
 
 
+    subroutine surface_mesh_place_control_points(this)
+
+        implicit none
+
+        class(surface_mesh),intent(inout) :: this
+        integer :: i
+
+        ! Allocate memory
+        allocate(this%control_points(this%N_verts,3))
+        allocate(this%phi_cp(this%N_verts), source=0.0)
+
+        ! Loop through vertices
+        do i=1,this%N_verts
+
+            ! If it's not in a Kutta edge (i.e. has no clone), then placement simply follows the normal vector
+            if (.not. this%vertices(i)%in_kutta_edge) then
+
+                this%control_points(i,:) = this%vertices(i)%loc-this%control_point_offset*this%vertices(i)%normal
+
+            ! Otherwise, we have to make sure control points stay within the body
+            else
+
+                this%control_points(i,:) = this%vertices(i)%loc-this%control_point_offset*this%vertices(i)%normal
+
+            end if
+
+        end do
+
+
+    end subroutine surface_mesh_place_control_points
+
+
     subroutine surface_mesh_update_wake(this)
 
         implicit none
@@ -569,18 +606,21 @@ contains
     end subroutine surface_mesh_update_wake
 
 
-    subroutine surface_mesh_output_results(this, body_file, wake_file)
+    subroutine surface_mesh_output_results(this, body_file, wake_file, control_point_file)
 
         implicit none
 
         class(surface_mesh),intent(inout) :: this
-        character(len=:),allocatable,intent(in) :: body_file, wake_file
+        character(len=:),allocatable,intent(in) :: body_file, wake_file, control_point_file
 
         ! Write out data for body
         call write_surface_vtk(body_file, this%vertices, this%panels)
         
         ! Write out data for wake
         call write_surface_vtk(wake_file, this%wake_vertices, this%wake_panels)
+        
+        ! Write out data for control points
+        call write_point_vtk(control_point_file, this%control_points, this%phi_cp)
     
     end subroutine surface_mesh_output_results
 

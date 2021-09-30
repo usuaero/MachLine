@@ -16,6 +16,7 @@ module vertex_mod
         integer :: index_in_kutta_vertices ! Index of this vertex in the list of Kutta vertices
         integer :: parent = 0 ! Index of the vertex this vertex's strength is determined by (for a wake vertex)
         type(list) :: panels ! List of indices for the panels which connect to this vertex
+        type(list) :: panels_not_across_kutta_edge ! List of indices for the panels which connect to this vertex not across a Kutta edge
         real :: phi = 0 ! Perturbation doublet strength
         real,dimension(3) :: normal ! Normal vector associated with this control point
 

@@ -48,12 +48,12 @@ contains
         write(*,*)
         write(*,'(a)',advance='no') "     Running linear solver..."
 
-        ! Calculate influence matrices
-
         ! Set source strengths
         do i=1,body_mesh%N_panels
             body_mesh%panels(i)%phi_n = -inner(freestream_flow%V_inf, body_mesh%panels(i)%normal)
         end do
+
+        ! Calculate influence matrices
 
         ! Assemble linear system
 

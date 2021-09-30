@@ -6,17 +6,16 @@
     },
     "geometry" : {
         "surface_mesh" : {
-            "file" : "dev/meshes/supersonic_wing_body_med_res.vtk",
+            "file" : "dev/meshes/straight_wing.vtk",
             "wake_model" : {
                 "wake_shedding_angle" : 90.0,
                 "trefftz_distance" : 40.0,
                 "N_panels" : 50
             },
             "shock_model" : {
-
             },
             "boundary_conditions" : {
-                "control_point_offset" : 1.0e-2
+                "control_point_offset" : 1.0e-6
             }
         },
         "volume_mesh" : {
@@ -27,8 +26,8 @@
 
     },
     "output" : {
-        "body_file" : "dev/results/supersonic_wing_body_med_res.vtk",
-        "wake_file" : "dev/results/supersonic_wing_body_med_res_wake.vtk",
-        "control_point_file" : "dev/results/supersonic_wing_body_med_res_control_points.vtk"
+        "body_file" : "dev/results/straight_wing.vtk",
+        "wake_file" : "dev/results/straight_wing_wake.vtk",
+        "control_point_file" : "dev/results/straight_wing_control_points.vtk"
     }
 }

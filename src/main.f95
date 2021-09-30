@@ -10,7 +10,7 @@ program main
     implicit none
 
     character(100) :: input_file
-    character(len=:),allocatable :: body_file, wake_file
+    character(len=:),allocatable :: body_file, wake_file, control_point_file
 
     type(json_file) :: input_json
     type(json_value), pointer :: flow_settings,&
@@ -96,7 +96,8 @@ program main
     write(*,*) "    Writing results to file..."
     call json_get(output_settings, 'body_file', body_file)
     call json_get(output_settings, 'wake_file', wake_file)
-    call body_mesh%output_results(body_file, wake_file)
+    call json_get(output_settings, 'control_point_file', control_point_file)
+    call body_mesh%output_results(body_file, wake_file, control_point_file)
 
     ! Goodbye
     write(*,*)
