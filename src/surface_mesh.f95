@@ -9,7 +9,7 @@ module surface_mesh_mod
     use adt_mod
     use flow_mod
     use math_mod
-    use kutta_edge_mod
+    use wake_edge_mod
 
     implicit none
 
@@ -21,12 +21,12 @@ module surface_mesh_mod
         type(panel),allocatable,dimension(:) :: panels
         type(vertex),allocatable,dimension(:) :: wake_vertices
         type(panel),allocatable,dimension(:) :: wake_panels
-        type(list) :: kutta_vertices
-        type(kutta_edge),allocatable,dimension(:) :: kutta_edges
+        type(list) :: wake_edge_vertices
+        type(wake_edge),allocatable,dimension(:) :: wake_edges
         character(len=:),allocatable :: mesh_file
         type(alternating_digital_tree) :: vertex_tree
-        real :: kutta_angle, C_kutta_angle, trefftz_distance
-        integer :: N_wake_panels_streamwise, N_kutta_edges
+        real :: wake_shedding_angle, C_wake_shedding_angle, trefftz_distance
+        integer :: N_wake_panels_streamwise, N_wake_edges
         real,dimension(:,:),allocatable :: control_points
         real,dimension(:),allocatable :: phi_cp
         real :: control_point_offset
@@ -38,8 +38,8 @@ module surface_mesh_mod
             procedure :: load_adt => surface_mesh_load_adt
             procedure :: init_with_flow => surface_mesh_init_with_flow
             procedure :: output_results => surface_mesh_output_results
-            procedure :: locate_kutta_edges => surface_mesh_locate_kutta_edges
-            procedure :: clone_kutta_vertices => surface_mesh_clone_kutta_vertices
+            procedure :: locate_wake_shedding_edges => surface_mesh_locate_wake_shedding_edges
+            procedure :: clone_wake_shedding_vertices => surface_mesh_clone_wake_shedding_vertices
             procedure :: initialize_wake => surface_mesh_initialize_wake
             procedure :: calc_vertex_normals => surface_mesh_calc_vertex_normals
             procedure :: place_control_points => surface_mesh_place_control_points
@@ -88,10 +88,10 @@ contains
         call json_xtnsn_get(settings, 'symmetry.yz', this%yz_sym, .false.)
 
         ! Store settings for wake models
-        call json_xtnsn_get(settings, 'wake_model.wake_shedding_angle', this%kutta_angle, 90.0)
+        call json_xtnsn_get(settings, 'wake_model.wake_shedding_angle', this%wake_shedding_angle, 90.0)
         call json_xtnsn_get(settings, 'wake_model.trefftz_distance', this%trefftz_distance, 100.0)
         call json_xtnsn_get(settings, 'wake_model.N_panels', this%N_wake_panels_streamwise, 20)
-        this%C_kutta_angle = cos(this%kutta_angle*pi/180.0)
+        this%C_wake_shedding_angle = cos(this%wake_shedding_angle*pi/180.0)
 
         ! Store boundary condition settings
         call json_get(settings, 'boundary_conditions.control_point_offset', this%control_point_offset)
@@ -149,8 +149,8 @@ contains
         type(flow),intent(in) :: freestream_flow
 
         ! Call subroutines which initialize flow-dependent properties
-        call this%locate_kutta_edges(freestream_flow)
-        call this%clone_kutta_vertices()
+        call this%locate_wake_shedding_edges(freestream_flow)
+        call this%clone_wake_shedding_vertices()
         call this%calc_vertex_normals()
         call this%initialize_wake(freestream_flow)
         call this%place_control_points()
@@ -158,7 +158,7 @@ contains
     end subroutine surface_mesh_init_with_flow
 
 
-    subroutine surface_mesh_locate_kutta_edges(this, freestream_flow)
+    subroutine surface_mesh_locate_wake_shedding_edges(this, freestream_flow)
         ! Locates wake-shedding edges on the mesh based on the flow conditions.
 
         implicit none
@@ -168,15 +168,15 @@ contains
         integer :: i, j, m, n, mm, temp, top_panel, bottom_panel
         real,dimension(3) :: d
         integer,dimension(2) :: shared_verts
-        type(list) :: kutta_edge_starts, kutta_edge_stops, top_panels, bottom_panels
-        logical :: abutting, already_found_shared, is_kutta_edge
+        type(list) :: wake_edge_starts, wake_edge_stops, top_panels, bottom_panels
+        logical :: abutting, already_found_shared, is_wake_edge
         real :: distance
 
         write(*,*)
         write(*,'(a)',advance='no') "     Locating wake-shedding edges..."
 
         ! Loop through each pair of panels
-        this%N_kutta_edges = 0
+        this%N_wake_edges = 0
         do i=1,this%N_panels
             do j=i+1,this%N_panels
 
@@ -215,10 +215,10 @@ contains
 
                 if (abutting) then
 
-                    is_kutta_edge = .false.
+                    is_wake_edge = .false.
 
                     ! Check angle between panels
-                    if (inner(this%panels(i)%normal, this%panels(j)%normal) < this%C_kutta_angle) then
+                    if (inner(this%panels(i)%normal, this%panels(j)%normal) < this%C_wake_shedding_angle) then
 
                         ! Check angle of panel normal with freestream
                         if (inner(this%panels(i)%normal, freestream_flow%V_inf) > 0.0 .or. &
@@ -227,67 +227,67 @@ contains
                             ! Check order the vertices were stored in
                             if (mm == 1 .and. m == this%panels(i)%N) then
 
-                                ! Rearrange so the Kutta edge proceeds in the counterclockwise direction around the "top" panel
-                                ! I'll use "top" and "bottom" to refer to panels neighboring a Kutta edge. These terms are arbitrary but consistent.
+                                ! Rearrange so the wake-shedding edge proceeds in the counterclockwise direction around the "top" panel
+                                ! I'll use "top" and "bottom" to refer to panels neighboring a wake-shedding edge. These terms are arbitrary but consistent.
                                 temp = shared_verts(2)
                                 shared_verts(2) = shared_verts(1)
                                 shared_verts(1) = temp
 
                             end if
 
-                            ! Update number of Kutta edges
-                            this%N_kutta_edges = this%N_kutta_edges + 1
-                            is_kutta_edge = .true.
+                            ! Update number of wake-shedding edges
+                            this%N_wake_edges = this%N_wake_edges + 1
+                            is_wake_edge = .true.
 
                             ! Store in starts and stops list
-                            call kutta_edge_starts%append(shared_verts(1))
-                            call kutta_edge_stops%append(shared_verts(2))
+                            call wake_edge_starts%append(shared_verts(1))
+                            call wake_edge_stops%append(shared_verts(2))
 
                             ! Store top and bottom panels (i is top, j is bottom)
                             call top_panels%append(i)
                             call bottom_panels%append(j)
 
-                            ! Store the fact that these vertices belong to a Kutta edge
-                            if (this%vertices(shared_verts(1))%on_kutta_edge) then
+                            ! Store the fact that these vertices belong to a wake-shedding edge
+                            if (this%vertices(shared_verts(1))%on_wake_edge) then
 
-                                ! If it's already on one, then this means it's also in one
-                                this%vertices(shared_verts(1))%in_kutta_edge = .true.
+                                ! If it's already on a wake-shedding edge, then this means it's also in one
+                                this%vertices(shared_verts(1))%in_wake_edge = .true.
 
                             else
 
                                 ! Add the first time
-                                this%vertices(shared_verts(1))%on_kutta_edge = .true.
-                                call this%kutta_vertices%append(shared_verts(1))
-                                this%vertices(shared_verts(1))%index_in_kutta_vertices = this%kutta_vertices%len()
+                                this%vertices(shared_verts(1))%on_wake_edge = .true.
+                                call this%wake_edge_vertices%append(shared_verts(1))
+                                this%vertices(shared_verts(1))%index_in_wake_vertices = this%wake_edge_vertices%len()
 
                             end if
 
                             ! Do the same for the other vertex
-                            if (this%vertices(shared_verts(2))%on_kutta_edge) then
+                            if (this%vertices(shared_verts(2))%on_wake_edge) then
 
-                                this%vertices(shared_verts(2))%in_kutta_edge = .true.
+                                this%vertices(shared_verts(2))%in_wake_edge = .true.
 
                             else
 
-                                this%vertices(shared_verts(2))%on_kutta_edge = .true.
-                                call this%kutta_vertices%append(shared_verts(2))
-                                this%vertices(shared_verts(2))%index_in_kutta_vertices = this%kutta_vertices%len()
+                                this%vertices(shared_verts(2))%on_wake_edge = .true.
+                                call this%wake_edge_vertices%append(shared_verts(2))
+                                this%vertices(shared_verts(2))%index_in_wake_vertices = this%wake_edge_vertices%len()
 
                             end if
 
                             ! Store the fact that the panels have a Kutta edge
-                            this%panels(i)%on_kutta_edge = .true.
-                            this%panels(j)%on_kutta_edge = .true.
+                            this%panels(i)%on_wake_edge = .true.
+                            this%panels(j)%on_wake_edge = .true.
 
                             ! Store opposing panels
-                            call this%panels(i)%opposing_kutta_panels%append(j)
-                            call this%panels(j)%opposing_kutta_panels%append(i)
+                            call this%panels(i)%opposing_panels%append(j)
+                            call this%panels(j)%opposing_panels%append(i)
 
                         end if
                     end if
 
-                    ! If abutting but not a Kutta edge
-                    if (.not. is_kutta_edge) then
+                    ! If abutting but not a wake-shedding edge
+                    if (.not. is_wake_edge) then
 
                         ! Add to each others' list
                         call this%panels(i)%abutting_panels%append(j)
@@ -300,53 +300,53 @@ contains
             end do
         end do
 
-        ! Create array of Kutta edges
-        allocate(this%kutta_edges(this%N_kutta_edges))
-        do i=1,this%N_kutta_edges
+        ! Create array of wake-shedding edges
+        allocate(this%wake_edges(this%N_wake_edges))
+        do i=1,this%N_wake_edges
 
             ! Get indices of starting and ending vertices
-            call kutta_edge_starts%get(i, m)
-            call kutta_edge_stops%get(i, n)
+            call wake_edge_starts%get(i, m)
+            call wake_edge_stops%get(i, n)
             call top_panels%get(i, top_panel)
             call bottom_panels%get(i, bottom_panel)
 
             ! Store
-            call this%kutta_edges(i)%init(m, n, top_panel, bottom_panel)
+            call this%wake_edges(i)%init(m, n, top_panel, bottom_panel)
 
         end do
 
-        write(*,*) "Done. Found", this%N_kutta_edges, "wake-shedding edges."
+        write(*,*) "Done. Found", this%N_wake_edges, "wake-shedding edges."
 
-    end subroutine surface_mesh_locate_kutta_edges
+    end subroutine surface_mesh_locate_wake_shedding_edges
 
 
-    subroutine surface_mesh_clone_kutta_vertices(this)
-        ! Takes vertices which lie within Kutta edges and splits them into two.
+    subroutine surface_mesh_clone_wake_shedding_vertices(this)
+        ! Takes vertices which lie within wake-shedding edges and splits them into two.
         ! Handles rearranging of necessary dependencies.
 
         implicit none
 
         class(surface_mesh),intent(inout),target :: this
-        integer :: i, j, k, m, N_clones, ind, new_ind, N_kutta_verts, bottom_panel_ind, abutting_panel_ind
+        integer :: i, j, k, m, N_clones, ind, new_ind, N_wake_verts, bottom_panel_ind, abutting_panel_ind
         type(vertex),dimension(:),allocatable :: cloned_vertices, temp_vertices
         logical,dimension(:),allocatable :: need_cloned
 
         write(*,*)
         write(*,'(a)',advance='no') "     Cloning vertices on wake-shedding edges..."
 
-        ! Allocate array which will store which Kutta vertices need to be cloned
-        allocate(need_cloned(this%kutta_vertices%len()))
+        ! Allocate array which will store which wake-shedding vertices need to be cloned
+        allocate(need_cloned(this%wake_edge_vertices%len()))
 
         ! Determine number of vertices which need to be cloned
-        N_kutta_verts = this%kutta_vertices%len()
+        N_wake_verts = this%wake_edge_vertices%len()
         N_clones = 0
-        do i=1,N_kutta_verts
+        do i=1,N_wake_verts
 
             ! Get the vertex index
-            call this%kutta_vertices%get(i, ind)
+            call this%wake_edge_vertices%get(i, ind)
 
-            ! Check if it is *in* a Kutta edge
-            if (this%vertices(ind)%in_kutta_edge) then
+            ! Check if it is *in* a wake-shedding edge
+            if (this%vertices(ind)%in_wake_edge) then
                 N_clones = N_clones + 1
                 need_cloned(i) = .true.
             end if
@@ -368,30 +368,30 @@ contains
 
         ! Initialize clones
         j = 1
-        do i=1,N_kutta_verts
+        do i=1,N_wake_verts
 
             ! Check if this vertex needs to be cloned
             if (need_cloned(i)) then
 
                 ! Get information for the vertex clone
-                call this%kutta_vertices%get(i, ind)
+                call this%wake_edge_vertices%get(i, ind)
                 new_ind = this%N_verts-N_clones+j ! Will be at position N_verts-N_clones+j in the new vertex array
 
                 ! Initialize new vertex
                 call this%vertices(new_ind)%init(this%vertices(ind)%loc, new_ind)
 
-                ! Store that it is on and in a Kutta edge (probably unecessary at this point, but let's be consistent)
-                this%vertices(new_ind)%on_kutta_edge = .true.
-                this%vertices(new_ind)%in_kutta_edge = .true.
+                ! Store that it is on and in a wake-shedding edge (probably unecessary at this point, but let's be consistent)
+                this%vertices(new_ind)%on_wake_edge = .true.
+                this%vertices(new_ind)%in_wake_edge = .true.
 
                 ! Remove bottom panels from top vertex and give them to the bottom vertex
-                do k=1,this%N_kutta_edges
+                do k=1,this%N_wake_edges
 
-                    ! Check if this vertex belongs to this Kutta edge
-                    if (this%kutta_edges(k)%i1 == ind .or. this%kutta_edges(k)%i2 == ind) then
+                    ! Check if this vertex belongs to this wake-shedding edge
+                    if (this%wake_edges(k)%i1 == ind .or. this%wake_edges(k)%i2 == ind) then
 
                         ! Get bottom panel index
-                        bottom_panel_ind = this%kutta_edges(k)%bottom_panel
+                        bottom_panel_ind = this%wake_edges(k)%bottom_panel
 
                         ! Remove bottom panel index from original vertex
                         call this%vertices(ind)%panels%delete(bottom_panel_ind)
@@ -446,12 +446,12 @@ contains
         write(*,*) "Done. Cloned", N_clones, "vertices. Mesh now has", this%N_verts, "vertices."
 
 
-    end subroutine surface_mesh_clone_kutta_vertices
+    end subroutine surface_mesh_clone_wake_shedding_vertices
 
 
     subroutine surface_mesh_calc_vertex_normals(this)
         ! Initializes the normal vectors associated with each vertex.
-        ! Must be called only once Kutta edge vertices have been cloned.
+        ! Must be called only once wake-shedding edge vertices have been cloned.
 
         implicit none
 
@@ -493,26 +493,26 @@ contains
         real :: distance, vertex_separation
         real,dimension(3) :: loc, start
         integer :: i, j, ind, kutta_vert_ind, i_start, i_stop, i1, i2, i3, i4
-        integer :: N_kutta_verts, N_wake_verts, N_wake_panels
+        integer :: N_wake_edge_verts, N_wake_verts, N_wake_panels
 
         ! Initialize wake
         write(*,*)
         write(*,'(a)',advance='no') "     Initializing wake..."
 
         ! Determine sizes
-        N_kutta_verts = this%kutta_vertices%len()
-        this%N_wake_verts = N_kutta_verts*(this%N_wake_panels_streamwise+1)
-        this%N_wake_panels = this%N_kutta_edges*this%N_wake_panels_streamwise*2
+        N_wake_edge_verts = this%wake_edge_vertices%len()
+        this%N_wake_verts = N_wake_edge_verts*(this%N_wake_panels_streamwise+1)
+        this%N_wake_panels = this%N_wake_edges*this%N_wake_panels_streamwise*2
 
         ! Allocate storage
         allocate(this%wake_vertices(this%N_wake_verts))
         allocate(this%wake_panels(this%N_wake_panels))
 
         ! Determine vertex placement
-        do i=1,N_kutta_verts
+        do i=1,N_wake_edge_verts
 
-            ! Determine distance from origin to Kutta vertex in direction of the flow
-            call this%kutta_vertices%get(i, kutta_vert_ind)
+            ! Determine distance from origin to wake-shedding vertex in direction of the flow
+            call this%wake_edge_vertices%get(i, kutta_vert_ind)
             start = this%vertices(kutta_vert_ind)%loc
             distance = this%trefftz_distance-inner(start, freestream_flow%u_inf)
 
@@ -536,11 +536,11 @@ contains
         end do
 
         ! Initialize wake panels
-        do i=1,this%N_kutta_edges
+        do i=1,this%N_wake_edges
 
             ! Determine which Kutta vertices this panel lies between
-            i_start = this%vertices(this%kutta_edges(i)%i1)%index_in_kutta_vertices
-            i_stop = this%vertices(this%kutta_edges(i)%i2)%index_in_kutta_vertices
+            i_start = this%vertices(this%wake_edges(i)%i1)%index_in_wake_vertices
+            i_stop = this%vertices(this%wake_edges(i)%i2)%index_in_wake_vertices
 
             ! Create panels heading downstream
             do j=1,this%N_wake_panels_streamwise
@@ -595,8 +595,8 @@ contains
         ! Loop through vertices
         do i=1,this%N_verts
 
-            ! If it's not in a Kutta edge (i.e. has no clone), then placement simply follows the normal vector
-            if (.not. this%vertices(i)%in_kutta_edge) then
+            ! If it's not in a wake-shedding edge (i.e. has no clone), then placement simply follows the normal vector
+            if (.not. this%vertices(i)%in_wake_edge) then
 
                 this%control_points(i,:) = this%vertices(i)%loc-this%control_point_offset*this%vertices(i)%normal
 

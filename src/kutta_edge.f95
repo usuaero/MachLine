@@ -1,29 +1,30 @@
-module kutta_edge_mod
+module wake_edge_mod
 
     use vertex_mod
 
     implicit none
 
-    type kutta_edge
+    type wake_edge
+        ! A mesh edge from which a wake is shed
 
         integer :: i1, i2 ! Indices of the end vertices in the mesh vertex array
         integer :: top_panel, bottom_panel ! Indices of the top and bottom panels for this Kutta vertex
 
         contains
 
-            procedure :: init => kutta_edge_init
+            procedure :: init => wake_edge_init
 
-    end type kutta_edge
+    end type wake_edge
 
     
 contains
 
 
-    subroutine kutta_edge_init(this, i1, i2, top_panel, bottom_panel)
+    subroutine wake_edge_init(this, i1, i2, top_panel, bottom_panel)
 
         implicit none
 
-        class(kutta_edge),intent(inout) :: this
+        class(wake_edge),intent(inout) :: this
         integer,intent(in) :: i1, i2
         integer,intent(in) :: top_panel, bottom_panel
 
@@ -35,6 +36,6 @@ contains
         this%top_panel = top_panel
         this%bottom_panel = bottom_panel
     
-    end subroutine kutta_edge_init
+    end subroutine wake_edge_init
     
-end module kutta_edge_mod
+end module wake_edge_mod

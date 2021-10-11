@@ -27,12 +27,12 @@ module panel_mod
         real :: mu_0_1, mu_x_1, mu_y_1 ! Influence of vertex 1 on the doublet integral parameters
         real :: mu_0_2, mu_x_2, mu_y_2 ! Influence of vertex 2 on the doublet integral parameters
         real :: mu_0_3, mu_x_3, mu_y_3 ! Influence of vertex 3 on the doublet integral parameters
-        logical :: on_kutta_edge ! Whether this panel belongs to a Kutta edge
+        logical :: on_wake_edge ! Whether this panel belongs to a wake-shedding edge
         logical :: wake_panel ! Whether this panel belongs to a wake
         logical :: shock_panel ! Whether this panel belongs to a shock
         integer,dimension(:),allocatable :: vertex_indices ! Indices of this panel's vertices in the mesh vertex array
-        type(list) :: opposing_kutta_panels ! Indices of panels opposite this one on the Kutta edge(s)
-        type(list) :: abutting_panels ! Indices of panels abutting this one (not across Kutta edge)
+        type(list) :: opposing_panels ! Indices of panels opposite this one on the wake-shedding edge
+        type(list) :: abutting_panels ! Indices of panels abutting this one not across wake-shedding edge
         logical :: xy_sym, xz_sym, yz_sym ! Whether this panel is reflected about any planes
 
         contains
@@ -264,19 +264,19 @@ contains
         det = dx1*dy2-dx2*dy1
 
         ! Influence on mu_0
-        this%mu_0_1 = 1/3
-        this%mu_0_2 = 1/3
-        this%mu_0_3 = 1/3
+        this%mu_0_1 = 1./3.
+        this%mu_0_2 = 1./3.
+        this%mu_0_3 = 1./3.
 
         ! Influence on mu_x
-        this%mu_x_1 = 1/(3*det)*(2*dy2+dy1)
-        this%mu_x_2 = 1/(3*det)*(-dy2-2*dy1)
-        this%mu_x_3 = 1/(3*det)*(-dy2+dy1)
+        this%mu_x_1 = 1./(3.*det)*(2*dy2+dy1)
+        this%mu_x_2 = 1./(3.*det)*(-dy2-2*dy1)
+        this%mu_x_3 = 1./(3.*det)*(-dy2+dy1)
 
         ! Influence on mu_y
-        this%mu_y_1 = 1/(3*det)*(-2*dx2-dx1)
-        this%mu_y_2 = 1/(3*det)*(dx2+2*dx1)
-        this%mu_y_3 = 1/(3*det)*(dx2-dx1)
+        this%mu_y_1 = 1./(3.*det)*(-2*dx2-dx1)
+        this%mu_y_2 = 1./(3.*det)*(dx2+2*dx1)
+        this%mu_y_3 = 1./(3.*det)*(dx2-dx1)
 
     end subroutine panel_calc_coord_transform
 
