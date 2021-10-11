@@ -623,8 +623,7 @@ contains
         allocate(this%phi_cp(this%N_verts), source=0.0)
 
         ! Calculate offset ratio such that the control point will remain within the body based on the minimum detected wake-shedding angle
-        C_theta_2 = sqrt(0.5*(1.0-this%C_min_wake_shedding_angle))
-        offset_ratio = sqrt(0.5*(1.0-C_theta_2))
+        offset_ratio = 0.5*sqrt(0.5*(1.0+this%C_min_wake_shedding_angle))
         write(*,*) offset_ratio
 
         ! Loop through vertices
@@ -656,8 +655,7 @@ contains
 
                 ! Place control point
                 this%control_points(i,:) = this%vertices(i)%loc &
-                                           - this%control_point_offset * this%vertices(i)%normal &
-                                           + offset_ratio * this%control_point_offset * sum
+                                           - this%control_point_offset * (this%vertices(i)%normal - offset_ratio * sum)
 
             end if
 
