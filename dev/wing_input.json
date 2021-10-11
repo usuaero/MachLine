@@ -19,7 +19,7 @@
             "shock_model" : {
             },
             "boundary_conditions" : {
-                "control_point_offset" : 1.0e-6
+                "control_point_offset" : 1.0e-1
             }
         },
         "volume_mesh" : {

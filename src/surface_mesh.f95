@@ -25,7 +25,7 @@ module surface_mesh_mod
         type(wake_edge),allocatable,dimension(:) :: wake_edges
         character(len=:),allocatable :: mesh_file
         type(alternating_digital_tree) :: vertex_tree
-        real :: wake_shedding_angle, C_wake_shedding_angle, trefftz_distance
+        real :: wake_shedding_angle, C_wake_shedding_angle, trefftz_distance, C_min_wake_shedding_angle
         integer :: N_wake_panels_streamwise, N_wake_edges
         real,dimension(:,:),allocatable :: control_points
         real,dimension(:),allocatable :: phi_cp
@@ -88,8 +88,8 @@ contains
         call json_xtnsn_get(settings, 'symmetry.yz', this%yz_sym, .false.)
 
         ! Store settings for wake models
-        call json_xtnsn_get(settings, 'wake_model.wake_shedding_angle', this%wake_shedding_angle, 90.0)
-        call json_xtnsn_get(settings, 'wake_model.trefftz_distance', this%trefftz_distance, 100.0)
+        call json_xtnsn_get(settings, 'wake_model.wake_shedding_angle', this%wake_shedding_angle, 90.0) ! Maximum allowable angle between panel normals without having separation
+        call json_xtnsn_get(settings, 'wake_model.trefftz_distance', this%trefftz_distance, 100.0) ! Distance from origin to wake termination
         call json_xtnsn_get(settings, 'wake_model.N_panels', this%N_wake_panels_streamwise, 20)
         this%C_wake_shedding_angle = cos(this%wake_shedding_angle*pi/180.0)
 
@@ -170,10 +170,13 @@ contains
         integer,dimension(2) :: shared_verts
         type(list) :: wake_edge_starts, wake_edge_stops, top_panels, bottom_panels
         logical :: abutting, already_found_shared, is_wake_edge
-        real :: distance
+        real :: distance, C_angle
 
         write(*,*)
         write(*,'(a)',advance='no') "     Locating wake-shedding edges..."
+
+        ! We need to store the minimum angle between two panels in order to place control points within the body
+        this%C_min_wake_shedding_angle = this%C_wake_shedding_angle
 
         ! Loop through each pair of panels
         this%N_wake_edges = 0
@@ -218,11 +221,19 @@ contains
                     is_wake_edge = .false.
 
                     ! Check angle between panels
-                    if (inner(this%panels(i)%normal, this%panels(j)%normal) < this%C_wake_shedding_angle) then
+                    C_angle = inner(this%panels(i)%normal, this%panels(j)%normal)
+                    if (C_angle < this%C_wake_shedding_angle) then
 
                         ! Check angle of panel normal with freestream
                         if (inner(this%panels(i)%normal, freestream_flow%V_inf) > 0.0 .or. &
                             inner(this%panels(j)%normal, freestream_flow%V_inf) > 0.0) then
+
+                            ! At this point, the panels are abutting, have a small enough angle,
+                            ! and at least one of them is pointing downstream. Thus, this is a
+                            ! wake-shedding edge.
+
+                            ! Update minimum angle
+                            this%C_min_wake_shedding_angle = min(C_angle, this%C_min_wake_shedding_angle)
 
                             ! Check order the vertices were stored in
                             if (mm == 1 .and. m == this%panels(i)%N) then
@@ -321,7 +332,7 @@ contains
 
 
     subroutine surface_mesh_clone_wake_shedding_vertices(this)
-        ! Takes vertices which lie within wake-shedding edges and splits them into two.
+        ! Takes vertices which lie within wake-shedding edges and splits them into two vertices.
         ! Handles rearranging of necessary dependencies.
 
         implicit none
@@ -384,6 +395,20 @@ contains
                 this%vertices(new_ind)%on_wake_edge = .true.
                 this%vertices(new_ind)%in_wake_edge = .true.
 
+                ! Copy over adjacent panels
+                do k=1,this%vertices(ind)%panels%len()
+
+                    ! Get adjacent panel index from original vertex
+                    call this%vertices(ind)%panels%get(k, abutting_panel_ind)
+
+                    ! Copy to new vertex
+                    call this%vertices(new_ind)%panels%append(abutting_panel_ind)
+
+                    ! Copy to original vertex's panels_not_across_wake_edge list (bottom panels will be removed)
+                    call this%vertices(ind)%panels_not_across_wake_edge%append(abutting_panel_ind)
+
+                end do
+
                 ! Remove bottom panels from top vertex and give them to the bottom vertex
                 do k=1,this%N_wake_edges
 
@@ -394,11 +419,11 @@ contains
                         bottom_panel_ind = this%wake_edges(k)%bottom_panel
 
                         ! Remove bottom panel index from original vertex
-                        call this%vertices(ind)%panels%delete(bottom_panel_ind)
+                        call this%vertices(ind)%panels_not_across_wake_edge%delete(bottom_panel_ind)
 
                         ! Add to cloned vertex
-                        if (.not. this%vertices(new_ind)%panels%is_in(bottom_panel_ind)) then
-                            call this%vertices(new_ind)%panels%append(bottom_panel_ind)
+                        if (.not. this%vertices(new_ind)%panels_not_across_wake_edge%is_in(bottom_panel_ind)) then
+                            call this%vertices(new_ind)%panels_not_across_wake_edge%append(bottom_panel_ind)
                         end if
 
                         ! If there are any panels attached to this vertex and abutting the bottom panel, shift them over as well
@@ -411,11 +436,11 @@ contains
                             if (this%panels(abutting_panel_ind)%touches_vertex(ind)) then
 
                                 ! Remove from original vertex
-                                call this%vertices(ind)%panels%delete(abutting_panel_ind)
+                                call this%vertices(ind)%panels_not_across_wake_edge%delete(abutting_panel_ind)
 
                                 ! Add to cloned vertex
-                                if (.not. this%vertices(new_ind)%panels%is_in(abutting_panel_ind)) then
-                                    call this%vertices(new_ind)%panels%append(abutting_panel_ind)
+                                if (.not. this%vertices(new_ind)%panels_not_across_wake_edge%is_in(abutting_panel_ind)) then
+                                    call this%vertices(new_ind)%panels_not_across_wake_edge%append(abutting_panel_ind)
                                 end if
 
                             end if
@@ -426,10 +451,10 @@ contains
                 end do
 
                 ! Update bottom panels to point to cloned vertex
-                do k=1,this%vertices(new_ind)%panels%len()
+                do k=1,this%vertices(new_ind)%panels_not_across_wake_edge%len()
 
                     ! Get panel index
-                    call this%vertices(new_ind)%panels%get(k, bottom_panel_ind)
+                    call this%vertices(new_ind)%panels_not_across_wake_edge%get(k, bottom_panel_ind)
 
                     ! Update
                     call this%panels(bottom_panel_ind)%point_to_vertex_clone(this%vertices(new_ind))
@@ -456,7 +481,7 @@ contains
         implicit none
 
         class(surface_mesh),intent(inout) :: this
-        real,dimension(3) :: sum
+        real,dimension(3) :: sum, normal
         integer :: i, j, N, ind
 
         write(*,*)
@@ -473,8 +498,11 @@ contains
                 sum = sum + this%panels(ind)%normal
             end do
 
+            ! Normalize
+            normal = sum/norm(sum)
+
             ! Store
-            this%vertices(j)%normal = sum/norm(sum)
+            this%vertices(j)%normal = normal
 
         end do
 
@@ -538,7 +566,7 @@ contains
         ! Initialize wake panels
         do i=1,this%N_wake_edges
 
-            ! Determine which Kutta vertices this panel lies between
+            ! Determine which wake-shedding vertices this panel lies between
             i_start = this%vertices(this%wake_edges(i)%i1)%index_in_wake_vertices
             i_stop = this%vertices(this%wake_edges(i)%i2)%index_in_wake_vertices
 
@@ -586,11 +614,18 @@ contains
         implicit none
 
         class(surface_mesh),intent(inout) :: this
-        integer :: i
+        integer :: i, j, N, ind
+        real,dimension(3) :: sum
+        real :: C_theta_2, offset_ratio
 
         ! Allocate memory
         allocate(this%control_points(this%N_verts,3))
         allocate(this%phi_cp(this%N_verts), source=0.0)
+
+        ! Calculate offset ratio such that the control point will remain within the body based on the minimum detected wake-shedding angle
+        C_theta_2 = sqrt(0.5*(1.0-this%C_min_wake_shedding_angle))
+        offset_ratio = sqrt(0.5*(1.0-C_theta_2))
+        write(*,*) offset_ratio
 
         ! Loop through vertices
         do i=1,this%N_verts
@@ -600,10 +635,29 @@ contains
 
                 this%control_points(i,:) = this%vertices(i)%loc-this%control_point_offset*this%vertices(i)%normal
 
-            ! Otherwise, we have to make sure control points stay within the body
+            ! Otherwise, we have to shift based on more information
             else
 
-                this%control_points(i,:) = this%vertices(i)%loc-this%control_point_offset*this%vertices(i)%normal
+                ! Loop through panels associated with this clone to get their average normal vector
+                N = this%vertices(i)%panels_not_across_wake_edge%len()
+                sum = 0
+                do j=1,N
+                    
+                    ! Get panel index
+                    call this%vertices(i)%panels_not_across_wake_edge%get(j, ind)
+
+                    ! Add normal vector
+                    sum = sum + this%panels(ind)%normal
+
+                end do
+
+                ! Normalize
+                sum = sum/norm(sum)
+
+                ! Place control point
+                this%control_points(i,:) = this%vertices(i)%loc &
+                                           - this%control_point_offset * this%vertices(i)%normal &
+                                           + offset_ratio * this%control_point_offset * sum
 
             end if
 
