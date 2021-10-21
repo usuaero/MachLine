@@ -17,16 +17,16 @@ module surface_mesh_mod
 
     type surface_mesh
 
-        integer :: N_verts, N_panels, N_wake_verts, N_wake_panels
+        integer :: N_verts, N_panels
         type(vertex),allocatable,dimension(:) :: vertices
         type(panel),allocatable,dimension(:) :: panels
         type(wake_mesh) :: wake
-        type(list) :: wake_edge_vertices
+        integer,allocatable,dimension(:) :: wake_edge_top_verts, wake_edge_bot_verts
         type(wake_edge),allocatable,dimension(:) :: wake_edges
         character(len=:),allocatable :: mesh_file
         type(alternating_digital_tree) :: vertex_tree
         real :: wake_shedding_angle, C_wake_shedding_angle, trefftz_distance, C_min_wake_shedding_angle
-        integer :: N_wake_panels_streamwise, N_wake_edges
+        integer :: N_wake_panels_streamwise
         real,dimension(:,:),allocatable :: control_points
         real,dimension(:),allocatable :: phi_cp
         real :: control_point_offset
@@ -54,7 +54,7 @@ contains
         implicit none
 
         class(surface_mesh),intent(inout) :: this
-        type(json_value),pointer,intent(in) :: settings
+        type(json_value),pointer,intent(inout) :: settings
         character(len=:),allocatable :: extension
         integer :: loc
 
@@ -146,13 +146,16 @@ contains
         class(surface_mesh),intent(inout) :: this
         type(flow),intent(in) :: freestream_flow
 
-        ! Call subroutines which initialize flow-dependent properties
+        ! Initialize wake
         call this%locate_wake_shedding_edges(freestream_flow)
         call this%clone_wake_shedding_vertices()
+        call this%wake%init(freestream_flow, this%wake_edge_top_verts,&
+                            this%wake_edge_bot_verts, this%wake_edges,&
+                            this%N_wake_panels_streamwise, this%vertices,&
+                            this%trefftz_distance)
+
+        ! Determine wake-dependent geometry
         call this%calc_vertex_normals()
-        call this%wake%init(freestream_flow, this%wake_edge_vertices,&
-                            this%wake_edges, this%N_wake_panels_streamwise,&
-                            this%vertices, this%trefftz_distance)
         call this%place_control_points()
     
     end subroutine surface_mesh_init_with_flow
@@ -167,9 +170,10 @@ contains
         type(flow),intent(in) :: freestream_flow
 
         integer :: i, j, m, n, mm, temp, top_panel, bottom_panel
+        integer :: N_wake_edges = 0
         real,dimension(3) :: d
         integer,dimension(2) :: shared_verts
-        type(list) :: wake_edge_starts, wake_edge_stops, top_panels, bottom_panels
+        type(list) :: wake_edge_starts, wake_edge_stops, top_panels, bottom_panels, wake_edge_verts
         logical :: abutting, already_found_shared, is_wake_edge
         real :: distance, C_angle
 
@@ -180,7 +184,6 @@ contains
         this%C_min_wake_shedding_angle = this%C_wake_shedding_angle
 
         ! Loop through each pair of panels
-        this%N_wake_edges = 0
         do i=1,this%N_panels
             do j=i+1,this%N_panels
 
@@ -248,7 +251,7 @@ contains
                             end if
 
                             ! Update number of wake-shedding edges
-                            this%N_wake_edges = this%N_wake_edges + 1
+                            N_wake_edges = N_wake_edges + 1
                             is_wake_edge = .true.
 
                             ! Store in starts and stops list
@@ -269,8 +272,8 @@ contains
 
                                 ! Add the first time
                                 this%vertices(shared_verts(1))%on_wake_edge = .true.
-                                call this%wake_edge_vertices%append(shared_verts(1))
-                                this%vertices(shared_verts(1))%index_in_wake_vertices = this%wake_edge_vertices%len()
+                                call wake_edge_verts%append(shared_verts(1))
+                                this%vertices(shared_verts(1))%index_in_wake_vertices = wake_edge_verts%len()
 
                             end if
 
@@ -282,8 +285,8 @@ contains
                             else
 
                                 this%vertices(shared_verts(2))%on_wake_edge = .true.
-                                call this%wake_edge_vertices%append(shared_verts(2))
-                                this%vertices(shared_verts(2))%index_in_wake_vertices = this%wake_edge_vertices%len()
+                                call wake_edge_verts%append(shared_verts(2))
+                                this%vertices(shared_verts(2))%index_in_wake_vertices = wake_edge_verts%len()
 
                             end if
 
@@ -312,9 +315,22 @@ contains
             end do
         end do
 
+        ! Allocate wake top vertices array
+        allocate(this%wake_edge_top_verts(wake_edge_verts%len()))
+        do i=1,wake_edge_verts%len()
+
+            ! Store into array
+            call wake_edge_verts%get(i, m)
+            this%wake_edge_top_verts(i) = m
+
+        end do
+
+        ! Allocate wake bottom vertices array
+        allocate(this%wake_edge_bot_verts, source=this%wake_edge_top_verts)
+
         ! Create array of wake-shedding edges
-        allocate(this%wake_edges(this%N_wake_edges))
-        do i=1,this%N_wake_edges
+        allocate(this%wake_edges(N_wake_edges))
+        do i=1,N_wake_edges
 
             ! Get indices of starting and ending vertices
             call wake_edge_starts%get(i, m)
@@ -327,7 +343,7 @@ contains
 
         end do
 
-        write(*,*) "Done. Found", this%N_wake_edges, "wake-shedding edges."
+        write(*,*) "Done. Found", N_wake_edges, "wake-shedding edges."
 
     end subroutine surface_mesh_locate_wake_shedding_edges
 
@@ -339,6 +355,7 @@ contains
         implicit none
 
         class(surface_mesh),intent(inout),target :: this
+
         integer :: i, j, k, m, N_clones, ind, new_ind, N_wake_verts, bottom_panel_ind, abutting_panel_ind
         type(vertex),dimension(:),allocatable :: cloned_vertices, temp_vertices
         logical,dimension(:),allocatable :: need_cloned
@@ -347,15 +364,15 @@ contains
         write(*,'(a)',advance='no') "     Cloning vertices on wake-shedding edges..."
 
         ! Allocate array which will store which wake-shedding vertices need to be cloned
-        allocate(need_cloned(this%wake_edge_vertices%len()))
+        N_wake_verts = size(this%wake_edge_top_verts)
+        allocate(need_cloned(N_wake_verts))
 
         ! Determine number of vertices which need to be cloned
-        N_wake_verts = this%wake_edge_vertices%len()
         N_clones = 0
         do i=1,N_wake_verts
 
             ! Get the vertex index
-            call this%wake_edge_vertices%get(i, ind)
+            ind = this%wake_edge_top_verts(i)
 
             ! Check if it is *in* a wake-shedding edge
             if (this%vertices(ind)%in_wake_edge) then
@@ -364,11 +381,15 @@ contains
             end if
         end do
 
-        ! Extend allocation of vertex array
+        ! Extend allocation of mesh vertex array
         allocate(temp_vertices, source=this%vertices)
         deallocate(this%vertices)
         allocate(this%vertices(this%N_verts + N_clones))
+
+        ! Place existing vertices in new array
         this%vertices(1:this%N_verts) = temp_vertices
+
+        ! Update number of vertices
         this%N_verts = this%N_verts + N_clones
 
         ! Fix vertex pointers in panel objects (necessary because this%vertices got reallocated)
@@ -386,11 +407,14 @@ contains
             if (need_cloned(i)) then
 
                 ! Get information for the vertex clone
-                call this%wake_edge_vertices%get(i, ind)
+                ind = this%wake_edge_top_verts(i)
                 new_ind = this%N_verts-N_clones+j ! Will be at position N_verts-N_clones+j in the new vertex array
 
                 ! Initialize new vertex
                 call this%vertices(new_ind)%init(this%vertices(ind)%loc, new_ind)
+
+                ! Store clone's index in list of bottom vertices
+                this%wake_edge_bot_verts(i) = new_ind
 
                 ! Store that it is on and in a wake-shedding edge (probably unecessary at this point, but let's be consistent)
                 this%vertices(new_ind)%on_wake_edge = .true.
@@ -411,7 +435,7 @@ contains
                 end do
 
                 ! Remove bottom panels from top vertex and give them to the bottom vertex
-                do k=1,this%N_wake_edges
+                do k=1,size(this%wake_edges)
 
                     ! Check if this vertex belongs to this wake-shedding edge
                     if (this%wake_edges(k)%i1 == ind .or. this%wake_edges(k)%i2 == ind) then

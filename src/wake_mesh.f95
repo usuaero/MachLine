@@ -29,15 +29,15 @@ module wake_mesh_mod
 contains
 
 
-    subroutine wake_mesh_init(this, freestream_flow, wake_edge_vertices, wake_edges,&
-                              N_panels_streamwise, mesh_vertices, trefftz_distance)
+    subroutine wake_mesh_init(this, freestream_flow, top_edge_verts, bot_edge_verts,&
+                              wake_edges, N_panels_streamwise, mesh_vertices, trefftz_distance)
         ! Creates the vertices and panels. Handles vertex association.
 
         implicit none
 
         class(wake_mesh),intent(inout) :: this
         type(flow),intent(in) :: freestream_flow
-        type(list),intent(in) :: wake_edge_vertices
+        integer,allocatable,dimension(:),intent(in) :: top_edge_verts, bot_edge_verts
         type(wake_edge),allocatable,dimension(:),intent(in) :: wake_edges
         integer,intent(in) :: N_panels_streamwise
         type(vertex),allocatable,dimension(:),intent(in) :: mesh_vertices
@@ -45,14 +45,14 @@ contains
 
         real :: distance, vertex_separation
         real,dimension(3) :: loc, start
-        integer :: i, j, ind, kutta_vert_ind, i_start, i_stop, i1, i2, i3, i4
+        integer :: i, j, ind, top_parent_ind, bot_parent_ind, i_start, i_stop, i1, i2, i3, i4
         integer :: N_wake_edge_verts
 
         write(*,*)
         write(*,'(a)',advance='no') "     Initializing wake..."
 
         ! Determine sizes
-        N_wake_edge_verts = wake_edge_vertices%len()
+        N_wake_edge_verts = size(top_edge_verts)
         this%N_verts = N_wake_edge_verts*(N_panels_streamwise+1)
         this%N_panels = size(wake_edges)*N_panels_streamwise*2
 
@@ -63,9 +63,10 @@ contains
         ! Determine vertex placement
         do i=1,N_wake_edge_verts
 
-            ! Determine distance from origin to wake-shedding vertex in direction of the flow
-            call wake_edge_vertices%get(i, kutta_vert_ind)
-            start = mesh_vertices(kutta_vert_ind)%loc
+            ! Determine distance from origin to wake-shedding vertex in the direction of the freestream flow
+            top_parent_ind = top_edge_verts(i)
+            bot_parent_ind = bot_edge_verts(i)
+            start = mesh_vertices(top_parent_ind)%loc
             distance = trefftz_distance-inner(start, freestream_flow%u_inf)
 
             ! Determine vertex separation
@@ -82,7 +83,8 @@ contains
                 call this%vertices(ind)%init(loc, ind)
 
                 ! Set parent index
-                this%vertices(ind)%parent = kutta_vert_ind
+                this%vertices(ind)%top_parent = top_parent_ind
+                this%vertices(ind)%bot_parent = bot_parent_ind
 
             end do
         end do
