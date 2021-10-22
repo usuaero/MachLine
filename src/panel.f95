@@ -50,10 +50,14 @@ module panel_mod
             procedure :: get_vertex_index => panel_get_vertex_index
             procedure :: touches_vertex => panel_touches_vertex
             procedure :: point_to_vertex_clone => panel_point_to_vertex_clone
+            procedure :: R_i => panel_R_i
+            procedure :: E_i_M_N_K => panel_E_i_M_N_K
+            procedure :: F_i_1_1_1 => panel_F_i_1_1_1
+            procedure :: F_i_1_1_3 => panel_F_i_1_1_3
             procedure :: get_source_potential => panel_get_source_potential
             procedure :: get_source_velocity => panel_get_source_velocity
             procedure :: get_doublet_potential_influence => panel_get_doublet_potential_influence
-            procedure :: calc_hH_1_1_3 => panel_calc_hH_1_1_3
+            procedure :: hH_1_1_3 => panel_hH_1_1_3
 
     end type panel
 
@@ -408,11 +412,123 @@ contains
     end subroutine panel_point_to_vertex_clone
 
 
+    function panel_R_i(this, eval_point, i) result(R)
+        ! Calculates the distance from the given point (in local coords) to the i-th vertex
+
+        implicit none
+
+        class(panel),intent(in) :: this
+        real,dimension(3),intent(in) :: eval_point
+        integer,intent(in) :: i
+        real :: R
+
+        R = sqrt((this%vertices_local(i,1)-eval_point(1))**2 + (this%vertices_local(i,2)-eval_point(2))**2+eval_point(3)**2)
+
+    end function panel_R_i
+
+
+    function panel_E_i_M_N_K(this, eval_point, i, M, N, K) result(E)
+        ! Calculates E_i(M,N,K) at the given point (assumed to be in panel coordinates)
+
+        implicit none
+
+        class(panel),intent(in) :: this
+        real,dimension(3),intent(in) :: eval_point
+        integer,intent(in) :: i, M, N, K
+        real :: E, E_1, E_2
+
+        ! Evaluate at start vertex
+        E_1 = ((this%vertices_local(i,1)-eval_point(1))**(M-1)*(this%vertices_local(i,2)-eval_point(2))**(N-1))&
+              /this%R_i(eval_point, i)**K
+
+        ! Evaluate at end vertex
+        if (i .eq. this%N) then
+            E_2 = ((this%vertices_local(1,1)-eval_point(1))**(M-1)*(this%vertices_local(1,2)-eval_point(2))**(N-1))&
+                  /this%R_i(eval_point, 1)**K
+        else
+            E_2 = ((this%vertices_local(i,1)-eval_point(1))**(M-1)*(this%vertices_local(i,2)-eval_point(2))**(N-1))&
+                  /this%R_i(eval_point, i)**K
+        end if
+
+        ! Calculate difference
+        E = E_2-E_1
+
+    end function panel_E_i_M_N_K
+
+
+    function panel_F_i_1_1_1(this, eval_point, i) result(F)
+        ! Calculates F_i(1,1,1) at the point (in local coords)
+
+        implicit none
+
+        class(panel) :: this
+        real,dimension(3),intent(in) :: eval_point
+        integer,intent(in) :: i
+        real :: F
+
+        real,dimension(3) :: d
+        real :: a, l1, l2, g2, x1, x2
+
+        ! Perpendicular distance in plane from evaluation point to edge
+        d = this%vertices_local(i,:)-eval_point
+        a = inner(d, this%n_hat_local(i,:))
+
+        ! Integration length on edge
+        l1 = inner(d, this%t_hat_local(i,:))
+        l2 = l1+this%l(i)
+
+        ! Calculate perpendicular distance to edges
+        g2 = a**2+eval_point(3)**2
+
+        ! Calculate intermediate quantities
+        x1 = sqrt(l1**2+g2)
+        x2 = sqrt(l2**2+g2)
+
+        ! Calculate F(1,1,1)
+        if (l1 >= 0. .and. l2 >= 0.) then
+            F = log((x2+l2)/(x1+l1))
+        else if (l1 < 0. .and. l2 < 0.) then
+            F = log((x1-l2)/(x2-l2))
+        else
+            F = log(((x1-l2)*(x2+l2))/g2)
+        end if
+        
+    end function panel_F_i_1_1_1
+
+
+    function panel_F_i_1_1_3(this, eval_point, i) result(F)
+        ! Calculates F_i(1,1,3) at the evaluation point (in local coords)
+
+        implicit none
+
+        class(panel),intent(in) :: this
+        real,dimension(3),intent(in) :: eval_point
+        integer,intent(in) :: i
+        real :: F
+
+        real,dimension(3) :: d
+        real :: a, g2
+
+        ! Perpendicular distance in plane from evaluation point to edge
+        d = this%vertices_local(i,:)-eval_point
+        a = inner(d, this%n_hat_local(i,:))
+
+        ! Calculate perpendicular distance to edges
+        g2 = a**2+eval_point(3)**2
+
+        ! Calculate F
+        F = -1./g2*(-this%n_hat_local(i,2)*this%E_i_M_N_K(eval_point, i, 2, 1, 1) &
+            + this%n_hat_local(i,1)*this%E_i_M_N_K(eval_point, i, 1, 2, 1))
+
+        
+    end function panel_F_i_1_1_3
+
+
     function panel_get_source_potential(this, eval_point) result(phi)
 
         implicit none
 
-        class(panel),intent(inout) :: this
+        class(panel),intent(in) :: this
         real,dimension(3),intent(in) :: eval_point
         real :: phi
 
@@ -425,13 +541,13 @@ contains
 
         implicit none
 
-        class(panel),intent(inout) :: this
+        class(panel),intent(in) :: this
         real,dimension(3),intent(in) :: eval_point
         real,dimension(3) :: vel
         real :: hH113
 
         ! Get H(2,1,3), H(1,2,3), and hH(1,1,3)
-        hH113 = this%calc_hH_1_1_3(eval_point)
+        hH113 = this%hH_1_1_3(eval_point)
     
     end function panel_get_source_velocity
 
@@ -440,21 +556,21 @@ contains
 
         implicit none
 
-        class(panel),intent(inout) :: this
+        class(panel),intent(in) :: this
         real,dimension(3),intent(in) :: eval_point
         real :: phi, hH113
 
         ! Get fundamental integrals
-        hH113 = this%calc_hH_1_1_3(eval_point)
+        hH113 = this%hH_1_1_3(eval_point)
     
     end function panel_get_doublet_potential_influence
 
 
-    function panel_calc_hH_1_1_3(this, eval_point) result(val)
+    function panel_hH_1_1_3(this, eval_point) result(val)
 
         implicit none
 
-        class(panel),intent(inout) :: this
+        class(panel),intent(in) :: this
         real,dimension(3),intent(in) :: eval_point
         real,dimension(3) :: r, r_in_plane, d, d1, d2
         real :: h, phi, S_beta, C_beta
@@ -573,7 +689,7 @@ contains
 
         end if
 
-    end function panel_calc_hH_1_1_3
+    end function panel_hH_1_1_3
 
     
 end module panel_mod
