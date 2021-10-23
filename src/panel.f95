@@ -7,6 +7,8 @@ module panel_mod
 
     implicit none
 
+    integer :: doublet_order
+    integer :: source_order
 
     type panel
         ! A panel with an arbitrary number of sides
@@ -18,12 +20,14 @@ module panel_mod
         real,dimension(:,:),allocatable :: midpoints
         real,dimension(3) :: centroid
         real,dimension(3,3) :: A_t ! Local coordinate transform matrix
-        real,dimension(:,:),allocatable :: vertices_local ! Location of the vertices described in local coords
+        real,dimension(:,:),allocatable :: vertices_local, midpoints_local ! Location of the vertices and edge midpoints described in local coords
         real,dimension(:,:),allocatable :: t_hat, t_hat_local ! Edge unit tangents
         real,dimension(:,:),allocatable :: n_hat, n_hat_local ! Edge unit outward normals
         real,dimension(:),allocatable :: l ! Edge lengths
         real :: A ! Surface area
         real :: phi_n = 0 ! Perturbation source strength
+        real,dimension(:,:),allocatable :: inf_mat_mu ! Matrix relating doublet strengths to doublet influence parameters
+        real,dimension(:,:),allocatable :: inf_mat_sigma ! Matrix relating source strengths to source influence parameters
         real :: mu_0_1, mu_x_1, mu_y_1 ! Influence of vertex 1 on the doublet integral parameters
         real :: mu_0_2, mu_x_2, mu_y_2 ! Influence of vertex 2 on the doublet integral parameters
         real :: mu_0_3, mu_x_3, mu_y_3 ! Influence of vertex 3 on the doublet integral parameters
@@ -79,7 +83,8 @@ contains
 
         ! Allocate vertex array
         allocate(this%vertices(this%N))
-        allocate(this%vertices_local(this%N,3))
+        allocate(this%vertices_local(this%N,2))
+        allocate(this%midpoints_local(this%N,2))
         allocate(this%vertex_indices(this%N))
 
         ! Store info
@@ -110,7 +115,7 @@ contains
 
         ! Allocate vertex array
         allocate(this%vertices(this%N))
-        allocate(this%vertices_local(this%N,3))
+        allocate(this%vertices_local(this%N,2))
         allocate(this%vertex_indices(this%N))
 
         ! Store info
@@ -239,9 +244,8 @@ contains
         implicit none
 
         class(panel),intent(inout) :: this
-        real,dimension(3) :: d
+        real,dimension(3) :: d, dx_v, dx_m, dy_v, dy_m
         integer :: i
-        real :: dx1, dx2, dy1, dy2, det
 
         ! Choose first edge tangent as local xi-axis
         ! (will need to be projected for quadrilateral panel)
@@ -256,16 +260,35 @@ contains
 
         ! Transform vertex coords
         do i=1,this%N
-            this%vertices_local(i,:) = matmul(this%A_t, this%get_vertex_loc(i))
+            this%vertices_local(i,:) = matmul(this%A_t, this%get_vertex_loc(i))(1:2)
         end do
 
+        ! Transform midpoint coords
+        this%midpoints_local = matmul(this%A_t, this%midpoints)(:,1:2)
+
         ! Determine influence of vertex doublet strengths on integral parameters
-        ! Preliminaries
-        dx1 = this%vertices_local(1,1)-this%centroid(1)
-        dx2 = this%vertices_local(2,1)-this%centroid(1)
-        dy1 = this%vertices_local(1,2)-this%centroid(2)
-        dy2 = this%vertices_local(2,2)-this%centroid(2)
-        det = dx1*dy2-dx2*dy1
+
+        ! Get distances to vertices
+        dx_v = this%vertices_local(:,1)-this%centroid(1)
+        dy_v = this%vertices_local(:,2)-this%centroid(2)
+
+        if (doublet_order .eq. 1) then
+
+            ! Allocate influence matrix
+            allocate(this%inf_mat_mu(3,3))
+            this%inf_mat_mu(:,1) = 1.
+
+        else if (doublet_order .eq. 2) then
+
+            ! Allocate influence matrix
+            allocate(this%inf_mat_mu(6,6))
+            this%inf_mat_mu(:,1) = 1.
+
+            ! Get distances to midpoints
+            dx_m = this%midpoints_local(:,1)-this%centroid(1)
+            dy_m = this%midpoints_local(:,2)-this%centroid(2)
+
+        end if
 
         ! Influence on mu_0
         this%mu_0_1 = 1./3.

@@ -11,6 +11,10 @@
                 "xz" : true,
                 "xy" : false
             },
+            "singularity_order" : {
+                "doublet" : 2,
+                "source" : 1
+            },
             "wake_model" : {
                 "wake_shedding_angle" : 90.0,
                 "trefftz_distance" : 40.0,

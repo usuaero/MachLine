@@ -58,6 +58,12 @@ contains
         character(len=:),allocatable :: extension
         integer :: loc
 
+        ! Set singularity orders
+        call json_xtnsn_get(settings, 'singularity_order.doublet', doublet_order, 2)
+        call json_xtnsn_get(settings, 'singularity_order.source', source_order, 1)
+        write(*,*)
+        write(*,*) "    User has selected:", doublet_order, "-order doublet panels and", source_order, "-order source panels."
+
         ! Get mesh file
         call json_get(settings, 'file', this%mesh_file)
         this%mesh_file = trim(this%mesh_file)
