@@ -158,7 +158,7 @@ contains
             write(1,'(a)') "SCALARS phi_n float 1"
             write(1,'(a)') "LOOKUP_TABLE default"
             do i=1,N_panels
-                write(1,'(f20.12)') panels(i)%phi_n
+                write(1,'(f20.12)') 0.
             end do
 
             ! Vertex doublet strengths

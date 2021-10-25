@@ -6,7 +6,6 @@ module surface_mesh_mod
     use vtk_mod
     use vertex_mod
     use panel_mod
-    use adt_mod
     use flow_mod
     use math_mod
     use wake_edge_mod
@@ -24,7 +23,6 @@ module surface_mesh_mod
         integer,allocatable,dimension(:) :: wake_edge_top_verts, wake_edge_bot_verts
         type(wake_edge),allocatable,dimension(:) :: wake_edges
         character(len=:),allocatable :: mesh_file
-        type(alternating_digital_tree) :: vertex_tree
         real :: wake_shedding_angle, C_wake_shedding_angle, trefftz_distance, C_min_wake_shedding_angle
         integer :: N_wake_panels_streamwise
         real,dimension(:,:),allocatable :: control_points
@@ -35,7 +33,6 @@ module surface_mesh_mod
         contains
 
             procedure :: init => surface_mesh_init
-            procedure :: load_adt => surface_mesh_load_adt
             procedure :: init_with_flow => surface_mesh_init_with_flow
             procedure :: output_results => surface_mesh_output_results
             procedure :: locate_wake_shedding_edges => surface_mesh_locate_wake_shedding_edges
@@ -103,46 +100,46 @@ contains
     end subroutine surface_mesh_init
 
 
-    subroutine surface_mesh_load_adt(this)
+    !subroutine surface_mesh_load_adt(this)
 
-        implicit none
+    !    implicit none
 
-        class(surface_mesh),intent(inout) :: this
-        real,dimension(3) :: p_min, p_max
-        integer :: i
+    !    class(surface_mesh),intent(inout) :: this
+    !    real,dimension(3) :: p_min, p_max
+    !    integer :: i
 
-        write(*,*)
-        write(*,'(a)',advance='no') "     Loading vertices into ADT..."
+    !    write(*,*)
+    !    write(*,'(a)',advance='no') "     Loading vertices into ADT..."
 
-        ! Determine bounds of alternating digital tree
-        p_min = this%vertices(1)%loc
-        p_max = this%vertices(1)%loc
-        do i=2,this%N_verts
+    !    ! Determine bounds of alternating digital tree
+    !    p_min = this%vertices(1)%loc
+    !    p_max = this%vertices(1)%loc
+    !    do i=2,this%N_verts
 
-            ! Check mins
-            p_min(1) = min(this%vertices(i)%loc(1), p_min(1))
-            p_min(2) = min(this%vertices(i)%loc(2), p_min(2))
-            p_min(3) = min(this%vertices(i)%loc(3), p_min(3))
+    !        ! Check mins
+    !        p_min(1) = min(this%vertices(i)%loc(1), p_min(1))
+    !        p_min(2) = min(this%vertices(i)%loc(2), p_min(2))
+    !        p_min(3) = min(this%vertices(i)%loc(3), p_min(3))
 
-            ! Check maxs
-            p_max(1) = max(this%vertices(i)%loc(1), p_max(1))
-            p_max(2) = max(this%vertices(i)%loc(2), p_max(2))
-            p_max(3) = max(this%vertices(i)%loc(3), p_max(3))
+    !        ! Check maxs
+    !        p_max(1) = max(this%vertices(i)%loc(1), p_max(1))
+    !        p_max(2) = max(this%vertices(i)%loc(2), p_max(2))
+    !        p_max(3) = max(this%vertices(i)%loc(3), p_max(3))
 
-        end do
-        
-        ! Store
-        this%vertex_tree%p_min = p_min
-        this%vertex_tree%p_max = p_max
+    !    end do
+    !    
+    !    ! Store
+    !    this%vertex_tree%p_min = p_min
+    !    this%vertex_tree%p_max = p_max
 
-        ! Load vertices into alternating digital tree
-        do i=1,this%N_verts
-            call this%vertex_tree%add(this%vertices(i))
-        end do
-        write(*,*) "Done."
+    !    ! Load vertices into alternating digital tree
+    !    do i=1,this%N_verts
+    !        call this%vertex_tree%add(this%vertices(i))
+    !    end do
+    !    write(*,*) "Done."
 
 
-    end subroutine surface_mesh_load_adt
+    !end subroutine surface_mesh_load_adt
 
 
     subroutine surface_mesh_init_with_flow(this, freestream_flow)

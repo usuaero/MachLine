@@ -25,15 +25,9 @@ module panel_mod
         real,dimension(:,:),allocatable :: n_hat, n_hat_local ! Edge unit outward normals
         real,dimension(:),allocatable :: l ! Edge lengths
         real :: A ! Surface area
-        real :: phi_n = 0 ! Perturbation source strength
-        real,dimension(:,:),allocatable :: inf_mat_mu ! Matrix relating doublet strengths to doublet influence parameters
-        real,dimension(:,:),allocatable :: inf_mat_sigma ! Matrix relating source strengths to source influence parameters
-        real :: mu_0_1, mu_x_1, mu_y_1 ! Influence of vertex 1 on the doublet integral parameters
-        real :: mu_0_2, mu_x_2, mu_y_2 ! Influence of vertex 2 on the doublet integral parameters
-        real :: mu_0_3, mu_x_3, mu_y_3 ! Influence of vertex 3 on the doublet integral parameters
-        logical :: on_wake_edge ! Whether this panel belongs to a wake-shedding edge
-        logical :: wake_panel ! Whether this panel belongs to a wake
-        logical :: shock_panel ! Whether this panel belongs to a shock
+        real,dimension(:,:),allocatable :: S_mu, S_mu_inv ! Matrices relating doublet strengths to doublet influence parameters
+        real,dimension(:,:),allocatable :: S_sigma, S_sigma_inv ! Matrices relating source strengths to source influence parameters
+        logical :: on_wake_edge ! Whether this panel belongs to a wake-shedding edge (on the body)
         integer,dimension(:),allocatable :: vertex_indices ! Indices of this panel's vertices in the mesh vertex array
         type(list) :: opposing_panels ! Indices of panels opposite this one on the wake-shedding edge
         type(list) :: abutting_panels ! Indices of panels abutting this one not across wake-shedding edge
@@ -83,8 +77,6 @@ contains
 
         ! Allocate vertex array
         allocate(this%vertices(this%N))
-        allocate(this%vertices_local(this%N,2))
-        allocate(this%midpoints_local(this%N,2))
         allocate(this%vertex_indices(this%N))
 
         ! Store info
@@ -225,10 +217,11 @@ contains
         implicit none
 
         class(panel),intent(inout) :: this
-        real,dimension(3) :: sum = 0
+        real,dimension(3) :: sum
         integer :: i
 
         ! Get average of corner points
+        sum = 0.
         do i=1,this%N
             sum = sum + this%get_vertex_loc(i)
         end do
@@ -244,8 +237,12 @@ contains
         implicit none
 
         class(panel),intent(inout) :: this
-        real,dimension(3) :: d, dx_v, dx_m, dy_v, dy_m
+        real,dimension(3) :: d
         integer :: i
+
+        ! Allocate memory
+        allocate(this%vertices_local(this%N,2))
+        allocate(this%midpoints_local(this%N,2))
 
         ! Choose first edge tangent as local xi-axis
         ! (will need to be projected for quadrilateral panel)
@@ -258,52 +255,106 @@ contains
         ! Calculate eta axis from the other two
         this%A_t(2,:) = cross(this%normal, this%A_t(1,:))
 
-        ! Transform vertex coords
+        ! Transform vertex and midpoint coords
         do i=1,this%N
-            this%vertices_local(i,:) = matmul(this%A_t, this%get_vertex_loc(i))(1:2)
+
+            ! Vertices
+            this%vertices_local(i,:) = matmul(this%A_t(1:2,:), this%get_vertex_loc(i)-this%centroid)
+
+            ! Midpoints
+            this%midpoints_local(i,:) = matmul(this%A_t(1:2,:), this%midpoints(i,:)-this%centroid)
+
         end do
 
-        ! Transform midpoint coords
-        this%midpoints_local = matmul(this%A_t, this%midpoints)(:,1:2)
-
         ! Determine influence of vertex doublet strengths on integral parameters
+        if (.not. doublet_order .eq. 0) then
 
-        ! Get distances to vertices
-        dx_v = this%vertices_local(:,1)-this%centroid(1)
-        dy_v = this%vertices_local(:,2)-this%centroid(2)
+            ! Linear distribution
+            if (doublet_order .eq. 1) then
 
-        if (doublet_order .eq. 1) then
+                ! Allocate influence matrices
+                allocate(this%S_mu(3,3))
+                allocate(this%S_mu_inv(3,3))
 
-            ! Allocate influence matrix
-            allocate(this%inf_mat_mu(3,3))
-            this%inf_mat_mu(:,1) = 1.
+                ! Set values
+                this%S_mu_inv(:,1) = 1.
+                this%S_mu_inv(:,2) = this%vertices_local(:,1)
+                this%S_mu_inv(:,3) = this%vertices_local(:,2)
 
-        else if (doublet_order .eq. 2) then
+                ! Invert
+                call matinv(3, this%S_mu_inv, this%S_mu)
 
-            ! Allocate influence matrix
-            allocate(this%inf_mat_mu(6,6))
-            this%inf_mat_mu(:,1) = 1.
+            else if (doublet_order .eq. 2) then
 
-            ! Get distances to midpoints
-            dx_m = this%midpoints_local(:,1)-this%centroid(1)
-            dy_m = this%midpoints_local(:,2)-this%centroid(2)
+                ! Allocate influence matrix
+                allocate(this%S_mu(6,6))
+                allocate(this%S_mu_inv(6,6))
 
+                ! Set values
+                this%S_mu_inv(:,1) = 1.
+
+                this%S_mu_inv(1:3,2) = this%vertices_local(:,1)
+                this%S_mu_inv(1:3,3) = this%vertices_local(:,2)
+                this%S_mu_inv(1:3,4) = this%vertices_local(:,1)**2
+                this%S_mu_inv(1:3,5) = this%vertices_local(:,1)*this%vertices_local(:,2)
+                this%S_mu_inv(1:3,6) = this%vertices_local(:,2)**2
+                
+                this%S_mu_inv(4:6,2) = this%midpoints_local(:,1)
+                this%S_mu_inv(4:6,3) = this%midpoints_local(:,2)
+                this%S_mu_inv(4:6,4) = this%midpoints_local(:,1)**2
+                this%S_mu_inv(4:6,5) = this%midpoints_local(:,1)*this%midpoints_local(:,2)
+                this%S_mu_inv(4:6,6) = this%midpoints_local(:,2)**2
+
+                ! Invert
+                call matinv(6, this%S_mu_inv, this%S_mu)
+
+            end if
         end if
 
-        ! Influence on mu_0
-        this%mu_0_1 = 1./3.
-        this%mu_0_2 = 1./3.
-        this%mu_0_3 = 1./3.
+        ! Determine influence of vertex source strengths on integral parameters
+        if (.not. source_order .eq. 0) then
 
-        ! Influence on mu_x
-        this%mu_x_1 = 1./(3.*det)*(2*dy2+dy1)
-        this%mu_x_2 = 1./(3.*det)*(-dy2-2*dy1)
-        this%mu_x_3 = 1./(3.*det)*(-dy2+dy1)
+            ! Linear distribution
+            if (source_order .eq. 1) then
 
-        ! Influence on mu_y
-        this%mu_y_1 = 1./(3.*det)*(-2*dx2-dx1)
-        this%mu_y_2 = 1./(3.*det)*(dx2+2*dx1)
-        this%mu_y_3 = 1./(3.*det)*(dx2-dx1)
+                ! Allocate influence matrices
+                allocate(this%S_sigma(3,3))
+                allocate(this%S_sigma_inv(3,3))
+
+                ! Set values
+                this%S_sigma_inv(:,1) = 1.
+                this%S_sigma_inv(:,2) = this%vertices_local(:,1)
+                this%S_sigma_inv(:,3) = this%vertices_local(:,2)
+
+                ! Invert
+                call matinv(3, this%S_sigma_inv, this%S_sigma)
+
+            else if (source_order .eq. 2) then
+
+                ! Allocate influence matrix
+                allocate(this%S_sigma(6,6))
+                allocate(this%S_sigma_inv(6,6))
+
+                ! Set values
+                this%S_sigma_inv(:,1) = 1.
+
+                this%S_sigma_inv(1:3,2) = this%vertices_local(:,1)
+                this%S_sigma_inv(1:3,3) = this%vertices_local(:,2)
+                this%S_sigma_inv(1:3,4) = this%vertices_local(:,1)**2
+                this%S_sigma_inv(1:3,5) = this%vertices_local(:,1)*this%vertices_local(:,2)
+                this%S_sigma_inv(1:3,6) = this%vertices_local(:,2)**2
+                
+                this%S_sigma_inv(4:6,2) = this%midpoints_local(:,1)
+                this%S_sigma_inv(4:6,3) = this%midpoints_local(:,2)
+                this%S_sigma_inv(4:6,4) = this%midpoints_local(:,1)**2
+                this%S_sigma_inv(4:6,5) = this%midpoints_local(:,1)*this%midpoints_local(:,2)
+                this%S_sigma_inv(4:6,6) = this%midpoints_local(:,2)**2
+
+                ! Invert
+                call matinv(6, this%S_sigma_inv, this%S_sigma)
+
+            end if
+        end if
 
     end subroutine panel_calc_coord_transform
 
@@ -319,15 +370,15 @@ contains
         ! Allocate memory
         allocate(this%l(this%N))
         allocate(this%t_hat(this%N,3))
-        allocate(this%t_hat_local(this%N,3))
+        allocate(this%t_hat_local(this%N,2))
         allocate(this%n_hat(this%N,3))
-        allocate(this%n_hat_local(this%N,3))
+        allocate(this%n_hat_local(this%N,2))
 
-        ! Calculate tangents
+        ! Loop through edges
         do i=1,this%N
 
             ! Calculate difference based on index
-            ! Edge tangent i starts at vertex i
+            ! Edge i starts at vertex i
             if (i==this%N) then
                 d = this%get_vertex_loc(1)-this%get_vertex_loc(i)
             else
@@ -339,15 +390,11 @@ contains
 
             ! Calculate tangent
             this%t_hat(i,:) = d/this%l(i)
-            this%t_hat_local(i,:) = matmul(this%A_t, this%t_hat(i,:))
+            this%t_hat_local(i,:) = matmul(this%A_t(1:2,:), this%t_hat(i,:))
 
-        end do
-
-        ! Calculate outward normals
-        do i=1,this%N
-
+            ! Calculate outward normal
             this%n_hat(i,:) = cross(this%t_hat(i,:), this%normal)
-            this%n_hat_local(i,:) = matmul(this%A_t, this%n_hat(i,:))
+            this%n_hat_local(i,:) = matmul(this%A_t(1:2,:), this%n_hat(i,:))
 
         end do
     

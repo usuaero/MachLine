@@ -147,7 +147,7 @@ subroutine math_rot_z(vec,th)
 end subroutine math_rot_z
 
 
-subroutine math_matinv(n,a,ai)
+subroutine matinv(n,a,ai)
       implicit none
 !
 ! This sobroutine inverts a matrix "a" and returns the inverse in "ai"
@@ -252,7 +252,7 @@ subroutine math_matinv(n,a,ai)
       deallocate(d)
       deallocate(io)
       return
-      end subroutine math_matinv
+      end subroutine matinv
 
 
 SUBROUTINE math_AXB_LUD(n,A,B,X)
@@ -504,7 +504,7 @@ END subroutine math_LUDCMP
         m(i, 2) = pts(i, 1)
         m(i, 3) = 1.0
       end do
-      call math_matinv(3, m, m_inv)
+      call matinv(3, m, m_inv)
 
       v(:) = pts(:, 2)
       coeff = matmul(m_inv, v)

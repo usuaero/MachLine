@@ -1,10 +1,28 @@
-all:
-	gfortran -O2 -fdefault-real-8 -fbounds-check -o mftran.exe \
+# make for MFTran
+
+# Directories
+SRC_DIR = ./src
+COM_DIR = ./common
+BIN_DIR = ./bin
+
+# Find source files
+SRCS = $(wildcard $(COM_DIR)/*.f95 $(SRC_DIR)/*.f95)
+
+# Compiler
+COMPILER = gfortran
+
+# Flags
+FLAGS = -O2 -fdefault-real-8 -fbounds-check 
+
+# Program name
+PROGRAM = mftran.exe
+
+default:
+	$(COMPILER) $(FLAGS) -o $(PROGRAM) \
 	common/linked_list.f95 \
 	common/math.f95 \
 	common/json.f95 \
 	common/json_xtnsn.f95 \
-	common/adt.f95 \
 	src/flow.f95 \
 	src/vertex.f95 \
 	src/kutta_edge.f95 \
@@ -14,3 +32,11 @@ all:
 	src/surface_mesh.f95 \
 	src/panel_solver.f95 \
 	src/main.f95
+
+# Debug option
+debug:
+	@echo "SRCS=$(SRCS)"
+
+# Cleanup
+clean:
+	rm -f *.mod *.exe $(SRC_DIR)/*.mod $(COM_DIR)/*.mod
