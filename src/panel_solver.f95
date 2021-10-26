@@ -77,7 +77,7 @@ contains
             do i=1,body_mesh%N_panels
                 do j=1,body_mesh%N_verts
 
-                    phi = body_mesh%panels(i)%get_source_potential(body_mesh%vertices(j)%loc)
+                    phi = body_mesh%panels(i)%get_source_potential(body_mesh%control_points(j,:))*body_mesh%sigma(i)
 
                 end do
             end do
