@@ -29,6 +29,7 @@ module surface_mesh_mod
         real,dimension(:),allocatable :: phi_cp
         real :: control_point_offset
         logical :: xy_sym, xz_sym, yz_sym ! Whether the mesh is to be mirrored about any planes
+        real,dimension(:),allocatable :: mu, sigma ! Singularity strengths
 
         contains
 
@@ -56,8 +57,8 @@ contains
         integer :: loc
 
         ! Set singularity orders
-        call json_xtnsn_get(settings, 'singularity_order.doublet', doublet_order, 2)
-        call json_xtnsn_get(settings, 'singularity_order.source', source_order, 1)
+        call json_xtnsn_get(settings, 'singularity_order.doublet', doublet_order, 1)
+        call json_xtnsn_get(settings, 'singularity_order.source', source_order, 0)
         write(*,*)
         write(*,*) "    User has selected:", doublet_order, "-order doublet panels and", source_order, "-order source panels."
 
@@ -93,9 +94,6 @@ contains
         call json_xtnsn_get(settings, 'wake_model.trefftz_distance', this%trefftz_distance, 100.0) ! Distance from origin to wake termination
         call json_xtnsn_get(settings, 'wake_model.N_panels', this%N_wake_panels_streamwise, 20)
         this%C_wake_shedding_angle = cos(this%wake_shedding_angle*pi/180.0)
-
-        ! Store boundary condition settings
-        call json_get(settings, 'boundary_conditions.control_point_offset', this%control_point_offset)
     
     end subroutine surface_mesh_init
 
@@ -159,7 +157,6 @@ contains
 
         ! Determine wake-dependent geometry
         call this%calc_vertex_normals()
-        call this%place_control_points()
     
     end subroutine surface_mesh_init_with_flow
 
@@ -539,11 +536,13 @@ contains
     end subroutine surface_mesh_calc_vertex_normals
 
 
-    subroutine surface_mesh_place_control_points(this)
+    subroutine surface_mesh_place_control_points(this, offset)
 
         implicit none
 
         class(surface_mesh),intent(inout) :: this
+        real,intent(in) :: offset
+
         integer :: i, j, N, ind
         real,dimension(3) :: sum
         real :: C_theta_2, offset_ratio
@@ -561,7 +560,7 @@ contains
             ! If it's not in a wake-shedding edge (i.e. has no clone), then placement simply follows the normal vector
             if (.not. this%vertices(i)%in_wake_edge) then
 
-                this%control_points(i,:) = this%vertices(i)%loc-this%control_point_offset*this%vertices(i)%normal
+                this%control_points(i,:) = this%vertices(i)%loc-offset*this%vertices(i)%normal
 
             ! Otherwise, we have to shift based on more information
             else
@@ -584,7 +583,7 @@ contains
 
                 ! Place control point
                 this%control_points(i,:) = this%vertices(i)%loc &
-                                           - this%control_point_offset * (this%vertices(i)%normal - offset_ratio * sum)
+                                           - offset * (this%vertices(i)%normal - offset_ratio * sum)
 
             end if
 

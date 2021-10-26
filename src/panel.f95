@@ -10,6 +10,16 @@ module panel_mod
     integer :: doublet_order
     integer :: source_order
 
+    type eval_point_geom
+        ! Container type for the geometric parameters necessary for calculating a panel's influence on a given field point
+
+        real,dimension(3) :: r, r_local
+        real,dimension(2) :: r_in_plane
+        real :: h
+        real,dimension(3) :: a, g2, l1, l2, s1, s2, c1, c2
+
+    end type eval_point_geom
+
     type panel
         ! A panel with an arbitrary number of sides
 
@@ -53,9 +63,7 @@ module panel_mod
             procedure :: F_i_1_1_1 => panel_F_i_1_1_1
             procedure :: F_i_1_1_3 => panel_F_i_1_1_3
             procedure :: get_source_potential => panel_get_source_potential
-            procedure :: get_source_velocity => panel_get_source_velocity
-            procedure :: get_doublet_potential_influence => panel_get_doublet_potential_influence
-            procedure :: hH_1_1_3 => panel_hH_1_1_3
+            procedure :: get_field_point_geometry => panel_get_field_point_geometry
 
     end type panel
 
@@ -497,27 +505,73 @@ contains
     end function panel_R_i
 
 
-    function panel_E_i_M_N_K(this, eval_point, i, M, N, K) result(E)
-        ! Calculates E_i(M,N,K) at the given point (assumed to be in panel coordinates)
+    function panel_get_field_point_geometry(this, eval_point) result(geom)
+        ! Calculates the geometric parameters necessary for calculating the influence of the panel at the given evaluation point
 
         implicit none
 
         class(panel),intent(in) :: this
         real,dimension(3),intent(in) :: eval_point
+        type(eval_point_geom) :: geom
+
+        real,dimension(2) :: d
+        integer :: i
+
+        ! Store point
+        geom%r = eval_point
+
+        ! Transform to panel coordinates
+        geom%r_local = matmul(this%A_t, geom%r-this%centroid)
+        geom%r_in_plane = geom%r_local(1:2)
+        geom%h = geom%r_local(3)
+
+        ! Calculate intermediate quantities
+        do i=1,this%N
+
+            ! Perpendicular distance in plane from evaluation point to edge
+            d = this%vertices_local(i,:)-geom%r_in_plane
+            geom%a(i) = inner2(d, this%n_hat_local(i,:))
+
+            ! Integration lengths on edges
+            geom%l1(i) = inner2(d, this%t_hat_local(i,:))
+            geom%l2(i) = geom%l1(i)+this%l(i)
+
+        end do
+
+        ! Calculate perpendicular distance to edges
+        geom%g2 = geom%a**2+geom%h**2
+
+        ! Other intermediate quantities
+        geom%s1 = sqrt(geom%l1**2+geom%g2) ! Distance to first vertex (at this point, this method is more efficient than taking the norm)
+        geom%s2 = sqrt(geom%l2**2+geom%g2) ! Distance to second vertex
+        geom%c1 = geom%g2+abs(geom%h)*geom%s1
+        geom%c2 = geom%g2+abs(geom%h)*geom%s2
+
+    end function panel_get_field_point_geometry
+
+
+    function panel_E_i_M_N_K(this, geom, i, M, N, K) result(E)
+        ! Calculates E_i(M,N,K)
+
+        implicit none
+
+        class(panel),intent(in) :: this
+        type(eval_point_geom),intent(in) :: geom
         integer,intent(in) :: i, M, N, K
+
         real :: E, E_1, E_2
 
         ! Evaluate at start vertex
-        E_1 = ((this%vertices_local(i,1)-eval_point(1))**(M-1)*(this%vertices_local(i,2)-eval_point(2))**(N-1))&
-              /this%R_i(eval_point, i)**K
+        E_1 = ((this%vertices_local(i,1)-geom%r_local(1))**(M-1)*(this%vertices_local(i,2)-geom%r_local(2))**(N-1))&
+              /this%R_i(geom%r_local, i)**K
 
         ! Evaluate at end vertex
         if (i .eq. this%N) then
-            E_2 = ((this%vertices_local(1,1)-eval_point(1))**(M-1)*(this%vertices_local(1,2)-eval_point(2))**(N-1))&
-                  /this%R_i(eval_point, 1)**K
+            E_2 = ((this%vertices_local(1,1)-geom%r_local(1))**(M-1)*(this%vertices_local(1,2)-geom%r_local(2))**(N-1))&
+                  /this%R_i(geom%r_local, 1)**K
         else
-            E_2 = ((this%vertices_local(i,1)-eval_point(1))**(M-1)*(this%vertices_local(i,2)-eval_point(2))**(N-1))&
-                  /this%R_i(eval_point, i)**K
+            E_2 = ((this%vertices_local(i,1)-geom%r_local(1))**(M-1)*(this%vertices_local(i,2)-geom%r_local(2))**(N-1))&
+                  /this%R_i(geom%r_local, i)**K
         end if
 
         ! Calculate difference
@@ -526,70 +580,58 @@ contains
     end function panel_E_i_M_N_K
 
 
-    function panel_F_i_1_1_1(this, eval_point, i) result(F)
-        ! Calculates F_i(1,1,1) at the point (in local coords)
+    function panel_F_i_1_1_1(this, geom, i) result(F)
+        ! Calculates F_i(1,1,1)
 
         implicit none
 
         class(panel) :: this
-        real,dimension(3),intent(in) :: eval_point
+        type(eval_point_geom),intent(in) :: geom
         integer,intent(in) :: i
         real :: F
 
-        real,dimension(3) :: d
-        real :: a, l1, l2, g2, x1, x2
-
-        ! Perpendicular distance in plane from evaluation point to edge
-        d = this%vertices_local(i,:)-eval_point
-        a = inner(d, this%n_hat_local(i,:))
-
-        ! Integration length on edge
-        l1 = inner(d, this%t_hat_local(i,:))
-        l2 = l1+this%l(i)
-
-        ! Calculate perpendicular distance to edges
-        g2 = a**2+eval_point(3)**2
+        real :: x1, x2
 
         ! Calculate intermediate quantities
-        x1 = sqrt(l1**2+g2)
-        x2 = sqrt(l2**2+g2)
+        x1 = sqrt(geom%l1(i)**2+geom%g2(i))
+        x2 = sqrt(geom%l2(i)**2+geom%g2(i))
 
         ! Calculate F(1,1,1)
-        if (l1 >= 0. .and. l2 >= 0.) then
-            F = log((x2+l2)/(x1+l1))
-        else if (l1 < 0. .and. l2 < 0.) then
-            F = log((x1-l2)/(x2-l2))
+        ! Below edge
+        if (geom%l1(i) >= 0. .and. geom%l2(i) >= 0.) then
+            F = log((x2+geom%l2(i))/(x1+geom%l1(i)))
+        
+        ! Above edge
+        else if (geom%l1(i) < 0. .and. geom%l2(i) < 0.) then
+            F = log((x1-geom%l2(i))/(x2-geom%l2(i)))
+
+        ! Within edge
         else
-            F = log(((x1-l2)*(x2+l2))/g2)
+            F = log(((x1-geom%l2(i))*(x2+geom%l2(i)))/geom%g2(i))
         end if
         
     end function panel_F_i_1_1_1
 
 
-    function panel_F_i_1_1_3(this, eval_point, i) result(F)
-        ! Calculates F_i(1,1,3) at the evaluation point (in local coords)
+    function panel_F_i_1_1_3(this, geom, i) result(F)
+        ! Calculates F_i(1,1,3)
 
         implicit none
 
         class(panel),intent(in) :: this
-        real,dimension(3),intent(in) :: eval_point
+        type(eval_point_geom),intent(in) :: geom
         integer,intent(in) :: i
         real :: F
 
         real,dimension(3) :: d
-        real :: a, g2
+        real :: E211, E121
 
-        ! Perpendicular distance in plane from evaluation point to edge
-        d = this%vertices_local(i,:)-eval_point
-        a = inner(d, this%n_hat_local(i,:))
-
-        ! Calculate perpendicular distance to edges
-        g2 = a**2+eval_point(3)**2
+        ! Get E integrals
+        E211 = this%E_i_M_N_K(geom, i, 2, 1, 1)
+        E121 = this%E_i_M_N_K(geom, i, 1, 2, 1)
 
         ! Calculate F
-        F = -1./g2*(-this%n_hat_local(i,2)*this%E_i_M_N_K(eval_point, i, 2, 1, 1) &
-            + this%n_hat_local(i,1)*this%E_i_M_N_K(eval_point, i, 1, 2, 1))
-
+        F = -1./geom%g2(i)*(-this%n_hat_local(i,2)*E211 + this%n_hat_local(i,1)*E121)
         
     end function panel_F_i_1_1_3
 
@@ -602,164 +644,72 @@ contains
         real,dimension(3),intent(in) :: eval_point
         real :: phi
 
-        ! Get H(1,1,1)
-    
-    end function panel_get_source_potential
+        type(eval_point_geom) :: geom
+        real :: dH
+        real,dimension(:,:,:),allocatable :: H
+        real,dimension(:,:,:,:),allocatable :: F
+        real,dimension(3) :: d
+        integer :: i, MXQ, MXK, NHK
 
+        ! Determine order of recursion necessary
+        if (source_order .eq. 0) then
+            MXQ = 1
+            MXK = 1
+        end if
+        NHK = 16
 
-    function panel_get_source_velocity(this, eval_point) result(vel)
+        ! Allocate H and F integral storage
+        allocate(H(1:MXQ,1:MXQ,1:MXK+NHK))
 
-        implicit none
+        ! Calculate geometric parameters
+        geom = this%get_field_point_geometry(eval_point)
 
-        class(panel),intent(in) :: this
-        real,dimension(3),intent(in) :: eval_point
-        real,dimension(3) :: vel
-        real :: hH113
+        ! Check distance to panel perimeter (minimum perpendicular distance to edge)
+        dH = minval(sqrt(geom%g2))
 
-        ! Get H(2,1,3), H(1,2,3), and hH(1,1,3)
-        hH113 = this%hH_1_1_3(eval_point)
-    
-    end function panel_get_source_velocity
+        ! Calculate necessary integrals
 
+        ! Eval point not too near perimeter (Procedure 1 in Johnson 1980)
+        if (abs(geom%h) >= 0.01*dH) then
 
-    function panel_get_doublet_potential_influence(this, eval_point) result(phi)
+            ! Loop through edges
+            H(1,1,1) = 0.
+            do i=1,this%N
 
-        implicit none
+                ! Add surface integral
+                H(1,1,1) = H(1,1,1) -abs(geom%h)*atan2(geom%a(i)*(geom%l2(i)*geom%c1(i) - &
+                           geom%l1(i)*geom%c2(i)), geom%c1(i)*geom%c2(i) + &
+                           geom%a(i)**2*geom%l1(i)*geom%l2(i))
 
-        class(panel),intent(in) :: this
-        real,dimension(3),intent(in) :: eval_point
-        real :: phi, hH113
+                ! Add line integral
+                H(1,1,1) = H(1,1,1) + geom%a(i)*this%F_i_1_1_1(geom, i)
 
-        ! Get fundamental integrals
-        hH113 = this%hH_1_1_3(eval_point)
-    
-    end function panel_get_doublet_potential_influence
+            end do
+        
+        ! Close to perimeter
+        else
 
+            ! Check if the projected point falls inside the panel
+            d(1) = inner2(geom%r_in_plane, this%n_hat_local(1,:))
+            d(2) = inner2(geom%r_in_plane, this%n_hat_local(2,:))
+            d(3) = inner2(geom%r_in_plane, this%n_hat_local(3,:))
 
-    function panel_hH_1_1_3(this, eval_point) result(val)
+            ! Outside panel (Procedure 2)
+            if (all(d > 0)) then
 
-        implicit none
-
-        class(panel),intent(in) :: this
-        real,dimension(3),intent(in) :: eval_point
-        real,dimension(3) :: r, r_in_plane, d, d1, d2
-        real :: h, phi, S_beta, C_beta
-        real,dimension(3) :: a, g2, l1, l2, s1, s2, c1, c2
-        real :: val
-        integer :: i
-
-        ! Transform to panel coordinates
-        r = eval_point-this%centroid
-        r = matmul(this%A_t, r)
-        r_in_plane = r
-        r_in_plane(3) = 0
-        h = r(3)
-
-        ! Calculate intermediate quantities
-        do i=1,this%N
-
-            ! Perpendicular distance in plane from evaluation point to edge
-            d = this%vertices_local(i,:)-r_in_plane
-            a(i) = inner(d, this%n_hat_local(i,:))
-
-            ! Integration lengths on edges
-            l1(i) = inner(d, this%t_hat_local(i,:))
-            l2(i) = l1(i)+this%l(i)
-
-        end do
-
-        ! Calculate perpendicular distance to edges
-        g2 = a**2+h**2
-
-        ! Other intermediate quantities
-        s1 = sqrt(l1**2+g2) ! Distance to first vertex (at this point, this method is more efficient than taking the norm)
-        s2 = sqrt(l2**2+g2) ! Distance to second vertex
-        c1 = g2+abs(h)*s1
-        c2 = g2+abs(h)*s2
-
-        ! Check location of point relative to the panel
-        val = 0.0
-        if (abs(h) < 1e-10) then
-
-            ! Check if point is colinear with edge
-            if (any(g2 == 0.0)) then
-
-                ! Check if point is on edge
-                if (any(l1*l2 < 0.0)) then
-                    write(*,*) "Error: Evaluation point", eval_point, "is on an edge of panel", this%index
-                    stop
-                
-                ! Not on edge
-                else
-
-                    ! Calculate H(1,1,3) using complicated formulation
-                    ! Loop through edges
-                    do i=1,this%N
-
-                        ! Calculate sine and cosine
-                        S_beta = a(i)*( l2(i) - l1(i) + ( abs(h) * ( l2(i)**2 - l1(i)**2 ) / ( l2(i) * s1(i) + l1(i) * s2(i) )))
-                        C_beta = g2(i) + abs(h)*( s1(i) + s2(i) ) + l1(i)*l2(i) + &
-                                 (h**2 * ( g2(i) + l1(i)**2 + l2(i)**2 )/( s1(i)*s2(i) + l1(i)*l2(i)))
-
-                        ! Add to influence
-                        val = val + atan2(S_beta, C_beta)
-
-                    end do
-
-                    val = sign(val, h)
-
-                end if
-
-            ! Point is coplanar but not colinear
+            ! Inside panel (Procedure 3)
             else
-
-                ! Loop through vertices to find total angle swept
-                phi = 0
-                do i=1,this%N
-
-                    ! Get displacement vectors
-                    d1 = this%vertices_local(i,:)-r_in_plane
-                    if (i == this%N) then
-                        d2 = this%vertices_local(1,:)-r_in_plane
-                    else
-                        d2 = this%vertices_local(i+1,:)-r_in_plane
-                    end if
-
-                    ! Calculate angle swept
-                    d = cross(d1, d2)
-                    phi = phi + asin(norm(d)/(norm(d1)*norm(d2)))
-
-                end do
-
-                ! Check if point is in panel
-                ! Analytically, phi will either be +/-2pi or 0
-                if (phi > 3.0 .or. phi < -3.0) then
-                    val = sign(2.0*pi, h)
-                else
-                    val = 0.0
-                end if
 
             end if
 
-        ! Calculate H(1,1,3) at point not coplanar with panel (simple formulation)
-        else
-
-            ! Loop through edges
-            do i=1,this%N
-
-                ! Calculate sine and cosine
-                S_beta = a(i) * ( l2(i)*c1(i) - l1(i)*c2(i) )
-                C_beta = c1(i)*c2(i) + a(i)**2 * l1(i)*l2(i)
-
-                ! Add to influence
-                val = val + atan2(S_beta, C_beta)
-            end do
-
-            val = sign(val, h)
-
         end if
 
-    end function panel_hH_1_1_3
+        ! Compute induced potential
+        if (source_order .eq. 0) then
+            phi = -1./(4.*pi)*H(1,1,1)
+        end if
+    
+    end function panel_get_source_potential
 
     
 end module panel_mod

@@ -72,6 +72,7 @@ end function cross
 
 
 function inner(a, b) result(c)
+  ! Calculates the 3D Euclidean inner product
 
   implicit none
   real, dimension(3) :: a, b
@@ -80,6 +81,18 @@ function inner(a, b) result(c)
   c = a(1)*b(1)+a(2)*b(2)+a(3)*b(3)
 
 end function inner
+
+
+function inner2(a, b) result(c)
+  ! Calculates the 2D Euclidean inner product
+
+  implicit none
+  real, dimension(2) :: a, b
+  real :: c
+
+  c = a(1)*b(1)+a(2)*b(2)
+
+end function inner2
 
 
 function norm(a) result(c)

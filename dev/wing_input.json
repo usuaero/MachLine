@@ -12,26 +12,19 @@
                 "xy" : false
             },
             "singularity_order" : {
-                "doublet" : 2,
-                "source" : 1
+                "doublet" : 1,
+                "source" : 0
             },
             "wake_model" : {
                 "wake_shedding_angle" : 90.0,
                 "trefftz_distance" : 40.0,
                 "N_panels" : 50
-            },
-            "shock_model" : {
-            },
-            "boundary_conditions" : {
-                "control_point_offset" : 1.0e-1
             }
-        },
-        "volume_mesh" : {
-
         }
     },
     "solver" : {
-
+        "type" : "indirect",
+        "control_point_offset" : 1.0e-1
     },
     "output" : {
         "body_file" : "dev/results/straight_wing.vtk",

@@ -34,18 +34,8 @@ contains
 
         ! Get flow params
         call json_get(settings, 'V_inf', this%V_inf)
-        call json_get(settings, 'M_inf', this%M_inf, found)
-        call json_get(settings, 'gamma', this%gamma, found)
-
-        ! Set default M (incompressible)
-        if (.not. found) then
-            this%M_inf = 0.0
-        end if
-
-        ! Set default gamma
-        if (.not. found) then
-            this%gamma = 1.4
-        end if
+        call json_xtnsn_get(settings, 'M_inf', this%M_inf, 0.0)
+        call json_xtnsn_get(settings, 'gamma', this%gamma, 1.4)
 
         ! Derived quantities
         this%V_inf_mag = norm(this%V_inf)

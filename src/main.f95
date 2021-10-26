@@ -80,10 +80,10 @@ program main
     call body_mesh%init_with_flow(freestream_flow)
 
     write(*,*)
-    write(*,*) "Running flow solvers"
+    write(*,*) "Running flow solver"
 
     ! Initialize panel solver
-    call linear_solver%init(solver_settings)
+    call linear_solver%init(solver_settings, body_mesh)
 
     ! Run solver
     call linear_solver%solve(body_mesh, freestream_flow)
