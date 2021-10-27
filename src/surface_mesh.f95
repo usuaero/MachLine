@@ -549,7 +549,6 @@ contains
 
         ! Allocate memory
         allocate(this%control_points(this%N_verts,3))
-        allocate(this%phi_cp(this%N_verts), source=0.0)
 
         ! Calculate offset ratio such that the control point will remain within the body based on the minimum detected wake-shedding angle
         offset_ratio = 0.5*sqrt(0.5*(1.0+this%C_min_wake_shedding_angle))
@@ -601,7 +600,7 @@ contains
         character(len=:),allocatable,intent(in) :: body_file, wake_file, control_point_file
 
         ! Write out data for body
-        call write_surface_vtk(body_file, this%vertices, this%panels)
+        call write_surface_vtk(body_file, this%vertices, this%panels, this%sigma, this%mu)
         
         ! Write out data for wake
         call write_surface_vtk(wake_file, this%wake%vertices, this%wake%panels)

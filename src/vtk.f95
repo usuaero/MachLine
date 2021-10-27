@@ -156,7 +156,7 @@ contains
             end do
 
             ! Panel source strengths
-            if (allocated(sigma)) then
+            if (present(sigma)) then
                 write(1,'(a)') "SCALARS sigma float 1"
                 write(1,'(a)') "LOOKUP_TABLE default"
                 do i=1,N_panels
@@ -165,7 +165,7 @@ contains
             end if
 
             ! Vertex doublet strengths
-            if (allocated(mu)) then
+            if (present(mu)) then
                 write(1, '(a i20)') "POINT_DATA", N_verts
                 write(1,'(a)') "SCALARS mu float 1"
                 write(1,'(a)') "LOOKUP_TABLE default"
@@ -175,7 +175,6 @@ contains
             end if
 
         close(1)
-        
     
     end subroutine write_surface_vtk
 

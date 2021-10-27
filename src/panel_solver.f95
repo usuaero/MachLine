@@ -89,7 +89,7 @@ contains
 
                     ! Add to RHS
                     if (source_order .eq. 0) then
-                        b(i) = b(i) + influence(1)*body_mesh%sigma(j)
+                        b(i) = b(i) - influence(1)*body_mesh%sigma(j)
                     end if
 
                 end do
@@ -122,6 +122,11 @@ contains
             allocate(body_mesh%mu(body_mesh%N_verts))
             call lu_solve(body_mesh%N_verts, A, b, body_mesh%mu)
             write(*,*) "Done."
+
+            ! Calculate potential at control points
+            body_mesh%phi_cp = matmul(A, body_mesh%mu)-b
+            write(*,*) "        Maximum residual:", maxval(abs(body_mesh%phi_cp))
+            write(*,*) "        Residual norm:", sqrt(sum(body_mesh%phi_cp**2))
 
         end if
 
