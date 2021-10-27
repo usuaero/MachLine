@@ -607,7 +607,7 @@ contains
 
         ! Within edge
         else
-            F = log(((x1-geom%l2(i))*(x2+geom%l2(i)))/geom%g2(i))
+            F = log(((x1-geom%l1(i))*(x2+geom%l2(i)))/geom%g2(i))
         end if
         
     end function panel_F_i_1_1_1
@@ -645,7 +645,7 @@ contains
         real :: phi
 
         type(eval_point_geom) :: geom
-        real :: dH
+        real :: dH, S, C
         real,dimension(:,:,:),allocatable :: H
         real,dimension(:,:,:,:),allocatable :: F
         real,dimension(3) :: d
@@ -677,19 +677,12 @@ contains
             do i=1,this%N
 
                 ! Add surface integral
-                H(1,1,1) = H(1,1,1) - abs(geom%h)*atan2(geom%a(i)*(geom%l2(i)*geom%c1(i) - &
-                           geom%l1(i)*geom%c2(i)), &
-                           geom%c1(i)*geom%c2(i) + geom%a(i)**2*geom%l1(i)*geom%l2(i))
+                S = geom%a(i)*(geom%l2(i)*geom%c1(i) - geom%l1(i)*geom%c2(i))
+                C = geom%c1(i)*geom%c2(i) + geom%a(i)**2*geom%l1(i)*geom%l2(i)
+                H(1,1,1) = H(1,1,1) - abs(geom%h)*atan2(S, C)
 
                 ! Add line integral
                 H(1,1,1) = H(1,1,1) + geom%a(i)*this%F_i_1_1_1(geom, i)
-
-                ! Check for nan
-                if (isnan(H(1,1,1))) then
-                    write(*,*)
-                    write(*,*) geom%c1(i)
-                    write(*,*) geom%c2(i)
-                end if
 
             end do
         
