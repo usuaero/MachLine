@@ -61,6 +61,7 @@ module panel_mod
             procedure :: R_i => panel_R_i
             procedure :: E_i_M_N_K => panel_E_i_M_N_K
             procedure :: F_i_1_1_1 => panel_F_i_1_1_1
+            procedure :: calc_F_integrals => panel_calc_F_integrals
             procedure :: calc_integrals => panel_calc_integrals
             procedure :: get_source_potential => panel_get_source_potential
             procedure :: get_field_point_geometry => panel_get_field_point_geometry
@@ -613,58 +614,20 @@ contains
     end function panel_F_i_1_1_1
 
 
-    subroutine panel_calc_integrals(this, geom, influence_type, singularity_type, H, F)
-        ! Calculates the H and F integrals necessary for the given influence
+    function panel_calc_F_integrals(this, geom, proc_H, MXK, MXQ, NHK, dH) result (F)
+        ! Calculates the F integrals necessary
 
         implicit none
 
         class(panel),intent(in) :: this
         type(eval_point_geom),intent(in) :: geom
-        character(len=*),intent(in) :: influence_type, singularity_type
-        real,dimension(:,:,:,:),allocatable,intent(out) :: F
-        real,dimension(:,:,:),allocatable,intent(out) :: H
+        integer,intent(in) :: proc_H, MXK, MXQ, NHK
+        real,intent(in) :: dH
+        real,dimension(:,:,:,:),allocatable :: F
 
-        real :: dH, S, C, E1, E2, v_xi, v_eta
+        real :: E1, E2, v_xi, v_eta
         real,dimension(3) :: d
-        integer :: i, MXQ, MXK, NHK, MXFK, NFK, proc_H, proc_F, k, m, n
-
-        ! Check distance to panel perimeter (minimum perpendicular distance to edge)
-        dH = minval(sqrt(geom%g2))
-
-        ! Determine which procedure needs to be used
-        if (abs(geom%h) >= 0.01*dH) then
-            proc_H = 1 ! Not near plane of panel
-
-        else
-
-            ! Check if the projected point falls inside the panel
-            d(1) = inner2(geom%r_in_plane, this%n_hat_local(1,:))
-            d(2) = inner2(geom%r_in_plane, this%n_hat_local(2,:))
-            d(3) = inner2(geom%r_in_plane, this%n_hat_local(3,:))
-
-            ! Outside panel (Procedure 2)
-            if (all(d > 0)) then
-                proc_H = 2
-
-            ! Inside panel (Procedure 3)
-            else
-                proc_H = 3
-
-            end if
-        end if
-
-        ! Determine which H integrals are needed based on distribution and type of influence
-        NHK = 16
-
-        ! Source distribution
-        if (singularity_type .eq. "source") then
-            if (influence_type .eq. "potential") then
-                if (source_order .eq. 0) then
-                    MXQ = 1
-                    MXK = 1
-                end if
-            end if
-        end if
+        integer :: i, MXFK, NFK, proc_F, k, m, n
 
         ! Determine which F integrals are needed
         NFK = 16
@@ -674,11 +637,8 @@ contains
             MXFK = NHK+MXK-2
         end if
         
-        ! Allocate H and F integral storage
+        ! Allocate integral storage
         allocate(F(this%N,1:MXQ,1:MXQ,1:MXFK+NFK))
-        allocate(H(1:MXQ,1:MXQ,1:MXK+NHK))
-
-        ! Calculate F integrals
 
         ! Loop through edges
         do i=1,this%N
@@ -796,7 +756,68 @@ contains
             end do
         end do
 
-        ! WE MADE IT! Now on to the H integrals.........
+
+    end function panel_calc_F_integrals
+
+
+    subroutine panel_calc_integrals(this, geom, influence_type, singularity_type, H, F)
+        ! Calculates the H and F integrals necessary for the given influence
+
+        implicit none
+
+        class(panel),intent(in) :: this
+        type(eval_point_geom),intent(in) :: geom
+        character(len=*),intent(in) :: influence_type, singularity_type
+        real,dimension(:,:,:,:),allocatable,intent(out) :: F
+        real,dimension(:,:,:),allocatable,intent(out) :: H
+
+        real :: dH, S, C, E1, E2, v_xi, v_eta
+        real,dimension(3) :: d
+        integer :: i, MXQ, MXK, NHK, MXFK, NFK, proc_H, proc_F, k, m, n
+
+        ! Check distance to panel perimeter (minimum perpendicular distance to edge)
+        dH = minval(sqrt(geom%g2))
+
+        ! Determine which procedure needs to be used
+        if (abs(geom%h) >= 0.01*dH) then
+            proc_H = 1 ! Not near plane of panel
+
+        else
+
+            ! Check if the projected point falls inside the panel
+            d(1) = inner2(geom%r_in_plane, this%n_hat_local(1,:))
+            d(2) = inner2(geom%r_in_plane, this%n_hat_local(2,:))
+            d(3) = inner2(geom%r_in_plane, this%n_hat_local(3,:))
+
+            ! Outside panel (Procedure 2)
+            if (all(d > 0)) then
+                proc_H = 2
+
+            ! Inside panel (Procedure 3)
+            else
+                proc_H = 3
+
+            end if
+        end if
+
+        ! Determine which H integrals are needed based on distribution and type of influence
+        NHK = 16
+
+        ! Source distribution
+        if (singularity_type .eq. "source") then
+            if (influence_type .eq. "potential") then
+                if (source_order .eq. 0) then
+                    MXQ = 1
+                    MXK = 1
+                end if
+            end if
+        end if
+        
+        ! Allocate integral storage
+        allocate(H(1:MXQ,1:MXQ,1:MXK+NHK))
+
+        ! Calculate F integrals
+        F = this%calc_F_integrals(geom, proc_H, MXK, MXQ, NHK, dH)
 
         ! Loop through edges
         H(1,1,1) = 0.
