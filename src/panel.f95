@@ -61,7 +61,8 @@ module panel_mod
             procedure :: R_i => panel_R_i
             procedure :: E_i_M_N_K => panel_E_i_M_N_K
             procedure :: F_i_1_1_1 => panel_F_i_1_1_1
-            procedure :: F_i_1_1_3 => panel_F_i_1_1_3
+            procedure :: calc_H_integrals => panel_calc_H_integrals
+            procedure :: calc_F_integrals => panel_calc_F_integrals
             procedure :: get_source_potential => panel_get_source_potential
             procedure :: get_field_point_geometry => panel_get_field_point_geometry
 
@@ -613,27 +614,207 @@ contains
     end function panel_F_i_1_1_1
 
 
-    function panel_F_i_1_1_3(this, geom, i) result(F)
-        ! Calculates F_i(1,1,3)
+    subroutine panel_calc_integrals(this, geom, influence_type, singularity_type, 
+        ! Calculates the H and F integrals necessary for the given influence
 
         implicit none
 
         class(panel),intent(in) :: this
         type(eval_point_geom),intent(in) :: geom
-        integer,intent(in) :: i
-        real :: F
+        character(len=:),allocatable,intent(in) :: influence_type, singularity_type
+        real,dimension(:,:,:,:),allocatable,intent(in) :: F
+        real,dimension(:,:,:),allocatable :: H
 
+        real :: dH, S, C, E1, E2, v_xi, v_eta
         real,dimension(3) :: d
-        real :: E211, E121
+        integer :: i, MXQ, MXK, NHK, MXFK, proc_H, proc_F, k, m, n
 
-        ! Get E integrals
-        E211 = this%E_i_M_N_K(geom, i, 2, 1, 1)
-        E121 = this%E_i_M_N_K(geom, i, 1, 2, 1)
+        ! Check distance to panel perimeter (minimum perpendicular distance to edge)
+        dH = minval(sqrt(geom%g2))
 
-        ! Calculate F
-        F = -1./geom%g2(i)*(-this%n_hat_local(i,2)*E211 + this%n_hat_local(i,1)*E121)
+        ! Determine which procedure needs to be used
+        if (abs(geom%h) >= 0.01*dH) then
+            proc_H = 1 ! Not near plane of panel
+
+        else
+
+            ! Check if the projected point falls inside the panel
+            d(1) = inner2(geom%r_in_plane, this%n_hat_local(1,:))
+            d(2) = inner2(geom%r_in_plane, this%n_hat_local(2,:))
+            d(3) = inner2(geom%r_in_plane, this%n_hat_local(3,:))
+
+            ! Outside panel (Procedure 2)
+            if (all(d > 0)) then
+                proc_H = 2
+
+            ! Inside panel (Procedure 3)
+            else
+                proc_H = 3
+
+            end if
+        end if
+
+        ! Determine which H integrals are needed
+        NHK = 16
+
+        ! Source distribution
+        if (singularity_type .eq. "source") then
+            if (influence_type .eq. "potential") then
+                if (source_order .eq. 0) then
+                    MXQ = 1
+                    MXK = 1
+                end if
+            end if
+        end if
+
+        ! Determine which F integrals are needed
+        if (proc_H .eq. 1) then
+            MXFK = MXK - 2
+        else
+            MXFK = NHK+MXK-2
+        end if
         
-    end function panel_F_i_1_1_3
+        ! Allocate H and F integral storage
+        allocate(F(this%N,1:MXQ,1:MXQ,1:MXFK+NHK))
+        allocate(H(1:MXQ,1:MXQ,1:MXK+NHK))
+
+        ! Calculate F integrals
+
+        ! Loop through edges
+        do i=1,this%N
+
+            ! Store edge derivs
+            v_xi = this%n_hat_local(i,1)
+            v_eta = this%n_hat_local(i,2)
+
+            ! Determine which procedure is necessary for this edge
+            if (sqrt(geom%g2) >= 0.01*dH) then
+                proc_F = 4
+            else
+                proc_F = 5
+            end if
+
+            ! Calculate F(1,1,1)
+            F(i,1,1,1) = this%F_i_1_1_1(geom, i)
+
+            ! Procedure 4: not close to perimeter
+            if (proc_F .eq. 4) then
+                
+                ! Calculate F(1,1,K) integrals
+                do k=3,MXFK,2
+
+                    ! Get necessary E
+                    E1 = this%E_i_M_N_K(geom, i, 2, 1, k-2)
+                    E2 = this%E_i_M_N_K(geom, i, 1, 2, k-2)
+
+                    ! Calculate F
+                    F(i,1,1,k) = 1./(geom%g2*(k-2))*((k-3)*F(i,1,1,k-2) &
+                                 - v_eta*E1 + v_xi*E2)
+                end do
+
+            ! Procedure 5: close to perimeter
+            else
+
+                ! Initialize
+                F(i,1,1,MXFK+NFK) = 0.
+
+                ! Calculate other F(1,1,K) integrals
+                do k=MXFK+NFK,5,2
+
+                    ! Get necessary E
+                    E1 = this%E_i_M_N_K(geom, i, 2, 1, k-2)
+                    E2 = this%E_i_M_N_K(geom, i, 1, 2, k-2)
+
+                    ! Calculate F
+                    F(i,1,1,k-2) = 1./(k-3)*(geom%g2*(k-2)*F(i,1,1,k) &
+                                   + v_eta*E1 - v_xi*E2)
+
+                end do
+            end if
+
+            ! Calculate other F integrals (same for both procedures)
+            if (v_eta <= v_xi) then ! Case a
+                
+                ! Calculate F(1,N,1) integrals
+                do n=2,MXQ
+
+                    ! Get E
+                    E1 = this%E_i_M_N_K(geom, i, 1, n-1, -1)
+
+                    if (.not. n .eq. 2) then
+                        F(i,1,N,1) = 1./(n-1)*((2*n-3)geom%a(i)*v_eta*F(i,1,n-1,1) &
+                                     - (n-2)*(geom%a(i)**2+v_xi**2*geom%h**2)*F(i,1,n-2,1) &
+                                     + v_xi*E1)
+                    else
+                        F(i,1,N,1) = 1./(n-1)*((2*n-3)geom%a(i)*v_eta*F(i,1,n-1,1) + v_xi*E1)
+                    end if
+                end do
+
+                ! Calculate F(M,N,1) inegrals
+                do m=2,MXQ
+                    do n=1,MXQ-m+1
+                        F(i,m,n,1) = -v_eta/v_xi*F(i,m-1,n+1,1) + geom%a(i)/v_xi*F(i,m-1,n,1)
+                    end do
+                end do
+
+            else ! Case b
+
+                ! Calculate F(M,1,1) integrals
+                do m=2,MXQ
+
+                    ! Get E
+                    E1 = this%E_i_M_N_K(geom, i, m-1, 1, -1)
+
+                    if (.not. m .eq. 2) then
+                        F(i,m,1,1) = 1./(m-1)*((2*m-3)*geom%a(i)*v_xi*F(i,m-1,1,1) &
+                                     - (m-2)*(geom%a(i)**2+v_eta**2*geom%h**2)*F(i,m-2,1,1) &
+                                     - v_eta*E1)
+                    else
+                        F(i,m,1,1) = 1./(m-1)*((2*m-3)*geom%a(i)*v_xi*F(i,m-1,1,1) - v_eta*E1)
+                    end if
+                end do
+
+                ! Calculate F(M,N,1) integrals
+                do n=2,MXQ
+                    do m=1,MXQ-n+1
+                        F(i,m,n,1) = -v_xi/v_eta*F(i,m+1,n-1,1)+geom%a(i)/v_eta*F(i,m,n-1,1)
+                    end do
+                end do
+
+            end if
+        end do
+
+        ! Calculate F(1,2,K) integrals
+        do k=3,MXK-2,2
+            F(i,1,2,k) = v_eta*geom%a(i)*F(i,1,1,k)-v_xi/(k-2)*this%E_i_M_N_K(geom, i, 1, 1, k-2)
+        end do
+
+        ! Calculate F(1,N,K) integrals
+        do n=3,MXQ
+            do k=3,MXK-2,2
+                F(i,1,n,k) = 2.*geom%a(i)*v_eta*F(i,1,n-1,k) &
+                             -(geom%a(i)**2+v_xi**2*geom%h**2)*F(i,1,n-2,k) &
+                             +v_xi**2*F(i,1,n-2,k-2)
+            end do
+        end do
+
+        ! WE MADE IT! Now on to the H integrals.........
+
+        ! Loop through edges
+        H(1,1,1) = 0.
+        do i=1,this%N
+        
+            ! Add surface integral
+            S = geom%a(i)*(geom%l2(i)*geom%c1(i) - geom%l1(i)*geom%c2(i))
+            C = geom%c1(i)*geom%c2(i) + geom%a(i)**2*geom%l1(i)*geom%l2(i)
+            H(1,1,1) = H(1,1,1) - abs(geom%h)*atan2(S, C)
+        
+            ! Add line integral
+            H(1,1,1) = H(1,1,1) + geom%a(i)*this%F_i_1_1_1(geom, i)
+        
+        end do
+
+    end subroutine panel_calc_integrals
 
 
     function panel_get_source_potential(this, eval_point) result(phi)
@@ -645,64 +826,14 @@ contains
         real :: phi
 
         type(eval_point_geom) :: geom
-        real :: dH, S, C
         real,dimension(:,:,:),allocatable :: H
         real,dimension(:,:,:,:),allocatable :: F
-        real,dimension(3) :: d
-        integer :: i, MXQ, MXK, NHK
-
-        ! Determine order of recursion necessary
-        if (source_order .eq. 0) then
-            MXQ = 1
-            MXK = 1
-        end if
-        NHK = 16
-
-        ! Allocate H and F integral storage
-        allocate(H(1:MXQ,1:MXQ,1:MXK+NHK))
 
         ! Calculate geometric parameters
         geom = this%get_field_point_geometry(eval_point)
 
-        ! Check distance to panel perimeter (minimum perpendicular distance to edge)
-        dH = minval(sqrt(geom%g2))
-
-        ! Calculate necessary integrals
-
-        ! Eval point not too near perimeter (Procedure 1 in Johnson 1980)
-        if (abs(geom%h) >= 0.01*dH) then
-
-            ! Loop through edges
-            H(1,1,1) = 0.
-            do i=1,this%N
-
-                ! Add surface integral
-                S = geom%a(i)*(geom%l2(i)*geom%c1(i) - geom%l1(i)*geom%c2(i))
-                C = geom%c1(i)*geom%c2(i) + geom%a(i)**2*geom%l1(i)*geom%l2(i)
-                H(1,1,1) = H(1,1,1) - abs(geom%h)*atan2(S, C)
-
-                ! Add line integral
-                H(1,1,1) = H(1,1,1) + geom%a(i)*this%F_i_1_1_1(geom, i)
-
-            end do
-        
-        ! Close to perimeter
-        else
-
-            ! Check if the projected point falls inside the panel
-            d(1) = inner2(geom%r_in_plane, this%n_hat_local(1,:))
-            d(2) = inner2(geom%r_in_plane, this%n_hat_local(2,:))
-            d(3) = inner2(geom%r_in_plane, this%n_hat_local(3,:))
-
-            ! Outside panel (Procedure 2)
-            if (all(d > 0)) then
-
-            ! Inside panel (Procedure 3)
-            else
-
-            end if
-
-        end if
+        ! Get H integrals
+        call this%calc_integrals(geom, "potential", "source", H, F)
 
         ! Compute induced potential
         if (source_order .eq. 0) then
