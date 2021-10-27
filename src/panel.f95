@@ -61,8 +61,7 @@ module panel_mod
             procedure :: R_i => panel_R_i
             procedure :: E_i_M_N_K => panel_E_i_M_N_K
             procedure :: F_i_1_1_1 => panel_F_i_1_1_1
-            procedure :: calc_H_integrals => panel_calc_H_integrals
-            procedure :: calc_F_integrals => panel_calc_F_integrals
+            procedure :: calc_integrals => panel_calc_integrals
             procedure :: get_source_potential => panel_get_source_potential
             procedure :: get_field_point_geometry => panel_get_field_point_geometry
 
@@ -614,20 +613,20 @@ contains
     end function panel_F_i_1_1_1
 
 
-    subroutine panel_calc_integrals(this, geom, influence_type, singularity_type, 
+    subroutine panel_calc_integrals(this, geom, influence_type, singularity_type, H, F)
         ! Calculates the H and F integrals necessary for the given influence
 
         implicit none
 
         class(panel),intent(in) :: this
         type(eval_point_geom),intent(in) :: geom
-        character(len=:),allocatable,intent(in) :: influence_type, singularity_type
-        real,dimension(:,:,:,:),allocatable,intent(in) :: F
-        real,dimension(:,:,:),allocatable :: H
+        character(len=*),intent(in) :: influence_type, singularity_type
+        real,dimension(:,:,:,:),allocatable,intent(out) :: F
+        real,dimension(:,:,:),allocatable,intent(out) :: H
 
         real :: dH, S, C, E1, E2, v_xi, v_eta
         real,dimension(3) :: d
-        integer :: i, MXQ, MXK, NHK, MXFK, proc_H, proc_F, k, m, n
+        integer :: i, MXQ, MXK, NHK, MXFK, NFK, proc_H, proc_F, k, m, n
 
         ! Check distance to panel perimeter (minimum perpendicular distance to edge)
         dH = minval(sqrt(geom%g2))
@@ -654,7 +653,7 @@ contains
             end if
         end if
 
-        ! Determine which H integrals are needed
+        ! Determine which H integrals are needed based on distribution and type of influence
         NHK = 16
 
         ! Source distribution
@@ -668,6 +667,7 @@ contains
         end if
 
         ! Determine which F integrals are needed
+        NFK = 16
         if (proc_H .eq. 1) then
             MXFK = MXK - 2
         else
@@ -675,7 +675,7 @@ contains
         end if
         
         ! Allocate H and F integral storage
-        allocate(F(this%N,1:MXQ,1:MXQ,1:MXFK+NHK))
+        allocate(F(this%N,1:MXQ,1:MXQ,1:MXFK+NFK))
         allocate(H(1:MXQ,1:MXQ,1:MXK+NHK))
 
         ! Calculate F integrals
@@ -688,7 +688,7 @@ contains
             v_eta = this%n_hat_local(i,2)
 
             ! Determine which procedure is necessary for this edge
-            if (sqrt(geom%g2) >= 0.01*dH) then
+            if (sqrt(geom%g2(i)) >= 0.01*dH) then
                 proc_F = 4
             else
                 proc_F = 5
@@ -708,8 +708,7 @@ contains
                     E2 = this%E_i_M_N_K(geom, i, 1, 2, k-2)
 
                     ! Calculate F
-                    F(i,1,1,k) = 1./(geom%g2*(k-2))*((k-3)*F(i,1,1,k-2) &
-                                 - v_eta*E1 + v_xi*E2)
+                    F(i,1,1,k) = 1./(geom%g2(i)*(k-2))*((k-3)*F(i,1,1,k-2)-v_eta*E1+v_xi*E2)
                 end do
 
             ! Procedure 5: close to perimeter
@@ -726,8 +725,7 @@ contains
                     E2 = this%E_i_M_N_K(geom, i, 1, 2, k-2)
 
                     ! Calculate F
-                    F(i,1,1,k-2) = 1./(k-3)*(geom%g2*(k-2)*F(i,1,1,k) &
-                                   + v_eta*E1 - v_xi*E2)
+                    F(i,1,1,k-2) = 1./(k-3)*(geom%g2(i)*(k-2)*F(i,1,1,k)+v_eta*E1-v_xi*E2)
 
                 end do
             end if
@@ -742,11 +740,11 @@ contains
                     E1 = this%E_i_M_N_K(geom, i, 1, n-1, -1)
 
                     if (.not. n .eq. 2) then
-                        F(i,1,N,1) = 1./(n-1)*((2*n-3)geom%a(i)*v_eta*F(i,1,n-1,1) &
+                        F(i,1,N,1) = 1./(n-1)*((2*n-3)*geom%a(i)*v_eta*F(i,1,n-1,1) &
                                      - (n-2)*(geom%a(i)**2+v_xi**2*geom%h**2)*F(i,1,n-2,1) &
                                      + v_xi*E1)
                     else
-                        F(i,1,N,1) = 1./(n-1)*((2*n-3)geom%a(i)*v_eta*F(i,1,n-1,1) + v_xi*E1)
+                        F(i,1,N,1) = 1./(n-1)*((2*n-3)*geom%a(i)*v_eta*F(i,1,n-1,1) + v_xi*E1)
                     end if
                 end do
 
