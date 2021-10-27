@@ -62,6 +62,7 @@ module panel_mod
             procedure :: E_i_M_N_K => panel_E_i_M_N_K
             procedure :: F_i_1_1_1 => panel_F_i_1_1_1
             procedure :: calc_F_integrals => panel_calc_F_integrals
+            procedure :: calc_H_integrals => panel_calc_H_integrals
             procedure :: calc_integrals => panel_calc_integrals
             procedure :: get_source_potential => panel_get_source_potential
             procedure :: get_field_point_geometry => panel_get_field_point_geometry
@@ -760,6 +761,177 @@ contains
     end function panel_calc_F_integrals
 
 
+    function panel_calc_H_integrals(this, geom, proc_H, MXK, MXQ, NHK, F) result(H)
+        ! Calculates the necessary H integrals
+
+        implicit none
+
+        class(panel),intent(in) :: this
+        type(eval_point_geom),intent(in) :: geom
+        integer,intent(in) :: proc_H, MXK, MXQ, NHK
+        real,dimension(:,:,:,:),allocatable,intent(in) :: F
+        real,dimension(:,:,:),allocatable :: H
+
+        real :: S, C
+        integer :: i, m, n, k
+
+        ! Allocate integral storage
+        allocate(H(1:MXQ,1:MXQ,1:MXK+NHK))
+
+        ! Procedure 1: not close to panel plane
+        if (proc_H .eq. 1) then
+
+            ! Calculate H(1,1,1)
+            H(1,1,1) = 0.
+            do i=1,this%N
+        
+                ! Add surface integral
+                S = geom%a(i)*(geom%l2(i)*geom%c1(i) - geom%l1(i)*geom%c2(i))
+                C = geom%c1(i)*geom%c2(i) + geom%a(i)**2*geom%l1(i)*geom%l2(i)
+                H(1,1,1) = H(1,1,1) - abs(geom%h)*atan2(S, C)
+        
+                ! Add line integral
+                H(1,1,1) = H(1,1,1) + geom%a(i)*F(i,1,1,1)
+        
+            end do
+
+            ! Calculate H(1,1,K) integrals
+            do k=3,MXK,2
+                H(1,1,k) = 1./((k-2)*geom%h**2)*((k-4)*H(1,1,k-2)+sum(geom%a*F(:,1,1,k-2)))
+            end do
+
+        ! Procedures 2 and 3: close to panel plane
+        else if (proc_H .eq. 2 .or. proc_H .eq. 3) then
+
+            ! Initialize
+            H(1,1,NHK+MXK) = 0.
+
+            ! Calculate H(1,1,K) integrals
+            do k=NHK+MXK,3,-2
+                H(1,1,k-2) = 1./(k-4)*(geom%h**2*(k-2)*h(1,1,k)-sum(geom%a*F(:,1,1,k-2)))
+            end do
+
+        end if
+
+        ! Calculate H(2,N,1) integrals
+        do n=1,MXQ-1
+            H(2,n,1) = 1./(n+1)*(geom%h**2*sum(this%n_hat_local(:,1)*F(:,1,n,1)) &
+                       + sum(geom%a*F(:,2,n,1)))
+        end do
+
+        ! Calculate H(1,N,1) integrals
+        do n=2,MXQ
+            if (.not. n .eq. 2) then
+                H(2,n,1) = 1./n*(-geom%h**2*(n-2)*H(1,n-2,1) & 
+                           + geom%h**2*sum(this%n_hat_local(:,2)*F(i,1,n-1,1)) &
+                           + sum(geom%a*F(:,1,n,1)))
+            else
+                H(2,n,1) = 1./n*(geom%h**2*sum(this%n_hat_local(:,2)*F(i,1,n-1,1)) &
+                           + sum(geom%a*F(:,1,n,1)))
+            end if
+        end do
+
+        ! Calculate H(M,N,1) integrals
+        do m=3,MXQ
+            do n=1,MXQ-m+1
+                if (.not. m .eq. 2) then
+                    H(m,n,1) = 1./(m+n-1)*(-geom%h**2*(m-2)*H(m-2,n,1) &
+                               + geom%h**2*sum(this%n_hat_local(:,1)*F(:,m-1,n,1)) &
+                               + sum(geom%a*F(:,m,n,1)))
+                else
+                    H(m,n,1) = 1./(m+n-1)*(geom%h**2*sum(this%n_hat_local(:,1)*F(:,m-1,n,1)) &
+                               + sum(geom%a*F(:,m,n,1)))
+                end if
+            end do
+        end do
+
+        ! Calculate H(1,N,K) integrals
+        do n=2,MXQ
+            do k=3,MXK,2
+                if (.not. n .eq. 2) then
+                    H(1,n,k) = 1./(k-2)*((n-2)*H(1,n-2,k-2) &
+                               -sum(this%n_hat_local(:,2)*F(:,1,n-1,k-2)))
+                else
+                    H(1,n,k) = -1./(k-2)*sum(this%n_hat_local(:,2)*F(:,1,n-1,k-2))
+                end if
+            end do
+        end do
+
+        ! Calculate H(2,N,K) integrals
+        do n=1,MXQ-1
+            do k=3,MXK,2
+                H(2,n,k) = -1./(k-2)*sum(this%n_hat_local(:,1)*F(:,1,n,k-2))
+            end do
+        end do
+
+        ! Calculate remaining H(M,N,K) integrals
+        do m=3,MXQ
+            do n=1,MXQ-m+1
+                do k=3,MXK,2
+                    H(m,n,k) = -h(M-2,N+2,k)-geom%h**2*H(m-2,n,k)+H(m-2,n,k-2)
+                end do
+            end do
+        end do
+
+        ! Convert H* to H in case of Procedure 3
+        if (proc_H .eq. 3) then
+            do m=1,MXQ
+                do n=1,MXQ
+                    do k=1,MXK+NHK,2
+                        H(m,n,k) = H(m,n,k)+2.*pi*nu_M_N_K(m, n, k)*geom%h**(m+n-k)
+                    end do
+                end do
+            end do
+        end if
+
+    end function panel_calc_H_integrals
+
+
+    function nu_M_N_K(M, N, K) result(nu)
+        ! Calculates nu(M,N,K) based on Eq. (D.51) in Johnson 1980
+
+        implicit none
+
+        integer,intent(in) :: M, N, K
+        real :: nu
+
+        integer :: mm, nn, kk, i
+
+        ! Check for even M or N
+        if (mod(M, 2) .eq. 0 .or. mod(N, 2) .eq. 0) then
+            nu = 0
+        else
+             
+            ! Initialize
+            mm = 1
+            nn = 1
+            kk = 1
+
+            ! Run factorials (ish. not sure what you'd call these...)
+            if (.not. M .eq. 1) then
+                do i=1,M-2,2
+                    mm = mm*i
+                end do
+            end if
+
+            if (.not. N .eq. 1) then
+                do i=1,N-2,2
+                    nn = nn*i
+                end do
+            end if
+
+            do i=K-2,K-M-N,2
+                kk = kk*i
+            end do
+
+            ! Calculate nu
+            nu = mm*nn/kk
+
+        end if
+
+    end function nu_M_N_K
+
+
     subroutine panel_calc_integrals(this, geom, influence_type, singularity_type, H, F)
         ! Calculates the H and F integrals necessary for the given influence
 
@@ -771,9 +943,54 @@ contains
         real,dimension(:,:,:,:),allocatable,intent(out) :: F
         real,dimension(:,:,:),allocatable,intent(out) :: H
 
-        real :: dH, S, C, E1, E2, v_xi, v_eta
+        real :: dH
         real,dimension(3) :: d
-        integer :: i, MXQ, MXK, NHK, MXFK, NFK, proc_H, proc_F, k, m, n
+        integer :: MXQ, MXK, NHK, proc_H
+
+        ! Determine which H integrals are needed based on distribution and type of influence
+        if (singularity_type .eq. "source") then
+            if (influence_type .eq. "potential") then
+                if (source_order .eq. 0) then
+                    MXQ = 1
+                    MXK = 1
+                else if (source_order .eq. 1) then
+                    MXQ = 2
+                    MXK = 1
+                end if
+            else if (influence_type .eq. "velocity") then
+                if (source_order .eq. 0) then
+                    MXQ = 1
+                    MXK = 3
+                else if (source_order .eq. 1) then
+                    MXQ = 3
+                    MXK = 3
+                end if
+            end if
+        else if (singularity_type .eq. "doublet") then
+            if (influence_type .eq. "potential") then
+                if (doublet_order .eq. 0) then
+                    MXQ = 1
+                    MXK = 3
+                else if (doublet_order .eq. 1) then
+                    MXQ = 2
+                    MXK = 3
+                else if (doublet_order .eq. 2) then
+                    MXQ = 3
+                    MXK = 3
+                end if
+            else if (influence_type .eq. "velocity") then
+                if (doublet_order .eq. 0) then
+                    MXQ = 1
+                    MXK = 3
+                else if (doublet_order .eq. 1) then
+                    MXQ = 1
+                    MXK = 3
+                else if (doublet_order .eq. 2) then
+                    MXQ = 4
+                    MXK = 5
+                end if
+            end if
+        end if
 
         ! Check distance to panel perimeter (minimum perpendicular distance to edge)
         dH = minval(sqrt(geom%g2))
@@ -781,6 +998,7 @@ contains
         ! Determine which procedure needs to be used
         if (abs(geom%h) >= 0.01*dH) then
             proc_H = 1 ! Not near plane of panel
+            NHK = 0
 
         else
 
@@ -798,40 +1016,14 @@ contains
                 proc_H = 3
 
             end if
+            NHK = 16
         end if
-
-        ! Determine which H integrals are needed based on distribution and type of influence
-        NHK = 16
-
-        ! Source distribution
-        if (singularity_type .eq. "source") then
-            if (influence_type .eq. "potential") then
-                if (source_order .eq. 0) then
-                    MXQ = 1
-                    MXK = 1
-                end if
-            end if
-        end if
-        
-        ! Allocate integral storage
-        allocate(H(1:MXQ,1:MXQ,1:MXK+NHK))
 
         ! Calculate F integrals
         F = this%calc_F_integrals(geom, proc_H, MXK, MXQ, NHK, dH)
 
-        ! Loop through edges
-        H(1,1,1) = 0.
-        do i=1,this%N
-        
-            ! Add surface integral
-            S = geom%a(i)*(geom%l2(i)*geom%c1(i) - geom%l1(i)*geom%c2(i))
-            C = geom%c1(i)*geom%c2(i) + geom%a(i)**2*geom%l1(i)*geom%l2(i)
-            H(1,1,1) = H(1,1,1) - abs(geom%h)*atan2(S, C)
-        
-            ! Add line integral
-            H(1,1,1) = H(1,1,1) + geom%a(i)*this%F_i_1_1_1(geom, i)
-        
-        end do
+        ! Calculate H integrals
+        H = this%calc_H_integrals(geom, proc_H, MXK, MXQ, NHK, F)
 
     end subroutine panel_calc_integrals
 
