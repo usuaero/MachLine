@@ -268,7 +268,7 @@ subroutine matinv(n,a,ai)
       end subroutine matinv
 
 
-SUBROUTINE math_AXB_LUD(n,A,B,X)
+SUBROUTINE lu_solve(n,A,B,X)
 !Solves a general [A]*X=B on an nxn matrix
     IMPLICIT NONE
     INTEGER::n,D,info
@@ -289,7 +289,7 @@ SUBROUTINE math_AXB_LUD(n,A,B,X)
     X = B
     deallocate(INDX)
     RETURN
-END SUBROUTINE math_AXB_LUD
+END SUBROUTINE lu_solve
 
 !*******************************************************
 !*    LU decomposition routines used by test_lu.f90    *

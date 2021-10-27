@@ -59,13 +59,16 @@ module panel_mod
             procedure :: touches_vertex => panel_touches_vertex
             procedure :: point_to_vertex_clone => panel_point_to_vertex_clone
             procedure :: R_i => panel_R_i
+            procedure :: get_field_point_geometry => panel_get_field_point_geometry
             procedure :: E_i_M_N_K => panel_E_i_M_N_K
             procedure :: F_i_1_1_1 => panel_F_i_1_1_1
             procedure :: calc_F_integrals => panel_calc_F_integrals
             procedure :: calc_H_integrals => panel_calc_H_integrals
             procedure :: calc_integrals => panel_calc_integrals
             procedure :: get_source_potential => panel_get_source_potential
-            procedure :: get_field_point_geometry => panel_get_field_point_geometry
+            procedure :: get_source_velocity => panel_get_source_velocity
+            procedure :: get_doublet_potential => panel_get_doublet_potential
+            procedure :: get_doublet_velocity => panel_get_doublet_velocity
 
     end type panel
 
@@ -823,10 +826,10 @@ contains
         do n=2,MXQ
             if (.not. n .eq. 2) then
                 H(2,n,1) = 1./n*(-geom%h**2*(n-2)*H(1,n-2,1) & 
-                           + geom%h**2*sum(this%n_hat_local(:,2)*F(i,1,n-1,1)) &
+                           + geom%h**2*sum(this%n_hat_local(:,2)*F(:,1,n-1,1)) &
                            + sum(geom%a*F(:,1,n,1)))
             else
-                H(2,n,1) = 1./n*(geom%h**2*sum(this%n_hat_local(:,2)*F(i,1,n-1,1)) &
+                H(2,n,1) = 1./n*(geom%h**2*sum(this%n_hat_local(:,2)*F(:,1,n-1,1)) &
                            + sum(geom%a*F(:,1,n,1)))
             end if
         end do
@@ -1028,13 +1031,14 @@ contains
     end subroutine panel_calc_integrals
 
 
-    function panel_get_source_potential(this, eval_point) result(phi)
+    function panel_get_source_potential(this, eval_point, vertex_indices) result(phi)
 
         implicit none
 
         class(panel),intent(in) :: this
         real,dimension(3),intent(in) :: eval_point
-        real :: phi
+        integer,dimension(:),allocatable,intent(out) :: vertex_indices
+        real,dimension(:),allocatable :: phi
 
         type(eval_point_geom) :: geom
         real,dimension(:,:,:),allocatable :: H
@@ -1043,15 +1047,120 @@ contains
         ! Calculate geometric parameters
         geom = this%get_field_point_geometry(eval_point)
 
-        ! Get H integrals
+        ! Get integrals
         call this%calc_integrals(geom, "potential", "source", H, F)
 
-        ! Compute induced potential
         if (source_order .eq. 0) then
+
+            ! Specify influencing vertices
+            allocate(vertex_indices(1), source=0)
+
+            ! Compute induced potential
+            allocate(phi(1))
             phi = -1./(4.*pi)*H(1,1,1)
+
         end if
     
     end function panel_get_source_potential
 
+
+    function panel_get_source_velocity(this, eval_point, vertex_indices) result(v)
+
+        implicit none
+
+        class(panel),intent(in) :: this
+        real,dimension(3),intent(in) :: eval_point
+        integer,dimension(:),allocatable,intent(out) :: vertex_indices
+        real,dimension(:,:),allocatable :: v
+
+        type(eval_point_geom) :: geom
+        real,dimension(:,:,:),allocatable :: H
+        real,dimension(:,:,:,:),allocatable :: F
+
+        ! Calculate geometric parameters
+        geom = this%get_field_point_geometry(eval_point)
+
+        ! Get integrals
+        call this%calc_integrals(geom, "velocity", "source", H, F)
+
+        if (source_order .eq. 0) then
+
+            ! Specify influencing vertices
+            allocate(vertex_indices(1), source=0)
+
+            ! Calculate velocity
+            allocate(v(1,3))
+            v(1,1) = 0.25/pi*sum(this%n_hat_local(:,1)*F(:,1,1,1))
+            v(1,2) = 0.25/pi*sum(this%n_hat_local(:,2)*F(:,1,1,1))
+            v(1,3) = 0.25/pi*geom%h*H(1,1,3)
+        end if
+
+    end function panel_get_source_velocity
+
+
+    function panel_get_doublet_potential(this, eval_point, vertex_indices) result(phi)
+
+        implicit none
+
+        class(panel),intent(in) :: this
+        real,dimension(3),intent(in) :: eval_point
+        integer,dimension(:),allocatable,intent(out) :: vertex_indices
+        real,dimension(:),allocatable :: phi
+
+        type(eval_point_geom) :: geom
+        real,dimension(:,:,:),allocatable :: H
+        real,dimension(:,:,:,:),allocatable :: F
+
+        ! Calculate geometric parameters
+        geom = this%get_field_point_geometry(eval_point)
+
+        ! Get integrals
+        call this%calc_integrals(geom, "potential", "doublet", H, F)
+
+        if (doublet_order .eq. 1) then
+
+            ! Specify influencing vertices
+            allocate(vertex_indices, source=this%vertex_indices)
+
+            ! Compute induced potential
+            allocate(phi(3))
+            phi(1) = geom%h*H(1,1,3)
+            phi(2) = geom%r_local(1)*geom%h*H(1,1,3)+geom%h*H(2,1,3)
+            phi(3) = geom%r_local(2)*geom%h*H(1,1,3)+geom%h*H(1,2,3)
+            phi = 0.25/pi*matmul(phi, this%S_mu_inv)
+        end if
+    
+    end function panel_get_doublet_potential
+
+
+    function panel_get_doublet_velocity(this, eval_point, vertex_indices) result(v)
+
+        implicit none
+
+        class(panel),intent(in) :: this
+        real,dimension(3),intent(in) :: eval_point
+        integer,dimension(:),allocatable,intent(out) :: vertex_indices
+        real,dimension(:,:),allocatable :: v
+
+        type(eval_point_geom) :: geom
+        real,dimension(:,:,:),allocatable :: H
+        real,dimension(:,:,:,:),allocatable :: F
+
+        ! Calculate geometric parameters
+        geom = this%get_field_point_geometry(eval_point)
+
+        ! Get integrals
+        call this%calc_integrals(geom, "velocity", "doublet", H, F)
+
+        if (doublet_order .eq. 1) then
+
+            ! Specify influencing vertices
+            allocate(vertex_indices(3), source=this%vertex_indices)
+
+            ! Calculate velocity
+            allocate(v(3,3))
+        end if
+
+    end function panel_get_doublet_velocity
     
 end module panel_mod

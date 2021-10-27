@@ -60,32 +60,68 @@ contains
         type(surface_mesh),intent(inout) :: body_mesh
         type(flow),intent(in) :: freestream_flow
 
-        integer :: i,j
-        real :: phi
+        integer :: i, j, k
+        real,dimension(:),allocatable :: influence
+        integer,dimension(:),allocatable :: vertex_indices
+        real,dimension(:,:),allocatable :: A
+        real,dimension(:),allocatable :: b
 
         write(*,*)
         write(*,'(a)') "     Running linear solver"
 
         if (this%type .eq. 'indirect') then ! Morino formulation
 
+            ! Allocate linear system
+            allocate(A(body_mesh%N_verts, body_mesh%N_verts), source=0.)
+            allocate(b(body_mesh%N_verts), source=0.)
+
             ! Set source strengths
             call this%set_source_strengths(freestream_flow, body_mesh)
 
-            ! Calculate influence matrices
+            ! Calculate source influences
             write(*,*)
             write(*,'(a)',advance='no') "     Calculating source influences..."
-            do i=1,body_mesh%N_panels
-                do j=1,body_mesh%N_verts
+            do i=1,body_mesh%N_verts
+                do j=1,body_mesh%N_panels
 
-                    phi = body_mesh%panels(i)%get_source_potential(body_mesh%control_points(j,:))*body_mesh%sigma(i)
+                    ! Get source influence
+                    influence = body_mesh%panels(j)%get_source_potential(body_mesh%control_points(i,:), vertex_indices)
+
+                    ! Add to RHS
+                    if (source_order .eq. 0) then
+                        b(i) = b(i) + influence(1)*body_mesh%sigma(j)
+                    end if
 
                 end do
             end do
             write(*,*) "Done."
 
-            ! Assemble linear system
+            ! Calculate doublet influences
+            write(*,*)
+            write(*,'(a)',advance='no') "     Calculating doublet influences..."
+            do i=1,body_mesh%N_verts
+                do j=1,body_mesh%N_panels
+
+                    ! Get source influence
+                    influence = body_mesh%panels(j)%get_doublet_potential(body_mesh%control_points(i,:), vertex_indices)
+
+                    ! Add to LHS
+                    if (doublet_order .eq. 1) then
+                        do k=1,size(vertex_indices)
+                            A(i,vertex_indices(k)) = A(i,vertex_indices(k)) + influence(k)
+                        end do
+                    end if
+
+                end do
+            end do
+            write(*,*) "Done."
 
             ! Solve
+            write(*,*)
+            write(*,'(a)',advance='no') "     Solving linear system..."
+            allocate(body_mesh%mu(body_mesh%N_verts))
+            call lu_solve(body_mesh%N_verts, A, b, body_mesh%mu)
+            write(*,*) "Done."
 
         end if
 

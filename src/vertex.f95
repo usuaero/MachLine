@@ -18,7 +18,6 @@ module vertex_mod
         integer :: bot_parent = 0 ! Index of the bottom vertex this vertex's strength is determined by (for a wake vertex)
         type(list) :: panels ! List of indices for the panels which connect to this vertex
         type(list) :: panels_not_across_wake_edge ! List of indices for the panels which connect to this vertex not across a wake-shedding edge
-        real :: phi = 0 ! Perturbation doublet strength
         real,dimension(3) :: normal ! Normal vector associated with this control point
 
         contains

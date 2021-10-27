@@ -97,13 +97,14 @@ contains
     end subroutine load_surface_vtk
 
 
-    subroutine write_surface_vtk(output_file, vertices, panels)
+    subroutine write_surface_vtk(output_file, vertices, panels, sigma, mu)
 
         implicit none
 
         character(len=:),allocatable,intent(in) :: output_file
         type(vertex),dimension(:),intent(in) :: vertices
         type(panel),dimension(:),intent(in) :: panels
+        real,dimension(:),allocatable,optional,intent(in) :: sigma, mu
         integer :: i, N_verts, N_panels, panel_info_size, j
 
         ! Open file
@@ -155,19 +156,23 @@ contains
             end do
 
             ! Panel source strengths
-            write(1,'(a)') "SCALARS phi_n float 1"
-            write(1,'(a)') "LOOKUP_TABLE default"
-            do i=1,N_panels
-                write(1,'(f20.12)') 0.
-            end do
+            if (allocated(sigma)) then
+                write(1,'(a)') "SCALARS sigma float 1"
+                write(1,'(a)') "LOOKUP_TABLE default"
+                do i=1,N_panels
+                    write(1,'(f20.12)') sigma(i)
+                end do
+            end if
 
             ! Vertex doublet strengths
-            write(1, '(a i20)') "POINT_DATA", N_verts
-            write(1,'(a)') "SCALARS phi float 1"
-            write(1,'(a)') "LOOKUP_TABLE default"
-            do i=1,N_verts
-                write(1,'(f20.12)') vertices(i)%phi
-            end do
+            if (allocated(mu)) then
+                write(1, '(a i20)') "POINT_DATA", N_verts
+                write(1,'(a)') "SCALARS mu float 1"
+                write(1,'(a)') "LOOKUP_TABLE default"
+                do i=1,N_verts
+                    write(1,'(f20.12)') mu(i)
+                end do
+            end if
 
         close(1)
         
