@@ -39,6 +39,7 @@ module panel_mod
         real,dimension(:,:),allocatable :: S_sigma, S_sigma_inv ! Matrices relating source strengths to source influence parameters
         logical :: on_wake_edge ! Whether this panel belongs to a wake-shedding edge (on the body)
         integer,dimension(:),allocatable :: vertex_indices ! Indices of this panel's vertices in the mesh vertex array
+        logical :: in_wake ! Whether this panel belongs to a wake mesh
         type(list) :: opposing_panels ! Indices of panels opposite this one on the wake-shedding edge
         type(list) :: abutting_panels ! Indices of panels abutting this one not across wake-shedding edge
         logical :: xy_sym, xz_sym, yz_sym ! Whether this panel is reflected about any planes
@@ -1120,14 +1121,37 @@ contains
         if (doublet_order .eq. 1) then
 
             ! Specify influencing vertices
-            allocate(vertex_indices, source=this%vertex_indices)
+            if (.not. this%in_wake) then
+
+                ! Body panels are influenced by only one set of vertices
+                allocate(vertex_indices, source=this%vertex_indices)
+                allocate(phi(3))
+
+            else
+
+                ! Wake panels are influenced by two sets of vertices
+                allocate(vertex_indices(6))
+                allocate(phi(6))
+                vertex_indices(1) = this%vertices(1)%ptr%top_parent
+                vertex_indices(2) = this%vertices(2)%ptr%top_parent
+                vertex_indices(3) = this%vertices(3)%ptr%top_parent
+                vertex_indices(4) = this%vertices(1)%ptr%bot_parent
+                vertex_indices(5) = this%vertices(2)%ptr%bot_parent
+                vertex_indices(6) = this%vertices(3)%ptr%bot_parent
+
+            end if
 
             ! Compute induced potential
-            allocate(phi(3))
             phi(1) = geom%h*H(1,1,3)
             phi(2) = geom%r_local(1)*geom%h*H(1,1,3)+geom%h*H(2,1,3)
             phi(3) = geom%r_local(2)*geom%h*H(1,1,3)+geom%h*H(1,2,3)
-            phi = 0.25/pi*matmul(phi, this%S_mu_inv)
+            phi(1:3) = 0.25/pi*matmul(phi(1:3), this%S_mu_inv)
+
+            ! Wake bottom influence is opposite the top influence
+            if (this%in_wake) then
+                phi(4:6) = -phi(1:3)
+            end if
+
         end if
     
     end function panel_get_doublet_potential

@@ -113,6 +113,9 @@ contains
                                            this%vertices(i3),&
                                            i1, i2, i3, ind)
 
+                ! Specify this panel is in the wake
+                this%panels(ind)%in_wake = .true.
+
                 ! Determine index of second triangular panel
                 ind = (i-1)*N_panels_streamwise*2+2*j
 
@@ -126,6 +129,9 @@ contains
                                            this%vertices(i2),&
                                            this%vertices(i3),&
                                            i1, i2, i3, ind)
+
+                ! Specify this panel is in the wake
+                this%panels(ind)%in_wake = .true.
 
             end do
         end do

@@ -97,7 +97,7 @@ contains
     end subroutine load_surface_vtk
 
 
-    subroutine write_surface_vtk(output_file, vertices, panels, sigma, mu)
+    subroutine write_surface_vtk(output_file, vertices, panels, sigma, mu, is_wake)
 
         implicit none
 
@@ -105,6 +105,7 @@ contains
         type(vertex),dimension(:),intent(in) :: vertices
         type(panel),dimension(:),intent(in) :: panels
         real,dimension(:),allocatable,optional,intent(in) :: sigma, mu
+        logical,optional :: is_wake
         integer :: i, N_verts, N_panels, panel_info_size, j
 
         ! Open file
@@ -155,23 +156,50 @@ contains
                 write(1,100) panels(i)%normal(1), panels(i)%normal(2), panels(i)%normal(3)
             end do
 
-            ! Panel source strengths
-            if (present(sigma)) then
-                write(1,'(a)') "SCALARS sigma float 1"
-                write(1,'(a)') "LOOKUP_TABLE default"
-                do i=1,N_panels
-                    write(1,'(f20.12)') sigma(i)
-                end do
-            end if
+            ! Check if this is a wake mesh
+            if (present(is_wake) .and. is_wake) then
 
-            ! Vertex doublet strengths
-            if (present(mu)) then
-                write(1, '(a i20)') "POINT_DATA", N_verts
-                write(1,'(a)') "SCALARS mu float 1"
-                write(1,'(a)') "LOOKUP_TABLE default"
-                do i=1,N_verts
-                    write(1,'(f20.12)') mu(i)
-                end do
+                ! Panel source strengths
+                if (present(sigma)) then
+                    write(1,'(a)') "SCALARS sigma float 1"
+                    write(1,'(a)') "LOOKUP_TABLE default"
+                    do i=1,N_panels
+                        write(1,'(f20.12)') 0.
+                    end do
+                end if
+
+                ! Vertex doublet strengths
+                if (present(mu)) then
+                    write(1, '(a i20)') "POINT_DATA", N_verts
+                    write(1,'(a)') "SCALARS mu float 1"
+                    write(1,'(a)') "LOOKUP_TABLE default"
+                    do i=1,N_verts
+                        write(1,'(f20.12)') mu(vertices(i)%top_parent)-mu(vertices(i)%bot_parent)
+                    end do
+                end if
+
+            ! Regular body mesh
+            else
+
+                ! Panel source strengths
+                if (present(sigma)) then
+                    write(1,'(a)') "SCALARS sigma float 1"
+                    write(1,'(a)') "LOOKUP_TABLE default"
+                    do i=1,N_panels
+                        write(1,'(f20.12)') sigma(i)
+                    end do
+                end if
+
+                ! Vertex doublet strengths
+                if (present(mu)) then
+                    write(1, '(a i20)') "POINT_DATA", N_verts
+                    write(1,'(a)') "SCALARS mu float 1"
+                    write(1,'(a)') "LOOKUP_TABLE default"
+                    do i=1,N_verts
+                        write(1,'(f20.12)') mu(i)
+                    end do
+                end if
+
             end if
 
         close(1)

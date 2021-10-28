@@ -99,10 +99,13 @@ contains
             ! Calculate doublet influences
             write(*,*)
             write(*,'(a)',advance='no') "     Calculating doublet influences..."
+
+            ! Loop through control points
             do i=1,body_mesh%N_verts
+
+                ! Get doublet influence from body
                 do j=1,body_mesh%N_panels
 
-                    ! Get source influence
                     influence = body_mesh%panels(j)%get_doublet_potential(body_mesh%control_points(i,:), vertex_indices)
 
                     ! Add to LHS
@@ -111,8 +114,21 @@ contains
                             A(i,vertex_indices(k)) = A(i,vertex_indices(k)) + influence(k)
                         end do
                     end if
-
                 end do
+
+                ! Get doublet influence from wake
+                do j=1,body_mesh%wake%N_panels
+
+                    influence = body_mesh%wake%panels(j)%get_doublet_potential(body_mesh%control_points(i,:), vertex_indices)
+
+                    ! Add to LHS
+                    if (doublet_order .eq. 1) then
+                        do k=1,size(vertex_indices)
+                            A(i,vertex_indices(k)) = A(i,vertex_indices(k)) + influence(k)
+                        end do
+                    end if
+                end do
+
             end do
             write(*,*) "Done."
 
@@ -152,7 +168,7 @@ contains
 
             ! Loop through panels
             do i=1,body_mesh%N_panels
-                body_mesh%sigma(i) = -inner(body_mesh%panels(i)%normal, freestream_flow%V_inf)
+                body_mesh%sigma(i) = -inner(body_mesh%panels(i)%normal, freestream_flow%u_inf)
             end do
 
         end if

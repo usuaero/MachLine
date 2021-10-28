@@ -603,7 +603,7 @@ contains
         call write_surface_vtk(body_file, this%vertices, this%panels, this%sigma, this%mu)
         
         ! Write out data for wake
-        call write_surface_vtk(wake_file, this%wake%vertices, this%wake%panels)
+        call write_surface_vtk(wake_file, this%wake%vertices, this%wake%panels, this%sigma, this%mu, .true.)
         
         ! Write out data for control points
         call write_point_vtk(control_point_file, this%control_points, this%phi_cp)

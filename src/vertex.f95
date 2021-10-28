@@ -14,8 +14,8 @@ module vertex_mod
         logical :: in_wake_edge ! Whether this vertex is not an endpoint for a chain of wake-shedding edges (i.e. has two attached edges)
         integer :: index ! Index of this vertex in the mesh
         integer :: index_in_wake_vertices ! Index of this vertex in the list of wake-shedding vertices
-        integer :: top_parent = 0 ! Index of the top vertex this vertex's strength is determined by (for a wake vertex)
-        integer :: bot_parent = 0 ! Index of the bottom vertex this vertex's strength is determined by (for a wake vertex)
+        integer :: top_parent ! Index of the top vertex this vertex's strength is determined by (for a wake vertex)
+        integer :: bot_parent ! Index of the bottom vertex this vertex's strength is determined by (for a wake vertex)
         type(list) :: panels ! List of indices for the panels which connect to this vertex
         type(list) :: panels_not_across_wake_edge ! List of indices for the panels which connect to this vertex not across a wake-shedding edge
         real,dimension(3) :: normal ! Normal vector associated with this control point
@@ -50,6 +50,10 @@ contains
         ! Store info
         this%loc = loc
         this%index = index
+
+        ! Intitialize some data
+        this%top_parent = 0
+        this%bot_parent = 0
 
     end subroutine vertex_init
 
