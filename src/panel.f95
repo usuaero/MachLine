@@ -496,21 +496,6 @@ contains
     end subroutine panel_point_to_vertex_clone
 
 
-    function panel_R_i(this, eval_point, i) result(R)
-        ! Calculates the distance from the given point (in local coords) to the i-th vertex
-
-        implicit none
-
-        class(panel),intent(in) :: this
-        real,dimension(3),intent(in) :: eval_point
-        integer,intent(in) :: i
-        real :: R
-
-        R = sqrt((this%vertices_local(i,1)-eval_point(1))**2 + (this%vertices_local(i,2)-eval_point(2))**2+eval_point(3)**2)
-
-    end function panel_R_i
-
-
     function panel_get_field_point_geometry(this, eval_point) result(geom)
         ! Calculates the geometric parameters necessary for calculating the influence of the panel at the given evaluation point
 
@@ -556,6 +541,23 @@ contains
     end function panel_get_field_point_geometry
 
 
+    function panel_R_i(this, geom, i) result(R)
+        ! Calculates the distance from the given point to the i-th vertex
+
+        implicit none
+
+        class(panel),intent(in) :: this
+        type(eval_point_geom),intent(in) :: geom
+        integer,intent(in) :: i
+        real :: R
+
+        R = sqrt((this%vertices_local(i,1)-geom%r_local(1))**2 &
+                 + (this%vertices_local(i,2)-geom%r_local(2))**2 &
+                 + geom%h**2)
+
+    end function panel_R_i
+
+
     function panel_E_i_M_N_K(this, geom, i, M, N, K) result(E)
         ! Calculates E_i(M,N,K)
 
@@ -568,16 +570,18 @@ contains
         real :: E, E_1, E_2
 
         ! Evaluate at start vertex
-        E_1 = ((this%vertices_local(i,1)-geom%r_local(1))**(M-1)*(this%vertices_local(i,2)-geom%r_local(2))**(N-1))&
-              /this%R_i(geom%r_local, i)**K
+        E_1 = ((this%vertices_local(i,1)-geom%r_local(1))**(M-1)*(this%vertices_local(i,2)-geom%r_local(2))**(N-1)) &
+              /this%R_i(geom, i)**K
 
         ! Evaluate at end vertex
         if (i .eq. this%N) then
-            E_2 = ((this%vertices_local(1,1)-geom%r_local(1))**(M-1)*(this%vertices_local(1,2)-geom%r_local(2))**(N-1))&
-                  /this%R_i(geom%r_local, 1)**K
+            E_2 = ((this%vertices_local(1,1)-geom%r_local(1))**(M-1) &
+                   *(this%vertices_local(1,2)-geom%r_local(2))**(N-1)) &
+                   /this%R_i(geom, 1)**K
         else
-            E_2 = ((this%vertices_local(i,1)-geom%r_local(1))**(M-1)*(this%vertices_local(i,2)-geom%r_local(2))**(N-1))&
-                  /this%R_i(geom%r_local, i)**K
+            E_2 = ((this%vertices_local(i,1)-geom%r_local(1))**(M-1) &
+                   *(this%vertices_local(i,2)-geom%r_local(2))**(N-1)) &
+                   /this%R_i(geom, i)**K
         end if
 
         ! Calculate difference
@@ -609,7 +613,7 @@ contains
         
         ! Above edge
         else if (geom%l1(i) < 0. .and. geom%l2(i) < 0.) then
-            F = log((x1-geom%l2(i))/(x2-geom%l2(i)))
+            F = log((x1-geom%l1(i))/(x2-geom%l2(i)))
 
         ! Within edge
         else
@@ -666,7 +670,7 @@ contains
             if (proc_F .eq. 4) then
                 
                 ! Calculate F(1,1,K) integrals
-                do k=3,MXFK,2
+                do k=3,MXFK-NFK,2 ! Calculation out to MXFK+NFK is not necessary for this procedure
 
                     ! Get necessary E
                     E1 = this%E_i_M_N_K(geom, i, 2, 1, k-2)
