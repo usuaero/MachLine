@@ -1,6 +1,6 @@
 {
     "flow" : {
-        "V_inf" : [-100.0, 0.0, -10.0],
+        "V_inf" : [-100.0, 0.0, 0.0],
         "M_inf" : 0.7,
         "gamma" : 1.4
     },
@@ -18,13 +18,13 @@
             "wake_model" : {
                 "wake_shedding_angle" : 90.0,
                 "trefftz_distance" : 40.0,
-                "N_panels" : 50
+                "N_panels" : 30
             }
         }
     },
     "solver" : {
         "type" : "indirect",
-        "control_point_offset" : 1.0e-4
+        "control_point_offset" : 1.0e-3
     },
     "output" : {
         "body_file" : "dev/results/straight_wing.vtk",

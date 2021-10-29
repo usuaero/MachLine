@@ -636,7 +636,7 @@ contains
 
         real :: E1, E2, v_xi, v_eta
         real,dimension(3) :: d
-        integer :: i, MXFK, NFK, proc_F, k, m, n
+        integer :: i, MXFK, NFK, k, m, n
 
         ! Determine which F integrals are needed
         NFK = 16
@@ -647,7 +647,7 @@ contains
         end if
         
         ! Allocate integral storage
-        allocate(F(this%N,1:MXQ,1:MXQ,1:MXFK+NFK))
+        allocate(F(this%N,1:MXQ,1:MXQ,1:MXFK+NFK), source=0.)
 
         ! Loop through edges
         do i=1,this%N
@@ -656,18 +656,11 @@ contains
             v_xi = this%n_hat_local(i,1)
             v_eta = this%n_hat_local(i,2)
 
-            ! Determine which procedure is necessary for this edge
-            if (sqrt(geom%g2(i)) >= 0.01*dH) then
-                proc_F = 4
-            else
-                proc_F = 5
-            end if
-
             ! Calculate F(1,1,1)
             F(i,1,1,1) = this%F_i_1_1_1(geom, i)
 
             ! Procedure 4: not close to perimeter
-            if (proc_F .eq. 4) then
+            if (sqrt(geom%g2(i)) >= 0.01) then
                 
                 ! Calculate F(1,1,K) integrals
                 do k=3,MXFK,2
@@ -765,7 +758,6 @@ contains
             end do
         end do
 
-
     end function panel_calc_F_integrals
 
 
@@ -780,7 +772,7 @@ contains
         real,dimension(:,:,:,:),allocatable,intent(in) :: F
         real,dimension(:,:,:),allocatable :: H
 
-        real :: S, C
+        real :: S, C, nu
         integer :: i, m, n, k
         real,dimension(:),allocatable :: v_xi, v_eta
 
@@ -789,13 +781,12 @@ contains
         allocate(v_eta(this%N), source=this%n_hat_local(:,2))
 
         ! Allocate integral storage
-        allocate(H(1:MXQ,1:MXQ,1:MXK+NHK))
+        allocate(H(1:MXQ,1:MXQ,1:MXK+NHK), source=0.)
 
         ! Procedure 1: not close to panel plane
         if (proc_H .eq. 1) then
 
             ! Calculate H(1,1,1)
-            H(1,1,1) = 0.
             do i=1,this%N
         
                 ! Add surface integral
@@ -816,12 +807,9 @@ contains
         ! Procedures 2 and 3: close to panel plane
         else if (proc_H .eq. 2 .or. proc_H .eq. 3) then
 
-            ! Initialize
-            H(1,1,NHK+MXK) = 0.
-
             ! Calculate H(1,1,K) integrals
             do k=NHK+MXK,3,-2
-                H(1,1,k-2) = 1./(k-4)*(geom%h**2*(k-2)*h(1,1,k)-sum(geom%a*F(:,1,1,k-2)))
+                H(1,1,k-2) = 1./(k-4)*(geom%h**2*(k-2)*H(1,1,k)-sum(geom%a*F(:,1,1,k-2)))
             end do
 
         end if
@@ -885,13 +873,25 @@ contains
                 end do
             end do
         end do
+        if (any(isnan(H))) then
+            write(*,*)
+            write(*,*) "NaN found before H* conversion"
+        end if
 
         ! Convert H* to H in case of Procedure 3
         if (proc_H .eq. 3) then
             do m=1,MXQ
                 do n=1,MXQ
                     do k=1,MXK+NHK,2
-                        H(m,n,k) = H(m,n,k)+2.*pi*nu_M_N_K(m, n, k)*geom%h**(m+n-k)
+                         
+                        ! Get factorial dingas
+                        nu = nu_M_N_K(m, n, k)
+
+                        ! Convert H* to H
+                        ! We need to make this check because h is sometimes zero, which can cause issues if the exponent is negative. If nu is zero, just don't bother.
+                        if (.not. nu .eq. 0.) then
+                            H(m,n,k) = H(m,n,k)+2.*pi*nu*abs(geom%h)**(m+n-k)
+                        end if
                     end do
                 end do
             end do
@@ -991,7 +991,7 @@ contains
         dH = minval(sqrt(geom%g2))
 
         ! Determine which procedure needs to be used
-        if (abs(geom%h) >= 0.01*dH) then
+        if (abs(geom%h) >= 0.01) then
             proc_H = 1 ! Not near plane of panel
             NHK = 0
 
@@ -1016,9 +1016,17 @@ contains
 
         ! Calculate F integrals
         F = this%calc_F_integrals(geom, proc_H, MXK, MXQ, NHK, dH)
+        if (any(isnan(F))) then
+            write(*,*)
+            write(*,*) "NaN found in F"
+        end if
 
         ! Calculate H integrals
         H = this%calc_H_integrals(geom, proc_H, MXK, MXQ, NHK, F)
+        if (any(isnan(H))) then
+            write(*,*)
+            write(*,*) "NaN found in H"
+        end if
 
     end subroutine panel_calc_integrals
 
@@ -1116,7 +1124,7 @@ contains
 
                 ! Wake panels are influenced by two sets of vertices
                 allocate(vertex_indices(6))
-                allocate(phi(6))
+                allocate(phi(6), source=0.)
                 vertex_indices(1) = this%vertices(1)%ptr%top_parent
                 vertex_indices(2) = this%vertices(2)%ptr%top_parent
                 vertex_indices(3) = this%vertices(3)%ptr%top_parent
@@ -1128,7 +1136,7 @@ contains
 
                 ! Body panels are influenced by only one set of vertices
                 allocate(vertex_indices, source=this%vertex_indices)
-                allocate(phi(3))
+                allocate(phi(3), source=0.)
 
             end if
 
@@ -1136,6 +1144,12 @@ contains
             phi(1) = geom%h*H(1,1,3)
             phi(2) = geom%r_local(1)*geom%h*H(1,1,3)+geom%h*H(2,1,3)
             phi(3) = geom%r_local(2)*geom%h*H(1,1,3)+geom%h*H(1,2,3)
+            if (any(isnan(phi))) then
+                write(*,*)
+                write(*,*) phi
+                write(*,*) geom%h
+                write(*,*) H(1,1,3)
+            end if
             phi(1:3) = 0.25/pi*matmul(phi(1:3), this%S_mu_inv)
 
             ! Wake bottom influence is opposite the top influence

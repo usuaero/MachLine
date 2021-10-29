@@ -120,6 +120,9 @@ contains
                 do j=1,body_mesh%wake%N_panels
 
                     influence = body_mesh%wake%panels(j)%get_doublet_potential(body_mesh%control_points(i,:), vertex_indices)
+                    if (any(isnan(influence))) then
+                        write(*,*) "Found NaN"
+                    end if
 
                     ! Add to LHS
                     if (doublet_order .eq. 1) then
