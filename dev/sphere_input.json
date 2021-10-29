@@ -1,0 +1,34 @@
+{
+    "flow" : {
+        "V_inf" : [0.0, 0.0, -10.0],
+        "M_inf" : 0.7,
+        "gamma" : 1.4
+    },
+    "geometry" : {
+        "surface_mesh" : {
+            "file" : "dev/meshes/sphere.vtk",
+            "symmetry" : {
+                "xz" : true,
+                "xy" : true
+            },
+            "singularity_order" : {
+                "doublet" : 1,
+                "source" : 0
+            },
+            "wake_model" : {
+                "wake_shedding_angle" : 90.0,
+                "trefftz_distance" : 40.0,
+                "N_panels" : 50
+            }
+        }
+    },
+    "solver" : {
+        "type" : "indirect",
+        "control_point_offset" : 1.0
+    },
+    "output" : {
+        "body_file" : "dev/results/sphere.vtk",
+        "wake_file" : "dev/results/sphere_wake.vtk",
+        "control_point_file" : "dev/results/sphere_control_points.vtk"
+    }
+}

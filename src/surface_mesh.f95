@@ -62,6 +62,14 @@ contains
         write(*,*)
         write(*,*) "    User has selected:", doublet_order, "-order doublet panels and", source_order, "-order source panels."
 
+        ! Check
+        if (.not. (doublet_order .eq. 1 .and. source_order .eq. 0)) then
+            write(*,*) "    !!! Such distributions are not currently available."
+            write(*,*) "    !!! Defaulting a linear doublet distribution and a constant source distribution."
+            doublet_order = 1
+            source_order = 0
+        end if
+
         ! Get mesh file
         call json_get(settings, 'file', this%mesh_file)
         this%mesh_file = trim(this%mesh_file)

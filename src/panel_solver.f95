@@ -143,6 +143,7 @@ contains
             body_mesh%phi_cp = matmul(A, body_mesh%mu)-b
             write(*,*) "        Maximum residual:", maxval(abs(body_mesh%phi_cp))
             write(*,*) "        Residual norm:", sqrt(sum(body_mesh%phi_cp**2))
+            body_mesh%phi_cp = -b
 
         end if
 

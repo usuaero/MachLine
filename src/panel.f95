@@ -521,7 +521,7 @@ contains
 
             ! Perpendicular distance in plane from evaluation point to edge
             d = this%vertices_local(i,:)-geom%r_in_plane
-            geom%a(i) = inner2(d, this%n_hat_local(i,:))
+            geom%a(i) = inner2(d, this%n_hat_local(i,:)) ! a is positive when the evaluation point is towards the interior of the panel
 
             ! Integration lengths on edges
             geom%l1(i) = inner2(d, this%t_hat_local(i,:))
@@ -670,7 +670,7 @@ contains
             if (proc_F .eq. 4) then
                 
                 ! Calculate F(1,1,K) integrals
-                do k=3,MXFK-NFK,2 ! Calculation out to MXFK+NFK is not necessary for this procedure
+                do k=3,MXFK,2
 
                     ! Get necessary E
                     E1 = this%E_i_M_N_K(geom, i, 2, 1, k-2)
@@ -700,7 +700,7 @@ contains
             end if
 
             ! Calculate other F integrals (same for both procedures)
-            if (v_eta <= v_xi) then ! Case a
+            if (abs(v_eta) <= abs(v_xi)) then ! Case a
                 
                 ! Calculate F(1,N,1) integrals
                 do n=2,MXQ
@@ -708,12 +708,12 @@ contains
                     ! Get E
                     E1 = this%E_i_M_N_K(geom, i, 1, n-1, -1)
 
-                    if (.not. n .eq. 2) then
+                    if (n .eq. 2) then
+                        F(i,1,N,1) = 1./(n-1)*((2*n-3)*geom%a(i)*v_eta*F(i,1,n-1,1) + v_xi*E1)
+                    else
                         F(i,1,N,1) = 1./(n-1)*((2*n-3)*geom%a(i)*v_eta*F(i,1,n-1,1) &
                                      - (n-2)*(geom%a(i)**2+v_xi**2*geom%h**2)*F(i,1,n-2,1) &
                                      + v_xi*E1)
-                    else
-                        F(i,1,N,1) = 1./(n-1)*((2*n-3)*geom%a(i)*v_eta*F(i,1,n-1,1) + v_xi*E1)
                     end if
                 end do
 
@@ -732,12 +732,12 @@ contains
                     ! Get E
                     E1 = this%E_i_M_N_K(geom, i, m-1, 1, -1)
 
-                    if (.not. m .eq. 2) then
+                    if (m .eq. 2) then
+                        F(i,m,1,1) = 1./(m-1)*((2*m-3)*geom%a(i)*v_xi*F(i,m-1,1,1) - v_eta*E1)
+                    else
                         F(i,m,1,1) = 1./(m-1)*((2*m-3)*geom%a(i)*v_xi*F(i,m-1,1,1) &
                                      - (m-2)*(geom%a(i)**2+v_eta**2*geom%h**2)*F(i,m-2,1,1) &
                                      - v_eta*E1)
-                    else
-                        F(i,m,1,1) = 1./(m-1)*((2*m-3)*geom%a(i)*v_xi*F(i,m-1,1,1) - v_eta*E1)
                     end if
                 end do
 
@@ -749,19 +749,19 @@ contains
                 end do
 
             end if
-        end do
 
-        ! Calculate F(1,2,K) integrals
-        do k=3,MXK-2,2
-            F(i,1,2,k) = v_eta*geom%a(i)*F(i,1,1,k)-v_xi/(k-2)*this%E_i_M_N_K(geom, i, 1, 1, k-2)
-        end do
-
-        ! Calculate F(1,N,K) integrals
-        do n=3,MXQ
+            ! Calculate F(1,2,K) integrals
             do k=3,MXK-2,2
-                F(i,1,n,k) = 2.*geom%a(i)*v_eta*F(i,1,n-1,k) &
-                             -(geom%a(i)**2+v_xi**2*geom%h**2)*F(i,1,n-2,k) &
-                             +v_xi**2*F(i,1,n-2,k-2)
+                F(i,1,2,k) = v_eta*geom%a(i)*F(i,1,1,k)-v_xi/(k-2)*this%E_i_M_N_K(geom, i, 1, 1, k-2)
+            end do
+
+            ! Calculate F(1,N,K) integrals
+            do n=3,MXQ
+                do k=3,MXK-2,2
+                    F(i,1,n,k) = 2.*geom%a(i)*v_eta*F(i,1,n-1,k) &
+                                 - (geom%a(i)**2+v_xi**2*geom%h**2)*F(i,1,n-2,k) &
+                                 + v_xi**2*F(i,1,n-2,k-2)
+                end do
             end do
         end do
 
@@ -782,6 +782,11 @@ contains
 
         real :: S, C
         integer :: i, m, n, k
+        real,dimension(:),allocatable :: v_xi, v_eta
+
+        ! Get edge normal derivatives
+        allocate(v_xi(this%N), source=this%n_hat_local(:,1))
+        allocate(v_eta(this%N), source=this%n_hat_local(:,2))
 
         ! Allocate integral storage
         allocate(H(1:MXQ,1:MXQ,1:MXK+NHK))
@@ -823,18 +828,18 @@ contains
 
         ! Calculate H(2,N,1) integrals
         do n=1,MXQ-1
-            H(2,n,1) = 1./(n+1)*(geom%h**2*sum(this%n_hat_local(:,1)*F(:,1,n,1)) &
+            H(2,n,1) = 1./(n+1)*(geom%h**2*sum(v_xi*F(:,1,n,1)) &
                        + sum(geom%a*F(:,2,n,1)))
         end do
 
         ! Calculate H(1,N,1) integrals
         do n=2,MXQ
-            if (.not. n .eq. 2) then
-                H(2,n,1) = 1./n*(-geom%h**2*(n-2)*H(1,n-2,1) & 
-                           + geom%h**2*sum(this%n_hat_local(:,2)*F(:,1,n-1,1)) &
+            if (n .eq. 2) then
+                H(2,n,1) = 1./n*(geom%h**2*sum(v_eta*F(:,1,n-1,1)) &
                            + sum(geom%a*F(:,1,n,1)))
             else
-                H(2,n,1) = 1./n*(geom%h**2*sum(this%n_hat_local(:,2)*F(:,1,n-1,1)) &
+                H(2,n,1) = 1./n*(-geom%h**2*(n-2)*H(1,n-2,1) & 
+                           + geom%h**2*sum(v_eta*F(:,1,n-1,1)) &
                            + sum(geom%a*F(:,1,n,1)))
             end if
         end do
@@ -842,12 +847,12 @@ contains
         ! Calculate H(M,N,1) integrals
         do m=3,MXQ
             do n=1,MXQ-m+1
-                if (.not. m .eq. 2) then
-                    H(m,n,1) = 1./(m+n-1)*(-geom%h**2*(m-2)*H(m-2,n,1) &
-                               + geom%h**2*sum(this%n_hat_local(:,1)*F(:,m-1,n,1)) &
+                if (m .eq. 2) then
+                    H(m,n,1) = 1./(m+n-1)*(geom%h**2*sum(v_xi*F(:,m-1,n,1)) &
                                + sum(geom%a*F(:,m,n,1)))
                 else
-                    H(m,n,1) = 1./(m+n-1)*(geom%h**2*sum(this%n_hat_local(:,1)*F(:,m-1,n,1)) &
+                    H(m,n,1) = 1./(m+n-1)*(-geom%h**2*(m-2)*H(m-2,n,1) &
+                               + geom%h**2*sum(v_xi*F(:,m-1,n,1)) &
                                + sum(geom%a*F(:,m,n,1)))
                 end if
             end do
@@ -856,11 +861,11 @@ contains
         ! Calculate H(1,N,K) integrals
         do n=2,MXQ
             do k=3,MXK,2
-                if (.not. n .eq. 2) then
-                    H(1,n,k) = 1./(k-2)*((n-2)*H(1,n-2,k-2) &
-                               -sum(this%n_hat_local(:,2)*F(:,1,n-1,k-2)))
+                if (n .eq. 2) then
+                    H(1,n,k) = -1./(k-2)*sum(v_eta*F(:,1,n-1,k-2))
                 else
-                    H(1,n,k) = -1./(k-2)*sum(this%n_hat_local(:,2)*F(:,1,n-1,k-2))
+                    H(1,n,k) = 1./(k-2)*((n-2)*H(1,n-2,k-2) &
+                               -sum(v_eta*F(:,1,n-1,k-2)))
                 end if
             end do
         end do
@@ -868,15 +873,15 @@ contains
         ! Calculate H(2,N,K) integrals
         do n=1,MXQ-1
             do k=3,MXK,2
-                H(2,n,k) = -1./(k-2)*sum(this%n_hat_local(:,1)*F(:,1,n,k-2))
+                H(2,n,k) = -1./(k-2)*sum(v_xi*F(:,1,n,k-2))
             end do
         end do
 
         ! Calculate remaining H(M,N,K) integrals
-        do m=3,MXQ
+        do k=3,MXK,2
             do n=1,MXQ-m+1
-                do k=3,MXK,2
-                    H(m,n,k) = -h(M-2,N+2,k)-geom%h**2*H(m-2,n,k)+H(m-2,n,k-2)
+                do m=3,MXQ
+                    H(m,n,k) = -H(M-2,N+2,k)-geom%h**2*H(m-2,n,k)+H(m-2,n,k-2)
                 end do
             end do
         end do
@@ -961,41 +966,23 @@ contains
                 if (source_order .eq. 0) then
                     MXQ = 1
                     MXK = 1
-                else if (source_order .eq. 1) then
-                    MXQ = 2
-                    MXK = 1
                 end if
             else if (influence_type .eq. "velocity") then
                 if (source_order .eq. 0) then
                     MXQ = 1
                     MXK = 3
-                else if (source_order .eq. 1) then
-                    MXQ = 3
-                    MXK = 3
                 end if
             end if
         else if (singularity_type .eq. "doublet") then
             if (influence_type .eq. "potential") then
-                if (doublet_order .eq. 0) then
-                    MXQ = 1
-                    MXK = 3
-                else if (doublet_order .eq. 1) then
+                if (doublet_order .eq. 1) then
                     MXQ = 2
-                    MXK = 3
-                else if (doublet_order .eq. 2) then
-                    MXQ = 3
                     MXK = 3
                 end if
             else if (influence_type .eq. "velocity") then
-                if (doublet_order .eq. 0) then
+                if (doublet_order .eq. 1) then
                     MXQ = 1
                     MXK = 3
-                else if (doublet_order .eq. 1) then
-                    MXQ = 1
-                    MXK = 3
-                else if (doublet_order .eq. 2) then
-                    MXQ = 4
-                    MXK = 5
                 end if
             end if
         end if
@@ -1115,12 +1102,24 @@ contains
         type(eval_point_geom) :: geom
         real,dimension(:,:,:),allocatable :: H
         real,dimension(:,:,:,:),allocatable :: F
+        integer,dimension(:),allocatable :: H_shape
+        integer :: i, j, k
 
         ! Calculate geometric parameters
         geom = this%get_field_point_geometry(eval_point)
 
         ! Get integrals
         call this%calc_integrals(geom, "potential", "doublet", H, F)
+        !H_shape = shape(F)
+        !do i=1,H_shape(2)
+        !    do j=1,H_shape(3)
+        !        do k=1,H_shape(4)
+        !            if (any(isnan(F(:,i,j,k)))) then
+        !                write(*,*) i, j, k
+        !            end if
+        !        end do
+        !    end do
+        !end do
 
         if (doublet_order .eq. 1) then
 
