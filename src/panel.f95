@@ -1044,9 +1044,6 @@ contains
 
         if (source_order .eq. 0) then
 
-            ! Specify influencing vertices
-            allocate(vertex_indices(1), source=0)
-
             ! Compute induced potential
             allocate(phi(1))
             phi = -1./(4.*pi)*H(1,1,1)
@@ -1110,27 +1107,12 @@ contains
 
         ! Get integrals
         call this%calc_integrals(geom, "potential", "doublet", H, F)
-        !H_shape = shape(F)
-        !do i=1,H_shape(2)
-        !    do j=1,H_shape(3)
-        !        do k=1,H_shape(4)
-        !            if (any(isnan(F(:,i,j,k)))) then
-        !                write(*,*) i, j, k
-        !            end if
-        !        end do
-        !    end do
-        !end do
 
+        ! Calculate influence
         if (doublet_order .eq. 1) then
 
             ! Specify influencing vertices
-            if (.not. this%in_wake) then
-
-                ! Body panels are influenced by only one set of vertices
-                allocate(vertex_indices, source=this%vertex_indices)
-                allocate(phi(3))
-
-            else
+            if (this%in_wake) then
 
                 ! Wake panels are influenced by two sets of vertices
                 allocate(vertex_indices(6))
@@ -1141,6 +1123,12 @@ contains
                 vertex_indices(4) = this%vertices(1)%ptr%bot_parent
                 vertex_indices(5) = this%vertices(2)%ptr%bot_parent
                 vertex_indices(6) = this%vertices(3)%ptr%bot_parent
+
+            else
+
+                ! Body panels are influenced by only one set of vertices
+                allocate(vertex_indices, source=this%vertex_indices)
+                allocate(phi(3))
 
             end if
 
