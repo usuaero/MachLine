@@ -26,7 +26,7 @@ module surface_mesh_mod
         real :: wake_shedding_angle, C_wake_shedding_angle, trefftz_distance, C_min_wake_shedding_angle
         integer :: N_wake_panels_streamwise
         real,dimension(:,:),allocatable :: control_points
-        real,dimension(:),allocatable :: phi_cp
+        real,dimension(:),allocatable :: phi_cp, phi_cp_sigma, phi_cp_mu
         real :: control_point_offset
         logical :: xy_sym, xz_sym, yz_sym ! Whether the mesh is to be mirrored about any planes
         real,dimension(:),allocatable :: mu, sigma ! Singularity strengths
@@ -616,7 +616,7 @@ contains
         write(*,*) "        Wake results written to: ", wake_file
         
         ! Write out data for control points
-        call write_point_vtk(control_point_file, this%control_points, this%phi_cp)
+        call write_point_vtk(control_point_file, this%control_points, this%phi_cp, this%phi_cp_mu, this%phi_cp_sigma)
         write(*,*) "        Control point results written to: ", control_point_file
     
     end subroutine surface_mesh_output_results

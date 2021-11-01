@@ -294,6 +294,7 @@ end subroutine matinv
 
 function matmul_lu(n, A, x) result(b)
   ! Gives the matrix product [L][U]x = b where A = [L\U] (Doolittle LU decomposition)
+  ! NOT TESTED
 
   implicit none
 
@@ -309,29 +310,30 @@ function matmul_lu(n, A, x) result(b)
   ! [U]x = d
   do i=1,n
     do j=i,n
-      d(i) = A(i,j)*x(i)
+      d(i) = d(i) + A(i,j)*x(j)
     end do
   end do
 
   ! [L]x = b
   do i=1,n
-    do j=1,i
-      b(i) = A(i,j)*d(i)
+    do j=1,i-1
+      b(i) = b(i) + A(i,j)*d(j)
     end do
+    b(i) = b(i) + d(i) ! L(i,i) = 1.
   end do
 
 end function matmul_lu
 
 
-subroutine lu_solve(n, A, B, X)
-  ! Solves a general [A]*X=B on an nxn matrix
-  ! This replaces A (in place) with its LU decomposition
+subroutine lu_solve(n, A, b, x)
+  ! Solves a general [A]x=b on an nxn matrix
+  ! This replaces A (in place) with its LU decomposition (permuted row-wise)
 
     implicit none
 
     integer,intent(in) :: n
-    real,dimension(n),intent(inout) :: b
-    real,dimension(n),intent(out) :: x
+    real,dimension(n),intent(in) :: b
+    real,dimension(:),allocatable,intent(out) :: x
     real,dimension(n,n),intent(inout) :: A
 
     integer,allocatable,dimension(:) :: indx
@@ -359,6 +361,7 @@ end subroutine lu_solve
 !*    LU decomposition routines used by test_lu.f90    *
 !*                                                     *
 !*                 F90 version by J-P Moreau, Paris    *
+!*    improved for F95 by Cory Goates, Logan, UT, USA  *
 !* --------------------------------------------------- *
 !* Reference:                                          *
 !*                                                     *
@@ -369,7 +372,7 @@ end subroutine lu_solve
 !*******************************************************
 
 
-subroutine lu_decomp(A, N, indx, D, CODE)
+subroutine lu_decomp(A, N, indx, D, code)
   ! Given an N x N matrix A, this routine replaces it by the LU
   ! decomposition of a rowwise permutation of itself. A and N  
   ! are input. indx is an output vector which records the row  
@@ -377,78 +380,113 @@ subroutine lu_decomp(A, N, indx, D, CODE)
   ! as -1 or 1, depending on whether the number of row inter-  
   ! changes was even or odd, respectively. This routine is used
   ! in combination with LUBKSB to solve linear equations or to 
-  ! invert a matrix. Return code is 1, if matrix is singular.  
+  ! invert a matrix. Return code is 1 if matrix is singular.  
 
   implicit none
 
-  integer, parameter :: NMAX=100
-  real, parameter :: TINY=1.5D-16
-  real  AMAX,DUM, sum, A(N,N)
-  real,allocatable,dimension(:) :: VV
-  integer N, CODE, D, indx(N)
-  integer :: I,J,K,IMAX
 
-  allocate(VV(N))
+  real,dimension(N,N),intent(inout) :: A
+  integer,intent(in) :: N
+  integer,dimension(N),intent(out) :: indx
+  integer,intent(out) :: code, D
 
-  D=1; CODE=0; IMAX = 0
+  real,dimension(N) :: VV
+  real,parameter :: tiny=1.5e-20
+  integer :: i, j, k, imax
+  real :: amax, dum, sum
 
-  do I=1,N
-    AMAX=0.0
-    do J=1,N
-      if (ABS(A(I,J)).GT.AMAX) AMAX=ABS(A(I,J))
-    end do ! j loop
-    if(AMAX.LT.TINY) then
-      CODE = 1
-      RETURN
-    end if
-    VV(I) = 1.0 / AMAX
-  end do ! i loop
+  ! Initialize
+  D = 1
+  code = 0
+  imax = 0
 
-  do J=1,N
-    do I=1,J-1
-      sum = A(I,J)
-      do K=1,I-1
-        sum = sum - A(I,K)*A(K,J)
-      end do ! k loop
-      A(I,J) = sum
-    end do ! i loop
-    AMAX = 0.0
-    do I=J,N
-      sum = A(I,J)
-      do K=1,J-1
-        sum = sum - A(I,K)*A(K,J)
-      end do ! k loop
-      A(I,J) = sum
-      DUM = VV(I)*ABS(sum)
-      if(DUM.GE.AMAX) then
-        IMAX = I
-        AMAX = DUM
+  ! Loop over rows to get implicit scaling information
+  do i=1,N
+
+    ! Get largest element in this row
+    amax=0.0
+    do j=1,N
+      if (abs(A(i,j)) > amax) then
+        amax = abs(A(i,j))
       end if
-    end do ! i loop
+    end do
 
-    if(J.NE.IMAX) then
-      do K=1,N
-        DUM = A(IMAX,K)
-        A(IMAX,K) = A(J,K)
-        A(J,K) = DUM
-      end do ! k loop
+    ! Check the largest element in this row is nonzero
+    if (amax <= tiny) then
+      code = 1 ! Singular matrix
+      return
+    end if
+
+    ! Store implicit scaling
+    vv(i) = 1.0 / amax
+
+  end do
+
+  ! Loop over columns of Crout's method
+  do j=1,N
+    do i=1,J-1
+      sum = A(i,j)
+      do k=1,i-1
+        sum = sum - A(i,k)*A(k,j)
+      end do
+      A(i,j) = sum
+    end do
+
+    ! Initialize search for largest pivot element
+    amax = 0.0
+    do i=j,N
+
+      sum = A(i,j)
+      do k=1,j-1
+        sum = sum - A(i,k)*A(k,j)
+      end do
+      A(i,j) = sum
+
+      ! Determine figure of merit for the pivot
+      dum = vv(i)*abs(sum)
+      if (dum >= amax) then
+        imax = i
+        amax = dum
+      end if
+
+    end do
+
+    ! Figure out if we need to interchange rows
+    if (j /= imax) then
+
+      ! Perform interchange
+      do k=1,N
+        dum = A(imax,k)
+        A(imax,k) = A(j,k)
+        A(j,k) = dum
+      end do
+
+      ! Update the sign of D since a row interchange has occurred
       D = -D
-      VV(IMAX) = VV(J)
+
+      ! Interchange the implicit scaling factor
+      vv(imax) = vv(j)
+
     end if
 
-    indx(J) = IMAX
-    if(ABS(A(J,J)) < TINY) A(J,J) = TINY
+    ! Store pivoting
+    indx(j) = imax
 
-    if(J.NE.N) then
-      DUM = 1.0 / A(J,J)
-      do I=J+1,N
-        A(I,J) = A(I,J)*DUM
-      end do ! i loop
+    ! Replace zero pivot element with small parameter
+    if (abs(A(j,j)) < tiny) then
+      A(j,j) = tiny
     end if
-  end do ! j loop
 
-  deallocate(VV)
-  RETURN
+    ! Divide by pivot element
+    if (j /= N) then
+      dum = 1.0 / A(j,j)
+      do i=j+1,N
+        A(i,j) = A(i,j)*dum
+      end do
+    end if
+
+  end do
+
 end subroutine lu_decomp
 
 
@@ -457,44 +495,56 @@ subroutine lu_back_sub(A, N, indx, b, x)
   ! input, not as the matrix A but rather as its LU decomposition, 
   ! determined by the routine LUDCMP. indx is input as the permuta-
   ! tion vector returned by LUDCMP. b is input as the right-hand   
-  ! side vector b. The solution vector is x. A, N and
+  ! side vector b. The solution vector is x. A, N, b and
   ! indx are not modified by this routine and can be used for suc- 
   ! cessive calls with different right-hand sides. This routine is 
   ! also efficient for plain matrix inversion.                     
+
   implicit none
 
   integer,intent(in) :: N
   real,dimension(N,N),intent(in) :: A
-  real,dimension(N),intent(in) :: B
+  real,dimension(N),intent(in) :: b
   integer,dimension(N),intent(in) :: indx
-  real,dimension(N),intent(out) :: x
+  real,dimension(:),allocatable,intent(out) :: x
 
   real :: sum
   integer :: ii,i,j,ll
-  real,dimension(N) :: d
 
+  ! Initialize solution
+  allocate(x, source=b)
+
+  ! Set tracker to ignore leading zeros in b
   ii = 0
 
   ! Forward substitution
   do i=1,N
-    LL = indx(i)
-    sum = B(LL)
-    d(LL) = B(i)
+
+    ! Untangle pivoting
+    ll = indx(i)
+    sum = x(ll)
+    x(ll) = x(i)
+
+    ! If a nonzero element of b has already been encountered
     if (ii /= 0) then
       do J=ii,i-1
-        sum = sum - A(i,J)*B(J)
+        sum = sum - A(i,J)*x(J)
       end do
+
+    ! Check for first nonzero element of b
     else if(sum /= 0.0) then
       ii = i
     end if
-    d(i) = sum
+
+    x(i) = sum
+
   end do
 
   ! Back substitution
   do i=N,1,-1
-    sum = B(i)
+    sum = x(i)
     do j=i+1,N
-      sum = sum - A(i,j)*d(j)
+      sum = sum - A(i,j)*x(j)
     end do
     x(i) = sum / A(i,i)
   end do

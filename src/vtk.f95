@@ -214,13 +214,13 @@ contains
     end subroutine write_surface_vtk
 
 
-    subroutine write_point_vtk(output_file, points, phi)
+    subroutine write_point_vtk(output_file, points, phi, phi_mu, phi_sigma)
 
         implicit none
 
         character(len=:),allocatable,intent(in) :: output_file
         real,dimension(:,:),intent(in) :: points
-        real,dimension(:),intent(in) :: phi
+        real,dimension(:),intent(in) :: phi, phi_mu, phi_sigma
         integer :: i, N_verts, vertex_info_size
 
         ! Open file
@@ -263,6 +263,20 @@ contains
             write(1,'(a)') "LOOKUP_TABLE default"
             do i=1,N_verts
                 write(1,'(f20.12)') phi(i)
+            end do
+
+            ! Potential at points due to doublet distribution
+            write(1,'(a)') "SCALARS phi_mu float 1"
+            write(1,'(a)') "LOOKUP_TABLE default"
+            do i=1,N_verts
+                write(1,'(f20.12)') phi_mu(i)
+            end do
+
+            ! Potential at points due to source distribution
+            write(1,'(a)') "SCALARS phi_sigma float 1"
+            write(1,'(a)') "LOOKUP_TABLE default"
+            do i=1,N_verts
+                write(1,'(f20.12)') phi_sigma(i)
             end do
 
             ! Indices

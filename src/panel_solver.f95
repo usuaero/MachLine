@@ -63,7 +63,7 @@ contains
         integer :: i, j, k
         real,dimension(:),allocatable :: influence
         integer,dimension(:),allocatable :: vertex_indices
-        real,dimension(:,:),allocatable :: A
+        real,dimension(:,:),allocatable :: A, A_copy
         real,dimension(:),allocatable :: b
 
         write(*,*)
@@ -74,6 +74,7 @@ contains
             ! Allocate linear system
             allocate(A(body_mesh%N_verts, body_mesh%N_verts), source=0.)
             allocate(b(body_mesh%N_verts), source=0.)
+            allocate(body_mesh%phi_cp_sigma(body_mesh%N_verts), source=0.)
 
             ! Set source strengths
             call this%set_source_strengths(freestream_flow, body_mesh)
@@ -87,15 +88,9 @@ contains
                     ! Get source influence
                     influence = body_mesh%panels(j)%get_source_potential(body_mesh%control_points(i,:), vertex_indices)
 
-                    if (abs(influence(1)) >= 1.0) then
-                        write(*,*)
-                        write(*,*) "Found large source influence from panel", i, "on control point", j
-                        write(*,*) "Influence: ", influence(1)
-                    end if
-
                     ! Add to RHS
                     if (source_order == 0) then
-                        b(i) = b(i) - influence(1)*body_mesh%sigma(j)
+                        body_mesh%phi_cp_sigma(i) = body_mesh%phi_cp_sigma(i) + influence(1)*body_mesh%sigma(j)
                     end if
 
                 end do
@@ -126,9 +121,6 @@ contains
                 do j=1,body_mesh%wake%N_panels
 
                     influence = body_mesh%wake%panels(j)%get_doublet_potential(body_mesh%control_points(i,:), vertex_indices)
-                    if (any(isnan(influence))) then
-                        write(*,*) "Found NaN"
-                    end if
 
                     ! Add to LHS
                     if (doublet_order == 1) then
@@ -141,18 +133,24 @@ contains
             end do
             write(*,*) "Done."
 
+            ! Allocate solution memory
+            allocate(body_mesh%mu(body_mesh%N_verts))
+            allocate(A_copy, source=A)
+
             ! Solve
             write(*,*)
             write(*,'(a)',advance='no') "     Solving linear system..."
-            allocate(body_mesh%mu(body_mesh%N_verts))
-            call lu_solve(body_mesh%N_verts, A, b, body_mesh%mu)
+            b = -body_mesh%phi_cp_sigma
+            call lu_solve(body_mesh%N_verts, A_copy, b, body_mesh%mu)
             write(*,*) "Done."
+            deallocate(A_copy)
+            deallocate(b)
 
             ! Calculate potential at control points
-            body_mesh%phi_cp = matmul_lu(body_mesh%N_verts, A, body_mesh%mu)-b
-            write(*,*) "        Maximum residual:", maxval(abs(body_mesh%phi_cp))
-            write(*,*) "        Residual norm:", sqrt(sum(body_mesh%phi_cp**2))
-            !body_mesh%phi_cp = -b
+            body_mesh%phi_cp_mu = matmul(A, body_mesh%mu)
+            body_mesh%phi_cp = body_mesh%phi_cp_mu+body_mesh%phi_cp_sigma
+            write(*,*) "        Maximum residual inner potential:", maxval(abs(body_mesh%phi_cp))
+            write(*,*) "        Norm of residual innner potential:", sqrt(sum(body_mesh%phi_cp**2))
 
         end if
 
