@@ -2,7 +2,7 @@
 module math_mod
 
     implicit none
-    REAL, parameter :: pi = 3.1415926535897932
+    real, parameter :: pi = 3.1415926535897932
     
 contains
 
@@ -119,6 +119,7 @@ end function inner2
 
 
 function norm(a) result(c)
+  ! Calculates the norm of the vector
 
   implicit none
   real, dimension(3) :: a
@@ -183,20 +184,20 @@ subroutine math_rot_z(vec,th)
 end subroutine math_rot_z
 
 
-subroutine matinv(n,a,ai)
-      implicit none
-!
-! This sobroutine inverts a matrix "a" and returns the inverse in "ai"
-! n  - Input by user, an integer specifying the size of the matrix to be inverted.
-! a  - Input by user, an n by n real array containing the matrix to be inverted.
-! ai - Returned by subroutine, an n by n real array containing the inverted matrix.
-! d  - Work array, an n by 2n real array used by the subroutine.
-! io - Work array, a 1-dimensional integer array of length n used by the subroutine.
-!
+subroutine matinv(n, a, ai)
+      ! This sobroutine inverts a matrix "a" and returns the inverse in "ai"
+      ! n  - Input by user, an integer specifying the size of the matrix to be inverted.
+      ! a  - Input by user, an n by n real array containing the matrix to be inverted.
+      ! ai - Returned by subroutine, an n by n real array containing the inverted matrix.
+      ! d  - Work array, an n by 2n real array used by the subroutine.
+      ! io - Work array, a 1-dimensional integer array of length n used by the subroutine.
       ! THIS FUNCTION SHOULD NEVER BE CALLED! NEVER INVERT A MARTIX EXPLICITLY!
+      ! Unless you know what you're doing. Odds are you may not, so be careful.
+
+      implicit none
+
       integer :: n,i,j,k,m,itmp
-      real :: a(n,n),ai(n,n),tmp,r !,d(n,2*n)
-!      integer :: io(n)
+      real :: a(n,n),ai(n,n),tmp,r
       real,allocatable,dimension(:,:) :: d
       integer,allocatable,dimension(:) :: io
 
@@ -206,8 +207,6 @@ subroutine matinv(n,a,ai)
       d(:,:) = 0.0
       io(:) = 0
 
-!      write(6,*)'Inverting vortex panel matrix.  Please wait.'
-!      itime1=mclock()
 !     Fill in the "io" and "d" matrix.
 !     ********************************
       do i=1,n
@@ -223,6 +222,7 @@ subroutine matinv(n,a,ai)
             endif
          end do
       end do
+
 !     Scaling
 !     *******
       do i=1,n
@@ -235,6 +235,7 @@ subroutine matinv(n,a,ai)
             d(i,k)=d(i,k)/tmp
          end do
       end do
+
 !     Lower Elimination
 !     *****************
       do i=1,n-1
@@ -261,6 +262,7 @@ subroutine matinv(n,a,ai)
             end do
          end do
       end do
+
 !     Upper Elimination
 !     *****************
       r=d(io(n),n)
@@ -275,44 +277,53 @@ subroutine matinv(n,a,ai)
             end do
          end do
       end do
+
 !     Fill Out "ai" matrix
-!     ********************
       do i=1,n
          do j=1,n
             ai(i,j)=d(io(i),n+j)
          end do
       end do
-!      itime2=mclock()
-!      rtime=real(itime2-itime1)/1000.
-!      write(6,'(a,f7.2,a)')' Matrix inversion time =',rtime,' sec'
+
+      ! Cleanup
       deallocate(d)
       deallocate(io)
-      return
-      end subroutine matinv
+
+end subroutine matinv
 
 
-SUBROUTINE lu_solve(n,A,B,X)
-!Solves a general [A]*X=B on an nxn matrix
-    IMPLICIT NONE
-    INTEGER::n,D,info
-    real,DIMENSION(n)::B,X
-    real,DIMENSION(n,n)::A
+subroutine lu_solve(n, A, B, X)
+  ! Solves a general [A]*X=B on an nxn matrix
+  ! This replaces A (in place) with its LU decomposition
 
-    INTEGER,allocatable,DIMENSION(:) :: INDX
+    implicit none
+
+    integer,intent(in) :: n
+    real,dimension(n),intent(inout) :: B
+    real,dimension(n),intent(out) :: X
+    real,dimension(n,n),intent(inout) :: A
+
+    integer,allocatable,dimension(:) :: INDX
+    integer :: D, info
 
     allocate(INDX(n))
 
-    CALL math_LUDCMP(A,n,INDX,D,info)
-    if(info.eq.0) then
-        CALL math_LUBKSB(A,n,INDX,B)
-    end if
-    if(info.eq.1) then
-        write(*,*) ' The system matrix is singular. No solution.'
+    ! Compute decomposition
+    CALL lu_decomp(A,n,INDX,D,info)
+
+    ! If the matrix is nonsingular, then backsolve to find X
+    if (info == 0) then
+        CALL lu_back_sub(A,n,INDX,B)
+    else
+        write(*,*) 'Subroutine lu_solve() failed. The given matrix is singular. No solution.'
     end if
     X = B
+
+    ! Cleanup
     deallocate(INDX)
-    RETURN
-END SUBROUTINE lu_solve
+
+end subroutine lu_solve
+
 
 !*******************************************************
 !*    LU decomposition routines used by test_lu.f90    *
@@ -326,25 +337,23 @@ END SUBROUTINE lu_solve
 !*  University Press, 1986" [BIBLI 08].                *
 !*                                                     *
 !*******************************************************
-!MODULE LU
 
-!CONTAINS
 
-!  ***************************************************************
-!  * Given an N x N matrix A, this routine replaces it by the LU *
-!  * decomposition of a rowwise permutation of itself. A and N   *
-!  * are input. INDX is an output vector which records the row   *
-!  * permutation effected by the partial pivoting; D is output   *
-!  * as -1 or 1, depending on whether the number of row inter-   *
-!  * changes was even or odd, respectively. This routine is used *
-!  * in combination with LUBKSB to solve linear equations or to  *
-!  * invert a matrix. Return code is 1, if matrix is singular.   *
-!  ***************************************************************
-Subroutine math_LUDCMP(A,N,INDX,D,CODE)
+subroutine lu_decomp(A,N,INDX,D,CODE)
+  ! Given an N x N matrix A, this routine replaces it by the LU
+  ! decomposition of a rowwise permutation of itself. A and N  
+  ! are input. INDX is an output vector which records the row  
+  ! permutation effected by the partial pivoting; D is output  
+  ! as -1 or 1, depending on whether the number of row inter-  
+  ! changes was even or odd, respectively. This routine is used
+  ! in combination with LUBKSB to solve linear equations or to 
+  ! invert a matrix. Return code is 1, if matrix is singular.  
+
   implicit none
-  integer, PARAMETER :: NMAX=100
-  REAL, parameter :: TINY=1.5D-16
-  real  AMAX,DUM, SUM, A(N,N)!,VV(N)
+
+  integer, parameter :: NMAX=100
+  real, parameter :: TINY=1.5D-16
+  real  AMAX,DUM, SUM, A(N,N)
   real,allocatable,dimension(:) :: VV
   INTEGER N, CODE, D, INDX(N)
   integer :: I,J,K,IMAX
@@ -357,45 +366,45 @@ Subroutine math_LUDCMP(A,N,INDX,D,CODE)
     AMAX=0.0
     DO J=1,N
       IF (ABS(A(I,J)).GT.AMAX) AMAX=ABS(A(I,J))
-    END DO ! j loop
+    end DO ! j loop
     IF(AMAX.LT.TINY) THEN
       CODE = 1
       RETURN
-    END IF
+    end IF
     VV(I) = 1.0 / AMAX
-  END DO ! i loop
+  end DO ! i loop
 
   DO J=1,N
     DO I=1,J-1
       SUM = A(I,J)
       DO K=1,I-1
         SUM = SUM - A(I,K)*A(K,J)
-      END DO ! k loop
+      end DO ! k loop
       A(I,J) = SUM
-    END DO ! i loop
+    end DO ! i loop
     AMAX = 0.0
     DO I=J,N
       SUM = A(I,J)
       DO K=1,J-1
         SUM = SUM - A(I,K)*A(K,J)
-      END DO ! k loop
+      end DO ! k loop
       A(I,J) = SUM
       DUM = VV(I)*ABS(SUM)
       IF(DUM.GE.AMAX) THEN
         IMAX = I
         AMAX = DUM
-      END IF
-    END DO ! i loop
+      end IF
+    end DO ! i loop
 
     IF(J.NE.IMAX) THEN
       DO K=1,N
         DUM = A(IMAX,K)
         A(IMAX,K) = A(J,K)
         A(J,K) = DUM
-      END DO ! k loop
+      end DO ! k loop
       D = -D
       VV(IMAX) = VV(J)
-    END IF
+    end IF
 
     INDX(J) = IMAX
     IF(ABS(A(J,J)) < TINY) A(J,J) = TINY
@@ -404,27 +413,26 @@ Subroutine math_LUDCMP(A,N,INDX,D,CODE)
       DUM = 1.0 / A(J,J)
       DO I=J+1,N
         A(I,J) = A(I,J)*DUM
-      END DO ! i loop
-    END IF
-  END DO ! j loop
+      end DO ! i loop
+    end IF
+  end DO ! j loop
 
   deallocate(VV)
   RETURN
-END subroutine math_LUDCMP
+end subroutine lu_decomp
 
 
-!  ******************************************************************
-!  * Solves the set of N linear equations A . X = B.  Here A is     *
-!  * input, not as the matrix A but rather as its LU decomposition, *
-!  * determined by the routine LUDCMP. INDX is input as the permuta-*
-!  * tion vector returned by LUDCMP. B is input as the right-hand   *
-!  * side vector B, and returns with the solution vector X. A, N and*
-!  * INDX are not modified by this routine and can be used for suc- *
-!  * cessive calls with different right-hand sides. This routine is *
-!  * also efficient for plain matrix inversion.                     *
-!  ******************************************************************
- Subroutine math_LUBKSB(A,N,INDX,B)
+subroutine lu_back_sub(A,N,INDX,B)
+ ! Solves the set of N linear equations A . X = B.  Here A is     
+ ! input, not as the matrix A but rather as its LU decomposition, 
+ ! determined by the routine LUDCMP. INDX is input as the permuta-
+ ! tion vector returned by LUDCMP. B is input as the right-hand   
+ ! side vector B, and returns with the solution vector X. A, N and
+ ! INDX are not modified by this routine and can be used for suc- 
+ ! cessive calls with different right-hand sides. This routine is 
+ ! also efficient for plain matrix inversion.                     
  implicit none
+
  integer :: N
  real  SUM, A(N,N),B(N)
  INTEGER INDX(N)
@@ -439,117 +447,117 @@ END subroutine math_LUDCMP
    IF(II.NE.0) THEN
      DO J=II,I-1
        SUM = SUM - A(I,J)*B(J)
-     END DO ! j loop
+     end DO ! j loop
    ELSE IF(SUM.NE.0.0) THEN
      II = I
-   END IF
+   end IF
    B(I) = SUM
- END DO ! i loop
+ end DO ! i loop
 
  DO I=N,1,-1
    SUM = B(I)
    IF(I < N) THEN
      DO J=I+1,N
        SUM = SUM - A(I,J)*B(J)
-     END DO ! j loop
-   END IF
+     end DO ! j loop
+   end IF
    B(I) = SUM / A(I,I)
- END DO ! i loop
+ end DO ! i loop
 
  RETURN
- END subroutine math_LUBKSB
+ end subroutine lu_back_sub
 
 
-!C
-!C--------------------------------------------------------------------C
-!C The following subroutine computes the LU decomposition for a       C
-!C diagonally dominant matrix (no pivoting is done).                  C
-!C   Inputs:  n = number of equations/unknowns                        C
-!C            a = nxn coefficient matrix                              C
-!C   Outputs: a = nxn matrix containing the LU matrices               C
-!C                                                                    C
-!C Deryl Snyder, 10-16-98                                             C
-!C--------------------------------------------------------------------C
-      subroutine math_snyder_ludcmp(a,n)
-      implicit none
-      integer :: n,i,j,k
-      real a(n,n),z
+subroutine math_snyder_ludcmp(a,n)
+  ! Computes the LU decomposition for a diagonally dominant matrix (no pivoting is done).           
+  !   Inputs:  n = number of equations/unknowns                 
+  !            a = nxn coefficient matrix                       
+  !   Outputs: a = nxn matrix containing the LU matrices        
+  !                                                             
+  ! Deryl Snyder, 10-16-98                                      
+  implicit none
+  integer :: n,i,j,k
+  real a(n,n),z
 
-      do k=1,n-1
-        do i=k+1,n
-          z=a(i,k)/a(k,k)                     !compute gauss factor
-          a(i,k)=z                            !store gauss factor in matrix
-          do j=k+1,n
-            a(i,j)=a(i,j)-z*a(k,j)            !apply row operation
-          enddo
-        enddo
-      enddo
-      return
-      end subroutine math_snyder_ludcmp
-!C--------------------------------------------------------------------C
-!C The following subroutine solves for the unknowns (x) given the LU  C
-!C matrix and the right hand side.                                    C
-!C   Inputs:  n = number of equations/unknowns                        C
-!C            a = nxn matrix containing the L and U values            C
-!C            b = n vector containing right hand side values          C
-!C   Outputs: x = n vector containing solution                        C
-!C                                                                    C
-!C Deryl Snyder, 10-16-98                                             C
-!C--------------------------------------------------------------------C
-      subroutine math_snyder_lusolv(a,b,x,n)
-      implicit none
-      integer :: n,i,j,k
-      real a(n,n),b(n),x(n)
-      do i=1,n
-         x(i)=b(i)
+  do k=1,n-1
+    do i=k+1,n
+      z=a(i,k)/a(k,k)                     !compute gauss factor
+      a(i,k)=z                            !store gauss factor in matrix
+      do j=k+1,n
+        a(i,j)=a(i,j)-z*a(k,j)            !apply row operation
       end do
-      do k=1,n-1                                 !do forward substitution
-        do i=k+1,n
-          x(i)=x(i)-a(i,k)*x(k)
-        enddo
-      enddo
-      do i=n,1,-1                                !do back subsitution
-        do j=i+1,n
-          x(i)=x(i)-a(i,j)*x(j)
-        enddo
-        x(i)=x(i)/a(i,i)
-      enddo
-      return
-      end subroutine math_snyder_lusolv
+    end do
+  end do
+end subroutine math_snyder_ludcmp
 
 
-!C--------------------------------------------------------------------C
-!C The following subroutine fits a parabola through three specified   C
-!C points and returns the coefficients a, b, c defining this parabola C
-!C according to the equation y = a * x**2 + b * x + c                 C
-!C            pts = list of three (x, y) points                       C
-!C   Outputs: a, b, c = quadratic coefficients                        C
-!C                                                                    C
-!C--------------------------------------------------------------------C
-      subroutine quadratic_fit(pts, a, b, c)
-      implicit none
-      real, dimension(3, 2), intent(in) :: pts
-      real, intent(out) :: a, b, c
+subroutine math_snyder_lusolv(a,b,x,n)
+  ! Solves for the unknowns (x) given the LU matrix and the right hand side.                                    C
+  !   Inputs:  n = number of equations/unknowns                        
+  !            a = nxn matrix containing the L and U values           
+  !            b = n vector containing right hand side values          
+  !   Outputs: x = n vector containing solution                        
+  !                                                                    
+  ! Deryl Snyder, 10-16-98                                             
 
-      integer :: i
-      real, dimension(3, 3) :: m, m_inv
-      real, dimension(3) :: v, coeff
+  implicit none
 
-      do i = 1, 3
-        m(i, 1) = pts(i, 1)**2
-        m(i, 2) = pts(i, 1)
-        m(i, 3) = 1.0
-      end do
-      call matinv(3, m, m_inv)
+  integer :: n,i,j,k
+  real a(n,n),b(n),x(n)
 
-      v(:) = pts(:, 2)
-      coeff = matmul(m_inv, v)
+  do i=1,n
+     x(i)=b(i)
+  end do
 
-      a = coeff(1)
-      b = coeff(2)
-      c = coeff(3)
+  ! Forward substitution
+  do k=1,n-1
+    do i=k+1,n
+      x(i)=x(i)-a(i,k)*x(k)
+    enddo
+  enddo
 
-      end subroutine quadratic_fit
+  ! Back substitution
+  do i=n,1,-1
+    do j=i+1,n
+      x(i)=x(i)-a(i,j)*x(j)
+    end do
+    x(i)=x(i)/a(i,i)
+  end do
 
+end subroutine math_snyder_lusolv
+
+
+subroutine quadratic_fit(pts, a, b, c)
+  ! Fits a parabola through three specified   
+  ! points and returns the coefficients a, b, c defining this parabola 
+  ! according to the equation y = a * x**2 + b * x + c                 
+  !            pts = list of three (x, y) points                       
+  !   Outputs: a, b, c = quadratic coefficients                        
+
+  implicit none
+
+  real, dimension(3, 2), intent(in) :: pts
+  real, intent(out) :: a, b, c
+
+  integer :: i
+  real, dimension(3, 3) :: m, m_inv
+  real, dimension(3) :: v, coeff
+
+  do i = 1, 3
+    m(i, 1) = pts(i, 1)**2
+    m(i, 2) = pts(i, 1)
+    m(i, 3) = 1.0
+  end do
+
+  call matinv(3, m, m_inv)
+
+  v(:) = pts(:, 2)
+  coeff = matmul(m_inv, v)
+
+  a = coeff(1)
+  b = coeff(2)
+  c = coeff(3)
+
+end subroutine quadratic_fit
 
 end module math_mod

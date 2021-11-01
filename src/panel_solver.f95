@@ -87,7 +87,7 @@ contains
                     ! Get source influence
                     influence = body_mesh%panels(j)%get_source_potential(body_mesh%control_points(i,:), vertex_indices)
 
-                    if (abs(influence(1)) > 1000.0) then
+                    if (abs(influence(1)) >= 1.0) then
                         write(*,*)
                         write(*,*) "Found large source influence from panel", i, "on control point", j
                         write(*,*) "Influence: ", influence(1)
