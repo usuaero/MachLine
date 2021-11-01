@@ -609,12 +609,15 @@ contains
 
         ! Write out data for body
         call write_surface_vtk(body_file, this%vertices, this%panels, this%sigma, this%mu)
+        write(*,*) "        Surface results written to: ", body_file
         
         ! Write out data for wake
         call write_surface_vtk(wake_file, this%wake%vertices, this%wake%panels, this%sigma, this%mu, .true.)
+        write(*,*) "        Wake results written to: ", wake_file
         
         ! Write out data for control points
         call write_point_vtk(control_point_file, this%control_points, this%phi_cp)
+        write(*,*) "        Control point results written to: ", control_point_file
     
     end subroutine surface_mesh_output_results
 

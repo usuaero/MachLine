@@ -69,7 +69,7 @@ contains
         write(*,*)
         write(*,'(a)') "     Running linear solver"
 
-        if (this%type .eq. 'indirect') then ! Morino formulation
+        if (this%type == 'indirect') then ! Morino formulation
 
             ! Allocate linear system
             allocate(A(body_mesh%N_verts, body_mesh%N_verts), source=0.)
@@ -87,8 +87,14 @@ contains
                     ! Get source influence
                     influence = body_mesh%panels(j)%get_source_potential(body_mesh%control_points(i,:), vertex_indices)
 
+                    if (abs(influence(1)) > 1000.0) then
+                        write(*,*)
+                        write(*,*) "Found large source influence from panel", i, "on control point", j
+                        write(*,*) "Influence: ", influence(1)
+                    end if
+
                     ! Add to RHS
-                    if (source_order .eq. 0) then
+                    if (source_order == 0) then
                         b(i) = b(i) - influence(1)*body_mesh%sigma(j)
                     end if
 
@@ -109,7 +115,7 @@ contains
                     influence = body_mesh%panels(j)%get_doublet_potential(body_mesh%control_points(i,:), vertex_indices)
 
                     ! Add to LHS
-                    if (doublet_order .eq. 1) then
+                    if (doublet_order == 1) then
                         do k=1,size(vertex_indices)
                             A(i,vertex_indices(k)) = A(i,vertex_indices(k)) + influence(k)
                         end do
@@ -125,7 +131,7 @@ contains
                     end if
 
                     ! Add to LHS
-                    if (doublet_order .eq. 1) then
+                    if (doublet_order == 1) then
                         do k=1,size(vertex_indices)
                             A(i,vertex_indices(k)) = A(i,vertex_indices(k)) + influence(k)
                         end do
@@ -165,7 +171,7 @@ contains
         integer :: i
 
         ! Constant source distribution
-        if (source_order .eq. 0.) then
+        if (source_order == 0) then
 
             ! Allocate source strength array
             allocate(body_mesh%sigma(body_mesh%N_panels))

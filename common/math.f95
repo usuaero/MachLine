@@ -7,6 +7,29 @@ module math_mod
 contains
 
 
+function isinf(x) result(is)
+
+  implicit none
+
+  real,intent(in) :: x
+
+  logical :: is
+
+  real :: big, infinity
+
+  ! Create infinite
+  infinity = huge(big)
+
+  ! Check for infinity
+  if (x >= infinity) then
+    is = .true.
+  else
+    is = .false.
+  end if
+
+end function isinf
+
+
 subroutine math_plane_normal(p1,p2,p3,ans)
     implicit none
     real,dimension(3) :: p1,p2,p3,a,b,ans

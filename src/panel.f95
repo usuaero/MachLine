@@ -873,10 +873,6 @@ contains
                 end do
             end do
         end do
-        if (any(isnan(H))) then
-            write(*,*)
-            write(*,*) "NaN found before H* conversion"
-        end if
 
         ! Convert H* to H in case of Procedure 3
         if (proc_H .eq. 3) then
@@ -889,7 +885,7 @@ contains
 
                         ! Convert H* to H
                         ! We need to make this check because h is sometimes zero, which can cause issues if the exponent is negative. If nu is zero, just don't bother.
-                        if (.not. nu .eq. 0.) then
+                        if (abs(nu) <= 1e-12) then
                             H(m,n,k) = H(m,n,k)+2.*pi*nu*abs(geom%h)**(m+n-k)
                         end if
                     end do
@@ -1016,17 +1012,9 @@ contains
 
         ! Calculate F integrals
         F = this%calc_F_integrals(geom, proc_H, MXK, MXQ, NHK, dH)
-        if (any(isnan(F))) then
-            write(*,*)
-            write(*,*) "NaN found in F"
-        end if
 
         ! Calculate H integrals
         H = this%calc_H_integrals(geom, proc_H, MXK, MXQ, NHK, F)
-        if (any(isnan(H))) then
-            write(*,*)
-            write(*,*) "NaN found in H"
-        end if
 
     end subroutine panel_calc_integrals
 
@@ -1055,6 +1043,13 @@ contains
             ! Compute induced potential
             allocate(phi(1))
             phi = -1./(4.*pi)*H(1,1,1)
+            if (any(isnan(phi)) .or. isinf(phi(1))) then
+                write(*,*)
+                write(*,*) "Found NaN in source influence calculation."
+                write(*,*) "Influence: ", phi
+                write(*,*) "h: ", geom%h
+                write(*,*) "H(1,1,1): ",H(1,1,1)
+            end if
 
         end if
     
@@ -1146,9 +1141,12 @@ contains
             phi(3) = geom%r_local(2)*geom%h*H(1,1,3)+geom%h*H(1,2,3)
             if (any(isnan(phi))) then
                 write(*,*)
-                write(*,*) phi
-                write(*,*) geom%h
-                write(*,*) H(1,1,3)
+                write(*,*) "Found NaN in doublet influence calculation."
+                write(*,*) "Influence: ", phi
+                write(*,*) "h: ", geom%h
+                write(*,*) "H(1,1,3): ",H(1,1,3)
+                write(*,*) "H(2,1,3): ",H(2,1,3)
+                write(*,*) "H(1,2,3): ",H(1,2,3)
             end if
             phi(1:3) = 0.25/pi*matmul(phi(1:3), this%S_mu_inv)
 

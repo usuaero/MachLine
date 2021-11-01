@@ -156,6 +156,13 @@ contains
                 write(1,100) panels(i)%normal(1), panels(i)%normal(2), panels(i)%normal(3)
             end do
 
+            ! Indices
+            write(1,'(a)') "SCALARS index integer 1"
+            write(1,'(a)') "LOOKUP_TABLE default"
+            do i=1,N_panels
+                write(1,'(i20)') i
+            end do
+
             ! Check if this is a wake mesh
             if (present(is_wake) .and. is_wake) then
 
@@ -256,6 +263,13 @@ contains
             write(1,'(a)') "LOOKUP_TABLE default"
             do i=1,N_verts
                 write(1,'(f20.12)') phi(i)
+            end do
+
+            ! Indices
+            write(1,'(a)') "SCALARS index integer 1"
+            write(1,'(a)') "LOOKUP_TABLE default"
+            do i=1,N_verts
+                write(1,'(i20)') i
             end do
 
         close(1)
