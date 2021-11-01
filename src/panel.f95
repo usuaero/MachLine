@@ -70,6 +70,7 @@ module panel_mod
             procedure :: get_source_velocity => panel_get_source_velocity
             procedure :: get_doublet_potential => panel_get_doublet_potential
             procedure :: get_doublet_velocity => panel_get_doublet_velocity
+            procedure :: get_velocity_jump => panel_get_velocity_jump
 
     end type panel
 
@@ -1189,5 +1190,41 @@ contains
         end if
 
     end function panel_get_doublet_velocity
+
+
+    function panel_get_velocity_jump(this, mu, sigma) result(dv)
+        ! Calculates the jump in perturbation velocity across this panel in global coordinates
+
+        implicit none
+
+        class(panel),intent(in) :: this
+        real,dimension(:),allocatable,intent(in) :: mu, sigma
+        real,dimension(3) :: dv
+
+        real,dimension(3) :: mu_verts, mu_params
+        integer :: i
+
+        if (doublet_order /= 1) then
+            write(*,*) "Velocity jump calculation has only been implemented for linear distributions."
+            stop
+        end if
+
+        ! Set up array of doublet strengths to calculate doublet parameters
+        do i=1,this%N
+            mu_verts(i) = mu(this%vertices(i)%ptr%index)
+        end do
+
+        ! Calculate doublet parameters
+        mu_params = matmul(this%S_mu_inv, mu_verts)
+
+        ! Calculate velocity jump in panel coordinates
+        dv(1) = mu_params(2)
+        dv(2) = mu_params(3)
+        dv(3) = sigma(this%index)
+
+        ! Transform to global coordinates
+        dv = matmul(transpose(this%A_t), dv)
+
+    end function panel_get_velocity_jump
     
 end module panel_mod

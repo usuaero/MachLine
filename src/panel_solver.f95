@@ -152,6 +152,19 @@ contains
             write(*,*) "        Maximum residual inner potential:", maxval(abs(body_mesh%phi_cp))
             write(*,*) "        Norm of residual innner potential:", sqrt(sum(body_mesh%phi_cp**2))
 
+            ! Determine surface velocities
+            allocate(body_mesh%V(body_mesh%N_panels,3))
+            do i=1,body_mesh%N_panels
+                body_mesh%V(i,:) = freestream_flow%V_inf_mag*(freestream_flow%u_inf &
+                                   + body_mesh%panels(i)%get_velocity_jump(body_mesh%mu, body_mesh%sigma))
+            end do
+
+            ! Calculate coefficients of pressure
+            allocate(body_mesh%C_p(body_mesh%N_panels))
+            do i=1,body_mesh%N_panels
+                body_mesh%C_p(i) = 1.0-norm(body_mesh%V(i,:))/freestream_flow%V_inf_mag
+            end do
+
         end if
 
     end subroutine panel_solver_solve

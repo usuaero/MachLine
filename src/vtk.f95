@@ -97,14 +97,15 @@ contains
     end subroutine load_surface_vtk
 
 
-    subroutine write_surface_vtk(output_file, vertices, panels, sigma, mu, is_wake)
+    subroutine write_surface_vtk(output_file, vertices, panels, sigma, mu, is_wake, vel, C_p)
 
         implicit none
 
         character(len=:),allocatable,intent(in) :: output_file
         type(vertex),dimension(:),intent(in) :: vertices
         type(panel),dimension(:),intent(in) :: panels
-        real,dimension(:),allocatable,optional,intent(in) :: sigma, mu
+        real,dimension(:),allocatable,optional,intent(in) :: sigma, mu, C_p
+        real,dimension(:,:),allocatable,optional,intent(in) :: vel
         logical,optional :: is_wake
         integer :: i, N_verts, N_panels, panel_info_size, j
 
@@ -194,6 +195,23 @@ contains
                     write(1,'(a)') "LOOKUP_TABLE default"
                     do i=1,N_panels
                         write(1,'(f20.12)') sigma(i)
+                    end do
+                end if
+
+                ! Panel velocities
+                if (present(vel)) then
+                    write(1,'(a)') "VECTORS V float"
+                    do i=1,N_panels
+                        write(1,100) vel(i,1), vel(i,2), vel(i,3)
+                    end do
+                end if
+
+                ! Panel pressure coefficients
+                if (present(C_p)) then
+                    write(1,'(a)') "SCALARS C_p float 1"
+                    write(1,'(a)') "LOOKUP_TABLE default"
+                    do i=1,N_panels
+                        write(1,'(f20.12)') C_p(i)
                     end do
                 end if
 
