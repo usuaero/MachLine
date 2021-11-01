@@ -149,10 +149,10 @@ contains
             write(*,*) "Done."
 
             ! Calculate potential at control points
-            body_mesh%phi_cp = matmul(A, body_mesh%mu)-b
+            body_mesh%phi_cp = matmul_lu(body_mesh%N_verts, A, body_mesh%mu)-b
             write(*,*) "        Maximum residual:", maxval(abs(body_mesh%phi_cp))
             write(*,*) "        Residual norm:", sqrt(sum(body_mesh%phi_cp**2))
-            body_mesh%phi_cp = -b
+            !body_mesh%phi_cp = -b
 
         end if
 

@@ -292,6 +292,37 @@ subroutine matinv(n, a, ai)
 end subroutine matinv
 
 
+function matmul_lu(n, A, x) result(b)
+  ! Gives the matrix product [L][U]x = b where A = [L\U] (Doolittle LU decomposition)
+
+  implicit none
+
+  integer,intent(in) :: n
+  real,dimension(n,n),intent(in) :: A
+  real,dimension(n),intent(in) :: x
+
+  real,dimension(n) :: b, d
+  integer :: i, j
+
+  d = 0.
+
+  ! [U]x = d
+  do i=1,n
+    do j=i,n
+      d(i) = A(i,j)*x(i)
+    end do
+  end do
+
+  ! [L]x = b
+  do i=1,n
+    do j=1,i
+      b(i) = A(i,j)*d(i)
+    end do
+  end do
+
+end function matmul_lu
+
+
 subroutine lu_solve(n, A, B, X)
   ! Solves a general [A]*X=B on an nxn matrix
   ! This replaces A (in place) with its LU decomposition
@@ -299,28 +330,27 @@ subroutine lu_solve(n, A, B, X)
     implicit none
 
     integer,intent(in) :: n
-    real,dimension(n),intent(inout) :: B
-    real,dimension(n),intent(out) :: X
+    real,dimension(n),intent(inout) :: b
+    real,dimension(n),intent(out) :: x
     real,dimension(n,n),intent(inout) :: A
 
-    integer,allocatable,dimension(:) :: INDX
+    integer,allocatable,dimension(:) :: indx
     integer :: D, info
 
-    allocate(INDX(n))
+    allocate(indx(n))
 
     ! Compute decomposition
-    CALL lu_decomp(A,n,INDX,D,info)
+    CALL lu_decomp(A, n, indx, D, info)
 
-    ! If the matrix is nonsingular, then backsolve to find X
-    if (info == 0) then
-        CALL lu_back_sub(A,n,INDX,B)
+    ! if the matrix is nonsingular, then backsolve to find X
+    if (info == 1) then
+        write(*,*) 'Subroutine lu_solve() failed. The given matrix is singular (i.e. no solution).'
     else
-        write(*,*) 'Subroutine lu_solve() failed. The given matrix is singular. No solution.'
+        CALL lu_back_sub(A, n, indx, b, x)
     end if
-    X = B
 
     ! Cleanup
-    deallocate(INDX)
+    deallocate(indx)
 
 end subroutine lu_solve
 
@@ -339,10 +369,10 @@ end subroutine lu_solve
 !*******************************************************
 
 
-subroutine lu_decomp(A,N,INDX,D,CODE)
+subroutine lu_decomp(A, N, indx, D, CODE)
   ! Given an N x N matrix A, this routine replaces it by the LU
   ! decomposition of a rowwise permutation of itself. A and N  
-  ! are input. INDX is an output vector which records the row  
+  ! are input. indx is an output vector which records the row  
   ! permutation effected by the partial pivoting; D is output  
   ! as -1 or 1, depending on whether the number of row inter-  
   ! changes was even or odd, respectively. This routine is used
@@ -353,119 +383,123 @@ subroutine lu_decomp(A,N,INDX,D,CODE)
 
   integer, parameter :: NMAX=100
   real, parameter :: TINY=1.5D-16
-  real  AMAX,DUM, SUM, A(N,N)
+  real  AMAX,DUM, sum, A(N,N)
   real,allocatable,dimension(:) :: VV
-  INTEGER N, CODE, D, INDX(N)
+  integer N, CODE, D, indx(N)
   integer :: I,J,K,IMAX
 
   allocate(VV(N))
 
   D=1; CODE=0; IMAX = 0
 
-  DO I=1,N
+  do I=1,N
     AMAX=0.0
-    DO J=1,N
-      IF (ABS(A(I,J)).GT.AMAX) AMAX=ABS(A(I,J))
-    end DO ! j loop
-    IF(AMAX.LT.TINY) THEN
+    do J=1,N
+      if (ABS(A(I,J)).GT.AMAX) AMAX=ABS(A(I,J))
+    end do ! j loop
+    if(AMAX.LT.TINY) then
       CODE = 1
       RETURN
-    end IF
+    end if
     VV(I) = 1.0 / AMAX
-  end DO ! i loop
+  end do ! i loop
 
-  DO J=1,N
-    DO I=1,J-1
-      SUM = A(I,J)
-      DO K=1,I-1
-        SUM = SUM - A(I,K)*A(K,J)
-      end DO ! k loop
-      A(I,J) = SUM
-    end DO ! i loop
+  do J=1,N
+    do I=1,J-1
+      sum = A(I,J)
+      do K=1,I-1
+        sum = sum - A(I,K)*A(K,J)
+      end do ! k loop
+      A(I,J) = sum
+    end do ! i loop
     AMAX = 0.0
-    DO I=J,N
-      SUM = A(I,J)
-      DO K=1,J-1
-        SUM = SUM - A(I,K)*A(K,J)
-      end DO ! k loop
-      A(I,J) = SUM
-      DUM = VV(I)*ABS(SUM)
-      IF(DUM.GE.AMAX) THEN
+    do I=J,N
+      sum = A(I,J)
+      do K=1,J-1
+        sum = sum - A(I,K)*A(K,J)
+      end do ! k loop
+      A(I,J) = sum
+      DUM = VV(I)*ABS(sum)
+      if(DUM.GE.AMAX) then
         IMAX = I
         AMAX = DUM
-      end IF
-    end DO ! i loop
+      end if
+    end do ! i loop
 
-    IF(J.NE.IMAX) THEN
-      DO K=1,N
+    if(J.NE.IMAX) then
+      do K=1,N
         DUM = A(IMAX,K)
         A(IMAX,K) = A(J,K)
         A(J,K) = DUM
-      end DO ! k loop
+      end do ! k loop
       D = -D
       VV(IMAX) = VV(J)
-    end IF
+    end if
 
-    INDX(J) = IMAX
-    IF(ABS(A(J,J)) < TINY) A(J,J) = TINY
+    indx(J) = IMAX
+    if(ABS(A(J,J)) < TINY) A(J,J) = TINY
 
-    IF(J.NE.N) THEN
+    if(J.NE.N) then
       DUM = 1.0 / A(J,J)
-      DO I=J+1,N
+      do I=J+1,N
         A(I,J) = A(I,J)*DUM
-      end DO ! i loop
-    end IF
-  end DO ! j loop
+      end do ! i loop
+    end if
+  end do ! j loop
 
   deallocate(VV)
   RETURN
 end subroutine lu_decomp
 
 
-subroutine lu_back_sub(A,N,INDX,B)
- ! Solves the set of N linear equations A . X = B.  Here A is     
- ! input, not as the matrix A but rather as its LU decomposition, 
- ! determined by the routine LUDCMP. INDX is input as the permuta-
- ! tion vector returned by LUDCMP. B is input as the right-hand   
- ! side vector B, and returns with the solution vector X. A, N and
- ! INDX are not modified by this routine and can be used for suc- 
- ! cessive calls with different right-hand sides. This routine is 
- ! also efficient for plain matrix inversion.                     
- implicit none
+subroutine lu_back_sub(A, N, indx, b, x)
+  ! Solves the set of N linear equations Ax = b.  Here A is     
+  ! input, not as the matrix A but rather as its LU decomposition, 
+  ! determined by the routine LUDCMP. indx is input as the permuta-
+  ! tion vector returned by LUDCMP. b is input as the right-hand   
+  ! side vector b. The solution vector is x. A, N and
+  ! indx are not modified by this routine and can be used for suc- 
+  ! cessive calls with different right-hand sides. This routine is 
+  ! also efficient for plain matrix inversion.                     
+  implicit none
 
- integer :: N
- real  SUM, A(N,N),B(N)
- INTEGER INDX(N)
- integer :: II,I,J,LL
+  integer,intent(in) :: N
+  real,dimension(N,N),intent(in) :: A
+  real,dimension(N),intent(in) :: B
+  integer,dimension(N),intent(in) :: indx
+  real,dimension(N),intent(out) :: x
 
- II = 0
+  real :: sum
+  integer :: ii,i,j,ll
+  real,dimension(N) :: d
 
- DO I=1,N
-   LL = INDX(I)
-   SUM = B(LL)
-   B(LL) = B(I)
-   IF(II.NE.0) THEN
-     DO J=II,I-1
-       SUM = SUM - A(I,J)*B(J)
-     end DO ! j loop
-   ELSE IF(SUM.NE.0.0) THEN
-     II = I
-   end IF
-   B(I) = SUM
- end DO ! i loop
+  ii = 0
 
- DO I=N,1,-1
-   SUM = B(I)
-   IF(I < N) THEN
-     DO J=I+1,N
-       SUM = SUM - A(I,J)*B(J)
-     end DO ! j loop
-   end IF
-   B(I) = SUM / A(I,I)
- end DO ! i loop
+  ! Forward substitution
+  do i=1,N
+    LL = indx(i)
+    sum = B(LL)
+    d(LL) = B(i)
+    if (ii /= 0) then
+      do J=ii,i-1
+        sum = sum - A(i,J)*B(J)
+      end do
+    else if(sum /= 0.0) then
+      ii = i
+    end if
+    d(i) = sum
+  end do
 
- RETURN
- end subroutine lu_back_sub
+  ! Back substitution
+  do i=N,1,-1
+    sum = B(i)
+    do j=i+1,N
+      sum = sum - A(i,j)*d(j)
+    end do
+    x(i) = sum / A(i,i)
+  end do
+
+end subroutine lu_back_sub
 
 
 subroutine math_snyder_ludcmp(a,n)
