@@ -40,7 +40,7 @@ module surface_mesh_mod
             procedure :: locate_wake_shedding_edges => surface_mesh_locate_wake_shedding_edges
             procedure :: clone_wake_shedding_vertices => surface_mesh_clone_wake_shedding_vertices
             procedure :: calc_vertex_normals => surface_mesh_calc_vertex_normals
-            procedure :: place_control_points => surface_mesh_place_control_points
+            procedure :: place_interior_control_points => surface_mesh_place_interior_control_points
 
     end type surface_mesh
     
@@ -561,7 +561,7 @@ contains
     end subroutine surface_mesh_calc_vertex_normals
 
 
-    subroutine surface_mesh_place_control_points(this, offset)
+    subroutine surface_mesh_place_interior_control_points(this, offset)
 
         implicit none
 
@@ -581,13 +581,8 @@ contains
         ! Loop through vertices
         do i=1,this%N_verts
 
-            ! If it's not in a wake-shedding edge (i.e. has no clone), then placement simply follows the normal vector
-            if (.not. this%vertices(i)%in_wake_edge) then
-
-                this%control_points(i,:) = this%vertices(i)%loc-offset*this%vertices(i)%normal*this%vertices(i)%l_avg
-
-            ! Otherwise, we have to shift based on more information
-            else
+            ! If the vertex is in a wake edge, it needs to be shifted off the normal slightly so that it is unique from its counterpart
+            if (this%vertices(i)%in_wake_edge) then
 
                 ! Loop through panels associated with this clone to get their average normal vector
                 N = this%vertices(i)%panels_not_across_wake_edge%len()
@@ -609,12 +604,17 @@ contains
                 this%control_points(i,:) = this%vertices(i)%loc &
                                            - offset * (this%vertices(i)%normal - offset_ratio * sum)*this%vertices(i)%l_avg
 
+            ! If it's not in a wake-shedding edge (i.e. has no clone), then placement simply follows the normal vector
+            else
+
+                this%control_points(i,:) = this%vertices(i)%loc-offset*this%vertices(i)%normal*this%vertices(i)%l_avg
+
             end if
 
         end do
 
 
-    end subroutine surface_mesh_place_control_points
+    end subroutine surface_mesh_place_interior_control_points
 
 
     subroutine surface_mesh_output_results(this, body_file, wake_file, control_point_file)

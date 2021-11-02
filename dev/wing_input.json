@@ -21,7 +21,7 @@
         }
     },
     "solver" : {
-        "type" : "indirect",
+        "formulation" : "morino",
         "control_point_offset" : 1.0e-4
     },
     "output" : {

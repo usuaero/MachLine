@@ -1,6 +1,6 @@
 {
     "flow" : {
-        "V_inf" : [0.0, 1000.0, 0.0],
+        "V_inf" : [0.0, 10.0, 0.0],
         "M_inf" : 0.7,
         "gamma" : 1.4
     },
@@ -21,7 +21,7 @@
         }
     },
     "solver" : {
-        "type" : "indirect",
+        "formulation" : "morino",
         "control_point_offset" : 1.0e-2
     },
     "output" : {
