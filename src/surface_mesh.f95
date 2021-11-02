@@ -103,7 +103,7 @@ contains
         call json_xtnsn_get(settings, 'wake_model.trefftz_distance', this%trefftz_distance, 100.0) ! Distance from origin to wake termination
         call json_xtnsn_get(settings, 'wake_model.N_panels', this%N_wake_panels_streamwise, 20)
         this%C_wake_shedding_angle = cos(this%wake_shedding_angle*pi/180.0)
-    
+
     end subroutine surface_mesh_init
 
 
@@ -166,6 +166,10 @@ contains
 
         ! Determine wake-dependent geometry
         call this%calc_vertex_normals()
+
+        ! Clean up
+        deallocate(this%wake_edge_top_verts)
+        deallocate(this%wake_edge_bot_verts)
     
     end subroutine surface_mesh_init_with_flow
 
@@ -503,7 +507,6 @@ contains
         end do
 
         write(*,*) "Done. Cloned", N_clones, "vertices. Mesh now has", this%N_verts, "vertices."
-
 
     end subroutine surface_mesh_clone_wake_shedding_vertices
 

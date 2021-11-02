@@ -1,5 +1,6 @@
 module panel_solver_mod
 
+    use helpers_mod
     use json_mod
     use json_xtnsn_mod
     use panel_mod
@@ -65,6 +66,7 @@ contains
         integer,dimension(:),allocatable :: vertex_indices
         real,dimension(:,:),allocatable :: A, A_copy
         real,dimension(:),allocatable :: b
+        integer :: stat
 
         write(*,*)
         write(*,'(a)') "     Running linear solver"
@@ -72,9 +74,12 @@ contains
         if (this%type == 'indirect') then ! Morino formulation
 
             ! Allocate linear system
-            allocate(A(body_mesh%N_verts, body_mesh%N_verts), source=0.)
-            allocate(b(body_mesh%N_verts), source=0.)
-            allocate(body_mesh%phi_cp_sigma(body_mesh%N_verts), source=0.)
+            allocate(A(body_mesh%N_verts, body_mesh%N_verts), source=0., stat=stat)
+            call check_allocation(stat)
+            allocate(b(body_mesh%N_verts), source=0., stat=stat)
+            call check_allocation(stat)
+            allocate(body_mesh%phi_cp_sigma(body_mesh%N_verts), source=0., stat=stat)
+            call check_allocation(stat)
 
             ! Set source strengths
             call this%set_source_strengths(freestream_flow, body_mesh)
@@ -134,8 +139,10 @@ contains
             write(*,*) "Done."
 
             ! Allocate solution memory
-            allocate(body_mesh%mu(body_mesh%N_verts))
-            allocate(A_copy, source=A)
+            allocate(body_mesh%mu(body_mesh%N_verts), stat=stat)
+            call check_allocation(stat)
+            allocate(A_copy, source=A, stat=stat)
+            call check_allocation(stat)
 
             ! Solve
             write(*,*)
@@ -156,14 +163,16 @@ contains
             write(*,'(a)',advance='no') "     Calculating surface velocities and pressures..."
 
             ! Determine surface velocities
-            allocate(body_mesh%V(body_mesh%N_panels,3))
+            allocate(body_mesh%V(body_mesh%N_panels,3), stat=stat)
+            call check_allocation(stat)
             do i=1,body_mesh%N_panels
                 body_mesh%V(i,:) = freestream_flow%V_inf_mag*(freestream_flow%u_inf &
                                    + body_mesh%panels(i)%get_velocity_jump(body_mesh%mu, body_mesh%sigma))
             end do
 
             ! Calculate coefficients of pressure
-            allocate(body_mesh%C_p(body_mesh%N_panels))
+            allocate(body_mesh%C_p(body_mesh%N_panels), stat=stat)
+            call check_allocation(stat)
             do i=1,body_mesh%N_panels
                 body_mesh%C_p(i) = 1.0-(norm(body_mesh%V(i,:))/freestream_flow%V_inf_mag)**2
             end do

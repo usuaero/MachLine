@@ -19,6 +19,7 @@ PROGRAM = mftran.exe
 
 default:
 	$(COMPILER) $(FLAGS) -o $(PROGRAM) \
+	common/helpers.f95 \
 	common/linked_list.f95 \
 	common/math.f95 \
 	common/json.f95 \

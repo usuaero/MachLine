@@ -35,8 +35,7 @@ module panel_mod
         real,dimension(:,:),allocatable :: n_hat, n_hat_local ! Edge unit outward normals
         real,dimension(:),allocatable :: l ! Edge lengths
         real :: A ! Surface area
-        real,dimension(:,:),allocatable :: S_mu, S_mu_inv ! Matrices relating doublet strengths to doublet influence parameters
-        real,dimension(:,:),allocatable :: S_sigma, S_sigma_inv ! Matrices relating source strengths to source influence parameters
+        real,dimension(:,:),allocatable :: S_mu_inv, S_sigma_inv ! Matrix relating doublet/source strengths to doublet/source influence parameters
         logical :: on_wake_edge ! Whether this panel belongs to a wake-shedding edge (on the body)
         integer,dimension(:),allocatable :: vertex_indices ! Indices of this panel's vertices in the mesh vertex array
         logical :: in_wake ! Whether this panel belongs to a wake mesh
@@ -254,6 +253,7 @@ contains
         class(panel),intent(inout) :: this
         real,dimension(3) :: d
         integer :: i
+        real,dimension(:,:),allocatable :: S_mu, S_sigma
 
         ! Allocate memory
         allocate(this%vertices_local(this%N,2))
@@ -288,42 +288,45 @@ contains
             if (doublet_order .eq. 1) then
 
                 ! Allocate influence matrices
-                allocate(this%S_mu(3,3))
+                allocate(S_mu(3,3))
                 allocate(this%S_mu_inv(3,3))
 
                 ! Set values
-                this%S_mu(:,1) = 1.
-                this%S_mu(:,2) = this%vertices_local(:,1)
-                this%S_mu(:,3) = this%vertices_local(:,2)
+                S_mu(:,1) = 1.
+                S_mu(:,2) = this%vertices_local(:,1)
+                S_mu(:,3) = this%vertices_local(:,2)
 
                 ! Invert
-                call matinv(3, this%S_mu, this%S_mu_inv)
+                call matinv(3, S_mu, this%S_mu_inv)
 
             else if (doublet_order .eq. 2) then
 
                 ! Allocate influence matrix
-                allocate(this%S_mu(6,6))
+                allocate(S_mu(6,6))
                 allocate(this%S_mu_inv(6,6))
 
                 ! Set values
-                this%S_mu(:,1) = 1.
+                S_mu(:,1) = 1.
 
-                this%S_mu(1:3,2) = this%vertices_local(:,1)
-                this%S_mu(1:3,3) = this%vertices_local(:,2)
-                this%S_mu(1:3,4) = this%vertices_local(:,1)**2
-                this%S_mu(1:3,5) = this%vertices_local(:,1)*this%vertices_local(:,2)
-                this%S_mu(1:3,6) = this%vertices_local(:,2)**2
+                S_mu(1:3,2) = this%vertices_local(:,1)
+                S_mu(1:3,3) = this%vertices_local(:,2)
+                S_mu(1:3,4) = this%vertices_local(:,1)**2
+                S_mu(1:3,5) = this%vertices_local(:,1)*this%vertices_local(:,2)
+                S_mu(1:3,6) = this%vertices_local(:,2)**2
                 
-                this%S_mu(4:6,2) = this%midpoints_local(:,1)
-                this%S_mu(4:6,3) = this%midpoints_local(:,2)
-                this%S_mu(4:6,4) = this%midpoints_local(:,1)**2
-                this%S_mu(4:6,5) = this%midpoints_local(:,1)*this%midpoints_local(:,2)
-                this%S_mu(4:6,6) = this%midpoints_local(:,2)**2
+                S_mu(4:6,2) = this%midpoints_local(:,1)
+                S_mu(4:6,3) = this%midpoints_local(:,2)
+                S_mu(4:6,4) = this%midpoints_local(:,1)**2
+                S_mu(4:6,5) = this%midpoints_local(:,1)*this%midpoints_local(:,2)
+                S_mu(4:6,6) = this%midpoints_local(:,2)**2
 
                 ! Invert
-                call matinv(6, this%S_mu, this%S_mu_inv)
+                call matinv(6, S_mu, this%S_mu_inv)
 
             end if
+            
+            deallocate(S_mu)
+
         end if
 
         ! Determine influence of vertex source strengths on integral parameters
@@ -333,43 +336,47 @@ contains
             if (source_order .eq. 1) then
 
                 ! Allocate influence matrices
-                allocate(this%S_sigma(3,3))
+                allocate(S_sigma(3,3))
                 allocate(this%S_sigma_inv(3,3))
 
                 ! Set values
-                this%S_sigma(:,1) = 1.
-                this%S_sigma(:,2) = this%vertices_local(:,1)
-                this%S_sigma(:,3) = this%vertices_local(:,2)
+                S_sigma(:,1) = 1.
+                S_sigma(:,2) = this%vertices_local(:,1)
+                S_sigma(:,3) = this%vertices_local(:,2)
 
                 ! Invert
-                call matinv(3, this%S_sigma, this%S_sigma_inv)
+                call matinv(3, S_sigma, this%S_sigma_inv)
 
             else if (source_order .eq. 2) then
 
                 ! Allocate influence matrix
-                allocate(this%S_sigma(6,6))
+                allocate(S_sigma(6,6))
                 allocate(this%S_sigma_inv(6,6))
 
                 ! Set values
-                this%S_sigma(:,1) = 1.
+                S_sigma(:,1) = 1.
 
-                this%S_sigma(1:3,2) = this%vertices_local(:,1)
-                this%S_sigma(1:3,3) = this%vertices_local(:,2)
-                this%S_sigma(1:3,4) = this%vertices_local(:,1)**2
-                this%S_sigma(1:3,5) = this%vertices_local(:,1)*this%vertices_local(:,2)
-                this%S_sigma(1:3,6) = this%vertices_local(:,2)**2
+                S_sigma(1:3,2) = this%vertices_local(:,1)
+                S_sigma(1:3,3) = this%vertices_local(:,2)
+                S_sigma(1:3,4) = this%vertices_local(:,1)**2
+                S_sigma(1:3,5) = this%vertices_local(:,1)*this%vertices_local(:,2)
+                S_sigma(1:3,6) = this%vertices_local(:,2)**2
                 
-                this%S_sigma(4:6,2) = this%midpoints_local(:,1)
-                this%S_sigma(4:6,3) = this%midpoints_local(:,2)
-                this%S_sigma(4:6,4) = this%midpoints_local(:,1)**2
-                this%S_sigma(4:6,5) = this%midpoints_local(:,1)*this%midpoints_local(:,2)
-                this%S_sigma(4:6,6) = this%midpoints_local(:,2)**2
+                S_sigma(4:6,2) = this%midpoints_local(:,1)
+                S_sigma(4:6,3) = this%midpoints_local(:,2)
+                S_sigma(4:6,4) = this%midpoints_local(:,1)**2
+                S_sigma(4:6,5) = this%midpoints_local(:,1)*this%midpoints_local(:,2)
+                S_sigma(4:6,6) = this%midpoints_local(:,2)**2
 
                 ! Invert
-                call matinv(6, this%S_sigma, this%S_sigma_inv)
+                call matinv(6, S_sigma, this%S_sigma_inv)
 
             end if
+
+            deallocate(S_sigma)
+
         end if
+
 
     end subroutine panel_calc_coord_transform
 
@@ -480,7 +487,7 @@ contains
         do i=1,this%N
 
             ! Check which vertex this will replace
-            if (norm(this%get_vertex_loc(i)-clone%loc) < 1e-10) then
+            if (norm(this%get_vertex_loc(i)-clone%loc) < 1e-12) then
 
                 ! Update pointer
                 this%vertices(i)%ptr => clone
@@ -894,6 +901,10 @@ contains
             end do
         end if
 
+        ! Clean up
+        deallocate(v_xi)
+        deallocate(v_eta)
+
     end function panel_calc_H_integrals
 
 
@@ -1053,6 +1064,10 @@ contains
             end if
 
         end if
+
+        ! Clean up
+        deallocate(H)
+        deallocate(F)
     
     end function panel_get_source_potential
 
@@ -1087,6 +1102,10 @@ contains
             v(1,2) = 0.25/pi*sum(this%n_hat_local(:,2)*F(:,1,1,1))
             v(1,3) = 0.25/pi*geom%h*H(1,1,3)
         end if
+
+        ! Clean up
+        deallocate(H)
+        deallocate(F)
 
     end function panel_get_source_velocity
 
@@ -1157,6 +1176,10 @@ contains
             end if
 
         end if
+
+        ! Clean up
+        deallocate(H)
+        deallocate(F)
     
     end function panel_get_doublet_potential
 
@@ -1189,6 +1212,10 @@ contains
             allocate(v(3,3))
         end if
 
+        ! Clean up
+        deallocate(H)
+        deallocate(F)
+
     end function panel_get_doublet_velocity
 
 
@@ -1211,7 +1238,7 @@ contains
 
         ! Set up array of doublet strengths to calculate doublet parameters
         do i=1,this%N
-            mu_verts(i) = mu(this%vertices(i)%ptr%index)
+            mu_verts(i) = mu(this%vertex_indices(i))
         end do
 
         ! Calculate doublet parameters
