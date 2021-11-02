@@ -2,7 +2,8 @@
 module math_mod
 
     implicit none
-    real, parameter :: pi = 3.1415926535897932
+    real,parameter :: pi = 3.1415926535897932
+    real,parameter :: infinity = huge(0.)
     
 contains
 
@@ -14,11 +15,6 @@ function isinf(x) result(is)
   real,intent(in) :: x
 
   logical :: is
-
-  real :: big, infinity
-
-  ! Create infinite
-  infinity = huge(big)
 
   ! Check for infinity
   if (x >= infinity) then

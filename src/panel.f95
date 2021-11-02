@@ -292,12 +292,12 @@ contains
                 allocate(this%S_mu_inv(3,3))
 
                 ! Set values
-                this%S_mu_inv(:,1) = 1.
-                this%S_mu_inv(:,2) = this%vertices_local(:,1)
-                this%S_mu_inv(:,3) = this%vertices_local(:,2)
+                this%S_mu(:,1) = 1.
+                this%S_mu(:,2) = this%vertices_local(:,1)
+                this%S_mu(:,3) = this%vertices_local(:,2)
 
                 ! Invert
-                call matinv(3, this%S_mu_inv, this%S_mu)
+                call matinv(3, this%S_mu, this%S_mu_inv)
 
             else if (doublet_order .eq. 2) then
 
@@ -306,22 +306,22 @@ contains
                 allocate(this%S_mu_inv(6,6))
 
                 ! Set values
-                this%S_mu_inv(:,1) = 1.
+                this%S_mu(:,1) = 1.
 
-                this%S_mu_inv(1:3,2) = this%vertices_local(:,1)
-                this%S_mu_inv(1:3,3) = this%vertices_local(:,2)
-                this%S_mu_inv(1:3,4) = this%vertices_local(:,1)**2
-                this%S_mu_inv(1:3,5) = this%vertices_local(:,1)*this%vertices_local(:,2)
-                this%S_mu_inv(1:3,6) = this%vertices_local(:,2)**2
+                this%S_mu(1:3,2) = this%vertices_local(:,1)
+                this%S_mu(1:3,3) = this%vertices_local(:,2)
+                this%S_mu(1:3,4) = this%vertices_local(:,1)**2
+                this%S_mu(1:3,5) = this%vertices_local(:,1)*this%vertices_local(:,2)
+                this%S_mu(1:3,6) = this%vertices_local(:,2)**2
                 
-                this%S_mu_inv(4:6,2) = this%midpoints_local(:,1)
-                this%S_mu_inv(4:6,3) = this%midpoints_local(:,2)
-                this%S_mu_inv(4:6,4) = this%midpoints_local(:,1)**2
-                this%S_mu_inv(4:6,5) = this%midpoints_local(:,1)*this%midpoints_local(:,2)
-                this%S_mu_inv(4:6,6) = this%midpoints_local(:,2)**2
+                this%S_mu(4:6,2) = this%midpoints_local(:,1)
+                this%S_mu(4:6,3) = this%midpoints_local(:,2)
+                this%S_mu(4:6,4) = this%midpoints_local(:,1)**2
+                this%S_mu(4:6,5) = this%midpoints_local(:,1)*this%midpoints_local(:,2)
+                this%S_mu(4:6,6) = this%midpoints_local(:,2)**2
 
                 ! Invert
-                call matinv(6, this%S_mu_inv, this%S_mu)
+                call matinv(6, this%S_mu, this%S_mu_inv)
 
             end if
         end if
@@ -337,12 +337,12 @@ contains
                 allocate(this%S_sigma_inv(3,3))
 
                 ! Set values
-                this%S_sigma_inv(:,1) = 1.
-                this%S_sigma_inv(:,2) = this%vertices_local(:,1)
-                this%S_sigma_inv(:,3) = this%vertices_local(:,2)
+                this%S_sigma(:,1) = 1.
+                this%S_sigma(:,2) = this%vertices_local(:,1)
+                this%S_sigma(:,3) = this%vertices_local(:,2)
 
                 ! Invert
-                call matinv(3, this%S_sigma_inv, this%S_sigma)
+                call matinv(3, this%S_sigma, this%S_sigma_inv)
 
             else if (source_order .eq. 2) then
 
@@ -351,22 +351,22 @@ contains
                 allocate(this%S_sigma_inv(6,6))
 
                 ! Set values
-                this%S_sigma_inv(:,1) = 1.
+                this%S_sigma(:,1) = 1.
 
-                this%S_sigma_inv(1:3,2) = this%vertices_local(:,1)
-                this%S_sigma_inv(1:3,3) = this%vertices_local(:,2)
-                this%S_sigma_inv(1:3,4) = this%vertices_local(:,1)**2
-                this%S_sigma_inv(1:3,5) = this%vertices_local(:,1)*this%vertices_local(:,2)
-                this%S_sigma_inv(1:3,6) = this%vertices_local(:,2)**2
+                this%S_sigma(1:3,2) = this%vertices_local(:,1)
+                this%S_sigma(1:3,3) = this%vertices_local(:,2)
+                this%S_sigma(1:3,4) = this%vertices_local(:,1)**2
+                this%S_sigma(1:3,5) = this%vertices_local(:,1)*this%vertices_local(:,2)
+                this%S_sigma(1:3,6) = this%vertices_local(:,2)**2
                 
-                this%S_sigma_inv(4:6,2) = this%midpoints_local(:,1)
-                this%S_sigma_inv(4:6,3) = this%midpoints_local(:,2)
-                this%S_sigma_inv(4:6,4) = this%midpoints_local(:,1)**2
-                this%S_sigma_inv(4:6,5) = this%midpoints_local(:,1)*this%midpoints_local(:,2)
-                this%S_sigma_inv(4:6,6) = this%midpoints_local(:,2)**2
+                this%S_sigma(4:6,2) = this%midpoints_local(:,1)
+                this%S_sigma(4:6,3) = this%midpoints_local(:,2)
+                this%S_sigma(4:6,4) = this%midpoints_local(:,1)**2
+                this%S_sigma(4:6,5) = this%midpoints_local(:,1)*this%midpoints_local(:,2)
+                this%S_sigma(4:6,6) = this%midpoints_local(:,2)**2
 
                 ! Invert
-                call matinv(6, this%S_sigma_inv, this%S_sigma)
+                call matinv(6, this%S_sigma, this%S_sigma_inv)
 
             end if
         end if
@@ -1205,7 +1205,7 @@ contains
         integer :: i
 
         if (doublet_order /= 1) then
-            write(*,*) "Velocity jump calculation has only been implemented for linear distributions."
+            write(*,*) "Velocity jump calculation has only been implemented for linear doublet and constant source distributions."
             stop
         end if
 
