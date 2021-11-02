@@ -10,13 +10,7 @@
             "wake_model" : {
                 "wake_shedding_angle" : 90.0,
                 "trefftz_distance" : 40.0,
-                "N_panels" : 50
-            },
-            "shock_model" : {
-
-            },
-            "boundary_conditions" : {
-                "control_point_offset" : 1.0e-2
+                "N_panels" : 1
             }
         },
         "volume_mesh" : {
@@ -24,7 +18,8 @@
         }
     },
     "solver" : {
-
+        "type" : "indirect",
+        "control_point_offset" : 1.0e-4
     },
     "output" : {
         "body_file" : "dev/results/supersonic_wing_body_med_res.vtk",

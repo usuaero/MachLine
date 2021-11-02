@@ -5,21 +5,19 @@
         "gamma" : 1.4
     },
     "geometry" : {
-        "surface_mesh" : {
-            "file" : "dev/meshes/straight_wing.vtk",
-            "symmetry" : {
-                "xz" : true,
-                "xy" : false
-            },
-            "singularity_order" : {
-                "doublet" : 1,
-                "source" : 0
-            },
-            "wake_model" : {
-                "wake_shedding_angle" : 90.0,
-                "trefftz_distance" : 40.0,
-                "N_panels" : 30
-            }
+        "file" : "dev/meshes/straight_wing.vtk",
+        "symmetry" : {
+            "xz" : true,
+            "xy" : false
+        },
+        "singularity_order" : {
+            "doublet" : 1,
+            "source" : 0
+        },
+        "wake_model" : {
+            "wake_shedding_angle" : 179.0,
+            "trefftz_distance" : 40.0,
+            "N_panels" : 1
         }
     },
     "solver" : {

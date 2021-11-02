@@ -68,9 +68,6 @@ contains
         real,dimension(:),allocatable :: b
         integer :: stat
 
-        write(*,*)
-        write(*,'(a)') "     Running linear solver"
-
         if (this%type == 'indirect') then ! Morino formulation
 
             ! Allocate linear system

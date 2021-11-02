@@ -184,7 +184,6 @@ contains
 
         integer :: i, j, m, n, mm, temp, top_panel, bottom_panel
         integer :: N_wake_edges = 0
-        real,dimension(3) :: d
         integer,dimension(2) :: shared_verts
         type(list) :: wake_edge_starts, wake_edge_stops, top_panels, bottom_panels, wake_edge_verts
         logical :: abutting, already_found_shared, is_wake_edge
@@ -209,32 +208,41 @@ contains
                     do n=1,this%panels(j)%N
 
                         ! Get distance between vertices
-                        d = this%panels(i)%get_vertex_loc(m)-this%panels(j)%get_vertex_loc(n) ! More robust than checking vertex indices
-                        distance = norm(d)
+                        distance = dist(this%panels(i)%get_vertex_loc(m), this%panels(j)%get_vertex_loc(n)) ! More robust than checking vertex indices; mesh may not be ideal
 
                         ! Check distance
                         if (distance < 1e-10) then
 
+                            ! Previously found a shared vertex
+                            if (already_found_shared) then
+                                abutting = .true.
+                                shared_verts(2) = this%panels(i)%get_vertex_index(m)
+                                exit abutting_loop
+
                             ! First shared vertex
-                            if (.not. already_found_shared) then
+                            else
                                 already_found_shared = .true.
                                 shared_verts(1) = this%panels(i)%get_vertex_index(m)
                                 mm = m
 
-                            ! Previously found a shared vertex
-                            else
-                                abutting = .true.
-                                shared_verts(2) = this%panels(i)%get_vertex_index(m)
-                                exit abutting_loop
                             end if
-
                         end if
 
                     end do
                 end do abutting_loop
 
+                ! Perform checks on panels we know are abutting
                 if (abutting) then
 
+                    ! Store adjacent vertices
+                    if (.not. this%vertices(shared_verts(1))%adjacent_vertices%is_in(shared_verts(2))) then
+                        call this%vertices(shared_verts(1))%adjacent_vertices%append(shared_verts(2))
+                    end if
+                    if (.not. this%vertices(shared_verts(2))%adjacent_vertices%is_in(shared_verts(1))) then
+                        call this%vertices(shared_verts(2))%adjacent_vertices%append(shared_verts(1))
+                    end if
+
+                    ! Reinitialize check for wake edge
                     is_wake_edge = .false.
 
                     ! Check angle between panels
@@ -354,6 +362,11 @@ contains
             ! Store
             call this%wake_edges(i)%init(m, n, top_panel, bottom_panel)
 
+        end do
+
+        ! Calculate average edge lengths for each vertex
+        do i=1,this%N_verts
+            call this%vertices(i)%calc_average_edge_length(this%vertices)
         end do
 
         write(*,*) "Done. Found", N_wake_edges, "wake-shedding edges."
@@ -571,7 +584,7 @@ contains
             ! If it's not in a wake-shedding edge (i.e. has no clone), then placement simply follows the normal vector
             if (.not. this%vertices(i)%in_wake_edge) then
 
-                this%control_points(i,:) = this%vertices(i)%loc-offset*this%vertices(i)%normal
+                this%control_points(i,:) = this%vertices(i)%loc-offset*this%vertices(i)%normal*this%vertices(i)%l_avg
 
             ! Otherwise, we have to shift based on more information
             else
@@ -594,7 +607,7 @@ contains
 
                 ! Place control point
                 this%control_points(i,:) = this%vertices(i)%loc &
-                                           - offset * (this%vertices(i)%normal - offset_ratio * sum)
+                                           - offset * (this%vertices(i)%normal - offset_ratio * sum)*this%vertices(i)%l_avg
 
             end if
 

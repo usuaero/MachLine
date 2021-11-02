@@ -77,6 +77,19 @@ real function math_mag(n,vec)
 end function math_mag
 
 
+function dist(a, b) result(c)
+  ! Calculates the cartesian distance between 2 points
+
+    implicit none
+
+    real,dimension(3),intent(in) :: a, b
+    real :: c
+
+    c = sqrt(sum((a-b)**2))
+
+end function dist
+
+
 function cross(a, b) result(c)
 
     implicit none
