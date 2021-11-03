@@ -642,8 +642,9 @@ contains
         real,intent(in) :: dH
         real,dimension(:,:,:,:),allocatable :: F
 
-        real :: E1, E2, v_xi, v_eta
+        real :: E1, E2, v_xi, v_eta, dF
         real,dimension(3) :: d
+        real,dimension(this%N) :: min_dist_to_edge
         integer :: i, MXFK, NFK, k, m, n
 
         ! Determine which F integrals are needed
@@ -657,6 +658,20 @@ contains
         ! Allocate integral storage
         allocate(F(this%N,1:MXQ,1:MXQ,1:MXFK+NFK), source=0.)
 
+        ! Calculate minimum distance to perimeter of S
+        do i=1,this%N
+
+            ! Within edge, the minimum distance is the perpendicular distance
+            if (geom%l1(i) < 0. .and. geom%l2(i) >= 0.) then
+                min_dist_to_edge(i) = sqrt(geom%g2(i))
+        
+            ! Otherwise, it is the minimum of the distances to the corners
+            else
+                min_dist_to_edge(i) = min(sqrt(geom%l1(i)**2+geom%g2(i)), sqrt(geom%l2(i)**2+geom%g2(i)))
+            end if
+        end do
+        dF = minval(min_dist_to_edge)
+
         ! Loop through edges
         do i=1,this%N
 
@@ -668,7 +683,7 @@ contains
             F(i,1,1,1) = this%F_i_1_1_1(geom, i)
 
             ! Procedure 4: not close to perimeter
-            if (sqrt(geom%g2(i)) >= 0.01) then
+            if (sqrt(geom%g2(i)) >= 0.01*dF) then
                 
                 ! Calculate F(1,1,K) integrals
                 do k=3,MXFK,2
@@ -814,6 +829,9 @@ contains
 
         ! Procedures 2 and 3: close to panel plane
         else if (proc_H .eq. 2 .or. proc_H .eq. 3) then
+
+            ! Initialize
+            H(1,1,NHK+MXK) = 0.
 
             ! Calculate H(1,1,K) integrals
             do k=NHK+MXK,3,-2
@@ -966,7 +984,8 @@ contains
 
         real :: dH
         real,dimension(3) :: d
-        integer :: MXQ, MXK, NHK, proc_H
+        real,dimension(this%N) :: min_dist_to_edge
+        integer :: MXQ, MXK, NHK, proc_H, i
 
         ! Determine which H integrals are needed based on distribution and type of influence
         if (singularity_type .eq. "source") then
@@ -995,11 +1014,22 @@ contains
             end if
         end if
 
-        ! Check distance to panel perimeter (minimum perpendicular distance to edge)
-        dH = minval(sqrt(geom%g2))
+        ! Calculate minimum distance to perimeter of S (in plane)
+        do i=1,this%N
+
+            ! Within edge, the minimum distance is the perpendicular distance
+            if (geom%l1(i) < 0. .and. geom%l2(i) >= 0.) then
+                min_dist_to_edge(i) = geom%a(i)
+        
+            ! Otherwise, it is the minimum of the distances to the corners
+            else
+                min_dist_to_edge(i) = min(sqrt(geom%l1(i)**2+geom%a(i)**2), sqrt(geom%l2(i)**2+geom%a(i)**2))
+            end if
+        end do
+        dH = minval(min_dist_to_edge)
 
         ! Determine which procedure needs to be used
-        if (abs(geom%h) >= 0.01) then
+        if (abs(geom%h) >= 0.01*dH) then
             proc_H = 1 ! Not near plane of panel
             NHK = 0
 
