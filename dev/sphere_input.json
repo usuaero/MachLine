@@ -22,7 +22,7 @@
     },
     "solver" : {
         "formulation" : "morino",
-        "control_point_offset" : 1.0e-4
+        "control_point_offset" : 1.0e-5
     },
     "output" : {
         "body_file" : "dev/results/sphere.vtk",
