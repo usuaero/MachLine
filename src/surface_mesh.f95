@@ -364,11 +364,6 @@ contains
 
         end do
 
-        ! Calculate average edge lengths for each vertex
-        do i=1,this%N_verts
-            call this%vertices(i)%calc_average_edge_length(this%vertices)
-        end do
-
         write(*,*) "Done. Found", N_wake_edges, "wake-shedding edges."
 
     end subroutine surface_mesh_locate_wake_shedding_edges
@@ -382,7 +377,7 @@ contains
 
         class(surface_mesh),intent(inout),target :: this
 
-        integer :: i, j, k, m, N_clones, ind, new_ind, N_wake_verts, bottom_panel_ind, abutting_panel_ind
+        integer :: i, j, k, m, N_clones, ind, new_ind, N_wake_verts, bottom_panel_ind, abutting_panel_ind, adj_vert_ind
         type(vertex),dimension(:),allocatable :: cloned_vertices, temp_vertices
         logical,dimension(:),allocatable :: need_cloned
 
@@ -460,6 +455,17 @@ contains
 
                 end do
 
+                ! Copy over adjacent vertices
+                do k=1,this%vertices(ind)%adjacent_vertices%len()
+
+                    ! Get adjacent panel index from original vertex
+                    call this%vertices(ind)%adjacent_vertices%get(k, adj_vert_ind)
+
+                    ! Copy to new vertex
+                    call this%vertices(new_ind)%adjacent_vertices%append(adj_vert_ind)
+
+                end do
+
                 ! Remove bottom panels from top vertex and give them to the bottom vertex
                 do k=1,size(this%wake_edges)
 
@@ -517,6 +523,11 @@ contains
 
             end if
 
+        end do
+
+        ! Calculate average edge lengths for each vertex
+        do i=1,this%N_verts
+            call this%vertices(i)%calc_average_edge_length(this%vertices)
         end do
 
         write(*,*) "Done. Cloned", N_clones, "vertices. Mesh now has", this%N_verts, "vertices."

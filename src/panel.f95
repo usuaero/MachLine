@@ -631,7 +631,7 @@ contains
     end function panel_F_i_1_1_1
 
 
-    function panel_calc_F_integrals(this, geom, proc_H, MXK, MXQ, NHK, dH) result (F)
+    function panel_calc_F_integrals(this, geom, proc_H, MXK, MXQ, NHK) result (F)
         ! Calculates the F integrals necessary
 
         implicit none
@@ -639,7 +639,6 @@ contains
         class(panel),intent(in) :: this
         type(eval_point_geom),intent(in) :: geom
         integer,intent(in) :: proc_H, MXK, MXQ, NHK
-        real,intent(in) :: dH
         real,dimension(:,:,:,:),allocatable :: F
 
         real :: E1, E2, v_xi, v_eta, dF
@@ -780,6 +779,10 @@ contains
                 end do
             end do
         end do
+        if (any(isnan(F))) then
+            write(*,*)
+            write(*,*) "NaN found in F"
+        end if
 
     end function panel_calc_F_integrals
 
@@ -1019,7 +1022,7 @@ contains
 
             ! Within edge, the minimum distance is the perpendicular distance
             if (geom%l1(i) < 0. .and. geom%l2(i) >= 0.) then
-                min_dist_to_edge(i) = geom%a(i)
+                min_dist_to_edge(i) = abs(geom%a(i))
         
             ! Otherwise, it is the minimum of the distances to the corners
             else
@@ -1029,19 +1032,15 @@ contains
         dH = minval(min_dist_to_edge)
 
         ! Determine which procedure needs to be used
-        if (abs(geom%h) >= 0.01*dH) then
+        if (abs(geom%h) >= 0.01*dH .or. abs(geom%h) > 1e-12) then
             proc_H = 1 ! Not near plane of panel
             NHK = 0
 
         else
 
             ! Check if the projected point falls inside the panel
-            d(1) = inner2(geom%r_in_plane, this%n_hat_local(1,:))
-            d(2) = inner2(geom%r_in_plane, this%n_hat_local(2,:))
-            d(3) = inner2(geom%r_in_plane, this%n_hat_local(3,:))
-
             ! Outside panel (Procedure 2)
-            if (all(d > 0)) then
+            if (all(geom%a < 0.)) then
                 proc_H = 2
 
             ! Inside panel (Procedure 3)
@@ -1053,10 +1052,22 @@ contains
         end if
 
         ! Calculate F integrals
-        F = this%calc_F_integrals(geom, proc_H, MXK, MXQ, NHK, dH)
+        F = this%calc_F_integrals(geom, proc_H, MXK, MXQ, NHK)
 
         ! Calculate H integrals
         H = this%calc_H_integrals(geom, proc_H, MXK, MXQ, NHK, F)
+        if (any(isnan(H))) then
+            write(*,*)
+            write(*,*) "NaN found in H using Procedure", proc_H
+            write(*,*) "dH was calculated to be", dH
+            write(*,*) "Min distances", min_dist_to_edge
+            if (abs(dH)<1e-10) then
+                write(*,*) "Evaluation point:", geom%r
+                write(*,*) "Evaluation point (in plane):", geom%r_in_plane
+                write(*,*) "Height", geom%h
+                write(*,*) "Vertices (in plane):",this%vertices_local
+            end if
+        end if
 
     end subroutine panel_calc_integrals
 
