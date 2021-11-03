@@ -671,6 +671,12 @@ contains
         end do
         dF = minval(min_dist_to_edge)
 
+        ! Check for point on perimeter
+        if (abs(dF) < 1e-12) then
+            write(*,*) "Detected point on perimeter of panel. Quitting..."
+            stop
+        end if
+
         ! Loop through edges
         do i=1,this%N
 
@@ -1032,7 +1038,7 @@ contains
         dH = minval(min_dist_to_edge)
 
         ! Determine which procedure needs to be used
-        if (abs(geom%h) >= 0.01*dH .or. abs(geom%h) > 1e-12) then
+        if (abs(geom%h) > 1e-12) then ! The nonzero h check seems to be more reliable than that proposed by Johnson
             proc_H = 1 ! Not near plane of panel
             NHK = 0
 
