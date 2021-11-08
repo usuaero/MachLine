@@ -16,7 +16,7 @@ module surface_mesh_mod
 
     type surface_mesh
 
-        integer :: N_verts, N_panels
+        integer :: N_verts, N_panels, N_cp
         type(vertex),allocatable,dimension(:) :: vertices
         type(panel),allocatable,dimension(:) :: panels
         type(wake_mesh) :: wake
@@ -583,47 +583,53 @@ contains
         real,dimension(3) :: sum
         real :: C_theta_2, offset_ratio
 
-        ! Allocate memory
-        allocate(this%control_points(this%N_verts,3))
+        if (doublet_order == 1) then
 
-        ! Calculate offset ratio such that the control point will remain within the body based on the minimum detected wake-shedding angle
-        offset_ratio = 0.5*sqrt(0.5*(1.0+this%C_min_wake_shedding_angle))
+            ! Specify number of control points
+            this%N_cp = this%N_verts
 
-        ! Loop through vertices
-        do i=1,this%N_verts
+            ! Allocate memory
+            allocate(this%control_points(this%N_verts,3))
 
-            ! If the vertex is in a wake edge, it needs to be shifted off the normal slightly so that it is unique from its counterpart
-            if (this%vertices(i)%in_wake_edge) then
+            ! Calculate offset ratio such that the control point will remain within the body based on the minimum detected wake-shedding angle
+            offset_ratio = 0.5*sqrt(0.5*(1.0+this%C_min_wake_shedding_angle))
 
-                ! Loop through panels associated with this clone to get their average normal vector
-                N = this%vertices(i)%panels_not_across_wake_edge%len()
-                sum = 0
-                do j=1,N
-                    
-                    ! Get panel index
-                    call this%vertices(i)%panels_not_across_wake_edge%get(j, ind)
+            ! Loop through vertices
+            do i=1,this%N_verts
 
-                    ! Add normal vector
-                    sum = sum + this%panels(ind)%normal
+                ! If the vertex is in a wake edge, it needs to be shifted off the normal slightly so that it is unique from its counterpart
+                if (this%vertices(i)%in_wake_edge) then
 
-                end do
+                    ! Loop through panels associated with this clone to get their average normal vector
+                    N = this%vertices(i)%panels_not_across_wake_edge%len()
+                    sum = 0
+                    do j=1,N
 
-                ! Normalize
-                sum = sum/norm(sum)
+                        ! Get panel index
+                        call this%vertices(i)%panels_not_across_wake_edge%get(j, ind)
 
-                ! Place control point
-                this%control_points(i,:) = this%vertices(i)%loc &
-                                           - offset * (this%vertices(i)%normal - offset_ratio * sum)*this%vertices(i)%l_avg
+                        ! Add normal vector
+                        sum = sum + this%panels(ind)%normal
 
-            ! If it's not in a wake-shedding edge (i.e. has no clone), then placement simply follows the normal vector
-            else
+                    end do
 
-                this%control_points(i,:) = this%vertices(i)%loc-offset*this%vertices(i)%normal*this%vertices(i)%l_avg
+                    ! Normalize
+                    sum = sum/norm(sum)
 
-            end if
+                    ! Place control point
+                    this%control_points(i,:) = this%vertices(i)%loc &
+                                               - offset * (this%vertices(i)%normal - offset_ratio * sum)*this%vertices(i)%l_avg
 
-        end do
+                ! If it's not in a wake-shedding edge (i.e. has no clone), then placement simply follows the normal vector
+                else
 
+                    this%control_points(i,:) = this%vertices(i)%loc-offset*this%vertices(i)%normal*this%vertices(i)%l_avg
+
+                end if
+
+            end do
+
+        end if
 
     end subroutine surface_mesh_place_interior_control_points
 

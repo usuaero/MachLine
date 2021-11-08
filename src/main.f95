@@ -20,6 +20,9 @@ program main
     type(flow) :: freestream_flow
     type(panel_solver) :: linear_solver
 
+    ! Initialize developer things
+    eval_count = 0
+
     ! Welcome message
     write(*,*) "           /"
     write(*,*) "          /"

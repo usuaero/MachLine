@@ -9,14 +9,15 @@ module panel_mod
 
     integer :: doublet_order
     integer :: source_order
+    integer :: eval_count ! Developer counter for optimization purposes
 
     type eval_point_geom
         ! Container type for the geometric parameters necessary for calculating a panel's influence on a given field point
 
-        real,dimension(3) :: r, r_local
+        real,dimension(3) :: r
         real,dimension(2) :: r_in_plane
         real :: h
-        real,dimension(3) :: a, g2, l1, l2, s1, s2, c1, c2
+        real,dimension(3) :: a, g2, l1, l2, s1, s2, c1, c2, g
 
     end type eval_point_geom
 
@@ -58,7 +59,6 @@ module panel_mod
             procedure :: get_vertex_index => panel_get_vertex_index
             procedure :: touches_vertex => panel_touches_vertex
             procedure :: point_to_vertex_clone => panel_point_to_vertex_clone
-            procedure :: R_i => panel_R_i
             procedure :: get_field_point_geometry => panel_get_field_point_geometry
             procedure :: E_i_M_N_K => panel_E_i_M_N_K
             procedure :: F_i_1_1_1 => panel_F_i_1_1_1
@@ -514,15 +514,16 @@ contains
         type(eval_point_geom) :: geom
 
         real,dimension(2) :: d
+        real,dimension(3) :: r_local
         integer :: i
 
         ! Store point
         geom%r = eval_point
 
         ! Transform to panel coordinates
-        geom%r_local = matmul(this%A_t, geom%r-this%centroid)
-        geom%r_in_plane = geom%r_local(1:2)
-        geom%h = geom%r_local(3)
+        r_local = matmul(this%A_t, geom%r-this%centroid)
+        geom%r_in_plane = r_local(1:2)
+        geom%h = r_local(3)
 
         ! Calculate intermediate quantities
         do i=1,this%N
@@ -535,35 +536,27 @@ contains
             geom%l1(i) = inner2(d, this%t_hat_local(i,:))
             geom%l2(i) = geom%l1(i)+this%l(i)
 
+            ! Distance from evaluation point to start vertex
+            ! This is not the definition given by Johnson, but his is equivalent.
+            ! I believe this method suffers from less numerical error.
+            geom%s1(i) = norm(this%get_vertex_loc(i)-geom%r)
+
         end do
+
+        ! Distance from evaluation point to end vertices
+        geom%s2 = cshift(geom%s1, 1)
 
         ! Calculate perpendicular distance to edges
         geom%g2 = geom%a**2+geom%h**2
+        geom%g = sqrt(geom%g2)
 
         ! Other intermediate quantities
-        geom%s1 = sqrt(geom%l1**2+geom%g2) ! Distance to first vertex (at this point, this method is more efficient than taking the norm)
-        geom%s2 = sqrt(geom%l2**2+geom%g2) ! Distance to second vertex
+        !geom%s1 = sqrt(geom%l1**2+geom%g2) ! Distance to first vertex (I'm leaving these methods here, as they are Johnson's, but they seem to suffer from buildup of numerical error)
+        !geom%s2 = sqrt(geom%l2**2+geom%g2) ! Distance to second vertex
         geom%c1 = geom%g2+abs(geom%h)*geom%s1
         geom%c2 = geom%g2+abs(geom%h)*geom%s2
 
     end function panel_get_field_point_geometry
-
-
-    function panel_R_i(this, geom, i) result(R)
-        ! Calculates the distance from the given point to the i-th vertex
-
-        implicit none
-
-        class(panel),intent(in) :: this
-        type(eval_point_geom),intent(in) :: geom
-        integer,intent(in) :: i
-        real :: R
-
-        R = sqrt((this%vertices_local(i,1)-geom%r_local(1))**2 &
-                 + (this%vertices_local(i,2)-geom%r_local(2))**2 &
-                 + geom%h**2)
-
-    end function panel_R_i
 
 
     function panel_E_i_M_N_K(this, geom, i, M, N, K) result(E)
@@ -579,17 +572,17 @@ contains
 
         ! Evaluate at start vertex
         E_1 = ((this%vertices_local(i,1)-geom%r_local(1))**(M-1)*(this%vertices_local(i,2)-geom%r_local(2))**(N-1)) &
-              /this%R_i(geom, i)**K
+              /geom%s1(i)**K
 
         ! Evaluate at end vertex
         if (i .eq. this%N) then
             E_2 = ((this%vertices_local(1,1)-geom%r_local(1))**(M-1) &
                    *(this%vertices_local(1,2)-geom%r_local(2))**(N-1)) &
-                   /this%R_i(geom, 1)**K
+                   /geom%s2(i)**K
         else
             E_2 = ((this%vertices_local(i,1)-geom%r_local(1))**(M-1) &
                    *(this%vertices_local(i,2)-geom%r_local(2))**(N-1)) &
-                   /this%R_i(geom, i)**K
+                   /geom%s2(i)**K
         end if
 
         ! Calculate difference
@@ -608,24 +601,18 @@ contains
         integer,intent(in) :: i
         real :: F
 
-        real :: x1, x2
-
-        ! Calculate intermediate quantities
-        x1 = sqrt(geom%l1(i)**2+geom%g2(i))
-        x2 = sqrt(geom%l2(i)**2+geom%g2(i))
-
         ! Calculate F(1,1,1)
         ! Below edge
         if (geom%l1(i) >= 0. .and. geom%l2(i) >= 0.) then
-            F = log((x2+geom%l2(i))/(x1+geom%l1(i)))
+            F = log((geom%s2(i)+geom%l2(i))/(geom%s1(i)+geom%l1(i)))
         
         ! Above edge
         else if (geom%l1(i) < 0. .and. geom%l2(i) < 0.) then
-            F = log((x1-geom%l1(i))/(x2-geom%l2(i)))
+            F = log((geom%s1(i)-geom%l1(i))/(geom%s2(i)-geom%l2(i)))
 
         ! Within edge
         else
-            F = log(((x1-geom%l1(i))*(x2+geom%l2(i)))/geom%g2(i))
+            F = log(((geom%s1(i)-geom%l1(i))*(geom%s2(i)+geom%l2(i)))/geom%g2(i))
         end if
         
     end function panel_F_i_1_1_1
@@ -662,11 +649,11 @@ contains
 
             ! Within edge, the minimum distance is the perpendicular distance
             if (geom%l1(i) < 0. .and. geom%l2(i) >= 0.) then
-                min_dist_to_edge(i) = sqrt(geom%g2(i))
+                min_dist_to_edge(i) = geom%g(i)
         
             ! Otherwise, it is the minimum of the distances to the corners
             else
-                min_dist_to_edge(i) = min(sqrt(geom%l1(i)**2+geom%g2(i)), sqrt(geom%l2(i)**2+geom%g2(i)))
+                min_dist_to_edge(i) = min(geom%s1(i), geom%s2(i))
             end if
         end do
         dF = minval(min_dist_to_edge)
@@ -688,7 +675,7 @@ contains
             F(i,1,1,1) = this%F_i_1_1_1(geom, i)
 
             ! Procedure 4: not close to perimeter
-            if (sqrt(geom%g2(i)) >= 0.01*dF) then
+            if (geom%g(i) >= 0.01*dF) then
                 
                 ! Calculate F(1,1,K) integrals
                 do k=3,MXFK,2
@@ -816,7 +803,7 @@ contains
         allocate(H(1:MXQ,1:MXQ,1:MXK+NHK), source=0.)
 
         ! Procedure 1: not close to panel plane
-        if (proc_H .eq. 1) then
+        if (proc_H == 1) then
 
             ! Calculate H(1,1,1)
             do i=1,this%N
@@ -837,7 +824,7 @@ contains
             end do
 
         ! Procedures 2 and 3: close to panel plane
-        else if (proc_H .eq. 2 .or. proc_H .eq. 3) then
+        else if (proc_H == 2 .or. proc_H == 3) then
 
             ! Initialize
             H(1,1,NHK+MXK) = 0.
@@ -1204,8 +1191,8 @@ contains
 
             ! Compute induced potential
             phi(1) = geom%h*H(1,1,3)
-            phi(2) = geom%r_local(1)*geom%h*H(1,1,3)+geom%h*H(2,1,3)
-            phi(3) = geom%r_local(2)*geom%h*H(1,1,3)+geom%h*H(1,2,3)
+            phi(2) = geom%r_in_plane(1)*geom%h*H(1,1,3)+geom%h*H(2,1,3)
+            phi(3) = geom%r_in_plane(2)*geom%h*H(1,1,3)+geom%h*H(1,2,3)
             if (any(isnan(phi))) then
                 write(*,*)
                 write(*,*) "Found NaN in doublet influence calculation."
