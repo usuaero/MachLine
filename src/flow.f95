@@ -8,11 +8,11 @@ module flow_mod
     
     type flow
 
-        real,dimension(:),allocatable :: V_inf ! Freestream velocity
+        real,dimension(:),allocatable :: v_inf ! Freestream velocity
         real :: M_inf ! Freestream Mach number
         real :: gamma ! Ratio of specific heats
-        real :: V_inf_mag
-        real,dimension(3) :: u_inf
+        real :: U ! Freestream velocity magnitude
+        real,dimension(3) :: c0 ! Compressibility direciton (freestream direction)
 
         contains
 
@@ -33,13 +33,13 @@ contains
         logical :: found
 
         ! Get flow params
-        call json_get(settings, 'V_inf', this%V_inf)
+        call json_get(settings, 'V_inf', this%v_inf)
         call json_xtnsn_get(settings, 'M_inf', this%M_inf, 0.0)
         call json_xtnsn_get(settings, 'gamma', this%gamma, 1.4)
 
         ! Derived quantities
-        this%V_inf_mag = norm(this%V_inf)
-        this%u_inf = this%V_inf/this%V_inf_mag
+        this%U = norm(this%v_inf)
+        this%c0 = this%v_inf/this%U
 
     end subroutine flow_init
 

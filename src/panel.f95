@@ -571,17 +571,18 @@ contains
         real :: E, E_1, E_2
 
         ! Evaluate at start vertex
-        E_1 = ((this%vertices_local(i,1)-geom%r_local(1))**(M-1)*(this%vertices_local(i,2)-geom%r_local(2))**(N-1)) &
+        E_1 = ((this%vertices_local(i,1)-geom%r_in_plane(1))**(M-1) &
+              *(this%vertices_local(i,2)-geom%r_in_plane(2))**(N-1)) &
               /geom%s1(i)**K
 
         ! Evaluate at end vertex
         if (i .eq. this%N) then
-            E_2 = ((this%vertices_local(1,1)-geom%r_local(1))**(M-1) &
-                   *(this%vertices_local(1,2)-geom%r_local(2))**(N-1)) &
+            E_2 = ((this%vertices_local(1,1)-geom%r_in_plane(1))**(M-1) &
+                   *(this%vertices_local(1,2)-geom%r_in_plane(2))**(N-1)) &
                    /geom%s2(i)**K
         else
-            E_2 = ((this%vertices_local(i,1)-geom%r_local(1))**(M-1) &
-                   *(this%vertices_local(i,2)-geom%r_local(2))**(N-1)) &
+            E_2 = ((this%vertices_local(i,1)-geom%r_in_plane(1))**(M-1) &
+                   *(this%vertices_local(i,2)-geom%r_in_plane(2))**(N-1)) &
                    /geom%s2(i)**K
         end if
 

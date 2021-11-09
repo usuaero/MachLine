@@ -115,7 +115,7 @@ contains
 
             ! Loop through panels
             do i=1,body_mesh%N_panels
-                body_mesh%sigma(i) = -inner(body_mesh%panels(i)%normal, freestream_flow%u_inf)
+                body_mesh%sigma(i) = -inner(body_mesh%panels(i)%normal, freestream_flow%c0)
             end do
 
         end if
@@ -209,7 +209,7 @@ contains
         allocate(body_mesh%V(body_mesh%N_panels,3), stat=stat)
         call check_allocation(stat)
         do i=1,body_mesh%N_panels
-            body_mesh%V(i,:) = freestream_flow%V_inf_mag*(freestream_flow%u_inf &
+            body_mesh%V(i,:) = freestream_flow%U*(freestream_flow%c0 &
                                + body_mesh%panels(i)%get_velocity_jump(body_mesh%mu, body_mesh%sigma))
         end do
 
@@ -217,7 +217,7 @@ contains
         allocate(body_mesh%C_p(body_mesh%N_panels), stat=stat)
         call check_allocation(stat)
         do i=1,body_mesh%N_panels
-            body_mesh%C_p(i) = 1.0-(norm(body_mesh%V(i,:))/freestream_flow%V_inf_mag)**2
+            body_mesh%C_p(i) = 1.0-(norm(body_mesh%V(i,:))/freestream_flow%U)**2
         end do
 
         write(*,*) "Done."
