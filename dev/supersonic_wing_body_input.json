@@ -6,10 +6,6 @@
     },
     "geometry" : {
         "file" : "dev/meshes/supersonic_wing_body_med_res.vtk",
-        "symmetry" : {
-            "xz" : true,
-            "xy" : false
-        },
         "singularity_order" : {
             "doublet" : 1,
             "source" : 0

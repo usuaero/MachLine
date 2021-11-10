@@ -6,10 +6,6 @@
     },
     "geometry" : {
         "file" : "dev/meshes/straight_wing.vtk",
-        "symmetry" : {
-            "xz" : true,
-            "xy" : false
-        },
         "singularity_order" : {
             "doublet" : 1,
             "source" : 0

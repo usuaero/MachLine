@@ -13,6 +13,7 @@ module flow_mod
         real :: gamma ! Ratio of specific heats
         real :: U ! Freestream velocity magnitude
         real,dimension(3) :: c0 ! Compressibility direciton (freestream direction)
+        logical :: xy_sym, xz_sym, yz_sym ! Whether the flow condition is symmetric across any of these planes
 
         contains
 
@@ -40,6 +41,11 @@ contains
         ! Derived quantities
         this%U = norm(this%v_inf)
         this%c0 = this%v_inf/this%U
+
+        ! Check symmetry
+        this%xy_sym = v_inf(3) == 0.
+        this%xz_sym = v_inf(2) == 0.
+        this%yz_sym = v_inf(1) == 0.
 
     end subroutine flow_init
 

@@ -42,7 +42,6 @@ module panel_mod
         logical :: in_wake ! Whether this panel belongs to a wake mesh
         type(list) :: opposing_panels ! Indices of panels opposite this one on the wake-shedding edge
         type(list) :: abutting_panels ! Indices of panels abutting this one not across wake-shedding edge
-        logical :: xy_sym, xz_sym, yz_sym ! Whether this panel is reflected about any planes
 
         contains
 

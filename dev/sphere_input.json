@@ -6,10 +6,6 @@
     },
     "geometry" : {
         "file" : "dev/meshes/sphere.vtk",
-        "symmetry" : {
-            "xz" : true,
-            "xy" : true
-        },
         "singularity_order" : {
             "doublet" : 1,
             "source" : 0

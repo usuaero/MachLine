@@ -26,10 +26,11 @@ module surface_mesh_mod
         real :: wake_shedding_angle, C_wake_shedding_angle, trefftz_distance, C_min_wake_shedding_angle
         integer :: N_wake_panels_streamwise
         real,dimension(:,:),allocatable :: control_points
-        real,dimension(:),allocatable :: phi_cp, phi_cp_sigma, phi_cp_mu, C_p
-        real,dimension(:,:),allocatable :: V
+        real,dimension(:),allocatable :: phi_cp, phi_cp_sigma, phi_cp_mu ! Induced potentials at control points
+        real,dimension(:),allocatable :: C_p ! Surface pressure coefficients
+        real,dimension(:,:),allocatable :: V ! Surface velocities
         real :: control_point_offset
-        logical :: xy_sym, xz_sym, yz_sym ! Whether the mesh is to be mirrored about any planes
+        logical :: xy_mir, xz_mir, yz_mir ! Whether the mesh is to be mirrored about any planes
         real,dimension(:),allocatable :: mu, sigma ! Singularity strengths
 
         contains
@@ -55,7 +56,7 @@ contains
         class(surface_mesh),intent(inout) :: this
         type(json_value),pointer,intent(inout) :: settings
         character(len=:),allocatable :: extension
-        integer :: loc
+        integer :: loc, i
 
         ! Set singularity orders
         call json_xtnsn_get(settings, 'singularity_order.doublet', doublet_order, 1)
@@ -64,7 +65,7 @@ contains
         write(*,*) "    User has selected:", doublet_order, "-order doublet panels and", source_order, "-order source panels."
 
         ! Check
-        if (.not. (doublet_order .eq. 1 .and. source_order .eq. 0)) then
+        if (doublet_order /= 1 .or. source_order /= 0) then
             write(*,*) "    !!! Such distributions are not currently available."
             write(*,*) "    !!! Defaulting a linear doublet distribution and a constant source distribution."
             doublet_order = 1
@@ -82,7 +83,7 @@ contains
         extension = this%mesh_file(loc:len(this%mesh_file))
 
         ! Load vtk
-        if (extension .eq. '.vtk') then
+        if (extension == '.vtk') then
             call load_surface_vtk(this%mesh_file, this%N_verts, this%N_panels, this%vertices, this%panels)
         end if
 
@@ -94,9 +95,9 @@ contains
         !call this%load_adt()
 
         ! Get symmetry settings
-        call json_xtnsn_get(settings, 'symmetry.xy', this%xy_sym, .false.)
-        call json_xtnsn_get(settings, 'symmetry.xz', this%xz_sym, .false.)
-        call json_xtnsn_get(settings, 'symmetry.yz', this%yz_sym, .false.)
+        call json_xtnsn_get(settings, 'mirror_about.xy', this%xy_mir, .false.)
+        call json_xtnsn_get(settings, 'mirror_about.xz', this%xz_mir, .false.)
+        call json_xtnsn_get(settings, 'mirror_about.yz', this%yz_mir, .false.)
 
         ! Store settings for wake models
         call json_xtnsn_get(settings, 'wake_model.wake_shedding_angle', this%wake_shedding_angle, 90.0) ! Maximum allowable angle between panel normals without having separation
@@ -105,48 +106,6 @@ contains
         this%C_wake_shedding_angle = cos(this%wake_shedding_angle*pi/180.0)
 
     end subroutine surface_mesh_init
-
-
-    !subroutine surface_mesh_load_adt(this)
-
-    !    implicit none
-
-    !    class(surface_mesh),intent(inout) :: this
-    !    real,dimension(3) :: p_min, p_max
-    !    integer :: i
-
-    !    write(*,*)
-    !    write(*,'(a)',advance='no') "     Loading vertices into ADT..."
-
-    !    ! Determine bounds of alternating digital tree
-    !    p_min = this%vertices(1)%loc
-    !    p_max = this%vertices(1)%loc
-    !    do i=2,this%N_verts
-
-    !        ! Check mins
-    !        p_min(1) = min(this%vertices(i)%loc(1), p_min(1))
-    !        p_min(2) = min(this%vertices(i)%loc(2), p_min(2))
-    !        p_min(3) = min(this%vertices(i)%loc(3), p_min(3))
-
-    !        ! Check maxs
-    !        p_max(1) = max(this%vertices(i)%loc(1), p_max(1))
-    !        p_max(2) = max(this%vertices(i)%loc(2), p_max(2))
-    !        p_max(3) = max(this%vertices(i)%loc(3), p_max(3))
-
-    !    end do
-    !    
-    !    ! Store
-    !    this%vertex_tree%p_min = p_min
-    !    this%vertex_tree%p_max = p_max
-
-    !    ! Load vertices into alternating digital tree
-    !    do i=1,this%N_verts
-    !        call this%vertex_tree%add(this%vertices(i))
-    !    end do
-    !    write(*,*) "Done."
-
-
-    !end subroutine surface_mesh_load_adt
 
 
     subroutine surface_mesh_init_with_flow(this, freestream_flow)

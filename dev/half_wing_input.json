@@ -5,7 +5,10 @@
         "gamma" : 1.4
     },
     "geometry" : {
-        "file" : "dev/meshes/straight_wing_hi_res.vtk",
+        "file" : "dev/meshes/half_wing.vtk",
+        "mirror_about" : {
+            "xz" : true
+        },
         "singularity_order" : {
             "doublet" : 1,
             "source" : 0
@@ -21,8 +24,8 @@
         "control_point_offset" : 1.0e-5
     },
     "output" : {
-        "body_file" : "dev/results/straight_wing_hi_res.vtk",
-        "wake_file" : "dev/results/straight_wing_wake_hi_res.vtk",
-        "control_point_file" : "dev/results/straight_wing_control_points_hi_res.vtk"
+        "body_file" : "dev/results/half_wing.vtk",
+        "wake_file" : "dev/results/half_wing_wake.vtk",
+        "control_point_file" : "dev/results/half_wing_control_points.vtk"
     }
 }
