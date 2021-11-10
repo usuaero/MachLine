@@ -104,11 +104,16 @@ contains
         real,dimension(:,:),allocatable :: A, A_copy
         real,dimension(:),allocatable :: b
         integer :: stat, N_sigma, N_mu
-        real,dimension(3) :: n_mirrored
+        real,dimension(3) :: n_mirrored, cp_mirrored
         logical :: mirrored_and_asym
 
         ! Check mirroring and flow symmetry condition
-        mirrored_and_asym = body_mesh%mirrored .and. .not. freestream_flow%symmetric_plane(body_mesh%mirror_plane)
+        mirrored_and_asym = .false.
+        if (body_mesh%mirrored) then
+            if (.not. freestream_flow%symmetric_plane(body_mesh%mirror_plane)) then
+                mirrored_and_asym = .true.
+            end if
+        end if
 
         ! Set source strengths
         write(*,*)
@@ -134,8 +139,7 @@ contains
                 if (mirrored_and_asym) then
 
                     ! Get mirrored normal vector
-                    n_mirrored = body_mesh%panels(i)%normal
-                    n_mirrored(body_mesh%mirror_plane) = -n_mirrored(body_mesh%mirror_plane)
+                    n_mirrored = mirror_about_plane(body_mesh%panels(i)%normal, body_mesh%mirror_plane)
 
                     ! Calculate source strength
                     body_mesh%sigma(i+body_mesh%N_panels) = -inner(body_mesh%panels(i)%normal, freestream_flow%c0)
@@ -146,20 +150,44 @@ contains
         end if
         write(*,*) "Done."
 
-        ! Calculate source influences
+        ! Allocate space for inner potential calculations
+        allocate(body_mesh%phi_cp_sigma(body_mesh%N_cp), source=0., stat=stat)
+        call check_allocation(stat)
+
         write(*,*)
         write(*,'(a)',advance='no') "     Calculating source influences..."
-        allocate(body_mesh%phi_cp_sigma(body_mesh%N_verts), source=0., stat=stat)
-        call check_allocation(stat)
-        do i=1,body_mesh%N_verts
+
+        ! Calculate source influences
+        do i=1,body_mesh%N_cp
             do j=1,body_mesh%N_panels
 
-                ! Get source influence
+                ! Get source influence from existing panels
                 influence = body_mesh%panels(j)%get_source_potential(body_mesh%control_points(i,:), vertex_indices)
 
                 ! Add to RHS
                 if (source_order == 0) then
                     body_mesh%phi_cp_sigma(i) = body_mesh%phi_cp_sigma(i) + influence(1)*body_mesh%sigma(j)
+                end if
+
+                ! Get source influence from mirrored panels
+                if (body_mesh%mirrored) then
+
+                    ! Get mirrored point (recall the Green's function is reciprocal)
+                    cp_mirrored = mirror_about_plane(body_mesh%control_points(i,:), body_mesh%mirror_plane)
+
+                    ! Calculate influence
+                    influence = body_mesh%panels(j)%get_source_potential(cp_mirrored, vertex_indices)
+
+                    ! Add to RHS
+                    if (source_order == 0) then
+                        if (mirrored_and_asym) then
+                            body_mesh%phi_cp_sigma(i) = body_mesh%phi_cp_sigma(i) &
+                                                        + influence(1)*body_mesh%sigma(j+body_mesh%N_panels)
+                        else
+                            body_mesh%phi_cp_sigma(i) = body_mesh%phi_cp_sigma(i) + influence(1)*body_mesh%sigma(j)
+                        end if
+                    end if
+
                 end if
 
             end do

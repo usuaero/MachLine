@@ -16,7 +16,7 @@ module surface_mesh_mod
 
     type surface_mesh
 
-        integer :: N_verts, N_panels, N_cp
+        integer :: N_verts, N_panels, N_cp, N_unique_mirrored_verts
         type(vertex),allocatable,dimension(:) :: vertices
         type(panel),allocatable,dimension(:) :: panels
         type(wake_mesh) :: wake
@@ -410,14 +410,22 @@ contains
 
         end do
 
-        ! Check for vertices not belonging to wake edges on the mirror plane
+        ! Go through all vertices and add up the number of unique mirrored vertices
+        this%N_unique_mirrored_verts = 0
         do i=1,this%N_verts
 
+            ! Check for vertices not belonging to wake edges on the mirror plane
             if (this%vertices(i)%N_wake_edges == 0 .and. abs(this%vertices(i)%loc(this%mirror_plane))<1e-12) then
 
                 this%vertices(i)%mirrored_is_unique = .false.
 
             end if
+
+            ! Check if this vertex's mirror is unique
+            if (this%vertices(i)%mirrored_is_unique) then
+                this%N_unique_mirrored_verts = this%N_unique_mirrored_verts + 1
+            end if
+
         end do
     
     end subroutine surface_mesh_set_up_mirroring
