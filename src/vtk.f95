@@ -20,6 +20,7 @@ contains
         character(len=200) :: dummy_read
         type(vertex),dimension(:),allocatable,intent(inout) :: vertices
         type(panel),dimension(:),allocatable,intent(inout) :: panels
+        real,dimension(3) :: vertex_loc
         integer :: i, j, N, i1, i2, i3, i4
 
         ! Open file
@@ -37,8 +38,13 @@ contains
 
             ! Store vertices
             do i=1,N_verts
-                read(1,*) vertices(i)%loc(1), vertices(i)%loc(2), vertices(i)%loc(3)
-                vertices(i)%index = i
+
+                ! Read in from file
+                read(1,*) vertex_loc(1), vertex_loc(2), vertex_loc(3)
+
+                ! Initialize
+                call vertices(i)%init(vertex_loc, i)
+
             end do
 
             ! Determine number of panels
@@ -56,8 +62,8 @@ contains
                 ! Determine size of panel
                 if (dummy_read(1:2) == '3 ') then
                     read(dummy_read,*) N, i1, i2, i3
-                else if (dummy_read(1:2) == '4 ') then
-                    read(dummy_read,*) N, i1, i2, i3, i4
+                !else if (dummy_read(1:2) == '4 ') then
+                !    read(dummy_read,*) N, i1, i2, i3, i4
                 else
                     write(*,*) "MFTran supports only triangular panels."
                     stop

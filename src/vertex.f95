@@ -11,8 +11,7 @@ module vertex_mod
         ! A vertex in 3-space
 
         real,dimension(3) :: loc, cp ! Location and associated control point
-        logical :: on_wake_edge ! Whether this vertex is on a wake-shedding edge
-        logical :: in_wake_edge ! Whether this vertex is not an endpoint for a chain of wake-shedding edges (i.e. has two attached edges)
+        integer :: N_wake_edges ! Number of wake edges this vertex belongs to (discrete edges)
         integer :: index ! Index of this vertex in the mesh
         integer :: index_in_wake_vertices ! Index of this vertex in the list of wake-shedding vertices
         integer :: top_parent ! Index of the top vertex this vertex's strength is determined by (for a wake vertex)
@@ -22,6 +21,7 @@ module vertex_mod
         type(list) :: panels ! List of indices for the panels which connect to this vertex
         type(list) :: panels_not_across_wake_edge ! List of indices for the panels which connect to this vertex not across a wake-shedding edge
         real,dimension(3) :: normal ! Normal vector associated with this control point
+        logical :: on_xy, on_xz, on_yz ! Whether this vertex lies in a potential mirroring plane
 
         contains
 
@@ -58,6 +58,11 @@ contains
         ! Intitialize some data
         this%top_parent = 0
         this%bot_parent = 0
+
+        ! See if it lies on the coordinate planes
+        this%on_xy = abs(this%loc(3))<=1e-12
+        this%on_xz = abs(this%loc(2))<=1e-12
+        this%on_yz = abs(this%loc(1))<=1e-12
 
     end subroutine vertex_init
 

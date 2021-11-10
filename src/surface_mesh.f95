@@ -56,7 +56,7 @@ contains
         class(surface_mesh),intent(inout) :: this
         type(json_value),pointer,intent(inout) :: settings
         character(len=:),allocatable :: extension
-        integer :: loc, i
+        integer :: loc
 
         ! Set singularity orders
         call json_xtnsn_get(settings, 'singularity_order.doublet', doublet_order, 1)
@@ -85,6 +85,9 @@ contains
         ! Load vtk
         if (extension == '.vtk') then
             call load_surface_vtk(this%mesh_file, this%N_verts, this%N_panels, this%vertices, this%panels)
+        else
+            write(*,*) "MFTran cannot read ", extension, " type mesh files. Quitting..."
+            stop
         end if
 
         ! Display mesh info
@@ -94,7 +97,7 @@ contains
         ! Load into adt
         !call this%load_adt()
 
-        ! Get symmetry settings
+        ! Get mirroring
         call json_xtnsn_get(settings, 'mirror_about.xy', this%xy_mir, .false.)
         call json_xtnsn_get(settings, 'mirror_about.xz', this%xz_mir, .false.)
         call json_xtnsn_get(settings, 'mirror_about.yz', this%yz_mir, .false.)
@@ -242,33 +245,29 @@ contains
                             call top_panels%append(i)
                             call bottom_panels%append(j)
 
-                            ! Store the fact that these vertices belong to a wake-shedding edge
-                            if (this%vertices(shared_verts(1))%on_wake_edge) then
-
-                                ! If it's already on a wake-shedding edge, then this means it's also in one
-                                this%vertices(shared_verts(1))%in_wake_edge = .true.
-
-                            else
+                            ! If this vertex does not already belong to a wake-shedding edge, add it to the list of wake edge vertices
+                            if (this%vertices(shared_verts(1))%N_wake_edges == 0) then 
 
                                 ! Add the first time
-                                this%vertices(shared_verts(1))%on_wake_edge = .true.
                                 call wake_edge_verts%append(shared_verts(1))
                                 this%vertices(shared_verts(1))%index_in_wake_vertices = wake_edge_verts%len()
 
                             end if
+                            
+                            ! Update number of wake edges touching this vertex
+                            this%vertices(shared_verts(1))%N_wake_edges = this%vertices(shared_verts(1))%N_wake_edges + 1
 
                             ! Do the same for the other vertex
-                            if (this%vertices(shared_verts(2))%on_wake_edge) then
+                            if (this%vertices(shared_verts(2))%N_wake_edges == 0) then 
 
-                                this%vertices(shared_verts(2))%in_wake_edge = .true.
-
-                            else
-
-                                this%vertices(shared_verts(2))%on_wake_edge = .true.
+                                ! Add the first time
                                 call wake_edge_verts%append(shared_verts(2))
                                 this%vertices(shared_verts(2))%index_in_wake_vertices = wake_edge_verts%len()
 
                             end if
+                            
+                            ! Update number of wake edges touching this vertex
+                            this%vertices(shared_verts(2))%N_wake_edges = this%vertices(shared_verts(2))%N_wake_edges + 1
 
                             ! Store the fact that the panels have a Kutta edge
                             this%panels(i)%on_wake_edge = .true.
@@ -297,9 +296,10 @@ contains
 
         ! Allocate wake top vertices array
         allocate(this%wake_edge_top_verts(wake_edge_verts%len()))
+
         do i=1,wake_edge_verts%len()
 
-            ! Store into array
+            ! Store vertices into array
             call wake_edge_verts%get(i, m)
             this%wake_edge_top_verts(i) = m
 
@@ -321,6 +321,46 @@ contains
             ! Store
             call this%wake_edges(i)%init(m, n, top_panel, bottom_panel)
 
+            ! If a given wake edge has only one of its endpoints lying in a mirror plane, then that endpoint is *in* a
+            ! wake-shedding edge, since the edge will be mirrored across that plane. If both or neither lie in a mirror
+            ! plane, then whether each endpoint is *in* an edge is as previously determined.
+
+            ! Check x-y mirroring
+            if (this%xy_mir .and. (this%vertices(m)%on_xy .neqv. this%vertices(n)%on_xy)) then
+
+                ! Only add wake edge if the endpoint is on the mirror plane
+                if (this%vertices(m)%on_xy) then
+                    this%vertices(m)%N_wake_edges = this%vertices(m)%N_wake_edges + 1
+                else
+                    this%vertices(n)%N_wake_edges = this%vertices(n)%N_wake_edges + 1
+                end if
+
+            end if
+
+            ! Check x-z mirroring
+            if (this%xz_mir .and. (this%vertices(m)%on_xz .neqv. this%vertices(n)%on_xz)) then
+
+                ! Only add wake edge if the endpoint is on the mirror plane
+                if (this%vertices(m)%on_xz) then
+                    this%vertices(m)%N_wake_edges = this%vertices(m)%N_wake_edges + 1
+                else
+                    this%vertices(n)%N_wake_edges = this%vertices(n)%N_wake_edges + 1
+                end if
+
+            end if
+
+            ! Check y-z mirroring
+            if (this%yz_mir .and. (this%vertices(m)%on_yz .neqv. this%vertices(n)%on_yz)) then
+
+                ! Only add wake edge if the endpoint is on the mirror plane
+                if (this%vertices(m)%on_yz) then
+                    this%vertices(m)%N_wake_edges = this%vertices(m)%N_wake_edges + 1
+                else
+                    this%vertices(n)%N_wake_edges = this%vertices(n)%N_wake_edges + 1
+                end if
+
+            end if
+
         end do
 
         write(*,*) "Done. Found", N_wake_edges, "wake-shedding edges."
@@ -336,7 +376,7 @@ contains
 
         class(surface_mesh),intent(inout),target :: this
 
-        integer :: i, j, k, m, N_clones, ind, new_ind, N_wake_verts, bottom_panel_ind, abutting_panel_ind, adj_vert_ind
+        integer :: i, j, k, m, n, N_clones, ind, new_ind, N_wake_verts, bottom_panel_ind, abutting_panel_ind, adj_vert_ind
         type(vertex),dimension(:),allocatable :: cloned_vertices, temp_vertices
         logical,dimension(:),allocatable :: need_cloned
 
@@ -354,9 +394,9 @@ contains
             ! Get the vertex index
             ind = this%wake_edge_top_verts(i)
 
-            ! Check if it is *in* a wake-shedding edge
-            if (this%vertices(ind)%in_wake_edge) then
-                N_clones = N_clones + 1
+            ! Check if it has more than one wake-shedding edge attached (i.e. it is not the endpoint of a chain of wake-shedding edges)
+            if (this%vertices(ind)%N_wake_edges > 1) then
+                N_clones = N_clones + this%vertices(ind)%N_wake_edges - 1
                 need_cloned(i) = .true.
             end if
         end do
@@ -386,99 +426,105 @@ contains
             ! Check if this vertex needs to be cloned
             if (need_cloned(i)) then
 
-                ! Get information for the vertex clone
+                ! Get index of vertex to be cloned
                 ind = this%wake_edge_top_verts(i)
-                new_ind = this%N_verts-N_clones+j ! Will be at position N_verts-N_clones+j in the new vertex array
 
-                ! Initialize new vertex
-                call this%vertices(new_ind)%init(this%vertices(ind)%loc, new_ind)
+                ! Clone a vertex for each attached edge minus one (i.e. if three wake edges meet at one point, two clones will need to be made)
+                do n=1,this%vertices(ind)%N_wake_edges-1
 
-                ! Store clone's index in list of bottom vertices
-                this%wake_edge_bot_verts(i) = new_ind
+                    ! Get index for the vertex clone
+                    new_ind = this%N_verts-N_clones+j ! Will be at position N_verts-N_clones+j in the new vertex array
 
-                ! Store that it is on and in a wake-shedding edge (probably unecessary at this point, but let's be consistent)
-                this%vertices(new_ind)%on_wake_edge = .true.
-                this%vertices(new_ind)%in_wake_edge = .true.
+                    ! Initialize new vertex
+                    call this%vertices(new_ind)%init(this%vertices(ind)%loc, new_ind)
 
-                ! Copy over adjacent panels
-                do k=1,this%vertices(ind)%panels%len()
+                    ! Store clone's index in list of bottom vertices
+                    this%wake_edge_bot_verts(i) = new_ind
 
-                    ! Get adjacent panel index from original vertex
-                    call this%vertices(ind)%panels%get(k, abutting_panel_ind)
+                    ! Store number of adjacent wake-shedding edges (probably unecessary at this point, but let's be consistent)
+                    this%vertices(new_ind)%N_wake_edges = this%vertices(ind)%N_wake_edges
 
-                    ! Copy to new vertex
-                    call this%vertices(new_ind)%panels%append(abutting_panel_ind)
+                    ! Copy over adjacent panels
+                    do k=1,this%vertices(ind)%panels%len()
 
-                    ! Copy to original vertex's panels_not_across_wake_edge list (bottom panels will be removed)
-                    call this%vertices(ind)%panels_not_across_wake_edge%append(abutting_panel_ind)
+                        ! Get adjacent panel index from original vertex
+                        call this%vertices(ind)%panels%get(k, abutting_panel_ind)
 
-                end do
+                        ! Copy to new vertex
+                        call this%vertices(new_ind)%panels%append(abutting_panel_ind)
 
-                ! Copy over adjacent vertices
-                do k=1,this%vertices(ind)%adjacent_vertices%len()
+                        ! Copy to original vertex's panels_not_across_wake_edge list (bottom panels will be removed)
+                        call this%vertices(ind)%panels_not_across_wake_edge%append(abutting_panel_ind)
 
-                    ! Get adjacent panel index from original vertex
-                    call this%vertices(ind)%adjacent_vertices%get(k, adj_vert_ind)
+                    end do
 
-                    ! Copy to new vertex
-                    call this%vertices(new_ind)%adjacent_vertices%append(adj_vert_ind)
+                    ! Copy over adjacent vertices
+                    do k=1,this%vertices(ind)%adjacent_vertices%len()
 
-                end do
+                        ! Get adjacent panel index from original vertex
+                        call this%vertices(ind)%adjacent_vertices%get(k, adj_vert_ind)
 
-                ! Remove bottom panels from top vertex and give them to the bottom vertex
-                do k=1,size(this%wake_edges)
+                        ! Copy to new vertex
+                        call this%vertices(new_ind)%adjacent_vertices%append(adj_vert_ind)
 
-                    ! Check if this vertex belongs to this wake-shedding edge
-                    if (this%wake_edges(k)%i1 == ind .or. this%wake_edges(k)%i2 == ind) then
+                    end do
 
-                        ! Get bottom panel index
-                        bottom_panel_ind = this%wake_edges(k)%bottom_panel
+                    ! Remove bottom panels from top vertex and give them to the bottom vertex
+                    do k=1,size(this%wake_edges)
 
-                        ! Remove bottom panel index from original vertex
-                        call this%vertices(ind)%panels_not_across_wake_edge%delete(bottom_panel_ind)
+                        ! Check if this vertex belongs to this wake-shedding edge
+                        if (this%wake_edges(k)%i1 == ind .or. this%wake_edges(k)%i2 == ind) then
 
-                        ! Add to cloned vertex
-                        if (.not. this%vertices(new_ind)%panels_not_across_wake_edge%is_in(bottom_panel_ind)) then
-                            call this%vertices(new_ind)%panels_not_across_wake_edge%append(bottom_panel_ind)
+                            ! Get bottom panel index
+                            bottom_panel_ind = this%wake_edges(k)%bottom_panel
+
+                            ! Remove bottom panel index from original vertex
+                            call this%vertices(ind)%panels_not_across_wake_edge%delete(bottom_panel_ind)
+
+                            ! Add to cloned vertex
+                            if (.not. this%vertices(new_ind)%panels_not_across_wake_edge%is_in(bottom_panel_ind)) then
+                                call this%vertices(new_ind)%panels_not_across_wake_edge%append(bottom_panel_ind)
+                            end if
+
+                            ! If there are any panels attached to this vertex and abutting the bottom panel, shift them over as well
+                            do m=1,this%panels(bottom_panel_ind)%abutting_panels%len()
+
+                                ! Get the index of the panel abutting this bottom panel
+                                call this%panels(bottom_panel_ind)%abutting_panels%get(m, abutting_panel_ind)
+
+                                ! Check if it touches the current index
+                                if (this%panels(abutting_panel_ind)%touches_vertex(ind)) then
+
+                                    ! Remove from original vertex
+                                    call this%vertices(ind)%panels_not_across_wake_edge%delete(abutting_panel_ind)
+
+                                    ! Add to cloned vertex
+                                    if (.not. this%vertices(new_ind)%panels_not_across_wake_edge%is_in(abutting_panel_ind)) then
+                                        call this%vertices(new_ind)%panels_not_across_wake_edge%append(abutting_panel_ind)
+                                    end if
+
+                                end if
+                            end do
+
                         end if
 
-                        ! If there are any panels attached to this vertex and abutting the bottom panel, shift them over as well
-                        do m=1,this%panels(bottom_panel_ind)%abutting_panels%len()
+                    end do
 
-                            ! Get the index of the panel abutting this bottom panel
-                            call this%panels(bottom_panel_ind)%abutting_panels%get(m, abutting_panel_ind)
+                    ! Update bottom panels to point to cloned vertex
+                    do k=1,this%vertices(new_ind)%panels_not_across_wake_edge%len()
 
-                            ! Check if it touches the current index
-                            if (this%panels(abutting_panel_ind)%touches_vertex(ind)) then
+                        ! Get panel index
+                        call this%vertices(new_ind)%panels_not_across_wake_edge%get(k, bottom_panel_ind)
 
-                                ! Remove from original vertex
-                                call this%vertices(ind)%panels_not_across_wake_edge%delete(abutting_panel_ind)
+                        ! Update
+                        call this%panels(bottom_panel_ind)%point_to_vertex_clone(this%vertices(new_ind))
 
-                                ! Add to cloned vertex
-                                if (.not. this%vertices(new_ind)%panels_not_across_wake_edge%is_in(abutting_panel_ind)) then
-                                    call this%vertices(new_ind)%panels_not_across_wake_edge%append(abutting_panel_ind)
-                                end if
+                    end do
 
-                            end if
-                        end do
-
-                    end if
+                    ! Update clone index
+                    j = j + 1
 
                 end do
-
-                ! Update bottom panels to point to cloned vertex
-                do k=1,this%vertices(new_ind)%panels_not_across_wake_edge%len()
-
-                    ! Get panel index
-                    call this%vertices(new_ind)%panels_not_across_wake_edge%get(k, bottom_panel_ind)
-
-                    ! Update
-                    call this%panels(bottom_panel_ind)%point_to_vertex_clone(this%vertices(new_ind))
-
-                end do
-
-                ! Update clone index
-                j = j + 1
 
             end if
 
@@ -557,7 +603,7 @@ contains
             do i=1,this%N_verts
 
                 ! If the vertex is in a wake edge, it needs to be shifted off the normal slightly so that it is unique from its counterpart
-                if (this%vertices(i)%in_wake_edge) then
+                if (this%vertices(i)%N_wake_edges > 1) then
 
                     ! Loop through panels associated with this clone to get their average normal vector
                     N = this%vertices(i)%panels_not_across_wake_edge%len()

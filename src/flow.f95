@@ -43,9 +43,9 @@ contains
         this%c0 = this%v_inf/this%U
 
         ! Check symmetry
-        this%xy_sym = v_inf(3) == 0.
-        this%xz_sym = v_inf(2) == 0.
-        this%yz_sym = v_inf(1) == 0.
+        this%xy_sym = this%v_inf(3) == 0.
+        this%xz_sym = this%v_inf(2) == 0.
+        this%yz_sym = this%v_inf(1) == 0.
 
     end subroutine flow_init
 
