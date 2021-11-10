@@ -103,30 +103,12 @@ contains
         integer,dimension(:),allocatable :: vertex_indices
         real,dimension(:,:),allocatable :: A, A_copy
         real,dimension(:),allocatable :: b
-        integer :: stat, order_of_mirroring_mult, N_sigma, N_mu
-        logical :: xy_asym, xz_asym, yz_asym
+        integer :: stat, N_sigma, N_mu
+        real,dimension(3) :: n_mirrored
+        logical :: mirrored_and_asym
 
-        ! Determine number of independent source strengths based on flow symmetry and mesh mirroring
-        ! This only needs to happen if some mirroring is occuring for the mesh, regardless of the 
-        ! flow condition. If the mesh is mirrored about a given plane and the flow condition is not
-        ! symmetric about that plane, then the number of source strengths must be doubled.
-        order_of_mirroring_mult = 0
-
-        ! Check if separate parameters will need to be stored for each possible symmetry plane
-        xy_asym = body_mesh%xy_mir .and. .not. freestream_flow%xy_sym
-        xz_asym = body_mesh%xz_mir .and. .not. freestream_flow%xz_sym
-        yz_asym = body_mesh%yz_mir .and. .not. freestream_flow%yz_sym
-
-        ! Determine how the number of stored source strengths is altered
-        if (xy_asym) then
-            order_of_mirroring_mult = order_of_mirroring_mult + 1
-        end if
-        if (xz_asym) then
-            order_of_mirroring_mult = order_of_mirroring_mult + 1
-        end if
-        if (yz_asym) then
-            order_of_mirroring_mult = order_of_mirroring_mult + 1
-        end if
+        ! Check mirroring and flow symmetry condition
+        mirrored_and_asym = body_mesh%mirrored .and. .not. freestream_flow%symmetric_plane(body_mesh%mirror_plane)
 
         ! Set source strengths
         write(*,*)
@@ -134,12 +116,31 @@ contains
         if (source_order == 0) then
 
             ! Allocate source strength array
-            N_sigma = body_mesh%N_panels*2**order_of_mirroring_mult
+            if (mirrored_and_asym) then
+                N_sigma = body_mesh%N_panels*2
+            else
+                N_sigma = body_mesh%N_panels
+            end if
+
             allocate(body_mesh%sigma(N_sigma))
 
             ! Loop through panels
             do i=1,body_mesh%N_panels
+
+                ! Existing panels
                 body_mesh%sigma(i) = -inner(body_mesh%panels(i)%normal, freestream_flow%c0)
+
+                ! Mirrored panels for asymmetric flow
+                if (mirrored_and_asym) then
+
+                    ! Get mirrored normal vector
+                    n_mirrored = body_mesh%panels(i)%normal
+                    n_mirrored(body_mesh%mirror_plane) = -n_mirrored(body_mesh%mirror_plane)
+
+                    ! Calculate source strength
+                    body_mesh%sigma(i+body_mesh%N_panels) = -inner(body_mesh%panels(i)%normal, freestream_flow%c0)
+
+                end if
             end do
 
         end if

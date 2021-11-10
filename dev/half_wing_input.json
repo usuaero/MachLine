@@ -6,9 +6,7 @@
     },
     "geometry" : {
         "file" : "dev/meshes/half_wing.vtk",
-        "mirror_about" : {
-            "xz" : true
-        },
+        "mirror_about" : "xz",
         "singularity_order" : {
             "doublet" : 1,
             "source" : 0

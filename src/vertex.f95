@@ -21,7 +21,9 @@ module vertex_mod
         type(list) :: panels ! List of indices for the panels which connect to this vertex
         type(list) :: panels_not_across_wake_edge ! List of indices for the panels which connect to this vertex not across a wake-shedding edge
         real,dimension(3) :: normal ! Normal vector associated with this control point
-        logical :: on_xy, on_xz, on_yz ! Whether this vertex lies in a potential mirroring plane
+        logical :: on_mirror_plane ! Whether this vertex lies in the mirroring plane
+        logical :: needs_clone ! Whether this vertex needs a clone depending on whether it's in a wake-shedding edge
+        logical :: mirrored_is_unique ! Whether this vertice's mirror image will be the same for an asymmetric freestream condition
 
         contains
 
@@ -58,11 +60,8 @@ contains
         ! Intitialize some data
         this%top_parent = 0
         this%bot_parent = 0
-
-        ! See if it lies on the coordinate planes
-        this%on_xy = abs(this%loc(3))<=1e-12
-        this%on_xz = abs(this%loc(2))<=1e-12
-        this%on_yz = abs(this%loc(1))<=1e-12
+        this%mirrored_is_unique = .true. ! This will almost always be the case; we'll set the exceptions later
+        this%needs_clone = .false. ! Same here
 
     end subroutine vertex_init
 

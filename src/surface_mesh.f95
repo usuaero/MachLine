@@ -22,7 +22,6 @@ module surface_mesh_mod
         type(wake_mesh) :: wake
         integer,allocatable,dimension(:) :: wake_edge_top_verts, wake_edge_bot_verts
         type(wake_edge),allocatable,dimension(:) :: wake_edges
-        character(len=:),allocatable :: mesh_file
         real :: wake_shedding_angle, C_wake_shedding_angle, trefftz_distance, C_min_wake_shedding_angle
         integer :: N_wake_panels_streamwise
         real,dimension(:,:),allocatable :: control_points
@@ -30,7 +29,8 @@ module surface_mesh_mod
         real,dimension(:),allocatable :: C_p ! Surface pressure coefficients
         real,dimension(:,:),allocatable :: V ! Surface velocities
         real :: control_point_offset
-        logical :: xy_mir, xz_mir, yz_mir ! Whether the mesh is to be mirrored about any planes
+        logical :: mirrored ! Whether the mesh is to be mirrored about any planes
+        integer :: mirror_plane ! Index of the plane across which the mesh is mirrored (1: yz, 2: xz, 3: xy); this is the index of the normal to that plane
         real,dimension(:),allocatable :: mu, sigma ! Singularity strengths
 
         contains
@@ -40,6 +40,7 @@ module surface_mesh_mod
             procedure :: output_results => surface_mesh_output_results
             procedure :: locate_wake_shedding_edges => surface_mesh_locate_wake_shedding_edges
             procedure :: clone_wake_shedding_vertices => surface_mesh_clone_wake_shedding_vertices
+            procedure :: set_up_mirroring => surface_mesh_set_up_mirroring
             procedure :: calc_vertex_normals => surface_mesh_calc_vertex_normals
             procedure :: place_interior_control_points => surface_mesh_place_interior_control_points
 
@@ -57,6 +58,7 @@ contains
         type(json_value),pointer,intent(inout) :: settings
         character(len=:),allocatable :: extension
         integer :: loc
+        character(len=:),allocatable :: mesh_file, mirror_plane
 
         ! Set singularity orders
         call json_xtnsn_get(settings, 'singularity_order.doublet', doublet_order, 1)
@@ -73,18 +75,18 @@ contains
         end if
 
         ! Get mesh file
-        call json_get(settings, 'file', this%mesh_file)
-        this%mesh_file = trim(this%mesh_file)
+        call json_get(settings, 'file', mesh_file)
+        mesh_file = trim(mesh_file)
         write(*,*)
-        write(*,*) "    Reading surface mesh in from file: ", this%mesh_file
+        write(*,*) "    Reading surface mesh in from file: ", mesh_file
 
         ! Determine the type of mesh file
-        loc = index(this%mesh_file, '.')
-        extension = this%mesh_file(loc:len(this%mesh_file))
+        loc = index(mesh_file, '.')
+        extension = mesh_file(loc:len(mesh_file))
 
         ! Load vtk
         if (extension == '.vtk') then
-            call load_surface_vtk(this%mesh_file, this%N_verts, this%N_panels, this%vertices, this%panels)
+            call load_surface_vtk(mesh_file, this%N_verts, this%N_panels, this%vertices, this%panels)
         else
             write(*,*) "MFTran cannot read ", extension, " type mesh files. Quitting..."
             stop
@@ -98,9 +100,22 @@ contains
         !call this%load_adt()
 
         ! Get mirroring
-        call json_xtnsn_get(settings, 'mirror_about.xy', this%xy_mir, .false.)
-        call json_xtnsn_get(settings, 'mirror_about.xz', this%xz_mir, .false.)
-        call json_xtnsn_get(settings, 'mirror_about.yz', this%yz_mir, .false.)
+        call json_xtnsn_get(settings, 'mirror_about', mirror_plane, "00")
+        this%mirror_plane = 0
+        if (mirror_plane == "xy") then
+            this%mirror_plane = 3
+        else if (mirror_plane == "xz") then
+            this%mirror_plane = 2
+        else if (mirror_plane == "yz") then
+            this%mirror_plane = 1
+        end if
+
+        ! Check if mirroring is happening
+        if (this%mirror_plane == 0) then
+            this%mirrored = .false.
+        else
+            this%mirrored = .true.
+        end if
 
         ! Store settings for wake models
         call json_xtnsn_get(settings, 'wake_model.wake_shedding_angle', this%wake_shedding_angle, 90.0) ! Maximum allowable angle between panel normals without having separation
@@ -118,16 +133,23 @@ contains
         class(surface_mesh),intent(inout) :: this
         type(flow),intent(in) :: freestream_flow
 
-        ! Initialize wake
+        ! Figure out wake-shedding edges
         call this%locate_wake_shedding_edges(freestream_flow)
+
+        ! Set up mirroring
+        if (this%mirrored) then
+            call this%set_up_mirroring()
+        end if
+
+        ! Clone necessary vertices and calculate normals (for placing control points)
         call this%clone_wake_shedding_vertices()
+        call this%calc_vertex_normals()
+
+        ! Initialize wake
         call this%wake%init(freestream_flow, this%wake_edge_top_verts,&
                             this%wake_edge_bot_verts, this%wake_edges,&
                             this%N_wake_panels_streamwise, this%vertices,&
                             this%trefftz_distance)
-
-        ! Determine wake-dependent geometry
-        call this%calc_vertex_normals()
 
         ! Clean up
         deallocate(this%wake_edge_top_verts)
@@ -252,6 +274,11 @@ contains
                                 call wake_edge_verts%append(shared_verts(1))
                                 this%vertices(shared_verts(1))%index_in_wake_vertices = wake_edge_verts%len()
 
+                            else
+
+                                ! It is in an edge, so it will likely need to be cloned
+                                this%vertices(shared_verts(1))%needs_clone = .true.
+
                             end if
                             
                             ! Update number of wake edges touching this vertex
@@ -263,6 +290,11 @@ contains
                                 ! Add the first time
                                 call wake_edge_verts%append(shared_verts(2))
                                 this%vertices(shared_verts(2))%index_in_wake_vertices = wake_edge_verts%len()
+
+                            else
+
+                                ! It is in an edge, so it will likely need to be cloned
+                                this%vertices(shared_verts(2))%needs_clone = .true.
 
                             end if
                             
@@ -321,51 +353,74 @@ contains
             ! Store
             call this%wake_edges(i)%init(m, n, top_panel, bottom_panel)
 
-            ! If a given wake edge has only one of its endpoints lying in a mirror plane, then that endpoint is *in* a
-            ! wake-shedding edge, since the edge will be mirrored across that plane. If both or neither lie in a mirror
-            ! plane, then whether each endpoint is *in* an edge is as previously determined.
-
-            ! Check x-y mirroring
-            if (this%xy_mir .and. (this%vertices(m)%on_xy .neqv. this%vertices(n)%on_xy)) then
-
-                ! Only add wake edge if the endpoint is on the mirror plane
-                if (this%vertices(m)%on_xy) then
-                    this%vertices(m)%N_wake_edges = this%vertices(m)%N_wake_edges + 1
-                else
-                    this%vertices(n)%N_wake_edges = this%vertices(n)%N_wake_edges + 1
-                end if
-
-            end if
-
-            ! Check x-z mirroring
-            if (this%xz_mir .and. (this%vertices(m)%on_xz .neqv. this%vertices(n)%on_xz)) then
-
-                ! Only add wake edge if the endpoint is on the mirror plane
-                if (this%vertices(m)%on_xz) then
-                    this%vertices(m)%N_wake_edges = this%vertices(m)%N_wake_edges + 1
-                else
-                    this%vertices(n)%N_wake_edges = this%vertices(n)%N_wake_edges + 1
-                end if
-
-            end if
-
-            ! Check y-z mirroring
-            if (this%yz_mir .and. (this%vertices(m)%on_yz .neqv. this%vertices(n)%on_yz)) then
-
-                ! Only add wake edge if the endpoint is on the mirror plane
-                if (this%vertices(m)%on_yz) then
-                    this%vertices(m)%N_wake_edges = this%vertices(m)%N_wake_edges + 1
-                else
-                    this%vertices(n)%N_wake_edges = this%vertices(n)%N_wake_edges + 1
-                end if
-
-            end if
-
         end do
 
         write(*,*) "Done. Found", N_wake_edges, "wake-shedding edges."
 
     end subroutine surface_mesh_locate_wake_shedding_edges
+
+
+    subroutine surface_mesh_set_up_mirroring(this)
+        ! Sets up information necessary for mirroring the mesh
+
+        implicit none
+
+        class(surface_mesh),intent(inout) :: this
+
+        integer :: i, m, n
+        logical :: m_on_mirror_plane, n_on_mirror_plane
+
+        ! Check if any wake-shedding edges intersect the mirror plane
+        do i=1,size(this%wake_edges)
+
+            ! Get endpoint indices
+            m = this%wake_edges(i)%i1
+            n = this%wake_edges(i)%i2
+
+            ! If a given wake edge has only one of its endpoints lying on the mirror plane, then that endpoint has another
+            ! adjacent edge, since the edge will be mirrored across that plane. This endpoint will need a clone, but it's
+            ! mirrored vertex will be the same
+            m_on_mirror_plane = abs(this%vertices(m)%loc(this%mirror_plane))<1e-12
+            n_on_mirror_plane = abs(this%vertices(n)%loc(this%mirror_plane))<1e-12
+            if (m_on_mirror_plane .neqv. n_on_mirror_plane) then
+
+                ! Only add wake edge if the endpoint is on the mirror plane
+                if (abs(this%vertices(m)%loc(this%mirror_plane))<1e-12) then
+
+                    this%vertices(m)%N_wake_edges = this%vertices(m)%N_wake_edges + 1
+                    this%vertices(m)%needs_clone = .true.
+                    this%vertices(m)%mirrored_is_unique = .false.
+
+                else
+
+                    this%vertices(n)%N_wake_edges = this%vertices(n)%N_wake_edges + 1
+                    this%vertices(m)%needs_clone = .true.
+                    this%vertices(m)%mirrored_is_unique = .false.
+
+                end if
+
+            ! If the wake edge has both endpoints lying on the mirror plane, then these vertices need no clones, but the mirrored
+            ! vertices will still be unique
+            else if (m_on_mirror_plane .and. n_on_mirror_plane) then
+
+                this%vertices(m)%needs_clone = .false.
+                this%vertices(n)%needs_clone = .false.
+
+            end if
+
+        end do
+
+        ! Check for vertices not belonging to wake edges on the mirror plane
+        do i=1,this%N_verts
+
+            if (this%vertices(i)%N_wake_edges == 0 .and. abs(this%vertices(i)%loc(this%mirror_plane))<1e-12) then
+
+                this%vertices(i)%mirrored_is_unique = .false.
+
+            end if
+        end do
+    
+    end subroutine surface_mesh_set_up_mirroring
 
 
     subroutine surface_mesh_clone_wake_shedding_vertices(this)
@@ -378,26 +433,22 @@ contains
 
         integer :: i, j, k, m, n, N_clones, ind, new_ind, N_wake_verts, bottom_panel_ind, abutting_panel_ind, adj_vert_ind
         type(vertex),dimension(:),allocatable :: cloned_vertices, temp_vertices
-        logical,dimension(:),allocatable :: need_cloned
 
         write(*,*)
         write(*,'(a)',advance='no') "     Cloning vertices on wake-shedding edges..."
 
         ! Allocate array which will store which wake-shedding vertices need to be cloned
         N_wake_verts = size(this%wake_edge_top_verts)
-        allocate(need_cloned(N_wake_verts))
 
         ! Determine number of vertices which need to be cloned
         N_clones = 0
         do i=1,N_wake_verts
 
-            ! Get the vertex index
-            ind = this%wake_edge_top_verts(i)
+            if (this%vertices(this%wake_edge_top_verts(i))%needs_clone) then
 
-            ! Check if it has more than one wake-shedding edge attached (i.e. it is not the endpoint of a chain of wake-shedding edges)
-            if (this%vertices(ind)%N_wake_edges > 1) then
-                N_clones = N_clones + this%vertices(ind)%N_wake_edges - 1
-                need_cloned(i) = .true.
+                ! Update the number of needed clones
+                N_clones = N_clones + 1
+
             end if
         end do
 
@@ -423,11 +474,11 @@ contains
         j = 1
         do i=1,N_wake_verts
 
-            ! Check if this vertex needs to be cloned
-            if (need_cloned(i)) then
+            ! Get index of vertex to be cloned
+            ind = this%wake_edge_top_verts(i)
 
-                ! Get index of vertex to be cloned
-                ind = this%wake_edge_top_verts(i)
+            ! Check if this vertex needs to be cloned
+            if (this%vertices(ind)%needs_clone) then
 
                 ! Clone a vertex for each attached edge minus one (i.e. if three wake edges meet at one point, two clones will need to be made)
                 do n=1,this%vertices(ind)%N_wake_edges-1
@@ -525,6 +576,13 @@ contains
                     j = j + 1
 
                 end do
+
+            else
+
+                ! If this vertex did not need to be cloned, but its mirror is unique, then the wake strength is partially determined by its mirror
+                if (this%vertices(ind)%mirrored_is_unique) then
+                    this%wake_edge_bot_verts(i) = 2*ind
+                end if
 
             end if
 
