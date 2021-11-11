@@ -1,0 +1,28 @@
+{
+    "flow" : {
+        "V_inf" : [100.0, 0.0, 0.0],
+        "M_inf" : 0.7,
+        "gamma" : 1.4
+    },
+    "geometry" : {
+        "file" : "dev/meshes/test_fuselage.vtk",
+        "singularity_order" : {
+            "doublet" : 1,
+            "source" : 0
+        },
+        "wake_model" : {
+            "wake_shedding_angle" : 90.0,
+            "trefftz_distance" : 100.0,
+            "N_panels" : 1
+        }
+    },
+    "solver" : {
+        "formulation" : "morino",
+        "control_point_offset" : 1.0e-5
+    },
+    "output" : {
+        "body_file" : "dev/results/test_fuselage.vtk",
+        "wake_file" : "dev/results/test_fuselage_wake.vtk",
+        "control_point_file" : "dev/results/test_fuselage_control_points.vtk"
+    }
+}

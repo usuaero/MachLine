@@ -142,7 +142,7 @@ contains
                     n_mirrored = mirror_about_plane(body_mesh%panels(i)%normal, body_mesh%mirror_plane)
 
                     ! Calculate source strength
-                    body_mesh%sigma(i+body_mesh%N_panels) = -inner(body_mesh%panels(i)%normal, freestream_flow%c0)
+                    body_mesh%sigma(i+body_mesh%N_panels) = -inner(n_mirrored, freestream_flow%c0)
 
                 end if
             end do
