@@ -31,6 +31,7 @@ module surface_mesh_mod
         real :: control_point_offset
         logical :: mirrored ! Whether the mesh is to be mirrored about any planes
         integer :: mirror_plane ! Index of the plane across which the mesh is mirrored (1: yz, 2: xz, 3: xy); this is the index of the normal to that plane
+        logical :: mirrored_and_asym ! Whether the mesh is mirrored and the flow is asymmetric about that plane
         real,dimension(:),allocatable :: mu, sigma ! Singularity strengths
 
         contains
@@ -100,22 +101,19 @@ contains
         !call this%load_adt()
 
         ! Get mirroring
-        call json_xtnsn_get(settings, 'mirror_about', mirror_plane, "00")
-        this%mirror_plane = 0
-        if (mirror_plane == "xy") then
+        call json_xtnsn_get(settings, 'mirror_about', mirror_plane, "none")
+        this%mirrored = .true.
+        select case (mirror_plane)
+        case ("xy")
             this%mirror_plane = 3
-        else if (mirror_plane == "xz") then
+        case ("xz")
             this%mirror_plane = 2
-        else if (mirror_plane == "yz") then
+        case ("yz")
             this%mirror_plane = 1
-        end if
-
-        ! Check if mirroring is happening
-        if (this%mirror_plane == 0) then
+        case default
+            this%mirror_plane = 0
             this%mirrored = .false.
-        else
-            this%mirrored = .true.
-        end if
+        end select
 
         ! Store settings for wake models
         call json_xtnsn_get(settings, 'wake_model.wake_shedding_angle', this%wake_shedding_angle, 90.0) ! Maximum allowable angle between panel normals without having separation
@@ -126,15 +124,23 @@ contains
     end subroutine surface_mesh_init
 
 
-    subroutine surface_mesh_init_with_flow(this, freestream_flow)
+    subroutine surface_mesh_init_with_flow(this, freestream)
 
         implicit none
 
         class(surface_mesh),intent(inout) :: this
-        type(flow),intent(in) :: freestream_flow
+        type(flow),intent(in) :: freestream
 
         ! Figure out wake-shedding edges
-        call this%locate_wake_shedding_edges(freestream_flow)
+        call this%locate_wake_shedding_edges(freestream)
+
+        ! Check mirroring and flow symmetry condition
+        this%mirrored_and_asym = .false.
+        if (this%mirrored) then
+            if (.not. freestream%sym_about(this%mirror_plane)) then
+                this%mirrored_and_asym = .true.
+            end if
+        end if
 
         ! Set up mirroring
         if (this%mirrored) then
@@ -146,10 +152,11 @@ contains
         call this%calc_vertex_normals()
 
         ! Initialize wake
-        call this%wake%init(freestream_flow, this%wake_edge_top_verts,&
-                            this%wake_edge_bot_verts, this%wake_edges,&
-                            this%N_wake_panels_streamwise, this%vertices,&
-                            this%trefftz_distance)
+        call this%wake%init(freestream, this%wake_edge_top_verts, &
+                            this%wake_edge_bot_verts, this%wake_edges, &
+                            this%N_wake_panels_streamwise, this%vertices, &
+                            this%trefftz_distance, this%mirrored_and_asym, &
+                            this%mirror_plane)
 
         ! Clean up
         deallocate(this%wake_edge_top_verts)
@@ -158,13 +165,13 @@ contains
     end subroutine surface_mesh_init_with_flow
 
 
-    subroutine surface_mesh_locate_wake_shedding_edges(this, freestream_flow)
+    subroutine surface_mesh_locate_wake_shedding_edges(this, freestream)
         ! Locates wake-shedding edges on the mesh based on the flow conditions.
 
         implicit none
 
         class(surface_mesh),intent(inout) :: this
-        type(flow),intent(in) :: freestream_flow
+        type(flow),intent(in) :: freestream
 
         integer :: i, j, m, n, mm, temp, top_panel, bottom_panel
         integer :: N_wake_edges = 0
@@ -234,8 +241,8 @@ contains
                     if (C_angle < this%C_wake_shedding_angle) then
 
                         ! Check angle of panel normal with freestream
-                        if (inner(this%panels(i)%normal, freestream_flow%V_inf) > 0.0 .or. &
-                            inner(this%panels(j)%normal, freestream_flow%V_inf) > 0.0) then
+                        if (inner(this%panels(i)%normal, freestream%V_inf) > 0.0 .or. &
+                            inner(this%panels(j)%normal, freestream%V_inf) > 0.0) then
 
                             ! At this point, the panels are abutting, have a small enough angle,
                             ! and at least one of them is pointing downstream. Thus, this is a
@@ -406,26 +413,18 @@ contains
                 this%vertices(m)%needs_clone = .false.
                 this%vertices(n)%needs_clone = .false.
 
+                ! Store that this edge lies on the mirror plane
+                this%wake_edges(i)%on_mirror_plane = .true.
+
             end if
 
         end do
 
-        ! Go through all vertices and add up the number of unique mirrored vertices
-        this%N_unique_mirrored_verts = 0
+        ! Check for vertices not belonging to wake edges on the mirror plane
         do i=1,this%N_verts
-
-            ! Check for vertices not belonging to wake edges on the mirror plane
             if (this%vertices(i)%N_wake_edges == 0 .and. abs(this%vertices(i)%loc(this%mirror_plane))<1e-12) then
-
                 this%vertices(i)%mirrored_is_unique = .false.
-
             end if
-
-            ! Check if this vertex's mirror is unique
-            if (this%vertices(i)%mirrored_is_unique) then
-                this%N_unique_mirrored_verts = this%N_unique_mirrored_verts + 1
-            end if
-
         end do
     
     end subroutine surface_mesh_set_up_mirroring

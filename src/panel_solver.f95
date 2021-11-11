@@ -104,15 +104,6 @@ contains
         real,dimension(:),allocatable :: b
         integer :: stat, N_sigma, N_mu
         real,dimension(3) :: n_mirrored, cp_mirrored
-        logical :: mirrored_and_asym
-
-        ! Check mirroring and flow symmetry condition
-        mirrored_and_asym = .false.
-        if (body%mirrored) then
-            if (.not. freestream%sym_about(body%mirror_plane)) then
-                mirrored_and_asym = .true.
-            end if
-        end if
 
         write(*,*)
         write(*,'(a)',advance='no') "     Calculating source strengths..."
@@ -121,7 +112,7 @@ contains
         if (source_order == 0) then
 
             ! Determine necessary number of source strengths
-            if (mirrored_and_asym) then
+            if (body%mirrored_and_asym) then
                 N_sigma = body%N_panels*2
             else
                 N_sigma = body%N_panels
@@ -137,7 +128,7 @@ contains
                 body%sigma(i) = -inner(body%panels(i)%normal, freestream%c0)
 
                 ! Mirrored panels for asymmetric flow
-                if (mirrored_and_asym) then
+                if (body%mirrored_and_asym) then
 
                     ! Get mirrored normal vector
                     n_mirrored = mirror_about_plane(body%panels(i)%normal, body%mirror_plane)
@@ -152,7 +143,7 @@ contains
         write(*,*) "Done."
 
         ! Determine number of doublet strengths (some will be repeats)
-        if (mirrored_and_asym) then
+        if (body%mirrored_and_asym) then
             N_mu = body%N_cp*2
         else
             N_mu = body%N_cp
@@ -189,7 +180,7 @@ contains
                 end if
 
                 ! Influence of mirrored panels on mirrored control points, if the mirrored control point is meant to be unique
-                if (mirrored_and_asym .and. body%vertices(i)%mirrored_is_unique) then
+                if (body%mirrored_and_asym .and. body%vertices(i)%mirrored_is_unique) then
 
                     if (source_order == 0) then
                             body%phi_cp_sigma(i+body%N_cp) = body%phi_cp_sigma(i+body%N_cp) &
@@ -213,7 +204,7 @@ contains
                     source_inf = body%panels(j)%get_source_potential(cp_mirrored, source_verts)
                     doublet_inf = body%panels(j)%get_doublet_potential(cp_mirrored, doublet_verts)
 
-                    if (mirrored_and_asym) then
+                    if (body%mirrored_and_asym) then
 
                         ! Source influences
                         if (source_order == 0) then
@@ -263,7 +254,7 @@ contains
 
             ! Enforce doublet strength matching (i.e. for non-unique, mirrored control points, the
             ! doublet strengths must be the same). The RHS for these rows should still be zero.
-            if (mirrored_and_asym .and. .not. body%vertices(i)%mirrored_is_unique) then
+            if (body%mirrored_and_asym .and. .not. body%vertices(i)%mirrored_is_unique) then
                 A(i+body%N_cp,i) = 1.
                 A(i+body%N_cp,i+body%N_cp) = -1.
             end if
@@ -279,9 +270,12 @@ contains
         do i=1,body%N_cp
 
             ! Get doublet influence from wake
+            ! Note that for the wake, in the case of mirrored mesh with asymmetric flow, the mirrored wake panels have actually been created.
+            ! In this case, there are technically no mirrored panels, and this loop will cycle through both existing and mirrored panels.
+            ! For symmetric flow, mirrored panels still need to be added as before.
             do j=1,body%wake%N_panels
 
-                ! Caclulate influence for existing->existing and mirrored->mirrored
+                ! Caclulate influence on existing control points
                 doublet_inf = body%wake%panels(j)%get_doublet_potential(body%control_points(i,:), doublet_verts)
 
                 ! Influence of existing wake panels on existing control points
@@ -291,43 +285,25 @@ contains
                     end do
                 end if
 
-                ! Influence of mirrored wake panels on mirrored control points, if the mirrored control point is meant to be unique
-                if (mirrored_and_asym .and. body%vertices(i)%mirrored_is_unique) then
-
-                    if (doublet_order == 1) then
-                        do k=1,size(doublet_verts)
-                            A(i+body%N_cp,doublet_verts(k)+body%N_cp) = A(i+body%N_cp,doublet_verts(k)+body%N_cp) + doublet_inf(k)
-                        end do
-                    end if
-
-                end if
-
-                ! Get influence for existing->mirrored and mirrored->existing
+                ! Get influence for mirrored->existing in the case of mirrored mesh and symmetric flow
+                ! Get influence for mirrored->mirrored in the case of mirrored mesh and asymmetric flow
                 if (body%mirrored) then
 
-                    ! Get mirrored point (recall the Green's function is reciprocal)
+                    ! Get mirrored point
                     cp_mirrored = mirror_about_plane(body%control_points(i,:), body%mirror_plane)
 
                     ! Calculate influences
-                    doublet_inf = body%panels(j)%get_doublet_potential(cp_mirrored, doublet_verts)
+                    doublet_inf = body%wake%panels(j)%get_doublet_potential(cp_mirrored, doublet_verts)
 
-                    if (mirrored_and_asym) then
+                    if (body%mirrored_and_asym) then
 
+                        ! Influence of mirrored panel on mirrored control point
                         if (doublet_order == 1) then
-
-                            ! Influence of mirrored panel on existing control point
                             do k=1,size(doublet_verts)
-                                A(i,doublet_verts(k)+body%N_cp) = A(i,doublet_verts(k)+body%N_cp) + doublet_inf(k)
+                                A(i+body%N_cp,doublet_verts(k)) = A(i+body%N_cp,doublet_verts(k)) + doublet_inf(k)
                             end do
-
-                            ! Influence of existing panel on mirrored control point
-                            if (body%vertices(i)%mirrored_is_unique) then
-                                do k=1,size(doublet_verts)
-                                    A(i+body%N_cp,doublet_verts(k)) = A(i+body%N_cp,doublet_verts(k)) + doublet_inf(k)
-                                end do
-                            end if
-
                         end if
+
                     else
 
                         ! Influence of mirrored panel on existing control point
@@ -338,6 +314,7 @@ contains
                         end if
 
                     end if
+
                 end if
             end do
         end do

@@ -9,6 +9,7 @@ module wake_edge_mod
 
         integer :: i1, i2 ! Indices of the end vertices in the mesh vertex array
         integer :: top_panel, bottom_panel ! Indices of the top and bottom panels for this Kutta vertex
+        logical :: on_mirror_plane ! Whether this edge lies on the mirror plane
 
         contains
 
