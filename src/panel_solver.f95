@@ -263,11 +263,9 @@ contains
 
             ! Enforce doublet strength matching (i.e. for non-unique, mirrored control points, the
             ! doublet strengths must be the same). The RHS for these rows should still be zero.
-            if (mirrored_and_asym) then
-                if (.not. body%vertices(i)%mirrored_is_unique) then
-                    A(i+body%N_cp,i) = 1.
-                    A(i+body%N_cp,i+body%N_cp) = -1.
-                end if
+            if (mirrored_and_asym .and. .not. body%vertices(i)%mirrored_is_unique) then
+                A(i+body%N_cp,i) = 1.
+                A(i+body%N_cp,i+body%N_cp) = -1.
             end if
 
         end do

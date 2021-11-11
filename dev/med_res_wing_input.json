@@ -11,7 +11,7 @@
             "source" : 0
         },
         "wake_model" : {
-            "wake_shedding_angle" : 90.0,
+            "wake_shedding_angle" : 179.0,
             "trefftz_distance" : 100.0,
             "N_panels" : 1
         }

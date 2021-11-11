@@ -467,6 +467,7 @@ contains
 
         ! Place existing vertices in new array
         this%vertices(1:this%N_verts) = temp_vertices
+        deallocate(temp_vertices)
 
         ! Update number of vertices
         this%N_verts = this%N_verts + N_clones
