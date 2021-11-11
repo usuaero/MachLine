@@ -186,7 +186,7 @@ contains
                 end if
 
                 if (doublet_order == 1) then
-                    do k=1,size(vertex_indices)
+                    do k=1,size(doublet_vertex_indices)
                         A(i,doublet_vertex_indices(k)) = A(i,doublet_vertex_indices(k)) + doublet_influence(k)
                     end do
                 end if
@@ -258,7 +258,7 @@ contains
                         end if
 
                         if (doublet_order == 1) then
-                            do k=1,size(vertex_indices)
+                            do k=1,size(doublet_vertex_indices)
                                 A(i,doublet_vertex_indices(k)) = A(i,doublet_vertex_indices(k)) + doublet_influence(k)
                             end do
                         end if
@@ -284,8 +284,8 @@ contains
 
                 ! Add to LHS
                 if (doublet_order == 1) then
-                    do k=1,size(vertex_indices)
-                        A(i,vertex_indices(k)) = A(i,vertex_indices(k)) + influence(k)
+                    do k=1,size(doublet_vertex_indices)
+                        A(i,doublet_vertex_indices(k)) = A(i,doublet_vertex_indices(k)) + doublet_influence(k)
                     end do
                 end if
             end do
