@@ -30,73 +30,72 @@ module panel_solver_mod
 contains
 
 
-    subroutine panel_solver_init(this, settings, body_mesh)
+    subroutine panel_solver_init(this, settings, body)
 
         implicit none
 
         class(panel_solver),intent(inout) :: this
         type(json_value),pointer,intent(in) :: settings
-        type(surface_mesh),intent(inout) :: body_mesh
-        real :: control_point_offset
+        type(surface_mesh),intent(inout) :: body
 
         ! Get settings
         call json_xtnsn_get(settings, 'formulation', this%formulation, 'morino')
 
         ! Initialize based on formulation
         if (this%formulation == 'morino') then
-            call this%init_morino(settings, body_mesh)
+            call this%init_morino(settings, body)
         end if
 
     end subroutine panel_solver_init
 
 
-    subroutine panel_solver_init_morino(this, settings, body_mesh)
+    subroutine panel_solver_init_morino(this, settings, body)
         ! Initializes the solver to use the Morino formulation (i.e. zero inner perturbation potential)
 
         implicit none
 
         class(panel_solver),intent(in) :: this
         type(json_value),pointer,intent(in) :: settings
-        type(surface_mesh),intent(inout) :: body_mesh
+        type(surface_mesh),intent(inout) :: body
 
-        real :: control_point_offset
+        real :: offset
 
         write(*,*)
         write(*,'(a)',advance='no') "     Placing control points..."
 
         ! Place control points inside the body
-        call json_xtnsn_get(settings, 'control_point_offset', control_point_offset, 1e-5)
-        call body_mesh%place_interior_control_points(control_point_offset)
+        call json_xtnsn_get(settings, 'control_point_offset', offset, 1e-5)
+        call body%place_interior_control_points(offset)
         write(*,*) "Done."
     
     end subroutine panel_solver_init_morino
 
 
-    subroutine panel_solver_solve(this, body_mesh, freestream_flow)
+    subroutine panel_solver_solve(this, body, freestream)
         ! Calls the relevant subroutine to solve the case based on the selected formulation
 
         implicit none
 
         class(panel_solver),intent(inout) :: this
-        type(surface_mesh),intent(inout) :: body_mesh
-        type(flow),intent(in) :: freestream_flow
+        type(surface_mesh),intent(inout) :: body
+        type(flow),intent(in) :: freestream
 
         ! Morino formulation
         if (this%formulation == 'morino') then
-            call this%solve_morino(body_mesh, freestream_flow)
+            call this%solve_morino(body, freestream)
         end if
 
     end subroutine panel_solver_solve
 
 
-    subroutine panel_solver_solve_morino(this, body, freestream_flow)
+    subroutine panel_solver_solve_morino(this, body, freestream)
         ! Solves the Morino formulation for the given conditions
 
         implicit none
 
         class(panel_solver),intent(inout) :: this
         type(surface_mesh),intent(inout) :: body
-        type(flow),intent(in) :: freestream_flow
+        type(flow),intent(in) :: freestream
 
         integer :: i, j, k
         real,dimension(:),allocatable :: source_inf, doublet_inf
@@ -110,7 +109,7 @@ contains
         ! Check mirroring and flow symmetry condition
         mirrored_and_asym = .false.
         if (body%mirrored) then
-            if (.not. freestream_flow%symmetric_plane(body%mirror_plane)) then
+            if (.not. freestream%sym_about(body%mirror_plane)) then
                 mirrored_and_asym = .true.
             end if
         end if
@@ -121,20 +120,21 @@ contains
         ! Set source strengths
         if (source_order == 0) then
 
-            ! Allocate source strength array
+            ! Determine necessary number of source strengths
             if (mirrored_and_asym) then
                 N_sigma = body%N_panels*2
             else
                 N_sigma = body%N_panels
             end if
 
+            ! Allocate source strength array
             allocate(body%sigma(N_sigma))
 
             ! Loop through panels
             do i=1,body%N_panels
 
                 ! Existing panels
-                body%sigma(i) = -inner(body%panels(i)%normal, freestream_flow%c0)
+                body%sigma(i) = -inner(body%panels(i)%normal, freestream%c0)
 
                 ! Mirrored panels for asymmetric flow
                 if (mirrored_and_asym) then
@@ -143,7 +143,7 @@ contains
                     n_mirrored = mirror_about_plane(body%panels(i)%normal, body%mirror_plane)
 
                     ! Calculate source strength
-                    body%sigma(i+body%N_panels) = -inner(n_mirrored, freestream_flow%c0)
+                    body%sigma(i+body%N_panels) = -inner(n_mirrored, freestream%c0)
 
                 end if
             end do
@@ -151,20 +151,19 @@ contains
         end if
         write(*,*) "Done."
 
-        ! Allocate space for inner potential calculations
+        ! Determine number of doublet strengths (some will be repeats)
         if (mirrored_and_asym) then
-            allocate(body%phi_cp_sigma(body%N_cp*2), source=0., stat=stat)
+            N_mu = body%N_cp*2
         else
-            allocate(body%phi_cp_sigma(body%N_cp), source=0., stat=stat)
+            N_mu = body%N_cp
         end if
+
+        ! Allocate space for inner potential calculations
+        allocate(body%phi_cp_sigma(N_mu), source=0., stat=stat)
         call check_allocation(stat, "induced potential vector")
 
         ! Allocate AIC matrix
-        if (mirrored_and_asym) then
-            allocate(A(body%N_cp*2, body%N_cp*2), source=0., stat=stat)
-        else
-            allocate(A(body%N_cp, body%N_cp), source=0., stat=stat)
-        end if
+        allocate(A(N_mu, N_mu), source=0., stat=stat)
         call check_allocation(stat, "AIC matrix")
 
         write(*,*)
@@ -175,11 +174,8 @@ contains
             do j=1,body%N_panels
 
                 ! Get influence for existing->existing and mirrored->mirrored
-                source_inf = body%panels(j)%get_source_potential(body%control_points(i,:), &
-                                                                            source_verts)
-                doublet_inf = body%panels(j)%get_doublet_potential(body%control_points(i,:), &
-                                                                              doublet_verts)
-
+                source_inf = body%panels(j)%get_source_potential(body%control_points(i,:), source_verts)
+                doublet_inf = body%panels(j)%get_doublet_potential(body%control_points(i,:), doublet_verts)
 
                 ! Influence of existing panel on existing control point
                 if (source_order == 0) then
@@ -194,16 +190,15 @@ contains
 
                 ! Influence of mirrored panels on mirrored control points, if the mirrored control point is meant to be unique
                 if (mirrored_and_asym .and. body%vertices(i)%mirrored_is_unique) then
+
                     if (source_order == 0) then
                             body%phi_cp_sigma(i+body%N_cp) = body%phi_cp_sigma(i+body%N_cp) &
-                                                                       + source_inf(1)*body%sigma(j+body%N_panels)
+                                                             + source_inf(1)*body%sigma(j+body%N_panels)
                     end if
+
                     if (doublet_order == 1) then
                         do k=1,size(doublet_verts)
-                            if (body%vertices(k)%mirrored_is_unique) then
-                                A(i+body%N_cp,doublet_verts(k)+body%N_cp) = &
-                                A(i+body%N_cp,doublet_verts(k)+body%N_cp) + doublet_inf(k)
-                            end if
+                            A(i+body%N_cp,doublet_verts(k)+body%N_cp) = A(i+body%N_cp,doublet_verts(k)+body%N_cp) + doublet_inf(k)
                         end do
                     end if
                 end if
@@ -229,8 +224,7 @@ contains
 
                             ! Influence of existing panel on mirrored control point
                             if (body%vertices(i)%mirrored_is_unique) then
-                                body%phi_cp_sigma(i+body%N_cp) = body%phi_cp_sigma(i+body%N_cp) &
-                                                                           + source_inf(1)*body%sigma(j)
+                                body%phi_cp_sigma(i+body%N_cp) = body%phi_cp_sigma(i+body%N_cp) + source_inf(1)*body%sigma(j)
                             end if
                         end if
 
@@ -239,15 +233,13 @@ contains
 
                             ! Influence of mirrored panel on existing control point
                             do k=1,size(doublet_verts)
-                                A(i,doublet_verts(k)+body%N_cp) = &
-                                A(i,doublet_verts(k)+body%N_cp) + doublet_inf(k)
+                                A(i,doublet_verts(k)+body%N_cp) = A(i,doublet_verts(k)+body%N_cp) + doublet_inf(k)
                             end do
 
                             ! Influence of existing panel on mirrored control point
                             if (body%vertices(i)%mirrored_is_unique) then
                                 do k=1,size(doublet_verts)
-                                    A(i+body%N_cp,doublet_verts(k)) = &
-                                    A(i+body%N_cp,doublet_verts(k)) + doublet_inf(k)
+                                    A(i+body%N_cp,doublet_verts(k)) = A(i+body%N_cp,doublet_verts(k)) + doublet_inf(k)
                                 end do
                             end if
                         end if
@@ -268,31 +260,9 @@ contains
                 end if
 
             end do
-        end do
-        write(*,*) "Done."
 
-        write(*,*)
-        write(*,'(a)',advance='no') "     Calculating wake influences..."
-
-        ! Loop through control points
-        do i=1,body%N_cp
-
-            ! Get doublet influence from wake
-            do j=1,body%wake%N_panels
-
-                doublet_inf = body%wake%panels(j)%get_doublet_potential(body%control_points(i,:),&
-                                                                                   doublet_verts)
-
-                ! Add to LHS
-                if (doublet_order == 1) then
-                    do k=1,size(doublet_verts)
-                        A(i,doublet_verts(k)) = A(i,doublet_verts(k)) + doublet_inf(k)
-                    end do
-                end if
-            end do
-
-            ! For non-unique control points, set that the doublet strengths must be the same
-            ! The RHS for these rows should still be zero
+            ! Enforce doublet strength matching (i.e. for non-unique, mirrored control points, the
+            ! doublet strengths must be the same). The RHS for these rows should still be zero.
             if (mirrored_and_asym) then
                 if (.not. body%vertices(i)%mirrored_is_unique) then
                     A(i+body%N_cp,i) = 1.
@@ -303,12 +273,84 @@ contains
         end do
         write(*,*) "Done."
 
-        ! Make a copy of A (lu_solve replaces A with its decomposition)
-        allocate(A_copy, source=A, stat=stat)
-        call check_allocation(stat, "solver copy of AIC matrix")
+        ! Calculate influence of wake
+        write(*,*)
+        write(*,'(a)',advance='no') "     Calculating wake influences..."
+
+        ! Loop through control points
+        do i=1,body%N_cp
+
+            ! Get doublet influence from wake
+            do j=1,body%wake%N_panels
+
+                ! Caclulate influence for existing->existing and mirrored->mirrored
+                doublet_inf = body%wake%panels(j)%get_doublet_potential(body%control_points(i,:), doublet_verts)
+
+                ! Influence of existing wake panels on existing control points
+                if (doublet_order == 1) then
+                    do k=1,size(doublet_verts)
+                        A(i,doublet_verts(k)) = A(i,doublet_verts(k)) + doublet_inf(k)
+                    end do
+                end if
+
+                ! Influence of mirrored wake panels on mirrored control points, if the mirrored control point is meant to be unique
+                if (mirrored_and_asym .and. body%vertices(i)%mirrored_is_unique) then
+
+                    if (doublet_order == 1) then
+                        do k=1,size(doublet_verts)
+                            A(i+body%N_cp,doublet_verts(k)+body%N_cp) = A(i+body%N_cp,doublet_verts(k)+body%N_cp) + doublet_inf(k)
+                        end do
+                    end if
+
+                end if
+
+                ! Get influence for existing->mirrored and mirrored->existing
+                if (body%mirrored) then
+
+                    ! Get mirrored point (recall the Green's function is reciprocal)
+                    cp_mirrored = mirror_about_plane(body%control_points(i,:), body%mirror_plane)
+
+                    ! Calculate influences
+                    doublet_inf = body%panels(j)%get_doublet_potential(cp_mirrored, doublet_verts)
+
+                    if (mirrored_and_asym) then
+
+                        if (doublet_order == 1) then
+
+                            ! Influence of mirrored panel on existing control point
+                            do k=1,size(doublet_verts)
+                                A(i,doublet_verts(k)+body%N_cp) = A(i,doublet_verts(k)+body%N_cp) + doublet_inf(k)
+                            end do
+
+                            ! Influence of existing panel on mirrored control point
+                            if (body%vertices(i)%mirrored_is_unique) then
+                                do k=1,size(doublet_verts)
+                                    A(i+body%N_cp,doublet_verts(k)) = A(i+body%N_cp,doublet_verts(k)) + doublet_inf(k)
+                                end do
+                            end if
+
+                        end if
+                    else
+
+                        ! Influence of mirrored panel on existing control point
+                        if (doublet_order == 1) then
+                            do k=1,size(doublet_verts)
+                                A(i,doublet_verts(k)) = A(i,doublet_verts(k)) + doublet_inf(k)
+                            end do
+                        end if
+
+                    end if
+                end if
+            end do
+        end do
+        write(*,*) "Done."
 
         write(*,*)
         write(*,'(a)',advance='no') "     Solving linear system..."
+
+        ! Make a copy of A (lu_solve replaces A with its decomposition)
+        allocate(A_copy, source=A, stat=stat)
+        call check_allocation(stat, "solver copy of AIC matrix")
 
         ! Solve
         b = -body%phi_cp_sigma
@@ -332,15 +374,14 @@ contains
         allocate(body%V(body%N_panels,3), stat=stat)
         call check_allocation(stat, "surface velocity vectors")
         do i=1,body%N_panels
-            body%V(i,:) = freestream_flow%U*(freestream_flow%c0 &
-                               + body%panels(i)%get_velocity_jump(body%mu, body%sigma))
+            body%V(i,:) = freestream%U*(freestream%c0 + body%panels(i)%get_velocity_jump(body%mu, body%sigma))
         end do
 
         ! Calculate coefficients of pressure
         allocate(body%C_p(body%N_panels), stat=stat)
         call check_allocation(stat, "surface pressures")
         do i=1,body%N_panels
-            body%C_p(i) = 1.0-(norm(body%V(i,:))/freestream_flow%U)**2
+            body%C_p(i) = 1.0-(norm(body%V(i,:))/freestream%U)**2
         end do
 
         write(*,*) "Done."
