@@ -200,7 +200,7 @@ subroutine matinv(n, a, ai)
       ! ai - Returned by subroutine, an n by n real array containing the inverted matrix.
       ! d  - Work array, an n by 2n real array used by the subroutine.
       ! io - Work array, a 1-dimensional integer array of length n used by the subroutine.
-      ! THIS FUNCTION SHOULD NEVER BE CALLED! NEVER INVERT A MARTIX EXPLICITLY!
+      ! THIS FUNCTION SHOULD NEVER BE callED! NEVER INVERT A MARTIX EXPLICITLY!
       ! Unless you know what you're doing. Odds are you may not, so be careful.
 
       implicit none
@@ -351,13 +351,14 @@ subroutine lu_solve(n, A, b, x)
     allocate(indx(n))
 
     ! Compute decomposition
-    CALL lu_decomp(A, n, indx, D, info)
+    call lu_decomp(A, n, indx, D, info)
 
     ! if the matrix is nonsingular, then backsolve to find X
     if (info == 1) then
-        write(*,*) 'Subroutine lu_solve() failed. The given matrix is singular (i.e. no solution).'
+        write(*,*) 'Subroutine lu_solve() failed. The given matrix is singular (i.e. no solution). Quitting...'
+        stop
     else
-        CALL lu_back_sub(A, n, indx, b, x)
+        call lu_back_sub(A, n, indx, b, x)
     end if
 
     ! Cleanup

@@ -4,15 +4,20 @@ module helpers_mod
     
 contains
 
-    subroutine check_allocation(stat)
+    subroutine check_allocation(stat, what)
 
         implicit none
 
         integer,intent(in) :: stat
+        character(len=*),intent(in),optional :: what
 
         ! Check if stat is nonzero
         if (stat /= 0) then
-            write(*,*) "Your computer has insufficient memory for the desired computation. Quitting..."
+            if (present(what)) then
+                write(*,*) "Your computer has insufficient memory to allocate ", what, ". Quitting..."
+            else
+                write(*,*) "Your computer has insufficient memory. Quitting..."
+            end if
             stop
         end if
     
