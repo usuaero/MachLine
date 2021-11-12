@@ -503,8 +503,9 @@ contains
                     ! Store number of adjacent wake-shedding edges (probably unecessary at this point, but let's be consistent)
                     this%vertices(new_ind)%N_wake_edges = this%vertices(ind)%N_wake_edges
 
-                    ! Store whether the mirror of this vertex will be unique
+                    ! Copy over mirroring properties
                     this%vertices(new_ind)%mirrored_is_unique = this%vertices(ind)%mirrored_is_unique
+                    this%vertices(new_ind)%on_mirror_plane = this%vertices(ind)%on_mirror_plane
 
                     ! Copy over adjacent panels
                     do k=1,this%vertices(ind)%panels%len()
