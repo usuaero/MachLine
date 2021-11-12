@@ -426,7 +426,7 @@ contains
                 this%vertices(i)%mirrored_is_unique = .false.
             end if
         end do
-    
+
     end subroutine surface_mesh_set_up_mirroring
 
 
@@ -502,6 +502,9 @@ contains
 
                     ! Store number of adjacent wake-shedding edges (probably unecessary at this point, but let's be consistent)
                     this%vertices(new_ind)%N_wake_edges = this%vertices(ind)%N_wake_edges
+
+                    ! Store whether the mirror of this vertex will be unique
+                    this%vertices(new_ind)%mirrored_is_unique = this%vertices(ind)%mirrored_is_unique
 
                     ! Copy over adjacent panels
                     do k=1,this%vertices(ind)%panels%len()
@@ -717,8 +720,12 @@ contains
         write(*,*) "        Surface results written to: ", body_file
         
         ! Write out data for wake
-        call write_surface_vtk(wake_file, this%wake%vertices, this%wake%panels, this%sigma, this%mu, .true.)
-        write(*,*) "        Wake results written to: ", wake_file
+        if (this%wake%N_panels > 0) then
+            call write_surface_vtk(wake_file, this%wake%vertices, this%wake%panels, this%sigma, this%mu, .true.)
+            write(*,*) "        Wake results written to: ", wake_file
+        else
+            write(*,*) "        No wake to export."
+        end if
         
         ! Write out data for control points
         call write_point_vtk(control_point_file, this%control_points, this%phi_cp, this%phi_cp_mu, this%phi_cp_sigma)

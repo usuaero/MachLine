@@ -285,8 +285,7 @@ contains
                     end do
                 end if
 
-                ! Get influence for mirrored->existing in the case of mirrored mesh and symmetric flow
-                ! Get influence for mirrored->mirrored in the case of mirrored mesh and asymmetric flow
+                ! Get influence on mirrored control point
                 if (body%mirrored) then
 
                     ! Get mirrored point

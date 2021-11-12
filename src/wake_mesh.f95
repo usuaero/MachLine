@@ -83,7 +83,7 @@ contains
 
                 ! Determine location
                 ind = (i-1)*(N_panels_streamwise+1)+j
-                loc = start+vertex_separation*(j-1)*freestream_flow%c0
+                loc = start + vertex_separation*(j-1)*freestream_flow%c0
 
                 ! Initialize vertex
                 call this%vertices(ind)%init(loc, ind)
@@ -98,7 +98,7 @@ contains
                     ! Determine location
                     ind = ind + this%N_verts/2
                     mirrored_start = mirror_about_plane(start, mirror_plane)
-                    loc = mirrored_start+vertex_separation*(j-1)*freestream_flow%c0
+                    loc = mirrored_start + vertex_separation*(j-1)*freestream_flow%c0
 
                     ! Initialize vertex
                     call this%vertices(ind)%init(loc, ind)
@@ -163,9 +163,9 @@ contains
                     ind = ind + this%N_panels/2
 
                     ! Determine vertex indices
-                    i1 = (i_start-1)*(N_panels_streamwise+1)+j+N_wake_edge_verts
-                    i2 = (i_start-1)*(N_panels_streamwise+1)+j+1+N_wake_edge_verts
-                    i3 = (i_stop-1)*(N_panels_streamwise+1)+j+1+N_wake_edge_verts
+                    i1 = (i_start-1)*(N_panels_streamwise+1)+j+this%N_verts/2
+                    i2 = (i_start-1)*(N_panels_streamwise+1)+j+1+this%N_verts/2
+                    i3 = (i_stop-1)*(N_panels_streamwise+1)+j+1+this%N_verts/2
 
                     ! Initialize (order of vertices is reversed to maintain panel orientation through mirror)
                     call this%panels(ind)%init(this%vertices(i3),&
@@ -202,9 +202,9 @@ contains
                     ind = ind + this%N_panels/2
 
                     ! Determine vertex indices
-                    i1 = (i_start-1)*(N_panels_streamwise+1)+j+N_wake_edge_verts
-                    i2 = (i_stop-1)*(N_panels_streamwise+1)+j+1+N_wake_edge_verts
-                    i3 = (i_stop-1)*(N_panels_streamwise+1)+j+N_wake_edge_verts
+                    i1 = (i_start-1)*(N_panels_streamwise+1)+j+this%N_verts/2
+                    i2 = (i_stop-1)*(N_panels_streamwise+1)+j+1+this%N_verts/2
+                    i3 = (i_stop-1)*(N_panels_streamwise+1)+j+this%N_verts/2
 
                     ! Initialize (again, order is reversed)
                     call this%panels(ind)%init(this%vertices(i3),&
