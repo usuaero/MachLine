@@ -297,10 +297,12 @@ contains
                     if (body%mirrored_and_asym) then
 
                         ! Influence of mirrored panel on mirrored control point
-                        if (doublet_order == 1) then
-                            do k=1,size(doublet_verts)
-                                A(i+body%N_cp,doublet_verts(k)) = A(i+body%N_cp,doublet_verts(k)) + doublet_inf(k)
-                            end do
+                        if (body%vertices(i)%mirrored_is_unique) then
+                            if (doublet_order == 1) then
+                                do k=1,size(doublet_verts)
+                                    A(i+body%N_cp,doublet_verts(k)) = A(i+body%N_cp,doublet_verts(k)) + doublet_inf(k)
+                                end do
+                            end if
                         end if
 
                     else

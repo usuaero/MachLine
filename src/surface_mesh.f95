@@ -97,9 +97,6 @@ contains
         write(*,*)
         write(*,*) "    Surface mesh has", this%N_verts, "vertices and", this%N_panels, "panels."
 
-        ! Load into adt
-        !call this%load_adt()
-
         ! Get mirroring
         call json_xtnsn_get(settings, 'mirror_about', mirror_plane, "none")
         this%mirrored = .true.
@@ -376,7 +373,23 @@ contains
 
         integer :: i, m, n
 
-        ! Check if any wake-shedding edges intersect the mirror plane
+        ! Search for vertices lying on mirror plane
+        do i=1,this%N_verts
+
+            ! Check coordinate normal to mirror plane
+            if (abs(this%vertices(i)%loc(this%mirror_plane))<1e-12) then
+                this%vertices(i)%on_mirror_plane = .true.
+
+                ! If the vertex doesn't belong to a wake edge, then its mirror will not be unique
+                if (this%vertices(i)%N_wake_edges == 0) then
+                    this%vertices(i)%mirrored_is_unique = .false.
+                end if
+
+            end if
+            
+        end do
+
+        ! Check if any wake-shedding edges touch the mirror plane
         do i=1,size(this%wake_edges)
 
             ! Get endpoint indices
@@ -386,8 +399,6 @@ contains
             ! If a given wake edge has only one of its endpoints lying on the mirror plane, then that endpoint has another
             ! adjacent edge, since the edge will be mirrored across that plane. This endpoint will need a clone, but it's
             ! mirrored vertex will be the same
-            this%vertices(m)%on_mirror_plane = abs(this%vertices(m)%loc(this%mirror_plane))<1e-12
-            this%vertices(n)%on_mirror_plane = abs(this%vertices(n)%loc(this%mirror_plane))<1e-12
 
             ! Check for edge touching mirror plane at only one end
             if (this%vertices(m)%on_mirror_plane .neqv. this%vertices(n)%on_mirror_plane) then
@@ -419,13 +430,6 @@ contains
 
             end if
 
-        end do
-
-        ! Check for vertices not belonging to wake edges on the mirror plane
-        do i=1,this%N_verts
-            if (this%vertices(i)%N_wake_edges == 0 .and. abs(this%vertices(i)%loc(this%mirror_plane))<1e-12) then
-                this%vertices(i)%mirrored_is_unique = .false.
-            end if
         end do
 
     end subroutine surface_mesh_set_up_mirroring

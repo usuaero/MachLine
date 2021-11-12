@@ -103,18 +103,9 @@ contains
                     ! Initialize vertex
                     call this%vertices(ind)%init(loc, ind)
                     
-                    ! Set parent index (will need to be shifted if the parent's mirror is unique)
-                    if (mesh_vertices(top_parent_ind)%mirrored_is_unique) then
-                        this%vertices(ind)%top_parent = top_parent_ind + size(mesh_vertices)
-                    else
-                        this%vertices(ind)%top_parent = top_parent_ind
-                    end if
-
-                    if (mesh_vertices(bot_parent_ind)%mirrored_is_unique) then
-                        this%vertices(ind)%bot_parent = bot_parent_ind + size(mesh_vertices)
-                    else
-                        this%vertices(ind)%bot_parent = bot_parent_ind
-                    end if
+                    ! Set parent index
+                    this%vertices(ind)%top_parent = top_parent_ind + size(mesh_vertices)
+                    this%vertices(ind)%bot_parent = bot_parent_ind + size(mesh_vertices)
 
                 end if
 
