@@ -183,8 +183,8 @@ contains
                 if (body%mirrored_and_asym .and. body%vertices(i)%mirrored_is_unique) then
 
                     if (source_order == 0) then
-                            body%phi_cp_sigma(i+body%N_cp) = body%phi_cp_sigma(i+body%N_cp) &
-                                                             + source_inf(1)*body%sigma(j+body%N_panels)
+                        body%phi_cp_sigma(i+body%N_cp) = body%phi_cp_sigma(i+body%N_cp) &
+                                                         + source_inf(1)*body%sigma(j+body%N_panels)
                     end if
 
                     if (doublet_order == 1) then

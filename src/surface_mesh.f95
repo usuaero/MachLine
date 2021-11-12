@@ -373,11 +373,16 @@ contains
 
         integer :: i, m, n
 
+        write(*,*)
+        write(*,'(a)',advance='no') "     Setting up mesh mirror..."
+
         ! Search for vertices lying on mirror plane
         do i=1,this%N_verts
 
             ! Check coordinate normal to mirror plane
             if (abs(this%vertices(i)%loc(this%mirror_plane))<1e-12) then
+
+                ! The vertex is on the mirror plane
                 this%vertices(i)%on_mirror_plane = .true.
 
                 ! If the vertex doesn't belong to a wake edge, then its mirror will not be unique
@@ -404,7 +409,7 @@ contains
             if (this%vertices(m)%on_mirror_plane .neqv. this%vertices(n)%on_mirror_plane) then
 
                 ! Only add wake edge if the endpoint is on the mirror plane
-                if (abs(this%vertices(m)%loc(this%mirror_plane))<1e-12) then
+                if (this%vertices(m)%on_mirror_plane) then
 
                     this%vertices(m)%N_wake_edges = this%vertices(m)%N_wake_edges + 1
                     this%vertices(m)%needs_clone = .true.
@@ -413,8 +418,8 @@ contains
                 else
 
                     this%vertices(n)%N_wake_edges = this%vertices(n)%N_wake_edges + 1
-                    this%vertices(m)%needs_clone = .true.
-                    this%vertices(m)%mirrored_is_unique = .false.
+                    this%vertices(n)%needs_clone = .true.
+                    this%vertices(n)%mirrored_is_unique = .false.
 
                 end if
 
@@ -422,6 +427,7 @@ contains
             ! vertices will still be unique
             else if (this%vertices(m)%on_mirror_plane .and. this%vertices(n)%on_mirror_plane) then
 
+                ! The mirrored vertices will function as clones
                 this%vertices(m)%needs_clone = .false.
                 this%vertices(n)%needs_clone = .false.
 
@@ -431,6 +437,7 @@ contains
             end if
 
         end do
+        write(*,*) "Done."
 
     end subroutine surface_mesh_set_up_mirroring
 
