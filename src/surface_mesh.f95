@@ -375,7 +375,6 @@ contains
         class(surface_mesh),intent(inout) :: this
 
         integer :: i, m, n
-        logical :: m_on_mirror_plane, n_on_mirror_plane
 
         ! Check if any wake-shedding edges intersect the mirror plane
         do i=1,size(this%wake_edges)
@@ -387,9 +386,11 @@ contains
             ! If a given wake edge has only one of its endpoints lying on the mirror plane, then that endpoint has another
             ! adjacent edge, since the edge will be mirrored across that plane. This endpoint will need a clone, but it's
             ! mirrored vertex will be the same
-            m_on_mirror_plane = abs(this%vertices(m)%loc(this%mirror_plane))<1e-12
-            n_on_mirror_plane = abs(this%vertices(n)%loc(this%mirror_plane))<1e-12
-            if (m_on_mirror_plane .neqv. n_on_mirror_plane) then
+            this%vertices(m)%on_mirror_plane = abs(this%vertices(m)%loc(this%mirror_plane))<1e-12
+            this%vertices(n)%on_mirror_plane = abs(this%vertices(n)%loc(this%mirror_plane))<1e-12
+
+            ! Check for edge touching mirror plane at only one end
+            if (this%vertices(m)%on_mirror_plane .neqv. this%vertices(n)%on_mirror_plane) then
 
                 ! Only add wake edge if the endpoint is on the mirror plane
                 if (abs(this%vertices(m)%loc(this%mirror_plane))<1e-12) then
@@ -408,7 +409,7 @@ contains
 
             ! If the wake edge has both endpoints lying on the mirror plane, then these vertices need no clones, but the mirrored
             ! vertices will still be unique
-            else if (m_on_mirror_plane .and. n_on_mirror_plane) then
+            else if (this%vertices(m)%on_mirror_plane .and. this%vertices(n)%on_mirror_plane) then
 
                 this%vertices(m)%needs_clone = .false.
                 this%vertices(n)%needs_clone = .false.
@@ -591,8 +592,8 @@ contains
 
             else
 
-                ! If this vertex did not need to be cloned, but its mirror is unique, then the wake strength is partially determined by its mirror
-                if (this%vertices(ind)%mirrored_is_unique) then
+                ! If this vertex did not need to be cloned, but it is on the mirror plane, then the wake strength is partially determined by its mirror
+                if (this%vertices(ind)%on_mirror_plane) then
                     this%wake_edge_bot_verts(i) = 2*ind
                 end if
 
