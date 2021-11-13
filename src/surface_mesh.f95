@@ -407,16 +407,14 @@ contains
                     mirrored_normal = mirror_about_plane(this%panels(i)%normal, this%mirror_plane)
                     C_angle = inner(this%panels(i)%normal, mirrored_normal)
 
-                    ! Check angle between panels
+                    ! Check angle between panel and mirror
                     if (C_angle < this%C_wake_shedding_angle) then
 
                         ! Check angle of panel normal with freestream
                         if (inner(this%panels(i)%normal, freestream%V_inf) > 0.0 .or. &
                             inner(mirrored_normal, freestream%V_inf) > 0.0) then
 
-                            ! At this point, the panels are abutting, have a small enough angle,
-                            ! and at least one of them is pointing downstream. Thus, this is a
-                            ! wake-shedding edge.
+                            ! At this point, it is a wake-shedding edge.
 
                             ! Update minimum angle
                             this%C_min_wake_shedding_angle = min(C_angle, this%C_min_wake_shedding_angle)
