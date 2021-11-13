@@ -62,8 +62,6 @@ contains
                 ! Determine size of panel
                 if (dummy_read(1:2) == '3 ') then
                     read(dummy_read,*) N, i1, i2, i3
-                !else if (dummy_read(1:2) == '4 ') then
-                !    read(dummy_read,*) N, i1, i2, i3, i4
                 else
                     write(*,*) "MFTran supports only triangular panels."
                     stop
@@ -78,22 +76,6 @@ contains
                     call vertices(i1+1)%panels%append(i)
                     call vertices(i2+1)%panels%append(i)
                     call vertices(i3+1)%panels%append(i)
-
-                ! Initialize quadrilateral panel
-                else
-                    write(*,*) "MFTran cannot currently handle quadrilateral panels."
-                    stop
-
-                    ! TODO: Initialize quads with two tris
-
-                    !call panels(i)%init(vertices(i1+1), vertices(i2+1), vertices(i3+1), vertices(i4+1),&
-                    !                    i1+1, i2+1, i3+1, i4+1, i)
-
-                    !! Add panel index to vertices
-                    !call vertices(i1+1)%panels%append(i)
-                    !call vertices(i2+1)%panels%append(i)
-                    !call vertices(i3+1)%panels%append(i)
-                    !call vertices(i4+1)%panels%append(i)
                 end if
 
             end do

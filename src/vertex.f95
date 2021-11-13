@@ -60,8 +60,11 @@ contains
         ! Intitialize some data
         this%top_parent = 0
         this%bot_parent = 0
+
+        ! Default cases
         this%mirrored_is_unique = .true. ! This will almost always be the case; we'll set the exceptions later
-        this%needs_clone = .false. ! Same here
+        this%needs_clone = .false.
+        this%on_mirror_plane = .false.
 
     end subroutine vertex_init
 
@@ -74,7 +77,7 @@ contains
         class(vertex),intent(inout) :: this
         type(vertex),dimension(:),allocatable,intent(in) :: vertices
 
-        integer :: i, ind, N
+        integer :: i, adj_ind, N
 
         ! Loop through adjacent vertices
         this%l_avg = 0.
@@ -82,20 +85,20 @@ contains
         do i=1,this%adjacent_vertices%len()
             
             ! Get index of adjacent vertex
-            call this%adjacent_vertices%get(i, ind)
+            call this%adjacent_vertices%get(i, adj_ind)
 
             ! For a vertex on the mirror plane where the adjacent vertex is not on the mirror plane
             ! that length will need to be added twice
-            if (this%on_mirror_plane .and. .not. vertices(ind)%on_mirror_plane) then
+            if (this%on_mirror_plane .and. .not. vertices(adj_ind)%on_mirror_plane) then
 
                 ! Add twice
-                this%l_avg = this%l_avg + dist(this%loc, vertices(ind)%loc)*2
+                this%l_avg = this%l_avg + dist(this%loc, vertices(adj_ind)%loc)*2
                 N = N + 2
                 
             else
 
                 ! Add once
-                this%l_avg = this%l_avg + dist(this%loc, vertices(ind)%loc)
+                this%l_avg = this%l_avg + dist(this%loc, vertices(adj_ind)%loc)
                 N = N + 1
 
             end if

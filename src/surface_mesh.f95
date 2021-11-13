@@ -634,7 +634,7 @@ contains
         implicit none
 
         class(surface_mesh),intent(inout) :: this
-        real,dimension(3) :: sum, normal
+        real,dimension(3) :: vec_sum, normal
         integer :: i, j, N, ind
 
         write(*,*)
@@ -645,28 +645,21 @@ contains
 
             ! Loop through neighboring panels and compute the average of their normal vectors
             N = this%vertices(j)%panels%len()
-            sum = 0
+            vec_sum = 0
             do i=1,N
                 call this%vertices(j)%panels%get(i, ind)
-                sum = sum + this%panels(ind)%normal
+                vec_sum = vec_sum + this%panels(ind)%normal
             end do
 
-            ! For vertices on the mirror plane, the mirrored panels on the other side need to also be used to calcuate the normal
+            ! For vertices on the mirror plane, the component normal to the plane should be zeroed
             if (this%mirrored .and. this%vertices(j)%on_mirror_plane) then
 
-                ! Get mirrored normal vector
-                normal = mirror_about_plane(sum, this%mirror_plane)
-
-                ! Add it in
-                sum = sum + normal
+                vec_sum(this%mirror_plane) = 0.
 
             end if
 
-            ! Normalize
-            normal = sum/norm(sum)
-
-            ! Store
-            this%vertices(j)%normal = normal
+            ! Normalize and store
+            this%vertices(j)%normal = vec_sum/norm(vec_sum)
 
         end do
 
