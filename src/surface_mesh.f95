@@ -646,6 +646,17 @@ contains
                 sum = sum + this%panels(ind)%normal
             end do
 
+            ! For vertices on the mirror plane, the mirrored panels on the other side need to also be used to calcuate the normal
+            if (this%mirrored .and. this%vertices(j)%on_mirror_plane) then
+
+                ! Get mirrored normal vector
+                normal = mirror_about_plane(sum, this%mirror_plane)
+
+                ! Add it in
+                sum = sum + normal
+
+            end if
+
             ! Normalize
             normal = sum/norm(sum)
 
