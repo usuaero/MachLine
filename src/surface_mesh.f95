@@ -40,6 +40,7 @@ module surface_mesh_mod
             procedure :: init_with_flow => surface_mesh_init_with_flow
             procedure :: output_results => surface_mesh_output_results
             procedure :: locate_wake_shedding_edges => surface_mesh_locate_wake_shedding_edges
+            procedure :: find_vertices_on_mirror => surface_mesh_find_vertices_on_mirror
             procedure :: clone_wake_shedding_vertices => surface_mesh_clone_wake_shedding_vertices
             procedure :: set_up_mirroring => surface_mesh_set_up_mirroring
             procedure :: calc_vertex_normals => surface_mesh_calc_vertex_normals
@@ -118,7 +119,37 @@ contains
         call json_xtnsn_get(settings, 'wake_model.N_panels', this%N_wake_panels_streamwise, 20)
         this%C_wake_shedding_angle = cos(this%wake_shedding_angle*pi/180.0)
 
+        ! Locate which vertices are on the mirror plane
+        if (this%mirrored) then
+            call this%find_vertices_on_mirror()
+        end if
+
     end subroutine surface_mesh_init
+
+
+    subroutine surface_mesh_find_vertices_on_mirror(this)
+        ! Locates which vertices are on the mirror plane
+
+        implicit none
+
+        class(surface_mesh),intent(inout) :: this
+
+        integer :: i
+
+        ! Search for vertices lying on mirror plane
+        do i=1,this%N_verts
+
+            ! Check coordinate normal to mirror plane
+            if (abs(this%vertices(i)%loc(this%mirror_plane))<1e-12) then
+
+                ! The vertex is on the mirror plane
+                this%vertices(i)%on_mirror_plane = .true.
+
+            end if
+            
+        end do
+    
+    end subroutine surface_mesh_find_vertices_on_mirror
 
 
     subroutine surface_mesh_init_with_flow(this, freestream)
@@ -171,11 +202,12 @@ contains
         type(flow),intent(in) :: freestream
 
         integer :: i, j, m, n, mm, temp, top_panel, bottom_panel
-        integer :: N_wake_edges = 0
+        integer :: N_wake_edges, N_on_mirror_plane
         integer,dimension(2) :: shared_verts
         type(list) :: wake_edge_starts, wake_edge_stops, top_panels, bottom_panels, wake_edge_verts
         logical :: abutting, already_found_shared, is_wake_edge
         real :: distance, C_angle
+        real,dimension(3) :: mirrored_normal
 
         write(*,*)
         write(*,'(a)',advance='no') "     Locating wake-shedding edges..."
@@ -184,6 +216,7 @@ contains
         this%C_min_wake_shedding_angle = this%C_wake_shedding_angle
 
         ! Loop through each pair of panels
+        N_wake_edges = 0
         do i=1,this%N_panels
             do j=i+1,this%N_panels
 
@@ -195,11 +228,11 @@ contains
                 abutting_loop: do m=1,this%panels(i)%N
                     do n=1,this%panels(j)%N
 
-                        ! Get distance between vertices
-                        distance = dist(this%panels(i)%get_vertex_loc(m), this%panels(j)%get_vertex_loc(n)) ! More robust than checking vertex indices; mesh may not be ideal
+                        ! Get distance between vertices. This is more robust than checking vertex indices; mesh may not be ideal.
+                        distance = dist(this%panels(i)%get_vertex_loc(m), this%panels(j)%get_vertex_loc(n))
 
                         ! Check distance
-                        if (distance < 1e-10) then
+                        if (distance < 1e-12) then
 
                             ! Previously found a shared vertex
                             if (already_found_shared) then
@@ -328,6 +361,123 @@ contains
                 end if
 
             end do
+
+            ! For each panel, check if it forms a wake-shedding edge with its mirror
+            if (this%mirrored) then
+                already_found_shared = .false.
+                abutting = .false.
+                mirror_loop: do m=1,this%panels(i)%N
+
+                    ! Check if vertex is on the mirror plane
+                    n = this%panels(i)%vertex_indices(m)
+                    if (this%vertices(n)%on_mirror_plane) then
+
+                        ! Previously found a vertex on mirror plane
+                        if (already_found_shared) then
+                            abutting = .true.
+                            shared_verts(2) = n
+                            exit mirror_loop
+
+                        ! First vertex on the mirror plane
+                        else
+                            already_found_shared = .true.
+                            shared_verts(1) = n
+                            mm = m
+
+                        end if
+                    end if
+
+                end do mirror_loop
+
+                ! Perform checks for panels that abutt the mirror plane
+                if (abutting) then
+
+                    ! Store adjacent vertices
+                    if (.not. this%vertices(shared_verts(1))%adjacent_vertices%is_in(shared_verts(2))) then
+                        call this%vertices(shared_verts(1))%adjacent_vertices%append(shared_verts(2))
+                    end if
+                    if (.not. this%vertices(shared_verts(2))%adjacent_vertices%is_in(shared_verts(1))) then
+                        call this%vertices(shared_verts(2))%adjacent_vertices%append(shared_verts(1))
+                    end if
+
+                    ! Reinitialize check for wake edge
+                    is_wake_edge = .false.
+
+                    ! Calculate cosine of flow turning angle
+                    mirrored_normal = mirror_about_plane(this%panels(i)%normal, this%mirror_plane)
+                    C_angle = inner(this%panels(i)%normal, mirrored_normal)
+
+                    ! Check angle between panels
+                    if (C_angle < this%C_wake_shedding_angle) then
+
+                        ! Check angle of panel normal with freestream
+                        if (inner(this%panels(i)%normal, freestream%V_inf) > 0.0 .or. &
+                            inner(mirrored_normal, freestream%V_inf) > 0.0) then
+
+                            ! At this point, the panels are abutting, have a small enough angle,
+                            ! and at least one of them is pointing downstream. Thus, this is a
+                            ! wake-shedding edge.
+
+                            ! Update minimum angle
+                            this%C_min_wake_shedding_angle = min(C_angle, this%C_min_wake_shedding_angle)
+
+                            ! Check order the vertices were stored in
+                            if (mm == 1 .and. m == this%panels(i)%N) then
+
+                                ! Rearrange as before
+                                temp = shared_verts(2)
+                                shared_verts(2) = shared_verts(1)
+                                shared_verts(1) = temp
+
+                            end if
+
+                            ! Update number of wake-shedding edges
+                            N_wake_edges = N_wake_edges + 1
+                            is_wake_edge = .true.
+
+                            ! Store in starts and stops list
+                            call wake_edge_starts%append(shared_verts(1))
+                            call wake_edge_stops%append(shared_verts(2))
+
+                            ! Store top and bottom panels (original is top, mirror is bottom)
+                            call top_panels%append(i)
+                            call bottom_panels%append(i+this%N_panels)
+
+                            ! If this vertex does not already belong to a wake-shedding edge, add it to the list of wake edge vertices
+                            ! Note the needs_clone toggle is not set here because vertices on the mirror plane are not cloned
+                            if (this%vertices(shared_verts(1))%N_wake_edges == 0) then 
+
+                                ! Add the first time
+                                call wake_edge_verts%append(shared_verts(1))
+                                this%vertices(shared_verts(1))%index_in_wake_vertices = wake_edge_verts%len()
+
+                            end if
+
+                            ! Update number of wake edges touching this vertex
+                            this%vertices(shared_verts(1))%N_wake_edges = this%vertices(shared_verts(1))%N_wake_edges + 1
+
+                            ! Do the same for the other vertex
+                            if (this%vertices(shared_verts(2))%N_wake_edges == 0) then 
+
+                                ! Add the first time
+                                call wake_edge_verts%append(shared_verts(2))
+                                this%vertices(shared_verts(2))%index_in_wake_vertices = wake_edge_verts%len()
+
+                            end if
+
+                            ! Update number of wake edges touching this vertex
+                            this%vertices(shared_verts(2))%N_wake_edges = this%vertices(shared_verts(2))%N_wake_edges + 1
+
+                            ! Store the fact that this panel has a Kutta edge
+                            this%panels(i)%on_wake_edge = .true.
+
+                        end if
+                    end if
+
+                end if
+
+            end if
+
         end do
 
         ! Allocate wake top vertices array
@@ -376,20 +526,11 @@ contains
         write(*,*)
         write(*,'(a)',advance='no') "     Setting up mesh mirror..."
 
-        ! Search for vertices lying on mirror plane
+        ! If a vertex on the mirror plane doesn't belong to a wake edge, then its mirror will not be unique
         do i=1,this%N_verts
 
-            ! Check coordinate normal to mirror plane
-            if (abs(this%vertices(i)%loc(this%mirror_plane))<1e-12) then
-
-                ! The vertex is on the mirror plane
-                this%vertices(i)%on_mirror_plane = .true.
-
-                ! If the vertex doesn't belong to a wake edge, then its mirror will not be unique
-                if (this%vertices(i)%N_wake_edges == 0) then
-                    this%vertices(i)%mirrored_is_unique = .false.
-                end if
-
+            if (this%vertices(i)%on_mirror_plane .and. this%vertices(i)%N_wake_edges == 0) then
+                this%vertices(i)%mirrored_is_unique = .false.
             end if
             
         end do
