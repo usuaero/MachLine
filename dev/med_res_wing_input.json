@@ -1,6 +1,6 @@
 {
     "flow" : {
-        "V_inf" : [-100.0, 0.0, -10.0]
+        "V_inf" : [-100.0, 30.0, -10.0]
     },
     "geometry" : {
         "file" : "dev/meshes/straight_wing_med_res.vtk",
@@ -9,7 +9,7 @@
             "source" : 0
         },
         "wake_model" : {
-            "wake_shedding_angle" : 90.0,
+            "wake_shedding_angle" : 179.0,
             "trefftz_distance" : 100.0,
             "N_panels" : 1
         }

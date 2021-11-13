@@ -142,7 +142,7 @@ contains
         end if
         write(*,*) "Done."
 
-        ! Determine number of doublet strengths (some will be repeats)
+        ! Determine number of doublet strengths (some will be repeats for mirrored vertices)
         if (body%mirrored_and_asym) then
             N_mu = body%N_cp*2
         else
