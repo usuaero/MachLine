@@ -603,9 +603,14 @@ contains
 
             else
 
-                ! If this vertex did not need to be cloned, but it is on the mirror plane, then the wake strength is partially determined by its mirror
-                if (this%vertices(ind)%on_mirror_plane) then
-                    this%wake_edge_bot_verts(i) = 2*ind
+                ! If this vertex did not need to be cloned, but it is on the mirror plane and its mirror is unique
+                ! then the wake strength is partially determined by its mirror. But this is only in the case of an asymmetric flow.
+                if (this%mirrored_and_asym .and. &
+                    this%vertices(ind)%on_mirror_plane .and. &
+                    this%vertices(ind)%mirrored_is_unique) then
+
+                    this%wake_edge_bot_verts(i) = ind + this%N_verts
+
                 end if
 
             end if

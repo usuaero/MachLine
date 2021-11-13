@@ -74,22 +74,36 @@ contains
         class(vertex),intent(inout) :: this
         type(vertex),dimension(:),allocatable,intent(in) :: vertices
 
-        integer :: i, ind
+        integer :: i, ind, N
 
         ! Loop through adjacent vertices
         this%l_avg = 0.
+        N = 0
         do i=1,this%adjacent_vertices%len()
             
             ! Get index of adjacent vertex
             call this%adjacent_vertices%get(i, ind)
 
-            ! Add length
-            this%l_avg = this%l_avg + dist(this%loc, vertices(ind)%loc)
+            ! For a vertex on the mirror plane where the adjacent vertex is not on the mirror plane
+            ! that length will need to be added twice
+            if (this%on_mirror_plane .and. .not. vertices(ind)%on_mirror_plane) then
+
+                ! Add twice
+                this%l_avg = this%l_avg + dist(this%loc, vertices(ind)%loc)*2
+                N = N + 2
+                
+            else
+
+                ! Add once
+                this%l_avg = this%l_avg + dist(this%loc, vertices(ind)%loc)
+                N = N + 1
+
+            end if
 
         end do
         
         ! Compute average
-        this%l_avg = this%l_avg/this%adjacent_vertices%len()
+        this%l_avg = this%l_avg/N
     
     end subroutine vertex_calc_average_edge_length
 
