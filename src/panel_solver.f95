@@ -261,62 +261,64 @@ contains
         write(*,*) "Done."
 
         ! Calculate influence of wake
-        write(*,'(a)',advance='no') "     Calculating wake influences..."
+        if (body%wake%N_panels > 0) then
+            write(*,'(a)',advance='no') "     Calculating wake influences..."
 
-        ! Loop through control points
-        do i=1,body%N_cp
+            ! Loop through control points
+            do i=1,body%N_cp
 
-            ! Get doublet influence from wake
-            ! Note that for the wake, in the case of mirrored mesh with asymmetric flow, the mirrored wake panels have actually been created.
-            ! In this case, there are technically no mirrored panels, and this loop will cycle through both existing and mirrored panels.
-            ! For symmetric flow, mirrored panels still need to be added as before.
-            do j=1,body%wake%N_panels
+                ! Get doublet influence from wake
+                ! Note that for the wake, in the case of mirrored mesh with asymmetric flow, the mirrored wake panels have actually been created.
+                ! In this case, there are technically no mirrored panels, and this loop will cycle through both existing and mirrored panels.
+                ! For symmetric flow, mirrored panels still need to be added as before.
+                do j=1,body%wake%N_panels
 
-                ! Caclulate influence on existing control points
-                doublet_inf = body%wake%panels(j)%get_doublet_potential(body%control_points(i,:), doublet_verts)
+                    ! Caclulate influence on existing control points
+                    doublet_inf = body%wake%panels(j)%get_doublet_potential(body%control_points(i,:), doublet_verts)
 
-                ! Influence of existing wake panels on existing control points
-                if (doublet_order == 1) then
-                    do k=1,size(doublet_verts)
-                        A(i,doublet_verts(k)) = A(i,doublet_verts(k)) + doublet_inf(k)
-                    end do
-                end if
+                    ! Influence of existing wake panels on existing control points
+                    if (doublet_order == 1) then
+                        do k=1,size(doublet_verts)
+                            A(i,doublet_verts(k)) = A(i,doublet_verts(k)) + doublet_inf(k)
+                        end do
+                    end if
 
-                ! Get influence on mirrored control point
-                if (body%mirrored) then
+                    ! Get influence on mirrored control point
+                    if (body%mirrored) then
 
-                    ! Get mirrored point
-                    cp_mirrored = mirror_about_plane(body%control_points(i,:), body%mirror_plane)
+                        ! Get mirrored point
+                        cp_mirrored = mirror_about_plane(body%control_points(i,:), body%mirror_plane)
 
-                    ! Calculate influences
-                    doublet_inf = body%wake%panels(j)%get_doublet_potential(cp_mirrored, doublet_verts)
+                        ! Calculate influences
+                        doublet_inf = body%wake%panels(j)%get_doublet_potential(cp_mirrored, doublet_verts)
 
-                    if (body%mirrored_and_asym) then
+                        if (body%mirrored_and_asym) then
 
-                        ! Influence of mirrored panel on mirrored control point
-                        if (body%vertices(i)%mirrored_is_unique) then
+                            ! Influence of mirrored panel on mirrored control point
+                            if (body%vertices(i)%mirrored_is_unique) then
+                                if (doublet_order == 1) then
+                                    do k=1,size(doublet_verts)
+                                        A(i+body%N_cp,doublet_verts(k)) = A(i+body%N_cp,doublet_verts(k)) + doublet_inf(k)
+                                    end do
+                                end if
+                            end if
+
+                        else
+
+                            ! Influence of mirrored panel on existing control point
                             if (doublet_order == 1) then
                                 do k=1,size(doublet_verts)
-                                    A(i+body%N_cp,doublet_verts(k)) = A(i+body%N_cp,doublet_verts(k)) + doublet_inf(k)
+                                    A(i,doublet_verts(k)) = A(i,doublet_verts(k)) + doublet_inf(k)
                                 end do
                             end if
-                        end if
 
-                    else
-
-                        ! Influence of mirrored panel on existing control point
-                        if (doublet_order == 1) then
-                            do k=1,size(doublet_verts)
-                                A(i,doublet_verts(k)) = A(i,doublet_verts(k)) + doublet_inf(k)
-                            end do
                         end if
 
                     end if
-
-                end if
+                end do
             end do
-        end do
-        write(*,*) "Done."
+            write(*,*) "Done."
+        end if
 
         write(*,'(a)',advance='no') "     Solving linear system..."
 

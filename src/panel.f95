@@ -10,6 +10,7 @@ module panel_mod
     integer :: doublet_order
     integer :: source_order
     integer :: eval_count ! Developer counter for optimization purposes
+    logical :: debug = .false. ! Developer toggle
 
     type eval_point_geom
         ! Container type for the geometric parameters necessary for calculating a panel's influence on a given field point
@@ -772,7 +773,7 @@ contains
                 end do
             end do
         end do
-        if (any(isnan(F))) then
+        if (debug .and. any(isnan(F))) then
             write(*,*)
             write(*,*) "NaN found in F"
         end if
@@ -1049,7 +1050,7 @@ contains
 
         ! Calculate H integrals
         H = this%calc_H_integrals(geom, proc_H, MXK, MXQ, NHK, F)
-        if (any(isnan(H))) then
+        if (debug .and. any(isnan(H))) then
             write(*,*)
             write(*,*) "NaN found in H using Procedure", proc_H
             write(*,*) "dH was calculated to be", dH
@@ -1089,7 +1090,7 @@ contains
             ! Compute induced potential
             allocate(phi(1))
             phi = -1./(4.*pi)*H(1,1,1)
-            if (any(isnan(phi)) .or. isinf(phi(1))) then
+            if (debug .and. any(isnan(phi)) .or. isinf(phi(1))) then
                 write(*,*)
                 write(*,*) "Found NaN in source influence calculation."
                 write(*,*) "Influence: ", phi
@@ -1193,7 +1194,7 @@ contains
             phi(1) = geom%h*H(1,1,3)
             phi(2) = geom%r_in_plane(1)*geom%h*H(1,1,3)+geom%h*H(2,1,3)
             phi(3) = geom%r_in_plane(2)*geom%h*H(1,1,3)+geom%h*H(1,2,3)
-            if (any(isnan(phi))) then
+            if (debug .and. any(isnan(phi))) then
                 write(*,*)
                 write(*,*) "Found NaN in doublet influence calculation."
                 write(*,*) "Influence: ", phi
