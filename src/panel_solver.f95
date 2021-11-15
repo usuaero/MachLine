@@ -105,7 +105,6 @@ contains
         integer :: stat, N_sigma, N_mu
         real,dimension(3) :: n_mirrored, cp_mirrored
 
-        write(*,*)
         write(*,'(a)',advance='no') "     Calculating source strengths..."
 
         ! Set source strengths
@@ -157,7 +156,6 @@ contains
         allocate(A(N_mu, N_mu), source=0., stat=stat)
         call check_allocation(stat, "AIC matrix")
 
-        write(*,*)
         write(*,'(a)',advance='no') "     Calculating body influences..."
 
         ! Calculate source and doublet influences from body
@@ -263,7 +261,6 @@ contains
         write(*,*) "Done."
 
         ! Calculate influence of wake
-        write(*,*)
         write(*,'(a)',advance='no') "     Calculating wake influences..."
 
         ! Loop through control points
@@ -321,7 +318,6 @@ contains
         end do
         write(*,*) "Done."
 
-        write(*,*)
         write(*,'(a)',advance='no') "     Solving linear system..."
 
         ! Make a copy of A (lu_solve replaces A with its decomposition)
@@ -343,7 +339,6 @@ contains
         write(*,*) "        Maximum residual inner potential:", maxval(abs(body%phi_cp))
         write(*,*) "        Norm of residual innner potential:", sqrt(sum(body%phi_cp**2))
 
-        write(*,*)
         write(*,'(a)',advance='no') "     Calculating surface velocities and pressures..."
 
         ! Determine surface velocities

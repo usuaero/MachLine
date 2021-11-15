@@ -211,7 +211,7 @@ contains
             end do
         end do
 
-        write(*,*) "Done. Created", this%N_verts, "wake vertices and", this%N_panels, "wake panels."
+        write(*,'(a, i7, a, i7, a)') "Done. Created ", this%N_verts, " wake vertices and ", this%N_panels, " wake panels."
 
     end subroutine wake_mesh_init
 

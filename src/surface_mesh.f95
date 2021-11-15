@@ -66,7 +66,8 @@ contains
         call json_xtnsn_get(settings, 'singularity_order.doublet', doublet_order, 1)
         call json_xtnsn_get(settings, 'singularity_order.source', source_order, 0)
         write(*,*)
-        write(*,*) "    User has selected:", doublet_order, "-order doublet panels and", source_order, "-order source panels."
+        write(*,'(a, i1, a, i1, a)') "     User has selected: ", doublet_order, &
+                                     "-order doublet panels and ", source_order, "-order source panels."
 
         ! Check
         if (doublet_order /= 1 .or. source_order /= 0) then
@@ -79,7 +80,6 @@ contains
         ! Get mesh file
         call json_get(settings, 'file', mesh_file)
         mesh_file = trim(mesh_file)
-        write(*,*)
         write(*,*) "    Reading surface mesh in from file: ", mesh_file
 
         ! Determine the type of mesh file
@@ -95,8 +95,7 @@ contains
         end if
 
         ! Display mesh info
-        write(*,*)
-        write(*,*) "    Surface mesh has", this%N_verts, "vertices and", this%N_panels, "panels."
+        write(*,'(a, i7, a, i7, a)') "     Surface mesh has ", this%N_verts, " vertices and ", this%N_panels, " panels."
 
         ! Get mirroring
         call json_xtnsn_get(settings, 'mirror_about', mirror_plane, "none")
@@ -104,10 +103,13 @@ contains
         select case (mirror_plane)
         case ("xy")
             this%mirror_plane = 3
+            write(*,*) "    Mesh set to mirror about xy plane."
         case ("xz")
             this%mirror_plane = 2
+            write(*,*) "    Mesh set to mirror about xz plane."
         case ("yz")
             this%mirror_plane = 1
+            write(*,*) "    Mesh set to mirror about yz plane."
         case default
             this%mirror_plane = 0
             this%mirrored = .false.
@@ -507,7 +509,7 @@ contains
 
         end do
 
-        write(*,*) "Done. Found", N_wake_edges, "wake-shedding edges."
+        write(*,'(a, i3, a)') "Done. Found ", N_wake_edges, " wake-shedding edges."
 
     end subroutine surface_mesh_locate_wake_shedding_edges
 
@@ -521,7 +523,6 @@ contains
 
         integer :: i, m, n
 
-        write(*,*)
         write(*,'(a)',advance='no') "     Setting up mesh mirror..."
 
         ! If a vertex on the mirror plane doesn't belong to a wake edge, then its mirror will not be unique
@@ -592,7 +593,6 @@ contains
         integer :: i, j, k, m, n, N_clones, ind, new_ind, N_wake_verts, bottom_panel_ind, abutting_panel_ind, adj_vert_ind
         type(vertex),dimension(:),allocatable :: cloned_vertices, temp_vertices
 
-        write(*,*)
         write(*,'(a)',advance='no') "     Cloning vertices on wake-shedding edges..."
 
         ! Allocate array which will store which wake-shedding vertices need to be cloned
@@ -760,7 +760,7 @@ contains
             call this%vertices(i)%calc_average_edge_length(this%vertices)
         end do
 
-        write(*,*) "Done. Cloned", N_clones, "vertices. Mesh now has", this%N_verts, "vertices."
+        write(*,'(a, i3, a, i7, a)') "Done. Cloned ", N_clones, " vertices. Mesh now has ", this%N_verts, " vertices."
 
     end subroutine surface_mesh_clone_wake_shedding_vertices
 
@@ -775,7 +775,6 @@ contains
         real,dimension(3) :: vec_sum, normal
         integer :: i, j, N, ind
 
-        write(*,*)
         write(*,'(a)',advance='no') "     Calculating vertex normals..."
 
         ! Loop through vertices
@@ -877,19 +876,19 @@ contains
 
         ! Write out data for body
         call write_surface_vtk(body_file, this%vertices, this%panels, this%sigma, this%mu, .false., this%V, this%C_p)
-        write(*,*) "        Surface results written to: ", body_file
+        write(*,*) "    Surface results written to: ", body_file
         
         ! Write out data for wake
         if (this%wake%N_panels > 0) then
             call write_surface_vtk(wake_file, this%wake%vertices, this%wake%panels, this%sigma, this%mu, .true.)
-            write(*,*) "        Wake results written to: ", wake_file
+            write(*,*) "    Wake results written to: ", wake_file
         else
-            write(*,*) "        No wake to export."
+            write(*,*) "    No wake to export."
         end if
         
         ! Write out data for control points
         call write_point_vtk(control_point_file, this%control_points, this%phi_cp, this%phi_cp_mu, this%phi_cp_sigma)
-        write(*,*) "        Control point results written to: ", control_point_file
+        write(*,*) "    Control point results written to: ", control_point_file
     
     end subroutine surface_mesh_output_results
 

@@ -38,7 +38,6 @@ program main
     write(*,*) "      \          \   \"
     write(*,*) "       \          \___\"
     write(*,*) "        \"
-    write(*,*)
 
     ! Set up run
     call json_initialize()
@@ -53,13 +52,9 @@ program main
         input_file = trim(input_file)
     end if
 
-    ! Let user know what input file is being used
-    write(*,*)
-    write(*,*) "MFTran called with input file ", input_file
-
     ! Load settings from input file
     write(*,*)
-    write(*,*) "Loading input"
+    write(*,*) "Loading input file: ", input_file
     call input_json%load_file(filename=input_file)
     call json_check()
     call input_json%get('flow', flow_settings)
@@ -90,9 +85,7 @@ program main
 
     ! Output results
     write(*,*)
-    write(*,*) "Post-processing"
-    write(*,*)
-    write(*,*) "    Writing results to file..."
+    write(*,*) "Writing results to file"
     call json_get(output_settings, 'body_file', body_file)
     call json_get(output_settings, 'wake_file', wake_file)
     call json_get(output_settings, 'control_point_file', control_point_file)
