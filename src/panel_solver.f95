@@ -208,8 +208,7 @@ contains
                         if (source_order == 0) then
 
                             ! Influence of mirrored panel on existing control point
-                            body%phi_cp_sigma(i) = body%phi_cp_sigma(i) &
-                                                        + source_inf(1)*body%sigma(j+body%N_panels)
+                            body%phi_cp_sigma(i) = body%phi_cp_sigma(i) + source_inf(1)*body%sigma(j+body%N_panels)
 
                             ! Influence of existing panel on mirrored control point
                             if (body%vertices(i)%mirrored_is_unique) then

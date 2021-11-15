@@ -1085,11 +1085,12 @@ contains
         ! Get integrals
         call this%calc_integrals(geom, "potential", "source", H, F)
 
-        if (source_order .eq. 0) then
+        if (source_order == 0) then
 
             ! Compute induced potential
             allocate(phi(1))
-            phi = -1./(4.*pi)*H(1,1,1)
+            phi = -0.25/pi*H(1,1,1)
+
             if (debug .and. any(isnan(phi)) .or. isinf(phi(1))) then
                 write(*,*)
                 write(*,*) "Found NaN in source influence calculation."
@@ -1167,7 +1168,7 @@ contains
         call this%calc_integrals(geom, "potential", "doublet", H, F)
 
         ! Calculate influence
-        if (doublet_order .eq. 1) then
+        if (doublet_order == 1) then
 
             ! Specify influencing vertices
             if (this%in_wake) then
