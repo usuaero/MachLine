@@ -31,7 +31,7 @@ module surface_mesh_mod
         real :: control_point_offset
         logical :: mirrored ! Whether the mesh is to be mirrored about any planes
         integer :: mirror_plane ! Index of the plane across which the mesh is mirrored (1: yz, 2: xz, 3: xy); this is the index of the normal to that plane
-        logical :: mirrored_and_asym ! Whether the mesh is mirrored and the flow is asymmetric about that plane
+        logical :: asym_flow ! Whether the flow is asymmetric about the mirror plane
         real,dimension(:),allocatable :: mu, sigma ! Singularity strengths
 
         contains
@@ -164,11 +164,11 @@ contains
         ! Figure out wake-shedding edges
         call this%locate_wake_shedding_edges(freestream)
 
-        ! Check mirroring and flow symmetry condition
-        this%mirrored_and_asym = .false.
+        ! Check flow symmetry condition
+        this%asym_flow = .false.
         if (this%mirrored) then
             if (.not. freestream%sym_about(this%mirror_plane)) then
-                this%mirrored_and_asym = .true.
+                this%asym_flow = .true.
             end if
         end if
 
@@ -185,7 +185,7 @@ contains
         call this%wake%init(freestream, this%wake_edge_top_verts, &
                             this%wake_edge_bot_verts, this%wake_edges, &
                             this%N_wake_panels_streamwise, this%vertices, &
-                            this%trefftz_distance, this%mirrored_and_asym, &
+                            this%trefftz_distance, this%mirrored .and. this%asym_flow, &
                             this%mirror_plane)
 
         ! Clean up
@@ -744,7 +744,7 @@ contains
 
                 ! If this vertex did not need to be cloned, but it is on the mirror plane and its mirror is unique
                 ! then the wake strength is partially determined by its mirror. But this is only in the case of an asymmetric flow.
-                if (this%mirrored_and_asym .and.  this%vertices(ind)%on_mirror_plane .and. &
+                if (this%mirrored .and. this%asym_flow .and.  this%vertices(ind)%on_mirror_plane .and. &
                     this%vertices(ind)%mirrored_is_unique) then
 
                     this%wake_edge_bot_verts(i) = ind + this%N_verts

@@ -111,7 +111,7 @@ contains
         if (source_order == 0) then
 
             ! Determine necessary number of source strengths
-            if (body%mirrored_and_asym) then
+            if (body%mirrored .and. body%asym_flow) then
                 N_sigma = body%N_panels*2
             else
                 N_sigma = body%N_panels
@@ -127,7 +127,7 @@ contains
                 body%sigma(i) = -inner(body%panels(i)%normal, freestream%c0)
 
                 ! Mirrored panels for asymmetric flow
-                if (body%mirrored_and_asym) then
+                if (body%mirrored .and. body%asym_flow) then
 
                     ! Get mirrored normal vector
                     n_mirrored = mirror_about_plane(body%panels(i)%normal, body%mirror_plane)
@@ -142,7 +142,7 @@ contains
         write(*,*) "Done."
 
         ! Determine number of doublet strengths (some will be repeats for mirrored vertices)
-        if (body%mirrored_and_asym) then
+        if (body%mirrored .and. body%asym_flow) then
             N_mu = body%N_cp*2
         else
             N_mu = body%N_cp
@@ -180,8 +180,8 @@ contains
                 ! Get influences for mirroring
                 if (body%mirrored) then
 
-                    ! Influence of mirrored panels on mirrored control points
-                    if (body%mirrored_and_asym .and. body%vertices(i)%mirrored_is_unique) then
+                    ! Influence of mirrored panels on mirrored control points (uses the influences already calculated)
+                    if (body%mirrored .and. body%asym_flow .and. body%vertices(i)%mirrored_is_unique) then
 
                         if (source_order == 0) then
                             body%phi_cp_sigma(i+body%N_cp) = body%phi_cp_sigma(i+body%N_cp) &
@@ -204,7 +204,7 @@ contains
                     source_inf = body%panels(j)%get_source_potential(cp_mirrored, source_verts)
                     doublet_inf = body%panels(j)%get_doublet_potential(cp_mirrored, doublet_verts)
 
-                    if (body%mirrored_and_asym) then
+                    if (body%mirrored .and. body%asym_flow) then
 
                         ! Influence of mirrored panel on existing control point
                         if (source_order == 0) then
@@ -244,6 +244,7 @@ contains
                                 A(i,doublet_verts(k)) = A(i,doublet_verts(k)) + doublet_inf(k)
                             end do
                         end if
+
                     end if
 
                 end if
@@ -252,7 +253,7 @@ contains
 
             ! Enforce doublet strength matching (i.e. for non-unique, mirrored control points, the
             ! doublet strengths must be the same). The RHS for these rows should still be zero.
-            if (body%mirrored_and_asym .and. .not. body%vertices(i)%mirrored_is_unique) then
+            if (body%mirrored .and. body%asym_flow .and. .not. body%vertices(i)%mirrored_is_unique) then
                 A(i+body%N_cp,i) = 1.
                 A(i+body%N_cp,i+body%N_cp) = -1.
             end if
@@ -292,7 +293,7 @@ contains
                         ! Calculate influences
                         doublet_inf = body%wake%panels(j)%get_doublet_potential(cp_mirrored, doublet_verts)
 
-                        if (body%mirrored_and_asym) then
+                        if (body%asym_flow) then
 
                             ! Influence of mirrored panel on mirrored control point
                             if (body%vertices(i)%mirrored_is_unique) then
