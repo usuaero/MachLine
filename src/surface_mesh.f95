@@ -893,27 +893,21 @@ contains
         ! Write out data for wake
         if (this%wake%N_panels > 0) then
 
-            !! Write out geometry
-            !call wake_vtk%begin(wake_file)
-            !call wake_vtk%write_points(this%wake%vertices)
-            !call wake_vtk%write_panels(this%wake%panels)
+            ! Write out geometry
+            call wake_vtk%begin(wake_file)
+            call wake_vtk%write_points(this%wake%vertices)
+            call wake_vtk%write_panels(this%wake%panels)
 
-            !! Calculate doublet strengths
-            !do i=1,this%wake%N_verts
-            !    write(*,*) i
-            !    mu_on_wake = this%mu(this%wake%vertices(i)%top_parent)-this%mu(this%wake%vertices(i)%bot_parent)
-            !    write(*,*) mu_on_wake(i)
-            !end do
+            ! Calculate doublet strengths
+            do i=1,this%wake%N_verts
+                mu_on_wake(i) = this%mu(this%wake%vertices(i)%top_parent)-this%mu(this%wake%vertices(i)%bot_parent)
+            end do
 
-            !! Write doublet strengths
-            !call wake_vtk%write_point_scalars(mu_on_wake, "mu")
-            !write(*,*) mu_on_wake
+            ! Write doublet strengths
+            call wake_vtk%write_point_scalars(mu_on_wake, "mu")
 
-
-            !! Finish up
-            !call wake_vtk%finish()
-
-            call write_surface_vtk(wake_file, this%wake%vertices, this%wake%panels, this%sigma, this%mu, .true.)
+            ! Finish up
+            call wake_vtk%finish()
             write(*,*) "    Wake results written to: ", wake_file
 
         else
@@ -923,9 +917,17 @@ contains
         end if
         
         ! Write out data for control points
-        call write_point_vtk(control_point_file, this%control_points, this%phi_cp, this%phi_cp_mu, this%phi_cp_sigma)
+        call cp_vtk%begin(control_point_file)
+        call cp_vtk%write_points(this%control_points)
+        call cp_vtk%write_vertices(this%control_points)
+        call cp_vtk%write_point_scalars(this%phi_cp(1:this%N_cp), "phi")
+        call cp_vtk%write_point_scalars(this%phi_cp_mu(1:this%N_cp), "phi_mu")
+        call cp_vtk%write_point_scalars(this%phi_cp_sigma(1:this%N_cp), "phi_sigma")
+        call cp_vtk%finish()
+
         write(*,*) "    Control point results written to: ", control_point_file
     
     end subroutine surface_mesh_output_results
+
 
 end module surface_mesh_mod

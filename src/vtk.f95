@@ -15,8 +15,11 @@ module vtk_mod
         contains
 
             procedure :: begin => vtk_out_begin
-            procedure :: write_points => vtk_out_write_points
+            procedure :: vtk_out_write_points_vertices
+            procedure :: vtk_out_write_points_array
+            generic :: write_points => vtk_out_write_points_vertices, vtk_out_write_points_array
             procedure :: write_panels => vtk_out_write_panels
+            procedure :: write_vertices => vtk_out_write_vertices
             procedure :: write_point_scalars => vtk_out_write_point_scalars
             procedure :: write_cell_scalars => vtk_out_write_cell_scalars
             procedure :: write_point_vectors => vtk_out_write_point_vectors
@@ -76,8 +79,8 @@ contains
     end subroutine vtk_out_begin
 
 
-    subroutine vtk_out_write_points(this, vertices)
-        ! Writes out points to the vtk file
+    subroutine vtk_out_write_points_vertices(this, vertices)
+        ! Writes out points to the vtk file using the MFTran vertex object
 
         implicit none
 
@@ -96,7 +99,30 @@ contains
             write(this%unit,'(f20.12, f20.12, f20.12)') vertices(i)%loc(1), vertices(i)%loc(2), vertices(i)%loc(3)
         end do
     
-    end subroutine vtk_out_write_points
+    end subroutine vtk_out_write_points_vertices
+
+
+    subroutine vtk_out_write_points_array(this, vertices)
+        ! Writes out points to the vtk file using a simple array of locations
+
+        implicit none
+
+        class(vtk_out),intent(in) :: this
+        real,dimension(:,:),intent(in) :: vertices
+
+        integer :: i, N_verts
+
+        ! Write vertex information
+        N_verts = size(vertices)/3
+        write(this%unit,'(a)') "DATASET POLYDATA"
+        write(this%unit,'(a i20 a)') "POINTS", N_verts, " float"
+
+        ! Write out vertices
+        do i=1,N_verts
+            write(this%unit,'(f20.12, f20.12, f20.12)') vertices(i,1), vertices(i,2), vertices(i,3)
+        end do
+    
+    end subroutine vtk_out_write_points_array
 
 
     subroutine vtk_out_write_panels(this, panels)
@@ -134,6 +160,29 @@ contains
         end do
     
     end subroutine vtk_out_write_panels
+
+
+    subroutine vtk_out_write_vertices(this, vertices)
+        ! Writes vertices (VTK vertices, which are different than points) to the file
+
+        implicit none
+
+        class(vtk_out),intent(in) :: this
+        real,dimension(:,:),intent(in) :: vertices
+
+        integer :: i, N_verts
+
+        ! Write out vertices
+        N_verts = size(vertices)/3
+        write(1,'(a i20 i20)') "VERTICES", N_verts, N_verts*2
+        do i=1,N_verts
+
+            ! Index of each vertex
+            write(1,'(i1 i20)') 1, i-1
+
+        end do
+    
+    end subroutine vtk_out_write_vertices
 
 
     subroutine vtk_out_write_cell_scalars(this, data, label)
@@ -181,7 +230,7 @@ contains
         integer :: N_cells, i
 
         ! Write cell data header
-        N_cells = size(data)
+        N_cells = size(data)/3
         if (.not. this%cell_data_begun) then
             
             ! Write out header
@@ -193,7 +242,6 @@ contains
         end if
 
         ! Write vectors
-        N_cells = size(data)/3
         write(1,'(a, a, a)') "VECTORS ", label, " float"
         do i=1,N_cells
             write(1,'(f20.12, f20.12, f20.12)') data(i,1), data(i,2), data(i,3)
