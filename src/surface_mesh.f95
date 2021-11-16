@@ -874,16 +874,52 @@ contains
         class(surface_mesh),intent(inout) :: this
         character(len=:),allocatable,intent(in) :: body_file, wake_file, control_point_file
 
+        real,dimension(this%wake%N_verts) :: mu_on_wake
+        type(vtk_out) :: body_vtk, wake_vtk, cp_vtk
+        integer :: i
+
         ! Write out data for body
-        call write_surface_vtk(body_file, this%vertices, this%panels, this%sigma, this%mu, .false., this%V, this%C_p)
+        call body_vtk%begin(body_file)
+        call body_vtk%write_points(this%vertices)
+        call body_vtk%write_panels(this%panels)
+        call body_vtk%write_cell_scalars(this%sigma(1:this%N_panels), "sigma")
+        call body_vtk%write_cell_scalars(this%C_p(1:this%N_panels), "C_p")
+        call body_vtk%write_cell_vectors(this%v(1:this%N_panels,:), "v")
+        call body_vtk%write_point_scalars(this%mu(1:this%N_cp), "mu")
+        call body_vtk%finish()
+
         write(*,*) "    Surface results written to: ", body_file
         
         ! Write out data for wake
         if (this%wake%N_panels > 0) then
+
+            !! Write out geometry
+            !call wake_vtk%begin(wake_file)
+            !call wake_vtk%write_points(this%wake%vertices)
+            !call wake_vtk%write_panels(this%wake%panels)
+
+            !! Calculate doublet strengths
+            !do i=1,this%wake%N_verts
+            !    write(*,*) i
+            !    mu_on_wake = this%mu(this%wake%vertices(i)%top_parent)-this%mu(this%wake%vertices(i)%bot_parent)
+            !    write(*,*) mu_on_wake(i)
+            !end do
+
+            !! Write doublet strengths
+            !call wake_vtk%write_point_scalars(mu_on_wake, "mu")
+            !write(*,*) mu_on_wake
+
+
+            !! Finish up
+            !call wake_vtk%finish()
+
             call write_surface_vtk(wake_file, this%wake%vertices, this%wake%panels, this%sigma, this%mu, .true.)
             write(*,*) "    Wake results written to: ", wake_file
+
         else
+
             write(*,*) "    No wake to export."
+
         end if
         
         ! Write out data for control points
