@@ -177,23 +177,25 @@ contains
                     end do
                 end if
 
-                ! Influence of mirrored panels on mirrored control points, if the mirrored control point is meant to be unique
-                if (body%mirrored_and_asym .and. body%vertices(i)%mirrored_is_unique) then
-
-                    if (source_order == 0) then
-                        body%phi_cp_sigma(i+body%N_cp) = body%phi_cp_sigma(i+body%N_cp) &
-                                                         + source_inf(1)*body%sigma(j+body%N_panels)
-                    end if
-
-                    if (doublet_order == 1) then
-                        do k=1,size(doublet_verts)
-                            A(i+body%N_cp,doublet_verts(k)+body%N_cp) = A(i+body%N_cp,doublet_verts(k)+body%N_cp) + doublet_inf(k)
-                        end do
-                    end if
-                end if
-
-                ! Get influence for existing->mirrored and mirrored->existing
+                ! Get influences for mirroring
                 if (body%mirrored) then
+
+                    ! Influence of mirrored panels on mirrored control points
+                    if (body%mirrored_and_asym .and. body%vertices(i)%mirrored_is_unique) then
+
+                        if (source_order == 0) then
+                            body%phi_cp_sigma(i+body%N_cp) = body%phi_cp_sigma(i+body%N_cp) &
+                                                             + source_inf(1)*body%sigma(j+body%N_panels)
+                        end if
+
+                        if (doublet_order == 1) then
+                            do k=1,size(doublet_verts)
+                                A(i+body%N_cp,doublet_verts(k)+body%N_cp) = A(i+body%N_cp,doublet_verts(k)+body%N_cp) &
+                                                                            + doublet_inf(k)
+                            end do
+                        end if
+
+                    end if
 
                     ! Get mirrored point (recall the Green's function is reciprocal)
                     cp_mirrored = mirror_about_plane(body%control_points(i,:), body%mirror_plane)
@@ -204,33 +206,32 @@ contains
 
                     if (body%mirrored_and_asym) then
 
-                        ! Source influences
+                        ! Influence of mirrored panel on existing control point
                         if (source_order == 0) then
-
-                            ! Influence of mirrored panel on existing control point
                             body%phi_cp_sigma(i) = body%phi_cp_sigma(i) + source_inf(1)*body%sigma(j+body%N_panels)
-
-                            ! Influence of existing panel on mirrored control point
-                            if (body%vertices(i)%mirrored_is_unique) then
-                                body%phi_cp_sigma(i+body%N_cp) = body%phi_cp_sigma(i+body%N_cp) + source_inf(1)*body%sigma(j)
-                            end if
                         end if
 
-                        ! Doublet influences
                         if (doublet_order == 1) then
-
-                            ! Influence of mirrored panel on existing control point
                             do k=1,size(doublet_verts)
                                 A(i,doublet_verts(k)+body%N_cp) = A(i,doublet_verts(k)+body%N_cp) + doublet_inf(k)
                             end do
+                        end if
 
-                            ! Influence of existing panel on mirrored control point
-                            if (body%vertices(i)%mirrored_is_unique) then
+                        ! Influence of existing panel on mirrored control point
+                        if (body%vertices(i)%mirrored_is_unique) then
+
+                            if (source_order == 0) then
+                                body%phi_cp_sigma(i+body%N_cp) = body%phi_cp_sigma(i+body%N_cp) + source_inf(1)*body%sigma(j)
+                            end if
+
+                            if (doublet_order == 1) then
                                 do k=1,size(doublet_verts)
                                     A(i+body%N_cp,doublet_verts(k)) = A(i+body%N_cp,doublet_verts(k)) + doublet_inf(k)
                                 end do
                             end if
+
                         end if
+
                     else
 
                         ! Influence of mirrored panel on existing control point
@@ -353,7 +354,7 @@ contains
         allocate(body%C_p(body%N_panels), stat=stat)
         call check_allocation(stat, "surface pressures")
         do i=1,body%N_panels
-            body%C_p(i) = 1.0-(norm(body%V(i,:))/freestream%U)**2
+            body%C_p(i) = 1.-(norm(body%V(i,:))*freestream%U_inv)**2
         end do
 
         write(*,*) "Done."

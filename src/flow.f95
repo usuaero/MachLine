@@ -11,7 +11,7 @@ module flow_mod
         real,dimension(:),allocatable :: v_inf ! Freestream velocity
         real :: M_inf ! Freestream Mach number
         real :: gamma ! Ratio of specific heats
-        real :: U ! Freestream velocity magnitude
+        real :: U, U_inv ! Freestream velocity magnitude
         real,dimension(3) :: c0 ! Compressibility direciton (freestream direction)
         logical,dimension(3) :: sym_about ! Whether the flow condition is symmetric about any plane
 
@@ -40,7 +40,8 @@ contains
 
         ! Derived quantities
         this%U = norm(this%v_inf)
-        this%c0 = this%v_inf/this%U
+        this%U_inv = 1./this%U
+        this%c0 = this%v_inf*this%U_inv
 
         ! Check symmetry
         this%sym_about = this%v_inf == 0.
