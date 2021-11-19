@@ -1,11 +1,9 @@
 {
     "flow" : {
-        "V_inf" : [-100.0, 0.0, -10.0],
-        "M_inf" : 0.7,
-        "gamma" : 1.4
+        "V_inf" : [-100.0, 30.0, -10.0]
     },
     "geometry" : {
-        "file" : "dev/meshes/straight_wing_hi_res.vtk",
+        "file" : "dev/meshes/full_wing.vtk",
         "singularity_order" : {
             "doublet" : 1,
             "source" : 0
@@ -21,8 +19,8 @@
         "control_point_offset" : 1.0e-5
     },
     "output" : {
-        "body_file" : "dev/results/straight_wing_hi_res.vtk",
-        "wake_file" : "dev/results/straight_wing_wake_hi_res.vtk",
-        "control_point_file" : "dev/results/straight_wing_control_points_hi_res.vtk"
+        "body_file" : "dev/results/full_wing.vtk",
+        "wake_file" : "dev/results/full_wing_wake.vtk",
+        "control_point_file" : "dev/results/full_wing_control_points.vtk"
     }
 }
