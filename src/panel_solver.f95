@@ -181,7 +181,7 @@ contains
                 if (body%mirrored) then
 
                     ! Influence of mirrored panels on mirrored control points (uses the influences already calculated)
-                    if (body%mirrored .and. body%asym_flow .and. body%vertices(i)%mirrored_is_unique) then
+                    if (body%asym_flow .and. body%vertices(i)%mirrored_is_unique) then
 
                         if (source_order == 0) then
                             body%phi_cp_sigma(i+body%N_cp) = body%phi_cp_sigma(i+body%N_cp) &
@@ -204,7 +204,7 @@ contains
                     source_inf = body%panels(j)%get_source_potential(cp_mirrored, source_verts)
                     doublet_inf = body%panels(j)%get_doublet_potential(cp_mirrored, doublet_verts)
 
-                    if (body%mirrored .and. body%asym_flow) then
+                    if (body%asym_flow) then
 
                         ! Influence of mirrored panel on existing control point
                         if (source_order == 0) then
@@ -274,10 +274,10 @@ contains
                 ! For symmetric flow, mirrored panels still need to be added as before.
                 do j=1,body%wake%N_panels
 
-                    ! Caclulate influence on existing control points
+                    ! Caclulate influence
                     doublet_inf = body%wake%panels(j)%get_doublet_potential(body%control_points(i,:), doublet_verts)
 
-                    ! Influence of existing wake panels on existing control points
+                    ! Influence on existing control point
                     if (doublet_order == 1) then
                         do k=1,size(doublet_verts)
                             A(i,doublet_verts(k)) = A(i,doublet_verts(k)) + doublet_inf(k)
@@ -295,7 +295,7 @@ contains
 
                         if (body%asym_flow) then
 
-                            ! Influence of mirrored panel on mirrored control point
+                            ! Influence on mirrored control point
                             if (body%vertices(i)%mirrored_is_unique) then
                                 if (doublet_order == 1) then
                                     do k=1,size(doublet_verts)

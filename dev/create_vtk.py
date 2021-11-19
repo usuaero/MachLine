@@ -27,7 +27,7 @@ if __name__=="__main__":
         "wings" : {
             "main_wing" : {
                 "ID" : 1,
-                "side" : "both",
+                "side" : "left",
                 "is_main" : True,
                 "semispan" : 2.0,
                 "airfoil" : "NACA_0010",
@@ -81,7 +81,7 @@ if __name__=="__main__":
     scene.add_aircraft("plane", airplane_dict, state=state)
 
     # Export stl
-    stl_file = "dev/meshes/straight_wing_med_res.stl"
+    stl_file = "dev/meshes/half_wing_left.stl"
     scene.export_stl(filename=stl_file, section_resolution=41)
 
     # Load into PyPan and export vtk

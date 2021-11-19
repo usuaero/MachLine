@@ -1,0 +1,27 @@
+{
+    "flow" : {
+        "V_inf" : [-100.0, 30.0, -10.0]
+    },
+    "geometry" : {
+        "file" : "dev/meshes/half_wing_left.vtk",
+        "mirror_about" : "xz",
+        "singularity_order" : {
+            "doublet" : 1,
+            "source" : 0
+        },
+        "wake_model" : {
+            "wake_shedding_angle" : 179.0,
+            "trefftz_distance" : 100.0,
+            "N_panels" : 1
+        }
+    },
+    "solver" : {
+        "formulation" : "morino",
+        "control_point_offset" : 1.0e-5
+    },
+    "output" : {
+        "body_file" : "dev/results/half_wing_left.vtk",
+        "wake_file" : "dev/results/half_wing_left_wake.vtk",
+        "control_point_file" : "dev/results/half_wing_left_control_points.vtk"
+    }
+}
