@@ -52,7 +52,6 @@ contains
         integer :: i, j, ind, top_parent_ind, bot_parent_ind, i_start, i_stop, i1, i2, i3, i4
         integer :: N_wake_edge_verts, N_wakes
 
-        write(*,*)
         write(*,'(a)',advance='no') "     Initializing wake..."
 
         ! Determine necessary number of vertices

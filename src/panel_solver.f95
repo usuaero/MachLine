@@ -60,7 +60,6 @@ contains
 
         real :: offset
 
-        write(*,*)
         write(*,'(a)',advance='no') "     Placing control points..."
 
         ! Place control points inside the body
@@ -103,7 +102,8 @@ contains
         real,dimension(:,:),allocatable :: A, A_copy
         real,dimension(:),allocatable :: b
         integer :: stat, N_sigma, N_mu
-        real,dimension(3) :: n_mirrored, cp_mirrored
+        real,dimension(3) :: n_mirrored, cp_mirrored, C_F
+        real,dimension(:,:),allocatable :: dC_F
 
         write(*,'(a)',advance='no') "     Calculating source strengths..."
 
@@ -361,6 +361,20 @@ contains
         write(*,*) "Done."
         write(*,*) "        Maximum pressure coefficient:", maxval(body%C_p)
         write(*,*) "        Minimum pressure coefficient:", minval(body%C_p)
+
+        ! Calculate total forces
+        write(*,'(a)',advance='no') "     Calculating forces..."
+        allocate(dC_F(body%N_panels,3), stat=stat)
+        call check_allocation(stat, "forces")
+        do i=1,body%N_panels
+            dC_F(i,:) = body%C_p(i)*body%panels(i)%A*body%panels(i)%normal
+        end do
+        C_F(:) = sum(dC_F, dim=1)/body%S_ref
+
+        write(*,*) "Done."
+        write(*,*) "        Cx:", C_F(1)
+        write(*,*) "        Cy:", C_F(2)
+        write(*,*) "        Cz:", C_F(3)
     
     end subroutine panel_solver_solve_morino
 

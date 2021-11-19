@@ -53,7 +53,6 @@ program main
     end if
 
     ! Load settings from input file
-    write(*,*)
     write(*,*) "Loading input file: ", input_file
     call input_json%load_file(filename=input_file)
     call json_check()

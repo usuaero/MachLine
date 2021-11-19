@@ -1,6 +1,6 @@
 {
     "flow" : {
-        "V_inf" : [100.0, 30.0, -10.0]
+        "V_inf" : [100.0, 30.0, 10.0]
     },
     "geometry" : {
         "file" : "dev/meshes/full_wing.vtk",
@@ -12,6 +12,9 @@
             "wake_shedding_angle" : 90.0,
             "trefftz_distance" : 100.0,
             "N_panels" : 1
+        },
+        "reference" : {
+            "S" : 1.0
         }
     },
     "solver" : {

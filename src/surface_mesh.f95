@@ -33,6 +33,7 @@ module surface_mesh_mod
         integer :: mirror_plane ! Index of the plane across which the mesh is mirrored (1: yz, 2: xz, 3: xy); this is the index of the normal to that plane
         logical :: asym_flow ! Whether the flow is asymmetric about the mirror plane
         real,dimension(:),allocatable :: mu, sigma ! Singularity strengths
+        real :: S_ref ! Reference parameters
 
         contains
 
@@ -65,7 +66,6 @@ contains
         ! Set singularity orders
         call json_xtnsn_get(settings, 'singularity_order.doublet', doublet_order, 1)
         call json_xtnsn_get(settings, 'singularity_order.source', source_order, 0)
-        write(*,*)
         write(*,'(a, i1, a, i1, a)') "     User has selected: ", doublet_order, &
                                      "-order doublet panels and ", source_order, "-order source panels."
 
@@ -120,6 +120,9 @@ contains
         call json_xtnsn_get(settings, 'wake_model.trefftz_distance', this%trefftz_distance, 100.0) ! Distance from origin to wake termination
         call json_xtnsn_get(settings, 'wake_model.N_panels', this%N_wake_panels_streamwise, 20)
         this%C_wake_shedding_angle = cos(this%wake_shedding_angle*pi/180.0)
+
+        ! Store references
+        call json_xtnsn_get(settings, 'reference.S', this%S_ref, 1.0)
 
         ! Locate which vertices are on the mirror plane
         if (this%mirrored) then
@@ -211,7 +214,6 @@ contains
         real :: distance, C_angle
         real,dimension(3) :: mirrored_normal
 
-        write(*,*)
         write(*,'(a)',advance='no') "     Locating wake-shedding edges..."
 
         ! We need to store the minimum angle between two panels in order to place control points within the body
