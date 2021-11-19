@@ -47,7 +47,7 @@ contains
         logical,intent(in) :: mirrored_and_asym
         integer,intent(in) :: mirror_plane
 
-        real :: distance, vertex_separation
+        real :: distance, vertex_separation, mirrored_distance, mirrored_vertex_separation
         real,dimension(3) :: loc, start, mirrored_start
         integer :: i, j, ind, top_parent_ind, bot_parent_ind, i_start, i_stop, i1, i2, i3, i4
         integer :: N_wake_edge_verts, N_wakes
@@ -78,6 +78,18 @@ contains
             ! Determine vertex separation
             vertex_separation = distance/N_panels_streamwise
 
+            ! Same for mirror
+            if (mirrored_and_asym) then
+
+                ! Determine start location
+                mirrored_start = mirror_about_plane(start, mirror_plane)
+                mirrored_distance = trefftz_distance-inner(mirrored_start, freestream_flow%c0)
+
+                ! Determine vertex separation
+                mirrored_vertex_separation = mirrored_distance/N_panels_streamwise
+
+            end if
+
             ! Place vertices
             do j=1,N_panels_streamwise+1
 
@@ -98,7 +110,7 @@ contains
                     ! Determine location
                     ind = ind + this%N_verts/2
                     mirrored_start = mirror_about_plane(start, mirror_plane)
-                    loc = mirrored_start + vertex_separation*(j-1)*freestream_flow%c0
+                    loc = mirrored_start + mirrored_vertex_separation*(j-1)*freestream_flow%c0
 
                     ! Initialize vertex
                     call this%vertices(ind)%init(loc, ind)
