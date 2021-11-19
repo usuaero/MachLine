@@ -1,30 +1,35 @@
 {
-    "flow" : {
-        "V_inf" : [100.0, -30.0, -10.0]
+    "flow": {
+        "V_inf": [
+            100.0,
+            -30.0,
+            10.0
+        ]
     },
-    "geometry" : {
-        "file" : "dev/meshes/half_wing_right.vtk",
-        "mirror_about" : "xz",
-        "singularity_order" : {
-            "doublet" : 1,
-            "source" : 0
+    "geometry": {
+        "file": "dev/meshes/half_wing_right.vtk",
+        "mirror_about": "xz",
+        "singularity_order": {
+            "doublet": 1,
+            "source": 0
         },
-        "wake_model" : {
-            "wake_shedding_angle" : 90.0,
-            "trefftz_distance" : 100.0,
-            "N_panels" : 1
+        "wake_model": {
+            "wake_shedding_angle": 90.0,
+            "trefftz_distance": 100.0,
+            "N_panels": 1
         },
-        "reference" : {
-            "S" : 1.0
+        "reference": {
+            "S": 1.0
         }
     },
-    "solver" : {
-        "formulation" : "morino",
-        "control_point_offset" : 1.0e-5
+    "solver": {
+        "formulation": "morino",
+        "control_point_offset": 1.1e-05
     },
-    "output" : {
-        "body_file" : "dev/results/half_wing_right.vtk",
-        "wake_file" : "dev/results/half_wing_right_wake.vtk",
-        "control_point_file" : "dev/results/half_wing_right_control_points.vtk"
+    "output": {
+        "body_file": "dev/results/half_wing_right.vtk",
+        "wake_file": "dev/results/half_wing_right_wake.vtk",
+        "control_point_file": "dev/results/half_wing_right_control_points.vtk",
+        "report_file": "dev/report.txt"
     }
 }

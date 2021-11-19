@@ -9,7 +9,7 @@ program main
     implicit none
 
     character(100) :: input_file
-    character(len=:),allocatable :: body_file, wake_file, control_point_file
+    character(len=:),allocatable :: body_file, wake_file, control_point_file, report_file
 
     type(json_file) :: input_json
     type(json_value), pointer :: flow_settings,&
@@ -80,14 +80,16 @@ program main
     call linear_solver%init(solver_settings, body_mesh)
 
     ! Run solver
-    call linear_solver%solve(body_mesh, freestream_flow)
+    call json_xtnsn_get(output_settings, 'report_file', report_file, 'none')
+    call linear_solver%solve(body_mesh, freestream_flow, report_file)
 
     ! Output results
     write(*,*)
     write(*,*) "Writing results to file"
-    call json_get(output_settings, 'body_file', body_file)
-    call json_get(output_settings, 'wake_file', wake_file)
-    call json_get(output_settings, 'control_point_file', control_point_file)
+    call json_xtnsn_get(output_settings, 'body_file', body_file, 'none')
+    call json_xtnsn_get(output_settings, 'wake_file', wake_file, 'none')
+    call json_xtnsn_get(output_settings, 'control_point_file', control_point_file, 'none')
+
     call body_mesh%output_results(body_file, wake_file, control_point_file)
 
     ! Goodbye

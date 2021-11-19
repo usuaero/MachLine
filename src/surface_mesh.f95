@@ -882,53 +882,59 @@ contains
         integer :: i
 
         ! Write out data for body
-        call body_vtk%begin(body_file)
-        call body_vtk%write_points(this%vertices)
-        call body_vtk%write_panels(this%panels)
-        call body_vtk%write_cell_scalars(this%sigma(1:this%N_panels), "sigma")
-        call body_vtk%write_cell_scalars(this%C_p(1:this%N_panels), "C_p")
-        call body_vtk%write_cell_vectors(this%v(1:this%N_panels,:), "v")
-        call body_vtk%write_point_scalars(this%mu(1:this%N_cp), "mu")
-        call body_vtk%finish()
+        if (body_file /= 'none') then
+            call body_vtk%begin(body_file)
+            call body_vtk%write_points(this%vertices)
+            call body_vtk%write_panels(this%panels)
+            call body_vtk%write_cell_scalars(this%sigma(1:this%N_panels), "sigma")
+            call body_vtk%write_cell_scalars(this%C_p(1:this%N_panels), "C_p")
+            call body_vtk%write_cell_vectors(this%v(1:this%N_panels,:), "v")
+            call body_vtk%write_point_scalars(this%mu(1:this%N_cp), "mu")
+            call body_vtk%finish()
 
-        write(*,*) "    Surface results written to: ", body_file
+            write(*,*) "    Surface results written to: ", body_file
+        end if
         
         ! Write out data for wake
-        if (this%wake%N_panels > 0) then
+        if (wake_file /= 'none') then
+            if (this%wake%N_panels > 0) then
 
-            ! Write out geometry
-            call wake_vtk%begin(wake_file)
-            call wake_vtk%write_points(this%wake%vertices)
-            call wake_vtk%write_panels(this%wake%panels)
+                ! Write out geometry
+                call wake_vtk%begin(wake_file)
+                call wake_vtk%write_points(this%wake%vertices)
+                call wake_vtk%write_panels(this%wake%panels)
 
-            ! Calculate doublet strengths
-            do i=1,this%wake%N_verts
-                mu_on_wake(i) = this%mu(this%wake%vertices(i)%top_parent)-this%mu(this%wake%vertices(i)%bot_parent)
-            end do
+                ! Calculate doublet strengths
+                do i=1,this%wake%N_verts
+                    mu_on_wake(i) = this%mu(this%wake%vertices(i)%top_parent)-this%mu(this%wake%vertices(i)%bot_parent)
+                end do
 
-            ! Write doublet strengths
-            call wake_vtk%write_point_scalars(mu_on_wake, "mu")
+                ! Write doublet strengths
+                call wake_vtk%write_point_scalars(mu_on_wake, "mu")
 
-            ! Finish up
-            call wake_vtk%finish()
-            write(*,*) "    Wake results written to: ", wake_file
+                ! Finish up
+                call wake_vtk%finish()
+                write(*,*) "    Wake results written to: ", wake_file
 
-        else
+            else
 
-            write(*,*) "    No wake to export."
+                write(*,*) "    No wake to export."
 
+            end if
         end if
         
         ! Write out data for control points
-        call cp_vtk%begin(control_point_file)
-        call cp_vtk%write_points(this%control_points)
-        call cp_vtk%write_vertices(this%control_points)
-        call cp_vtk%write_point_scalars(this%phi_cp(1:this%N_cp), "phi")
-        call cp_vtk%write_point_scalars(this%phi_cp_mu(1:this%N_cp), "phi_mu")
-        call cp_vtk%write_point_scalars(this%phi_cp_sigma(1:this%N_cp), "phi_sigma")
-        call cp_vtk%finish()
+        if (control_point_file /= 'none') then
+            call cp_vtk%begin(control_point_file)
+            call cp_vtk%write_points(this%control_points)
+            call cp_vtk%write_vertices(this%control_points)
+            call cp_vtk%write_point_scalars(this%phi_cp(1:this%N_cp), "phi")
+            call cp_vtk%write_point_scalars(this%phi_cp_mu(1:this%N_cp), "phi_mu")
+            call cp_vtk%write_point_scalars(this%phi_cp_sigma(1:this%N_cp), "phi_sigma")
+            call cp_vtk%finish()
 
-        write(*,*) "    Control point results written to: ", control_point_file
+            write(*,*) "    Control point results written to: ", control_point_file
+        end if
     
     end subroutine surface_mesh_output_results
 

@@ -59,18 +59,20 @@ contains
         type(surface_mesh),intent(inout) :: body
 
         real :: offset
-
+        
         write(*,'(a)',advance='no') "     Placing control points..."
 
-        ! Place control points inside the body
+        ! Get offset
         call json_xtnsn_get(settings, 'control_point_offset', offset, 1e-5)
+
+        ! Place control points inside the body
         call body%place_interior_control_points(offset)
         write(*,*) "Done."
     
     end subroutine panel_solver_init_morino
 
 
-    subroutine panel_solver_solve(this, body, freestream)
+    subroutine panel_solver_solve(this, body, freestream, report_file)
         ! Calls the relevant subroutine to solve the case based on the selected formulation
 
         implicit none
@@ -78,16 +80,17 @@ contains
         class(panel_solver),intent(inout) :: this
         type(surface_mesh),intent(inout) :: body
         type(flow),intent(in) :: freestream
+        character(len=:),allocatable :: report_file
 
         ! Morino formulation
         if (this%formulation == 'morino') then
-            call this%solve_morino(body, freestream)
+            call this%solve_morino(body, freestream, report_file)
         end if
 
     end subroutine panel_solver_solve
 
 
-    subroutine panel_solver_solve_morino(this, body, freestream)
+    subroutine panel_solver_solve_morino(this, body, freestream, report_file)
         ! Solves the Morino formulation for the given conditions
 
         implicit none
@@ -95,6 +98,7 @@ contains
         class(panel_solver),intent(inout) :: this
         type(surface_mesh),intent(inout) :: body
         type(flow),intent(in) :: freestream
+        character(len=:),allocatable :: report_file
 
         integer :: i, j, k
         real,dimension(:),allocatable :: source_inf, doublet_inf
@@ -375,6 +379,27 @@ contains
         write(*,*) "        Cx:", C_F(1)
         write(*,*) "        Cy:", C_F(2)
         write(*,*) "        Cz:", C_F(3)
+
+        ! Write report file
+        if (report_file /= 'none') then
+
+            open(1, file=report_file)
+
+            ! Header
+            write(1,'(a)') "MFTran Report (c) 2021 USU AeroLab"
+
+            ! Solver results
+            write(1,*) "Maximum residual inner potential:", maxval(abs(body%phi_cp))
+            write(1,*) "Norm of residual innner potential:", sqrt(sum(body%phi_cp**2))
+            write(1,*) "Maximum pressure coefficient:", maxval(body%C_p)
+            write(1,*) "Minimum pressure coefficient:", minval(body%C_p)
+            write(1,*) "Cx:", C_F(1)
+            write(1,*) "Cy:", C_F(2)
+            write(1,*) "Cz:", C_F(3)
+
+            close(1)
+
+        end if
     
     end subroutine panel_solver_solve_morino
 
