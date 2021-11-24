@@ -105,7 +105,7 @@ contains
         integer,dimension(:),allocatable :: source_verts, doublet_verts
         real,dimension(:,:),allocatable :: A, A_copy
         real,dimension(:),allocatable :: b
-        integer :: stat, N_sigma, N_mu
+        integer :: stat, N_sigma, N_mu, N_Cp
         real,dimension(3) :: n_mirrored, cp_mirrored, C_F
         real,dimension(:,:),allocatable :: dC_F
 
@@ -349,16 +349,44 @@ contains
         write(*,'(a)',advance='no') "     Calculating surface velocities and pressures..."
 
         ! Determine surface velocities
-        allocate(body%V(body%N_panels,3), stat=stat)
-        call check_allocation(stat, "surface velocity vectors")
-        do i=1,body%N_panels
-            body%V(i,:) = freestream%U*(freestream%c0 + body%panels(i)%get_velocity_jump(body%mu, body%sigma))
-        end do
+        if (body%mirrored .and. body%asym_flow) then
+
+            ! Allocate velocity storage
+            N_Cp = body%N_panels*2
+            allocate(body%V(N_Cp,3), stat=stat)
+            call check_allocation(stat, "surface velocity vectors")
+
+            ! Calculate the surface velocity on each panel
+            do i=1,body%N_panels
+
+                ! Original panel
+                body%V(i,:) = freestream%U*(freestream%c0 + body%panels(i)%get_velocity_jump(body%mu, &
+                              body%sigma, .false., body%mirror_plane))
+
+                ! Mirror
+                body%V(i+body%N_panels,:) = freestream%U*(freestream%c0 + body%panels(i)%get_velocity_jump(body%mu, &
+                                            body%sigma, .true., body%mirror_plane))
+
+            end do
+
+        else
+
+            ! Allocate velocity storage
+            N_Cp = body%N_panels*2
+            allocate(body%V(N_Cp,3), stat=stat)
+            call check_allocation(stat, "surface velocity vectors")
+
+            ! Calculate the surface velocity on each panel
+            do i=1,body%N_panels
+                body%V(i,:) = freestream%U*(freestream%c0 + body%panels(i)%get_velocity_jump(body%mu, body%sigma, .false., 0))
+            end do
+
+        end if
 
         ! Calculate coefficients of pressure
-        allocate(body%C_p(body%N_panels), stat=stat)
+        allocate(body%C_p(N_Cp), stat=stat)
         call check_allocation(stat, "surface pressures")
-        do i=1,body%N_panels
+        do i=1,body%N_Cp
             body%C_p(i) = 1.-(norm(body%V(i,:))*freestream%U_inv)**2
         end do
 
@@ -368,11 +396,21 @@ contains
 
         ! Calculate total forces
         write(*,'(a)',advance='no') "     Calculating forces..."
-        allocate(dC_F(body%N_panels,3), stat=stat)
+        allocate(dC_F(N_Cp,3), stat=stat)
         call check_allocation(stat, "forces")
         do i=1,body%N_panels
+
+            ! Discrete force coefficient acting on panel
             dC_F(i,:) = body%C_p(i)*body%panels(i)%A*body%panels(i)%normal
+
+            ! Mirror
+            if (body%mirrored .and. body%asym_flow) then
+                n_mirrored = mirror_about_plane(body%panels(i)%normal, body%mirror_plane)
+                dC_F(i+body%N_panels,:) = body%C_p(i+body%N_panels)*body%panels(i)%A*n_mirrored
+            end if
         end do
+
+        ! Sum discrete forces
         C_F(:) = sum(dC_F, dim=1)/body%S_ref
 
         write(*,*) "Done."

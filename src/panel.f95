@@ -1,6 +1,7 @@
 ! Panel type
 module panel_mod
 
+    use helpers_mod
     use linked_list_mod
     use vertex_mod
     use math_mod
@@ -1255,13 +1256,15 @@ contains
     end function panel_get_doublet_velocity
 
 
-    function panel_get_velocity_jump(this, mu, sigma) result(dv)
+    function panel_get_velocity_jump(this, mu, sigma, mirrored, mirror_plane) result(dv)
         ! Calculates the jump in perturbation velocity across this panel in global coordinates
 
         implicit none
 
         class(panel),intent(in) :: this
         real,dimension(:),allocatable,intent(in) :: mu, sigma
+        logical,intent(in) :: mirrored
+        integer,intent(in) :: mirror_plane
         real,dimension(3) :: dv
 
         real,dimension(3) :: mu_verts, mu_params
@@ -1273,9 +1276,15 @@ contains
         end if
 
         ! Set up array of doublet strengths to calculate doublet parameters
-        do i=1,this%N
-            mu_verts(i) = mu(this%vertex_indices(i))
-        end do
+        if (mirrored) then
+            do i=1,this%N
+                mu_verts(i) = mu(this%vertex_indices(i)+size(mu)/2)
+            end do
+        else
+            do i=1,this%N
+                mu_verts(i) = mu(this%vertex_indices(i))
+            end do
+        end if
 
         ! Calculate doublet parameters
         mu_params = matmul(this%S_mu_inv, mu_verts)
@@ -1287,6 +1296,11 @@ contains
 
         ! Transform to global coordinates
         dv = matmul(transpose(this%A_t), dv)
+
+        ! Mirror if necessary
+        if (mirrored) then
+            dv = mirror_about_plane(dv, mirror_plane)
+        end if
 
     end function panel_get_velocity_jump
     
