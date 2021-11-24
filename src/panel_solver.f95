@@ -105,7 +105,7 @@ contains
         integer,dimension(:),allocatable :: source_verts, doublet_verts
         real,dimension(:,:),allocatable :: A, A_copy
         real,dimension(:),allocatable :: b
-        integer :: stat, N_sigma, N_mu, N_Cp
+        integer :: stat, N_sigma, N_mu, N_pressures
         real,dimension(3) :: n_mirrored, cp_mirrored, C_F
         real,dimension(:,:),allocatable :: dC_F
 
@@ -352,8 +352,8 @@ contains
         if (body%mirrored .and. body%asym_flow) then
 
             ! Allocate velocity storage
-            N_Cp = body%N_panels*2
-            allocate(body%V(N_Cp,3), stat=stat)
+            N_pressures = body%N_panels*2
+            allocate(body%V(N_pressures,3), stat=stat)
             call check_allocation(stat, "surface velocity vectors")
 
             ! Calculate the surface velocity on each panel
@@ -372,8 +372,8 @@ contains
         else
 
             ! Allocate velocity storage
-            N_Cp = body%N_panels*2
-            allocate(body%V(N_Cp,3), stat=stat)
+            N_pressures = body%N_panels
+            allocate(body%V(N_pressures,3), stat=stat)
             call check_allocation(stat, "surface velocity vectors")
 
             ! Calculate the surface velocity on each panel
@@ -384,9 +384,9 @@ contains
         end if
 
         ! Calculate coefficients of pressure
-        allocate(body%C_p(N_Cp), stat=stat)
+        allocate(body%C_p(N_pressures), stat=stat)
         call check_allocation(stat, "surface pressures")
-        do i=1,body%N_Cp
+        do i=1,N_pressures
             body%C_p(i) = 1.-(norm(body%V(i,:))*freestream%U_inv)**2
         end do
 
@@ -396,7 +396,7 @@ contains
 
         ! Calculate total forces
         write(*,'(a)',advance='no') "     Calculating forces..."
-        allocate(dC_F(N_Cp,3), stat=stat)
+        allocate(dC_F(N_pressures,3), stat=stat)
         call check_allocation(stat, "forces")
         do i=1,body%N_panels
 
