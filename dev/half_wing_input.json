@@ -16,7 +16,7 @@
         "wake_model": {
             "wake_shedding_angle": 90.0,
             "trefftz_distance": 100.0,
-            "N_panels": 1
+            "N_panels": 10
         },
         "reference": {
             "S": 1.0
