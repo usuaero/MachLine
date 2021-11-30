@@ -362,7 +362,7 @@ contains
 
         ! Solve
         b = -body%phi_cp_sigma
-        call lu_solve(size(b), A_copy, b, body%mu)
+        call lu_solve(N_mu, A_copy, b, body%mu)
         write(*,*) "Done."
 
         ! Clean up memory
@@ -520,10 +520,20 @@ contains
         allocate(A(N_mu, N_mu), source=0., stat=stat)
         call check_allocation(stat, "AIC matrix")
 
+        ! Allocate target inner potential
+        allocate(b(N_mu), source=0., stat=stat)
+        call check_allocation(stat, "solver copy of AIC matrix")
+
         write(*,'(a)',advance='no') "     Calculating body influences..."
 
         ! Calculate source and doublet influences from body
         do i=1,body%N_cp
+
+            ! Get mirrored control point
+            if (body%mirrored) then
+                cp_mirrored = mirror_about_plane(body%control_points(i,:), body%mirror_plane)
+            end if
+
             do j=1,body%N_panels
 
                 ! Get influence for existing->existing and mirrored->mirrored
@@ -551,10 +561,7 @@ contains
 
                     end if
 
-                    ! Get mirrored point (recall the Green's function is reciprocal)
-                    cp_mirrored = mirror_about_plane(body%control_points(i,:), body%mirror_plane)
-
-                    ! Calculate influences
+                    ! Calculate influence on mirrored control points (recall the Green's function is reciprocal)
                     doublet_inf = body%panels(j)%get_doublet_potential(cp_mirrored, doublet_verts)
 
                     if (body%asym_flow) then
@@ -593,11 +600,21 @@ contains
             end do
 
             ! Enforce doublet strength matching (i.e. for non-unique, mirrored control points, the
-            ! doublet strengths must be the same). The RHS for these rows should still be zero.
-            if (body%mirrored .and. body%asym_flow .and. .not. body%vertices(i)%mirrored_is_unique) then
-                A(i+body%N_cp,i) = 1.
-                A(i+body%N_cp,i+body%N_cp) = -1.
+            ! doublet strengths must be the same). The RHS for these rows must still be zero.
+            if (body%mirrored .and. body%asym_flow) then
+                if (.not. body%vertices(i)%mirrored_is_unique) then
+                    A(i+body%N_cp,i) = 1.
+                    A(i+body%N_cp,i+body%N_cp) = -1.
+
+                ! If the control point is unique, it's target potential will need to be set
+                else
+                    b(i+body%N_cp) = -inner(cp_mirrored, freestream%c0)
+
+                end if
             end if
+
+            ! Set target inner potential for existing control points
+            b(i) = -inner(body%control_points(i,:), freestream%c0)
 
         end do
         write(*,*) "Done."
@@ -668,21 +685,14 @@ contains
         allocate(A_copy, source=A, stat=stat)
         call check_allocation(stat, "solver copy of AIC matrix")
 
-        ! Set up right hand side
-        allocate(b(body%N_cp), stat=stat)
-        call check_allocation(stat, "solver copy of AIC matrix")
-        do i=1,body%N_cp
-            b(i) = -inner(body%vertices(i)%loc, freestream%c0)
-        end do
-
         ! Solve
-        call lu_solve(body%N_cp, A_copy, b, body%mu)
+        call lu_solve(N_mu, A_copy, b, body%mu)
         write(*,*) "Done."
 
         ! Clean up memory
         deallocate(A_copy)
 
-        ! Calculate potential at control points
+        ! Calculate total potential at control points
         body%phi_cp_mu = matmul(A, body%mu)
         body%phi_cp = body%phi_cp_mu
         write(*,*) "        Maximum residual inner total potential:", maxval(abs(body%phi_cp-b))
@@ -769,6 +779,8 @@ contains
             write(1,'(a)') "MFTran Report (c) 2021 USU AeroLab"
 
             ! Solver results
+            write(1,*) "Maximum residual inner total potential:"
+            write(1,*) "Norm of residual innner total potential:"
             write(1,*) "Maximum pressure coefficient:", maxval(body%C_p)
             write(1,*) "Minimum pressure coefficient:", minval(body%C_p)
             write(1,*) "Cx:", C_F(1)
