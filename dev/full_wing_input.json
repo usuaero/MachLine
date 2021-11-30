@@ -2,7 +2,7 @@
     "flow": {
         "V_inf": [
             100.0,
-            -30.0,
+            0.0,
             10.0
         ]
     },
@@ -15,14 +15,14 @@
         "wake_model": {
             "wake_shedding_angle": 90.0,
             "trefftz_distance": 100.0,
-            "N_panels": 10
+            "N_panels": 1
         },
         "reference": {
             "S": 1.0
         }
     },
     "solver": {
-        "formulation": "morino",
+        "formulation": "source-free",
         "control_point_offset": 1.1e-05
     },
     "output": {

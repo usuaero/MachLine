@@ -1,8 +1,6 @@
 MFTran Report (c) 2021 USU AeroLab
- Maximum residual inner potential:   3.1641356201816961E-015
- Norm of residual innner potential:   2.2852313306593800E-014
- Maximum pressure coefficient:  0.74911934246950085     
- Minimum pressure coefficient:  -1.2843259107487053     
- Cx:  0.39295624897023951     
- Cy:   4.6639457945395792E-002
- Cz:  -20.626020884768110     
+ Maximum pressure coefficient:  0.80740415379728059     
+ Minimum pressure coefficient:  -1.0707481477551037     
+ Cx:  0.40546151698735611     
+ Cy:   5.1167653551439712E-004
+ Cz:  -20.758929066166765     
