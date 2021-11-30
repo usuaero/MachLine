@@ -2,7 +2,7 @@
     "flow": {
         "V_inf": [
             100.0,
-            -30.0,
+            30.0,
             10.0
         ]
     },
@@ -26,9 +26,9 @@
         "control_point_offset": 1.1e-05
     },
     "output": {
-        "body_file": "dev/results/full_wing.vtk",
-        "wake_file": "dev/results/full_wing_wake.vtk",
-        "control_point_file": "dev/results/full_wing_control_points.vtk",
+        "body_file": "dev/results/full_wing_source_free.vtk",
+        "wake_file": "dev/results/full_wing_source_free_wake.vtk",
+        "control_point_file": "dev/results/full_wing_source_free_control_points.vtk",
         "report_file": "dev/report.txt"
     }
 }
