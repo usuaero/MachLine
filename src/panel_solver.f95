@@ -453,7 +453,7 @@ contains
             open(1, file=report_file)
 
             ! Header
-            write(1,'(a)') "MFTran Report (c) 2021 USU AeroLab"
+            write(1,'(a)') "TriPan Report (c) 2021 USU AeroLab"
 
             ! Solver results
             write(1,*) "Maximum residual inner potential:", maxval(abs(body%phi_cp))
@@ -776,7 +776,7 @@ contains
             open(1, file=report_file)
 
             ! Header
-            write(1,'(a)') "MFTran Report (c) 2021 USU AeroLab"
+            write(1,'(a)') "TriPan Report (c) 2021 USU AeroLab"
 
             ! Solver results
             write(1,*) "Maximum residual inner total potential:"

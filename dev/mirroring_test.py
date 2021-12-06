@@ -23,7 +23,7 @@ if __name__=="__main__":
     # Initialize
     full_input_file = 'dev/full_wing_input.json'
     half_input_file = 'dev/half_wing_input.json'
-    exe = './mftran.exe'
+    exe = './tripan.exe'
 
     # Options
     flow_conditions = ['sym', 'asym']

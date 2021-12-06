@@ -90,7 +90,7 @@ contains
         if (extension == '.vtk') then
             call load_surface_vtk(mesh_file, this%N_verts, this%N_panels, this%vertices, this%panels)
         else
-            write(*,*) "MFTran cannot read ", extension, " type mesh files. Quitting..."
+            write(*,*) "TriPan cannot read ", extension, " type mesh files. Quitting..."
             stop
         end if
 

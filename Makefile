@@ -1,4 +1,4 @@
-# make for MFTran
+# make for TriPan
 
 # Directories
 SRC_DIR = ./src
@@ -15,7 +15,7 @@ COMPILER = gfortran
 FLAGS = -O2 -fdefault-real-8 -fbounds-check 
 
 # Program name
-PROGRAM = mftran.exe
+PROGRAM = tripan.exe
 
 default:
 	$(COMPILER) $(FLAGS) -o $(PROGRAM) \
