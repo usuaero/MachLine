@@ -24,6 +24,7 @@ module surface_mesh_mod
         type(wake_edge),allocatable,dimension(:) :: wake_edges
         real :: wake_shedding_angle, C_wake_shedding_angle, trefftz_distance, C_min_wake_shedding_angle
         integer :: N_wake_panels_streamwise
+        logical :: append_wake
         real,dimension(:,:),allocatable :: control_points
         real,dimension(:),allocatable :: phi_cp, phi_cp_sigma, phi_cp_mu ! Induced potentials at control points
         real,dimension(:),allocatable :: C_p ! Surface pressure coefficients
@@ -116,7 +117,12 @@ contains
         end select
 
         ! Store settings for wake models
-        call json_xtnsn_get(settings, 'wake_model.wake_shedding_angle', this%wake_shedding_angle, 90.0) ! Maximum allowable angle between panel normals without having separation
+        call json_xtnsn_get(settings, 'wake_model.append_wake', this%append_wake, .true.)
+        if (this%append_wake) then
+            call json_xtnsn_get(settings, 'wake_model.wake_shedding_angle', this%wake_shedding_angle, 90.0) ! Maximum allowable angle between panel normals without having separation
+        else
+            call json_xtnsn_get(settings, 'wake_model.wake_shedding_angle', this%wake_shedding_angle, 180.0) ! Maximum allowable angle between panel normals without having separation
+        end if
         call json_xtnsn_get(settings, 'wake_model.trefftz_distance', this%trefftz_distance, 100.0) ! Distance from origin to wake termination
         call json_xtnsn_get(settings, 'wake_model.N_panels', this%N_wake_panels_streamwise, 20)
         this%C_wake_shedding_angle = cos(this%wake_shedding_angle*pi/180.0)

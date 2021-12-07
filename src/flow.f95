@@ -12,7 +12,8 @@ module flow_mod
         real :: M_inf ! Freestream Mach number
         real :: gamma ! Ratio of specific heats
         real :: U, U_inv ! Freestream velocity magnitude
-        real :: B
+        real :: B ! Compressibility scale factor
+        real :: c ! Freestream speed of sound
         real,dimension(3) :: c0 ! Compressibility direciton (freestream direction)
         logical,dimension(3) :: sym_about ! Whether the flow condition is symmetric about any plane
         real,dimension(3,3) :: psi ! Dual metric matrix, expressed in global coords
@@ -60,6 +61,9 @@ contains
         else ! Supersonic
             this%B = sqrt(this%M_inf**2-1.)
         end if
+
+        ! Calculate freestream speed of sound
+        this%c = this%M_inf*this%U
 
         ! Assemble dual metric matrix
         do i=1,3
