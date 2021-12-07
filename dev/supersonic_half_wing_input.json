@@ -1,0 +1,34 @@
+{
+    "flow": {
+        "freestream_velocity": [100.0, 0.0, 0.0],
+        "gamma" : 1.4,
+        "freestream_mach_number" : 2.0
+    },
+    "geometry": {
+        "file": "dev/meshes/straight_diamond_half_wing.vtk",
+        "mirror_about": "xz",
+        "singularity_order": {
+            "doublet": 1,
+            "source": 0
+        },
+        "wake_model": {
+            "wake_shedding_angle": 90.0,
+            "trefftz_distance": 100.0,
+            "N_panels": 1
+        },
+        "reference": {
+            "area": 1.0
+        }
+    },
+    "solver": {
+        "formulation": "morino",
+        "control_point_offset": 1.1e-05,
+        "influence_calculations" : "johnson-ehlers"
+    },
+    "output": {
+        "body_file": "dev/results/straight_diamond_half_wing.vtk",
+        "wake_file": "dev/results/straight_diamond_half_wing_wake.vtk",
+        "control_point_file": "dev/results/straight_diamond_half_wing_control_points.vtk",
+        "report_file": "dev/report.txt"
+    }
+}

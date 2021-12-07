@@ -122,7 +122,7 @@ contains
         this%C_wake_shedding_angle = cos(this%wake_shedding_angle*pi/180.0)
 
         ! Store references
-        call json_xtnsn_get(settings, 'reference.S', this%S_ref, 1.0)
+        call json_xtnsn_get(settings, 'reference.area', this%S_ref, 1.0)
 
         ! Locate which vertices are on the mirror plane
         if (this%mirrored) then

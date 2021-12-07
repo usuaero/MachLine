@@ -5,6 +5,7 @@ module panel_mod
     use linked_list_mod
     use vertex_mod
     use math_mod
+    use flow_mod
 
     implicit none
 
@@ -12,6 +13,7 @@ module panel_mod
     integer :: source_order
     integer :: eval_count ! Developer counter for optimization purposes
     logical :: debug = .false. ! Developer toggle
+    character(len=:),allocatable :: influence_calc_type ! Either 'johnson-ehlers' or 'gauss quad'
 
     type eval_point_geom
         ! Container type for the geometric parameters necessary for calculating a panel's influence on a given field point
@@ -60,6 +62,7 @@ module panel_mod
             procedure :: get_vertex_index => panel_get_vertex_index
             procedure :: touches_vertex => panel_touches_vertex
             procedure :: point_to_vertex_clone => panel_point_to_vertex_clone
+            procedure :: calc_compr_coord_transform => panel_calc_compr_coord_transform
             procedure :: get_field_point_geometry => panel_get_field_point_geometry
             procedure :: E_i_M_N_K => panel_E_i_M_N_K
             procedure :: F_i_1_1_1 => panel_F_i_1_1_1
@@ -503,6 +506,17 @@ contains
         end do
     
     end subroutine panel_point_to_vertex_clone
+
+
+    subroutine panel_calc_compr_coord_transform(this, freestream)
+        ! Calculates the compressible coordinate transform for this panel based on the freestream properties
+
+        implicit none
+
+        class(panel),intent(inout) :: this
+        type(flow),intent(in) :: freestream
+    
+    end subroutine panel_calc_compr_coord_transform
 
 
     function panel_get_field_point_geometry(this, eval_point) result(geom)

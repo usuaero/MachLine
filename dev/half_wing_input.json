@@ -1,6 +1,6 @@
 {
     "flow": {
-        "V_inf": [
+        "freestream_velocity": [
             100.0,
             -30.0,
             10.0
@@ -19,11 +19,11 @@
             "N_panels": 1
         },
         "reference": {
-            "S": 1.0
+            "area": 1.0
         }
     },
     "solver": {
-        "formulation": "source-free",
+        "formulation": "morino",
         "control_point_offset": 1.1e-05
     },
     "output": {

@@ -42,6 +42,7 @@ contains
 
         ! Get settings
         call json_xtnsn_get(settings, 'formulation', this%formulation, 'morino')
+        call json_xtnsn_get(settings, 'influence_calculations', influence_calc_type, 'johnson-ehlers')
 
         ! Initialize based on formulation
         if (this%formulation == 'morino') then

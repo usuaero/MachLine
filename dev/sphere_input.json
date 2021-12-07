@@ -1,8 +1,6 @@
 {
     "flow" : {
-        "V_inf" : [0.0, 0.0, 10.0],
-        "M_inf" : 0.7,
-        "gamma" : 1.4
+        "freestream_velocity" : [0.0, 0.0, 10.0]
     },
     "geometry" : {
         "file" : "dev/meshes/sphere.vtk",

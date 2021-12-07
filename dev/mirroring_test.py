@@ -51,11 +51,11 @@ if __name__=="__main__":
 
         # Set flow velocity
         if flow_condition == 'sym':
-            full_input["flow"]["V_inf"] = [100.0, 0.0, 10.0]
-            half_input["flow"]["V_inf"] = [100.0, 0.0, 10.0]
+            full_input["flow"]["freestream_velocity"] = [100.0, 0.0, 10.0]
+            half_input["flow"]["freestream_velocity"] = [100.0, 0.0, 10.0]
         else:
-            full_input["flow"]["V_inf"] = [100.0, 30.0, 10.0]
-            half_input["flow"]["V_inf"] = [100.0, 30.0, 10.0]
+            full_input["flow"]["freestream_velocity"] = [100.0, 30.0, 10.0]
+            half_input["flow"]["freestream_velocity"] = [100.0, 30.0, 10.0]
 
         # Loop through wake options
         for waked in waked_options:
@@ -112,11 +112,11 @@ if __name__=="__main__":
 
             # Set flow velocity
             if flow_condition == 'sym':
-                full_input["flow"]["V_inf"] = [100.0, 0.0, -10.0]
-                half_input["flow"]["V_inf"] = [100.0, 0.0, -10.0]
+                full_input["flow"]["freestream_velocity"] = [100.0, 0.0, -10.0]
+                half_input["flow"]["freestream_velocity"] = [100.0, 0.0, -10.0]
             else:
-                full_input["flow"]["V_inf"] = [100.0, -30.0, 10.0]
-                half_input["flow"]["V_inf"] = [100.0, -30.0, 10.0]
+                full_input["flow"]["freestream_velocity"] = [100.0, -30.0, 10.0]
+                half_input["flow"]["freestream_velocity"] = [100.0, -30.0, 10.0]
 
             # Write out inputs
             with open(full_input_file, 'w') as full_input_handle:
@@ -148,9 +148,9 @@ if __name__=="__main__":
 
             # Set flow velocity
             if flow_condition == 'sym':
-                half_input["flow"]["V_inf"] = [100.0, 0.0, 10.0]
+                half_input["flow"]["freestream_velocity"] = [100.0, 0.0, 10.0]
             else:
-                half_input["flow"]["V_inf"] = [100.0, 30.0, 10.0]
+                half_input["flow"]["freestream_velocity"] = [100.0, 30.0, 10.0]
 
             # Write out input
             with open(half_input_file, 'w') as half_input_handle:
@@ -165,9 +165,9 @@ if __name__=="__main__":
 
             # Set flow velocity
             if flow_condition == 'sym':
-                half_input["flow"]["V_inf"] = [100.0, 0.0, -10.0]
+                half_input["flow"]["freestream_velocity"] = [100.0, 0.0, -10.0]
             else:
-                half_input["flow"]["V_inf"] = [100.0, -30.0, 10.0]
+                half_input["flow"]["freestream_velocity"] = [100.0, -30.0, 10.0]
 
             # Write out input
             with open(half_input_file, 'w') as half_input_handle:
