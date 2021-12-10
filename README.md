@@ -1,2 +1,2 @@
 # TriPan
-A modern, unstructured, subsonic/supersonic flow solver.
+A modern, unstructured, subsonic/supersonic flow solver. Currently in beta.
