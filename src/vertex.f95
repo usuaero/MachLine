@@ -63,8 +63,8 @@ contains
 
         ! Default cases
         this%mirrored_is_unique = .true. ! This will almost always be the case; we'll set the exceptions later
-        this%needs_clone = .false.
-        this%on_mirror_plane = .false.
+        this%needs_clone = .false. ! Same
+        this%on_mirror_plane = .false. ! Same
 
     end subroutine vertex_init
 

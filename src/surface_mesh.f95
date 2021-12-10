@@ -41,9 +41,9 @@ module surface_mesh_mod
             procedure :: init => surface_mesh_init
             procedure :: init_with_flow => surface_mesh_init_with_flow
             procedure :: output_results => surface_mesh_output_results
-            procedure :: locate_wake_shedding_edges => surface_mesh_locate_wake_shedding_edges
+            procedure :: characterize_edges => surface_mesh_characterize_edges
             procedure :: find_vertices_on_mirror => surface_mesh_find_vertices_on_mirror
-            procedure :: clone_wake_shedding_vertices => surface_mesh_clone_wake_shedding_vertices
+            procedure :: clone_vertices => surface_mesh_clone_vertices
             procedure :: set_up_mirroring => surface_mesh_set_up_mirroring
             procedure :: calc_vertex_normals => surface_mesh_calc_vertex_normals
             procedure :: place_interior_control_points => surface_mesh_place_interior_control_points
@@ -178,8 +178,8 @@ contains
             end if
         end if
 
-        ! Figure out wake-shedding edges
-        call this%locate_wake_shedding_edges(freestream)
+        ! Figure out wake-shedding edges, discontinuous edges, etc.
+        call this%characterize_edges(freestream)
 
         ! Set up mirroring
         if (this%mirrored) then
@@ -187,7 +187,7 @@ contains
         end if
 
         ! Clone necessary vertices and calculate normals (for placing control points)
-        call this%clone_wake_shedding_vertices()
+        call this%clone_vertices()
         call this%calc_vertex_normals()
 
         ! Initialize wake
@@ -204,7 +204,7 @@ contains
     end subroutine surface_mesh_init_with_flow
 
 
-    subroutine surface_mesh_locate_wake_shedding_edges(this, freestream)
+    subroutine surface_mesh_characterize_edges(this, freestream)
         ! Locates wake-shedding edges on the mesh based on the flow conditions.
 
         implicit none
@@ -524,7 +524,7 @@ contains
 
         write(*,'(a, i3, a)') "Done. Found ", N_wake_edges, " wake-shedding edges."
 
-    end subroutine surface_mesh_locate_wake_shedding_edges
+    end subroutine surface_mesh_characterize_edges
 
 
     subroutine surface_mesh_set_up_mirroring(this)
@@ -597,7 +597,7 @@ contains
     end subroutine surface_mesh_set_up_mirroring
 
 
-    subroutine surface_mesh_clone_wake_shedding_vertices(this)
+    subroutine surface_mesh_clone_vertices(this)
         ! Takes vertices which lie within wake-shedding edges and splits them into two vertices.
         ! Handles rearranging of necessary dependencies.
 
@@ -772,7 +772,7 @@ contains
 
         write(*,'(a, i3, a, i7, a)') "Done. Cloned ", N_clones, " vertices. Mesh now has ", this%N_verts, " vertices."
 
-    end subroutine surface_mesh_clone_wake_shedding_vertices
+    end subroutine surface_mesh_clone_vertices
 
 
     subroutine surface_mesh_calc_vertex_normals(this)

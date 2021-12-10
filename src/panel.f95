@@ -49,9 +49,7 @@ module panel_mod
 
         contains
 
-            procedure :: panel_init_3
-            procedure :: panel_init_4
-            generic :: init => panel_init_3 !, panel_init_4 ! I only want to deal with 3-sided panels for now
+            procedure :: init => panel_init_3
             procedure :: calc_derived_properties =>panel_calc_derived_properties
             procedure :: calc_area => panel_calc_area
             procedure :: calc_normal => panel_calc_normal
@@ -111,39 +109,6 @@ contains
     end subroutine panel_init_3
 
 
-    subroutine panel_init_4(this, v1, v2, v3, v4, i1, i2, i3, i4, index)
-        ! Initializes a panel with 4 sides
-
-        implicit none
-
-        class(panel),intent(inout) :: this
-        type(vertex),intent(in),target :: v1, v2, v3, v4
-        integer,intent(in) :: i1, i2, i3, i4, index
-        
-        ! Set number of sides
-        this%N = 4
-
-        ! Allocate vertex array
-        allocate(this%vertices(this%N))
-        allocate(this%vertices_local(this%N,2))
-        allocate(this%vertex_indices(this%N))
-
-        ! Store info
-        this%vertices(1)%ptr => v1
-        this%vertices(2)%ptr => v2
-        this%vertices(3)%ptr => v3
-        this%vertices(4)%ptr => v4
-        this%vertex_indices(1) = i1
-        this%vertex_indices(2) = i2
-        this%vertex_indices(3) = i3
-        this%vertex_indices(4) = i4
-        this%index = index
-
-        call this%calc_derived_properties()
-
-    end subroutine panel_init_4
-
-
     subroutine panel_calc_derived_properties(this)
         ! Initializes properties based on the location of the vertices.
         ! Should be called when panel geometry is updated.
@@ -194,18 +159,6 @@ contains
 
             ! Calculate area from cross product
             this%A = 0.5*norm(cross(d1, d2))
-
-        ! 4-sided panel
-        else
-
-            ! Get side vectors
-            d1 = this%get_vertex_loc(2)-this%get_vertex_loc(1)
-            d2 = this%get_vertex_loc(3)-this%get_vertex_loc(2)
-            d3 = this%get_vertex_loc(4)-this%get_vertex_loc(3)
-            d4 = this%get_vertex_loc(1)-this%get_vertex_loc(4)
-
-            ! Calculate area from cross product
-            this%A = 0.5*(norm(cross(d1, d2))+norm(cross(d3, d4)))
 
         end if
 
