@@ -9,7 +9,7 @@ module wake_mesh_mod
     use panel_mod
     use math_mod
     use flow_mod
-    use wake_edge_mod
+    use edge_mod
 
     implicit none
 
@@ -40,7 +40,7 @@ contains
         class(wake_mesh),intent(inout) :: this
         type(flow),intent(in) :: freestream_flow
         integer,allocatable,dimension(:),intent(in) :: top_edge_verts, bot_edge_verts
-        type(wake_edge),allocatable,dimension(:),intent(in) :: wake_edges
+        type(edge),allocatable,dimension(:),intent(in) :: wake_edges
         integer,intent(in) :: N_panels_streamwise
         type(vertex),allocatable,dimension(:),intent(in) :: mesh_vertices
         real,intent(in) :: trefftz_distance
@@ -135,8 +135,8 @@ contains
         do i=1,size(wake_edges)
 
             ! Determine which wake-shedding vertices this panel lies between
-            i_start = mesh_vertices(wake_edges(i)%i1)%index_in_wake_vertices
-            i_stop = mesh_vertices(wake_edges(i)%i2)%index_in_wake_vertices
+            i_start = mesh_vertices(wake_edges(i)%verts(1))%index_in_wake_vertices
+            i_stop = mesh_vertices(wake_edges(i)%verts(2))%index_in_wake_vertices
 
             ! Create panels heading downstream
             do j=1,N_panels_streamwise

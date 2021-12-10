@@ -8,7 +8,7 @@ module surface_mesh_mod
     use panel_mod
     use flow_mod
     use math_mod
-    use wake_edge_mod
+    use edge_mod
     use wake_mesh_mod
 
     implicit none
@@ -21,7 +21,7 @@ module surface_mesh_mod
         type(panel),allocatable,dimension(:) :: panels
         type(wake_mesh) :: wake
         integer,allocatable,dimension(:) :: wake_edge_top_verts, wake_edge_bot_verts
-        type(wake_edge),allocatable,dimension(:) :: wake_edges
+        type(edge),allocatable,dimension(:) :: wake_edges
         real :: wake_shedding_angle, C_wake_shedding_angle, trefftz_distance, C_min_wake_shedding_angle
         integer :: N_wake_panels_streamwise
         logical :: append_wake
@@ -518,6 +518,7 @@ contains
 
             ! Store
             call this%wake_edges(i)%init(m, n, top_panel, bottom_panel)
+            this%wake_edges(i)%sheds_wake = .true.
 
         end do
 
@@ -550,8 +551,8 @@ contains
         do i=1,size(this%wake_edges)
 
             ! Get endpoint indices
-            m = this%wake_edges(i)%i1
-            n = this%wake_edges(i)%i2
+            m = this%wake_edges(i)%verts(1)
+            n = this%wake_edges(i)%verts(2)
 
             ! If a given wake edge has only one of its endpoints lying on the mirror plane, then that endpoint has another
             ! adjacent edge, since the edge will be mirrored across that plane. This endpoint will need a clone, but it's
@@ -698,10 +699,10 @@ contains
                 do k=1,size(this%wake_edges)
 
                     ! Check if this vertex belongs to this wake-shedding edge
-                    if (this%wake_edges(k)%i1 == ind .or. this%wake_edges(k)%i2 == ind) then
+                    if (this%wake_edges(k)%verts(1) == ind .or. this%wake_edges(k)%verts(2) == ind) then
 
                         ! Get bottom panel index
-                        bottom_panel_ind = this%wake_edges(k)%bottom_panel
+                        bottom_panel_ind = this%wake_edges(k)%panels(2)
 
                         ! Remove bottom panel index from original vertex
                         call this%vertices(ind)%panels_not_across_wake_edge%delete(bottom_panel_ind)

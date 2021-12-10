@@ -73,11 +73,11 @@ program main
     ! Perform flow-dependent initialization on the surface mesh
     call body_mesh%init_with_flow(freestream_flow)
 
-    write(*,*)
-    write(*,*) "Running solver"
-
     ! Initialize panel solver
     call linear_solver%init(solver_settings, body_mesh)
+
+    write(*,*)
+    write(*,*) "Running solver using ", linear_solver%formulation, " formulation"
 
     ! Run solver
     call json_xtnsn_get(output_settings, 'report_file', report_file, 'none')
