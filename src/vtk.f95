@@ -96,7 +96,7 @@ contains
 
         ! Write out vertices
         do i=1,N_verts
-            write(this%unit,'(f20.12, f20.12, f20.12)') vertices(i)%loc(1), vertices(i)%loc(2), vertices(i)%loc(3)
+            write(this%unit,'(e20.12, e20.12, e20.12)') vertices(i)%loc(1), vertices(i)%loc(2), vertices(i)%loc(3)
         end do
     
     end subroutine vtk_out_write_points_vertices
@@ -119,7 +119,7 @@ contains
 
         ! Write out vertices
         do i=1,N_verts
-            write(this%unit,'(f20.12, f20.12, f20.12)') vertices(i,1), vertices(i,2), vertices(i,3)
+            write(this%unit,'(e20.12, e20.12, e20.12)') vertices(i,1), vertices(i,2), vertices(i,3)
         end do
     
     end subroutine vtk_out_write_points_array
@@ -212,7 +212,7 @@ contains
         write(this%unit,'(a, a, a)') "SCALARS ", label, " float 1"
         write(this%unit,'(a)') "LOOKUP_TABLE default"
         do i=1,N_cells
-            write(this%unit,'(f20.12)') data(i)
+            write(this%unit,'(e20.12)') data(i)
         end do
     
     end subroutine vtk_out_write_cell_scalars
@@ -244,7 +244,7 @@ contains
         ! Write vectors
         write(1,'(a, a, a)') "VECTORS ", label, " float"
         do i=1,N_cells
-            write(1,'(f20.12, f20.12, f20.12)') data(i,1), data(i,2), data(i,3)
+            write(1,'(e20.12, e20.12, e20.12)') data(i,1), data(i,2), data(i,3)
         end do
     
     end subroutine vtk_out_write_cell_vectors
@@ -277,7 +277,7 @@ contains
         write(1,'(a, a, a)') "SCALARS ", label, " float 1"
         write(1,'(a)') "LOOKUP_TABLE default"
         do i=1,N_points
-            write(1,'(f20.12)') data(i)
+            write(1,'(e20.12)') data(i)
         end do
     
     end subroutine vtk_out_write_point_scalars
@@ -334,7 +334,7 @@ contains
             write(1,'(a i20 a)') "POINTS", N_verts, " float"
 
             ! Write out vertices
-            100 format(f20.12, ' ', f20.12, ' ', f20.12) ! Vertices
+            100 format(e20.12, ' ', e20.12, ' ', e20.12) ! Vertices
             do i=1,N_verts
                 write(1,100) vertices(i)%loc(1), vertices(i)%loc(2), vertices(i)%loc(3)
             end do
@@ -383,7 +383,7 @@ contains
                     write(1,'(a)') "SCALARS sigma float 1"
                     write(1,'(a)') "LOOKUP_TABLE default"
                     do i=1,N_panels
-                        write(1,'(f20.12)') 0.
+                        write(1,'(e20.12)') 0.
                     end do
                 end if
 
@@ -393,7 +393,7 @@ contains
                     write(1,'(a)') "SCALARS mu float 1"
                     write(1,'(a)') "LOOKUP_TABLE default"
                     do i=1,N_verts
-                        write(1,'(f20.12)') mu(vertices(i)%top_parent)-mu(vertices(i)%bot_parent)
+                        write(1,'(e20.12)') mu(vertices(i)%top_parent)-mu(vertices(i)%bot_parent)
                     end do
                 end if
 
@@ -405,7 +405,7 @@ contains
                     write(1,'(a)') "SCALARS sigma float 1"
                     write(1,'(a)') "LOOKUP_TABLE default"
                     do i=1,N_panels
-                        write(1,'(f20.12)') sigma(i)
+                        write(1,'(e20.12)') sigma(i)
                     end do
                 end if
 
@@ -422,7 +422,7 @@ contains
                     write(1,'(a)') "SCALARS C_p float 1"
                     write(1,'(a)') "LOOKUP_TABLE default"
                     do i=1,N_panels
-                        write(1,'(f20.12)') C_p(i)
+                        write(1,'(e20.12)') C_p(i)
                     end do
                 end if
 
@@ -432,7 +432,7 @@ contains
                     write(1,'(a)') "SCALARS mu float 1"
                     write(1,'(a)') "LOOKUP_TABLE default"
                     do i=1,N_verts
-                        write(1,'(f20.12)') mu(i)
+                        write(1,'(e20.12)') mu(i)
                     end do
                 end if
 
@@ -466,7 +466,7 @@ contains
             write(1,'(a i20 a)') "POINTS", N_verts, " float"
 
             ! Write out points
-            100 format(f20.12, ' ', f20.12, ' ', f20.12) ! Vertices
+            100 format(e20.12, ' ', e20.12, ' ', e20.12) ! Vertices
             do i=1,N_verts
                 write(1,100) points(i,1), points(i,2), points(i,3)
             end do
@@ -491,21 +491,21 @@ contains
             write(1,'(a)') "SCALARS phi float 1"
             write(1,'(a)') "LOOKUP_TABLE default"
             do i=1,N_verts
-                write(1,'(f20.12)') phi(i)
+                write(1,'(e20.12)') phi(i)
             end do
 
             ! Potential at points due to doublet distribution
             write(1,'(a)') "SCALARS phi_mu float 1"
             write(1,'(a)') "LOOKUP_TABLE default"
             do i=1,N_verts
-                write(1,'(f20.12)') phi_mu(i)
+                write(1,'(e20.12)') phi_mu(i)
             end do
 
             ! Potential at points due to source distribution
             write(1,'(a)') "SCALARS phi_sigma float 1"
             write(1,'(a)') "LOOKUP_TABLE default"
             do i=1,N_verts
-                write(1,'(f20.12)') phi_sigma(i)
+                write(1,'(e20.12)') phi_sigma(i)
             end do
 
             ! Indices
