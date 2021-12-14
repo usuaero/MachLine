@@ -20,13 +20,14 @@ module edge_mod
 contains
 
 
-    subroutine edge_init(this, i1, i2, top_panel, bottom_panel)
+    subroutine edge_init(this, i1, i2, top_panel, bottom_panel, on_mirror_plane)
 
         implicit none
 
         class(edge),intent(inout) :: this
         integer,intent(in) :: i1, i2
         integer,intent(in) :: top_panel, bottom_panel
+        logical,intent(in) :: on_mirror_plane
 
         ! Store indices
         this%verts(1) = i1
@@ -35,6 +36,12 @@ contains
         ! Store panels
         this%panels(1) = top_panel
         this%panels(2) = bottom_panel
+
+        ! Store whether it's on  a mirror plane
+        this%on_mirror_plane = on_mirror_plane
+
+        ! Set defaults
+        this%sheds_wake = .false.
     
     end subroutine edge_init
     

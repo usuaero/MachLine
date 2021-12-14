@@ -44,8 +44,7 @@ module panel_mod
         logical :: on_wake_edge ! Whether this panel belongs to a wake-shedding edge (on the body)
         integer,dimension(:),allocatable :: vertex_indices ! Indices of this panel's vertices in the mesh vertex array
         logical :: in_wake ! Whether this panel belongs to a wake mesh
-        type(list) :: opposing_panels ! Indices of panels opposite this one on the wake-shedding edge
-        type(list) :: abutting_panels ! Indices of panels abutting this one not across wake-shedding edge
+        integer,dimension(3) :: abutting_panels ! Indices of panels abutting this one
 
         contains
 
@@ -56,6 +55,7 @@ module panel_mod
             procedure :: calc_centroid => panel_calc_centroid
             procedure :: calc_coord_transform => panel_calc_coord_transform
             procedure :: calc_edge_tangents => panel_calc_edge_tangents
+            procedure :: add_abutting_panel => panel_add_abutting_panel
             procedure :: get_vertex_loc => panel_get_vertex_loc
             procedure :: get_vertex_index => panel_get_vertex_index
             procedure :: touches_vertex => panel_touches_vertex
@@ -103,6 +103,9 @@ contains
         this%vertex_indices(2) = i2
         this%vertex_indices(3) = i3
         this%index = index
+
+        ! Initialize a few things
+        this%abutting_panels = 0
 
         call this%calc_derived_properties()
 
@@ -378,6 +381,26 @@ contains
         end do
     
     end subroutine panel_calc_edge_tangents
+
+
+    subroutine panel_add_abutting_panel(this, panel_ind)
+        ! Adds a panel index to this panel's list of abutting panels
+
+        implicit none
+
+        class(panel),intent(inout) :: this
+        integer,intent(in) :: panel_ind
+
+        integer :: i
+
+        do i=1,3
+            if (this%abutting_panels(i) == 0) then
+                this%abutting_panels(i) = panel_ind
+                return
+            end if
+        end do
+    
+    end subroutine panel_add_abutting_panel
 
 
     function panel_get_vertex_loc(this, i) result(loc)

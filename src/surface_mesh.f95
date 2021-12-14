@@ -16,9 +16,10 @@ module surface_mesh_mod
 
     type surface_mesh
 
-        integer :: N_verts, N_panels, N_cp, N_unique_mirrored_verts
+        integer :: N_verts, N_panels, N_cp, N_edges
         type(vertex),allocatable,dimension(:) :: vertices
         type(panel),allocatable,dimension(:) :: panels
+        type(edge),allocatable,dimension(:) :: edges
         type(wake_mesh) :: wake
         integer,allocatable,dimension(:) :: wake_edge_top_verts, wake_edge_bot_verts
         type(edge),allocatable,dimension(:) :: wake_edges
@@ -41,6 +42,7 @@ module surface_mesh_mod
             procedure :: init => surface_mesh_init
             procedure :: init_with_flow => surface_mesh_init_with_flow
             procedure :: output_results => surface_mesh_output_results
+            procedure :: locate_adjacent_panels => surface_mesh_locate_adjacent_panels
             procedure :: characterize_edges => surface_mesh_characterize_edges
             procedure :: find_vertices_on_mirror => surface_mesh_find_vertices_on_mirror
             procedure :: clone_vertices => surface_mesh_clone_vertices
@@ -135,6 +137,9 @@ contains
             call this%find_vertices_on_mirror()
         end if
 
+        ! Locate adjacent panels
+        call this%locate_adjacent_panels()
+
     end subroutine surface_mesh_init
 
 
@@ -161,6 +166,163 @@ contains
         end do
     
     end subroutine surface_mesh_find_vertices_on_mirror
+
+
+    subroutine surface_mesh_locate_adjacent_panels(this)
+        ! Loops through panels to determine which are adjacent
+
+        implicit none
+
+        class(surface_mesh),intent(in) :: this
+
+
+        integer :: i, j, m, n
+        logical :: already_found_shared, abutting
+        real :: distance
+        integer,dimension(2) :: shared_verts
+        type(list) :: panel1, panel2, vertex1, vertex2, on_mirror_plane
+
+        write(*,'(a)',advance='no') "     Locating adjacent panels..."
+
+        ! Loop through each pair of panels
+        do i=1,this%N_panels
+            do j=i+1,this%N_panels
+
+                ! Initialize for this panel pair
+                already_found_shared = .false.
+                abutting = .false.
+
+                ! Check if the panels are abutting
+                abutting_loop: do m=1,this%panels(i)%N
+                    do n=1,this%panels(j)%N
+
+                        ! Get distance between vertices. This is more robust than checking vertex indices; mesh may not be ideal.
+                        distance = dist(this%panels(i)%get_vertex_loc(m), this%panels(j)%get_vertex_loc(n))
+
+                        ! Check distance
+                        if (distance < 1e-12) then
+
+                            ! Previously found a shared vertex
+                            if (already_found_shared) then
+                                abutting = .true.
+                                shared_verts(2) = this%panels(i)%get_vertex_index(m)
+                                exit abutting_loop
+
+                            ! First shared vertex
+                            else
+                                already_found_shared = .true.
+                                shared_verts(1) = this%panels(i)%get_vertex_index(m)
+                                mm = m
+
+                            end if
+                        end if
+
+                    end do
+                end do abutting_loop
+
+                ! Store information for adjacent panels
+                if (abutting) then
+
+                    ! Store in lists for later storage in arrays
+                    call panel1%append(i)
+                    call panel2%append(j)
+                    call vertex1%append(shared_verts(1))
+                    call vertex2%append(shared_verts(2))
+                    call on_mirror_plane%append(.false.)
+
+                    ! Store adjacent vertices
+                    if (.not. this%vertices(shared_verts(1))%adjacent_vertices%is_in(shared_verts(2))) then
+                        call this%vertices(shared_verts(1))%adjacent_vertices%append(shared_verts(2))
+                    end if
+                    if (.not. this%vertices(shared_verts(2))%adjacent_vertices%is_in(shared_verts(1))) then
+                        call this%vertices(shared_verts(2))%adjacent_vertices%append(shared_verts(1))
+                    end if
+
+                    ! Store adjacent panels
+                    call this%panels(i)%add_abutting_panel(j)
+                    call this%panels(j)%add_abutting_panel(i)
+
+                end if
+
+            end do
+
+            ! For each panel, check if it abuts the mirror plane
+            if (this%mirrored) then
+
+                ! Initialize checks
+                already_found_shared = .false.
+                abutting = .false.
+
+                ! Loop through vertices
+                mirror_loop: do m=1,this%panels(i)%N
+
+                    ! Check if vertex is on the mirror plane
+                    n = this%panels(i)%vertex_indices(m)
+                    if (this%vertices(n)%on_mirror_plane) then
+
+                        ! Previously found a vertex on mirror plane
+                        if (already_found_shared) then
+                            abutting = .true.
+                            shared_verts(2) = n
+                            exit mirror_loop
+
+                        ! First vertex on the mirror plane
+                        else
+                            already_found_shared = .true.
+                            shared_verts(1) = n
+                            mm = m
+
+                        end if
+                    end if
+
+                end do mirror_loop
+
+                if (abutting) then
+
+                    ! Store in lists for later storage in arrays
+                    call panel1%append(i)
+                    call panel2%append(i+this%N_panels)
+                    call vertex1%append(shared_verts(1))
+                    call vertex2%append(shared_verts(2))
+                    call on_mirror_plane%append(.true.)
+
+                    ! Store adjacent vertices
+                    if (.not. this%vertices(shared_verts(1))%adjacent_vertices%is_in(shared_verts(2))) then
+                        call this%vertices(shared_verts(1))%adjacent_vertices%append(shared_verts(2))
+                    end if
+                    if (.not. this%vertices(shared_verts(2))%adjacent_vertices%is_in(shared_verts(1))) then
+                        call this%vertices(shared_verts(2))%adjacent_vertices%append(shared_verts(1))
+                    end if
+
+                    ! Store adjacent panel
+                    call this%panels(i)%add_abutting_panel(i+this%N_panels)
+
+                end if
+
+            end if
+
+        end do
+
+        ! Allocate edge storage
+        this%N_edges = panel1%len()
+        allocate(this%edges(this%N_edges))
+
+        ! Initialize edges
+        do i=1,this%N_edges
+
+            ! Get information
+            call vertex1%get(i, shared_verts(1))
+            call vertex2%get(i, shared_verts(2))
+            call panel1%get(i, m)
+            call panel2%get(i, n)
+            call on_mirror_plane%get(i, abutting)
+
+            ! Initialize
+            call this%edges(i)%init(shared_verts(1), shared_verts(2), m, n, abutting)
+
+        end do
+    
+    end subroutine surface_mesh_locate_adjacent_panels
 
 
     subroutine surface_mesh_init_with_flow(this, freestream)
@@ -205,14 +367,14 @@ contains
 
 
     subroutine surface_mesh_characterize_edges(this, freestream)
-        ! Locates wake-shedding edges on the mesh based on the flow conditions.
+        ! Locates wake-shedding edges and supersonic/subsonic edges on the mesh based on the flow conditions.
 
         implicit none
 
         class(surface_mesh),intent(inout) :: this
         type(flow),intent(in) :: freestream
 
-        integer :: i, j, m, n, mm, temp, top_panel, bottom_panel
+        integer :: i, j, k, m, n, mm, temp, top_panel, bottom_panel
         integer :: N_wake_edges, N_on_mirror_plane
         integer,dimension(2) :: shared_verts
         type(list) :: wake_edge_starts, wake_edge_stops, top_panels, bottom_panels, wake_edge_verts
@@ -220,153 +382,110 @@ contains
         real :: distance, C_angle
         real,dimension(3) :: mirrored_normal
 
-        write(*,'(a)',advance='no') "     Locating wake-shedding edges..."
+        write(*,'(a)',advance='no') "     Characterizing edges..."
 
-        ! We need to store the minimum angle between two panels in order to place control points within the body
+        ! We need to store the minimum angle between two panels in order to place control points within the body at wake-shedding edges
         this%C_min_wake_shedding_angle = this%C_wake_shedding_angle
 
-        ! Loop through each pair of panels
+        ! Loop through each edge
         N_wake_edges = 0
-        do i=1,this%N_panels
-            do j=i+1,this%N_panels
+        do k=1,this%N_edges
 
-                ! Initialize for this panel pair
-                already_found_shared = .false.
-                abutting = .false.
+            ! Get info
+            i = this%edges(i)%panels(1)
+            j = this%edges(i)%panels(2)
+            shared_verts(1) = this%edges(i)%verts(1)
+            shared_verts(2) = this%edges(i)%verts(2)
 
-                ! Check if the panels are abutting
-                abutting_loop: do m=1,this%panels(i)%N
-                    do n=1,this%panels(j)%N
+            ! Reinitialize check for wake edge
+            is_wake_edge = .false.
 
-                        ! Get distance between vertices. This is more robust than checking vertex indices; mesh may not be ideal.
-                        distance = dist(this%panels(i)%get_vertex_loc(m), this%panels(j)%get_vertex_loc(n))
+            ! Check angle between panels
+            C_angle = inner(this%panels(i)%normal, this%panels(j)%normal)
+            if (C_angle < this%C_wake_shedding_angle) then
 
-                        ! Check distance
-                        if (distance < 1e-12) then
+                ! Check angle of panel normal with freestream
+                if (inner(this%panels(i)%normal, freestream%V_inf) > 0.0 .or. &
+                    inner(this%panels(j)%normal, freestream%V_inf) > 0.0) then
 
-                            ! Previously found a shared vertex
-                            if (already_found_shared) then
-                                abutting = .true.
-                                shared_verts(2) = this%panels(i)%get_vertex_index(m)
-                                exit abutting_loop
+                    ! At this point, the panels are abutting, have a small enough angle,
+                    ! and at least one of them is pointing downstream. Thus, this is a
+                    ! wake-shedding edge.
 
-                            ! First shared vertex
-                            else
-                                already_found_shared = .true.
-                                shared_verts(1) = this%panels(i)%get_vertex_index(m)
-                                mm = m
+                    ! Update minimum angle
+                    this%C_min_wake_shedding_angle = min(C_angle, this%C_min_wake_shedding_angle)
 
-                            end if
-                        end if
+                    !! Check order the vertices were stored in
+                    !if (mm == 1 .and. m == this%panels(i)%N) then
 
-                    end do
-                end do abutting_loop
+                    !    ! Rearrange so the wake-shedding edge proceeds in the counterclockwise direction around the "top" panel
+                    !    ! I'll use "top" and "bottom" to refer to panels neighboring a wake-shedding edge. These terms are arbitrary but consistent.
+                    !    temp = shared_verts(2)
+                    !    shared_verts(2) = shared_verts(1)
+                    !    shared_verts(1) = temp
 
-                ! Perform checks on panels we know are abutting
-                if (abutting) then
+                    !end if
 
-                    ! Store adjacent vertices
-                    if (.not. this%vertices(shared_verts(1))%adjacent_vertices%is_in(shared_verts(2))) then
-                        call this%vertices(shared_verts(1))%adjacent_vertices%append(shared_verts(2))
-                    end if
-                    if (.not. this%vertices(shared_verts(2))%adjacent_vertices%is_in(shared_verts(1))) then
-                        call this%vertices(shared_verts(2))%adjacent_vertices%append(shared_verts(1))
-                    end if
+                    ! Update number of wake-shedding edges
+                    N_wake_edges = N_wake_edges + 1
+                    is_wake_edge = .true.
 
-                    ! Reinitialize check for wake edge
-                    is_wake_edge = .false.
+                    ! Store in starts and stops list
+                    call wake_edge_starts%append(shared_verts(1))
+                    call wake_edge_stops%append(shared_verts(2))
 
-                    ! Check angle between panels
-                    C_angle = inner(this%panels(i)%normal, this%panels(j)%normal)
-                    if (C_angle < this%C_wake_shedding_angle) then
+                    ! Store top and bottom panels (i is top, j is bottom)
+                    call top_panels%append(i)
+                    call bottom_panels%append(j)
 
-                        ! Check angle of panel normal with freestream
-                        if (inner(this%panels(i)%normal, freestream%V_inf) > 0.0 .or. &
-                            inner(this%panels(j)%normal, freestream%V_inf) > 0.0) then
+                    ! If this vertex does not already belong to a wake-shedding edge, add it to the list of wake edge vertices
+                    if (this%vertices(shared_verts(1))%N_wake_edges == 0) then 
 
-                            ! At this point, the panels are abutting, have a small enough angle,
-                            ! and at least one of them is pointing downstream. Thus, this is a
-                            ! wake-shedding edge.
+                        ! Add the first time
+                        call wake_edge_verts%append(shared_verts(1))
+                        this%vertices(shared_verts(1))%index_in_wake_vertices = wake_edge_verts%len()
 
-                            ! Update minimum angle
-                            this%C_min_wake_shedding_angle = min(C_angle, this%C_min_wake_shedding_angle)
+                    else
 
-                            ! Check order the vertices were stored in
-                            if (mm == 1 .and. m == this%panels(i)%N) then
-
-                                ! Rearrange so the wake-shedding edge proceeds in the counterclockwise direction around the "top" panel
-                                ! I'll use "top" and "bottom" to refer to panels neighboring a wake-shedding edge. These terms are arbitrary but consistent.
-                                temp = shared_verts(2)
-                                shared_verts(2) = shared_verts(1)
-                                shared_verts(1) = temp
-
-                            end if
-
-                            ! Update number of wake-shedding edges
-                            N_wake_edges = N_wake_edges + 1
-                            is_wake_edge = .true.
-
-                            ! Store in starts and stops list
-                            call wake_edge_starts%append(shared_verts(1))
-                            call wake_edge_stops%append(shared_verts(2))
-
-                            ! Store top and bottom panels (i is top, j is bottom)
-                            call top_panels%append(i)
-                            call bottom_panels%append(j)
-
-                            ! If this vertex does not already belong to a wake-shedding edge, add it to the list of wake edge vertices
-                            if (this%vertices(shared_verts(1))%N_wake_edges == 0) then 
-
-                                ! Add the first time
-                                call wake_edge_verts%append(shared_verts(1))
-                                this%vertices(shared_verts(1))%index_in_wake_vertices = wake_edge_verts%len()
-
-                            else
-
-                                ! It is in an edge, so it will likely need to be cloned
-                                this%vertices(shared_verts(1))%needs_clone = .true.
-
-                            end if
-                            
-                            ! Update number of wake edges touching this vertex
-                            this%vertices(shared_verts(1))%N_wake_edges = this%vertices(shared_verts(1))%N_wake_edges + 1
-
-                            ! Do the same for the other vertex
-                            if (this%vertices(shared_verts(2))%N_wake_edges == 0) then 
-
-                                ! Add the first time
-                                call wake_edge_verts%append(shared_verts(2))
-                                this%vertices(shared_verts(2))%index_in_wake_vertices = wake_edge_verts%len()
-
-                            else
-
-                                ! It is in an edge, so it will likely need to be cloned
-                                this%vertices(shared_verts(2))%needs_clone = .true.
-
-                            end if
-                            
-                            ! Update number of wake edges touching this vertex
-                            this%vertices(shared_verts(2))%N_wake_edges = this%vertices(shared_verts(2))%N_wake_edges + 1
-
-                            ! Store the fact that the panels have a Kutta edge
-                            this%panels(i)%on_wake_edge = .true.
-                            this%panels(j)%on_wake_edge = .true.
-
-                            ! Store opposing panels
-                            call this%panels(i)%opposing_panels%append(j)
-                            call this%panels(j)%opposing_panels%append(i)
-
-                        end if
-                    end if
-
-                    ! If abutting but not a wake-shedding edge
-                    if (.not. is_wake_edge) then
-
-                        ! Add to each others' list
-                        call this%panels(i)%abutting_panels%append(j)
-                        call this%panels(j)%abutting_panels%append(i)
+                        ! It is in an edge, so it will likely need to be cloned
+                        this%vertices(shared_verts(1))%needs_clone = .true.
 
                     end if
+                    
+                    ! Update number of wake edges touching this vertex
+                    this%vertices(shared_verts(1))%N_wake_edges = this%vertices(shared_verts(1))%N_wake_edges + 1
+
+                    ! Do the same for the other vertex
+                    if (this%vertices(shared_verts(2))%N_wake_edges == 0) then 
+
+                        ! Add the first time
+                        call wake_edge_verts%append(shared_verts(2))
+                        this%vertices(shared_verts(2))%index_in_wake_vertices = wake_edge_verts%len()
+
+                    else
+
+                        ! It is in an edge, so it will likely need to be cloned
+                        this%vertices(shared_verts(2))%needs_clone = .true.
+
+                    end if
+                    
+                    ! Update number of wake edges touching this vertex
+                    this%vertices(shared_verts(2))%N_wake_edges = this%vertices(shared_verts(2))%N_wake_edges + 1
+
+                    ! Store the fact that the panels have a Kutta edge
+                    this%panels(i)%on_wake_edge = .true.
+                    this%panels(j)%on_wake_edge = .true.
+
+                    !! Store opposing panels
+                    !call this%panels(i)%opposing_panels%append(j)
+                    !call this%panels(j)%opposing_panels%append(i)
+
+                    !! Remove from abutting lists
+                    !call this%panels(i)%abutting_panels%delete(j)
+                    !call this%panels(j)%abutting_panels%delete(i)
+
+                end if
+            end if
 
                 end if
 
@@ -374,34 +493,6 @@ contains
 
             ! For each panel, check if it forms a wake-shedding edge with its mirror
             if (this%mirrored) then
-
-                ! Initialize checks
-                already_found_shared = .false.
-                abutting = .false.
-
-                ! Loop through vertices
-                mirror_loop: do m=1,this%panels(i)%N
-
-                    ! Check if vertex is on the mirror plane
-                    n = this%panels(i)%vertex_indices(m)
-                    if (this%vertices(n)%on_mirror_plane) then
-
-                        ! Previously found a vertex on mirror plane
-                        if (already_found_shared) then
-                            abutting = .true.
-                            shared_verts(2) = n
-                            exit mirror_loop
-
-                        ! First vertex on the mirror plane
-                        else
-                            already_found_shared = .true.
-                            shared_verts(1) = n
-                            mm = m
-
-                        end if
-                    end if
-
-                end do mirror_loop
 
                 ! Perform checks for panels that abutt the mirror plane
                 if (abutting) then
