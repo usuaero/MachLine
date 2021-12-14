@@ -292,14 +292,15 @@ contains
 
             ! Enforce doublet strength matching (i.e. for non-unique, mirrored control points, the
             ! doublet strengths must be the same). The RHS for these rows should still be zero.
-            if (body%mirrored .and. body%asym_flow .and. .not. body%vertices(i)%mirrored_is_unique) then
-                A(i+body%N_cp,i) = 1.
-                A(i+body%N_cp,i+body%N_cp) = -1.
+            if (body%mirrored .and. body%asym_flow) then
+                if (.not. body%vertices(i)%mirrored_is_unique) then
+                    A(i+body%N_cp,i) = 1.
+                    A(i+body%N_cp,i+body%N_cp) = -1.
 
-            ! If the control point is unique, it's target potential will need to be set for the source-free formulation
-            else if (.not. morino) then
-                b(i+body%N_cp) = -inner(cp_mirrored, freestream%c0)
-
+                ! If the control point is unique, it's target potential will need to be set for the source-free formulation
+                else if (.not. morino) then
+                    b(i+body%N_cp) = -inner(cp_mirrored, freestream%c0)
+                end if
             end if
 
         end do

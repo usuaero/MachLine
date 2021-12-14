@@ -22,7 +22,6 @@ module surface_mesh_mod
         type(edge),allocatable,dimension(:) :: edges
         type(wake_mesh) :: wake
         integer,allocatable,dimension(:) :: wake_edge_top_verts, wake_edge_bot_verts, wake_edge_indices
-        type(edge),allocatable,dimension(:) :: wake_edges
         real :: wake_shedding_angle, C_wake_shedding_angle, trefftz_distance, C_min_wake_shedding_angle
         integer :: N_wake_panels_streamwise
         logical :: append_wake
@@ -355,7 +354,7 @@ contains
 
         ! Initialize wake
         call this%wake%init(freestream, this%wake_edge_top_verts, &
-                            this%wake_edge_bot_verts, this%wake_edges, &
+                            this%wake_edge_bot_verts, this%edges, this%wake_edge_indices, &
                             this%N_wake_panels_streamwise, this%vertices, &
                             this%trefftz_distance, this%mirrored .and. this%asym_flow, &
                             this%mirror_plane)
@@ -376,7 +375,7 @@ contains
         type(flow),intent(in) :: freestream
 
         integer :: i, j, k, m, n, mm, temp, top_panel, bottom_panel
-        type(list) :: wake_edge_starts, wake_edge_stops, top_panels, bottom_panels, wake_edge_verts, wake_edges
+        type(list) :: wake_edge_verts, wake_edges
         real :: C_angle
         real,dimension(3) :: second_normal
 
@@ -411,36 +410,17 @@ contains
                     ! Update minimum angle
                     this%C_min_wake_shedding_angle = min(C_angle, this%C_min_wake_shedding_angle)
 
-                    !! Check order the vertices were stored in
-                    !if (mm == 1 .and. m == this%panels(i)%N) then
-
-                    !    ! Rearrange so the wake-shedding edge proceeds in the counterclockwise direction around the "top" panel
-                    !    ! I'll use "top" and "bottom" to refer to panels neighboring a wake-shedding edge. These terms are arbitrary but consistent.
-                    !    temp = this%edges(k)%verts(2)
-                    !    this%edges(k)%verts(2) = this%edges(k)%verts(1)
-                    !    this%edges(k)%verts(1) = temp
-
-                    !end if
-
                     ! Update number of wake-shedding edges
                     this%N_wake_edges = this%N_wake_edges + 1
 
                     ! Store the index of this edge as being wake-shedding
                     call wake_edges%append(k)
 
-                    ! Store in starts and stops list
-                    call wake_edge_starts%append(this%edges(k)%verts(1))
-                    call wake_edge_stops%append(this%edges(k)%verts(2))
-
-                    ! Store top and bottom panels (i is top, j is bottom)
-                    call top_panels%append(i)
-                    call bottom_panels%append(j)
-
                     ! If this vertex does not already belong to a wake-shedding edge, add it to the list of wake edge vertices
                     if (this%vertices(this%edges(k)%verts(1))%N_wake_edges == 0) then 
 
                         ! Add the first time
-                        call wake_edge_verts%append(this%edges(i)%verts(1))
+                        call wake_edge_verts%append(this%edges(k)%verts(1))
                         this%vertices(this%edges(k)%verts(1))%index_in_wake_vertices = wake_edge_verts%len()
 
                     else if (.not. this%edges(k)%on_mirror_plane) then
@@ -459,7 +439,7 @@ contains
 
                         ! Add the first time
                         call wake_edge_verts%append(this%edges(k)%verts(2))
-                        this%vertices(this%edges(i)%verts(2))%index_in_wake_vertices = wake_edge_verts%len()
+                        this%vertices(this%edges(k)%verts(2))%index_in_wake_vertices = wake_edge_verts%len()
 
                     else if (.not. this%edges(k)%on_mirror_plane) then
 
@@ -491,27 +471,13 @@ contains
         ! Allocate wake bottom vertices array
         allocate(this%wake_edge_bot_verts, source=this%wake_edge_top_verts)
 
-        ! Create array of wake-shedding edges
-        allocate(this%wake_edges(this%N_wake_edges))
+        ! Store wake edge indices in array
         allocate(this%wake_edge_indices(this%N_wake_edges))
         do i=1,this%N_wake_edges
-
-            ! Get indices of starting and ending vertices
-            call wake_edge_starts%get(i, m)
-            call wake_edge_stops%get(i, n)
-            call top_panels%get(i, top_panel)
-            call bottom_panels%get(i, bottom_panel)
-
-            ! Store
-            call this%wake_edges(i)%init(m, n, top_panel, bottom_panel)
-            this%wake_edges(i)%sheds_wake = .true.
 
             ! Store index
             call wake_edges%get(i, m)
             this%wake_edge_indices(i) = m
-
-            ! Store whether the wake edge is on the mirror plane
-            this%wake_edges(i)%on_mirror_plane = this%edges(m)%on_mirror_plane
 
         end do
 
