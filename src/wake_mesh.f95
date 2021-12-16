@@ -9,7 +9,7 @@ module wake_mesh_mod
     use panel_mod
     use math_mod
     use flow_mod
-    use wake_edge_mod
+    use edge_mod
 
     implicit none
 
@@ -31,7 +31,7 @@ module wake_mesh_mod
 contains
 
 
-    subroutine wake_mesh_init(this, freestream_flow, top_edge_verts, bot_edge_verts, wake_edges, &
+    subroutine wake_mesh_init(this, freestream_flow, top_edge_verts, bot_edge_verts, mesh_edges, wake_edge_indices, &
                               N_panels_streamwise, mesh_vertices, trefftz_distance, mirrored_and_asym, mirror_plane)
         ! Creates the vertices and panels. Handles vertex association.
 
@@ -40,7 +40,8 @@ contains
         class(wake_mesh),intent(inout) :: this
         type(flow),intent(in) :: freestream_flow
         integer,allocatable,dimension(:),intent(in) :: top_edge_verts, bot_edge_verts
-        type(wake_edge),allocatable,dimension(:),intent(in) :: wake_edges
+        type(edge),allocatable,dimension(:),intent(in) :: mesh_edges
+        integer,allocatable,dimension(:),intent(in) :: wake_edge_indices
         integer,intent(in) :: N_panels_streamwise
         type(vertex),allocatable,dimension(:),intent(in) :: mesh_vertices
         real,intent(in) :: trefftz_distance
@@ -49,8 +50,8 @@ contains
 
         real :: distance, vertex_separation, mirrored_distance, mirrored_vertex_separation
         real,dimension(3) :: loc, start, mirrored_start
-        integer :: i, j, ind, top_parent_ind, bot_parent_ind, i_start, i_stop, i1, i2, i3, i4
-        integer :: N_wake_edge_verts, N_wakes
+        integer :: i, j, k, ind, top_parent_ind, bot_parent_ind, i_start, i_stop, i1, i2, i3, i4
+        integer :: N_wake_edge_verts, N_wake_edges
 
         write(*,'(a)',advance='no') "     Initializing wake..."
 
@@ -124,25 +125,28 @@ contains
         end do
 
         ! Determine necessary number of panels
+        N_wake_edges = size(wake_edge_indices)
         if (mirrored_and_asym) then
-            this%N_panels = size(wake_edges)*N_panels_streamwise*4
+            this%N_panels = N_wake_edges*N_panels_streamwise*4
         else
-            this%N_panels = size(wake_edges)*N_panels_streamwise*2
+            this%N_panels = N_wake_edges*N_panels_streamwise*2
         end if
         allocate(this%panels(this%N_panels))
 
         ! Initialize panels
-        do i=1,size(wake_edges)
+        do k=1,N_wake_edges
+
+            i = wake_edge_indices(k)
 
             ! Determine which wake-shedding vertices this panel lies between
-            i_start = mesh_vertices(wake_edges(i)%i1)%index_in_wake_vertices
-            i_stop = mesh_vertices(wake_edges(i)%i2)%index_in_wake_vertices
+            i_start = mesh_vertices(mesh_edges(i)%verts(1))%index_in_wake_vertices
+            i_stop = mesh_vertices(mesh_edges(i)%verts(2))%index_in_wake_vertices
 
             ! Create panels heading downstream
             do j=1,N_panels_streamwise
 
                 ! Determine index of first triangular panel
-                ind = (i-1)*N_panels_streamwise*2+2*j-1
+                ind = (k-1)*N_panels_streamwise*2+2*j-1
 
                 ! Determine vertex indices
                 i1 = (i_start-1)*(N_panels_streamwise+1)+j
@@ -181,7 +185,7 @@ contains
                 end if
 
                 ! Determine index of second triangular panel
-                ind = (i-1)*N_panels_streamwise*2+2*j
+                ind = (k-1)*N_panels_streamwise*2+2*j
 
                 ! Determine vertex indices
                 i1 = (i_start-1)*(N_panels_streamwise+1)+j

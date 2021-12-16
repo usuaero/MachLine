@@ -22,7 +22,7 @@
         }
     },
     "solver": {
-        "formulation": "source-free",
+        "formulation": "morino",
         "control_point_offset": 1.1e-05
     },
     "output": {
