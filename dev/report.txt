@@ -1,8 +1,8 @@
 TriPan Report (c) 2021 USU AeroLab
- Maximum residual inner potential:   1.6653345369377348E-016
- Norm of residual innner potential:   8.0763737535533118E-016
- Maximum pressure coefficient:  0.22076924686831156     
- Minimum pressure coefficient: -0.35753954834153667     
- Cx:  -3.5232843009945909E-004
- Cy:  -7.2210638236467520E-002
- Cz:  -4.5082180821725392E-003
+ Maximum residual inner total potential:
+ Norm of residual innner total potential:
+ Maximum pressure coefficient:  0.99883199045745941     
+ Minimum pressure coefficient:  -2411983842.1968350     
+ Cx:  -64543263.050772369     
+ Cy:   50380721.211030193     
+ Cz:  -11488220.443226600     
