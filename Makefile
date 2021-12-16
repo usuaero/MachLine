@@ -19,6 +19,7 @@ PROGRAM = tripan.exe
 
 default:
 	$(COMPILER) $(FLAGS) -o $(PROGRAM) \
+	common/progress.f95 \
 	common/helpers.f95 \
 	common/linked_list.f95 \
 	common/math.f95 \
