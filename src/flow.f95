@@ -14,9 +14,11 @@ module flow_mod
         real :: U, U_inv ! Freestream velocity magnitude
         real :: B ! Compressibility scale factor
         real :: c ! Freestream speed of sound
+        real :: mu ! Mach angle
         real,dimension(3) :: c0 ! Compressibility direciton (freestream direction)
         logical,dimension(3) :: sym_about ! Whether the flow condition is symmetric about any plane
         real,dimension(3,3) :: psi ! Dual metric matrix, expressed in global coords
+        logical :: supersonic
 
         contains
 
@@ -52,18 +54,25 @@ contains
         this%U_inv = 1./this%U
         this%c0 = this%v_inf*this%U_inv
 
-        ! Calculate B
+        ! Determine condition
         if (this%M_inf == 1.) then
             write(*,*) "A freestream Mach number of 1.0 is not allowed in TriPan. Quitting..."
             stop
-        else if (this%M_inf < 1.) then ! Subsonic
-            this%B = sqrt(1.-this%M_inf**2)
-        else ! Supersonic
+        end if
+        this%supersonic = this%M_inf > 1.0
+
+        ! Calculate B
+        if (this%supersonic) then
             this%B = sqrt(this%M_inf**2-1.)
+        else
+            this%B = sqrt(1.-this%M_inf**2)
         end if
 
         ! Calculate freestream speed of sound
         this%c = this%M_inf*this%U
+
+        ! Calculate Mach angle
+        this%mu = asin(1.0/this%M_inf)
 
         ! Assemble dual metric matrix
         do i=1,3

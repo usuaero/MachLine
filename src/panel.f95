@@ -25,8 +25,18 @@ module panel_mod
 
     end type eval_point_geom
 
+
+    type dod
+        ! Container type for parameters of whether a panel lies in a point's domain of dependence
+
+        logical :: in_dod
+        logical,dimension(3) :: verts_in_dod, edges_in_dod
+
+    end type dod
+
+
     type panel
-        ! A panel with an arbitrary number of sides
+        ! A three-sided panel
 
         integer :: N = 3 ! Number of sides/vertices
         integer :: index ! Index of this panel in the mesh array
@@ -60,6 +70,7 @@ module panel_mod
             procedure :: get_vertex_index => panel_get_vertex_index
             procedure :: touches_vertex => panel_touches_vertex
             procedure :: point_to_vertex_clone => panel_point_to_vertex_clone
+            procedure :: check_dod => panel_check_dod
             procedure :: calc_compr_coord_transform => panel_calc_compr_coord_transform
             procedure :: get_field_point_geometry => panel_get_field_point_geometry
             procedure :: E_i_M_N_K => panel_E_i_M_N_K
@@ -482,6 +493,54 @@ contains
         end do
     
     end subroutine panel_point_to_vertex_clone
+
+
+    function panel_check_dod(this, eval_point, freestream) result(dod_info)
+        ! Determines how (if) this panel lies within the domain of dependence of the evaluation point
+
+        implicit none
+
+        class(panel),intent(inout) :: this
+        real,dimension(3),intent(in) :: eval_point
+        type(flow),intent(in) :: freestream
+        type(dod) :: dod_info
+
+        real,dimension(3) :: d
+        integer :: i, N_verts_in_dod, N_edges_in_dod
+        real :: theta
+
+        ! Check each of the vertices
+        N_verts_in_dod = 0
+        do i=1,this%N
+
+            ! Calculate angle
+            d = this%get_vertex_loc(i)-eval_point
+            theta = inner(d, -freestream%c0)/norm(d)
+
+            ! Check
+            dod_info%verts_in_dod(i) = theta <= freestream%mu
+            if (dod_info%verts_in_dod(i)) then
+                N_verts_in_dod = N_verts_in_dod + 1
+            end if
+
+        end do
+
+        ! Check edges (if 2 or more vertices are in the dod, then how the edges fall is known)
+        if (N_verts_in_dod < 2) then
+            
+            ! Initialize count
+            N_edges_in_dod = 0
+
+
+            ! Check if the dod is encompassed by the panel
+            if (N_edges_in_dod == 0) then
+
+            end if
+
+        end if
+
+    
+    end function panel_check_dod
 
 
     subroutine panel_calc_compr_coord_transform(this, freestream)
@@ -1041,28 +1100,17 @@ contains
 
         ! Calculate H integrals
         H = this%calc_H_integrals(geom, proc_H, MXK, MXQ, NHK, F)
-        if (debug .and. any(isnan(H))) then
-            write(*,*)
-            write(*,*) "NaN found in H using Procedure", proc_H
-            write(*,*) "dH was calculated to be", dH
-            write(*,*) "Min distances", min_dist_to_edge
-            if (abs(dH)<1e-10) then
-                write(*,*) "Evaluation point:", geom%r
-                write(*,*) "Evaluation point (in plane):", geom%r_in_plane
-                write(*,*) "Height", geom%h
-                write(*,*) "Vertices (in plane):",this%vertices_local
-            end if
-        end if
 
     end subroutine panel_calc_integrals
 
 
-    function panel_get_source_potential(this, eval_point, vertex_indices) result(phi)
+    function panel_get_source_potential(this, eval_point, freestream, vertex_indices) result(phi)
 
         implicit none
 
         class(panel),intent(in) :: this
         real,dimension(3),intent(in) :: eval_point
+        type(flow),intent(in) :: freestream
         integer,dimension(:),allocatable,intent(out) :: vertex_indices
         real,dimension(:),allocatable :: phi
 
@@ -1070,41 +1118,37 @@ contains
         real,dimension(:,:,:),allocatable :: H
         real,dimension(:,:,:,:),allocatable :: F
 
-        ! Calculate geometric parameters
-        geom = this%get_field_point_geometry(eval_point)
+        if (influence_calc_type == 'johnson-ehlers') then
 
-        ! Get integrals
-        call this%calc_integrals(geom, "potential", "source", H, F)
+            ! Calculate geometric parameters
+            geom = this%get_field_point_geometry(eval_point)
 
-        if (source_order == 0) then
+            ! Get integrals
+            call this%calc_integrals(geom, "potential", "source", H, F)
 
-            ! Compute induced potential
-            allocate(phi(1))
-            phi = -0.25/pi*H(1,1,1)
+            if (source_order == 0) then
 
-            if (debug .and. any(isnan(phi)) .or. isinf(phi(1))) then
-                write(*,*)
-                write(*,*) "Found NaN in source influence calculation."
-                write(*,*) "Influence: ", phi
-                write(*,*) "h: ", geom%h
-                write(*,*) "H(1,1,1): ",H(1,1,1)
+                ! Compute induced potential
+                allocate(phi(1))
+                phi = -0.25/pi*H(1,1,1)
+
             end if
 
+            ! Clean up
+            deallocate(H)
+            deallocate(F)
         end if
-
-        ! Clean up
-        deallocate(H)
-        deallocate(F)
     
     end function panel_get_source_potential
 
 
-    function panel_get_source_velocity(this, eval_point, vertex_indices) result(v)
+    function panel_get_source_velocity(this, eval_point, freestream, vertex_indices) result(v)
 
         implicit none
 
         class(panel),intent(in) :: this
         real,dimension(3),intent(in) :: eval_point
+        type(flow),intent(in) :: freestream
         integer,dimension(:),allocatable,intent(out) :: vertex_indices
         real,dimension(:,:),allocatable :: v
 
@@ -1112,37 +1156,42 @@ contains
         real,dimension(:,:,:),allocatable :: H
         real,dimension(:,:,:,:),allocatable :: F
 
-        ! Calculate geometric parameters
-        geom = this%get_field_point_geometry(eval_point)
+        if (influence_calc_type == 'johnson-ehlers') then
 
-        ! Get integrals
-        call this%calc_integrals(geom, "velocity", "source", H, F)
+            ! Calculate geometric parameters
+            geom = this%get_field_point_geometry(eval_point)
 
-        if (source_order .eq. 0) then
+            ! Get integrals
+            call this%calc_integrals(geom, "velocity", "source", H, F)
 
-            ! Specify influencing vertices
-            allocate(vertex_indices(1), source=0)
+            if (source_order .eq. 0) then
 
-            ! Calculate velocity
-            allocate(v(1,3))
-            v(1,1) = 0.25/pi*sum(this%n_hat_local(:,1)*F(:,1,1,1))
-            v(1,2) = 0.25/pi*sum(this%n_hat_local(:,2)*F(:,1,1,1))
-            v(1,3) = 0.25/pi*geom%h*H(1,1,3)
+                ! Specify influencing vertices
+                allocate(vertex_indices(1), source=0)
+
+                ! Calculate velocity
+                allocate(v(1,3))
+                v(1,1) = 0.25/pi*sum(this%n_hat_local(:,1)*F(:,1,1,1))
+                v(1,2) = 0.25/pi*sum(this%n_hat_local(:,2)*F(:,1,1,1))
+                v(1,3) = 0.25/pi*geom%h*H(1,1,3)
+
+            end if
+
+            ! Clean up
+            deallocate(H)
+            deallocate(F)
         end if
-
-        ! Clean up
-        deallocate(H)
-        deallocate(F)
 
     end function panel_get_source_velocity
 
 
-    function panel_get_doublet_potential(this, eval_point, vertex_indices) result(phi)
+    function panel_get_doublet_potential(this, eval_point, freestream, vertex_indices) result(phi)
 
         implicit none
 
         class(panel),intent(in) :: this
         real,dimension(3),intent(in) :: eval_point
+        type(flow),intent(in) :: freestream
         integer,dimension(:),allocatable,intent(out) :: vertex_indices
         real,dimension(:),allocatable :: phi
 
@@ -1152,71 +1201,69 @@ contains
         integer,dimension(:),allocatable :: H_shape
         integer :: i, j, k
 
-        ! Calculate geometric parameters
-        geom = this%get_field_point_geometry(eval_point)
+        if (influence_calc_type == 'johnson-ehlers') then
 
-        ! Get integrals
-        call this%calc_integrals(geom, "potential", "doublet", H, F)
+            ! Calculate geometric parameters
+            geom = this%get_field_point_geometry(eval_point)
 
-        ! Calculate influence
-        if (doublet_order == 1) then
+            ! Get integrals
+            call this%calc_integrals(geom, "potential", "doublet", H, F)
 
-            ! Specify influencing vertices
-            if (this%in_wake) then
+            ! Calculate influence
+            if (doublet_order == 1) then
 
-                ! Wake panels are influenced by two sets of vertices
-                allocate(vertex_indices(6))
-                allocate(phi(6), source=0.)
-                vertex_indices(1) = this%vertices(1)%ptr%top_parent
-                vertex_indices(2) = this%vertices(2)%ptr%top_parent
-                vertex_indices(3) = this%vertices(3)%ptr%top_parent
-                vertex_indices(4) = this%vertices(1)%ptr%bot_parent
-                vertex_indices(5) = this%vertices(2)%ptr%bot_parent
-                vertex_indices(6) = this%vertices(3)%ptr%bot_parent
+                ! Specify influencing vertices
+                if (this%in_wake) then
 
-            else
+                    ! Wake panels are influenced by two sets of vertices
+                    allocate(vertex_indices(6))
+                    allocate(phi(6), source=0.)
+                    vertex_indices(1) = this%vertices(1)%ptr%top_parent
+                    vertex_indices(2) = this%vertices(2)%ptr%top_parent
+                    vertex_indices(3) = this%vertices(3)%ptr%top_parent
+                    vertex_indices(4) = this%vertices(1)%ptr%bot_parent
+                    vertex_indices(5) = this%vertices(2)%ptr%bot_parent
+                    vertex_indices(6) = this%vertices(3)%ptr%bot_parent
 
-                ! Body panels are influenced by only one set of vertices
-                allocate(vertex_indices, source=this%vertex_indices)
-                allocate(phi(3), source=0.)
+                else
+
+                    ! Body panels are influenced by only one set of vertices
+                    allocate(vertex_indices, source=this%vertex_indices)
+                    allocate(phi(3), source=0.)
+
+                end if
+
+                ! Compute induced potential
+                phi(1) = geom%h*H(1,1,3)
+                phi(2) = geom%r_in_plane(1)*geom%h*H(1,1,3)+geom%h*H(2,1,3)
+                phi(3) = geom%r_in_plane(2)*geom%h*H(1,1,3)+geom%h*H(1,2,3)
+
+                ! Convert to vertex influences
+                phi(1:3) = 0.25/pi*matmul(phi(1:3), this%S_mu_inv)
+
+                ! Wake bottom influence is opposite the top influence
+                if (this%in_wake) then
+                    phi(4:6) = -phi(1:3)
+                end if
 
             end if
 
-            ! Compute induced potential
-            phi(1) = geom%h*H(1,1,3)
-            phi(2) = geom%r_in_plane(1)*geom%h*H(1,1,3)+geom%h*H(2,1,3)
-            phi(3) = geom%r_in_plane(2)*geom%h*H(1,1,3)+geom%h*H(1,2,3)
-            if (debug .and. any(isnan(phi))) then
-                write(*,*)
-                write(*,*) "Found NaN in doublet influence calculation."
-                write(*,*) "Influence: ", phi
-                write(*,*) "h: ", geom%h
-                write(*,*) "H(1,1,3): ",H(1,1,3)
-                write(*,*) "H(2,1,3): ",H(2,1,3)
-                write(*,*) "H(1,2,3): ",H(1,2,3)
-            end if
-            phi(1:3) = 0.25/pi*matmul(phi(1:3), this%S_mu_inv)
-
-            ! Wake bottom influence is opposite the top influence
-            if (this%in_wake) then
-                phi(4:6) = -phi(1:3)
-            end if
+            ! Clean up
+            deallocate(H)
+            deallocate(F)
 
         end if
-
-        ! Clean up
-        deallocate(H)
-        deallocate(F)
     
     end function panel_get_doublet_potential
 
 
-    function panel_get_doublet_velocity(this, eval_point, vertex_indices) result(v)
+    function panel_get_doublet_velocity(this, eval_point, freestream, vertex_indices) result(v)
 
         implicit none
 
         class(panel),intent(in) :: this
         real,dimension(3),intent(in) :: eval_point
+        type(flow),intent(in) :: freestream
         integer,dimension(:),allocatable,intent(out) :: vertex_indices
         real,dimension(:,:),allocatable :: v
 
@@ -1224,24 +1271,29 @@ contains
         real,dimension(:,:,:),allocatable :: H
         real,dimension(:,:,:,:),allocatable :: F
 
-        ! Calculate geometric parameters
-        geom = this%get_field_point_geometry(eval_point)
+        if (influence_calc_type == 'johnson-ehlers') then
 
-        ! Get integrals
-        call this%calc_integrals(geom, "velocity", "doublet", H, F)
+            ! Calculate geometric parameters
+            geom = this%get_field_point_geometry(eval_point)
 
-        if (doublet_order .eq. 1) then
+            ! Get integrals
+            call this%calc_integrals(geom, "velocity", "doublet", H, F)
 
-            ! Specify influencing vertices
-            allocate(vertex_indices(3), source=this%vertex_indices)
+            if (doublet_order .eq. 1) then
 
-            ! Calculate velocity
-            allocate(v(3,3))
+                ! Specify influencing vertices
+                allocate(vertex_indices(3), source=this%vertex_indices)
+
+                ! Calculate velocity
+                allocate(v(3,3))
+
+            end if
+
+            ! Clean up
+            deallocate(H)
+            deallocate(F)
+
         end if
-
-        ! Clean up
-        deallocate(H)
-        deallocate(F)
 
     end function panel_get_doublet_velocity
 

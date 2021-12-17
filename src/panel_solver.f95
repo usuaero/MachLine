@@ -41,6 +41,10 @@ contains
         ! Get settings
         call json_xtnsn_get(settings, 'formulation', this%formulation, 'morino')
         call json_xtnsn_get(settings, 'influence_calculations', influence_calc_type, 'johnson-ehlers')
+        if (influence_calc_type == 'gaussian quad') then
+            write(*,*) "    !!! Gaussian quadrature calculations are not yet implemented. Reverting to Johnson-Ehlers."
+            influence_calc_type = 'johnson-ehlers'
+        end if
 
         ! Initialize based on formulation
         if (this%formulation == 'morino' .or. this%formulation == 'source-free') then
@@ -188,7 +192,7 @@ contains
 
                 ! Get source influence for existing->existing and mirrored->mirrored
                 if (morino) then
-                    source_inf = body%panels(j)%get_source_potential(body%control_points(i,:), source_verts)
+                    source_inf = body%panels(j)%get_source_potential(body%control_points(i,:), freestream, source_verts)
 
                     ! Influence of existing panel on existing control point
                     if (source_order == 0) then
@@ -197,7 +201,7 @@ contains
                 end if
 
                 ! Get doublet influence for existing->existing and mirrored->mirrored
-                doublet_inf = body%panels(j)%get_doublet_potential(body%control_points(i,:), doublet_verts)
+                doublet_inf = body%panels(j)%get_doublet_potential(body%control_points(i,:), freestream, doublet_verts)
 
                 ! Influence of existing panel on existing control point
                 if (doublet_order == 1) then
@@ -233,9 +237,9 @@ contains
 
                     ! Calculate influences
                     if (morino) then
-                        source_inf = body%panels(j)%get_source_potential(cp_mirrored, source_verts)
+                        source_inf = body%panels(j)%get_source_potential(cp_mirrored, freestream, source_verts)
                     end if
-                    doublet_inf = body%panels(j)%get_doublet_potential(cp_mirrored, doublet_verts)
+                    doublet_inf = body%panels(j)%get_doublet_potential(cp_mirrored, freestream, doublet_verts)
 
                     if (body%asym_flow) then
 
@@ -320,7 +324,7 @@ contains
                 do j=1,body%wake%N_panels
 
                     ! Caclulate influence
-                    doublet_inf = body%wake%panels(j)%get_doublet_potential(body%control_points(i,:), doublet_verts)
+                    doublet_inf = body%wake%panels(j)%get_doublet_potential(body%control_points(i,:), freestream, doublet_verts)
 
                     ! Influence on existing control point
                     if (doublet_order == 1) then
@@ -336,7 +340,7 @@ contains
                         cp_mirrored = mirror_about_plane(body%control_points(i,:), body%mirror_plane)
 
                         ! Calculate influences
-                        doublet_inf = body%wake%panels(j)%get_doublet_potential(cp_mirrored, doublet_verts)
+                        doublet_inf = body%wake%panels(j)%get_doublet_potential(cp_mirrored, freestream, doublet_verts)
 
                         if (body%asym_flow) then
 
