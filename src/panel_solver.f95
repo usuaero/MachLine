@@ -143,7 +143,7 @@ contains
                 do i=1,body%N_panels
 
                     ! Existing panels
-                    body%sigma(i) = -inner(body%panels(i)%normal, freestream%c0)
+                    body%sigma(i) = inner(body%panels(i)%normal, freestream%c0)
 
                     ! Mirrored panels for asymmetric flow
                     if (body%mirrored .and. body%asym_flow) then
@@ -152,7 +152,7 @@ contains
                         n_mirrored = mirror_about_plane(body%panels(i)%normal, body%mirror_plane)
 
                         ! Calculate source strength
-                        body%sigma(i+body%N_panels) = -inner(n_mirrored, freestream%c0)
+                        body%sigma(i+body%N_panels) = inner(n_mirrored, freestream%c0)
 
                     end if
                 end do
@@ -303,8 +303,13 @@ contains
 
                 ! If the control point is unique, it's target potential will need to be set for the source-free formulation
                 else if (.not. morino) then
-                    b(i+body%N_cp) = -inner(cp_mirrored, freestream%c0)
+                    b(i+body%N_cp) = inner(cp_mirrored, freestream%c0)
                 end if
+            end if
+
+            ! Set target potential for source-free formulation
+            if (.not. morino) then
+                b(i) = inner(body%control_points(i,:), freestream%c0)
             end if
 
         end do
@@ -367,7 +372,9 @@ contains
                     end if
                 end do
             end do
+
             write(*,*) "Done."
+
         end if
 
         write(*,'(a)',advance='no') "     Solving linear system..."
@@ -376,13 +383,9 @@ contains
         allocate(A_copy, source=A, stat=stat)
         call check_allocation(stat, "solver copy of AIC matrix")
 
-        ! Determine b vector
+        ! Set b vector for Morino formulation
         if (morino) then
             b = -body%phi_cp_sigma
-        else
-            do i=1,body%N_cp
-                b(i) = -inner(body%control_points(i,:), freestream%c0)
-            end do
         end if
 
         ! Solve
@@ -414,11 +417,11 @@ contains
                 if (morino) then
 
                     ! Original panel
-                    body%V(i,:) = freestream%U*(freestream%c0 + body%panels(i)%get_velocity_jump(body%mu, &
+                    body%V(i,:) = freestream%U*(-freestream%c0 + body%panels(i)%get_velocity_jump(body%mu, &
                                   body%sigma, .false., body%mirror_plane))
 
                     ! Mirror
-                    body%V(i+body%N_panels,:) = freestream%U*(freestream%c0 + body%panels(i)%get_velocity_jump(body%mu, &
+                    body%V(i+body%N_panels,:) = freestream%U*(-freestream%c0 + body%panels(i)%get_velocity_jump(body%mu, &
                                                 body%sigma, .true., body%mirror_plane))
                 
                 else
@@ -444,7 +447,7 @@ contains
             ! Calculate the surface velocity on each panel
             if (morino) then
                 do i=1,body%N_panels
-                    body%V(i,:) = freestream%U*(freestream%c0 + body%panels(i)%get_velocity_jump(body%mu, body%sigma, .false., 0))
+                    body%V(i,:) = freestream%U*(-freestream%c0 + body%panels(i)%get_velocity_jump(body%mu, body%sigma, .false., 0))
                 end do
             else
                 do i=1,body%N_panels

@@ -148,12 +148,6 @@ contains
         ! Calculate centroid
         call this%calc_centroid()
 
-        ! Calculate coordinate transform
-        call this%calc_coord_transform()
-
-        ! Calculate edge tangents
-        call this%calc_edge_tangents()
-
     end subroutine panel_calc_derived_properties
 
 
@@ -217,11 +211,13 @@ contains
     end subroutine panel_calc_centroid
 
 
-    subroutine panel_calc_coord_transform(this)
+    subroutine panel_calc_coord_transform(this, freestream)
 
         implicit none
 
         class(panel),intent(inout) :: this
+        type(flow),intent(in) :: freestream
+
         real,dimension(3) :: d
         integer :: i
         real,dimension(:,:),allocatable :: S_mu, S_sigma
@@ -348,6 +344,8 @@ contains
 
         end if
 
+        ! Calculate edge tangents as this is dependent on the transformation
+        call this%calc_edge_tangents()
 
     end subroutine panel_calc_coord_transform
 
@@ -515,7 +513,7 @@ contains
 
             ! Calculate angle
             d = this%get_vertex_loc(i)-eval_point
-            theta = inner(d, -freestream%c0)/norm(d)
+            theta = inner(d, freestream%c0)/norm(d)
 
             ! Check
             dod_info%verts_in_dod(i) = theta <= freestream%mu
@@ -587,7 +585,7 @@ contains
             geom%l2(i) = geom%l1(i)+this%l(i)
 
             ! Distance from evaluation point to start vertex
-            ! This is not the definition given by Johnson, but his is equivalent.
+            ! This is not the definition given by Johnson, but this is equivalent.
             ! I believe this method suffers from less numerical error.
             geom%s1(i) = norm(this%get_vertex_loc(i)-geom%r)
 

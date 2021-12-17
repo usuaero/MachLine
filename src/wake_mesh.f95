@@ -31,14 +31,14 @@ module wake_mesh_mod
 contains
 
 
-    subroutine wake_mesh_init(this, freestream_flow, top_edge_verts, bot_edge_verts, mesh_edges, wake_edge_indices, &
+    subroutine wake_mesh_init(this, freestream, top_edge_verts, bot_edge_verts, mesh_edges, wake_edge_indices, &
                               N_panels_streamwise, mesh_vertices, trefftz_distance, mirrored_and_asym, mirror_plane)
         ! Creates the vertices and panels. Handles vertex association.
 
         implicit none
 
         class(wake_mesh),intent(inout) :: this
-        type(flow),intent(in) :: freestream_flow
+        type(flow),intent(in) :: freestream
         integer,allocatable,dimension(:),intent(in) :: top_edge_verts, bot_edge_verts
         type(edge),allocatable,dimension(:),intent(in) :: mesh_edges
         integer,allocatable,dimension(:),intent(in) :: wake_edge_indices
@@ -73,7 +73,7 @@ contains
             top_parent_ind = top_edge_verts(i)
             bot_parent_ind = bot_edge_verts(i)
             start = mesh_vertices(top_parent_ind)%loc
-            distance = trefftz_distance-inner(start, freestream_flow%c0)
+            distance = trefftz_distance-inner(start, freestream%c0)
 
             ! Determine vertex separation
             vertex_separation = distance/N_panels_streamwise
@@ -83,7 +83,7 @@ contains
 
                 ! Determine start location
                 mirrored_start = mirror_about_plane(start, mirror_plane)
-                mirrored_distance = trefftz_distance-inner(mirrored_start, freestream_flow%c0)
+                mirrored_distance = trefftz_distance-inner(mirrored_start, freestream%c0)
 
                 ! Determine vertex separation
                 mirrored_vertex_separation = mirrored_distance/N_panels_streamwise
@@ -95,7 +95,7 @@ contains
 
                 ! Determine location
                 ind = (i-1)*(N_panels_streamwise+1)+j
-                loc = start + vertex_separation*(j-1)*freestream_flow%c0
+                loc = start + vertex_separation*(j-1)*freestream%c0
 
                 ! Initialize vertex
                 call this%vertices(ind)%init(loc, ind)
@@ -110,7 +110,7 @@ contains
                     ! Determine location
                     ind = ind + this%N_verts/2
                     mirrored_start = mirror_about_plane(start, mirror_plane)
-                    loc = mirrored_start + mirrored_vertex_separation*(j-1)*freestream_flow%c0
+                    loc = mirrored_start + mirrored_vertex_separation*(j-1)*freestream%c0
 
                     ! Initialize vertex
                     call this%vertices(ind)%init(loc, ind)
@@ -224,6 +224,11 @@ contains
                 end if
 
             end do
+        end do
+
+        ! Intialize panel coordinate transforms
+        do i=1,this%N_panels
+            call this%panels(i)%calc_coord_transform(freestream)
         end do
 
         write(*,'(a, i7, a, i7, a)') "Done. Created ", this%N_verts, " wake vertices and ", this%N_panels, " wake panels."

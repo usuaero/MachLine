@@ -15,7 +15,7 @@ module flow_mod
         real :: B ! Compressibility scale factor
         real :: c ! Freestream speed of sound
         real :: mu ! Mach angle
-        real,dimension(3) :: c0 ! Compressibility direciton (freestream direction)
+        real,dimension(3) :: c0 ! Compressibility axis (assumed in TriPan to be aligned with the freestream direction)
         logical,dimension(3) :: sym_about ! Whether the flow condition is symmetric about any plane
         real,dimension(3,3) :: psi ! Dual metric matrix, expressed in global coords
         logical :: supersonic
@@ -52,7 +52,7 @@ contains
         ! Derived quantities
         this%U = norm(this%v_inf)
         this%U_inv = 1./this%U
-        this%c0 = this%v_inf*this%U_inv
+        this%c0 = -this%v_inf*this%U_inv
 
         ! Determine condition
         if (this%M_inf == 1.) then
