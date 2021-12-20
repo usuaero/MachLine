@@ -44,7 +44,7 @@ module panel_mod
         real,dimension(3) :: normal, conormal ! Normal and conormal vectors
         real,dimension(:,:),allocatable :: midpoints
         real,dimension(3) :: centroid
-        real,dimension(3,3) :: A_g_to_l ! Local coordinate transform matrix
+        real,dimension(3,3) :: A_g_to_l, A_s_to_ls, A_g_to_ls ! Local coordinate transformation matrices
         real,dimension(:,:),allocatable :: vertices_l, midpoints_l ! Location of the vertices and edge midpoints described in local coords
         real,dimension(:,:),allocatable :: t_hat_g, t_hat_l ! Edge unit tangents
         real,dimension(:,:),allocatable :: n_hat_g, n_hat_l ! Edge unit outward normals
@@ -64,15 +64,17 @@ module panel_mod
             procedure :: calc_area => panel_calc_area
             procedure :: calc_normal => panel_calc_normal
             procedure :: calc_centroid => panel_calc_centroid
-            procedure :: calc_coord_transform => panel_calc_coord_transform
+            procedure :: calc_transforms => panel_calc_transforms
+            procedure :: calc_g_to_l_transform => panel_calc_g_to_l_transform
+            procedure :: calc_g_to_ls_transform => panel_calc_g_to_ls_transform
             procedure :: calc_edge_tangents => panel_calc_edge_tangents
+            procedure :: calc_singularity_matrices => panel_calc_singularity_matrices
             procedure :: add_abutting_panel => panel_add_abutting_panel
             procedure :: get_vertex_loc => panel_get_vertex_loc
             procedure :: get_vertex_index => panel_get_vertex_index
             procedure :: touches_vertex => panel_touches_vertex
             procedure :: point_to_vertex_clone => panel_point_to_vertex_clone
             procedure :: check_dod => panel_check_dod
-            procedure :: calc_compr_coord_transform => panel_calc_compr_coord_transform
             procedure :: get_field_point_geometry => panel_get_field_point_geometry
             procedure :: E_i_M_N_K => panel_E_i_M_N_K
             procedure :: F_i_1_1_1 => panel_F_i_1_1_1
@@ -212,34 +214,22 @@ contains
     end subroutine panel_calc_centroid
 
 
-    subroutine panel_calc_coord_transform(this, freestream)
+    subroutine panel_calc_transforms(this, freestream)
 
         implicit none
 
         class(panel),intent(inout) :: this
         type(flow),intent(in) :: freestream
 
-        real,dimension(3) :: d
         integer :: i
-        real,dimension(:,:),allocatable :: S_mu, S_sigma
-        real,dimension(3) :: u0, v0
 
-        ! Allocate memory
+        ! Calculate transforms
+        call this%calc_g_to_l_transform(freestream)
+        call this%calc_g_to_ls_transform(freestream)
+
+        ! Transform vertex and midpoint coords to l
         allocate(this%vertices_l(this%N,2))
         allocate(this%midpoints_l(this%N,2))
-
-        ! Calculate local basis vectors
-        v0 = cross(this%normal, freestream%c0)
-        v0 = v0/norm(v0)
-        u0 = cross(v0, this%normal)
-        u0 = u0/norm(u0)
-
-        ! Calculate global to local transformation matrix
-        this%A_g_to_l(1,:) = u0
-        this%A_g_to_l(2,:) = v0
-        this%A_g_to_l(3,:) = this%normal
-
-        ! Transform vertex and midpoint coords
         do i=1,this%N
 
             ! Vertices
@@ -249,6 +239,131 @@ contains
             this%midpoints_l(i,:) = matmul(this%A_g_to_l(1:2,:), this%midpoints(i,:)-this%centroid)
 
         end do
+
+        ! Calculate properties dependent on the transforms
+        call this%calc_edge_tangents()
+        call this%calc_singularity_matrices()
+
+    end subroutine panel_calc_transforms
+
+
+    subroutine panel_calc_g_to_l_transform(this, freestream)
+
+        implicit none
+
+        class(panel),intent(inout) :: this
+        type(flow),intent(in) :: freestream
+
+        ! Calculate local eta axis
+        this%A_g_to_l(2,:) = cross(this%normal, freestream%c0)
+        this%A_g_to_l(2,:) = this%A_g_to_l(2,:)/norm(this%A_g_to_l(2,:))
+
+        ! Calculate local xi axis
+        this%A_g_to_l(1,:) = cross(this%A_g_to_l(2,:), this%normal)
+        this%A_g_to_l(1,:) = this%A_g_to_l(1,:)/norm(this%A_g_to_l(1,:))
+
+        ! Store local zeta axis
+        this%A_g_to_l(3,:) = this%normal
+
+    end subroutine panel_calc_g_to_l_transform
+
+
+    subroutine panel_calc_g_to_ls_transform(this, freestream)
+        ! Calculates the necessary transformations to move from global to local, scaled coordinates
+
+        implicit none
+
+        class(panel),intent(inout) :: this
+        type(flow),intent(in) :: freestream
+
+        real,dimension(3) :: u0, v0
+        real,dimension(3,3) :: C0, B0, I
+        real :: x
+        integer :: i
+
+        ! Get basis vectors
+        u0 = this%A_g_to_l(1,:)
+        v0 = this%A_g_to_l(2,:)
+
+        ! Calculate compressible parameters
+        this%conormal = matmul(freestream%psi, this%normal)
+        x = inner(this%normal, this%conormal)
+        this%r = sign(1., x)
+
+        ! Check for Mach-inclined panel
+        if (inner(this%normal, this%conormal) == 0.) then
+            write(*,*) "    !!! Mach-inclined panels are not allowed. Panel", this%index, "is Mach-inclined. Quitting..."
+            stop
+        end if
+
+        ! Calculate intermediate matrices
+        C0 = 0.
+        B0 = 0.
+        I = 0.
+
+        ! Construct identity matrix
+        do i=1,3
+            I(i,i) = 1.
+        end do
+
+        ! Construct other matrices
+        B0 = outer(freestream%c0, freestream%c0)
+        C0 = freestream%s*freestream%B**2*I + freestream%M_inf**2*B0
+        B0 = I - freestream%M_inf**2*B0
+    
+    end subroutine panel_calc_g_to_ls_transform
+
+
+    subroutine panel_calc_edge_tangents(this)
+
+        implicit none
+
+        class(panel),intent(inout) :: this
+        real,dimension(3) :: d
+        integer :: i
+
+        ! Allocate memory
+        allocate(this%l(this%N))
+        allocate(this%t_hat_g(this%N,3))
+        allocate(this%t_hat_l(this%N,2))
+        allocate(this%n_hat_g(this%N,3))
+        allocate(this%n_hat_l(this%N,2))
+
+        ! Loop through edges
+        do i=1,this%N
+
+            ! Calculate difference based on index
+            ! Edge i starts at vertex i
+            if (i==this%N) then
+                d = this%get_vertex_loc(1)-this%get_vertex_loc(i)
+            else
+                d = this%get_vertex_loc(i+1)-this%get_vertex_loc(i)
+            end if
+
+            ! Calculate edge length
+            this%l(i) = norm(d)
+
+            ! Calculate tangent
+            this%t_hat_g(i,:) = d/this%l(i)
+            this%t_hat_l(i,:) = matmul(this%A_g_to_l(1:2,:), this%t_hat_g(i,:))
+
+            ! Calculate outward normal
+            this%n_hat_g(i,:) = cross(this%t_hat_g(i,:), this%normal)
+            this%n_hat_l(i,:) = matmul(this%A_g_to_l(1:2,:), this%n_hat_g(i,:))
+
+        end do
+    
+    end subroutine panel_calc_edge_tangents
+
+
+    subroutine panel_calc_singularity_matrices(this)
+        ! Calculates the matrices which relate the singularity strengths to the singularity parameters
+
+        implicit none
+
+        class(panel),intent(inout) :: this
+
+        real,dimension(:,:),allocatable :: S_mu, S_sigma
 
         ! Determine influence of vertex doublet strengths on integral parameters
         if (.not. doublet_order .eq. 0) then
@@ -345,63 +460,8 @@ contains
             deallocate(S_sigma)
 
         end if
-
-        ! Calculate compressible parameters
-        this%conormal = matmul(freestream%psi, this%normal)
-        this%r = sign(1., inner(this%normal, this%conormal))
-
-        ! Check for Mach-inclined panel
-        if (inner(this%normal, this%conormal) == 0.) then
-            write(*,*) "    !!! Mach-inclined panels are not allowed. Panel", this%index, "is Mach-inclined. Quitting..."
-            stop
-        end if
-
-        ! Calculate edge tangents as this is dependent on the transformation
-        call this%calc_edge_tangents()
-
-    end subroutine panel_calc_coord_transform
-
-
-    subroutine panel_calc_edge_tangents(this)
-
-        implicit none
-
-        class(panel),intent(inout) :: this
-        real,dimension(3) :: d
-        integer :: i
-
-        ! Allocate memory
-        allocate(this%l(this%N))
-        allocate(this%t_hat_g(this%N,3))
-        allocate(this%t_hat_l(this%N,2))
-        allocate(this%n_hat_g(this%N,3))
-        allocate(this%n_hat_l(this%N,2))
-
-        ! Loop through edges
-        do i=1,this%N
-
-            ! Calculate difference based on index
-            ! Edge i starts at vertex i
-            if (i==this%N) then
-                d = this%get_vertex_loc(1)-this%get_vertex_loc(i)
-            else
-                d = this%get_vertex_loc(i+1)-this%get_vertex_loc(i)
-            end if
-
-            ! Calculate edge length
-            this%l(i) = norm(d)
-
-            ! Calculate tangent
-            this%t_hat_g(i,:) = d/this%l(i)
-            this%t_hat_l(i,:) = matmul(this%A_g_to_l(1:2,:), this%t_hat_g(i,:))
-
-            ! Calculate outward normal
-            this%n_hat_g(i,:) = cross(this%t_hat_g(i,:), this%normal)
-            this%n_hat_l(i,:) = matmul(this%A_g_to_l(1:2,:), this%n_hat_g(i,:))
-
-        end do
     
-    end subroutine panel_calc_edge_tangents
+    end subroutine panel_calc_singularity_matrices
 
 
     subroutine panel_add_abutting_panel(this, panel_ind)
@@ -551,17 +611,6 @@ contains
 
     
     end function panel_check_dod
-
-
-    subroutine panel_calc_compr_coord_transform(this, freestream)
-        ! Calculates the compressible coordinate transform for this panel based on the freestream properties
-
-        implicit none
-
-        class(panel),intent(inout) :: this
-        type(flow),intent(in) :: freestream
-    
-    end subroutine panel_calc_compr_coord_transform
 
 
     function panel_get_field_point_geometry(this, eval_point) result(geom)

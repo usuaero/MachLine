@@ -344,7 +344,7 @@ contains
 
         ! Calculate panel coordinate transformations
         do i=1,this%N_panels
-            call this%panels(i)%calc_coord_transform(freestream)
+            call this%panels(i)%calc_transforms(freestream)
         end do
 
         ! Figure out wake-shedding edges, discontinuous edges, etc.

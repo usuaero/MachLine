@@ -228,7 +228,7 @@ contains
 
         ! Intialize panel coordinate transforms
         do i=1,this%N_panels
-            call this%panels(i)%calc_coord_transform(freestream)
+            call this%panels(i)%calc_transforms(freestream)
         end do
 
         write(*,'(a, i7, a, i7, a)') "Done. Created ", this%N_verts, " wake vertices and ", this%N_panels, " wake panels."
