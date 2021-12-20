@@ -41,13 +41,13 @@ module panel_mod
         integer :: N = 3 ! Number of sides/vertices
         integer :: index ! Index of this panel in the mesh array
         type(vertex_pointer),dimension(:),allocatable :: vertices
-        real,dimension(3) :: normal ! Normal vector
+        real,dimension(3) :: normal, conormal ! Normal and conormal vectors
         real,dimension(:,:),allocatable :: midpoints
         real,dimension(3) :: centroid
-        real,dimension(3,3) :: A_t ! Local coordinate transform matrix
-        real,dimension(:,:),allocatable :: vertices_local, midpoints_local ! Location of the vertices and edge midpoints described in local coords
-        real,dimension(:,:),allocatable :: t_hat, t_hat_local ! Edge unit tangents
-        real,dimension(:,:),allocatable :: n_hat, n_hat_local ! Edge unit outward normals
+        real,dimension(3,3) :: A_g_to_l ! Local coordinate transform matrix
+        real,dimension(:,:),allocatable :: vertices_l, midpoints_l ! Location of the vertices and edge midpoints described in local coords
+        real,dimension(:,:),allocatable :: t_hat_g, t_hat_l ! Edge unit tangents
+        real,dimension(:,:),allocatable :: n_hat_g, n_hat_l ! Edge unit outward normals
         real,dimension(:),allocatable :: l ! Edge lengths
         real :: A ! Surface area
         real,dimension(:,:),allocatable :: S_mu_inv, S_sigma_inv ! Matrix relating doublet/source strengths to doublet/source influence parameters
@@ -55,6 +55,7 @@ module panel_mod
         integer,dimension(:),allocatable :: vertex_indices ! Indices of this panel's vertices in the mesh vertex array
         logical :: in_wake ! Whether this panel belongs to a wake mesh
         integer,dimension(3) :: abutting_panels ! Indices of panels abutting this one
+        real :: r ! Panel inclination indicator
 
         contains
 
@@ -221,30 +222,31 @@ contains
         real,dimension(3) :: d
         integer :: i
         real,dimension(:,:),allocatable :: S_mu, S_sigma
+        real,dimension(3) :: u0, v0
 
         ! Allocate memory
-        allocate(this%vertices_local(this%N,2))
-        allocate(this%midpoints_local(this%N,2))
+        allocate(this%vertices_l(this%N,2))
+        allocate(this%midpoints_l(this%N,2))
 
-        ! Choose first edge tangent as local xi-axis
-        ! (will need to be projected for quadrilateral panel)
-        d = this%get_vertex_loc(2)-this%get_vertex_loc(1)
-        this%A_t(1,:) = d/norm(d)
+        ! Calculate local basis vectors
+        v0 = cross(this%normal, freestream%c0)
+        v0 = v0/norm(v0)
+        u0 = cross(v0, this%normal)
+        u0 = u0/norm(u0)
 
-        ! Panel normal is the zeta axis
-        this%A_t(3,:) = this%normal
-
-        ! Calculate eta axis from the other two
-        this%A_t(2,:) = cross(this%normal, this%A_t(1,:))
+        ! Calculate global to local transformation matrix
+        this%A_g_to_l(1,:) = u0
+        this%A_g_to_l(2,:) = v0
+        this%A_g_to_l(3,:) = this%normal
 
         ! Transform vertex and midpoint coords
         do i=1,this%N
 
             ! Vertices
-            this%vertices_local(i,:) = matmul(this%A_t(1:2,:), this%get_vertex_loc(i)-this%centroid)
+            this%vertices_l(i,:) = matmul(this%A_g_to_l(1:2,:), this%get_vertex_loc(i)-this%centroid)
 
             ! Midpoints
-            this%midpoints_local(i,:) = matmul(this%A_t(1:2,:), this%midpoints(i,:)-this%centroid)
+            this%midpoints_l(i,:) = matmul(this%A_g_to_l(1:2,:), this%midpoints(i,:)-this%centroid)
 
         end do
 
@@ -260,8 +262,8 @@ contains
 
                 ! Set values
                 S_mu(:,1) = 1.
-                S_mu(:,2) = this%vertices_local(:,1)
-                S_mu(:,3) = this%vertices_local(:,2)
+                S_mu(:,2) = this%vertices_l(:,1)
+                S_mu(:,3) = this%vertices_l(:,2)
 
                 ! Invert
                 call matinv(3, S_mu, this%S_mu_inv)
@@ -275,17 +277,17 @@ contains
                 ! Set values
                 S_mu(:,1) = 1.
 
-                S_mu(1:3,2) = this%vertices_local(:,1)
-                S_mu(1:3,3) = this%vertices_local(:,2)
-                S_mu(1:3,4) = this%vertices_local(:,1)**2
-                S_mu(1:3,5) = this%vertices_local(:,1)*this%vertices_local(:,2)
-                S_mu(1:3,6) = this%vertices_local(:,2)**2
+                S_mu(1:3,2) = this%vertices_l(:,1)
+                S_mu(1:3,3) = this%vertices_l(:,2)
+                S_mu(1:3,4) = this%vertices_l(:,1)**2
+                S_mu(1:3,5) = this%vertices_l(:,1)*this%vertices_l(:,2)
+                S_mu(1:3,6) = this%vertices_l(:,2)**2
                 
-                S_mu(4:6,2) = this%midpoints_local(:,1)
-                S_mu(4:6,3) = this%midpoints_local(:,2)
-                S_mu(4:6,4) = this%midpoints_local(:,1)**2
-                S_mu(4:6,5) = this%midpoints_local(:,1)*this%midpoints_local(:,2)
-                S_mu(4:6,6) = this%midpoints_local(:,2)**2
+                S_mu(4:6,2) = this%midpoints_l(:,1)
+                S_mu(4:6,3) = this%midpoints_l(:,2)
+                S_mu(4:6,4) = this%midpoints_l(:,1)**2
+                S_mu(4:6,5) = this%midpoints_l(:,1)*this%midpoints_l(:,2)
+                S_mu(4:6,6) = this%midpoints_l(:,2)**2
 
                 ! Invert
                 call matinv(6, S_mu, this%S_mu_inv)
@@ -308,8 +310,8 @@ contains
 
                 ! Set values
                 S_sigma(:,1) = 1.
-                S_sigma(:,2) = this%vertices_local(:,1)
-                S_sigma(:,3) = this%vertices_local(:,2)
+                S_sigma(:,2) = this%vertices_l(:,1)
+                S_sigma(:,3) = this%vertices_l(:,2)
 
                 ! Invert
                 call matinv(3, S_sigma, this%S_sigma_inv)
@@ -323,17 +325,17 @@ contains
                 ! Set values
                 S_sigma(:,1) = 1.
 
-                S_sigma(1:3,2) = this%vertices_local(:,1)
-                S_sigma(1:3,3) = this%vertices_local(:,2)
-                S_sigma(1:3,4) = this%vertices_local(:,1)**2
-                S_sigma(1:3,5) = this%vertices_local(:,1)*this%vertices_local(:,2)
-                S_sigma(1:3,6) = this%vertices_local(:,2)**2
+                S_sigma(1:3,2) = this%vertices_l(:,1)
+                S_sigma(1:3,3) = this%vertices_l(:,2)
+                S_sigma(1:3,4) = this%vertices_l(:,1)**2
+                S_sigma(1:3,5) = this%vertices_l(:,1)*this%vertices_l(:,2)
+                S_sigma(1:3,6) = this%vertices_l(:,2)**2
                 
-                S_sigma(4:6,2) = this%midpoints_local(:,1)
-                S_sigma(4:6,3) = this%midpoints_local(:,2)
-                S_sigma(4:6,4) = this%midpoints_local(:,1)**2
-                S_sigma(4:6,5) = this%midpoints_local(:,1)*this%midpoints_local(:,2)
-                S_sigma(4:6,6) = this%midpoints_local(:,2)**2
+                S_sigma(4:6,2) = this%midpoints_l(:,1)
+                S_sigma(4:6,3) = this%midpoints_l(:,2)
+                S_sigma(4:6,4) = this%midpoints_l(:,1)**2
+                S_sigma(4:6,5) = this%midpoints_l(:,1)*this%midpoints_l(:,2)
+                S_sigma(4:6,6) = this%midpoints_l(:,2)**2
 
                 ! Invert
                 call matinv(6, S_sigma, this%S_sigma_inv)
@@ -342,6 +344,16 @@ contains
 
             deallocate(S_sigma)
 
+        end if
+
+        ! Calculate compressible parameters
+        this%conormal = matmul(freestream%psi, this%normal)
+        this%r = sign(1., inner(this%normal, this%conormal))
+
+        ! Check for Mach-inclined panel
+        if (inner(this%normal, this%conormal) == 0.) then
+            write(*,*) "    !!! Mach-inclined panels are not allowed. Panel", this%index, "is Mach-inclined. Quitting..."
+            stop
         end if
 
         ! Calculate edge tangents as this is dependent on the transformation
@@ -360,10 +372,10 @@ contains
 
         ! Allocate memory
         allocate(this%l(this%N))
-        allocate(this%t_hat(this%N,3))
-        allocate(this%t_hat_local(this%N,2))
-        allocate(this%n_hat(this%N,3))
-        allocate(this%n_hat_local(this%N,2))
+        allocate(this%t_hat_g(this%N,3))
+        allocate(this%t_hat_l(this%N,2))
+        allocate(this%n_hat_g(this%N,3))
+        allocate(this%n_hat_l(this%N,2))
 
         ! Loop through edges
         do i=1,this%N
@@ -380,12 +392,12 @@ contains
             this%l(i) = norm(d)
 
             ! Calculate tangent
-            this%t_hat(i,:) = d/this%l(i)
-            this%t_hat_local(i,:) = matmul(this%A_t(1:2,:), this%t_hat(i,:))
+            this%t_hat_g(i,:) = d/this%l(i)
+            this%t_hat_l(i,:) = matmul(this%A_g_to_l(1:2,:), this%t_hat_g(i,:))
 
             ! Calculate outward normal
-            this%n_hat(i,:) = cross(this%t_hat(i,:), this%normal)
-            this%n_hat_local(i,:) = matmul(this%A_t(1:2,:), this%n_hat(i,:))
+            this%n_hat_g(i,:) = cross(this%t_hat_g(i,:), this%normal)
+            this%n_hat_l(i,:) = matmul(this%A_g_to_l(1:2,:), this%n_hat_g(i,:))
 
         end do
     
@@ -562,26 +574,26 @@ contains
         type(eval_point_geom) :: geom
 
         real,dimension(2) :: d
-        real,dimension(3) :: r_local
+        real,dimension(3) :: r_l
         integer :: i
 
         ! Store point
         geom%r = eval_point
 
         ! Transform to panel coordinates
-        r_local = matmul(this%A_t, geom%r-this%centroid)
-        geom%r_in_plane = r_local(1:2)
-        geom%h = r_local(3)
+        r_l = matmul(this%A_g_to_l, geom%r-this%centroid)
+        geom%r_in_plane = r_l(1:2)
+        geom%h = r_l(3)
 
         ! Calculate intermediate quantities
         do i=1,this%N
 
             ! Perpendicular distance in plane from evaluation point to edge
-            d = this%vertices_local(i,:)-geom%r_in_plane
-            geom%a(i) = inner2(d, this%n_hat_local(i,:)) ! a is positive when the evaluation point is towards the interior of the panel
+            d = this%vertices_l(i,:)-geom%r_in_plane
+            geom%a(i) = inner2(d, this%n_hat_l(i,:)) ! a is positive when the evaluation point is towards the interior of the panel
 
             ! Integration lengths on edges
-            geom%l1(i) = inner2(d, this%t_hat_local(i,:))
+            geom%l1(i) = inner2(d, this%t_hat_l(i,:))
             geom%l2(i) = geom%l1(i)+this%l(i)
 
             ! Distance from evaluation point to start vertex
@@ -619,18 +631,18 @@ contains
         real :: E, E_1, E_2
 
         ! Evaluate at start vertex
-        E_1 = ((this%vertices_local(i,1)-geom%r_in_plane(1))**(M-1) &
-              *(this%vertices_local(i,2)-geom%r_in_plane(2))**(N-1)) &
+        E_1 = ((this%vertices_l(i,1)-geom%r_in_plane(1))**(M-1) &
+              *(this%vertices_l(i,2)-geom%r_in_plane(2))**(N-1)) &
               /geom%s1(i)**K
 
         ! Evaluate at end vertex
         if (i .eq. this%N) then
-            E_2 = ((this%vertices_local(1,1)-geom%r_in_plane(1))**(M-1) &
-                   *(this%vertices_local(1,2)-geom%r_in_plane(2))**(N-1)) &
+            E_2 = ((this%vertices_l(1,1)-geom%r_in_plane(1))**(M-1) &
+                   *(this%vertices_l(1,2)-geom%r_in_plane(2))**(N-1)) &
                    /geom%s2(i)**K
         else
-            E_2 = ((this%vertices_local(i,1)-geom%r_in_plane(1))**(M-1) &
-                   *(this%vertices_local(i,2)-geom%r_in_plane(2))**(N-1)) &
+            E_2 = ((this%vertices_l(i,1)-geom%r_in_plane(1))**(M-1) &
+                   *(this%vertices_l(i,2)-geom%r_in_plane(2))**(N-1)) &
                    /geom%s2(i)**K
         end if
 
@@ -717,8 +729,8 @@ contains
         do i=1,this%N
 
             ! Store edge derivs
-            v_xi = this%n_hat_local(i,1)
-            v_eta = this%n_hat_local(i,2)
+            v_xi = this%n_hat_l(i,1)
+            v_eta = this%n_hat_l(i,2)
 
             ! Calculate F(1,1,1)
             F(i,1,1,1) = this%F_i_1_1_1(geom, i)
@@ -845,8 +857,8 @@ contains
         real,dimension(:),allocatable :: v_xi, v_eta
 
         ! Get edge normal derivatives
-        allocate(v_xi(this%N), source=this%n_hat_local(:,1))
-        allocate(v_eta(this%N), source=this%n_hat_local(:,2))
+        allocate(v_xi(this%N), source=this%n_hat_l(:,1))
+        allocate(v_eta(this%N), source=this%n_hat_l(:,2))
 
         ! Allocate integral storage
         allocate(H(1:MXQ,1:MXQ,1:MXK+NHK), source=0.)
@@ -1169,8 +1181,8 @@ contains
 
                 ! Calculate velocity
                 allocate(v(1,3))
-                v(1,1) = 0.25/pi*sum(this%n_hat_local(:,1)*F(:,1,1,1))
-                v(1,2) = 0.25/pi*sum(this%n_hat_local(:,2)*F(:,1,1,1))
+                v(1,1) = 0.25/pi*sum(this%n_hat_l(:,1)*F(:,1,1,1))
+                v(1,2) = 0.25/pi*sum(this%n_hat_l(:,2)*F(:,1,1,1))
                 v(1,3) = 0.25/pi*geom%h*H(1,1,3)
 
             end if
@@ -1339,7 +1351,7 @@ contains
         end if
 
         ! Transform to global coordinates
-        dv = matmul(transpose(this%A_t), dv)
+        dv = matmul(transpose(this%A_g_to_l), dv)
 
         ! Mirror if necessary
         if (mirrored) then

@@ -13,6 +13,7 @@ module flow_mod
         real :: gamma ! Ratio of specific heats
         real :: U, U_inv ! Freestream velocity magnitude
         real :: B ! Compressibility scale factor
+        real :: s ! Sign of 1-M^2; determines character of governing PDE (hyperbolic (s=-1) vs elliptic(s=1))
         real :: c ! Freestream speed of sound
         real :: mu ! Mach angle
         real,dimension(3) :: c0 ! Compressibility axis (assumed in TriPan to be aligned with the freestream direction)
@@ -61,11 +62,13 @@ contains
         end if
         this%supersonic = this%M_inf > 1.0
 
-        ! Calculate B
+        ! Calculate B and s
         if (this%supersonic) then
             this%B = sqrt(this%M_inf**2-1.)
+            this%s = -1.
         else
             this%B = sqrt(1.-this%M_inf**2)
+            this%s = 1.
         end if
 
         ! Calculate freestream speed of sound
@@ -77,8 +80,8 @@ contains
         ! Assemble dual metric matrix
         do i=1,3
             this%psi(i,i) = 1.
-            this%psi(:,i) = this%psi(:,i) - this%M_inf**2*this%c0(:)*this%c0(i)
         end do
+        this%psi = this%psi-this%M_inf**2*outer(this%c0, this%c0)
 
         ! Check symmetry
         this%sym_about = this%v_inf == 0.

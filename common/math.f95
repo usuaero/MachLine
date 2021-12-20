@@ -91,6 +91,7 @@ end function dist
 
 
 function cross(a, b) result(c)
+  ! Calculates the cross-product of two 3-element vectors
 
     implicit none
 
@@ -126,6 +127,24 @@ function inner2(a, b) result(c)
 
 end function inner2
 
+
+function outer(a, b) result(c)
+  ! Calculates the outer product of two vectors
+
+  implicit none
+
+  real,dimension(3) :: a, b
+  real,dimension(3,3) :: c
+
+  integer :: i
+
+  c = 0.
+
+  do i=1,3
+    c(i,:) = a(i)*b(:)
+  end do
+
+end function
 
 function norm(a) result(c)
   ! Calculates the norm of the vector
