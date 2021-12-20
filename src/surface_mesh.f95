@@ -332,6 +332,8 @@ contains
         class(surface_mesh),intent(inout) :: this
         type(flow),intent(in) :: freestream
 
+        integer :: i
+
         ! Check flow symmetry condition
         this%asym_flow = .false.
         if (this%mirrored) then
@@ -339,6 +341,11 @@ contains
                 this%asym_flow = .true.
             end if
         end if
+
+        ! Calculate panel coordinate transformations
+        do i=1,this%N_panels
+            call this%panels(i)%calc_coord_transform(freestream)
+        end do
 
         ! Figure out wake-shedding edges, discontinuous edges, etc.
         call this%characterize_edges(freestream)

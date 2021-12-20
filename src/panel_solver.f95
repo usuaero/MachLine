@@ -41,6 +41,10 @@ contains
         ! Get settings
         call json_xtnsn_get(settings, 'formulation', this%formulation, 'morino')
         call json_xtnsn_get(settings, 'influence_calculations', influence_calc_type, 'johnson-ehlers')
+        if (influence_calc_type == 'gaussian quad') then
+            write(*,*) "    !!! Gaussian quadrature calculations are not yet implemented. Reverting to Johnson-Ehlers."
+            influence_calc_type = 'johnson-ehlers'
+        end if
 
         ! Initialize based on formulation
         if (this%formulation == 'morino' .or. this%formulation == 'source-free') then
@@ -139,7 +143,7 @@ contains
                 do i=1,body%N_panels
 
                     ! Existing panels
-                    body%sigma(i) = -inner(body%panels(i)%normal, freestream%c0)
+                    body%sigma(i) = inner(body%panels(i)%normal, freestream%c0)
 
                     ! Mirrored panels for asymmetric flow
                     if (body%mirrored .and. body%asym_flow) then
@@ -148,7 +152,7 @@ contains
                         n_mirrored = mirror_about_plane(body%panels(i)%normal, body%mirror_plane)
 
                         ! Calculate source strength
-                        body%sigma(i+body%N_panels) = -inner(n_mirrored, freestream%c0)
+                        body%sigma(i+body%N_panels) = inner(n_mirrored, freestream%c0)
 
                     end if
                 end do
@@ -188,7 +192,7 @@ contains
 
                 ! Get source influence for existing->existing and mirrored->mirrored
                 if (morino) then
-                    source_inf = body%panels(j)%get_source_potential(body%control_points(i,:), source_verts)
+                    source_inf = body%panels(j)%get_source_potential(body%control_points(i,:), freestream, source_verts)
 
                     ! Influence of existing panel on existing control point
                     if (source_order == 0) then
@@ -197,7 +201,7 @@ contains
                 end if
 
                 ! Get doublet influence for existing->existing and mirrored->mirrored
-                doublet_inf = body%panels(j)%get_doublet_potential(body%control_points(i,:), doublet_verts)
+                doublet_inf = body%panels(j)%get_doublet_potential(body%control_points(i,:), freestream, doublet_verts)
 
                 ! Influence of existing panel on existing control point
                 if (doublet_order == 1) then
@@ -233,9 +237,9 @@ contains
 
                     ! Calculate influences
                     if (morino) then
-                        source_inf = body%panels(j)%get_source_potential(cp_mirrored, source_verts)
+                        source_inf = body%panels(j)%get_source_potential(cp_mirrored, freestream, source_verts)
                     end if
-                    doublet_inf = body%panels(j)%get_doublet_potential(cp_mirrored, doublet_verts)
+                    doublet_inf = body%panels(j)%get_doublet_potential(cp_mirrored, freestream, doublet_verts)
 
                     if (body%asym_flow) then
 
@@ -299,8 +303,13 @@ contains
 
                 ! If the control point is unique, it's target potential will need to be set for the source-free formulation
                 else if (.not. morino) then
-                    b(i+body%N_cp) = -inner(cp_mirrored, freestream%c0)
+                    b(i+body%N_cp) = inner(cp_mirrored, freestream%c0)
                 end if
+            end if
+
+            ! Set target potential for source-free formulation
+            if (.not. morino) then
+                b(i) = inner(body%control_points(i,:), freestream%c0)
             end if
 
         end do
@@ -320,7 +329,7 @@ contains
                 do j=1,body%wake%N_panels
 
                     ! Caclulate influence
-                    doublet_inf = body%wake%panels(j)%get_doublet_potential(body%control_points(i,:), doublet_verts)
+                    doublet_inf = body%wake%panels(j)%get_doublet_potential(body%control_points(i,:), freestream, doublet_verts)
 
                     ! Influence on existing control point
                     if (doublet_order == 1) then
@@ -336,7 +345,7 @@ contains
                         cp_mirrored = mirror_about_plane(body%control_points(i,:), body%mirror_plane)
 
                         ! Calculate influences
-                        doublet_inf = body%wake%panels(j)%get_doublet_potential(cp_mirrored, doublet_verts)
+                        doublet_inf = body%wake%panels(j)%get_doublet_potential(cp_mirrored, freestream, doublet_verts)
 
                         if (body%asym_flow) then
 
@@ -363,7 +372,9 @@ contains
                     end if
                 end do
             end do
+
             write(*,*) "Done."
+
         end if
 
         write(*,'(a)',advance='no') "     Solving linear system..."
@@ -372,13 +383,9 @@ contains
         allocate(A_copy, source=A, stat=stat)
         call check_allocation(stat, "solver copy of AIC matrix")
 
-        ! Determine b vector
+        ! Set b vector for Morino formulation
         if (morino) then
             b = -body%phi_cp_sigma
-        else
-            do i=1,body%N_cp
-                b(i) = -inner(body%control_points(i,:), freestream%c0)
-            end do
         end if
 
         ! Solve
@@ -410,11 +417,11 @@ contains
                 if (morino) then
 
                     ! Original panel
-                    body%V(i,:) = freestream%U*(freestream%c0 + body%panels(i)%get_velocity_jump(body%mu, &
+                    body%V(i,:) = freestream%U*(-freestream%c0 + body%panels(i)%get_velocity_jump(body%mu, &
                                   body%sigma, .false., body%mirror_plane))
 
                     ! Mirror
-                    body%V(i+body%N_panels,:) = freestream%U*(freestream%c0 + body%panels(i)%get_velocity_jump(body%mu, &
+                    body%V(i+body%N_panels,:) = freestream%U*(-freestream%c0 + body%panels(i)%get_velocity_jump(body%mu, &
                                                 body%sigma, .true., body%mirror_plane))
                 
                 else
@@ -440,7 +447,7 @@ contains
             ! Calculate the surface velocity on each panel
             if (morino) then
                 do i=1,body%N_panels
-                    body%V(i,:) = freestream%U*(freestream%c0 + body%panels(i)%get_velocity_jump(body%mu, body%sigma, .false., 0))
+                    body%V(i,:) = freestream%U*(-freestream%c0 + body%panels(i)%get_velocity_jump(body%mu, body%sigma, .false., 0))
                 end do
             else
                 do i=1,body%N_panels
