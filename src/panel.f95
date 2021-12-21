@@ -595,7 +595,7 @@ contains
     end subroutine panel_point_to_vertex_clone
 
 
-    function panel_check_dod(this, eval_point, freestream) result(dod_info)
+    function panel_check_dod(this, eval_point, freestream, panel_mirrored, mirror_plane) result(dod_info)
         ! Determines how (if) this panel lies within the domain of dependence of the evaluation point
 
         implicit none
@@ -603,89 +603,120 @@ contains
         class(panel),intent(inout) :: this
         real,dimension(3),intent(in) :: eval_point
         type(flow),intent(in) :: freestream
+        logical,intent(in),optional :: panel_mirrored
+        integer,intent(in),optional :: mirror_plane
         type(dod) :: dod_info
 
-        real,dimension(3) :: d
+        real,dimension(3) :: d, point
         integer :: i, N_verts_in_dod, N_edges_in_dod
         real :: C_theta, x, y
-        logical :: totally_out, totally_in, centroid_in, radius_smaller
+        logical :: totally_out, totally_in, centroid_in, radius_smaller, mirrored
 
-        ! Fast check based on centroid and radius (Epton & Magnus p. J.3-1)
-
-        ! First, check if the centroid is in the dod
-        centroid_in = freestream%point_in_dod(this%centroid, eval_point)
-
-        ! Check if the centroid is further from the Mach cone than the panel radius
-        d = this%centroid-eval_point
-        x = inner(d, freestream%c0)
-        y = sqrt(norm(d)**2-x**2)
-        if (y >= freestream%B*x .and. sqrt((x+freestream%B*y)**2/(1.+freestream%B**2)) >= this%radius) then
-            radius_smaller = .true.
-        else if (y < freestream%B*x .and. norm(d) >= this%radius) then
-            radius_smaller = .true.
+        ! Set default mirroring
+        if (present(panel_mirrored)) then
+            mirrored = panel_mirrored
         else
-            radius_smaller = .false.
+            mirrored = .false.
         end if
 
-        ! Determine condition
-        totally_out = .not. centroid_in .and. radius_smaller
-        totally_in = centroid_in .and. radius_smaller
+        ! First check the flow is supersonic (check_dod is always called)
+        if (freestream%supersonic) then
 
-        ! Set parameters
-        if (totally_out) then
-            
-            dod_info%in_dod = .false.
-            dod_info%verts_in_dod = .false.
-            dod_info%edges_in_dod = .false.
+            ! Fast check based on centroid and radius (Epton & Magnus p. J.3-1)
 
-        else if (totally_in) then
-            
+            ! First, check if the centroid is in the dod
+            if (mirrored) then
+                point = mirror_about_plane(this%centroid, mirror_plane)
+            else
+                point = this%centroid
+            end if
+            centroid_in = freestream%point_in_dod(point, eval_point)
+
+            ! Check if the centroid is further from the Mach cone than the panel radius
+            d = point-eval_point
+            x = inner(d, freestream%c0)
+            y = sqrt(norm(d)**2-x**2)
+            if (y >= freestream%B*x .and. sqrt((x+freestream%B*y)**2/(1.+freestream%B**2)) >= this%radius) then
+                radius_smaller = .true.
+            else if (y < freestream%B*x .and. norm(d) >= this%radius) then
+                radius_smaller = .true.
+            else
+                radius_smaller = .false.
+            end if
+
+            ! Determine condition
+            totally_out = .not. centroid_in .and. radius_smaller
+            totally_in = centroid_in .and. radius_smaller
+
+            ! Set parameters
+            if (totally_out) then
+
+                dod_info%in_dod = .false.
+                dod_info%verts_in_dod = .false.
+                dod_info%edges_in_dod = .false.
+
+            else if (totally_in) then
+
+                dod_info%in_dod = .true.
+                dod_info%verts_in_dod = .true.
+                dod_info%edges_in_dod = .true.
+
+            ! If it is not guaranteed to be totally out or in, then check all the vertices and edges
+            else
+
+                ! Check each of the vertices
+                N_verts_in_dod = 0
+                do i=1,this%N
+
+                    ! Check
+                    if (mirrored) then
+                        point = mirror_about_plane(this%get_vertex_loc(i), mirror_plane)
+                    else
+                        point = this%get_vertex_loc(i)
+                    end if
+                    dod_info%verts_in_dod(i) = freestream%point_in_dod(point, eval_point)
+                    if (dod_info%verts_in_dod(i)) then
+                        N_verts_in_dod = N_verts_in_dod + 1
+                    end if
+
+                end do
+
+                ! Check edges (if 2 or more vertices are in the dod, then how the edges fall is known)
+                if (N_verts_in_dod < 2) then
+
+                    ! Initialize count
+                    N_edges_in_dod = 0
+
+                    ! Loop through edges
+                    do i=1,this%N
+
+                        ! For subsonic edges, this is entirely dependent on the most downstream endpoint
+
+                    end do
+
+                    ! Check if the dod is encompassed by the panel (for superinclined panels)
+                    if (this%r == -1. .and. N_edges_in_dod == 0) then
+
+                    end if
+
+                else
+
+                    ! Store which edges are in based on which vertices are in
+                    do i=1,this%N-1
+                        dod_info%edges_in_dod(i) = dod_info%verts_in_dod(i) .or. dod_info%verts_in_dod(i+1)
+                    end do
+                    dod_info%edges_in_dod(this%N) = dod_info%verts_in_dod(this%N) .or. dod_info%verts_in_dod(1)
+
+                end if
+
+            end if
+
+        else
+
+            ! Subsonic flow. DoD is everywhere.
             dod_info%in_dod = .true.
             dod_info%verts_in_dod = .true.
             dod_info%edges_in_dod = .true.
-
-        ! If it is not guaranteed to be totally out or in, then check all the vertices and edges
-        else
-
-            ! Check each of the vertices
-            N_verts_in_dod = 0
-            do i=1,this%N
-
-                ! Check
-                dod_info%verts_in_dod(i) = freestream%point_in_dod(this%get_vertex_loc(i), eval_point)
-                if (dod_info%verts_in_dod(i)) then
-                    N_verts_in_dod = N_verts_in_dod + 1
-                end if
-
-            end do
-
-            ! Check edges (if 2 or more vertices are in the dod, then how the edges fall is known)
-            if (N_verts_in_dod < 2) then
-
-                ! Initialize count
-                N_edges_in_dod = 0
-
-                ! Loop through edges
-                do i=1,this%N
-
-                    ! For subsonic edges, this is entirely dependent on the most downstream endpoint
-
-                end do
-
-                ! Check if the dod is encompassed by the panel (for superinclined panels)
-                if (this%r == -1. .and. N_edges_in_dod == 0) then
-
-                end if
-
-            else
-
-                ! Store which edges are in based on which vertices are in
-                do i=1,this%N-1
-                    dod_info%edges_in_dod(i) = dod_info%verts_in_dod(i) .or. dod_info%verts_in_dod(i+1)
-                end do
-                dod_info%edges_in_dod(this%N) = dod_info%verts_in_dod(this%N) .or. dod_info%verts_in_dod(1)
-
-            end if
 
         end if
 
@@ -1243,95 +1274,126 @@ contains
     end subroutine panel_calc_integrals
 
 
-    function panel_get_source_potential(this, eval_point, freestream, vertex_indices) result(phi)
+    function panel_get_source_potential(this, eval_point, freestream, dod_info, vertex_indices, panel_mirrored) result(phi)
 
         implicit none
 
         class(panel),intent(in) :: this
         real,dimension(3),intent(in) :: eval_point
         type(flow),intent(in) :: freestream
+        type(dod),intent(in) :: dod_info
         integer,dimension(:),allocatable,intent(out) :: vertex_indices
+        logical,intent(in) :: panel_mirrored
         real,dimension(:),allocatable :: phi
 
         type(eval_point_geom) :: geom
         real,dimension(:,:,:),allocatable :: H
         real,dimension(:,:,:,:),allocatable :: F
 
-        if (influence_calc_type == 'johnson-ehlers') then
+        ! In dod
+        if (dod_info%in_dod) then
 
-            ! Calculate geometric parameters
-            geom = this%get_field_point_geometry(eval_point)
+            if (influence_calc_type == 'johnson-ehlers') then
 
-            ! Get integrals
-            call this%calc_integrals(geom, "potential", "source", H, F)
+                ! Calculate geometric parameters
+                geom = this%get_field_point_geometry(eval_point)
 
+                ! Get integrals
+                call this%calc_integrals(geom, "potential", "source", H, F)
+
+                if (source_order == 0) then
+
+                    ! Compute induced potential
+                    allocate(phi(1))
+                    phi = -0.25/pi*H(1,1,1)
+
+                end if
+
+                ! Clean up
+                deallocate(H)
+                deallocate(F)
+            end if
+
+        else
+
+            ! Not in DoD, so there is no influence
             if (source_order == 0) then
 
-                ! Compute induced potential
-                allocate(phi(1))
-                phi = -0.25/pi*H(1,1,1)
+                allocate(phi(1), source=0.)
 
             end if
 
-            ! Clean up
-            deallocate(H)
-            deallocate(F)
         end if
     
     end function panel_get_source_potential
 
 
-    function panel_get_source_velocity(this, eval_point, freestream, vertex_indices) result(v)
+    function panel_get_source_velocity(this, eval_point, freestream, dod_info, vertex_indices, panel_mirrored) result(v)
 
         implicit none
 
         class(panel),intent(in) :: this
         real,dimension(3),intent(in) :: eval_point
         type(flow),intent(in) :: freestream
+        type(dod),intent(in) :: dod_info
         integer,dimension(:),allocatable,intent(out) :: vertex_indices
+        logical,intent(in) :: panel_mirrored
         real,dimension(:,:),allocatable :: v
 
         type(eval_point_geom) :: geom
         real,dimension(:,:,:),allocatable :: H
         real,dimension(:,:,:,:),allocatable :: F
 
-        if (influence_calc_type == 'johnson-ehlers') then
+        ! In dod
+        if (dod_info%in_dod) then
 
-            ! Calculate geometric parameters
-            geom = this%get_field_point_geometry(eval_point)
+            if (influence_calc_type == 'johnson-ehlers') then
 
-            ! Get integrals
-            call this%calc_integrals(geom, "velocity", "source", H, F)
+                ! Calculate geometric parameters
+                geom = this%get_field_point_geometry(eval_point)
 
+                ! Get integrals
+                call this%calc_integrals(geom, "velocity", "source", H, F)
+
+                if (source_order .eq. 0) then
+
+                    ! Calculate velocity
+                    allocate(v(1,3))
+                    v(1,1) = 0.25/pi*sum(this%n_hat_l(:,1)*F(:,1,1,1))
+                    v(1,2) = 0.25/pi*sum(this%n_hat_l(:,2)*F(:,1,1,1))
+                    v(1,3) = 0.25/pi*geom%h*H(1,1,3)
+
+                end if
+
+                ! Clean up
+                deallocate(H)
+                deallocate(F)
+            end if
+
+        else
+
+            ! Not in DoD, so there is no influence
             if (source_order .eq. 0) then
 
-                ! Specify influencing vertices
-                allocate(vertex_indices(1), source=0)
-
-                ! Calculate velocity
-                allocate(v(1,3))
-                v(1,1) = 0.25/pi*sum(this%n_hat_l(:,1)*F(:,1,1,1))
-                v(1,2) = 0.25/pi*sum(this%n_hat_l(:,2)*F(:,1,1,1))
-                v(1,3) = 0.25/pi*geom%h*H(1,1,3)
+                allocate(v(1,3), source=0.)
 
             end if
 
-            ! Clean up
-            deallocate(H)
-            deallocate(F)
         end if
 
     end function panel_get_source_velocity
 
 
-    function panel_get_doublet_potential(this, eval_point, freestream, vertex_indices) result(phi)
+    function panel_get_doublet_potential(this, eval_point, freestream, dod_info, vertex_indices, panel_mirrored) result(phi)
 
         implicit none
 
         class(panel),intent(in) :: this
         real,dimension(3),intent(in) :: eval_point
         type(flow),intent(in) :: freestream
+        type(dod),intent(in) :: dod_info
         integer,dimension(:),allocatable,intent(out) :: vertex_indices
+        logical,intent(in) :: panel_mirrored
         real,dimension(:),allocatable :: phi
 
         type(eval_point_geom) :: geom
@@ -1340,15 +1402,65 @@ contains
         integer,dimension(:),allocatable :: H_shape
         integer :: i, j, k
 
-        if (influence_calc_type == 'johnson-ehlers') then
+        ! Check DoD
+        if (dod_info%in_dod) then
 
-            ! Calculate geometric parameters
-            geom = this%get_field_point_geometry(eval_point)
+            if (influence_calc_type == 'johnson-ehlers') then
 
-            ! Get integrals
-            call this%calc_integrals(geom, "potential", "doublet", H, F)
+                ! Calculate geometric parameters
+                geom = this%get_field_point_geometry(eval_point)
 
-            ! Calculate influence
+                ! Get integrals
+                call this%calc_integrals(geom, "potential", "doublet", H, F)
+
+                ! Calculate influence
+                if (doublet_order == 1) then
+
+                    ! Specify influencing vertices
+                    if (this%in_wake) then
+
+                        ! Wake panels are influenced by two sets of vertices
+                        allocate(vertex_indices(6))
+                        allocate(phi(6), source=0.)
+                        vertex_indices(1) = this%vertices(1)%ptr%top_parent
+                        vertex_indices(2) = this%vertices(2)%ptr%top_parent
+                        vertex_indices(3) = this%vertices(3)%ptr%top_parent
+                        vertex_indices(4) = this%vertices(1)%ptr%bot_parent
+                        vertex_indices(5) = this%vertices(2)%ptr%bot_parent
+                        vertex_indices(6) = this%vertices(3)%ptr%bot_parent
+
+                    else
+
+                        ! Body panels are influenced by only one set of vertices
+                        allocate(vertex_indices, source=this%vertex_indices)
+                        allocate(phi(3), source=0.)
+
+                    end if
+
+                    ! Compute induced potential
+                    phi(1) = geom%h*H(1,1,3)
+                    phi(2) = geom%r_in_plane(1)*geom%h*H(1,1,3)+geom%h*H(2,1,3)
+                    phi(3) = geom%r_in_plane(2)*geom%h*H(1,1,3)+geom%h*H(1,2,3)
+
+                    ! Convert to vertex influences
+                    phi(1:3) = 0.25/pi*matmul(phi(1:3), this%S_mu_inv)
+
+                    ! Wake bottom influence is opposite the top influence
+                    if (this%in_wake) then
+                        phi(4:6) = -phi(1:3)
+                    end if
+
+                end if
+
+                ! Clean up
+                deallocate(H)
+                deallocate(F)
+
+            end if
+
+        else
+
+            ! Specify no influence
             if (doublet_order == 1) then
 
                 ! Specify influencing vertices
@@ -1372,65 +1484,68 @@ contains
 
                 end if
 
-                ! Compute induced potential
-                phi(1) = geom%h*H(1,1,3)
-                phi(2) = geom%r_in_plane(1)*geom%h*H(1,1,3)+geom%h*H(2,1,3)
-                phi(3) = geom%r_in_plane(2)*geom%h*H(1,1,3)+geom%h*H(1,2,3)
-
-                ! Convert to vertex influences
-                phi(1:3) = 0.25/pi*matmul(phi(1:3), this%S_mu_inv)
-
-                ! Wake bottom influence is opposite the top influence
-                if (this%in_wake) then
-                    phi(4:6) = -phi(1:3)
-                end if
-
             end if
-
-            ! Clean up
-            deallocate(H)
-            deallocate(F)
 
         end if
     
     end function panel_get_doublet_potential
 
 
-    function panel_get_doublet_velocity(this, eval_point, freestream, vertex_indices) result(v)
+    function panel_get_doublet_velocity(this, eval_point, freestream, dod_info, vertex_indices, panel_mirrored) result(v)
 
         implicit none
 
         class(panel),intent(in) :: this
         real,dimension(3),intent(in) :: eval_point
         type(flow),intent(in) :: freestream
+        type(dod),intent(in) :: dod_info
         integer,dimension(:),allocatable,intent(out) :: vertex_indices
+        logical,intent(in) :: panel_mirrored
         real,dimension(:,:),allocatable :: v
 
         type(eval_point_geom) :: geom
         real,dimension(:,:,:),allocatable :: H
         real,dimension(:,:,:,:),allocatable :: F
 
-        if (influence_calc_type == 'johnson-ehlers') then
+        ! Check DoD
+        if (dod_info%in_dod) then
 
-            ! Calculate geometric parameters
-            geom = this%get_field_point_geometry(eval_point)
+            if (influence_calc_type == 'johnson-ehlers') then
 
-            ! Get integrals
-            call this%calc_integrals(geom, "velocity", "doublet", H, F)
+                ! Calculate geometric parameters
+                geom = this%get_field_point_geometry(eval_point)
 
+                ! Get integrals
+                call this%calc_integrals(geom, "velocity", "doublet", H, F)
+
+                if (doublet_order .eq. 1) then
+
+                    ! Specify influencing vertices
+                    allocate(vertex_indices(3), source=this%vertex_indices)
+
+                    ! Calculate velocity
+                    allocate(v(3,3), source=0.)
+
+                end if
+
+                ! Clean up
+                deallocate(H)
+                deallocate(F)
+
+            end if
+
+        else
+
+            ! Specify no influence
             if (doublet_order .eq. 1) then
 
                 ! Specify influencing vertices
                 allocate(vertex_indices(3), source=this%vertex_indices)
 
                 ! Calculate velocity
-                allocate(v(3,3))
+                allocate(v(3,3), source=0.)
 
             end if
-
-            ! Clean up
-            deallocate(H)
-            deallocate(F)
 
         end if
 

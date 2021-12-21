@@ -74,14 +74,14 @@ program main
     call body_mesh%init_with_flow(freestream_flow)
 
     ! Initialize panel solver
-    call linear_solver%init(solver_settings, body_mesh)
+    call linear_solver%init(solver_settings, body_mesh, freestream_flow)
 
     write(*,*)
     write(*,*) "Running solver using ", linear_solver%formulation, " formulation"
 
     ! Run solver
     call json_xtnsn_get(output_settings, 'report_file', report_file, 'none')
-    call linear_solver%solve(body_mesh, freestream_flow, report_file)
+    call linear_solver%solve(body_mesh, report_file)
 
     ! Output results
     write(*,*)

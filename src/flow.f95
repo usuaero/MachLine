@@ -20,7 +20,7 @@ module flow_mod
         real,dimension(3,3) :: C0_mat
         logical,dimension(3) :: sym_about ! Whether the flow condition is symmetric about any plane
         real,dimension(3,3) :: psi ! Dual metric matrix, expressed in global coords
-        logical :: supersonic
+        logical :: supersonic, incompressible
         real,dimension(3,3) :: A_g_to_c, A_c_to_s, A_g_to_s ! Coordinate transformation matrices
 
         contains
@@ -65,6 +65,7 @@ contains
             stop
         end if
         this%supersonic = this%M_inf > 1.0
+        this%incompressible = this%M_inf == 0.
 
         ! Calculate B and s
         if (this%supersonic) then
