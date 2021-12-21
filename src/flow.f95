@@ -15,8 +15,9 @@ module flow_mod
         real :: B ! Compressibility scale factor
         real :: s ! Sign of 1-M^2; determines character of governing PDE (hyperbolic (s=-1) vs elliptic(s=1))
         real :: c ! Freestream speed of sound
-        real :: mu ! Mach angle
+        real :: mu, C_mu ! Mach angle
         real,dimension(3) :: c0 ! Compressibility axis (assumed in TriPan to be aligned with the freestream direction)
+        real,dimension(3,3) :: C0_mat
         logical,dimension(3) :: sym_about ! Whether the flow condition is symmetric about any plane
         real,dimension(3,3) :: psi ! Dual metric matrix, expressed in global coords
         logical :: supersonic
@@ -25,6 +26,8 @@ module flow_mod
         contains
 
             procedure :: init => flow_init
+            procedure :: C0_inner => flow_C0_inner
+            procedure :: point_in_dod => flow_point_in_dod
 
     end type flow
 
@@ -77,17 +80,70 @@ contains
 
         ! Calculate Mach angle
         this%mu = asin(1.0/this%M_inf)
+        this%C_mu = cos(this%mu)
 
         ! Assemble dual metric matrix
         do i=1,3
             this%psi(i,i) = 1.
         end do
         this%psi = this%psi-this%M_inf**2*outer(this%c0, this%c0)
+        
+        ! Calculate C0 matrix
+        this%C0_mat = 0.
+        this%C0_mat(1,1) = 1.
+        this%C0_mat(2,2) = this%s*this%B**2
+        this%C0_mat(3,3) = this%s*this%B**2
 
         ! Check symmetry
         this%sym_about = this%v_inf == 0.
 
     end subroutine flow_init
+
+
+    function flow_C0_inner(this, a, b) result(c)
+        ! Calculates the inner product a*C0*b = c
+
+        implicit none
+
+        class(flow),intent(in) :: this
+        real,dimension(3),intent(in) :: a, b
+        real :: c
+
+        c = inner(a, matmul(this%C0_mat, b))
+
+    end function flow_C0_inner
+
+
+    function flow_point_in_dod(this, Q, P) result(in_dod)
+        ! Calculates whether the point Q lies in the dod of point P
+
+        implicit none
+
+        class(flow),intent(in) :: this
+        real,dimension(3),intent(in) :: Q, P
+        logical :: in_dod
+
+        real,dimension(3) :: d
+
+        ! Calculate displacement
+        d = P-Q
+
+        ! Check upstream
+        if (inner(d, this%c0) >=0.) then
+
+            ! Check in dod
+            if (this%C0_inner(d, d) >= 0.) then
+
+                in_dod = .true.
+                return
+
+            end if
+
+        end if
+
+        in_dod = .false.
+        
+    end function flow_point_in_dod
 
 
 end module flow_mod

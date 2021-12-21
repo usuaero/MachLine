@@ -41,10 +41,11 @@ module panel_mod
         integer :: N = 3 ! Number of sides/vertices
         integer :: index ! Index of this panel in the mesh array
         type(vertex_pointer),dimension(:),allocatable :: vertices
+        real :: radius
         real,dimension(3) :: normal, conormal ! Normal and conormal vectors
         real,dimension(:,:),allocatable :: midpoints
         real,dimension(3) :: centroid
-        real,dimension(3,3) :: A_g_to_l, A_s_to_ls, A_g_to_ls ! Local coordinate transformation matrices
+        real,dimension(3,3) :: A_g_to_l, A_s_to_ls, A_g_to_ls, A_ls_to_g ! Coordinate transformation matrices
         real,dimension(:,:),allocatable :: vertices_l, midpoints_l ! Location of the vertices and edge midpoints described in local coords
         real,dimension(:,:),allocatable :: t_hat_g, t_hat_l ! Edge unit tangents
         real,dimension(:,:),allocatable :: n_hat_g, n_hat_l ! Edge unit outward normals
@@ -55,7 +56,8 @@ module panel_mod
         integer,dimension(:),allocatable :: vertex_indices ! Indices of this panel's vertices in the mesh vertex array
         logical :: in_wake ! Whether this panel belongs to a wake mesh
         integer,dimension(3) :: abutting_panels ! Indices of panels abutting this one
-        real :: r ! Panel inclination indicator
+        real :: r ! Panel inclination indicator; r=-1 -> superinclined, r=1 -> subinclined
+        logical,dimension(3) :: edge_subsonic ! Whether each edge is subsonic
 
         contains
 
@@ -201,6 +203,7 @@ contains
         class(panel),intent(inout) :: this
         real,dimension(3) :: sum
         integer :: i
+        real :: x
 
         ! Get average of corner points
         sum = 0.
@@ -210,6 +213,20 @@ contains
 
         ! Set centroid
         this%centroid = sum/this%N
+
+        ! Calculate radius
+        this%radius = 0.
+        do i=1,this%N
+
+            ! Distance to i-th vertex
+            x = dist(this%get_vertex_loc(i), this%centroid)
+
+            ! Check max
+            if (x > this%radius) then
+                this%radius = x
+            end if
+
+        end do
 
     end subroutine panel_calc_centroid
 
@@ -243,6 +260,11 @@ contains
         ! Calculate properties dependent on the transforms
         call this%calc_edge_tangents()
         call this%calc_singularity_matrices()
+
+        ! Check character of edges
+        do i=1,this%N
+            this%edge_subsonic(i) = freestream%C0_inner(this%t_hat_g(i,:), this%t_hat_g(i,:)) > 0.
+        end do
 
     end subroutine panel_calc_transforms
 
@@ -279,7 +301,7 @@ contains
         real,dimension(3) :: u0, v0
         real,dimension(3,3) :: C0, B0, I
         real :: x
-        integer :: i
+        integer :: j
 
         ! Get basis vectors
         u0 = this%A_g_to_l(1,:)
@@ -288,7 +310,7 @@ contains
         ! Calculate compressible parameters
         this%conormal = matmul(freestream%psi, this%normal)
         x = inner(this%normal, this%conormal)
-        this%r = sign(1., x)
+        this%r = sign(1., x) ! r=-1 -> superinclined, r=1 -> subinclined
 
         ! Check for Mach-inclined panel
         if (inner(this%normal, this%conormal) == 0.) then
@@ -302,14 +324,22 @@ contains
         I = 0.
 
         ! Construct identity matrix
-        do i=1,3
-            I(i,i) = 1.
+        do j=1,3
+            I(j,j) = 1.
         end do
 
         ! Construct other matrices
         B0 = outer(freestream%c0, freestream%c0)
         C0 = freestream%s*freestream%B**2*I + freestream%M_inf**2*B0
         B0 = I - freestream%M_inf**2*B0
+
+        ! Calculate transformation
+        this%A_g_to_ls(1,:) = 1./sqrt(abs(x))*matmul(C0, u0)
+        this%A_g_to_ls(2,:) = this%r*freestream%s/freestream%B*matmul(C0, v0)
+        this%A_g_to_ls(3,:) = freestream%B/sqrt(abs(x))*this%normal
+
+        ! Calculate inverse
+        call matinv(3, this%A_g_to_ls, this%A_ls_to_g)
     
     end subroutine panel_calc_g_to_ls_transform
 
@@ -577,33 +607,83 @@ contains
 
         real,dimension(3) :: d
         integer :: i, N_verts_in_dod, N_edges_in_dod
-        real :: theta
+        real :: C_theta, x, y
+        logical :: totally_out, totally_in, centroid_in, radius_smaller
 
-        ! Check each of the vertices
-        N_verts_in_dod = 0
-        do i=1,this%N
+        ! Fast check based on centroid and radius (Epton & Magnus p. J.3-1)
 
-            ! Calculate angle
-            d = this%get_vertex_loc(i)-eval_point
-            theta = inner(d, freestream%c0)/norm(d)
+        ! First, check if the centroid is in the dod
+        centroid_in = freestream%point_in_dod(this%centroid, eval_point)
 
-            ! Check
-            dod_info%verts_in_dod(i) = theta <= freestream%mu
-            if (dod_info%verts_in_dod(i)) then
-                N_verts_in_dod = N_verts_in_dod + 1
-            end if
+        ! Check if the centroid is further from the Mach cone than the panel radius
+        d = this%centroid-eval_point
+        x = inner(d, freestream%c0)
+        y = sqrt(norm(d)**2-x**2)
+        if (y >= freestream%B*x .and. sqrt((x+freestream%B*y)**2/(1.+freestream%B**2)) >= this%radius) then
+            radius_smaller = .true.
+        else if (y < freestream%B*x .and. norm(d) >= this%radius) then
+            radius_smaller = .true.
+        else
+            radius_smaller = .false.
+        end if
 
-        end do
+        ! Determine condition
+        totally_out = .not. centroid_in .and. radius_smaller
+        totally_in = centroid_in .and. radius_smaller
 
-        ! Check edges (if 2 or more vertices are in the dod, then how the edges fall is known)
-        if (N_verts_in_dod < 2) then
+        ! Set parameters
+        if (totally_out) then
             
-            ! Initialize count
-            N_edges_in_dod = 0
+            dod_info%in_dod = .false.
+            dod_info%verts_in_dod = .false.
+            dod_info%edges_in_dod = .false.
 
+        else if (totally_in) then
+            
+            dod_info%in_dod = .true.
+            dod_info%verts_in_dod = .true.
+            dod_info%edges_in_dod = .true.
 
-            ! Check if the dod is encompassed by the panel
-            if (N_edges_in_dod == 0) then
+        ! If it is not guaranteed to be totally out or in, then check all the vertices and edges
+        else
+
+            ! Check each of the vertices
+            N_verts_in_dod = 0
+            do i=1,this%N
+
+                ! Check
+                dod_info%verts_in_dod(i) = freestream%point_in_dod(this%get_vertex_loc(i), eval_point)
+                if (dod_info%verts_in_dod(i)) then
+                    N_verts_in_dod = N_verts_in_dod + 1
+                end if
+
+            end do
+
+            ! Check edges (if 2 or more vertices are in the dod, then how the edges fall is known)
+            if (N_verts_in_dod < 2) then
+
+                ! Initialize count
+                N_edges_in_dod = 0
+
+                ! Loop through edges
+                do i=1,this%N
+
+                    ! For subsonic edges, this is entirely dependent on the most downstream endpoint
+
+                end do
+
+                ! Check if the dod is encompassed by the panel (for superinclined panels)
+                if (this%r == -1. .and. N_edges_in_dod == 0) then
+
+                end if
+
+            else
+
+                ! Store which edges are in based on which vertices are in
+                do i=1,this%N-1
+                    dod_info%edges_in_dod(i) = dod_info%verts_in_dod(i) .or. dod_info%verts_in_dod(i+1)
+                end do
+                dod_info%edges_in_dod(this%N) = dod_info%verts_in_dod(this%N) .or. dod_info%verts_in_dod(1)
 
             end if
 
