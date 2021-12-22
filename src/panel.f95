@@ -41,13 +41,14 @@ module panel_mod
         integer :: N = 3 ! Number of sides/vertices
         integer :: index ! Index of this panel in the mesh array
         type(vertex_pointer),dimension(:),allocatable :: vertices
-        real,dimension(3) :: normal ! Normal vector
+        real :: radius
+        real,dimension(3) :: normal, conormal ! Normal and conormal vectors
         real,dimension(:,:),allocatable :: midpoints
         real,dimension(3) :: centroid
-        real,dimension(3,3) :: A_t ! Local coordinate transform matrix
-        real,dimension(:,:),allocatable :: vertices_local, midpoints_local ! Location of the vertices and edge midpoints described in local coords
-        real,dimension(:,:),allocatable :: t_hat, t_hat_local ! Edge unit tangents
-        real,dimension(:,:),allocatable :: n_hat, n_hat_local ! Edge unit outward normals
+        real,dimension(3,3) :: A_g_to_l, A_s_to_ls, A_g_to_ls, A_ls_to_g ! Coordinate transformation matrices
+        real,dimension(:,:),allocatable :: vertices_l, midpoints_l ! Location of the vertices and edge midpoints described in local coords
+        real,dimension(:,:),allocatable :: t_hat_g, t_hat_l ! Edge unit tangents
+        real,dimension(:,:),allocatable :: n_hat_g, n_hat_l ! Edge unit outward normals
         real,dimension(:),allocatable :: l ! Edge lengths
         real :: A ! Surface area
         real,dimension(:,:),allocatable :: S_mu_inv, S_sigma_inv ! Matrix relating doublet/source strengths to doublet/source influence parameters
@@ -55,6 +56,8 @@ module panel_mod
         integer,dimension(:),allocatable :: vertex_indices ! Indices of this panel's vertices in the mesh vertex array
         logical :: in_wake ! Whether this panel belongs to a wake mesh
         integer,dimension(3) :: abutting_panels ! Indices of panels abutting this one
+        real :: r ! Panel inclination indicator; r=-1 -> superinclined, r=1 -> subinclined
+        logical,dimension(3) :: edge_subsonic ! Whether each edge is subsonic
 
         contains
 
@@ -63,15 +66,17 @@ module panel_mod
             procedure :: calc_area => panel_calc_area
             procedure :: calc_normal => panel_calc_normal
             procedure :: calc_centroid => panel_calc_centroid
-            procedure :: calc_coord_transform => panel_calc_coord_transform
+            procedure :: calc_transforms => panel_calc_transforms
+            procedure :: calc_g_to_l_transform => panel_calc_g_to_l_transform
+            procedure :: calc_g_to_ls_transform => panel_calc_g_to_ls_transform
             procedure :: calc_edge_tangents => panel_calc_edge_tangents
+            procedure :: calc_singularity_matrices => panel_calc_singularity_matrices
             procedure :: add_abutting_panel => panel_add_abutting_panel
             procedure :: get_vertex_loc => panel_get_vertex_loc
             procedure :: get_vertex_index => panel_get_vertex_index
             procedure :: touches_vertex => panel_touches_vertex
             procedure :: point_to_vertex_clone => panel_point_to_vertex_clone
             procedure :: check_dod => panel_check_dod
-            procedure :: calc_compr_coord_transform => panel_calc_compr_coord_transform
             procedure :: get_field_point_geometry => panel_get_field_point_geometry
             procedure :: E_i_M_N_K => panel_E_i_M_N_K
             procedure :: F_i_1_1_1 => panel_F_i_1_1_1
@@ -198,6 +203,7 @@ contains
         class(panel),intent(inout) :: this
         real,dimension(3) :: sum
         integer :: i
+        real :: x
 
         ! Get average of corner points
         sum = 0.
@@ -208,45 +214,186 @@ contains
         ! Set centroid
         this%centroid = sum/this%N
 
+        ! Calculate radius
+        this%radius = 0.
+        do i=1,this%N
+
+            ! Distance to i-th vertex
+            x = dist(this%get_vertex_loc(i), this%centroid)
+
+            ! Check max
+            if (x > this%radius) then
+                this%radius = x
+            end if
+
+        end do
+
     end subroutine panel_calc_centroid
 
 
-    subroutine panel_calc_coord_transform(this, freestream)
+    subroutine panel_calc_transforms(this, freestream)
 
         implicit none
 
         class(panel),intent(inout) :: this
         type(flow),intent(in) :: freestream
 
-        real,dimension(3) :: d
         integer :: i
-        real,dimension(:,:),allocatable :: S_mu, S_sigma
 
-        ! Allocate memory
-        allocate(this%vertices_local(this%N,2))
-        allocate(this%midpoints_local(this%N,2))
+        ! Calculate transforms
+        call this%calc_g_to_l_transform(freestream)
+        call this%calc_g_to_ls_transform(freestream)
 
-        ! Choose first edge tangent as local xi-axis
-        ! (will need to be projected for quadrilateral panel)
-        d = this%get_vertex_loc(2)-this%get_vertex_loc(1)
-        this%A_t(1,:) = d/norm(d)
-
-        ! Panel normal is the zeta axis
-        this%A_t(3,:) = this%normal
-
-        ! Calculate eta axis from the other two
-        this%A_t(2,:) = cross(this%normal, this%A_t(1,:))
-
-        ! Transform vertex and midpoint coords
+        ! Transform vertex and midpoint coords to l
+        allocate(this%vertices_l(this%N,2))
+        allocate(this%midpoints_l(this%N,2))
         do i=1,this%N
 
             ! Vertices
-            this%vertices_local(i,:) = matmul(this%A_t(1:2,:), this%get_vertex_loc(i)-this%centroid)
+            this%vertices_l(i,:) = matmul(this%A_g_to_l(1:2,:), this%get_vertex_loc(i)-this%centroid)
 
             ! Midpoints
-            this%midpoints_local(i,:) = matmul(this%A_t(1:2,:), this%midpoints(i,:)-this%centroid)
+            this%midpoints_l(i,:) = matmul(this%A_g_to_l(1:2,:), this%midpoints(i,:)-this%centroid)
 
         end do
+
+        ! Calculate properties dependent on the transforms
+        call this%calc_edge_tangents()
+        call this%calc_singularity_matrices()
+
+        ! Check character of edges
+        do i=1,this%N
+            this%edge_subsonic(i) = freestream%C0_inner(this%t_hat_g(i,:), this%t_hat_g(i,:)) > 0.
+        end do
+
+    end subroutine panel_calc_transforms
+
+
+    subroutine panel_calc_g_to_l_transform(this, freestream)
+
+        implicit none
+
+        class(panel),intent(inout) :: this
+        type(flow),intent(in) :: freestream
+
+        ! Calculate local eta axis
+        this%A_g_to_l(2,:) = cross(this%normal, freestream%c0)
+        this%A_g_to_l(2,:) = this%A_g_to_l(2,:)/norm(this%A_g_to_l(2,:))
+
+        ! Calculate local xi axis
+        this%A_g_to_l(1,:) = cross(this%A_g_to_l(2,:), this%normal)
+        this%A_g_to_l(1,:) = this%A_g_to_l(1,:)/norm(this%A_g_to_l(1,:))
+
+        ! Store local zeta axis
+        this%A_g_to_l(3,:) = this%normal
+
+    end subroutine panel_calc_g_to_l_transform
+
+
+    subroutine panel_calc_g_to_ls_transform(this, freestream)
+        ! Calculates the necessary transformations to move from global to local, scaled coordinates
+
+        implicit none
+
+        class(panel),intent(inout) :: this
+        type(flow),intent(in) :: freestream
+
+        real,dimension(3) :: u0, v0
+        real,dimension(3,3) :: C0, B0, I
+        real :: x
+        integer :: j
+
+        ! Get basis vectors
+        u0 = this%A_g_to_l(1,:)
+        v0 = this%A_g_to_l(2,:)
+
+        ! Calculate compressible parameters
+        this%conormal = matmul(freestream%psi, this%normal)
+        x = inner(this%normal, this%conormal)
+        this%r = sign(1., x) ! r=-1 -> superinclined, r=1 -> subinclined
+
+        ! Check for Mach-inclined panel
+        if (inner(this%normal, this%conormal) == 0.) then
+            write(*,*) "    !!! Mach-inclined panels are not allowed. Panel", this%index, "is Mach-inclined. Quitting..."
+            stop
+        end if
+
+        ! Calculate intermediate matrices
+        C0 = 0.
+        B0 = 0.
+        I = 0.
+
+        ! Construct identity matrix
+        do j=1,3
+            I(j,j) = 1.
+        end do
+
+        ! Construct other matrices
+        B0 = outer(freestream%c0, freestream%c0)
+        C0 = freestream%s*freestream%B**2*I + freestream%M_inf**2*B0
+        B0 = I - freestream%M_inf**2*B0
+
+        ! Calculate transformation
+        this%A_g_to_ls(1,:) = 1./sqrt(abs(x))*matmul(C0, u0)
+        this%A_g_to_ls(2,:) = this%r*freestream%s/freestream%B*matmul(C0, v0)
+        this%A_g_to_ls(3,:) = freestream%B/sqrt(abs(x))*this%normal
+
+        ! Calculate inverse
+        call matinv(3, this%A_g_to_ls, this%A_ls_to_g)
+    
+    end subroutine panel_calc_g_to_ls_transform
+
+
+    subroutine panel_calc_edge_tangents(this)
+
+        implicit none
+
+        class(panel),intent(inout) :: this
+        real,dimension(3) :: d
+        integer :: i
+
+        ! Allocate memory
+        allocate(this%l(this%N))
+        allocate(this%t_hat_g(this%N,3))
+        allocate(this%t_hat_l(this%N,2))
+        allocate(this%n_hat_g(this%N,3))
+        allocate(this%n_hat_l(this%N,2))
+
+        ! Loop through edges
+        do i=1,this%N
+
+            ! Calculate difference based on index
+            ! Edge i starts at vertex i
+            if (i==this%N) then
+                d = this%get_vertex_loc(1)-this%get_vertex_loc(i)
+            else
+                d = this%get_vertex_loc(i+1)-this%get_vertex_loc(i)
+            end if
+
+            ! Calculate edge length
+            this%l(i) = norm(d)
+
+            ! Calculate tangent
+            this%t_hat_g(i,:) = d/this%l(i)
+            this%t_hat_l(i,:) = matmul(this%A_g_to_l(1:2,:), this%t_hat_g(i,:))
+
+            ! Calculate outward normal
+            this%n_hat_g(i,:) = cross(this%t_hat_g(i,:), this%normal)
+            this%n_hat_l(i,:) = matmul(this%A_g_to_l(1:2,:), this%n_hat_g(i,:))
+
+        end do
+    
+    end subroutine panel_calc_edge_tangents
+
+
+    subroutine panel_calc_singularity_matrices(this)
+        ! Calculates the matrices which relate the singularity strengths to the singularity parameters
+
+        implicit none
+
+        class(panel),intent(inout) :: this
+
+        real,dimension(:,:),allocatable :: S_mu, S_sigma
 
         ! Determine influence of vertex doublet strengths on integral parameters
         if (.not. doublet_order .eq. 0) then
@@ -260,8 +407,8 @@ contains
 
                 ! Set values
                 S_mu(:,1) = 1.
-                S_mu(:,2) = this%vertices_local(:,1)
-                S_mu(:,3) = this%vertices_local(:,2)
+                S_mu(:,2) = this%vertices_l(:,1)
+                S_mu(:,3) = this%vertices_l(:,2)
 
                 ! Invert
                 call matinv(3, S_mu, this%S_mu_inv)
@@ -275,17 +422,17 @@ contains
                 ! Set values
                 S_mu(:,1) = 1.
 
-                S_mu(1:3,2) = this%vertices_local(:,1)
-                S_mu(1:3,3) = this%vertices_local(:,2)
-                S_mu(1:3,4) = this%vertices_local(:,1)**2
-                S_mu(1:3,5) = this%vertices_local(:,1)*this%vertices_local(:,2)
-                S_mu(1:3,6) = this%vertices_local(:,2)**2
+                S_mu(1:3,2) = this%vertices_l(:,1)
+                S_mu(1:3,3) = this%vertices_l(:,2)
+                S_mu(1:3,4) = this%vertices_l(:,1)**2
+                S_mu(1:3,5) = this%vertices_l(:,1)*this%vertices_l(:,2)
+                S_mu(1:3,6) = this%vertices_l(:,2)**2
                 
-                S_mu(4:6,2) = this%midpoints_local(:,1)
-                S_mu(4:6,3) = this%midpoints_local(:,2)
-                S_mu(4:6,4) = this%midpoints_local(:,1)**2
-                S_mu(4:6,5) = this%midpoints_local(:,1)*this%midpoints_local(:,2)
-                S_mu(4:6,6) = this%midpoints_local(:,2)**2
+                S_mu(4:6,2) = this%midpoints_l(:,1)
+                S_mu(4:6,3) = this%midpoints_l(:,2)
+                S_mu(4:6,4) = this%midpoints_l(:,1)**2
+                S_mu(4:6,5) = this%midpoints_l(:,1)*this%midpoints_l(:,2)
+                S_mu(4:6,6) = this%midpoints_l(:,2)**2
 
                 ! Invert
                 call matinv(6, S_mu, this%S_mu_inv)
@@ -308,8 +455,8 @@ contains
 
                 ! Set values
                 S_sigma(:,1) = 1.
-                S_sigma(:,2) = this%vertices_local(:,1)
-                S_sigma(:,3) = this%vertices_local(:,2)
+                S_sigma(:,2) = this%vertices_l(:,1)
+                S_sigma(:,3) = this%vertices_l(:,2)
 
                 ! Invert
                 call matinv(3, S_sigma, this%S_sigma_inv)
@@ -323,17 +470,17 @@ contains
                 ! Set values
                 S_sigma(:,1) = 1.
 
-                S_sigma(1:3,2) = this%vertices_local(:,1)
-                S_sigma(1:3,3) = this%vertices_local(:,2)
-                S_sigma(1:3,4) = this%vertices_local(:,1)**2
-                S_sigma(1:3,5) = this%vertices_local(:,1)*this%vertices_local(:,2)
-                S_sigma(1:3,6) = this%vertices_local(:,2)**2
+                S_sigma(1:3,2) = this%vertices_l(:,1)
+                S_sigma(1:3,3) = this%vertices_l(:,2)
+                S_sigma(1:3,4) = this%vertices_l(:,1)**2
+                S_sigma(1:3,5) = this%vertices_l(:,1)*this%vertices_l(:,2)
+                S_sigma(1:3,6) = this%vertices_l(:,2)**2
                 
-                S_sigma(4:6,2) = this%midpoints_local(:,1)
-                S_sigma(4:6,3) = this%midpoints_local(:,2)
-                S_sigma(4:6,4) = this%midpoints_local(:,1)**2
-                S_sigma(4:6,5) = this%midpoints_local(:,1)*this%midpoints_local(:,2)
-                S_sigma(4:6,6) = this%midpoints_local(:,2)**2
+                S_sigma(4:6,2) = this%midpoints_l(:,1)
+                S_sigma(4:6,3) = this%midpoints_l(:,2)
+                S_sigma(4:6,4) = this%midpoints_l(:,1)**2
+                S_sigma(4:6,5) = this%midpoints_l(:,1)*this%midpoints_l(:,2)
+                S_sigma(4:6,6) = this%midpoints_l(:,2)**2
 
                 ! Invert
                 call matinv(6, S_sigma, this%S_sigma_inv)
@@ -343,53 +490,8 @@ contains
             deallocate(S_sigma)
 
         end if
-
-        ! Calculate edge tangents as this is dependent on the transformation
-        call this%calc_edge_tangents()
-
-    end subroutine panel_calc_coord_transform
-
-
-    subroutine panel_calc_edge_tangents(this)
-
-        implicit none
-
-        class(panel),intent(inout) :: this
-        real,dimension(3) :: d
-        integer :: i
-
-        ! Allocate memory
-        allocate(this%l(this%N))
-        allocate(this%t_hat(this%N,3))
-        allocate(this%t_hat_local(this%N,2))
-        allocate(this%n_hat(this%N,3))
-        allocate(this%n_hat_local(this%N,2))
-
-        ! Loop through edges
-        do i=1,this%N
-
-            ! Calculate difference based on index
-            ! Edge i starts at vertex i
-            if (i==this%N) then
-                d = this%get_vertex_loc(1)-this%get_vertex_loc(i)
-            else
-                d = this%get_vertex_loc(i+1)-this%get_vertex_loc(i)
-            end if
-
-            ! Calculate edge length
-            this%l(i) = norm(d)
-
-            ! Calculate tangent
-            this%t_hat(i,:) = d/this%l(i)
-            this%t_hat_local(i,:) = matmul(this%A_t(1:2,:), this%t_hat(i,:))
-
-            ! Calculate outward normal
-            this%n_hat(i,:) = cross(this%t_hat(i,:), this%normal)
-            this%n_hat_local(i,:) = matmul(this%A_t(1:2,:), this%n_hat(i,:))
-
-        end do
     
-    end subroutine panel_calc_edge_tangents
+    end subroutine panel_calc_singularity_matrices
 
 
     subroutine panel_add_abutting_panel(this, panel_ind)
@@ -493,7 +595,7 @@ contains
     end subroutine panel_point_to_vertex_clone
 
 
-    function panel_check_dod(this, eval_point, freestream) result(dod_info)
+    function panel_check_dod(this, eval_point, freestream, panel_mirrored, mirror_plane) result(dod_info)
         ! Determines how (if) this panel lies within the domain of dependence of the evaluation point
 
         implicit none
@@ -501,55 +603,125 @@ contains
         class(panel),intent(inout) :: this
         real,dimension(3),intent(in) :: eval_point
         type(flow),intent(in) :: freestream
+        logical,intent(in),optional :: panel_mirrored
+        integer,intent(in),optional :: mirror_plane
         type(dod) :: dod_info
 
-        real,dimension(3) :: d
+        real,dimension(3) :: d, point
         integer :: i, N_verts_in_dod, N_edges_in_dod
-        real :: theta
+        real :: C_theta, x, y
+        logical :: totally_out, totally_in, centroid_in, radius_smaller, mirrored
 
-        ! Check each of the vertices
-        N_verts_in_dod = 0
-        do i=1,this%N
+        ! Set default mirroring
+        if (present(panel_mirrored)) then
+            mirrored = panel_mirrored
+        else
+            mirrored = .false.
+        end if
 
-            ! Calculate angle
-            d = this%get_vertex_loc(i)-eval_point
-            theta = inner(d, freestream%c0)/norm(d)
+        ! First check the flow is supersonic (check_dod is always called)
+        if (freestream%supersonic) then
 
-            ! Check
-            dod_info%verts_in_dod(i) = theta <= freestream%mu
-            if (dod_info%verts_in_dod(i)) then
-                N_verts_in_dod = N_verts_in_dod + 1
+            ! Fast check based on centroid and radius (Epton & Magnus p. J.3-1)
+
+            ! First, check if the centroid is in the dod
+            if (mirrored) then
+                point = mirror_about_plane(this%centroid, mirror_plane)
+            else
+                point = this%centroid
+            end if
+            centroid_in = freestream%point_in_dod(point, eval_point)
+
+            ! Check if the centroid is further from the Mach cone than the panel radius
+            d = point-eval_point
+            x = inner(d, freestream%c0)
+            y = sqrt(norm(d)**2-x**2)
+            if (y >= freestream%B*x .and. sqrt((x+freestream%B*y)**2/(1.+freestream%B**2)) >= this%radius) then
+                radius_smaller = .true.
+            else if (y < freestream%B*x .and. norm(d) >= this%radius) then
+                radius_smaller = .true.
+            else
+                radius_smaller = .false.
             end if
 
-        end do
+            ! Determine condition
+            totally_out = .not. centroid_in .and. radius_smaller
+            totally_in = centroid_in .and. radius_smaller
 
-        ! Check edges (if 2 or more vertices are in the dod, then how the edges fall is known)
-        if (N_verts_in_dod < 2) then
-            
-            ! Initialize count
-            N_edges_in_dod = 0
+            ! Set parameters
+            if (totally_out) then
 
+                dod_info%in_dod = .false.
+                dod_info%verts_in_dod = .false.
+                dod_info%edges_in_dod = .false.
 
-            ! Check if the dod is encompassed by the panel
-            if (N_edges_in_dod == 0) then
+            else if (totally_in) then
+
+                dod_info%in_dod = .true.
+                dod_info%verts_in_dod = .true.
+                dod_info%edges_in_dod = .true.
+
+            ! If it is not guaranteed to be totally out or in, then check all the vertices and edges
+            else
+
+                ! Check each of the vertices
+                N_verts_in_dod = 0
+                do i=1,this%N
+
+                    ! Check
+                    if (mirrored) then
+                        point = mirror_about_plane(this%get_vertex_loc(i), mirror_plane)
+                    else
+                        point = this%get_vertex_loc(i)
+                    end if
+                    dod_info%verts_in_dod(i) = freestream%point_in_dod(point, eval_point)
+                    if (dod_info%verts_in_dod(i)) then
+                        N_verts_in_dod = N_verts_in_dod + 1
+                    end if
+
+                end do
+
+                ! Check edges (if 2 or more vertices are in the dod, then how the edges fall is known)
+                if (N_verts_in_dod < 2) then
+
+                    ! Initialize count
+                    N_edges_in_dod = 0
+
+                    ! Loop through edges
+                    do i=1,this%N
+
+                        ! For subsonic edges, this is entirely dependent on the most downstream endpoint
+
+                    end do
+
+                    ! Check if the dod is encompassed by the panel (for superinclined panels)
+                    if (this%r == -1. .and. N_edges_in_dod == 0) then
+
+                    end if
+
+                else
+
+                    ! Store which edges are in based on which vertices are in
+                    do i=1,this%N-1
+                        dod_info%edges_in_dod(i) = dod_info%verts_in_dod(i) .or. dod_info%verts_in_dod(i+1)
+                    end do
+                    dod_info%edges_in_dod(this%N) = dod_info%verts_in_dod(this%N) .or. dod_info%verts_in_dod(1)
+
+                end if
 
             end if
+
+        else
+
+            ! Subsonic flow. DoD is everywhere.
+            dod_info%in_dod = .true.
+            dod_info%verts_in_dod = .true.
+            dod_info%edges_in_dod = .true.
 
         end if
 
     
     end function panel_check_dod
-
-
-    subroutine panel_calc_compr_coord_transform(this, freestream)
-        ! Calculates the compressible coordinate transform for this panel based on the freestream properties
-
-        implicit none
-
-        class(panel),intent(inout) :: this
-        type(flow),intent(in) :: freestream
-    
-    end subroutine panel_calc_compr_coord_transform
 
 
     function panel_get_field_point_geometry(this, eval_point) result(geom)
@@ -562,26 +734,26 @@ contains
         type(eval_point_geom) :: geom
 
         real,dimension(2) :: d
-        real,dimension(3) :: r_local
+        real,dimension(3) :: r_l
         integer :: i
 
         ! Store point
         geom%r = eval_point
 
         ! Transform to panel coordinates
-        r_local = matmul(this%A_t, geom%r-this%centroid)
-        geom%r_in_plane = r_local(1:2)
-        geom%h = r_local(3)
+        r_l = matmul(this%A_g_to_l, geom%r-this%centroid)
+        geom%r_in_plane = r_l(1:2)
+        geom%h = r_l(3)
 
         ! Calculate intermediate quantities
         do i=1,this%N
 
             ! Perpendicular distance in plane from evaluation point to edge
-            d = this%vertices_local(i,:)-geom%r_in_plane
-            geom%a(i) = inner2(d, this%n_hat_local(i,:)) ! a is positive when the evaluation point is towards the interior of the panel
+            d = this%vertices_l(i,:)-geom%r_in_plane
+            geom%a(i) = inner2(d, this%n_hat_l(i,:)) ! a is positive when the evaluation point is towards the interior of the panel
 
             ! Integration lengths on edges
-            geom%l1(i) = inner2(d, this%t_hat_local(i,:))
+            geom%l1(i) = inner2(d, this%t_hat_l(i,:))
             geom%l2(i) = geom%l1(i)+this%l(i)
 
             ! Distance from evaluation point to start vertex
@@ -619,18 +791,18 @@ contains
         real :: E, E_1, E_2
 
         ! Evaluate at start vertex
-        E_1 = ((this%vertices_local(i,1)-geom%r_in_plane(1))**(M-1) &
-              *(this%vertices_local(i,2)-geom%r_in_plane(2))**(N-1)) &
+        E_1 = ((this%vertices_l(i,1)-geom%r_in_plane(1))**(M-1) &
+              *(this%vertices_l(i,2)-geom%r_in_plane(2))**(N-1)) &
               /geom%s1(i)**K
 
         ! Evaluate at end vertex
         if (i .eq. this%N) then
-            E_2 = ((this%vertices_local(1,1)-geom%r_in_plane(1))**(M-1) &
-                   *(this%vertices_local(1,2)-geom%r_in_plane(2))**(N-1)) &
+            E_2 = ((this%vertices_l(1,1)-geom%r_in_plane(1))**(M-1) &
+                   *(this%vertices_l(1,2)-geom%r_in_plane(2))**(N-1)) &
                    /geom%s2(i)**K
         else
-            E_2 = ((this%vertices_local(i,1)-geom%r_in_plane(1))**(M-1) &
-                   *(this%vertices_local(i,2)-geom%r_in_plane(2))**(N-1)) &
+            E_2 = ((this%vertices_l(i,1)-geom%r_in_plane(1))**(M-1) &
+                   *(this%vertices_l(i,2)-geom%r_in_plane(2))**(N-1)) &
                    /geom%s2(i)**K
         end if
 
@@ -717,8 +889,8 @@ contains
         do i=1,this%N
 
             ! Store edge derivs
-            v_xi = this%n_hat_local(i,1)
-            v_eta = this%n_hat_local(i,2)
+            v_xi = this%n_hat_l(i,1)
+            v_eta = this%n_hat_l(i,2)
 
             ! Calculate F(1,1,1)
             F(i,1,1,1) = this%F_i_1_1_1(geom, i)
@@ -845,8 +1017,8 @@ contains
         real,dimension(:),allocatable :: v_xi, v_eta
 
         ! Get edge normal derivatives
-        allocate(v_xi(this%N), source=this%n_hat_local(:,1))
-        allocate(v_eta(this%N), source=this%n_hat_local(:,2))
+        allocate(v_xi(this%N), source=this%n_hat_l(:,1))
+        allocate(v_eta(this%N), source=this%n_hat_l(:,2))
 
         ! Allocate integral storage
         allocate(H(1:MXQ,1:MXQ,1:MXK+NHK), source=0.)
@@ -1102,95 +1274,126 @@ contains
     end subroutine panel_calc_integrals
 
 
-    function panel_get_source_potential(this, eval_point, freestream, vertex_indices) result(phi)
+    function panel_get_source_potential(this, eval_point, freestream, dod_info, vertex_indices, panel_mirrored) result(phi)
 
         implicit none
 
         class(panel),intent(in) :: this
         real,dimension(3),intent(in) :: eval_point
         type(flow),intent(in) :: freestream
+        type(dod),intent(in) :: dod_info
         integer,dimension(:),allocatable,intent(out) :: vertex_indices
+        logical,intent(in) :: panel_mirrored
         real,dimension(:),allocatable :: phi
 
         type(eval_point_geom) :: geom
         real,dimension(:,:,:),allocatable :: H
         real,dimension(:,:,:,:),allocatable :: F
 
-        if (influence_calc_type == 'johnson-ehlers') then
+        ! In dod
+        if (dod_info%in_dod) then
 
-            ! Calculate geometric parameters
-            geom = this%get_field_point_geometry(eval_point)
+            if (influence_calc_type == 'johnson-ehlers') then
 
-            ! Get integrals
-            call this%calc_integrals(geom, "potential", "source", H, F)
+                ! Calculate geometric parameters
+                geom = this%get_field_point_geometry(eval_point)
 
+                ! Get integrals
+                call this%calc_integrals(geom, "potential", "source", H, F)
+
+                if (source_order == 0) then
+
+                    ! Compute induced potential
+                    allocate(phi(1))
+                    phi = -0.25/pi*H(1,1,1)
+
+                end if
+
+                ! Clean up
+                deallocate(H)
+                deallocate(F)
+            end if
+
+        else
+
+            ! Not in DoD, so there is no influence
             if (source_order == 0) then
 
-                ! Compute induced potential
-                allocate(phi(1))
-                phi = -0.25/pi*H(1,1,1)
+                allocate(phi(1), source=0.)
 
             end if
 
-            ! Clean up
-            deallocate(H)
-            deallocate(F)
         end if
     
     end function panel_get_source_potential
 
 
-    function panel_get_source_velocity(this, eval_point, freestream, vertex_indices) result(v)
+    function panel_get_source_velocity(this, eval_point, freestream, dod_info, vertex_indices, panel_mirrored) result(v)
 
         implicit none
 
         class(panel),intent(in) :: this
         real,dimension(3),intent(in) :: eval_point
         type(flow),intent(in) :: freestream
+        type(dod),intent(in) :: dod_info
         integer,dimension(:),allocatable,intent(out) :: vertex_indices
+        logical,intent(in) :: panel_mirrored
         real,dimension(:,:),allocatable :: v
 
         type(eval_point_geom) :: geom
         real,dimension(:,:,:),allocatable :: H
         real,dimension(:,:,:,:),allocatable :: F
 
-        if (influence_calc_type == 'johnson-ehlers') then
+        ! In dod
+        if (dod_info%in_dod) then
 
-            ! Calculate geometric parameters
-            geom = this%get_field_point_geometry(eval_point)
+            if (influence_calc_type == 'johnson-ehlers') then
 
-            ! Get integrals
-            call this%calc_integrals(geom, "velocity", "source", H, F)
+                ! Calculate geometric parameters
+                geom = this%get_field_point_geometry(eval_point)
 
+                ! Get integrals
+                call this%calc_integrals(geom, "velocity", "source", H, F)
+
+                if (source_order .eq. 0) then
+
+                    ! Calculate velocity
+                    allocate(v(1,3))
+                    v(1,1) = 0.25/pi*sum(this%n_hat_l(:,1)*F(:,1,1,1))
+                    v(1,2) = 0.25/pi*sum(this%n_hat_l(:,2)*F(:,1,1,1))
+                    v(1,3) = 0.25/pi*geom%h*H(1,1,3)
+
+                end if
+
+                ! Clean up
+                deallocate(H)
+                deallocate(F)
+            end if
+
+        else
+
+            ! Not in DoD, so there is no influence
             if (source_order .eq. 0) then
 
-                ! Specify influencing vertices
-                allocate(vertex_indices(1), source=0)
-
-                ! Calculate velocity
-                allocate(v(1,3))
-                v(1,1) = 0.25/pi*sum(this%n_hat_local(:,1)*F(:,1,1,1))
-                v(1,2) = 0.25/pi*sum(this%n_hat_local(:,2)*F(:,1,1,1))
-                v(1,3) = 0.25/pi*geom%h*H(1,1,3)
+                allocate(v(1,3), source=0.)
 
             end if
 
-            ! Clean up
-            deallocate(H)
-            deallocate(F)
         end if
 
     end function panel_get_source_velocity
 
 
-    function panel_get_doublet_potential(this, eval_point, freestream, vertex_indices) result(phi)
+    function panel_get_doublet_potential(this, eval_point, freestream, dod_info, vertex_indices, panel_mirrored) result(phi)
 
         implicit none
 
         class(panel),intent(in) :: this
         real,dimension(3),intent(in) :: eval_point
         type(flow),intent(in) :: freestream
+        type(dod),intent(in) :: dod_info
         integer,dimension(:),allocatable,intent(out) :: vertex_indices
+        logical,intent(in) :: panel_mirrored
         real,dimension(:),allocatable :: phi
 
         type(eval_point_geom) :: geom
@@ -1199,15 +1402,65 @@ contains
         integer,dimension(:),allocatable :: H_shape
         integer :: i, j, k
 
-        if (influence_calc_type == 'johnson-ehlers') then
+        ! Check DoD
+        if (dod_info%in_dod) then
 
-            ! Calculate geometric parameters
-            geom = this%get_field_point_geometry(eval_point)
+            if (influence_calc_type == 'johnson-ehlers') then
 
-            ! Get integrals
-            call this%calc_integrals(geom, "potential", "doublet", H, F)
+                ! Calculate geometric parameters
+                geom = this%get_field_point_geometry(eval_point)
 
-            ! Calculate influence
+                ! Get integrals
+                call this%calc_integrals(geom, "potential", "doublet", H, F)
+
+                ! Calculate influence
+                if (doublet_order == 1) then
+
+                    ! Specify influencing vertices
+                    if (this%in_wake) then
+
+                        ! Wake panels are influenced by two sets of vertices
+                        allocate(vertex_indices(6))
+                        allocate(phi(6), source=0.)
+                        vertex_indices(1) = this%vertices(1)%ptr%top_parent
+                        vertex_indices(2) = this%vertices(2)%ptr%top_parent
+                        vertex_indices(3) = this%vertices(3)%ptr%top_parent
+                        vertex_indices(4) = this%vertices(1)%ptr%bot_parent
+                        vertex_indices(5) = this%vertices(2)%ptr%bot_parent
+                        vertex_indices(6) = this%vertices(3)%ptr%bot_parent
+
+                    else
+
+                        ! Body panels are influenced by only one set of vertices
+                        allocate(vertex_indices, source=this%vertex_indices)
+                        allocate(phi(3), source=0.)
+
+                    end if
+
+                    ! Compute induced potential
+                    phi(1) = geom%h*H(1,1,3)
+                    phi(2) = geom%r_in_plane(1)*geom%h*H(1,1,3)+geom%h*H(2,1,3)
+                    phi(3) = geom%r_in_plane(2)*geom%h*H(1,1,3)+geom%h*H(1,2,3)
+
+                    ! Convert to vertex influences
+                    phi(1:3) = 0.25/pi*matmul(phi(1:3), this%S_mu_inv)
+
+                    ! Wake bottom influence is opposite the top influence
+                    if (this%in_wake) then
+                        phi(4:6) = -phi(1:3)
+                    end if
+
+                end if
+
+                ! Clean up
+                deallocate(H)
+                deallocate(F)
+
+            end if
+
+        else
+
+            ! Specify no influence
             if (doublet_order == 1) then
 
                 ! Specify influencing vertices
@@ -1231,65 +1484,68 @@ contains
 
                 end if
 
-                ! Compute induced potential
-                phi(1) = geom%h*H(1,1,3)
-                phi(2) = geom%r_in_plane(1)*geom%h*H(1,1,3)+geom%h*H(2,1,3)
-                phi(3) = geom%r_in_plane(2)*geom%h*H(1,1,3)+geom%h*H(1,2,3)
-
-                ! Convert to vertex influences
-                phi(1:3) = 0.25/pi*matmul(phi(1:3), this%S_mu_inv)
-
-                ! Wake bottom influence is opposite the top influence
-                if (this%in_wake) then
-                    phi(4:6) = -phi(1:3)
-                end if
-
             end if
-
-            ! Clean up
-            deallocate(H)
-            deallocate(F)
 
         end if
     
     end function panel_get_doublet_potential
 
 
-    function panel_get_doublet_velocity(this, eval_point, freestream, vertex_indices) result(v)
+    function panel_get_doublet_velocity(this, eval_point, freestream, dod_info, vertex_indices, panel_mirrored) result(v)
 
         implicit none
 
         class(panel),intent(in) :: this
         real,dimension(3),intent(in) :: eval_point
         type(flow),intent(in) :: freestream
+        type(dod),intent(in) :: dod_info
         integer,dimension(:),allocatable,intent(out) :: vertex_indices
+        logical,intent(in) :: panel_mirrored
         real,dimension(:,:),allocatable :: v
 
         type(eval_point_geom) :: geom
         real,dimension(:,:,:),allocatable :: H
         real,dimension(:,:,:,:),allocatable :: F
 
-        if (influence_calc_type == 'johnson-ehlers') then
+        ! Check DoD
+        if (dod_info%in_dod) then
 
-            ! Calculate geometric parameters
-            geom = this%get_field_point_geometry(eval_point)
+            if (influence_calc_type == 'johnson-ehlers') then
 
-            ! Get integrals
-            call this%calc_integrals(geom, "velocity", "doublet", H, F)
+                ! Calculate geometric parameters
+                geom = this%get_field_point_geometry(eval_point)
 
+                ! Get integrals
+                call this%calc_integrals(geom, "velocity", "doublet", H, F)
+
+                if (doublet_order .eq. 1) then
+
+                    ! Specify influencing vertices
+                    allocate(vertex_indices(3), source=this%vertex_indices)
+
+                    ! Calculate velocity
+                    allocate(v(3,3), source=0.)
+
+                end if
+
+                ! Clean up
+                deallocate(H)
+                deallocate(F)
+
+            end if
+
+        else
+
+            ! Specify no influence
             if (doublet_order .eq. 1) then
 
                 ! Specify influencing vertices
                 allocate(vertex_indices(3), source=this%vertex_indices)
 
                 ! Calculate velocity
-                allocate(v(3,3))
+                allocate(v(3,3), source=0.)
 
             end if
-
-            ! Clean up
-            deallocate(H)
-            deallocate(F)
 
         end if
 
@@ -1339,7 +1595,7 @@ contains
         end if
 
         ! Transform to global coordinates
-        dv = matmul(transpose(this%A_t), dv)
+        dv = matmul(transpose(this%A_g_to_l), dv)
 
         ! Mirror if necessary
         if (mirrored) then

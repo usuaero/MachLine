@@ -25,7 +25,7 @@ module surface_mesh_mod
         real :: wake_shedding_angle, C_wake_shedding_angle, trefftz_distance, C_min_wake_shedding_angle
         integer :: N_wake_panels_streamwise
         logical :: append_wake
-        real,dimension(:,:),allocatable :: control_points
+        real,dimension(:,:),allocatable :: control_points, cp_mirrored
         real,dimension(:),allocatable :: phi_cp, phi_cp_sigma, phi_cp_mu ! Induced potentials at control points
         real,dimension(:),allocatable :: C_p ! Surface pressure coefficients
         real,dimension(:,:),allocatable :: V ! Surface velocities
@@ -344,7 +344,7 @@ contains
 
         ! Calculate panel coordinate transformations
         do i=1,this%N_panels
-            call this%panels(i)%calc_coord_transform(freestream)
+            call this%panels(i)%calc_transforms(freestream)
         end do
 
         ! Figure out wake-shedding edges, discontinuous edges, etc.
@@ -839,6 +839,19 @@ contains
 
                 end if
 
+            end do
+
+        end if
+
+        ! Calculate mirrored points, if necessary
+        if (this%mirrored) then
+
+            ! Allocate memory
+            allocate(this%cp_mirrored(this%N_cp, 3))
+
+            ! Calculate mirrors
+            do i=1,this%N_cp
+                this%cp_mirrored(i,:) = mirror_about_plane(this%control_points(i,:), this%mirror_plane)
             end do
 
         end if

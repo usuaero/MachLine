@@ -91,6 +91,7 @@ end function dist
 
 
 function cross(a, b) result(c)
+  ! Calculates the cross-product of two 3-element vectors
 
     implicit none
 
@@ -127,6 +128,24 @@ function inner2(a, b) result(c)
 end function inner2
 
 
+function outer(a, b) result(c)
+  ! Calculates the outer product of two vectors
+
+  implicit none
+
+  real,dimension(3) :: a, b
+  real,dimension(3,3) :: c
+
+  integer :: i
+
+  c = 0.
+
+  do i=1,3
+    c(i,:) = a(i)*b(:)
+  end do
+
+end function
+
 function norm(a) result(c)
   ! Calculates the norm of the vector
 
@@ -137,6 +156,21 @@ function norm(a) result(c)
   c = sqrt(inner(a, a))
 
 end function norm
+
+
+function det3(a) result(c)
+  ! Calculates the determinant of a 3x3 matrix
+
+  implicit none
+
+  real,dimension(3,3) :: a
+  real :: c
+
+  c = a(1,1)*(a(2,2)*a(3,3)-a(2,3)*a(3,2))
+  c = c - a(1,2)*(a(2,1)*a(3,3)-a(2,3)*a(3,1))
+  c = c + a(1,3)*(a(2,1)*a(3,2)-a(3,1)*a(2,2))
+
+end function det3
 
 
 subroutine math_rot_x(vec,th)
