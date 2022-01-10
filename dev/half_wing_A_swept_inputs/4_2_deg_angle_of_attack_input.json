@@ -1,0 +1,35 @@
+{
+    "flow": {
+        "freestream_velocity": [
+            162.56225978758667,
+            0.0,
+            11.937826131803964
+        ]
+    },
+    "geometry": {
+        "file": "dev/meshes/half_wing_A_meshes/half_wing_A_updated_mesh_45_nodes.vtk",
+        "mirror_about": "xz",
+        "singularity_order": {
+            "doublet": 1,
+            "source": 0
+        },
+        "wake_model": {
+            "wake_shedding_angle": 90.0,
+            "trefftz_distance": 100.0,
+            "N_panels": 1
+        },
+        "reference": {
+            "area": 1.0
+        }
+    },
+    "solver": {
+        "formulation": "source-free",
+        "control_point_offset": 1.1e-05
+    },
+    "output": {
+        "body_file": "dev/results/half_wing_swept_45deg/TriPan_Results/4_2_degrees_AoA/half_wing_A_45_nodes_4_2_deg_AoA.vtk",
+        "wake_file": "dev/results/half_wing_swept_45deg/TriPan_Results/4_2_degrees_AoA/half_wing_A_45_nodes_4_2_deg_AoA_wake.vtk",
+        "control_point_file": "dev/results/half_wing_swept_45deg/TriPan_Results/4_2_degrees_AoA/half_wing_A_45_nodes_4_2_deg_AoA_source_free_control_points.vtk",
+        "report_file": "dev/report.txt"
+    }
+}
