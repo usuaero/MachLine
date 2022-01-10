@@ -30,7 +30,7 @@ program main
     write(*,*) "        /          ____"
     write(*,*) "       /          /   /"
     write(*,*) "      /          /   /"
-    write(*,*) "     /      TriPan (c) 2021 USU Aerolab"
+    write(*,*) "     /     MachLine (c) 2021 USU Aerolab"
     write(*,*) "    / _________/___/_______________"
     write(*,*) "   ( (__________________________"
     write(*,*) "    \          \   \"
@@ -94,6 +94,6 @@ program main
 
     ! Goodbye
     write(*,*)
-    write(*,*) "TriPan exited successfully."
+    write(*,*) "MachLine exited successfully."
 
 end program main

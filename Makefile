@@ -1,4 +1,4 @@
-# make for TriPan
+# make for MachLine
 
 # Directories
 SRC_DIR = ./src
@@ -15,7 +15,7 @@ COMPILER = gfortran
 FLAGS = -O2 -fdefault-real-8 -fbounds-check 
 
 # Program name
-PROGRAM = tripan.exe
+PROGRAM = machline.exe
 
 default:
 	$(COMPILER) $(FLAGS) -o $(PROGRAM) \
