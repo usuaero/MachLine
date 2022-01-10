@@ -69,12 +69,16 @@ program main
 
     write(*,*)
     write(*,*) "Initializing"
+    
+    ! Get result files
+    call json_xtnsn_get(output_settings, 'wake_file', wake_file, 'none')
+    call json_xtnsn_get(output_settings, 'control_point_file', control_point_file, 'none')
 
     ! Perform flow-dependent initialization on the surface mesh
-    call body_mesh%init_with_flow(freestream_flow)
+    call body_mesh%init_with_flow(freestream_flow, wake_file)
 
     ! Initialize panel solver
-    call linear_solver%init(solver_settings, body_mesh, freestream_flow)
+    call linear_solver%init(solver_settings, body_mesh, freestream_flow, control_point_file)
 
     write(*,*)
     write(*,*) "Running solver using ", linear_solver%formulation, " formulation"
@@ -87,8 +91,6 @@ program main
     write(*,*)
     write(*,*) "Writing results to file"
     call json_xtnsn_get(output_settings, 'body_file', body_file, 'none')
-    call json_xtnsn_get(output_settings, 'wake_file', wake_file, 'none')
-    call json_xtnsn_get(output_settings, 'control_point_file', control_point_file, 'none')
 
     call body_mesh%output_results(body_file, wake_file, control_point_file)
 

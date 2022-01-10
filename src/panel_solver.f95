@@ -32,7 +32,7 @@ module panel_solver_mod
 contains
 
 
-    subroutine panel_solver_init(this, settings, body, freestream)
+    subroutine panel_solver_init(this, settings, body, freestream, control_point_file)
 
         implicit none
 
@@ -40,8 +40,10 @@ contains
         type(json_value),pointer,intent(in) :: settings
         type(surface_mesh),intent(inout) :: body
         type(flow),intent(inout) :: freestream
+        character(len=:),allocatable,intent(in) :: control_point_file
 
         integer :: i, j
+        type(vtk_out) :: cp_vtk
 
         ! Get settings
         call json_xtnsn_get(settings, 'formulation', this%formulation, 'morino')
@@ -57,6 +59,16 @@ contains
         ! Initialize based on formulation
         if (this%formulation == 'morino' .or. this%formulation == 'source-free') then
             call this%init_dirichlet(settings, body)
+        end if
+        
+        ! Write out control point geometry
+        if (control_point_file /= 'none') then
+
+            call cp_vtk%begin(control_point_file)
+            call cp_vtk%write_points(body%control_points)
+            call cp_vtk%write_vertices(body%control_points)
+            call cp_vtk%finish()
+
         end if
 
         ! Calculate domains of dependence

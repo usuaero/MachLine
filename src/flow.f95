@@ -80,8 +80,10 @@ contains
         this%c = this%M_inf*this%U
 
         ! Calculate Mach angle
-        this%mu = asin(1.0/this%M_inf)
-        this%C_mu = cos(this%mu)
+        if (this%supersonic) then
+            this%mu = asin(1.0/this%M_inf)
+            this%C_mu = cos(this%mu)
+        end if
 
         ! Assemble dual metric matrix
         do i=1,3

@@ -22,7 +22,7 @@ module surface_mesh_mod
         type(edge),allocatable,dimension(:) :: edges
         type(wake_mesh) :: wake
         integer,allocatable,dimension(:) :: wake_edge_top_verts, wake_edge_bot_verts, wake_edge_indices
-        real :: wake_shedding_angle, C_wake_shedding_angle, trefftz_distance, C_min_wake_shedding_angle
+        real :: wake_shedding_angle, C_wake_shedding_angle, trefftz_distance, C_min_panel_angle
         integer :: N_wake_panels_streamwise
         logical :: append_wake
         real,dimension(:,:),allocatable :: control_points, cp_mirrored
@@ -117,16 +117,16 @@ contains
             this%mirrored = .false.
         end select
 
-        ! Store settings for wake models
+        ! Check if the user wants a wake
         call json_xtnsn_get(settings, 'wake_model.append_wake', this%append_wake, .true.)
+
+        ! Store settings for wake models
         if (this%append_wake) then
             call json_xtnsn_get(settings, 'wake_model.wake_shedding_angle', this%wake_shedding_angle, 90.0) ! Maximum allowable angle between panel normals without having separation
-        else
-            call json_xtnsn_get(settings, 'wake_model.wake_shedding_angle', this%wake_shedding_angle, 180.0) ! Maximum allowable angle between panel normals without having separation
+            this%C_wake_shedding_angle = cos(this%wake_shedding_angle*pi/180.0)
+            call json_xtnsn_get(settings, 'wake_model.trefftz_distance', this%trefftz_distance, 100.0) ! Distance from origin to wake termination
+            call json_xtnsn_get(settings, 'wake_model.N_panels', this%N_wake_panels_streamwise, 20)
         end if
-        call json_xtnsn_get(settings, 'wake_model.trefftz_distance', this%trefftz_distance, 100.0) ! Distance from origin to wake termination
-        call json_xtnsn_get(settings, 'wake_model.N_panels', this%N_wake_panels_streamwise, 20)
-        this%C_wake_shedding_angle = cos(this%wake_shedding_angle*pi/180.0)
 
         ! Store references
         call json_xtnsn_get(settings, 'reference.area', this%S_ref, 1.0)
@@ -325,14 +325,16 @@ contains
     end subroutine surface_mesh_locate_adjacent_panels
 
 
-    subroutine surface_mesh_init_with_flow(this, freestream)
+    subroutine surface_mesh_init_with_flow(this, freestream, wake_file)
 
         implicit none
 
         class(surface_mesh),intent(inout) :: this
         type(flow),intent(in) :: freestream
+        character(len=:),allocatable,intent(in) :: wake_file
 
         integer :: i
+        type(vtk_out) :: wake_vtk
 
         ! Check flow symmetry condition
         this%asym_flow = .false.
@@ -348,7 +350,10 @@ contains
         end do
 
         ! Figure out wake-shedding edges, discontinuous edges, etc.
-        call this%characterize_edges(freestream)
+        ! Edge-characterization is only necessary for flows with wakes or supersonic flows, as discontinuities only appear in these flows
+        if (this%append_wake .or. freestream%supersonic) then
+            call this%characterize_edges(freestream)
+        end if
 
         ! Set up mirroring
         if (this%mirrored) then
@@ -356,19 +361,47 @@ contains
         end if
 
         ! Clone necessary vertices and calculate normals (for placing control points)
-        call this%clone_vertices()
+        if (this%append_wake .or. freestream%supersonic) then
+            call this%clone_vertices()
+        end if
         call this%calc_vertex_normals()
 
         ! Initialize wake
-        call this%wake%init(freestream, this%wake_edge_top_verts, &
-                            this%wake_edge_bot_verts, this%edges, this%wake_edge_indices, &
-                            this%N_wake_panels_streamwise, this%vertices, &
-                            this%trefftz_distance, this%mirrored .and. this%asym_flow, &
-                            this%mirror_plane)
+        if (this%append_wake) then
+            call this%wake%init(freestream, this%wake_edge_top_verts, &
+                                this%wake_edge_bot_verts, this%edges, this%wake_edge_indices, &
+                                this%N_wake_panels_streamwise, this%vertices, &
+                                this%trefftz_distance, this%mirrored .and. this%asym_flow, &
+                                this%mirror_plane)
 
-        ! Clean up
-        deallocate(this%wake_edge_top_verts)
-        deallocate(this%wake_edge_bot_verts)
+            ! Clean up
+            deallocate(this%wake_edge_top_verts)
+            deallocate(this%wake_edge_bot_verts)
+        
+            ! Export wake geometry
+            if (wake_file /= 'none') then
+                if (this%wake%N_panels > 0) then
+
+                    call wake_vtk%begin(wake_file)
+                    call wake_vtk%write_points(this%wake%vertices)
+                    call wake_vtk%write_panels(this%wake%panels)
+                    call wake_vtk%finish()
+
+                end if
+            end if
+
+        else
+            
+            ! Set parameters to let later code know there is no actual wake
+            this%wake%N_panels = 0
+            this%wake%N_verts = 0
+
+        end if
+
+        ! Calculate average edge lengths for each vertex
+        do i=1,this%N_verts
+            call this%vertices(i)%calc_average_edge_length(this%vertices)
+        end do
     
     end subroutine surface_mesh_init_with_flow
 
@@ -388,8 +421,8 @@ contains
 
         write(*,'(a)',advance='no') "     Characterizing edges..."
 
-        ! We need to store the minimum angle between two panels in order to place control points within the body at wake-shedding edges
-        this%C_min_wake_shedding_angle = this%C_wake_shedding_angle
+        ! We need to store the minimum angle between two panels in order to place control points within the body at edges having discontinuities
+        this%C_min_panel_angle = 1.
 
         ! Loop through each edge
         this%N_wake_edges = 0
@@ -406,60 +439,72 @@ contains
                 second_normal = this%panels(j)%normal
             end if
 
-            ! Check angle between panels
+            ! Calculate angle between panels (this is technically the flow-turning angle; it is the most straightforward to compute)
             C_angle = inner(this%panels(i)%normal, second_normal)
-            if (C_angle < this%C_wake_shedding_angle) then
 
-                ! Check angle of panel normal with freestream
-                if (inner(this%panels(i)%normal, freestream%V_inf) > 0.0 .or. &
-                    inner(second_normal, freestream%V_inf) > 0.0) then
+            ! Update minimum angle
+            this%C_min_panel_angle = min(C_angle, this%C_min_panel_angle)
 
-                    ! Update minimum angle
-                    this%C_min_wake_shedding_angle = min(C_angle, this%C_min_wake_shedding_angle)
+            ! Determine if this edge is wake-shedding; this depends on the angle between the panels
+            ! and the angles made by the panel normals with the freestream
+            if (this%append_wake) then
 
-                    ! Update number of wake-shedding edges
-                    this%N_wake_edges = this%N_wake_edges + 1
+                ! Check angle between panels
+                if (C_angle < this%C_wake_shedding_angle) then
 
-                    ! Store the index of this edge as being wake-shedding
-                    call wake_edges%append(k)
+                    ! Check angle of panel normal with freestream
+                    if (inner(this%panels(i)%normal, freestream%V_inf) > 0.0 .or. &
+                        inner(second_normal, freestream%V_inf) > 0.0) then
 
-                    ! If this vertex does not already belong to a wake-shedding edge, add it to the list of wake edge vertices
-                    if (this%vertices(this%edges(k)%verts(1))%N_wake_edges == 0) then 
+                        ! Update number of wake-shedding edges
+                        this%N_wake_edges = this%N_wake_edges + 1
 
-                        ! Add the first time
-                        call wake_edge_verts%append(this%edges(k)%verts(1))
-                        this%vertices(this%edges(k)%verts(1))%index_in_wake_vertices = wake_edge_verts%len()
+                        ! Store the index of this edge as being wake-shedding
+                        call wake_edges%append(k)
 
-                    else if (.not. this%edges(k)%on_mirror_plane) then
+                        ! If this vertex does not already belong to a wake-shedding edge, add it to the list of wake edge vertices
+                        if (this%vertices(this%edges(k)%verts(1))%N_wake_edges == 0) then 
 
-                        ! It is in an edge, so it will likely need to be cloned
-                        ! Unless it's on a mirror plane
-                        this%vertices(this%edges(k)%verts(1))%needs_clone = .true.
+                            ! Add the first time
+                            call wake_edge_verts%append(this%edges(k)%verts(1))
+                            this%vertices(this%edges(k)%verts(1))%index_in_wake_vertices = wake_edge_verts%len()
+
+                        else if (.not. this%edges(k)%on_mirror_plane) then
+
+                            ! It is in an edge, so it will likely need to be cloned
+                            ! Unless it's on a mirror plane
+                            this%vertices(this%edges(k)%verts(1))%needs_clone = .true.
+
+                        end if
+
+                        ! Update number of wake edges touching this vertex
+                        this%vertices(this%edges(k)%verts(1))%N_wake_edges = this%vertices(this%edges(k)%verts(1))%N_wake_edges + 1
+
+                        ! Do the same for the other vertex
+                        if (this%vertices(this%edges(k)%verts(2))%N_wake_edges == 0) then 
+
+                            ! Add the first time
+                            call wake_edge_verts%append(this%edges(k)%verts(2))
+                            this%vertices(this%edges(k)%verts(2))%index_in_wake_vertices = wake_edge_verts%len()
+
+                        else if (.not. this%edges(k)%on_mirror_plane) then
+
+                            ! It is in an edge, so it will likely need to be cloned
+                            ! Unless it's on a mirror plane
+                            this%vertices(this%edges(k)%verts(2))%needs_clone = .true.
+
+                        end if
+
+                        ! Update number of wake edges touching this vertex
+                        this%vertices(this%edges(k)%verts(2))%N_wake_edges = this%vertices(this%edges(k)%verts(2))%N_wake_edges + 1
 
                     end if
-                    
-                    ! Update number of wake edges touching this vertex
-                    this%vertices(this%edges(k)%verts(1))%N_wake_edges = this%vertices(this%edges(k)%verts(1))%N_wake_edges + 1
-
-                    ! Do the same for the other vertex
-                    if (this%vertices(this%edges(k)%verts(2))%N_wake_edges == 0) then 
-
-                        ! Add the first time
-                        call wake_edge_verts%append(this%edges(k)%verts(2))
-                        this%vertices(this%edges(k)%verts(2))%index_in_wake_vertices = wake_edge_verts%len()
-
-                    else if (.not. this%edges(k)%on_mirror_plane) then
-
-                        ! It is in an edge, so it will likely need to be cloned
-                        ! Unless it's on a mirror plane
-                        this%vertices(this%edges(k)%verts(2))%needs_clone = .true.
-
-                    end if
-                    
-                    ! Update number of wake edges touching this vertex
-                    this%vertices(this%edges(k)%verts(2))%N_wake_edges = this%vertices(this%edges(k)%verts(2))%N_wake_edges + 1
-
                 end if
+            end if
+
+            ! Determine if this edge is discontinuous in supersonic flow
+            if (freestream%supersonic) then
+
             end if
 
         end do
@@ -488,7 +533,8 @@ contains
 
         end do
 
-        write(*,'(a, i3, a)') "Done. Found ", this%N_wake_edges, " wake-shedding edges."
+        write(*,'(a, i3, a, i3, a)') "Done. Found ", this%N_wake_edges, " wake-shedding edges and ", &
+                                     0, " other discontinuous edges."
 
     end subroutine surface_mesh_characterize_edges
 
@@ -734,11 +780,6 @@ contains
 
         end do
 
-        ! Calculate average edge lengths for each vertex
-        do i=1,this%N_verts
-            call this%vertices(i)%calc_average_edge_length(this%vertices)
-        end do
-
         write(*,'(a, i4, a, i7, a)') "Done. Cloned ", N_clones, " vertices. Mesh now has ", this%N_verts, " vertices."
 
     end subroutine surface_mesh_clone_vertices
@@ -804,7 +845,7 @@ contains
             allocate(this%control_points(this%N_verts,3))
 
             ! Calculate offset ratio such that the control point will remain within the body based on the minimum detected wake-shedding angle
-            offset_ratio = 0.5*sqrt(0.5*(1.0+this%C_min_wake_shedding_angle))
+            offset_ratio = 0.5*sqrt(0.5*(1.0+this%C_min_panel_angle))
 
             ! Loop through vertices
             do i=1,this%N_verts
@@ -866,7 +907,7 @@ contains
         class(surface_mesh),intent(inout) :: this
         character(len=:),allocatable,intent(in) :: body_file, wake_file, control_point_file
 
-        real,dimension(this%wake%N_verts) :: mu_on_wake
+        real,dimension(:),allocatable :: mu_on_wake
         type(vtk_out) :: body_vtk, wake_vtk, cp_vtk
         integer :: i
 
@@ -894,6 +935,7 @@ contains
                 call wake_vtk%write_panels(this%wake%panels)
 
                 ! Calculate doublet strengths
+                allocate(mu_on_wake(this%wake%N_verts))
                 do i=1,this%wake%N_verts
                     mu_on_wake(i) = this%mu(this%wake%vertices(i)%top_parent)-this%mu(this%wake%vertices(i)%bot_parent)
                 end do

@@ -18,10 +18,10 @@ module panel_mod
     type eval_point_geom
         ! Container type for the geometric parameters necessary for calculating a panel's influence on a given field point
 
-        real,dimension(3) :: r
-        real,dimension(2) :: r_in_plane
-        real :: h
-        real,dimension(3) :: a, g2, l1, l2, s1, s2, c1, c2, g
+        real,dimension(3) :: r ! Point position in global coords
+        real,dimension(2) :: r_in_plane ! Transformed point in panel plane
+        real :: h ! Transformed height above panel
+        real,dimension(3) :: a, g2, l1, l2, s1, s2, c1, c2, g ! Edge parameters
 
     end type eval_point_geom
 
