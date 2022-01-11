@@ -4,53 +4,56 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-def Pressure_Plot(file, Plot_label):
+def Pressure_Plot(file, Plot_label, LE_loc):
     Data = np.genfromtxt(file, delimiter=",", skip_header=1, dtype=float)
 
     C_p = Data[:,0]
     x = Data[:,1]
 
-    var_name = [ k for k,v in locals().items() if v == file][0]
-    print(var_name)
-    if file == file10_first_AoA or \
-        file == file10_second_AoA or \
-        file == file10_third_AoA or \
-        file == file10_fourth_AoA or \
-        file == file10_fifth_AoA or \
-        file == file10_sixth_AoA:
+    # Ensure the plots are colored consistently
+    if LE_loc == '89.8':
+            if file == file17_first_AoA or file == file17_second_AoA or file == file17_third_AoA:
 
-        colors = 'g'
+                colors = 'b'
 
-    elif file == file17_first_AoA or \
-        file == file17_second_AoA or \
-        file == file17_third_AoA or \
-        file == file17_fourth_AoA or \
-        file == file17_fifth_AoA or \
-        file == file17_sixth_AoA:
+            elif file == file25_first_AoA or file == file25_second_AoA or file == file25_third_AoA:
 
-        colors = 'b'
+                colors = 'c'
 
-    elif file == file25_first_AoA or \
-        file == file25_second_AoA or \
-        file == file25_third_AoA or \
-        file == file25_fourth_AoA or \
-        file == file25_fifth_AoA or \
-        file == file25_sixth_AoA:
+            elif file == file45_first_AoA or file == file45_second_AoA or file == file45_third_AoA:
 
-        colors = 'c'
+                colors = 'r'
 
-    elif file == file45_first_AoA or \
-        file == file45_second_AoA or \
-        file == file45_third_AoA or \
-        file == file45_fourth_AoA or \
-        file == file45_fifth_AoA or \
-        file == file45_sixth_AoA:
+            else:
+                colors = 'y'
+            
+    elif LE_loc == '94.9':
+            if file == file45_first_AoA or file == file45_second_AoA or file == file45_third_AoA or file == file45_fourth_AoA or file == file45_fifth_AoA or file == file45_sixth_AoA:
 
-        colors = 'r'
+                colors = 'r'
 
+            else:
+                colors = 'y'
 
     else:
-        colors = 'y'
+        if file == file10_first_AoA or file == file10_second_AoA or file == file10_third_AoA or file == file10_fourth_AoA or file == file10_fifth_AoA or file == file10_sixth_AoA:
+
+            colors = 'g'
+
+        elif file == file17_first_AoA or file == file17_second_AoA or file == file17_third_AoA or file == file17_fourth_AoA or file == file17_fifth_AoA or file == file17_sixth_AoA:
+
+            colors = 'b'
+
+        elif file == file25_first_AoA or file == file25_second_AoA or file == file25_third_AoA or file == file25_fourth_AoA or file == file25_fifth_AoA or file == file25_sixth_AoA:
+
+            colors = 'c'
+
+        elif file == file45_first_AoA or file == file45_second_AoA or file == file45_third_AoA or file == file45_fourth_AoA or file == file45_fifth_AoA or file == file45_sixth_AoA:
+
+            colors = 'r'
+
+        else:
+            colors = 'y'
     
     plt.plot((x-x_LE)/chord,C_p, label=Plot_label, color = colors)
 
@@ -514,17 +517,19 @@ for i in range(len(AoA)):
 #Iterate over all angles of attack
 for i in range(len(file)):
 
+    complete_title = title + ', ' + Notes[i]
+
     #Iterate over all node densities
     for j in range(len(file[0])):
 
-        Pressure_Plot(file[i][j], labels[j])
+        Pressure_Plot(file[i][j], labels[j], LE_Location)
 
     #Pull in experimental results for comparison at each angle of attack
     plt.plot(Experimental[:,0], Experimental[:,i+1], ".",color="k", label="Exerimental")
 
     #Plot the figure containing all curves
-    plt.title(title)
-    plt.figtext(0.425, 0.18, Notes[i])
+    plt.title(complete_title)
+    #plt.figtext(0.425, 0.18, Notes[i])
     plt.xlabel('x/c')
     plt.ylabel(r"$C_p$")
     plt.gca().invert_yaxis()
@@ -534,5 +539,8 @@ for i in range(len(file)):
     # filename = LE_Location + "_percent_semispan/plots_" + LE_Location + "_percent_semispan/" + AoA[i] + "degrees_AoA_plot.pdf"
     # plt.savefig(filename)
 
-    
-    plt.show()
+print(Experimental[:,0].size)
+    #plt.show()
+
+
+#Upper surface count = Experimental[:,0].size//2 + Experimental[:,0]%2
