@@ -397,11 +397,6 @@ contains
             this%wake%N_verts = 0
 
         end if
-
-        ! Calculate average edge lengths for each vertex
-        do i=1,this%N_verts
-            call this%vertices(i)%calc_average_edge_length(this%vertices)
-        end do
     
     end subroutine surface_mesh_init_with_flow
 
@@ -414,7 +409,7 @@ contains
         class(surface_mesh),intent(inout) :: this
         type(flow),intent(in) :: freestream
 
-        integer :: i, j, k, m, n, mm, temp, top_panel, bottom_panel
+        integer :: i, j, k, m, n, mm, temp, top_panel, bottom_panel, vert1, vert2
         type(list) :: wake_edge_verts, wake_edges
         real :: C_angle
         real,dimension(3) :: second_normal
@@ -462,41 +457,47 @@ contains
                         ! Store the index of this edge as being wake-shedding
                         call wake_edges%append(k)
 
+                        ! Get vertex indices (simplifies later code)
+                        vert1 = this%edges(k)%verts(1)
+                        vert2 = this%edges(k)%verts(2)
+
                         ! If this vertex does not already belong to a wake-shedding edge, add it to the list of wake edge vertices
-                        if (this%vertices(this%edges(k)%verts(1))%N_wake_edges == 0) then 
+                        if (this%vertices(vert1)%N_wake_edges == 0) then 
 
                             ! Add the first time
-                            call wake_edge_verts%append(this%edges(k)%verts(1))
-                            this%vertices(this%edges(k)%verts(1))%index_in_wake_vertices = wake_edge_verts%len()
+                            call wake_edge_verts%append(vert1)
+                            this%vertices(vert1)%index_in_wake_vertices = wake_edge_verts%len()
 
                         else if (.not. this%edges(k)%on_mirror_plane) then
 
                             ! It is in an edge, so it will likely need to be cloned
                             ! Unless it's on a mirror plane
-                            this%vertices(this%edges(k)%verts(1))%needs_clone = .true.
+                            this%vertices(vert1)%needs_clone = .true.
 
                         end if
 
                         ! Update number of wake edges touching this vertex
-                        this%vertices(this%edges(k)%verts(1))%N_wake_edges = this%vertices(this%edges(k)%verts(1))%N_wake_edges + 1
+                        this%vertices(vert1)%N_wake_edges = this%vertices(vert1)%N_wake_edges + 1
+                        this%vertices(vert1)%N_discont_edges = this%vertices(vert1)%N_discont_edges + 1
 
                         ! Do the same for the other vertex
-                        if (this%vertices(this%edges(k)%verts(2))%N_wake_edges == 0) then 
+                        if (this%vertices(vert2)%N_wake_edges == 0) then 
 
                             ! Add the first time
-                            call wake_edge_verts%append(this%edges(k)%verts(2))
-                            this%vertices(this%edges(k)%verts(2))%index_in_wake_vertices = wake_edge_verts%len()
+                            call wake_edge_verts%append(vert2)
+                            this%vertices(vert2)%index_in_wake_vertices = wake_edge_verts%len()
 
                         else if (.not. this%edges(k)%on_mirror_plane) then
 
                             ! It is in an edge, so it will likely need to be cloned
                             ! Unless it's on a mirror plane
-                            this%vertices(this%edges(k)%verts(2))%needs_clone = .true.
+                            this%vertices(vert2)%needs_clone = .true.
 
                         end if
 
                         ! Update number of wake edges touching this vertex
-                        this%vertices(this%edges(k)%verts(2))%N_wake_edges = this%vertices(this%edges(k)%verts(2))%N_wake_edges + 1
+                        this%vertices(vert2)%N_wake_edges = this%vertices(vert2)%N_wake_edges + 1
+                        this%vertices(vert2)%N_discont_edges = this%vertices(vert2)%N_discont_edges + 1
 
                     end if
                 end if
@@ -550,16 +551,16 @@ contains
 
         write(*,'(a)',advance='no') "     Setting up mesh mirror..."
 
-        ! If a vertex on the mirror plane doesn't belong to a wake edge, then its mirror will not be unique
+        ! If a vertex on the mirror plane doesn't belong to a discontinuous edge, then its mirror will not be unique
         do i=1,this%N_verts
 
-            if (this%vertices(i)%on_mirror_plane .and. this%vertices(i)%N_wake_edges == 0) then
+            if (this%vertices(i)%on_mirror_plane .and. this%vertices(i)%N_discont_edges == 0) then
                 this%vertices(i)%mirrored_is_unique = .false.
             end if
             
         end do
 
-        ! Check if any wake-shedding edges touch the mirror plane
+        ! Check if any discontinuous edges touch the mirror plane
         do j=1,this%N_wake_edges
 
             ! Get index of edge
@@ -569,29 +570,31 @@ contains
             m = this%edges(i)%verts(1)
             n = this%edges(i)%verts(2)
 
-            ! If a given wake edge has only one of its endpoints lying on the mirror plane, then that endpoint has another
-            ! adjacent edge, since the edge will be mirrored across that plane. This endpoint will need a clone, but it's
-            ! mirrored vertex will be the same
+            ! If a given discontinuous edge has only one of its endpoints lying on the mirror plane, then that endpoint has another
+            ! adjacent edge, since the edge will be mirrored across that plane. This endpoint will need a clone, but it's mirrored
+            ! vertex will be the same
 
             ! Check for edge touching mirror plane at only one end
             if (this%vertices(m)%on_mirror_plane .neqv. this%vertices(n)%on_mirror_plane) then
 
-                ! Only add wake edge if the endpoint is on the mirror plane
+                ! Only add discontinuous edge if the endpoint is on the mirror plane
                 if (this%vertices(m)%on_mirror_plane) then
 
                     this%vertices(m)%N_wake_edges = this%vertices(m)%N_wake_edges + 1
+                    this%vertices(m)%N_discont_edges = this%vertices(m)%N_discont_edges + 1
                     this%vertices(m)%needs_clone = .true.
                     this%vertices(m)%mirrored_is_unique = .false.
 
                 else
 
                     this%vertices(n)%N_wake_edges = this%vertices(n)%N_wake_edges + 1
+                    this%vertices(n)%N_discont_edges = this%vertices(n)%N_discont_edges + 1
                     this%vertices(n)%needs_clone = .true.
                     this%vertices(n)%mirrored_is_unique = .false.
 
                 end if
 
-            ! If the wake edge has both endpoints lying on the mirror plane, then these vertices need no clones, but the mirrored
+            ! If the discontinuous edge has both endpoints lying on the mirror plane, then these vertices need no clones, but the mirrored
             ! vertices will still be unique
             else if (this%edges(i)%on_mirror_plane) then
 
@@ -610,24 +613,24 @@ contains
 
 
     subroutine surface_mesh_clone_vertices(this)
-        ! Takes vertices which lie within wake-shedding edges and splits them into two vertices.
+        ! Takes vertices which lie within discontinuous edges and splits them into two vertices.
         ! Handles rearranging of necessary dependencies.
 
         implicit none
 
         class(surface_mesh),intent(inout),target :: this
 
-        integer :: i, j, k, m, n, N_clones, ind, new_ind, N_wake_verts, bottom_panel_ind, abutting_panel_ind, adj_vert_ind
+        integer :: i, j, k, m, n, N_clones, ind, new_ind, N_discont_verts, bottom_panel_ind, abutting_panel_ind, adj_vert_ind
         type(vertex),dimension(:),allocatable :: cloned_vertices, temp_vertices
 
-        write(*,'(a)',advance='no') "     Cloning vertices at discontinuity edges..."
+        write(*,'(a)',advance='no') "     Cloning vertices at discontinuous edges..."
 
-        ! Allocate array which will store which wake-shedding vertices need to be cloned
-        N_wake_verts = size(this%wake_edge_top_verts)
+        ! Allocate array which will store which discontinuous vertices need to be cloned
+        N_discont_verts = size(this%wake_edge_top_verts)
 
         ! Determine number of vertices which need to be cloned
         N_clones = 0
-        do i=1,N_wake_verts
+        do i=1,N_discont_verts
 
             if (this%vertices(this%wake_edge_top_verts(i))%needs_clone) then
 
@@ -658,7 +661,7 @@ contains
 
         ! Initialize clones
         j = 1
-        do i=1,N_wake_verts
+        do i=1,N_discont_verts
 
             ! Get index of vertex to be cloned
             ind = this%wake_edge_top_verts(i)
@@ -817,6 +820,9 @@ contains
 
             ! Normalize and store
             this%vertices(j)%normal = vec_sum/norm(vec_sum)
+
+            ! Calculate average edge lengths for each vertex
+            call this%vertices(j)%calc_average_edge_length(this%vertices)
 
         end do
 

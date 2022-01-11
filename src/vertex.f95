@@ -11,7 +11,8 @@ module vertex_mod
         ! A vertex in 3-space
 
         real,dimension(3) :: loc, cp ! Location and associated control point
-        integer :: N_wake_edges ! Number of wake edges this vertex belongs to (discrete edges)
+        integer :: N_wake_edges ! Number of wake edges this vertex belongs to
+        integer :: N_discont_edges ! Number of discontinuous edges this vertex belongs to
         integer :: index ! Index of this vertex in the mesh
         integer :: index_in_wake_vertices ! Index of this vertex in the list of wake-shedding vertices
         integer :: top_parent ! Index of the top vertex this vertex's strength is determined by (for a wake vertex)
