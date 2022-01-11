@@ -175,7 +175,7 @@ contains
         class(surface_mesh),intent(inout) :: this
 
 
-        integer :: i, j, m, n, mm
+        integer :: i, j, m, n, m1, n1
         logical :: already_found_shared, dummy
         real :: distance
         integer,dimension(2) :: shared_verts
@@ -208,7 +208,7 @@ contains
                                 ! Store second shared vertex
                                 shared_verts(2) = this%panels(i)%get_vertex_index(m)
 
-                                ! Store in lists for later storage in arrays
+                                ! Store in lists for later storage in edge objects
                                 call panel1%append(i)
                                 call panel2%append(j)
                                 call vertex1%append(shared_verts(1))
@@ -223,18 +223,34 @@ contains
                                     call this%vertices(shared_verts(2))%adjacent_vertices%append(shared_verts(1))
                                 end if
 
-                                ! Store adjacent panels
-                                call this%panels(i)%add_abutting_panel(j)
-                                call this%panels(j)%add_abutting_panel(i)
+                                ! Store adjacent panels and panel edges
+                                ! This stores the adjacent panels and edges according to the index of that edge
+                                ! for the current panel
+                                if (m-m1 == 1) then
+                                    this%panels(i)%abutting_panels(m1) = j
+                                    this%panels(i)%edges(m1) = panel1%len()
+                                else
+                                    this%panels(i)%abutting_panels(m) = j
+                                    this%panels(i)%edges(m) = panel1%len()
+                                end if
+                                if (n-n1 == 1) then
+                                    this%panels(j)%abutting_panels(n1) = i
+                                    this%panels(i)%edges(n1) = panel1%len()
+                                else
+                                    this%panels(j)%abutting_panels(n) = i
+                                    this%panels(i)%edges(n) = panel1%len()
+                                end if
                                 
                                 ! Break out of loop
                                 exit abutting_loop
 
                             ! First shared vertex
                             else
+
                                 already_found_shared = .true.
                                 shared_verts(1) = this%panels(i)%get_vertex_index(m)
-                                mm = m
+                                m1 = m
+                                n1 = n
 
                             end if
                         end if
@@ -280,16 +296,21 @@ contains
                             end if
 
                             ! Store adjacent panel
-                            call this%panels(i)%add_abutting_panel(i+this%N_panels)
+                            if (m-m1 == 1) then
+                                this%panels(i)%abutting_panels(m1) = i+this%N_panels
+                            else
+                                this%panels(i)%abutting_panels(m) = i+this%N_panels
+                            end if
 
                             ! Break out of loop
                             exit mirror_loop
 
                         ! First vertex on the mirror plane
                         else
+
                             already_found_shared = .true.
                             shared_verts(1) = n
-                            mm = m
+                            m1 = m
 
                         end if
                     end if
@@ -409,7 +430,7 @@ contains
         class(surface_mesh),intent(inout) :: this
         type(flow),intent(in) :: freestream
 
-        integer :: i, j, k, m, n, mm, temp, top_panel, bottom_panel, vert1, vert2
+        integer :: i, j, k, m, n, temp, top_panel, bottom_panel, vert1, vert2
         type(list) :: wake_edge_verts, wake_edges
         real :: C_angle
         real,dimension(3) :: second_normal
@@ -434,7 +455,7 @@ contains
                 second_normal = this%panels(j)%normal
             end if
 
-            ! Calculate angle between panels (this is technically the flow-turning angle; it is the most straightforward to compute)
+            ! Calculate angle between panels (this is the flow-turning angle; it is the most straightforward to compute)
             C_angle = inner(this%panels(i)%normal, second_normal)
 
             ! Update minimum angle
@@ -450,6 +471,10 @@ contains
                     ! Check angle of panel normal with freestream
                     if (inner(this%panels(i)%normal, freestream%V_inf) > 0.0 .or. &
                         inner(second_normal, freestream%V_inf) > 0.0) then
+
+                        ! Set the character of the edge
+                        this%edges(k)%sheds_wake = .true.
+                        this%edges(k)%discontinuous = .true.
 
                         ! Update number of wake-shedding edges
                         this%N_wake_edges = this%N_wake_edges + 1

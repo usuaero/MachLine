@@ -9,6 +9,8 @@ module edge_mod
         integer,dimension(2) :: panels ! Indices of the top and bottom panels for this Kutta vertex
         logical :: on_mirror_plane ! Whether this edge lies on the mirror plane
         logical :: sheds_wake ! Whether this edge sheds a wake
+        logical :: discontinuous ! Whether this edge has a jump in doublet strength
+        integer :: inclination ! 1 for subsonic, 0 for Mach-inclined, -1 for supersonic
 
         contains
 
@@ -39,7 +41,10 @@ contains
         ! Set defaults
         this%on_mirror_plane = .false.
         this%sheds_wake = .false.
+        this%discontinuous = .false.
+        this%inclination = 1
     
     end subroutine edge_init
+
     
 end module edge_mod

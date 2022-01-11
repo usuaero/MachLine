@@ -52,12 +52,11 @@ module panel_mod
         real,dimension(:),allocatable :: l ! Edge lengths
         real :: A ! Surface area
         real,dimension(:,:),allocatable :: S_mu_inv, S_sigma_inv ! Matrix relating doublet/source strengths to doublet/source influence parameters
-        logical :: on_wake_edge ! Whether this panel belongs to a wake-shedding edge (on the body)
         integer,dimension(:),allocatable :: vertex_indices ! Indices of this panel's vertices in the mesh vertex array
         logical :: in_wake ! Whether this panel belongs to a wake mesh
         integer,dimension(3) :: abutting_panels ! Indices of panels abutting this one
+        integer,dimension(3) :: edges ! Indices of this panel's edges
         real :: r ! Panel inclination indicator; r=-1 -> superinclined, r=1 -> subinclined
-        logical,dimension(3) :: edge_subsonic ! Whether each edge is subsonic
 
         contains
 
@@ -71,7 +70,6 @@ module panel_mod
             procedure :: calc_g_to_ls_transform => panel_calc_g_to_ls_transform
             procedure :: calc_edge_tangents => panel_calc_edge_tangents
             procedure :: calc_singularity_matrices => panel_calc_singularity_matrices
-            procedure :: add_abutting_panel => panel_add_abutting_panel
             procedure :: get_vertex_loc => panel_get_vertex_loc
             procedure :: get_vertex_index => panel_get_vertex_index
             procedure :: touches_vertex => panel_touches_vertex
@@ -260,11 +258,6 @@ contains
         ! Calculate properties dependent on the transforms
         call this%calc_edge_tangents()
         call this%calc_singularity_matrices()
-
-        ! Check character of edges
-        do i=1,this%N
-            this%edge_subsonic(i) = freestream%C0_inner(this%t_hat_g(i,:), this%t_hat_g(i,:)) > 0.
-        end do
 
     end subroutine panel_calc_transforms
 
@@ -492,26 +485,6 @@ contains
         end if
     
     end subroutine panel_calc_singularity_matrices
-
-
-    subroutine panel_add_abutting_panel(this, panel_ind)
-        ! Adds a panel index to this panel's list of abutting panels
-
-        implicit none
-
-        class(panel),intent(inout) :: this
-        integer,intent(in) :: panel_ind
-
-        integer :: i
-
-        do i=1,3
-            if (this%abutting_panels(i) == 0) then
-                this%abutting_panels(i) = panel_ind
-                return
-            end if
-        end do
-    
-    end subroutine panel_add_abutting_panel
 
 
     function panel_get_vertex_loc(this, i) result(loc)
