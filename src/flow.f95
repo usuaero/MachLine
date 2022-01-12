@@ -104,6 +104,8 @@ contains
 
         class(flow),intent(inout) :: this
 
+        integer :: i
+
         ! Assemble dual metric matrix
         ! Global
         do i=1,3
@@ -133,7 +135,7 @@ contains
     end subroutine flow_calc_metric_matrices
 
 
-    function flow_calc_transforms(this, spanwise_axis)
+    subroutine flow_calc_transforms(this, spanwise_axis)
 
         implicit none
 
@@ -191,7 +193,7 @@ contains
         ! Calculate transform from global to scaled coordinates
         this%A_g_to_s = matmul(this%A_c_to_s, this%A_g_to_c)
 
-    end function flow_calc_transforms
+    end subroutine flow_calc_transforms
 
 
     function flow_C_g_inner(this, a, b) result(c)

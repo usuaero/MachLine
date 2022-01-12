@@ -46,7 +46,7 @@ module panel_mod
         real,dimension(:,:),allocatable :: midpoints
         real,dimension(3) :: centroid
         real,dimension(3,3) :: A_g_to_l, A_s_to_ls, A_g_to_ls, A_ls_to_g ! Coordinate transformation matrices
-        real,dimension(3,3) :: B_l, C_l ! Relevant compressibility matrices
+        real,dimension(3,3) :: B_mat_l, C_mat_l ! Relevant compressibility matrices
         real,dimension(:,:),allocatable :: vertices_l, midpoints_l ! Location of the vertices and edge midpoints described in local coords
         real,dimension(:,:),allocatable :: t_hat_g, t_hat_l ! Edge unit tangents
         real,dimension(:,:),allocatable :: n_hat_g, n_hat_l ! Edge unit outward normals
@@ -58,6 +58,7 @@ module panel_mod
         integer,dimension(3) :: abutting_panels ! Indices of panels abutting this one
         integer,dimension(3) :: edges ! Indices of this panel's edges
         real :: r ! Panel inclination indicator; r=-1 -> superinclined, r=1 -> subinclined
+        real,dimension(3) :: q ! Edge type indicator; q=1 -> subsonic, q=-1 -> supersonic
 
         contains
 
@@ -257,9 +258,20 @@ contains
         end do
 
         ! Calculate compressibility matrices
-        this%B_l(1,1) = freestream%B**2*this%r*freestream%s
-        this%B_l(2,2) = freestream%B**2
-        this%B_l(3,3) = freestream%B**2*this%r
+        this%B_mat_l = 0.
+        this%B_mat_l(1,1) = freestream%B**2*this%r*freestream%s
+        this%B_mat_l(2,2) = freestream%B**2
+        this%B_mat_l(3,3) = freestream%B**2*this%r
+
+        this%C_mat_l = 0.
+        this%C_mat_l(1,1) = this%r
+        this%C_mat_l(2,2) = freestream%s
+        this%C_mat_l(3,3) = this%r*freestream%s
+
+        ! Check calculation
+        if (any(abs(this%B_mat_l - matmul(this%A_g_to_ls, matmul(freestream%B_mat_g, transpose(this%A_g_to_ls)))) > 1e-12)) then
+            write(*,*) "!!! Calculation of local scaled coordinate transform failed. Quitting..."
+        end if
 
         ! Calculate properties dependent on the transforms
         call this%calc_edge_tangents()
@@ -290,7 +302,7 @@ contains
 
 
     subroutine panel_calc_g_to_ls_transform(this, freestream)
-        ! Calculates the necessary transformations to move from global to local, scaled coordinates
+        ! Calculates the necessary transformations to move from global to local, scaled coordinates (Eq. (E.0.1) in Epton and Magnus)
 
         implicit none
 
@@ -379,6 +391,8 @@ contains
             ! Calculate outward normal
             this%n_hat_g(i,:) = cross(this%t_hat_g(i,:), this%normal)
             this%n_hat_l(i,:) = matmul(this%A_g_to_l(1:2,:), this%n_hat_g(i,:))
+
+            ! Calculate edge type indicator
 
         end do
     
