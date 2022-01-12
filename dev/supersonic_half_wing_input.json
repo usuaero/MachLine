@@ -9,7 +9,7 @@
         "mirror_about": "xz",
         "spanwise_axis" : "+y",
         "wake_model": {
-            "append_wake" : true,
+            "append_wake" : false,
             "N_panels" : 1
         },
         "reference": {

@@ -734,7 +734,7 @@ contains
         geom%r = eval_point
 
         ! Transform to panel coordinates
-        r_l = matmul(this%A_g_to_l, geom%r-this%centroid)
+        r_l = matmul(this%A_g_to_ls, geom%r-this%centroid)
         geom%r_in_plane = r_l(1:2)
         geom%h = r_l(3)
 
