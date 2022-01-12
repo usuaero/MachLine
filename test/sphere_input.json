@@ -1,0 +1,23 @@
+{
+    "flow" : {
+        "freestream_velocity" : [0.0, 0.0, 10.0]
+    },
+    "geometry" : {
+        "file" : "test/sphere.vtk",
+        "wake_model" : {
+            "wake_shedding_angle" : 90.0,
+            "trefftz_distance" : 40.0,
+            "N_panels" : 50
+        }
+    },
+    "solver" : {
+        "formulation" : "morino",
+        "control_point_offset" : 1.0e-5
+    },
+    "output" : {
+        "body_file" : "test/results/sphere.vtk",
+        "wake_file" : "test/results/sphere_wake.vtk",
+        "control_point_file" : "test/results/sphere_control_points.vtk",
+        "report_file": "test/results/report.txt"
+    }
+}

@@ -2,12 +2,12 @@
     "flow": {
         "freestream_velocity": [
             100.0,
-            0.0,
-            -10.0
+            -30.0,
+            10.0
         ]
     },
     "geometry": {
-        "file": "dev/meshes/full_wing.vtk",
+        "file": "test/full_wing.vtk",
         "wake_model": {
             "wake_shedding_angle": 90.0,
             "trefftz_distance": 100.0,
@@ -22,9 +22,9 @@
         "control_point_offset": 1.1e-05
     },
     "output": {
-        "body_file": "dev/results/full_wing_source_free.vtk",
-        "wake_file": "dev/results/full_wing_source_free_wake.vtk",
-        "control_point_file": "dev/results/full_wing_source_free_control_points.vtk",
-        "report_file": "dev/report.txt"
+        "body_file": "test/results/full_wing.vtk",
+        "wake_file": "test/results/full_wing_wake.vtk",
+        "control_point_file": "test/results/full_wing_control_points.vtk",
+        "report_file": "test/results/report.txt"
     }
 }
