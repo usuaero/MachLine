@@ -48,8 +48,8 @@ module panel_mod
         real,dimension(3,3) :: A_g_to_l, A_s_to_ls, A_g_to_ls, A_ls_to_g ! Coordinate transformation matrices
         real,dimension(3,3) :: B_mat_l, C_mat_l ! Relevant compressibility matrices
         real,dimension(:,:),allocatable :: vertices_l, midpoints_l ! Location of the vertices and edge midpoints described in local coords
-        real,dimension(:,:),allocatable :: t_hat_g, t_hat_l ! Edge unit tangents
-        real,dimension(:,:),allocatable :: n_hat_g, n_hat_l ! Edge unit outward normals
+        real,dimension(:,:),allocatable :: t_hat_g, t_hat_l, t_hat_ls ! Edge unit tangents
+        real,dimension(:,:),allocatable :: n_hat_g, n_hat_l, n_hat_ls ! Edge unit outward normals
         real,dimension(:),allocatable :: l ! Edge lengths
         real :: A ! Surface area
         real,dimension(:,:),allocatable :: S_mu_inv, S_sigma_inv ! Matrix relating doublet/source strengths to doublet/source influence parameters
@@ -58,7 +58,7 @@ module panel_mod
         integer,dimension(3) :: abutting_panels ! Indices of panels abutting this one
         integer,dimension(3) :: edges ! Indices of this panel's edges
         real :: r ! Panel inclination indicator; r=-1 -> superinclined, r=1 -> subinclined
-        real,dimension(3) :: q ! Edge type indicator; q=1 -> subsonic, q=-1 -> supersonic
+        integer,dimension(3) :: q ! Edge type indicator; q=1 -> subsonic, q=-1 -> supersonic
 
         contains
 
@@ -274,7 +274,7 @@ contains
         end if
 
         ! Calculate properties dependent on the transforms
-        call this%calc_edge_tangents()
+        call this%calc_edge_tangents(freestream)
         call this%calc_singularity_matrices()
 
     end subroutine panel_calc_transforms
@@ -355,20 +355,25 @@ contains
     end subroutine panel_calc_g_to_ls_transform
 
 
-    subroutine panel_calc_edge_tangents(this)
+    subroutine panel_calc_edge_tangents(this, freestream)
 
         implicit none
 
         class(panel),intent(inout) :: this
+        type(flow),intent(in) :: freestream
+
         real,dimension(3) :: d
+        real,dimension(2) :: e
         integer :: i
 
         ! Allocate memory
         allocate(this%l(this%N))
         allocate(this%t_hat_g(this%N,3))
         allocate(this%t_hat_l(this%N,2))
+        allocate(this%t_hat_ls(this%N,2))
         allocate(this%n_hat_g(this%N,3))
         allocate(this%n_hat_l(this%N,2))
+        allocate(this%n_hat_ls(this%N,2))
 
         ! Loop through edges
         do i=1,this%N
@@ -384,15 +389,25 @@ contains
             ! Calculate edge length
             this%l(i) = norm(d)
 
-            ! Calculate tangent
+            ! Calculate tangent in global and local coords
             this%t_hat_g(i,:) = d/this%l(i)
             this%t_hat_l(i,:) = matmul(this%A_g_to_l(1:2,:), this%t_hat_g(i,:))
 
+            ! Calculate tangent in local scaled coords
+            e = matmul(this%A_g_to_ls(1:2,:), d)
+            this%t_hat_ls(i,:) = e/sqrt(abs(this%r*freestream%s*e(1)**2 + e(2)**2))
+
             ! Calculate outward normal
             this%n_hat_g(i,:) = cross(this%t_hat_g(i,:), this%normal)
-            this%n_hat_l(i,:) = matmul(this%A_g_to_l(1:2,:), this%n_hat_g(i,:))
+            this%n_hat_l(i,1) = this%t_hat_l(i,2)
+            this%n_hat_l(i,2) = -this%t_hat_l(i,1)
+
+            ! Calculate outward normal in local scaled coords
+            this%n_hat_ls(i,1) = this%t_hat_ls(i,2)
+            this%n_hat_ls(i,2) = -this%t_hat_ls(i,1)
 
             ! Calculate edge type indicator
+            this%q(i) = nint(this%r*this%t_hat_ls(i,1)**2 + freestream%s*this%t_hat_ls(i,2)**2)
 
         end do
     
@@ -750,7 +765,7 @@ contains
             geom%l2(i) = geom%l1(i)+this%l(i)
 
             ! Distance from evaluation point to start vertex
-            ! This is not the definition given by Johnson, but this is equivalent.
+            ! This is not the definition given by Johnson, but it is equivalent.
             ! I believe this method suffers from less numerical error.
             geom%s1(i) = norm(this%get_vertex_loc(i)-geom%r)
 

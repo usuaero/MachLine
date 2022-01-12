@@ -179,7 +179,7 @@ contains
         logical :: already_found_shared, dummy
         real :: distance
         integer,dimension(2) :: shared_verts
-        type(list) :: panel1, panel2, vertex1, vertex2, on_mirror_plane
+        type(list) :: panel1, panel2, vertex1, vertex2, on_mirror_plane, edge_index1, edge_index2
 
         write(*,'(a)',advance='no') "     Locating adjacent panels..."
 
@@ -229,16 +229,20 @@ contains
                                 if (m-m1 == 1) then
                                     this%panels(i)%abutting_panels(m1) = j
                                     this%panels(i)%edges(m1) = panel1%len()
+                                    call edge_index1%append(m1)
                                 else
                                     this%panels(i)%abutting_panels(m) = j
                                     this%panels(i)%edges(m) = panel1%len()
+                                    call edge_index1%append(m)
                                 end if
                                 if (n-n1 == 1) then
                                     this%panels(j)%abutting_panels(n1) = i
                                     this%panels(i)%edges(n1) = panel1%len()
+                                    call edge_index2%append(n1)
                                 else
                                     this%panels(j)%abutting_panels(n) = i
                                     this%panels(i)%edges(n) = panel1%len()
+                                    call edge_index2%append(n)
                                 end if
                                 
                                 ! Break out of loop
@@ -298,9 +302,12 @@ contains
                             ! Store adjacent panel
                             if (m-m1 == 1) then
                                 this%panels(i)%abutting_panels(m1) = i+this%N_panels
+                                call edge_index1%append(m1)
                             else
                                 this%panels(i)%abutting_panels(m) = i+this%N_panels
+                                call edge_index1%append(m)
                             end if
+                            call edge_index2%append(0) ! Really meaningless since the second panel doesn't technically exist
 
                             ! Break out of loop
                             exit mirror_loop
@@ -337,7 +344,13 @@ contains
 
             ! Initialize
             call this%edges(i)%init(shared_verts(1), shared_verts(2), m, n)
+
+            ! Store more information
+            call edge_index1%get(i, m)
+            call edge_index2%get(i, n)
             this%edges(i)%on_mirror_plane = dummy
+            this%edges(i)%edge_index_for_panel(1) = m
+            this%edges(i)%edge_index_for_panel(2) = n
 
         end do
 
@@ -530,6 +543,16 @@ contains
 
             ! Determine if this edge is discontinuous in supersonic flow
             if (freestream%supersonic) then
+
+                ! Update edge inclination
+                this%edges(k)%inclination = this%panels(this%edges(i)%panels(1))%q(this%edges(i)%edge_index_for_panel(1))
+
+                ! If the edge is supersonic, then further checks are needed
+                if (this%edges(k)%inclination == -1) then
+
+                    ! If
+
+                end if
 
             end if
 
