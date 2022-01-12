@@ -9,7 +9,7 @@ program main
     implicit none
 
     character(100) :: input_file
-    character(len=:),allocatable :: body_file, wake_file, control_point_file, report_file
+    character(len=:),allocatable :: body_file, wake_file, control_point_file, report_file, spanwise_axis
 
     type(json_file) :: input_json
     type(json_value), pointer :: flow_settings,&
@@ -65,7 +65,8 @@ program main
     call body_mesh%init(geometry_settings)
 
     ! Initialize flow
-    call freestream_flow%init(flow_settings)
+    call json_xtnsn_get(geometry_settings, 'spanwise_axis', spanwise_axis, '+y')
+    call freestream_flow%init(flow_settings, spanwise_axis)
 
     write(*,*)
     write(*,*) "Initializing"

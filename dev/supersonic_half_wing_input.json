@@ -7,6 +7,7 @@
     "geometry": {
         "file": "dev/meshes/straight_diamond_half_wing.vtk",
         "mirror_about": "xz",
+        "spanwise_axis" : "+y",
         "wake_model": {
             "append_wake" : true,
             "N_panels" : 1

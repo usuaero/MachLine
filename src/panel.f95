@@ -276,7 +276,7 @@ contains
         type(flow),intent(in) :: freestream
 
         ! Calculate local eta axis
-        this%A_g_to_l(2,:) = cross(this%normal, freestream%c0)
+        this%A_g_to_l(2,:) = cross(this%normal, freestream%c_hat_g)
         this%A_g_to_l(2,:) = this%A_g_to_l(2,:)/norm(this%A_g_to_l(2,:))
 
         ! Calculate local xi axis
@@ -328,7 +328,7 @@ contains
         end do
 
         ! Construct other matrices
-        B0 = outer(freestream%c0, freestream%c0)
+        B0 = outer(freestream%c_hat_g, freestream%c_hat_g)
         C0 = freestream%s*freestream%B**2*I + freestream%M_inf**2*B0
         B0 = I - freestream%M_inf**2*B0
 
@@ -613,7 +613,7 @@ contains
 
             ! Check if the centroid is further from the Mach cone than the panel radius
             d = point-eval_point
-            x = inner(d, freestream%c0)
+            x = inner(d, freestream%c_hat_g)
             y = sqrt(norm(d)**2-x**2)
             if (y >= freestream%B*x .and. sqrt((x+freestream%B*y)**2/(1.+freestream%B**2)) >= this%radius) then
                 radius_smaller = .true.
