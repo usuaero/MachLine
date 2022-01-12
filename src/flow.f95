@@ -17,16 +17,16 @@ module flow_mod
         real :: c ! Freestream speed of sound
         real :: mu, C_mu ! Mach angle
         real,dimension(3) :: c0 ! Compressibility axis (assumed in TriPan to be aligned with the freestream direction)
-        real,dimension(3,3) :: C0_mat
         logical,dimension(3) :: sym_about ! Whether the flow condition is symmetric about any plane
-        real,dimension(3,3) :: psi ! Dual metric matrix, expressed in global coords
+        real,dimension(3,3) :: B_mat_g, B_mat_c ! Dual metric matrix
+        real,dimension(3,3) :: C_mat_g, C_mat_c ! Metric matrix
         logical :: supersonic, incompressible
         real,dimension(3,3) :: A_g_to_c, A_c_to_s, A_g_to_s ! Coordinate transformation matrices
 
         contains
 
             procedure :: init => flow_init
-            procedure :: C0_inner => flow_C0_inner
+            procedure :: C_g_inner => flow_C_g_inner
             procedure :: point_in_dod => flow_point_in_dod
 
     end type flow
@@ -86,25 +86,44 @@ contains
         end if
 
         ! Assemble dual metric matrix
+        ! Global
         do i=1,3
-            this%psi(i,i) = 1.
+            this%B_mat_g(i,i) = 1.
         end do
-        this%psi = this%psi-this%M_inf**2*outer(this%c0, this%c0)
+        this%B_mat_g = this%B_mat_g-this%M_inf**2*outer(this%c0, this%c0)
+
+        ! Compressible
+        this%B_mat_c = 0.
+        this%B_mat_c(1,1) = this%s*this%B**2
+        this%B_mat_c(2,2) = 1.
+        this%B_mat_c(3,3) = 1.
         
-        ! Calculate C0 matrix
-        this%C0_mat = 0.
-        this%C0_mat(1,1) = 1.
-        this%C0_mat(2,2) = this%s*this%B**2
-        this%C0_mat(3,3) = this%s*this%B**2
+        ! Assemble metric matrix
+        ! Global
+        do i=1,3
+            this%C_mat_g(i,i) = this%s*this%B**2
+        end do
+        this%C_mat_g = this%C_mat_g+this%M_inf**2*outer(this%c0, this%c0)
+
+        ! Compressible
+        this%C_mat_c = 0.
+        this%C_mat_c(1,1) = 1.
+        this%C_mat_c(2,2) = this%s*this%B**2
+        this%C_mat_c(3,3) = this%s*this%B**2
 
         ! Check symmetry
         this%sym_about = this%v_inf == 0.
 
+        ! Calculate transform from global to compressible coordinates
+
+        ! Calculate transform from compressible to scaled coordinates
+
+
     end subroutine flow_init
 
 
-    function flow_C0_inner(this, a, b) result(c)
-        ! Calculates the inner product a*C0*b = c
+    function flow_C_g_inner(this, a, b) result(c)
+        ! Calculates the inner product a*C_g*b = c
 
         implicit none
 
@@ -112,9 +131,9 @@ contains
         real,dimension(3),intent(in) :: a, b
         real :: c
 
-        c = inner(a, matmul(this%C0_mat, b))
+        c = inner(a, matmul(this%C_mat_g, b))
 
-    end function flow_C0_inner
+    end function flow_C_g_inner
 
 
     function flow_point_in_dod(this, Q, P) result(in_dod)
@@ -135,7 +154,7 @@ contains
         if (inner(d, this%c0) >=0.) then
 
             ! Check in dod
-            if (this%C0_inner(d, d) >= 0.) then
+            if (this%C_g_inner(d, d) >= 0.) then
 
                 in_dod = .true.
                 return

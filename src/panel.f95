@@ -46,6 +46,7 @@ module panel_mod
         real,dimension(:,:),allocatable :: midpoints
         real,dimension(3) :: centroid
         real,dimension(3,3) :: A_g_to_l, A_s_to_ls, A_g_to_ls, A_ls_to_g ! Coordinate transformation matrices
+        real,dimension(3,3) :: B_l, C_l ! Relevant compressibility matrices
         real,dimension(:,:),allocatable :: vertices_l, midpoints_l ! Location of the vertices and edge midpoints described in local coords
         real,dimension(:,:),allocatable :: t_hat_g, t_hat_l ! Edge unit tangents
         real,dimension(:,:),allocatable :: n_hat_g, n_hat_l ! Edge unit outward normals
@@ -255,6 +256,11 @@ contains
 
         end do
 
+        ! Calculate compressibility matrices
+        this%B_l(1,1) = freestream%B**2*this%r*freestream%s
+        this%B_l(2,2) = freestream%B**2
+        this%B_l(3,3) = freestream%B**2*this%r
+
         ! Calculate properties dependent on the transforms
         call this%calc_edge_tangents()
         call this%calc_singularity_matrices()
@@ -301,7 +307,7 @@ contains
         v0 = this%A_g_to_l(2,:)
 
         ! Calculate compressible parameters
-        this%conormal = matmul(freestream%psi, this%normal)
+        this%conormal = matmul(freestream%B_mat_g, this%normal)
         x = inner(this%normal, this%conormal)
         this%r = sign(1., x) ! r=-1 -> superinclined, r=1 -> subinclined
 
@@ -1263,6 +1269,11 @@ contains
         real,dimension(:,:,:),allocatable :: H
         real,dimension(:,:,:,:),allocatable :: F
 
+        ! Allocate velocity
+        if (source_order == 0) then
+            allocate(phi(1), source=0.)
+        end if
+
         ! In dod
         if (dod_info%in_dod) then
 
@@ -1277,7 +1288,6 @@ contains
                 if (source_order == 0) then
 
                     ! Compute induced potential
-                    allocate(phi(1))
                     phi = -0.25/pi*H(1,1,1)
 
                 end if
@@ -1285,17 +1295,8 @@ contains
                 ! Clean up
                 deallocate(H)
                 deallocate(F)
-            end if
-
-        else
-
-            ! Not in DoD, so there is no influence
-            if (source_order == 0) then
-
-                allocate(phi(1), source=0.)
 
             end if
-
         end if
     
     end function panel_get_source_potential
@@ -1317,6 +1318,11 @@ contains
         real,dimension(:,:,:),allocatable :: H
         real,dimension(:,:,:,:),allocatable :: F
 
+        ! Allocate velocity
+        if (source_order == 0) then
+            allocate(v(1,3), source=0.)
+        end if
+
         ! In dod
         if (dod_info%in_dod) then
 
@@ -1328,10 +1334,9 @@ contains
                 ! Get integrals
                 call this%calc_integrals(geom, "velocity", "source", H, F)
 
-                if (source_order .eq. 0) then
+                if (source_order == 0) then
 
                     ! Calculate velocity
-                    allocate(v(1,3))
                     v(1,1) = 0.25/pi*sum(this%n_hat_l(:,1)*F(:,1,1,1))
                     v(1,2) = 0.25/pi*sum(this%n_hat_l(:,2)*F(:,1,1,1))
                     v(1,3) = 0.25/pi*geom%h*H(1,1,3)
@@ -1341,17 +1346,8 @@ contains
                 ! Clean up
                 deallocate(H)
                 deallocate(F)
-            end if
-
-        else
-
-            ! Not in DoD, so there is no influence
-            if (source_order .eq. 0) then
-
-                allocate(v(1,3), source=0.)
 
             end if
-
         end if
 
     end function panel_get_source_velocity
@@ -1375,6 +1371,33 @@ contains
         integer,dimension(:),allocatable :: H_shape
         integer :: i, j, k
 
+        ! Specify influencing vertices (also sets zero default influence)
+        if (doublet_order == 1) then
+            if (this%in_wake) then
+
+                ! Wake panels are influenced by two sets of vertices
+                allocate(vertex_indices(6))
+                vertex_indices(1) = this%vertices(1)%ptr%top_parent
+                vertex_indices(2) = this%vertices(2)%ptr%top_parent
+                vertex_indices(3) = this%vertices(3)%ptr%top_parent
+                vertex_indices(4) = this%vertices(1)%ptr%bot_parent
+                vertex_indices(5) = this%vertices(2)%ptr%bot_parent
+                vertex_indices(6) = this%vertices(3)%ptr%bot_parent
+
+                ! Set default influence
+                allocate(phi(6), source=0.)
+
+            else
+
+                ! Body panels are influenced by only one set of vertices
+                allocate(vertex_indices, source=this%vertex_indices)
+
+                ! Set default influence
+                allocate(phi(3), source=0.)
+
+            end if
+        end if
+
         ! Check DoD
         if (dod_info%in_dod) then
 
@@ -1388,27 +1411,6 @@ contains
 
                 ! Calculate influence
                 if (doublet_order == 1) then
-
-                    ! Specify influencing vertices
-                    if (this%in_wake) then
-
-                        ! Wake panels are influenced by two sets of vertices
-                        allocate(vertex_indices(6))
-                        allocate(phi(6), source=0.)
-                        vertex_indices(1) = this%vertices(1)%ptr%top_parent
-                        vertex_indices(2) = this%vertices(2)%ptr%top_parent
-                        vertex_indices(3) = this%vertices(3)%ptr%top_parent
-                        vertex_indices(4) = this%vertices(1)%ptr%bot_parent
-                        vertex_indices(5) = this%vertices(2)%ptr%bot_parent
-                        vertex_indices(6) = this%vertices(3)%ptr%bot_parent
-
-                    else
-
-                        ! Body panels are influenced by only one set of vertices
-                        allocate(vertex_indices, source=this%vertex_indices)
-                        allocate(phi(3), source=0.)
-
-                    end if
 
                     ! Compute induced potential
                     phi(1) = geom%h*H(1,1,3)
@@ -1430,35 +1432,6 @@ contains
                 deallocate(F)
 
             end if
-
-        else
-
-            ! Specify no influence
-            if (doublet_order == 1) then
-
-                ! Specify influencing vertices
-                if (this%in_wake) then
-
-                    ! Wake panels are influenced by two sets of vertices
-                    allocate(vertex_indices(6))
-                    allocate(phi(6), source=0.)
-                    vertex_indices(1) = this%vertices(1)%ptr%top_parent
-                    vertex_indices(2) = this%vertices(2)%ptr%top_parent
-                    vertex_indices(3) = this%vertices(3)%ptr%top_parent
-                    vertex_indices(4) = this%vertices(1)%ptr%bot_parent
-                    vertex_indices(5) = this%vertices(2)%ptr%bot_parent
-                    vertex_indices(6) = this%vertices(3)%ptr%bot_parent
-
-                else
-
-                    ! Body panels are influenced by only one set of vertices
-                    allocate(vertex_indices, source=this%vertex_indices)
-                    allocate(phi(3), source=0.)
-
-                end if
-
-            end if
-
         end if
     
     end function panel_get_doublet_potential
@@ -1479,6 +1452,33 @@ contains
         type(eval_point_geom) :: geom
         real,dimension(:,:,:),allocatable :: H
         real,dimension(:,:,:,:),allocatable :: F
+
+        ! Allocate velocity and vertices
+        if (doublet_order .eq. 1) then
+            if (this%in_wake) then
+
+                ! Wake panels are influenced by two sets of vertices
+                allocate(vertex_indices(6))
+                vertex_indices(1) = this%vertices(1)%ptr%top_parent
+                vertex_indices(2) = this%vertices(2)%ptr%top_parent
+                vertex_indices(3) = this%vertices(3)%ptr%top_parent
+                vertex_indices(4) = this%vertices(1)%ptr%bot_parent
+                vertex_indices(5) = this%vertices(2)%ptr%bot_parent
+                vertex_indices(6) = this%vertices(3)%ptr%bot_parent
+
+                ! Set default influence
+                allocate(v(6,3), source=0.)
+
+            else
+
+                ! Body panels are influenced by only one set of vertices
+                allocate(vertex_indices, source=this%vertex_indices)
+
+                ! Set default influence
+                allocate(v(3,3), source=0.)
+
+            end if
+        end if
 
         ! Check DoD
         if (dod_info%in_dod) then
@@ -1506,20 +1506,6 @@ contains
                 deallocate(F)
 
             end if
-
-        else
-
-            ! Specify no influence
-            if (doublet_order .eq. 1) then
-
-                ! Specify influencing vertices
-                allocate(vertex_indices(3), source=this%vertex_indices)
-
-                ! Calculate velocity
-                allocate(v(3,3), source=0.)
-
-            end if
-
         end if
 
     end function panel_get_doublet_velocity
