@@ -26,6 +26,8 @@ module flow_mod
         contains
 
             procedure :: init => flow_init
+            procedure :: calc_metric_matrices => flow_calc_metric_matrices
+            procedure :: calc_transforms => flow_calc_transforms
             procedure :: C_g_inner => flow_C_g_inner
             procedure :: point_in_dod => flow_point_in_dod
 
@@ -45,7 +47,6 @@ contains
 
         logical :: found
         integer :: i
-        real,dimension(3) :: y_g, c_hat_c, c_hat_s
 
         ! Get flow params
         call json_get(settings, 'freestream_velocity', this%v_inf, found)
@@ -55,6 +56,9 @@ contains
         end if
         call json_xtnsn_get(settings, 'freestream_mach_number', this%M_inf, 0.0)
         call json_xtnsn_get(settings, 'gamma', this%gamma, 1.4)
+
+        ! Check symmetry
+        this%sym_about = this%v_inf == 0.
 
         ! Derived quantities
         this%U = norm(this%v_inf)
@@ -81,11 +85,24 @@ contains
         ! Calculate freestream speed of sound
         this%c = this%M_inf*this%U
 
-        ! Calculate Mach angle
+        ! Calculate Mach angle (if supersonic; it is meaningless otherwise)
         if (this%supersonic) then
             this%mu = asin(1.0/this%M_inf)
             this%C_mu = cos(this%mu)
         end if
+
+        ! Calculate relevant matrices
+        call this%calc_metric_matrices()
+        call this%calc_transforms(spanwise_axis)
+
+    end subroutine flow_init
+
+
+    subroutine flow_calc_metric_matrices(this)
+
+        implicit none
+
+        class(flow),intent(inout) :: this
 
         ! Assemble dual metric matrix
         ! Global
@@ -112,38 +129,50 @@ contains
         this%C_mat_c(1,1) = 1.
         this%C_mat_c(2,2) = this%s*this%B**2
         this%C_mat_c(3,3) = this%s*this%B**2
+    
+    end subroutine flow_calc_metric_matrices
 
-        ! Check symmetry
-        this%sym_about = this%v_inf == 0.
 
-        ! Set spanwise axis
-        y_g = 0.
+    function flow_calc_transforms(this, spanwise_axis)
+
+        implicit none
+
+        class(flow),intent(inout) :: this
+        character(len=:),allocatable,intent(in) :: spanwise_axis
+
+        real,dimension(3) :: j_g, c_hat_c, c_hat_s
+
+        ! Set positive spanwise axis
+        j_g = 0.
         select case (spanwise_axis)
 
         case ('+x')
-            y_g(1) = 1.
+            j_g(1) = 1.
 
         case ('-x')
-            y_g(1) = -1.
+            j_g(1) = -1.
 
         case ('+y')
-            y_g(2) = 1.
+            j_g(2) = 1.
 
         case ('-y')
-            y_g(2) = -1.
+            j_g(2) = -1.
 
         case ('+z')
-            y_g(3) = 1.
+            j_g(3) = 1.
 
         case ('-z')
-            y_g(3) = -1.
+            j_g(3) = -1.
+
+        case default
+            j_g(2) = 1.
 
         end select
 
         ! Calculate transform from global to compressible coordinates
         this%A_g_to_c = 0.
         this%A_g_to_c(:,1) = this%c_hat_g
-        this%A_g_to_c(:,3) = cross(this%c_hat_g, y_g)
+        this%A_g_to_c(:,3) = cross(this%c_hat_g, j_g)
         this%A_g_to_c(:,3) = this%A_g_to_c(:,3)/norm(this%A_g_to_c(:,3))
         this%A_g_to_c(:,2) = cross(this%A_g_to_c(:,3), this%c_hat_g)
 
@@ -162,7 +191,7 @@ contains
         ! Calculate transform from global to scaled coordinates
         this%A_g_to_s = matmul(this%A_c_to_s, this%A_g_to_c)
 
-    end subroutine flow_init
+    end function flow_calc_transforms
 
 
     function flow_C_g_inner(this, a, b) result(c)
