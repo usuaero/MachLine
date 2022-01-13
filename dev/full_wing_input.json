@@ -2,12 +2,16 @@
     "flow": {
         "freestream_velocity": [
             100.0,
-            0.0,
-            -10.0
+            -30.0,
+            10.0
         ]
     },
     "geometry": {
         "file": "dev/meshes/full_wing.vtk",
+        "singularity_order": {
+            "doublet": 1,
+            "source": 0
+        },
         "wake_model": {
             "wake_shedding_angle": 90.0,
             "trefftz_distance": 100.0,

@@ -229,7 +229,7 @@ contains
                 do i=1,body%N_panels
 
                     ! Existing panels
-                    body%sigma(i) = inner(body%panels(i)%normal, this%freestream%c_hat_g)
+                    body%sigma(i) = inner(body%panels(i)%normal, this%freestream%c0)
 
                     ! Mirrored panels for asymmetric flow
                     if (body%mirrored .and. body%asym_flow) then
@@ -238,7 +238,7 @@ contains
                         n_mirrored = mirror_about_plane(body%panels(i)%normal, body%mirror_plane)
 
                         ! Calculate source strength
-                        body%sigma(i+body%N_panels) = inner(n_mirrored, this%freestream%c_hat_g)
+                        body%sigma(i+body%N_panels) = inner(n_mirrored, this%freestream%c0)
 
                     end if
                 end do
@@ -426,13 +426,13 @@ contains
 
                 ! If the control point is unique, it's target potential will need to be set for the source-free formulation
                 else if (.not. morino) then
-                    b(i+body%N_cp) = inner(body%cp_mirrored(i,:), this%freestream%c_hat_g)
+                    b(i+body%N_cp) = inner(body%cp_mirrored(i,:), this%freestream%c0)
                 end if
             end if
 
             ! Set target potential for source-free formulation
             if (.not. morino) then
-                b(i) = inner(body%control_points(i,:), this%freestream%c_hat_g)
+                b(i) = inner(body%control_points(i,:), this%freestream%c0)
             end if
 
         end do
@@ -539,12 +539,12 @@ contains
                 if (morino) then
 
                     ! Original panel
-                    body%V(i,:) = this%freestream%U*(-this%freestream%c_hat_g + body%panels(i)%get_velocity_jump(body%mu, &
+                    body%V(i,:) = this%freestream%U*(-this%freestream%c0 + body%panels(i)%get_velocity_jump(body%mu, &
                                   body%sigma, .false., body%mirror_plane))
 
                     ! Mirror
-                    body%V(i+body%N_panels,:) = this%freestream%U*(-this%freestream%c_hat_g + &
-                                                body%panels(i)%get_velocity_jump(body%mu, body%sigma, .true., body%mirror_plane))
+                    body%V(i+body%N_panels,:) = this%freestream%U*(-this%freestream%c0 + body%panels(i)%get_velocity_jump(body%mu, &
+                                                body%sigma, .true., body%mirror_plane))
                 
                 else
 
@@ -570,7 +570,7 @@ contains
             ! Calculate the surface velocity on each panel
             if (morino) then
                 do i=1,body%N_panels
-                    body%V(i,:) = this%freestream%U*(-this%freestream%c_hat_g &
+                    body%V(i,:) = this%freestream%U*(-this%freestream%c0 &
                                   + body%panels(i)%get_velocity_jump(body%mu, body%sigma, .false., 0))
                 end do
             else

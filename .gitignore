@@ -31,5 +31,5 @@
 *.out
 *.app
 
-# python stuff
+# Other stuff
 __pycache__/

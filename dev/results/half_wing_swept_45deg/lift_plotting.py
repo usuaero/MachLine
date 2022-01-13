@@ -3,54 +3,58 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
+#from PyPDF2 import PdfFileMerger
 
-def Pressure_Plot(file, Plot_label):
+def Pressure_Plot(file, Plot_label, LE_loc):
     Data = np.genfromtxt(file, delimiter=",", skip_header=1, dtype=float)
 
     C_p = Data[:,0]
     x = Data[:,1]
 
-    var_name = [ k for k,v in locals().items() if v == file][0]
-    print(var_name)
-    if file == file10_first_AoA or \
-        file == file10_second_AoA or \
-        file == file10_third_AoA or \
-        file == file10_fourth_AoA or \
-        file == file10_fifth_AoA or \
-        file == file10_sixth_AoA:
+    # Ensure the plots are colored consistently
+    if LE_loc == '89.8':
+            if file == file17_first_AoA or file == file17_second_AoA or file == file17_third_AoA:
 
-        colors = 'g'
+                colors = 'b'
 
-    elif file == file17_first_AoA or \
-        file == file17_second_AoA or \
-        file == file17_third_AoA or \
-        file == file17_fourth_AoA or \
-        file == file17_fifth_AoA or \
-        file == file17_sixth_AoA:
+            elif file == file25_first_AoA or file == file25_second_AoA or file == file25_third_AoA:
 
-        colors = 'b'
+                colors = 'c'
 
-    elif file == file25_first_AoA or \
-        file == file25_second_AoA or \
-        file == file25_third_AoA or \
-        file == file25_fourth_AoA or \
-        file == file25_fifth_AoA or \
-        file == file25_sixth_AoA:
+            elif file == file45_first_AoA or file == file45_second_AoA or file == file45_third_AoA:
 
-        colors = 'c'
+                colors = 'r'
 
-    elif file == file45_first_AoA or \
-        file == file45_second_AoA or \
-        file == file45_third_AoA or \
-        file == file45_fourth_AoA or \
-        file == file45_fifth_AoA or \
-        file == file45_sixth_AoA:
+            else:
+                colors = 'y'
+            
+    elif LE_loc == '94.9':
+            if file == file45_first_AoA or file == file45_second_AoA or file == file45_third_AoA or file == file45_fourth_AoA or file == file45_fifth_AoA or file == file45_sixth_AoA:
 
-        colors = 'r'
+                colors = 'r'
 
+            else:
+                colors = 'y'
 
     else:
-        colors = 'y'
+        if file == file10_first_AoA or file == file10_second_AoA or file == file10_third_AoA or file == file10_fourth_AoA or file == file10_fifth_AoA or file == file10_sixth_AoA:
+
+            colors = 'g'
+
+        elif file == file17_first_AoA or file == file17_second_AoA or file == file17_third_AoA or file == file17_fourth_AoA or file == file17_fifth_AoA or file == file17_sixth_AoA:
+
+            colors = 'b'
+
+        elif file == file25_first_AoA or file == file25_second_AoA or file == file25_third_AoA or file == file25_fourth_AoA or file == file25_fifth_AoA or file == file25_sixth_AoA:
+
+            colors = 'c'
+
+        elif file == file45_first_AoA or file == file45_second_AoA or file == file45_third_AoA or file == file45_fourth_AoA or file == file45_fifth_AoA or file == file45_sixth_AoA:
+
+            colors = 'r'
+
+        else:
+            colors = 'y'
     
     plt.plot((x-x_LE)/chord,C_p, label=Plot_label, color = colors)
 
@@ -511,28 +515,50 @@ for i in range(len(AoA)):
     Notes.append(y + AoA[i] + r'$^{\circ}$')
 
 #===Plotting Section===
+list_of_files = []
 #Iterate over all angles of attack
 for i in range(len(file)):
 
+    complete_title = title + ', ' + Notes[i]
     #Iterate over all node densities
     for j in range(len(file[0])):
 
-        Pressure_Plot(file[i][j], labels[j])
+        Pressure_Plot(file[i][j], labels[j], LE_Location)
 
-    #Pull in experimental results for comparison at each angle of attack
-    plt.plot(Experimental[:,0], Experimental[:,i+1], ".",color="k", label="Exerimental")
+    #Pull in experimental results for comparison at each angle of attack differentiating upper and lower surfaces
+    upper_surface_count = Experimental[:,0].size//2 + Experimental[:,0].size%2
+
+    plt.plot(Experimental[:upper_surface_count+1,0], Experimental[:upper_surface_count+1,i+1], ".",color="k", label="Exerimental Upper Surface")
+    plt.plot(Experimental[upper_surface_count:,0], Experimental[upper_surface_count:,i+1], "*",color="k", label="Exerimental Lower Surface")
+
+
 
     #Plot the figure containing all curves
-    plt.title(title)
-    plt.figtext(0.425, 0.18, Notes[i])
+    plt.title(complete_title)
     plt.xlabel('x/c')
     plt.ylabel(r"$C_p$")
     plt.gca().invert_yaxis()
-    plt.legend()
+    if LE_Location == '94.9':
+        plt.legend()
+    else:
+        plt.legend(ncol = 2)
 
     #Save the figure in its appropriate location
     # filename = LE_Location + "_percent_semispan/plots_" + LE_Location + "_percent_semispan/" + AoA[i] + "degrees_AoA_plot.pdf"
+    # list_of_files.append(filename)
     # plt.savefig(filename)
 
-    
     plt.show()
+
+
+# Combine all pdf output files for each case in respective folder locations
+# merger = PdfFileMerger()
+# Combined_name = LE_Location + '_percent_semispan/plots_' + LE_Location + '_percent_semispan/Combined_plots_' + LE_Location + '_percent_semispan.pdf'
+# Combined_name_copy = 'Plot_Summary/' + 'Combined_plots_' + LE_Location + '_percent_semispan.pdf'
+
+# for k in range(len(list_of_files)):
+#     merger.append(list_of_files[k])
+
+# merger.write(Combined_name)
+# merger.write(Combined_name_copy)
+# merger.close()

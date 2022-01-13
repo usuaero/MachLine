@@ -1,8 +1,8 @@
 TriPan Report (c) 2021 USU AeroLab
- Maximum residual:   1.8041124150158794E-016
- Norm of residual:   1.0230134708508230E-015
- Maximum pressure coefficient:  0.22076924696866440     
- Minimum pressure coefficient: -0.35753954834891610     
- Cx:  -3.5232843755621848E-004
- Cy:  -7.2210638240148201E-002
- Cz:  -4.5082181093047090E-003
+ Maximum residual:   3.9790393202565610E-013
+ Norm of residual:   6.6738449609867302E-013
+ Maximum pressure coefficient:  0.89548342451175811     
+ Minimum pressure coefficient:  -167065181.53407472     
+ Cx:  -20477146.926844582     
+ Cy:   7552956.3142961506     
+ Cz:  -2801.8956355978735     

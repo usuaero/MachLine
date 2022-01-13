@@ -16,19 +16,17 @@ module flow_mod
         real :: s ! Sign of 1-M^2; determines character of governing PDE (hyperbolic (s=-1) vs elliptic(s=1))
         real :: c ! Freestream speed of sound
         real :: mu, C_mu ! Mach angle
-        real,dimension(3) :: c_hat_g ! Compressibility axis (assumed in TriPan to be aligned with the freestream direction)
+        real,dimension(3) :: c0 ! Compressibility axis (assumed in TriPan to be aligned with the freestream direction)
+        real,dimension(3,3) :: C0_mat
         logical,dimension(3) :: sym_about ! Whether the flow condition is symmetric about any plane
-        real,dimension(3,3) :: B_mat_g, B_mat_c ! Dual metric matrix
-        real,dimension(3,3) :: C_mat_g, C_mat_c ! Metric matrix
+        real,dimension(3,3) :: psi ! Dual metric matrix, expressed in global coords
         logical :: supersonic, incompressible
         real,dimension(3,3) :: A_g_to_c, A_c_to_s, A_g_to_s ! Coordinate transformation matrices
 
         contains
 
             procedure :: init => flow_init
-            procedure :: calc_metric_matrices => flow_calc_metric_matrices
-            procedure :: calc_transforms => flow_calc_transforms
-            procedure :: C_g_inner => flow_C_g_inner
+            procedure :: C0_inner => flow_C0_inner
             procedure :: point_in_dod => flow_point_in_dod
 
     end type flow
@@ -37,13 +35,12 @@ module flow_mod
 contains
 
 
-    subroutine flow_init(this, settings, spanwise_axis)
+    subroutine flow_init(this, settings)
 
         implicit none
 
         class(flow),intent(inout) :: this
         type(json_value),pointer,intent(in) :: settings
-        character(len=:),allocatable,intent(in) :: spanwise_axis
 
         logical :: found
         integer :: i
@@ -57,13 +54,10 @@ contains
         call json_xtnsn_get(settings, 'freestream_mach_number', this%M_inf, 0.0)
         call json_xtnsn_get(settings, 'gamma', this%gamma, 1.4)
 
-        ! Check symmetry
-        this%sym_about = this%v_inf == 0.
-
         ! Derived quantities
         this%U = norm(this%v_inf)
         this%U_inv = 1./this%U
-        this%c_hat_g = -this%v_inf*this%U_inv
+        this%c0 = -this%v_inf*this%U_inv
 
         ! Determine condition
         if (this%M_inf == 1.) then
@@ -85,119 +79,32 @@ contains
         ! Calculate freestream speed of sound
         this%c = this%M_inf*this%U
 
-        ! Calculate Mach angle (if supersonic; it is meaningless otherwise)
+        ! Calculate Mach angle
         if (this%supersonic) then
             this%mu = asin(1.0/this%M_inf)
             this%C_mu = cos(this%mu)
         end if
 
-        ! Calculate relevant matrices
-        call this%calc_metric_matrices()
-        call this%calc_transforms(spanwise_axis)
+        ! Assemble dual metric matrix
+        do i=1,3
+            this%psi(i,i) = 1.
+        end do
+        this%psi = this%psi-this%M_inf**2*outer(this%c0, this%c0)
+        
+        ! Calculate C0 matrix
+        this%C0_mat = 0.
+        this%C0_mat(1,1) = 1.
+        this%C0_mat(2,2) = this%s*this%B**2
+        this%C0_mat(3,3) = this%s*this%B**2
+
+        ! Check symmetry
+        this%sym_about = this%v_inf == 0.
 
     end subroutine flow_init
 
 
-    subroutine flow_calc_metric_matrices(this)
-
-        implicit none
-
-        class(flow),intent(inout) :: this
-
-        integer :: i
-
-        ! Assemble dual metric matrix
-        ! Global
-        do i=1,3
-            this%B_mat_g(i,i) = 1.
-        end do
-        this%B_mat_g = this%B_mat_g-this%M_inf**2*outer(this%c_hat_g, this%c_hat_g)
-
-        ! Compressible
-        this%B_mat_c = 0.
-        this%B_mat_c(1,1) = this%s*this%B**2
-        this%B_mat_c(2,2) = 1.
-        this%B_mat_c(3,3) = 1.
-        
-        ! Assemble metric matrix
-        ! Global
-        do i=1,3
-            this%C_mat_g(i,i) = this%s*this%B**2
-        end do
-        this%C_mat_g = this%C_mat_g+this%M_inf**2*outer(this%c_hat_g, this%c_hat_g)
-
-        ! Compressible
-        this%C_mat_c = 0.
-        this%C_mat_c(1,1) = 1.
-        this%C_mat_c(2,2) = this%s*this%B**2
-        this%C_mat_c(3,3) = this%s*this%B**2
-    
-    end subroutine flow_calc_metric_matrices
-
-
-    subroutine flow_calc_transforms(this, spanwise_axis)
-
-        implicit none
-
-        class(flow),intent(inout) :: this
-        character(len=:),allocatable,intent(in) :: spanwise_axis
-
-        real,dimension(3) :: j_g, c_hat_c, c_hat_s
-
-        ! Set positive spanwise axis
-        j_g = 0.
-        select case (spanwise_axis)
-
-        case ('+x')
-            j_g(1) = 1.
-
-        case ('-x')
-            j_g(1) = -1.
-
-        case ('+y')
-            j_g(2) = 1.
-
-        case ('-y')
-            j_g(2) = -1.
-
-        case ('+z')
-            j_g(3) = 1.
-
-        case ('-z')
-            j_g(3) = -1.
-
-        case default
-            j_g(2) = 1.
-
-        end select
-
-        ! Calculate transform from global to compressible coordinates
-        this%A_g_to_c = 0.
-        this%A_g_to_c(:,1) = this%c_hat_g
-        this%A_g_to_c(:,3) = cross(this%c_hat_g, j_g)
-        this%A_g_to_c(:,3) = this%A_g_to_c(:,3)/norm(this%A_g_to_c(:,3))
-        this%A_g_to_c(:,2) = cross(this%A_g_to_c(:,3), this%c_hat_g)
-
-        ! Calculate transform from compressible to scaled coordinates
-        this%A_c_to_s = 0.
-        this%A_c_to_s(1,1) = 1./(this%s*this%B)
-        this%A_c_to_s(2,2) = 1.
-        this%A_c_to_s(3,3) = 1.
-
-        ! Check calculation
-        c_hat_c = matmul(this%A_g_to_c, this%c_hat_g)
-        if (abs(c_hat_c(1)-1.)>1e-12 .or. abs(c_hat_c(2))>1e-12 .or. abs(c_hat_c(3))>1e-12) then
-            write(*,*) "Transformation to the compressible coordinate system failed. Quitting..."
-        end if
-
-        ! Calculate transform from global to scaled coordinates
-        this%A_g_to_s = matmul(this%A_c_to_s, this%A_g_to_c)
-
-    end subroutine flow_calc_transforms
-
-
-    function flow_C_g_inner(this, a, b) result(c)
-        ! Calculates the inner product a*C_g*b = c
+    function flow_C0_inner(this, a, b) result(c)
+        ! Calculates the inner product a*C0*b = c
 
         implicit none
 
@@ -205,9 +112,9 @@ contains
         real,dimension(3),intent(in) :: a, b
         real :: c
 
-        c = inner(a, matmul(this%C_mat_g, b))
+        c = inner(a, matmul(this%C0_mat, b))
 
-    end function flow_C_g_inner
+    end function flow_C0_inner
 
 
     function flow_point_in_dod(this, Q, P) result(in_dod)
@@ -225,10 +132,10 @@ contains
         d = P-Q
 
         ! Check upstream
-        if (inner(d, this%c_hat_g) >=0.) then
+        if (inner(d, this%c0) >=0.) then
 
             ! Check in dod
-            if (this%C_g_inner(d, d) >= 0.) then
+            if (this%C0_inner(d, d) >= 0.) then
 
                 in_dod = .true.
                 return
