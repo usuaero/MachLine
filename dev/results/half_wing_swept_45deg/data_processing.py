@@ -6,7 +6,7 @@ Nodes = ['10', '17', '25', '45']
 
 for i in range(len(AoA_folder)):
     for j in range(len(Nodes)):
-        vtk_file_location = 'TriPan_Results/' + AoA_folder[i] + '_degrees_AoA/half_wing_A_'
+        vtk_file_location = 'MachLine_Results/' + AoA_folder[i] + '_degrees_AoA/half_wing_A_'
         if AoA_folder[i] == '0':
             vtk_file_location += 'updated_mesh_' + Nodes[j] + '_nodes.vtk'
 

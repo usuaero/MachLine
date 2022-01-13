@@ -3,6 +3,7 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
+#from PyPDF2 import PdfFileMerger
 
 def Pressure_Plot(file, Plot_label, LE_loc):
     Data = np.genfromtxt(file, delimiter=",", skip_header=1, dtype=float)
@@ -514,33 +515,50 @@ for i in range(len(AoA)):
     Notes.append(y + AoA[i] + r'$^{\circ}$')
 
 #===Plotting Section===
+list_of_files = []
 #Iterate over all angles of attack
 for i in range(len(file)):
 
     complete_title = title + ', ' + Notes[i]
-
     #Iterate over all node densities
     for j in range(len(file[0])):
 
         Pressure_Plot(file[i][j], labels[j], LE_Location)
 
-    #Pull in experimental results for comparison at each angle of attack
-    plt.plot(Experimental[:,0], Experimental[:,i+1], ".",color="k", label="Exerimental")
+    #Pull in experimental results for comparison at each angle of attack differentiating upper and lower surfaces
+    upper_surface_count = Experimental[:,0].size//2 + Experimental[:,0].size%2
+
+    plt.plot(Experimental[:upper_surface_count+1,0], Experimental[:upper_surface_count+1,i+1], ".",color="k", label="Exerimental Upper Surface")
+    plt.plot(Experimental[upper_surface_count:,0], Experimental[upper_surface_count:,i+1], "*",color="k", label="Exerimental Lower Surface")
+
+
 
     #Plot the figure containing all curves
     plt.title(complete_title)
-    #plt.figtext(0.425, 0.18, Notes[i])
     plt.xlabel('x/c')
     plt.ylabel(r"$C_p$")
     plt.gca().invert_yaxis()
-    plt.legend()
+    if LE_Location == '94.9':
+        plt.legend()
+    else:
+        plt.legend(ncol = 2)
 
     #Save the figure in its appropriate location
     # filename = LE_Location + "_percent_semispan/plots_" + LE_Location + "_percent_semispan/" + AoA[i] + "degrees_AoA_plot.pdf"
+    # list_of_files.append(filename)
     # plt.savefig(filename)
 
-print(Experimental[:,0].size)
-    #plt.show()
+    plt.show()
 
 
-#Upper surface count = Experimental[:,0].size//2 + Experimental[:,0]%2
+# Combine all pdf output files for each case in respective folder locations
+# merger = PdfFileMerger()
+# Combined_name = LE_Location + '_percent_semispan/plots_' + LE_Location + '_percent_semispan/Combined_plots_' + LE_Location + '_percent_semispan.pdf'
+# Combined_name_copy = 'Plot_Summary/' + 'Combined_plots_' + LE_Location + '_percent_semispan.pdf'
+
+# for k in range(len(list_of_files)):
+#     merger.append(list_of_files[k])
+
+# merger.write(Combined_name)
+# merger.write(Combined_name_copy)
+# merger.close()
