@@ -24,7 +24,7 @@ module surface_mesh_mod
         integer,allocatable,dimension(:) :: wake_edge_top_verts, wake_edge_bot_verts, wake_edge_indices
         real :: wake_shedding_angle, C_wake_shedding_angle, trefftz_distance, C_min_panel_angle
         integer :: N_wake_panels_streamwise
-        logical :: wake_present, append_wake
+        logical :: append_wake
         real,dimension(:,:),allocatable :: control_points, cp_mirrored
         real,dimension(:),allocatable :: phi_cp, phi_cp_sigma, phi_cp_mu ! Induced potentials at control points
         real,dimension(:),allocatable :: C_p ! Surface pressure coefficients
@@ -47,7 +47,6 @@ module surface_mesh_mod
             procedure :: clone_vertices => surface_mesh_clone_vertices
             procedure :: set_up_mirroring => surface_mesh_set_up_mirroring
             procedure :: calc_vertex_normals => surface_mesh_calc_vertex_normals
-            procedure :: update_supersonic_trefftz_distance => surface_mesh_update_supersonic_trefftz_distance
             procedure :: place_interior_control_points => surface_mesh_place_interior_control_points
 
     end type surface_mesh
@@ -119,23 +118,14 @@ contains
         end select
 
         ! Check if the user wants a wake
-        call json_xtnsn_get(settings, 'wake_model.wake_present', this%wake_present, .true.)
-        call json_xtnsn_get(settings, 'wake_model.append_wake', this%append_wake, this%wake_present)
-
-        ! Check that we're not trying to append a wake which is not present
-        if (.not. this%wake_present .and. this%append_wake) then
-            this%append_wake = .false.
-        end if
+        call json_xtnsn_get(settings, 'wake_model.append_wake', this%append_wake, .true.)
 
         ! Store settings for wake models
-        if (this%wake_present) then
+        if (this%append_wake) then
             call json_xtnsn_get(settings, 'wake_model.wake_shedding_angle', this%wake_shedding_angle, 90.0) ! Maximum allowable angle between panel normals without having separation
             this%C_wake_shedding_angle = cos(this%wake_shedding_angle*pi/180.0)
-
-            if (this%append_wake) then
-                call json_xtnsn_get(settings, 'wake_model.trefftz_distance', this%trefftz_distance, 100.0) ! Distance from origin to wake termination
-                call json_xtnsn_get(settings, 'wake_model.N_panels', this%N_wake_panels_streamwise, 1)
-            end if
+            call json_xtnsn_get(settings, 'wake_model.trefftz_distance', this%trefftz_distance, 100.0) ! Distance from origin to wake termination
+            call json_xtnsn_get(settings, 'wake_model.N_panels', this%N_wake_panels_streamwise, 20)
         end if
 
         ! Store references
@@ -361,7 +351,7 @@ contains
 
         ! Figure out wake-shedding edges, discontinuous edges, etc.
         ! Edge-characterization is only necessary for flows with wakes or supersonic flows, as discontinuities only appear in these flows
-        if (this%wake_present .or. freestream%supersonic) then
+        if (this%append_wake .or. freestream%supersonic) then
             call this%characterize_edges(freestream)
         end if
 
@@ -371,20 +361,13 @@ contains
         end if
 
         ! Clone necessary vertices and calculate normals (for placing control points)
-        if (this%wake_present .or. freestream%supersonic) then
+        if (this%append_wake .or. freestream%supersonic) then
             call this%clone_vertices()
         end if
         call this%calc_vertex_normals()
 
-        ! Handle wake creation
+        ! Initialize wake
         if (this%append_wake) then
-
-            ! For supersonic flows, calculate the Trefftz distance based on the mesh
-            if (freestream%supersonic) then
-                call this%update_supersonic_trefftz_distance(freestream)
-            end if
-
-            ! Initialize wake
             call this%wake%init(freestream, this%wake_edge_top_verts, &
                                 this%wake_edge_bot_verts, this%edges, this%wake_edge_indices, &
                                 this%N_wake_panels_streamwise, this%vertices, &
@@ -459,7 +442,7 @@ contains
 
             ! Determine if this edge is wake-shedding; this depends on the angle between the panels
             ! and the angles made by the panel normals with the freestream
-            if (this%wake_present) then
+            if (this%append_wake) then
 
                 ! Check angle between panels
                 if (C_angle < this%C_wake_shedding_angle) then
@@ -526,10 +509,12 @@ contains
                 ! Update edge inclination
                 this%edges(k)%inclination = this%panels(this%edges(i)%panels(1))%q(this%edges(i)%edge_index_for_panel(1))
 
-                ! According to Davis, sharp, subsonic, leading edges in supersonic flow must have discontinuous doublet strength.
-                ! I don't know why this would be, except in the case of leading-edge vortex separation. But Davis doesn't
-                ! model leading-edge vortices. Wake-shedding trailing edges are still discontinuous in supersonic flow. Supersonic
-                ! leading edges should have continuous doublet strength.
+                ! If the edge is supersonic, then further checks are needed
+                if (this%edges(k)%inclination == -1) then
+
+                    ! If
+
+                end if
 
             end if
 
@@ -854,37 +839,6 @@ contains
         write(*,*) "Done."
 
     end subroutine surface_mesh_calc_vertex_normals
-
-
-    subroutine surface_mesh_update_supersonic_trefftz_distance(this, freestream)
-        ! Determines the appropriate Trefftz distance based on the mesh geometry
-
-        implicit none
-
-        class(surface_mesh),intent(inout) :: this
-        type(flow),intent(in) :: freestream
-
-        real :: dist, max_dist
-        integer :: i
-
-        ! Loop through mesh vertices, looking for the most downstream
-        max_dist = 0.
-        do i=1,this%N_verts
-
-            ! Calculate distance
-            dist = -inner(this%vertices(i)%loc, freestream%c_hat_g)
-
-            ! Check maximum
-            if (dist > max_dist) then
-                max_dist = dist
-            end if
-
-        end do
-
-        ! Set Trefftz distance
-        this%trefftz_distance = max_dist
-    
-    end subroutine surface_mesh_update_supersonic_trefftz_distance
 
 
     subroutine surface_mesh_place_interior_control_points(this, offset)
