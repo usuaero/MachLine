@@ -27,9 +27,9 @@
         "control_point_offset": 1.1e-05
     },
     "output": {
-        "body_file": "dev/results/half_wing_swept_45deg/MachLine_Results/6_2_degrees_AoA/half_wing_A_45_nodes_6_2_deg_AoA.vtk",
-        "wake_file": "dev/results/half_wing_swept_45deg/MachLine_Results/6_2_degrees_AoA/half_wing_A_45_nodes_6_2_deg_AoA_wake.vtk",
-        "control_point_file": "dev/results/half_wing_swept_45deg/MachLine_Results/6_2_degrees_AoA/half_wing_A_45_nodes_6_2_deg_AoA_source_free_control_points.vtk",
+        "body_file": "dev/results/half_wing_swept_45deg/TriPan_Results/6_2_degrees_AoA/half_wing_A_45_nodes_6_2_deg_AoA.vtk",
+        "wake_file": "dev/results/half_wing_swept_45deg/TriPan_Results/6_2_degrees_AoA/half_wing_A_45_nodes_6_2_deg_AoA_wake.vtk",
+        "control_point_file": "dev/results/half_wing_swept_45deg/TriPan_Results/6_2_degrees_AoA/half_wing_A_45_nodes_6_2_deg_AoA_source_free_control_points.vtk",
         "report_file": "dev/report.txt"
     }
 }

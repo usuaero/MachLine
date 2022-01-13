@@ -46,18 +46,19 @@ module panel_mod
         real,dimension(:,:),allocatable :: midpoints
         real,dimension(3) :: centroid
         real,dimension(3,3) :: A_g_to_l, A_s_to_ls, A_g_to_ls, A_ls_to_g ! Coordinate transformation matrices
+        real,dimension(3,3) :: B_mat_l, C_mat_l ! Relevant compressibility matrices
         real,dimension(:,:),allocatable :: vertices_l, midpoints_l ! Location of the vertices and edge midpoints described in local coords
-        real,dimension(:,:),allocatable :: t_hat_g, t_hat_l ! Edge unit tangents
-        real,dimension(:,:),allocatable :: n_hat_g, n_hat_l ! Edge unit outward normals
+        real,dimension(:,:),allocatable :: t_hat_g, t_hat_l, t_hat_ls ! Edge unit tangents
+        real,dimension(:,:),allocatable :: n_hat_g, n_hat_l, n_hat_ls ! Edge unit outward normals
         real,dimension(:),allocatable :: l ! Edge lengths
         real :: A ! Surface area
         real,dimension(:,:),allocatable :: S_mu_inv, S_sigma_inv ! Matrix relating doublet/source strengths to doublet/source influence parameters
-        logical :: on_wake_edge ! Whether this panel belongs to a wake-shedding edge (on the body)
         integer,dimension(:),allocatable :: vertex_indices ! Indices of this panel's vertices in the mesh vertex array
         logical :: in_wake ! Whether this panel belongs to a wake mesh
         integer,dimension(3) :: abutting_panels ! Indices of panels abutting this one
+        integer,dimension(3) :: edges ! Indices of this panel's edges
         real :: r ! Panel inclination indicator; r=-1 -> superinclined, r=1 -> subinclined
-        logical,dimension(3) :: edge_subsonic ! Whether each edge is subsonic
+        integer,dimension(3) :: q ! Edge type indicator; q=1 -> subsonic, q=-1 -> supersonic
 
         contains
 
@@ -71,7 +72,6 @@ module panel_mod
             procedure :: calc_g_to_ls_transform => panel_calc_g_to_ls_transform
             procedure :: calc_edge_tangents => panel_calc_edge_tangents
             procedure :: calc_singularity_matrices => panel_calc_singularity_matrices
-            procedure :: add_abutting_panel => panel_add_abutting_panel
             procedure :: get_vertex_loc => panel_get_vertex_loc
             procedure :: get_vertex_index => panel_get_vertex_index
             procedure :: touches_vertex => panel_touches_vertex
@@ -257,14 +257,25 @@ contains
 
         end do
 
-        ! Calculate properties dependent on the transforms
-        call this%calc_edge_tangents()
-        call this%calc_singularity_matrices()
+        ! Calculate compressibility matrices
+        this%B_mat_l = 0.
+        this%B_mat_l(1,1) = freestream%B**2*this%r*freestream%s
+        this%B_mat_l(2,2) = freestream%B**2
+        this%B_mat_l(3,3) = freestream%B**2*this%r
 
-        ! Check character of edges
-        do i=1,this%N
-            this%edge_subsonic(i) = freestream%C0_inner(this%t_hat_g(i,:), this%t_hat_g(i,:)) > 0.
-        end do
+        this%C_mat_l = 0.
+        this%C_mat_l(1,1) = this%r
+        this%C_mat_l(2,2) = freestream%s
+        this%C_mat_l(3,3) = this%r*freestream%s
+
+        ! Check calculation
+        if (any(abs(this%B_mat_l - matmul(this%A_g_to_ls, matmul(freestream%B_mat_g, transpose(this%A_g_to_ls)))) > 1e-12)) then
+            write(*,*) "!!! Calculation of local scaled coordinate transform failed. Quitting..."
+        end if
+
+        ! Calculate properties dependent on the transforms
+        call this%calc_edge_tangents(freestream)
+        call this%calc_singularity_matrices()
 
     end subroutine panel_calc_transforms
 
@@ -277,7 +288,7 @@ contains
         type(flow),intent(in) :: freestream
 
         ! Calculate local eta axis
-        this%A_g_to_l(2,:) = cross(this%normal, freestream%c0)
+        this%A_g_to_l(2,:) = cross(this%normal, freestream%c_hat_g)
         this%A_g_to_l(2,:) = this%A_g_to_l(2,:)/norm(this%A_g_to_l(2,:))
 
         ! Calculate local xi axis
@@ -291,7 +302,7 @@ contains
 
 
     subroutine panel_calc_g_to_ls_transform(this, freestream)
-        ! Calculates the necessary transformations to move from global to local, scaled coordinates
+        ! Calculates the necessary transformations to move from global to local, scaled coordinates (Eq. (E.0.1) in Epton and Magnus)
 
         implicit none
 
@@ -308,7 +319,7 @@ contains
         v0 = this%A_g_to_l(2,:)
 
         ! Calculate compressible parameters
-        this%conormal = matmul(freestream%psi, this%normal)
+        this%conormal = matmul(freestream%B_mat_g, this%normal)
         x = inner(this%normal, this%conormal)
         this%r = sign(1., x) ! r=-1 -> superinclined, r=1 -> subinclined
 
@@ -329,7 +340,7 @@ contains
         end do
 
         ! Construct other matrices
-        B0 = outer(freestream%c0, freestream%c0)
+        B0 = outer(freestream%c_hat_g, freestream%c_hat_g)
         C0 = freestream%s*freestream%B**2*I + freestream%M_inf**2*B0
         B0 = I - freestream%M_inf**2*B0
 
@@ -344,20 +355,25 @@ contains
     end subroutine panel_calc_g_to_ls_transform
 
 
-    subroutine panel_calc_edge_tangents(this)
+    subroutine panel_calc_edge_tangents(this, freestream)
 
         implicit none
 
         class(panel),intent(inout) :: this
+        type(flow),intent(in) :: freestream
+
         real,dimension(3) :: d
+        real,dimension(2) :: e
         integer :: i
 
         ! Allocate memory
         allocate(this%l(this%N))
         allocate(this%t_hat_g(this%N,3))
         allocate(this%t_hat_l(this%N,2))
+        allocate(this%t_hat_ls(this%N,2))
         allocate(this%n_hat_g(this%N,3))
         allocate(this%n_hat_l(this%N,2))
+        allocate(this%n_hat_ls(this%N,2))
 
         ! Loop through edges
         do i=1,this%N
@@ -373,13 +389,25 @@ contains
             ! Calculate edge length
             this%l(i) = norm(d)
 
-            ! Calculate tangent
+            ! Calculate tangent in global and local coords
             this%t_hat_g(i,:) = d/this%l(i)
             this%t_hat_l(i,:) = matmul(this%A_g_to_l(1:2,:), this%t_hat_g(i,:))
 
+            ! Calculate tangent in local scaled coords
+            e = matmul(this%A_g_to_ls(1:2,:), d)
+            this%t_hat_ls(i,:) = e/sqrt(abs(this%r*freestream%s*e(1)**2 + e(2)**2))
+
             ! Calculate outward normal
             this%n_hat_g(i,:) = cross(this%t_hat_g(i,:), this%normal)
-            this%n_hat_l(i,:) = matmul(this%A_g_to_l(1:2,:), this%n_hat_g(i,:))
+            this%n_hat_l(i,1) = this%t_hat_l(i,2)
+            this%n_hat_l(i,2) = -this%t_hat_l(i,1)
+
+            ! Calculate outward normal in local scaled coords
+            this%n_hat_ls(i,1) = this%t_hat_ls(i,2)
+            this%n_hat_ls(i,2) = -this%t_hat_ls(i,1)
+
+            ! Calculate edge type indicator
+            this%q(i) = nint(this%r*this%t_hat_ls(i,1)**2 + freestream%s*this%t_hat_ls(i,2)**2)
 
         end do
     
@@ -492,26 +520,6 @@ contains
         end if
     
     end subroutine panel_calc_singularity_matrices
-
-
-    subroutine panel_add_abutting_panel(this, panel_ind)
-        ! Adds a panel index to this panel's list of abutting panels
-
-        implicit none
-
-        class(panel),intent(inout) :: this
-        integer,intent(in) :: panel_ind
-
-        integer :: i
-
-        do i=1,3
-            if (this%abutting_panels(i) == 0) then
-                this%abutting_panels(i) = panel_ind
-                return
-            end if
-        end do
-    
-    end subroutine panel_add_abutting_panel
 
 
     function panel_get_vertex_loc(this, i) result(loc)
@@ -634,7 +642,7 @@ contains
 
             ! Check if the centroid is further from the Mach cone than the panel radius
             d = point-eval_point
-            x = inner(d, freestream%c0)
+            x = inner(d, freestream%c_hat_g)
             y = sqrt(norm(d)**2-x**2)
             if (y >= freestream%B*x .and. sqrt((x+freestream%B*y)**2/(1.+freestream%B**2)) >= this%radius) then
                 radius_smaller = .true.
@@ -741,7 +749,7 @@ contains
         geom%r = eval_point
 
         ! Transform to panel coordinates
-        r_l = matmul(this%A_g_to_l, geom%r-this%centroid)
+        r_l = matmul(this%A_g_to_ls, geom%r-this%centroid)
         geom%r_in_plane = r_l(1:2)
         geom%h = r_l(3)
 
@@ -757,7 +765,7 @@ contains
             geom%l2(i) = geom%l1(i)+this%l(i)
 
             ! Distance from evaluation point to start vertex
-            ! This is not the definition given by Johnson, but this is equivalent.
+            ! This is not the definition given by Johnson, but it is equivalent.
             ! I believe this method suffers from less numerical error.
             geom%s1(i) = norm(this%get_vertex_loc(i)-geom%r)
 
@@ -1290,6 +1298,11 @@ contains
         real,dimension(:,:,:),allocatable :: H
         real,dimension(:,:,:,:),allocatable :: F
 
+        ! Allocate velocity
+        if (source_order == 0) then
+            allocate(phi(1), source=0.)
+        end if
+
         ! In dod
         if (dod_info%in_dod) then
 
@@ -1304,7 +1317,6 @@ contains
                 if (source_order == 0) then
 
                     ! Compute induced potential
-                    allocate(phi(1))
                     phi = -0.25/pi*H(1,1,1)
 
                 end if
@@ -1312,17 +1324,8 @@ contains
                 ! Clean up
                 deallocate(H)
                 deallocate(F)
-            end if
-
-        else
-
-            ! Not in DoD, so there is no influence
-            if (source_order == 0) then
-
-                allocate(phi(1), source=0.)
 
             end if
-
         end if
     
     end function panel_get_source_potential
@@ -1344,6 +1347,11 @@ contains
         real,dimension(:,:,:),allocatable :: H
         real,dimension(:,:,:,:),allocatable :: F
 
+        ! Allocate velocity
+        if (source_order == 0) then
+            allocate(v(1,3), source=0.)
+        end if
+
         ! In dod
         if (dod_info%in_dod) then
 
@@ -1355,10 +1363,9 @@ contains
                 ! Get integrals
                 call this%calc_integrals(geom, "velocity", "source", H, F)
 
-                if (source_order .eq. 0) then
+                if (source_order == 0) then
 
                     ! Calculate velocity
-                    allocate(v(1,3))
                     v(1,1) = 0.25/pi*sum(this%n_hat_l(:,1)*F(:,1,1,1))
                     v(1,2) = 0.25/pi*sum(this%n_hat_l(:,2)*F(:,1,1,1))
                     v(1,3) = 0.25/pi*geom%h*H(1,1,3)
@@ -1368,17 +1375,8 @@ contains
                 ! Clean up
                 deallocate(H)
                 deallocate(F)
-            end if
-
-        else
-
-            ! Not in DoD, so there is no influence
-            if (source_order .eq. 0) then
-
-                allocate(v(1,3), source=0.)
 
             end if
-
         end if
 
     end function panel_get_source_velocity
@@ -1402,6 +1400,33 @@ contains
         integer,dimension(:),allocatable :: H_shape
         integer :: i, j, k
 
+        ! Specify influencing vertices (also sets zero default influence)
+        if (doublet_order == 1) then
+            if (this%in_wake) then
+
+                ! Wake panels are influenced by two sets of vertices
+                allocate(vertex_indices(6))
+                vertex_indices(1) = this%vertices(1)%ptr%top_parent
+                vertex_indices(2) = this%vertices(2)%ptr%top_parent
+                vertex_indices(3) = this%vertices(3)%ptr%top_parent
+                vertex_indices(4) = this%vertices(1)%ptr%bot_parent
+                vertex_indices(5) = this%vertices(2)%ptr%bot_parent
+                vertex_indices(6) = this%vertices(3)%ptr%bot_parent
+
+                ! Set default influence
+                allocate(phi(6), source=0.)
+
+            else
+
+                ! Body panels are influenced by only one set of vertices
+                allocate(vertex_indices, source=this%vertex_indices)
+
+                ! Set default influence
+                allocate(phi(3), source=0.)
+
+            end if
+        end if
+
         ! Check DoD
         if (dod_info%in_dod) then
 
@@ -1415,27 +1440,6 @@ contains
 
                 ! Calculate influence
                 if (doublet_order == 1) then
-
-                    ! Specify influencing vertices
-                    if (this%in_wake) then
-
-                        ! Wake panels are influenced by two sets of vertices
-                        allocate(vertex_indices(6))
-                        allocate(phi(6), source=0.)
-                        vertex_indices(1) = this%vertices(1)%ptr%top_parent
-                        vertex_indices(2) = this%vertices(2)%ptr%top_parent
-                        vertex_indices(3) = this%vertices(3)%ptr%top_parent
-                        vertex_indices(4) = this%vertices(1)%ptr%bot_parent
-                        vertex_indices(5) = this%vertices(2)%ptr%bot_parent
-                        vertex_indices(6) = this%vertices(3)%ptr%bot_parent
-
-                    else
-
-                        ! Body panels are influenced by only one set of vertices
-                        allocate(vertex_indices, source=this%vertex_indices)
-                        allocate(phi(3), source=0.)
-
-                    end if
 
                     ! Compute induced potential
                     phi(1) = geom%h*H(1,1,3)
@@ -1457,35 +1461,6 @@ contains
                 deallocate(F)
 
             end if
-
-        else
-
-            ! Specify no influence
-            if (doublet_order == 1) then
-
-                ! Specify influencing vertices
-                if (this%in_wake) then
-
-                    ! Wake panels are influenced by two sets of vertices
-                    allocate(vertex_indices(6))
-                    allocate(phi(6), source=0.)
-                    vertex_indices(1) = this%vertices(1)%ptr%top_parent
-                    vertex_indices(2) = this%vertices(2)%ptr%top_parent
-                    vertex_indices(3) = this%vertices(3)%ptr%top_parent
-                    vertex_indices(4) = this%vertices(1)%ptr%bot_parent
-                    vertex_indices(5) = this%vertices(2)%ptr%bot_parent
-                    vertex_indices(6) = this%vertices(3)%ptr%bot_parent
-
-                else
-
-                    ! Body panels are influenced by only one set of vertices
-                    allocate(vertex_indices, source=this%vertex_indices)
-                    allocate(phi(3), source=0.)
-
-                end if
-
-            end if
-
         end if
     
     end function panel_get_doublet_potential
@@ -1506,6 +1481,33 @@ contains
         type(eval_point_geom) :: geom
         real,dimension(:,:,:),allocatable :: H
         real,dimension(:,:,:,:),allocatable :: F
+
+        ! Allocate velocity and vertices
+        if (doublet_order .eq. 1) then
+            if (this%in_wake) then
+
+                ! Wake panels are influenced by two sets of vertices
+                allocate(vertex_indices(6))
+                vertex_indices(1) = this%vertices(1)%ptr%top_parent
+                vertex_indices(2) = this%vertices(2)%ptr%top_parent
+                vertex_indices(3) = this%vertices(3)%ptr%top_parent
+                vertex_indices(4) = this%vertices(1)%ptr%bot_parent
+                vertex_indices(5) = this%vertices(2)%ptr%bot_parent
+                vertex_indices(6) = this%vertices(3)%ptr%bot_parent
+
+                ! Set default influence
+                allocate(v(6,3), source=0.)
+
+            else
+
+                ! Body panels are influenced by only one set of vertices
+                allocate(vertex_indices, source=this%vertex_indices)
+
+                ! Set default influence
+                allocate(v(3,3), source=0.)
+
+            end if
+        end if
 
         ! Check DoD
         if (dod_info%in_dod) then
@@ -1533,20 +1535,6 @@ contains
                 deallocate(F)
 
             end if
-
-        else
-
-            ! Specify no influence
-            if (doublet_order .eq. 1) then
-
-                ! Specify influencing vertices
-                allocate(vertex_indices(3), source=this%vertex_indices)
-
-                ! Calculate velocity
-                allocate(v(3,3), source=0.)
-
-            end if
-
         end if
 
     end function panel_get_doublet_velocity
