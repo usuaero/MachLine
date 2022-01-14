@@ -296,7 +296,7 @@ contains
         ! We pick the first edge, as we already know this is perpendicular to the normal, so
         ! orthogonality is automatically satisfied.
         if (norm(this%A_g_to_l(2,:)) < 1e-12) then
-            this%A_g_to_l(2,:) = this%vertices(2)%loc-this%vertices(1)%loc
+            this%A_g_to_l(2,:) = this%get_vertex_loc(2)-this%get_vertex_loc(1)
         end if
 
         ! Normalize
