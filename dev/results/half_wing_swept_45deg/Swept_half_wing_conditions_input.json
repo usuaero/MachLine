@@ -1,18 +1,10 @@
 {
-    "flow": {
-        "freestream_velocity": [
-            163.0,
-            0.0,
-            0.0
-        ]
-    },
+   
+
     "geometry": {
-        "file": "dev/meshes/half_wing_A_meshes/half_wing_A_updated_mesh_45_nodes.vtk",
-        "mirror_about": "xz",
-        "singularity_order": {
-            "doublet": 1,
-            "source": 0
-        },
+        "Percent Semispan Locations": ["4.1", "8.2", "16.3", "24.5", "36.7", "51.0", "65.3", "89.8", "94.9"],
+        "Uniform Chord Length": 20,
+        
         "wake_model": {
             "wake_shedding_angle": 90.0,
             "trefftz_distance": 100.0,

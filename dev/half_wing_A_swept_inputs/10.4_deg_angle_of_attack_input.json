@@ -1,13 +1,13 @@
 {
     "flow": {
         "freestream_velocity": [
-            161.16729011066195,
+            160.3221497425819,
             0.0,
-            24.374260981324653
+            29.424620675841275
         ]
     },
     "geometry": {
-        "file": "dev/meshes/half_wing_A_meshes/half_wing_A_updated_mesh_10_nodes.vtk",
+        "file": "dev/meshes/half_wing_A_meshes/half_wing_A_updated_mesh_45_nodes.vtk",
         "mirror_about": "xz",
         "singularity_order": {
             "doublet": 1,
@@ -27,9 +27,9 @@
         "control_point_offset": 1.1e-05
     },
     "output": {
-        "body_file": "dev/results/half_wing_swept_45deg/MachLine_Results/8_6_degrees_AoA/half_wing_A_10_nodes_8_6_deg_AoA.vtk",
-        "wake_file": "dev/results/half_wing_swept_45deg/MachLine_Results/8_6_degrees_AoA/half_wing_A_10_nodes_8_6_deg_AoA_wake.vtk",
-        "control_point_file": "dev/results/half_wing_swept_45deg/MachLine_Results/8_6_degrees_AoA/half_wing_A_10_nodes_8_6_deg_AoA_source_free_control_points.vtk",
+        "body_file": "dev/results/half_wing_swept_45deg/MachLine_Results/10.4_degrees_AoA/half_wing_A_45_nodes_10_4_deg_AoA.vtk",
+        "wake_file": "dev/results/half_wing_swept_45deg/MachLine_Results/10.4_degrees_AoA/half_wing_A_45_nodes_10_4_deg_AoA_wake.vtk",
+        "control_point_file": "dev/results/half_wing_swept_45deg/MachLine_Results/10.4_degrees_AoA/half_wing_A_45_nodes_10_4_deg_AoA_source_free_control_points.vtk",
         "report_file": "dev/report.txt"
     }
 }

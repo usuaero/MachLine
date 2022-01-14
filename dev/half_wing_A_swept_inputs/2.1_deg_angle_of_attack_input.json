@@ -1,9 +1,9 @@
 {
     "flow": {
         "freestream_velocity": [
-            161.20958572799245,
+            162.89052818592097,
             0.0,
-            24.092934014126534
+            5.972924519168673
         ]
     },
     "geometry": {
@@ -27,9 +27,9 @@
         "control_point_offset": 1.1e-05
     },
     "output": {
-        "body_file": "dev/results/half_wing_swept_45deg/MachLine_Results/8_5_degrees_AoA/half_wing_A_45_nodes_8_5_deg_AoA.vtk",
-        "wake_file": "dev/results/half_wing_swept_45deg/MachLine_Results/8_5_degrees_AoA/half_wing_A_45_nodes_8_5_deg_AoA_wake.vtk",
-        "control_point_file": "dev/results/half_wing_swept_45deg/MachLine_Results/8_5_degrees_AoA/half_wing_A_45_nodes_8_5_deg_AoA_source_free_control_points.vtk",
+        "body_file": "dev/results/half_wing_swept_45deg/MachLine_Results/2.1_degrees_AoA/half_wing_A_45_nodes_2_1_deg_AoA.vtk",
+        "wake_file": "dev/results/half_wing_swept_45deg/MachLine_Results/2.1_degrees_AoA/half_wing_A_45_nodes_2_1_deg_AoA_wake.vtk",
+        "control_point_file": "dev/results/half_wing_swept_45deg/MachLine_Results/2.1_degrees_AoA/half_wing_A_45_nodes_2_1_deg_AoA_source_free_control_points.vtk",
         "report_file": "dev/report.txt"
     }
 }
