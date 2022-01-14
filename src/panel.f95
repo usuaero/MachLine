@@ -291,6 +291,15 @@ contains
 
         ! Calculate local eta axis
         this%A_g_to_l(2,:) = cross(this%normal, freestream%c_hat_g)
+
+        ! If the normal and freestream are aligned, then we have to pick a different vector.
+        ! We pick the first edge, as we already know this is perpendicular to the normal, so
+        ! orthogonality is automatically satisfied.
+        if (norm(this%A_g_to_l(2,:)) < 1e-12) then
+            this%A_g_to_l(2,:) = this%vertices(2)%loc-this%vertices(1)%loc
+        end if
+
+        ! Normalize
         this%A_g_to_l(2,:) = this%A_g_to_l(2,:)/norm(this%A_g_to_l(2,:))
 
         ! Calculate local xi axis
