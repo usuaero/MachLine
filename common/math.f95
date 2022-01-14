@@ -3,7 +3,7 @@ module math_mod
 
     implicit none
     real,parameter :: pi = 3.1415926535897932
-    real,parameter :: infinity = huge(0.)
+    real,parameter :: inf = huge(0.)
     
 contains
 
@@ -17,7 +17,7 @@ function isinf(x) result(is)
   logical :: is
 
   ! Check for infinity
-  if (x >= infinity) then
+  if (x >= inf) then
     is = .true.
   else
     is = .false.

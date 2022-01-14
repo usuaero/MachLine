@@ -59,6 +59,8 @@ module panel_mod
         integer,dimension(3) :: edges ! Indices of this panel's edges
         real :: r ! Panel inclination indicator; r=-1 -> superinclined, r=1 -> subinclined
         integer,dimension(3) :: q ! Edge type indicator; q=1 -> subsonic, q=-1 -> supersonic
+        real,dimension(3) :: m ! Edge slope
+        real,dimension(3) :: lambda ! Inverse of edge slope
 
         contains
 
@@ -409,7 +411,13 @@ contains
             ! Calculate edge type indicator
             this%q(i) = nint(this%r*this%t_hat_ls(i,1)**2 + freestream%s*this%t_hat_ls(i,2)**2)
 
+            ! Calculate edge slope
+            this%m(i) = this%t_hat_ls(i,2)/this%t_hat_ls(i,1)
+
         end do
+
+        ! Calculate edge slope inverse
+        this%lambda = 1./this%m
     
     end subroutine panel_calc_edge_tangents
 
