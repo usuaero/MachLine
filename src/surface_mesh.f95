@@ -24,7 +24,7 @@ module surface_mesh_mod
         integer,allocatable,dimension(:) :: wake_edge_top_verts, wake_edge_bot_verts, wake_edge_indices
         real :: wake_shedding_angle, C_wake_shedding_angle, trefftz_distance, C_min_panel_angle
         integer :: N_wake_panels_streamwise
-        logical :: append_wake
+        logical :: wake_present, append_wake
         real,dimension(:,:),allocatable :: control_points, cp_mirrored
         real,dimension(:),allocatable :: phi_cp, phi_cp_sigma, phi_cp_mu ! Induced potentials at control points
         real,dimension(:),allocatable :: C_p ! Surface pressure coefficients
@@ -47,6 +47,7 @@ module surface_mesh_mod
             procedure :: clone_vertices => surface_mesh_clone_vertices
             procedure :: set_up_mirroring => surface_mesh_set_up_mirroring
             procedure :: calc_vertex_normals => surface_mesh_calc_vertex_normals
+            procedure :: update_supersonic_trefftz_distance => surface_mesh_update_supersonic_trefftz_distance
             procedure :: place_interior_control_points => surface_mesh_place_interior_control_points
 
     end type surface_mesh
@@ -118,14 +119,23 @@ contains
         end select
 
         ! Check if the user wants a wake
-        call json_xtnsn_get(settings, 'wake_model.append_wake', this%append_wake, .true.)
+        call json_xtnsn_get(settings, 'wake_model.wake_present', this%wake_present, .true.)
+        call json_xtnsn_get(settings, 'wake_model.append_wake', this%append_wake, this%wake_present)
+
+        ! Check that we're not trying to append a wake which is not present
+        if (.not. this%wake_present .and. this%append_wake) then
+            this%append_wake = .false.
+        end if
 
         ! Store settings for wake models
-        if (this%append_wake) then
+        if (this%wake_present) then
             call json_xtnsn_get(settings, 'wake_model.wake_shedding_angle', this%wake_shedding_angle, 90.0) ! Maximum allowable angle between panel normals without having separation
             this%C_wake_shedding_angle = cos(this%wake_shedding_angle*pi/180.0)
-            call json_xtnsn_get(settings, 'wake_model.trefftz_distance', this%trefftz_distance, 100.0) ! Distance from origin to wake termination
-            call json_xtnsn_get(settings, 'wake_model.N_panels', this%N_wake_panels_streamwise, 20)
+
+            if (this%append_wake) then
+                call json_xtnsn_get(settings, 'wake_model.trefftz_distance', this%trefftz_distance, 100.0) ! Distance from origin to wake termination
+                call json_xtnsn_get(settings, 'wake_model.N_panels', this%N_wake_panels_streamwise, 1)
+            end if
         end if
 
         ! Store references
@@ -175,11 +185,11 @@ contains
         class(surface_mesh),intent(inout) :: this
 
 
-        integer :: i, j, m, n, mm
+        integer :: i, j, m, n, m1, n1
         logical :: already_found_shared, dummy
         real :: distance
         integer,dimension(2) :: shared_verts
-        type(list) :: panel1, panel2, vertex1, vertex2, on_mirror_plane
+        type(list) :: panel1, panel2, vertex1, vertex2, on_mirror_plane, edge_index1, edge_index2
 
         write(*,'(a)',advance='no') "     Locating adjacent panels..."
 
@@ -208,7 +218,7 @@ contains
                                 ! Store second shared vertex
                                 shared_verts(2) = this%panels(i)%get_vertex_index(m)
 
-                                ! Store in lists for later storage in arrays
+                                ! Store in lists for later storage in edge objects
                                 call panel1%append(i)
                                 call panel2%append(j)
                                 call vertex1%append(shared_verts(1))
@@ -223,18 +233,38 @@ contains
                                     call this%vertices(shared_verts(2))%adjacent_vertices%append(shared_verts(1))
                                 end if
 
-                                ! Store adjacent panels
-                                call this%panels(i)%add_abutting_panel(j)
-                                call this%panels(j)%add_abutting_panel(i)
+                                ! Store adjacent panels and panel edges
+                                ! This stores the adjacent panels and edges according to the index of that edge
+                                ! for the current panel
+                                if (m-m1 == 1) then
+                                    this%panels(i)%abutting_panels(m1) = j
+                                    this%panels(i)%edges(m1) = panel1%len()
+                                    call edge_index1%append(m1)
+                                else
+                                    this%panels(i)%abutting_panels(m) = j
+                                    this%panels(i)%edges(m) = panel1%len()
+                                    call edge_index1%append(m)
+                                end if
+                                if (n-n1 == 1) then
+                                    this%panels(j)%abutting_panels(n1) = i
+                                    this%panels(i)%edges(n1) = panel1%len()
+                                    call edge_index2%append(n1)
+                                else
+                                    this%panels(j)%abutting_panels(n) = i
+                                    this%panels(i)%edges(n) = panel1%len()
+                                    call edge_index2%append(n)
+                                end if
                                 
                                 ! Break out of loop
                                 exit abutting_loop
 
                             ! First shared vertex
                             else
+
                                 already_found_shared = .true.
                                 shared_verts(1) = this%panels(i)%get_vertex_index(m)
-                                mm = m
+                                m1 = m
+                                n1 = n
 
                             end if
                         end if
@@ -280,16 +310,24 @@ contains
                             end if
 
                             ! Store adjacent panel
-                            call this%panels(i)%add_abutting_panel(i+this%N_panels)
+                            if (m-m1 == 1) then
+                                this%panels(i)%abutting_panels(m1) = i+this%N_panels
+                                call edge_index1%append(m1)
+                            else
+                                this%panels(i)%abutting_panels(m) = i+this%N_panels
+                                call edge_index1%append(m)
+                            end if
+                            call edge_index2%append(0) ! Really meaningless since the second panel doesn't technically exist
 
                             ! Break out of loop
                             exit mirror_loop
 
                         ! First vertex on the mirror plane
                         else
+
                             already_found_shared = .true.
                             shared_verts(1) = n
-                            mm = m
+                            m1 = m
 
                         end if
                     end if
@@ -316,7 +354,13 @@ contains
 
             ! Initialize
             call this%edges(i)%init(shared_verts(1), shared_verts(2), m, n)
+
+            ! Store more information
+            call edge_index1%get(i, m)
+            call edge_index2%get(i, n)
             this%edges(i)%on_mirror_plane = dummy
+            this%edges(i)%edge_index_for_panel(1) = m
+            this%edges(i)%edge_index_for_panel(2) = n
 
         end do
 
@@ -351,7 +395,7 @@ contains
 
         ! Figure out wake-shedding edges, discontinuous edges, etc.
         ! Edge-characterization is only necessary for flows with wakes or supersonic flows, as discontinuities only appear in these flows
-        if (this%append_wake .or. freestream%supersonic) then
+        if (this%wake_present .or. freestream%supersonic) then
             call this%characterize_edges(freestream)
         end if
 
@@ -361,13 +405,20 @@ contains
         end if
 
         ! Clone necessary vertices and calculate normals (for placing control points)
-        if (this%append_wake .or. freestream%supersonic) then
+        if (this%wake_present .or. freestream%supersonic) then
             call this%clone_vertices()
         end if
         call this%calc_vertex_normals()
 
-        ! Initialize wake
+        ! Handle wake creation
         if (this%append_wake) then
+
+            ! For supersonic flows, calculate the Trefftz distance based on the mesh
+            if (freestream%supersonic) then
+                call this%update_supersonic_trefftz_distance(freestream)
+            end if
+
+            ! Initialize wake
             call this%wake%init(freestream, this%wake_edge_top_verts, &
                                 this%wake_edge_bot_verts, this%edges, this%wake_edge_indices, &
                                 this%N_wake_panels_streamwise, this%vertices, &
@@ -409,7 +460,7 @@ contains
         class(surface_mesh),intent(inout) :: this
         type(flow),intent(in) :: freestream
 
-        integer :: i, j, k, m, n, mm, temp, top_panel, bottom_panel, vert1, vert2
+        integer :: i, j, k, m, n, temp, top_panel, bottom_panel, vert1, vert2
         type(list) :: wake_edge_verts, wake_edges
         real :: C_angle
         real,dimension(3) :: second_normal
@@ -434,7 +485,7 @@ contains
                 second_normal = this%panels(j)%normal
             end if
 
-            ! Calculate angle between panels (this is technically the flow-turning angle; it is the most straightforward to compute)
+            ! Calculate angle between panels (this is the flow-turning angle; it is the most straightforward to compute)
             C_angle = inner(this%panels(i)%normal, second_normal)
 
             ! Update minimum angle
@@ -442,7 +493,7 @@ contains
 
             ! Determine if this edge is wake-shedding; this depends on the angle between the panels
             ! and the angles made by the panel normals with the freestream
-            if (this%append_wake) then
+            if (this%wake_present) then
 
                 ! Check angle between panels
                 if (C_angle < this%C_wake_shedding_angle) then
@@ -450,6 +501,10 @@ contains
                     ! Check angle of panel normal with freestream
                     if (inner(this%panels(i)%normal, freestream%V_inf) > 0.0 .or. &
                         inner(second_normal, freestream%V_inf) > 0.0) then
+
+                        ! Set the character of the edge
+                        this%edges(k)%sheds_wake = .true.
+                        this%edges(k)%discontinuous = .true.
 
                         ! Update number of wake-shedding edges
                         this%N_wake_edges = this%N_wake_edges + 1
@@ -505,6 +560,14 @@ contains
 
             ! Determine if this edge is discontinuous in supersonic flow
             if (freestream%supersonic) then
+
+                ! Update edge inclination
+                this%edges(k)%inclination = this%panels(this%edges(i)%panels(1))%q(this%edges(i)%edge_index_for_panel(1))
+
+                ! According to Davis, sharp, subsonic, leading edges in supersonic flow must have discontinuous doublet strength.
+                ! I don't know why this would be, except in the case of leading-edge vortex separation. But Davis doesn't
+                ! model leading-edge vortices. Wake-shedding trailing edges are still discontinuous in supersonic flow. Supersonic
+                ! leading edges should have continuous doublet strength.
 
             end if
 
@@ -829,6 +892,37 @@ contains
         write(*,*) "Done."
 
     end subroutine surface_mesh_calc_vertex_normals
+
+
+    subroutine surface_mesh_update_supersonic_trefftz_distance(this, freestream)
+        ! Determines the appropriate Trefftz distance based on the mesh geometry
+
+        implicit none
+
+        class(surface_mesh),intent(inout) :: this
+        type(flow),intent(in) :: freestream
+
+        real :: dist, max_dist
+        integer :: i
+
+        ! Loop through mesh vertices, looking for the most downstream
+        max_dist = 0.
+        do i=1,this%N_verts
+
+            ! Calculate distance
+            dist = -inner(this%vertices(i)%loc, freestream%c_hat_g)
+
+            ! Check maximum
+            if (dist > max_dist) then
+                max_dist = dist
+            end if
+
+        end do
+
+        ! Set Trefftz distance
+        this%trefftz_distance = max_dist
+    
+    end subroutine surface_mesh_update_supersonic_trefftz_distance
 
 
     subroutine surface_mesh_place_interior_control_points(this, offset)
