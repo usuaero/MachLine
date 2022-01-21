@@ -49,7 +49,7 @@ module panel_mod
         real,dimension(3) :: centroid
         real,dimension(3,3) :: A_g_to_l, A_s_to_ls, A_g_to_ls, A_ls_to_g ! Coordinate transformation matrices
         real,dimension(3,3) :: B_mat_l, C_mat_l ! Relevant compressibility matrices
-        real,dimension(:,:),allocatable :: vertices_l, midpoints_l ! Location of the vertices and edge midpoints described in local coords
+        real,dimension(:,:),allocatable :: vertices_ls, midpoints_ls ! Location of the vertices and edge midpoints described in local scaled coords
         real,dimension(:,:),allocatable :: t_hat_g, t_hat_l, t_hat_ls ! Edge unit tangents
         real,dimension(:,:),allocatable :: n_hat_g, n_hat_l, n_hat_ls ! Edge unit outward normals
         real,dimension(:),allocatable :: l ! Edge lengths
@@ -88,6 +88,11 @@ module panel_mod
             procedure :: calc_F_integrals => panel_calc_F_integrals
             procedure :: calc_H_integrals => panel_calc_H_integrals
             procedure :: calc_integrals => panel_calc_integrals
+            procedure :: calc_b => panel_calc_b
+            procedure :: calc_b_bar => panel_calc_b_bar
+            procedure :: calc_a => panel_calc_a
+            procedure :: calc_a_bar => panel_calc_a_bar
+            procedure :: calc_B_mat => panel_calc_B_mat
             procedure :: get_source_potential => panel_get_source_potential
             procedure :: get_source_velocity => panel_get_source_velocity
             procedure :: get_doublet_potential => panel_get_doublet_potential
@@ -250,15 +255,15 @@ contains
         call this%calc_g_to_ls_transform(freestream)
 
         ! Transform vertex and midpoint coords to l
-        allocate(this%vertices_l(this%N,2))
-        allocate(this%midpoints_l(this%N,2))
+        allocate(this%vertices_ls(this%N,2))
+        allocate(this%midpoints_ls(this%N,2))
         do i=1,this%N
 
             ! Vertices
-            this%vertices_l(i,:) = matmul(this%A_g_to_l(1:2,:), this%get_vertex_loc(i)-this%centroid)
+            this%vertices_ls(i,:) = matmul(this%A_g_to_l(1:2,:), this%get_vertex_loc(i)-this%centroid)
 
             ! Midpoints
-            this%midpoints_l(i,:) = matmul(this%A_g_to_l(1:2,:), this%midpoints(i,:)-this%centroid)
+            this%midpoints_ls(i,:) = matmul(this%A_g_to_l(1:2,:), this%midpoints(i,:)-this%centroid)
 
         end do
 
@@ -459,8 +464,8 @@ contains
 
                 ! Set values
                 S_mu(:,1) = 1.
-                S_mu(:,2) = this%vertices_l(:,1)
-                S_mu(:,3) = this%vertices_l(:,2)
+                S_mu(:,2) = this%vertices_ls(:,1)
+                S_mu(:,3) = this%vertices_ls(:,2)
 
                 ! Invert
                 call matinv(3, S_mu, this%S_mu_inv)
@@ -474,17 +479,17 @@ contains
                 ! Set values
                 S_mu(:,1) = 1.
 
-                S_mu(1:3,2) = this%vertices_l(:,1)
-                S_mu(1:3,3) = this%vertices_l(:,2)
-                S_mu(1:3,4) = this%vertices_l(:,1)**2
-                S_mu(1:3,5) = this%vertices_l(:,1)*this%vertices_l(:,2)
-                S_mu(1:3,6) = this%vertices_l(:,2)**2
+                S_mu(1:3,2) = this%vertices_ls(:,1)
+                S_mu(1:3,3) = this%vertices_ls(:,2)
+                S_mu(1:3,4) = this%vertices_ls(:,1)**2
+                S_mu(1:3,5) = this%vertices_ls(:,1)*this%vertices_ls(:,2)
+                S_mu(1:3,6) = this%vertices_ls(:,2)**2
                 
-                S_mu(4:6,2) = this%midpoints_l(:,1)
-                S_mu(4:6,3) = this%midpoints_l(:,2)
-                S_mu(4:6,4) = this%midpoints_l(:,1)**2
-                S_mu(4:6,5) = this%midpoints_l(:,1)*this%midpoints_l(:,2)
-                S_mu(4:6,6) = this%midpoints_l(:,2)**2
+                S_mu(4:6,2) = this%midpoints_ls(:,1)
+                S_mu(4:6,3) = this%midpoints_ls(:,2)
+                S_mu(4:6,4) = this%midpoints_ls(:,1)**2
+                S_mu(4:6,5) = this%midpoints_ls(:,1)*this%midpoints_ls(:,2)
+                S_mu(4:6,6) = this%midpoints_ls(:,2)**2
 
                 ! Invert
                 call matinv(6, S_mu, this%S_mu_inv)
@@ -496,48 +501,46 @@ contains
         end if
 
         ! Determine influence of vertex source strengths on integral parameters
-        if (.not. source_order .eq. 0) then
+        ! Linear distribution
+        if (source_order .eq. 1) then
 
-            ! Linear distribution
-            if (source_order .eq. 1) then
+            ! Allocate influence matrices
+            allocate(S_sigma(3,3))
+            allocate(this%S_sigma_inv(3,3))
 
-                ! Allocate influence matrices
-                allocate(S_sigma(3,3))
-                allocate(this%S_sigma_inv(3,3))
+            ! Set values
+            S_sigma(:,1) = 1.
+            S_sigma(:,2) = this%vertices_ls(:,1)
+            S_sigma(:,3) = this%vertices_ls(:,2)
 
-                ! Set values
-                S_sigma(:,1) = 1.
-                S_sigma(:,2) = this%vertices_l(:,1)
-                S_sigma(:,3) = this%vertices_l(:,2)
+            ! Invert
+            call matinv(3, S_sigma, this%S_sigma_inv)
 
-                ! Invert
-                call matinv(3, S_sigma, this%S_sigma_inv)
+            deallocate(S_sigma)
 
-            else if (source_order .eq. 2) then
+        else if (source_order .eq. 2) then
 
-                ! Allocate influence matrix
-                allocate(S_sigma(6,6))
-                allocate(this%S_sigma_inv(6,6))
+            ! Allocate influence matrix
+            allocate(S_sigma(6,6))
+            allocate(this%S_sigma_inv(6,6))
 
-                ! Set values
-                S_sigma(:,1) = 1.
+            ! Set values
+            S_sigma(:,1) = 1.
 
-                S_sigma(1:3,2) = this%vertices_l(:,1)
-                S_sigma(1:3,3) = this%vertices_l(:,2)
-                S_sigma(1:3,4) = this%vertices_l(:,1)**2
-                S_sigma(1:3,5) = this%vertices_l(:,1)*this%vertices_l(:,2)
-                S_sigma(1:3,6) = this%vertices_l(:,2)**2
-                
-                S_sigma(4:6,2) = this%midpoints_l(:,1)
-                S_sigma(4:6,3) = this%midpoints_l(:,2)
-                S_sigma(4:6,4) = this%midpoints_l(:,1)**2
-                S_sigma(4:6,5) = this%midpoints_l(:,1)*this%midpoints_l(:,2)
-                S_sigma(4:6,6) = this%midpoints_l(:,2)**2
+            S_sigma(1:3,2) = this%vertices_ls(:,1)
+            S_sigma(1:3,3) = this%vertices_ls(:,2)
+            S_sigma(1:3,4) = this%vertices_ls(:,1)**2
+            S_sigma(1:3,5) = this%vertices_ls(:,1)*this%vertices_ls(:,2)
+            S_sigma(1:3,6) = this%vertices_ls(:,2)**2
+            
+            S_sigma(4:6,2) = this%midpoints_ls(:,1)
+            S_sigma(4:6,3) = this%midpoints_ls(:,2)
+            S_sigma(4:6,4) = this%midpoints_ls(:,1)**2
+            S_sigma(4:6,5) = this%midpoints_ls(:,1)*this%midpoints_ls(:,2)
+            S_sigma(4:6,6) = this%midpoints_ls(:,2)**2
 
-                ! Invert
-                call matinv(6, S_sigma, this%S_sigma_inv)
-
-            end if
+            ! Invert
+            call matinv(6, S_sigma, this%S_sigma_inv)
 
             deallocate(S_sigma)
 
@@ -610,7 +613,7 @@ contains
         do i=1,this%N
 
             ! Check which vertex this will replace
-            if (norm(this%get_vertex_loc(i)-clone%loc) < 1e-12) then
+            if (dist(this%get_vertex_loc(i), clone%loc) < 1e-12) then
 
                 ! Update pointer
                 this%vertices(i)%ptr => clone
@@ -861,7 +864,7 @@ contains
         do i=1,this%N
 
             ! Perpendicular distance in plane from evaluation point to edge
-            d = this%vertices_l(i,:)-geom%r_in_plane
+            d = this%vertices_ls(i,:)-geom%r_in_plane
             geom%a(i) = inner2(d, this%n_hat_l(i,:)) ! a is positive when the evaluation point is towards the interior of the panel
 
             ! Integration lengths on edges
@@ -903,18 +906,18 @@ contains
         real :: E, E_1, E_2
 
         ! Evaluate at start vertex
-        E_1 = ((this%vertices_l(i,1)-geom%r_in_plane(1))**(M-1) &
-              *(this%vertices_l(i,2)-geom%r_in_plane(2))**(N-1)) &
+        E_1 = ((this%vertices_ls(i,1)-geom%r_in_plane(1))**(M-1) &
+              *(this%vertices_ls(i,2)-geom%r_in_plane(2))**(N-1)) &
               /geom%s1(i)**K
 
         ! Evaluate at end vertex
         if (i .eq. this%N) then
-            E_2 = ((this%vertices_l(1,1)-geom%r_in_plane(1))**(M-1) &
-                   *(this%vertices_l(1,2)-geom%r_in_plane(2))**(N-1)) &
+            E_2 = ((this%vertices_ls(1,1)-geom%r_in_plane(1))**(M-1) &
+                   *(this%vertices_ls(1,2)-geom%r_in_plane(2))**(N-1)) &
                    /geom%s2(i)**K
         else
-            E_2 = ((this%vertices_l(i,1)-geom%r_in_plane(1))**(M-1) &
-                   *(this%vertices_l(i,2)-geom%r_in_plane(2))**(N-1)) &
+            E_2 = ((this%vertices_ls(i,1)-geom%r_in_plane(1))**(M-1) &
+                   *(this%vertices_ls(i,2)-geom%r_in_plane(2))**(N-1)) &
                    /geom%s2(i)**K
         end if
 
@@ -1386,6 +1389,86 @@ contains
     end subroutine panel_calc_integrals
 
 
+    function panel_calc_b(this, geom, dod_info) result(b)
+        ! Calculates the b integral (E&M section J.6.5.2)
+
+        implicit none
+        
+        class(panel),intent(in) :: this
+        type(eval_point_geom),intent(in) :: geom
+        type(dod),intent(in) :: dod_info
+
+        real :: b
+
+        b = 0.
+
+    end function panel_calc_b
+
+
+    function panel_calc_b_bar(this, geom, dod_info) result(b_bar)
+        ! Calculates the b integral vector (E&M section J.6.5.4)
+
+        implicit none
+        
+        class(panel),intent(in) :: this
+        type(eval_point_geom),intent(in) :: geom
+        type(dod),intent(in) :: dod_info
+
+        real,dimension(2) :: b_bar
+
+        b_bar = 0.
+
+    end function panel_calc_b_bar
+
+
+    function panel_calc_a(this, geom, dod_info) result(a)
+        ! Calculates the a integral (E&M section J.6.5.1)
+
+        implicit none
+        
+        class(panel),intent(in) :: this
+        type(eval_point_geom),intent(in) :: geom
+        type(dod),intent(in) :: dod_info
+
+        real :: a
+
+        a = 0.
+
+    end function panel_calc_a
+
+
+    function panel_calc_a_bar(this, geom, dod_info) result(a_bar)
+        ! Calculates the a integral vector (E&M section J.6.5.3)
+
+        implicit none
+        
+        class(panel),intent(in) :: this
+        type(eval_point_geom),intent(in) :: geom
+        type(dod),intent(in) :: dod_info
+
+        real,dimension(2) :: a_bar
+
+        a_bar = 0.
+
+    end function panel_calc_a_bar
+
+
+    function panel_calc_B_mat(this, geom, dod_info) result(B_mat)
+        ! Calculates the B integral matrix (E&M section J.6.5.5)
+
+        implicit none
+        
+        class(panel),intent(in) :: this
+        type(eval_point_geom),intent(in) :: geom
+        type(dod),intent(in) :: dod_info
+
+        real,dimension(2,2) :: B_mat
+
+        B_mat = 0.
+
+    end function panel_calc_B_mat
+
+
     function panel_get_source_potential(this, eval_point, freestream, dod_info, vertex_indices, panel_mirrored) result(phi)
 
         implicit none
@@ -1401,6 +1484,7 @@ contains
         type(eval_point_geom) :: geom
         real,dimension(:,:,:),allocatable :: H
         real,dimension(:,:,:,:),allocatable :: F
+        real :: b
 
         ! Allocate velocity
         if (source_order == 0) then
@@ -1410,10 +1494,10 @@ contains
         ! In dod
         if (dod_info%in_dod) then
 
-            if (influence_calc_type == 'johnson') then
+            ! Calculate geometric parameters
+            geom = this%get_field_point_geometry(eval_point)
 
-                ! Calculate geometric parameters
-                geom = this%get_field_point_geometry(eval_point)
+            if (influence_calc_type == 'johnson') then
 
                 ! Get integrals
                 call this%calc_integrals(geom, "potential", "source", H, F)
@@ -1429,8 +1513,18 @@ contains
                 deallocate(H)
                 deallocate(F)
 
-            
             else if (influence_calc_type == 'epton-magnus') then
+
+                if (source_order == 0) then
+
+                    ! Get necessary integral
+                    b = this%calc_b(geom, dod_info)
+
+                    ! Compute induced potential
+                    phi = b
+
+                end if
+
             end if
         end if
     
@@ -1461,10 +1555,10 @@ contains
         ! In dod
         if (dod_info%in_dod) then
 
-            if (influence_calc_type == 'johnson') then
+            ! Calculate geometric parameters
+            geom = this%get_field_point_geometry(eval_point)
 
-                ! Calculate geometric parameters
-                geom = this%get_field_point_geometry(eval_point)
+            if (influence_calc_type == 'johnson') then
 
                 ! Get integrals
                 call this%calc_integrals(geom, "velocity", "source", H, F)
@@ -1483,6 +1577,7 @@ contains
                 deallocate(F)
             
             else if (influence_calc_type == 'epton-magnus') then
+
             end if
         end if
 
@@ -1537,10 +1632,10 @@ contains
         ! Check DoD
         if (dod_info%in_dod) then
 
-            if (influence_calc_type == 'johnson') then
+            ! Calculate geometric parameters
+            geom = this%get_field_point_geometry(eval_point)
 
-                ! Calculate geometric parameters
-                geom = this%get_field_point_geometry(eval_point)
+            if (influence_calc_type == 'johnson') then
 
                 ! Get integrals
                 call this%calc_integrals(geom, "potential", "doublet", H, F)
@@ -1568,6 +1663,7 @@ contains
                 deallocate(F)
 
             else if (influence_calc_type == 'epton-magnus') then
+
             end if
         end if
     
@@ -1620,10 +1716,10 @@ contains
         ! Check DoD
         if (dod_info%in_dod) then
 
-            if (influence_calc_type == 'johnson') then
+            ! Calculate geometric parameters
+            geom = this%get_field_point_geometry(eval_point)
 
-                ! Calculate geometric parameters
-                geom = this%get_field_point_geometry(eval_point)
+            if (influence_calc_type == 'johnson') then
 
                 ! Get integrals
                 call this%calc_integrals(geom, "velocity", "doublet", H, F)
@@ -1643,6 +1739,7 @@ contains
                 deallocate(F)
 
             else if (influence_calc_type == 'epton-magnus') then
+
             end if
         end if
 
