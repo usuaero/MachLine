@@ -910,7 +910,7 @@ contains
         do i=1,this%N_verts
 
             ! Calculate distance
-            dist = -inner(this%vertices(i)%loc, freestream%c_hat_g)
+            dist = inner(this%vertices(i)%loc, freestream%c_hat_g)
 
             ! Check maximum
             if (dist > max_dist) then

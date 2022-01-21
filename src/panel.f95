@@ -335,7 +335,8 @@ contains
 
         ! Check for Mach-inclined panels
         if (freestream%supersonic .and. abs(x) < 1e-12) then
-            write(*,*) "    !!! Mach-inclined panels are not allowed in supersonic flow. Panel", this%index, "is Mach-inclined. Quitting..."
+            write(*,*) "    !!! Mach-inclined panels are not allowed in supersonic flow. Panel", &
+                       this%index, "is Mach-inclined. Quitting..."
             stop
         end if
         this%r = sign(1., x) ! r=-1 -> superinclined, r=1 -> subinclined

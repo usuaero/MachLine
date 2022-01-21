@@ -73,7 +73,7 @@ contains
             top_parent_ind = top_edge_verts(i)
             bot_parent_ind = bot_edge_verts(i)
             start = mesh_vertices(top_parent_ind)%loc
-            distance = trefftz_distance-inner(start, -freestream%c_hat_g)
+            distance = trefftz_distance-inner(start, freestream%c_hat_g)
 
             ! Determine vertex separation
             vertex_separation = distance/N_panels_streamwise
@@ -83,7 +83,7 @@ contains
 
                 ! Determine start location
                 mirrored_start = mirror_about_plane(start, mirror_plane)
-                mirrored_distance = trefftz_distance-inner(mirrored_start, -freestream%c_hat_g)
+                mirrored_distance = trefftz_distance-inner(mirrored_start, freestream%c_hat_g)
 
                 ! Determine vertex separation
                 mirrored_vertex_separation = mirrored_distance/N_panels_streamwise
@@ -95,7 +95,7 @@ contains
 
                 ! Determine location
                 ind = (i-1)*(N_panels_streamwise+1)+j
-                loc = start - vertex_separation*(j-1)*freestream%c_hat_g
+                loc = start + vertex_separation*(j-1)*freestream%c_hat_g
 
                 ! Initialize vertex
                 call this%vertices(ind)%init(loc, ind)
@@ -110,7 +110,7 @@ contains
                     ! Determine location
                     ind = ind + this%N_verts/2
                     mirrored_start = mirror_about_plane(start, mirror_plane)
-                    loc = mirrored_start - mirrored_vertex_separation*(j-1)*freestream%c_hat_g
+                    loc = mirrored_start + mirrored_vertex_separation*(j-1)*freestream%c_hat_g
 
                     ! Initialize vertex
                     call this%vertices(ind)%init(loc, ind)

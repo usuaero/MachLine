@@ -64,7 +64,7 @@ contains
         ! Derived quantities
         this%U = norm(this%v_inf)
         this%U_inv = 1./this%U
-        this%c_hat_g = -this%v_inf*this%U_inv
+        this%c_hat_g = this%v_inf*this%U_inv
 
         ! Determine condition
         if (this%M_inf == 1.) then
