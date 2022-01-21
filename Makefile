@@ -22,6 +22,7 @@ default:
 	common/helpers.f95 \
 	common/linked_list.f95 \
 	common/math.f95 \
+	common/linalg.f95 \
 	common/json.f95 \
 	common/json_xtnsn.f95 \
 	src/flow.f95 \

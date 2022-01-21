@@ -8,6 +8,7 @@ module panel_solver_mod
     use surface_mesh_mod
     use flow_mod
     use math_mod
+    use linalg_mod
 
     implicit none
 
