@@ -14,7 +14,7 @@ module panel_mod
     integer :: source_order
     integer :: eval_count ! Developer counter for optimization purposes
     logical :: debug = .false. ! Developer toggle
-    character(len=:),allocatable :: influence_calc_type ! Either 'johnson-ehlers' or 'gauss quad'
+    character(len=:),allocatable :: influence_calc_type ! Either 'johnson' or 'epton-magnus'
 
     type eval_point_geom
         ! Container type for the geometric parameters necessary for calculating a panel's influence on a given field point
@@ -32,6 +32,7 @@ module panel_mod
 
         logical :: in_dod
         logical,dimension(3) :: verts_in_dod, edges_in_dod
+        real,dimension(3) :: s_int_0, s_int_1 ! Edge length fractions at which the domain of dependence intersects each edge
 
     end type dod
 
@@ -59,6 +60,7 @@ module panel_mod
         integer,dimension(3) :: abutting_panels ! Indices of panels abutting this one
         integer,dimension(3) :: edges ! Indices of this panel's edges
         real :: r ! Panel inclination indicator; r=-1 -> superinclined, r=1 -> subinclined
+        real,dimension(3) :: tau ! Edge inclination parameter
         integer,dimension(3) :: q ! Edge type indicator; q=1 -> subsonic, q=-1 -> supersonic
         real,dimension(3) :: m ! Edge slope
         real,dimension(3) :: lambda ! Inverse of edge slope
@@ -340,7 +342,7 @@ contains
                        this%index, "is Mach-inclined. Quitting..."
             stop
         end if
-        this%r = sign(1., x) ! r=-1 -> superinclined, r=1 -> subinclined
+        this%r = sign(x) ! r=-1 -> superinclined, r=1 -> subinclined
 
         ! Calculate intermediate matrices
         C0 = 0.
@@ -419,7 +421,10 @@ contains
             this%n_hat_ls(i,1) = this%t_hat_ls(i,2)
             this%n_hat_ls(i,2) = -this%t_hat_ls(i,1)
 
-            ! Calculate edge type indicator
+            ! Calculate the edge type parameter (E&M Eq. (J.3.28))
+            this%tau(i) = freestream%C_g_inner(this%t_hat_g, this%t_hat_g)
+
+            ! Calculate edge type indicator (E&M Eq. (J.6.48))
             this%q(i) = nint(this%r*this%t_hat_ls(i,1)**2 + freestream%s*this%t_hat_ls(i,2)**2)
 
             ! Calculate edge slope
@@ -634,10 +639,10 @@ contains
         integer,intent(in),optional :: mirror_plane
         type(dod) :: dod_info
 
-        real,dimension(3) :: d, point
+        real,dimension(3) :: d, point, a, b, R_star
         integer :: i, N_verts_in_dod, N_edges_in_dod
-        real :: C_theta, x, y
-        logical :: totally_out, totally_in, centroid_in, radius_smaller, mirrored
+        real :: C_theta, x, y, dQ_dDp2, s_star
+        logical :: totally_out, totally_in, centroid_in, radius_smaller, mirrored, in_panel
 
         ! Set default mirroring
         if (present(panel_mirrored)) then
@@ -659,13 +664,20 @@ contains
             end if
             centroid_in = freestream%point_in_dod(point, eval_point)
 
-            ! Check if the centroid is further from the Mach cone than the panel radius
+            ! Determine the eval point geometry relative to the compressibility axis
             d = point-eval_point
             x = inner(d, freestream%c_hat_g)
             y = sqrt(norm(d)**2-x**2)
-            if (y >= freestream%B*x .and. sqrt((x+freestream%B*y)**2/(1.+freestream%B**2)) >= this%radius) then
-                radius_smaller = .true.
-            else if (y < freestream%B*x .and. norm(d) >= this%radius) then
+
+            ! Calculate the distance from the eval point to the Mach cone (E&M Eq. (J.3.26))
+            if (y >= freestream%B*x) then
+                dQ_dDp2 = (x+freestream%B*y)**2/(1.+freestream%B**2)
+            else
+                dQ_dDp2 = inner(d, d)
+            end if
+
+            ! Check the minimum distance relative to the radius
+            if (dQ_dDp2 >= this%radius**2) then
                 radius_smaller = .true.
             else
                 radius_smaller = .false.
@@ -687,6 +699,8 @@ contains
                 dod_info%in_dod = .true.
                 dod_info%verts_in_dod = .true.
                 dod_info%edges_in_dod = .true.
+                dod_info%s_int_0 = 0.
+                dod_info%s_int_1 = 1.
 
             ! If it is not guaranteed to be totally out or in, then check all the vertices and edges
             else
@@ -695,44 +709,113 @@ contains
                 N_verts_in_dod = 0
                 do i=1,this%N
 
-                    ! Check
+                    ! Get point
                     if (mirrored) then
                         point = mirror_about_plane(this%get_vertex_loc(i), mirror_plane)
                     else
                         point = this%get_vertex_loc(i)
                     end if
+
+                    ! Check
                     dod_info%verts_in_dod(i) = freestream%point_in_dod(point, eval_point)
+
+                    ! Update number of vertices
                     if (dod_info%verts_in_dod(i)) then
                         N_verts_in_dod = N_verts_in_dod + 1
+                        dod_info%in_dod = .true.
                     end if
 
                 end do
 
-                ! Check edges (if 2 or more vertices are in the dod, then how the edges fall is known)
-                if (N_verts_in_dod < 2) then
+                ! Check edges
+                do i=1,this%N
 
-                    ! Initialize count
-                    N_edges_in_dod = 0
+                    ! If both vertices are in, then the edge is in (you gotta love convex subspaces)
+                    if (dod_info%verts_in_dod(i) .and. dod_info%verts_in_dod(mod(i, this%N)+1)) then
+                        dod_info%edges_in_dod(i) = .true.
+                        dod_info%s_int_0(i) = 0.
+                        dod_info%s_int_1(i) = 1.
 
-                    ! Loop through edges
-                    do i=1,this%N
+                    ! If both aren't in, then the intersection will depend on the edge type
+                    else if (this%q(i) == 1) then ! Subsonic
 
-                        ! For subsonic edges, this is entirely dependent on the most downstream endpoint
+                        ! If both vertices are out, then the edge is out
+                        if (.not. dod_info%verts_in_dod(i) .and. .not. dod_info%verts_in_dod(mod(i, this%N)+1)) then
+                            dod_info%edges_in_dod(i) = .false.
 
-                    end do
+                        ! If both aren't in or out, we need to find the point of intersection
+                        else
 
-                    ! Check if the dod is encompassed by the panel (for superinclined panels)
-                    if (this%r == -1. .and. N_edges_in_dod == 0) then
+                        end if
+
+                    else ! Supersonic
+
+                        ! If both are out, calculate the point of closest approach
+                        if (.not. dod_info%verts_in_dod(i) .and. .not. dod_info%verts_in_dod(mod(i, this%N)+1)) then
+
+                            ! Get vector describing edge
+                            d = this%get_vertex_loc(mod(i, this%N)+1) - this%get_vertex_loc(i)
+                        
+                            ! Calculate nondimensional location of the point of closest approach (E&M Eq. (J.3.39))
+                            a = cross(freestream%c_hat_g, d)
+                            b = cross(freestream%c_hat_g, this%get_vertex_loc(mod(i, this%N)+1)-eval_point)
+                            s_star = inner(a, b)/inner(a, a)
+
+                            ! Check if the point of closest approach is in the edge and in the DoD
+                            R_star = this%get_vertex_loc(i)+s_star*d
+                            if (s_star > 0. .and. s_star < 1. .and. freestream%point_in_dod(R_star, eval_point)) then
+
+                                dod_info%in_dod = .true.
+
+                                ! If so, we need the points of intersection
+
+                            else
+
+                                ! If not, this edge is not in the DoD
+                                dod_info%edges_in_dod(i) = .false.
+
+                            end if
+
+                        ! If both aren't in or out, we need to find the point of intersection
+                        else
+
+                        end if
 
                     end if
 
-                else
+                end do
 
-                    ! Store which edges are in based on which vertices are in
-                    do i=1,this%N-1
-                        dod_info%edges_in_dod(i) = dod_info%verts_in_dod(i) .or. dod_info%verts_in_dod(i+1)
-                    end do
-                    dod_info%edges_in_dod(this%N) = dod_info%verts_in_dod(this%N) .or. dod_info%verts_in_dod(1)
+                ! If a supersonic panel has no edges or vertices in the DoD, check if the DoD is encompassed by the panel
+                if (this%r == -1) then
+                    if (.not. any(dod_info%verts_in_dod) .and. .not. any(dod_info%edges_in_dod)) then
+
+                        ! Get the projection of the evaluation point onto the panel in the direction of c_hat
+                        s_star = inner(this%get_vertex_loc(1)-eval_point, this%normal)/inner(freestream%c_hat_g, this%normal)
+                        R_star = eval_point + freestream%c_hat_g*s_star
+
+                        ! See if the projected point is in the panel
+                        in_panel = .true.
+                        do i=1,this%N
+
+                            ! Get edge displacement
+                            x = inner(R_star, this%n_hat_g(:,i))
+
+                            ! Check sign (should be negative if interior to the panel)
+                            if (x >= 0.) then
+                                in_panel = .false.
+                                exit ! Don't need to check any more
+                            end if
+
+                        end do
+
+                        ! Store information
+                        if (in_panel) then
+                            dod_info%in_dod = .true.
+                        else
+                            dod_info%in_dod = .false.
+                        end if
+
+                    end if
 
                 end if
 
@@ -740,10 +823,12 @@ contains
 
         else
 
-            ! Subsonic flow. DoD is everywhere.
+            ! Subsonic flow. DoD is everywhere. Life is easy.
             dod_info%in_dod = .true.
             dod_info%verts_in_dod = .true.
             dod_info%edges_in_dod = .true.
+            dod_info%s_int_0 = 0.
+            dod_info%s_int_1 = 1.
 
         end if
 
@@ -1325,7 +1410,7 @@ contains
         ! In dod
         if (dod_info%in_dod) then
 
-            if (influence_calc_type == 'johnson-ehlers') then
+            if (influence_calc_type == 'johnson') then
 
                 ! Calculate geometric parameters
                 geom = this%get_field_point_geometry(eval_point)
@@ -1344,6 +1429,8 @@ contains
                 deallocate(H)
                 deallocate(F)
 
+            
+            else if (influence_calc_type == 'epton-magnus') then
             end if
         end if
     
@@ -1374,7 +1461,7 @@ contains
         ! In dod
         if (dod_info%in_dod) then
 
-            if (influence_calc_type == 'johnson-ehlers') then
+            if (influence_calc_type == 'johnson') then
 
                 ! Calculate geometric parameters
                 geom = this%get_field_point_geometry(eval_point)
@@ -1394,7 +1481,8 @@ contains
                 ! Clean up
                 deallocate(H)
                 deallocate(F)
-
+            
+            else if (influence_calc_type == 'epton-magnus') then
             end if
         end if
 
@@ -1449,7 +1537,7 @@ contains
         ! Check DoD
         if (dod_info%in_dod) then
 
-            if (influence_calc_type == 'johnson-ehlers') then
+            if (influence_calc_type == 'johnson') then
 
                 ! Calculate geometric parameters
                 geom = this%get_field_point_geometry(eval_point)
@@ -1479,6 +1567,7 @@ contains
                 deallocate(H)
                 deallocate(F)
 
+            else if (influence_calc_type == 'epton-magnus') then
             end if
         end if
     
@@ -1531,7 +1620,7 @@ contains
         ! Check DoD
         if (dod_info%in_dod) then
 
-            if (influence_calc_type == 'johnson-ehlers') then
+            if (influence_calc_type == 'johnson') then
 
                 ! Calculate geometric parameters
                 geom = this%get_field_point_geometry(eval_point)
@@ -1553,6 +1642,7 @@ contains
                 deallocate(H)
                 deallocate(F)
 
+            else if (influence_calc_type == 'epton-magnus') then
             end if
         end if
 

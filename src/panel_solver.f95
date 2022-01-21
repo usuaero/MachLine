@@ -24,6 +24,7 @@ module panel_solver_mod
 
             procedure :: init => panel_solver_init
             procedure :: init_dirichlet => panel_solver_init_dirichlet
+            procedure :: calc_domains_of_dependence => panel_solver_calc_domains_of_dependence
             procedure :: solve => panel_solver_solve
             procedure :: solve_dirichlet => panel_solver_solve_dirichlet
 
@@ -48,11 +49,7 @@ contains
 
         ! Get settings
         call json_xtnsn_get(settings, 'formulation', this%formulation, 'morino')
-        call json_xtnsn_get(settings, 'influence_calculations', influence_calc_type, 'johnson-ehlers')
-        if (influence_calc_type == 'gaussian quad') then
-            write(*,*) "    !!! Gaussian quadrature calculations are not yet implemented. Reverting to Johnson-Ehlers."
-            influence_calc_type = 'johnson-ehlers'
-        end if
+        call json_xtnsn_get(settings, 'influence_calculations', influence_calc_type, 'johnson')
 
         ! Store
         this%freestream = freestream
@@ -73,6 +70,21 @@ contains
         end if
 
         ! Calculate domains of dependence
+        call this%calc_domains_of_dependence(body)
+
+    end subroutine panel_solver_init
+
+
+    subroutine panel_solver_calc_domains_of_dependence(this, body)
+        ! Determines the domains of dependence for each control point based on the freestream condition
+
+        implicit none
+
+        class(panel_solver),intent(inout) :: this
+        type(surface_mesh),intent(inout) :: body
+
+        integer :: i, j
+
         ! For asymmetric flow on a mirrored mesh, all domains of dependence must be calculated. There are no shortcuts.
         ! For symmetric flow on a mirrored mesh, domains of dependence will be the same between mirrored panels and mirrored
         ! control points. So, we just need to calculate the DoD for mirrored control points, and then we're good.
@@ -129,18 +141,17 @@ contains
                 if (body%mirrored) then
 
                     ! Check DoD for panel and mirrored control point
+                    ! No other calculations are needed because mirrored panels are explicitly created in the case of asymmetric flow
                     this%dod_info(i+body%N_panels,j+body%N_cp) = body%wake%panels(i)%check_dod(body%cp_mirrored(j,:), &
                                                                                                this%freestream)
-
-                    ! No other calculations are needed because mirrored panels are explicitly created in the case of asymmetric flow
 
                 end if
 
             end do
 
         end do
-
-    end subroutine panel_solver_init
+    
+    end subroutine panel_solver_calc_domains_of_dependence
 
 
     subroutine panel_solver_init_dirichlet(this, settings, body)

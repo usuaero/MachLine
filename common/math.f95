@@ -27,6 +27,26 @@ function isinf(x) result(is)
 end function isinf
 
 
+function sign(x) result(s)
+  ! Returns the sign of x
+
+  implicit none
+
+  real,intent(in) :: x
+
+  integer :: s
+
+  if (x < 0.) then
+    s = -1
+  else if (x > 0.) then
+    s = 1
+  else
+    s = 0
+  end if
+
+end function sign
+
+
 function plane_normal(p1, p2, p3) result(n)
   ! Computes the normal vector to a plane defined by 3 points
 
