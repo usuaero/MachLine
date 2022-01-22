@@ -90,5 +90,20 @@ contains
     
     end subroutine progress_bar_advance
 
+
+    subroutine delete_file(filename)
+        ! Deletes the given file if it exists
+
+        implicit none
+
+        character(len=:),allocatable,intent(in) :: filename
+
+        integer :: stat
+
+        open(unit=13, iostat=stat, file=filename)
+        if (stat == 0) close(13, status='delete')
+    
+    end subroutine delete_file
+
     
 end module helpers_mod

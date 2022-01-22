@@ -170,7 +170,7 @@ subroutine lu_solve(n, A, b, x)
 
     ! if the matrix is nonsingular, then backsolve to find X
     if (info == 1) then
-        write(*,*) 'Subroutine lu_solve() failed. The given matrix is singular (i.e. no solution). Quitting...'
+        write(*,*) 'Subroutine lu_solve() failed. The given matrix is singular (i.e. no unique solution). Quitting...'
         stop
     else
         call lu_back_sub(A, n, indx, b, x)

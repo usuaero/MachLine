@@ -431,6 +431,11 @@ contains
         
             ! Export wake geometry
             if (wake_file /= 'none') then
+
+                ! Clear old file
+                call delete_file(wake_file)
+
+                ! Write new geometry
                 if (this%wake%N_panels > 0) then
 
                     call wake_vtk%begin(wake_file)
@@ -1013,6 +1018,11 @@ contains
 
         ! Write out data for body
         if (body_file /= 'none') then
+
+            ! Clear old file
+            call delete_file(body_file)
+
+            ! Write data
             call body_vtk%begin(body_file)
             call body_vtk%write_points(this%vertices)
             call body_vtk%write_panels(this%panels)
@@ -1027,6 +1037,10 @@ contains
         
         ! Write out data for wake
         if (wake_file /= 'none') then
+
+            ! Clear old file
+            call delete_file(wake_file)
+
             if (this%wake%N_panels > 0) then
 
                 ! Write out geometry
@@ -1048,7 +1062,6 @@ contains
                 write(*,*) "    Wake results written to: ", wake_file
 
             else
-
                 write(*,*) "    No wake to export."
 
             end if
@@ -1056,6 +1069,11 @@ contains
         
         ! Write out data for control points
         if (control_point_file /= 'none') then
+
+            ! Clear old file
+            call delete_file(control_point_file)
+
+            ! Write out data
             call cp_vtk%begin(control_point_file)
             call cp_vtk%write_points(this%control_points)
             call cp_vtk%write_vertices(this%control_points)

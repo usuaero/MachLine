@@ -9,10 +9,6 @@
     "geometry": {
         "file": "dev/meshes/Fuselage+wing.vtk",
         "mirror_about": "xz",
-        "singularity_order": {
-            "doublet": 1,
-            "source": 0
-        },
         "wake_model": {
             "wake_shedding_angle": 90.0,
             "trefftz_distance": 100.0,

@@ -16,7 +16,7 @@ module flow_mod
         real :: s ! Sign of 1-M^2; determines character of governing PDE (hyperbolic (s=-1) vs elliptic(s=1))
         real :: c ! Freestream speed of sound
         real :: mu, C_mu ! Mach angle
-        real :: K ! Kappa factor
+        real :: K, K_inv ! Kappa factor
         real,dimension(3) :: c_hat_g ! Compressibility axis (assumed in TriPan to be aligned with the freestream direction)
         logical,dimension(3) :: sym_about ! Whether the flow condition is symmetric about any plane
         real,dimension(3,3) :: B_mat_g, B_mat_c ! Dual metric matrix
@@ -84,6 +84,7 @@ contains
             this%s = 1.
             this%K = 4.*pi
         end if
+        this%K_inv = 1./this%K
 
         ! Calculate freestream speed of sound
         this%c = this%M_inf*this%U

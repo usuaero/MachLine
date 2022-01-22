@@ -64,6 +64,7 @@ module panel_mod
         integer,dimension(3) :: q ! Edge type indicator; q=1 -> subsonic, q=-1 -> supersonic
         real,dimension(3) :: m ! Edge slope
         real,dimension(3) :: lambda ! Inverse of edge slope
+        real,dimension(2,2) :: G ! Some special matrix
 
         contains
 
@@ -93,6 +94,8 @@ module panel_mod
             procedure :: calc_a => panel_calc_a
             procedure :: calc_a_bar => panel_calc_a_bar
             procedure :: calc_B_mat => panel_calc_B_mat
+            procedure :: calc_panel_function => panel_calc_panel_function
+            procedure :: calc_edge_functions => panel_calc_edge_functions
             procedure :: get_source_potential => panel_get_source_potential
             procedure :: get_source_velocity => panel_get_source_velocity
             procedure :: get_doublet_potential => panel_get_doublet_potential
@@ -277,6 +280,10 @@ contains
         this%C_mat_l(1,1) = this%r
         this%C_mat_l(2,2) = freestream%s
         this%C_mat_l(3,3) = this%r*freestream%s
+
+        this%G = 0.
+        this%G(1,1) = this%r*freestream%s
+        this%G(2,2) = 1.
 
         ! Check calculation
         if (any(abs(this%B_mat_l - matmul(this%A_g_to_ls, matmul(freestream%B_mat_g, transpose(this%A_g_to_ls)))) > 1e-12)) then
@@ -911,15 +918,9 @@ contains
               /geom%s1(i)**K
 
         ! Evaluate at end vertex
-        if (i .eq. this%N) then
-            E_2 = ((this%vertices_ls(1,1)-geom%r_in_plane(1))**(M-1) &
-                   *(this%vertices_ls(1,2)-geom%r_in_plane(2))**(N-1)) &
-                   /geom%s2(i)**K
-        else
-            E_2 = ((this%vertices_ls(i,1)-geom%r_in_plane(1))**(M-1) &
-                   *(this%vertices_ls(i,2)-geom%r_in_plane(2))**(N-1)) &
-                   /geom%s2(i)**K
-        end if
+        E_2 = ((this%vertices_ls(mod(i, this%N)+1,1)-geom%r_in_plane(1))**(M-1) &
+              *(this%vertices_ls(mod(i, this%N)+1,2)-geom%r_in_plane(2))**(N-1)) &
+              /geom%s2(i)**K
 
         ! Calculate difference
         E = E_2-E_1
@@ -1389,7 +1390,39 @@ contains
     end subroutine panel_calc_integrals
 
 
-    function panel_calc_b(this, geom, dod_info) result(b)
+    function panel_calc_panel_function(this, geom, dod_info, freestream) result(J)
+        ! Calculates the panel function J
+
+        implicit none
+
+        class(panel),intent(in) :: this
+        type(eval_point_geom),intent(in) :: geom
+        type(dod),intent(in) :: dod_info
+        type(flow),intent(in) :: freestream
+
+        real :: J
+
+
+    end function panel_calc_panel_function
+
+
+    function panel_calc_edge_functions(this, geom, dod_info, freestream) result(I)
+        ! Calculates the edge functions I_i
+
+        implicit none
+
+        class(panel),intent(in) :: this
+        type(eval_point_geom),intent(in) :: geom
+        type(dod),intent(in) :: dod_info
+        type(flow),intent(in) :: freestream
+
+        real,dimension(this%N) :: I
+
+
+    end function panel_calc_edge_functions
+
+
+    function panel_calc_b(this, geom, dod_info, freestream) result(b)
         ! Calculates the b integral (E&M section J.6.5.2)
 
         implicit none
@@ -1397,6 +1430,7 @@ contains
         class(panel),intent(in) :: this
         type(eval_point_geom),intent(in) :: geom
         type(dod),intent(in) :: dod_info
+        type(flow),intent(in) :: freestream
 
         real :: b
 
@@ -1405,7 +1439,7 @@ contains
     end function panel_calc_b
 
 
-    function panel_calc_b_bar(this, geom, dod_info) result(b_bar)
+    function panel_calc_b_bar(this, geom, dod_info, freestream) result(b_bar)
         ! Calculates the b integral vector (E&M section J.6.5.4)
 
         implicit none
@@ -1413,6 +1447,7 @@ contains
         class(panel),intent(in) :: this
         type(eval_point_geom),intent(in) :: geom
         type(dod),intent(in) :: dod_info
+        type(flow),intent(in) :: freestream
 
         real,dimension(2) :: b_bar
 
@@ -1421,7 +1456,7 @@ contains
     end function panel_calc_b_bar
 
 
-    function panel_calc_a(this, geom, dod_info) result(a)
+    function panel_calc_a(this, geom, dod_info, freestream) result(a)
         ! Calculates the a integral (E&M section J.6.5.1)
 
         implicit none
@@ -1429,15 +1464,16 @@ contains
         class(panel),intent(in) :: this
         type(eval_point_geom),intent(in) :: geom
         type(dod),intent(in) :: dod_info
+        type(flow),intent(in) :: freestream
 
         real :: a
 
-        a = 0.
+        a = -freestream%s*freestream%K_inv*this%calc_panel_function(geom, dod_info, freestream)
 
     end function panel_calc_a
 
 
-    function panel_calc_a_bar(this, geom, dod_info) result(a_bar)
+    function panel_calc_a_bar(this, geom, dod_info, freestream) result(a_bar)
         ! Calculates the a integral vector (E&M section J.6.5.3)
 
         implicit none
@@ -1445,6 +1481,7 @@ contains
         class(panel),intent(in) :: this
         type(eval_point_geom),intent(in) :: geom
         type(dod),intent(in) :: dod_info
+        type(flow),intent(in) :: freestream
 
         real,dimension(2) :: a_bar
 
@@ -1453,7 +1490,7 @@ contains
     end function panel_calc_a_bar
 
 
-    function panel_calc_B_mat(this, geom, dod_info) result(B_mat)
+    function panel_calc_B_mat(this, geom, dod_info, freestream) result(B_mat)
         ! Calculates the B integral matrix (E&M section J.6.5.5)
 
         implicit none
@@ -1461,6 +1498,7 @@ contains
         class(panel),intent(in) :: this
         type(eval_point_geom),intent(in) :: geom
         type(dod),intent(in) :: dod_info
+        type(flow),intent(in) :: freestream
 
         real,dimension(2,2) :: B_mat
 
@@ -1518,7 +1556,7 @@ contains
                 if (source_order == 0) then
 
                     ! Get necessary integral
-                    b = this%calc_b(geom, dod_info)
+                    b = this%calc_b(geom, dod_info, freestream)
 
                     ! Compute induced potential
                     phi = b
@@ -1601,6 +1639,8 @@ contains
         real,dimension(:,:,:,:),allocatable :: F
         integer,dimension(:),allocatable :: H_shape
         integer :: i, j, k
+        real :: a
+        real,dimension(2) :: a_bar, x
 
         ! Specify influencing vertices (also sets zero default influence)
         if (doublet_order == 1) then
@@ -1663,6 +1703,28 @@ contains
                 deallocate(F)
 
             else if (influence_calc_type == 'epton-magnus') then
+
+                if (doublet_order ==1) then
+
+                    ! Get integrals
+                    a = this%calc_a(geom, dod_info, freestream)
+                    a_bar = this%calc_a_bar(geom, dod_info, freestream)
+
+                    ! Calculate influence
+                    x = geom%h*matmul(this%G, a_bar)
+                    phi(1) = this%r*a
+                    phi(2) = phi(1)*geom%r_in_plane(1) - x(1)
+                    phi(3) = phi(1)*geom%r_in_plane(2) - x(2)
+
+                    ! Convert to vertex influences
+                    phi(1:3) = matmul(phi(1:3), this%S_mu_inv)
+
+                    ! Wake bottom influence is opposite the top influence
+                    if (this%in_wake) then
+                        phi(4:6) = -phi(1:3)
+                    end if
+
+                end if
 
             end if
         end if

@@ -62,6 +62,10 @@ contains
         ! Write out control point geometry
         if (control_point_file /= 'none') then
 
+            ! Clear old file
+            call delete_file(control_point_file)
+
+            ! Write out points
             call cp_vtk%begin(control_point_file)
             call cp_vtk%write_points(body%control_points)
             call cp_vtk%write_vertices(body%control_points)
@@ -83,7 +87,7 @@ contains
         class(panel_solver),intent(inout) :: this
         type(surface_mesh),intent(inout) :: body
 
-        integer :: i, j
+        integer :: i, j, wake_start
 
         ! For asymmetric flow on a mirrored mesh, all domains of dependence must be calculated. There are no shortcuts.
         ! For symmetric flow on a mirrored mesh, domains of dependence will be the same between mirrored panels and mirrored
@@ -92,12 +96,15 @@ contains
         ! Allocate domains of dependence
         if (body%mirrored) then
             if (body%asym_flow) then
-                allocate(this%dod_info(2*body%N_panels+body%wake%N_panels, 2*body%N_cp))
+                wake_start = 2*body%N_panels
+                allocate(this%dod_info(wake_start+body%wake%N_panels, 2*body%N_cp))
             else
-                allocate(this%dod_info(body%N_panels+body%wake%N_panels, 2*body%N_cp))
+                wake_start = body%N_panels
+                allocate(this%dod_info(wake_start+body%wake%N_panels, 2*body%N_cp))
             end if
         else
-            allocate(this%dod_info(body%N_panels+body%wake%N_panels, body%N_cp))
+            wake_start = body%N_panels
+            allocate(this%dod_info(wake_start+body%wake%N_panels, body%N_cp))
         end if
 
         ! Loop through control points
@@ -136,13 +143,13 @@ contains
             do i=1,body%wake%N_panels
 
                 ! Check DoD for panel and original control point
-                this%dod_info(i+body%N_panels,j) = body%wake%panels(i)%check_dod(body%control_points(j,:), this%freestream)
+                this%dod_info(wake_start+i,j) = body%wake%panels(i)%check_dod(body%control_points(j,:), this%freestream)
 
                 if (body%mirrored) then
 
                     ! Check DoD for panel and mirrored control point
                     ! No other calculations are needed because mirrored panels are explicitly created in the case of asymmetric flow
-                    this%dod_info(i+body%N_panels,j+body%N_cp) = body%wake%panels(i)%check_dod(body%cp_mirrored(j,:), &
+                    this%dod_info(wake_start+i,j+body%N_cp) = body%wake%panels(i)%check_dod(body%cp_mirrored(j,:), &
                                                                                                this%freestream)
 
                 end if
