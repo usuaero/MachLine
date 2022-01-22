@@ -1484,8 +1484,18 @@ contains
         type(flow),intent(in) :: freestream
 
         real,dimension(2) :: a_bar
+        real,dimension(this%N) :: I
+        integer :: j
 
+        ! Get edge functions
+        I = this%calc_edge_functions(geom, dod_info, freestream)
+
+        ! Sum over edges
         a_bar = 0.
+        do j=1,this%N
+            a_bar = a_bar + this%n_hat_ls(j,:)*this%q(j)*I(j)
+        end do
+        a_bar = a_bar*freestream%s*freestream%K_inv
 
     end function panel_calc_a_bar
 
