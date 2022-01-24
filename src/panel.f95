@@ -419,17 +419,17 @@ contains
             e = matmul(this%A_g_to_ls(1:2,:), d)
             this%t_hat_ls(i,:) = e/sqrt(abs(this%r*freestream%s*e(1)**2 + e(2)**2))
 
-            ! Calculate outward normal
+            ! Calculate edge normal
             this%n_hat_g(i,:) = cross(this%t_hat_g(i,:), this%normal)
             this%n_hat_l(i,1) = this%t_hat_l(i,2)
             this%n_hat_l(i,2) = -this%t_hat_l(i,1)
 
-            ! Calculate outward normal in local scaled coords
+            ! Calculate edge normal in local scaled coords
             this%n_hat_ls(i,1) = this%t_hat_ls(i,2)
             this%n_hat_ls(i,2) = -this%t_hat_ls(i,1)
 
             ! Calculate the edge type parameter (E&M Eq. (J.3.28))
-            this%tau(i) = freestream%C_g_inner(this%t_hat_g, this%t_hat_g)
+            this%tau(i) = sqrt(abs(freestream%C_g_inner(this%t_hat_g, this%t_hat_g)))
 
             ! Calculate edge type indicator (E&M Eq. (J.6.48))
             this%q(i) = nint(this%r*this%t_hat_ls(i,1)**2 + freestream%s*this%t_hat_ls(i,2)**2)
@@ -1418,6 +1418,150 @@ contains
 
         real,dimension(this%N) :: I
 
+        integer :: j, k
+        real :: sigma, z, I_hat, phi_q, delta_R, v_hat_bar, dphi_q
+
+        ! Loop through edges
+        do j=1,this%N
+
+            ! Check it's in the DoD
+            if (dod_info%edges_in_dod(j)) then
+
+                ! Non-sonic edges
+                if (this%tau(j)**2 > 1.e-4) then
+
+                    ! Both endpoints are in the DoD
+                    if (dod_info%verts_in_dod(j) .and. dod_info%verts_in_dod(mod(j, this%N)+1)) then
+
+                        ! Check for g^2 small, q=1, and l changing signs
+                        if (abs(geom%g(j))<1e-6 .and. this%q(j) == 1 .and. sign(geom%l1(j)) /= sign(geom%l2(j))) then
+
+                            ! Calculate edge function using stable formula
+                            I(j) = log((geom%s2(j)-geom%l2(j))*(geom%s1(j)-geom%l1(j))/geom%g2(j))
+
+                        else
+
+                            ! Calculate intermediate quantities
+                            z = -(geom%l2(j)-geom%l1(j))*(geom%l2(j)+geom%l1(j))/(geom%s2(j)*geom%l2(j) + geom%s1(j)*geom%l1(j))
+
+                            ! Calculate edge function
+                            if (this%q(j) == 1) then
+                                I(j) = 0.5*log((1+z)/(1-z))
+                            else
+                                sigma = sign(geom%s1(j)*geom%s2(j) + geom%l1(j)*geom%l2(j))
+                                I(j) = atan2(sigma*z, sigma)
+                            end if
+                        
+                        end if
+
+                    else ! Only one endpoint
+
+                        ! Check magnitude of g
+                        if (abs(geom%g(j))<1e-6) then
+
+                            ! Regular calculation for large g
+                            if (dod_info%verts_in_dod(j)) then
+
+                                if (this%q(j) == 1) then
+                                    I(j) = 0.5*log((-geom%l1(j)+geom%s1(j))/(-geom%l1(j)-geom%s1(j)))
+                                else
+                                    I(j) = -atan2(geom%s1(j), -geom%l1(j))
+                                end if
+
+                            else if (dod_info%verts_in_dod(mod(j, this%N)+1)) then
+
+                                if (this%q(j) == 1) then
+                                    I(j) = 0.5*log((-geom%l2(j)+geom%s2(j))/(-geom%l2(j)-geom%s2(j)))
+                                else
+                                    I(j) = -atan2(geom%s2(j), -geom%l2(j))
+                                end if
+
+                            end if
+
+                        else ! Special calculation for small g
+
+                            if (dod_info%verts_in_dod(j)) then
+                                I(j) = sign(-geom%l1(j))*(log(abs(geom%l1(j))+geom%s1(j))-0.5*log(geom%g2(j)))
+                            else if (dod_info%verts_in_dod(mod(j, this%N)+1)) then
+                                I(j) = sign(-geom%l2(j))*(log(abs(geom%l2(j))+geom%s2(j))-0.5*log(geom%g2(j)))
+                            end if
+
+                        end if
+
+                    end if
+
+                ! Nearly-sonic edges
+                else if (this%tau(j)**2 > 1.e-10) then
+
+                    ! Calculate basic quantities
+                    sigma = sign(geom%s1(j)*geom%s2(j) + geom%l1(j)*geom%l2(j))
+                    z = -(geom%l2(j)-geom%l1(j))*(geom%l2(j)+geom%l1(j))/(geom%s2(j)*geom%l2(j) + geom%s1(j)*geom%l1(j))
+
+                    ! Check for special case
+                    if (this%q(j) == -1 .and. sigma == -1) then
+
+                        ! Calculate edge function
+                        I(j) = -atan2(-z, -1.)*this%q(j)
+
+                    else
+
+                        ! Check magnitude of z for calculating phi_q
+                        if (abs(z) < 0.3) then
+
+                            ! Determine phi_q using a series
+                            phi_q = 0.
+                            do k=1,100
+
+                                ! Calculate current term
+                                dphi_q = (this%q(j)*z**2)**(k-1)/(2*k+1)
+
+                                ! Update
+                                phi_q = phi_q + dphi_q
+
+                                ! If the current term is small enough, we can stop execution (crude, but effective)
+                                if (abs(dphi_q)< 1e-12) then
+                                    exit
+                                end if
+
+                            end do
+                            phi_q = phi_q*this%q(j)
+
+                        else
+
+                            if (this%q(j) == 1) then
+                                phi_q = (0.5*log((1.+z)/(1.-z))-z)/z**3
+                            else
+                                phi_q = (atan2(z, 1.)-z)/z**3
+                            end if
+
+                        end if
+
+                        ! Calculate edge function
+                        I(j) = z*(1.+z**2*phi_q)
+
+                    end if
+
+                ! Essentially-sonic edges
+                else
+
+                    ! Calculate intermediate quantities
+                    delta_R = geom%s2(j)-geom%s1(j)
+                    v_hat_bar = -0.5*this%tau(j)*(geom%l1(j)+geom%l2(j))
+
+                    ! Calculate edge function
+                    I_hat = delta_R/v_hat_bar
+                    I(j) = this%tau(j)*this%q(j)*I_hat
+
+                end if
+
+            else
+
+                ! No influence possible
+                I(j) = 0.
+
+            end if
+
+        end do
 
     end function panel_calc_edge_functions
 
@@ -1433,6 +1577,10 @@ contains
         type(flow),intent(in) :: freestream
 
         real :: b
+        real,dimension(this%N) :: I
+
+        ! Get edge functions
+        I = this%calc_edge_functions(geom, dod_info, freestream)
 
         b = 0.
 
@@ -1450,6 +1598,10 @@ contains
         type(flow),intent(in) :: freestream
 
         real,dimension(2) :: b_bar
+        real,dimension(this%N) :: I
+
+        ! Get edge functions
+        I = this%calc_edge_functions(geom, dod_info, freestream)
 
         b_bar = 0.
 
@@ -1467,6 +1619,10 @@ contains
         type(flow),intent(in) :: freestream
 
         real :: a
+        real,dimension(this%N) :: I
+
+        ! Get edge functions
+        I = this%calc_edge_functions(geom, dod_info, freestream)
 
         a = -freestream%s*freestream%K_inv*this%calc_panel_function(geom, dod_info, freestream)
 
@@ -1511,6 +1667,10 @@ contains
         type(flow),intent(in) :: freestream
 
         real,dimension(2,2) :: B_mat
+        real,dimension(this%N) :: I
+
+        ! Get edge functions
+        I = this%calc_edge_functions(geom, dod_info, freestream)
 
         B_mat = 0.
 
