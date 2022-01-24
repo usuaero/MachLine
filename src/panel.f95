@@ -405,15 +405,10 @@ contains
         ! Loop through edges
         do i=1,this%N
 
-            ! Calculate difference based on index
-            ! Edge i starts at vertex i
-            if (i==this%N) then
-                d = this%get_vertex_loc(1)-this%get_vertex_loc(i)
-            else
-                d = this%get_vertex_loc(i+1)-this%get_vertex_loc(i)
-            end if
+            ! Calculate edge vector based on index
+            d = this%get_vertex_loc(mod(i, this%N)+1)-this%get_vertex_loc(i)
 
-            ! Calculate edge length
+            ! Calculate edge length (unscaled)
             this%l(i) = norm(d)
 
             ! Calculate tangent in global and local coords
@@ -846,23 +841,24 @@ contains
     end function panel_check_dod
 
 
-    function panel_get_field_point_geometry(this, eval_point) result(geom)
+    function panel_get_field_point_geometry(this, eval_point, freestream) result(geom)
         ! Calculates the geometric parameters necessary for calculating the influence of the panel at the given evaluation point
 
         implicit none
 
         class(panel),intent(in) :: this
         real,dimension(3),intent(in) :: eval_point
+        type(flow),intent(in) :: freestream
         type(eval_point_geom) :: geom
 
         real,dimension(2) :: d
-        real,dimension(3) :: r_l
+        real,dimension(3) :: r_l, d3
         integer :: i
 
         ! Store point
         geom%r = eval_point
 
-        ! Transform to panel coordinates
+        ! Transform to local scaled coordinates
         r_l = matmul(this%A_g_to_ls, geom%r-this%centroid)
         geom%r_in_plane = r_l(1:2)
         geom%h = r_l(3)
@@ -872,16 +868,20 @@ contains
 
             ! Perpendicular distance in plane from evaluation point to edge
             d = this%vertices_ls(i,:)-geom%r_in_plane
-            geom%a(i) = inner2(d, this%n_hat_l(i,:)) ! a is positive when the evaluation point is towards the interior of the panel
+            geom%a(i) = inner2(d, this%n_hat_ls(i,:)) ! a is positive when the evaluation point is towards the interior of the panel
+                                                      ! This is opposite the definition of a_k given in E&M
 
-            ! Integration lengths on edges
-            geom%l1(i) = inner2(d, this%t_hat_l(i,:))
-            geom%l2(i) = geom%l1(i)+this%l(i)
+            ! Integration length on edge to start vertex (E&M Eq. (j.6.47)); this quantity is called v_k in E&M and this is the negative thereof
+            geom%l1(i) = this%r*freestream%s*d(1)*this%t_hat_ls(i,1) + d(2)*this%t_hat_ls(i,2)
+
+            ! Integration length on edge to end vertex
+            d = this%vertices_ls(mod(i, this%N)+1,:)-geom%r_in_plane
+            geom%l2(i) = this%r*freestream%s*d(1)*this%t_hat_ls(i,1) + d(2)*this%t_hat_ls(i,2)
 
             ! Distance from evaluation point to start vertex
-            ! This is not the definition given by Johnson, but it is equivalent.
-            ! I believe this method suffers from less numerical error.
-            geom%s1(i) = norm(this%get_vertex_loc(i)-geom%r)
+            ! E&M Eq. (J.8.8)
+            d3 = geom%r-this%get_vertex_loc(i)
+            geom%s1(i) = sqrt(freestream%C_g_inner(d3, d3))
 
         end do
 
@@ -889,7 +889,7 @@ contains
         geom%s2 = cshift(geom%s1, 1)
 
         ! Calculate perpendicular distance to edges
-        geom%g2 = geom%a**2+geom%h**2
+        geom%g2 = this%r*geom%a**2+this%r*this%q*geom%h**2
         geom%g = sqrt(geom%g2)
 
         ! Other intermediate quantities
@@ -1543,7 +1543,7 @@ contains
         if (dod_info%in_dod) then
 
             ! Calculate geometric parameters
-            geom = this%get_field_point_geometry(eval_point)
+            geom = this%get_field_point_geometry(eval_point, freestream)
 
             if (influence_calc_type == 'johnson') then
 
@@ -1604,7 +1604,7 @@ contains
         if (dod_info%in_dod) then
 
             ! Calculate geometric parameters
-            geom = this%get_field_point_geometry(eval_point)
+            geom = this%get_field_point_geometry(eval_point, freestream)
 
             if (influence_calc_type == 'johnson') then
 
@@ -1683,7 +1683,7 @@ contains
         if (dod_info%in_dod) then
 
             ! Calculate geometric parameters
-            geom = this%get_field_point_geometry(eval_point)
+            geom = this%get_field_point_geometry(eval_point, freestream)
 
             if (influence_calc_type == 'johnson') then
 
@@ -1789,7 +1789,7 @@ contains
         if (dod_info%in_dod) then
 
             ! Calculate geometric parameters
-            geom = this%get_field_point_geometry(eval_point)
+            geom = this%get_field_point_geometry(eval_point, freestream)
 
             if (influence_calc_type == 'johnson') then
 
