@@ -20,7 +20,7 @@ if __name__=="__main__":
             "freestream_mach_number" : M
         },
         "geometry": {
-            "file": "dev/meshes/straight_diamond_half_wing.vtk",
+            "file": "dev/meshes/diamond_5_deg_coarse.vtk",
             "mirror_about": "xz",
             "spanwise_axis" : "+y",
             "wake_model": {
@@ -36,10 +36,7 @@ if __name__=="__main__":
             "influence_calculations" : "epton-magnus"
         },
         "output": {
-            "body_file": "dev/results/straight_diamond_half_wing.vtk",
-            "wake_file": "dev/results/straight_diamond_half_wing_wake.vtk",
-            "control_point_file": "dev/results/straight_diamond_half_wing_control_points.vtk",
-            "report_file": "dev/report.txt"
+            "body_file": "dev/results/diamond_5_deg_coarse.vtk"
         }
     }
 
