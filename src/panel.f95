@@ -52,6 +52,7 @@ module panel_mod
         real,dimension(:,:),allocatable :: vertices_ls, midpoints_ls ! Location of the vertices and edge midpoints described in local scaled coords
         real,dimension(:,:),allocatable :: t_hat_g, t_hat_l, t_hat_ls ! Edge unit tangents
         real,dimension(:,:),allocatable :: n_hat_g, n_hat_l, n_hat_ls ! Edge unit outward normals
+        real,dimension(:,:),allocatable :: nu_hat_ls ! Edge unit outward conormals
         real,dimension(:),allocatable :: l ! Edge lengths
         real :: A ! Surface area
         real,dimension(:,:),allocatable :: S_mu_inv, S_sigma_inv ! Matrix relating doublet/source strengths to doublet/source influence parameters
@@ -89,13 +90,14 @@ module panel_mod
             procedure :: calc_F_integrals => panel_calc_F_integrals
             procedure :: calc_H_integrals => panel_calc_H_integrals
             procedure :: calc_integrals => panel_calc_integrals
+            procedure :: calc_panel_functions => panel_calc_panel_functions
+            procedure :: calc_panel_function => panel_calc_panel_function
+            procedure :: calc_edge_functions => panel_calc_edge_functions
             procedure :: calc_b => panel_calc_b
             procedure :: calc_b_bar => panel_calc_b_bar
             procedure :: calc_a => panel_calc_a
             procedure :: calc_a_bar => panel_calc_a_bar
             procedure :: calc_B_mat => panel_calc_B_mat
-            procedure :: calc_panel_function => panel_calc_panel_function
-            procedure :: calc_edge_functions => panel_calc_edge_functions
             procedure :: get_source_potential => panel_get_source_potential
             procedure :: get_source_velocity => panel_get_source_velocity
             procedure :: get_doublet_potential => panel_get_doublet_potential
@@ -401,6 +403,7 @@ contains
         allocate(this%n_hat_g(this%N,3))
         allocate(this%n_hat_l(this%N,2))
         allocate(this%n_hat_ls(this%N,2))
+        allocate(this%nu_hat_ls(this%N,2))
 
         ! Loop through edges
         do i=1,this%N
@@ -427,6 +430,9 @@ contains
             ! Calculate edge normal in local scaled coords
             this%n_hat_ls(i,1) = this%t_hat_ls(i,2)
             this%n_hat_ls(i,2) = -this%t_hat_ls(i,1)
+
+            ! Calculate edge conormal
+            this%nu_hat_ls(i,:) = matmul(this%G, this%n_hat_ls(i,:))
 
             ! Calculate the edge type parameter (E&M Eq. (J.3.28))
             this%tau(i) = sqrt(abs(freestream%C_g_inner(this%t_hat_g, this%t_hat_g)))
@@ -1390,8 +1396,26 @@ contains
     end subroutine panel_calc_integrals
 
 
+    !function panel_calc_panel_functions(this, geom, dod_info, freestream) result(J)
+    !    ! Calculates the panel functions J_i
+
+    !    implicit none
+
+    !    class(panel),intent(in) :: this
+    !    type(eval_point_geom),intent(in) :: geom
+    !    type(dod),intent(in) :: dod_info
+    !    type(flow),intent(in) :: freestream
+
+    !    real,dimension(this%N) :: J
+
+    !    J = 0.
+
+
+    !end function panel_calc_panel_functions
+
+
     function panel_calc_panel_function(this, geom, dod_info, freestream) result(J)
-        ! Calculates the panel function J
+        ! Calculates the panel function J(psi)
 
         implicit none
 
@@ -1402,6 +1426,50 @@ contains
 
         real :: J
 
+        integer :: i
+        real :: X, Y, C_theta
+
+        ! Check if we can use the standard rationalization
+        if (this%r == -1 .or. (this%r == 1 .and. all(geom%g2 > 1.e-4))) then
+
+            ! Initialize
+            J = 2.*pi
+
+            ! Loop through edges and corners
+            do i=1,this%N
+
+                ! Add edge influence
+                if (dod_info%edges_in_dod(i)) then
+                    J = J - pi
+                end if
+
+                ! Add corner influence
+                if (dod_info%verts_in_dod(i)) then
+
+                    ! Calculate X and Y
+
+                    ! Add
+                    J = J + atan2(Y, X)
+
+                end if
+
+            end do
+
+            ! Finalize
+            J = -sign(geom%h)*this%r*freestream%s*J
+
+        else ! Use the special rationalization
+
+            ! Calculate C_theta
+            if (all(geom%a > 0.)) then
+                C_theta = 1.
+            else
+                C_theta = 0.
+            end if
+
+            ! Calculate Q_k
+
+        end if
 
     end function panel_calc_panel_function
 
@@ -1576,13 +1644,8 @@ contains
         type(dod),intent(in) :: dod_info
         type(flow),intent(in) :: freestream
 
-        real :: b
-        real,dimension(this%N) :: I
-
-        ! Get edge functions
-        I = this%calc_edge_functions(geom, dod_info, freestream)
-
-        b = 0.
+        real :: b, C_theta
+        real,dimension(this%N) :: I, J, J_X
 
     end function panel_calc_b
 
@@ -1598,12 +1661,27 @@ contains
         type(flow),intent(in) :: freestream
 
         real,dimension(2) :: b_bar
+
         real,dimension(this%N) :: I
+        real :: x, y
+        integer :: j
 
         ! Get edge functions
         I = this%calc_edge_functions(geom, dod_info, freestream)
 
+        ! Sum along the edges
         b_bar = 0.
+        do j=1,this%N
+
+            ! Calculate intermediate quantities
+            x = -geom%s2(j)*geom%l2(j) + geom%s1(j)*geom%l1(j)
+            y = geom%a(j)**2 + this%q(j)*geom%h**2
+
+            ! Update b_bar
+            b_bar = b_bar + this%nu_hat_ls(j,:)*(this%q(j)*x + this%r*freestream%s*y*I(j))
+
+        end do
+        b_bar = -0.5*freestream%K_inv*b_bar
 
     end function panel_calc_b_bar
 
@@ -1619,10 +1697,6 @@ contains
         type(flow),intent(in) :: freestream
 
         real :: a
-        real,dimension(this%N) :: I
-
-        ! Get edge functions
-        I = this%calc_edge_functions(geom, dod_info, freestream)
 
         a = -freestream%s*freestream%K_inv*this%calc_panel_function(geom, dod_info, freestream)
 
