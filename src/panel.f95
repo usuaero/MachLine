@@ -877,7 +877,7 @@ contains
             geom%a(i) = inner2(d, this%n_hat_ls(i,:)) ! a is positive when the evaluation point is towards the interior of the panel
                                                       ! This is opposite the definition of a_k given in E&M
 
-            ! Integration length on edge to start vertex (E&M Eq. (j.6.47)); this quantity is called v_k in E&M and this is the negative thereof
+            ! Integration length on edge to start vertex (E&M Eq. (j.6.47)); the corresponding quantity is called v_k in E&M and this is the negative thereof (i.e. v_k = -l)
             geom%l1(i) = this%r*freestream%s*d(1)*this%t_hat_ls(i,1) + d(2)*this%t_hat_ls(i,2)
 
             ! Integration length on edge to end vertex
@@ -1431,10 +1431,11 @@ contains
 
         real :: J
 
-        integer :: i
+        integer :: i, i_next
         real :: X, Y, C_theta
-        real,dimension(3) :: a
         real,dimension(this%N) :: Q_k
+        logical :: standard_case
+
 
         ! Check if the point is on the panel
         if (abs(geom%h) < 1.e-12) then
@@ -1445,79 +1446,103 @@ contains
                 J = 0.
             end if
 
-        ! Check if we can use the standard rationalization
-        else if (this%r == -1 .or. (this%r == 1 .and. all(geom%g2 > 1.e-4))) then
+        else
 
-            ! Initialize
-            J = 2.*pi
+            ! Check for being able to use the standard case (E&M Eq. (J.8.129))
+            standard_case = .true.
+            if (this%r == 1) then
 
-            ! Loop through edges and corners
-            do i=1,this%N
+                if (freestream%s == -1) then
 
-                ! Add edge influence
-                if (dod_info%edges_in_dod(i)) then
-                    J = J - pi
+                    ! Check g^2 on each edge
+                    do i=1,this%N
+                        if (geom%g2(i) <= 1.e-4*max(geom%a(i)**2+geom%h**2, 4.*this%radius**2)) then
+                            standard_case = .false.
+                            exit
+                        end if
+                    end do
+
+                else
+
+                    ! Check g^2 on each edge
+                    do i=1,this%N
+                        if (geom%g2(i) <= 3.e-4*this%radius**2) then
+                            standard_case = .false.
+                            exit
+                        end if
+                    end do
+            
                 end if
 
-                ! Add corner influence
-                if (dod_info%verts_in_dod(i)) then
-                    write(*,*)
-                    write(*,*)
-
-                    ! Calculate X and Y (E&M Eq. (J.8.112))
-                    X = -geom%h**2*this%r*freestream%s
-                    X = X * (this%r*freestream%s * this%t_hat_ls(i,1)*this%t_hat_ls(mod(i,this%N)+1,1) + &
-                             this%t_hat_ls(i,2)*this%t_hat_ls(mod(i,this%N)+1,2))
-                    X = X - this%r*geom%a(i)*geom%a(mod(i,this%N)+1)
-
-                    a = cross(this%t_hat_ls(i,1), this%t_hat_ls(mod(i,this%N)+1,1))
-                    write(*,*) "a_x", a(i)
-                    write(*,*) "h", geom%h
-                    write(*,*) "s2", geom%s2(i)
-                    Y = geom%s2(i)*geom%h*a(1)
-
-                    ! Add
-                    J = J + atan2(Y, X)
-
-                    write(*,*) "X", X
-                    write(*,*) "Y", Y
-                    write(*,*) "J", J
-                    write(*,*)
-
-                end if
-
-            end do
-
-            ! Finalize
-            J = -sign(geom%h)*this%r*freestream%s*J
-
-        else ! Use the special rationalization
-
-            ! Calculate C_theta
-            if (all(geom%a > 0.)) then
-                C_theta = 1.
-            else
-                C_theta = 0.
             end if
 
-            ! Initialize J
-            J = 2.*pi*C_theta
+            if (standard_case) then
 
-            ! Loop through edges to calculate Q_k
-            do i=1,this%N
+                ! Initialize
+                J = 2.*pi
 
-                ! Check if both endpoints is in the DoD
-                if (dod_info%verts_in_dod(i) .and. dod_info%verts_in_dod(mod(i,this%N)+1)) then
-                    Q_k(i) = pi*sign(geom%a(i))
+                ! Loop through edges and corners
+                do i=1,this%N
 
-                ! Only the first endpoint is in the DoD
-                else if (dod_info%verts_in_dod(i)) then
+                    i_next = mod(i, this%N)+1
+
+                    ! Add edge influence
+                    if (dod_info%edges_in_dod(i)) then
+                        J = J - pi
+                    end if
+
+                    ! Add corner influence
+                    if (dod_info%verts_in_dod(i)) then
+
+                        ! Calculate X and Y (E&M Eq. (J.8.110))
+                        X = this%r*freestream%s * this%t_hat_ls(i,1)*this%t_hat_ls(i_next,1) + &
+                            this%t_hat_ls(i,2)*this%t_hat_ls(i_next,2)
+                        X = -geom%h**2*this%r*freestream%s*X - this%r*geom%a(i)*geom%a(i_next)
+
+                        Y = geom%s2(i)*geom%h*(this%t_hat_ls(i,1)*this%t_hat_ls(i_next,2) - &
+                                               this%t_hat_ls(i,2)*this%t_hat_ls(i_next,1))
+
+                        ! Add
+                        J = J + atan2(Y, X)
+
+                    end if
+
+                end do
+
+                ! Finalize
+                J = -sign(geom%h)*this%r*freestream%s*J
+
+            else ! Use the special rationalization
+
+                ! Calculate C_theta
+                if (all(geom%a > 0.)) then
+                    C_theta = 1.
+                else
+                    C_theta = 0.
                 end if
 
-            end do
+                ! Initialize J
+                J = 2.*pi*C_theta
 
-            ! Finalize J
-            J = -sign(geom%h)*J
+                ! Loop through edges to calculate Q_k
+                do i=1,this%N
+
+                    i_next = mod(i, this%N)+1
+
+                    ! Check if both endpoints are in the DoD
+                    if (dod_info%verts_in_dod(i) .and. dod_info%verts_in_dod(i_next)) then
+                        Q_k(i) = pi*sign(geom%a(i))
+
+                    ! Only the first endpoint is in the DoD
+                    else if (dod_info%verts_in_dod(i)) then
+                    end if
+
+                end do
+
+                ! Finalize J
+                J = -sign(geom%h)*J
+
+            end if
 
         end if
 
@@ -1708,7 +1733,6 @@ contains
 
         ! Calculate b
         b = -this%r*freestream%K_inv*J_X
-        write(*,*) b
 
     end function panel_calc_b
 
