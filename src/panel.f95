@@ -887,7 +887,11 @@ contains
             ! Distance from evaluation point to start vertex
             ! E&M Eq. (J.8.8)
             d3 = geom%r-this%get_vertex_loc(i)
-            geom%s1(i) = sqrt(freestream%C_g_inner(d3, d3))
+            if (freestream%C_g_inner(d3, d3) > 0.) then
+                geom%s1(i) = sqrt(freestream%C_g_inner(d3, d3))
+            else
+                geom%s1(i) = 0. ! This distance should be zero in this case, as the flow is supersonic and the point lies outside the DoD
+            end if
 
         end do
 
@@ -1429,9 +1433,20 @@ contains
 
         integer :: i
         real :: X, Y, C_theta
+        real,dimension(3) :: a
+        real,dimension(this%N) :: Q_k
+
+        ! Check if the point is on the panel
+        if (abs(geom%h) < 1.e-12) then
+
+            if (all(geom%a > 0.)) then
+                J = -sign(geom%h)*0.5*pi*(this%r*freestream%s + 3) ! E&M Eq. (J.8.163)
+            else
+                J = 0.
+            end if
 
         ! Check if we can use the standard rationalization
-        if (this%r == -1 .or. (this%r == 1 .and. all(geom%g2 > 1.e-4))) then
+        else if (this%r == -1 .or. (this%r == 1 .and. all(geom%g2 > 1.e-4))) then
 
             ! Initialize
             J = 2.*pi
@@ -1446,11 +1461,28 @@ contains
 
                 ! Add corner influence
                 if (dod_info%verts_in_dod(i)) then
+                    write(*,*)
+                    write(*,*)
 
-                    ! Calculate X and Y
+                    ! Calculate X and Y (E&M Eq. (J.8.112))
+                    X = -geom%h**2*this%r*freestream%s
+                    X = X * (this%r*freestream%s * this%t_hat_ls(i,1)*this%t_hat_ls(mod(i,this%N)+1,1) + &
+                             this%t_hat_ls(i,2)*this%t_hat_ls(mod(i,this%N)+1,2))
+                    X = X - this%r*geom%a(i)*geom%a(mod(i,this%N)+1)
+
+                    a = cross(this%t_hat_ls(i,1), this%t_hat_ls(mod(i,this%N)+1,1))
+                    write(*,*) "a_x", a(i)
+                    write(*,*) "h", geom%h
+                    write(*,*) "s2", geom%s2(i)
+                    Y = geom%s2(i)*geom%h*a(1)
 
                     ! Add
                     J = J + atan2(Y, X)
+
+                    write(*,*) "X", X
+                    write(*,*) "Y", Y
+                    write(*,*) "J", J
+                    write(*,*)
 
                 end if
 
@@ -1468,7 +1500,24 @@ contains
                 C_theta = 0.
             end if
 
-            ! Calculate Q_k
+            ! Initialize J
+            J = 2.*pi*C_theta
+
+            ! Loop through edges to calculate Q_k
+            do i=1,this%N
+
+                ! Check if both endpoints is in the DoD
+                if (dod_info%verts_in_dod(i) .and. dod_info%verts_in_dod(mod(i,this%N)+1)) then
+                    Q_k(i) = pi*sign(geom%a(i))
+
+                ! Only the first endpoint is in the DoD
+                else if (dod_info%verts_in_dod(i)) then
+                end if
+
+            end do
+
+            ! Finalize J
+            J = -sign(geom%h)*J
 
         end if
 
@@ -1659,6 +1708,7 @@ contains
 
         ! Calculate b
         b = -this%r*freestream%K_inv*J_X
+        write(*,*) b
 
     end function panel_calc_b
 
