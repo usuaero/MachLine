@@ -90,7 +90,7 @@ module panel_mod
             procedure :: calc_F_integrals => panel_calc_F_integrals
             procedure :: calc_H_integrals => panel_calc_H_integrals
             procedure :: calc_integrals => panel_calc_integrals
-            procedure :: calc_panel_functions => panel_calc_panel_functions
+            !procedure :: calc_panel_functions => panel_calc_panel_functions
             procedure :: calc_panel_function => panel_calc_panel_function
             procedure :: calc_edge_functions => panel_calc_edge_functions
             procedure :: calc_b => panel_calc_b
@@ -1416,6 +1416,7 @@ contains
 
     function panel_calc_panel_function(this, geom, dod_info, freestream) result(J)
         ! Calculates the panel function J(psi)
+        ! I believe J(psi) is equivalent to H(1,1,3) in Johnson
 
         implicit none
 
@@ -1644,8 +1645,20 @@ contains
         type(dod),intent(in) :: dod_info
         type(flow),intent(in) :: freestream
 
-        real :: b, C_theta
-        real,dimension(this%N) :: I, J, J_X
+        real :: b, C_theta, J_X, J
+        real,dimension(this%N) :: I
+
+        ! Get the panel function
+        J = this%calc_panel_function(geom, dod_info, freestream)
+
+        ! Get the edge functions
+        I = this%calc_edge_functions(geom, dod_info, freestream)
+
+        ! Calculate J(X)
+        J_X = geom%h**2*J + sum(geom%a*I)
+
+        ! Calculate b
+        b = -this%r*freestream%K_inv*J_X
 
     end function panel_calc_b
 
