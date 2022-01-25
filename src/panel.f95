@@ -1433,7 +1433,7 @@ contains
 
         integer :: i, i_next
         real :: X, Y, C_theta
-        real,dimension(this%N) :: Q_k
+        real,dimension(this%N) :: Q
         logical :: standard_case
 
 
@@ -1524,23 +1524,40 @@ contains
                 ! Initialize J
                 J = 2.*pi*C_theta
 
-                ! Loop through edges to calculate Q_k
+                ! Loop through edges to calculate Q_i
                 do i=1,this%N
 
                     i_next = mod(i, this%N)+1
 
                     ! Check if both endpoints are in the DoD
                     if (dod_info%verts_in_dod(i) .and. dod_info%verts_in_dod(i_next)) then
-                        Q_k(i) = pi*sign(geom%a(i))
+
+                        ! Calculate intermediate quantities
+                        Y = -this%tau(i)*abs(geom%h*(geom%s2(i)**2 - geom%s1(i)**2))
+                        X = -geom%s2(i)*geom%l2(i)*(geom%s1(i)**2 - this%r*freestream%s*geom%h**2)
+                        X = X - geom%s1(i)*geom%l1(i)*(geom%s2(i)**2 - this%r*freestream%s*geom%h**2)
+
+                        ! Calculate Q
+                        Q(i) = -atan2(Y, X)
 
                     ! Only the first endpoint is in the DoD
                     else if (dod_info%verts_in_dod(i)) then
+                        Q(i) = -atan2(geom%a(i)*geom%s1(i), abs(geom%h)*geom%l1(i))
+
+                    ! Only the second endpoint is in the DoD
+                    else if (dod_info%verts_in_dod(i_next)) then
+                        Q(i) = atan2(geom%a(i)*geom%s2(i), abs(geom%h)*geom%l2(i)) + pi*sign(geom%a(i))
+
+                    ! Neither endpoint is in the DoD
+                    else
+                        Q(i) = pi*sign(geom%a(i))
+
                     end if
 
                 end do
 
                 ! Finalize J
-                J = -sign(geom%h)*J
+                J = -sign(geom%h)*(J + sum(Q))
 
             end if
 
