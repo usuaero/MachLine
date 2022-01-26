@@ -2160,6 +2160,7 @@ contains
 
         real,dimension(3) :: mu_verts, mu_params
         integer :: i
+        real :: s
 
         if (doublet_order /= 1 .or. source_order /= 0) then
             write(*,*) "Velocity jump calculation has only been implemented for linear doublet and constant source distributions."
@@ -2180,17 +2181,23 @@ contains
         ! Calculate doublet parameters
         mu_params = matmul(this%S_mu_inv, mu_verts)
 
-        ! Calculate velocity jump in panel coordinates
+        ! Calculate tangential velocity jump in panel coordinates E&M Eq. (N.1.11b)
         dv(1) = mu_params(2)
         dv(2) = mu_params(3)
-        if (mirrored) then
-            dv(3) = sigma(this%index+size(sigma)/2)
-        else
-            dv(3) = sigma(this%index)
-        end if
+        dv(3) = 0.
 
         ! Transform to global coordinates
-        dv = matmul(this%A_ls_to_g, dv)
+        dv = matmul(transpose(this%A_g_to_ls), dv)
+
+        ! Get source strength
+        if (mirrored) then
+            s = sigma(this%index+size(sigma)/2)
+        else
+            s = sigma(this%index)
+        end if
+
+        ! Add normal velocity jump in global coords E&M Eq. (N.1.11b)
+        dv = dv + s*this%normal/inner(this%conormal, this%normal)
 
         ! Mirror if necessary
         if (mirrored) then
