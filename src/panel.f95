@@ -379,7 +379,11 @@ contains
         this%A_g_to_ls(3,:) = freestream%B/sqrt(abs(x))*this%normal
 
         ! Calculate inverse
-        call matinv(3, this%A_g_to_ls, this%A_ls_to_g)
+        if (freestream%M_inf == 0.) then
+            this%A_ls_to_g = transpose(this%A_g_to_ls)
+        else
+            call matinv(3, this%A_g_to_ls, this%A_ls_to_g)
+        end if
     
     end subroutine panel_calc_g_to_ls_transform
 
@@ -2199,7 +2203,7 @@ contains
         end if
 
         ! Transform to global coordinates
-        dv = matmul(transpose(this%A_g_to_l), dv)
+        dv = matmul(this%A_ls_to_g, dv)
 
         ! Mirror if necessary
         if (mirrored) then

@@ -16,9 +16,11 @@ module panel_solver_mod
     type panel_solver
 
 
-        character(len=:),allocatable :: formulation
+        character(len=:),allocatable :: formulation, pressure_rule
         type(dod),dimension(:,:),allocatable :: dod_info
         type(flow) :: freestream
+        real :: norm_res, max_res
+        real,dimension(3) :: C_F
 
         contains
 
@@ -27,6 +29,8 @@ module panel_solver_mod
             procedure :: calc_domains_of_dependence => panel_solver_calc_domains_of_dependence
             procedure :: solve => panel_solver_solve
             procedure :: solve_dirichlet => panel_solver_solve_dirichlet
+            procedure :: post_process => panel_solver_post_process
+            procedure :: write_report => panel_solver_write_report
 
     end type panel_solver
 
@@ -34,12 +38,12 @@ module panel_solver_mod
 contains
 
 
-    subroutine panel_solver_init(this, settings, body, freestream, control_point_file)
+    subroutine panel_solver_init(this, solver_settings, processing_settings, body, freestream, control_point_file)
 
         implicit none
 
         class(panel_solver),intent(inout) :: this
-        type(json_value),pointer,intent(in) :: settings
+        type(json_value),pointer,intent(in) :: solver_settings, processing_settings
         type(surface_mesh),intent(inout) :: body
         type(flow),intent(inout) :: freestream
         character(len=:),allocatable,intent(in) :: control_point_file
@@ -47,16 +51,19 @@ contains
         integer :: i, j
         type(vtk_out) :: cp_vtk
 
-        ! Get settings
-        call json_xtnsn_get(settings, 'formulation', this%formulation, 'morino')
-        call json_xtnsn_get(settings, 'influence_calculations', influence_calc_type, 'johnson')
+        ! Get solver_settings
+        call json_xtnsn_get(solver_settings, 'formulation', this%formulation, 'morino')
+        call json_xtnsn_get(solver_settings, 'influence_calculations', influence_calc_type, 'johnson')
+
+        ! Get post-processing settings
+        call json_xtnsn_get(processing_settings, 'pressure_rule', this%pressure_rule, 'incompressible')
 
         ! Store
         this%freestream = freestream
 
         ! Initialize based on formulation
         if (this%formulation == 'morino' .or. this%formulation == 'source-free') then
-            call this%init_dirichlet(settings, body)
+            call this%init_dirichlet(solver_settings, body)
         end if
         
         ! Write out control point geometry
@@ -161,13 +168,13 @@ contains
     end subroutine panel_solver_calc_domains_of_dependence
 
 
-    subroutine panel_solver_init_dirichlet(this, settings, body)
+    subroutine panel_solver_init_dirichlet(this, solver_settings, body)
         ! Initializes the solver to use one of the Dirichlet formulations
 
         implicit none
 
         class(panel_solver),intent(in) :: this
-        type(json_value),pointer,intent(in) :: settings
+        type(json_value),pointer,intent(in) :: solver_settings
         type(surface_mesh),intent(inout) :: body
 
         real :: offset
@@ -176,7 +183,7 @@ contains
         write(*,'(a)',advance='no') "     Placing control points..."
 
         ! Get offset
-        call json_xtnsn_get(settings, 'control_point_offset', offset, 1e-5)
+        call json_xtnsn_get(solver_settings, 'control_point_offset', offset, 1e-5)
 
         ! Place control points inside the body
         if (this%formulation == 'morino' .or. this%formulation == 'source-free') then
@@ -199,13 +206,21 @@ contains
 
         ! Dirichlet formulation
         if (this%formulation == 'morino' .or. this%formulation == 'source-free') then
-            call this%solve_dirichlet(body, report_file)
+            call this%solve_dirichlet(body)
+        end if
+
+        ! Run post-processor
+        call this%post_process(body)
+
+        ! Write report
+        if (report_file /= 'none') then
+            call this%write_report(body, report_file)
         end if
 
     end subroutine panel_solver_solve
 
 
-    subroutine panel_solver_solve_dirichlet(this, body, report_file)
+    subroutine panel_solver_solve_dirichlet(this, body)
         ! Solves one of the Dirichlet formulations for the given conditions
 
         implicit none
@@ -220,8 +235,7 @@ contains
         real,dimension(:,:),allocatable :: A, A_copy
         real,dimension(:),allocatable :: b
         integer :: stat, N_sigma, N_mu, N_pressures
-        real,dimension(3) :: n_mirrored, C_F
-        real,dimension(:,:),allocatable :: dC_F
+        real,dimension(3) :: n_mirrored
         logical :: morino
 
         ! Determine formulation
@@ -539,10 +553,14 @@ contains
         ! Calculate potential at control points
         body%phi_cp_mu = matmul(A, body%mu)
         body%phi_cp = body%phi_cp_mu+body%phi_cp_sigma
-        write(*,*) "        Maximum residual:", maxval(abs(body%phi_cp_mu-b))
-        write(*,*) "        Norm of residual:", sqrt(sum((body%phi_cp_mu-b)**2))
 
-        write(*,'(a)',advance='no') "     Calculating surface velocities and pressures..."
+        ! Calculate residual parameters
+        this%max_res = maxval(abs(body%phi_cp_mu-b))
+        this%norm_res = sqrt(sum((body%phi_cp_mu-b)**2))
+        write(*,*) "        Maximum residual:", this%max_res
+        write(*,*) "        Norm of residual:", this%norm_res
+
+        write(*,'(a)',advance='no') "     Calculating surface velocities..."
 
         ! Determine surface velocities
         if (body%mirrored .and. body%asym_flow) then
@@ -599,22 +617,77 @@ contains
             end if
 
         end if
+    
+    end subroutine panel_solver_solve_dirichlet
 
-        ! Calculate coefficients of pressure
+
+    subroutine panel_solver_post_process(this, body)
+        ! Performs post-processing actions
+
+        implicit none
+
+        class(panel_solver),intent(inout) :: this
+        type(surface_mesh),intent(inout) :: body
+
+        integer :: N_pressures, i, stat
+        real,dimension(:,:),allocatable :: dC_F
+        real,dimension(3) :: n_mirrored
+        real :: a, b, c, C_p_vac
+
+        N_pressures = size(body%V)/3
+
+        ! Allocate coefficient of pressure storage
         allocate(body%C_p(N_pressures), stat=stat)
         call check_allocation(stat, "surface pressures")
+
+        ! Calculate limits of pressure coefficient
+        C_p_vac = -2./(this%freestream%gamma*this%freestream%M_inf**2)
+
+        ! Calculate compressible pressure correction terms
+        if (this%pressure_rule == 'isentropic') then
+            a = 2./(this%freestream%gamma*this%freestream%M_inf**2)
+            b = 0.5*(this%freestream%gamma-1.)*this%freestream%M_inf**2
+            c = this%freestream%gamma/(this%freestream%gamma-1.)
+        end if
+
+
+        ! Calculate pressures depending on rule
         do i=1,N_pressures
-            body%C_p(i) = 1.-(norm(body%V(i,:))*this%freestream%U_inv)**2
+
+            select case (this%pressure_rule)
+
+            case ('isentropic')
+                
+                ! Incompressible first
+                body%C_p(i) = 1.-inner(body%V(i,:), body%V(i,:))*this%freestream%U_inv**2
+
+                ! Apply compressible correction
+                body%C_p(i) = a*((1.+b*body%C_p(i))**c - 1.)
+
+                ! Check for NaN
+                if (isnan(body%C_p(i))) then
+                    body%C_p(i) = C_p_vac
+                end if
+
+            case default ! Incompressible rule
+                body%C_p(i) = 1.-inner(body%V(i,:), body%V(i,:))*this%freestream%U_inv**2
+
+            end select
+
         end do
 
         write(*,*) "Done."
         write(*,*) "        Maximum pressure coefficient:", maxval(body%C_p)
         write(*,*) "        Minimum pressure coefficient:", minval(body%C_p)
+        write(*,*) "        Vacuum pressure coefficient:", C_p_vac
 
-        ! Calculate total forces
         write(*,'(a)',advance='no') "     Calculating forces..."
+
+        ! Allocate force storage
         allocate(dC_F(N_pressures,3), stat=stat)
         call check_allocation(stat, "forces")
+
+        ! Calculate total forces
         do i=1,body%N_panels
 
             ! Discrete force coefficient acting on panel
@@ -628,35 +701,42 @@ contains
         end do
 
         ! Sum discrete forces
-        C_F(:) = sum(dC_F, dim=1)/body%S_ref
+        this%C_F(:) = sum(dC_F, dim=1)/body%S_ref
 
         write(*,*) "Done."
-        write(*,*) "        Cx:", C_F(1)
-        write(*,*) "        Cy:", C_F(2)
-        write(*,*) "        Cz:", C_F(3)
-
-        ! Write report file
-        if (report_file /= 'none') then
-
-            open(1, file=report_file)
-
-            ! Header
-            write(1,'(a)') "TriPan Report (c) 2021 USU AeroLab"
-
-            ! Solver results
-            write(1,*) "Maximum residual:", maxval(abs(body%phi_cp_mu-b))
-            write(1,*) "Norm of residual:", sqrt(sum((body%phi_cp_mu-b)**2))
-            write(1,*) "Maximum pressure coefficient:", maxval(body%C_p)
-            write(1,*) "Minimum pressure coefficient:", minval(body%C_p)
-            write(1,*) "Cx:", C_F(1)
-            write(1,*) "Cy:", C_F(2)
-            write(1,*) "Cz:", C_F(3)
-
-            close(1)
-
-        end if
+        write(*,*) "        Cx:", this%C_F(1)
+        write(*,*) "        Cy:", this%C_F(2)
+        write(*,*) "        Cz:", this%C_F(3)
     
-    end subroutine panel_solver_solve_dirichlet
+    end subroutine panel_solver_post_process
+
+
+    subroutine panel_solver_write_report(this, body, report_file)
+        ! Writes the report file
+
+        implicit none
+
+        class(panel_solver),intent(in) :: this
+        type(surface_mesh),intent(inout) :: body
+        character(len=:),allocatable :: report_file
+
+        open(1, file=report_file)
+
+        ! Header
+        write(1,'(a)') "MachLine Report (c) 2022 USU AeroLab"
+
+        ! Solver results
+        write(1,*) "Maximum residual:", this%max_res
+        write(1,*) "Norm of residual:", this%norm_res
+        write(1,*) "Maximum pressure coefficient:", maxval(body%C_p)
+        write(1,*) "Minimum pressure coefficient:", minval(body%C_p)
+        write(1,*) "Cx:", this%C_F(1)
+        write(1,*) "Cy:", this%C_F(2)
+        write(1,*) "Cz:", this%C_F(3)
+
+        close(1)
+   
+    end subroutine panel_solver_write_report
 
 
 end module panel_solver_mod

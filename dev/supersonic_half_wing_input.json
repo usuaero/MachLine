@@ -20,6 +20,9 @@
         "control_point_offset": 1.1e-05,
         "influence_calculations" : "epton-magnus"
     },
+    "post_processing" : {
+        "pressure_rule" : "isentropic"
+    },
     "output": {
         "body_file": "dev/results/diamond_5_deg_coarse.vtk",
         "control_point_file": "dev/results/diamond_5_deg_coarse_control_points.vtk"

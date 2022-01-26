@@ -15,6 +15,7 @@ program main
     type(json_value), pointer :: flow_settings,&
                                  geometry_settings,&
                                  solver_settings,&
+                                 processing_settings,&
                                  output_settings
     type(surface_mesh) :: body_mesh
     type(flow) :: freestream_flow
@@ -59,6 +60,7 @@ program main
     call input_json%get('flow', flow_settings)
     call input_json%get('geometry', geometry_settings)
     call input_json%get('solver', solver_settings)
+    call input_json%get('post_processing', processing_settings)
     call input_json%get('output', output_settings)
 
     ! Initialize surface mesh
@@ -79,7 +81,7 @@ program main
     call body_mesh%init_with_flow(freestream_flow, wake_file)
 
     ! Initialize panel solver
-    call linear_solver%init(solver_settings, body_mesh, freestream_flow, control_point_file)
+    call linear_solver%init(solver_settings, processing_settings, body_mesh, freestream_flow, control_point_file)
 
     write(*,*)
     write(*,*) "Running solver using ", linear_solver%formulation, " formulation"
