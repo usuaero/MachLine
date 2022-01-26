@@ -43,7 +43,7 @@ if __name__=="__main__":
     # Dump
     input_file = "dev/diamond_input.json"
     with open(input_file, 'w') as input_handle:
-        json.dump(input_dict, input_handle)
+        json.dump(input_dict, input_handle, indent=4)
 
     # Run
     sp.run(["./machline.exe", input_file])

@@ -1242,7 +1242,7 @@ contains
 
                         ! Convert H* to H
                         ! We need to make this check because h is sometimes zero, which can cause issues if the exponent is negative. If nu is zero, just don't bother.
-                        if (abs(nu) <= 1e-12) then
+                        if (abs(nu) > 1e-12) then
                             H(m,n,k) = H(m,n,k)+2.*pi*nu*abs(geom%h)**(m+n-k)
                         end if
                     end do
