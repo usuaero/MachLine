@@ -1131,8 +1131,8 @@ contains
         real,dimension(:),allocatable :: v_xi, v_eta
 
         ! Get edge normal derivatives
-        allocate(v_xi(this%N), source=this%n_hat_l(:,1))
-        allocate(v_eta(this%N), source=this%n_hat_l(:,2))
+        allocate(v_xi(this%N), source=this%n_hat_ls(:,1))
+        allocate(v_eta(this%N), source=this%n_hat_ls(:,2))
 
         ! Allocate integral storage
         allocate(H(1:MXQ,1:MXQ,1:MXK+NHK), source=0.)
@@ -1408,7 +1408,7 @@ contains
 
     function panel_calc_panel_function(this, geom, dod_info, freestream) result(J)
         ! Calculates the panel function J(psi)
-        ! I believe J(psi) is equivalent to H(1,1,3) in Johnson
+        ! I believe J(psi) is equivalent to H(1,1,3) in Johnson multiplied by some power of |h|
 
         implicit none
 

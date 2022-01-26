@@ -62,11 +62,11 @@ def test_half_wing_source_free():
     print(Cy)
     print(Cz)
 
-    assert(C_p_max == 0.612840436822417)
-    assert(C_p_min == -0.7562621926286714)
-    assert(Cx == -0.006929294374720522)
-    assert(Cy == -0.00024116082928311681)
-    assert(Cz == -0.22240031222806458)
+    assert(abs(C_p_max - 0.612840436822417) < 1e-12)
+    assert(abs(C_p_min - -0.7562621926286714) < 1e-12)
+    assert(abs(Cx - -0.006929294374720522) < 1e-12)
+    assert(abs(Cy - -0.00024116082928311681) < 1e-12)
+    assert(abs(Cz - -0.22240031222806458) < 1e-12)
 
 
 def test_sphere_morino():
@@ -80,11 +80,11 @@ def test_sphere_morino():
     print(Cy)
     print(Cz)
 
-    assert(C_p_max == 0.9911419902071531)
-    assert(C_p_min == -1.2378311776094368)
-    assert(Cx == 1.2569980504650163e-07)
-    assert(Cy == -1.5575986886867677e-05)
-    assert(Cz == -2.041657338969216e-06)
+    assert(abs(C_p_max - 0.9911419902071531) < 1e-12)
+    assert(abs(C_p_min - -1.2378311776094368) < 1e-12)
+    assert(abs(Cx - 1.2569980504650163e-07) < 1e-12)
+    assert(abs(Cy - -1.5575986886867677e-05) < 1e-12)
+    assert(abs(Cz - -2.0416590129634926e-06) < 1e-12)
 
 
 def test_full_half_wing_compare_morino():
