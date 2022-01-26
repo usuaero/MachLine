@@ -27,7 +27,7 @@ module surface_mesh_mod
         logical :: wake_present, append_wake
         real,dimension(:,:),allocatable :: control_points, cp_mirrored
         real,dimension(:),allocatable :: phi_cp, phi_cp_sigma, phi_cp_mu ! Induced potentials at control points
-        real,dimension(:),allocatable :: C_p ! Surface pressure coefficients
+        real,dimension(:),allocatable :: C_p_inc, C_p_ise, C_p_2nd ! Surface pressure coefficients
         real,dimension(:,:),allocatable :: V ! Surface velocities
         real :: control_point_offset
         logical :: mirrored ! Whether the mesh is to be mirrored about any planes
@@ -1012,7 +1012,7 @@ contains
         class(surface_mesh),intent(inout) :: this
         character(len=:),allocatable,intent(in) :: body_file, wake_file, control_point_file
 
-        real,dimension(:),allocatable :: mu_on_wake
+        real,dimension(:),allocatable :: mu_on_wake, panel_inclinations
         type(vtk_out) :: body_vtk, wake_vtk, cp_vtk
         integer :: i
 
@@ -1022,12 +1022,27 @@ contains
             ! Clear old file
             call delete_file(body_file)
 
+            ! Get panel inclinations
+            allocate(panel_inclinations(this%N_panels))
+            do i=1,this%N_panels
+                panel_inclinations(i) = this%panels(i)%r
+            end do
+
             ! Write data
             call body_vtk%begin(body_file)
             call body_vtk%write_points(this%vertices)
             call body_vtk%write_panels(this%panels)
             call body_vtk%write_cell_scalars(this%sigma(1:this%N_panels), "sigma")
-            call body_vtk%write_cell_scalars(this%C_p(1:this%N_panels), "C_p")
+            if (allocated(this%C_p_inc)) then
+                call body_vtk%write_cell_scalars(this%C_p_inc(1:this%N_panels), "C_p_inc")
+            end if
+            if (allocated(this%C_p_ise)) then
+                call body_vtk%write_cell_scalars(this%C_p_ise(1:this%N_panels), "C_p_ise")
+            end if
+            if (allocated(this%C_p_2nd)) then
+                call body_vtk%write_cell_scalars(this%C_p_2nd(1:this%N_panels), "C_p_2nd")
+            end if
+            call body_vtk%write_cell_scalars(panel_inclinations, "inclination")
             call body_vtk%write_cell_vectors(this%v(1:this%N_panels,:), "v")
             call body_vtk%write_point_scalars(this%mu(1:this%N_cp), "mu")
             call body_vtk%finish()

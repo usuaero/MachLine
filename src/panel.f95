@@ -63,8 +63,6 @@ module panel_mod
         real :: r ! Panel inclination indicator; r=-1 -> superinclined, r=1 -> subinclined
         real,dimension(3) :: tau ! Edge inclination parameter
         integer,dimension(3) :: q ! Edge type indicator; q=1 -> subsonic, q=-1 -> supersonic
-        real,dimension(3) :: m ! Edge slope
-        real,dimension(3) :: lambda ! Inverse of edge slope
         real,dimension(2,2) :: G ! Some special matrix
 
         contains
@@ -409,7 +407,7 @@ contains
             e = matmul(this%A_g_to_ls(1:2,:), d)
             this%t_hat_ls(i,:) = e/sqrt(abs(this%r*freestream%s*e(1)**2 + e(2)**2))
 
-            ! Calculate edge normal
+            ! Calculate edge outward normal
             this%n_hat_g(i,:) = cross(this%t_hat_g(i,:), this%normal)
             this%n_hat_l(i,1) = this%t_hat_l(i,2)
             this%n_hat_l(i,2) = -this%t_hat_l(i,1)
@@ -419,21 +417,16 @@ contains
             this%n_hat_ls(i,2) = -this%t_hat_ls(i,1)
 
             ! Calculate edge conormal
-            this%nu_hat_ls(i,:) = matmul(this%G, this%n_hat_ls(i,:))
+            this%nu_hat_ls(i,1) = this%r*freestream%s*this%n_hat_ls(i,1)
+            this%nu_hat_ls(i,2) = this%n_hat_ls(i,2)
 
-            ! Calculate the edge type parameter (E&M Eq. (J.3.28))
-            this%tau(i) = sqrt(abs(freestream%C_g_inner(this%t_hat_g, this%t_hat_g)))
+            ! Calculate the edge type parameter (E&M Eq. (J.3.28) or Eq. (J.7.51))
+            this%tau(i) = sqrt(abs(freestream%C_g_inner(this%t_hat_g(i,:), this%t_hat_g(i,:))))
 
             ! Calculate edge type indicator (E&M Eq. (J.6.48))
             this%q(i) = nint(this%r*this%t_hat_ls(i,1)**2 + freestream%s*this%t_hat_ls(i,2)**2)
 
-            ! Calculate edge slope
-            this%m(i) = this%t_hat_ls(i,2)/this%t_hat_ls(i,1)
-
         end do
-
-        ! Calculate edge slope inverse
-        this%lambda = 1./this%m
     
     end subroutine panel_calc_edge_tangents
 
@@ -887,8 +880,8 @@ contains
             end if
 
             ! Calculate square of the perpendicular distance to edge, depending on magnitude of tau
-            if (abs(this%tau(i)) > 1e-4) then
-                x = cross(geom%r, this%t_hat_g(i,:))
+            if (abs(this%tau(i)) > 1e-8) then
+                x = cross(d3, this%t_hat_g(i,:))
                 geom%g2(i) = (freestream%B/this%tau(i))**2*freestream%B_g_inner(x, x) ! E&M Eq. (J.8.23)
             else
                 geom%g2(i) = this%r*geom%a(i)**2 + this%r*this%q(i)*geom%h**2 ! E&M Eq. ()
@@ -2050,10 +2043,9 @@ contains
                     a_bar = this%calc_a_bar(geom, dod_info, freestream)
 
                     ! Calculate influence
-                    x = matmul(this%G, a_bar)
                     phi(1) = this%r*a
-                    phi(2) = phi(1)*geom%r_in_plane(1) - geom%h*x(1)
-                    phi(3) = phi(1)*geom%r_in_plane(2) - geom%h*x(2)
+                    phi(2) = phi(1)*geom%r_in_plane(1) - geom%h*a_bar(1)*this%r*freestream%s
+                    phi(3) = phi(1)*geom%r_in_plane(2) - geom%h*a_bar(2)
 
                     ! Convert to vertex influences
                     phi(1:3) = matmul(phi(1:3), this%S_mu_inv)
@@ -2162,11 +2154,6 @@ contains
         integer :: i
         real :: s
 
-        if (doublet_order /= 1 .or. source_order /= 0) then
-            write(*,*) "Velocity jump calculation has only been implemented for linear doublet and constant source distributions."
-            stop
-        end if
-
         ! Set up array of doublet strengths to calculate doublet parameters
         if (mirrored) then
             do i=1,this%N
@@ -2178,7 +2165,7 @@ contains
             end do
         end if
 
-        ! Calculate doublet parameters
+        ! Calculate doublet parameters (derivatives)
         mu_params = matmul(this%S_mu_inv, mu_verts)
 
         ! Calculate tangential velocity jump in panel coordinates E&M Eq. (N.1.11b)
@@ -2205,5 +2192,6 @@ contains
         end if
 
     end function panel_get_velocity_jump
+
     
 end module panel_mod

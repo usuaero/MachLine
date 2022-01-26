@@ -16,7 +16,8 @@ module panel_solver_mod
     type panel_solver
 
 
-        character(len=:),allocatable :: formulation, pressure_rule
+        character(len=:),allocatable :: formulation, pressure_for_forces
+        logical :: incompressible_rule, isentropic_rule, second_order_rule
         type(dod),dimension(:,:),allocatable :: dod_info
         type(flow) :: freestream
         real :: norm_res, max_res
@@ -56,7 +57,21 @@ contains
         call json_xtnsn_get(solver_settings, 'influence_calculations', influence_calc_type, 'johnson')
 
         ! Get post-processing settings
-        call json_xtnsn_get(processing_settings, 'pressure_rule', this%pressure_rule, 'incompressible')
+        if (freestream%M_inf > 0.) then
+            call json_xtnsn_get(processing_settings, 'pressure_rules.incompressible', this%incompressible_rule, .false.)
+        else
+            call json_xtnsn_get(processing_settings, 'pressure_rules.incompressible', this%incompressible_rule, .true.)
+        end if
+        call json_xtnsn_get(processing_settings, 'pressure_rules.isentropic', this%isentropic_rule, .false.)
+        call json_xtnsn_get(processing_settings, 'pressure_rules.second-order', this%second_order_rule, .false.)
+
+        if (this%incompressible_rule) then
+            call json_xtnsn_get(processing_settings, 'pressure_for_forces', this%pressure_for_forces, 'incompressible')
+        else if (this%isentropic_rule) then
+            call json_xtnsn_get(processing_settings, 'pressure_for_forces', this%pressure_for_forces, 'isentropic')
+        else if (this%second_order_rule) then
+            call json_xtnsn_get(processing_settings, 'pressure_for_forces', this%pressure_for_forces, 'second-order')
+        end if
 
         ! Store
         this%freestream = freestream
@@ -638,51 +653,93 @@ contains
         write(*,'(a)',advance='no') "     Calculating surface pressures..."
         N_pressures = size(body%V)/3
 
-        ! Allocate coefficient of pressure storage
-        allocate(body%C_p(N_pressures), stat=stat)
-        call check_allocation(stat, "surface pressures")
-
-        ! Calculate limits of pressure coefficient
+        ! Calculate vacuum pressure coefficient
         C_p_vac = -2./(this%freestream%gamma*this%freestream%M_inf**2)
 
-        ! Calculate compressible pressure correction terms
-        if (this%pressure_rule == 'isentropic') then
+        ! Incompressible rule
+        if (this%incompressible_rule) then
+
+            ! Allocate storage
+            allocate(body%C_p_inc(N_pressures), stat=stat)
+            call check_allocation(stat, "incompressible surface pressures")
+
+            ! Calculate
+            do i=1,N_pressures
+                body%C_p_inc(i) = 1.-inner(body%V(i,:), body%V(i,:))*this%freestream%U_inv**2
+            end do
+
+        end if
+        
+        ! Isentropic rule
+        if (this%isentropic_rule) then
+
+            ! Calculate isentropic pressure correction terms
             a = 2./(this%freestream%gamma*this%freestream%M_inf**2)
             b = 0.5*(this%freestream%gamma-1.)*this%freestream%M_inf**2
             c = this%freestream%gamma/(this%freestream%gamma-1.)
-        end if
 
+            ! Allocate storage
+            allocate(body%C_p_ise(N_pressures), stat=stat)
+            call check_allocation(stat, "isentropic surface pressures")
 
-        ! Calculate pressures depending on rule
-        do i=1,N_pressures
-
-            select case (this%pressure_rule)
-
-            case ('isentropic')
+            ! Calculate
+            do i=1,N_pressures
                 
                 ! Incompressible first
-                body%C_p(i) = 1.-inner(body%V(i,:), body%V(i,:))*this%freestream%U_inv**2
+                body%C_p_ise(i) = 1.-inner(body%V(i,:), body%V(i,:))*this%freestream%U_inv**2
 
                 ! Apply compressible correction
-                body%C_p(i) = a*((1.+b*body%C_p(i))**c - 1.)
+                body%C_p_ise(i) = a*((1.+b*body%C_p_ise(i))**c - 1.)
 
-                ! Check for NaN
-                if (isnan(body%C_p(i))) then
-                    body%C_p(i) = C_p_vac
+                ! Check for NaN and replace with vacuum pressure
+                if (isnan(body%C_p_ise(i))) then
+                    body%C_p_ise(i) = C_p_vac
                 end if
 
-            case default ! Incompressible rule
-                body%C_p(i) = 1.-inner(body%V(i,:), body%V(i,:))*this%freestream%U_inv**2
+            end do
 
-            end select
+        end if
+        
+        ! Second-order rule
+        if (this%second_order_rule) then
 
-        end do
+            ! Allocate storage
+            allocate(body%C_p_2nd(N_pressures), stat=stat)
+            call check_allocation(stat, "second-order surface pressures")
+
+            ! Calculate
+            do i=1,N_pressures
+
+                ! Calculate first term
+                body%C_p_2nd(i) = -2.*body%V(i,1)*this%freestream%U_inv
+
+                ! Calculate second term
+                body%C_p_2nd(i) = body%C_p_2nd(i) &
+                                  - ((1.-this%freestream%M_inf**2)*body%V(i,1)**2 + body%V(i,2)**2 + body%V(i,3)**2) &
+                                  *this%freestream%U_inv**2
+            end do
+
+        end if
 
         ! TODO: IMPLEMENT SUBSONIC PRESSURE CORRECTIONS
 
         write(*,*) "Done."
-        write(*,*) "        Maximum pressure coefficient:", maxval(body%C_p)
-        write(*,*) "        Minimum pressure coefficient:", minval(body%C_p)
+        
+        if (this%incompressible_rule) then
+            write(*,*) "        Maximum incompressible pressure coefficient:", maxval(body%C_p_inc)
+            write(*,*) "        Minimum incompressible pressure coefficient:", minval(body%C_p_inc)
+        end if
+        
+        if (this%isentropic_rule) then
+            write(*,*) "        Maximum isentropic pressure coefficient:", maxval(body%C_p_ise)
+            write(*,*) "        Minimum isentropic pressure coefficient:", minval(body%C_p_ise)
+        end if
+        
+        if (this%second_order_rule) then
+            write(*,*) "        Maximum second-order pressure coefficient:", maxval(body%C_p_2nd)
+            write(*,*) "        Minimum second-order pressure coefficient:", minval(body%C_p_2nd)
+        end if
+
         if (this%freestream%M_inf > 0.) then
             write(*,*) "        Vacuum pressure coefficient:", C_p_vac
         end if
@@ -696,14 +753,43 @@ contains
         ! Calculate total forces
         do i=1,body%N_panels
 
-            ! Discrete force coefficient acting on panel
-            dC_F(i,:) = body%C_p(i)*body%panels(i)%A*body%panels(i)%normal
+            select case (this%pressure_for_forces)
 
-            ! Mirror
-            if (body%mirrored .and. body%asym_flow) then
-                n_mirrored = mirror_about_plane(body%panels(i)%normal, body%mirror_plane)
-                dC_F(i+body%N_panels,:) = body%C_p(i+body%N_panels)*body%panels(i)%A*n_mirrored
-            end if
+            case ('incompressible')
+
+                ! Discrete force coefficient acting on panel
+                dC_F(i,:) = body%C_p_inc(i)*body%panels(i)%A*body%panels(i)%normal
+
+                ! Mirror
+                if (body%mirrored .and. body%asym_flow) then
+                    n_mirrored = mirror_about_plane(body%panels(i)%normal, body%mirror_plane)
+                    dC_F(i+body%N_panels,:) = body%C_p_inc(i+body%N_panels)*body%panels(i)%A*n_mirrored
+                end if
+
+            case ('isentropic')
+
+                ! Discrete force coefficient acting on panel
+                dC_F(i,:) = body%C_p_ise(i)*body%panels(i)%A*body%panels(i)%normal
+
+                ! Mirror
+                if (body%mirrored .and. body%asym_flow) then
+                    n_mirrored = mirror_about_plane(body%panels(i)%normal, body%mirror_plane)
+                    dC_F(i+body%N_panels,:) = body%C_p_ise(i+body%N_panels)*body%panels(i)%A*n_mirrored
+                end if
+
+            case ('second-order')
+
+                ! Discrete force coefficient acting on panel
+                dC_F(i,:) = body%C_p_2nd(i)*body%panels(i)%A*body%panels(i)%normal
+
+                ! Mirror
+                if (body%mirrored .and. body%asym_flow) then
+                    n_mirrored = mirror_about_plane(body%panels(i)%normal, body%mirror_plane)
+                    dC_F(i+body%N_panels,:) = body%C_p_2nd(i+body%N_panels)*body%panels(i)%A*n_mirrored
+                end if
+
+            end select
+
         end do
 
         ! Sum discrete forces
@@ -734,8 +820,22 @@ contains
         ! Solver results
         write(12,*) "Maximum residual:", this%max_res
         write(12,*) "Norm of residual:", this%norm_res
-        write(12,*) "Maximum pressure coefficient:", maxval(body%C_p)
-        write(12,*) "Minimum pressure coefficient:", minval(body%C_p)
+        
+        if (this%incompressible_rule) then
+            write(12,*) "Maximum incompressible pressure coefficient:", maxval(body%C_p_inc)
+            write(12,*) "Minimum incompressible pressure coefficient:", minval(body%C_p_inc)
+        end if
+        
+        if (this%isentropic_rule) then
+            write(12,*) "Maximum isentropic pressure coefficient:", maxval(body%C_p_ise)
+            write(12,*) "Minimum isentropic pressure coefficient:", minval(body%C_p_ise)
+        end if
+        
+        if (this%second_order_rule) then
+            write(12,*) "Maximum second-order pressure coefficient:", maxval(body%C_p_2nd)
+            write(12,*) "Minimum second-order pressure coefficient:", minval(body%C_p_2nd)
+        end if
+
         write(12,*) "Cx:", this%C_F(1)
         write(12,*) "Cy:", this%C_F(2)
         write(12,*) "Cz:", this%C_F(3)
