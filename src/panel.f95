@@ -879,13 +879,10 @@ contains
                 geom%s1(i) = 0.
             end if
 
-            ! Calculate square of the perpendicular distance to edge, depending on magnitude of tau
-            if (abs(this%tau(i)) > 1e-8) then
-                x = cross(d3, this%t_hat_g(i,:))
-                geom%g2(i) = (freestream%B/this%tau(i))**2*freestream%B_g_inner(x, x) ! E&M Eq. (J.8.23)
-            else
-                geom%g2(i) = this%r*geom%a(i)**2 + this%r*this%q(i)*geom%h**2 ! E&M Eq. ()
-            end if
+            ! Calculate square of the perpendicular distance to edge
+            ! We do not need to worry about tau potentially begin zero, as g does not factor into the computations for edges which are close to sonic
+            x = cross(d3, this%t_hat_g(i,:))
+            geom%g2(i) = (freestream%B/this%tau(i))**2*freestream%B_g_inner(x, x) ! E&M Eq. (J.8.23)
 
             ! Calculate the perpendicular distance to edge
             if (geom%g2(i) >= 0.) then
@@ -1730,7 +1727,15 @@ contains
         I = this%calc_edge_functions(geom, dod_info, freestream)
 
         ! Calculate J(X)
-        J_X = geom%h**2*J + sum(geom%a*I)
+        if (.not. freestream%supersonic) then
+            J_X = geom%h**2*J - sum(geom%a*I) ! E&M Eq. (J.7.12)
+        else
+            if (this%r == 1) then
+                J_X = -geom%h**2*J + sum(this%q*geom%a*I) ! E&M Eqs. (J.7.20) and (J.7.27)
+            else
+                J_X = geom%h**2*J + sum(geom%a*I) ! E&M Eq. (J.7.34)
+            end if
+        end if
 
         ! Calculate b
         b = -this%r*freestream%K_inv*J_X
