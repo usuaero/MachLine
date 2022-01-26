@@ -854,40 +854,47 @@ contains
         ! Transform to local scaled coordinates
         r_l = matmul(this%A_g_to_ls, geom%r-this%centroid)
         geom%r_in_plane = r_l(1:2)
-        geom%h = r_l(3)
+        geom%h = r_l(3) ! Equivalent to E&M Eq. (J.7.41)
 
         ! Calculate intermediate quantities
         do i=1,this%N
 
-            ! Perpendicular distance in plane from evaluation point to edge
+            ! Projected point displacement from start vertex
             d = this%vertices_ls(i,:)-geom%r_in_plane
-            geom%a(i) = inner2(d, this%n_hat_ls(i,:)) ! a is positive when the evaluation point is towards the interior of the panel
-                                                      ! This is opposite the definition of a_k given in E&M
 
-            ! Integration length on edge to start vertex (E&M Eq. (j.6.47)); the corresponding quantity is called v_k in E&M and this is the negative thereof (i.e. v_k = -l)
+            ! Perpendicular distance in plane from evaluation point to edge
+            ! a is positive when the evaluation point is towards the interior of the panel
+            ! This is opposite the definition of a_k given in E&M Eq. (J.7.53)
+            geom%a(i) = inner2(d, this%n_hat_ls(i,:))
+
+            ! Integration length on edge to start vertex (E&M Eq. (J.6.47))
+            ! The corresponding quantity is called v_k in E&M; this is the negative thereof (i.e. v_k- = -l1)
             geom%l1(i) = this%r*freestream%s*d(1)*this%t_hat_ls(i,1) + d(2)*this%t_hat_ls(i,2)
 
-            ! Integration length on edge to end vertex
+            ! Projected point displacement from end vertex
             d = this%vertices_ls(mod(i, this%N)+1,:)-geom%r_in_plane
+
+            ! Integration length on edge to end vertex
             geom%l2(i) = this%r*freestream%s*d(1)*this%t_hat_ls(i,1) + d(2)*this%t_hat_ls(i,2)
 
-            ! Distance from evaluation point to start vertex
-            ! E&M Eq. (J.8.8)
+            ! Distance from evaluation point to start vertex E&M Eq. (J.8.8)
+            ! The distance should be zero in the case of a negative squared distance, as the flow is supersonic and the point lies outside the DoD
             d3 = geom%r-this%get_vertex_loc(i)
             if (freestream%C_g_inner(d3, d3) > 0.) then
                 geom%s1(i) = sqrt(freestream%C_g_inner(d3, d3))
             else
-                geom%s1(i) = 0. ! This distance should be zero in this case, as the flow is supersonic and the point lies outside the DoD
+                geom%s1(i) = 0.
             end if
 
-            ! Calculate perpendicular distance to edges, depending on magnitude of tau
+            ! Calculate square of the perpendicular distance to edge, depending on magnitude of tau
             if (abs(this%tau(i)) > 1e-4) then
                 x = cross(geom%r, this%t_hat_g(i,:))
-                geom%g2(i) = (freestream%B/this%tau(i))**2*freestream%B_g_inner(x, x)
+                geom%g2(i) = (freestream%B/this%tau(i))**2*freestream%B_g_inner(x, x) ! E&M Eq. (J.8.23)
             else
-                geom%g2(i) = this%r*geom%a(i)**2 + this%r*this%q(i)*geom%h**2
+                geom%g2(i) = this%r*geom%a(i)**2 + this%r*this%q(i)*geom%h**2 ! E&M Eq. ()
             end if
 
+            ! Calculate the perpendicular distance to edge
             if (geom%g2(i) >= 0.) then
                 geom%g(i) = sqrt(geom%g2(i))
             else
@@ -900,8 +907,6 @@ contains
         geom%s2 = cshift(geom%s1, 1)
 
         ! Other intermediate quantities
-        !geom%s1 = sqrt(geom%l1**2+geom%g2) ! Distance to first vertex (I'm leaving these methods here, as they are Johnson's, but they seem to suffer from buildup of numerical error)
-        !geom%s2 = sqrt(geom%l2**2+geom%g2) ! Distance to second vertex
         geom%c1 = geom%g2+abs(geom%h)*geom%s1
         geom%c2 = geom%g2+abs(geom%h)*geom%s2
 
@@ -1574,17 +1579,18 @@ contains
                     if (dod_info%verts_in_dod(j) .and. dod_info%verts_in_dod(mod(j, this%N)+1)) then
 
                         ! Check for g^2 small, q=1, and l changing signs
-                        if (abs(geom%g(j))<1e-6 .and. this%q(j) == 1 .and. sign(geom%l1(j)) /= sign(geom%l2(j))) then
+                        if (abs(geom%g2(j)) < 1e-4 .and. this%q(j) == 1 .and. sign(geom%l1(j)) /= sign(geom%l2(j))) then
+                        !if (geom%s1(j) < 0.95*abs(geom%l1(j)) .and. this%q(j) == 1 .and. sign(geom%l1(j)) /= sign(geom%l2(j))) then
 
-                            ! Calculate edge function using stable formula
+                            ! Calculate edge function using stable formula (E&M Eq. (J.8.41))
                             I(j) = log((geom%s2(j)-geom%l2(j))*(geom%s1(j)-geom%l1(j))/geom%g2(j))
 
                         else
 
-                            ! Calculate intermediate quantities
+                            ! Calculate intermediate quantities (E&M Eq. (J.8.36))
                             z = -(geom%l2(j)-geom%l1(j))*(geom%l2(j)+geom%l1(j))/(geom%s2(j)*geom%l2(j) + geom%s1(j)*geom%l1(j))
 
-                            ! Calculate edge function
+                            ! Calculate edge function (E&M Eq. (J.8.35))
                             if (this%q(j) == 1) then
                                 I(j) = 0.5*log((1+z)/(1-z))
                             else
@@ -1597,7 +1603,8 @@ contains
                     else ! Only one endpoint
 
                         ! Check magnitude of g
-                        if (abs(geom%g(j))<1e-6) then
+                        !if (geom%s1(j) < 0.95*abs(geom%l1(j))) then
+                        if (abs(geom%g2(j)) > 1e-4) then
 
                             ! Regular calculation for large g
                             if (dod_info%verts_in_dod(j)) then
@@ -1618,12 +1625,15 @@ contains
 
                             end if
 
-                        else ! Special calculation for small g
+                        ! Special calculation for small g
+                        else
 
                             if (dod_info%verts_in_dod(j)) then
                                 I(j) = sign(-geom%l1(j))*(log(abs(geom%l1(j))+geom%s1(j))-0.5*log(geom%g2(j)))
+
                             else if (dod_info%verts_in_dod(mod(j, this%N)+1)) then
                                 I(j) = sign(-geom%l2(j))*(log(abs(geom%l2(j))+geom%s2(j))-0.5*log(geom%g2(j)))
+                                
                             end if
 
                         end if
@@ -1668,6 +1678,7 @@ contains
 
                         else
 
+                            ! Determine phi_q explicitly
                             if (this%q(j) == 1) then
                                 phi_q = (0.5*log((1.+z)/(1.-z))-z)/z**3
                             else
