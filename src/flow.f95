@@ -29,6 +29,7 @@ module flow_mod
             procedure :: init => flow_init
             procedure :: calc_metric_matrices => flow_calc_metric_matrices
             procedure :: calc_transforms => flow_calc_transforms
+            procedure :: B_g_inner => flow_B_g_inner
             procedure :: C_g_inner => flow_C_g_inner
             procedure :: point_in_dod => flow_point_in_dod
 
@@ -199,6 +200,20 @@ contains
         this%A_g_to_s = matmul(this%A_c_to_s, this%A_g_to_c)
 
     end subroutine flow_calc_transforms
+
+
+    function flow_B_g_inner(this, a, b) result(c)
+        ! Calculates the inner product a*B_g*b = c
+
+        implicit none
+
+        class(flow),intent(in) :: this
+        real,dimension(3),intent(in) :: a, b
+        real :: c
+
+        c = inner(a, matmul(this%B_mat_g, b))
+
+    end function flow_B_g_inner
 
 
     function flow_C_g_inner(this, a, b) result(c)

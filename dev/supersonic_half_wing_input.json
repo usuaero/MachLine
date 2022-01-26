@@ -18,7 +18,7 @@
     "solver": {
         "formulation": "morino",
         "control_point_offset": 1.1e-05,
-        "influence_calculations" : "johnson"
+        "influence_calculations" : "epton-magnus"
     },
     "post_processing" : {
         "pressure_rule" : "isentropic"

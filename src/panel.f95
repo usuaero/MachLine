@@ -90,7 +90,6 @@ module panel_mod
             procedure :: calc_F_integrals => panel_calc_F_integrals
             procedure :: calc_H_integrals => panel_calc_H_integrals
             procedure :: calc_integrals => panel_calc_integrals
-            !procedure :: calc_panel_functions => panel_calc_panel_functions
             procedure :: calc_panel_function => panel_calc_panel_function
             procedure :: calc_edge_functions => panel_calc_edge_functions
             procedure :: calc_b => panel_calc_b
@@ -846,7 +845,7 @@ contains
         type(eval_point_geom) :: geom
 
         real,dimension(2) :: d
-        real,dimension(3) :: r_l, d3
+        real,dimension(3) :: r_l, d3, x
         integer :: i
 
         ! Store point
@@ -881,14 +880,24 @@ contains
                 geom%s1(i) = 0. ! This distance should be zero in this case, as the flow is supersonic and the point lies outside the DoD
             end if
 
+            ! Calculate perpendicular distance to edges, depending on magnitude of tau
+            if (abs(this%tau(i)) > 1e-4) then
+                x = cross(geom%r, this%t_hat_g(i,:))
+                geom%g2(i) = (freestream%B/this%tau(i))**2*freestream%B_g_inner(x, x)
+            else
+                geom%g2(i) = this%r*geom%a(i)**2 + this%r*this%q(i)*geom%h**2
+            end if
+
+            if (geom%g2(i) >= 0.) then
+                geom%g(i) = sqrt(geom%g2(i))
+            else
+                geom%g(i) = 0.
+            end if
+
         end do
 
         ! Distance from evaluation point to end vertices
         geom%s2 = cshift(geom%s1, 1)
-
-        ! Calculate perpendicular distance to edges
-        geom%g2 = this%r*geom%a**2+this%r*this%q*geom%h**2
-        geom%g = sqrt(geom%g2)
 
         ! Other intermediate quantities
         !geom%s1 = sqrt(geom%l1**2+geom%g2) ! Distance to first vertex (I'm leaving these methods here, as they are Johnson's, but they seem to suffer from buildup of numerical error)
@@ -1388,24 +1397,6 @@ contains
     end subroutine panel_calc_integrals
 
 
-    !function panel_calc_panel_functions(this, geom, dod_info, freestream) result(J)
-    !    ! Calculates the panel functions J_i
-
-    !    implicit none
-
-    !    class(panel),intent(in) :: this
-    !    type(eval_point_geom),intent(in) :: geom
-    !    type(dod),intent(in) :: dod_info
-    !    type(flow),intent(in) :: freestream
-
-    !    real,dimension(this%N) :: J
-
-    !    J = 0.
-
-
-    !end function panel_calc_panel_functions
-
-
     function panel_calc_panel_function(this, geom, dod_info, freestream) result(J)
         ! Calculates the panel function J(psi)
         ! I believe J(psi) is equivalent to H(1,1,3) in Johnson multiplied by some power of |h|
@@ -1426,10 +1417,10 @@ contains
 
 
         ! Check if the point is on the panel
-        if (abs(geom%h) < 1.e-12) then
+        if (abs(geom%h) < 1e-12) then
 
             if (all(geom%a > 0.)) then
-                J = -sign(geom%h)*0.5*pi*(this%r*freestream%s + 3) ! E&M Eq. (J.8.163)
+                J = -sign(geom%h)*0.5*pi*(this%r*freestream%s + 3.) ! E&M Eq. (J.8.163)
             else
                 J = 0.
             end if
@@ -1568,6 +1559,7 @@ contains
 
         integer :: j, k
         real :: sigma, z, I_hat, phi_q, delta_R, v_hat_bar, dphi_q
+        real,dimension(3) :: x
 
         ! Loop through edges
         do j=1,this%N
@@ -1807,15 +1799,15 @@ contains
 
         real,dimension(2) :: a_bar
         real,dimension(this%N) :: I
-        integer :: j
+        integer :: k
 
         ! Get edge functions
         I = this%calc_edge_functions(geom, dod_info, freestream)
 
         ! Sum over edges
         a_bar = 0.
-        do j=1,this%N
-            a_bar = a_bar + this%n_hat_ls(j,:)*this%q(j)*I(j)
+        do k=1,this%N
+            a_bar = a_bar + this%n_hat_ls(k,:)*this%q(k)*I(k)
         end do
         a_bar = a_bar*freestream%s*freestream%K_inv
 
