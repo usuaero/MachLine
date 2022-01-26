@@ -855,13 +855,10 @@ contains
             ! Projected point displacement from start vertex
             d = this%vertices_ls(i,:)-geom%r_in_plane
 
-            ! Perpendicular distance in plane from evaluation point to edge
-            ! a is positive when the evaluation point is towards the interior of the panel
-            ! This is opposite the definition of a_k given in E&M Eq. (J.7.53)
+            ! Perpendicular distance in plane from evaluation point to edge E&M Eq. (J.6.46) and (J.7.53)
             geom%a(i) = inner2(d, this%n_hat_ls(i,:))
 
             ! Integration length on edge to start vertex (E&M Eq. (J.6.47))
-            ! The corresponding quantity is called v_k in E&M; this is the negative thereof (i.e. v_k- = -l1)
             geom%l1(i) = this%r*freestream%s*d(1)*this%t_hat_ls(i,1) + d(2)*this%t_hat_ls(i,2)
 
             ! Projected point displacement from end vertex
@@ -882,7 +879,7 @@ contains
             ! Calculate square of the perpendicular distance to edge
             ! We do not need to worry about tau potentially begin zero, as g does not factor into the computations for edges which are close to sonic
             x = cross(d3, this%t_hat_g(i,:))
-            geom%g2(i) = (freestream%B/this%tau(i))**2*freestream%B_g_inner(x, x) ! E&M Eq. (J.8.23)
+            geom%g2(i) = (freestream%B/this%tau(i))**2*freestream%B_g_inner(x, x) ! E&M Eq. (J.8.23) or (J.7.70)
 
             ! Calculate the perpendicular distance to edge
             if (geom%g2(i) >= 0.) then
@@ -1414,7 +1411,7 @@ contains
         ! Check if the point is on the panel
         if (abs(geom%h) < 1e-12) then
 
-            if (all(geom%a > 0.)) then
+            if (all(geom%a < 0.)) then
                 J = -sign(geom%h)*0.5*pi*(this%r*freestream%s + 3.) ! E&M Eq. (J.8.163)
             else
                 J = 0.
@@ -1489,7 +1486,7 @@ contains
             else ! Use the special rationalization
 
                 ! Calculate C_theta
-                if (all(geom%a > 0.)) then
+                if (all(geom%a < 0.)) then
                     C_theta = 1.
                 else
                     C_theta = 0.
@@ -1508,23 +1505,23 @@ contains
 
                         ! Calculate intermediate quantities
                         Y = -this%tau(i)*abs(geom%h*(geom%s2(i)**2 - geom%s1(i)**2))
-                        X = -geom%s2(i)*geom%l2(i)*(geom%s1(i)**2 - this%r*freestream%s*geom%h**2)
-                        X = X - geom%s1(i)*geom%l1(i)*(geom%s2(i)**2 - this%r*freestream%s*geom%h**2)
+                        X = geom%s2(i)*geom%l2(i)*(geom%s1(i)**2 - this%r*freestream%s*geom%h**2)
+                        X = X + geom%s1(i)*geom%l1(i)*(geom%s2(i)**2 - this%r*freestream%s*geom%h**2)
 
                         ! Calculate Q
                         Q(i) = -atan2(Y, X)
 
                     ! Only the first endpoint is in the DoD
                     else if (dod_info%verts_in_dod(i)) then
-                        Q(i) = -atan2(geom%a(i)*geom%s1(i), abs(geom%h)*geom%l1(i))
+                        Q(i) = -atan2(-geom%a(i)*geom%s1(i), -abs(geom%h)*geom%l1(i))
 
                     ! Only the second endpoint is in the DoD
                     else if (dod_info%verts_in_dod(i_next)) then
-                        Q(i) = atan2(geom%a(i)*geom%s2(i), abs(geom%h)*geom%l2(i)) + pi*sign(geom%a(i))
+                        Q(i) = atan2(-geom%a(i)*geom%s2(i), -abs(geom%h)*geom%l2(i)) + pi*sign(-geom%a(i))
 
                     ! Neither endpoint is in the DoD
                     else
-                        Q(i) = pi*sign(geom%a(i))
+                        Q(i) = pi*sign(-geom%a(i))
 
                     end if
 
@@ -1573,12 +1570,12 @@ contains
                         !if (geom%s1(j) < 0.95*abs(geom%l1(j)) .and. this%q(j) == 1 .and. sign(geom%l1(j)) /= sign(geom%l2(j))) then
 
                             ! Calculate edge function using stable formula (E&M Eq. (J.8.41))
-                            I(j) = log((geom%s2(j)-geom%l2(j))*(geom%s1(j)-geom%l1(j))/geom%g2(j))
+                            I(j) = log((geom%s2(j)+geom%l2(j))*(geom%s1(j)+geom%l1(j))/geom%g2(j))
 
                         else
 
                             ! Calculate intermediate quantities (E&M Eq. (J.8.36))
-                            z = -(geom%l2(j)-geom%l1(j))*(geom%l2(j)+geom%l1(j))/(geom%s2(j)*geom%l2(j) + geom%s1(j)*geom%l1(j))
+                            z = (geom%l2(j)-geom%l1(j))*(geom%l2(j)+geom%l1(j))/(geom%s2(j)*geom%l2(j) + geom%s1(j)*geom%l1(j))
 
                             ! Calculate edge function (E&M Eq. (J.8.35))
                             if (this%q(j) == 1) then
@@ -1600,17 +1597,17 @@ contains
                             if (dod_info%verts_in_dod(j)) then
 
                                 if (this%q(j) == 1) then
-                                    I(j) = 0.5*log((-geom%l1(j)+geom%s1(j))/(-geom%l1(j)-geom%s1(j)))
+                                    I(j) = 0.5*log((geom%l1(j)+geom%s1(j))/(geom%l1(j)-geom%s1(j)))
                                 else
-                                    I(j) = -atan2(geom%s1(j), -geom%l1(j))
+                                    I(j) = -atan2(geom%s1(j), geom%l1(j))
                                 end if
 
                             else if (dod_info%verts_in_dod(mod(j, this%N)+1)) then
 
                                 if (this%q(j) == 1) then
-                                    I(j) = 0.5*log((-geom%l2(j)+geom%s2(j))/(-geom%l2(j)-geom%s2(j)))
+                                    I(j) = 0.5*log((geom%l2(j)+geom%s2(j))/(geom%l2(j)-geom%s2(j)))
                                 else
-                                    I(j) = -atan2(geom%s2(j), -geom%l2(j))
+                                    I(j) = -atan2(geom%s2(j), geom%l2(j))
                                 end if
 
                             end if
@@ -1619,10 +1616,10 @@ contains
                         else
 
                             if (dod_info%verts_in_dod(j)) then
-                                I(j) = sign(-geom%l1(j))*(log(abs(geom%l1(j))+geom%s1(j))-0.5*log(geom%g2(j)))
+                                I(j) = sign(geom%l1(j))*(log(abs(geom%l1(j))+geom%s1(j))-0.5*log(geom%g2(j)))
 
                             else if (dod_info%verts_in_dod(mod(j, this%N)+1)) then
-                                I(j) = sign(-geom%l2(j))*(log(abs(geom%l2(j))+geom%s2(j))-0.5*log(geom%g2(j)))
+                                I(j) = sign(geom%l2(j))*(log(abs(geom%l2(j))+geom%s2(j))-0.5*log(geom%g2(j)))
                                 
                             end if
 
@@ -1635,7 +1632,7 @@ contains
 
                     ! Calculate basic quantities
                     sigma = sign(geom%s1(j)*geom%s2(j) + geom%l1(j)*geom%l2(j))
-                    z = -(geom%l2(j)-geom%l1(j))*(geom%l2(j)+geom%l1(j))/(geom%s2(j)*geom%l2(j) + geom%s1(j)*geom%l1(j))
+                    z = (geom%l2(j)-geom%l1(j))*(geom%l2(j)+geom%l1(j))/(geom%s2(j)*geom%l2(j) + geom%s1(j)*geom%l1(j))
 
                     ! Check for special case
                     if (this%q(j) == -1 .and. sigma == -1) then
@@ -1728,12 +1725,12 @@ contains
 
         ! Calculate J(X)
         if (.not. freestream%supersonic) then
-            J_X = geom%h**2*J - sum(geom%a*I) ! E&M Eq. (J.7.12)
+            J_X = geom%h**2*J + sum(geom%a*I) ! E&M Eq. (J.7.12)
         else
             if (this%r == 1) then
-                J_X = -geom%h**2*J + sum(this%q*geom%a*I) ! E&M Eqs. (J.7.20) and (J.7.27)
+                J_X = -geom%h**2*J - sum(this%q*geom%a*I) ! E&M Eqs. (J.7.20) and (J.7.27)
             else
-                J_X = geom%h**2*J + sum(geom%a*I) ! E&M Eq. (J.7.34)
+                J_X = geom%h**2*J - sum(geom%a*I) ! E&M Eq. (J.7.34)
             end if
         end if
 
