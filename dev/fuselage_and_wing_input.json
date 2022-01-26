@@ -22,6 +22,8 @@
         "formulation": "morino",
         "control_point_offset": 1.1e-05
     },
+    "post_processing" : {
+    },
     "output": {
         "body_file": "dev/results/fuselage_and_wing.vtk",
         "wake_file": "dev/results/fuselage_and_wing_wake.vtk",

@@ -4,10 +4,6 @@
     },
     "geometry" : {
         "file" : "dev/meshes/test_fuselage.vtk",
-        "singularity_order" : {
-            "doublet" : 1,
-            "source" : 0
-        },
         "wake_model" : {
             "wake_shedding_angle" : 90.0,
             "trefftz_distance" : 100.0,
@@ -17,6 +13,8 @@
     "solver" : {
         "formulation" : "morino",
         "control_point_offset" : 1.0e-5
+    },
+    "post_processing" : {
     },
     "output" : {
         "body_file" : "dev/results/test_fuselage.vtk",

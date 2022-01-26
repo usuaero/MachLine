@@ -21,6 +21,8 @@
         "formulation": "morino",
         "control_point_offset": 1.1e-05
     },
+    "post_processing" : {
+    },
     "output": {
         "body_file": "test/results/full_wing.vtk",
         "wake_file": "test/results/full_wing_wake.vtk",

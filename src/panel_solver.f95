@@ -617,6 +617,7 @@ contains
             end if
 
         end if
+        write(*,*) "Done."
     
     end subroutine panel_solver_solve_dirichlet
 
@@ -634,6 +635,7 @@ contains
         real,dimension(3) :: n_mirrored
         real :: a, b, c, C_p_vac
 
+        write(*,'(a)',advance='no') "     Calculating surface pressures..."
         N_pressures = size(body%V)/3
 
         ! Allocate coefficient of pressure storage
@@ -676,10 +678,14 @@ contains
 
         end do
 
+        ! TODO: IMPLEMENT SUBSONIC PRESSURE CORRECTIONS
+
         write(*,*) "Done."
         write(*,*) "        Maximum pressure coefficient:", maxval(body%C_p)
         write(*,*) "        Minimum pressure coefficient:", minval(body%C_p)
-        write(*,*) "        Vacuum pressure coefficient:", C_p_vac
+        if (this%freestream%M_inf > 0.) then
+            write(*,*) "        Vacuum pressure coefficient:", C_p_vac
+        end if
 
         write(*,'(a)',advance='no') "     Calculating forces..."
 
@@ -720,21 +726,21 @@ contains
         type(surface_mesh),intent(inout) :: body
         character(len=:),allocatable :: report_file
 
-        open(1, file=report_file)
+        open(12, file=report_file)
 
         ! Header
-        write(1,'(a)') "MachLine Report (c) 2022 USU AeroLab"
+        write(12,'(a)') "MachLine Report (c) 2022 USU AeroLab"
 
         ! Solver results
-        write(1,*) "Maximum residual:", this%max_res
-        write(1,*) "Norm of residual:", this%norm_res
-        write(1,*) "Maximum pressure coefficient:", maxval(body%C_p)
-        write(1,*) "Minimum pressure coefficient:", minval(body%C_p)
-        write(1,*) "Cx:", this%C_F(1)
-        write(1,*) "Cy:", this%C_F(2)
-        write(1,*) "Cz:", this%C_F(3)
+        write(12,*) "Maximum residual:", this%max_res
+        write(12,*) "Norm of residual:", this%norm_res
+        write(12,*) "Maximum pressure coefficient:", maxval(body%C_p)
+        write(12,*) "Minimum pressure coefficient:", minval(body%C_p)
+        write(12,*) "Cx:", this%C_F(1)
+        write(12,*) "Cy:", this%C_F(2)
+        write(12,*) "Cz:", this%C_F(3)
 
-        close(1)
+        close(12)
    
     end subroutine panel_solver_write_report
 

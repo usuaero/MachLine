@@ -338,7 +338,6 @@ contains
         type(flow),intent(in) :: freestream
 
         real,dimension(3) :: u0, v0
-        real,dimension(3,3) :: C0, B0, I
         real :: x
         integer :: j
 
@@ -358,24 +357,9 @@ contains
         end if
         this%r = sign(x) ! r=-1 -> superinclined, r=1 -> subinclined
 
-        ! Calculate intermediate matrices
-        C0 = 0.
-        B0 = 0.
-        I = 0.
-
-        ! Construct identity matrix
-        do j=1,3
-            I(j,j) = 1.
-        end do
-
-        ! Construct other matrices
-        B0 = outer(freestream%c_hat_g, freestream%c_hat_g)
-        C0 = freestream%s*freestream%B**2*I + freestream%M_inf**2*B0
-        B0 = I - freestream%M_inf**2*B0
-
         ! Calculate transformation
-        this%A_g_to_ls(1,:) = 1./sqrt(abs(x))*matmul(C0, u0)
-        this%A_g_to_ls(2,:) = this%r*freestream%s/freestream%B*matmul(C0, v0)
+        this%A_g_to_ls(1,:) = 1./sqrt(abs(x))*matmul(freestream%C_mat_g, u0)
+        this%A_g_to_ls(2,:) = this%r*freestream%s/freestream%B*matmul(freestream%C_mat_g, v0)
         this%A_g_to_ls(3,:) = freestream%B/sqrt(abs(x))*this%normal
 
         ! Calculate inverse
@@ -2037,8 +2021,8 @@ contains
 
                     ! Compute induced potential
                     phi(1) = geom%h*H(1,1,3)
-                    phi(2) = geom%r_in_plane(1)*geom%h*H(1,1,3)+geom%h*H(2,1,3)
-                    phi(3) = geom%r_in_plane(2)*geom%h*H(1,1,3)+geom%h*H(1,2,3)
+                    phi(2) = phi(1)*geom%r_in_plane(1) + geom%h*H(2,1,3)
+                    phi(3) = phi(1)*geom%r_in_plane(2) + geom%h*H(1,2,3)
 
                     ! Convert to vertex influences
                     phi(1:3) = 0.25/pi*matmul(phi(1:3), this%S_mu_inv)
@@ -2063,10 +2047,10 @@ contains
                     a_bar = this%calc_a_bar(geom, dod_info, freestream)
 
                     ! Calculate influence
-                    x = geom%h*matmul(this%G, a_bar)
+                    x = matmul(this%G, a_bar)
                     phi(1) = this%r*a
-                    phi(2) = phi(1)*geom%r_in_plane(1) - x(1)
-                    phi(3) = phi(1)*geom%r_in_plane(2) - x(2)
+                    phi(2) = phi(1)*geom%r_in_plane(1) - geom%h*x(1)
+                    phi(3) = phi(1)*geom%r_in_plane(2) - geom%h*x(2)
 
                     ! Convert to vertex influences
                     phi(1:3) = matmul(phi(1:3), this%S_mu_inv)

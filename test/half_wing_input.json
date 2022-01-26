@@ -22,6 +22,8 @@
         "formulation": "source-free",
         "control_point_offset": 1.1e-05
     },
+    "post_processing" : {
+    },
     "output": {
         "body_file": "test/results/half_wing_right.vtk",
         "wake_file": "test/results/half_wing_right_wake.vtk",

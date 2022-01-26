@@ -1,10 +1,6 @@
 {
     "flow": {
-        "freestream_velocity": [
-            100.0,
-            0.0,
-            -10.0
-        ]
+        "freestream_velocity": [ 100.0, 0.0, -10.0 ]
     },
     "geometry": {
         "file": "dev/meshes/half_wing_right.vtk",
@@ -22,10 +18,12 @@
         "formulation": "morino",
         "control_point_offset": 1.1e-05
     },
+    "post_processing" : {
+    },
     "output": {
-        "body_file": "dev/results/half_wing_right.vtk",
-        "wake_file": "dev/results/half_wing_right_wake.vtk",
-        "control_point_file": "dev/results/half_wing_right_control_points.vtk",
-        "report_file": "dev/report.txt"
+        "body_file" : "dev/results/half_wing_right.vtk",
+        "wake_file" : "dev/results/half_wing_right_wake.vtk",
+        "control_point_file" : "dev/results/half_wing_right_control_points.vtk",
+        "report_file" : "dev/report.txt"
     }
 }
