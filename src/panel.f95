@@ -1588,7 +1588,6 @@ contains
                     else ! Only one endpoint
 
                         ! Check magnitude of g
-                        !if (geom%s1(j) < 0.95*abs(geom%l1(j))) then
                         if (abs(geom%g2(j)) > 1e-4) then
 
                             ! Regular calculation for large g
@@ -1613,11 +1612,15 @@ contains
                         ! Special calculation for small g
                         else
 
+                            ! These are my versions of E&M (J.8.22) which doesn't make any sense to me
+                            ! Also, E&M Eq. (J.8.18) makes no sense because (v+R)/(v-R) will always be negative, since |v|<R by definition
                             if (dod_info%verts_in_dod(j)) then
-                                I(j) = sign(geom%l1(j))*(log(abs(geom%l1(j))+geom%s1(j))-0.5*log(geom%g2(j)))
+                                !I(j) = sign(geom%l1(j))*(log(abs(geom%l1(j))+geom%s1(j))-0.5*log(geom%g2(j)))
+                                I(j) = log(geom%l1(j)+geom%s1(j))-0.5*log(geom%g2(j))
 
                             else if (dod_info%verts_in_dod(mod(j, this%N)+1)) then
-                                I(j) = sign(geom%l2(j))*(log(abs(geom%l2(j))+geom%s2(j))-0.5*log(geom%g2(j)))
+                                !I(j) = sign(geom%l2(j))*(log(abs(geom%l2(j))+geom%s2(j))-0.5*log(geom%g2(j)))
+                                I(j) = log(geom%l2(j)+geom%s2(j))-0.5*log(geom%g2(j))
                                 
                             end if
 
