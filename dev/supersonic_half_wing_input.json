@@ -2,7 +2,7 @@
     "flow": {
         "freestream_velocity": [100.0, 0.0, 0.0],
         "gamma" : 1.4,
-        "freestream_mach_number" : 2.0
+        "freestream_mach_number" : 0.5
     },
     "geometry": {
         "file": "dev/meshes/diamond_5_deg_coarse.vtk",

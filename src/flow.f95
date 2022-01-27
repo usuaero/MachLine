@@ -112,26 +112,26 @@ contains
         integer :: i
 
         ! Assemble dual metric matrix
-        ! Global
+        ! Global (E&M Eq. (E.3.9))
         do i=1,3
             this%B_mat_g(i,i) = 1.
         end do
         this%B_mat_g = this%B_mat_g-this%M_inf**2*outer(this%c_hat_g, this%c_hat_g)
 
-        ! Compressible
+        ! Compressible (E&M Eq. (E.3.8))
         this%B_mat_c = 0.
         this%B_mat_c(1,1) = this%s*this%B**2
         this%B_mat_c(2,2) = 1.
         this%B_mat_c(3,3) = 1.
         
         ! Assemble metric matrix
-        ! Global
+        ! Global (E&M Eq. (E.3.9))
         do i=1,3
             this%C_mat_g(i,i) = this%s*this%B**2
         end do
         this%C_mat_g = this%C_mat_g+this%M_inf**2*outer(this%c_hat_g, this%c_hat_g)
 
-        ! Compressible
+        ! Compressible (E&M Eq. (E.3.8))
         this%C_mat_c = 0.
         this%C_mat_c(1,1) = 1.
         this%C_mat_c(2,2) = this%s*this%B**2
@@ -185,9 +185,9 @@ contains
 
         ! Calculate transform from compressible to scaled coordinates
         this%A_c_to_s = 0.
-        this%A_c_to_s(1,1) = 1./(this%s*this%B)
-        this%A_c_to_s(2,2) = 1.
-        this%A_c_to_s(3,3) = 1.
+        this%A_c_to_s(1,1) = 1.
+        this%A_c_to_s(2,2) = this%s*this%B
+        this%A_c_to_s(3,3) = this%s*this%B
 
         ! Check calculation
         c_hat_c = matmul(this%A_g_to_c, this%c_hat_g)

@@ -339,7 +339,7 @@ contains
         real :: x
         integer :: j
 
-        ! Get basis vectors
+        ! Get in-panel basis vectors
         u0 = this%A_g_to_l(1,:)
         v0 = this%A_g_to_l(2,:)
 
@@ -349,16 +349,19 @@ contains
 
         ! Check for Mach-inclined panels
         if (freestream%supersonic .and. abs(x) < 1e-12) then
-            write(*,*) "    !!! Mach-inclined panels are not allowed in supersonic flow. Panel", &
+            write(*,*) "!!! Mach-inclined panels are not allowed in supersonic flow. Panel", &
                        this%index, "is Mach-inclined. Quitting..."
             stop
         end if
+
+        ! Calculate panel inclination indicator (E&M Eq. (E.3.16b))
         this%r = sign(x) ! r=-1 -> superinclined, r=1 -> subinclined
 
         ! Calculate transformation
-        this%A_g_to_ls(1,:) = 1./sqrt(abs(x))*matmul(freestream%C_mat_g, u0)
+        x = 1./sqrt(abs(x))
+        this%A_g_to_ls(1,:) = x*matmul(freestream%C_mat_g, u0)
         this%A_g_to_ls(2,:) = this%r*freestream%s/freestream%B*matmul(freestream%C_mat_g, v0)
-        this%A_g_to_ls(3,:) = freestream%B/sqrt(abs(x))*this%normal
+        this%A_g_to_ls(3,:) = freestream%B*x*this%normal
 
         ! Calculate inverse
         if (freestream%M_inf == 0.) then
@@ -424,7 +427,7 @@ contains
             ! Calculate the edge type parameter (E&M Eq. (J.3.28) or Eq. (J.7.51))
             this%tau(i) = sqrt(abs(freestream%C_g_inner(this%t_hat_g(i,:), this%t_hat_g(i,:))))
 
-            ! Calculate edge type indicator (E&M Eq. (J.6.48))
+            ! Calculate edge type indicator (E&M Eq. (J.6.48) and Ehlers Eq. (E14))
             this%q(i) = nint(this%r*this%t_hat_ls(i,1)**2 + freestream%s*this%t_hat_ls(i,2)**2)
 
         end do
