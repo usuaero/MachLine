@@ -64,7 +64,7 @@ module panel_mod
         real :: r ! Panel inclination indicator; r=-1 -> superinclined, r=1 -> subinclined
         real,dimension(3) :: tau ! Edge inclination parameter
         integer,dimension(3) :: q ! Edge type indicator; q=1 -> subsonic, q=-1 -> supersonic
-        real,dimension(2,2) :: G ! Some special matrix
+        real :: J ! Local scaled transformation Jacobian
 
         contains
 
@@ -281,10 +281,6 @@ contains
         this%C_mat_l(2,2) = freestream%s
         this%C_mat_l(3,3) = this%r*freestream%s
 
-        this%G = 0.
-        this%G(1,1) = this%r*freestream%s
-        this%G(2,2) = 1.
-
         ! Check calculation
         if (any(abs(this%B_mat_l - matmul(this%A_g_to_ls, matmul(freestream%B_mat_g, transpose(this%A_g_to_ls)))) > 1e-12)) then
             write(*,*) "!!! Calculation of local scaled coordinate transform failed. Quitting..."
@@ -369,6 +365,9 @@ contains
         else
             call matinv(3, this%A_g_to_ls, this%A_ls_to_g)
         end if
+
+        ! Calculate Jacobian
+        this%J = det3(this%A_g_to_ls)
     
     end subroutine panel_calc_g_to_ls_transform
 
