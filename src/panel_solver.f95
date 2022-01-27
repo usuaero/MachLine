@@ -59,10 +59,11 @@ contains
         ! Get post-processing settings
         if (freestream%M_inf > 0.) then
             call json_xtnsn_get(processing_settings, 'pressure_rules.incompressible', this%incompressible_rule, .false.)
+            call json_xtnsn_get(processing_settings, 'pressure_rules.isentropic', this%isentropic_rule, .true.)
         else
             call json_xtnsn_get(processing_settings, 'pressure_rules.incompressible', this%incompressible_rule, .true.)
+            this%isentropic_rule = .false.
         end if
-        call json_xtnsn_get(processing_settings, 'pressure_rules.isentropic', this%isentropic_rule, .false.)
         call json_xtnsn_get(processing_settings, 'pressure_rules.second-order', this%second_order_rule, .false.)
 
         if (this%incompressible_rule) then

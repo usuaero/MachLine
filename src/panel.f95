@@ -77,7 +77,7 @@ module panel_mod
             procedure :: calc_transforms => panel_calc_transforms
             procedure :: calc_g_to_l_transform => panel_calc_g_to_l_transform
             procedure :: calc_g_to_ls_transform => panel_calc_g_to_ls_transform
-            procedure :: calc_edge_tangents => panel_calc_edge_tangents
+            procedure :: calc_edge_vectors => panel_calc_edge_vectors
             procedure :: calc_singularity_matrices => panel_calc_singularity_matrices
             procedure :: get_vertex_loc => panel_get_vertex_loc
             procedure :: get_vertex_index => panel_get_vertex_index
@@ -257,7 +257,7 @@ contains
         call this%calc_g_to_ls_transform(freestream)
 
         ! Calculate properties dependent on the transforms
-        call this%calc_edge_tangents(freestream)
+        call this%calc_edge_vectors(freestream)
         call this%calc_singularity_matrices()
 
     end subroutine panel_calc_transforms
@@ -367,14 +367,12 @@ contains
         ! Check calculation (E&M Eq. (E.2.19))
         if (any(abs(this%B_mat_ls - matmul(this%A_g_to_ls, matmul(freestream%B_mat_g, transpose(this%A_g_to_ls)))) > 1e-12)) then
             write(*,*) "!!! Calculation of local scaled coordinate transform failed. Quitting..."
-            write(*,*) abs(this%B_mat_ls - matmul(this%A_g_to_ls, matmul(freestream%B_mat_g, transpose(this%A_g_to_ls))))
-            write(*,*) this%B_mat_ls
         end if
     
     end subroutine panel_calc_g_to_ls_transform
 
 
-    subroutine panel_calc_edge_tangents(this, freestream)
+    subroutine panel_calc_edge_vectors(this, freestream)
 
         implicit none
 
@@ -433,7 +431,7 @@ contains
 
         end do
     
-    end subroutine panel_calc_edge_tangents
+    end subroutine panel_calc_edge_vectors
 
 
     subroutine panel_calc_singularity_matrices(this)
@@ -843,16 +841,16 @@ contains
         type(eval_point_geom) :: geom
 
         real,dimension(2) :: d
-        real,dimension(3) :: r_l, d3, x
+        real,dimension(3) :: r_ls, d3, x
         integer :: i
 
         ! Store point
         geom%r = eval_point
 
         ! Transform to local scaled coordinates
-        r_l = matmul(this%A_g_to_ls, geom%r-this%centroid)
-        geom%r_in_plane = r_l(1:2)
-        geom%h = r_l(3) ! Equivalent to E&M Eq. (J.7.41)
+        r_ls = matmul(this%A_g_to_ls, geom%r-this%centroid)
+        geom%r_in_plane = r_ls(1:2)
+        geom%h = r_ls(3) ! Equivalent to E&M Eq. (J.7.41)
 
         ! Calculate intermediate quantities
         do i=1,this%N
@@ -882,7 +880,6 @@ contains
             end if
 
             ! Calculate square of the perpendicular distance to edge
-            ! We do not need to worry about tau potentially begin zero, as g does not factor into the computations for edges which are close to sonic
             x = cross(d3, this%t_hat_g(i,:))
             geom%g2(i) = (freestream%B/this%tau(i))**2*freestream%B_g_inner(x, x) ! E&M Eq. (J.8.23) or (J.7.70)
 
