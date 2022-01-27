@@ -634,7 +634,7 @@ contains
         type(dod) :: dod_info
 
         real,dimension(3) :: d, point, a, b, R_star
-        integer :: i, N_verts_in_dod, N_edges_in_dod
+        integer :: i, N_verts_in_dod, N_edges_in_dod, i_next
         real :: C_theta, x, y, dQ_dDp2, s_star
         logical :: totally_out, totally_in, centroid_in, radius_smaller, mirrored, in_panel
 
@@ -699,6 +699,9 @@ contains
             ! If it is not guaranteed to be totally out or in, then check all the vertices and edges
             else
 
+                ! Initialize
+                dod_info%in_dod = .false.
+
                 ! Check each of the vertices
                 N_verts_in_dod = 0
                 do i=1,this%N
@@ -723,9 +726,11 @@ contains
 
                 ! Check edges
                 do i=1,this%N
+                    
+                    i_next = mod(i, this%N)+1
 
                     ! If both vertices are in, then the edge is in (you gotta love convex subspaces)
-                    if (dod_info%verts_in_dod(i) .and. dod_info%verts_in_dod(mod(i, this%N)+1)) then
+                    if (dod_info%verts_in_dod(i) .and. dod_info%verts_in_dod(i_next)) then
                         dod_info%edges_in_dod(i) = .true.
                         dod_info%s_int_0(i) = 0.
                         dod_info%s_int_1(i) = 1.
@@ -734,11 +739,12 @@ contains
                     else if (this%q(i) == 1) then ! Subsonic
 
                         ! If both vertices are out, then the edge is out
-                        if (.not. dod_info%verts_in_dod(i) .and. .not. dod_info%verts_in_dod(mod(i, this%N)+1)) then
+                        if (.not. dod_info%verts_in_dod(i) .and. .not. dod_info%verts_in_dod(i_next)) then
                             dod_info%edges_in_dod(i) = .false.
 
-                        ! If both aren't in or out, we need to find the point of intersection
-                        else
+                        ! If one endpoint is in, then the edge is in
+                        else if (dod_info%verts_in_dod(i) .or. dod_info%verts_in_dod(i_next)) then
+                            dod_info%edges_in_dod(i) = .true.
 
                         end if
 
@@ -760,8 +766,7 @@ contains
                             if (s_star > 0. .and. s_star < 1. .and. freestream%point_in_dod(R_star, eval_point)) then
 
                                 dod_info%in_dod = .true.
-
-                                ! If so, we need the points of intersection
+                                dod_info%edges_in_dod(i) = .true.
 
                             else
 
@@ -770,8 +775,9 @@ contains
 
                             end if
 
-                        ! If both aren't in or out, we need to find the point of intersection
+                        ! If only one is in, then the edge is in
                         else
+                            dod_info%edges_in_dod(i) = .true.
 
                         end if
 
@@ -1003,7 +1009,17 @@ contains
         
                 ! Otherwise, it is the minimum of the distances to the corners
                 else
-                    min_dist_to_edge(i) = min(geom%s1(i), geom%s2(i))
+                    if (dod_info%verts_in_dod(i) .and. dod_info%verts_in_dod(mod(i, this%N)+1)) then
+                        min_dist_to_edge(i) = min(geom%s1(i), geom%s2(i))
+                    else if (dod_info%verts_in_dod(i)) then
+                        min_dist_to_edge(i) = geom%s1(i)
+                    else if (dod_info%verts_in_dod(mod(i, this%N)+1)) then
+                        min_dist_to_edge(i) = geom%s2(i)
+
+                    ! If neither is in, we again go back to the perpendicular distance
+                    else
+                        min_dist_to_edge(i) = geom%g(i)
+                    end if
                 end if
 
             ! Otherwise, set the minimum distance arbitrarily high
