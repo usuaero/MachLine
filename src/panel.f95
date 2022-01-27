@@ -1412,6 +1412,7 @@ contains
         ! Check if the point is on the panel
         if (abs(geom%h) < 1e-12) then
 
+            ! Check if the point is interior to the panel
             if (all(geom%a < 0.)) then
                 J = -sign(geom%h)*0.5*pi*(this%r*freestream%s + 3.) ! E&M Eq. (J.8.163)
             else
@@ -1438,7 +1439,7 @@ contains
 
                     ! Check g^2 on each edge
                     do i=1,this%N
-                        if (geom%g2(i) <= 3.e-4*this%radius**2) then
+                        if (geom%g2(i) <= 4.e-4*this%radius**2) then
                             standard_case = .false.
                             exit
                         end if
@@ -1463,13 +1464,13 @@ contains
                         J = J - pi
                     end if
 
-                    ! Add corner influence
-                    if (dod_info%verts_in_dod(i)) then
+                    ! Add corner influence (this is the corner between edge i and edge i+1; thus, corner i+1)
+                    if (dod_info%verts_in_dod(i_next)) then
 
                         ! Calculate X and Y (E&M Eq. (J.8.110))
-                        X = this%r*freestream%s * this%t_hat_ls(i,1)*this%t_hat_ls(i_next,1) + &
-                            this%t_hat_ls(i,2)*this%t_hat_ls(i_next,2)
-                        X = -geom%h**2*this%r*freestream%s*X - this%r*geom%a(i)*geom%a(i_next)
+                        X = this%t_hat_ls(i,1)*this%t_hat_ls(i_next,1) + &
+                            this%r*freestream%s*this%t_hat_ls(i,2)*this%t_hat_ls(i_next,2)
+                        X = -geom%h**2*X - this%r*geom%a(i)*geom%a(i_next)
 
                         Y = geom%s2(i)*geom%h*(this%t_hat_ls(i,1)*this%t_hat_ls(i_next,2) - &
                                                this%t_hat_ls(i,2)*this%t_hat_ls(i_next,1))
@@ -1487,7 +1488,7 @@ contains
             else ! Use the special rationalization
 
                 ! Calculate C_theta
-                if (all(geom%a < 0.)) then
+                if (freestream%s == 1 .and. all(geom%a < 0.)) then
                     C_theta = 1.
                 else
                     C_theta = 0.
@@ -1499,30 +1500,34 @@ contains
                 ! Loop through edges to calculate Q_i
                 do i=1,this%N
 
-                    i_next = mod(i, this%N)+1
+                    if (dod_info%edges_in_dod(i)) then
 
-                    ! Check if both endpoints are in the DoD
-                    if (dod_info%verts_in_dod(i) .and. dod_info%verts_in_dod(i_next)) then
+                        i_next = mod(i, this%N)+1
 
-                        ! Calculate intermediate quantities
-                        Y = -this%tau(i)*abs(geom%h*(geom%s2(i)**2 - geom%s1(i)**2))
-                        X = geom%s2(i)*geom%l2(i)*(geom%s1(i)**2 - this%r*freestream%s*geom%h**2)
-                        X = X + geom%s1(i)*geom%l1(i)*(geom%s2(i)**2 - this%r*freestream%s*geom%h**2)
+                        ! Check if both endpoints are in the DoD
+                        if (dod_info%verts_in_dod(i) .and. dod_info%verts_in_dod(i_next)) then
 
-                        ! Calculate Q
-                        Q(i) = -atan2(Y, X)
+                            ! Calculate intermediate quantities
+                            Y = abs(geom%h)*geom%a(i)*(geom%s2(i)*geom%l1(i)-geom%s1(i)*geom%l2(i))
+                            X = geom%h**2*geom%l2(i)*geom%l1(i)
+                            X = X + geom%a(i)**2*geom%s2(i)*geom%s1(i)
 
-                    ! Only the first endpoint is in the DoD
-                    else if (dod_info%verts_in_dod(i)) then
-                        Q(i) = -atan2(-geom%a(i)*geom%s1(i), -abs(geom%h)*geom%l1(i))
+                            ! Calculate Q (E&M Eq. (J.8.142))
+                            Q(i) = atan2(Y, X)
 
-                    ! Only the second endpoint is in the DoD
-                    else if (dod_info%verts_in_dod(i_next)) then
-                        Q(i) = atan2(-geom%a(i)*geom%s2(i), -abs(geom%h)*geom%l2(i)) + pi*sign(-geom%a(i))
+                        ! Only the first endpoint is in the DoD
+                        else if (dod_info%verts_in_dod(i)) then
+                            Q(i) = -atan2(geom%a(i)*geom%s1(i), abs(geom%h)*geom%l1(i))
 
-                    ! Neither endpoint is in the DoD
-                    else
-                        Q(i) = pi*sign(-geom%a(i))
+                        ! Only the second endpoint is in the DoD
+                        else if (dod_info%verts_in_dod(i_next)) then
+                            Q(i) = atan2(geom%a(i)*geom%s2(i), abs(geom%h)*geom%l2(i)) - pi*sign(geom%a(i))
+
+                        ! Neither endpoint is in the DoD
+                        else
+                            Q(i) = -pi*sign(geom%a(i))
+
+                        end if
 
                     end if
 

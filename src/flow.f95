@@ -241,23 +241,22 @@ contains
 
         real,dimension(3) :: d
 
+        in_dod = .false.
+
         ! Calculate displacement
         d = P-Q
 
         ! Check upstream
-        if (inner(d, this%c_hat_g) >=0.) then
+        if (inner(d, this%c_hat_g) >= 0.) then ! E&M Eq. (J.3.1)
 
             ! Check in dod
-            if (this%C_g_inner(d, d) >= 0.) then
+            if (this%C_g_inner(d, d) >= 0.) then ! E&M Eq. (J.3.2)
 
                 in_dod = .true.
-                return
 
             end if
 
         end if
-
-        in_dod = .false.
         
     end function flow_point_in_dod
 
