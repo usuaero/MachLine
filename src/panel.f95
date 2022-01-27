@@ -16,6 +16,7 @@ module panel_mod
     logical :: debug = .false. ! Developer toggle
     character(len=:),allocatable :: influence_calc_type ! Either 'johnson' or 'epton-magnus'
 
+
     type eval_point_geom
         ! Container type for the geometric parameters necessary for calculating a panel's influence on a given field point
 
@@ -1550,7 +1551,7 @@ contains
         real,dimension(this%N) :: I
 
         integer :: j, k
-        real :: sigma, z, I_hat, phi_q, delta_R, v_hat_bar, dphi_q
+        real :: sigma, z, I_hat, phi_q, delta_R, v_hat_bar, dphi_q, denom
         real,dimension(3) :: x
 
         ! Loop through edges
@@ -1565,26 +1566,23 @@ contains
                     ! Both endpoints are in the DoD
                     if (dod_info%verts_in_dod(j) .and. dod_info%verts_in_dod(mod(j, this%N)+1)) then
 
-                        ! Check for g^2 small, q=1, and l changing signs
-                        if (abs(geom%g2(j)) < 1e-4 .and. this%q(j) == 1 .and. sign(geom%l1(j)) /= sign(geom%l2(j))) then
-                        !if (geom%s1(j) < 0.95*abs(geom%l1(j)) .and. this%q(j) == 1 .and. sign(geom%l1(j)) /= sign(geom%l2(j))) then
-
-                            ! Calculate edge function using stable formula (E&M Eq. (J.8.41))
-                            I(j) = log((geom%s2(j)+geom%l2(j))*(geom%s1(j)+geom%l1(j))/geom%g2(j))
-
-                        else
-
-                            ! Calculate intermediate quantities (E&M Eq. (J.8.36))
-                            z = (geom%l2(j)-geom%l1(j))*(geom%l2(j)+geom%l1(j))/(geom%s2(j)*geom%l2(j) + geom%s1(j)*geom%l1(j))
-
-                            ! Calculate edge function (E&M Eq. (J.8.35))
-                            if (this%q(j) == 1) then
-                                I(j) = 0.5*log((1+z)/(1-z))
+                        ! Calculate edge function (E&M Eq. (J.8.35) and Johnson Eq. (D.60))
+                        ! Subsonic edge
+                        if (this%q(j) == 1) then
+                            if (geom%l1(j) >= 0. .and. geom%l2(j) >= 0.) then
+                                I(j) = log((geom%s2(j)+geom%l2(j))/(geom%s1(j)+geom%l1(j)))
+                            else if (sign(geom%l1(j)) /= sign(geom%l2(j))) then
+                                I(j) = log((geom%s2(j)+geom%l2(j))*(geom%s1(j)-geom%l1(j))/geom%g2(j))
                             else
-                                sigma = sign(geom%s1(j)*geom%s2(j) + geom%l1(j)*geom%l2(j))
-                                I(j) = atan2(sigma*z, sigma)
+                                I(j) = log((geom%s1(j)-geom%l1(j))/(geom%s2(j)-geom%l2(j)))
                             end if
-                        
+
+                        ! Supersonic edge (E&M Eq. (J.8.35))
+                        else
+                            denom = geom%s1(j)*geom%s2(j) + geom%l1(j)*geom%l2(j)
+                            z = (geom%l2(j)-geom%l1(j))*(geom%l2(j)+geom%l1(j))/denom
+                            sigma = sign(denom)
+                            I(j) = atan2(sigma*z, sigma)
                         end if
 
                     else ! Only one endpoint
