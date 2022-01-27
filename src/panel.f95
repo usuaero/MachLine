@@ -901,7 +901,7 @@ contains
     end function panel_get_field_point_geometry
 
 
-    function panel_E_i_M_N_K(this, geom, i, M, N, K, dod_info) result(E)
+    function panel_E_i_M_N_K(this, geom, i, M, N, K, dod_info, freestream) result(E)
         ! Calculates E_i(M,N,K)
 
         implicit none
@@ -910,6 +910,7 @@ contains
         type(eval_point_geom),intent(in) :: geom
         integer,intent(in) :: i, M, N, K
         type(dod),intent(in) :: dod_info
+        type(flow),intent(in) :: freestream
 
         real :: E
 
@@ -931,7 +932,7 @@ contains
     end function panel_E_i_M_N_K
 
 
-    function panel_F_i_1_1_1(this, geom, i, dod_info) result(F)
+    function panel_F_i_1_1_1(this, geom, i, dod_info, freestream) result(F)
         ! Calculates F_i(1,1,1)
 
         implicit none
@@ -940,6 +941,7 @@ contains
         type(eval_point_geom),intent(in) :: geom
         integer,intent(in) :: i
         type(dod),intent(in) :: dod_info
+        type(flow),intent(in) :: freestream
 
         real :: F
 
@@ -960,7 +962,7 @@ contains
     end function panel_F_i_1_1_1
 
 
-    function panel_calc_F_integrals(this, geom, proc_H, MXK, MXQ, NHK, dod_info) result (F)
+    function panel_calc_F_integrals(this, geom, proc_H, MXK, MXQ, NHK, dod_info, freestream) result (F)
         ! Calculates the F integrals necessary
 
         implicit none
@@ -969,6 +971,7 @@ contains
         type(eval_point_geom),intent(in) :: geom
         integer,intent(in) :: proc_H, MXK, MXQ, NHK
         type(dod),intent(in) :: dod_info
+        type(flow),intent(in) :: freestream
         real,dimension(:,:,:,:),allocatable :: F
 
         real :: E1, E2, v_xi, v_eta, dF
@@ -990,14 +993,23 @@ contains
         ! Calculate minimum distance to perimeter of S
         do i=1,this%N
 
-            ! Within edge, the minimum distance is the perpendicular distance
-            if (geom%l1(i) < 0. .and. geom%l2(i) >= 0.) then
-                min_dist_to_edge(i) = geom%g(i)
+            ! Check this edge is in the DoD
+            if (dod_info%edges_in_dod(i)) then
+
+                ! Within edge, the minimum distance is the perpendicular distance
+                if (sign(geom%l1(i)) /= sign(geom%l2(i))) then
+                    min_dist_to_edge(i) = geom%g(i)
         
-            ! Otherwise, it is the minimum of the distances to the corners
+                ! Otherwise, it is the minimum of the distances to the corners
+                else
+                    min_dist_to_edge(i) = min(geom%s1(i), geom%s2(i))
+                end if
+
+            ! Otherwise, set the minimum distance arbitrarily high
             else
-                min_dist_to_edge(i) = min(geom%s1(i), geom%s2(i))
+                min_dist_to_edge(i) = 100000.
             end if
+
         end do
         dF = minval(min_dist_to_edge)
 
@@ -1015,7 +1027,7 @@ contains
             v_eta = this%n_hat_l(i,2)
 
             ! Calculate F(1,1,1)
-            F(i,1,1,1) = this%F_i_1_1_1(geom, i, dod_info)
+            F(i,1,1,1) = this%F_i_1_1_1(geom, i, dod_info, freestream)
 
             ! Procedure 4: not close to perimeter
             if (geom%g(i) >= 0.01*dF) then
@@ -1024,8 +1036,8 @@ contains
                 do k=3,MXFK,2
 
                     ! Get necessary E
-                    E1 = this%E_i_M_N_K(geom, i, 2, 1, k-2, dod_info)
-                    E2 = this%E_i_M_N_K(geom, i, 1, 2, k-2, dod_info)
+                    E1 = this%E_i_M_N_K(geom, i, 2, 1, k-2, dod_info, freestream)
+                    E2 = this%E_i_M_N_K(geom, i, 1, 2, k-2, dod_info, freestream)
 
                     ! Calculate F
                     F(i,1,1,k) = 1./(geom%g2(i)*(k-2))*((k-3)*F(i,1,1,k-2)-v_eta*E1+v_xi*E2)
@@ -1041,8 +1053,8 @@ contains
                 do k=MXFK+NFK,5,2
 
                     ! Get necessary E
-                    E1 = this%E_i_M_N_K(geom, i, 2, 1, k-2, dod_info)
-                    E2 = this%E_i_M_N_K(geom, i, 1, 2, k-2, dod_info)
+                    E1 = this%E_i_M_N_K(geom, i, 2, 1, k-2, dod_info, freestream)
+                    E2 = this%E_i_M_N_K(geom, i, 1, 2, k-2, dod_info, freestream)
 
                     ! Calculate F
                     F(i,1,1,k-2) = 1./(k-3)*(geom%g2(i)*(k-2)*F(i,1,1,k)+v_eta*E1-v_xi*E2)
@@ -1057,7 +1069,7 @@ contains
                 do n=2,MXQ
 
                     ! Get E
-                    E1 = this%E_i_M_N_K(geom, i, 1, n-1, -1, dod_info)
+                    E1 = this%E_i_M_N_K(geom, i, 1, n-1, -1, dod_info, freestream)
 
                     if (n .eq. 2) then
                         F(i,1,N,1) = 1./(n-1)*((2*n-3)*geom%a(i)*v_eta*F(i,1,n-1,1) + v_xi*E1)
@@ -1081,7 +1093,7 @@ contains
                 do m=2,MXQ
 
                     ! Get E
-                    E1 = this%E_i_M_N_K(geom, i, m-1, 1, -1, dod_info)
+                    E1 = this%E_i_M_N_K(geom, i, m-1, 1, -1, dod_info, freestream)
 
                     if (m .eq. 2) then
                         F(i,m,1,1) = 1./(m-1)*((2*m-3)*geom%a(i)*v_xi*F(i,m-1,1,1) - v_eta*E1)
@@ -1103,7 +1115,7 @@ contains
 
             ! Calculate F(1,2,K) integrals
             do k=3,MXK-2,2
-                F(i,1,2,k) = v_eta*geom%a(i)*F(i,1,1,k)-v_xi/(k-2)*this%E_i_M_N_K(geom, i, 1, 1, k-2, dod_info)
+                F(i,1,2,k) = v_eta*geom%a(i)*F(i,1,1,k)-v_xi/(k-2)*this%E_i_M_N_K(geom, i, 1, 1, k-2, dod_info, freestream)
             end do
 
             ! Calculate F(1,N,K) integrals
@@ -1123,7 +1135,7 @@ contains
     end function panel_calc_F_integrals
 
 
-    function panel_calc_H_integrals(this, geom, proc_H, MXK, MXQ, NHK, dod_info, F) result(H)
+    function panel_calc_H_integrals(this, geom, proc_H, MXK, MXQ, NHK, dod_info, freestream, F) result(H)
         ! Calculates the necessary H integrals
 
         implicit none
@@ -1132,6 +1144,7 @@ contains
         type(eval_point_geom),intent(in) :: geom
         integer,intent(in) :: proc_H, MXK, MXQ, NHK
         type(dod),intent(in) :: dod_info
+        type(flow),intent(in) :: freestream
         real,dimension(:,:,:,:),allocatable,intent(in) :: F
         real,dimension(:,:,:),allocatable :: H
 
@@ -1311,7 +1324,7 @@ contains
     end function nu_M_N_K
 
 
-    subroutine panel_calc_integrals(this, geom, influence_type, singularity_type, dod_info, H, F)
+    subroutine panel_calc_integrals(this, geom, influence_type, singularity_type, dod_info, freestream, H, F)
         ! Calculates the H and F integrals necessary for the given influence
 
         implicit none
@@ -1320,6 +1333,7 @@ contains
         type(eval_point_geom),intent(in) :: geom
         character(len=*),intent(in) :: influence_type, singularity_type
         type(dod),intent(in) :: dod_info
+        type(flow),intent(in) :: freestream
         real,dimension(:,:,:,:),allocatable,intent(out) :: F
         real,dimension(:,:,:),allocatable,intent(out) :: H
 
@@ -1390,10 +1404,10 @@ contains
         end if
 
         ! Calculate F integrals
-        F = this%calc_F_integrals(geom, proc_H, MXK, MXQ, NHK, dod_info)
+        F = this%calc_F_integrals(geom, proc_H, MXK, MXQ, NHK, dod_info, freestream)
 
         ! Calculate H integrals
-        H = this%calc_H_integrals(geom, proc_H, MXK, MXQ, NHK, dod_info, F)
+        H = this%calc_H_integrals(geom, proc_H, MXK, MXQ, NHK, dod_info, freestream, F)
 
     end subroutine panel_calc_integrals
 
@@ -1890,7 +1904,7 @@ contains
             if (influence_calc_type == 'johnson') then
 
                 ! Get integrals
-                call this%calc_integrals(geom, "potential", "source", dod_info, H, F)
+                call this%calc_integrals(geom, "potential", "source", dod_info, freestream, H, F)
 
                 if (source_order == 0) then
 
@@ -1951,7 +1965,7 @@ contains
             if (influence_calc_type == 'johnson') then
 
                 ! Get integrals
-                call this%calc_integrals(geom, "velocity", "source", dod_info, H, F)
+                call this%calc_integrals(geom, "velocity", "source", dod_info, freestream, H, F)
 
                 if (source_order == 0) then
 
@@ -2030,7 +2044,7 @@ contains
             if (influence_calc_type == 'johnson') then
 
                 ! Get integrals
-                call this%calc_integrals(geom, "potential", "doublet", dod_info, H, F)
+                call this%calc_integrals(geom, "potential", "doublet", dod_info, freestream, H, F)
 
                 ! Calculate influence
                 if (doublet_order == 1) then
@@ -2135,7 +2149,7 @@ contains
             if (influence_calc_type == 'johnson') then
 
                 ! Get integrals
-                call this%calc_integrals(geom, "velocity", "doublet", dod_info, H, F)
+                call this%calc_integrals(geom, "velocity", "doublet", dod_info, freestream, H, F)
 
                 if (doublet_order .eq. 1) then
 
