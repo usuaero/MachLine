@@ -1419,6 +1419,7 @@ contains
                 J = 0.
             end if
 
+        ! Finite h
         else
 
             ! Check for being able to use the standard case (E&M Eq. (J.8.129))
@@ -1555,12 +1556,14 @@ contains
 
         real,dimension(this%N) :: I
 
-        integer :: j, k
+        integer :: j, k, j_next
         real :: sigma, z, I_hat, phi_q, delta_R, v_hat_bar, dphi_q, denom
         real,dimension(3) :: x
 
         ! Loop through edges
         do j=1,this%N
+
+            j_next = mod(j, this%N)+1
 
             ! Check it's in the DoD
             if (dod_info%edges_in_dod(j)) then
@@ -1569,7 +1572,7 @@ contains
                 if (this%tau(j)**2 > 1.e-4) then
 
                     ! Both endpoints are in the DoD
-                    if (dod_info%verts_in_dod(j) .and. dod_info%verts_in_dod(mod(j, this%N)+1)) then
+                    if (dod_info%verts_in_dod(j) .and. dod_info%verts_in_dod(j_next)) then
 
                         ! Calculate edge function (E&M Eq. (J.8.35) and Johnson Eq. (D.60))
                         ! Subsonic edge
@@ -1604,7 +1607,7 @@ contains
                                     I(j) = -atan2(geom%s1(j), geom%l1(j))
                                 end if
 
-                            else if (dod_info%verts_in_dod(mod(j, this%N)+1)) then
+                            else if (dod_info%verts_in_dod(j_next)) then
 
                                 if (this%q(j) == 1) then
                                     I(j) = 0.5*log((geom%l2(j)+geom%s2(j))/(geom%l2(j)-geom%s2(j)))
@@ -1623,7 +1626,7 @@ contains
                                 !I(j) = sign(geom%l1(j))*(log(abs(geom%l1(j))+geom%s1(j))-0.5*log(geom%g2(j)))
                                 I(j) = log(geom%l1(j)+geom%s1(j))-0.5*log(geom%g2(j))
 
-                            else if (dod_info%verts_in_dod(mod(j, this%N)+1)) then
+                            else if (dod_info%verts_in_dod(j_next)) then
                                 !I(j) = sign(geom%l2(j))*(log(abs(geom%l2(j))+geom%s2(j))-0.5*log(geom%g2(j)))
                                 I(j) = log(geom%l2(j)+geom%s2(j))-0.5*log(geom%g2(j))
                                 
@@ -1637,8 +1640,9 @@ contains
                 else if (this%tau(j)**2 > 1.e-10) then
 
                     ! Calculate basic quantities
-                    sigma = sign(geom%s1(j)*geom%s2(j) + geom%l1(j)*geom%l2(j))
-                    z = (geom%l2(j)-geom%l1(j))*(geom%l2(j)+geom%l1(j))/(geom%s2(j)*geom%l2(j) + geom%s1(j)*geom%l1(j))
+                    denom = geom%s1(j)*geom%s2(j) + geom%l1(j)*geom%l2(j)
+                    z = (geom%l2(j)-geom%l1(j))*(geom%l2(j)+geom%l1(j))/denom
+                    sigma = sign(denom)
 
                     ! Check for special case
                     if (this%q(j) == -1 .and. sigma == -1) then
