@@ -49,7 +49,7 @@ module panel_mod
         real,dimension(:,:),allocatable :: midpoints
         real,dimension(3) :: centroid
         real,dimension(3,3) :: A_g_to_l, A_s_to_ls, A_g_to_ls, A_ls_to_g ! Coordinate transformation matrices
-        real,dimension(3,3) :: B_mat_l, C_mat_l ! Relevant compressibility matrices
+        real,dimension(3,3) :: B_mat_ls, C_mat_ls ! Local scaled metric matrices
         real,dimension(:,:),allocatable :: vertices_ls, midpoints_ls ! Location of the vertices and edge midpoints described in local scaled coords
         real,dimension(:,:),allocatable :: t_hat_g, t_hat_l, t_hat_ls ! Edge unit tangents
         real,dimension(:,:),allocatable :: n_hat_g, n_hat_l, n_hat_ls ! Edge unit outward normals
@@ -65,6 +65,7 @@ module panel_mod
         real,dimension(3) :: tau ! Edge inclination parameter
         integer,dimension(3) :: q ! Edge type indicator; q=1 -> subsonic, q=-1 -> supersonic
         real :: J ! Local scaled transformation Jacobian
+        real :: rs ! Product of the inclination indicator and the flow type indicator
 
         contains
 
@@ -251,40 +252,9 @@ contains
         class(panel),intent(inout) :: this
         type(flow),intent(in) :: freestream
 
-        integer :: i
-
         ! Calculate transforms
         call this%calc_g_to_l_transform(freestream)
         call this%calc_g_to_ls_transform(freestream)
-
-        ! Transform vertex and midpoint coords to l
-        allocate(this%vertices_ls(this%N,2))
-        allocate(this%midpoints_ls(this%N,2))
-        do i=1,this%N
-
-            ! Vertices
-            this%vertices_ls(i,:) = matmul(this%A_g_to_l(1:2,:), this%get_vertex_loc(i)-this%centroid)
-
-            ! Midpoints
-            this%midpoints_ls(i,:) = matmul(this%A_g_to_l(1:2,:), this%midpoints(i,:)-this%centroid)
-
-        end do
-
-        ! Calculate compressibility matrices
-        this%B_mat_l = 0.
-        this%B_mat_l(1,1) = freestream%B**2*this%r*freestream%s
-        this%B_mat_l(2,2) = freestream%B**2
-        this%B_mat_l(3,3) = freestream%B**2*this%r
-
-        this%C_mat_l = 0.
-        this%C_mat_l(1,1) = this%r
-        this%C_mat_l(2,2) = freestream%s
-        this%C_mat_l(3,3) = this%r*freestream%s
-
-        ! Check calculation
-        if (any(abs(this%B_mat_l - matmul(this%A_g_to_ls, matmul(freestream%B_mat_g, transpose(this%A_g_to_ls)))) > 1e-12)) then
-            write(*,*) "!!! Calculation of local scaled coordinate transform failed. Quitting..."
-        end if
 
         ! Calculate properties dependent on the transforms
         call this%calc_edge_tangents(freestream)
@@ -332,8 +302,8 @@ contains
         type(flow),intent(in) :: freestream
 
         real,dimension(3) :: u0, v0
-        real :: x
-        integer :: j
+        real :: x, y
+        integer :: i
 
         ! Get in-panel basis vectors
         u0 = this%A_g_to_l(1,:)
@@ -352,12 +322,13 @@ contains
 
         ! Calculate panel inclination indicator (E&M Eq. (E.3.16b))
         this%r = sign(x) ! r=-1 -> superinclined, r=1 -> subinclined
+        this%rs = this%r*freestream%s
 
         ! Calculate transformation
-        x = 1./sqrt(abs(x))
-        this%A_g_to_ls(1,:) = x*matmul(freestream%C_mat_g, u0)
-        this%A_g_to_ls(2,:) = this%r*freestream%s/freestream%B*matmul(freestream%C_mat_g, v0)
-        this%A_g_to_ls(3,:) = freestream%B*x*this%normal
+        y = 1./sqrt(abs(x))
+        this%A_g_to_ls(1,:) = y*matmul(freestream%C_mat_g, u0)
+        this%A_g_to_ls(2,:) = this%rs/freestream%B*matmul(freestream%C_mat_g, v0)
+        this%A_g_to_ls(3,:) = freestream%B*y*this%normal
 
         ! Calculate inverse
         if (freestream%M_inf == 0.) then
@@ -368,6 +339,37 @@ contains
 
         ! Calculate Jacobian
         this%J = det3(this%A_g_to_ls)
+
+        ! Transform vertex and midpoint coords to ls
+        allocate(this%vertices_ls(this%N,2))
+        allocate(this%midpoints_ls(this%N,2))
+        do i=1,this%N
+
+            ! Vertices
+            this%vertices_ls(i,:) = matmul(this%A_g_to_l(1:2,:), this%get_vertex_loc(i)-this%centroid)
+
+            ! Midpoints
+            this%midpoints_ls(i,:) = matmul(this%A_g_to_l(1:2,:), this%midpoints(i,:)-this%centroid)
+
+        end do
+
+        ! Calculate local scaled metric matrices
+        this%B_mat_ls = 0.
+        this%B_mat_ls(1,1) = freestream%B**2*this%rs
+        this%B_mat_ls(2,2) = freestream%B**2
+        this%B_mat_ls(3,3) = freestream%B**2*this%r
+
+        this%C_mat_ls = 0.
+        this%C_mat_ls(1,1) = this%r
+        this%C_mat_ls(2,2) = freestream%s
+        this%C_mat_ls(3,3) = this%rs
+
+        ! Check calculation (E&M Eq. (E.2.19))
+        if (any(abs(this%B_mat_ls - matmul(this%A_g_to_ls, matmul(freestream%B_mat_g, transpose(this%A_g_to_ls)))) > 1e-12)) then
+            write(*,*) "!!! Calculation of local scaled coordinate transform failed. Quitting..."
+            write(*,*) abs(this%B_mat_ls - matmul(this%A_g_to_ls, matmul(freestream%B_mat_g, transpose(this%A_g_to_ls))))
+            write(*,*) this%B_mat_ls
+        end if
     
     end subroutine panel_calc_g_to_ls_transform
 
@@ -408,7 +410,7 @@ contains
 
             ! Calculate tangent in local scaled coords
             e = matmul(this%A_g_to_ls(1:2,:), d)
-            this%t_hat_ls(i,:) = e/sqrt(abs(this%r*freestream%s*e(1)**2 + e(2)**2))
+            this%t_hat_ls(i,:) = e/sqrt(abs(this%rs*e(1)**2 + e(2)**2))
 
             ! Calculate edge outward normal
             this%n_hat_g(i,:) = cross(this%t_hat_g(i,:), this%normal)
@@ -420,7 +422,7 @@ contains
             this%n_hat_ls(i,2) = -this%t_hat_ls(i,1)
 
             ! Calculate edge conormal
-            this%nu_hat_ls(i,1) = this%r*freestream%s*this%n_hat_ls(i,1)
+            this%nu_hat_ls(i,1) = this%rs*this%n_hat_ls(i,1)
             this%nu_hat_ls(i,2) = this%n_hat_ls(i,2)
 
             ! Calculate the edge type parameter (E&M Eq. (J.3.28) or Eq. (J.7.51))
@@ -862,13 +864,13 @@ contains
             geom%a(i) = inner2(d, this%n_hat_ls(i,:))
 
             ! Integration length on edge to start vertex (E&M Eq. (J.6.47))
-            geom%l1(i) = this%r*freestream%s*d(1)*this%t_hat_ls(i,1) + d(2)*this%t_hat_ls(i,2)
+            geom%l1(i) = this%rs*d(1)*this%t_hat_ls(i,1) + d(2)*this%t_hat_ls(i,2)
 
             ! Projected point displacement from end vertex
             d = this%vertices_ls(mod(i, this%N)+1,:)-geom%r_in_plane
 
             ! Integration length on edge to end vertex
-            geom%l2(i) = this%r*freestream%s*d(1)*this%t_hat_ls(i,1) + d(2)*this%t_hat_ls(i,2)
+            geom%l2(i) = this%rs*d(1)*this%t_hat_ls(i,1) + d(2)*this%t_hat_ls(i,2)
 
             ! Distance from evaluation point to start vertex E&M Eq. (J.8.8)
             ! The distance should be zero in the case of a negative squared distance, as the flow is supersonic and the point lies outside the DoD
@@ -1438,7 +1440,7 @@ contains
 
             ! Check if the point is interior to the panel
             if (all(geom%a < 0.)) then
-                J = -sign(geom%h)*0.5*pi*(this%r*freestream%s + 3.) ! E&M Eq. (J.8.163)
+                J = -sign(geom%h)*0.5*pi*(this%rs + 3.) ! E&M Eq. (J.8.163)
             else
                 J = 0.
             end if
@@ -1494,7 +1496,7 @@ contains
 
                         ! Calculate X and Y (E&M Eq. (J.8.110))
                         X = this%t_hat_ls(i,1)*this%t_hat_ls(i_next,1) + &
-                            this%r*freestream%s*this%t_hat_ls(i,2)*this%t_hat_ls(i_next,2)
+                            this%rs*this%t_hat_ls(i,2)*this%t_hat_ls(i_next,2)
                         X = -geom%h**2*X - this%r*geom%a(i)*geom%a(i_next)
 
                         Y = geom%s2(i)*geom%h*(this%t_hat_ls(i,1)*this%t_hat_ls(i_next,2) - &
@@ -1508,7 +1510,7 @@ contains
                 end do
 
                 ! Finalize
-                J = -sign(geom%h)*this%r*freestream%s*J
+                J = -sign(geom%h)*this%rs*J
 
             else ! Use the special rationalization
 
@@ -1802,7 +1804,7 @@ contains
             y = geom%a(j)**2 + this%q(j)*geom%h**2
 
             ! Update b_bar
-            b_bar = b_bar + this%nu_hat_ls(j,:)*(this%q(j)*x + this%r*freestream%s*y*I(j))
+            b_bar = b_bar + this%nu_hat_ls(j,:)*(this%q(j)*x + this%rs*y*I(j))
 
         end do
         b_bar = -0.5*freestream%K_inv*b_bar
@@ -2080,7 +2082,7 @@ contains
 
                     ! Calculate influence
                     phi(1) = this%r*a
-                    phi(2) = phi(1)*geom%r_in_plane(1) - geom%h*a_bar(1)*this%r*freestream%s
+                    phi(2) = phi(1)*geom%r_in_plane(1) - geom%h*a_bar(1)*this%rs
                     phi(3) = phi(1)*geom%r_in_plane(2) - geom%h*a_bar(2)
 
                     ! Convert to vertex influences
