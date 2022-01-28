@@ -959,54 +959,36 @@ contains
 
         i_next = mod(i, this%N) + 1
 
-        if (.false.) then!freestream%supersonic) then
+        ! Check DoD
+        if (dod_info%edges_in_dod(i)) then
 
-            if (dod_info%edges_in_dod(i)) then
-
-                ! Supersonic edge with neither endpoint in
-                if (this%q(i) == -1 .and. dod_info%verts_in_dod(i) .and. .not. dod_info%verts_in_dod(i_next)) then
-                    F = pi
-
-                else
-
-                    ! Subsonic edge
-                    if (this%q(i) == 1) then
-
-                        ! Calculate F1 and F2 (Ehlers Eq. (E19) and (E20)) (These aren't actually used yet)
-                        F1 = (geom%R2(i)**2 - geom%R1(i)**2)/(geom%l1(i)*geom%R2(i) + geom%l2(i)*geom%R1(i))
-                        F2 = (geom%g2(i)-geom%l1(i)**2-geom%l2(i)**2)/(-geom%R1(i)*geom%R2(i)-geom%l1(i)*geom%l2(i))
-
-                        ! Calculate F (Ehlers Eq. (E22))
-                        F = -sign(this%nu_hat_ls(i,2))*log((geom%R1(i)+abs(geom%l1(i))) / (geom%R2(i)+abs(geom%l2(i))))
-
-                    ! Supersonic edge
-                    else
-
-                        ! Calculate F1 and F2 (Ehlers Eq. (E19) and (E20))
-                        F1 = (geom%l1(i)*geom%R2(i) - geom%l2(i)*geom%R1(i))/geom%g2(i)
-                        F2 = (geom%R1(i)*geom%R2(i) + geom%l1(i)*geom%l2(i))/geom%g2(i)
-
-                        ! Calculate F (Ehlers Eq. (E22))
-                        F = -atan2(F1, F2)
-
-                    end if
-                end if
-
-            end if
-
-        else
-
-            if (dod_info%edges_in_dod(i)) then
+            ! Supersonic edge
+            if (this%q(i) == -1) then
 
                 ! Neither endpoint in DoD (Ehlers Eq. (E22))
                 if (geom%R1(i) == 0. .and. geom%R2(i) == 0.) then
                     F = pi
 
+                ! At least one endpoint in the DoD (Ehlers Eq. (E22))
+                else
+
+                    ! Calculate preliminary quantities
+                    F1 = geom%l1(i)*geom%R2(i) - geom%l2(i)*geom%R1(i)
+                    F2 = geom%R1(i)*geom%R2(i) + geom%l1(i)*geom%l2(i)
+
+                    ! Calculate F
+                    F = -atan2(F1, F2)
+
+                end if
+
+            ! Subsonic edge (all edges in subsonic flow because the definition of a subsonic edge is one that lies inside its own DoD)
+            else
+
                 ! Within edge (Johnson Eq. (D.60))
-                else if (sign(geom%l1(i)) /= sign(geom%l2(i))) then
+                if (sign(geom%l1(i)) /= sign(geom%l2(i))) then
                     F = log(((geom%R1(i)-geom%l1(i))*(geom%R2(i)+geom%l2(i)))/geom%g2(i))
 
-                ! Above or below edge; this is adapted from Johnson Eq. (D.60)
+                ! Above or below edge; this is a unified form of Johnson Eq. (D.60)
                 else
                     F = sign(geom%l1(i))*log((geom%R2(i) + abs(geom%l2(i))) / (geom%R1(i) + abs(geom%l1(i))))
 
@@ -1080,7 +1062,7 @@ contains
 
         ! Check for point on perimeter
         if (abs(dF) < 1e-12) then
-            write(*,*) "Detected point on perimeter of panel. Quitting..."
+            write(*,*) "Detected control point on perimeter of panel. Quitting..."
             stop
         end if
 

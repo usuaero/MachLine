@@ -150,7 +150,6 @@ contains
 
                     ! Check DoD for original panel and mirrored control point
                     this%dod_info(i,j+body%N_cp) = body%panels(i)%check_dod(body%cp_mirrored(j,:), this%freestream)
-
                     
                     if (body%asym_flow) then
 
