@@ -21,7 +21,7 @@ module panel_mod
         ! Container type for the geometric parameters necessary for calculating a panel's influence on a given field point
 
         real,dimension(3) :: r ! Point position in global coords
-        real,dimension(2) :: r_in_plane ! Transformed point in panel plane
+        real,dimension(2) :: r_ls ! Transformed point in panel plane
         real :: h ! Transformed height above panel
         real,dimension(3) :: a, g2, l1, l2, R1, R2, c1, c2, g ! Edge parameters
 
@@ -856,14 +856,14 @@ contains
 
         ! Transform to local scaled coordinates
         r_ls = matmul(this%A_g_to_ls, geom%r-this%centroid)
-        geom%r_in_plane = r_ls(1:2)
+        geom%r_ls = r_ls(1:2)
         geom%h = r_ls(3) ! Equivalent to E&M Eq. (J.7.41)
 
         ! Calculate intermediate quantities
         do i=1,this%N
 
             ! Projected point displacement from start vertex
-            d = this%vertices_ls(i,:)-geom%r_in_plane
+            d = this%vertices_ls(i,:)-geom%r_ls
 
             ! Perpendicular distance in plane from evaluation point to edge E&M Eq. (J.6.46) and (J.7.53)
             geom%a(i) = inner2(d, this%n_hat_ls(i,:))
@@ -872,7 +872,7 @@ contains
             geom%l1(i) = this%rs*d(1)*this%t_hat_ls(i,1) + d(2)*this%t_hat_ls(i,2)
 
             ! Projected point displacement from end vertex
-            d = this%vertices_ls(mod(i, this%N)+1,:)-geom%r_in_plane
+            d = this%vertices_ls(mod(i, this%N)+1,:)-geom%r_ls
 
             ! Integration length on edge to end vertex
             geom%l2(i) = this%rs*d(1)*this%t_hat_ls(i,1) + d(2)*this%t_hat_ls(i,2)
@@ -929,18 +929,14 @@ contains
 
         ! Evaluate at start vertex
         if (dod_info%verts_in_dod(i)) then
-            E1 = ((this%vertices_ls(i,1)-geom%r_in_plane(1))**(M-1) &
-                  *(this%vertices_ls(i,2)-geom%r_in_plane(2))**(N-1)) &
-                  /geom%R1(i)**K
+            E1 = ((this%vertices_ls(i,1)-geom%r_ls(1))**(M-1)*(this%vertices_ls(i,2)-geom%r_ls(2))**(N-1))/geom%R1(i)**K
         else
             E1 = 0.
         end if
 
         ! Evaluate at end vertex
         if (dod_info%verts_in_dod(i_next)) then
-            E2 = ((this%vertices_ls(i_next,1)-geom%r_in_plane(1))**(M-1) &
-                  *(this%vertices_ls(i_next,2)-geom%r_in_plane(2))**(N-1)) &
-                  /geom%R2(i)**K
+            E2 = ((this%vertices_ls(i_next,1)-geom%r_ls(1))**(M-1)*(this%vertices_ls(i_next,2)-geom%r_ls(2))**(N-1))/geom%R2(i)**K
         else
             E2 = 0.
         end if
@@ -1251,9 +1247,9 @@ contains
         
             end do
 
-            ! Calculate H(1,1,K) integrals
+            ! Calculate H(1,1,K) integrals (Johnson Eq. (D.42) altered to match Ehlers Eq. (E9))
             do k=3,MXK,2
-                H(1,1,k) = 1./((k-2)*geom%h**2)*((k-4)*H(1,1,k-2)+sum(geom%a*F(:,1,1,k-2)))
+                H(1,1,k) = 1./((k-2)*geom%h**2)*((k-4)*H(1,1,k-2) + this%rs*sum(geom%a*F(:,1,1,k-2)))
             end do
 
         ! Procedures 2 and 3: close to panel plane
@@ -1264,15 +1260,14 @@ contains
 
             ! Calculate H(1,1,K) integrals
             do k=NHK+MXK,3,-2
-                H(1,1,k-2) = 1./(k-4)*(geom%h**2*(k-2)*H(1,1,k)-sum(geom%a*F(:,1,1,k-2)))
+                H(1,1,k-2) = 1./(k-4)*(geom%h**2*(k-2)*H(1,1,k) - this%rs*sum(geom%a*F(:,1,1,k-2)))
             end do
 
         end if
 
-        ! Calculate H(2,N,1) integrals
+        ! Calculate H(2,N,1) integrals (Johnson Eq. (D.43) altered to match Ehlers Eq. (E7))
         do n=1,MXQ-1
-            H(2,n,1) = 1./(n+1)*(geom%h**2*sum(v_xi*F(:,1,n,1)) &
-                       + sum(geom%a*F(:,2,n,1)))
+            H(2,n,1) = 1./(n+1)*(geom%h**2*sum(v_xi*F(:,1,n,1)) + this%rs*sum(geom%a*F(:,2,n,1)))
         end do
 
         ! Calculate H(1,N,1) integrals
@@ -2132,8 +2127,8 @@ contains
 
                     ! Compute induced potential
                     phi(1) = geom%h*H(1,1,3)
-                    phi(2) = phi(1)*geom%r_in_plane(1) + geom%h*H(2,1,3)
-                    phi(3) = phi(1)*geom%r_in_plane(2) + geom%h*H(1,2,3)
+                    phi(2) = phi(1)*geom%r_ls(1) + geom%h*H(2,1,3)
+                    phi(3) = phi(1)*geom%r_ls(2) + geom%h*H(1,2,3)
 
                     ! Convert to vertex influences
                     phi(1:3) = 0.25/pi*matmul(phi(1:3), this%S_mu_inv)
@@ -2159,8 +2154,8 @@ contains
 
                     ! Calculate influence
                     phi(1) = this%r*a
-                    phi(2) = phi(1)*geom%r_in_plane(1) - geom%h*a_bar(1)*this%rs
-                    phi(3) = phi(1)*geom%r_in_plane(2) - geom%h*a_bar(2)
+                    phi(2) = phi(1)*geom%r_ls(1) - geom%h*a_bar(1)*this%rs
+                    phi(3) = phi(1)*geom%r_ls(2) - geom%h*a_bar(2)
 
                     ! Convert to vertex influences
                     phi(1:3) = matmul(phi(1:3), this%S_mu_inv)
