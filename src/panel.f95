@@ -621,7 +621,7 @@ contains
     end subroutine panel_point_to_vertex_clone
 
 
-    function panel_check_dod(this, eval_point, freestream, panel_mirrored, mirror_plane, verbose) result(dod_info)
+    function panel_check_dod(this, eval_point, freestream, panel_mirrored, mirror_plane) result(dod_info)
         ! Determines how (if) this panel lies within the domain of dependence of the evaluation point
 
         implicit none
@@ -631,7 +631,6 @@ contains
         type(flow),intent(in) :: freestream
         logical,intent(in),optional :: panel_mirrored
         integer,intent(in),optional :: mirror_plane
-        logical,intent(in),optional :: verbose
 
         type(dod) :: dod_info
 
@@ -764,17 +763,7 @@ contains
                             s_star = inner(a, b)/abs(inner(a, a))
 
                             ! Check if the point of closest approach is in the edge and in the DoD
-                            R_star = this%get_vertex_loc(i)+s_star*d
-                            if (present(verbose)) then
-                                write(*,*)
-                                write(*,*) freestream%c_hat_g
-                                write(*,*) d
-                                write(*,*) this%get_vertex_loc(i)
-                                write(*,*) s_star
-                                write(*,*) R_star
-                                write(*,*) eval_point
-                                write(*,*) freestream%point_in_dod(R_star, eval_point)
-                            end if
+                            R_star = this%get_vertex_loc(i_next)-s_star*d
                             if (s_star > 0. .and. s_star < 1. .and. freestream%point_in_dod(R_star, eval_point)) then
 
                                 dod_info%in_dod = .true.

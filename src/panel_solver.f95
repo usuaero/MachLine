@@ -144,13 +144,7 @@ contains
             ! Loop through body panels
             do i=1,body%N_panels
 
-                ! Check DoD for original panel and original control point
-                if (j==20 .and. i==741) then
-                    this%dod_info(i,j) = body%panels(i)%check_dod(body%control_points(j,:), this%freestream, &
-                                                                  .false., 0, .true.)
-                else
-                    this%dod_info(i,j) = body%panels(i)%check_dod(body%control_points(j,:), this%freestream)
-                end if
+                this%dod_info(i,j) = body%panels(i)%check_dod(body%control_points(j,:), this%freestream)
 
                 if (body%mirrored) then
 
@@ -572,30 +566,15 @@ contains
             b = -body%phi_cp_sigma
         end if
 
-        ! Check for uninfluenced points
+        ! Check for uninfluenced/ing points
         do i=1,N_mu
             if (all(A(i,:) == 0.)) then
-                write(*,*) "Control point ", i, " is not influenced."
+                write(*,*) "WARNING: Control point ", i, " is not influenced."
             end if
             if (all(A(:,i) == 0.)) then
-                write(*,*) "Vertex ", i, " does not influence."
+                write(*,*) "WARNING: Vertex ", i, " exerts no influence."
             end if
         end do
-
-        ! Check influence on point 20
-        do i=1,body%N_panels
-            do j=1,3
-                if (this%dod_info(i,20)%verts_in_dod(j)) then
-                    write(*,*) "Control point 20 is influenced by vertex ", j, " of panel ", i
-                end if
-                if (this%dod_info(i,20)%edges_in_dod(j)) then
-                    write(*,*) "Control point 20 is influenced by edge ", j, " of panel ", i
-                end if
-            end do
-        end do
-        write(*,*) body%vertices(19)%loc
-        write(*,*) body%vertices(20)%loc
-        write(*,*) body%control_points(20,:)
 
         ! Write A and b to file
         if (.true.) then
