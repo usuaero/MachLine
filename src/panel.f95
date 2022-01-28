@@ -1258,19 +1258,21 @@ contains
             ! Initialize
             H(1,1,NHK+MXK) = 0.
 
-            ! Calculate H(1,1,K) integrals
+            ! Calculate H(1,1,K) integrals (Johnson Eq. (D.50) altered to match Ehlers Eq. (E9))
             do k=NHK+MXK,3,-2
                 H(1,1,k-2) = 1./(k-4)*(geom%h**2*(k-2)*H(1,1,k) - this%rs*sum(geom%a*F(:,1,1,k-2)))
             end do
 
         end if
 
+        ! Step 3
         ! Calculate H(2,N,1) integrals (Johnson Eq. (D.43) altered to match Ehlers Eq. (E7))
         do n=1,MXQ-1
-            H(2,n,1) = 1./(n+1)*(geom%h**2*sum(v_xi*F(:,1,n,1)) + this%rs*sum(geom%a*F(:,2,n,1)))
+            H(2,n,1) = 1./(n+1)*(this%rs*geom%h**2*sum(v_xi*F(:,1,n,1)) + sum(geom%a*F(:,2,n,1)))
         end do
 
-        ! Calculate H(1,N,1) integrals
+        ! Step 4
+        ! Calculate H(1,N,1) integrals (Johnson Eq. (D.44) which matches Ehlers Eq. (E8))
         do n=2,MXQ
             if (n .eq. 2) then
                 H(2,n,1) = 1./n*(geom%h**2*sum(v_eta*F(:,1,n-1,1)) &
@@ -1282,44 +1284,48 @@ contains
             end if
         end do
 
-        ! Calculate H(M,N,1) integrals
+        ! Step 5
+        ! Calculate H(M,N,1) integrals (Johnson Eq. (D.45) altered to match Ehlers Eq. (E7))
         do m=3,MXQ
             do n=1,MXQ-m+1
                 if (m .eq. 2) then
-                    H(m,n,1) = 1./(m+n-1)*(geom%h**2*sum(v_xi*F(:,m-1,n,1)) &
+                    H(m,n,1) = 1./(m+n-1)*(this%rs*geom%h**2*sum(v_xi*F(:,m-1,n,1)) &
                                + sum(geom%a*F(:,m,n,1)))
                 else
                     H(m,n,1) = 1./(m+n-1)*(-geom%h**2*(m-2)*H(m-2,n,1) &
-                               + geom%h**2*sum(v_xi*F(:,m-1,n,1)) &
+                               + this%rs*geom%h**2*sum(v_xi*F(:,m-1,n,1)) &
                                + sum(geom%a*F(:,m,n,1)))
                 end if
             end do
         end do
 
-        ! Calculate H(1,N,K) integrals
+        ! Step 6
+        ! Calculate H(1,N,K) integrals (Johnson Eq. (D.46) altered to match Ehlers Eq. (E6))
         do n=2,MXQ
             do k=3,MXK,2
                 if (n .eq. 2) then
-                    H(1,n,k) = -1./(k-2)*sum(v_eta*F(:,1,n-1,k-2))
+                    H(1,n,k) = -this%rs/(k-2)*sum(v_eta*F(:,1,n-1,k-2))
                 else
-                    H(1,n,k) = 1./(k-2)*((n-2)*H(1,n-2,k-2) &
+                    H(1,n,k) = this%rs/(k-2)*((n-2)*H(1,n-2,k-2) &
                                -sum(v_eta*F(:,1,n-1,k-2)))
                 end if
             end do
         end do
 
-        ! Calculate H(2,N,K) integrals
+        ! Step 7
+        ! Calculate H(2,N,K) integrals (Johnson Eq. (D.47) altered to match Ehlers Eq. (E5))
         do n=1,MXQ-1
             do k=3,MXK,2
-                H(2,n,k) = -1./(k-2)*sum(v_xi*F(:,1,n,k-2))
+                H(2,n,k) = -this%rs/(k-2)*sum(v_xi*F(:,1,n,k-2))
             end do
         end do
 
-        ! Calculate remaining H(M,N,K) integrals
+        ! Step 8
+        ! Calculate remaining H(M,N,K) integrals (Johnson Eq. (D.48) altered to match Ehlers Eq. (E4))
         do k=3,MXK,2
             do n=1,MXQ-m+1
                 do m=3,MXQ
-                    H(m,n,k) = -H(M-2,N+2,k)-geom%h**2*H(m-2,n,k)+H(m-2,n,k-2)
+                    H(m,n,k) = this%rs*(-H(M-2,N+2,k)-geom%h**2*H(m-2,n,k))+H(m-2,n,k-2)
                 end do
             end do
         end do
@@ -1336,7 +1342,7 @@ contains
                         ! Convert H* to H
                         ! We need to make this check because h is sometimes zero, which can cause issues if the exponent is negative. If nu is zero, just don't bother.
                         if (abs(nu) > 1e-12) then
-                            H(m,n,k) = H(m,n,k)+2.*pi*nu*abs(geom%h)**(m+n-k)
+                            H(m,n,k) = H(m,n,k)+2.*this%rs*pi*nu*abs(geom%h)**(m+n-k) ! I added rs because intuitively it makes sense; I have no justification for now.
                         end if
                     end do
                 end do
