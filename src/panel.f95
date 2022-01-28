@@ -1072,8 +1072,8 @@ contains
             if (dod_info%edges_in_dod(i)) then
 
                 ! Store edge derivs
-                v_xi = this%n_hat_l(i,1)
-                v_eta = this%n_hat_l(i,2)
+                v_xi = this%n_hat_ls(i,1)
+                v_eta = this%n_hat_ls(i,2)
 
                 ! Calculate F(1,1,1)
                 F(i,1,1,1) = this%F_i_1_1_1(geom, i, dod_info, freestream)
