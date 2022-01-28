@@ -1236,16 +1236,20 @@ contains
 
             ! Calculate H(1,1,1) (Johnson Eq. (D.41))
             do i=1,this%N
+
+                if (dod_info%edges_in_dod(i)) then
         
-                ! Add surface integral
-                S = geom%a(i)*(geom%l2(i)*geom%c1(i) - geom%l1(i)*geom%c2(i))
-                C = geom%c1(i)*geom%c2(i) + geom%a(i)**2*geom%l1(i)*geom%l2(i)
-                H(1,1,1) = H(1,1,1) - abs(geom%h)*atan2(S, C)
-        
-                ! Add line integral
-                H(1,1,1) = H(1,1,1) + this%rs*geom%a(i)*F(i,1,1,1) ! The rs factor comes from Ehlers Eq. (E9)
+                    ! Add surface integral
+                    S = geom%a(i)*(geom%l2(i)*geom%c1(i) - geom%l1(i)*geom%c2(i))
+                    C = geom%c1(i)*geom%c2(i) + geom%a(i)**2*geom%l1(i)*geom%l2(i)
+                    H(1,1,1) = H(1,1,1) - atan2(S, C)
+
+                end if
         
             end do
+        
+            ! Add line integrals (rs factor added to match Ehlers Eq. (E9))
+            H(1,1,1) = abs(geom%h)*H(1,1,1) + this%rs*sum(geom%a*F(:,1,1,1))
 
             ! Calculate H(1,1,K) integrals (Johnson Eq. (D.42) altered to match Ehlers Eq. (E9))
             do k=3,MXK,2
@@ -1342,7 +1346,7 @@ contains
                         ! Convert H* to H
                         ! We need to make this check because h is sometimes zero, which can cause issues if the exponent is negative. If nu is zero, just don't bother.
                         if (abs(nu) > 1e-12) then
-                            H(m,n,k) = H(m,n,k)+2.*this%rs*pi*nu*abs(geom%h)**(m+n-k) ! I added rs because intuitively it makes sense; I have no justification for now.
+                            H(m,n,k) = H(m,n,k) + 2.*this%rs*pi*nu*abs(geom%h)**(m+n-k) ! I added rs because intuitively it makes sense; I have no justification for now.
                         end if
                     end do
                 end do
