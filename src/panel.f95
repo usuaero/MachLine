@@ -23,7 +23,7 @@ module panel_mod
         real,dimension(3) :: r ! Point position in global coords
         real,dimension(2) :: r_ls ! Transformed point in panel plane
         real :: h ! Transformed height above panel
-        real,dimension(3) :: a, g2, l1, l2, R1, R2, c1, c2, g ! Edge parameters
+        real,dimension(3) :: a, g2, l1, l2, R1, R2, g ! Edge parameters
 
     end type eval_point_geom
 
@@ -902,10 +902,6 @@ contains
         ! Distance from evaluation point to end vertices
         geom%R2 = cshift(geom%R1, 1)
 
-        ! Other intermediate quantities
-        geom%c1 = geom%g2+abs(geom%h)*geom%R1
-        geom%c2 = geom%g2+abs(geom%h)*geom%R2
-
     end function panel_get_field_point_geometry
 
 
@@ -1220,7 +1216,7 @@ contains
         real,dimension(:,:,:,:),allocatable,intent(in) :: F
         real,dimension(:,:,:),allocatable :: H
 
-        real :: S, C, nu
+        real :: S, C, nu, c1, c2
         integer :: i, m, n, k
         real,dimension(:),allocatable :: v_xi, v_eta
 
@@ -1238,11 +1234,25 @@ contains
             do i=1,this%N
 
                 if (dod_info%edges_in_dod(i)) then
+
+                    ! Check for neither endpoint in
+                    if (.not. dod_info%verts_in_dod(i) .and. .not. dod_info%verts_in_dod(mod(i, this%N)+1)) then
+
+                        ! Add influence of this edge
+                        H(1,1,1) = H(1,1,1) - abs(geom%h)*sign(v_xi(i))*pi ! Adapted from Ehlers Eq. (E18) to match the form of Johnson Eq. (D.41)
+
+                    else
+
+                        ! Calculate intermediate quantities (Johnson Eq. (D.41))
+                        c1 = geom%g2(i)+abs(geom%h)*geom%R1(i)
+                        c2 = geom%g2(i)+abs(geom%h)*geom%R2(i)
         
-                    ! Add surface integral
-                    S = geom%a(i)*(geom%l2(i)*geom%c1(i) - geom%l1(i)*geom%c2(i))
-                    C = geom%c1(i)*geom%c2(i) + geom%a(i)**2*geom%l1(i)*geom%l2(i)
-                    H(1,1,1) = H(1,1,1) - atan2(S, C)
+                        ! Add surface integral
+                        S = geom%a(i)*(geom%l2(i)*c1 - geom%l1(i)*c2)
+                        C = c1*c2 + geom%a(i)**2*geom%l1(i)*geom%l2(i)
+                        H(1,1,1) = H(1,1,1) - atan2(S, C)
+
+                    end if
 
                 end if
         
