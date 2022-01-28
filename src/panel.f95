@@ -988,7 +988,7 @@ contains
                 if (sign(geom%l1(i)) /= sign(geom%l2(i))) then
                     F = log(((geom%R1(i)-geom%l1(i))*(geom%R2(i)+geom%l2(i)))/geom%g2(i))
 
-                ! Above or below edge; this is a unified form of Johnson Eq. (D.60)
+                ! Above or below edge; this is a unified form of Johnson Eq. (D.60) and should be equivalent to Ehlers Eq. (E.22)
                 else
                     F = sign(geom%l1(i))*log((geom%R2(i) + abs(geom%l2(i))) / (geom%R1(i) + abs(geom%l1(i))))
 
@@ -1198,7 +1198,7 @@ contains
         real,dimension(:,:,:,:),allocatable,intent(in) :: F
         real,dimension(:,:,:),allocatable :: H
 
-        real :: S, C, nu, c1, c2
+        real :: S, C, nu, c1, c2, F1, F2
         integer :: i, m, n, k
         real,dimension(:),allocatable :: v_xi, v_eta
 
@@ -1217,12 +1217,28 @@ contains
 
                 if (dod_info%edges_in_dod(i)) then
 
-                    ! Check for neither endpoint in
-                    if (.not. dod_info%verts_in_dod(i) .and. .not. dod_info%verts_in_dod(mod(i, this%N)+1)) then
+                    ! Supersonic edge
+                    if (this%q(i) == -1) then
 
-                        ! Add influence of this edge
-                        H(1,1,1) = H(1,1,1) - abs(geom%h)*sign(v_xi(i))*pi ! Adapted from Ehlers Eq. (E18) to match the form of Johnson Eq. (D.41)
+                        ! Check for neither endpoint in
+                        if (.not. dod_info%verts_in_dod(i) .and. .not. dod_info%verts_in_dod(mod(i, this%N)+1)) then
 
+                            ! Add influence of this edge
+                            H(1,1,1) = H(1,1,1) - abs(geom%h)*sign(v_xi(i))*pi ! Adapted from Ehlers Eq. (E18) to match the form of Johnson Eq. (D.41)
+
+                        ! At least one in
+                        else
+
+                            ! Calculate intermediate quantities Ehlers Eq. (E19) and (E20)
+                            F1 = (geom%l1(i)*geom%R2(i)-geom%l2(i)*geom%R1(i))/geom%g2(i)
+                            F2 = (geom%R1(i)*geom%R2(i)+geom%l1(i)*geom%l2(i))/geom%g2(i)
+
+                            ! Add to surface integral ! Adapted from Ehlers Eq. (E18) to match the form of Johnson Eq. (D.41)
+                            H(1,1,1) = H(1,1,1) - geom%h*atan2(geom%h*geom%a(i)*F1, geom%R1(i)*geom%R2(i)+geom%h**2*F2)
+
+                        end if
+
+                    ! Subsonic edge
                     else
 
                         ! Calculate intermediate quantities (Johnson Eq. (D.41))
