@@ -23,7 +23,7 @@ module panel_mod
         real,dimension(3) :: r ! Point position in global coords
         real,dimension(2) :: r_in_plane ! Transformed point in panel plane
         real :: h ! Transformed height above panel
-        real,dimension(3) :: a, g2, l1, l2, s1, s2, c1, c2, g ! Edge parameters
+        real,dimension(3) :: a, g2, l1, l2, R1, R2, c1, c2, g ! Edge parameters
 
     end type eval_point_geom
 
@@ -881,9 +881,9 @@ contains
             ! The distance should be zero in the case of a negative squared distance, as the flow is supersonic and the point lies outside the DoD
             d3 = geom%r-this%get_vertex_loc(i)
             if (freestream%C_g_inner(d3, d3) > 0.) then
-                geom%s1(i) = sqrt(freestream%C_g_inner(d3, d3))
+                geom%R1(i) = sqrt(freestream%C_g_inner(d3, d3))
             else
-                geom%s1(i) = 0.
+                geom%R1(i) = 0.
             end if
 
             ! Calculate square of the perpendicular distance to edge
@@ -900,11 +900,11 @@ contains
         end do
 
         ! Distance from evaluation point to end vertices
-        geom%s2 = cshift(geom%s1, 1)
+        geom%R2 = cshift(geom%R1, 1)
 
         ! Other intermediate quantities
-        geom%c1 = geom%g2+abs(geom%h)*geom%s1
-        geom%c2 = geom%g2+abs(geom%h)*geom%s2
+        geom%c1 = geom%g2+abs(geom%h)*geom%R1
+        geom%c2 = geom%g2+abs(geom%h)*geom%R2
 
     end function panel_get_field_point_geometry
 
@@ -922,20 +922,31 @@ contains
 
         real :: E
 
-        real :: E_1, E_2
+        real :: E1, E2
+        integer :: i_next
+
+        i_next = mod(i, this%N) + 1
 
         ! Evaluate at start vertex
-        E_1 = ((this%vertices_ls(i,1)-geom%r_in_plane(1))**(M-1) &
-              *(this%vertices_ls(i,2)-geom%r_in_plane(2))**(N-1)) &
-              /geom%s1(i)**K
+        if (dod_info%verts_in_dod(i)) then
+            E1 = ((this%vertices_ls(i,1)-geom%r_in_plane(1))**(M-1) &
+                  *(this%vertices_ls(i,2)-geom%r_in_plane(2))**(N-1)) &
+                  /geom%R1(i)**K
+        else
+            E1 = 0.
+        end if
 
         ! Evaluate at end vertex
-        E_2 = ((this%vertices_ls(mod(i, this%N)+1,1)-geom%r_in_plane(1))**(M-1) &
-              *(this%vertices_ls(mod(i, this%N)+1,2)-geom%r_in_plane(2))**(N-1)) &
-              /geom%s2(i)**K
+        if (dod_info%verts_in_dod(i_next)) then
+            E2 = ((this%vertices_ls(i_next,1)-geom%r_in_plane(1))**(M-1) &
+                  *(this%vertices_ls(i_next,2)-geom%r_in_plane(2))**(N-1)) &
+                  /geom%R2(i)**K
+        else
+            E2 = 0.
+        end if
 
         ! Calculate difference
-        E = E_2-E_1
+        E = E2-E1
 
     end function panel_E_i_M_N_K
 
@@ -951,20 +962,64 @@ contains
         type(dod),intent(in) :: dod_info
         type(flow),intent(in) :: freestream
 
-        real :: F
+        real :: F, F1, F2
+        integer :: i_next
 
-        ! Calculate F(1,1,1)
-        ! Below edge
-        if (geom%l1(i) >= 0. .and. geom%l2(i) >= 0.) then
-            F = log((geom%s2(i)+geom%l2(i))/(geom%s1(i)+geom%l1(i)))
-        
-        ! Above edge
-        else if (geom%l1(i) < 0. .and. geom%l2(i) < 0.) then
-            F = log((geom%s1(i)-geom%l1(i))/(geom%s2(i)-geom%l2(i)))
+        i_next = mod(i, this%N) + 1
 
-        ! Within edge
+        if (.false.) then!freestream%supersonic) then
+
+            if (dod_info%edges_in_dod(i)) then
+
+                ! Supersonic edge with neither endpoint in
+                if (this%q(i) == -1 .and. dod_info%verts_in_dod(i) .and. .not. dod_info%verts_in_dod(i_next)) then
+                    F = pi
+
+                else
+
+                    ! Subsonic edge
+                    if (this%q(i) == 1) then
+
+                        ! Calculate F1 and F2 (Ehlers Eq. (E19) and (E20)) (These aren't actually used yet)
+                        F1 = (geom%R2(i)**2 - geom%R1(i)**2)/(geom%l1(i)*geom%R2(i) + geom%l2(i)*geom%R1(i))
+                        F2 = (geom%g2(i)-geom%l1(i)**2-geom%l2(i)**2)/(-geom%R1(i)*geom%R2(i)-geom%l1(i)*geom%l2(i))
+
+                        ! Calculate F (Ehlers Eq. (E22))
+                        F = -sign(this%nu_hat_ls(i,2))*log((geom%R1(i)+abs(geom%l1(i))) / (geom%R2(i)+abs(geom%l2(i))))
+
+                    ! Supersonic edge
+                    else
+
+                        ! Calculate F1 and F2 (Ehlers Eq. (E19) and (E20))
+                        F1 = (geom%l1(i)*geom%R2(i) - geom%l2(i)*geom%R1(i))/geom%g2(i)
+                        F2 = (geom%R1(i)*geom%R2(i) + geom%l1(i)*geom%l2(i))/geom%g2(i)
+
+                        ! Calculate F (Ehlers Eq. (E22))
+                        F = -atan2(F1, F2)
+
+                    end if
+                end if
+
+            end if
+
         else
-            F = log(((geom%s1(i)-geom%l1(i))*(geom%s2(i)+geom%l2(i)))/geom%g2(i))
+
+            if (dod_info%edges_in_dod(i)) then
+
+                ! Neither endpoint in DoD (Ehlers Eq. (E22))
+                if (geom%R1(i) == 0. .and. geom%R2(i) == 0.) then
+                    F = pi
+
+                ! Within edge (Johnson Eq. (D.60))
+                else if (sign(geom%l1(i)) /= sign(geom%l2(i))) then
+                    F = log(((geom%R1(i)-geom%l1(i))*(geom%R2(i)+geom%l2(i)))/geom%g2(i))
+
+                ! Above or below edge; this is adapted from Johnson Eq. (D.60)
+                else
+                    F = sign(geom%l1(i))*log((geom%R2(i) + abs(geom%l2(i))) / (geom%R1(i) + abs(geom%l1(i))))
+
+                end if
+            end if
         end if
         
     end function panel_F_i_1_1_1
@@ -1011,11 +1066,11 @@ contains
                 ! Otherwise, it is the minimum of the distances to the corners
                 else
                     if (dod_info%verts_in_dod(i) .and. dod_info%verts_in_dod(mod(i, this%N)+1)) then
-                        min_dist_to_edge(i) = min(geom%s1(i), geom%s2(i))
+                        min_dist_to_edge(i) = min(geom%R1(i), geom%R2(i))
                     else if (dod_info%verts_in_dod(i)) then
-                        min_dist_to_edge(i) = geom%s1(i)
+                        min_dist_to_edge(i) = geom%R1(i)
                     else if (dod_info%verts_in_dod(mod(i, this%N)+1)) then
-                        min_dist_to_edge(i) = geom%s2(i)
+                        min_dist_to_edge(i) = geom%R2(i)
 
                     ! If neither is in, we again go back to the perpendicular distance
                     else
@@ -1521,7 +1576,7 @@ contains
                             this%rs*this%t_hat_ls(i,2)*this%t_hat_ls(i_next,2)
                         X = -geom%h**2*X - this%r*geom%a(i)*geom%a(i_next)
 
-                        Y = geom%s2(i)*geom%h*(this%t_hat_ls(i,1)*this%t_hat_ls(i_next,2) - &
+                        Y = geom%R2(i)*geom%h*(this%t_hat_ls(i,1)*this%t_hat_ls(i_next,2) - &
                                                this%t_hat_ls(i,2)*this%t_hat_ls(i_next,1))
 
                         ! Add
@@ -1557,20 +1612,20 @@ contains
                         if (dod_info%verts_in_dod(i) .and. dod_info%verts_in_dod(i_next)) then
 
                             ! Calculate intermediate quantities
-                            Y = abs(geom%h)*geom%a(i)*(geom%s2(i)*geom%l1(i)-geom%s1(i)*geom%l2(i))
+                            Y = abs(geom%h)*geom%a(i)*(geom%R2(i)*geom%l1(i)-geom%R1(i)*geom%l2(i))
                             X = geom%h**2*geom%l2(i)*geom%l1(i)
-                            X = X + geom%a(i)**2*geom%s2(i)*geom%s1(i)
+                            X = X + geom%a(i)**2*geom%R2(i)*geom%R1(i)
 
                             ! Calculate Q (E&M Eq. (J.8.142))
                             Q(i) = atan2(Y, X)
 
                         ! Only the first endpoint is in the DoD
                         else if (dod_info%verts_in_dod(i)) then
-                            Q(i) = -atan2(geom%a(i)*geom%s1(i), abs(geom%h)*geom%l1(i))
+                            Q(i) = -atan2(geom%a(i)*geom%R1(i), abs(geom%h)*geom%l1(i))
 
                         ! Only the second endpoint is in the DoD
                         else if (dod_info%verts_in_dod(i_next)) then
-                            Q(i) = atan2(geom%a(i)*geom%s2(i), abs(geom%h)*geom%l2(i)) - pi*sign(geom%a(i))
+                            Q(i) = atan2(geom%a(i)*geom%R2(i), abs(geom%h)*geom%l2(i)) - pi*sign(geom%a(i))
 
                         ! Neither endpoint is in the DoD
                         else
@@ -1626,16 +1681,16 @@ contains
                         ! Subsonic edge
                         if (this%q(j) == 1) then
                             if (geom%l1(j) >= 0. .and. geom%l2(j) >= 0.) then
-                                I(j) = log((geom%s2(j)+geom%l2(j))/(geom%s1(j)+geom%l1(j)))
+                                I(j) = log((geom%R2(j)+geom%l2(j))/(geom%R1(j)+geom%l1(j)))
                             else if (sign(geom%l1(j)) /= sign(geom%l2(j))) then
-                                I(j) = log((geom%s2(j)+geom%l2(j))*(geom%s1(j)-geom%l1(j))/geom%g2(j))
+                                I(j) = log((geom%R2(j)+geom%l2(j))*(geom%R1(j)-geom%l1(j))/geom%g2(j))
                             else
-                                I(j) = log((geom%s1(j)-geom%l1(j))/(geom%s2(j)-geom%l2(j)))
+                                I(j) = log((geom%R1(j)-geom%l1(j))/(geom%R2(j)-geom%l2(j)))
                             end if
 
                         ! Supersonic edge (E&M Eq. (J.8.35))
                         else
-                            denom = geom%s1(j)*geom%s2(j) + geom%l1(j)*geom%l2(j)
+                            denom = geom%R1(j)*geom%R2(j) + geom%l1(j)*geom%l2(j)
                             z = (geom%l2(j)-geom%l1(j))*(geom%l2(j)+geom%l1(j))/denom
                             sigma = sign(denom)
                             I(j) = atan2(sigma*z, sigma)
@@ -1650,17 +1705,17 @@ contains
                             if (dod_info%verts_in_dod(j)) then
 
                                 if (this%q(j) == 1) then
-                                    I(j) = 0.5*log((geom%l1(j)+geom%s1(j))/(geom%l1(j)-geom%s1(j)))
+                                    I(j) = 0.5*log((geom%l1(j)+geom%R1(j))/(geom%l1(j)-geom%R1(j)))
                                 else
-                                    I(j) = -atan2(geom%s1(j), geom%l1(j))
+                                    I(j) = -atan2(geom%R1(j), geom%l1(j))
                                 end if
 
                             else if (dod_info%verts_in_dod(j_next)) then
 
                                 if (this%q(j) == 1) then
-                                    I(j) = 0.5*log((geom%l2(j)+geom%s2(j))/(geom%l2(j)-geom%s2(j)))
+                                    I(j) = 0.5*log((geom%l2(j)+geom%R2(j))/(geom%l2(j)-geom%R2(j)))
                                 else
-                                    I(j) = -atan2(geom%s2(j), geom%l2(j))
+                                    I(j) = -atan2(geom%R2(j), geom%l2(j))
                                 end if
 
                             end if
@@ -1671,12 +1726,12 @@ contains
                             ! These are my versions of E&M (J.8.22) which doesn't make any sense to me
                             ! Also, E&M Eq. (J.8.18) makes no sense because (v+R)/(v-R) will always be negative, since |v|<R by definition
                             if (dod_info%verts_in_dod(j)) then
-                                !I(j) = sign(geom%l1(j))*(log(abs(geom%l1(j))+geom%s1(j))-0.5*log(geom%g2(j)))
-                                I(j) = log(geom%l1(j)+geom%s1(j))-0.5*log(geom%g2(j))
+                                !I(j) = sign(geom%l1(j))*(log(abs(geom%l1(j))+geom%R1(j))-0.5*log(geom%g2(j)))
+                                I(j) = log(geom%l1(j)+geom%R1(j))-0.5*log(geom%g2(j))
 
                             else if (dod_info%verts_in_dod(j_next)) then
-                                !I(j) = sign(geom%l2(j))*(log(abs(geom%l2(j))+geom%s2(j))-0.5*log(geom%g2(j)))
-                                I(j) = log(geom%l2(j)+geom%s2(j))-0.5*log(geom%g2(j))
+                                !I(j) = sign(geom%l2(j))*(log(abs(geom%l2(j))+geom%R2(j))-0.5*log(geom%g2(j)))
+                                I(j) = log(geom%l2(j)+geom%R2(j))-0.5*log(geom%g2(j))
                                 
                             end if
 
@@ -1688,7 +1743,7 @@ contains
                 else if (this%tau(j)**2 > 1.e-10) then
 
                     ! Calculate basic quantities
-                    denom = geom%s1(j)*geom%s2(j) + geom%l1(j)*geom%l2(j)
+                    denom = geom%R1(j)*geom%R2(j) + geom%l1(j)*geom%l2(j)
                     z = (geom%l2(j)-geom%l1(j))*(geom%l2(j)+geom%l1(j))/denom
                     sigma = sign(denom)
 
@@ -1741,7 +1796,7 @@ contains
                 else
 
                     ! Calculate intermediate quantities
-                    delta_R = geom%s2(j)-geom%s1(j)
+                    delta_R = geom%R2(j)-geom%R1(j)
                     v_hat_bar = -0.5*this%tau(j)*(geom%l1(j)+geom%l2(j))
 
                     ! Calculate edge function
@@ -1822,7 +1877,7 @@ contains
         do j=1,this%N
 
             ! Calculate intermediate quantities
-            x = -geom%s2(j)*geom%l2(j) + geom%s1(j)*geom%l1(j)
+            x = -geom%R2(j)*geom%l2(j) + geom%R1(j)*geom%l1(j)
             y = geom%a(j)**2 + this%q(j)*geom%h**2
 
             ! Update b_bar
