@@ -50,6 +50,7 @@ contains
         character(len=:),allocatable,intent(in) :: control_point_file
 
         integer :: i, j
+        real,dimension(:),allocatable :: cp_indices
         type(vtk_out) :: cp_vtk
 
         ! Get solver_settings
@@ -88,10 +89,17 @@ contains
             ! Clear old file
             call delete_file(control_point_file)
 
+            ! Get indices
+            allocate(cp_indices(size(body%control_points)/3))
+            do i=1,size(cp_indices)
+                cp_indices(i) = i
+            end do
+
             ! Write out points
             call cp_vtk%begin(control_point_file)
             call cp_vtk%write_points(body%control_points)
             call cp_vtk%write_vertices(body%control_points)
+            call cp_vtk%write_point_scalars(cp_indices, 'index')
             call cp_vtk%finish()
 
         end if
@@ -137,7 +145,12 @@ contains
             do i=1,body%N_panels
 
                 ! Check DoD for original panel and original control point
-                this%dod_info(i,j) = body%panels(i)%check_dod(body%control_points(j,:), this%freestream)
+                if (j==20 .and. i==741) then
+                    this%dod_info(i,j) = body%panels(i)%check_dod(body%control_points(j,:), this%freestream, &
+                                                                  .false., 0, .true.)
+                else
+                    this%dod_info(i,j) = body%panels(i)%check_dod(body%control_points(j,:), this%freestream)
+                end if
 
                 if (body%mirrored) then
 
@@ -557,6 +570,45 @@ contains
         ! Set b vector for Morino formulation
         if (morino) then
             b = -body%phi_cp_sigma
+        end if
+
+        ! Check for uninfluenced points
+        do i=1,N_mu
+            if (all(A(i,:) == 0.)) then
+                write(*,*) "Control point ", i, " is not influenced."
+            end if
+            if (all(A(:,i) == 0.)) then
+                write(*,*) "Vertex ", i, " does not influence."
+            end if
+        end do
+
+        ! Check influence on point 20
+        do i=1,body%N_panels
+            do j=1,3
+                if (this%dod_info(i,20)%verts_in_dod(j)) then
+                    write(*,*) "Control point 20 is influenced by vertex ", j, " of panel ", i
+                end if
+                if (this%dod_info(i,20)%edges_in_dod(j)) then
+                    write(*,*) "Control point 20 is influenced by edge ", j, " of panel ", i
+                end if
+            end do
+        end do
+        write(*,*) body%vertices(19)%loc
+        write(*,*) body%vertices(20)%loc
+        write(*,*) body%control_points(20,:)
+
+        ! Write A and b to file
+        if (.true.) then
+            open(34, file="./dev/A_mat.txt")
+            do i=1,N_mu
+                write(34,*) A(i,:)
+            end do
+            close(34)
+            open(34, file="./dev/b_vec.txt")
+            do i=1,N_mu
+                write(34,*) b(i)
+            end do
+            close(34)
         end if
 
         ! Solve

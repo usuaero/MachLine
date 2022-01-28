@@ -17,7 +17,7 @@
     },
     "solver": {
         "formulation": "morino",
-        "control_point_offset": 1.1e-05,
+        "control_point_offset": 1.1e-02,
         "influence_calculations" : "johnson"
     },
     "post_processing" : {

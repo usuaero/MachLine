@@ -13,7 +13,7 @@ module panel_mod
     integer :: doublet_order
     integer :: source_order
     integer :: eval_count ! Developer counter for optimization purposes
-    logical :: debug = .false. ! Developer toggle
+    logical :: debug = .true. ! Developer toggle
     character(len=:),allocatable :: influence_calc_type ! Either 'johnson' or 'epton-magnus'
 
 
@@ -621,7 +621,7 @@ contains
     end subroutine panel_point_to_vertex_clone
 
 
-    function panel_check_dod(this, eval_point, freestream, panel_mirrored, mirror_plane) result(dod_info)
+    function panel_check_dod(this, eval_point, freestream, panel_mirrored, mirror_plane, verbose) result(dod_info)
         ! Determines how (if) this panel lies within the domain of dependence of the evaluation point
 
         implicit none
@@ -631,6 +631,8 @@ contains
         type(flow),intent(in) :: freestream
         logical,intent(in),optional :: panel_mirrored
         integer,intent(in),optional :: mirror_plane
+        logical,intent(in),optional :: verbose
+
         type(dod) :: dod_info
 
         real,dimension(3) :: d, point, a, b, R_star
@@ -751,18 +753,28 @@ contains
                     else ! Supersonic
 
                         ! If both are out, calculate the point of closest approach
-                        if (.not. dod_info%verts_in_dod(i) .and. .not. dod_info%verts_in_dod(mod(i, this%N)+1)) then
+                        if (.not. dod_info%verts_in_dod(i) .and. .not. dod_info%verts_in_dod(i_next)) then
 
                             ! Get vector describing edge
-                            d = this%get_vertex_loc(mod(i, this%N)+1) - this%get_vertex_loc(i)
+                            d = this%get_vertex_loc(i_next) - this%get_vertex_loc(i)
                         
                             ! Calculate nondimensional location of the point of closest approach (E&M Eq. (J.3.39))
                             a = cross(freestream%c_hat_g, d)
-                            b = cross(freestream%c_hat_g, this%get_vertex_loc(mod(i, this%N)+1)-eval_point)
-                            s_star = inner(a, b)/inner(a, a)
+                            b = cross(freestream%c_hat_g, this%get_vertex_loc(i_next)-eval_point)
+                            s_star = inner(a, b)/abs(inner(a, a))
 
                             ! Check if the point of closest approach is in the edge and in the DoD
                             R_star = this%get_vertex_loc(i)+s_star*d
+                            if (present(verbose)) then
+                                write(*,*)
+                                write(*,*) freestream%c_hat_g
+                                write(*,*) d
+                                write(*,*) this%get_vertex_loc(i)
+                                write(*,*) s_star
+                                write(*,*) R_star
+                                write(*,*) eval_point
+                                write(*,*) freestream%point_in_dod(R_star, eval_point)
+                            end if
                             if (s_star > 0. .and. s_star < 1. .and. freestream%point_in_dod(R_star, eval_point)) then
 
                                 dod_info%in_dod = .true.
@@ -1039,110 +1051,113 @@ contains
         ! Loop through edges
         do i=1,this%N
 
-            ! Store edge derivs
-            v_xi = this%n_hat_l(i,1)
-            v_eta = this%n_hat_l(i,2)
+            if (dod_info%edges_in_dod(i)) then
 
-            ! Calculate F(1,1,1)
-            F(i,1,1,1) = this%F_i_1_1_1(geom, i, dod_info, freestream)
+                ! Store edge derivs
+                v_xi = this%n_hat_l(i,1)
+                v_eta = this%n_hat_l(i,2)
 
-            ! Procedure 4: not close to perimeter
-            if (geom%g(i) >= 0.01*dF) then
-                
-                ! Calculate F(1,1,K) integrals
-                do k=3,MXFK,2
+                ! Calculate F(1,1,1)
+                F(i,1,1,1) = this%F_i_1_1_1(geom, i, dod_info, freestream)
 
-                    ! Get necessary E
-                    E1 = this%E_i_M_N_K(geom, i, 2, 1, k-2, dod_info, freestream)
-                    E2 = this%E_i_M_N_K(geom, i, 1, 2, k-2, dod_info, freestream)
+                ! Procedure 4: not close to perimeter
+                if (geom%g(i) >= 0.01*dF) then
 
-                    ! Calculate F
-                    F(i,1,1,k) = 1./(geom%g2(i)*(k-2))*((k-3)*F(i,1,1,k-2)-v_eta*E1+v_xi*E2)
-                end do
+                    ! Calculate F(1,1,K) integrals
+                    do k=3,MXFK,2
 
-            ! Procedure 5: close to perimeter
-            else
+                        ! Get necessary E
+                        E1 = this%E_i_M_N_K(geom, i, 2, 1, k-2, dod_info, freestream)
+                        E2 = this%E_i_M_N_K(geom, i, 1, 2, k-2, dod_info, freestream)
 
-                ! Initialize
-                F(i,1,1,MXFK+NFK) = 0.
-
-                ! Calculate other F(1,1,K) integrals
-                do k=MXFK+NFK,5,2
-
-                    ! Get necessary E
-                    E1 = this%E_i_M_N_K(geom, i, 2, 1, k-2, dod_info, freestream)
-                    E2 = this%E_i_M_N_K(geom, i, 1, 2, k-2, dod_info, freestream)
-
-                    ! Calculate F
-                    F(i,1,1,k-2) = 1./(k-3)*(geom%g2(i)*(k-2)*F(i,1,1,k)+v_eta*E1-v_xi*E2)
-
-                end do
-            end if
-
-            ! Calculate other F integrals (same for both procedures)
-            if (abs(v_eta) <= abs(v_xi)) then ! Case a
-                
-                ! Calculate F(1,N,1) integrals
-                do n=2,MXQ
-
-                    ! Get E
-                    E1 = this%E_i_M_N_K(geom, i, 1, n-1, -1, dod_info, freestream)
-
-                    if (n .eq. 2) then
-                        F(i,1,N,1) = 1./(n-1)*((2*n-3)*geom%a(i)*v_eta*F(i,1,n-1,1) + v_xi*E1)
-                    else
-                        F(i,1,N,1) = 1./(n-1)*((2*n-3)*geom%a(i)*v_eta*F(i,1,n-1,1) &
-                                     - (n-2)*(geom%a(i)**2+v_xi**2*geom%h**2)*F(i,1,n-2,1) &
-                                     + v_xi*E1)
-                    end if
-                end do
-
-                ! Calculate F(M,N,1) inegrals
-                do m=2,MXQ
-                    do n=1,MXQ-m+1
-                        F(i,m,n,1) = -v_eta/v_xi*F(i,m-1,n+1,1) + geom%a(i)/v_xi*F(i,m-1,n,1)
+                        ! Calculate F
+                        F(i,1,1,k) = 1./(geom%g2(i)*(k-2))*((k-3)*F(i,1,1,k-2)-v_eta*E1+v_xi*E2)
                     end do
-                end do
 
-            else ! Case b
+                ! Procedure 5: close to perimeter
+                else
 
-                ! Calculate F(M,1,1) integrals
-                do m=2,MXQ
+                    ! Initialize
+                    F(i,1,1,MXFK+NFK) = 0.
 
-                    ! Get E
-                    E1 = this%E_i_M_N_K(geom, i, m-1, 1, -1, dod_info, freestream)
+                    ! Calculate other F(1,1,K) integrals
+                    do k=MXFK+NFK,5,2
 
-                    if (m .eq. 2) then
-                        F(i,m,1,1) = 1./(m-1)*((2*m-3)*geom%a(i)*v_xi*F(i,m-1,1,1) - v_eta*E1)
-                    else
-                        F(i,m,1,1) = 1./(m-1)*((2*m-3)*geom%a(i)*v_xi*F(i,m-1,1,1) &
-                                     - (m-2)*(geom%a(i)**2+v_eta**2*geom%h**2)*F(i,m-2,1,1) &
-                                     - v_eta*E1)
-                    end if
-                end do
+                        ! Get necessary E
+                        E1 = this%E_i_M_N_K(geom, i, 2, 1, k-2, dod_info, freestream)
+                        E2 = this%E_i_M_N_K(geom, i, 1, 2, k-2, dod_info, freestream)
 
-                ! Calculate F(M,N,1) integrals
-                do n=2,MXQ
-                    do m=1,MXQ-n+1
-                        F(i,m,n,1) = -v_xi/v_eta*F(i,m+1,n-1,1)+geom%a(i)/v_eta*F(i,m,n-1,1)
+                        ! Calculate F
+                        F(i,1,1,k-2) = 1./(k-3)*(geom%g2(i)*(k-2)*F(i,1,1,k)+v_eta*E1-v_xi*E2)
+
                     end do
-                end do
+                end if
 
-            end if
+                ! Calculate other F integrals (same for both procedures)
+                if (abs(v_eta) <= abs(v_xi)) then ! Case a
 
-            ! Calculate F(1,2,K) integrals
-            do k=3,MXK-2,2
-                F(i,1,2,k) = v_eta*geom%a(i)*F(i,1,1,k)-v_xi/(k-2)*this%E_i_M_N_K(geom, i, 1, 1, k-2, dod_info, freestream)
-            end do
+                    ! Calculate F(1,N,1) integrals
+                    do n=2,MXQ
 
-            ! Calculate F(1,N,K) integrals
-            do n=3,MXQ
+                        ! Get E
+                        E1 = this%E_i_M_N_K(geom, i, 1, n-1, -1, dod_info, freestream)
+
+                        if (n .eq. 2) then
+                            F(i,1,N,1) = 1./(n-1)*((2*n-3)*geom%a(i)*v_eta*F(i,1,n-1,1) + v_xi*E1)
+                        else
+                            F(i,1,N,1) = 1./(n-1)*((2*n-3)*geom%a(i)*v_eta*F(i,1,n-1,1) &
+                                         - (n-2)*(geom%a(i)**2+v_xi**2*geom%h**2)*F(i,1,n-2,1) &
+                                         + v_xi*E1)
+                        end if
+                    end do
+
+                    ! Calculate F(M,N,1) inegrals
+                    do m=2,MXQ
+                        do n=1,MXQ-m+1
+                            F(i,m,n,1) = -v_eta/v_xi*F(i,m-1,n+1,1) + geom%a(i)/v_xi*F(i,m-1,n,1)
+                        end do
+                    end do
+
+                else ! Case b
+
+                    ! Calculate F(M,1,1) integrals
+                    do m=2,MXQ
+
+                        ! Get E
+                        E1 = this%E_i_M_N_K(geom, i, m-1, 1, -1, dod_info, freestream)
+
+                        if (m .eq. 2) then
+                            F(i,m,1,1) = 1./(m-1)*((2*m-3)*geom%a(i)*v_xi*F(i,m-1,1,1) - v_eta*E1)
+                        else
+                            F(i,m,1,1) = 1./(m-1)*((2*m-3)*geom%a(i)*v_xi*F(i,m-1,1,1) &
+                                         - (m-2)*(geom%a(i)**2+v_eta**2*geom%h**2)*F(i,m-2,1,1) &
+                                         - v_eta*E1)
+                        end if
+                    end do
+
+                    ! Calculate F(M,N,1) integrals
+                    do n=2,MXQ
+                        do m=1,MXQ-n+1
+                            F(i,m,n,1) = -v_xi/v_eta*F(i,m+1,n-1,1)+geom%a(i)/v_eta*F(i,m,n-1,1)
+                        end do
+                    end do
+
+                end if
+
+                ! Calculate F(1,2,K) integrals
                 do k=3,MXK-2,2
-                    F(i,1,n,k) = 2.*geom%a(i)*v_eta*F(i,1,n-1,k) &
-                                 - (geom%a(i)**2+v_xi**2*geom%h**2)*F(i,1,n-2,k) &
-                                 + v_xi**2*F(i,1,n-2,k-2)
+                    F(i,1,2,k) = v_eta*geom%a(i)*F(i,1,1,k)-v_xi/(k-2)*this%E_i_M_N_K(geom, i, 1, 1, k-2, dod_info, freestream)
                 end do
-            end do
+
+                ! Calculate F(1,N,K) integrals
+                do n=3,MXQ
+                    do k=3,MXK-2,2
+                        F(i,1,n,k) = 2.*geom%a(i)*v_eta*F(i,1,n-1,k) &
+                                     - (geom%a(i)**2+v_xi**2*geom%h**2)*F(i,1,n-2,k) &
+                                     + v_xi**2*F(i,1,n-2,k-2)
+                    end do
+                end do
+            end if
         end do
         if (debug .and. any(isnan(F))) then
             write(*,*)
@@ -1292,6 +1307,11 @@ contains
         ! Clean up
         deallocate(v_xi)
         deallocate(v_eta)
+
+        if (debug .and. any(isnan(H))) then
+            write(*,*)
+            write(*,*) "NaN found in H"
+        end if
 
     end function panel_calc_H_integrals
 
