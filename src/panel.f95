@@ -1234,7 +1234,7 @@ contains
         ! Procedure 1: not close to panel plane
         if (proc_H == 1) then
 
-            ! Calculate H(1,1,1)
+            ! Calculate H(1,1,1) (Johnson Eq. (D.41))
             do i=1,this%N
         
                 ! Add surface integral
@@ -1243,7 +1243,7 @@ contains
                 H(1,1,1) = H(1,1,1) - abs(geom%h)*atan2(S, C)
         
                 ! Add line integral
-                H(1,1,1) = H(1,1,1) + geom%a(i)*F(i,1,1,1)
+                H(1,1,1) = H(1,1,1) + this%rs*geom%a(i)*F(i,1,1,1) ! The rs factor comes from Ehlers Eq. (E9)
         
             end do
 
