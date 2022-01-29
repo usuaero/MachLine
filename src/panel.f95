@@ -1233,7 +1233,7 @@ contains
                             F1 = (geom%l1(i)*geom%R2(i)-geom%l2(i)*geom%R1(i))/geom%g2(i)
                             F2 = (geom%R1(i)*geom%R2(i)+geom%l1(i)*geom%l2(i))/geom%g2(i)
 
-                            ! Add to surface integral ! Adapted from Ehlers Eq. (E18) to match the form of Johnson Eq. (D.41)
+                            ! Add to surface integral; adapted from Ehlers Eq. (E18) to match the form of Johnson Eq. (D.41)
                             H(1,1,1) = H(1,1,1) - geom%h*atan2(geom%h*geom%a(i)*F1, geom%R1(i)*geom%R2(i)+geom%h**2*F2)
 
                         end if
@@ -2003,7 +2003,7 @@ contains
                 if (source_order == 0) then
 
                     ! Compute induced potential
-                    phi = -0.25/pi*H(1,1,1)
+                    phi = -freestream%K_inv*H(1,1,1)
 
                 end if
 
@@ -2064,9 +2064,9 @@ contains
                 if (source_order == 0) then
 
                     ! Calculate velocity
-                    v(1,1) = 0.25/pi*sum(this%n_hat_l(:,1)*F(:,1,1,1))
-                    v(1,2) = 0.25/pi*sum(this%n_hat_l(:,2)*F(:,1,1,1))
-                    v(1,3) = 0.25/pi*geom%h*H(1,1,3)
+                    v(1,1) = freestream%K_inv*sum(this%n_hat_l(:,1)*F(:,1,1,1))
+                    v(1,2) = freestream%K_inv*sum(this%n_hat_l(:,2)*F(:,1,1,1))
+                    v(1,3) = freestream%K_inv*geom%h*H(1,1,3)
 
                 end if
 
@@ -2149,7 +2149,7 @@ contains
                     phi(3) = phi(1)*geom%r_ls(2) + geom%h*H(1,2,3)
 
                     ! Convert to vertex influences
-                    phi(1:3) = 0.25/pi*matmul(phi(1:3), this%S_mu_inv)
+                    phi(1:3) = freestream%K_inv*matmul(phi(1:3), this%S_mu_inv)
 
                     ! Wake bottom influence is opposite the top influence
                     if (this%in_wake) then
