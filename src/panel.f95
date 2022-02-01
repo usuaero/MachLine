@@ -1325,10 +1325,10 @@ contains
         end do
 
         ! Step 7
-        ! Calculate H(2,N,K) integrals (Johnson Eq. (D.47) altered to match Ehlers Eq. (E5))
+        ! Calculate H(2,N,K) integrals (Johnson Eq. (D.47); already matches Ehlers Eq. (E5))
         do n=1,MXQ-1
             do k=3,MXK,2
-                H(2,n,k) = -this%rs/(k-2)*sum(v_xi*F(:,1,n,k-2))
+                H(2,n,k) = -1./(k-2)*sum(v_xi*F(:,1,n,k-2))
             end do
         end do
 
@@ -2143,10 +2143,10 @@ contains
                 ! Calculate influence
                 if (doublet_order == 1) then
 
-                    ! Compute induced potential
+                    ! Compute induced potential (Johnson Eq. (D.30); Ehlers Eq. (5.17))
                     phi(1) = geom%h*H(1,1,3)
-                    phi(2) = phi(1)*geom%r_ls(1) + geom%h*H(2,1,3)
-                    phi(3) = phi(1)*geom%r_ls(2) + geom%h*H(1,2,3)
+                    phi(2) = geom%h*H(1,1,3)*geom%r_ls(1) + geom%h*H(2,1,3)
+                    phi(3) = geom%h*H(1,1,3)*geom%r_ls(2) + geom%h*H(1,2,3)
 
                     ! Convert to vertex influences
                     phi(1:3) = freestream%K_inv*matmul(phi(1:3), this%S_mu_inv)
