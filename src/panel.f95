@@ -1014,7 +1014,7 @@ contains
         real :: E1, E2, v_xi, v_eta, dF
         real,dimension(3) :: d
         real,dimension(this%N) :: min_dist_to_edge
-        integer :: i, MXFK, NFK, k, m, n
+        integer :: i, MXFK, NFK, k, m, n, i_next
 
         ! Determine which F integrals are needed
         NFK = 16
@@ -1033,20 +1033,22 @@ contains
             ! Check this edge is in the DoD
             if (dod_info%edges_in_dod(i)) then
 
+                i_next = mod(i, this%N) + 1
+
                 ! Within edge, the minimum distance is the perpendicular distance
                 if (sign(geom%l1(i)) /= sign(geom%l2(i))) then
                     min_dist_to_edge(i) = geom%g(i)
         
                 ! Otherwise, it is the minimum of the distances to the corners
                 else
-                    if (dod_info%verts_in_dod(i) .and. dod_info%verts_in_dod(mod(i, this%N)+1)) then
+                    if (dod_info%verts_in_dod(i) .and. dod_info%verts_in_dod(i_next)) then
                         min_dist_to_edge(i) = min(geom%R1(i), geom%R2(i))
                     else if (dod_info%verts_in_dod(i)) then
                         min_dist_to_edge(i) = geom%R1(i)
-                    else if (dod_info%verts_in_dod(mod(i, this%N)+1)) then
+                    else if (dod_info%verts_in_dod(i_next)) then
                         min_dist_to_edge(i) = geom%R2(i)
 
-                    ! If neither is in, we again go back to the perpendicular distance
+                    ! If neither is in the DoD, we again go back to the perpendicular distance
                     else
                         min_dist_to_edge(i) = geom%g(i)
                     end if
