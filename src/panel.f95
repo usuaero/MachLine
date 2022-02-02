@@ -90,13 +90,13 @@ module panel_mod
             procedure :: calc_F_integrals => panel_calc_F_integrals
             procedure :: calc_H_integrals => panel_calc_H_integrals
             procedure :: calc_integrals => panel_calc_integrals
-            procedure :: calc_panel_function => panel_calc_panel_function
-            procedure :: calc_edge_functions => panel_calc_edge_functions
-            procedure :: calc_b => panel_calc_b
-            procedure :: calc_b_bar => panel_calc_b_bar
-            procedure :: calc_a => panel_calc_a
-            procedure :: calc_a_bar => panel_calc_a_bar
-            procedure :: calc_B_mat => panel_calc_B_mat
+            !procedure :: calc_panel_function => panel_calc_panel_function
+            !procedure :: calc_edge_functions => panel_calc_edge_functions
+            !procedure :: calc_b => panel_calc_b
+            !procedure :: calc_b_bar => panel_calc_b_bar
+            !procedure :: calc_a => panel_calc_a
+            !procedure :: calc_a_bar => panel_calc_a_bar
+            !procedure :: calc_B_mat => panel_calc_B_mat
             procedure :: get_source_potential => panel_get_source_potential
             procedure :: get_source_velocity => panel_get_source_velocity
             procedure :: get_doublet_potential => panel_get_doublet_potential
@@ -1114,7 +1114,7 @@ contains
                 ! Calculate other F integrals (same for both procedures)
                 if (abs(v_eta) <= abs(v_xi)) then ! Case a
 
-                    ! Calculate F(1,N,1) integrals
+                    ! Calculate F(1,N,1) integrals (Johnson Eq. (D.62))
                     do n=2,MXQ
 
                         ! Get E
@@ -1129,7 +1129,7 @@ contains
                         end if
                     end do
 
-                    ! Calculate F(M,N,1) inegrals
+                    ! Calculate F(M,N,1) inegrals (Johnsons Eq. (D.63))
                     do m=2,MXQ
                         do n=1,MXQ-m+1
                             F(i,m,n,1) = -v_eta/v_xi*F(i,m-1,n+1,1) + geom%a(i)/v_xi*F(i,m-1,n,1)
@@ -1138,7 +1138,7 @@ contains
 
                 else ! Case b
 
-                    ! Calculate F(M,1,1) integrals
+                    ! Calculate F(M,1,1) integrals (Johnson Eq. (D.64))
                     do m=2,MXQ
 
                         ! Get E
@@ -1153,7 +1153,7 @@ contains
                         end if
                     end do
 
-                    ! Calculate F(M,N,1) integrals
+                    ! Calculate F(M,N,1) integrals (Johnson Eq. (D.65))
                     do n=2,MXQ
                         do m=1,MXQ-n+1
                             F(i,m,n,1) = -v_xi/v_eta*F(i,m+1,n-1,1)+geom%a(i)/v_eta*F(i,m,n-1,1)
@@ -1162,12 +1162,12 @@ contains
 
                 end if
 
-                ! Calculate F(1,2,K) integrals
+                ! Calculate F(1,2,K) integrals (Johnson Eq. (D.66))
                 do k=3,MXK-2,2
                     F(i,1,2,k) = v_eta*geom%a(i)*F(i,1,1,k)-v_xi/(k-2)*this%E_i_M_N_K(geom, i, 1, 1, k-2, dod_info, freestream)
                 end do
 
-                ! Calculate F(1,N,K) integrals
+                ! Calculate F(1,N,K) integrals (Johnson Eq. (D.67))
                 do n=3,MXQ
                     do k=3,MXK-2,2
                         F(i,1,n,k) = 2.*geom%a(i)*v_eta*F(i,1,n-1,k) &
@@ -1177,6 +1177,7 @@ contains
                 end do
             end if
         end do
+
         if (debug .and. any(isnan(F))) then
             write(*,*)
             write(*,*) "NaN found in F"
@@ -1261,7 +1262,11 @@ contains
 
             ! Calculate H(1,1,K) integrals (Johnson Eq. (D.42) altered to match Ehlers Eq. (E9))
             do k=3,MXK,2
-                H(1,1,k) = 1./((k-2)*geom%h**2)*((k-4)*H(1,1,k-2) + this%rs*sum(geom%a*F(:,1,1,k-2)))
+                if (this%rs == 1.) then
+                    H(1,1,k) = 1./((k-2)*geom%h**2)*((k-4)*H(1,1,k-2) + sum(geom%a*F(:,1,1,k-2)))
+                else
+                    H(1,1,k) = 1./((k-2)*geom%h**2)*(-k*H(1,1,k-2) - sum(geom%a*F(:,1,1,k-2)))
+                end if
             end do
 
         ! Procedures 2 and 3: close to panel plane
@@ -1280,17 +1285,17 @@ contains
         ! Step 3
         ! Calculate H(2,N,1) integrals (Johnson Eq. (D.43) altered to match Ehlers Eq. (E7))
         do n=1,MXQ-1
-            H(2,n,1) = 1./(n+1)*(this%rs*geom%h**2*sum(v_xi*F(:,1,n,1)) + sum(geom%a*F(:,2,n,1)))
+            H(2,n,1) = 1./(this%rs*n+1)*(this%rs*geom%h**2*sum(v_xi*F(:,1,n,1)) + sum(geom%a*F(:,2,n,1)))
         end do
 
         ! Step 4
-        ! Calculate H(1,N,1) integrals (Johnson Eq. (D.44) which matches Ehlers Eq. (E8))
+        ! Calculate H(1,N,1) integrals (Johnson Eq. (D.44) altered to match Ehlers Eq. (E8))
         do n=2,MXQ
             if (n .eq. 2) then
-                H(2,n,1) = 1./n*(geom%h**2*sum(v_eta*F(:,1,n-1,1)) &
+                H(2,n,1) = this%rs/n*(geom%h**2*sum(v_eta*F(:,1,n-1,1)) &
                            + sum(geom%a*F(:,1,n,1)))
             else
-                H(2,n,1) = 1./n*(-geom%h**2*(n-2)*H(1,n-2,1) & 
+                H(2,n,1) = this%rs/n*(-geom%h**2*(n-2)*H(1,n-2,1) & 
                            + geom%h**2*sum(v_eta*F(:,1,n-1,1)) &
                            + sum(geom%a*F(:,1,n,1)))
             end if
@@ -1354,7 +1359,7 @@ contains
                         ! Convert H* to H
                         ! We need to make this check because h is sometimes zero, which can cause issues if the exponent is negative. If nu is zero, just don't bother.
                         if (abs(nu) > 1e-12) then
-                            H(m,n,k) = H(m,n,k) + 2.*this%rs*pi*nu*abs(geom%h)**(m+n-k) ! I added rs because intuitively it makes sense; I have no justification for now.
+                            H(m,n,k) = H(m,n,k) + 2.*pi*nu*abs(geom%h)**(m+n-k)
                         end if
                     end do
                 end do
@@ -1463,20 +1468,6 @@ contains
             end if
         end if
 
-        ! Calculate minimum distance to perimeter of S (in plane)
-        do i=1,this%N
-
-            ! Within edge, the minimum distance is the perpendicular distance
-            if (geom%l1(i) < 0. .and. geom%l2(i) >= 0.) then
-                min_dist_to_edge(i) = abs(geom%a(i))
-        
-            ! Otherwise, it is the minimum of the distances to the corners
-            else
-                min_dist_to_edge(i) = min(sqrt(geom%l1(i)**2+geom%a(i)**2), sqrt(geom%l2(i)**2+geom%a(i)**2))
-            end if
-        end do
-        dH = minval(min_dist_to_edge)
-
         ! Determine which procedure needs to be used
         if (abs(geom%h) > 1e-12) then ! The nonzero h check seems to be more reliable than that proposed by Johnson
             proc_H = 1 ! Not near plane of panel
@@ -1504,467 +1495,6 @@ contains
         H = this%calc_H_integrals(geom, proc_H, MXK, MXQ, NHK, dod_info, freestream, F)
 
     end subroutine panel_calc_integrals
-
-
-    function panel_calc_panel_function(this, geom, dod_info, freestream) result(J)
-        ! Calculates the panel function J(psi)
-        ! I believe J(psi) is equivalent to H(1,1,3) in Johnson multiplied by some power of |h|
-
-        implicit none
-
-        class(panel),intent(in) :: this
-        type(eval_point_geom),intent(in) :: geom
-        type(dod),intent(in) :: dod_info
-        type(flow),intent(in) :: freestream
-
-        real :: J
-
-        integer :: i, i_next
-        real :: X, Y, C_theta
-        real,dimension(this%N) :: Q
-        logical :: standard_case
-
-
-        ! Check if the point is on the panel
-        if (abs(geom%h) < 1e-12) then
-
-            ! Check if the point is interior to the panel
-            if (all(geom%a < 0.)) then
-                J = -sign(geom%h)*0.5*pi*(this%rs + 3.) ! E&M Eq. (J.8.163)
-            else
-                J = 0.
-            end if
-
-        ! Finite h
-        else
-
-            ! Check for being able to use the standard case (E&M Eq. (J.8.129))
-            standard_case = .true.
-            if (this%r == 1) then
-
-                if (freestream%s == -1) then
-
-                    ! Check g^2 on each edge
-                    do i=1,this%N
-                        if (geom%g2(i) <= 1.e-4*max(geom%a(i)**2+geom%h**2, 4.*this%radius**2)) then
-                            standard_case = .false.
-                            exit
-                        end if
-                    end do
-
-                else
-
-                    ! Check g^2 on each edge
-                    do i=1,this%N
-                        if (geom%g2(i) <= 4.e-4*this%radius**2) then
-                            standard_case = .false.
-                            exit
-                        end if
-                    end do
-            
-                end if
-
-            end if
-
-            if (standard_case) then
-
-                ! Initialize
-                J = 2.*pi
-
-                ! Loop through edges and corners
-                do i=1,this%N
-
-                    i_next = mod(i, this%N)+1
-
-                    ! Add edge influence
-                    if (dod_info%edges_in_dod(i)) then
-                        J = J - pi
-                    end if
-
-                    ! Add corner influence (this is the corner between edge i and edge i+1; thus, corner i+1)
-                    if (dod_info%verts_in_dod(i_next)) then
-
-                        ! Calculate X and Y (E&M Eq. (J.8.110))
-                        X = this%t_hat_ls(i,1)*this%t_hat_ls(i_next,1) + &
-                            this%rs*this%t_hat_ls(i,2)*this%t_hat_ls(i_next,2)
-                        X = -geom%h**2*X - this%r*geom%a(i)*geom%a(i_next)
-
-                        Y = geom%R2(i)*geom%h*(this%t_hat_ls(i,1)*this%t_hat_ls(i_next,2) - &
-                                               this%t_hat_ls(i,2)*this%t_hat_ls(i_next,1))
-
-                        ! Add
-                        J = J + atan2(Y, X)
-
-                    end if
-
-                end do
-
-                ! Finalize
-                J = -sign(geom%h)*this%rs*J
-
-            else ! Use the special rationalization
-
-                ! Calculate C_theta
-                if (freestream%s == 1 .and. all(geom%a < 0.)) then
-                    C_theta = 1.
-                else
-                    C_theta = 0.
-                end if
-
-                ! Initialize J
-                J = 2.*pi*C_theta
-
-                ! Loop through edges to calculate Q_i
-                do i=1,this%N
-
-                    if (dod_info%edges_in_dod(i)) then
-
-                        i_next = mod(i, this%N)+1
-
-                        ! Check if both endpoints are in the DoD
-                        if (dod_info%verts_in_dod(i) .and. dod_info%verts_in_dod(i_next)) then
-
-                            ! Calculate intermediate quantities
-                            Y = abs(geom%h)*geom%a(i)*(geom%R2(i)*geom%l1(i)-geom%R1(i)*geom%l2(i))
-                            X = geom%h**2*geom%l2(i)*geom%l1(i)
-                            X = X + geom%a(i)**2*geom%R2(i)*geom%R1(i)
-
-                            ! Calculate Q (E&M Eq. (J.8.142))
-                            Q(i) = atan2(Y, X)
-
-                        ! Only the first endpoint is in the DoD
-                        else if (dod_info%verts_in_dod(i)) then
-                            Q(i) = -atan2(geom%a(i)*geom%R1(i), abs(geom%h)*geom%l1(i))
-
-                        ! Only the second endpoint is in the DoD
-                        else if (dod_info%verts_in_dod(i_next)) then
-                            Q(i) = atan2(geom%a(i)*geom%R2(i), abs(geom%h)*geom%l2(i)) - pi*sign(geom%a(i))
-
-                        ! Neither endpoint is in the DoD
-                        else
-                            Q(i) = -pi*sign(geom%a(i))
-
-                        end if
-
-                    end if
-
-                end do
-
-                ! Finalize J
-                J = -sign(geom%h)*(J + sum(Q))
-
-            end if
-
-        end if
-
-    end function panel_calc_panel_function
-
-
-    function panel_calc_edge_functions(this, geom, dod_info, freestream) result(I)
-        ! Calculates the edge functions I_i
-
-        implicit none
-
-        class(panel),intent(in) :: this
-        type(eval_point_geom),intent(in) :: geom
-        type(dod),intent(in) :: dod_info
-        type(flow),intent(in) :: freestream
-
-        real,dimension(this%N) :: I
-
-        integer :: j, k, j_next
-        real :: sigma, z, I_hat, phi_q, delta_R, v_hat_bar, dphi_q, denom
-        real,dimension(3) :: x
-
-        ! Loop through edges
-        do j=1,this%N
-
-            j_next = mod(j, this%N)+1
-
-            ! Check it's in the DoD
-            if (dod_info%edges_in_dod(j)) then
-
-                ! Non-sonic edges
-                if (this%tau(j)**2 > 1.e-4) then
-
-                    ! Both endpoints are in the DoD
-                    if (dod_info%verts_in_dod(j) .and. dod_info%verts_in_dod(j_next)) then
-
-                        ! Calculate edge function (E&M Eq. (J.8.35) and Johnson Eq. (D.60))
-                        ! Subsonic edge
-                        if (this%q(j) == 1) then
-                            if (geom%l1(j) >= 0. .and. geom%l2(j) >= 0.) then
-                                I(j) = log((geom%R2(j)+geom%l2(j))/(geom%R1(j)+geom%l1(j)))
-                            else if (sign(geom%l1(j)) /= sign(geom%l2(j))) then
-                                I(j) = log((geom%R2(j)+geom%l2(j))*(geom%R1(j)-geom%l1(j))/geom%g2(j))
-                            else
-                                I(j) = log((geom%R1(j)-geom%l1(j))/(geom%R2(j)-geom%l2(j)))
-                            end if
-
-                        ! Supersonic edge (E&M Eq. (J.8.35))
-                        else
-                            denom = geom%R1(j)*geom%R2(j) + geom%l1(j)*geom%l2(j)
-                            z = (geom%l2(j)-geom%l1(j))*(geom%l2(j)+geom%l1(j))/denom
-                            sigma = sign(denom)
-                            I(j) = atan2(sigma*z, sigma)
-                        end if
-
-                    else ! Only one endpoint
-
-                        ! Check magnitude of g
-                        if (abs(geom%g2(j)) > 1e-4) then
-
-                            ! Regular calculation for large g
-                            if (dod_info%verts_in_dod(j)) then
-
-                                if (this%q(j) == 1) then
-                                    I(j) = 0.5*log((geom%l1(j)+geom%R1(j))/(geom%l1(j)-geom%R1(j)))
-                                else
-                                    I(j) = -atan2(geom%R1(j), geom%l1(j))
-                                end if
-
-                            else if (dod_info%verts_in_dod(j_next)) then
-
-                                if (this%q(j) == 1) then
-                                    I(j) = 0.5*log((geom%l2(j)+geom%R2(j))/(geom%l2(j)-geom%R2(j)))
-                                else
-                                    I(j) = -atan2(geom%R2(j), geom%l2(j))
-                                end if
-
-                            end if
-
-                        ! Special calculation for small g
-                        else
-
-                            ! These are my versions of E&M (J.8.22) which doesn't make any sense to me
-                            ! Also, E&M Eq. (J.8.18) makes no sense because (v+R)/(v-R) will always be negative, since |v|<R by definition
-                            if (dod_info%verts_in_dod(j)) then
-                                !I(j) = sign(geom%l1(j))*(log(abs(geom%l1(j))+geom%R1(j))-0.5*log(geom%g2(j)))
-                                I(j) = log(geom%l1(j)+geom%R1(j))-0.5*log(geom%g2(j))
-
-                            else if (dod_info%verts_in_dod(j_next)) then
-                                !I(j) = sign(geom%l2(j))*(log(abs(geom%l2(j))+geom%R2(j))-0.5*log(geom%g2(j)))
-                                I(j) = log(geom%l2(j)+geom%R2(j))-0.5*log(geom%g2(j))
-                                
-                            end if
-
-                        end if
-
-                    end if
-
-                ! Nearly-sonic edges
-                else if (this%tau(j)**2 > 1.e-10) then
-
-                    ! Calculate basic quantities
-                    denom = geom%R1(j)*geom%R2(j) + geom%l1(j)*geom%l2(j)
-                    z = (geom%l2(j)-geom%l1(j))*(geom%l2(j)+geom%l1(j))/denom
-                    sigma = sign(denom)
-
-                    ! Check for special case
-                    if (this%q(j) == -1 .and. sigma == -1) then
-
-                        ! Calculate edge function
-                        I(j) = -atan2(-z, -1.)*this%q(j)
-
-                    else
-
-                        ! Check magnitude of z for calculating phi_q
-                        if (abs(z) < 0.3) then
-
-                            ! Determine phi_q using a series
-                            phi_q = 0.
-                            do k=1,100
-
-                                ! Calculate current term
-                                dphi_q = (this%q(j)*z**2)**(k-1)/(2*k+1)
-
-                                ! Update
-                                phi_q = phi_q + dphi_q
-
-                                ! If the current term is small enough, we can stop execution (crude, but effective)
-                                if (abs(dphi_q)< 1e-12) then
-                                    exit
-                                end if
-
-                            end do
-                            phi_q = phi_q*this%q(j)
-
-                        else
-
-                            ! Determine phi_q explicitly
-                            if (this%q(j) == 1) then
-                                phi_q = (0.5*log((1.+z)/(1.-z))-z)/z**3
-                            else
-                                phi_q = (atan2(z, 1.)-z)/z**3
-                            end if
-
-                        end if
-
-                        ! Calculate edge function
-                        I(j) = z*(1.+z**2*phi_q)
-
-                    end if
-
-                ! Essentially-sonic edges
-                else
-
-                    ! Calculate intermediate quantities
-                    delta_R = geom%R2(j)-geom%R1(j)
-                    v_hat_bar = -0.5*this%tau(j)*(geom%l1(j)+geom%l2(j))
-
-                    ! Calculate edge function
-                    I_hat = delta_R/v_hat_bar
-                    I(j) = this%tau(j)*this%q(j)*I_hat
-
-                end if
-
-            else
-
-                ! No influence possible
-                I(j) = 0.
-
-            end if
-
-        end do
-
-    end function panel_calc_edge_functions
-
-
-    function panel_calc_b(this, geom, dod_info, freestream) result(b)
-        ! Calculates the b integral (E&M section J.6.5.2)
-
-        implicit none
-        
-        class(panel),intent(in) :: this
-        type(eval_point_geom),intent(in) :: geom
-        type(dod),intent(in) :: dod_info
-        type(flow),intent(in) :: freestream
-
-        real :: b, C_theta, J_X, J
-        real,dimension(this%N) :: I
-
-        ! Get the panel function
-        J = this%calc_panel_function(geom, dod_info, freestream)
-
-        ! Get the edge functions
-        I = this%calc_edge_functions(geom, dod_info, freestream)
-
-        ! Calculate J(X)
-        if (.not. freestream%supersonic) then
-            J_X = geom%h**2*J + sum(geom%a*I) ! E&M Eq. (J.7.12)
-        else
-            if (this%r == 1) then
-                J_X = -geom%h**2*J - sum(this%q*geom%a*I) ! E&M Eqs. (J.7.20) and (J.7.27)
-            else
-                J_X = geom%h**2*J - sum(geom%a*I) ! E&M Eq. (J.7.34)
-            end if
-        end if
-
-        ! Calculate b
-        b = -this%r*freestream%K_inv*J_X
-
-    end function panel_calc_b
-
-
-    function panel_calc_b_bar(this, geom, dod_info, freestream) result(b_bar)
-        ! Calculates the b integral vector (E&M section J.6.5.4)
-
-        implicit none
-        
-        class(panel),intent(in) :: this
-        type(eval_point_geom),intent(in) :: geom
-        type(dod),intent(in) :: dod_info
-        type(flow),intent(in) :: freestream
-
-        real,dimension(2) :: b_bar
-
-        real,dimension(this%N) :: I
-        real :: x, y
-        integer :: j
-
-        ! Get edge functions
-        I = this%calc_edge_functions(geom, dod_info, freestream)
-
-        ! Sum along the edges
-        b_bar = 0.
-        do j=1,this%N
-
-            ! Calculate intermediate quantities
-            x = -geom%R2(j)*geom%l2(j) + geom%R1(j)*geom%l1(j)
-            y = geom%a(j)**2 + this%q(j)*geom%h**2
-
-            ! Update b_bar
-            b_bar = b_bar + this%nu_hat_ls(j,:)*(this%q(j)*x + this%rs*y*I(j))
-
-        end do
-        b_bar = -0.5*freestream%K_inv*b_bar
-
-    end function panel_calc_b_bar
-
-
-    function panel_calc_a(this, geom, dod_info, freestream) result(a)
-        ! Calculates the a integral (E&M section J.6.5.1)
-
-        implicit none
-        
-        class(panel),intent(in) :: this
-        type(eval_point_geom),intent(in) :: geom
-        type(dod),intent(in) :: dod_info
-        type(flow),intent(in) :: freestream
-
-        real :: a
-
-        a = -freestream%s*freestream%K_inv*this%calc_panel_function(geom, dod_info, freestream)
-
-    end function panel_calc_a
-
-
-    function panel_calc_a_bar(this, geom, dod_info, freestream) result(a_bar)
-        ! Calculates the a integral vector (E&M section J.6.5.3)
-
-        implicit none
-        
-        class(panel),intent(in) :: this
-        type(eval_point_geom),intent(in) :: geom
-        type(dod),intent(in) :: dod_info
-        type(flow),intent(in) :: freestream
-
-        real,dimension(2) :: a_bar
-        real,dimension(this%N) :: I
-        integer :: k
-
-        ! Get edge functions
-        I = this%calc_edge_functions(geom, dod_info, freestream)
-
-        ! Sum over edges
-        a_bar = 0.
-        do k=1,this%N
-            a_bar = a_bar + this%n_hat_ls(k,:)*this%q(k)*I(k)
-        end do
-        a_bar = a_bar*freestream%s*freestream%K_inv
-
-    end function panel_calc_a_bar
-
-
-    function panel_calc_B_mat(this, geom, dod_info, freestream) result(B_mat)
-        ! Calculates the B integral matrix (E&M section J.6.5.5)
-
-        implicit none
-        
-        class(panel),intent(in) :: this
-        type(eval_point_geom),intent(in) :: geom
-        type(dod),intent(in) :: dod_info
-        type(flow),intent(in) :: freestream
-
-        real,dimension(2,2) :: B_mat
-        real,dimension(this%N) :: I
-
-        ! Get edge functions
-        I = this%calc_edge_functions(geom, dod_info, freestream)
-
-        B_mat = 0.
-
-    end function panel_calc_B_mat
 
 
     function panel_get_source_potential(this, eval_point, freestream, dod_info, vertex_indices, panel_mirrored) result(phi)
@@ -2010,18 +1540,6 @@ contains
                 ! Clean up
                 deallocate(H)
                 deallocate(F)
-
-            else if (influence_calc_type == 'epton-magnus') then
-
-                if (source_order == 0) then
-
-                    ! Get necessary integral
-                    b = this%calc_b(geom, dod_info, freestream)
-
-                    ! Compute induced potential
-                    phi = b
-
-                end if
 
             end if
         end if
@@ -2073,8 +1591,6 @@ contains
                 ! Clean up
                 deallocate(H)
                 deallocate(F)
-            
-            else if (influence_calc_type == 'epton-magnus') then
 
             end if
         end if
@@ -2162,29 +1678,6 @@ contains
                 deallocate(H)
                 deallocate(F)
 
-            else if (influence_calc_type == 'epton-magnus') then
-
-                if (doublet_order ==1) then
-
-                    ! Get integrals
-                    a = this%calc_a(geom, dod_info, freestream)
-                    a_bar = this%calc_a_bar(geom, dod_info, freestream)
-
-                    ! Calculate influence
-                    phi(1) = this%r*a
-                    phi(2) = phi(1)*geom%r_ls(1) - geom%h*a_bar(1)*this%rs
-                    phi(3) = phi(1)*geom%r_ls(2) - geom%h*a_bar(2)
-
-                    ! Convert to vertex influences
-                    phi(1:3) = matmul(phi(1:3), this%S_mu_inv)
-
-                    ! Wake bottom influence is opposite the top influence
-                    if (this%in_wake) then
-                        phi(4:6) = -phi(1:3)
-                    end if
-
-                end if
-
             end if
         end if
     
@@ -2259,8 +1752,6 @@ contains
                 deallocate(H)
                 deallocate(F)
 
-            else if (influence_calc_type == 'epton-magnus') then
-
             end if
         end if
 
@@ -2323,3 +1814,464 @@ contains
 
     
 end module panel_mod
+
+
+!    function panel_calc_panel_function(this, geom, dod_info, freestream) result(J)
+!        ! Calculates the panel function J(psi)
+!        ! I believe J(psi) is equivalent to H(1,1,3) in Johnson multiplied by some power of |h|
+!
+!        implicit none
+!
+!        class(panel),intent(in) :: this
+!        type(eval_point_geom),intent(in) :: geom
+!        type(dod),intent(in) :: dod_info
+!        type(flow),intent(in) :: freestream
+!
+!        real :: J
+!
+!        integer :: i, i_next
+!        real :: X, Y, C_theta
+!        real,dimension(this%N) :: Q
+!        logical :: standard_case
+!
+!
+!        ! Check if the point is on the panel
+!        if (abs(geom%h) < 1e-12) then
+!
+!            ! Check if the point is interior to the panel
+!            if (all(geom%a < 0.)) then
+!                J = -sign(geom%h)*0.5*pi*(this%rs + 3.) ! E&M Eq. (J.8.163)
+!            else
+!                J = 0.
+!            end if
+!
+!        ! Finite h
+!        else
+!
+!            ! Check for being able to use the standard case (E&M Eq. (J.8.129))
+!            standard_case = .true.
+!            if (this%r == 1) then
+!
+!                if (freestream%s == -1) then
+!
+!                    ! Check g^2 on each edge
+!                    do i=1,this%N
+!                        if (geom%g2(i) <= 1.e-4*max(geom%a(i)**2+geom%h**2, 4.*this%radius**2)) then
+!                            standard_case = .false.
+!                            exit
+!                        end if
+!                    end do
+!
+!                else
+!
+!                    ! Check g^2 on each edge
+!                    do i=1,this%N
+!                        if (geom%g2(i) <= 4.e-4*this%radius**2) then
+!                            standard_case = .false.
+!                            exit
+!                        end if
+!                    end do
+!            
+!                end if
+!
+!            end if
+!
+!            if (standard_case) then
+!
+!                ! Initialize
+!                J = 2.*pi
+!
+!                ! Loop through edges and corners
+!                do i=1,this%N
+!
+!                    i_next = mod(i, this%N)+1
+!
+!                    ! Add edge influence
+!                    if (dod_info%edges_in_dod(i)) then
+!                        J = J - pi
+!                    end if
+!
+!                    ! Add corner influence (this is the corner between edge i and edge i+1; thus, corner i+1)
+!                    if (dod_info%verts_in_dod(i_next)) then
+!
+!                        ! Calculate X and Y (E&M Eq. (J.8.110))
+!                        X = this%t_hat_ls(i,1)*this%t_hat_ls(i_next,1) + &
+!                            this%rs*this%t_hat_ls(i,2)*this%t_hat_ls(i_next,2)
+!                        X = -geom%h**2*X - this%r*geom%a(i)*geom%a(i_next)
+!
+!                        Y = geom%R2(i)*geom%h*(this%t_hat_ls(i,1)*this%t_hat_ls(i_next,2) - &
+!                                               this%t_hat_ls(i,2)*this%t_hat_ls(i_next,1))
+!
+!                        ! Add
+!                        J = J + atan2(Y, X)
+!
+!                    end if
+!
+!                end do
+!
+!                ! Finalize
+!                J = -sign(geom%h)*this%rs*J
+!
+!            else ! Use the special rationalization
+!
+!                ! Calculate C_theta
+!                if (freestream%s == 1 .and. all(geom%a < 0.)) then
+!                    C_theta = 1.
+!                else
+!                    C_theta = 0.
+!                end if
+!
+!                ! Initialize J
+!                J = 2.*pi*C_theta
+!
+!                ! Loop through edges to calculate Q_i
+!                do i=1,this%N
+!
+!                    if (dod_info%edges_in_dod(i)) then
+!
+!                        i_next = mod(i, this%N)+1
+!
+!                        ! Check if both endpoints are in the DoD
+!                        if (dod_info%verts_in_dod(i) .and. dod_info%verts_in_dod(i_next)) then
+!
+!                            ! Calculate intermediate quantities
+!                            Y = abs(geom%h)*geom%a(i)*(geom%R2(i)*geom%l1(i)-geom%R1(i)*geom%l2(i))
+!                            X = geom%h**2*geom%l2(i)*geom%l1(i)
+!                            X = X + geom%a(i)**2*geom%R2(i)*geom%R1(i)
+!
+!                            ! Calculate Q (E&M Eq. (J.8.142))
+!                            Q(i) = atan2(Y, X)
+!
+!                        ! Only the first endpoint is in the DoD
+!                        else if (dod_info%verts_in_dod(i)) then
+!                            Q(i) = -atan2(geom%a(i)*geom%R1(i), abs(geom%h)*geom%l1(i))
+!
+!                        ! Only the second endpoint is in the DoD
+!                        else if (dod_info%verts_in_dod(i_next)) then
+!                            Q(i) = atan2(geom%a(i)*geom%R2(i), abs(geom%h)*geom%l2(i)) - pi*sign(geom%a(i))
+!
+!                        ! Neither endpoint is in the DoD
+!                        else
+!                            Q(i) = -pi*sign(geom%a(i))
+!
+!                        end if
+!
+!                    end if
+!
+!                end do
+!
+!                ! Finalize J
+!                J = -sign(geom%h)*(J + sum(Q))
+!
+!            end if
+!
+!        end if
+!
+!    end function panel_calc_panel_function
+!
+!
+!    function panel_calc_edge_functions(this, geom, dod_info, freestream) result(I)
+!        ! Calculates the edge functions I_i
+!
+!        implicit none
+!
+!        class(panel),intent(in) :: this
+!        type(eval_point_geom),intent(in) :: geom
+!        type(dod),intent(in) :: dod_info
+!        type(flow),intent(in) :: freestream
+!
+!        real,dimension(this%N) :: I
+!
+!        integer :: j, k, j_next
+!        real :: sigma, z, I_hat, phi_q, delta_R, v_hat_bar, dphi_q, denom
+!        real,dimension(3) :: x
+!
+!        ! Loop through edges
+!        do j=1,this%N
+!
+!            j_next = mod(j, this%N)+1
+!
+!            ! Check it's in the DoD
+!            if (dod_info%edges_in_dod(j)) then
+!
+!                ! Non-sonic edges
+!                if (this%tau(j)**2 > 1.e-4) then
+!
+!                    ! Both endpoints are in the DoD
+!                    if (dod_info%verts_in_dod(j) .and. dod_info%verts_in_dod(j_next)) then
+!
+!                        ! Calculate edge function (E&M Eq. (J.8.35) and Johnson Eq. (D.60))
+!                        ! Subsonic edge
+!                        if (this%q(j) == 1) then
+!                            if (geom%l1(j) >= 0. .and. geom%l2(j) >= 0.) then
+!                                I(j) = log((geom%R2(j)+geom%l2(j))/(geom%R1(j)+geom%l1(j)))
+!                            else if (sign(geom%l1(j)) /= sign(geom%l2(j))) then
+!                                I(j) = log((geom%R2(j)+geom%l2(j))*(geom%R1(j)-geom%l1(j))/geom%g2(j))
+!                            else
+!                                I(j) = log((geom%R1(j)-geom%l1(j))/(geom%R2(j)-geom%l2(j)))
+!                            end if
+!
+!                        ! Supersonic edge (E&M Eq. (J.8.35))
+!                        else
+!                            denom = geom%R1(j)*geom%R2(j) + geom%l1(j)*geom%l2(j)
+!                            z = (geom%l2(j)-geom%l1(j))*(geom%l2(j)+geom%l1(j))/denom
+!                            sigma = sign(denom)
+!                            I(j) = atan2(sigma*z, sigma)
+!                        end if
+!
+!                    else ! Only one endpoint
+!
+!                        ! Check magnitude of g
+!                        if (abs(geom%g2(j)) > 1e-4) then
+!
+!                            ! Regular calculation for large g
+!                            if (dod_info%verts_in_dod(j)) then
+!
+!                                if (this%q(j) == 1) then
+!                                    I(j) = 0.5*log((geom%l1(j)+geom%R1(j))/(geom%l1(j)-geom%R1(j)))
+!                                else
+!                                    I(j) = -atan2(geom%R1(j), geom%l1(j))
+!                                end if
+!
+!                            else if (dod_info%verts_in_dod(j_next)) then
+!
+!                                if (this%q(j) == 1) then
+!                                    I(j) = 0.5*log((geom%l2(j)+geom%R2(j))/(geom%l2(j)-geom%R2(j)))
+!                                else
+!                                    I(j) = -atan2(geom%R2(j), geom%l2(j))
+!                                end if
+!
+!                            end if
+!
+!                        ! Special calculation for small g
+!                        else
+!
+!                            ! These are my versions of E&M (J.8.22) which doesn't make any sense to me
+!                            ! Also, E&M Eq. (J.8.18) makes no sense because (v+R)/(v-R) will always be negative, since |v|<R by definition
+!                            if (dod_info%verts_in_dod(j)) then
+!                                !I(j) = sign(geom%l1(j))*(log(abs(geom%l1(j))+geom%R1(j))-0.5*log(geom%g2(j)))
+!                                I(j) = log(geom%l1(j)+geom%R1(j))-0.5*log(geom%g2(j))
+!
+!                            else if (dod_info%verts_in_dod(j_next)) then
+!                                !I(j) = sign(geom%l2(j))*(log(abs(geom%l2(j))+geom%R2(j))-0.5*log(geom%g2(j)))
+!                                I(j) = log(geom%l2(j)+geom%R2(j))-0.5*log(geom%g2(j))
+!                                
+!                            end if
+!
+!                        end if
+!
+!                    end if
+!
+!                ! Nearly-sonic edges
+!                else if (this%tau(j)**2 > 1.e-10) then
+!
+!                    ! Calculate basic quantities
+!                    denom = geom%R1(j)*geom%R2(j) + geom%l1(j)*geom%l2(j)
+!                    z = (geom%l2(j)-geom%l1(j))*(geom%l2(j)+geom%l1(j))/denom
+!                    sigma = sign(denom)
+!
+!                    ! Check for special case
+!                    if (this%q(j) == -1 .and. sigma == -1) then
+!
+!                        ! Calculate edge function
+!                        I(j) = -atan2(-z, -1.)*this%q(j)
+!
+!                    else
+!
+!                        ! Check magnitude of z for calculating phi_q
+!                        if (abs(z) < 0.3) then
+!
+!                            ! Determine phi_q using a series
+!                            phi_q = 0.
+!                            do k=1,100
+!
+!                                ! Calculate current term
+!                                dphi_q = (this%q(j)*z**2)**(k-1)/(2*k+1)
+!
+!                                ! Update
+!                                phi_q = phi_q + dphi_q
+!
+!                                ! If the current term is small enough, we can stop execution (crude, but effective)
+!                                if (abs(dphi_q)< 1e-12) then
+!                                    exit
+!                                end if
+!
+!                            end do
+!                            phi_q = phi_q*this%q(j)
+!
+!                        else
+!
+!                            ! Determine phi_q explicitly
+!                            if (this%q(j) == 1) then
+!                                phi_q = (0.5*log((1.+z)/(1.-z))-z)/z**3
+!                            else
+!                                phi_q = (atan2(z, 1.)-z)/z**3
+!                            end if
+!
+!                        end if
+!
+!                        ! Calculate edge function
+!                        I(j) = z*(1.+z**2*phi_q)
+!
+!                    end if
+!
+!                ! Essentially-sonic edges
+!                else
+!
+!                    ! Calculate intermediate quantities
+!                    delta_R = geom%R2(j)-geom%R1(j)
+!                    v_hat_bar = -0.5*this%tau(j)*(geom%l1(j)+geom%l2(j))
+!
+!                    ! Calculate edge function
+!                    I_hat = delta_R/v_hat_bar
+!                    I(j) = this%tau(j)*this%q(j)*I_hat
+!
+!                end if
+!
+!            else
+!
+!                ! No influence possible
+!                I(j) = 0.
+!
+!            end if
+!
+!        end do
+!
+!    end function panel_calc_edge_functions
+!
+!
+!    function panel_calc_b(this, geom, dod_info, freestream) result(b)
+!        ! Calculates the b integral (E&M section J.6.5.2)
+!
+!        implicit none
+!        
+!        class(panel),intent(in) :: this
+!        type(eval_point_geom),intent(in) :: geom
+!        type(dod),intent(in) :: dod_info
+!        type(flow),intent(in) :: freestream
+!
+!        real :: b, C_theta, J_X, J
+!        real,dimension(this%N) :: I
+!
+!        ! Get the panel function
+!        J = this%calc_panel_function(geom, dod_info, freestream)
+!
+!        ! Get the edge functions
+!        I = this%calc_edge_functions(geom, dod_info, freestream)
+!
+!        ! Calculate J(X)
+!        if (.not. freestream%supersonic) then
+!            J_X = geom%h**2*J + sum(geom%a*I) ! E&M Eq. (J.7.12)
+!        else
+!            if (this%r == 1) then
+!                J_X = -geom%h**2*J - sum(this%q*geom%a*I) ! E&M Eqs. (J.7.20) and (J.7.27)
+!            else
+!                J_X = geom%h**2*J - sum(geom%a*I) ! E&M Eq. (J.7.34)
+!            end if
+!        end if
+!
+!        ! Calculate b
+!        b = -this%r*freestream%K_inv*J_X
+!
+!    end function panel_calc_b
+!
+!
+!    function panel_calc_b_bar(this, geom, dod_info, freestream) result(b_bar)
+!        ! Calculates the b integral vector (E&M section J.6.5.4)
+!
+!        implicit none
+!        
+!        class(panel),intent(in) :: this
+!        type(eval_point_geom),intent(in) :: geom
+!        type(dod),intent(in) :: dod_info
+!        type(flow),intent(in) :: freestream
+!
+!        real,dimension(2) :: b_bar
+!
+!        real,dimension(this%N) :: I
+!        real :: x, y
+!        integer :: j
+!
+!        ! Get edge functions
+!        I = this%calc_edge_functions(geom, dod_info, freestream)
+!
+!        ! Sum along the edges
+!        b_bar = 0.
+!        do j=1,this%N
+!
+!            ! Calculate intermediate quantities
+!            x = -geom%R2(j)*geom%l2(j) + geom%R1(j)*geom%l1(j)
+!            y = geom%a(j)**2 + this%q(j)*geom%h**2
+!
+!            ! Update b_bar
+!            b_bar = b_bar + this%nu_hat_ls(j,:)*(this%q(j)*x + this%rs*y*I(j))
+!
+!        end do
+!        b_bar = -0.5*freestream%K_inv*b_bar
+!
+!    end function panel_calc_b_bar
+!
+!
+!    function panel_calc_a(this, geom, dod_info, freestream) result(a)
+!        ! Calculates the a integral (E&M section J.6.5.1)
+!
+!        implicit none
+!        
+!        class(panel),intent(in) :: this
+!        type(eval_point_geom),intent(in) :: geom
+!        type(dod),intent(in) :: dod_info
+!        type(flow),intent(in) :: freestream
+!
+!        real :: a
+!
+!        a = -freestream%s*freestream%K_inv*this%calc_panel_function(geom, dod_info, freestream)
+!
+!    end function panel_calc_a
+!
+!
+!    function panel_calc_a_bar(this, geom, dod_info, freestream) result(a_bar)
+!        ! Calculates the a integral vector (E&M section J.6.5.3)
+!
+!        implicit none
+!        
+!        class(panel),intent(in) :: this
+!        type(eval_point_geom),intent(in) :: geom
+!        type(dod),intent(in) :: dod_info
+!        type(flow),intent(in) :: freestream
+!
+!        real,dimension(2) :: a_bar
+!        real,dimension(this%N) :: I
+!        integer :: k
+!
+!        ! Get edge functions
+!        I = this%calc_edge_functions(geom, dod_info, freestream)
+!
+!        ! Sum over edges
+!        a_bar = 0.
+!        do k=1,this%N
+!            a_bar = a_bar + this%n_hat_ls(k,:)*this%q(k)*I(k)
+!        end do
+!        a_bar = a_bar*freestream%s*freestream%K_inv
+!
+!    end function panel_calc_a_bar
+!
+!
+!    function panel_calc_B_mat(this, geom, dod_info, freestream) result(B_mat)
+!        ! Calculates the B integral matrix (E&M section J.6.5.5)
+!
+!        implicit none
+!        
+!        class(panel),intent(in) :: this
+!        type(eval_point_geom),intent(in) :: geom
+!        type(dod),intent(in) :: dod_info
+!        type(flow),intent(in) :: freestream
+!
+!        real,dimension(2,2) :: B_mat
+!        real,dimension(this%N) :: I
+!
+!        ! Get edge functions
+!        I = this%calc_edge_functions(geom, dod_info, freestream)
+!
+!        B_mat = 0.
+!
+!    end function panel_calc_B_mat
