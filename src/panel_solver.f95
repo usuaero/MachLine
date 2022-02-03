@@ -22,6 +22,9 @@ module panel_solver_mod
         type(flow) :: freestream
         real :: norm_res, max_res
         real,dimension(3) :: C_F
+        real,dimension(:,:),allocatable :: A
+        real,dimension(:), allocatable :: b
+        integer :: N
 
         contains
 
@@ -29,7 +32,9 @@ module panel_solver_mod
             procedure :: init_dirichlet => panel_solver_init_dirichlet
             procedure :: calc_domains_of_dependence => panel_solver_calc_domains_of_dependence
             procedure :: solve => panel_solver_solve
-            procedure :: solve_dirichlet => panel_solver_solve_dirichlet
+            procedure :: calc_body_influences => panel_solver_calc_body_influences
+            procedure :: calc_wake_influences => panel_solver_calc_wake_influences
+            procedure :: solve_system => panel_solver_solve_system
             procedure :: post_process => panel_solver_post_process
             procedure :: write_report => panel_solver_write_report
 
@@ -230,10 +235,14 @@ contains
         type(surface_mesh),intent(inout) :: body
         character(len=:),allocatable :: report_file
 
-        ! Dirichlet formulation
-        if (this%formulation == 'morino' .or. this%formulation == 'source-free') then
-            call this%solve_dirichlet(body)
-        end if
+        ! Calculate body influences
+        call this%calc_body_influences(body)
+
+        ! Calculate wake influences
+        call this%calc_wake_influences(body)
+
+        ! Solve the linear system
+        call this%solve_system(body)
 
         ! Run post-processor
         call this%post_process(body)
@@ -246,21 +255,18 @@ contains
     end subroutine panel_solver_solve
 
 
-    subroutine panel_solver_solve_dirichlet(this, body)
-        ! Solves one of the Dirichlet formulations for the given conditions
+    subroutine panel_solver_calc_body_influences(this, body)
+        ! Calculates the influence of the body on the control points
 
         implicit none
 
         class(panel_solver),intent(inout) :: this
         type(surface_mesh),intent(inout) :: body
-        character(len=:),allocatable :: report_file
 
         integer :: i, j, k
         real,dimension(:),allocatable :: source_inf, doublet_inf
         integer,dimension(:),allocatable :: source_verts, doublet_verts
-        real,dimension(:,:),allocatable :: A, A_copy
-        real,dimension(:),allocatable :: b
-        integer :: stat, N_sigma, N_mu, N_pressures
+        integer :: stat, N_sigma
         real,dimension(3) :: n_mirrored
         logical :: morino
 
@@ -268,7 +274,6 @@ contains
         morino = this%formulation == 'morino'
 
         ! Set source strengths
-        write(*,'(a)',advance='no') "     Calculating source strengths..."
         if (source_order == 0) then
 
             ! Determine necessary number of source strengths
@@ -279,10 +284,13 @@ contains
             end if
 
             ! Allocate source strength array
-            allocate(body%sigma(N_sigma))
+            allocate(body%sigma(N_sigma), source=0., stat=stat)
+            call check_allocation(stat, "source strength array")
 
             ! Morino formulation
             if (morino) then
+
+                write(*,'(a)',advance='no') "     Calculating source strengths..."
 
                 ! Loop through panels
                 do i=1,body%N_panels
@@ -301,32 +309,29 @@ contains
 
                     end if
                 end do
-            
-            ! Source-free formulation
-            else if (this%formulation == 'source-free') then
-                body%sigma = 0.
-            end if
 
+                write(*,*) "Done."
+
+            end if
         end if
-        write(*,*) "Done."
 
         ! Determine number of doublet strengths (some will be repeats for mirrored vertices)
         if (body%mirrored .and. body%asym_flow) then
-            N_mu = body%N_cp*2
+            this%N = body%N_cp*2
         else
-            N_mu = body%N_cp
+            this%N = body%N_cp
         end if
 
         ! Allocate space for inner potential calculations
-        allocate(body%phi_cp_sigma(N_mu), source=0., stat=stat)
+        allocate(body%phi_cp_sigma(this%N), source=0., stat=stat)
         call check_allocation(stat, "induced potential vector")
 
         ! Allocate AIC matrix
-        allocate(A(N_mu, N_mu), source=0., stat=stat)
+        allocate(this%A(this%N, this%N), source=0., stat=stat)
         call check_allocation(stat, "AIC matrix")
 
         ! Allocate b vector
-        allocate(b(N_mu), source=0., stat=stat)
+        allocate(this%b(this%N), source=0., stat=stat)
         call check_allocation(stat, "b vector")
 
         write(*,'(a)',advance='no') "     Calculating body influences..."
@@ -353,7 +358,7 @@ contains
                 ! Add influence of existing panel on existing control point
                 if (doublet_order == 1) then
                     do k=1,size(doublet_verts)
-                        A(i,doublet_verts(k)) = A(i,doublet_verts(k)) + doublet_inf(k)
+                        this%A(i,doublet_verts(k)) = this%A(i,doublet_verts(k)) + doublet_inf(k)
                     end do
                 end if
 
@@ -391,8 +396,8 @@ contains
                         ! Add doublet influence
                         if (doublet_order == 1) then
                             do k=1,size(doublet_verts)
-                                A(i+body%N_cp,doublet_verts(k)+body%N_cp) = A(i+body%N_cp,doublet_verts(k)+body%N_cp) &
-                                                                            + doublet_inf(k)
+                                this%A(i+body%N_cp,doublet_verts(k)+body%N_cp) = this%A(i+body%N_cp,doublet_verts(k)+body%N_cp) &
+                                                                                 + doublet_inf(k)
                             end do
                         end if
 
@@ -419,7 +424,7 @@ contains
 
                             if (doublet_order == 1) then
                                 do k=1,size(doublet_verts)
-                                    A(i+body%N_cp,doublet_verts(k)) = A(i+body%N_cp,doublet_verts(k)) + doublet_inf(k)
+                                    this%A(i+body%N_cp,doublet_verts(k)) = this%A(i+body%N_cp,doublet_verts(k)) + doublet_inf(k)
                                 end do
                             end if
 
@@ -451,7 +456,7 @@ contains
 
                         if (doublet_order == 1) then
                             do k=1,size(doublet_verts)
-                                A(i,doublet_verts(k)+body%N_cp) = A(i,doublet_verts(k)+body%N_cp) + doublet_inf(k)
+                                this%A(i,doublet_verts(k)+body%N_cp) = this%A(i,doublet_verts(k)+body%N_cp) + doublet_inf(k)
                             end do
                         end if
 
@@ -466,7 +471,7 @@ contains
 
                         if (doublet_order == 1) then
                             do k=1,size(doublet_verts)
-                                A(i,doublet_verts(k)) = A(i,doublet_verts(k)) + doublet_inf(k)
+                                this%A(i,doublet_verts(k)) = this%A(i,doublet_verts(k)) + doublet_inf(k)
                             end do
                         end if
 
@@ -480,22 +485,38 @@ contains
             ! doublet strengths must be the same). The RHS for these rows should still be zero.
             if (body%mirrored .and. body%asym_flow) then
                 if (.not. body%vertices(i)%mirrored_is_unique) then
-                    A(i+body%N_cp,i) = 1.
-                    A(i+body%N_cp,i+body%N_cp) = -1.
+                    this%A(i+body%N_cp,i) = 1.
+                    this%A(i+body%N_cp,i+body%N_cp) = -1.
 
                 ! If the control point is unique, it's target potential will need to be set for the source-free formulation
                 else if (.not. morino) then
-                    b(i+body%N_cp) = -inner(body%cp_mirrored(i,:), this%freestream%c_hat_g)
+                    this%b(i+body%N_cp) = -inner(body%cp_mirrored(i,:), this%freestream%c_hat_g)
                 end if
             end if
 
             ! Set target potential for source-free formulation
             if (.not. morino) then
-                b(i) = -inner(body%control_points(i,:), this%freestream%c_hat_g)
+                this%b(i) = -inner(body%control_points(i,:), this%freestream%c_hat_g)
             end if
 
         end do
+
         write(*,*) "Done."
+    
+    end subroutine panel_solver_calc_body_influences
+
+
+    subroutine panel_solver_calc_wake_influences(this, body)
+        ! Calculates the influence of the wake on the control points
+
+        implicit none
+
+        class(panel_solver),intent(inout) :: this
+        type(surface_mesh),intent(inout) :: body
+
+        integer :: i, j, k
+        real,dimension(:),allocatable ::  doublet_inf
+        integer,dimension(:),allocatable :: doublet_verts
 
         ! Calculate influence of wake
         if (body%wake%N_panels > 0) then
@@ -517,7 +538,7 @@ contains
                     ! Influence on existing control point
                     if (doublet_order == 1) then
                         do k=1,size(doublet_verts)
-                            A(i,doublet_verts(k)) = A(i,doublet_verts(k)) + doublet_inf(k)
+                            this%A(i,doublet_verts(k)) = this%A(i,doublet_verts(k)) + doublet_inf(k)
                         end do
                     end if
 
@@ -534,7 +555,7 @@ contains
                             if (body%vertices(i)%mirrored_is_unique) then
                                 if (doublet_order == 1) then
                                     do k=1,size(doublet_verts)
-                                        A(i+body%N_cp,doublet_verts(k)) = A(i+body%N_cp,doublet_verts(k)) + doublet_inf(k)
+                                        this%A(i+body%N_cp,doublet_verts(k)) = this%A(i+body%N_cp,doublet_verts(k)) + doublet_inf(k)
                                     end do
                                 end if
                             end if
@@ -544,7 +565,7 @@ contains
                             ! Influence of mirrored panel on existing control point
                             if (doublet_order == 1) then
                                 do k=1,size(doublet_verts)
-                                    A(i,doublet_verts(k)) = A(i,doublet_verts(k)) + doublet_inf(k)
+                                    this%A(i,doublet_verts(k)) = this%A(i,doublet_verts(k)) + doublet_inf(k)
                                 end do
                             end if
 
@@ -558,23 +579,33 @@ contains
 
         end if
 
+
+    end subroutine panel_solver_calc_wake_influences
+
+
+    subroutine panel_solver_solve_system(this, body)
+        ! Solves the linear system for the singularity strengths
+
+        implicit none
+
+        class(panel_solver),intent(inout) :: this
+        type(surface_mesh),intent(inout) :: body
+
+        real,dimension(:,:),allocatable :: A_copy
+        integer :: stat, i, j, N_pressures
+
         write(*,'(a)',advance='no') "     Solving linear system..."
 
         ! Make a copy of A (lu_solve replaces A with its decomposition)
-        allocate(A_copy, source=A, stat=stat)
+        allocate(A_copy, source=this%A, stat=stat)
         call check_allocation(stat, "solver copy of AIC matrix")
 
-        ! Set b vector for Morino formulation
-        if (morino) then
-            b = -body%phi_cp_sigma
-        end if
-
         ! Check for uninfluenced/ing points
-        do i=1,N_mu
-            if (all(A(i,:) == 0.)) then
+        do i=1,this%N
+            if (all(this%A(i,:) == 0.)) then
                 write(*,*) "WARNING: Control point ", i, " is not influenced."
             end if
-            if (all(A(:,i) == 0.)) then
+            if (all(this%A(:,i) == 0.)) then
                 write(*,*) "WARNING: Vertex ", i, " exerts no influence."
             end if
         end do
@@ -582,31 +613,36 @@ contains
         ! Write A and b to file
         if (.true.) then
             open(34, file="./dev/A_mat.txt")
-            do i=1,N_mu
-                write(34,*) A(i,:)
+            do i=1,this%N
+                write(34,*) this%A(i,:)
             end do
             close(34)
             open(34, file="./dev/b_vec.txt")
-            do i=1,N_mu
-                write(34,*) b(i)
+            do i=1,this%N
+                write(34,*) this%b(i)
             end do
             close(34)
         end if
 
+        ! Set b vector for Morino formulation
+        if (this%formulation == "morino") then
+            this%b = -body%phi_cp_sigma
+        end if
+
         ! Solve
-        call lu_solve(N_mu, A_copy, b, body%mu)
+        call lu_solve(this%N, A_copy, this%b, body%mu)
         write(*,*) "Done."
 
         ! Clean up memory
         deallocate(A_copy)
 
         ! Calculate potential at control points
-        body%phi_cp_mu = matmul(A, body%mu)
+        body%phi_cp_mu = matmul(this%A, body%mu)
         body%phi_cp = body%phi_cp_mu+body%phi_cp_sigma
 
         ! Calculate residual parameters
-        this%max_res = maxval(abs(body%phi_cp_mu-b))
-        this%norm_res = sqrt(sum((body%phi_cp_mu-b)**2))
+        this%max_res = maxval(abs(body%phi_cp_mu-this%b))
+        this%norm_res = sqrt(sum((body%phi_cp_mu-this%b)**2))
         write(*,*) "        Maximum residual:", this%max_res
         write(*,*) "        Norm of residual:", this%norm_res
 
@@ -623,7 +659,7 @@ contains
             ! Calculate the surface velocity on each panel
             do i=1,body%N_panels
 
-                if (morino) then
+                if (this%formulation == "morino") then
 
                     ! Original panel
                     body%V(i,:) = this%freestream%U*(this%freestream%c_hat_g + body%panels(i)%get_velocity_jump(body%mu, &
@@ -655,7 +691,7 @@ contains
             call check_allocation(stat, "surface velocity vectors")
 
             ! Calculate the surface velocity on each panel
-            if (morino) then
+            if (this%formulation == "morino") then
                 do i=1,body%N_panels
                     body%V(i,:) = this%freestream%U*(this%freestream%c_hat_g &
                                   + body%panels(i)%get_velocity_jump(body%mu, body%sigma, .false., 0))
@@ -668,8 +704,9 @@ contains
 
         end if
         write(*,*) "Done."
-    
-    end subroutine panel_solver_solve_dirichlet
+
+
+    end subroutine panel_solver_solve_system
 
 
     subroutine panel_solver_post_process(this, body)
