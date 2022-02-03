@@ -1359,8 +1359,8 @@ contains
                         nu = nu_M_N_K(m, n, k)
 
                         ! Convert H* to H
-                        ! We need to make this check because h is sometimes zero, which can cause issues if the exponent is negative. If nu is zero, just don't bother.
-                        if (abs(nu) > 1e-12) then
+                        ! If nu or h is zero, this can just be skipped.
+                        if (abs(geom%h) > 1e-12 .and. abs(nu) > 1e-12) then
                             H(m,n,k) = H(m,n,k) + 2.*pi*nu*abs(geom%h)**(m+n-k)
                         end if
                     end do
@@ -1665,6 +1665,12 @@ contains
                     phi(1) = geom%h*H(1,1,3)
                     phi(2) = geom%h*H(1,1,3)*geom%r_ls(1) + geom%h*H(2,1,3)
                     phi(3) = geom%h*H(1,1,3)*geom%r_ls(2) + geom%h*H(1,2,3)
+                    
+                    if (any(isnan(phi)) .and. this%in_wake) then
+                        write(*,*)
+                        write(*,*) phi
+                        write(*,*) geom%h
+                    end if
 
                     ! Convert to vertex influences
                     phi(1:3) = freestream%K_inv*matmul(phi(1:3), this%S_mu_inv)

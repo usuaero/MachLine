@@ -506,6 +506,9 @@ contains
         end do
 
         write(*,*) "Done."
+        if (any(isnan(this%A))) then
+            write(*,*) "NaN in A after body computations"
+        end if
     
     end subroutine panel_solver_calc_body_influences
 
@@ -583,7 +586,6 @@ contains
 
         end if
 
-
     end subroutine panel_solver_calc_wake_influences
 
 
@@ -599,6 +601,16 @@ contains
         integer :: stat, i, j, N_pressures
 
         write(*,'(a)',advance='no') "     Solving linear system..."
+
+        ! Check for NaNs; I'd rather have it fail here than give the user garbage results
+        if (any(isnan(this%A))) then
+            write(*,*) "!!! Invalid value detected in A matrix. Quitting..."
+            stop
+        end if
+        if (any(isnan(this%b))) then
+            write(*,*) "!!! Invalid value detected in b vector. Quitting..."
+            stop
+        end if
 
         ! Make a copy of A (lu_solve replaces A with its decomposition)
         allocate(A_copy, source=this%A, stat=stat)

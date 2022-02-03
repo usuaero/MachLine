@@ -1,8 +1,8 @@
 MachLine Report (c) 2022 USU AeroLab
- Maximum residual:                       NaN
- Norm of residual:                       NaN
- Maximum incompressible pressure coefficient:                       NaN
- Minimum incompressible pressure coefficient:                       NaN
- Cx:                       NaN
- Cy:                       NaN
- Cz:                       NaN
+ Maximum residual:   8.3266726846886741E-016
+ Norm of residual:   3.5011604694187623E-015
+ Maximum incompressible pressure coefficient:  0.22165895172580696     
+ Minimum incompressible pressure coefficient: -0.42758789108566631     
+ Cx: -0.15094325586725063     
+ Cy: -0.10996509191232134     
+ Cz:   6.4716031199599933E-006
