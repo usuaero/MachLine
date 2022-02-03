@@ -31,5 +31,8 @@
 *.out
 *.app
 
+# MachLine-specific files
+*.txt
+
 # python stuff
 __pycache__/
