@@ -32,6 +32,7 @@ module panel_solver_mod
             procedure :: init_dirichlet => panel_solver_init_dirichlet
             procedure :: calc_domains_of_dependence => panel_solver_calc_domains_of_dependence
             procedure :: solve => panel_solver_solve
+            procedure :: calc_source_strengths => panel_solver_calc_source_strengths
             procedure :: calc_body_influences => panel_solver_calc_body_influences
             procedure :: calc_wake_influences => panel_solver_calc_wake_influences
             procedure :: solve_system => panel_solver_solve_system
@@ -236,6 +237,9 @@ contains
         type(surface_mesh),intent(inout) :: body
         character(len=:),allocatable :: report_file
 
+        ! Calculate source strengths
+        call this%calc_source_strengths(body)
+
         ! Calculate body influences
         call this%calc_body_influences(body)
 
@@ -259,23 +263,16 @@ contains
     end subroutine panel_solver_solve
 
 
-    subroutine panel_solver_calc_body_influences(this, body)
-        ! Calculates the influence of the body on the control points
+    subroutine panel_solver_calc_source_strengths(this, body)
+        ! Calculates the necessary source strengths
 
         implicit none
 
-        class(panel_solver),intent(inout) :: this
+        class(panel_solver),intent(in) :: this
         type(surface_mesh),intent(inout) :: body
 
-        integer :: i, j, k
-        real,dimension(:),allocatable :: source_inf, doublet_inf
-        integer,dimension(:),allocatable :: source_verts, doublet_verts
-        integer :: stat, N_sigma
+        integer :: N_sigma, i, stat
         real,dimension(3) :: n_mirrored
-        logical :: morino
-
-        ! Determine formulation
-        morino = this%formulation == 'morino'
 
         ! Set source strengths
         if (source_order == 0) then
@@ -292,7 +289,7 @@ contains
             call check_allocation(stat, "source strength array")
 
             ! Morino formulation
-            if (morino) then
+            if (this%formulation == "morino") then
 
                 write(*,'(a)',advance='no') "     Calculating source strengths..."
 
@@ -318,8 +315,27 @@ contains
 
             end if
         end if
+    
+    end subroutine panel_solver_calc_source_strengths
 
-        ! Determine number of doublet strengths (some will be repeats for mirrored vertices)
+
+    subroutine panel_solver_calc_body_influences(this, body)
+        ! Calculates the influence of the body on the control points
+
+        implicit none
+
+        class(panel_solver),intent(inout) :: this
+        type(surface_mesh),intent(inout) :: body
+
+        integer :: i, j, k, stat
+        real,dimension(:),allocatable :: source_inf, doublet_inf
+        integer,dimension(:),allocatable :: source_verts, doublet_verts
+        logical :: morino
+
+        ! Determine formulation
+        morino = this%formulation == 'morino'
+
+        ! Determine size of linear system
         if (body%mirrored .and. body%asym_flow) then
             this%N = body%N_cp*2
         else
@@ -747,7 +763,7 @@ contains
 
         integer :: N_pressures, i, stat
         real,dimension(:,:),allocatable :: dC_F
-        real,dimension(3) :: n_mirrored
+        real,dimension(3) :: n_mirrored, V_pert
         real :: a, b, c, C_p_vac
 
         write(*,'(a)',advance='no') "     Calculating surface pressures..."
@@ -807,15 +823,18 @@ contains
             allocate(body%C_p_2nd(N_pressures), stat=stat)
             call check_allocation(stat, "second-order surface pressures")
 
-            ! Calculate
+            ! Calculate (E&M Eq. (N..2.43))
             do i=1,N_pressures
 
+                ! Get perturbation velocity in the compressible frame
+                V_pert = matmul(this%freestream%A_g_to_c, body%V(i,:)-this%freestream%v_inf)
+
                 ! Calculate first term
-                body%C_p_2nd(i) = -2.*body%V(i,1)*this%freestream%U_inv
+                body%C_p_2nd(i) = -2.*V_pert(1)*this%freestream%U_inv
 
                 ! Calculate second term
                 body%C_p_2nd(i) = body%C_p_2nd(i) &
-                                  - ((1.-this%freestream%M_inf**2)*body%V(i,1)**2 + body%V(i,2)**2 + body%V(i,3)**2) &
+                                  - ((1.-this%freestream%M_inf**2)*V_pert(1)**2 + V_pert(2)**2 + V_pert(3)**2) &
                                   *this%freestream%U_inv**2
             end do
 

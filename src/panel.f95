@@ -33,7 +33,6 @@ module panel_mod
 
         logical :: in_dod
         logical,dimension(3) :: verts_in_dod, edges_in_dod
-        real,dimension(3) :: s_int_0, s_int_1 ! Edge length fractions at which the domain of dependence intersects each edge
 
     end type dod
 
@@ -694,8 +693,6 @@ contains
                 dod_info%in_dod = .true.
                 dod_info%verts_in_dod = .true.
                 dod_info%edges_in_dod = .true.
-                dod_info%s_int_0 = 0.
-                dod_info%s_int_1 = 1.
 
             ! If it is not guaranteed to be totally out or in, then check all the vertices and edges
             else
@@ -733,8 +730,6 @@ contains
                     ! If both vertices are in, then the edge is in (you gotta love convex subspaces)
                     if (dod_info%verts_in_dod(i) .and. dod_info%verts_in_dod(i_next)) then
                         dod_info%edges_in_dod(i) = .true.
-                        dod_info%s_int_0(i) = 0.
-                        dod_info%s_int_1(i) = 1.
 
                     ! If both aren't in, then the intersection will depend on the edge type
                     else if (this%q(i) == 1) then ! Subsonic
@@ -828,8 +823,6 @@ contains
             dod_info%in_dod = .true.
             dod_info%verts_in_dod = .true.
             dod_info%edges_in_dod = .true.
-            dod_info%s_int_0 = 0.
-            dod_info%s_int_1 = 1.
 
         end if
 
@@ -1665,12 +1658,6 @@ contains
                     phi(1) = geom%h*H(1,1,3)
                     phi(2) = geom%h*H(1,1,3)*geom%r_ls(1) + geom%h*H(2,1,3)
                     phi(3) = geom%h*H(1,1,3)*geom%r_ls(2) + geom%h*H(1,2,3)
-                    
-                    if (any(isnan(phi)) .and. this%in_wake) then
-                        write(*,*)
-                        write(*,*) phi
-                        write(*,*) geom%h
-                    end if
 
                     ! Convert to vertex influences
                     phi(1:3) = freestream%K_inv*matmul(phi(1:3), this%S_mu_inv)
