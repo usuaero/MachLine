@@ -35,6 +35,7 @@ module panel_solver_mod
             procedure :: calc_body_influences => panel_solver_calc_body_influences
             procedure :: calc_wake_influences => panel_solver_calc_wake_influences
             procedure :: solve_system => panel_solver_solve_system
+            procedure :: calc_velocities => panel_solver_calc_velocities
             procedure :: post_process => panel_solver_post_process
             procedure :: write_report => panel_solver_write_report
 
@@ -243,6 +244,9 @@ contains
 
         ! Solve the linear system
         call this%solve_system(body)
+
+        ! Calculate velocities
+        call this%calc_velocities(body)
 
         ! Run post-processor
         call this%post_process(body)
@@ -646,14 +650,27 @@ contains
         write(*,*) "        Maximum residual:", this%max_res
         write(*,*) "        Norm of residual:", this%norm_res
 
+    end subroutine panel_solver_solve_system
+
+
+    subroutine panel_solver_calc_velocities(this, body)
+        ! Calculates the surface velocities
+
+        implicit none
+
+        class(panel_solver),intent(inout) :: this
+        type(surface_mesh),intent(inout) :: body
+
+        integer :: i, N_vels, stat
+
         write(*,'(a)',advance='no') "     Calculating surface velocities..."
 
         ! Determine surface velocities
         if (body%mirrored .and. body%asym_flow) then
 
             ! Allocate velocity storage
-            N_pressures = body%N_panels*2
-            allocate(body%V(N_pressures,3), stat=stat)
+            N_vels = body%N_panels*2
+            allocate(body%V(N_vels,3), stat=stat)
             call check_allocation(stat, "surface velocity vectors")
 
             ! Calculate the surface velocity on each panel
@@ -686,8 +703,8 @@ contains
         else
 
             ! Allocate velocity storage
-            N_pressures = body%N_panels
-            allocate(body%V(N_pressures,3), stat=stat)
+            N_vels = body%N_panels
+            allocate(body%V(N_vels,3), stat=stat)
             call check_allocation(stat, "surface velocity vectors")
 
             ! Calculate the surface velocity on each panel
@@ -705,8 +722,7 @@ contains
         end if
         write(*,*) "Done."
 
-
-    end subroutine panel_solver_solve_system
+    end subroutine panel_solver_calc_velocities
 
 
     subroutine panel_solver_post_process(this, body)
