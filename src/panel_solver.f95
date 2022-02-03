@@ -124,6 +124,8 @@ contains
         ! For symmetric flow on a mirrored mesh, domains of dependence will be the same between mirrored panels and mirrored
         ! control points. So, we just need to calculate the DoD for mirrored control points, and then we're good.
 
+        write(*,'(a)',advance='no') "     Calculating domains of dependence..."
+
         ! Allocate domains of dependence
         if (body%mirrored) then
             if (body%asym_flow) then
@@ -186,6 +188,8 @@ contains
             end do
 
         end do
+
+        write(*,*) "Done"
     
     end subroutine panel_solver_calc_domains_of_dependence
 
