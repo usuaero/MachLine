@@ -20,8 +20,14 @@
     },
 
     "plots":{
-        "show_all": true,
-        "options": "show_all: shows plots at every semispan location one at a time."
+        "process_all": false,
+        "save plots": false,
+        "save plot type": "pdf",
+        "combine pdfs": false,
+        "options": ["process_all: processes all plots and shows plots at every semispan location one at a time",
+                    "save plots: true or false",
+                    "save plot type: pdf, or svg",
+                    "combine pdfs: true or false, this will save combined pdfs in the plot summary file as well as in the respective semispan pdf_plots folder"]
 
     },
     "output": {

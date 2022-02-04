@@ -15,7 +15,7 @@ locations = {
 }
 
 semispan_xy_loc = [2, 4, 7.99, 12, 17.98, 24.99, 32, 44, 46.5]
-points_to_process = ['C_p', 'sigma', 'v']
+points_to_process = ['C_p_inc', 'sigma', 'v']
 
 Nodes = ['10', '17', '25', '45']
 
@@ -70,7 +70,7 @@ for Node in Nodes:
                 lineChartView1.Update()
 
                 # save data
-                save_location = percent_semispan + '_percent_semispan/' + AoA + '_degrees_AoA/' + percent_semispan + '_percent_semispan_' + Node + '_nodes_results.csv'
+                save_location = percent_semispan + '_percent_semispan/' + AoA + '_degrees_AoA/' + percent_semispan + '_percent_semispan_' + Node + '_nodes_results_' + AoA + '_deg_AoA.csv'
                 pvs.SaveData(save_location, proxy=plotOnIntersectionCurves1, PointDataArrays=points_to_process, FieldAssociation='Point Data', Precision=12)
 
                 
