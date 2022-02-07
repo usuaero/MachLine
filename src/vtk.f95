@@ -529,9 +529,10 @@ contains
 
         character(len=:),allocatable,intent(in) :: mesh_file
         integer,intent(out) :: N_verts, N_panels
-        character(len=200) :: dummy_read
         type(vertex),dimension(:),allocatable,intent(inout) :: vertices
         type(panel),dimension(:),allocatable,intent(inout) :: panels
+
+        character(len=200) :: dummy_read
         real,dimension(3) :: vertex_loc
         integer :: i, j, N, i1, i2, i3, i4
 
