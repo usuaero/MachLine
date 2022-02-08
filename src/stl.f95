@@ -109,17 +109,19 @@ contains
                 ! Loop through possible duplicates (don't need to check itself or any previous vertices)
                 do j=i+1,N_verts
 
-                    ! Check if the vertices are the same
-                    if (dist(vertex_coords(i,:), vertex_coords(j,:)) < 1.e-12) then
+                    ! Check we don't already know this is a duplicate of another vertex
+                    if (.not. is_duplicate(j)) then
 
-                        ! Mark duplicate
-                        is_duplicate(j) = .true.
-                        new_ind(j) = i - N_duplicates
+                        ! Check if the vertices are the same
+                        if (dist(vertex_coords(i,:), vertex_coords(j,:)) < 1.e-12) then
 
+                            ! Mark duplicate
+                            is_duplicate(j) = .true.
+                            new_ind(j) = i - N_duplicates
+
+                        end if
                     end if
-
                 end do
-
             else
 
                 ! Update the number of vertices we've skipped
