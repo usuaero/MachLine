@@ -20,24 +20,24 @@ contains
 
         character(len=200) :: dummy_read
         real,dimension(3) :: vertex_loc
-        integer :: N, stat, i, j, i1, i2, i3, N_skipped, i_panel, i_vert
+        integer :: N, stat, i, j, i1, i2, i3, N_duplicates, i_panel, i_vert
         integer,dimension(:,:),allocatable :: panel_vertex_indices
         real,dimension(:,:),allocatable :: vertex_coords
         logical,dimension(:),allocatable :: is_duplicate
-        integer,dimension(:),allocatable :: duplicate_index
+        integer,dimension(:),allocatable :: new_ind
 
         ! Open mesh file
-        open(1, file=mesh_file)
+        open(12, file=mesh_file)
 
             ! Skip header
-            read(1,*)
+            read(12,*)
 
             ! Figure out how many panels are in the mesh
             N_panels = 0
             do
 
                 ! Read line
-                read(1,*,iostat=stat) dummy_read
+                read(12,*,iostat=stat) dummy_read
 
                 ! Check status
                 if (stat == 0) then
@@ -54,7 +54,7 @@ contains
 
             end do
 
-        close(1)
+        close(12)
 
         ! Allocate storage
         N_verts = N_panels*3
@@ -62,26 +62,26 @@ contains
         allocate(vertex_coords(N_verts,3))
 
         ! Reopen file
-        open(1, file=mesh_file)
+        open(12, file=mesh_file)
 
             ! Skip header
-            read(1,*)
+            read(12,*)
 
             ! Read in vertex locations
             do i=1,N_panels
 
                 ! Skip normal and outer loop
-                read(1,*)
-                read(1,*)
+                read(12,*)
+                read(12,*)
 
                 ! Get vertex locations
-                read(1,*) dummy_read, vertex_coords(i*3-2,1), vertex_coords(i*3-2,2), vertex_coords(i*3-2,3)
-                read(1,*) dummy_read, vertex_coords(i*3-1,1), vertex_coords(i*3-1,2), vertex_coords(i*3-1,3)
-                read(1,*) dummy_read, vertex_coords(i*3,1), vertex_coords(i*3,2), vertex_coords(i*3,3)
+                read(12,*) dummy_read, vertex_coords(i*3-2,1), vertex_coords(i*3-2,2), vertex_coords(i*3-2,3)
+                read(12,*) dummy_read, vertex_coords(i*3-1,1), vertex_coords(i*3-1,2), vertex_coords(i*3-1,3)
+                read(12,*) dummy_read, vertex_coords(i*3,1), vertex_coords(i*3,2), vertex_coords(i*3,3)
 
                 ! Skip end loop and end facet
-                read(1,*)
-                read(1,*)
+                read(12,*)
+                read(12,*)
 
                 ! Point panels to vertices
                 panel_vertex_indices(i,1) = i*3-2
@@ -90,21 +90,21 @@ contains
 
             end do
 
-        close(1)
+        close(12)
 
         ! Locate duplicate vertices
         allocate(is_duplicate(N_verts), source=.false.)
-        allocate(duplicate_index(N_verts))
-        N_skipped = 0
+        allocate(new_ind(N_verts))
+        N_duplicates = 0
 
         ! Loop through each vertex and try to find any which are the same
         do i=1,N_verts
 
-            ! Initialize duplicate indices
-            duplicate_index(i) = i
-
             ! Check we don't already know this is a duplicate (this is always false for the first vertex)
             if (.not. is_duplicate(i)) then
+
+                ! Initialize duplicate indices
+                new_ind(i) = i - N_duplicates
 
                 ! Loop through possible duplicates (don't need to check itself or any previous vertices)
                 do j=i+1,N_verts
@@ -114,7 +114,7 @@ contains
 
                         ! Mark duplicate
                         is_duplicate(j) = .true.
-                        duplicate_index(j) = i
+                        new_ind(j) = i - N_duplicates
 
                     end if
 
@@ -123,60 +123,50 @@ contains
             else
 
                 ! Update the number of vertices we've skipped
-                N_skipped = N_skipped + 1
+                N_duplicates = N_duplicates + 1
 
             end if
 
         end do
 
-        ! Allocate vertex and panel arrays
-        N_verts = N_verts - N_skipped
+        ! Determine number of non-duplicate vertices
+        N_verts = N_verts - N_duplicates
+
+        ! Allocate vertex and panel object arrays
         allocate(vertices(N_verts))
         allocate(panels(N_panels))
 
-        ! Initialize vertex objects, skipping duplicates, and panel objects
-        j = 0
+        ! Initialize vertex objects, skipping duplicates
+        do i=1,N_verts+N_duplicates
 
-        ! Loop through panels
-        do i_panel=1,N_panels
+            ! If this vertex is not a duplicate, initialize its object
+            if (.not. is_duplicate(i)) then
 
-            ! Loop through vertices
-            do i_vert=1,3
+                ! Initialize
+                j = new_ind(i)
+                call vertices(j)%init(vertex_coords(i,:), j)
 
-                i = 3*(i_panel-1) + i_vert
+            end if
 
-                ! If this vertex is not a duplicate, update its index and initialize its object
-                if (.not. is_duplicate(i)) then
+            ! Get index of panel and the index of the vertex in that panel
+            i_panel = (i-1)/3+1
+            i_vert = mod(i-1, 3)+1
 
-                    ! Update index in actual vertex array
-                    j = j + 1
+            ! Point panel to non-duplicate vertex
+            panel_vertex_indices(i_panel, i_vert) = new_ind(i)
 
-                    ! Initialize
-                    call vertices(j)%init(vertex_coords(i,:), j)
+        end do
 
-                end if
-
-                ! Point panel to non-duplicate vertex
-                panel_vertex_indices(i_panel, i_vert) = duplicate_index(i)
-
-            end do
+        ! Initialize panel objects
+        do i=1,N_panels
 
             ! Get vertex indices
             i1 = panel_vertex_indices(i,1)
             i2 = panel_vertex_indices(i,2)
             i3 = panel_vertex_indices(i,3)
 
-            if (i_panel==1) then
-                write(*,*) i1
-                write(*,*) i2
-                write(*,*) i3
-                write(*,*) vertices(i1)%loc
-                write(*,*) vertices(i2)%loc
-                write(*,*) vertices(i3)%loc
-            end if
-
             ! Initialize
-            call panels(i_panel)%init(vertices(i1), vertices(i2), vertices(i3), i1, i2, i3, i_panel)
+            call panels(i)%init(vertices(i1), vertices(i2), vertices(i3), i1, i2, i3, i)
 
             ! Add panel index to vertices
             call vertices(i1)%panels%append(i)
