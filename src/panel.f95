@@ -186,6 +186,12 @@ contains
             ! Calculate area from cross product
             this%A = 0.5*norm(cross(d1, d2))
 
+            ! Check for zero area
+            if (this%A < 1.e-12) then
+                write(*,*) "!!! Panel", this%index, "has zero area. This is not allowed."
+                stop
+            end if
+
         end if
 
     end subroutine panel_calc_area

@@ -4,6 +4,7 @@ module surface_mesh_mod
     use json_mod
     use json_xtnsn_mod
     use vtk_mod
+    use stl_mod
     use vertex_mod
     use panel_mod
     use flow_mod
@@ -69,7 +70,7 @@ contains
         ! Set singularity orders
         call json_xtnsn_get(settings, 'singularity_order.doublet', doublet_order, 1)
         call json_xtnsn_get(settings, 'singularity_order.source', source_order, 0)
-        write(*,'(a, i1, a, i1, a)') "     User has selected: ", doublet_order, &
+        write(*,'(a, i1, a, i1, a)') "     User has selected ", doublet_order, &
                                      "-order doublet panels and ", source_order, "-order source panels."
 
         ! Check
@@ -83,19 +84,22 @@ contains
         ! Get mesh file
         call json_get(settings, 'file', mesh_file)
         mesh_file = trim(mesh_file)
-        write(*,*) "    Reading surface mesh in from file: ", mesh_file
+        write(*,'(a, a, a)',advance='no') "     Reading surface mesh in from file ", mesh_file, "..."
 
         ! Determine the type of mesh file
         loc = index(mesh_file, '.')
         extension = mesh_file(loc:len(mesh_file))
 
-        ! Load vtk
+        ! Load mesh file
         if (extension == '.vtk') then
             call load_surface_vtk(mesh_file, this%N_verts, this%N_panels, this%vertices, this%panels)
+        else if (extension == '.stl') then
+            call load_surface_stl(mesh_file, this%N_verts, this%N_panels, this%vertices, this%panels)
         else
-            write(*,*) "TriPan cannot read ", extension, " type mesh files. Quitting..."
+            write(*,*) "MachLine cannot read ", extension, " type mesh files. Quitting..."
             stop
         end if
+        write(*,*) "Done."
 
         ! Display mesh info
         write(*,'(a, i7, a, i7, a)') "     Surface mesh has ", this%N_verts, " vertices and ", this%N_panels, " panels."
