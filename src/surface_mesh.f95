@@ -353,6 +353,13 @@ contains
 
             end if
 
+            ! Check that no panel abuts empty space (i.e. non-watertight mesh)
+            if (any(this%panels(i)%abutting_panels == 0)) then
+                write(*,*) "!!! The supplied mesh is not watertight. Quitting..."
+                write(*,*) "!!! Panel", i, "is missing at least one neighbor."
+                stop
+            end if
+
         end do
 
         ! Allocate edge storage
@@ -739,7 +746,6 @@ contains
         write(*,*) this%N_verts
 
         ! Fix vertex pointers in panel objects (necessary because this%vertices got reallocated)
-        write(*,*) "Updating vertex pointers"
         do i=1,this%N_panels
             do j=1,this%panels(i)%N
                 this%panels(i)%vertices(j)%ptr => this%vertices(this%panels(i)%vertex_indices(j))
@@ -747,7 +753,6 @@ contains
         end do
 
         ! Initialize clones
-        write(*,*) "Initializing clones"
         j = 1
         do i=1,N_discont_verts
 
@@ -788,7 +793,6 @@ contains
                 end do
 
                 ! Copy over adjacent vertices
-                write(*,*) "Copying adjacent vertices"
                 do k=1,this%vertices(ind)%adjacent_vertices%len()
 
                     ! Get adjacent panel index from original vertex
@@ -798,10 +802,8 @@ contains
                     call this%vertices(new_ind)%adjacent_vertices%append(adj_vert_ind)
 
                 end do
-                write(*,*) "Done"
 
                 ! Remove bottom panels from top vertex and give them to the bottom vertex
-                write(*,*) "Shifting bottom panels over"
                 do n=1,this%N_wake_edges
 
                     ! Get edge index
@@ -814,16 +816,12 @@ contains
                         bottom_panel_ind = this%edges(k)%panels(2)
 
                         ! Remove bottom panel index from original vertex
-                        write(*,*) "Deleting bottom panel"
                         call this%vertices(ind)%panels_not_across_wake_edge%delete(bottom_panel_ind)
-                        write(*,*) "Done"
 
                         ! Add to cloned vertex
-                        write(*,*) "Adding to cloned vertex"
                         if (.not. this%vertices(new_ind)%panels_not_across_wake_edge%is_in(bottom_panel_ind)) then
                             call this%vertices(new_ind)%panels_not_across_wake_edge%append(bottom_panel_ind)
                         end if
-                        write(*,*) "Done"
 
                         ! If there are any panels attached to this vertex and abutting the bottom panel, shift them over as well
                         do m=1,size(this%panels(bottom_panel_ind)%abutting_panels)
@@ -835,16 +833,12 @@ contains
                             if (this%panels(abutting_panel_ind)%touches_vertex(ind)) then
 
                                 ! Remove from original vertex
-                                write(*,*) "Deleting abutting panel"
                                 call this%vertices(ind)%panels_not_across_wake_edge%delete(abutting_panel_ind)
-                                write(*,*) "Done"
 
                                 ! Add to cloned vertex
-                                write(*,*) "Adding to cloned vertex"
                                 if (.not. this%vertices(new_ind)%panels_not_across_wake_edge%is_in(abutting_panel_ind)) then
                                     call this%vertices(new_ind)%panels_not_across_wake_edge%append(abutting_panel_ind)
                                 end if
-                                write(*,*) "Done"
 
                             end if
                         end do
@@ -852,7 +846,6 @@ contains
                     end if
 
                 end do
-                write(*,*) "Done"
 
                 ! Update bottom panels to point to cloned vertex
                 do k=1,this%vertices(new_ind)%panels_not_across_wake_edge%len()

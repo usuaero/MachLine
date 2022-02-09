@@ -20,7 +20,7 @@ contains
         type(vertex),dimension(:),allocatable,intent(out) :: vertices
         type(panel),dimension(:),allocatable,intent(out) :: panels
 
-        integer :: i, i1, i2, i3
+        integer :: i, i1, i2, i3, j
         real,dimension(3) :: vert
         character(len=200) :: dummy_read
 
@@ -65,8 +65,6 @@ contains
 
         close(12)
 
-
     end subroutine load_surface_tri
-
     
 end module tri_mod

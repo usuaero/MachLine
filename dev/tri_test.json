@@ -3,7 +3,7 @@
         "freestream_velocity": [100.0, 0.0, 10.0]
     },
     "geometry": {
-        "file": "dev/meshes/DPW-W1.tri",
+        "file": "dev/meshes/F-22.tri",
         "mirror_about" : "xz",
         "spanwise_axis" : "+y",
         "wake_model": {
@@ -22,8 +22,8 @@
         }
     },
     "output": {
-        "body_file" : "dev/results/DPW-W1.vtk",
-        "wake_file" : "dev/results/DPW-W1_wake.vtk",
-        "control_point_file" : "dev/results/DPW-W1_control_points.vtk"
+        "body_file" : "dev/results/F-22.vtk",
+        "wake_file" : "dev/results/F-22_wake.vtk",
+        "control_point_file" : "dev/results/F-22_control_points.vtk"
     }
 }
