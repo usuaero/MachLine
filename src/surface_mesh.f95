@@ -5,6 +5,7 @@ module surface_mesh_mod
     use json_xtnsn_mod
     use vtk_mod
     use stl_mod
+    use tri_mod
     use vertex_mod
     use panel_mod
     use flow_mod
@@ -63,9 +64,11 @@ contains
 
         class(surface_mesh),intent(inout) :: this
         type(json_value),pointer,intent(inout) :: settings
+
         character(len=:),allocatable :: extension
         integer :: loc
         character(len=:),allocatable :: mesh_file, mirror_plane
+        logical :: file_exists
 
         ! Set singularity orders
         call json_xtnsn_get(settings, 'singularity_order.doublet', doublet_order, 1)
@@ -84,17 +87,26 @@ contains
         ! Get mesh file
         call json_get(settings, 'file', mesh_file)
         mesh_file = trim(mesh_file)
-        write(*,'(a, a, a)',advance='no') "     Reading surface mesh in from file ", mesh_file, "..."
+
+        ! Check mesh file exists
+        inquire(file=mesh_file, exist=file_exists)
+        if (.not. file_exists) then
+            write(*,*) "!!! Mesh file", mesh_file, "does not exist. Quitting..."
+            stop
+        end if
 
         ! Determine the type of mesh file
         loc = index(mesh_file, '.')
         extension = mesh_file(loc:len(mesh_file))
 
         ! Load mesh file
+        write(*,'(a, a, a)',advance='no') "     Reading surface mesh in from file ", mesh_file, "..."
         if (extension == '.vtk') then
             call load_surface_vtk(mesh_file, this%N_verts, this%N_panels, this%vertices, this%panels)
         else if (extension == '.stl') then
             call load_surface_stl(mesh_file, this%N_verts, this%N_panels, this%vertices, this%panels)
+        else if (extension == '.tri') then
+            call load_surface_tri(mesh_file, this%N_verts, this%N_panels, this%vertices, this%panels)
         else
             write(*,*) "MachLine cannot read ", extension, " type mesh files. Quitting..."
             stop
@@ -321,6 +333,7 @@ contains
                                 this%panels(i)%abutting_panels(m) = i+this%N_panels
                                 call edge_index1%append(m)
                             end if
+
                             call edge_index2%append(0) ! Really meaningless since the second panel doesn't technically exist
 
                             ! Break out of loop
@@ -723,8 +736,10 @@ contains
 
         ! Update number of vertices
         this%N_verts = this%N_verts + N_clones
+        write(*,*) this%N_verts
 
         ! Fix vertex pointers in panel objects (necessary because this%vertices got reallocated)
+        write(*,*) "Updating vertex pointers"
         do i=1,this%N_panels
             do j=1,this%panels(i)%N
                 this%panels(i)%vertices(j)%ptr => this%vertices(this%panels(i)%vertex_indices(j))
@@ -732,6 +747,7 @@ contains
         end do
 
         ! Initialize clones
+        write(*,*) "Initializing clones"
         j = 1
         do i=1,N_discont_verts
 
@@ -772,6 +788,7 @@ contains
                 end do
 
                 ! Copy over adjacent vertices
+                write(*,*) "Copying adjacent vertices"
                 do k=1,this%vertices(ind)%adjacent_vertices%len()
 
                     ! Get adjacent panel index from original vertex
@@ -781,8 +798,10 @@ contains
                     call this%vertices(new_ind)%adjacent_vertices%append(adj_vert_ind)
 
                 end do
+                write(*,*) "Done"
 
                 ! Remove bottom panels from top vertex and give them to the bottom vertex
+                write(*,*) "Shifting bottom panels over"
                 do n=1,this%N_wake_edges
 
                     ! Get edge index
@@ -795,12 +814,16 @@ contains
                         bottom_panel_ind = this%edges(k)%panels(2)
 
                         ! Remove bottom panel index from original vertex
+                        write(*,*) "Deleting bottom panel"
                         call this%vertices(ind)%panels_not_across_wake_edge%delete(bottom_panel_ind)
+                        write(*,*) "Done"
 
                         ! Add to cloned vertex
+                        write(*,*) "Adding to cloned vertex"
                         if (.not. this%vertices(new_ind)%panels_not_across_wake_edge%is_in(bottom_panel_ind)) then
                             call this%vertices(new_ind)%panels_not_across_wake_edge%append(bottom_panel_ind)
                         end if
+                        write(*,*) "Done"
 
                         ! If there are any panels attached to this vertex and abutting the bottom panel, shift them over as well
                         do m=1,size(this%panels(bottom_panel_ind)%abutting_panels)
@@ -812,12 +835,16 @@ contains
                             if (this%panels(abutting_panel_ind)%touches_vertex(ind)) then
 
                                 ! Remove from original vertex
+                                write(*,*) "Deleting abutting panel"
                                 call this%vertices(ind)%panels_not_across_wake_edge%delete(abutting_panel_ind)
+                                write(*,*) "Done"
 
                                 ! Add to cloned vertex
+                                write(*,*) "Adding to cloned vertex"
                                 if (.not. this%vertices(new_ind)%panels_not_across_wake_edge%is_in(abutting_panel_ind)) then
                                     call this%vertices(new_ind)%panels_not_across_wake_edge%append(abutting_panel_ind)
                                 end if
+                                write(*,*) "Done"
 
                             end if
                         end do
@@ -825,6 +852,7 @@ contains
                     end if
 
                 end do
+                write(*,*) "Done"
 
                 ! Update bottom panels to point to cloned vertex
                 do k=1,this%vertices(new_ind)%panels_not_across_wake_edge%len()
