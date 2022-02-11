@@ -30,15 +30,15 @@ class Swept_Plotting:
 
             colors = 'g'
 
-        elif Node_Count == '17':
+        elif Node_Count == '20':
 
             colors = 'b'
 
-        elif Node_Count == '25':
+        elif Node_Count == '40':
 
             colors = 'c'
 
-        elif Node_Count == '45':
+        elif Node_Count == '80':
 
             colors = 'r'
 
@@ -64,10 +64,10 @@ class Swept_Plotting:
             
             # Constrain which node counts are used near tip conditions
             if percent_semispan == '89.8':
-                self.Nodes = ['17', '25', '45']
+                self.Nodes = ['20', '40', '80']
 
             elif percent_semispan == '94.9':
-                self.Nodes = ['45']
+                self.Nodes = ['40', '80']
 
             # Establish clean list for saving and combining produced plots
             list_of_files =[]
@@ -130,45 +130,20 @@ class Swept_Plotting:
                 merger.close()
 
 
-
-
-
 # Main script
-
 inputfile = "Swept_half_wing_conditions_input.json"
-
 json_string = open(inputfile).read()
 json_vals = json.loads(json_string)
 
 # Identify values to pass from input file
-semispan_xy_loc = {
-    '4.1': 2, 
-    '8.2': 4,
-    '16.3': 7.99,
-    '24.5': 12,
-    '36.7': 17.98,
-    '51.0': 24.99,
-    '65.3': 32,
-    '89.8': 44,
-    '94.9': 46.5
-}
 
-chord = json_vals["geometry"]["Uniform Chord Length"]
+locations = json_vals["geometry"]["semispan locations and AoA"]
+semispan_xy_loc = json_vals["geometry"]["semispan_xy_loc"]
 
-locations = {
-    '4.1': ['0', '2.1', '4.2','6.2','8.3','10.4'], #angles of attack for 4.1% semispan
-    '8.2': ['0', '2.1', '4.2','6.2','8.3','10.4'], #angles of attack for 8.2% semispan
-    '16.3': ['0', '2.1', '4.2','6.2','8.3','10.4'], #angles of attack for 16.3% semispan
-    '24.5': ['0', '2.1', '4.2','6.2','8.3','10.4'], #angles of attack for 24.5% semispan
-    '36.7': ['0', '2.1', '4.2','6.3','8.4','10.5'], #angles of attack for 36.7% semispan
-    '51.0': ['0', '2.1', '4.2','6.3','8.4','10.5'], #angles of attack for 51.0% semispan
-    '65.3': ['0', '2.1', '4.2','6.3','8.5','10.6'], #angles of attack for 65.3% semispan
-    '89.8': ['0', '4.3', '10.7'], #angles of attack for 89.8% semispan
-    '94.9': ['0', '2.1', '4.3','6.4','8.6','10.7'] #angles of attack for 94.9% semispan
-}
+chord = json_vals["geometry"]["uniform chord length"]
+Nodes = json_vals["geometry"]["nodes"]
 
-Nodes = ['10', '17', '25', '45']
-
+# Proccesses either one or all semispan locations based on input file
 if json_vals["plots"]["process_all"]:
 
     Swept_Plotting(locations, chord, Nodes, semispan_xy_loc).get_data()
