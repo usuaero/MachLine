@@ -1,8 +1,8 @@
 MachLine Report (c) 2022 USU AeroLab
- Maximum residual:   2.8421709430404007E-013
- Norm of residual:   4.6643028063295923E-013
- Maximum incompressible pressure coefficient:  0.99659025535917622     
- Minimum incompressible pressure coefficient:  -82974807.859559372     
- Cx:  -13158661.796869418     
- Cy:   356418.01775705069     
- Cz:  -2111.2111546299420     
+ Maximum residual:   2.9976021664879227E-015
+ Norm of residual:   1.4858265480731567E-014
+ Maximum incompressible pressure coefficient:  0.70563939707222101     
+ Minimum incompressible pressure coefficient:  -3328.9889216340257     
+ Cx:  -71.843007478609948     
+ Cy:  -55.298496694405046     
+ Cz:   2.2493302811023113     
