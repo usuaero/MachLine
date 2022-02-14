@@ -213,7 +213,12 @@ contains
         do i=1,this%N_panels
 
             ! Loop through each potential neighbor
-            do j=i+1,this%N_panels
+            neighbor_loop: do j=i+1,this%N_panels
+
+                ! Check if we've found all neighbors for this panel
+                if (all(this%panels(i)%abutting_panels /= 0)) then
+                    exit neighbor_loop
+                end if
 
                 ! Initialize for this panel pair
                 already_found_shared = .false.
@@ -223,6 +228,7 @@ contains
                     do n=1,this%panels(j)%N
 
                         ! Get distance between vertices. This is more robust than checking vertex indices; mesh may not be ideal.
+                        ! TODO : refine mesh import to ensure we can do this purely off of indices
                         distance = dist(this%panels(i)%get_vertex_loc(m), this%panels(j)%get_vertex_loc(n))
 
                         ! Check distance
@@ -252,23 +258,36 @@ contains
                                 ! Store adjacent panels and panel edges
                                 ! This stores the adjacent panels and edges according to the index of that edge
                                 ! for the current panel
-                                if (m-m1 == 1) then
-                                    this%panels(i)%abutting_panels(m1) = j
-                                    this%panels(i)%edges(m1) = panel1%len()
-                                    call edge_index1%append(m1)
-                                else
+
+                                ! Store that j is adjacent to i
+                                if (m1 == 1 .and. m == 3) then ! 3rd edge
                                     this%panels(i)%abutting_panels(m) = j
                                     this%panels(i)%edges(m) = panel1%len()
                                     call edge_index1%append(m)
+                                else ! 1st or 2nd edge
+                                    this%panels(i)%abutting_panels(m1) = j
+                                    this%panels(i)%edges(m1) = panel1%len()
+                                    call edge_index1%append(m1)
                                 end if
-                                if (n-n1 == 1) then
+
+                                ! Check panel j isn't collapsed
+                                if (n == n1) then
+                                    write(*,*)
+                                    write(*,*) "!!! Panel", j, "has a collapsed edge. Quitting..."
+                                    stop
+                                end if
+
+                                ! Store that i is adjacent to j
+                                if ( (n1 == 1 .and. n == 3) .or. (n == 1 .and. n1 == 3) ) then
+                                    n1 = max(n, n1)
                                     this%panels(j)%abutting_panels(n1) = i
                                     this%panels(i)%edges(n1) = panel1%len()
                                     call edge_index2%append(n1)
                                 else
-                                    this%panels(j)%abutting_panels(n) = i
-                                    this%panels(i)%edges(n) = panel1%len()
-                                    call edge_index2%append(n)
+                                    n1 = min(n, n1)
+                                    this%panels(j)%abutting_panels(n1) = i
+                                    this%panels(i)%edges(n1) = panel1%len()
+                                    call edge_index2%append(n1)
                                 end if
                                 
                                 ! Break out of loop
@@ -289,7 +308,7 @@ contains
 
                 end do abutting_loop
 
-            end do
+            end do neighbor_loop
 
             ! For each panel, check if it abuts the mirror plane
             if (this%mirrored) then
@@ -355,8 +374,10 @@ contains
 
             ! Check that no panel abuts empty space (i.e. non-watertight mesh)
             if (any(this%panels(i)%abutting_panels == 0)) then
+                write(*,*)
                 write(*,*) "!!! The supplied mesh is not watertight. Quitting..."
                 write(*,*) "!!! Panel", i, "is missing at least one neighbor."
+                write(*,*) this%panels(i)%abutting_panels
                 stop
             end if
 

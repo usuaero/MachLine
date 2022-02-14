@@ -516,7 +516,6 @@ contains
             end do
 
         close(1)
-        
     
     end subroutine write_point_vtk
 
@@ -576,7 +575,7 @@ contains
                 if (dummy_read(1:2) == '3 ') then
                     read(dummy_read,*) N, i1, i2, i3
                 else
-                    write(*,*) "TriPan supports only triangular panels."
+                    write(*,*) "!!! MachLine supports only triangular panels."
                     stop
                 end if
 
