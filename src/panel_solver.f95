@@ -523,7 +523,9 @@ contains
 
         write(*,*) "Done."
         if (any(isnan(this%A))) then
-            write(*,*) "NaN in A after body computations"
+            write(*,*)
+            write(*,*) "!!! NaN in A after body computations. Quitting..."
+            stop
         end if
     
     end subroutine panel_solver_calc_body_influences
@@ -549,7 +551,7 @@ contains
             do i=1,body%N_cp
 
                 ! Get doublet influence from wake
-                ! Note that for the wake, in the case of mirrored mesh with asymmetric flow, the mirrored wake panels have actually been created.
+                ! Note that for the wake, in the case of mirrored meshes with asymmetric flow, the mirrored wake panels have actually been created.
                 ! In this case, there are technically no mirrored panels, and this loop will cycle through both existing and mirrored panels.
                 ! For symmetric flow, mirrored panels still need to be added as before.
                 do j=1,body%wake%N_panels
@@ -565,6 +567,8 @@ contains
                             this%A(i,doublet_verts(k)) = this%A(i,doublet_verts(k)) + doublet_inf(k)
                         end do
                     end if
+
+                    write(*,*) doublet_verts
 
                     ! Get influence on mirrored control point
                     if (body%mirrored) then
