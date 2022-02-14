@@ -1,11 +1,12 @@
 {
     "flow": {
-        "freestream_velocity": [ 100.0, 0.0, 0.0 ]
+        "freestream_velocity": [ 100.0, 0.0, 10.0 ]
     },
     "geometry": {
         "file": "dev/meshes/half_wing_right.vtk",
         "mirror_about": "xz",
         "wake_model": {
+            "wake_xpresent" : false,
             "N_panels": 1
         },
         "reference": {

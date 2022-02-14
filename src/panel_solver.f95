@@ -24,7 +24,7 @@ module panel_solver_mod
         real,dimension(3) :: C_F
         real,dimension(:,:),allocatable :: A
         real,dimension(:), allocatable :: b
-        integer :: N
+        integer :: N, wake_start
 
         contains
 
@@ -125,7 +125,7 @@ contains
         class(panel_solver),intent(inout) :: this
         type(surface_mesh),intent(inout) :: body
 
-        integer :: i, j, wake_start
+        integer :: i, j
 
         ! For asymmetric flow on a mirrored mesh, all domains of dependence must be calculated. There are no shortcuts.
         ! For symmetric flow on a mirrored mesh, domains of dependence will be the same between mirrored panels and mirrored
@@ -136,15 +136,15 @@ contains
         ! Allocate domains of dependence
         if (body%mirrored) then
             if (body%asym_flow) then
-                wake_start = 2*body%N_panels
-                allocate(this%dod_info(wake_start+body%wake%N_panels, 2*body%N_cp))
+                this%wake_start = 2*body%N_panels
+                allocate(this%dod_info(this%wake_start+body%wake%N_panels, 2*body%N_cp))
             else
-                wake_start = body%N_panels
-                allocate(this%dod_info(wake_start+body%wake%N_panels, 2*body%N_cp))
+                this%wake_start = body%N_panels
+                allocate(this%dod_info(this%wake_start+body%wake%N_panels, 2*body%N_cp))
             end if
         else
-            wake_start = body%N_panels
-            allocate(this%dod_info(wake_start+body%wake%N_panels, body%N_cp))
+            this%wake_start = body%N_panels
+            allocate(this%dod_info(this%wake_start+body%wake%N_panels, body%N_cp))
         end if
 
         ! Loop through control points
@@ -181,13 +181,13 @@ contains
             do i=1,body%wake%N_panels
 
                 ! Check DoD for panel and original control point
-                this%dod_info(wake_start+i,j) = body%wake%panels(i)%check_dod(body%control_points(j,:), this%freestream)
+                this%dod_info(this%wake_start+i,j) = body%wake%panels(i)%check_dod(body%control_points(j,:), this%freestream)
 
                 if (body%mirrored) then
 
                     ! Check DoD for panel and mirrored control point
                     ! No other calculations are needed because mirrored panels are explicitly created in the case of asymmetric flow
-                    this%dod_info(wake_start+i,j+body%N_cp) = body%wake%panels(i)%check_dod(body%cp_mirrored(j,:), &
+                    this%dod_info(this%wake_start+i,j+body%N_cp) = body%wake%panels(i)%check_dod(body%cp_mirrored(j,:), &
                                                                                                this%freestream)
 
                 end if
@@ -556,7 +556,8 @@ contains
 
                     ! Caclulate influence
                     doublet_inf = body%wake%panels(j)%get_doublet_potential(body%control_points(i,:), this%freestream, &
-                                                                            this%dod_info(j,i), doublet_verts, .false.)
+                                                                            this%dod_info(this%wake_start+j,i), doublet_verts, &
+                                                                            .false.)
 
                     ! Influence on existing control point
                     if (doublet_order == 1) then
@@ -570,7 +571,8 @@ contains
 
                         ! Calculate influences on mirrored point
                         doublet_inf = body%wake%panels(j)%get_doublet_potential(body%cp_mirrored(i,:), this%freestream, &
-                                                                                this%dod_info(j,i), doublet_verts, .false.)
+                                                                                this%dod_info(this%wake_start+j,i), doublet_verts, &
+                                                                                .false.)
 
                         if (body%asym_flow) then
 
