@@ -568,8 +568,6 @@ contains
                         end do
                     end if
 
-                    write(*,*) doublet_verts
-
                     ! Get influence on mirrored control point
                     if (body%mirrored) then
 

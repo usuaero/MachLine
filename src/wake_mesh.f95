@@ -53,7 +53,7 @@ contains
         integer :: i, j, k, ind, top_parent_ind, bot_parent_ind, i_start, i_stop, i1, i2, i3, i4
         integer :: N_wake_edge_verts, N_wake_edges
 
-        write(*,'(a)',advance='no') "     Initializing wake..."
+        write(*,'(a e10.4 a)',advance='no') "     Initializing wake with a Trefftz distance of ", trefftz_distance, "..."
 
         ! Determine necessary number of vertices
         N_wake_edge_verts = size(top_edge_verts)

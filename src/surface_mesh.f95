@@ -66,7 +66,7 @@ contains
         type(json_value),pointer,intent(inout) :: settings
 
         character(len=:),allocatable :: extension
-        integer :: loc
+        integer :: loc, i
         character(len=:),allocatable :: mesh_file, mirror_plane
         logical :: file_exists
 
@@ -149,7 +149,7 @@ contains
             this%C_wake_shedding_angle = cos(this%wake_shedding_angle*pi/180.0)
 
             if (this%append_wake) then
-                call json_xtnsn_get(settings, 'wake_model.trefftz_distance', this%trefftz_distance, 100.0) ! Distance from origin to wake termination
+                call json_xtnsn_get(settings, 'wake_model.trefftz_distance', this%trefftz_distance, -1.0) ! Distance from origin to wake termination
                 call json_xtnsn_get(settings, 'wake_model.N_panels', this%N_wake_panels_streamwise, 1)
             end if
         end if
@@ -424,6 +424,7 @@ contains
 
         integer :: i
         type(vtk_out) :: wake_vtk
+        real :: back, front, x
 
         ! Check flow symmetry condition
         this%asym_flow = .false.
@@ -458,9 +459,29 @@ contains
         ! Handle wake creation
         if (this%append_wake) then
 
-            ! For supersonic flows, calculate the Trefftz distance based on the mesh
-            if (freestream%supersonic) then
-                call this%update_supersonic_trefftz_distance(freestream)
+            ! Update default Trefftz distance
+            if (this%trefftz_distance < 0.) then
+
+                ! Supersonic
+                if (freestream%supersonic) then
+                    call this%update_supersonic_trefftz_distance(freestream)
+
+                ! Subsonic
+                else
+
+                    ! Loop through vertices to calculate most downstream and upstream distances
+                    front = inner(freestream%c_hat_g, this%vertices(1)%loc)
+                    back = front
+                    do i=2,this%N_verts
+                        x = inner(freestream%c_hat_g, this%vertices(i)%loc)
+                        front = min(front, x)
+                        back = max(back, x)
+                    end do
+
+                    ! Calculate Trefftz distance
+                    this%trefftz_distance = 20.*x
+
+                end if
             end if
 
             ! Initialize wake

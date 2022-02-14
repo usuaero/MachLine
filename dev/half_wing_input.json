@@ -6,15 +6,13 @@
         "file": "dev/meshes/half_wing_right.vtk",
         "mirror_about": "xz",
         "wake_model": {
-            "wake_xpresent" : false,
-            "N_panels": 1
         },
         "reference": {
             "area": 1.0
         }
     },
     "solver": {
-        "formulation": "source-free",
+        "formulation": "morino",
         "control_point_offset": 1.1e-05
     },
     "post_processing" : {
