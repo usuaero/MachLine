@@ -201,7 +201,7 @@ contains
         class(surface_mesh),intent(inout) :: this
 
 
-        integer :: i, j, m, n, m1, n1
+        integer :: i, j, m, n, m1, n1, temp
         logical :: already_found_shared, dummy
         real :: distance
         integer,dimension(2) :: shared_verts
@@ -240,6 +240,13 @@ contains
                                 ! Store second shared vertex
                                 shared_verts(2) = this%panels(i)%get_vertex_index(m)
 
+                                ! Check order
+                                if (m1 == 1 .and. m == 3) then
+                                    temp = shared_verts(1)
+                                    shared_verts(1) = shared_verts(2)
+                                    shared_verts(2) = temp
+                                end if
+
                                 ! Store in lists for later storage in edge objects
                                 call panel1%append(i)
                                 call panel2%append(j)
@@ -268,13 +275,6 @@ contains
                                     this%panels(i)%abutting_panels(m1) = j
                                     this%panels(i)%edges(m1) = panel1%len()
                                     call edge_index1%append(m1)
-                                end if
-
-                                ! Check panel j isn't collapsed
-                                if (n == n1) then
-                                    write(*,*)
-                                    write(*,*) "!!! Panel", j, "has a collapsed edge. Quitting..."
-                                    stop
                                 end if
 
                                 ! Store that i is adjacent to j
@@ -329,6 +329,13 @@ contains
                             ! Store the second shared vertex
                             shared_verts(2) = n
 
+                            ! Check order
+                            if (m1 == 1 .and. m == 3) then
+                                temp = shared_verts(1)
+                                shared_verts(1) = shared_verts(2)
+                                shared_verts(2) = temp
+                            end if
+
                             ! Store in lists for later storage in arrays
                             call panel1%append(i)
                             call panel2%append(i+this%N_panels)
@@ -347,9 +354,11 @@ contains
                             ! Store adjacent panel
                             if (m-m1 == 1) then
                                 this%panels(i)%abutting_panels(m1) = i+this%N_panels
+                                this%panels(i)%edges(m1) = panel1%len()
                                 call edge_index1%append(m1)
                             else
                                 this%panels(i)%abutting_panels(m) = i+this%N_panels
+                                this%panels(i)%edges(m) = panel1%len()
                                 call edge_index1%append(m)
                             end if
 
@@ -531,7 +540,7 @@ contains
         class(surface_mesh),intent(inout) :: this
         type(flow),intent(in) :: freestream
 
-        integer :: i, j, k, m, n, temp, top_panel, bottom_panel, vert1, vert2
+        integer :: i, j, k, m, n, temp, top_panel, bottom_panel, i_vert_1, i_vert_2
         type(list) :: wake_edge_verts, wake_edges
         real :: C_angle
         real,dimension(3) :: second_normal
@@ -584,46 +593,46 @@ contains
                         call wake_edges%append(k)
 
                         ! Get vertex indices (simplifies later code)
-                        vert1 = this%edges(k)%verts(1)
-                        vert2 = this%edges(k)%verts(2)
+                        i_vert_1 = this%edges(k)%verts(1)
+                        i_vert_2 = this%edges(k)%verts(2)
 
                         ! If this vertex does not already belong to a wake-shedding edge, add it to the list of wake edge vertices
-                        if (this%vertices(vert1)%N_wake_edges == 0) then 
+                        if (this%vertices(i_vert_1)%N_wake_edges == 0) then 
 
                             ! Add the first time
-                            call wake_edge_verts%append(vert1)
-                            this%vertices(vert1)%index_in_wake_vertices = wake_edge_verts%len()
+                            call wake_edge_verts%append(i_vert_1)
+                            this%vertices(i_vert_1)%index_in_wake_vertices = wake_edge_verts%len()
 
                         else if (.not. this%edges(k)%on_mirror_plane) then
 
                             ! It is in an edge, so it will likely need to be cloned
                             ! Unless it's on a mirror plane
-                            this%vertices(vert1)%needs_clone = .true.
+                            this%vertices(i_vert_1)%needs_clone = .true.
 
                         end if
 
                         ! Update number of wake edges touching this vertex
-                        this%vertices(vert1)%N_wake_edges = this%vertices(vert1)%N_wake_edges + 1
-                        this%vertices(vert1)%N_discont_edges = this%vertices(vert1)%N_discont_edges + 1
+                        this%vertices(i_vert_1)%N_wake_edges = this%vertices(i_vert_1)%N_wake_edges + 1
+                        this%vertices(i_vert_1)%N_discont_edges = this%vertices(i_vert_1)%N_discont_edges + 1
 
                         ! Do the same for the other vertex
-                        if (this%vertices(vert2)%N_wake_edges == 0) then 
+                        if (this%vertices(i_vert_2)%N_wake_edges == 0) then 
 
                             ! Add the first time
-                            call wake_edge_verts%append(vert2)
-                            this%vertices(vert2)%index_in_wake_vertices = wake_edge_verts%len()
+                            call wake_edge_verts%append(i_vert_2)
+                            this%vertices(i_vert_2)%index_in_wake_vertices = wake_edge_verts%len()
 
                         else if (.not. this%edges(k)%on_mirror_plane) then
 
                             ! It is in an edge, so it will likely need to be cloned
                             ! Unless it's on a mirror plane
-                            this%vertices(vert2)%needs_clone = .true.
+                            this%vertices(i_vert_2)%needs_clone = .true.
 
                         end if
 
                         ! Update number of wake edges touching this vertex
-                        this%vertices(vert2)%N_wake_edges = this%vertices(vert2)%N_wake_edges + 1
-                        this%vertices(vert2)%N_discont_edges = this%vertices(vert2)%N_discont_edges + 1
+                        this%vertices(i_vert_2)%N_wake_edges = this%vertices(i_vert_2)%N_wake_edges + 1
+                        this%vertices(i_vert_2)%N_discont_edges = this%vertices(i_vert_2)%N_discont_edges + 1
 
                     end if
                 end if
@@ -754,8 +763,8 @@ contains
 
         class(surface_mesh),intent(inout),target :: this
 
-        integer :: i, j, k, m, n, N_clones, i_jango, i_boba, N_discont_verts, i_bottom_panel, i_abutting_panel, adj_vert_ind
-        type(vertex),dimension(:),allocatable :: cloned_vertices, temp_vertices
+        integer :: i, j, k, m, n, N_clones, i_jango, i_boba, N_discont_verts, i_bottom_panel, i_abutting_panel, i_adj_vert
+        type(vertex),dimension(:),allocatable :: temp_vertices
 
         write(*,'(a)',advance='no') "     Cloning vertices at discontinuous edges..."
 
@@ -837,10 +846,10 @@ contains
                 do k=1,this%vertices(i_jango)%adjacent_vertices%len()
 
                     ! Get adjacent panel index from original vertex
-                    call this%vertices(i_jango)%adjacent_vertices%get(k, adj_vert_ind)
+                    call this%vertices(i_jango)%adjacent_vertices%get(k, i_adj_vert)
 
                     ! Copy to new vertex
-                    call this%vertices(i_boba)%adjacent_vertices%append(adj_vert_ind)
+                    call this%vertices(i_boba)%adjacent_vertices%append(i_adj_vert)
 
                 end do
 

@@ -50,7 +50,7 @@ contains
 
         real :: distance, vertex_separation, mirrored_distance, mirrored_vertex_separation
         real,dimension(3) :: loc, start, mirrored_start
-        integer :: i, j, k, ind, top_parent_ind, bot_parent_ind, i_start, i_stop, i1, i2, i3, i4
+        integer :: i, j, k, i_vert, i_top_parent, i_bot_parent, i_start, i_stop, i1, i2, i3, i4
         integer :: N_wake_edge_verts, N_wake_edges
 
         write(*,'(a e10.4 a)',advance='no') "     Initializing wake with a Trefftz distance of ", trefftz_distance, "..."
@@ -69,11 +69,19 @@ contains
         ! Determine vertex placement
         do i=1,N_wake_edge_verts
 
+            ! Get indices
+            i_top_parent = top_edge_verts(i)
+            i_bot_parent = bot_edge_verts(i)
+
             ! Determine distance from origin to wake-shedding vertex in the direction of the freestream flow
-            top_parent_ind = top_edge_verts(i)
-            bot_parent_ind = bot_edge_verts(i)
-            start = mesh_vertices(top_parent_ind)%loc
+            start = mesh_vertices(i_top_parent)%loc
             distance = trefftz_distance-inner(start, freestream%c_hat_g)
+
+            ! Double-check
+            if (dist(start, mesh_vertices(i_bot_parent)%loc) > 1.e-12) then
+                write(*,*) "!!! Wake edge vertices are not identical. Quitting..."
+                stop
+            end if
 
             ! Determine vertex separation
             vertex_separation = distance/N_panels_streamwise
@@ -94,30 +102,30 @@ contains
             do j=1,N_panels_streamwise+1
 
                 ! Determine location
-                ind = (i-1)*(N_panels_streamwise+1)+j
+                i_vert = (i-1)*(N_panels_streamwise+1)+j
                 loc = start + vertex_separation*(j-1)*freestream%c_hat_g
 
                 ! Initialize vertex
-                call this%vertices(ind)%init(loc, ind)
+                call this%vertices(i_vert)%init(loc, i_vert)
 
                 ! Set parent index
-                this%vertices(ind)%top_parent = top_parent_ind
-                this%vertices(ind)%bot_parent = bot_parent_ind
+                this%vertices(i_vert)%top_parent = i_top_parent
+                this%vertices(i_vert)%bot_parent = i_bot_parent
 
                 ! Initialize mirror
                 if (mirrored_and_asym) then
 
                     ! Determine location
-                    ind = ind + this%N_verts/2
+                    i_vert = i_vert + this%N_verts/2
                     mirrored_start = mirror_about_plane(start, mirror_plane)
                     loc = mirrored_start + mirrored_vertex_separation*(j-1)*freestream%c_hat_g
 
                     ! Initialize vertex
-                    call this%vertices(ind)%init(loc, ind)
+                    call this%vertices(i_vert)%init(loc, i_vert)
                     
                     ! Set parent index
-                    this%vertices(ind)%top_parent = top_parent_ind + size(mesh_vertices)
-                    this%vertices(ind)%bot_parent = bot_parent_ind + size(mesh_vertices)
+                    this%vertices(i_vert)%top_parent = i_top_parent + size(mesh_vertices)
+                    this%vertices(i_vert)%bot_parent = i_bot_parent + size(mesh_vertices)
 
                 end if
 
@@ -146,7 +154,7 @@ contains
             do j=1,N_panels_streamwise
 
                 ! Determine index of first triangular panel
-                ind = (k-1)*N_panels_streamwise*2+2*j-1
+                i_vert = (k-1)*N_panels_streamwise*2+2*j-1
 
                 ! Determine vertex indices
                 i1 = (i_start-1)*(N_panels_streamwise+1)+j
@@ -154,19 +162,19 @@ contains
                 i3 = (i_stop-1)*(N_panels_streamwise+1)+j+1
 
                 ! Initialize
-                call this%panels(ind)%init(this%vertices(i1),&
+                call this%panels(i_vert)%init(this%vertices(i1),&
                                            this%vertices(i2),&
                                            this%vertices(i3),&
-                                           i1, i2, i3, ind)
+                                           i1, i2, i3, i_vert)
 
                 ! Specify this panel is in the wake
-                this%panels(ind)%in_wake = .true.
+                this%panels(i_vert)%in_wake = .true.
 
                 ! Create mirror
                 if (mirrored_and_asym) then
 
                     ! Determine index
-                    ind = ind + this%N_panels/2
+                    i_vert = i_vert + this%N_panels/2
 
                     ! Determine vertex indices
                     i1 = (i_start-1)*(N_panels_streamwise+1)+j+this%N_verts/2
@@ -174,18 +182,18 @@ contains
                     i3 = (i_stop-1)*(N_panels_streamwise+1)+j+1+this%N_verts/2
 
                     ! Initialize (order of vertices is reversed to maintain panel orientation through mirror)
-                    call this%panels(ind)%init(this%vertices(i3),&
+                    call this%panels(i_vert)%init(this%vertices(i3),&
                                                this%vertices(i2),&
                                                this%vertices(i1),&
-                                               i3, i2, i1, ind)
+                                               i3, i2, i1, i_vert)
 
                     ! Specify this panel is in the wake
-                    this%panels(ind)%in_wake = .true.
+                    this%panels(i_vert)%in_wake = .true.
 
                 end if
 
                 ! Determine index of second triangular panel
-                ind = (k-1)*N_panels_streamwise*2+2*j
+                i_vert = (k-1)*N_panels_streamwise*2+2*j
 
                 ! Determine vertex indices
                 i1 = (i_start-1)*(N_panels_streamwise+1)+j
@@ -193,19 +201,19 @@ contains
                 i3 = (i_stop-1)*(N_panels_streamwise+1)+j
 
                 ! Initialize
-                call this%panels(ind)%init(this%vertices(i1),&
+                call this%panels(i_vert)%init(this%vertices(i1),&
                                            this%vertices(i2),&
                                            this%vertices(i3),&
-                                           i1, i2, i3, ind)
+                                           i1, i2, i3, i_vert)
 
                 ! Specify this panel is in the wake
-                this%panels(ind)%in_wake = .true.
+                this%panels(i_vert)%in_wake = .true.
 
                 ! Create mirror
                 if (mirrored_and_asym) then
 
                     ! Determine index
-                    ind = ind + this%N_panels/2
+                    i_vert = i_vert + this%N_panels/2
 
                     ! Determine vertex indices
                     i1 = (i_start-1)*(N_panels_streamwise+1)+j+this%N_verts/2
@@ -213,13 +221,13 @@ contains
                     i3 = (i_stop-1)*(N_panels_streamwise+1)+j+this%N_verts/2
 
                     ! Initialize (again, order is reversed)
-                    call this%panels(ind)%init(this%vertices(i3),&
+                    call this%panels(i_vert)%init(this%vertices(i3),&
                                                this%vertices(i2),&
                                                this%vertices(i1),&
-                                               i3, i2, i1, ind)
+                                               i3, i2, i1, i_vert)
 
                     ! Specify this panel is in the wake
-                    this%panels(ind)%in_wake = .true.
+                    this%panels(i_vert)%in_wake = .true.
 
                 end if
 
