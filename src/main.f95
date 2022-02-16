@@ -20,9 +20,13 @@ program main
     type(surface_mesh) :: body_mesh
     type(flow) :: freestream_flow
     type(panel_solver) :: linear_solver
+    real :: start, end
 
     ! Initialize developer things
     eval_count = 0
+
+    ! Start timer
+    call cpu_time(start)
 
     ! Welcome message
     write(*,*) "           /"
@@ -98,7 +102,8 @@ program main
     call body_mesh%output_results(body_file, wake_file, control_point_file)
 
     ! Goodbye
+    call cpu_time(end)
     write(*,*)
-    write(*,*) "MachLine exited successfully."
+    write(*,'(a, f10.4, a)') "MachLine exited successfully. Execution time: ", end-start, " s"
 
 end program main

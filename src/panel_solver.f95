@@ -24,7 +24,7 @@ module panel_solver_mod
         real,dimension(3) :: C_F
         real,dimension(:,:),allocatable :: A
         real,dimension(:), allocatable :: b
-        integer :: N, wake_start
+        integer :: N, wake_start, N_pressures
 
         contains
 
@@ -37,7 +37,8 @@ module panel_solver_mod
             procedure :: calc_wake_influences => panel_solver_calc_wake_influences
             procedure :: solve_system => panel_solver_solve_system
             procedure :: calc_velocities => panel_solver_calc_velocities
-            procedure :: post_process => panel_solver_post_process
+            procedure :: calc_pressures => panel_solver_calc_pressures
+            procedure :: calc_forces => panel_solver_calc_forces
             procedure :: write_report => panel_solver_write_report
 
     end type panel_solver
@@ -64,7 +65,7 @@ contains
         call json_xtnsn_get(solver_settings, 'formulation', this%formulation, 'morino')
         call json_xtnsn_get(solver_settings, 'influence_calculations', influence_calc_type, 'johnson')
 
-        ! Get post-processing settings
+        ! Get pressure rules
         if (freestream%M_inf > 0.) then
             call json_xtnsn_get(processing_settings, 'pressure_rules.incompressible', this%incompressible_rule, .false.)
             call json_xtnsn_get(processing_settings, 'pressure_rules.isentropic', this%isentropic_rule, .true.)
@@ -74,6 +75,7 @@ contains
         end if
         call json_xtnsn_get(processing_settings, 'pressure_rules.second-order', this%second_order_rule, .false.)
 
+        ! Get which pressure rule will be used for force calculation
         if (this%incompressible_rule) then
             call json_xtnsn_get(processing_settings, 'pressure_for_forces', this%pressure_for_forces, 'incompressible')
         else if (this%isentropic_rule) then
@@ -81,6 +83,22 @@ contains
         else if (this%second_order_rule) then
             call json_xtnsn_get(processing_settings, 'pressure_for_forces', this%pressure_for_forces, 'second-order')
         end if
+
+        ! Check the force calculation pressure rule is available
+        if (this%pressure_for_forces == 'incompressible' .and. .not. this%incompressible_rule) then
+            write(*,*) "!!! Incompressible pressure rule is not available for force calculation. Quitting..."
+            stop
+        end if
+        if (this%pressure_for_forces == 'isentropic' .and. .not. this%isentropic_rule) then
+            write(*,*) "!!! Isentropic pressure rule is not available for force calculation. Quitting..."
+            stop
+        end if
+        if (this%pressure_for_forces == 'second-order' .and. .not. this%second_order_rule) then
+            write(*,*) "!!! Second-order pressure rule is not available for force calculation. Quitting..."
+            stop
+        end if
+
+        write(*,*) "    The ", this%pressure_for_forces, " pressure rule will be used for force calculation."
 
         ! Store
         this%freestream = freestream
@@ -252,8 +270,11 @@ contains
         ! Calculate velocities
         call this%calc_velocities(body)
 
-        ! Run post-processor
-        call this%post_process(body)
+        ! Calculate pressures
+        call this%calc_pressures(body)
+
+        ! Calculate forces
+        call this%calc_forces(body)
 
         ! Write report
         if (report_file /= 'none') then
@@ -618,7 +639,7 @@ contains
         type(surface_mesh),intent(inout) :: body
 
         real,dimension(:,:),allocatable :: A_copy
-        integer :: stat, i, j, N_pressures
+        integer :: stat, i, j
 
         write(*,'(a)',advance='no') "     Solving linear system..."
 
@@ -757,21 +778,20 @@ contains
     end subroutine panel_solver_calc_velocities
 
 
-    subroutine panel_solver_post_process(this, body)
-        ! Performs post-processing actions
+    subroutine panel_solver_calc_pressures(this, body)
+        ! Calculates the surface pressures
 
         implicit none
 
         class(panel_solver),intent(inout) :: this
         type(surface_mesh),intent(inout) :: body
 
-        integer :: N_pressures, i, stat
-        real,dimension(:,:),allocatable :: dC_F
-        real,dimension(3) :: n_mirrored, V_pert
+        integer :: i, stat
+        real,dimension(3) :: V_pert
         real :: a, b, c, C_p_vac
 
         write(*,'(a)',advance='no') "     Calculating surface pressures..."
-        N_pressures = size(body%V)/3
+        this%N_pressures = size(body%V)/3
 
         ! Calculate vacuum pressure coefficient
         C_p_vac = -2./(this%freestream%gamma*this%freestream%M_inf**2)
@@ -780,11 +800,11 @@ contains
         if (this%incompressible_rule) then
 
             ! Allocate storage
-            allocate(body%C_p_inc(N_pressures), stat=stat)
+            allocate(body%C_p_inc(this%N_pressures), stat=stat)
             call check_allocation(stat, "incompressible surface pressures")
 
             ! Calculate
-            do i=1,N_pressures
+            do i=1,this%N_pressures
                 body%C_p_inc(i) = 1.-inner(body%V(i,:), body%V(i,:))*this%freestream%U_inv**2
             end do
 
@@ -799,11 +819,11 @@ contains
             c = this%freestream%gamma/(this%freestream%gamma-1.)
 
             ! Allocate storage
-            allocate(body%C_p_ise(N_pressures), stat=stat)
+            allocate(body%C_p_ise(this%N_pressures), stat=stat)
             call check_allocation(stat, "isentropic surface pressures")
 
             ! Calculate
-            do i=1,N_pressures
+            do i=1,this%N_pressures
                 
                 ! Incompressible first
                 body%C_p_ise(i) = 1.-inner(body%V(i,:), body%V(i,:))*this%freestream%U_inv**2
@@ -824,11 +844,11 @@ contains
         if (this%second_order_rule) then
 
             ! Allocate storage
-            allocate(body%C_p_2nd(N_pressures), stat=stat)
+            allocate(body%C_p_2nd(this%N_pressures), stat=stat)
             call check_allocation(stat, "second-order surface pressures")
 
             ! Calculate (E&M Eq. (N..2.43))
-            do i=1,N_pressures
+            do i=1,this%N_pressures
 
                 ! Get perturbation velocity in the compressible frame
                 V_pert = matmul(this%freestream%A_g_to_c, body%V(i,:)-this%freestream%v_inf)
@@ -867,10 +887,24 @@ contains
             write(*,*) "        Vacuum pressure coefficient:", C_p_vac
         end if
 
+    end subroutine panel_solver_calc_pressures
+
+
+    subroutine panel_solver_calc_forces(this, body)
+        ! Calculates the forces
+
+        implicit none
+
+        class(panel_solver),intent(inout) :: this
+        type(surface_mesh),intent(inout) :: body
+
+        integer :: i, stat
+        real,dimension(3) :: n_mirrored
+
         write(*,'(a)',advance='no') "     Calculating forces..."
 
         ! Allocate force storage
-        allocate(dC_F(N_pressures,3), stat=stat)
+        allocate(body%dC_f(this%N_pressures,3), stat=stat)
         call check_allocation(stat, "forces")
 
         ! Calculate total forces
@@ -881,34 +915,34 @@ contains
             case ('incompressible')
 
                 ! Discrete force coefficient acting on panel
-                dC_F(i,:) = body%C_p_inc(i)*body%panels(i)%A*body%panels(i)%normal
+                body%dC_f(i,:) = body%C_p_inc(i)*body%panels(i)%A*body%panels(i)%normal
 
                 ! Mirror
                 if (body%mirrored .and. body%asym_flow) then
                     n_mirrored = mirror_about_plane(body%panels(i)%normal, body%mirror_plane)
-                    dC_F(i+body%N_panels,:) = body%C_p_inc(i+body%N_panels)*body%panels(i)%A*n_mirrored
+                    body%dC_f(i+body%N_panels,:) = body%C_p_inc(i+body%N_panels)*body%panels(i)%A*n_mirrored
                 end if
 
             case ('isentropic')
 
                 ! Discrete force coefficient acting on panel
-                dC_F(i,:) = body%C_p_ise(i)*body%panels(i)%A*body%panels(i)%normal
+                body%dC_f(i,:) = body%C_p_ise(i)*body%panels(i)%A*body%panels(i)%normal
 
                 ! Mirror
                 if (body%mirrored .and. body%asym_flow) then
                     n_mirrored = mirror_about_plane(body%panels(i)%normal, body%mirror_plane)
-                    dC_F(i+body%N_panels,:) = body%C_p_ise(i+body%N_panels)*body%panels(i)%A*n_mirrored
+                    body%dC_f(i+body%N_panels,:) = body%C_p_ise(i+body%N_panels)*body%panels(i)%A*n_mirrored
                 end if
 
             case ('second-order')
 
                 ! Discrete force coefficient acting on panel
-                dC_F(i,:) = body%C_p_2nd(i)*body%panels(i)%A*body%panels(i)%normal
+                body%dC_f(i,:) = body%C_p_2nd(i)*body%panels(i)%A*body%panels(i)%normal
 
                 ! Mirror
                 if (body%mirrored .and. body%asym_flow) then
                     n_mirrored = mirror_about_plane(body%panels(i)%normal, body%mirror_plane)
-                    dC_F(i+body%N_panels,:) = body%C_p_2nd(i+body%N_panels)*body%panels(i)%A*n_mirrored
+                    body%dC_f(i+body%N_panels,:) = body%C_p_2nd(i+body%N_panels)*body%panels(i)%A*n_mirrored
                 end if
 
             end select
@@ -916,14 +950,14 @@ contains
         end do
 
         ! Sum discrete forces
-        this%C_F(:) = sum(dC_F, dim=1)/body%S_ref
+        this%C_F(:) = sum(body%dC_f, dim=1)/body%S_ref
 
         write(*,*) "Done."
         write(*,*) "        Cx:", this%C_F(1)
         write(*,*) "        Cy:", this%C_F(2)
         write(*,*) "        Cz:", this%C_F(3)
     
-    end subroutine panel_solver_post_process
+    end subroutine panel_solver_calc_forces
 
 
     subroutine panel_solver_write_report(this, body, report_file)

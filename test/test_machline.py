@@ -28,7 +28,7 @@ def run_machline(input_file, remove_input=False):
             report = report_handle.readlines()
 
         # Check if MachLine thinks it was successful
-        success = result.stdout.split()[-1] == "successfully."
+        success = "MachLine exited successfully." in result.stdout
 
     else:
 

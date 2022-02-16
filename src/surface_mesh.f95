@@ -23,14 +23,14 @@ module surface_mesh_mod
         type(panel),allocatable,dimension(:) :: panels
         type(edge),allocatable,dimension(:) :: edges
         type(wake_mesh) :: wake
-        integer,allocatable,dimension(:) :: wake_edge_verts, wake_edge_indices
-        real :: wake_shedding_angle, C_wake_shedding_angle, trefftz_distance, C_min_panel_angle
+        integer,allocatable,dimension(:) :: wake_edge_verts
+        real :: C_wake_shedding_angle, trefftz_distance, C_min_panel_angle
         integer :: N_wake_panels_streamwise
         logical :: wake_present, append_wake
         real,dimension(:,:),allocatable :: control_points, cp_mirrored
         real,dimension(:),allocatable :: phi_cp, phi_cp_sigma, phi_cp_mu ! Induced potentials at control points
         real,dimension(:),allocatable :: C_p_inc, C_p_ise, C_p_2nd ! Surface pressure coefficients
-        real,dimension(:,:),allocatable :: V ! Surface velocities
+        real,dimension(:,:),allocatable :: V, dC_f ! Surface velocities and pressure forces
         real :: control_point_offset
         logical :: mirrored ! Whether the mesh is to be mirrored about any planes
         integer :: mirror_plane ! Index of the plane across which the mesh is mirrored (1: yz, 2: xz, 3: xy); this is the index of the normal to that plane
@@ -71,6 +71,7 @@ contains
         integer :: loc, i
         character(len=:),allocatable :: mesh_file, mirror_plane
         logical :: file_exists
+        real :: wake_shedding_angle
 
         ! Set singularity orders
         call json_xtnsn_get(settings, 'singularity_order.doublet', doublet_order, 1)
@@ -147,8 +148,8 @@ contains
 
         ! Store settings for wake models
         if (this%wake_present) then
-            call json_xtnsn_get(settings, 'wake_model.wake_shedding_angle', this%wake_shedding_angle, 90.0) ! Maximum allowable angle between panel normals without having separation
-            this%C_wake_shedding_angle = cos(this%wake_shedding_angle*pi/180.0)
+            call json_xtnsn_get(settings, 'wake_model.wake_shedding_angle', wake_shedding_angle, 90.0) ! Maximum allowable angle between panel normals without having separation
+            this%C_wake_shedding_angle = cos(wake_shedding_angle*pi/180.0)
 
             if (this%append_wake) then
                 call json_xtnsn_get(settings, 'wake_model.trefftz_distance', this%trefftz_distance, -1.0) ! Distance from origin to wake termination
@@ -494,7 +495,7 @@ contains
         type(flow),intent(in) :: freestream
 
         integer :: i, j, k, m, n, temp, top_panel, bottom_panel, i_vert_1, i_vert_2
-        type(list) :: wake_edge_verts, wake_edges
+        type(list) :: wake_edge_verts
         real :: C_angle
         real,dimension(3) :: second_normal
 
@@ -541,9 +542,6 @@ contains
 
                         ! Update number of wake-shedding edges
                         this%N_wake_edges = this%N_wake_edges + 1
-
-                        ! Store the index of this edge as being wake-shedding
-                        call wake_edges%append(k)
 
                         ! Get vertex indices (simplifies later code)
                         i_vert_1 = this%edges(k)%verts(1)
@@ -614,16 +612,6 @@ contains
             ! Store vertices into array
             call wake_edge_verts%get(i, m)
             this%wake_edge_verts(i) = m
-
-        end do
-
-        ! Store wake edge indices in array
-        allocate(this%wake_edge_indices(this%N_wake_edges))
-        do i=1,this%N_wake_edges
-
-            ! Store index
-            call wake_edges%get(i, m)
-            this%wake_edge_indices(i) = m
 
         end do
 
@@ -1049,7 +1037,7 @@ contains
         end do
 
         ! Calculate Trefftz distance
-        this%trefftz_distance = 20.*x
+        this%trefftz_distance = 20.*abs(front-back)
     
     end subroutine surface_mesh_update_subsonic_trefftz_distance
 
@@ -1168,6 +1156,7 @@ contains
             end if
             call body_vtk%write_cell_scalars(panel_inclinations, "inclination")
             call body_vtk%write_cell_vectors(this%v(1:this%N_panels,:), "v")
+            call body_vtk%write_cell_vectors(this%dC_f(1:this%N_panels,:), "dC_f")
             call body_vtk%write_point_scalars(this%mu(1:this%N_cp), "mu")
             call body_vtk%finish()
 

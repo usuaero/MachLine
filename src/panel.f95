@@ -188,7 +188,7 @@ contains
 
             ! Check for zero area
             if (this%A < 1.e-12) then
-                write(*,*) "!!! Panel", this%index, "has zero area. This is not allowed."
+                write(*,*) "!!! Panel", this%index, "has zero area. Quitting..."
                 stop
             end if
 
