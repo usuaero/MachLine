@@ -54,7 +54,7 @@ contains
                 read(12,*) i1, i2, i3
 
                 ! Initialize
-                call panels(i)%init(vertices(i1), vertices(i2), vertices(i3), i1, i2, i3, i)
+                call panels(i)%init(vertices(i1), vertices(i2), vertices(i3), i)
 
                 ! Add panel index to vertices
                 call vertices(i1)%panels%append(i)

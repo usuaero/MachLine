@@ -516,6 +516,7 @@ contains
                     call wake_vtk%begin(wake_file)
                     call wake_vtk%write_points(this%wake%vertices)
                     call wake_vtk%write_panels(this%wake%panels)
+                    call wake_vtk%write_cell_normals(this%wake%panels)
                     call wake_vtk%finish()
 
                 end if
@@ -1137,6 +1138,7 @@ contains
                 call wake_vtk%begin(wake_file)
                 call wake_vtk%write_points(this%wake%vertices)
                 call wake_vtk%write_panels(this%wake%panels)
+                call wake_vtk%write_cell_normals(this%wake%panels)
 
                 ! Calculate doublet strengths
                 allocate(mu_on_wake(this%wake%N_verts))

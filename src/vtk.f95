@@ -24,6 +24,7 @@ module vtk_mod
             procedure :: write_cell_scalars => vtk_out_write_cell_scalars
             procedure :: write_point_vectors => vtk_out_write_point_vectors
             procedure :: write_cell_vectors => vtk_out_write_cell_vectors
+            procedure :: write_cell_normals => vtk_out_write_cell_normals
             procedure :: finish => vtk_out_finish
 
     end type vtk_out
@@ -248,6 +249,37 @@ contains
         end do
     
     end subroutine vtk_out_write_cell_vectors
+
+
+    subroutine vtk_out_write_cell_normals(this, panels)
+        ! Writes out cell normals
+
+        implicit none
+
+        class(vtk_out),intent(inout) :: this
+        type(panel),dimension(:),intent(in) :: panels
+
+        integer :: N_cells, i
+
+        ! Write cell data header
+        N_cells = size(panels)
+        if (.not. this%cell_data_begun) then
+            
+            ! Write out header
+            write(this%unit,'(a i20)') "CELL_DATA", N_cells
+
+            ! Set toggle that header has already been written
+            this%cell_data_begun = .true.
+
+        end if
+
+        ! Write vectors
+        write(1,'(a)') "NORMALS normals float"
+        do i=1,N_cells
+            write(1,'(e20.12, e20.12, e20.12)') panels(i)%normal(1), panels(i)%normal(2), panels(i)%normal(3)
+        end do
+    
+    end subroutine vtk_out_write_cell_normals
 
 
     subroutine vtk_out_write_point_scalars(this, data, label)
@@ -581,8 +613,7 @@ contains
 
                 ! Initialize triangular panel
                 if (N == 3) then
-                    call panels(i)%init(vertices(i1+1), vertices(i2+1), vertices(i3+1),&
-                                        i1+1, i2+1, i3+1, i) ! Need +1 because VTK uses 0-based indexing
+                    call panels(i)%init(vertices(i1+1), vertices(i2+1), vertices(i3+1), i) ! Need +1 because VTK uses 0-based indexing
 
                     ! Add panel index to vertices
                     call vertices(i1+1)%panels%append(i)

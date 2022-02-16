@@ -60,6 +60,7 @@ module panel_mod
         logical :: in_wake ! Whether this panel belongs to a wake mesh
         integer,dimension(3) :: abutting_panels ! Indices of panels abutting this one
         integer,dimension(3) :: edges ! Indices of this panel's edges
+        integer :: top_parent, bot_parent ! Indices of the top and bottom panels this panel's strength is determined by (for a wake panel w/ constant doublet strength)
         real :: r ! Panel inclination indicator; r=-1 -> superinclined, r=1 -> subinclined
         real,dimension(3) :: tau ! Edge inclination parameter
         integer,dimension(3) :: q ! Edge type indicator; q=1 -> subsonic, q=-1 -> supersonic
@@ -89,13 +90,6 @@ module panel_mod
             procedure :: calc_F_integrals => panel_calc_F_integrals
             procedure :: calc_H_integrals => panel_calc_H_integrals
             procedure :: calc_integrals => panel_calc_integrals
-            !procedure :: calc_panel_function => panel_calc_panel_function
-            !procedure :: calc_edge_functions => panel_calc_edge_functions
-            !procedure :: calc_b => panel_calc_b
-            !procedure :: calc_b_bar => panel_calc_b_bar
-            !procedure :: calc_a => panel_calc_a
-            !procedure :: calc_a_bar => panel_calc_a_bar
-            !procedure :: calc_B_mat => panel_calc_B_mat
             procedure :: get_source_potential => panel_get_source_potential
             procedure :: get_source_velocity => panel_get_source_velocity
             procedure :: get_doublet_potential => panel_get_doublet_potential
@@ -108,14 +102,14 @@ module panel_mod
 contains
 
 
-    subroutine panel_init_3(this, v1, v2, v3, i1, i2, i3, index)
+    subroutine panel_init_3(this, v1, v2, v3, index)
         ! Initializes a 3-panel
 
         implicit none
 
         class(panel),intent(inout) :: this
         type(vertex),intent(in),target :: v1, v2, v3
-        integer,intent(in) :: i1, i2, i3, index
+        integer,intent(in) :: index
 
         ! Set number of sides
         this%N = 3
@@ -124,17 +118,23 @@ contains
         allocate(this%vertices(this%N))
         allocate(this%vertex_indices(this%N))
 
-        ! Store info
+        ! Assign vertex pointers
         this%vertices(1)%ptr => v1
         this%vertices(2)%ptr => v2
         this%vertices(3)%ptr => v3
-        this%vertex_indices(1) = i1
-        this%vertex_indices(2) = i2
-        this%vertex_indices(3) = i3
+
+        ! Store vertex indices
+        this%vertex_indices(1) = v1%index
+        this%vertex_indices(2) = v2%index
+        this%vertex_indices(3) = v3%index
+
+        ! Store the index of the panel
         this%index = index
 
         ! Initialize a few things
         this%abutting_panels = 0
+        this%top_parent = 0
+        this%bot_parent = 0
 
         call this%calc_derived_properties()
 

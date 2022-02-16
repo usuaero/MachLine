@@ -162,10 +162,7 @@ contains
                 i3 = (i_stop-1)*(N_panels_streamwise+1)+j+1
 
                 ! Initialize
-                call this%panels(i_vert)%init(this%vertices(i1),&
-                                           this%vertices(i2),&
-                                           this%vertices(i3),&
-                                           i1, i2, i3, i_vert)
+                call this%panels(i_vert)%init(this%vertices(i1), this%vertices(i2), this%vertices(i3), i_vert)
 
                 ! Specify this panel is in the wake
                 this%panels(i_vert)%in_wake = .true.
@@ -182,10 +179,7 @@ contains
                     i3 = (i_stop-1)*(N_panels_streamwise+1)+j+1+this%N_verts/2
 
                     ! Initialize (order of vertices is reversed to maintain panel orientation through mirror)
-                    call this%panels(i_vert)%init(this%vertices(i3),&
-                                               this%vertices(i2),&
-                                               this%vertices(i1),&
-                                               i3, i2, i1, i_vert)
+                    call this%panels(i_vert)%init(this%vertices(i3), this%vertices(i2), this%vertices(i1), i_vert)
 
                     ! Specify this panel is in the wake
                     this%panels(i_vert)%in_wake = .true.
@@ -201,10 +195,7 @@ contains
                 i3 = (i_stop-1)*(N_panels_streamwise+1)+j
 
                 ! Initialize
-                call this%panels(i_vert)%init(this%vertices(i1),&
-                                           this%vertices(i2),&
-                                           this%vertices(i3),&
-                                           i1, i2, i3, i_vert)
+                call this%panels(i_vert)%init(this%vertices(i1), this%vertices(i2), this%vertices(i3), i_vert)
 
                 ! Specify this panel is in the wake
                 this%panels(i_vert)%in_wake = .true.
@@ -221,10 +212,7 @@ contains
                     i3 = (i_stop-1)*(N_panels_streamwise+1)+j+this%N_verts/2
 
                     ! Initialize (again, order is reversed)
-                    call this%panels(i_vert)%init(this%vertices(i3),&
-                                               this%vertices(i2),&
-                                               this%vertices(i1),&
-                                               i3, i2, i1, i_vert)
+                    call this%panels(i_vert)%init(this%vertices(i3), this%vertices(i2), this%vertices(i1), i_vert)
 
                     ! Specify this panel is in the wake
                     this%panels(i_vert)%in_wake = .true.
