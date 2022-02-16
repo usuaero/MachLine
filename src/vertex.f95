@@ -14,6 +14,7 @@ module vertex_mod
         real,dimension(3) :: normal ! Normal vector associated with this control point
         real :: l_avg ! Average of the edge lengths adjacent to this vertex
         type(list) :: adjacent_vertices ! List of indices for the vertices which share an edge with this vertex
+        type(list) :: adjacent_edges ! List of indices for the edges which touch this vertex
         type(list) :: panels ! List of indices for the panels which connect to this vertex
         type(list) :: panels_not_across_wake_edge ! List of indices for the panels which connect to this vertex not across a wake-shedding edge
         integer :: N_wake_edges ! Number of wake edges this vertex belongs to

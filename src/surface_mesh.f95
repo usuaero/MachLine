@@ -203,7 +203,7 @@ contains
         class(surface_mesh),intent(inout) :: this
 
 
-        integer :: i, j, m, n, m1, n1, temp, count
+        integer :: i, j, m, n, m1, n1, temp, count, i_edge
         logical :: already_found_shared, dummy
         real :: distance
         integer,dimension(2) :: shared_verts
@@ -258,6 +258,8 @@ contains
                                 call vertex2%append(shared_verts(2))
                                 call on_mirror_plane%append(.false.)
 
+                                i_edge = panel1%len()
+
                                 ! Store vertices being adjacent to one another
                                 if (.not. this%vertices(shared_verts(1))%adjacent_vertices%is_in(shared_verts(2))) then
                                     call this%vertices(shared_verts(1))%adjacent_vertices%append(shared_verts(2))
@@ -266,6 +268,10 @@ contains
                                     call this%vertices(shared_verts(2))%adjacent_vertices%append(shared_verts(1))
                                 end if
 
+                                ! Store edges touching vertices
+                                call this%vertices(shared_verts(1))%adjacent_edges%append(i_edge)
+                                call this%vertices(shared_verts(2))%adjacent_edges%append(i_edge)
+
                                 ! Store adjacent panels and panel edges
                                 ! This stores the adjacent panels and edges according to the index of that edge
                                 ! for the current panel
@@ -273,11 +279,11 @@ contains
                                 ! Store that j is adjacent to i
                                 if (m1 == 1 .and. m == this%panels(i)%N) then ! Nth edge
                                     this%panels(i)%abutting_panels(m) = j
-                                    this%panels(i)%edges(m) = panel1%len()
+                                    this%panels(i)%edges(m) = i_edge
                                     call edge_index1%append(m)
                                 else ! 1st or 2nd edge
                                     this%panels(i)%abutting_panels(m1) = j
-                                    this%panels(i)%edges(m1) = panel1%len()
+                                    this%panels(i)%edges(m1) = i_edge
                                     call edge_index1%append(m1)
                                 end if
 
@@ -287,12 +293,12 @@ contains
                                 ! Otherwise, we're dealing with abs(n1-n) being 1, meaning edge min(n1, n).
                                 if ( (n1 == 1 .and. n == this%panels(j)%N) .or. (n == 1 .and. n1 == this%panels(j)%N) ) then
                                     this%panels(j)%abutting_panels(this%panels(j)%N) = i
-                                    this%panels(j)%edges(this%panels(j)%N) = panel1%len()
+                                    this%panels(j)%edges(this%panels(j)%N) = i_edge
                                     call edge_index2%append(this%panels(j)%N)
                                 else
                                     n1 = min(n, n1)
                                     this%panels(j)%abutting_panels(n1) = i
-                                    this%panels(j)%edges(n1) = panel1%len()
+                                    this%panels(j)%edges(n1) = i_edge
                                     call edge_index2%append(n1)
                                 end if
                                 
@@ -350,6 +356,8 @@ contains
                             call vertex2%append(shared_verts(2))
                             call on_mirror_plane%append(.true.)
 
+                            i_edge = panel1%len()
+
                             ! Store adjacent vertices
                             if (.not. this%vertices(shared_verts(1))%adjacent_vertices%is_in(shared_verts(2))) then
                                 call this%vertices(shared_verts(1))%adjacent_vertices%append(shared_verts(2))
@@ -361,11 +369,11 @@ contains
                             ! Store adjacent panel
                             if (m-m1 == 1) then
                                 this%panels(i)%abutting_panels(m1) = i+this%N_panels
-                                this%panels(i)%edges(m1) = panel1%len()
+                                this%panels(i)%edges(m1) = i_edge
                                 call edge_index1%append(m1)
                             else
                                 this%panels(i)%abutting_panels(m) = i+this%N_panels
-                                this%panels(i)%edges(m) = panel1%len()
+                                this%panels(i)%edges(m) = i_edge
                                 call edge_index1%append(m)
                             end if
 
@@ -706,6 +714,7 @@ contains
         class(surface_mesh),intent(inout),target :: this
 
         integer :: i, j, k, m, n, N_clones, i_jango, i_boba, N_discont_verts, i_bot_panel, i_abutting_panel, i_adj_vert, i_top_panel
+        integer :: i_edge
         type(vertex),dimension(:),allocatable :: temp_vertices
 
         write(*,'(a)',advance='no') "     Cloning vertices at discontinuous edges..."
@@ -797,17 +806,21 @@ contains
                 end do
 
                 ! Remove bottom panels from top vertex and give them to the bottom vertex
-                do n=1,this%N_wake_edges
+                ! Loop through edges adjacent to this vertex
+                do n=1,this%vertices(i_jango)%adjacent_edges%len()
 
                     ! Get edge index
-                    k = this%wake_edge_indices(n)
+                    call this%vertices(i_jango)%adjacent_edges%get(n, i_edge)
 
-                    ! Check if this vertex belongs to this wake-shedding edge
-                    if (this%edges(k)%verts(1) == i_jango .or. this%edges(k)%verts(2) == i_jango) then
+                    ! Copy to new vertex
+                    call this%vertices(i_boba)%adjacent_edges%append(i_edge)
+
+                    ! Check if this is a wake-shedding edge
+                    if (this%edges(i_edge)%sheds_wake) then
 
                         ! Get bottom panel index
-                        i_top_panel = this%edges(k)%panels(1)
-                        i_bot_panel = this%edges(k)%panels(2)
+                        i_top_panel = this%edges(i_edge)%panels(1)
+                        i_bot_panel = this%edges(i_edge)%panels(2)
 
                         ! Remove bottom panel index from original vertex
                         call this%vertices(i_jango)%panels_not_across_wake_edge%delete(i_bot_panel)
