@@ -705,7 +705,7 @@ contains
 
         class(surface_mesh),intent(inout),target :: this
 
-        integer :: i, j, k, m, n, N_clones, i_jango, i_boba, N_discont_verts, i_bottom_panel, i_abutting_panel, i_adj_vert
+        integer :: i, j, k, m, n, N_clones, i_jango, i_boba, N_discont_verts, i_bot_panel, i_abutting_panel, i_adj_vert, i_top_panel
         type(vertex),dimension(:),allocatable :: temp_vertices
 
         write(*,'(a)',advance='no') "     Cloning vertices at discontinuous edges..."
@@ -759,6 +759,8 @@ contains
 
                 ! Initialize clone
                 call this%vertices(i_boba)%init(this%vertices(i_jango)%loc, i_boba)
+
+                ! Specify wake partners
                 this%vertices(i_jango)%i_wake_partner = i_boba
                 this%vertices(i_boba)%i_wake_partner = i_jango
 
@@ -804,24 +806,25 @@ contains
                     if (this%edges(k)%verts(1) == i_jango .or. this%edges(k)%verts(2) == i_jango) then
 
                         ! Get bottom panel index
-                        i_bottom_panel = this%edges(k)%panels(2)
+                        i_top_panel = this%edges(k)%panels(1)
+                        i_bot_panel = this%edges(k)%panels(2)
 
                         ! Remove bottom panel index from original vertex
-                        call this%vertices(i_jango)%panels_not_across_wake_edge%delete(i_bottom_panel)
+                        call this%vertices(i_jango)%panels_not_across_wake_edge%delete(i_bot_panel)
 
                         ! Add to clone
-                        if (.not. this%vertices(i_boba)%panels_not_across_wake_edge%is_in(i_bottom_panel)) then
-                            call this%vertices(i_boba)%panels_not_across_wake_edge%append(i_bottom_panel)
+                        if (.not. this%vertices(i_boba)%panels_not_across_wake_edge%is_in(i_bot_panel)) then
+                            call this%vertices(i_boba)%panels_not_across_wake_edge%append(i_bot_panel)
                         end if
 
                         ! If there are any panels attached to this vertex and abutting the bottom panel, shift them over as well
-                        do m=1,size(this%panels(i_bottom_panel)%abutting_panels)
+                        do m=1,this%panels(i_bot_panel)%N
 
                             ! Get the index of the panel abutting this bottom panel
-                            i_abutting_panel = this%panels(i_bottom_panel)%abutting_panels(m)
+                            i_abutting_panel = this%panels(i_bot_panel)%abutting_panels(m)
 
-                            ! Check if it touches the current index
-                            if (this%panels(i_abutting_panel)%touches_vertex(i_jango)) then
+                            ! Check if it is not the top panel and it touches the current index
+                            if (i_abutting_panel /= i_top_panel .and. this%panels(i_abutting_panel)%touches_vertex(i_jango)) then
 
                                 ! Remove from original vertex
                                 call this%vertices(i_jango)%panels_not_across_wake_edge%delete(i_abutting_panel)
@@ -842,10 +845,10 @@ contains
                 do k=1,this%vertices(i_boba)%panels_not_across_wake_edge%len()
 
                     ! Get panel index
-                    call this%vertices(i_boba)%panels_not_across_wake_edge%get(k, i_bottom_panel)
+                    call this%vertices(i_boba)%panels_not_across_wake_edge%get(k, i_bot_panel)
 
                     ! Update
-                    call this%panels(i_bottom_panel)%point_to_vertex_clone(this%vertices(i_boba))
+                    call this%panels(i_bot_panel)%point_to_vertex_clone(this%vertices(i_boba))
 
                 end do
 
