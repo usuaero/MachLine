@@ -43,7 +43,7 @@ def mach_iter(AoA_list, Nodes, formulation, freestream):
                     },
                     "wake_model": {
                         "wake_shedding_angle": 90.0,
-                        "trefftz_distance": 100.0,
+                        "trefftz_distance": 10000.0,
                         "N_panels": 1
                     },
                     "reference": {
@@ -95,7 +95,6 @@ freestream_velocity = json_vals["flow conditions"]["freestream velocity"]
 
 formulation_input = json_vals["solver"]["formulation"]
 
-Nodes_input = ["80"]
 
 # Record and print the time required to run MachLine
 start_time = time.time()

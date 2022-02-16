@@ -24,7 +24,9 @@
             "89.8": 44,
             "94.9": 46.5
         },
-        "nodes": ["10", "20", "40", "80"],
+        "nodes": ["10", "20"],
+        "nodes_notes": ["Nodes above 80 need to be ran on the super computer or",
+                        "memory cap will fail"],
         "uniform chord length": 20,
         
 
@@ -45,7 +47,7 @@
     },
 
     "solver": {
-        "formulation": "source-free",
+        "formulation": "morino",
         "control_point_offset": 1.1e-05,
         "options": ["formulation: source-free, morino",
                     "control_point_offset:"]
@@ -53,7 +55,7 @@
 
     "plots":{
         "points to process": ["C_p_inc, sigma, v"],
-        "process_all": false,
+        "process_all": true,
         "save plots": false,
         "save plot type": "pdf",
         "combine pdfs": false,
