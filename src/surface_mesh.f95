@@ -49,7 +49,9 @@ module surface_mesh_mod
             procedure :: clone_vertices => surface_mesh_clone_vertices
             procedure :: set_up_mirroring => surface_mesh_set_up_mirroring
             procedure :: calc_vertex_normals => surface_mesh_calc_vertex_normals
+            procedure :: init_wake => surface_mesh_init_wake
             procedure :: update_supersonic_trefftz_distance => surface_mesh_update_supersonic_trefftz_distance
+            procedure :: update_subsonic_trefftz_distance => surface_mesh_update_subsonic_trefftz_distance
             procedure :: place_interior_control_points => surface_mesh_place_interior_control_points
 
     end type surface_mesh
@@ -436,8 +438,6 @@ contains
         character(len=:),allocatable,intent(in) :: wake_file
 
         integer :: i
-        type(vtk_out) :: wake_vtk
-        real :: back, front, x
 
         ! Check flow symmetry condition
         this%asym_flow = .false.
@@ -469,70 +469,8 @@ contains
         end if
         call this%calc_vertex_normals()
 
-        ! Handle wake creation
-        if (this%append_wake) then
-
-            ! Update default Trefftz distance
-            if (this%trefftz_distance < 0.) then
-
-                ! Supersonic
-                if (freestream%supersonic) then
-                    call this%update_supersonic_trefftz_distance(freestream)
-
-                ! Subsonic
-                else
-
-                    ! Loop through vertices to calculate most downstream and upstream distances
-                    front = inner(freestream%c_hat_g, this%vertices(1)%loc)
-                    back = front
-                    do i=2,this%N_verts
-                        x = inner(freestream%c_hat_g, this%vertices(i)%loc)
-                        front = min(front, x)
-                        back = max(back, x)
-                    end do
-
-                    ! Calculate Trefftz distance
-                    this%trefftz_distance = 20.*x
-
-                end if
-            end if
-
-            ! Initialize wake
-            call this%wake%init(freestream, this%wake_edge_top_verts, &
-                                this%wake_edge_bot_verts, this%edges, this%wake_edge_indices, &
-                                this%N_wake_panels_streamwise, this%vertices, &
-                                this%trefftz_distance, this%mirrored .and. this%asym_flow, &
-                                this%mirror_plane, this%N_panels)
-
-            ! Clean up
-            deallocate(this%wake_edge_top_verts)
-            deallocate(this%wake_edge_bot_verts)
-        
-            ! Export wake geometry
-            if (wake_file /= 'none') then
-
-                ! Clear old file
-                call delete_file(wake_file)
-
-                ! Write new geometry
-                if (this%wake%N_panels > 0) then
-
-                    call wake_vtk%begin(wake_file)
-                    call wake_vtk%write_points(this%wake%vertices)
-                    call wake_vtk%write_panels(this%wake%panels)
-                    call wake_vtk%write_cell_normals(this%wake%panels)
-                    call wake_vtk%finish()
-
-                end if
-            end if
-
-        else
-            
-            ! Set parameters to let later code know there is no actual wake
-            this%wake%N_panels = 0
-            this%wake%N_verts = 0
-
-        end if
+        ! INitialize wake
+        call this%init_wake(freestream, wake_file)
     
     end subroutine surface_mesh_init_with_flow
 
@@ -979,6 +917,73 @@ contains
     end subroutine surface_mesh_calc_vertex_normals
 
 
+    subroutine surface_mesh_init_wake(this, freestream, wake_file)
+        ! Handles wake initialization
+
+        implicit none
+
+        class(surface_mesh),intent(inout) :: this
+        type(flow),intent(in) :: freestream
+        character(len=:),allocatable,intent(in) :: wake_file
+
+        type(vtk_out) :: wake_vtk
+
+        if (this%append_wake) then
+
+            ! Update default Trefftz distance
+            if (this%trefftz_distance < 0.) then
+
+                ! Supersonic
+                if (freestream%supersonic) then
+                    call this%update_supersonic_trefftz_distance(freestream)
+
+                ! Subsonic
+                else
+                    call this%update_subsonic_trefftz_distance(freestream)
+
+                end if
+            end if
+
+            ! Initialize wake
+            call this%wake%init(freestream, this%wake_edge_top_verts, &
+                                this%wake_edge_bot_verts, this%edges, this%wake_edge_indices, &
+                                this%N_wake_panels_streamwise, this%vertices, &
+                                this%trefftz_distance, this%mirrored .and. this%asym_flow, &
+                                this%mirror_plane, this%N_panels)
+
+            ! Clean up
+            deallocate(this%wake_edge_top_verts)
+            deallocate(this%wake_edge_bot_verts)
+        
+            ! Export wake geometry
+            if (wake_file /= 'none') then
+
+                ! Clear old file
+                call delete_file(wake_file)
+
+                ! Write new geometry
+                if (this%wake%N_panels > 0) then
+
+                    call wake_vtk%begin(wake_file)
+                    call wake_vtk%write_points(this%wake%vertices)
+                    call wake_vtk%write_panels(this%wake%panels)
+                    call wake_vtk%write_cell_normals(this%wake%panels)
+                    call wake_vtk%finish()
+
+                end if
+            end if
+
+        else
+            
+            ! Set parameters to let later code know there is no actual wake
+            this%wake%N_panels = 0
+            this%wake%N_verts = 0
+
+        end if
+    
+    end subroutine surface_mesh_init_wake
+
+
     subroutine surface_mesh_update_supersonic_trefftz_distance(this, freestream)
         ! Determines the appropriate Trefftz distance based on the mesh geometry
 
@@ -1008,6 +1013,32 @@ contains
         this%trefftz_distance = max_dist
     
     end subroutine surface_mesh_update_supersonic_trefftz_distance
+
+
+    subroutine surface_mesh_update_subsonic_trefftz_distance(this, freestream)
+        ! Determines the appropriate Trefftz distance based on the mesh geometry
+
+        implicit none
+
+        class(surface_mesh),intent(inout) :: this
+        type(flow),intent(in) :: freestream
+
+        real :: back, front, x
+        integer :: i
+
+        ! Loop through vertices to calculate most downstream and upstream distances
+        front = inner(freestream%c_hat_g, this%vertices(1)%loc)
+        back = front
+        do i=2,this%N_verts
+            x = inner(freestream%c_hat_g, this%vertices(i)%loc)
+            front = min(front, x)
+            back = max(back, x)
+        end do
+
+        ! Calculate Trefftz distance
+        this%trefftz_distance = 20.*x
+    
+    end subroutine surface_mesh_update_subsonic_trefftz_distance
 
 
     subroutine surface_mesh_place_interior_control_points(this, offset)
