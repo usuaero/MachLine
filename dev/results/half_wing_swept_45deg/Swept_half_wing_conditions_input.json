@@ -18,6 +18,12 @@
         "formulation": "source-free",
         "control_point_offset": 1.1e-05
     },
+
+    "plots":{
+        "show_all": true,
+        "options": "show_all: shows plots at every semispan location one at a time."
+
+    },
     "output": {
         "body_file": "dev/results/half_wing_swept_45deg/MachLine_Results/0degrees_AoA/half_wing_A_45_nodes_0_deg_AoA.vtk",
         "wake_file": "dev/results/half_wing_swept_45deg/MachLine_Results/0degrees_AoA/half_wing_A_45_nodes_0_deg_AoA_wake.vtk",
