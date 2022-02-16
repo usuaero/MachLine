@@ -12,7 +12,7 @@ SRCS = $(wildcard $(COM_DIR)/*.f95 $(SRC_DIR)/*.f95)
 COMPILER = gfortran
 
 # Flags
-FLAGS = -O2 -fdefault-real-8 -fbounds-check 
+FLAGS = -O2 -fdefault-real-8 -fbounds-check #-ffpe-trap=invalid,zero
 
 # Program name
 PROGRAM = machline.exe
@@ -30,6 +30,8 @@ default:
 	src/edge.f95 \
 	src/panel.f95 \
 	src/vtk.f95 \
+	src/stl.f95 \
+	src/tri.f95 \
 	src/wake_mesh.f95 \
 	src/surface_mesh.f95 \
 	src/panel_solver.f95 \

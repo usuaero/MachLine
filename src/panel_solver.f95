@@ -22,6 +22,9 @@ module panel_solver_mod
         type(flow) :: freestream
         real :: norm_res, max_res
         real,dimension(3) :: C_F
+        real,dimension(:,:),allocatable :: A
+        real,dimension(:), allocatable :: b
+        integer :: N, wake_start, N_pressures
 
         contains
 
@@ -29,8 +32,13 @@ module panel_solver_mod
             procedure :: init_dirichlet => panel_solver_init_dirichlet
             procedure :: calc_domains_of_dependence => panel_solver_calc_domains_of_dependence
             procedure :: solve => panel_solver_solve
-            procedure :: solve_dirichlet => panel_solver_solve_dirichlet
-            procedure :: post_process => panel_solver_post_process
+            procedure :: calc_source_strengths => panel_solver_calc_source_strengths
+            procedure :: calc_body_influences => panel_solver_calc_body_influences
+            procedure :: calc_wake_influences => panel_solver_calc_wake_influences
+            procedure :: solve_system => panel_solver_solve_system
+            procedure :: calc_velocities => panel_solver_calc_velocities
+            procedure :: calc_pressures => panel_solver_calc_pressures
+            procedure :: calc_forces => panel_solver_calc_forces
             procedure :: write_report => panel_solver_write_report
 
     end type panel_solver
@@ -50,21 +58,24 @@ contains
         character(len=:),allocatable,intent(in) :: control_point_file
 
         integer :: i, j
+        real,dimension(:),allocatable :: cp_indices
         type(vtk_out) :: cp_vtk
 
         ! Get solver_settings
         call json_xtnsn_get(solver_settings, 'formulation', this%formulation, 'morino')
         call json_xtnsn_get(solver_settings, 'influence_calculations', influence_calc_type, 'johnson')
 
-        ! Get post-processing settings
+        ! Get pressure rules
         if (freestream%M_inf > 0.) then
             call json_xtnsn_get(processing_settings, 'pressure_rules.incompressible', this%incompressible_rule, .false.)
+            call json_xtnsn_get(processing_settings, 'pressure_rules.isentropic', this%isentropic_rule, .true.)
         else
             call json_xtnsn_get(processing_settings, 'pressure_rules.incompressible', this%incompressible_rule, .true.)
+            this%isentropic_rule = .false.
         end if
-        call json_xtnsn_get(processing_settings, 'pressure_rules.isentropic', this%isentropic_rule, .false.)
         call json_xtnsn_get(processing_settings, 'pressure_rules.second-order', this%second_order_rule, .false.)
 
+        ! Get which pressure rule will be used for force calculation
         if (this%incompressible_rule) then
             call json_xtnsn_get(processing_settings, 'pressure_for_forces', this%pressure_for_forces, 'incompressible')
         else if (this%isentropic_rule) then
@@ -72,6 +83,22 @@ contains
         else if (this%second_order_rule) then
             call json_xtnsn_get(processing_settings, 'pressure_for_forces', this%pressure_for_forces, 'second-order')
         end if
+
+        ! Check the force calculation pressure rule is available
+        if (this%pressure_for_forces == 'incompressible' .and. .not. this%incompressible_rule) then
+            write(*,*) "!!! Incompressible pressure rule is not available for force calculation. Quitting..."
+            stop
+        end if
+        if (this%pressure_for_forces == 'isentropic' .and. .not. this%isentropic_rule) then
+            write(*,*) "!!! Isentropic pressure rule is not available for force calculation. Quitting..."
+            stop
+        end if
+        if (this%pressure_for_forces == 'second-order' .and. .not. this%second_order_rule) then
+            write(*,*) "!!! Second-order pressure rule is not available for force calculation. Quitting..."
+            stop
+        end if
+
+        write(*,*) "    The ", this%pressure_for_forces, " pressure rule will be used for force calculation."
 
         ! Store
         this%freestream = freestream
@@ -87,10 +114,17 @@ contains
             ! Clear old file
             call delete_file(control_point_file)
 
+            ! Get indices
+            allocate(cp_indices(size(body%control_points)/3))
+            do i=1,size(cp_indices)
+                cp_indices(i) = i
+            end do
+
             ! Write out points
             call cp_vtk%begin(control_point_file)
             call cp_vtk%write_points(body%control_points)
             call cp_vtk%write_vertices(body%control_points)
+            call cp_vtk%write_point_scalars(cp_indices, 'index')
             call cp_vtk%finish()
 
         end if
@@ -109,24 +143,26 @@ contains
         class(panel_solver),intent(inout) :: this
         type(surface_mesh),intent(inout) :: body
 
-        integer :: i, j, wake_start
+        integer :: i, j
 
         ! For asymmetric flow on a mirrored mesh, all domains of dependence must be calculated. There are no shortcuts.
         ! For symmetric flow on a mirrored mesh, domains of dependence will be the same between mirrored panels and mirrored
         ! control points. So, we just need to calculate the DoD for mirrored control points, and then we're good.
 
+        write(*,'(a)',advance='no') "     Calculating domains of dependence..."
+
         ! Allocate domains of dependence
         if (body%mirrored) then
             if (body%asym_flow) then
-                wake_start = 2*body%N_panels
-                allocate(this%dod_info(wake_start+body%wake%N_panels, 2*body%N_cp))
+                this%wake_start = 2*body%N_panels
+                allocate(this%dod_info(this%wake_start+body%wake%N_panels, 2*body%N_cp))
             else
-                wake_start = body%N_panels
-                allocate(this%dod_info(wake_start+body%wake%N_panels, 2*body%N_cp))
+                this%wake_start = body%N_panels
+                allocate(this%dod_info(this%wake_start+body%wake%N_panels, 2*body%N_cp))
             end if
         else
-            wake_start = body%N_panels
-            allocate(this%dod_info(wake_start+body%wake%N_panels, body%N_cp))
+            this%wake_start = body%N_panels
+            allocate(this%dod_info(this%wake_start+body%wake%N_panels, body%N_cp))
         end if
 
         ! Loop through control points
@@ -135,14 +171,12 @@ contains
             ! Loop through body panels
             do i=1,body%N_panels
 
-                ! Check DoD for original panel and original control point
                 this%dod_info(i,j) = body%panels(i)%check_dod(body%control_points(j,:), this%freestream)
 
                 if (body%mirrored) then
 
                     ! Check DoD for original panel and mirrored control point
                     this%dod_info(i,j+body%N_cp) = body%panels(i)%check_dod(body%cp_mirrored(j,:), this%freestream)
-
                     
                     if (body%asym_flow) then
 
@@ -165,13 +199,13 @@ contains
             do i=1,body%wake%N_panels
 
                 ! Check DoD for panel and original control point
-                this%dod_info(wake_start+i,j) = body%wake%panels(i)%check_dod(body%control_points(j,:), this%freestream)
+                this%dod_info(this%wake_start+i,j) = body%wake%panels(i)%check_dod(body%control_points(j,:), this%freestream)
 
                 if (body%mirrored) then
 
                     ! Check DoD for panel and mirrored control point
                     ! No other calculations are needed because mirrored panels are explicitly created in the case of asymmetric flow
-                    this%dod_info(wake_start+i,j+body%N_cp) = body%wake%panels(i)%check_dod(body%cp_mirrored(j,:), &
+                    this%dod_info(this%wake_start+i,j+body%N_cp) = body%wake%panels(i)%check_dod(body%cp_mirrored(j,:), &
                                                                                                this%freestream)
 
                 end if
@@ -179,6 +213,8 @@ contains
             end do
 
         end do
+
+        write(*,*) "Done"
     
     end subroutine panel_solver_calc_domains_of_dependence
 
@@ -219,13 +255,26 @@ contains
         type(surface_mesh),intent(inout) :: body
         character(len=:),allocatable :: report_file
 
-        ! Dirichlet formulation
-        if (this%formulation == 'morino' .or. this%formulation == 'source-free') then
-            call this%solve_dirichlet(body)
-        end if
+        ! Calculate source strengths
+        call this%calc_source_strengths(body)
 
-        ! Run post-processor
-        call this%post_process(body)
+        ! Calculate body influences
+        call this%calc_body_influences(body)
+
+        ! Calculate wake influences
+        call this%calc_wake_influences(body)
+
+        ! Solve the linear system
+        call this%solve_system(body)
+
+        ! Calculate velocities
+        call this%calc_velocities(body)
+
+        ! Calculate pressures
+        call this%calc_pressures(body)
+
+        ! Calculate forces
+        call this%calc_forces(body)
 
         ! Write report
         if (report_file /= 'none') then
@@ -235,29 +284,18 @@ contains
     end subroutine panel_solver_solve
 
 
-    subroutine panel_solver_solve_dirichlet(this, body)
-        ! Solves one of the Dirichlet formulations for the given conditions
+    subroutine panel_solver_calc_source_strengths(this, body)
+        ! Calculates the necessary source strengths
 
         implicit none
 
-        class(panel_solver),intent(inout) :: this
+        class(panel_solver),intent(in) :: this
         type(surface_mesh),intent(inout) :: body
-        character(len=:),allocatable :: report_file
 
-        integer :: i, j, k
-        real,dimension(:),allocatable :: source_inf, doublet_inf
-        integer,dimension(:),allocatable :: source_verts, doublet_verts
-        real,dimension(:,:),allocatable :: A, A_copy
-        real,dimension(:),allocatable :: b
-        integer :: stat, N_sigma, N_mu, N_pressures
+        integer :: N_sigma, i, stat
         real,dimension(3) :: n_mirrored
-        logical :: morino
-
-        ! Determine formulation
-        morino = this%formulation == 'morino'
 
         ! Set source strengths
-        write(*,'(a)',advance='no') "     Calculating source strengths..."
         if (source_order == 0) then
 
             ! Determine necessary number of source strengths
@@ -268,10 +306,13 @@ contains
             end if
 
             ! Allocate source strength array
-            allocate(body%sigma(N_sigma))
+            allocate(body%sigma(N_sigma), source=0., stat=stat)
+            call check_allocation(stat, "source strength array")
 
             ! Morino formulation
-            if (morino) then
+            if (this%formulation == "morino") then
+
+                write(*,'(a)',advance='no') "     Calculating source strengths..."
 
                 ! Loop through panels
                 do i=1,body%N_panels
@@ -290,32 +331,48 @@ contains
 
                     end if
                 end do
-            
-            ! Source-free formulation
-            else if (this%formulation == 'source-free') then
-                body%sigma = 0.
+
+                write(*,*) "Done."
+
             end if
-
         end if
-        write(*,*) "Done."
+    
+    end subroutine panel_solver_calc_source_strengths
 
-        ! Determine number of doublet strengths (some will be repeats for mirrored vertices)
+
+    subroutine panel_solver_calc_body_influences(this, body)
+        ! Calculates the influence of the body on the control points
+
+        implicit none
+
+        class(panel_solver),intent(inout) :: this
+        type(surface_mesh),intent(inout) :: body
+
+        integer :: i, j, k, stat
+        real,dimension(:),allocatable :: source_inf, doublet_inf
+        integer,dimension(:),allocatable :: source_verts, doublet_verts
+        logical :: morino
+
+        ! Determine formulation
+        morino = this%formulation == 'morino'
+
+        ! Determine size of linear system
         if (body%mirrored .and. body%asym_flow) then
-            N_mu = body%N_cp*2
+            this%N = body%N_cp*2
         else
-            N_mu = body%N_cp
+            this%N = body%N_cp
         end if
 
         ! Allocate space for inner potential calculations
-        allocate(body%phi_cp_sigma(N_mu), source=0., stat=stat)
+        allocate(body%phi_cp_sigma(this%N), source=0., stat=stat)
         call check_allocation(stat, "induced potential vector")
 
         ! Allocate AIC matrix
-        allocate(A(N_mu, N_mu), source=0., stat=stat)
+        allocate(this%A(this%N, this%N), source=0., stat=stat)
         call check_allocation(stat, "AIC matrix")
 
         ! Allocate b vector
-        allocate(b(N_mu), source=0., stat=stat)
+        allocate(this%b(this%N), source=0., stat=stat)
         call check_allocation(stat, "b vector")
 
         write(*,'(a)',advance='no') "     Calculating body influences..."
@@ -342,7 +399,7 @@ contains
                 ! Add influence of existing panel on existing control point
                 if (doublet_order == 1) then
                     do k=1,size(doublet_verts)
-                        A(i,doublet_verts(k)) = A(i,doublet_verts(k)) + doublet_inf(k)
+                        this%A(i,doublet_verts(k)) = this%A(i,doublet_verts(k)) + doublet_inf(k)
                     end do
                 end if
 
@@ -380,8 +437,8 @@ contains
                         ! Add doublet influence
                         if (doublet_order == 1) then
                             do k=1,size(doublet_verts)
-                                A(i+body%N_cp,doublet_verts(k)+body%N_cp) = A(i+body%N_cp,doublet_verts(k)+body%N_cp) &
-                                                                            + doublet_inf(k)
+                                this%A(i+body%N_cp,doublet_verts(k)+body%N_cp) = this%A(i+body%N_cp,doublet_verts(k)+body%N_cp) &
+                                                                                 + doublet_inf(k)
                             end do
                         end if
 
@@ -408,7 +465,7 @@ contains
 
                             if (doublet_order == 1) then
                                 do k=1,size(doublet_verts)
-                                    A(i+body%N_cp,doublet_verts(k)) = A(i+body%N_cp,doublet_verts(k)) + doublet_inf(k)
+                                    this%A(i+body%N_cp,doublet_verts(k)) = this%A(i+body%N_cp,doublet_verts(k)) + doublet_inf(k)
                                 end do
                             end if
 
@@ -440,7 +497,7 @@ contains
 
                         if (doublet_order == 1) then
                             do k=1,size(doublet_verts)
-                                A(i,doublet_verts(k)+body%N_cp) = A(i,doublet_verts(k)+body%N_cp) + doublet_inf(k)
+                                this%A(i,doublet_verts(k)+body%N_cp) = this%A(i,doublet_verts(k)+body%N_cp) + doublet_inf(k)
                             end do
                         end if
 
@@ -455,7 +512,7 @@ contains
 
                         if (doublet_order == 1) then
                             do k=1,size(doublet_verts)
-                                A(i,doublet_verts(k)) = A(i,doublet_verts(k)) + doublet_inf(k)
+                                this%A(i,doublet_verts(k)) = this%A(i,doublet_verts(k)) + doublet_inf(k)
                             end do
                         end if
 
@@ -469,22 +526,43 @@ contains
             ! doublet strengths must be the same). The RHS for these rows should still be zero.
             if (body%mirrored .and. body%asym_flow) then
                 if (.not. body%vertices(i)%mirrored_is_unique) then
-                    A(i+body%N_cp,i) = 1.
-                    A(i+body%N_cp,i+body%N_cp) = -1.
+                    this%A(i+body%N_cp,i) = 1.
+                    this%A(i+body%N_cp,i+body%N_cp) = -1.
 
                 ! If the control point is unique, it's target potential will need to be set for the source-free formulation
                 else if (.not. morino) then
-                    b(i+body%N_cp) = -inner(body%cp_mirrored(i,:), this%freestream%c_hat_g)
+                    this%b(i+body%N_cp) = -inner(body%cp_mirrored(i,:), this%freestream%c_hat_g)
                 end if
             end if
 
             ! Set target potential for source-free formulation
             if (.not. morino) then
-                b(i) = -inner(body%control_points(i,:), this%freestream%c_hat_g)
+                this%b(i) = -inner(body%control_points(i,:), this%freestream%c_hat_g)
             end if
 
         end do
+
         write(*,*) "Done."
+        if (any(isnan(this%A))) then
+            write(*,*)
+            write(*,*) "!!! NaN in A after body computations. Quitting..."
+            stop
+        end if
+    
+    end subroutine panel_solver_calc_body_influences
+
+
+    subroutine panel_solver_calc_wake_influences(this, body)
+        ! Calculates the influence of the wake on the control points
+
+        implicit none
+
+        class(panel_solver),intent(inout) :: this
+        type(surface_mesh),intent(inout) :: body
+
+        integer :: i, j, k
+        real,dimension(:),allocatable ::  doublet_inf
+        integer,dimension(:),allocatable :: doublet_verts
 
         ! Calculate influence of wake
         if (body%wake%N_panels > 0) then
@@ -494,19 +572,20 @@ contains
             do i=1,body%N_cp
 
                 ! Get doublet influence from wake
-                ! Note that for the wake, in the case of mirrored mesh with asymmetric flow, the mirrored wake panels have actually been created.
+                ! Note that for the wake, in the case of mirrored meshes with asymmetric flow, the mirrored wake panels have actually been created.
                 ! In this case, there are technically no mirrored panels, and this loop will cycle through both existing and mirrored panels.
                 ! For symmetric flow, mirrored panels still need to be added as before.
                 do j=1,body%wake%N_panels
 
                     ! Caclulate influence
                     doublet_inf = body%wake%panels(j)%get_doublet_potential(body%control_points(i,:), this%freestream, &
-                                                                            this%dod_info(j,i), doublet_verts, .false.)
+                                                                            this%dod_info(this%wake_start+j,i), doublet_verts, &
+                                                                            .false.)
 
                     ! Influence on existing control point
                     if (doublet_order == 1) then
                         do k=1,size(doublet_verts)
-                            A(i,doublet_verts(k)) = A(i,doublet_verts(k)) + doublet_inf(k)
+                            this%A(i,doublet_verts(k)) = this%A(i,doublet_verts(k)) + doublet_inf(k)
                         end do
                     end if
 
@@ -515,7 +594,8 @@ contains
 
                         ! Calculate influences on mirrored point
                         doublet_inf = body%wake%panels(j)%get_doublet_potential(body%cp_mirrored(i,:), this%freestream, &
-                                                                                this%dod_info(j,i), doublet_verts, .false.)
+                                                                                this%dod_info(this%wake_start+j,i), doublet_verts, &
+                                                                                .false.)
 
                         if (body%asym_flow) then
 
@@ -523,7 +603,7 @@ contains
                             if (body%vertices(i)%mirrored_is_unique) then
                                 if (doublet_order == 1) then
                                     do k=1,size(doublet_verts)
-                                        A(i+body%N_cp,doublet_verts(k)) = A(i+body%N_cp,doublet_verts(k)) + doublet_inf(k)
+                                        this%A(i+body%N_cp,doublet_verts(k)) = this%A(i+body%N_cp,doublet_verts(k)) + doublet_inf(k)
                                     end do
                                 end if
                             end if
@@ -533,7 +613,7 @@ contains
                             ! Influence of mirrored panel on existing control point
                             if (doublet_order == 1) then
                                 do k=1,size(doublet_verts)
-                                    A(i,doublet_verts(k)) = A(i,doublet_verts(k)) + doublet_inf(k)
+                                    this%A(i,doublet_verts(k)) = this%A(i,doublet_verts(k)) + doublet_inf(k)
                                 end do
                             end if
 
@@ -547,33 +627,94 @@ contains
 
         end if
 
+    end subroutine panel_solver_calc_wake_influences
+
+
+    subroutine panel_solver_solve_system(this, body)
+        ! Solves the linear system for the singularity strengths
+
+        implicit none
+
+        class(panel_solver),intent(inout) :: this
+        type(surface_mesh),intent(inout) :: body
+
+        real,dimension(:,:),allocatable :: A_copy
+        integer :: stat, i, j
+
         write(*,'(a)',advance='no') "     Solving linear system..."
 
+        ! Check for NaNs; I'd rather have it fail here than give the user garbage results
+        if (any(isnan(this%A))) then
+            write(*,*) "!!! Invalid value detected in A matrix. Quitting..."
+            stop
+        end if
+        if (any(isnan(this%b))) then
+            write(*,*) "!!! Invalid value detected in b vector. Quitting..."
+            stop
+        end if
+
         ! Make a copy of A (lu_solve replaces A with its decomposition)
-        allocate(A_copy, source=A, stat=stat)
+        allocate(A_copy, source=this%A, stat=stat)
         call check_allocation(stat, "solver copy of AIC matrix")
 
+        ! Check for uninfluenced/ing points
+        do i=1,this%N
+            if (all(this%A(i,:) == 0.)) then
+                write(*,*) "WARNING: Control point ", i, " is not influenced."
+            end if
+            if (all(this%A(:,i) == 0.)) then
+                write(*,*) "WARNING: Vertex ", i, " exerts no influence."
+            end if
+        end do
+
+        ! Write A and b to file
+        if (.true.) then
+            open(34, file="./dev/A_mat.txt")
+            do i=1,this%N
+                write(34,*) this%A(i,:)
+            end do
+            close(34)
+            open(34, file="./dev/b_vec.txt")
+            do i=1,this%N
+                write(34,*) this%b(i)
+            end do
+            close(34)
+        end if
+
         ! Set b vector for Morino formulation
-        if (morino) then
-            b = -body%phi_cp_sigma
+        if (this%formulation == "morino") then
+            this%b = -body%phi_cp_sigma
         end if
 
         ! Solve
-        call lu_solve(N_mu, A_copy, b, body%mu)
+        call lu_solve(this%N, A_copy, this%b, body%mu)
         write(*,*) "Done."
 
         ! Clean up memory
         deallocate(A_copy)
 
         ! Calculate potential at control points
-        body%phi_cp_mu = matmul(A, body%mu)
+        body%phi_cp_mu = matmul(this%A, body%mu)
         body%phi_cp = body%phi_cp_mu+body%phi_cp_sigma
 
         ! Calculate residual parameters
-        this%max_res = maxval(abs(body%phi_cp_mu-b))
-        this%norm_res = sqrt(sum((body%phi_cp_mu-b)**2))
+        this%max_res = maxval(abs(body%phi_cp_mu-this%b))
+        this%norm_res = sqrt(sum((body%phi_cp_mu-this%b)**2))
         write(*,*) "        Maximum residual:", this%max_res
         write(*,*) "        Norm of residual:", this%norm_res
+
+    end subroutine panel_solver_solve_system
+
+
+    subroutine panel_solver_calc_velocities(this, body)
+        ! Calculates the surface velocities
+
+        implicit none
+
+        class(panel_solver),intent(inout) :: this
+        type(surface_mesh),intent(inout) :: body
+
+        integer :: i, N_vels, stat
 
         write(*,'(a)',advance='no') "     Calculating surface velocities..."
 
@@ -581,14 +722,14 @@ contains
         if (body%mirrored .and. body%asym_flow) then
 
             ! Allocate velocity storage
-            N_pressures = body%N_panels*2
-            allocate(body%V(N_pressures,3), stat=stat)
+            N_vels = body%N_panels*2
+            allocate(body%V(N_vels,3), stat=stat)
             call check_allocation(stat, "surface velocity vectors")
 
             ! Calculate the surface velocity on each panel
             do i=1,body%N_panels
 
-                if (morino) then
+                if (this%formulation == "morino") then
 
                     ! Original panel
                     body%V(i,:) = this%freestream%U*(this%freestream%c_hat_g + body%panels(i)%get_velocity_jump(body%mu, &
@@ -615,12 +756,12 @@ contains
         else
 
             ! Allocate velocity storage
-            N_pressures = body%N_panels
-            allocate(body%V(N_pressures,3), stat=stat)
+            N_vels = body%N_panels
+            allocate(body%V(N_vels,3), stat=stat)
             call check_allocation(stat, "surface velocity vectors")
 
             ! Calculate the surface velocity on each panel
-            if (morino) then
+            if (this%formulation == "morino") then
                 do i=1,body%N_panels
                     body%V(i,:) = this%freestream%U*(this%freestream%c_hat_g &
                                   + body%panels(i)%get_velocity_jump(body%mu, body%sigma, .false., 0))
@@ -633,25 +774,24 @@ contains
 
         end if
         write(*,*) "Done."
-    
-    end subroutine panel_solver_solve_dirichlet
+
+    end subroutine panel_solver_calc_velocities
 
 
-    subroutine panel_solver_post_process(this, body)
-        ! Performs post-processing actions
+    subroutine panel_solver_calc_pressures(this, body)
+        ! Calculates the surface pressures
 
         implicit none
 
         class(panel_solver),intent(inout) :: this
         type(surface_mesh),intent(inout) :: body
 
-        integer :: N_pressures, i, stat
-        real,dimension(:,:),allocatable :: dC_F
-        real,dimension(3) :: n_mirrored
+        integer :: i, stat
+        real,dimension(3) :: V_pert
         real :: a, b, c, C_p_vac
 
         write(*,'(a)',advance='no') "     Calculating surface pressures..."
-        N_pressures = size(body%V)/3
+        this%N_pressures = size(body%V)/3
 
         ! Calculate vacuum pressure coefficient
         C_p_vac = -2./(this%freestream%gamma*this%freestream%M_inf**2)
@@ -660,11 +800,11 @@ contains
         if (this%incompressible_rule) then
 
             ! Allocate storage
-            allocate(body%C_p_inc(N_pressures), stat=stat)
+            allocate(body%C_p_inc(this%N_pressures), stat=stat)
             call check_allocation(stat, "incompressible surface pressures")
 
             ! Calculate
-            do i=1,N_pressures
+            do i=1,this%N_pressures
                 body%C_p_inc(i) = 1.-inner(body%V(i,:), body%V(i,:))*this%freestream%U_inv**2
             end do
 
@@ -679,11 +819,11 @@ contains
             c = this%freestream%gamma/(this%freestream%gamma-1.)
 
             ! Allocate storage
-            allocate(body%C_p_ise(N_pressures), stat=stat)
+            allocate(body%C_p_ise(this%N_pressures), stat=stat)
             call check_allocation(stat, "isentropic surface pressures")
 
             ! Calculate
-            do i=1,N_pressures
+            do i=1,this%N_pressures
                 
                 ! Incompressible first
                 body%C_p_ise(i) = 1.-inner(body%V(i,:), body%V(i,:))*this%freestream%U_inv**2
@@ -704,18 +844,21 @@ contains
         if (this%second_order_rule) then
 
             ! Allocate storage
-            allocate(body%C_p_2nd(N_pressures), stat=stat)
+            allocate(body%C_p_2nd(this%N_pressures), stat=stat)
             call check_allocation(stat, "second-order surface pressures")
 
-            ! Calculate
-            do i=1,N_pressures
+            ! Calculate (E&M Eq. (N..2.43))
+            do i=1,this%N_pressures
+
+                ! Get perturbation velocity in the compressible frame
+                V_pert = matmul(this%freestream%A_g_to_c, body%V(i,:)-this%freestream%v_inf)
 
                 ! Calculate first term
-                body%C_p_2nd(i) = -2.*body%V(i,1)*this%freestream%U_inv
+                body%C_p_2nd(i) = -2.*V_pert(1)*this%freestream%U_inv
 
                 ! Calculate second term
                 body%C_p_2nd(i) = body%C_p_2nd(i) &
-                                  - ((1.-this%freestream%M_inf**2)*body%V(i,1)**2 + body%V(i,2)**2 + body%V(i,3)**2) &
+                                  - ((1.-this%freestream%M_inf**2)*V_pert(1)**2 + V_pert(2)**2 + V_pert(3)**2) &
                                   *this%freestream%U_inv**2
             end do
 
@@ -744,10 +887,24 @@ contains
             write(*,*) "        Vacuum pressure coefficient:", C_p_vac
         end if
 
+    end subroutine panel_solver_calc_pressures
+
+
+    subroutine panel_solver_calc_forces(this, body)
+        ! Calculates the forces
+
+        implicit none
+
+        class(panel_solver),intent(inout) :: this
+        type(surface_mesh),intent(inout) :: body
+
+        integer :: i, stat
+        real,dimension(3) :: n_mirrored
+
         write(*,'(a)',advance='no') "     Calculating forces..."
 
         ! Allocate force storage
-        allocate(dC_F(N_pressures,3), stat=stat)
+        allocate(body%dC_f(this%N_pressures,3), stat=stat)
         call check_allocation(stat, "forces")
 
         ! Calculate total forces
@@ -758,34 +915,34 @@ contains
             case ('incompressible')
 
                 ! Discrete force coefficient acting on panel
-                dC_F(i,:) = body%C_p_inc(i)*body%panels(i)%A*body%panels(i)%normal
+                body%dC_f(i,:) = body%C_p_inc(i)*body%panels(i)%A*body%panels(i)%normal
 
                 ! Mirror
                 if (body%mirrored .and. body%asym_flow) then
                     n_mirrored = mirror_about_plane(body%panels(i)%normal, body%mirror_plane)
-                    dC_F(i+body%N_panels,:) = body%C_p_inc(i+body%N_panels)*body%panels(i)%A*n_mirrored
+                    body%dC_f(i+body%N_panels,:) = body%C_p_inc(i+body%N_panels)*body%panels(i)%A*n_mirrored
                 end if
 
             case ('isentropic')
 
                 ! Discrete force coefficient acting on panel
-                dC_F(i,:) = body%C_p_ise(i)*body%panels(i)%A*body%panels(i)%normal
+                body%dC_f(i,:) = body%C_p_ise(i)*body%panels(i)%A*body%panels(i)%normal
 
                 ! Mirror
                 if (body%mirrored .and. body%asym_flow) then
                     n_mirrored = mirror_about_plane(body%panels(i)%normal, body%mirror_plane)
-                    dC_F(i+body%N_panels,:) = body%C_p_ise(i+body%N_panels)*body%panels(i)%A*n_mirrored
+                    body%dC_f(i+body%N_panels,:) = body%C_p_ise(i+body%N_panels)*body%panels(i)%A*n_mirrored
                 end if
 
             case ('second-order')
 
                 ! Discrete force coefficient acting on panel
-                dC_F(i,:) = body%C_p_2nd(i)*body%panels(i)%A*body%panels(i)%normal
+                body%dC_f(i,:) = body%C_p_2nd(i)*body%panels(i)%A*body%panels(i)%normal
 
                 ! Mirror
                 if (body%mirrored .and. body%asym_flow) then
                     n_mirrored = mirror_about_plane(body%panels(i)%normal, body%mirror_plane)
-                    dC_F(i+body%N_panels,:) = body%C_p_2nd(i+body%N_panels)*body%panels(i)%A*n_mirrored
+                    body%dC_f(i+body%N_panels,:) = body%C_p_2nd(i+body%N_panels)*body%panels(i)%A*n_mirrored
                 end if
 
             end select
@@ -793,14 +950,14 @@ contains
         end do
 
         ! Sum discrete forces
-        this%C_F(:) = sum(dC_F, dim=1)/body%S_ref
+        this%C_F(:) = sum(body%dC_f, dim=1)/body%S_ref
 
         write(*,*) "Done."
         write(*,*) "        Cx:", this%C_F(1)
         write(*,*) "        Cy:", this%C_F(2)
         write(*,*) "        Cz:", this%C_F(3)
     
-    end subroutine panel_solver_post_process
+    end subroutine panel_solver_calc_forces
 
 
     subroutine panel_solver_write_report(this, body, report_file)

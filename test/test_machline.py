@@ -28,7 +28,7 @@ def run_machline(input_file, remove_input=False):
             report = report_handle.readlines()
 
         # Check if MachLine thinks it was successful
-        success = result.stdout.split()[-1] == "successfully."
+        success = "MachLine exited successfully." in result.stdout
 
     else:
 
@@ -62,11 +62,43 @@ def test_half_wing_source_free():
     print(Cy)
     print(Cz)
 
-    assert(abs(C_p_max - 0.6128404365547362) < 1e-12)
-    assert(abs(C_p_min - -0.7562621922470163) < 1e-12)
-    assert(abs(Cx - -0.006929293635976442) < 1e-12)
-    assert(abs(Cy - -0.00024116090946916353) < 1e-12)
-    assert(abs(Cz - -0.22240033375591964) < 1e-12)
+    assert(abs(C_p_max - 0.7492150466546059) < 1e-12)
+    assert(abs(C_p_min - -1.2780299493178702) < 1e-12)
+    assert(abs(Cx - 0.39319685309998204) < 1e-12)
+    assert(abs(Cy - 0.04689550513848942) < 1e-12)
+    assert(abs(Cz - -20.6243304643629) < 1e-12)
+
+
+def test_half_wing_zero_aoa():
+    # Tests the half wing case at zero angle of attack with the Morino formulation
+
+    # Load original input
+    with open("test/half_wing_input.json", 'r') as input_handle:
+        input_dict = json.load(input_handle)
+
+    # Alter input
+    input_dict["flow"]["freestream_velocity"] = [100.0, 0.0, 0.0]
+    input_dict["solver"]["formulation"] = "morino"
+
+    # Write altered input
+    altered_input_file = "test/altered_half_wing_input.json"
+    with open(altered_input_file, 'w') as altered_input_handle:
+        json.dump(input_dict, altered_input_handle, indent=4)
+
+    # Run MachLine
+    C_p_max, C_p_min, Cx, Cy, Cz = run_machline(altered_input_file, remove_input=True)
+
+    print(C_p_max)
+    print(C_p_min)
+    print(Cx)
+    print(Cy)
+    print(Cz)
+
+    assert(abs(C_p_max - 0.22165891467547116) < 1e-12)
+    assert(abs(C_p_min - -0.4275878063211438) < 1e-12)
+    assert(abs(Cx - -0.15094328655418515) < 1e-12)
+    assert(abs(Cy - -0.1099650917065172) < 1e-12)
+    assert(abs(Cz - 4.787397341831834e-06) < 1e-12)
 
 
 def test_sphere_morino():
@@ -80,11 +112,11 @@ def test_sphere_morino():
     print(Cy)
     print(Cz)
 
-    assert(abs(C_p_max - 0.991141990209599) < 1e-12)
-    assert(abs(C_p_min - -1.2378311776000124) < 1e-12)
-    assert(abs(Cx - 1.2420239657237597e-07) < 1e-12)
-    assert(abs(Cy - -1.557722467282474e-05) < 1e-12)
-    assert(abs(Cz - -2.0422563784538994e-06) < 1e-12)
+    assert(abs(C_p_max - 0.9911419902086966) < 1e-12)
+    assert(abs(C_p_min - -1.2378311775996265) < 1e-12)
+    assert(abs(Cx - 1.2325256942575386e-07) < 1e-12)
+    assert(abs(Cy - -1.5573049956071894e-05) < 1e-12)
+    assert(abs(Cz - -2.042358749454465e-06) < 1e-12)
 
 
 def test_full_half_wing_compare_morino():

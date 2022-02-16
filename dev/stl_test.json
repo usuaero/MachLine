@@ -1,0 +1,29 @@
+{
+    "flow": {
+        "freestream_velocity": [100.0, 0.0, 10.0]
+    },
+    "geometry": {
+        "file": "dev/meshes/half_wing_right.stl",
+        "mirror_about" : "xz",
+        "spanwise_axis" : "+y",
+        "wake_model": {
+        },
+        "reference": {
+            "area": 1.0
+        }
+    },
+    "solver": {
+        "formulation": "morino",
+        "control_point_offset": 1.1e-05,
+        "influence_calculations" : "johnson"
+    },
+    "post_processing" : {
+        "pressure_rules" : {
+        }
+    },
+    "output": {
+        "body_file" : "dev/results/half_wing_stl.vtk",
+        "wake_file" : "dev/results/half_wing_stl_wake.vtk",
+        "control_point_file" : "dev/results/half_wing_stl_control_points.vtk"
+    }
+}
