@@ -201,7 +201,7 @@ contains
         class(surface_mesh),intent(inout) :: this
 
 
-        integer :: i, j, m, n, m1, n1, temp
+        integer :: i, j, m, n, m1, n1, temp, count
         logical :: already_found_shared, dummy
         real :: distance
         integer,dimension(2) :: shared_verts
@@ -211,6 +211,8 @@ contains
 
         ! Loop through each panel
         do i=1,this%N_panels
+
+            count = 0
 
             ! Loop through each potential neighbor
             neighbor_loop: do j=i+1,this%N_panels
@@ -291,6 +293,7 @@ contains
                                 end if
                                 
                                 ! Break out of loop
+                                count = count + 1
                                 exit abutting_loop
 
                             ! First shared vertex
@@ -365,6 +368,7 @@ contains
                             call edge_index2%append(0) ! Really meaningless since the second panel doesn't technically exist
 
                             ! Break out of loop
+                            count = count + 1
                             exit mirror_loop
 
                         ! First vertex on the mirror plane
@@ -384,9 +388,9 @@ contains
             ! Check that no panel abuts empty space (i.e. non-watertight mesh)
             if (any(this%panels(i)%abutting_panels == 0)) then
                 write(*,*)
-                write(*,*) "!!! The supplied mesh is not watertight. Quitting..."
-                write(*,*) "!!! Panel", i, "is missing at least one neighbor."
+                write(*,*) "!!! The supplied mesh is not watertight. Panel", i, "is missing at least one neighbor. Quitting..."
                 write(*,*) this%panels(i)%abutting_panels
+                write(*,*) count
                 stop
             end if
 
@@ -498,7 +502,7 @@ contains
                                 this%wake_edge_bot_verts, this%edges, this%wake_edge_indices, &
                                 this%N_wake_panels_streamwise, this%vertices, &
                                 this%trefftz_distance, this%mirrored .and. this%asym_flow, &
-                                this%mirror_plane)
+                                this%mirror_plane, this%N_panels)
 
             ! Clean up
             deallocate(this%wake_edge_top_verts)
