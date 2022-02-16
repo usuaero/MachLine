@@ -90,10 +90,12 @@ module panel_mod
             procedure :: calc_F_integrals => panel_calc_F_integrals
             procedure :: calc_H_integrals => panel_calc_H_integrals
             procedure :: calc_integrals => panel_calc_integrals
-            procedure :: get_source_potential => panel_get_source_potential
-            procedure :: get_source_velocity => panel_get_source_velocity
-            procedure :: get_doublet_potential => panel_get_doublet_potential
-            procedure :: get_doublet_velocity => panel_get_doublet_velocity
+            procedure :: calc_source_potential => panel_calc_source_potential
+            procedure :: calc_source_velocity => panel_calc_source_velocity
+            procedure :: calc_doublet_potential => panel_calc_doublet_potential
+            procedure :: calc_doublet_velocity => panel_calc_doublet_velocity
+            procedure :: calc_potentials => panel_calc_potentials
+            procedure :: calc_velocities => panel_calc_velocities
             procedure :: get_velocity_jump => panel_get_velocity_jump
 
     end type panel
@@ -1498,7 +1500,185 @@ contains
     end subroutine panel_calc_integrals
 
 
-    function panel_get_source_potential(this, eval_point, freestream, dod_info, vertex_indices, panel_mirrored) result(phi)
+    subroutine panel_calc_potentials(this, P, freestream, dod_info, mirror_panel, phi_s, phi_d, i_vert_s, i_vert_d)
+        ! Calculates the source- and doublet-induced potentials at the given point P
+
+        implicit none
+
+        class(panel),intent(in) :: this
+        real,dimension(3),intent(in) :: P
+        type(flow),intent(in) :: freestream
+        type(dod),intent(in) :: dod_info
+        logical,intent(in) :: mirror_panel
+        real,dimension(:),allocatable,intent(out) :: phi_s, phi_d
+        integer,dimension(:),allocatable,intent(out) :: i_vert_s, i_vert_d
+
+        type(eval_point_geom) :: geom
+        real,dimension(:,:,:),allocatable :: H
+        real,dimension(:,:,:,:),allocatable :: F
+
+        ! Specify influencing vertices (also sets zero default influence)
+
+        ! Source
+        if (source_order == 0) then
+            allocate(phi_s(1), source=0.)
+        end if
+
+        ! Doublet
+        if (doublet_order == 1) then
+
+            ! Check if this panel belongs to the wake
+            if (this%in_wake) then
+
+                ! Wake panels are influenced by two sets of vertices
+                allocate(i_vert_d(6))
+                i_vert_d(1) = this%vertices(1)%ptr%top_parent
+                i_vert_d(2) = this%vertices(2)%ptr%top_parent
+                i_vert_d(3) = this%vertices(3)%ptr%top_parent
+                i_vert_d(4) = this%vertices(1)%ptr%bot_parent
+                i_vert_d(5) = this%vertices(2)%ptr%bot_parent
+                i_vert_d(6) = this%vertices(3)%ptr%bot_parent
+
+                ! Set default influence
+                allocate(phi_d(6), source=0.)
+
+            else
+
+                ! Body panels are influenced by only one set of vertices
+                allocate(i_vert_d, source=this%vertex_indices)
+
+                ! Set default influence
+                allocate(phi_d(3), source=0.)
+
+            end if
+        end if
+
+        ! Check DoD
+        if (dod_info%in_dod) then
+
+            ! Calculate geometric parameters
+            geom = this%get_field_point_geometry(P, freestream)
+
+            if (influence_calc_type == 'johnson') then
+
+                ! Get integrals
+                call this%calc_integrals(geom, "potential", "doublet", dod_info, freestream, H, F)
+
+                ! Source potential
+                if (source_order == 0) then
+                    phi_s = -freestream%K_inv*H(1,1,1)
+                end if
+
+                ! Doublet potential
+                if (doublet_order == 1) then
+
+                    ! Compute induced potential (Johnson Eq. (D.30); Ehlers Eq. (5.17))
+                    phi_d(1) = geom%h*H(1,1,3)
+                    phi_d(2) = geom%h*H(1,1,3)*geom%r_ls(1) + geom%h*H(2,1,3)
+                    phi_d(3) = geom%h*H(1,1,3)*geom%r_ls(2) + geom%h*H(1,2,3)
+
+                    ! Convert to vertex influences (Davis Eq. (4.41))
+                    phi_d(1:3) = freestream%K_inv*matmul(phi_d(1:3), this%S_mu_inv)
+
+                    ! Wake bottom influence is opposite the top influence
+                    if (this%in_wake) then
+                        phi_d(4:6) = -phi_d(1:3)
+                    end if
+                end if
+
+                ! Clean up
+                deallocate(H)
+                deallocate(F)
+
+            end if
+        end if
+    
+    end subroutine panel_calc_potentials
+
+
+    subroutine panel_calc_velocities(this, P, freestream, dod_info, mirror_panel, v_s, v_d, i_vert_s, i_vert_d)
+        ! Calculates the source- and doublet-induced potentials at the given point P
+
+        implicit none
+
+        class(panel),intent(in) :: this
+        real,dimension(3),intent(in) :: P
+        type(flow),intent(in) :: freestream
+        type(dod),intent(in) :: dod_info
+        logical,intent(in) :: mirror_panel
+        real,dimension(:,:),allocatable,intent(out) :: v_s, v_d
+        integer,dimension(:),allocatable,intent(out) :: i_vert_s, i_vert_d
+
+        type(eval_point_geom) :: geom
+        real,dimension(:,:,:),allocatable :: H
+        real,dimension(:,:,:,:),allocatable :: F
+
+        ! Specify influencing vertices (also sets zero default influence)
+
+        ! Source
+        if (source_order == 0) then
+            allocate(v_s(1,3), source=0.)
+        end if
+
+        ! Doublet
+        if (doublet_order == 1) then
+
+            ! Check if this panel belongs to the wake
+            if (this%in_wake) then
+
+                ! Wake panels are influenced by two sets of vertices
+                allocate(i_vert_d(6))
+                i_vert_d(1) = this%vertices(1)%ptr%top_parent
+                i_vert_d(2) = this%vertices(2)%ptr%top_parent
+                i_vert_d(3) = this%vertices(3)%ptr%top_parent
+                i_vert_d(4) = this%vertices(1)%ptr%bot_parent
+                i_vert_d(5) = this%vertices(2)%ptr%bot_parent
+                i_vert_d(6) = this%vertices(3)%ptr%bot_parent
+
+                ! Set default influence
+                allocate(v_d(6,3), source=0.)
+
+            else
+
+                ! Body panels are influenced by only one set of vertices
+                allocate(i_vert_d, source=this%vertex_indices)
+
+                ! Set default influence
+                allocate(v_d(3,3), source=0.)
+
+            end if
+        end if
+
+        ! Check DoD
+        if (dod_info%in_dod) then
+
+            ! Calculate geometric parameters
+            geom = this%get_field_point_geometry(P, freestream)
+
+            if (influence_calc_type == 'johnson') then
+
+                ! Get integrals
+                call this%calc_integrals(geom, "velocity", "doublet", dod_info, freestream, H, F)
+
+                ! Source velocity
+                if (source_order == 0) then
+                end if
+
+                ! Doublet velocity
+                if (doublet_order == 1) then
+                end if
+
+                ! Clean up
+                deallocate(H)
+                deallocate(F)
+
+            end if
+        end if
+    
+    end subroutine panel_calc_velocities
+
+
+    function panel_calc_source_potential(this, eval_point, freestream, dod_info, vertex_indices, panel_mirrored) result(phi)
 
         implicit none
 
@@ -1513,9 +1693,8 @@ contains
         type(eval_point_geom) :: geom
         real,dimension(:,:,:),allocatable :: H
         real,dimension(:,:,:,:),allocatable :: F
-        real :: b
 
-        ! Allocate velocity
+        ! Allocate potential
         if (source_order == 0) then
             allocate(phi(1), source=0.)
         end if
@@ -1545,10 +1724,10 @@ contains
             end if
         end if
     
-    end function panel_get_source_potential
+    end function panel_calc_source_potential
 
 
-    function panel_get_source_velocity(this, eval_point, freestream, dod_info, vertex_indices, panel_mirrored) result(v)
+    function panel_calc_source_velocity(this, eval_point, freestream, dod_info, vertex_indices, panel_mirrored) result(v)
 
         implicit none
 
@@ -1596,10 +1775,10 @@ contains
             end if
         end if
 
-    end function panel_get_source_velocity
+    end function panel_calc_source_velocity
 
 
-    function panel_get_doublet_potential(this, eval_point, freestream, dod_info, vertex_indices, panel_mirrored) result(phi)
+    function panel_calc_doublet_potential(this, eval_point, freestream, dod_info, vertex_indices, panel_mirrored) result(phi)
 
         implicit none
 
@@ -1682,10 +1861,10 @@ contains
             end if
         end if
     
-    end function panel_get_doublet_potential
+    end function panel_calc_doublet_potential
 
 
-    function panel_get_doublet_velocity(this, eval_point, freestream, dod_info, vertex_indices, panel_mirrored) result(v)
+    function panel_calc_doublet_velocity(this, eval_point, freestream, dod_info, vertex_indices, panel_mirrored) result(v)
 
         implicit none
 
@@ -1756,7 +1935,7 @@ contains
             end if
         end if
 
-    end function panel_get_doublet_velocity
+    end function panel_calc_doublet_velocity
 
 
     function panel_get_velocity_jump(this, mu, sigma, mirrored, mirror_plane) result(dv)

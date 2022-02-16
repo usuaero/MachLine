@@ -350,7 +350,7 @@ contains
 
         integer :: i, j, k, stat
         real,dimension(:),allocatable :: source_inf, doublet_inf
-        integer,dimension(:),allocatable :: source_verts, doublet_verts
+        integer,dimension(:),allocatable :: i_vert_s, i_vert_d
         logical :: morino
 
         ! Determine formulation
@@ -381,25 +381,24 @@ contains
         do i=1,body%N_cp
             do j=1,body%N_panels
 
-                ! Get source influence for existing->existing
-                if (morino) then
-                    source_inf = body%panels(j)%get_source_potential(body%control_points(i,:), this%freestream, &
-                                                                     this%dod_info(j,i), source_verts, .false.)
+                ! Get induced potentials
+                call body%panels(j)%calc_potentials(body%control_points(i,:), this%freestream, this%dod_info(j,i), .false., &
+                                                    source_inf, doublet_inf, i_vert_s, i_vert_d)
 
-                    ! Add influence for existing panel on existing control point
+
+                ! Add influence for existing panel on existing control point
+
+                ! Source
+                if (morino) then
                     if (source_order == 0) then
                         body%phi_cp_sigma(i) = body%phi_cp_sigma(i) + source_inf(1)*body%sigma(j)
                     end if
                 end if
 
-                ! Get doublet influence for existing->existing
-                doublet_inf = body%panels(j)%get_doublet_potential(body%control_points(i,:), this%freestream, &
-                                                                   this%dod_info(j,i), doublet_verts, .false.)
-
-                ! Add influence of existing panel on existing control point
+                ! Doublet
                 if (doublet_order == 1) then
-                    do k=1,size(doublet_verts)
-                        this%A(i,doublet_verts(k)) = this%A(i,doublet_verts(k)) + doublet_inf(k)
+                    do k=1,size(i_vert_d)
+                        this%A(i,i_vert_d(k)) = this%A(i,i_vert_d(k)) + doublet_inf(k)
                     end do
                 end if
 
@@ -411,19 +410,9 @@ contains
 
                         ! Recalculate the mirrored->mirrored influences if the flow is compressible
                         if (.not. this%freestream%incompressible) then
-
-                            ! Source influence
-                            if (morino) then
-                                source_inf = body%panels(j)%get_source_potential(body%cp_mirrored(i,:), this%freestream, &
-                                                                                 this%dod_info(j+body%N_panels,i+body%N_cp), &
-                                                                                 source_verts, .true.)
-                            end if
-
-                            ! Doublet influence
-                            doublet_inf = body%panels(j)%get_doublet_potential(body%cp_mirrored(i,:), this%freestream, &
-                                                                               this%dod_info(j+body%N_panels,i+body%N_cp), &
-                                                                               doublet_verts, .true.)
-
+                            call body%panels(j)%calc_potentials(body%cp_mirrored(i,:), this%freestream, &
+                                                                this%dod_info(j+body%N_panels,i), .true., &
+                                                                source_inf, doublet_inf, i_vert_s, i_vert_d)
                         end if
 
                         ! Add source influence
@@ -436,8 +425,8 @@ contains
 
                         ! Add doublet influence
                         if (doublet_order == 1) then
-                            do k=1,size(doublet_verts)
-                                this%A(i+body%N_cp,doublet_verts(k)+body%N_cp) = this%A(i+body%N_cp,doublet_verts(k)+body%N_cp) &
+                            do k=1,size(i_vert_d)
+                                this%A(i+body%N_cp,i_vert_d(k)+body%N_cp) = this%A(i+body%N_cp,i_vert_d(k)+body%N_cp) &
                                                                                  + doublet_inf(k)
                             end do
                         end if
@@ -445,12 +434,8 @@ contains
                     end if
 
                     ! Calculate existing->mirrored influences
-                    if (morino) then
-                        source_inf = body%panels(j)%get_source_potential(body%cp_mirrored(i,:), this%freestream, &
-                                                                         this%dod_info(j,i+body%N_cp), source_verts, .false.)
-                    end if
-                    doublet_inf = body%panels(j)%get_doublet_potential(body%cp_mirrored(i,:), this%freestream, &
-                                                                       this%dod_info(j,i+body%N_cp), doublet_verts, .false.)
+                    call body%panels(j)%calc_potentials(body%cp_mirrored(i,:), this%freestream, this%dod_info(j,i+body%N_cp), &
+                                                        .false., source_inf, doublet_inf, i_vert_s, i_vert_d)
 
                     if (body%asym_flow) then
 
@@ -464,8 +449,8 @@ contains
                             end if
 
                             if (doublet_order == 1) then
-                                do k=1,size(doublet_verts)
-                                    this%A(i+body%N_cp,doublet_verts(k)) = this%A(i+body%N_cp,doublet_verts(k)) + doublet_inf(k)
+                                do k=1,size(i_vert_d)
+                                    this%A(i+body%N_cp,i_vert_d(k)) = this%A(i+body%N_cp,i_vert_d(k)) + doublet_inf(k)
                                 end do
                             end if
 
@@ -473,19 +458,9 @@ contains
 
                         ! Recalculate mirrored->existing influences for compressible flow
                         if (.not. this%freestream%incompressible) then
-
-                            ! Source influence
-                            if (morino) then
-                                source_inf = body%panels(j)%get_source_potential(body%control_points(i,:), this%freestream, &
-                                                                                 this%dod_info(j+body%N_panels,i), &
-                                                                                 source_verts, .true.)
-                            end if
-
-                            ! Doublet influence
-                            doublet_inf = body%panels(j)%get_doublet_potential(body%control_points(i,:), this%freestream, &
-                                                                               this%dod_info(j+body%N_panels,i), &
-                                                                               doublet_verts, .true.)
-
+                            call body%panels(j)%calc_potentials(body%control_points(i,:), this%freestream, &
+                                                                this%dod_info(j+body%N_panels,i), .true., source_inf, &
+                                                                doublet_inf, i_vert_s, i_vert_d)
                         end if
 
                         ! Add influence of mirrored panel on existing control point
@@ -496,8 +471,8 @@ contains
                         end if
 
                         if (doublet_order == 1) then
-                            do k=1,size(doublet_verts)
-                                this%A(i,doublet_verts(k)+body%N_cp) = this%A(i,doublet_verts(k)+body%N_cp) + doublet_inf(k)
+                            do k=1,size(i_vert_d)
+                                this%A(i,i_vert_d(k)+body%N_cp) = this%A(i,i_vert_d(k)+body%N_cp) + doublet_inf(k)
                             end do
                         end if
 
@@ -511,8 +486,8 @@ contains
                         end if
 
                         if (doublet_order == 1) then
-                            do k=1,size(doublet_verts)
-                                this%A(i,doublet_verts(k)) = this%A(i,doublet_verts(k)) + doublet_inf(k)
+                            do k=1,size(i_vert_d)
+                                this%A(i,i_vert_d(k)) = this%A(i,i_vert_d(k)) + doublet_inf(k)
                             end do
                         end if
 
@@ -561,8 +536,8 @@ contains
         type(surface_mesh),intent(inout) :: body
 
         integer :: i, j, k
-        real,dimension(:),allocatable ::  doublet_inf
-        integer,dimension(:),allocatable :: doublet_verts
+        real,dimension(:),allocatable ::  doublet_inf, source_inf
+        integer,dimension(:),allocatable :: i_vert_d, i_vert_s
 
         ! Calculate influence of wake
         if (body%wake%N_panels > 0) then
@@ -578,14 +553,14 @@ contains
                 do j=1,body%wake%N_panels
 
                     ! Caclulate influence
-                    doublet_inf = body%wake%panels(j)%get_doublet_potential(body%control_points(i,:), this%freestream, &
-                                                                            this%dod_info(this%wake_start+j,i), doublet_verts, &
-                                                                            .false.)
+                    call body%wake%panels(j)%calc_potentials(body%control_points(i,:), this%freestream, &
+                                                             this%dod_info(this%wake_start+j,i), .false., &
+                                                             source_inf, doublet_inf, i_vert_s, i_vert_d)
 
                     ! Influence on existing control point
                     if (doublet_order == 1) then
-                        do k=1,size(doublet_verts)
-                            this%A(i,doublet_verts(k)) = this%A(i,doublet_verts(k)) + doublet_inf(k)
+                        do k=1,size(i_vert_d)
+                            this%A(i,i_vert_d(k)) = this%A(i,i_vert_d(k)) + doublet_inf(k)
                         end do
                     end if
 
@@ -593,17 +568,17 @@ contains
                     if (body%mirrored) then
 
                         ! Calculate influences on mirrored point
-                        doublet_inf = body%wake%panels(j)%get_doublet_potential(body%cp_mirrored(i,:), this%freestream, &
-                                                                                this%dod_info(this%wake_start+j,i), doublet_verts, &
-                                                                                .false.)
+                        call body%wake%panels(j)%calc_potentials(body%cp_mirrored(i,:), this%freestream, &
+                                                                 this%dod_info(this%wake_start+j,i), .false., &
+                                                                 source_inf, doublet_inf, i_vert_s, i_vert_d)
 
                         if (body%asym_flow) then
 
                             ! Influence on mirrored control point
                             if (body%vertices(i)%mirrored_is_unique) then
                                 if (doublet_order == 1) then
-                                    do k=1,size(doublet_verts)
-                                        this%A(i+body%N_cp,doublet_verts(k)) = this%A(i+body%N_cp,doublet_verts(k)) + doublet_inf(k)
+                                    do k=1,size(i_vert_d)
+                                        this%A(i+body%N_cp,i_vert_d(k)) = this%A(i+body%N_cp,i_vert_d(k)) + doublet_inf(k)
                                     end do
                                 end if
                             end if
@@ -612,8 +587,8 @@ contains
 
                             ! Influence of mirrored panel on existing control point
                             if (doublet_order == 1) then
-                                do k=1,size(doublet_verts)
-                                    this%A(i,doublet_verts(k)) = this%A(i,doublet_verts(k)) + doublet_inf(k)
+                                do k=1,size(i_vert_d)
+                                    this%A(i,i_vert_d(k)) = this%A(i,i_vert_d(k)) + doublet_inf(k)
                                 end do
                             end if
 
