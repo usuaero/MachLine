@@ -23,7 +23,7 @@ module surface_mesh_mod
         type(panel),allocatable,dimension(:) :: panels
         type(edge),allocatable,dimension(:) :: edges
         type(wake_mesh) :: wake
-        integer,allocatable,dimension(:) :: wake_edge_top_verts, wake_edge_bot_verts, wake_edge_indices
+        integer,allocatable,dimension(:) :: wake_edge_verts, wake_edge_indices
         real :: wake_shedding_angle, C_wake_shedding_angle, trefftz_distance, C_min_panel_angle
         integer :: N_wake_panels_streamwise
         logical :: wake_present, append_wake
@@ -220,7 +220,7 @@ contains
             neighbor_loop: do j=i+1,this%N_panels
 
                 ! Check if we've found all neighbors for this panel
-                if (all(this%panels(i)%abutting_panels /= 0)) then
+                if (count == 3) then
                     exit neighbor_loop
                 end if
 
@@ -236,29 +236,29 @@ contains
                         distance = dist(this%panels(i)%get_vertex_loc(m), this%panels(j)%get_vertex_loc(n))
 
                         ! Check distance
-                        if (distance < 1e-12) then
+                        if (distance < 1.e-12) then
 
-                            ! Previously found a shared vertex
+                            ! Previously found a shared vertex, so we have abutting panels
                             if (already_found_shared) then
 
                                 ! Store second shared vertex
                                 shared_verts(2) = this%panels(i)%get_vertex_index(m)
 
-                                ! Check order
-                                if (m1 == 1 .and. m == 3) then
+                                ! Check order; edge should proceed counterclockwise about panel i
+                                if (m1 == 1 .and. m == this%panels(i)%N) then
                                     temp = shared_verts(1)
                                     shared_verts(1) = shared_verts(2)
                                     shared_verts(2) = temp
                                 end if
 
-                                ! Store in lists for later storage in edge objects
+                                ! Store information in lists for later storage in edge objects
                                 call panel1%append(i)
                                 call panel2%append(j)
                                 call vertex1%append(shared_verts(1))
                                 call vertex2%append(shared_verts(2))
                                 call on_mirror_plane%append(.false.)
 
-                                ! Store adjacent vertices
+                                ! Store vertices being adjacent to one another
                                 if (.not. this%vertices(shared_verts(1))%adjacent_vertices%is_in(shared_verts(2))) then
                                     call this%vertices(shared_verts(1))%adjacent_vertices%append(shared_verts(2))
                                 end if
@@ -271,7 +271,7 @@ contains
                                 ! for the current panel
 
                                 ! Store that j is adjacent to i
-                                if (m1 == 1 .and. m == 3) then ! 3rd edge
+                                if (m1 == 1 .and. m == this%panels(i)%N) then ! Nth edge
                                     this%panels(i)%abutting_panels(m) = j
                                     this%panels(i)%edges(m) = panel1%len()
                                     call edge_index1%append(m)
@@ -282,15 +282,17 @@ contains
                                 end if
 
                                 ! Store that i is adjacent to j
-                                if ( (n1 == 1 .and. n == 3) .or. (n == 1 .and. n1 == 3) ) then
-                                    n1 = max(n, n1)
-                                    this%panels(j)%abutting_panels(n1) = i
-                                    this%panels(i)%edges(n1) = panel1%len()
-                                    call edge_index2%append(n1)
+                                ! This one is more complicated because we don't know that n1 will be less than n; just the nature of the nested loop.
+                                ! Basically, if one is 1 and the other is N, then we're dealing with edge N for panel j.
+                                ! Otherwise, we're dealing with abs(n1-n) being 1, meaning edge min(n1, n).
+                                if ( (n1 == 1 .and. n == this%panels(j)%N) .or. (n == 1 .and. n1 == this%panels(j)%N) ) then
+                                    this%panels(j)%abutting_panels(this%panels(j)%N) = i
+                                    this%panels(j)%edges(this%panels(j)%N) = panel1%len()
+                                    call edge_index2%append(this%panels(j)%N)
                                 else
                                     n1 = min(n, n1)
                                     this%panels(j)%abutting_panels(n1) = i
-                                    this%panels(i)%edges(n1) = panel1%len()
+                                    this%panels(j)%edges(n1) = panel1%len()
                                     call edge_index2%append(n1)
                                 end if
                                 
@@ -410,12 +412,12 @@ contains
             call vertex2%get(i, shared_verts(2))
             call panel1%get(i, m)
             call panel2%get(i, n)
-            call on_mirror_plane%get(i, dummy)
 
             ! Initialize
             call this%edges(i)%init(shared_verts(1), shared_verts(2), m, n)
 
             ! Store more information
+            call on_mirror_plane%get(i, dummy)
             call edge_index1%get(i, m)
             call edge_index2%get(i, n)
             this%edges(i)%on_mirror_plane = dummy
@@ -596,19 +598,16 @@ contains
 
         end do
 
-        ! Allocate wake top vertices array
-        allocate(this%wake_edge_top_verts(wake_edge_verts%len()))
+        ! Allocate wake vertices array
+        allocate(this%wake_edge_verts(wake_edge_verts%len()))
 
         do i=1,wake_edge_verts%len()
 
             ! Store vertices into array
             call wake_edge_verts%get(i, m)
-            this%wake_edge_top_verts(i) = m
+            this%wake_edge_verts(i) = m
 
         end do
-
-        ! Allocate wake bottom vertices array
-        allocate(this%wake_edge_bot_verts, source=this%wake_edge_top_verts)
 
         ! Store wake edge indices in array
         allocate(this%wake_edge_indices(this%N_wake_edges))
@@ -647,51 +646,51 @@ contains
         end do
 
         ! Check if any discontinuous edges touch the mirror plane
-        do j=1,this%N_wake_edges
+        do i=1,this%N_edges
 
-            ! Get index of edge
-            i = this%wake_edge_indices(j)
+            ! Check if it is discontinuous
+            if (this%edges(i)%discontinuous) then
 
-            ! Get endpoint indices
-            m = this%edges(i)%verts(1)
-            n = this%edges(i)%verts(2)
+                ! Get endpoint indices
+                m = this%edges(i)%verts(1)
+                n = this%edges(i)%verts(2)
 
-            ! If a given discontinuous edge has only one of its endpoints lying on the mirror plane, then that endpoint has another
-            ! adjacent edge, since the edge will be mirrored across that plane. This endpoint will need a clone, but it's mirrored
-            ! vertex will be the same
+                ! If a given discontinuous edge has only one of its endpoints lying on the mirror plane, then that endpoint has another
+                ! adjacent edge, since the edge will be mirrored across that plane. This endpoint will need a clone, but it's mirrored
+                ! vertex will be the same
 
-            ! Check for edge touching mirror plane at only one end
-            if (this%vertices(m)%on_mirror_plane .neqv. this%vertices(n)%on_mirror_plane) then
+                ! Check for edge touching mirror plane at only one end
+                if (this%vertices(m)%on_mirror_plane .neqv. this%vertices(n)%on_mirror_plane) then
 
-                ! Only add discontinuous edge if the endpoint is on the mirror plane
-                if (this%vertices(m)%on_mirror_plane) then
+                    ! Only add discontinuous edge if the endpoint is on the mirror plane
+                    if (this%vertices(m)%on_mirror_plane) then
 
-                    this%vertices(m)%N_wake_edges = this%vertices(m)%N_wake_edges + 1
-                    this%vertices(m)%N_discont_edges = this%vertices(m)%N_discont_edges + 1
-                    this%vertices(m)%needs_clone = .true.
-                    this%vertices(m)%mirrored_is_unique = .false.
+                        this%vertices(m)%N_wake_edges = this%vertices(m)%N_wake_edges + 1
+                        this%vertices(m)%N_discont_edges = this%vertices(m)%N_discont_edges + 1
+                        this%vertices(m)%needs_clone = .true.
+                        this%vertices(m)%mirrored_is_unique = .false.
 
-                else
+                    else
 
-                    this%vertices(n)%N_wake_edges = this%vertices(n)%N_wake_edges + 1
-                    this%vertices(n)%N_discont_edges = this%vertices(n)%N_discont_edges + 1
-                    this%vertices(n)%needs_clone = .true.
-                    this%vertices(n)%mirrored_is_unique = .false.
+                        this%vertices(n)%N_wake_edges = this%vertices(n)%N_wake_edges + 1
+                        this%vertices(n)%N_discont_edges = this%vertices(n)%N_discont_edges + 1
+                        this%vertices(n)%needs_clone = .true.
+                        this%vertices(n)%mirrored_is_unique = .false.
+
+                    end if
+
+                ! If the discontinuous edge has both endpoints lying on the mirror plane, then these vertices need no clones, but the mirrored
+                ! vertices will still be unique
+                else if (this%edges(i)%on_mirror_plane) then
+
+                    ! The mirrored vertices will function as clones
+                    this%vertices(m)%needs_clone = .false.
+                    this%vertices(n)%needs_clone = .false.
+                    this%vertices(m)%mirrored_is_unique = .true.
+                    this%vertices(n)%mirrored_is_unique = .true.
 
                 end if
-
-            ! If the discontinuous edge has both endpoints lying on the mirror plane, then these vertices need no clones, but the mirrored
-            ! vertices will still be unique
-            else if (this%edges(i)%on_mirror_plane) then
-
-                ! The mirrored vertices will function as clones
-                this%vertices(m)%needs_clone = .false.
-                this%vertices(n)%needs_clone = .false.
-                this%vertices(m)%mirrored_is_unique = .true.
-                this%vertices(n)%mirrored_is_unique = .true.
-
             end if
-
         end do
         write(*,*) "Done."
 
@@ -712,13 +711,13 @@ contains
         write(*,'(a)',advance='no') "     Cloning vertices at discontinuous edges..."
 
         ! Allocate array which will store which discontinuous vertices need to be cloned
-        N_discont_verts = size(this%wake_edge_top_verts)
+        N_discont_verts = size(this%wake_edge_verts)
 
         ! Determine number of vertices which need to be cloned
         N_clones = 0
         do i=1,N_discont_verts
 
-            if (this%vertices(this%wake_edge_top_verts(i))%needs_clone) then
+            if (this%vertices(this%wake_edge_verts(i))%needs_clone) then
 
                 ! Update the number of needed clones
                 N_clones = N_clones + 1
@@ -750,19 +749,18 @@ contains
         do i=1,N_discont_verts
 
             ! Get index of vertex to be cloned
-            i_jango = this%wake_edge_top_verts(i)
+            i_jango = this%wake_edge_verts(i)
 
             ! Check if this vertex needs to be cloned
             if (this%vertices(i_jango)%needs_clone) then
 
                 ! Get index for the clone
-                i_boba = this%N_verts-N_clones+j ! Will be at position N_verts-N_clones+j in the new vertex array
+                i_boba = this%N_verts - N_clones + j ! Will be at position N_verts-N_clones+j in the new vertex array
 
                 ! Initialize clone
                 call this%vertices(i_boba)%init(this%vertices(i_jango)%loc, i_boba)
-
-                ! Store clone as a bottom vertex
-                this%wake_edge_bot_verts(i) = i_boba
+                this%vertices(i_jango)%i_wake_partner = i_boba
+                this%vertices(i_boba)%i_wake_partner = i_jango
 
                 ! Store number of adjacent wake-shedding edges (probably unecessary at this point, but let's be consistent)
                 this%vertices(i_boba)%N_wake_edges = this%vertices(i_jango)%N_wake_edges
@@ -861,7 +859,7 @@ contains
                 if (this%mirrored .and. this%asym_flow .and.  this%vertices(i_jango)%on_mirror_plane .and. &
                     this%vertices(i_jango)%mirrored_is_unique) then
 
-                    this%wake_edge_bot_verts(i) = i_jango + this%N_verts
+                    this%vertices(i_jango)%i_wake_partner = i_jango + this%N_verts
 
                 end if
 
@@ -945,15 +943,14 @@ contains
             end if
 
             ! Initialize wake
-            call this%wake%init(freestream, this%wake_edge_top_verts, &
-                                this%wake_edge_bot_verts, this%edges, this%wake_edge_indices, &
+            call this%wake%init(freestream, this%wake_edge_verts, &
+                                this%edges, this%N_wake_edges, &
                                 this%N_wake_panels_streamwise, this%vertices, &
                                 this%trefftz_distance, this%mirrored .and. this%asym_flow, &
                                 this%mirror_plane, this%N_panels)
 
             ! Clean up
-            deallocate(this%wake_edge_top_verts)
-            deallocate(this%wake_edge_bot_verts)
+            deallocate(this%wake_edge_verts)
         
             ! Export wake geometry
             if (wake_file /= 'none') then
