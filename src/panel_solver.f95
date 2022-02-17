@@ -675,26 +675,26 @@ contains
         ! Check for uninfluenced/ing points
         do i=1,this%N
             if (all(this%A(i,:) == 0.)) then
-                write(*,*) "WARNING: Control point ", i, " is not influenced."
+                write(*,*) "!!! Control point ", i, " is not influenced. Quitting"
+                stop
             end if
             if (all(this%A(:,i) == 0.)) then
-                write(*,*) "WARNING: Vertex ", i, " exerts no influence."
+                write(*,*) "!!! Vertex ", i, " exerts no influence. Quitting"
+                stop
             end if
         end do
 
         ! Write A and b to file
-        if (.true.) then
-            open(34, file="./dev/A_mat.txt")
-            do i=1,this%N
-                write(34,*) this%A(i,:)
-            end do
-            close(34)
-            open(34, file="./dev/b_vec.txt")
-            do i=1,this%N
-                write(34,*) this%b(i)
-            end do
-            close(34)
-        end if
+        !open(34, file="./dev/A_mat.txt")
+        !do i=1,this%N
+        !    write(34,*) this%A(i,:)
+        !end do
+        !close(34)
+        !open(34, file="./dev/b_vec.txt")
+        !do i=1,this%N
+        !    write(34,*) this%b(i)
+        !end do
+        !close(34)
 
         ! Set b vector for Morino formulation
         if (this%formulation == "morino") then
