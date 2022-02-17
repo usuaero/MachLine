@@ -51,7 +51,13 @@ class Swept_Plotting:
 
 
 
-    def get_data(self):
+    def get_data(self, formulation):
+
+        # Determine formulation formatting for pdf file purposes
+        if formulation == "source-free":
+            form = "source_free"
+        else:
+            form = formulation
 
         # Pull In Results Depending on Location Input
         # In addition to defining leading edge location and respective labels for plot
@@ -67,7 +73,7 @@ class Swept_Plotting:
                 self.Nodes = ['20', '40', '80']
 
             elif percent_semispan == '94.9':
-                self.Nodes = ['40', '80']
+                self.Nodes = ['20', '40', '80']
 
             # Establish clean list for saving and combining produced plots
             list_of_files =[]
@@ -89,7 +95,7 @@ class Swept_Plotting:
                
                 #Identify angle of atack note to add to plot title
                 y = r'$\alpha$ = '
-                Notes = y + AoA + r'$^{\circ}$'
+                AoA_Notes = y + AoA + r'$^{\circ}$'
 
                 #Pull in experimental results for comparison at each angle of attack differentiating upper and lower surfaces
                 upper_surface_count = Experimental[:,0].size//2 + Experimental[:,0].size%2
@@ -97,10 +103,12 @@ class Swept_Plotting:
                 plt.plot(Experimental[upper_surface_count:,0], Experimental[upper_surface_count:,j+1], "*",color="k", label="Exerimental Lower Surface")
 
                 #Plot the figure containing all curves
-                complete_title = title + ", " + Notes
+                complete_title = title + ", " + AoA_Notes
+                Sub_Note = "*" + formulation + " formulation"
                 plt.title(complete_title)
                 plt.xlabel('x/c')
                 plt.ylabel(r"$C_p$")
+                plt.figtext(0.7, 0.02, Sub_Note)
                 plt.gca().invert_yaxis()
                 if percent_semispan == '94.9':
                     plt.legend()
@@ -109,7 +117,7 @@ class Swept_Plotting:
                 #Save the figure in appropriate location
                 
                 if json_vals["plots"]["save plots"]:
-                    filename = percent_semispan + "_percent_semispan/plots_" + percent_semispan + "_percent_semispan/" + json_vals["plots"]["save plot type"] + "_plots/" + AoA + "degrees_AoA_plot." + json_vals["plots"]["save plot type"]
+                    filename = percent_semispan + "_percent_semispan/plots_" + percent_semispan + "_percent_semispan/" + json_vals["plots"]["save plot type"] + "_plots/" + AoA + "degrees_AoA_plot_" + form + "_formulation." + json_vals["plots"]["save plot type"]
                     list_of_files.append(filename)
                     plt.savefig(filename)
 
@@ -118,17 +126,23 @@ class Swept_Plotting:
             # Combine plots into one pdf for easy review
             if json_vals["plots"]["save plot type"] == "pdf" and json_vals["plots"]["combine pdfs"]:
 
+                # Combine files in percent semispan folders
                 merger = PdfFileMerger()
-                Combined_name = percent_semispan + '_percent_semispan/plots_' + percent_semispan + '_percent_semispan/pdf_plots/Combined_plots_' + percent_semispan + '_percent_semispan.pdf'
-                Combined_name_copy = 'Plot_Summary/' + 'Combined_plots_' + percent_semispan + '_percent_semispan.pdf'
+                Combined_name = percent_semispan + '_percent_semispan/plots_' + percent_semispan + '_percent_semispan/pdf_plots/Combined_plots_' + percent_semispan + '_percent_semispan_' + form + '_formulation.pdf'
 
                 for name in list_of_files:
                     merger.append(name)
 
                 merger.write(Combined_name)
-                merger.write(Combined_name_copy)
                 merger.close()
 
+                # Combine files in Plot Summary folder
+                Combined_name_copy = 'Plot_Summary/' + 'Combined_plots_' + percent_semispan + '_percent_semispan_' + form + '_formulation.pdf'
+                merger = PdfFileMerger()
+                for name in list_of_files:
+                    merger.append(name)
+                merger.write(Combined_name_copy)
+                merger.close()
 
 # Main script
 inputfile = "Swept_half_wing_conditions_input.json"
@@ -142,11 +156,13 @@ semispan_xy_loc = json_vals["geometry"]["semispan_xy_loc"]
 
 chord = json_vals["geometry"]["uniform chord length"]
 Nodes = json_vals["geometry"]["nodes"]
+formulation = json_vals["solver"]["formulation"]
+
 
 # Proccesses either one or all semispan locations based on input file
 if json_vals["plots"]["process_all"]:
 
-    Swept_Plotting(locations, chord, Nodes, semispan_xy_loc).get_data()
+    Swept_Plotting(locations, chord, Nodes, semispan_xy_loc).get_data(formulation)
 
 else:
     x = input("Enter percent semispan for analysis results. Options are 4.1, 8.2, 16.3, 24.5, 36.7, 51.0, 65.3, 89.8, 94.9:   ",)
@@ -157,8 +173,12 @@ else:
 
         Specific_Semispan = {x: locations[x]}
 
-        Swept_Plotting(Specific_Semispan, chord, Nodes, semispan_xy_loc).get_data()
+        Swept_Plotting(Specific_Semispan, chord, Nodes, semispan_xy_loc).get_data(formulation)
 
     else:
         print("\n****************\nInvalid Entry. Please run script again.\n****************\n")
         quit()
+
+# Print exit statement to verify completion of process
+print()
+print("Pressure plotting executed successfully. \n")
