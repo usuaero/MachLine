@@ -215,23 +215,26 @@ contains
             do i=1,body%N_panels
 
                 ! Original panel and original control point
-                this%dod_info(i,j) = body%panels(i)%check_dod(body%cp(j,:), this%freestream)
+                this%dod_info(i,j) = body%panels(i)%check_dod(body%cp(j,:), this%freestream, this%verts_in_dod(:,j))
 
                 if (body%mirrored) then
 
                     ! Check DoD for mirrored panel and original control point
                     this%dod_info(i+body%N_panels,j) = body%panels(i)%check_dod(body%cp(j,:), this%freestream, &
+                                                                                this%verts_in_dod(:,j), &
                                                                                 .true., body%mirror_plane)
                     
                     if (body%asym_flow) then
 
                         ! Check DoD for original panel and mirrored control point
-                        this%dod_info(i,j+body%N_cp) = body%panels(i)%check_dod(body%cp_mirrored(j,:), this%freestream)
+                        this%dod_info(i,j+body%N_cp) = body%panels(i)%check_dod(body%cp_mirrored(j,:), this%freestream, &
+                                                                                this%verts_in_dod(:,j+body%N_cp))
 
                         ! Check DoD for mirrored panel and mirrored control point
                         this%dod_info(i+body%N_panels,j+body%N_cp) = body%panels(i)%check_dod(body%cp_mirrored(j,:), &
-                                                                                              this%freestream, .true., &
-                                                                                              body%mirror_plane)
+                                                                                              this%freestream, &
+                                                                                              this%verts_in_dod(:,j+body%N_cp), &
+                                                                                              .true., body%mirror_plane)
 
                     end if
                 end if
@@ -241,19 +244,21 @@ contains
             do i=1,body%wake%N_panels
 
                 ! Check DoD for panel and original control point
-                this%wake_dod_info(i,j) = body%wake%panels(i)%check_dod(body%cp(j,:), this%freestream)
+                this%wake_dod_info(i,j) = body%wake%panels(i)%check_dod(body%cp(j,:), this%freestream, this%wake_verts_in_dod(:,j))
 
                 if (body%mirrored) then
 
                     if (body%asym_flow) then
 
                         ! Check DoD for panel and mirrored control point
-                        this%wake_dod_info(i,j+body%N_verts) = body%wake%panels(i)%check_dod(body%cp_mirrored(j,:), this%freestream)
+                        this%wake_dod_info(i,j+body%N_cp) = body%wake%panels(i)%check_dod(body%cp_mirrored(j,:), this%freestream, &
+                                                                                          this%wake_verts_in_dod(:,j+body%N_cp))
 
                     else
 
                         ! Check DoD for mirrored panel and original control point
                         this%wake_dod_info(i+body%wake%N_panels,j) = body%wake%panels(i)%check_dod(body%cp(j,:), this%freestream, &
+                                                                                                   this%wake_verts_in_dod(:,j), &
                                                                                                    .true., body%mirror_plane)
 
                     end if

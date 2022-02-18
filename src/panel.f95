@@ -629,7 +629,7 @@ contains
     end subroutine panel_point_to_vertex_clone
 
 
-    function panel_check_dod(this, eval_point, freestream, panel_mirrored, mirror_plane) result(dod_info)
+    function panel_check_dod(this, eval_point, freestream, verts_in_dod, panel_mirrored, mirror_plane) result(dod_info)
         ! Determines how (if) this panel lies within the domain of dependence of the evaluation point
 
         implicit none
@@ -637,13 +637,14 @@ contains
         class(panel),intent(inout) :: this
         real,dimension(3),intent(in) :: eval_point
         type(flow),intent(in) :: freestream
+        logical,dimension(:),intent(in) :: verts_in_dod
         logical,intent(in),optional :: panel_mirrored
         integer,intent(in),optional :: mirror_plane
 
         type(dod) :: dod_info
 
         real,dimension(3) :: d, point, a, b, R_star
-        integer :: i, N_verts_in_dod, N_edges_in_dod, i_next
+        integer :: i, i_next
         real :: C_theta, x, y, dQ_dDp2, s_star
         logical :: totally_out, totally_in, centroid_in, radius_smaller, mirrored, in_panel
 
@@ -657,106 +658,91 @@ contains
         ! First check the flow is supersonic (check_dod is always called)
         if (freestream%supersonic) then
 
-            ! Fast check based on centroid and radius (Epton & Magnus p. J.3-1)
+            ! Read in vertex information
+            do i=1,this%N
+                dod_info%verts_in_dod(i) = verts_in_dod(this%get_vertex_index(i))
+            end do
 
-            ! First, check if the centroid is in the dod
-            if (mirrored) then
-                point = mirror_about_plane(this%centroid, mirror_plane)
-            else
-                point = this%centroid
-            end if
-            centroid_in = freestream%point_in_dod(point, eval_point)
-
-            ! Determine the eval point geometry relative to the compressibility axis
-            d = point-eval_point
-            x = inner(d, freestream%c_hat_g)
-            y = sqrt(norm(d)**2-x**2)
-
-            ! Calculate the distance from the eval point to the Mach cone (E&M Eq. (J.3.26))
-            if (y >= freestream%B*x) then
-                dQ_dDp2 = (x+freestream%B*y)**2/(1.+freestream%B**2)
-            else
-                dQ_dDp2 = inner(d, d)
-            end if
-
-            ! Check the minimum distance relative to the radius
-            if (dQ_dDp2 >= this%radius**2) then
-                radius_smaller = .true.
-            else
-                radius_smaller = .false.
-            end if
-
-            ! Determine condition
-            totally_out = .not. centroid_in .and. radius_smaller
-            totally_in = centroid_in .and. radius_smaller
-
-            ! Set parameters
-            if (totally_out) then
-
-                dod_info%in_dod = .false.
-                dod_info%verts_in_dod = .false.
-                dod_info%edges_in_dod = .false.
-
-            else if (totally_in) then
-
+            ! If all the vertices are in, we can be done
+            if (all(dod_info%verts_in_dod)) then
                 dod_info%in_dod = .true.
-                dod_info%verts_in_dod = .true.
                 dod_info%edges_in_dod = .true.
+
+            !! Fast check based on centroid and radius (Epton & Magnus p. J.3-1)
+
+            !! First, check if the centroid is in the dod
+            !if (mirrored) then
+            !    point = mirror_about_plane(this%centroid, mirror_plane)
+            !else
+            !    point = this%centroid
+            !end if
+            !centroid_in = freestream%point_in_dod(point, eval_point)
+
+            !! Determine the eval point geometry relative to the compressibility axis
+            !d = point-eval_point
+            !x = inner(d, freestream%c_hat_g)
+            !y = sqrt(norm(d)**2-x**2)
+
+            !! Calculate the distance from the eval point to the Mach cone (E&M Eq. (J.3.26))
+            !if (y >= freestream%B*x) then
+            !    dQ_dDp2 = (x+freestream%B*y)**2/(1.+freestream%B**2)
+            !else
+            !    dQ_dDp2 = inner(d, d)
+            !end if
+
+            !! Check the minimum distance relative to the radius
+            !if (dQ_dDp2 >= this%radius**2) then
+            !    radius_smaller = .true.
+            !else
+            !    radius_smaller = .false.
+            !end if
+
+            !! Determine condition
+            !totally_out = .not. centroid_in .and. radius_smaller
+            !totally_in = centroid_in .and. radius_smaller
+
+            !! Set parameters
+            !if (totally_out) then
+
+            !    dod_info%in_dod = .false.
+            !    dod_info%verts_in_dod = .false.
+            !    dod_info%edges_in_dod = .false.
+
+            !else if (totally_in) then
+
+            !    dod_info%in_dod = .true.
+            !    dod_info%verts_in_dod = .true.
+            !    dod_info%edges_in_dod = .true.
 
             ! If it is not guaranteed to be totally out or in, then check all the vertices and edges
             else
 
-                ! Initialize
-                dod_info%in_dod = .false.
-
-                ! Check each of the vertices
-                N_verts_in_dod = 0
-                do i=1,this%N
-
-                    ! Get point
-                    if (mirrored) then
-                        point = mirror_about_plane(this%get_vertex_loc(i), mirror_plane)
-                    else
-                        point = this%get_vertex_loc(i)
-                    end if
-
-                    ! Check
-                    dod_info%verts_in_dod(i) = freestream%point_in_dod(point, eval_point)
-
-                    ! Update number of vertices
-                    if (dod_info%verts_in_dod(i)) then
-                        N_verts_in_dod = N_verts_in_dod + 1
-                        dod_info%in_dod = .true.
-                    end if
-
-                end do
+                ! Check if any vertices are in
+                if (any(dod_info%verts_in_dod)) then
+                    dod_info%in_dod = .true.
+                else
+                    dod_info%in_dod = .false. ! We're not sure at this point, but we should initialize this anyway
+                end if
 
                 ! Check edges
                 do i=1,this%N
                     
                     i_next = mod(i, this%N)+1
 
-                    ! If both vertices are in, then the edge is in (you gotta love convex subspaces)
-                    if (dod_info%verts_in_dod(i) .and. dod_info%verts_in_dod(i_next)) then
+                    ! If if at least on endpoint is in, then the edge is in (you gotta love convex subspaces)
+                    if (dod_info%verts_in_dod(i) .or. dod_info%verts_in_dod(i_next)) then
                         dod_info%edges_in_dod(i) = .true.
 
                     ! If both aren't in, then the intersection will depend on the edge type
-                    else if (this%q(i) == 1) then ! Subsonic
+                    else
 
-                        ! If both vertices are out, then the edge is out
-                        if (.not. dod_info%verts_in_dod(i) .and. .not. dod_info%verts_in_dod(i_next)) then
+                        ! For a subsonic edge, both being out means the edge is out
+                        if (this%q(i) == 1) then
                             dod_info%edges_in_dod(i) = .false.
 
-                        ! If one endpoint is in, then the edge is in
-                        else if (dod_info%verts_in_dod(i) .or. dod_info%verts_in_dod(i_next)) then
-                            dod_info%edges_in_dod(i) = .true.
 
-                        end if
-
-                    else ! Supersonic
-
-                        ! If both are out, calculate the point of closest approach
-                        if (.not. dod_info%verts_in_dod(i) .and. .not. dod_info%verts_in_dod(i_next)) then
+                        ! For a supersonic edge, the edge can still intersect the DoD, so calculate the point of closest approach
+                        else ! Supersonic
 
                             ! Get vector describing edge
                             d = this%get_vertex_loc(i_next) - this%get_vertex_loc(i)
@@ -780,10 +766,6 @@ contains
 
                             end if
 
-                        ! If only one is in, then the edge is in
-                        else
-                            dod_info%edges_in_dod(i) = .true.
-
                         end if
 
                     end if
@@ -791,35 +773,32 @@ contains
                 end do
 
                 ! If a supersonic panel has no edges or vertices in the DoD, check if the DoD is encompassed by the panel
-                if (this%r == -1) then
-                    if (.not. any(dod_info%verts_in_dod) .and. .not. any(dod_info%edges_in_dod)) then
+                if (this%r == -1 .and. .not. any(dod_info%verts_in_dod) .and. .not. any(dod_info%edges_in_dod)) then
 
-                        ! Get the projection of the evaluation point onto the panel in the direction of c_hat
-                        s_star = inner(this%get_vertex_loc(1)-eval_point, this%normal)/inner(freestream%c_hat_g, this%normal)
-                        R_star = eval_point + freestream%c_hat_g*s_star
+                    ! Get the projection of the evaluation point onto the panel in the direction of c_hat
+                    s_star = inner(this%get_vertex_loc(1)-eval_point, this%normal)/inner(freestream%c_hat_g, this%normal)
+                    R_star = eval_point + freestream%c_hat_g*s_star
 
-                        ! See if the projected point is in the panel
-                        in_panel = .true.
-                        do i=1,this%N
+                    ! See if the projected point is in the panel
+                    in_panel = .true.
+                    do i=1,this%N
 
-                            ! Get edge displacement
-                            x = inner(R_star, this%n_hat_g(:,i))
+                        ! Get edge displacement
+                        x = inner(R_star, this%n_hat_g(:,i))
 
-                            ! Check sign (should be negative if interior to the panel)
-                            if (x >= 0.) then
-                                in_panel = .false.
-                                exit ! Don't need to check any more
-                            end if
-
-                        end do
-
-                        ! Store information
-                        if (in_panel) then
-                            dod_info%in_dod = .true.
-                        else
-                            dod_info%in_dod = .false.
+                        ! Check sign (should be negative if interior to the panel)
+                        if (x >= 0.) then
+                            in_panel = .false.
+                            exit ! Don't need to check any more
                         end if
 
+                    end do
+
+                    ! Store information
+                    if (in_panel) then
+                        dod_info%in_dod = .true.
+                    else
+                        dod_info%in_dod = .false.
                     end if
 
                 end if
