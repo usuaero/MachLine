@@ -345,7 +345,8 @@ contains
         end if
 
         ! Calculate Jacobian
-        this%J = det3(this%A_g_to_ls)
+        u0 = matmul(freestream%A_g_to_c, this%normal)
+        this%J = 1./(freestream%B*sqrt(abs(1.-freestream%M_inf**2*u0(1))))
 
         ! Transform vertex and midpoint coords to ls
         allocate(this%vertices_ls(this%N,2))
@@ -1566,7 +1567,7 @@ contains
 
                 ! Source potential
                 if (source_order == 0) then
-                    phi_s = -freestream%K_inv*H(1,1,1)
+                    phi_s = -this%J*freestream%K_inv*H(1,1,1)
                 end if
 
                 ! Doublet potential
@@ -1713,7 +1714,7 @@ contains
                 if (source_order == 0) then
 
                     ! Compute induced potential
-                    phi = -freestream%K_inv*H(1,1,1)
+                    phi = -this%J*freestream%K_inv*H(1,1,1)
 
                 end if
 
@@ -1762,9 +1763,9 @@ contains
                 if (source_order == 0) then
 
                     ! Calculate velocity
-                    v(1,1) = freestream%K_inv*sum(this%n_hat_ls(:,1)*F(:,1,1,1))
-                    v(1,2) = freestream%K_inv*sum(this%n_hat_ls(:,2)*F(:,1,1,1))
-                    v(1,3) = freestream%K_inv*geom%h*H(1,1,3)
+                    v(1,1) = this%J*freestream%K_inv*sum(this%n_hat_ls(:,1)*F(:,1,1,1))
+                    v(1,2) = this%J*freestream%K_inv*sum(this%n_hat_ls(:,2)*F(:,1,1,1))
+                    v(1,3) = this%J*freestream%K_inv*geom%h*H(1,1,3)
 
                 end if
 
