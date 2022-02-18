@@ -9,6 +9,7 @@ module panel_solver_mod
     use flow_mod
     use math_mod
     use linalg_mod
+    use sort_mod
 
     implicit none
 
@@ -25,12 +26,14 @@ module panel_solver_mod
         real,dimension(:,:),allocatable :: A
         real,dimension(:), allocatable :: b
         integer :: N, wake_start, N_pressures
+        integer,dimension(:),allocatable :: i_cp_sorted
 
         contains
 
             procedure :: init => panel_solver_init
             procedure :: init_dirichlet => panel_solver_init_dirichlet
             procedure :: calc_domains_of_dependence => panel_solver_calc_domains_of_dependence
+            procedure :: sort_control_points => panel_solver_sort_control_points
             procedure :: solve => panel_solver_solve
             procedure :: calc_source_strengths => panel_solver_calc_source_strengths
             procedure :: calc_body_influences => panel_solver_calc_body_influences
@@ -115,15 +118,15 @@ contains
             call delete_file(control_point_file)
 
             ! Get indices
-            allocate(cp_indices(size(body%control_points)/3))
+            allocate(cp_indices(size(body%cp)/3))
             do i=1,size(cp_indices)
                 cp_indices(i) = i
             end do
 
             ! Write out points
             call cp_vtk%begin(control_point_file)
-            call cp_vtk%write_points(body%control_points)
-            call cp_vtk%write_vertices(body%control_points)
+            call cp_vtk%write_points(body%cp)
+            call cp_vtk%write_vertices(body%cp)
             call cp_vtk%write_point_scalars(cp_indices, 'index')
             call cp_vtk%finish()
 
@@ -171,7 +174,7 @@ contains
             ! Loop through body panels
             do i=1,body%N_panels
 
-                this%dod_info(i,j) = body%panels(i)%check_dod(body%control_points(j,:), this%freestream)
+                this%dod_info(i,j) = body%panels(i)%check_dod(body%cp(j,:), this%freestream)
 
                 if (body%mirrored) then
 
@@ -186,7 +189,7 @@ contains
                                                                                               body%mirror_plane)
 
                         ! Check DoD for mirrored panel and original control point
-                        this%dod_info(i+body%N_panels,j) = body%panels(i)%check_dod(body%control_points(j,:), this%freestream, &
+                        this%dod_info(i+body%N_panels,j) = body%panels(i)%check_dod(body%cp(j,:), this%freestream, &
                                                                                     .true., body%mirror_plane)
 
                     end if
@@ -199,7 +202,7 @@ contains
             do i=1,body%wake%N_panels
 
                 ! Check DoD for panel and original control point
-                this%dod_info(this%wake_start+i,j) = body%wake%panels(i)%check_dod(body%control_points(j,:), this%freestream)
+                this%dod_info(this%wake_start+i,j) = body%wake%panels(i)%check_dod(body%cp(j,:), this%freestream)
 
                 if (body%mirrored) then
 
@@ -224,7 +227,7 @@ contains
 
         implicit none
 
-        class(panel_solver),intent(in) :: this
+        class(panel_solver),intent(inout) :: this
         type(json_value),pointer,intent(in) :: solver_settings
         type(surface_mesh),intent(inout) :: body
 
@@ -241,9 +244,53 @@ contains
             call body%place_interior_control_points(offset)
         end if
 
-        write(*,*) "Done."
+        ! Determine size of linear system
+        if (body%mirrored .and. body%asym_flow) then
+            this%N = body%N_cp*2
+        else
+            this%N = body%N_cp
+        end if
+
+        ! Sort control points
+        if (this%freestream%supersonic) then
+            call this%sort_control_points(body)
+        end if
+
+        write(*,'(a, i5, a)') "Done. Placed", body%N_cp, " control points."
     
     end subroutine panel_solver_init_dirichlet
+
+
+    subroutine panel_solver_sort_control_points(this, body)
+        ! Sorts the control points in the compressibility direction to allow for fast matrix solving
+
+        implicit none
+
+        class(panel_solver),intent(inout) :: this
+        type(surface_mesh),intent(inout) :: body
+
+        real,dimension(:),allocatable :: x
+        integer :: i
+
+        ! Allocate the compressibility distance array
+        allocate(x(this%N))
+
+        ! Add original control points
+        do i=1,body%N_cp
+            x(i) = -inner(this%freestream%c_hat_g, body%cp(i,:))
+        end do
+
+        ! Add mirrored control points
+        if (body%mirrored .and. body%asym_flow) then
+            do i=1,body%N_cp
+                x(i+body%N_cp) = -inner(this%freestream%c_hat_g, body%cp_mirrored(i,:))
+            end do
+        end if
+
+        ! Get sorted indices
+        call insertion_sort_indices(x, this%i_cp_sorted)
+    
+    end subroutine panel_solver_sort_control_points
 
 
     subroutine panel_solver_solve(this, body, report_file)
@@ -356,13 +403,6 @@ contains
         ! Determine formulation
         morino = this%formulation == 'morino'
 
-        ! Determine size of linear system
-        if (body%mirrored .and. body%asym_flow) then
-            this%N = body%N_cp*2
-        else
-            this%N = body%N_cp
-        end if
-
         ! Allocate space for inner potential calculations
         allocate(body%phi_cp_sigma(this%N), source=0., stat=stat)
         call check_allocation(stat, "induced potential vector")
@@ -382,7 +422,7 @@ contains
             do j=1,body%N_panels
 
                 ! Get induced potentials
-                call body%panels(j)%calc_potentials(body%control_points(i,:), this%freestream, this%dod_info(j,i), .false., &
+                call body%panels(j)%calc_potentials(body%cp(i,:), this%freestream, this%dod_info(j,i), .false., &
                                                     source_inf, doublet_inf, i_vert_s, i_vert_d)
 
 
@@ -458,7 +498,7 @@ contains
 
                         ! Recalculate mirrored->existing influences for compressible flow
                         if (.not. this%freestream%incompressible) then
-                            call body%panels(j)%calc_potentials(body%control_points(i,:), this%freestream, &
+                            call body%panels(j)%calc_potentials(body%cp(i,:), this%freestream, &
                                                                 this%dod_info(j+body%N_panels,i), .true., source_inf, &
                                                                 doublet_inf, i_vert_s, i_vert_d)
                         end if
@@ -512,7 +552,7 @@ contains
 
             ! Set target potential for source-free formulation
             if (.not. morino) then
-                this%b(i) = -inner(body%control_points(i,:), this%freestream%c_hat_g)
+                this%b(i) = -inner(body%cp(i,:), this%freestream%c_hat_g)
             end if
 
         end do
@@ -553,7 +593,7 @@ contains
                 do j=1,body%wake%N_panels
 
                     ! Caclulate influence
-                    call body%wake%panels(j)%calc_potentials(body%control_points(i,:), this%freestream, &
+                    call body%wake%panels(j)%calc_potentials(body%cp(i,:), this%freestream, &
                                                              this%dod_info(this%wake_start+j,i), .false., &
                                                              source_inf, doublet_inf, i_vert_s, i_vert_d)
 
@@ -635,26 +675,26 @@ contains
         ! Check for uninfluenced/ing points
         do i=1,this%N
             if (all(this%A(i,:) == 0.)) then
-                write(*,*) "WARNING: Control point ", i, " is not influenced."
+                write(*,*) "!!! Control point ", i, " is not influenced. Quitting"
+                stop
             end if
             if (all(this%A(:,i) == 0.)) then
-                write(*,*) "WARNING: Vertex ", i, " exerts no influence."
+                write(*,*) "!!! Vertex ", i, " exerts no influence. Quitting"
+                stop
             end if
         end do
 
         ! Write A and b to file
-        if (.true.) then
-            open(34, file="./dev/A_mat.txt")
-            do i=1,this%N
-                write(34,*) this%A(i,:)
-            end do
-            close(34)
-            open(34, file="./dev/b_vec.txt")
-            do i=1,this%N
-                write(34,*) this%b(i)
-            end do
-            close(34)
-        end if
+        !open(34, file="./dev/A_mat.txt")
+        !do i=1,this%N
+        !    write(34,*) this%A(i,:)
+        !end do
+        !close(34)
+        !open(34, file="./dev/b_vec.txt")
+        !do i=1,this%N
+        !    write(34,*) this%b(i)
+        !end do
+        !close(34)
 
         ! Set b vector for Morino formulation
         if (this%formulation == "morino") then

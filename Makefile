@@ -25,6 +25,7 @@ default:
 	common/linalg.f95 \
 	common/json.f95 \
 	common/json_xtnsn.f95 \
+	common/sort.f95 \
 	src/flow.f95 \
 	src/vertex.f95 \
 	src/edge.f95 \

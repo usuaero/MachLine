@@ -12,6 +12,7 @@ module surface_mesh_mod
     use math_mod
     use edge_mod
     use wake_mesh_mod
+    use sort_mod
 
     implicit none
 
@@ -27,7 +28,7 @@ module surface_mesh_mod
         real :: C_wake_shedding_angle, trefftz_distance, C_min_panel_angle
         integer :: N_wake_panels_streamwise
         logical :: wake_present, append_wake
-        real,dimension(:,:),allocatable :: control_points, cp_mirrored
+        real,dimension(:,:),allocatable :: cp, cp_mirrored
         real,dimension(:),allocatable :: phi_cp, phi_cp_sigma, phi_cp_mu ! Induced potentials at control points
         real,dimension(:),allocatable :: C_p_inc, C_p_ise, C_p_2nd ! Surface pressure coefficients
         real,dimension(:,:),allocatable :: V, dC_f ! Surface velocities and pressure forces
@@ -1059,7 +1060,7 @@ contains
             this%N_cp = this%N_verts
 
             ! Allocate memory
-            allocate(this%control_points(this%N_verts,3))
+            allocate(this%cp(this%N_verts,3))
 
             ! Calculate offset ratio such that the control point will remain within the body based on the minimum detected wake-shedding angle
             offset_ratio = 0.5*sqrt(0.5*(1.0+this%C_min_panel_angle))
@@ -1087,13 +1088,13 @@ contains
                     sum = sum/norm(sum)
 
                     ! Place control point
-                    this%control_points(i,:) = this%vertices(i)%loc &
+                    this%cp(i,:) = this%vertices(i)%loc &
                                                - offset * (this%vertices(i)%normal - offset_ratio * sum)*this%vertices(i)%l_avg
 
                 ! If it's not in a wake-shedding edge (i.e. has no clone), then placement simply follows the normal vector
                 else
 
-                    this%control_points(i,:) = this%vertices(i)%loc-offset*this%vertices(i)%normal*this%vertices(i)%l_avg
+                    this%cp(i,:) = this%vertices(i)%loc-offset*this%vertices(i)%normal*this%vertices(i)%l_avg
 
                 end if
 
@@ -1109,7 +1110,7 @@ contains
 
             ! Calculate mirrors
             do i=1,this%N_cp
-                this%cp_mirrored(i,:) = mirror_about_plane(this%control_points(i,:), this%mirror_plane)
+                this%cp_mirrored(i,:) = mirror_about_plane(this%cp(i,:), this%mirror_plane)
             end do
 
         end if
@@ -1204,8 +1205,8 @@ contains
 
             ! Write out data
             call cp_vtk%begin(control_point_file)
-            call cp_vtk%write_points(this%control_points)
-            call cp_vtk%write_vertices(this%control_points)
+            call cp_vtk%write_points(this%cp)
+            call cp_vtk%write_vertices(this%cp)
             call cp_vtk%write_point_scalars(this%phi_cp(1:this%N_cp), "phi")
             call cp_vtk%write_point_scalars(this%phi_cp_mu(1:this%N_cp), "phi_mu")
             call cp_vtk%write_point_scalars(this%phi_cp_sigma(1:this%N_cp), "phi_sigma")
