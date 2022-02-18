@@ -290,7 +290,7 @@ contains
         end if
 
         ! Determine size of linear system
-        if (body%mirrored .and. body%asym_flow) then
+        if (body%asym_flow) then
             this%N = body%N_cp*2
         else
             this%N = body%N_cp
@@ -326,7 +326,7 @@ contains
         end do
 
         ! Add mirrored control points
-        if (body%mirrored .and. body%asym_flow) then
+        if (body%asym_flow) then
             do i=1,body%N_cp
                 x(i+body%N_cp) = -inner(this%freestream%c_hat_g, body%cp_mirrored(i,:))
             end do
@@ -391,7 +391,7 @@ contains
         if (source_order == 0) then
 
             ! Determine necessary number of source strengths
-            if (body%mirrored .and. body%asym_flow) then
+            if (body%asym_flow) then
                 N_sigma = body%N_panels*2
             else
                 N_sigma = body%N_panels
@@ -413,7 +413,7 @@ contains
                     body%sigma(i) = -inner(body%panels(i)%normal, this%freestream%c_hat_g)
 
                     ! Mirrored panels for asymmetric flow
-                    if (body%mirrored .and. body%asym_flow) then
+                    if (body%asym_flow) then
 
                         ! Get mirrored normal vector
                         n_mirrored = mirror_about_plane(body%panels(i)%normal, body%mirror_plane)
@@ -587,7 +587,7 @@ contains
 
             ! Enforce doublet strength matching (i.e. for non-unique, mirrored control points, the
             ! doublet strengths must be the same). The RHS for these rows should still be zero.
-            if (body%mirrored .and. body%asym_flow) then
+            if (body%asym_flow) then
                 if (.not. body%vertices(i)%mirrored_is_unique) then
                     this%A(i+body%N_cp,i) = 1.
                     this%A(i+body%N_cp,i+body%N_cp) = -1.
@@ -676,7 +676,7 @@ contains
                             ! Calculate influence of existing panel on mirrored control point
                             ! This is the same as the influence of a mirrored panel on an existing control point
                             call body%wake%panels(j)%calc_potentials(body%cp_mirrored(i,:), this%freestream, &
-                                                                     this%wake_dod_info(j+body%wake%N_panels,i), .true., &
+                                                                     this%wake_dod_info(j+body%wake%N_panels,i), .true., & ! No, this is not the DoD for this computation; yes, it is equivalent
                                                                      source_inf, doublet_inf, i_vert_s, i_vert_d)
 
                             ! Add influence
@@ -788,7 +788,7 @@ contains
         write(*,'(a)',advance='no') "     Calculating surface velocities..."
 
         ! Determine surface velocities
-        if (body%mirrored .and. body%asym_flow) then
+        if (body%asym_flow) then
 
             ! Allocate velocity storage
             N_vels = body%N_panels*2
@@ -987,7 +987,7 @@ contains
                 body%dC_f(i,:) = -body%C_p_inc(i)*body%panels(i)%A*body%panels(i)%normal
 
                 ! Mirror
-                if (body%mirrored .and. body%asym_flow) then
+                if (body%asym_flow) then
                     n_mirrored = mirror_about_plane(body%panels(i)%normal, body%mirror_plane)
                     body%dC_f(i+body%N_panels,:) = -body%C_p_inc(i+body%N_panels)*body%panels(i)%A*n_mirrored
                 end if
@@ -998,7 +998,7 @@ contains
                 body%dC_f(i,:) = -body%C_p_ise(i)*body%panels(i)%A*body%panels(i)%normal
 
                 ! Mirror
-                if (body%mirrored .and. body%asym_flow) then
+                if (body%asym_flow) then
                     n_mirrored = mirror_about_plane(body%panels(i)%normal, body%mirror_plane)
                     body%dC_f(i+body%N_panels,:) = -body%C_p_ise(i+body%N_panels)*body%panels(i)%A*n_mirrored
                 end if
@@ -1009,7 +1009,7 @@ contains
                 body%dC_f(i,:) = -body%C_p_2nd(i)*body%panels(i)%A*body%panels(i)%normal
 
                 ! Mirror
-                if (body%mirrored .and. body%asym_flow) then
+                if (body%asym_flow) then
                     n_mirrored = mirror_about_plane(body%panels(i)%normal, body%mirror_plane)
                     body%dC_f(i+body%N_panels,:) = -body%C_p_2nd(i+body%N_panels)*body%panels(i)%A*n_mirrored
                 end if
