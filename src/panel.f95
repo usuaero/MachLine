@@ -434,8 +434,8 @@ contains
             ! Calculate the edge type parameter (E&M Eq. (J.3.28) or Eq. (J.7.51))
             this%tau(i) = sqrt(abs(freestream%C_g_inner(this%t_hat_g(i,:), this%t_hat_g(i,:))))
 
-            ! Calculate edge type indicator (E&M Eq. (J.6.48) and Ehlers Eq. (E14))
-            this%q(i) = nint(this%r*this%t_hat_ls(i,1)**2 + freestream%s*this%t_hat_ls(i,2)**2)
+            ! Calculate edge type indicator (E&M Eq. (J.6.48); this is the sign of b in Ehlers Eq. (E14))
+            this%q(i) = sign(this%r*this%t_hat_ls(i,1)**2 + freestream%s*this%t_hat_ls(i,2)**2)
 
         end do
     
