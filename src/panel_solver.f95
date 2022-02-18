@@ -645,7 +645,7 @@ contains
                                                              this%wake_dod_info(j,i), .false., &
                                                              source_inf, doublet_inf, i_vert_s, i_vert_d)
 
-                    ! Add doublet influence
+                    ! Add influence
                     if (doublet_order == 1) then
                         do k=1,size(i_vert_d)
                             this%A(i,i_vert_d(k)) = this%A(i,i_vert_d(k)) + doublet_inf(k)
@@ -662,7 +662,7 @@ contains
                                                                      this%wake_dod_info(j,i+body%N_cp), .false., &
                                                                      source_inf, doublet_inf, i_vert_s, i_vert_d)
 
-                            ! Add doublet influence
+                            ! Add influence
                             if (body%vertices(i)%mirrored_is_unique) then
                                 if (doublet_order == 1) then
                                     do k=1,size(i_vert_d)
@@ -673,12 +673,13 @@ contains
 
                         else
 
-                            ! Calculate influence of mirrored panel on existing control point
+                            ! Calculate influence of existing panel on mirrored control point
+                            ! This is the same as the influence of a mirrored panel on an existing control point
                             call body%wake%panels(j)%calc_potentials(body%cp_mirrored(i,:), this%freestream, &
                                                                      this%wake_dod_info(j+body%wake%N_panels,i), .true., &
                                                                      source_inf, doublet_inf, i_vert_s, i_vert_d)
 
-                            ! Add doublet influence
+                            ! Add influence
                             if (doublet_order == 1) then
                                 do k=1,size(i_vert_d)
                                     this%A(i,i_vert_d(k)) = this%A(i,i_vert_d(k)) + doublet_inf(k)

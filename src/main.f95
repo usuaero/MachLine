@@ -21,6 +21,7 @@ program main
     type(flow) :: freestream_flow
     type(panel_solver) :: linear_solver
     real :: start, end
+    logical :: exists
 
     ! Initialize developer things
     eval_count = 0
@@ -49,12 +50,20 @@ program main
 
     ! Get input file from command line
     call getarg(1, input_file)
+    input_file = trim(input_file)
 
     ! Get input file from user
     if (input_file == '') then
         write(*,*) "Please specify an input file:"
         read(*,'(a)') input_file
         input_file = trim(input_file)
+    end if
+
+    ! Check it exists
+    inquire(file=input_file, exist=exists)
+    if (.not. exists) then
+        write(*,*) "!!! The file ", input_file, " does not exist. Quitting..."
+        stop
     end if
 
     ! Load settings from input file
