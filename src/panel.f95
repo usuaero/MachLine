@@ -20,8 +20,8 @@ module panel_mod
     type eval_point_geom
         ! Container type for the geometric parameters necessary for calculating a panel's influence on a given field point
 
-        real,dimension(3) :: r ! Point position in global coords
-        real,dimension(2) :: r_ls ! Transformed point in panel plane
+        real,dimension(3) :: P_g ! Point position in global coords
+        real,dimension(2) :: P_ls ! Transformed point in panel plane
         real :: h ! Transformed height above panel
         real,dimension(3) :: a, g2, l1, l2, R1, R2, g ! Edge parameters
 
@@ -660,7 +660,11 @@ contains
 
             ! Read in vertex information
             do i=1,this%N
-                dod_info%verts_in_dod(i) = verts_in_dod(this%get_vertex_index(i))
+                if (mirrored) then
+                    dod_info%verts_in_dod(i) = verts_in_dod(this%get_vertex_index(i)+size(verts_in_dod)/2)
+                else
+                    dod_info%verts_in_dod(i) = verts_in_dod(this%get_vertex_index(i))
+                end if
             end do
 
             ! If all the vertices are in, we can be done
@@ -714,15 +718,8 @@ contains
             !    dod_info%verts_in_dod = .true.
             !    dod_info%edges_in_dod = .true.
 
-            ! If it is not guaranteed to be totally out or in, then check all the vertices and edges
+            ! If it is not guaranteed to be totally in, then check all the edges
             else
-
-                ! Check if any vertices are in
-                if (any(dod_info%verts_in_dod)) then
-                    dod_info%in_dod = .true.
-                else
-                    dod_info%in_dod = .false. ! We're not sure at this point, but we should initialize this anyway
-                end if
 
                 ! Check edges
                 do i=1,this%N
@@ -740,9 +737,8 @@ contains
                         if (this%q(i) == 1) then
                             dod_info%edges_in_dod(i) = .false.
 
-
                         ! For a supersonic edge, the edge can still intersect the DoD, so calculate the point of closest approach
-                        else ! Supersonic
+                        else
 
                             ! Get vector describing edge
                             d = this%get_vertex_loc(i_next) - this%get_vertex_loc(i)
@@ -755,25 +751,24 @@ contains
                             ! Check if the point of closest approach is in the edge and in the DoD
                             R_star = this%get_vertex_loc(i_next)-s_star*d
                             if (s_star > 0. .and. s_star < 1. .and. freestream%point_in_dod(R_star, eval_point)) then
-
-                                dod_info%in_dod = .true.
                                 dod_info%edges_in_dod(i) = .true.
 
+                            ! If not, this edge is not in the DoD
                             else
-
-                                ! If not, this edge is not in the DoD
                                 dod_info%edges_in_dod(i) = .false.
 
                             end if
-
                         end if
-
                     end if
 
                 end do
 
+                ! If any edge or vertex is in the DoD, then the panel is in
+                if (any(dod_info%verts_in_dod) .or. any(dod_info%edges_in_dod)) then
+                    dod_info%in_dod = .true.
+
                 ! If a supersonic panel has no edges or vertices in the DoD, check if the DoD is encompassed by the panel
-                if (this%r == -1 .and. .not. any(dod_info%verts_in_dod) .and. .not. any(dod_info%edges_in_dod)) then
+                else if (this%r == -1) then
 
                     ! Get the projection of the evaluation point onto the panel in the direction of c_hat
                     s_star = inner(this%get_vertex_loc(1)-eval_point, this%normal)/inner(freestream%c_hat_g, this%normal)
@@ -795,14 +790,13 @@ contains
                     end do
 
                     ! Store information
-                    if (in_panel) then
-                        dod_info%in_dod = .true.
-                    else
-                        dod_info%in_dod = .false.
-                    end if
+                    dod_info%in_dod = in_panel
+
+                ! Not supersonic and no edges or vertices in. Not in.
+                else
+                    dod_info%in_dod = .false.
 
                 end if
-
             end if
 
         else
@@ -828,47 +822,49 @@ contains
         type(flow),intent(in) :: freestream
         type(eval_point_geom) :: geom
 
-        real,dimension(2) :: d
-        real,dimension(3) :: r_ls, d3, x
+        real,dimension(2) :: d_ls
+        real,dimension(3) :: d_g, x
         integer :: i
+        real :: val
 
         ! Store point
-        geom%r = eval_point
+        geom%P_g = eval_point
 
         ! Transform to local scaled coordinates
-        r_ls = matmul(this%A_g_to_ls, geom%r-this%centroid)
-        geom%r_ls = r_ls(1:2)
-        geom%h = r_ls(3) ! Equivalent to E&M Eq. (J.7.41)
+        x = matmul(this%A_g_to_ls, geom%P_g-this%centroid)
+        geom%P_ls = x(1:2)
+        geom%h = x(3) ! Equivalent to E&M Eq. (J.7.41)
 
         ! Calculate intermediate quantities
         do i=1,this%N
 
-            ! Projected point displacement from start vertex
-            d = this%vertices_ls(i,:)-geom%r_ls
+            ! Calculate displacements
+            d_ls = this%vertices_ls(i,:)-geom%P_ls
+            d_g = this%get_vertex_loc(i)-geom%P_g
 
             ! Perpendicular distance in plane from evaluation point to edge E&M Eq. (J.6.46) and (J.7.53)
-            geom%a(i) = inner2(d, this%n_hat_ls(i,:))
+            geom%a(i) = inner2(d_ls, this%n_hat_ls(i,:))
 
             ! Integration length on edge to start vertex (E&M Eq. (J.6.47))
-            geom%l1(i) = this%rs*d(1)*this%t_hat_ls(i,1) + d(2)*this%t_hat_ls(i,2)
+            geom%l1(i) = this%rs*d_ls(1)*this%t_hat_ls(i,1) + d_ls(2)*this%t_hat_ls(i,2)
 
             ! Projected point displacement from end vertex
-            d = this%vertices_ls(mod(i, this%N)+1,:)-geom%r_ls
+            d_ls = this%vertices_ls(mod(i, this%N)+1,:)-geom%P_ls
 
             ! Integration length on edge to end vertex
-            geom%l2(i) = this%rs*d(1)*this%t_hat_ls(i,1) + d(2)*this%t_hat_ls(i,2)
+            geom%l2(i) = this%rs*d_ls(1)*this%t_hat_ls(i,1) + d_ls(2)*this%t_hat_ls(i,2)
 
             ! Distance from evaluation point to start vertex E&M Eq. (J.8.8)
             ! The distance should be zero in the case of a negative squared distance, as the flow is supersonic and the point lies outside the DoD
-            d3 = geom%r-this%get_vertex_loc(i)
-            if (freestream%C_g_inner(d3, d3) > 0.) then
-                geom%R1(i) = sqrt(freestream%C_g_inner(d3, d3))
+            val = freestream%C_g_inner(-d_g, -d_g)
+            if (val > 0.) then
+                geom%R1(i) = sqrt(val)
             else
                 geom%R1(i) = 0.
             end if
 
             ! Calculate square of the perpendicular distance to edge
-            x = cross(d3, this%t_hat_g(i,:))
+            x = cross(d_g, this%t_hat_g(i,:))
             geom%g2(i) = (freestream%B/this%tau(i))**2*freestream%B_g_inner(x, x) ! E&M Eq. (J.8.23) or (J.7.70)
 
             ! Calculate the perpendicular distance to edge
@@ -906,14 +902,14 @@ contains
 
         ! Evaluate at start vertex
         if (dod_info%verts_in_dod(i)) then
-            E1 = ((this%vertices_ls(i,1)-geom%r_ls(1))**(M-1)*(this%vertices_ls(i,2)-geom%r_ls(2))**(N-1))/geom%R1(i)**K
+            E1 = ((this%vertices_ls(i,1)-geom%P_ls(1))**(M-1)*(this%vertices_ls(i,2)-geom%P_ls(2))**(N-1))/geom%R1(i)**K
         else
             E1 = 0.
         end if
 
         ! Evaluate at end vertex
         if (dod_info%verts_in_dod(i_next)) then
-            E2 = ((this%vertices_ls(i_next,1)-geom%r_ls(1))**(M-1)*(this%vertices_ls(i_next,2)-geom%r_ls(2))**(N-1))/geom%R2(i)**K
+            E2 = ((this%vertices_ls(i_next,1)-geom%P_ls(1))**(M-1)*(this%vertices_ls(i_next,2)-geom%P_ls(2))**(N-1))/geom%R2(i)**K
         else
             E2 = 0.
         end if
@@ -1046,6 +1042,13 @@ contains
         ! Check for point on perimeter
         if (abs(dF) < 1e-12) then
             write(*,*) "Detected control point on perimeter of panel. Quitting..."
+            write(*,*) dod_info%in_dod
+            write(*,*) dod_info%verts_in_dod
+            write(*,*) dod_info%edges_in_dod
+            write(*,*) geom%R1
+            write(*,*) geom%R2
+            write(*,*) geom%g
+            write(*,*) min_dist_to_edge
             stop
         end if
 
@@ -1554,8 +1557,8 @@ contains
 
                     ! Compute induced potential (Johnson Eq. (D.30); Ehlers Eq. (5.17))
                     phi_d(1) = geom%h*H(1,1,3)
-                    phi_d(2) = geom%h*H(1,1,3)*geom%r_ls(1) + geom%h*H(2,1,3)
-                    phi_d(3) = geom%h*H(1,1,3)*geom%r_ls(2) + geom%h*H(1,2,3)
+                    phi_d(2) = geom%h*H(1,1,3)*geom%P_ls(1) + geom%h*H(2,1,3)
+                    phi_d(3) = geom%h*H(1,1,3)*geom%P_ls(2) + geom%h*H(1,2,3)
 
                     ! Convert to vertex influences (Davis Eq. (4.41))
                     phi_d(1:3) = freestream%K_inv*matmul(phi_d(1:3), this%S_mu_inv)
@@ -1821,8 +1824,8 @@ contains
 
                     ! Compute induced potential (Johnson Eq. (D.30); Ehlers Eq. (5.17))
                     phi(1) = geom%h*H(1,1,3)
-                    phi(2) = geom%h*H(1,1,3)*geom%r_ls(1) + geom%h*H(2,1,3)
-                    phi(3) = geom%h*H(1,1,3)*geom%r_ls(2) + geom%h*H(1,2,3)
+                    phi(2) = geom%h*H(1,1,3)*geom%P_ls(1) + geom%h*H(2,1,3)
+                    phi(3) = geom%h*H(1,1,3)*geom%P_ls(2) + geom%h*H(1,2,3)
 
                     ! Convert to vertex influences (Davis Eq. (4.41))
                     phi(1:3) = freestream%K_inv*matmul(phi(1:3), this%S_mu_inv)
