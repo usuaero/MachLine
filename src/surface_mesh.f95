@@ -515,13 +515,13 @@ contains
 
             ! Get normal for panel j (dependent on mirroring)
             if (this%edges(k)%on_mirror_plane) then
-                second_normal = mirror_about_plane(this%panels(i)%normal, this%mirror_plane)
+                second_normal = mirror_about_plane(this%panels(i)%n_g, this%mirror_plane)
             else
-                second_normal = this%panels(j)%normal
+                second_normal = this%panels(j)%n_g
             end if
 
             ! Calculate angle between panels (this is the flow-turning angle; it is the most straightforward to compute)
-            C_angle = inner(this%panels(i)%normal, second_normal)
+            C_angle = inner(this%panels(i)%n_g, second_normal)
 
             ! Update minimum angle
             this%C_min_panel_angle = min(C_angle, this%C_min_panel_angle)
@@ -534,7 +534,7 @@ contains
                 if (C_angle < this%C_wake_shedding_angle) then
 
                     ! Check angle of panel normal with freestream
-                    if (inner(this%panels(i)%normal, freestream%V_inf) > 0.0 .or. &
+                    if (inner(this%panels(i)%n_g, freestream%V_inf) > 0.0 .or. &
                         inner(second_normal, freestream%V_inf) > 0.0) then
 
                         ! Set the character of the edge
@@ -897,7 +897,7 @@ contains
             vec_sum = 0
             do i=1,N
                 call this%vertices(j)%panels%get(i, i_panel)
-                vec_sum = vec_sum + this%panels(i_panel)%normal
+                vec_sum = vec_sum + this%panels(i_panel)%n_g
             end do
 
             ! For vertices on the mirror plane, the component normal to the plane should be zeroed
@@ -908,7 +908,7 @@ contains
             end if
 
             ! Normalize and store
-            this%vertices(j)%normal = vec_sum/norm(vec_sum)
+            this%vertices(j)%n_g = vec_sum/norm(vec_sum)
 
             ! Calculate average edge lengths for each vertex
             call this%vertices(j)%calc_average_edge_length(this%vertices)
@@ -1080,7 +1080,7 @@ contains
                         call this%vertices(i)%panels_not_across_wake_edge%get(j, i_panel)
 
                         ! Add normal vector
-                        sum = sum + this%panels(i_panel)%normal
+                        sum = sum + this%panels(i_panel)%n_g
 
                     end do
 
@@ -1089,12 +1089,12 @@ contains
 
                     ! Place control point
                     this%cp(i,:) = this%vertices(i)%loc &
-                                               - offset * (this%vertices(i)%normal - offset_ratio * sum)*this%vertices(i)%l_avg
+                                               - offset * (this%vertices(i)%n_g - offset_ratio * sum)*this%vertices(i)%l_avg
 
                 ! If it's not in a wake-shedding edge (i.e. has no clone), then placement simply follows the normal vector
                 else
 
-                    this%cp(i,:) = this%vertices(i)%loc-offset*this%vertices(i)%normal*this%vertices(i)%l_avg
+                    this%cp(i,:) = this%vertices(i)%loc-offset*this%vertices(i)%n_g*this%vertices(i)%l_avg
 
                 end if
 

@@ -44,7 +44,7 @@ module panel_mod
         integer :: index ! Index of this panel in the mesh array
         type(vertex_pointer),dimension(:),allocatable :: vertices
         real :: radius
-        real,dimension(3) :: normal, conormal ! Normal and conormal vectors
+        real,dimension(3) :: n_g, nu_g ! Normal and conormal vectors
         real,dimension(:,:),allocatable :: midpoints
         real,dimension(3) :: centroid
         real,dimension(3,3) :: A_g_to_l, A_s_to_ls, A_g_to_ls, A_ls_to_g ! Coordinate transformation matrices
@@ -66,6 +66,7 @@ module panel_mod
         integer,dimension(3) :: q ! Edge type indicator; q=1 -> subsonic, q=-1 -> supersonic
         real :: J ! Local scaled transformation Jacobian
         real :: rs ! Product of the inclination indicator and the flow type indicator
+        real :: iota ! iota = |{n_g, n_g}|^(1/2); this quantity is often reused
 
         contains
 
@@ -211,8 +212,8 @@ contains
         d2 = this%midpoints(3,:)-this%midpoints(2,:)
 
         ! Find normal
-        this%normal = cross(d1, d2)
-        this%normal = this%normal/norm(this%normal)
+        this%n_g = cross(d1, d2)
+        this%n_g = this%n_g/norm(this%n_g)
 
     end subroutine panel_calc_normal
 
@@ -278,7 +279,7 @@ contains
         type(flow),intent(in) :: freestream
 
         ! Calculate local eta axis
-        this%A_g_to_l(2,:) = cross(this%normal, freestream%c_hat_g)
+        this%A_g_to_l(2,:) = cross(this%n_g, freestream%c_hat_g)
 
         ! If the normal and freestream are aligned, then we have to pick a different vector.
         ! We pick the first edge, as we already know this is perpendicular to the normal, so
@@ -291,11 +292,11 @@ contains
         this%A_g_to_l(2,:) = this%A_g_to_l(2,:)/norm(this%A_g_to_l(2,:))
 
         ! Calculate local xi axis
-        this%A_g_to_l(1,:) = cross(this%A_g_to_l(2,:), this%normal)
+        this%A_g_to_l(1,:) = cross(this%A_g_to_l(2,:), this%n_g)
         this%A_g_to_l(1,:) = this%A_g_to_l(1,:)/norm(this%A_g_to_l(1,:))
 
         ! Store local zeta axis
-        this%A_g_to_l(3,:) = this%normal
+        this%A_g_to_l(3,:) = this%n_g
 
     end subroutine panel_calc_g_to_l_transform
 
@@ -317,8 +318,8 @@ contains
         v0 = this%A_g_to_l(2,:)
 
         ! Calculate compressible parameters
-        this%conormal = matmul(freestream%B_mat_g, this%normal)
-        x = inner(this%normal, this%conormal)
+        this%nu_g = matmul(freestream%B_mat_g, this%n_g)
+        x = inner(this%n_g, this%nu_g)
 
         ! Check for Mach-inclined panels
         if (freestream%supersonic .and. abs(x) < 1e-12) then
@@ -330,12 +331,20 @@ contains
         ! Calculate panel inclination indicator (E&M Eq. (E.3.16b))
         this%r = sign(x) ! r=-1 -> superinclined, r=1 -> subinclined
         this%rs = this%r*freestream%s
+        this%iota = sqrt(abs(x))
 
         ! Calculate transformation
-        y = 1./sqrt(abs(x))
+        y = 1./this%iota
         this%A_g_to_ls(1,:) = y*matmul(freestream%C_mat_g, u0)
         this%A_g_to_ls(2,:) = this%rs/freestream%B*matmul(freestream%C_mat_g, v0)
-        this%A_g_to_ls(3,:) = freestream%B*y*this%normal
+        this%A_g_to_ls(3,:) = freestream%B*y*this%n_g
+
+        ! Check determinant
+        x = det3(this%A_g_to_ls)
+        if (abs(x-freestream%B**2) >= 1e-12) then
+            write(*,*) "!!! Calculation of local scaled coordinate transform failed. Quitting..."
+            stop
+        end if
 
         ! Calculate inverse
         if (freestream%M_inf == 0.) then
@@ -345,7 +354,7 @@ contains
         end if
 
         ! Calculate Jacobian
-        u0 = matmul(freestream%A_g_to_c, this%normal)
+        u0 = matmul(freestream%A_g_to_c, this%n_g)
         this%J = 1./(freestream%B*sqrt(abs(1.-freestream%M_inf**2*u0(1))))
 
         ! Transform vertex and midpoint coords to ls
@@ -375,6 +384,7 @@ contains
         ! Check calculation (E&M Eq. (E.2.19))
         if (any(abs(this%B_mat_ls - matmul(this%A_g_to_ls, matmul(freestream%B_mat_g, transpose(this%A_g_to_ls)))) > 1e-12)) then
             write(*,*) "!!! Calculation of local scaled coordinate transform failed. Quitting..."
+            stop
         end if
     
     end subroutine panel_calc_g_to_ls_transform
@@ -419,7 +429,7 @@ contains
             this%t_hat_ls(i,:) = e/sqrt(abs(this%rs*e(1)**2 + e(2)**2))
 
             ! Calculate edge outward normal
-            this%n_hat_g(i,:) = cross(this%t_hat_g(i,:), this%normal)
+            this%n_hat_g(i,:) = cross(this%t_hat_g(i,:), this%n_g)
             this%n_hat_l(i,1) = this%t_hat_l(i,2)
             this%n_hat_l(i,2) = -this%t_hat_l(i,1)
 
@@ -733,7 +743,7 @@ contains
                 else if (this%r == -1) then
 
                     ! Get the projection of the evaluation point onto the panel in the direction of c_hat
-                    s_star = inner(this%get_vertex_loc(1)-eval_point, this%normal)/inner(freestream%c_hat_g, this%normal)
+                    s_star = inner(this%get_vertex_loc(1)-eval_point, this%n_g)/inner(freestream%c_hat_g, this%n_g)
                     R_star = eval_point + freestream%c_hat_g*s_star
 
                     ! See if the projected point is in the panel
@@ -803,8 +813,13 @@ contains
             d_ls = this%vertices_ls(i,:)-geom%P_ls
             d_g = this%get_vertex_loc(i)-geom%P_g
 
+            ! Get vector perpendicular to edge
+            x = cross(d_g, this%t_hat_g(i,:))
+
             ! Perpendicular distance in plane from evaluation point to edge E&M Eq. (J.6.46) and (J.7.53)
             geom%a(i) = inner2(d_ls, this%n_hat_ls(i,:))
+            val = this%r*freestream%B/(this%tau(i)*this%iota) * freestream%B_g_inner(this%n_hat_g(i,:), x)
+            !write(*,*) val-geom%a(i)
 
             ! Integration length on edge to start vertex (E&M Eq. (J.6.47))
             geom%l1(i) = this%rs*d_ls(1)*this%t_hat_ls(i,1) + d_ls(2)*this%t_hat_ls(i,2)
@@ -825,7 +840,6 @@ contains
             end if
 
             ! Calculate square of the perpendicular distance to edge
-            x = cross(d_g, this%t_hat_g(i,:))
             geom%g2(i) = (freestream%B/this%tau(i))**2*freestream%B_g_inner(x, x) ! E&M Eq. (J.8.23) or (J.7.70)
 
             ! Calculate the perpendicular distance to edge
@@ -1927,7 +1941,7 @@ contains
         end if
 
         ! Add normal velocity jump in global coords E&M Eq. (N.1.11b)
-        dv = dv + s*this%normal/inner(this%conormal, this%normal)
+        dv = dv + s*this%n_g/inner(this%nu_g, this%n_g)
 
         ! Mirror if necessary
         if (mirrored) then

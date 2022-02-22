@@ -11,7 +11,7 @@ module vertex_mod
         ! A vertex in 3-space
 
         real,dimension(3) :: loc, cp ! Location and associated control point
-        real,dimension(3) :: normal ! Normal vector associated with this control point
+        real,dimension(3) :: n_g ! Normal vector associated with this control point
         real :: l_avg ! Average of the edge lengths adjacent to this vertex
         type(list) :: adjacent_vertices ! List of indices for the vertices which share an edge with this vertex
         type(list) :: adjacent_edges ! List of indices for the edges which touch this vertex

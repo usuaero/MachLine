@@ -440,13 +440,13 @@ contains
                 do i=1,body%N_panels
 
                     ! Existing panels
-                    body%sigma(i) = -inner(body%panels(i)%normal, this%freestream%c_hat_g)
+                    body%sigma(i) = -inner(body%panels(i)%n_g, this%freestream%c_hat_g)
 
                     ! Mirrored panels for asymmetric flow
                     if (body%asym_flow) then
 
                         ! Get mirrored normal vector
-                        n_mirrored = mirror_about_plane(body%panels(i)%normal, body%mirror_plane)
+                        n_mirrored = mirror_about_plane(body%panels(i)%n_g, body%mirror_plane)
 
                         ! Calculate source strength
                         body%sigma(i+body%N_panels) = -inner(n_mirrored, this%freestream%c_hat_g)
@@ -1015,33 +1015,33 @@ contains
             case ('incompressible')
 
                 ! Discrete force coefficient acting on panel
-                body%dC_f(i,:) = -body%C_p_inc(i)*body%panels(i)%A*body%panels(i)%normal
+                body%dC_f(i,:) = -body%C_p_inc(i)*body%panels(i)%A*body%panels(i)%n_g
 
                 ! Mirror
                 if (body%asym_flow) then
-                    n_mirrored = mirror_about_plane(body%panels(i)%normal, body%mirror_plane)
+                    n_mirrored = mirror_about_plane(body%panels(i)%n_g, body%mirror_plane)
                     body%dC_f(i+body%N_panels,:) = -body%C_p_inc(i+body%N_panels)*body%panels(i)%A*n_mirrored
                 end if
 
             case ('isentropic')
 
                 ! Discrete force coefficient acting on panel
-                body%dC_f(i,:) = -body%C_p_ise(i)*body%panels(i)%A*body%panels(i)%normal
+                body%dC_f(i,:) = -body%C_p_ise(i)*body%panels(i)%A*body%panels(i)%n_g
 
                 ! Mirror
                 if (body%asym_flow) then
-                    n_mirrored = mirror_about_plane(body%panels(i)%normal, body%mirror_plane)
+                    n_mirrored = mirror_about_plane(body%panels(i)%n_g, body%mirror_plane)
                     body%dC_f(i+body%N_panels,:) = -body%C_p_ise(i+body%N_panels)*body%panels(i)%A*n_mirrored
                 end if
 
             case ('second-order')
 
                 ! Discrete force coefficient acting on panel
-                body%dC_f(i,:) = -body%C_p_2nd(i)*body%panels(i)%A*body%panels(i)%normal
+                body%dC_f(i,:) = -body%C_p_2nd(i)*body%panels(i)%A*body%panels(i)%n_g
 
                 ! Mirror
                 if (body%asym_flow) then
-                    n_mirrored = mirror_about_plane(body%panels(i)%normal, body%mirror_plane)
+                    n_mirrored = mirror_about_plane(body%panels(i)%n_g, body%mirror_plane)
                     body%dC_f(i+body%N_panels,:) = -body%C_p_2nd(i+body%N_panels)*body%panels(i)%A*n_mirrored
                 end if
 
