@@ -645,8 +645,8 @@ contains
 
         real,dimension(3) :: d, point, a, b, R_star, Q_end
         integer :: i, i_next
-        real :: C_theta, x, y, dQ_dDp2, s_star
-        logical :: totally_out, totally_in, centroid_in, radius_smaller, mirrored, in_panel
+        real :: x, s_star
+        logical :: mirrored, in_panel
 
         ! Set default mirroring
         if (present(panel_mirrored)) then
@@ -667,56 +667,10 @@ contains
                 end if
             end do
 
-            ! If all the vertices are in, we can be done
+            ! If all the vertices are in, then the panel is totally in and we can be done
             if (all(dod_info%verts_in_dod)) then
                 dod_info%in_dod = .true.
                 dod_info%edges_in_dod = .true.
-
-            !! Fast check based on centroid and radius (Epton & Magnus p. J.3-1)
-
-            !! First, check if the centroid is in the dod
-            !if (mirrored) then
-            !    point = mirror_about_plane(this%centroid, mirror_plane)
-            !else
-            !    point = this%centroid
-            !end if
-            !centroid_in = freestream%point_in_dod(point, eval_point)
-
-            !! Determine the eval point geometry relative to the compressibility axis
-            !d = point-eval_point
-            !x = inner(d, freestream%c_hat_g)
-            !y = sqrt(norm(d)**2-x**2)
-
-            !! Calculate the distance from the eval point to the Mach cone (E&M Eq. (J.3.26))
-            !if (y >= freestream%B*x) then
-            !    dQ_dDp2 = (x+freestream%B*y)**2/(1.+freestream%B**2)
-            !else
-            !    dQ_dDp2 = inner(d, d)
-            !end if
-
-            !! Check the minimum distance relative to the radius
-            !if (dQ_dDp2 >= this%radius**2) then
-            !    radius_smaller = .true.
-            !else
-            !    radius_smaller = .false.
-            !end if
-
-            !! Determine condition
-            !totally_out = .not. centroid_in .and. radius_smaller
-            !totally_in = centroid_in .and. radius_smaller
-
-            !! Set parameters
-            !if (totally_out) then
-
-            !    dod_info%in_dod = .false.
-            !    dod_info%verts_in_dod = .false.
-            !    dod_info%edges_in_dod = .false.
-
-            !else if (totally_in) then
-
-            !    dod_info%in_dod = .true.
-            !    dod_info%verts_in_dod = .true.
-            !    dod_info%edges_in_dod = .true.
 
             ! If it is not guaranteed to be totally in, then check all the edges
             else
@@ -740,17 +694,12 @@ contains
                         ! For a supersonic edge, the edge can still intersect the DoD, so calculate the point of closest approach
                         else
 
-                            ! Get end vertex
+                            ! Get end vertex and vector describing edge
                             if (mirrored) then
                                 Q_end = mirror_about_plane(this%get_vertex_loc(i_next), mirror_plane)
-                            else
-                                Q_end = this%get_vertex_loc(i_next)
-                            end if
-
-                            ! Get vector describing edge
-                            if (mirrored) then
                                 d = Q_end - mirror_about_plane(this%get_vertex_loc(i), mirror_plane)
                             else
+                                Q_end = this%get_vertex_loc(i_next)
                                 d = Q_end - this%get_vertex_loc(i)
                             end if
                         
@@ -820,7 +769,6 @@ contains
             dod_info%edges_in_dod = .true.
 
         end if
-
     
     end function panel_check_dod
 

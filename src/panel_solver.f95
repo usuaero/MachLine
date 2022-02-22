@@ -20,7 +20,6 @@ module panel_solver_mod
         character(len=:),allocatable :: formulation, pressure_for_forces
         logical :: incompressible_rule, isentropic_rule, second_order_rule
         logical,dimension(:,:),allocatable :: verts_in_dod, wake_verts_in_dod
-        logical,dimension(:,:),allocatable :: edges_in_dod, wake_edges_in_dod
         type(dod),dimension(:,:),allocatable :: dod_info, wake_dod_info
         type(flow) :: freestream
         real :: norm_res, max_res
@@ -231,54 +230,82 @@ contains
         ! Allocate arrays for domain of dependence information for the body
         if (body%mirrored) then
             allocate(this%dod_info(2*body%N_panels, this%N))
-            allocate(this%verts_in_dod(2*body%N_verts, this%N))
-            allocate(this%edges_in_dod(2*body%N_edges, this%N))
+            allocate(this%verts_in_dod(2*body%N_verts, this%N), source=.true.)
         else
             allocate(this%dod_info(body%N_panels, this%N))
-            allocate(this%verts_in_dod(body%N_verts, this%N))
-            allocate(this%edges_in_dod(body%N_edges, this%N))
+            allocate(this%verts_in_dod(body%N_verts, this%N), source=.true.)
         end if
 
         ! Allocate arrays for domain of dependence information for the wake
         if (body%mirrored .and. .not. body%asym_flow) then
             allocate(this%wake_dod_info(2*body%wake%N_panels, this%N))
-            allocate(this%wake_verts_in_dod(2*body%wake%N_verts, this%N))
+            allocate(this%wake_verts_in_dod(2*body%wake%N_verts, this%N), source=.true.)
         else
             allocate(this%wake_dod_info(body%wake%N_panels, this%N))
-            allocate(this%wake_verts_in_dod(body%wake%N_verts, this%N))
+            allocate(this%wake_verts_in_dod(body%wake%N_verts, this%N), source=.true.)
         end if
 
         ! Loop through control points
         do j=1,body%N_cp
 
-            ! Loop through vertices
-            do i=1,body%N_verts
+            ! If the freestream is supersonic, then we'll need to check each vertex before moving to the panels
+            if (this%freestream%supersonic) then
 
-                vert_loc = body%vertices(i)%loc
+                ! Loop through body vertices
+                do i=1,body%N_verts
 
-                ! Original vertex and original control point
-                this%verts_in_dod(i,j) = this%freestream%point_in_dod(vert_loc, body%cp(j,:))
+                    vert_loc = body%vertices(i)%loc
 
-                if (body%mirrored) then
+                    ! Original vertex and original control point
+                    this%verts_in_dod(i,j) = this%freestream%point_in_dod(vert_loc, body%cp(j,:))
 
-                    mirrored_vert_loc = mirror_about_plane(vert_loc, body%mirror_plane)
+                    if (body%mirrored) then
 
-                    ! Mirrored vertex and original control point
-                    this%verts_in_dod(i+body%N_verts,j) = this%freestream%point_in_dod(mirrored_vert_loc, &
-                                                                                       body%cp(j,:))
+                        mirrored_vert_loc = mirror_about_plane(vert_loc, body%mirror_plane)
 
-                    if (body%asym_flow) then
+                        ! Mirrored vertex and original control point
+                        this%verts_in_dod(i+body%N_verts,j) = this%freestream%point_in_dod(mirrored_vert_loc, &
+                                                                                           body%cp(j,:))
 
-                        ! Original vertex and mirrored control point
-                        this%verts_in_dod(i,j+body%N_cp) = this%freestream%point_in_dod(vert_loc, body%cp_mirrored(j,:))
+                        if (body%asym_flow) then
 
-                        ! Mirrored vertex and mirrored control point
-                        this%verts_in_dod(i+body%N_verts,j+body%N_cp) = this%freestream%point_in_dod(mirrored_vert_loc, &
-                                                                                                     body%cp_mirrored(j,:))
+                            ! Original vertex and mirrored control point
+                            this%verts_in_dod(i,j+body%N_cp) = this%freestream%point_in_dod(vert_loc, body%cp_mirrored(j,:))
 
+                            ! Mirrored vertex and mirrored control point
+                            this%verts_in_dod(i+body%N_verts,j+body%N_cp) = this%freestream%point_in_dod(mirrored_vert_loc, &
+                                                                                                         body%cp_mirrored(j,:))
+
+                        end if
                     end if
-                end if
-            end do
+                end do
+
+                ! Loop through wake vertices
+                do i=1,body%wake%N_verts
+
+                    vert_loc = body%wake%vertices(i)%loc
+
+                    ! Original vertex and original control point
+                    this%wake_verts_in_dod(i,j) = this%freestream%point_in_dod(vert_loc, body%cp(j,:))
+
+                    if (body%mirrored) then
+
+                        if (body%asym_flow) then
+
+                            ! Original vertex and mirrored control point
+                            this%wake_verts_in_dod(i,j+body%N_cp) = this%freestream%point_in_dod(vert_loc, body%cp_mirrored(j,:))
+
+                        else
+
+                            ! Mirrored vertex and original control point
+                            mirrored_vert_loc = mirror_about_plane(vert_loc, body%mirror_plane)
+                            this%wake_verts_in_dod(i+body%wake%N_verts,j) = this%freestream%point_in_dod(mirrored_vert_loc, &
+                                                                                                         body%cp(j,:))
+                        end if
+                    end if
+                end do
+
+            end if
 
             ! Loop through body panels
             do i=1,body%N_panels
