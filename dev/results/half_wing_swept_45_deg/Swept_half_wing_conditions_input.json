@@ -1,0 +1,59 @@
+{
+   
+    "geometry": {
+        "semispan locations and AoA": {
+            "4.1":  ["0", "2.1", "4.2","6.2","8.3","10.4"],
+            "8.2":  ["0", "2.1", "4.2","6.2","8.3","10.4"],
+            "16.3": ["0", "2.1", "4.2","6.2","8.3","10.4"],
+            "24.5": ["0", "2.1", "4.2","6.2","8.3","10.4"],
+            "36.7": ["0", "2.1", "4.2","6.3","8.4","10.5"], 
+            "51.0": ["0", "2.1", "4.2","6.3","8.4","10.5"], 
+            "65.3": ["0", "2.1", "4.2","6.3","8.5","10.6"], 
+            "89.8": ["0", "4.3", "10.7"], 
+            "94.9": ["0", "2.1", "4.3","6.4","8.6","10.7"] 
+        },
+        "AoA list": ["0", "2.1", "4.2", "4.3", "6.2", "6.3", "6.4", "8.3", "8.4", "8.5", "8.6", "10.4", "10.5", "10.6", "10.7"],
+        "semispan_xy_loc": {
+            "4.1":  2, 
+            "8.2":  4,
+            "16.3": 7.99,
+            "24.5": 12,
+            "36.7": 17.98,
+            "51.0": 24.99,
+            "65.3": 32,
+            "89.8": 44,
+            "94.9": 46.5
+        },
+        "nodes": ["10"],
+        "nodes_notes": ["Nodes 80 and above need to be ran on Ryzen or",
+                        "memory cap will fail"],
+        "uniform chord length": 20
+        
+    },
+
+    "flow conditions": {
+        "freestream velocity": 163.0
+
+    },
+
+    "solver": {
+        "formulation": ["morino"],
+        "control_point_offset": 1.1e-05,
+        "options": ["formulation: source-free, morino. NOTE: Iterators can handle multiple formulations in the list.",
+                    "control_point_offset:"]
+    },
+
+    "plots":{
+        "points to process": ["C_p_inc, sigma, v"],
+        "process_all": true,
+        "save plots": false,
+        "save plot type": "pdf",
+        "combine pdfs": false,
+        "options": ["process_all: processes all plots and shows plots at every semispan location one at a time",
+                    "save plots: true or false",
+                    "save plot type: pdf, or svg",
+                    "combine pdfs: true or false, this will save combined pdfs in the plot summary file as well as in the respective semispan pdf_plots folder"]
+
+    }
+
+}
