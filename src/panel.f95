@@ -643,7 +643,7 @@ contains
 
         type(dod) :: dod_info
 
-        real,dimension(3) :: d, point, a, b, R_star
+        real,dimension(3) :: d, point, a, b, R_star, Q_end
         integer :: i, i_next
         real :: C_theta, x, y, dQ_dDp2, s_star
         logical :: totally_out, totally_in, centroid_in, radius_smaller, mirrored, in_panel
@@ -740,16 +740,29 @@ contains
                         ! For a supersonic edge, the edge can still intersect the DoD, so calculate the point of closest approach
                         else
 
+                            ! Get end vertex
+                            if (mirrored) then
+                                Q_end = mirror_about_plane(this%get_vertex_loc(i_next), mirror_plane)
+                            else
+                                Q_end = this%get_vertex_loc(i_next)
+                            end if
+
                             ! Get vector describing edge
-                            d = this%get_vertex_loc(i_next) - this%get_vertex_loc(i)
+                            if (mirrored) then
+                                d = Q_end - mirror_about_plane(this%get_vertex_loc(i), mirror_plane)
+                            else
+                                d = Q_end - this%get_vertex_loc(i)
+                            end if
                         
                             ! Calculate nondimensional location of the point of closest approach (E&M Eq. (J.3.39))
                             a = cross(freestream%c_hat_g, d)
-                            b = cross(freestream%c_hat_g, this%get_vertex_loc(i_next)-eval_point)
+                            b = cross(freestream%c_hat_g, Q_end - eval_point)
                             s_star = inner(a, b)/abs(inner(a, a))
 
+                            ! Calculate point of closest approach
+                            R_star = Q_end - s_star*d
+
                             ! Check if the point of closest approach is in the edge and in the DoD
-                            R_star = this%get_vertex_loc(i_next)-s_star*d
                             if (s_star > 0. .and. s_star < 1. .and. freestream%point_in_dod(R_star, eval_point)) then
                                 dod_info%edges_in_dod(i) = .true.
 
