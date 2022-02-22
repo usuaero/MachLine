@@ -783,7 +783,7 @@ contains
     end function panel_check_dod
 
 
-    function panel_get_field_point_geometry(this, eval_point, freestream) result(geom)
+    function panel_get_field_point_geometry(this, eval_point, freestream, dod_info) result(geom)
         ! Calculates the geometric parameters necessary for calculating the influence of the panel at the given evaluation point
 
         implicit none
@@ -791,6 +791,7 @@ contains
         class(panel),intent(in) :: this
         real,dimension(3),intent(in) :: eval_point
         type(flow),intent(in) :: freestream
+        type(dod),intent(in) :: dod_info
         type(eval_point_geom) :: geom
 
         real,dimension(2) :: d_ls
@@ -808,47 +809,54 @@ contains
 
         ! Calculate intermediate quantities
         do i=1,this%N
+            if (dod_info%edges_in_dod(i)) then
 
-            ! Calculate displacements
-            d_ls = this%vertices_ls(i,:)-geom%P_ls
-            d_g = this%get_vertex_loc(i)-geom%P_g
+                ! Calculate displacements
+                d_ls = this%vertices_ls(i,:) - geom%P_ls
+                d_g = this%get_vertex_loc(i) - geom%P_g
 
-            ! Get vector perpendicular to edge
-            x = cross(d_g, this%t_hat_g(i,:))
+                ! Get vector perpendicular to edge
+                x = cross(d_g, this%t_hat_g(i,:))
 
-            ! Perpendicular distance in plane from evaluation point to edge E&M Eq. (J.6.46) and (J.7.53)
-            geom%a(i) = inner2(d_ls, this%n_hat_ls(i,:))
-            val = this%r*freestream%B/(this%tau(i)*this%iota) * freestream%B_g_inner(this%n_hat_g(i,:), x)
-            !write(*,*) val-geom%a(i)
+                ! Perpendicular distance in plane from evaluation point to edge E&M Eq. (J.6.46) and (J.7.53)
+                geom%a(i) = inner2(d_ls, this%n_hat_ls(i,:))
+                val = this%r*freestream%B/(this%tau(i)*this%iota) * freestream%B_g_inner(this%n_hat_g(i,:), x)
+                !write(*,*) val-geom%a(i)
 
-            ! Integration length on edge to start vertex (E&M Eq. (J.6.47))
-            geom%l1(i) = this%rs*d_ls(1)*this%t_hat_ls(i,1) + d_ls(2)*this%t_hat_ls(i,2)
+                ! Integration length on edge to start vertex (E&M Eq. (J.6.47))
+                geom%l1(i) = this%rs*d_ls(1)*this%t_hat_ls(i,1) + d_ls(2)*this%t_hat_ls(i,2)
 
-            ! Projected point displacement from end vertex
-            d_ls = this%vertices_ls(mod(i, this%N)+1,:)-geom%P_ls
+                ! Projected point displacement from end vertex
+                d_ls = this%vertices_ls(mod(i, this%N)+1,:)-geom%P_ls
 
-            ! Integration length on edge to end vertex
-            geom%l2(i) = this%rs*d_ls(1)*this%t_hat_ls(i,1) + d_ls(2)*this%t_hat_ls(i,2)
+                ! Integration length on edge to end vertex
+                geom%l2(i) = this%rs*d_ls(1)*this%t_hat_ls(i,1) + d_ls(2)*this%t_hat_ls(i,2)
 
-            ! Distance from evaluation point to start vertex E&M Eq. (J.8.8)
-            ! The distance should be zero in the case of a negative squared distance, as the flow is supersonic and the point lies outside the DoD
-            val = freestream%C_g_inner(-d_g, -d_g)
-            if (val > 0.) then
-                geom%R1(i) = sqrt(val)
+                ! Distance from evaluation point to start vertex E&M Eq. (J.8.8)
+                ! The distance should be zero in the case of a negative squared distance, as the flow is supersonic and the point lies outside the DoD
+                val = freestream%C_g_inner(-d_g, -d_g)
+                if (val > 0.) then
+                    geom%R1(i) = sqrt(val)
+                else
+                    geom%R1(i) = 0.
+                end if
+
+                ! Calculate square of the perpendicular distance to edge
+                geom%g2(i) = (freestream%B/this%tau(i))**2*freestream%B_g_inner(x, x) ! E&M Eq. (J.8.23) or (J.7.70)
+
+                ! Calculate the perpendicular distance to edge
+                if (geom%g2(i) >= 0.) then
+                    geom%g(i) = sqrt(geom%g2(i))
+                else
+                    geom%g(i) = 0.
+                end if
+
             else
+
                 geom%R1(i) = 0.
+                geom%a(i) = 0.
+
             end if
-
-            ! Calculate square of the perpendicular distance to edge
-            geom%g2(i) = (freestream%B/this%tau(i))**2*freestream%B_g_inner(x, x) ! E&M Eq. (J.8.23) or (J.7.70)
-
-            ! Calculate the perpendicular distance to edge
-            if (geom%g2(i) >= 0.) then
-                geom%g(i) = sqrt(geom%g2(i))
-            else
-                geom%g(i) = 0.
-            end if
-
         end do
 
         ! Distance from evaluation point to end vertices
@@ -946,6 +954,10 @@ contains
 
                 end if
             end if
+
+        ! Not in DoD
+        else
+            F = 0.
         end if
         
     end function panel_F_i_1_1_1
@@ -1017,13 +1029,6 @@ contains
         ! Check for point on perimeter
         if (abs(dF) < 1e-12) then
             write(*,*) "Detected control point on perimeter of panel. Quitting..."
-            write(*,*) dod_info%in_dod
-            write(*,*) dod_info%verts_in_dod
-            write(*,*) dod_info%edges_in_dod
-            write(*,*) geom%R1
-            write(*,*) geom%R2
-            write(*,*) geom%g
-            write(*,*) min_dist_to_edge
             stop
         end if
 
@@ -1515,7 +1520,7 @@ contains
         if (dod_info%in_dod) then
 
             ! Calculate geometric parameters
-            geom = this%get_field_point_geometry(P, freestream)
+            geom = this%get_field_point_geometry(P, freestream, dod_info)
 
             if (influence_calc_type == 'johnson') then
 
@@ -1611,7 +1616,7 @@ contains
         if (dod_info%in_dod) then
 
             ! Calculate geometric parameters
-            geom = this%get_field_point_geometry(P, freestream)
+            geom = this%get_field_point_geometry(P, freestream, dod_info)
 
             if (influence_calc_type == 'johnson') then
 
@@ -1661,7 +1666,7 @@ contains
         if (dod_info%in_dod) then
 
             ! Calculate geometric parameters
-            geom = this%get_field_point_geometry(eval_point, freestream)
+            geom = this%get_field_point_geometry(eval_point, freestream, dod_info)
 
             if (influence_calc_type == 'johnson') then
 
@@ -1710,7 +1715,7 @@ contains
         if (dod_info%in_dod) then
 
             ! Calculate geometric parameters
-            geom = this%get_field_point_geometry(eval_point, freestream)
+            geom = this%get_field_point_geometry(eval_point, freestream, dod_info)
 
             if (influence_calc_type == 'johnson') then
 
@@ -1787,7 +1792,7 @@ contains
         if (dod_info%in_dod) then
 
             ! Calculate geometric parameters
-            geom = this%get_field_point_geometry(eval_point, freestream)
+            geom = this%get_field_point_geometry(eval_point, freestream, dod_info)
 
             if (influence_calc_type == 'johnson') then
 
@@ -1869,7 +1874,7 @@ contains
         if (dod_info%in_dod) then
 
             ! Calculate geometric parameters
-            geom = this%get_field_point_geometry(eval_point, freestream)
+            geom = this%get_field_point_geometry(eval_point, freestream, dod_info)
 
             if (influence_calc_type == 'johnson') then
 
