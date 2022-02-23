@@ -833,10 +833,8 @@ contains
                 geom%l2(i) = this%rs*d_ls(1)*this%t_hat_ls(i,1) + d_ls(2)*this%t_hat_ls(i,2)
 
                 ! Distance from evaluation point to start vertex E&M Eq. (J.8.8)
-                ! The distance should be zero in the case of a negative squared distance, as the flow is supersonic and the point lies outside the DoD
-                val = freestream%C_g_inner(-d_g, -d_g)
-                if (val > 0.) then
-                    geom%R1(i) = sqrt(val)
+                if (dod_info%verts_in_dod(i)) then
+                    geom%R1(i) = sqrt(freestream%C_g_inner(-d_g, -d_g))
                 else
                     geom%R1(i) = 0.
                 end if
@@ -844,12 +842,8 @@ contains
                 ! Calculate square of the perpendicular distance to edge
                 geom%g2(i) = (freestream%B/this%tau(i))**2*freestream%B_g_inner(x, x) ! E&M Eq. (J.8.23) or (J.7.70)
 
-                ! Calculate the perpendicular distance to edge
-                if (geom%g2(i) >= 0.) then
-                    geom%g(i) = sqrt(geom%g2(i))
-                else
-                    geom%g(i) = 0.
-                end if
+                ! Calculate the perpendicular distance to edge; g^2 should always be positive if the edge is in the DoD
+                geom%g(i) = sqrt(geom%g2(i))
 
             else
 
