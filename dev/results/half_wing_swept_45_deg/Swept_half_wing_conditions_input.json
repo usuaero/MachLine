@@ -24,7 +24,7 @@
             "89.8": 44,
             "94.9": 46.5
         },
-        "nodes": ["10"],
+        "nodes": ["10", "20", "40"],
         "nodes_notes": ["Nodes 80 and above need to be ran on Ryzen or",
                         "memory cap will fail"],
         "uniform chord length": 20
@@ -37,7 +37,7 @@
     },
 
     "solver": {
-        "formulation": ["morino"],
+        "formulation": ["morino", "source-free"],
         "control_point_offset": 1.1e-05,
         "options": ["formulation: source-free, morino. NOTE: Iterators can handle multiple formulations in the list.",
                     "control_point_offset:"]

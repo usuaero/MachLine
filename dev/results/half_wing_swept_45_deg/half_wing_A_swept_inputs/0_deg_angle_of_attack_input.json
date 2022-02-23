@@ -7,7 +7,7 @@
         ]
     },
     "geometry": {
-        "file": "dev/results/half_wing_swept_45_deg/half_wing_A_meshes/half_wing_A_10_nodes.vtk",
+        "file": "dev/results/half_wing_swept_45_deg/half_wing_A_meshes/half_wing_A_40_nodes.vtk",
         "mirror_about": "xz",
         "singularity_order": {
             "doublet": 1,
@@ -23,14 +23,14 @@
         }
     },
     "solver": {
-        "formulation": "morino",
+        "formulation": "source-free",
         "control_point_offset": 1.1e-05
     },
     "post_processing": {},
     "output": {
-        "body_file": "dev/results/half_wing_swept_45_deg/MachLine_Results/0_degrees_AoA/half_wing_A_10_nodes_0_deg_AoA_morino_formulation.vtk",
-        "wake_file": "dev/results/half_wing_swept_45_deg/MachLine_Results/0_degrees_AoA/half_wing_A_10_nodes_0_deg_AoA_morino_formulation_wake.vtk",
-        "control_point_file": "dev/results/half_wing_swept_45_deg/MachLine_Results/0_degrees_AoA/half_wing_A_10_nodes_0_deg_AoA_morino_control_points.vtk",
+        "body_file": "dev/results/half_wing_swept_45_deg/MachLine_Results/0_degrees_AoA/half_wing_A_40_nodes_0_deg_AoA_source_free_formulation.vtk",
+        "wake_file": "dev/results/half_wing_swept_45_deg/MachLine_Results/0_degrees_AoA/half_wing_A_40_nodes_0_deg_AoA_source_free_formulation_wake.vtk",
+        "control_point_file": "dev/results/half_wing_swept_45_deg/MachLine_Results/0_degrees_AoA/half_wing_A_40_nodes_0_deg_AoA_source_free_control_points.vtk",
         "report_file": "../../report.txt"
     }
 }
