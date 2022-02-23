@@ -796,7 +796,7 @@ contains
 
         real,dimension(2) :: d_ls
         real,dimension(3) :: d_g, x
-        integer :: i
+        integer :: i, i_next
         real :: val
 
         ! Store point
@@ -811,6 +811,8 @@ contains
         do i=1,this%N
             if (dod_info%edges_in_dod(i)) then
 
+                i_next = mod(i, this%N) + 1
+
                 ! Calculate displacements
                 d_ls = this%vertices_ls(i,:) - geom%P_ls
                 d_g = this%get_vertex_loc(i) - geom%P_g
@@ -819,18 +821,12 @@ contains
                 x = cross(d_g, this%t_hat_g(i,:))
 
                 ! Perpendicular distance in plane from evaluation point to edge E&M Eq. (J.6.46) and (J.7.53)
-                geom%a(i) = inner2(d_ls, this%n_hat_ls(i,:))
-                val = this%r*freestream%B/(this%tau(i)*this%iota) * freestream%B_g_inner(this%n_hat_g(i,:), x)
-                !write(*,*) val-geom%a(i)
+                geom%a(i) = inner2(d_ls, this%n_hat_ls(i,:)) ! Definition
+                !geom%a(i) = this%r*freestream%B/(this%tau(i)*this%iota) * freestream%B_g_inner(this%n_g, x) ! Optimized calculation E&M Eq. (J.7.61)
 
                 ! Integration length on edge to start vertex (E&M Eq. (J.6.47))
-                geom%l1(i) = this%rs*d_ls(1)*this%t_hat_ls(i,1) + d_ls(2)*this%t_hat_ls(i,2)
-
-                ! Projected point displacement from end vertex
-                d_ls = this%vertices_ls(mod(i, this%N)+1,:)-geom%P_ls
-
-                ! Integration length on edge to end vertex
-                geom%l2(i) = this%rs*d_ls(1)*this%t_hat_ls(i,1) + d_ls(2)*this%t_hat_ls(i,2)
+                geom%l1(i) = this%rs*d_ls(1)*this%t_hat_ls(i,1) + d_ls(2)*this%t_hat_ls(i,2) ! Definition
+                !geom%l1(i) = freestream%s/this%tau(i) * freestream%C_g_inner(this%t_hat_g(i,:), d_g) ! Optimized calculation E&M Eq. (J.7.52)
 
                 ! Distance from evaluation point to start vertex E&M Eq. (J.8.8)
                 if (dod_info%verts_in_dod(i)) then
@@ -844,6 +840,14 @@ contains
 
                 ! Calculate the perpendicular distance to edge; g^2 should always be positive if the edge is in the DoD
                 geom%g(i) = sqrt(geom%g2(i))
+
+                ! Displacement from end vertex
+                !d_g = this%get_vertex_loc(i_next) - geom%P_g
+                d_ls = this%vertices_ls(i_next,:)-geom%P_ls
+
+                ! Integration length on edge to end vertex
+                geom%l2(i) = this%rs*d_ls(1)*this%t_hat_ls(i,1) + d_ls(2)*this%t_hat_ls(i,2) ! Definition
+                !geom%l2(i) = freestream%s/this%tau(i) * freestream%C_g_inner(this%t_hat_g(i,:), d_g) ! Optimized calculation E&M Eq. (J.7.52)
 
             else
 
@@ -1519,7 +1523,7 @@ contains
             if (influence_calc_type == 'johnson') then
 
                 ! Get integrals
-                call this%calc_integrals(geom, "potential", "doublet", dod_info, freestream, H, F)
+                call this%calc_integrals(geom, 'potential', 'doublet', dod_info, freestream, H, F)
 
                 ! Source potential
                 if (source_order == 0) then
