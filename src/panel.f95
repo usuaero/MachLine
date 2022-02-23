@@ -53,7 +53,7 @@ module panel_mod
         real,dimension(:,:),allocatable :: t_hat_g, t_hat_l, t_hat_ls ! Edge unit tangents
         real,dimension(:,:),allocatable :: n_hat_g, n_hat_l, n_hat_ls ! Edge unit outward normals
         real,dimension(:,:),allocatable :: nu_hat_ls ! Edge unit outward conormals
-        real,dimension(:),allocatable :: l ! Edge lengths
+        real,dimension(:),allocatable :: b, sqrt_b ! Edge parameter
         real :: A ! Surface area
         real,dimension(:,:),allocatable :: S_mu_inv, S_sigma_inv ! Matrix relating doublet/source strengths to doublet/source influence parameters
         integer,dimension(:),allocatable :: vertex_indices ! Indices of this panel's vertices in the mesh vertex array
@@ -402,7 +402,6 @@ contains
         integer :: i
 
         ! Allocate memory
-        allocate(this%l(this%N))
         allocate(this%t_hat_g(this%N,3))
         allocate(this%t_hat_l(this%N,2))
         allocate(this%t_hat_ls(this%N,2))
@@ -410,6 +409,8 @@ contains
         allocate(this%n_hat_l(this%N,2))
         allocate(this%n_hat_ls(this%N,2))
         allocate(this%nu_hat_ls(this%N,2))
+        allocate(this%b(this%N))
+        allocate(this%sqrt_b(this%N))
 
         ! Loop through edges
         do i=1,this%N
@@ -417,11 +418,8 @@ contains
             ! Calculate edge vector based on index
             d = this%get_vertex_loc(mod(i, this%N)+1)-this%get_vertex_loc(i)
 
-            ! Calculate edge length (unscaled)
-            this%l(i) = norm(d)
-
             ! Calculate tangent in global and local coords
-            this%t_hat_g(i,:) = d/this%l(i)
+            this%t_hat_g(i,:) = d/norm(d)
             this%t_hat_l(i,:) = matmul(this%A_g_to_l(1:2,:), this%t_hat_g(i,:))
 
             ! Calculate tangent in local scaled coords
@@ -437,6 +435,10 @@ contains
             this%n_hat_ls(i,1) = this%t_hat_ls(i,2)
             this%n_hat_ls(i,2) = -this%t_hat_ls(i,1)
 
+            ! Calculate edge parameter (Ehlers Eq. (E14))
+            this%b(i) = this%n_hat_ls(i,1)**2 - this%n_hat_ls(i,2)**2
+            this%sqrt_b(i) = sqrt(abs(this%b(i)))
+
             ! Calculate edge conormal
             this%nu_hat_ls(i,1) = this%rs*this%n_hat_ls(i,1)
             this%nu_hat_ls(i,2) = this%n_hat_ls(i,2)
@@ -444,7 +446,7 @@ contains
             ! Calculate the edge type parameter (E&M Eq. (J.3.28) or Eq. (J.7.51))
             this%tau(i) = sqrt(abs(freestream%C_g_inner(this%t_hat_g(i,:), this%t_hat_g(i,:))))
 
-            ! Calculate edge type indicator (E&M Eq. (J.6.48); this is the sign of b in Ehlers Eq. (E14))
+            ! Calculate edge type indicator (E&M Eq. (J.6.48)
             this%q(i) = sign(this%r*this%t_hat_ls(i,1)**2 + freestream%s*this%t_hat_ls(i,2)**2)
 
         end do
@@ -906,56 +908,86 @@ contains
 
         implicit none
 
-        class(panel) :: this
+        class(panel),intent(in) :: this
         type(eval_point_geom),intent(in) :: geom
         integer,intent(in) :: i
         type(dod),intent(in) :: dod_info
         type(flow),intent(in) :: freestream
 
-        real :: F, F1, F2
+        real :: F, F1, F2, check
         integer :: i_next
 
         i_next = mod(i, this%N) + 1
 
-        ! Check DoD
-        if (dod_info%edges_in_dod(i)) then
+        ! Supersonic flow
+        if (freestream%supersonic) then
 
-            ! Supersonic edge
-            if (this%q(i) == -1) then
+            ! Check DoD
+            if (dod_info%edges_in_dod(i)) then
 
-                ! Neither endpoint in DoD (Ehlers Eq. (E22))
-                if (geom%R1(i) == 0. .and. geom%R2(i) == 0.) then
-                    F = pi
+                ! Calculate preliminary quantities
+                if (this%b(i) >= 0) then
+                    F1 = (geom%l1(i)*geom%R2(i) - geom%l2(i)*geom%R1(i))/geom%g2(i)
+                    F2 = (this%b(i)*geom%R1(i)*geom%R2(i) + geom%l1(i)*geom%l2(i))/geom%g2(i)
 
-                ! At least one endpoint in the DoD (Ehlers Eq. (E22))
+                else
+                    F1 = (geom%R2(i)**2-geom%R1(i)**2)/(geom%l1(i)*geom%R2(i)+geom%l2(i)*geom%R1(i))
+                    F2 = (geom%g2(i)-geom%l1(i)**2-geom%l2(i)**2)/(this%b(i)*geom%R1(i)*geom%R2(i)-geom%l1(i)*geom%l2(i))
+
+                end if
+
+                ! Check 
+                check = F2**2 + this%b(i)*F1**2
+                if (abs(check-1.)>0.1) then
+                    write(*,*)
+                    write(*,*) check
+                    write(*,*) F2
+                    write(*,*) this%sqrt_b(i)*abs(F1)
+                end if
+
+                ! Supersonic edge
+                if (this%b(i) > 0) then
+
+                    ! Neither endpoint in DoD (Ehlers Eq. (E22))
+                    if (geom%R1(i) == 0. .and. geom%R2(i) == 0.) then
+                        F = pi/this%sqrt_b(i)
+
+                    ! At least one endpoint in the DoD (Ehlers Eq. (E22))
+                    else
+
+                        ! Calculate F
+                        F = -atan2(this%sqrt_b(i)*F1, F2)/this%sqrt_b(i)
+
+                    end if
+
+                ! Subsonic edge
                 else
 
                     ! Calculate preliminary quantities
-                    F1 = geom%l1(i)*geom%R2(i) - geom%l2(i)*geom%R1(i)
-                    F2 = geom%R1(i)*geom%R2(i) + geom%l1(i)*geom%l2(i)
+                    F1 = this%sqrt_b(i)*geom%R1(i) + abs(geom%l1(i))
+                    F2 = this%sqrt_b(i)*geom%R2(i) + abs(geom%l2(i))
 
                     ! Calculate F
-                    F = -atan2(F1, F2)
+                    F = -sign(this%n_hat_ls(i,2))/this%sqrt_b(i)*log(F1/F2)
 
                 end if
 
-            ! Subsonic edge (all edges in subsonic flow because the definition of a subsonic edge is one that lies inside its own DoD)
+            ! Not in DoD
             else
-
-                ! Within edge (Johnson Eq. (D.60))
-                if (sign(geom%l1(i)) /= sign(geom%l2(i))) then
-                    F = log(((geom%R1(i)-geom%l1(i))*(geom%R2(i)+geom%l2(i)))/geom%g2(i))
-
-                ! Above or below edge; this is a unified form of Johnson Eq. (D.60) and should be equivalent to Ehlers Eq. (E.22)
-                else
-                    F = sign(geom%l1(i))*log((geom%R2(i) + abs(geom%l2(i))) / (geom%R1(i) + abs(geom%l1(i))))
-
-                end if
+                F = 0.
             end if
 
-        ! Not in DoD
+        ! Subsonic flow
         else
-            F = 0.
+
+            ! Within edge (Johnson Eq. (D.60))
+            if (sign(geom%l1(i)) /= sign(geom%l2(i))) then
+                F = log(((geom%R1(i)-geom%l1(i))*(geom%R2(i)+geom%l2(i)))/geom%g2(i))
+
+            ! Above or below edge; this is a unified form of Johnson Eq. (D.60)
+            else
+                F = sign(geom%l1(i)) * log( (geom%R2(i) + abs(geom%l2(i))) / (geom%R1(i) + abs(geom%l1(i))) )
+            end if
         end if
         
     end function panel_F_i_1_1_1
