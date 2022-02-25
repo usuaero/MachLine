@@ -23,7 +23,7 @@ module panel_mod
         real,dimension(3) :: P_g ! Point position in global coords
         real,dimension(2) :: P_ls ! Transformed point in panel plane
         real :: h ! Transformed height above panel
-        real,dimension(3) :: a, g2, l1, l2, R1, R2, g ! Edge parameters
+        real,dimension(3) :: a, g2, l1, l2, R1, R2 ! Edge integration parameters
 
     end type eval_point_geom
 
@@ -818,10 +818,12 @@ contains
                 ! Perpendicular distance in plane from evaluation point to edge E&M Eq. (J.6.46) and (J.7.53)
                 geom%a(i) = inner2(d_ls, this%n_hat_ls(i,:)) ! Definition
                 !geom%a(i) = this%r*freestream%B/(this%tau(i)*this%iota) * freestream%B_g_inner(this%n_g, x) ! Optimized calculation E&M Eq. (J.7.61)
+                ! The original and optimized calculations match out to precision in some instances, and the only to 1 or 2 sig figs in other cases...
 
                 ! Integration length on edge to start vertex (E&M Eq. (J.6.47))
                 geom%l1(i) = this%rs*d_ls(1)*this%t_hat_ls(i,1) + d_ls(2)*this%t_hat_ls(i,2) ! Definition
                 !geom%l1(i) = freestream%s/this%tau(i) * freestream%C_g_inner(this%t_hat_g(i,:), d_g) ! Optimized calculation E&M Eq. (J.7.52)
+                ! Same as a; matching is sporadic
 
                 ! Distance from evaluation point to start vertex E&M Eq. (J.8.8)
                 if (dod_info%verts_in_dod(i)) then
@@ -832,9 +834,7 @@ contains
 
                 ! Calculate square of the perpendicular distance to edge
                 geom%g2(i) = (freestream%B/this%tau(i))**2*freestream%B_g_inner(x, x) ! E&M Eq. (J.8.23) or (J.7.70)
-
-                ! Calculate the perpendicular distance to edge; g^2 should always be positive if the edge is in the DoD
-                geom%g(i) = sqrt(geom%g2(i))
+                !geom%g2(i) = geom%a(i)**2 - this%b(i)*geom%h**2 ! Ehlers Eq. (E14)
 
                 ! Displacement from end vertex
                 !d_g = this%get_vertex_loc(i_next) - geom%P_g
@@ -1024,7 +1024,7 @@ contains
 
                 ! Within edge, the minimum distance is the perpendicular distance
                 if (sign(geom%l1(i)) /= sign(geom%l2(i))) then
-                    min_dist_to_edge(i) = geom%g(i)
+                    min_dist_to_edge(i) = sqrt(geom%g2(i))
         
                 ! Otherwise, it is the minimum of the distances to the corners
                 else
@@ -1037,7 +1037,7 @@ contains
 
                     ! If neither is in the DoD, we again go back to the perpendicular distance
                     else
-                        min_dist_to_edge(i) = geom%g(i)
+                        min_dist_to_edge(i) = sqrt(geom%g2(i))
                     end if
                 end if
 
@@ -1068,7 +1068,7 @@ contains
                 F(i,1,1,1) = this%F_i_1_1_1(geom, i, dod_info, freestream)
 
                 ! Procedure 4: not close to perimeter
-                if (geom%g(i) >= 0.01*dF) then
+                if (sqrt(geom%g2(i)) >= 0.01*dF) then
 
                     ! Calculate F(1,1,K) integrals
                     do k=3,MXFK,2
