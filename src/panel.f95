@@ -50,9 +50,8 @@ module panel_mod
         real,dimension(3,3) :: A_g_to_l, A_s_to_ls, A_g_to_ls, A_ls_to_g ! Coordinate transformation matrices
         real,dimension(3,3) :: B_mat_ls, C_mat_ls ! Local scaled metric matrices
         real,dimension(:,:),allocatable :: vertices_ls, midpoints_ls ! Location of the vertices and edge midpoints described in local scaled coords
-        real,dimension(:,:),allocatable :: t_hat_g, t_hat_l, t_hat_ls ! Edge unit tangents
-        real,dimension(:,:),allocatable :: n_hat_g, n_hat_l, n_hat_ls ! Edge unit outward normals
-        real,dimension(:,:),allocatable :: nu_hat_ls ! Edge unit outward conormals
+        real,dimension(:,:),allocatable :: t_hat_g, t_hat_ls ! Edge unit tangents
+        real,dimension(:,:),allocatable :: n_hat_g, n_hat_ls ! Edge unit outward normals
         real,dimension(:),allocatable :: b, sqrt_b ! Edge parameter
         real :: A ! Surface area
         real,dimension(:,:),allocatable :: S_mu_inv, S_sigma_inv ! Matrix relating doublet/source strengths to doublet/source influence parameters
@@ -261,7 +260,7 @@ contains
         type(flow),intent(in) :: freestream
 
         ! Calculate transforms
-        call this%calc_g_to_l_transform(freestream)
+        call this%calc_g_to_l_transform(freestream) ! This one is likely no longer necessary
         call this%calc_g_to_ls_transform(freestream)
 
         ! Calculate properties dependent on the transforms
@@ -323,8 +322,7 @@ contains
 
         ! Check for Mach-inclined panels
         if (freestream%supersonic .and. abs(x) < 1e-12) then
-            write(*,*) "!!! Mach-inclined panels are not allowed in supersonic flow. Panel", &
-                       this%index, "is Mach-inclined. Quitting..."
+            write(*,*) "!!! Panel", this%index, "is Mach-inclined which is not allowed. Quitting..."
             stop
         end if
 
@@ -363,10 +361,10 @@ contains
         do i=1,this%N
 
             ! Vertices
-            this%vertices_ls(i,:) = matmul(this%A_g_to_l(1:2,:), this%get_vertex_loc(i)-this%centroid)
+            this%vertices_ls(i,:) = matmul(this%A_g_to_ls(1:2,:), this%get_vertex_loc(i)-this%centroid)
 
             ! Midpoints
-            this%midpoints_ls(i,:) = matmul(this%A_g_to_l(1:2,:), this%midpoints(i,:)-this%centroid)
+            this%midpoints_ls(i,:) = matmul(this%A_g_to_ls(1:2,:), this%midpoints(i,:)-this%centroid)
 
         end do
 
@@ -397,51 +395,46 @@ contains
         class(panel),intent(inout) :: this
         type(flow),intent(in) :: freestream
 
-        real,dimension(3) :: d
+        real,dimension(3) :: d, n_hat_ls
         real,dimension(2) :: e
-        integer :: i
+        integer :: i, i_next
 
         ! Allocate memory
         allocate(this%t_hat_g(this%N,3))
-        allocate(this%t_hat_l(this%N,2))
         allocate(this%t_hat_ls(this%N,2))
         allocate(this%n_hat_g(this%N,3))
-        allocate(this%n_hat_l(this%N,2))
         allocate(this%n_hat_ls(this%N,2))
-        allocate(this%nu_hat_ls(this%N,2))
         allocate(this%b(this%N))
         allocate(this%sqrt_b(this%N))
 
         ! Loop through edges
         do i=1,this%N
 
+            i_next = mod(i, this%N)+1
+
             ! Calculate edge vector based on index
-            d = this%get_vertex_loc(mod(i, this%N)+1)-this%get_vertex_loc(i)
+            d = this%get_vertex_loc(i_next)-this%get_vertex_loc(i)
 
-            ! Calculate tangent in global and local coords
+            ! Calculate tangent in global coords
             this%t_hat_g(i,:) = d/norm(d)
-            this%t_hat_l(i,:) = matmul(this%A_g_to_l(1:2,:), this%t_hat_g(i,:))
 
-            ! Calculate tangent in local scaled coords
-            e = matmul(this%A_g_to_ls(1:2,:), d)
-            this%t_hat_ls(i,:) = e/sqrt(abs(this%rs*e(1)**2 + e(2)**2))
+            ! Calculate tangent in local scaled coords 
+            ! This purposefully does not match E&M Eq. (J.6.43);
+            ! This is the formula used in the PAN AIR source code (for subinclined panels)
+            e = this%vertices_ls(i_next,:) - this%vertices_ls(i,:)
+            this%t_hat_ls(i,:) = e/norm2(e)
+            !this%t_hat_ls(i,:) = e/sqrt(abs(this%rs*e(1)**2 + e(2)**2)) ! E&M Eq. (J.6.43)
 
             ! Calculate edge outward normal
             this%n_hat_g(i,:) = cross(this%t_hat_g(i,:), this%n_g)
-            this%n_hat_l(i,1) = this%t_hat_l(i,2)
-            this%n_hat_l(i,2) = -this%t_hat_l(i,1)
 
-            ! Calculate edge normal in local scaled coords
+            ! Calculate edge normal in local scaled coords E&M Eq. (J.6.45)
             this%n_hat_ls(i,1) = this%t_hat_ls(i,2)
             this%n_hat_ls(i,2) = -this%t_hat_ls(i,1)
 
             ! Calculate edge parameter (Ehlers Eq. (E14))
-            this%b(i) = this%n_hat_ls(i,1)**2 - this%n_hat_ls(i,2)**2
+            this%b(i) = (this%n_hat_ls(i,1) - this%n_hat_ls(i,2))*(this%n_hat_ls(i,1) + this%n_hat_ls(i,2))
             this%sqrt_b(i) = sqrt(abs(this%b(i)))
-
-            ! Calculate edge conormal
-            this%nu_hat_ls(i,1) = this%rs*this%n_hat_ls(i,1)
-            this%nu_hat_ls(i,2) = this%n_hat_ls(i,2)
 
             ! Calculate the edge type parameter (E&M Eq. (J.3.28) or Eq. (J.7.51))
             this%tau(i) = sqrt(abs(freestream%C_g_inner(this%t_hat_g(i,:), this%t_hat_g(i,:))))
@@ -936,14 +929,14 @@ contains
 
                 end if
 
-                ! Check 
-                check = F2**2 + this%b(i)*F1**2
-                if (abs(check-1.)>0.1) then
-                    write(*,*)
-                    write(*,*) check
-                    write(*,*) F2
-                    write(*,*) this%sqrt_b(i)*abs(F1)
-                end if
+                !! Check 
+                !check = F2**2 + this%b(i)*F1**2
+                !if (abs(check-1.)>0.1) then
+                !    write(*,*)
+                !    write(*,*) check
+                !    write(*,*) F2
+                !    write(*,*) this%sqrt_b(i)*abs(F1)
+                !end if
 
                 ! Supersonic edge
                 if (this%b(i) > 0) then
