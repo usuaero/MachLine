@@ -22,7 +22,7 @@ module panel_mod
 
         real,dimension(3) :: P_g ! Point position in global coords
         real,dimension(2) :: P_ls ! Transformed point in panel plane
-        real :: h ! Transformed height above panel
+        real :: h, h2 ! Transformed height above panel
         real,dimension(3) :: a, g2, l1, l2, R1, R2 ! Edge integration parameters
 
     end type eval_point_geom
@@ -84,16 +84,14 @@ module panel_mod
             procedure :: touches_vertex => panel_touches_vertex
             procedure :: point_to_vertex_clone => panel_point_to_vertex_clone
             procedure :: check_dod => panel_check_dod
-            procedure :: get_field_point_geometry => panel_get_field_point_geometry
+            procedure :: calc_subsonic_geom => panel_calc_subsonic_geom
+            procedure :: calc_supersonic_subinc_geom => panel_calc_supersonic_subinc_geom
             procedure :: E_i_M_N_K => panel_E_i_M_N_K
-            procedure :: F_i_1_1_1 => panel_F_i_1_1_1
-            procedure :: calc_F_integrals => panel_calc_F_integrals
-            procedure :: calc_H_integrals => panel_calc_H_integrals
+            procedure :: calc_subsonic_F_integrals => panel_calc_subsonic_F_integrals
+            procedure :: calc_subsonic_H_integrals => panel_calc_subsonic_H_integrals
+            procedure :: calc_supersonic_subinc_F_integrals => panel_calc_supersonic_subinc_F_integrals
+            procedure :: calc_supersonic_subinc_H_integrals => panel_calc_supersonic_subinc_H_integrals
             procedure :: calc_integrals => panel_calc_integrals
-            procedure :: calc_source_potential => panel_calc_source_potential
-            procedure :: calc_source_velocity => panel_calc_source_velocity
-            procedure :: calc_doublet_potential => panel_calc_doublet_potential
-            procedure :: calc_doublet_velocity => panel_calc_doublet_velocity
             procedure :: calc_potentials => panel_calc_potentials
             procedure :: calc_velocities => panel_calc_velocities
             procedure :: get_velocity_jump => panel_get_velocity_jump
@@ -328,6 +326,14 @@ contains
 
         ! Calculate panel inclination indicator (E&M Eq. (E.3.16b))
         this%r = sign(x) ! r=-1 -> superinclined, r=1 -> subinclined
+
+        ! Check for superinclined panels
+        if (this%r < 0) then
+            write(*,*) "!!! Panel", this%index, "is superinclined which is not allowed. Quitting..."
+            stop
+        end if
+
+        ! Other inclination parameters
         this%rs = this%r*freestream%s
         this%iota = sqrt(abs(x))
 
@@ -778,7 +784,65 @@ contains
     end function panel_check_dod
 
 
-    function panel_get_field_point_geometry(this, eval_point, freestream, dod_info) result(geom)
+    function panel_calc_subsonic_geom(this, eval_point, freestream) result(geom)
+        ! Calculates the geometric parameters necessary for calculating the influence of the panel at the given evaluation point
+
+        implicit none
+
+        class(panel),intent(in) :: this
+        real,dimension(3),intent(in) :: eval_point
+        type(flow),intent(in) :: freestream
+        type(eval_point_geom) :: geom
+
+        real,dimension(2) :: d_ls
+        real,dimension(3) :: d_g, x
+        integer :: i, i_next
+        real :: val
+
+        ! Store point
+        geom%P_g = eval_point
+
+        ! Transform to local scaled coordinates
+        x = matmul(this%A_g_to_ls, geom%P_g-this%centroid)
+        geom%P_ls = x(1:2)
+        geom%h = x(3) ! Equivalent to E&M Eq. (J.7.41)
+        geom%h2 = geom%h**2
+
+        ! Calculate intermediate quantities
+        do i=1,this%N
+
+            i_next = mod(i, this%N) + 1
+
+            ! Calculate displacements
+            d_ls = this%vertices_ls(i,:) - geom%P_ls
+
+            ! Perpendicular distance in plane from evaluation point to edge E&M Eq. (J.6.46) and (J.7.53)
+            geom%a(i) = inner2(d_ls, this%n_hat_ls(i,:)) ! Definition
+
+            ! Integration length on edge to start vertex (E&M Eq. (J.6.47))
+            geom%l1(i) = inner2(d_ls, this%t_hat_ls(i,:))
+
+            ! Distance from evaluation point to start vertex E&M Eq. (J.8.8)
+            geom%R1(i) = sqrt(d_ls(1)**2 + d_ls(2)**2 + geom%h2)
+
+            ! Calculate square of the perpendicular distance to edge
+            geom%g2(i) = geom%a(i)**2 + geom%h2 ! Subsonic version of Ehlers Eq. (E14) and what is used in PAN AIR
+
+            ! Displacement from end vertex
+            d_ls = this%vertices_ls(i_next,:) - geom%P_ls
+
+            ! Integration length on edge to end vertex
+            geom%l2(i) = this%rs*d_ls(1)*this%t_hat_ls(i,1) + d_ls(2)*this%t_hat_ls(i,2) ! Definition; same as used in PAN AIR
+
+        end do
+
+        ! Distance from evaluation point to end vertices
+        geom%R2 = cshift(geom%R1, 1)
+
+    end function panel_calc_subsonic_geom
+
+
+    function panel_calc_supersonic_subinc_geom(this, eval_point, freestream, dod_info) result(geom)
         ! Calculates the geometric parameters necessary for calculating the influence of the panel at the given evaluation point
 
         implicit none
@@ -801,6 +865,7 @@ contains
         x = matmul(this%A_g_to_ls, geom%P_g-this%centroid)
         geom%P_ls = x(1:2)
         geom%h = x(3) ! Equivalent to E&M Eq. (J.7.41)
+        geom%h2 = geom%h**2
 
         ! Calculate intermediate quantities
         do i=1,this%N
@@ -827,22 +892,25 @@ contains
 
                 ! Distance from evaluation point to start vertex E&M Eq. (J.8.8)
                 if (dod_info%verts_in_dod(i)) then
-                    geom%R1(i) = sqrt(freestream%C_g_inner(-d_g, -d_g))
+                    geom%R1(i) = sqrt(this%r*d_ls(1)**2 + freestream%s*d_ls(2)**2 + this%rs*geom%h2)
                 else
                     geom%R1(i) = 0.
                 end if
 
                 ! Calculate square of the perpendicular distance to edge
                 geom%g2(i) = (freestream%B/this%tau(i))**2*freestream%B_g_inner(x, x) ! E&M Eq. (J.8.23) or (J.7.70)
-                !geom%g2(i) = geom%a(i)**2 - this%b(i)*geom%h**2 ! Ehlers Eq. (E14)
-                ! These two match exactly when the edge is perpendicular to the freestream (i.e. b = 1)
+                !geom%g2(i) = geom%a(i)**2 + this%q(i)*geom%h2 ! My version of Ehlers Eq. (E14) and what is used in supsbi in PAN AIR.
+                ! E&M consistently use q in these equations. Ehlers et al. use b.
+                ! The PAN AIR source code uses -b instead of q. Printing out b from PAN AIR, it seems to always be close to 1.
+                ! This matches what's in PAN AIR when the edge is perpendicular to the freestream (i.e. b = +/-1)
+                ! The first definition above matches my version.
 
                 ! Displacement from end vertex
                 !d_g = this%get_vertex_loc(i_next) - geom%P_g
-                d_ls = this%vertices_ls(i_next,:)-geom%P_ls
+                d_ls = this%vertices_ls(i_next,:) - geom%P_ls
 
                 ! Integration length on edge to end vertex
-                geom%l2(i) = this%rs*d_ls(1)*this%t_hat_ls(i,1) + d_ls(2)*this%t_hat_ls(i,2) ! Definition
+                geom%l2(i) = this%rs*d_ls(1)*this%t_hat_ls(i,1) + d_ls(2)*this%t_hat_ls(i,2) ! Definition; same as used in supsbi in PAN AIR
                 !geom%l2(i) = freestream%s/this%tau(i) * freestream%C_g_inner(this%t_hat_g(i,:), d_g) ! Optimized calculation E&M Eq. (J.7.52)
 
             else
@@ -856,10 +924,10 @@ contains
         ! Distance from evaluation point to end vertices
         geom%R2 = cshift(geom%R1, 1)
 
-    end function panel_get_field_point_geometry
+    end function panel_calc_supersonic_subinc_geom
 
 
-    function panel_E_i_M_N_K(this, geom, i, M, N, K, dod_info, freestream) result(E)
+    function panel_E_i_M_N_K(this, geom, i, M, N, K, freestream) result(E)
         ! Calculates E_i(M,N,K)
 
         implicit none
@@ -867,7 +935,6 @@ contains
         class(panel),intent(in) :: this
         type(eval_point_geom),intent(in) :: geom
         integer,intent(in) :: i, M, N, K
-        type(dod),intent(in) :: dod_info
         type(flow),intent(in) :: freestream
 
         real :: E
@@ -878,14 +945,14 @@ contains
         i_next = mod(i, this%N) + 1
 
         ! Evaluate at start vertex
-        if (dod_info%verts_in_dod(i)) then
+        if (geom%R1(i) /= 0.) then
             E1 = ((this%vertices_ls(i,1)-geom%P_ls(1))**(M-1)*(this%vertices_ls(i,2)-geom%P_ls(2))**(N-1))/geom%R1(i)**K
         else
             E1 = 0.
         end if
 
         ! Evaluate at end vertex
-        if (dod_info%verts_in_dod(i_next)) then
+        if (geom%R1(i_next) /= 0.) then
             E2 = ((this%vertices_ls(i_next,1)-geom%P_ls(1))**(M-1)*(this%vertices_ls(i_next,2)-geom%P_ls(2))**(N-1))/geom%R2(i)**K
         else
             E2 = 0.
@@ -987,7 +1054,181 @@ contains
     end function panel_F_i_1_1_1
 
 
-    function panel_calc_F_integrals(this, geom, proc_H, MXK, MXQ, NHK, dod_info, freestream) result (F)
+    function panel_calc_subsonic_F_integrals(this, geom, proc_H, MXK, MXQ, NHK, freestream) result (F)
+        ! Calculates the F integrals necessary
+
+        implicit none
+
+        class(panel),intent(in) :: this
+        type(eval_point_geom),intent(in) :: geom
+        integer,intent(in) :: proc_H, MXK, MXQ, NHK
+        type(flow),intent(in) :: freestream
+        real,dimension(:,:,:,:),allocatable :: F
+
+        real :: E1, E2, v_xi, v_eta, dF
+        real,dimension(3) :: d
+        real,dimension(this%N) :: min_dist_to_edge
+        integer :: i, MXFK, NFK, k, m, n, i_next
+
+        ! Determine which F integrals are needed
+        NFK = 16
+        if (proc_H .eq. 1) then
+            MXFK = MXK - 2
+        else
+            MXFK = NHK+MXK-2
+        end if
+        
+        ! Allocate integral storage
+        allocate(F(this%N,1:MXQ,1:MXQ,1:MXFK+NFK), source=0.)
+
+        ! Calculate minimum distance to perimeter of S
+        do i=1,this%N
+
+            i_next = mod(i, this%N) + 1
+
+            ! Within edge, the minimum distance is the perpendicular distance
+            if (sign(geom%l1(i)) /= sign(geom%l2(i))) then
+                min_dist_to_edge(i) = sqrt(geom%g2(i))
+        
+            ! Otherwise, it is the minimum of the distances to the corners
+            else
+                min_dist_to_edge(i) = min(geom%R1(i), geom%R2(i))
+            end if
+
+        end do
+        dF = minval(min_dist_to_edge)
+
+        ! Check for point on perimeter
+        if (abs(dF) < 1e-12) then
+            write(*,*) "Detected control point on perimeter of panel. Quitting..."
+            stop
+        end if
+
+        ! Loop through edges
+        do i=1,this%N
+
+            ! Store edge derivs
+            v_xi = this%n_hat_ls(i,1)
+            v_eta = this%n_hat_ls(i,2)
+
+            ! Calculate F(1,1,1)
+            ! Within edge (Johnson Eq. (D.60))
+            if (sign(geom%l1(i)) /= sign(geom%l2(i))) then
+                F(i,1,1,1) = log(((geom%R1(i)-geom%l1(i))*(geom%R2(i)+geom%l2(i)))/geom%g2(i))
+
+            ! Above or below edge; this is a unified form of Johnson Eq. (D.60)
+            else
+                F(i,1,1,1) = sign(geom%l1(i)) * log( (geom%R2(i) + abs(geom%l2(i))) / (geom%R1(i) + abs(geom%l1(i))) )
+            end if
+
+            ! Procedure 4: not close to perimeter
+            if (sqrt(geom%g2(i)) >= 0.01*dF) then
+
+                ! Calculate F(1,1,K) integrals
+                do k=3,MXFK,2
+
+                    ! Get necessary E
+                    E1 = this%E_i_M_N_K(geom, i, 2, 1, k-2, freestream)
+                    E2 = this%E_i_M_N_K(geom, i, 1, 2, k-2, freestream)
+
+                    ! Calculate F
+                    F(i,1,1,k) = 1./(geom%g2(i)*(k-2))*((k-3)*F(i,1,1,k-2)-v_eta*E1+v_xi*E2)
+                end do
+
+            ! Procedure 5: close to perimeter
+            else
+
+                ! Initialize
+                F(i,1,1,MXFK+NFK) = 0.
+
+                ! Calculate other F(1,1,K) integrals
+                do k=MXFK+NFK,5,2
+
+                    ! Get necessary E
+                    E1 = this%E_i_M_N_K(geom, i, 2, 1, k-2, freestream)
+                    E2 = this%E_i_M_N_K(geom, i, 1, 2, k-2, freestream)
+
+                    ! Calculate F
+                    F(i,1,1,k-2) = 1./(k-3)*(geom%g2(i)*(k-2)*F(i,1,1,k)+v_eta*E1-v_xi*E2)
+
+                end do
+            end if
+
+            ! Calculate other F integrals (same for both procedures)
+            if (abs(v_eta) <= abs(v_xi)) then ! Case a
+
+                ! Calculate F(1,N,1) integrals (Johnson Eq. (D.62))
+                do n=2,MXQ
+
+                    ! Get E
+                    E1 = this%E_i_M_N_K(geom, i, 1, n-1, -1, freestream)
+
+                    if (n .eq. 2) then
+                        F(i,1,n,1) = 1./(n-1)*((2*n-3)*geom%a(i)*v_eta*F(i,1,n-1,1) + v_xi*E1)
+                    else
+                        F(i,1,n,1) = 1./(n-1)*((2*n-3)*geom%a(i)*v_eta*F(i,1,n-1,1) &
+                                     - (n-2)*(geom%a(i)**2+v_xi**2*geom%h2)*F(i,1,n-2,1) &
+                                     + v_xi*E1)
+                    end if
+                end do
+
+                ! Calculate F(M,N,1) inegrals (Johnsons Eq. (D.63))
+                do m=2,MXQ
+                    do n=1,MXQ-m+1
+                        F(i,m,n,1) = -v_eta/v_xi*F(i,m-1,n+1,1) + geom%a(i)/v_xi*F(i,m-1,n,1)
+                    end do
+                end do
+
+            else ! Case b
+
+                ! Calculate F(M,1,1) integrals (Johnson Eq. (D.64))
+                do m=2,MXQ
+
+                    ! Get E
+                    E1 = this%E_i_M_N_K(geom, i, m-1, 1, -1, freestream)
+
+                    if (m .eq. 2) then
+                        F(i,m,1,1) = 1./(m-1)*((2*m-3)*geom%a(i)*v_xi*F(i,m-1,1,1) - v_eta*E1)
+                    else
+                        F(i,m,1,1) = 1./(m-1)*((2*m-3)*geom%a(i)*v_xi*F(i,m-1,1,1) &
+                                     - (m-2)*(geom%a(i)**2+v_eta**2*geom%h2)*F(i,m-2,1,1) &
+                                     - v_eta*E1)
+                    end if
+                end do
+
+                ! Calculate F(M,N,1) integrals (Johnson Eq. (D.65))
+                do n=2,MXQ
+                    do m=1,MXQ-n+1
+                        F(i,m,n,1) = -v_xi/v_eta*F(i,m+1,n-1,1)+geom%a(i)/v_eta*F(i,m,n-1,1)
+                    end do
+                end do
+
+            end if
+
+            ! Calculate F(1,2,K) integrals (Johnson Eq. (D.66))
+            do k=3,MXK-2,2
+                F(i,1,2,k) = v_eta*geom%a(i)*F(i,1,1,k)-v_xi/(k-2)*this%E_i_M_N_K(geom, i, 1, 1, k-2, freestream)
+            end do
+
+            ! Calculate F(1,N,K) integrals (Johnson Eq. (D.67))
+            do n=3,MXQ
+                do k=3,MXK-2,2
+                    F(i,1,n,k) = 2.*geom%a(i)*v_eta*F(i,1,n-1,k) &
+                                 - (geom%a(i)**2+v_xi**2*geom%h2)*F(i,1,n-2,k) &
+                                 + v_xi**2*F(i,1,n-2,k-2)
+                end do
+            end do
+        end do
+
+        if (debug .and. any(isnan(F))) then
+            write(*,*)
+            write(*,*) "NaN found in F"
+        end if
+
+    end function panel_calc_subsonic_F_integrals
+
+
+    function panel_calc_supersonic_subinc_F_integrals(this, geom, proc_H, MXK, MXQ, NHK, dod_info, freestream) result (F)
         ! Calculates the F integrals necessary
 
         implicit none
@@ -999,7 +1240,7 @@ contains
         type(flow),intent(in) :: freestream
         real,dimension(:,:,:,:),allocatable :: F
 
-        real :: E1, E2, v_xi, v_eta, dF
+        real :: E1, E2, v_xi, v_eta, dF, F1, F2
         real,dimension(3) :: d
         real,dimension(this%N) :: min_dist_to_edge
         integer :: i, MXFK, NFK, k, m, n, i_next
@@ -1066,7 +1307,53 @@ contains
                 v_eta = this%n_hat_ls(i,2)
 
                 ! Calculate F(1,1,1)
-                F(i,1,1,1) = this%F_i_1_1_1(geom, i, dod_info, freestream)
+
+                ! Calculate preliminary quantities
+                if (this%b(i) >= 0) then
+                    F1 = (geom%l1(i)*geom%R2(i) - geom%l2(i)*geom%R1(i))/geom%g2(i)
+                    F2 = (this%b(i)*geom%R1(i)*geom%R2(i) + geom%l1(i)*geom%l2(i))/geom%g2(i)
+
+                else
+                    F1 = (geom%R2(i)**2-geom%R1(i)**2)/(geom%l1(i)*geom%R2(i)+geom%l2(i)*geom%R1(i))
+                    F2 = (geom%g2(i)-geom%l1(i)**2-geom%l2(i)**2)/(this%b(i)*geom%R1(i)*geom%R2(i)-geom%l1(i)*geom%l2(i))
+
+                end if
+
+                !! Check 
+                !check = F2**2 + this%b(i)*F1**2
+                !if (abs(check-1.)>0.1) then
+                !    write(*,*)
+                !    write(*,*) check
+                !    write(*,*) F2
+                !    write(*,*) this%sqrt_b(i)*abs(F1)
+                !end if
+
+                ! Supersonic edge
+                if (this%b(i) > 0) then
+
+                    ! Neither endpoint in DoD (Ehlers Eq. (E22))
+                    if (geom%R1(i) == 0. .and. geom%R2(i) == 0.) then
+                        F(i,1,1,1) = pi/this%sqrt_b(i)
+
+                    ! At least one endpoint in the DoD (Ehlers Eq. (E22))
+                    else
+
+                        ! Calculate F
+                        F(i,1,1,1) = -atan2(this%sqrt_b(i)*F1, F2)/this%sqrt_b(i)
+
+                    end if
+
+                ! Subsonic edge
+                else
+
+                    ! Calculate preliminary quantities
+                    F1 = this%sqrt_b(i)*geom%R1(i) + abs(geom%l1(i))
+                    F2 = this%sqrt_b(i)*geom%R2(i) + abs(geom%l2(i))
+
+                    ! Calculate F
+                    F(i,1,1,1) = -sign(this%n_hat_ls(i,2))/this%sqrt_b(i)*log(F1/F2)
+
+                end if
 
                 ! Procedure 4: not close to perimeter
                 if (sqrt(geom%g2(i)) >= 0.01*dF) then
@@ -1075,8 +1362,8 @@ contains
                     do k=3,MXFK,2
 
                         ! Get necessary E
-                        E1 = this%E_i_M_N_K(geom, i, 2, 1, k-2, dod_info, freestream)
-                        E2 = this%E_i_M_N_K(geom, i, 1, 2, k-2, dod_info, freestream)
+                        E1 = this%E_i_M_N_K(geom, i, 2, 1, k-2, freestream)
+                        E2 = this%E_i_M_N_K(geom, i, 1, 2, k-2, freestream)
 
                         ! Calculate F
                         F(i,1,1,k) = 1./(geom%g2(i)*(k-2))*((k-3)*F(i,1,1,k-2)-v_eta*E1+v_xi*E2)
@@ -1092,8 +1379,8 @@ contains
                     do k=MXFK+NFK,5,2
 
                         ! Get necessary E
-                        E1 = this%E_i_M_N_K(geom, i, 2, 1, k-2, dod_info, freestream)
-                        E2 = this%E_i_M_N_K(geom, i, 1, 2, k-2, dod_info, freestream)
+                        E1 = this%E_i_M_N_K(geom, i, 2, 1, k-2, freestream)
+                        E2 = this%E_i_M_N_K(geom, i, 1, 2, k-2, freestream)
 
                         ! Calculate F
                         F(i,1,1,k-2) = 1./(k-3)*(geom%g2(i)*(k-2)*F(i,1,1,k)+v_eta*E1-v_xi*E2)
@@ -1108,13 +1395,13 @@ contains
                     do n=2,MXQ
 
                         ! Get E
-                        E1 = this%E_i_M_N_K(geom, i, 1, n-1, -1, dod_info, freestream)
+                        E1 = this%E_i_M_N_K(geom, i, 1, n-1, -1, freestream)
 
                         if (n .eq. 2) then
                             F(i,1,N,1) = 1./(n-1)*((2*n-3)*geom%a(i)*v_eta*F(i,1,n-1,1) + v_xi*E1)
                         else
                             F(i,1,N,1) = 1./(n-1)*((2*n-3)*geom%a(i)*v_eta*F(i,1,n-1,1) &
-                                         - (n-2)*(geom%a(i)**2+v_xi**2*geom%h**2)*F(i,1,n-2,1) &
+                                         - (n-2)*(geom%a(i)**2+v_xi**2*geom%h2)*F(i,1,n-2,1) &
                                          + v_xi*E1)
                         end if
                     end do
@@ -1132,13 +1419,13 @@ contains
                     do m=2,MXQ
 
                         ! Get E
-                        E1 = this%E_i_M_N_K(geom, i, m-1, 1, -1, dod_info, freestream)
+                        E1 = this%E_i_M_N_K(geom, i, m-1, 1, -1, freestream)
 
                         if (m .eq. 2) then
                             F(i,m,1,1) = 1./(m-1)*((2*m-3)*geom%a(i)*v_xi*F(i,m-1,1,1) - v_eta*E1)
                         else
                             F(i,m,1,1) = 1./(m-1)*((2*m-3)*geom%a(i)*v_xi*F(i,m-1,1,1) &
-                                         - (m-2)*(geom%a(i)**2+v_eta**2*geom%h**2)*F(i,m-2,1,1) &
+                                         - (m-2)*(geom%a(i)**2+v_eta**2*geom%h2)*F(i,m-2,1,1) &
                                          - v_eta*E1)
                         end if
                     end do
@@ -1154,14 +1441,14 @@ contains
 
                 ! Calculate F(1,2,K) integrals (Johnson Eq. (D.66))
                 do k=3,MXK-2,2
-                    F(i,1,2,k) = v_eta*geom%a(i)*F(i,1,1,k)-v_xi/(k-2)*this%E_i_M_N_K(geom, i, 1, 1, k-2, dod_info, freestream)
+                    F(i,1,2,k) = v_eta*geom%a(i)*F(i,1,1,k)-v_xi/(k-2)*this%E_i_M_N_K(geom, i, 1, 1, k-2, freestream)
                 end do
 
                 ! Calculate F(1,N,K) integrals (Johnson Eq. (D.67))
                 do n=3,MXQ
                     do k=3,MXK-2,2
                         F(i,1,n,k) = 2.*geom%a(i)*v_eta*F(i,1,n-1,k) &
-                                     - (geom%a(i)**2+v_xi**2*geom%h**2)*F(i,1,n-2,k) &
+                                     - (geom%a(i)**2+v_xi**2*geom%h2)*F(i,1,n-2,k) &
                                      + v_xi**2*F(i,1,n-2,k-2)
                     end do
                 end do
@@ -1173,10 +1460,167 @@ contains
             write(*,*) "NaN found in F"
         end if
 
-    end function panel_calc_F_integrals
+    end function panel_calc_supersonic_subinc_F_integrals
 
 
-    function panel_calc_H_integrals(this, geom, proc_H, MXK, MXQ, NHK, dod_info, freestream, F) result(H)
+    function panel_calc_subsonic_H_integrals(this, geom, proc_H, MXK, MXQ, NHK, freestream, F) result(H)
+        ! Calculates the necessary H integrals
+
+        implicit none
+
+        class(panel),intent(in) :: this
+        type(eval_point_geom),intent(in) :: geom
+        integer,intent(in) :: proc_H, MXK, MXQ, NHK
+        type(flow),intent(in) :: freestream
+        real,dimension(:,:,:,:),allocatable,intent(in) :: F
+        real,dimension(:,:,:),allocatable :: H
+
+        real :: S, C, nu, c1, c2, F1, F2
+        integer :: i, m, n, k
+        real,dimension(:),allocatable :: v_xi, v_eta
+
+        ! Get edge normal derivatives
+        allocate(v_xi(this%N), source=this%n_hat_ls(:,1))
+        allocate(v_eta(this%N), source=this%n_hat_ls(:,2))
+
+        ! Allocate integral storage
+        allocate(H(1:MXQ,1:MXQ,1:MXK+NHK), source=0.)
+
+        ! Procedure 1: not close to panel plane
+        if (proc_H == 1) then
+
+            ! Calculate H(1,1,1) (Johnson Eq. (D.41))
+            do i=1,this%N
+
+                ! Calculate intermediate quantities
+                c1 = geom%g2(i)+abs(geom%h)*geom%R1(i)
+                c2 = geom%g2(i)+abs(geom%h)*geom%R2(i)
+        
+                ! Add surface integral
+                S = geom%a(i)*(geom%l2(i)*c1 - geom%l1(i)*c2)
+                C = c1*c2 + geom%a(i)**2*geom%l1(i)*geom%l2(i)
+                H(1,1,1) = H(1,1,1) - atan2(S, C)
+        
+            end do
+        
+            ! Add line integrals
+            H(1,1,1) = abs(geom%h)*H(1,1,1) + sum(geom%a*F(:,1,1,1))
+
+            ! Calculate H(1,1,K) integrals (Johnson Eq. (D.42)
+            do k=3,MXK,2
+                H(1,1,k) = 1./((k-2)*geom%h2)*((k-4)*H(1,1,k-2) + sum(geom%a*F(:,1,1,k-2)))
+            end do
+
+        ! Procedures 2 and 3: close to panel plane
+        else if (proc_H == 2 .or. proc_H == 3) then
+
+            ! Initialize
+            H(1,1,NHK+MXK) = 0.
+
+            ! Calculate H(1,1,K) integrals (Johnson Eq. (D.50)
+            do k=NHK+MXK,3,-2
+                H(1,1,k-2) = 1./(k-4)*(geom%h2*(k-2)*H(1,1,k) - sum(geom%a*F(:,1,1,k-2)))
+            end do
+
+        end if
+
+        ! Step 3
+        ! Calculate H(2,N,1) integrals (Johnson Eq. (D.43)
+        do n=1,MXQ-1
+            H(2,n,1) = 1./(n+1)*(geom%h2*sum(v_xi*F(:,1,n,1)) + sum(geom%a*F(:,2,n,1)))
+        end do
+
+        ! Step 4
+        ! Calculate H(1,N,1) integrals (Johnson Eq. (D.44)
+        do n=2,MXQ
+            if (n .eq. 2) then
+                H(2,n,1) = 1./n*(geom%h2*sum(v_eta*F(:,1,n-1,1)) &
+                           + sum(geom%a*F(:,1,n,1)))
+            else
+                H(2,n,1) = 1./n*(-geom%h2*(n-2)*H(1,n-2,1) & 
+                           + geom%h2*sum(v_eta*F(:,1,n-1,1)) &
+                           + sum(geom%a*F(:,1,n,1)))
+            end if
+        end do
+
+        ! Step 5
+        ! Calculate H(M,N,1) integrals (Johnson Eq. (D.45)
+        do m=3,MXQ
+            do n=1,MXQ-m+1
+                if (m .eq. 2) then
+                    H(m,n,1) = 1./(m+n-1)*(geom%h2*sum(v_xi*F(:,m-1,n,1)) &
+                               + sum(geom%a*F(:,m,n,1)))
+                else
+                    H(m,n,1) = 1./(m+n-1)*(-geom%h2*(m-2)*H(m-2,n,1) &
+                               + geom%h2*sum(v_xi*F(:,m-1,n,1)) &
+                               + sum(geom%a*F(:,m,n,1)))
+                end if
+            end do
+        end do
+
+        ! Step 6
+        ! Calculate H(1,N,K) integrals (Johnson Eq. (D.46)
+        do n=2,MXQ
+            do k=3,MXK,2
+                if (n .eq. 2) then
+                    H(1,n,k) = -1./(k-2)*sum(v_eta*F(:,1,n-1,k-2))
+                else
+                    H(1,n,k) = 1./(k-2)*((n-2)*H(1,n-2,k-2) &
+                               -sum(v_eta*F(:,1,n-1,k-2)))
+                end if
+            end do
+        end do
+
+        ! Step 7
+        ! Calculate H(2,N,K) integrals (Johnson Eq. (D.47)
+        do n=1,MXQ-1
+            do k=3,MXK,2
+                H(2,n,k) = -1./(k-2)*sum(v_xi*F(:,1,n,k-2))
+            end do
+        end do
+
+        ! Step 8
+        ! Calculate remaining H(M,N,K) integrals (Johnson Eq. (D.48)
+        do k=3,MXK,2
+            do n=1,MXQ-m+1
+                do m=3,MXQ
+                    H(m,n,k) = -H(M-2,N+2,k) - geom%h2*H(m-2,n,k) + H(m-2,n,k-2)
+                end do
+            end do
+        end do
+
+        ! Convert H* to H in case of Procedure 3
+        if (proc_H .eq. 3) then
+            do m=1,MXQ
+                do n=1,MXQ
+                    do k=1,MXK+NHK,2
+                         
+                        ! Get factorial dingas
+                        nu = nu_M_N_K(m, n, k)
+
+                        ! Convert H* to H
+                        ! If nu or h is zero, this can just be skipped.
+                        if (abs(geom%h) > 1e-12 .and. abs(nu) > 1e-12) then
+                            H(m,n,k) = H(m,n,k) + 2.*pi*nu*abs(geom%h)**(m+n-k)
+                        end if
+                    end do
+                end do
+            end do
+        end if
+
+        ! Clean up
+        deallocate(v_xi)
+        deallocate(v_eta)
+
+        if (debug .and. any(isnan(H))) then
+            write(*,*)
+            write(*,*) "NaN found in H"
+        end if
+
+    end function panel_calc_subsonic_H_integrals
+
+
+    function panel_calc_supersonic_subinc_H_integrals(this, geom, proc_H, MXK, MXQ, NHK, dod_info, freestream, F) result(H)
         ! Calculates the necessary H integrals
 
         implicit none
@@ -1225,7 +1669,7 @@ contains
                             F2 = (geom%R1(i)*geom%R2(i)+geom%l1(i)*geom%l2(i))/geom%g2(i)
 
                             ! Add to surface integral; adapted from Ehlers Eq. (E18) to match the form of Johnson Eq. (D.41)
-                            H(1,1,1) = H(1,1,1) - geom%h*atan2(geom%h*geom%a(i)*F1, geom%R1(i)*geom%R2(i)+geom%h**2*F2)
+                            H(1,1,1) = H(1,1,1) - geom%h*atan2(geom%h*geom%a(i)*F1, geom%R1(i)*geom%R2(i)+geom%h2*F2)
 
                         end if
 
@@ -1253,9 +1697,9 @@ contains
             ! Calculate H(1,1,K) integrals (Johnson Eq. (D.42) altered to match Ehlers Eq. (E9))
             do k=3,MXK,2
                 if (this%rs == 1.) then
-                    H(1,1,k) = 1./((k-2)*geom%h**2)*((k-4)*H(1,1,k-2) + sum(geom%a*F(:,1,1,k-2)))
+                    H(1,1,k) = 1./((k-2)*geom%h2)*((k-4)*H(1,1,k-2) + sum(geom%a*F(:,1,1,k-2)))
                 else
-                    H(1,1,k) = 1./((k-2)*geom%h**2)*(-k*H(1,1,k-2) - sum(geom%a*F(:,1,1,k-2)))
+                    H(1,1,k) = 1./((k-2)*geom%h2)*(-k*H(1,1,k-2) - sum(geom%a*F(:,1,1,k-2)))
                 end if
             end do
 
@@ -1267,7 +1711,7 @@ contains
 
             ! Calculate H(1,1,K) integrals (Johnson Eq. (D.50) altered to match Ehlers Eq. (E9))
             do k=NHK+MXK,3,-2
-                H(1,1,k-2) = 1./(k-4)*(geom%h**2*(k-2)*H(1,1,k) - this%rs*sum(geom%a*F(:,1,1,k-2)))
+                H(1,1,k-2) = 1./(k-4)*(geom%h2*(k-2)*H(1,1,k) - this%rs*sum(geom%a*F(:,1,1,k-2)))
             end do
 
         end if
@@ -1275,18 +1719,18 @@ contains
         ! Step 3
         ! Calculate H(2,N,1) integrals (Johnson Eq. (D.43) altered to match Ehlers Eq. (E7))
         do n=1,MXQ-1
-            H(2,n,1) = 1./(this%rs*n+1)*(this%rs*geom%h**2*sum(v_xi*F(:,1,n,1)) + sum(geom%a*F(:,2,n,1)))
+            H(2,n,1) = 1./(this%rs*n+1)*(this%rs*geom%h2*sum(v_xi*F(:,1,n,1)) + sum(geom%a*F(:,2,n,1)))
         end do
 
         ! Step 4
         ! Calculate H(1,N,1) integrals (Johnson Eq. (D.44) altered to match Ehlers Eq. (E8))
         do n=2,MXQ
             if (n .eq. 2) then
-                H(2,n,1) = this%rs/n*(geom%h**2*sum(v_eta*F(:,1,n-1,1)) &
+                H(2,n,1) = this%rs/n*(geom%h2*sum(v_eta*F(:,1,n-1,1)) &
                            + sum(geom%a*F(:,1,n,1)))
             else
-                H(2,n,1) = this%rs/n*(-geom%h**2*(n-2)*H(1,n-2,1) & 
-                           + geom%h**2*sum(v_eta*F(:,1,n-1,1)) &
+                H(2,n,1) = this%rs/n*(-geom%h2*(n-2)*H(1,n-2,1) & 
+                           + geom%h2*sum(v_eta*F(:,1,n-1,1)) &
                            + sum(geom%a*F(:,1,n,1)))
             end if
         end do
@@ -1296,11 +1740,11 @@ contains
         do m=3,MXQ
             do n=1,MXQ-m+1
                 if (m .eq. 2) then
-                    H(m,n,1) = 1./(m+n-1)*(this%rs*geom%h**2*sum(v_xi*F(:,m-1,n,1)) &
+                    H(m,n,1) = 1./(m+n-1)*(this%rs*geom%h2*sum(v_xi*F(:,m-1,n,1)) &
                                + sum(geom%a*F(:,m,n,1)))
                 else
-                    H(m,n,1) = 1./(m+n-1)*(-geom%h**2*(m-2)*H(m-2,n,1) &
-                               + this%rs*geom%h**2*sum(v_xi*F(:,m-1,n,1)) &
+                    H(m,n,1) = 1./(m+n-1)*(-geom%h2*(m-2)*H(m-2,n,1) &
+                               + this%rs*geom%h2*sum(v_xi*F(:,m-1,n,1)) &
                                + sum(geom%a*F(:,m,n,1)))
                 end if
             end do
@@ -1332,7 +1776,7 @@ contains
         do k=3,MXK,2
             do n=1,MXQ-m+1
                 do m=3,MXQ
-                    H(m,n,k) = this%rs*(-H(M-2,N+2,k)-geom%h**2*H(m-2,n,k))+H(m-2,n,k-2)
+                    H(m,n,k) = this%rs*(-H(M-2,N+2,k)-geom%h2*H(m-2,n,k))+H(m-2,n,k-2)
                 end do
             end do
         end do
@@ -1365,7 +1809,7 @@ contains
             write(*,*) "NaN found in H"
         end if
 
-    end function panel_calc_H_integrals
+    end function panel_calc_supersonic_subinc_H_integrals
 
 
     function nu_M_N_K(M, N, K) result(nu)
@@ -1478,11 +1922,14 @@ contains
             NHK = 16
         end if
 
-        ! Calculate F integrals
-        F = this%calc_F_integrals(geom, proc_H, MXK, MXQ, NHK, dod_info, freestream)
-
-        ! Calculate H integrals
-        H = this%calc_H_integrals(geom, proc_H, MXK, MXQ, NHK, dod_info, freestream, F)
+        ! Calculate necessary integrals
+        if (freestream%supersonic) then
+            F = this%calc_supersonic_subinc_F_integrals(geom, proc_H, MXK, MXQ, NHK, dod_info, freestream)
+            H = this%calc_supersonic_subinc_H_integrals(geom, proc_H, MXK, MXQ, NHK, dod_info, freestream, F)
+        else
+            F = this%calc_subsonic_F_integrals(geom, proc_H, MXK, MXQ, NHK, freestream)
+            H = this%calc_subsonic_H_integrals(geom, proc_H, MXK, MXQ, NHK, freestream, F)
+        end if
 
     end subroutine panel_calc_integrals
 
@@ -1544,8 +1991,13 @@ contains
         if (dod_info%in_dod) then
 
             ! Calculate geometric parameters
-            geom = this%get_field_point_geometry(P, freestream, dod_info)
+            if (freestream%supersonic) then
+                geom = this%calc_supersonic_subinc_geom(P, freestream, dod_info)
+            else
+                geom = this%calc_subsonic_geom(P, freestream)
+            end if
 
+            ! Calculate influence
             if (influence_calc_type == 'johnson') then
 
                 ! Get integrals
@@ -1640,7 +2092,11 @@ contains
         if (dod_info%in_dod) then
 
             ! Calculate geometric parameters
-            geom = this%get_field_point_geometry(P, freestream, dod_info)
+            if (freestream%supersonic) then
+                geom = this%calc_supersonic_subinc_geom(P, freestream, dod_info)
+            else
+                geom = this%calc_subsonic_geom(P, freestream)
+            end if
 
             if (influence_calc_type == 'johnson') then
 
@@ -1663,266 +2119,6 @@ contains
         end if
     
     end subroutine panel_calc_velocities
-
-
-    function panel_calc_source_potential(this, eval_point, freestream, dod_info, vertex_indices, panel_mirrored) result(phi)
-
-        implicit none
-
-        class(panel),intent(in) :: this
-        real,dimension(3),intent(in) :: eval_point
-        type(flow),intent(in) :: freestream
-        type(dod),intent(in) :: dod_info
-        integer,dimension(:),allocatable,intent(out) :: vertex_indices
-        logical,intent(in) :: panel_mirrored
-        real,dimension(:),allocatable :: phi
-
-        type(eval_point_geom) :: geom
-        real,dimension(:,:,:),allocatable :: H
-        real,dimension(:,:,:,:),allocatable :: F
-
-        ! Allocate potential
-        if (source_order == 0) then
-            allocate(phi(1), source=0.)
-        end if
-
-        ! In dod
-        if (dod_info%in_dod) then
-
-            ! Calculate geometric parameters
-            geom = this%get_field_point_geometry(eval_point, freestream, dod_info)
-
-            if (influence_calc_type == 'johnson') then
-
-                ! Get integrals
-                call this%calc_integrals(geom, "potential", "source", dod_info, freestream, H, F)
-
-                if (source_order == 0) then
-
-                    ! Compute induced potential
-                    phi = -this%J*freestream%K_inv*H(1,1,1)
-
-                end if
-
-                ! Clean up
-                deallocate(H)
-                deallocate(F)
-
-            end if
-        end if
-    
-    end function panel_calc_source_potential
-
-
-    function panel_calc_source_velocity(this, eval_point, freestream, dod_info, vertex_indices, panel_mirrored) result(v)
-
-        implicit none
-
-        class(panel),intent(in) :: this
-        real,dimension(3),intent(in) :: eval_point
-        type(flow),intent(in) :: freestream
-        type(dod),intent(in) :: dod_info
-        integer,dimension(:),allocatable,intent(out) :: vertex_indices
-        logical,intent(in) :: panel_mirrored
-        real,dimension(:,:),allocatable :: v
-
-        type(eval_point_geom) :: geom
-        real,dimension(:,:,:),allocatable :: H
-        real,dimension(:,:,:,:),allocatable :: F
-
-        ! Allocate velocity
-        if (source_order == 0) then
-            allocate(v(1,3), source=0.)
-        end if
-
-        ! In dod
-        if (dod_info%in_dod) then
-
-            ! Calculate geometric parameters
-            geom = this%get_field_point_geometry(eval_point, freestream, dod_info)
-
-            if (influence_calc_type == 'johnson') then
-
-                ! Get integrals
-                call this%calc_integrals(geom, "velocity", "source", dod_info, freestream, H, F)
-
-                if (source_order == 0) then
-
-                    ! Calculate velocity
-                    v(1,1) = this%J*freestream%K_inv*sum(this%n_hat_ls(:,1)*F(:,1,1,1))
-                    v(1,2) = this%J*freestream%K_inv*sum(this%n_hat_ls(:,2)*F(:,1,1,1))
-                    v(1,3) = this%J*freestream%K_inv*geom%h*H(1,1,3)
-
-                end if
-
-                ! Clean up
-                deallocate(H)
-                deallocate(F)
-
-            end if
-        end if
-
-    end function panel_calc_source_velocity
-
-
-    function panel_calc_doublet_potential(this, eval_point, freestream, dod_info, vertex_indices, panel_mirrored) result(phi)
-
-        implicit none
-
-        class(panel),intent(in) :: this
-        real,dimension(3),intent(in) :: eval_point
-        type(flow),intent(in) :: freestream
-        type(dod),intent(in) :: dod_info
-        integer,dimension(:),allocatable,intent(out) :: vertex_indices
-        logical,intent(in) :: panel_mirrored
-        real,dimension(:),allocatable :: phi
-
-        type(eval_point_geom) :: geom
-        real,dimension(:,:,:),allocatable :: H
-        real,dimension(:,:,:,:),allocatable :: F
-        integer,dimension(:),allocatable :: H_shape
-        integer :: i, j, k
-        real :: a
-        real,dimension(2) :: a_bar, x
-
-        ! Specify influencing vertices (also sets zero default influence)
-        if (doublet_order == 1) then
-            if (this%in_wake) then
-
-                ! Wake panels are influenced by two sets of vertices
-                allocate(vertex_indices(6))
-                vertex_indices(1) = this%vertices(1)%ptr%top_parent
-                vertex_indices(2) = this%vertices(2)%ptr%top_parent
-                vertex_indices(3) = this%vertices(3)%ptr%top_parent
-                vertex_indices(4) = this%vertices(1)%ptr%bot_parent
-                vertex_indices(5) = this%vertices(2)%ptr%bot_parent
-                vertex_indices(6) = this%vertices(3)%ptr%bot_parent
-
-                ! Set default influence
-                allocate(phi(6), source=0.)
-
-            else
-
-                ! Body panels are influenced by only one set of vertices
-                allocate(vertex_indices, source=this%vertex_indices)
-
-                ! Set default influence
-                allocate(phi(3), source=0.)
-
-            end if
-        end if
-
-        ! Check DoD
-        if (dod_info%in_dod) then
-
-            ! Calculate geometric parameters
-            geom = this%get_field_point_geometry(eval_point, freestream, dod_info)
-
-            if (influence_calc_type == 'johnson') then
-
-                ! Get integrals
-                call this%calc_integrals(geom, "potential", "doublet", dod_info, freestream, H, F)
-
-                ! Calculate influence
-                if (doublet_order == 1) then
-
-                    ! Compute induced potential (Johnson Eq. (D.30); Ehlers Eq. (5.17))
-                    phi(1) = geom%h*H(1,1,3)
-                    phi(2) = geom%h*H(1,1,3)*geom%P_ls(1) + geom%h*H(2,1,3)
-                    phi(3) = geom%h*H(1,1,3)*geom%P_ls(2) + geom%h*H(1,2,3)
-
-                    ! Convert to vertex influences (Davis Eq. (4.41))
-                    phi(1:3) = freestream%K_inv*matmul(phi(1:3), this%S_mu_inv)
-
-                    ! Wake bottom influence is opposite the top influence
-                    if (this%in_wake) then
-                        phi(4:6) = -phi(1:3)
-                    end if
-
-                end if
-
-                ! Clean up
-                deallocate(H)
-                deallocate(F)
-
-            end if
-        end if
-    
-    end function panel_calc_doublet_potential
-
-
-    function panel_calc_doublet_velocity(this, eval_point, freestream, dod_info, vertex_indices, panel_mirrored) result(v)
-
-        implicit none
-
-        class(panel),intent(in) :: this
-        real,dimension(3),intent(in) :: eval_point
-        type(flow),intent(in) :: freestream
-        type(dod),intent(in) :: dod_info
-        integer,dimension(:),allocatable,intent(out) :: vertex_indices
-        logical,intent(in) :: panel_mirrored
-        real,dimension(:,:),allocatable :: v
-
-        type(eval_point_geom) :: geom
-        real,dimension(:,:,:),allocatable :: H
-        real,dimension(:,:,:,:),allocatable :: F
-
-        ! Allocate velocity and vertices
-        if (doublet_order .eq. 1) then
-            if (this%in_wake) then
-
-                ! Wake panels are influenced by two sets of vertices
-                allocate(vertex_indices(6))
-                vertex_indices(1) = this%vertices(1)%ptr%top_parent
-                vertex_indices(2) = this%vertices(2)%ptr%top_parent
-                vertex_indices(3) = this%vertices(3)%ptr%top_parent
-                vertex_indices(4) = this%vertices(1)%ptr%bot_parent
-                vertex_indices(5) = this%vertices(2)%ptr%bot_parent
-                vertex_indices(6) = this%vertices(3)%ptr%bot_parent
-
-                ! Set default influence
-                allocate(v(6,3), source=0.)
-
-            else
-
-                ! Body panels are influenced by only one set of vertices
-                allocate(vertex_indices, source=this%vertex_indices)
-
-                ! Set default influence
-                allocate(v(3,3), source=0.)
-
-            end if
-        end if
-
-        ! Check DoD
-        if (dod_info%in_dod) then
-
-            ! Calculate geometric parameters
-            geom = this%get_field_point_geometry(eval_point, freestream, dod_info)
-
-            if (influence_calc_type == 'johnson') then
-
-                ! Get integrals
-                call this%calc_integrals(geom, "velocity", "doublet", dod_info, freestream, H, F)
-
-                if (doublet_order .eq. 1) then
-
-                    ! Specify influencing vertices
-                    allocate(vertex_indices(3), source=this%vertex_indices)
-
-                    ! Calculate velocity
-                    allocate(v(3,3), source=0.)
-
-                end if
-
-                ! Clean up
-                deallocate(H)
-                deallocate(F)
-
-            end if
-        end if
-
-    end function panel_calc_doublet_velocity
 
 
     function panel_get_velocity_jump(this, mu, sigma, mirrored, mirror_plane) result(dv)
@@ -1981,3 +2177,259 @@ contains
 
     
 end module panel_mod
+
+
+    !function panel_calc_source_potential(this, eval_point, freestream, dod_info, vertex_indices, panel_mirrored) result(phi)
+
+    !    implicit none
+
+    !    class(panel),intent(in) :: this
+    !    real,dimension(3),intent(in) :: eval_point
+    !    type(flow),intent(in) :: freestream
+    !    type(dod),intent(in) :: dod_info
+    !    integer,dimension(:),allocatable,intent(out) :: vertex_indices
+    !    logical,intent(in) :: panel_mirrored
+    !    real,dimension(:),allocatable :: phi
+
+    !    type(eval_point_geom) :: geom
+    !    real,dimension(:,:,:),allocatable :: H
+    !    real,dimension(:,:,:,:),allocatable :: F
+
+    !    ! Allocate potential
+    !    if (source_order == 0) then
+    !        allocate(phi(1), source=0.)
+    !    end if
+
+    !    ! In dod
+    !    if (dod_info%in_dod) then
+
+    !        ! Calculate geometric parameters
+    !        geom = this%calc_subsonic_geom(eval_point, freestream, dod_info)
+    !        if (influence_calc_type == 'johnson') then
+
+    !            ! Get integrals
+    !            call this%calc_integrals(geom, "potential", "source", dod_info, freestream, H, F)
+
+    !            if (source_order == 0) then
+
+    !                ! Compute induced potential
+    !                phi = -this%J*freestream%K_inv*H(1,1,1)
+
+    !            end if
+
+    !            ! Clean up
+    !            deallocate(H)
+    !            deallocate(F)
+
+    !        end if
+    !    end if
+    
+    !end function panel_calc_source_potential
+
+
+    !function panel_calc_source_velocity(this, eval_point, freestream, dod_info, vertex_indices, panel_mirrored) result(v)
+
+    !    implicit none
+
+    !    class(panel),intent(in) :: this
+    !    real,dimension(3),intent(in) :: eval_point
+    !    type(flow),intent(in) :: freestream
+    !    type(dod),intent(in) :: dod_info
+    !    integer,dimension(:),allocatable,intent(out) :: vertex_indices
+    !    logical,intent(in) :: panel_mirrored
+    !    real,dimension(:,:),allocatable :: v
+
+    !    type(eval_point_geom) :: geom
+    !    real,dimension(:,:,:),allocatable :: H
+    !    real,dimension(:,:,:,:),allocatable :: F
+
+    !    ! Allocate velocity
+    !    if (source_order == 0) then
+    !        allocate(v(1,3), source=0.)
+    !    end if
+
+    !    ! In dod
+    !    if (dod_info%in_dod) then
+
+    !        ! Calculate geometric parameters
+    !        geom = this%calc_subsonic_geom(eval_point, freestream, dod_info)
+    !        if (influence_calc_type == 'johnson') then
+
+    !            ! Get integrals
+    !            call this%calc_integrals(geom, "velocity", "source", dod_info, freestream, H, F)
+
+    !            if (source_order == 0) then
+
+    !                ! Calculate velocity
+    !                v(1,1) = this%J*freestream%K_inv*sum(this%n_hat_ls(:,1)*F(:,1,1,1))
+    !                v(1,2) = this%J*freestream%K_inv*sum(this%n_hat_ls(:,2)*F(:,1,1,1))
+    !                v(1,3) = this%J*freestream%K_inv*geom%h*H(1,1,3)
+
+    !            end if
+
+    !            ! Clean up
+    !            deallocate(H)
+    !            deallocate(F)
+
+    !        end if
+    !    end if
+
+    !end function panel_calc_source_velocity
+
+
+    !function panel_calc_doublet_potential(this, eval_point, freestream, dod_info, vertex_indices, panel_mirrored) result(phi)
+
+    !    implicit none
+
+    !    class(panel),intent(in) :: this
+    !    real,dimension(3),intent(in) :: eval_point
+    !    type(flow),intent(in) :: freestream
+    !    type(dod),intent(in) :: dod_info
+    !    integer,dimension(:),allocatable,intent(out) :: vertex_indices
+    !    logical,intent(in) :: panel_mirrored
+    !    real,dimension(:),allocatable :: phi
+
+    !    type(eval_point_geom) :: geom
+    !    real,dimension(:,:,:),allocatable :: H
+    !    real,dimension(:,:,:,:),allocatable :: F
+    !    integer,dimension(:),allocatable :: H_shape
+    !    integer :: i, j, k
+    !    real :: a
+    !    real,dimension(2) :: a_bar, x
+
+    !    ! Specify influencing vertices (also sets zero default influence)
+    !    if (doublet_order == 1) then
+    !        if (this%in_wake) then
+
+    !            ! Wake panels are influenced by two sets of vertices
+    !            allocate(vertex_indices(6))
+    !            vertex_indices(1) = this%vertices(1)%ptr%top_parent
+    !            vertex_indices(2) = this%vertices(2)%ptr%top_parent
+    !            vertex_indices(3) = this%vertices(3)%ptr%top_parent
+    !            vertex_indices(4) = this%vertices(1)%ptr%bot_parent
+    !            vertex_indices(5) = this%vertices(2)%ptr%bot_parent
+    !            vertex_indices(6) = this%vertices(3)%ptr%bot_parent
+
+    !            ! Set default influence
+    !            allocate(phi(6), source=0.)
+
+    !        else
+
+    !            ! Body panels are influenced by only one set of vertices
+    !            allocate(vertex_indices, source=this%vertex_indices)
+
+    !            ! Set default influence
+    !            allocate(phi(3), source=0.)
+
+    !        end if
+    !    end if
+
+    !    ! Check DoD
+    !    if (dod_info%in_dod) then
+
+    !        ! Calculate geometric parameters
+    !        geom = this%calc_subsonic_geom(eval_point, freestream, dod_info)
+    !        if (influence_calc_type == 'johnson') then
+
+    !            ! Get integrals
+    !            call this%calc_integrals(geom, "potential", "doublet", dod_info, freestream, H, F)
+
+    !            ! Calculate influence
+    !            if (doublet_order == 1) then
+
+    !                ! Compute induced potential (Johnson Eq. (D.30); Ehlers Eq. (5.17))
+    !                phi(1) = geom%h*H(1,1,3)
+    !                phi(2) = geom%h*H(1,1,3)*geom%P_ls(1) + geom%h*H(2,1,3)
+    !                phi(3) = geom%h*H(1,1,3)*geom%P_ls(2) + geom%h*H(1,2,3)
+
+    !                ! Convert to vertex influences (Davis Eq. (4.41))
+    !                phi(1:3) = freestream%K_inv*matmul(phi(1:3), this%S_mu_inv)
+
+    !                ! Wake bottom influence is opposite the top influence
+    !                if (this%in_wake) then
+    !                    phi(4:6) = -phi(1:3)
+    !                end if
+
+    !            end if
+
+    !            ! Clean up
+    !            deallocate(H)
+    !            deallocate(F)
+
+    !        end if
+    !    end if
+    
+    !end function panel_calc_doublet_potential
+
+
+    !function panel_calc_doublet_velocity(this, eval_point, freestream, dod_info, vertex_indices, panel_mirrored) result(v)
+
+    !    implicit none
+
+    !    class(panel),intent(in) :: this
+    !    real,dimension(3),intent(in) :: eval_point
+    !    type(flow),intent(in) :: freestream
+    !    type(dod),intent(in) :: dod_info
+    !    integer,dimension(:),allocatable,intent(out) :: vertex_indices
+    !    logical,intent(in) :: panel_mirrored
+    !    real,dimension(:,:),allocatable :: v
+
+    !    type(eval_point_geom) :: geom
+    !    real,dimension(:,:,:),allocatable :: H
+    !    real,dimension(:,:,:,:),allocatable :: F
+
+    !    ! Allocate velocity and vertices
+    !    if (doublet_order .eq. 1) then
+    !        if (this%in_wake) then
+
+    !            ! Wake panels are influenced by two sets of vertices
+    !            allocate(vertex_indices(6))
+    !            vertex_indices(1) = this%vertices(1)%ptr%top_parent
+    !            vertex_indices(2) = this%vertices(2)%ptr%top_parent
+    !            vertex_indices(3) = this%vertices(3)%ptr%top_parent
+    !            vertex_indices(4) = this%vertices(1)%ptr%bot_parent
+    !            vertex_indices(5) = this%vertices(2)%ptr%bot_parent
+    !            vertex_indices(6) = this%vertices(3)%ptr%bot_parent
+
+    !            ! Set default influence
+    !            allocate(v(6,3), source=0.)
+
+    !        else
+
+    !            ! Body panels are influenced by only one set of vertices
+    !            allocate(vertex_indices, source=this%vertex_indices)
+
+    !            ! Set default influence
+    !            allocate(v(3,3), source=0.)
+
+    !        end if
+    !    end if
+
+    !    ! Check DoD
+    !    if (dod_info%in_dod) then
+
+    !        ! Calculate geometric parameters
+    !        geom = this%calc_subsonic_geom(eval_point, freestream, dod_info)
+    !        if (influence_calc_type == 'johnson') then
+
+    !            ! Get integrals
+    !            call this%calc_integrals(geom, "velocity", "doublet", dod_info, freestream, H, F)
+
+    !            if (doublet_order .eq. 1) then
+
+    !                ! Specify influencing vertices
+    !                allocate(vertex_indices(3), source=this%vertex_indices)
+
+    !                ! Calculate velocity
+    !                allocate(v(3,3), source=0.)
+
+    !            end if
+
+    !            ! Clean up
+    !            deallocate(H)
+    !            deallocate(F)
+
+    !        end if
+    !    end if
+
+    !end function panel_calc_doublet_velocity
