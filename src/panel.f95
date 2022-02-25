@@ -835,6 +835,7 @@ contains
                 ! Calculate square of the perpendicular distance to edge
                 geom%g2(i) = (freestream%B/this%tau(i))**2*freestream%B_g_inner(x, x) ! E&M Eq. (J.8.23) or (J.7.70)
                 !geom%g2(i) = geom%a(i)**2 - this%b(i)*geom%h**2 ! Ehlers Eq. (E14)
+                ! These two match exactly when the edge is perpendicular to the freestream (i.e. b = 1)
 
                 ! Displacement from end vertex
                 !d_g = this%get_vertex_loc(i_next) - geom%P_g
