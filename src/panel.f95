@@ -989,7 +989,7 @@ contains
     end function panel_E_i_M_N_K
 
 
-    function panel_calc_subsonic_F_integrals(this, geom, proc_H, MXK, MXQ, NHK, freestream) result (int)
+    subroutine panel_calc_subsonic_F_integrals(this, geom, freestream, int)
         ! Calculates the F integrals necessary for determining the influence of a triangular panel in subsonic flow.
         ! This is a pared-down version of the algorithm presented by Johnson (1980) Appendix D.3.
 
@@ -997,23 +997,12 @@ contains
 
         class(panel),intent(in) :: this
         type(eval_point_geom),intent(in) :: geom
-        integer,intent(in) :: proc_H, MXK, MXQ, NHK
         type(flow),intent(in) :: freestream
+        type(integrals),intent(inout) :: int
 
-        type(integrals) :: int
-
-        real :: E1, E2, v_xi, v_eta, dF
-        real,dimension(3) :: d
+        real :: dF
         real,dimension(this%N) :: min_dist_to_edge
-        integer :: i, MXFK, NFK, k, m, n, i_next
-
-        ! Determine which F integrals are needed
-        NFK = 16
-        if (proc_H .eq. 1) then
-            MXFK = MXK - 2
-        else
-            MXFK = NHK+MXK-2
-        end if
+        integer :: i, i_next
         
         ! Calculate minimum distance to perimeter of S
         do i=1,this%N
@@ -1044,10 +1033,6 @@ contains
         ! Loop through edges
         do i=1,this%N
 
-            ! Store edge derivs
-            v_xi = this%n_hat_ls(i,1)
-            v_eta = this%n_hat_ls(i,2)
-
             ! Calculate F(1,1,1)
             ! Within edge (Johnson Eq. (D.60))
             if (sign(geom%l1(i)) /= sign(geom%l2(i))) then
@@ -1060,7 +1045,7 @@ contains
 
         end do
 
-    end function panel_calc_subsonic_F_integrals
+    end subroutine panel_calc_subsonic_F_integrals
 
 
     function panel_calc_supersonic_subinc_F_integrals(this, geom, dod_info, freestream) result (F)
@@ -1145,7 +1130,7 @@ contains
     end function panel_calc_supersonic_subinc_F_integrals
 
 
-    subroutine panel_calc_subsonic_H_integrals(this, geom, proc_H, MXK, MXQ, NHK, freestream, int)
+    subroutine panel_calc_subsonic_H_integrals(this, geom, freestream, int)
         ! Calculates the necessary H integrals to determine the influence of a panel in subsonic flow.
         ! Taken from Johnson (1980) Appendix D.3.
 
@@ -1153,7 +1138,6 @@ contains
 
         class(panel),intent(in) :: this
         type(eval_point_geom),intent(in) :: geom
-        integer,intent(in) :: proc_H, MXK, MXQ, NHK
         type(flow),intent(in) :: freestream
         type(integrals),intent(inout) :: int
 
@@ -1167,7 +1151,7 @@ contains
 
         ! Calculate hH(1,1,3)
         ! Not close to panel plane
-        if (proc_H == 1) then
+        if (abs(geom%h) > 1e-12) then ! The nonzero h check seems to be more reliable than that proposed by Johnson
 
             ! Calculate H(1,1,1) and hH(1,1,3) (Johnson Eqs. (D.41) and (G.24))
             int%H111 = 0.
@@ -1193,14 +1177,17 @@ contains
             ! Calculate hH(1,1,3) (Johnson Eq. (D.42)
             int%hH113 = sign(geom%h)*int%hH113
 
-        ! Close to panel plane but outside Sigma
-        else if (proc_H == 2) then
-            int%hH113 = 0.
-
-        ! Close to panel plane but inside Sigma
         else
-            int%hH113 = 2.*pi*sign(geom%h)
 
+            ! Close to panel plane but outside Sigma
+            if (all(geom%a < 0.)) then
+                int%hH113 = 0.
+
+            ! Close to panel plane but inside Sigma
+            else
+                int%hH113 = 2.*pi*sign(geom%h)
+
+            end if
         end if
 
         ! Calculate H(1,1,1)
@@ -1482,8 +1469,8 @@ contains
             allocate(int%F111(this%N), source=F(:,1,1,1))
 
         else
-            int = this%calc_subsonic_F_integrals(geom, proc_H, MXK, MXQ, NHK, freestream)
-            call this%calc_subsonic_H_integrals(geom, proc_H, MXK, MXQ, NHK, freestream, int)
+            call this%calc_subsonic_F_integrals(geom, freestream, int)
+            call this%calc_subsonic_H_integrals(geom, freestream, int)
         end if
 
     end function panel_calc_integrals
