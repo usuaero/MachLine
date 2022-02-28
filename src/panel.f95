@@ -1048,7 +1048,7 @@ contains
     end subroutine panel_calc_subsonic_F_integrals
 
 
-    function panel_calc_supersonic_subinc_F_integrals(this, geom, dod_info, freestream) result (F)
+    subroutine panel_calc_supersonic_subinc_F_integrals(this, geom, dod_info, freestream, int)
         ! Calculates the F integrals necessary to determine the influence of a subinclined triangular panel in supersonic flow.
         ! Taken from Ehlers et al. (1979) Appendix E.
 
@@ -1058,18 +1058,13 @@ contains
         type(eval_point_geom),intent(in) :: geom
         type(dod),intent(in) :: dod_info
         type(flow),intent(in) :: freestream
-        real,dimension(:,:,:,:),allocatable :: F
+        type(integrals),intent(inout) :: int
 
         real :: v_xi, v_eta, F1, F2
-        real,dimension(3) :: d
         integer :: i
         
         ! Allocate integral storage
-        if (source_order == 1 .or. doublet_order == 2) then
-            allocate(F(this%N,2,2,1), source=0.)
-        else
-            allocate(F(this%N,1,1,1), source=0.)
-        end if
+        allocate(int%F111(this%N), source=0.)
 
         ! Loop through edges
         do i=1,this%N
@@ -1080,7 +1075,7 @@ contains
                 v_xi = this%n_hat_ls(i,1)
                 v_eta = this%n_hat_ls(i,2)
 
-                ! Calculate F(1,1,1)
+                ! Calculate F(1,1,1) (Ehlers Eq. (E22))
 
                 ! Calculate preliminary quantities
                 if (this%b(i) >= 0) then
@@ -1098,13 +1093,13 @@ contains
 
                     ! Neither endpoint in DoD (Ehlers Eq. (E22))
                     if (geom%R1(i) == 0. .and. geom%R2(i) == 0.) then
-                        F(i,1,1,1) = pi/this%sqrt_b(i)
+                        int%F111(i) = pi/this%sqrt_b(i)
 
                     ! At least one endpoint in the DoD (Ehlers Eq. (E22))
                     else
 
                         ! Calculate F
-                        F(i,1,1,1) = -atan2(this%sqrt_b(i)*F1, F2)/this%sqrt_b(i)
+                        int%F111(i) = -atan2(this%sqrt_b(i)*F1, F2)/this%sqrt_b(i)
 
                     end if
 
@@ -1116,18 +1111,13 @@ contains
                     F2 = this%sqrt_b(i)*geom%R2(i) + abs(geom%l2(i))
 
                     ! Calculate F
-                    F(i,1,1,1) = -sign(v_eta)/this%sqrt_b(i)*log(F1/F2)
+                    int%F111(i) = -sign(v_eta)/this%sqrt_b(i)*log(F1/F2)
 
                 end if
             end if
         end do
 
-        if (debug .and. any(isnan(F))) then
-            write(*,*)
-            write(*,*) "NaN found in F"
-        end if
-
-    end function panel_calc_supersonic_subinc_F_integrals
+    end subroutine panel_calc_supersonic_subinc_F_integrals
 
 
     subroutine panel_calc_subsonic_H_integrals(this, geom, freestream, int)
@@ -1204,7 +1194,7 @@ contains
     end subroutine panel_calc_subsonic_H_integrals
 
 
-    function panel_calc_supersonic_subinc_H_integrals(this, geom, MXK, MXQ, NHK, dod_info, freestream, F) result(H)
+    subroutine panel_calc_supersonic_subinc_H_integrals(this, geom, dod_info, freestream, int)
         ! Calculates the necessary H integrals to determine the influence of a subinclined panel in supersonic flow.
         ! Taken from Ehlers et al. (1979) Appendix E.
 
@@ -1212,135 +1202,70 @@ contains
 
         class(panel),intent(in) :: this
         type(eval_point_geom),intent(in) :: geom
-        integer,intent(in) :: MXK, MXQ, NHK
         type(dod),intent(in) :: dod_info
         type(flow),intent(in) :: freestream
-        real,dimension(:,:,:,:),allocatable,intent(in) :: F
-        real,dimension(:,:,:),allocatable :: H
+        type(integrals),intent(inout) :: int
 
-        real :: S, C, nu, c1, c2, F1, F2
-        integer :: i, m, n, k, i_next
+        real :: F1, F2
+        integer :: i, i_next
         real,dimension(:),allocatable :: v_xi, v_eta
 
         ! Get edge normal derivatives
         allocate(v_xi(this%N), source=this%n_hat_ls(:,1))
         allocate(v_eta(this%N), source=this%n_hat_ls(:,2))
 
-        ! Allocate integral storage
-        allocate(H(1:MXQ,1:MXQ,1:MXK+NHK), source=0.)
+        ! Calculate hH(1,1,3) (Ehlers Eq. (E18))
+        int%hH113 = 0.
+        if (abs(geom%h) > 1e-12) then ! Check the point is off the panel plane
 
-        ! Calculate H(1,1,1) (Ehlers Eq. (E18))
-        do i=1,this%N
+            ! Add influence of each edge
+            do i=1,this%N
 
-            if (dod_info%edges_in_dod(i)) then
+                if (dod_info%edges_in_dod(i)) then
 
-                i_next = mod(i, this%N) + 1
+                    i_next = mod(i, this%N) + 1
 
-                ! Check for neither endpoint in
-                if (.not. dod_info%verts_in_dod(i) .and. .not. dod_info%verts_in_dod(i_next)) then
+                    ! Check for neither endpoint in
+                    if (.not. dod_info%verts_in_dod(i) .and. .not. dod_info%verts_in_dod(i_next)) then
+                        int%hH113 = int%hH113 + sign(v_xi(i))*pi
 
-                    ! Add influence of this edge
-                    H(1,1,1) = H(1,1,1) - abs(geom%h)*sign(v_xi(i))*pi ! Adapted from Ehlers Eq. (E18) to match the form of Johnson Eq. (D.41)
+                    ! At least one in
+                    else
 
-                ! At least one in
-                else
+                        ! Calculate intermediate quantities Ehlers Eq. (E19) and (E20)
+                        if (this%b(i) >= 0 ) then
+                            F1 = (geom%l1(i)*geom%R2(i) - geom%l2(i)*geom%R1(i)) / geom%g2(i)
+                            F2 = (this%b(i)*geom%R1(i)*geom%R2(i) + geom%l1(i)*geom%l2(i)) / geom%g2(i)
+                        else
+                            F1 = (geom%R2(i)**2 - geom%R1(i)**2)/(geom%l1(i)*geom%R2(i) + geom%l2(i)*geom%R1(i))
+                            F2 = (geom%g2(i) - geom%l1(i)**2 - geom%l2(i)**2) / &
+                                 (this%b(i)*geom%R1(i)*geom%R2(i) - geom%l1(i)*geom%l2(i))
+                        end if
 
-                    ! Calculate intermediate quantities Ehlers Eq. (E19) and (E20)
-                    F1 = (geom%l1(i)*geom%R2(i)-geom%l2(i)*geom%R1(i))/geom%g2(i)
-                    F2 = (geom%R1(i)*geom%R2(i)+geom%l1(i)*geom%l2(i))/geom%g2(i)
+                        ! Add to surface integral
+                        int%hH113 = int%hH113 + atan2(geom%h*geom%a(i)*F1, geom%R1(i)*geom%R2(i) + geom%h2*F2)
 
-                    ! Add to surface integral; adapted from Ehlers Eq. (E18) to match the form of Johnson Eq. (D.41)
-                    H(1,1,1) = H(1,1,1) - geom%h*atan2(geom%h*geom%a(i)*F1, geom%R1(i)*geom%R2(i)+geom%h2*F2)
+                    end if
 
                 end if
-
-            end if
         
-        end do
-        
-        ! Add line integrals (rs factor added to match Ehlers Eq. (E9))
-        H(1,1,1) = abs(geom%h)*H(1,1,1) - sum(geom%a*F(:,1,1,1))
-
-        ! Calculate H(1,1,K) integrals (Ehlers Eq. (E9))
-        do k=3,MXK,2
-            H(1,1,k) = 1./((k-2)*geom%h2)*(-k*H(1,1,k-2) - sum(geom%a*F(:,1,1,k-2)))
-        end do
-
-        !! Step 3
-        !! Calculate H(2,N,1) integrals (Johnson Eq. (D.43) altered to match Ehlers Eq. (E7))
-        !do n=1,MXQ-1
-        !    H(2,n,1) = 1./(this%rs*n+1)*(this%rs*geom%h2*sum(v_xi*F(:,1,n,1)) + sum(geom%a*F(:,2,n,1)))
-        !end do
-
-        !! Step 4
-        !! Calculate H(1,N,1) integrals (Johnson Eq. (D.44) altered to match Ehlers Eq. (E8))
-        !do n=2,MXQ
-        !    if (n .eq. 2) then
-        !        H(2,n,1) = this%rs/n*(geom%h2*sum(v_eta*F(:,1,n-1,1)) &
-        !                   + sum(geom%a*F(:,1,n,1)))
-        !    else
-        !        H(2,n,1) = this%rs/n*(-geom%h2*(n-2)*H(1,n-2,1) & 
-        !                   + geom%h2*sum(v_eta*F(:,1,n-1,1)) &
-        !                   + sum(geom%a*F(:,1,n,1)))
-        !    end if
-        !end do
-
-        !! Step 5
-        !! Calculate H(M,N,1) integrals (Johnson Eq. (D.45) altered to match Ehlers Eq. (E7))
-        !do m=3,MXQ
-        !    do n=1,MXQ-m+1
-        !        if (m .eq. 2) then
-        !            H(m,n,1) = 1./(m+n-1)*(this%rs*geom%h2*sum(v_xi*F(:,m-1,n,1)) &
-        !                       + sum(geom%a*F(:,m,n,1)))
-        !        else
-        !            H(m,n,1) = 1./(m+n-1)*(-geom%h2*(m-2)*H(m-2,n,1) &
-        !                       + this%rs*geom%h2*sum(v_xi*F(:,m-1,n,1)) &
-        !                       + sum(geom%a*F(:,m,n,1)))
-        !        end if
-        !    end do
-        !end do
-
-        ! Step 6
-        ! Calculate H(1,N,K) integrals (Johnson Eq. (D.46) altered to match Ehlers Eq. (E6))
-        do n=2,MXQ
-            do k=3,MXK,2
-                if (n .eq. 2) then
-                    H(1,n,k) = -1./(k-2)*sum(v_eta*F(:,1,n-1,k-2))
-                else
-                    H(1,n,k) = 1/(k-2)*((n-2)*H(1,n-2,k-2) &
-                               -sum(v_eta*F(:,1,n-1,k-2)))
-                end if
             end do
-        end do
+        end if
 
-        ! Step 7
-        ! Calculate H(2,N,K) integrals (Johnson Eq. (D.47); already matches Ehlers Eq. (E5))
-        do n=1,MXQ-1
-            do k=3,MXK,2
-                H(2,n,k) = -1./(k-2)*sum(v_xi*F(:,1,n,k-2))
-            end do
-        end do
+        ! Calculate H(1,1,1) (Ehlers Eq. (E9))
+        int%H111 = 1./3.*(geom%h*int%hH113 - sum(geom%a*int%F111))
 
-        ! Step 8
-        ! Calculate remaining H(M,N,K) integrals (Johnson Eq. (D.48) altered to match Ehlers Eq. (E4))
-        do k=3,MXK,2
-            do n=1,MXQ-m+1
-                do m=3,MXQ
-                    H(m,n,k) = H(M-2,N+2,k) + geom%h2*H(m-2,n,k) + H(m-2,n,k-2)
-                end do
-            end do
-        end do
+        ! Calculate H(2,1,3) (Ehlers Eq. (E5))
+        int%H213 = sum(v_xi*int%F111)
+
+        ! Calculate H(1,2,3) (Ehlers Eq. (E6))
+        int%H123 = -sum(v_eta*int%F111)
 
         ! Clean up
         deallocate(v_xi)
         deallocate(v_eta)
 
-        if (debug .and. any(isnan(H))) then
-            write(*,*)
-            write(*,*) "NaN found in H"
-        end if
-
-    end function panel_calc_supersonic_subinc_H_integrals
+    end subroutine panel_calc_supersonic_subinc_H_integrals
 
 
     function nu_M_N_K(M, N, K) result(nu)
@@ -1402,71 +1327,11 @@ contains
         type(integrals) :: int
 
         real,dimension(:,:,:,:),allocatable :: F
-        real,dimension(:,:,:),allocatable :: H
 
-        real :: dH
-        real,dimension(3) :: d
-        real,dimension(this%N) :: min_dist_to_edge
-        integer :: MXQ, MXK, NHK, proc_H, i
-
-        ! Determine which H integrals are needed based on distribution and type of influence
-        if (singularity_type .eq. "source") then
-            if (influence_type .eq. "potential") then
-                if (source_order .eq. 0) then
-                    MXQ = 1
-                    MXK = 1
-                end if
-            else if (influence_type .eq. "velocity") then
-                if (source_order .eq. 0) then
-                    MXQ = 1
-                    MXK = 3
-                end if
-            end if
-        else if (singularity_type .eq. "doublet") then
-            if (influence_type .eq. "potential") then
-                if (doublet_order .eq. 1) then
-                    MXQ = 2
-                    MXK = 3
-                end if
-            else if (influence_type .eq. "velocity") then
-                if (doublet_order .eq. 1) then
-                    MXQ = 1
-                    MXK = 3
-                end if
-            end if
-        end if
-
-        ! Determine which procedure needs to be used
-        if (abs(geom%h) > 1e-12) then ! The nonzero h check seems to be more reliable than that proposed by Johnson
-            proc_H = 1 ! Not near plane of panel
-            NHK = 0
-
-        else
-
-            ! Check if the projected point falls inside the panel
-            ! Outside panel (Procedure 2)
-            if (all(geom%a < 0.)) then
-                proc_H = 2
-
-            ! Inside panel (Procedure 3)
-            else
-                proc_H = 3
-
-            end if
-            NHK = 16
-        end if
-
-        ! Calculate necessary integrals
+        ! Calculate necessary integrals based on the flow condition
         if (freestream%supersonic) then
-            F = this%calc_supersonic_subinc_F_integrals(geom, dod_info, freestream)
-            H = this%calc_supersonic_subinc_H_integrals(geom, MXK, MXQ, NHK, dod_info, freestream, F)
-
-            ! Pass information to container class
-            int%H111 = H(1,1,1)
-            int%hH113 = geom%h*H(1,1,3)
-            int%H213 = H(2,1,3)
-            int%H123 = H(1,2,3)
-            allocate(int%F111(this%N), source=F(:,1,1,1))
+            call this%calc_supersonic_subinc_F_integrals(geom, dod_info, freestream, int)
+            call this%calc_supersonic_subinc_H_integrals(geom, dod_info, freestream, int)
 
         else
             call this%calc_subsonic_F_integrals(geom, freestream, int)
