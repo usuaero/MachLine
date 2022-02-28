@@ -25,7 +25,21 @@ module panel_mod
         real :: h, h2 ! Transformed height above panel
         real,dimension(3) :: a, g2, l1, l2, R1, R2 ! Edge integration parameters
 
+        contains
+
+            procedure :: init => eval_point_geom_init
+
     end type eval_point_geom
+
+
+    type integrals
+        ! Container type for the fundamental integrals used to calculate influence coefficients
+
+        real :: H111, H211, H121 ! Source integrals
+        real :: hH113, H213, H123, H313, H223, H133 ! Doublet integrals
+        real,dimension(:),allocatable :: F111, F211, F121 ! Necessary line integrals
+
+    end type integrals
 
 
     type dod
@@ -100,6 +114,28 @@ module panel_mod
 
     
 contains
+
+
+    subroutine eval_point_geom_init(this, P, A_g_to_ls, centroid)
+
+        implicit none
+
+        class(eval_point_geom),intent(out) :: this
+        real,dimension(3),intent(in) :: P, centroid
+        real,dimension(3,3),intent(in) :: A_g_to_ls
+
+        real,dimension(3) :: x
+
+        ! Store point
+        this%P_g = P
+
+        ! Transform to local scaled coordinates
+        x = matmul(A_g_to_ls, this%P_g-centroid)
+        this%P_ls = x(1:2)
+        this%h = x(3) ! Equivalent to E&M Eq. (J.7.41)
+        this%h2 = this%h**2
+    
+    end subroutine eval_point_geom_init
 
 
     subroutine panel_init_3(this, v1, v2, v3, index)
@@ -796,18 +832,12 @@ contains
         type(eval_point_geom) :: geom
 
         real,dimension(2) :: d_ls
-        real,dimension(3) :: d_g, x
+        real,dimension(3) :: d_g
         integer :: i, i_next
         real :: val
 
-        ! Store point
-        geom%P_g = eval_point
-
-        ! Transform to local scaled coordinates
-        x = matmul(this%A_g_to_ls, geom%P_g-this%centroid)
-        geom%P_ls = x(1:2)
-        geom%h = x(3) ! Equivalent to E&M Eq. (J.7.41)
-        geom%h2 = geom%h**2
+        ! Initialize
+        call geom%init(eval_point, this%A_g_to_ls, this%centroid)
 
         ! Calculate edge quantities
         do i=1,this%N
@@ -859,14 +889,8 @@ contains
         integer :: i, i_next
         real :: val
 
-        ! Store point
-        geom%P_g = eval_point
-
-        ! Transform to local scaled coordinates
-        x = matmul(this%A_g_to_ls, geom%P_g-this%centroid)
-        geom%P_ls = x(1:2)
-        geom%h = x(3) ! Equivalent to E&M Eq. (J.7.41)
-        geom%h2 = geom%h**2
+        ! Initialize
+        call geom%init(eval_point, this%A_g_to_ls, this%centroid)
 
         ! Calculate edge quantities
         do i=1,this%N
@@ -1236,7 +1260,7 @@ contains
         ! Procedure 1: not close to panel plane
         if (proc_H == 1) then
 
-            ! Calculate H(1,1,1) (Johnson Eq. (D.41))
+            ! Calculate H(1,1,1) (Johnson Eq. (D.41) or (G.24))
             do i=1,this%N
 
                 ! Calculate intermediate quantities
@@ -1551,7 +1575,7 @@ contains
     end function nu_M_N_K
 
 
-    subroutine panel_calc_integrals(this, geom, influence_type, singularity_type, dod_info, freestream, H, F)
+    function panel_calc_integrals(this, geom, influence_type, singularity_type, dod_info, freestream) result(int)
         ! Calculates the H and F integrals necessary for the given influence
 
         implicit none
@@ -1561,8 +1585,11 @@ contains
         character(len=*),intent(in) :: influence_type, singularity_type
         type(dod),intent(in) :: dod_info
         type(flow),intent(in) :: freestream
-        real,dimension(:,:,:,:),allocatable,intent(out) :: F
-        real,dimension(:,:,:),allocatable,intent(out) :: H
+
+        type(integrals) :: int
+
+        real,dimension(:,:,:,:),allocatable :: F
+        real,dimension(:,:,:),allocatable :: H
 
         real :: dH
         real,dimension(3) :: d
@@ -1625,7 +1652,14 @@ contains
             H = this%calc_subsonic_H_integrals(geom, proc_H, MXK, MXQ, NHK, freestream, F)
         end if
 
-    end subroutine panel_calc_integrals
+        ! Pass information to container class
+        int%H111 = H(1,1,1)
+        int%hH113 = geom%h*H(1,1,3)
+        int%H213 = H(2,1,3)
+        int%H123 = H(1,2,3)
+        allocate(int%F111(this%N), source=F(:,1,1,1))
+
+    end function panel_calc_integrals
 
 
     subroutine panel_calc_potentials(this, P, freestream, dod_info, mirror_panel, phi_s, phi_d, i_vert_s, i_vert_d)
@@ -1642,8 +1676,7 @@ contains
         integer,dimension(:),allocatable,intent(out) :: i_vert_s, i_vert_d
 
         type(eval_point_geom) :: geom
-        real,dimension(:,:,:),allocatable :: H
-        real,dimension(:,:,:,:),allocatable :: F
+        type(integrals) :: int
 
         ! Specify influencing vertices (also sets zero default influence)
 
@@ -1695,20 +1728,20 @@ contains
             if (influence_calc_type == 'johnson') then
 
                 ! Get integrals
-                call this%calc_integrals(geom, 'potential', 'doublet', dod_info, freestream, H, F)
+                int = this%calc_integrals(geom, 'potential', 'doublet', dod_info, freestream)
 
                 ! Source potential
                 if (source_order == 0) then
-                    phi_s = -this%J*freestream%K_inv*H(1,1,1)
+                    phi_s = -this%J*freestream%K_inv*int%H111
                 end if
 
                 ! Doublet potential
                 if (doublet_order == 1) then
 
                     ! Compute induced potential (Johnson Eq. (D.30); Ehlers Eq. (5.17))
-                    phi_d(1) = geom%h*H(1,1,3)
-                    phi_d(2) = geom%h*H(1,1,3)*geom%P_ls(1) + geom%h*H(2,1,3)
-                    phi_d(3) = geom%h*H(1,1,3)*geom%P_ls(2) + geom%h*H(1,2,3)
+                    phi_d(1) = int%hH113
+                    phi_d(2) = int%hH113*geom%P_ls(1) + geom%h*int%H213
+                    phi_d(3) = int%hH113*geom%P_ls(2) + geom%h*int%H123
 
                     ! Convert to vertex influences (Davis Eq. (4.41))
                     phi_d(1:3) = freestream%K_inv*matmul(phi_d(1:3), this%S_mu_inv)
@@ -1718,10 +1751,6 @@ contains
                         phi_d(4:6) = -phi_d(1:3)
                     end if
                 end if
-
-                ! Clean up
-                deallocate(H)
-                deallocate(F)
 
             end if
         end if
@@ -1743,8 +1772,7 @@ contains
         integer,dimension(:),allocatable,intent(out) :: i_vert_s, i_vert_d
 
         type(eval_point_geom) :: geom
-        real,dimension(:,:,:),allocatable :: H
-        real,dimension(:,:,:,:),allocatable :: F
+        type(integrals) :: int
 
         ! Specify influencing vertices (also sets zero default influence)
 
@@ -1795,19 +1823,18 @@ contains
             if (influence_calc_type == 'johnson') then
 
                 ! Get integrals
-                call this%calc_integrals(geom, "velocity", "doublet", dod_info, freestream, H, F)
+                int = this%calc_integrals(geom, "velocity", "doublet", dod_info, freestream)
 
                 ! Source velocity
                 if (source_order == 0) then
+                    v_s(1,1) = this%J*freestream%K_inv*sum(this%n_hat_ls(:,1)*int%F111(:))
+                    v_s(1,2) = this%J*freestream%K_inv*sum(this%n_hat_ls(:,2)*int%F111(:))
+                    v_s(1,3) = this%J*freestream%K_inv*int%hH113
                 end if
 
                 ! Doublet velocity
                 if (doublet_order == 1) then
                 end if
-
-                ! Clean up
-                deallocate(H)
-                deallocate(F)
 
             end if
         end if
@@ -1871,259 +1898,3 @@ contains
 
     
 end module panel_mod
-
-
-    !function panel_calc_source_potential(this, eval_point, freestream, dod_info, vertex_indices, panel_mirrored) result(phi)
-
-    !    implicit none
-
-    !    class(panel),intent(in) :: this
-    !    real,dimension(3),intent(in) :: eval_point
-    !    type(flow),intent(in) :: freestream
-    !    type(dod),intent(in) :: dod_info
-    !    integer,dimension(:),allocatable,intent(out) :: vertex_indices
-    !    logical,intent(in) :: panel_mirrored
-    !    real,dimension(:),allocatable :: phi
-
-    !    type(eval_point_geom) :: geom
-    !    real,dimension(:,:,:),allocatable :: H
-    !    real,dimension(:,:,:,:),allocatable :: F
-
-    !    ! Allocate potential
-    !    if (source_order == 0) then
-    !        allocate(phi(1), source=0.)
-    !    end if
-
-    !    ! In dod
-    !    if (dod_info%in_dod) then
-
-    !        ! Calculate geometric parameters
-    !        geom = this%calc_subsonic_geom(eval_point, freestream, dod_info)
-    !        if (influence_calc_type == 'johnson') then
-
-    !            ! Get integrals
-    !            call this%calc_integrals(geom, "potential", "source", dod_info, freestream, H, F)
-
-    !            if (source_order == 0) then
-
-    !                ! Compute induced potential
-    !                phi = -this%J*freestream%K_inv*H(1,1,1)
-
-    !            end if
-
-    !            ! Clean up
-    !            deallocate(H)
-    !            deallocate(F)
-
-    !        end if
-    !    end if
-    
-    !end function panel_calc_source_potential
-
-
-    !function panel_calc_source_velocity(this, eval_point, freestream, dod_info, vertex_indices, panel_mirrored) result(v)
-
-    !    implicit none
-
-    !    class(panel),intent(in) :: this
-    !    real,dimension(3),intent(in) :: eval_point
-    !    type(flow),intent(in) :: freestream
-    !    type(dod),intent(in) :: dod_info
-    !    integer,dimension(:),allocatable,intent(out) :: vertex_indices
-    !    logical,intent(in) :: panel_mirrored
-    !    real,dimension(:,:),allocatable :: v
-
-    !    type(eval_point_geom) :: geom
-    !    real,dimension(:,:,:),allocatable :: H
-    !    real,dimension(:,:,:,:),allocatable :: F
-
-    !    ! Allocate velocity
-    !    if (source_order == 0) then
-    !        allocate(v(1,3), source=0.)
-    !    end if
-
-    !    ! In dod
-    !    if (dod_info%in_dod) then
-
-    !        ! Calculate geometric parameters
-    !        geom = this%calc_subsonic_geom(eval_point, freestream, dod_info)
-    !        if (influence_calc_type == 'johnson') then
-
-    !            ! Get integrals
-    !            call this%calc_integrals(geom, "velocity", "source", dod_info, freestream, H, F)
-
-    !            if (source_order == 0) then
-
-    !                ! Calculate velocity
-    !                v(1,1) = this%J*freestream%K_inv*sum(this%n_hat_ls(:,1)*F(:,1,1,1))
-    !                v(1,2) = this%J*freestream%K_inv*sum(this%n_hat_ls(:,2)*F(:,1,1,1))
-    !                v(1,3) = this%J*freestream%K_inv*geom%h*H(1,1,3)
-
-    !            end if
-
-    !            ! Clean up
-    !            deallocate(H)
-    !            deallocate(F)
-
-    !        end if
-    !    end if
-
-    !end function panel_calc_source_velocity
-
-
-    !function panel_calc_doublet_potential(this, eval_point, freestream, dod_info, vertex_indices, panel_mirrored) result(phi)
-
-    !    implicit none
-
-    !    class(panel),intent(in) :: this
-    !    real,dimension(3),intent(in) :: eval_point
-    !    type(flow),intent(in) :: freestream
-    !    type(dod),intent(in) :: dod_info
-    !    integer,dimension(:),allocatable,intent(out) :: vertex_indices
-    !    logical,intent(in) :: panel_mirrored
-    !    real,dimension(:),allocatable :: phi
-
-    !    type(eval_point_geom) :: geom
-    !    real,dimension(:,:,:),allocatable :: H
-    !    real,dimension(:,:,:,:),allocatable :: F
-    !    integer,dimension(:),allocatable :: H_shape
-    !    integer :: i, j, k
-    !    real :: a
-    !    real,dimension(2) :: a_bar, x
-
-    !    ! Specify influencing vertices (also sets zero default influence)
-    !    if (doublet_order == 1) then
-    !        if (this%in_wake) then
-
-    !            ! Wake panels are influenced by two sets of vertices
-    !            allocate(vertex_indices(6))
-    !            vertex_indices(1) = this%vertices(1)%ptr%top_parent
-    !            vertex_indices(2) = this%vertices(2)%ptr%top_parent
-    !            vertex_indices(3) = this%vertices(3)%ptr%top_parent
-    !            vertex_indices(4) = this%vertices(1)%ptr%bot_parent
-    !            vertex_indices(5) = this%vertices(2)%ptr%bot_parent
-    !            vertex_indices(6) = this%vertices(3)%ptr%bot_parent
-
-    !            ! Set default influence
-    !            allocate(phi(6), source=0.)
-
-    !        else
-
-    !            ! Body panels are influenced by only one set of vertices
-    !            allocate(vertex_indices, source=this%vertex_indices)
-
-    !            ! Set default influence
-    !            allocate(phi(3), source=0.)
-
-    !        end if
-    !    end if
-
-    !    ! Check DoD
-    !    if (dod_info%in_dod) then
-
-    !        ! Calculate geometric parameters
-    !        geom = this%calc_subsonic_geom(eval_point, freestream, dod_info)
-    !        if (influence_calc_type == 'johnson') then
-
-    !            ! Get integrals
-    !            call this%calc_integrals(geom, "potential", "doublet", dod_info, freestream, H, F)
-
-    !            ! Calculate influence
-    !            if (doublet_order == 1) then
-
-    !                ! Compute induced potential (Johnson Eq. (D.30); Ehlers Eq. (5.17))
-    !                phi(1) = geom%h*H(1,1,3)
-    !                phi(2) = geom%h*H(1,1,3)*geom%P_ls(1) + geom%h*H(2,1,3)
-    !                phi(3) = geom%h*H(1,1,3)*geom%P_ls(2) + geom%h*H(1,2,3)
-
-    !                ! Convert to vertex influences (Davis Eq. (4.41))
-    !                phi(1:3) = freestream%K_inv*matmul(phi(1:3), this%S_mu_inv)
-
-    !                ! Wake bottom influence is opposite the top influence
-    !                if (this%in_wake) then
-    !                    phi(4:6) = -phi(1:3)
-    !                end if
-
-    !            end if
-
-    !            ! Clean up
-    !            deallocate(H)
-    !            deallocate(F)
-
-    !        end if
-    !    end if
-    
-    !end function panel_calc_doublet_potential
-
-
-    !function panel_calc_doublet_velocity(this, eval_point, freestream, dod_info, vertex_indices, panel_mirrored) result(v)
-
-    !    implicit none
-
-    !    class(panel),intent(in) :: this
-    !    real,dimension(3),intent(in) :: eval_point
-    !    type(flow),intent(in) :: freestream
-    !    type(dod),intent(in) :: dod_info
-    !    integer,dimension(:),allocatable,intent(out) :: vertex_indices
-    !    logical,intent(in) :: panel_mirrored
-    !    real,dimension(:,:),allocatable :: v
-
-    !    type(eval_point_geom) :: geom
-    !    real,dimension(:,:,:),allocatable :: H
-    !    real,dimension(:,:,:,:),allocatable :: F
-
-    !    ! Allocate velocity and vertices
-    !    if (doublet_order .eq. 1) then
-    !        if (this%in_wake) then
-
-    !            ! Wake panels are influenced by two sets of vertices
-    !            allocate(vertex_indices(6))
-    !            vertex_indices(1) = this%vertices(1)%ptr%top_parent
-    !            vertex_indices(2) = this%vertices(2)%ptr%top_parent
-    !            vertex_indices(3) = this%vertices(3)%ptr%top_parent
-    !            vertex_indices(4) = this%vertices(1)%ptr%bot_parent
-    !            vertex_indices(5) = this%vertices(2)%ptr%bot_parent
-    !            vertex_indices(6) = this%vertices(3)%ptr%bot_parent
-
-    !            ! Set default influence
-    !            allocate(v(6,3), source=0.)
-
-    !        else
-
-    !            ! Body panels are influenced by only one set of vertices
-    !            allocate(vertex_indices, source=this%vertex_indices)
-
-    !            ! Set default influence
-    !            allocate(v(3,3), source=0.)
-
-    !        end if
-    !    end if
-
-    !    ! Check DoD
-    !    if (dod_info%in_dod) then
-
-    !        ! Calculate geometric parameters
-    !        geom = this%calc_subsonic_geom(eval_point, freestream, dod_info)
-    !        if (influence_calc_type == 'johnson') then
-
-    !            ! Get integrals
-    !            call this%calc_integrals(geom, "velocity", "doublet", dod_info, freestream, H, F)
-
-    !            if (doublet_order .eq. 1) then
-
-    !                ! Specify influencing vertices
-    !                allocate(vertex_indices(3), source=this%vertex_indices)
-
-    !                ! Calculate velocity
-    !                allocate(v(3,3), source=0.)
-
-    !            end if
-
-    !            ! Clean up
-    !            deallocate(H)
-    !            deallocate(F)
-
-    !        end if
-    !    end if
-
-    !end function panel_calc_doublet_velocity
