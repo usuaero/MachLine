@@ -917,7 +917,7 @@ contains
 
                 ! Distance from evaluation point to start vertex E&M Eq. (J.8.8)
                 if (dod_info%verts_in_dod(i)) then
-                    geom%R1(i) = sqrt(this%r*d_ls(1)**2 + freestream%s*d_ls(2)**2 + this%rs*geom%h2)
+                    geom%R1(i) = sqrt(d_ls(1)**2 - d_ls(2)**2 - geom%h2)
                 else
                     geom%R1(i) = 0.
                 end if
@@ -1266,51 +1266,6 @@ contains
         deallocate(v_eta)
 
     end subroutine panel_calc_supersonic_subinc_H_integrals
-
-
-    function nu_M_N_K(M, N, K) result(nu)
-        ! Calculates nu(M,N,K) based on Eq. (D.51) in Johnson 1980
-
-        implicit none
-
-        integer,intent(in) :: M, N, K
-        real :: nu
-
-        integer :: mm, nn, kk, i
-
-        ! Check for even M or N
-        if (mod(M, 2) .eq. 0 .or. mod(N, 2) .eq. 0) then
-            nu = 0
-        else
-             
-            ! Initialize
-            mm = 1
-            nn = 1
-            kk = 1
-
-            ! Run factorials (ish. not sure what you'd call these...)
-            if (.not. M .eq. 1) then
-                do i=1,M-2,2
-                    mm = mm*i
-                end do
-            end if
-
-            if (.not. N .eq. 1) then
-                do i=1,N-2,2
-                    nn = nn*i
-                end do
-            end if
-
-            do i=K-2,K-M-N,2
-                kk = kk*i
-            end do
-
-            ! Calculate nu
-            nu = mm*nn/kk
-
-        end if
-
-    end function nu_M_N_K
 
 
     function panel_calc_integrals(this, geom, influence_type, singularity_type, dod_info, freestream) result(int)
