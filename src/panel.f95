@@ -911,7 +911,7 @@ contains
                 ! The original and optimized calculations match out to precision in some instances, and the only to 1 or 2 sig figs in other cases...
 
                 ! Integration length on edge to start vertex (E&M Eq. (J.6.47))
-                geom%l1(i) = this%rs*d_ls(1)*this%t_hat_ls(i,1) + d_ls(2)*this%t_hat_ls(i,2) ! Definition
+                geom%l1(i) = -d_ls(1)*this%t_hat_ls(i,1) + d_ls(2)*this%t_hat_ls(i,2) ! Definition
                 !geom%l1(i) = freestream%s/this%tau(i) * freestream%C_g_inner(this%t_hat_g(i,:), d_g) ! Optimized calculation E&M Eq. (J.7.52)
                 ! Same as a; matching is sporadic
 
@@ -923,10 +923,10 @@ contains
                 end if
 
                 ! Calculate square of the perpendicular distance to edge
-                geom%g2(i) = (freestream%B/this%tau(i))**2*freestream%B_g_inner(x, x) ! E&M Eq. (J.8.23) or (J.7.70)
-                !geom%g2(i) = geom%a(i)**2 + this%q(i)*geom%h2 ! My version of Ehlers Eq. (E14) and what is used in supsbi in PAN AIR.
+                !geom%g2(i) = (freestream%B/this%tau(i))**2*freestream%B_g_inner(x, x) ! E&M Eq. (J.8.23) or (J.7.70)
+                geom%g2(i) = geom%a(i)**2 - this%b(i)*geom%h2 ! Ehlers Eq. (E14) and what is used in supsbi in PAN AIR.
                 ! E&M consistently use q in these equations. Ehlers et al. use b.
-                ! The PAN AIR source code uses -b instead of q. Printing out b from PAN AIR, it seems to always be close to 1.
+                ! The PAN AIR source code uses b instead of q. Printing out b from PAN AIR, it seems to always be close to 1.
                 ! This matches what's in PAN AIR when the edge is perpendicular to the freestream (i.e. b = +/-1)
                 ! The first definition above matches my version.
 
@@ -935,13 +935,24 @@ contains
                 d_ls = this%vertices_ls(i_next,:) - geom%P_ls
 
                 ! Integration length on edge to end vertex
-                geom%l2(i) = this%rs*d_ls(1)*this%t_hat_ls(i,1) + d_ls(2)*this%t_hat_ls(i,2) ! Definition; same as used in supsbi in PAN AIR
+                geom%l2(i) = -d_ls(1)*this%t_hat_ls(i,1) + d_ls(2)*this%t_hat_ls(i,2) ! Definition; same as used in supsbi in PAN AIR
                 !geom%l2(i) = freestream%s/this%tau(i) * freestream%C_g_inner(this%t_hat_g(i,:), d_g) ! Optimized calculation E&M Eq. (J.7.52)
+
+                !! Weird stuff from PAN AIR, about lines 56505-56509
+                !if (geom%R1(i) == 0.) then
+                !    geom%l1(i) = -sqrt(abs(geom%g2(i)))
+                !end if
+                !if (geom%R1(i_next) == 0.) then
+                !    geom%l2(i) = sqrt(abs(geom%g2(i)))
+                !end if
 
             else
 
                 geom%R1(i) = 0.
                 geom%a(i) = 0.
+                geom%g2(i) = 0.
+                geom%l1(i) = 0.
+                geom%l2(i) = 0.
 
             end if
         end do
@@ -1060,7 +1071,7 @@ contains
         type(flow),intent(in) :: freestream
         type(integrals),intent(inout) :: int
 
-        real :: v_xi, v_eta, F1, F2
+        real :: v_xi, v_eta, F1, F2, eps
         integer :: i
         
         ! Allocate integral storage
@@ -1079,17 +1090,23 @@ contains
 
                 ! Calculate preliminary quantities
                 if (this%b(i) >= 0) then
-                    F1 = (geom%l1(i)*geom%R2(i) - geom%l2(i)*geom%R1(i))/geom%g2(i)
-                    F2 = (this%b(i)*geom%R1(i)*geom%R2(i) + geom%l1(i)*geom%l2(i))/geom%g2(i)
+                    F1 = (geom%l1(i)*geom%R2(i) - geom%l2(i)*geom%R1(i)) / geom%g2(i)
+                    F2 = (this%b(i)*geom%R1(i)*geom%R2(i) + geom%l1(i)*geom%l2(i)) / geom%g2(i)
 
                 else
-                    F1 = (geom%R2(i)**2-geom%R1(i)**2)/(geom%l1(i)*geom%R2(i)+geom%l2(i)*geom%R1(i))
-                    F2 = (geom%g2(i)-geom%l1(i)**2-geom%l2(i)**2)/(this%b(i)*geom%R1(i)*geom%R2(i)-geom%l1(i)*geom%l2(i))
+                    F1 = (geom%R2(i)**2 - geom%R1(i)**2) / (geom%l1(i)*geom%R2(i) + geom%l2(i)*geom%R1(i))
+                    F2 = (geom%g2(i) - geom%l1(i)**2 - geom%l2(i)**2) / &
+                         (this%b(i)*geom%R1(i)*geom%R2(i) - geom%l1(i)*geom%l2(i))
 
                 end if
 
+                ! Check for poorly-conditioned edge
+                if (abs(F2) > 100.*this%sqrt_b(i)*abs(F1)) then
+                    eps = F1/F2
+                    int%F111(i) = -eps*(1 - this%b(i)*eps**2/3. + this%b(i)**2*eps**4/5. - this%b(i)**3*eps**6/7.)
+
                 ! Supersonic edge
-                if (this%b(i) > 0) then
+                else if (this%b(i) > 0) then
 
                     ! Neither endpoint in DoD (Ehlers Eq. (E22))
                     if (geom%R1(i) == 0. .and. geom%R2(i) == 0.) then
@@ -1236,8 +1253,9 @@ contains
                         if (this%b(i) >= 0 ) then
                             F1 = (geom%l1(i)*geom%R2(i) - geom%l2(i)*geom%R1(i)) / geom%g2(i)
                             F2 = (this%b(i)*geom%R1(i)*geom%R2(i) + geom%l1(i)*geom%l2(i)) / geom%g2(i)
+
                         else
-                            F1 = (geom%R2(i)**2 - geom%R1(i)**2)/(geom%l1(i)*geom%R2(i) + geom%l2(i)*geom%R1(i))
+                            F1 = (geom%R2(i)**2 - geom%R1(i)**2) / (geom%l1(i)*geom%R2(i) + geom%l2(i)*geom%R1(i))
                             F2 = (geom%g2(i) - geom%l1(i)**2 - geom%l2(i)**2) / &
                                  (this%b(i)*geom%R1(i)*geom%R2(i) - geom%l1(i)*geom%l2(i))
                         end if
