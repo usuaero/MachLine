@@ -948,11 +948,9 @@ contains
 
             else
 
+                ! These are sometimes accessed when the DoD is not checked, so they need to be set to zero
                 geom%R1(i) = 0.
                 geom%a(i) = 0.
-                geom%g2(i) = 0.
-                geom%l1(i) = 0.
-                geom%l2(i) = 0.
 
             end if
         end do
@@ -1047,7 +1045,7 @@ contains
             ! Calculate F(1,1,1)
             ! Within edge (Johnson Eq. (D.60))
             if (sign(geom%l1(i)) /= sign(geom%l2(i))) then
-                int%F111(i) = log(((geom%R1(i)-geom%l1(i))*(geom%R2(i)+geom%l2(i)))/geom%g2(i))
+                int%F111(i) = log( ( (geom%R1(i) - geom%l1(i)) * (geom%R2(i) + geom%l2(i)) ) / geom%g2(i) )
 
             ! Above or below edge; this is a unified form of Johnson Eq. (D.60)
             else
@@ -1114,9 +1112,7 @@ contains
 
                     ! At least one endpoint in the DoD (Ehlers Eq. (E22))
                     else
-
-                        ! Calculate F
-                        int%F111(i) = -atan2(this%sqrt_b(i)*F1, F2)/this%sqrt_b(i)
+                        int%F111(i) = -atan2(this%sqrt_b(i)*F1, F2) / this%sqrt_b(i)
 
                     end if
 
@@ -1127,7 +1123,7 @@ contains
                     F1 = this%sqrt_b(i)*geom%R1(i) + abs(geom%l1(i))
                     F2 = this%sqrt_b(i)*geom%R2(i) + abs(geom%l2(i))
 
-                    ! Calculate F
+                    ! Calculate F(1,1,1)
                     int%F111(i) = -sign(v_eta)/this%sqrt_b(i)*log(F1/F2)
 
                 end if
@@ -1242,12 +1238,8 @@ contains
 
                     i_next = mod(i, this%N) + 1
 
-                    ! Check for neither endpoint in
-                    if (.not. dod_info%verts_in_dod(i) .and. .not. dod_info%verts_in_dod(i_next)) then
-                        int%hH113 = int%hH113 + sign(v_xi(i))*pi
-
-                    ! At least one in
-                    else
+                    ! Check for at least one endpoint in the DoD
+                    if (dod_info%verts_in_dod(i) .or. dod_info%verts_in_dod(i_next)) then
 
                         ! Calculate intermediate quantities Ehlers Eq. (E19) and (E20)
                         if (this%b(i) >= 0 ) then
@@ -1262,6 +1254,10 @@ contains
 
                         ! Add to surface integral
                         int%hH113 = int%hH113 + atan2(geom%h*geom%a(i)*F1, geom%R1(i)*geom%R2(i) + geom%h2*F2)
+
+                    ! Neither endpoint is in
+                    else
+                        int%hH113 = int%hH113 + pi*sign(geom%h*v_xi(i))
 
                     end if
 

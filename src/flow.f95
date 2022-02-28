@@ -231,7 +231,7 @@ contains
 
 
     function flow_point_in_dod(this, Q, P) result(in_dod)
-        ! Calculates whether the point Q lies in the dod of point P
+        ! Calculates whether the point Q lies in the DoD of point P
 
         implicit none
 
