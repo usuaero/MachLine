@@ -19,7 +19,6 @@ module panel_solver_mod
 
         character(len=:),allocatable :: formulation, pressure_for_forces
         logical :: incompressible_rule, isentropic_rule, second_order_rule
-        logical,dimension(:,:),allocatable :: verts_in_dod, wake_verts_in_dod
         type(dod),dimension(:,:),allocatable :: dod_info, wake_dod_info
         type(flow) :: freestream
         real :: norm_res, max_res
@@ -220,36 +219,37 @@ contains
 
         integer :: i, j
         real,dimension(3) :: vert_loc, mirrored_vert_loc
+        logical,dimension(:,:),allocatable :: verts_in_dod, wake_verts_in_dod
 
         ! For asymmetric flow on a mirrored mesh, all domains of dependence must be calculated. There are no shortcuts.
         ! For symmetric flow on a mirrored mesh, domains of dependence will be the same between mirrored panels and mirrored
         ! control points. So, we just need to calculate the DoD for mirrored control points, and then we're good.
 
-        write(*,'(a)',advance='no') "     Calculating domains of dependence..."
-
         ! Allocate arrays for domain of dependence information for the body
         if (body%mirrored) then
             allocate(this%dod_info(2*body%N_panels, this%N))
-            allocate(this%verts_in_dod(2*body%N_verts, this%N), source=.true.)
+            allocate(verts_in_dod(2*body%N_verts, this%N))
         else
             allocate(this%dod_info(body%N_panels, this%N))
-            allocate(this%verts_in_dod(body%N_verts, this%N), source=.true.)
+            allocate(verts_in_dod(body%N_verts, this%N))
         end if
 
         ! Allocate arrays for domain of dependence information for the wake
         if (body%mirrored .and. .not. body%asym_flow) then
             allocate(this%wake_dod_info(2*body%wake%N_panels, this%N))
-            allocate(this%wake_verts_in_dod(2*body%wake%N_verts, this%N), source=.true.)
+            allocate(wake_verts_in_dod(2*body%wake%N_verts, this%N))
         else
             allocate(this%wake_dod_info(body%wake%N_panels, this%N))
-            allocate(this%wake_verts_in_dod(body%wake%N_verts, this%N), source=.true.)
+            allocate(wake_verts_in_dod(body%wake%N_verts, this%N))
         end if
 
-        ! Loop through control points
-        do j=1,body%N_cp
+        ! If the freestream is subsonic, these don't need to be checked
+        if (this%freestream%supersonic) then
 
-            ! If the freestream is supersonic, then we'll need to check each vertex before moving to the panels
-            if (this%freestream%supersonic) then
+            write(*,'(a)',advance='no') "     Calculating domains of dependence..."
+
+            ! Loop through control points
+            do j=1,body%N_cp
 
                 ! Loop through body vertices
                 do i=1,body%N_verts
@@ -257,23 +257,23 @@ contains
                     vert_loc = body%vertices(i)%loc
 
                     ! Original vertex and original control point
-                    this%verts_in_dod(i,j) = this%freestream%point_in_dod(vert_loc, body%cp(:,j))
+                    verts_in_dod(i,j) = this%freestream%point_in_dod(vert_loc, body%cp(:,j))
 
                     if (body%mirrored) then
 
                         mirrored_vert_loc = mirror_about_plane(vert_loc, body%mirror_plane)
 
                         ! Mirrored vertex and original control point
-                        this%verts_in_dod(i+body%N_verts,j) = this%freestream%point_in_dod(mirrored_vert_loc, &
+                        verts_in_dod(i+body%N_verts,j) = this%freestream%point_in_dod(mirrored_vert_loc, &
                                                                                            body%cp(:,j))
 
                         if (body%asym_flow) then
 
                             ! Original vertex and mirrored control point
-                            this%verts_in_dod(i,j+body%N_cp) = this%freestream%point_in_dod(vert_loc, body%cp_mirrored(:,j))
+                            verts_in_dod(i,j+body%N_cp) = this%freestream%point_in_dod(vert_loc, body%cp_mirrored(:,j))
 
                             ! Mirrored vertex and mirrored control point
-                            this%verts_in_dod(i+body%N_verts,j+body%N_cp) = this%freestream%point_in_dod(mirrored_vert_loc, &
+                            verts_in_dod(i+body%N_verts,j+body%N_cp) = this%freestream%point_in_dod(mirrored_vert_loc, &
                                                                                                          body%cp_mirrored(:,j))
 
                         end if
@@ -286,84 +286,86 @@ contains
                     vert_loc = body%wake%vertices(i)%loc
 
                     ! Original vertex and original control point
-                    this%wake_verts_in_dod(i,j) = this%freestream%point_in_dod(vert_loc, body%cp(:,j))
+                    wake_verts_in_dod(i,j) = this%freestream%point_in_dod(vert_loc, body%cp(:,j))
 
                     if (body%mirrored) then
 
                         if (body%asym_flow) then
 
                             ! Original vertex and mirrored control point
-                            this%wake_verts_in_dod(i,j+body%N_cp) = this%freestream%point_in_dod(vert_loc, body%cp_mirrored(:,j))
+                            wake_verts_in_dod(i,j+body%N_cp) = this%freestream%point_in_dod(vert_loc, body%cp_mirrored(:,j))
 
                         else
 
                             ! Mirrored vertex and original control point
                             mirrored_vert_loc = mirror_about_plane(vert_loc, body%mirror_plane)
-                            this%wake_verts_in_dod(i+body%wake%N_verts,j) = this%freestream%point_in_dod(mirrored_vert_loc, &
+                            wake_verts_in_dod(i+body%wake%N_verts,j) = this%freestream%point_in_dod(mirrored_vert_loc, &
                                                                                                          body%cp(:,j))
                         end if
                     end if
                 end do
 
-            end if
+                ! Loop through body panels
+                do i=1,body%N_panels
 
-            ! Loop through body panels
-            do i=1,body%N_panels
+                    ! Original panel and original control point
+                    this%dod_info(i,j) = body%panels(i)%check_dod(body%cp(:,j), this%freestream, verts_in_dod(:,j))
 
-                ! Original panel and original control point
-                this%dod_info(i,j) = body%panels(i)%check_dod(body%cp(:,j), this%freestream, this%verts_in_dod(:,j))
-
-                if (body%mirrored) then
-
-                    ! Check DoD for mirrored panel and original control point
-                    this%dod_info(i+body%N_panels,j) = body%panels(i)%check_dod(body%cp(:,j), this%freestream, &
-                                                                                this%verts_in_dod(:,j), &
-                                                                                .true., body%mirror_plane)
-                    
-                    if (body%asym_flow) then
-
-                        ! Check DoD for original panel and mirrored control point
-                        this%dod_info(i,j+body%N_cp) = body%panels(i)%check_dod(body%cp_mirrored(:,j), this%freestream, &
-                                                                                this%verts_in_dod(:,j+body%N_cp))
-
-                        ! Check DoD for mirrored panel and mirrored control point
-                        this%dod_info(i+body%N_panels,j+body%N_cp) = body%panels(i)%check_dod(body%cp_mirrored(:,j), &
-                                                                                              this%freestream, &
-                                                                                              this%verts_in_dod(:,j+body%N_cp), &
-                                                                                              .true., body%mirror_plane)
-
-                    end if
-                end if
-            end do
-
-            ! Loop through wake panels
-            do i=1,body%wake%N_panels
-
-                ! Check DoD for panel and original control point
-                this%wake_dod_info(i,j) = body%wake%panels(i)%check_dod(body%cp(:,j), this%freestream, this%wake_verts_in_dod(:,j))
-
-                if (body%mirrored) then
-
-                    if (body%asym_flow) then
-
-                        ! Check DoD for panel and mirrored control point
-                        this%wake_dod_info(i,j+body%N_cp) = body%wake%panels(i)%check_dod(body%cp_mirrored(:,j), this%freestream, &
-                                                                                          this%wake_verts_in_dod(:,j+body%N_cp))
-
-                    else
+                    if (body%mirrored) then
 
                         ! Check DoD for mirrored panel and original control point
-                        this%wake_dod_info(i+body%wake%N_panels,j) = body%wake%panels(i)%check_dod(body%cp(:,j), this%freestream, &
-                                                                                                   this%wake_verts_in_dod(:,j), &
-                                                                                                   .true., body%mirror_plane)
+                        this%dod_info(i+body%N_panels,j) = body%panels(i)%check_dod(body%cp(:,j), this%freestream, &
+                                                                                    verts_in_dod(:,j), &
+                                                                                    .true., body%mirror_plane)
 
+                        if (body%asym_flow) then
+
+                            ! Check DoD for original panel and mirrored control point
+                            this%dod_info(i,j+body%N_cp) = body%panels(i)%check_dod(body%cp_mirrored(:,j), this%freestream, &
+                                                                                    verts_in_dod(:,j+body%N_cp))
+
+                            ! Check DoD for mirrored panel and mirrored control point
+                            this%dod_info(i+body%N_panels,j+body%N_cp) = body%panels(i)%check_dod(body%cp_mirrored(:,j), &
+                                                                                                  this%freestream, &
+                                                                                                  verts_in_dod(:,j+body%N_cp), &
+                                                                                                  .true., body%mirror_plane)
+
+                        end if
                     end if
-                end if
+                end do
+
+                ! Loop through wake panels
+                do i=1,body%wake%N_panels
+
+                    ! Check DoD for panel and original control point
+                    this%wake_dod_info(i,j) = body%wake%panels(i)%check_dod(body%cp(:,j), this%freestream, wake_verts_in_dod(:,j))
+
+                    if (body%mirrored) then
+
+                        if (body%asym_flow) then
+
+                            ! Check DoD for panel and mirrored control point
+                            this%wake_dod_info(i,j+body%N_cp) = body%wake%panels(i)%check_dod(body%cp_mirrored(:,j), &
+                                                                                              this%freestream, &
+                                                                                              wake_verts_in_dod(:,j+body%N_cp))
+
+                        else
+
+                            ! Check DoD for mirrored panel and original control point
+                            this%wake_dod_info(i+body%wake%N_panels,j) = body%wake%panels(i)%check_dod(body%cp(:,j), &
+                                                                                                       this%freestream, &
+                                                                                                       wake_verts_in_dod(:,j), &
+                                                                                                       .true., body%mirror_plane)
+
+                        end if
+                    end if
+                end do
+
             end do
 
-        end do
-
         write(*,*) "Done"
+        end if
+
     
     end subroutine panel_solver_calc_domains_of_dependence
 

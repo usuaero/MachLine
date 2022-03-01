@@ -45,8 +45,9 @@ module panel_mod
     type dod
         ! Container type for parameters of whether a panel lies in a point's domain of dependence
 
-        logical :: in_dod
-        logical,dimension(3) :: verts_in_dod, edges_in_dod
+        logical :: in_dod = .true.
+        logical,dimension(3) :: verts_in_dod = .true.
+        logical,dimension(3) :: edges_in_dod = .true.
 
     end type dod
 
