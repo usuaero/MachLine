@@ -126,7 +126,7 @@ contains
             ! Write out points
             call cp_vtk%begin(control_point_file)
             call cp_vtk%write_points(body%cp)
-            call cp_vtk%write_vertices(body%cp)
+            call cp_vtk%write_vertices(body%N_cp)
             call cp_vtk%write_point_scalars(cp_indices, 'index')
             call cp_vtk%finish()
 
@@ -639,11 +639,6 @@ contains
         end do
 
         write(*,*) "Done."
-        if (any(isnan(this%A))) then
-            write(*,*)
-            write(*,*) "!!! NaN in A after body computations. Quitting..."
-            stop
-        end if
     
     end subroutine panel_solver_calc_body_influences
 
@@ -745,6 +740,11 @@ contains
 
         write(*,'(a)',advance='no') "     Solving linear system..."
 
+        ! Set b vector for Morino formulation
+        if (this%formulation == "morino") then
+            this%b = -body%phi_cp_sigma
+        end if
+
         ! Check for NaNs; I'd rather have it fail here than give the user garbage results
         if (any(isnan(this%A))) then
             write(*,*) "!!! Invalid value detected in A matrix. Quitting..."
@@ -755,21 +755,21 @@ contains
             stop
         end if
 
-        ! Make a copy of A (lu_solve replaces A with its decomposition)
-        allocate(A_copy, source=this%A, stat=stat)
-        call check_allocation(stat, "solver copy of AIC matrix")
-
         ! Check for uninfluenced/ing points
         do i=1,this%N
             if (all(this%A(i,:) == 0.)) then
-                write(*,*) "!!! Control point ", i, " is not influenced. Quitting"
+                write(*,*) "!!! Control point ", i, " is not influenced. Quitting..."
                 stop
             end if
             if (all(this%A(:,i) == 0.)) then
-                write(*,*) "!!! Vertex ", i, " exerts no influence. Quitting"
+                write(*,*) "!!! Vertex ", i, " exerts no influence. Quitting..."
                 stop
             end if
         end do
+
+        ! Make a copy of A (lu_solve replaces A with its decomposition)
+        allocate(A_copy, source=this%A, stat=stat)
+        call check_allocation(stat, "solver copy of AIC matrix")
 
         ! Write A and b to file
         !open(34, file="./dev/A_mat.txt")
@@ -782,11 +782,6 @@ contains
         !    write(34,*) this%b(i)
         !end do
         !close(34)
-
-        ! Set b vector for Morino formulation
-        if (this%formulation == "morino") then
-            this%b = -body%phi_cp_sigma
-        end if
 
         ! Solve
         call lu_solve(this%N, A_copy, this%b, body%mu)

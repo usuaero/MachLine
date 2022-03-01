@@ -9,7 +9,9 @@ program main
     implicit none
 
     character(100) :: input_file
-    character(len=:),allocatable :: body_file, wake_file, control_point_file, report_file, spanwise_axis
+    character(len=:),allocatable :: body_file, wake_file, control_point_file
+    character(len=:),allocatable :: mirrored_body_file, mirrored_control_point_file
+    character(len=:),allocatable :: report_file, spanwise_axis
 
     type(json_file) :: input_json
     type(json_value), pointer :: flow_settings,&
@@ -87,8 +89,11 @@ program main
     write(*,*) "Initializing"
     
     ! Get result files
+    call json_xtnsn_get(output_settings, 'body_file', body_file, 'none')
     call json_xtnsn_get(output_settings, 'wake_file', wake_file, 'none')
     call json_xtnsn_get(output_settings, 'control_point_file', control_point_file, 'none')
+    call json_xtnsn_get(output_settings, 'mirrored_body_file', mirrored_body_file, 'none')
+    call json_xtnsn_get(output_settings, 'mirrored_control_point_file', mirrored_control_point_file, 'none')
 
     ! Perform flow-dependent initialization on the surface mesh
     call body_mesh%init_with_flow(freestream_flow, wake_file)
@@ -106,9 +111,8 @@ program main
     ! Output results
     write(*,*)
     write(*,*) "Writing results to file"
-    call json_xtnsn_get(output_settings, 'body_file', body_file, 'none')
 
-    call body_mesh%output_results(body_file, wake_file, control_point_file)
+    call body_mesh%output_results(body_file, wake_file, control_point_file, mirrored_body_file, mirrored_control_point_file)
 
     ! Goodbye
     call cpu_time(end)

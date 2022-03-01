@@ -1116,12 +1116,14 @@ contains
     end subroutine surface_mesh_place_interior_control_points
 
 
-    subroutine surface_mesh_output_results(this, body_file, wake_file, control_point_file)
+    subroutine surface_mesh_output_results(this, body_file, wake_file, control_point_file, mirrored_body_file, &
+                                           mirrored_control_point_file)
 
         implicit none
 
         class(surface_mesh),intent(inout) :: this
         character(len=:),allocatable,intent(in) :: body_file, wake_file, control_point_file
+        character(len=:),allocatable,intent(in) :: mirrored_body_file, mirrored_control_point_file
 
         real,dimension(:),allocatable :: mu_on_wake, panel_inclinations
         type(vtk_out) :: body_vtk, wake_vtk, cp_vtk
@@ -1160,6 +1162,41 @@ contains
             call body_vtk%finish()
 
             write(*,*) "    Surface results written to: ", body_file
+        end if
+
+        ! Write out data for mirrored body
+        if (mirrored_body_file /= 'none' .and. this%asym_flow) then
+
+            ! Clear old file
+            call delete_file(mirrored_body_file)
+
+            ! Write geometry
+            call body_vtk%begin(mirrored_body_file)
+            call body_vtk%write_points(this%vertices, this%mirror_plane)
+            call body_vtk%write_panels(this%panels)
+
+            ! Write source strengths
+            call body_vtk%write_cell_scalars(this%sigma(this%N_panels+1:this%N_panels*2), "sigma")
+
+            ! Write pressures
+            if (allocated(this%C_p_inc)) then
+                call body_vtk%write_cell_scalars(this%C_p_inc(this%N_panels+1:this%N_panels*2), "C_p_inc")
+            end if
+            if (allocated(this%C_p_ise)) then
+                call body_vtk%write_cell_scalars(this%C_p_ise(this%N_panels+1:this%N_panels*2), "C_p_ise")
+            end if
+            if (allocated(this%C_p_2nd)) then
+                call body_vtk%write_cell_scalars(this%C_p_2nd(this%N_panels+1:this%N_panels*2), "C_p_2nd")
+            end if
+
+            ! Write flow properties
+            call body_vtk%write_cell_vectors(this%v(:,this%N_panels+1:this%N_panels*2), "v")
+            call body_vtk%write_cell_vectors(this%dC_f(:,this%N_panels+1:this%N_panels*2), "dC_f")
+            call body_vtk%write_point_scalars(this%mu(this%N_cp+1:this%N_cp*2), "mu")
+            call body_vtk%finish()
+
+            write(*,*) "    Mirrored surface results written to: ", mirrored_body_file
+
         end if
         
         ! Write out data for wake
@@ -1204,13 +1241,31 @@ contains
             ! Write out data
             call cp_vtk%begin(control_point_file)
             call cp_vtk%write_points(this%cp)
-            call cp_vtk%write_vertices(this%cp)
+            call cp_vtk%write_vertices(this%N_cp)
             call cp_vtk%write_point_scalars(this%phi_cp(1:this%N_cp), "phi")
             call cp_vtk%write_point_scalars(this%phi_cp_mu(1:this%N_cp), "phi_mu")
             call cp_vtk%write_point_scalars(this%phi_cp_sigma(1:this%N_cp), "phi_sigma")
             call cp_vtk%finish()
 
             write(*,*) "    Control point results written to: ", control_point_file
+        end if
+        
+        ! Write out data for mirrored control points
+        if (mirrored_control_point_file /= 'none' .and. this%asym_flow) then
+
+            ! Clear old file
+            call delete_file(mirrored_control_point_file)
+
+            ! Write out data
+            call cp_vtk%begin(mirrored_control_point_file)
+            call cp_vtk%write_points(this%cp_mirrored)
+            call cp_vtk%write_vertices(this%N_cp)
+            call cp_vtk%write_point_scalars(this%phi_cp(this%N_cp+1:this%N_cp*2), "phi")
+            call cp_vtk%write_point_scalars(this%phi_cp_mu(this%N_cp+1:this%N_cp*2), "phi_mu")
+            call cp_vtk%write_point_scalars(this%phi_cp_sigma(this%N_cp+1:this%N_cp*2), "phi_sigma")
+            call cp_vtk%finish()
+
+            write(*,*) "    Mirrored control point results written to: ", mirrored_control_point_file
         end if
     
     end subroutine surface_mesh_output_results

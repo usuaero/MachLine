@@ -1,6 +1,7 @@
 ! Subroutines for I/O with VTK files
 module vtk_mod
 
+    use helpers_mod
     use panel_mod
     use vertex_mod
 
@@ -80,15 +81,17 @@ contains
     end subroutine vtk_out_begin
 
 
-    subroutine vtk_out_write_points_vertices(this, vertices)
+    subroutine vtk_out_write_points_vertices(this, vertices, mirror_plane)
         ! Writes out points to the vtk file using the MachLine vertex object
 
         implicit none
 
         class(vtk_out),intent(in) :: this
         type(vertex),dimension(:),intent(in) :: vertices
+        integer,intent(in),optional :: mirror_plane
 
         integer :: i, N_verts
+        real,dimension(3) :: mirror
 
         ! Write vertex information
         N_verts = size(vertices)
@@ -97,21 +100,28 @@ contains
 
         ! Write out vertices
         do i=1,N_verts
-            write(this%unit,'(e20.12, e20.12, e20.12)') vertices(i)%loc(1), vertices(i)%loc(2), vertices(i)%loc(3)
+            if (present(mirror_plane)) then
+                mirror = mirror_about_plane(vertices(i)%loc, mirror_plane)
+                write(this%unit,'(e20.12, e20.12, e20.12)') mirror(1), mirror(2), mirror(3)
+            else
+                write(this%unit,'(e20.12, e20.12, e20.12)') vertices(i)%loc(1), vertices(i)%loc(2), vertices(i)%loc(3)
+            end if
         end do
     
     end subroutine vtk_out_write_points_vertices
 
 
-    subroutine vtk_out_write_points_array(this, vertices)
+    subroutine vtk_out_write_points_array(this, vertices, mirror_plane)
         ! Writes out points to the vtk file using a simple array of locations
 
         implicit none
 
         class(vtk_out),intent(in) :: this
         real,dimension(:,:),intent(in) :: vertices
+        integer,intent(in),optional :: mirror_plane
 
         integer :: i, N_verts
+        real,dimension(3) :: mirror
 
         ! Write vertex information
         N_verts = size(vertices)/3
@@ -120,7 +130,12 @@ contains
 
         ! Write out vertices
         do i=1,N_verts
-            write(this%unit,'(e20.12, e20.12, e20.12)') vertices(1,i), vertices(2,i), vertices(3,i)
+            if (present(mirror_plane)) then
+                mirror = mirror_about_plane(vertices(:,i), mirror_plane)
+                write(this%unit,'(e20.12, e20.12, e20.12)') mirror(1), mirror(2), mirror(3)
+            else
+                write(this%unit,'(e20.12, e20.12, e20.12)') vertices(1,i), vertices(2,i), vertices(3,i)
+            end if
         end do
     
     end subroutine vtk_out_write_points_array
@@ -163,18 +178,17 @@ contains
     end subroutine vtk_out_write_panels
 
 
-    subroutine vtk_out_write_vertices(this, vertices)
-        ! Writes vertices (VTK vertices, which are different than points) to the file
+    subroutine vtk_out_write_vertices(this, N_verts)
+        ! Writes vertices (VTK vertices, which are different than points) to the file using default mapping (the first vertex is 1, etc.)
 
         implicit none
 
         class(vtk_out),intent(in) :: this
-        real,dimension(:,:),intent(in) :: vertices
+        integer,intent(in) :: N_verts
 
-        integer :: i, N_verts
+        integer :: i
 
         ! Write out vertices
-        N_verts = size(vertices)/3
         write(1,'(a i20 i20)') "VERTICES", N_verts, N_verts*2
         do i=1,N_verts
 
@@ -251,15 +265,17 @@ contains
     end subroutine vtk_out_write_cell_vectors
 
 
-    subroutine vtk_out_write_cell_normals(this, panels)
+    subroutine vtk_out_write_cell_normals(this, panels, mirror_plane)
         ! Writes out cell normals
 
         implicit none
 
         class(vtk_out),intent(inout) :: this
         type(panel),dimension(:),intent(in) :: panels
+        integer,intent(in),optional :: mirror_plane
 
         integer :: N_cells, i
+        real,dimension(3) :: mirror
 
         ! Write cell data header
         N_cells = size(panels)
@@ -276,7 +292,12 @@ contains
         ! Write vectors
         write(1,'(a)') "NORMALS normals float"
         do i=1,N_cells
-            write(1,'(e20.12, e20.12, e20.12)') panels(i)%n_g(1), panels(i)%n_g(2), panels(i)%n_g(3)
+            if (present(mirror_plane)) then
+                mirror = mirror_about_plane(panels(i)%n_g, mirror_plane)
+                write(1,'(e20.12, e20.12, e20.12)') mirror(1), mirror(2), mirror(3)
+            else
+                write(1,'(e20.12, e20.12, e20.12)') panels(i)%n_g(1), panels(i)%n_g(2), panels(i)%n_g(3)
+            end if
         end do
     
     end subroutine vtk_out_write_cell_normals

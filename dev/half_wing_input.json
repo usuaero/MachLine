@@ -19,8 +19,9 @@
     },
     "output": {
         "body_file" : "dev/results/half_wing_right.vtk",
-        "wake_file" : "dev/results/half_wing_right_wake.vtk",
+        "wake_file" : "dev/results/half_wing_wake.vtk",
         "control_point_file" : "dev/results/half_wing_right_control_points.vtk",
-        "report_file" : "dev/report.txt"
+        "mirrored_body_file" : "dev/results/half_wing_left.vtk",
+        "mirrored_control_point_file" : "dev/results/half_wing_left_control_points.vtk"
     }
 }
