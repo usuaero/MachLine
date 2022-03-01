@@ -70,10 +70,13 @@ class Swept_Plotting:
             
             # Constrain which node counts are used near tip conditions
             if percent_semispan == '89.8':
-                self.Nodes = ["20", "40"]
+                self.Nodes = ["20", "40", "80"]
 
             elif percent_semispan == '94.9':
-                self.Nodes = ["20", "40"]
+                self.Nodes = ["20", "40", "80"]
+
+          
+
 
             # Establish clean list for saving and combining produced plots
             list_of_files =[]
@@ -81,11 +84,17 @@ class Swept_Plotting:
             for j,AoA in enumerate(self.locations[percent_semispan]):
 
 
-                # Iterate over node counts
-                for Node in self.Nodes:   
+                # Iterate over node counts backwards to allow plot sizing based on highest node count
+                for Node in reversed(self.Nodes): 
+
                     file =  percent_semispan + "_percent_semispan/" + AoA + "_degrees_AoA/" + percent_semispan + "_percent_semispan_" + Node + "_nodes_results_" + AoA + "_deg_AoA_" + formulation_adjusted + "_formulation.csv"
                     Curve_label = Node + " Nodes"
                     self.Pressure_Plot(file, Node, Curve_label, self.semispan_xy_loc[percent_semispan], self.chord)
+                    # Determine sizing for plot formats based on highest node count used
+                    if Node == self.Nodes[len(self.Nodes)-1]:
+                        
+                        xmin, xmax = plt.xlim()
+                        ymin, ymax = plt.ylim()
                 
 
 
@@ -109,7 +118,13 @@ class Swept_Plotting:
                 plt.xlabel('x/c')
                 plt.ylabel(r"$C_p$")
                 plt.figtext(0.7, 0.02, Sub_Note)
+
+                # Scale plot based on highest node count, and invert the Y-axis
+                plt.xlim(xmin, xmax)
+                plt.ylim(ymin, ymax)
                 plt.gca().invert_yaxis()
+
+                # Split legend into columns if there are too many data types
                 if percent_semispan == '94.9':
                     plt.legend()
                 else:

@@ -18,15 +18,16 @@ Nodes = json_vals["geometry"]["nodes"]
 
 # Import formulation 
 formulation_inputs = json_vals["solver"]["formulation"]
-if formulation_inputs == "source-free":
-    formulation = "source_free"
-else:
-    formulation = formulation_inputs
 
 print("\nData processing in progress...\n")
 
 # Iterate over formulations
-for formulation_adjusted in formulation:
+for form in formulation_inputs:
+
+    if form == "source-free":
+        formulation_adjusted = "source_free"
+    else:
+        formulation_adjusted = form
 
     #Iterate over Node Density Files
     for Node in Nodes:

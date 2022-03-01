@@ -101,7 +101,7 @@ formulation_input = json_vals["solver"]["formulation"]
 
 # Identify number of CPU available to work with
 # n_processors = mp.cpu_count()
-n_processors = 16
+n_processors = 8
 
 Arguments = []
 
