@@ -26,7 +26,7 @@ module panel_solver_mod
         real,dimension(3) :: C_F
         real,dimension(:,:),allocatable :: A
         real,dimension(:), allocatable :: b
-        integer :: N, wake_start, N_pressures
+        integer :: N, wake_start, N_cells
         integer,dimension(:),allocatable :: i_cp_sorted
 
         contains
@@ -194,13 +194,13 @@ contains
 
         ! Add original control points
         do i=1,body%N_cp
-            x(i) = -inner(this%freestream%c_hat_g, body%cp(i,:))
+            x(i) = -inner(this%freestream%c_hat_g, body%cp(:,i))
         end do
 
         ! Add mirrored control points
         if (body%asym_flow) then
             do i=1,body%N_cp
-                x(i+body%N_cp) = -inner(this%freestream%c_hat_g, body%cp_mirrored(i,:))
+                x(i+body%N_cp) = -inner(this%freestream%c_hat_g, body%cp_mirrored(:,i))
             end do
         end if
 
@@ -257,7 +257,7 @@ contains
                     vert_loc = body%vertices(i)%loc
 
                     ! Original vertex and original control point
-                    this%verts_in_dod(i,j) = this%freestream%point_in_dod(vert_loc, body%cp(j,:))
+                    this%verts_in_dod(i,j) = this%freestream%point_in_dod(vert_loc, body%cp(:,j))
 
                     if (body%mirrored) then
 
@@ -265,16 +265,16 @@ contains
 
                         ! Mirrored vertex and original control point
                         this%verts_in_dod(i+body%N_verts,j) = this%freestream%point_in_dod(mirrored_vert_loc, &
-                                                                                           body%cp(j,:))
+                                                                                           body%cp(:,j))
 
                         if (body%asym_flow) then
 
                             ! Original vertex and mirrored control point
-                            this%verts_in_dod(i,j+body%N_cp) = this%freestream%point_in_dod(vert_loc, body%cp_mirrored(j,:))
+                            this%verts_in_dod(i,j+body%N_cp) = this%freestream%point_in_dod(vert_loc, body%cp_mirrored(:,j))
 
                             ! Mirrored vertex and mirrored control point
                             this%verts_in_dod(i+body%N_verts,j+body%N_cp) = this%freestream%point_in_dod(mirrored_vert_loc, &
-                                                                                                         body%cp_mirrored(j,:))
+                                                                                                         body%cp_mirrored(:,j))
 
                         end if
                     end if
@@ -286,21 +286,21 @@ contains
                     vert_loc = body%wake%vertices(i)%loc
 
                     ! Original vertex and original control point
-                    this%wake_verts_in_dod(i,j) = this%freestream%point_in_dod(vert_loc, body%cp(j,:))
+                    this%wake_verts_in_dod(i,j) = this%freestream%point_in_dod(vert_loc, body%cp(:,j))
 
                     if (body%mirrored) then
 
                         if (body%asym_flow) then
 
                             ! Original vertex and mirrored control point
-                            this%wake_verts_in_dod(i,j+body%N_cp) = this%freestream%point_in_dod(vert_loc, body%cp_mirrored(j,:))
+                            this%wake_verts_in_dod(i,j+body%N_cp) = this%freestream%point_in_dod(vert_loc, body%cp_mirrored(:,j))
 
                         else
 
                             ! Mirrored vertex and original control point
                             mirrored_vert_loc = mirror_about_plane(vert_loc, body%mirror_plane)
                             this%wake_verts_in_dod(i+body%wake%N_verts,j) = this%freestream%point_in_dod(mirrored_vert_loc, &
-                                                                                                         body%cp(j,:))
+                                                                                                         body%cp(:,j))
                         end if
                     end if
                 end do
@@ -311,23 +311,23 @@ contains
             do i=1,body%N_panels
 
                 ! Original panel and original control point
-                this%dod_info(i,j) = body%panels(i)%check_dod(body%cp(j,:), this%freestream, this%verts_in_dod(:,j))
+                this%dod_info(i,j) = body%panels(i)%check_dod(body%cp(:,j), this%freestream, this%verts_in_dod(:,j))
 
                 if (body%mirrored) then
 
                     ! Check DoD for mirrored panel and original control point
-                    this%dod_info(i+body%N_panels,j) = body%panels(i)%check_dod(body%cp(j,:), this%freestream, &
+                    this%dod_info(i+body%N_panels,j) = body%panels(i)%check_dod(body%cp(:,j), this%freestream, &
                                                                                 this%verts_in_dod(:,j), &
                                                                                 .true., body%mirror_plane)
                     
                     if (body%asym_flow) then
 
                         ! Check DoD for original panel and mirrored control point
-                        this%dod_info(i,j+body%N_cp) = body%panels(i)%check_dod(body%cp_mirrored(j,:), this%freestream, &
+                        this%dod_info(i,j+body%N_cp) = body%panels(i)%check_dod(body%cp_mirrored(:,j), this%freestream, &
                                                                                 this%verts_in_dod(:,j+body%N_cp))
 
                         ! Check DoD for mirrored panel and mirrored control point
-                        this%dod_info(i+body%N_panels,j+body%N_cp) = body%panels(i)%check_dod(body%cp_mirrored(j,:), &
+                        this%dod_info(i+body%N_panels,j+body%N_cp) = body%panels(i)%check_dod(body%cp_mirrored(:,j), &
                                                                                               this%freestream, &
                                                                                               this%verts_in_dod(:,j+body%N_cp), &
                                                                                               .true., body%mirror_plane)
@@ -340,20 +340,20 @@ contains
             do i=1,body%wake%N_panels
 
                 ! Check DoD for panel and original control point
-                this%wake_dod_info(i,j) = body%wake%panels(i)%check_dod(body%cp(j,:), this%freestream, this%wake_verts_in_dod(:,j))
+                this%wake_dod_info(i,j) = body%wake%panels(i)%check_dod(body%cp(:,j), this%freestream, this%wake_verts_in_dod(:,j))
 
                 if (body%mirrored) then
 
                     if (body%asym_flow) then
 
                         ! Check DoD for panel and mirrored control point
-                        this%wake_dod_info(i,j+body%N_cp) = body%wake%panels(i)%check_dod(body%cp_mirrored(j,:), this%freestream, &
+                        this%wake_dod_info(i,j+body%N_cp) = body%wake%panels(i)%check_dod(body%cp_mirrored(:,j), this%freestream, &
                                                                                           this%wake_verts_in_dod(:,j+body%N_cp))
 
                     else
 
                         ! Check DoD for mirrored panel and original control point
-                        this%wake_dod_info(i+body%wake%N_panels,j) = body%wake%panels(i)%check_dod(body%cp(j,:), this%freestream, &
+                        this%wake_dod_info(i+body%wake%N_panels,j) = body%wake%panels(i)%check_dod(body%cp(:,j), this%freestream, &
                                                                                                    this%wake_verts_in_dod(:,j), &
                                                                                                    .true., body%mirror_plane)
 
@@ -497,7 +497,7 @@ contains
             do j=1,body%N_panels
 
                 ! Calculate influence of existing panel on existing control point
-                call body%panels(j)%calc_potentials(body%cp(i,:), this%freestream, this%dod_info(j,i), .false., &
+                call body%panels(j)%calc_potentials(body%cp(:,i), this%freestream, this%dod_info(j,i), .false., &
                                                     source_inf, doublet_inf, i_vert_s, i_vert_d)
 
                 ! Add influence of existing panel on existing control point
@@ -520,7 +520,7 @@ contains
                         ! Recalculate influence of mirrored panel on mirrored control point for compressible flow
                         ! If the flow is symmetric or incompressible, this will be the same as already calculated
                         if (.not. this%freestream%incompressible) then
-                            call body%panels(j)%calc_potentials(body%cp_mirrored(i,:), this%freestream, &
+                            call body%panels(j)%calc_potentials(body%cp_mirrored(:,i), this%freestream, &
                                                                 this%dod_info(j+body%N_panels,i+body%N_cp), .true., &
                                                                 source_inf, doublet_inf, i_vert_s, i_vert_d)
                         end if
@@ -546,7 +546,7 @@ contains
 
                         ! Calculate influence of existing panel on mirrored control point
                         if (body%vertices(i)%mirrored_is_unique .or. this%freestream%incompressible) then
-                            call body%panels(j)%calc_potentials(body%cp_mirrored(i,:), this%freestream, &
+                            call body%panels(j)%calc_potentials(body%cp_mirrored(:,i), this%freestream, &
                                                                 this%dod_info(j,i+body%N_cp), .false., &
                                                                 source_inf, doublet_inf, i_vert_s, i_vert_d)
                         end if
@@ -570,7 +570,7 @@ contains
 
                         ! Recalculate mirrored->existing influences for compressible flow
                         if (.not. this%freestream%incompressible) then
-                            call body%panels(j)%calc_potentials(body%cp(i,:), this%freestream, &
+                            call body%panels(j)%calc_potentials(body%cp(:,i), this%freestream, &
                                                                 this%dod_info(j+body%N_panels,i), .true., source_inf, &
                                                                 doublet_inf, i_vert_s, i_vert_d)
                         end if
@@ -593,7 +593,7 @@ contains
                         ! Calculate influence of existing panel on mirrored control point
                         ! This is the same as the influence of the mirrored panel on the existing control point,
                         ! even for compressible flow, since we know the flow is symmetric here
-                        call body%panels(j)%calc_potentials(body%cp_mirrored(i,:), this%freestream, &
+                        call body%panels(j)%calc_potentials(body%cp_mirrored(:,i), this%freestream, &
                                                             this%dod_info(j+body%N_panels,i), &
                                                             .false., source_inf, doublet_inf, i_vert_s, i_vert_d)
 
@@ -625,13 +625,13 @@ contains
 
                 ! If the control point is unique, it's target potential will need to be set for the source-free formulation
                 else if (.not. morino) then
-                    this%b(i+body%N_cp) = -inner(body%cp_mirrored(i,:), this%freestream%c_hat_g)
+                    this%b(i+body%N_cp) = -inner(body%cp_mirrored(:,i), this%freestream%c_hat_g)
                 end if
             end if
 
             ! Set target potential for source-free formulation
             if (.not. morino) then
-                this%b(i) = -inner(body%cp(i,:), this%freestream%c_hat_g)
+                this%b(i) = -inner(body%cp(:,i), this%freestream%c_hat_g)
             end if
 
         end do
@@ -672,7 +672,7 @@ contains
                 do j=1,body%wake%N_panels
 
                     ! Caclulate influence of existing panel on existing control point
-                    call body%wake%panels(j)%calc_potentials(body%cp(i,:), this%freestream, &
+                    call body%wake%panels(j)%calc_potentials(body%cp(:,i), this%freestream, &
                                                              this%wake_dod_info(j,i), .false., &
                                                              source_inf, doublet_inf, i_vert_s, i_vert_d)
 
@@ -689,7 +689,7 @@ contains
                         if (body%asym_flow) then
 
                             ! Calculate influence of existing panel on mirrored point
-                            call body%wake%panels(j)%calc_potentials(body%cp_mirrored(i,:), this%freestream, &
+                            call body%wake%panels(j)%calc_potentials(body%cp_mirrored(:,i), this%freestream, &
                                                                      this%wake_dod_info(j,i+body%N_cp), .false., &
                                                                      source_inf, doublet_inf, i_vert_s, i_vert_d)
 
@@ -706,7 +706,7 @@ contains
 
                             ! Calculate influence of existing panel on mirrored control point
                             ! This is the same as the influence of a mirrored panel on an existing control point
-                            call body%wake%panels(j)%calc_potentials(body%cp_mirrored(i,:), this%freestream, &
+                            call body%wake%panels(j)%calc_potentials(body%cp_mirrored(:,i), this%freestream, &
                                                                      this%wake_dod_info(j+body%wake%N_panels,i), .true., & ! No, this is not the DoD for this computation; yes, it is equivalent
                                                                      source_inf, doublet_inf, i_vert_s, i_vert_d)
 
@@ -814,64 +814,51 @@ contains
         class(panel_solver),intent(inout) :: this
         type(surface_mesh),intent(inout) :: body
 
-        integer :: i, N_vels, stat
+        integer :: i, stat
 
         write(*,'(a)',advance='no') "     Calculating surface velocities..."
 
-        ! Determine surface velocities
+        ! Allocate velocity storage
         if (body%asym_flow) then
+            this%N_cells = body%N_panels*2
+        else
+            this%N_cells = body%N_panels
+        end if
+        allocate(body%V(3,this%N_cells), stat=stat)
+        call check_allocation(stat, "surface velocity vectors")
 
-            ! Allocate velocity storage
-            N_vels = body%N_panels*2
-            allocate(body%V(N_vels,3), stat=stat)
-            call check_allocation(stat, "surface velocity vectors")
+        ! Calculate the surface velocity on each existing panel
+        do i=1,body%N_panels
 
-            ! Calculate the surface velocity on each panel
+            ! For the Morino formulation, the velocity jump is that of the perturbation velocity
+            if (this%formulation == "morino") then
+                body%V(:,i) = this%freestream%U*(this%freestream%c_hat_g + body%panels(i)%get_velocity_jump(body%mu, &
+                              body%sigma, .false., body%mirror_plane))
+            
+            ! For the source-free formulation, the velocity jump is that of the total velocity
+            else
+                body%V(:,i) = this%freestream%U*body%panels(i)%get_velocity_jump(body%mu, body%sigma, &
+                                                                                 .false., body%mirror_plane)
+
+            end if
+
+        end do
+
+        ! Calculate surface velocity on each mirrored panel
+        if (body%asym_flow) then
             do i=1,body%N_panels
 
                 if (this%formulation == "morino") then
-
-                    ! Original panel
-                    body%V(i,:) = this%freestream%U*(this%freestream%c_hat_g + body%panels(i)%get_velocity_jump(body%mu, &
-                                  body%sigma, .false., body%mirror_plane))
-
-                    ! Mirror
-                    body%V(i+body%N_panels,:) = this%freestream%U*(this%freestream%c_hat_g + &
+                    body%V(:,i+body%N_panels) = this%freestream%U*(this%freestream%c_hat_g + &
                                                 body%panels(i)%get_velocity_jump(body%mu, body%sigma, .true., body%mirror_plane))
                 
                 else
-
-                    ! Original panel
-                    body%V(i,:) = this%freestream%U*body%panels(i)%get_velocity_jump(body%mu, body%sigma, &
-                                                                                     .false., body%mirror_plane)
-
-                    ! Mirror
-                    body%V(i+body%N_panels,:) = this%freestream%U*body%panels(i)%get_velocity_jump(body%mu, body%sigma, &
+                    body%V(:,i+body%N_panels) = this%freestream%U*body%panels(i)%get_velocity_jump(body%mu, body%sigma, &
                                                                                               .true., body%mirror_plane)
 
                 end if
 
             end do
-
-        else
-
-            ! Allocate velocity storage
-            N_vels = body%N_panels
-            allocate(body%V(N_vels,3), stat=stat)
-            call check_allocation(stat, "surface velocity vectors")
-
-            ! Calculate the surface velocity on each panel
-            if (this%formulation == "morino") then
-                do i=1,body%N_panels
-                    body%V(i,:) = this%freestream%U*(this%freestream%c_hat_g &
-                                  + body%panels(i)%get_velocity_jump(body%mu, body%sigma, .false., 0))
-                end do
-            else
-                do i=1,body%N_panels
-                    body%V(i,:) = this%freestream%U*body%panels(i)%get_velocity_jump(body%mu, body%sigma, .false., 0)
-                end do
-            end if
-
         end if
         write(*,*) "Done."
 
@@ -891,7 +878,7 @@ contains
         real :: a, b, c, C_p_vac
 
         write(*,'(a)',advance='no') "     Calculating surface pressures..."
-        this%N_pressures = size(body%V)/3
+        this%N_cells = size(body%V)/3
 
         ! Calculate vacuum pressure coefficient
         C_p_vac = -2./(this%freestream%gamma*this%freestream%M_inf**2)
@@ -900,12 +887,12 @@ contains
         if (this%incompressible_rule) then
 
             ! Allocate storage
-            allocate(body%C_p_inc(this%N_pressures), stat=stat)
+            allocate(body%C_p_inc(this%N_cells), stat=stat)
             call check_allocation(stat, "incompressible surface pressures")
 
             ! Calculate
-            do i=1,this%N_pressures
-                body%C_p_inc(i) = 1.-inner(body%V(i,:), body%V(i,:))*this%freestream%U_inv**2
+            do i=1,this%N_cells
+                body%C_p_inc(i) = 1.-inner(body%V(:,i), body%V(:,i))*this%freestream%U_inv**2
             end do
 
         end if
@@ -919,14 +906,14 @@ contains
             c = this%freestream%gamma/(this%freestream%gamma-1.)
 
             ! Allocate storage
-            allocate(body%C_p_ise(this%N_pressures), stat=stat)
+            allocate(body%C_p_ise(this%N_cells), stat=stat)
             call check_allocation(stat, "isentropic surface pressures")
 
             ! Calculate
-            do i=1,this%N_pressures
+            do i=1,this%N_cells
                 
                 ! Incompressible first
-                body%C_p_ise(i) = 1.-inner(body%V(i,:), body%V(i,:))*this%freestream%U_inv**2
+                body%C_p_ise(i) = 1.-inner(body%V(:,i), body%V(:,i))*this%freestream%U_inv**2
 
                 ! Apply compressible correction
                 body%C_p_ise(i) = a*((1.+b*body%C_p_ise(i))**c - 1.)
@@ -944,14 +931,14 @@ contains
         if (this%second_order_rule) then
 
             ! Allocate storage
-            allocate(body%C_p_2nd(this%N_pressures), stat=stat)
+            allocate(body%C_p_2nd(this%N_cells), stat=stat)
             call check_allocation(stat, "second-order surface pressures")
 
             ! Calculate (E&M Eq. (N..2.43))
-            do i=1,this%N_pressures
+            do i=1,this%N_cells
 
                 ! Get perturbation velocity in the compressible frame
-                V_pert = matmul(this%freestream%A_g_to_c, body%V(i,:)-this%freestream%v_inf)
+                V_pert = matmul(this%freestream%A_g_to_c, body%V(:,i)-this%freestream%v_inf)
 
                 ! Calculate first term
                 body%C_p_2nd(i) = -2.*V_pert(1)*this%freestream%U_inv
@@ -1004,7 +991,7 @@ contains
         write(*,'(a)',advance='no') "     Calculating forces..."
 
         ! Allocate force storage
-        allocate(body%dC_f(this%N_pressures,3), stat=stat)
+        allocate(body%dC_f(3,this%N_cells), stat=stat)
         call check_allocation(stat, "forces")
 
         ! Calculate total forces
@@ -1015,34 +1002,34 @@ contains
             case ('incompressible')
 
                 ! Discrete force coefficient acting on panel
-                body%dC_f(i,:) = -body%C_p_inc(i)*body%panels(i)%A*body%panels(i)%n_g
+                body%dC_f(:,i) = -body%C_p_inc(i)*body%panels(i)%A*body%panels(i)%n_g
 
                 ! Mirror
                 if (body%asym_flow) then
                     n_mirrored = mirror_about_plane(body%panels(i)%n_g, body%mirror_plane)
-                    body%dC_f(i+body%N_panels,:) = -body%C_p_inc(i+body%N_panels)*body%panels(i)%A*n_mirrored
+                    body%dC_f(:,i+body%N_panels) = -body%C_p_inc(i+body%N_panels)*body%panels(i)%A*n_mirrored
                 end if
 
             case ('isentropic')
 
                 ! Discrete force coefficient acting on panel
-                body%dC_f(i,:) = -body%C_p_ise(i)*body%panels(i)%A*body%panels(i)%n_g
+                body%dC_f(:,i) = -body%C_p_ise(i)*body%panels(i)%A*body%panels(i)%n_g
 
                 ! Mirror
                 if (body%asym_flow) then
                     n_mirrored = mirror_about_plane(body%panels(i)%n_g, body%mirror_plane)
-                    body%dC_f(i+body%N_panels,:) = -body%C_p_ise(i+body%N_panels)*body%panels(i)%A*n_mirrored
+                    body%dC_f(:,i+body%N_panels) = -body%C_p_ise(i+body%N_panels)*body%panels(i)%A*n_mirrored
                 end if
 
             case ('second-order')
 
                 ! Discrete force coefficient acting on panel
-                body%dC_f(i,:) = -body%C_p_2nd(i)*body%panels(i)%A*body%panels(i)%n_g
+                body%dC_f(:,i) = -body%C_p_2nd(i)*body%panels(i)%A*body%panels(i)%n_g
 
                 ! Mirror
                 if (body%asym_flow) then
                     n_mirrored = mirror_about_plane(body%panels(i)%n_g, body%mirror_plane)
-                    body%dC_f(i+body%N_panels,:) = -body%C_p_2nd(i+body%N_panels)*body%panels(i)%A*n_mirrored
+                    body%dC_f(:,i+body%N_panels) = -body%C_p_2nd(i+body%N_panels)*body%panels(i)%A*n_mirrored
                 end if
 
             end select
@@ -1050,7 +1037,7 @@ contains
         end do
 
         ! Sum discrete forces
-        this%C_F(:) = sum(body%dC_f, dim=1)/body%S_ref
+        this%C_F(:) = sum(body%dC_f, dim=2)/body%S_ref
 
         ! Add contributions from mirrored half
         if (body%mirrored .and. .not. body%asym_flow) then

@@ -82,8 +82,8 @@ contains
 
         ! Check
         if (doublet_order /= 1 .or. source_order /= 0) then
-            write(*,*) "    !!! Such distributions are not currently available."
-            write(*,*) "    !!! Defaulting a linear doublet distribution and a constant source distribution."
+            write(*,*) "!!! Such distributions are not currently available."
+            write(*,*) "!!! Defaulting to a linear doublet distribution and a constant source distribution."
             doublet_order = 1
             source_order = 0
         end if
@@ -902,9 +902,7 @@ contains
 
             ! For vertices on the mirror plane, the component normal to the plane should be zeroed
             if (this%mirrored .and. this%vertices(j)%on_mirror_plane) then
-
                 vec_sum(this%mirror_plane) = 0.
-
             end if
 
             ! Normalize and store
@@ -1060,7 +1058,7 @@ contains
             this%N_cp = this%N_verts
 
             ! Allocate memory
-            allocate(this%cp(this%N_verts,3))
+            allocate(this%cp(3,this%N_verts))
 
             ! Calculate offset ratio such that the control point will remain within the body based on the minimum detected wake-shedding angle
             offset_ratio = 0.5*sqrt(0.5*(1.0+this%C_min_panel_angle))
@@ -1088,13 +1086,13 @@ contains
                     sum = sum/norm(sum)
 
                     ! Place control point
-                    this%cp(i,:) = this%vertices(i)%loc &
+                    this%cp(:,i) = this%vertices(i)%loc &
                                                - offset * (this%vertices(i)%n_g - offset_ratio * sum)*this%vertices(i)%l_avg
 
                 ! If it's not in a wake-shedding edge (i.e. has no clone), then placement simply follows the normal vector
                 else
 
-                    this%cp(i,:) = this%vertices(i)%loc-offset*this%vertices(i)%n_g*this%vertices(i)%l_avg
+                    this%cp(:,i) = this%vertices(i)%loc-offset*this%vertices(i)%n_g*this%vertices(i)%l_avg
 
                 end if
 
@@ -1106,11 +1104,11 @@ contains
         if (this%mirrored) then
 
             ! Allocate memory
-            allocate(this%cp_mirrored(this%N_cp, 3))
+            allocate(this%cp_mirrored(3,this%N_cp))
 
             ! Calculate mirrors
             do i=1,this%N_cp
-                this%cp_mirrored(i,:) = mirror_about_plane(this%cp(i,:), this%mirror_plane)
+                this%cp_mirrored(:,i) = mirror_about_plane(this%cp(:,i), this%mirror_plane)
             end do
 
         end if
@@ -1156,8 +1154,8 @@ contains
                 call body_vtk%write_cell_scalars(this%C_p_2nd(1:this%N_panels), "C_p_2nd")
             end if
             call body_vtk%write_cell_scalars(panel_inclinations, "inclination")
-            call body_vtk%write_cell_vectors(this%v(1:this%N_panels,:), "v")
-            call body_vtk%write_cell_vectors(this%dC_f(1:this%N_panels,:), "dC_f")
+            call body_vtk%write_cell_vectors(this%v(:,1:this%N_panels), "v")
+            call body_vtk%write_cell_vectors(this%dC_f(:,1:this%N_panels), "dC_f")
             call body_vtk%write_point_scalars(this%mu(1:this%N_cp), "mu")
             call body_vtk%finish()
 

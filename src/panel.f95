@@ -36,7 +36,7 @@ module panel_mod
         ! Container type for the fundamental integrals used to calculate influence coefficients
 
         real :: H111, H211, H121 ! Source integrals
-        real :: hH113, H213, H123, H313, H223, H133 ! Doublet integrals
+        real :: hH113, H213, H123, H313, H223, H133 ! Doublet integrals; we use hH(1,1,3) because it can be reliably calculated, unlike H(1,1,3)
         real,dimension(:),allocatable :: F111, F211, F121 ! Necessary line integrals
 
     end type integrals
@@ -187,11 +187,11 @@ contains
         integer :: i
 
         ! Determine midpoints
-        allocate(this%midpoints(this%N,3))
+        allocate(this%midpoints(3,this%N))
         do i=1,this%N-1
-            this%midpoints(i,:) = 0.5*(this%get_vertex_loc(i)+this%get_vertex_loc(i+1))
+            this%midpoints(:,i) = 0.5*(this%get_vertex_loc(i)+this%get_vertex_loc(i+1))
         end do
-        this%midpoints(this%N,:) = 0.5*(this%get_vertex_loc(1)+this%get_vertex_loc(this%N))
+        this%midpoints(:,this%N) = 0.5*(this%get_vertex_loc(1)+this%get_vertex_loc(this%N))
 
         ! Calculate normal vec
         call this%calc_normal()
@@ -241,8 +241,8 @@ contains
         real,dimension(3) :: d1, d2
 
         ! Get two chord vectors from midpoints
-        d1 = this%midpoints(2,:)-this%midpoints(1,:)
-        d2 = this%midpoints(3,:)-this%midpoints(2,:)
+        d1 = this%midpoints(:,2)-this%midpoints(:,1)
+        d2 = this%midpoints(:,3)-this%midpoints(:,2)
 
         ! Find normal
         this%n_g = cross(d1, d2)
@@ -398,15 +398,15 @@ contains
         this%J = 1./(freestream%B*sqrt(abs(1.-freestream%M_inf**2*u0(1))))
 
         ! Transform vertex and midpoint coords to ls
-        allocate(this%vertices_ls(this%N,2))
-        allocate(this%midpoints_ls(this%N,2))
+        allocate(this%vertices_ls(2,this%N))
+        allocate(this%midpoints_ls(2,this%N))
         do i=1,this%N
 
             ! Vertices
-            this%vertices_ls(i,:) = matmul(this%A_g_to_ls(1:2,:), this%get_vertex_loc(i)-this%centroid)
+            this%vertices_ls(:,i) = matmul(this%A_g_to_ls(1:2,:), this%get_vertex_loc(i)-this%centroid)
 
             ! Midpoints
-            this%midpoints_ls(i,:) = matmul(this%A_g_to_ls(1:2,:), this%midpoints(i,:)-this%centroid)
+            this%midpoints_ls(:,i) = matmul(this%A_g_to_ls(1:2,:), this%midpoints(:,i)-this%centroid)
 
         end do
 
@@ -442,10 +442,10 @@ contains
         integer :: i, i_next
 
         ! Allocate memory
-        allocate(this%t_hat_g(this%N,3))
-        allocate(this%t_hat_ls(this%N,2))
-        allocate(this%n_hat_g(this%N,3))
-        allocate(this%n_hat_ls(this%N,2))
+        allocate(this%t_hat_g(3,this%N))
+        allocate(this%n_hat_g(3,this%N))
+        allocate(this%t_hat_ls(2,this%N))
+        allocate(this%n_hat_ls(2,this%N))
         allocate(this%b(this%N))
         allocate(this%sqrt_b(this%N))
 
@@ -458,31 +458,31 @@ contains
             d = this%get_vertex_loc(i_next)-this%get_vertex_loc(i)
 
             ! Calculate tangent in global coords
-            this%t_hat_g(i,:) = d/norm(d)
+            this%t_hat_g(:,i) = d/norm(d)
 
             ! Calculate tangent in local scaled coords 
             ! This purposefully does not match E&M Eq. (J.6.43);
             ! This is the formula used in the PAN AIR source code (for subinclined panels)
-            e = this%vertices_ls(i_next,:) - this%vertices_ls(i,:)
-            this%t_hat_ls(i,:) = e/norm2(e)
-            !this%t_hat_ls(i,:) = e/sqrt(abs(this%rs*e(1)**2 + e(2)**2)) ! E&M Eq. (J.6.43)
+            e = this%vertices_ls(:,i_next) - this%vertices_ls(:,i)
+            this%t_hat_ls(:,i) = e/norm2(e)
+            !this%t_hat_ls(:,i) = e/sqrt(abs(this%rs*e(1)**2 + e(2)**2)) ! E&M Eq. (J.6.43)
 
             ! Calculate edge outward normal
-            this%n_hat_g(i,:) = cross(this%t_hat_g(i,:), this%n_g)
+            this%n_hat_g(:,i) = cross(this%t_hat_g(:,i), this%n_g)
 
             ! Calculate edge normal in local scaled coords E&M Eq. (J.6.45)
-            this%n_hat_ls(i,1) = this%t_hat_ls(i,2)
-            this%n_hat_ls(i,2) = -this%t_hat_ls(i,1)
+            this%n_hat_ls(1,i) = this%t_hat_ls(2,i)
+            this%n_hat_ls(2,i) = -this%t_hat_ls(1,i)
 
             ! Calculate edge parameter (Ehlers Eq. (E14))
-            this%b(i) = (this%n_hat_ls(i,1) - this%n_hat_ls(i,2))*(this%n_hat_ls(i,1) + this%n_hat_ls(i,2))
+            this%b(i) = (this%n_hat_ls(1,i) - this%n_hat_ls(2,i))*(this%n_hat_ls(1,i) + this%n_hat_ls(2,i))
             this%sqrt_b(i) = sqrt(abs(this%b(i)))
 
             ! Calculate the edge type parameter (E&M Eq. (J.3.28) or Eq. (J.7.51))
-            this%tau(i) = sqrt(abs(freestream%C_g_inner(this%t_hat_g(i,:), this%t_hat_g(i,:))))
+            this%tau(i) = sqrt(abs(freestream%C_g_inner(this%t_hat_g(:,i), this%t_hat_g(:,i))))
 
             ! Calculate edge type indicator (E&M Eq. (J.6.48)
-            this%q(i) = sign(this%r*this%t_hat_ls(i,1)**2 + freestream%s*this%t_hat_ls(i,2)**2)
+            this%q(i) = sign(this%r*this%t_hat_ls(1,i)**2 + freestream%s*this%t_hat_ls(2,i)**2)
 
         end do
     
@@ -510,8 +510,8 @@ contains
 
                 ! Set values
                 S_mu(:,1) = 1.
-                S_mu(:,2) = this%vertices_ls(:,1)
-                S_mu(:,3) = this%vertices_ls(:,2)
+                S_mu(:,2) = this%vertices_ls(1,:)
+                S_mu(:,3) = this%vertices_ls(2,:)
 
                 ! Invert
                 call matinv(3, S_mu, this%S_mu_inv)
@@ -525,17 +525,17 @@ contains
                 ! Set values
                 S_mu(:,1) = 1.
 
-                S_mu(1:3,2) = this%vertices_ls(:,1)
-                S_mu(1:3,3) = this%vertices_ls(:,2)
-                S_mu(1:3,4) = this%vertices_ls(:,1)**2
-                S_mu(1:3,5) = this%vertices_ls(:,1)*this%vertices_ls(:,2)
-                S_mu(1:3,6) = this%vertices_ls(:,2)**2
+                S_mu(1:3,2) = this%vertices_ls(1,:)
+                S_mu(1:3,3) = this%vertices_ls(2,:)
+                S_mu(1:3,4) = this%vertices_ls(1,:)**2
+                S_mu(1:3,5) = this%vertices_ls(1,:)*this%vertices_ls(2,:)
+                S_mu(1:3,6) = this%vertices_ls(2,:)**2
                 
-                S_mu(4:6,2) = this%midpoints_ls(:,1)
-                S_mu(4:6,3) = this%midpoints_ls(:,2)
-                S_mu(4:6,4) = this%midpoints_ls(:,1)**2
-                S_mu(4:6,5) = this%midpoints_ls(:,1)*this%midpoints_ls(:,2)
-                S_mu(4:6,6) = this%midpoints_ls(:,2)**2
+                S_mu(4:6,2) = this%midpoints_ls(1,:)
+                S_mu(4:6,3) = this%midpoints_ls(2,:)
+                S_mu(4:6,4) = this%midpoints_ls(1,:)**2
+                S_mu(4:6,5) = this%midpoints_ls(1,:)*this%midpoints_ls(2,:)
+                S_mu(4:6,6) = this%midpoints_ls(2,:)**2
 
                 ! Invert
                 call matinv(6, S_mu, this%S_mu_inv)
@@ -556,8 +556,8 @@ contains
 
             ! Set values
             S_sigma(:,1) = 1.
-            S_sigma(:,2) = this%vertices_ls(:,1)
-            S_sigma(:,3) = this%vertices_ls(:,2)
+            S_sigma(:,2) = this%vertices_ls(1,:)
+            S_sigma(:,3) = this%vertices_ls(2,:)
 
             ! Invert
             call matinv(3, S_sigma, this%S_sigma_inv)
@@ -573,17 +573,17 @@ contains
             ! Set values
             S_sigma(:,1) = 1.
 
-            S_sigma(1:3,2) = this%vertices_ls(:,1)
-            S_sigma(1:3,3) = this%vertices_ls(:,2)
-            S_sigma(1:3,4) = this%vertices_ls(:,1)**2
-            S_sigma(1:3,5) = this%vertices_ls(:,1)*this%vertices_ls(:,2)
-            S_sigma(1:3,6) = this%vertices_ls(:,2)**2
+            S_sigma(1:3,2) = this%vertices_ls(1,:)
+            S_sigma(1:3,3) = this%vertices_ls(2,:)
+            S_sigma(1:3,4) = this%vertices_ls(1,:)**2
+            S_sigma(1:3,5) = this%vertices_ls(1,:)*this%vertices_ls(2,:)
+            S_sigma(1:3,6) = this%vertices_ls(2,:)**2
             
-            S_sigma(4:6,2) = this%midpoints_ls(:,1)
-            S_sigma(4:6,3) = this%midpoints_ls(:,2)
-            S_sigma(4:6,4) = this%midpoints_ls(:,1)**2
-            S_sigma(4:6,5) = this%midpoints_ls(:,1)*this%midpoints_ls(:,2)
-            S_sigma(4:6,6) = this%midpoints_ls(:,2)**2
+            S_sigma(4:6,2) = this%midpoints_ls(1,:)
+            S_sigma(4:6,3) = this%midpoints_ls(2,:)
+            S_sigma(4:6,4) = this%midpoints_ls(1,:)**2
+            S_sigma(4:6,5) = this%midpoints_ls(1,:)*this%midpoints_ls(2,:)
+            S_sigma(4:6,6) = this%midpoints_ls(2,:)**2
 
             ! Invert
             call matinv(6, S_sigma, this%S_sigma_inv)
@@ -845,13 +845,13 @@ contains
             i_next = mod(i, this%N) + 1
 
             ! Calculate displacements
-            d_ls = this%vertices_ls(i,:) - geom%P_ls
+            d_ls = this%vertices_ls(:,i) - geom%P_ls
 
             ! Perpendicular distance in plane from evaluation point to edge E&M Eq. (J.6.46) and (J.7.53)
-            geom%a(i) = inner2(d_ls, this%n_hat_ls(i,:)) ! Definition
+            geom%a(i) = inner2(d_ls, this%n_hat_ls(:,i)) ! Definition
 
             ! Integration length on edge to start vertex (E&M Eq. (J.6.47))
-            geom%l1(i) = inner2(d_ls, this%t_hat_ls(i,:))
+            geom%l1(i) = inner2(d_ls, this%t_hat_ls(:,i))
 
             ! Distance from evaluation point to start vertex E&M Eq. (J.8.8)
             geom%R1(i) = sqrt(d_ls(1)**2 + d_ls(2)**2 + geom%h2)
@@ -860,10 +860,10 @@ contains
             geom%g2(i) = geom%a(i)**2 + geom%h2 ! Subsonic version of Ehlers Eq. (E14) and what is used in PAN AIR
 
             ! Displacement from end vertex
-            d_ls = this%vertices_ls(i_next,:) - geom%P_ls
+            d_ls = this%vertices_ls(:,i_next) - geom%P_ls
 
             ! Integration length on edge to end vertex
-            geom%l2(i) = this%rs*d_ls(1)*this%t_hat_ls(i,1) + d_ls(2)*this%t_hat_ls(i,2) ! Definition; same as used in PAN AIR
+            geom%l2(i) = d_ls(1)*this%t_hat_ls(1,i) + d_ls(2)*this%t_hat_ls(2,i) ! Definition; same as used in PAN AIR
 
         end do
 
@@ -899,20 +899,20 @@ contains
                 i_next = mod(i, this%N) + 1
 
                 ! Calculate displacements
-                d_ls = this%vertices_ls(i,:) - geom%P_ls
+                d_ls = this%vertices_ls(:,i) - geom%P_ls
                 d_g = this%get_vertex_loc(i) - geom%P_g
 
                 ! Get vector perpendicular to edge
-                x = cross(d_g, this%t_hat_g(i,:))
+                x = cross(d_g, this%t_hat_g(:,i))
 
                 ! Perpendicular distance in plane from evaluation point to edge E&M Eq. (J.6.46) and (J.7.53)
-                geom%a(i) = inner2(d_ls, this%n_hat_ls(i,:)) ! Definition
+                geom%a(i) = inner2(d_ls, this%n_hat_ls(:,i)) ! Definition
                 !geom%a(i) = this%r*freestream%B/(this%tau(i)*this%iota) * freestream%B_g_inner(this%n_g, x) ! Optimized calculation E&M Eq. (J.7.61)
                 ! The original and optimized calculations match out to precision in some instances, and the only to 1 or 2 sig figs in other cases...
 
                 ! Integration length on edge to start vertex (E&M Eq. (J.6.47))
-                geom%l1(i) = -d_ls(1)*this%t_hat_ls(i,1) + d_ls(2)*this%t_hat_ls(i,2) ! Definition
-                !geom%l1(i) = freestream%s/this%tau(i) * freestream%C_g_inner(this%t_hat_g(i,:), d_g) ! Optimized calculation E&M Eq. (J.7.52)
+                geom%l1(i) = -d_ls(1)*this%t_hat_ls(1,i) + d_ls(2)*this%t_hat_ls(2,i) ! Definition
+                !geom%l1(i) = freestream%s/this%tau(i) * freestream%C_g_inner(this%t_hat_g(:,i), d_g) ! Optimized calculation E&M Eq. (J.7.52)
                 ! Same as a; matching is sporadic
 
                 ! Distance from evaluation point to start vertex E&M Eq. (J.8.8)
@@ -932,11 +932,11 @@ contains
 
                 ! Displacement from end vertex
                 !d_g = this%get_vertex_loc(i_next) - geom%P_g
-                d_ls = this%vertices_ls(i_next,:) - geom%P_ls
+                d_ls = this%vertices_ls(:,i_next) - geom%P_ls
 
                 ! Integration length on edge to end vertex
-                geom%l2(i) = -d_ls(1)*this%t_hat_ls(i,1) + d_ls(2)*this%t_hat_ls(i,2) ! Definition; same as used in supsbi in PAN AIR
-                !geom%l2(i) = freestream%s/this%tau(i) * freestream%C_g_inner(this%t_hat_g(i,:), d_g) ! Optimized calculation E&M Eq. (J.7.52)
+                geom%l2(i) = -d_ls(1)*this%t_hat_ls(1,i) + d_ls(2)*this%t_hat_ls(2,i) ! Definition; same as used in supsbi in PAN AIR
+                !geom%l2(i) = freestream%s/this%tau(i) * freestream%C_g_inner(this%t_hat_g(:,i), d_g) ! Optimized calculation E&M Eq. (J.7.52)
 
                 !! Weird stuff from PAN AIR, about lines 56505-56509
                 !if (geom%R1(i) == 0.) then
@@ -980,14 +980,14 @@ contains
 
         ! Evaluate at start vertex
         if (geom%R1(i) /= 0.) then
-            E1 = ((this%vertices_ls(i,1)-geom%P_ls(1))**(M-1)*(this%vertices_ls(i,2)-geom%P_ls(2))**(N-1))/geom%R1(i)**K
+            E1 = ((this%vertices_ls(1,i)-geom%P_ls(1))**(M-1)*(this%vertices_ls(2,i)-geom%P_ls(2))**(N-1))/geom%R1(i)**K
         else
             E1 = 0.
         end if
 
         ! Evaluate at end vertex
         if (geom%R1(i_next) /= 0.) then
-            E2 = ((this%vertices_ls(i_next,1)-geom%P_ls(1))**(M-1)*(this%vertices_ls(i_next,2)-geom%P_ls(2))**(N-1))/geom%R2(i)**K
+            E2 = ((this%vertices_ls(1,i_next)-geom%P_ls(1))**(M-1)*(this%vertices_ls(2,i_next)-geom%P_ls(2))**(N-1))/geom%R2(i)**K
         else
             E2 = 0.
         end if
@@ -1081,8 +1081,8 @@ contains
             if (dod_info%edges_in_dod(i)) then
 
                 ! Store edge derivs
-                v_xi = this%n_hat_ls(i,1)
-                v_eta = this%n_hat_ls(i,2)
+                v_xi = this%n_hat_ls(1,i)
+                v_eta = this%n_hat_ls(2,i)
 
                 ! Calculate F(1,1,1) (Ehlers Eq. (E22))
 
@@ -1149,8 +1149,8 @@ contains
         real,dimension(:),allocatable :: v_xi, v_eta
 
         ! Get edge normal derivatives
-        allocate(v_xi(this%N), source=this%n_hat_ls(:,1))
-        allocate(v_eta(this%N), source=this%n_hat_ls(:,2))
+        allocate(v_xi(this%N), source=this%n_hat_ls(1,:))
+        allocate(v_eta(this%N), source=this%n_hat_ls(2,:))
 
         ! Calculate hH(1,1,3)
         ! Not close to panel plane
@@ -1224,8 +1224,8 @@ contains
         real,dimension(:),allocatable :: v_xi, v_eta
 
         ! Get edge normal derivatives
-        allocate(v_xi(this%N), source=this%n_hat_ls(:,1))
-        allocate(v_eta(this%N), source=this%n_hat_ls(:,2))
+        allocate(v_xi(this%N), source=this%n_hat_ls(1,:))
+        allocate(v_eta(this%N), source=this%n_hat_ls(2,:))
 
         ! Calculate hH(1,1,3) (Ehlers Eq. (E18))
         int%hH113 = 0.
@@ -1475,8 +1475,8 @@ contains
 
                 ! Source velocity
                 if (source_order == 0) then
-                    v_s(1,1) = this%J*freestream%K_inv*sum(this%n_hat_ls(:,1)*int%F111(:))
-                    v_s(1,2) = this%J*freestream%K_inv*sum(this%n_hat_ls(:,2)*int%F111(:))
+                    v_s(1,1) = this%J*freestream%K_inv*sum(this%n_hat_ls(1,:)*int%F111(:))
+                    v_s(1,2) = this%J*freestream%K_inv*sum(this%n_hat_ls(2,:)*int%F111(:))
                     v_s(1,3) = this%J*freestream%K_inv*int%hH113
                 end if
 
