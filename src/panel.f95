@@ -80,7 +80,6 @@ module panel_mod
         integer,dimension(3) :: q ! Edge type indicator; q=1 -> subsonic, q=-1 -> supersonic
         real :: J ! Local scaled transformation Jacobian
         real :: rs ! Product of the inclination indicator and the flow type indicator
-        real :: iota ! iota = |{n_g, n_g}|^(1/2); this quantity is often reused
 
         contains
 
@@ -372,10 +371,9 @@ contains
 
         ! Other inclination parameters
         this%rs = this%r*freestream%s
-        this%iota = sqrt(abs(x))
 
         ! Calculate transformation
-        y = 1./this%iota
+        y = 1./sqrt(abs(x))
         this%A_g_to_ls(1,:) = y*matmul(freestream%C_mat_g, u0)
         this%A_g_to_ls(2,:) = this%rs/freestream%B*matmul(freestream%C_mat_g, v0)
         this%A_g_to_ls(3,:) = freestream%B*y*this%n_g
@@ -908,7 +906,8 @@ contains
 
                 ! Perpendicular distance in plane from evaluation point to edge E&M Eq. (J.6.46) and (J.7.53)
                 geom%a(i) = inner2(d_ls, this%n_hat_ls(:,i)) ! Definition
-                !geom%a(i) = this%r*freestream%B/(this%tau(i)*this%iota) * freestream%B_g_inner(this%n_g, x) ! Optimized calculation E&M Eq. (J.7.61)
+                !geom%a(i) = this%r*freestream%B/(this%tau(i)*sqrt(abs(inner(this%n_g, this%nu_g)))) * freestream%B_g_inner(this%n_g, x) ! Optimized calculation E&M Eq. (J.7.61)
+        
                 ! The original and optimized calculations match out to precision in some instances, and the only to 1 or 2 sig figs in other cases...
 
                 ! Integration length on edge to start vertex (E&M Eq. (J.6.47))
