@@ -1009,33 +1009,8 @@ contains
         type(flow),intent(in) :: freestream
         type(integrals),intent(inout) :: int
 
-        real :: dF
-        real,dimension(this%N) :: min_dist_to_edge
-        integer :: i, i_next
+        integer :: i
         
-        ! Calculate minimum distance to perimeter of S
-        do i=1,this%N
-
-            i_next = mod(i, this%N) + 1
-
-            ! Within edge, the minimum distance is the perpendicular distance
-            if (sign(geom%l1(i)) /= sign(geom%l2(i))) then
-                min_dist_to_edge(i) = sqrt(geom%g2(i))
-        
-            ! Otherwise, it is the minimum of the distances to the corners
-            else
-                min_dist_to_edge(i) = min(geom%R1(i), geom%R2(i))
-            end if
-
-        end do
-        dF = minval(min_dist_to_edge)
-
-        ! Check for point on perimeter
-        if (abs(dF) < 1e-12) then
-            write(*,*) "Detected control point on perimeter of panel. Quitting..."
-            stop
-        end if
-
         ! Allocate storage
         allocate(int%F111(this%N))
 
@@ -1045,11 +1020,28 @@ contains
             ! Calculate F(1,1,1)
             ! Within edge (Johnson Eq. (D.60))
             if (sign(geom%l1(i)) /= sign(geom%l2(i))) then
+
+                ! Check for point on perimeter
+                if(sqrt(geom%g2(i)) < 1e-12) then
+                    write(*,*) "Detected control point on perimeter of panel. Quitting..."
+                    stop
+                end if
+
+                ! Calculate
                 int%F111(i) = log( ( (geom%R1(i) - geom%l1(i)) * (geom%R2(i) + geom%l2(i)) ) / geom%g2(i) )
 
             ! Above or below edge; this is a unified form of Johnson Eq. (D.60)
             else
+
+                ! Check for point on perimeter
+                if (min(geom%R1(i), geom%R2(i)) < 1e-12) then
+                    write(*,*) "Detected control point on perimeter of panel. Quitting..."
+                    stop
+                end if
+
+                ! Calculate
                 int%F111(i) = sign(geom%l1(i)) * log( (geom%R2(i) + abs(geom%l2(i))) / (geom%R1(i) + abs(geom%l1(i))) )
+
             end if
 
         end do
@@ -1267,7 +1259,7 @@ contains
         end if
 
         ! Calculate H(1,1,1) (Ehlers Eq. (E9))
-        int%H111 = 1./3.*(geom%h*int%hH113 - sum(geom%a*int%F111))
+        int%H111 = ( geom%h*int%hH113 - sum(geom%a*int%F111) ) / 3.
 
         ! Calculate H(2,1,3) (Ehlers Eq. (E5))
         int%H213 = sum(v_xi*int%F111)
