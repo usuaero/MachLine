@@ -10,45 +10,45 @@ if __name__=="__main__":
     M = 2.0
     c_inf = 500.0
     gamma = 1.4
-    alpha = 2.0
+    alpha = 0.0
 
-    # Declare MachLine input
-    input_dict = {
-        "flow": {
-            "freestream_velocity": [M*c_inf*np.cos(np.radians(alpha)), 0.0, M*c_inf*np.cos(np.radians(alpha))],
-            "gamma" : gamma,
-            "freestream_mach_number" : M
-        },
-        "geometry": {
-            "file": "dev/meshes/diamond_5_deg_coarse.vtk",
-            "mirror_about": "xz",
-            "spanwise_axis" : "+y",
-            "wake_model": {
-                "append_wake" : False,
-            },
-            "reference": {
-                "area": 1.0
-            }
-        },
-        "solver": {
-            "formulation": "morino",
-            "control_point_offset": 1.1e-05,
-            "influence_calculations" : "epton-magnus"
-        },
-        "output": {
-            "body_file": "dev/results/diamond_5_deg_coarse.vtk"
-        }
-    }
+    ## Declare MachLine input
+    #input_dict = {
+    #    "flow": {
+    #        "freestream_velocity": [M*c_inf*np.cos(np.radians(alpha)), 0.0, M*c_inf*np.cos(np.radians(alpha))],
+    #        "gamma" : gamma,
+    #        "freestream_mach_number" : M
+    #    },
+    #    "geometry": {
+    #        "file": "dev/meshes/diamond_5_deg_coarse.vtk",
+    #        "mirror_about": "xz",
+    #        "spanwise_axis" : "+y",
+    #        "wake_model": {
+    #            "append_wake" : False,
+    #        },
+    #        "reference": {
+    #            "area": 1.0
+    #        }
+    #    },
+    #    "solver": {
+    #        "formulation": "morino",
+    #        "control_point_offset": 1.1e-05,
+    #        "influence_calculations" : "epton-magnus"
+    #    },
+    #    "output": {
+    #        "body_file": "dev/results/diamond_5_deg_coarse.vtk"
+    #    }
+    #}
 
-    # Dump
-    input_file = "dev/diamond_input.json"
-    with open(input_file, 'w') as input_handle:
-        json.dump(input_dict, input_handle, indent=4)
+    ## Dump
+    #input_file = "dev/diamond_input.json"
+    #with open(input_file, 'w') as input_handle:
+    #    json.dump(input_dict, input_handle, indent=4)
 
-    # Run
-    sp.run(["./machline.exe", input_file])
+    ## Run
+    #sp.run(["./machline.exe", input_file])
     
-    # Run shock-expansion comparison
+    ## Run shock-expansion comparison
     rho = 1.225
     p_inf = 1.0e5
     airfoil = fl.DiamondAirfoil(5.0, 1.0)
