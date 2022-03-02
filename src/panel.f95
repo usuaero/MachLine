@@ -1262,10 +1262,10 @@ contains
         int%H111 = ( geom%h*int%hH113 - sum(geom%a*int%F111) ) !/ 3.
 
         ! Calculate H(2,1,3) (Ehlers Eq. (E5))
-        int%H213 = sum(v_xi*int%F111)
+        int%H213 = -sum(v_xi*int%F111)
 
         ! Calculate H(1,2,3) (Ehlers Eq. (E6))
-        int%H123 = -sum(v_eta*int%F111)
+        int%H123 = sum(v_eta*int%F111)
 
         ! Clean up
         deallocate(v_xi)
@@ -1372,16 +1372,26 @@ contains
 
                 ! Source potential
                 if (source_order == 0) then
-                    phi_s = -this%J*freestream%K_inv*int%H111
+                    if (freestream%supersonic) then
+                        phi_s = -this%J*freestream%K_inv*int%H111
+                    else
+                        phi_s = -this%J*freestream%K_inv*int%H111
+                    end if
                 end if
 
                 ! Doublet potential
                 if (doublet_order == 1) then
 
                     ! Compute induced potential (Johnson Eq. (D.30); Ehlers Eq. (5.17))
-                    phi_d(1) = int%hH113
-                    phi_d(2) = int%hH113*geom%P_ls(1) + geom%h*int%H213
-                    phi_d(3) = int%hH113*geom%P_ls(2) + geom%h*int%H123
+                    if (freestream%supersonic) then
+                        phi_d(1) = int%hH113
+                        phi_d(2) = int%hH113*geom%P_ls(1) - geom%h*int%H213
+                        phi_d(3) = int%hH113*geom%P_ls(2) - geom%h*int%H123
+                    else
+                        phi_d(1) = int%hH113
+                        phi_d(2) = int%hH113*geom%P_ls(1) + geom%h*int%H213
+                        phi_d(3) = int%hH113*geom%P_ls(2) + geom%h*int%H123
+                    end if
 
                     ! Convert to vertex influences (Davis Eq. (4.41))
                     phi_d(1:3) = freestream%K_inv*matmul(phi_d(1:3), this%S_mu_inv)
