@@ -1259,7 +1259,7 @@ contains
         end if
 
         ! Calculate H(1,1,1) (Ehlers Eq. (E9))
-        int%H111 = ( geom%h*int%hH113 - sum(geom%a*int%F111) ) / 3.
+        int%H111 = ( geom%h*int%hH113 - sum(geom%a*int%F111) ) !/ 3.
 
         ! Calculate H(2,1,3) (Ehlers Eq. (E5))
         int%H213 = sum(v_xi*int%F111)

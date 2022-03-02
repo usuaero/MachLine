@@ -1,15 +1,15 @@
 {
     "flow": {
         "freestream_velocity": [
-            694.0245403133575,
+            694.4475790151479,
             0.0,
-            24.235870993898935
+            0.0
         ],
         "gamma": 1.4,
         "freestream_mach_number": 2.0
     },
     "geometry": {
-        "file": "dev/meshes/diamond_5_deg_full_medium.stl",
+        "file": "dev/meshes/diamond_5_deg_full_fine.stl",
         "spanwise_axis": "+y",
         "wake_model": {
             "append_wake": false
@@ -29,7 +29,7 @@
         }
     },
     "output": {
-        "body_file": "dev/results/diamond_5_deg_full_medium.vtk",
-        "control_point_file": "dev/results/diamond_5_deg_full_medium_control_points.vtk"
+        "body_file": "dev/results/diamond_5_deg_full_fine.vtk",
+        "control_point_file": "dev/results/diamond_5_deg_full_fine_control_points.vtk"
     }
 }

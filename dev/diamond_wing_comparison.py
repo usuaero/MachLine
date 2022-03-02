@@ -17,7 +17,7 @@ if __name__=="__main__":
     alpha = 0.0
     rho = 1.225
     p_inf = 1.0e5
-    grid = "medium" # coarse, medium, fine, ultra_fine
+    grid = "fine" # coarse, medium, fine, ultra_fine
 
     # Declare MachLine input
     body_file = "dev/results/diamond_5_deg_full_{0}.vtk".format(grid)
@@ -104,8 +104,8 @@ if __name__=="__main__":
     
     # Plot data from MachLine
     plt.figure()
-    plt.plot(data[:,2], data[:,0], label='MachLine 2nd-order')
-    plt.plot(data[:,2], data[:,1], label='MachLine Isentropic')
+    plt.plot(data[:,2], data[:,0], 'ks-', label='MachLine 2nd-order')
+    plt.plot(data[:,2], data[:,1], 'kv-', label='MachLine Isentropic')
 
     # Plot data from shock-expansion theory
     x = np.linspace(0.0, 1.0, 100)
@@ -115,8 +115,8 @@ if __name__=="__main__":
     Cp_lower = np.ones_like(x)
     Cp_lower[:50] *= Cp2
     Cp_lower[50:] *= Cp4
-    plt.plot(x, Cp_upper, label='S-E Upper')
-    plt.plot(x, Cp_lower, label='S-E Lower')
+    plt.plot(x, Cp_upper, 'k--', label='S-E Upper')
+    plt.plot(x, Cp_lower, 'k-.', label='S-E Lower')
 
     # Format
     plt.xlabel('$x$')
