@@ -393,7 +393,6 @@ contains
         end if
 
         ! Calculate Jacobian
-        u0 = matmul(freestream%A_g_to_c, this%n_g)
         this%J = 1./(freestream%B*sqrt(abs(1.-freestream%M_inf**2*inner(freestream%c_hat_g, this%n_g)**2)))
 
         ! Transform vertex and midpoint coords to ls
@@ -1148,8 +1147,7 @@ contains
         ! Not close to panel plane
         if (abs(geom%h) > 1e-12) then ! The nonzero h check seems to be more reliable than that proposed by Johnson
 
-            ! Calculate H(1,1,1) and hH(1,1,3) (Johnson Eqs. (D.41) and (G.24))
-            int%H111 = 0.
+            ! Calculate and hH(1,1,3) (Johnson Eqs. (D.41) and (G.24))
             int%hH113 = 0.
             do i=1,this%N
 
@@ -1161,14 +1159,10 @@ contains
                 S = geom%a(i)*(geom%l2(i)*c1 - geom%l1(i)*c2)
                 C = c1*c2 + geom%a(i)**2*geom%l1(i)*geom%l2(i)
                 x = atan2(S, C)
-                int%H111 = int%H111 + x
                 int%hH113 = int%hH113 + x
         
             end do
         
-            ! Add line integrals
-            int%H111 = -abs(geom%h)*int%H111 + sum(geom%a*int%F111)
-
             ! Calculate hH(1,1,3) (Johnson Eq. (D.42)
             int%hH113 = sign(geom%h)*int%hH113
 
@@ -1262,10 +1256,10 @@ contains
         int%H111 = ( geom%h*int%hH113 - sum(geom%a*int%F111) ) !/ 3.
 
         ! Calculate H(2,1,3) (Ehlers Eq. (E5))
-        int%H213 = -sum(v_xi*int%F111)
+        int%H213 = sum(v_xi*int%F111)
 
         ! Calculate H(1,2,3) (Ehlers Eq. (E6))
-        int%H123 = sum(v_eta*int%F111)
+        int%H123 = -sum(v_eta*int%F111)
 
         ! Clean up
         deallocate(v_xi)
@@ -1380,8 +1374,8 @@ contains
 
                     ! Compute induced potential (Johnson Eq. (D.30); Ehlers Eq. (5.17))
                     phi_d(1) = int%hH113
-                    phi_d(2) = int%hH113*geom%P_ls(1) + this%rs*geom%h*int%H213
-                    phi_d(3) = int%hH113*geom%P_ls(2) + this%rs*geom%h*int%H123
+                    phi_d(2) = int%hH113*geom%P_ls(1) + geom%h*int%H213
+                    phi_d(3) = int%hH113*geom%P_ls(2) + geom%h*int%H123
 
                     ! Convert to vertex influences (Davis Eq. (4.41))
                     phi_d(1:3) = freestream%K_inv*matmul(phi_d(1:3), this%S_mu_inv)
