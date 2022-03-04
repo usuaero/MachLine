@@ -394,7 +394,7 @@ contains
 
         ! Calculate Jacobian
         u0 = matmul(freestream%A_g_to_c, this%n_g)
-        this%J = 1./(freestream%B*sqrt(abs(1.-freestream%M_inf**2*u0(1))))
+        this%J = 1./(freestream%B*sqrt(abs(1.-freestream%M_inf**2*inner(freestream%c_hat_g, this%n_g)**2)))
 
         ! Transform vertex and midpoint coords to ls
         allocate(this%vertices_ls(2,this%N))
@@ -1372,26 +1372,16 @@ contains
 
                 ! Source potential
                 if (source_order == 0) then
-                    if (freestream%supersonic) then
-                        phi_s = -this%J*freestream%K_inv*int%H111
-                    else
-                        phi_s = -this%J*freestream%K_inv*int%H111
-                    end if
+                    phi_s = -this%J*freestream%K_inv*int%H111
                 end if
 
                 ! Doublet potential
                 if (doublet_order == 1) then
 
                     ! Compute induced potential (Johnson Eq. (D.30); Ehlers Eq. (5.17))
-                    if (freestream%supersonic) then
-                        phi_d(1) = int%hH113
-                        phi_d(2) = int%hH113*geom%P_ls(1) - geom%h*int%H213
-                        phi_d(3) = int%hH113*geom%P_ls(2) - geom%h*int%H123
-                    else
-                        phi_d(1) = int%hH113
-                        phi_d(2) = int%hH113*geom%P_ls(1) + geom%h*int%H213
-                        phi_d(3) = int%hH113*geom%P_ls(2) + geom%h*int%H123
-                    end if
+                    phi_d(1) = int%hH113
+                    phi_d(2) = int%hH113*geom%P_ls(1) + this%rs*geom%h*int%H213
+                    phi_d(3) = int%hH113*geom%P_ls(2) + this%rs*geom%h*int%H123
 
                     ! Convert to vertex influences (Davis Eq. (4.41))
                     phi_d(1:3) = freestream%K_inv*matmul(phi_d(1:3), this%S_mu_inv)
