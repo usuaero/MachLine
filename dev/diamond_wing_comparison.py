@@ -17,7 +17,7 @@ if __name__=="__main__":
     alpha = 2.0
     rho = 1.225
     p_inf = 1.0e5
-    grid = "medium" # coarse, medium, fine, ultra_fine
+    grid = "fine" # coarse, medium, fine, ultra_fine
 
     # Declare MachLine input
     body_file = "dev/results/diamond_5_deg_full_{0}.vtk".format(grid)
