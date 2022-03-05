@@ -525,25 +525,27 @@ contains
 
                         ! Recalculate influence of mirrored panel on mirrored control point for compressible flow
                         ! If the flow is symmetric or incompressible, this will be the same as already calculated
-                        if (.not. this%freestream%incompressible) then
-                            call body%panels(j)%calc_potentials(body%cp_mirrored(:,i), this%freestream, &
-                                                                this%dod_info(j+body%N_panels,i+body%N_cp), .true., &
-                                                                source_inf, doublet_inf, i_vert_s, i_vert_d)
-                        end if
-
-                        ! Add influence of mirrored panel on mirrored control point
-                        if (morino) then
-                            if (source_order == 0) then
-                                body%phi_cp_sigma(i+body%N_cp) = body%phi_cp_sigma(i+body%N_cp) &
-                                                                 + source_inf(1)*body%sigma(j+body%N_panels)
+                        if (this%dod_info(j+body%N_panels,i+body%N_cp)%in_dod) then
+                            if (.not. this%freestream%incompressible) then
+                                call body%panels(j)%calc_potentials(body%cp_mirrored(:,i), this%freestream, &
+                                                                    this%dod_info(j+body%N_panels,i+body%N_cp), .true., &
+                                                                    source_inf, doublet_inf, i_vert_s, i_vert_d)
                             end if
-                        end if
 
-                        if (doublet_order == 1) then
-                            do k=1,size(i_vert_d)
-                                this%A(i+body%N_cp,i_vert_d(k)+body%N_cp) = this%A(i+body%N_cp,i_vert_d(k)+body%N_cp) &
-                                                                                 + doublet_inf(k)
-                            end do
+                            ! Add influence of mirrored panel on mirrored control point
+                            if (morino) then
+                                if (source_order == 0) then
+                                    body%phi_cp_sigma(i+body%N_cp) = body%phi_cp_sigma(i+body%N_cp) &
+                                                                     + source_inf(1)*body%sigma(j+body%N_panels)
+                                end if
+                            end if
+
+                            if (doublet_order == 1) then
+                                do k=1,size(i_vert_d)
+                                    this%A(i+body%N_cp,i_vert_d(k)+body%N_cp) = this%A(i+body%N_cp,i_vert_d(k)+body%N_cp) &
+                                                                                     + doublet_inf(k)
+                                end do
+                            end if
                         end if
 
                     end if
@@ -551,47 +553,52 @@ contains
                     if (body%asym_flow) then
 
                         ! Calculate influence of existing panel on mirrored control point
-                        if (body%vertices(i)%mirrored_is_unique .or. this%freestream%incompressible) then
-                            call body%panels(j)%calc_potentials(body%cp_mirrored(:,i), this%freestream, &
-                                                                this%dod_info(j,i+body%N_cp), .false., &
-                                                                source_inf, doublet_inf, i_vert_s, i_vert_d)
+                        if (this%dod_info(j,i+body%N_cp)%in_dod) then
+                            if (body%vertices(i)%mirrored_is_unique .or. this%freestream%incompressible) then
+                                call body%panels(j)%calc_potentials(body%cp_mirrored(:,i), this%freestream, &
+                                                                    this%dod_info(j,i+body%N_cp), .false., &
+                                                                    source_inf, doublet_inf, i_vert_s, i_vert_d)
+                            end if
+
+                            ! Add influence of existing panel on mirrored control point
+                            if (body%vertices(i)%mirrored_is_unique) then
+
+                                if (morino) then
+                                    if (source_order == 0) then
+                                        body%phi_cp_sigma(i+body%N_cp) = body%phi_cp_sigma(i+body%N_cp) &
+                                                                         + source_inf(1)*body%sigma(j)
+                                    end if
+                                end if
+
+                                if (doublet_order == 1) then
+                                    do k=1,size(i_vert_d)
+                                        this%A(i+body%N_cp,i_vert_d(k)) = this%A(i+body%N_cp,i_vert_d(k)) + doublet_inf(k)
+                                    end do
+                                end if
+
+                            end if
                         end if
 
-                        ! Add influence of existing panel on mirrored control point
-                        if (body%vertices(i)%mirrored_is_unique) then
+                        ! Recalculate mirrored->existing influences for compressible flow
+                        if (this%dod_info(j+body%N_panels,i)%in_dod) then
+                            if (.not. this%freestream%incompressible) then
+                                call body%panels(j)%calc_potentials(body%cp(:,i), this%freestream, &
+                                                                    this%dod_info(j+body%N_panels,i), .true., source_inf, &
+                                                                    doublet_inf, i_vert_s, i_vert_d)
+                            end if
 
+                            ! Add influence of mirrored panel on existing control point
                             if (morino) then
                                 if (source_order == 0) then
-                                    body%phi_cp_sigma(i+body%N_cp) = body%phi_cp_sigma(i+body%N_cp) + source_inf(1)*body%sigma(j)
+                                    body%phi_cp_sigma(i) = body%phi_cp_sigma(i) + source_inf(1)*body%sigma(j+body%N_panels)
                                 end if
                             end if
 
                             if (doublet_order == 1) then
                                 do k=1,size(i_vert_d)
-                                    this%A(i+body%N_cp,i_vert_d(k)) = this%A(i+body%N_cp,i_vert_d(k)) + doublet_inf(k)
+                                    this%A(i,i_vert_d(k)+body%N_cp) = this%A(i,i_vert_d(k)+body%N_cp) + doublet_inf(k)
                                 end do
                             end if
-
-                        end if
-
-                        ! Recalculate mirrored->existing influences for compressible flow
-                        if (.not. this%freestream%incompressible) then
-                            call body%panels(j)%calc_potentials(body%cp(:,i), this%freestream, &
-                                                                this%dod_info(j+body%N_panels,i), .true., source_inf, &
-                                                                doublet_inf, i_vert_s, i_vert_d)
-                        end if
-
-                        ! Add influence of mirrored panel on existing control point
-                        if (morino) then
-                            if (source_order == 0) then
-                                body%phi_cp_sigma(i) = body%phi_cp_sigma(i) + source_inf(1)*body%sigma(j+body%N_panels)
-                            end if
-                        end if
-
-                        if (doublet_order == 1) then
-                            do k=1,size(i_vert_d)
-                                this%A(i,i_vert_d(k)+body%N_cp) = this%A(i,i_vert_d(k)+body%N_cp) + doublet_inf(k)
-                            end do
                         end if
 
                     else
@@ -599,25 +606,26 @@ contains
                         ! Calculate influence of existing panel on mirrored control point
                         ! This is the same as the influence of the mirrored panel on the existing control point,
                         ! even for compressible flow, since we know the flow is symmetric here
-                        call body%panels(j)%calc_potentials(body%cp_mirrored(:,i), this%freestream, &
-                                                            this%dod_info(j+body%N_panels,i), &
-                                                            .false., source_inf, doublet_inf, i_vert_s, i_vert_d)
+                        if (this%dod_info(j+body%N_panels,i)%in_dod) then
+                            call body%panels(j)%calc_potentials(body%cp_mirrored(:,i), this%freestream, &
+                                                                this%dod_info(j+body%N_panels,i), &
+                                                                .false., source_inf, doublet_inf, i_vert_s, i_vert_d)
 
-                        ! Add influence of mirrored panel on existing control point
-                        if (morino) then
-                            if (source_order == 0) then
-                                body%phi_cp_sigma(i) = body%phi_cp_sigma(i) + source_inf(1)*body%sigma(j)
+                            ! Add influence of mirrored panel on existing control point
+                            if (morino) then
+                                if (source_order == 0) then
+                                    body%phi_cp_sigma(i) = body%phi_cp_sigma(i) + source_inf(1)*body%sigma(j)
+                                end if
+                            end if
+
+                            if (doublet_order == 1) then
+                                do k=1,size(i_vert_d)
+                                    this%A(i,i_vert_d(k)) = this%A(i,i_vert_d(k)) + doublet_inf(k)
+                                end do
                             end if
                         end if
 
-                        if (doublet_order == 1) then
-                            do k=1,size(i_vert_d)
-                                this%A(i,i_vert_d(k)) = this%A(i,i_vert_d(k)) + doublet_inf(k)
-                            end do
-                        end if
-
                     end if
-
                 end if
 
             end do
