@@ -14,10 +14,10 @@ if __name__=="__main__":
     gamma = 1.4
     T_inf = 300.0
     c_inf = np.sqrt(gamma*R_G*T_inf)
-    alpha = 0.0
+    alpha = 2.0
     rho = 1.225
     p_inf = 1.0e5
-    grid = "medium" # coarse, medium, fine, ultra_fine
+    grid = "fine" # coarse, medium, fine, ultra_fine
 
     # Declare MachLine input
     body_file = "dev/results/diamond_5_deg_full_{0}.vtk".format(grid)
@@ -71,6 +71,8 @@ if __name__=="__main__":
     Cp4 = (p4/p_inf-1.0)/x
     Cp5 = (p5/p_inf-1.0)/x
     CL, CD = airfoil.get_inviscid_lift_and_drag_coefs()
+    Cx = -CL*np.sin(np.radians(alpha)) + CD*np.cos(np.radians(alpha))
+    Cz = CL*np.cos(np.radians(alpha)) + CD*np.sin(np.radians(alpha))
 
     # Print table
     print("{0:<20}{1:<20}".format("Surface", "Cp"))
@@ -82,6 +84,8 @@ if __name__=="__main__":
     print()
     print("CL:", CL)
     print("CD:", CD)
+    print("Cx:", Cx)
+    print("Cz:", Cz)
 
     # Read into ParaView
     data_reader = pvs.LegacyVTKReader(registrationName=body_file.replace("dev/results/", ""), FileNames=body_file)

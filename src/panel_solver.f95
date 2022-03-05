@@ -386,7 +386,9 @@ contains
         call this%calc_body_influences(body)
 
         ! Calculate wake influences
-        call this%calc_wake_influences(body)
+        if (body%wake%N_panels > 0) then
+            call this%calc_wake_influences(body)
+        end if
 
         ! Solve the linear system
         call this%solve_system(body)
@@ -499,20 +501,22 @@ contains
             do j=1,body%N_panels
 
                 ! Calculate influence of existing panel on existing control point
-                call body%panels(j)%calc_potentials(body%cp(:,i), this%freestream, this%dod_info(j,i), .false., &
-                                                    source_inf, doublet_inf, i_vert_s, i_vert_d)
+                if (this%dod_info(j,i)%in_dod) then
+                    call body%panels(j)%calc_potentials(body%cp(:,i), this%freestream, this%dod_info(j,i), .false., &
+                                                        source_inf, doublet_inf, i_vert_s, i_vert_d)
 
-                ! Add influence of existing panel on existing control point
-                if (morino) then
-                    if (source_order == 0) then
-                        body%phi_cp_sigma(i) = body%phi_cp_sigma(i) + source_inf(1)*body%sigma(j)
+                    ! Add influence of existing panel on existing control point
+                    if (morino) then
+                        if (source_order == 0) then
+                            body%phi_cp_sigma(i) = body%phi_cp_sigma(i) + source_inf(1)*body%sigma(j)
+                        end if
                     end if
-                end if
 
-                if (doublet_order == 1) then
-                    do k=1,size(i_vert_d)
-                        this%A(i,i_vert_d(k)) = this%A(i,i_vert_d(k)) + doublet_inf(k)
-                    end do
+                    if (doublet_order == 1) then
+                        do k=1,size(i_vert_d)
+                            this%A(i,i_vert_d(k)) = this%A(i,i_vert_d(k)) + doublet_inf(k)
+                        end do
+                    end if
                 end if
 
                 if (body%mirrored) then
@@ -656,73 +660,70 @@ contains
         integer,dimension(:),allocatable :: i_vert_d, i_vert_s
 
         ! Calculate influence of wake
-        if (body%wake%N_panels > 0) then
-            write(*,'(a)',advance='no') "     Calculating wake influences..."
+        write(*,'(a)',advance='no') "     Calculating wake influences..."
 
-            ! Loop through control points
-            do i=1,body%N_cp
+        ! Loop through control points
+        do i=1,body%N_cp
 
-                ! Get doublet influence from wake
-                ! Note that for the wake, in the case of mirrored meshes with asymmetric flow, the mirrored wake panels have actually been created.
-                ! In this case, there are technically no mirrored panels, and this loop will cycle through both existing and mirrored panels.
-                ! For symmetric flow, mirrored panels still need to be added as before.
-                do j=1,body%wake%N_panels
+            ! Get doublet influence from wake
+            ! Note that for the wake, in the case of mirrored meshes with asymmetric flow, the mirrored wake panels have actually been created.
+            ! In this case, there are technically no mirrored panels, and this loop will cycle through both existing and mirrored panels.
+            ! For symmetric flow, mirrored panels still need to be added as before.
+            do j=1,body%wake%N_panels
 
-                    ! Caclulate influence of existing panel on existing control point
-                    call body%wake%panels(j)%calc_potentials(body%cp(:,i), this%freestream, &
-                                                             this%wake_dod_info(j,i), .false., &
-                                                             source_inf, doublet_inf, i_vert_s, i_vert_d)
+                ! Caclulate influence of existing panel on existing control point
+                call body%wake%panels(j)%calc_potentials(body%cp(:,i), this%freestream, &
+                                                         this%wake_dod_info(j,i), .false., &
+                                                         source_inf, doublet_inf, i_vert_s, i_vert_d)
 
-                    ! Add influence
-                    if (doublet_order == 1) then
-                        do k=1,size(i_vert_d)
-                            this%A(i,i_vert_d(k)) = this%A(i,i_vert_d(k)) + doublet_inf(k)
-                        end do
-                    end if
+                ! Add influence
+                if (doublet_order == 1) then
+                    do k=1,size(i_vert_d)
+                        this%A(i,i_vert_d(k)) = this%A(i,i_vert_d(k)) + doublet_inf(k)
+                    end do
+                end if
 
-                    ! Get influence on mirrored control point
-                    if (body%mirrored) then
+                ! Get influence on mirrored control point
+                if (body%mirrored) then
 
-                        if (body%asym_flow) then
+                    if (body%asym_flow) then
 
-                            ! Calculate influence of existing panel on mirrored point
-                            call body%wake%panels(j)%calc_potentials(body%cp_mirrored(:,i), this%freestream, &
-                                                                     this%wake_dod_info(j,i+body%N_cp), .false., &
-                                                                     source_inf, doublet_inf, i_vert_s, i_vert_d)
+                        ! Calculate influence of existing panel on mirrored point
+                        call body%wake%panels(j)%calc_potentials(body%cp_mirrored(:,i), this%freestream, &
+                                                                 this%wake_dod_info(j,i+body%N_cp), .false., &
+                                                                 source_inf, doublet_inf, i_vert_s, i_vert_d)
 
-                            ! Add influence
-                            if (body%vertices(i)%mirrored_is_unique) then
-                                if (doublet_order == 1) then
-                                    do k=1,size(i_vert_d)
-                                        this%A(i+body%N_cp,i_vert_d(k)) = this%A(i+body%N_cp,i_vert_d(k)) + doublet_inf(k)
-                                    end do
-                                end if
-                            end if
-
-                        else
-
-                            ! Calculate influence of existing panel on mirrored control point
-                            ! This is the same as the influence of a mirrored panel on an existing control point
-                            call body%wake%panels(j)%calc_potentials(body%cp_mirrored(:,i), this%freestream, &
-                                                                     this%wake_dod_info(j+body%wake%N_panels,i), .true., & ! No, this is not the DoD for this computation; yes, it is equivalent
-                                                                     source_inf, doublet_inf, i_vert_s, i_vert_d)
-
-                            ! Add influence
+                        ! Add influence
+                        if (body%vertices(i)%mirrored_is_unique) then
                             if (doublet_order == 1) then
                                 do k=1,size(i_vert_d)
-                                    this%A(i,i_vert_d(k)) = this%A(i,i_vert_d(k)) + doublet_inf(k)
+                                    this%A(i+body%N_cp,i_vert_d(k)) = this%A(i+body%N_cp,i_vert_d(k)) + doublet_inf(k)
                                 end do
                             end if
+                        end if
 
+                    else
+
+                        ! Calculate influence of existing panel on mirrored control point
+                        ! This is the same as the influence of a mirrored panel on an existing control point
+                        call body%wake%panels(j)%calc_potentials(body%cp_mirrored(:,i), this%freestream, &
+                                                                 this%wake_dod_info(j+body%wake%N_panels,i), .true., & ! No, this is not the DoD for this computation; yes, it is equivalent
+                                                                 source_inf, doublet_inf, i_vert_s, i_vert_d)
+
+                        ! Add influence
+                        if (doublet_order == 1) then
+                            do k=1,size(i_vert_d)
+                                this%A(i,i_vert_d(k)) = this%A(i,i_vert_d(k)) + doublet_inf(k)
+                            end do
                         end if
 
                     end if
-                end do
+
+                end if
             end do
+        end do
 
-            write(*,*) "Done."
-
-        end if
+        write(*,*) "Done."
 
     end subroutine panel_solver_calc_wake_influences
 

@@ -62,8 +62,7 @@ module panel_mod
         real,dimension(3) :: n_g, nu_g ! Normal and conormal vectors
         real,dimension(:,:),allocatable :: midpoints
         real,dimension(3) :: centroid
-        real,dimension(3,3) :: A_g_to_l, A_s_to_ls, A_g_to_ls, A_ls_to_g ! Coordinate transformation matrices
-        real,dimension(3,3) :: B_mat_ls, C_mat_ls ! Local scaled metric matrices
+        real,dimension(3,3) :: A_g_to_ls, A_ls_to_g ! Coordinate transformation matrices
         real,dimension(:,:),allocatable :: vertices_ls, midpoints_ls ! Location of the vertices and edge midpoints described in local scaled coords
         real,dimension(:,:),allocatable :: t_hat_g, t_hat_ls ! Edge unit tangents
         real,dimension(:,:),allocatable :: n_hat_g, n_hat_ls ! Edge unit outward normals
@@ -75,11 +74,10 @@ module panel_mod
         integer,dimension(3) :: abutting_panels ! Indices of panels abutting this one
         integer,dimension(3) :: edges ! Indices of this panel's edges
         integer :: top_parent, bot_parent ! Indices of the top and bottom panels this panel's strength is determined by (for a wake panel w/ constant doublet strength)
-        real :: r ! Panel inclination indicator; r=-1 -> superinclined, r=1 -> subinclined
+        integer :: r ! Panel inclination indicator; r=-1 -> superinclined, r=1 -> subinclined
         real,dimension(3) :: tau ! Edge inclination parameter
         integer,dimension(3) :: q ! Edge type indicator; q=1 -> subsonic, q=-1 -> supersonic
         real :: J ! Local scaled transformation Jacobian
-        real :: rs ! Product of the inclination indicator and the flow type indicator
 
         contains
 
@@ -89,7 +87,6 @@ module panel_mod
             procedure :: calc_normal => panel_calc_normal
             procedure :: calc_centroid => panel_calc_centroid
             procedure :: calc_transforms => panel_calc_transforms
-            procedure :: calc_g_to_l_transform => panel_calc_g_to_l_transform
             procedure :: calc_g_to_ls_transform => panel_calc_g_to_ls_transform
             procedure :: calc_edge_vectors => panel_calc_edge_vectors
             procedure :: calc_singularity_matrices => panel_calc_singularity_matrices
@@ -294,7 +291,6 @@ contains
         type(flow),intent(in) :: freestream
 
         ! Calculate transforms
-        call this%calc_g_to_l_transform(freestream) ! This one is likely no longer necessary
         call this%calc_g_to_ls_transform(freestream)
 
         ! Calculate properties dependent on the transforms
@@ -302,36 +298,6 @@ contains
         call this%calc_singularity_matrices()
 
     end subroutine panel_calc_transforms
-
-
-    subroutine panel_calc_g_to_l_transform(this, freestream)
-
-        implicit none
-
-        class(panel),intent(inout) :: this
-        type(flow),intent(in) :: freestream
-
-        ! Calculate local eta axis
-        this%A_g_to_l(2,:) = cross(this%n_g, freestream%c_hat_g)
-
-        ! If the normal and freestream are aligned, then we have to pick a different vector.
-        ! We pick the first edge, as we already know this is perpendicular to the normal, so
-        ! orthogonality is automatically satisfied.
-        if (norm(this%A_g_to_l(2,:)) < 1e-12) then
-            this%A_g_to_l(2,:) = this%get_vertex_loc(2)-this%get_vertex_loc(1)
-        end if
-
-        ! Normalize
-        this%A_g_to_l(2,:) = this%A_g_to_l(2,:)/norm(this%A_g_to_l(2,:))
-
-        ! Calculate local xi axis
-        this%A_g_to_l(1,:) = cross(this%A_g_to_l(2,:), this%n_g)
-        this%A_g_to_l(1,:) = this%A_g_to_l(1,:)/norm(this%A_g_to_l(1,:))
-
-        ! Store local zeta axis
-        this%A_g_to_l(3,:) = this%n_g
-
-    end subroutine panel_calc_g_to_l_transform
 
 
     subroutine panel_calc_g_to_ls_transform(this, freestream)
@@ -343,12 +309,19 @@ contains
         type(flow),intent(in) :: freestream
 
         real,dimension(3) :: u0, v0
+        real,dimension(3,3) :: B_mat_ls
         real :: x, y
-        integer :: i
+        integer :: i, rs
 
         ! Get in-panel basis vectors
-        u0 = this%A_g_to_l(1,:)
-        v0 = this%A_g_to_l(2,:)
+        if (abs(inner(this%n_g, freestream%c_hat_g) - 1.) < 1e-12) then ! Check the freestream isn't aligned with the normal vector
+            v0 = this%get_vertex_loc(2)-this%get_vertex_loc(1)
+        else
+            v0 = cross(this%n_g, freestream%c_hat_g)
+        end if
+        v0 = v0/norm(v0)
+        u0 = cross(v0, this%n_g)
+        u0 = u0/norm(u0)
 
         ! Calculate compressible parameters
         this%nu_g = matmul(freestream%B_mat_g, this%n_g)
@@ -370,12 +343,12 @@ contains
         end if
 
         ! Other inclination parameters
-        this%rs = this%r*freestream%s
+        rs = this%r*freestream%s
 
         ! Calculate transformation
         y = 1./sqrt(abs(x))
         this%A_g_to_ls(1,:) = y*matmul(freestream%C_mat_g, u0)
-        this%A_g_to_ls(2,:) = this%rs/freestream%B*matmul(freestream%C_mat_g, v0)
+        this%A_g_to_ls(2,:) = rs/freestream%B*matmul(freestream%C_mat_g, v0)
         this%A_g_to_ls(3,:) = freestream%B*y*this%n_g
 
         ! Check determinant
@@ -409,18 +382,13 @@ contains
         end do
 
         ! Calculate local scaled metric matrices
-        this%B_mat_ls = 0.
-        this%B_mat_ls(1,1) = freestream%B**2*this%rs
-        this%B_mat_ls(2,2) = freestream%B**2
-        this%B_mat_ls(3,3) = freestream%B**2*this%r
-
-        this%C_mat_ls = 0.
-        this%C_mat_ls(1,1) = this%r
-        this%C_mat_ls(2,2) = freestream%s
-        this%C_mat_ls(3,3) = this%rs
+        B_mat_ls = 0.
+        B_mat_ls(1,1) = freestream%B**2*rs
+        B_mat_ls(2,2) = freestream%B**2
+        B_mat_ls(3,3) = freestream%B**2*this%r
 
         ! Check calculation (E&M Eq. (E.2.19))
-        if (any(abs(this%B_mat_ls - matmul(this%A_g_to_ls, matmul(freestream%B_mat_g, transpose(this%A_g_to_ls)))) > 1e-12)) then
+        if (any(abs(B_mat_ls - matmul(this%A_g_to_ls, matmul(freestream%B_mat_g, transpose(this%A_g_to_ls)))) > 1e-12)) then
             write(*,*) "!!! Calculation of local scaled coordinate transform failed. Quitting..."
             stop
         end if
@@ -463,7 +431,7 @@ contains
             ! This is the formula used in the PAN AIR source code (for subinclined panels)
             e = this%vertices_ls(:,i_next) - this%vertices_ls(:,i)
             this%t_hat_ls(:,i) = e/norm2(e)
-            !this%t_hat_ls(:,i) = e/sqrt(abs(this%rs*e(1)**2 + e(2)**2)) ! E&M Eq. (J.6.43)
+            !this%t_hat_ls(:,i) = e/sqrt(abs(rs*e(1)**2 + e(2)**2)) ! E&M Eq. (J.6.43)
 
             ! Calculate edge outward normal
             this%n_hat_g(:,i) = cross(this%t_hat_g(:,i), this%n_g)
@@ -1252,8 +1220,8 @@ contains
             end do
         end if
 
-        ! Calculate H(1,1,1) (Ehlers Eq. (E9))
-        int%H111 = ( geom%h*int%hH113 - sum(geom%a*int%F111) ) !/ 3.
+        ! Calculate H(1,1,1) (Ehlers Eq. (E9) has a typo)
+        int%H111 = ( geom%h*int%hH113 - sum(geom%a*int%F111) )
 
         ! Calculate H(2,1,3) (Ehlers Eq. (E5))
         int%H213 = sum(v_xi*int%F111)
