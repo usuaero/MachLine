@@ -209,7 +209,6 @@ subroutine lu_decomp(A, N, indx, D, code)
 
   implicit none
 
-
   real,dimension(N,N),intent(inout) :: A
   integer,intent(in) :: N
   integer,dimension(N),intent(out) :: indx
@@ -249,7 +248,8 @@ subroutine lu_decomp(A, N, indx, D, code)
 
   ! Loop over columns of Crout's method
   do j=1,N
-    do i=1,J-1
+
+    do i=1,j-1
       sum = A(i,j)
       do k=1,i-1
         sum = sum - A(i,k)*A(k,j)
@@ -296,11 +296,6 @@ subroutine lu_decomp(A, N, indx, D, code)
 
     ! Store pivoting
     indx(j) = imax
-
-    ! Replace zero pivot element with small parameter
-    if (abs(A(j,j)) < tiny) then
-      A(j,j) = tiny
-    end if
 
     ! Divide by pivot element
     if (j /= N) then

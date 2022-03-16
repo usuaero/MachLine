@@ -1,21 +1,21 @@
 {
     "flow": {
         "freestream_velocity": [
-            694.4475790151479,
+            520.8356842613609,
             0.0,
             0.0
         ],
         "gamma": 1.4,
-        "freestream_mach_number": 2.0
+        "freestream_mach_number": 1.5
     },
     "geometry": {
-        "file": "dev/meshes/diamond_5_deg_full_medium.stl",
+        "file": "dev/meshes/sears_haack_9800.tri",
         "spanwise_axis": "+y",
         "wake_model": {
-            "append_wake": false
+            "wake_present": false
         },
         "reference": {
-            "area": 4.0
+            "area": 1.0
         }
     },
     "solver": {
@@ -29,7 +29,7 @@
         }
     },
     "output": {
-        "body_file": "dev/results/diamond_5_deg_full_medium.vtk",
-        "control_point_file": "dev/results/diamond_5_deg_full_medium_control_points.vtk"
+        "body_file": "dev/results/sears_haack_9800.vtk",
+        "control_point_file": "dev/results/sears_haack_9800_control_points.vtk"
     }
 }
