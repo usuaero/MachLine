@@ -921,13 +921,17 @@ contains
                     !geom%R2(i) = sqrt(d_ls(1)**2 - d_ls(2)**2 - geom%h2)
                 end if
 
-                !! Weird stuff from PAN AIR, about lines 56505-56509
-                !if (geom%R1(i) == 0.) then
-                !    geom%l1(i) = -sqrt(abs(geom%g2(i)))
-                !end if
-                !if (geom%R1(i_next) == 0.) then
-                !    geom%l2(i) = sqrt(abs(geom%g2(i)))
-                !end if
+                ! Weird stuff from PAN AIR, about lines 56505-56509
+                ! This may be derived from Ehlers Eq. (E15).
+                ! This seems to be necessary to enforce Ehlers Eq. (E21) when the endpoint is outside the DoD.
+                ! In that case, R is set (somewhat arbitrarily) to 0, but l is not adjusted.
+                ! This takes care of that. I think.
+                if (geom%R1(i) == 0.) then
+                    geom%l1(i) = -sqrt(abs(geom%g2(i)))
+                end if
+                if (geom%R2(i) == 0.) then
+                    geom%l2(i) = sqrt(abs(geom%g2(i)))
+                end if
 
             else
 
@@ -1054,57 +1058,45 @@ contains
 
                 ! Calculate F(1,1,1) (Ehlers Eq. (E22))
 
-                ! Calculate preliminary quantities
-                if (this%b(i) >= 0) then
-                    F1 = (geom%l1(i)*geom%R2(i) - geom%l2(i)*geom%R1(i)) / geom%g2(i)
-                    F2 = (this%b(i)*geom%R1(i)*geom%R2(i) + geom%l1(i)*geom%l2(i)) / geom%g2(i)
+                ! Neither endpoint in DoD (Ehlers Eq. (E22))
+                if (geom%R1(i) == 0. .and. geom%R2(i) == 0.) then
+                    int%F111(i) = pi/this%sqrt_b(i)
 
-                    if (abs(F2**2 + this%b(i)*F1**2 - 1.) > 1e-12) then
-                        write(*,*)
-                        write(*,*)
-                        write(*,*) (geom%g2(i) - geom%l1(i)**2) / this%b(i)
-                        write(*,*) geom%R1(i)**2
-                        write(*,*)
-                        write(*,*) (geom%g2(i) - geom%l2(i)**2) / this%b(i)
-                        write(*,*) geom%R2(i)**2
-                        write(*,*)
-                        write(*,*) F2**2 + this%b(i)*F1**2
-                    end if
                 else
-                    F1 = (geom%R2(i)**2 - geom%R1(i)**2) / (geom%l1(i)*geom%R2(i) + geom%l2(i)*geom%R1(i))
-                    F2 = (geom%g2(i) - geom%l1(i)**2 - geom%l2(i)**2) / &
-                         (this%b(i)*geom%R1(i)*geom%R2(i) - geom%l1(i)*geom%l2(i))
 
-                end if
+                    ! Calculate preliminary quantities (Ehlers Eqs. (E19-20))
+                    if (this%b(i) >= 0) then
+                        F1 = (geom%l1(i)*geom%R2(i) - geom%l2(i)*geom%R1(i)) / geom%g2(i)
+                        F2 = (this%b(i)*geom%R1(i)*geom%R2(i) + geom%l1(i)*geom%l2(i)) / geom%g2(i)
 
-                ! Check for poorly-conditioned edge
-                if (abs(F2) > 100.*this%sqrt_b(i)*abs(F1)) then
-                    eps = F1/F2
-                    int%F111(i) = -eps*(1 - this%b(i)*eps**2/3. + this%b(i)**2*eps**4/5. - this%b(i)**3*eps**6/7.)
-
-                ! Supersonic edge
-                else if (this%b(i) > 0) then
-
-                    ! Neither endpoint in DoD (Ehlers Eq. (E22))
-                    if (geom%R1(i) == 0. .and. geom%R2(i) == 0.) then
-                        int%F111(i) = pi/this%sqrt_b(i)
-
-                    ! At least one endpoint in the DoD (Ehlers Eq. (E22))
                     else
+                        F1 = (geom%R2(i)**2 - geom%R1(i)**2) / (geom%l1(i)*geom%R2(i) + geom%l2(i)*geom%R1(i))
+                        F2 = (geom%g2(i) - geom%l1(i)**2 - geom%l2(i)**2) / &
+                             (this%b(i)*geom%R1(i)*geom%R2(i) - geom%l1(i)*geom%l2(i))
+
+                    end if
+
+                    ! Check for poorly-conditioned edge
+                    if (abs(F2) > 100.*this%sqrt_b(i)*abs(F1)) then
+                        eps = F1/F2
+                        int%F111(i) = -eps*(1 - this%b(i)*eps**2/3. + this%b(i)**2*eps**4/5. - this%b(i)**3*eps**6/7.)
+
+                    ! Supersonic edge
+                    else if (this%b(i) > 0) then
+
                         int%F111(i) = -atan2(this%sqrt_b(i)*F1, F2) / this%sqrt_b(i)
 
+                    ! Subsonic edge
+                    else
+
+                        ! Calculate preliminary quantities
+                        F1 = this%sqrt_b(i)*geom%R1(i) + abs(geom%l1(i))
+                        F2 = this%sqrt_b(i)*geom%R2(i) + abs(geom%l2(i))
+
+                        ! Calculate F(1,1,1)
+                        int%F111(i) = -sign(v_eta)/this%sqrt_b(i)*log(F1/F2)
+
                     end if
-
-                ! Subsonic edge
-                else
-
-                    ! Calculate preliminary quantities
-                    F1 = this%sqrt_b(i)*geom%R1(i) + abs(geom%l1(i))
-                    F2 = this%sqrt_b(i)*geom%R2(i) + abs(geom%l2(i))
-
-                    ! Calculate F(1,1,1)
-                    int%F111(i) = -sign(v_eta)/this%sqrt_b(i)*log(F1/F2)
-
                 end if
             end if
         end do
