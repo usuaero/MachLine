@@ -131,6 +131,11 @@ contains
         this%P_ls = x(1:2)
         this%h = x(3) ! Equivalent to E&M Eq. (J.7.41)
         this%h2 = this%h**2
+
+        ! These are sometimes accessed when the DoD is not checked, so they need to be set to zero
+        this%R1 = 0.
+        this%R2 = 0.
+        this%a = 0.
     
     end subroutine eval_point_geom_init
 
@@ -403,8 +408,8 @@ contains
         class(panel),intent(inout) :: this
         type(flow),intent(in) :: freestream
 
-        real,dimension(3) :: d, n_hat_ls
-        real,dimension(2) :: e
+        real,dimension(3) :: d_g
+        real,dimension(2) :: d_ls
         integer :: i, i_next
 
         ! Allocate memory
@@ -421,16 +426,16 @@ contains
             i_next = mod(i, this%N)+1
 
             ! Calculate edge vector based on index
-            d = this%get_vertex_loc(i_next)-this%get_vertex_loc(i)
+            d_g = this%get_vertex_loc(i_next)-this%get_vertex_loc(i)
 
             ! Calculate tangent in global coords
-            this%t_hat_g(:,i) = d/norm(d)
+            this%t_hat_g(:,i) = d_g/norm(d_g)
 
             ! Calculate tangent in local scaled coords 
             ! This purposefully does not match E&M Eq. (J.6.43);
             ! This is the formula used in the PAN AIR source code (for subinclined panels)
-            e = this%vertices_ls(:,i_next) - this%vertices_ls(:,i)
-            this%t_hat_ls(:,i) = e/norm2(e)
+            d_ls = this%vertices_ls(:,i_next) - this%vertices_ls(:,i)
+            this%t_hat_ls(:,i) = d_ls/norm2(d_ls)
             !this%t_hat_ls(:,i) = e/sqrt(abs(rs*e(1)**2 + e(2)**2)) ! E&M Eq. (J.6.43)
 
             ! Calculate edge outward normal
@@ -829,7 +834,7 @@ contains
             d_ls = this%vertices_ls(:,i_next) - geom%P_ls
 
             ! Integration length on edge to end vertex
-            geom%l2(i) = d_ls(1)*this%t_hat_ls(1,i) + d_ls(2)*this%t_hat_ls(2,i) ! Definition; same as used in PAN AIR
+            geom%l2(i) = inner2(d_ls, this%t_hat_ls(:,i)) ! Definition; same as used in PAN AIR
 
         end do
 
@@ -853,7 +858,7 @@ contains
         real,dimension(2) :: d_ls
         real,dimension(3) :: d_g, x
         integer :: i, i_next
-        real :: val
+        real :: val, v_xi, v_eta
 
         ! Initialize
         call geom%init(eval_point, this%A_g_to_ls, this%centroid)
@@ -871,23 +876,21 @@ contains
                 ! Get vector perpendicular to edge
                 x = cross(d_g, this%t_hat_g(:,i))
 
+                ! Get normal components
+                v_xi = this%n_hat_ls(1,i)
+                v_eta = this%n_hat_ls(2,i)
+
                 ! Perpendicular distance in plane from evaluation point to edge E&M Eq. (J.6.46) and (J.7.53)
                 geom%a(i) = inner2(d_ls, this%n_hat_ls(:,i)) ! Definition
                 !geom%a(i) = this%r*freestream%B/(this%tau(i)*sqrt(abs(inner(this%n_g, this%nu_g)))) * freestream%B_g_inner(this%n_g, x) ! Optimized calculation E&M Eq. (J.7.61)
         
-                ! The original and optimized calculations match out to precision in some instances, and the only to 1 or 2 sig figs in other cases...
+                ! The original and optimized calculations match out to precision in some instances, and then only to 1 or 2 sig figs in other cases...
 
                 ! Integration length on edge to start vertex (E&M Eq. (J.6.47))
-                geom%l1(i) = -d_ls(1)*this%t_hat_ls(1,i) + d_ls(2)*this%t_hat_ls(2,i) ! Definition
+                geom%l1(i) = -d_ls(1)*this%t_hat_ls(1,i) + d_ls(2)*this%t_hat_ls(2,i) ! Ehlers Eq. (E14)
+                !geom%l1(i) = d_ls(1)*v_eta + d_ls(2)*v_xi ! Ehlers Eq. (E14) this is the same as the previous line
                 !geom%l1(i) = freestream%s/this%tau(i) * freestream%C_g_inner(this%t_hat_g(:,i), d_g) ! Optimized calculation E&M Eq. (J.7.52)
                 ! Same as a; matching is sporadic
-
-                ! Distance from evaluation point to start vertex E&M Eq. (J.8.8)
-                if (dod_info%verts_in_dod(i)) then
-                    geom%R1(i) = sqrt(d_ls(1)**2 - d_ls(2)**2 - geom%h2)
-                else
-                    geom%R1(i) = 0.
-                end if
 
                 ! Calculate square of the perpendicular distance to edge
                 !geom%g2(i) = (freestream%B/this%tau(i))**2*freestream%B_g_inner(x, x) ! E&M Eq. (J.8.23) or (J.7.70)
@@ -897,13 +900,26 @@ contains
                 ! This matches what's in PAN AIR when the edge is perpendicular to the freestream (i.e. b = +/-1)
                 ! The first definition above matches my version.
 
+                ! Distance from evaluation point to start vertex E&M Eq. (J.8.8)
+                if (dod_info%verts_in_dod(i)) then
+                    geom%R1(i) = sqrt((geom%g2(i)-geom%l1(i)**2)/this%b(i))
+                    !geom%R1(i) = sqrt(d_ls(1)**2 - d_ls(2)**2 - geom%h2)
+                end if
+
                 ! Displacement from end vertex
                 !d_g = this%get_vertex_loc(i_next) - geom%P_g
                 d_ls = this%vertices_ls(:,i_next) - geom%P_ls
 
                 ! Integration length on edge to end vertex
                 geom%l2(i) = -d_ls(1)*this%t_hat_ls(1,i) + d_ls(2)*this%t_hat_ls(2,i) ! Definition; same as used in supsbi in PAN AIR
+                !geom%l2(i) = d_ls(1)*v_eta + d_ls(2)*v_xi ! Ehlers Eq. (E14) this is the same as the previous line
                 !geom%l2(i) = freestream%s/this%tau(i) * freestream%C_g_inner(this%t_hat_g(:,i), d_g) ! Optimized calculation E&M Eq. (J.7.52)
+
+                ! Distance from evaluation point to end vertex E&M Eq. (J.8.8)
+                if (dod_info%verts_in_dod(i_next)) then
+                    geom%R2(i) = sqrt((geom%g2(i)-geom%l2(i)**2)/this%b(i))
+                    !geom%R2(i) = sqrt(d_ls(1)**2 - d_ls(2)**2 - geom%h2)
+                end if
 
                 !! Weird stuff from PAN AIR, about lines 56505-56509
                 !if (geom%R1(i) == 0.) then
@@ -915,15 +931,8 @@ contains
 
             else
 
-                ! These are sometimes accessed when the DoD is not checked, so they need to be set to zero
-                geom%R1(i) = 0.
-                geom%a(i) = 0.
-
             end if
         end do
-
-        ! Distance from evaluation point to end vertices
-        geom%R2 = cshift(geom%R1, 1)
 
     end function panel_calc_supersonic_subinc_geom
 
@@ -1050,6 +1059,17 @@ contains
                     F1 = (geom%l1(i)*geom%R2(i) - geom%l2(i)*geom%R1(i)) / geom%g2(i)
                     F2 = (this%b(i)*geom%R1(i)*geom%R2(i) + geom%l1(i)*geom%l2(i)) / geom%g2(i)
 
+                    if (abs(F2**2 + this%b(i)*F1**2 - 1.) > 1e-12) then
+                        write(*,*)
+                        write(*,*)
+                        write(*,*) (geom%g2(i) - geom%l1(i)**2) / this%b(i)
+                        write(*,*) geom%R1(i)**2
+                        write(*,*)
+                        write(*,*) (geom%g2(i) - geom%l2(i)**2) / this%b(i)
+                        write(*,*) geom%R2(i)**2
+                        write(*,*)
+                        write(*,*) F2**2 + this%b(i)*F1**2
+                    end if
                 else
                     F1 = (geom%R2(i)**2 - geom%R1(i)**2) / (geom%l1(i)*geom%R2(i) + geom%l2(i)*geom%R1(i))
                     F2 = (geom%g2(i) - geom%l1(i)**2 - geom%l2(i)**2) / &
@@ -1220,13 +1240,13 @@ contains
             end do
         end if
 
-        ! Calculate H(1,1,1) (Ehlers Eq. (E9) has a typo)
+        ! Calculate H(1,1,1) (Ehlers Eq. (E9) has a typo, I believe)
         int%H111 = ( geom%h*int%hH113 - sum(geom%a*int%F111) )
 
         ! Calculate H(2,1,3) (Ehlers Eq. (E5))
         int%H213 = sum(v_xi*int%F111)
 
-        ! Calculate H(1,2,3) (Ehlers Eq. (E6))
+        ! Calculate H(1,2,3) (Ehlers Eq. (E6) has a typo)
         int%H123 = -sum(v_eta*int%F111)
 
         ! Clean up
@@ -1334,7 +1354,10 @@ contains
 
                 ! Source potential
                 if (source_order == 0) then
+
+                    ! Johnson Eq. (D21) including the area factor discussed by Ehlers in Sec. 10.3
                     phi_s = -this%J*freestream%K_inv*int%H111
+
                 end if
 
                 ! Doublet potential

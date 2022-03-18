@@ -63,7 +63,7 @@ contains
 
             end do
 
-            ! Go back
+            ! Go back to beginning
             rewind(12)
             read(12,'(a)') dummy_read
 
