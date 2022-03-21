@@ -928,10 +928,10 @@ contains
                 ! In that case, R is set (somewhat arbitrarily) to 0, but l is not adjusted.
                 ! This takes care of that. I think.
                 if (geom%R1(i) == 0.) then
-                    geom%l1(i) = sqrt(abs(geom%g2(i)))
+                    geom%l1(i) = -sqrt(abs(geom%g2(i)))
                 end if
                 if (geom%R2(i) == 0.) then
-                    geom%l2(i) = -sqrt(abs(geom%g2(i)))
+                    geom%l2(i) = sqrt(abs(geom%g2(i)))
                 end if
 
             else
@@ -1239,10 +1239,13 @@ contains
             end do
         end if
 
-        ! Calculate H(1,1,1) (Ehlers Eq. (E9) has a typo, I believe)
-        int%H111 = ( geom%h*int%hH113 - sum(geom%a*int%F111) )
+        ! Calculate H(1,1,1) (Ehlers Eq. (E9) has a typo)
+        ! What exactly that typo is, I don't know
+        ! According to the PAN AIR source code, H(1,1,1) = h**2 H(1,1,3) + sum(a F(1,1,1))
+        ! According to Ehlers, H(1,1,1) = -h**2 H(1,1,3) + sum(a F(1,1,1))
+        int%H111 = -geom%h*int%hH113 + sum(geom%a*int%F111)
 
-        ! Calculate H(2,1,3) (Ehlers Eq. (E5))
+        ! Calculate H(2,1,3) (Ehlers Eq. (E5) has a typo)
         int%H213 = sum(v_xi*int%F111)
 
         ! Calculate H(1,2,3) (Ehlers Eq. (E6) has a typo)

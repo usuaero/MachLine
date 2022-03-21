@@ -39,7 +39,7 @@ if __name__=="__main__":
         },
         "solver": {
             "formulation": "morino",
-            "control_point_offset": 1.1e-05
+            "control_point_offset": 1.1e-10
         },
         "post_processing" : {
             "pressure_rules" : {
