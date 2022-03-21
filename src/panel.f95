@@ -922,15 +922,16 @@ contains
                 end if
 
                 ! Weird stuff from PAN AIR, about lines 56505-56509
+                ! Here, I have flipped the signs from what is done in PAN AIR. Doesn't make sense to me why, but it gives much better results.
                 ! This may be derived from Ehlers Eq. (E15).
                 ! This seems to be necessary to enforce Ehlers Eq. (E21) when the endpoint is outside the DoD.
                 ! In that case, R is set (somewhat arbitrarily) to 0, but l is not adjusted.
                 ! This takes care of that. I think.
                 if (geom%R1(i) == 0.) then
-                    geom%l1(i) = -sqrt(abs(geom%g2(i)))
+                    geom%l1(i) = sqrt(abs(geom%g2(i)))
                 end if
                 if (geom%R2(i) == 0.) then
-                    geom%l2(i) = sqrt(abs(geom%g2(i)))
+                    geom%l2(i) = -sqrt(abs(geom%g2(i)))
                 end if
 
             else
@@ -1041,7 +1042,7 @@ contains
         type(flow),intent(in) :: freestream
         type(integrals),intent(inout) :: int
 
-        real :: v_xi, v_eta, F1, F2, eps
+        real :: v_xi, v_eta, F1, F2, eps, eps2, series
         integer :: i
         
         ! Allocate integral storage
@@ -1051,10 +1052,6 @@ contains
         do i=1,this%N
 
             if (dod_info%edges_in_dod(i)) then
-
-                ! Store edge derivs
-                v_xi = this%n_hat_ls(1,i)
-                v_eta = this%n_hat_ls(2,i)
 
                 ! Calculate F(1,1,1) (Ehlers Eq. (E22))
 
@@ -1070,16 +1067,25 @@ contains
                         F2 = (this%b(i)*geom%R1(i)*geom%R2(i) + geom%l1(i)*geom%l2(i)) / geom%g2(i)
 
                     else
-                        F1 = (geom%R2(i)**2 - geom%R1(i)**2) / (geom%l1(i)*geom%R2(i) + geom%l2(i)*geom%R1(i))
+                        F1 = (geom%R2(i) + geom%R1(i))*(geom%R2(i) - geom%R1(i)) / (geom%l1(i)*geom%R2(i) + geom%l2(i)*geom%R1(i))
                         F2 = (geom%g2(i) - geom%l1(i)**2 - geom%l2(i)**2) / &
                              (this%b(i)*geom%R1(i)*geom%R2(i) - geom%l1(i)*geom%l2(i))
 
                     end if
 
+                    !if (abs(F2**2 + this%b(i)*F1**2 - 1.) > 1e-12) then
+                    !    write(*,*) F2**2 + this%b(i)*F1**2
+                    !end if
+
                     ! Check for poorly-conditioned edge
                     if (abs(F2) > 100.*this%sqrt_b(i)*abs(F1)) then
+
+                        ! This mimics what is done in PAN AIR, for efficiency
+                        !int%F111(i) = -eps*(1 - this%b(i)*eps**2/3. + this%b(i)**2*eps**4/5. - this%b(i)**3*eps**6/7.)
                         eps = F1/F2
-                        int%F111(i) = -eps*(1 - this%b(i)*eps**2/3. + this%b(i)**2*eps**4/5. - this%b(i)**3*eps**6/7.)
+                        eps2 = eps*eps
+                        series = eps*eps2*( 1./3. - 0.2*this%b(i)*eps2 + this%b(i)**2*eps2**2/7. )
+                        int%F111(i) = -eps + this%b(i)*series
 
                     ! Supersonic edge
                     else if (this%b(i) > 0) then
@@ -1094,7 +1100,7 @@ contains
                         F2 = this%sqrt_b(i)*geom%R2(i) + abs(geom%l2(i))
 
                         ! Calculate F(1,1,1)
-                        int%F111(i) = -sign(v_eta)/this%sqrt_b(i)*log(F1/F2)
+                        int%F111(i) = -sign(this%n_hat_ls(2,i)) / this%sqrt_b(i) * log(F1/F2)
 
                     end if
                 end if
@@ -1213,7 +1219,8 @@ contains
                             F2 = (this%b(i)*geom%R1(i)*geom%R2(i) + geom%l1(i)*geom%l2(i)) / geom%g2(i)
 
                         else
-                            F1 = (geom%R2(i)**2 - geom%R1(i)**2) / (geom%l1(i)*geom%R2(i) + geom%l2(i)*geom%R1(i))
+                            F1 = (geom%R2(i) + geom%R1(i))*(geom%R2(i) - geom%R1(i)) / &
+                                 (geom%l1(i)*geom%R2(i) + geom%l2(i)*geom%R1(i))
                             F2 = (geom%g2(i) - geom%l1(i)**2 - geom%l2(i)**2) / &
                                  (this%b(i)*geom%R1(i)*geom%R2(i) - geom%l1(i)*geom%l2(i))
                         end if
