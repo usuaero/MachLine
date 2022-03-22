@@ -66,7 +66,6 @@ contains
 
         ! Get solver_settings
         call json_xtnsn_get(solver_settings, 'formulation', this%formulation, 'morino')
-        call json_xtnsn_get(solver_settings, 'influence_calculations', influence_calc_type, 'johnson')
 
         ! Get pressure rules
         if (freestream%M_inf > 0.) then

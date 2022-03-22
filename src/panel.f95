@@ -14,7 +14,6 @@ module panel_mod
     integer :: source_order
     integer :: eval_count ! Developer counter for optimization purposes
     logical :: debug = .true. ! Developer toggle
-    character(len=:),allocatable :: influence_calc_type ! Either 'johnson' or 'epton-magnus'
 
 
     type eval_point_geom
@@ -928,10 +927,10 @@ contains
                 ! In that case, R is set (somewhat arbitrarily) to 0, but l is not adjusted.
                 ! This takes care of that. I think.
                 if (geom%R1(i) == 0.) then
-                    geom%l1(i) = -sqrt(abs(geom%g2(i)))
+                    geom%l1(i) = sqrt(abs(geom%g2(i)))
                 end if
                 if (geom%R2(i) == 0.) then
-                    geom%l2(i) = sqrt(abs(geom%g2(i)))
+                    geom%l2(i) = -sqrt(abs(geom%g2(i)))
                 end if
 
             else
@@ -1241,9 +1240,7 @@ contains
 
         ! Calculate H(1,1,1) (Ehlers Eq. (E9) has a typo)
         ! What exactly that typo is, I don't know
-        ! According to the PAN AIR source code, H(1,1,1) = h**2 H(1,1,3) + sum(a F(1,1,1))
-        ! According to Ehlers, H(1,1,1) = -h**2 H(1,1,3) + sum(a F(1,1,1))
-        int%H111 = -geom%h*int%hH113 + sum(geom%a*int%F111)
+        int%H111 = -geom%h*int%hH113 - sum(geom%a*int%F111)
 
         ! Calculate H(2,1,3) (Ehlers Eq. (E5) has a typo)
         int%H213 = sum(v_xi*int%F111)
@@ -1348,37 +1345,49 @@ contains
                 geom = this%calc_subsonic_geom(P, freestream)
             end if
 
-            ! Calculate influence
-            if (influence_calc_type == 'johnson') then
+            ! Get integrals
+            int = this%calc_integrals(geom, 'potential', 'doublet', dod_info, freestream)
 
-                ! Get integrals
-                int = this%calc_integrals(geom, 'potential', 'doublet', dod_info, freestream)
+            ! Source potential
+            if (source_order == 0) then
 
-                ! Source potential
-                if (source_order == 0) then
+                if (freestream%supersonic) then
+
+                    ! Equivalent to Ehlers Eq. (8.6)
+                    phi_s = this%J*freestream%K_inv*(geom%h*int%hH113 + sum(geom%a*int%F111))
+                else
 
                     ! Johnson Eq. (D21) including the area factor discussed by Ehlers in Sec. 10.3
-                    phi_s = -this%J*freestream%K_inv*int%H111
-
+                    phi_s = this%J*freestream%K_inv*(geom%h*int%hH113 - sum(geom%a*int%F111))
                 end if
 
-                ! Doublet potential
-                if (doublet_order == 1) then
+            end if
 
-                    ! Compute induced potential (Johnson Eq. (D.30); Ehlers Eq. (5.17))
+            ! Doublet potential
+            if (doublet_order == 1) then
+
+                if (freestream%supersonic) then
+
+                    ! Equivalent to Ehlers Eq. (5.17))
+                    phi_d(1) = int%hH113
+                    phi_d(2) = int%hH113*geom%P_ls(1) - geom%h*sum(this%n_hat_ls(1,:)*int%F111)
+                    phi_d(3) = int%hH113*geom%P_ls(1) + geom%h*sum(this%n_hat_ls(2,:)*int%F111)
+
+                else
+
+                    ! Johnson Eq. (D.30)
                     phi_d(1) = int%hH113
                     phi_d(2) = int%hH113*geom%P_ls(1) + geom%h*int%H213
                     phi_d(3) = int%hH113*geom%P_ls(2) + geom%h*int%H123
-
-                    ! Convert to vertex influences (Davis Eq. (4.41))
-                    phi_d(1:3) = freestream%K_inv*matmul(phi_d(1:3), this%S_mu_inv)
-
-                    ! Wake bottom influence is opposite the top influence
-                    if (this%in_wake) then
-                        phi_d(4:6) = -phi_d(1:3)
-                    end if
                 end if
 
+                ! Convert to vertex influences (Davis Eq. (4.41))
+                phi_d(1:3) = freestream%K_inv*matmul(phi_d(1:3), this%S_mu_inv)
+
+                ! Wake bottom influence is opposite the top influence
+                if (this%in_wake) then
+                    phi_d(4:6) = -phi_d(1:3)
+                end if
             end if
         end if
     
@@ -1447,22 +1456,18 @@ contains
                 geom = this%calc_subsonic_geom(P, freestream)
             end if
 
-            if (influence_calc_type == 'johnson') then
+            ! Get integrals
+            int = this%calc_integrals(geom, "velocity", "doublet", dod_info, freestream)
 
-                ! Get integrals
-                int = this%calc_integrals(geom, "velocity", "doublet", dod_info, freestream)
+            ! Source velocity
+            if (source_order == 0) then
+                v_s(1,1) = this%J*freestream%K_inv*sum(this%n_hat_ls(1,:)*int%F111(:))
+                v_s(1,2) = this%J*freestream%K_inv*sum(this%n_hat_ls(2,:)*int%F111(:))
+                v_s(1,3) = this%J*freestream%K_inv*int%hH113
+            end if
 
-                ! Source velocity
-                if (source_order == 0) then
-                    v_s(1,1) = this%J*freestream%K_inv*sum(this%n_hat_ls(1,:)*int%F111(:))
-                    v_s(1,2) = this%J*freestream%K_inv*sum(this%n_hat_ls(2,:)*int%F111(:))
-                    v_s(1,3) = this%J*freestream%K_inv*int%hH113
-                end if
-
-                ! Doublet velocity
-                if (doublet_order == 1) then
-                end if
-
+            ! Doublet velocity
+            if (doublet_order == 1) then
             end if
         end if
     
