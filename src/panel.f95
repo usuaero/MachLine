@@ -22,7 +22,8 @@ module panel_mod
         real,dimension(3) :: P_g ! Point position in global coords
         real,dimension(2) :: P_ls ! Transformed point in panel plane
         real :: h, h2 ! Transformed height above panel
-        real,dimension(3) :: a, g2, l1, l2, R1, R2 ! Edge integration parameters
+        real,dimension(3) :: a, g2, l1, l2, R1, R2 ! Edge integration parameters (Johnson's method)
+        real,dimension(3) :: xm, ym1, ym2, sm1, sm2, s1, s2 ! Edge integration parameters (Ehler's method)
 
         contains
 
@@ -37,6 +38,8 @@ module panel_mod
         real :: H111, H211, H121 ! Source integrals
         real :: hH113, H213, H123, H313, H223, H133 ! Doublet integrals; we use hH(1,1,3) because it can be reliably calculated, unlike H(1,1,3)
         real,dimension(:),allocatable :: F111, F211, F121 ! Necessary line integrals
+        real :: Q1 ! Davis-Ehlers integral
+        real,dimension(:),allocatable :: w0 ! Davis-Ehlers integral
 
     end type integrals
 
@@ -74,7 +77,7 @@ module panel_mod
         integer,dimension(3) :: edges ! Indices of this panel's edges
         integer :: top_parent, bot_parent ! Indices of the top and bottom panels this panel's strength is determined by (for a wake panel w/ constant doublet strength)
         integer :: r ! Panel inclination indicator; r=-1 -> superinclined, r=1 -> subinclined
-        real,dimension(3) :: tau ! Edge inclination parameter
+        real,dimension(3) :: m, l ! Edge slope and its inverse
         integer,dimension(3) :: q ! Edge type indicator; q=1 -> subsonic, q=-1 -> supersonic
         real :: J ! Local scaled transformation Jacobian
 
@@ -97,10 +100,10 @@ module panel_mod
             procedure :: calc_subsonic_geom => panel_calc_subsonic_geom
             procedure :: calc_supersonic_subinc_geom => panel_calc_supersonic_subinc_geom
             procedure :: E_i_M_N_K => panel_E_i_M_N_K
-            procedure :: calc_subsonic_F_integrals => panel_calc_subsonic_F_integrals
-            procedure :: calc_subsonic_H_integrals => panel_calc_subsonic_H_integrals
-            procedure :: calc_supersonic_subinc_F_integrals => panel_calc_supersonic_subinc_F_integrals
-            procedure :: calc_supersonic_subinc_H_integrals => panel_calc_supersonic_subinc_H_integrals
+            procedure :: calc_subsonic_edge_integrals => panel_calc_subsonic_edge_integrals
+            procedure :: calc_subsonic_panel_integrals => panel_calc_subsonic_panel_integrals
+            procedure :: calc_supersonic_subinc_edge_integrals => panel_calc_supersonic_subinc_edge_integrals
+            procedure :: calc_supersonic_subinc_panel_integrals => panel_calc_supersonic_subinc_panel_integrals
             procedure :: calc_integrals => panel_calc_integrals
             procedure :: calc_potentials => panel_calc_potentials
             procedure :: calc_velocities => panel_calc_velocities
@@ -440,21 +443,22 @@ contains
             ! Calculate edge outward normal
             this%n_hat_g(:,i) = cross(this%t_hat_g(:,i), this%n_g)
 
-            ! Calculate edge normal in local scaled coords E&M Eq. (J.6.45)
-            this%n_hat_ls(1,i) = this%t_hat_ls(2,i)
-            this%n_hat_ls(2,i) = -this%t_hat_ls(1,i)
-
-            ! Calculate edge parameter (Ehlers Eq. (E14))
-            this%b(i) = (this%n_hat_ls(1,i) - this%n_hat_ls(2,i))*(this%n_hat_ls(1,i) + this%n_hat_ls(2,i))
-            this%sqrt_b(i) = sqrt(abs(this%b(i)))
-
-            ! Calculate the edge type parameter (E&M Eq. (J.3.28) or Eq. (J.7.51))
-            this%tau(i) = sqrt(abs(freestream%C_g_inner(this%t_hat_g(:,i), this%t_hat_g(:,i))))
-
             ! Calculate edge type indicator (E&M Eq. (J.6.48)
             this%q(i) = sign(this%r*this%t_hat_ls(1,i)**2 + freestream%s*this%t_hat_ls(2,i)**2)
 
         end do
+
+        ! Calculate edge normal in local scaled coords E&M Eq. (J.6.45)
+        this%n_hat_ls(1,:) = this%t_hat_ls(2,:)
+        this%n_hat_ls(2,:) = -this%t_hat_ls(1,:)
+
+        ! Calculate edge parameter (Ehlers Eq. (E14))
+        this%b = (this%n_hat_ls(1,:) - this%n_hat_ls(2,:))*(this%n_hat_ls(1,:) + this%n_hat_ls(2,:))
+        this%sqrt_b = sqrt(abs(this%b))
+
+        ! Calculate edge slope
+        this%m = this%t_hat_ls(2,:)/this%t_hat_ls(1,:)
+        this%l = 1./this%m
     
     end subroutine panel_calc_edge_vectors
 
@@ -907,6 +911,44 @@ contains
                     geom%l2(i) = -sqrt(abs(geom%g2(i)))
 
                 end if
+
+                ! Subsonic or sonic edge
+                if (abs(this%m(i)) <= 1.) then
+
+                    ! Calculate xm
+                    d_ls = this%vertices_ls(:,i) - geom%P_ls
+                    geom%xm(i) = -d_ls(1)*this%m(i) + d_ls(2) ! I have no citation for this
+
+                    ! Calculate Ehlers quantities for first vertex
+                    geom%s1(i) = -d_ls(2)
+                    geom%sm1(i) = geom%xm(i)*this%m(i) + geom%s1(i) ! I have no citation for this
+                    geom%ym1(i) = geom%sm1(i) - geom%s1(i)*this%m(i) ! Ehlers p. 109
+
+                    ! Calculate Ehlers quantities for second vertex
+                    d_ls = this%vertices_ls(:,i_next) - geom%P_ls
+                    geom%s2(i) = -d_ls(2)
+                    geom%sm2(i) = geom%xm(i)*this%m(i) + geom%s2(i) ! I have no citation for this
+                    geom%ym2(i) = geom%sm2(i) - geom%s2(i)*this%m(i) ! Ehlers p. 109
+
+                else
+
+                    ! Calculate xm
+                    d_ls = this%vertices_ls(:,i) - geom%P_ls
+                    geom%xm(i) = -d_ls(1) + d_ls(2)*this%l(i) ! Ehlers Eq. (5.13)
+
+                    ! Calculate Ehlers quantities for first vertex
+                    geom%s1(i) = -d_ls(2)
+                    geom%sm1(i) = geom%xm(i) + geom%s1(i)*this%l(i)
+                    geom%ym1(i) = this%l(i)*geom%sm1(i) - geom%s1(i) ! Ehlers p. 104
+
+                    ! Calculate Ehlers quantities for second vertex
+                    d_ls = this%vertices_ls(:,i_next) - geom%P_ls
+                    geom%s2(i) = -d_ls(2)
+                    geom%sm2(i) = geom%xm(i) + geom%s2(i)*this%l(i)
+                    geom%ym2(i) = this%l(i)*geom%sm2(i) - geom%s2(i) ! Ehlers p. 104
+
+                end if
+
             end if
         end do
 
@@ -950,7 +992,7 @@ contains
     end function panel_E_i_M_N_K
 
 
-    subroutine panel_calc_subsonic_F_integrals(this, geom, freestream, int)
+    subroutine panel_calc_subsonic_edge_integrals(this, geom, freestream, int)
         ! Calculates the F integrals necessary for determining the influence of a triangular panel in subsonic flow.
         ! This is a pared-down version of the algorithm presented by Johnson (1980) Appendix D.3.
 
@@ -998,10 +1040,10 @@ contains
 
         end do
 
-    end subroutine panel_calc_subsonic_F_integrals
+    end subroutine panel_calc_subsonic_edge_integrals
 
 
-    subroutine panel_calc_supersonic_subinc_F_integrals(this, geom, dod_info, freestream, int)
+    subroutine panel_calc_supersonic_subinc_edge_integrals(this, geom, dod_info, freestream, int)
         ! Calculates the F integrals necessary to determine the influence of a subinclined triangular panel in supersonic flow.
         ! Taken from Ehlers et al. (1979) Appendix E.
 
@@ -1013,11 +1055,12 @@ contains
         type(flow),intent(in) :: freestream
         type(integrals),intent(inout) :: int
 
-        real :: v_xi, v_eta, F1, F2, eps, eps2, series
+        real :: v_xi, v_eta, F1, F2, eps, eps2, series, x
         integer :: i
         
         ! Allocate integral storage
         allocate(int%F111(this%N), source=0.)
+        allocate(int%w0(this%N), source=0.)
 
         ! Loop through edges
         do i=1,this%N
@@ -1071,13 +1114,82 @@ contains
 
                     end if
                 end if
+
+                ! Calculate w0
+
+                ! Supersonic edge
+                if (abs(this%m(i)) > 1.) then
+
+                    x = sqrt(1.-this%l(i)**2)
+
+                    ! Neither endpoint in DoD (Davis Eq. (A27))
+                    if (geom%R1(i) == 0. .and. geom%R2(i) == 0.) then
+                        int%w0(i) = 0.5*(sign(geom%ym2(i)) - sign(geom%ym1(i)))*pi/x
+
+                    ! Both endpoints in DoD (Davis Eq. (A25))
+                    else if (geom%R1(i) /= 0. .and. geom%R2(i) /= 0.) then
+
+                        F1 = x*(geom%ym2(i)*geom%R1(i) - geom%ym1(i)*geom%R2(i))
+                        F2 = geom%ym1(i)*geom%ym2(i) + (1.-this%l(i)**2)*geom%R1(i)*geom%R2(i)
+                        int%w0(i) = 1./x*atan2(F1, F2)
+
+                    ! First endpoint in DoD (combination of the above two)
+                    else if (geom%R1(i) /= 0.) then
+
+                        int%w0(i) = 0.5*sign(geom%ym2(i))*pi - atan2(geom%ym1(i), (geom%R1(i)*x))
+                        int%w0(i) = int%w0(i)/x
+
+                    ! Second endpoint in DoD
+                    else if (geom%R2(i) /= 0.) then
+
+                        int%w0(i) = atan2(geom%ym2(i), (geom%R2(i)*x)) - 0.5*sign(geom%ym1(i))*pi
+                        int%w0(i) = int%w0(i)/x
+
+                    end if
+                
+                ! Subsonic edge
+                else if (abs(this%m(i)) < 1.) then
+
+                    x = sqrt(1.-this%m(i)**2)
+
+                    ! Both endpoints in DoD (Davis Eq. (A.17))
+                    if (geom%R1(i) /= 0. .and. geom%R2(i) /= 0.) then
+
+                        F1 = -geom%ym2(i) + geom%R2(i)*x
+                        F2 = -geom%ym1(i) - geom%R1(i)*x
+                        int%w0(i) = 1./x*log(F1/F2)
+
+                    ! First endpoint in DoD
+                    else if (geom%R1(i) /= 0.) then
+
+                        F1 = -geom%ym1(i) + geom%R1(i)*x
+                        F2 = -geom%ym1(i) - geom%R1(i)*x
+                        int%w0(i) = -0.5*1./x*log(F1/F2)
+
+                    ! Second endpoint in DoD
+                    else if (geom%R2(i) /= 0.) then
+
+                        F1 = -geom%ym2(i) + geom%R2(i)*x
+                        F2 = -geom%ym2(i) - geom%R2(i)*x
+                        int%w0(i) = 0.5*1./x*log(F1/F2)
+
+                    end if
+
+                ! Sonic edge
+                else
+
+                    ! Combination of w0 equation in Ehlers A5 and Davis Eqs. (A29-30) and equation for w0 on Ehlers p. 109
+                    int%w0(i) = geom%R2(i)/geom%ym2(i) - geom%R1(i)/geom%ym1(i)
+
+                end if
+
             end if
         end do
 
-    end subroutine panel_calc_supersonic_subinc_F_integrals
+    end subroutine panel_calc_supersonic_subinc_edge_integrals
 
 
-    subroutine panel_calc_subsonic_H_integrals(this, geom, freestream, int)
+    subroutine panel_calc_subsonic_panel_integrals(this, geom, freestream, int)
         ! Calculates the necessary H integrals to determine the influence of a panel in subsonic flow.
         ! Taken from Johnson (1980) Appendix D.3.
 
@@ -1143,10 +1255,10 @@ contains
         deallocate(v_xi)
         deallocate(v_eta)
 
-    end subroutine panel_calc_subsonic_H_integrals
+    end subroutine panel_calc_subsonic_panel_integrals
 
 
-    subroutine panel_calc_supersonic_subinc_H_integrals(this, geom, dod_info, freestream, int)
+    subroutine panel_calc_supersonic_subinc_panel_integrals(this, geom, dod_info, freestream, int)
         ! Calculates the necessary H integrals to determine the influence of a subinclined panel in supersonic flow.
         ! Taken from Ehlers et al. (1979) Appendix E.
 
@@ -1168,6 +1280,7 @@ contains
 
         ! Calculate hH(1,1,3) (Ehlers Eq. (E18))
         int%hH113 = 0.
+        int%Q1 = 0.
         if (abs(geom%h) > 1e-12) then ! Check the point is off the panel plane
 
             ! Add influence of each edge
@@ -1201,6 +1314,59 @@ contains
 
                     end if
 
+                    ! Calculate Q1
+
+                    ! Subsonic or sonic edge
+                    if (abs(this%m(i)) <= 1.) then
+
+                        ! Both endpoints in
+                        if (geom%R1(i) /= 0. .and. geom%R2(i) /= 0.) then
+
+                            F1 = geom%h*geom%xm(i)*(geom%ym2(i)*geom%R1(i) - geom%ym1(i)*geom%R2(i))
+                            F2 = geom%xm(i)**2*geom%R1(i)*geom%R2(i) + geom%h2*geom%ym1(i)*geom%ym2(i)
+                            int%Q1 = int%Q1 + atan2(F1, F2)
+
+                        ! First endpoint in
+                        else if (geom%R1(i) /= 0.) then
+
+                            int%Q1 = int%Q1 - sign(geom%h)*atan2(geom%xm(i)*geom%R1(i), -abs(geom%h)*geom%ym1(i))
+
+                        ! Second endpoint in
+                        else if (geom%R2(i) /= 0.) then
+
+                            int%Q1 = int%Q1 + sign(geom%h)*atan2(geom%xm(i)*geom%R2(i), -abs(geom%h)*geom%ym2(i))
+
+                        end if
+
+                    ! Supersonic edge
+                    else if (abs(this%m(i)) > 1.) then
+
+                        ! Both endpoints in
+                        if (geom%R1(i) /= 0. .and. geom%R2(i) /= 0.) then
+
+                            F1 = geom%h*geom%xm(i)*(geom%ym2(i)*geom%R1(i) - geom%ym1(i)*geom%R2(i))
+                            F2 = geom%xm(i)**2*geom%R1(i)*geom%R2(i) + geom%h2*geom%ym1(i)*geom%ym2(i)
+                            int%Q1 = int%Q1 + atan2(F1, F2)
+
+                        ! First endpoint in
+                        else if (geom%R1(i) /= 0.) then
+
+                            int%Q1 = int%Q1 + 0.5*sign(geom%h*geom%ym2(i))*pi - atan2(geom%h*geom%ym1(i), geom%xm(i)*geom%R1(i))
+
+                        ! Second endpoint in
+                        else if (geom%R1(i) /= 0.) then
+
+                            int%Q1 = int%Q1 + atan2(geom%h*geom%ym2(i), geom%xm(i)*geom%R2(i)) - 0.5*sign(geom%h*geom%ym1(i))*pi
+
+                        ! Neither endpoint in
+                        else
+
+                            int%Q1 = int%Q1 + 0.5*(sign(geom%h*geom%ym2(i))-sign(geom%h*geom%ym1(i)))*pi
+
+                        end if
+
+                    end if
+
                 end if
         
             end do
@@ -1220,7 +1386,7 @@ contains
         deallocate(v_xi)
         deallocate(v_eta)
 
-    end subroutine panel_calc_supersonic_subinc_H_integrals
+    end subroutine panel_calc_supersonic_subinc_panel_integrals
 
 
     function panel_calc_integrals(this, geom, influence_type, singularity_type, dod_info, freestream) result(int)
@@ -1238,11 +1404,11 @@ contains
 
         ! Calculate necessary integrals based on the flow condition and panel type
         if (freestream%supersonic) then
-            call this%calc_supersonic_subinc_F_integrals(geom, dod_info, freestream, int)
-            call this%calc_supersonic_subinc_H_integrals(geom, dod_info, freestream, int)
+            call this%calc_supersonic_subinc_edge_integrals(geom, dod_info, freestream, int)
+            call this%calc_supersonic_subinc_panel_integrals(geom, dod_info, freestream, int)
         else
-            call this%calc_subsonic_F_integrals(geom, freestream, int)
-            call this%calc_subsonic_H_integrals(geom, freestream, int)
+            call this%calc_subsonic_edge_integrals(geom, freestream, int)
+            call this%calc_subsonic_panel_integrals(geom, freestream, int)
         end if
 
     end function panel_calc_integrals
@@ -1263,6 +1429,10 @@ contains
 
         type(eval_point_geom) :: geom
         type(integrals) :: int
+        logical :: ehlers_calc
+        integer :: i
+
+        ehlers_calc = .true.
 
         ! Specify influencing vertices (also sets zero default influence)
 
@@ -1318,12 +1488,31 @@ contains
 
                 if (freestream%supersonic) then
 
-                    ! Equivalent to Ehlers Eq. (8.6)
-                    phi_s = this%J*freestream%K_inv*(geom%h*int%hH113 + sum(geom%a*int%F111))
+                    if (ehlers_calc) then
+                        
+                        ! Sum up w0 terms
+                        do i=1,this%N
+                            if (abs(this%m(i)) < 1.) then
+                                phi_s = phi_s + geom%xm(i)*int%w0(i)*this%m(i)
+                            else
+                                phi_s = phi_s + geom%xm(i)*int%w0(i)
+                            end if
+                        end do
+
+                        ! Add Q1 term
+                        phi_s = this%J*freestream%K_inv*(phi_s - geom%h*int%Q1)
+
+                    else
+
+                        ! Equivalent to Ehlers Eq. (8.6)
+                        phi_s = this%J*freestream%K_inv*(geom%h*int%hH113 + sum(geom%a*int%F111))
+
+                    end if
                 else
 
                     ! Johnson Eq. (D21) including the area factor discussed by Ehlers in Sec. 10.3
                     phi_s = this%J*freestream%K_inv*(geom%h*int%hH113 - sum(geom%a*int%F111))
+
                 end if
 
             end if
@@ -1333,10 +1522,33 @@ contains
 
                 if (freestream%supersonic) then
 
-                    ! Equivalent to Ehlers Eq. (5.17))
-                    phi_d(1) = int%hH113
-                    phi_d(2) = int%hH113*geom%P_ls(1) - geom%h*sum(this%n_hat_ls(1,:)*int%F111)
-                    phi_d(3) = int%hH113*geom%P_ls(1) + geom%h*sum(this%n_hat_ls(2,:)*int%F111)
+                    if (ehlers_calc) then
+
+                        ! Sum up w0 terms
+                        do i=1,this%N
+                            if (abs(this%m(i)) < 1.) then
+                                phi_d(2) = phi_d(2) - geom%h*int%w0(i)*this%m(i)
+                                phi_d(3) = phi_d(3) - geom%h*int%w0(i)
+                            else
+                                phi_d(2) = phi_d(2) - geom%h*int%w0(i)
+                                phi_d(3) = phi_d(3) - geom%h*int%w0(i)/this%m(i)
+                            end if
+                        end do
+
+                        ! Add Q1 terms
+                        phi_d(1) = int%Q1
+                        phi_d(2) = int%Q1*geom%P_ls(1) + phi_d(2)
+                        phi_d(3) = int%Q1*geom%P_ls(2) + phi_d(2)
+                        phi_d = -phi_d
+
+                    else
+
+                        ! Equivalent to Ehlers Eq. (5.17))
+                        phi_d(1) = int%hH113
+                        phi_d(2) = int%hH113*geom%P_ls(1) - geom%h*sum(this%n_hat_ls(1,:)*int%F111)
+                        phi_d(3) = int%hH113*geom%P_ls(1) + geom%h*sum(this%n_hat_ls(2,:)*int%F111)
+
+                    end if
                 else
 
                     ! Johnson Eq. (D.30)
