@@ -855,9 +855,7 @@ contains
         type(eval_point_geom) :: geom
 
         real,dimension(2) :: d_ls
-        real,dimension(3) :: d_g, x
         integer :: i, i_next
-        real :: val, v_xi, v_eta
 
         ! Initialize
         call geom%init(eval_point, this%A_g_to_ls, this%centroid)
@@ -870,71 +868,45 @@ contains
 
                 ! Calculate displacements
                 d_ls = this%vertices_ls(:,i) - geom%P_ls
-                d_g = this%get_vertex_loc(i) - geom%P_g
-
-                ! Get vector perpendicular to edge
-                x = cross(d_g, this%t_hat_g(:,i))
-
-                ! Get normal components
-                v_xi = this%n_hat_ls(1,i)
-                v_eta = this%n_hat_ls(2,i)
 
                 ! Perpendicular distance in plane from evaluation point to edge E&M Eq. (J.6.46) and (J.7.53)
                 geom%a(i) = inner2(d_ls, this%n_hat_ls(:,i)) ! Definition
-                !geom%a(i) = this%r*freestream%B/(this%tau(i)*sqrt(abs(inner(this%n_g, this%nu_g)))) * freestream%B_g_inner(this%n_g, x) ! Optimized calculation E&M Eq. (J.7.61)
-        
-                ! The original and optimized calculations match out to precision in some instances, and then only to 1 or 2 sig figs in other cases...
-
-                ! Integration length on edge to start vertex (E&M Eq. (J.6.47))
-                geom%l1(i) = -d_ls(1)*this%t_hat_ls(1,i) + d_ls(2)*this%t_hat_ls(2,i) ! Ehlers Eq. (E14)
-                !geom%l1(i) = d_ls(1)*v_eta + d_ls(2)*v_xi ! Ehlers Eq. (E14) this is the same as the previous line
-                !geom%l1(i) = freestream%s/this%tau(i) * freestream%C_g_inner(this%t_hat_g(:,i), d_g) ! Optimized calculation E&M Eq. (J.7.52)
-                ! Same as a; matching is sporadic
 
                 ! Calculate square of the perpendicular distance to edge
-                !geom%g2(i) = (freestream%B/this%tau(i))**2*freestream%B_g_inner(x, x) ! E&M Eq. (J.8.23) or (J.7.70)
                 geom%g2(i) = geom%a(i)**2 - this%b(i)*geom%h2 ! Ehlers Eq. (E14) and what is used in supsbi in PAN AIR.
-                ! E&M consistently use q in these equations. Ehlers et al. use b.
-                ! The PAN AIR source code uses b instead of q. Printing out b from PAN AIR, it seems to always be close to 1.
-                ! This matches what's in PAN AIR when the edge is perpendicular to the freestream (i.e. b = +/-1)
-                ! The first definition above matches my version.
 
-                ! Distance from evaluation point to start vertex E&M Eq. (J.8.8)
                 if (dod_info%verts_in_dod(i)) then
+        
+                    ! Integration length on edge to start vertex Ehlers Eq. (E14)
+                    geom%l1(i) = -d_ls(1)*this%t_hat_ls(1,i) + d_ls(2)*this%t_hat_ls(2,i)
+
+                    ! Distance from evaluation point to start vertex Ehlers Eq. (E15)
                     geom%R1(i) = sqrt((geom%g2(i)-geom%l1(i)**2)/this%b(i))
-                    !geom%R1(i) = sqrt(d_ls(1)**2 - d_ls(2)**2 - geom%h2)
-                end if
 
-                ! Displacement from end vertex
-                !d_g = this%get_vertex_loc(i_next) - geom%P_g
-                d_ls = this%vertices_ls(:,i_next) - geom%P_ls
+                else
 
-                ! Integration length on edge to end vertex
-                geom%l2(i) = -d_ls(1)*this%t_hat_ls(1,i) + d_ls(2)*this%t_hat_ls(2,i) ! Definition; same as used in supsbi in PAN AIR
-                !geom%l2(i) = d_ls(1)*v_eta + d_ls(2)*v_xi ! Ehlers Eq. (E14) this is the same as the previous line
-                !geom%l2(i) = freestream%s/this%tau(i) * freestream%C_g_inner(this%t_hat_g(:,i), d_g) ! Optimized calculation E&M Eq. (J.7.52)
-
-                ! Distance from evaluation point to end vertex E&M Eq. (J.8.8)
-                if (dod_info%verts_in_dod(i_next)) then
-                    geom%R2(i) = sqrt((geom%g2(i)-geom%l2(i)**2)/this%b(i))
-                    !geom%R2(i) = sqrt(d_ls(1)**2 - d_ls(2)**2 - geom%h2)
-                end if
-
-                ! Weird stuff from PAN AIR, about lines 56505-56509
-                ! Here, I have flipped the signs from what is done in PAN AIR. Doesn't make sense to me why, but it gives much better results.
-                ! This may be derived from Ehlers Eq. (E15).
-                ! This seems to be necessary to enforce Ehlers Eq. (E21) when the endpoint is outside the DoD.
-                ! In that case, R is set (somewhat arbitrarily) to 0, but l is not adjusted.
-                ! This takes care of that. I think.
-                if (geom%R1(i) == 0.) then
+                    ! Comes from PAN AIR (subroutine supsbi) to enforce Ehlers Eq. (E15)
                     geom%l1(i) = sqrt(abs(geom%g2(i)))
+
                 end if
-                if (geom%R2(i) == 0.) then
+
+                if (dod_info%verts_in_dod(i_next)) then
+
+                    ! Displacement from end vertex
+                    d_ls = this%vertices_ls(:,i_next) - geom%P_ls
+
+                    ! Integration length on edge to end vertex
+                    geom%l2(i) = -d_ls(1)*this%t_hat_ls(1,i) + d_ls(2)*this%t_hat_ls(2,i) ! Definition; same as used in supsbi in PAN AIR
+
+                    ! Distance from evaluation point to end vertex
+                    geom%R2(i) = sqrt((geom%g2(i)-geom%l2(i)**2)/this%b(i)) ! Ehlers Eq. (E15)
+
+                else
+
+                    ! Comes from PAN AIR (subroutine supsbi) to enforce Ehlers Eq. (E15)
                     geom%l2(i) = -sqrt(abs(geom%g2(i)))
+
                 end if
-
-            else
-
             end if
         end do
 
@@ -1071,10 +1043,6 @@ contains
                              (this%b(i)*geom%R1(i)*geom%R2(i) - geom%l1(i)*geom%l2(i))
 
                     end if
-
-                    !if (abs(F2**2 + this%b(i)*F1**2 - 1.) > 1e-12) then
-                    !    write(*,*) F2**2 + this%b(i)*F1**2
-                    !end if
 
                     ! Check for poorly-conditioned edge
                     if (abs(F2) > 100.*this%sqrt_b(i)*abs(F1)) then
@@ -1268,13 +1236,10 @@ contains
 
         type(integrals) :: int
 
-        real,dimension(:,:,:,:),allocatable :: F
-
-        ! Calculate necessary integrals based on the flow condition
+        ! Calculate necessary integrals based on the flow condition and panel type
         if (freestream%supersonic) then
             call this%calc_supersonic_subinc_F_integrals(geom, dod_info, freestream, int)
             call this%calc_supersonic_subinc_H_integrals(geom, dod_info, freestream, int)
-
         else
             call this%calc_subsonic_F_integrals(geom, freestream, int)
             call this%calc_subsonic_H_integrals(geom, freestream, int)
@@ -1372,7 +1337,6 @@ contains
                     phi_d(1) = int%hH113
                     phi_d(2) = int%hH113*geom%P_ls(1) - geom%h*sum(this%n_hat_ls(1,:)*int%F111)
                     phi_d(3) = int%hH113*geom%P_ls(1) + geom%h*sum(this%n_hat_ls(2,:)*int%F111)
-
                 else
 
                     ! Johnson Eq. (D.30)
