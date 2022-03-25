@@ -1354,7 +1354,7 @@ contains
                             int%Q1 = int%Q1 + 0.5*sign(-geom%h*geom%ym2(i))*pi - atan2(-geom%h*geom%ym1(i), geom%xm(i)*geom%R1(i))
 
                         ! Second endpoint in
-                        else if (geom%R1(i) /= 0.) then
+                        else if (geom%R2(i) /= 0.) then
 
                             int%Q1 = int%Q1 + atan2(-geom%h*geom%ym2(i), geom%xm(i)*geom%R2(i)) - 0.5*sign(-geom%h*geom%ym1(i))*pi
 
