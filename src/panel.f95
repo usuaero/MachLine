@@ -917,17 +917,17 @@ contains
 
                     ! Calculate xm
                     d_ls = this%vertices_ls(:,i) - geom%P_ls
-                    geom%xm(i) = -d_ls(1)*this%m(i) + d_ls(2) ! I have no citation for this
+                    geom%xm(i) = -d_ls(1)*this%m(i) + d_ls(2) ! May be derived from Ehlers Eq. (E35)
 
-                    ! Calculate Ehlers quantities for first vertex
+                    ! Calculate oblique coordinates for first vertex
                     geom%s1(i) = -d_ls(2)
-                    geom%sm1(i) = geom%xm(i)*this%m(i) + geom%s1(i) ! I have no citation for this
+                    geom%sm1(i) = -d_ls(1) ! May be derived from Ehlers Eq. (E25)
                     geom%ym1(i) = geom%sm1(i) - geom%s1(i)*this%m(i) ! Ehlers p. 109
 
-                    ! Calculate Ehlers quantities for second vertex
+                    ! Calculate oblique coordinates for second vertex
                     d_ls = this%vertices_ls(:,i_next) - geom%P_ls
                     geom%s2(i) = -d_ls(2)
-                    geom%sm2(i) = geom%xm(i)*this%m(i) + geom%s2(i) ! I have no citation for this
+                    geom%sm2(i) = -d_ls(1) ! May be derived from Ehlers Eq. (E25)
                     geom%ym2(i) = geom%sm2(i) - geom%s2(i)*this%m(i) ! Ehlers p. 109
 
                 else
@@ -936,15 +936,15 @@ contains
                     d_ls = this%vertices_ls(:,i) - geom%P_ls
                     geom%xm(i) = -d_ls(1) + d_ls(2)*this%l(i) ! Ehlers Eq. (5.13)
 
-                    ! Calculate Ehlers quantities for first vertex
+                    ! Calculate oblique coordinates for first vertex
                     geom%s1(i) = -d_ls(2)
-                    geom%sm1(i) = geom%xm(i) + geom%s1(i)*this%l(i)
+                    geom%sm1(i) = -d_ls(1)
                     geom%ym1(i) = this%l(i)*geom%sm1(i) - geom%s1(i) ! Ehlers p. 104
 
-                    ! Calculate Ehlers quantities for second vertex
+                    ! Calculate oblique coordinates for second vertex
                     d_ls = this%vertices_ls(:,i_next) - geom%P_ls
                     geom%s2(i) = -d_ls(2)
-                    geom%sm2(i) = geom%xm(i) + geom%s2(i)*this%l(i)
+                    geom%sm2(i) = -d_ls(1)
                     geom%ym2(i) = this%l(i)*geom%sm2(i) - geom%s2(i) ! Ehlers p. 104
 
                 end if
