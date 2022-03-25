@@ -1055,7 +1055,7 @@ contains
         type(flow),intent(in) :: freestream
         type(integrals),intent(inout) :: int
 
-        real :: v_xi, v_eta, F1, F2, eps, eps2, series, x
+        real :: v_xi, v_eta, F1, F2, eps, eps2, series, x, x2
         integer :: i
         
         ! Allocate integral storage
@@ -1120,58 +1120,58 @@ contains
                 ! Supersonic edge
                 if (abs(this%m(i)) > 1.) then
 
-                    x = sqrt(1.-this%l(i)**2)
+                    x2 = 1.-this%l(i)**2
+                    x = sqrt(x2)
 
-                    ! Neither endpoint in DoD (Davis Eq. (A27))
-                    if (geom%R1(i) == 0. .and. geom%R2(i) == 0.) then
-                        int%w0(i) = 0.5*(sign(geom%ym2(i)) - sign(geom%ym1(i)))*pi/x
+                    ! Both endpoints in DoD (Ehlers p. 108)
+                    if (geom%R1(i) /= 0. .and. geom%R2(i) /= 0.) then
 
-                    ! Both endpoints in DoD (Davis Eq. (A25))
-                    else if (geom%R1(i) /= 0. .and. geom%R2(i) /= 0.) then
-
-                        F1 = x*(geom%ym2(i)*geom%R1(i) - geom%ym1(i)*geom%R2(i))
-                        F2 = geom%ym1(i)*geom%ym2(i) + (1.-this%l(i)**2)*geom%R1(i)*geom%R2(i)
+                        F1 = x*(geom%ym1(i)*geom%R2(i) - geom%ym2(i)*geom%R1(i))
+                        F2 = geom%ym1(i)*geom%ym2(i) + x2*geom%R1(i)*geom%R2(i)
                         int%w0(i) = 1./x*atan2(F1, F2)
 
-                    ! First endpoint in DoD (combination of the above two)
+                    ! First endpoint in DoD
                     else if (geom%R1(i) /= 0.) then
 
-                        int%w0(i) = 0.5*sign(geom%ym2(i))*pi - atan2(geom%ym1(i), (geom%R1(i)*x))
-                        int%w0(i) = int%w0(i)/x
+                        int%w0(i) = (0.5*sign(-geom%ym2(i))*pi - atan2(-geom%ym1(i), geom%R1(i)*x)) / x
 
                     ! Second endpoint in DoD
                     else if (geom%R2(i) /= 0.) then
 
-                        int%w0(i) = atan2(geom%ym2(i), (geom%R2(i)*x)) - 0.5*sign(geom%ym1(i))*pi
-                        int%w0(i) = int%w0(i)/x
+                        int%w0(i) = (atan2(-geom%ym2(i), geom%R2(i)*x) - 0.5*sign(-geom%ym1(i))*pi) / x
+
+                    ! Neither endpoint in DoD (Ehlers p. 108)
+                    else
+                        int%w0(i) = 0.5*(sign(-geom%ym2(i)) - sign(-geom%ym1(i)))*pi/x
 
                     end if
                 
                 ! Subsonic edge
                 else if (abs(this%m(i)) < 1.) then
 
-                    x = sqrt(1.-this%m(i)**2)
+                    x2 = 1.-this%m(i)**2
+                    x = sqrt(x2)
 
-                    ! Both endpoints in DoD (Davis Eq. (A.17))
+                    ! Both endpoints in DoD (Davis Eq. (A.17) has a typo)
                     if (geom%R1(i) /= 0. .and. geom%R2(i) /= 0.) then
 
-                        F1 = -geom%ym2(i) + geom%R2(i)*x
-                        F2 = -geom%ym1(i) - geom%R1(i)*x
+                        F1 = geom%ym2(i) + geom%R2(i)*x
+                        F2 = geom%ym1(i) + geom%R1(i)*x
                         int%w0(i) = 1./x*log(F1/F2)
 
                     ! First endpoint in DoD
                     else if (geom%R1(i) /= 0.) then
 
-                        F1 = -geom%ym1(i) + geom%R1(i)*x
-                        F2 = -geom%ym1(i) - geom%R1(i)*x
-                        int%w0(i) = -0.5*1./x*log(F1/F2)
+                        F1 = geom%ym1(i) + geom%R1(i)*x
+                        F2 = geom%ym1(i) - geom%R1(i)*x
+                        int%w0(i) = -0.5*1./x2*log(F1/F2)
 
                     ! Second endpoint in DoD
                     else if (geom%R2(i) /= 0.) then
 
-                        F1 = -geom%ym2(i) + geom%R2(i)*x
-                        F2 = -geom%ym2(i) - geom%R2(i)*x
-                        int%w0(i) = 0.5*1./x*log(F1/F2)
+                        F1 = geom%ym2(i) + geom%R2(i)*x
+                        F2 = geom%ym2(i) - geom%R2(i)*x
+                        int%w0(i) = 0.5*1./x2*log(F1/F2)
 
                     end if
 
@@ -1322,23 +1322,23 @@ contains
                         ! Both endpoints in
                         if (geom%R1(i) /= 0. .and. geom%R2(i) /= 0.) then
 
-                            F1 = geom%h*geom%xm(i)*(geom%ym2(i)*geom%R1(i) - geom%ym1(i)*geom%R2(i))
+                            F1 = geom%h*geom%xm(i)*(geom%ym1(i)*geom%R2(i) - geom%ym2(i)*geom%R1(i))
                             F2 = geom%xm(i)**2*geom%R1(i)*geom%R2(i) + geom%h2*geom%ym1(i)*geom%ym2(i)
                             int%Q1 = int%Q1 + atan2(F1, F2)
 
                         ! First endpoint in
                         else if (geom%R1(i) /= 0.) then
 
-                            int%Q1 = int%Q1 - sign(geom%h)*atan2(geom%xm(i)*geom%R1(i), -abs(geom%h)*geom%ym1(i))
+                            int%Q1 = int%Q1 - sign(geom%h)*atan2(geom%xm(i)*geom%R1(i), abs(geom%h)*geom%ym1(i))
 
                         ! Second endpoint in
                         else if (geom%R2(i) /= 0.) then
 
-                            int%Q1 = int%Q1 + sign(geom%h)*atan2(geom%xm(i)*geom%R2(i), -abs(geom%h)*geom%ym2(i))
+                            int%Q1 = int%Q1 + sign(geom%h)*atan2(geom%xm(i)*geom%R2(i), abs(geom%h)*geom%ym2(i))
 
                         end if
 
-                    ! Supersonic edge
+                    ! Supersonic edge (Ehlers p. 108)
                     else if (abs(this%m(i)) > 1.) then
 
                         ! Both endpoints in
@@ -1351,17 +1351,17 @@ contains
                         ! First endpoint in
                         else if (geom%R1(i) /= 0.) then
 
-                            int%Q1 = int%Q1 + 0.5*sign(geom%h*geom%ym2(i))*pi - atan2(geom%h*geom%ym1(i), geom%xm(i)*geom%R1(i))
+                            int%Q1 = int%Q1 + 0.5*sign(-geom%h*geom%ym2(i))*pi - atan2(-geom%h*geom%ym1(i), geom%xm(i)*geom%R1(i))
 
                         ! Second endpoint in
                         else if (geom%R1(i) /= 0.) then
 
-                            int%Q1 = int%Q1 + atan2(geom%h*geom%ym2(i), geom%xm(i)*geom%R2(i)) - 0.5*sign(geom%h*geom%ym1(i))*pi
+                            int%Q1 = int%Q1 + atan2(-geom%h*geom%ym2(i), geom%xm(i)*geom%R2(i)) - 0.5*sign(-geom%h*geom%ym1(i))*pi
 
                         ! Neither endpoint in
                         else
 
-                            int%Q1 = int%Q1 + 0.5*(sign(geom%h*geom%ym2(i))-sign(geom%h*geom%ym1(i)))*pi
+                            int%Q1 = int%Q1 + 0.5*( sign(-geom%h*geom%ym2(i)) - sign(-geom%h*geom%ym1(i)) )*pi
 
                         end if
 
