@@ -927,7 +927,7 @@ contains
                 if (abs(this%m(i)) <= 1.) then
 
                     ! Calculate xm
-                    geom%xm(i) = geom%sm1(i)*this%m(i) - geom%s1(i) ! May be derived from Ehlers Eq. (E35)
+                    geom%xm(i) = geom%sm1(i)*this%m(i) - geom%s1(i) ! Ehlers Eq. (A25)
 
                     ! Calculate oblique coordinates for first vertex
                     geom%ym1(i) = geom%sm1(i) - geom%s1(i)*this%m(i) ! Ehlers p. 109
@@ -941,10 +941,10 @@ contains
                     geom%xm(i) = geom%sm1(i) - geom%s1(i)*this%l(i) ! Ehlers Eq. (5.13)
 
                     ! Calculate oblique coordinates for first vertex
-                    geom%ym1(i) = this%l(i)*geom%sm1(i) - geom%s1(i) ! Ehlers p. 104
+                    geom%ym1(i) = geom%s1(i) - this%l(i)*geom%sm1(i) ! Ehlers p. 104
 
                     ! Calculate oblique coordinates for second vertex
-                    geom%ym2(i) = this%l(i)*geom%sm2(i) - geom%s2(i) ! Ehlers p. 104
+                    geom%ym2(i) = geom%s2(i) - this%l(i)*geom%sm2(i) ! Ehlers p. 104
 
                 end if
 
