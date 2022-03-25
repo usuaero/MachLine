@@ -912,39 +912,38 @@ contains
 
                 end if
 
+                ! Calculate s and sm
+                ! First vertex
+                d_ls = this%vertices_ls(:,i) - geom%P_ls
+                geom%s1(i) = -d_ls(2)
+                geom%sm1(i) = -d_ls(1) ! May be derived from Ehlers Eq. (E25)
+
+                ! Second vertex
+                d_ls = this%vertices_ls(:,i_next) - geom%P_ls
+                geom%s2(i) = -d_ls(2)
+                geom%sm2(i) = -d_ls(1) ! May be derived from Ehlers Eq. (E25)
+
                 ! Subsonic or sonic edge
                 if (abs(this%m(i)) <= 1.) then
 
                     ! Calculate xm
-                    d_ls = this%vertices_ls(:,i) - geom%P_ls
-                    geom%xm(i) = -d_ls(1)*this%m(i) + d_ls(2) ! May be derived from Ehlers Eq. (E35)
+                    geom%xm(i) = geom%sm1(i)*this%m(i) - geom%s1(i) ! May be derived from Ehlers Eq. (E35)
 
                     ! Calculate oblique coordinates for first vertex
-                    geom%s1(i) = -d_ls(2)
-                    geom%sm1(i) = -d_ls(1) ! May be derived from Ehlers Eq. (E25)
                     geom%ym1(i) = geom%sm1(i) - geom%s1(i)*this%m(i) ! Ehlers p. 109
 
                     ! Calculate oblique coordinates for second vertex
-                    d_ls = this%vertices_ls(:,i_next) - geom%P_ls
-                    geom%s2(i) = -d_ls(2)
-                    geom%sm2(i) = -d_ls(1) ! May be derived from Ehlers Eq. (E25)
                     geom%ym2(i) = geom%sm2(i) - geom%s2(i)*this%m(i) ! Ehlers p. 109
 
                 else
 
                     ! Calculate xm
-                    d_ls = this%vertices_ls(:,i) - geom%P_ls
-                    geom%xm(i) = -d_ls(1) + d_ls(2)*this%l(i) ! Ehlers Eq. (5.13)
+                    geom%xm(i) = geom%sm1(i) - geom%s1(i)*this%l(i) ! Ehlers Eq. (5.13)
 
                     ! Calculate oblique coordinates for first vertex
-                    geom%s1(i) = -d_ls(2)
-                    geom%sm1(i) = -d_ls(1)
                     geom%ym1(i) = this%l(i)*geom%sm1(i) - geom%s1(i) ! Ehlers p. 104
 
                     ! Calculate oblique coordinates for second vertex
-                    d_ls = this%vertices_ls(:,i_next) - geom%P_ls
-                    geom%s2(i) = -d_ls(2)
-                    geom%sm2(i) = -d_ls(1)
                     geom%ym2(i) = this%l(i)*geom%sm2(i) - geom%s2(i) ! Ehlers p. 104
 
                 end if
@@ -1133,12 +1132,12 @@ contains
                     ! First endpoint in DoD
                     else if (geom%R1(i) /= 0.) then
 
-                        int%w0(i) = (0.5*sign(-geom%ym2(i))*pi - atan2(-geom%ym1(i), geom%R1(i)*x)) / x
+                        int%w0(i) = ( 0.5*sign(-geom%ym2(i))*pi - atan2(-geom%ym1(i), geom%R1(i)*x) ) / x
 
                     ! Second endpoint in DoD
                     else if (geom%R2(i) /= 0.) then
 
-                        int%w0(i) = (atan2(-geom%ym2(i), geom%R2(i)*x) - 0.5*sign(-geom%ym1(i))*pi) / x
+                        int%w0(i) = ( atan2(-geom%ym2(i), geom%R2(i)*x) - 0.5*sign(-geom%ym1(i))*pi ) / x
 
                     ! Neither endpoint in DoD (Ehlers p. 108)
                     else
