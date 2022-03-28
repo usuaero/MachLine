@@ -434,24 +434,33 @@ contains
 
     class(list), intent(inout) :: this
     integer,intent(in) :: int
+
     type(node),pointer :: curr_node, prev_node, del_node
     integer :: curr_val
 
     ! Check if it's in the list
+    write(*,*) "Deleting!"
     if (.not. this%is_in(int)) then
       return
     end if
+
+    write(*,*) "Value is in this list"
 
     ! Start at the head
     curr_node => this%head
     prev_node => null()
 
     ! Loop through list
-    do while(.not. associated(prev_node, this%tail))
+    do while (.not. associated(prev_node, this%tail))
+
+      ! Get the value at the current list node
+      write(*,*) "Getting value"
+      call get_item(curr_node, curr_val)
+      write(*,*) "Got value"
 
       ! Check if this node is the value
-      call get_item(curr_node, curr_val)
       if (curr_val == int) then
+        write(*,*) "Found value"
 
         ! If we're deleting the head node, move the head pointer
         if (associated(curr_node, this%head)) then
@@ -462,8 +471,9 @@ contains
           prev_node%next => curr_node%next
         end if
 
-        ! If we're deleting the tail node, move the tail pointer
+        ! If we've deleted the tail node, move the tail pointer
         if (associated(curr_node, this%tail)) then
+          write(*,*) "At tail"
           this%tail => prev_node
         end if
 
@@ -472,11 +482,16 @@ contains
 
         ! Move pointers (prev_node doesn't move if curr_node is getting deleted)
         del_node => curr_node
+        write(*,*) "Moving current node"
         curr_node => curr_node%next
+        write(*,*) "Moved current node"
 
         ! Deallocate
+        write(*,*) "Deallocating item"
         deallocate(del_node%item)
+        write(*,*) "Deallocating node"
         deallocate(del_node)
+        write(*,*) "Done"
 
       else
 

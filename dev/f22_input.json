@@ -1,0 +1,24 @@
+{
+    "flow": {
+        "freestream_velocity": [100.0, 0.0, 10.0]
+    },
+    "geometry": {
+        "file": "dev/meshes/F-22.vtk",
+        "spanwise_axis" : "+y",
+        "mirror_about" : "xz",
+        "wake_model": {
+        },
+        "reference": {
+            "area": 1.0
+        }
+    },
+    "solver": {
+        "formulation": "morino"
+    },
+    "post_processing" : {
+    },
+    "output": {
+        "body_file" : "dev/results/F-22.vtk",
+        "wake_file" : "dev/results/F-22_wake.vtk"
+    }
+}
