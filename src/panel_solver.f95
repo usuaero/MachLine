@@ -440,6 +440,7 @@ contains
                 write(*,'(a)',advance='no') "     Calculating source strengths..."
 
                 ! Loop through panels
+                !$OMP parallel do private(n_mirrored) schedule(static)
                 do i=1,body%N_panels
 
                     ! Existing panels
@@ -496,6 +497,7 @@ contains
         write(*,'(a)',advance='no') "     Calculating body influences..."
 
         ! Calculate source and doublet influences from body
+        !$OMP parallel do private(j, source_inf, doublet_inf, i_vert_s, i_vert_d, k) schedule(dynamic)
         do i=1,body%N_cp
             do j=1,body%N_panels
 
@@ -670,6 +672,7 @@ contains
         write(*,'(a)',advance='no') "     Calculating wake influences..."
 
         ! Loop through control points
+        !$OMP parallel do private(j, source_inf, doublet_inf, i_vert_s, i_vert_d, k) schedule(dynamic)
         do i=1,body%N_cp
 
             ! Get doublet influence from wake
@@ -833,6 +836,7 @@ contains
         call check_allocation(stat, "surface velocity vectors")
 
         ! Calculate the surface velocity on each existing panel
+        !$OMP parallel do
         do i=1,body%N_panels
 
             ! For the Morino formulation, the velocity jump is that of the perturbation velocity
@@ -842,16 +846,13 @@ contains
             
             ! For the source-free formulation, the velocity jump is that of the total velocity
             else
-                body%V(:,i) = this%freestream%U*body%panels(i)%get_velocity_jump(body%mu, body%sigma, &
-                                                                                 .false., body%mirror_plane)
+                body%V(:,i) = this%freestream%U*body%panels(i)%get_velocity_jump(body%mu, body%sigma, .false., body%mirror_plane)
 
             end if
 
-        end do
 
-        ! Calculate surface velocity on each mirrored panel
-        if (body%asym_flow) then
-            do i=1,body%N_panels
+            ! Calculate surface velocity on each mirrored panel
+            if (body%asym_flow) then
 
                 if (this%formulation == "morino") then
                     body%V(:,i+body%N_panels) = this%freestream%U*(this%freestream%c_hat_g + &
@@ -863,8 +864,8 @@ contains
 
                 end if
 
-            end do
-        end if
+            end if
+        end do
         write(*,*) "Done."
 
     end subroutine panel_solver_calc_velocities
@@ -1000,6 +1001,7 @@ contains
         call check_allocation(stat, "forces")
 
         ! Calculate total forces
+        !$OMP parallel do private(n_mirrored)
         do i=1,body%N_panels
 
             select case (this%pressure_for_forces)

@@ -460,6 +460,7 @@ contains
         end if
 
         ! Calculate panel coordinate transformations
+        !$OMP parallel do schedule(static)
         do i=1,this%N_panels
             call this%panels(i)%calc_transforms(freestream)
         end do
@@ -884,12 +885,13 @@ contains
         implicit none
 
         class(surface_mesh),intent(inout) :: this
-        real,dimension(3) :: vec_sum, normal
+        real,dimension(3) :: vec_sum
         integer :: i, j, N, i_panel
 
         write(*,'(a)',advance='no') "     Calculating vertex normals..."
 
         ! Loop through vertices
+        !$OMP parallel do private(N, vec_sum, i, i_panel) schedule(dynamic)
         do j=1,this%N_verts
 
             ! Loop through neighboring panels and compute the average of their normal vectors
@@ -1064,6 +1066,7 @@ contains
             offset_ratio = 0.5*sqrt(0.5*(1.0+this%C_min_panel_angle))
 
             ! Loop through vertices
+            !$OMP parallel do private(j, N, sum, i_panel) schedule(dynamic)
             do i=1,this%N_verts
 
                 ! If the vertex is in a wake edge, it needs to be shifted off the normal slightly so that it is unique from its counterpart
