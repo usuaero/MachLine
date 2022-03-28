@@ -1054,7 +1054,7 @@ contains
         type(flow),intent(in) :: freestream
         type(integrals),intent(inout) :: int
 
-        real :: v_xi, v_eta, F1, F2, eps, eps2, series, x, x2
+        real :: v_xi, v_eta, F1, F2, eps, eps2, series, x, x2, x_inv
         integer :: i
         
         ! Allocate integral storage
@@ -1121,27 +1121,28 @@ contains
 
                     x2 = 1.-this%l(i)**2
                     x = sqrt(x2)
+                    x_inv = 1./x
 
                     ! Both endpoints in DoD (Ehlers p. 108)
                     if (geom%R1(i) /= 0. .and. geom%R2(i) /= 0.) then
 
                         F1 = x*(geom%ym1(i)*geom%R2(i) - geom%ym2(i)*geom%R1(i))
                         F2 = geom%ym1(i)*geom%ym2(i) + x2*geom%R1(i)*geom%R2(i)
-                        int%w0(i) = 1./x*atan2(F1, F2)
+                        int%w0(i) = x_inv*atan2(F1, F2)
 
                     ! First endpoint in DoD
                     else if (geom%R1(i) /= 0.) then
 
-                        int%w0(i) = ( 0.5*sign(-geom%ym2(i))*pi - atan2(-geom%ym1(i), geom%R1(i)*x) ) / x
+                        int%w0(i) = ( sign(-geom%ym2(i))*pi2 - atan2(-geom%ym1(i), geom%R1(i)*x) ) * x_inv
 
                     ! Second endpoint in DoD
                     else if (geom%R2(i) /= 0.) then
 
-                        int%w0(i) = ( atan2(-geom%ym2(i), geom%R2(i)*x) - 0.5*sign(-geom%ym1(i))*pi ) / x
+                        int%w0(i) = ( atan2(-geom%ym2(i), geom%R2(i)*x) - sign(-geom%ym1(i))*pi2 ) * x_inv
 
                     ! Neither endpoint in DoD (Ehlers p. 108)
                     else
-                        int%w0(i) = 0.5*(sign(-geom%ym2(i)) - sign(-geom%ym1(i)))*pi/x
+                        int%w0(i) = ( sign(-geom%ym2(i)) - sign(-geom%ym1(i)) ) * pi2 * x_inv
 
                     end if
                 
@@ -1150,27 +1151,28 @@ contains
 
                     x2 = 1.-this%m(i)**2
                     x = sqrt(x2)
+                    x_inv = 1./x
 
                     ! Both endpoints in DoD (Davis Eq. (A.17) has a typo)
                     if (geom%R1(i) /= 0. .and. geom%R2(i) /= 0.) then
 
                         F1 = geom%ym2(i) + geom%R2(i)*x
                         F2 = geom%ym1(i) + geom%R1(i)*x
-                        int%w0(i) = 1./x*log(F1/F2)
+                        int%w0(i) = x_inv*log(F1/F2)
 
                     ! First endpoint in DoD
                     else if (geom%R1(i) /= 0.) then
 
                         F1 = geom%ym1(i) + geom%R1(i)*x
                         F2 = geom%ym1(i) - geom%R1(i)*x
-                        int%w0(i) = -0.5*1./x2*log(F1/F2)
+                        int%w0(i) = -0.5*x_inv*log(F1/F2)
 
                     ! Second endpoint in DoD
                     else if (geom%R2(i) /= 0.) then
 
                         F1 = geom%ym2(i) + geom%R2(i)*x
                         F2 = geom%ym2(i) - geom%R2(i)*x
-                        int%w0(i) = 0.5*1./x2*log(F1/F2)
+                        int%w0(i) = 0.5*x_inv*log(F1/F2)
 
                     end if
 
@@ -1343,7 +1345,7 @@ contains
                         ! Both endpoints in
                         if (geom%R1(i) /= 0. .and. geom%R2(i) /= 0.) then
 
-                            F1 = geom%h*geom%xm(i)*(geom%ym2(i)*geom%R1(i) - geom%ym1(i)*geom%R2(i))
+                            F1 = geom%h*geom%xm(i)*(geom%ym1(i)*geom%R2(i) - geom%ym2(i)*geom%R1(i))
                             F2 = geom%xm(i)**2*geom%R1(i)*geom%R2(i) + geom%h2*geom%ym1(i)*geom%ym2(i)
                             int%Q1 = int%Q1 + atan2(F1, F2)
 
@@ -1523,22 +1525,21 @@ contains
 
                     if (ehlers_calc) then
 
-                        ! Sum up w0 terms
+                        ! Sum up w0 terms (Ehlers Eq. (5.17))
                         do i=1,this%N
                             if (abs(this%m(i)) < 1.) then
-                                phi_d(2) = phi_d(2) - geom%h*int%w0(i)*this%m(i)
-                                phi_d(3) = phi_d(3) - geom%h*int%w0(i)
+                                phi_d(2) = phi_d(2) + geom%h*int%w0(i)*this%m(i)
+                                phi_d(3) = phi_d(3) + geom%h*int%w0(i)
                             else
-                                phi_d(2) = phi_d(2) - geom%h*int%w0(i)
-                                phi_d(3) = phi_d(3) - geom%h*int%w0(i)/this%m(i)
+                                phi_d(2) = phi_d(2) + geom%h*int%w0(i)
+                                phi_d(3) = phi_d(3) + geom%h*int%w0(i)/this%m(i)
                             end if
                         end do
 
-                        ! Add Q1 terms
-                        phi_d(1) = int%Q1
-                        phi_d(2) = int%Q1*geom%P_ls(1) + phi_d(2)
-                        phi_d(3) = int%Q1*geom%P_ls(2) + phi_d(2)
-                        phi_d = -phi_d
+                        ! Add Q1 terms (Ehlers Eq. (5.17))
+                        phi_d(1) = -int%Q1
+                        phi_d(2) = -int%Q1*geom%P_ls(1) + phi_d(2)
+                        phi_d(3) = -int%Q1*geom%P_ls(2) + phi_d(2)
 
                     else
 
