@@ -57,6 +57,7 @@ module linked_list_mod
     procedure :: len => list_length
     procedure :: append => list_append_item
     procedure :: delete => list_delete_integer
+    procedure :: print => list_print_integer
     procedure :: get_item_character => list_get_item_character
     procedure :: get_item_complex => list_get_item_complex
     procedure :: get_item_integer => list_get_item_integer
@@ -439,71 +440,109 @@ contains
     integer :: curr_val
 
     ! Check if it's in the list
-    write(*,*) "Deleting!"
     if (.not. this%is_in(int)) then
       return
     end if
 
-    write(*,*) "Value is in this list"
+    ! Check if this is the only element in the list
+    if (this%len() == 1) then
+
+      ! Deallocate
+      deallocate(this%head%item)
+      deallocate(this%head)
+
+      ! Reassign pointers
+      this%head => null()
+      this%tail => null()
+
+      ! Update length
+      this%num_nodes = 0
+
+    else
+
+      ! Start at the head
+      curr_node => this%head
+      prev_node => null()
+
+      ! Loop through list
+      do while (associated(curr_node))
+
+        ! Get the value at the current list node
+        call get_item(curr_node, curr_val)
+
+        ! Check if this node is the value
+        if (curr_val == int) then
+
+          ! If we're deleting the head node, move the head pointer
+          if (associated(curr_node, this%head)) then
+            this%head => curr_node%next
+
+          ! Otherwise, move the previous node's pointer
+          else
+            prev_node%next => curr_node%next
+          end if
+
+          ! If we're deleting the tail node, move the tail pointer
+          if (associated(curr_node, this%tail)) then
+            this%tail => prev_node
+          end if
+
+          ! Update length
+          this%num_nodes = this%num_nodes - 1
+
+          ! Move pointers (prev_node doesn't move if curr_node is getting deleted)
+          del_node => curr_node
+          curr_node => curr_node%next
+
+          ! Deallocate
+          deallocate(del_node%item)
+          deallocate(del_node)
+
+        else
+
+          ! Move pointers
+          prev_node => curr_node
+          curr_node => curr_node%next
+
+        end if
+
+      end do
+    end if
+
+  end subroutine list_delete_integer
+
+
+  subroutine list_print_integer(this)
+
+    implicit none
+
+    class(list),intent(in) :: this
+
+    type(node),pointer :: curr_node, prev_node
+    integer :: curr_val
 
     ! Start at the head
     curr_node => this%head
     prev_node => null()
 
     ! Loop through list
-    do while (.not. associated(prev_node, this%tail))
+    write(*,'(a)',advance='no') '['
+    do while (associated(curr_node))
 
       ! Get the value at the current list node
-      write(*,*) "Getting value"
       call get_item(curr_node, curr_val)
-      write(*,*) "Got value"
 
-      ! Check if this node is the value
-      if (curr_val == int) then
-        write(*,*) "Found value"
+      ! Print out that value
+      write(*,'(i10)',advance='no') curr_val
 
-        ! If we're deleting the head node, move the head pointer
-        if (associated(curr_node, this%head)) then
-          this%head => curr_node%next
-
-        ! Otherwise, move the previous node's pointer
-        else
-          prev_node%next => curr_node%next
-        end if
-
-        ! If we've deleted the tail node, move the tail pointer
-        if (associated(curr_node, this%tail)) then
-          write(*,*) "At tail"
-          this%tail => prev_node
-        end if
-
-        ! Update length
-        this%num_nodes = this%num_nodes - 1
-
-        ! Move pointers (prev_node doesn't move if curr_node is getting deleted)
-        del_node => curr_node
-        write(*,*) "Moving current node"
-        curr_node => curr_node%next
-        write(*,*) "Moved current node"
-
-        ! Deallocate
-        write(*,*) "Deallocating item"
-        deallocate(del_node%item)
-        write(*,*) "Deallocating node"
-        deallocate(del_node)
-        write(*,*) "Done"
-
-      else
-
-        ! Move pointers
-        prev_node => curr_node
-        curr_node => curr_node%next
-
-      end if
+      ! Move pointers
+      prev_node => curr_node
+      curr_node => curr_node%next
 
     end do
-
-  end subroutine list_delete_integer
+    write(*,'(a)') ']'
+  
+  end subroutine list_print_integer
 !===============================================================================
 
 !===============================================================================
