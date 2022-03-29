@@ -1,12 +1,13 @@
 {
     "flow": {
-        "freestream_velocity": [100.0, 0.0, 10.0]
+        "freestream_velocity": [100.0, 0.0, 0.0]
     },
     "geometry": {
         "file": "dev/meshes/F-22.vtk",
         "spanwise_axis" : "+y",
         "mirror_about" : "xz",
         "wake_model": {
+            "wake_present" : false
         },
         "reference": {
             "area": 1.0
