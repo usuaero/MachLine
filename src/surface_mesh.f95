@@ -292,8 +292,6 @@ contains
                                     edge_index2(i_edge) = n1
                                 end if
 
-                                !$OMP end critical
-
                                 ! Store that j is adjacent to i
                                 if (m1 == 1 .and. m == this%panels(i)%N) then ! Nth edge
                                     this%panels(i)%abutting_panels(m) = j
@@ -311,6 +309,8 @@ contains
                                 vertex1(i_edge) = shared_verts(1)
                                 vertex2(i_edge) = shared_verts(2)
                                 on_mirror_plane(i_edge) = .false.
+
+                                !$OMP end critical
                                 
                                 ! Break out of loop
                                 exit abutting_loop
@@ -372,8 +372,6 @@ contains
                                 call this%vertices(shared_verts(2))%adjacent_vertices%append(shared_verts(1))
                             end if
 
-                            !$OMP end critical
-
                             ! Store adjacent panel
                             if (m-m1 == 1) then
                                 this%panels(i)%abutting_panels(m1) = i+this%N_panels
@@ -392,6 +390,8 @@ contains
                             vertex2(i_edge) = shared_verts(2)
                             on_mirror_plane(i_edge) = .true.
                             edge_index2(i_edge) = 0 ! Just a placeholder since the second panel doesn't technically exist
+
+                            !$OMP end critical
 
                             ! Break out of loop
                             exit mirror_loop
