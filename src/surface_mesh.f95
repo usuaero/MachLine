@@ -797,11 +797,9 @@ contains
 
                 ! Remove bottom panels from top vertex and give them to the bottom vertex
                 ! Loop through edges adjacent to this vertex
-                write(*,*) "Passing over bottom panels."
                 do n=1,this%vertices(i_jango)%adjacent_edges%len()
 
                     ! Get edge index
-                    write(*,*) "Copying edge index"
                     call this%vertices(i_jango)%adjacent_edges%get(n, i_edge)
 
                     ! Copy to new vertex
@@ -814,54 +812,62 @@ contains
                         i_top_panel = this%edges(i_edge)%panels(1)
                         i_bot_panel = this%edges(i_edge)%panels(2)
 
-                        ! Remove bottom panel index from original vertex
-                        write(*,*) "Deleting bottom panel from original"
-                        call this%vertices(i_jango)%panels_not_across_wake_edge%delete(i_bot_panel)
+                        ! Make sure this bottom panel is not a mirrored panel
+                        if (i_bot_panel <= this%N_panels) then
 
-                        ! Add to clone
-                        write(*,*) "Adding bottom panel to clone"
-                        if (.not. this%vertices(i_boba)%panels_not_across_wake_edge%is_in(i_bot_panel)) then
-                            call this%vertices(i_boba)%panels_not_across_wake_edge%append(i_bot_panel)
-                        end if
+                            ! Remove bottom panel index from original vertex
+                            call this%vertices(i_jango)%panels_not_across_wake_edge%delete(i_bot_panel)
 
-                        ! If there are any panels attached to this vertex and abutting the bottom panel, shift them over as well
-                        write(*,*) "Looping through panels abutting bottom panel."
-                        do m=1,this%panels(i_bot_panel)%N
-
-                            ! Get the index of the panel abutting this bottom panel
-                            write(*,*) "Getting index of abutting panel."
-                            i_abutting_panel = this%panels(i_bot_panel)%abutting_panels(m)
-
-                            ! Check if it is not the top panel and it touches the current index
-                            write(*,*) "Checking."
-                            if (i_abutting_panel /= i_top_panel .and. this%panels(i_abutting_panel)%touches_vertex(i_jango)) then
-
-                                ! Remove from original vertex
-                                write(*,*) "Removing from original vertex."
-                                call this%vertices(i_jango)%panels_not_across_wake_edge%delete(i_abutting_panel)
-
-                                ! Add to cloned vertex
-                                write(*,*) "Adding to clone"
-                                if (.not. this%vertices(i_boba)%panels_not_across_wake_edge%is_in(i_abutting_panel)) then
-                                    call this%vertices(i_boba)%panels_not_across_wake_edge%append(i_abutting_panel)
-                                end if
-
+                            ! Add to clone
+                            if (.not. this%vertices(i_boba)%panels_not_across_wake_edge%is_in(i_bot_panel)) then
+                                call this%vertices(i_boba)%panels_not_across_wake_edge%append(i_bot_panel)
                             end if
-                        end do
+
+                            ! If there are any panels attached to this vertex and abutting the bottom panel, shift them over as well
+                            do m=1,this%panels(i_bot_panel)%N
+
+                                ! Get the index of the panel abutting this bottom panel
+                                i_abutting_panel = this%panels(i_bot_panel)%abutting_panels(m)
+
+                                ! Check if it is not the top panel
+                                if (i_abutting_panel /= i_top_panel) then
+
+                                    ! Make sure the abutting panel is not a mirrored panel
+                                    if (i_abutting_panel <= this%N_panels) then
+
+                                        ! See if this panel touches the vertex
+                                        if (this%panels(i_abutting_panel)%touches_vertex(i_jango)) then
+
+                                            ! Remove from original vertex
+                                            call this%vertices(i_jango)%panels_not_across_wake_edge%delete(i_abutting_panel)
+
+                                            ! Add to cloned vertex
+                                            if (.not. this%vertices(i_boba)%panels_not_across_wake_edge%is_in(i_abutting_panel)) &
+                                                then
+                                                call this%vertices(i_boba)%panels_not_across_wake_edge%append(i_abutting_panel)
+                                            end if
+
+                                        end if
+                                    end if
+                                end if
+                            end do
+
+                        end if
 
                     end if
 
                 end do
 
                 ! Update bottom panels to point to cloned vertex
-                write(*,*) "Updating pointers to bottom panels."
                 do k=1,this%vertices(i_boba)%panels_not_across_wake_edge%len()
 
                     ! Get panel index
                     call this%vertices(i_boba)%panels_not_across_wake_edge%get(k, i_bot_panel)
 
-                    ! Update
-                    call this%panels(i_bot_panel)%point_to_vertex_clone(this%vertices(i_boba))
+                    ! Update (doesn't need to be done for mirrored panels)
+                    if (i_bot_panel <= this%N_panels) then
+                        call this%panels(i_bot_panel)%point_to_vertex_clone(this%vertices(i_boba))
+                    end if
 
                 end do
 
@@ -872,7 +878,6 @@ contains
 
                 ! If this vertex did not need to be cloned, but it is on the mirror plane and its mirror is unique
                 ! then the wake strength will be determined by its mirror as well in the case of an asymmetric flow.
-                write(*,*) "Setting non-clone."
                 if (this%mirrored .and. this%asym_flow .and.  this%vertices(i_jango)%on_mirror_plane .and. &
                     this%vertices(i_jango)%mirrored_is_unique) then
 
@@ -1062,7 +1067,7 @@ contains
         real,intent(in) :: offset
 
         integer :: i, j, N, i_panel
-        real,dimension(3) :: sum
+        real,dimension(3) :: normal
         real :: C_theta_2, offset_ratio
 
         if (doublet_order == 1) then
@@ -1077,7 +1082,7 @@ contains
             offset_ratio = 0.5*sqrt(0.5*(1.0+this%C_min_panel_angle))
 
             ! Loop through vertices
-            !$OMP parallel do private(j, N, sum, i_panel) schedule(dynamic)
+            !$OMP parallel do private(j, N, normal, i_panel) schedule(dynamic)
             do i=1,this%N_verts
 
                 ! If the vertex is in a wake edge, it needs to be shifted off the normal slightly so that it is unique from its counterpart
@@ -1085,23 +1090,28 @@ contains
 
                     ! Loop through panels associated with this clone to get their average normal vector
                     N = this%vertices(i)%panels_not_across_wake_edge%len()
-                    sum = 0
+                    normal = 0.
                     do j=1,N
 
                         ! Get panel index
                         call this%vertices(i)%panels_not_across_wake_edge%get(j, i_panel)
 
                         ! Add normal vector
-                        sum = sum + this%panels(i_panel)%n_g
+                        normal = normal + this%panels(i_panel)%n_g
 
                     end do
 
+                    ! Add effect of mirrored panels
+                    if (this%vertices(i)%on_mirror_plane) then
+                        normal(this%mirror_plane) = 0.
+                    end if
+
                     ! Normalize
-                    sum = sum/norm(sum)
+                    normal = normal/norm(normal)
 
                     ! Place control point
                     this%cp(:,i) = this%vertices(i)%loc &
-                                               - offset * (this%vertices(i)%n_g - offset_ratio * sum)*this%vertices(i)%l_avg
+                                               - offset * (this%vertices(i)%n_g - offset_ratio * normal)*this%vertices(i)%l_avg
 
                 ! If it's not in a wake-shedding edge (i.e. has no clone), then placement simply follows the normal vector
                 else
