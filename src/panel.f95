@@ -923,11 +923,11 @@ contains
                 geom%sm2(i) = d_ls(1) ! May be derived from Ehlers Eq. (E25) or (5.13)
                 geom%s2(i) = d_ls(2)
 
-                ! Subsonic or sonic edge
+                ! Subsonic or sonic edge (these are the hatted quantities in Ehlers and Davis)
                 if (abs(this%m(i)) <= 1.) then
 
-                    ! Calculate xm
-                    geom%xm(i) = geom%sm1(i)*this%m(i) - geom%s1(i) ! Ehlers Eq. (A25)
+                    ! Calculate xhatm
+                    geom%xm(i) = -geom%sm1(i)*this%m(i) + geom%s1(i) ! Ehlers Eq. (A25)
 
                     ! Calculate oblique coordinates for first vertex
                     geom%ym1(i) = geom%sm1(i) - geom%s1(i)*this%m(i) ! Ehlers p. 109
@@ -939,6 +939,9 @@ contains
 
                     ! Calculate xm
                     geom%xm(i) = geom%sm1(i) - geom%s1(i)*this%l(i) ! Ehlers Eq. (5.13)
+                    write(*,*)
+                    write(*,*) geom%xm(i)
+                    write(*,*) -geom%a(i)/this%n_hat_ls(1,i)
 
                     ! Calculate oblique coordinates for first vertex
                     geom%ym1(i) = geom%s1(i) - this%l(i)*geom%sm1(i) ! Ehlers p. 104
