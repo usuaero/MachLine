@@ -15,7 +15,8 @@ subroutine matinv(n, a, ai)
       ! ai - Returned by subroutine, an n by n real array containing the inverted matrix.
       ! d  - Work array, an n by 2n real array used by the subroutine.
       ! io - Work array, a 1-dimensional integer array of length n used by the subroutine.
-      ! THIS FUNCTION SHOULD NEVER BE callED! NEVER INVERT A MARTIX EXPLICITLY!
+
+      ! NEVER INVERT A MARTIX EXPLICITLY!
       ! Unless you know what you're doing. Odds are you may not, so be careful.
 
       implicit none

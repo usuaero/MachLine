@@ -216,8 +216,10 @@ contains
 
         ! Loop through each panel
         N_edges = 0
-        !$OMP parallel do private(j, already_found_shared, distance, shared_verts, m, m1, n, n1, temp, i_edge) &
-        !$OMP private(i_panel1, i_panel2, i_vert1, i_vert2, edge_on_mirror, i_edge1, i_edge2) schedule(dynamic)
+        !$OMP parallel private(j, already_found_shared, distance, shared_verts, m, m1, n, n1, temp, i_edge) &
+        !$OMP private(i_panel1, i_panel2, i_vert1, i_vert2, edge_on_mirror, i_edge1, i_edge2)
+
+        !$OMP do schedule(dynamic)
         do i=1,this%N_panels
 
             ! Loop through each potential neighbor
@@ -413,7 +415,7 @@ contains
         end do
 
         ! Check that no panel abuts empty space (i.e. non-watertight mesh)
-        !$OMP parallel do
+        !$OMP do schedule(static)
         do i=1,this%N_panels
             if (any(this%panels(i)%abutting_panels == 0)) then
                 write(*,*)
@@ -424,10 +426,13 @@ contains
         end do
 
         ! Allocate edge storage
+        !$OMP single
         this%N_edges = N_edges
         allocate(this%edges(this%N_edges))
+        !$OMP end single
 
         ! Initialize edges
+        !$OMP do schedule(static)
         do i=1,this%N_edges
 
             ! Initialize
@@ -439,6 +444,8 @@ contains
             this%edges(i)%edge_index_for_panel(2) = edge_index2(i)
 
         end do
+
+        !$OMP end parallel
 
         write(*,"(a, i7, a)") "Done. Found ", this%N_edges, " edges."
     
@@ -905,19 +912,19 @@ contains
         implicit none
 
         class(surface_mesh),intent(inout) :: this
+
         real,dimension(3) :: vec_sum
-        integer :: i, j, N, i_panel
+        integer :: i, j, i_panel
 
         write(*,'(a)',advance='no') "     Calculating vertex normals..."
 
         ! Loop through vertices
-        !$OMP parallel do private(N, vec_sum, i, i_panel) schedule(dynamic)
+        !$OMP parallel do private(vec_sum, i, i_panel) schedule(dynamic)
         do j=1,this%N_verts
 
             ! Loop through neighboring panels and compute the average of their normal vectors
-            N = this%vertices(j)%panels%len()
             vec_sum = 0
-            do i=1,N
+            do i=1,this%vertices(j)%panels%len()
                 call this%vertices(j)%panels%get(i, i_panel)
                 vec_sum = vec_sum + this%panels(i_panel)%n_g
             end do
@@ -1070,9 +1077,9 @@ contains
         class(surface_mesh),intent(inout) :: this
         real,intent(in) :: offset
 
-        integer :: i, j, N, i_panel
+        integer :: i, j, i_panel
         real,dimension(3) :: normal
-        real :: C_theta_2, offset_ratio
+        real :: offset_ratio
 
         if (doublet_order == 1) then
 
@@ -1086,16 +1093,15 @@ contains
             offset_ratio = 0.5*sqrt(0.5*(1.0+this%C_min_panel_angle))
 
             ! Loop through vertices
-            !$OMP parallel do private(j, N, normal, i_panel) schedule(dynamic)
+            !$OMP parallel do private(j, normal, i_panel) schedule(dynamic)
             do i=1,this%N_verts
 
                 ! If the vertex is in a wake edge, it needs to be shifted off the normal slightly so that it is unique from its counterpart
                 if (this%vertices(i)%N_wake_edges > 1) then
 
                     ! Loop through panels associated with this clone to get their average normal vector
-                    N = this%vertices(i)%panels_not_across_wake_edge%len()
                     normal = 0.
-                    do j=1,N
+                    do j=1,this%vertices(i)%panels_not_across_wake_edge%len()
 
                         ! Get panel index
                         call this%vertices(i)%panels_not_across_wake_edge%get(j, i_panel)
