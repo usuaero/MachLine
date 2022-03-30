@@ -204,25 +204,25 @@ contains
 
         class(surface_mesh),intent(inout) :: this
 
-
-        integer :: i, j, m, n, m1, n1, temp, count, i_edge
+        integer :: i, j, m, n, m1, n1, temp, i_edge, i_panel1, i_panel2, i_vert1, i_vert2, edge_on_mirror, i_edge1, i_edge2, N_edges
         logical :: already_found_shared, dummy
         real :: distance
         integer,dimension(2) :: shared_verts
-        type(list) :: panel1, panel2, vertex1, vertex2, on_mirror_plane, edge_index1, edge_index2
+        integer,dimension(this%N_panels*4) :: panel1, panel2, vertex1, vertex2, edge_index1, edge_index2
+        logical,dimension(this%N_panels*4) :: on_mirror_plane
 
         write(*,'(a)',advance='no') "     Locating adjacent panels..."
 
         ! Loop through each panel
-        do i=1,this%N_panels
+        N_edges = 0
 
-            count = 0
+        do i=1,this%N_panels
 
             ! Loop through each potential neighbor
             neighbor_loop: do j=i+1,this%N_panels
 
                 ! Check if we've found all neighbors for this panel
-                if (count == 3) then
+                if (all(this%panels(i)%abutting_panels /= 0)) then
                     exit neighbor_loop
                 end if
 
@@ -253,14 +253,9 @@ contains
                                     shared_verts(2) = temp
                                 end if
 
-                                ! Store information in lists for later storage in edge objects
-                                call panel1%append(i)
-                                call panel2%append(j)
-                                call vertex1%append(shared_verts(1))
-                                call vertex2%append(shared_verts(2))
-                                call on_mirror_plane%append(.false.)
-
-                                i_edge = panel1%len()
+                                ! Update number of edges
+                                N_edges = N_edges + 1
+                                i_edge = N_edges
 
                                 ! Store vertices being adjacent to one another
                                 if (.not. this%vertices(shared_verts(1))%adjacent_vertices%is_in(shared_verts(2))) then
@@ -270,24 +265,13 @@ contains
                                     call this%vertices(shared_verts(2))%adjacent_vertices%append(shared_verts(1))
                                 end if
 
-                                ! Store edges touching vertices
+                                ! Store that this edge touches the two end vertices
                                 call this%vertices(shared_verts(1))%adjacent_edges%append(i_edge)
                                 call this%vertices(shared_verts(2))%adjacent_edges%append(i_edge)
 
                                 ! Store adjacent panels and panel edges
                                 ! This stores the adjacent panels and edges according to the index of that edge
                                 ! for the current panel
-
-                                ! Store that j is adjacent to i
-                                if (m1 == 1 .and. m == this%panels(i)%N) then ! Nth edge
-                                    this%panels(i)%abutting_panels(m) = j
-                                    this%panels(i)%edges(m) = i_edge
-                                    call edge_index1%append(m)
-                                else ! 1st or 2nd edge
-                                    this%panels(i)%abutting_panels(m1) = j
-                                    this%panels(i)%edges(m1) = i_edge
-                                    call edge_index1%append(m1)
-                                end if
 
                                 ! Store that i is adjacent to j
                                 ! This one is more complicated because we don't know that n1 will be less than n; just the nature of the nested loop.
@@ -296,16 +280,33 @@ contains
                                 if ( (n1 == 1 .and. n == this%panels(j)%N) .or. (n == 1 .and. n1 == this%panels(j)%N) ) then
                                     this%panels(j)%abutting_panels(this%panels(j)%N) = i
                                     this%panels(j)%edges(this%panels(j)%N) = i_edge
-                                    call edge_index2%append(this%panels(j)%N)
+                                    edge_index2(i_edge) = this%panels(j)%N
                                 else
                                     n1 = min(n, n1)
                                     this%panels(j)%abutting_panels(n1) = i
                                     this%panels(j)%edges(n1) = i_edge
-                                    call edge_index2%append(n1)
+                                    edge_index2(i_edge) = n1
                                 end if
-                                
+
+                                ! Store that j is adjacent to i
+                                if (m1 == 1 .and. m == this%panels(i)%N) then ! Nth edge
+                                    this%panels(i)%abutting_panels(m) = j
+                                    this%panels(i)%edges(m) = i_edge
+                                    edge_index1(i_edge) = m
+                                else ! 1st or 2nd edge
+                                    this%panels(i)%abutting_panels(m1) = j
+                                    this%panels(i)%edges(m1) = i_edge
+                                    edge_index1(i_edge) = m1
+                                end if
+
+                                ! Store information in arrays for later storage in edge objects
+                                panel1(i_edge) = i
+                                panel2(i_edge) = j
+                                vertex1(i_edge) = shared_verts(1)
+                                vertex2(i_edge) = shared_verts(2)
+                                on_mirror_plane(i_edge) = .false.
+
                                 ! Break out of loop
-                                count = count + 1
                                 exit abutting_loop
 
                             ! First shared vertex
@@ -351,14 +352,9 @@ contains
                                 shared_verts(2) = temp
                             end if
 
-                            ! Store in lists for later storage in arrays
-                            call panel1%append(i)
-                            call panel2%append(i+this%N_panels)
-                            call vertex1%append(shared_verts(1))
-                            call vertex2%append(shared_verts(2))
-                            call on_mirror_plane%append(.true.)
-
-                            i_edge = panel1%len()
+                            ! Update number of edges
+                            N_edges = N_edges + 1
+                            i_edge = N_edges
 
                             ! Store adjacent vertices
                             if (.not. this%vertices(shared_verts(1))%adjacent_vertices%is_in(shared_verts(2))) then
@@ -372,17 +368,22 @@ contains
                             if (m-m1 == 1) then
                                 this%panels(i)%abutting_panels(m1) = i+this%N_panels
                                 this%panels(i)%edges(m1) = i_edge
-                                call edge_index1%append(m1)
+                                edge_index1(i_edge) = m1
                             else
                                 this%panels(i)%abutting_panels(m) = i+this%N_panels
                                 this%panels(i)%edges(m) = i_edge
-                                call edge_index1%append(m)
+                                edge_index1(i_edge) = m
                             end if
 
-                            call edge_index2%append(0) ! Really meaningless since the second panel doesn't technically exist
+                            ! Store in arrays for later storage in edge objects
+                            panel1(i_edge) = i
+                            panel2(i_edge) = i+this%N_panels
+                            vertex1(i_edge) = shared_verts(1)
+                            vertex2(i_edge) = shared_verts(2)
+                            on_mirror_plane(i_edge) = .true.
+                            edge_index2(i_edge) = 0 ! Just a placeholder since the second panel doesn't technically exist
 
                             ! Break out of loop
-                            count = count + 1
                             exit mirror_loop
 
                         ! First vertex on the mirror plane
@@ -399,40 +400,32 @@ contains
 
             end if
 
-            ! Check that no panel abuts empty space (i.e. non-watertight mesh)
+        end do
+
+        ! Check that no panel abuts empty space (i.e. non-watertight mesh)
+        do i=1,this%N_panels
             if (any(this%panels(i)%abutting_panels == 0)) then
                 write(*,*)
                 write(*,*) "!!! The supplied mesh is not watertight. Panel", i, "is missing at least one neighbor. Quitting..."
                 write(*,*) this%panels(i)%abutting_panels
-                write(*,*) count
                 stop
             end if
-
         end do
 
         ! Allocate edge storage
-        this%N_edges = panel1%len()
+        this%N_edges = N_edges
         allocate(this%edges(this%N_edges))
 
         ! Initialize edges
         do i=1,this%N_edges
 
-            ! Get information
-            call vertex1%get(i, shared_verts(1))
-            call vertex2%get(i, shared_verts(2))
-            call panel1%get(i, m)
-            call panel2%get(i, n)
-
             ! Initialize
-            call this%edges(i)%init(shared_verts(1), shared_verts(2), m, n)
+            call this%edges(i)%init(vertex1(i), vertex2(i), panel1(i), panel2(i))
 
             ! Store more information
-            call on_mirror_plane%get(i, dummy)
-            call edge_index1%get(i, m)
-            call edge_index2%get(i, n)
-            this%edges(i)%on_mirror_plane = dummy
-            this%edges(i)%edge_index_for_panel(1) = m
-            this%edges(i)%edge_index_for_panel(2) = n
+            this%edges(i)%on_mirror_plane = on_mirror_plane(i)
+            this%edges(i)%edge_index_for_panel(1) = edge_index1(i)
+            this%edges(i)%edge_index_for_panel(2) = edge_index2(i)
 
         end do
 
