@@ -205,7 +205,7 @@ subroutine lu_decomp(A, N, indx, D, code)
   ! permutation effected by the partial pivoting; D is output  
   ! as -1 or 1, depending on whether the number of row inter-  
   ! changes was even or odd, respectively. This routine is used
-  ! in combination with LUBKSB to solve linear equations or to 
+  ! in combination with lu_back_sub to solve linear equations or to 
   ! invert a matrix. Return code is 1 if matrix is singular.  
 
   implicit none
@@ -215,10 +215,10 @@ subroutine lu_decomp(A, N, indx, D, code)
   integer,dimension(N),intent(out) :: indx
   integer,intent(out) :: code, D
 
-  real,dimension(N) :: VV
+  real,dimension(N) :: vv
   real,parameter :: tiny=1.5e-20
   integer :: i, j, k, imax
-  real :: amax, dum, sum
+  real :: amax, dum, s
 
   ! Initialize
   D = 1
@@ -226,6 +226,7 @@ subroutine lu_decomp(A, N, indx, D, code)
   imax = 0
 
   ! Loop over rows to get implicit scaling information
+  !$OMP parallel do private(amax, j)
   do i=1,N
 
     ! Get largest element in this row
@@ -239,7 +240,6 @@ subroutine lu_decomp(A, N, indx, D, code)
     ! Check the largest element in this row is nonzero
     if (amax <= tiny) then
       code = 1 ! Singular matrix
-      return
     end if
 
     ! Store implicit scaling
@@ -247,52 +247,59 @@ subroutine lu_decomp(A, N, indx, D, code)
 
   end do
 
+  ! Check for singular matrix
+  if (code == 1) return
+
   ! Loop over columns of Crout's method
   do j=1,N
 
     do i=1,j-1
-      sum = A(i,j)
+      
+      s = A(i,j)
+
       do k=1,i-1
-        sum = sum - A(i,k)*A(k,j)
+        s = s - A(i,k)*A(k,j)
       end do
-      A(i,j) = sum
+
+      A(i,j) = s
+
     end do
 
     ! Initialize search for largest pivot element
     amax = 0.0
     do i=j,N
-
-      sum = A(i,j)
+  
+      s = A(i,j)
       do k=1,j-1
-        sum = sum - A(i,k)*A(k,j)
+        s = s - A(i,k)*A(k,j)
       end do
-      A(i,j) = sum
-
+      A(i,j) = s
+  
       ! Determine figure of merit for the pivot
-      dum = vv(i)*abs(sum)
+      dum = vv(i)*abs(s)
       if (dum >= amax) then
         imax = i
         amax = dum
       end if
-
+  
     end do
 
     ! Figure out if we need to interchange rows
     if (j /= imax) then
-
+  
       ! Perform interchange
       do k=1,N
         dum = A(imax,k)
         A(imax,k) = A(j,k)
         A(j,k) = dum
       end do
-
+  
       ! Update the sign of D since a row interchange has occurred
       D = -D
-
+  
       ! Interchange the implicit scaling factor
       vv(imax) = vv(j)
-
+  
     end if
 
     ! Store pivoting
