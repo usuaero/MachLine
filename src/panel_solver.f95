@@ -935,11 +935,10 @@ contains
             call check_allocation(stat, "Laitone corrected surface pressures")
             
             ! Perform calculations (Modern Compressible Flow by John Anderson EQ 9.39)
-            val_holder_L = this%freestream%M_inf**2 * (1 + (0.5 * (this%freestream%gamma - 1)) * this%freestream%M_inf**2) &
-                        / (2 * sqrt(1 - this%freestream%M_inf**2))
+            val_holder_L = this%freestream%M_inf**2 * (1 + (0.5 * (this%freestream%gamma - 1)) * (this%freestream%M_inf)**2) &
+                        / (2 * sqrt(1 - (this%freestream%M_inf)**2))
 
-            corrected_C_p_L = body%C_p_inc / (sqrt(1 - (this%freestream%M_inf**2)) + &
-            val_holder_L * body%C_p_inc)
+            corrected_C_p_L = body%C_p_inc / (sqrt(1 - (this%freestream%M_inf)**2) + (val_holder_L * body%C_p_inc))
         
         end if
         
