@@ -46,6 +46,15 @@ class Swept_Plotting:
             colors = 'y'
         
         plt.plot((x-LE_xy_loc)/Chord_Length,C_p_inc, label=Plot_label, color = colors)
+        # Set size of pdf to be saved
+        # scale_factor = 0.75
+        # fig_width, fig_height = plt.gcf().get_size_inches()
+        # print(fig_width, fig_height)
+        # fig_width = fig_width * scale_factor
+        # fig_height = fig_height * scale_factor
+        
+
+        plt.gcf().set_size_inches(4, 3, forward=True)
 
         return
 
@@ -67,16 +76,6 @@ class Swept_Plotting:
             file_experimental = percent_semispan + "_percent_semispan/" + percent_semispan + "_percent_semispan_Experimental_Results_Wing_A.csv"
         
             Experimental = np.genfromtxt(file_experimental, delimiter=",", skip_header=2, dtype=float)
-            
-            # Constrain which node counts are used near tip conditions
-            if percent_semispan == '89.8':
-                self.Nodes = ["20", "40", "80"]
-
-            elif percent_semispan == '94.9':
-                self.Nodes = ["20", "40", "80"]
-
-          
-
 
             # Establish clean list for saving and combining produced plots
             list_of_files =[]
@@ -85,13 +84,13 @@ class Swept_Plotting:
 
 
                 # Iterate over node counts backwards to allow plot sizing based on highest node count
-                for Node in reversed(self.Nodes): 
+                for k,Node in enumerate(reversed(self.Nodes)): 
 
                     file =  percent_semispan + "_percent_semispan/" + AoA + "_degrees_AoA/" + percent_semispan + "_percent_semispan_" + Node + "_nodes_results_" + AoA + "_deg_AoA_" + formulation_adjusted + "_formulation.csv"
                     Curve_label = Node + " Nodes"
                     self.Pressure_Plot(file, Node, Curve_label, self.semispan_xy_loc[percent_semispan], self.chord)
                     # Determine sizing for plot formats based on highest node count used
-                    if Node == self.Nodes[len(self.Nodes)-1]:
+                    if k == 0:
                         
                         xmin, xmax = plt.xlim()
                         ymin, ymax = plt.ylim()
@@ -100,10 +99,10 @@ class Swept_Plotting:
 
                 #=== Main Plotting Section ===
                 #Identify labels and notes to include on plots
-                title = r"Pressure Distribution at $\frac{2y}{b} =$ " + str("{:.3f}".format(float(percent_semispan)/100))
+                title = r"Pressure Distribution at $\frac{2y}{b}=$" + str("{:.3f}".format(float(percent_semispan)/100))
                
                 #Identify angle of atack note to add to plot title
-                y = r'$\alpha$ = '
+                y = r'$\alpha$='
                 AoA_Notes = y + AoA + r'$^{\circ}$'
 
                 #Pull in experimental results for comparison at each angle of attack differentiating upper and lower surfaces
@@ -113,29 +112,33 @@ class Swept_Plotting:
 
                 #Plot the figure containing all curves
                 complete_title = title + ", " + AoA_Notes
-                Sub_Note = "*" + formulation + " formulation"
+                Sub_Note = "*" + formulation + " form."
                 plt.title(complete_title)
-                plt.xlabel('x/c')
+                xlabel = 'x/c'
+                plt.xlabel(xlabel)
                 plt.ylabel(r"$C_p$")
-                plt.figtext(0.7, 0.02, Sub_Note)
+
 
                 # Scale plot based on highest node count, and invert the Y-axis
                 plt.xlim(xmin, xmax)
                 plt.ylim(ymin, ymax)
                 plt.gca().invert_yaxis()
 
+                # Adjust margins and axes to fit axes titles
+                plt.gcf().subplots_adjust(bottom=0.15, left=.18)
+                # Identify location of formulation type on plot
+                plt.figtext(0.625, 0.015, Sub_Note)
+
                 # Split legend into columns if there are too many data types
-                if percent_semispan == '94.9':
-                    plt.legend()
-                else:
-                    plt.legend(ncol = 2)
-                #Save the figure in appropriate location
+                plt.legend(ncol = 2, fontsize=6)
+                
+                #Save the figure in appropriate location and with the correct size
                 
                 if json_vals["plots"]["save plots"]:
                     filename = percent_semispan + "_percent_semispan/plots_" + percent_semispan + "_percent_semispan/" + json_vals["plots"]["save plot type"] + "_plots/" + AoA + "degrees_AoA_plot_" + formulation_adjusted + "_formulation." + json_vals["plots"]["save plot type"]
                     list_of_files.append(filename)
                     plt.savefig(filename)
-
+                    # TODO: Add statement to include the axes height in the pdf
                 plt.show()
 
             # Combine plots into one pdf for easy review
@@ -174,15 +177,16 @@ Nodes = json_vals["geometry"]["nodes"]
 formulation = json_vals["solver"]["formulation"]
 
 # Iterate over solver formulations from input file
-for form in formulation:
 
     # Proccesses either one or all semispan locations based on input file
-    if json_vals["plots"]["process_all"]:
+if json_vals["plots"]["process_all"]:
+    for form in formulation:
 
         Swept_Plotting(locations, chord, Nodes, semispan_xy_loc).get_data(form)
 
-    else:
-        x = input("Enter percent semispan for analysis results. Options are 4.1, 8.2, 16.3, 24.5, 36.7, 51.0, 65.3, 89.8, 94.9:   ",)
+else:
+    x = input("Enter percent semispan for analysis results. Options are 4.1, 8.2, 16.3, 24.5, 36.7, 51.0, 65.3, 89.8, 94.9:   ",)
+    for form in formulation:
         if x == "51":
             x = "51.0"
 

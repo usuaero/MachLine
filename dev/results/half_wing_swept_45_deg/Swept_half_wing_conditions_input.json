@@ -47,7 +47,7 @@
         "points to process": ["C_p_inc, sigma, v"],
         "process_all": true,
         "save plots": true,
-        "save plot type": "pdf",
+        "save plot type": "svg",
         "combine pdfs": true,
         "options": ["process_all: processes all plots and shows plots at every semispan location one at a time",
                     "save plots: true or false",

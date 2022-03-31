@@ -69,7 +69,7 @@ contains
 
         ! Determine condition
         if (this%M_inf == 1.) then
-            write(*,*) "A freestream Mach number of 1.0 is not allowed in TriPan. Quitting..."
+            write(*,*) "A freestream Mach number of 1.0 is not allowed in MachLine. Quitting..."
             stop
         end if
         this%supersonic = this%M_inf > 1.0

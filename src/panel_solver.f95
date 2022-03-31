@@ -18,6 +18,7 @@ module panel_solver_mod
 
         character(len=:),allocatable :: formulation, pressure_for_forces
         logical :: incompressible_rule, isentropic_rule, second_order_rule
+        logical :: compressible_correction, prandtl_glauert, karman_tsien, laitone
         type(dod),dimension(:,:),allocatable :: dod_info
         type(flow) :: freestream
         real :: norm_res, max_res
@@ -38,6 +39,7 @@ module panel_solver_mod
             procedure :: solve_system => panel_solver_solve_system
             procedure :: calc_velocities => panel_solver_calc_velocities
             procedure :: calc_pressures => panel_solver_calc_pressures
+            procedure :: subsonic_pressure_correction => panel_solver_subsonic_pressure_correction
             procedure :: calc_forces => panel_solver_calc_forces
             procedure :: write_report => panel_solver_write_report
 
@@ -57,7 +59,7 @@ contains
         type(flow),intent(inout) :: freestream
         character(len=:),allocatable,intent(in) :: control_point_file
 
-        integer :: i, j
+        integer :: i, j, pressure_corrections_count
         real,dimension(:),allocatable :: cp_indices
         type(vtk_out) :: cp_vtk
 
@@ -74,6 +76,11 @@ contains
             this%isentropic_rule = .false.
         end if
         call json_xtnsn_get(processing_settings, 'pressure_rules.second-order', this%second_order_rule, .false.)
+
+        ! Get subsonic pressure corrections requested
+        call json_xtnsn_get(processing_settings, 'subsonic_pressure_correction.prandtl-glauert', this%prandtl_glauert, .false.)
+        call json_xtnsn_get(processing_settings, 'subsonic_pressure_correction.karman-tsien', this%karman_tsien, .false.)
+        call json_xtnsn_get(processing_settings, 'subsonic_pressure_correction.laitone', this%laitone, .false.)
 
         ! Get which pressure rule will be used for force calculation
         if (this%incompressible_rule) then
@@ -864,8 +871,6 @@ contains
 
         end if
 
-        ! TODO: IMPLEMENT SUBSONIC PRESSURE CORRECTIONS
-
         write(*,*) "Done."
         
         if (this%incompressible_rule) then
@@ -882,31 +887,123 @@ contains
             write(*,*) "        Maximum second-order pressure coefficient:", maxval(body%C_p_2nd)
             write(*,*) "        Minimum second-order pressure coefficient:", minval(body%C_p_2nd)
         end if
-
+        
         if (this%freestream%M_inf > 0.) then
             write(*,*) "        Vacuum pressure coefficient:", C_p_vac
         end if
-
+        
+        ! Apply subsonic pressure corrections
+        if ((this%prandtl_glauert) .or. (this%karman_tsien) .or. (this%laitone)) then
+            call this%subsonic_pressure_correction(body)
+        end if
+        
     end subroutine panel_solver_calc_pressures
-
-
-    subroutine panel_solver_calc_forces(this, body)
-        ! Calculates the forces
-
+    
+    
+    subroutine panel_solver_subsonic_pressure_correction(this, body)
+        ! Apply selected method of correcting subsonic pressures
+        
         implicit none
-
+        
         class(panel_solver),intent(inout) :: this
         type(surface_mesh),intent(inout) :: body
+        integer :: i,stat
+        real :: val_holder_L, val_holder_KT
+        real,dimension(:),allocatable :: corrected_C_p_PG, corrected_C_p_L, corrected_C_p_KT
+        
+        write(*,*) "**** Freestream Mach Number is:  ", this%freestream%M_inf
+        write(*,*) "**** Gamma is: ", this%freestream%gamma
+        write(*,'(a)', advance='no') "    Calculating subsonic pressure coefficient corrections..."        
+        
+        ! Identify pressure correction(s) selected
 
+        if (this%prandtl_glauert) then
+            ! Allocate storage
+            allocate(corrected_C_p_PG(this%N_pressures), stat=stat)
+            call check_allocation(stat, "Prandtl-Glauert corrected surface pressures")
+            
+            corrected_C_p_PG = body%C_p_inc / (sqrt(1 - (this%freestream%M_inf**2)))
+
+        end if
+
+
+        
+        if (this%laitone) then
+            
+            ! Allocate storage
+            allocate(corrected_C_p_L(this%N_pressures), stat=stat)
+            call check_allocation(stat, "Laitone corrected surface pressures")
+            
+            ! Perform calculations (Modern Compressible Flow by John Anderson EQ 9.39)
+            val_holder_L = this%freestream%M_inf**2 * (1 + (0.5 * (this%freestream%gamma - 1)) * this%freestream%M_inf**2) &
+                        / (2 * sqrt(1 - this%freestream%M_inf**2))
+
+            corrected_C_p_L = body%C_p_inc / (sqrt(1 - (this%freestream%M_inf**2)) + &
+            val_holder_L * body%C_p_inc)
+        
+        end if
+        
+        if (this%karman_tsien) then
+            
+            !Allocate storage
+            allocate(corrected_C_p_KT(this%N_pressures), stat=stat)
+            call check_allocation(stat, "Karman-Tsien corrected surface pressures")
+            
+            ! Perform calculations (Modern Compressible Flow by John Anderson EQ 9.40)
+            val_holder_KT = this%freestream%M_inf**2 / (1 + sqrt(1 - this%freestream%M_inf**2))
+            
+            corrected_C_p_KT = body%C_p_inc / &
+            (sqrt(1 - this%freestream%M_inf**2) + val_holder_KT * (0.5 * body%C_p_inc))
+            
+        end if
+        
+        write(*,*) "Done."
+        write(*,*) "Laitone Value Holder Check: ", val_holder_L
+        write(*,*) "Karman-Tsien value holder check: ", val_holder_KT
+        
+        ! Write max and min corrected values
+
+        if (this%prandtl_glauert) then
+            write(*,*) "        Maximum corrected pressure coefficient using Prandtl-Glauert rule: ", maxval(corrected_C_p_PG)
+            write(*,*) "        Minimum corrected pressure coefficient using Prandtl-Glauert rule: ", minval(corrected_C_p_PG)
+        end if
+        
+        if (this%laitone) then
+            write(*,*) "        Maximum corrected pressure coefficient using Laitone rule: ", maxval(corrected_C_p_L)
+            write(*,*) "        Minimum corrected pressure coefficient using Laitone rule: ", minval(corrected_C_p_L)
+        end if
+        
+        if (this%karman_tsien) then
+            write(*,*) "        Maximum corrected pressure coefficient using Karman-Tsien rule: ", maxval(corrected_C_p_KT)
+            write(*,*) "        Minimum corrected pressure coefficient using Karman-Tsien rule: ", minval(corrected_C_p_KT)
+        end if
+
+
+        
+        ! TODO: Apply corrected pressures to the pressures passed through the further calcs
+        ! TODO: Debug Laitone and Karman-Tsien calculations
+        
+        
+    end subroutine panel_solver_subsonic_pressure_correction
+    
+    
+    subroutine panel_solver_calc_forces(this, body)
+        ! Calculates the forces
+        
+        implicit none
+        
+        class(panel_solver),intent(inout) :: this
+        type(surface_mesh),intent(inout) :: body
+        
         integer :: i, stat
         real,dimension(3) :: n_mirrored
-
+        
         write(*,'(a)',advance='no') "     Calculating forces..."
-
+        
         ! Allocate force storage
         allocate(body%dC_f(this%N_pressures,3), stat=stat)
         call check_allocation(stat, "forces")
-
+        
         ! Calculate total forces
         do i=1,body%N_panels
 
