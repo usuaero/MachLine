@@ -858,7 +858,8 @@ contains
         type(dod),intent(in) :: dod_info
         type(eval_point_geom) :: geom
 
-        real,dimension(2) :: d_ls
+        real,dimension(2) :: d_ls, d
+        real :: x
         integer :: i, i_next
 
         ! Initialize
@@ -912,6 +913,12 @@ contains
 
                 end if
 
+                ! Get vector describing edge
+                d = this%vertices_ls(:,i_next) - this%vertices_ls(:,i)
+
+                ! Check integration direction
+                x = d(1)*this%m(i) - d(2)
+
                 ! Calculate s and sm
                 ! First vertex
                 d_ls = geom%P_ls - this%vertices_ls(:,i)
@@ -927,7 +934,7 @@ contains
                 if (abs(this%m(i)) <= 1.) then
 
                     ! Calculate xhatm
-                    geom%xm(i) = -geom%sm1(i)*this%m(i) + geom%s1(i) ! Ehlers Eq. (A25)
+                    geom%xm(i) = -geom%sm1(i)*this%m(i) + geom%s1(i) ! Opposite of Ehlers Eq. (A25)
 
                     ! Calculate oblique coordinates for first vertex
                     geom%ym1(i) = geom%sm1(i) - geom%s1(i)*this%m(i) ! Ehlers p. 109
@@ -939,9 +946,6 @@ contains
 
                     ! Calculate xm
                     geom%xm(i) = geom%sm1(i) - geom%s1(i)*this%l(i) ! Ehlers Eq. (5.13)
-                    write(*,*)
-                    write(*,*) geom%xm(i)
-                    write(*,*) -geom%a(i)/this%n_hat_ls(1,i)
 
                     ! Calculate oblique coordinates for first vertex
                     geom%ym1(i) = geom%s1(i) - this%l(i)*geom%sm1(i) ! Ehlers p. 104
