@@ -28,6 +28,7 @@
             "second-order": false
         },
         "subsonic_pressure_correction": {
+            "correction_mach_number": 0.4,
             "prandtl-glauert": true,
             "karman-tsien": true,
             "laitone": true

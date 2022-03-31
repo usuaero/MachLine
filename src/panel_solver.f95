@@ -22,6 +22,7 @@ module panel_solver_mod
         type(dod),dimension(:,:),allocatable :: dod_info
         type(flow) :: freestream
         real :: norm_res, max_res
+        real :: corrected_M_inf ! Corrected mach number for subsonic compressibility pressure corrections
         real,dimension(3) :: C_F
         real,dimension(:,:),allocatable :: A
         real,dimension(:), allocatable :: b
@@ -77,6 +78,9 @@ contains
         end if
         call json_xtnsn_get(processing_settings, 'pressure_rules.second-order', this%second_order_rule, .false.)
 
+        ! Get mach number for pressure corrections
+        call json_xtnsn_get(processing_settings, 'subsonic_pressure_correction.correction_mach_number', this%corrected_M_inf)
+        
         ! Get subsonic pressure corrections requested
         call json_xtnsn_get(processing_settings, 'subsonic_pressure_correction.prandtl-glauert', this%prandtl_glauert, .false.)
         call json_xtnsn_get(processing_settings, 'subsonic_pressure_correction.karman-tsien', this%karman_tsien, .false.)
@@ -911,8 +915,8 @@ contains
         real :: val_holder_L, val_holder_KT
         real,dimension(:),allocatable :: corrected_C_p_PG, corrected_C_p_L, corrected_C_p_KT
         
-        write(*,*) "**** Freestream Mach Number is:  ", this%freestream%M_inf
-        write(*,*) "**** Gamma is: ", this%freestream%gamma
+        ! write(*,*) "**** Freestream Mach Number is:  ", this%corrected_M_inf
+        ! write(*,*) "**** Gamma is: ", this%freestream%gamma
         write(*,'(a)', advance='no') "    Calculating subsonic pressure coefficient corrections..."        
         
         ! Identify pressure correction(s) selected
@@ -922,11 +926,9 @@ contains
             allocate(corrected_C_p_PG(this%N_pressures), stat=stat)
             call check_allocation(stat, "Prandtl-Glauert corrected surface pressures")
             
-            corrected_C_p_PG = body%C_p_inc / (sqrt(1 - (this%freestream%M_inf**2)))
+            corrected_C_p_PG = body%C_p_inc / (sqrt(1 - (this%corrected_M_inf**2)))
 
         end if
-
-
         
         if (this%laitone) then
             
@@ -935,10 +937,11 @@ contains
             call check_allocation(stat, "Laitone corrected surface pressures")
             
             ! Perform calculations (Modern Compressible Flow by John Anderson EQ 9.39)
-            val_holder_L = this%freestream%M_inf**2 * (1 + (0.5 * (this%freestream%gamma - 1)) * (this%freestream%M_inf)**2) &
-                        / (2 * sqrt(1 - (this%freestream%M_inf)**2))
+            val_holder_L = this%corrected_M_inf**2 * (1 + (0.5 * (this%freestream%gamma - 1)) * this%corrected_M_inf**2) &
+                        / (2 * sqrt(1 - this%corrected_M_inf**2))
 
-            corrected_C_p_L = body%C_p_inc / (sqrt(1 - (this%freestream%M_inf)**2) + (val_holder_L * body%C_p_inc))
+            corrected_C_p_L = body%C_p_inc / &
+                            (sqrt(1 - this%corrected_M_inf**2) + (val_holder_L * body%C_p_inc))
         
         end if
         
@@ -949,17 +952,14 @@ contains
             call check_allocation(stat, "Karman-Tsien corrected surface pressures")
             
             ! Perform calculations (Modern Compressible Flow by John Anderson EQ 9.40)
-            val_holder_KT = this%freestream%M_inf**2 / (1 + sqrt(1 - this%freestream%M_inf**2))
+            val_holder_KT = this%corrected_M_inf**2 / (1 + sqrt(1 - this%corrected_M_inf**2))
             
             corrected_C_p_KT = body%C_p_inc / &
-            (sqrt(1 - this%freestream%M_inf**2) + val_holder_KT * (0.5 * body%C_p_inc))
+            (sqrt(1 - this%corrected_M_inf**2) + val_holder_KT * (0.5 * body%C_p_inc))
             
         end if
         
         write(*,*) "Done."
-        write(*,*) "Laitone Value Holder Check: ", val_holder_L
-        write(*,*) "Karman-Tsien value holder check: ", val_holder_KT
-        
         ! Write max and min corrected values
 
         if (this%prandtl_glauert) then
@@ -980,7 +980,7 @@ contains
 
         
         ! TODO: Apply corrected pressures to the pressures passed through the further calcs
-        ! TODO: Debug Laitone and Karman-Tsien calculations
+       
         
         
     end subroutine panel_solver_subsonic_pressure_correction
