@@ -1453,6 +1453,7 @@ contains
         ! Source
         if (source_order == 0) then
             allocate(phi_s(1), source=0.)
+            allocate(i_vert_s(1), source=this%index)
         end if
 
         ! Doublet
