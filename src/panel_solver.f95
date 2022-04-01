@@ -529,7 +529,9 @@ contains
 
         ! Allocate row of A
         allocate(A_i(this%N))
-        allocate(A_i_mir(this%N))
+        if (body%asym_flow) then
+            allocate(A_i_mir(this%N))
+        end if
 
         write(*,'(a)',advance='no') "     Calculating body influences..."
 
@@ -540,9 +542,11 @@ contains
 
             ! Initialize
             A_i = 0.
-            A_i_mir = 0.
             phi_cp_s = 0.
-            phi_cp_s_mir = 0.
+            if (body%asym_flow) then
+                A_i_mir = 0.
+                phi_cp_s_mir = 0.
+            end if
 
             ! Loop through panels
             do j=1,body%N_panels
@@ -560,29 +564,30 @@ contains
 
                 end if
 
+                ! Calculate mirrored influences
                 if (body%mirrored) then
 
-                    if (body%asym_flow .and. body%vertices(i)%mirrored_is_unique) then
+                    if (body%asym_flow) then
 
-                        ! Recalculate influence of mirrored panel on mirrored control point for compressible flow
-                        ! If the flow is symmetric or incompressible, this will be the same as already calculated
-                        if (this%dod_info(j+body%N_panels,i+body%N_cp)%in_dod) then
-                            if (.not. this%freestream%incompressible) then
-                                call body%panels(j)%calc_potentials(body%cp_mirrored(:,i), this%freestream, &
-                                                                    this%dod_info(j+body%N_panels,i+body%N_cp), .true., &
-                                                                    source_inf, doublet_inf, i_vert_s, i_vert_d)
+                        if (body%vertices(i)%mirrored_is_unique) then
+
+                            ! Recalculate influence of mirrored panel on mirrored control point for compressible flow
+                            ! If the flow is symmetric or incompressible, this will be the same as already calculated
+                            if (this%dod_info(j+body%N_panels,i+body%N_cp)%in_dod) then
+                                if (.not. this%freestream%incompressible) then
+                                    call body%panels(j)%calc_potentials(body%cp_mirrored(:,i), this%freestream, &
+                                                                        this%dod_info(j+body%N_panels,i+body%N_cp), .true., &
+                                                                        source_inf, doublet_inf, i_vert_s, i_vert_d)
+                                end if
+
+                                ! Add influence of mirrored panel on mirrored control point
+                                i_vert_s = i_vert_s + body%N_cp
+                                i_vert_d = i_vert_d + body%N_cp
+                                call this%update_system_row(body, A_i_mir, phi_cp_s_mir, &
+                                                            j+body%N_panels, source_inf, doublet_inf, i_vert_s, i_vert_d)
                             end if
 
-                            ! Add influence of mirrored panel on mirrored control point
-                            i_vert_s = i_vert_s + body%N_cp
-                            i_vert_d = i_vert_d + body%N_cp
-                            call this%update_system_row(body, A_i_mir, phi_cp_s_mir, &
-                                                        j+body%N_panels, source_inf, doublet_inf, i_vert_s, i_vert_d)
                         end if
-
-                    end if
-
-                    if (body%asym_flow) then
 
                         ! Calculate influence of existing panel on mirrored control point
                         if (this%dod_info(j,i+body%N_cp)%in_dod) then
@@ -686,15 +691,27 @@ contains
         type(surface_mesh),intent(inout) :: body
 
         integer :: i, j, k
-        real,dimension(:),allocatable ::  doublet_inf, source_inf
+        real,dimension(:),allocatable ::  doublet_inf, source_inf, A_i, A_i_mir
         integer,dimension(:),allocatable :: i_vert_d, i_vert_s
 
         ! Calculate influence of wake
         write(*,'(a)',advance='no') "     Calculating wake influences..."
 
+        ! Allocate A rows
+        allocate(A_i(this%N))
+        if (body%asym_flow) then
+            allocate(A_i_mir(this%N))
+        end if
+
         ! Loop through control points
-        !$OMP parallel do private(j, source_inf, doublet_inf, i_vert_s, i_vert_d, k) schedule(dynamic)
+        !$OMP parallel do private(j, source_inf, doublet_inf, i_vert_s, i_vert_d, k, A_i, A_i_mir) schedule(dynamic)
         do i=1,body%N_cp
+
+            ! Initialize
+            A_i = 0.
+            if (body%asym_flow) then
+                A_i_mir = 0.
+            end if
 
             ! Get doublet influence from wake
             ! Note that for the wake, in the case of mirrored meshes with asymmetric flow, the mirrored wake panels have actually been created.
@@ -710,7 +727,7 @@ contains
                 ! Add influence
                 if (doublet_order == 1) then
                     do k=1,size(i_vert_d)
-                        this%A(i,i_vert_d(k)) = this%A(i,i_vert_d(k)) + doublet_inf(k)
+                        A_i(i_vert_d(k)) = A_i(i_vert_d(k)) + doublet_inf(k)
                     end do
                 end if
 
@@ -728,7 +745,7 @@ contains
                         if (body%vertices(i)%mirrored_is_unique) then
                             if (doublet_order == 1) then
                                 do k=1,size(i_vert_d)
-                                    this%A(i+body%N_cp,i_vert_d(k)) = this%A(i+body%N_cp,i_vert_d(k)) + doublet_inf(k)
+                                    A_i_mir(i_vert_d(k)) = A_i_mir(i_vert_d(k)) + doublet_inf(k)
                                 end do
                             end if
                         end if
@@ -744,7 +761,7 @@ contains
                         ! Add influence
                         if (doublet_order == 1) then
                             do k=1,size(i_vert_d)
-                                this%A(i,i_vert_d(k)) = this%A(i,i_vert_d(k)) + doublet_inf(k)
+                                A_i(i_vert_d(k)) = A_i(i_vert_d(k)) + doublet_inf(k)
                             end do
                         end if
 
@@ -752,6 +769,15 @@ contains
 
                 end if
             end do
+
+            ! Update rows of A
+            !$OMP critical
+            this%A(i,:) = this%A(i,:) + A_i
+            if (body%asym_flow) then
+                this%A(i+body%N_cp,:) = this%A(i+body%N_cp,:) + A_i_mir
+            end if
+            !$OMP end critical
+
         end do
 
         write(*,*) "Done."
