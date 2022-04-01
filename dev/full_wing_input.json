@@ -2,7 +2,7 @@
     "flow": {
         "freestream_velocity": [450.0, 0.0,-10.0],
         "gamma": 1.4,
-        "freestream_mach_number": 0.0
+        "freestream_mach_number": 0
         
         
     },
@@ -30,8 +30,8 @@
         "subsonic_pressure_correction": {
             "correction_mach_number": 0.4,
             "prandtl-glauert": true,
-            "karman-tsien": true,
-            "laitone": true
+            "karman-tsien": false,
+            "laitone": false
         }
     },
     "output": {

@@ -16,13 +16,14 @@ module panel_solver_mod
     type panel_solver
 
 
-        character(len=:),allocatable :: formulation, pressure_for_forces
+        character(len=:),allocatable :: formulation, pressure_for_forces, compressibility_correction
         logical :: incompressible_rule, isentropic_rule, second_order_rule
         logical :: compressible_correction, prandtl_glauert, karman_tsien, laitone
         type(dod),dimension(:,:),allocatable :: dod_info
         type(flow) :: freestream
         real :: norm_res, max_res
-        real :: corrected_M_inf ! Corrected mach number for subsonic compressibility pressure corrections
+        real :: corrected_M_inf 
+        real,dimension(:),allocatable :: corrected_C_p_PG, corrected_C_p_KT, corrected_C_p_L
         real,dimension(3) :: C_F
         real,dimension(:,:),allocatable :: A
         real,dimension(:), allocatable :: b
@@ -81,10 +82,42 @@ contains
         ! Get mach number for pressure corrections
         call json_xtnsn_get(processing_settings, 'subsonic_pressure_correction.correction_mach_number', this%corrected_M_inf)
         
+        ! Check the correction mach number is positive
+        if (this%corrected_M_inf < 0) then
+            write(*,*) "The correction mach number cannot be a negative number. Quitting..."
+            stop
+        end if
+
         ! Get subsonic pressure corrections requested
         call json_xtnsn_get(processing_settings, 'subsonic_pressure_correction.prandtl-glauert', this%prandtl_glauert, .false.)
         call json_xtnsn_get(processing_settings, 'subsonic_pressure_correction.karman-tsien', this%karman_tsien, .false.)
         call json_xtnsn_get(processing_settings, 'subsonic_pressure_correction.laitone', this%laitone, .false.)
+
+        ! Check freestream mach number is set to 0 if pressure correction is selected
+        if (((this%prandtl_glauert) .or. (this%karman_tsien) .or. (this%laitone)) .and. (freestream%M_inf /= 0)) then
+            write(*,*) "In order to apply a subsonic pressure correction, the freestream mach number must be set to '0'."
+            write(*,*) "Include the desired mach number for the correction calculations as the 'correction mach number'."
+            write(*,*) "Quitting..."
+            stop
+        end if
+
+        ! Verify a max of one pressure correction rule has been selected 
+        pressure_corrections_count = 0
+        if (this%prandtl_glauert) then
+            pressure_corrections_count = pressure_corrections_count + 1
+        end if
+        if (this%karman_tsien) then
+            pressure_corrections_count = pressure_corrections_count + 1
+        end if
+        if (this%laitone) then
+            pressure_corrections_count = pressure_corrections_count + 1
+        end if
+        if (pressure_corrections_count > 1) then
+            write(*,*) "Only select one subsonic pressure correction. A comparison of the corrected pressure coefficients"
+            write(*,*) "will be output to the results file independent of which is selected."
+            write(*,*) "Quitting..."
+            stop
+        end if
 
         ! Get which pressure rule will be used for force calculation
         if (this%incompressible_rule) then
@@ -913,75 +946,50 @@ contains
         type(surface_mesh),intent(inout) :: body
         integer :: i,stat
         real :: val_holder_L, val_holder_KT
-        real,dimension(:),allocatable :: corrected_C_p_PG, corrected_C_p_L, corrected_C_p_KT
+    
+        write(*,'(a)', advance='no') "     Calculating subsonic pressure coefficient corrections..."        
         
-        ! write(*,*) "**** Freestream Mach Number is:  ", this%corrected_M_inf
-        ! write(*,*) "**** Gamma is: ", this%freestream%gamma
-        write(*,'(a)', advance='no') "    Calculating subsonic pressure coefficient corrections..."        
-        
-        ! Identify pressure correction(s) selected
+        ! Allocate storage for corrected pressure arrays
+        allocate(this%corrected_C_p_PG(this%N_pressures), stat=stat)
+        call check_allocation(stat, "Prandtl-Glauert corrected surface pressures")
 
-        if (this%prandtl_glauert) then
-            ! Allocate storage
-            allocate(corrected_C_p_PG(this%N_pressures), stat=stat)
-            call check_allocation(stat, "Prandtl-Glauert corrected surface pressures")
-            
-            corrected_C_p_PG = body%C_p_inc / (sqrt(1 - (this%corrected_M_inf**2)))
+        allocate(this%corrected_C_p_L(this%N_pressures), stat=stat)
+        call check_allocation(stat, "Laitone corrected surface pressures")
+   
+        allocate(this%corrected_C_p_KT(this%N_pressures), stat=stat)
+        call check_allocation(stat, "Karman-Tsien corrected surface pressures")
+       
 
-        end if
+        ! Perform calculations for Prandtl-Glauert Rune (Modern Compressible Flow by John Anderson EQ 9.36)
+        this%corrected_C_p_PG = body%C_p_inc / (sqrt(1 - (this%corrected_M_inf**2)))
         
-        if (this%laitone) then
-            
-            ! Allocate storage
-            allocate(corrected_C_p_L(this%N_pressures), stat=stat)
-            call check_allocation(stat, "Laitone corrected surface pressures")
-            
-            ! Perform calculations (Modern Compressible Flow by John Anderson EQ 9.39)
-            val_holder_L = this%corrected_M_inf**2 * (1 + (0.5 * (this%freestream%gamma - 1)) * this%corrected_M_inf**2) &
-                        / (2 * sqrt(1 - this%corrected_M_inf**2))
+        ! Perform calculations (Modern Compressible Flow by John Anderson EQ 9.39)
+        val_holder_L = this%corrected_M_inf**2 * (1 + (0.5 * (this%freestream%gamma - 1)) * this%corrected_M_inf**2) &
+                    / (2 * sqrt(1 - this%corrected_M_inf**2))
 
-            corrected_C_p_L = body%C_p_inc / &
-                            (sqrt(1 - this%corrected_M_inf**2) + (val_holder_L * body%C_p_inc))
+        this%corrected_C_p_L = body%C_p_inc / &
+                        (sqrt(1 - this%corrected_M_inf**2) + (val_holder_L * body%C_p_inc))
         
-        end if
+        ! Perform calculations (Modern Compressible Flow by John Anderson EQ 9.40)
+        val_holder_KT = this%corrected_M_inf**2 / (1 + sqrt(1 - this%corrected_M_inf**2))
         
-        if (this%karman_tsien) then
-            
-            !Allocate storage
-            allocate(corrected_C_p_KT(this%N_pressures), stat=stat)
-            call check_allocation(stat, "Karman-Tsien corrected surface pressures")
-            
-            ! Perform calculations (Modern Compressible Flow by John Anderson EQ 9.40)
-            val_holder_KT = this%corrected_M_inf**2 / (1 + sqrt(1 - this%corrected_M_inf**2))
-            
-            corrected_C_p_KT = body%C_p_inc / &
-            (sqrt(1 - this%corrected_M_inf**2) + val_holder_KT * (0.5 * body%C_p_inc))
-            
-        end if
+        this%corrected_C_p_KT = body%C_p_inc / &
+        (sqrt(1 - this%corrected_M_inf**2) + val_holder_KT * (0.5 * body%C_p_inc))
         
         write(*,*) "Done."
-        ! Write max and min corrected values
 
+        ! ! Assign corrected pressure 
         if (this%prandtl_glauert) then
-            write(*,*) "        Maximum corrected pressure coefficient using Prandtl-Glauert rule: ", maxval(corrected_C_p_PG)
-            write(*,*) "        Minimum corrected pressure coefficient using Prandtl-Glauert rule: ", minval(corrected_C_p_PG)
-        end if
-        
-        if (this%laitone) then
-            write(*,*) "        Maximum corrected pressure coefficient using Laitone rule: ", maxval(corrected_C_p_L)
-            write(*,*) "        Minimum corrected pressure coefficient using Laitone rule: ", minval(corrected_C_p_L)
-        end if
-        
-        if (this%karman_tsien) then
-            write(*,*) "        Maximum corrected pressure coefficient using Karman-Tsien rule: ", maxval(corrected_C_p_KT)
-            write(*,*) "        Minimum corrected pressure coefficient using Karman-Tsien rule: ", minval(corrected_C_p_KT)
-        end if
-
-
-        
-        ! TODO: Apply corrected pressures to the pressures passed through the further calcs
-       
-        
+            body%C_p_inc = this%corrected_C_p_PG
+            this%compressibility_correction = "Prandtl-Glauert"
+        else if (this%laitone) then
+            body%C_p_inc = this%corrected_C_p_L
+            this%compressibility_correction = "Laitone"
+        else if (this%karman_tsien) then
+            body%C_p_inc = this%corrected_C_p_KT
+            this%compressibility_correction = "Karman-Tsien"
+        end if       
+     
         
     end subroutine panel_solver_subsonic_pressure_correction
     
@@ -1067,31 +1075,64 @@ contains
 
         open(12, file=report_file)
 
-        ! Header
-        write(12,'(a)') "MachLine Report (c) 2022 USU AeroLab"
+        ! Welcome message
+        write(12,'(a)') "           /"
+        write(12,'(a)') "          /"
+        write(12,'(a)') "         /"
+        write(12,'(a)') "        /          ____"
+        write(12,'(a)') "       /          /   /"
+        write(12,'(a)') "      /          /   /"
+        write(12,'(a)') "     /     MachLine (c) 2022 USU Aerolab"
+        write(12,'(a)') "    / _________/___/_______________"
+        write(12,'(a)') "   ( (__________________________"
+        write(12,'(a)') "    \          \   \"
+        write(12,'(a)') "     \          \   \"
+        write(12,'(a)') "      \          \   \"
+        write(12,'(a)') "       \          \___\"
+        write(12,'(a)') "        \"
+        write(12,*) ""
 
         ! Solver results
-        write(12,*) "Maximum residual:", this%max_res
-        write(12,*) "Norm of residual:", this%norm_res
+        write(12,'(a)') "Solver results:"
+        write(12,*) "   Maximum residual:", this%max_res
+        write(12,*) "   Norm of residual:", this%norm_res
+        write(12,*) ""
         
+        ! Pressure coefficient results
         if (this%incompressible_rule) then
-            write(12,*) "Maximum incompressible pressure coefficient:", maxval(body%C_p_inc)
-            write(12,*) "Minimum incompressible pressure coefficient:", minval(body%C_p_inc)
+            if ((this%prandtl_glauert) .or. (this%laitone) .or. (this%karman_tsien)) then
+                write(12,'(a)', advance='no') "Subsonic Pressure Coefficient Compressibility Corrections."
+                write(12,*) this%compressibility_correction, " correction was implemented:"
+                write(12,*) ""
+                write(12,*) "  Corrections                Max Value                 Min Value"
+                write(12,*) "-------------------------------------------------------------------------------"
+                write(12,*) "Prandtl-Glauert       ", maxval(this%corrected_C_p_PG), minval(this%corrected_C_p_PG)
+                write(12,*) "  Karman-Tsien        ", maxval(this%corrected_C_p_KT), minval(this%corrected_C_p_KT)
+                write(12,*) "    Laitone           ", maxval(this%corrected_C_p_L), minval(this%corrected_C_p_L)
+            else
+                write(12,'(a)') "Incompressible Pressure Coefficients:"
+                write(12,*) "   Maximum incompressible pressure coefficient:", maxval(body%C_p_inc)
+                write(12,*) "   Minimum incompressible pressure coefficient:", minval(body%C_p_inc)
+            end if
         end if
         
         if (this%isentropic_rule) then
-            write(12,*) "Maximum isentropic pressure coefficient:", maxval(body%C_p_ise)
-            write(12,*) "Minimum isentropic pressure coefficient:", minval(body%C_p_ise)
+            write(12,*) "   Maximum isentropic pressure coefficient:", maxval(body%C_p_ise)
+            write(12,*) "     Minimum isentropic pressure coefficient:", minval(body%C_p_ise)
         end if
         
         if (this%second_order_rule) then
-            write(12,*) "Maximum second-order pressure coefficient:", maxval(body%C_p_2nd)
-            write(12,*) "Minimum second-order pressure coefficient:", minval(body%C_p_2nd)
+            write(12,*) "   Maximum second-order pressure coefficient:", maxval(body%C_p_2nd)
+            write(12,*) "   Minimum second-order pressure coefficient:", minval(body%C_p_2nd)
         end if
+        write(12,*) ""
 
-        write(12,*) "Cx:", this%C_F(1)
-        write(12,*) "Cy:", this%C_F(2)
-        write(12,*) "Cz:", this%C_F(3)
+        ! Force results
+        write(12,'(a)') "Force results:"
+        write(12,*) "   Cx:", this%C_F(1)
+        write(12,*) "   Cy:", this%C_F(2)
+        write(12,*) "   Cz:", this%C_F(3)
+        write(12,*) ""
 
         close(12)
    
