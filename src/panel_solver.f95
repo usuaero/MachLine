@@ -36,7 +36,7 @@ module panel_solver_mod
             procedure :: calc_domains_of_dependence => panel_solver_calc_domains_of_dependence
             procedure :: solve => panel_solver_solve
             procedure :: calc_source_strengths => panel_solver_calc_source_strengths
-            procedure :: update_system => panel_solver_update_system
+            procedure :: update_system_row => panel_solver_update_system_row
             procedure :: calc_body_influences => panel_solver_calc_body_influences
             procedure :: calc_wake_influences => panel_solver_calc_wake_influences
             procedure :: solve_system => panel_solver_solve_system
@@ -468,14 +468,16 @@ contains
     end subroutine panel_solver_calc_source_strengths
 
 
-    subroutine panel_solver_update_system(this, body, i_cp, i_panel, source_inf, doublet_inf, i_vert_s, i_vert_d)
+    subroutine panel_solver_update_system_row(this, body, A_row, phi_cp_s, i_panel, source_inf, doublet_inf, i_vert_s, i_vert_d)
         ! Updates the linear system with the source and doublet influences
 
         implicit none
 
         class(panel_solver),intent(inout) :: this
         type(surface_mesh),intent(inout) :: body
-        integer,intent(in) :: i_cp, i_panel
+        real,dimension(:),allocatable,intent(inout) :: A_row
+        real,intent(inout) :: phi_cp_s
+        integer,intent(in) :: i_panel
         real,dimension(:),allocatable,intent(in) :: source_inf, doublet_inf
         integer,dimension(:),allocatable,intent(in) :: i_vert_s, i_vert_d
 
@@ -484,7 +486,7 @@ contains
         ! Add source influence
         if (this%morino) then
             if (source_order == 0) then
-                body%phi_cp_sigma(i_cp) = body%phi_cp_sigma(i_cp) + source_inf(1)*body%sigma(i_panel)
+                phi_cp_s = phi_cp_s + source_inf(1)*body%sigma(i_panel)
             end if
         end if
 
@@ -493,11 +495,11 @@ contains
 
             ! Loop through panel vertices
             do k=1,size(i_vert_d)
-                this%A(i_cp,i_vert_d(k)) = this%A(i_cp,i_vert_d(k)) + doublet_inf(k)
+                A_row(i_vert_d(k)) = A_row(i_vert_d(k)) + doublet_inf(k)
             end do
         end if
     
-    end subroutine panel_solver_update_system
+    end subroutine panel_solver_update_system_row
 
 
     subroutine panel_solver_calc_body_influences(this, body)
@@ -509,12 +511,9 @@ contains
         type(surface_mesh),intent(inout) :: body
 
         integer :: i, j, k, stat
-        real,dimension(:),allocatable :: source_inf, doublet_inf
+        real,dimension(:),allocatable :: source_inf, doublet_inf, A_i, A_i_mir
+        real :: phi_cp_s, phi_cp_s_mir
         integer,dimension(:),allocatable :: i_vert_s, i_vert_d
-        logical :: morino
-
-        ! Determine formulation
-        morino = this%formulation == 'morino'
 
         ! Allocate space for inner potential calculations
         allocate(body%phi_cp_sigma(this%N), source=0., stat=stat)
@@ -528,11 +527,22 @@ contains
         allocate(this%b(this%N), source=0., stat=stat)
         call check_allocation(stat, "b vector")
 
+        ! Allocate row of A
+        allocate(A_i(this%N))
+        allocate(A_i_mir(this%N))
+
         write(*,'(a)',advance='no') "     Calculating body influences..."
 
         ! Calculate source and doublet influences from body on each control point
-        !$OMP parallel do private(j, source_inf, doublet_inf, i_vert_s, i_vert_d, k) schedule(dynamic)
+        !$OMP parallel do private(j, source_inf, doublet_inf, i_vert_s, i_vert_d, k, A_i, A_i_mir, phi_cp_s, phi_cp_s_mir) &
+        !$OMP schedule(dynamic)
         do i=1,body%N_cp
+
+            ! Initialize
+            A_i = 0.
+            A_i_mir = 0.
+            phi_cp_s = 0.
+            phi_cp_s_mir = 0.
 
             ! Loop through panels
             do j=1,body%N_panels
@@ -545,9 +555,8 @@ contains
                                                         source_inf, doublet_inf, i_vert_s, i_vert_d)
 
                     ! Add influence
-                    !$OMP critical
-                    call this%update_system(body, i, j, source_inf, doublet_inf, i_vert_s, i_vert_d)
-                    !$OMP end critical
+                    call this%update_system_row(body, A_i, phi_cp_s, j, source_inf, doublet_inf, &
+                                                i_vert_s, i_vert_d)
 
                 end if
 
@@ -567,10 +576,8 @@ contains
                             ! Add influence of mirrored panel on mirrored control point
                             i_vert_s = i_vert_s + body%N_cp
                             i_vert_d = i_vert_d + body%N_cp
-                            !$OMP critical
-                            call this%update_system(body, i+body%N_cp, j+body%N_panels, &
-                                                    source_inf, doublet_inf, i_vert_s, i_vert_d)
-                                                    !$OMP end critical
+                            call this%update_system_row(body, A_i_mir, phi_cp_s_mir, &
+                                                        j+body%N_panels, source_inf, doublet_inf, i_vert_s, i_vert_d)
                         end if
 
                     end if
@@ -587,9 +594,8 @@ contains
 
                             ! Add influence of existing panel on mirrored control point
                             if (body%vertices(i)%mirrored_is_unique) then
-                                !$OMP critical
-                                call this%update_system(body, i+body%N_cp, j, source_inf, doublet_inf, i_vert_s, i_vert_d)
-                                !$OMP end critical
+                                call this%update_system_row(body, A_i_mir, phi_cp_s_mir, j, &
+                                                            source_inf, doublet_inf, i_vert_s, i_vert_d)
                             end if
                         end if
 
@@ -604,9 +610,8 @@ contains
                             ! Add influence of mirrored panel on existing control point
                             i_vert_s = i_vert_s + body%N_cp
                             i_vert_d = i_vert_d + body%N_cp
-                            !$OMP critical
-                            call this%update_system(body, i, j+body%N_panels, source_inf, doublet_inf, i_vert_s, i_vert_d)
-                            !$OMP end critical
+                            call this%update_system_row(body, A_i, phi_cp_s, j+body%N_panels, &
+                                                        source_inf, doublet_inf, i_vert_s, i_vert_d)
                         end if
 
                     else
@@ -620,9 +625,8 @@ contains
                                                                 .false., source_inf, doublet_inf, i_vert_s, i_vert_d)
 
                             ! Add influence of mirrored panel on existing control point
-                            !$OMP critical
-                            call this%update_system(body, i, j, source_inf, doublet_inf, i_vert_s, i_vert_d)
-                            !$OMP end critical
+                            call this%update_system_row(body, A_i, phi_cp_s, j, &
+                                                        source_inf, doublet_inf, i_vert_s, i_vert_d)
                         end if
 
                     end if
@@ -630,17 +634,33 @@ contains
 
             end do
 
-            ! Enforce doublet strength matching (i.e. for non-unique, mirrored control points, the
-            ! doublet strengths must be the same). The RHS for these rows should still be zero.
+            ! Update A matrix with rows
+            !$OMP critical
+            this%A(i,:) = A_i
+
+            ! Update for mirrored points
             if (body%asym_flow) then
+                this%A(i+body%N_cp,:) = A_i_mir
+
+                ! Enforce doublet strength matching (i.e. for non-unique, mirrored control points, the
+                ! doublet strengths must be the same). The RHS for these rows should still be zero.
                 if (.not. body%vertices(i)%mirrored_is_unique) then
                     this%A(i+body%N_cp,i) = 1.
                     this%A(i+body%N_cp,i+body%N_cp) = -1.
                 end if
             end if
 
+            ! Set potential for morino formulation
+            if (this%morino) then
+                body%phi_cp_sigma(i) = phi_cp_s
+
+                ! Set for unique mirrored control  points
+                if (body%asym_flow .and. body%vertices(i)%mirrored_is_unique) then
+                    body%phi_cp_sigma(i+body%N_cp) = phi_cp_s_mir
+                end if
+
             ! Set target potential for source-free formulation
-            if (.not. morino) then
+            else
                 this%b(i) = -inner(body%cp(:,i), this%freestream%c_hat_g)
 
                 ! Set for unique mirrored control  points
@@ -648,6 +668,7 @@ contains
                     this%b(i+body%N_cp) = -inner(body%cp_mirrored(:,i), this%freestream%c_hat_g)
                 end if
             end if
+            !$OMP end critical
 
         end do
 
