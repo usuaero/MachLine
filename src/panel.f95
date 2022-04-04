@@ -1557,9 +1557,9 @@ contains
                         end do
 
                         ! Add Q1 terms (Ehlers Eq. (5.17))
-                        phi_d(1) = -int%Q1
-                        phi_d(2) = -int%Q1*geom%P_ls(1) + phi_d(2)
-                        phi_d(3) = -int%Q1*geom%P_ls(2) + phi_d(2)
+                        phi_d(1) = - int%Q1
+                        phi_d(2) = phi_d(2) - int%Q1*geom%P_ls(1)
+                        phi_d(3) = phi_d(3) - int%Q1*geom%P_ls(2)
 
                     else
 
