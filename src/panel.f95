@@ -936,10 +936,10 @@ contains
                     ! Calculate xhatm
                     geom%xm(i) = -geom%sm1(i)*this%m(i) + geom%s1(i) ! Opposite of Ehlers Eq. (A25), but lines up with Ehlers Eq. (E35)
 
-                    ! Calculate oblique coordinates for first vertex
+                    ! Calculate yhatm for first vertex
                     geom%ym1(i) = geom%sm1(i) - geom%s1(i)*this%m(i) ! Ehlers p. 109
 
-                    ! Calculate oblique coordinates for second vertex
+                    ! Calculate yhatm for second vertex
                     geom%ym2(i) = geom%sm2(i) - geom%s2(i)*this%m(i) ! Ehlers p. 109
 
                 ! Supersonic edge
@@ -948,10 +948,10 @@ contains
                     ! Calculate xm
                     geom%xm(i) = geom%sm1(i) - geom%s1(i)*this%l(i) ! Ehlers Eq. (5.13) or (A2)
 
-                    ! Calculate oblique coordinates for first vertex
+                    ! Calculate ym for first vertex
                     geom%ym1(i) = geom%s1(i) - this%l(i)*geom%sm1(i) ! Ehlers p. 104; the definition of this given on p. 108 is opposite
 
-                    ! Calculate oblique coordinates for second vertex
+                    ! Calculate ym for second vertex
                     geom%ym2(i) = geom%s2(i) - this%l(i)*geom%sm2(i) ! Ehlers p. 104
 
                 end if
