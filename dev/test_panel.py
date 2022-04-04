@@ -11,50 +11,50 @@ if __name__=="__main__":
     verts = np.array([[0.0, 1.0, 0.0],
                       [0.0, 0.0, 1.0]])
     p = Panel(verts)
-    print("Panel area: ", p.A)
 
-    # Initialize point source and doublet
-    s = Source(np.array([0.0, 0.0, 0.0]), 1.0)
-    d = Doublet(np.array([0.0, 0.0, 0.0]), 1.0)
+    # Initialize equivalent point singularities
+    s = Source(np.array([p.c[0], p.c[1], 0.0]), p.A)
+    d = Doublet(np.array([p.c[0], p.c[1], 0.0]), p.A)
 
-    # Declare array of evaluation positions
-    Nx = 1003
-    Ny = 1003
-    x = np.linspace(-10.0, 10.0, Nx)
-    y = np.linspace(-10.0, 10.0, Ny)
-    phi_s = np.zeros((Nx, Ny))
-    phi_d = np.zeros((Nx, Ny))
-    phi_d_up = np.zeros((Nx, Ny))
-    phi_d_down = np.zeros((Nx, Ny))
+    # Initialize ray of evaluation points
+    P0 = np.array([0.0, 0.0, 0.0])
+    d0 = np.array([1.0, 0.0, -0.0])
+    d0 /= np.linalg.norm(d0)
+    k = np.linspace(0.0, 10.0, 500)
+    phi_s_point = np.zeros_like(k)
+    phi_d_point = np.zeros_like(k)
+    phi_s_panel = np.zeros_like(k)
+    phi_d_panel = np.zeros_like(k)
 
-    # Loop through evaluation positions
-    for i, xi in enumerate(x):
-        for j, yj in enumerate(y):
+    # Calculate induced potentials
+    for i, ki in enumerate(k):
+        
+        # Get point
+        P = P0 + d0*ki
 
-            # Calculate induced potential
-            phi_s[i,j] = s.calc_induced_potential([xi, yj, 0.0])
-            phi_d[i,j] = d.calc_induced_potential([xi, yj, 0.0])
-            phi_d_up[i,j] = d.calc_induced_potential([xi, yj, 1.0])
-            phi_d_down[i,j] = d.calc_induced_potential([xi, yj, -1.0])
+        # Evaluate
+        phi_s_point[i] = s.calc_induced_potential(P)
+        phi_d_point[i] = d.calc_induced_potential(P)
+        phi_s_panel[i] = p.calc_induced_source_potential(P)
+        phi_d_panel[i] = p.calc_induced_doublet_potential(P)
 
+    # Plot
+    fig, ax = plt.subplots(ncols=2, figsize=(12.0, 7.0))
 
-    fig, ax = plt.subplots(nrows=2, ncols=2)
-    c = cm.get_cmap('viridis', 256)
+    # Source influences
+    ax[0].plot(k, phi_s_point, 'k-', label='Point')
+    ax[0].plot(k, phi_s_panel, 'k--', label='Panel')
+    ax[0].set_title('Source-Induced Potential')
+    ax[0].set_xlabel('Distance')
+    ax[0].set_ylabel('$\phi_s$')
+    ax[0].legend()
 
-    # Plot source influence
-    ax[0,0].imshow(phi_s, interpolation='nearest', cmap=c, vmin=-1.0, vmax=1.0)
-    ax[0,0].set_title('Source Influence z=0')
-
-    # Plot doublet influence
-    ax[0,1].imshow(phi_d, interpolation='nearest', cmap=c, vmin=-1.0, vmax=1.0)
-    ax[0,1].set_title('Doublet Influence z=0')
-
-    # Plot doublet influence
-    ax[1,0].imshow(phi_d_up, interpolation='nearest', cmap=c, vmin=-1.0, vmax=1.0)
-    ax[1,0].set_title('Doublet Influence z=1')
-
-    # Plot doublet influence
-    ax[1,1].imshow(phi_d_down, interpolation='nearest', cmap=c, vmin=-1.0, vmax=1.0)
-    ax[1,1].set_title('Doublet Influence z=-1')
+    # Doublet influences
+    ax[1].plot(k, phi_d_point, 'k-', label='Point')
+    ax[1].plot(k, phi_d_panel, 'k--', label='Panel')
+    ax[1].set_title('Doublet-Induced Potential')
+    ax[1].set_xlabel('Distance')
+    ax[1].set_ylabel('$\phi_d$')
+    ax[1].legend()
 
     plt.show()
