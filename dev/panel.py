@@ -113,7 +113,7 @@ class Panel:
                 # Both endpoints in
                 if R1[i] != 0.0 and R2[i] != 0.0:
 
-                    A = h*xm[i]*(ym1[i]*R2[i] - ym2[i]*R1[i])
+                    A = h*xm[i]*(-ym1[i]*R2[i] + ym2[i]*R1[i])
                     B = h**2*ym1[i]*ym2[i] + xm[i]**2*R1[i]*R2[i]
 
                     Q1 += np.arctan2(A, B)
@@ -121,12 +121,12 @@ class Panel:
                 # First endpoint in
                 elif R1[i] != 0.0:
 
-                    Q1 += -np.sign(h)*np.arctan2(xm[i]*R1[i], abs(h)*ym1[i])
+                    Q1 += -np.sign(h)*np.arctan2(xm[i]*R1[i], -abs(h)*ym1[i])
 
                 # Second endpoint in
                 elif R1[i] != 0.0:
 
-                    Q1 += np.sign(h)*np.arctan2(xm[i]*R2[i], abs(h)*ym2[i])
+                    Q1 += np.sign(h)*np.arctan2(xm[i]*R2[i], -abs(h)*ym2[i])
 
             # Calculate w0
             
@@ -141,7 +141,7 @@ class Panel:
                     A = ym2[i] + x*R2[i]
                     B = ym1[i] + x*R1[i]
 
-                    w0[i] = np.arctan2(A, B)
+                    w0[i] = 1.0/x*np.log(A/B)
 
         return Q1, w0
 
@@ -161,7 +161,18 @@ class Panel:
         # Calculate integrals
         Q1, w0 = self._calc_integrals(P)
 
+        # Loop through edges to add up w0
         phi_s = 0.0
+        for i in range(self.N):
+
+            if abs(self.m[i]) < 1.0:
+                phi_s += xm[i]*w0[i]*self.m[i]
+            else:
+                phi_s += xm[i]*w0[i]
+
+        # Add in Q1
+        phi_s = 0.5*self.sigma*(phi_s - h*Q1)/np.pi
+
         return phi_s
 
 
