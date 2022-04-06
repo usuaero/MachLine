@@ -1,5 +1,9 @@
 import numpy as np
 
+def inner2(x,y):
+    return x[0]*y[0] + x[1]*y[1]
+
+
 class Panel:
     """A class defining a constant-doublet-constant-source panel of unit strength in supersonic flow (M_0=sqrt(2)).
     
@@ -55,10 +59,15 @@ class Panel:
             i_next = (i+1)%self.N
 
             # Get displacements
+            # First vertex
             sm1 = P[0] - self.verts[0,i]
             s1 = P[1] - self.verts[1,i]
+            d1 = P[0:1] - self.verts[:,i]
+
+            # Second vertex
             sm2 = P[0] - self.verts[0,i_next]
             s2 = P[1] - self.verts[1,i_next]
+            d2 = P[0:1] - self.verts[:,i_next]
 
             # Get hyperbolic radii
             x = sm1**2 - s1**2 - h**2
@@ -75,19 +84,46 @@ class Panel:
 
             # Calculate edge-based coordinates
 
-            # Subinclined edge
+            # Subsonic or sonic edge (xhatm and yhatm)
             if abs(self.m[i]) <= 1.0:
+                
+                # Get coordinate directions
 
-                xm[i] = s1 - sm1*self.m[i]
-                ym1[i] = sm1 - s1*self.m[i]
-                ym2[i] = sm2 - s2*self.m[i]
+                # e_x^m
+                # According to Davis, this axis points towards the direction of integration.
+                # "The axis itself is defined by a rotation of theta from the panel's eta-direction about
+                # the panel's zeta axis which points out of the page; theta here is the angle of the edge
+                # relative to the freestream."
+                e_xm = np.array([self.m[i], 1.0])
 
-            # Superinclined edge
+                # e_y^m
+                # According to Davis, this axis is the axis of the edge itself.
+                # This points toward the negative xi-direction of the panel coordinate system.
+                e_ym = np.array([-1.0, self.m[i]])
+                
+                # Make sure e_xm points in the direction of integration
+                if inner2(e_xm, d2-d1) > 0.0:
+                    e_xm *= -e_xm
+
+                # Get coordinates
+                xm[i] = inner2(e_xm, d1)
+                ym1[i] = inner2(e_ym, d1)
+                ym2[i] = inner2(e_ym, d2)
+
+                if abs(xm[i] - inner2(e_xm, d2)) > 1e-12:
+                    print("xm not constant for edge!!!!!!!!")
+
+            # Supersonic edge
             else:
 
-                xm[i] = sm1 - s1*self.l[i]
-                ym1[i] = s1 - sm1*self.l[i]
-                ym2[i] = s2 - sm2*self.l[i]
+                # Get coordinate directions
+                e_xm = np.array([1.0, -self.l[i]])
+                e_ym = np.array([-self.l[i], 1.0])
+
+                # Get coordinates
+                xm[i] = inner2(e_xm, d1)
+                ym1[i] = inner2(e_ym, d1)
+                ym2[i] = inner2(e_ym, d2)
 
         return h, xm, ym1, ym2, R1, R2
 
@@ -113,7 +149,7 @@ class Panel:
                 # Both endpoints in
                 if R1[i] != 0.0 and R2[i] != 0.0:
 
-                    A = h*xm[i]*(ym1[i]*R2[i] - ym2[i]*R1[i])
+                    A = h*xm[i]*(-ym1[i]*R2[i] - -ym2[i]*R1[i])
                     B = h**2*ym1[i]*ym2[i] + xm[i]**2*R1[i]*R2[i]
 
                     Q1 += np.arctan2(A, B)
@@ -121,12 +157,12 @@ class Panel:
                 # First endpoint in
                 elif R1[i] != 0.0:
 
-                    Q1 += -np.sign(h)*np.arctan2(xm[i]*R1[i], abs(h)*ym1[i])
+                    Q1 += -np.sign(h)*np.arctan2(xm[i]*R1[i], -abs(h)*ym1[i])
 
                 # Second endpoint in
-                elif R1[i] != 0.0:
+                elif R2[i] != 0.0:
 
-                    Q1 += np.sign(h)*np.arctan2(xm[i]*R2[i], abs(h)*ym2[i])
+                    Q1 += np.sign(h)*np.arctan2(xm[i]*R2[i], -abs(h)*ym2[i])
 
             # Calculate w0
             
@@ -138,8 +174,8 @@ class Panel:
                 # Both endpoints in
                 if R1[i] != 0.0 and R2[i] != 0.0:
 
-                    A = ym2[i] + x*R2[i]
-                    B = ym1[i] + x*R1[i]
+                    A = -ym2[i] + x*R2[i]
+                    B = -ym1[i] + x*R1[i]
 
                     w0[i] = 1.0/x*np.log(A/B)
 
