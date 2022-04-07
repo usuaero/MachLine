@@ -509,16 +509,18 @@ contains
 
         integer :: i, j, k, m, n, temp, top_panel, bottom_panel, i_vert_1, i_vert_2
         type(list) :: wake_edge_verts
-        real :: C_angle
+        real :: C_angle, C_angle_min
         real,dimension(3) :: second_normal
 
         write(*,'(a)',advance='no') "     Characterizing edges..."
 
-        ! We need to store the minimum angle between two panels in order to place control points within the body at edges having discontinuities
-        this%C_min_panel_angle = 1.
+        ! Initialize
+        this%N_wake_edges = 0
+        C_angle_min = 100.
 
         ! Loop through each edge
-        this%N_wake_edges = 0
+        !$OMP parallel do private(i, j, second_normal, C_angle, i_vert_1, i_vert_2) reduction(min : C_angle_min) &
+        !$OMP & default(none) shared(this, freestream, wake_edge_verts)
         do k=1,this%N_edges
 
             ! Get info
@@ -536,7 +538,7 @@ contains
             C_angle = inner(this%panels(i)%n_g, second_normal)
 
             ! Update minimum angle
-            this%C_min_panel_angle = min(C_angle, this%C_min_panel_angle)
+            C_angle_min = min(C_angle, C_angle_min)
 
             ! Determine if this edge is wake-shedding; this depends on the angle between the panels
             ! and the angles made by the panel normals with the freestream
@@ -553,12 +555,14 @@ contains
                         this%edges(k)%sheds_wake = .true.
                         this%edges(k)%discontinuous = .true.
 
-                        ! Update number of wake-shedding edges
-                        this%N_wake_edges = this%N_wake_edges + 1
-
                         ! Get vertex indices (simplifies later code)
                         i_vert_1 = this%edges(k)%verts(1)
                         i_vert_2 = this%edges(k)%verts(2)
+
+                        !$OMP critical
+
+                        ! Update number of wake-shedding edges
+                        this%N_wake_edges = this%N_wake_edges + 1
 
                         ! If this vertex does not already belong to a wake-shedding edge, add it to the list of wake edge vertices
                         if (this%vertices(i_vert_1)%N_wake_edges == 0) then 
@@ -598,24 +602,20 @@ contains
                         this%vertices(i_vert_2)%N_wake_edges = this%vertices(i_vert_2)%N_wake_edges + 1
                         this%vertices(i_vert_2)%N_discont_edges = this%vertices(i_vert_2)%N_discont_edges + 1
 
+                        !$OMP end critical
+
                     end if
                 end if
             end if
 
-            ! Determine if this edge is discontinuous in supersonic flow
-            if (freestream%supersonic) then
-
-                ! Update edge inclination
-                this%edges(k)%inclination = this%panels(this%edges(i)%panels(1))%q(this%edges(i)%edge_index_for_panel(1))
-
-                ! According to Davis, sharp, subsonic, leading edges in supersonic flow must have discontinuous doublet strength.
-                ! I don't know why this would be, except in the case of leading-edge vortex separation. But Davis doesn't
-                ! model leading-edge vortices. Wake-shedding trailing edges are still discontinuous in supersonic flow. Supersonic
-                ! leading edges should have continuous doublet strength.
-
-            end if
-
+            ! According to Davis, sharp, subsonic, leading edges in supersonic flow must have discontinuous doublet strength.
+            ! I don't know why this would be, except in the case of leading-edge vortex separation. But Davis doesn't
+            ! model leading-edge vortices. Wake-shedding trailing edges are still discontinuous in supersonic flow. Supersonic
+            ! leading edges should have continuous doublet strength.
         end do
+
+        ! Store minimum angle
+        this%C_min_panel_angle = C_angle_min
 
         ! Allocate wake vertices array
         allocate(this%wake_edge_verts(wake_edge_verts%len()))
@@ -623,6 +623,7 @@ contains
         do i=1,wake_edge_verts%len()
 
             ! Store vertices into array
+            ! This is O(N^2), but the number of wake edge vertices is likely small, so I'm going to leave it this way for now
             call wake_edge_verts%get(i, m)
             this%wake_edge_verts(i) = m
 
@@ -1004,7 +1005,7 @@ contains
 
         else
             
-            ! Set parameters to let later code know there is no actual wake
+            ! Set parameters to let later code know the wake is not being modeled
             this%wake%N_panels = 0
             this%wake%N_verts = 0
 
@@ -1141,6 +1142,7 @@ contains
             allocate(this%cp_mirrored(3,this%N_cp))
 
             ! Calculate mirrors
+            !$OMP parallel do schedule(static)
             do i=1,this%N_cp
                 this%cp_mirrored(:,i) = mirror_about_plane(this%cp(:,i), this%mirror_plane)
             end do

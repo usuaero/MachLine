@@ -442,7 +442,6 @@ contains
                 write(*,'(a)',advance='no') "     Calculating source strengths..."
 
                 ! Loop through panels
-                !$OMP parallel do private(n_mirrored) schedule(static)
                 do i=1,body%N_panels
 
                     ! Existing panels
