@@ -27,17 +27,31 @@ class Panel:
         self.mu = mu
         self.sigma = sigma
 
-        # Calculate edge slopes
-        self.m = (np.roll(verts[1,:], 1)-verts[1,:])/(np.roll(verts[0,:], 1)-verts[0,:])
+        # Calculate edge parameters
+        self.m = np.zeros(self.N)
+        self.l = np.zeros(self.N)
+        self.dx = np.zeros(self.N)
+        self.dy = np.zeros(self.N)
+        for i in range(self.N):
+
+            # Get index of end vertex
+            i_next = (i+1)%self.N
+
+            # Get edge displacements
+            self.dx[i] = verts[0,i_next] - verts[0,i]
+            self.dy[i] = verts[1,i_next] - verts[1,i]
+
+            # Get edge slopes
+            self.m[i] = self.dy[i]/self.dx[i]
+
+        # Calculate edge inverse slope
         self.l = 1./self.m
 
         # Calculate area
-        d0 = self.verts[:,2] - self.verts[:,1]
-        d1 = self.verts[:,1] - self.verts[:,0]
         if self.N == 3:
-            self.A = 0.5*abs(d0[0]*d1[1] - d0[1]*d1[0])
+            self.A = 0.5*abs(self.dx[0]*self.dy[1] - self.dy[0]*self.dx[1])
         else:
-            self.A = abs(d0[0]*d1[1] - d0[1]*d1[0])
+            self.A = abs(self.dx[0]*self.dy[1] - self.dy[0]*self.dx[1])
 
         # Calculate centroid
         self.c = np.sum(self.verts, axis=1)/self.N
@@ -47,7 +61,7 @@ class Panel:
         # Calculates necessary geometry
 
         # Set up geometry
-        h = P[2]
+        h = -P[2]
         xm = np.zeros(self.N)
         ym1 = np.zeros(self.N)
         ym2 = np.zeros(self.N)
@@ -94,24 +108,28 @@ class Panel:
                 # "The axis itself is defined by a rotation of theta from the panel's eta-direction about
                 # the panel's zeta axis which points out of the page; theta here is the angle of the edge
                 # relative to the freestream."
-                e_xm = np.array([self.m[i], 1.0])
+                e_xm = np.array([self.m[i], -1.0])
+               
+                # Make sure e_x^m points in the direction of integration
+                # Except, under the above definition, xm is perpendicular to the edge, so this is zero.
+                if inner2(e_xm, [self.dx[i], self.dy[i]]) < 0.0:
+                    e_xm = -e_xm
 
                 # e_y^m
                 # According to Davis, this axis is the axis of the edge itself.
                 # This points toward the negative xi-direction of the panel coordinate system.
-                e_ym = np.array([-1.0, self.m[i]])
-                
-                # Make sure e_xm points in the direction of integration
-                if inner2(e_xm, d2-d1) > 0.0:
-                    e_xm *= -e_xm
+                e_ym = np.array([-1.0, -self.m[i]])
 
                 # Get coordinates
                 xm[i] = inner2(e_xm, d1)
                 ym1[i] = inner2(e_ym, d1)
                 ym2[i] = inner2(e_ym, d2)
 
-                if abs(xm[i] - inner2(e_xm, d2)) > 1e-12:
+                xm_alt = inner2(e_xm, d2)
+                if abs(xm[i] -xm_alt ) > 1e-12:
                     print("xm not constant for edge!!!!!!!!")
+                    print(xm[i])
+                    print(xm_alt)
 
             # Supersonic edge
             else:

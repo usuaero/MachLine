@@ -30,6 +30,7 @@ class Source:
         """
 
         # Check downstream
+        phi_s = 0.0
         if P[0] > self.loc[0]:
 
             # Check Mach cone
@@ -38,17 +39,11 @@ class Source:
 
                 phi_s = self.sigma/(2.0*np.pi*np.sqrt(RB2))
 
-            else:
-                phi_s = 0.0
-
-        else:
-            phi_s = 0.0
-
         return phi_s
 
 
 class Doublet:
-    """Defines a supersonic point doublet.
+    """Defines a supersonic point doublet aligned with the positive z-axis.
     
     Parameters
     ----------
@@ -77,18 +72,13 @@ class Doublet:
         """
 
         # Check downstream
+        phi_d = 0.0
         if P[0] > self.loc[0]:
 
             # Check Mach cone
             RB2 = (P[0]-self.loc[0])**2 - (P[1]-self.loc[1])**2 - (P[2]-self.loc[2])**2
             if RB2 > 0:
 
-                phi_s = -self.mu*(self.loc[2]-P[2])/(2.0*np.pi*RB2**1.5)
+                phi_d = -self.mu*(self.loc[2]-P[2])/(2.0*np.pi*RB2**1.5)
 
-            else:
-                phi_s = 0.0
-
-        else:
-            phi_s = 0.0
-
-        return phi_s
+        return phi_d
