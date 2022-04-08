@@ -28,26 +28,6 @@ function isinf(x) result(is)
 end function isinf
 
 
-function sign(x) result(s)
-  ! Returns the sign of x
-
-  implicit none
-
-  real,intent(in) :: x
-
-  integer :: s
-
-  if (x < 0.) then
-    s = -1
-  else if (x > 0.) then
-    s = 1
-  else
-    s = 0
-  end if
-
-end function sign
-
-
 function plane_normal(p1, p2, p3) result(n)
   ! Computes the normal vector to a plane defined by 3 points
 
@@ -59,7 +39,7 @@ function plane_normal(p1, p2, p3) result(n)
   a = p2 - p1
   b = p3 - p1
   n = cross(a,b)
-  n = n/norm(n)
+  n = n/norm2(n)
 
 end function plane_normal
 
@@ -92,7 +72,7 @@ function dist(a, b) result(c)
     real,dimension(3),intent(in) :: a, b
     real :: c
 
-    c = sqrt(sum((a-b)**2))
+    c = norm2(a-b)
 
 end function dist
 
@@ -154,18 +134,6 @@ function outer(a, b) result(c)
   end do
 
 end function
-
-
-function norm(a) result(c)
-  ! Calculates the norm of the vector
-
-  implicit none
-  real, dimension(3) :: a
-  real :: c
-
-  c = sqrt(inner(a, a))
-
-end function norm
 
 
 function det3(a) result(c)

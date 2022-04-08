@@ -224,7 +224,7 @@ contains
             d2 = this%get_vertex_loc(3)-this%get_vertex_loc(2)
 
             ! Calculate area from cross product
-            this%A = 0.5*norm(cross(d1, d2))
+            this%A = 0.5*norm2(cross(d1, d2))
 
             ! Check for zero area
             if (this%A < 1.e-12) then
@@ -250,7 +250,7 @@ contains
 
         ! Find normal
         this%n_g = cross(d1, d2)
-        this%n_g = this%n_g/norm(this%n_g)
+        this%n_g = this%n_g/norm2(this%n_g)
 
     end subroutine panel_calc_normal
 
@@ -326,9 +326,9 @@ contains
         else
             v0 = cross(this%n_g, freestream%c_hat_g)
         end if
-        v0 = v0/norm(v0)
+        v0 = v0/norm2(v0)
         u0 = cross(v0, this%n_g)
-        u0 = u0/norm(u0)
+        u0 = u0/norm2(u0)
 
         ! Calculate compressible parameters
         this%nu_g = matmul(freestream%B_mat_g, this%n_g)
@@ -341,7 +341,7 @@ contains
         end if
 
         ! Calculate panel inclination indicator (E&M Eq. (E.3.16b))
-        this%r = sign(x) ! r=-1 -> superinclined, r=1 -> subinclined
+        this%r = sign(1., x) ! r=-1 -> superinclined, r=1 -> subinclined
 
         ! Check for superinclined panels
         if (this%r < 0) then
@@ -431,7 +431,7 @@ contains
             d_g = this%get_vertex_loc(i_next)-this%get_vertex_loc(i)
 
             ! Calculate tangent in global coords
-            this%t_hat_g(:,i) = d_g/norm(d_g)
+            this%t_hat_g(:,i) = d_g/norm2(d_g)
 
             ! Calculate tangent in local scaled coords 
             ! This purposefully does not match E&M Eq. (J.6.43);
@@ -444,7 +444,7 @@ contains
             this%n_hat_g(:,i) = cross(this%t_hat_g(:,i), this%n_g)
 
             ! Calculate edge type indicator (E&M Eq. (J.6.48)
-            this%q(i) = sign(this%r*this%t_hat_ls(1,i)**2 + freestream%s*this%t_hat_ls(2,i)**2)
+            this%q(i) = sign(1., this%r*this%t_hat_ls(1,i)**2 + freestream%s*this%t_hat_ls(2,i)**2)
 
         end do
 
@@ -1012,7 +1012,7 @@ contains
 
             ! Calculate F(1,1,1)
             ! Within edge (Johnson Eq. (D.60))
-            if (sign(geom%l1(i)) /= sign(geom%l2(i))) then
+            if (sign(1., geom%l1(i)) /= sign(1., geom%l2(i))) then
 
                 ! Check for point on perimeter
                 if(sqrt(geom%g2(i)) < 1e-12) then
@@ -1033,7 +1033,7 @@ contains
                 end if
 
                 ! Calculate
-                int%F111(i) = sign(geom%l1(i)) * log( (geom%R2(i) + abs(geom%l2(i))) / (geom%R1(i) + abs(geom%l1(i))) )
+                int%F111(i) = sign(1., geom%l1(i)) * log( (geom%R2(i) + abs(geom%l2(i))) / (geom%R1(i) + abs(geom%l1(i))) )
 
             end if
 
@@ -1109,7 +1109,7 @@ contains
                         F2 = this%sqrt_b(i)*geom%R2(i) + abs(geom%l2(i))
 
                         ! Calculate F(1,1,1)
-                        int%F111(i) = -sign(this%n_hat_ls(2,i)) / this%sqrt_b(i) * log(F1/F2)
+                        int%F111(i) = -sign(1., this%n_hat_ls(2,i)) / this%sqrt_b(i) * log(F1/F2)
 
                     end if
                 end if
@@ -1163,16 +1163,16 @@ contains
                     ! First endpoint in DoD
                     else if (geom%R1(i) /= 0.) then
 
-                        int%w0(i) = ( sign(-geom%ym2(i))*pi2 - atan2(-geom%ym1(i), geom%R1(i)*x) ) * x_inv
+                        int%w0(i) = ( sign(pi2, -geom%ym2(i)) - atan2(-geom%ym1(i), geom%R1(i)*x) ) * x_inv
 
                     ! Second endpoint in DoD
                     else if (geom%R2(i) /= 0.) then
 
-                        int%w0(i) = ( atan2(-geom%ym2(i), geom%R2(i)*x) - sign(-geom%ym1(i))*pi2 ) * x_inv
+                        int%w0(i) = ( atan2(-geom%ym2(i), geom%R2(i)*x) - sign(pi2, -geom%ym1(i)) ) * x_inv
 
                     ! Neither endpoint in DoD (Ehlers p. 108)
                     else
-                        int%w0(i) = ( sign(-geom%ym2(i)) - sign(-geom%ym1(i)) ) * pi2 * x_inv
+                        int%w0(i) = ( sign(pi2, -geom%ym2(i)) - sign(pi2, -geom%ym1(i)) ) * x_inv
 
                     end if
 
@@ -1243,7 +1243,7 @@ contains
             end do
         
             ! Calculate hH(1,1,3) (Johnson Eq. (D.42)
-            int%hH113 = sign(geom%h)*int%hH113
+            int%hH113 = sign(int%hH113, geom%h)
 
         else
 
@@ -1253,7 +1253,7 @@ contains
 
             ! Close to panel plane but inside Sigma
             else
-                int%hH113 = 2.*pi*sign(geom%h)
+                int%hH113 = sign(2.*pi, geom%h)
 
             end if
         end if
@@ -1324,7 +1324,7 @@ contains
 
                     ! Neither endpoint is in
                     else
-                        int%hH113 = int%hH113 + pi*sign(geom%h*v_xi(i))
+                        int%hH113 = int%hH113 + sign(pi, geom%h*v_xi(i))
 
                     end if
 
@@ -1343,12 +1343,12 @@ contains
                         ! First endpoint in
                         else if (geom%R1(i) /= 0.) then
 
-                            int%Q1 = int%Q1 - sign(geom%h)*atan2(geom%xm(i)*geom%R1(i), abs(geom%h)*geom%ym1(i))
+                            int%Q1 = int%Q1 - sign(atan2(geom%xm(i)*geom%R1(i), abs(geom%h)*geom%ym1(i)), geom%h)
 
                         ! Second endpoint in
                         else if (geom%R2(i) /= 0.) then
 
-                            int%Q1 = int%Q1 + sign(geom%h)*atan2(geom%xm(i)*geom%R2(i), abs(geom%h)*geom%ym2(i))
+                            int%Q1 = int%Q1 + sign(atan2(geom%xm(i)*geom%R2(i), abs(geom%h)*geom%ym2(i)), geom%h)
 
                         end if
 
@@ -1365,17 +1365,17 @@ contains
                         ! First endpoint in (Davis Eq. (A.28))
                         else if (geom%R1(i) /= 0.) then
 
-                            int%Q1 = int%Q1 + sign(-geom%h*geom%ym2(i))*pi2 - atan2(-geom%h*geom%ym1(i), geom%xm(i)*geom%R1(i))
+                            int%Q1 = int%Q1 + sign(pi2, -geom%h*geom%ym2(i)) - atan2(-geom%h*geom%ym1(i), geom%xm(i)*geom%R1(i))
 
                         ! Second endpoint in (Davis Eq. (A.28))
                         else if (geom%R2(i) /= 0.) then
 
-                            int%Q1 = int%Q1 + atan2(-geom%h*geom%ym2(i), geom%xm(i)*geom%R2(i)) - sign(-geom%h*geom%ym1(i))*pi2
+                            int%Q1 = int%Q1 + atan2(-geom%h*geom%ym2(i), geom%xm(i)*geom%R2(i)) - sign(pi2, -geom%h*geom%ym1(i))
 
                         ! Neither endpoint in (Davis Eq. (A.28))
                         else
 
-                            int%Q1 = int%Q1 + ( sign(-geom%h*geom%ym2(i)) - sign(-geom%h*geom%ym1(i)) )*pi2
+                            int%Q1 = int%Q1 + sign(pi2, -geom%h*geom%ym2(i)) - sign(pi2, -geom%h*geom%ym1(i))
 
                         end if
 

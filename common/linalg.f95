@@ -1,8 +1,6 @@
 ! Linear algebra subroutines
 module linalg_mod
 
-    use math_mod
-
     implicit none
     
 contains
@@ -150,6 +148,27 @@ function matmul_lu(n, A, x) result(b)
 end function matmul_lu
 
 
+subroutine lu_solve_replace(n, A, b, x)
+  ! Solves a general [A]x=b on an nxn matrix without overwriting A
+
+  implicit none
+
+  integer,intent(in) :: n
+  real,dimension(n,n),intent(in) :: A
+  real,dimension(n),intent(in) :: b
+  real,dimension(:),allocatable,intent(out) :: x
+
+  real,dimension(n,n) :: A_copy
+
+  ! Create copy of A
+  A_copy = A
+
+  ! Solve
+  call lu_solve(n, A_copy, b, x)
+
+end subroutine lu_solve_replace
+
+
 subroutine lu_solve(n, A, b, x)
   ! Solves a general [A]x=b on an nxn matrix
   ! This replaces A (in place) with its LU decomposition (permuted row-wise)
@@ -157,9 +176,9 @@ subroutine lu_solve(n, A, b, x)
     implicit none
 
     integer,intent(in) :: n
+    real,dimension(n,n),intent(inout) :: A
     real,dimension(n),intent(in) :: b
     real,dimension(:),allocatable,intent(out) :: x
-    real,dimension(n,n),intent(inout) :: A
 
     integer,allocatable,dimension(:) :: indx
     integer :: D, info
@@ -456,9 +475,9 @@ subroutine quadratic_fit(pts, a, b, c)
   real,dimension(:),allocatable :: coeff
 
   do i = 1, 3
-    m(i, 1) = pts(i, 1)**2
-    m(i, 2) = pts(i, 1)
-    m(i, 3) = 1.0
+    m(i,1) = pts(i,1)**2
+    m(i,2) = pts(i,1)
+    m(i,3) = 1.0
   end do
 
   call lu_solve(3, m, pts(:,2), coeff)

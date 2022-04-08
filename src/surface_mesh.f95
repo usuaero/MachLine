@@ -918,7 +918,7 @@ contains
             end if
 
             ! Normalize and store
-            this%vertices(j)%n_g = vec_sum/norm(vec_sum)
+            this%vertices(j)%n_g = vec_sum/norm2(vec_sum)
 
             ! Calculate average edge lengths for each vertex
             call this%vertices(j)%calc_average_edge_length(this%vertices)
@@ -1102,7 +1102,7 @@ contains
                     end if
 
                     ! Normalize
-                    normal = normal/norm(normal)
+                    normal = normal/norm2(normal)
 
                     ! Place control point
                     this%cp(:,i) = this%vertices(i)%loc &

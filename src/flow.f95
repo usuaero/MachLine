@@ -63,7 +63,7 @@ contains
         this%sym_about = this%v_inf == 0.
 
         ! Derived quantities
-        this%U = norm(this%v_inf)
+        this%U = norm2(this%v_inf)
         this%U_inv = 1./this%U
         this%c_hat_g = this%v_inf*this%U_inv
 
@@ -180,7 +180,7 @@ contains
         this%A_g_to_c = 0.
         this%A_g_to_c(1,:) = this%c_hat_g
         this%A_g_to_c(3,:) = cross(this%c_hat_g, j_g)
-        this%A_g_to_c(3,:) = this%A_g_to_c(3,:)/norm(this%A_g_to_c(3,:))
+        this%A_g_to_c(3,:) = this%A_g_to_c(3,:)/norm2(this%A_g_to_c(3,:))
         this%A_g_to_c(2,:) = cross(this%A_g_to_c(:,3), this%c_hat_g)
 
         ! Calculate transform from compressible to scaled coordinates
