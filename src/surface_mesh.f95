@@ -477,8 +477,12 @@ contains
         end do
 
         ! Figure out wake-shedding edges, discontinuous edges, etc.
-        ! Edge-characterization is only necessary for flows with wakes or supersonic flows, as discontinuities only appear in these flows
-        if (this%wake_present .or. freestream%supersonic) then
+        ! Edge-characterization is only necessary for flows with wakes
+        ! According to Davis, sharp, subsonic, leading edges in supersonic flow must have discontinuous doublet strength.
+        ! I don't know why this would be, except in the case of leading-edge vortex separation. But Davis doesn't
+        ! model leading-edge vortices. Wake-shedding trailing edges are still discontinuous in supersonic flow. Supersonic
+        ! leading edges should have continuous doublet strength.
+        if (this%wake_present) then
             call this%characterize_edges(freestream)
         end if
 
@@ -509,17 +513,17 @@ contains
 
         integer :: i, j, k, m, n, temp, top_panel, bottom_panel, i_vert_1, i_vert_2
         type(list) :: wake_edge_verts
-        real :: C_angle, C_angle_min
+        real :: C_angle, C_min_angle
         real,dimension(3) :: second_normal
 
         write(*,'(a)',advance='no') "     Characterizing edges..."
 
         ! Initialize
         this%N_wake_edges = 0
-        C_angle_min = 100.
+        C_min_angle = 100.
 
         ! Loop through each edge
-        !$OMP parallel do private(i, j, second_normal, C_angle, i_vert_1, i_vert_2) reduction(min : C_angle_min) &
+        !$OMP parallel do private(i, j, second_normal, C_angle, i_vert_1, i_vert_2) reduction(min : C_min_angle) &
         !$OMP & default(none) shared(this, freestream, wake_edge_verts)
         do k=1,this%N_edges
 
@@ -538,84 +542,75 @@ contains
             C_angle = inner(this%panels(i)%n_g, second_normal)
 
             ! Update minimum angle
-            C_angle_min = min(C_angle, C_angle_min)
+            C_min_angle = min(C_angle, C_min_angle)
 
             ! Determine if this edge is wake-shedding; this depends on the angle between the panels
             ! and the angles made by the panel normals with the freestream
-            if (this%wake_present) then
+            if (C_angle < this%C_wake_shedding_angle) then
 
-                ! Check angle between panels
-                if (C_angle < this%C_wake_shedding_angle) then
+                ! Check angle of panel normal with freestream
+                if (inner(this%panels(i)%n_g, freestream%V_inf) > 0.0 .or. &
+                    inner(second_normal, freestream%V_inf) > 0.0) then
 
-                    ! Check angle of panel normal with freestream
-                    if (inner(this%panels(i)%n_g, freestream%V_inf) > 0.0 .or. &
-                        inner(second_normal, freestream%V_inf) > 0.0) then
+                    ! Get vertex indices (simplifies later code)
+                    i_vert_1 = this%edges(k)%verts(1)
+                    i_vert_2 = this%edges(k)%verts(2)
 
-                        ! Set the character of the edge
-                        this%edges(k)%sheds_wake = .true.
-                        this%edges(k)%discontinuous = .true.
+                    !$OMP critical
 
-                        ! Get vertex indices (simplifies later code)
-                        i_vert_1 = this%edges(k)%verts(1)
-                        i_vert_2 = this%edges(k)%verts(2)
+                    ! Set the character of the edge
+                    this%edges(k)%sheds_wake = .true.
+                    this%edges(k)%discontinuous = .true.
 
-                        !$OMP critical
+                    ! Update number of wake-shedding edges
+                    this%N_wake_edges = this%N_wake_edges + 1
 
-                        ! Update number of wake-shedding edges
-                        this%N_wake_edges = this%N_wake_edges + 1
+                    ! If this vertex does not already belong to a wake-shedding edge, add it to the list of wake edge vertices
+                    if (this%vertices(i_vert_1)%N_wake_edges == 0) then 
 
-                        ! If this vertex does not already belong to a wake-shedding edge, add it to the list of wake edge vertices
-                        if (this%vertices(i_vert_1)%N_wake_edges == 0) then 
+                        ! Add the first time
+                        call wake_edge_verts%append(i_vert_1)
+                        this%vertices(i_vert_1)%index_in_wake_vertices = wake_edge_verts%len()
 
-                            ! Add the first time
-                            call wake_edge_verts%append(i_vert_1)
-                            this%vertices(i_vert_1)%index_in_wake_vertices = wake_edge_verts%len()
+                    else if (.not. this%edges(k)%on_mirror_plane) then
 
-                        else if (.not. this%edges(k)%on_mirror_plane) then
-
-                            ! It is in an edge, so it will likely need to be cloned
-                            ! Unless it's on a mirror plane
-                            this%vertices(i_vert_1)%needs_clone = .true.
-
-                        end if
-
-                        ! Update number of wake edges touching this vertex
-                        this%vertices(i_vert_1)%N_wake_edges = this%vertices(i_vert_1)%N_wake_edges + 1
-                        this%vertices(i_vert_1)%N_discont_edges = this%vertices(i_vert_1)%N_discont_edges + 1
-
-                        ! Do the same for the other vertex
-                        if (this%vertices(i_vert_2)%N_wake_edges == 0) then 
-
-                            ! Add the first time
-                            call wake_edge_verts%append(i_vert_2)
-                            this%vertices(i_vert_2)%index_in_wake_vertices = wake_edge_verts%len()
-
-                        else if (.not. this%edges(k)%on_mirror_plane) then
-
-                            ! It is in an edge, so it will likely need to be cloned
-                            ! Unless it's on a mirror plane
-                            this%vertices(i_vert_2)%needs_clone = .true.
-
-                        end if
-
-                        ! Update number of wake edges touching this vertex
-                        this%vertices(i_vert_2)%N_wake_edges = this%vertices(i_vert_2)%N_wake_edges + 1
-                        this%vertices(i_vert_2)%N_discont_edges = this%vertices(i_vert_2)%N_discont_edges + 1
-
-                        !$OMP end critical
+                        ! It is in an edge, so it will likely need to be cloned
+                        ! Unless it's on a mirror plane
+                        this%vertices(i_vert_1)%needs_clone = .true.
 
                     end if
+
+                    ! Update number of wake edges touching this vertex
+                    this%vertices(i_vert_1)%N_wake_edges = this%vertices(i_vert_1)%N_wake_edges + 1
+                    this%vertices(i_vert_1)%N_discont_edges = this%vertices(i_vert_1)%N_discont_edges + 1
+
+                    ! Do the same for the other vertex
+                    if (this%vertices(i_vert_2)%N_wake_edges == 0) then 
+
+                        ! Add the first time
+                        call wake_edge_verts%append(i_vert_2)
+                        this%vertices(i_vert_2)%index_in_wake_vertices = wake_edge_verts%len()
+
+                    else if (.not. this%edges(k)%on_mirror_plane) then
+
+                        ! It is in an edge, so it will likely need to be cloned
+                        ! Unless it's on a mirror plane
+                        this%vertices(i_vert_2)%needs_clone = .true.
+
+                    end if
+
+                    ! Update number of wake edges touching this vertex
+                    this%vertices(i_vert_2)%N_wake_edges = this%vertices(i_vert_2)%N_wake_edges + 1
+                    this%vertices(i_vert_2)%N_discont_edges = this%vertices(i_vert_2)%N_discont_edges + 1
+
+                    !$OMP end critical
+
                 end if
             end if
-
-            ! According to Davis, sharp, subsonic, leading edges in supersonic flow must have discontinuous doublet strength.
-            ! I don't know why this would be, except in the case of leading-edge vortex separation. But Davis doesn't
-            ! model leading-edge vortices. Wake-shedding trailing edges are still discontinuous in supersonic flow. Supersonic
-            ! leading edges should have continuous doublet strength.
         end do
 
         ! Store minimum angle
-        this%C_min_panel_angle = C_angle_min
+        this%C_min_panel_angle = C_min_angle
 
         ! Allocate wake vertices array
         allocate(this%wake_edge_verts(wake_edge_verts%len()))
@@ -1090,11 +1085,13 @@ contains
             ! Allocate memory
             allocate(this%cp(3,this%N_verts))
 
-            ! Calculate offset ratio such that the control point will remain within the body based on the minimum detected wake-shedding angle
-            offset_ratio = 0.5*sqrt(0.5*(1.0+this%C_min_panel_angle))
+            ! Calculate offset ratio such that the control point will remain within the body based on the minimum detected angle between panels
+            if (this%wake_present) then
+                offset_ratio = 0.5*sqrt(0.5*(1. + this%C_min_panel_angle))
+            end if
 
             ! Loop through vertices
-            !$OMP parallel do private(j, normal, i_panel) schedule(dynamic)
+            !$OMP parallel do private(j, normal, i_panel) schedule(dynamic) shared(this, offset, offset_ratio) default(none)
             do i=1,this%N_verts
 
                 ! If the vertex is in a wake edge, it needs to be shifted off the normal slightly so that it is unique from its counterpart
@@ -1127,7 +1124,7 @@ contains
                 ! If it's not in a wake-shedding edge (i.e. has no clone), then placement simply follows the normal vector
                 else
 
-                    this%cp(:,i) = this%vertices(i)%loc-offset*this%vertices(i)%n_g*this%vertices(i)%l_avg
+                    this%cp(:,i) = this%vertices(i)%loc - offset*this%vertices(i)%n_g*this%vertices(i)%l_avg
 
                 end if
 
