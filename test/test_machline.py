@@ -63,11 +63,11 @@ def test_half_wing_source_free():
     print(Cy)
     print(Cz)
 
-    assert(abs(C_p_max - 0.7492030906209057) < 1e-12)
-    assert(abs(C_p_min - -1.2776850792095638) < 1e-12)
-    assert(abs(Cx - -0.3931613214233168) < 1e-12)
-    assert(abs(Cy - -0.04689217920246194) < 1e-12)
-    assert(abs(Cz - 20.6217914191182) < 1e-12)
+    assert(abs(C_p_max - 0.7492030906209057) < 1e-7)
+    assert(abs(C_p_min - -1.2776850792095638) < 1e-7)
+    assert(abs(Cx - -0.3931613214233168) < 1e-7)
+    assert(abs(Cy - -0.04689217920246194) < 1e-7)
+    assert(abs(Cz - 20.6217914191182) < 1e-7)
 
 
 def test_half_wing_zero_aoa():
@@ -95,11 +95,11 @@ def test_half_wing_zero_aoa():
     print(Cy)
     print(Cz)
 
-    assert(abs(C_p_max - 0.22165639241801494) < 1e-12)
-    assert(abs(C_p_min - -0.4275877172826894) < 1e-12)
-    assert(abs(Cx - 0.30188535561357666) < 1e-12)
+    assert(abs(C_p_max - 0.22165639241801494) < 1e-7)
+    assert(abs(C_p_min - -0.4275877172826894) < 1e-7)
+    assert(abs(Cx - 0.30188535561357666) < 1e-7)
     assert(abs(Cy) < 1e-12)
-    assert(abs(Cz - -1.7043539248437468e-07) < 1e-12)
+    assert(abs(Cz - -1.7043539248437468e-07) < 1e-7)
 
 
 def test_sphere_morino():
@@ -113,11 +113,11 @@ def test_sphere_morino():
     print(Cy)
     print(Cz)
 
-    assert(abs(C_p_max - 0.9911419902081444) < 1e-12)
-    assert(abs(C_p_min - -1.2378311776012643) < 1e-12)
-    assert(abs(Cx - -1.2353806873484363e-07) < 1e-12)
-    assert(abs(Cy - 1.557437211145707e-05) < 1e-12)
-    assert(abs(Cz - 2.0418661341725652e-06) < 1e-12)
+    assert(abs(C_p_max - 0.9911419902081444) < 1e-7)
+    assert(abs(C_p_min - -1.2378311776012643) < 1e-7)
+    assert(abs(Cx - -1.2353806873484363e-07) < 1e-7)
+    assert(abs(Cy - 1.557437211145707e-05) < 1e-7)
+    assert(abs(Cz - 2.0418661341725652e-06) < 1e-7)
 
 
 def test_full_half_wing_compare_morino():
@@ -150,6 +150,12 @@ def test_full_half_wing_compare_morino():
 
     print(abs(C_p_max_full-C_p_max_half))
     print(abs(C_p_min_full-C_p_min_half))
+    print(abs(Cx_full-Cx_half))
+    print(abs(Cy_full-Cy_half))
+    print(abs(Cz_full-Cz_half))
 
     assert(abs(C_p_max_full-C_p_max_half)<1e-4)
     assert(abs(C_p_min_full-C_p_min_half)<2e-4)
+    assert(abs(Cx_full-Cx_half)<1e-4)
+    assert(abs(Cy_full-Cy_half)<1e-4)
+    assert(abs(Cz_full-Cz_half)<1e-4)
