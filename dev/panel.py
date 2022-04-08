@@ -27,11 +27,16 @@ class Panel:
         self.mu = mu
         self.sigma = sigma
 
-        # Calculate edge parameters
+        # Initialize storage
         self.m = np.zeros(self.N)
         self.l = np.zeros(self.N)
         self.dx = np.zeros(self.N)
         self.dy = np.zeros(self.N)
+        self.t_hat = np.zeros((2,self.N))
+        self.n_hat = np.zeros((2,self.N))
+        self.b = np.zeros(self.N)
+
+        # Calculate edge parameters
         for i in range(self.N):
 
             # Get index of end vertex
@@ -43,6 +48,18 @@ class Panel:
 
             # Get edge slopes
             self.m[i] = self.dy[i]/self.dx[i]
+
+            # Get edge tangent vector
+            self.t_hat[0,i] = self.dx[i]
+            self.t_hat[1,i] = self.dy[i]
+            self.t_hat[:,i] /= np.linalg.norm(self.t_hat[:,i])
+
+        # Get edge normal vector
+        self.n_hat[0,:] = self.t_hat[1,:]
+        self.n_hat[1,:] = -self.t_hat[0,:]
+
+        # Get b
+        self.b = self.n_hat[0,:]**2 - self.n_hat[1,:]**2
 
         # Calculate edge inverse slope
         self.l = 1./self.m
@@ -61,12 +78,16 @@ class Panel:
         # Calculates necessary geometry
 
         # Set up geometry
-        h = -P[2]
+        h = P[2]
         xm = np.zeros(self.N)
         ym1 = np.zeros(self.N)
         ym2 = np.zeros(self.N)
         R1 = np.zeros(self.N)
         R2 = np.zeros(self.N)
+        l1 = np.zeros(self.N)
+        l2 = np.zeros(self.N)
+        a = np.zeros(self.N)
+        g2 = np.zeros(self.N)
 
         # Loop through edges
         for i in range(self.N):
@@ -74,14 +95,19 @@ class Panel:
 
             # Get displacements
             # First vertex
-            sm1 = P[0] - self.verts[0,i]
-            s1 = P[1] - self.verts[1,i]
-            d1 = P[0:1] - self.verts[:,i]
+            d1 = P[0:2] - self.verts[:,i]
+            sm1 = d1[0]
+            s1 = d1[1]
+            l1[i] = -self.n_hat[1,i]*d1[0] - self.n_hat[0,i]*d1[1]
 
             # Second vertex
-            sm2 = P[0] - self.verts[0,i_next]
-            s2 = P[1] - self.verts[1,i_next]
-            d2 = P[0:1] - self.verts[:,i_next]
+            d2 = P[0:2] - self.verts[:,i_next]
+            sm2 = d2[0]
+            s2 = d2[1]
+            l2[i] = -self.n_hat[1,i]*d2[0] - self.n_hat[0,i]*d2[1]
+
+            # Perpendicular distances
+            a[i] = inner2(self.n_hat[:,i], -d1)
 
             # Get hyperbolic radii
             x = sm1**2 - s1**2 - h**2
@@ -167,7 +193,7 @@ class Panel:
                 # Both endpoints in
                 if R1[i] != 0.0 and R2[i] != 0.0:
 
-                    A = h*xm[i]*(-ym1[i]*R2[i] - -ym2[i]*R1[i])
+                    A = h*xm[i]*(ym1[i]*R2[i] - ym2[i]*R1[i])
                     B = h**2*ym1[i]*ym2[i] + xm[i]**2*R1[i]*R2[i]
 
                     Q1 += np.arctan2(A, B)
@@ -175,12 +201,12 @@ class Panel:
                 # First endpoint in
                 elif R1[i] != 0.0:
 
-                    Q1 += -np.sign(h)*np.arctan2(xm[i]*R1[i], -abs(h)*ym1[i])
+                    Q1 += -np.sign(h)*np.arctan2(xm[i]*R1[i], abs(h)*ym1[i])
 
                 # Second endpoint in
                 elif R2[i] != 0.0:
 
-                    Q1 += np.sign(h)*np.arctan2(xm[i]*R2[i], -abs(h)*ym2[i])
+                    Q1 += np.sign(h)*np.arctan2(xm[i]*R2[i], abs(h)*ym2[i])
 
             # Calculate w0
             
@@ -192,8 +218,8 @@ class Panel:
                 # Both endpoints in
                 if R1[i] != 0.0 and R2[i] != 0.0:
 
-                    A = -ym2[i] + x*R2[i]
-                    B = -ym1[i] + x*R1[i]
+                    A = ym2[i] + x*R2[i]
+                    B = ym1[i] + x*R1[i]
 
                     w0[i] = 1.0/x*np.log(A/B)
 

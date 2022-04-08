@@ -1454,7 +1454,7 @@ contains
         logical :: ehlers_calc
         integer :: i
 
-        ehlers_calc = .true.
+        ehlers_calc = .false.
 
         ! Specify influencing vertices (also sets zero default influence)
 
