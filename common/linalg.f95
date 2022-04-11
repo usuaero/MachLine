@@ -489,20 +489,27 @@ subroutine lu_solve_replace(n, A, b, x)
 end subroutine lu_solve_replace
 
 
-subroutine block_gauss_siedel(N, A, b, N_sub, tol, x)
+subroutine block_gauss_siedel(N, A, b, block_size, tol, rel, x)
   ! Iteratively solves the [A]x=b system using block Gauss-Siedel iteration
+  ! N is the size of the system
+  ! A is the system matrix
+  ! b is the RHS vector
+  ! block_size is the desired size of each block
+  ! tol is the convergence tolerance between iterations
+  ! rel is a relaxation factor between 0 and 1
+  ! x is the solution
 
   implicit none
 
-  integer,intent(in) :: N, N_sub
+  integer,intent(in) :: N, block_size
   real,dimension(N,N),intent(in) :: A
   real,dimension(N),intent(in) :: b
-  real,intent(in) :: tol
+  real,intent(in) :: tol, rel
   real,dimension(:),allocatable,intent(out) :: x
 
   real :: err
   real,dimension(N) :: x_new
-  real,dimension(N_sub) :: bi
+  real,dimension(block_size) :: bi
   real,dimension(:),allocatable :: xi
   integer :: i, N_blocks, r, i_start, i_end, N_last
 
@@ -513,8 +520,8 @@ subroutine block_gauss_siedel(N, A, b, N_sub, tol, x)
   allocate(x(N), source=0.)
 
   ! Calculate number of blocks
-  N_blocks = N/N_sub
-  r = modulo(N, N_sub)
+  N_blocks = N/block_size
+  r = modulo(N, block_size)
   if (r > 0) then
     N_blocks = N_blocks + 1
   end if
@@ -525,22 +532,11 @@ subroutine block_gauss_siedel(N, A, b, N_sub, tol, x)
     ! Invert blocks
     do i=1,N_blocks
 
-      ! First block
-      if (i == 1) then
-
-        ! Calculate new RHS vector
-        bi = b(1:N_sub) - matmul(A(1:N_sub,N_sub+1:N), x(N_sub+1:N))
-
-        call lu_solve_replace(N_sub, A(1:N_sub,1:N_sub), bi, xi)
-
-        ! Store
-        x_new(1:N_sub) = xi
-
       ! Last block
-      else if (i == N_blocks) then
+      if (i == N_blocks) then
 
         ! Determine start index of this block
-        i_start = (i-1)*N_sub + 1
+        i_start = (i-1)*block_size + 1
         N_last = N-i_start+1
 
         ! Calculate new RHS vector
@@ -551,21 +547,21 @@ subroutine block_gauss_siedel(N, A, b, N_sub, tol, x)
         ! Store
         x_new(i_start:N) = xi
 
-      ! Middle block
+      ! Not last block
       else
 
         ! Determine start and end indices of this block
-        i_start = (i-1)*N_sub + 1
-        i_end = i*N_sub
+        i_start = (i-1)*block_size + 1
+        i_end = i*block_size
 
         ! Calculate new RHS vector
         bi = b(i_start:i_end) - matmul(A(i_start:i_end,1:i_start-1), x_new(1:i_start-1))
         bi = bi - matmul(A(i_start:i_end,i_end+1:N), x(i_end+1:N))
 
-        call lu_solve_replace(N_sub, A(i_start:i_end,i_start:i_end), bi, xi)
+        call lu_solve_replace(block_size, A(i_start:i_end,i_start:i_end), bi, xi)
 
         ! Store
-        x_new(i_start:i_end) = xi
+        x_new(i_start:i_end) = (1.-rel)*x_new(i_start:i_end) + rel*xi
 
       end if
     end do
@@ -575,7 +571,6 @@ subroutine block_gauss_siedel(N, A, b, N_sub, tol, x)
 
     ! Update
     x = x_new
-    write(*,*) err
 
   end do
 

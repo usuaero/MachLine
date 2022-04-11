@@ -15,8 +15,9 @@
         "formulation": "source-free",
         "control_point_offset": 1.1e-05,
         "matrix_solver" : "BGS",
-        "chunk_size" : 1407,
-        "tolerance" : 1.0e-3
+        "chunk_size" : 100,
+        "tolerance" : 1.0e-4,
+        "relaxation" : 0.5
     },
     "post_processing" : {
     },
