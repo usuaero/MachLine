@@ -60,22 +60,28 @@ if __name__=="__main__":
                       [0.0, -0.5, 0.0, 0.5]])
     P0 = np.array([10.0, 0.0, -5.0])
     d0 = np.array([0.0, 0.0, 1.0])
-    plot_comparison(verts, P0, d0, 'dev/unit_tests/subsonic_edges_z_trans_totally_in.pdf')
+    #plot_comparison(verts, P0, d0, 'dev/unit_tests/subsonic_edges_z_trans_totally_in.pdf')
 
     verts = np.array([[0.0, 1.0, 2.0, 1.0],
                       [0.0, -1.5, 0.0, 1.5]])
     P0 = np.array([10.0, 0.0, -5.0])
     d0 = np.array([0.0, 0.0, 1.0])
-    plot_comparison(verts, P0, d0, 'dev/unit_tests/supersonic_edges_z_trans_totally_in.pdf')
+    #plot_comparison(verts, P0, d0, 'dev/unit_tests/supersonic_edges_z_trans_totally_in.pdf')
+
+    verts = np.array([[0.0, 1.0, 2.0, 1.0],
+                      [0.0, -1.5, 0.0, 1.5]])
+    P0 = np.array([0.51, 0.76, -5.0])
+    d0 = np.array([0.0, 0.0, 1.0])
+    plot_comparison(verts, P0, d0, 'dev/unit_tests/wedge_region_of_one_edge.pdf')
 
     verts = np.array([[0.0, 1.0, 2.0, 1.0],
                       [0.0, -0.5, 0.0, 0.5]])
     P0 = np.array([3.5, 0.0, 1.0])
     d0 = np.array([1.0, 0.0, 0.0])
-    plot_comparison(verts, P0, d0, 'dev/unit_tests/subsonic_edges_x_trans_totally_in.pdf')
+    #plot_comparison(verts, P0, d0, 'dev/unit_tests/subsonic_edges_x_trans_totally_in.pdf')
 
     verts = np.array([[0.0, 1.0, 2.0, 1.0],
                       [0.0, -1.5, 0.0, 1.5]])
     P0 = np.array([3.5, 0.0, 1.0])
     d0 = np.array([1.0, 0.0, 0.0])
-    plot_comparison(verts, P0, d0, 'dev/unit_tests/supersonic_edges_x_trans_totally_in.pdf')
+    #plot_comparison(verts, P0, d0, 'dev/unit_tests/supersonic_edges_x_trans_totally_in.pdf')
