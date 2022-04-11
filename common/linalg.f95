@@ -148,27 +148,6 @@ function matmul_lu(n, A, x) result(b)
 end function matmul_lu
 
 
-subroutine lu_solve_replace(n, A, b, x)
-  ! Solves a general [A]x=b on an nxn matrix without overwriting A
-
-  implicit none
-
-  integer,intent(in) :: n
-  real,dimension(n,n),intent(in) :: A
-  real,dimension(n),intent(in) :: b
-  real,dimension(:),allocatable,intent(out) :: x
-
-  real,dimension(n,n) :: A_copy
-
-  ! Create copy of A
-  A_copy = A
-
-  ! Solve
-  call lu_solve(n, A_copy, b, x)
-
-end subroutine lu_solve_replace
-
-
 subroutine lu_solve(n, A, b, x)
   ! Solves a general [A]x=b on an nxn matrix
   ! This replaces A (in place) with its LU decomposition (permuted row-wise)
@@ -487,6 +466,120 @@ subroutine quadratic_fit(pts, a, b, c)
   c = coeff(3)
 
 end subroutine quadratic_fit
+
+
+subroutine lu_solve_replace(n, A, b, x)
+  ! Solves a general [A]x=b on an nxn matrix without overwriting A
+
+  implicit none
+
+  integer,intent(in) :: n
+  real,dimension(n,n),intent(in) :: A
+  real,dimension(n),intent(in) :: b
+  real,dimension(:),allocatable,intent(out) :: x
+
+  real,dimension(n,n) :: A_copy
+
+  ! Create copy of A
+  A_copy = A
+
+  ! Solve
+  call lu_solve(n, A_copy, b, x)
+
+end subroutine lu_solve_replace
+
+
+subroutine block_gauss_siedel(N, A, b, N_sub, tol, x)
+  ! Iteratively solves the [A]x=b system using block Gauss-Siedel iteration
+
+  implicit none
+
+  integer,intent(in) :: N, N_sub
+  real,dimension(N,N),intent(in) :: A
+  real,dimension(N),intent(in) :: b
+  real,intent(in) :: tol
+  real,dimension(:),allocatable,intent(out) :: x
+
+  real :: err
+  real,dimension(N) :: x_new
+  real,dimension(N_sub) :: bi
+  real,dimension(:),allocatable :: xi
+  integer :: i, N_blocks, r, i_start, i_end, N_last
+
+  ! Give initial error estimate
+  err = tol + 1.
+
+  ! Initialize solution vector
+  allocate(x(N), source=0.)
+
+  ! Calculate number of blocks
+  N_blocks = N/N_sub
+  r = modulo(N, N_sub)
+  if (r > 0) then
+    N_blocks = N_blocks + 1
+  end if
+
+  ! Iterate
+  do while(err >= tol)
+
+    ! Invert blocks
+    do i=1,N_blocks
+
+      ! First block
+      if (i == 1) then
+
+        ! Calculate new RHS vector
+        bi = b(1:N_sub) - matmul(A(1:N_sub,N_sub+1:N), x(N_sub+1:N))
+
+        call lu_solve_replace(N_sub, A(1:N_sub,1:N_sub), bi, xi)
+
+        ! Store
+        x_new(1:N_sub) = xi
+
+      ! Last block
+      else if (i == N_blocks) then
+
+        ! Determine start index of this block
+        i_start = (i-1)*N_sub + 1
+        N_last = N-i_start+1
+
+        ! Calculate new RHS vector
+        bi(1:N_last) = b(i_start:N) - matmul(A(i_start:N,1:i_start-1), x_new(1:i_start-1))
+
+        call lu_solve_replace(N_last, A(i_start:N,i_start:N), bi(1:N_last), xi)
+
+        ! Store
+        x_new(i_start:N) = xi
+
+      ! Middle block
+      else
+
+        ! Determine start and end indices of this block
+        i_start = (i-1)*N_sub + 1
+        i_end = i*N_sub
+
+        ! Calculate new RHS vector
+        bi = b(i_start:i_end) - matmul(A(i_start:i_end,1:i_start-1), x_new(1:i_start-1))
+        bi = bi - matmul(A(i_start:i_end,i_end+1:N), x(i_end+1:N))
+
+        call lu_solve_replace(N_sub, A(i_start:i_end,i_start:i_end), bi, xi)
+
+        ! Store
+        x_new(i_start:i_end) = xi
+
+      end if
+    end do
+
+    ! Calculate error
+    err = norm2(x-x_new)
+
+    ! Update
+    x = x_new
+    write(*,*) err
+
+  end do
+
+end subroutine block_gauss_siedel
 
     
 end module linalg_mod

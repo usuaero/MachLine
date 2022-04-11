@@ -17,15 +17,15 @@ module panel_solver_mod
     type panel_solver
 
 
-        character(len=:),allocatable :: formulation, pressure_for_forces
+        character(len=:),allocatable :: formulation, pressure_for_forces, matrix_solver
         logical :: incompressible_rule, isentropic_rule, second_order_rule, morino
         type(dod),dimension(:,:),allocatable :: dod_info, wake_dod_info
         type(flow) :: freestream
-        real :: norm_res, max_res
+        real :: norm_res, max_res, tol
         real,dimension(3) :: C_F
         real,dimension(:,:),allocatable :: A
         real,dimension(:), allocatable :: b
-        integer :: N, wake_start, N_cells
+        integer :: N, wake_start, N_cells, chunk_size
         integer,dimension(:),allocatable :: i_cp_sorted
 
         contains
@@ -67,6 +67,9 @@ contains
 
         ! Get solver_settings
         call json_xtnsn_get(solver_settings, 'formulation', this%formulation, 'morino')
+        call json_xtnsn_get(solver_settings, 'matrix_solver', this%matrix_solver, 'LU')
+        call json_xtnsn_get(solver_settings, 'chunk_size', this%chunk_size, 50)
+        call json_xtnsn_get(solver_settings, 'tolerance', this%tol, 1e-10)
         this%morino = this%formulation == 'morino'
 
         ! Get pressure rules
@@ -841,7 +844,11 @@ contains
         !close(34)
 
         ! Solve
-        call lu_solve(this%N, A_copy, this%b, body%mu)
+        if (this%matrix_solver == 'LU') then
+            call lu_solve(this%N, A_copy, this%b, body%mu)
+        else if (this%matrix_solver == 'BGS') then
+            call block_gauss_siedel(this%N, A_copy, this%b, this%chunk_size, this%tol, body%mu)
+        end if
         write(*,*) "Done."
 
         ! Clean up memory
