@@ -69,11 +69,17 @@ contains
 
         ! Determine condition
         if (this%M_inf == 1.) then
-            write(*,*) "A freestream Mach number of 1.0 is not allowed in TriPan. Quitting..."
+            write(*,*) "A freestream Mach number of 1.0 is not allowed in MachLine. Quitting..."
             stop
         end if
         this%supersonic = this%M_inf > 1.0
         this%incompressible = this%M_inf == 0.
+
+        ! Temporary block on supersonic Mach numbers
+        if (this%supersonic) then
+            write(*,*) "Supersonic Mach numbers are not currently allowed in MachLine. Quitting..."
+            stop
+        end if
 
         ! Calculate B and s
         if (this%supersonic) then

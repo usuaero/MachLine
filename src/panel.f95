@@ -1454,8 +1454,6 @@ contains
         logical :: ehlers_calc
         integer :: i
 
-        ehlers_calc = .false.
-
         ! Specify influencing vertices (also sets zero default influence)
 
         ! Source
@@ -1497,11 +1495,7 @@ contains
         if (dod_info%in_dod) then
 
             ! Calculate geometric parameters
-            if (freestream%supersonic) then
-                geom = this%calc_supersonic_subinc_geom(P, freestream, dod_info)
-            else
-                geom = this%calc_subsonic_geom(P, freestream)
-            end if
+            geom = this%calc_subsonic_geom(P, freestream)
 
             ! Get integrals
             int = this%calc_integrals(geom, 'potential', 'doublet', dod_info, freestream)
@@ -1509,75 +1503,18 @@ contains
             ! Source potential
             if (source_order == 0) then
 
-                if (freestream%supersonic) then
-
-                    if (ehlers_calc) then
-                        
-                        ! Sum up w0 terms
-                        do i=1,this%N
-                            if (abs(this%m(i)) < 1.) then
-                                phi_s = phi_s + geom%xm(i)*int%w0(i)*this%m(i)
-                            else
-                                phi_s = phi_s + geom%xm(i)*int%w0(i)
-                            end if
-                        end do
-
-                        ! Add Q1 term
-                        phi_s = this%J*freestream%K_inv*(phi_s - geom%h*int%Q1)
-
-                    else
-
-                        ! Equivalent to Ehlers Eq. (8.6)
-                        phi_s = this%J*freestream%K_inv*(geom%h*int%hH113 + sum(geom%a*int%F111))
-
-                    end if
-                else
-
-                    ! Johnson Eq. (D21) including the area factor discussed by Ehlers in Sec. 10.3
-                    phi_s = this%J*freestream%K_inv*(geom%h*int%hH113 - sum(geom%a*int%F111))
-
-                end if
+                ! Johnson Eq. (D21) including the area factor discussed by Ehlers in Sec. 10.3
+                phi_s = this%J*freestream%K_inv*(geom%h*int%hH113 - sum(geom%a*int%F111))
 
             end if
 
             ! Doublet potential
             if (doublet_order == 1) then
 
-                if (freestream%supersonic) then
-
-                    if (ehlers_calc) then
-
-                        ! Sum up w0 terms (Ehlers Eq. (5.17))
-                        do i=1,this%N
-                            if (abs(this%m(i)) < 1.) then
-                                phi_d(2) = phi_d(2) + int%w0(i)*this%m(i)
-                                phi_d(3) = phi_d(3) + int%w0(i)
-                            else
-                                phi_d(2) = phi_d(2) + int%w0(i)
-                                phi_d(3) = phi_d(3) + int%w0(i)*this%l(i)
-                            end if
-                        end do
-
-                        ! Add Q1 terms (Ehlers Eq. (5.17))
-                        phi_d(1) = -int%Q1
-                        phi_d(2) = geom%h*phi_d(2) - int%Q1*geom%P_ls(1)
-                        phi_d(3) = geom%h*phi_d(3) - int%Q1*geom%P_ls(2)
-
-                    else
-
-                        ! Equivalent to Ehlers Eq. (5.17))
-                        phi_d(1) = int%hH113
-                        phi_d(2) = int%hH113*geom%P_ls(1) - geom%h*sum(this%n_hat_ls(1,:)*int%F111)
-                        phi_d(3) = int%hH113*geom%P_ls(1) + geom%h*sum(this%n_hat_ls(2,:)*int%F111)
-
-                    end if
-                else
-
-                    ! Johnson Eq. (D.30)
-                    phi_d(1) = int%hH113
-                    phi_d(2) = int%hH113*geom%P_ls(1) + geom%h*int%H213
-                    phi_d(3) = int%hH113*geom%P_ls(2) + geom%h*int%H123
-                end if
+                ! Johnson Eq. (D.30)
+                phi_d(1) = int%hH113
+                phi_d(2) = int%hH113*geom%P_ls(1) + geom%h*int%H213
+                phi_d(3) = int%hH113*geom%P_ls(2) + geom%h*int%H123
 
                 ! Convert to vertex influences (Davis Eq. (4.41))
                 phi_d(1:3) = freestream%K_inv*matmul(phi_d(1:3), this%S_mu_inv)

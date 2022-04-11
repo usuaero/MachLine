@@ -1,6 +1,7 @@
 {
     "flow": {
-        "freestream_velocity": [ 100.0, 30.0, 10.0 ]
+        "freestream_velocity": [ 100.0, 30.0, 10.0 ],
+        "freestream_mach_number" : 0.4
     },
     "geometry": {
         "file": "dev/meshes/half_wing_right.vtk",
@@ -14,10 +15,7 @@
     "solver": {
         "formulation": "source-free",
         "control_point_offset": 1.1e-05,
-        "matrix_solver" : "BGS",
-        "chunk_size" : 100,
-        "tolerance" : 1.0e-4,
-        "relaxation" : 0.5
+        "matrix_solver" : "LU"
     },
     "post_processing" : {
     },
