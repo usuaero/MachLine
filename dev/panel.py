@@ -108,15 +108,18 @@ class Panel:
 
             # Perpendicular distances
             a[i] = inner2(self.n_hat[:,i], -d1)
+            g2[i] = a[i]**2 - self.b[i]*h**2
 
             # Get hyperbolic radii
             x = sm1**2 - s1**2 - h**2
+            x = (g2[i] - l1[i]**2)/self.b[i]
             if x > 0.0:
                 R1[i] = np.sqrt(x)
             else:
                 R1[i] = 0.0
 
             x = sm2**2 - s2**2 - h**2
+            x = (g2[i] - l2[i]**2)/self.b[i]
             if x > 0.0:
                 R2[i] = np.sqrt(x)
             else:
@@ -169,18 +172,20 @@ class Panel:
                 ym1[i] = inner2(e_ym, d1)
                 ym2[i] = inner2(e_ym, d2)
 
-        return h, xm, ym1, ym2, R1, R2
+        return h, xm, ym1, ym2, R1, R2, l1, l2, a, g2
 
 
     def _calc_integrals(self, P):
         # Calculates the needed integrals
 
         # Calculate geometry
-        h, xm, ym1, ym2, R1, R2 = self._calc_geometry(P)
+        h, xm, ym1, ym2, R1, R2, l1, l2, a, g2 = self._calc_geometry(P)
 
         # Initialize
         Q1 = 0.0
         w0 = np.zeros(self.N)
+        hH113 = 0.0
+        F111 = np.zeros(self.N)
 
         # Loop through edges
         for i in range(self.N):
@@ -223,7 +228,28 @@ class Panel:
 
                     w0[i] = 1.0/x*np.log(A/B)
 
-        return Q1, w0
+            # Calculate hH(1,1,3)
+
+            # Caculate preliminaries
+            if self.b[i] >= 0.0:
+                F1 = (l1[i]*R2[i] - l2[i]*R1[i]) / g2[i]
+                F2 = (self.b[i]*R1[i]*R2[i] + l1[i]*l2[i]) / g2[i]
+            else:
+                F1 = (R2[i]**2 - R1[i]**2) / (l1[i]*R2[i] + l2[i]*R1[i])
+                F2 = (g2[i] - l1[i]**2 - l2[i]**2) / (self.b[i]*R1[i]*R2[i] - l1[i]*l2[i])
+
+            # Add for edge
+            hH113 += np.arctan2(h*a[i]*F1, R1[i]*R2[i] + h**2*F2)
+
+            # Calculate F(1,1,1)
+            if self.b[i] > 0.0:
+                F111[i] = -1.0/np.sqrt(self.b[i]) * np.arctan2(np.sqrt(self.b[i])*F1, F2)
+            else:
+                F1 = np.sqrt(-self.b[i])*R1[i] + abs(l1[i])
+                F2 = np.sqrt(-self.b[i])*R2[i] + abs(l2[i])
+                F111[i] = -np.sign(self.n_hat[1,i])/np.sqrt(-self.b[i]) * np.log(F1/F2)
+
+        return Q1, w0, hH113, F111
 
 
     def calc_induced_source_potential(self, P):
@@ -236,10 +262,10 @@ class Panel:
         """
 
         # Calculate geometry
-        h, xm, ym1, ym2, R1, R2 = self._calc_geometry(P)
+        h, xm, ym1, ym2, R1, R2, l1, l2, a, g2 = self._calc_geometry(P)
 
         # Calculate integrals
-        Q1, w0 = self._calc_integrals(P)
+        Q1, w0, hH113, F111 = self._calc_integrals(P)
 
         # Loop through edges to add up w0
         phi_s = 0.0
@@ -252,6 +278,8 @@ class Panel:
 
         # Add in Q1
         phi_s = 0.5*self.sigma*(phi_s - h*Q1)/np.pi
+
+        phi_s = 0.5*self.sigma*(sum(a*F111) + h*hH113)/np.pi
 
         return phi_s
 
@@ -266,11 +294,13 @@ class Panel:
         """
 
         # Calculate geometry
-        h, xm, ym1, ym2, R1, R2 = self._calc_geometry(P)
+        h, xm, ym1, ym2, R1, R2, l1, l2, a, g2 = self._calc_geometry(P)
 
         # Calculate integrals
-        Q1, w0 = self._calc_integrals(P)
+        Q1, w0, hH113, F111 = self._calc_integrals(P)
 
         phi_d = -0.5*self.mu*Q1/np.pi
+
+        phi_d = 0.5*self.mu*hH113/np.pi
 
         return phi_d
