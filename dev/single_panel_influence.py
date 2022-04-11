@@ -9,7 +9,7 @@ if __name__=="__main__":
 
     # Initialize panel
     verts = np.array([[0.0, 1.0, 2.0, 1.0],
-                      [0.0, -0.5, 0.0, 0.5]])
+                      [0.0, -1.5, 0.0, 1.5]])
     p = Panel(verts, 1.0, 1.0)
 
     # Initialize equivalent point singularities
@@ -17,8 +17,8 @@ if __name__=="__main__":
     d = Doublet(np.array([p.c[0], p.c[1], 0.0]), p.A)
 
     # Initialize ray of evaluation points
-    P0 = np.array([4.0, 0.0, -1.0])
-    d0 = np.array([1.0, 0.0, 0.0])
+    P0 = np.array([10.0, 0.0, -5.0])
+    d0 = np.array([0.0, 0.0, 1.0])
     d0 /= np.linalg.norm(d0)
     k = np.linspace(0.0, 10.0, 500)
     phi_s_point = np.zeros_like(k)
