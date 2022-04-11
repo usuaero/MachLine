@@ -336,7 +336,7 @@ contains
 
         ! Check for Mach-inclined panels
         if (freestream%supersonic .and. abs(x) < 1e-12) then
-            write(*,*) "!!! Panel", this%index, "is Mach-inclined which is not allowed. Quitting..."
+            write(*,*) "!!! Panel", this%index, "is Mach-inclined, which is not allowed. Quitting..."
             stop
         end if
 
@@ -345,7 +345,7 @@ contains
 
         ! Check for superinclined panels
         if (this%r < 0) then
-            write(*,*) "!!! Panel", this%index, "is superinclined which is not allowed. Quitting..."
+            write(*,*) "!!! Panel", this%index, "is superinclined, which is not allowed. Quitting..."
             stop
         end if
 
@@ -858,7 +858,8 @@ contains
         type(dod),intent(in) :: dod_info
         type(eval_point_geom) :: geom
 
-        real,dimension(2) :: d_ls
+        real,dimension(2) :: d_ls, d
+        real :: x
         integer :: i, i_next
 
         ! Initialize
@@ -912,6 +913,12 @@ contains
 
                 end if
 
+                ! Get vector describing edge
+                d = this%vertices_ls(:,i_next) - this%vertices_ls(:,i)
+
+                ! Check integration direction
+                x = d(1)*this%m(i) - d(2)
+
                 ! Calculate s and sm
                 ! First vertex
                 d_ls = geom%P_ls - this%vertices_ls(:,i)
@@ -923,27 +930,28 @@ contains
                 geom%sm2(i) = d_ls(1) ! May be derived from Ehlers Eq. (E25) or (5.13)
                 geom%s2(i) = d_ls(2)
 
-                ! Subsonic or sonic edge
+                ! Subsonic or sonic edge (these are the hatted quantities in Ehlers and Davis)
                 if (abs(this%m(i)) <= 1.) then
 
-                    ! Calculate xm
-                    geom%xm(i) = geom%sm1(i)*this%m(i) - geom%s1(i) ! Ehlers Eq. (A25)
+                    ! Calculate xhatm
+                    geom%xm(i) = -geom%sm1(i)*this%m(i) + geom%s1(i) ! Opposite of Ehlers Eq. (A25), but lines up with Ehlers Eq. (E35)
 
-                    ! Calculate oblique coordinates for first vertex
+                    ! Calculate yhatm for first vertex
                     geom%ym1(i) = geom%sm1(i) - geom%s1(i)*this%m(i) ! Ehlers p. 109
 
-                    ! Calculate oblique coordinates for second vertex
+                    ! Calculate yhatm for second vertex
                     geom%ym2(i) = geom%sm2(i) - geom%s2(i)*this%m(i) ! Ehlers p. 109
 
+                ! Supersonic edge
                 else
 
                     ! Calculate xm
-                    geom%xm(i) = geom%sm1(i) - geom%s1(i)*this%l(i) ! Ehlers Eq. (5.13)
+                    geom%xm(i) = geom%sm1(i) - geom%s1(i)*this%l(i) ! Ehlers Eq. (5.13) or (A2)
 
-                    ! Calculate oblique coordinates for first vertex
-                    geom%ym1(i) = geom%s1(i) - this%l(i)*geom%sm1(i) ! Ehlers p. 104
+                    ! Calculate ym for first vertex
+                    geom%ym1(i) = geom%s1(i) - this%l(i)*geom%sm1(i) ! Ehlers p. 104; the definition of this given on p. 108 is opposite
 
-                    ! Calculate oblique coordinates for second vertex
+                    ! Calculate ym for second vertex
                     geom%ym2(i) = geom%s2(i) - this%l(i)*geom%sm2(i) ! Ehlers p. 104
 
                 end if
@@ -1446,7 +1454,7 @@ contains
         logical :: ehlers_calc
         integer :: i
 
-        ehlers_calc = .true.
+        ehlers_calc = .false.
 
         ! Specify influencing vertices (also sets zero default influence)
 
@@ -1542,18 +1550,18 @@ contains
                         ! Sum up w0 terms (Ehlers Eq. (5.17))
                         do i=1,this%N
                             if (abs(this%m(i)) < 1.) then
-                                phi_d(2) = phi_d(2) + geom%h*int%w0(i)*this%m(i)
-                                phi_d(3) = phi_d(3) + geom%h*int%w0(i)
+                                phi_d(2) = phi_d(2) + int%w0(i)*this%m(i)
+                                phi_d(3) = phi_d(3) + int%w0(i)
                             else
-                                phi_d(2) = phi_d(2) + geom%h*int%w0(i)
-                                phi_d(3) = phi_d(3) + geom%h*int%w0(i)/this%m(i)
+                                phi_d(2) = phi_d(2) + int%w0(i)
+                                phi_d(3) = phi_d(3) + int%w0(i)*this%l(i)
                             end if
                         end do
 
                         ! Add Q1 terms (Ehlers Eq. (5.17))
                         phi_d(1) = -int%Q1
-                        phi_d(2) = -int%Q1*geom%P_ls(1) + phi_d(2)
-                        phi_d(3) = -int%Q1*geom%P_ls(2) + phi_d(2)
+                        phi_d(2) = geom%h*phi_d(2) - int%Q1*geom%P_ls(1)
+                        phi_d(3) = geom%h*phi_d(3) - int%Q1*geom%P_ls(2)
 
                     else
 

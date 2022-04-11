@@ -186,8 +186,8 @@ contains
         ! Calculate transform from compressible to scaled coordinates
         this%A_c_to_s = 0.
         this%A_c_to_s(1,1) = 1.
-        this%A_c_to_s(2,2) = this%s*this%B
-        this%A_c_to_s(3,3) = this%s*this%B
+        this%A_c_to_s(2,2) = this%B
+        this%A_c_to_s(3,3) = this%B
 
         ! Check calculation
         c_hat_c = matmul(this%A_g_to_c, this%c_hat_g)
