@@ -105,12 +105,14 @@ class Panel:
             if x > 0.0:
                 R1[i] = np.sqrt(x)
             else:
+                l1[i] = -np.sqrt(abs(g2[i]))
                 R1[i] = 0.0
 
             x = (g2[i] - l2[i]**2)/self.b[i]
             if x > 0.0:
                 R2[i] = np.sqrt(x)
             else:
+                l2[i] = np.sqrt(abs(g2[i]))
                 R2[i] = 0.0
 
             # Check DoD
@@ -164,11 +166,11 @@ class Panel:
                         F1 = (l1[i]*R2[i] - l2[i]*R1[i]) / g2[i]
                         F2 = (self.b[i]*R1[i]*R2[i] + l1[i]*l2[i]) / g2[i]
 
-                        # Check for Mach wedge condition
+                        # Neither endpoint in
                         if R1[i] == 0.0 and R2[i] == 0.0:
 
                             # Calculate hH113
-                            hH113 += np.pi*np.sign(h*self.n_hat[0,i])
+                            hH113 += np.pi*np.sign(-h*self.n_hat[0,i])
 
                         # At least one endpoint in
                         else:
