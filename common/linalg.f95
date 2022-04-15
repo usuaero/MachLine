@@ -169,7 +169,7 @@ subroutine lu_solve(n, A, b, x)
 
     ! if the matrix is nonsingular, then backsolve to find X
     if (info == 1) then
-        write(*,*) 'Subroutine lu_solve() failed. The given matrix is singular (i.e. no unique solution). Quitting...'
+        write(*,*) 'Subroutine lu_decomp() failed. The given matrix is singular (i.e. no unique solution). Quitting...'
         stop
     else
         call lu_back_sub(A, n, indx, b, x)
@@ -492,7 +492,7 @@ end subroutine lu_solve_replace
 subroutine block_sor(N, A, b, block_size, tol, rel, x)
   ! Iteratively solves the [A]x=b system using block Successive Overrelaxation
   ! N is the size of the system
-  ! A is the system matrix
+  ! A is the system matrix; block diagonals will be replaced with their LU decompositions
   ! b is the RHS vector
   ! block_size is the desired size of each block
   ! tol is the convergence tolerance between iterations
@@ -512,6 +512,8 @@ subroutine block_sor(N, A, b, block_size, tol, rel, x)
   real,dimension(block_size) :: bi
   real,dimension(:),allocatable :: xi
   integer :: i, N_blocks, r, i_start, i_end, N_last, iteration
+  integer,dimension(:),allocatable :: i_start_block, i_end_block
+  integer,dimension(:,:),allocatable :: ind_P
 
   ! Check relaxation
   if (rel < 0. .or. rel > 2.) then
@@ -531,6 +533,45 @@ subroutine block_sor(N, A, b, block_size, tol, rel, x)
   if (r > 0) then
     N_blocks = N_blocks + 1
   end if
+
+  ! Allocate start and end indices
+  allocate(i_start_block(N_blocks))
+  allocate(i_end_block(N_blocks))
+
+  ! Decompose blocks
+  do i=1,N_blocks
+
+    ! Last block
+    if (i == N_blocks) then
+
+      ! Determine start index of this block
+      i_start = (i-1)*block_size + 1
+      N_last = N-i_start+1
+
+      call lu_solve_replace(N_last, A(i_start:N,i_start:N), bi(1:N_last), xi)
+
+      ! Store
+      x_new(i_start:N) = (1.-rel)*x_new(i_start:N) + rel*xi
+
+    ! Not last block
+    else
+
+      ! Determine start and end indices of this block
+      i_start = (i-1)*block_size + 1
+      i_end = i*block_size
+
+      ! Calculate new RHS vector
+      bi = b(i_start:i_end) - matmul(A(i_start:i_end,1:i_start-1), x_new(1:i_start-1))
+      bi = bi - matmul(A(i_start:i_end,i_end+1:N), x(i_end+1:N))
+
+      call lu_solve_replace(block_size, A(i_start:i_end,i_start:i_end), bi, xi)
+
+      ! Store
+      x_new(i_start:i_end) = (1.-rel)*x_new(i_start:i_end) + rel*xi
+
+    end if
+
+  end do
 
   ! Progress
   write(*,*)
