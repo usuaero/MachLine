@@ -69,8 +69,8 @@ contains
         call json_xtnsn_get(solver_settings, 'formulation', this%formulation, 'morino')
         call json_xtnsn_get(solver_settings, 'matrix_solver', this%matrix_solver, 'LU')
         call json_xtnsn_get(solver_settings, 'chunk_size', this%chunk_size, 50)
-        call json_xtnsn_get(solver_settings, 'tolerance', this%tol, 1e-10)
-        call json_xtnsn_get(solver_settings, 'relaxation', this%rel, 1e-10)
+        call json_xtnsn_get(solver_settings, 'tolerance', this%tol, 1e-8)
+        call json_xtnsn_get(solver_settings, 'relaxation', this%rel, 0.1)
         this%morino = this%formulation == 'morino'
 
         ! Get pressure rules
@@ -847,8 +847,10 @@ contains
         ! Solve
         if (this%matrix_solver == 'LU') then
             call lu_solve(this%N, A_copy, this%b, body%mu)
+        else if (this%matrix_solver == 'BSOR') then
+            call block_sor(this%N, A_copy, this%b, this%chunk_size, this%tol, this%rel, body%mu)
         else if (this%matrix_solver == 'BGS') then
-            call block_gauss_siedel(this%N, A_copy, this%b, this%chunk_size, this%tol, this%rel, body%mu)
+            call block_gauss_siedel(this%N, A_copy, this%b, this%chunk_size, this%tol, body%mu)
         end if
         write(*,*) "Done."
 
