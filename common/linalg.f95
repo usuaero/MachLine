@@ -511,7 +511,7 @@ subroutine block_sor(N, A, b, block_size, tol, rel, x)
   real,dimension(N) :: x_new
   real,dimension(block_size) :: bi
   real,dimension(:),allocatable :: xi
-  integer :: i, N_blocks, r, i_start, i_end, N_last
+  integer :: i, N_blocks, r, i_start, i_end, N_last, iteration
 
   ! Check relaxation
   if (rel < 0. .or. rel > 2.) then
@@ -532,8 +532,17 @@ subroutine block_sor(N, A, b, block_size, tol, rel, x)
     N_blocks = N_blocks + 1
   end if
 
+  ! Progress
+  write(*,*)
+  write(*,*) "Running SOR..."
+  write(*,*) "Iteration      ||dx||"
+  write(*,*) "--------------------------------------"
+
   ! Iterate
+  iteration = 0
   do while(err >= tol)
+
+    iteration = iteration + 1
 
     ! Invert blocks
     do i=1,N_blocks
@@ -574,12 +583,19 @@ subroutine block_sor(N, A, b, block_size, tol, rel, x)
 
     ! Calculate error
     err = norm2(x-x_new)
-    write(*,*) err
+
+    ! Output progress
+    if (modulo(iteration, 10) == 0) then
+      write(*,'(i10, ES15.3)') iteration, err
+    end if
 
     ! Update
     x = x_new
 
   end do
+
+  ! Final iteration count and error
+  write(*,'(i10, ES15.3)') iteration, err
 
 end subroutine block_sor
 
