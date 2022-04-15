@@ -23,7 +23,6 @@ module wake_mesh_mod
         contains
 
             procedure :: init => wake_mesh_init
-            procedure :: update => wake_mesh_update
 
     end type wake_mesh
 
@@ -32,7 +31,7 @@ contains
 
 
     subroutine wake_mesh_init(this, freestream, top_edge_verts, mesh_edges, N_wake_edges, &
-                              N_panels_streamwise, mesh_vertices, trefftz_distance, mirrored_and_asym, mirror_plane, N_mesh_panels)
+                              N_panels_streamwise, mesh_vertices, trefftz_distance, asym_flow, mirror_plane, N_mesh_panels)
         ! Creates the vertices and panels. Handles vertex association.
 
         implicit none
@@ -45,7 +44,7 @@ contains
         integer,intent(in) :: N_panels_streamwise
         type(vertex),allocatable,dimension(:),intent(in) :: mesh_vertices
         real,intent(in) :: trefftz_distance
-        logical,intent(in) :: mirrored_and_asym
+        logical,intent(in) :: asym_flow
         integer,intent(in) :: mirror_plane, N_mesh_panels
 
         real :: distance, vertex_separation, mirrored_distance, mirrored_vertex_separation
@@ -57,7 +56,7 @@ contains
 
         ! Determine necessary number of vertices
         N_wake_edge_verts = size(top_edge_verts)
-        if (mirrored_and_asym) then
+        if (asym_flow) then
             this%N_verts = N_wake_edge_verts*(N_panels_streamwise+1)*2
         else
             this%N_verts = N_wake_edge_verts*(N_panels_streamwise+1)
@@ -87,7 +86,7 @@ contains
             vertex_separation = distance/N_panels_streamwise
 
             ! Same for mirror
-            if (mirrored_and_asym) then
+            if (asym_flow) then
 
                 ! Determine start location
                 mirrored_start = mirror_about_plane(start, mirror_plane)
@@ -113,7 +112,7 @@ contains
                 this%vertices(i_vert)%bot_parent = i_bot_parent
 
                 ! Initialize mirror
-                if (mirrored_and_asym) then
+                if (asym_flow) then
 
                     ! Determine location
                     i_vert = i_vert + this%N_verts/2
@@ -133,7 +132,7 @@ contains
         end do
 
         ! Determine necessary number of panels
-        if (mirrored_and_asym) then
+        if (asym_flow) then
             this%N_panels = N_wake_edges*N_panels_streamwise*4
         else
             this%N_panels = N_wake_edges*N_panels_streamwise*2
@@ -174,7 +173,7 @@ contains
                     this%panels(i_panel)%bot_parent = mesh_edges(i)%panels(2)
 
                     ! Create mirror
-                    if (mirrored_and_asym) then
+                    if (asym_flow) then
 
                         ! Determine index
                         i_panel = i_panel + this%N_panels/2
@@ -211,7 +210,7 @@ contains
                     this%panels(i_panel)%bot_parent = mesh_edges(i)%panels(2)
 
                     ! Create mirror
-                    if (mirrored_and_asym) then
+                    if (asym_flow) then
 
                         ! Determine index
                         i_panel = i_panel + this%N_panels/2
@@ -235,29 +234,14 @@ contains
             end if
         end do
 
-        ! Intialize panel coordinate transforms
+        ! Initialize freestream-dependent properties
         do i=1,this%N_panels
-            call this%panels(i)%calc_transforms(freestream)
+            call this%panels(i)%init_with_flow(freestream, asym_flow, mirror_plane)
         end do
 
         write(*,'(a, i7, a, i7, a)') "Done. Created ", this%N_verts, " wake vertices and ", this%N_panels, " wake panels."
 
     end subroutine wake_mesh_init
-
-
-    subroutine wake_mesh_update(this)
-
-        implicit none
-
-        class(wake_mesh),intent(inout) :: this
-        integer :: i
-
-        ! Update panel properties since vertices were moved
-        do i=1,this%N_panels
-            call this%panels(i)%calc_derived_properties
-        end do
-    
-    end subroutine wake_mesh_update
 
 
 end module wake_mesh_mod

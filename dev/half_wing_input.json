@@ -1,18 +1,17 @@
 {
     "flow": {
-        "freestream_velocity": [ 100.0, 30.0, 10.0 ]
+        "freestream_velocity" : [ 100.0, 10.0, 10.0 ],
+        "freestream_mach_number" : 0.4
     },
     "geometry": {
         "file": "dev/meshes/half_wing_right.vtk",
         "mirror_about": "xz",
-        "wake_model": {
-        },
         "reference": {
             "area": 1.0
         }
     },
     "solver": {
-        "formulation": "source-free",
+        "formulation": "morino",
         "control_point_offset": 1.1e-05
     },
     "post_processing" : {

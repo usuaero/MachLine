@@ -62,40 +62,63 @@ module panel_mod
         type(vertex_pointer),dimension(:),allocatable :: vertices
         real :: radius
         real,dimension(3) :: n_g, nu_g ! Normal and conormal vectors
-        real,dimension(:,:),allocatable :: midpoints
-        real,dimension(3) :: centroid
+        real,dimension(3) :: n_g_mir, nu_g_mir ! Mirrored normal and conormal vectors
+        real,dimension(:,:),allocatable :: midpoints, midpoints_mir
+        real,dimension(3) :: centr, centr_mir ! Centroid
         real,dimension(3,3) :: A_g_to_ls, A_ls_to_g ! Coordinate transformation matrices
+        real,dimension(3,3) :: A_g_to_ls_mir, A_ls_to_g_mir
         real,dimension(:,:),allocatable :: vertices_ls, midpoints_ls ! Location of the vertices and edge midpoints described in local scaled coords
+        real,dimension(:,:),allocatable :: vertices_ls_mir, midpoints_ls_mir
         real,dimension(:,:),allocatable :: t_hat_g, t_hat_ls ! Edge unit tangents
+        real,dimension(:,:),allocatable :: t_hat_g_mir, t_hat_ls_mir
         real,dimension(:,:),allocatable :: n_hat_g, n_hat_ls ! Edge unit outward normals
+        real,dimension(:,:),allocatable :: n_hat_g_mir, n_hat_ls_mir
         real,dimension(:),allocatable :: b, sqrt_b ! Edge parameter
-        real :: A ! Surface area
+        real,dimension(:),allocatable :: b_mir, sqrt_b_mir
+        real :: A ! Surface area (same for mirror, in global coordinates at least)
         real,dimension(:,:),allocatable :: S_mu_inv, S_sigma_inv ! Matrix relating doublet/source strengths to doublet/source influence parameters
+        real,dimension(:,:),allocatable :: S_mu_inv_mir, S_sigma_inv_mir
         integer,dimension(:),allocatable :: vertex_indices ! Indices of this panel's vertices in the mesh vertex array
         logical :: in_wake ! Whether this panel belongs to a wake mesh
         integer,dimension(3) :: abutting_panels ! Indices of panels abutting this one
         integer,dimension(3) :: edges ! Indices of this panel's edges
         integer :: top_parent, bot_parent ! Indices of the top and bottom panels this panel's strength is determined by (for a wake panel w/ constant doublet strength)
-        integer :: r ! Panel inclination indicator; r=-1 -> superinclined, r=1 -> subinclined
+        integer :: r, r_mir ! Panel inclination indicator; r=-1 -> superinclined, r=1 -> subinclined
         real,dimension(3) :: m, l ! Edge slope and its inverse
         integer,dimension(3) :: q ! Edge type indicator; q=1 -> subsonic, q=-1 -> supersonic
-        real :: J ! Local scaled transformation Jacobian
+        real :: J, J_mir ! Local scaled transformation Jacobian
 
         contains
 
+            ! Initialization procedures
             procedure :: init => panel_init_3
-            procedure :: calc_derived_properties =>panel_calc_derived_properties
-            procedure :: calc_area => panel_calc_area
+            procedure :: calc_derived_geom => panel_calc_derived_geom
+            procedure :: calc_midpoints => panel_calc_midpoints
             procedure :: calc_normal => panel_calc_normal
+            procedure :: calc_area => panel_calc_area
             procedure :: calc_centroid => panel_calc_centroid
-            procedure :: calc_transforms => panel_calc_transforms
+
+            ! Flow-dependent initialization procedures
+            procedure :: init_with_flow => panel_init_with_flow
             procedure :: calc_g_to_ls_transform => panel_calc_g_to_ls_transform
             procedure :: calc_edge_vectors => panel_calc_edge_vectors
             procedure :: calc_singularity_matrices => panel_calc_singularity_matrices
+
+            ! Mirror initialization
+            procedure :: init_mirror => panel_init_mirror
+            procedure :: calc_mirrored_g_to_ls_transform => panel_calc_mirrored_g_to_ls_transform
+            procedure :: calc_mirrored_edge_vectors => panel_calc_mirrored_edge_vectors
+            procedure :: calc_mirrored_singularity_matrices => panel_calc_mirrored_singularity_matrices
+
+            ! Getters
             procedure :: get_vertex_loc => panel_get_vertex_loc
             procedure :: get_vertex_index => panel_get_vertex_index
             procedure :: touches_vertex => panel_touches_vertex
+
+            ! Update information
             procedure :: point_to_vertex_clone => panel_point_to_vertex_clone
+
+            ! Influence calculations
             procedure :: check_dod => panel_check_dod
             procedure :: calc_subsonic_geom => panel_calc_subsonic_geom
             procedure :: calc_supersonic_subinc_geom => panel_calc_supersonic_subinc_geom
@@ -115,12 +138,12 @@ module panel_mod
 contains
 
 
-    subroutine eval_point_geom_init(this, P, A_g_to_ls, centroid)
+    subroutine eval_point_geom_init(this, P, A_g_to_ls, centr)
 
         implicit none
 
         class(eval_point_geom),intent(out) :: this
-        real,dimension(3),intent(in) :: P, centroid
+        real,dimension(3),intent(in) :: P, centr
         real,dimension(3,3),intent(in) :: A_g_to_ls
 
         real,dimension(3) :: x
@@ -129,7 +152,7 @@ contains
         this%P_g = P
 
         ! Transform to local scaled coordinates
-        x = matmul(A_g_to_ls, this%P_g-centroid)
+        x = matmul(A_g_to_ls, this%P_g-centr)
         this%P_ls = x(1:2)
         this%h = x(3) ! Equivalent to E&M Eq. (J.7.41)
         this%h2 = this%h**2
@@ -176,26 +199,21 @@ contains
         this%top_parent = 0
         this%bot_parent = 0
 
-        call this%calc_derived_properties()
+        call this%calc_derived_geom()
 
     end subroutine panel_init_3
 
 
-    subroutine panel_calc_derived_properties(this)
-        ! Initializes properties based on the location of the vertices.
+    subroutine  panel_calc_derived_geom(this)
+        ! Initializes geometry based on the location of the vertices.
         ! Should be called when panel geometry is updated.
 
         implicit none
 
         class(panel),intent(inout) :: this
-        integer :: i
 
-        ! Determine midpoints
-        allocate(this%midpoints(3,this%N))
-        do i=1,this%N-1
-            this%midpoints(:,i) = 0.5*(this%get_vertex_loc(i)+this%get_vertex_loc(i+1))
-        end do
-        this%midpoints(:,this%N) = 0.5*(this%get_vertex_loc(1)+this%get_vertex_loc(this%N))
+        ! Calculate midpoints
+        call this%calc_midpoints()
 
         ! Calculate normal vec
         call this%calc_normal()
@@ -206,7 +224,44 @@ contains
         ! Calculate centroid
         call this%calc_centroid()
 
-    end subroutine panel_calc_derived_properties
+    end subroutine  panel_calc_derived_geom
+
+
+    subroutine panel_calc_midpoints(this)
+
+        implicit none
+
+        class(panel),intent(inout) :: this
+
+        integer :: i
+
+        ! Determine midpoints
+        allocate(this%midpoints(3,this%N))
+        do i=1,this%N-1
+            this%midpoints(:,i) = 0.5*(this%get_vertex_loc(i)+this%get_vertex_loc(i+1))
+        end do
+        this%midpoints(:,this%N) = 0.5*(this%get_vertex_loc(1)+this%get_vertex_loc(this%N))
+
+    end subroutine panel_calc_midpoints
+
+
+    subroutine panel_calc_normal(this)
+
+        implicit none
+
+        class(panel),intent(inout) :: this
+
+        real,dimension(3) :: d1, d2
+
+        ! Get two chord vectors from midpoints
+        d1 = this%midpoints(:,2)-this%midpoints(:,1)
+        d2 = this%midpoints(:,3)-this%midpoints(:,2)
+
+        ! Find normal
+        this%n_g = cross(d1, d2)
+        this%n_g = this%n_g/norm(this%n_g)
+
+    end subroutine panel_calc_normal
 
 
     subroutine panel_calc_area(this)
@@ -237,24 +292,6 @@ contains
     end subroutine panel_calc_area
 
 
-    subroutine panel_calc_normal(this)
-
-        implicit none
-
-        class(panel),intent(inout) :: this
-        real,dimension(3) :: d1, d2
-
-        ! Get two chord vectors from midpoints
-        d1 = this%midpoints(:,2)-this%midpoints(:,1)
-        d2 = this%midpoints(:,3)-this%midpoints(:,2)
-
-        ! Find normal
-        this%n_g = cross(d1, d2)
-        this%n_g = this%n_g/norm(this%n_g)
-
-    end subroutine panel_calc_normal
-
-
     subroutine panel_calc_centroid(this)
 
         implicit none
@@ -271,14 +308,14 @@ contains
         end do
 
         ! Set centroid
-        this%centroid = sum/this%N
+        this%centr = sum/this%N
 
         ! Calculate radius
         this%radius = 0.
         do i=1,this%N
 
             ! Distance to i-th vertex
-            x = dist(this%get_vertex_loc(i), this%centroid)
+            x = dist(this%get_vertex_loc(i), this%centr)
 
             ! Check max
             if (x > this%radius) then
@@ -290,12 +327,14 @@ contains
     end subroutine panel_calc_centroid
 
 
-    subroutine panel_calc_transforms(this, freestream)
+    subroutine panel_init_with_flow(this, freestream, asym_flow, mirror_plane)
 
         implicit none
 
         class(panel),intent(inout) :: this
         type(flow),intent(in) :: freestream
+        logical,intent(in) :: asym_flow
+        integer,intent(in) :: mirror_plane
 
         ! Calculate transforms
         call this%calc_g_to_ls_transform(freestream)
@@ -304,7 +343,12 @@ contains
         call this%calc_edge_vectors(freestream)
         call this%calc_singularity_matrices()
 
-    end subroutine panel_calc_transforms
+        ! Calculate mirrored properties
+        if (asym_flow) then
+            call this%init_mirror(freestream, mirror_plane)
+        end if
+
+    end subroutine panel_init_with_flow
 
 
     subroutine panel_calc_g_to_ls_transform(this, freestream)
@@ -381,10 +425,10 @@ contains
         do i=1,this%N
 
             ! Vertices
-            this%vertices_ls(:,i) = matmul(this%A_g_to_ls(1:2,:), this%get_vertex_loc(i)-this%centroid)
+            this%vertices_ls(:,i) = matmul(this%A_g_to_ls(1:2,:), this%get_vertex_loc(i)-this%centr)
 
             ! Midpoints
-            this%midpoints_ls(:,i) = matmul(this%A_g_to_ls(1:2,:), this%midpoints(:,i)-this%centroid)
+            this%midpoints_ls(:,i) = matmul(this%A_g_to_ls(1:2,:), this%midpoints(:,i)-this%centr)
 
         end do
 
@@ -438,7 +482,6 @@ contains
             ! This is the formula used in the PAN AIR source code (for subinclined panels)
             d_ls = this%vertices_ls(:,i_next) - this%vertices_ls(:,i)
             this%t_hat_ls(:,i) = d_ls/norm2(d_ls)
-            !this%t_hat_ls(:,i) = e/sqrt(abs(rs*e(1)**2 + e(2)**2)) ! E&M Eq. (J.6.43)
 
             ! Calculate edge outward normal
             this%n_hat_g(:,i) = cross(this%t_hat_g(:,i), this%n_g)
@@ -567,6 +610,153 @@ contains
         end if
     
     end subroutine panel_calc_singularity_matrices
+
+
+    subroutine panel_init_mirror(this, freestream, mirror_plane)
+
+        implicit none
+
+        class(panel),intent(inout) :: this
+        type(flow),intent(in) :: freestream
+        integer,intent(in) :: mirror_plane
+
+        integer :: i
+
+        ! Calculate mirrored normal vector
+        this%n_g_mir = mirror_about_plane(this%n_g, mirror_plane)
+
+        ! Calculate mirrored centroid
+        this%centr_mir = mirror_about_plane(this%centr, mirror_plane)
+
+        ! Calculate mirrored midpoints
+        allocate(this%midpoints_mir(3,this%N))
+        do i=1,this%N
+            this%midpoints_mir(:,i) = mirror_about_plane(this%midpoints(:,i), mirror_plane)
+        end do
+
+        ! Calculate mirrored g to ls transform
+        call this%calc_mirrored_g_to_ls_transform(freestream)
+
+        ! Calculate mirrored edge vectors
+        ! Global
+        allocate(this%t_hat_g_mir(3,this%N))
+        allocate(this%n_hat_g_mir(3,this%N))
+        do i=1,this%N
+            this%t_hat_g_mir(:,i) = mirror_about_plane(this%t_hat_g(:,i), mirror_plane)
+            this%n_hat_g_mir(:,i) = mirror_about_plane(this%n_hat_g(:,i), mirror_plane)
+        end do
+
+        ! Local-scaled
+        call this%calc_mirrored_edge_vectors()
+
+        ! Calculate mirrored singularity matrices
+        call this%calc_mirrored_singularity_matrices()
+
+    end subroutine panel_init_mirror
+
+
+    subroutine panel_calc_mirrored_g_to_ls_transform(this, freestream)
+
+        implicit none
+
+        class(panel),intent(inout) :: this
+        type(flow),intent(in) :: freestream
+
+        real,dimension(3) :: u0, v0
+        real,dimension(3,3) :: B_mat_ls
+        real :: x, y
+        integer :: i, rs
+
+        ! Get in-panel basis vectors
+        if (abs(inner(this%n_g_mir, freestream%c_hat_g) - 1.) < 1e-12) then ! Check the freestream isn't aligned with the normal vector
+            v0 = this%midpoints_mir(:,2)-this%midpoints_mir(:,1)
+        else
+            v0 = cross(this%n_g_mir, freestream%c_hat_g)
+        end if
+        v0 = v0/norm(v0)
+        u0 = cross(v0, this%n_g_mir)
+        u0 = u0/norm(u0)
+
+        ! Calculate compressible parameters
+        this%nu_g_mir = matmul(freestream%B_mat_g, this%n_g_mir)
+        x = inner(this%n_g_mir, this%nu_g_mir)
+
+        ! Check for Mach-inclined panels
+        if (freestream%supersonic .and. abs(x) < 1e-12) then
+            write(*,*) "!!! Mirror of panel", this%index, "is Mach-inclined, which is not allowed. Quitting..."
+            stop
+        end if
+
+        ! Calculate panel inclination indicator (E&M Eq. (E.3.16b))
+        this%r_mir = sign(x) ! r=-1 -> superinclined, r=1 -> subinclined
+
+        ! Check for superinclined panels
+        if (this%r_mir < 0) then
+            write(*,*) "!!! Mirror of panel", this%index, "is superinclined, which is not allowed. Quitting..."
+            stop
+        end if
+
+        ! Other inclination parameters
+        rs = this%r*freestream%s
+
+        ! Calculate transformation
+        y = 1./sqrt(abs(x))
+        this%A_g_to_ls_mir(1,:) = y*matmul(freestream%C_mat_g, u0)
+        this%A_g_to_ls_mir(2,:) = rs/freestream%B*matmul(freestream%C_mat_g, v0)
+        this%A_g_to_ls_mir(3,:) = freestream%B*y*this%n_g_mir
+
+        ! Check determinant
+        x = det3(this%A_g_to_ls_mir)
+        if (abs(x-freestream%B**2) >= 1e-12) then
+            write(*,*) "!!! Calculation of mirrored local scaled coordinate transform failed. Quitting..."
+            stop
+        end if
+
+        ! Calculate inverse
+        if (freestream%M_inf == 0.) then
+            this%A_ls_to_g_mir = transpose(this%A_g_to_ls_mir)
+        else
+            call matinv(3, this%A_g_to_ls_mir, this%A_ls_to_g_mir)
+        end if
+
+        ! Calculate Jacobian
+        this%J_mir = 1./(freestream%B*sqrt(abs(1.-freestream%M_inf**2*inner(freestream%c_hat_g, this%n_g_mir)**2)))
+
+        ! Transform vertex and midpoint coords to ls
+        allocate(this%vertices_ls_mir(2,this%N))
+        allocate(this%midpoints_ls_mir(2,this%N))
+        do i=1,this%N
+
+            ! Vertices
+            this%vertices_ls_mir(:,i) = matmul(this%A_g_to_ls_mir(1:2,:), this%get_vertex_loc(i)-this%centr)
+
+            ! Midpoints
+            this%midpoints_ls_mir(:,i) = matmul(this%A_g_to_ls_mir(1:2,:), this%midpoints(:,i)-this%centr)
+
+        end do
+    
+    end subroutine panel_calc_mirrored_g_to_ls_transform
+
+
+    subroutine panel_calc_mirrored_edge_vectors(this)
+
+        implicit none
+
+        class(panel),intent(inout) :: this
+
+        allocate(this%t_hat_ls_mir(2,this%N))
+        allocate(this%n_hat_ls_mir(2,this%N))
+    
+    end subroutine panel_calc_mirrored_edge_vectors
+
+
+    subroutine panel_calc_mirrored_singularity_matrices(this)
+
+        implicit none
+
+        class(panel),intent(inout) :: this
+    
+    end subroutine panel_calc_mirrored_singularity_matrices
 
 
     function panel_get_vertex_loc(this, i) result(loc)
@@ -811,7 +1001,7 @@ contains
         real :: val
 
         ! Initialize
-        call geom%init(eval_point, this%A_g_to_ls, this%centroid)
+        call geom%init(eval_point, this%A_g_to_ls, this%centr)
 
         ! Calculate edge quantities
         do i=1,this%N
@@ -863,7 +1053,7 @@ contains
         integer :: i, i_next
 
         ! Initialize
-        call geom%init(eval_point, this%A_g_to_ls, this%centroid)
+        call geom%init(eval_point, this%A_g_to_ls, this%centr)
 
         ! Calculate edge quantities
         do i=1,this%N

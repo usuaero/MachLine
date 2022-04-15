@@ -452,9 +452,9 @@ contains
             end if
         end if
 
-        ! Calculate panel coordinate transformations
+        ! Initialize panel properties dependent upon the freestream
         do i=1,this%N_panels
-            call this%panels(i)%calc_transforms(freestream)
+            call this%panels(i)%init_with_flow(freestream, this%asym_flow, this%mirror_plane)
         end do
 
         ! Figure out wake-shedding edges, discontinuous edges, etc.
@@ -877,7 +877,7 @@ contains
         implicit none
 
         class(surface_mesh),intent(inout) :: this
-        real,dimension(3) :: vec_sum, normal
+        real,dimension(3) :: n_avg
         integer :: i, j, N, i_panel
 
         write(*,'(a)',advance='no') "     Calculating vertex normals..."
@@ -887,19 +887,19 @@ contains
 
             ! Loop through neighboring panels and compute the average of their normal vectors
             N = this%vertices(j)%panels%len()
-            vec_sum = 0
+            n_avg = 0
             do i=1,N
                 call this%vertices(j)%panels%get(i, i_panel)
-                vec_sum = vec_sum + this%panels(i_panel)%n_g
+                n_avg = n_avg + this%panels(i_panel)%n_g
             end do
 
             ! For vertices on the mirror plane, the component normal to the plane should be zeroed
             if (this%mirrored .and. this%vertices(j)%on_mirror_plane) then
-                vec_sum(this%mirror_plane) = 0.
+                n_avg(this%mirror_plane) = 0.
             end if
 
             ! Normalize and store
-            this%vertices(j)%n_g = vec_sum/norm(vec_sum)
+            this%vertices(j)%n_g = n_avg/norm(n_avg)
 
             ! Calculate average edge lengths for each vertex
             call this%vertices(j)%calc_average_edge_length(this%vertices)
@@ -942,7 +942,7 @@ contains
             call this%wake%init(freestream, this%wake_edge_verts, &
                                 this%edges, this%N_wake_edges, &
                                 this%N_wake_panels_streamwise, this%vertices, &
-                                this%trefftz_distance, this%mirrored .and. this%asym_flow, &
+                                this%trefftz_distance, this%asym_flow, &
                                 this%mirror_plane, this%N_panels)
 
             ! Clean up
@@ -1042,7 +1042,7 @@ contains
         real,intent(in) :: offset
 
         integer :: i, j, N, i_panel
-        real,dimension(3) :: sum
+        real,dimension(3) :: n_avg
         real :: C_theta_2, offset_ratio
 
         if (doublet_order == 1) then
@@ -1064,23 +1064,23 @@ contains
 
                     ! Loop through panels associated with this clone to get their average normal vector
                     N = this%vertices(i)%panels_not_across_wake_edge%len()
-                    sum = 0
+                    n_avg = 0
                     do j=1,N
 
                         ! Get panel index
                         call this%vertices(i)%panels_not_across_wake_edge%get(j, i_panel)
 
                         ! Add normal vector
-                        sum = sum + this%panels(i_panel)%n_g
+                        n_avg = n_avg + this%panels(i_panel)%n_g
 
                     end do
 
                     ! Normalize
-                    sum = sum/norm(sum)
+                    n_avg = n_avg/norm(n_avg)
 
                     ! Place control point
                     this%cp(:,i) = this%vertices(i)%loc &
-                                               - offset * (this%vertices(i)%n_g - offset_ratio * sum)*this%vertices(i)%l_avg
+                                               - offset * (this%vertices(i)%n_g - offset_ratio * n_avg)*this%vertices(i)%l_avg
 
                 ! If it's not in a wake-shedding edge (i.e. has no clone), then placement simply follows the normal vector
                 else
