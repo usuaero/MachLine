@@ -581,7 +581,7 @@ subroutine block_sor(N, A, b, block_size, tol, rel, x)
   real,dimension(N) :: x_new
   real,dimension(block_size) :: bi
   real,dimension(:),allocatable :: xi
-  integer :: i, N_blocks, r, i_start, i_end, N_last, iteration
+  integer :: i, N_blocks, r, N_last, iteration
   integer,dimension(:),allocatable :: i_start_block, i_end_block
   integer,dimension(:,:),allocatable :: ind_P
 
@@ -659,7 +659,7 @@ subroutine block_sor(N, A, b, block_size, tol, rel, x)
     err = norm2(x-x_new)
 
     ! Output progress
-    if (modulo(iteration, 10) == 0) then
+    if (modulo(iteration, 50) == 0) then
       write(*,'(i18, ES15.3)') iteration, err
     end if
 
