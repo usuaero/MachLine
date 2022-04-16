@@ -86,6 +86,11 @@ if __name__=="__main__":
     P0 = np.array([3.5, 0.0, 1.0])
     d0 = np.array([1.0, 0.0, 0.0])
     plot_comparison(verts, P0, d0, 'dev/unit_tests/supersonic_edges_x_trans_totally_in.pdf')
+    
+    # Run line in z direction passing over Mach cone
+    P0 = np.array([3.5, 0.0, -5.0])
+    d0 = np.array([0.0, 0.0, 1.0])
+    plot_comparison(verts, P0, d0)
 
     # Triangular panel
     verts = np.array([[0.0, 0.0, 1.0],
@@ -94,4 +99,4 @@ if __name__=="__main__":
     # Run line through Mach wedge region
     P0 = np.array([0.9, 0.0, -5.0])
     d0 = np.array([0.0, 0.0, 1.0])
-    plot_comparison(verts, P0, d0)
+    plot_comparison(verts, P0, d0, 'dev/unit_tests/mach_wedge.pdf')

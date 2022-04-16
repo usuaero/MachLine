@@ -105,14 +105,14 @@ class Panel:
             if x > 0.0:
                 R1[i] = np.sqrt(x)
             else:
-                l1[i] = -np.sqrt(abs(g2[i]))
+                l1[i] = np.sqrt(abs(g2[i]))
                 R1[i] = 0.0
 
             x = (g2[i] - l2[i]**2)/self.b[i]
             if x > 0.0:
                 R2[i] = np.sqrt(x)
             else:
-                l2[i] = np.sqrt(abs(g2[i]))
+                l2[i] = -np.sqrt(abs(g2[i]))
                 R2[i] = 0.0
 
             # Check DoD
