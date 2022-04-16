@@ -418,7 +418,6 @@ contains
         type(surface_mesh),intent(inout) :: body
 
         integer :: N_sigma, i, stat
-        real,dimension(3) :: n_mirrored
 
         ! Set source strengths
         if (source_order == 0) then
@@ -443,16 +442,13 @@ contains
                 do i=1,body%N_panels
 
                     ! Existing panels
-                    body%sigma(i) = -inner(body%panels(i)%n_g, this%freestream%c_hat_g)
+                    body%sigma(i) = -inner(body%panels(i)%nu_g, this%freestream%c_hat_g)
 
                     ! Mirrored panels for asymmetric flow
                     if (body%asym_flow) then
 
-                        ! Get mirrored normal vector
-                        n_mirrored = mirror_about_plane(body%panels(i)%n_g, body%mirror_plane)
-
                         ! Calculate source strength
-                        body%sigma(i+body%N_panels) = -inner(n_mirrored, this%freestream%c_hat_g)
+                        body%sigma(i+body%N_panels) = -inner(body%panels(i)%nu_g_mir, this%freestream%c_hat_g)
 
                     end if
                 end do
