@@ -224,7 +224,6 @@ subroutine lu_decomp(A, N, indx, D, code)
   imax = 0
 
   ! Loop over rows to get implicit scaling information
-  !$OMP parallel do private(amax, j)
   do i=1,N
 
     ! Get largest element in this row
@@ -489,6 +488,77 @@ subroutine lu_solve_replace(n, A, b, x)
 end subroutine lu_solve_replace
 
 
+subroutine decompose_blocks(N, A, N_blocks, block_size, N_last, ind_P, i_start_block, i_end_block)
+  ! Decomposes the diagonal blocks of A using LU decomposition
+  ! N is the size of the system
+  ! A is the system matrix; block diagonals will be replaced with their LU decompositions
+  ! block_size is the desired size of each block
+  ! N_last is the number of elements in the last block
+  ! ind_P is a matrix of the block permutation indices
+  ! i_start_block is a vector of the start indices for each block
+  ! i_end_block is a vector of the end indices for each block
+
+  implicit none
+
+  integer,intent(in) :: N
+  real,dimension(N,N),intent(inout) :: A
+  integer,intent(in) :: N_blocks, block_size
+  integer,intent(out) :: N_last
+  integer,dimension(:,:),allocatable,intent(out) :: ind_P
+  integer,dimension(:),allocatable,intent(out) :: i_start_block, i_end_block
+
+  integer :: i, info, D
+
+  ! Allocate start and end indices
+  allocate(i_start_block(N_blocks))
+  allocate(i_end_block(N_blocks))
+
+  ! Allocate permutation incides
+  allocate(ind_P(block_size, N_blocks))
+
+  ! Decompose blocks
+  do i=1,N_blocks
+
+    ! Last block
+    if (i == N_blocks) then
+
+      ! Determine start and end indices of this block
+      i_start_block(i) = (i-1)*block_size + 1
+      i_end_block(i) = N
+      N_last = i_end_block(i)-i_start_block(i)+1
+
+      ! Decompose
+      call lu_decomp(A(i_start_block(i):N,i_start_block(i):N), N_last, ind_P(1:N_last,i), D, info)
+
+      ! Check for singular submatrix
+      if (info == 1) then
+          write(*,*) 'Subroutine lu_decomp() failed on subblock ', i, '. Quitting...'
+          stop
+      end if
+
+    ! Not last block
+    else
+
+      ! Determine start and end indices of this block
+      i_start_block(i) = (i-1)*block_size + 1
+      i_end_block(i) = i*block_size
+
+      ! Decompose
+      call lu_decomp(A(i_start_block(i):i_end_block(i),i_start_block(i):i_end_block(i)), block_size, ind_P(:,i), D, info)
+
+      ! Check for singular submatrix
+      if (info == 1) then
+          write(*,*) 'Subroutine lu_decomp() failed on subblock ', i, '. Quitting...'
+          stop
+      end if
+
+    end if
+
+  end do
+
+end subroutine decompose_blocks
+
+
 subroutine block_sor(N, A, b, block_size, tol, rel, x)
   ! Iteratively solves the [A]x=b system using block Successive Overrelaxation
   ! N is the size of the system
@@ -502,7 +572,7 @@ subroutine block_sor(N, A, b, block_size, tol, rel, x)
   implicit none
 
   integer,intent(in) :: N, block_size
-  real,dimension(N,N),intent(in) :: A
+  real,dimension(N,N),intent(inout) :: A
   real,dimension(N),intent(in) :: b
   real,intent(in) :: tol, rel
   real,dimension(:),allocatable,intent(out) :: x
@@ -534,50 +604,18 @@ subroutine block_sor(N, A, b, block_size, tol, rel, x)
     N_blocks = N_blocks + 1
   end if
 
-  ! Allocate start and end indices
-  allocate(i_start_block(N_blocks))
-  allocate(i_end_block(N_blocks))
-
   ! Decompose blocks
-  do i=1,N_blocks
 
-    ! Last block
-    if (i == N_blocks) then
-
-      ! Determine start index of this block
-      i_start = (i-1)*block_size + 1
-      N_last = N-i_start+1
-
-      call lu_solve_replace(N_last, A(i_start:N,i_start:N), bi(1:N_last), xi)
-
-      ! Store
-      x_new(i_start:N) = (1.-rel)*x_new(i_start:N) + rel*xi
-
-    ! Not last block
-    else
-
-      ! Determine start and end indices of this block
-      i_start = (i-1)*block_size + 1
-      i_end = i*block_size
-
-      ! Calculate new RHS vector
-      bi = b(i_start:i_end) - matmul(A(i_start:i_end,1:i_start-1), x_new(1:i_start-1))
-      bi = bi - matmul(A(i_start:i_end,i_end+1:N), x(i_end+1:N))
-
-      call lu_solve_replace(block_size, A(i_start:i_end,i_start:i_end), bi, xi)
-
-      ! Store
-      x_new(i_start:i_end) = (1.-rel)*x_new(i_start:i_end) + rel*xi
-
-    end if
-
-  end do
+  write(*,*)
+  write(*,'(a)',advance='no') "         Decomposing blocks..."
+  call decompose_blocks(N, A, N_blocks, block_size, N_last, ind_P, i_start_block, i_end_block)
+  write(*,*) "Done."
 
   ! Progress
   write(*,*)
-  write(*,*) "Running SOR..."
-  write(*,*) "Iteration      ||dx||"
-  write(*,*) "--------------------------------------"
+  write(*,*) "        Running SOR..."
+  write(*,*) "        Iteration      ||dx||"
+  write(*,*) "        --------------------------------------"
 
   ! Iterate
   iteration = 0
@@ -591,33 +629,28 @@ subroutine block_sor(N, A, b, block_size, tol, rel, x)
       ! Last block
       if (i == N_blocks) then
 
-        ! Determine start index of this block
-        i_start = (i-1)*block_size + 1
-        N_last = N-i_start+1
-
         ! Calculate new RHS vector
-        bi(1:N_last) = b(i_start:N) - matmul(A(i_start:N,1:i_start-1), x_new(1:i_start-1))
+        bi(1:N_last) = b(i_start_block(i):N) - matmul(A(i_start_block(i):N,1:i_start_block(i)-1), x_new(1:i_start_block(i)-1))
 
-        call lu_solve_replace(N_last, A(i_start:N,i_start:N), bi(1:N_last), xi)
+        ! Solve
+        call lu_back_sub(A(i_start_block(i):N,i_start_block(i):N), N_last, ind_P(1:N_last,i), bi, xi)
 
         ! Store
-        x_new(i_start:N) = (1.-rel)*x_new(i_start:N) + rel*xi
+        x_new(i_start_block(i):N) = (1.-rel)*x_new(i_start_block(i):N) + rel*xi
 
       ! Not last block
       else
 
-        ! Determine start and end indices of this block
-        i_start = (i-1)*block_size + 1
-        i_end = i*block_size
-
         ! Calculate new RHS vector
-        bi = b(i_start:i_end) - matmul(A(i_start:i_end,1:i_start-1), x_new(1:i_start-1))
-        bi = bi - matmul(A(i_start:i_end,i_end+1:N), x(i_end+1:N))
+        bi = b(i_start_block(i):i_end_block(i))
+        bi = bi - matmul(A(i_start_block(i):i_end_block(i),1:i_start_block(i)-1), x_new(1:i_start_block(i)-1))
+        bi = bi - matmul(A(i_start_block(i):i_end_block(i),i_end_block(i)+1:N), x(i_end_block(i)+1:N))
 
-        call lu_solve_replace(block_size, A(i_start:i_end,i_start:i_end), bi, xi)
+        ! Solve
+        call lu_back_sub(A(i_start_block(i):i_end_block(i),i_start_block(i):i_end_block(i)), block_size, ind_P(:,i), bi, xi)
 
         ! Store
-        x_new(i_start:i_end) = (1.-rel)*x_new(i_start:i_end) + rel*xi
+        x_new(i_start_block(i):i_end_block(i)) = (1.-rel)*x_new(i_start_block(i):i_end_block(i)) + rel*xi
 
       end if
     end do
@@ -627,7 +660,7 @@ subroutine block_sor(N, A, b, block_size, tol, rel, x)
 
     ! Output progress
     if (modulo(iteration, 10) == 0) then
-      write(*,'(i10, ES15.3)') iteration, err
+      write(*,'(i18, ES15.3)') iteration, err
     end if
 
     ! Update
@@ -636,7 +669,7 @@ subroutine block_sor(N, A, b, block_size, tol, rel, x)
   end do
 
   ! Final iteration count and error
-  write(*,'(i10, ES15.3)') iteration, err
+  write(*,'(i18, ES15.3)') iteration, err
 
 end subroutine block_sor
 
