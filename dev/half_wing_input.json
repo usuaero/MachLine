@@ -15,7 +15,7 @@
     "solver": {
         "formulation": "source-free",
         "control_point_offset": 1.1e-05,
-        "matrix_solver" : "BSOR",
+        "matrix_solver" : "LU",
         "tolerance" : 1.0e-4,
         "relaxation" : 0.5,
         "chunk_size" : 100
