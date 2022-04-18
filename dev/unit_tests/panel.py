@@ -105,14 +105,14 @@ class Panel:
             if x > 0.0:
                 R1[i] = np.sqrt(x)
             else:
-                l1[i] = np.sqrt(abs(g2[i]))
+                l1[i] = -np.sqrt(abs(g2[i])) # From PAN AIR
                 R1[i] = 0.0
 
             x = (g2[i] - l2[i]**2)/self.b[i]
             if x > 0.0:
                 R2[i] = np.sqrt(x)
             else:
-                l2[i] = -np.sqrt(abs(g2[i]))
+                l2[i] = np.sqrt(abs(g2[i])) # From PAN AIR
                 R2[i] = 0.0
 
             # Check DoD
@@ -215,6 +215,10 @@ class Panel:
                     F1 = np.sqrt(-self.b[i])*R1[i] + abs(l1[i])
                     F2 = np.sqrt(-self.b[i])*R2[i] + abs(l2[i])
                     F111[i] = -np.sign(self.n_hat[1,i]) / np.sqrt(-self.b[i]) * np.log(F1/F2)
+
+        # Check for on panel
+        if h == 0.0 and all(a > 0.0):
+            hH113 = 2.0*np.pi
 
         return hH113, F111
 

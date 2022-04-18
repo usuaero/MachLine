@@ -60,4 +60,4 @@ if __name__=="__main__":
     # Box comparison
     verts = np.array([[0.0, 1.0, 2.0, 1.0],
                       [0.0, -0.5, 0.0, 0.5]])
-    compare_on_box(verts, [[-1.0, 10.0], [-10.0, 10.0], [-10.0, 10.0]], [50, 50, 50], "dev/unit_tests/test.csv")
+    compare_on_box(verts, [[-1.0, 10.0], [-10.0, 10.0], [-10.0, 10.0]], [50, 100, 100], "dev/unit_tests/test.csv")
