@@ -104,24 +104,18 @@ class Panel:
             if x > 0.0 and d1[0] < 0.0:
                 R1[i] = np.sqrt(x)
             else:
-                l1[i] = -np.sqrt(abs(g2[i])) # From PAN AIR
                 R1[i] = 0.0
 
             x = (g2[i] - l2[i]**2)/self.b[i]
             if x > 0.0 and d2[0] < 0.0:
                 R2[i] = np.sqrt(x)
             else:
-                l2[i] = np.sqrt(abs(g2[i])) # From PAN AIR
                 R2[i] = 0.0
 
             # Check DoD
 
-            # If the point is upstream of the edge, it is not in
-            if d1[0] > 0.0 and d2[0] > 0.0:
-                in_dod[i] = False
-
             # Check if both endpoints are out
-            elif R1[i] == 0.0 and R2[i] == 0.0:
+            if R1[i] == 0.0 and R2[i] == 0.0:
 
                 # In this case, a subsonic or sonic edge is out
                 if self.b[i] <= 0.0:
@@ -148,6 +142,11 @@ class Panel:
             else:
                 in_dod[i] = True
 
+            # Fix l from PAN AIR
+            if R1[i] == 0.0:
+                l1[i] = -np.sqrt(abs(g2[i]))
+            if R2[i] == 0.0:
+                l2[i] = np.sqrt(abs(g2[i]))
 
         return h, R1, R2, l1, l2, a, g2, in_dod
 
