@@ -23,7 +23,7 @@ def plot_comparison(verts, P0, d0, figname=None):
     phi_d_point = np.zeros_like(k)
     phi_s_panel = np.zeros_like(k)
     phi_d_panel = np.zeros_like(k)
-    hH113 = np.zeros_like(k)
+    hH113 = np.zeros((p.N, N_line))
     F111 = np.zeros((p.N, N_line))
     a = np.zeros((p.N, N_line))
 
@@ -36,7 +36,7 @@ def plot_comparison(verts, P0, d0, figname=None):
         # Evaluate
         phi_s_point[i] = s.calc_induced_potential(P)
         phi_d_point[i] = d.calc_induced_potential(P)
-        phi_s_panel[i], hH113[i], F111[:,i], a[:,i] = p.calc_induced_source_potential(P)
+        phi_s_panel[i], hH113[:,i], F111[:,i], a[:,i] = p.calc_induced_source_potential(P)
         phi_d_panel[i] = p.calc_induced_doublet_potential(P)
 
     # Plot
@@ -73,9 +73,11 @@ def plot_comparison(verts, P0, d0, figname=None):
     fig, ax = plt.subplots(ncols=3, figsize=(12.0, 5.0))
 
     # hH(1,1,3)
-    ax[0].plot(k, hH113, 'k-')
+    for i in range(p.N):
+        ax[0].plot(k, hH113[i,:], label=str(i))
     ax[0].set_xlabel('Distance')
     ax[0].set_ylabel('$hH(1,1,3)$')
+    ax[0].legend()
 
     # F111
     for i in range(p.N):
