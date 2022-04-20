@@ -79,7 +79,6 @@ class Panel:
         a = np.zeros(self.N)
         g2 = np.zeros(self.N)
         in_dod = np.zeros(self.N, dtype=bool)
-        in_dod[:] = True
 
         # Loop through edges
         for i in range(self.N):
@@ -124,16 +123,31 @@ class Panel:
             # Check if both endpoints are out
             elif R1[i] == 0.0 and R2[i] == 0.0:
 
-                # In this case, a subinclined edge is out
-                if self.b[i] < 0.0:
+                # In this case, a subsonic or sonic edge is out
+                if self.b[i] <= 0.0:
                     in_dod[i] = False
 
                 # For a supersonic edge, it may still be in
                 else:
 
-                    # PAN AIR checks
-                    if np.sign(l1[i]) == np.sign(l2[i]) or g2[i] <= 0.0 or a[i]*self.n_hat[0,i] >= 0.0:
+                    # Check for outside edge
+                    if l1[i]*l2[i] >= 0.0:
                         in_dod[i] = False
+
+                    # Check for above or below Mach wedge
+                    elif g2[i] <= 0.0:
+                        in_dod[i] = False
+
+                    # Check for upstream
+                    elif a[i]*self.n_hat[0,i] >= 0.0:
+                        in_dod[i] = False
+
+                    else:
+                        in_dod[i] = True
+
+            else:
+                in_dod[i] = True
+
 
         return h, R1, R2, l1, l2, a, g2, in_dod
 
@@ -147,6 +161,9 @@ class Panel:
         # Initialize
         hH113 = 0.0
         F111 = np.zeros(self.N)
+        print()
+        print(P)
+        print(in_dod)
 
         # Loop through edges
         for i in range(self.N):
@@ -155,6 +172,7 @@ class Panel:
             if in_dod[i]:
 
                 # Calculate hH(1,1,3)
+                s_b = np.sqrt(abs(self.b[i]))
 
                 # Check for point on panel plane
                 if h != 0.0:
@@ -193,25 +211,21 @@ class Panel:
                     # Check for Mach wedge condition
                     if R1[i] == 0.0 and R2[i] == 0.0:
 
-                        # Calculate F111
-                        F111[i] = np.pi/np.sqrt(self.b[i])
+                        F111[i] = np.pi/s_b
 
                     # At least one in
                     else:
 
-                        # Caculate preliminaries
                         F1 = (l1[i]*R2[i] - l2[i]*R1[i]) / g2[i]
                         F2 = (self.b[i]*R1[i]*R2[i] + l1[i]*l2[i]) / g2[i]
-
-                        # F(1,1,1)
-                        F111[i] = -1.0/np.sqrt(self.b[i]) * np.arctan2(np.sqrt(self.b[i])*F1, F2)
+                        F111[i] = -np.arctan2(s_b*F1, F2) / s_b
 
                 # Subsonic edge
                 else:
 
-                    F1 = np.sqrt(-self.b[i])*R1[i] + abs(l1[i])
-                    F2 = np.sqrt(-self.b[i])*R2[i] + abs(l2[i])
-                    F111[i] = -np.sign(self.n_hat[1,i]) / np.sqrt(-self.b[i]) * np.log(F1/F2)
+                    F1 = s_b*R1[i] + abs(l1[i])
+                    F2 = s_b*R2[i] + abs(l2[i])
+                    F111[i] = -np.sign(self.n_hat[1,i]) * np.log(F1/F2) / s_b
 
         # Check for on panel
         if h == 0.0 and all(a > 0.0):
@@ -237,7 +251,7 @@ class Panel:
 
         phi_s = 0.5*self.sigma*(sum(a*F111) + h*hH113)/np.pi
 
-        return phi_s
+        return phi_s, hH113, F111
 
 
     def calc_induced_doublet_potential(self, P):
