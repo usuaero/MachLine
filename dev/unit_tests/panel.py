@@ -160,9 +160,6 @@ class Panel:
         # Initialize
         hH113 = 0.0
         F111 = np.zeros(self.N)
-        print()
-        print(P)
-        print(in_dod)
 
         # Loop through edges
         for i in range(self.N):
@@ -250,7 +247,7 @@ class Panel:
 
         phi_s = 0.5*self.sigma*(sum(a*F111) + h*hH113)/np.pi
 
-        return phi_s, hH113, F111
+        return phi_s, hH113, F111, a
 
 
     def calc_induced_doublet_potential(self, P):

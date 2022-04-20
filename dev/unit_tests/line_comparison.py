@@ -25,6 +25,7 @@ def plot_comparison(verts, P0, d0, figname=None):
     phi_d_panel = np.zeros_like(k)
     hH113 = np.zeros_like(k)
     F111 = np.zeros((p.N, N_line))
+    a = np.zeros((p.N, N_line))
 
     # Calculate induced potentials
     for i, ki in enumerate(k):
@@ -35,7 +36,7 @@ def plot_comparison(verts, P0, d0, figname=None):
         # Evaluate
         phi_s_point[i] = s.calc_induced_potential(P)
         phi_d_point[i] = d.calc_induced_potential(P)
-        phi_s_panel[i], hH113[i], F111[:,i] = p.calc_induced_source_potential(P)
+        phi_s_panel[i], hH113[i], F111[:,i], a[:,i] = p.calc_induced_source_potential(P)
         phi_d_panel[i] = p.calc_induced_doublet_potential(P)
 
     # Plot
@@ -69,7 +70,7 @@ def plot_comparison(verts, P0, d0, figname=None):
         plt.show()
 
     # Plot
-    fig, ax = plt.subplots(ncols=2, figsize=(12.0, 7.0))
+    fig, ax = plt.subplots(ncols=3, figsize=(12.0, 5.0))
 
     # hH(1,1,3)
     ax[0].plot(k, hH113, 'k-')
@@ -82,6 +83,13 @@ def plot_comparison(verts, P0, d0, figname=None):
     ax[1].set_xlabel('Distance')
     ax[1].set_ylabel('$F(1,1,1)$')
     ax[1].legend()
+
+    # a
+    for i in range(p.N):
+        ax[2].plot(k, a[i,:], label=str(i))
+    ax[2].set_xlabel('Distance')
+    ax[2].set_ylabel('$a$')
+    ax[2].legend()
 
     if figname is not None:
         plt.savefig(figname.replace('.pdf', '_integrals.pdf'))
