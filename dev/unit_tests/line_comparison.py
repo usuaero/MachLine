@@ -132,7 +132,7 @@ if __name__=="__main__":
     plot_comparison(verts, P0, d0, 'dev/unit_tests/subsonic_edges_x_trans_totally_in.pdf')
     
     # Run line in y direction passing over Mach cone
-    P0 = np.array([3, -5.0, 1.0])
+    P0 = np.array([3, -5.0, 0.5])
     d0 = np.array([0.0, 1.0, 0.0])
     plot_comparison(verts, P0, d0, 'dev/unit_tests/subsonic_edges_y_trans_intersecting.pdf')
 
@@ -157,6 +157,6 @@ if __name__=="__main__":
     plot_comparison(verts, P0, d0, 'dev/unit_tests/supersonic_edges_x_trans_totally_in.pdf')
     
     # Run line in y direction passing over Mach cone
-    P0 = np.array([3, -5.0, 1.0])
+    P0 = np.array([3, -5.0, 0.5])
     d0 = np.array([0.0, 1.0, 0.0])
     plot_comparison(verts, P0, d0, 'dev/unit_tests/supersonic_edges_y_trans_intersecting.pdf')

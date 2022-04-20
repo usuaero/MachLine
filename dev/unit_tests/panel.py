@@ -167,8 +167,16 @@ class Panel:
             # Check DoD
             if in_dod[i]:
 
-                # Calculate hH(1,1,3)
+                # Calculate F factors
                 s_b = np.sqrt(abs(self.b[i]))
+                if self.b[i] > 0.0:
+                    F1 = (l1[i]*R2[i] - l2[i]*R1[i]) / g2[i]
+                    F2 = (self.b[i]*R1[i]*R2[i] + l1[i]*l2[i]) / g2[i]
+                else:
+                    F1 = (R2[i] - R1[i])*(R2[i] + R1[i]) / (l1[i]*R2[i] + l2[i]*R1[i])
+                    F2 = (g2[i] - l1[i]**2 - l2[i]**2) / (self.b[i]*R1[i]*R2[i] - l1[i]*l2[i])
+
+                # Calculate hH(1,1,3)
 
                 # Check for point on panel plane
                 if h != 0.0:
@@ -178,24 +186,14 @@ class Panel:
 
                         # Neither endpoint in
                         if R1[i] == 0.0 and R2[i] == 0.0:
-
-                            # Calculate hH113
                             hH113[i] = np.pi*np.sign(h*self.n_hat[0,i])
 
                         # At least one endpoint in
                         else:
-                            F1 = (l1[i]*R2[i] - l2[i]*R1[i]) / g2[i]
-                            F2 = (self.b[i]*R1[i]*R2[i] + l1[i]*l2[i]) / g2[i]
                             hH113[i] = np.arctan2(h*a[i]*F1, R1[i]*R2[i] + h**2*F2)
                 
                     # Subsonic edge
                     else:
-
-                        # Caculate preliminaries
-                        F1 = (R2[i]**2 - R1[i]**2) / (l1[i]*R2[i] + l2[i]*R1[i])
-                        F2 = (g2[i] - l1[i]**2 - l2[i]**2) / (self.b[i]*R1[i]*R2[i] - l1[i]*l2[i])
-
-                        # Add for edge
                         hH113[i] = np.arctan2(h*a[i]*F1, R1[i]*R2[i] + h**2*F2)
 
 
@@ -206,22 +204,15 @@ class Panel:
 
                     # Check for Mach wedge condition
                     if R1[i] == 0.0 and R2[i] == 0.0:
-
                         F111[i] = np.pi/s_b
 
                     # At least one in
                     else:
-
-                        F1 = (l1[i]*R2[i] - l2[i]*R1[i]) / g2[i]
-                        F2 = (self.b[i]*R1[i]*R2[i] + l1[i]*l2[i]) / g2[i]
                         F111[i] = -np.arctan2(s_b*F1, F2) / s_b
 
                 # Subsonic edge
                 else:
-
-                    F1 = s_b*R1[i] + abs(l1[i])
-                    F2 = s_b*R2[i] + abs(l2[i])
-                    F111[i] = -np.sign(self.n_hat[1,i]) * np.log(F1/F2) / s_b
+                    F111[i] = -np.sign(self.n_hat[1,i]) * np.log( (s_b*R1[i] + abs(l1[i])) / (s_b*R2[i] + abs(l2[i])) ) / s_b
 
         return hH113, F111
 
