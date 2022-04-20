@@ -55,7 +55,7 @@ class Panel:
         self.n_hat[1,:] = -self.t_hat[0,:]
 
         # Get b
-        self.b = self.n_hat[0,:]**2 - self.n_hat[1,:]**2
+        self.b = (self.n_hat[0,:] - self.n_hat[1,:])*(self.n_hat[0,:] + self.n_hat[1,:])
 
         # Calculate area
         if self.N == 3:
@@ -89,27 +89,27 @@ class Panel:
 
             # Get displacements
             # First vertex
-            d1 = P[0:2] - self.verts[:,i]
-            l1[i] = -self.n_hat[1,i]*d1[0] - self.n_hat[0,i]*d1[1]
+            d1 = self.verts[:,i] - P[0:2]
+            l1[i] = self.n_hat[1,i]*d1[0] + self.n_hat[0,i]*d1[1]
 
             # Second vertex
-            d2 = P[0:2] - self.verts[:,i_next]
-            l2[i] = -self.n_hat[1,i]*d2[0] - self.n_hat[0,i]*d2[1]
+            d2 = self.verts[:,i_next] - P[0:2]
+            l2[i] = self.n_hat[1,i]*d2[0] + self.n_hat[0,i]*d2[1]
 
             # Perpendicular distances
-            a[i] = inner2(self.n_hat[:,i], -d1)
+            a[i] = inner2(self.n_hat[:,i], d1)
             g2[i] = a[i]**2 - self.b[i]*h**2
 
             # Get hyperbolic radii
             x = (g2[i] - l1[i]**2)/self.b[i]
-            if x > 0.0:
+            if x > 0.0 and d1[0] < 0.0:
                 R1[i] = np.sqrt(x)
             else:
                 l1[i] = -np.sqrt(abs(g2[i])) # From PAN AIR
                 R1[i] = 0.0
 
             x = (g2[i] - l2[i]**2)/self.b[i]
-            if x > 0.0:
+            if x > 0.0 and d2[0] < 0.0:
                 R2[i] = np.sqrt(x)
             else:
                 l2[i] = np.sqrt(abs(g2[i])) # From PAN AIR
@@ -118,7 +118,7 @@ class Panel:
             # Check DoD
 
             # If the point is upstream of the edge, it is not in
-            if d1[0] < 0.0 and d2[0] < 0.0:
+            if d1[0] > 0.0 and d2[0] > 0.0:
                 in_dod[i] = False
 
             # Check if both endpoints are out
@@ -162,18 +162,16 @@ class Panel:
                     # Supersonic edge
                     if self.b[i] > 0.0:
 
-                        # Calculate preliminaries
-                        F1 = (l1[i]*R2[i] - l2[i]*R1[i]) / g2[i]
-                        F2 = (self.b[i]*R1[i]*R2[i] + l1[i]*l2[i]) / g2[i]
-
                         # Neither endpoint in
                         if R1[i] == 0.0 and R2[i] == 0.0:
 
                             # Calculate hH113
-                            hH113 += np.pi*np.sign(-h*self.n_hat[0,i])
+                            hH113 += np.pi*np.sign(h*self.n_hat[0,i])
 
                         # At least one endpoint in
                         else:
+                            F1 = (l1[i]*R2[i] - l2[i]*R1[i]) / g2[i]
+                            F2 = (self.b[i]*R1[i]*R2[i] + l1[i]*l2[i]) / g2[i]
                             hH113 += np.arctan2(h*a[i]*F1, R1[i]*R2[i] + h**2*F2)
                 
                     # Subsonic edge
@@ -185,7 +183,6 @@ class Panel:
 
                         # Add for edge
                         hH113 += np.arctan2(h*a[i]*F1, R1[i]*R2[i] + h**2*F2)
-
 
 
                 # Calculate F(1,1,1)
@@ -203,8 +200,8 @@ class Panel:
                     else:
 
                         # Caculate preliminaries
-                        F1 = (R2[i]**2 - R1[i]**2) / (l1[i]*R2[i] + l2[i]*R1[i])
-                        F2 = (g2[i] - l1[i]**2 - l2[i]**2) / (self.b[i]*R1[i]*R2[i] - l1[i]*l2[i])
+                        F1 = (l1[i]*R2[i] - l2[i]*R1[i]) / g2[i]
+                        F2 = (self.b[i]*R1[i]*R2[i] + l1[i]*l2[i]) / g2[i]
 
                         # F(1,1,1)
                         F111[i] = -1.0/np.sqrt(self.b[i]) * np.arctan2(np.sqrt(self.b[i])*F1, F2)
