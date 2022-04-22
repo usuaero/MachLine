@@ -23,7 +23,6 @@ module panel_mod
         real,dimension(2) :: P_ls ! Transformed point in panel plane
         real :: h, h2 ! Transformed height above panel
         real,dimension(3) :: a, g2, l1, l2, R1, R2 ! Edge integration parameters (Johnson's method)
-        real,dimension(3) :: xm, ym1, ym2, sm1, sm2, s1, s2 ! Edge integration parameters (Ehler's method)
 
         contains
 
@@ -38,8 +37,6 @@ module panel_mod
         real :: H111, H211, H121 ! Source integrals
         real :: hH113, H213, H123, H313, H223, H133 ! Doublet integrals; we use hH(1,1,3) because it can be reliably calculated, unlike H(1,1,3)
         real,dimension(:),allocatable :: F111, F211, F121 ! Necessary line integrals
-        real :: Q1 ! Davis-Ehlers integral
-        real,dimension(:),allocatable :: w0 ! Davis-Ehlers integral
 
     end type integrals
 
@@ -385,7 +382,7 @@ contains
         end if
 
         ! Calculate panel inclination indicator (E&M Eq. (E.3.16b))
-        this%r = sign(x) ! r=-1 -> superinclined, r=1 -> subinclined
+        this%r = sign(1., x) ! r=-1 -> superinclined, r=1 -> subinclined
 
         ! Check for superinclined panels
         if (this%r < 0) then
@@ -487,7 +484,7 @@ contains
             this%n_hat_g(:,i) = cross(this%t_hat_g(:,i), this%n_g)
 
             ! Calculate edge type indicator (E&M Eq. (J.6.48)
-            this%q(i) = sign(this%r*this%t_hat_ls(1,i)**2 + freestream%s*this%t_hat_ls(2,i)**2)
+            this%q(i) = sign(1., this%r*this%t_hat_ls(1,i)**2 + freestream%s*this%t_hat_ls(2,i)**2)
 
         end do
 
@@ -688,7 +685,7 @@ contains
         end if
 
         ! Calculate panel inclination indicator (E&M Eq. (E.3.16b))
-        this%r_mir = sign(x) ! r=-1 -> superinclined, r=1 -> subinclined
+        this%r_mir = sign(1., x) ! r=-1 -> superinclined, r=1 -> subinclined
 
         ! Check for superinclined panels
         if (this%r_mir < 0) then
@@ -1051,102 +1048,61 @@ contains
         real,dimension(2) :: d_ls, d
         real :: x
         integer :: i, i_next
+        real,dimension(this%N) :: v_xi, v_eta
 
-        ! Initialize
+        v_xi = this%n_hat_ls(1,:)
+        v_eta = this%n_hat_ls(2,:)
+
+        ! Initialize geometry
         call geom%init(eval_point, this%A_g_to_ls, this%centr)
 
-        ! Calculate edge quantities
+        ! Loop through edges
         do i=1,this%N
+
+            ! Check DoD
             if (dod_info%edges_in_dod(i)) then
 
-                i_next = mod(i, this%N) + 1
-
-                ! Calculate displacements
+                ! Calculate displacement from first vertex
                 d_ls = this%vertices_ls(:,i) - geom%P_ls
 
-                ! Perpendicular distance in plane from evaluation point to edge E&M Eq. (J.6.46) and (J.7.53)
-                geom%a(i) = inner2(d_ls, this%n_hat_ls(:,i)) ! Definition
+                ! Edge integration length
+                geom%l1(i) = v_eta(i)*d_ls(1) + v_xi(i)*d_ls(2)
 
-                ! Calculate square of the perpendicular distance to edge
-                geom%g2(i) = geom%a(i)**2 - this%b(i)*geom%h2 ! Ehlers Eq. (E14) and what is used in supsbi in PAN AIR.
+                ! Perpendicular in-plane distance
+                geom%a(i) = v_xi(i)*d_ls(1) + v_eta(i)*d_ls(2)
 
-                if (dod_info%verts_in_dod(i)) then
-        
-                    ! Integration length on edge to start vertex Ehlers Eq. (E14)
-                    geom%l1(i) = -d_ls(1)*this%t_hat_ls(1,i) + d_ls(2)*this%t_hat_ls(2,i)
+                ! Perpendicular hyperbolic distance
+                geom%g2(i) = geom%a(i)**2 - this%b(i)*geom%h2
 
-                    ! Distance from evaluation point to start vertex Ehlers Eq. (E15)
-                    geom%R1(i) = sqrt(d_ls(1)**2 - d_ls(2)**2 - geom%h2)
-
+                ! Hyperbolic radius to first vertex
+                x = (geom%g2(i) - geom%l1(i)**2)/this%b(i)
+                if (x > 0. .and. d_ls(1) < 0.) then
+                    geom%R1(i) = sqrt(x)
                 else
-
-                    ! Comes from PAN AIR (subroutine supsbi) to enforce Ehlers Eq. (E15)
-                    geom%l1(i) = sqrt(abs(geom%g2(i)))
-
+                    geom%l1(i) = -sqrt(abs(geom%g2(i)))
+                    geom%R1(i) = 0.
                 end if
 
-                if (dod_info%verts_in_dod(i_next)) then
+                ! Get index of end vertex
+                i_next = modulo(i, this%N)+1
 
-                    ! Displacement from end vertex
-                    d_ls = this%vertices_ls(:,i_next) - geom%P_ls
+                ! Calculate displacement from second vertex
+                d_ls = this%vertices_ls(:,i_next) - geom%P_ls
 
-                    ! Integration length on edge to end vertex
-                    geom%l2(i) = -d_ls(1)*this%t_hat_ls(1,i) + d_ls(2)*this%t_hat_ls(2,i) ! Definition; same as used in supsbi in PAN AIR
+                ! Edge integration length
+                geom%l2(i) = v_eta(i)*d_ls(1) + v_xi(i)*d_ls(2)
 
-                    ! Distance from evaluation point to end vertex
-                    geom%R2(i) = sqrt(d_ls(1)**2 - d_ls(2)**2 - geom%h2) ! Ehlers Eq. (E15)
-
+                ! Hyperbolic radius to first vertex
+                x = (geom%g2(i) - geom%l2(i)**2)/this%b(i)
+                if (x > 0. .and. d_ls(1) < 0.) then
+                    geom%R2(i) = sqrt(x)
                 else
-
-                    ! Comes from PAN AIR (subroutine supsbi) to enforce Ehlers Eq. (E15)
-                    geom%l2(i) = -sqrt(abs(geom%g2(i)))
-
-                end if
-
-                ! Get vector describing edge
-                d = this%vertices_ls(:,i_next) - this%vertices_ls(:,i)
-
-                ! Check integration direction
-                x = d(1)*this%m(i) - d(2)
-
-                ! Calculate s and sm
-                ! First vertex
-                d_ls = geom%P_ls - this%vertices_ls(:,i)
-                geom%sm1(i) = d_ls(1) ! May be derived from Ehlers Eq. (E25) or (5.13)
-                geom%s1(i) = d_ls(2)
-
-                ! Second vertex
-                d_ls = geom%P_ls - this%vertices_ls(:,i_next)
-                geom%sm2(i) = d_ls(1) ! May be derived from Ehlers Eq. (E25) or (5.13)
-                geom%s2(i) = d_ls(2)
-
-                ! Subsonic or sonic edge (these are the hatted quantities in Ehlers and Davis)
-                if (abs(this%m(i)) <= 1.) then
-
-                    ! Calculate xhatm
-                    geom%xm(i) = -geom%sm1(i)*this%m(i) + geom%s1(i) ! Opposite of Ehlers Eq. (A25), but lines up with Ehlers Eq. (E35)
-
-                    ! Calculate yhatm for first vertex
-                    geom%ym1(i) = geom%sm1(i) - geom%s1(i)*this%m(i) ! Ehlers p. 109
-
-                    ! Calculate yhatm for second vertex
-                    geom%ym2(i) = geom%sm2(i) - geom%s2(i)*this%m(i) ! Ehlers p. 109
-
-                ! Supersonic edge
-                else
-
-                    ! Calculate xm
-                    geom%xm(i) = geom%sm1(i) - geom%s1(i)*this%l(i) ! Ehlers Eq. (5.13) or (A2)
-
-                    ! Calculate ym for first vertex
-                    geom%ym1(i) = geom%s1(i) - this%l(i)*geom%sm1(i) ! Ehlers p. 104; the definition of this given on p. 108 is opposite
-
-                    ! Calculate ym for second vertex
-                    geom%ym2(i) = geom%s2(i) - this%l(i)*geom%sm2(i) ! Ehlers p. 104
-
+                    geom%l2(i) = sqrt(abs(geom%g2(i)))
+                    geom%R2(i) = 0.
                 end if
 
             end if
+
         end do
 
     end function panel_calc_supersonic_subinc_geom
@@ -1210,7 +1166,7 @@ contains
 
             ! Calculate F(1,1,1)
             ! Within edge (Johnson Eq. (D.60))
-            if (sign(geom%l1(i)) /= sign(geom%l2(i))) then
+            if (sign(1., geom%l1(i)) /= sign(1., geom%l2(i))) then
 
                 ! Check for point on perimeter
                 if(sqrt(geom%g2(i)) < 1e-12) then
@@ -1231,7 +1187,7 @@ contains
                 end if
 
                 ! Calculate
-                int%F111(i) = sign(geom%l1(i)) * log( (geom%R2(i) + abs(geom%l2(i))) / (geom%R1(i) + abs(geom%l1(i))) )
+                int%F111(i) = sign(1., geom%l1(i)) * log( (geom%R2(i) + abs(geom%l2(i))) / (geom%R1(i) + abs(geom%l1(i))) )
 
             end if
 
@@ -1252,150 +1208,53 @@ contains
         type(flow),intent(in) :: freestream
         type(integrals),intent(inout) :: int
 
-        real :: v_xi, v_eta, F1, F2, eps, eps2, series, x, x2, x_inv, zr, val
+        real :: F1, F2, eps, eps2, series, x, x2, x_inv, zr, val
         integer :: i
+        real,dimension(this%N) :: v_xi, v_eta
         
         ! Allocate integral storage
         allocate(int%F111(this%N), source=0.)
-        allocate(int%w0(this%N), source=0.)
+
+        ! Get edge normal components
+        v_xi = this%n_hat_ls(1,:)
+        v_eta = this%n_hat_ls(2,:)
 
         ! Loop through edges
         do i=1,this%N
 
+            ! Check DoD
             if (dod_info%edges_in_dod(i)) then
 
-                ! Calculate F(1,1,1) (Ehlers Eq. (E22))
-
-                ! Neither endpoint in DoD (Ehlers Eq. (E22))
-                if (geom%R1(i) == 0. .and. geom%R2(i) == 0.) then
-                    int%F111(i) = pi/this%sqrt_b(i)
-
+                ! Calculate F factors
+                if (this%b(i) > 0.) then
+                    F1 = (geom%l1(i)*geom%R2(i) - geom%l2(i)*geom%R1(i)) / geom%g2(i)
+                    F2 = (this%b(i)*geom%R1(i)*geom%R2(i) + geom%l1(i)*geom%l2(i)) / geom%g2(i)
                 else
-
-                    ! Calculate preliminary quantities (Ehlers Eqs. (E19-20))
-                    if (this%b(i) >= 0) then
-                        F1 = (geom%l1(i)*geom%R2(i) - geom%l2(i)*geom%R1(i)) / geom%g2(i)
-                        F2 = (this%b(i)*geom%R1(i)*geom%R2(i) + geom%l1(i)*geom%l2(i)) / geom%g2(i)
-
-                    else
-                        F1 = (geom%R2(i) + geom%R1(i))*(geom%R2(i) - geom%R1(i)) / (geom%l1(i)*geom%R2(i) + geom%l2(i)*geom%R1(i))
-                        F2 = (geom%g2(i) - geom%l1(i)**2 - geom%l2(i)**2) / &
-                             (this%b(i)*geom%R1(i)*geom%R2(i) - geom%l1(i)*geom%l2(i))
-
-                    end if
-
-                    ! Check for poorly-conditioned edge
-                    if (abs(F2) > 100.*this%sqrt_b(i)*abs(F1)) then
-
-                        ! This mimics what is done in PAN AIR, for efficiency
-                        !int%F111(i) = -eps*(1 - this%b(i)*eps**2/3. + this%b(i)**2*eps**4/5. - this%b(i)**3*eps**6/7.)
-                        eps = F1/F2
-                        eps2 = eps*eps
-                        series = eps*eps2*( 1./3. - 0.2*this%b(i)*eps2 + this%b(i)**2*eps2**2/7. )
-                        int%F111(i) = -eps + this%b(i)*series
-
-                    ! Supersonic edge
-                    else if (this%b(i) > 0) then
-
-                        int%F111(i) = -atan2(this%sqrt_b(i)*F1, F2) / this%sqrt_b(i)
-
-                    ! Subsonic edge
-                    else
-
-                        ! Calculate preliminary quantities
-                        F1 = this%sqrt_b(i)*geom%R1(i) + abs(geom%l1(i))
-                        F2 = this%sqrt_b(i)*geom%R2(i) + abs(geom%l2(i))
-
-                        ! Calculate F(1,1,1)
-                        int%F111(i) = -sign(this%n_hat_ls(2,i)) / this%sqrt_b(i) * log(F1/F2)
-
-                    end if
+                    F1 = (geom%R2(i) - geom%R1(i))*(geom%R2(i) + geom%R1(i)) / (geom%l1(i)*geom%R2(i) + geom%l2(i)*geom%R1(i))
+                    F2 = (geom%g2(i) - geom%l1(i)**2 - geom%l2(i)**2) / (this%b(i)*geom%R1(i)*geom%R2(i) - geom%l1(i)*geom%l2(i))
                 end if
 
-                ! Calculate w0
-                
-                ! Subsonic edge
-                if (abs(this%m(i)) < 1.) then
-
-                    x2 = 1.-this%m(i)**2
-                    x = sqrt(x2)
-                    x_inv = 1./x
-
-                    ! Both endpoints in DoD (Davis Eq. (A.17) has a typo)
-                    if (geom%R1(i) /= 0. .and. geom%R2(i) /= 0.) then
-
-                        F1 = geom%ym2(i) + geom%R2(i)*x
-                        F2 = geom%ym1(i) + geom%R1(i)*x
-                        int%w0(i) = x_inv*log(F1/F2)
-
-                    ! First endpoint in DoD
-                    else if (geom%R1(i) /= 0.) then
-
-                        F1 = geom%ym1(i) + geom%R1(i)*x
-                        F2 = geom%ym1(i) - geom%R1(i)*x
-                        int%w0(i) = -0.5*x_inv*log(F1/F2)
-
-                    ! Second endpoint in DoD
-                    else if (geom%R2(i) /= 0.) then
-
-                        F1 = geom%ym2(i) + geom%R2(i)*x
-                        F2 = geom%ym2(i) - geom%R2(i)*x
-                        int%w0(i) = 0.5*x_inv*log(F1/F2)
-
-                    end if
+                ! Calculate F(1,1,1)
 
                 ! Supersonic edge
-                else if (abs(this%m(i)) > 1.) then
+                if (this%b(i) > 0.) then
 
-                    x2 = 1.-this%l(i)**2
-                    x = sqrt(x2)
-                    x_inv = 1./x
-
-                    ! Both endpoints in DoD (Ehlers p. 108)
-                    if (geom%R1(i) /= 0. .and. geom%R2(i) /= 0.) then
-
-                        F1 = x*(geom%ym1(i)*geom%R2(i) - geom%ym2(i)*geom%R1(i))
-                        F2 = geom%ym1(i)*geom%ym2(i) + x2*geom%R1(i)*geom%R2(i)
-                        int%w0(i) = x_inv*atan2(F1, F2)
-
-                    ! First endpoint in DoD
-                    else if (geom%R1(i) /= 0.) then
-
-                        int%w0(i) = ( sign(-geom%ym2(i))*pi2 - atan2(-geom%ym1(i), geom%R1(i)*x) ) * x_inv
-
-                    ! Second endpoint in DoD
-                    else if (geom%R2(i) /= 0.) then
-
-                        int%w0(i) = ( atan2(-geom%ym2(i), geom%R2(i)*x) - sign(-geom%ym1(i))*pi2 ) * x_inv
-
-                    ! Neither endpoint in DoD (Ehlers p. 108)
+                    ! Mach wedge
+                    if (geom%R1(i) == 0. .and. geom%R2(i) == 0) then
+                        int%F111(i) = pi/this%sqrt_b(i)
                     else
-                        int%w0(i) = ( sign(-geom%ym2(i)) - sign(-geom%ym1(i)) ) * pi2 * x_inv
-
+                        int%F111(i) = -atan2(this%sqrt_b(i)*F1, F2) / this%sqrt_b(i)
                     end if
 
-                ! Sonic edge
+                ! Subsonic edge
                 else
-
-                    ! Combination of w0 equation in Ehlers A5 and Davis Eqs. (A29-30) and equation for w0 on Ehlers p. 109
-                    int%w0(i) = geom%R2(i)/geom%ym2(i) - geom%R1(i)/geom%ym1(i)
-
-                end if
-
-                ! Check computation for nearly-sonic edges
-                if (abs(this%m(i)-1.) < 1e-8) then
-                    x = 1.-this%l(i)**2
-                    zr = (geom%ym1(i)*geom%R2(i) - geom%ym2(i)*geom%R1(i))
-                    zr = zr/(geom%ym1(i)*geom%ym2(i) + x*geom%R1(i)*geom%R2(i))
-                    val = zr*(1-x*zr**2/3. + x**2*zr**4/5. - x**3*zr**6/7.)
-                    write(*,*)
-                    write(*,*) abs(this%m(i))
-                    write(*,*) int%w0(i)
-                    write(*,*) val
-                    write(*,*) abs(int%w0(i)) - val
+                    F1 = this%sqrt_b(i)*geom%R1(i) + abs(geom%l1(i))
+                    F2 = this%sqrt_b(i)*geom%R2(i) + abs(geom%l2(i))
+                    int%F111(i) = -sign(1., v_eta(i))*log(F1/F2)
                 end if
 
             end if
+
         end do
 
     end subroutine panel_calc_supersonic_subinc_edge_integrals
@@ -1441,7 +1300,7 @@ contains
             end do
         
             ! Calculate hH(1,1,3) (Johnson Eq. (D.42)
-            int%hH113 = sign(geom%h)*int%hH113
+            int%hH113 = sign(int%hH113, geom%h)
 
         else
 
@@ -1451,7 +1310,7 @@ contains
 
             ! Close to panel plane but inside Sigma
             else
-                int%hH113 = 2.*pi*sign(geom%h)
+                int%hH113 = sign(2.*pi, geom%h)
 
             end if
         end if
@@ -1492,107 +1351,43 @@ contains
 
         ! Calculate hH(1,1,3) (Ehlers Eq. (E18))
         int%hH113 = 0.
-        int%Q1 = 0.
-        if (abs(geom%h) > 1e-12) then ! Check the point is off the panel plane
 
-            ! Add influence of each edge
-            do i=1,this%N
+        ! Loop through edges
+        do i=1,this%N
 
-                if (dod_info%edges_in_dod(i)) then
+            ! Check DoD
+            if (dod_info%edges_in_dod(i)) then
 
-                    i_next = mod(i, this%N) + 1
+                ! Check not on panel plane
+                if (abs(geom%h) > 1.e-12) then
 
-                    ! Check for at least one endpoint in the DoD
-                    if (dod_info%verts_in_dod(i) .or. dod_info%verts_in_dod(i_next)) then
-
-                        ! Calculate intermediate quantities Ehlers Eq. (E19) and (E20)
-                        if (this%b(i) >= 0 ) then
-                            F1 = (geom%l1(i)*geom%R2(i) - geom%l2(i)*geom%R1(i)) / geom%g2(i)
-                            F2 = (this%b(i)*geom%R1(i)*geom%R2(i) + geom%l1(i)*geom%l2(i)) / geom%g2(i)
-
-                        else
-                            F1 = (geom%R2(i) + geom%R1(i))*(geom%R2(i) - geom%R1(i)) / &
-                                 (geom%l1(i)*geom%R2(i) + geom%l2(i)*geom%R1(i))
-                            F2 = (geom%g2(i) - geom%l1(i)**2 - geom%l2(i)**2) / &
-                                 (this%b(i)*geom%R1(i)*geom%R2(i) - geom%l1(i)*geom%l2(i))
-                        end if
-
-                        ! Add to surface integral
-                        int%hH113 = int%hH113 + atan2(geom%h*geom%a(i)*F1, geom%R1(i)*geom%R2(i) + geom%h2*F2)
-
-                    ! Neither endpoint is in
+                    ! Calculate F factors
+                    if (this%b(i) > 0.) then
+                        F1 = (geom%l1(i)*geom%R2(i) - geom%l2(i)*geom%R1(i)) / geom%g2(i)
+                        F2 = (this%b(i)*geom%R1(i)*geom%R2(i) + geom%l1(i)*geom%l2(i)) / geom%g2(i)
                     else
-                        int%hH113 = int%hH113 + pi*sign(geom%h*v_xi(i))
-
+                        F1 = (geom%R2(i) - geom%R1(i))*(geom%R2(i) + geom%R1(i)) / (geom%l1(i)*geom%R2(i) + geom%l2(i)*geom%R1(i))
+                        F2 = (geom%g2(i) - geom%l1(i)**2 - geom%l2(i)**2) &
+                             / (this%b(i)*geom%R1(i)*geom%R2(i) - geom%l1(i)*geom%l2(i))
                     end if
 
-                    ! Calculate Q1
+                    ! Supersonic edge
+                    if (this%b(i) > 0.) then
 
-                    ! Subsonic or sonic edge
-                    if (abs(this%m(i)) <= 1.) then
-
-                        ! Both endpoints in
-                        if (geom%R1(i) /= 0. .and. geom%R2(i) /= 0.) then
-
-                            F1 = geom%h*geom%xm(i)*(geom%ym1(i)*geom%R2(i) - geom%ym2(i)*geom%R1(i))
-                            F2 = geom%xm(i)**2*geom%R1(i)*geom%R2(i) + geom%h2*geom%ym1(i)*geom%ym2(i)
-                            int%Q1 = int%Q1 + atan2(F1, F2)
-
-                        ! First endpoint in
-                        else if (geom%R1(i) /= 0.) then
-
-                            int%Q1 = int%Q1 - sign(geom%h)*atan2(geom%xm(i)*geom%R1(i), abs(geom%h)*geom%ym1(i))
-
-                        ! Second endpoint in
-                        else if (geom%R2(i) /= 0.) then
-
-                            int%Q1 = int%Q1 + sign(geom%h)*atan2(geom%xm(i)*geom%R2(i), abs(geom%h)*geom%ym2(i))
-
-                        end if
-
-                    ! Supersonic edge (Ehlers p. 108)
-                    else if (abs(this%m(i)) > 1.) then
-
-                        ! Both endpoints in
-                        if (geom%R1(i) /= 0. .and. geom%R2(i) /= 0.) then
-
-                            F1 = geom%h*geom%xm(i)*(geom%ym1(i)*geom%R2(i) - geom%ym2(i)*geom%R1(i))
-                            F2 = geom%xm(i)**2*geom%R1(i)*geom%R2(i) + geom%h2*geom%ym1(i)*geom%ym2(i)
-                            int%Q1 = int%Q1 + atan2(F1, F2)
-
-                        ! First endpoint in (Davis Eq. (A.28))
-                        else if (geom%R1(i) /= 0.) then
-
-                            int%Q1 = int%Q1 + sign(-geom%h*geom%ym2(i))*pi2 - atan2(-geom%h*geom%ym1(i), geom%xm(i)*geom%R1(i))
-
-                        ! Second endpoint in (Davis Eq. (A.28))
-                        else if (geom%R2(i) /= 0.) then
-
-                            int%Q1 = int%Q1 + atan2(-geom%h*geom%ym2(i), geom%xm(i)*geom%R2(i)) - sign(-geom%h*geom%ym1(i))*pi2
-
-                        ! Neither endpoint in (Davis Eq. (A.28))
+                        ! Mach wedge
+                        if (geom%R1(i) == 0. .and. geom%R2(i) == 0.) then
+                            int%hH113 = int%hH113 + pi*sign(1., geom%h*v_xi(i))
                         else
-
-                            int%Q1 = int%Q1 + ( sign(-geom%h*geom%ym2(i)) - sign(-geom%h*geom%ym1(i)) )*pi2
-
+                            int%hH113 = int%hH113 + atan2(geom%h*geom%a(i)*F1, geom%R1(i)*geom%R2(i) + geom%h2*F2)
                         end if
 
+                    ! Subsonic edge
+                    else
+                        int%hH113 = int%hH113 + atan2(geom%h*geom%a(i)*F1, geom%R1(i)*geom%R2(i) + geom%h2*F2)
                     end if
-
                 end if
-        
-            end do
-        end if
-
-        ! Calculate H(1,1,1) (Ehlers Eq. (E9) has a typo)
-        ! What exactly that typo is, I don't know
-        int%H111 = -geom%h*int%hH113 - sum(geom%a*int%F111)
-
-        ! Calculate H(2,1,3) (Ehlers Eq. (E5) has a typo)
-        int%H213 = sum(v_xi*int%F111)
-
-        ! Calculate H(1,2,3) (Ehlers Eq. (E6) has a typo)
-        int%H123 = -sum(v_eta*int%F111)
+            end if
+        end do
 
         ! Clean up
         deallocate(v_xi)
@@ -1641,10 +1436,7 @@ contains
 
         type(eval_point_geom) :: geom
         type(integrals) :: int
-        logical :: ehlers_calc
         integer :: i
-
-        ehlers_calc = .false.
 
         ! Specify influencing vertices (also sets zero default influence)
 
@@ -1700,26 +1492,9 @@ contains
 
                 if (freestream%supersonic) then
 
-                    if (ehlers_calc) then
-                        
-                        ! Sum up w0 terms
-                        do i=1,this%N
-                            if (abs(this%m(i)) < 1.) then
-                                phi_s = phi_s + geom%xm(i)*int%w0(i)*this%m(i)
-                            else
-                                phi_s = phi_s + geom%xm(i)*int%w0(i)
-                            end if
-                        end do
+                    ! Equivalent to Ehlers Eq. (8.6)
+                    phi_s = this%J*freestream%K_inv*(geom%h*int%hH113 + sum(geom%a*int%F111))
 
-                        ! Add Q1 term
-                        phi_s = this%J*freestream%K_inv*(phi_s - geom%h*int%Q1)
-
-                    else
-
-                        ! Equivalent to Ehlers Eq. (8.6)
-                        phi_s = this%J*freestream%K_inv*(geom%h*int%hH113 + sum(geom%a*int%F111))
-
-                    end if
                 else
 
                     ! Johnson Eq. (D21) including the area factor discussed by Ehlers in Sec. 10.3
@@ -1734,32 +1509,10 @@ contains
 
                 if (freestream%supersonic) then
 
-                    if (ehlers_calc) then
-
-                        ! Sum up w0 terms (Ehlers Eq. (5.17))
-                        do i=1,this%N
-                            if (abs(this%m(i)) < 1.) then
-                                phi_d(2) = phi_d(2) + int%w0(i)*this%m(i)
-                                phi_d(3) = phi_d(3) + int%w0(i)
-                            else
-                                phi_d(2) = phi_d(2) + int%w0(i)
-                                phi_d(3) = phi_d(3) + int%w0(i)*this%l(i)
-                            end if
-                        end do
-
-                        ! Add Q1 terms (Ehlers Eq. (5.17))
-                        phi_d(1) = -int%Q1
-                        phi_d(2) = geom%h*phi_d(2) - int%Q1*geom%P_ls(1)
-                        phi_d(3) = geom%h*phi_d(3) - int%Q1*geom%P_ls(2)
-
-                    else
-
-                        ! Equivalent to Ehlers Eq. (5.17))
-                        phi_d(1) = int%hH113
-                        phi_d(2) = int%hH113*geom%P_ls(1) - geom%h*sum(this%n_hat_ls(1,:)*int%F111)
-                        phi_d(3) = int%hH113*geom%P_ls(1) + geom%h*sum(this%n_hat_ls(2,:)*int%F111)
-
-                    end if
+                    ! Equivalent to Ehlers Eq. (5.17))
+                    phi_d(1) = int%hH113
+                    phi_d(2) = int%hH113*geom%P_ls(1) - geom%h*sum(this%n_hat_ls(1,:)*int%F111)
+                    phi_d(3) = int%hH113*geom%P_ls(2) + geom%h*sum(this%n_hat_ls(2,:)*int%F111)
                 else
 
                     ! Johnson Eq. (D.30)
