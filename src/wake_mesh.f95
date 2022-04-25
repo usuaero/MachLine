@@ -235,8 +235,9 @@ contains
         end do
 
         ! Initialize freestream-dependent properties
+        ! The mirror of wake panels will never need to be initialized
         do i=1,this%N_panels
-            call this%panels(i)%init_with_flow(freestream, asym_flow, mirror_plane)
+            call this%panels(i)%init_with_flow(freestream, .false., mirror_plane)
         end do
 
         write(*,'(a, i7, a, i7, a)') "Done. Created ", this%N_verts, " wake vertices and ", this%N_panels, " wake panels."

@@ -628,11 +628,13 @@ contains
             ! Enforce doublet strength matching (i.e. for non-unique, mirrored control points, the
             ! doublet strengths must be the same). The RHS for these rows should still be zero.
             if (body%asym_flow) then
+
+                ! Check if the mirrored control point is not unique
                 if (.not. body%vertices(i)%mirrored_is_unique) then
                     this%A(i+body%N_cp,i) = 1.
                     this%A(i+body%N_cp,i+body%N_cp) = -1.
 
-                ! If the control point is unique, it's target potential will need to be set for the source-free formulation
+                ! If the mirrored control point is unique, it's target potential will need to be set for the source-free formulation
                 else if (.not. morino) then
                     this%b(i+body%N_cp) = -inner(body%cp_mirrored(:,i), this%freestream%c_hat_g)
                 end if
@@ -709,8 +711,9 @@ contains
 
                         ! Calculate influence of existing panel on mirrored control point
                         ! This is the same as the influence of a mirrored panel on an existing control point
+                        ! even for compressible flow, since we know the flow is symmetric here
                         call body%wake%panels(j)%calc_potentials(body%cp_mirrored(:,i), this%freestream, &
-                                                                 this%wake_dod_info(j+body%wake%N_panels,i), .true., & ! No, this is not the DoD for this computation; yes, it is equivalent
+                                                                 this%wake_dod_info(j+body%wake%N_panels,i), .false., & ! No, this is not the DoD for this computation; yes, it is equivalent
                                                                  source_inf, doublet_inf, i_vert_s, i_vert_d)
 
                         ! Add influence

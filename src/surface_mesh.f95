@@ -453,6 +453,7 @@ contains
         end if
 
         ! Initialize panel properties dependent upon the freestream
+        ! Note the panel mirror will need to be initialized if the flow is asymmetric
         do i=1,this%N_panels
             call this%panels(i)%init_with_flow(freestream, this%asym_flow, this%mirror_plane)
         end do
