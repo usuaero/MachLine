@@ -22,7 +22,7 @@ module panel_mod
         real,dimension(3) :: P_g ! Point position in global coords
         real,dimension(2) :: P_ls ! Transformed point in panel plane
         real :: h, h2 ! Transformed height above panel
-        real,dimension(3) :: a, g2, l1, l2, R1, R2 ! Edge integration parameters (Johnson's method)
+        real,dimension(3) :: a, g2, l1, l2, R1, R2 ! Edge integration parameters for the Ehlers-Johnson method
 
         contains
 
@@ -1008,23 +1008,23 @@ contains
             ! Calculate displacements
             d_ls = this%vertices_ls(:,i) - geom%P_ls
 
-            ! Perpendicular distance in plane from evaluation point to edge E&M Eq. (J.6.46) and (J.7.53)
-            geom%a(i) = inner2(d_ls, this%n_hat_ls(:,i)) ! Definition
+            ! Perpendicular distance in plane from evaluation point to edge
+            geom%a(i) = inner2(d_ls, this%n_hat_ls(:,i))
 
-            ! Integration length on edge to start vertex (E&M Eq. (J.6.47))
+            ! Integration length on edge to start vertex
             geom%l1(i) = inner2(d_ls, this%t_hat_ls(:,i))
 
-            ! Distance from evaluation point to start vertex E&M Eq. (J.8.8)
+            ! Distance from evaluation point to start vertex
             geom%R1(i) = sqrt(d_ls(1)**2 + d_ls(2)**2 + geom%h2)
 
             ! Calculate square of the perpendicular distance to edge
-            geom%g2(i) = geom%a(i)**2 + geom%h2 ! Subsonic version of Ehlers Eq. (E14) and what is used in PAN AIR
+            geom%g2(i) = geom%a(i)**2 + geom%h2
 
             ! Displacement from end vertex
             d_ls = this%vertices_ls(:,i_next) - geom%P_ls
 
             ! Integration length on edge to end vertex
-            geom%l2(i) = inner2(d_ls, this%t_hat_ls(:,i)) ! Definition; same as used in PAN AIR
+            geom%l2(i) = inner2(d_ls, this%t_hat_ls(:,i))
 
         end do
 
@@ -1075,7 +1075,7 @@ contains
                 geom%g2(i) = geom%a(i)**2 - this%b(i)*geom%h2
 
                 ! Hyperbolic radius to first vertex
-                x = (geom%g2(i) - geom%l1(i)**2)/this%b(i)
+                x = d_ls(1)*d_ls(1) - d_ls(2)*d_ls(2) - geom%h2
                 if (x > 0. .and. d_ls(1) < 0.) then
                     geom%R1(i) = sqrt(x)
                 else
@@ -1093,7 +1093,7 @@ contains
                 geom%l2(i) = v_eta(i)*d_ls(1) + v_xi(i)*d_ls(2)
 
                 ! Hyperbolic radius to first vertex
-                x = (geom%g2(i) - geom%l2(i)**2)/this%b(i)
+                x = d_ls(1)*d_ls(1) - d_ls(2)*d_ls(2) - geom%h2
                 if (x > 0. .and. d_ls(1) < 0.) then
                     geom%R2(i) = sqrt(x)
                 else
@@ -1208,7 +1208,7 @@ contains
         type(flow),intent(in) :: freestream
         type(integrals),intent(inout) :: int
 
-        real :: F1, F2, eps, eps2, series, x, x2, x_inv, zr, val
+        real :: F1, F2, eps, eps2, series
         integer :: i
         real,dimension(this%N) :: v_xi, v_eta
         
@@ -1281,14 +1281,10 @@ contains
         type(integrals),intent(inout) :: int
 
         real :: S, C, nu, c1, c2, x
-        integer :: i, m, n, k
-        real,dimension(:),allocatable :: v_xi, v_eta
-
-        ! Get edge normal derivatives
-        allocate(v_xi(this%N), source=this%n_hat_ls(1,:))
-        allocate(v_eta(this%N), source=this%n_hat_ls(2,:))
+        integer :: i
 
         ! Calculate hH(1,1,3)
+
         ! Not close to panel plane
         if (abs(geom%h) > 1e-12) then ! The nonzero h check seems to be more reliable than that proposed by Johnson
 
@@ -1328,12 +1324,8 @@ contains
         int%H111 = -geom%h*int%hH113 + sum(geom%a*int%F111)
 
         ! Calculate H(2,1,3) and H(1,2,3)
-        int%H213 = -sum(v_xi*int%F111)
-        int%H123 = -sum(v_eta*int%F111)
-
-        ! Clean up
-        deallocate(v_xi)
-        deallocate(v_eta)
+        int%H213 = -sum(this%n_hat_ls(1,:)*int%F111)
+        int%H123 = -sum(this%n_hat_ls(2,:)*int%F111)
 
     end subroutine panel_calc_subsonic_panel_integrals
 
@@ -1352,11 +1344,10 @@ contains
 
         real :: F1, F2
         integer :: i, i_next
-        real,dimension(:),allocatable :: v_xi, v_eta
+        real,dimension(:),allocatable :: v_xi
 
         ! Get edge normal derivatives
         allocate(v_xi(this%N), source=this%n_hat_ls(1,:))
-        allocate(v_eta(this%N), source=this%n_hat_ls(2,:))
 
         ! Calculate hH(1,1,3) (Ehlers Eq. (E18))
         int%hH113 = 0.
@@ -1400,7 +1391,6 @@ contains
 
         ! Clean up
         deallocate(v_xi)
-        deallocate(v_eta)
 
     end subroutine panel_calc_supersonic_subinc_panel_integrals
 
