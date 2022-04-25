@@ -81,8 +81,6 @@ module panel_mod
         integer,dimension(3) :: edges ! Indices of this panel's edges
         integer :: top_parent, bot_parent ! Indices of the top and bottom panels this panel's strength is determined by (for a wake panel w/ constant doublet strength)
         integer :: r, r_mir ! Panel inclination indicator; r=-1 -> superinclined, r=1 -> subinclined
-        real,dimension(3) :: m, l ! Edge slope and its inverse
-        integer,dimension(3) :: q ! Edge type indicator; q=1 -> subsonic, q=-1 -> supersonic
         real :: J, J_mir ! Local scaled transformation Jacobian
 
         contains
@@ -483,9 +481,6 @@ contains
             ! Calculate edge outward normal
             this%n_hat_g(:,i) = cross(this%t_hat_g(:,i), this%n_g)
 
-            ! Calculate edge type indicator (E&M Eq. (J.6.48)
-            this%q(i) = sign(1., this%r*this%t_hat_ls(1,i)**2 + freestream%s*this%t_hat_ls(2,i)**2)
-
         end do
 
         ! Calculate edge normal in local scaled coords E&M Eq. (J.6.45)
@@ -495,10 +490,6 @@ contains
         ! Calculate edge parameter (Ehlers Eq. (E14))
         this%b = (this%n_hat_ls(1,:) - this%n_hat_ls(2,:))*(this%n_hat_ls(1,:) + this%n_hat_ls(2,:))
         this%sqrt_b = sqrt(abs(this%b))
-
-        ! Calculate edge slope
-        this%m = this%t_hat_ls(2,:)/this%t_hat_ls(1,:)
-        this%l = 1./this%m
     
     end subroutine panel_calc_edge_vectors
 
@@ -895,8 +886,8 @@ contains
                     ! If both aren't in, then the intersection will depend on the edge type
                     else
 
-                        ! For a subsonic edge, both being out means the edge is out
-                        if (this%q(i) == 1) then
+                        ! For a subsonic or sonic edge, both being out means the edge is out
+                        if (this%b(i) <= 0.) then
                             dod_info%edges_in_dod(i) = .false.
 
                         ! For a supersonic edge, the edge can still intersect the DoD, so calculate the point of closest approach
@@ -997,6 +988,7 @@ contains
         real,dimension(3) :: d_g
         integer :: i, i_next
         real :: val
+        real,dimension(this%N) :: dummy
 
         ! Initialize
         if (mirror_panel) then
@@ -1063,6 +1055,17 @@ contains
         ! Distance from evaluation point to end vertices
         geom%R2 = cshift(geom%R1, 1)
 
+        ! Swap directions for mirror
+        if (mirror_panel) then
+            dummy = geom%l1
+            geom%l1 = geom%l2
+            geom%l2 = dummy
+
+            dummy = geom%R1
+            geom%R1 = geom%R2
+            geom%R2 = dummy
+        end if
+
     end function panel_calc_subsonic_geom
 
 
@@ -1081,13 +1084,18 @@ contains
         real,dimension(2) :: d_ls, d
         real :: x
         integer :: i, i_next
-        real,dimension(this%N) :: v_xi, v_eta
+        real,dimension(this%N) :: v_xi, v_eta, dummy
 
-        v_xi = this%n_hat_ls(1,:)
-        v_eta = this%n_hat_ls(2,:)
-
-        ! Initialize geometry
-        call geom%init(eval_point, this%A_g_to_ls, this%centr)
+        ! Initialize
+        if (mirror_panel) then
+            call geom%init(eval_point, this%A_g_to_ls_mir, this%centr_mir)
+            v_xi = this%n_hat_ls_mir(1,:)
+            v_eta = this%n_hat_ls_mir(2,:)
+        else
+            call geom%init(eval_point, this%A_g_to_ls, this%centr)
+            v_xi = this%n_hat_ls(1,:)
+            v_eta = this%n_hat_ls(2,:)
+        end if
 
         ! Loop through edges
         do i=1,this%N
@@ -1096,7 +1104,11 @@ contains
             if (dod_info%edges_in_dod(i)) then
 
                 ! Calculate displacement from first vertex
-                d_ls = this%vertices_ls(:,i) - geom%P_ls
+                if (mirror_panel) then
+                    d_ls = this%vertices_ls_mir(:,i) - geom%P_ls
+                else
+                    d_ls = this%vertices_ls(:,i) - geom%P_ls
+                end if
 
                 ! Edge integration length
                 geom%l1(i) = v_eta(i)*d_ls(1) + v_xi(i)*d_ls(2)
@@ -1120,7 +1132,11 @@ contains
                 i_next = mod(i, this%N)+1
 
                 ! Calculate displacement from second vertex
-                d_ls = this%vertices_ls(:,i_next) - geom%P_ls
+                if (mirror_panel) then
+                    d_ls = this%vertices_ls_mir(:,i_next) - geom%P_ls
+                else
+                    d_ls = this%vertices_ls(:,i_next) - geom%P_ls
+                end if
 
                 ! Edge integration length
                 geom%l2(i) = v_eta(i)*d_ls(1) + v_xi(i)*d_ls(2)
@@ -1137,6 +1153,17 @@ contains
             end if
 
         end do
+
+        ! Swap directions for mirror
+        if (mirror_panel) then
+            dummy = geom%l1
+            geom%l1 = geom%l2
+            geom%l2 = dummy
+
+            dummy = geom%R1
+            geom%R1 = geom%R2
+            geom%R2 = dummy
+        end if
 
     end function panel_calc_supersonic_subinc_geom
 
@@ -1257,8 +1284,13 @@ contains
         allocate(int%F111(this%N), source=0.)
 
         ! Get edge normal components
-        v_xi = this%n_hat_ls(1,:)
-        v_eta = this%n_hat_ls(2,:)
+        if (mirror_panel) then
+            v_xi = this%n_hat_ls_mir(1,:)
+            v_eta = this%n_hat_ls_mir(2,:)
+        else
+            v_xi = this%n_hat_ls(1,:)
+            v_eta = this%n_hat_ls(2,:)
+        end if
 
         ! Loop through edges
         do i=1,this%N
@@ -1366,8 +1398,13 @@ contains
         int%H111 = -geom%h*int%hH113 + sum(geom%a*int%F111)
 
         ! Calculate H(2,1,3) and H(1,2,3)
-        int%H213 = -sum(this%n_hat_ls(1,:)*int%F111)
-        int%H123 = -sum(this%n_hat_ls(2,:)*int%F111)
+        if (mirror_panel) then
+            int%H213 = -sum(this%n_hat_ls_mir(1,:)*int%F111)
+            int%H123 = -sum(this%n_hat_ls_mir(2,:)*int%F111)
+        else
+            int%H213 = -sum(this%n_hat_ls(1,:)*int%F111)
+            int%H123 = -sum(this%n_hat_ls(2,:)*int%F111)
+        end if
 
     end subroutine panel_calc_subsonic_panel_integrals
 
@@ -1390,7 +1427,11 @@ contains
         real,dimension(:),allocatable :: v_xi
 
         ! Get edge normal derivatives
-        allocate(v_xi(this%N), source=this%n_hat_ls(1,:))
+        if (mirror_panel) then
+            allocate(v_xi(this%N), source=this%n_hat_ls_mir(1,:))
+        else
+            allocate(v_xi(this%N), source=this%n_hat_ls(1,:))
+        end if
 
         ! Calculate hH(1,1,3) (Ehlers Eq. (E18))
         int%hH113 = 0.

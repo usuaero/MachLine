@@ -587,9 +587,6 @@ contains
             ! Determine if this edge is discontinuous in supersonic flow
             if (freestream%supersonic) then
 
-                ! Update edge inclination
-                this%edges(k)%inclination = this%panels(this%edges(i)%panels(1))%q(this%edges(i)%edge_index_for_panel(1))
-
                 ! According to Davis, sharp, subsonic, leading edges in supersonic flow must have discontinuous doublet strength.
                 ! I don't know why this would be, except in the case of leading-edge vortex separation. But Davis doesn't
                 ! model leading-edge vortices. Wake-shedding trailing edges are still discontinuous in supersonic flow. Supersonic
