@@ -14,10 +14,10 @@ if __name__=="__main__":
     gamma = 1.4
     T_inf = 300.0
     c_inf = np.sqrt(gamma*R_G*T_inf)
-    alpha = 0.0
+    alpha = 5.0
     rho = 1.225
     p_inf = 1.0e5
-    grid = "ultra_fine" # coarse, medium, fine, ultra_fine
+    grid = "medium" # coarse, medium, fine, ultra_fine
 
     # Declare MachLine input
     body_file = "dev/results/diamond_5_deg_full_{0}.vtk".format(grid)
