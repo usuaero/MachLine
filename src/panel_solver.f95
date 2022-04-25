@@ -171,7 +171,7 @@ contains
             call this%sort_control_points(body)
         end if
 
-        write(*,'(a, i5, a)') "Done. Placed", body%N_cp, " control points."
+        write(*,'(a, i6, a)') "Done. Placed", body%N_cp, " control points."
     
     end subroutine panel_solver_init_dirichlet
 

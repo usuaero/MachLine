@@ -100,13 +100,13 @@ class Panel:
             g2[i] = a[i]**2 - self.b[i]*h**2
 
             # Get hyperbolic radii
-            x = (g2[i] - l1[i]**2)/self.b[i]
+            x = d1[0]**2 - d1[1]**2 - h**2
             if x > 0.0 and d1[0] < 0.0:
                 R1[i] = np.sqrt(x)
             else:
                 R1[i] = 0.0
 
-            x = (g2[i] - l2[i]**2)/self.b[i]
+            x = d2[0]**2 - d2[1]**2 - h**2
             if x > 0.0 and d2[0] < 0.0:
                 R2[i] = np.sqrt(x)
             else:
@@ -199,8 +199,15 @@ class Panel:
 
                 # Calculate F(1,1,1)
 
+                # Nearly-sonic edge
+                if abs(F2) > 100.0*s_b*abs(F1):
+
+                    # Use series solution
+                    e = F1/F2
+                    F111[i] = -e*(1.0 - self.b[i]*e**2/3.0 + self.b[i]**2*e**4/5.0 - self.b[i]**3*e**6/7.0)
+
                 # Supersonic edge
-                if self.b[i] > 0.0:
+                elif self.b[i] > 0.0:
 
                     # Check for Mach wedge condition
                     if R1[i] == 0.0 and R2[i] == 0.0:

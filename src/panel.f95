@@ -1236,8 +1236,17 @@ contains
 
                 ! Calculate F(1,1,1)
 
+                ! Nearly-sonic edge
+                if (abs(F2) > 100.0*abs(this%sqrt_b(i)*F1)) then
+
+                    ! Calculate series solution
+                    eps = F1/F2
+                    eps2 = eps*eps
+                    series = eps*eps2*(1./3. - this%b(i)*eps2/5. + (this%b(i)*eps2)*(this%b(i)*eps2)/7.)
+                    int%F111(i) = -eps + this%b(i)*series
+
                 ! Supersonic edge
-                if (this%b(i) > 0.) then
+                else if (this%b(i) > 0.) then
 
                     ! Mach wedge
                     if (geom%R1(i) == 0. .and. geom%R2(i) == 0) then
