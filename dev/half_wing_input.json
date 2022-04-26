@@ -1,7 +1,7 @@
 {
     "flow": {
         "freestream_velocity" : [ 100.0, 10.0, 10.0 ],
-        "freestream_mach_number" : 0.4
+        "freestream_mach_number" : 0.0
     },
     "geometry": {
         "file": "dev/meshes/half_wing_right.vtk",

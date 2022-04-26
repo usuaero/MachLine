@@ -1,8 +1,6 @@
 ! Linear algebra subroutines
 module linalg_mod
 
-    use math_mod
-
     implicit none
     
 contains
@@ -15,7 +13,8 @@ subroutine matinv(n, a, ai)
       ! ai - Returned by subroutine, an n by n real array containing the inverted matrix.
       ! d  - Work array, an n by 2n real array used by the subroutine.
       ! io - Work array, a 1-dimensional integer array of length n used by the subroutine.
-      ! THIS FUNCTION SHOULD NEVER BE callED! NEVER INVERT A MARTIX EXPLICITLY!
+
+      ! NEVER INVERT A MARTIX EXPLICITLY!
       ! Unless you know what you're doing. Odds are you may not, so be careful.
 
       implicit none
@@ -156,9 +155,9 @@ subroutine lu_solve(n, A, b, x)
     implicit none
 
     integer,intent(in) :: n
+    real,dimension(n,n),intent(inout) :: A
     real,dimension(n),intent(in) :: b
     real,dimension(:),allocatable,intent(out) :: x
-    real,dimension(n,n),intent(inout) :: A
 
     integer,allocatable,dimension(:) :: indx
     integer :: D, info
@@ -170,7 +169,7 @@ subroutine lu_solve(n, A, b, x)
 
     ! if the matrix is nonsingular, then backsolve to find X
     if (info == 1) then
-        write(*,*) 'Subroutine lu_solve() failed. The given matrix is singular (i.e. no unique solution). Quitting...'
+        write(*,*) 'Subroutine lu_decomp() failed. The given matrix is singular (i.e. no unique solution). Quitting...'
         stop
     else
         call lu_back_sub(A, n, indx, b, x)
@@ -204,7 +203,7 @@ subroutine lu_decomp(A, N, indx, D, code)
   ! permutation effected by the partial pivoting; D is output  
   ! as -1 or 1, depending on whether the number of row inter-  
   ! changes was even or odd, respectively. This routine is used
-  ! in combination with LUBKSB to solve linear equations or to 
+  ! in combination with lu_back_sub to solve linear equations or to 
   ! invert a matrix. Return code is 1 if matrix is singular.  
 
   implicit none
@@ -214,10 +213,10 @@ subroutine lu_decomp(A, N, indx, D, code)
   integer,dimension(N),intent(out) :: indx
   integer,intent(out) :: code, D
 
-  real,dimension(N) :: VV
+  real,dimension(N) :: vv
   real,parameter :: tiny=1.5e-20
   integer :: i, j, k, imax
-  real :: amax, dum, sum
+  real :: amax, dum, s
 
   ! Initialize
   D = 1
@@ -238,7 +237,6 @@ subroutine lu_decomp(A, N, indx, D, code)
     ! Check the largest element in this row is nonzero
     if (amax <= tiny) then
       code = 1 ! Singular matrix
-      return
     end if
 
     ! Store implicit scaling
@@ -246,52 +244,59 @@ subroutine lu_decomp(A, N, indx, D, code)
 
   end do
 
+  ! Check for singular matrix
+  if (code == 1) return
+
   ! Loop over columns of Crout's method
   do j=1,N
 
     do i=1,j-1
-      sum = A(i,j)
+      
+      s = A(i,j)
+
       do k=1,i-1
-        sum = sum - A(i,k)*A(k,j)
+        s = s - A(i,k)*A(k,j)
       end do
-      A(i,j) = sum
+
+      A(i,j) = s
+
     end do
 
     ! Initialize search for largest pivot element
     amax = 0.0
     do i=j,N
-
-      sum = A(i,j)
+  
+      s = A(i,j)
       do k=1,j-1
-        sum = sum - A(i,k)*A(k,j)
+        s = s - A(i,k)*A(k,j)
       end do
-      A(i,j) = sum
-
+      A(i,j) = s
+  
       ! Determine figure of merit for the pivot
-      dum = vv(i)*abs(sum)
+      dum = vv(i)*abs(s)
       if (dum >= amax) then
         imax = i
         amax = dum
       end if
-
+  
     end do
 
     ! Figure out if we need to interchange rows
     if (j /= imax) then
-
+  
       ! Perform interchange
       do k=1,N
         dum = A(imax,k)
         A(imax,k) = A(j,k)
         A(j,k) = dum
       end do
-
+  
       ! Update the sign of D since a row interchange has occurred
       D = -D
-
+  
       ! Interchange the implicit scaling factor
       vv(imax) = vv(j)
-
+  
     end if
 
     ! Store pivoting
@@ -448,9 +453,9 @@ subroutine quadratic_fit(pts, a, b, c)
   real,dimension(:),allocatable :: coeff
 
   do i = 1, 3
-    m(i, 1) = pts(i, 1)**2
-    m(i, 2) = pts(i, 1)
-    m(i, 3) = 1.0
+    m(i,1) = pts(i,1)**2
+    m(i,2) = pts(i,1)
+    m(i,3) = 1.0
   end do
 
   call lu_solve(3, m, pts(:,2), coeff)
@@ -461,5 +466,299 @@ subroutine quadratic_fit(pts, a, b, c)
 
 end subroutine quadratic_fit
 
+
+subroutine lu_solve_replace(n, A, b, x)
+  ! Solves a general [A]x=b on an nxn matrix without overwriting A
+
+  implicit none
+
+  integer,intent(in) :: n
+  real,dimension(n,n),intent(in) :: A
+  real,dimension(n),intent(in) :: b
+  real,dimension(:),allocatable,intent(out) :: x
+
+  real,dimension(n,n) :: A_copy
+
+  ! Create copy of A
+  A_copy = A
+
+  ! Solve
+  call lu_solve(n, A_copy, b, x)
+
+end subroutine lu_solve_replace
+
+
+subroutine decompose_blocks(N, A, N_blocks, block_size, N_last, ind_P, i_start_block, i_end_block)
+  ! Decomposes the diagonal blocks of A using LU decomposition
+  ! N is the size of the system
+  ! A is the system matrix; block diagonals will be replaced with their LU decompositions
+  ! block_size is the desired size of each block
+  ! N_last is the number of elements in the last block
+  ! ind_P is a matrix of the block permutation indices
+  ! i_start_block is a vector of the start indices for each block
+  ! i_end_block is a vector of the end indices for each block
+
+  implicit none
+
+  integer,intent(in) :: N
+  real,dimension(N,N),intent(inout) :: A
+  integer,intent(in) :: N_blocks, block_size
+  integer,intent(out) :: N_last
+  integer,dimension(:,:),allocatable,intent(out) :: ind_P
+  integer,dimension(:),allocatable,intent(out) :: i_start_block, i_end_block
+
+  integer :: i, info, D
+
+  ! Allocate start and end indices
+  allocate(i_start_block(N_blocks))
+  allocate(i_end_block(N_blocks))
+
+  ! Allocate permutation incides
+  allocate(ind_P(block_size, N_blocks))
+
+  ! Decompose blocks
+  do i=1,N_blocks
+
+    ! Last block
+    if (i == N_blocks) then
+
+      ! Determine start and end indices of this block
+      i_start_block(i) = (i-1)*block_size + 1
+      i_end_block(i) = N
+      N_last = i_end_block(i)-i_start_block(i)+1
+
+      ! Decompose
+      call lu_decomp(A(i_start_block(i):N,i_start_block(i):N), N_last, ind_P(1:N_last,i), D, info)
+
+      ! Check for singular submatrix
+      if (info == 1) then
+          write(*,*) 'Subroutine lu_decomp() failed on subblock ', i, '. Quitting...'
+          stop
+      end if
+
+    ! Not last block
+    else
+
+      ! Determine start and end indices of this block
+      i_start_block(i) = (i-1)*block_size + 1
+      i_end_block(i) = i*block_size
+
+      ! Decompose
+      call lu_decomp(A(i_start_block(i):i_end_block(i),i_start_block(i):i_end_block(i)), block_size, ind_P(:,i), D, info)
+
+      ! Check for singular submatrix
+      if (info == 1) then
+          write(*,*) 'Subroutine lu_decomp() failed on subblock ', i, '. Quitting...'
+          stop
+      end if
+
+    end if
+
+  end do
+
+end subroutine decompose_blocks
+
+
+subroutine block_sor(N, A, b, block_size, tol, rel, x)
+  ! Iteratively solves the [A]x=b system using block Successive Overrelaxation
+  ! N is the size of the system
+  ! A is the system matrix; block diagonals will be replaced with their LU decompositions
+  ! b is the RHS vector
+  ! block_size is the desired size of each block
+  ! tol is the convergence tolerance between iterations
+  ! rel is a relaxation factor between 0 and 2
+  ! x is the solution
+
+  implicit none
+
+  integer,intent(in) :: N, block_size
+  real,dimension(N,N),intent(inout) :: A
+  real,dimension(N),intent(in) :: b
+  real,intent(in) :: tol, rel
+  real,dimension(:),allocatable,intent(out) :: x
+
+  real :: err
+  real,dimension(N) :: x_new
+  real,dimension(block_size) :: bi
+  real,dimension(:),allocatable :: xi
+  integer :: i, N_blocks, r, N_last, iteration
+  integer,dimension(:),allocatable :: i_start_block, i_end_block
+  integer,dimension(:,:),allocatable :: ind_P
+
+  ! Check relaxation
+  if (rel < 0. .or. rel > 2.) then
+    write(*,*) "Relaxation for SOR must be between 0 and 2 (exclusive). Quitting..."
+    stop
+  end if
+
+  ! Give initial error estimate
+  err = tol + 1.
+
+  ! Initialize solution vector
+  allocate(x(N), source=0.)
+
+  ! Calculate number of blocks
+  N_blocks = N/block_size
+  r = modulo(N, block_size)
+  if (r > 0) then
+    N_blocks = N_blocks + 1
+  end if
+
+  ! Decompose blocks
+
+  write(*,*)
+  write(*,'(a)',advance='no') "         Decomposing blocks..."
+  call decompose_blocks(N, A, N_blocks, block_size, N_last, ind_P, i_start_block, i_end_block)
+  write(*,*) "Done."
+
+  ! Progress
+  write(*,*)
+  write(*,*) "        Running SOR..."
+  write(*,*) "        Iteration      ||dx||"
+  write(*,*) "        --------------------------------------"
+
+  ! Iterate
+  iteration = 0
+  do while(err >= tol)
+
+    iteration = iteration + 1
+
+    ! Invert blocks
+    do i=1,N_blocks
+
+      ! Last block
+      if (i == N_blocks) then
+
+        ! Calculate new RHS vector
+        bi(1:N_last) = b(i_start_block(i):N) - matmul(A(i_start_block(i):N,1:i_start_block(i)-1), x_new(1:i_start_block(i)-1))
+
+        ! Solve
+        call lu_back_sub(A(i_start_block(i):N,i_start_block(i):N), N_last, ind_P(1:N_last,i), bi, xi)
+
+        ! Store
+        x_new(i_start_block(i):N) = (1.-rel)*x_new(i_start_block(i):N) + rel*xi
+
+      ! Not last block
+      else
+
+        ! Calculate new RHS vector
+        bi = b(i_start_block(i):i_end_block(i))
+        bi = bi - matmul(A(i_start_block(i):i_end_block(i),1:i_start_block(i)-1), x_new(1:i_start_block(i)-1))
+        bi = bi - matmul(A(i_start_block(i):i_end_block(i),i_end_block(i)+1:N), x(i_end_block(i)+1:N))
+
+        ! Solve
+        call lu_back_sub(A(i_start_block(i):i_end_block(i),i_start_block(i):i_end_block(i)), block_size, ind_P(:,i), bi, xi)
+
+        ! Store
+        x_new(i_start_block(i):i_end_block(i)) = (1.-rel)*x_new(i_start_block(i):i_end_block(i)) + rel*xi
+
+      end if
+    end do
+
+    ! Calculate error
+    err = norm2(x-x_new)
+
+    ! Output progress
+    if (modulo(iteration, 50) == 0) then
+      write(*,'(i18, ES15.3)') iteration, err
+    end if
+
+    ! Update
+    x = x_new
+
+  end do
+
+  ! Final iteration count and error
+  write(*,'(i18, ES15.3)') iteration, err
+
+end subroutine block_sor
+
+
+subroutine block_gauss_siedel(N, A, b, block_size, tol, x)
+  ! Iteratively solves the [A]x=b system using block Gauss-Siedel
+  ! N is the size of the system
+  ! A is the system matrix
+  ! b is the RHS vector
+  ! block_size is the desired size of each block
+  ! tol is the convergence tolerance between iterations
+  ! x is the solution
+
+  implicit none
+
+  integer,intent(in) :: N, block_size
+  real,dimension(N,N),intent(in) :: A
+  real,dimension(N),intent(in) :: b
+  real,intent(in) :: tol
+  real,dimension(:),allocatable,intent(out) :: x
+
+  real :: err
+  real,dimension(N) :: x_new
+  real,dimension(block_size) :: bi
+  real,dimension(:),allocatable :: xi
+  integer :: i, N_blocks, r, i_start, i_end, N_last
+
+  ! Give initial error estimate
+  err = tol + 1.
+
+  ! Initialize solution vector
+  allocate(x(N), source=0.)
+
+  ! Calculate number of blocks
+  N_blocks = N/block_size
+  r = modulo(N, block_size)
+  if (r > 0) then
+    N_blocks = N_blocks + 1
+  end if
+
+  ! Iterate
+  do while(err >= tol)
+
+    ! Invert blocks
+    do i=1,N_blocks
+
+      ! Last block
+      if (i == N_blocks) then
+
+        ! Determine start index of this block
+        i_start = (i-1)*block_size + 1
+        N_last = N-i_start+1
+
+        ! Calculate new RHS vector
+        bi(1:N_last) = b(i_start:N) - matmul(A(i_start:N,1:i_start-1), x_new(1:i_start-1))
+
+        call lu_solve_replace(N_last, A(i_start:N,i_start:N), bi(1:N_last), xi)
+
+        ! Store
+        x_new(i_start:N) = xi
+
+      ! Not last block
+      else
+
+        ! Determine start and end indices of this block
+        i_start = (i-1)*block_size + 1
+        i_end = i*block_size
+
+        ! Calculate new RHS vector
+        bi = b(i_start:i_end) - matmul(A(i_start:i_end,1:i_start-1), x_new(1:i_start-1))
+        bi = bi - matmul(A(i_start:i_end,i_end+1:N), x(i_end+1:N))
+
+        call lu_solve_replace(block_size, A(i_start:i_end,i_start:i_end), bi, xi)
+
+        ! Store
+        x_new(i_start:i_end) = xi
+
+      end if
+    end do
+
+    ! Calculate error
+    err = norm2(x-x_new)
+    write(*,*) err
+
+    ! Update
+    x = x_new
+
+  end do
+
+end subroutine block_gauss_siedel
     
 end module linalg_mod

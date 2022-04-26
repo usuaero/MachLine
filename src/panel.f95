@@ -254,7 +254,7 @@ contains
 
         ! Find normal
         this%n_g = cross(d1, d2)
-        this%n_g = this%n_g/norm(this%n_g)
+        this%n_g = this%n_g/norm2(this%n_g)
 
     end subroutine panel_calc_normal
 
@@ -274,7 +274,7 @@ contains
             d2 = this%get_vertex_loc(3)-this%get_vertex_loc(2)
 
             ! Calculate area from cross product
-            this%A = 0.5*norm(cross(d1, d2))
+            this%A = 0.5*norm2(cross(d1, d2))
 
             ! Check for zero area
             if (this%A < 1.e-12) then
@@ -365,9 +365,9 @@ contains
         else
             v0 = cross(this%n_g, freestream%c_hat_g)
         end if
-        v0 = v0/norm(v0)
+        v0 = v0/norm2(v0)
         u0 = cross(v0, this%n_g)
-        u0 = u0/norm(u0)
+        u0 = u0/norm2(u0)
 
         ! Calculate compressible parameters
         this%nu_g = matmul(freestream%B_mat_g, this%n_g)
@@ -470,7 +470,7 @@ contains
             d_g = this%get_vertex_loc(i_next)-this%get_vertex_loc(i)
 
             ! Calculate tangent in global coords
-            this%t_hat_g(:,i) = d_g/norm(d_g)
+            this%t_hat_g(:,i) = d_g/norm2(d_g)
 
             ! Calculate tangent in local scaled coords 
             ! This purposefully does not match E&M Eq. (J.6.43);
@@ -661,9 +661,9 @@ contains
         else
             v0 = cross(this%n_g_mir, freestream%c_hat_g)
         end if
-        v0 = v0/norm(v0)
+        v0 = v0/norm2(v0)
         u0 = cross(v0, this%n_g_mir)
-        u0 = u0/norm(u0)
+        u0 = u0/norm2(u0)
 
         ! Calculate compressible parameters
         this%nu_g_mir = matmul(freestream%B_mat_g, this%n_g_mir)
@@ -1527,6 +1527,7 @@ contains
         ! Source
         if (source_order == 0) then
             allocate(phi_s(1), source=0.)
+            allocate(i_vert_s(1), source=this%index)
         end if
 
         ! Doublet
