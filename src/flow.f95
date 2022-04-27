@@ -196,10 +196,6 @@ contains
             stop
         end if
 
-        write(*,*) matmul(this%A_g_to_c, matmul(this%C_mat_g, transpose(this%A_g_to_c)))
-
-        write(*,*) matmul(this%A_g_to_c, matmul(this%B_mat_g, transpose(this%A_g_to_c)))
-
         ! Calculate transform from global to scaled coordinates
         this%A_g_to_s = matmul(this%A_c_to_s, this%A_g_to_c)
 

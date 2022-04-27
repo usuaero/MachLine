@@ -621,14 +621,14 @@ contains
         end do
 
         ! Calculate mirrored g to ls transform
-        call this%calc_mirrored_g_to_ls_transform(freestream)
+        call this%calc_mirrored_g_to_ls_transform(freestream, mirror_plane)
 
         ! Calculate mirrored edge vectors
         ! Global
         allocate(this%t_hat_g_mir(3,this%N))
         allocate(this%n_hat_g_mir(3,this%N))
         do i=1,this%N
-            this%t_hat_g_mir(:,i) = mirror_about_plane(this%t_hat_g(:,i), mirror_plane)
+            this%t_hat_g_mir(:,i) = -mirror_about_plane(this%t_hat_g(:,i), mirror_plane)
             this%n_hat_g_mir(:,i) = mirror_about_plane(this%n_hat_g(:,i), mirror_plane)
         end do
 
@@ -641,12 +641,13 @@ contains
     end subroutine panel_init_mirror
 
 
-    subroutine panel_calc_mirrored_g_to_ls_transform(this, freestream)
+    subroutine panel_calc_mirrored_g_to_ls_transform(this, freestream, mirror_plane)
 
         implicit none
 
         class(panel),intent(inout) :: this
         type(flow),intent(in) :: freestream
+        integer,intent(in) :: mirror_plane
 
         real,dimension(3) :: u0, v0
         real,dimension(3,3) :: B_mat_ls
@@ -714,10 +715,11 @@ contains
         do i=1,this%N
 
             ! Vertices
-            this%vertices_ls_mir(:,i) = matmul(this%A_g_to_ls_mir(1:2,:), this%get_vertex_loc(i)-this%centr)
+            this%vertices_ls_mir(:,i) = matmul(this%A_g_to_ls_mir(1:2,:), &
+                                               mirror_about_plane(this%get_vertex_loc(i), mirror_plane)-this%centr_mir)
 
             ! Midpoints
-            this%midpoints_ls_mir(:,i) = matmul(this%A_g_to_ls_mir(1:2,:), this%midpoints(:,i)-this%centr)
+            this%midpoints_ls_mir(:,i) = matmul(this%A_g_to_ls_mir(1:2,:), this%midpoints_mir(:,i)-this%centr_mir)
 
         end do
     
@@ -746,7 +748,7 @@ contains
 
             ! Calculate tangent in local scaled coords 
             d_ls = this%vertices_ls_mir(:,i_next) - this%vertices_ls_mir(:,i)
-            this%t_hat_ls_mir(:,i) = -d_ls/norm2(d_ls) ! Flip direction since the panel is mirrored, but we want it to still face outward
+            this%t_hat_ls_mir(:,i) = d_ls/norm2(d_ls) ! Flip direction since the panel is mirrored, but we want it to still face outward
 
         end do
 
@@ -1249,6 +1251,9 @@ contains
 
                 ! Hyperbolic radius to first vertex
                 x = d_ls(1)*d_ls(1) - d_ls(2)*d_ls(2) - geom%h2
+                write(*,*)
+                write(*,*) x
+                write(*,*) freestream%C_g_inner(this%get_vertex_loc(i)-eval_point, this%get_vertex_loc(i)-eval_point)
                 if (x > 0. .and. d_ls(1) < 0.) then
                     geom%R1(i) = sqrt(x)
                     if (.not. dod_info%verts_in_dod(i)) then
