@@ -473,8 +473,6 @@ contains
             this%t_hat_g(:,i) = d_g/norm2(d_g)
 
             ! Calculate tangent in local scaled coords 
-            ! This purposefully does not match E&M Eq. (J.6.43);
-            ! This is the formula used in the PAN AIR source code (for subinclined panels)
             d_ls = this%vertices_ls(:,i_next) - this%vertices_ls(:,i)
             this%t_hat_ls(:,i) = d_ls/norm2(d_ls)
 
@@ -732,8 +730,33 @@ contains
 
         class(panel),intent(inout) :: this
 
+        real,dimension(2) :: d_ls
+        integer :: i, i_next
+
+        ! Allocate memory
         allocate(this%t_hat_ls_mir(2,this%N))
         allocate(this%n_hat_ls_mir(2,this%N))
+        allocate(this%b_mir(this%N))
+        allocate(this%sqrt_b_mir(this%N))
+
+        ! Loop through edges
+        do i=1,this%N
+
+            i_next = mod(i, this%N)+1
+
+            ! Calculate tangent in local scaled coords 
+            d_ls = this%vertices_ls_mir(:,i_next) - this%vertices_ls_mir(:,i)
+            this%t_hat_ls_mir(:,i) = -d_ls/norm2(d_ls) ! Flip direction since the panel is mirrored, but we want it to still face outward
+
+        end do
+
+        ! Calculate edge normal in local scaled coords E&M Eq. (J.6.45)
+        this%n_hat_ls_mir(1,:) = this%t_hat_ls_mir(2,:)
+        this%n_hat_ls_mir(2,:) = -this%t_hat_ls_mir(1,:)
+
+        ! Calculate edge parameter (Ehlers Eq. (E14))
+        this%b_mir = (this%n_hat_ls_mir(1,:) - this%n_hat_ls_mir(2,:))*(this%n_hat_ls_mir(1,:) + this%n_hat_ls_mir(2,:))
+        this%sqrt_b_mir = sqrt(abs(this%b_mir))
     
     end subroutine panel_calc_mirrored_edge_vectors
 
@@ -743,6 +766,102 @@ contains
         implicit none
 
         class(panel),intent(inout) :: this
+
+        real,dimension(:,:),allocatable :: S_mu, S_sigma
+
+        ! Determine influence of vertex doublet strengths on integral parameters
+        if (.not. doublet_order .eq. 0) then
+
+            ! Linear distribution
+            if (doublet_order .eq. 1) then
+
+                ! Allocate influence matrices
+                allocate(S_mu(3,3))
+                allocate(this%S_mu_inv_mir(3,3))
+
+                ! Set values
+                S_mu(:,1) = 1.
+                S_mu(:,2) = this%vertices_ls_mir(1,:)
+                S_mu(:,3) = this%vertices_ls_mir(2,:)
+
+                ! Invert
+                call matinv(3, S_mu, this%S_mu_inv_mir)
+
+            else if (doublet_order .eq. 2) then
+
+                ! Allocate influence matrix
+                allocate(S_mu(6,6))
+                allocate(this%S_mu_inv_mir(6,6))
+
+                ! Set values
+                S_mu(:,1) = 1.
+
+                S_mu(1:3,2) = this%vertices_ls_mir(1,:)
+                S_mu(1:3,3) = this%vertices_ls_mir(2,:)
+                S_mu(1:3,4) = this%vertices_ls_mir(1,:)**2
+                S_mu(1:3,5) = this%vertices_ls_mir(1,:)*this%vertices_ls_mir(2,:)
+                S_mu(1:3,6) = this%vertices_ls_mir(2,:)**2
+                
+                S_mu(4:6,2) = this%midpoints_ls_mir(1,:)
+                S_mu(4:6,3) = this%midpoints_ls_mir(2,:)
+                S_mu(4:6,4) = this%midpoints_ls_mir(1,:)**2
+                S_mu(4:6,5) = this%midpoints_ls_mir(1,:)*this%midpoints_ls_mir(2,:)
+                S_mu(4:6,6) = this%midpoints_ls_mir(2,:)**2
+
+                ! Invert
+                call matinv(6, S_mu, this%S_mu_inv_mir)
+
+            end if
+            
+            deallocate(S_mu)
+
+        end if
+
+        ! Determine influence of vertex source strengths on integral parameters
+        ! Linear distribution
+        if (source_order .eq. 1) then
+
+            ! Allocate influence matrices
+            allocate(S_sigma(3,3))
+            allocate(this%S_sigma_inv_mir(3,3))
+
+            ! Set values
+            S_sigma(:,1) = 1.
+            S_sigma(:,2) = this%vertices_ls_mir(1,:)
+            S_sigma(:,3) = this%vertices_ls_mir(2,:)
+
+            ! Invert
+            call matinv(3, S_sigma, this%S_sigma_inv_mir)
+
+            deallocate(S_sigma)
+
+        else if (source_order .eq. 2) then
+
+            ! Allocate influence matrix
+            allocate(S_sigma(6,6))
+            allocate(this%S_sigma_inv_mir(6,6))
+
+            ! Set values
+            S_sigma(:,1) = 1.
+
+            S_sigma(1:3,2) = this%vertices_ls_mir(1,:)
+            S_sigma(1:3,3) = this%vertices_ls_mir(2,:)
+            S_sigma(1:3,4) = this%vertices_ls_mir(1,:)**2
+            S_sigma(1:3,5) = this%vertices_ls_mir(1,:)*this%vertices_ls_mir(2,:)
+            S_sigma(1:3,6) = this%vertices_ls_mir(2,:)**2
+            
+            S_sigma(4:6,2) = this%midpoints_ls_mir(1,:)
+            S_sigma(4:6,3) = this%midpoints_ls_mir(2,:)
+            S_sigma(4:6,4) = this%midpoints_ls_mir(1,:)**2
+            S_sigma(4:6,5) = this%midpoints_ls_mir(1,:)*this%midpoints_ls_mir(2,:)
+            S_sigma(4:6,6) = this%midpoints_ls_mir(2,:)**2
+
+            ! Invert
+            call matinv(6, S_sigma, this%S_sigma_inv_mir)
+
+            deallocate(S_sigma)
+
+        end if
     
     end subroutine panel_calc_mirrored_singularity_matrices
 
@@ -1276,19 +1395,17 @@ contains
         logical,intent(in) :: mirror_panel
         type(integrals),intent(inout) :: int
 
-        real :: F1, F2, eps, eps2, series
+        real :: F1, F2, eps, eps2, series, b, s_b
         integer :: i
-        real,dimension(this%N) :: v_xi, v_eta
+        real,dimension(this%N) ::v_eta
         
         ! Allocate integral storage
         allocate(int%F111(this%N), source=0.)
 
         ! Get edge normal components
         if (mirror_panel) then
-            v_xi = this%n_hat_ls_mir(1,:)
             v_eta = this%n_hat_ls_mir(2,:)
         else
-            v_xi = this%n_hat_ls(1,:)
             v_eta = this%n_hat_ls(2,:)
         end if
 
@@ -1298,40 +1415,49 @@ contains
             ! Check DoD
             if (dod_info%edges_in_dod(i)) then
 
+                ! Get b a and its square root
+                if (mirror_panel) then
+                    b = this%b_mir(i)
+                    s_b = this%sqrt_b_mir(i)
+                else
+                    b = this%b(i)
+                    s_b = this%sqrt_b(i)
+                end if
+
                 ! Calculate F factors
-                if (this%b(i) > 0.) then
+                if (b > 0.) then
                     F1 = (geom%l1(i)*geom%R2(i) - geom%l2(i)*geom%R1(i)) / geom%g2(i)
-                    F2 = (this%b(i)*geom%R1(i)*geom%R2(i) + geom%l1(i)*geom%l2(i)) / geom%g2(i)
+                    F2 = (b*geom%R1(i)*geom%R2(i) + geom%l1(i)*geom%l2(i)) / geom%g2(i)
                 else
                     F1 = (geom%R2(i) - geom%R1(i))*(geom%R2(i) + geom%R1(i)) / (geom%l1(i)*geom%R2(i) + geom%l2(i)*geom%R1(i))
-                    F2 = (geom%g2(i) - geom%l1(i)**2 - geom%l2(i)**2) / (this%b(i)*geom%R1(i)*geom%R2(i) - geom%l1(i)*geom%l2(i))
+                    F2 = (geom%g2(i) - geom%l1(i)**2 - geom%l2(i)**2) / (b*geom%R1(i)*geom%R2(i) - geom%l1(i)*geom%l2(i))
                 end if
 
                 ! Calculate F(1,1,1)
 
                 ! Nearly-sonic edge
-                if (abs(F2) > 100.0*abs(this%sqrt_b(i)*F1)) then
+                if (abs(F2) > 100.0*abs(s_b*F1)) then
 
                     ! Calculate series solution
                     eps = F1/F2
                     eps2 = eps*eps
-                    series = eps*eps2*(1./3. - this%b(i)*eps2/5. + (this%b(i)*eps2)*(this%b(i)*eps2)/7.)
-                    int%F111(i) = -eps + this%b(i)*series
+                    series = eps*eps2*(1./3. - b*eps2/5. + (b*eps2)*(b*eps2)/7.)
+                    int%F111(i) = -eps + b*series
 
                 ! Supersonic edge
-                else if (this%b(i) > 0.) then
+                else if (b > 0.) then
 
                     ! Mach wedge
                     if (geom%R1(i) == 0. .and. geom%R2(i) == 0) then
-                        int%F111(i) = pi/this%sqrt_b(i)
+                        int%F111(i) = pi/s_b
                     else
-                        int%F111(i) = -atan2(this%sqrt_b(i)*F1, F2) / this%sqrt_b(i)
+                        int%F111(i) = -atan2(s_b*F1, F2) / s_b
                     end if
 
                 ! Subsonic edge
                 else
-                    F1 = this%sqrt_b(i)*geom%R1(i) + abs(geom%l1(i))
-                    F2 = this%sqrt_b(i)*geom%R2(i) + abs(geom%l2(i))
+                    F1 = s_b*geom%R1(i) + abs(geom%l1(i))
+                    F2 = s_b*geom%R2(i) + abs(geom%l2(i))
                     int%F111(i) = -sign(1., v_eta(i))*log(F1/F2)
                 end if
 
@@ -1422,7 +1548,7 @@ contains
         logical,intent(in) :: mirror_panel
         type(integrals),intent(inout) :: int
 
-        real :: F1, F2
+        real :: F1, F2, b, s_b
         integer :: i, i_next
         real,dimension(:),allocatable :: v_xi
 
@@ -1442,21 +1568,28 @@ contains
             ! Check DoD
             if (dod_info%edges_in_dod(i)) then
 
+                ! Get b
+                if (mirror_panel) then
+                    b = this%b_mir(i)
+                else
+                    b = this%b(i)
+                end if
+
                 ! Check not on panel plane
                 if (abs(geom%h) > 1.e-12) then
 
                     ! Calculate F factors
-                    if (this%b(i) > 0.) then
+                    if (b > 0.) then
                         F1 = (geom%l1(i)*geom%R2(i) - geom%l2(i)*geom%R1(i)) / geom%g2(i)
-                        F2 = (this%b(i)*geom%R1(i)*geom%R2(i) + geom%l1(i)*geom%l2(i)) / geom%g2(i)
+                        F2 = (b*geom%R1(i)*geom%R2(i) + geom%l1(i)*geom%l2(i)) / geom%g2(i)
                     else
                         F1 = (geom%R2(i) - geom%R1(i))*(geom%R2(i) + geom%R1(i)) / (geom%l1(i)*geom%R2(i) + geom%l2(i)*geom%R1(i))
                         F2 = (geom%g2(i) - geom%l1(i)**2 - geom%l2(i)**2) &
-                             / (this%b(i)*geom%R1(i)*geom%R2(i) - geom%l1(i)*geom%l2(i))
+                             / (b*geom%R1(i)*geom%R2(i) - geom%l1(i)*geom%l2(i))
                     end if
 
                     ! Supersonic edge
-                    if (this%b(i) > 0.) then
+                    if (b > 0.) then
 
                         ! Mach wedge
                         if (geom%R1(i) == 0. .and. geom%R2(i) == 0.) then
@@ -1596,8 +1729,13 @@ contains
 
                     ! Equivalent to Ehlers Eq. (5.17))
                     phi_d(1) = int%hH113
-                    phi_d(2) = int%hH113*geom%P_ls(1) - geom%h*sum(this%n_hat_ls(1,:)*int%F111)
-                    phi_d(3) = int%hH113*geom%P_ls(2) + geom%h*sum(this%n_hat_ls(2,:)*int%F111)
+                    if (mirror_panel) then
+                        phi_d(2) = int%hH113*geom%P_ls(1) - geom%h*sum(this%n_hat_ls_mir(1,:)*int%F111)
+                        phi_d(3) = int%hH113*geom%P_ls(2) + geom%h*sum(this%n_hat_ls_mir(2,:)*int%F111)
+                    else
+                        phi_d(2) = int%hH113*geom%P_ls(1) - geom%h*sum(this%n_hat_ls(1,:)*int%F111)
+                        phi_d(3) = int%hH113*geom%P_ls(2) + geom%h*sum(this%n_hat_ls(2,:)*int%F111)
+                    end if
                 else
 
                     ! Johnson Eq. (D.30)
@@ -1607,7 +1745,11 @@ contains
                 end if
 
                 ! Convert to vertex influences (Davis Eq. (4.41))
-                phi_d(1:3) = freestream%K_inv*matmul(phi_d(1:3), this%S_mu_inv)
+                if (mirror_panel) then
+                    phi_d(1:3) = freestream%K_inv*matmul(phi_d(1:3), this%S_mu_inv_mir)
+                else
+                    phi_d(1:3) = freestream%K_inv*matmul(phi_d(1:3), this%S_mu_inv)
+                end if
 
                 ! Wake bottom influence is opposite the top influence
                 if (this%in_wake) then

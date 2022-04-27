@@ -1,6 +1,6 @@
 {
     "flow": {
-        "freestream_velocity" : [ -100.0, 0.0, 10.0 ]
+        "freestream_velocity" : [ -100.0, 0.0, 0.0 ]
     },
     "geometry": {
         "file": "dev/meshes/right_cone.vtk",
@@ -11,7 +11,7 @@
     },
     "solver": {
         "formulation": "morino",
-        "control_point_offset": 1.1e-05
+        "control_point_offset": 1.1e-02
     },
     "post_processing" : {
     },

@@ -1,11 +1,11 @@
 {
     "flow": {
-        "freestream_velocity": [100.0, 0.0, 0.0],
+        "freestream_velocity": [100.0, 0.0, 10.0],
         "gamma" : 1.4,
         "freestream_mach_number" : 2.0
     },
     "geometry": {
-        "file": "dev/meshes/diamond_5_deg_coarse.vtk",
+        "file": "dev/meshes/diamond_5_deg_fine.vtk",
         "mirror_about": "xz",
         "spanwise_axis" : "+y",
         "wake_model": {
@@ -17,17 +17,12 @@
     },
     "solver": {
         "formulation": "morino",
-        "control_point_offset": 1.1e-05,
-        "influence_calculations" : "johnson"
+        "control_point_offset": 1.1e-05
     },
-    "post_processing" : {
-        "pressure_rules" : {
-            "second-order" : true,
-            "isentropic" : true
-        }
-    },
+    "post_processing" : {},
     "output": {
-        "body_file" : "dev/results/diamond_5_deg_coarse.vtk",
-        "control_point_file" : "dev/results/diamond_5_deg_coarse_control_points.vtk"
+        "body_file" : "dev/results/diamond_5_deg_fine_right.vtk",
+        "mirrored_body_file" : "dev/results/diamond_5_deg_fine_left.vtk",
+        "control_point_file" : "dev/results/diamond_5_deg_fine_right_control_points.vtk"
     }
 }
