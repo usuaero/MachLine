@@ -1,6 +1,6 @@
 {
     "flow": {
-        "freestream_velocity": [100.0, 0.0, 0.0],
+        "freestream_velocity": [100.0, 0.0, 10.0],
         "gamma" : 1.4,
         "freestream_mach_number" : 2.0
     },
@@ -11,7 +11,7 @@
             "append_wake" : false
         },
         "reference": {
-            "area": 4.0
+            "area": 1.0
         }
     },
     "solver": {
