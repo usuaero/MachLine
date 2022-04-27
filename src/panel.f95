@@ -459,6 +459,7 @@ contains
         allocate(this%t_hat_ls(2,this%N))
         allocate(this%n_hat_ls(2,this%N))
         allocate(this%b(this%N))
+        allocate(this%b_mir(this%N)) ! This needs to be initialized here because of some DoD checks. It will have no effect.
         allocate(this%sqrt_b(this%N))
 
         ! Loop through edges
@@ -628,7 +629,7 @@ contains
         allocate(this%t_hat_g_mir(3,this%N))
         allocate(this%n_hat_g_mir(3,this%N))
         do i=1,this%N
-            this%t_hat_g_mir(:,i) = -mirror_about_plane(this%t_hat_g(:,i), mirror_plane)
+            this%t_hat_g_mir(:,i) = mirror_about_plane(this%t_hat_g(:,i), mirror_plane)
             this%n_hat_g_mir(:,i) = mirror_about_plane(this%n_hat_g(:,i), mirror_plane)
         end do
 
@@ -738,7 +739,6 @@ contains
         ! Allocate memory
         allocate(this%t_hat_ls_mir(2,this%N))
         allocate(this%n_hat_ls_mir(2,this%N))
-        allocate(this%b_mir(this%N))
         allocate(this%sqrt_b_mir(this%N))
 
         ! Loop through edges
@@ -748,7 +748,7 @@ contains
 
             ! Calculate tangent in local scaled coords 
             d_ls = this%vertices_ls_mir(:,i_next) - this%vertices_ls_mir(:,i)
-            this%t_hat_ls_mir(:,i) = d_ls/norm2(d_ls) ! Flip direction since the panel is mirrored, but we want it to still face outward
+            this%t_hat_ls_mir(:,i) = d_ls/norm2(d_ls)
 
         end do
 
@@ -1251,22 +1251,11 @@ contains
 
                 ! Hyperbolic radius to first vertex
                 x = d_ls(1)*d_ls(1) - d_ls(2)*d_ls(2) - geom%h2
-                write(*,*)
-                write(*,*) x
-                write(*,*) freestream%C_g_inner(this%get_vertex_loc(i)-eval_point, this%get_vertex_loc(i)-eval_point)
                 if (x > 0. .and. d_ls(1) < 0.) then
                     geom%R1(i) = sqrt(x)
-                    if (.not. dod_info%verts_in_dod(i)) then
-                        write(*,*) "Error in DOD computation"
-                        stop
-                    end if
                 else
                     geom%l1(i) = -sqrt(abs(geom%g2(i)))
                     geom%R1(i) = 0.
-                    if (dod_info%verts_in_dod(i)) then
-                        write(*,*) "Error in DOD computation"
-                        stop
-                    end if
                 end if
 
                 ! Get index of end vertex
@@ -1286,17 +1275,9 @@ contains
                 x = d_ls(1)*d_ls(1) - d_ls(2)*d_ls(2) - geom%h2
                 if (x > 0. .and. d_ls(1) < 0.) then
                     geom%R2(i) = sqrt(x)
-                    if (.not. dod_info%verts_in_dod(i_next)) then
-                        write(*,*) "Error in DOD computation"
-                        stop
-                    end if
                 else
                     geom%l2(i) = sqrt(abs(geom%g2(i)))
                     geom%R2(i) = 0.
-                    if (dod_info%verts_in_dod(i_next)) then
-                        write(*,*) "Error in DOD computation"
-                        stop
-                    end if
                 end if
 
             end if
@@ -1616,12 +1597,6 @@ contains
                         F1 = (geom%R2(i) - geom%R1(i))*(geom%R2(i) + geom%R1(i)) / (geom%l1(i)*geom%R2(i) + geom%l2(i)*geom%R1(i))
                         F2 = (geom%g2(i) - geom%l1(i)**2 - geom%l2(i)**2) &
                              / (b*geom%R1(i)*geom%R2(i) - geom%l1(i)*geom%l2(i))
-                        write(*,*) F1
-                        write(*,*) geom%R1(i)
-                        write(*,*) geom%R2(i)
-                        write(*,*) mirror_panel
-                        write(*,*) dod_info%verts_in_dod(i)
-                        write(*,*) dod_info%verts_in_dod(mod(i, this%N)+1)
                     end if
 
                     ! Supersonic edge

@@ -551,7 +551,6 @@ contains
 
                 ! Existing panel on existing control point
                 if (this%dod_info(j,i)%in_dod) then
-                    write(*,*) "Existing on existing"
                     
                     ! Calculate influence
                     call body%panels(j)%calc_potentials(body%cp(:,i), this%freestream, this%dod_info(j,i), .false., &
@@ -574,7 +573,6 @@ contains
                             ! If the flow is symmetric or incompressible, this will be the same as already calculated
                             if (this%dod_info(j+body%N_panels,i+body%N_cp)%in_dod) then
                                 if (.not. this%freestream%incompressible) then
-                                    write(*,*) "Mirrored on mirrored"
                                     call body%panels(j)%calc_potentials(body%cp_mirrored(:,i), this%freestream, &
                                                                         this%dod_info(j+body%N_panels,i+body%N_cp), .true., &
                                                                         source_inf, doublet_inf, i_vert_s, i_vert_d)
@@ -592,7 +590,6 @@ contains
                         ! Calculate influence of existing panel on mirrored control point
                         if (this%dod_info(j,i+body%N_cp)%in_dod) then
                             if (body%vertices(i)%mirrored_is_unique .or. this%freestream%incompressible) then
-                                write(*,*) "Existing on mirrored"
                                 call body%panels(j)%calc_potentials(body%cp_mirrored(:,i), this%freestream, &
                                                                     this%dod_info(j,i+body%N_cp), .false., &
                                                                     source_inf, doublet_inf, i_vert_s, i_vert_d)
@@ -608,7 +605,6 @@ contains
                         ! Recalculate mirrored->existing influences for compressible flow
                         if (this%dod_info(j+body%N_panels,i)%in_dod) then
                             if (.not. this%freestream%incompressible) then
-                                write(*,*) "Mirrored on existing"
                                 call body%panels(j)%calc_potentials(body%cp(:,i), this%freestream, &
                                                                     this%dod_info(j+body%N_panels,i), .true., source_inf, &
                                                                     doublet_inf, i_vert_s, i_vert_d)
