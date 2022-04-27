@@ -130,7 +130,7 @@ function outer(a, b) result(c)
   c = 0.
 
   do i=1,3
-    c(i,:) = a(i)*b(:)
+    c(:,i) = a(:)*b(i)
   end do
 
 end function

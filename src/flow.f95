@@ -181,7 +181,7 @@ contains
         this%A_g_to_c(1,:) = this%c_hat_g
         this%A_g_to_c(3,:) = cross(this%c_hat_g, j_g)
         this%A_g_to_c(3,:) = this%A_g_to_c(3,:)/norm2(this%A_g_to_c(3,:))
-        this%A_g_to_c(2,:) = cross(this%A_g_to_c(:,3), this%c_hat_g)
+        this%A_g_to_c(2,:) = cross(this%A_g_to_c(3,:), this%c_hat_g)
 
         ! Calculate transform from compressible to scaled coordinates
         this%A_c_to_s = 0.
@@ -195,6 +195,10 @@ contains
             write(*,*) "Transformation to the compressible coordinate system failed. Quitting..."
             stop
         end if
+
+        write(*,*) matmul(this%A_g_to_c, matmul(this%C_mat_g, transpose(this%A_g_to_c)))
+
+        write(*,*) matmul(this%A_g_to_c, matmul(this%B_mat_g, transpose(this%A_g_to_c)))
 
         ! Calculate transform from global to scaled coordinates
         this%A_g_to_s = matmul(this%A_c_to_s, this%A_g_to_c)

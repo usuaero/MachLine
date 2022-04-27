@@ -1,11 +1,11 @@
 {
     "flow": {
-        "freestream_velocity": [100.0, 0.0, 10.0],
+        "freestream_velocity": [100.0, 10.0, 10.0],
         "gamma" : 1.4,
         "freestream_mach_number" : 2.0
     },
     "geometry": {
-        "file": "dev/meshes/diamond_5_deg_fine.vtk",
+        "file": "dev/meshes/diamond_5_deg_coarse.vtk",
         "mirror_about": "xz",
         "spanwise_axis" : "+y",
         "wake_model": {
@@ -26,8 +26,8 @@
         }
     },
     "output": {
-        "body_file" : "dev/results/diamond_5_deg_fine_right.vtk",
-        "mirrored_body_file" : "dev/results/diamond_5_deg_fine_left.vtk",
-        "control_point_file" : "dev/results/diamond_5_deg_fine_right_control_points.vtk"
+        "body_file" : "dev/results/diamond_5_deg_coarse_right.vtk",
+        "mirrored_body_file" : "dev/results/diamond_5_deg_coarse_left.vtk",
+        "control_point_file" : "dev/results/diamond_5_deg_coarse_right_control_points.vtk"
     }
 }

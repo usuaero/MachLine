@@ -1006,7 +1006,7 @@ contains
                     else
 
                         ! For a subsonic or sonic edge, both being out means the edge is out
-                        if (this%b(i) <= 0.) then
+                        if ((.not. mirrored .and. this%b(i) <= 0.) .or. (mirrored .and. this%b_mir(i) <= 0.)) then
                             dod_info%edges_in_dod(i) = .false.
 
                         ! For a supersonic edge, the edge can still intersect the DoD, so calculate the point of closest approach
@@ -1051,7 +1051,12 @@ contains
                 else if (this%r == -1) then
 
                     ! Get the projection of the evaluation point onto the panel in the direction of c_hat
-                    s_star = inner(this%get_vertex_loc(1)-eval_point, this%n_g)/inner(freestream%c_hat_g, this%n_g)
+                    if (mirrored) then
+                        s_star = inner(mirror_about_plane(this%get_vertex_loc(1), mirror_plane) - eval_point, this%n_g) &
+                                 / inner(freestream%c_hat_g, this%n_g)
+                    else
+                        s_star = inner(this%get_vertex_loc(1)-eval_point, this%n_g)/inner(freestream%c_hat_g, this%n_g)
+                    end if
                     R_star = eval_point + freestream%c_hat_g*s_star
 
                     ! See if the projected point is in the panel
@@ -1059,7 +1064,11 @@ contains
                     do i=1,this%N
 
                         ! Get edge displacement
-                        x = inner(R_star, this%n_hat_g(:,i))
+                        if (mirrored) then
+                            x = inner(R_star, this%n_hat_g_mir(:,i))
+                        else
+                            x = inner(R_star, this%n_hat_g(:,i))
+                        end if
 
                         ! Check sign (should be negative if interior to the panel)
                         if (x >= 0.) then
@@ -1242,9 +1251,17 @@ contains
                 x = d_ls(1)*d_ls(1) - d_ls(2)*d_ls(2) - geom%h2
                 if (x > 0. .and. d_ls(1) < 0.) then
                     geom%R1(i) = sqrt(x)
+                    if (.not. dod_info%verts_in_dod(i)) then
+                        write(*,*) "Error in DOD computation"
+                        stop
+                    end if
                 else
                     geom%l1(i) = -sqrt(abs(geom%g2(i)))
                     geom%R1(i) = 0.
+                    if (dod_info%verts_in_dod(i)) then
+                        write(*,*) "Error in DOD computation"
+                        stop
+                    end if
                 end if
 
                 ! Get index of end vertex
@@ -1264,9 +1281,17 @@ contains
                 x = d_ls(1)*d_ls(1) - d_ls(2)*d_ls(2) - geom%h2
                 if (x > 0. .and. d_ls(1) < 0.) then
                     geom%R2(i) = sqrt(x)
+                    if (.not. dod_info%verts_in_dod(i_next)) then
+                        write(*,*) "Error in DOD computation"
+                        stop
+                    end if
                 else
                     geom%l2(i) = sqrt(abs(geom%g2(i)))
                     geom%R2(i) = 0.
+                    if (dod_info%verts_in_dod(i_next)) then
+                        write(*,*) "Error in DOD computation"
+                        stop
+                    end if
                 end if
 
             end if
@@ -1586,6 +1611,12 @@ contains
                         F1 = (geom%R2(i) - geom%R1(i))*(geom%R2(i) + geom%R1(i)) / (geom%l1(i)*geom%R2(i) + geom%l2(i)*geom%R1(i))
                         F2 = (geom%g2(i) - geom%l1(i)**2 - geom%l2(i)**2) &
                              / (b*geom%R1(i)*geom%R2(i) - geom%l1(i)*geom%l2(i))
+                        write(*,*) F1
+                        write(*,*) geom%R1(i)
+                        write(*,*) geom%R2(i)
+                        write(*,*) mirror_panel
+                        write(*,*) dod_info%verts_in_dod(i)
+                        write(*,*) dod_info%verts_in_dod(mod(i, this%N)+1)
                     end if
 
                     ! Supersonic edge
