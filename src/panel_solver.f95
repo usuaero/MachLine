@@ -71,6 +71,11 @@ contains
         call json_xtnsn_get(solver_settings, 'chunk_size', this%chunk_size, 50)
         call json_xtnsn_get(solver_settings, 'tolerance', this%tol, 1e-8)
         call json_xtnsn_get(solver_settings, 'relaxation', this%rel, 0.1)
+        if (this%formulation == 'source-free' .and. freestream%supersonic) then
+            write(*,*) "!!! The source-free formulation cannot currently be used in supersonic flows."
+            write(*,*) "!!! Switching to the Morino formulation."
+            this%formulation = 'morino'
+        end if
         this%morino = this%formulation == 'morino'
 
         ! Get pressure rules
