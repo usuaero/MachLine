@@ -66,8 +66,8 @@ module panel_mod
         real,dimension(3,3) :: A_g_to_ls_mir, A_ls_to_g_mir
         real,dimension(:,:),allocatable :: vertices_ls, midpoints_ls ! Location of the vertices and edge midpoints described in local scaled coords
         real,dimension(:,:),allocatable :: vertices_ls_mir, midpoints_ls_mir
-        real,dimension(:,:),allocatable :: t_hat_g, t_hat_ls ! Edge unit tangents
-        real,dimension(:,:),allocatable :: t_hat_g_mir, t_hat_ls_mir
+        real,dimension(:,:),allocatable :: t_hat_ls ! Edge unit tangents
+        real,dimension(:,:),allocatable :: t_hat_ls_mir
         real,dimension(:,:),allocatable :: n_hat_g, n_hat_ls ! Edge unit outward normals
         real,dimension(:,:),allocatable :: n_hat_g_mir, n_hat_ls_mir
         real,dimension(:),allocatable :: b, sqrt_b ! Edge parameter
@@ -449,12 +449,11 @@ contains
         class(panel),intent(inout) :: this
         type(flow),intent(in) :: freestream
 
-        real,dimension(3) :: d_g
+        real,dimension(3) :: d_g, t_hat_g
         real,dimension(2) :: d_ls
         integer :: i, i_next
 
         ! Allocate memory
-        allocate(this%t_hat_g(3,this%N))
         allocate(this%n_hat_g(3,this%N))
         allocate(this%t_hat_ls(2,this%N))
         allocate(this%n_hat_ls(2,this%N))
@@ -471,14 +470,14 @@ contains
             d_g = this%get_vertex_loc(i_next)-this%get_vertex_loc(i)
 
             ! Calculate tangent in global coords
-            this%t_hat_g(:,i) = d_g/norm2(d_g)
+            t_hat_g = d_g/norm2(d_g)
 
             ! Calculate tangent in local scaled coords 
             d_ls = this%vertices_ls(:,i_next) - this%vertices_ls(:,i)
             this%t_hat_ls(:,i) = d_ls/norm2(d_ls)
 
             ! Calculate edge outward normal
-            this%n_hat_g(:,i) = cross(this%t_hat_g(:,i), this%n_g)
+            this%n_hat_g(:,i) = cross(t_hat_g, this%n_g)
 
         end do
 
@@ -626,10 +625,8 @@ contains
 
         ! Calculate mirrored edge vectors
         ! Global
-        allocate(this%t_hat_g_mir(3,this%N))
         allocate(this%n_hat_g_mir(3,this%N))
         do i=1,this%N
-            this%t_hat_g_mir(:,i) = mirror_about_plane(this%t_hat_g(:,i), mirror_plane)
             this%n_hat_g_mir(:,i) = mirror_about_plane(this%n_hat_g(:,i), mirror_plane)
         end do
 
