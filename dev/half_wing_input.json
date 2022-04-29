@@ -1,13 +1,16 @@
 {
     "flow": {
-        "freestream_velocity" : [ 100.0, 40.0, 10.0 ],
-        "freestream_mach_number" : 0.4
+        "freestream_velocity" : [ 100.0, 0.0, 0.0 ],
+        "freestream_mach_number" : 0.7
     },
     "geometry": {
         "file": "dev/meshes/half_wing_right.vtk",
         "mirror_about": "xz",
         "reference": {
             "area": 1.0
+        },
+        "wake_model" : {
+            "wake_present" : true
         }
     },
     "solver": {
@@ -15,6 +18,10 @@
         "control_point_offset": 1.1e-05
     },
     "post_processing" : {
+        "pressure_rules" : {
+            "second-order" : true,
+            "isentropic" : true
+        }
     },
     "output": {
         "body_file" : "dev/results/half_wing_right.vtk",

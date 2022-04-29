@@ -71,11 +71,6 @@ contains
         call json_xtnsn_get(solver_settings, 'chunk_size', this%chunk_size, 50)
         call json_xtnsn_get(solver_settings, 'tolerance', this%tol, 1e-8)
         call json_xtnsn_get(solver_settings, 'relaxation', this%rel, 0.1)
-        if (this%formulation == 'source-free' .and. freestream%supersonic) then
-            write(*,*) "!!! The source-free formulation cannot currently be used in supersonic flows."
-            write(*,*) "!!! Switching to the Morino formulation."
-            this%formulation = 'morino'
-        end if
         this%morino = this%formulation == 'morino'
 
         ! Get pressure rules
@@ -669,11 +664,12 @@ contains
 
             ! Set target potential for source-free formulation
             else
-                this%b(i) = -inner(body%cp(:,i), this%freestream%c_hat_g)
+                this%b(i) = -inner(this%freestream%c_hat_g, matmul(this%freestream%B_mat_g_inv, body%cp(:,i)))
 
                 ! Set for unique mirrored control  points
                 if (body%asym_flow .and. body%vertices(i)%mirrored_is_unique) then
-                    this%b(i+body%N_cp) = -inner(body%cp_mirrored(:,i), this%freestream%c_hat_g)
+                    this%b(i+body%N_cp) = -inner(this%freestream%c_hat_g, &
+                                                 matmul(this%freestream%B_mat_g_inv, body%cp_mirrored(:,i)))
                 end if
             end if
             !$OMP end critical
@@ -880,6 +876,7 @@ contains
         type(surface_mesh),intent(inout) :: body
 
         integer :: i, stat
+        real,dimension(3) :: x
 
         write(*,'(a)',advance='no') "     Calculating surface velocities..."
 
@@ -892,6 +889,10 @@ contains
         allocate(body%V(3,this%N_cells), stat=stat)
         call check_allocation(stat, "surface velocity vectors")
 
+        if (this%formulation == 'source-free') then
+            x = this%freestream%c_hat_g - matmul(transpose(this%freestream%B_mat_g_inv), this%freestream%c_hat_g)
+        end if
+
         ! Calculate the surface velocity on each existing panel
         !$OMP parallel do
         do i=1,body%N_panels
@@ -903,7 +904,8 @@ contains
             
             ! For the source-free formulation, the velocity jump is that of the total velocity
             else
-                body%V(:,i) = this%freestream%U*body%panels(i)%get_velocity_jump(body%mu, body%sigma, .false., body%mirror_plane)
+                body%V(:,i) = this%freestream%U*(x + &
+                                                 body%panels(i)%get_velocity_jump(body%mu, body%sigma, .false., body%mirror_plane))
 
             end if
 
@@ -916,8 +918,9 @@ contains
                                                 body%panels(i)%get_velocity_jump(body%mu, body%sigma, .true., body%mirror_plane))
                 
                 else
-                    body%V(:,i+body%N_panels) = this%freestream%U*body%panels(i)%get_velocity_jump(body%mu, body%sigma, &
-                                                                                              .true., body%mirror_plane)
+                    body%V(:,i+body%N_panels) = this%freestream%U*(x + &
+                                                                   body%panels(i)%get_velocity_jump(body%mu, body%sigma, &
+                                                                                              .true., body%mirror_plane))
 
                 end if
 

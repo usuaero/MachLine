@@ -1,9 +1,9 @@
 {
     "flow": {
         "freestream_velocity": [
-            691.8049963175389,
+            694.4475790151479,
             0.0,
-            60.52509454837825
+            0.0
         ],
         "gamma": 1.4,
         "freestream_mach_number": 2.0
@@ -19,7 +19,7 @@
         }
     },
     "solver": {
-        "formulation": "morino",
+        "formulation": "source-free",
         "control_point_offset": 1.1e-05
     },
     "post_processing": {

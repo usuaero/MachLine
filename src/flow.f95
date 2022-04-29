@@ -3,6 +3,7 @@ module flow_mod
     use json_mod
     use json_xtnsn_mod
     use math_mod
+    use linalg_mod
 
     implicit none
     
@@ -19,7 +20,7 @@ module flow_mod
         real :: K, K_inv ! Kappa factor
         real,dimension(3) :: c_hat_g ! Compressibility axis (assumed in TriPan to be aligned with the freestream direction)
         logical,dimension(3) :: sym_about ! Whether the flow condition is symmetric about any plane
-        real,dimension(3,3) :: B_mat_g, B_mat_c ! Dual metric matrix
+        real,dimension(3,3) :: B_mat_g, B_mat_c, B_mat_g_inv ! Dual metric matrix
         real,dimension(3,3) :: C_mat_g, C_mat_c ! Metric matrix
         logical :: supersonic, incompressible
         real,dimension(3,3) :: A_g_to_c, A_c_to_s, A_g_to_s ! Coordinate transformation matrices
@@ -117,6 +118,9 @@ contains
             this%B_mat_g(i,i) = 1.
         end do
         this%B_mat_g = this%B_mat_g-this%M_inf**2*outer(this%c_hat_g, this%c_hat_g)
+
+        ! Invert (used for source-free formulation)
+        call matinv(3, this%B_mat_g, this%B_mat_g_inv)
 
         ! Compressible (E&M Eq. (E.3.8))
         this%B_mat_c = 0.
