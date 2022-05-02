@@ -106,8 +106,6 @@ contains
             stop
         end if
 
-        write(*,*) "    The ", this%pressure_for_forces, " pressure rule will be used for force calculation."
-
         ! Store
         this%freestream = freestream
 
@@ -876,7 +874,7 @@ contains
         type(surface_mesh),intent(inout) :: body
 
         integer :: i, stat
-        real,dimension(3) :: x
+        real,dimension(3) :: x, v_jump
 
         write(*,'(a)',advance='no') "     Calculating surface velocities..."
 
@@ -889,40 +887,31 @@ contains
         allocate(body%V(3,this%N_cells), stat=stat)
         call check_allocation(stat, "surface velocity vectors")
 
+        ! Calculate influence of the freestream and inner potentials
         if (this%formulation == 'source-free') then
             x = this%freestream%c_hat_g - matmul(transpose(this%freestream%B_mat_g_inv), this%freestream%c_hat_g)
+        else
+            x = this%freestream%c_hat_g ! Inner perturbation potential is zero
         end if
 
         ! Calculate the surface velocity on each existing panel
-        !$OMP parallel do
+        !$OMP parallel do private(v_jump)
         do i=1,body%N_panels
 
-            ! For the Morino formulation, the velocity jump is that of the perturbation velocity
-            if (this%formulation == "morino") then
-                body%V(:,i) = this%freestream%U*(this%freestream%c_hat_g + body%panels(i)%get_velocity_jump(body%mu, &
-                              body%sigma, .false., body%mirror_plane))
-            
-            ! For the source-free formulation, the velocity jump is that of the total velocity
-            else
-                body%V(:,i) = this%freestream%U*(x + &
-                                                 body%panels(i)%get_velocity_jump(body%mu, body%sigma, .false., body%mirror_plane))
+            ! Get velocity jump
+            v_jump = body%panels(i)%get_velocity_jump(body%mu, body%sigma, .false., 0)
 
-            end if
-
+            ! Calculate velocity
+            body%V(:,i) = this%freestream%U*(x + v_jump)
 
             ! Calculate surface velocity on each mirrored panel
             if (body%asym_flow) then
 
-                if (this%formulation == "morino") then
-                    body%V(:,i+body%N_panels) = this%freestream%U*(this%freestream%c_hat_g + &
-                                                body%panels(i)%get_velocity_jump(body%mu, body%sigma, .true., body%mirror_plane))
-                
-                else
-                    body%V(:,i+body%N_panels) = this%freestream%U*(x + &
-                                                                   body%panels(i)%get_velocity_jump(body%mu, body%sigma, &
-                                                                                              .true., body%mirror_plane))
+                ! Get velocity jump
+                v_jump = body%panels(i)%get_velocity_jump(body%mu, body%sigma, .true., body%mirror_plane)
 
-                end if
+                ! Calculate velocity
+                body%V(:,i+body%N_panels) = this%freestream%U*(x + v_jump)
 
             end if
         end do
@@ -1054,7 +1043,7 @@ contains
         integer :: i, stat
         real,dimension(3) :: n_mirrored
 
-        write(*,'(a)',advance='no') "     Calculating forces..."
+        write(*,'(a, a, a)',advance='no') "     Calculating forces using the ", this%pressure_for_forces, " rule..."
 
         ! Allocate force storage
         allocate(body%dC_f(3,this%N_cells), stat=stat)
