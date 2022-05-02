@@ -1901,6 +1901,8 @@ contains
             dv = mirror_about_plane(dv, mirror_plane)
         end if
 
+        ! How this mirroring is done seems wrong to me. It needs to be verified.
+
     end function panel_get_velocity_jump
 
     

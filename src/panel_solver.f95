@@ -510,6 +510,7 @@ contains
         real,dimension(:),allocatable :: source_inf, doublet_inf, A_i, A_i_mir
         real :: phi_cp_s, phi_cp_s_mir
         integer,dimension(:),allocatable :: i_vert_s, i_vert_d
+        real,dimension(3) :: x
 
         ! Allocate space for inner potential calculations
         allocate(body%phi_cp_sigma(this%N), source=0., stat=stat)
@@ -532,7 +533,7 @@ contains
         write(*,'(a)',advance='no') "     Calculating body influences..."
 
         ! Calculate source and doublet influences from body on each control point
-        !$OMP parallel do private(j, source_inf, doublet_inf, i_vert_s, i_vert_d, k, A_i, A_i_mir, phi_cp_s, phi_cp_s_mir) &
+        !$OMP parallel do private(j, source_inf, doublet_inf, i_vert_s, i_vert_d, k, A_i, A_i_mir, phi_cp_s, phi_cp_s_mir, x) &
         !$OMP schedule(dynamic)
         do i=1,body%N_cp
 
@@ -662,12 +663,12 @@ contains
 
             ! Set target potential for source-free formulation
             else
-                this%b(i) = -inner(this%freestream%c_hat_g, matmul(this%freestream%B_mat_g_inv, body%cp(:,i)))
+                x = matmul(this%freestream%B_mat_g_inv, this%freestream%c_hat_g)
+                this%b(i) = -inner(x, body%cp(:,i))
 
                 ! Set for unique mirrored control  points
                 if (body%asym_flow .and. body%vertices(i)%mirrored_is_unique) then
-                    this%b(i+body%N_cp) = -inner(this%freestream%c_hat_g, &
-                                                 matmul(this%freestream%B_mat_g_inv, body%cp_mirrored(:,i)))
+                    this%b(i+body%N_cp) = -inner(x, body%cp_mirrored(:,i))
                 end if
             end if
             !$OMP end critical
@@ -889,7 +890,9 @@ contains
 
         ! Calculate influence of the freestream and inner potentials
         if (this%formulation == 'source-free') then
-            x = this%freestream%c_hat_g - matmul(transpose(this%freestream%B_mat_g_inv), this%freestream%c_hat_g)
+            x = this%freestream%c_hat_g - matmul(this%freestream%B_mat_g_inv, this%freestream%c_hat_g)
+            write(*,*) this%freestream%B_mat_g_inv
+            write(*,*) x
         else
             x = this%freestream%c_hat_g ! Inner perturbation potential is zero
         end if

@@ -117,7 +117,7 @@ contains
         do i=1,3
             this%B_mat_g(i,i) = 1.
         end do
-        this%B_mat_g = this%B_mat_g-this%M_inf**2*outer(this%c_hat_g, this%c_hat_g)
+        this%B_mat_g = this%B_mat_g - this%M_inf**2*outer(this%c_hat_g, this%c_hat_g)
 
         ! Invert (used for source-free formulation)
         call matinv(3, this%B_mat_g, this%B_mat_g_inv)
@@ -131,9 +131,9 @@ contains
         ! Assemble metric matrix
         ! Global (E&M Eq. (E.3.9))
         do i=1,3
-            this%C_mat_g(i,i) = this%s*this%B**2
+            this%C_mat_g(i,i) = 1.-this%M_inf**2
         end do
-        this%C_mat_g = this%C_mat_g+this%M_inf**2*outer(this%c_hat_g, this%c_hat_g)
+        this%C_mat_g = this%C_mat_g + this%M_inf**2*outer(this%c_hat_g, this%c_hat_g)
 
         ! Compressible (E&M Eq. (E.3.8))
         this%C_mat_c = 0.
