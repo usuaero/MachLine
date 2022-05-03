@@ -19,13 +19,15 @@
         }
     },
     "solver": {
-        "formulation": "morino",
+        "formulation": "source-free",
         "control_point_offset": 1.1e-10
     },
     "post_processing": {
         "pressure_rules": {
             "second-order": true,
-            "isentropic": true
+            "isentropic": true,
+            "slender-body": true,
+            "linear": true
         }
     },
     "output": {

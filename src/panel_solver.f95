@@ -18,7 +18,8 @@ module panel_solver_mod
 
 
         character(len=:),allocatable :: formulation, pressure_for_forces, matrix_solver
-        logical :: incompressible_rule, isentropic_rule, second_order_rule, morino
+        logical :: incompressible_rule, isentropic_rule, second_order_rule, slender_rule, linear_rule
+        logical :: morino
         type(dod),dimension(:,:),allocatable :: dod_info, wake_dod_info
         type(flow) :: freestream
         real :: norm_res, max_res, tol, rel
@@ -82,6 +83,8 @@ contains
             this%isentropic_rule = .false.
         end if
         call json_xtnsn_get(processing_settings, 'pressure_rules.second-order', this%second_order_rule, .false.)
+        call json_xtnsn_get(processing_settings, 'pressure_rules.slender-body', this%slender_rule, .false.)
+        call json_xtnsn_get(processing_settings, 'pressure_rules.linear', this%linear_rule, .false.)
 
         ! Get which pressure rule will be used for force calculation
         if (this%incompressible_rule) then
@@ -891,8 +894,6 @@ contains
         ! Calculate influence of the freestream and inner potentials
         if (this%formulation == 'source-free') then
             x = this%freestream%c_hat_g - matmul(this%freestream%B_mat_g_inv, this%freestream%c_hat_g)
-            write(*,*) this%freestream%B_mat_g_inv
-            write(*,*) x
         else
             x = this%freestream%c_hat_g ! Inner perturbation potential is zero
         end if
@@ -971,10 +972,10 @@ contains
             do i=1,this%N_cells
                 
                 ! Incompressible first
-                body%C_p_ise(i) = 1.-inner(body%V(:,i), body%V(:,i))*this%freestream%U_inv**2
+                body%C_p_ise(i) = 1. - inner(body%V(:,i), body%V(:,i))*this%freestream%U_inv**2
 
                 ! Apply compressible correction
-                body%C_p_ise(i) = a*((1.+b*body%C_p_ise(i))**c - 1.)
+                body%C_p_ise(i) = a*( (1. + b*body%C_p_ise(i))**c - 1.)
 
                 ! Check for NaN and replace with vacuum pressure
                 if (isnan(body%C_p_ise(i))) then
@@ -992,7 +993,7 @@ contains
             allocate(body%C_p_2nd(this%N_cells), stat=stat)
             call check_allocation(stat, "second-order surface pressures")
 
-            ! Calculate (E&M Eq. (N..2.43))
+            ! Calculate (E&M Eq. (N.2.43))
             do i=1,this%N_cells
 
                 ! Get perturbation velocity in the compressible frame
@@ -1005,6 +1006,47 @@ contains
                 body%C_p_2nd(i) = body%C_p_2nd(i) &
                                   - ((1.-this%freestream%M_inf**2)*V_pert(1)**2 + V_pert(2)**2 + V_pert(3)**2) &
                                   *this%freestream%U_inv**2
+            end do
+
+        end if
+        
+        ! Slender-body rule
+        if (this%slender_rule) then
+
+            ! Allocate storage
+            allocate(body%C_p_sln(this%N_cells), stat=stat)
+            call check_allocation(stat, "slender-body surface pressures")
+
+            ! Calculate (E&M Eq. (N.2.43))
+            do i=1,this%N_cells
+
+                ! Get perturbation velocity in the compressible frame
+                V_pert = matmul(this%freestream%A_g_to_c, body%V(:,i)-this%freestream%v_inf)
+
+                ! Calculate first term
+                body%C_p_sln(i) = -2.*V_pert(1)*this%freestream%U_inv
+
+                ! Calculate second term
+                body%C_p_sln(i) = body%C_p_sln(i) - (V_pert(2)**2 + V_pert(3)**2)*this%freestream%U_inv**2
+            end do
+
+        end if
+        
+        ! Linear rule
+        if (this%linear_rule) then
+
+            ! Allocate storage
+            allocate(body%C_p_lin(this%N_cells), stat=stat)
+            call check_allocation(stat, "linear surface pressures")
+
+            ! Calculate (E&M Eq. (N.2.43))
+            do i=1,this%N_cells
+
+                ! Get perturbation velocity in the compressible frame
+                V_pert = matmul(this%freestream%A_g_to_c, body%V(:,i)-this%freestream%v_inf)
+
+                ! Calculate first term
+                body%C_p_lin(i) = -2.*V_pert(1)*this%freestream%U_inv
             end do
 
         end if

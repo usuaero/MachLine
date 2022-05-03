@@ -31,7 +31,7 @@ module surface_mesh_mod
         logical :: wake_present, append_wake
         real,dimension(:,:),allocatable :: cp, cp_mirrored
         real,dimension(:),allocatable :: phi_cp, phi_cp_sigma, phi_cp_mu ! Induced potentials at control points
-        real,dimension(:),allocatable :: C_p_inc, C_p_ise, C_p_2nd ! Surface pressure coefficients
+        real,dimension(:),allocatable :: C_p_inc, C_p_ise, C_p_2nd, C_p_sln, C_p_lin ! Surface pressure coefficients
         real,dimension(:,:),allocatable :: V, dC_f ! Surface velocities and pressure forces
         real :: control_point_offset
         logical :: mirrored ! Whether the mesh is to be mirrored about any planes
@@ -1179,6 +1179,12 @@ contains
             end if
             if (allocated(this%C_p_2nd)) then
                 call body_vtk%write_cell_scalars(this%C_p_2nd(1:this%N_panels), "C_p_2nd")
+            end if
+            if (allocated(this%C_p_lin)) then
+                call body_vtk%write_cell_scalars(this%C_p_lin(1:this%N_panels), "C_p_lin")
+            end if
+            if (allocated(this%C_p_sln)) then
+                call body_vtk%write_cell_scalars(this%C_p_sln(1:this%N_panels), "C_p_sln")
             end if
             call body_vtk%write_cell_scalars(panel_inclinations, "inclination")
             call body_vtk%write_cell_vectors(this%v(:,1:this%N_panels), "v")

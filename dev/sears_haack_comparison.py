@@ -36,13 +36,15 @@ if __name__=="__main__":
             }
         },
         "solver": {
-            "formulation": "morino",
+            "formulation": "source-free",
             "control_point_offset": 1.1e-10
         },
         "post_processing" : {
             "pressure_rules" : {
                 "second-order" : True,
-                "isentropic" : True
+                "isentropic" : True,
+                "slender-body" : True,
+                "linear" : True
             }
         },
         "output" : {
@@ -84,8 +86,10 @@ if __name__=="__main__":
     
     # Plot data from MachLine
     plt.figure()
-    plt.plot(data[:,2], data[:,0], 'ks-', label='MachLine 2nd-order')
-    plt.plot(data[:,2], data[:,1], 'kv-', label='MachLine Isentropic')
+    plt.plot(data[:,4], data[:,0], 'ks', label='2nd')
+    plt.plot(data[:,4], data[:,1], 'kv', label='Ise.')
+    plt.plot(data[:,4], data[:,2], 'ko', label='Slnd.')
+    plt.plot(data[:,4], data[:,3], 'k^', label='Lin.')
 
     # Format
     plt.xlabel('$x$')

@@ -21,7 +21,9 @@
     "post_processing" : {
         "pressure_rules" : {
             "second-order" : true,
-            "isentropic" : true
+            "isentropic" : true,
+            "slender-body" : true,
+            "linear" : true
         }
     },
     "output": {
