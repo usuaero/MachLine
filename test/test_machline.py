@@ -190,3 +190,20 @@ def test_full_half_wing_compare_morino_zero_beta():
     assert(abs(Cx_full-Cx_half)<1e-4)
     assert(abs(Cy_full-Cy_half)<1e-4)
     assert(abs(Cz_full-Cz_half)<1e-4)
+
+
+def test_supersonic_half_wing_morino_zero_aoa_zero_beta():
+
+    C_p_max, C_p_min, Cx, Cy, Cz = run_machline("test/supersonic_half_wing_input.json")
+
+    print(C_p_max)
+    print(C_p_min)
+    print(Cx)
+    print(Cy)
+    print(Cz)
+
+    assert(abs(C_p_max - 0.12170587871737629) < 1e-7)
+    assert(abs(C_p_min - -0.11606239507721998) < 1e-7)
+    assert(abs(Cx - 0.14238137125495076) < 1e-7)
+    assert(abs(Cy) < 1e-12)
+    assert(abs(Cz) < 1e-7)

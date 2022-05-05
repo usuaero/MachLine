@@ -117,6 +117,6 @@ program main
     ! Goodbye
     call cpu_time(end)
     write(*,*)
-    write(*,'(a, f10.4, a)') "MachLine exited successfully. Execution time: ", end-start, " s"
+    write(*,'(a, f10.4, a)') " MachLine exited successfully. Execution time: ", end-start, " s"
 
 end program main
