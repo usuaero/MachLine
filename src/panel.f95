@@ -1244,7 +1244,11 @@ contains
                 geom%a(i) = v_xi(i)*d_ls(1) + v_eta(i)*d_ls(2)
 
                 ! Perpendicular hyperbolic distance
-                geom%g2(i) = geom%a(i)**2 - this%b(i)*geom%h2
+                if (mirror_panel) then
+                    geom%g2(i) = geom%a(i)**2 - this%b_mir(i)*geom%h2
+                else
+                    geom%g2(i) = geom%a(i)**2 - this%b(i)*geom%h2
+                end if
 
                 ! Hyperbolic radius to first vertex
                 x = d_ls(1)*d_ls(1) - d_ls(2)*d_ls(2) - geom%h2
@@ -1313,7 +1317,7 @@ contains
 
         i_next = mod(i, this%N) + 1
 
-        if (mirror_panel) then
+        if (.not. mirror_panel) then
 
             ! Evaluate at start vertex
             E1 = ((this%vertices_ls(1,i)-geom%P_ls(1))**(M-1)*(this%vertices_ls(2,i)-geom%P_ls(2))**(N-1))/geom%R1(i)**K
