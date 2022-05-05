@@ -1088,14 +1088,14 @@ contains
         integer :: i, stat
         real,dimension(3) :: n_mirrored
 
-        write(*,'(a, a, a)',advance='no') "     Calculating forces using the ", this%pressure_for_forces, " rule..."
+        write(*,'(a, a, a)',advance='no') "     Calculating forces using the ", this%pressure_for_forces, " pressure rule..."
 
         ! Allocate force storage
         allocate(body%dC_f(3,this%N_cells), stat=stat)
         call check_allocation(stat, "forces")
 
         ! Calculate total forces
-        !$OMP parallel do private(n_mirrored)
+        !$OMP parallel do private(n_mirrored) schedule(static)
         do i=1,body%N_panels
 
             select case (this%pressure_for_forces)

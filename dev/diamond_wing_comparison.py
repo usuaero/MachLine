@@ -38,9 +38,9 @@ if __name__=="__main__":
             }
         },
         "solver": {
-            #"formulation": "morino",
-            "formulation": "source-free",
-            "control_point_offset": 1.1e-5
+            "formulation": "morino",
+            #"formulation": "source-free",
+            "control_point_offset": 1.1e-8
         },
         "post_processing" : {
             "pressure_rules" : {

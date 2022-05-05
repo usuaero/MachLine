@@ -1864,41 +1864,51 @@ contains
         integer :: i
         real :: s
 
-        ! Set up array of doublet strengths to calculate doublet parameters
+        ! Jump calculations for mirrored panel
         if (mirrored) then
+
+            ! Set up array of doublet strengths to calculate doublet parameters
             do i=1,this%N
                 mu_verts(i) = mu(this%vertex_indices(i)+size(mu)/2)
             end do
+        
+            ! Calculate doublet parameters (derivatives)
+            mu_params = matmul(this%S_mu_inv_mir, mu_verts)
+
+            ! Calculate tangential velocity jump in panel coordinates E&M Eq. (N.1.11b)
+            dv(1) = mu_params(2)
+            dv(2) = mu_params(3)
+            dv(3) = 0.
+
+            ! Transform to global coordinates
+            dv = matmul(transpose(this%A_g_to_ls_mir), dv)
+
+            ! Get source strength
+            s = sigma(this%index+size(sigma)/2)
+
+            ! Add normal velocity jump in global coords E&M Eq. (N.1.11b)
+            dv = dv + s*this%n_g_mir/inner(this%nu_g_mir, this%n_g_mir)
+
+        ! Jump calculations for original panel
+        ! Same steps as above
         else
+
             do i=1,this%N
                 mu_verts(i) = mu(this%vertex_indices(i))
             end do
-        end if
+        
+            mu_params = matmul(this%S_mu_inv, mu_verts)
 
-        ! Calculate doublet parameters (derivatives)
-        mu_params = matmul(this%S_mu_inv, mu_verts)
+            dv(1) = mu_params(2)
+            dv(2) = mu_params(3)
+            dv(3) = 0.
 
-        ! Calculate tangential velocity jump in panel coordinates E&M Eq. (N.1.11b)
-        dv(1) = mu_params(2)
-        dv(2) = mu_params(3)
-        dv(3) = 0.
+            dv = matmul(transpose(this%A_g_to_ls), dv)
 
-        ! Transform to global coordinates
-        dv = matmul(transpose(this%A_g_to_ls), dv)
-
-        ! Get source strength
-        if (mirrored) then
-            s = sigma(this%index+size(sigma)/2)
-        else
             s = sigma(this%index)
-        end if
 
-        ! Add normal velocity jump in global coords E&M Eq. (N.1.11b)
-        dv = dv + s*this%n_g/inner(this%nu_g, this%n_g)
+            dv = dv + s*this%n_g/inner(this%nu_g, this%n_g)
 
-        ! Mirror if necessary
-        if (mirrored) then
-            dv = mirror_about_plane(dv, mirror_plane)
         end if
 
         ! How this mirroring is done seems wrong to me. It needs to be verified.

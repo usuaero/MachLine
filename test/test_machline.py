@@ -70,7 +70,38 @@ def test_half_wing_source_free_asym_flow():
     assert(abs(Cz - 20.621798814136014) < 1e-7)
 
 
-def test_half_wing_zero_aoa_zero_beta():
+def test_half_wing_morino_asym_flow():
+    # Tests the half wing case with the source-free formulation returns the consistent result
+
+    # Load original input
+    with open("test/half_wing_input.json", 'r') as input_handle:
+        input_dict = json.load(input_handle)
+
+    # Alter input
+    input_dict["solver"]["formulation"] = "morino"
+
+    # Write altered input
+    altered_input_file = "test/altered_half_wing_input.json"
+    with open(altered_input_file, 'w') as altered_input_handle:
+        json.dump(input_dict, altered_input_handle, indent=4)
+
+    # Run MachLine
+    C_p_max, C_p_min, Cx, Cy, Cz = run_machline("test/half_wing_input.json")
+
+    print(C_p_max)
+    print(C_p_min)
+    print(Cx)
+    print(Cy)
+    print(Cz)
+
+    assert(abs(C_p_max - 0.7492031475263023) < 1e-7)
+    assert(abs(C_p_min - -1.277682957991789) < 1e-7)
+    assert(abs(Cx - -0.3931615473932072) < 1e-7)
+    assert(abs(Cy - -0.046891722885473566) < 1e-7)
+    assert(abs(Cz - 20.621798814136014) < 1e-7)
+
+
+def test_half_wing_morino_zero_aoa_zero_beta():
     # Tests the half wing case at zero angle of attack with the Morino formulation
 
     # Load original input
