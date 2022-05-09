@@ -1,0 +1,57 @@
+{
+   
+    "geometry": {
+        "semispan locations and AoA": {
+            "20":  ["0.06", "1.08", "2.06"],
+            "44":  ["0.06", "1.08", "2.06"],
+            "65": ["0.06", "1.08", "2.06"],
+            "80": ["0.06", "1.08", "2.06"],
+            "90": ["0.06", "1.08", "2.06"], 
+            "95": ["0.06", "1.08", "2.06"], 
+            "99": ["0.06", "1.08", "2.06"] 
+
+        },
+        "AoA list": ["0.06", "1.08", "2.06"],
+        "semispan_length": 1.1963,
+        "sweep_angle[deg]": 30,
+        "semispan_y_loc": {
+            "20":  0.239, 
+            "44":  0.526,
+            "65": 0.778,
+            "80": 0.957,
+            "90": 1.077,
+            "95": 1.136,
+            "99": 1.184
+            
+        },
+        "datasets": ["FlightStream", "MachLine"]
+                
+    },
+    
+    "flow conditions": {
+        "freestream velocity": 163.0,
+        "mach_numbers": ["0.6977", "0.7003", "0.7001"]
+        
+    },
+
+    "solver": {
+        "formulation": ["morino"],
+        "control_point_offset": 1.1e-05,
+        "options": ["formulation: source-free, morino. NOTE: Iterators can handle one formulation in the list.",
+                    "control_point_offset:"]
+    },
+
+    "plots":{
+        "points to process": ["C_p_inc, sigma, v"],
+        "process_all": true,
+        "save plots": false,
+        "save plot type": "pdf",
+        "combine pdfs": false,
+        "options": ["process_all: processes all plots and shows plots at every semispan location one at a time",
+                    "save plots: true or false",
+                    "save plot type: pdf, or svg",
+                    "combine pdfs: true or false, this will save combined pdfs in the plot summary file as well as in the respective semispan pdf_plots folder"]
+
+    }
+
+}

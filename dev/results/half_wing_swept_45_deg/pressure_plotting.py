@@ -19,6 +19,7 @@ class Swept_Plotting:
        
 
     def Pressure_Plot(self, file_name, Node_Count, Plot_label,LE_xy_loc, Chord_Length):
+
         Data = np.genfromtxt(file_name, delimiter=",", skip_header=1, dtype=float)
 
         C_p_inc = Data[:,0]
@@ -27,34 +28,38 @@ class Swept_Plotting:
         # Ensure the plots are colored consistently
 
         if Node_Count == '10':
-
+            shape = "o"
+            opacity = 0.25
             colors = 'g'
 
         elif Node_Count == '20':
-
+            shape = "x"
+            opacity = 0.5
             colors = 'b'
 
         elif Node_Count == '40':
-
+            shape = "1"
+            opacity = 0.7
             colors = 'c'
 
         elif Node_Count == '80':
-
+            shape = "2"
+            opacity = 1
             colors = 'r'
 
         else:
+            shape = "4"   
+            opacity = 0.1
             colors = 'y'
         
-        plt.plot((x-LE_xy_loc)/Chord_Length,C_p_inc, label=Plot_label, color = colors)
-        # Set size of pdf to be saved
-        # scale_factor = 0.75
-        # fig_width, fig_height = plt.gcf().get_size_inches()
-        # print(fig_width, fig_height)
-        # fig_width = fig_width * scale_factor
-        # fig_height = fig_height * scale_factor
+        # Black and white lines with varying opacity
+        plt.plot((x-LE_xy_loc)/Chord_Length,C_p_inc, label=Plot_label, alpha=opacity, color="k")
         
-
-        plt.gcf().set_size_inches(4, 3, forward=True)
+        # Various colors
+        # plt.plot((x-LE_xy_loc)/Chord_Length,C_p_inc, "o", label=Plot_label, color=colors)
+        
+        # Markers alone without lines for all data
+        # plt.plot((x-LE_xy_loc)/Chord_Length,C_p_inc, label=Plot_label, marker=shape, color="k", linestyle="none")
 
         return
 
@@ -95,6 +100,10 @@ class Swept_Plotting:
                         xmin, xmax = plt.xlim()
                         ymin, ymax = plt.ylim()
                 
+                # Scale plot based on highest node count, and invert the Y-axis
+                plt.xlim(xmin, xmax)
+                plt.ylim(ymin, ymax)
+                plt.gca().invert_yaxis()
 
 
                 #=== Main Plotting Section ===
@@ -107,29 +116,23 @@ class Swept_Plotting:
 
                 #Pull in experimental results for comparison at each angle of attack differentiating upper and lower surfaces
                 upper_surface_count = Experimental[:,0].size//2 + Experimental[:,0].size%2
-                plt.plot(Experimental[:upper_surface_count+1,0], Experimental[:upper_surface_count+1,j+1], ".",color="k", label="Exerimental Upper Surface")
-                plt.plot(Experimental[upper_surface_count:,0], Experimental[upper_surface_count:,j+1], "*",color="k", label="Exerimental Lower Surface")
+                plt.plot(Experimental[:upper_surface_count+1,0], Experimental[:upper_surface_count+1,j+1], ".",color="k", label="Exerimental Upper Surface", fillstyle="full")
+                plt.plot(Experimental[upper_surface_count:,0], Experimental[upper_surface_count:,j+1], "*",color="k", label="Exerimental Lower Surface", fillstyle="full")
 
                 #Plot the figure containing all curves
                 complete_title = title + ", " + AoA_Notes
                 Sub_Note = "*" + formulation + " form."
-                plt.title(complete_title)
+                # plt.title(complete_title)
                 xlabel = 'x/c'
                 plt.xlabel(xlabel)
                 plt.ylabel(r"$C_p$")
 
 
-                # Scale plot based on highest node count, and invert the Y-axis
-                plt.xlim(xmin, xmax)
-                plt.ylim(ymin, ymax)
-                plt.gca().invert_yaxis()
 
-                # Adjust margins and axes to fit axes titles
-                plt.gcf().subplots_adjust(bottom=0.15, left=.18)
                 # Identify location of formulation type on plot
-                plt.figtext(0.625, 0.015, Sub_Note)
+                # plt.figtext(0.625, 0.015, Sub_Note)
 
-                # Split legend into columns if there are too many data types
+                # Split legend into columns
                 plt.legend(ncol = 2, fontsize=6)
                 
                 #Save the figure in appropriate location and with the correct size
@@ -138,7 +141,6 @@ class Swept_Plotting:
                     filename = percent_semispan + "_percent_semispan/plots_" + percent_semispan + "_percent_semispan/" + json_vals["plots"]["save plot type"] + "_plots/" + AoA + "degrees_AoA_plot_" + formulation_adjusted + "_formulation." + json_vals["plots"]["save plot type"]
                     list_of_files.append(filename)
                     plt.savefig(filename)
-                    # TODO: Add statement to include the axes height in the pdf
                 plt.show()
 
             # Combine plots into one pdf for easy review
