@@ -661,11 +661,11 @@ contains
             ! Set target potential for source-free formulation
             else
                 x = matmul(this%freestream%B_mat_g_inv, this%freestream%c_hat_g)
-                this%b(i) = -inner(x, body%cp(:,i))
+                this%b(i) = -this%freestream%s*inner(x, body%cp(:,i))
 
                 ! Set for unique mirrored control  points
                 if (body%asym_flow .and. body%vertices(i)%mirrored_is_unique) then
-                    this%b(i+body%N_cp) = -inner(x, body%cp_mirrored(:,i))
+                    this%b(i+body%N_cp) = -this%freestream%s*inner(x, body%cp_mirrored(:,i))
                 end if
             end if
             !$OMP end critical
@@ -883,6 +883,7 @@ contains
             this%N_cells = body%N_panels
         end if
         allocate(body%V(3,this%N_cells), stat=stat)
+        allocate(body%Phi_u, source=body%mu)
         call check_allocation(stat, "surface velocity vectors")
 
         ! Calculate influence of the freestream and inner potentials
@@ -893,7 +894,7 @@ contains
         end if
 
         ! Calculate the surface velocity on each existing panel
-        !$OMP parallel do private(v_jump)
+        !$OMP parallel do private(v_jump) schedule(static)
         do i=1,body%N_panels
 
             ! Get velocity jump
@@ -911,6 +912,19 @@ contains
                 ! Calculate velocity
                 body%V(:,i+body%N_panels) = this%freestream%U*(x + v_jump)
 
+            end if
+        end do
+
+        ! Calculate total potential on outside of mesh
+        do i=1,body%N_verts
+
+            ! Existing points
+            body%Phi_u(i) = body%Phi_u(i) + inner(x, body%vertices(i)%loc)
+
+            ! Mirrored points
+            if (body%asym_flow) then
+                body%Phi_u(i+body%N_verts) = body%phi_u(i+body%N_verts) + &
+                                             inner(x, mirror_about_plane(body%vertices(i)%loc, body%mirror_plane))
             end if
         end do
         write(*,*) "Done."

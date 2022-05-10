@@ -114,7 +114,7 @@ program main
     call linear_solver%init(solver_settings, processing_settings, body_mesh, freestream_flow, control_point_file)
 
     write(*,*)
-    write(*,*) "Running solver using ", linear_solver%formulation, " formulation"
+    write(*,*) "Running solver using the ", linear_solver%formulation, " boundary-condition formulation"
 
     ! Run solver
     call json_xtnsn_get(output_settings, 'report_file', report_file, 'none')

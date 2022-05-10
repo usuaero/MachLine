@@ -31,6 +31,7 @@ module surface_mesh_mod
         logical :: wake_present, append_wake
         real,dimension(:,:),allocatable :: cp, cp_mirrored
         real,dimension(:),allocatable :: phi_cp, phi_cp_sigma, phi_cp_mu ! Induced potentials at control points
+        real,dimension(:),allocatable :: Phi_u ! Total potential on outer surface
         real,dimension(:),allocatable :: C_p_inc, C_p_ise, C_p_2nd, C_p_sln, C_p_lin ! Surface pressure coefficients
         real,dimension(:,:),allocatable :: V, dC_f ! Surface velocities and pressure forces
         real :: control_point_offset
@@ -1189,7 +1190,8 @@ contains
             call body_vtk%write_cell_scalars(panel_inclinations, "inclination")
             call body_vtk%write_cell_vectors(this%v(:,1:this%N_panels), "v")
             call body_vtk%write_cell_vectors(this%dC_f(:,1:this%N_panels), "dC_f")
-            call body_vtk%write_point_scalars(this%mu(1:this%N_cp), "mu")
+            call body_vtk%write_point_scalars(this%mu(1:this%N_verts), "mu")
+            call body_vtk%write_point_scalars(this%Phi_u(1:this%N_verts), "Phi_u")
             call body_vtk%finish()
 
             write(*,*) "    Surface results written to: ", body_file
@@ -1224,6 +1226,7 @@ contains
             call body_vtk%write_cell_vectors(this%v(:,this%N_panels+1:this%N_panels*2), "v")
             call body_vtk%write_cell_vectors(this%dC_f(:,this%N_panels+1:this%N_panels*2), "dC_f")
             call body_vtk%write_point_scalars(this%mu(this%N_cp+1:this%N_cp*2), "mu")
+            call body_vtk%write_point_scalars(this%Phi_u(this%N_verts+1:this%N_verts*2), "Phi_u")
             call body_vtk%finish()
 
             write(*,*) "    Mirrored surface results written to: ", mirrored_body_file

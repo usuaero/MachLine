@@ -25,6 +25,7 @@
     "post_processing" : {
     },
     "output": {
+        "body_file" : "test/results/half_wing_right.vtk",
         "report_file": "test/results/report.json"
     }
 }

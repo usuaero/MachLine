@@ -57,7 +57,7 @@ def run_machline(input_file, remove_input=False):
         return C_p_max, C_p_min, Cx, Cy, Cz
 
 
-def test_half_wing_source_free_asym_flow():
+def test_half_wing_source_free_asym_inc_flow():
     # Tests the half wing case with the source-free formulation returns the consistent result
 
     C_p_max, C_p_min, Cx, Cy, Cz = run_machline("test/half_wing_input.json")
@@ -75,7 +75,7 @@ def test_half_wing_source_free_asym_flow():
     assert(abs(Cz - 20.621798814136014) < 1e-7)
 
 
-def test_half_wing_morino_asym_flow():
+def test_half_wing_morino_asym_inc_flow():
     # Tests the half wing case with the source-free formulation returns the consistent result
 
     # Load original input
@@ -106,7 +106,7 @@ def test_half_wing_morino_asym_flow():
     assert(abs(Cz - 20.621992046816498) < 1e-7)
 
 
-def test_half_wing_morino_zero_aoa_zero_beta():
+def test_half_wing_morino_zero_aoa_zero_beta_inc():
     # Tests the half wing case at zero angle of attack with the Morino formulation
 
     # Load original input
@@ -138,7 +138,7 @@ def test_half_wing_morino_zero_aoa_zero_beta():
     assert(abs(Cz - -1.6879591014100533e-07) < 1e-7)
 
 
-def test_sphere_morino():
+def test_sphere_morino_inc():
     # Tests the sphere case with the Morino formulation returns the consistent result
 
     C_p_max, C_p_min, Cx, Cy, Cz = run_machline("test/sphere_input.json")
@@ -156,7 +156,7 @@ def test_sphere_morino():
     assert(abs(Cz - 2.0418661341725652e-06) < 1e-7)
 
 
-def test_full_half_wing_compare_morino_zero_beta():
+def test_full_half_wing_compare_morino_zero_beta_inc():
     # Tests the full wing and half wing with the Morino formulation return identical results
 
     # Set full wing input

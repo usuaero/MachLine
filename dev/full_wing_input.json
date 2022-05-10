@@ -5,7 +5,7 @@
             0.0,
             -10.0
         ],
-        "freestream_mach_number" : 0.4
+        "freestream_mach_number" : 0.5
     },
     "geometry": {
         "file": "dev/meshes/full_wing.vtk",
@@ -19,7 +19,7 @@
         }
     },
     "solver": {
-        "formulation": "morino",
+        "formulation": "source-free",
         "control_point_offset": 1.1e-05
     },
     "post_processing" : {
