@@ -44,7 +44,7 @@ module panel_solver_mod
             procedure :: calc_velocities => panel_solver_calc_velocities
             procedure :: calc_pressures => panel_solver_calc_pressures
             procedure :: calc_forces => panel_solver_calc_forces
-            procedure :: write_report => panel_solver_write_report
+            procedure :: update_report => panel_solver_update_report
 
     end type panel_solver
 
@@ -1148,35 +1148,17 @@ contains
     end subroutine panel_solver_calc_forces
 
 
-    subroutine panel_solver_write_report(this, body, report_file, flow_settings, geom_settings, solver_settings, &
-                                         processing_settings, output_settings)
-        ! Writes the report file
+    subroutine panel_solver_update_report(this, p_json, body)
+        ! Updates the report JSON with the information relevant to the solver
 
         implicit none
 
         class(panel_solver),intent(in) :: this
         type(surface_mesh),intent(in) :: body
-        character(len=:),allocatable,intent(in) :: report_file
-        type(json_value),pointer,intent(in) :: flow_settings,&
-                                               geom_settings,&
-                                               solver_settings,&
-                                               processing_settings,&
-                                               output_settings
+        type(json_value),pointer,intent(inout) :: p_json
 
-        type(json_value),pointer :: p_json, p_parent, p_child
+        type(json_value),pointer :: p_parent, p_child
         integer :: i_unit
-
-        ! Initialize JSON object
-        call json_value_create(p_json)
-        call to_object(p_json, report_file)
-
-        ! General info
-        call json_value_create(p_parent)
-        call to_object(p_parent, 'info')
-        call json_value_add(p_json, p_parent)
-        call json_value_add(p_parent, 'generated_by', 'MachLine (c) 2022 USU Aerolab')
-        call json_value_add(p_parent, 'executed', fdate())
-        nullify(p_parent)
 
         ! Write solver results
         call json_value_create(p_parent)
@@ -1236,24 +1218,8 @@ contains
         call json_value_add(p_parent, 'Cz', this%C_F(3))
         nullify(p_parent)
 
-        ! Write input
-        call json_value_create(p_parent)
-        call to_object(p_parent, 'input')
-        call json_value_add(p_json, p_parent)
-        call json_value_add(p_parent, flow_settings) ! Somehow this outputs all of them. Don't ask me...
-        nullify(p_parent)
-
-        ! Write to file
-        open(newunit=i_unit, file=report_file, status='REPLACE')
-        call json_print(p_json, i_unit)
-        close(i_unit)
-
-        ! Destroy pointers
-        call json_destroy(p_json) ! Handles destruction of p_parent
-
-        write(*,*) "    Report written to: ", report_file
    
-    end subroutine panel_solver_write_report
+    end subroutine panel_solver_update_report
 
 
 end module panel_solver_mod

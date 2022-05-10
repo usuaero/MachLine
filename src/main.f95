@@ -14,16 +14,18 @@ program main
     character(len=:),allocatable :: report_file, spanwise_axis
 
     type(json_file) :: input_json
-    type(json_value),pointer :: flow_settings,&
-                                geom_settings,&
-                                solver_settings,&
-                                processing_settings,&
-                                output_settings
+    type(json_value),pointer :: flow_settings, &
+                                geom_settings, &
+                                solver_settings, &
+                                processing_settings, &
+                                output_settings, &
+                                report_json, p_parent
     type(surface_mesh) :: body_mesh
     type(flow) :: freestream_flow
     type(panel_solver) :: linear_solver
     real :: start, end
     logical :: exists
+    integer :: i_unit
 
     ! Initialize developer things
     eval_count = 0
@@ -78,6 +80,16 @@ program main
     call input_json%get('post_processing', processing_settings)
     call input_json%get('output', output_settings)
 
+    ! Initialize report JSON
+    call json_value_create(report_json)
+    call to_object(report_json, 'report') ! Meaningless, but necessary
+    call json_value_create(p_parent)
+    call to_object(p_parent, 'info')
+    call json_value_add(report_json, p_parent)
+    call json_value_add(p_parent, 'generated_by', 'MachLine (c) 2022 USU Aerolab')
+    call json_value_add(p_parent, 'executed', fdate())
+    nullify(p_parent)
+
     ! Initialize surface mesh
     call body_mesh%init(geom_settings)
 
@@ -108,16 +120,31 @@ program main
     call json_xtnsn_get(output_settings, 'report_file', report_file, 'none')
     call linear_solver%solve(body_mesh)
 
-    ! Write report
-    if (report_file /= 'none') then
-        call linear_solver%write_report(body_mesh, report_file, flow_settings, geom_settings, solver_settings, &
-                                        processing_settings, output_settings)
-    end if
+    ! Update report
+    call linear_solver%update_report(report_json, body_mesh)
 
-    ! Output results
+    ! Write input
+    call json_value_create(p_parent)
+    call to_object(p_parent, 'input')
+    call json_value_add(report_json, p_parent)
+    call json_value_add(p_parent, flow_settings) ! Somehow this writes all the settings...
+    nullify(p_parent)
+
     write(*,*)
     write(*,*) "Writing results to file"
 
+    ! Write report
+    if (report_file /= 'none') then
+        open(newunit=i_unit, file=report_file, status='REPLACE')
+        call json_print(report_json, i_unit)
+        close(i_unit)
+        write(*,*) "    Report written to: ", report_file
+    end if
+
+    ! Destroy pointers
+    call json_destroy(report_json)
+
+    ! Output mesh results
     call body_mesh%output_results(body_file, wake_file, control_point_file, mirrored_body_file, mirrored_control_point_file)
 
     ! Goodbye
