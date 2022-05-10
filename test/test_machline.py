@@ -86,7 +86,7 @@ def test_half_wing_morino_asym_flow():
         json.dump(input_dict, altered_input_handle, indent=4)
 
     # Run MachLine
-    C_p_max, C_p_min, Cx, Cy, Cz = run_machline("test/half_wing_input.json")
+    C_p_max, C_p_min, Cx, Cy, Cz = run_machline("test/altered_half_wing_input.json", remove_input=True)
 
     print(C_p_max)
     print(C_p_min)
@@ -94,11 +94,11 @@ def test_half_wing_morino_asym_flow():
     print(Cy)
     print(Cz)
 
-    assert(abs(C_p_max - 0.7492031475263023) < 1e-7)
-    assert(abs(C_p_min - -1.277682957991789) < 1e-7)
-    assert(abs(Cx - -0.3931615473932072) < 1e-7)
-    assert(abs(Cy - -0.046891722885473566) < 1e-7)
-    assert(abs(Cz - 20.621798814136014) < 1e-7)
+    assert(abs(C_p_max - 0.7492035216010635) < 1e-7)
+    assert(abs(C_p_min - -1.27774729427896) < 1e-7)
+    assert(abs(Cx - -0.3931629535072684) < 1e-7)
+    assert(abs(Cy - -0.046895215239087754) < 1e-7)
+    assert(abs(Cz - 20.621992046816498) < 1e-7)
 
 
 def test_half_wing_morino_zero_aoa_zero_beta():
