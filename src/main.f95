@@ -14,11 +14,11 @@ program main
     character(len=:),allocatable :: report_file, spanwise_axis
 
     type(json_file) :: input_json
-    type(json_value), pointer :: flow_settings,&
-                                 geometry_settings,&
-                                 solver_settings,&
-                                 processing_settings,&
-                                 output_settings
+    type(json_value),pointer :: flow_settings,&
+                                geom_settings,&
+                                solver_settings,&
+                                processing_settings,&
+                                output_settings
     type(surface_mesh) :: body_mesh
     type(flow) :: freestream_flow
     type(panel_solver) :: linear_solver
@@ -73,16 +73,16 @@ program main
     call input_json%load_file(filename=input_file)
     call json_check()
     call input_json%get('flow', flow_settings)
-    call input_json%get('geometry', geometry_settings)
+    call input_json%get('geometry', geom_settings)
     call input_json%get('solver', solver_settings)
     call input_json%get('post_processing', processing_settings)
     call input_json%get('output', output_settings)
 
     ! Initialize surface mesh
-    call body_mesh%init(geometry_settings)
+    call body_mesh%init(geom_settings)
 
     ! Initialize flow
-    call json_xtnsn_get(geometry_settings, 'spanwise_axis', spanwise_axis, '+y')
+    call json_xtnsn_get(geom_settings, 'spanwise_axis', spanwise_axis, '+y')
     call freestream_flow%init(flow_settings, spanwise_axis)
 
     write(*,*)
@@ -106,7 +106,13 @@ program main
 
     ! Run solver
     call json_xtnsn_get(output_settings, 'report_file', report_file, 'none')
-    call linear_solver%solve(body_mesh, report_file)
+    call linear_solver%solve(body_mesh)
+
+    ! Write report
+    if (report_file /= 'none') then
+        call linear_solver%write_report(body_mesh, report_file, flow_settings, geom_settings, solver_settings, &
+                                        processing_settings, output_settings)
+    end if
 
     ! Output results
     write(*,*)

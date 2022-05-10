@@ -375,14 +375,13 @@ contains
     end subroutine panel_solver_calc_domains_of_dependence
 
 
-    subroutine panel_solver_solve(this, body, report_file)
+    subroutine panel_solver_solve(this, body)
         ! Calls the relevant subroutine to solve the case based on the selected formulation
 
         implicit none
 
         class(panel_solver),intent(inout) :: this
         type(surface_mesh),intent(inout) :: body
-        character(len=:),allocatable :: report_file
 
         ! Calculate source strengths
         call this%calc_source_strengths(body)
@@ -406,11 +405,6 @@ contains
 
         ! Calculate forces
         call this%calc_forces(body)
-
-        ! Write report
-        if (report_file /= 'none') then
-            call this%write_report(body, report_file)
-        end if
 
     end subroutine panel_solver_solve
 
@@ -1154,44 +1148,110 @@ contains
     end subroutine panel_solver_calc_forces
 
 
-    subroutine panel_solver_write_report(this, body, report_file)
+    subroutine panel_solver_write_report(this, body, report_file, flow_settings, geom_settings, solver_settings, &
+                                         processing_settings, output_settings)
         ! Writes the report file
 
         implicit none
 
         class(panel_solver),intent(in) :: this
-        type(surface_mesh),intent(inout) :: body
-        character(len=:),allocatable :: report_file
+        type(surface_mesh),intent(in) :: body
+        character(len=:),allocatable,intent(in) :: report_file
+        type(json_value),pointer,intent(in) :: flow_settings,&
+                                               geom_settings,&
+                                               solver_settings,&
+                                               processing_settings,&
+                                               output_settings
 
-        open(12, file=report_file)
+        type(json_value),pointer :: p_json, p_parent, p_child
+        integer :: i_unit
 
-        ! Header
-        write(12,'(a)') "MachLine Report (c) 2022 USU AeroLab"
+        ! Initialize JSON object
+        call json_value_create(p_json)
+        call to_object(p_json, report_file)
 
-        ! Solver results
-        write(12,*) "Maximum residual:", this%max_res
-        write(12,*) "Norm of residual:", this%norm_res
-        
+        ! General info
+        call json_value_create(p_parent)
+        call to_object(p_parent, 'info')
+        call json_value_add(p_json, p_parent)
+        call json_value_add(p_parent, 'generated_by', 'MachLine (c) 2022 USU Aerolab')
+        call json_value_add(p_parent, 'executed', fdate())
+        nullify(p_parent)
+
+        ! Write solver results
+        call json_value_create(p_parent)
+        call to_object(p_parent, 'solver_results')
+        call json_value_add(p_json, p_parent)
+        call json_value_create(p_child)
+        call to_object(p_child, 'residual')
+        call json_value_add(p_parent, p_child)
+        call json_value_add(p_child, 'max', this%max_res)
+        call json_value_add(p_child, 'norm', this%norm_res)
+        nullify(p_parent)
+        nullify(p_child)
+
+        ! Write pressure results
+        call json_value_create(p_parent)
+        call to_object(p_parent, 'pressure_calculations')
+        call json_value_add(p_json, p_parent)
+
+        ! Incompressible rule
         if (this%incompressible_rule) then
-            write(12,*) "Maximum incompressible pressure coefficient:", maxval(body%C_p_inc)
-            write(12,*) "Minimum incompressible pressure coefficient:", minval(body%C_p_inc)
+            call json_value_create(p_child)
+            call to_object(p_child, 'incompressible_rule')
+            call json_value_add(p_parent, p_child)
+            call json_value_add(p_child, 'max', maxval(body%C_p_inc))
+            call json_value_add(p_child, 'min', minval(body%C_p_inc))
+            nullify(p_child)
         end if
-        
+
+        ! Isentropic rule
         if (this%isentropic_rule) then
-            write(12,*) "Maximum isentropic pressure coefficient:", maxval(body%C_p_ise)
-            write(12,*) "Minimum isentropic pressure coefficient:", minval(body%C_p_ise)
+            call json_value_create(p_child)
+            call to_object(p_child, 'isentropic_rule')
+            call json_value_add(p_parent, p_child)
+            call json_value_add(p_child, 'max', maxval(body%C_p_ise))
+            call json_value_add(p_child, 'min', minval(body%C_p_ise))
+            nullify(p_child)
         end if
-        
+
+        ! Second-order rule
         if (this%second_order_rule) then
-            write(12,*) "Maximum second-order pressure coefficient:", maxval(body%C_p_2nd)
-            write(12,*) "Minimum second-order pressure coefficient:", minval(body%C_p_2nd)
+            call json_value_create(p_child)
+            call to_object(p_child, 'second_order_rule')
+            call json_value_add(p_parent, p_child)
+            call json_value_add(p_child, 'max', maxval(body%C_p_2nd))
+            call json_value_add(p_child, 'min', minval(body%C_p_2nd))
+            nullify(p_child)
         end if
 
-        write(12,*) "Cx:", this%C_F(1)
-        write(12,*) "Cy:", this%C_F(2)
-        write(12,*) "Cz:", this%C_F(3)
+        nullify(p_parent)
 
-        close(12)
+        ! Write forces
+        call json_value_create(p_parent)
+        call to_object(p_parent, 'total_forces')
+        call json_value_add(p_json, p_parent)
+        call json_value_add(p_parent, 'Cx', this%C_F(1))
+        call json_value_add(p_parent, 'Cy', this%C_F(2))
+        call json_value_add(p_parent, 'Cz', this%C_F(3))
+        nullify(p_parent)
+
+        ! Write input
+        call json_value_create(p_parent)
+        call to_object(p_parent, 'input')
+        call json_value_add(p_json, p_parent)
+        call json_value_add(p_parent, flow_settings) ! Somehow this outputs all of them. Don't ask me...
+        nullify(p_parent)
+
+        ! Write to file
+        open(newunit=i_unit, file=report_file, status='REPLACE')
+        call json_print(p_json, i_unit)
+        close(i_unit)
+
+        ! Destroy pointers
+        call json_destroy(p_json) ! Handles destruction of p_parent
+
+        write(*,*) "    Report written to: ", report_file
    
     end subroutine panel_solver_write_report
 

@@ -23,9 +23,10 @@ def run_machline(input_file, remove_input=False):
         os.remove(input_file)
 
     # Read in report
-    if os.path.exists("test/results/report.txt"):
-        with open("test/results/report.txt", 'r') as report_handle:
-            report = report_handle.readlines()
+    report_file = "test/results/report.json"
+    if os.path.exists(report_file):
+        with open(report_file, 'r') as report_handle:
+            report = json.load(report_handle)
 
         # Check if MachLine thinks it was successful
         success = "MachLine exited successfully." in result.stdout
@@ -44,11 +45,15 @@ def run_machline(input_file, remove_input=False):
         raise MachLineError
 
     else:
-        C_p_max = float(report[3].split()[-1])
-        C_p_min = float(report[4].split()[-1])
-        Cx = float(report[5].split()[-1])
-        Cy = float(report[6].split()[-1])
-        Cz = float(report[7].split()[-1])
+        try:
+            C_p_max = float(report['pressure_calculations']['incompressible_rule']['max'])
+            C_p_min = float(report['pressure_calculations']['incompressible_rule']['min'])
+        except KeyError:
+            C_p_max = float(report['pressure_calculations']['isentropic_rule']['max'])
+            C_p_min = float(report['pressure_calculations']['isentropic_rule']['min'])
+        Cx = float(report['total_forces']['Cx'])
+        Cy = float(report['total_forces']['Cy'])
+        Cz = float(report['total_forces']['Cz'])
         return C_p_max, C_p_min, Cx, Cy, Cz
 
 

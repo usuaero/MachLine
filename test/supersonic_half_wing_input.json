@@ -25,6 +25,6 @@
         }
     },
     "output": {
-        "report_file" : "test/results/report.txt"
+        "report_file" : "test/results/report.json"
     }
 }

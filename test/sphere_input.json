@@ -20,6 +20,6 @@
         "body_file" : "test/results/sphere.vtk",
         "wake_file" : "test/results/sphere_wake.vtk",
         "control_point_file" : "test/results/sphere_control_points.vtk",
-        "report_file": "test/results/report.txt"
+        "report_file": "test/results/report.json"
     }
 }
