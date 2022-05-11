@@ -1168,11 +1168,12 @@ contains
                 panel_inclinations(i) = this%panels(i)%r
             end do
 
-            ! Write data
+            ! Write geometry
             call body_vtk%begin(body_file)
             call body_vtk%write_points(this%vertices)
             call body_vtk%write_panels(this%panels)
-            call body_vtk%write_cell_scalars(this%sigma(1:this%N_panels), "sigma")
+
+            ! Pressures
             if (allocated(this%C_p_inc)) then
                 call body_vtk%write_cell_scalars(this%C_p_inc(1:this%N_panels), "C_p_inc")
             end if
@@ -1182,6 +1183,14 @@ contains
             if (allocated(this%C_p_2nd)) then
                 call body_vtk%write_cell_scalars(this%C_p_2nd(1:this%N_panels), "C_p_2nd")
             end if
+            if (allocated(this%C_p_lin)) then
+                call body_vtk%write_cell_scalars(this%C_p_lin(1:this%N_panels), "C_p_lin")
+            end if
+            if (allocated(this%C_p_sln)) then
+                call body_vtk%write_cell_scalars(this%C_p_sln(1:this%N_panels), "C_p_sln")
+            end if
+
+            ! Corrected pressures
             if (allocated(this%C_p_pg)) then
                 call body_vtk%write_cell_scalars(this%C_p_pg(1:this%N_panels), "C_p_PG")
             end if
@@ -1191,12 +1200,9 @@ contains
             if (allocated(this%C_p_lai)) then
                 call body_vtk%write_cell_scalars(this%C_p_lai(1:this%N_panels), "C_p_L")
             end if
-            if (allocated(this%C_p_lin)) then
-                call body_vtk%write_cell_scalars(this%C_p_lin(1:this%N_panels), "C_p_lin")
-            end if
-            if (allocated(this%C_p_sln)) then
-                call body_vtk%write_cell_scalars(this%C_p_sln(1:this%N_panels), "C_p_sln")
-            end if
+
+            ! Other
+            call body_vtk%write_cell_scalars(this%sigma(1:this%N_panels), "sigma")
             call body_vtk%write_cell_scalars(panel_inclinations, "inclination")
             call body_vtk%write_cell_vectors(this%v(:,1:this%N_panels), "v")
             call body_vtk%write_cell_vectors(this%dC_f(:,1:this%N_panels), "dC_f")
@@ -1213,15 +1219,20 @@ contains
             ! Clear old file
             call delete_file(mirrored_body_file)
 
+            ! Get panel inclinations
+            if (.not. allocated(panel_inclinations)) then
+                allocate(panel_inclinations(this%N_panels))
+            end if
+            do i=1,this%N_panels
+                panel_inclinations(i) = this%panels(i)%r_mir
+            end do
+
             ! Write geometry
             call body_vtk%begin(mirrored_body_file)
             call body_vtk%write_points(this%vertices, this%mirror_plane)
             call body_vtk%write_panels(this%panels)
 
-            ! Write source strengths
-            call body_vtk%write_cell_scalars(this%sigma(this%N_panels+1:this%N_panels*2), "sigma")
-
-            ! Write pressures
+            ! Pressures
             if (allocated(this%C_p_inc)) then
                 call body_vtk%write_cell_scalars(this%C_p_inc(this%N_panels+1:this%N_panels*2), "C_p_inc")
             end if
@@ -1231,8 +1242,26 @@ contains
             if (allocated(this%C_p_2nd)) then
                 call body_vtk%write_cell_scalars(this%C_p_2nd(this%N_panels+1:this%N_panels*2), "C_p_2nd")
             end if
+            if (allocated(this%C_p_lin)) then
+                call body_vtk%write_cell_scalars(this%C_p_lin(this%N_panels+1:this%N_panels*2), "C_p_lin")
+            end if
+            if (allocated(this%C_p_sln)) then
+                call body_vtk%write_cell_scalars(this%C_p_sln(this%N_panels+1:this%N_panels*2), "C_p_sln")
+            end if
 
-            ! Write flow properties
+            ! Corrected pressures
+            if (allocated(this%C_p_pg)) then
+                call body_vtk%write_cell_scalars(this%C_p_pg(this%N_panels+1:this%N_panels*2), "C_p_PG")
+            end if
+            if (allocated(this%C_p_kt)) then
+                call body_vtk%write_cell_scalars(this%C_p_kt(this%N_panels+1:this%N_panels*2), "C_p_KT")
+            end if
+            if (allocated(this%C_p_lai)) then
+                call body_vtk%write_cell_scalars(this%C_p_lai(this%N_panels+1:this%N_panels*2), "C_p_L")
+            end if
+
+            ! Other
+            call body_vtk%write_cell_scalars(this%sigma(this%N_panels+1:this%N_panels*2), "sigma")
             call body_vtk%write_cell_vectors(this%v(:,this%N_panels+1:this%N_panels*2), "v")
             call body_vtk%write_cell_vectors(this%dC_f(:,this%N_panels+1:this%N_panels*2), "dC_f")
             call body_vtk%write_point_scalars(this%mu(this%N_cp+1:this%N_cp*2), "mu")
