@@ -610,9 +610,14 @@ contains
         end if
 
         write(*,'(a)',advance='no') "     Calculating body influences..."
+        
+        ! Parameter used for calculating inner potential for the source-free formulation
+        if (this%formulation == 'source-free') then
+            x = matmul(this%freestream%B_mat_g_inv, this%freestream%c_hat_g)
+        end if
 
         ! Calculate source and doublet influences from body on each control point
-        !$OMP parallel do private(j, source_inf, doublet_inf, i_vert_s, i_vert_d, k, A_i, A_i_mir, phi_cp_s, phi_cp_s_mir, x) &
+        !$OMP parallel do private(j, source_inf, doublet_inf, i_vert_s, i_vert_d, k, A_i, A_i_mir, phi_cp_s, phi_cp_s_mir) &
         !$OMP schedule(dynamic)
         do i=1,body%N_cp
 
@@ -742,7 +747,6 @@ contains
 
             ! Set target potential for source-free formulation
             else
-                x = matmul(this%freestream%B_mat_g_inv, this%freestream%c_hat_g)
                 this%b(i) = -this%freestream%s*inner(x, body%cp(:,i))
 
                 ! Set for unique mirrored control  points

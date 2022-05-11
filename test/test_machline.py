@@ -212,3 +212,28 @@ def test_supersonic_half_wing_morino_zero_aoa_zero_beta():
     assert(abs(Cx - 0.14238137125495076) < 1e-7)
     assert(abs(Cy) < 1e-12)
     assert(abs(Cz) < 1e-7)
+
+
+def test_supersonic_half_wing_source_free_zero_aoa_zero_beta():
+
+    with open("test/supersonic_half_wing_input.json", 'r') as input_handle:
+        input_dict = json.load(input_handle)
+
+    input_dict["solver"]["formulation"] = 'source-free'
+
+    with open("test/altered_supersonic_input.json", 'w') as input_handle:
+        input_dict = json.dump(input_dict, input_handle, indent=4)
+
+    C_p_max, C_p_min, Cx, Cy, Cz = run_machline("test/altered_supersonic_input.json", remove_input=True)
+
+    print(C_p_max)
+    print(C_p_min)
+    print(Cx)
+    print(Cy)
+    print(Cz)
+
+    assert(abs(C_p_max - 0.121707118823963) < 1e-7)
+    assert(abs(C_p_min - -0.116058444547646) < 1e-7)
+    assert(abs(Cx - 0.142379818359474) < 1e-7)
+    assert(abs(Cy) < 1e-12)
+    assert(abs(Cz) < 2e-7)
