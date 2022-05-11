@@ -110,6 +110,7 @@
     character(len=1),parameter :: quotation_mark    = achar(34)
     character(len=1),parameter :: slash             = achar(47)
     character(len=1),parameter :: backslash         = achar(92)  
+    integer,parameter :: N_spaces_in_tab = 4
        
     character(len=*),parameter :: real_fmt  = '(ES30.14E3)'      !format for real numbers
     character(len=*),parameter :: int_fmt   = '(I10)'           !format for integers
@@ -1804,7 +1805,8 @@
         else
             print_comma = .false.
         end if
-        !if the colon was the last thing written
+
+        ! If the colon was the last thing written
         if (present(colon)) then
             print_spaces = .not. colon
         else
@@ -1814,112 +1816,113 @@
         if (present(indent)) then
             tab = indent
         else
-            tab = 0
+            tab = 1
         end if
 
         if (print_spaces) then
-            spaces = tab * 2
+            spaces = tab * N_spaces_in_tab
         else
             spaces = 0
         end if
         
         nullify(element)
 
-        !associate (d => this%data)
+        ! Write based on the data type
+        select case (this%data%var_type)
 
-            select case (this%data%var_type)
+        case (json_object)
+            
+            ! Write opening bracket
+            call write_it( '{' )
 
-            case (json_object)
-                
-                call write_it( repeat(space, spaces)//'{' )
-                 
-                count = json_value_count(this)
-                do i = 1, count
+            spaces = tab * N_spaces_in_tab
+             
+            count = json_value_count(this)
+            do i = 1, count
 
-                    ! get the element
-                    call json_value_get(this, i, element)
+                ! Get the element
+                call json_value_get(this, i, element)
 
-                    ! print the name
-                    if (allocated(element%name)) then
-                        call write_it(repeat(space, spaces)//'"'//&
-                                      trim(element % name)//'": ',advance=.false.)
-                    else
-                        call throw_exception('Error in json_value_print:'//&
-                                             ' element%name not allocated')
-                        call cleanup()
-                        return
-                    end if
-
-                    ! recursive print of the element
-                    call json_value_print(element, iunit=iunit, indent=tab + 1, &
-                                          need_comma=i<count, colon=.true., str=str)
-
-                end do
-
-                call write_it( repeat(space, spaces)//'}', comma=print_comma )
-
-            case (json_array)
-
-                call write_it( '[' )
-                count = json_value_count(this)
-
-                do i = 1, count
-
-                    ! get the element
-                    call json_value_get(this, i, element)
-
-                    ! recursive print of the element
-                    call json_value_print(element, iunit=iunit, indent=tab + 1, &
-                                          need_comma=i<count, str=str)
-
-                end do
-                
-                !indent the closing array character:
-                call write_it( repeat(space, tab * 2)//']', comma=print_comma ) 
-
-            case (json_null)
-
-                call write_it( repeat(space, spaces)//'null', comma=print_comma )
-
-            case (json_string)
-
-                if (allocated(this%data%str_value)) then
-                    call write_it( repeat(space, spaces)//'"'// &
-                                   trim(this%data%str_value)//'"', comma=print_comma )
+                ! Print the name
+                if (allocated(element%name)) then
+                    call write_it(repeat(space, spaces)//'"'//&
+                                  trim(element%name)//'" : ', advance=.false.)
                 else
                     call throw_exception('Error in json_value_print:'//&
-                                         ' this%value_string not allocated')
+                                         ' element%name not allocated')
                     call cleanup()
                     return
                 end if
 
-            case (json_logical)
+                ! Recursive print of the element
+                call json_value_print(element, iunit=iunit, indent=tab + 1, &
+                                      need_comma=i<count, colon=.true., str=str)
 
-                if (this%data%log_value) then
-                    call write_it( repeat(space, spaces)// 'true', comma=print_comma )
-                else
-                    call write_it( repeat(space, spaces)//'false', comma=print_comma )
-                end if
+            end do
 
-            case (json_integer)
+            ! Write closing bracket
+            call write_it( repeat(space, max(spaces-N_spaces_in_tab, 0))//'}', comma=print_comma )
 
-                call integer_to_string(this%data%int_value,tmp)
+        case (json_array)
 
-                call write_it( repeat(space, spaces)//trim(tmp), comma=print_comma )
+            call write_it( '[' )
+            count = json_value_count(this)
 
-            case (json_real)
+            do i = 1, count
 
-                call real_to_string(this%data%dbl_value,tmp)
+                ! get the element
+                call json_value_get(this, i, element)
 
-                call write_it( repeat(space, spaces)//trim(tmp), comma=print_comma )
+                ! recursive print of the element
+                call json_value_print(element, iunit=iunit, indent=tab + 1, &
+                                      need_comma=i<count, str=str)
 
-            case default
+            end do
+            
+            !indent the closing array character:
+            call write_it( repeat(space, tab * N_spaces_in_tab)//']', comma=print_comma ) 
 
-                call throw_exception('Error in json_value_print: unknown data type')
+        case (json_null)
 
-            end select
+            call write_it( repeat(space, spaces)//'null', comma=print_comma )
 
-        !end associate
+        case (json_string)
+
+            if (allocated(this%data%str_value)) then
+                call write_it( repeat(space, spaces)//'"'// &
+                               trim(this%data%str_value)//'"', comma=print_comma )
+            else
+                call throw_exception('Error in json_value_print:'//&
+                                     ' this%value_string not allocated')
+                call cleanup()
+                return
+            end if
+
+        case (json_logical)
+
+            if (this%data%log_value) then
+                call write_it( repeat(space, spaces)// 'true', comma=print_comma )
+            else
+                call write_it( repeat(space, spaces)//'false', comma=print_comma )
+            end if
+
+        case (json_integer)
+
+            call integer_to_string(this%data%int_value,tmp)
+
+            call write_it( repeat(space, spaces)//trim(tmp), comma=print_comma )
+
+        case (json_real)
+
+            call real_to_string(this%data%dbl_value,tmp)
+
+            call write_it( repeat(space, spaces)//trim(tmp), comma=print_comma )
+
+        case default
+
+            call throw_exception('Error in json_value_print: unknown data type')
+
+        end select
 
         call cleanup()
 

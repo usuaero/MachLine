@@ -1,0 +1,37 @@
+{
+    "flow": {
+        "freestream_velocity": [
+            520.8356842613609,
+            0.0,
+            0.0
+        ],
+        "gamma": 1.4,
+        "freestream_mach_number": 1.5
+    },
+    "geometry": {
+        "file": "dev/meshes/sears_haack_9800.tri",
+        "spanwise_axis": "+y",
+        "wake_model": {
+            "wake_present": false
+        },
+        "reference": {
+            "area": 1.0
+        }
+    },
+    "solver": {
+        "formulation": "source-free",
+        "control_point_offset": 1.1e-10
+    },
+    "post_processing": {
+        "pressure_rules": {
+            "second-order": true,
+            "isentropic": true,
+            "slender-body": true,
+            "linear": true
+        }
+    },
+    "output": {
+        "body_file": "dev/results/sears_haack_9800.vtk",
+        "control_point_file": "dev/results/sears_haack_9800_control_points.vtk"
+    }
+}

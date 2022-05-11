@@ -3,6 +3,7 @@ module flow_mod
     use json_mod
     use json_xtnsn_mod
     use math_mod
+    use linalg_mod
 
     implicit none
     
@@ -19,7 +20,7 @@ module flow_mod
         real :: K, K_inv ! Kappa factor
         real,dimension(3) :: c_hat_g ! Compressibility axis (assumed in TriPan to be aligned with the freestream direction)
         logical,dimension(3) :: sym_about ! Whether the flow condition is symmetric about any plane
-        real,dimension(3,3) :: B_mat_g, B_mat_c ! Dual metric matrix
+        real,dimension(3,3) :: B_mat_g, B_mat_c, B_mat_g_inv ! Dual metric matrix
         real,dimension(3,3) :: C_mat_g, C_mat_c ! Metric matrix
         logical :: supersonic, incompressible
         real,dimension(3,3) :: A_g_to_c, A_c_to_s, A_g_to_s ! Coordinate transformation matrices
@@ -63,7 +64,7 @@ contains
         this%sym_about = this%v_inf == 0.
 
         ! Derived quantities
-        this%U = norm(this%v_inf)
+        this%U = norm2(this%v_inf)
         this%U_inv = 1./this%U
         this%c_hat_g = this%v_inf*this%U_inv
 
@@ -116,7 +117,10 @@ contains
         do i=1,3
             this%B_mat_g(i,i) = 1.
         end do
-        this%B_mat_g = this%B_mat_g-this%M_inf**2*outer(this%c_hat_g, this%c_hat_g)
+        this%B_mat_g = this%B_mat_g - this%M_inf**2*outer(this%c_hat_g, this%c_hat_g)
+
+        ! Invert (used for source-free formulation)
+        call matinv(3, this%B_mat_g, this%B_mat_g_inv)
 
         ! Compressible (E&M Eq. (E.3.8))
         this%B_mat_c = 0.
@@ -127,9 +131,9 @@ contains
         ! Assemble metric matrix
         ! Global (E&M Eq. (E.3.9))
         do i=1,3
-            this%C_mat_g(i,i) = this%s*this%B**2
+            this%C_mat_g(i,i) = 1.-this%M_inf**2
         end do
-        this%C_mat_g = this%C_mat_g+this%M_inf**2*outer(this%c_hat_g, this%c_hat_g)
+        this%C_mat_g = this%C_mat_g + this%M_inf**2*outer(this%c_hat_g, this%c_hat_g)
 
         ! Compressible (E&M Eq. (E.3.8))
         this%C_mat_c = 0.
@@ -180,14 +184,14 @@ contains
         this%A_g_to_c = 0.
         this%A_g_to_c(1,:) = this%c_hat_g
         this%A_g_to_c(3,:) = cross(this%c_hat_g, j_g)
-        this%A_g_to_c(3,:) = this%A_g_to_c(3,:)/norm(this%A_g_to_c(3,:))
-        this%A_g_to_c(2,:) = cross(this%A_g_to_c(:,3), this%c_hat_g)
+        this%A_g_to_c(3,:) = this%A_g_to_c(3,:)/norm2(this%A_g_to_c(3,:))
+        this%A_g_to_c(2,:) = cross(this%A_g_to_c(3,:), this%c_hat_g)
 
         ! Calculate transform from compressible to scaled coordinates
         this%A_c_to_s = 0.
         this%A_c_to_s(1,1) = 1.
-        this%A_c_to_s(2,2) = this%s*this%B
-        this%A_c_to_s(3,3) = this%s*this%B
+        this%A_c_to_s(2,2) = this%B
+        this%A_c_to_s(3,3) = this%B
 
         ! Check calculation
         c_hat_c = matmul(this%A_g_to_c, this%c_hat_g)
@@ -231,7 +235,7 @@ contains
 
 
     function flow_point_in_dod(this, Q, P) result(in_dod)
-        ! Calculates whether the point Q lies in the dod of point P
+        ! Calculates whether the point Q lies in the DoD of point P
 
         implicit none
 

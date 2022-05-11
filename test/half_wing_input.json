@@ -25,9 +25,7 @@
     "post_processing" : {
     },
     "output": {
-        "body_file": "test/results/half_wing_right.vtk",
-        "wake_file": "test/results/half_wing_right_wake.vtk",
-        "control_point_file": "test/results/half_wing_right_control_points.vtk",
-        "report_file": "test/results/report.txt"
+        "body_file" : "test/results/half_wing_right.vtk",
+        "report_file": "test/results/report.json"
     }
 }

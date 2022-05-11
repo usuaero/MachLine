@@ -1,0 +1,25 @@
+{
+    "flow": {
+        "freestream_velocity" : [ -100.0, 0.0, 0.0 ]
+    },
+    "geometry": {
+        "file": "dev/meshes/right_cone.vtk",
+        "mirror_about": "xy",
+        "reference": {
+            "area": 1.0
+        }
+    },
+    "solver": {
+        "formulation": "morino",
+        "control_point_offset": 1.1e-02
+    },
+    "post_processing" : {
+    },
+    "output": {
+        "body_file" : "dev/results/cone_right.vtk",
+        "wake_file" : "dev/results/cone_wake.vtk",
+        "control_point_file" : "dev/results/cone_right_control_points.vtk",
+        "mirrored_body_file" : "dev/results/cone_left.vtk",
+        "mirrored_control_point_file" : "dev/results/cone_left_control_points.vtk"
+    }
+}

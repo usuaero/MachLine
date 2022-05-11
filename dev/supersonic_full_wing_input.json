@@ -1,0 +1,33 @@
+{
+    "flow": {
+        "freestream_velocity": [100.0, 0.0, 0.0],
+        "gamma" : 1.4,
+        "freestream_mach_number" : 2.0
+    },
+    "geometry": {
+        "file": "dev/meshes/diamond_5_deg_full_medium.stl",
+        "spanwise_axis" : "+y",
+        "wake_model": {
+            "append_wake" : false
+        },
+        "reference": {
+            "area": 1.0
+        }
+    },
+    "solver": {
+        "formulation": "source-free",
+        "control_point_offset": 1.1e-05
+    },
+    "post_processing" : {
+        "pressure_rules" : {
+            "second-order" : true,
+            "isentropic" : true,
+            "slender-body" : true,
+            "linear" : true
+        }
+    },
+    "output": {
+        "body_file" : "dev/results/diamond_5_deg_full_medium.vtk",
+        "control_point_file" : "dev/results/diamond_5_deg_full_medium_control_points.vtk"
+    }
+}

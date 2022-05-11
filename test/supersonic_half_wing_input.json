@@ -1,0 +1,30 @@
+{
+    "flow": {
+        "freestream_velocity": [100.0, 0.0, 0.0],
+        "gamma" : 1.4,
+        "freestream_mach_number" : 2.0
+    },
+    "geometry": {
+        "file": "test/diamond_half_wing.vtk",
+        "mirror_about": "xz",
+        "spanwise_axis" : "+y",
+        "wake_model": {
+            "append_wake" : false
+        },
+        "reference": {
+            "area": 1.0
+        }
+    },
+    "solver": {
+        "formulation": "morino",
+        "control_point_offset": 1.1e-08
+    },
+    "post_processing" : {
+        "pressure_rules" : {
+            "isentropic" : true
+        }
+    },
+    "output": {
+        "report_file" : "test/results/report.json"
+    }
+}
