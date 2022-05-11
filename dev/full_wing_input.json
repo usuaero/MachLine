@@ -2,7 +2,7 @@
     "flow": {
         "freestream_velocity": [450.0, 0.0,-10.0],
         "gamma": 1.4,
-        "freestream_mach_number": 0
+        "freestream_mach_number": 0.0
         
         
     },
@@ -22,17 +22,21 @@
         "control_point_offset": 1.1e-05
     },
     "post_processing": {
+        "pressure_for_forces": "prandtl-glauert",
         "pressure_rules": {
             "incompressible": true,
             "isentropic": false,
-            "second-order": false
+            "second-order": true,
+            "slender-body": false,
+            "linear": false
         },
         "subsonic_pressure_correction": {
-            "correction_mach_number": 0.4,
-            "prandtl-glauert": true,
-            "karman-tsien": false,
-            "laitone": false
+            "correction_mach_number": 0.2,
+            "prandtl-glauert":true,
+            "karman-tsien": true,
+            "laitone": true
         }
+
     },
     "output": {
         "body_file": "dev/results/full_wing_source_free.vtk",
