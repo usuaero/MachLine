@@ -1160,7 +1160,7 @@ contains
             write(*,*) "        Minimum second-order pressure coefficient:", minval(body%C_p_2nd)
         end if
         
-        if (this%slender_body_rule) then
+        if (this%slender_rule) then
             write(*,*) "        Maximum slender-body pressure coefficient:", maxval(body%C_p_sln)
             write(*,*) "        Minimum slender-body pressure coefficient:", minval(body%C_p_sln)
         end if
