@@ -1,9 +1,9 @@
 {
     "flow": {
         "freestream_velocity": [
-            694.4475790151479,
+            693.4958627433373,
             0.0,
-            0.0
+            -36.34457810835506
         ],
         "gamma": 1.4,
         "freestream_mach_number": 2.0
