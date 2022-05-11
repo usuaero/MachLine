@@ -43,6 +43,7 @@ def run_machline(input_file, remove_input=False):
         raise MachLineError
 
     else:
+        print(report)
         C_p_max = float(report[3].split()[-1])
         C_p_min = float(report[4].split()[-1])
         Cx = float(report[5].split()[-1])

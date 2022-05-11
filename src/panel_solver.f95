@@ -1143,51 +1143,52 @@ contains
 
         open(12, file=report_file)
 
-        ! Welcome message
-        write(12,'(a)') "           /"
-        write(12,'(a)') "          /"
-        write(12,'(a)') "         /"
-        write(12,'(a)') "        /          ____"
-        write(12,'(a)') "       /          /   /"
-        write(12,'(a)') "      /          /   /"
-        write(12,'(a)') "     /     MachLine (c) 2022 USU Aerolab"
-        write(12,'(a)') "    / _________/___/_______________"
-        write(12,'(a)') "   ( (__________________________"
-        write(12,'(a)') "    \          \   \"
-        write(12,'(a)') "     \          \   \"
-        write(12,'(a)') "      \          \   \"
-        write(12,'(a)') "       \          \___\"
-        write(12,'(a)') "        \"
-        write(12,*) ""
+        ! ! Welcome message
+        ! write(12,'(a)') "           /"
+        ! write(12,'(a)') "          /"
+        ! write(12,'(a)') "         /"
+        ! write(12,'(a)') "        /          ____"
+        ! write(12,'(a)') "       /          /   /"
+        ! write(12,'(a)') "      /          /   /"
+        ! write(12,'(a)') "     /     MachLine (c) 2022 USU Aerolab"
+        ! write(12,'(a)') "    / _________/___/_______________"
+        ! write(12,'(a)') "   ( (__________________________"
+        ! write(12,'(a)') "    \          \   \"
+        ! write(12,'(a)') "     \          \   \"
+        ! write(12,'(a)') "      \          \   \"
+        ! write(12,'(a)') "       \          \___\"
+        ! write(12,'(a)') "        \"
+        ! write(12,*) ""
 
         ! Solver results
-        write(12,'(a)') "Solver results:"
+        ! write(12,'(a)') "Solver results:"
+        write(12,*)
         write(12,*) "   Maximum residual:", this%max_res
         write(12,*) "   Norm of residual:", this%norm_res
-        write(12,*) ""
+        ! write(12,*) ""
         
-        ! Pressure coefficient results
-        if (this%incompressible_rule) then
-            if ((this%prandtl_glauert) .or. (this%laitone) .or. (this%karman_tsien)) then
-                write(12,'(a)', advance='no') "Subsonic Pressure Coefficient Compressibility Corrections."
-                write(12,*) " "
-                write(12,*) "  Corrections                Max Value                 Min Value"
-                write(12,*) "-------------------------------------------------------------------------------"
-                if (this%prandtl_glauert) then
-                    write(12,*) "Prandtl-Glauert       ", maxval(body%C_p_pg), minval(body%C_p_pg)
-                end if
-                if (this%karman_tsien) then
-                    write(12,*) "  Karman-Tsien        ", maxval(body%C_p_kt), minval(body%C_p_kt)
-                end if
-                if (this%laitone) then
-                    write(12,*) "    Laitone           ", maxval(body%C_p_lai), minval(body%C_p_lai)
-                end if
-            else
-                write(12,'(a)') "Incompressible Pressure Coefficients:"
-                write(12,*) "   Maximum incompressible pressure coefficient:", maxval(body%C_p_inc)
-                write(12,*) "   Minimum incompressible pressure coefficient:", minval(body%C_p_inc)
-            end if
-        end if
+        ! ! Pressure coefficient results
+        ! if (this%incompressible_rule) then
+        !     if ((this%prandtl_glauert) .or. (this%laitone) .or. (this%karman_tsien)) then
+        !         write(12,'(a)', advance='no') "Subsonic Pressure Coefficient Compressibility Corrections."
+        !         write(12,*) " "
+        !         write(12,*) "  Corrections                Max Value                 Min Value"
+        !         write(12,*) "-------------------------------------------------------------------------------"
+        !         if (this%prandtl_glauert) then
+        !             write(12,*) "Prandtl-Glauert       ", maxval(body%C_p_pg), minval(body%C_p_pg)
+        !         end if
+        !         if (this%karman_tsien) then
+        !             write(12,*) "  Karman-Tsien        ", maxval(body%C_p_kt), minval(body%C_p_kt)
+        !         end if
+        !         if (this%laitone) then
+        !             write(12,*) "    Laitone           ", maxval(body%C_p_lai), minval(body%C_p_lai)
+        !         end if
+        !     else
+        ! write(12,'(a)') "Incompressible Pressure Coefficients:"
+        write(12,*) "   Maximum incompressible pressure coefficient:", maxval(body%C_p_inc)
+        write(12,*) "   Minimum incompressible pressure coefficient:", minval(body%C_p_inc)
+        !     end if
+        ! end if
         
         if (this%isentropic_rule) then
             write(12,*) "   Maximum isentropic pressure coefficient:", maxval(body%C_p_ise)
@@ -1198,14 +1199,14 @@ contains
             write(12,*) "   Maximum second-order pressure coefficient:", maxval(body%C_p_2nd)
             write(12,*) "   Minimum second-order pressure coefficient:", minval(body%C_p_2nd)
         end if
-        write(12,*) ""
+        ! write(12,*) ""
 
         ! Force results
-        write(12,'(a)') "Force results:"
+        ! write(12,'(a)') "Force results:"
         write(12,*) "   Cx:", this%C_F(1)
         write(12,*) "   Cy:", this%C_F(2)
         write(12,*) "   Cz:", this%C_F(3)
-        write(12,*) ""
+        ! write(12,*) ""
 
         close(12)
    
