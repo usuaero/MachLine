@@ -1241,7 +1241,6 @@ contains
         ! Allocate force storage
         allocate(body%dC_f(3,this%N_cells), stat=stat)
         call check_allocation(stat, "forces")
-        write(*,*) "The selected pressure for forces is ", this%pressure_for_forces
 
         ! Calculate total forces
         !$OMP parallel do private(n_mirrored) schedule(static)
@@ -1285,34 +1284,34 @@ contains
             case ('prandtl-glauert')
 
                 ! Discrete force coefficient acting on panel
-                body%dC_f(i,:) = body%C_p_pg(i)*body%panels(i)%A*body%panels(i)%n_g
+                body%dC_f(:,i) = body%C_p_pg(i)*body%panels(i)%A*body%panels(i)%n_g
 
                 ! Mirror
                 if (body%mirrored .and. body%asym_flow) then
                     n_mirrored = mirror_about_plane(body%panels(i)%n_g, body%mirror_plane)
-                    body%dC_f(i+body%N_panels,:) = body%C_p_pg(i+body%N_panels)*body%panels(i)%A*n_mirrored
+                    body%dC_f(:,i+body%N_panels) = body%C_p_pg(i+body%N_panels)*body%panels(i)%A*n_mirrored
                 end if
 
             case ('karman-tsien')
 
                 ! Discrete force coefficient acting on panel
-                body%dC_f(i,:) = body%C_p_kt(i)*body%panels(i)%A*body%panels(i)%n_g
+                body%dC_f(:,i) = body%C_p_kt(i)*body%panels(i)%A*body%panels(i)%n_g
 
                 ! Mirror
                 if (body%mirrored .and. body%asym_flow) then
                     n_mirrored = mirror_about_plane(body%panels(i)%n_g, body%mirror_plane)
-                    body%dC_f(i+body%N_panels,:) = body%C_p_kt(i+body%N_panels)*body%panels(i)%A*n_mirrored
+                    body%dC_f(:,i+body%N_panels) = body%C_p_kt(i+body%N_panels)*body%panels(i)%A*n_mirrored
                 end if
 
             case ('laitone')
 
                 ! Discrete force coefficient acting on panel
-                body%dC_f(i,:) = body%C_p_lai(i)*body%panels(i)%A*body%panels(i)%n_g
+                body%dC_f(:,i) = body%C_p_lai(i)*body%panels(i)%A*body%panels(i)%n_g
 
                 ! Mirror
                 if (body%mirrored .and. body%asym_flow) then
                     n_mirrored = mirror_about_plane(body%panels(i)%n_g, body%mirror_plane)
-                    body%dC_f(i+body%N_panels,:) = body%C_p_lai(i+body%N_panels)*body%panels(i)%A*n_mirrored
+                    body%dC_f(:,i+body%N_panels) = body%C_p_lai(i+body%N_panels)*body%panels(i)%A*n_mirrored
                 end if
 
             end select
