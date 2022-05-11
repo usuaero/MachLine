@@ -1,7 +1,7 @@
 {
     "flow": {
         "freestream_velocity" : [ 100.0, 30.0, 0.0 ],
-        "freestream_mach_number" : 0.0
+        "freestream_mach_number" : 0.5
     },
     "geometry": {
         "file": "dev/meshes/half_wing_right.vtk",
@@ -20,13 +20,15 @@
     "post_processing" : {
         "pressure_rules": {
             "incompressible": true,
-            "isentropic": false,
-            "second-order": false
+            "isentropic": true,
+            "second-order": true,
+            "linear" : true,
+            "slender-body" : true
         },
         "subsonic_pressure_correction": {
-            "prandtl-glauert": true,
-            "karman-tsien": true,
-            "laitone": true
+            "prandtl-glauert": false,
+            "karman-tsien": false,
+            "laitone": false
         }
     },
     "output": {
