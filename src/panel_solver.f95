@@ -640,8 +640,7 @@ contains
                                                         source_inf, doublet_inf, i_vert_s, i_vert_d)
 
                     ! Add influence
-                    call this%update_system_row(body, A_i, phi_cp_s, j, source_inf, doublet_inf, &
-                                                i_vert_s, i_vert_d)
+                    call this%update_system_row(body, A_i, phi_cp_s, j, source_inf, doublet_inf, i_vert_s, i_vert_d)
 
                 end if
 
@@ -711,8 +710,7 @@ contains
                                                                 .false., source_inf, doublet_inf, i_vert_s, i_vert_d)
 
                             ! Add influence of mirrored panel on existing control point
-                            call this%update_system_row(body, A_i, phi_cp_s, j, &
-                                                        source_inf, doublet_inf, i_vert_s, i_vert_d)
+                            call this%update_system_row(body, A_i, phi_cp_s, j, source_inf, doublet_inf, i_vert_s, i_vert_d)
                         end if
 
                     end if
@@ -910,18 +908,6 @@ contains
         ! Make a copy of A (lu_solve replaces A with its decomposition)
         allocate(A_copy, source=this%A, stat=stat)
         call check_allocation(stat, "solver copy of AIC matrix")
-
-        ! Write A and b to file
-        !open(34, file="./dev/A_mat.txt")
-        !do i=1,this%N
-        !    write(34,*) this%A(i,:)
-        !end do
-        !close(34)
-        !open(34, file="./dev/b_vec.txt")
-        !do i=1,this%N
-        !    write(34,*) this%b(i)
-        !end do
-        !close(34)
 
         ! Solve
         if (this%matrix_solver == 'LU') then
