@@ -998,6 +998,7 @@ contains
         end do
 
         ! Calculate total potential on outside of mesh
+        !$OMP parallel do schedule(static)
         do i=1,body%N_verts
 
             ! Existing points
@@ -1143,6 +1144,7 @@ contains
 
         write(*,*) "Done."
         
+        ! Report min and max pressure coefficients
         if (this%incompressible_rule) then
             write(*,*) "        Maximum incompressible pressure coefficient:", maxval(body%C_p_inc)
             write(*,*) "        Minimum incompressible pressure coefficient:", minval(body%C_p_inc)
@@ -1158,6 +1160,17 @@ contains
             write(*,*) "        Minimum second-order pressure coefficient:", minval(body%C_p_2nd)
         end if
         
+        if (this%slender_body_rule) then
+            write(*,*) "        Maximum slender-body pressure coefficient:", maxval(body%C_p_sln)
+            write(*,*) "        Minimum slender-body pressure coefficient:", minval(body%C_p_sln)
+        end if
+        
+        if (this%linear_rule) then
+            write(*,*) "        Maximum linear pressure coefficient:", maxval(body%C_p_lin)
+            write(*,*) "        Minimum linear pressure coefficient:", minval(body%C_p_lin)
+        end if
+        
+        ! Report vacuum pressure coefficient
         if (this%freestream%M_inf > 0.) then
             write(*,*) "        Vacuum pressure coefficient:", C_p_vac
         end if
