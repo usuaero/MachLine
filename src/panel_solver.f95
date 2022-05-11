@@ -1234,7 +1234,6 @@ contains
         type(surface_mesh),intent(inout) :: body
         
         integer :: i, stat
-        real,dimension(3) :: n_mirrored
 
         write(*,'(a, a, a)',advance='no') "     Calculating forces using the ", this%pressure_for_forces, " pressure rule..."
 
@@ -1243,7 +1242,7 @@ contains
         call check_allocation(stat, "forces")
 
         ! Calculate total forces
-        !$OMP parallel do private(n_mirrored) schedule(static)
+        !$OMP parallel do schedule(static)
         do i=1,body%N_panels
 
             select case (this%pressure_for_forces)
@@ -1255,8 +1254,7 @@ contains
 
                 ! Mirror
                 if (body%asym_flow) then
-                    n_mirrored = mirror_about_plane(body%panels(i)%n_g, body%mirror_plane)
-                    body%dC_f(:,i+body%N_panels) = -body%C_p_inc(i+body%N_panels)*body%panels(i)%A*n_mirrored
+                    body%dC_f(:,i+body%N_panels) = -body%C_p_inc(i+body%N_panels)*body%panels(i)%A*body%panels(i)%n_g_mir
                 end if
 
             case ('isentropic')
@@ -1266,8 +1264,7 @@ contains
 
                 ! Mirror
                 if (body%asym_flow) then
-                    n_mirrored = mirror_about_plane(body%panels(i)%n_g, body%mirror_plane)
-                    body%dC_f(:,i+body%N_panels) = -body%C_p_ise(i+body%N_panels)*body%panels(i)%A*n_mirrored
+                    body%dC_f(:,i+body%N_panels) = -body%C_p_ise(i+body%N_panels)*body%panels(i)%A*body%panels(i)%n_g_mir
                 end if
 
             case ('second-order')
@@ -1277,8 +1274,7 @@ contains
 
                 ! Mirror
                 if (body%asym_flow) then
-                    n_mirrored = mirror_about_plane(body%panels(i)%n_g, body%mirror_plane)
-                    body%dC_f(:,i+body%N_panels) = -body%C_p_2nd(i+body%N_panels)*body%panels(i)%A*n_mirrored
+                    body%dC_f(:,i+body%N_panels) = -body%C_p_2nd(i+body%N_panels)*body%panels(i)%A*body%panels(i)%n_g_mir
                 end if
 
             case ('prandtl-glauert')
@@ -1288,8 +1284,7 @@ contains
 
                 ! Mirror
                 if (body%mirrored .and. body%asym_flow) then
-                    n_mirrored = mirror_about_plane(body%panels(i)%n_g, body%mirror_plane)
-                    body%dC_f(:,i+body%N_panels) = body%C_p_pg(i+body%N_panels)*body%panels(i)%A*n_mirrored
+                    body%dC_f(:,i+body%N_panels) = body%C_p_pg(i+body%N_panels)*body%panels(i)%A*body%panels(i)%n_g_mir
                 end if
 
             case ('karman-tsien')
@@ -1299,8 +1294,7 @@ contains
 
                 ! Mirror
                 if (body%mirrored .and. body%asym_flow) then
-                    n_mirrored = mirror_about_plane(body%panels(i)%n_g, body%mirror_plane)
-                    body%dC_f(:,i+body%N_panels) = body%C_p_kt(i+body%N_panels)*body%panels(i)%A*n_mirrored
+                    body%dC_f(:,i+body%N_panels) = body%C_p_kt(i+body%N_panels)*body%panels(i)%A*body%panels(i)%n_g_mir
                 end if
 
             case ('laitone')
@@ -1310,8 +1304,7 @@ contains
 
                 ! Mirror
                 if (body%mirrored .and. body%asym_flow) then
-                    n_mirrored = mirror_about_plane(body%panels(i)%n_g, body%mirror_plane)
-                    body%dC_f(:,i+body%N_panels) = body%C_p_lai(i+body%N_panels)*body%panels(i)%A*n_mirrored
+                    body%dC_f(:,i+body%N_panels) = body%C_p_lai(i+body%N_panels)*body%panels(i)%A*body%panels(i)%n_g_mir
                 end if
 
             end select
