@@ -1,5 +1,4 @@
 {
-   
     "geometry": {
         "semispan locations and AoA": {
             "20":  ["0.06", "1.08", "2.06"],
@@ -24,7 +23,7 @@
             "99": 1.184
             
         },
-        "datasets": ["FlightStream", "MachLine"]
+        "datasets": ["MachLine"]
                 
     },
     
@@ -36,13 +35,14 @@
 
     "solver": {
         "formulation": ["morino"],
+        "calculation_type": ["pressure_corrections"],
         "control_point_offset": 1.1e-05,
         "options": ["formulation: source-free, morino. NOTE: Iterators can handle one formulation in the list.",
                     "control_point_offset:"]
     },
 
     "plots":{
-        "points to process": ["C_p_inc, sigma, v"],
+        "points_to_process": ["C_p_inc", "C_p_PG"],
         "process_all": true,
         "save plots": false,
         "save plot type": "pdf",
