@@ -1618,6 +1618,9 @@ contains
             end if
         end do
 
+        ! Calculate H(1,1,1)
+        int%H111 = -geom%h*int%hH113 - sum(geom%a*int%F111)
+
         ! Clean up
         deallocate(v_xi)
 
@@ -1720,17 +1723,9 @@ contains
             ! Source potential
             if (source_order == 0) then
 
-                if (freestream%supersonic) then
-
-                    ! Equivalent to Ehlers Eq. (8.6)
-                    phi_s = this%J*freestream%K_inv*(geom%h*int%hH113 + sum(geom%a*int%F111))
-
-                else
-
-                    ! Johnson Eq. (D21) including the area factor discussed by Ehlers in Sec. 10.3
-                    phi_s = this%J*freestream%K_inv*(geom%h*int%hH113 - sum(geom%a*int%F111))
-
-                end if
+                ! Johnson Eq. (D21) including the area factor discussed by Ehlers in Sec. 10.3
+                ! Equivalent to Ehlers Eq. (8.6)
+                phi_s = -this%J*freestream%K_inv*int%H111
 
             end if
 
