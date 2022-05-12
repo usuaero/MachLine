@@ -1562,13 +1562,15 @@ contains
 
         real :: F1, F2, b, s_b
         integer :: i, i_next
-        real,dimension(:),allocatable :: v_xi
+        real,dimension(:),allocatable :: v_xi, v_eta
 
         ! Get edge normal derivatives
         if (mirror_panel) then
             allocate(v_xi(this%N), source=this%n_hat_ls_mir(1,:))
+            allocate(v_eta(this%N), source=this%n_hat_ls_mir(2,:))
         else
             allocate(v_xi(this%N), source=this%n_hat_ls(1,:))
+            allocate(v_eta(this%N), source=this%n_hat_ls(2,:))
         end if
 
         ! Calculate hH(1,1,3) (Ehlers Eq. (E18))
@@ -1621,8 +1623,13 @@ contains
         ! Calculate H(1,1,1)
         int%H111 = -geom%h*int%hH113 - sum(geom%a*int%F111)
 
+        ! Calculate H(2,1,3) and H(1,2,3)
+        int%H213 = -sum(v_xi*int%F111)
+        int%H123 = sum(v_eta*int%F111)
+
         ! Clean up
         deallocate(v_xi)
+        deallocate(v_eta)
 
     end subroutine panel_calc_supersonic_subinc_panel_integrals
 
@@ -1732,24 +1739,11 @@ contains
             ! Doublet potential
             if (doublet_order == 1) then
 
-                if (freestream%supersonic) then
-
-                    ! Equivalent to Ehlers Eq. (5.17))
-                    phi_d(1) = int%hH113
-                    if (mirror_panel) then
-                        phi_d(2) = int%hH113*geom%P_ls(1) - geom%h*sum(this%n_hat_ls_mir(1,:)*int%F111)
-                        phi_d(3) = int%hH113*geom%P_ls(2) + geom%h*sum(this%n_hat_ls_mir(2,:)*int%F111)
-                    else
-                        phi_d(2) = int%hH113*geom%P_ls(1) - geom%h*sum(this%n_hat_ls(1,:)*int%F111)
-                        phi_d(3) = int%hH113*geom%P_ls(2) + geom%h*sum(this%n_hat_ls(2,:)*int%F111)
-                    end if
-                else
-
-                    ! Johnson Eq. (D.30)
-                    phi_d(1) = int%hH113
-                    phi_d(2) = int%hH113*geom%P_ls(1) + geom%h*int%H213
-                    phi_d(3) = int%hH113*geom%P_ls(2) + geom%h*int%H123
-                end if
+                ! Johnson Eq. (D.30)
+                ! Equivalent to Ehlers Eq. (5.17))
+                phi_d(1) = int%hH113
+                phi_d(2) = int%hH113*geom%P_ls(1) + geom%h*int%H213
+                phi_d(3) = int%hH113*geom%P_ls(2) + geom%h*int%H123
 
                 ! Convert to vertex influences (Davis Eq. (4.41))
                 if (mirror_panel) then
