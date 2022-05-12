@@ -20,9 +20,29 @@ class Swept_Plotting:
 
     def Pressure_Plot(self, file_name, Node_Count, Plot_label,LE_xy_loc, Chord_Length):
 
+        # Identify all data including column headers to identify where desired information is located
+        Data_complete = np.genfromtxt(file_name, delimiter=",", skip_header=0, dtype=str)
+        # Reformate Data_complete to remove multiple quotes
+        Data_complete = np.char.replace(Data_complete,'"',"")
+
         Data = np.genfromtxt(file_name, delimiter=",", skip_header=1, dtype=float)
 
-        C_p_inc = Data[:,0]
+        # Verify requested point is in the dataset
+        if "C_p_inc" not in Data_complete[0,:]:
+            print(f'***{"C_P_inc"} is not found in {file_name}. Quitting')
+            exit()
+
+        # Iterate over file columns searching for the x and Cp columns
+        for i, val in enumerate(Data_complete[0,:]):
+            if val == 'Points:0':
+                x_loc = i
+            if val == "C_P_inc":
+                point_loc = i
+            
+        point_data = Data[:,point_loc]
+        x = Data[:,x_loc]
+
+        # C_p_inc = Data[:,0]
         x = Data[:,1]
 
         # Ensure the plots are colored consistently
@@ -163,6 +183,15 @@ class Swept_Plotting:
                     merger.append(name)
                 merger.write(Combined_name_copy)
                 merger.close()
+
+    def form_comparison(self, formulations):
+        
+
+
+
+
+
+
 
 # Main script
 inputfile = "Swept_half_wing_conditions_input.json"

@@ -9,32 +9,32 @@ from sklearn.metrics import precision_recall_curve
 
 class Swept_Plotting:
 
-    def __init__(self, Geometry_Data, data_type, y_locations, process_points, calculation_type):
+    def __init__(self, Geometry_Data, data_type, y_locations, process_points_dict, calculation_type):
 
         self.locations = Geometry_Data
         self.semispan_y_loc = y_locations
         self.data_type = data_type
-        self.datapoints = process_points
+        self.points_dict = process_points_dict
         self.calc_type = calculation_type
 
-    def Pressure_Plot(self, file_name, datatype):
+    def Pressure_Plot(self, file_name, calc_type):
 
+        # Create a lists to distinguish direct subsonic pressure results and pressure correction resutls
+        pressure_corrections = ["C_p_inc", "C_p_PG", "C_p_KT", "C_p_L"]
+        direct_subsonic = ["C_p_ise", "C_p_2nd", "C_p_lin", "C_p_sln"]
+
+        # Create an updated dictionary with correct pressure coefficients based on calc type
+        dict_copy = self.points_dict.copy()
         
-        # Create a copy of the process points and reformat for the legend
-        temp = np.copy(self.datapoints)
-        temp = np.char.replace(temp, "_", "",1)
-        new_temp = []
-        for name in temp:
-            for j, letter in enumerate(name):
-                if letter == "_":
-                    spot = j
-            new_name = name[:spot+1] + "{" + name[spot+1:] + "}"
-            new_temp.append(new_name)
-
-        # Create a dictionary to contain the legend names properly formatted for the requested parameters
-        labels_dict = dict(zip(self.datapoints, new_temp))
-
-        
+        # Iterate over keys in dictionary
+        for key in self.points_dict:
+            if calc_type == "pressure_corrections":
+                if key in direct_subsonic:
+                    del dict_copy[key]
+            if calc_type == "subsonic_calcs":
+                if key in pressure_corrections:
+                    del dict_copy[key]
+ 
         Data_complete = np.genfromtxt(file_name, delimiter=",", skip_header=0, dtype=str)
         # Reformate Data_complete to remove multiple quotes
         Data_complete = np.char.replace(Data_complete,'"',"")
@@ -42,12 +42,16 @@ class Swept_Plotting:
         Data = np.genfromtxt(file_name, delimiter=",", skip_header=1, dtype=float)
 
         # Create lists to pull from for plotting differentiation
-        opacity = [1, 0.5, 0.35, 0.2, 0.1]
-        # shape = [".", "x", "s", "p", "D"]
-        # colors = ["g", "b", "r", "m", "y"]
+        if calc_type == "pressure_corrections":
+            opacity = [1, 0.5, 0.3,]
+            shape = ["v", "^", "<"]
+        elif calc_type == "subsonic_calcs":
+            opacity = [1, 0.5, 0.3,]
+            shape = ["o", "s", "p"]
+            # colors = ["g", "b", "r", "m", "y"]
 
         # Iterate over points to process
-        for j, point in enumerate(self.datapoints):
+        for j, point in enumerate(dict_copy):
             # Verify requested point is in the dataset
             if point not in Data_complete[0,:]:
                 print(f'***{point} is not found in {file_name}. Quitting')
@@ -69,13 +73,13 @@ class Swept_Plotting:
             x_axis = (x-LE_loc)/Chord_Length
             
             # Black and white lines with varying opacity
-            plt.plot(x_axis, point_data, label=f"${labels_dict[point]}$", alpha=opacity[j], color="k")
+            # plt.plot(x_axis, point_data, label=f"${dict_copy[point]}$", alpha=opacity[j], color="k")
             
             # Various colors
-            # plt.plot((x-LE_xy_loc)/Chord_Length,point_data, "o", label=datatype, color=colors[j])
+            # plt.plot((x-LE_xy_loc)/Chord_Length,point_data, "o", label=f"${dict_copy[point]}$", color=colors[j])
             
             # Markers alone without lines for all data
-            # plt.plot((x-LE_loc)/Chord_Length,point_data, label=datatype, marker=shape[j], color="k", linestyle="none")
+            plt.plot((x-LE_loc)/Chord_Length,point_data, label=f"${dict_copy[point]}$", marker=shape[j], alpha=opacity[j], color="k", linestyle="none")
 
         return
 
@@ -125,7 +129,7 @@ class Swept_Plotting:
                             file = f"{data_type}_Data/{calc}/M6_{data_type}_data_{percent_semispan}_percent_semispan_mach_{mach_number[j]}_AoA_{AoA}.csv"
                             
                             # Call plotting function
-                            self.Pressure_Plot(file, data_type)
+                            self.Pressure_Plot(file, calc)
                     else:
                         file = f"{data_type}_Data/M6_{data_type}_data_{percent_semispan}_percent_semispan_mach_{mach_number[j]}_AoA_{AoA}.csv"
                     
@@ -146,7 +150,8 @@ class Swept_Plotting:
 
                 #Pull in experimental results for comparison
                 plt.plot(Experimental[:,0], Experimental[:, 1], ".", label="Experimental", color="k", fillstyle="full")
-                
+                # plt.plot(Experimental[:,0], Experimental[:, 1], label="Experimental", color="k")
+
                 #Plot the figure containing all curves
                 xlabel = 'x/c'
                 plt.xlabel(xlabel)
@@ -199,19 +204,33 @@ formulation = json_vals["solver"]["formulation"]
 subsonic_calc_type = json_vals["solver"]["calculation_type"]
 points_to_process = json_vals["plots"]["points_to_process"]
 
+# Format the points to process for plotting purposes
+temp = np.copy(points_to_process)
+temp = np.char.replace(temp, "_", "",1)
+new_temp = []
+for name in temp:
+    for j, letter in enumerate(name):
+        if letter == "_":
+            spot = j
+    new_name = name[:spot+1] + "{" + name[spot+1:] + "}"
+    new_temp.append(new_name)
+
+# Create a dictionary to contain the legend names properly formatted for the requested parameters
+labels_dict = dict(zip(points_to_process, new_temp))
+
 # Iterate over solver formulations from input file
 
     # Proccesses either one or all semispan locations based on input file
 if json_vals["plots"]["process_all"]:
 
-    Swept_Plotting(locations, datasets, semispan_y_loc, points_to_process, subsonic_calc_type).get_data(mach_numbers)
+    Swept_Plotting(locations, datasets, semispan_y_loc, labels_dict, subsonic_calc_type).get_data(mach_numbers)
 
 else:
     x = input("Enter percent semispan for analysis results. Options are 20, 44, 65, 80, 90, 95, 99:   ",)
     if x in locations.keys():
         Specific_Semispan = {x: locations[x]}
 
-        Swept_Plotting(Specific_Semispan, datasets, semispan_y_loc, points_to_process, subsonic_calc_type).get_data(mach_numbers)
+        Swept_Plotting(Specific_Semispan, datasets, semispan_y_loc, labels_dict, subsonic_calc_type).get_data(mach_numbers)
 
     else:
         print("\n****************\nInvalid Entry. Please run script again.\n****************\n")
