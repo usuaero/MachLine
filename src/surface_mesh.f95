@@ -211,10 +211,14 @@ contains
         logical :: already_found_shared, dummy
         real :: distance
         integer,dimension(2) :: shared_verts
-        integer,dimension(this%N_panels*4) :: panel1, panel2, vertex1, vertex2, edge_index1, edge_index2
-        logical,dimension(this%N_panels*4) :: on_mirror_plane
+        integer,dimension(this%N_panels*3) :: panel1, panel2, vertex1, vertex2, edge_index1, edge_index2
+        logical,dimension(this%N_panels*3) :: on_mirror_plane
+        
 
         write(*,'(a)',advance='no') "     Locating adjacent panels..."
+
+        ! Initialize a few things
+        on_mirror_plane = .false.
 
         ! Loop through each panel
         N_edges = 0
@@ -312,7 +316,6 @@ contains
                                 panel2(i_edge) = j
                                 vertex1(i_edge) = shared_verts(1)
                                 vertex2(i_edge) = shared_verts(2)
-                                on_mirror_plane(i_edge) = .false.
 
                                 !$OMP end critical
                                 

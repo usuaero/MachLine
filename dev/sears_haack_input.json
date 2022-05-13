@@ -1,12 +1,12 @@
 {
     "flow": {
         "freestream_velocity": [
-            520.8356842613609,
+            694.4475790151479,
             0.0,
             0.0
         ],
         "gamma": 1.4,
-        "freestream_mach_number": 1.5
+        "freestream_mach_number": 2
     },
     "geometry": {
         "file": "dev/meshes/sears_haack_9800.tri",
