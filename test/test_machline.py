@@ -131,11 +131,11 @@ def test_half_wing_morino_zero_aoa_zero_beta_inc():
     print(Cy)
     print(Cz)
 
-    assert(abs(C_p_max - 0.2216567266868189) < 1e-7)
-    assert(abs(C_p_min - -0.4275879693651643) < 1e-7)
-    assert(abs(Cx - 0.3018973986602846) < 1e-7)
+    assert(abs(C_p_max - 0.221658891565984) < 1e-7)
+    assert(abs(C_p_min - -0.427587709978507) < 1e-7)
+    assert(abs(Cx - 0.301886573119651) < 1e-7)
     assert(abs(Cy) < 1e-12)
-    assert(abs(Cz - -1.6879591014100533e-07) < 1e-7)
+    assert(abs(Cz - -1.6953028193344e-07) < 1e-7)
 
 
 def test_sphere_morino_inc():

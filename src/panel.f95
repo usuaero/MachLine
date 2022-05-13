@@ -1495,42 +1495,25 @@ contains
         real :: S, C, nu, c1, c2, x
         integer :: i
 
-        ! Calculate hH(1,1,3)
+        ! Calculate and hH(1,1,3) (Johnson Eqs. (D.41) and (G.24))
+        ! No check on the magnitude of h is necessary since we never divide by it
+        int%hH113 = 0.
+        do i=1,this%N
 
-        ! Not close to panel plane
-        if (abs(geom%h) > 1e-12) then ! The nonzero h check seems to be more reliable than that proposed by Johnson
-
-            ! Calculate and hH(1,1,3) (Johnson Eqs. (D.41) and (G.24))
-            int%hH113 = 0.
-            do i=1,this%N
-
-                ! Calculate intermediate quantities
-                c1 = geom%g2(i)+abs(geom%h)*geom%R1(i)
-                c2 = geom%g2(i)+abs(geom%h)*geom%R2(i)
+            ! Calculate intermediate quantities
+            c1 = geom%g2(i)+abs(geom%h)*geom%R1(i)
+            c2 = geom%g2(i)+abs(geom%h)*geom%R2(i)
         
-                ! Add surface integral
-                S = geom%a(i)*(geom%l2(i)*c1 - geom%l1(i)*c2)
-                C = c1*c2 + geom%a(i)**2*geom%l1(i)*geom%l2(i)
-                x = atan2(S, C)
-                int%hH113 = int%hH113 + x
+            ! Add surface integral
+            S = geom%a(i)*(geom%l2(i)*c1 - geom%l1(i)*c2)
+            C = c1*c2 + geom%a(i)**2*geom%l1(i)*geom%l2(i)
+            x = atan2(S, C)
+            int%hH113 = int%hH113 + x
         
-            end do
+        end do
         
-            ! Calculate hH(1,1,3) (Johnson Eq. (D.42)
-            int%hH113 = sign(int%hH113, geom%h)
-
-        else
-
-            ! Close to panel plane but outside Sigma
-            if (all(geom%a < 0.)) then
-                int%hH113 = 0.
-
-            ! Close to panel plane but inside Sigma
-            else
-                int%hH113 = sign(2.*pi, geom%h)
-
-            end if
-        end if
+        ! Calculate hH(1,1,3) (Johnson Eq. (D.42)
+        int%hH113 = sign(int%hH113, geom%h)
 
         ! Calculate H(1,1,1)
         int%H111 = -geom%h*int%hH113 + sum(geom%a*int%F111)
