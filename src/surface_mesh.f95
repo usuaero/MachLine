@@ -424,7 +424,8 @@ contains
         do i=1,this%N_panels
             if (any(this%panels(i)%abutting_panels == 0)) then
                 write(*,*)
-                write(*,*) "!!! The supplied mesh is not watertight. Panel", i, "is missing at least one neighbor. Solution quality may be adversely affected."
+                write(*,*) "!!! The supplied mesh is not watertight. Panel", i, "is missing at least one neighbor."
+                write(*,*) "!!! Solution quality may be adversely affected."
             end if
         end do
 

@@ -89,8 +89,8 @@ contains
 
             ! Notify user if pressure rule applied is changed based on selected freestream mach number
             if (this%isentropic_rule) then
-                write(*,*) "!!! The pressure rule has been changed from the isentropic to the incompressible rule whereas a freestream"
-                write(*,*) "    mach number of 0.0 has been selected"
+                write(*,*) "!!! The pressure rule has been changed from isentropic to incompressible since a freestream"
+                write(*,*) "!!! Mach number of 0.0 has been selected"
                 this%isentropic_rule = .false.
                 this%incompressible_rule = .true.
             end if
@@ -99,8 +99,8 @@ contains
 
             ! Notify user if pressure rule applied is changed based on selected freestream mach number
             if (this%incompressible_rule) then
-                write(*,*) "!!! The pressure rule has been changed from the incompressible to the isentropic rule whereas a freestream"
-                write(*,*) "    mach number greater than 0.0 has been selected"
+                write(*,*) "!!! The pressure rule has been changed from incompressible to isentropic since a freestream"
+                write(*,*) "!!! Mach number greater than 0.0 has been selected"
                 this%incompressible_rule = .false.
                 this%isentropic_rule = .true.
             end if
