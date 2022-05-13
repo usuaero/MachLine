@@ -80,27 +80,31 @@ contains
         call json_xtnsn_get(processing_settings, 'pressure_rules.incompressible', this%incompressible_rule, .false.)
         call json_xtnsn_get(processing_settings, 'pressure_rules.isentropic', this%isentropic_rule, .true.)
         call json_xtnsn_get(processing_settings, 'pressure_rules.second-order', this%second_order_rule, .false.)
+        call json_xtnsn_get(processing_settings, 'pressure_rules.second-order', this%second_order_rule, .false.)
+        call json_xtnsn_get(processing_settings, 'pressure_rules.slender-body', this%slender_rule, .false.)
+        call json_xtnsn_get(processing_settings, 'pressure_rules.linear', this%linear_rule, .false.)
 
         ! Verify compatability of pressure rules and selected freestream mach number
-        if (freestream%M_inf > 0.) then
-            ! Notify user if pressure rule applied is changed based on selected freestream mach number
-            if (this%incompressible_rule) then
-                write(*,*) "!!! The pressure rule has been changed to the isentropic rule whereas a freestream"
-                write(*,*) "    mach number greater than 0.0 has been selected"
-                this%incompressible_rule = .false.
-            end if
-            this%isentropic_rule = .true.
-        else if (freestream%M_inf == 0.) then
+        if (freestream%incompressible) then
+
             ! Notify user if pressure rule applied is changed based on selected freestream mach number
             if (this%isentropic_rule) then
-                write(*,*) "!!! The pressure rule has been changed to the incompressible rule whereas a freestream"
+                write(*,*) "!!! The pressure rule has been changed from the isentropic to the incompressible rule whereas a freestream"
                 write(*,*) "    mach number of 0.0 has been selected"
                 this%isentropic_rule = .false.
+                this%incompressible_rule = .true.
             end if
-            this%incompressible_rule = .true.
+
         else
-            write(*,*) "!!! Invalid freestream mach number selected. Cannot be a negative number. Quitting..."
-            stop
+
+            ! Notify user if pressure rule applied is changed based on selected freestream mach number
+            if (this%incompressible_rule) then
+                write(*,*) "!!! The pressure rule has been changed from the incompressible to the isentropic rule whereas a freestream"
+                write(*,*) "    mach number greater than 0.0 has been selected"
+                this%incompressible_rule = .false.
+                this%isentropic_rule = .true.
+            end if
+
         end if
 
         ! Get mach number for pressure corrections
@@ -132,11 +136,6 @@ contains
             this%incompressible_rule = .true.
         end if 
 
-        ! Get other pressure rules
-        call json_xtnsn_get(processing_settings, 'pressure_rules.second-order', this%second_order_rule, .false.)
-        call json_xtnsn_get(processing_settings, 'pressure_rules.slender-body', this%slender_rule, .false.)
-        call json_xtnsn_get(processing_settings, 'pressure_rules.linear', this%linear_rule, .false.)
-
         ! Get which pressure rule will be used for force calculation
         if (this%incompressible_rule) then
             ! Check if a compressibility correction will be applied
@@ -155,41 +154,62 @@ contains
             call json_xtnsn_get(processing_settings, 'pressure_for_forces', this%pressure_for_forces, 'second-order')
         end if
 
-        ! Check that the selected pressure for force calculation is implemented in MachLine
+        ! Check that the selected pressure for force calculation has been specified
         select case (this%pressure_for_forces)
-        case ("incompressible")
-        case ("isentropic")
-        case ("second-order")
-        case ("slender-body")
-            write(*,*) "!!! Using the ", this%pressure_for_forces, " pressure rule to calculate forces "
-            write(*,*) "!!! has not yet been implemented into MachLine. Quitting..."
-            stop
-        case ("linear")
-            write(*,*) "!!! Using the ", this%pressure_for_forces, " pressure rule to calculate forces "
-            write(*,*) "!!! has not yet been implemented into MachLine. Quitting..."
-            stop
-        case ("prandtl-glauert")
-        case ("karman-tsien")
-        case ("laitone")
-        case default
-            write(*,*) "!!! The selected pressure for force calculation using the ", this%pressure_for_forces, " rule is not valid."
-            write(*,*) "!!! Quitting..."
-            stop
-        end select
 
-        ! Check the force calculation pressure rule is available
-        if (this%pressure_for_forces == 'incompressible' .and. .not. this%incompressible_rule) then
-            write(*,*) "!!! Incompressible pressure rule is not available for force calculation. Quitting..."
+        case ("incompressible")
+            if (.not. this%incompressible_rule) then
+                write(*,*) "!!! Incompressible pressure rule is not available for force calculation. Quitting..."
+                stop
+            end if
+
+        case ("isentropic")
+            if (.not. this%isentropic_rule) then
+                write(*,*) "!!! Isentropic pressure rule is not available for force calculation. Quitting..."
+                stop
+            end if
+
+        case ("second-order")
+            if (.not. this%second_order_rule) then
+                write(*,*) "!!! Second-order pressure rule is not available for force calculation. Quitting..."
+                stop
+            end if
+
+        case ("slender-body")
+            if (.not. this%slender_rule) then
+                write(*,*) "!!! Slender-body pressure rule is not available for force calculation. Quitting..."
+                stop
+            end if
+
+        case ("linear")
+            if (.not. this%linear_rule) then
+                write(*,*) "!!! Linear pressure rule is not available for force calculation. Quitting..."
+                stop
+            end if
+
+        case ("prandtl-glauert")
+            if (.not. this%prandtl_glauert) then
+                write(*,*) "!!! Prandtl-Glauert pressure correction is not available for force calculation. Quitting..."
+                stop
+            end if
+
+        case ("karman-tsien")
+            if (.not. this%prandtl_glauert) then
+                write(*,*) "!!! Karman-Tsien pressure correction is not available for force calculation. Quitting..."
+                stop
+            end if
+
+        case ("laitone")
+            if (.not. this%prandtl_glauert) then
+                write(*,*) "!!! Laitone pressure correction is not available for force calculation. Quitting..."
+                stop
+            end if
+
+        case default
+            write(*,*) "!!! User selected ", this%pressure_for_forces, " for calculating forces. This is not valid. Quitting..."
             stop
-        end if
-        if (this%pressure_for_forces == 'isentropic' .and. .not. this%isentropic_rule) then
-            write(*,*) "!!! Isentropic pressure rule is not available for force calculation. Quitting..."
-            stop
-        end if
-        if (this%pressure_for_forces == 'second-order' .and. .not. this%second_order_rule) then
-            write(*,*) "!!! Second-order pressure rule is not available for force calculation. Quitting..."
-            stop
-        end if
+
+        end select
 
         ! Store
         this%freestream = freestream

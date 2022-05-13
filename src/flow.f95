@@ -57,8 +57,14 @@ contains
             write(*,*) "Freestream velocity was not specified. Quitting..."
             stop
         end if
-        call json_xtnsn_get(settings, 'freestream_mach_number', this%M_inf, 0.0)
+        call json_xtnsn_get(settings, 'freestream_mach_number', this%M_inf, 0.)
         call json_xtnsn_get(settings, 'gamma', this%gamma, 1.4)
+
+        ! Check for positive Mach number (idiot-proofing)
+        if (this%M_inf < 0.) then
+            write(*,*) "!!! Invalid freestream Mach number selected. Cannot be a negative number. Quitting..."
+            stop
+        end if
 
         ! Check symmetry
         this%sym_about = this%v_inf == 0.
