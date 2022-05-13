@@ -82,6 +82,16 @@ contains
 
             end do
 
+            ! Check for duplicate vertices
+            do i=1,N_verts
+                do j=i+1,N_verts
+                    if (dist(vertices(i)%loc, vertices(j)%loc) < 1e-5) then
+                        write(*,*) "!!! Detected duplicate vertices in mesh. Solution quality may be reduced."
+                        write(*,*) "!!! ", i, " and ", j, " are duplicate vertices."
+                    end if
+                end do
+            end do
+
             ! Allocate panel storage
             allocate(panels(N_panels))
 

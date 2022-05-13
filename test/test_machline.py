@@ -72,7 +72,7 @@ def test_half_wing_source_free_asym_inc_flow():
     assert(abs(C_p_min - -1.277682957991789) < 1e-7)
     assert(abs(Cx - -0.3931615473932072) < 1e-7)
     assert(abs(Cy - -0.046891722885473566) < 1e-7)
-    assert(abs(Cz - 20.621798814136014) < 1e-7)
+    assert(abs(Cz - 20.621798814136014) < 1.1e-7)
 
 
 def test_half_wing_morino_asym_inc_flow():
@@ -131,11 +131,11 @@ def test_half_wing_morino_zero_aoa_zero_beta_inc():
     print(Cy)
     print(Cz)
 
-    assert(abs(C_p_max - 0.2216567266868189) < 1e-7)
-    assert(abs(C_p_min - -0.4275879693651643) < 1e-7)
-    assert(abs(Cx - 0.3018973986602846) < 1e-7)
+    assert(abs(C_p_max - 0.221658891565984) < 1e-7)
+    assert(abs(C_p_min - -0.427587709978507) < 1e-7)
+    assert(abs(Cx - 0.301886573119651) < 1e-7)
     assert(abs(Cy) < 1e-12)
-    assert(abs(Cz - -1.6879591014100533e-07) < 1e-7)
+    assert(abs(Cz - -1.6953028193344e-07) < 1e-7)
 
 
 def test_sphere_morino_inc():
@@ -212,3 +212,28 @@ def test_supersonic_half_wing_morino_zero_aoa_zero_beta():
     assert(abs(Cx - 0.14238137125495076) < 1e-7)
     assert(abs(Cy) < 1e-12)
     assert(abs(Cz) < 1e-7)
+
+
+def test_supersonic_half_wing_source_free_zero_aoa_zero_beta():
+
+    with open("test/supersonic_half_wing_input.json", 'r') as input_handle:
+        input_dict = json.load(input_handle)
+
+    input_dict["solver"]["formulation"] = 'source-free'
+
+    with open("test/altered_supersonic_input.json", 'w') as input_handle:
+        input_dict = json.dump(input_dict, input_handle, indent=4)
+
+    C_p_max, C_p_min, Cx, Cy, Cz = run_machline("test/altered_supersonic_input.json", remove_input=True)
+
+    print(C_p_max)
+    print(C_p_min)
+    print(Cx)
+    print(Cy)
+    print(Cz)
+
+    assert(abs(C_p_max - 0.121707118823963) < 1e-7)
+    assert(abs(C_p_min - -0.116058444547646) < 1e-7)
+    assert(abs(Cx - 0.142379818359474) < 1e-7)
+    assert(abs(Cy) < 1e-12)
+    assert(abs(Cz) < 2e-7)

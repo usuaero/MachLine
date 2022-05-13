@@ -610,9 +610,14 @@ contains
         end if
 
         write(*,'(a)',advance='no') "     Calculating body influences..."
+        
+        ! Parameter used for calculating inner potential for the source-free formulation
+        if (this%formulation == 'source-free') then
+            x = matmul(this%freestream%B_mat_g_inv, this%freestream%c_hat_g)
+        end if
 
         ! Calculate source and doublet influences from body on each control point
-        !$OMP parallel do private(j, source_inf, doublet_inf, i_vert_s, i_vert_d, k, A_i, A_i_mir, phi_cp_s, phi_cp_s_mir, x) &
+        !$OMP parallel do private(j, source_inf, doublet_inf, i_vert_s, i_vert_d, k, A_i, A_i_mir, phi_cp_s, phi_cp_s_mir) &
         !$OMP schedule(dynamic)
         do i=1,body%N_cp
 
@@ -635,8 +640,7 @@ contains
                                                         source_inf, doublet_inf, i_vert_s, i_vert_d)
 
                     ! Add influence
-                    call this%update_system_row(body, A_i, phi_cp_s, j, source_inf, doublet_inf, &
-                                                i_vert_s, i_vert_d)
+                    call this%update_system_row(body, A_i, phi_cp_s, j, source_inf, doublet_inf, i_vert_s, i_vert_d)
 
                 end if
 
@@ -706,8 +710,7 @@ contains
                                                                 .false., source_inf, doublet_inf, i_vert_s, i_vert_d)
 
                             ! Add influence of mirrored panel on existing control point
-                            call this%update_system_row(body, A_i, phi_cp_s, j, &
-                                                        source_inf, doublet_inf, i_vert_s, i_vert_d)
+                            call this%update_system_row(body, A_i, phi_cp_s, j, source_inf, doublet_inf, i_vert_s, i_vert_d)
                         end if
 
                     end if
@@ -742,7 +745,6 @@ contains
 
             ! Set target potential for source-free formulation
             else
-                x = matmul(this%freestream%B_mat_g_inv, this%freestream%c_hat_g)
                 this%b(i) = -this%freestream%s*inner(x, body%cp(:,i))
 
                 ! Set for unique mirrored control  points
@@ -907,18 +909,6 @@ contains
         allocate(A_copy, source=this%A, stat=stat)
         call check_allocation(stat, "solver copy of AIC matrix")
 
-        ! Write A and b to file
-        !open(34, file="./dev/A_mat.txt")
-        !do i=1,this%N
-        !    write(34,*) this%A(i,:)
-        !end do
-        !close(34)
-        !open(34, file="./dev/b_vec.txt")
-        !do i=1,this%N
-        !    write(34,*) this%b(i)
-        !end do
-        !close(34)
-
         ! Solve
         if (this%matrix_solver == 'LU') then
             call lu_solve(this%N, A_copy, this%b, body%mu)
@@ -1025,7 +1015,7 @@ contains
 
         integer :: i, stat
         real,dimension(3) :: V_pert
-        real :: a, b, c, C_p_vac
+        real :: a, b, c, C_p_vac, lin, sln
 
         write(*,'(a)',advance='no') "     Calculating surface pressures..."
         this%N_cells = size(body%V)/3
@@ -1033,114 +1023,89 @@ contains
         ! Calculate vacuum pressure coefficient
         C_p_vac = -2./(this%freestream%gamma*this%freestream%M_inf**2)
 
-        ! Incompressible rule
+        ! Allocate storage
         if (this%incompressible_rule) then
-
-            ! Allocate storage
             allocate(body%C_p_inc(this%N_cells), stat=stat)
             call check_allocation(stat, "incompressible surface pressures")
-
-            ! Calculate
-            do i=1,this%N_cells
-                body%C_p_inc(i) = 1.-inner(body%V(:,i), body%V(:,i))*this%freestream%U_inv**2
-            end do
-
         end if
         
-        ! Isentropic rule
         if (this%isentropic_rule) then
+            allocate(body%C_p_ise(this%N_cells), stat=stat)
+            call check_allocation(stat, "isentropic surface pressures")
+        end if
+        
+        if (this%second_order_rule) then
+            allocate(body%C_p_2nd(this%N_cells), stat=stat)
+            call check_allocation(stat, "second-order surface pressures")
+        end if
+        
+        if (this%slender_rule) then
+            allocate(body%C_p_sln(this%N_cells), stat=stat)
+            call check_allocation(stat, "slender-body surface pressures")
+        end if
+        
+        if (this%linear_rule) then
+            allocate(body%C_p_lin(this%N_cells), stat=stat)
+            call check_allocation(stat, "linear surface pressures")
+        end if
 
-            ! Calculate isentropic pressure correction terms
+        ! Calculate reusable terms for the isentropic rule
+        if (this%isentropic_rule) then
             a = 2./(this%freestream%gamma*this%freestream%M_inf**2)
             b = 0.5*(this%freestream%gamma-1.)*this%freestream%M_inf**2
             c = this%freestream%gamma/(this%freestream%gamma-1.)
+        end if
 
-            ! Allocate storage
-            allocate(body%C_p_ise(this%N_cells), stat=stat)
-            call check_allocation(stat, "isentropic surface pressures")
+        ! Calculate pressures
+        !$OMP parallel do private(V_pert, lin, sln) schedule(static)
+        do i=1,this%N_cells
 
-            ! Calculate
-            do i=1,this%N_cells
+            ! Incompressible rule
+            if (this%incompressible_rule) then
+                body%C_p_inc(i) = 1.-inner(body%V(:,i), body%V(:,i))*this%freestream%U_inv**2
+            end if
+        
+            ! Isentropic rule
+            if (this%isentropic_rule) then
                 
-                ! Incompressible first
                 body%C_p_ise(i) = 1. - inner(body%V(:,i), body%V(:,i))*this%freestream%U_inv**2
-
-                ! Apply compressible correction
                 body%C_p_ise(i) = a*( (1. + b*body%C_p_ise(i))**c - 1.)
 
                 ! Check for NaN and replace with vacuum pressure
                 if (isnan(body%C_p_ise(i))) then
                     body%C_p_ise(i) = C_p_vac
                 end if
+            end if
 
-            end do
+            ! Get perturbation velocity in the compressible frame
+            V_pert = matmul(this%freestream%A_g_to_c, body%V(:,i)-this%freestream%v_inf)
 
-        end if
+            ! Linear term
+            if (this%linear_rule .or. this%slender_rule .or. this%second_order_rule) then
+                lin = -2.*V_pert(1)*this%freestream%U_inv
+            end if
+
+            ! Slender-body term
+            if (this%slender_rule .or. this%second_order_rule) then
+                sln = lin - (V_pert(2)**2 + V_pert(3)**2)*this%freestream%U_inv**2
+            end if
         
-        ! Second-order rule
-        if (this%second_order_rule) then
-
-            ! Allocate storage
-            allocate(body%C_p_2nd(this%N_cells), stat=stat)
-            call check_allocation(stat, "second-order surface pressures")
-
-            ! Calculate (E&M Eq. (N.2.43))
-            do i=1,this%N_cells
-
-                ! Get perturbation velocity in the compressible frame
-                V_pert = matmul(this%freestream%A_g_to_c, body%V(:,i)-this%freestream%v_inf)
-
-                ! Calculate first term
-                body%C_p_2nd(i) = -2.*V_pert(1)*this%freestream%U_inv
-
-                ! Calculate second term
-                body%C_p_2nd(i) = body%C_p_2nd(i) &
-                                  - ((1.-this%freestream%M_inf**2)*V_pert(1)**2 + V_pert(2)**2 + V_pert(3)**2) &
-                                  *this%freestream%U_inv**2
-            end do
-
-        end if
+            ! Second-order rule
+            if (this%second_order_rule) then
+                body%C_p_2nd(i) = sln - (1.-this%freestream%M_inf**2)*V_pert(1)**2*this%freestream%U_inv**2
+            end if
         
-        ! Slender-body rule
-        if (this%slender_rule) then
-
-            ! Allocate storage
-            allocate(body%C_p_sln(this%N_cells), stat=stat)
-            call check_allocation(stat, "slender-body surface pressures")
-
-            ! Calculate (E&M Eq. (N.2.43))
-            do i=1,this%N_cells
-
-                ! Get perturbation velocity in the compressible frame
-                V_pert = matmul(this%freestream%A_g_to_c, body%V(:,i)-this%freestream%v_inf)
-
-                ! Calculate first term
-                body%C_p_sln(i) = -2.*V_pert(1)*this%freestream%U_inv
-
-                ! Calculate second term
-                body%C_p_sln(i) = body%C_p_sln(i) - (V_pert(2)**2 + V_pert(3)**2)*this%freestream%U_inv**2
-            end do
-
-        end if
+            ! Slender-body rule
+            if (this%slender_rule) then
+                body%C_p_sln(i) = sln
+            end if
         
-        ! Linear rule
-        if (this%linear_rule) then
+            ! Linear rule
+            if (this%linear_rule) then
+                body%C_p_lin(i) = lin
+            end if
 
-            ! Allocate storage
-            allocate(body%C_p_lin(this%N_cells), stat=stat)
-            call check_allocation(stat, "linear surface pressures")
-
-            ! Calculate (E&M Eq. (N.2.43))
-            do i=1,this%N_cells
-
-                ! Get perturbation velocity in the compressible frame
-                V_pert = matmul(this%freestream%A_g_to_c, body%V(:,i)-this%freestream%v_inf)
-
-                ! Calculate first term
-                body%C_p_lin(i) = -2.*V_pert(1)*this%freestream%U_inv
-            end do
-
-        end if
+        end do
 
         write(*,*) "Done."
         

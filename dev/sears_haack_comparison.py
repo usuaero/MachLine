@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 if __name__=="__main__":
 
     # Parameters
-    M = 1.5
+    M = 2
     R_G = 287.058
     gamma = 1.4
     T_inf = 300.0

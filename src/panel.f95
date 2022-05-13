@@ -1495,42 +1495,25 @@ contains
         real :: S, C, nu, c1, c2, x
         integer :: i
 
-        ! Calculate hH(1,1,3)
+        ! Calculate and hH(1,1,3) (Johnson Eqs. (D.41) and (G.24))
+        ! No check on the magnitude of h is necessary since we never divide by it
+        int%hH113 = 0.
+        do i=1,this%N
 
-        ! Not close to panel plane
-        if (abs(geom%h) > 1e-12) then ! The nonzero h check seems to be more reliable than that proposed by Johnson
-
-            ! Calculate and hH(1,1,3) (Johnson Eqs. (D.41) and (G.24))
-            int%hH113 = 0.
-            do i=1,this%N
-
-                ! Calculate intermediate quantities
-                c1 = geom%g2(i)+abs(geom%h)*geom%R1(i)
-                c2 = geom%g2(i)+abs(geom%h)*geom%R2(i)
+            ! Calculate intermediate quantities
+            c1 = geom%g2(i)+abs(geom%h)*geom%R1(i)
+            c2 = geom%g2(i)+abs(geom%h)*geom%R2(i)
         
-                ! Add surface integral
-                S = geom%a(i)*(geom%l2(i)*c1 - geom%l1(i)*c2)
-                C = c1*c2 + geom%a(i)**2*geom%l1(i)*geom%l2(i)
-                x = atan2(S, C)
-                int%hH113 = int%hH113 + x
+            ! Add surface integral
+            S = geom%a(i)*(geom%l2(i)*c1 - geom%l1(i)*c2)
+            C = c1*c2 + geom%a(i)**2*geom%l1(i)*geom%l2(i)
+            x = atan2(S, C)
+            int%hH113 = int%hH113 + x
         
-            end do
+        end do
         
-            ! Calculate hH(1,1,3) (Johnson Eq. (D.42)
-            int%hH113 = sign(int%hH113, geom%h)
-
-        else
-
-            ! Close to panel plane but outside Sigma
-            if (all(geom%a < 0.)) then
-                int%hH113 = 0.
-
-            ! Close to panel plane but inside Sigma
-            else
-                int%hH113 = sign(2.*pi, geom%h)
-
-            end if
-        end if
+        ! Calculate hH(1,1,3) (Johnson Eq. (D.42)
+        int%hH113 = sign(int%hH113, geom%h)
 
         ! Calculate H(1,1,1)
         int%H111 = -geom%h*int%hH113 + sum(geom%a*int%F111)
@@ -1562,13 +1545,15 @@ contains
 
         real :: F1, F2, b, s_b
         integer :: i, i_next
-        real,dimension(:),allocatable :: v_xi
+        real,dimension(:),allocatable :: v_xi, v_eta
 
         ! Get edge normal derivatives
         if (mirror_panel) then
             allocate(v_xi(this%N), source=this%n_hat_ls_mir(1,:))
+            allocate(v_eta(this%N), source=this%n_hat_ls_mir(2,:))
         else
             allocate(v_xi(this%N), source=this%n_hat_ls(1,:))
+            allocate(v_eta(this%N), source=this%n_hat_ls(2,:))
         end if
 
         ! Calculate hH(1,1,3) (Ehlers Eq. (E18))
@@ -1618,8 +1603,16 @@ contains
             end if
         end do
 
+        ! Calculate H(1,1,1)
+        int%H111 = -geom%h*int%hH113 - sum(geom%a*int%F111)
+
+        ! Calculate H(2,1,3) and H(1,2,3)
+        int%H213 = -sum(v_xi*int%F111)
+        int%H123 = sum(v_eta*int%F111)
+
         ! Clean up
         deallocate(v_xi)
+        deallocate(v_eta)
 
     end subroutine panel_calc_supersonic_subinc_panel_integrals
 
@@ -1720,41 +1713,20 @@ contains
             ! Source potential
             if (source_order == 0) then
 
-                if (freestream%supersonic) then
-
-                    ! Equivalent to Ehlers Eq. (8.6)
-                    phi_s = this%J*freestream%K_inv*(geom%h*int%hH113 + sum(geom%a*int%F111))
-
-                else
-
-                    ! Johnson Eq. (D21) including the area factor discussed by Ehlers in Sec. 10.3
-                    phi_s = this%J*freestream%K_inv*(geom%h*int%hH113 - sum(geom%a*int%F111))
-
-                end if
+                ! Johnson Eq. (D21) including the area factor discussed by Ehlers in Sec. 10.3
+                ! Equivalent to Ehlers Eq. (8.6)
+                phi_s = -this%J*freestream%K_inv*int%H111
 
             end if
 
             ! Doublet potential
             if (doublet_order == 1) then
 
-                if (freestream%supersonic) then
-
-                    ! Equivalent to Ehlers Eq. (5.17))
-                    phi_d(1) = int%hH113
-                    if (mirror_panel) then
-                        phi_d(2) = int%hH113*geom%P_ls(1) - geom%h*sum(this%n_hat_ls_mir(1,:)*int%F111)
-                        phi_d(3) = int%hH113*geom%P_ls(2) + geom%h*sum(this%n_hat_ls_mir(2,:)*int%F111)
-                    else
-                        phi_d(2) = int%hH113*geom%P_ls(1) - geom%h*sum(this%n_hat_ls(1,:)*int%F111)
-                        phi_d(3) = int%hH113*geom%P_ls(2) + geom%h*sum(this%n_hat_ls(2,:)*int%F111)
-                    end if
-                else
-
-                    ! Johnson Eq. (D.30)
-                    phi_d(1) = int%hH113
-                    phi_d(2) = int%hH113*geom%P_ls(1) + geom%h*int%H213
-                    phi_d(3) = int%hH113*geom%P_ls(2) + geom%h*int%H123
-                end if
+                ! Johnson Eq. (D.30)
+                ! Equivalent to Ehlers Eq. (5.17))
+                phi_d(1) = int%hH113
+                phi_d(2) = int%hH113*geom%P_ls(1) + geom%h*int%H213
+                phi_d(3) = int%hH113*geom%P_ls(2) + geom%h*int%H123
 
                 ! Convert to vertex influences (Davis Eq. (4.41))
                 if (mirror_panel) then
