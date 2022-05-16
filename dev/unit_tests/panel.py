@@ -402,15 +402,15 @@ class SuperinclinedPanel:
 
             if corner_in_dod[i]:
 
-                # Get index of next edge
-                i_next = (i+1)%self.N
+                # Get index of previous edge (corner i is between edge i and edge i-1)
+                i_prev = i-1
 
                 # Get intermediate vals
-                A = inner2(self.t_hat[:,i], self.t_hat[:,i_next])
-                B = self.t_hat[0,i]*self.t_hat[1,i_next] - self.t_hat[1,i]*self.t_hat[0,i_next]
+                A = inner2(self.t_hat[:,i_prev], self.t_hat[:,i])
+                B = self.t_hat[0,i_prev]*self.t_hat[1,i] - self.t_hat[1,i_prev]*self.t_hat[0,i]
 
                 # Get sine and cosine terms
-                X = a[i]*a[i_next] - h**2*A
+                X = a[i]*a[i_prev] - h**2*A
                 Y = h*R[i]*B
 
                 # Get contribution
@@ -422,11 +422,11 @@ class SuperinclinedPanel:
             # Check DoD
             if in_dod[i]:
 
-                # Get previous index
-                i_prev = i-1
+                # Get index of end vertex
+                i_next = (i+1)%self.N
 
                 # Mach wedge region
-                if not corner_in_dod[i] and not corner_in_dod[i_prev]:
+                if not corner_in_dod[i] and not corner_in_dod[i_next]:
                     phi[i] = -np.pi
 
                 # At least one endpoint in
@@ -434,18 +434,18 @@ class SuperinclinedPanel:
 
                     # Correct l1 or l2 if that endpoint is out\
                     if not corner_in_dod[i]:
-                        l2_corr = 1.0
-                    else:
-                        l2_corr = l2[i]
-
-                    if not corner_in_dod[i_prev]:
                         l1_corr = -1.0
                     else:
                         l1_corr = l1[i]
 
+                    if not corner_in_dod[i_next]:
+                        l2_corr = 1.0
+                    else:
+                        l2_corr = l2[i]
+
                     # Calculate sine and cosine terms
-                    X = l1_corr*l2_corr + R[i]*R[i_prev]
-                    Y = R[i]*l1_corr - R[i_prev]*l2_corr
+                    X = l1_corr*l2_corr + R[i]*R[i_next]
+                    Y = R[i]*l2_corr - R[i_next]*l1_corr
 
                     # Calculate phi
                     phi[i] = np.arctan2(Y, X)
@@ -462,13 +462,15 @@ class SuperinclinedPanel:
             Evaluation point.
         """
 
-        # Get geometry (for a)
-        _,a,_,_,_,_,_ = self._calc_geometry(P)
+        # Get geometry
+        h,a,_,_,_,_,_ = self._calc_geometry(P)
 
         # Get integrals
         psi, phi = self._calc_integrals(P)
 
-        return -self.sigma*psi/(2.0*np.pi), psi, phi, a
+        phi_s = -self.sigma*(h**2*psi - np.sum(a*phi))/(2.0*np.pi)
+
+        return phi_s, psi, phi, a
 
 
     def calc_induced_doublet_potential(self, P):
@@ -486,4 +488,4 @@ class SuperinclinedPanel:
         # Get integrals
         psi, phi = self._calc_integrals(P)
         
-        return self.mu*(-h**2*psi - np.sum(a*phi))/(2.0*np.pi)
+        return self.mu*psi/(2.0*np.pi)

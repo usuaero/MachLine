@@ -180,6 +180,6 @@ if __name__=="__main__":
                       [1.0, 1.0, -1.0, -1.0]])
 
     # Totally in DoD
-    P0 = np.array([2.0, 0.0, 0.0])
+    P0 = np.array([2.0, 0.0, 0.3])
     d0 = np.array([1.0, 0.0, 0.0])
     plot_comparison(verts, P0, d0, subinclined=False)
