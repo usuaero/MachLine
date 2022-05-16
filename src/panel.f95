@@ -1473,7 +1473,17 @@ contains
         type(integrals),intent(inout) :: int
 
         real :: S, C, nu, c1, c2, x
+        real,dimension(this%N) :: v_xi, v_eta
         integer :: i
+
+        ! Get edge vector components
+        if (mirror_panel) then
+            v_xi = this%n_hat_ls_mir(1,:)
+            v_eta = this%n_hat_ls_mir(2,:)
+        else
+            v_xi = this%n_hat_ls(1,:)
+            v_eta = this%n_hat_ls(2,:)
+        end if
 
         ! Calculate and hH(1,1,3) (Johnson Eqs. (D.41) and (G.24))
         ! No check on the magnitude of h is necessary since we never divide by it
@@ -1499,13 +1509,8 @@ contains
         int%H111 = -geom%h*int%hH113 + sum(geom%a*int%F111)
 
         ! Calculate H(2,1,3) and H(1,2,3)
-        if (mirror_panel) then
-            int%H213 = -sum(this%n_hat_ls_mir(1,:)*int%F111)
-            int%H123 = -sum(this%n_hat_ls_mir(2,:)*int%F111)
-        else
-            int%H213 = -sum(this%n_hat_ls(1,:)*int%F111)
-            int%H123 = -sum(this%n_hat_ls(2,:)*int%F111)
-        end if
+        int%H213 = -sum(v_xi*int%F111)
+        int%H123 = -sum(v_eta*int%F111)
 
         ! Calculate higher-order integrals
         if (source_order == 1) then
@@ -1706,12 +1711,14 @@ contains
 
                 ! Johnson Eq. (D21) including the area factor discussed by Ehlers in Sec. 10.3
                 ! Equivalent to Ehlers Eq. (8.6)
-                phi_s(1) = -this%J*freestream%K_inv*int%H111
+                phi_s(1) = int%H111
 
             else if (source_order == 1) then
 
                 ! Johnson Eq. (D21)
-                phi_s(1) = -this%J*freestream%K_inv*int%H111
+                phi_s(1) = int%H111
+                phi_s(2) = int%H111*geom%P_ls(1) + int%H211
+                phi_s(3) = int%H111*geom%P_ls(2) + int%H121
 
                 ! Convert to vertex influences (Davis Eq. (4.41))
                 if (mirror_panel) then
@@ -1721,6 +1728,9 @@ contains
                 end if
 
             end if
+            
+            ! Add area Jacobian and kappa factor
+            phi_s = -this%J*freestream%K_inv*phi_s
 
             ! Doublet potential
             if (doublet_order == 1) then
