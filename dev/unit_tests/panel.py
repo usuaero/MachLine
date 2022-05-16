@@ -468,7 +468,7 @@ class SuperinclinedPanel:
         # Get integrals
         psi, phi = self._calc_integrals(P)
 
-        return 0.0, psi, phi, a
+        return -self.sigma*psi/(2.0*np.pi), psi, phi, a
 
 
     def calc_induced_doublet_potential(self, P):
@@ -480,7 +480,10 @@ class SuperinclinedPanel:
             Evaluation point.
         """
 
+        # Get geometry
+        h,a,_,_,_,_,_ = self._calc_geometry(P)
+
         # Get integrals
         psi, phi = self._calc_integrals(P)
         
-        return 0.0
+        return self.mu*(-h**2*psi - np.sum(a*phi))/(2.0*np.pi)

@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from panel import SubinclinedPanel, SuperinclinedPanel
-from singularities import Source, Doublet
+from singularities import Source, Doublet, XDoublet
 
 
 def plot_comparison(verts, P0, d0, figname=None, subinclined=True):
@@ -9,12 +9,13 @@ def plot_comparison(verts, P0, d0, figname=None, subinclined=True):
     # Initialize panel
     if subinclined:
         p = SubinclinedPanel(verts, 1.0, 1.0)
+        d = Doublet(np.array([p.c[0], p.c[1], 0.0]), p.A)
     else:
         p = SuperinclinedPanel(verts, 1.0, 1.0)
+        d = XDoublet(np.array([p.c[0], p.c[1], 0.0]), p.A)
 
     # Initialize equivalent point singularities
     s = Source(np.array([p.c[0], p.c[1], 0.0]), p.A)
-    d = Doublet(np.array([p.c[0], p.c[1], 0.0]), p.A)
 
     # Initialize ray of evaluation points
     N_line = 500
