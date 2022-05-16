@@ -329,6 +329,7 @@ class SuperinclinedPanel:
         a = np.zeros(self.N)
         l1 = np.zeros(self.N)
         l2 = np.zeros(self.N)
+        R = np.zeros(self.N)
         in_dod = np.zeros(self.N, dtype=bool)
         corner_in_dod = np.zeros(self.N, dtype=bool)
         in_dod[:] = False
@@ -341,8 +342,12 @@ class SuperinclinedPanel:
             d = self.verts[:,i] - P[1:]
 
             # Check if the start vertex is in the DoD
-            if d[0]**2 + d[1]**2 < h**2:
+            x = d[0]**2 + d[1]**2
+            if x < h**2:
                 corner_in_dod[i] = True
+                R[i] = np.sqrt(h**2 - x)
+            else:
+                R[i] = 0.0
 
             # Calculate a
             a[i] = inner2(d, self.n_hat[:,i])
@@ -369,14 +374,83 @@ class SuperinclinedPanel:
             elif abs(a[i]) < h and h != 0.0 and l1[i]*l2[i] <= 0.0:
                 in_dod[i] = True
 
-        return h, a, l1, l2, in_dod
+        return h, a, l1, l2, R, in_dod, corner_in_dod
 
 
     def _calc_integrals(self, P):
         # Calculates the needed integrals
 
         # Calculate geometry
-        h, a, l1, l2, in_dod = self._calc_geometry(P)
+        h, a, l1, l2, R, in_dod, corner_in_dod = self._calc_geometry(P)
+
+        # Initialize
+        psi = 2.0*np.pi
+        phi = np.zeros(self.N)
+
+        # Loop through edges for psi
+        for i in range(self.N):
+
+            # Add corner influence
+            if corner_in_dod[i]:
+                psi += np.pi
+
+            # Add edge influence
+            if in_dod[i]:
+                psi -= np.pi
+
+            # Seems to be a poor way of handling Mach wedge calculations... But I can't tell yet
+
+            if corner_in_dod[i]:
+
+                # Get index of next edge
+                i_next = (i+1)%self.N
+
+                # Get intermediate vals
+                A = inner2(self.t_hat[:,i], self.t_hat[:,i_next])
+                B = self.t_hat[0,i]*self.t_hat[1,i_next] - self.t_hat[1,i]*self.t_hat[0,i_next]
+
+                # Get sine and cosine terms
+                X = a[i]*a[i_next] - h**2*A
+                Y = h*R[i]*B
+
+                # Get contribution
+                psi -= np.arctan2(Y, -X)
+
+        # Loop through edges for phi
+        for i in range(self.N):
+
+            # Check DoD
+            if in_dod[i]:
+
+                # Get previous index
+                i_prev = i-1
+
+                # Mach wedge region
+                if not corner_in_dod[i] and not corner_in_dod[i_prev]:
+                    phi[i] = -np.pi
+
+                # At least one endpoint in
+                else:
+
+                    # Correct l1 or l2 if that endpoint is out\
+                    if not corner_in_dod[i]:
+                        l2_corr = 1.0
+                    else:
+                        l2_corr = l2[i]
+
+                    if not corner_in_dod[i_prev]:
+                        l1_corr = -1.0
+                    else:
+                        l1_corr = l1[i]
+
+                    # Calculate sine and cosine terms
+                    X = l1_corr*l2_corr + R[i]*R[i_prev]
+                    Y = R[i]*l1_corr - R[i_prev]*l2_corr
+
+                    # Calculate phi
+                    phi[i] = np.arctan2(Y, X)
+
+        return psi, phi
 
 
     def calc_induced_source_potential(self, P):
@@ -388,10 +462,13 @@ class SuperinclinedPanel:
             Evaluation point.
         """
 
-        # Get integrals
-        self._calc_integrals(P)
+        # Get geometry (for a)
+        _,a,_,_,_,_,_ = self._calc_geometry(P)
 
-        return 0.0, np.zeros(self.N), np.zeros(self.N), np.zeros(self.N)
+        # Get integrals
+        psi, phi = self._calc_integrals(P)
+
+        return 0.0, psi, phi, a
 
 
     def calc_induced_doublet_potential(self, P):
@@ -404,6 +481,6 @@ class SuperinclinedPanel:
         """
 
         # Get integrals
-        self._calc_integrals(P)
+        psi, phi = self._calc_integrals(P)
         
         return 0.0
