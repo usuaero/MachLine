@@ -101,7 +101,7 @@ contains
         ! Write out vertices
         do i=1,N_verts
             if (present(mirror_plane)) then
-                mirror = mirror_about_plane(vertices(i)%loc, mirror_plane)
+                mirror = mirror_across_plane(vertices(i)%loc, mirror_plane)
                 write(this%unit,'(e20.12, e20.12, e20.12)') mirror(1), mirror(2), mirror(3)
             else
                 write(this%unit,'(e20.12, e20.12, e20.12)') vertices(i)%loc(1), vertices(i)%loc(2), vertices(i)%loc(3)
@@ -131,7 +131,7 @@ contains
         ! Write out vertices
         do i=1,N_verts
             if (present(mirror_plane)) then
-                mirror = mirror_about_plane(vertices(:,i), mirror_plane)
+                mirror = mirror_across_plane(vertices(:,i), mirror_plane)
                 write(this%unit,'(e20.12, e20.12, e20.12)') mirror(1), mirror(2), mirror(3)
             else
                 write(this%unit,'(e20.12, e20.12, e20.12)') vertices(1,i), vertices(2,i), vertices(3,i)
@@ -293,7 +293,7 @@ contains
         write(1,'(a)') "NORMALS normals float"
         do i=1,N_cells
             if (present(mirror_plane)) then
-                mirror = mirror_about_plane(panels(i)%n_g, mirror_plane)
+                mirror = mirror_across_plane(panels(i)%n_g, mirror_plane)
                 write(1,'(e20.12, e20.12, e20.12)') mirror(1), mirror(2), mirror(3)
             else
                 write(1,'(e20.12, e20.12, e20.12)') panels(i)%n_g(1), panels(i)%n_g(2), panels(i)%n_g(3)

@@ -36,7 +36,7 @@ contains
     end subroutine check_allocation
 
 
-    function mirror_about_plane(vec, plane) result(mirrored_vec)
+    function mirror_across_plane(vec, plane) result(mirrored_vec)
         ! Returns a version of the given vector mirrored about the given plane
         ! The plane number is the component index which is normal to the plane (i.e. 1: yz plane, etc.)
 
@@ -49,7 +49,7 @@ contains
         mirrored_vec = vec
         mirrored_vec(plane) = -vec(plane)
         
-    end function mirror_about_plane
+    end function mirror_across_plane
 
 
     subroutine progress_bar_init(this, N_total)

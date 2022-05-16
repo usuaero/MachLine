@@ -81,14 +81,18 @@ contains
         call json_xtnsn_get(settings, 'singularity_order.doublet', doublet_order, 1)
         call json_xtnsn_get(settings, 'singularity_order.source', source_order, 0)
         write(*,'(a, i1, a, i1, a)') "     User has selected ", doublet_order, &
-                                     "-order doublet panels and ", source_order, "-order source panels."
+                                     "-order doublet and ", source_order, "-order source panels."
 
-        ! Check
-        if (doublet_order /= 1 .or. source_order /= 0) then
-            write(*,*) "!!! Such distributions are not currently available."
-            write(*,*) "!!! Defaulting to a linear doublet distribution and a constant source distribution."
-            doublet_order = 1
-            source_order = 0
+        ! Check source distribution
+        if (source_order < 0 .or. source_order > 1) then
+            write(*,*) "!!! Only constant or linear source distributions are allowed. Quitting..."
+            stop
+        end if
+
+        ! Check doublet distribution
+        if (doublet_order /= 1) then
+            write(*,*) "!!! Only linear doublet distributions are allowed. Quitting..."
+            stop
         end if
 
         ! Get mesh file
@@ -539,7 +543,7 @@ contains
 
             ! Get normal for panel j (dependent on mirroring)
             if (this%edges(k)%on_mirror_plane) then
-                second_normal = mirror_about_plane(this%panels(i)%n_g, this%mirror_plane)
+                second_normal = mirror_across_plane(this%panels(i)%n_g, this%mirror_plane)
             else
                 second_normal = this%panels(j)%n_g
             end if
@@ -929,6 +933,11 @@ contains
             ! Normalize and store
             this%vertices(j)%n_g = n_avg/norm2(n_avg)
 
+            ! Calculate mirrored normal for mirrored vertex
+            if (this%mirrored) then
+                this%vertices(j)%n_g_mir = mirror_across_plane(this%vertices(j)%n_g_mir, this%mirror_plane)
+            end if
+
             ! Calculate average edge lengths for each vertex
             call this%vertices(j)%calc_average_edge_length(this%vertices)
 
@@ -1137,7 +1146,7 @@ contains
             ! Calculate mirrors
             !$OMP parallel do schedule(static)
             do i=1,this%N_cp
-                this%cp_mirrored(:,i) = mirror_about_plane(this%cp(:,i), this%mirror_plane)
+                this%cp_mirrored(:,i) = mirror_across_plane(this%cp(:,i), this%mirror_plane)
             end do
 
         end if
@@ -1203,11 +1212,21 @@ contains
                 call body_vtk%write_cell_scalars(this%C_p_lai(1:this%N_panels), "C_p_L")
             end if
 
+            ! Constant sources
+            if (source_order == 0) then
+                call body_vtk%write_cell_scalars(this%sigma(1:this%N_panels), "sigma")
+            end if
+
             ! Other
-            call body_vtk%write_cell_scalars(this%sigma(1:this%N_panels), "sigma")
             call body_vtk%write_cell_scalars(panel_inclinations, "inclination")
             call body_vtk%write_cell_vectors(this%v(:,1:this%N_panels), "v")
             call body_vtk%write_cell_vectors(this%dC_f(:,1:this%N_panels), "dC_f")
+
+            ! Linear sources
+            if (source_order == 1) then
+                call body_vtk%write_point_scalars(this%sigma(1:this%N_verts), "sigma")
+            end if
+
             call body_vtk%write_point_scalars(this%mu(1:this%N_verts), "mu")
             call body_vtk%write_point_scalars(this%Phi_u(1:this%N_verts), "Phi_u")
             call body_vtk%finish()
@@ -1262,10 +1281,20 @@ contains
                 call body_vtk%write_cell_scalars(this%C_p_lai(this%N_panels+1:this%N_panels*2), "C_p_L")
             end if
 
+            ! Constant sources
+            if (source_order == 0) then
+                call body_vtk%write_cell_scalars(this%sigma(this%N_panels+1:this%N_panels*2), "sigma")
+            end if
+
             ! Other
-            call body_vtk%write_cell_scalars(this%sigma(this%N_panels+1:this%N_panels*2), "sigma")
             call body_vtk%write_cell_vectors(this%v(:,this%N_panels+1:this%N_panels*2), "v")
             call body_vtk%write_cell_vectors(this%dC_f(:,this%N_panels+1:this%N_panels*2), "dC_f")
+
+            ! Linear sources
+            if (source_order == 1) then
+                call body_vtk%write_point_scalars(this%sigma(this%N_verts+1:this%N_verts*2), "sigma")
+            end if
+
             call body_vtk%write_point_scalars(this%mu(this%N_cp+1:this%N_cp*2), "mu")
             call body_vtk%write_point_scalars(this%Phi_u(this%N_verts+1:this%N_verts*2), "Phi_u")
             call body_vtk%finish()

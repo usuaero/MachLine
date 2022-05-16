@@ -502,56 +502,51 @@ contains
         real,dimension(:,:),allocatable :: S_mu, S_sigma
 
         ! Determine influence of vertex doublet strengths on integral parameters
-        if (.not. doublet_order .eq. 0) then
 
-            ! Linear distribution
-            if (doublet_order .eq. 1) then
+        ! Linear distribution
+        if (doublet_order == 1) then
 
-                ! Allocate influence matrices
-                allocate(S_mu(3,3))
-                allocate(this%S_mu_inv(3,3))
+            ! Allocate influence matrices
+            allocate(S_mu(3,3))
+            allocate(this%S_mu_inv(3,3))
 
-                ! Set values
-                S_mu(:,1) = 1.
-                S_mu(:,2) = this%vertices_ls(1,:)
-                S_mu(:,3) = this%vertices_ls(2,:)
+            ! Set values
+            S_mu(:,1) = 1.
+            S_mu(:,2) = this%vertices_ls(1,:)
+            S_mu(:,3) = this%vertices_ls(2,:)
 
-                ! Invert
-                call matinv(3, S_mu, this%S_mu_inv)
+            ! Invert
+            call matinv(3, S_mu, this%S_mu_inv)
 
-            else if (doublet_order .eq. 2) then
+        else if (doublet_order == 2) then
 
-                ! Allocate influence matrix
-                allocate(S_mu(6,6))
-                allocate(this%S_mu_inv(6,6))
+            ! Allocate influence matrix
+            allocate(S_mu(6,6))
+            allocate(this%S_mu_inv(6,6))
 
-                ! Set values
-                S_mu(:,1) = 1.
+            ! Set values
+            S_mu(:,1) = 1.
 
-                S_mu(1:3,2) = this%vertices_ls(1,:)
-                S_mu(1:3,3) = this%vertices_ls(2,:)
-                S_mu(1:3,4) = this%vertices_ls(1,:)**2
-                S_mu(1:3,5) = this%vertices_ls(1,:)*this%vertices_ls(2,:)
-                S_mu(1:3,6) = this%vertices_ls(2,:)**2
-                
-                S_mu(4:6,2) = this%midpoints_ls(1,:)
-                S_mu(4:6,3) = this%midpoints_ls(2,:)
-                S_mu(4:6,4) = this%midpoints_ls(1,:)**2
-                S_mu(4:6,5) = this%midpoints_ls(1,:)*this%midpoints_ls(2,:)
-                S_mu(4:6,6) = this%midpoints_ls(2,:)**2
-
-                ! Invert
-                call matinv(6, S_mu, this%S_mu_inv)
-
-            end if
+            S_mu(1:3,2) = this%vertices_ls(1,:)
+            S_mu(1:3,3) = this%vertices_ls(2,:)
+            S_mu(1:3,4) = this%vertices_ls(1,:)**2
+            S_mu(1:3,5) = this%vertices_ls(1,:)*this%vertices_ls(2,:)
+            S_mu(1:3,6) = this%vertices_ls(2,:)**2
             
-            deallocate(S_mu)
+            S_mu(4:6,2) = this%midpoints_ls(1,:)
+            S_mu(4:6,3) = this%midpoints_ls(2,:)
+            S_mu(4:6,4) = this%midpoints_ls(1,:)**2
+            S_mu(4:6,5) = this%midpoints_ls(1,:)*this%midpoints_ls(2,:)
+            S_mu(4:6,6) = this%midpoints_ls(2,:)**2
+
+            ! Invert
+            call matinv(6, S_mu, this%S_mu_inv)
 
         end if
 
         ! Determine influence of vertex source strengths on integral parameters
         ! Linear distribution
-        if (source_order .eq. 1) then
+        if (source_order == 1) then
 
             ! Allocate influence matrices
             allocate(S_sigma(3,3))
@@ -565,9 +560,7 @@ contains
             ! Invert
             call matinv(3, S_sigma, this%S_sigma_inv)
 
-            deallocate(S_sigma)
-
-        else if (source_order .eq. 2) then
+        else if (source_order == 2) then
 
             ! Allocate influence matrix
             allocate(S_sigma(6,6))
@@ -591,8 +584,6 @@ contains
             ! Invert
             call matinv(6, S_sigma, this%S_sigma_inv)
 
-            deallocate(S_sigma)
-
         end if
     
     end subroutine panel_calc_singularity_matrices
@@ -609,15 +600,15 @@ contains
         integer :: i
 
         ! Calculate mirrored normal vector
-        this%n_g_mir = mirror_about_plane(this%n_g, mirror_plane)
+        this%n_g_mir = mirror_across_plane(this%n_g, mirror_plane)
 
         ! Calculate mirrored centroid
-        this%centr_mir = mirror_about_plane(this%centr, mirror_plane)
+        this%centr_mir = mirror_across_plane(this%centr, mirror_plane)
 
         ! Calculate mirrored midpoints
         allocate(this%midpoints_mir(3,this%N))
         do i=1,this%N
-            this%midpoints_mir(:,i) = mirror_about_plane(this%midpoints(:,i), mirror_plane)
+            this%midpoints_mir(:,i) = mirror_across_plane(this%midpoints(:,i), mirror_plane)
         end do
 
         ! Calculate mirrored g to ls transform
@@ -627,7 +618,7 @@ contains
         ! Global
         allocate(this%n_hat_g_mir(3,this%N))
         do i=1,this%N
-            this%n_hat_g_mir(:,i) = mirror_about_plane(this%n_hat_g(:,i), mirror_plane)
+            this%n_hat_g_mir(:,i) = mirror_across_plane(this%n_hat_g(:,i), mirror_plane)
         end do
 
         ! Local-scaled
@@ -714,7 +705,7 @@ contains
 
             ! Vertices
             this%vertices_ls_mir(:,i) = matmul(this%A_g_to_ls_mir(1:2,:), &
-                                               mirror_about_plane(this%get_vertex_loc(i), mirror_plane)-this%centr_mir)
+                                               mirror_across_plane(this%get_vertex_loc(i), mirror_plane)-this%centr_mir)
 
             ! Midpoints
             this%midpoints_ls_mir(:,i) = matmul(this%A_g_to_ls_mir(1:2,:), this%midpoints_mir(:,i)-this%centr_mir)
@@ -768,51 +759,44 @@ contains
 
         real,dimension(:,:),allocatable :: S_mu, S_sigma
 
-        ! Determine influence of vertex doublet strengths on integral parameters
-        if (.not. doublet_order .eq. 0) then
+        ! Linear distribution
+        if (doublet_order .eq. 1) then
 
-            ! Linear distribution
-            if (doublet_order .eq. 1) then
+            ! Allocate influence matrices
+            allocate(S_mu(3,3))
+            allocate(this%S_mu_inv_mir(3,3))
 
-                ! Allocate influence matrices
-                allocate(S_mu(3,3))
-                allocate(this%S_mu_inv_mir(3,3))
+            ! Set values
+            S_mu(:,1) = 1.
+            S_mu(:,2) = this%vertices_ls_mir(1,:)
+            S_mu(:,3) = this%vertices_ls_mir(2,:)
 
-                ! Set values
-                S_mu(:,1) = 1.
-                S_mu(:,2) = this%vertices_ls_mir(1,:)
-                S_mu(:,3) = this%vertices_ls_mir(2,:)
+            ! Invert
+            call matinv(3, S_mu, this%S_mu_inv_mir)
 
-                ! Invert
-                call matinv(3, S_mu, this%S_mu_inv_mir)
+        else if (doublet_order .eq. 2) then
 
-            else if (doublet_order .eq. 2) then
+            ! Allocate influence matrix
+            allocate(S_mu(6,6))
+            allocate(this%S_mu_inv_mir(6,6))
 
-                ! Allocate influence matrix
-                allocate(S_mu(6,6))
-                allocate(this%S_mu_inv_mir(6,6))
+            ! Set values
+            S_mu(:,1) = 1.
 
-                ! Set values
-                S_mu(:,1) = 1.
-
-                S_mu(1:3,2) = this%vertices_ls_mir(1,:)
-                S_mu(1:3,3) = this%vertices_ls_mir(2,:)
-                S_mu(1:3,4) = this%vertices_ls_mir(1,:)**2
-                S_mu(1:3,5) = this%vertices_ls_mir(1,:)*this%vertices_ls_mir(2,:)
-                S_mu(1:3,6) = this%vertices_ls_mir(2,:)**2
-                
-                S_mu(4:6,2) = this%midpoints_ls_mir(1,:)
-                S_mu(4:6,3) = this%midpoints_ls_mir(2,:)
-                S_mu(4:6,4) = this%midpoints_ls_mir(1,:)**2
-                S_mu(4:6,5) = this%midpoints_ls_mir(1,:)*this%midpoints_ls_mir(2,:)
-                S_mu(4:6,6) = this%midpoints_ls_mir(2,:)**2
-
-                ! Invert
-                call matinv(6, S_mu, this%S_mu_inv_mir)
-
-            end if
+            S_mu(1:3,2) = this%vertices_ls_mir(1,:)
+            S_mu(1:3,3) = this%vertices_ls_mir(2,:)
+            S_mu(1:3,4) = this%vertices_ls_mir(1,:)**2
+            S_mu(1:3,5) = this%vertices_ls_mir(1,:)*this%vertices_ls_mir(2,:)
+            S_mu(1:3,6) = this%vertices_ls_mir(2,:)**2
             
-            deallocate(S_mu)
+            S_mu(4:6,2) = this%midpoints_ls_mir(1,:)
+            S_mu(4:6,3) = this%midpoints_ls_mir(2,:)
+            S_mu(4:6,4) = this%midpoints_ls_mir(1,:)**2
+            S_mu(4:6,5) = this%midpoints_ls_mir(1,:)*this%midpoints_ls_mir(2,:)
+            S_mu(4:6,6) = this%midpoints_ls_mir(2,:)**2
+
+            ! Invert
+            call matinv(6, S_mu, this%S_mu_inv_mir)
 
         end if
 
@@ -831,8 +815,6 @@ contains
 
             ! Invert
             call matinv(3, S_sigma, this%S_sigma_inv_mir)
-
-            deallocate(S_sigma)
 
         else if (source_order .eq. 2) then
 
@@ -857,8 +839,6 @@ contains
 
             ! Invert
             call matinv(6, S_sigma, this%S_sigma_inv_mir)
-
-            deallocate(S_sigma)
 
         end if
     
@@ -1013,8 +993,8 @@ contains
 
                             ! Get end vertex and vector describing edge
                             if (mirrored) then
-                                Q_end = mirror_about_plane(this%get_vertex_loc(i_next), mirror_plane)
-                                d = Q_end - mirror_about_plane(this%get_vertex_loc(i), mirror_plane)
+                                Q_end = mirror_across_plane(this%get_vertex_loc(i_next), mirror_plane)
+                                d = Q_end - mirror_across_plane(this%get_vertex_loc(i), mirror_plane)
                             else
                                 Q_end = this%get_vertex_loc(i_next)
                                 d = Q_end - this%get_vertex_loc(i)
@@ -1051,7 +1031,7 @@ contains
 
                     ! Get the projection of the evaluation point onto the panel in the direction of c_hat
                     if (mirrored) then
-                        s_star = inner(mirror_about_plane(this%get_vertex_loc(1), mirror_plane) - eval_point, this%n_g) &
+                        s_star = inner(mirror_across_plane(this%get_vertex_loc(1), mirror_plane) - eval_point, this%n_g) &
                                  / inner(freestream%c_hat_g, this%n_g)
                     else
                         s_star = inner(this%get_vertex_loc(1)-eval_point, this%n_g)/inner(freestream%c_hat_g, this%n_g)
@@ -1527,6 +1507,10 @@ contains
             int%H123 = -sum(this%n_hat_ls(2,:)*int%F111)
         end if
 
+        ! Calculate higher-order integrals
+        if (source_order == 1) then
+        end if
+
     end subroutine panel_calc_subsonic_panel_integrals
 
 
@@ -1610,6 +1594,10 @@ contains
         int%H213 = -sum(v_xi*int%F111)
         int%H123 = sum(v_eta*int%F111)
 
+        ! Calculate higher-order integrals
+        if (source_order == 1) then
+        end if
+
         ! Clean up
         deallocate(v_xi)
         deallocate(v_eta)
@@ -1666,6 +1654,9 @@ contains
         if (source_order == 0) then
             allocate(phi_s(1), source=0.)
             allocate(i_vert_s(1), source=this%index)
+        else if (source_order == 1) then
+            allocate(phi_s(3), source=0.)
+            allocate(i_vert_s(3), source=this%vertex_indices)
         end if
 
         ! Doublet
@@ -1715,7 +1706,19 @@ contains
 
                 ! Johnson Eq. (D21) including the area factor discussed by Ehlers in Sec. 10.3
                 ! Equivalent to Ehlers Eq. (8.6)
-                phi_s = -this%J*freestream%K_inv*int%H111
+                phi_s(1) = -this%J*freestream%K_inv*int%H111
+
+            else if (source_order == 1) then
+
+                ! Johnson Eq. (D21)
+                phi_s(1) = -this%J*freestream%K_inv*int%H111
+
+                ! Convert to vertex influences (Davis Eq. (4.41))
+                if (mirror_panel) then
+                    phi_s = matmul(phi_s, this%S_sigma_inv_mir)
+                else
+                    phi_s = matmul(phi_s, this%S_sigma_inv)
+                end if
 
             end if
 
@@ -1860,7 +1863,19 @@ contains
             dv = matmul(transpose(this%A_g_to_ls_mir), dv)
 
             ! Get source strength
-            s = sigma(this%index+size(sigma)/2)
+            
+            ! Constant
+            if (source_order == 0) then
+                s = sigma(this%index+size(sigma)/2)
+
+            ! For linear distribution, use the average
+            else if (source_order == 1) then
+                s = 0.
+                do i=1,this%N
+                    s = s + sigma(this%vertex_indices(i)+size(sigma)/2)
+                end do
+                s = s/this%N
+            end if
 
             ! Add normal velocity jump in global coords E&M Eq. (N.1.11b)
             dv = dv + s*this%n_g_mir/inner(this%nu_g_mir, this%n_g_mir)
@@ -1881,13 +1896,20 @@ contains
 
             dv = matmul(transpose(this%A_g_to_ls), dv)
 
-            s = sigma(this%index)
+            if (source_order == 0) then
+                s = sigma(this%index)
+
+            else if (source_order == 1) then
+                s = 0.
+                do i=1,this%N
+                    s = s + sigma(this%vertex_indices(i))
+                end do
+                s = s/this%N
+            end if
 
             dv = dv + s*this%n_g/inner(this%nu_g, this%n_g)
 
         end if
-
-        ! How this mirroring is done seems wrong to me. It needs to be verified.
 
     end function panel_get_velocity_jump
 

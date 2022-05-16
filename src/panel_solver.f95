@@ -77,8 +77,6 @@ contains
         this%morino = this%formulation == 'morino'
 
         ! Get pressure rules
-        call json_xtnsn_get(processing_settings, 'pressure_rules.incompressible', this%incompressible_rule, .false.)
-        call json_xtnsn_get(processing_settings, 'pressure_rules.isentropic', this%isentropic_rule, .true.)
         call json_xtnsn_get(processing_settings, 'pressure_rules.second-order', this%second_order_rule, .false.)
         call json_xtnsn_get(processing_settings, 'pressure_rules.second-order', this%second_order_rule, .false.)
         call json_xtnsn_get(processing_settings, 'pressure_rules.slender-body', this%slender_rule, .false.)
@@ -86,6 +84,10 @@ contains
 
         ! Verify compatability of pressure rules and selected freestream mach number
         if (freestream%incompressible) then
+            
+            ! Get incompressible and isentropic settings
+            call json_xtnsn_get(processing_settings, 'pressure_rules.incompressible', this%incompressible_rule, .true.)
+            call json_xtnsn_get(processing_settings, 'pressure_rules.isentropic', this%isentropic_rule, .false.)
 
             ! Notify user if pressure rule applied is changed based on selected freestream mach number
             if (this%isentropic_rule) then
@@ -96,6 +98,10 @@ contains
             end if
 
         else
+            
+            ! Get incompressible and isentropic settings
+            call json_xtnsn_get(processing_settings, 'pressure_rules.incompressible', this%incompressible_rule, .false.)
+            call json_xtnsn_get(processing_settings, 'pressure_rules.isentropic', this%isentropic_rule, .true.)
 
             ! Notify user if pressure rule applied is changed based on selected freestream mach number
             if (this%incompressible_rule) then
@@ -369,7 +375,7 @@ contains
 
                     if (body%mirrored) then
 
-                        mirrored_vert_loc = mirror_about_plane(vert_loc, body%mirror_plane)
+                        mirrored_vert_loc = mirror_across_plane(vert_loc, body%mirror_plane)
 
                         ! Mirrored vertex and original control point
                         verts_in_dod(i+body%N_verts,j) = this%freestream%point_in_dod(mirrored_vert_loc, &
@@ -406,7 +412,7 @@ contains
                         else
 
                             ! Mirrored vertex and original control point
-                            mirrored_vert_loc = mirror_about_plane(vert_loc, body%mirror_plane)
+                            mirrored_vert_loc = mirror_across_plane(vert_loc, body%mirror_plane)
                             wake_verts_in_dod(i+body%wake%N_verts,j) = this%freestream%point_in_dod(mirrored_vert_loc, &
                                                                                                          body%cp(:,j))
                         end if
@@ -521,24 +527,36 @@ contains
 
         integer :: N_sigma, i, stat
 
-        ! Set source strengths
+        ! Determine number of source strengths
         if (source_order == 0) then
 
-            ! Determine necessary number of source strengths
             if (body%asym_flow) then
                 N_sigma = body%N_panels*2
             else
                 N_sigma = body%N_panels
             end if
 
-            ! Allocate source strength array
-            allocate(body%sigma(N_sigma), source=0., stat=stat)
-            call check_allocation(stat, "source strength array")
+        else if (source_order == 1) then
 
-            ! Morino formulation
-            if (this%morino) then
+            if (body%asym_flow) then
+                N_sigma = body%N_verts*2
+            else
+                N_sigma = body%N_verts
+            end if
 
-                write(*,'(a)',advance='no') "     Calculating source strengths..."
+        end if
+
+        ! Allocate source strength array (yes this does need to be allocated for the source-free formulation)
+        allocate(body%sigma(N_sigma), source=0., stat=stat)
+        call check_allocation(stat, "source strength array")
+
+        ! Set source strengths
+        if (this%morino) then
+
+            write(*,'(a)',advance='no') "     Calculating source strengths..."
+
+            ! Use panel normals
+            if (source_order == 0) then
 
                 ! Loop through panels
                 do i=1,body%N_panels
@@ -548,16 +566,28 @@ contains
 
                     ! Mirrored panels for asymmetric flow
                     if (body%asym_flow) then
-
-                        ! Calculate source strength
                         body%sigma(i+body%N_panels) = -inner(body%panels(i)%n_g_mir, this%freestream%c_hat_g)
-
                     end if
                 end do
 
-                write(*,*) "Done."
+            ! Use vertex normals
+            else if (source_order == 1) then
+
+                ! Loop through vertices
+                do i=1,body%N_verts
+
+                    ! Existing vertices
+                    body%sigma(i) = -inner(body%vertices(i)%n_g, this%freestream%c_hat_g)
+
+                    ! Mirrored panels for asymmetric flow
+                    if (body%asym_flow) then
+                        body%sigma(i+body%N_verts) = -inner(body%vertices(i)%n_g_mir, this%freestream%c_hat_g)
+                    end if
+                end do
 
             end if
+
+            write(*,*) "Done."
         end if
     
     end subroutine panel_solver_calc_source_strengths
@@ -578,10 +608,18 @@ contains
 
         integer :: k
 
-        ! Add source influence
+        ! Add source influence (if sources are present)
         if (this%morino) then
+
+            ! Constant
             if (source_order == 0) then
                 phi_cp_s = phi_cp_s + source_inf(1)*body%sigma(i_panel)
+
+            ! Linear
+            else
+                do k=1,size(i_vert_s)
+                    phi_cp_s = phi_cp_s + source_inf(k)*body%sigma(i_vert_s(k))
+                end do
             end if
         end if
 
@@ -925,7 +963,7 @@ contains
             end if
         end do
 
-        ! Make a copy of A (lu_solve replaces A with its decomposition)
+        ! Make a copy of A (most solvers replace A with its decomposition)
         allocate(A_copy, source=this%A, stat=stat)
         call check_allocation(stat, "solver copy of AIC matrix")
 
@@ -1017,7 +1055,7 @@ contains
             ! Mirrored points
             if (body%asym_flow) then
                 body%Phi_u(i+body%N_verts) = body%phi_u(i+body%N_verts) + &
-                                             inner(x, mirror_about_plane(body%vertices(i)%loc, body%mirror_plane))
+                                             inner(x, mirror_across_plane(body%vertices(i)%loc, body%mirror_plane))
             end if
         end do
         write(*,*) "Done."

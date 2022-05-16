@@ -89,7 +89,7 @@ contains
             if (asym_flow) then
 
                 ! Determine start location
-                mirrored_start = mirror_about_plane(start, mirror_plane)
+                mirrored_start = mirror_across_plane(start, mirror_plane)
                 mirrored_distance = trefftz_distance-inner(mirrored_start, freestream%c_hat_g)
 
                 ! Determine vertex separation
@@ -116,7 +116,7 @@ contains
 
                     ! Determine location
                     i_vert = i_vert + this%N_verts/2
-                    mirrored_start = mirror_about_plane(start, mirror_plane)
+                    mirrored_start = mirror_across_plane(start, mirror_plane)
                     loc = mirrored_start + mirrored_vertex_separation*(j-1)*freestream%c_hat_g
 
                     ! Initialize vertex

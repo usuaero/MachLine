@@ -1,7 +1,7 @@
 {
     "flow": {
-        "freestream_velocity" : [ 100.0, 30.0, 0.0 ],
-        "freestream_mach_number" : 0.5
+        "freestream_velocity" : [ 100.0, 0.0, 0.0 ],
+        "freestream_mach_number" : 0.0
     },
     "geometry": {
         "file": "dev/meshes/half_wing_right.vtk",
@@ -11,6 +11,9 @@
         },
         "wake_model" : {
             "wake_present" : true
+        },
+        "singularity_order" : {
+            "source" : 1
         }
     },
     "solver": {
@@ -19,11 +22,7 @@
     },
     "post_processing" : {
         "pressure_rules": {
-            "incompressible": true,
-            "isentropic": true,
-            "second-order": true,
-            "linear" : true,
-            "slender-body" : true
+            "incompressible": true
         },
         "subsonic_pressure_correction": {
             "prandtl-glauert": false,
