@@ -1335,9 +1335,14 @@ contains
         type(integrals),intent(inout) :: int
 
         integer :: i
+        real,dimension(this%N) :: v_xi, v_eta
         
         ! Allocate storage
         allocate(int%F111(this%N))
+        if (source_order == 1) then
+            allocate(int%F121(this%N))
+            allocate(int%F211(this%N))
+        end if
 
         ! Loop through edges
         do i=1,this%N
@@ -1367,6 +1372,34 @@ contains
                 ! Calculate
                 int%F111(i) = sign(1., geom%l1(i)) * log( (geom%R2(i) + abs(geom%l2(i))) / (geom%R1(i) + abs(geom%l1(i))) )
 
+            end if
+
+            ! Calculate F(1,2,1) and F(2,1,1)
+            if (source_order == 1) then
+
+                ! Get edge normals
+                if (mirror_panel) then
+                    v_xi = this%n_hat_ls_mir(1,:)
+                    v_eta = this%n_hat_ls_mir(2,:)
+                else
+                    v_xi = this%n_hat_ls(1,:)
+                    v_eta = this%n_hat_ls(2,:)
+                end if
+
+                ! Calculate
+                if (abs(v_eta(i)) <= abs(v_xi(i))) then
+
+                    int%F121(i) = geom%a(i)*v_eta(i)*int%F111(i) + &
+                                  v_xi(i)*this%E_i_M_N_K(geom, i, 1, 1, -1, freestream, mirror_panel)
+
+                    int%F211(i) = (-v_eta(i)*int%F121(i) + geom%a(i)*int%F111(i)) / v_xi(i)
+                else
+
+                    int%F211(i) = geom%a(i)*v_xi(i)*int%F111(i) - &
+                                  v_eta(i)*this%E_i_M_N_K(geom,i, 1, 1, -1, freestream, mirror_panel)
+
+                    int%F121(i) = (-v_xi(i)*int%F211(i) + geom%a(i)*int%F111(i)) / v_eta(i)
+                end if
             end if
 
         end do
@@ -1514,6 +1547,8 @@ contains
 
         ! Calculate higher-order integrals
         if (source_order == 1) then
+            int%H211 = 0.5*(geom%h2*sum(v_xi*int%F111) + sum(geom%a*int%F211))
+            int%H121 = 0.5*(geom%h2*sum(v_eta*int%F111) + sum(geom%a*int%F121))
         end if
 
     end subroutine panel_calc_subsonic_panel_integrals
