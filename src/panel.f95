@@ -1386,20 +1386,10 @@ contains
                     v_eta = this%n_hat_ls(2,:)
                 end if
 
-                ! Calculate
-                if (abs(v_eta(i)) <= abs(v_xi(i))) then
+                ! Calculate (these formulas come from PAN AIR and are equivalent to Johnson, but simplified)
+                int%F121(i) = geom%a(i)*v_eta(i)*int%F111(i) + v_xi(i)*(geom%R2(i)-geom%R1(i))
 
-                    int%F121(i) = geom%a(i)*v_eta(i)*int%F111(i) + &
-                                  v_xi(i)*this%E_i_M_N_K(geom, i, 1, 1, -1, freestream, mirror_panel)
-
-                    int%F211(i) = (-v_eta(i)*int%F121(i) + geom%a(i)*int%F111(i)) / v_xi(i)
-                else
-
-                    int%F211(i) = geom%a(i)*v_xi(i)*int%F111(i) - &
-                                  v_eta(i)*this%E_i_M_N_K(geom,i, 1, 1, -1, freestream, mirror_panel)
-
-                    int%F121(i) = (-v_xi(i)*int%F211(i) + geom%a(i)*int%F111(i)) / v_eta(i)
-                end if
+                int%F211(i) = geom%a(i)*v_xi(i)*int%F111(i) - v_eta(i)*(geom%R2(i)-geom%R1(i))
             end if
 
         end do
@@ -1422,15 +1412,21 @@ contains
 
         real :: F1, F2, eps, eps2, series, b, s_b
         integer :: i
-        real,dimension(this%N) ::v_eta
+        real,dimension(this%N) ::v_eta, v_xi
         
         ! Allocate integral storage
         allocate(int%F111(this%N), source=0.)
+        if (source_order == 1) then
+            allocate(int%F121(this%N))
+            allocate(int%F211(this%N))
+        end if
 
         ! Get edge normal components
         if (mirror_panel) then
+            v_xi = this%n_hat_ls_mir(1,:)
             v_eta = this%n_hat_ls_mir(2,:)
         else
+            v_xi = this%n_hat_ls(1,:)
             v_eta = this%n_hat_ls(2,:)
         end if
 
@@ -1458,7 +1454,7 @@ contains
                     F2 = (geom%g2(i) - geom%l1(i)**2 - geom%l2(i)**2) / (b*geom%R1(i)*geom%R2(i) - geom%l1(i)*geom%l2(i))
                 end if
 
-                ! Calculate F(1,1,1)
+                ! Calculate F(1,1,1) and other higher integrals if necessary
 
                 ! Nearly-sonic edge
                 if (abs(F2) > 100.0*abs(s_b*F1)) then
@@ -1469,14 +1465,33 @@ contains
                     series = eps*eps2*(1./3. - b*eps2/5. + (b*eps2)*(b*eps2)/7.)
                     int%F111(i) = -eps + b*series
 
+                    if (source_order == 1) then
+                        int%F121(i) = 0. ! This will require some clever mirroring
+                        int%F211(i) = -v_eta*(geom%R2(i)-geom%R1(i)) + geom%a(i)*v_xi(i)*int%F111 - &
+                                      2.*v_xi(i)*v_eta(i)*int%F121(i)
+                    end if
+
                 ! Supersonic edge
                 else if (b > 0.) then
 
                     ! Mach wedge
                     if (geom%R1(i) == 0. .and. geom%R2(i) == 0) then
                         int%F111(i) = pi/s_b
+
+                        if (source_order == 1) then
+                            int%F121(i) = -geom%a(i)*v_eta(i)*int%F111(i)/b
+                            int%F211(i) = geom%a(i)*v_xi(i)*int%F111(i)/b
+                        end if
+
+                    ! At least one endpoint in
                     else
                         int%F111(i) = -atan2(s_b*F1, F2) / s_b
+
+                        if (source_order == 1) then
+                            int%F121(i) = -(v_xi(i)*(geom%R2(i)-geom%R1(i)) + geom%a(i)*v_eta(i)*int%F111(i)) / b
+                            int%F211(i) = -v_eta(i)*(geom%R2(i)-geom%R1(i)) + geom%a(i)*v_xi(i)*int%F111(i) - &
+                                          2.*v_xi(i)*v_eta(i)*int%F121(i)
+                        end if
                     end if
 
                 ! Subsonic edge
@@ -1484,6 +1499,12 @@ contains
                     F1 = s_b*geom%R1(i) + abs(geom%l1(i))
                     F2 = s_b*geom%R2(i) + abs(geom%l2(i))
                     int%F111(i) = -sign(1., v_eta(i))*log(F1/F2)
+
+                    if (source_order == 1) then
+                        int%F121(i) = -(v_xi(i)*(geom%R2(i)-geom%R1(i)) + geom%a(i)*v_eta(i)*int%F111(i)) / b
+                        int%F211(i) = -v_eta(i)*(geom%R2(i)-geom%R1(i)) + geom%a(i)*v_xi(i)*int%F111(i) - &
+                                      2.*v_xi(i)*v_eta(i)*int%F121(i)
+                    end if
                 end if
 
             end if
