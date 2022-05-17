@@ -79,7 +79,7 @@ class SubinclinedPanel:
         l2 = np.zeros(self.N)
         a = np.zeros(self.N)
         g2 = np.zeros(self.N)
-        in_dod = np.zeros(self.N, dtype=bool)
+        edge_in_dod = np.zeros(self.N, dtype=bool)
 
         # Loop through edges
         for i in range(self.N):
@@ -120,28 +120,28 @@ class SubinclinedPanel:
 
                 # In this case, a subsonic or sonic edge is out
                 if self.b[i] <= 0.0:
-                    in_dod[i] = False
+                    edge_in_dod[i] = False
 
                 # For a supersonic edge, it may still be in
                 else:
 
                     # Check for outside edge
                     if l1[i]*l2[i] >= 0.0:
-                        in_dod[i] = False
+                        edge_in_dod[i] = False
 
                     # Check for above or below Mach wedge
                     elif g2[i] <= 0.0:
-                        in_dod[i] = False
+                        edge_in_dod[i] = False
 
                     # Check for upstream
                     elif a[i]*self.n_hat[0,i] >= 0.0:
-                        in_dod[i] = False
+                        edge_in_dod[i] = False
 
                     else:
-                        in_dod[i] = True
+                        edge_in_dod[i] = True
 
             else:
-                in_dod[i] = True
+                edge_in_dod[i] = True
 
             # Fix l from PAN AIR
             if R1[i] == 0.0:
@@ -149,14 +149,14 @@ class SubinclinedPanel:
             if R2[i] == 0.0:
                 l2[i] = np.sqrt(abs(g2[i]))
 
-        return h, R1, R2, l1, l2, a, g2, in_dod
+        return h, R1, R2, l1, l2, a, g2, edge_in_dod
 
 
     def _calc_integrals(self, P):
         # Calculates the needed integrals
 
         # Calculate geometry
-        h, R1, R2, l1, l2, a, g2, in_dod = self._calc_geometry(P)
+        h, R1, R2, l1, l2, a, g2, edge_in_dod = self._calc_geometry(P)
 
         # Initialize
         hH113 = np.zeros(self.N)
@@ -166,7 +166,7 @@ class SubinclinedPanel:
         for i in range(self.N):
 
             # Check DoD
-            if in_dod[i]:
+            if edge_in_dod[i]:
 
                 # Calculate F factors
                 s_b = np.sqrt(abs(self.b[i]))
@@ -330,9 +330,9 @@ class SuperinclinedPanel:
         l1 = np.zeros(self.N)
         l2 = np.zeros(self.N)
         R = np.zeros(self.N)
-        in_dod = np.zeros(self.N, dtype=bool)
+        edge_in_dod = np.zeros(self.N, dtype=bool)
         corner_in_dod = np.zeros(self.N, dtype=bool)
-        in_dod[:] = False
+        edge_in_dod[:] = False
         corner_in_dod[:] = False
 
         # Loop through edges
@@ -370,18 +370,18 @@ class SuperinclinedPanel:
 
             # Check for at least one endpoint in
             if corner_in_dod[i] or corner_in_dod[i_next]:
-                in_dod[i] = True
+                edge_in_dod[i] = True
             elif abs(a[i]) < h and h != 0.0 and l1[i]*l2[i] <= 0.0:
-                in_dod[i] = True
+                edge_in_dod[i] = True
 
-        return h, a, l1, l2, R, in_dod, corner_in_dod
+        return h, a, l1, l2, R, edge_in_dod, corner_in_dod
 
 
     def _calc_integrals(self, P):
         # Calculates the needed integrals
 
         # Calculate geometry
-        h, a, l1, l2, R, in_dod, corner_in_dod = self._calc_geometry(P)
+        h, a, l1, l2, R, edge_in_dod, corner_in_dod = self._calc_geometry(P)
 
         # Initialize
         psi = 2.0*np.pi
@@ -395,7 +395,7 @@ class SuperinclinedPanel:
                 psi += np.pi
 
             # Add edge influence
-            if in_dod[i]:
+            if edge_in_dod[i]:
                 psi -= np.pi
 
             # Seems to be a poor way of handling Mach wedge calculations... But I can't tell yet
@@ -420,7 +420,7 @@ class SuperinclinedPanel:
         for i in range(self.N):
 
             # Check DoD
-            if in_dod[i]:
+            if edge_in_dod[i]:
 
                 # Get index of end vertex
                 i_next = (i+1)%self.N
@@ -445,7 +445,7 @@ class SuperinclinedPanel:
 
                     # Calculate sine and cosine terms
                     X = l1_corr*l2_corr + R[i]*R[i_next]
-                    Y = R[i]*l2_corr - R[i_next]*l1_corr
+                    Y = R[i_next]*l1_corr - R[i]*l2_corr
 
                     # Calculate phi
                     phi[i] = np.arctan2(Y, X)
@@ -468,7 +468,7 @@ class SuperinclinedPanel:
         # Get integrals
         psi, phi = self._calc_integrals(P)
 
-        phi_s = -self.sigma*(h**2*psi - np.sum(a*phi))/(2.0*np.pi)
+        phi_s = -self.sigma*(-h*psi + np.sum(a*phi))/(2.0*np.pi)
 
         return phi_s, psi, phi, a
 
@@ -488,4 +488,4 @@ class SuperinclinedPanel:
         # Get integrals
         psi, phi = self._calc_integrals(P)
         
-        return self.mu*psi/(2.0*np.pi)
+        return -self.mu*psi/(2.0*np.pi)
