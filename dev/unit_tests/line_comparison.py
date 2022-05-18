@@ -182,14 +182,19 @@ if __name__=="__main__":
     # Totally in DoD
     P0 = np.array([2.0, 0.0, 0.3])
     d0 = np.array([1.0, 0.0, 0.0])
-    plot_comparison(verts, P0, d0, subinclined=False)
+    plot_comparison(verts, P0, d0, subinclined=False, figname='dev/unit_tests/superinclined_x_trans_totally_in.pdf')
 
-    # From near panel to totally in
-    P0 = np.array([0.5, 0.0, 0.3])
+    # From behind panel to totally in
+    P0 = np.array([-1.0, 0.0, 0.5])
     d0 = np.array([1.0, 0.0, 0.0])
     plot_comparison(verts, P0, d0, subinclined=False)
 
     # Out-in-out
     P0 = np.array([2.0, -5.0, 0.0])
     d0 = np.array([0.0, 1.0, 0.0])
-    plot_comparison(verts, P0, d0, subinclined=False)
+    plot_comparison(verts, P0, d0, subinclined=False, figname='dev/unit_tests/superinclined_y_trans_intersecting.pdf')
+
+    # y trans in
+    P0 = np.array([7.0, -5.0, 0.0])
+    d0 = np.array([0.0, 1.0, 0.0])
+    plot_comparison(verts, P0, d0, subinclined=False, figname='dev/unit_tests/superinclined_y_trans_totally_in.pdf')

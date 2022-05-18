@@ -117,11 +117,14 @@ module panel_mod
             procedure :: check_dod => panel_check_dod
             procedure :: calc_subsonic_geom => panel_calc_subsonic_geom
             procedure :: calc_supersonic_subinc_geom => panel_calc_supersonic_subinc_geom
+            procedure :: calc_supersonic_supinc_geom => panel_calc_supersonic_supinc_geom
             procedure :: E_i_M_N_K => panel_E_i_M_N_K
             procedure :: calc_subsonic_edge_integrals => panel_calc_subsonic_edge_integrals
             procedure :: calc_subsonic_panel_integrals => panel_calc_subsonic_panel_integrals
             procedure :: calc_supersonic_subinc_edge_integrals => panel_calc_supersonic_subinc_edge_integrals
             procedure :: calc_supersonic_subinc_panel_integrals => panel_calc_supersonic_subinc_panel_integrals
+            procedure :: calc_supersonic_supinc_edge_integrals => panel_calc_supersonic_supinc_edge_integrals
+            procedure :: calc_supersonic_supinc_panel_integrals => panel_calc_supersonic_supinc_panel_integrals
             procedure :: calc_integrals => panel_calc_integrals
             procedure :: calc_potentials => panel_calc_potentials
             procedure :: calc_velocities => panel_calc_velocities
@@ -380,7 +383,7 @@ contains
         end if
 
         ! Calculate panel inclination indicator (E&M Eq. (E.3.16b))
-        this%r = sign(1., x) ! r=-1 -> superinclined, r=1 -> subinclined
+        this%r = int(sign(1., x)) ! r=-1 -> superinclined, r=1 -> subinclined
 
         ! Check for superinclined panels
         if (this%r < 0) then
@@ -1299,6 +1302,37 @@ contains
     end function panel_calc_supersonic_subinc_geom
 
 
+    function panel_calc_supersonic_supinc_geom(this, eval_point, freestream, mirror_panel, dod_info) result(geom)
+        ! Calculates the geometric parameters necessary for calculating the influence of the panel at the given evaluation point
+
+        implicit none
+
+        class(panel),intent(in) :: this
+        real,dimension(3),intent(in) :: eval_point
+        type(flow),intent(in) :: freestream
+        logical,intent(in) :: mirror_panel
+        type(dod),intent(in) :: dod_info
+        type(eval_point_geom) :: geom
+
+        real,dimension(2) :: d_ls, d
+        real :: x
+        integer :: i, i_next
+        real,dimension(this%N) :: v_xi, v_eta, dummy
+
+        ! Swap directions for mirror
+        if (mirror_panel) then
+            dummy = geom%l1
+            geom%l1 = geom%l2
+            geom%l2 = dummy
+
+            dummy = geom%R1
+            geom%R1 = geom%R2
+            geom%R2 = dummy
+        end if
+
+    end function panel_calc_supersonic_supinc_geom
+
+
     function panel_E_i_M_N_K(this, geom, i, M, N, K, freestream, mirror_panel) result(E)
         ! Calculates E_i(M,N,K)
 
@@ -1480,6 +1514,28 @@ contains
     end subroutine panel_calc_supersonic_subinc_edge_integrals
 
 
+    subroutine panel_calc_supersonic_supinc_edge_integrals(this, geom, dod_info, freestream, mirror_panel, int)
+        ! Calculates the F integrals necessary to determine the influence of a superinclined triangular panel in supersonic flow.
+
+        implicit none
+
+        class(panel),intent(in) :: this
+        type(eval_point_geom),intent(in) :: geom
+        type(dod),intent(in) :: dod_info
+        type(flow),intent(in) :: freestream
+        logical,intent(in) :: mirror_panel
+        type(integrals),intent(inout) :: int
+
+        real :: F1, F2, eps, eps2, series, b, s_b
+        integer :: i
+        real,dimension(this%N) ::v_eta
+        
+        ! Allocate integral storage
+        allocate(int%F111(this%N), source=0.)
+
+    end subroutine panel_calc_supersonic_supinc_edge_integrals
+
+
     subroutine panel_calc_subsonic_panel_integrals(this, geom, freestream, mirror_panel, int)
         ! Calculates the necessary H integrals to determine the influence of a panel in subsonic flow.
         ! Taken from Johnson (1980) Appendix D.3.
@@ -1617,6 +1673,28 @@ contains
     end subroutine panel_calc_supersonic_subinc_panel_integrals
 
 
+    subroutine panel_calc_supersonic_supinc_panel_integrals(this, geom, dod_info, freestream, mirror_panel, int)
+        ! Calculates the necessary H integrals to determine the influence of a superinclined panel in supersonic flow.
+
+        implicit none
+
+        class(panel),intent(in) :: this
+        type(eval_point_geom),intent(in) :: geom
+        type(dod),intent(in) :: dod_info
+        type(flow),intent(in) :: freestream
+        logical,intent(in) :: mirror_panel
+        type(integrals),intent(inout) :: int
+
+        real :: F1, F2, b, s_b
+        integer :: i, i_next
+        real,dimension(:),allocatable :: v_xi, v_eta
+
+        ! Calculate hH(1,1,3)
+        int%hH113 = 0.
+
+    end subroutine panel_calc_supersonic_supinc_panel_integrals
+
+
     function panel_calc_integrals(this, geom, influence_type, singularity_type, freestream, mirror_panel, dod_info) result(int)
         ! Calculates the H and F integrals necessary for the given influence
 
@@ -1633,8 +1711,13 @@ contains
 
         ! Calculate necessary integrals based on the flow condition and panel type
         if (freestream%supersonic) then
-            call this%calc_supersonic_subinc_edge_integrals(geom, dod_info, freestream, mirror_panel, int)
-            call this%calc_supersonic_subinc_panel_integrals(geom, dod_info, freestream, mirror_panel, int)
+            if (this%r == 1) then
+                call this%calc_supersonic_subinc_edge_integrals(geom, dod_info, freestream, mirror_panel, int)
+                call this%calc_supersonic_subinc_panel_integrals(geom, dod_info, freestream, mirror_panel, int)
+            else
+                call this%calc_supersonic_supinc_edge_integrals(geom, dod_info, freestream, mirror_panel, int)
+                call this%calc_supersonic_supinc_panel_integrals(geom, dod_info, freestream, mirror_panel, int)
+            end if
         else
             call this%calc_subsonic_edge_integrals(geom, freestream, mirror_panel, int)
             call this%calc_subsonic_panel_integrals(geom, freestream, mirror_panel, int)

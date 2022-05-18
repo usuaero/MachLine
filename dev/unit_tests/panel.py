@@ -377,7 +377,7 @@ class SuperinclinedPanel:
         # Check if the panel is in the dod
         in_dod = np.any(edge_in_dod) or np.any(corner_in_dod)
         if not in_dod:
-            in_dod = np.all(a < 0.0)
+            in_dod = np.all(a > 0.0) and h >= 0.0
 
         return h, a, l1, l2, R, edge_in_dod, corner_in_dod, in_dod
 
@@ -389,22 +389,22 @@ class SuperinclinedPanel:
         h, a, l1, l2, R, edge_in_dod, corner_in_dod, in_dod = self._calc_geometry(P)
 
         # Initialize
-        psi = 0.0
-        phi = np.zeros(self.N)
+        hH113 = 0.0
+        F111 = np.zeros(self.N)
 
         if in_dod:
 
             # Loop through edges for psi
-            psi = 2.0*np.pi
+            hH113 = 2.0*np.pi
             for i in range(self.N):
 
                 # Add corner influence
                 if corner_in_dod[i]:
-                    psi += np.pi
+                    hH113 += np.pi
 
                 # Add edge influence
                 if edge_in_dod[i]:
-                    psi -= np.pi
+                    hH113 -= np.pi
 
                 # Seems to be a poor way of handling Mach wedge calculations... But I can't tell yet
 
@@ -422,7 +422,10 @@ class SuperinclinedPanel:
                     Y = h*R[i]*B
 
                     # Get contribution
-                    psi -= np.arctan2(Y, -X)
+                    hH113 -= np.arctan2(Y, -X)
+
+            # Flip sign
+            hH113 = -hH113
 
             # Loop through edges for phi
             for i in range(self.N):
@@ -435,7 +438,7 @@ class SuperinclinedPanel:
 
                     # Mach wedge region
                     if not corner_in_dod[i] and not corner_in_dod[i_next]:
-                        phi[i] = -np.pi
+                        F111[i] = -np.pi
 
                     # At least one endpoint in
                     else:
@@ -456,9 +459,9 @@ class SuperinclinedPanel:
                         Y = R[i_next]*l1_corr - R[i]*l2_corr
 
                         # Calculate phi
-                        phi[i] = np.arctan2(Y, X)
+                        F111[i] = np.arctan2(Y, X)
 
-        return psi, phi
+        return hH113, F111
 
 
     def calc_induced_source_potential(self, P):
@@ -474,11 +477,11 @@ class SuperinclinedPanel:
         h,a,_,_,_,_,_,_ = self._calc_geometry(P)
 
         # Get integrals
-        psi, phi = self._calc_integrals(P)
+        hH113, F111 = self._calc_integrals(P)
 
-        phi_s = -self.sigma*(-h*psi + np.sum(a*phi))/(2.0*np.pi)
+        phi_s = -self.sigma*(h*hH113 + np.sum(a*F111))/(2.0*np.pi)
 
-        return phi_s, psi, phi, a
+        return phi_s, hH113, F111, a
 
 
     def calc_induced_doublet_potential(self, P):
@@ -494,6 +497,6 @@ class SuperinclinedPanel:
         h,a,_,_,_,_,_,_ = self._calc_geometry(P)
 
         # Get integrals
-        psi, phi = self._calc_integrals(P)
+        hH113, F111 = self._calc_integrals(P)
         
-        return -self.mu*psi/(2.0*np.pi)
+        return self.mu*hH113/(2.0*np.pi)
