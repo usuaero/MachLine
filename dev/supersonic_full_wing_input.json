@@ -10,12 +10,15 @@
         "wake_model": {
             "append_wake" : false
         },
+        "singularity_order" : {
+            "source" : 0
+        },
         "reference": {
             "area": 1.0
         }
     },
     "solver": {
-        "formulation": "source-free",
+        "formulation": "morino",
         "control_point_offset": 1.1e-05
     },
     "post_processing" : {

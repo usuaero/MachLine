@@ -22,7 +22,7 @@ module panel_mod
         real,dimension(3) :: P_g ! Point position in global coords
         real,dimension(2) :: P_ls ! Transformed point in panel plane
         real :: h, h2 ! Transformed height above panel
-        real,dimension(3) :: a, g2, l1, l2, R1, R2 ! Edge integration parameters for the Ehlers-Johnson method
+        real,dimension(3) :: a, g2, l1, l2, R1, R2, dR ! Edge integration parameters for the Ehlers-Johnson method
 
         contains
 
@@ -1173,6 +1173,9 @@ contains
             geom%R2 = dummy
         end if
 
+        ! Difference in R
+        geom%dR = geom%R2 - geom%R1
+
     end function panel_calc_subsonic_geom
 
 
@@ -1275,6 +1278,9 @@ contains
             geom%R1 = geom%R2
             geom%R2 = dummy
         end if
+
+        ! Difference in R
+        geom%dR = geom%R2 - geom%R1
 
     end function panel_calc_supersonic_subinc_geom
 
@@ -1387,9 +1393,9 @@ contains
                 end if
 
                 ! Calculate (these formulas come from PAN AIR and are equivalent to Johnson, but simplified)
-                int%F121(i) = geom%a(i)*v_eta(i)*int%F111(i) + v_xi(i)*(geom%R2(i)-geom%R1(i))
+                int%F121(i) = geom%a(i)*v_eta(i)*int%F111(i) + v_xi(i)*geom%dR(i)
 
-                int%F211(i) = geom%a(i)*v_xi(i)*int%F111(i) - v_eta(i)*(geom%R2(i)-geom%R1(i))
+                int%F211(i) = geom%a(i)*v_xi(i)*int%F111(i) - v_eta(i)*geom%dR(i)
             end if
 
         end do
@@ -1411,7 +1417,7 @@ contains
         type(integrals),intent(inout) :: int
 
         real :: F1, F2, eps, eps2, series, b, s_b
-        integer :: i
+        integer :: i, i_next
         real,dimension(this%N) ::v_eta, v_xi
         
         ! Allocate integral storage
@@ -1432,6 +1438,8 @@ contains
 
         ! Loop through edges
         do i=1,this%N
+
+            i_next = mod(i, this%N) + 1
 
             ! Check DoD
             if (dod_info%edges_in_dod(i)) then
@@ -1466,8 +1474,18 @@ contains
                     int%F111(i) = -eps + b*series
 
                     if (source_order == 1) then
-                        int%F121(i) = 0. ! This will require some clever mirroring
-                        int%F211(i) = -v_eta*(geom%R2(i)-geom%R1(i)) + geom%a(i)*v_xi(i)*int%F111 - &
+                        if (mirror_panel) then
+                            int%F121(i) = (-v_xi(i)*geom%dR(i)*geom%R1(i)*geom%R2(i) &
+                                           + geom%l2(i)*geom%R1(i)*(this%vertices_ls_mir(2,i_next) - geom%P_ls(2)) &
+                                           - geom%l1(i)*geom%R2(i)*(this%vertices_ls_mir(2,i) - geom%P_ls(2))) / (geom%g2(i)*F2) &
+                                          - geom%a(i)*v_eta(i)*series
+                        else
+                            int%F121(i) = (-v_xi(i)*geom%dR(i)*geom%R1(i)*geom%R2(i) &
+                                           + geom%l2(i)*geom%R1(i)*(this%vertices_ls(2,i) - geom%P_ls(2)) &
+                                           - geom%l1(i)*geom%R2(i)*(this%vertices_ls(2,i_next) - geom%P_ls(2))) / (geom%g2(i)*F2) &
+                                          - geom%a(i)*v_eta(i)*series
+                        end if
+                        int%F211(i) = -v_eta(i)*geom%dR(i) + geom%a(i)*v_xi(i)*int%F111(i) - &
                                       2.*v_xi(i)*v_eta(i)*int%F121(i)
                     end if
 
@@ -1488,8 +1506,8 @@ contains
                         int%F111(i) = -atan2(s_b*F1, F2) / s_b
 
                         if (source_order == 1) then
-                            int%F121(i) = -(v_xi(i)*(geom%R2(i)-geom%R1(i)) + geom%a(i)*v_eta(i)*int%F111(i)) / b
-                            int%F211(i) = -v_eta(i)*(geom%R2(i)-geom%R1(i)) + geom%a(i)*v_xi(i)*int%F111(i) - &
+                            int%F121(i) = -(v_xi(i)*geom%dR(i) + geom%a(i)*v_eta(i)*int%F111(i)) / b
+                            int%F211(i) = -v_eta(i)*geom%dR(i) + geom%a(i)*v_xi(i)*int%F111(i) - &
                                           2.*v_xi(i)*v_eta(i)*int%F121(i)
                         end if
                     end if
@@ -1501,8 +1519,8 @@ contains
                     int%F111(i) = -sign(1., v_eta(i))*log(F1/F2)
 
                     if (source_order == 1) then
-                        int%F121(i) = -(v_xi(i)*(geom%R2(i)-geom%R1(i)) + geom%a(i)*v_eta(i)*int%F111(i)) / b
-                        int%F211(i) = -v_eta(i)*(geom%R2(i)-geom%R1(i)) + geom%a(i)*v_xi(i)*int%F111(i) - &
+                        int%F121(i) = -(v_xi(i)*geom%dR(i) + geom%a(i)*v_eta(i)*int%F111(i)) / b
+                        int%F211(i) = -v_eta(i)*geom%dR(i) + geom%a(i)*v_xi(i)*int%F111(i) - &
                                       2.*v_xi(i)*v_eta(i)*int%F121(i)
                     end if
                 end if
@@ -1568,8 +1586,8 @@ contains
 
         ! Calculate higher-order integrals
         if (source_order == 1) then
-            int%H211 = 0.5*(geom%h2*sum(v_xi*int%F111) + sum(geom%a*int%F211))
-            int%H121 = 0.5*(geom%h2*sum(v_eta*int%F111) + sum(geom%a*int%F121))
+            int%H211 = 0.5*(-geom%h2*int%H213 + sum(geom%a*int%F211))
+            int%H121 = 0.5*(-geom%h2*int%H123 + sum(geom%a*int%F121))
         end if
 
     end subroutine panel_calc_subsonic_panel_integrals
@@ -1625,7 +1643,7 @@ contains
                         F1 = (geom%l1(i)*geom%R2(i) - geom%l2(i)*geom%R1(i)) / geom%g2(i)
                         F2 = (b*geom%R1(i)*geom%R2(i) + geom%l1(i)*geom%l2(i)) / geom%g2(i)
                     else
-                        F1 = (geom%R2(i) - geom%R1(i))*(geom%R2(i) + geom%R1(i)) / (geom%l1(i)*geom%R2(i) + geom%l2(i)*geom%R1(i))
+                        F1 = geom%dR(i)*(geom%R2(i) + geom%R1(i)) / (geom%l1(i)*geom%R2(i) + geom%l2(i)*geom%R1(i))
                         F2 = (geom%g2(i) - geom%l1(i)**2 - geom%l2(i)**2) &
                              / (b*geom%R1(i)*geom%R2(i) - geom%l1(i)*geom%l2(i))
                     end if
@@ -1657,6 +1675,8 @@ contains
 
         ! Calculate higher-order integrals
         if (source_order == 1) then
+            int%H211 = 0.5*(-geom%h2*int%H213 - sum(geom%a*int%F211))
+            int%H121 = 0.5*(-geom%h2*int%H123 - sum(geom%a*int%F121))
         end if
 
         ! Clean up

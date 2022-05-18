@@ -33,6 +33,9 @@ if __name__=="__main__":
             "wake_model": {
                 "append_wake" : False,
             },
+            "singularity_order" : {
+                "source" : 1
+            },
             "reference": {
                 "area": 4.0
             }
