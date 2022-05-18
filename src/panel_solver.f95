@@ -984,7 +984,9 @@ contains
         if (this%matrix_solver == 'LU') then
             call lu_solve(this%N, A_copy, this%b, body%mu)
         else if (this%matrix_solver == 'BSOR') then
-            call block_sor(this%N, A_copy, this%b, this%chunk_size, this%tol, this%rel, body%mu)
+            call block_sor(this%N, A_copy, this%b, this%chunk_size, this%tol, this%rel, verbose, body%mu)
+        else if (this%matrix_solver == 'BSOR_adaptive') then
+            call block_sor_adaptive(this%N, A_copy, this%b, this%chunk_size, this%tol, verbose, body%mu)
         else if (this%matrix_solver == 'BGS') then
             call block_gauss_siedel(this%N, A_copy, this%b, this%chunk_size, this%tol, body%mu)
         end if
