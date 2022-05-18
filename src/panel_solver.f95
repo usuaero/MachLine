@@ -325,7 +325,7 @@ contains
         class(panel_solver),intent(inout) :: this
         type(surface_mesh),intent(inout) :: body
 
-        integer :: i, j
+        integer :: i, j, stat
         real,dimension(3) :: vert_loc, mirrored_vert_loc
         logical,dimension(:,:),allocatable :: verts_in_dod, wake_verts_in_dod
 
@@ -335,20 +335,28 @@ contains
 
         ! Allocate arrays for domain of dependence information for the body
         if (body%mirrored) then
-            allocate(this%dod_info(2*body%N_panels, this%N))
-            allocate(verts_in_dod(2*body%N_verts, this%N))
+            allocate(this%dod_info(2*body%N_panels, this%N), stat=stat)
+            call check_allocation(stat, "domain of dependence storage")
+            allocate(verts_in_dod(2*body%N_verts, this%N), stat=stat)
+            call check_allocation(stat, "vertex domain of dependence storage")
         else
-            allocate(this%dod_info(body%N_panels, this%N))
-            allocate(verts_in_dod(body%N_verts, this%N))
+            allocate(this%dod_info(body%N_panels, this%N), stat=stat)
+            call check_allocation(stat, "domain of dependence storage")
+            allocate(verts_in_dod(body%N_verts, this%N), stat=stat)
+            call check_allocation(stat, "vertex domain of dependence storage")
         end if
 
         ! Allocate arrays for domain of dependence information for the wake
         if (body%mirrored .and. .not. body%asym_flow) then
-            allocate(this%wake_dod_info(2*body%wake%N_panels, this%N))
-            allocate(wake_verts_in_dod(2*body%wake%N_verts, this%N))
+            allocate(this%wake_dod_info(2*body%wake%N_panels, this%N), stat=stat)
+            call check_allocation(stat, "domain of dependence storage")
+            allocate(wake_verts_in_dod(2*body%wake%N_verts, this%N), stat=stat)
+            call check_allocation(stat, "vertex domain of dependence storage")
         else
-            allocate(this%wake_dod_info(body%wake%N_panels, this%N))
-            allocate(wake_verts_in_dod(body%wake%N_verts, this%N))
+            allocate(this%wake_dod_info(body%wake%N_panels, this%N), stat=stat)
+            call check_allocation(stat, "domain of dependence storage")
+            allocate(wake_verts_in_dod(body%wake%N_verts, this%N), stat=stat)
+            call check_allocation(stat, "vertex domain of dependence storage")
         end if
 
         ! If the freestream is subsonic, these don't need to be checked
@@ -357,6 +365,7 @@ contains
             write(*,'(a)',advance='no') "     Calculating domains of dependence..."
 
             ! Loop through control points
+            !$OMP parallel do private(vert_loc, mirrored_vert_loc)
             do j=1,body%N_cp
 
                 ! Loop through body vertices

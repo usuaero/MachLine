@@ -202,6 +202,7 @@ contains
         end do
 
         ! Initialize panel objects
+        !$OMP parallel do private(i1, i2, i3)
         do i=1,N_panels
 
             ! Get vertex indices
@@ -213,9 +214,11 @@ contains
             call panels(i)%init(vertices(i1), vertices(i2), vertices(i3), i)
 
             ! Add panel index to vertices
+            !$OMP critical
             call vertices(i1)%panels%append(i)
             call vertices(i2)%panels%append(i)
             call vertices(i3)%panels%append(i)
+            !$OMP end critical
 
         end do
 
