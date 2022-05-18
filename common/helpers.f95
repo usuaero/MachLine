@@ -2,6 +2,8 @@ module helpers_mod
 
     implicit none
 
+    logical :: run_checks, verbose
+
     type progress_bar
         ! NOT WORKING
 

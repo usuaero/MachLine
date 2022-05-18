@@ -5,6 +5,7 @@ program main
     use surface_mesh_mod
     use flow_mod
     use panel_solver_mod
+    use helpers_mod
 
     implicit none
 
@@ -33,22 +34,6 @@ program main
     ! Start timer
     call cpu_time(start)
 
-    ! Welcome message
-    write(*,*) "           /"
-    write(*,*) "          /"
-    write(*,*) "         /"
-    write(*,*) "        /          ____"
-    write(*,*) "       /          /   /"
-    write(*,*) "      /          /   /"
-    write(*,*) "     /     MachLine (c) 2022 USU Aerolab"
-    write(*,*) "    / _________/___/_______________"
-    write(*,*) "   ( (__________________________"
-    write(*,*) "    \          \   \"
-    write(*,*) "     \          \   \"
-    write(*,*) "      \          \   \"
-    write(*,*) "       \          \___\"
-    write(*,*) "        \"
-
     ! Set up run
     call json_initialize()
 
@@ -71,7 +56,6 @@ program main
     end if
 
     ! Load settings from input file
-    write(*,*) "Loading input file: ", input_file
     call input_json%load_file(filename=input_file)
     call json_check()
     call input_json%get('flow', flow_settings)
@@ -79,6 +63,29 @@ program main
     call input_json%get('solver', solver_settings)
     call input_json%get('post_processing', processing_settings)
     call input_json%get('output', output_settings)
+
+    ! Get checks and verbose toggles
+    call json_xtnsn_get(solver_settings, 'run_checks', run_checks, .false.)
+    call json_xtnsn_get(output_settings, 'verbose', verbose, .true.)
+
+    ! Welcome message
+    if (verbose) then
+        write(*,*) "           /"
+        write(*,*) "          /"
+        write(*,*) "         /"
+        write(*,*) "        /          ____"
+        write(*,*) "       /          /   /"
+        write(*,*) "      /          /   /"
+        write(*,*) "     /     MachLine (c) 2022 USU Aerolab"
+        write(*,*) "    / _________/___/_______________"
+        write(*,*) "   ( (__________________________"
+        write(*,*) "    \          \   \"
+        write(*,*) "     \          \   \"
+        write(*,*) "      \          \   \"
+        write(*,*) "       \          \___\"
+        write(*,*) "        \"
+        write(*,*) "Loading input file: ", input_file
+    end if
 
     ! Initialize report JSON
     call json_value_create(report_json)
@@ -97,8 +104,10 @@ program main
     call json_xtnsn_get(geom_settings, 'spanwise_axis', spanwise_axis, '+y')
     call freestream_flow%init(flow_settings, spanwise_axis)
 
-    write(*,*)
-    write(*,*) "Initializing"
+    if (verbose) then
+        write(*,*)
+        write(*,*) "Initializing"
+    end if
     
     ! Get result files
     call json_xtnsn_get(output_settings, 'body_file', body_file, 'none')
@@ -113,8 +122,10 @@ program main
     ! Initialize panel solver
     call linear_solver%init(solver_settings, processing_settings, body_mesh, freestream_flow, control_point_file)
 
-    write(*,*)
-    write(*,*) "Running solver using the ", linear_solver%formulation, " boundary-condition formulation"
+    if (verbose) then
+        write(*,*)
+        write(*,*) "Running solver using the ", linear_solver%formulation, " boundary-condition formulation"
+    end if
 
     ! Run solver
     call json_xtnsn_get(output_settings, 'report_file', report_file, 'none')
@@ -130,15 +141,17 @@ program main
     call json_value_add(p_parent, flow_settings) ! Somehow this writes all the settings...
     nullify(p_parent)
 
-    write(*,*)
-    write(*,*) "Writing results to file"
+    if (verbose) then
+        write(*,*)
+        write(*,*) "Writing results to file"
+    end if
 
     ! Write report
     if (report_file /= 'none') then
         open(newunit=i_unit, file=report_file, status='REPLACE')
         call json_print(report_json, i_unit)
         close(i_unit)
-        write(*,*) "    Report written to: ", report_file
+        if (verbose) write(*,*) "    Report written to: ", report_file
     end if
 
     ! Destroy pointers
@@ -149,7 +162,7 @@ program main
 
     ! Goodbye
     call cpu_time(end)
-    write(*,*)
+    if (verbose) write(*,*)
     write(*,'(a, f10.4, a)') " MachLine exited successfully. Execution time: ", end-start, " s"
 
 end program main

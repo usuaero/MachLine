@@ -4,6 +4,7 @@ module flow_mod
     use json_xtnsn_mod
     use math_mod
     use linalg_mod
+    use helpers_mod
 
     implicit none
     
@@ -54,7 +55,7 @@ contains
         ! Get flow params
         call json_get(settings, 'freestream_velocity', this%v_inf, found)
         if (.not. found) then
-            write(*,*) "Freestream velocity was not specified. Quitting..."
+            write(*,*) "!!! Freestream velocity was not specified. Quitting..."
             stop
         end if
         call json_xtnsn_get(settings, 'freestream_mach_number', this%M_inf, 0.)
@@ -76,7 +77,7 @@ contains
 
         ! Determine condition
         if (this%M_inf == 1.) then
-            write(*,*) "A freestream Mach number of 1.0 is not allowed in MachLine. Quitting..."
+            write(*,*) "!!! A freestream Mach number of 1.0 is not allowed in MachLine. Quitting..."
             stop
         end if
         this%supersonic = this%M_inf > 1.0
@@ -200,10 +201,12 @@ contains
         this%A_c_to_s(3,3) = this%B
 
         ! Check calculation
-        c_hat_c = matmul(this%A_g_to_c, this%c_hat_g)
-        if (abs(c_hat_c(1)-1.)>1e-12 .or. abs(c_hat_c(2))>1e-12 .or. abs(c_hat_c(3))>1e-12) then
-            write(*,*) "Transformation to the compressible coordinate system failed. Quitting..."
-            stop
+        if (run_checks) then
+            c_hat_c = matmul(this%A_g_to_c, this%c_hat_g)
+            if (abs(c_hat_c(1)-1.)>1e-12 .or. abs(c_hat_c(2))>1e-12 .or. abs(c_hat_c(3))>1e-12) then
+                write(*,*) "!!! Transformation to the compressible coordinate system failed. Quitting..."
+                stop
+            end if
         end if
 
         ! Calculate transform from global to scaled coordinates

@@ -264,7 +264,7 @@ contains
         real :: offset
         
         ! Place control points
-        write(*,'(a)',advance='no') "     Placing control points..."
+        if (verbose) write(*,'(a)',advance='no') "     Placing control points..."
 
         ! Get offset
         call json_xtnsn_get(solver_settings, 'control_point_offset', offset, 1e-5)
@@ -286,7 +286,7 @@ contains
             call this%sort_control_points(body)
         end if
 
-        write(*,'(a, i6, a)') "Done. Placed", body%N_cp, " control points."
+        if (verbose) write(*,'(a, i6, a)') "Done. Placed", body%N_cp, " control points."
     
     end subroutine panel_solver_init_dirichlet
 
@@ -368,7 +368,7 @@ contains
         ! If the freestream is subsonic, these don't need to be checked
         if (this%freestream%supersonic) then
 
-            write(*,'(a)',advance='no') "     Calculating domains of dependence..."
+            if (verbose) write(*,'(a)',advance='no') "     Calculating domains of dependence..."
 
             ! Loop through control points
             !$OMP parallel do private(vert_loc, mirrored_vert_loc)
@@ -486,7 +486,7 @@ contains
 
             end do
 
-            write(*,*) "Done"
+            if (verbose) write(*,*) "Done"
         end if
     
     end subroutine panel_solver_calc_domains_of_dependence
@@ -562,7 +562,7 @@ contains
         ! Set source strengths
         if (this%morino) then
 
-            write(*,'(a)',advance='no') "     Calculating source strengths..."
+            if (verbose) write(*,'(a)',advance='no') "     Calculating source strengths..."
 
             ! Use panel normals
             if (source_order == 0) then
@@ -596,7 +596,7 @@ contains
 
             end if
 
-            write(*,*) "Done."
+            if (verbose) write(*,*) "Done."
         end if
     
     end subroutine panel_solver_calc_source_strengths
@@ -676,7 +676,7 @@ contains
             allocate(A_i_mir(this%N))
         end if
 
-        write(*,'(a)',advance='no') "     Calculating body influences..."
+        if (verbose) write(*,'(a)',advance='no') "     Calculating body influences..."
         
         ! Parameter used for calculating inner potential for the source-free formulation
         if (this%formulation == 'source-free') then
@@ -823,7 +823,7 @@ contains
 
         end do
 
-        write(*,*) "Done."
+        if (verbose) write(*,*) "Done."
     
     end subroutine panel_solver_calc_body_influences
 
@@ -841,7 +841,7 @@ contains
         integer,dimension(:),allocatable :: i_vert_d, i_vert_s
 
         ! Calculate influence of wake
-        write(*,'(a)',advance='no') "     Calculating wake influences..."
+        if (verbose) write(*,'(a)',advance='no') "     Calculating wake influences..."
 
         ! Allocate A rows
         allocate(A_i(this%N))
@@ -927,7 +927,7 @@ contains
 
         end do
 
-        write(*,*) "Done."
+        if (verbose) write(*,*) "Done."
 
     end subroutine panel_solver_calc_wake_influences
 
@@ -943,34 +943,38 @@ contains
         real,dimension(:,:),allocatable :: A_copy
         integer :: stat, i, j
 
-        write(*,'(a)',advance='no') "     Solving linear system..."
+        if (verbose) write(*,'(a)',advance='no') "     Solving linear system..."
 
         ! Set b vector for Morino formulation
         if (this%formulation == "morino") then
             this%b = -body%phi_cp_sigma
         end if
 
-        ! Check for NaNs; I'd rather have it fail here than give the user garbage results
-        if (any(isnan(this%A))) then
-            write(*,*) "!!! Invalid value detected in A matrix. Quitting..."
-            stop
-        end if
-        if (any(isnan(this%b))) then
-            write(*,*) "!!! Invalid value detected in b vector. Quitting..."
-            stop
-        end if
+        if (run_checks) then
 
-        ! Check for uninfluenced/ing points
-        do i=1,this%N
-            if (all(this%A(i,:) == 0.)) then
-                write(*,*) "!!! Control point ", i, " is not influenced. Quitting..."
+            ! Check for NaNs
+            if (any(isnan(this%A))) then
+                write(*,*) "!!! Invalid value detected in A matrix. Quitting..."
                 stop
             end if
-            if (all(this%A(:,i) == 0.)) then
-                write(*,*) "!!! Vertex ", i, " exerts no influence. Quitting..."
+            if (any(isnan(this%b))) then
+                write(*,*) "!!! Invalid value detected in b vector. Quitting..."
                 stop
             end if
-        end do
+
+            ! Check for uninfluenced/ing points
+            do i=1,this%N
+                if (all(this%A(i,:) == 0.)) then
+                    write(*,*) "!!! Control point ", i, " is not influenced. Quitting..."
+                    stop
+                end if
+                if (all(this%A(:,i) == 0.)) then
+                    write(*,*) "!!! Vertex ", i, " exerts no influence. Quitting..."
+                    stop
+                end if
+            end do
+
+        end if
 
         ! Make a copy of A (most solvers replace A with its decomposition)
         allocate(A_copy, source=this%A, stat=stat)
@@ -984,7 +988,7 @@ contains
         else if (this%matrix_solver == 'BGS') then
             call block_gauss_siedel(this%N, A_copy, this%b, this%chunk_size, this%tol, body%mu)
         end if
-        write(*,*) "Done."
+        if (verbose) write(*,*) "Done."
 
         ! Clean up memory
         deallocate(A_copy)
@@ -996,8 +1000,10 @@ contains
         ! Calculate residual parameters
         this%max_res = maxval(abs(body%phi_cp_mu-this%b))
         this%norm_res = sqrt(sum((body%phi_cp_mu-this%b)**2))
-        write(*,*) "        Maximum residual:", this%max_res
-        write(*,*) "        Norm of residual:", this%norm_res
+        if (verbose) then
+            write(*,*) "        Maximum residual:", this%max_res
+            write(*,*) "        Norm of residual:", this%norm_res
+        end if
 
     end subroutine panel_solver_solve_system
 
@@ -1013,7 +1019,7 @@ contains
         integer :: i, stat
         real,dimension(3) :: x, v_jump
 
-        write(*,'(a)',advance='no') "     Calculating surface velocities..."
+        if (verbose) write(*,'(a)',advance='no') "     Calculating surface velocities..."
 
         ! Allocate velocity storage
         if (body%asym_flow) then
@@ -1067,7 +1073,7 @@ contains
                                              inner(x, mirror_across_plane(body%vertices(i)%loc, body%mirror_plane))
             end if
         end do
-        write(*,*) "Done."
+        if (verbose) write(*,*) "Done."
 
     end subroutine panel_solver_calc_velocities
 
@@ -1084,7 +1090,7 @@ contains
         real,dimension(3) :: V_pert
         real :: a, b, c, C_p_vac, lin, sln
 
-        write(*,'(a)',advance='no') "     Calculating surface pressures..."
+        if (verbose) write(*,'(a)',advance='no') "     Calculating surface pressures..."
         this%N_cells = size(body%V)/3
 
         ! Calculate vacuum pressure coefficient
@@ -1174,37 +1180,37 @@ contains
 
         end do
 
-        write(*,*) "Done."
+        if (verbose) write(*,*) "Done."
         
         ! Report min and max pressure coefficients
-        if (this%incompressible_rule) then
+        if (this%incompressible_rule .and. verbose) then
             write(*,*) "        Maximum incompressible pressure coefficient:", maxval(body%C_p_inc)
             write(*,*) "        Minimum incompressible pressure coefficient:", minval(body%C_p_inc)
         end if
         
-        if (this%isentropic_rule) then
+        if (this%isentropic_rule .and. verbose) then
             write(*,*) "        Maximum isentropic pressure coefficient:", maxval(body%C_p_ise)
             write(*,*) "        Minimum isentropic pressure coefficient:", minval(body%C_p_ise)
         end if
         
-        if (this%second_order_rule) then
+        if (this%second_order_rule .and. verbose) then
             write(*,*) "        Maximum second-order pressure coefficient:", maxval(body%C_p_2nd)
             write(*,*) "        Minimum second-order pressure coefficient:", minval(body%C_p_2nd)
         end if
         
-        if (this%slender_rule) then
+        if (this%slender_rule .and. verbose) then
             write(*,*) "        Maximum slender-body pressure coefficient:", maxval(body%C_p_sln)
             write(*,*) "        Minimum slender-body pressure coefficient:", minval(body%C_p_sln)
         end if
         
-        if (this%linear_rule) then
+        if (this%linear_rule .and. verbose) then
             write(*,*) "        Maximum linear pressure coefficient:", maxval(body%C_p_lin)
             write(*,*) "        Minimum linear pressure coefficient:", minval(body%C_p_lin)
         end if
         
         ! Report vacuum pressure coefficient
         if (this%freestream%M_inf > 0.) then
-            write(*,*) "        Vacuum pressure coefficient:", C_p_vac
+            if (verbose) write(*,*) "        Vacuum pressure coefficient:", C_p_vac
         end if
         
         ! Apply subsonic pressure corrections
@@ -1225,7 +1231,7 @@ contains
         integer :: i,stat
         real :: val_holder_L, val_holder_KT
 
-        write(*,'(a)',advance='no') "     Calculating compressibility pressure corrections..."        
+        if (verbose) write(*,'(a)',advance='no') "     Calculating compressibility pressure corrections..."        
         
         ! Prandtl-Glauert rule
         if (this%prandtl_glauert) then
@@ -1264,8 +1270,7 @@ contains
             (sqrt(1 - this%corrected_M_inf**2) + val_holder_KT * (0.5 * body%C_p_inc))
         end if
 
-        
-        write(*,*) "Done. "  
+        if (verbose) write(*,*) "Done. "  
         
     end subroutine panel_solver_subsonic_pressure_correction
     
@@ -1280,7 +1285,8 @@ contains
         
         integer :: i, stat
 
-        write(*,'(a, a, a)',advance='no') "     Calculating forces using the ", this%pressure_for_forces, " pressure rule..."
+        if (verbose) write(*,'(a, a, a)',advance='no') "     Calculating forces using the ", &
+                                                       this%pressure_for_forces, " pressure rule..."
 
         ! Allocate force storage
         allocate(body%dC_f(3,this%N_cells), stat=stat)
@@ -1365,10 +1371,12 @@ contains
             this%C_F(body%mirror_plane) = 0. ! We know this
         end if
 
-        write(*,*) "Done."
-        write(*,*) "        Cx:", this%C_F(1)
-        write(*,*) "        Cy:", this%C_F(2)
-        write(*,*) "        Cz:", this%C_F(3)
+        if (verbose) then
+            write(*,*) "Done."
+            write(*,*) "        Cx:", this%C_F(1)
+            write(*,*) "        Cy:", this%C_F(2)
+            write(*,*) "        Cz:", this%C_F(3)
+        end if
     
     end subroutine panel_solver_calc_forces
 
@@ -1442,7 +1450,6 @@ contains
         call json_value_add(p_parent, 'Cz', this%C_F(3))
         nullify(p_parent)
 
-   
     end subroutine panel_solver_update_report
 
 
