@@ -26,9 +26,9 @@ contains
         ! Check if stat is nonzero
         if (stat /= 0) then
             if (present(what)) then
-                write(*,*) "Your computer has insufficient memory to allocate ", what, ". Quitting..."
+                write(*,*) "!!! Your computer has insufficient memory to allocate ", what, ". Quitting..."
             else
-                write(*,*) "Your computer has insufficient memory. Quitting..."
+                write(*,*) "!!! Your computer has insufficient memory. Quitting..."
             end if
             stop
         end if
