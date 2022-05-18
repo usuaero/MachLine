@@ -183,3 +183,13 @@ if __name__=="__main__":
     P0 = np.array([2.0, 0.0, 0.3])
     d0 = np.array([1.0, 0.0, 0.0])
     plot_comparison(verts, P0, d0, subinclined=False)
+
+    # From near panel to totally in
+    P0 = np.array([0.5, 0.0, 0.3])
+    d0 = np.array([1.0, 0.0, 0.0])
+    plot_comparison(verts, P0, d0, subinclined=False)
+
+    # Out-in-out
+    P0 = np.array([2.0, -5.0, 0.0])
+    d0 = np.array([0.0, 1.0, 0.0])
+    plot_comparison(verts, P0, d0, subinclined=False)

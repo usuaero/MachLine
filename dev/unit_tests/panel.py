@@ -374,81 +374,89 @@ class SuperinclinedPanel:
             elif abs(a[i]) < h and h != 0.0 and l1[i]*l2[i] <= 0.0:
                 edge_in_dod[i] = True
 
-        return h, a, l1, l2, R, edge_in_dod, corner_in_dod
+        # Check if the panel is in the dod
+        in_dod = np.any(edge_in_dod) or np.any(corner_in_dod)
+        if not in_dod:
+            in_dod = np.all(a < 0.0)
+
+        return h, a, l1, l2, R, edge_in_dod, corner_in_dod, in_dod
 
 
     def _calc_integrals(self, P):
         # Calculates the needed integrals
 
         # Calculate geometry
-        h, a, l1, l2, R, edge_in_dod, corner_in_dod = self._calc_geometry(P)
+        h, a, l1, l2, R, edge_in_dod, corner_in_dod, in_dod = self._calc_geometry(P)
 
         # Initialize
-        psi = 2.0*np.pi
+        psi = 0.0
         phi = np.zeros(self.N)
 
-        # Loop through edges for psi
-        for i in range(self.N):
+        if in_dod:
 
-            # Add corner influence
-            if corner_in_dod[i]:
-                psi += np.pi
+            # Loop through edges for psi
+            psi = 2.0*np.pi
+            for i in range(self.N):
 
-            # Add edge influence
-            if edge_in_dod[i]:
-                psi -= np.pi
+                # Add corner influence
+                if corner_in_dod[i]:
+                    psi += np.pi
 
-            # Seems to be a poor way of handling Mach wedge calculations... But I can't tell yet
+                # Add edge influence
+                if edge_in_dod[i]:
+                    psi -= np.pi
 
-            if corner_in_dod[i]:
+                # Seems to be a poor way of handling Mach wedge calculations... But I can't tell yet
 
-                # Get index of previous edge (corner i is between edge i and edge i-1)
-                i_prev = i-1
+                if corner_in_dod[i]:
 
-                # Get intermediate vals
-                A = inner2(self.t_hat[:,i_prev], self.t_hat[:,i])
-                B = self.t_hat[0,i_prev]*self.t_hat[1,i] - self.t_hat[1,i_prev]*self.t_hat[0,i]
+                    # Get index of previous edge (corner i is between edge i and edge i-1)
+                    i_prev = i-1
 
-                # Get sine and cosine terms
-                X = a[i]*a[i_prev] - h**2*A
-                Y = h*R[i]*B
+                    # Get intermediate vals
+                    A = inner2(self.t_hat[:,i_prev], self.t_hat[:,i])
+                    B = self.t_hat[0,i_prev]*self.t_hat[1,i] - self.t_hat[1,i_prev]*self.t_hat[0,i]
 
-                # Get contribution
-                psi -= np.arctan2(Y, -X)
+                    # Get sine and cosine terms
+                    X = a[i]*a[i_prev] - h**2*A
+                    Y = h*R[i]*B
 
-        # Loop through edges for phi
-        for i in range(self.N):
+                    # Get contribution
+                    psi -= np.arctan2(Y, -X)
 
-            # Check DoD
-            if edge_in_dod[i]:
+            # Loop through edges for phi
+            for i in range(self.N):
 
-                # Get index of end vertex
-                i_next = (i+1)%self.N
+                # Check DoD
+                if edge_in_dod[i]:
 
-                # Mach wedge region
-                if not corner_in_dod[i] and not corner_in_dod[i_next]:
-                    phi[i] = -np.pi
+                    # Get index of end vertex
+                    i_next = (i+1)%self.N
 
-                # At least one endpoint in
-                else:
+                    # Mach wedge region
+                    if not corner_in_dod[i] and not corner_in_dod[i_next]:
+                        phi[i] = -np.pi
 
-                    # Correct l1 or l2 if that endpoint is out\
-                    if not corner_in_dod[i]:
-                        l1_corr = -1.0
+                    # At least one endpoint in
                     else:
-                        l1_corr = l1[i]
 
-                    if not corner_in_dod[i_next]:
-                        l2_corr = 1.0
-                    else:
-                        l2_corr = l2[i]
+                        # Correct l1 or l2 if that endpoint is out\
+                        if not corner_in_dod[i]:
+                            l1_corr = -1.0
+                        else:
+                            l1_corr = l1[i]
 
-                    # Calculate sine and cosine terms
-                    X = l1_corr*l2_corr + R[i]*R[i_next]
-                    Y = R[i_next]*l1_corr - R[i]*l2_corr
+                        if not corner_in_dod[i_next]:
+                            l2_corr = 1.0
+                        else:
+                            l2_corr = l2[i]
 
-                    # Calculate phi
-                    phi[i] = np.arctan2(Y, X)
+                        # Calculate sine and cosine terms
+                        X = l1_corr*l2_corr + R[i]*R[i_next]
+                        Y = R[i_next]*l1_corr - R[i]*l2_corr
+
+                        # Calculate phi
+                        phi[i] = np.arctan2(Y, X)
 
         return psi, phi
 
@@ -463,7 +471,7 @@ class SuperinclinedPanel:
         """
 
         # Get geometry
-        h,a,_,_,_,_,_ = self._calc_geometry(P)
+        h,a,_,_,_,_,_,_ = self._calc_geometry(P)
 
         # Get integrals
         psi, phi = self._calc_integrals(P)
@@ -483,7 +491,7 @@ class SuperinclinedPanel:
         """
 
         # Get geometry
-        h,a,_,_,_,_,_ = self._calc_geometry(P)
+        h,a,_,_,_,_,_,_ = self._calc_geometry(P)
 
         # Get integrals
         psi, phi = self._calc_integrals(P)
