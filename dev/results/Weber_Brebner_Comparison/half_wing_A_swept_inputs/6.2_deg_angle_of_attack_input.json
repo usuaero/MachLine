@@ -7,7 +7,7 @@
         ]
     },
     "geometry": {
-        "file": "dev/results/Weber_Brebner_Comparison/half_wing_A_meshes/half_wing_A_20_nodes.vtk",
+        "file": "dev/results/Weber_Brebner_Comparison/half_wing_A_meshes/half_wing_A_20_nodes_updated.vtk",
         "mirror_about": "xz",
         "singularity_order": {
             "doublet": 1,
@@ -28,7 +28,7 @@
     },
     "post_processing": {
         "pressure_rules": {
-            "incompressible": false,
+            "incompressible": true,
             "isentropic": false,
             "second-order": false
         },
@@ -43,6 +43,6 @@
         "body_file": "dev/results/Weber_Brebner_Comparison/MachLine_Results/6.2_degrees_AoA/half_wing_A_20_nodes_6.2_deg_AoA_source_free_formulation.vtk",
         "wake_file": "dev/results/Weber_Brebner_Comparison/MachLine_Results/6.2_degrees_AoA/half_wing_A_20_nodes_6.2_deg_AoA_source_free_formulation_wake.vtk",
         "control_point_file": "dev/results/Weber_Brebner_Comparison/MachLine_Results/6.2_degrees_AoA/half_wing_A_20_nodes_6.2_deg_AoA_source_free_control_points.vtk",
-        "report_file": "../../report.txt"
+        "report_file": "../../report.json"
     }
 }

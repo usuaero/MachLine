@@ -60,7 +60,7 @@ def mach_iter(AoA, Node, formulation, freestream):
         },
         "post_processing" : {
             "pressure_rules": {
-                "incompressible": False,
+                "incompressible": True,
                 "isentropic": False,
                 "second-order": False
         },

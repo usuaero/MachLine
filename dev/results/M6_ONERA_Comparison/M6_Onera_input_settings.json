@@ -42,9 +42,9 @@
     },
 
     "plots":{
-        "points_to_process": ["C_p_PG", "C_p_2nd", "C_p_ise"],
+        "points_to_process": ["C_p_PG", "C_p_ise"],
         "process_all": true,
-        "save plots": false,
+        "save plots": true,
         "save plot type": "pdf",
         "combine pdfs": false,
         "options": ["points_to_process: selects the points to process and plot. Options are C_p_inc, C_p_PG, C_p_KT, C_p_L, C_p_ise, C_p_2nd, C_p_sln, C_p_lin",

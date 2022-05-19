@@ -103,7 +103,8 @@ class Swept_Plotting:
             # Iterate over angles of attack for each semispan
             for j,AoA in enumerate(self.locations[percent_semispan]):
 
-
+                # Initialize figure size
+                plt.figure(figsize=(4,3))
                 # Iterate over node counts backwards to allow plot sizing based on highest node count
                 for k,Node in enumerate(reversed(self.Nodes)): 
 
@@ -194,8 +195,9 @@ class Swept_Plotting:
             # iterate over applicable angles of attack
             for AoA in self.locations[percent_semispan]:
                 
-                # Create a list conaining the location of data going to be compared
+                # Create a list conaining the location of data going to be compared and set size of figure to be produced
                 data_locations = []
+                plt.figure(figsize=(6.4,4.8))
                 # Iterate over node counts # This is where plotting will happen, to plot the difference of all the nodal results
                 for i, Node in enumerate(self.Nodes):
                     data_locations.append([])
@@ -355,7 +357,7 @@ else:
         yscale = json_vals["plots"]["y axis scale"]
         Swept_Plotting(Specific_Semispan, chord, Nodes, semispan_xy_loc).form_comparison(formulation, xscale, yscale)
 
-    # Print exit statement to verify completion of process
-    print()
-    print("Pressure plotting executed successfully. \n")
+# Print exit statement to verify completion of process
+print()
+print("Pressure plotting executed successfully. \n")
 

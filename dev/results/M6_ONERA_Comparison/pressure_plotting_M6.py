@@ -45,9 +45,11 @@ class Swept_Plotting:
         if calc_type == "pressure_corrections":
             opacity = [1, 0.5, 0.3,]
             shape = ["v", "^", "<"]
+            linetype = ["--"]
         elif calc_type == "subsonic_calcs":
             opacity = [1, 0.5, 0.3,]
             shape = ["o", "s", "p"]
+            linetype= ["-"]
             # colors = ["g", "b", "r", "m", "y"]
 
         # Iterate over points to process
@@ -72,14 +74,14 @@ class Swept_Plotting:
             LE_loc = min(x)
             x_axis = (x-LE_loc)/Chord_Length
             
-            # Black and white lines with varying opacity
-            # plt.plot(x_axis, point_data, label=f"${dict_copy[point]}$", alpha=opacity[j], color="k")
+            # Black and white lines with line types and varying opacity
+            plt.plot(x_axis, point_data, label=f"${dict_copy[point]}$", linestyle=linetype[j], alpha=opacity[j], color="k")
             
             # Various colors
             # plt.plot((x-LE_xy_loc)/Chord_Length,point_data, "o", label=f"${dict_copy[point]}$", color=colors[j])
             
             # Markers alone without lines for all data
-            plt.plot((x-LE_loc)/Chord_Length,point_data, label=f"${dict_copy[point]}$", marker=shape[j], alpha=opacity[j], color="k", linestyle="none")
+            # plt.plot(x_axis,point_data, label=f"${dict_copy[point]}$", marker=shape[j], alpha=opacity[j], color="k", linestyle="none")
 
         return
 
@@ -149,24 +151,23 @@ class Swept_Plotting:
                 AoA_Notes = y + AoA + r'$^{\circ}$'
 
                 #Pull in experimental results for comparison
-                plt.plot(Experimental[:,0], Experimental[:, 1], ".", label="Experimental", color="k", fillstyle="full")
+                plt.plot(Experimental[:,0], Experimental[:, 1], "o", label="Experimental", color="k", fillstyle="full")
                 # plt.plot(Experimental[:,0], Experimental[:, 1], label="Experimental", color="k")
 
                 #Plot the figure containing all curves
                 xlabel = 'x/c'
                 plt.xlabel(xlabel)
                 plt.ylabel(r"$C_p$")
-                plt.title(title)
                 plt.legend()
-                plt.figtext(0.625, 0.015, AoA_Notes)
-
+                
+                # Only include title and notes if the plots aren't going to be saved
+                if (not json_vals["plots"]["save plots"]) or json_vals["plots"]["combine pdfs"]:
+                    plt.title(title)
+                    plt.figtext(0.825, 0.015, AoA_Notes)
                 # complete_title = title + ", " + AoA_Notes
                 # Sub_Note = "*" + formulation + " form."
                 # Identify location of formulation type on plot
                 # plt.title(complete_title)
-
-                # # Split legend into columns
-                # plt.legend(ncol = 2, fontsize=6)
                 
                 #Save the figure in appropriate location and with the correct size
                 if json_vals["plots"]["save plots"]:
@@ -236,6 +237,6 @@ else:
         print("\n****************\nInvalid Entry. Please run script again.\n****************\n")
         quit()
 
-    # Print exit statement to verify completion of process
-    print()
-    print("Pressure plotting executed successfully. \n")
+# Print exit statement to verify completion of process
+print()
+print("Pressure plotting executed successfully. \n")
