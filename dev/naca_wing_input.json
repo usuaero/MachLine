@@ -18,8 +18,8 @@
         "control_point_offset" : 1.1e-05,
         "run_checks" : true,
         "matrix_solver" : "BSOR_adaptive",
-        "tolerance" : 1.3e-8,
-        "chunk_size" : 200
+        "tolerance" : 1.3e-7,
+        "chunk_size" : 50
     },
     "post_processing" : {
         "pressure_rules": {

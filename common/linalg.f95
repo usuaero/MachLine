@@ -116,8 +116,8 @@ end subroutine matinv
 
 
 function matmul_lu(n, A, x) result(b)
-  ! Gives the matrix product [L][U]x = b where A = [L\U] (Doolittle LU decomposition)
-  ! NOT TESTED
+  ! Gives the matrix product [L][U]x = b where A = [L\U]
+  ! DOES NOT WORK! DO NOT USE
 
   implicit none
 
@@ -128,7 +128,8 @@ function matmul_lu(n, A, x) result(b)
   real,dimension(n) :: b, d
   integer :: i, j
 
-  d = 0.
+  write(*,*) "!!! MATMUL_LU does not work. DO NOT USE IT. Quitting..."
+  d(:) = 0.
 
   ! [U]x = d
   do i=1,n
@@ -137,7 +138,7 @@ function matmul_lu(n, A, x) result(b)
     end do
   end do
 
-  ! [L]x = b
+  ! [L]d = b
   do i=1,n
     do j=1,i-1
       b(i) = b(i) + A(i,j)*d(j)
@@ -697,17 +698,27 @@ subroutine block_sor_adaptive(N, A, b, block_size, tol, verbose, x)
   logical,intent(in) :: verbose
   real,dimension(:),allocatable,intent(out) :: x
 
-  real :: err, rel
+  real :: err, rel, dx, err_prev, dx_prev
   real,dimension(N) :: x_new
+  real,dimension(N,N) :: A_copy
   real,dimension(block_size) :: bi
   real,dimension(:),allocatable :: xi
-  integer :: i, N_blocks, r, N_last, iteration
+  integer :: i, N_blocks, r, N_last, iteration, step, start, end
   integer,dimension(:),allocatable :: i_start_block, i_end_block
   integer,dimension(:,:),allocatable :: ind_P
 
   ! Give initial error estimate and relaxation
   err = tol + 1.
-  rel = 1.
+  dx = tol + 1.
+  rel = 0.1
+  err_prev = err + 1.
+  dx_prev = dx + 1.
+
+  ! Initialize alterantion
+  step = -1
+
+  ! Make a copy of A for calculating the error
+  A_copy = A
 
   ! Initialize solution vector
   allocate(x(N), source=0.)
@@ -731,24 +742,40 @@ subroutine block_sor_adaptive(N, A, b, block_size, tol, verbose, x)
   if (verbose) then
     write(*,*)
     write(*,*) "        Running Adaptive Block SOR..."
-    write(*,*) "        Iteration      ||dx||         Relaxation"
-    write(*,*) "        ----------------------------------------"
+    write(*,*) "        Iteration      ||dx||         Relaxation        ||err||"
+    write(*,*) "        -------------------------------------------------------"
   end if
 
   ! Iterate
   iteration = 0
   do while(err >= tol)
 
+    ! Update iteration number
     iteration = iteration + 1
 
-    ! Invert blocks
+    ! Alternate direction
+    if (step == 1) then
+      start = N_blocks
+      end = 1
+      step = -1
+    else
+      start = 1
+      end = N_blocks
+      step = 1
+    end if
+
+    ! Perform SOR on blocks
     do i=1,N_blocks
 
       ! Last block
       if (i == N_blocks) then
 
         ! Calculate new RHS vector
-        bi(1:N_last) = b(i_start_block(i):N) - matmul(A(i_start_block(i):N,1:i_start_block(i)-1), x_new(1:i_start_block(i)-1))
+        if (step == 1) then
+          bi(1:N_last) = b(i_start_block(i):N) - matmul(A(i_start_block(i):N,1:i_start_block(i)-1), x_new(1:i_start_block(i)-1))
+        else
+          bi(1:N_last) = b(i_start_block(i):N) - matmul(A(i_start_block(i):N,1:i_start_block(i)-1), x(1:i_start_block(i)-1))
+        end if
 
         ! Solve
         call lu_back_sub(A(i_start_block(i):N,i_start_block(i):N), N_last, ind_P(1:N_last,i), bi, xi)
@@ -761,8 +788,13 @@ subroutine block_sor_adaptive(N, A, b, block_size, tol, verbose, x)
 
         ! Calculate new RHS vector
         bi = b(i_start_block(i):i_end_block(i))
-        bi = bi - matmul(A(i_start_block(i):i_end_block(i),1:i_start_block(i)-1), x_new(1:i_start_block(i)-1))
-        bi = bi - matmul(A(i_start_block(i):i_end_block(i),i_end_block(i)+1:N), x(i_end_block(i)+1:N))
+        if (step == 1) then
+          bi = bi - matmul(A(i_start_block(i):i_end_block(i),1:i_start_block(i)-1), x_new(1:i_start_block(i)-1))
+          bi = bi - matmul(A(i_start_block(i):i_end_block(i),i_end_block(i)+1:N), x(i_end_block(i)+1:N))
+        else
+          bi = bi - matmul(A(i_start_block(i):i_end_block(i),1:i_start_block(i)-1), x(1:i_start_block(i)-1))
+          bi = bi - matmul(A(i_start_block(i):i_end_block(i),i_end_block(i)+1:N), x_new(i_end_block(i)+1:N))
+        end if
 
         ! Solve
         call lu_back_sub(A(i_start_block(i):i_end_block(i),i_start_block(i):i_end_block(i)), block_size, ind_P(:,i), bi, xi)
@@ -774,33 +806,44 @@ subroutine block_sor_adaptive(N, A, b, block_size, tol, verbose, x)
     end do
 
     ! Calculate error
-    err = norm2(x-x_new)
+    err = norm2(matmul(A_copy, x_new) - b)
+    dx = norm2(x - x_new)
 
     ! Output progress
     if (verbose .and. modulo(iteration, 50) == 0) then
-      write(*,'(i18, ES15.3, ES15.3)') iteration, err, rel
+      write(*,'(i18, ES15.3, ES15.3, ES15.3)') iteration, dx, rel, err
     end if
 
     ! Update
     x = x_new
 
-    ! Update rel
-    rel = rel - 0.01*(log10(err/tol)) ! Attempts to drive the error towards the tolerance; I'm not convinced this works well...
+    ! Once we're small, we want to converge to below the tolerance
+    if (.false.) then!log10(err) < -5.) then
+      if (err_prev > err) then
+        rel = rel + 0.1
+      else
+        rel = 1.
+      end if
 
-    ! Bound rel
-    if (rel < 0.) rel = 0.1
-    if (err > 1.e-2) then
-      if (rel > 1.) rel = 1. ! Don't want to underrelax early on
-    else if (log10(err/tol) < 1.5) then
-      if (rel > 1.) rel = 1. ! Don't want to underrelax when we're really close
+    ! Anywhere else, let's aim for a step size that's of the same order of magnitude as the error
     else
-      if (rel > 2.) rel = 2. ! In the middle, we want to underrelax
+      rel = rel - 0.1*(log10(dx/err))
     end if
+
+    ! Nowhere should we go above 2
+    if (rel > 2.) rel = 2.
+
+    ! Make sure the relaxation factor stays positive
+    if (rel < 0.) rel = 0.1
+
+    ! Update
+    err_prev = err
+    dx_prev = dx
 
   end do
 
   ! Final iteration count and error
-  if (verbose) write(*,'(i18, ES15.3)') iteration, err
+  if (verbose) write(*,'(i18, ES15.3, ES15.3, ES15.3)') iteration, dx, rel, err
 
 end subroutine block_sor_adaptive
 
@@ -891,5 +934,52 @@ subroutine block_gauss_siedel(N, A, b, block_size, tol, x)
   end do
 
 end subroutine block_gauss_siedel
+
+
+function mult_block_decomp(N, A, b, N_blocks, i_start_block, i_end_block) result(c)
+  ! Performs the multiplication A*b = c where the diagonal blocks of A have undregone LU decomposition
+
+  implicit none
+
+  integer,intent(in) :: N
+  real,dimension(N,N),intent(in) :: A
+  real,dimension(N),intent(in) :: b
+  real,dimension(N) :: c
+  integer,intent(in) :: N_blocks
+  integer,dimension(N_blocks),intent(in) :: i_start_block, i_end_block
+
+  integer :: i, block_size
+
+  block_size = i_end_block(1) - i_start_block(1) + 1
+
+  ! Loop through block rows
+  do i=1,N_blocks
+
+    ! Last block
+    if (i == N_blocks) then
+
+      ! Calculate c
+      ! Decomposed block
+      c(i_start_block(i):N) = matmul_lu(N-i_start_block(i)+1, A(i_start_block(i):N,i_start_block(i):N), b(i_start_block(i):N))
+      ! Off-diagonal parts
+      c(i_start_block(i):N) = c(i_start_block(i):N) + matmul(A(i_start_block(i):N,1:i_start_block(i)-1), b(1:i_start_block(i)-1))
+
+    ! Not last block
+    else
+
+      ! Calculate c
+      ! Decomposed block
+      c(i_start_block(i):i_end_block(i)) = matmul_lu(block_size, &
+                                                     A(i_start_block(i):i_end_block(i),i_start_block(i):i_end_block(i)), &
+                                                     b(i_start_block(i):i_end_block(i)))
+      c(i_start_block(i):i_end_block(i)) = c(i_start_block(i):i_end_block(i)) + &
+                                           matmul(A(i_start_block(i):i_end_block(i),1:i_start_block(i)-1), b(1:i_start_block(i)-1))
+      c(i_start_block(i):i_end_block(i)) = c(i_start_block(i):i_end_block(i)) + &
+                                           matmul(A(i_start_block(i):i_end_block(i),i_end_block(i)+1:N), b(i_end_block(i)+1:N))
+
+    end if
+  end do
+  
+end function mult_block_decomp
     
 end module linalg_mod
