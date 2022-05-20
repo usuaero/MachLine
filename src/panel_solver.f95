@@ -981,6 +981,8 @@ contains
             call block_sor(this%N, A_copy, this%b, this%block_size, this%tol, this%rel, this%max_iterations, verbose, body%mu)
         case ('BSOR_adaptive')
             call block_sor_adaptive(this%N, A_copy, this%b, this%block_size, this%tol, this%max_iterations, verbose, body%mu)
+        case ('ORBJ')
+            call block_optimal_jacobi(this%N, A_copy, this%b, this%block_size, this%tol, this%max_iterations, verbose, body%mu)
         case default
             write(*,*) "!!! ", this%matrix_solver, " is not a valid option. Defaulting to LU decomposition."
             call lu_solve(this%N, A_copy, this%b, body%mu)

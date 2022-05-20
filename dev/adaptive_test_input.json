@@ -17,10 +17,10 @@
         "formulation" : "morino",
         "control_point_offset" : 1.1e-05,
         "run_checks" : true,
-        "matrix_solver" : "BSOR_adaptive",
+        "matrix_solver" : "ORBJ",
         "tolerance" : 1.3e-7,
-        "block_size" : 100,
-        "max_iterations" : 2000
+        "block_size" : 50,
+        "max_iterations" : 1000
     },
     "post_processing" : {
         "pressure_rules": {
