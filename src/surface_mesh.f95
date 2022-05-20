@@ -214,7 +214,7 @@ contains
         class(surface_mesh),intent(inout) :: this
 
         integer :: i, j, m, n, m1, n1, temp, i_edge, i_panel1, i_panel2, i_vert1, i_vert2, edge_on_mirror, i_edge1, i_edge2, N_edges
-        logical :: already_found_shared, dummy
+        logical :: already_found_shared, dummy, watertight
         real :: distance
         integer,dimension(2) :: shared_verts
         integer,dimension(this%N_panels*3) :: panel1, panel2, vertex1, vertex2, edge_index1, edge_index2
@@ -425,20 +425,46 @@ contains
 
         end do
 
-        ! Check that no panel abuts empty space (i.e. non-watertight mesh)
-        if (run_checks) then
-            !$OMP do schedule(static)
-            do i=1,this%N_panels
-                if (any(this%panels(i)%abutting_panels == 0)) then
-                    write(*,*)
-                    write(*,*) "!!! The supplied mesh is not watertight. Panel", i, "is missing at least one neighbor."
-                    write(*,*) "!!! Solution quality may be adversely affected."
+        ! Check for panels abutting empty space and add those edges.
+        !$OMP single
+        watertight = .true.
+        do i=1,this%N_panels
+
+            ! Check for an edge with no abutting panel
+            do j=1,this%panels(i)%N
+                if (this%panels(i)%abutting_panels(j) == 0) then
+
+                    ! Mark that the mesh is not watertight
+                    watertight = .false.
+
+                    ! Set up an edge
+                    shared_verts(1) = this%panels(i)%vertex_indices(j)
+                    shared_verts(2) = this%panels(i)%vertex_indices(mod(j, this%panels(i)%N) + 1)
+                    N_edges = N_edges + 1
+                    i_edge = N_edges
+                    panel1(i_edge) = i
+                    panel2(i_edge) = 0 ! Placeholder
+                    vertex1(i_edge) = shared_verts(1)
+                    vertex2(i_edge) = shared_verts(2)
+                    on_mirror_plane(i_edge) = .false.
+                    edge_index1(i_edge) = j
+                    edge_index2(i_edge) = 0
+
+                    ! Store adjacent vertices
+                    if (.not. this%vertices(shared_verts(1))%adjacent_vertices%is_in(shared_verts(2))) then
+                        call this%vertices(shared_verts(1))%adjacent_vertices%append(shared_verts(2))
+                    end if
+                    if (.not. this%vertices(shared_verts(2))%adjacent_vertices%is_in(shared_verts(1))) then
+                        call this%vertices(shared_verts(2))%adjacent_vertices%append(shared_verts(1))
+                    end if
+
                 end if
             end do
-        end if
+        end do
+        if (run_checks .and. .not. watertight) write(*,*) "!!! The supplied mesh is not watertight. &
+                                                               Solution quality may be adversely affected."
 
         ! Allocate edge storage
-        !$OMP single
         this%N_edges = N_edges
         allocate(this%edges(this%N_edges))
         !$OMP end single
@@ -544,6 +570,9 @@ contains
             ! Get info
             i = this%edges(k)%panels(1)
             j = this%edges(k)%panels(2)
+
+            ! Skip edge on empty space
+            if (j == 0) cycle
 
             ! Get normal for panel j (dependent on mirroring)
             if (this%edges(k)%on_mirror_plane) then

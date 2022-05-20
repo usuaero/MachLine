@@ -164,5 +164,6 @@ program main
     call cpu_time(end)
     if (verbose) write(*,*)
     write(*,'(a, f10.4, a)') " MachLine exited successfully. Execution time: ", end-start, " s"
+    stop ! So as to print out all flags
 
 end program main

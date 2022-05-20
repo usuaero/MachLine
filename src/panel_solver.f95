@@ -65,7 +65,6 @@ contains
         character(len=:),allocatable,intent(in) :: control_point_file
 
         integer :: i, j
-        real,dimension(:),allocatable :: cp_indices
         type(vtk_out) :: cp_vtk
 
         ! Get solver_settings
@@ -231,17 +230,10 @@ contains
             ! Clear old file
             call delete_file(control_point_file)
 
-            ! Get indices
-            allocate(cp_indices(size(body%cp)/3))
-            do i=1,size(cp_indices)
-                cp_indices(i) = i
-            end do
-
             ! Write out points
             call cp_vtk%begin(control_point_file)
             call cp_vtk%write_points(body%cp)
             call cp_vtk%write_vertices(body%N_cp)
-            call cp_vtk%write_point_scalars(cp_indices, 'index')
             call cp_vtk%finish()
 
         end if
