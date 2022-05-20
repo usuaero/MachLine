@@ -1,0 +1,64 @@
+{
+    "info" : {
+        "generated_by" : "MachLine (c) 2022 USU Aerolab",
+        "executed" : "Thu May 19 17:13:48 2022"
+    },
+    "solver_results" : {
+        "residual" : {
+            "max" : 2.60208521396521E-017,
+            "norm" : 9.97460689703942E-017
+        }
+    },
+    "pressure_calculations" : {
+        "isentropic_rule" : {
+            "max" : 2.26772684847411E-001,
+            "min" : -3.21129029493830E-001
+        },
+        "second_order_rule" : {
+            "max" : 2.52024436375060E-001,
+            "min" : -5.88317777391560E-001
+        }
+    },
+    "total_forces" : {
+        "Cx" : 1.79048350057021E-002,
+        "Cy" : -4.75950658627026E-012,
+        "Cz" : 1.42526909750991E-001
+    },
+    "input" : {
+        "flow" : {
+            "freestream_velocity" : [
+                    6.92755939615480E+002,
+                    0.00000000000000E+000,
+                    4.84422143122415E+001
+                ],
+            "gamma" : 1.40000000000000E+000,
+            "freestream_mach_number" : 2.00000000000000E+000
+        },
+        "geometry" : {
+            "file" : "dev/meshes/diamond_5_deg_full_coarse.stl",
+            "spanwise_axis" : "+y",
+            "wake_model" : {
+                "append_wake" : false
+            },
+            "reference" : {
+                "area" : 4.00000000000000E+000
+            }
+        },
+        "solver" : {
+            "formulation" : "morino",
+            "control_point_offset" : 1.10000000000000E-008
+        },
+        "post_processing" : {
+            "pressure_rules" : {
+                "second-order" : true,
+                "isentropic" : true,
+                "slender-body" : true,
+                "linear" : true
+            }
+        },
+        "output" : {
+            "body_file" : "dev/results/diamond_wing_comparison/meshes/M_2.0_aoa_4.0_5_deg_coarse.vtk",
+            "report_file" : "dev/results/diamond_wing_comparison/reports/M_2.0_aoa_4.0_5_deg_coarse.json"
+        }
+    }
+}
