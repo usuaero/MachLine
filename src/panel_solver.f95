@@ -27,7 +27,7 @@ module panel_solver_mod
         real,dimension(3) :: C_F
         real,dimension(:,:),allocatable :: A
         real,dimension(:), allocatable :: b
-        integer :: N, wake_start, N_cells, chunk_size
+        integer :: N, wake_start, N_cells, block_size, max_iterations
         integer,dimension(:),allocatable :: i_cp_sorted
 
         contains
@@ -70,9 +70,10 @@ contains
         ! Get solver_settings
         call json_xtnsn_get(solver_settings, 'formulation', this%formulation, 'morino')        
         call json_xtnsn_get(solver_settings, 'matrix_solver', this%matrix_solver, 'LU')
-        call json_xtnsn_get(solver_settings, 'chunk_size', this%chunk_size, 50)
+        call json_xtnsn_get(solver_settings, 'block_size', this%block_size, 50)
         call json_xtnsn_get(solver_settings, 'tolerance', this%tol, 1e-8)
         call json_xtnsn_get(solver_settings, 'relaxation', this%rel, 0.1)
+        call json_xtnsn_get(solver_settings, 'max_iterations', this%max_iterations, 1000)
         this%morino = this%formulation == 'morino'
 
         ! Get pressure rules
@@ -973,15 +974,17 @@ contains
         call check_allocation(stat, "solver copy of AIC matrix")
 
         ! Solve
-        if (this%matrix_solver == 'LU') then
+        select case(this%matrix_solver)
+        case ('LU')
             call lu_solve(this%N, A_copy, this%b, body%mu)
-        else if (this%matrix_solver == 'BSOR') then
-            call block_sor(this%N, A_copy, this%b, this%chunk_size, this%tol, this%rel, verbose, body%mu)
-        else if (this%matrix_solver == 'BSOR_adaptive') then
-            call block_sor_adaptive(this%N, A_copy, this%b, this%chunk_size, this%tol, verbose, body%mu)
-        else if (this%matrix_solver == 'BGS') then
-            call block_gauss_siedel(this%N, A_copy, this%b, this%chunk_size, this%tol, body%mu)
-        end if
+        case ('BSOR')
+            call block_sor(this%N, A_copy, this%b, this%block_size, this%tol, this%rel, this%max_iterations, verbose, body%mu)
+        case ('BSOR_adaptive')
+            call block_sor_adaptive(this%N, A_copy, this%b, this%block_size, this%tol, this%max_iterations, verbose, body%mu)
+        case default
+            write(*,*) "!!! ", this%matrix_solver, " is not a valid option. Defaulting to LU decomposition."
+            call lu_solve(this%N, A_copy, this%b, body%mu)
+        end select
         if (verbose) write(*,*) "Done."
 
         ! Clean up memory

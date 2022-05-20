@@ -560,7 +560,7 @@ subroutine decompose_blocks(N, A, N_blocks, block_size, N_last, ind_P, i_start_b
 end subroutine decompose_blocks
 
 
-subroutine block_sor(N, A, b, block_size, tol, rel, verbose, x)
+subroutine block_sor(N, A, b, block_size, tol, rel, max_iterations, verbose, x)
   ! Iteratively solves the [A]x=b system using block Successive Overrelaxation
   ! N is the size of the system
   ! A is the system matrix; block diagonals will be replaced with their LU decompositions
@@ -572,7 +572,7 @@ subroutine block_sor(N, A, b, block_size, tol, rel, verbose, x)
 
   implicit none
 
-  integer,intent(in) :: N, block_size
+  integer,intent(in) :: N, block_size, max_iterations
   real,dimension(N,N),intent(inout) :: A
   real,dimension(N),intent(in) :: b
   real,intent(in) :: tol, rel
@@ -624,7 +624,7 @@ subroutine block_sor(N, A, b, block_size, tol, rel, verbose, x)
 
   ! Iterate
   iteration = 0
-  do while(err >= tol)
+  do while(err >= tol .and. iteration < max_iterations)
 
     iteration = iteration + 1
 
@@ -679,7 +679,7 @@ subroutine block_sor(N, A, b, block_size, tol, rel, verbose, x)
 end subroutine block_sor
 
 
-subroutine block_sor_adaptive(N, A, b, block_size, tol, verbose, x)
+subroutine block_sor_adaptive(N, A, b, block_size, tol, max_iterations, verbose, x)
   ! Iteratively solves the [A]x=b system using block Successive Overrelaxation
   ! N is the size of the system
   ! A is the system matrix; block diagonals will be replaced with their LU decompositions
@@ -691,7 +691,7 @@ subroutine block_sor_adaptive(N, A, b, block_size, tol, verbose, x)
 
   implicit none
 
-  integer,intent(in) :: N, block_size
+  integer,intent(in) :: N, block_size, max_iterations
   real,dimension(N,N),intent(inout) :: A
   real,dimension(N),intent(in) :: b
   real,intent(in) :: tol
@@ -706,6 +706,7 @@ subroutine block_sor_adaptive(N, A, b, block_size, tol, verbose, x)
   integer :: i, N_blocks, r, N_last, iteration, step, start, end
   integer,dimension(:),allocatable :: i_start_block, i_end_block
   integer,dimension(:,:),allocatable :: ind_P
+  logical :: switch_scheme
 
   ! Give initial error estimate and relaxation
   err = tol + 1.
@@ -713,6 +714,7 @@ subroutine block_sor_adaptive(N, A, b, block_size, tol, verbose, x)
   rel = 0.1
   err_prev = err + 1.
   dx_prev = dx + 1.
+  switch_scheme = .false.
 
   ! Initialize alterantion
   step = -1
@@ -748,7 +750,7 @@ subroutine block_sor_adaptive(N, A, b, block_size, tol, verbose, x)
 
   ! Iterate
   iteration = 0
-  do while(err >= tol)
+  do while(err >= tol .and. iteration < max_iterations)
 
     ! Update iteration number
     iteration = iteration + 1
@@ -817,24 +819,14 @@ subroutine block_sor_adaptive(N, A, b, block_size, tol, verbose, x)
     ! Update
     x = x_new
 
-    ! Once we're small, we want to converge to below the tolerance
-    if (.false.) then!log10(err) < -5.) then
-      if (err_prev > err) then
-        rel = rel + 0.1
-      else
-        rel = 1.
-      end if
-
-    ! Anywhere else, let's aim for a step size that's of the same order of magnitude as the error
-    else
-      rel = rel - 0.1*(log10(dx/err))
-    end if
+    ! Aim for a step size that's of the same order of magnitude as the error
+    rel = rel - 0.1*(log10(dx/err))
 
     ! Nowhere should we go above 2
     if (rel > 2.) rel = 2.
 
     ! Make sure the relaxation factor stays positive
-    if (rel < 0.) rel = 0.1
+    if (rel < 0.) rel = 0.01
 
     ! Update
     err_prev = err

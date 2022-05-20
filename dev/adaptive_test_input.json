@@ -16,7 +16,11 @@
     "solver": {
         "formulation" : "morino",
         "control_point_offset" : 1.1e-05,
-        "run_checks" : true
+        "run_checks" : true,
+        "matrix_solver" : "BSOR_adaptive",
+        "tolerance" : 1.3e-7,
+        "block_size" : 100,
+        "max_iterations" : 2000
     },
     "post_processing" : {
         "pressure_rules": {
@@ -24,7 +28,7 @@
         }
     },
     "output": {
-        "verbose" : false,
+        "verbose" : true,
         "body_file" :                   "dev/results/naca_0010_AR_10_half_medium.vtk",
         "wake_file" :                   "dev/results/naca_0010_AR_10_half_medium_wake.vtk",
         "control_point_file" :          "dev/results/naca_0010_AR_10_half_medium_control_points.vtk",
