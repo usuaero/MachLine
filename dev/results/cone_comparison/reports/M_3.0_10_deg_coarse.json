@@ -1,0 +1,66 @@
+{
+    "info" : {
+        "generated_by" : "MachLine (c) 2022 USU Aerolab",
+        "executed" : "Fri May 20 14:08:54 2022"
+    },
+    "solver_results" : {
+        "residual" : {
+            "max" : 9.71445146547012E-016,
+            "norm" : 3.67802533373422E-015
+        }
+    },
+    "pressure_calculations" : {
+        "isentropic_rule" : {
+            "max" : 7.62185779274637E-002,
+            "min" : 7.62185361387211E-002
+        },
+        "second_order_rule" : {
+            "max" : 1.17489264021039E-001,
+            "min" : 1.17489191555530E-001
+        }
+    },
+    "total_forces" : {
+        "Cx" : -5.97044910319463E-002,
+        "Cy" : -1.29542438516601E-010,
+        "Cz" : 0.00000000000000E+000
+    },
+    "input" : {
+        "flow" : {
+            "freestream_velocity" : [
+                    -1.00000000000000E+002,
+                    0.00000000000000E+000,
+                    0.00000000000000E+000
+                ],
+            "gamma" : 1.40000000000000E+000,
+            "freestream_mach_number" : 3.00000000000000E+000
+        },
+        "geometry" : {
+            "file" : "dev/results/cone_comparison/meshes/cone_10_deg_coarse.vtk",
+            "spanwise_axis" : "+y",
+            "mirror_about" : "xy",
+            "wake_model" : {
+                "append_wake" : false
+            },
+            "reference" : {
+                "area" : 4.00000000000000E+000
+            }
+        },
+        "solver" : {
+            "formulation" : "morino",
+            "control_point_offset" : 1.10000000000000E-008,
+            "run_checks" : true
+        },
+        "post_processing" : {
+            "pressure_rules" : {
+                "second-order" : true,
+                "isentropic" : true,
+                "slender-body" : true,
+                "linear" : true
+            }
+        },
+        "output" : {
+            "body_file" : "dev/results/cone_comparison/results/M_3.0_10_deg_coarse.vtk",
+            "report_file" : "dev/results/cone_comparison/reports/M_3.0_10_deg_coarse.json"
+        }
+    }
+}

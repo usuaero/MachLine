@@ -331,6 +331,8 @@ contains
         ! For symmetric flow on a mirrored mesh, domains of dependence will be the same between mirrored panels and mirrored
         ! control points. So, we just need to calculate the DoD for mirrored control points, and then we're good.
 
+        if (this%freestream%supersonic .and. verbose) write(*,'(a)',advance='no') "     Calculating domains of dependence..."
+
         ! Allocate arrays for domain of dependence information for the body
         if (body%mirrored) then
             allocate(this%dod_info(2*body%N_panels, this%N), stat=stat)
@@ -359,8 +361,6 @@ contains
 
         ! If the freestream is subsonic, these don't need to be checked
         if (this%freestream%supersonic) then
-
-            if (verbose) write(*,'(a)',advance='no') "     Calculating domains of dependence..."
 
             ! Loop through control points
             !$OMP parallel do private(vert_loc, mirrored_vert_loc)

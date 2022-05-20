@@ -1,0 +1,66 @@
+{
+    "info" : {
+        "generated_by" : "MachLine (c) 2022 USU Aerolab",
+        "executed" : "Fri May 20 14:16:48 2022"
+    },
+    "solver_results" : {
+        "residual" : {
+            "max" : 1.59594559789866E-016,
+            "norm" : 9.02364136129841E-016
+        }
+    },
+    "pressure_calculations" : {
+        "isentropic_rule" : {
+            "max" : 2.01538201754014E-003,
+            "min" : 2.01538183392843E-003
+        },
+        "second_order_rule" : {
+            "max" : 2.01799422949383E-003,
+            "min" : 2.01799404565884E-003
+        }
+    },
+    "total_forces" : {
+        "Cx" : -1.57871459529660E-003,
+        "Cy" : 3.54808563985450E-012,
+        "Cz" : 0.00000000000000E+000
+    },
+    "input" : {
+        "flow" : {
+            "freestream_velocity" : [
+                    -1.00000000000000E+002,
+                    0.00000000000000E+000,
+                    0.00000000000000E+000
+                ],
+            "gamma" : 1.40000000000000E+000,
+            "freestream_mach_number" : 2.80000000000000E+000
+        },
+        "geometry" : {
+            "file" : "dev/results/cone_comparison/meshes/cone_1_deg_coarse.vtk",
+            "spanwise_axis" : "+y",
+            "mirror_about" : "xy",
+            "wake_model" : {
+                "append_wake" : false
+            },
+            "reference" : {
+                "area" : 4.00000000000000E+000
+            }
+        },
+        "solver" : {
+            "formulation" : "morino",
+            "control_point_offset" : 1.10000000000000E-008,
+            "run_checks" : true
+        },
+        "post_processing" : {
+            "pressure_rules" : {
+                "second-order" : true,
+                "isentropic" : true,
+                "slender-body" : true,
+                "linear" : true
+            }
+        },
+        "output" : {
+            "body_file" : "dev/results/cone_comparison/results/M_2.8_1_deg_coarse.vtk",
+            "report_file" : "dev/results/cone_comparison/reports/M_2.8_1_deg_coarse.json"
+        }
+    }
+}

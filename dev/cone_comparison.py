@@ -1,3 +1,4 @@
+import enum
 import json
 import subprocess as sp
 import flow54 as fl
@@ -24,7 +25,7 @@ def run_comparison(M, grid, half_angle, run_machline=True):
         # Declare MachLine input
         input_dict = {
             "flow": {
-                "freestream_velocity": [100.0, 0.0, 0.0],
+                "freestream_velocity": [-100.0, 0.0, 0.0],
                 "gamma" : gamma,
                 "freestream_mach_number" : M
             },
@@ -54,7 +55,6 @@ def run_comparison(M, grid, half_angle, run_machline=True):
             },
             "output" : {
                 "body_file" : body_file,
-                "control_point_file" : body_file.replace('.vtk', '_control_points.vtk'),
                 "report_file" : report_file
             }
         }
@@ -82,7 +82,7 @@ def run_comparison(M, grid, half_angle, run_machline=True):
     # Extract and save data
     plot = pvs.PlotOnIntersectionCurves(registrationName='Plot', Input=filter)
     plot.SliceType = 'Plane'
-    plot.SliceType.Normal = [0.0, 0.0, 1.0]
+    plot.SliceType.Normal = [0.0, 1.0, 0.0]
     view = pvs.CreateView('XYChartView')
     display = pvs.Show(plot, view, 'XYChartRepresentation')
     view.Update()
@@ -116,18 +116,45 @@ def run_comparison(M, grid, half_angle, run_machline=True):
 
 if __name__=="__main__":
 
-    grids = ["coarse", "medium", "fine"]
+    grids = ["coarse", "medium"]#, "fine"]
     N_verts = [402, 1090, 3770, 13266]
-    Ms = [1.5, 2.0, 3.0, 5.0]
+    Ms = [1.4, 1.5, 1.7, 2.0, 2.4, 2.8, 3.3]
     half_angles = [1, 5, 10, 15]
 
-    C_p_2nd = np.zeros((len(grids), len(Ms), len(half_angles)))
-    C_p_ise = np.zeros((len(grids), len(Ms), len(half_angles)))
-    C_p_sln = np.zeros((len(grids), len(Ms), len(half_angles)))
-    C_p_lin = np.zeros((len(grids), len(Ms), len(half_angles)))
+    C_p_2nd_avg = np.zeros((len(grids), len(Ms), len(half_angles)))
+    C_p_ise_avg = np.zeros((len(grids), len(Ms), len(half_angles)))
+    C_p_sln_avg = np.zeros((len(grids), len(Ms), len(half_angles)))
+    C_p_lin_avg = np.zeros((len(grids), len(Ms), len(half_angles)))
+    C_p_2nd_s_dev = np.zeros((len(grids), len(Ms), len(half_angles)))
+    C_p_ise_s_dev = np.zeros((len(grids), len(Ms), len(half_angles)))
+    C_p_sln_s_dev = np.zeros((len(grids), len(Ms), len(half_angles)))
+    C_p_lin_s_dev = np.zeros((len(grids), len(Ms), len(half_angles)))
 
     for i, grid in enumerate(grids):
         for j, M in enumerate(Ms):
             for k, half_angle in enumerate(half_angles):
 
-                C_p_2nd[i,j,k], C_p_ise[i,j,k], C_p_sln[i,j,k], C_p_lin[i,j,k] = run_comparison(M, grid, half_angle)
+                C_p_2nd, C_p_ise, C_p_sln, C_p_lin = run_comparison(M, grid, half_angle, run_machline=True)
+                C_p_2nd_avg[i,j,k] = np.average(C_p_2nd).item()
+                C_p_ise_avg[i,j,k] = np.average(C_p_ise).item()
+                C_p_sln_avg[i,j,k] = np.average(C_p_sln).item()
+                C_p_lin_avg[i,j,k] = np.average(C_p_lin).item()
+                C_p_2nd_s_dev[i,j,k] = np.std(C_p_2nd).item()
+                C_p_ise_s_dev[i,j,k] = np.std(C_p_ise).item()
+                C_p_sln_s_dev[i,j,k] = np.std(C_p_sln).item()
+                C_p_lin_s_dev[i,j,k] = np.std(C_p_lin).item()
+
+    # Plot overall data
+    for k, half_angle in enumerate(half_angles):
+
+        plt.figure()
+
+        plt.errorbar(Ms, C_p_2nd_avg[-1,:,k], mfc='k', marker='s', ls='', mec='k', yerr=C_p_2nd_s_dev[-1,:,k], markersize=3, ecolor='k', label='2nd')
+        plt.errorbar(Ms, C_p_ise_avg[-1,:,k], mfc='k', marker='v', ls='', mec='k', yerr=C_p_ise_s_dev[-1,:,k], markersize=3, ecolor='k', label='Ise.')
+        plt.errorbar(Ms, C_p_sln_avg[-1,:,k], mfc='k', marker='o', ls='', mec='k', yerr=C_p_sln_s_dev[-1,:,k], markersize=3, ecolor='k', label='Sln.')
+        plt.errorbar(Ms, C_p_lin_avg[-1,:,k], mfc='k', marker='^', ls='', mec='k', yerr=C_p_lin_s_dev[-1,:,k], markersize=3, ecolor='k', label='Lin.')
+
+        plt.xlabel("$M_0$")
+        plt.ylabel("$C_p$")
+        plt.legend()
+        plt.savefig("dev/results/cone_comparison/plots/C_p_over_M_{0}_deg.pdf".format(half_angle))
