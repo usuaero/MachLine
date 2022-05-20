@@ -54,6 +54,7 @@ module surface_mesh_mod
             procedure :: clone_vertices => surface_mesh_clone_vertices
             procedure :: set_up_mirroring => surface_mesh_set_up_mirroring
             procedure :: calc_vertex_normals => surface_mesh_calc_vertex_normals
+            procedure :: calc_edge_normals => surface_mesh_calc_edge_normals
             procedure :: init_wake => surface_mesh_init_wake
             procedure :: update_supersonic_trefftz_distance => surface_mesh_update_supersonic_trefftz_distance
             procedure :: update_subsonic_trefftz_distance => surface_mesh_update_subsonic_trefftz_distance
@@ -91,8 +92,8 @@ contains
         end if
 
         ! Check doublet distribution
-        if (doublet_order /= 1) then
-            write(*,*) "!!! Only linear doublet distributions are allowed. Quitting..."
+        if (doublet_order < 1 .or. doublet_order > 2) then
+            write(*,*) "!!! Only linear or quadratic doublet distributions are allowed. Quitting..."
             stop
         end if
 
@@ -218,6 +219,7 @@ contains
         real :: distance
         integer,dimension(2) :: shared_verts
         integer,dimension(this%N_panels*3) :: panel1, panel2, vertex1, vertex2, edge_index1, edge_index2
+        real,dimension(this%N_panels*3) :: edge_length
         logical,dimension(this%N_panels*3) :: on_mirror_plane
         
 
@@ -322,6 +324,7 @@ contains
                                 panel2(i_edge) = j
                                 vertex1(i_edge) = shared_verts(1)
                                 vertex2(i_edge) = shared_verts(2)
+                                edge_length(i_edge) = dist(this%vertices(shared_verts(1))%loc, this%vertices(shared_verts(2))%loc)
 
                                 !$OMP end critical
                                 
@@ -403,6 +406,7 @@ contains
                             vertex2(i_edge) = shared_verts(2)
                             on_mirror_plane(i_edge) = .true.
                             edge_index2(i_edge) = 0 ! Just a placeholder since the second panel doesn't technically exist
+                            edge_length(i_edge) = dist(this%vertices(shared_verts(1))%loc, this%vertices(shared_verts(2))%loc)
 
                             !$OMP end critical
 
@@ -448,7 +452,7 @@ contains
         do i=1,this%N_edges
 
             ! Initialize
-            call this%edges(i)%init(vertex1(i), vertex2(i), panel1(i), panel2(i))
+            call this%edges(i)%init(vertex1(i), vertex2(i), panel1(i), panel2(i), edge_length(i))
 
             ! Store more information
             this%edges(i)%on_mirror_plane = on_mirror_plane(i)
@@ -509,7 +513,10 @@ contains
         end if
         call this%calc_vertex_normals()
 
-        ! INitialize wake
+        ! FOr higher-order doublets, we'll need the edge normals as well
+        if (doublet_order == 2) call this%calc_edge_normals()
+
+        ! Initialize wake
         call this%init_wake(freestream, wake_file)
     
     end subroutine surface_mesh_init_with_flow
@@ -940,7 +947,7 @@ contains
 
             ! Calculate mirrored normal for mirrored vertex
             if (this%mirrored) then
-                this%vertices(j)%n_g_mir = mirror_across_plane(this%vertices(j)%n_g_mir, this%mirror_plane)
+                this%vertices(j)%n_g_mir = mirror_across_plane(this%vertices(j)%n_g, this%mirror_plane)
             end if
 
             ! Calculate average edge lengths for each vertex
@@ -951,6 +958,48 @@ contains
         if (verbose) write(*,*) "Done."
 
     end subroutine surface_mesh_calc_vertex_normals
+
+
+    subroutine surface_mesh_calc_edge_normals(this)
+        ! Initializes the normal vectors associated with each edge.
+        ! Must be called only once wake-shedding edges have been located.
+
+        implicit none
+
+        class(surface_mesh),intent(inout) :: this
+
+        real,dimension(3) :: n_avg
+        integer :: j
+
+        if (verbose) write(*,'(a)',advance='no') "     Calculating edge normals..."
+
+        ! Loop through vertices
+        !$OMP parallel do private(n_avg) schedule(dynamic)
+        do j=1,this%N_edges
+
+            ! Calculate average normal vector for edges not on the mirror plane
+            if (.not. this%edges(j)%on_mirror_plane) then
+                n_avg = this%panels(this%edges(j)%panels(1))%n_g + this%panels(this%edges(j)%panels(2))%n_g
+
+            ! For edges on the mirror plane, the component normal to the plane should be zeroed
+            else
+                n_avg = this%panels(this%edges(j)%panels(1))%n_g
+                n_avg(this%mirror_plane) = 0.
+            end if
+
+            ! Normalize and store
+            this%edges(j)%n_g = n_avg/norm2(n_avg)
+
+            ! Calculate mirrored normal for mirrored edge
+            if (this%mirrored) then
+                this%edges(j)%n_g_mir = mirror_across_plane(this%edges(j)%n_g, this%mirror_plane)
+            end if
+
+        end do
+
+        if (verbose) write(*,*) "Done."
+
+    end subroutine surface_mesh_calc_edge_normals
 
 
     subroutine surface_mesh_init_wake(this, freestream, wake_file)
