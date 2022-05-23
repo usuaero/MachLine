@@ -216,6 +216,7 @@ contains
         class(surface_mesh),intent(inout) :: this
 
         integer :: i, j, m, n, m1, n1, temp, i_edge, i_panel1, i_panel2, i_vert1, i_vert2, edge_on_mirror, i_edge1, i_edge2, N_edges
+        integer :: N_orig_verts
         logical :: already_found_shared, dummy
         real :: distance
         integer,dimension(2) :: shared_verts
@@ -223,6 +224,7 @@ contains
         real,dimension(this%N_panels*3) :: edge_length
         logical,dimension(this%N_panels*3) :: on_mirror_plane
         real,dimension(3,this%N_panels*3) :: midpoints
+        type(vertex),dimension(:),allocatable :: midoint_vertices
         
 
         if (verbose) write(*,'(a)',advance='no') "     Locating adjacent panels..."
@@ -467,7 +469,25 @@ contains
 
         !$OMP end parallel
 
+        ! Initialize midpoint vertex objects
+        if (doublet_order == 2) then
+
+            ! Allocate more space
+            call this%add_vertices(this%N_edges)
+            N_orig_verts = this%N_verts - this%N_edges
+
+            ! Initialize
+            do i=1,this%N_edges
+                call this%vertices(N_orig_verts+i)%init(midpoints(:,i), N_orig_verts+i, 2)
+            end do
+        end if
+
         if (verbose) write(*,"(a, i7, a)") "Done. Found ", this%N_edges, " edges."
+
+        ! Print info for added midpoints vertices
+        if (verbose .and. doublet_order == 2) write(*,"(a, i7, a, i7, a)") "     To account for quadratic doublet distributions, ",&
+                                                                           this%N_edges, " vertices were added. Mesh now &
+                                                                           has ", this%N_verts, " vertices."
     
     end subroutine surface_mesh_locate_adjacent_panels
 
