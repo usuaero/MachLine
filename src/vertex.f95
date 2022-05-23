@@ -10,6 +10,7 @@ module vertex_mod
     type vertex
         ! A vertex in 3-space
 
+        integer :: vert_type ! Whether this is a 1-true vertex or 2-vertex representing an edge midpoint
         real,dimension(3) :: loc, cp ! Location and associated control point
         real,dimension(3) :: n_g, n_g_mir ! Normal vector associated with this control point
         real :: l_avg ! Average of the edge lengths adjacent to this vertex
@@ -46,18 +47,19 @@ module vertex_mod
 contains
 
 
-    subroutine vertex_init(this, loc, index)
+    subroutine vertex_init(this, loc, index, vert_type)
         ! Initializes a vertex
 
         implicit none
 
         class(vertex),intent(inout) :: this
         real,dimension(3),intent(in) :: loc
-        integer,intent(in) :: index
+        integer,intent(in) :: index, vert_type
 
         ! Store info
         this%loc = loc
         this%index = index
+        this%vert_type = vert_type
 
         ! Intitialize some data
         this%top_parent = 0

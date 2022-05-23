@@ -395,7 +395,7 @@ contains
                 read(1,*) vertex_loc(1), vertex_loc(2), vertex_loc(3)
 
                 ! Initialize
-                call vertices(i)%init(vertex_loc, i)
+                call vertices(i)%init(vertex_loc, i, 1)
 
             end do
 

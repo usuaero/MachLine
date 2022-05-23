@@ -51,6 +51,7 @@ module surface_mesh_mod
             procedure :: locate_adjacent_panels => surface_mesh_locate_adjacent_panels
             procedure :: characterize_edges => surface_mesh_characterize_edges
             procedure :: find_vertices_on_mirror => surface_mesh_find_vertices_on_mirror
+            procedure :: add_vertices => surface_mesh_add_vertices
             procedure :: clone_vertices => surface_mesh_clone_vertices
             procedure :: set_up_mirroring => surface_mesh_set_up_mirroring
             procedure :: calc_vertex_normals => surface_mesh_calc_vertex_normals
@@ -218,9 +219,10 @@ contains
         logical :: already_found_shared, dummy
         real :: distance
         integer,dimension(2) :: shared_verts
-        integer,dimension(this%N_panels*3) :: panel1, panel2, vertex1, vertex2, edge_index1, edge_index2
+        integer,dimension(this%N_panels*3) :: panel1, panel2, vertex1, vertex2, edge_index1, edge_index2 ! By definition, we will have no more than 3*N_panels edges; we should have much less, but some people...
         real,dimension(this%N_panels*3) :: edge_length
         logical,dimension(this%N_panels*3) :: on_mirror_plane
+        real,dimension(3,this%N_panels*3) :: midpoints
         
 
         if (verbose) write(*,'(a)',advance='no') "     Locating adjacent panels..."
@@ -325,6 +327,7 @@ contains
                                 vertex1(i_edge) = shared_verts(1)
                                 vertex2(i_edge) = shared_verts(2)
                                 edge_length(i_edge) = dist(this%vertices(shared_verts(1))%loc, this%vertices(shared_verts(2))%loc)
+                                midpoints(:,i_edge) = 0.5*(this%vertices(shared_verts(1))%loc + this%vertices(shared_verts(2))%loc)
 
                                 !$OMP end critical
                                 
@@ -407,6 +410,7 @@ contains
                             on_mirror_plane(i_edge) = .true.
                             edge_index2(i_edge) = 0 ! Just a placeholder since the second panel doesn't technically exist
                             edge_length(i_edge) = dist(this%vertices(shared_verts(1))%loc, this%vertices(shared_verts(2))%loc)
+                            midpoints(:,i_edge) = 0.5*(this%vertices(shared_verts(1))%loc + this%vertices(shared_verts(2))%loc)
 
                             !$OMP end critical
 
@@ -708,6 +712,47 @@ contains
     end subroutine surface_mesh_set_up_mirroring
 
 
+    subroutine surface_mesh_add_vertices(this, N_new_verts, new_vertices)
+        ! Adds the given vertex objects to the end of the surface mesh's vertex array
+        ! Handles moving panel pointers to the new allocation of previously-existing vertices.
+        ! May create a blank section of new vertices if new_vertices is not given
+
+        implicit none
+
+        class(surface_mesh),intent(inout),target :: this
+        integer,intent(in) :: N_new_verts
+        type(vertex),intent(in),optional :: new_vertices
+        
+        type(vertex),dimension(:),allocatable :: temp_vertices
+        integer :: i, j
+
+        ! Extend allocation of mesh vertex array
+        allocate(temp_vertices, source=this%vertices)
+        deallocate(this%vertices)
+        allocate(this%vertices(this%N_verts + N_new_verts))
+
+        ! Place existing vertices in new array
+        this%vertices(1:this%N_verts) = temp_vertices
+        deallocate(temp_vertices)
+
+        ! Add in new vertices, if given
+        if (present(new_vertices)) then
+            this%vertices(this%N_verts+1:this%N_verts+N_new_verts) = new_vertices
+        end if
+
+        ! Update number of vertices
+        this%N_verts = this%N_verts + N_new_verts
+
+        ! Fix vertex pointers in panel objects (necessary because this%vertices got reallocated)
+        do i=1,this%N_panels
+            do j=1,this%panels(i)%N
+                this%panels(i)%vertices(j)%ptr => this%vertices(this%panels(i)%vertex_indices(j))
+            end do
+        end do
+        
+    end subroutine surface_mesh_add_vertices
+
+
     subroutine surface_mesh_clone_vertices(this)
         ! Takes vertices which lie within discontinuous edges and splits them into two vertices.
         ! Handles rearranging of necessary dependencies.
@@ -740,24 +785,8 @@ contains
                 end if
             end do
 
-            ! Extend allocation of mesh vertex array
-            allocate(temp_vertices, source=this%vertices)
-            deallocate(this%vertices)
-            allocate(this%vertices(this%N_verts + N_clones))
-
-            ! Place existing vertices in new array
-            this%vertices(1:this%N_verts) = temp_vertices
-            deallocate(temp_vertices)
-
-            ! Update number of vertices
-            this%N_verts = this%N_verts + N_clones
-
-            ! Fix vertex pointers in panel objects (necessary because this%vertices got reallocated)
-            do i=1,this%N_panels
-                do j=1,this%panels(i)%N
-                    this%panels(i)%vertices(j)%ptr => this%vertices(this%panels(i)%vertex_indices(j))
-                end do
-            end do
+            ! Add space for new vertices
+            call this%add_vertices(N_clones)
 
             ! Initialize clones
             j = 1
@@ -773,7 +802,7 @@ contains
                     i_boba = this%N_verts - N_clones + j ! Will be at position N_verts-N_clones+j in the new vertex array
 
                     ! Initialize clone
-                    call this%vertices(i_boba)%init(this%vertices(i_jango)%loc, i_boba)
+                    call this%vertices(i_boba)%init(this%vertices(i_jango)%loc, i_boba, 1)
 
                     ! Specify wake partners
                     this%vertices(i_jango)%i_wake_partner = i_boba

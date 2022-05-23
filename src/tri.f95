@@ -78,7 +78,7 @@ contains
                 end if
 
                 ! Initialize
-                call vertices(i)%init(vert, i)
+                call vertices(i)%init(vert, i, 1)
 
             end do
 

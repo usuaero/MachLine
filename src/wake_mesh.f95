@@ -106,7 +106,7 @@ contains
                 loc = start + vertex_separation*(j-1)*freestream%c_hat_g
 
                 ! Initialize vertex
-                call this%vertices(i_vert)%init(loc, i_vert)
+                call this%vertices(i_vert)%init(loc, i_vert, 1)
 
                 ! Set parent index
                 this%vertices(i_vert)%top_parent = i_top_parent
@@ -121,7 +121,7 @@ contains
                     loc = mirrored_start + mirrored_vertex_separation*(j-1)*freestream%c_hat_g
 
                     ! Initialize vertex
-                    call this%vertices(i_vert)%init(loc, i_vert)
+                    call this%vertices(i_vert)%init(loc, i_vert, 1)
                     
                     ! Set parent index
                     this%vertices(i_vert)%top_parent = i_top_parent + size(mesh_vertices)
