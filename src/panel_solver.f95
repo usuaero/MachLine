@@ -72,7 +72,7 @@ contains
         call json_xtnsn_get(solver_settings, 'matrix_solver', this%matrix_solver, 'LU')
         call json_xtnsn_get(solver_settings, 'block_size', this%block_size, 50)
         call json_xtnsn_get(solver_settings, 'tolerance', this%tol, 1e-8)
-        call json_xtnsn_get(solver_settings, 'relaxation', this%rel, 0.1)
+        call json_xtnsn_get(solver_settings, 'relaxation', this%rel, 0.5)
         call json_xtnsn_get(solver_settings, 'max_iterations', this%max_iterations, 1000)
         this%morino = this%formulation == 'morino'
 
@@ -979,10 +979,14 @@ contains
             call lu_solve(this%N, A_copy, this%b, body%mu)
         case ('BSOR')
             call block_sor(this%N, A_copy, this%b, this%block_size, this%tol, this%rel, this%max_iterations, verbose, body%mu)
-        case ('BSOR_adaptive')
+        case ('BJAC')
+            call iterative_solve("BJAC", this%N, A_copy, this%b, this%block_size, this%tol, this%rel, this%max_iterations, &
+                                 verbose, body%mu)
+        case ('ABSOR')
             call block_sor_adaptive(this%N, A_copy, this%b, this%block_size, this%tol, this%max_iterations, verbose, body%mu)
         case ('ORBJ')
-            call block_optimal_jacobi(this%N, A_copy, this%b, this%block_size, this%tol, this%max_iterations, verbose, body%mu)
+            call iterative_solve("ORBJ", this%N, A_copy, this%b, this%block_size, this%tol, this%rel, this%max_iterations, &
+                                 verbose, body%mu)
         case default
             write(*,*) "!!! ", this%matrix_solver, " is not a valid option. Defaulting to LU decomposition."
             call lu_solve(this%N, A_copy, this%b, body%mu)

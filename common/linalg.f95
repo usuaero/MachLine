@@ -115,40 +115,6 @@ subroutine matinv(n, a, ai)
 end subroutine matinv
 
 
-function matmul_lu(n, A, x) result(b)
-  ! Gives the matrix product [L][U]x = b where A = [L\U]
-  ! DOES NOT WORK! DO NOT USE
-
-  implicit none
-
-  integer,intent(in) :: n
-  real,dimension(n,n),intent(in) :: A
-  real,dimension(n),intent(in) :: x
-
-  real,dimension(n) :: b, d
-  integer :: i, j
-
-  write(*,*) "!!! MATMUL_LU does not work. DO NOT USE IT. Quitting..."
-  d(:) = 0.
-
-  ! [U]x = d
-  do i=1,n
-    do j=i,n
-      d(i) = d(i) + A(i,j)*x(j)
-    end do
-  end do
-
-  ! [L]d = b
-  do i=1,n
-    do j=1,i-1
-      b(i) = b(i) + A(i,j)*d(j)
-    end do
-    b(i) = b(i) + d(i) ! L(i,i) = 1.
-  end do
-
-end function matmul_lu
-
-
 subroutine lu_solve(n, A, b, x)
   ! Solves a general [A]x=b on an nxn matrix
   ! This replaces A (in place) with its LU decomposition (permuted row-wise)
@@ -378,65 +344,6 @@ subroutine lu_back_sub(A, N, indx, b, x)
 end subroutine lu_back_sub
 
 
-subroutine snyder_lu_decomp(a,n)
-  ! Computes the LU decomposition for a diagonally dominant matrix (no pivoting is done).           
-  !   Inputs:  n = number of equations/unknowns                 
-  !            a = nxn coefficient matrix                       
-  !   Outputs: a = nxn matrix containing the LU matrices        
-  !                                                             
-  ! Deryl Snyder, 10-16-98                                      
-  implicit none
-  integer :: n,i,j,k
-  real a(n,n),z
-
-  do k=1,n-1
-    do i=k+1,n
-      z=a(i,k)/a(k,k)                     !compute gauss factor
-      a(i,k)=z                            !store gauss factor in matrix
-      do j=k+1,n
-        a(i,j)=a(i,j)-z*a(k,j)            !apply row operation
-      end do
-    end do
-  end do
-end subroutine snyder_lu_decomp
-
-
-subroutine snyder_lu_solve(a,b,x,n)
-  ! Solves for the unknowns (x) given the LU matrix and the right hand side.                                    C
-  !   Inputs:  n = number of equations/unknowns                        
-  !            a = nxn matrix containing the L and U values           
-  !            b = n vector containing right hand side values          
-  !   Outputs: x = n vector containing solution                        
-  !                                                                    
-  ! Deryl Snyder, 10-16-98                                             
-
-  implicit none
-
-  integer :: n,i,j,k
-  real a(n,n),b(n),x(n)
-
-  do i=1,n
-     x(i)=b(i)
-  end do
-
-  ! Forward substitution
-  do k=1,n-1
-    do i=k+1,n
-      x(i)=x(i)-a(i,k)*x(k)
-    enddo
-  enddo
-
-  ! Back substitution
-  do i=n,1,-1
-    do j=i+1,n
-      x(i)=x(i)-a(i,j)*x(j)
-    end do
-    x(i)=x(i)/a(i,i)
-  end do
-
-end subroutine snyder_lu_solve
-
-
 subroutine quadratic_fit(pts, a, b, c)
   ! Fits a parabola through three specified   
   ! points and returns the coefficients a, b, c defining this parabola 
@@ -579,8 +486,9 @@ subroutine block_sor(N, A, b, block_size, tol, rel, max_iterations, verbose, x)
   logical,intent(in) :: verbose
   real,dimension(:),allocatable,intent(out) :: x
 
-  real :: err
+  real :: err, dx
   real,dimension(N) :: x_new
+  real,dimension(N,N) :: A_copy
   real,dimension(block_size) :: bi
   real,dimension(:),allocatable :: xi
   integer :: i, N_blocks, r, N_last, iteration
@@ -595,6 +503,9 @@ subroutine block_sor(N, A, b, block_size, tol, rel, max_iterations, verbose, x)
 
   ! Give initial error estimate
   err = tol + 1.
+
+  ! Make a copy of A for calculating the error
+  A_copy = A
 
   ! Initialize solution vector
   allocate(x(N), source=0.)
@@ -618,8 +529,8 @@ subroutine block_sor(N, A, b, block_size, tol, rel, max_iterations, verbose, x)
   if (verbose) then
     write(*,*)
     write(*,*) "        Running Block SOR..."
-    write(*,*) "        Iteration      ||dx||"
-    write(*,*) "        --------------------------------------"
+    write(*,*) "        Iteration      ||dx||            ||err||"
+    write(*,*) "        ----------------------------------------"
   end if
 
   ! Iterate
@@ -661,11 +572,12 @@ subroutine block_sor(N, A, b, block_size, tol, rel, max_iterations, verbose, x)
     end do
 
     ! Calculate error
-    err = norm2(x-x_new)
+    err = norm2(matmul(A_copy, x_new) - b)
+    dx = norm2(x-x_new)
 
     ! Output progress
-    if (modulo(iteration, 200) == 0) then
-      if (verbose) write(*,'(i18, ES15.3)') iteration, err
+    if (modulo(iteration, 50) == 0) then
+      if (verbose) write(*,'(i18, ES15.3, ES15.3)') iteration, dx, err
     end if
 
     ! Update
@@ -674,7 +586,7 @@ subroutine block_sor(N, A, b, block_size, tol, rel, max_iterations, verbose, x)
   end do
 
   ! Final iteration count and error
-  if (verbose) write(*,'(i18, ES15.3)') iteration, err
+  if (verbose) write(*,'(i18, ES15.3, ES15.3)') iteration, dx, err
 
 end subroutine block_sor
 
@@ -840,6 +752,144 @@ subroutine block_sor_adaptive(N, A, b, block_size, tol, max_iterations, verbose,
 end subroutine block_sor_adaptive
 
 
+subroutine block_jacobi(N, A, b, block_size, tol, rel, max_iterations, verbose, x)
+  ! Iteratively solves the [A]x=b system using the block Jacobi method with a relaxation
+  ! N is the size of the system
+  ! A is the system matrix; block diagonals will be replaced with their LU decompositions
+  ! b is the RHS vector
+  ! block_size is the desired size of each block
+  ! tol is the convergence tolerance between iterations
+  ! rel is a relaxation factor between 0 and 2
+  ! verbose
+  ! x is the solution
+
+  implicit none
+
+  integer,intent(in) :: N, block_size, max_iterations
+  real,dimension(N,N),intent(inout) :: A
+  real,dimension(N),intent(in) :: b
+  real,intent(in) :: tol, rel
+  logical,intent(in) :: verbose
+  real,dimension(:),allocatable,intent(out) :: x
+
+  real :: err, dx
+  real,dimension(N) :: x_new
+  real,dimension(N,N) :: A_copy
+  real,dimension(block_size) :: bi
+  real,dimension(:),allocatable :: xi
+  integer :: i, N_blocks, r, N_last, iteration, step, start, end
+  integer,dimension(:),allocatable :: i_start_block, i_end_block
+  integer,dimension(:,:),allocatable :: ind_P
+
+  ! Give initial error estimate and relaxation
+  err = tol + 1.
+  dx = tol + 1.
+
+  ! Initialize alterantion
+  step = -1
+
+  ! Make a copy of A for calculating the error
+  A_copy = A
+
+  ! Initialize solution vector
+  allocate(x(N), source=0.)
+
+  ! Calculate number of blocks
+  N_blocks = N/block_size
+  r = modulo(N, block_size)
+  if (r > 0) then
+    N_blocks = N_blocks + 1
+  end if
+
+  ! Decompose blocks
+  if (verbose) then
+    write(*,*)
+    write(*,'(a)',advance='no') "         Decomposing blocks..."
+  end if
+  call decompose_blocks(N, A, N_blocks, block_size, N_last, ind_P, i_start_block, i_end_block)
+  if (verbose) write(*,*) "Done."
+
+  ! Progress
+  if (verbose) then
+    write(*,*)
+    write(*,*) "        Running Relaxed Block Jacobi..."
+    write(*,*) "        Iteration      ||dx||            ||err||"
+    write(*,*) "        ----------------------------------------"
+  end if
+
+  ! Iterate
+  iteration = 0
+  do while(err >= tol .and. iteration < max_iterations)
+
+    ! Update iteration number
+    iteration = iteration + 1
+
+    ! Alternate direction
+    if (step == 1) then
+      start = N_blocks
+      end = 1
+      step = -1
+    else
+      start = 1
+      end = N_blocks
+      step = 1
+    end if
+
+    ! Perform Jacobi iteration on blocks
+    do i=1,N_blocks
+
+      ! Last block
+      if (i == N_blocks) then
+
+        ! Calculate new RHS vector
+        bi(1:N_last) = b(i_start_block(i):N) - matmul(A(i_start_block(i):N,1:i_start_block(i)-1), x(1:i_start_block(i)-1))
+
+        ! Solve
+        call lu_back_sub(A(i_start_block(i):N,i_start_block(i):N), N_last, ind_P(1:N_last,i), bi, xi)
+
+        ! Store
+        x_new(i_start_block(i):N) = xi
+
+      ! Not last block
+      else
+
+        ! Calculate new RHS vector
+        bi = b(i_start_block(i):i_end_block(i))
+        bi = bi - matmul(A(i_start_block(i):i_end_block(i),1:i_start_block(i)-1), x(1:i_start_block(i)-1))
+        bi = bi - matmul(A(i_start_block(i):i_end_block(i),i_end_block(i)+1:N), x(i_end_block(i)+1:N))
+
+        ! Solve
+        call lu_back_sub(A(i_start_block(i):i_end_block(i),i_start_block(i):i_end_block(i)), block_size, ind_P(:,i), bi, xi)
+
+        ! Store
+        x_new(i_start_block(i):i_end_block(i)) = xi
+
+      end if
+    end do
+
+    ! Calculate new x
+    x_new = (1.-rel)*x + rel*x_new
+
+    ! Calculate error
+    err = norm2(matmul(A_copy, x) - b)
+    dx = norm2(x - x_new)
+
+    ! Output progress
+    if (verbose .and. modulo(iteration, 50) == 0) then
+      write(*,'(i18, ES15.3, ES15.3)') iteration, dx, err
+    end if
+
+    ! Update
+    x = x_new
+
+  end do
+
+  ! Final iteration count and error
+  if (verbose) write(*,'(i18, ES15.3, ES15.3)') iteration, dx, err
+
+end subroutine block_jacobi
+
+
 subroutine block_optimal_jacobi(N, A, b, block_size, tol, max_iterations, verbose, x)
   ! Iteratively solves the [A]x=b system using the block Jacobi method with an optimal relaxation
   ! N is the size of the system
@@ -859,7 +909,7 @@ subroutine block_optimal_jacobi(N, A, b, block_size, tol, max_iterations, verbos
   logical,intent(in) :: verbose
   real,dimension(:),allocatable,intent(out) :: x
 
-  real :: err, rel, dx, err_prev, dx_prev, vkTvk, bTvk, vkp1Tvkp1, vkp1Tvk, bTvkp1
+  real :: err, rel, dx, vkTvk, bTvk, vkp1Tvkp1, vkp1Tvk, bTvkp1
   real,dimension(N) :: x_new, vk, vkp1
   real,dimension(N,N) :: A_copy
   real,dimension(block_size) :: bi
@@ -867,15 +917,10 @@ subroutine block_optimal_jacobi(N, A, b, block_size, tol, max_iterations, verbos
   integer :: i, N_blocks, r, N_last, iteration, step, start, end
   integer,dimension(:),allocatable :: i_start_block, i_end_block
   integer,dimension(:,:),allocatable :: ind_P
-  logical :: switch_scheme
 
   ! Give initial error estimate and relaxation
   err = tol + 1.
-  dx = tol + 1.
   rel = 0.1
-  err_prev = err + 1.
-  dx_prev = dx + 1.
-  switch_scheme = .false.
 
   ! Initialize alterantion
   step = -1
@@ -964,14 +1009,13 @@ subroutine block_optimal_jacobi(N, A, b, block_size, tol, max_iterations, verbos
       end if
     end do
 
-    ! Calculate optimal relaxation
+    ! Calculate optimal relaxation factor
     vkp1 = matmul(A_copy, x_new)
     bTvkp1 = dot_product(b, vkp1)
     vkp1Tvk = dot_product(vkp1, vk)
     vkp1Tvkp1 = dot_product(vkp1, vkp1)
 
-    !rel = (vkTvk - vkp1Tvk - bTvk + bTvkp1) / (vkTvk - vkp1Tvk + vkp1Tvkp1)
-    rel = 0.5
+    rel = (vkTvk - vkp1Tvk - bTvk + bTvkp1) / (vkTvk - vkp1Tvk + vkp1Tvkp1)
 
     ! Calculate new x
     x_new = (1.-rel)*x + rel*x_new
@@ -988,8 +1032,6 @@ subroutine block_optimal_jacobi(N, A, b, block_size, tol, max_iterations, verbos
 
     ! Update
     x = x_new
-    err_prev = err
-    dx_prev = dx
     vkTvk = dot_product(vk, vk)
     bTvk = dot_product(b, vk)
 
@@ -999,6 +1041,156 @@ subroutine block_optimal_jacobi(N, A, b, block_size, tol, max_iterations, verbos
   if (verbose) write(*,'(i18, ES15.3, ES15.3, ES15.3)') iteration, dx, rel, err
 
 end subroutine block_optimal_jacobi
+
+
+subroutine iterative_solve(method, N, A, b, block_size, tol, rel, max_iterations, verbose, x)
+  ! Iteratively solves the [A]x=b system using the specified block-iterative method
+  ! N is the size of the system
+  ! A is the system matrix; block diagonals will be replaced with their LU decompositions
+  ! b is the RHS vector
+  ! block_size is the desired size of each block
+  ! method is "BJAC", "BSOR", "ORBJ", or "ABSOR"
+  ! tol is the convergence tolerance between iterations
+  ! rel is a relaxation factor between 0 and 2; it is the initial factor for adaptive methods
+  ! max_iterations
+  ! verbose
+  ! x is the solution
+
+  ! BJAC method is standard block Jacobi iteration with a relaxation factor
+  ! ORBJ method is block Jacobi with a relaxation factor calculated to minimize the error at each step
+
+  implicit none
+
+  character(len=*),intent(in) :: method
+  integer,intent(in) :: N, block_size, max_iterations
+  real,dimension(N,N),intent(inout) :: A
+  real,dimension(N),intent(in) :: b
+  real,intent(inout) :: tol, rel
+  logical,intent(in) :: verbose
+  real,dimension(:),allocatable,intent(out) :: x
+
+  real :: err, dx, vkTvk, bTvk, vkp1Tvkp1, vkp1Tvk, bTvkp1
+  real,dimension(N) :: x_new, vk, vkp1
+  real,dimension(N,N) :: A_copy
+  real,dimension(block_size) :: bi
+  real,dimension(:),allocatable :: xi
+  integer :: i, N_blocks, r, N_last, iteration, step, start, end, unit
+  integer,dimension(:),allocatable :: i_start_block, i_end_block
+  integer,dimension(:,:),allocatable :: ind_P
+
+  ! Give initial error estimate
+  err = tol + 1.
+
+  ! Initialize alterantion
+  step = -1
+
+  ! Initialize optimal relaxation determination for ORBJ method
+  if (method == "ORBJ") then
+    vk = 0.
+    vkTvk = 0.
+    bTvk = 0.
+  end if
+
+  ! Make a copy of A for calculating the error
+  A_copy = A
+
+  ! Initialize solution vector
+  allocate(x(N), source=0.)
+
+  ! Calculate number of blocks
+  N_blocks = N/block_size
+  r = modulo(N, block_size)
+  if (r > 0) then
+    N_blocks = N_blocks + 1
+  end if
+
+  ! Decompose blocks
+  call decompose_blocks(N, A, N_blocks, block_size, N_last, ind_P, i_start_block, i_end_block)
+
+  ! Write out header
+  if (verbose) then
+    open(newunit=unit, file='iterative_solver_prog.csv')
+    write(unit,*) "method,", method
+    write(unit,*) "iteration,||dx||,||err||,relaxation"
+  end if
+
+  ! Iterate
+  iteration = 0
+  do while(err >= tol .and. iteration < max_iterations)
+
+    ! Update iteration number
+    iteration = iteration + 1
+
+    ! Alternate direction
+    if (step == 1) then
+      start = N_blocks
+      end = 1
+      step = -1
+    else
+      start = 1
+      end = N_blocks
+      step = 1
+    end if
+
+    ! Perform Jacobi iteration on blocks
+    do i=1,N_blocks
+
+      ! Last block
+      if (i == N_blocks) then
+
+        ! Calculate new RHS vector
+        bi(1:N_last) = b(i_start_block(i):N) - matmul(A(i_start_block(i):N,1:i_start_block(i)-1), x(1:i_start_block(i)-1))
+
+        ! Solve
+        call lu_back_sub(A(i_start_block(i):N,i_start_block(i):N), N_last, ind_P(1:N_last,i), bi, xi)
+
+        ! Store
+        x_new(i_start_block(i):N) = xi
+
+      ! Not last block
+      else
+
+        ! Calculate new RHS vector
+        bi = b(i_start_block(i):i_end_block(i))
+        bi = bi - matmul(A(i_start_block(i):i_end_block(i),1:i_start_block(i)-1), x(1:i_start_block(i)-1))
+        bi = bi - matmul(A(i_start_block(i):i_end_block(i),i_end_block(i)+1:N), x(i_end_block(i)+1:N))
+
+        ! Solve
+        call lu_back_sub(A(i_start_block(i):i_end_block(i),i_start_block(i):i_end_block(i)), block_size, ind_P(:,i), bi, xi)
+
+        ! Store
+        x_new(i_start_block(i):i_end_block(i)) = xi
+
+      end if
+    end do
+
+    ! Calculate optimal relaxation factor
+    if (method == "ORBJ") then
+      vkp1 = matmul(A_copy, x_new)
+      bTvkp1 = dot_product(b, vkp1)
+      vkp1Tvk = dot_product(vkp1, vk)
+      vkp1Tvkp1 = dot_product(vkp1, vkp1)
+      rel = (vkTvk - vkp1Tvk - bTvk + bTvkp1) / (vkTvk - vkp1Tvk + vkp1Tvkp1)
+    end if
+
+    ! Calculate new x
+    x_new = (1.-rel)*x + rel*x_new
+
+    ! Calculate error
+    err = norm2(matmul(A_copy, x) - b)
+    dx = norm2(x - x_new)
+
+    ! Output progress
+    if (verbose) write(unit,'(i6, a, ES10.3, a, ES10.3, a, ES10.3)') iteration, ',', dx, ',', err, ',', rel
+
+    ! Update
+    x = x_new
+
+  end do
+
+  close(unit)
+
+end subroutine iterative_solve
 
 
 subroutine block_gauss_siedel(N, A, b, block_size, tol, x)
@@ -1088,5 +1280,6 @@ subroutine block_gauss_siedel(N, A, b, block_size, tol, x)
   end do
 
 end subroutine block_gauss_siedel
+
     
 end module linalg_mod
