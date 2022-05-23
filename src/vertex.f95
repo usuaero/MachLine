@@ -10,7 +10,7 @@ module vertex_mod
     type vertex
         ! A vertex in 3-space
 
-        integer :: vert_type ! Whether this is a 1-true vertex or 2-vertex representing an edge midpoint
+        integer :: vert_type ! Whether this is a 1) true vertex or 2) vertex representing an edge midpoint
         real,dimension(3) :: loc, cp ! Location and associated control point
         real,dimension(3) :: n_g, n_g_mir ! Normal vector associated with this control point
         real :: l_avg ! Average of the edge lengths adjacent to this vertex

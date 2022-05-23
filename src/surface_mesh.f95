@@ -216,7 +216,7 @@ contains
         class(surface_mesh),intent(inout) :: this
 
         integer :: i, j, m, n, m1, n1, temp, i_edge, i_panel1, i_panel2, i_vert1, i_vert2, edge_on_mirror, i_edge1, i_edge2, N_edges
-        integer :: N_orig_verts
+        integer :: N_orig_verts, ind
         logical :: already_found_shared, dummy
         real :: distance
         integer,dimension(2) :: shared_verts
@@ -476,18 +476,44 @@ contains
             call this%add_vertices(this%N_edges)
             N_orig_verts = this%N_verts - this%N_edges
 
-            ! Initialize
             do i=1,this%N_edges
-                call this%vertices(N_orig_verts+i)%init(midpoints(:,i), N_orig_verts+i, 2)
+
+                ! Initialize vertex object
+                ind = N_orig_verts + i
+                call this%vertices(ind)%init(midpoints(:,i), ind, 2)
+                this%vertices(ind)%l_avg = edge_length(i)
+
+                ! Add adjacent vertices
+                call this%vertices(ind)%adjacent_vertices%append(vertex1(i))
+                call this%vertices(ind)%adjacent_vertices%append(vertex2(i))
+
+                ! Add adjacent panels
+                call this%vertices(ind)%panels%append(panel1(i))
+                if (panel2(i) > 0 .and. panel2(i) <= this%N_panels) then
+                    call this%vertices(ind)%panels%append(panel2(i))
+                end if
+
+                ! Add edge
+                call this%vertices(ind)%adjacent_edges%append(i)
+
+                ! Point edge to it
+                this%edges(i)%midpoint_vert = ind
+
+                ! Point panels to it
+                this%panels(panel1(i))%midpoint_indices(edge_index1(i)) = ind
+                if (panel2(i) > 0 .and. panel2(i) <= this%N_panels) then
+                    this%panels(panel2(i))%midpoint_indices(edge_index2(i)) = ind
+                end if
+
             end do
         end if
 
         if (verbose) write(*,"(a, i7, a)") "Done. Found ", this%N_edges, " edges."
 
-        ! Print info for added midpoints vertices
-        if (verbose .and. doublet_order == 2) write(*,"(a, i7, a, i7, a)") "     To account for quadratic doublet distributions, ",&
-                                                                           this%N_edges, " vertices were added. Mesh now &
-                                                                           has ", this%N_verts, " vertices."
+        ! Print info for added midpoint vertices
+        if (verbose .and. doublet_order == 2) write(*,"(a, i7, a, i7, a)") "     For a quadratic doublet distribution, ", &
+                                                                           this%N_edges, " vertices were added. Mesh now has ", &
+                                                                           this%N_verts, " vertices."
     
     end subroutine surface_mesh_locate_adjacent_panels
 

@@ -76,6 +76,7 @@ module panel_mod
         real,dimension(:,:),allocatable :: S_mu_inv, S_sigma_inv ! Matrix relating doublet/source strengths to doublet/source influence parameters
         real,dimension(:,:),allocatable :: S_mu_inv_mir, S_sigma_inv_mir
         integer,dimension(:),allocatable :: vertex_indices ! Indices of this panel's vertices in the mesh vertex array
+        integer,dimension(:),allocatable :: midpoint_indices ! Indices of this panel's midpoints in the mesh vertex array
         logical :: in_wake ! Whether this panel belongs to a wake mesh
         integer,dimension(3) :: abutting_panels ! Indices of panels abutting this one
         integer,dimension(3) :: edges ! Indices of this panel's edges
@@ -175,6 +176,7 @@ contains
         ! Allocate vertex array
         allocate(this%vertices(this%N))
         allocate(this%vertex_indices(this%N))
+        if (doublet_order == 2) allocate(this%midpoint_indices(this%N), source=0)
 
         ! Assign vertex pointers
         this%vertices(1)%ptr => v1
