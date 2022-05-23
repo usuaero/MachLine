@@ -114,30 +114,30 @@ def run_comparison(M, alpha, grid, half_angle, run_machline=True):
     # Read in data
     data = np.genfromtxt(data_file, delimiter=',', skip_header=1)
     
-    # Plot data from MachLine
-    plt.figure()
-    plt.plot(data[:,4], data[:,0], 'ks', markersize=3, label='2nd')
-    plt.plot(data[:,4], data[:,1], 'kv', markersize=3, label='Ise.')
-    plt.plot(data[:,4], data[:,2], 'ko', markersize=3, label='Slnd.')
-    plt.plot(data[:,4], data[:,3], 'k^', markersize=3, label='Lin.')
+    ## Plot data from MachLine
+    #plt.figure()
+    #plt.plot(data[:,4], data[:,0], 'ks', markersize=3, label='2nd')
+    #plt.plot(data[:,4], data[:,1], 'kv', markersize=3, label='Ise.')
+    #plt.plot(data[:,4], data[:,2], 'ko', markersize=3, label='Slnd.')
+    #plt.plot(data[:,4], data[:,3], 'k^', markersize=3, label='Lin.')
 
-    # Plot data from shock-expansion theory
-    x = np.linspace(0.0, 1.0, 100)
-    Cp_upper = np.ones_like(x)
-    Cp_upper[:50] *= Cp3
-    Cp_upper[50:] *= Cp5
-    Cp_lower = np.ones_like(x)
-    Cp_lower[:50] *= Cp2
-    Cp_lower[50:] *= Cp4
-    plt.plot(x, Cp_upper, 'k--', label='SE Upper')
-    plt.plot(x, Cp_lower, 'k-.', label='SE Lower')
+    ## Plot data from shock-expansion theory
+    #x = np.linspace(0.0, 1.0, 100)
+    #Cp_upper = np.ones_like(x)
+    #Cp_upper[:50] *= Cp3
+    #Cp_upper[50:] *= Cp5
+    #Cp_lower = np.ones_like(x)
+    #Cp_lower[:50] *= Cp2
+    #Cp_lower[50:] *= Cp4
+    #plt.plot(x, Cp_upper, 'k--', label='SE Upper')
+    #plt.plot(x, Cp_lower, 'k-.', label='SE Lower')
 
-    # Format
-    plt.xlabel('$x$')
-    plt.ylabel('$C_p$')
-    plt.legend()
-    plt.savefig(plot_dir+case_name+".pdf".format(M, alpha, int(half_angle)))
-    plt.close()
+    ## Format
+    #plt.xlabel('$x$')
+    #plt.ylabel('$C_p$')
+    #plt.legend()
+    #plt.savefig(plot_dir+case_name+".pdf".format(M, alpha, int(half_angle)))
+    #plt.close()
 
     return CL_se, CD_se, CL_ml, CD_ml
 
@@ -154,12 +154,13 @@ if __name__=="__main__":
     CDs = np.zeros((len(grids), len(Ms), len(alphas), len(half_angles)))
 
     for i, grid in enumerate(grids):
-        for j, M in enumerate(Ms[1:]):
+        for j, M in enumerate(Ms):
             for k, alpha in enumerate(alphas):
                 for l, half_angle in enumerate(half_angles):
 
-                    _,_,CLs[i,j,k,l], CDs[i,j,k,l] = run_comparison(M, alpha, grid, half_angle)
+                    _,_,CLs[i,j,k,l], CDs[i,j,k,l] = run_comparison(M, alpha, grid, half_angle, run_machline=False)
 
+    plot_dir = "dev/results/diamond_wing_comparison/plots/"
     for j, M in enumerate(Ms):
         for k, alpha in enumerate(alphas):
             for l,half_angle in enumerate(half_angles):
@@ -167,10 +168,19 @@ if __name__=="__main__":
                 case_name = "M_{0}_aoa_{1}_{2}_deg_convergence".format(M, alpha, int(half_angle))
 
                 plt.figure()
-                plt.plot(N_verts, abs(CLs[:-1,j,k,l]-CLs[-1,j,k,l]), 'k-')
+                plt.plot(N_verts[:-1], abs((CLs[:-1,j,k,l]-CLs[-1,j,k,l])/CLs[-1,j,k,l]), 'k-')
                 plt.xscale('log')
                 plt.yscale('log')
-                plt.xlabel('$N_\\text{verts}$')
-                plt.ylabel('$\\Delta C_L$')
-                plt.save(case_name+".pdf")
+                plt.xlabel('$N_{verts}$')
+                plt.ylabel('Error in $C_L$')
+                plt.savefig(plot_dir+case_name+"_CL.pdf")
+                plt.close()
+
+                plt.figure()
+                plt.plot(N_verts[:-1], abs((CDs[:-1,j,k,l]-CDs[-1,j,k,l])/CDs[-1,j,k,l]), 'k-')
+                plt.xscale('log')
+                plt.yscale('log')
+                plt.xlabel('$N_{verts}$')
+                plt.ylabel('Error in $C_D$')
+                plt.savefig(plot_dir+case_name+"_CD.pdf")
                 plt.close()
