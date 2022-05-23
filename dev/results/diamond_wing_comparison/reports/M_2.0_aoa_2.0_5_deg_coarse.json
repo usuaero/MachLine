@@ -1,12 +1,12 @@
 {
     "info" : {
         "generated_by" : "MachLine (c) 2022 USU Aerolab",
-        "executed" : "Thu May 19 17:13:47 2022"
+        "executed" : "Fri May 20 16:24:45 2022"
     },
     "solver_results" : {
         "residual" : {
             "max" : 2.42861286636753E-017,
-            "norm" : 7.76272376413258E-017
+            "norm" : 7.76094592768507E-017
         }
     },
     "pressure_calculations" : {

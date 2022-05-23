@@ -1,12 +1,12 @@
 {
     "flow": {
         "freestream_velocity": [
-            692.7559396154802,
+            1729.512490793847,
             0.0,
-            48.442214312241546
+            151.3127363709456
         ],
         "gamma": 1.4,
-        "freestream_mach_number": 2.0
+        "freestream_mach_number": 5.0
     },
     "geometry": {
         "file": "dev/meshes/diamond_5_deg_full_ultra_fine.stl",
@@ -31,7 +31,7 @@
         }
     },
     "output": {
-        "body_file": "dev/results/diamond_wing_comparison/meshes/M_2.0_aoa_4.0_5_deg_ultra_fine.vtk",
-        "report_file": "dev/results/diamond_wing_comparison/reports/M_2.0_aoa_4.0_5_deg_ultra_fine.json"
+        "body_file": "dev/results/diamond_wing_comparison/meshes/M_5.0_aoa_5.0_5_deg_ultra_fine.vtk",
+        "report_file": "dev/results/diamond_wing_comparison/reports/M_5.0_aoa_5.0_5_deg_ultra_fine.json"
     }
 }

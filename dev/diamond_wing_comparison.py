@@ -154,7 +154,7 @@ if __name__=="__main__":
     CDs = np.zeros((len(grids), len(Ms), len(alphas), len(half_angles)))
 
     for i, grid in enumerate(grids):
-        for j, M in enumerate(Ms):
+        for j, M in enumerate(Ms[1:]):
             for k, alpha in enumerate(alphas):
                 for l, half_angle in enumerate(half_angles):
 
