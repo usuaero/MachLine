@@ -983,7 +983,8 @@ contains
             call iterative_solve("BJAC", this%N, A_copy, this%b, this%block_size, this%tol, this%rel, this%max_iterations, &
                                  verbose, body%mu)
         case ('ABSOR')
-            call block_sor_adaptive(this%N, A_copy, this%b, this%block_size, this%tol, this%max_iterations, verbose, body%mu)
+            call iterative_solve("ABSOR", this%N, A_copy, this%b, this%block_size, this%tol, this%rel, this%max_iterations, &
+                                 verbose, body%mu)
         case ('ORBJ')
             call iterative_solve("ORBJ", this%N, A_copy, this%b, this%block_size, this%tol, this%rel, this%max_iterations, &
                                  verbose, body%mu)

@@ -17,7 +17,7 @@
         "formulation" : "morino",
         "control_point_offset" : 1.1e-05,
         "run_checks" : true,
-        "matrix_solver" : "ORBJ",
+        "matrix_solver" : "ABSOR",
         "relaxation" : 0.5,
         "tolerance" : 1.3e-7,
         "block_size" : 200,
