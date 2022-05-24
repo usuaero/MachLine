@@ -837,7 +837,7 @@ subroutine iterative_solve(method, N, A, b, block_size, tol, rel, max_iterations
       step = 1
     end if
 
-    ! Perform Jacobi iteration on blocks
+    ! Perform Jacobi or SOR iteration on blocks
     do i=1,N_blocks
 
       ! Last block
@@ -869,8 +869,8 @@ subroutine iterative_solve(method, N, A, b, block_size, tol, rel, max_iterations
       else
 
         ! Calculate new RHS vector
+        bi = b(i_start_block(i):i_end_block(i))
         if (jacobi) then
-          bi = b(i_start_block(i):i_end_block(i))
           bi = bi - matmul(A(i_start_block(i):i_end_block(i),1:i_start_block(i)-1), x(1:i_start_block(i)-1))
           bi = bi - matmul(A(i_start_block(i):i_end_block(i),i_end_block(i)+1:N), x(i_end_block(i)+1:N))
 
