@@ -55,7 +55,6 @@ module surface_mesh_mod
             procedure :: clone_vertices => surface_mesh_clone_vertices
             procedure :: set_up_mirroring => surface_mesh_set_up_mirroring
             procedure :: calc_vertex_normals => surface_mesh_calc_vertex_normals
-            procedure :: calc_edge_normals => surface_mesh_calc_edge_normals
             procedure :: init_wake => surface_mesh_init_wake
             procedure :: update_supersonic_trefftz_distance => surface_mesh_update_supersonic_trefftz_distance
             procedure :: update_subsonic_trefftz_distance => surface_mesh_update_subsonic_trefftz_distance
@@ -557,14 +556,13 @@ contains
             call this%set_up_mirroring()
         end if
 
-        ! Clone necessary vertices and calculate normals (for placing control points)
+        ! Clone necessary vertices
         if (this%wake_present .or. freestream%supersonic) then
             call this%clone_vertices()
         end if
-        call this%calc_vertex_normals()
 
-        ! FOr higher-order doublets, we'll need the edge normals as well
-        if (doublet_order == 2) call this%calc_edge_normals()
+        ! Calculate vertex normals (for placing control points)
+        call this%calc_vertex_normals()
 
         ! Initialize wake
         call this%init_wake(freestream, wake_file)
@@ -580,7 +578,7 @@ contains
         class(surface_mesh),intent(inout) :: this
         type(flow),intent(in) :: freestream
 
-        integer :: i, j, k, m, n, temp, top_panel, bottom_panel, i_vert_1, i_vert_2, N_wake_edge_verts
+        integer :: i, j, k, m, n, temp, top_panel, bottom_panel, i_vert_1, i_vert_2, N_wake_edge_verts, mid
         integer,dimension(:),allocatable :: wake_edge_verts
         real :: C_angle, C_min_angle
         real,dimension(3) :: second_normal
@@ -591,11 +589,10 @@ contains
         allocate(wake_edge_verts(this%N_verts/4)) ! I sure hope you're not trying to run a mesh where every fourth vertex has a wake emanating from it...
         this%N_wake_edges = 0
         N_wake_edge_verts = 0
-        C_min_angle = 100.
 
         ! Loop through each edge
-        !$OMP parallel do private(i, j, second_normal, C_angle, i_vert_1, i_vert_2) reduction(min : C_min_angle) &
-        !$OMP & default(none) shared(this, freestream, wake_edge_verts, N_wake_edge_verts)
+        !$OMP parallel do private(i, j, second_normal, C_angle, i_vert_1, i_vert_2, mid) reduction(min : C_min_angle) &
+        !$OMP & default(none) shared(this, freestream, wake_edge_verts, N_wake_edge_verts, doublet_order)
         do k=1,this%N_edges
 
             ! Get info
@@ -668,6 +665,17 @@ contains
                     this%vertices(i_vert_2)%N_wake_edges = this%vertices(i_vert_2)%N_wake_edges + 1
                     this%vertices(i_vert_2)%N_discont_edges = this%vertices(i_vert_2)%N_discont_edges + 1
 
+                    ! Update information for midpoint vertex
+                    if (doublet_order == 2) then
+                        mid = this%edges(k)%midpoint_vert
+                        this%vertices(mid)%N_wake_edges = 1
+                        this%vertices(mid)%N_discont_edges = 1
+                        this%vertices(mid)%needs_clone = .true.
+                        N_wake_edge_verts = N_wake_edge_verts + 1
+                        wake_edge_verts(N_wake_edge_verts) = mid
+                        this%vertices(mid)%index_in_wake_vertices = N_wake_edge_verts
+                    end if
+
                     !$OMP end critical
 
                 end if
@@ -693,7 +701,7 @@ contains
 
         class(surface_mesh),intent(inout) :: this
 
-        integer :: i, j, m, n
+        integer :: i, j, m, n, mid
 
         if (verbose) write(*,'(a)',advance='no') "     Setting up mesh mirror..."
 
@@ -712,9 +720,10 @@ contains
             ! Check if it is discontinuous
             if (this%edges(i)%discontinuous) then
 
-                ! Get endpoint indices
+                ! Get vertex indices
                 m = this%edges(i)%verts(1)
                 n = this%edges(i)%verts(2)
+                if (doublet_order == 2) mid = this%edges(i)%midpoint_vert
 
                 ! If a given discontinuous edge has only one of its endpoints lying on the mirror plane, then that endpoint has another
                 ! adjacent edge, since the edge will be mirrored across that plane. This endpoint will need a clone, but it's mirrored
@@ -740,6 +749,12 @@ contains
 
                     end if
 
+                    ! The midpoint will need to be cloned and its mirror will be unique
+                    if (doublet_order == 2) then
+                        this%vertices(mid)%needs_clone = .true.
+                        this%vertices(mid)%mirrored_is_unique = .true.
+                    end if
+
                 ! If the discontinuous edge has both endpoints lying on the mirror plane, then these vertices need no clones, but the mirrored
                 ! vertices will still be unique
                 else if (this%edges(i)%on_mirror_plane) then
@@ -749,6 +764,12 @@ contains
                     this%vertices(n)%needs_clone = .false.
                     this%vertices(m)%mirrored_is_unique = .true.
                     this%vertices(n)%mirrored_is_unique = .true.
+
+                    ! Same with the midpoint
+                    if (doublet_order == 2) then
+                        this%vertices(mid)%needs_clone = .false.
+                        this%vertices(mid)%mirrored_is_unique = .true.
+                    end if
 
                 end if
             end if
@@ -849,6 +870,7 @@ contains
 
                     ! Initialize clone
                     call this%vertices(i_boba)%init(this%vertices(i_jango)%loc, i_boba, 1)
+                    this%vertices(i_boba)%is_clone = .true.
 
                     ! Specify wake partners
                     this%vertices(i_jango)%i_wake_partner = i_boba
@@ -1035,48 +1057,6 @@ contains
     end subroutine surface_mesh_calc_vertex_normals
 
 
-    subroutine surface_mesh_calc_edge_normals(this)
-        ! Initializes the normal vectors associated with each edge.
-        ! Must be called only once wake-shedding edges have been located.
-
-        implicit none
-
-        class(surface_mesh),intent(inout) :: this
-
-        real,dimension(3) :: n_avg
-        integer :: j
-
-        if (verbose) write(*,'(a)',advance='no') "     Calculating edge normals..."
-
-        ! Loop through vertices
-        !$OMP parallel do private(n_avg) schedule(dynamic)
-        do j=1,this%N_edges
-
-            ! Calculate average normal vector for edges not on the mirror plane
-            if (.not. this%edges(j)%on_mirror_plane) then
-                n_avg = this%panels(this%edges(j)%panels(1))%n_g + this%panels(this%edges(j)%panels(2))%n_g
-
-            ! For edges on the mirror plane, the component normal to the plane should be zeroed
-            else
-                n_avg = this%panels(this%edges(j)%panels(1))%n_g
-                n_avg(this%mirror_plane) = 0.
-            end if
-
-            ! Normalize and store
-            this%edges(j)%n_g = n_avg/norm2(n_avg)
-
-            ! Calculate mirrored normal for mirrored edge
-            if (this%mirrored) then
-                this%edges(j)%n_g_mir = mirror_across_plane(this%edges(j)%n_g, this%mirror_plane)
-            end if
-
-        end do
-
-        if (verbose) write(*,*) "Done."
-
-    end subroutine surface_mesh_calc_edge_normals
-
-
     subroutine surface_mesh_init_wake(this, freestream, wake_file)
         ! Handles wake initialization
 
@@ -1208,63 +1188,58 @@ contains
         real,intent(in) :: offset
 
         integer :: i, j, i_panel
-        real,dimension(3) :: normal
+        real,dimension(3) :: n_avg
         real :: offset_ratio
 
-        if (doublet_order == 1) then
+        ! Specify number of control points
+        this%N_cp = this%N_verts
 
-            ! Specify number of control points
-            this%N_cp = this%N_verts
+        ! Allocate memory
+        allocate(this%cp(3,this%N_verts))
 
-            ! Allocate memory
-            allocate(this%cp(3,this%N_verts))
+        ! Calculate offset ratio such that the control point will remain within the body based on the minimum detected angle between panels
+        if (this%wake_present) then
+            offset_ratio = 0.5*sqrt(0.5*(1. + this%C_min_panel_angle))
+        end if
 
-            ! Calculate offset ratio such that the control point will remain within the body based on the minimum detected angle between panels
-            if (this%wake_present) then
-                offset_ratio = 0.5*sqrt(0.5*(1. + this%C_min_panel_angle))
-            end if
+        ! Loop through vertices
+        !$OMP parallel do private(j, n_avg, i_panel) schedule(dynamic) shared(this, offset, offset_ratio) default(none)
+        do i=1,this%N_verts
 
-            ! Loop through vertices
-            !$OMP parallel do private(j, normal, i_panel) schedule(dynamic) shared(this, offset, offset_ratio) default(none)
-            do i=1,this%N_verts
+            ! If the vertex has been cloned, it needs to be shifted off the normal slightly so that it is unique from its counterpart
+            if (this%vertices(i)%needs_clone .or. this%vertices(i)%is_clone) then
 
-                ! If the vertex is in a wake edge, it needs to be shifted off the normal slightly so that it is unique from its counterpart
-                if (this%vertices(i)%N_wake_edges > 1) then
+                ! Loop through panels associated with this clone to get their average normal vector
+                n_avg = 0.
+                do j=1,this%vertices(i)%panels_not_across_wake_edge%len()
 
-                    ! Loop through panels associated with this clone to get their average normal vector
-                    normal = 0.
-                    do j=1,this%vertices(i)%panels_not_across_wake_edge%len()
+                    ! Get panel index
+                    call this%vertices(i)%panels_not_across_wake_edge%get(j, i_panel)
 
-                        ! Get panel index
-                        call this%vertices(i)%panels_not_across_wake_edge%get(j, i_panel)
+                    ! Add normal vector
+                    n_avg = n_avg + this%panels(i_panel)%n_g
 
-                        ! Add normal vector
-                        normal = normal + this%panels(i_panel)%n_g
+                end do
 
-                    end do
-
-                    ! Add effect of mirrored panels
-                    if (this%vertices(i)%on_mirror_plane) then
-                        normal(this%mirror_plane) = 0.
-                    end if
-
-                    ! Normalize
-                    normal = normal/norm2(normal)
-
-                    ! Place control point
-                    this%cp(:,i) = this%vertices(i)%loc &
-                                               - offset * (this%vertices(i)%n_g - offset_ratio * normal)*this%vertices(i)%l_avg
-
-                ! If it's not in a wake-shedding edge (i.e. has no clone), then placement simply follows the normal vector
-                else
-
-                    this%cp(:,i) = this%vertices(i)%loc - offset*this%vertices(i)%n_g*this%vertices(i)%l_avg
-
+                ! Add effect of mirrored panels
+                if (this%vertices(i)%on_mirror_plane) then
+                    n_avg(this%mirror_plane) = 0.
                 end if
 
-            end do
+                ! Normalize
+                n_avg = n_avg/norm2(n_avg)
 
-        end if
+                ! Place control point
+                this%cp(:,i) = this%vertices(i)%loc - offset * (this%vertices(i)%n_g - offset_ratio*n_avg)*this%vertices(i)%l_avg
+
+            ! If it has no clone, then placement simply follows the normal vector
+            else
+
+                this%cp(:,i) = this%vertices(i)%loc - offset*this%vertices(i)%n_g*this%vertices(i)%l_avg
+
+            end if
+
+        end do
 
         ! Calculate mirrored points, if necessary
         if (this%mirrored) then

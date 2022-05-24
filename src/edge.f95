@@ -13,9 +13,7 @@ module edge_mod
         logical :: sheds_wake ! Whether this edge sheds a wake
         logical :: in_wake ! Whether this edge is in a wake
         logical :: discontinuous ! Whether this edge has a jump in doublet strength
-        real,dimension(3) :: n_g, n_g_mir ! Outward normal vector (for placing quadratic-doublet control points)
         real :: l ! Length
-        integer :: i_top_mid, i_bot_mid ! Indices for the top and bottom midpoints on this edge. The two will be the same for most edges
 
         contains
 

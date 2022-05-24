@@ -24,7 +24,7 @@ module vertex_mod
         integer :: index_in_wake_vertices ! Index of this vertex in the list of wake-shedding vertices
         integer :: top_parent, bot_parent ! Indices of the top and bottom vertices this vertex's strength is determined by (for a wake vertex)
         logical :: on_mirror_plane ! Whether this vertex lies in the mirroring plane
-        logical :: needs_clone ! Whether this vertex needs a clone depending on whether it's in a wake-shedding edge
+        logical :: needs_clone, is_clone ! Whether this vertex needs a clone depending on whether it's in a wake-shedding edge
         logical :: mirrored_is_unique ! Whether this vertice's mirror image will be the same for an asymmetric freestream condition
         integer :: i_wake_partner ! Index of the vertex, which along with this one, will determine wake strength
 
@@ -70,6 +70,7 @@ contains
         this%needs_clone = .false. ! Same
         this%on_mirror_plane = .false. ! Same
         this%i_wake_partner = index
+        this%is_clone = .false.
 
     end subroutine vertex_init
 
