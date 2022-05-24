@@ -978,16 +978,17 @@ contains
         case ('LU')
             call lu_solve(this%N, A_copy, this%b, body%mu)
         case ('BSOR')
-            call block_sor(this%N, A_copy, this%b, this%block_size, this%tol, this%rel, this%max_iterations, verbose, body%mu)
+            call iterative_solve(this%matrix_solver, this%N, A_copy, this%b, this%block_size, this%tol, this%rel, &
+                                 this%max_iterations, verbose, body%mu)
         case ('BJAC')
-            call iterative_solve("BJAC", this%N, A_copy, this%b, this%block_size, this%tol, this%rel, this%max_iterations, &
-                                 verbose, body%mu)
+            call iterative_solve(this%matrix_solver, this%N, A_copy, this%b, this%block_size, this%tol, this%rel, &
+                                 this%max_iterations, verbose, body%mu)
         case ('ABSOR')
-            call iterative_solve("ABSOR", this%N, A_copy, this%b, this%block_size, this%tol, this%rel, this%max_iterations, &
-                                 verbose, body%mu)
+            call iterative_solve(this%matrix_solver, this%N, A_copy, this%b, this%block_size, this%tol, this%rel, &
+                                 this%max_iterations, verbose, body%mu)
         case ('ORBJ')
-            call iterative_solve("ORBJ", this%N, A_copy, this%b, this%block_size, this%tol, this%rel, this%max_iterations, &
-                                 verbose, body%mu)
+            call iterative_solve(this%matrix_solver, this%N, A_copy, this%b, this%block_size, this%tol, this%rel, &
+                                 this%max_iterations, verbose, body%mu)
         case default
             write(*,*) "!!! ", this%matrix_solver, " is not a valid option. Defaulting to LU decomposition."
             call lu_solve(this%N, A_copy, this%b, body%mu)

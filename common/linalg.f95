@@ -757,6 +757,8 @@ subroutine iterative_solve(method, N, A, b, block_size, tol, rel, max_iterations
   ! verbose
   ! x is the solution
 
+  ! BSOR method is standard block successive overrelaxation
+  ! ABSOR method is block successive overrelaxation with an adaptively adjusted relaxation factor
   ! BJAC method is standard block Jacobi iteration with a relaxation factor
   ! ORBJ method is block Jacobi with a relaxation factor calculated to minimize the error at each step; rel is not used for this method
 
@@ -779,6 +781,12 @@ subroutine iterative_solve(method, N, A, b, block_size, tol, rel, max_iterations
   integer,dimension(:),allocatable :: i_start_block, i_end_block
   integer,dimension(:,:),allocatable :: ind_P
   logical :: jacobi
+
+  ! Check method
+  if (method /= "BSOR" .and. method /= "ABSOR" .and. method /= "BJAC" .and. method /= "ORBJ") then
+    write(*,*) "!!! ", method, " is not a recognized iterative solver type. Quitting..."
+    stop
+  end if
 
   ! Give initial error estimate
   err = tol + 1.
@@ -815,7 +823,8 @@ subroutine iterative_solve(method, N, A, b, block_size, tol, rel, max_iterations
   ! Write out header
   if (verbose) then
     open(newunit=unit, file='iterative_solver_prog.csv')
-    write(unit,*) "method,", method
+    write(unit,*) "method"
+    write(unit,*) method
     write(unit,*) "iteration,||dx||,||err||,relaxation"
   end if
 
