@@ -31,7 +31,7 @@ contains
 
 
     subroutine wake_mesh_init(this, freestream, top_edge_verts, mesh_edges, N_wake_edges, &
-                              N_panels_streamwise, mesh_vertices, trefftz_distance, asym_flow, mirror_plane, N_mesh_panels)
+                              N_panels_streamwise, mesh_vertices, trefftz_dist, asym_flow, mirror_plane, N_mesh_panels)
         ! Creates the vertices and panels. Handles vertex association.
 
         implicit none
@@ -43,20 +43,26 @@ contains
         integer,intent(in) :: N_wake_edges
         integer,intent(in) :: N_panels_streamwise
         type(vertex),allocatable,dimension(:),intent(in) :: mesh_vertices
-        real,intent(in) :: trefftz_distance
+        real,intent(in) :: trefftz_dist
         logical,intent(in) :: asym_flow
         integer,intent(in) :: mirror_plane, N_mesh_panels
 
         real :: distance, vertex_separation, mirrored_distance, mirrored_vertex_separation
         real,dimension(3) :: loc, start, mirrored_start
-        integer :: i, j, k, i_vert, i_panel, i_top_parent, i_bot_parent, i_start, i_stop, i1, i2, i3
+        integer :: i, j, k, i_vert, i_mirrored_vert, i_panel, i_top_parent, i_bot_parent, i_start, i_stop, i1, i2, i3
         integer :: N_wake_edge_verts
 
-        if (verbose) write(*,'(a e10.4 a)',advance='no') "     Initializing wake with a Trefftz distance of ", &
-                                                         trefftz_distance, "..."
+        if (verbose) write(*,'(a e10.4 a)',advance='no') "     Initializing wake with a Trefftz distance of ", trefftz_dist, "..."
+
+        ! Determine how many vertices are along the wake-shedding edges
+        N_wake_edge_verts = 0
+        do i=1,size(top_edge_verts)
+            if (mesh_vertices(top_edge_verts(i))%vert_type == 1) then
+                N_wake_edge_verts = N_wake_edge_verts + 1
+            end if
+        end do
 
         ! Determine necessary number of vertices
-        N_wake_edge_verts = size(top_edge_verts)
         if (asym_flow) then
             this%N_verts = N_wake_edge_verts*(N_panels_streamwise+1)*2
         else
@@ -67,69 +73,74 @@ contains
         allocate(this%vertices(this%N_verts))
 
         ! Determine vertex placement
+        i_vert = 0
         do i=1,N_wake_edge_verts
 
-            ! Get indices
+            ! Check this is not a midpoint vertex
             i_top_parent = top_edge_verts(i)
-            i_bot_parent = mesh_vertices(i_top_parent)%i_wake_partner
+            if (mesh_vertices(i_top_parent)%vert_type == 1) then
 
-            ! Determine distance from origin to wake-shedding vertex in the direction of the freestream flow
-            start = mesh_vertices(i_top_parent)%loc
-            distance = trefftz_distance-inner(start, freestream%c_hat_g)
+                ! Get indices
+                i_bot_parent = mesh_vertices(i_top_parent)%i_wake_partner
 
-            ! Double-check
-            if (dist(start, mesh_vertices(i_bot_parent)%loc) > 1.e-12) then
-                write(*,*) "!!! Wake edge vertices are not identical. Quitting..."
-                stop
-            end if
+                ! Determine distance from origin to wake-shedding vertex in the direction of the freestream flow
+                start = mesh_vertices(i_top_parent)%loc
+                distance = trefftz_dist - inner(start, freestream%c_hat_g)
 
-            ! Determine vertex separation
-            vertex_separation = distance/N_panels_streamwise
-
-            ! Same for mirror
-            if (asym_flow) then
-
-                ! Determine start location
-                mirrored_start = mirror_across_plane(start, mirror_plane)
-                mirrored_distance = trefftz_distance-inner(mirrored_start, freestream%c_hat_g)
+                ! Double-check
+                if (dist(start, mesh_vertices(i_bot_parent)%loc) > 1.e-12) then
+                    write(*,*) "!!! Wake edge vertices are not identical. Quitting..."
+                    stop
+                end if
 
                 ! Determine vertex separation
-                mirrored_vertex_separation = mirrored_distance/N_panels_streamwise
+                vertex_separation = distance/N_panels_streamwise
 
-            end if
-
-            ! Place vertices
-            do j=1,N_panels_streamwise+1
-
-                ! Determine location
-                i_vert = (i-1)*(N_panels_streamwise+1)+j
-                loc = start + vertex_separation*(j-1)*freestream%c_hat_g
-
-                ! Initialize vertex
-                call this%vertices(i_vert)%init(loc, i_vert, 1)
-
-                ! Set parent index
-                this%vertices(i_vert)%top_parent = i_top_parent
-                this%vertices(i_vert)%bot_parent = i_bot_parent
-
-                ! Initialize mirror
+                ! Same for mirror
                 if (asym_flow) then
 
-                    ! Determine location
-                    i_vert = i_vert + this%N_verts/2
+                    ! Determine start location
                     mirrored_start = mirror_across_plane(start, mirror_plane)
-                    loc = mirrored_start + mirrored_vertex_separation*(j-1)*freestream%c_hat_g
+                    mirrored_distance = trefftz_dist-inner(mirrored_start, freestream%c_hat_g)
 
-                    ! Initialize vertex
-                    call this%vertices(i_vert)%init(loc, i_vert, 1)
-                    
-                    ! Set parent index
-                    this%vertices(i_vert)%top_parent = i_top_parent + size(mesh_vertices)
-                    this%vertices(i_vert)%bot_parent = i_bot_parent + size(mesh_vertices)
+                    ! Determine vertex separation
+                    mirrored_vertex_separation = mirrored_distance/N_panels_streamwise
 
                 end if
 
-            end do
+                ! Loop down the streamwise direction to place vertices
+                do j=1,N_panels_streamwise+1
+
+                    ! Determine location
+                    i_vert = i_vert + 1
+                    loc = start + vertex_separation*(j-1)*freestream%c_hat_g
+
+                    ! Initialize vertex
+                    call this%vertices(i_vert)%init(loc, i_vert, 1)
+
+                    ! Set parent index
+                    this%vertices(i_vert)%top_parent = i_top_parent
+                    this%vertices(i_vert)%bot_parent = i_bot_parent
+
+                    ! Initialize mirror
+                    if (asym_flow) then
+
+                        ! Determine location
+                        i_mirrored_vert = i_vert + this%N_verts/2
+                        mirrored_start = mirror_across_plane(start, mirror_plane)
+                        loc = mirrored_start + mirrored_vertex_separation*(j-1)*freestream%c_hat_g
+
+                        ! Initialize vertex
+                        call this%vertices(i_mirrored_vert)%init(loc, i_mirrored_vert, 1)
+
+                        ! Set parent index
+                        this%vertices(i_mirrored_vert)%top_parent = i_top_parent + size(mesh_vertices)
+                        this%vertices(i_mirrored_vert)%bot_parent = i_bot_parent + size(mesh_vertices)
+
+                    end if
+
+                end do
+            end if
         end do
 
         ! Determine necessary number of panels
