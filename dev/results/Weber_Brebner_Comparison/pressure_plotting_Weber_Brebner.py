@@ -246,9 +246,16 @@ class Swept_Plotting:
                         if l > 0:
                             # Verify that all x axis values are the same
                             count = 0
-                            difference = []
-                            x_axis = data_locations[i][l][:,0]
+                            pos_difference = []
+                            neg_difference = []
+                            x_axis = np.array(data_locations[i][l][:,0]).tolist()
+                            pos_x_axis = []
+                            neg_x_axis = []
+                            
+                            # Iterate over values in the x axis
                             for r, val in enumerate(x_axis):
+
+                                # Prevent errors in alignment and comparison of formulation locations
                                 if val != data_locations[i][0][r,0]:
                                     
                                     # Ensure error message is only thrown once
@@ -257,20 +264,32 @@ class Swept_Plotting:
                                         print(f"X axis values are not lining up right for the {form} formulation. Results may be invalid.")  
                                 
                                 # Calculate difference between formulation results
-                                difference.append(data_locations[i][l][r,1] - data_locations[i][0][r,1])
-                            
+                                diff = data_locations[i][l][r,1] - data_locations[i][0][r,1]
+                                
+                                if diff >=0.0:
+                                    pos_difference.append(diff)
+                                    pos_x_axis.append(x_axis[r])
+                                else:
+                                    neg_difference.append(abs(diff))
+                                    neg_x_axis.append(x_axis[r])
+                                    
                             # Label curve and plot difference    
                             Curve_label = f"{Node} nodes"
-                            plt.plot(x_axis, difference, marker="o", markersize=size[i], label=Curve_label, linestyle="none", color="k")
-
+                            plt.plot(pos_x_axis, pos_difference, marker="o", markersize=size[i], label=Curve_label, linestyle="none", color="k")
+                            # Plot negative difference values a different color
+                            if len(neg_difference) != 0:
+                                plt.plot(neg_x_axis, neg_difference, marker="o", markersize=size[i], linestyle="none", color="k", alpha=0.3)
+                            
+                
                 # Format the plot
                 if adjust_xscale != "auto":
                     plt.xlim(-adjust_xscale, adjust_xscale)
                 if adjust_yscale != "auto":
                     plt.ylim(-adjust_yscale, adjust_yscale)
                 plt.xlabel("Arc Length")
-                plt.ylabel(f"$\Delta C_p$ ({formulations[1]} - {formulations[0]})")
-                plt.gca().invert_yaxis()
+                plt.ylabel(f"$|\Delta C_p|$ ({formulations[1]} - {formulations[0]})")
+                # plt.gca().invert_yaxis()
+                plt.yscale("log")
                 plt.legend()
                 # Include title if plots will be combined
                 if json_vals["plots"]["combine pdfs"] and json_vals["plots"]["save plot type"] == "pdf":
@@ -286,7 +305,7 @@ class Swept_Plotting:
                     figure_list.append(comparison_plot_name)
                     plt.savefig(comparison_plot_name)
                 plt.show()
-
+            
             if json_vals["plots"]["combine pdfs"] and json_vals["plots"]["save plot type"] == "pdf":
                 # Combine files in plot summary folder
                 merger = PdfFileMerger()
