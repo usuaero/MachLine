@@ -30,7 +30,7 @@ module wake_mesh_mod
 contains
 
 
-    subroutine wake_mesh_init(this, freestream, top_edge_verts, mesh_edges, N_wake_edges, &
+    subroutine wake_mesh_init(this, freestream, mesh_edges, &
                               N_panels_streamwise, mesh_vertices, trefftz_dist, asym_flow, mirror_plane, N_mesh_panels)
         ! Creates the vertices and panels. Handles vertex association.
 
@@ -38,11 +38,9 @@ contains
 
         class(wake_mesh),intent(inout) :: this
         type(flow),intent(in) :: freestream
-        integer,allocatable,dimension(:),intent(in) :: top_edge_verts
         type(edge),allocatable,dimension(:),intent(in) :: mesh_edges
-        integer,intent(in) :: N_wake_edges
         integer,intent(in) :: N_panels_streamwise
-        type(vertex),allocatable,dimension(:),intent(in) :: mesh_vertices
+        type(vertex),allocatable,dimension(:),intent(inout) :: mesh_vertices
         real,intent(in) :: trefftz_dist
         logical,intent(in) :: asym_flow
         integer,intent(in) :: mirror_plane, N_mesh_panels
@@ -51,14 +49,48 @@ contains
         real,dimension(3) :: loc, start, mirrored_start
         integer :: i, j, k, i_vert, i_mirrored_vert, i_panel, i_top_parent, i_bot_parent, i_start, i_stop, i1, i2, i3
         integer :: N_wake_edge_verts
+        integer :: N_wake_edges
+        integer,dimension(:),allocatable :: wake_edge_indices, wake_edge_verts
+        logical,dimension(:),allocatable :: is_wake_edge_vertex
 
-        if (verbose) write(*,'(a e10.4 a)',advance='no') "     Initializing wake with a Trefftz distance of ", trefftz_dist, "..."
+        if (verbose) write(*,'(a ES10.4 a)',advance='no') "     Initializing wake with a Trefftz distance of ", trefftz_dist, "..."
+
+        ! Count up wake-shedding edges
+        N_wake_edges = 0
+        do i=1,size(mesh_edges)
+            if (mesh_edges(i)%sheds_wake) then
+                N_wake_edges = N_wake_edges + 1
+            end if
+        end do
+
+        ! Get indices of wake-shedding edges and vertices
+        allocate(wake_edge_indices(N_wake_edges))
+        allocate(is_wake_edge_vertex(size(mesh_vertices)))
+        j = 0
+        do i=1,size(mesh_edges)
+            if (mesh_edges(i)%sheds_wake) then
+
+                ! Store edge index
+                j = j + 1
+                wake_edge_indices(j) = i
+
+                ! Store that the vertices are wake-shedding
+                is_wake_edge_vertex(mesh_edges(i)%verts(1)) = .true.
+                is_wake_edge_vertex(mesh_edges(i)%verts(2)) = .true.
+            end if
+        end do
 
         ! Determine how many vertices are along the wake-shedding edges
-        N_wake_edge_verts = 0
-        do i=1,size(top_edge_verts)
-            if (mesh_vertices(top_edge_verts(i))%vert_type == 1) then
-                N_wake_edge_verts = N_wake_edge_verts + 1
+        N_wake_edge_verts = count(is_wake_edge_vertex)
+
+        ! Get wake-shedding edge vertex indices
+        allocate(wake_edge_verts(N_wake_edge_verts))
+        j = 0
+        do i=1,size(mesh_vertices)
+            if (is_wake_edge_vertex(i)) then
+                j = j + 1
+                wake_edge_verts(j) = i
+                mesh_vertices(i)%index_in_wake_vertices = j
             end if
         end do
 
@@ -77,7 +109,7 @@ contains
         do i=1,N_wake_edge_verts
 
             ! Check this is not a midpoint vertex
-            i_top_parent = top_edge_verts(i)
+            i_top_parent = wake_edge_verts(i)
             if (mesh_vertices(i_top_parent)%vert_type == 1) then
 
                 ! Get indices
@@ -152,98 +184,93 @@ contains
         allocate(this%panels(this%N_panels))
 
         ! Loop through wake-shedding edges to intialize panels
-        k = 0
-        do i=1,size(mesh_edges)
+        do k=1,N_wake_edges
 
-            ! Check if this edge sheds a wake
-            if (mesh_edges(i)%sheds_wake) then
+            ! Get index of edge
+            i = wake_edge_indices(k)
 
-                ! Update index of wake-shedding edge
-                k = k + 1
+            ! Determine which wake-shedding vertices this panel lies between
+            i_start = mesh_vertices(mesh_edges(i)%verts(1))%index_in_wake_vertices
+            i_stop = mesh_vertices(mesh_edges(i)%verts(2))%index_in_wake_vertices
 
-                ! Determine which wake-shedding vertices this panel lies between
-                i_start = mesh_vertices(mesh_edges(i)%verts(1))%index_in_wake_vertices
-                i_stop = mesh_vertices(mesh_edges(i)%verts(2))%index_in_wake_vertices
+            ! Create panels heading downstream
+            do j=1,N_panels_streamwise
 
-                ! Create panels heading downstream
-                do j=1,N_panels_streamwise
+                ! Determine index of first triangular panel
+                i_panel = (k-1)*N_panels_streamwise*2+2*j-1
 
-                    ! Determine index of first triangular panel
-                    i_panel = (k-1)*N_panels_streamwise*2+2*j-1
+                ! Determine vertex indices
+                i1 = (i_start-1)*(N_panels_streamwise+1)+j
+                i2 = (i_start-1)*(N_panels_streamwise+1)+j+1
+                i3 = (i_stop-1)*(N_panels_streamwise+1)+j+1
+
+                ! Initialize
+                call this%panels(i_panel)%init(this%vertices(i1), this%vertices(i2), this%vertices(i3), i_panel)
+
+                ! Specify this panel is in the wake
+                this%panels(i_panel)%in_wake = .true.
+                this%panels(i_panel)%top_parent = mesh_edges(i)%panels(1)
+                this%panels(i_panel)%bot_parent = mesh_edges(i)%panels(2)
+
+                ! Create mirror
+                if (asym_flow) then
+
+                    ! Determine index
+                    i_panel = i_panel + this%N_panels/2
 
                     ! Determine vertex indices
-                    i1 = (i_start-1)*(N_panels_streamwise+1)+j
-                    i2 = (i_start-1)*(N_panels_streamwise+1)+j+1
-                    i3 = (i_stop-1)*(N_panels_streamwise+1)+j+1
+                    i1 = (i_start-1)*(N_panels_streamwise+1)+j+this%N_verts/2
+                    i2 = (i_start-1)*(N_panels_streamwise+1)+j+1+this%N_verts/2
+                    i3 = (i_stop-1)*(N_panels_streamwise+1)+j+1+this%N_verts/2
 
-                    ! Initialize
-                    call this%panels(i_panel)%init(this%vertices(i1), this%vertices(i2), this%vertices(i3), i_panel)
+                    ! Initialize (order of vertices is reversed to maintain panel orientation through mirror)
+                    call this%panels(i_panel)%init(this%vertices(i3), this%vertices(i2), this%vertices(i1), i_panel)
 
                     ! Specify this panel is in the wake
                     this%panels(i_panel)%in_wake = .true.
-                    this%panels(i_panel)%top_parent = mesh_edges(i)%panels(1)
-                    this%panels(i_panel)%bot_parent = mesh_edges(i)%panels(2)
+                    this%panels(i_panel)%top_parent = mesh_edges(i)%panels(1)+N_mesh_panels
+                    this%panels(i_panel)%bot_parent = mesh_edges(i)%panels(2)+N_mesh_panels
 
-                    ! Create mirror
-                    if (asym_flow) then
+                end if
 
-                        ! Determine index
-                        i_panel = i_panel + this%N_panels/2
+                ! Determine index of second triangular panel
+                i_panel = (k-1)*N_panels_streamwise*2+2*j
 
-                        ! Determine vertex indices
-                        i1 = (i_start-1)*(N_panels_streamwise+1)+j+this%N_verts/2
-                        i2 = (i_start-1)*(N_panels_streamwise+1)+j+1+this%N_verts/2
-                        i3 = (i_stop-1)*(N_panels_streamwise+1)+j+1+this%N_verts/2
+                ! Determine vertex indices
+                i1 = (i_start-1)*(N_panels_streamwise+1)+j
+                i2 = (i_stop-1)*(N_panels_streamwise+1)+j+1
+                i3 = (i_stop-1)*(N_panels_streamwise+1)+j
 
-                        ! Initialize (order of vertices is reversed to maintain panel orientation through mirror)
-                        call this%panels(i_panel)%init(this%vertices(i3), this%vertices(i2), this%vertices(i1), i_panel)
+                ! Initialize
+                call this%panels(i_panel)%init(this%vertices(i1), this%vertices(i2), this%vertices(i3), i_panel)
 
-                        ! Specify this panel is in the wake
-                        this%panels(i_panel)%in_wake = .true.
-                        this%panels(i_panel)%top_parent = mesh_edges(i)%panels(1)+N_mesh_panels
-                        this%panels(i_panel)%bot_parent = mesh_edges(i)%panels(2)+N_mesh_panels
+                ! Specify this panel is in the wake
+                this%panels(i_panel)%in_wake = .true.
+                this%panels(i_panel)%top_parent = mesh_edges(i)%panels(1)
+                this%panels(i_panel)%bot_parent = mesh_edges(i)%panels(2)
 
-                    end if
+                ! Create mirror
+                if (asym_flow) then
 
-                    ! Determine index of second triangular panel
-                    i_panel = (k-1)*N_panels_streamwise*2+2*j
+                    ! Determine index
+                    i_panel = i_panel + this%N_panels/2
 
                     ! Determine vertex indices
-                    i1 = (i_start-1)*(N_panels_streamwise+1)+j
-                    i2 = (i_stop-1)*(N_panels_streamwise+1)+j+1
-                    i3 = (i_stop-1)*(N_panels_streamwise+1)+j
+                    i1 = (i_start-1)*(N_panels_streamwise+1)+j+this%N_verts/2
+                    i2 = (i_stop-1)*(N_panels_streamwise+1)+j+1+this%N_verts/2
+                    i3 = (i_stop-1)*(N_panels_streamwise+1)+j+this%N_verts/2
 
-                    ! Initialize
-                    call this%panels(i_panel)%init(this%vertices(i1), this%vertices(i2), this%vertices(i3), i_panel)
+                    ! Initialize (again, order is reversed)
+                    call this%panels(i_panel)%init(this%vertices(i3), this%vertices(i2), this%vertices(i1), i_panel)
 
                     ! Specify this panel is in the wake
                     this%panels(i_panel)%in_wake = .true.
-                    this%panels(i_panel)%top_parent = mesh_edges(i)%panels(1)
-                    this%panels(i_panel)%bot_parent = mesh_edges(i)%panels(2)
+                    this%panels(i_panel)%top_parent = mesh_edges(i)%panels(1)+N_mesh_panels
+                    this%panels(i_panel)%bot_parent = mesh_edges(i)%panels(2)+N_mesh_panels
 
-                    ! Create mirror
-                    if (asym_flow) then
+                end if
 
-                        ! Determine index
-                        i_panel = i_panel + this%N_panels/2
-
-                        ! Determine vertex indices
-                        i1 = (i_start-1)*(N_panels_streamwise+1)+j+this%N_verts/2
-                        i2 = (i_stop-1)*(N_panels_streamwise+1)+j+1+this%N_verts/2
-                        i3 = (i_stop-1)*(N_panels_streamwise+1)+j+this%N_verts/2
-
-                        ! Initialize (again, order is reversed)
-                        call this%panels(i_panel)%init(this%vertices(i3), this%vertices(i2), this%vertices(i1), i_panel)
-
-                        ! Specify this panel is in the wake
-                        this%panels(i_panel)%in_wake = .true.
-                        this%panels(i_panel)%top_parent = mesh_edges(i)%panels(1)+N_mesh_panels
-                        this%panels(i_panel)%bot_parent = mesh_edges(i)%panels(2)+N_mesh_panels
-
-                    end if
-
-                end do
-            end if
+            end do
         end do
 
         ! Initialize freestream-dependent properties

@@ -21,12 +21,11 @@ module surface_mesh_mod
 
     type surface_mesh
 
-        integer :: N_verts, N_panels, N_cp, N_edges, N_wake_edges
+        integer :: N_verts, N_panels, N_cp, N_edges
         type(vertex),allocatable,dimension(:) :: vertices
         type(panel),allocatable,dimension(:) :: panels
         type(edge),allocatable,dimension(:) :: edges
         type(wake_mesh) :: wake
-        integer,allocatable,dimension(:) :: wake_edge_verts
         real :: C_wake_shedding_angle, trefftz_distance, C_min_panel_angle
         integer :: N_wake_panels_streamwise
         logical :: wake_present, append_wake
@@ -40,6 +39,7 @@ module surface_mesh_mod
         logical :: mirrored ! Whether the mesh is to be mirrored about any planes
         integer :: mirror_plane ! Index of the plane across which the mesh is mirrored (1: yz, 2: xz, 3: xy); this is the index of the normal to that plane
         logical :: asym_flow ! Whether the flow is asymmetric about the mirror plane
+        logical :: found_discontinuous_edges
         real,dimension(:),allocatable :: mu, sigma ! Singularity strengths
         real :: S_ref ! Reference parameters
 
@@ -578,21 +578,19 @@ contains
         class(surface_mesh),intent(inout) :: this
         type(flow),intent(in) :: freestream
 
-        integer :: i, j, k, m, n, temp, top_panel, bottom_panel, i_vert_1, i_vert_2, N_wake_edge_verts, mid
-        integer,dimension(:),allocatable :: wake_edge_verts
+        integer :: i, j, k, m, n, temp, top_panel, bottom_panel, i_vert_1, i_vert_2, mid, N_wake_edges
         real :: C_angle, C_min_angle
         real,dimension(3) :: second_normal
 
         if (verbose) write(*,'(a)',advance='no') "     Characterizing edges..."
 
         ! Initialize
-        allocate(wake_edge_verts(this%N_verts/4)) ! I sure hope you're not trying to run a mesh where every fourth vertex has a wake emanating from it...
-        this%N_wake_edges = 0
-        N_wake_edge_verts = 0
+        N_wake_edges = 0
+        this%found_discontinuous_edges = .false.
 
         ! Loop through each edge
         !$OMP parallel do private(i, j, second_normal, C_angle, i_vert_1, i_vert_2, mid) reduction(min : C_min_angle) &
-        !$OMP & default(none) shared(this, freestream, wake_edge_verts, N_wake_edge_verts, doublet_order)
+        !$OMP & default(none) shared(this, freestream, doublet_order, N_wake_edges)
         do k=1,this%N_edges
 
             ! Get info
@@ -620,6 +618,11 @@ contains
                 ! Check angle of panel normal with freestream
                 if (inner(this%panels(i)%n_g, freestream%V_inf) > 0.0 .or. inner(second_normal, freestream%V_inf) > 0.0) then
 
+                    ! Passing the previous two checks, we've found a wake-shedding edge
+
+                    ! Set that we've found discontinuous edges
+                    this%found_discontinuous_edges = .true.
+
                     ! Get vertex indices (simplifies later code)
                     i_vert_1 = this%edges(k)%verts(1)
                     i_vert_2 = this%edges(k)%verts(2)
@@ -631,39 +634,27 @@ contains
                     !$OMP critical
 
                     ! Update number of wake-shedding edges
-                    this%N_wake_edges = this%N_wake_edges + 1
-
-                    ! If this vertex does not already belong to a wake-shedding edge, add it to the list of wake edge vertices
-                    if (this%vertices(i_vert_1)%N_wake_edges == 0) then 
-                        N_wake_edge_verts = N_wake_edge_verts + 1
-                        wake_edge_verts(N_wake_edge_verts) = i_vert_1
-                        this%vertices(i_vert_1)%index_in_wake_vertices = N_wake_edge_verts
-
-                    ! If it does already belong to a wake-shedding edge, then we may now conclude it is 'in' an edge
-                    ! Because of this, it will likely need to be cloned unless it's on a mirror plane
-                    else if (.not. this%edges(k)%on_mirror_plane) then
-                        this%vertices(i_vert_1)%needs_clone = .true.
-                    end if
+                    N_wake_edges = N_wake_edges + 1
 
                     ! Update number of wake edges touching this vertex
                     this%vertices(i_vert_1)%N_wake_edges = this%vertices(i_vert_1)%N_wake_edges + 1
                     this%vertices(i_vert_1)%N_discont_edges = this%vertices(i_vert_1)%N_discont_edges + 1
 
-                    ! Do the same for the other vertex
-                    if (this%vertices(i_vert_2)%N_wake_edges == 0) then 
-                        N_wake_edge_verts = N_wake_edge_verts + 1
-                        wake_edge_verts(N_wake_edge_verts) = i_vert_2
-                        this%vertices(i_vert_2)%index_in_wake_vertices = N_wake_edge_verts
-
-                    ! If it does already belong to a wake-shedding edge, then we may now conclude it is 'in' an edge
-                    ! Because of this, it will likely need to be cloned unless it's on a mirror plane
-                    else if (.not. this%edges(k)%on_mirror_plane) then
-                        this%vertices(i_vert_2)%needs_clone = .true.
+                    ! If the vertex is now touching two wake-shedding edges, it is 'in' a wake-shedding edge and will need to be cloned
+                    ! As long as the edge is not on the mirror plane
+                    if (this%vertices(i_vert_1)%N_wake_edges >= 2 .and. .not. this%edges(k)%on_mirror_plane) then
+                        this%vertices(i_vert_1)%needs_clone = .true.
                     end if
 
                     ! Update number of wake edges touching this vertex
                     this%vertices(i_vert_2)%N_wake_edges = this%vertices(i_vert_2)%N_wake_edges + 1
                     this%vertices(i_vert_2)%N_discont_edges = this%vertices(i_vert_2)%N_discont_edges + 1
+
+                    ! If the vertex is now touching two wake-shedding edges, it is 'in' a wake-shedding edge and will need to be cloned
+                    ! As long as the edge is not on the mirror plane
+                    if (this%vertices(i_vert_2)%N_wake_edges >= 2 .and. .not. this%edges(k)%on_mirror_plane) then
+                        this%vertices(i_vert_2)%needs_clone = .true.
+                    end if
 
                     ! Update information for midpoint vertex
                     if (doublet_order == 2) then
@@ -671,9 +662,6 @@ contains
                         this%vertices(mid)%N_wake_edges = 1
                         this%vertices(mid)%N_discont_edges = 1
                         this%vertices(mid)%needs_clone = .true.
-                        N_wake_edge_verts = N_wake_edge_verts + 1
-                        wake_edge_verts(N_wake_edge_verts) = mid
-                        this%vertices(mid)%index_in_wake_vertices = N_wake_edge_verts
                     end if
 
                     !$OMP end critical
@@ -686,10 +674,7 @@ contains
         ! Store minimum angle
         this%C_min_panel_angle = C_min_angle
 
-        ! Allocate wake vertices array
-        allocate(this%wake_edge_verts, source=wake_edge_verts(1:N_wake_edge_verts))
-
-        if (verbose) write(*,'(a, i3, a, i3, a)') "Done. Found ", this%N_wake_edges, " wake-shedding edges."
+        if (verbose) write(*,'(a, i3, a, i3, a)') "Done. Found ", N_wake_edges, " wake-shedding edges."
 
     end subroutine surface_mesh_characterize_edges
 
@@ -833,23 +818,14 @@ contains
         type(vertex),dimension(:),allocatable :: temp_vertices
 
         ! Check whether any discontinuities exist
-        if (allocated(this%wake_edge_verts)) then
+        if (this%found_discontinuous_edges) then
 
             if (verbose) write(*,'(a)',advance='no') "     Cloning vertices at discontinuous edges..."
 
-            ! Allocate array which will store which discontinuous vertices need to be cloned
-            N_discont_verts = size(this%wake_edge_verts)
-
             ! Determine number of vertices which need to be cloned
             N_clones = 0
-            do i=1,N_discont_verts
-
-                if (this%vertices(this%wake_edge_verts(i))%needs_clone) then
-
-                    ! Update the number of needed clones
-                    N_clones = N_clones + 1
-
-                end if
+            do i=1,this%N_verts
+                if (this%vertices(i)%needs_clone) N_clones = N_clones + 1
             end do
 
             ! Add space for new vertices
@@ -857,10 +833,7 @@ contains
 
             ! Initialize clones
             j = 1
-            do i=1,N_discont_verts
-
-                ! Get index of vertex to be cloned
-                i_jango = this%wake_edge_verts(i)
+            do i_jango=1,this%N_verts
 
                 ! Check if this vertex needs to be cloned
                 if (this%vertices(i_jango)%needs_clone) then
@@ -1085,14 +1058,10 @@ contains
             end if
 
             ! Initialize wake
-            call this%wake%init(freestream, this%wake_edge_verts, &
-                                this%edges, this%N_wake_edges, &
+            call this%wake%init(freestream, this%edges, &
                                 this%N_wake_panels_streamwise, this%vertices, &
                                 this%trefftz_distance, this%asym_flow, &
                                 this%mirror_plane, this%N_panels)
-
-            ! Clean up
-            deallocate(this%wake_edge_verts)
         
             ! Export wake geometry
             if (wake_file /= 'none') then
