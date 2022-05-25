@@ -195,6 +195,9 @@ contains
         this%top_parent = 0
         this%bot_parent = 0
 
+        ! Allocate midpoint array
+        if (doublet_order == 2) allocate(this%midpoints(this%N))
+
         call this%calc_derived_geom()
 
     end subroutine panel_init_3
@@ -220,24 +223,6 @@ contains
         call this%calc_centroid()
 
     end subroutine  panel_calc_derived_geom
-
-
-    !subroutine panel_calc_midpoints(this)
-
-    !    implicit none
-
-    !    class(panel),intent(inout) :: this
-
-    !    integer :: i
-
-    !    ! Determine midpoints
-    !    allocate(this%midpoints(3,this%N))
-    !    do i=1,this%N-1
-    !        this%midpoints(:,i) = 0.5*(this%get_vertex_loc(i)+this%get_vertex_loc(i+1))
-    !    end do
-    !    this%midpoints(:,this%N) = 0.5*(this%get_vertex_loc(1)+this%get_vertex_loc(this%N))
-
-    !end subroutine panel_calc_midpoints
 
 
     subroutine panel_calc_normal(this)
