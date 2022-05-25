@@ -24,7 +24,7 @@
             "89.8": 44,
             "94.9": 46.5
         },
-        "nodes": ["10", "20", "40", "80"],
+        "nodes": ["80"],
         "nodes_notes": ["Nodes 80 and above need to be ran on Ryzen or",
                         "memory cap will fail"],
         "uniform chord length": 20
