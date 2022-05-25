@@ -23,6 +23,7 @@ module wake_mesh_mod
         contains
 
             procedure :: init => wake_mesh_init
+            procedure :: init_midpoints => wake_mesh_init_midpoints
 
     end type wake_mesh
 
@@ -36,7 +37,7 @@ contains
 
         implicit none
 
-        class(wake_mesh),intent(inout) :: this
+        class(wake_mesh),intent(inout),target :: this
         type(edge),allocatable,dimension(:),intent(in) :: body_edges
         type(vertex),allocatable,dimension(:),intent(inout) :: body_verts
         integer,intent(in) :: N_body_panels
@@ -48,8 +49,7 @@ contains
         real :: distance, vertex_separation, mirrored_distance, mirrored_vertex_separation
         real,dimension(3) :: loc, start, mirrored_start
         integer :: i, j, k, i_vert, i_mirrored_vert, i_panel, i_top_parent, i_bot_parent, i_start, i_stop, i1, i2, i3
-        integer :: N_wake_edge_verts
-        integer :: N_wake_edges
+        integer :: N_wake_edge_verts, N_wake_edges, N_mids
         integer,dimension(:),allocatable :: wake_edge_indices, wake_edge_verts
         logical,dimension(:),allocatable :: is_wake_edge_vertex
 
@@ -100,8 +100,19 @@ contains
             this%N_verts = N_wake_edge_verts*(N_panels_streamwise+1)
         end if
 
+        ! Determine necessary number of midpoints
+        if (doublet_order == 2) then
+            if (asym_flow) then
+                N_mids = (N_wake_edge_verts*N_panels_streamwise + N_wake_edges*(2*N_panels_streamwise + 1) )*2
+            else
+                N_mids = N_wake_edge_verts*N_panels_streamwise + N_wake_edges*(2*N_panels_streamwise + 1)
+            end if
+        else
+            N_mids = 0
+        end if
+
         ! Allocate vertex storage
-        allocate(this%vertices(this%N_verts))
+        allocate(this%vertices(this%N_verts + N_mids))
 
         ! Determine vertex placement
         i_vert = 0
@@ -272,6 +283,16 @@ contains
             end do
         end do
 
+        ! Place midpoints
+        if (doublet_order == 2) then
+
+            call this%init_midpoints()
+        
+            ! Include midpoints in the total number of vertices
+            this%N_verts = this%N_verts + N_mids
+
+        end if
+
         ! Initialize freestream-dependent properties
         ! The mirror of wake panels will never need to be initialized
         do i=1,this%N_panels
@@ -282,6 +303,125 @@ contains
                                                   this%N_panels, " wake panels."
 
     end subroutine wake_mesh_init
+
+
+    subroutine wake_mesh_init_midpoints(this)
+        ! Initializes the midpoints for the wake mesh
+
+        class(wake_mesh),intent(inout),target :: this
+
+        integer :: i_mid, i, j, m, n, m1, n1, temp, i_edge
+        real :: distance
+        integer,dimension(2) :: shared_verts
+        logical :: already_found_shared
+        real,dimension(3) :: loc
+
+        i_mid = this%N_verts
+        do i=1,this%N_panels
+
+            ! Loop through each potential neighbor
+            neighbor_loop: do j=i+1,this%N_panels
+
+                ! Check if we've found all neighbors for this panel
+                if (all(this%panels(i)%abutting_panels /= 0)) then
+                    exit neighbor_loop
+                end if
+
+                ! Initialize for this panel pair
+                already_found_shared = .false.
+
+                ! Check if the panels are abutting
+                abutting_loop: do m=1,this%panels(i)%N
+                    do n=1,this%panels(j)%N
+
+                        ! Get distance between vertices
+                        distance = dist(this%panels(i)%get_vertex_loc(m), this%panels(j)%get_vertex_loc(n))
+
+                        ! Check distance
+                        if (distance < 1.e-12) then
+
+                            ! Previously found a shared vertex, so we have abutting panels
+                            if (already_found_shared) then
+
+                                ! Store second shared vertex
+                                shared_verts(2) = this%panels(i)%get_vertex_index(m)
+
+                                ! Check order; edge should proceed counterclockwise about panel i
+                                if (m1 == 1 .and. m == this%panels(i)%N) then
+                                    temp = shared_verts(1)
+                                    shared_verts(1) = shared_verts(2)
+                                    shared_verts(2) = temp
+                                end if
+
+                                ! Initialize midpoint
+                                i_mid = i_mid + 1
+                                loc = 0.5*(this%vertices(shared_verts(1))%loc + this%vertices(shared_verts(2))%loc)
+                                call this%vertices(i_mid)%init(loc, i_mid, 2)
+
+                                ! Store adjacent panels
+
+                                ! Store that i is adjacent to j
+                                if ( (n1 == 1 .and. n == this%panels(j)%N) .or. (n == 1 .and. n1 == this%panels(j)%N) ) then
+                                    i_edge = this%panels(j)%N
+                                else
+                                    n1 = min(n, n1)
+                                    i_edge = n1
+                                end if
+                                this%panels(j)%abutting_panels(i_edge) = i
+                                this%panels(j)%midpoints(i_edge)%ptr => this%vertices(i_mid)
+                                this%panels(j)%midpoint_indices(i_edge) = i_mid
+
+                                ! Store that j is adjacent to i
+                                if (m1 == 1 .and. m == this%panels(i)%N) then ! Nth edge
+                                    i_edge = m
+                                else ! 1st or 2nd edge
+                                    i_edge = m1
+                                end if
+                                this%panels(i)%abutting_panels(i_edge) = j
+                                this%panels(i)%midpoints(i_edge)%ptr => this%vertices(i_mid)
+                                this%panels(i)%midpoint_indices(i_edge) = i_mid
+
+                                ! Break out of loop
+                                exit abutting_loop
+
+                            ! First shared vertex
+                            else
+
+                                already_found_shared = .true.
+                                shared_verts(1) = this%panels(i)%get_vertex_index(m)
+                                m1 = m
+                                n1 = n
+
+                            end if
+                        end if
+
+                    end do
+
+                end do abutting_loop
+
+            end do neighbor_loop
+
+            ! Check for edges on empty space
+            do j=1,this%panels(i)%N
+
+                if (this%panels(i)%abutting_panels(j) == 0) then
+
+                    ! Initialize midpoint
+                    i_mid = i_mid + 1
+                    loc = 0.5*(this%panels(i)%get_vertex_loc(j) + this%panels(i)%get_vertex_loc(modulo(j, this%panels(i)%N)+1))
+                    call this%vertices(i_mid)%init(loc, i_mid, 2)
+
+                    ! Point panel to it
+                    this%panels(i)%midpoints(j)%ptr => this%vertices(i_mid)
+                    this%panels(i)%midpoint_indices(j) = i_mid
+
+                end if
+
+            end do
+
+        end do
+        
+    end subroutine wake_mesh_init_midpoints
 
 
 end module wake_mesh_mod

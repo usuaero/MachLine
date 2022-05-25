@@ -172,10 +172,9 @@ contains
         ! Set number of sides
         this%N = 3
 
-        ! Allocate vertex array
+        ! Allocate vertex arrays
         allocate(this%vertices(this%N))
         allocate(this%vertex_indices(this%N))
-        if (doublet_order == 2) allocate(this%midpoint_indices(this%N), source=0)
 
         ! Assign vertex pointers
         this%vertices(1)%ptr => v1
@@ -195,8 +194,11 @@ contains
         this%top_parent = 0
         this%bot_parent = 0
 
-        ! Allocate midpoint array
-        if (doublet_order == 2) allocate(this%midpoints(this%N))
+        ! Allocate midpoint arrays
+        if (doublet_order == 2) then
+            allocate(this%midpoints(this%N))
+            allocate(this%midpoint_indices(this%N))
+        end if
 
         call this%calc_derived_geom()
 
