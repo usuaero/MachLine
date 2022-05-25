@@ -100,6 +100,13 @@ contains
             this%N_verts = N_wake_edge_verts*(N_panels_streamwise+1)
         end if
 
+        ! Determine necessary number of panels
+        if (asym_flow) then
+            this%N_panels = N_wake_edges*N_panels_streamwise*4
+        else
+            this%N_panels = N_wake_edges*N_panels_streamwise*2
+        end if
+
         ! Determine necessary number of midpoints
         if (doublet_order == 2) then
             if (asym_flow) then
@@ -111,24 +118,15 @@ contains
             N_mids = 0
         end if
 
-        ! Allocate vertex storage
+        ! Initialize vertices
         allocate(this%vertices(this%N_verts + N_mids))
-
-        ! Place vertices
         call this%init_vertices(body_verts, freestream, wake_edge_verts, asym_flow, trefftz_dist, N_panels_streamwise, mirror_plane)
 
-        ! Determine necessary number of panels
-        if (asym_flow) then
-            this%N_panels = N_wake_edges*N_panels_streamwise*4
-        else
-            this%N_panels = N_wake_edges*N_panels_streamwise*2
-        end if
+        ! Initialize panels
         allocate(this%panels(this%N_panels))
-
-        ! Generate panels
         call this%init_panels(body_edges, body_verts, N_panels_streamwise, wake_edge_indices, asym_flow, N_body_panels)
 
-        ! Place midpoints
+        ! Initialize midpoints (if needed)
         if (doublet_order == 2) then
 
             call this%init_midpoints()
@@ -138,7 +136,7 @@ contains
 
         end if
 
-        ! Initialize freestream-dependent properties
+        ! Initialize freestream-dependent properties of panels once the midpoints have been created
         ! The mirror of wake panels will never need to be initialized
         do i=1,this%N_panels
             call this%panels(i)%init_with_flow(freestream, .false., mirror_plane)
