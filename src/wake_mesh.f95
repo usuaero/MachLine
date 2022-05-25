@@ -23,6 +23,8 @@ module wake_mesh_mod
         contains
 
             procedure :: init => wake_mesh_init
+            procedure :: init_vertices => wake_mesh_init_vertices
+            procedure :: init_panels => wake_mesh_init_panels
             procedure :: init_midpoints => wake_mesh_init_midpoints
 
     end type wake_mesh
@@ -46,9 +48,7 @@ contains
         integer,intent(in) :: mirror_plane, N_panels_streamwise
         real,intent(in) :: trefftz_dist
 
-        real :: distance, vertex_separation, mirrored_distance, mirrored_vertex_separation
-        real,dimension(3) :: loc, start, mirrored_start
-        integer :: i, j, k, i_vert, i_mirrored_vert, i_panel, i_top_parent, i_bot_parent, i_start, i_stop, i1, i2, i3
+        integer :: i, j
         integer :: N_wake_edge_verts, N_wake_edges, N_mids
         integer,dimension(:),allocatable :: wake_edge_indices, wake_edge_verts
         logical,dimension(:),allocatable :: is_wake_edge_vertex
@@ -114,8 +114,61 @@ contains
         ! Allocate vertex storage
         allocate(this%vertices(this%N_verts + N_mids))
 
+        ! Place vertices
+        call this%init_vertices(body_verts, freestream, wake_edge_verts, asym_flow, trefftz_dist, N_panels_streamwise, mirror_plane)
+
+        ! Determine necessary number of panels
+        if (asym_flow) then
+            this%N_panels = N_wake_edges*N_panels_streamwise*4
+        else
+            this%N_panels = N_wake_edges*N_panels_streamwise*2
+        end if
+        allocate(this%panels(this%N_panels))
+
+        ! Generate panels
+        call this%init_panels(body_edges, body_verts, N_panels_streamwise, wake_edge_indices, asym_flow, N_body_panels)
+
+        ! Place midpoints
+        if (doublet_order == 2) then
+
+            call this%init_midpoints()
+        
+            ! Include midpoints in the total number of vertices
+            this%N_verts = this%N_verts + N_mids
+
+        end if
+
+        ! Initialize freestream-dependent properties
+        ! The mirror of wake panels will never need to be initialized
+        do i=1,this%N_panels
+            call this%panels(i)%init_with_flow(freestream, .false., mirror_plane)
+        end do
+
+        if (verbose) write(*,'(a, i7, a, i7, a)') "Done. Created ", this%N_verts, " wake vertices and ", &
+                                                  this%N_panels, " wake panels."
+
+    end subroutine wake_mesh_init
+
+
+    subroutine wake_mesh_init_vertices(this, body_verts, freestream, wake_edge_verts, asym_flow, &
+                                       trefftz_dist, N_panels_streamwise, mirror_plane)
+        ! Initializes the vertices for the mesh
+
+        class(wake_mesh),intent(inout) :: this
+        type(vertex),allocatable,dimension(:),intent(inout) :: body_verts
+        type(flow),intent(in) :: freestream
+        integer,dimension(:),allocatable,intent(in) :: wake_edge_verts
+        logical,intent(in) :: asym_flow
+        real,intent(in) :: trefftz_dist
+        integer,intent(in) :: N_panels_streamwise, mirror_plane
+
+        integer :: i_vert, i, j, i_top_parent, i_bot_parent, i_mirrored_vert, N_wake_edge_verts
+        real :: distance, vertex_separation, mirrored_distance, mirrored_vertex_separation
+        real,dimension(3) :: start, loc, mirrored_start
+
         ! Determine vertex placement
         i_vert = 0
+        N_wake_edge_verts = size(wake_edge_verts)
         do i=1,N_wake_edge_verts
 
             ! Check this is not a midpoint vertex
@@ -184,16 +237,25 @@ contains
                 end do
             end if
         end do
+    
+        
+    end subroutine wake_mesh_init_vertices
 
-        ! Determine necessary number of panels
-        if (asym_flow) then
-            this%N_panels = N_wake_edges*N_panels_streamwise*4
-        else
-            this%N_panels = N_wake_edges*N_panels_streamwise*2
-        end if
-        allocate(this%panels(this%N_panels))
+
+    subroutine wake_mesh_init_panels(this, body_edges, body_verts, N_panels_streamwise, wake_edge_indices, asym_flow, N_body_panels)
+        ! Initializes the wake panels
+
+        class(wake_mesh),intent(inout) :: this
+        type(edge),allocatable,dimension(:),intent(in) :: body_edges
+        type(vertex),dimension(:),allocatable,intent(in) :: body_verts
+        integer,intent(in) :: N_panels_streamwise, N_body_panels
+        integer,dimension(:),allocatable,intent(in) :: wake_edge_indices
+        logical,intent(in) :: asym_flow
+
+        integer :: i, j, k, i_start, i_stop, i_panel, i1, i2, i3, N_wake_edges
 
         ! Loop through wake-shedding edges to intialize panels
+        N_wake_edges = size(wake_edge_indices)
         do k=1,N_wake_edges
 
             ! Get index of edge
@@ -282,27 +344,9 @@ contains
 
             end do
         end do
-
-        ! Place midpoints
-        if (doublet_order == 2) then
-
-            call this%init_midpoints()
+    
         
-            ! Include midpoints in the total number of vertices
-            this%N_verts = this%N_verts + N_mids
-
-        end if
-
-        ! Initialize freestream-dependent properties
-        ! The mirror of wake panels will never need to be initialized
-        do i=1,this%N_panels
-            call this%panels(i)%init_with_flow(freestream, .false., mirror_plane)
-        end do
-
-        if (verbose) write(*,'(a, i7, a, i7, a)') "Done. Created ", this%N_verts, " wake vertices and ", &
-                                                  this%N_panels, " wake panels."
-
-    end subroutine wake_mesh_init
+    end subroutine wake_mesh_init_panels
 
 
     subroutine wake_mesh_init_midpoints(this)
