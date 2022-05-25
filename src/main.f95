@@ -6,6 +6,7 @@ program main
     use flow_mod
     use panel_solver_mod
     use helpers_mod
+    use omp_lib
 
     implicit none
 
@@ -32,7 +33,7 @@ program main
     eval_count = 0
 
     ! Start timer
-    call cpu_time(start)
+    start = omp_get_wtime()
 
     ! Set up run
     call json_initialize()
@@ -161,7 +162,7 @@ program main
     call body_mesh%output_results(body_file, wake_file, control_point_file, mirrored_body_file, mirrored_control_point_file)
 
     ! Goodbye
-    call cpu_time(end)
+    end = omp_get_wtime()
     if (verbose) write(*,*)
     write(*,'(a, f10.4, a)') " MachLine exited successfully. Execution time: ", end-start, " s"
 

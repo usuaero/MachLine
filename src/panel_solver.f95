@@ -975,23 +975,37 @@ contains
 
         ! Solve
         select case(this%matrix_solver)
+
+        ! LU decomposition
         case ('LU')
             call lu_solve(this%N, A_copy, this%b, body%mu)
+
+        ! Block successive over-relaxation
         case ('BSOR')
-            call iterative_solve(this%matrix_solver, this%N, A_copy, this%b, this%block_size, this%tol, this%rel, &
+            call block_sor_solve(this%N, A_copy, this%b, this%block_size, this%tol, this%rel, &
                                  this%max_iterations, verbose, body%mu)
-        case ('BJAC')
-            call iterative_solve(this%matrix_solver, this%N, A_copy, this%b, this%block_size, this%tol, this%rel, &
-                                 this%max_iterations, verbose, body%mu)
+
+        ! Adaptive block SOR
         case ('ABSOR')
-            call iterative_solve(this%matrix_solver, this%N, A_copy, this%b, this%block_size, this%tol, this%rel, &
+            this%rel = -1.
+            call block_sor_solve(this%N, A_copy, this%b, this%block_size, this%tol, this%rel, &
                                  this%max_iterations, verbose, body%mu)
+        
+        ! Block Jacobi
+        case ('BJAC')
+            call block_jacobi_solve(this%N, A_copy, this%b, this%block_size, this%tol, this%rel, &
+                                 this%max_iterations, verbose, body%mu)
+
+        ! Optimally relaxed block Jacobi
         case ('ORBJ')
-            call iterative_solve(this%matrix_solver, this%N, A_copy, this%b, this%block_size, this%tol, this%rel, &
+            this%rel = -1.
+            call block_jacobi_solve(this%N, A_copy, this%b, this%block_size, this%tol, this%rel, &
                                  this%max_iterations, verbose, body%mu)
+        ! Improper specification
         case default
             write(*,*) "!!! ", this%matrix_solver, " is not a valid option. Defaulting to LU decomposition."
             call lu_solve(this%N, A_copy, this%b, body%mu)
+
         end select
         if (verbose) write(*,*) "Done."
 
