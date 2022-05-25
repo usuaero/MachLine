@@ -19,7 +19,7 @@ module panel_solver_mod
         real :: corrected_M_inf 
         character(len=:),allocatable :: formulation, pressure_for_forces, matrix_solver
         logical :: incompressible_rule, isentropic_rule, second_order_rule, slender_rule, linear_rule
-        logical :: morino
+        logical :: morino, precondition, write_A_and_b
         logical :: compressible_correction, prandtl_glauert, karman_tsien, laitone
         type(dod),dimension(:,:),allocatable :: dod_info, wake_dod_info
         type(flow) :: freestream
@@ -74,6 +74,8 @@ contains
         call json_xtnsn_get(solver_settings, 'tolerance', this%tol, 1e-8)
         call json_xtnsn_get(solver_settings, 'relaxation', this%rel, 0.5)
         call json_xtnsn_get(solver_settings, 'max_iterations', this%max_iterations, 1000)
+        call json_xtnsn_get(solver_settings, 'precondition', this%precondition, .false.)
+        call json_xtnsn_get(solver_settings, 'write_A_and_b', this%write_A_and_b, .false.)
         this%morino = this%formulation == 'morino'
 
         ! Get pressure rules
@@ -935,6 +937,7 @@ contains
 
         real,dimension(:,:),allocatable :: A_copy
         integer :: stat, i, j
+        real,dimension(:),allocatable :: A_ii_inv
 
         if (verbose) write(*,'(a)',advance='no') "     Solving linear system..."
 
@@ -967,6 +970,40 @@ contains
                 end if
             end do
 
+        end if
+
+
+        ! Write A and b to file
+        if (this%write_A_and_b) then
+            open(34, file="A_mat.txt")
+            do i=1,this%N
+                write(34,*) this%A(i,:)
+            end do
+            close(34)
+            open(34, file="b_vec.txt")
+            do i=1,this%N
+                write(34,*) this%b(i)
+            end do
+            close(34)
+        end if
+
+        ! Precondition
+        if (this%precondition) then
+
+            ! Get preconditioning matrix
+            allocate(A_ii_inv(this%N))
+            do i=1,this%N
+                A_ii_inv = 1./this%A(i,i)
+            end do
+
+            ! Apply preconditioning
+            do j=1,this%N
+                do i=1,this%N
+                    this%A(i,j) = A_ii_inv(i)*this%A(i,j)
+                end do
+
+                this%b(j) = this%b(j)*A_ii_inv(j)
+            end do
         end if
 
         ! Make a copy of A (most solvers replace A with its decomposition)
