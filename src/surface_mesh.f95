@@ -588,9 +588,11 @@ contains
         N_wake_edges = 0
         this%found_discontinuous_edges = .false.
 
+        !$OMP parallel private(i, j, second_normal, C_angle, i_vert_1, i_vert_2, mid) &
+        !$OMP & default(none) shared(this, freestream, doublet_order, N_wake_edges) reduction(min : C_min_angle)
+
         ! Loop through each edge
-        !$OMP parallel do private(i, j, second_normal, C_angle, i_vert_1, i_vert_2, mid) reduction(min : C_min_angle) &
-        !$OMP & default(none) shared(this, freestream, doublet_order, N_wake_edges)
+        !$OMP do schedule(dynamic)
         do k=1,this%N_edges
 
             ! Get info
@@ -618,7 +620,7 @@ contains
                 ! Check angle of panel normal with freestream
                 if (inner(this%panels(i)%n_g, freestream%V_inf) > 0.0 .or. inner(second_normal, freestream%V_inf) > 0.0) then
 
-                    ! Passing the previous two checks, we've found a wake-shedding edge
+                    ! Having passed the previous two checks, we've found a wake-shedding edge
 
                     ! Set that we've found discontinuous edges
                     this%found_discontinuous_edges = .true.
@@ -631,32 +633,7 @@ contains
                     this%edges(k)%sheds_wake = .true.
                     this%edges(k)%discontinuous = .true.
 
-                    !$OMP critical
-
-                    ! Update number of wake-shedding edges
-                    N_wake_edges = N_wake_edges + 1
-
-                    ! Update number of wake edges touching this vertex
-                    this%vertices(i_vert_1)%N_wake_edges = this%vertices(i_vert_1)%N_wake_edges + 1
-                    this%vertices(i_vert_1)%N_discont_edges = this%vertices(i_vert_1)%N_discont_edges + 1
-
-                    ! If the vertex is now touching two wake-shedding edges, it is 'in' a wake-shedding edge and will need to be cloned
-                    ! As long as the edge is not on the mirror plane
-                    if (this%vertices(i_vert_1)%N_wake_edges >= 2 .and. .not. this%edges(k)%on_mirror_plane) then
-                        this%vertices(i_vert_1)%needs_clone = .true.
-                    end if
-
-                    ! Update number of wake edges touching this vertex
-                    this%vertices(i_vert_2)%N_wake_edges = this%vertices(i_vert_2)%N_wake_edges + 1
-                    this%vertices(i_vert_2)%N_discont_edges = this%vertices(i_vert_2)%N_discont_edges + 1
-
-                    ! If the vertex is now touching two wake-shedding edges, it is 'in' a wake-shedding edge and will need to be cloned
-                    ! As long as the edge is not on the mirror plane
-                    if (this%vertices(i_vert_2)%N_wake_edges >= 2 .and. .not. this%edges(k)%on_mirror_plane) then
-                        this%vertices(i_vert_2)%needs_clone = .true.
-                    end if
-
-                    ! Update information for midpoint vertex
+                    ! Update information for midpoint vertex (unique for the edge, so this doesn't need to be inside the critical block)
                     if (doublet_order == 2) then
                         mid = this%edges(k)%midpoint_vert
                         this%vertices(mid)%N_wake_edges = 1
@@ -664,12 +641,33 @@ contains
                         this%vertices(mid)%needs_clone = .true.
                     end if
 
+                    !$OMP critical
+
+                    ! Update number of wake-shedding edges
+                    N_wake_edges = N_wake_edges + 1
+
+                    ! Update number of wake edges touching the first vertex
+                    this%vertices(i_vert_1)%N_wake_edges = this%vertices(i_vert_1)%N_wake_edges + 1
+                    this%vertices(i_vert_1)%N_discont_edges = this%vertices(i_vert_1)%N_discont_edges + 1
+
+                    ! Update number of wake edges touching the second vertex
+                    this%vertices(i_vert_2)%N_wake_edges = this%vertices(i_vert_2)%N_wake_edges + 1
+                    this%vertices(i_vert_2)%N_discont_edges = this%vertices(i_vert_2)%N_discont_edges + 1
+
                     !$OMP end critical
 
                 end if
             end if
 
         end do
+
+        ! If a given vertex is touching at least two wake-shedding edges, it will need to be cloned
+        !$OMP do schedule(static)
+        do i=1,this%N_verts
+            if (this%vertices(i)%N_wake_edges >= 2) this%vertices(i)%needs_clone = .true.
+        end do
+
+        !$OMP end parallel
 
         ! Store minimum angle
         this%C_min_panel_angle = C_min_angle
@@ -688,7 +686,7 @@ contains
 
         integer :: i, j, m, n, mid
 
-        if (verbose) write(*,'(a)',advance='no') "     Setting up mesh mirror..."
+        if (verbose) write(*,'(a)',advance='no') "     Setting up mesh mirroring..."
 
         ! If a vertex on the mirror plane doesn't belong to a discontinuous edge, then its mirror will not be unique
         do i=1,this%N_verts
@@ -849,8 +847,9 @@ contains
                     this%vertices(i_jango)%i_wake_partner = i_boba
                     this%vertices(i_boba)%i_wake_partner = i_jango
 
-                    ! Store number of adjacent wake-shedding edges (probably unecessary at this point, but let's be consistent)
+                    ! Store number of adjacent wake-shedding and discontinuous edges (probably unecessary at this point, but let's be consistent)
                     this%vertices(i_boba)%N_wake_edges = this%vertices(i_jango)%N_wake_edges
+                    this%vertices(i_boba)%N_discont_edges = this%vertices(i_jango)%N_discont_edges
 
                     ! Copy over mirroring properties
                     this%vertices(i_boba)%mirrored_is_unique = this%vertices(i_jango)%mirrored_is_unique
@@ -1058,10 +1057,8 @@ contains
             end if
 
             ! Initialize wake
-            call this%wake%init(freestream, this%edges, &
-                                this%N_wake_panels_streamwise, this%vertices, &
-                                this%trefftz_distance, this%asym_flow, &
-                                this%mirror_plane, this%N_panels)
+            call this%wake%init(this%edges, this%vertices, this%N_panels, freestream, &
+                                this%asym_flow, this%mirror_plane, this%N_wake_panels_streamwise, this%trefftz_distance)
         
             ! Export wake geometry
             if (wake_file /= 'none') then

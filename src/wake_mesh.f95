@@ -30,20 +30,20 @@ module wake_mesh_mod
 contains
 
 
-    subroutine wake_mesh_init(this, freestream, mesh_edges, &
-                              N_panels_streamwise, mesh_vertices, trefftz_dist, asym_flow, mirror_plane, N_mesh_panels)
+    subroutine wake_mesh_init(this, body_edges, body_verts, N_body_panels, freestream, asym_flow, mirror_plane, &
+                              N_panels_streamwise, trefftz_dist)
         ! Creates the vertices and panels. Handles vertex association.
 
         implicit none
 
         class(wake_mesh),intent(inout) :: this
+        type(edge),allocatable,dimension(:),intent(in) :: body_edges
+        type(vertex),allocatable,dimension(:),intent(inout) :: body_verts
+        integer,intent(in) :: N_body_panels
         type(flow),intent(in) :: freestream
-        type(edge),allocatable,dimension(:),intent(in) :: mesh_edges
-        integer,intent(in) :: N_panels_streamwise
-        type(vertex),allocatable,dimension(:),intent(inout) :: mesh_vertices
-        real,intent(in) :: trefftz_dist
         logical,intent(in) :: asym_flow
-        integer,intent(in) :: mirror_plane, N_mesh_panels
+        integer,intent(in) :: mirror_plane, N_panels_streamwise
+        real,intent(in) :: trefftz_dist
 
         real :: distance, vertex_separation, mirrored_distance, mirrored_vertex_separation
         real,dimension(3) :: loc, start, mirrored_start
@@ -57,26 +57,25 @@ contains
 
         ! Count up wake-shedding edges
         N_wake_edges = 0
-        do i=1,size(mesh_edges)
-            if (mesh_edges(i)%sheds_wake) then
-                N_wake_edges = N_wake_edges + 1
-            end if
+        do i=1,size(body_edges)
+            if (body_edges(i)%sheds_wake) N_wake_edges = N_wake_edges + 1
         end do
 
         ! Get indices of wake-shedding edges and vertices
         allocate(wake_edge_indices(N_wake_edges))
-        allocate(is_wake_edge_vertex(size(mesh_vertices)))
+        allocate(is_wake_edge_vertex(size(body_verts)))
         j = 0
-        do i=1,size(mesh_edges)
-            if (mesh_edges(i)%sheds_wake) then
+        do i=1,size(body_edges)
+            if (body_edges(i)%sheds_wake) then
 
                 ! Store edge index
                 j = j + 1
                 wake_edge_indices(j) = i
 
                 ! Store that the vertices are wake-shedding
-                is_wake_edge_vertex(mesh_edges(i)%verts(1)) = .true.
-                is_wake_edge_vertex(mesh_edges(i)%verts(2)) = .true.
+                is_wake_edge_vertex(body_edges(i)%verts(1)) = .true.
+                is_wake_edge_vertex(body_edges(i)%verts(2)) = .true.
+
             end if
         end do
 
@@ -86,11 +85,11 @@ contains
         ! Get wake-shedding edge vertex indices
         allocate(wake_edge_verts(N_wake_edge_verts))
         j = 0
-        do i=1,size(mesh_vertices)
+        do i=1,size(body_verts)
             if (is_wake_edge_vertex(i)) then
                 j = j + 1
                 wake_edge_verts(j) = i
-                mesh_vertices(i)%index_in_wake_vertices = j
+                body_verts(i)%index_in_wake_vertices = j
             end if
         end do
 
@@ -110,17 +109,17 @@ contains
 
             ! Check this is not a midpoint vertex
             i_top_parent = wake_edge_verts(i)
-            if (mesh_vertices(i_top_parent)%vert_type == 1) then
+            if (body_verts(i_top_parent)%vert_type == 1) then
 
                 ! Get indices
-                i_bot_parent = mesh_vertices(i_top_parent)%i_wake_partner
+                i_bot_parent = body_verts(i_top_parent)%i_wake_partner
 
                 ! Determine distance from origin to wake-shedding vertex in the direction of the freestream flow
-                start = mesh_vertices(i_top_parent)%loc
+                start = body_verts(i_top_parent)%loc
                 distance = trefftz_dist - inner(start, freestream%c_hat_g)
 
                 ! Double-check
-                if (dist(start, mesh_vertices(i_bot_parent)%loc) > 1.e-12) then
+                if (dist(start, body_verts(i_bot_parent)%loc) > 1.e-12) then
                     write(*,*) "!!! Wake edge vertices are not identical. Quitting..."
                     stop
                 end if
@@ -166,8 +165,8 @@ contains
                         call this%vertices(i_mirrored_vert)%init(loc, i_mirrored_vert, 1)
 
                         ! Set parent index
-                        this%vertices(i_mirrored_vert)%top_parent = i_top_parent + size(mesh_vertices)
-                        this%vertices(i_mirrored_vert)%bot_parent = i_bot_parent + size(mesh_vertices)
+                        this%vertices(i_mirrored_vert)%top_parent = i_top_parent + size(body_verts)
+                        this%vertices(i_mirrored_vert)%bot_parent = i_bot_parent + size(body_verts)
 
                     end if
 
@@ -190,8 +189,8 @@ contains
             i = wake_edge_indices(k)
 
             ! Determine which wake-shedding vertices this panel lies between
-            i_start = mesh_vertices(mesh_edges(i)%verts(1))%index_in_wake_vertices
-            i_stop = mesh_vertices(mesh_edges(i)%verts(2))%index_in_wake_vertices
+            i_start = body_verts(body_edges(i)%verts(1))%index_in_wake_vertices
+            i_stop = body_verts(body_edges(i)%verts(2))%index_in_wake_vertices
 
             ! Create panels heading downstream
             do j=1,N_panels_streamwise
@@ -209,8 +208,8 @@ contains
 
                 ! Specify this panel is in the wake
                 this%panels(i_panel)%in_wake = .true.
-                this%panels(i_panel)%top_parent = mesh_edges(i)%panels(1)
-                this%panels(i_panel)%bot_parent = mesh_edges(i)%panels(2)
+                this%panels(i_panel)%top_parent = body_edges(i)%panels(1)
+                this%panels(i_panel)%bot_parent = body_edges(i)%panels(2)
 
                 ! Create mirror
                 if (asym_flow) then
@@ -228,8 +227,8 @@ contains
 
                     ! Specify this panel is in the wake
                     this%panels(i_panel)%in_wake = .true.
-                    this%panels(i_panel)%top_parent = mesh_edges(i)%panels(1)+N_mesh_panels
-                    this%panels(i_panel)%bot_parent = mesh_edges(i)%panels(2)+N_mesh_panels
+                    this%panels(i_panel)%top_parent = body_edges(i)%panels(1)+N_body_panels
+                    this%panels(i_panel)%bot_parent = body_edges(i)%panels(2)+N_body_panels
 
                 end if
 
@@ -246,8 +245,8 @@ contains
 
                 ! Specify this panel is in the wake
                 this%panels(i_panel)%in_wake = .true.
-                this%panels(i_panel)%top_parent = mesh_edges(i)%panels(1)
-                this%panels(i_panel)%bot_parent = mesh_edges(i)%panels(2)
+                this%panels(i_panel)%top_parent = body_edges(i)%panels(1)
+                this%panels(i_panel)%bot_parent = body_edges(i)%panels(2)
 
                 ! Create mirror
                 if (asym_flow) then
@@ -265,8 +264,8 @@ contains
 
                     ! Specify this panel is in the wake
                     this%panels(i_panel)%in_wake = .true.
-                    this%panels(i_panel)%top_parent = mesh_edges(i)%panels(1)+N_mesh_panels
-                    this%panels(i_panel)%bot_parent = mesh_edges(i)%panels(2)+N_mesh_panels
+                    this%panels(i_panel)%top_parent = body_edges(i)%panels(1)+N_body_panels
+                    this%panels(i_panel)%bot_parent = body_edges(i)%panels(2)+N_body_panels
 
                 end if
 
