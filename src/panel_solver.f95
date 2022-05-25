@@ -625,13 +625,11 @@ contains
         end if
 
         ! Add doublet influence
-        if (doublet_order == 1) then
-
-            ! Loop through panel vertices
-            do k=1,size(i_vert_d)
-                A_row(i_vert_d(k)) = A_row(i_vert_d(k)) + doublet_inf(k)
-            end do
-        end if
+        ! This method is the same for linear and quadratic doublets
+        ! Loop through panel vertices
+        do k=1,size(i_vert_d)
+            A_row(i_vert_d(k)) = A_row(i_vert_d(k)) + doublet_inf(k)
+        end do
     
     end subroutine panel_solver_update_system_row
 
@@ -863,11 +861,9 @@ contains
                                                          source_inf, doublet_inf, i_vert_s, i_vert_d)
 
                 ! Add influence
-                if (doublet_order == 1) then
-                    do k=1,size(i_vert_d)
-                        A_i(i_vert_d(k)) = A_i(i_vert_d(k)) + doublet_inf(k)
-                    end do
-                end if
+                do k=1,size(i_vert_d)
+                    A_i(i_vert_d(k)) = A_i(i_vert_d(k)) + doublet_inf(k)
+                end do
 
                 ! Get influence on mirrored control point
                 if (body%mirrored) then
@@ -881,11 +877,9 @@ contains
 
                         ! Add influence
                         if (body%vertices(i)%mirrored_is_unique) then
-                            if (doublet_order == 1) then
-                                do k=1,size(i_vert_d)
-                                    A_i_mir(i_vert_d(k)) = A_i_mir(i_vert_d(k)) + doublet_inf(k)
-                                end do
-                            end if
+                            do k=1,size(i_vert_d)
+                                A_i_mir(i_vert_d(k)) = A_i_mir(i_vert_d(k)) + doublet_inf(k)
+                            end do
                         end if
 
                     else
@@ -898,11 +892,9 @@ contains
                                                                  source_inf, doublet_inf, i_vert_s, i_vert_d)
 
                         ! Add influence
-                        if (doublet_order == 1) then
-                            do k=1,size(i_vert_d)
-                                A_i(i_vert_d(k)) = A_i(i_vert_d(k)) + doublet_inf(k)
-                            end do
-                        end if
+                        do k=1,size(i_vert_d)
+                            A_i(i_vert_d(k)) = A_i(i_vert_d(k)) + doublet_inf(k)
+                        end do
 
                     end if
 
@@ -1381,8 +1373,8 @@ contains
         implicit none
 
         class(panel_solver),intent(in) :: this
-        type(surface_mesh),intent(in) :: body
         type(json_value),pointer,intent(inout) :: p_json
+        type(surface_mesh),intent(in) :: body
 
         type(json_value),pointer :: p_parent, p_child
         integer :: i_unit

@@ -57,10 +57,9 @@ module panel_mod
         integer :: N = 3 ! Number of sides/vertices
         integer :: index ! Index of this panel in the mesh array
         type(vertex_pointer),dimension(:),allocatable :: vertices
-        real :: radius
+        type(vertex_pointer),dimension(:),allocatable :: midpoints
         real,dimension(3) :: n_g, nu_g ! Normal and conormal vectors
         real,dimension(3) :: n_g_mir, nu_g_mir ! Mirrored normal and conormal vectors
-        real,dimension(:,:),allocatable :: midpoints, midpoints_mir
         real,dimension(3) :: centr, centr_mir ! Centroid
         real,dimension(3,3) :: A_g_to_ls, A_ls_to_g ! Coordinate transformation matrices
         real,dimension(3,3) :: A_g_to_ls_mir, A_ls_to_g_mir
@@ -89,7 +88,6 @@ module panel_mod
             ! Initialization procedures
             procedure :: init => panel_init_3
             procedure :: calc_derived_geom => panel_calc_derived_geom
-            procedure :: calc_midpoints => panel_calc_midpoints
             procedure :: calc_normal => panel_calc_normal
             procedure :: calc_area => panel_calc_area
             procedure :: calc_centroid => panel_calc_centroid
@@ -108,6 +106,7 @@ module panel_mod
 
             ! Getters
             procedure :: get_vertex_loc => panel_get_vertex_loc
+            procedure :: get_midpoint_loc => panel_get_midpoint_loc
             procedure :: get_vertex_index => panel_get_vertex_index
             procedure :: touches_vertex => panel_touches_vertex
 
@@ -210,7 +209,6 @@ contains
         class(panel),intent(inout) :: this
 
         ! Calculate midpoints
-        call this%calc_midpoints()
 
         ! Calculate normal vec
         call this%calc_normal()
@@ -224,22 +222,22 @@ contains
     end subroutine  panel_calc_derived_geom
 
 
-    subroutine panel_calc_midpoints(this)
+    !subroutine panel_calc_midpoints(this)
 
-        implicit none
+    !    implicit none
 
-        class(panel),intent(inout) :: this
+    !    class(panel),intent(inout) :: this
 
-        integer :: i
+    !    integer :: i
 
-        ! Determine midpoints
-        allocate(this%midpoints(3,this%N))
-        do i=1,this%N-1
-            this%midpoints(:,i) = 0.5*(this%get_vertex_loc(i)+this%get_vertex_loc(i+1))
-        end do
-        this%midpoints(:,this%N) = 0.5*(this%get_vertex_loc(1)+this%get_vertex_loc(this%N))
+    !    ! Determine midpoints
+    !    allocate(this%midpoints(3,this%N))
+    !    do i=1,this%N-1
+    !        this%midpoints(:,i) = 0.5*(this%get_vertex_loc(i)+this%get_vertex_loc(i+1))
+    !    end do
+    !    this%midpoints(:,this%N) = 0.5*(this%get_vertex_loc(1)+this%get_vertex_loc(this%N))
 
-    end subroutine panel_calc_midpoints
+    !end subroutine panel_calc_midpoints
 
 
     subroutine panel_calc_normal(this)
@@ -250,9 +248,9 @@ contains
 
         real,dimension(3) :: d1, d2
 
-        ! Get two chord vectors from midpoints
-        d1 = this%midpoints(:,2)-this%midpoints(:,1)
-        d2 = this%midpoints(:,3)-this%midpoints(:,2)
+        ! Get two edge vectors
+        d1 = this%get_vertex_loc(2)-this%get_vertex_loc(1)
+        d2 = this%get_vertex_loc(3)-this%get_vertex_loc(2)
 
         ! Find normal
         this%n_g = cross(d1, d2)
@@ -306,20 +304,6 @@ contains
 
         ! Set centroid
         this%centr = sum/this%N
-
-        ! Calculate radius
-        this%radius = 0.
-        do i=1,this%N
-
-            ! Distance to i-th vertex
-            x = dist(this%get_vertex_loc(i), this%centr)
-
-            ! Check max
-            if (x > this%radius) then
-                this%radius = x
-            end if
-
-        end do
 
     end subroutine panel_calc_centroid
 
@@ -418,14 +402,16 @@ contains
 
         ! Transform vertex and midpoint coords to ls
         allocate(this%vertices_ls(2,this%N))
-        allocate(this%midpoints_ls(2,this%N))
+        if (doublet_order == 2) allocate(this%midpoints_ls(2,this%N))
         do i=1,this%N
 
             ! Vertices
             this%vertices_ls(:,i) = matmul(this%A_g_to_ls(1:2,:), this%get_vertex_loc(i)-this%centr)
 
             ! Midpoints
-            this%midpoints_ls(:,i) = matmul(this%A_g_to_ls(1:2,:), this%midpoints(:,i)-this%centr)
+            if (doublet_order == 2) then
+                this%midpoints_ls(:,i) = matmul(this%A_g_to_ls(1:2,:), this%get_midpoint_loc(i)-this%centr)
+            end if
 
         end do
 
@@ -607,12 +593,6 @@ contains
         ! Calculate mirrored centroid
         this%centr_mir = mirror_across_plane(this%centr, mirror_plane)
 
-        ! Calculate mirrored midpoints
-        allocate(this%midpoints_mir(3,this%N))
-        do i=1,this%N
-            this%midpoints_mir(:,i) = mirror_across_plane(this%midpoints(:,i), mirror_plane)
-        end do
-
         ! Calculate mirrored g to ls transform
         call this%calc_mirrored_g_to_ls_transform(freestream, mirror_plane)
 
@@ -647,7 +627,7 @@ contains
 
         ! Get in-panel basis vectors
         if (abs(inner(this%n_g_mir, freestream%c_hat_g) - 1.) < 1e-12) then ! Check the freestream isn't aligned with the normal vector
-            v0 = this%midpoints_mir(:,2)-this%midpoints_mir(:,1)
+            v0 = mirror_across_plane(this%get_vertex_loc(2) - this%get_vertex_loc(1), mirror_plane)
         else
             v0 = cross(this%n_g_mir, freestream%c_hat_g)
         end if
@@ -702,7 +682,7 @@ contains
 
         ! Transform vertex and midpoint coords to ls
         allocate(this%vertices_ls_mir(2,this%N))
-        allocate(this%midpoints_ls_mir(2,this%N))
+        if (doublet_order == 2) allocate(this%midpoints_ls_mir(2,this%N))
         do i=1,this%N
 
             ! Vertices
@@ -710,7 +690,10 @@ contains
                                                mirror_across_plane(this%get_vertex_loc(i), mirror_plane)-this%centr_mir)
 
             ! Midpoints
-            this%midpoints_ls_mir(:,i) = matmul(this%A_g_to_ls_mir(1:2,:), this%midpoints_mir(:,i)-this%centr_mir)
+            if (doublet_order == 2) then
+                this%midpoints_ls_mir(:,i) = matmul(this%A_g_to_ls_mir(1:2,:), &
+                                                    mirror_across_plane(this%get_midpoint_loc(i), mirror_plane)-this%centr_mir)
+            end if
 
         end do
     
@@ -762,7 +745,7 @@ contains
         real,dimension(:,:),allocatable :: S_mu, S_sigma
 
         ! Linear distribution
-        if (doublet_order .eq. 1) then
+        if (doublet_order == 1) then
 
             ! Allocate influence matrices
             allocate(S_mu(3,3))
@@ -776,7 +759,7 @@ contains
             ! Invert
             call matinv(3, S_mu, this%S_mu_inv_mir)
 
-        else if (doublet_order .eq. 2) then
+        else if (doublet_order == 2) then
 
             ! Allocate influence matrix
             allocate(S_mu(6,6))
@@ -860,6 +843,19 @@ contains
     end function panel_get_vertex_loc
 
 
+    function panel_get_midpoint_loc(this, i) result(loc)
+
+        implicit none
+
+        class(panel),intent(in) :: this
+        integer,intent(in) :: i
+        real,dimension(3) :: loc
+
+        loc = this%midpoints(i)%ptr%loc
+
+    end function panel_get_midpoint_loc
+
+
     function panel_get_vertex_index(this, i) result(index)
 
         implicit none
@@ -920,6 +916,21 @@ contains
                 this%vertex_indices(i) = clone%index
 
                 return
+
+            ! Check midpoints
+            else if (doublet_order == 2) then
+
+                if (dist(this%get_midpoint_loc(i), clone%loc) < 1e-12) then
+
+                    ! Update pointer
+                    this%midpoints(i)%ptr => clone
+
+                    ! Update index
+                    this%midpoint_indices(i) = clone%index
+
+                    return
+
+                end if
 
             end if
 
@@ -1769,6 +1780,42 @@ contains
                 allocate(phi_d(3), source=0.)
 
             end if
+
+        else if (doublet_order == 2) then
+
+            ! Check if this panel belongs to the wake
+            if (this%in_wake) then
+
+                ! Wake panels are influenced by two sets of vertices
+                allocate(i_vert_d(12))
+                i_vert_d(1) = this%vertices(1)%ptr%top_parent
+                i_vert_d(2) = this%vertices(2)%ptr%top_parent
+                i_vert_d(3) = this%vertices(3)%ptr%top_parent
+                i_vert_d(4) = this%midpoints(1)%ptr%top_parent
+                i_vert_d(5) = this%midpoints(2)%ptr%top_parent
+                i_vert_d(6) = this%midpoints(3)%ptr%top_parent
+                i_vert_d(7) = this%vertices(1)%ptr%bot_parent
+                i_vert_d(8) = this%vertices(2)%ptr%bot_parent
+                i_vert_d(9) = this%vertices(3)%ptr%bot_parent
+                i_vert_d(10) = this%midpoints(1)%ptr%bot_parent
+                i_vert_d(11) = this%midpoints(2)%ptr%bot_parent
+                i_vert_d(12) = this%midpoints(3)%ptr%bot_parent
+
+                ! Set default influence
+                allocate(phi_d(12), source=0.)
+
+            else
+
+                ! Body panels are influenced by only one set of vertices
+                allocate(i_vert_d(6))
+                i_vert_d(1:3) = this%vertex_indices
+                i_vert_d(4:6) = this%midpoint_indices
+
+                ! Set default influence
+                allocate(phi_d(6), source=0.)
+
+            end if
+
         end if
 
         ! Check DoD
@@ -1830,6 +1877,27 @@ contains
                 if (this%in_wake) then
                     phi_d(4:6) = -phi_d(1:3)
                 end if
+
+            else if (doublet_order == 2) then
+
+                ! Johnson Eq. (D.30)
+                ! Equivalent to Ehlers Eq. (5.17))
+                phi_d(1) = int%hH113
+                phi_d(2) = int%hH113*geom%P_ls(1) + geom%h*int%H213
+                phi_d(3) = int%hH113*geom%P_ls(2) + geom%h*int%H123
+
+                ! Convert to vertex influences (Davis Eq. (4.41))
+                if (mirror_panel) then
+                    phi_d(1:6) = freestream%K_inv*matmul(phi_d(1:6), this%S_mu_inv_mir)
+                else
+                    phi_d(1:6) = freestream%K_inv*matmul(phi_d(1:6), this%S_mu_inv)
+                end if
+
+                ! Wake bottom influence is opposite the top influence
+                if (this%in_wake) then
+                    phi_d(7:12) = -phi_d(1:6)
+                end if
+
             end if
         end if
     

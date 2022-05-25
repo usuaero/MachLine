@@ -212,7 +212,7 @@ contains
 
         implicit none
 
-        class(surface_mesh),intent(inout) :: this
+        class(surface_mesh),intent(inout),target :: this
 
         integer :: i, j, m, n, m1, n1, temp, i_edge, i_panel1, i_panel2, i_vert1, i_vert2, edge_on_mirror, i_edge1, i_edge2, N_edges
         integer :: N_orig_verts, ind
@@ -500,8 +500,10 @@ contains
 
                 ! Point panels to it
                 this%panels(panel1(i))%midpoint_indices(edge_index1(i)) = ind
+                this%panels(panel1(i))%midpoints(edge_index1(i))%ptr => this%vertices(ind)
                 if (panel2(i) > 0 .and. panel2(i) <= this%N_panels) then
                     this%panels(panel2(i))%midpoint_indices(edge_index2(i)) = ind
+                    this%panels(panel2(i))%midpoints(edge_index2(i))%ptr => this%vertices(ind)
                 end if
 
             end do
