@@ -561,24 +561,28 @@ contains
                 ! Check angle of panel normal with freestream
                 if (inner(this%panels(i)%n_g, freestream%V_inf) > 0.0 .or. inner(second_normal, freestream%V_inf) > 0.0) then
 
-                    ! ! Check panel normal vectors cross product relationship with freestream
-                    ! cross_result = cross(this%panels(i)%n_g, second_normal)
+                    ! Check panel normal vectors cross product relationship with freestream
+                    cross_result = cross(this%panels(i)%n_g, second_normal)
        
-                    ! do q=1,size(cross_result)
-                    !     ! Determine unit direction of max value in cross product result
-                    !     if (abs(cross_result(q)) == maxval(abs(cross_result))) then
-                    !         cross_max_dir = q
-                    !     end if
+                    do q=1,size(cross_result)
+                        ! Determine unit direction of max value in cross product result
+                        if (abs(cross_result(q)) == maxval(abs(cross_result))) then
+                            cross_max_dir = q
+                        end if
 
-                    !     ! Determine unit direction of max value in freestream velocity
-                    !     if (abs(freestream%V_inf(q)) == maxval(abs(freestream%V_inf))) then
-                    !         v_max_dir = q
-                    !     end if
+                        ! Determine unit direction of max value in freestream velocity
+                        if (abs(freestream%V_inf(q)) == maxval(abs(freestream%V_inf))) then
+                            v_max_dir = q
+                        end if
 
-                    ! end do
+                    end do
 
-                    ! ! Verify fuselage wing junction isn't creating a wake
-                    ! if (cross_max_dir /= v_max_dir) then
+                    ! Verify sign of sine or panel normals in relation to freestream velocity
+                    
+                    if 
+
+                    ! Verify fuselage wing junction isn't creating a wake
+                    if (cross_max_dir /= v_max_dir) then
 
                         ! Get vertex indices (simplifies later code)
                         i_vert_1 = this%edges(k)%verts(1)
@@ -627,7 +631,7 @@ contains
 
                         !$OMP end critical
 
-                    ! end if
+                    end if
                 end if
             end if
 
