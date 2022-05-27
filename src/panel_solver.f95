@@ -77,30 +77,40 @@ contains
         this%morino = this%formulation == 'morino'
 
         ! Get pressure rules
-        call json_xtnsn_get(processing_settings, 'pressure_rules.incompressible', this%incompressible_rule, .false.)
-        call json_xtnsn_get(processing_settings, 'pressure_rules.isentropic', this%isentropic_rule, .true.)
         call json_xtnsn_get(processing_settings, 'pressure_rules.second-order', this%second_order_rule, .false.)
+        call json_xtnsn_get(processing_settings, 'pressure_rules.second-order', this%second_order_rule, .false.)
+        call json_xtnsn_get(processing_settings, 'pressure_rules.slender-body', this%slender_rule, .false.)
+        call json_xtnsn_get(processing_settings, 'pressure_rules.linear', this%linear_rule, .false.)
 
         ! Verify compatability of pressure rules and selected freestream mach number
-        if (freestream%M_inf > 0.) then
-            ! Notify user if pressure rule applied is changed based on selected freestream mach number
-            if (this%incompressible_rule) then
-                write(*,*) "!!! The pressure rule has been changed to the isentropic rule whereas a freestream"
-                write(*,*) "    mach number greater than 0.0 has been selected"
-                this%incompressible_rule = .false.
-            end if
-            this%isentropic_rule = .true.
-        else if (freestream%M_inf == 0.) then
+        if (freestream%incompressible) then
+            
+            ! Get incompressible and isentropic settings
+            call json_xtnsn_get(processing_settings, 'pressure_rules.incompressible', this%incompressible_rule, .true.)
+            call json_xtnsn_get(processing_settings, 'pressure_rules.isentropic', this%isentropic_rule, .false.)
+
             ! Notify user if pressure rule applied is changed based on selected freestream mach number
             if (this%isentropic_rule) then
-                write(*,*) "!!! The pressure rule has been changed to the incompressible rule whereas a freestream"
-                write(*,*) "    mach number of 0.0 has been selected"
+                write(*,*) "!!! The pressure rule has been changed from isentropic to incompressible since a freestream"
+                write(*,*) "!!! Mach number of 0.0 has been selected"
                 this%isentropic_rule = .false.
+                this%incompressible_rule = .true.
             end if
-            this%incompressible_rule = .true.
+
         else
-            write(*,*) "!!! Invalid freestream mach number selected. Cannot be a negative number. Quitting..."
-            stop
+            
+            ! Get incompressible and isentropic settings
+            call json_xtnsn_get(processing_settings, 'pressure_rules.incompressible', this%incompressible_rule, .false.)
+            call json_xtnsn_get(processing_settings, 'pressure_rules.isentropic', this%isentropic_rule, .true.)
+
+            ! Notify user if pressure rule applied is changed based on selected freestream mach number
+            if (this%incompressible_rule) then
+                write(*,*) "!!! The pressure rule has been changed from incompressible to isentropic since a freestream"
+                write(*,*) "!!! Mach number greater than 0.0 has been selected"
+                this%incompressible_rule = .false.
+                this%isentropic_rule = .true.
+            end if
+
         end if
 
         ! Get mach number for pressure corrections
@@ -132,11 +142,6 @@ contains
             this%incompressible_rule = .true.
         end if 
 
-        ! Get other pressure rules
-        call json_xtnsn_get(processing_settings, 'pressure_rules.second-order', this%second_order_rule, .false.)
-        call json_xtnsn_get(processing_settings, 'pressure_rules.slender-body', this%slender_rule, .false.)
-        call json_xtnsn_get(processing_settings, 'pressure_rules.linear', this%linear_rule, .false.)
-
         ! Get which pressure rule will be used for force calculation
         if (this%incompressible_rule) then
             ! Check if a compressibility correction will be applied
@@ -155,41 +160,62 @@ contains
             call json_xtnsn_get(processing_settings, 'pressure_for_forces', this%pressure_for_forces, 'second-order')
         end if
 
-        ! Check that the selected pressure for force calculation is implemented in MachLine
+        ! Check that the selected pressure for force calculation has been specified
         select case (this%pressure_for_forces)
-        case ("incompressible")
-        case ("isentropic")
-        case ("second-order")
-        case ("slender-body")
-            write(*,*) "!!! Using the ", this%pressure_for_forces, " pressure rule to calculate forces "
-            write(*,*) "!!! has not yet been implemented into MachLine. Quitting..."
-            stop
-        case ("linear")
-            write(*,*) "!!! Using the ", this%pressure_for_forces, " pressure rule to calculate forces "
-            write(*,*) "!!! has not yet been implemented into MachLine. Quitting..."
-            stop
-        case ("prandtl-glauert")
-        case ("karman-tsien")
-        case ("laitone")
-        case default
-            write(*,*) "!!! The selected pressure for force calculation using the ", this%pressure_for_forces, " rule is not valid."
-            write(*,*) "!!! Quitting..."
-            stop
-        end select
 
-        ! Check the force calculation pressure rule is available
-        if (this%pressure_for_forces == 'incompressible' .and. .not. this%incompressible_rule) then
-            write(*,*) "!!! Incompressible pressure rule is not available for force calculation. Quitting..."
+        case ("incompressible")
+            if (.not. this%incompressible_rule) then
+                write(*,*) "!!! Incompressible pressure rule is not available for force calculation. Quitting..."
+                stop
+            end if
+
+        case ("isentropic")
+            if (.not. this%isentropic_rule) then
+                write(*,*) "!!! Isentropic pressure rule is not available for force calculation. Quitting..."
+                stop
+            end if
+
+        case ("second-order")
+            if (.not. this%second_order_rule) then
+                write(*,*) "!!! Second-order pressure rule is not available for force calculation. Quitting..."
+                stop
+            end if
+
+        case ("slender-body")
+            if (.not. this%slender_rule) then
+                write(*,*) "!!! Slender-body pressure rule is not available for force calculation. Quitting..."
+                stop
+            end if
+
+        case ("linear")
+            if (.not. this%linear_rule) then
+                write(*,*) "!!! Linear pressure rule is not available for force calculation. Quitting..."
+                stop
+            end if
+
+        case ("prandtl-glauert")
+            if (.not. this%prandtl_glauert) then
+                write(*,*) "!!! Prandtl-Glauert pressure correction is not available for force calculation. Quitting..."
+                stop
+            end if
+
+        case ("karman-tsien")
+            if (.not. this%prandtl_glauert) then
+                write(*,*) "!!! Karman-Tsien pressure correction is not available for force calculation. Quitting..."
+                stop
+            end if
+
+        case ("laitone")
+            if (.not. this%prandtl_glauert) then
+                write(*,*) "!!! Laitone pressure correction is not available for force calculation. Quitting..."
+                stop
+            end if
+
+        case default
+            write(*,*) "!!! User selected ", this%pressure_for_forces, " for calculating forces. This is not valid. Quitting..."
             stop
-        end if
-        if (this%pressure_for_forces == 'isentropic' .and. .not. this%isentropic_rule) then
-            write(*,*) "!!! Isentropic pressure rule is not available for force calculation. Quitting..."
-            stop
-        end if
-        if (this%pressure_for_forces == 'second-order' .and. .not. this%second_order_rule) then
-            write(*,*) "!!! Second-order pressure rule is not available for force calculation. Quitting..."
-            stop
-        end if
+
+        end select
 
         ! Store
         this%freestream = freestream
@@ -238,7 +264,7 @@ contains
         real :: offset
         
         ! Place control points
-        write(*,'(a)',advance='no') "     Placing control points..."
+        if (verbose) write(*,'(a)',advance='no') "     Placing control points..."
 
         ! Get offset
         call json_xtnsn_get(solver_settings, 'control_point_offset', offset, 1e-5)
@@ -260,7 +286,7 @@ contains
             call this%sort_control_points(body)
         end if
 
-        write(*,'(a, i6, a)') "Done. Placed", body%N_cp, " control points."
+        if (verbose) write(*,'(a, i6, a)') "Done. Placed", body%N_cp, " control points."
     
     end subroutine panel_solver_init_dirichlet
 
@@ -305,7 +331,7 @@ contains
         class(panel_solver),intent(inout) :: this
         type(surface_mesh),intent(inout) :: body
 
-        integer :: i, j
+        integer :: i, j, stat
         real,dimension(3) :: vert_loc, mirrored_vert_loc
         logical,dimension(:,:),allocatable :: verts_in_dod, wake_verts_in_dod
 
@@ -315,28 +341,37 @@ contains
 
         ! Allocate arrays for domain of dependence information for the body
         if (body%mirrored) then
-            allocate(this%dod_info(2*body%N_panels, this%N))
-            allocate(verts_in_dod(2*body%N_verts, this%N))
+            allocate(this%dod_info(2*body%N_panels, this%N), stat=stat)
+            call check_allocation(stat, "domain of dependence storage")
+            allocate(verts_in_dod(2*body%N_verts, this%N), stat=stat)
+            call check_allocation(stat, "vertex domain of dependence storage")
         else
-            allocate(this%dod_info(body%N_panels, this%N))
-            allocate(verts_in_dod(body%N_verts, this%N))
+            allocate(this%dod_info(body%N_panels, this%N), stat=stat)
+            call check_allocation(stat, "domain of dependence storage")
+            allocate(verts_in_dod(body%N_verts, this%N), stat=stat)
+            call check_allocation(stat, "vertex domain of dependence storage")
         end if
 
         ! Allocate arrays for domain of dependence information for the wake
         if (body%mirrored .and. .not. body%asym_flow) then
-            allocate(this%wake_dod_info(2*body%wake%N_panels, this%N))
-            allocate(wake_verts_in_dod(2*body%wake%N_verts, this%N))
+            allocate(this%wake_dod_info(2*body%wake%N_panels, this%N), stat=stat)
+            call check_allocation(stat, "domain of dependence storage")
+            allocate(wake_verts_in_dod(2*body%wake%N_verts, this%N), stat=stat)
+            call check_allocation(stat, "vertex domain of dependence storage")
         else
-            allocate(this%wake_dod_info(body%wake%N_panels, this%N))
-            allocate(wake_verts_in_dod(body%wake%N_verts, this%N))
+            allocate(this%wake_dod_info(body%wake%N_panels, this%N), stat=stat)
+            call check_allocation(stat, "domain of dependence storage")
+            allocate(wake_verts_in_dod(body%wake%N_verts, this%N), stat=stat)
+            call check_allocation(stat, "vertex domain of dependence storage")
         end if
 
         ! If the freestream is subsonic, these don't need to be checked
         if (this%freestream%supersonic) then
 
-            write(*,'(a)',advance='no') "     Calculating domains of dependence..."
+            if (verbose) write(*,'(a)',advance='no') "     Calculating domains of dependence..."
 
             ! Loop through control points
+            !$OMP parallel do private(vert_loc, mirrored_vert_loc)
             do j=1,body%N_cp
 
                 ! Loop through body vertices
@@ -349,7 +384,7 @@ contains
 
                     if (body%mirrored) then
 
-                        mirrored_vert_loc = mirror_about_plane(vert_loc, body%mirror_plane)
+                        mirrored_vert_loc = mirror_across_plane(vert_loc, body%mirror_plane)
 
                         ! Mirrored vertex and original control point
                         verts_in_dod(i+body%N_verts,j) = this%freestream%point_in_dod(mirrored_vert_loc, &
@@ -386,7 +421,7 @@ contains
                         else
 
                             ! Mirrored vertex and original control point
-                            mirrored_vert_loc = mirror_about_plane(vert_loc, body%mirror_plane)
+                            mirrored_vert_loc = mirror_across_plane(vert_loc, body%mirror_plane)
                             wake_verts_in_dod(i+body%wake%N_verts,j) = this%freestream%point_in_dod(mirrored_vert_loc, &
                                                                                                          body%cp(:,j))
                         end if
@@ -451,7 +486,7 @@ contains
 
             end do
 
-            write(*,*) "Done"
+            if (verbose) write(*,*) "Done"
         end if
     
     end subroutine panel_solver_calc_domains_of_dependence
@@ -501,24 +536,36 @@ contains
 
         integer :: N_sigma, i, stat
 
-        ! Set source strengths
+        ! Determine number of source strengths
         if (source_order == 0) then
 
-            ! Determine necessary number of source strengths
             if (body%asym_flow) then
                 N_sigma = body%N_panels*2
             else
                 N_sigma = body%N_panels
             end if
 
-            ! Allocate source strength array
-            allocate(body%sigma(N_sigma), source=0., stat=stat)
-            call check_allocation(stat, "source strength array")
+        else if (source_order == 1) then
 
-            ! Morino formulation
-            if (this%morino) then
+            if (body%asym_flow) then
+                N_sigma = body%N_verts*2
+            else
+                N_sigma = body%N_verts
+            end if
 
-                write(*,'(a)',advance='no') "     Calculating source strengths..."
+        end if
+
+        ! Allocate source strength array (yes this does need to be allocated for the source-free formulation)
+        allocate(body%sigma(N_sigma), source=0., stat=stat)
+        call check_allocation(stat, "source strength array")
+
+        ! Set source strengths
+        if (this%morino) then
+
+            if (verbose) write(*,'(a)',advance='no') "     Calculating source strengths..."
+
+            ! Use panel normals
+            if (source_order == 0) then
 
                 ! Loop through panels
                 do i=1,body%N_panels
@@ -528,16 +575,28 @@ contains
 
                     ! Mirrored panels for asymmetric flow
                     if (body%asym_flow) then
-
-                        ! Calculate source strength
                         body%sigma(i+body%N_panels) = -inner(body%panels(i)%n_g_mir, this%freestream%c_hat_g)
-
                     end if
                 end do
 
-                write(*,*) "Done."
+            ! Use vertex normals
+            else if (source_order == 1) then
+
+                ! Loop through vertices
+                do i=1,body%N_verts
+
+                    ! Existing vertices
+                    body%sigma(i) = -inner(body%vertices(i)%n_g, this%freestream%c_hat_g)
+
+                    ! Mirrored panels for asymmetric flow
+                    if (body%asym_flow) then
+                        body%sigma(i+body%N_verts) = -inner(body%vertices(i)%n_g_mir, this%freestream%c_hat_g)
+                    end if
+                end do
 
             end if
+
+            if (verbose) write(*,*) "Done."
         end if
     
     end subroutine panel_solver_calc_source_strengths
@@ -558,10 +617,18 @@ contains
 
         integer :: k
 
-        ! Add source influence
+        ! Add source influence (if sources are present)
         if (this%morino) then
+
+            ! Constant
             if (source_order == 0) then
                 phi_cp_s = phi_cp_s + source_inf(1)*body%sigma(i_panel)
+
+            ! Linear
+            else
+                do k=1,size(i_vert_s)
+                    phi_cp_s = phi_cp_s + source_inf(k)*body%sigma(i_vert_s(k))
+                end do
             end if
         end if
 
@@ -609,7 +676,7 @@ contains
             allocate(A_i_mir(this%N))
         end if
 
-        write(*,'(a)',advance='no') "     Calculating body influences..."
+        if (verbose) write(*,'(a)',advance='no') "     Calculating body influences..."
         
         ! Parameter used for calculating inner potential for the source-free formulation
         if (this%formulation == 'source-free') then
@@ -756,7 +823,7 @@ contains
 
         end do
 
-        write(*,*) "Done."
+        if (verbose) write(*,*) "Done."
     
     end subroutine panel_solver_calc_body_influences
 
@@ -774,7 +841,7 @@ contains
         integer,dimension(:),allocatable :: i_vert_d, i_vert_s
 
         ! Calculate influence of wake
-        write(*,'(a)',advance='no') "     Calculating wake influences..."
+        if (verbose) write(*,'(a)',advance='no') "     Calculating wake influences..."
 
         ! Allocate A rows
         allocate(A_i(this%N))
@@ -860,7 +927,7 @@ contains
 
         end do
 
-        write(*,*) "Done."
+        if (verbose) write(*,*) "Done."
 
     end subroutine panel_solver_calc_wake_influences
 
@@ -876,36 +943,40 @@ contains
         real,dimension(:,:),allocatable :: A_copy
         integer :: stat, i, j
 
-        write(*,'(a)',advance='no') "     Solving linear system..."
+        if (verbose) write(*,'(a)',advance='no') "     Solving linear system..."
 
         ! Set b vector for Morino formulation
         if (this%formulation == "morino") then
             this%b = -body%phi_cp_sigma
         end if
 
-        ! Check for NaNs; I'd rather have it fail here than give the user garbage results
-        if (any(isnan(this%A))) then
-            write(*,*) "!!! Invalid value detected in A matrix. Quitting..."
-            stop
-        end if
-        if (any(isnan(this%b))) then
-            write(*,*) "!!! Invalid value detected in b vector. Quitting..."
-            stop
-        end if
+        if (run_checks) then
 
-        ! Check for uninfluenced/ing points
-        do i=1,this%N
-            if (all(this%A(i,:) == 0.)) then
-                write(*,*) "!!! Control point ", i, " is not influenced. Quitting..."
+            ! Check for NaNs
+            if (any(isnan(this%A))) then
+                write(*,*) "!!! Invalid value detected in A matrix. Quitting..."
                 stop
             end if
-            if (all(this%A(:,i) == 0.)) then
-                write(*,*) "!!! Vertex ", i, " exerts no influence. Quitting..."
+            if (any(isnan(this%b))) then
+                write(*,*) "!!! Invalid value detected in b vector. Quitting..."
                 stop
             end if
-        end do
 
-        ! Make a copy of A (lu_solve replaces A with its decomposition)
+            ! Check for uninfluenced/ing points
+            do i=1,this%N
+                if (all(this%A(i,:) == 0.)) then
+                    write(*,*) "!!! Control point ", i, " is not influenced. Quitting..."
+                    stop
+                end if
+                if (all(this%A(:,i) == 0.)) then
+                    write(*,*) "!!! Vertex ", i, " exerts no influence. Quitting..."
+                    stop
+                end if
+            end do
+
+        end if
+
+        ! Make a copy of A (most solvers replace A with its decomposition)
         allocate(A_copy, source=this%A, stat=stat)
         call check_allocation(stat, "solver copy of AIC matrix")
 
@@ -913,11 +984,13 @@ contains
         if (this%matrix_solver == 'LU') then
             call lu_solve(this%N, A_copy, this%b, body%mu)
         else if (this%matrix_solver == 'BSOR') then
-            call block_sor(this%N, A_copy, this%b, this%chunk_size, this%tol, this%rel, body%mu)
+            call block_sor(this%N, A_copy, this%b, this%chunk_size, this%tol, this%rel, verbose, body%mu)
+        else if (this%matrix_solver == 'BSOR_adaptive') then
+            call block_sor_adaptive(this%N, A_copy, this%b, this%chunk_size, this%tol, verbose, body%mu)
         else if (this%matrix_solver == 'BGS') then
             call block_gauss_siedel(this%N, A_copy, this%b, this%chunk_size, this%tol, body%mu)
         end if
-        write(*,*) "Done."
+        if (verbose) write(*,*) "Done."
 
         ! Clean up memory
         deallocate(A_copy)
@@ -929,8 +1002,10 @@ contains
         ! Calculate residual parameters
         this%max_res = maxval(abs(body%phi_cp_mu-this%b))
         this%norm_res = sqrt(sum((body%phi_cp_mu-this%b)**2))
-        write(*,*) "        Maximum residual:", this%max_res
-        write(*,*) "        Norm of residual:", this%norm_res
+        if (verbose) then
+            write(*,*) "        Maximum residual:", this%max_res
+            write(*,*) "        Norm of residual:", this%norm_res
+        end if
 
     end subroutine panel_solver_solve_system
 
@@ -946,7 +1021,7 @@ contains
         integer :: i, stat
         real,dimension(3) :: x, v_jump
 
-        write(*,'(a)',advance='no') "     Calculating surface velocities..."
+        if (verbose) write(*,'(a)',advance='no') "     Calculating surface velocities..."
 
         ! Allocate velocity storage
         if (body%asym_flow) then
@@ -997,10 +1072,10 @@ contains
             ! Mirrored points
             if (body%asym_flow) then
                 body%Phi_u(i+body%N_verts) = body%phi_u(i+body%N_verts) + &
-                                             inner(x, mirror_about_plane(body%vertices(i)%loc, body%mirror_plane))
+                                             inner(x, mirror_across_plane(body%vertices(i)%loc, body%mirror_plane))
             end if
         end do
-        write(*,*) "Done."
+        if (verbose) write(*,*) "Done."
 
     end subroutine panel_solver_calc_velocities
 
@@ -1017,7 +1092,7 @@ contains
         real,dimension(3) :: V_pert
         real :: a, b, c, C_p_vac, lin, sln
 
-        write(*,'(a)',advance='no') "     Calculating surface pressures..."
+        if (verbose) write(*,'(a)',advance='no') "     Calculating surface pressures..."
         this%N_cells = size(body%V)/3
 
         ! Calculate vacuum pressure coefficient
@@ -1107,37 +1182,37 @@ contains
 
         end do
 
-        write(*,*) "Done."
+        if (verbose) write(*,*) "Done."
         
         ! Report min and max pressure coefficients
-        if (this%incompressible_rule) then
+        if (this%incompressible_rule .and. verbose) then
             write(*,*) "        Maximum incompressible pressure coefficient:", maxval(body%C_p_inc)
             write(*,*) "        Minimum incompressible pressure coefficient:", minval(body%C_p_inc)
         end if
         
-        if (this%isentropic_rule) then
+        if (this%isentropic_rule .and. verbose) then
             write(*,*) "        Maximum isentropic pressure coefficient:", maxval(body%C_p_ise)
             write(*,*) "        Minimum isentropic pressure coefficient:", minval(body%C_p_ise)
         end if
         
-        if (this%second_order_rule) then
+        if (this%second_order_rule .and. verbose) then
             write(*,*) "        Maximum second-order pressure coefficient:", maxval(body%C_p_2nd)
             write(*,*) "        Minimum second-order pressure coefficient:", minval(body%C_p_2nd)
         end if
         
-        if (this%slender_rule) then
+        if (this%slender_rule .and. verbose) then
             write(*,*) "        Maximum slender-body pressure coefficient:", maxval(body%C_p_sln)
             write(*,*) "        Minimum slender-body pressure coefficient:", minval(body%C_p_sln)
         end if
         
-        if (this%linear_rule) then
+        if (this%linear_rule .and. verbose) then
             write(*,*) "        Maximum linear pressure coefficient:", maxval(body%C_p_lin)
             write(*,*) "        Minimum linear pressure coefficient:", minval(body%C_p_lin)
         end if
         
         ! Report vacuum pressure coefficient
         if (this%freestream%M_inf > 0.) then
-            write(*,*) "        Vacuum pressure coefficient:", C_p_vac
+            if (verbose) write(*,*) "        Vacuum pressure coefficient:", C_p_vac
         end if
         
         ! Apply subsonic pressure corrections
@@ -1158,7 +1233,7 @@ contains
         integer :: i,stat
         real :: val_holder_L, val_holder_KT
 
-        write(*,'(a)',advance='no') "     Calculating compressibility pressure corrections..."        
+        if (verbose) write(*,'(a)',advance='no') "     Calculating compressibility pressure corrections..."        
         
         ! Prandtl-Glauert rule
         if (this%prandtl_glauert) then
@@ -1197,8 +1272,7 @@ contains
             (sqrt(1 - this%corrected_M_inf**2) + val_holder_KT * (0.5 * body%C_p_inc))
         end if
 
-        
-        write(*,*) "Done. "  
+        if (verbose) write(*,*) "Done. "  
         
     end subroutine panel_solver_subsonic_pressure_correction
     
@@ -1213,7 +1287,8 @@ contains
         
         integer :: i, stat
 
-        write(*,'(a, a, a)',advance='no') "     Calculating forces using the ", this%pressure_for_forces, " pressure rule..."
+        if (verbose) write(*,'(a, a, a)',advance='no') "     Calculating forces using the ", &
+                                                       this%pressure_for_forces, " pressure rule..."
 
         ! Allocate force storage
         allocate(body%dC_f(3,this%N_cells), stat=stat)
@@ -1298,10 +1373,12 @@ contains
             this%C_F(body%mirror_plane) = 0. ! We know this
         end if
 
-        write(*,*) "Done."
-        write(*,*) "        Cx:", this%C_F(1)
-        write(*,*) "        Cy:", this%C_F(2)
-        write(*,*) "        Cz:", this%C_F(3)
+        if (verbose) then
+            write(*,*) "Done."
+            write(*,*) "        Cx:", this%C_F(1)
+            write(*,*) "        Cy:", this%C_F(2)
+            write(*,*) "        Cz:", this%C_F(3)
+        end if
     
     end subroutine panel_solver_calc_forces
 
@@ -1375,7 +1452,6 @@ contains
         call json_value_add(p_parent, 'Cz', this%C_F(3))
         nullify(p_parent)
 
-   
     end subroutine panel_solver_update_report
 
 

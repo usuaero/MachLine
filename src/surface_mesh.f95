@@ -14,6 +14,7 @@ module surface_mesh_mod
     use edge_mod
     use wake_mesh_mod
     use sort_mod
+    use helpers_mod
 
     implicit none
 
@@ -80,15 +81,19 @@ contains
         ! Set singularity orders
         call json_xtnsn_get(settings, 'singularity_order.doublet', doublet_order, 1)
         call json_xtnsn_get(settings, 'singularity_order.source', source_order, 0)
-        write(*,'(a, i1, a, i1, a)') "     User has selected ", doublet_order, &
-                                     "-order doublet panels and ", source_order, "-order source panels."
+        if (verbose) write(*,'(a, i1, a, i1, a)') "     User has selected ", doublet_order, &
+                                                  "-order doublet and ", source_order, "-order source panels."
 
-        ! Check
-        if (doublet_order /= 1 .or. source_order /= 0) then
-            write(*,*) "!!! Such distributions are not currently available."
-            write(*,*) "!!! Defaulting to a linear doublet distribution and a constant source distribution."
-            doublet_order = 1
-            source_order = 0
+        ! Check source distribution
+        if (source_order < 0 .or. source_order > 1) then
+            write(*,*) "!!! Only constant or linear source distributions are allowed. Quitting..."
+            stop
+        end if
+
+        ! Check doublet distribution
+        if (doublet_order /= 1) then
+            write(*,*) "!!! Only linear doublet distributions are allowed. Quitting..."
+            stop
         end if
 
         ! Get mesh file
@@ -107,7 +112,7 @@ contains
         extension = mesh_file(loc:len(mesh_file))
 
         ! Load mesh file
-        write(*,'(a, a, a)',advance='no') "     Reading surface mesh in from file ", mesh_file, "..."
+        if (verbose) write(*,'(a, a, a)',advance='no') "     Reading surface mesh in from file ", mesh_file, "..."
         if (extension == '.vtk') then
             call load_surface_vtk(mesh_file, this%N_verts, this%N_panels, this%vertices, this%panels)
         else if (extension == '.stl') then
@@ -118,10 +123,11 @@ contains
             write(*,*) "MachLine cannot read ", extension, " type mesh files. Quitting..."
             stop
         end if
-        write(*,*) "Done."
+        if (verbose) write(*,*) "Done."
 
         ! Display mesh info
-        write(*,'(a, i7, a, i7, a)') "     Surface mesh has ", this%N_verts, " vertices and ", this%N_panels, " panels."
+        if (verbose) write(*,'(a, i7, a, i7, a)') "     Surface mesh has ", this%N_verts, " vertices and ", &
+                                                  this%N_panels, " panels."
 
         ! Get mirroring
         call json_xtnsn_get(settings, 'mirror_about', mirror_plane, "none")
@@ -129,13 +135,13 @@ contains
         select case (mirror_plane)
         case ("xy")
             this%mirror_plane = 3
-            write(*,*) "    Mesh set to mirror about xy plane."
+            if (verbose) write(*,*) "    Mesh set to mirror about xy plane."
         case ("xz")
             this%mirror_plane = 2
-            write(*,*) "    Mesh set to mirror about xz plane."
+            if (verbose) write(*,*) "    Mesh set to mirror about xz plane."
         case ("yz")
             this%mirror_plane = 1
-            write(*,*) "    Mesh set to mirror about yz plane."
+            if (verbose) write(*,*) "    Mesh set to mirror about yz plane."
         case default
             this%mirror_plane = 0
             this%mirrored = .false.
@@ -215,7 +221,7 @@ contains
         logical,dimension(this%N_panels*3) :: on_mirror_plane
         
 
-        write(*,'(a)',advance='no') "     Locating adjacent panels..."
+        if (verbose) write(*,'(a)',advance='no') "     Locating adjacent panels..."
 
         ! Initialize a few things
         on_mirror_plane = .false.
@@ -420,15 +426,16 @@ contains
         end do
 
         ! Check that no panel abuts empty space (i.e. non-watertight mesh)
-        !$OMP do schedule(static)
-        do i=1,this%N_panels
-            if (any(this%panels(i)%abutting_panels == 0)) then
-                write(*,*)
-                write(*,*) "!!! The supplied mesh is not watertight. Panel", i, "is missing at least one neighbor. Quitting..."
-                write(*,*) this%panels(i)%abutting_panels
-                stop
-            end if
-        end do
+        if (run_checks) then
+            !$OMP do schedule(static)
+            do i=1,this%N_panels
+                if (any(this%panels(i)%abutting_panels == 0)) then
+                    write(*,*)
+                    write(*,*) "!!! The supplied mesh is not watertight. Panel", i, "is missing at least one neighbor."
+                    write(*,*) "!!! Solution quality may be adversely affected."
+                end if
+            end do
+        end if
 
         ! Allocate edge storage
         !$OMP single
@@ -452,7 +459,7 @@ contains
 
         !$OMP end parallel
 
-        write(*,"(a, i7, a)") "Done. Found ", this%N_edges, " edges."
+        if (verbose) write(*,"(a, i7, a)") "Done. Found ", this%N_edges, " edges."
     
     end subroutine surface_mesh_locate_adjacent_panels
 
@@ -522,7 +529,7 @@ contains
         real :: C_angle, C_min_angle
         real,dimension(3) :: second_normal, cross_result
 
-        write(*,'(a)',advance='no') "     Characterizing edges..."
+        if (verbose) write(*,'(a)',advance='no') "     Characterizing edges..."
 
         ! Initialize
         allocate(wake_edge_verts(this%N_verts/4)) ! I sure hope you're not trying to run a mesh where every fourth vertex has a wake emanating from it...
@@ -542,7 +549,7 @@ contains
 
             ! Get normal for panel j (dependent on mirroring)
             if (this%edges(k)%on_mirror_plane) then
-                second_normal = mirror_about_plane(this%panels(i)%n_g, this%mirror_plane)
+                second_normal = mirror_across_plane(this%panels(i)%n_g, this%mirror_plane)
             else
                 second_normal = this%panels(j)%n_g
             end if
@@ -643,7 +650,7 @@ contains
         ! Allocate wake vertices array
         allocate(this%wake_edge_verts, source=wake_edge_verts(1:N_wake_edge_verts))
 
-        write(*,'(a, i3, a, i3, a)') "Done. Found ", this%N_wake_edges, " wake-shedding edges."
+        if (verbose) write(*,'(a, i3, a, i3, a)') "Done. Found ", this%N_wake_edges, " wake-shedding edges."
 
     end subroutine surface_mesh_characterize_edges
 
@@ -657,7 +664,7 @@ contains
 
         integer :: i, j, m, n
 
-        write(*,'(a)',advance='no') "     Setting up mesh mirror..."
+        if (verbose) write(*,'(a)',advance='no') "     Setting up mesh mirror..."
 
         ! If a vertex on the mirror plane doesn't belong to a discontinuous edge, then its mirror will not be unique
         do i=1,this%N_verts
@@ -715,7 +722,7 @@ contains
                 end if
             end if
         end do
-        write(*,*) "Done."
+        if (verbose) write(*,*) "Done."
 
     end subroutine surface_mesh_set_up_mirroring
 
@@ -735,7 +742,7 @@ contains
         ! Check whether any discontinuities exist
         if (allocated(this%wake_edge_verts)) then
 
-            write(*,'(a)',advance='no') "     Cloning vertices at discontinuous edges..."
+            if (verbose) write(*,'(a)',advance='no') "     Cloning vertices at discontinuous edges..."
 
             ! Allocate array which will store which discontinuous vertices need to be cloned
             N_discont_verts = size(this%wake_edge_verts)
@@ -917,7 +924,8 @@ contains
 
             end do
 
-            write(*,'(a, i4, a, i7, a)') "Done. Cloned ", N_clones, " vertices. Mesh now has ", this%N_verts, " vertices."
+            if (verbose) write(*,'(a, i4, a, i7, a)') "Done. Cloned ", N_clones, " vertices. Mesh now has ", &
+                                                      this%N_verts, " vertices."
 
         end if
 
@@ -935,7 +943,7 @@ contains
         real,dimension(3) :: n_avg
         integer :: i, j, i_panel
 
-        write(*,'(a)',advance='no') "     Calculating vertex normals..."
+        if (verbose) write(*,'(a)',advance='no') "     Calculating vertex normals..."
 
         ! Loop through vertices
         !$OMP parallel do private(n_avg, i, i_panel) schedule(dynamic)
@@ -956,12 +964,17 @@ contains
             ! Normalize and store
             this%vertices(j)%n_g = n_avg/norm2(n_avg)
 
+            ! Calculate mirrored normal for mirrored vertex
+            if (this%mirrored) then
+                this%vertices(j)%n_g_mir = mirror_across_plane(this%vertices(j)%n_g_mir, this%mirror_plane)
+            end if
+
             ! Calculate average edge lengths for each vertex
             call this%vertices(j)%calc_average_edge_length(this%vertices)
 
         end do
 
-        write(*,*) "Done."
+        if (verbose) write(*,*) "Done."
 
     end subroutine surface_mesh_calc_vertex_normals
 
@@ -1164,7 +1177,7 @@ contains
             ! Calculate mirrors
             !$OMP parallel do schedule(static)
             do i=1,this%N_cp
-                this%cp_mirrored(:,i) = mirror_about_plane(this%cp(:,i), this%mirror_plane)
+                this%cp_mirrored(:,i) = mirror_across_plane(this%cp(:,i), this%mirror_plane)
             end do
 
         end if
@@ -1230,16 +1243,26 @@ contains
                 call body_vtk%write_cell_scalars(this%C_p_lai(1:this%N_panels), "C_p_L")
             end if
 
+            ! Constant sources
+            if (source_order == 0) then
+                call body_vtk%write_cell_scalars(this%sigma(1:this%N_panels), "sigma")
+            end if
+
             ! Other
-            call body_vtk%write_cell_scalars(this%sigma(1:this%N_panels), "sigma")
             call body_vtk%write_cell_scalars(panel_inclinations, "inclination")
             call body_vtk%write_cell_vectors(this%v(:,1:this%N_panels), "v")
             call body_vtk%write_cell_vectors(this%dC_f(:,1:this%N_panels), "dC_f")
+
+            ! Linear sources
+            if (source_order == 1) then
+                call body_vtk%write_point_scalars(this%sigma(1:this%N_verts), "sigma")
+            end if
+
             call body_vtk%write_point_scalars(this%mu(1:this%N_verts), "mu")
             call body_vtk%write_point_scalars(this%Phi_u(1:this%N_verts), "Phi_u")
             call body_vtk%finish()
 
-            write(*,*) "    Surface results written to: ", body_file
+            if (verbose) write(*,*) "    Surface results written to: ", body_file
         end if
 
         ! Write out data for mirrored body
@@ -1289,15 +1312,25 @@ contains
                 call body_vtk%write_cell_scalars(this%C_p_lai(this%N_panels+1:this%N_panels*2), "C_p_L")
             end if
 
+            ! Constant sources
+            if (source_order == 0) then
+                call body_vtk%write_cell_scalars(this%sigma(this%N_panels+1:this%N_panels*2), "sigma")
+            end if
+
             ! Other
-            call body_vtk%write_cell_scalars(this%sigma(this%N_panels+1:this%N_panels*2), "sigma")
             call body_vtk%write_cell_vectors(this%v(:,this%N_panels+1:this%N_panels*2), "v")
             call body_vtk%write_cell_vectors(this%dC_f(:,this%N_panels+1:this%N_panels*2), "dC_f")
+
+            ! Linear sources
+            if (source_order == 1) then
+                call body_vtk%write_point_scalars(this%sigma(this%N_verts+1:this%N_verts*2), "sigma")
+            end if
+
             call body_vtk%write_point_scalars(this%mu(this%N_cp+1:this%N_cp*2), "mu")
             call body_vtk%write_point_scalars(this%Phi_u(this%N_verts+1:this%N_verts*2), "Phi_u")
             call body_vtk%finish()
 
-            write(*,*) "    Mirrored surface results written to: ", mirrored_body_file
+            if (verbose) write(*,*) "    Mirrored surface results written to: ", mirrored_body_file
 
         end if
         
@@ -1326,10 +1359,10 @@ contains
 
                 ! Finish up
                 call wake_vtk%finish()
-                write(*,*) "    Wake results written to: ", wake_file
+                if (verbose) write(*,*) "    Wake results written to: ", wake_file
 
             else
-                write(*,*) "    No wake to export."
+                if (verbose) write(*,*) "    No wake to export."
 
             end if
         end if
@@ -1349,7 +1382,7 @@ contains
             call cp_vtk%write_point_scalars(this%phi_cp_sigma(1:this%N_cp), "phi_sigma")
             call cp_vtk%finish()
 
-            write(*,*) "    Control point results written to: ", control_point_file
+            if (verbose) write(*,*) "    Control point results written to: ", control_point_file
         end if
         
         ! Write out data for mirrored control points
@@ -1367,7 +1400,7 @@ contains
             call cp_vtk%write_point_scalars(this%phi_cp_sigma(this%N_cp+1:this%N_cp*2), "phi_sigma")
             call cp_vtk%finish()
 
-            write(*,*) "    Mirrored control point results written to: ", mirrored_control_point_file
+            if (verbose) write(*,*) "    Mirrored control point results written to: ", mirrored_control_point_file
         end if
     
     end subroutine surface_mesh_output_results

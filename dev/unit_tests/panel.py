@@ -5,8 +5,9 @@ def inner2(x,y):
     return x[0]*y[0] + x[1]*y[1]
 
 
-class Panel:
-    """A class defining a constant-doublet-constant-source panel of unit strength in supersonic flow (M_0=sqrt(2)).
+class SubinclinedPanel:
+    """A class defining a subinclined constant-doublet-constant-source panel of unit strength in supersonic flow (M_0=sqrt(2)).
+    The flow is aligned with the x axis.
     
     Parameters
     ----------
@@ -259,3 +260,150 @@ class Panel:
         phi_d = 0.5*self.mu*sum(hH113)/np.pi
 
         return phi_d
+
+
+class SuperinclinedPanel:
+    """A class defining a superinclined constant-doublet-constant-source panel of unit strength in supersonic flow (M_0=sqrt(2)).
+    The flow is aligned with the x axis, and the panel lies in the y-z plane.
+    
+    Parameters
+    ----------
+    verts : ndarray
+        2xN array, the columns of which are the corner points of the panel, expressed in local coords.
+
+    mu : float
+        Doublet strength.
+
+    sigma : float
+        Source strength.
+    """
+
+    def __init__(self, verts, mu, sigma):
+
+        # Store
+        self.verts = verts
+        self.N = self.verts.shape[1]
+        self.mu = mu
+        self.sigma = sigma
+
+        # Initialize storage
+        self.dx = np.zeros(self.N)
+        self.dy = np.zeros(self.N)
+        self.t_hat = np.zeros((2,self.N))
+        self.n_hat = np.zeros((2,self.N))
+
+        # Calculate edge parameters
+        for i in range(self.N):
+
+            # Get index of end vertex
+            i_next = (i+1)%self.N
+
+            # Get edge displacements
+            self.dx[i] = verts[0,i_next] - verts[0,i]
+            self.dy[i] = verts[1,i_next] - verts[1,i]
+
+            # Get edge tangent vector
+            self.t_hat[0,i] = self.dx[i]
+            self.t_hat[1,i] = self.dy[i]
+            self.t_hat[:,i] /= np.linalg.norm(self.t_hat[:,i])
+
+        # Get edge normal vector
+        self.n_hat[0,:] = self.t_hat[1,:]
+        self.n_hat[1,:] = -self.t_hat[0,:]
+
+        # Calculate area
+        if self.N == 3:
+            self.A = 0.5*abs(self.dx[0]*self.dy[1] - self.dy[0]*self.dx[1])
+        else:
+            self.A = abs(self.dx[0]*self.dy[1] - self.dy[0]*self.dx[1])
+
+        # Calculate centroid
+        self.c = np.sum(self.verts, axis=1)/self.N
+
+
+    def _calc_geometry(self, P):
+        # Calculates necessary geometry
+
+        # Initialize
+        h = P[0]
+        a = np.zeros(self.N)
+        l1 = np.zeros(self.N)
+        l2 = np.zeros(self.N)
+        in_dod = np.zeros(self.N, dtype=bool)
+        corner_in_dod = np.zeros(self.N, dtype=bool)
+        in_dod[:] = False
+        corner_in_dod[:] = False
+
+        # Loop through edges
+        for i in range(self.N):
+
+            # Get displacement to start vertex
+            d = self.verts[:,i] - P[1:]
+
+            # Check if the start vertex is in the DoD
+            if d[0]**2 + d[1]**2 < h**2:
+                corner_in_dod[i] = True
+
+            # Calculate a
+            a[i] = inner2(d, self.n_hat[:,i])
+            
+            # Calculate l1
+            l1[i] = inner2(d, self.t_hat[:,i])
+
+            # Get displacement to end vertex
+            i_next = (i+1)%self.N
+            d = self.verts[:,i_next] - P[1:]
+
+            # Calculate l2
+            l2[i] = inner2(d, self.t_hat[:,i])
+
+        # Loop through edges to check DoD
+        for i in range(self.N):
+
+            # Get index of end vertex
+            i_next = (i+1)%self.N
+
+            # Check for at least one endpoint in
+            if corner_in_dod[i] or corner_in_dod[i_next]:
+                in_dod[i] = True
+            elif abs(a[i]) < h and h != 0.0 and l1[i]*l2[i] <= 0.0:
+                in_dod[i] = True
+
+        return h, a, l1, l2, in_dod
+
+
+    def _calc_integrals(self, P):
+        # Calculates the needed integrals
+
+        # Calculate geometry
+        h, a, l1, l2, in_dod = self._calc_geometry(P)
+
+
+    def calc_induced_source_potential(self, P):
+        """Calculates the source-induced potential at the given point P.
+        
+        Parameters
+        ----------
+        P : ndarray
+            Evaluation point.
+        """
+
+        # Get integrals
+        self._calc_integrals(P)
+
+        return 0.0, np.zeros(self.N), np.zeros(self.N), np.zeros(self.N)
+
+
+    def calc_induced_doublet_potential(self, P):
+        """Calculates the doublet-induced potential at the given point P.
+        
+        Parameters
+        ----------
+        P : ndarray
+            Evaluation point.
+        """
+
+        # Get integrals
+        self._calc_integrals(P)
+        
+        return 0.0

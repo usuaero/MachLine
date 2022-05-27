@@ -559,7 +559,7 @@ subroutine decompose_blocks(N, A, N_blocks, block_size, N_last, ind_P, i_start_b
 end subroutine decompose_blocks
 
 
-subroutine block_sor(N, A, b, block_size, tol, rel, x)
+subroutine block_sor(N, A, b, block_size, tol, rel, verbose, x)
   ! Iteratively solves the [A]x=b system using block Successive Overrelaxation
   ! N is the size of the system
   ! A is the system matrix; block diagonals will be replaced with their LU decompositions
@@ -575,6 +575,7 @@ subroutine block_sor(N, A, b, block_size, tol, rel, x)
   real,dimension(N,N),intent(inout) :: A
   real,dimension(N),intent(in) :: b
   real,intent(in) :: tol, rel
+  logical,intent(in) :: verbose
   real,dimension(:),allocatable,intent(out) :: x
 
   real :: err
@@ -587,7 +588,7 @@ subroutine block_sor(N, A, b, block_size, tol, rel, x)
 
   ! Check relaxation
   if (rel < 0. .or. rel > 2.) then
-    write(*,*) "Relaxation for SOR must be between 0 and 2 (exclusive). Quitting..."
+    write(*,*) "!!! Relaxation for SOR must be between 0 and 2 (exclusive). Quitting..."
     stop
   end if
 
@@ -605,17 +606,20 @@ subroutine block_sor(N, A, b, block_size, tol, rel, x)
   end if
 
   ! Decompose blocks
-
-  write(*,*)
-  write(*,'(a)',advance='no') "         Decomposing blocks..."
+  if (verbose) then
+    write(*,*)
+    write(*,'(a)',advance='no') "         Decomposing blocks..."
+  end if
   call decompose_blocks(N, A, N_blocks, block_size, N_last, ind_P, i_start_block, i_end_block)
-  write(*,*) "Done."
+  if (verbose) write(*,*) "Done."
 
   ! Progress
-  write(*,*)
-  write(*,*) "        Running SOR..."
-  write(*,*) "        Iteration      ||dx||"
-  write(*,*) "        --------------------------------------"
+  if (verbose) then
+    write(*,*)
+    write(*,*) "        Running Block SOR..."
+    write(*,*) "        Iteration      ||dx||"
+    write(*,*) "        --------------------------------------"
+  end if
 
   ! Iterate
   iteration = 0
@@ -659,8 +663,8 @@ subroutine block_sor(N, A, b, block_size, tol, rel, x)
     err = norm2(x-x_new)
 
     ! Output progress
-    if (modulo(iteration, 50) == 0) then
-      write(*,'(i18, ES15.3)') iteration, err
+    if (modulo(iteration, 200) == 0) then
+      if (verbose) write(*,'(i18, ES15.3)') iteration, err
     end if
 
     ! Update
@@ -669,9 +673,136 @@ subroutine block_sor(N, A, b, block_size, tol, rel, x)
   end do
 
   ! Final iteration count and error
-  write(*,'(i18, ES15.3)') iteration, err
+  if (verbose) write(*,'(i18, ES15.3)') iteration, err
 
 end subroutine block_sor
+
+
+subroutine block_sor_adaptive(N, A, b, block_size, tol, verbose, x)
+  ! Iteratively solves the [A]x=b system using block Successive Overrelaxation
+  ! N is the size of the system
+  ! A is the system matrix; block diagonals will be replaced with their LU decompositions
+  ! b is the RHS vector
+  ! block_size is the desired size of each block
+  ! tol is the convergence tolerance between iterations
+  ! verbose
+  ! x is the solution
+
+  implicit none
+
+  integer,intent(in) :: N, block_size
+  real,dimension(N,N),intent(inout) :: A
+  real,dimension(N),intent(in) :: b
+  real,intent(in) :: tol
+  logical,intent(in) :: verbose
+  real,dimension(:),allocatable,intent(out) :: x
+
+  real :: err, rel
+  real,dimension(N) :: x_new
+  real,dimension(block_size) :: bi
+  real,dimension(:),allocatable :: xi
+  integer :: i, N_blocks, r, N_last, iteration
+  integer,dimension(:),allocatable :: i_start_block, i_end_block
+  integer,dimension(:,:),allocatable :: ind_P
+
+  ! Give initial error estimate and relaxation
+  err = tol + 1.
+  rel = 1.
+
+  ! Initialize solution vector
+  allocate(x(N), source=0.)
+
+  ! Calculate number of blocks
+  N_blocks = N/block_size
+  r = modulo(N, block_size)
+  if (r > 0) then
+    N_blocks = N_blocks + 1
+  end if
+
+  ! Decompose blocks
+  if (verbose) then
+    write(*,*)
+    write(*,'(a)',advance='no') "         Decomposing blocks..."
+  end if
+  call decompose_blocks(N, A, N_blocks, block_size, N_last, ind_P, i_start_block, i_end_block)
+  if (verbose) write(*,*) "Done."
+
+  ! Progress
+  if (verbose) then
+    write(*,*)
+    write(*,*) "        Running Adaptive Block SOR..."
+    write(*,*) "        Iteration      ||dx||         Relaxation"
+    write(*,*) "        ----------------------------------------"
+  end if
+
+  ! Iterate
+  iteration = 0
+  do while(err >= tol)
+
+    iteration = iteration + 1
+
+    ! Invert blocks
+    do i=1,N_blocks
+
+      ! Last block
+      if (i == N_blocks) then
+
+        ! Calculate new RHS vector
+        bi(1:N_last) = b(i_start_block(i):N) - matmul(A(i_start_block(i):N,1:i_start_block(i)-1), x_new(1:i_start_block(i)-1))
+
+        ! Solve
+        call lu_back_sub(A(i_start_block(i):N,i_start_block(i):N), N_last, ind_P(1:N_last,i), bi, xi)
+
+        ! Store
+        x_new(i_start_block(i):N) = (1.-rel)*x_new(i_start_block(i):N) + rel*xi
+
+      ! Not last block
+      else
+
+        ! Calculate new RHS vector
+        bi = b(i_start_block(i):i_end_block(i))
+        bi = bi - matmul(A(i_start_block(i):i_end_block(i),1:i_start_block(i)-1), x_new(1:i_start_block(i)-1))
+        bi = bi - matmul(A(i_start_block(i):i_end_block(i),i_end_block(i)+1:N), x(i_end_block(i)+1:N))
+
+        ! Solve
+        call lu_back_sub(A(i_start_block(i):i_end_block(i),i_start_block(i):i_end_block(i)), block_size, ind_P(:,i), bi, xi)
+
+        ! Store
+        x_new(i_start_block(i):i_end_block(i)) = (1.-rel)*x_new(i_start_block(i):i_end_block(i)) + rel*xi
+
+      end if
+    end do
+
+    ! Calculate error
+    err = norm2(x-x_new)
+
+    ! Output progress
+    if (verbose .and. modulo(iteration, 50) == 0) then
+      write(*,'(i18, ES15.3, ES15.3)') iteration, err, rel
+    end if
+
+    ! Update
+    x = x_new
+
+    ! Update rel
+    rel = rel - 0.01*(log10(err/tol)) ! Attempts to drive the error towards the tolerance; I'm not convinced this works well...
+
+    ! Bound rel
+    if (rel < 0.) rel = 0.1
+    if (err > 1.e-2) then
+      if (rel > 1.) rel = 1. ! Don't want to underrelax early on
+    else if (log10(err/tol) < 1.5) then
+      if (rel > 1.) rel = 1. ! Don't want to underrelax when we're really close
+    else
+      if (rel > 2.) rel = 2. ! In the middle, we want to underrelax
+    end if
+
+  end do
+
+  ! Final iteration count and error
+  if (verbose) write(*,'(i18, ES15.3)') iteration, err
+
+end subroutine block_sor_adaptive
 
 
 subroutine block_gauss_siedel(N, A, b, block_size, tol, x)

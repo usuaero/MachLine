@@ -1,13 +1,16 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from panel import Panel
+from panel import SubinclinedPanel, SuperinclinedPanel
 from singularities import Source, Doublet
 
 
-def plot_comparison(verts, P0, d0, figname=None):
+def plot_comparison(verts, P0, d0, figname=None, subinclined=True):
 
     # Initialize panel
-    p = Panel(verts, 1.0, 1.0)
+    if subinclined:
+        p = SubinclinedPanel(verts, 1.0, 1.0)
+    else:
+        p = SuperinclinedPanel(verts, 1.0, 1.0)
 
     # Initialize equivalent point singularities
     s = Source(np.array([p.c[0], p.c[1], 0.0]), p.A)
@@ -108,19 +111,19 @@ def plot_comparison(verts, P0, d0, figname=None):
 
 if __name__=="__main__":
 
-    # Triangular panel
-    verts = np.array([[0.0, 0.0, 1.0],
-                      [1.0, -1.0, 0.0]])
+    ## Triangular panel
+    #verts = np.array([[0.0, 0.0, 1.0],
+    #                  [1.0, -1.0, 0.0]])
 
     ## Run line through Mach wedge region
     #P0 = np.array([0.9, 0.0, -5.0])
     #d0 = np.array([0.0, 0.0, 1.0])
     #plot_comparison(verts, P0, d0, 'dev/unit_tests/mach_wedge.pdf')
 
-    # Run line through Mach wedge region and intersect Mach cones
-    P0 = np.array([0.9, -5.0, 0.1])
-    d0 = np.array([0.0, 1.0, 0.0])
-    plot_comparison(verts, P0, d0)#'dev/unit_tests/mach_wedge_intersecting.pdf')
+    ## Run line through Mach wedge region and intersect Mach cones
+    #P0 = np.array([0.9, -5.0, 0.1])
+    #d0 = np.array([0.0, 1.0, 0.0])
+    #plot_comparison(verts, P0, d0)#'dev/unit_tests/mach_wedge_intersecting.pdf')
 
 
     ## Panel with subsonic edges
@@ -170,3 +173,12 @@ if __name__=="__main__":
     #P0 = np.array([3, -5.0, 0.5])
     #d0 = np.array([0.0, 1.0, 0.0])
     #plot_comparison(verts, P0, d0, 'dev/unit_tests/supersonic_edges_y_trans_intersecting.pdf')
+
+    # Superinclined panel
+    verts = np.array([[1.0, -1.0, -1.0, 1.0],
+                      [1.0, 1.0, -1.0, -1.0]])
+
+    # Totally in DoD
+    P0 = np.array([2.0, 0.0, 0.0])
+    d0 = np.array([1.0, 0.0, 0.0])
+    plot_comparison(verts, P0, d0, subinclined=False)

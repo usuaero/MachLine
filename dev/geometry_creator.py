@@ -35,8 +35,8 @@ def _export_vtk(filename, vertices, panels):
             print("3 "+" ".join([str(i) for i in panel]), file=export_handle)
             
 
-def _get_proper_points_and_panels_for_right_cone(h, r, N_transverse, N_theta, N_radial):
-    # Generates the points and panels for half of a right cone, aligned with the x-axis and its base at the origin.
+def _get_proper_points_and_panels_for_closed_right_cone(h, r, N_transverse, N_theta, N_radial):
+    # Generates the points and panels for half of a closed right cone, aligned with the x-axis and its base at the origin.
     # resultant mesh should be mirrored about the xy plane.
 
     # Determine number of vertices
@@ -139,9 +139,87 @@ def _get_proper_points_and_panels_for_right_cone(h, r, N_transverse, N_theta, N_
         panels[ind,2] = N_verts-N_theta-2+j
 
     return vertices, panels
+            
+
+def _get_proper_points_and_panels_for_closed_right_cone(h, r, N_transverse, N_theta):
+    # Generates the points and panels for half of a closed right cone, aligned with the x-axis and its base at the origin.
+    # resultant mesh should be mirrored about the xy plane.
+
+    # Determine number of vertices
+    N_verts = 1 + N_transverse*(N_theta+1)
+
+    # Determine number of panels
+    N_panels = (2*(N_transverse-1)+1)*N_theta
+
+    # Initialize storage
+    vertices = np.zeros((N_verts,3))
+    panels = np.zeros((N_panels,3), dtype=int)
+
+    # Apex
+    vertices[0,0] = h
+
+    # Generate distribution of locations in x, r, and theta
+    X = np.linspace(h, 0.0, N_transverse+1)
+    TH = np.linspace(0.0, np.pi, N_theta+1)
+
+    # Calculate radii of side sections
+    R_x = (h-X)*r/h
+
+    # Calculate trig functions
+    C_TH = np.cos(TH)
+    S_TH = np.sin(TH)
+
+    # Generate points going down the side
+    for i in range(N_transverse):
+        for j in range(N_theta+1):
+
+            # Determine index
+            ind = 1 + j + i*(N_theta+1)
+
+            # x coordinate
+            vertices[ind,0] = X[i+1]
+
+            # y coordinate
+            vertices[ind,1] = C_TH[j]*R_x[i+1]
+
+            # z coordinate
+            vertices[ind,2] = S_TH[j]*R_x[i+1]
+
+    # Initialize panels
+
+    # First row at tip
+    for i in range(N_theta):
+
+        # Set indices
+        panels[i,0] = 0
+        panels[i,1] = i+1
+        panels[i,2] = i+2
+
+    # Subsequent rows up side and on bottom
+    # Each loop iteration will create 2 panels
+    for i in range(N_transverse-1):
+        for j in range(N_theta):
+
+            # Determine index of first panel
+            ind = N_theta + 2*j + 2*i*N_theta
+
+            # Set indices
+            panels[ind,0] = 1 + j + i*(N_theta+1)
+            panels[ind,1] = 1 + j + (i+1)*(N_theta+1)
+            panels[ind,2] = 1 + j+1 + (i+1)*(N_theta+1)
+
+            # Determine index of second panel
+            ind += 1
+
+            # Set indices
+            panels[ind,0] = 1 + j + i*(N_theta+1)
+            panels[ind,1] = 1 + j+1 + (i+1)*(N_theta+1)
+            panels[ind,2] = 1 + j+1 + i*(N_theta+1)
+
+    return vertices, panels
 
 
-def generate_proper_right_cone(filename, h, r, N_transverse, N_theta, N_radial):
+def generate_proper_right_cone(filename, h, r, N_transverse, N_theta, N_radial=1, close_base=True):
     """Generates a mesh of half of a right cone, aligned with the x-axis and its base at the origin.
     The resultant mesh should be mirrored about the xy plane.
     
@@ -162,12 +240,18 @@ def generate_proper_right_cone(filename, h, r, N_transverse, N_theta, N_radial):
     N_theta : int
         Number of sections with which to discretize the sides and bottom of the cone in the angular direction.
 
-    N_radial : int
-        Number of sections with which to discretize the bottom of the cone in the radial direction.
+    N_radial : int, optional
+        Number of sections with which to discretize the bottom of the cone in the radial direction. Defaults to 1.
+
+    close_base : logical, optional
+        Whether to close the bottom of the cone. Defaults to True.
     """
 
     # Get geometry
-    vertices, panels = _get_proper_points_and_panels_for_right_cone(h, r, N_transverse, N_theta, N_radial)
+    if close_base:
+        vertices, panels = _get_proper_points_and_panels_for_closed_right_cone(h, r, N_transverse, N_theta, N_radial)
+    else:
+        vertices, panels = _get_proper_points_and_panels_for_closed_right_cone(h, r, N_transverse, N_theta)
 
     # Export
     _export_vtk(filename, vertices, panels)
@@ -176,4 +260,4 @@ def generate_proper_right_cone(filename, h, r, N_transverse, N_theta, N_radial):
 if __name__=="__main__":
 
     # Test cone
-    generate_proper_right_cone('dev/meshes/right_cone.vtk', 5, 1, 10, 20, 5)
+    generate_proper_right_cone('dev/meshes/right_cone_open.vtk', 5, 1, 150, 50, close_base=False)

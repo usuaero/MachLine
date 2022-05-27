@@ -1,0 +1,33 @@
+{
+    "flow": {
+        "freestream_velocity" : [ 100.0, 0.0, 0.0 ],
+        "freestream_mach_number" : 1.5
+    },
+    "geometry": {
+        "file": "dev/meshes/very_fine_delta_wing.stl",
+        "reference": {
+            "area": 1.0
+        },
+        "wake_model" : {
+            "wake_present" : false
+        }
+    },
+    "solver": {
+        "formulation": "morino",
+        "control_point_offset": 1.1e-05
+    },
+    "post_processing" : {
+        "pressure_rules": {
+            "isentropic": true,
+            "second-order": true,
+            "linear" : true,
+            "slender-body" : true
+        }
+    },
+    "output": {
+        "body_file" :          "dev/results/delta_wing_very_fine.vtk",
+        "wake_file" :          "dev/results/delta_wing_very_fine_wake.vtk",
+        "control_point_file" : "dev/results/delta_wing_very_fine_control_points.vtk",
+        "report_file" :        "dev/results/report.json"
+    }
+}
