@@ -517,9 +517,10 @@ contains
         type(flow),intent(in) :: freestream
 
         integer :: i, j, k, m, n, temp, top_panel, bottom_panel, i_vert_1, i_vert_2, N_wake_edge_verts
+        integer :: q, cross_max_dir, v_max_dir
         integer,dimension(:),allocatable :: wake_edge_verts
         real :: C_angle, C_min_angle
-        real,dimension(3) :: second_normal
+        real,dimension(3) :: second_normal, cross_result
 
         write(*,'(a)',advance='no') "     Characterizing edges..."
 
@@ -531,6 +532,7 @@ contains
 
         ! Loop through each edge
         !$OMP parallel do private(i, j, second_normal, C_angle, i_vert_1, i_vert_2) reduction(min : C_min_angle) &
+        !$OMP & private(q, cross_result, cross_max_dir, v_max_dir) &
         !$OMP & default(none) shared(this, freestream, wake_edge_verts, N_wake_edge_verts)
         do k=1,this%N_edges
 
@@ -559,53 +561,73 @@ contains
                 ! Check angle of panel normal with freestream
                 if (inner(this%panels(i)%n_g, freestream%V_inf) > 0.0 .or. inner(second_normal, freestream%V_inf) > 0.0) then
 
-                    ! Get vertex indices (simplifies later code)
-                    i_vert_1 = this%edges(k)%verts(1)
-                    i_vert_2 = this%edges(k)%verts(2)
+                    ! ! Check panel normal vectors cross product relationship with freestream
+                    ! cross_result = cross(this%panels(i)%n_g, second_normal)
+       
+                    ! do q=1,size(cross_result)
+                    !     ! Determine unit direction of max value in cross product result
+                    !     if (abs(cross_result(q)) == maxval(abs(cross_result))) then
+                    !         cross_max_dir = q
+                    !     end if
 
-                    ! Set the character of the edge
-                    this%edges(k)%sheds_wake = .true.
-                    this%edges(k)%discontinuous = .true.
+                    !     ! Determine unit direction of max value in freestream velocity
+                    !     if (abs(freestream%V_inf(q)) == maxval(abs(freestream%V_inf))) then
+                    !         v_max_dir = q
+                    !     end if
 
-                    !$OMP critical
+                    ! end do
 
-                    ! Update number of wake-shedding edges
-                    this%N_wake_edges = this%N_wake_edges + 1
+                    ! ! Verify fuselage wing junction isn't creating a wake
+                    ! if (cross_max_dir /= v_max_dir) then
 
-                    ! If this vertex does not already belong to a wake-shedding edge, add it to the list of wake edge vertices
-                    if (this%vertices(i_vert_1)%N_wake_edges == 0) then 
-                        N_wake_edge_verts = N_wake_edge_verts + 1
-                        wake_edge_verts(N_wake_edge_verts) = i_vert_1
-                        this%vertices(i_vert_1)%index_in_wake_vertices = N_wake_edge_verts
+                        ! Get vertex indices (simplifies later code)
+                        i_vert_1 = this%edges(k)%verts(1)
+                        i_vert_2 = this%edges(k)%verts(2)
 
-                    ! If it does already belong to a wake-shedding edge, then we may now conclude it is 'in' an edge
-                    ! Because of this, it will likely need to be cloned unless it's on a mirror plane
-                    else if (.not. this%edges(k)%on_mirror_plane) then
-                        this%vertices(i_vert_1)%needs_clone = .true.
-                    end if
+                        ! Set the character of the edge
+                        this%edges(k)%sheds_wake = .true.
+                        this%edges(k)%discontinuous = .true.
 
-                    ! Update number of wake edges touching this vertex
-                    this%vertices(i_vert_1)%N_wake_edges = this%vertices(i_vert_1)%N_wake_edges + 1
-                    this%vertices(i_vert_1)%N_discont_edges = this%vertices(i_vert_1)%N_discont_edges + 1
+                        !$OMP critical
 
-                    ! Do the same for the other vertex
-                    if (this%vertices(i_vert_2)%N_wake_edges == 0) then 
-                        N_wake_edge_verts = N_wake_edge_verts + 1
-                        wake_edge_verts(N_wake_edge_verts) = i_vert_2
-                        this%vertices(i_vert_2)%index_in_wake_vertices = N_wake_edge_verts
+                        ! Update number of wake-shedding edges
+                        this%N_wake_edges = this%N_wake_edges + 1
 
-                    ! If it does already belong to a wake-shedding edge, then we may now conclude it is 'in' an edge
-                    ! Because of this, it will likely need to be cloned unless it's on a mirror plane
-                    else if (.not. this%edges(k)%on_mirror_plane) then
-                        this%vertices(i_vert_2)%needs_clone = .true.
-                    end if
+                        ! If this vertex does not already belong to a wake-shedding edge, add it to the list of wake edge vertices
+                        if (this%vertices(i_vert_1)%N_wake_edges == 0) then 
+                            N_wake_edge_verts = N_wake_edge_verts + 1
+                            wake_edge_verts(N_wake_edge_verts) = i_vert_1
+                            this%vertices(i_vert_1)%index_in_wake_vertices = N_wake_edge_verts
 
-                    ! Update number of wake edges touching this vertex
-                    this%vertices(i_vert_2)%N_wake_edges = this%vertices(i_vert_2)%N_wake_edges + 1
-                    this%vertices(i_vert_2)%N_discont_edges = this%vertices(i_vert_2)%N_discont_edges + 1
+                        ! If it does already belong to a wake-shedding edge, then we may now conclude it is 'in' an edge
+                        ! Because of this, it will likely need to be cloned unless it's on a mirror plane
+                        else if (.not. this%edges(k)%on_mirror_plane) then
+                            this%vertices(i_vert_1)%needs_clone = .true.
+                        end if
 
-                    !$OMP end critical
+                        ! Update number of wake edges touching this vertex
+                        this%vertices(i_vert_1)%N_wake_edges = this%vertices(i_vert_1)%N_wake_edges + 1
+                        this%vertices(i_vert_1)%N_discont_edges = this%vertices(i_vert_1)%N_discont_edges + 1
 
+                        ! Do the same for the other vertex
+                        if (this%vertices(i_vert_2)%N_wake_edges == 0) then 
+                            N_wake_edge_verts = N_wake_edge_verts + 1
+                            wake_edge_verts(N_wake_edge_verts) = i_vert_2
+                            this%vertices(i_vert_2)%index_in_wake_vertices = N_wake_edge_verts
+
+                        ! If it does already belong to a wake-shedding edge, then we may now conclude it is 'in' an edge
+                        ! Because of this, it will likely need to be cloned unless it's on a mirror plane
+                        else if (.not. this%edges(k)%on_mirror_plane) then
+                            this%vertices(i_vert_2)%needs_clone = .true.
+                        end if
+
+                        ! Update number of wake edges touching this vertex
+                        this%vertices(i_vert_2)%N_wake_edges = this%vertices(i_vert_2)%N_wake_edges + 1
+                        this%vertices(i_vert_2)%N_discont_edges = this%vertices(i_vert_2)%N_discont_edges + 1
+
+                        !$OMP end critical
+
+                    ! end if
                 end if
             end if
 
