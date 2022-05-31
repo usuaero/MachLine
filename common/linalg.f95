@@ -894,6 +894,7 @@ end subroutine block_gauss_siedel
 
 subroutine purcell_solve(N, A, b, x)
   ! Solves the NxN linear system [A]x = b using Purcell's method ( [A | -b] [x | 1]^T = 0 )
+  ! Taken from Chen, "Matrix Preconditioning Techniques and Applications", Cambridge Press, 2005, pp. 490-492.
 
   implicit none
 
