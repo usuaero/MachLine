@@ -1017,6 +1017,10 @@ contains
         case ('LU')
             call lu_solve(this%N, A_copy, this%b, body%mu)
 
+        ! Purcell's method
+        case ('PURC')
+            call purcell_solve(this%N, A_copy, this%b, body%mu)
+
         ! Block successive over-relaxation
         case ('BSOR')
             call block_sor_solve(this%N, A_copy, this%b, this%block_size, this%tol, this%rel, &

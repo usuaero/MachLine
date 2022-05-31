@@ -891,5 +891,70 @@ subroutine block_gauss_siedel(N, A, b, block_size, tol, x)
 
 end subroutine block_gauss_siedel
 
+
+subroutine purcell_solve(N, A, b, x)
+  ! Solves the NxN linear system [A]x = b using Purcell's method ( [A | -b] [x | 1]^T = 0 )
+
+  implicit none
+
+  integer, intent(in) :: N
+  real,dimension(N,N),intent(inout) :: A
+  real,dimension(N),intent(in) :: b
+  real,dimension(:),allocatable,intent(out) :: x
+
+  integer :: i, k, s
+  integer,dimension(N) :: m
+  real,dimension(N+1,N+1) :: V
+  real,dimension(N+1) :: V_s, d
+  real :: alpha, denom
+
+  ! Initialize the solution space
+  V(:,:) = 0.
+  do i=1,N+1
+    V(i,i) = 1.
+  end do
+
+  ! Loop through smaller and smaller solution spaces
+  do i=N,1,-1
+
+    ! Calculate inner products
+    !$OMP parallel do
+    do k=1,i+1
+      d(k) = sum(A(N+1-i,:)*V(1:N,k)) - b(N+1-i)*V(N+1,k)
+    end do
+
+    ! Determine the pivot
+    s = maxloc(abs(d(1:i+1)), 1)
+
+    ! Get pivot vector
+    V_s = V(:,s)
+
+    ! Set elements of m(k) to skip the pivot element
+    do k=1,i
+      if (k < s) then
+        m(k) = k
+      else if (k >= s) then
+        m(k) = k + 1
+      end if
+    end do
+
+    ! Remove one dimension from the solution space
+    denom = 1. / d(s)
+    do k=1,i
+
+      ! Calculate scale factor
+      alpha = -d(m(k)) * denom
+
+      ! Calculate new basis
+      V(:,k) = alpha*V_s + V(:,m(k))
+
+    end do
+  end do
+
+  ! Extract solution
+  allocate(x, source=V(1:N,1) / V(N+1,1))
+  
+end subroutine purcell_solve
+
     
 end module linalg_mod
