@@ -1982,7 +1982,7 @@ contains
         integer,intent(in) :: mirror_plane
         real,dimension(3) :: dv
 
-        real,dimension(3) :: mu_verts, mu_params
+        real,dimension(:),allocatable :: mu_verts, mu_params
         integer :: i
         real :: s
 
@@ -1990,9 +1990,28 @@ contains
         if (mirrored) then
 
             ! Set up array of doublet strengths to calculate doublet parameters
-            do i=1,this%N
-                mu_verts(i) = mu(this%vertex_indices(i)+size(mu)/2)
-            end do
+            if (doublet_order == 1) then
+
+                ! Allocate
+                allocate(mu_verts(this%N))
+
+                ! Get doublet values
+                do i=1,this%N
+                    mu_verts(i) = mu(this%vertex_indices(i)+size(mu)/2)
+                end do
+
+            else if (doublet_order == 2) then
+
+                ! Allocate
+                allocate(mu_verts(2*this%N))
+
+                ! Get doublet values
+                do i=1,this%N
+                    mu_verts(i) = mu(this%vertex_indices(i)+size(mu)/2)
+                    mu_verts(i+this%N) = mu(this%midpoint_indices(i)+size(mu)/2)
+                end do
+
+            end if
         
             ! Calculate doublet parameters (derivatives)
             mu_params = matmul(this%S_mu_inv_mir, mu_verts)
@@ -2026,6 +2045,25 @@ contains
         ! Jump calculations for original panel
         ! Same steps as above
         else
+
+            if (doublet_order == 1) then
+
+                allocate(mu_verts(this%N))
+
+                do i=1,this%N
+                    mu_verts(i) = mu(this%vertex_indices(i))
+                end do
+
+            else if (doublet_order == 2) then
+
+                allocate(mu_verts(2*this%N))
+
+                do i=1,this%N
+                    mu_verts(i) = mu(this%vertex_indices(i))
+                    mu_verts(i+this%N) = mu(this%midpoint_indices(i))
+                end do
+
+            end if
 
             do i=1,this%N
                 mu_verts(i) = mu(this%vertex_indices(i))
