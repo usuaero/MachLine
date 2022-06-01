@@ -375,32 +375,12 @@ subroutine quadratic_fit(pts, a, b, c)
 end subroutine quadratic_fit
 
 
-subroutine lu_solve_replace(n, A, b, x)
-  ! Solves a general [A]x=b on an nxn matrix without overwriting A
-
-  implicit none
-
-  integer,intent(in) :: n
-  real,dimension(n,n),intent(in) :: A
-  real,dimension(n),intent(in) :: b
-  real,dimension(:),allocatable,intent(out) :: x
-
-  real,dimension(n,n) :: A_copy
-
-  ! Create copy of A
-  A_copy = A
-
-  ! Solve
-  call lu_solve(n, A_copy, b, x)
-
-end subroutine lu_solve_replace
-
-
-subroutine decompose_blocks(N, A, N_blocks, block_size, N_last, ind_P, i_start_block, i_end_block)
+subroutine decompose_blocks(N, A, N_blocks, block_size, A_blocks, N_last, ind_P, i_start_block, i_end_block)
   ! Decomposes the diagonal blocks of A using LU decomposition
   ! N is the size of the system
-  ! A is the system matrix; block diagonals will be replaced with their LU decompositions
+  ! A is the system matrix
   ! block_size is the desired size of each block
+  ! A_blocks is the block diagonals of A after LU decomposition
   ! N_last is the number of elements in the last block
   ! ind_P is a matrix of the block permutation indices
   ! i_start_block is a vector of the start indices for each block
@@ -409,8 +389,9 @@ subroutine decompose_blocks(N, A, N_blocks, block_size, N_last, ind_P, i_start_b
   implicit none
 
   integer,intent(in) :: N
-  real,dimension(N,N),intent(inout) :: A
+  real,dimension(N,N),intent(in) :: A
   integer,intent(in) :: N_blocks, block_size
+  real,dimension(:,:,:),allocatable,intent(out) :: A_blocks
   integer,intent(out) :: N_last
   integer,dimension(:,:),allocatable,intent(out) :: ind_P
   integer,dimension(:),allocatable,intent(out) :: i_start_block, i_end_block
@@ -424,6 +405,9 @@ subroutine decompose_blocks(N, A, N_blocks, block_size, N_last, ind_P, i_start_b
   ! Allocate permutation incides
   allocate(ind_P(block_size, N_blocks))
 
+  ! Allocate blocks
+  allocate(A_blocks(block_size,block_size,N_blocks))
+
   ! Decompose blocks
   !$OMP parallel do private(info)
   do i=1,N_blocks
@@ -436,8 +420,11 @@ subroutine decompose_blocks(N, A, N_blocks, block_size, N_last, ind_P, i_start_b
       i_end_block(i) = N
       N_last = i_end_block(i)-i_start_block(i)+1
 
+      ! Store in block to be decomposed
+      A_blocks(1:N_last,1:N_last,i) = A(i_start_block(i):N,i_start_block(i):N)
+
       ! Decompose
-      call lu_decomp(A(i_start_block(i):N,i_start_block(i):N), N_last, ind_P(1:N_last,i), D, info)
+      call lu_decomp(A_blocks(1:N_last,1:N_last,i), N_last, ind_P(1:N_last,i), D, info)
 
       ! Check for singular submatrix
       if (info == 1) then
@@ -452,8 +439,11 @@ subroutine decompose_blocks(N, A, N_blocks, block_size, N_last, ind_P, i_start_b
       i_start_block(i) = (i-1)*block_size + 1
       i_end_block(i) = i*block_size
 
+      ! Store in block to be decomposed
+      A_blocks(:,:,i) = A(i_start_block(i):i_end_block(i),i_start_block(i):i_end_block(i))
+
       ! Decompose
-      call lu_decomp(A(i_start_block(i):i_end_block(i),i_start_block(i):i_end_block(i)), block_size, ind_P(:,i), D, info)
+      call lu_decomp(A_blocks(:,:,i), block_size, ind_P(:,i), D, info)
 
       ! Check for singular submatrix
       if (info == 1) then
@@ -494,7 +484,7 @@ subroutine block_sor_solve(N, A, b, block_size, tol, rel, max_iterations, verbos
 
   real :: err, dx 
   real,dimension(N) :: x_new, vk
-  real,dimension(N,N) :: A_copy
+  real,dimension(:,:,:),allocatable :: A_blocks
   real,dimension(block_size) :: bi
   real,dimension(:),allocatable :: xi
   integer :: i, N_blocks, r, N_last, iteration, step, start, end, unit
@@ -516,9 +506,6 @@ subroutine block_sor_solve(N, A, b, block_size, tol, rel, max_iterations, verbos
     adaptive = .false.
   end if
 
-  ! Make a copy of A for calculating the error
-  A_copy = A
-
   ! Initialize solution vector
   allocate(x(N), source=0.)
 
@@ -530,7 +517,7 @@ subroutine block_sor_solve(N, A, b, block_size, tol, rel, max_iterations, verbos
   end if
 
   ! Decompose blocks
-  call decompose_blocks(N, A, N_blocks, block_size, N_last, ind_P, i_start_block, i_end_block)
+  call decompose_blocks(N, A, N_blocks, block_size, A_blocks, N_last, ind_P, i_start_block, i_end_block)
 
   ! Write out header
   if (verbose) then
@@ -576,7 +563,7 @@ subroutine block_sor_solve(N, A, b, block_size, tol, rel, max_iterations, verbos
         end if
 
         ! Solve
-        call lu_back_sub(A(i_start_block(i):N,i_start_block(i):N), N_last, ind_P(1:N_last,i), bi, xi)
+        call lu_back_sub(A_blocks(1:N_last,1:N_last,i), N_last, ind_P(1:N_last,i), bi, xi)
 
         ! Store
         x_new(i_start_block(i):N) = (1.-rel)*x(i_start_block(i):N) + rel*xi
@@ -595,7 +582,7 @@ subroutine block_sor_solve(N, A, b, block_size, tol, rel, max_iterations, verbos
         end if
 
         ! Solve
-        call lu_back_sub(A(i_start_block(i):i_end_block(i),i_start_block(i):i_end_block(i)), block_size, ind_P(:,i), bi, xi)
+        call lu_back_sub(A_blocks(:,:,i), block_size, ind_P(:,i), bi, xi)
 
         ! Store
         x_new(i_start_block(i):i_end_block(i)) = (1.-rel)*x(i_start_block(i):i_end_block(i)) + rel*xi
@@ -604,7 +591,7 @@ subroutine block_sor_solve(N, A, b, block_size, tol, rel, max_iterations, verbos
     end do
 
     ! Calculate error
-    vk = matmul(A_copy, x_new)
+    vk = matmul(A, x_new)
     err = norm2(vk - b)
     dx = norm2(x - x_new)
 
@@ -661,7 +648,7 @@ subroutine block_jacobi_solve(N, A, b, block_size, tol, rel, max_iterations, ver
 
   real :: err, dx, vkTvk, bTvk, vkp1Tvkp1, vkp1Tvk, bTvkp1
   real,dimension(N) :: x_new, vk, vkp1
-  real,dimension(N,N) :: A_copy
+  real,dimension(:,:,:),allocatable :: A_blocks
   real,dimension(block_size) :: bi
   real,dimension(:),allocatable :: xi
   integer :: i, N_blocks, r, N_last, iteration, step, start, end, unit
@@ -683,9 +670,6 @@ subroutine block_jacobi_solve(N, A, b, block_size, tol, rel, max_iterations, ver
     optimal_rel = .false.
   end if
 
-  ! Make a copy of A for calculating the error
-  A_copy = A
-
   ! Initialize solution vector
   allocate(x(N), source=0.)
 
@@ -697,7 +681,7 @@ subroutine block_jacobi_solve(N, A, b, block_size, tol, rel, max_iterations, ver
   end if
 
   ! Decompose blocks
-  call decompose_blocks(N, A, N_blocks, block_size, N_last, ind_P, i_start_block, i_end_block)
+  call decompose_blocks(N, A, N_blocks, block_size, A_blocks, N_last, ind_P, i_start_block, i_end_block)
 
   ! Write out header
   if (verbose) then
@@ -740,7 +724,7 @@ subroutine block_jacobi_solve(N, A, b, block_size, tol, rel, max_iterations, ver
         bi(1:N_last) = b(i_start_block(i):N) - matmul(A(i_start_block(i):N,1:i_start_block(i)-1), x(1:i_start_block(i)-1))
 
         ! Solve
-        call lu_back_sub(A(i_start_block(i):N,i_start_block(i):N), N_last, ind_P(1:N_last,i), bi, xi)
+        call lu_back_sub(A_blocks(1:N_last,1:N_last,i), N_last, ind_P(1:N_last,i), bi, xi)
 
         ! Store
         x_new(i_start_block(i):N) = xi
@@ -754,7 +738,7 @@ subroutine block_jacobi_solve(N, A, b, block_size, tol, rel, max_iterations, ver
         bi = bi - matmul(A(i_start_block(i):i_end_block(i),i_end_block(i)+1:N), x(i_end_block(i)+1:N))
 
         ! Solve
-        call lu_back_sub(A(i_start_block(i):i_end_block(i),i_start_block(i):i_end_block(i)), block_size, ind_P(:,i), bi, xi)
+        call lu_back_sub(A_blocks(:,:,i), block_size, ind_P(:,i), bi, xi)
 
         ! Store
         x_new(i_start_block(i):i_end_block(i)) = xi
@@ -768,7 +752,7 @@ subroutine block_jacobi_solve(N, A, b, block_size, tol, rel, max_iterations, ver
       ! Preliminary quantities
       vkTvk = dot_product(vk, vk)
       bTvk = dot_product(b, vk)
-      vkp1 = matmul(A_copy, x_new)
+      vkp1 = matmul(A, x_new)
       bTvkp1 = dot_product(b, vkp1)
       vkp1Tvk = dot_product(vkp1, vk)
       vkp1Tvkp1 = dot_product(vkp1, vkp1)
@@ -789,7 +773,7 @@ subroutine block_jacobi_solve(N, A, b, block_size, tol, rel, max_iterations, ver
     if (optimal_rel) then
       vk = (1.-rel)*vk + rel*vkp1
     else
-      vk = matmul(A_copy, x_new)
+      vk = matmul(A, x_new)
     end if
     err = norm2(vk - b)
     dx = norm2(x - x_new)
@@ -805,95 +789,6 @@ subroutine block_jacobi_solve(N, A, b, block_size, tol, rel, max_iterations, ver
   close(unit)
 
 end subroutine block_jacobi_solve
-
-
-subroutine block_gauss_siedel(N, A, b, block_size, tol, x)
-  ! Iteratively solves the [A]x=b system using block Gauss-Siedel
-  ! THIS IS NOT GUARANTEED TO CONVERGE FOR MOST MATRICES.
-  ! N is the size of the system
-  ! A is the system matrix
-  ! b is the RHS vector
-  ! block_size is the desired size of each block
-  ! tol is the convergence tolerance between iterations
-  ! x is the solution
-
-  implicit none
-
-  integer,intent(in) :: N, block_size
-  real,dimension(N,N),intent(in) :: A
-  real,dimension(N),intent(in) :: b
-  real,intent(in) :: tol
-  real,dimension(:),allocatable,intent(out) :: x
-
-  real :: err
-  real,dimension(N) :: x_new
-  real,dimension(block_size) :: bi
-  real,dimension(:),allocatable :: xi
-  integer :: i, N_blocks, r, i_start, i_end, N_last
-
-  ! Give initial error estimate
-  err = tol + 1.
-
-  ! Initialize solution vector
-  allocate(x(N), source=0.)
-
-  ! Calculate number of blocks
-  N_blocks = N/block_size
-  r = modulo(N, block_size)
-  if (r > 0) then
-    N_blocks = N_blocks + 1
-  end if
-
-  ! Iterate
-  do while(err >= tol)
-
-    ! Invert blocks
-    do i=1,N_blocks
-
-      ! Last block
-      if (i == N_blocks) then
-
-        ! Determine start index of this block
-        i_start = (i-1)*block_size + 1
-        N_last = N-i_start+1
-
-        ! Calculate new RHS vector
-        bi(1:N_last) = b(i_start:N) - matmul(A(i_start:N,1:i_start-1), x_new(1:i_start-1))
-
-        call lu_solve_replace(N_last, A(i_start:N,i_start:N), bi(1:N_last), xi)
-
-        ! Store
-        x_new(i_start:N) = xi
-
-      ! Not last block
-      else
-
-        ! Determine start and end indices of this block
-        i_start = (i-1)*block_size + 1
-        i_end = i*block_size
-
-        ! Calculate new RHS vector
-        bi = b(i_start:i_end) - matmul(A(i_start:i_end,1:i_start-1), x_new(1:i_start-1))
-        bi = bi - matmul(A(i_start:i_end,i_end+1:N), x(i_end+1:N))
-
-        call lu_solve_replace(block_size, A(i_start:i_end,i_start:i_end), bi, xi)
-
-        ! Store
-        x_new(i_start:i_end) = xi
-
-      end if
-    end do
-
-    ! Calculate error
-    err = norm2(x-x_new)
-    write(*,*) err
-
-    ! Update
-    x = x_new
-
-  end do
-
-end subroutine block_gauss_siedel
 
 
 subroutine purcell_solve(N, A, b, x)
