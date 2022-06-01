@@ -115,15 +115,15 @@ subroutine matinv(n, a, ai)
 end subroutine matinv
 
 
-subroutine lu_solve(n, A, b, x)
+subroutine lu_solve(N, A, b, x)
   ! Solves a general [A]x=b on an nxn matrix
   ! This replaces A (in place) with its LU decomposition (permuted row-wise)
 
     implicit none
 
-    integer,intent(in) :: n
-    real,dimension(n,n),intent(inout) :: A
-    real,dimension(n),intent(in) :: b
+    integer,intent(in) :: N
+    real,dimension(N,N),intent(inout) :: A
+    real,dimension(N),intent(in) :: b
     real,dimension(:),allocatable,intent(out) :: x
 
     integer,allocatable,dimension(:) :: indx
@@ -132,14 +132,14 @@ subroutine lu_solve(n, A, b, x)
     allocate(indx(n))
 
     ! Compute decomposition
-    call lu_decomp(A, n, indx, D, info)
+    call lu_decomp(A, N, indx, D, info)
 
     ! if the matrix is nonsingular, then backsolve to find X
     if (info == 1) then
         write(*,*) 'Subroutine lu_decomp() failed. The given matrix is singular (i.e. no unique solution). Quitting...'
         stop
     else
-        call lu_back_sub(A, n, indx, b, x)
+        call lu_back_sub(A, N, indx, b, x)
     end if
 
     ! Cleanup
