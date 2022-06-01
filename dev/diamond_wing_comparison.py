@@ -114,30 +114,30 @@ def run_comparison(M, alpha, grid, half_angle, run_machline=True):
     # Read in data
     data = np.genfromtxt(data_file, delimiter=',', skip_header=1)
     
-    ## Plot data from MachLine
-    #plt.figure()
-    #plt.plot(data[:,4], data[:,0], 'ks', markersize=3, label='2nd')
-    #plt.plot(data[:,4], data[:,1], 'kv', markersize=3, label='Ise.')
-    #plt.plot(data[:,4], data[:,2], 'ko', markersize=3, label='Slnd.')
-    #plt.plot(data[:,4], data[:,3], 'k^', markersize=3, label='Lin.')
+    # Plot data from MachLine
+    plt.figure()
+    plt.plot(data[:,4], data[:,0], 'ks', markersize=3, label='Second-Order')
+    plt.plot(data[:,4], data[:,1], 'kv', markersize=3, label='Isentropic')
+    plt.plot(data[:,4], data[:,2], 'ko', markersize=3, label='Slender-Body')
+    plt.plot(data[:,4], data[:,3], 'k^', markersize=3, label='Linear')
 
-    ## Plot data from shock-expansion theory
-    #x = np.linspace(0.0, 1.0, 100)
-    #Cp_upper = np.ones_like(x)
-    #Cp_upper[:50] *= Cp3
-    #Cp_upper[50:] *= Cp5
-    #Cp_lower = np.ones_like(x)
-    #Cp_lower[:50] *= Cp2
-    #Cp_lower[50:] *= Cp4
-    #plt.plot(x, Cp_upper, 'k--', label='SE Upper')
-    #plt.plot(x, Cp_lower, 'k-.', label='SE Lower')
+    # Plot data from shock-expansion theory
+    x = np.linspace(0.0, 1.0, 100)
+    Cp_upper = np.ones_like(x)
+    Cp_upper[:50] *= Cp3
+    Cp_upper[50:] *= Cp5
+    Cp_lower = np.ones_like(x)
+    Cp_lower[:50] *= Cp2
+    Cp_lower[50:] *= Cp4
+    plt.plot(x, Cp_upper, 'k-', label='Shock-Expansion', linewidth=0.5)
+    plt.plot(x, Cp_lower, 'k-', linewidth=0.5)
 
-    ## Format
-    #plt.xlabel('$x$')
-    #plt.ylabel('$C_p$')
-    #plt.legend()
-    #plt.savefig(plot_dir+case_name+".pdf".format(M, alpha, int(half_angle)))
-    #plt.close()
+    # Format
+    plt.xlabel('$x$')
+    plt.ylabel('$C_p$')
+    plt.legend(title='Pressure Rule', fontsize=6, title_fontsize=6)
+    plt.savefig(plot_dir+case_name+".pdf".format(M, alpha, int(half_angle)))
+    plt.close()
 
     return CL_se, CD_se, CL_ml, CD_ml
 

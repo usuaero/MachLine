@@ -99,15 +99,15 @@ def run_comparison(M, grid, half_angle, run_machline=True):
     
     # Plot data from MachLine
     plt.figure()
-    plt.plot(data[:,4], C_p_2nd, 'ks', markersize=3, label='2nd')
-    plt.plot(data[:,4], C_p_ise, 'kv', markersize=3, label='Ise.')
-    plt.plot(data[:,4], C_p_sln, 'ko', markersize=3, label='Slnd.')
-    plt.plot(data[:,4], C_p_lin, 'k^', markersize=3, label='Lin.')
+    plt.plot(data[:,4], C_p_2nd, 'ks', markersize=3, label='Second-Order')
+    plt.plot(data[:,4], C_p_ise, 'kv', markersize=3, label='Isentropic')
+    plt.plot(data[:,4], C_p_sln, 'ko', markersize=3, label='Slender-Body')
+    plt.plot(data[:,4], C_p_lin, 'k^', markersize=3, label='Linear')
 
     # Format
     plt.xlabel('$x$')
     plt.ylabel('$C_p$')
-    plt.legend()
+    plt.legend(title="Pressure Rule", fontsize=6, title_fontsize=6)
     plt.savefig(plot_dir+case_name+".pdf")
     plt.close()
 
@@ -134,7 +134,7 @@ if __name__=="__main__":
         for j, M in enumerate(Ms):
             for k, half_angle in enumerate(half_angles):
 
-                C_p_2nd, C_p_ise, C_p_sln, C_p_lin = run_comparison(M, grid, half_angle, run_machline=True)
+                C_p_2nd, C_p_ise, C_p_sln, C_p_lin = run_comparison(M, grid, half_angle, run_machline=False)
                 C_p_2nd_avg[i,j,k] = np.average(C_p_2nd).item()
                 C_p_ise_avg[i,j,k] = np.average(C_p_ise).item()
                 C_p_sln_avg[i,j,k] = np.average(C_p_sln).item()
@@ -149,12 +149,13 @@ if __name__=="__main__":
 
         plt.figure()
 
-        plt.errorbar(Ms, C_p_2nd_avg[-1,:,k], mfc='k', marker='s', ls='', mec='k', yerr=C_p_2nd_s_dev[-1,:,k], markersize=3, ecolor='k', label='2nd')
-        plt.errorbar(Ms, C_p_ise_avg[-1,:,k], mfc='k', marker='v', ls='', mec='k', yerr=C_p_ise_s_dev[-1,:,k], markersize=3, ecolor='k', label='Ise.')
-        plt.errorbar(Ms, C_p_sln_avg[-1,:,k], mfc='k', marker='o', ls='', mec='k', yerr=C_p_sln_s_dev[-1,:,k], markersize=3, ecolor='k', label='Sln.')
-        plt.errorbar(Ms, C_p_lin_avg[-1,:,k], mfc='k', marker='^', ls='', mec='k', yerr=C_p_lin_s_dev[-1,:,k], markersize=3, ecolor='k', label='Lin.')
+        # Plots using the most-refined grid
+        plt.errorbar(Ms, C_p_2nd_avg[-1,:,k], mfc='k', marker='s', ls='', mec='k', yerr=C_p_2nd_s_dev[-1,:,k], markersize=3, ecolor='k', label='Second-Order')
+        plt.errorbar(Ms, C_p_ise_avg[-1,:,k], mfc='k', marker='v', ls='', mec='k', yerr=C_p_ise_s_dev[-1,:,k], markersize=3, ecolor='k', label='Isentropic')
+        plt.errorbar(Ms, C_p_sln_avg[-1,:,k], mfc='k', marker='o', ls='', mec='k', yerr=C_p_sln_s_dev[-1,:,k], markersize=3, ecolor='k', label='Slender-Body')
+        plt.errorbar(Ms, C_p_lin_avg[-1,:,k], mfc='k', marker='^', ls='', mec='k', yerr=C_p_lin_s_dev[-1,:,k], markersize=3, ecolor='k', label='Linear')
 
         plt.xlabel("$M_0$")
         plt.ylabel("$C_p$")
-        plt.legend()
+        plt.legend(title="Pressure Rule", fontsize=6, title_fontsize=6)
         plt.savefig("dev/results/cone_comparison/plots/C_p_over_M_{0}_deg.pdf".format(half_angle))
