@@ -70,7 +70,7 @@ contains
         ! Get solver_settings
         call json_xtnsn_get(solver_settings, 'formulation', this%formulation, 'morino')        
         call json_xtnsn_get(solver_settings, 'matrix_solver', this%matrix_solver, 'LU')
-        call json_xtnsn_get(solver_settings, 'block_size', this%block_size, 50)
+        call json_xtnsn_get(solver_settings, 'block_size', this%block_size, 100)
         call json_xtnsn_get(solver_settings, 'tolerance', this%tol, 1e-8)
         call json_xtnsn_get(solver_settings, 'relaxation', this%rel, 0.5)
         call json_xtnsn_get(solver_settings, 'max_iterations', this%max_iterations, 1000)
