@@ -469,8 +469,7 @@ end subroutine decompose_blocks
 
 
 subroutine block_sor_solve(N, A, b, block_size, tol, rel, max_iterations, verbose, x)
-  ! Iteratively solves the [A]x=b system using the specified block-iterative method
-  ! Will alternate directions through the blocks on each iteration
+  ! Iteratively solves the [A]x=b system using block (symmetric) successive overrelaxation
   ! N is the size of the system
   ! A is the system matrix; block diagonals will be replaced with their LU decompositions
   ! b is the RHS vector
@@ -680,8 +679,6 @@ subroutine block_jacobi_solve(N, A, b, block_size, tol, rel, max_iterations, ver
   if (rel < 0) then
     optimal_rel = .true.
     vk = 0.
-    vkTvk = 0.
-    bTvk = 0.
   else
     optimal_rel = .false.
   end if
@@ -767,22 +764,33 @@ subroutine block_jacobi_solve(N, A, b, block_size, tol, rel, max_iterations, ver
 
     ! Calculate optimal relaxation for the ORBJ method
     if (optimal_rel) then
+
+      ! Preliminary quantities
+      vkTvk = dot_product(vk, vk)
+      bTvk = dot_product(b, vk)
       vkp1 = matmul(A_copy, x_new)
       bTvkp1 = dot_product(b, vkp1)
       vkp1Tvk = dot_product(vkp1, vk)
       vkp1Tvkp1 = dot_product(vkp1, vkp1)
+
+      ! Check for zero denominator
       if (vkTvk - 2.*vkp1Tvk + vkp1Tvkp1 /= 0.) then
         rel = (vkTvk - vkp1Tvk - bTvk + bTvkp1) / (vkTvk - 2.*vkp1Tvk + vkp1Tvkp1)
       else
         rel = 1.0
       end if
+
     end if
 
     ! Calculate new x
     x_new = (1.-rel)*x + rel*x_new
 
     ! Calculate error
-    vk = matmul(A_copy, x_new)
+    if (optimal_rel) then
+      vk = (1.-rel)*vk + rel*vkp1
+    else
+      vk = matmul(A_copy, x_new)
+    end if
     err = norm2(vk - b)
     dx = norm2(x - x_new)
 
@@ -791,10 +799,6 @@ subroutine block_jacobi_solve(N, A, b, block_size, tol, rel, max_iterations, ver
 
     ! Prepare for next iteration
     x = x_new
-    if (optimal_rel) then
-      vkTvk = dot_product(vk, vk)
-      bTvk = dot_product(b, vk)
-    end if
 
   end do
 
