@@ -5,7 +5,7 @@
         "freestream_mach_number" : 2.0
     },
     "geometry": {
-        "file": "dev/meshes/right_cone_open.vtk",
+        "file": "dev/meshes/cone_15_deg_medium.vtk",
         "mirror_about": "xy",
         "wake_model" : {
             "wake_present" : false
@@ -16,15 +16,17 @@
     },
     "solver": {
         "formulation": "morino",
-        "control_point_offset": 1.1e-05
+        "control_point_offset": 1.1e-05,
+        "write_A_and_b" : true,
+        "matrix_solver" : "BJAC"
     },
     "post_processing" : {
     },
     "output": {
-        "body_file" : "dev/results/cone_right.vtk",
-        "wake_file" : "dev/results/cone_wake.vtk",
-        "control_point_file" : "dev/results/cone_right_control_points.vtk",
-        "mirrored_body_file" : "dev/results/cone_left.vtk",
-        "mirrored_control_point_file" : "dev/results/cone_left_control_points.vtk"
+        "body_file" :                   "dev/results/cone_15_deg_medium_right.vtk",
+        "wake_file" :                   "dev/results/cone_15_deg_medium_wake.vtk",
+        "control_point_file" :          "dev/results/cone_15_deg_medium_right_control_points.vtk",
+        "mirrored_body_file" :          "dev/results/cone_15_deg_medium_left.vtk",
+        "mirrored_control_point_file" : "dev/results/cone_15_deg_medium_left_control_points.vtk"
     }
 }

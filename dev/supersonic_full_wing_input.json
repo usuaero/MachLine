@@ -21,7 +21,9 @@
         "formulation": "morino",
         "control_point_offset": 1.1e-05,
         "matrix_solver" : "ORBJ",
-        "tolerance" : 1.0e-10
+        "tolerance" : 1.0e-10,
+        "preconditioner" : "DIAG",
+        "write_A_and_b" : true
     },
     "post_processing" : {
         "pressure_rules" : {

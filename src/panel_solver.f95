@@ -9,6 +9,7 @@ module panel_solver_mod
     use flow_mod
     use math_mod
     use linalg_mod
+    use preconditioners_mod
     use sort_mod
 
     implicit none
@@ -17,9 +18,9 @@ module panel_solver_mod
     type panel_solver
 
         real :: corrected_M_inf 
-        character(len=:),allocatable :: formulation, pressure_for_forces, matrix_solver
+        character(len=:),allocatable :: formulation, pressure_for_forces, matrix_solver, preconditioner
         logical :: incompressible_rule, isentropic_rule, second_order_rule, slender_rule, linear_rule
-        logical :: morino, precondition, write_A_and_b
+        logical :: morino, write_A_and_b
         logical :: compressible_correction, prandtl_glauert, karman_tsien, laitone
         type(dod),dimension(:,:),allocatable :: dod_info, wake_dod_info
         type(flow) :: freestream
@@ -74,7 +75,7 @@ contains
         call json_xtnsn_get(solver_settings, 'tolerance', this%tol, 1e-8)
         call json_xtnsn_get(solver_settings, 'relaxation', this%rel, 0.5)
         call json_xtnsn_get(solver_settings, 'max_iterations', this%max_iterations, 1000)
-        call json_xtnsn_get(solver_settings, 'precondition', this%precondition, .false.)
+        call json_xtnsn_get(solver_settings, 'preconditioner', this%preconditioner, 'NONE')
         call json_xtnsn_get(solver_settings, 'write_A_and_b', this%write_A_and_b, .false.)
         this%morino = this%formulation == 'morino'
 
@@ -313,7 +314,7 @@ contains
         end if
 
         ! Get sorted indices
-        call insertion_sort_indices(x, this%i_cp_sorted)
+        call insertion_arg_sort(x, this%i_cp_sorted)
     
     end subroutine panel_solver_sort_control_points
 
@@ -1014,23 +1015,15 @@ contains
         call check_allocation(stat, "solver copy of b vector")
 
         ! Precondition
-        if (this%precondition) then
+        select case(this%preconditioner)
 
-            ! Get preconditioning matrix
-            allocate(A_ii_inv(this%N))
-            do i=1,this%N
-                A_ii_inv = 1./this%A(i,i)
-            end do
+        case ('DIAG')
+            call diagonal_preconditioner(this%N, this%A, this%b, A_p, b_p)
 
-            ! Apply preconditioning
-            do j=1,this%N
-                do i=1,this%N
-                    A_p(i,j) = A_ii_inv(i)*A_p(i,j)
-                end do
+        case default
+            continue
 
-                b_p(j) = b_p(j)*A_ii_inv(j)
-            end do
-        end if
+        end select
 
         ! Solve
         select case(this%matrix_solver)
