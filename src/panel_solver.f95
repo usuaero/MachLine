@@ -30,13 +30,11 @@ module panel_solver_mod
         real,dimension(:,:),allocatable :: A
         real,dimension(:), allocatable :: b
         integer :: N, wake_start, N_cells, block_size, max_iterations
-        integer,dimension(:),allocatable :: i_cp_sorted
 
         contains
 
             procedure :: init => panel_solver_init
             procedure :: init_dirichlet => panel_solver_init_dirichlet
-            procedure :: sort_control_points => panel_solver_sort_control_points
             procedure :: calc_domains_of_dependence => panel_solver_calc_domains_of_dependence
             procedure :: solve => panel_solver_solve
             procedure :: calc_source_strengths => panel_solver_calc_source_strengths
@@ -278,46 +276,9 @@ contains
             this%N = body%N_cp
         end if
 
-        ! Sort control points
-        if (this%freestream%supersonic) then
-            call this%sort_control_points(body)
-        end if
-
         if (verbose) write(*,'(a, i6, a)') "Done. Placed", body%N_cp, " control points."
     
     end subroutine panel_solver_init_dirichlet
-
-
-    subroutine panel_solver_sort_control_points(this, body)
-        ! Sorts the control points in the compressibility direction to allow for fast matrix solving
-
-        implicit none
-
-        class(panel_solver),intent(inout) :: this
-        type(surface_mesh),intent(inout) :: body
-
-        real,dimension(:),allocatable :: x
-        integer :: i
-
-        ! Allocate the compressibility distance array
-        allocate(x(this%N))
-
-        ! Add original control points
-        do i=1,body%N_cp
-            x(i) = -inner(this%freestream%c_hat_g, body%cp(:,i))
-        end do
-
-        ! Add mirrored control points
-        if (body%asym_flow) then
-            do i=1,body%N_cp
-                x(i+body%N_cp) = -inner(this%freestream%c_hat_g, body%cp_mirrored(:,i))
-            end do
-        end if
-
-        ! Get sorted indices
-        call insertion_arg_sort(x, this%i_cp_sorted)
-    
-    end subroutine panel_solver_sort_control_points
 
 
     subroutine panel_solver_calc_domains_of_dependence(this, body)

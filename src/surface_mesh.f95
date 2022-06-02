@@ -53,6 +53,7 @@ module surface_mesh_mod
             procedure :: find_vertices_on_mirror => surface_mesh_find_vertices_on_mirror
             procedure :: clone_vertices => surface_mesh_clone_vertices
             procedure :: set_up_mirroring => surface_mesh_set_up_mirroring
+            procedure :: rearrange_vertices => surface_mesh_rearrange_vertices
             procedure :: calc_vertex_normals => surface_mesh_calc_vertex_normals
             procedure :: init_wake => surface_mesh_init_wake
             procedure :: update_supersonic_trefftz_distance => surface_mesh_update_supersonic_trefftz_distance
@@ -529,10 +530,16 @@ contains
             call this%set_up_mirroring()
         end if
 
-        ! Clone necessary vertices and calculate normals (for placing control points)
+        ! Clone necessary vertices
         if (this%wake_present .or. freestream%supersonic) then
             call this%clone_vertices()
         end if
+
+        ! For supersonic flows, rearrange the vertices to proceed in the freestream direction
+        if (freestream%supersonic) then
+        end if
+
+        ! Calculate normals (for placing control points)
         call this%calc_vertex_normals()
 
         ! INitialize wake
@@ -904,7 +911,7 @@ contains
 
                         ! Update (doesn't need to be done for mirrored panels)
                         if (i_bot_panel <= this%N_panels) then
-                            call this%panels(i_bot_panel)%point_to_vertex_clone(this%vertices(i_boba))
+                            call this%panels(i_bot_panel)%point_to_new_vertex(this%vertices(i_boba))
                         end if
 
                     end do
@@ -933,6 +940,38 @@ contains
         end if
 
     end subroutine surface_mesh_clone_vertices
+
+
+    subroutine surface_mesh_rearrange_vertices(this, freestream)
+        ! Rearranges the vertices to proceed in the freestream direction
+
+        class(surface_mesh),intent(inout) :: this
+        type(flow),intent(in) :: freestream
+
+        real,dimension(:),allocatable :: x
+        integer,dimension(:),allocatable :: i_sorted
+        integer :: i
+
+        ! Allocate the compressibility distance array
+        allocate(x(this%N_verts))
+
+        ! Add vertices
+        do i=1,this%N_verts
+            x(i) = -inner(freestream%c_hat_g, this%vertices(i)%loc)
+        end do
+
+        ! Get sorted indices
+        call insertion_arg_sort(x, i_sorted)
+
+        ! Allocate new array of vertices
+
+        ! Initialize new vertices
+
+        ! Point panels to new vertices
+
+        ! Point edges to new vertices
+        
+    end subroutine surface_mesh_rearrange_vertices
 
 
     subroutine surface_mesh_calc_vertex_normals(this)

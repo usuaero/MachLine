@@ -29,9 +29,6 @@ program main
     logical :: exists
     integer :: i_unit
 
-    ! Initialize developer things
-    eval_count = 0
-
     ! Start timer
     call cpu_time(start)
     !$ start = omp_get_wtime()

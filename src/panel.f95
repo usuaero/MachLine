@@ -12,8 +12,6 @@ module panel_mod
 
     integer :: doublet_order
     integer :: source_order
-    integer :: eval_count ! Developer counter for optimization purposes
-    logical :: debug = .true. ! Developer toggle
 
 
     type eval_point_geom
@@ -111,7 +109,7 @@ module panel_mod
             procedure :: touches_vertex => panel_touches_vertex
 
             ! Update information
-            procedure :: point_to_vertex_clone => panel_point_to_vertex_clone
+            procedure :: point_to_new_vertex => panel_point_to_new_vertex
 
             ! Influence calculations
             procedure :: check_dod => panel_check_dod
@@ -896,26 +894,26 @@ contains
     end function panel_touches_vertex
 
 
-    subroutine panel_point_to_vertex_clone(this, clone)
-        ! Updates the panel to point to this new vertex (assumed to be clone of a current vertex)
+    subroutine panel_point_to_new_vertex(this, new_vertex)
+        ! Updates the panel to point to this new vertex (assumed to be a copy of a current vertex)
 
         implicit none
 
         class(panel),intent(inout) :: this
-        type(vertex),intent(in),target :: clone
+        type(vertex),intent(in),target :: new_vertex
         integer :: i
 
         ! Loop through vertices
         do i=1,this%N
 
             ! Check which vertex this will replace
-            if (dist(this%get_vertex_loc(i), clone%loc) < 1e-12) then
+            if (dist(this%get_vertex_loc(i), new_vertex%loc) < 1e-12) then
 
                 ! Update pointer
-                this%vertices(i)%ptr => clone
+                this%vertices(i)%ptr => new_vertex
 
                 ! Update index
-                this%vertex_indices(i) = clone%index
+                this%vertex_indices(i) = new_vertex%index
 
                 return
 
@@ -923,7 +921,7 @@ contains
 
         end do
     
-    end subroutine panel_point_to_vertex_clone
+    end subroutine panel_point_to_new_vertex
 
 
     function panel_check_dod(this, eval_point, freestream, verts_in_dod, mirror_panel, mirror_plane) result(dod_info)
