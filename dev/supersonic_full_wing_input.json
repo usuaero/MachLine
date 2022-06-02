@@ -20,7 +20,7 @@
     "solver": {
         "formulation": "morino",
         "control_point_offset": 1.1e-05,
-        "matrix_solver" : "ORBJ",
+        "matrix_solver" : "BJAC",
         "tolerance" : 1.0e-10,
         "preconditioner" : "DIAG",
         "write_A_and_b" : true
