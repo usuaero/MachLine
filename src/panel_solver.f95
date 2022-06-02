@@ -10,6 +10,7 @@ module panel_solver_mod
     use math_mod
     use linalg_mod
     use preconditioners_mod
+    use sparsity_mod
     use sort_mod
 
     implicit none
@@ -1008,20 +1009,19 @@ contains
             close(34)
         end if
 
-        ! Make a copy of A and b to precondition
-        allocate(A_p, source=this%A, stat=stat)
-        call check_allocation(stat, "solver copy of AIC matrix")
-        allocate(b_p, source=this%b, stat=stat)
-        call check_allocation(stat, "solver copy of b vector")
-
         ! Precondition
         select case(this%preconditioner)
 
+        ! Diagonal preconditioning
         case ('DIAG')
             call diagonal_preconditioner(this%N, this%A, this%b, A_p, b_p)
 
+        ! No preconditioning
         case default
-            continue
+            allocate(A_p, source=this%A, stat=stat)
+            call check_allocation(stat, "solver copy of AIC matrix")
+            allocate(b_p, source=this%b, stat=stat)
+            call check_allocation(stat, "solver copy of b vector")
 
         end select
 
