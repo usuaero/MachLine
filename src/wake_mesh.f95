@@ -279,8 +279,6 @@ contains
 
                 ! Specify this panel is in the wake
                 this%panels(i_panel)%in_wake = .true.
-                this%panels(i_panel)%top_parent = body_edges(i)%panels(1)
-                this%panels(i_panel)%bot_parent = body_edges(i)%panels(2)
 
                 ! Create mirror
                 if (asym_flow) then
@@ -298,8 +296,6 @@ contains
 
                     ! Specify this panel is in the wake
                     this%panels(i_panel)%in_wake = .true.
-                    this%panels(i_panel)%top_parent = body_edges(i)%panels(1)+N_body_panels
-                    this%panels(i_panel)%bot_parent = body_edges(i)%panels(2)+N_body_panels
 
                 end if
 
@@ -316,8 +312,6 @@ contains
 
                 ! Specify this panel is in the wake
                 this%panels(i_panel)%in_wake = .true.
-                this%panels(i_panel)%top_parent = body_edges(i)%panels(1)
-                this%panels(i_panel)%bot_parent = body_edges(i)%panels(2)
 
                 ! Create mirror
                 if (asym_flow) then
@@ -335,8 +329,6 @@ contains
 
                     ! Specify this panel is in the wake
                     this%panels(i_panel)%in_wake = .true.
-                    this%panels(i_panel)%top_parent = body_edges(i)%panels(1)+N_body_panels
-                    this%panels(i_panel)%bot_parent = body_edges(i)%panels(2)+N_body_panels
 
                 end if
 

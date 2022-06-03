@@ -214,16 +214,14 @@ contains
 
         class(surface_mesh),intent(inout),target :: this
 
-        integer :: i, j, m, n, m1, n1, temp, i_edge, i_panel1, i_panel2, i_vert1, i_vert2, edge_on_mirror, i_edge1, i_edge2, N_edges
-        integer :: N_orig_verts, ind
-        logical :: already_found_shared, dummy
+        integer :: i, j, m, n, m1, n1, temp, i_edge, N_edges, N_orig_verts, i_mid
+        logical :: already_found_shared
         real :: distance
         integer,dimension(2) :: shared_verts
         integer,dimension(this%N_panels*3) :: panel1, panel2, vertex1, vertex2, edge_index1, edge_index2 ! By definition, we will have no more than 3*N_panels edges; we should have much less, but some people...
         real,dimension(this%N_panels*3) :: edge_length
         logical,dimension(this%N_panels*3) :: on_mirror_plane
-        real,dimension(3,this%N_panels*3) :: midpoints
-        type(vertex),dimension(:),allocatable :: midoint_vertices
+        real,dimension(3) :: loc
         
 
         if (verbose) write(*,'(a)',advance='no') "     Locating adjacent panels..."
@@ -233,8 +231,7 @@ contains
 
         ! Loop through each panel
         N_edges = 0
-        !$OMP parallel private(j, already_found_shared, distance, shared_verts, m, m1, n, n1, temp, i_edge) &
-        !$OMP private(i_panel1, i_panel2, i_vert1, i_vert2, edge_on_mirror, i_edge1, i_edge2)
+        !$OMP parallel private(j, already_found_shared, distance, shared_verts, m, m1, n, n1, temp, i_edge)
 
         !$OMP do schedule(dynamic)
         do i=1,this%N_panels
@@ -302,23 +299,19 @@ contains
                                 ! Otherwise, we're dealing with abs(n1-n) being 1, meaning edge min(n1, n).
                                 if ( (n1 == 1 .and. n == this%panels(j)%N) .or. (n == 1 .and. n1 == this%panels(j)%N) ) then
                                     this%panels(j)%abutting_panels(this%panels(j)%N) = i
-                                    this%panels(j)%edges(this%panels(j)%N) = i_edge
                                     edge_index2(i_edge) = this%panels(j)%N
                                 else
                                     n1 = min(n, n1)
                                     this%panels(j)%abutting_panels(n1) = i
-                                    this%panels(j)%edges(n1) = i_edge
                                     edge_index2(i_edge) = n1
                                 end if
 
                                 ! Store that j is adjacent to i
                                 if (m1 == 1 .and. m == this%panels(i)%N) then ! Nth edge
                                     this%panels(i)%abutting_panels(m) = j
-                                    this%panels(i)%edges(m) = i_edge
                                     edge_index1(i_edge) = m
                                 else ! 1st or 2nd edge
                                     this%panels(i)%abutting_panels(m1) = j
-                                    this%panels(i)%edges(m1) = i_edge
                                     edge_index1(i_edge) = m1
                                 end if
 
@@ -328,7 +321,6 @@ contains
                                 vertex1(i_edge) = shared_verts(1)
                                 vertex2(i_edge) = shared_verts(2)
                                 edge_length(i_edge) = dist(this%vertices(shared_verts(1))%loc, this%vertices(shared_verts(2))%loc)
-                                midpoints(:,i_edge) = 0.5*(this%vertices(shared_verts(1))%loc + this%vertices(shared_verts(2))%loc)
 
                                 !$OMP end critical
                                 
@@ -360,6 +352,11 @@ contains
 
                 ! Loop through vertices
                 mirror_loop: do m=1,this%panels(i)%N
+
+                    ! Check if we've found all neighbors for this panel
+                    if (all(this%panels(i)%abutting_panels /= 0)) then
+                        exit mirror_loop
+                    end if
 
                     ! Check if vertex is on the mirror plane
                     n = this%panels(i)%vertex_indices(m)
@@ -395,11 +392,9 @@ contains
                             ! Store adjacent panel
                             if (m-m1 == 1) then
                                 this%panels(i)%abutting_panels(m1) = i+this%N_panels
-                                this%panels(i)%edges(m1) = i_edge
                                 edge_index1(i_edge) = m1
                             else
                                 this%panels(i)%abutting_panels(m) = i+this%N_panels
-                                this%panels(i)%edges(m) = i_edge
                                 edge_index1(i_edge) = m
                             end if
 
@@ -411,7 +406,6 @@ contains
                             on_mirror_plane(i_edge) = .true.
                             edge_index2(i_edge) = 0 ! Just a placeholder since the second panel doesn't technically exist
                             edge_length(i_edge) = dist(this%vertices(shared_verts(1))%loc, this%vertices(shared_verts(2))%loc)
-                            midpoints(:,i_edge) = 0.5*(this%vertices(shared_verts(1))%loc + this%vertices(shared_verts(2))%loc)
 
                             !$OMP end critical
 
@@ -434,17 +428,35 @@ contains
 
         end do
 
-        ! Check that no panel abuts empty space (i.e. non-watertight mesh)
-        if (run_checks) then
-            !$OMP do schedule(static)
-            do i=1,this%N_panels
-                if (any(this%panels(i)%abutting_panels == 0)) then
-                    write(*,*)
-                    write(*,*) "!!! The supplied mesh is not watertight. Panel", i, "is missing at least one neighbor."
-                    write(*,*) "!!! Solution quality may be adversely affected."
+        ! Check for panels abutting empty space
+        do i=1,this%N_panels
+            do j=1,this%panels(i)%N
+                if (this%panels(i)%abutting_panels(j) == 0) then
+
+                    ! Print warning
+                    if (run_checks) then
+                        write(*,*)
+                        write(*,*) "!!! The supplied mesh is not watertight. Panel", i, "is missing at least one neighbor."
+                        write(*,*) "!!! Solution quality may be adversely affected."
+                    end if
+
+                    ! Add a new edge
+                    N_edges = N_edges + 1
+                    i_edge = N_edges
+
+                    ! Get its information
+                    panel1(i_edge) = i
+                    panel2(i_edge) = 0
+                    vertex1(i_edge) = this%panels(i)%vertex_indices(j)
+                    vertex2(i_edge) = this%panels(i)%vertex_indices(modulo(j, this%panels(i)%N)+1)
+                    on_mirror_plane(i_edge) = .false.
+                    edge_index1(i_edge) = j
+                    edge_index2(i_edge) = 0
+                    edge_length(i_edge) = dist(this%vertices(vertex1(i_edge))%loc, this%vertices(vertex2(i_edge))%loc)
+
                 end if
             end do
-        end if
+        end do
 
         ! Allocate edge storage
         !$OMP single
@@ -477,33 +489,37 @@ contains
 
             do i=1,this%N_edges
 
+                ! Determine location
+                loc = 0.5*(this%vertices(vertex1(i))%loc + this%vertices(vertex2(i))%loc)
+
                 ! Initialize vertex object
-                ind = N_orig_verts + i
-                call this%vertices(ind)%init(midpoints(:,i), ind, 2)
-                this%vertices(ind)%l_avg = edge_length(i)
+                i_mid = N_orig_verts + i
+                call this%vertices(i_mid)%init(loc, i_mid, 2)
+                this%vertices(i_mid)%l_avg = edge_length(i)
 
                 ! Add adjacent vertices
-                call this%vertices(ind)%adjacent_vertices%append(vertex1(i))
-                call this%vertices(ind)%adjacent_vertices%append(vertex2(i))
+                call this%vertices(i_mid)%adjacent_vertices%append(vertex1(i))
+                call this%vertices(i_mid)%adjacent_vertices%append(vertex2(i))
 
                 ! Add adjacent panels
-                call this%vertices(ind)%panels%append(panel1(i))
+                call this%vertices(i_mid)%panels%append(panel1(i))
                 if (panel2(i) > 0 .and. panel2(i) <= this%N_panels) then
-                    call this%vertices(ind)%panels%append(panel2(i))
+                    call this%vertices(i_mid)%panels%append(panel2(i))
                 end if
 
                 ! Add edge
-                call this%vertices(ind)%adjacent_edges%append(i)
+                call this%vertices(i_mid)%adjacent_edges%append(i)
 
                 ! Point edge to it
-                this%edges(i)%midpoint_vert = ind
+                this%edges(i)%midpoint_vert = i_mid
 
                 ! Point panels to it
-                this%panels(panel1(i))%midpoint_indices(edge_index1(i)) = ind
-                this%panels(panel1(i))%midpoints(edge_index1(i))%ptr => this%vertices(ind)
+                this%panels(panel1(i))%midpoint_indices(edge_index1(i)) = i_mid
+                this%panels(panel1(i))%midpoints(edge_index1(i))%ptr => this%vertices(i_mid)
+
                 if (panel2(i) > 0 .and. panel2(i) <= this%N_panels) then
-                    this%panels(panel2(i))%midpoint_indices(edge_index2(i)) = ind
-                    this%panels(panel2(i))%midpoints(edge_index2(i))%ptr => this%vertices(ind)
+                    this%panels(panel2(i))%midpoint_indices(edge_index2(i)) = i_mid
+                    this%panels(panel2(i))%midpoints(edge_index2(i))%ptr => this%vertices(i_mid)
                 end if
 
             end do
@@ -797,9 +813,20 @@ contains
 
         ! Fix vertex pointers in panel objects (necessary because this%vertices got reallocated)
         do i=1,this%N_panels
+
             do j=1,this%panels(i)%N
                 this%panels(i)%vertices(j)%ptr => this%vertices(this%panels(i)%vertex_indices(j))
             end do
+
+            ! Fix midpoint pointers
+            if (doublet_order == 2) then
+                do j=1,this%panels(i)%N
+                    if (this%panels(i)%midpoint_indices(j) /= 0) then
+                        this%panels(i)%midpoints(j)%ptr => this%vertices(this%panels(i)%midpoint_indices(j))
+                    end if
+                end do
+            end if
+
         end do
         
     end subroutine surface_mesh_add_vertices

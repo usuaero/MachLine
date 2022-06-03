@@ -78,8 +78,6 @@ module panel_mod
         integer,dimension(:),allocatable :: midpoint_indices ! Indices of this panel's midpoints in the mesh vertex array
         logical :: in_wake ! Whether this panel belongs to a wake mesh
         integer,dimension(3) :: abutting_panels ! Indices of panels abutting this one
-        integer,dimension(3) :: edges ! Indices of this panel's edges
-        integer :: top_parent, bot_parent ! Indices of the top and bottom panels this panel's strength is determined by (for a wake panel w/ constant doublet strength)
         integer :: r, r_mir ! Panel inclination indicator; r=-1 -> superinclined, r=1 -> subinclined
         real :: J, J_mir ! Local scaled transformation Jacobian
 
@@ -191,13 +189,11 @@ contains
 
         ! Initialize a few things
         this%abutting_panels = 0
-        this%top_parent = 0
-        this%bot_parent = 0
 
         ! Allocate midpoint arrays
         if (doublet_order == 2) then
             allocate(this%midpoints(this%N))
-            allocate(this%midpoint_indices(this%N))
+            allocate(this%midpoint_indices(this%N), source=0)
         end if
 
         call this%calc_derived_geom()
@@ -1345,7 +1341,7 @@ contains
         
         ! Allocate storage
         allocate(int%F111(this%N))
-        if (source_order == 1) then
+        if (source_order == 1 .or. doublet_order == 2) then
             allocate(int%F121(this%N))
             allocate(int%F211(this%N))
         end if
@@ -1381,7 +1377,7 @@ contains
             end if
 
             ! Calculate F(1,2,1) and F(2,1,1)
-            if (source_order == 1) then
+            if (source_order == 1 .or. doublet_order == 2) then
 
                 ! Get edge normals
                 if (mirror_panel) then
@@ -1422,7 +1418,7 @@ contains
         
         ! Allocate integral storage
         allocate(int%F111(this%N), source=0.)
-        if (source_order == 1) then
+        if (source_order == 1 .or. doublet_order == 2) then
             allocate(int%F121(this%N))
             allocate(int%F211(this%N))
         end if
@@ -1473,7 +1469,7 @@ contains
                     series = eps*eps2*(1./3. - b*eps2/5. + (b*eps2)*(b*eps2)/7.)
                     int%F111(i) = -eps + b*series
 
-                    if (source_order == 1) then
+                    if (source_order == 1 .or. doublet_order == 2) then
                         if (mirror_panel) then
                             int%F121(i) = (-v_xi(i)*geom%dR(i)*geom%R1(i)*geom%R2(i) &
                                            + geom%l2(i)*geom%R1(i)*(this%vertices_ls_mir(2,i_next) - geom%P_ls(2)) &
@@ -1505,7 +1501,7 @@ contains
                     else
                         int%F111(i) = -atan2(s_b*F1, F2) / s_b
 
-                        if (source_order == 1) then
+                        if (source_order == 1 .or. doublet_order == 2) then
                             int%F121(i) = -(v_xi(i)*geom%dR(i) + geom%a(i)*v_eta(i)*int%F111(i)) / b
                             int%F211(i) = -v_eta(i)*geom%dR(i) + geom%a(i)*v_xi(i)*int%F111(i) - &
                                           2.*v_xi(i)*v_eta(i)*int%F121(i)
@@ -1518,7 +1514,7 @@ contains
                     F2 = s_b*geom%R2(i) + abs(geom%l2(i))
                     int%F111(i) = -sign(1., v_eta(i))*log(F1/F2)
 
-                    if (source_order == 1) then
+                    if (source_order == 1 .or. doublet_order == 2) then
                         int%F121(i) = -(v_xi(i)*geom%dR(i) + geom%a(i)*v_eta(i)*int%F111(i)) / b
                         int%F211(i) = -v_eta(i)*geom%dR(i) + geom%a(i)*v_xi(i)*int%F111(i) - &
                                       2.*v_xi(i)*v_eta(i)*int%F121(i)
@@ -1584,10 +1580,17 @@ contains
         int%H213 = -sum(v_xi*int%F111)
         int%H123 = -sum(v_eta*int%F111)
 
-        ! Calculate higher-order integrals
+        ! Calculate higher-order source integrals
         if (source_order == 1) then
             int%H211 = 0.5*(-geom%h2*int%H213 + sum(geom%a*int%F211))
             int%H121 = 0.5*(-geom%h2*int%H123 + sum(geom%a*int%F121))
+        end if
+
+        ! Calculate higher-order doublet integrals
+        if (doublet_order == 2) then
+            int%H133 = int%H111 - sum(v_eta*int%F121)
+            int%H223 = -sum(v_xi*int%F121)
+            int%H313 = -int%H133 - geom%h*int%hH113 + int%H111
         end if
 
     end subroutine panel_calc_subsonic_panel_integrals
@@ -1806,7 +1809,7 @@ contains
         end if
 
         ! Check DoD
-        if (dod_info%in_dod) then
+        if (dod_info%in_dod .and. this%A > 0.) then
 
             ! Calculate geometric parameters
             if (freestream%supersonic) then
@@ -1819,15 +1822,11 @@ contains
             int = this%calc_integrals(geom, 'potential', 'doublet', freestream, mirror_panel, dod_info)
 
             ! Source potential
-            if (source_order == 0) then
-
-                ! Johnson Eq. (D21) including the area factor discussed by Ehlers in Sec. 10.3
-                ! Equivalent to Ehlers Eq. (8.6)
-                phi_s(1) = int%H111
-
-            else if (source_order == 1) then
+            phi_s(1) = int%H111
+            if (source_order == 1) then
 
                 ! Johnson Eq. (D21)
+                ! Equivalent to Ehlers Eq. (8.6)
                 phi_s(1) = int%H111
                 phi_s(2) = int%H111*geom%P_ls(1) + int%H211
                 phi_s(3) = int%H111*geom%P_ls(2) + int%H121
@@ -1845,13 +1844,13 @@ contains
             phi_s = -this%J*freestream%K_inv*phi_s
 
             ! Doublet potential
-            if (doublet_order == 1) then
+            ! Johnson Eq. (D.30)
+            ! Equivalent to Ehlers Eq. (5.17))
+            phi_d(1) = int%hH113
+            phi_d(2) = int%hH113*geom%P_ls(1) + geom%h*int%H213
+            phi_d(3) = int%hH113*geom%P_ls(2) + geom%h*int%H123
 
-                ! Johnson Eq. (D.30)
-                ! Equivalent to Ehlers Eq. (5.17))
-                phi_d(1) = int%hH113
-                phi_d(2) = int%hH113*geom%P_ls(1) + geom%h*int%H213
-                phi_d(3) = int%hH113*geom%P_ls(2) + geom%h*int%H123
+            if (doublet_order == 1) then
 
                 ! Convert to vertex influences (Davis Eq. (4.41))
                 if (mirror_panel) then
@@ -1867,11 +1866,12 @@ contains
 
             else if (doublet_order == 2) then
 
-                ! Johnson Eq. (D.30)
-                ! Equivalent to Ehlers Eq. (5.17))
-                phi_d(1) = int%hH113
-                phi_d(2) = int%hH113*geom%P_ls(1) + geom%h*int%H213
-                phi_d(3) = int%hH113*geom%P_ls(2) + geom%h*int%H123
+                ! Add quadratic terms
+                phi_d(4) = 0.5*int%hH113*geom%P_ls(1)**2 + geom%h*(geom%P_ls(1)*int%H213 + 0.5*int%H313)
+
+                phi_d(5) = int%hH113*geom%P_ls(1)*geom%P_ls(2) + geom%h*(geom%P_ls(2)*int%H213 + geom%P_ls(1)*int%H123 + int%H223)
+
+                phi_d(6) = 0.5*int%hH113*geom%P_ls(2)**2 + geom%h*(geom%P_ls(2)*int%H123 + 0.5*int%H133)
 
                 ! Convert to vertex influences (Davis Eq. (4.41))
                 if (mirror_panel) then
@@ -1944,7 +1944,7 @@ contains
         end if
 
         ! Check DoD
-        if (dod_info%in_dod) then
+        if (dod_info%in_dod .and. this%A > 0.) then
 
             ! Calculate geometric parameters
             if (freestream%supersonic) then
