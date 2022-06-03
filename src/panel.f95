@@ -78,6 +78,7 @@ module panel_mod
         integer,dimension(3) :: abutting_panels ! Indices of panels abutting this one
         integer :: r, r_mir ! Panel inclination indicator; r=-1 -> superinclined, r=1 -> subinclined
         real :: J, J_mir ! Local scaled transformation Jacobian
+        integer,dimension(:),allocatable :: i_vert_d, i_vert_s
 
         contains
 
@@ -93,6 +94,7 @@ module panel_mod
             procedure :: calc_g_to_ls_transform => panel_calc_g_to_ls_transform
             procedure :: calc_edge_vectors => panel_calc_edge_vectors
             procedure :: calc_singularity_matrices => panel_calc_singularity_matrices
+            procedure :: set_influencing_verts => panel_set_influencing_verts
 
             ! Mirror initialization
             procedure :: init_mirror => panel_init_mirror
@@ -104,6 +106,7 @@ module panel_mod
             procedure :: get_vertex_loc => panel_get_vertex_loc
             procedure :: get_midpoint_loc => panel_get_midpoint_loc
             procedure :: get_vertex_index => panel_get_vertex_index
+            procedure :: get_midpoint_index => panel_get_midpoint_index
             procedure :: touches_vertex => panel_touches_vertex
 
             ! Update information
@@ -119,6 +122,7 @@ module panel_mod
             procedure :: calc_supersonic_subinc_edge_integrals => panel_calc_supersonic_subinc_edge_integrals
             procedure :: calc_supersonic_subinc_panel_integrals => panel_calc_supersonic_subinc_panel_integrals
             procedure :: calc_integrals => panel_calc_integrals
+            procedure :: allocate_potential_influences => panel_allocate_potential_influences
             procedure :: calc_potentials => panel_calc_potentials
             procedure :: calc_velocities => panel_calc_velocities
             procedure :: get_velocity_jump => panel_get_velocity_jump
@@ -558,6 +562,85 @@ contains
     end subroutine panel_calc_singularity_matrices
 
 
+    subroutine panel_set_influencing_verts(this)
+        ! Sets up the arrays of vertex indices which set the influence for this panel
+
+        class(panel),intent(inout) :: this
+
+        ! Source
+        if (source_order == 0) then
+            allocate(this%i_vert_s(1), source=this%index)
+        else if (source_order == 1) then
+            allocate(this%i_vert_s(3))
+            this%i_vert_s(1) = this%get_vertex_index(1)
+            this%i_vert_s(2) = this%get_vertex_index(2)
+            this%i_vert_s(3) = this%get_vertex_index(3)
+        end if
+
+        ! Doublet
+        if (doublet_order == 1) then
+
+            ! Check if this panel belongs to the wake
+            if (this%in_wake) then
+
+                ! Wake panels are influenced by two sets of vertices
+                allocate(this%i_vert_d(6))
+                this%i_vert_d(1) = this%vertices(1)%ptr%top_parent
+                this%i_vert_d(2) = this%vertices(2)%ptr%top_parent
+                this%i_vert_d(3) = this%vertices(3)%ptr%top_parent
+                this%i_vert_d(4) = this%vertices(1)%ptr%bot_parent
+                this%i_vert_d(5) = this%vertices(2)%ptr%bot_parent
+                this%i_vert_d(6) = this%vertices(3)%ptr%bot_parent
+
+            else
+
+                ! Body panels are influenced by only one set of vertices
+                allocate(this%i_vert_d(3))
+                this%i_vert_d(1) = this%get_vertex_index(1)
+                this%i_vert_d(2) = this%get_vertex_index(2)
+                this%i_vert_d(3) = this%get_vertex_index(3)
+
+            end if
+
+        else if (doublet_order == 2) then
+
+            ! Check if this panel belongs to the wake
+            if (this%in_wake) then
+
+                ! Wake panels are influenced by two sets of vertices
+                allocate(this%i_vert_d(12))
+                this%i_vert_d(1) = this%vertices(1)%ptr%top_parent
+                this%i_vert_d(2) = this%vertices(2)%ptr%top_parent
+                this%i_vert_d(3) = this%vertices(3)%ptr%top_parent
+                this%i_vert_d(4) = this%midpoints(1)%ptr%top_parent
+                this%i_vert_d(5) = this%midpoints(2)%ptr%top_parent
+                this%i_vert_d(6) = this%midpoints(3)%ptr%top_parent
+                this%i_vert_d(7) = this%vertices(1)%ptr%bot_parent
+                this%i_vert_d(8) = this%vertices(2)%ptr%bot_parent
+                this%i_vert_d(9) = this%vertices(3)%ptr%bot_parent
+                this%i_vert_d(10) = this%midpoints(1)%ptr%bot_parent
+                this%i_vert_d(11) = this%midpoints(2)%ptr%bot_parent
+                this%i_vert_d(12) = this%midpoints(3)%ptr%bot_parent
+
+            else
+
+                ! Body panels are influenced by only one set of vertices
+                allocate(this%i_vert_d(6))
+                this%i_vert_d(1) = this%get_vertex_index(1)
+                this%i_vert_d(2) = this%get_vertex_index(2)
+                this%i_vert_d(3) = this%get_vertex_index(3)
+                this%i_vert_d(4) = this%get_midpoint_index(1)
+                this%i_vert_d(5) = this%get_midpoint_index(2)
+                this%i_vert_d(6) = this%get_midpoint_index(3)
+
+            end if
+
+        end if
+    
+        
+    end subroutine panel_set_influencing_verts
+
+
     subroutine panel_init_mirror(this, freestream, mirror_plane)
 
         implicit none
@@ -850,6 +933,19 @@ contains
     end function panel_get_vertex_index
 
 
+    function panel_get_midpoint_index(this, i) result(index)
+
+        implicit none
+
+        class(panel),intent(in) :: this
+        integer,intent(in) :: i
+        integer :: index
+
+        index = this%midpoints(i)%ptr%index
+
+    end function panel_get_midpoint_index
+
+
     function panel_touches_vertex(this, i) result(touches)
 
         implicit none
@@ -865,7 +961,7 @@ contains
         do j=1,this%N
 
             ! Check index
-            if (this%vertex_indices(j) == i) then
+            if (this%get_vertex_index(j) == i) then
                 touches = .true.
                 return
             end if
@@ -1720,32 +1816,19 @@ contains
     end function panel_calc_integrals
 
 
-    subroutine panel_calc_potentials(this, P, freestream, dod_info, mirror_panel, phi_s, phi_d, i_vert_s, i_vert_d)
-        ! Calculates the source- and doublet-induced potentials at the given point P
+    subroutine panel_allocate_potential_influences(this, phi_s, phi_d)
+        ! Allocates the necessary influence arrays
 
         implicit none
 
         class(panel),intent(in) :: this
-        real,dimension(3),intent(in) :: P
-        type(flow),intent(in) :: freestream
-        type(dod),intent(in) :: dod_info
-        logical,intent(in) :: mirror_panel
         real,dimension(:),allocatable,intent(out) :: phi_s, phi_d
-        integer,dimension(:),allocatable,intent(out) :: i_vert_s, i_vert_d
-
-        type(eval_point_geom) :: geom
-        type(integrals) :: int
-        integer :: i
-
-        ! Specify influencing vertices (also sets zero default influence)
 
         ! Source
         if (source_order == 0) then
             allocate(phi_s(1), source=0.)
-            allocate(i_vert_s(1), source=this%index)
         else if (source_order == 1) then
             allocate(phi_s(3), source=0.)
-            allocate(i_vert_s(3), source=this%vertex_indices)
         end if
 
         ! Doublet
@@ -1754,22 +1837,10 @@ contains
             ! Check if this panel belongs to the wake
             if (this%in_wake) then
 
-                ! Wake panels are influenced by two sets of vertices
-                allocate(i_vert_d(6))
-                i_vert_d(1) = this%vertices(1)%ptr%top_parent
-                i_vert_d(2) = this%vertices(2)%ptr%top_parent
-                i_vert_d(3) = this%vertices(3)%ptr%top_parent
-                i_vert_d(4) = this%vertices(1)%ptr%bot_parent
-                i_vert_d(5) = this%vertices(2)%ptr%bot_parent
-                i_vert_d(6) = this%vertices(3)%ptr%bot_parent
-
                 ! Set default influence
                 allocate(phi_d(6), source=0.)
 
             else
-
-                ! Body panels are influenced by only one set of vertices
-                allocate(i_vert_d, source=this%vertex_indices)
 
                 ! Set default influence
                 allocate(phi_d(3), source=0.)
@@ -1781,30 +1852,10 @@ contains
             ! Check if this panel belongs to the wake
             if (this%in_wake) then
 
-                ! Wake panels are influenced by two sets of vertices
-                allocate(i_vert_d(12))
-                i_vert_d(1) = this%vertices(1)%ptr%top_parent
-                i_vert_d(2) = this%vertices(2)%ptr%top_parent
-                i_vert_d(3) = this%vertices(3)%ptr%top_parent
-                i_vert_d(4) = this%midpoints(1)%ptr%top_parent
-                i_vert_d(5) = this%midpoints(2)%ptr%top_parent
-                i_vert_d(6) = this%midpoints(3)%ptr%top_parent
-                i_vert_d(7) = this%vertices(1)%ptr%bot_parent
-                i_vert_d(8) = this%vertices(2)%ptr%bot_parent
-                i_vert_d(9) = this%vertices(3)%ptr%bot_parent
-                i_vert_d(10) = this%midpoints(1)%ptr%bot_parent
-                i_vert_d(11) = this%midpoints(2)%ptr%bot_parent
-                i_vert_d(12) = this%midpoints(3)%ptr%bot_parent
-
                 ! Set default influence
                 allocate(phi_d(12), source=0.)
 
             else
-
-                ! Body panels are influenced by only one set of vertices
-                allocate(i_vert_d(6))
-                i_vert_d(1:3) = this%vertex_indices
-                i_vert_d(4:6) = this%midpoint_indices
 
                 ! Set default influence
                 allocate(phi_d(6), source=0.)
@@ -1812,6 +1863,28 @@ contains
             end if
 
         end if
+        
+    end subroutine panel_allocate_potential_influences
+
+
+    subroutine panel_calc_potentials(this, P, freestream, dod_info, mirror_panel, phi_s, phi_d)
+        ! Calculates the source- and doublet-induced potentials at the given point P
+
+        implicit none
+
+        class(panel),intent(in) :: this
+        real,dimension(3),intent(in) :: P
+        type(flow),intent(in) :: freestream
+        type(dod),intent(in) :: dod_info
+        logical,intent(in) :: mirror_panel
+        real,dimension(:),allocatable,intent(out) :: phi_s, phi_d
+
+        type(eval_point_geom) :: geom
+        type(integrals) :: int
+        integer :: i
+
+        ! Specify influencing vertices (also sets zero default influence)
+        call this%allocate_potential_influences(phi_s, phi_d)
 
         ! Check DoD
         if (dod_info%in_dod .and. this%A > 0.) then
@@ -2002,7 +2075,7 @@ contains
 
                 ! Get doublet values
                 do i=1,this%N
-                    mu_verts(i) = mu(this%vertex_indices(i)+size(mu)/2)
+                    mu_verts(i) = mu(this%get_vertex_index(i)+size(mu)/2)
                 end do
 
             else if (doublet_order == 2) then
@@ -2012,8 +2085,8 @@ contains
 
                 ! Get doublet values
                 do i=1,this%N
-                    mu_verts(i) = mu(this%vertex_indices(i)+size(mu)/2)
-                    mu_verts(i+this%N) = mu(this%midpoint_indices(i)+size(mu)/2)
+                    mu_verts(i) = mu(this%get_vertex_index(i)+size(mu)/2)
+                    mu_verts(i+this%N) = mu(this%get_midpoint_index(i)+size(mu)/2)
                 end do
 
             end if
@@ -2056,7 +2129,7 @@ contains
                 allocate(mu_verts(this%N))
 
                 do i=1,this%N
-                    mu_verts(i) = mu(this%vertex_indices(i))
+                    mu_verts(i) = mu(this%get_vertex_index(i))
                 end do
 
             else if (doublet_order == 2) then
@@ -2064,14 +2137,14 @@ contains
                 allocate(mu_verts(2*this%N))
 
                 do i=1,this%N
-                    mu_verts(i) = mu(this%vertex_indices(i))
-                    mu_verts(i+this%N) = mu(this%midpoint_indices(i))
+                    mu_verts(i) = mu(this%get_vertex_index(i))
+                    mu_verts(i+this%N) = mu(this%get_midpoint_index(i))
                 end do
 
             end if
 
             do i=1,this%N
-                mu_verts(i) = mu(this%vertex_indices(i))
+                mu_verts(i) = mu(this%get_vertex_index(i))
             end do
         
             mu_params = matmul(this%S_mu_inv, mu_verts)

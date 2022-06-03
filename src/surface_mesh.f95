@@ -49,6 +49,7 @@ module surface_mesh_mod
             procedure :: init_with_flow => surface_mesh_init_with_flow
             procedure :: output_results => surface_mesh_output_results
             procedure :: locate_adjacent_panels => surface_mesh_locate_adjacent_panels
+            procedure :: store_adjacent_vertices => surface_mesh_store_adjacent_vertices
             procedure :: characterize_edges => surface_mesh_characterize_edges
             procedure :: find_vertices_on_mirror => surface_mesh_find_vertices_on_mirror
             procedure :: add_vertices => surface_mesh_add_vertices
@@ -218,7 +219,7 @@ contains
         integer :: i, j, m, n, m1, n1, temp, i_edge, N_edges, i_mid, N_orig_verts
         logical :: already_found_shared, watertight
         real :: distance
-        integer,dimension(2) :: shared_verts
+        integer,dimension(2) :: i_endpoints
         integer,dimension(this%N_panels*3) :: panel1, panel2, vertex1, vertex2, edge_index1, edge_index2 ! By definition, we will have no more than 3*N_panels edges; we should have much less, but some people...
         real,dimension(this%N_panels*3) :: edge_length
         logical,dimension(this%N_panels*3) :: on_mirror_plane
@@ -231,8 +232,8 @@ contains
         on_mirror_plane = .false.
 
         ! Loop through each panel
-        N_edges = 0
-        !$OMP parallel private(j, already_found_shared, distance, shared_verts, m, m1, n, n1, temp, i_edge)
+        this%N_edges = 0
+        !$OMP parallel private(j, already_found_shared, distance, i_endpoints, m, m1, n, n1, temp, i_edge)
 
         !$OMP do schedule(dynamic)
         do i=1,this%N_panels
@@ -259,32 +260,23 @@ contains
                             if (already_found_shared) then
 
                                 ! Store second shared vertex
-                                shared_verts(2) = this%panels(i)%get_vertex_index(m)
+                                i_endpoints(2) = this%panels(i)%get_vertex_index(m)
 
                                 ! Check order; edge should proceed counterclockwise about panel i
                                 if (m1 == 1 .and. m == this%panels(i)%N) then
-                                    temp = shared_verts(1)
-                                    shared_verts(1) = shared_verts(2)
-                                    shared_verts(2) = temp
+                                    temp = i_endpoints(1)
+                                    i_endpoints(1) = i_endpoints(2)
+                                    i_endpoints(2) = temp
                                 end if
 
                                 !$OMP critical
                                 
                                 ! Update number of edges
-                                N_edges = N_edges + 1
-                                i_edge = N_edges
+                                this%N_edges = this%N_edges + 1
+                                i_edge = this%N_edges
 
                                 ! Store vertices being adjacent to one another
-                                if (.not. this%vertices(shared_verts(1))%adjacent_vertices%is_in(shared_verts(2))) then
-                                    call this%vertices(shared_verts(1))%adjacent_vertices%append(shared_verts(2))
-                                end if
-                                if (.not. this%vertices(shared_verts(2))%adjacent_vertices%is_in(shared_verts(1))) then
-                                    call this%vertices(shared_verts(2))%adjacent_vertices%append(shared_verts(1))
-                                end if
-
-                                ! Store that this edge touches the two end vertices
-                                call this%vertices(shared_verts(1))%adjacent_edges%append(i_edge)
-                                call this%vertices(shared_verts(2))%adjacent_edges%append(i_edge)
+                                call this%store_adjacent_vertices(i_endpoints, i_edge)
 
                                 ! Store adjacent panels and panel edges
                                 ! This stores the adjacent panels and edges according to the index of that edge
@@ -315,9 +307,9 @@ contains
                                 ! Store information in arrays for later storage in edge objects
                                 panel1(i_edge) = i
                                 panel2(i_edge) = j
-                                vertex1(i_edge) = shared_verts(1)
-                                vertex2(i_edge) = shared_verts(2)
-                                edge_length(i_edge) = dist(this%vertices(shared_verts(1))%loc, this%vertices(shared_verts(2))%loc)
+                                vertex1(i_edge) = i_endpoints(1)
+                                vertex2(i_edge) = i_endpoints(2)
+                                edge_length(i_edge) = dist(this%vertices(i_endpoints(1))%loc, this%vertices(i_endpoints(2))%loc)
 
                                 !$OMP end critical
                                 
@@ -328,7 +320,7 @@ contains
                             else
 
                                 already_found_shared = .true.
-                                shared_verts(1) = this%panels(i)%get_vertex_index(m)
+                                i_endpoints(1) = this%panels(i)%get_vertex_index(m)
                                 m1 = m
                                 n1 = n
 
@@ -363,28 +355,23 @@ contains
                         if (already_found_shared) then
 
                             ! Store the second shared vertex
-                            shared_verts(2) = n
+                            i_endpoints(2) = n
 
                             ! Check order
                             if (m1 == 1 .and. m == 3) then
-                                temp = shared_verts(1)
-                                shared_verts(1) = shared_verts(2)
-                                shared_verts(2) = temp
+                                temp = i_endpoints(1)
+                                i_endpoints(1) = i_endpoints(2)
+                                i_endpoints(2) = temp
                             end if
 
                             !$OMP critical
                             
                             ! Update number of edges
-                            N_edges = N_edges + 1
-                            i_edge = N_edges
+                            this%N_edges = this%N_edges + 1
+                            i_edge = this%N_edges
 
                             ! Store adjacent vertices
-                            if (.not. this%vertices(shared_verts(1))%adjacent_vertices%is_in(shared_verts(2))) then
-                                call this%vertices(shared_verts(1))%adjacent_vertices%append(shared_verts(2))
-                            end if
-                            if (.not. this%vertices(shared_verts(2))%adjacent_vertices%is_in(shared_verts(1))) then
-                                call this%vertices(shared_verts(2))%adjacent_vertices%append(shared_verts(1))
-                            end if
+                            call this%store_adjacent_vertices(i_endpoints, i_edge)
 
                             ! Store adjacent panel
                             if (m-m1 == 1) then
@@ -398,11 +385,11 @@ contains
                             ! Store in arrays for later storage in edge objects
                             panel1(i_edge) = i
                             panel2(i_edge) = i+this%N_panels
-                            vertex1(i_edge) = shared_verts(1)
-                            vertex2(i_edge) = shared_verts(2)
+                            vertex1(i_edge) = i_endpoints(1)
+                            vertex2(i_edge) = i_endpoints(2)
                             on_mirror_plane(i_edge) = .true.
                             edge_index2(i_edge) = 0 ! Just a placeholder since the second panel doesn't technically exist
-                            edge_length(i_edge) = dist(this%vertices(shared_verts(1))%loc, this%vertices(shared_verts(2))%loc)
+                            edge_length(i_edge) = dist(this%vertices(i_endpoints(1))%loc, this%vertices(i_endpoints(2))%loc)
 
                             !$OMP end critical
 
@@ -413,7 +400,7 @@ contains
                         else
 
                             already_found_shared = .true.
-                            shared_verts(1) = n
+                            i_endpoints(1) = n
                             m1 = m
 
                         end if
@@ -437,26 +424,23 @@ contains
                     ! Mark that the mesh is not watertight
                     watertight = .false.
 
+                    ! Get endpoint indices
+                    i_endpoints(1) = this%panels(i)%vertex_indices(j)
+                    i_endpoints(2) = this%panels(i)%vertex_indices(mod(j, this%panels(i)%N) + 1)
+
                     ! Set up an edge
-                    shared_verts(1) = this%panels(i)%vertex_indices(j)
-                    shared_verts(2) = this%panels(i)%vertex_indices(mod(j, this%panels(i)%N) + 1)
-                    N_edges = N_edges + 1
-                    i_edge = N_edges
+                    this%N_edges = this%N_edges + 1
+                    i_edge = this%N_edges
                     panel1(i_edge) = i
                     panel2(i_edge) = 0 ! Placeholder
-                    vertex1(i_edge) = shared_verts(1)
-                    vertex2(i_edge) = shared_verts(2)
+                    vertex1(i_edge) = i_endpoints(1)
+                    vertex2(i_edge) = i_endpoints(2)
                     on_mirror_plane(i_edge) = .false.
                     edge_index1(i_edge) = j
                     edge_index2(i_edge) = 0
 
                     ! Store adjacent vertices
-                    if (.not. this%vertices(shared_verts(1))%adjacent_vertices%is_in(shared_verts(2))) then
-                        call this%vertices(shared_verts(1))%adjacent_vertices%append(shared_verts(2))
-                    end if
-                    if (.not. this%vertices(shared_verts(2))%adjacent_vertices%is_in(shared_verts(1))) then
-                        call this%vertices(shared_verts(2))%adjacent_vertices%append(shared_verts(1))
-                    end if
+                    call this%store_adjacent_vertices(i_endpoints, i_edge)
 
                 end if
             end do
@@ -465,7 +449,6 @@ contains
                                                                Solution quality may be adversely affected."
 
         ! Allocate edge storage
-        this%N_edges = N_edges
         allocate(this%edges(this%N_edges))
         !$OMP end single
 
@@ -540,6 +523,30 @@ contains
     end subroutine surface_mesh_locate_adjacent_panels
 
 
+    subroutine surface_mesh_store_adjacent_vertices(this, i_verts, i_edge)
+        ! Stores that the given two vertices are adjacent (i.e. they share an edge)
+
+        implicit none
+
+        class(surface_mesh), intent(inout) :: this
+        integer,dimension(2), intent(in) :: i_verts
+        integer,intent(in) :: i_edge
+
+        ! Store that the vertices are adjacent
+        if (.not. this%vertices(i_verts(1))%adjacent_vertices%is_in(i_verts(2))) then
+            call this%vertices(i_verts(1))%adjacent_vertices%append(i_verts(2))
+        end if
+        if (.not. this%vertices(i_verts(2))%adjacent_vertices%is_in(i_verts(1))) then
+            call this%vertices(i_verts(2))%adjacent_vertices%append(i_verts(1))
+        end if
+
+        ! Store that they touch this edge
+        call this%vertices(i_verts(1))%adjacent_edges%append(i_edge)
+        call this%vertices(i_verts(2))%adjacent_edges%append(i_edge)
+        
+    end subroutine surface_mesh_store_adjacent_vertices
+
+
     subroutine surface_mesh_init_with_flow(this, freestream, wake_file)
 
         implicit none
@@ -593,6 +600,12 @@ contains
 
         ! Initialize wake
         call this%init_wake(freestream, wake_file)
+
+        ! Set up influencing vertex arrays
+        !$OMP parallel do schedule(static)
+        do i=1,this%N_panels
+            call this%panels(i)%set_influencing_verts()
+        end do
     
     end subroutine surface_mesh_init_with_flow
 
@@ -1043,6 +1056,7 @@ contains
 
         ! Get sorted indices
         call insertion_arg_sort(x, i_sorted)
+        deallocate(x)
 
         ! Allocate new array of vertices
 

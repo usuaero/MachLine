@@ -10,7 +10,7 @@
             "area": 8.0
         },
         "singularity_order" : {
-            "source" : 1
+            "doublet" : 2
         },
         "wake_model" : {
             "wake_present" : true

@@ -573,7 +573,7 @@ contains
     end subroutine panel_solver_calc_source_strengths
 
 
-    subroutine panel_solver_update_system_row(this, body, A_row, phi_cp_s, i_panel, source_inf, doublet_inf, i_vert_s, i_vert_d)
+    subroutine panel_solver_update_system_row(this, body, A_row, phi_cp_s, i_panel, source_inf, doublet_inf, mirrored_panel)
         ! Updates the linear system with the source and doublet influences
 
         implicit none
@@ -584,7 +584,7 @@ contains
         real,intent(inout) :: phi_cp_s
         integer,intent(in) :: i_panel
         real,dimension(:),allocatable,intent(in) :: source_inf, doublet_inf
-        integer,dimension(:),allocatable,intent(in) :: i_vert_s, i_vert_d
+        logical,intent(in) :: mirrored_panel
 
         integer :: k
 
@@ -593,12 +593,20 @@ contains
 
             ! Constant
             if (source_order == 0) then
-                phi_cp_s = phi_cp_s + source_inf(1)*body%sigma(i_panel)
+                if (mirrored_panel) then
+                    phi_cp_s = phi_cp_s + source_inf(1)*body%sigma(i_panel+body%N_panels)
+                else
+                    phi_cp_s = phi_cp_s + source_inf(1)*body%sigma(i_panel)
+                end if
 
             ! Linear
             else
-                do k=1,size(i_vert_s)
-                    phi_cp_s = phi_cp_s + source_inf(k)*body%sigma(i_vert_s(k))
+                do k=1,size(body%panels(i_panel)%i_vert_s)
+                    if (mirrored_panel) then
+                        phi_cp_s = phi_cp_s + source_inf(k)*body%sigma(body%panels(i_panel)%i_vert_s(k)+body%N_cp)
+                    else
+                        phi_cp_s = phi_cp_s + source_inf(k)*body%sigma(body%panels(i_panel)%i_vert_s(k))
+                    end if
                 end do
             end if
         end if
@@ -606,8 +614,13 @@ contains
         ! Add doublet influence
         ! This method is the same for linear and quadratic doublets
         ! Loop through panel vertices
-        do k=1,size(i_vert_d)
-            A_row(i_vert_d(k)) = A_row(i_vert_d(k)) + doublet_inf(k)
+        do k=1,size(body%panels(i_panel)%i_vert_d)
+            if (mirrored_panel) then
+                A_row(body%panels(i_panel)%i_vert_d(k)+body%N_cp) = A_row(body%panels(i_panel)%i_vert_d(k)+body%N_cp) &
+                                                                    + doublet_inf(k)
+            else
+                A_row(body%panels(i_panel)%i_vert_d(k)) = A_row(body%panels(i_panel)%i_vert_d(k)) + doublet_inf(k)
+            end if
         end do
     
     end subroutine panel_solver_update_system_row
@@ -624,7 +637,6 @@ contains
         integer :: i, j, k, stat
         real,dimension(:),allocatable :: source_inf, doublet_inf, A_i, A_i_mir
         real :: phi_cp_s, phi_cp_s_mir
-        integer,dimension(:),allocatable :: i_vert_s, i_vert_d
         real,dimension(3) :: x
 
         ! Allocate space for inner potential calculations
@@ -653,7 +665,7 @@ contains
         end if
 
         ! Calculate source and doublet influences from body on each control point
-        !$OMP parallel do private(j, source_inf, doublet_inf, i_vert_s, i_vert_d, k, A_i, A_i_mir, phi_cp_s, phi_cp_s_mir) &
+        !$OMP parallel do private(j, source_inf, doublet_inf, k, A_i, A_i_mir, phi_cp_s, phi_cp_s_mir) &
         !$OMP schedule(dynamic)
         do i=1,body%N_cp
 
@@ -673,10 +685,10 @@ contains
                     
                     ! Calculate influence
                     call body%panels(j)%calc_potentials(body%cp(:,i), this%freestream, this%dod_info(j,i), .false., &
-                                                        source_inf, doublet_inf, i_vert_s, i_vert_d)
+                                                        source_inf, doublet_inf)
 
                     ! Add influence
-                    call this%update_system_row(body, A_i, phi_cp_s, j, source_inf, doublet_inf, i_vert_s, i_vert_d)
+                    call this%update_system_row(body, A_i, phi_cp_s, j, source_inf, doublet_inf, .false.)
 
                 end if
 
@@ -693,14 +705,11 @@ contains
                                 if (.not. this%freestream%incompressible) then
                                     call body%panels(j)%calc_potentials(body%cp_mirrored(:,i), this%freestream, &
                                                                         this%dod_info(j+body%N_panels,i+body%N_cp), .true., &
-                                                                        source_inf, doublet_inf, i_vert_s, i_vert_d)
+                                                                        source_inf, doublet_inf)
                                 end if
 
                                 ! Add influence of mirrored panel on mirrored control point
-                                i_vert_s = i_vert_s + body%N_cp
-                                i_vert_d = i_vert_d + body%N_cp
-                                call this%update_system_row(body, A_i_mir, phi_cp_s_mir, &
-                                                            j+body%N_panels, source_inf, doublet_inf, i_vert_s, i_vert_d)
+                                call this%update_system_row(body, A_i_mir, phi_cp_s_mir, j, source_inf, doublet_inf, .true.)
                             end if
 
                         end if
@@ -710,13 +719,12 @@ contains
                             if (body%vertices(i)%mirrored_is_unique .or. this%freestream%incompressible) then
                                 call body%panels(j)%calc_potentials(body%cp_mirrored(:,i), this%freestream, &
                                                                     this%dod_info(j,i+body%N_cp), .false., &
-                                                                    source_inf, doublet_inf, i_vert_s, i_vert_d)
+                                                                    source_inf, doublet_inf)
                             end if
 
                             ! Add influence of existing panel on mirrored control point
                             if (body%vertices(i)%mirrored_is_unique) then
-                                call this%update_system_row(body, A_i_mir, phi_cp_s_mir, j, &
-                                                            source_inf, doublet_inf, i_vert_s, i_vert_d)
+                                call this%update_system_row(body, A_i_mir, phi_cp_s_mir, j, source_inf, doublet_inf, .false.)
                             end if
                         end if
 
@@ -725,14 +733,11 @@ contains
                             if (.not. this%freestream%incompressible) then
                                 call body%panels(j)%calc_potentials(body%cp(:,i), this%freestream, &
                                                                     this%dod_info(j+body%N_panels,i), .true., source_inf, &
-                                                                    doublet_inf, i_vert_s, i_vert_d)
+                                                                    doublet_inf)
                             end if
 
                             ! Add influence of mirrored panel on existing control point
-                            i_vert_s = i_vert_s + body%N_cp
-                            i_vert_d = i_vert_d + body%N_cp
-                            call this%update_system_row(body, A_i, phi_cp_s, j+body%N_panels, &
-                                                        source_inf, doublet_inf, i_vert_s, i_vert_d)
+                            call this%update_system_row(body, A_i, phi_cp_s, j, source_inf, doublet_inf, .true.)
                         end if
 
                     else
@@ -743,10 +748,10 @@ contains
                         if (this%dod_info(j+body%N_panels,i)%in_dod) then
                             call body%panels(j)%calc_potentials(body%cp_mirrored(:,i), this%freestream, &
                                                                 this%dod_info(j+body%N_panels,i), &
-                                                                .false., source_inf, doublet_inf, i_vert_s, i_vert_d)
+                                                                .false., source_inf, doublet_inf)
 
                             ! Add influence of mirrored panel on existing control point
-                            call this%update_system_row(body, A_i, phi_cp_s, j, source_inf, doublet_inf, i_vert_s, i_vert_d)
+                            call this%update_system_row(body, A_i, phi_cp_s, j, source_inf, doublet_inf, .false.)
                         end if
 
                     end if
@@ -810,7 +815,6 @@ contains
 
         integer :: i, j, k
         real,dimension(:),allocatable ::  doublet_inf, source_inf, A_i, A_i_mir
-        integer,dimension(:),allocatable :: i_vert_d, i_vert_s
 
         ! Calculate influence of wake
         if (verbose) write(*,'(a)',advance='no') "     Calculating wake influences..."
@@ -822,7 +826,7 @@ contains
         end if
 
         ! Loop through control points
-        !$OMP parallel do private(j, source_inf, doublet_inf, i_vert_s, i_vert_d, k, A_i, A_i_mir) schedule(dynamic)
+        !$OMP parallel do private(j, source_inf, doublet_inf, k, A_i, A_i_mir) schedule(dynamic)
         do i=1,body%N_cp
 
             ! Initialize
@@ -840,11 +844,11 @@ contains
                 ! Caclulate influence of existing panel on existing control point
                 call body%wake%panels(j)%calc_potentials(body%cp(:,i), this%freestream, &
                                                          this%wake_dod_info(j,i), .false., &
-                                                         source_inf, doublet_inf, i_vert_s, i_vert_d)
+                                                         source_inf, doublet_inf)
 
                 ! Add influence
-                do k=1,size(i_vert_d)
-                    A_i(i_vert_d(k)) = A_i(i_vert_d(k)) + doublet_inf(k)
+                do k=1,size(body%wake%panels(j)%i_vert_d)
+                    A_i(body%wake%panels(j)%i_vert_d(k)) = A_i(body%wake%panels(j)%i_vert_d(k)) + doublet_inf(k)
                 end do
 
                 ! Get influence on mirrored control point
@@ -855,12 +859,12 @@ contains
                         ! Calculate influence of existing panel on mirrored point
                         call body%wake%panels(j)%calc_potentials(body%cp_mirrored(:,i), this%freestream, &
                                                                  this%wake_dod_info(j,i+body%N_cp), .false., &
-                                                                 source_inf, doublet_inf, i_vert_s, i_vert_d)
+                                                                 source_inf, doublet_inf)
 
                         ! Add influence
                         if (body%vertices(i)%mirrored_is_unique) then
-                            do k=1,size(i_vert_d)
-                                A_i_mir(i_vert_d(k)) = A_i_mir(i_vert_d(k)) + doublet_inf(k)
+                            do k=1,size(body%wake%panels(j)%i_vert_d)
+                                A_i_mir(body%wake%panels(j)%i_vert_d(k)) = A_i_mir(body%wake%panels(j)%i_vert_d(k)) + doublet_inf(k)
                             end do
                         end if
 
@@ -871,11 +875,11 @@ contains
                         ! even for compressible flow, since we know the flow is symmetric here
                         call body%wake%panels(j)%calc_potentials(body%cp_mirrored(:,i), this%freestream, &
                                                                  this%wake_dod_info(j+body%wake%N_panels,i), .false., & ! No, this is not the DoD for this computation; yes, it is equivalent
-                                                                 source_inf, doublet_inf, i_vert_s, i_vert_d)
+                                                                 source_inf, doublet_inf)
 
                         ! Add influence
-                        do k=1,size(i_vert_d)
-                            A_i(i_vert_d(k)) = A_i(i_vert_d(k)) + doublet_inf(k)
+                        do k=1,size(body%wake%panels(j)%i_vert_d)
+                            A_i(body%wake%panels(j)%i_vert_d(k)) = A_i(body%wake%panels(j)%i_vert_d(k)) + doublet_inf(k)
                         end do
 
                     end if

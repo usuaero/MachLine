@@ -140,6 +140,7 @@ contains
         ! The mirror of wake panels will never need to be initialized
         do i=1,this%N_panels
             call this%panels(i)%init_with_flow(freestream, .false., mirror_plane)
+            call this%panels(i)%set_influencing_verts()
         end do
 
         if (verbose) write(*,'(a, i7, a, i7, a)') "Done. Created ", this%N_verts, " wake vertices and ", &
