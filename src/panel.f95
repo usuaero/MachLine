@@ -1676,10 +1676,17 @@ contains
         int%H213 = -sum(v_xi*int%F111)
         int%H123 = sum(v_eta*int%F111)
 
-        ! Calculate higher-order integrals
+        ! Calculate higher-order source integrals
         if (source_order == 1) then
             int%H211 = 0.5*(-geom%h2*int%H213 - sum(geom%a*int%F211))
             int%H121 = 0.5*(-geom%h2*int%H123 - sum(geom%a*int%F121))
+        end if
+
+        ! Calculate higher-order doublet integrals
+        if (doublet_order == 2) then
+            int%H313 = -sum(v_eta*int%F121) - geom%h*int%hH113
+            int%H223 = sum(v_xi*int%F121)
+            int%H133 = -sum(v_eta*int%F121) - int%H111
         end if
 
         ! Clean up
