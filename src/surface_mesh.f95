@@ -52,9 +52,11 @@ module surface_mesh_mod
             procedure :: store_adjacent_vertices => surface_mesh_store_adjacent_vertices
             procedure :: characterize_edges => surface_mesh_characterize_edges
             procedure :: find_vertices_on_mirror => surface_mesh_find_vertices_on_mirror
+            procedure :: get_indices_to_panel_vertices => surface_mesh_get_indices_to_panel_vertices
             procedure :: add_vertices => surface_mesh_add_vertices
             procedure :: clone_vertices => surface_mesh_clone_vertices
             procedure :: set_up_mirroring => surface_mesh_set_up_mirroring
+            procedure :: get_vertex_sorting_indices => surface_mesh_get_vertex_sorting_indices
             procedure :: rearrange_vertices => surface_mesh_rearrange_vertices
             procedure :: calc_vertex_normals => surface_mesh_calc_vertex_normals
             procedure :: init_wake => surface_mesh_init_wake
@@ -499,7 +501,7 @@ contains
                 call this%vertices(i_mid)%adjacent_edges%append(i)
 
                 ! Point edge to it
-                this%edges(i)%midpoint_vert = i_mid
+                this%edges(i)%i_midpoint = i_mid
 
                 ! Point panels to it
                 this%panels(panel1(i))%midpoints(edge_index1(i))%ptr => this%vertices(i_mid)
@@ -591,6 +593,7 @@ contains
 
         ! For supersonic flows, rearrange the vertices to proceed in the freestream direction
         if (freestream%supersonic) then
+            !call this%rearrange_vertices(freestream)
         end if
 
         ! Calculate normals (for placing control points)
@@ -676,7 +679,7 @@ contains
 
                     ! Update information for midpoint vertex (unique for the edge, so this doesn't need to be inside the critical block)
                     if (doublet_order == 2) then
-                        mid = this%edges(k)%midpoint_vert
+                        mid = this%edges(k)%i_midpoint
                         this%vertices(mid)%N_wake_edges = 1
                         this%vertices(mid)%N_discont_edges = 1
                         this%vertices(mid)%needs_clone = .true.
@@ -747,7 +750,7 @@ contains
                 ! Get vertex indices
                 m = this%edges(i)%verts(1)
                 n = this%edges(i)%verts(2)
-                if (doublet_order == 2) mid = this%edges(i)%midpoint_vert
+                if (doublet_order == 2) mid = this%edges(i)%i_midpoint
 
                 ! If a given discontinuous edge has only one of its endpoints lying on the mirror plane, then that endpoint has another
                 ! adjacent edge, since the edge will be mirrored across that plane. This endpoint will need a clone, but it's mirrored
@@ -803,20 +806,18 @@ contains
     end subroutine surface_mesh_set_up_mirroring
 
 
-    subroutine surface_mesh_add_vertices(this, N_new_verts, new_vertices)
-        ! Adds the given vertex objects to the end of the surface mesh's vertex array
-        ! Handles moving panel pointers to the new allocation of previously-existing vertices.
-        ! May create a blank section of new vertices if new_vertices is not given
+    subroutine surface_mesh_get_indices_to_panel_vertices(this, i_vertices)
+        ! Returns of the list of indices which for each panel point to its vertices (and midpoints, if necessary)
 
         implicit none
 
-        class(surface_mesh),intent(inout),target :: this
-        integer,intent(in) :: N_new_verts
-        type(vertex),intent(in),optional :: new_vertices
-        
-        type(vertex),dimension(:),allocatable :: temp_vertices
+        class(surface_mesh),intent(in) :: this
+        integer,dimension(:,:),allocatable,intent(out) :: i_vertices
+
         integer :: i, j
-        integer,dimension(8,this%N_panels) :: i_vertices
+
+        ! Allocate space
+        allocate(i_vertices(8,this%N_panels))
 
         ! Get vertex indices for each panel since we will lose this information as soon as this%vertices is reallocated
         do i=1,this%N_panels
@@ -831,15 +832,32 @@ contains
                 end if
             end do
         end do
+        
+    end subroutine surface_mesh_get_indices_to_panel_vertices
+
+
+    subroutine surface_mesh_add_vertices(this, N_new_verts, new_vertices)
+        ! Adds the given vertex objects to the end of the surface mesh's vertex array
+        ! Handles moving panel pointers to the new allocation of previously-existing vertices.
+        ! May create a blank section of new vertices if new_vertices is not given
+
+        implicit none
+
+        class(surface_mesh),intent(inout),target :: this
+        integer,intent(in) :: N_new_verts
+        type(vertex),intent(in),optional :: new_vertices
+        
+        type(vertex),dimension(:),allocatable :: temp_vertices
+        integer :: i, j
+        integer,dimension(:,:),allocatable :: i_vertices
+
+        ! Get panel vertex indices
+        call this%get_indices_to_panel_vertices(i_vertices)
 
         ! Extend allocation of mesh vertex array
-        allocate(temp_vertices, source=this%vertices)
-        deallocate(this%vertices)
-        allocate(this%vertices(this%N_verts + N_new_verts))
-
-        ! Place existing vertices in new array
-        this%vertices(1:this%N_verts) = temp_vertices
-        deallocate(temp_vertices)
+        allocate(temp_vertices(this%N_verts + N_new_verts))
+        temp_vertices(1:this%N_verts) = this%vertices
+        call move_alloc(temp_vertices, this%vertices)
 
         ! Add in new vertices, if given
         if (present(new_vertices)) then
@@ -1050,14 +1068,16 @@ contains
     end subroutine surface_mesh_clone_vertices
 
 
-    subroutine surface_mesh_rearrange_vertices(this, freestream)
-        ! Rearranges the vertices to proceed in the freestream direction
+    subroutine surface_mesh_get_vertex_sorting_indices(this, freestream, i_sorted, i_sorted_inv)
+        ! Determines the vertex indices which will sort them in the conpressibility direction
 
-        class(surface_mesh),intent(inout) :: this
+        implicit none
+
+        class(surface_mesh),intent(in) :: this
         type(flow),intent(in) :: freestream
+        integer,dimension(:),allocatable,intent(out) :: i_sorted, i_sorted_inv
 
-        real,dimension(:),allocatable :: x
-        integer,dimension(:),allocatable :: i_sorted
+        real,dimension(:),allocatable :: x, i_sorted_real
         integer :: i
 
         ! Allocate the compressibility distance array
@@ -1065,20 +1085,69 @@ contains
 
         ! Add vertices
         do i=1,this%N_verts
-            x(i) = -inner(freestream%c_hat_g, this%vertices(i)%loc)
+            x(i) = inner(freestream%c_hat_g, this%vertices(i)%loc)
         end do
 
         ! Get sorted indices
         call insertion_arg_sort(x, i_sorted)
         deallocate(x)
+        i_sorted_real = real(i_sorted)
+        call insertion_arg_sort(i_sorted_real, i_sorted_inv)
+        deallocate(i_sorted_real)
+        
+    end subroutine surface_mesh_get_vertex_sorting_indices
 
-        ! Allocate new array of vertices
+
+    subroutine surface_mesh_rearrange_vertices(this, freestream)
+        ! Rearranges the vertices to proceed in the freestream direction
+
+        implicit none
+
+        class(surface_mesh),intent(inout),target :: this
+        type(flow),intent(in) :: freestream
+
+        integer,dimension(:),allocatable :: i_sorted, i_sorted_inv
+        integer :: i, j
+        type(vertex),dimension(:),allocatable :: temp_vertices
+        integer,dimension(:,:),allocatable :: i_vertices
+
+        ! Get panel vertex indices
+        call this%get_indices_to_panel_vertices(i_vertices)
+
+        ! Get sorted indices
+        call this%get_vertex_sorting_indices(freestream, i_sorted, i_sorted_inv)
+
+        ! Declare temporary vertex array
+        allocate(temp_vertices(this%N_verts))
 
         ! Initialize new vertices
+        do i=1,this%N_verts
+            temp_vertices(i) = this%vertices(i_sorted(i))
+        end do
+
+        ! Move allocation
+        call move_alloc(temp_vertices, this%vertices)
 
         ! Point panels to new vertices
+        do i=1,this%N_panels
+
+            do j=1,this%panels(i)%N
+                this%panels(i)%vertices(j)%ptr => this%vertices(i_sorted_inv(i_vertices(j,i)))
+            end do
+
+            if (doublet_order == 2) then
+                do j=1,this%panels(i)%N
+                    this%panels(i)%midpoints(j)%ptr => this%vertices(i_sorted_inv(i_vertices(j+this%panels(i)%N,i)))
+                end do
+            end if
+        end do
 
         ! Point edges to new vertices
+        if (doublet_order == 2) then
+            do i=1,this%N_edges
+                this%edges(i)%i_midpoint = i_sorted_inv(this%edges(i)%i_midpoint)
+            end do
+        end if
         
     end subroutine surface_mesh_rearrange_vertices
 

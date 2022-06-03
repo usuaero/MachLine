@@ -7,7 +7,7 @@ module edge_mod
 
         integer,dimension(2) :: verts ! Indices of the end vertices in the mesh vertex array (ignoring clones)
         integer,dimension(2) :: panels ! Indices of the top and bottom (an odd thing to call these) panels for this edge
-        integer :: midpoint_vert
+        integer :: i_midpoint
         integer,dimension(2) :: edge_index_for_panel ! Index of the edge which this is for each panel; edge should proceed counterclockwise for the top panel
         logical :: on_mirror_plane ! Whether this edge lies on the mirror plane
         logical :: sheds_wake ! Whether this edge sheds a wake

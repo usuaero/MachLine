@@ -439,7 +439,7 @@ contains
                                              this%vertices(shared_verts(1))%top_parent == body_edges(i_pot_edge)%verts(2)))then
 
                                             ! Get midpoint index
-                                            i_midpoint_parent = body_edges(i_pot_edge)%midpoint_vert
+                                            i_midpoint_parent = body_edges(i_pot_edge)%i_midpoint
 
                                             ! Set parents
                                             this%vertices(i_mid)%top_parent = i_midpoint_parent
@@ -509,7 +509,7 @@ contains
                                  this%vertices(shared_verts(1))%top_parent == body_edges(i_pot_edge)%verts(2)))then
 
                                 ! Get midpoint index
-                                i_midpoint_parent = body_edges(i_pot_edge)%midpoint_vert
+                                i_midpoint_parent = body_edges(i_pot_edge)%i_midpoint
 
                                 ! Set parents
                                 this%vertices(i_mid)%top_parent = i_midpoint_parent
