@@ -10,25 +10,25 @@
         "wake_model": {
             "append_wake" : false
         },
-        "singularity_order" : {
-            "doublet" : 2
-        },
         "reference": {
             "area": 1.0
         }
     },
     "solver": {
         "formulation": "morino",
-        "control_point_offset": 1.1e-05
+        "control_point_offset": 1.1e-05,
+        "matrix_solver" : "BJAC",
+        "tolerance" : 1.0e-10,
+        "preconditioner" : "DIAG",
+        "write_A_and_b" : true
     },
     "post_processing" : {
         "pressure_rules" : {
-            "second-order" : true,
             "isentropic" : true
         }
     },
     "output": {
-        "body_file" :          "dev/results/diamond_5_deg_full_coarse.vtk",
-        "control_point_file" : "dev/results/diamond_5_deg_full_coarse_control_points.vtk"
+        "body_file" :          "dev/results/diamond_5_deg_full_medium.vtk",
+        "control_point_file" : "dev/results/diamond_5_deg_full_medium_control_points.vtk"
     }
 }

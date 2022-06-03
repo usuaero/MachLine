@@ -17,9 +17,13 @@
         "formulation" : "morino",
         "control_point_offset" : 1.1e-05,
         "run_checks" : true,
-        "matrix_solver" : "BSOR_adaptive",
+        "matrix_solver" : "LU",
+        "relaxation" : 0.5,
         "tolerance" : 1.3e-7,
-        "chunk_size" : 50
+        "block_size" : 50,
+        "max_iterations" : 200,
+        "precondition" : true,
+        "write_A_and_b" : false
     },
     "post_processing" : {
         "pressure_rules": {
@@ -27,7 +31,7 @@
         }
     },
     "output": {
-        "verbose" : false,
+        "verbose" : true,
         "body_file" :                   "dev/results/naca_0010_AR_10_half_medium.vtk",
         "wake_file" :                   "dev/results/naca_0010_AR_10_half_medium_wake.vtk",
         "control_point_file" :          "dev/results/naca_0010_AR_10_half_medium_control_points.vtk",

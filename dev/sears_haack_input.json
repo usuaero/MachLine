@@ -19,8 +19,11 @@
         }
     },
     "solver": {
-        "formulation": "source-free",
-        "control_point_offset": 1.1e-10
+        "formulation": "morino",
+        "control_point_offset": 1.1e-10,
+        "write_A_and_b" : true,
+        "matrix_solver" : "ORBJ",
+        "tolerance" : 1.0e-10
     },
     "post_processing": {
         "pressure_rules": {

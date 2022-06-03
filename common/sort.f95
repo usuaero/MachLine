@@ -356,7 +356,7 @@ contains
   end subroutine insertion_sort
 
 
-  subroutine insertion_sort_indices(array, i_sorted)
+  subroutine insertion_arg_sort(array, i_sorted)
    ! Returns a list of indices which will sort the given array
 
    implicit none
@@ -385,7 +385,7 @@ contains
        end do
        i_sorted(j+1) = temp
     end do
-  end subroutine insertion_sort_indices
+  end subroutine insertion_arg_sort
 
 
   subroutine double_insertion_sort(array)

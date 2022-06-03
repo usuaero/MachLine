@@ -260,4 +260,7 @@ def generate_proper_right_cone(filename, h, r, N_transverse, N_theta, N_radial=1
 if __name__=="__main__":
 
     # Test cone
-    generate_proper_right_cone('dev/meshes/right_cone_open.vtk', 5, 1, 150, 50, close_base=False)
+    angles = [1.0, 5.0, 10.0, 15.0]
+    for angle in angles:
+        h = 1.0/np.tan(np.radians(angle))
+        generate_proper_right_cone('dev/meshes/cone_{0}_deg_coarse.vtk'.format(int(angle)), h, 1.0, 30, 25, close_base=False)

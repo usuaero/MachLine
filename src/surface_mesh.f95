@@ -54,6 +54,7 @@ module surface_mesh_mod
             procedure :: add_vertices => surface_mesh_add_vertices
             procedure :: clone_vertices => surface_mesh_clone_vertices
             procedure :: set_up_mirroring => surface_mesh_set_up_mirroring
+            procedure :: rearrange_vertices => surface_mesh_rearrange_vertices
             procedure :: calc_vertex_normals => surface_mesh_calc_vertex_normals
             procedure :: init_wake => surface_mesh_init_wake
             procedure :: update_supersonic_trefftz_distance => surface_mesh_update_supersonic_trefftz_distance
@@ -214,8 +215,8 @@ contains
 
         class(surface_mesh),intent(inout),target :: this
 
-        integer :: i, j, m, n, m1, n1, temp, i_edge, N_edges, N_orig_verts, i_mid
-        logical :: already_found_shared
+        integer :: i, j, m, n, m1, n1, temp, i_edge, N_edges, i_mid, N_orig_verts
+        logical :: already_found_shared, watertight
         real :: distance
         integer,dimension(2) :: shared_verts
         integer,dimension(this%N_panels*3) :: panel1, panel2, vertex1, vertex2, edge_index1, edge_index2 ! By definition, we will have no more than 3*N_panels edges; we should have much less, but some people...
@@ -428,38 +429,46 @@ contains
 
         end do
 
-        ! Check for panels abutting empty space
+        ! Check for panels abutting empty space and add those edges.
+        !$OMP single
+        watertight = .true.
         do i=1,this%N_panels
+
+            ! Check for an edge with no abutting panel
             do j=1,this%panels(i)%N
                 if (this%panels(i)%abutting_panels(j) == 0) then
 
-                    ! Print warning
-                    if (run_checks) then
-                        write(*,*)
-                        write(*,*) "!!! The supplied mesh is not watertight. Panel", i, "is missing at least one neighbor."
-                        write(*,*) "!!! Solution quality may be adversely affected."
-                    end if
+                    ! Mark that the mesh is not watertight
+                    watertight = .false.
 
-                    ! Add a new edge
+                    ! Set up an edge
+                    shared_verts(1) = this%panels(i)%vertex_indices(j)
+                    shared_verts(2) = this%panels(i)%vertex_indices(mod(j, this%panels(i)%N) + 1)
                     N_edges = N_edges + 1
                     i_edge = N_edges
-
-                    ! Get its information
                     panel1(i_edge) = i
-                    panel2(i_edge) = 0
-                    vertex1(i_edge) = this%panels(i)%vertex_indices(j)
-                    vertex2(i_edge) = this%panels(i)%vertex_indices(modulo(j, this%panels(i)%N)+1)
+                    panel2(i_edge) = 0 ! Placeholder
+                    vertex1(i_edge) = shared_verts(1)
+                    vertex2(i_edge) = shared_verts(2)
                     on_mirror_plane(i_edge) = .false.
                     edge_index1(i_edge) = j
                     edge_index2(i_edge) = 0
-                    edge_length(i_edge) = dist(this%vertices(vertex1(i_edge))%loc, this%vertices(vertex2(i_edge))%loc)
+
+                    ! Store adjacent vertices
+                    if (.not. this%vertices(shared_verts(1))%adjacent_vertices%is_in(shared_verts(2))) then
+                        call this%vertices(shared_verts(1))%adjacent_vertices%append(shared_verts(2))
+                    end if
+                    if (.not. this%vertices(shared_verts(2))%adjacent_vertices%is_in(shared_verts(1))) then
+                        call this%vertices(shared_verts(2))%adjacent_vertices%append(shared_verts(1))
+                    end if
 
                 end if
             end do
         end do
+        if (run_checks .and. .not. watertight) write(*,*) "!!! The supplied mesh is not watertight. &
+                                                               Solution quality may be adversely affected."
 
         ! Allocate edge storage
-        !$OMP single
         this%N_edges = N_edges
         allocate(this%edges(this%N_edges))
         !$OMP end single
@@ -579,7 +588,11 @@ contains
             call this%clone_vertices()
         end if
 
-        ! Calculate vertex normals (for placing control points)
+        ! For supersonic flows, rearrange the vertices to proceed in the freestream direction
+        if (freestream%supersonic) then
+        end if
+
+        ! Calculate normals (for placing control points)
         call this%calc_vertex_normals()
 
         ! Initialize wake
@@ -616,6 +629,9 @@ contains
             ! Get info
             i = this%edges(k)%panels(1)
             j = this%edges(k)%panels(2)
+
+            ! Skip edge on empty space
+            if (j == 0) cycle
 
             ! Get normal for panel j (dependent on mirroring)
             if (this%edges(k)%on_mirror_plane) then
@@ -980,7 +996,7 @@ contains
 
                         ! Update (doesn't need to be done for mirrored panels)
                         if (i_bot_panel <= this%N_panels) then
-                            call this%panels(i_bot_panel)%point_to_vertex_clone(this%vertices(i_boba))
+                            call this%panels(i_bot_panel)%point_to_new_vertex(this%vertices(i_boba))
                         end if
 
                     end do
@@ -1009,6 +1025,38 @@ contains
         end if
 
     end subroutine surface_mesh_clone_vertices
+
+
+    subroutine surface_mesh_rearrange_vertices(this, freestream)
+        ! Rearranges the vertices to proceed in the freestream direction
+
+        class(surface_mesh),intent(inout) :: this
+        type(flow),intent(in) :: freestream
+
+        real,dimension(:),allocatable :: x
+        integer,dimension(:),allocatable :: i_sorted
+        integer :: i
+
+        ! Allocate the compressibility distance array
+        allocate(x(this%N_verts))
+
+        ! Add vertices
+        do i=1,this%N_verts
+            x(i) = -inner(freestream%c_hat_g, this%vertices(i)%loc)
+        end do
+
+        ! Get sorted indices
+        call insertion_arg_sort(x, i_sorted)
+
+        ! Allocate new array of vertices
+
+        ! Initialize new vertices
+
+        ! Point panels to new vertices
+
+        ! Point edges to new vertices
+        
+    end subroutine surface_mesh_rearrange_vertices
 
 
     subroutine surface_mesh_calc_vertex_normals(this)

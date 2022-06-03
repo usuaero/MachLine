@@ -1,0 +1,66 @@
+{
+    "info" : {
+        "generated_by" : "MachLine (c) 2022 USU Aerolab",
+        "executed" : "Fri May 20 14:28:51 2022"
+    },
+    "solver_results" : {
+        "residual" : {
+            "max" : 5.21804821573824E-015,
+            "norm" : 5.55167323506327E-014
+        }
+    },
+    "pressure_calculations" : {
+        "isentropic_rule" : {
+            "max" : 8.35410070716981E-002,
+            "min" : 8.35395485560430E-002
+        },
+        "second_order_rule" : {
+            "max" : 1.16069354419534E-001,
+            "min" : 1.16067165672547E-001
+        }
+    },
+    "total_forces" : {
+        "Cx" : -6.55692165043282E-002,
+        "Cy" : 4.18560499465277E-010,
+        "Cz" : 0.00000000000000E+000
+    },
+    "input" : {
+        "flow" : {
+            "freestream_velocity" : [
+                    -1.00000000000000E+002,
+                    0.00000000000000E+000,
+                    0.00000000000000E+000
+                ],
+            "gamma" : 1.40000000000000E+000,
+            "freestream_mach_number" : 2.80000000000000E+000
+        },
+        "geometry" : {
+            "file" : "dev/results/cone_comparison/meshes/cone_10_deg_medium.vtk",
+            "spanwise_axis" : "+y",
+            "mirror_about" : "xy",
+            "wake_model" : {
+                "append_wake" : false
+            },
+            "reference" : {
+                "area" : 4.00000000000000E+000
+            }
+        },
+        "solver" : {
+            "formulation" : "morino",
+            "control_point_offset" : 1.10000000000000E-008,
+            "run_checks" : true
+        },
+        "post_processing" : {
+            "pressure_rules" : {
+                "second-order" : true,
+                "isentropic" : true,
+                "slender-body" : true,
+                "linear" : true
+            }
+        },
+        "output" : {
+            "body_file" : "dev/results/cone_comparison/results/M_2.8_10_deg_medium.vtk",
+            "report_file" : "dev/results/cone_comparison/reports/M_2.8_10_deg_medium.json"
+        }
+    }
+}
