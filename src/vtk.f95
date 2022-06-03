@@ -399,6 +399,16 @@ contains
 
             end do
 
+            ! Check for duplicate vertices
+            do i=1,N_verts
+                do j=i+1,N_verts
+                    if (dist(vertices(i)%loc, vertices(j)%loc) < 1e-12) then
+                        write(*,*) "!!! Detected duplicate vertices in ", mesh_file, " Solution quality may be reduced."
+                        write(*,*) "!!! ", i, " and ", j, " are duplicate vertices."
+                    end if
+                end do
+            end do
+
             ! Determine number of panels
             read(1,*) dummy_read, N_panels, dummy_read
 

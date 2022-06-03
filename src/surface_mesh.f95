@@ -252,12 +252,8 @@ contains
                 abutting_loop: do m=1,this%panels(i)%N
                     do n=1,this%panels(j)%N
 
-                        ! Get distance between vertices. This is more robust than checking vertex indices; mesh may not be ideal.
-                        ! TODO : refine mesh import to ensure we can do this purely off of indices
-                        distance = dist(this%panels(i)%get_vertex_loc(m), this%panels(j)%get_vertex_loc(n))
-
-                        ! Check distance
-                        if (distance < 1.e-12) then
+                        ! Check if vertices have the same index
+                        if (this%panels(i)%get_vertex_index(m) == this%panels(j)%get_vertex_index(n)) then
 
                             ! Previously found a shared vertex, so we have abutting panels
                             if (already_found_shared) then
