@@ -45,6 +45,7 @@ module panel_solver_mod
             procedure :: calc_velocities => panel_solver_calc_velocities
             procedure :: calc_pressures => panel_solver_calc_pressures
             procedure :: subsonic_pressure_correction => panel_solver_subsonic_pressure_correction
+            procedure :: calc_crit_mach => panel_solver_calc_crit_mach
             procedure :: calc_forces => panel_solver_calc_forces
             procedure :: update_report => panel_solver_update_report
 
@@ -85,7 +86,7 @@ contains
         if (freestream%M_inf > 0.) then
             ! Notify user if pressure rule applied is changed based on selected freestream mach number
             if (this%incompressible_rule) then
-                write(*,*) "!!! The pressure rule has been changed to the isentropic rule whereas a freestream"
+                write(*,*) "!!! The pressure rule has been set as the isentropic rule whereas a freestream"
                 write(*,*) "    mach number greater than 0.0 has been selected"
                 this%incompressible_rule = .false.
             end if
@@ -93,7 +94,7 @@ contains
         else if (freestream%M_inf == 0.) then
             ! Notify user if pressure rule applied is changed based on selected freestream mach number
             if (this%isentropic_rule) then
-                write(*,*) "!!! The pressure rule has been changed to the incompressible rule whereas a freestream"
+                write(*,*) "!!! The pressure rule has been set as the incompressible rule whereas a freestream"
                 write(*,*) "    mach number of 0.0 has been selected"
                 this%isentropic_rule = .false.
             end if
@@ -161,13 +162,7 @@ contains
         case ("isentropic")
         case ("second-order")
         case ("slender-body")
-            write(*,*) "!!! Using the ", this%pressure_for_forces, " pressure rule to calculate forces "
-            write(*,*) "!!! has not yet been implemented into MachLine. Quitting..."
-            stop
         case ("linear")
-            write(*,*) "!!! Using the ", this%pressure_for_forces, " pressure rule to calculate forces "
-            write(*,*) "!!! has not yet been implemented into MachLine. Quitting..."
-            stop
         case ("prandtl-glauert")
         case ("karman-tsien")
         case ("laitone")
@@ -1144,9 +1139,14 @@ contains
         if ((this%prandtl_glauert) .or. (this%karman_tsien) .or. (this%laitone)) then
             call this%subsonic_pressure_correction(body)
         end if
+
+        ! Check if critical Mach number has been exceeded
+        if ((this%freestream%M_inf > 0.) .or. (this%corrected_M_inf > 0.)) then
+            call this%calc_crit_mach(body)
+        end if
         
     end subroutine panel_solver_calc_pressures
-    
+
     
     subroutine panel_solver_subsonic_pressure_correction(this, body)
         ! Apply selected method of correcting subsonic pressures
@@ -1157,7 +1157,7 @@ contains
         type(surface_mesh),intent(inout) :: body
         integer :: i,stat
         real :: val_holder_L, val_holder_KT
-
+        
         write(*,'(a)',advance='no') "     Calculating compressibility pressure corrections..."        
         
         ! Prandtl-Glauert rule
@@ -1169,7 +1169,7 @@ contains
             ! Perform calculations for Prandtl-Glauert Rune (Modern Compressible Flow by John Anderson EQ 9.36)
             body%C_p_pg = body%C_p_inc / (sqrt(1 - (this%corrected_M_inf**2)))
         end if
-
+        
         ! Laitone rule
         if (this%laitone) then
             ! Allocate storage
@@ -1178,12 +1178,12 @@ contains
             
             ! Perform calculations (Modern Compressible Flow by John Anderson EQ 9.39)
             val_holder_L = this%corrected_M_inf**2 * (1 + (0.5 * (this%freestream%gamma - 1) * this%corrected_M_inf**2)) &
-                        / (2 * sqrt(1 - this%corrected_M_inf**2))
-
+            / (2 * sqrt(1 - this%corrected_M_inf**2))
+            
             body%C_p_lai = body%C_p_inc / &
-                            (sqrt(1 - this%corrected_M_inf**2) + (val_holder_L * body%C_p_inc))
+            (sqrt(1 - this%corrected_M_inf**2) + (val_holder_L * body%C_p_inc))
         end if
-
+        
         ! Karman-Tsien rule
         if (this%karman_tsien) then
             ! Allocate storage
@@ -1196,13 +1196,88 @@ contains
             body%C_p_kt = body%C_p_inc / &
             (sqrt(1 - this%corrected_M_inf**2) + val_holder_KT * (0.5 * body%C_p_inc))
         end if
-
+        
         
         write(*,*) "Done. "  
         
     end subroutine panel_solver_subsonic_pressure_correction
     
+
+    subroutine panel_solver_calc_crit_mach(this, body)
+        ! Warn the user if body is in transonic flow
+
+        implicit none
+
+        class(panel_solver),intent(inout) :: this
+        type(surface_mesh),intent(inout) :: body
+        integer :: i, min_loc
+        real :: C_p_crit, C_p_min, numerator, denominator, M_inf_selected
+
+        ! Locate minimum pressure location on body based on pressure for forces selection
+        do i=1,body%N_panels
+            select case (this%pressure_for_forces)
+                case ('isentropic')
+                    if (body%C_p_ise(i) == minval(body%C_p_ise)) then
+                        min_loc = i
+                        C_p_min = body%C_p_ise(i)
+                        M_inf_selected = this%freestream%M_inf
+                    end if
     
+
+                case ('second-order')
+                    if (body%C_p_2nd(i) == minval(body%C_p_2nd)) then
+                        min_loc = i
+                        C_p_min = body%C_p_2nd(i)
+                        M_inf_selected = this%freestream%M_inf
+                    end if
+
+
+                case ('prandtl-glauert')
+                    if (body%C_p_pg(i) == minval(body%C_p_pg)) then
+                        min_loc = i
+                        C_p_min = body%C_p_pg(i)
+                        M_inf_selected = this%corrected_M_inf
+                    end if
+
+
+                case ('karman-tsien')
+                    if (body%C_p_kt(i) == minval(body%C_p_kt)) then
+                        min_loc = i
+                        C_p_min = body%C_p_kt(i)
+                        M_inf_selected = this%corrected_M_inf
+                    end if
+
+
+                case ('laitone')
+                    if (body%C_p_lai(i) == minval(body%C_p_lai)) then
+                        min_loc = i
+                        C_p_min = body%C_p_lai(i)
+                        M_inf_selected = this%corrected_M_inf
+                    end if
+            end select
+        end do
+
+        ! Calculate critical pressure coefficient for the selected Mach number (Modern Compressible Flow by John Anderson EQ 9.55)
+        numerator = 1 + ((this%freestream%gamma - 1) / 2) * M_inf_selected**2 
+        denominator = 1 + (this%freestream%gamma -1) / 2
+
+        C_p_crit = 2 / (this%freestream%gamma * M_inf_selected**2) &
+                    * ((numerator/denominator) ** (this%freestream%gamma / (this%freestream%gamma - 1)) - 1)
+    
+        ! Report the critical mach pressure coefficient and the minimum pressure coefficients to the terminal
+        write(*,*) "        Critical Mach C_p = ", C_p_crit
+        write(*,*) "        Minimum C_p       = ", C_p_min
+
+        ! Throw warning message indicating body is in transonic flow
+        if (C_p_min <= C_p_crit) then
+            write(*,*) "!!! Critical Mach number has been exceeded along at lease panel .", min_loc
+            write(*,*) "!!! Results may not be reliable."
+            
+        end if
+
+    end subroutine panel_solver_calc_crit_mach
+    
+
     subroutine panel_solver_calc_forces(this, body)
         ! Calculates the forces
         
