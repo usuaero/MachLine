@@ -72,8 +72,6 @@ module panel_mod
         real :: A ! Surface area (same for mirror, in global coordinates at least)
         real,dimension(:,:),allocatable :: S_mu_inv, S_sigma_inv ! Matrix relating doublet/source strengths to doublet/source influence parameters
         real,dimension(:,:),allocatable :: S_mu_inv_mir, S_sigma_inv_mir
-        integer,dimension(:),allocatable :: vertex_indices ! Indices of this panel's vertices in the mesh vertex array
-        integer,dimension(:),allocatable :: midpoint_indices ! Indices of this panel's midpoints in the mesh vertex array
         logical :: in_wake ! Whether this panel belongs to a wake mesh
         integer,dimension(3) :: abutting_panels ! Indices of panels abutting this one
         integer :: r, r_mir ! Panel inclination indicator; r=-1 -> superinclined, r=1 -> subinclined
@@ -174,17 +172,11 @@ contains
 
         ! Allocate vertex arrays
         allocate(this%vertices(this%N))
-        allocate(this%vertex_indices(this%N))
 
         ! Assign vertex pointers
         this%vertices(1)%ptr => v1
         this%vertices(2)%ptr => v2
         this%vertices(3)%ptr => v3
-
-        ! Store vertex indices
-        this%vertex_indices(1) = v1%index
-        this%vertex_indices(2) = v2%index
-        this%vertex_indices(3) = v3%index
 
         ! Store the index of the panel
         this%index = index
@@ -195,7 +187,6 @@ contains
         ! Allocate midpoint arrays
         if (doublet_order == 2) then
             allocate(this%midpoints(this%N))
-            allocate(this%midpoint_indices(this%N), source=0)
         end if
 
         call this%calc_derived_geom()
@@ -989,9 +980,6 @@ contains
                 ! Update pointer
                 this%vertices(i)%ptr => new_vertex
 
-                ! Update index
-                this%vertex_indices(i) = new_vertex%index
-
                 return
 
             ! Check midpoints
@@ -1001,9 +989,6 @@ contains
 
                     ! Update pointer
                     this%midpoints(i)%ptr => new_vertex
-
-                    ! Update index
-                    this%midpoint_indices(i) = new_vertex%index
 
                     return
 
@@ -1969,7 +1954,7 @@ contains
     end subroutine panel_calc_potentials
 
 
-    subroutine panel_calc_velocities(this, P, freestream, dod_info, mirror_panel, v_s, v_d, i_vert_s, i_vert_d)
+    subroutine panel_calc_velocities(this, P, freestream, dod_info, mirror_panel, v_s, v_d)
         ! Calculates the source- and doublet-induced potentials at the given point P
 
         implicit none
@@ -1980,7 +1965,6 @@ contains
         type(dod),intent(in) :: dod_info
         logical,intent(in) :: mirror_panel
         real,dimension(:,:),allocatable,intent(out) :: v_s, v_d
-        integer,dimension(:),allocatable,intent(out) :: i_vert_s, i_vert_d
 
         type(eval_point_geom) :: geom
         type(integrals) :: int
@@ -1998,22 +1982,10 @@ contains
             ! Check if this panel belongs to the wake
             if (this%in_wake) then
 
-                ! Wake panels are influenced by two sets of vertices
-                allocate(i_vert_d(6))
-                i_vert_d(1) = this%vertices(1)%ptr%top_parent
-                i_vert_d(2) = this%vertices(2)%ptr%top_parent
-                i_vert_d(3) = this%vertices(3)%ptr%top_parent
-                i_vert_d(4) = this%vertices(1)%ptr%bot_parent
-                i_vert_d(5) = this%vertices(2)%ptr%bot_parent
-                i_vert_d(6) = this%vertices(3)%ptr%bot_parent
-
                 ! Set default influence
                 allocate(v_d(6,3), source=0.)
 
             else
-
-                ! Body panels are influenced by only one set of vertices
-                allocate(i_vert_d, source=this%vertex_indices)
 
                 ! Set default influence
                 allocate(v_d(3,3), source=0.)
@@ -2112,7 +2084,7 @@ contains
             else if (source_order == 1) then
                 s = 0.
                 do i=1,this%N
-                    s = s + sigma(this%vertex_indices(i)+size(sigma)/2)
+                    s = s + sigma(this%get_vertex_index(i)+size(sigma)/2)
                 end do
                 s = s/this%N
             end if
@@ -2161,7 +2133,7 @@ contains
             else if (source_order == 1) then
                 s = 0.
                 do i=1,this%N
-                    s = s + sigma(this%vertex_indices(i))
+                    s = s + sigma(this%get_vertex_index(i))
                 end do
                 s = s/this%N
             end if

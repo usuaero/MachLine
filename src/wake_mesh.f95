@@ -407,7 +407,6 @@ contains
                                 end if
                                 this%panels(j)%abutting_panels(i_edge) = i
                                 this%panels(j)%midpoints(i_edge)%ptr => this%vertices(i_mid)
-                                this%panels(j)%midpoint_indices(i_edge) = i_mid
 
                                 ! Store that j is adjacent to i
                                 if (m1 == 1 .and. m == this%panels(i)%N) then ! Nth edge
@@ -417,7 +416,6 @@ contains
                                 end if
                                 this%panels(i)%abutting_panels(i_edge) = j
                                 this%panels(i)%midpoints(i_edge)%ptr => this%vertices(i_mid)
-                                this%panels(i)%midpoint_indices(i_edge) = i_mid
 
                                 ! Store parent indices for midpoint
                                 ! If the endpoints have the same parents, then the midpoint will too
@@ -484,7 +482,6 @@ contains
 
                     ! Point panel to it
                     this%panels(i)%midpoints(j)%ptr => this%vertices(i_mid)
-                    this%panels(i)%midpoint_indices(j) = i_mid
 
                     ! Get endpoints
                     shared_verts(1) = this%panels(i)%get_vertex_index(j)

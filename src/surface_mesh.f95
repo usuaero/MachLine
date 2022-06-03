@@ -348,7 +348,7 @@ contains
                     end if
 
                     ! Check if vertex is on the mirror plane
-                    n = this%panels(i)%vertex_indices(m)
+                    n = this%panels(i)%get_vertex_index(m)
                     if (this%vertices(n)%on_mirror_plane) then
 
                         ! Previously found a vertex on mirror plane, so the panels are abutting
@@ -425,8 +425,8 @@ contains
                     watertight = .false.
 
                     ! Get endpoint indices
-                    i_endpoints(1) = this%panels(i)%vertex_indices(j)
-                    i_endpoints(2) = this%panels(i)%vertex_indices(mod(j, this%panels(i)%N) + 1)
+                    i_endpoints(1) = this%panels(i)%get_vertex_index(j)
+                    i_endpoints(2) = this%panels(i)%get_vertex_index(mod(j, this%panels(i)%N) + 1)
 
                     ! Set up an edge
                     this%N_edges = this%N_edges + 1
@@ -502,11 +502,9 @@ contains
                 this%edges(i)%midpoint_vert = i_mid
 
                 ! Point panels to it
-                this%panels(panel1(i))%midpoint_indices(edge_index1(i)) = i_mid
                 this%panels(panel1(i))%midpoints(edge_index1(i))%ptr => this%vertices(i_mid)
 
                 if (panel2(i) > 0 .and. panel2(i) <= this%N_panels) then
-                    this%panels(panel2(i))%midpoint_indices(edge_index2(i)) = i_mid
                     this%panels(panel2(i))%midpoints(edge_index2(i))%ptr => this%vertices(i_mid)
                 end if
 
@@ -818,6 +816,21 @@ contains
         
         type(vertex),dimension(:),allocatable :: temp_vertices
         integer :: i, j
+        integer,dimension(8,this%N_panels) :: i_vertices
+
+        ! Get vertex indices for each panel since we will lose this information as soon as this%vertices is reallocated
+        do i=1,this%N_panels
+            do j=1,this%panels(i)%N
+
+                ! Get vertex indices
+                i_vertices(j,i) = this%panels(i)%get_vertex_index(j)
+                
+                ! Get midpoint indices
+                if (doublet_order == 2) then
+                    i_vertices(j+this%panels(i)%N,i) = this%panels(i)%get_midpoint_index(j)
+                end if
+            end do
+        end do
 
         ! Extend allocation of mesh vertex array
         allocate(temp_vertices, source=this%vertices)
@@ -839,15 +852,16 @@ contains
         ! Fix vertex pointers in panel objects (necessary because this%vertices got reallocated)
         do i=1,this%N_panels
 
+            ! Fix vertex pointers
             do j=1,this%panels(i)%N
-                this%panels(i)%vertices(j)%ptr => this%vertices(this%panels(i)%vertex_indices(j))
+                this%panels(i)%vertices(j)%ptr => this%vertices(i_vertices(j,i))
             end do
 
             ! Fix midpoint pointers
             if (doublet_order == 2) then
                 do j=1,this%panels(i)%N
-                    if (this%panels(i)%midpoint_indices(j) /= 0) then
-                        this%panels(i)%midpoints(j)%ptr => this%vertices(this%panels(i)%midpoint_indices(j))
+                    if (this%panels(i)%get_midpoint_index(j) /= 0) then
+                        this%panels(i)%midpoints(j)%ptr => this%vertices(i_vertices(j+this%panels(i)%N,i))
                     end if
                 end do
             end if
