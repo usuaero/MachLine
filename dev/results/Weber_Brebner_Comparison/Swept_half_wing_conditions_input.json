@@ -46,7 +46,7 @@
     "plots":{
         "points to process": ["C_p_inc"],
         "process_all": true,
-        "save plots": false,
+        "save plots": true,
         "save plot type": "pdf",
         "combine pdfs": false,
         "display pressure plots": false,
