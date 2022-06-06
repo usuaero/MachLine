@@ -682,7 +682,7 @@ contains
                         mid = this%edges(k)%i_midpoint
                         this%vertices(mid)%N_wake_edges = 1
                         this%vertices(mid)%N_discont_edges = 1
-                        this%vertices(mid)%needs_clone = .true.
+                        this%vertices(mid)%clone = .true.
                     end if
 
                     !$OMP critical
@@ -708,7 +708,7 @@ contains
         ! If a given vertex is touching at least two wake-shedding edges, it will need to be cloned
         !$OMP do schedule(static)
         do i=1,this%N_verts
-            if (this%vertices(i)%N_wake_edges >= 2) this%vertices(i)%needs_clone = .true.
+            if (this%vertices(i)%N_wake_edges >= 2) this%vertices(i)%clone = .true.
         end do
 
         !$OMP end parallel
@@ -764,21 +764,21 @@ contains
 
                         this%vertices(m)%N_wake_edges = this%vertices(m)%N_wake_edges + 1
                         this%vertices(m)%N_discont_edges = this%vertices(m)%N_discont_edges + 1
-                        this%vertices(m)%needs_clone = .true.
+                        this%vertices(m)%clone = .true.
                         this%vertices(m)%mirrored_is_unique = .false.
 
                     else
 
                         this%vertices(n)%N_wake_edges = this%vertices(n)%N_wake_edges + 1
                         this%vertices(n)%N_discont_edges = this%vertices(n)%N_discont_edges + 1
-                        this%vertices(n)%needs_clone = .true.
+                        this%vertices(n)%clone = .true.
                         this%vertices(n)%mirrored_is_unique = .false.
 
                     end if
 
                     ! The midpoint will need to be cloned and its mirror will be unique
                     if (doublet_order == 2) then
-                        this%vertices(mid)%needs_clone = .true.
+                        this%vertices(mid)%clone = .true.
                         this%vertices(mid)%mirrored_is_unique = .true.
                     end if
 
@@ -787,14 +787,14 @@ contains
                 else if (this%edges(i)%on_mirror_plane) then
 
                     ! The mirrored vertices will function as clones
-                    this%vertices(m)%needs_clone = .false.
-                    this%vertices(n)%needs_clone = .false.
+                    this%vertices(m)%clone = .false.
+                    this%vertices(n)%clone = .false.
                     this%vertices(m)%mirrored_is_unique = .true.
                     this%vertices(n)%mirrored_is_unique = .true.
 
                     ! Same with the midpoint
                     if (doublet_order == 2) then
-                        this%vertices(mid)%needs_clone = .false.
+                        this%vertices(mid)%clone = .false.
                         this%vertices(mid)%mirrored_is_unique = .true.
                     end if
 
@@ -807,7 +807,7 @@ contains
 
 
     subroutine surface_mesh_get_indices_to_panel_vertices(this, i_vertices)
-        ! Returns of the list of indices which for each panel point to its vertices (and midpoints, if necessary)
+        ! Returns of the list of indices which point to the vertices (and midpoints) of each panel
 
         implicit none
 
@@ -830,22 +830,21 @@ contains
                 if (doublet_order == 2) then
                     i_vertices(j+this%panels(i)%N,i) = this%panels(i)%get_midpoint_index(j)
                 end if
+
             end do
         end do
         
     end subroutine surface_mesh_get_indices_to_panel_vertices
 
 
-    subroutine surface_mesh_add_vertices(this, N_new_verts, new_vertices)
-        ! Adds the given vertex objects to the end of the surface mesh's vertex array
+    subroutine surface_mesh_add_vertices(this, N_new_verts)
+        ! Adds the specified number of vertex objects to the end of the surface mesh's vertex array.
         ! Handles moving panel pointers to the new allocation of previously-existing vertices.
-        ! May create a blank section of new vertices if new_vertices is not given
 
         implicit none
 
         class(surface_mesh),intent(inout),target :: this
         integer,intent(in) :: N_new_verts
-        type(vertex),intent(in),optional :: new_vertices
         
         type(vertex),dimension(:),allocatable :: temp_vertices
         integer :: i, j
@@ -859,31 +858,24 @@ contains
         temp_vertices(1:this%N_verts) = this%vertices
         call move_alloc(temp_vertices, this%vertices)
 
-        ! Add in new vertices, if given
-        if (present(new_vertices)) then
-            this%vertices(this%N_verts+1:this%N_verts+N_new_verts) = new_vertices
-        end if
-
         ! Update number of vertices
         this%N_verts = this%N_verts + N_new_verts
 
         ! Fix vertex pointers in panel objects (necessary because this%vertices got reallocated)
         do i=1,this%N_panels
-
-            ! Fix vertex pointers
             do j=1,this%panels(i)%N
-                this%panels(i)%vertices(j)%ptr => this%vertices(i_vertices(j,i))
-            end do
 
-            ! Fix midpoint pointers
-            if (doublet_order == 2) then
-                do j=1,this%panels(i)%N
-                    if (this%panels(i)%get_midpoint_index(j) /= 0) then
+                ! Fix vertex pointers
+                this%panels(i)%vertices(j)%ptr => this%vertices(i_vertices(j,i))
+
+                ! Fix midpoint pointers
+                if (doublet_order == 2) then
+                    if (i_vertices(j+this%panels(i)%N,i) /= 0) then
                         this%panels(i)%midpoints(j)%ptr => this%vertices(i_vertices(j+this%panels(i)%N,i))
                     end if
-                end do
-            end if
+                end if
 
+            end do
         end do
         
     end subroutine surface_mesh_add_vertices
@@ -900,6 +892,7 @@ contains
         integer :: i, j, k, m, n, N_clones, i_jango, i_boba, N_discont_verts, i_bot_panel, i_abutting_panel, i_adj_vert, i_top_panel
         integer :: i_edge
         type(vertex),dimension(:),allocatable :: temp_vertices
+        integer,dimension(:),allocatable :: i_clones
 
         ! Check whether any discontinuities exist
         if (this%found_discontinuous_edges) then
@@ -909,25 +902,26 @@ contains
             ! Determine number of vertices which need to be cloned
             N_clones = 0
             do i=1,this%N_verts
-                if (this%vertices(i)%needs_clone) N_clones = N_clones + 1
+                if (this%vertices(i)%clone) N_clones = N_clones + 1
             end do
 
             ! Add space for new vertices
             call this%add_vertices(N_clones)
+            allocate(i_clones(N_clones))
 
             ! Initialize clones
             j = 1
             do i_jango=1,this%N_verts
 
                 ! Check if this vertex needs to be cloned
-                if (this%vertices(i_jango)%needs_clone) then
+                if (this%vertices(i_jango)%clone) then
 
                     ! Get index for the clone
                     i_boba = this%N_verts - N_clones + j ! Will be at position N_verts-N_clones+j in the new vertex array
 
                     ! Initialize clone
                     call this%vertices(i_boba)%init(this%vertices(i_jango)%loc, i_boba, 1)
-                    this%vertices(i_boba)%is_clone = .true.
+                    i_clones(j) = i_boba
 
                     ! Specify wake partners
                     this%vertices(i_jango)%i_wake_partner = i_boba
@@ -1060,6 +1054,11 @@ contains
 
             end do
 
+            ! Store that the cloned vertices are clones
+            do i=1,N_clones
+                this%vertices(i_clones(i))%clone = .true.
+            end do
+
             if (verbose) write(*,'(a, i4, a, i7, a)') "Done. Cloned ", N_clones, " vertices. Mesh now has ", &
                                                       this%N_verts, " vertices."
 
@@ -1068,32 +1067,31 @@ contains
     end subroutine surface_mesh_clone_vertices
 
 
-    subroutine surface_mesh_get_vertex_sorting_indices(this, freestream, i_sorted, i_sorted_inv)
+    subroutine surface_mesh_get_vertex_sorting_indices(this, freestream, i_sorted)
         ! Determines the vertex indices which will sort them in the conpressibility direction
 
         implicit none
 
         class(surface_mesh),intent(in) :: this
         type(flow),intent(in) :: freestream
-        integer,dimension(:),allocatable,intent(out) :: i_sorted, i_sorted_inv
+        integer,dimension(:),allocatable,intent(out) :: i_sorted
 
-        real,dimension(:),allocatable :: x, i_sorted_real
+        real,dimension(:),allocatable :: x
         integer :: i
 
         ! Allocate the compressibility distance array
         allocate(x(this%N_verts))
 
-        ! Add vertices
+        ! Add compressibility distance of each vertex
+        ! What this really should is the compressibility distance of the most-upstream vertex
+        ! of the panels touching this vertex, since influences may be transmitted upstream
+        ! via a panel.
         do i=1,this%N_verts
-            x(i) = inner(freestream%c_hat_g, this%vertices(i)%loc)
+            x(i) = -inner(freestream%c_hat_g, this%vertices(i)%loc)
         end do
 
         ! Get sorted indices
         call insertion_arg_sort(x, i_sorted)
-        deallocate(x)
-        i_sorted_real = real(i_sorted)
-        call insertion_arg_sort(i_sorted_real, i_sorted_inv)
-        deallocate(i_sorted_real)
         
     end subroutine surface_mesh_get_vertex_sorting_indices
 
@@ -1111,43 +1109,53 @@ contains
         type(vertex),dimension(:),allocatable :: temp_vertices
         integer,dimension(:,:),allocatable :: i_vertices
 
-        ! Get panel vertex indices
-        call this%get_indices_to_panel_vertices(i_vertices)
+        if (verbose) write(*,'(a)',advance='no') "     Sorting vertices for efficient matrix structure..."
 
         ! Get sorted indices
-        call this%get_vertex_sorting_indices(freestream, i_sorted, i_sorted_inv)
+        call this%get_vertex_sorting_indices(freestream, i_sorted)
+
+        ! Get panel vertex indices
+        call this%get_indices_to_panel_vertices(i_vertices)
 
         ! Declare temporary vertex array
         allocate(temp_vertices(this%N_verts))
 
         ! Initialize new vertices
+        allocate(i_sorted_inv(this%N_verts), source=0)
         do i=1,this%N_verts
             temp_vertices(i) = this%vertices(i_sorted(i))
+            i_sorted_inv(i_sorted(i)) = i
         end do
+        deallocate(i_sorted) ! No longer needed
 
         ! Move allocation
         call move_alloc(temp_vertices, this%vertices)
 
         ! Point panels to new vertices
         do i=1,this%N_panels
-
             do j=1,this%panels(i)%N
-                this%panels(i)%vertices(j)%ptr => this%vertices(i_sorted_inv(i_vertices(j,i)))
-            end do
 
-            if (doublet_order == 2) then
-                do j=1,this%panels(i)%N
+                ! Corners
+                this%panels(i)%vertices(j)%ptr => this%vertices(i_sorted_inv(i_vertices(j,i)))
+                
+                ! Midpoints
+                if (doublet_order == 2) then
                     this%panels(i)%midpoints(j)%ptr => this%vertices(i_sorted_inv(i_vertices(j+this%panels(i)%N,i)))
-                end do
-            end if
+                end if
+
+            end do
         end do
 
-        ! Point edges to new vertices
+        deallocate(i_vertices)
+
+        ! Point edges to new midpoints
         if (doublet_order == 2) then
             do i=1,this%N_edges
                 this%edges(i)%i_midpoint = i_sorted_inv(this%edges(i)%i_midpoint)
             end do
         end if
+
+        if (verbose) write(*,*) "Done."
         
     end subroutine surface_mesh_rearrange_vertices
 
@@ -1343,7 +1351,7 @@ contains
         do i=1,this%N_verts
 
             ! If the vertex has been cloned, it needs to be shifted off the normal slightly so that it is unique from its counterpart
-            if (this%vertices(i)%needs_clone .or. this%vertices(i)%is_clone) then
+            if (this%vertices(i)%clone) then
 
                 ! Loop through panels associated with this clone to get their average normal vector
                 n_avg = 0.

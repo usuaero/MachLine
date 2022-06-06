@@ -346,11 +346,11 @@ contains
     real :: temp
 
     do i=2,size(array)
-       temp=array(i)
+       temp = array(i)
        do j=i-1,1,-1
-          if (array(j).le.temp) exit
+          if (array(j) <= temp) exit
           array(j+1)=array(j)
-       enddo
+       end do
        array(j+1)=temp
     enddo
   end subroutine insertion_sort

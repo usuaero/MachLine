@@ -17,7 +17,7 @@
     "solver": {
         "formulation": "morino",
         "control_point_offset": 1.1e-05,
-        "matrix_solver" : "LU",
+        "matrix_solver" : "PURC",
         "tolerance" : 1.0e-10,
         "preconditioner" : "DIAG",
         "write_A_and_b" : true
