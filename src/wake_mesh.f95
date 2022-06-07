@@ -253,8 +253,9 @@ contains
         integer,dimension(:),allocatable,intent(in) :: wake_edge_indices
         logical,intent(in) :: asym_flow
 
-        integer :: i, j, k, i_start, i_stop, i_panel, i1, i2, i3, N_wake_edges
+        integer :: i, j, k, i_start, i_stop, i_panel, i1, i2, i3, N_wake_edges, N_skipped
         logical,dimension(:),allocatable :: skipped_panels
+        type(panel),dimension(:),allocatable :: temp_panels
 
         ! Initialize storage for skipping zero-area panels
         allocate(skipped_panels(this%N_panels), source=.false.)
@@ -329,7 +330,33 @@ contains
 
             end do
         end do
-    
+
+        ! Get rid of skipped panels
+        N_skipped = count(skipped_panels)
+        allocate(temp_panels(this%N_panels - N_skipped))
+
+        ! Move non-skipped panels over
+        j = 0
+        do i=1,this%N_panels
+
+            ! Check that this panel was not skipped
+            if (.not. skipped_panels(i)) then
+
+                ! Update index
+                j = j + 1
+
+                ! Copy over
+                temp_panels(j) = this%panels(i)
+
+            end if
+
+        end do
+
+        ! Move allocation
+        call move_alloc(temp_panels, this%panels)
+
+        ! Update number of panels
+        this%N_panels = this%N_panels - N_skipped
         
     end subroutine wake_mesh_init_panels
 

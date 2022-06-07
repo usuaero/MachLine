@@ -237,3 +237,29 @@ def test_supersonic_half_wing_source_free_zero_aoa_zero_beta():
     assert(abs(Cx - 0.142379818437667) < 1e-7)
     assert(abs(Cy) < 1.e-12)
     assert(abs(Cz) < 2.1e-7)
+
+
+def test_supersonic_half_wing_morino_allow_wake():
+
+    with open("test/supersonic_half_wing_input.json", 'r') as input_handle:
+        input_dict = json.load(input_handle)
+
+    input_dict["flow"]["freestream_velocity"] = [100.0, 20.0, 20.0]
+    input_dict["geometry"]["wake_model"]["append_wake"] = True
+
+    with open("test/altered_supersonic_input.json", 'w') as input_handle:
+        input_dict = json.dump(input_dict, input_handle, indent=4)
+
+    C_p_max, C_p_min, Cx, Cy, Cz = run_machline("test/altered_supersonic_input.json", remove_input=True)
+
+    print(C_p_max)
+    print(C_p_min)
+    print(Cx)
+    print(Cy)
+    print(Cz)
+
+    assert(abs(C_p_max - 0.121707118043971) < 1e-7)
+    assert(abs(C_p_min - -0.116058405091721) < 1e-7)
+    assert(abs(Cx - 0.142379818437667) < 1e-7)
+    assert(abs(Cy) < 1.e-12)
+    assert(abs(Cz) < 2.1e-7)
