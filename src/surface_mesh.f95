@@ -1115,7 +1115,7 @@ contains
         integer,dimension(:),allocatable,intent(out) :: i_sorted
 
         real,dimension(:),allocatable :: x
-        integer :: i
+        integer :: i, j, k
 
         ! Allocate the compressibility distance array
         allocate(x(this%N_verts))
@@ -1125,7 +1125,16 @@ contains
         ! of the panels touching this vertex, since influences may be transmitted upstream
         ! via a panel.
         do i=1,this%N_verts
+
+            ! Initialize with the compressibility distance of this vertex
             x(i) = inner(freestream%c_hat_g, this%vertices(i)%loc)
+
+            !! Loop through neighboring vertices
+            !do j=1,this%vertices(i)%adjacent_vertices%len()
+            !    call this%vertices(i)%adjacent_vertices%get(j, k)
+            !    x(i) = max(inner(freestream%c_hat_g, this%vertices(k)%loc), x(i))
+            !end do
+
         end do
 
         ! Get sorted indices
