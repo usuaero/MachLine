@@ -209,11 +209,11 @@ def test_subsonic_comp_pressure_corrections():
     print(Cy)
     print(Cz)
 
-    assert(abs(C_p_max - 0.81713734991495235  ) < 1e-7)
-    assert(abs(C_p_min - -1.0934056817613151) < 1e-7)
-    assert(abs(Cx - 0.50772458230737061) < 1e-7)
-    assert(abs(Cy - -1.0200512741775976E-002) < 1e-7)
-    assert(abs(Cz - -26.247870405469971) < 1.1e-7)
+    assert(abs(C_p_max - 0.817137373208248) < 1e-7)
+    assert(abs(C_p_min - -1.09340572438493) < 1e-7)
+    assert(abs(Cx - 0.507724687944559) < 1e-7)
+    assert(abs(Cy - -0.0101999867329524) < 1e-7)
+    assert(abs(Cz - -26.2478894537363) < 1.1e-7)
 
 
 def test_supersonic_half_wing_morino_zero_aoa_zero_beta():
