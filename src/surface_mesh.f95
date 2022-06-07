@@ -31,8 +31,8 @@ module surface_mesh_mod
         logical :: wake_present, append_wake
         real,dimension(:,:),allocatable :: cp, cp_mirrored
         real,dimension(:),allocatable :: phi_cp, phi_cp_sigma, phi_cp_mu ! Induced potentials at control points
-        real,dimension(:),allocatable :: C_p_pg, C_p_lai, C_p_kt ! Corrected surface pressure coefficients
         real,dimension(:),allocatable :: Phi_u ! Total potential on outer surface
+        real,dimension(:),allocatable :: C_p_pg, C_p_lai, C_p_kt ! Corrected surface pressure coefficients
         real,dimension(:),allocatable :: C_p_inc, C_p_ise, C_p_2nd, C_p_sln, C_p_lin ! Surface pressure coefficients
         real,dimension(:,:),allocatable :: V, dC_f ! Surface velocities and pressure forces
         real :: control_point_offset
@@ -53,7 +53,7 @@ module surface_mesh_mod
             procedure :: characterize_edges => surface_mesh_characterize_edges
             procedure :: find_vertices_on_mirror => surface_mesh_find_vertices_on_mirror
             procedure :: get_indices_to_panel_vertices => surface_mesh_get_indices_to_panel_vertices
-            procedure :: add_vertices => surface_mesh_add_vertices
+            procedure :: allocate_new_vertices => surface_mesh_allocate_new_vertices
             procedure :: clone_vertices => surface_mesh_clone_vertices
             procedure :: set_up_mirroring => surface_mesh_set_up_mirroring
             procedure :: get_vertex_sorting_indices => surface_mesh_get_vertex_sorting_indices
@@ -474,7 +474,7 @@ contains
         if (doublet_order == 2) then
 
             ! Allocate more space
-            call this%add_vertices(this%N_edges)
+            call this%allocate_new_vertices(this%N_edges)
             N_orig_verts = this%N_verts - this%N_edges
 
             do i=1,this%N_edges
@@ -593,7 +593,7 @@ contains
 
         ! For supersonic flows, rearrange the vertices to proceed in the freestream direction
         if (freestream%supersonic) then
-            !call this%rearrange_vertices(freestream)
+            call this%rearrange_vertices(freestream)
         end if
 
         ! Calculate normals (for placing control points)
@@ -837,25 +837,55 @@ contains
     end subroutine surface_mesh_get_indices_to_panel_vertices
 
 
-    subroutine surface_mesh_add_vertices(this, N_new_verts)
+    subroutine surface_mesh_allocate_new_vertices(this, N_new_verts, i_rearrange)
         ! Adds the specified number of vertex objects to the end of the surface mesh's vertex array.
         ! Handles moving panel pointers to the new allocation of previously-existing vertices.
+        ! i_rearrange may be used to rearrange the vertices for a desired behavior.
 
         implicit none
 
         class(surface_mesh),intent(inout),target :: this
         integer,intent(in) :: N_new_verts
+        integer,dimension(:),allocatable,intent(in),optional :: i_rearrange
         
         type(vertex),dimension(:),allocatable :: temp_vertices
         integer :: i, j
         integer,dimension(:,:),allocatable :: i_vertices
+        integer,dimension(:),allocatable :: i_rearrange_inv
 
         ! Get panel vertex indices
         call this%get_indices_to_panel_vertices(i_vertices)
 
-        ! Extend allocation of mesh vertex array
+        ! Allocate more space
         allocate(temp_vertices(this%N_verts + N_new_verts))
-        temp_vertices(1:this%N_verts) = this%vertices
+        allocate(i_rearrange_inv(this%N_verts))
+
+        ! Copy over vertices
+        if (present(i_rearrange)) then
+
+            do i=1,this%N_verts
+
+                ! Copy vertices
+                temp_vertices(i) = this%vertices(i_rearrange(i))
+                temp_vertices(i)%index = i
+
+                ! Get inverse mapping
+                i_rearrange_inv(i_rearrange(i)) = i
+            end do
+
+        else
+
+            ! Copy vertices
+            temp_vertices(1:this%N_verts) = this%vertices
+
+            ! Get inverse mapping (identity)
+            do i=1,this%N_verts
+                i_rearrange_inv(i) = i
+            end do
+
+        end if
+
+        ! Move allocation
         call move_alloc(temp_vertices, this%vertices)
 
         ! Update number of vertices
@@ -866,19 +896,27 @@ contains
             do j=1,this%panels(i)%N
 
                 ! Fix vertex pointers
-                this%panels(i)%vertices(j)%ptr => this%vertices(i_vertices(j,i))
+                this%panels(i)%vertices(j)%ptr => this%vertices(i_rearrange_inv(i_vertices(j,i)))
 
                 ! Fix midpoint pointers
                 if (doublet_order == 2) then
-                    if (i_vertices(j+this%panels(i)%N,i) /= 0) then
-                        this%panels(i)%midpoints(j)%ptr => this%vertices(i_vertices(j+this%panels(i)%N,i))
-                    end if
+                    this%panels(i)%midpoints(j)%ptr => this%vertices(i_rearrange_inv(i_vertices(j+this%panels(i)%N,i)))
                 end if
 
             end do
         end do
+
+        deallocate(i_vertices)
+
+        ! Fix wake dependencies
+        if (present(i_rearrange) .and. this%wake%N_panels > 0) then
+            do i=1,this%wake%N_verts
+            end do
+        end if
+
+        ! Fix edge pointers
         
-    end subroutine surface_mesh_add_vertices
+    end subroutine surface_mesh_allocate_new_vertices
 
 
     subroutine surface_mesh_clone_vertices(this)
@@ -906,7 +944,7 @@ contains
             end do
 
             ! Add space for new vertices
-            call this%add_vertices(N_clones)
+            call this%allocate_new_vertices(N_clones)
             allocate(i_clones(N_clones))
 
             ! Initialize clones
@@ -1087,7 +1125,7 @@ contains
         ! of the panels touching this vertex, since influences may be transmitted upstream
         ! via a panel.
         do i=1,this%N_verts
-            x(i) = -inner(freestream%c_hat_g, this%vertices(i)%loc)
+            x(i) = inner(freestream%c_hat_g, this%vertices(i)%loc)
         end do
 
         ! Get sorted indices
@@ -1104,56 +1142,15 @@ contains
         class(surface_mesh),intent(inout),target :: this
         type(flow),intent(in) :: freestream
 
-        integer,dimension(:),allocatable :: i_sorted, i_sorted_inv
-        integer :: i, j
-        type(vertex),dimension(:),allocatable :: temp_vertices
-        integer,dimension(:,:),allocatable :: i_vertices
+        integer,dimension(:),allocatable :: i_sorted
 
         if (verbose) write(*,'(a)',advance='no') "     Sorting vertices for efficient matrix structure..."
 
         ! Get sorted indices
         call this%get_vertex_sorting_indices(freestream, i_sorted)
 
-        ! Get panel vertex indices
-        call this%get_indices_to_panel_vertices(i_vertices)
-
-        ! Declare temporary vertex array
-        allocate(temp_vertices(this%N_verts))
-
-        ! Initialize new vertices
-        allocate(i_sorted_inv(this%N_verts), source=0)
-        do i=1,this%N_verts
-            temp_vertices(i) = this%vertices(i_sorted(i))
-            i_sorted_inv(i_sorted(i)) = i
-        end do
-        deallocate(i_sorted) ! No longer needed
-
-        ! Move allocation
-        call move_alloc(temp_vertices, this%vertices)
-
-        ! Point panels to new vertices
-        do i=1,this%N_panels
-            do j=1,this%panels(i)%N
-
-                ! Corners
-                this%panels(i)%vertices(j)%ptr => this%vertices(i_sorted_inv(i_vertices(j,i)))
-                
-                ! Midpoints
-                if (doublet_order == 2) then
-                    this%panels(i)%midpoints(j)%ptr => this%vertices(i_sorted_inv(i_vertices(j+this%panels(i)%N,i)))
-                end if
-
-            end do
-        end do
-
-        deallocate(i_vertices)
-
-        ! Point edges to new midpoints
-        if (doublet_order == 2) then
-            do i=1,this%N_edges
-                this%edges(i)%i_midpoint = i_sorted_inv(this%edges(i)%i_midpoint)
-            end do
-        end if
+        ! Move the vertices around
+        call this%allocate_new_vertices(0, i_sorted)
 
         if (verbose) write(*,*) "Done."
         

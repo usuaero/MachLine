@@ -165,9 +165,9 @@ contains
             ! Number of vertices
             write(this%unit,'(i1) ',advance='no') panels(i)%N
 
-            ! Indices of each vertex; remember VTk files use 0-based indexing
+            ! Indices of each vertex; remember VTK files use 0-based indexing
             do j=1,panels(i)%N
-                write(this%unit,'(i20) ',advance='no') panels(i)%vertices(j)%ptr%index-1
+                write(this%unit,'(i20) ',advance='no') panels(i)%get_vertex_index(j) - 1
             end do
             
             ! Move to next line

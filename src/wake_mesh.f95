@@ -18,7 +18,7 @@ module wake_mesh_mod
 
         type(vertex),allocatable,dimension(:) :: vertices
         type(panel),allocatable,dimension(:) :: panels
-        integer :: N_verts, N_panels
+        integer :: N_verts, N_panels = 0
 
         contains
 
