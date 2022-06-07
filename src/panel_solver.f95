@@ -387,14 +387,14 @@ contains
                         if (body%asym_flow) then
 
                             ! Original vertex and mirrored control point
-                            mirrored_wake_verts_in_dod(i) = this%freestream%point_in_dod(vert_loc, body%cp_mirrored(:,j))
+                            wake_verts_in_dod(i) = this%freestream%point_in_dod(vert_loc, body%cp_mirrored(:,j))
 
                         else
 
                             ! Mirrored vertex and original control point
                             mirrored_vert_loc = mirror_across_plane(vert_loc, body%mirror_plane)
-                            wake_verts_in_dod(i+body%wake%N_verts) = this%freestream%point_in_dod(mirrored_vert_loc, &
-                                                                                                  body%cp(:,j))
+                            mirrored_wake_verts_in_dod(i+body%wake%N_verts) = this%freestream%point_in_dod(mirrored_vert_loc, &
+                                                                                                           body%cp(:,j))
                         end if
                     end if
                 end do

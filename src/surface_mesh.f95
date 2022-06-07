@@ -1319,8 +1319,17 @@ contains
             dist = inner(this%vertices(i)%loc, freestream%c_hat_g)
 
             ! Check maximum
-            if (dist > max_dist) then
-                max_dist = dist
+            max_dist = max(dist, max_dist)
+
+            ! Check for mirror
+            if (this%asym_flow) then
+
+                ! Calculate distance
+                dist = inner(mirror_across_plane(this%vertices(i)%loc, this%mirror_plane), freestream%c_hat_g)
+
+                ! Check maximum
+                max_dist = max(dist, max_dist)
+
             end if
 
         end do
