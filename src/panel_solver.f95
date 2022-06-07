@@ -303,28 +303,34 @@ contains
         if (body%mirrored) then
             allocate(this%dod_info(2*body%N_panels, this%N), stat=stat)
             call check_allocation(stat, "domain of dependence storage")
+
             allocate(verts_in_dod(2*body%N_verts), stat=stat)
             call check_allocation(stat, "vertex domain of dependence storage")
+
             allocate(mirrored_verts_in_dod(2*body%N_verts), stat=stat)
             call check_allocation(stat, "vertex domain of dependence storage")
         else
             allocate(this%dod_info(body%N_panels, this%N), stat=stat)
             call check_allocation(stat, "domain of dependence storage")
+
             allocate(verts_in_dod(body%N_verts), stat=stat)
             call check_allocation(stat, "vertex domain of dependence storage")
         end if
 
         ! Allocate arrays for domain of dependence information for the wake
-        if (body%mirrored .and. .not. body%asym_flow) then
+        if (body%mirrored .and. .not. body%asym_flow) then ! This is the only case where the wake is mirrored
             allocate(this%wake_dod_info(2*body%wake%N_panels, this%N), stat=stat)
             call check_allocation(stat, "domain of dependence storage")
+
             allocate(wake_verts_in_dod(2*body%wake%N_verts), stat=stat)
             call check_allocation(stat, "vertex domain of dependence storage")
+
             allocate(mirrored_wake_verts_in_dod(2*body%wake%N_verts), stat=stat)
             call check_allocation(stat, "vertex domain of dependence storage")
         else
             allocate(this%wake_dod_info(body%wake%N_panels, this%N), stat=stat)
             call check_allocation(stat, "domain of dependence storage")
+
             allocate(wake_verts_in_dod(body%wake%N_verts), stat=stat)
             call check_allocation(stat, "vertex domain of dependence storage")
         end if
@@ -342,6 +348,8 @@ contains
                 wake_verts_in_dod = .false.
                 if (body%asym_flow) then
                     mirrored_verts_in_dod = .false.
+                end if
+                if (body%mirrored .and. .not. body%asym_flow) then
                     mirrored_wake_verts_in_dod = .false.
                 end if
 
@@ -441,14 +449,14 @@ contains
                             ! Check DoD for panel and mirrored control point
                             this%wake_dod_info(i,j+body%N_cp) = body%wake%panels(i)%check_dod(body%cp_mirrored(:,j), &
                                                                                               this%freestream, &
-                                                                                              mirrored_wake_verts_in_dod)
+                                                                                              wake_verts_in_dod)
 
                         else
 
                             ! Check DoD for mirrored panel and original control point
                             this%wake_dod_info(i+body%wake%N_panels,j) = body%wake%panels(i)%check_dod(body%cp(:,j), &
                                                                                                        this%freestream, &
-                                                                                                       wake_verts_in_dod, &
+                                                                                                       mirrored_wake_verts_in_dod, &
                                                                                                        .true., body%mirror_plane)
 
                         end if
@@ -457,7 +465,7 @@ contains
 
             end do
 
-            if (verbose) write(*,*) "Done"
+            if (verbose) write(*,*) "Done."
         end if
     
     end subroutine panel_solver_calc_domains_of_dependence
