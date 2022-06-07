@@ -1,0 +1,64 @@
+{
+    "info" : {
+        "generated_by" : "MachLine (c) 2022 USU Aerolab",
+        "executed" : "Fri May 20 16:35:12 2022"
+    },
+    "solver_results" : {
+        "residual" : {
+            "max" : 2.94902990916057E-017,
+            "norm" : 2.79171948456981E-016
+        }
+    },
+    "pressure_calculations" : {
+        "isentropic_rule" : {
+            "max" : 1.85459038372766E-001,
+            "min" : -1.58730158730159E-001
+        },
+        "second_order_rule" : {
+            "max" : 2.52416382486917E-001,
+            "min" : -7.76278820460214E-001
+        }
+    },
+    "total_forces" : {
+        "Cx" : 1.11098703904757E-002,
+        "Cy" : 1.77371786359856E-012,
+        "Cz" : 4.91448806615646E-002
+    },
+    "input" : {
+        "flow" : {
+            "freestream_velocity" : [
+                    1.04103681047004E+003,
+                    0.00000000000000E+000,
+                    3.63538064908484E+001
+                ],
+            "gamma" : 1.40000000000000E+000,
+            "freestream_mach_number" : 3.00000000000000E+000
+        },
+        "geometry" : {
+            "file" : "dev/meshes/diamond_5_deg_full_fine.stl",
+            "spanwise_axis" : "+y",
+            "wake_model" : {
+                "append_wake" : false
+            },
+            "reference" : {
+                "area" : 4.00000000000000E+000
+            }
+        },
+        "solver" : {
+            "formulation" : "morino",
+            "control_point_offset" : 1.10000000000000E-008
+        },
+        "post_processing" : {
+            "pressure_rules" : {
+                "second-order" : true,
+                "isentropic" : true,
+                "slender-body" : true,
+                "linear" : true
+            }
+        },
+        "output" : {
+            "body_file" : "dev/results/diamond_wing_comparison/meshes/M_3.0_aoa_2.0_5_deg_fine.vtk",
+            "report_file" : "dev/results/diamond_wing_comparison/reports/M_3.0_aoa_2.0_5_deg_fine.json"
+        }
+    }
+}

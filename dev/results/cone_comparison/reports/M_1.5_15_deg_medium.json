@@ -1,0 +1,66 @@
+{
+    "info" : {
+        "generated_by" : "MachLine (c) 2022 USU Aerolab",
+        "executed" : "Fri May 20 14:20:43 2022"
+    },
+    "solver_results" : {
+        "residual" : {
+            "max" : 6.49480469405717E-015,
+            "norm" : 6.66764791974373E-014
+        }
+    },
+    "pressure_calculations" : {
+        "isentropic_rule" : {
+            "max" : 2.32680312085879E-001,
+            "min" : 2.32673432148391E-001
+        },
+        "second_order_rule" : {
+            "max" : 2.73285527013246E-001,
+            "min" : 2.73277077677013E-001
+        }
+    },
+    "total_forces" : {
+        "Cx" : -1.82623498550284E-001,
+        "Cy" : -2.97366197583773E-010,
+        "Cz" : 0.00000000000000E+000
+    },
+    "input" : {
+        "flow" : {
+            "freestream_velocity" : [
+                    -1.00000000000000E+002,
+                    0.00000000000000E+000,
+                    0.00000000000000E+000
+                ],
+            "gamma" : 1.40000000000000E+000,
+            "freestream_mach_number" : 1.50000000000000E+000
+        },
+        "geometry" : {
+            "file" : "dev/results/cone_comparison/meshes/cone_15_deg_medium.vtk",
+            "spanwise_axis" : "+y",
+            "mirror_about" : "xy",
+            "wake_model" : {
+                "append_wake" : false
+            },
+            "reference" : {
+                "area" : 4.00000000000000E+000
+            }
+        },
+        "solver" : {
+            "formulation" : "morino",
+            "control_point_offset" : 1.10000000000000E-008,
+            "run_checks" : true
+        },
+        "post_processing" : {
+            "pressure_rules" : {
+                "second-order" : true,
+                "isentropic" : true,
+                "slender-body" : true,
+                "linear" : true
+            }
+        },
+        "output" : {
+            "body_file" : "dev/results/cone_comparison/results/M_1.5_15_deg_medium.vtk",
+            "report_file" : "dev/results/cone_comparison/reports/M_1.5_15_deg_medium.json"
+        }
+    }
+}

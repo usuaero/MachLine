@@ -1,0 +1,64 @@
+{
+    "info" : {
+        "generated_by" : "MachLine (c) 2022 USU Aerolab",
+        "executed" : "Fri May 20 16:45:18 2022"
+    },
+    "solver_results" : {
+        "residual" : {
+            "max" : 2.00089510932200E-016,
+            "norm" : 6.26614858431611E-016
+        }
+    },
+    "pressure_calculations" : {
+        "isentropic_rule" : {
+            "max" : 9.19545211198570E-001,
+            "min" : -5.71428571428571E-002
+        },
+        "second_order_rule" : {
+            "max" : 5.09100626862245E+000,
+            "min" : -6.95752186073905E+000
+        }
+    },
+    "total_forces" : {
+        "Cx" : -3.71187435527853E-004,
+        "Cy" : 3.54475377949496E-012,
+        "Cz" : -1.80948666109482E-002
+    },
+    "input" : {
+        "flow" : {
+            "freestream_velocity" : [
+                    1.73188984903870E+003,
+                    0.00000000000000E+000,
+                    1.21105535780604E+002
+                ],
+            "gamma" : 1.40000000000000E+000,
+            "freestream_mach_number" : 5.00000000000000E+000
+        },
+        "geometry" : {
+            "file" : "dev/meshes/diamond_5_deg_full_fine.stl",
+            "spanwise_axis" : "+y",
+            "wake_model" : {
+                "append_wake" : false
+            },
+            "reference" : {
+                "area" : 4.00000000000000E+000
+            }
+        },
+        "solver" : {
+            "formulation" : "morino",
+            "control_point_offset" : 1.10000000000000E-008
+        },
+        "post_processing" : {
+            "pressure_rules" : {
+                "second-order" : true,
+                "isentropic" : true,
+                "slender-body" : true,
+                "linear" : true
+            }
+        },
+        "output" : {
+            "body_file" : "dev/results/diamond_wing_comparison/meshes/M_5.0_aoa_4.0_5_deg_fine.vtk",
+            "report_file" : "dev/results/diamond_wing_comparison/reports/M_5.0_aoa_4.0_5_deg_fine.json"
+        }
+    }
+}

@@ -1,0 +1,66 @@
+{
+    "info" : {
+        "generated_by" : "MachLine (c) 2022 USU Aerolab",
+        "executed" : "Fri May 20 14:03:38 2022"
+    },
+    "solver_results" : {
+        "residual" : {
+            "max" : 4.16333634234434E-016,
+            "norm" : 2.25961029959083E-015
+        }
+    },
+    "pressure_calculations" : {
+        "isentropic_rule" : {
+            "max" : -1.66377497002019E-003,
+            "min" : -1.66378804075208E-003
+        },
+        "second_order_rule" : {
+            "max" : 1.46343356679920E-001,
+            "min" : 1.46343281506759E-001
+        }
+    },
+    "total_forces" : {
+        "Cx" : 1.30329404733617E-003,
+        "Cy" : -3.81160974432929E-011,
+        "Cz" : 0.00000000000000E+000
+    },
+    "input" : {
+        "flow" : {
+            "freestream_velocity" : [
+                    -1.00000000000000E+002,
+                    0.00000000000000E+000,
+                    0.00000000000000E+000
+                ],
+            "gamma" : 1.40000000000000E+000,
+            "freestream_mach_number" : 4.00000000000000E+000
+        },
+        "geometry" : {
+            "file" : "dev/results/cone_comparison/meshes/cone_10_deg_coarse.vtk",
+            "spanwise_axis" : "+y",
+            "mirror_about" : "xy",
+            "wake_model" : {
+                "append_wake" : false
+            },
+            "reference" : {
+                "area" : 4.00000000000000E+000
+            }
+        },
+        "solver" : {
+            "formulation" : "morino",
+            "control_point_offset" : 1.10000000000000E-008,
+            "run_checks" : true
+        },
+        "post_processing" : {
+            "pressure_rules" : {
+                "second-order" : true,
+                "isentropic" : true,
+                "slender-body" : true,
+                "linear" : true
+            }
+        },
+        "output" : {
+            "body_file" : "dev/results/cone_comparison/results/M_4.0_10_deg_coarse.vtk",
+            "report_file" : "dev/results/cone_comparison/reports/M_4.0_10_deg_coarse.json"
+        }
+    }
+}

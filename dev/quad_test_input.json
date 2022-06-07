@@ -1,0 +1,38 @@
+{
+    "flow": {
+        "freestream_velocity" : [ 100.0, 0.0, 10.0 ],
+        "freestream_mach_number" : 0.0
+    },
+    "geometry": {
+        "file": "dev/meshes/naca_0010_AR_10_half_coarse.stl",
+        "mirror_about": "xz",
+        "reference": {
+            "area": 8.0
+        },
+        "singularity_order" : {
+            "doublet" : 2
+        },
+        "wake_model" : {
+            "wake_present" : true
+        }
+    },
+    "solver": {
+        "formulation" : "morino",
+        "control_point_offset" : 1.1e-05,
+        "run_checks" : true
+    },
+    "post_processing" : {
+        "pressure_rules": {
+            "incompressible": true
+        }
+    },
+    "output": {
+        "verbose" : true,
+        "body_file" :                   "dev/results/naca_0010_AR_10_half_coarse.vtk",
+        "wake_file" :                   "dev/results/naca_0010_AR_10_half_coarse_wake.vtk",
+        "control_point_file" :          "dev/results/naca_0010_AR_10_half_coarse_control_points.vtk",
+        "mirrored_body_file" :          "dev/results/naca_0010_AR_10_half_coarse_left.vtk",
+        "mirrored_control_point_file" : "dev/results/naca_0010_AR_10_half_coarse_control_points_left.vtk",
+        "report_file" : "dev/results/report.json"
+    }
+}
