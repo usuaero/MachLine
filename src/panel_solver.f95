@@ -1013,7 +1013,6 @@ contains
         real :: a, b, c, C_p_vac, lin, sln
 
         write(*,'(a)',advance='no') "     Calculating surface pressures..."
-        this%N_cells = size(body%V)/3
 
         ! Calculate vacuum pressure coefficient
         C_p_vac = -2./(this%freestream%gamma*this%freestream%M_inf**2)
@@ -1210,59 +1209,58 @@ contains
 
         class(panel_solver),intent(inout) :: this
         type(surface_mesh),intent(inout) :: body
-        integer :: i, min_loc
+        integer,dimension(1) :: min_loc
         real :: C_p_crit, C_p_min, numerator, denominator, M_inf_selected
 
         ! Locate minimum pressure location on body based on pressure for forces selection
-        do i=1,body%N_panels
-            select case (this%pressure_for_forces)
-                case ('isentropic')
-                    if (body%C_p_ise(i) == minval(body%C_p_ise)) then
-                        min_loc = i
-                        C_p_min = body%C_p_ise(i)
-                        M_inf_selected = this%freestream%M_inf
-                    end if
-    
+        select case (this%pressure_for_forces)
+            
+            case ("prandtl-glauert")
+                min_loc = MINLOC(body%C_p_pg)
+                C_p_min = MINVAL(body%C_p_pg)
+                M_inf_selected = this%corrected_M_inf
 
-                case ('second-order')
-                    if (body%C_p_2nd(i) == minval(body%C_p_2nd)) then
-                        min_loc = i
-                        C_p_min = body%C_p_2nd(i)
-                        M_inf_selected = this%freestream%M_inf
-                    end if
+            case ("karman-tsien")
+                min_loc = MINLOC(body%C_p_kt)
+                C_p_min = MINVAL(body%C_p_kt)
+                M_inf_selected = this%corrected_M_inf
 
+            case ("laitone")
+                min_loc = MINLOC(body%C_p_lai)
+                C_p_min = MINVAL(body%C_p_lai)
+                M_inf_selected = this%corrected_M_inf
 
-                case ('prandtl-glauert')
-                    if (body%C_p_pg(i) == minval(body%C_p_pg)) then
-                        min_loc = i
-                        C_p_min = body%C_p_pg(i)
-                        M_inf_selected = this%corrected_M_inf
-                    end if
+            case ("isentropic")
+                min_loc = MINLOC(body%C_p_ise)
+                C_p_min = MINVAL(body%C_p_ise)
+                M_inf_selected = this%freestream%M_inf
 
+            case ("second-order")
+                min_loc = MINLOC(body%C_p_2nd)
+                C_p_min = MINVAL(body%C_p_2nd)
+                M_inf_selected = this%freestream%M_inf
 
-                case ('karman-tsien')
-                    if (body%C_p_kt(i) == minval(body%C_p_kt)) then
-                        min_loc = i
-                        C_p_min = body%C_p_kt(i)
-                        M_inf_selected = this%corrected_M_inf
-                    end if
+            case ("linear")
+                min_loc = MINLOC(body%C_p_lin)
+                C_p_min = MINVAL(body%C_p_lin)
+                M_inf_selected = this%freestream%M_inf
 
-
-                case ('laitone')
-                    if (body%C_p_lai(i) == minval(body%C_p_lai)) then
-                        min_loc = i
-                        C_p_min = body%C_p_lai(i)
-                        M_inf_selected = this%corrected_M_inf
-                    end if
-            end select
-        end do
+            case ("slender-body")
+                min_loc = MINLOC(body%C_p_sln)
+                C_p_min = MINVAL(body%C_p_sln)
+                M_inf_selected = this%freestream%M_inf
+                
+            case default
+                write(*,*) "Unidentified pressure for forces. Quitting..."
+                stop
+        end select
 
         ! Calculate critical pressure coefficient for the selected Mach number (Modern Compressible Flow by John Anderson EQ 9.55)
         numerator = 1 + ((this%freestream%gamma - 1) / 2) * M_inf_selected**2 
         denominator = 1 + (this%freestream%gamma -1) / 2
 
-        C_p_crit = 2 / (this%freestream%gamma * M_inf_selected**2) &
-                    * ((numerator/denominator) ** (this%freestream%gamma / (this%freestream%gamma - 1)) - 1)
+        C_p_crit = (2 / (this%freestream%gamma * M_inf_selected**2)) &
+                    * (((numerator/denominator) ** (this%freestream%gamma / (this%freestream%gamma - 1))) - 1)
     
         ! Report the critical mach pressure coefficient and the minimum pressure coefficients to the terminal
         write(*,*) "        Critical Mach C_p = ", C_p_crit
@@ -1270,7 +1268,7 @@ contains
 
         ! Throw warning message indicating body is in transonic flow
         if (C_p_min <= C_p_crit) then
-            write(*,*) "!!! Critical Mach number has been exceeded along at lease panel .", min_loc
+            write(*,*) "!!! Critical Mach number has been exceeded along at least panel .", min_loc
             write(*,*) "!!! Results may not be reliable."
             
         end if
