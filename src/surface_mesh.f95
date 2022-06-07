@@ -888,9 +888,6 @@ contains
         ! Move allocation
         call move_alloc(temp_vertices, this%vertices)
 
-        ! Update number of vertices
-        this%N_verts = this%N_verts + N_new_verts
-
         ! Fix vertex pointers in panel objects (necessary because this%vertices got reallocated)
         do i=1,this%N_panels
             do j=1,this%panels(i)%N
@@ -911,10 +908,29 @@ contains
         ! Fix wake dependencies
         if (present(i_rearrange) .and. this%wake%N_panels > 0) then
             do i=1,this%wake%N_verts
+
+                ! Fix top parent
+                if (this%wake%vertices(i)%top_parent > this%N_verts) then
+                    this%wake%vertices(i)%top_parent = i_rearrange_inv(this%wake%vertices(i)%top_parent - this%N_verts) &
+                                                       + this%N_verts + N_new_verts
+                else
+                    this%wake%vertices(i)%top_parent = i_rearrange_inv(this%wake%vertices(i)%top_parent)
+                end if
+
+                ! Fix bottom parent
+                if (this%wake%vertices(i)%bot_parent > this%N_verts) then
+                    this%wake%vertices(i)%bot_parent = i_rearrange_inv(this%wake%vertices(i)%bot_parent - this%N_verts) &
+                                                       + this%N_verts + N_new_verts
+                else
+                    this%wake%vertices(i)%bot_parent = i_rearrange_inv(this%wake%vertices(i)%bot_parent)
+                end if
             end do
         end if
 
         ! Fix edge pointers
+
+        ! Update number of vertices
+        this%N_verts = this%N_verts + N_new_verts
         
     end subroutine surface_mesh_allocate_new_vertices
 
