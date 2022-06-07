@@ -25,6 +25,8 @@ module wake_mesh_mod
             procedure :: init => wake_mesh_init
             procedure :: init_vertices => wake_mesh_init_vertices
             procedure :: init_panels => wake_mesh_init_panels
+            procedure :: has_zero_area => wake_mesh_has_zero_area
+            procedure :: init_panel => wake_mesh_init_panel
             procedure :: init_midpoints => wake_mesh_init_midpoints
 
     end type wake_mesh
@@ -252,6 +254,10 @@ contains
         logical,intent(in) :: asym_flow
 
         integer :: i, j, k, i_start, i_stop, i_panel, i1, i2, i3, N_wake_edges
+        logical,dimension(:),allocatable :: skipped_panels
+
+        ! Initialize storage for skipping zero-area panels
+        allocate(skipped_panels(this%N_panels), source=.false.)
 
         ! Loop through wake-shedding edges to intialize panels
         N_wake_edges = size(wake_edge_indices)
@@ -275,11 +281,8 @@ contains
                 i2 = (i_start-1)*(N_panels_streamwise+1)+j+1
                 i3 = (i_stop-1)*(N_panels_streamwise+1)+j+1
 
-                ! Initialize
-                call this%panels(i_panel)%init(this%vertices(i1), this%vertices(i2), this%vertices(i3), i_panel)
-
-                ! Specify this panel is in the wake
-                this%panels(i_panel)%in_wake = .true.
+                ! Create panel
+                call this%init_panel(i_panel, i1, i2, i3, skipped_panels, .false.)
 
                 ! Create mirror
                 if (asym_flow) then
@@ -292,11 +295,8 @@ contains
                     i2 = (i_start-1)*(N_panels_streamwise+1)+j+1+this%N_verts/2
                     i3 = (i_stop-1)*(N_panels_streamwise+1)+j+1+this%N_verts/2
 
-                    ! Initialize (order of vertices is reversed to maintain panel orientation through mirror)
-                    call this%panels(i_panel)%init(this%vertices(i3), this%vertices(i2), this%vertices(i1), i_panel)
-
-                    ! Specify this panel is in the wake
-                    this%panels(i_panel)%in_wake = .true.
+                    ! Create panel
+                    call this%init_panel(i_panel, i1, i2, i3, skipped_panels, .true.)
 
                 end if
 
@@ -308,11 +308,8 @@ contains
                 i2 = (i_stop-1)*(N_panels_streamwise+1)+j+1
                 i3 = (i_stop-1)*(N_panels_streamwise+1)+j
 
-                ! Initialize
-                call this%panels(i_panel)%init(this%vertices(i1), this%vertices(i2), this%vertices(i3), i_panel)
-
-                ! Specify this panel is in the wake
-                this%panels(i_panel)%in_wake = .true.
+                ! Create panel
+                call this%init_panel(i_panel, i1, i2, i3, skipped_panels, .false.)
 
                 ! Create mirror
                 if (asym_flow) then
@@ -325,11 +322,8 @@ contains
                     i2 = (i_stop-1)*(N_panels_streamwise+1)+j+1+this%N_verts/2
                     i3 = (i_stop-1)*(N_panels_streamwise+1)+j+this%N_verts/2
 
-                    ! Initialize (again, order is reversed)
-                    call this%panels(i_panel)%init(this%vertices(i3), this%vertices(i2), this%vertices(i1), i_panel)
-
-                    ! Specify this panel is in the wake
-                    this%panels(i_panel)%in_wake = .true.
+                    ! Create panel
+                    call this%init_panel(i_panel, i1, i2, i3, skipped_panels, .true.)
 
                 end if
 
@@ -338,6 +332,51 @@ contains
     
         
     end subroutine wake_mesh_init_panels
+
+
+    function wake_mesh_has_zero_area(this, i1, i2, i3) result(has)
+        ! Checks whether the panel to be defined by the three given vertices will have zero area
+
+        implicit none
+        
+        class(wake_mesh),intent(in) :: this
+        integer,intent(in) :: i1, i2, i3
+        logical :: has
+
+        ! Check for zero area
+        has = norm2(cross(this%vertices(i3)%loc-this%vertices(i2)%loc, this%vertices(i2)%loc-this%vertices(i1)%loc)) < 1.e-12
+        
+    end function wake_mesh_has_zero_area
+
+
+    subroutine wake_mesh_init_panel(this, i_panel, i1, i2, i3, skipped_panels, mirror)
+        ! Creates the specified panel
+
+        implicit none
+        
+        class(wake_mesh),intent(inout) :: this
+        integer,intent(in) :: i_panel, i1, i2, i3
+        logical,dimension(:),allocatable,intent(inout) :: skipped_panels
+        logical,intent(in) :: mirror
+
+        ! Check for zero area
+        if (this%has_zero_area(i1, i2, i3)) then
+            skipped_panels(i_panel) = .true.
+        else
+
+            ! Initialize object
+            if (mirror) then
+                call this%panels(i_panel)%init(this%vertices(i3), this%vertices(i2), this%vertices(i1), i_panel)
+            else
+                call this%panels(i_panel)%init(this%vertices(i1), this%vertices(i2), this%vertices(i3), i_panel)
+            end if
+
+            ! Specify this panel is in the wake
+            this%panels(i_panel)%in_wake = .true.
+
+        end if
+        
+    end subroutine wake_mesh_init_panel
 
 
     subroutine wake_mesh_init_midpoints(this, body_edges, body_verts, wake_edge_indices)

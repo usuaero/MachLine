@@ -8,7 +8,6 @@
         "file": "dev/meshes/diamond_5_deg_full_coarse.stl",
         "spanwise_axis" : "+y",
         "wake_model": {
-            "append_wake" : false
         },
         "reference": {
             "area": 1.0
@@ -29,6 +28,7 @@
     },
     "output": {
         "body_file" :          "dev/results/diamond_5_deg_full_medium.vtk",
+        "wake_file" :          "dev/results/diamond_5_deg_full_medium_wake.vtk",
         "control_point_file" : "dev/results/diamond_5_deg_full_medium_control_points.vtk"
     }
 }

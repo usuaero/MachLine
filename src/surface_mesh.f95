@@ -873,6 +873,17 @@ contains
                 i_rearrange_inv(i_rearrange(i)) = i
             end do
 
+            ! Fix wake partners
+            do i=1,this%N_verts
+                temp_vertices(i)%i_wake_partner = i_rearrange_inv(temp_vertices(i)%i_wake_partner)
+            end do
+
+            ! Fix edge endpoints
+            do i=1,this%N_edges
+                this%edges(i)%verts(1) = i_rearrange_inv(this%edges(i)%verts(1))
+                this%edges(i)%verts(2) = i_rearrange_inv(this%edges(i)%verts(2))
+            end do
+
         else
 
             ! Copy vertices
