@@ -52,7 +52,8 @@ contains
         integer :: i, j, k, i_vert, i_panel, i_top_parent, i_bot_parent, i_start, i_stop, i1, i2, i3
         integer :: N_wake_edge_verts
 
-        write(*,'(a e10.4 a)',advance='no') "     Initializing wake with a Trefftz distance of ", trefftz_distance, "..."
+        if (verbose) write(*,'(a e10.4 a)',advance='no') "     Initializing wake with a Trefftz distance of ", &
+                                                         trefftz_distance, "..."
 
         ! Determine necessary number of vertices
         N_wake_edge_verts = size(top_edge_verts)
@@ -89,7 +90,7 @@ contains
             if (asym_flow) then
 
                 ! Determine start location
-                mirrored_start = mirror_about_plane(start, mirror_plane)
+                mirrored_start = mirror_across_plane(start, mirror_plane)
                 mirrored_distance = trefftz_distance-inner(mirrored_start, freestream%c_hat_g)
 
                 ! Determine vertex separation
@@ -116,7 +117,7 @@ contains
 
                     ! Determine location
                     i_vert = i_vert + this%N_verts/2
-                    mirrored_start = mirror_about_plane(start, mirror_plane)
+                    mirrored_start = mirror_across_plane(start, mirror_plane)
                     loc = mirrored_start + mirrored_vertex_separation*(j-1)*freestream%c_hat_g
 
                     ! Initialize vertex
@@ -240,7 +241,8 @@ contains
             call this%panels(i)%init_with_flow(freestream, .false., mirror_plane)
         end do
 
-        write(*,'(a, i7, a, i7, a)') "Done. Created ", this%N_verts, " wake vertices and ", this%N_panels, " wake panels."
+        if (verbose) write(*,'(a, i7, a, i7, a)') "Done. Created ", this%N_verts, " wake vertices and ", &
+                                                  this%N_panels, " wake panels."
 
     end subroutine wake_mesh_init
 

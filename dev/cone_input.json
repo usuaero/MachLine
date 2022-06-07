@@ -1,17 +1,22 @@
 {
     "flow": {
-        "freestream_velocity" : [ -100.0, 0.0, 0.0 ]
+        "freestream_velocity" : [ -100.0, 0.0, 0.0 ],
+        "gamma" : 1.4,
+        "freestream_mach_number" : 2.0
     },
     "geometry": {
-        "file": "dev/meshes/right_cone.vtk",
+        "file": "dev/meshes/right_cone_open.vtk",
         "mirror_about": "xy",
+        "wake_model" : {
+            "wake_present" : false
+        },
         "reference": {
             "area": 1.0
         }
     },
     "solver": {
         "formulation": "morino",
-        "control_point_offset": 1.1e-02
+        "control_point_offset": 1.1e-05
     },
     "post_processing" : {
     },
