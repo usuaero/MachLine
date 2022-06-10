@@ -39,6 +39,10 @@ def run_machline(input_file, remove_input=False):
     # Clean up results directory
     shutil.rmtree("test/results")
 
+    # Other files to clean up
+    if os.path.exists("iterative_solver_prog.csv"):
+        os.remove("iterative_solver_prog.csv")
+
     if not success:
         print(result.stdout)
         print(result.stderr)
