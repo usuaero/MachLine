@@ -39,30 +39,39 @@ module surface_mesh_mod
         logical :: mirrored ! Whether the mesh is to be mirrored about any planes
         integer :: mirror_plane ! Index of the plane across which the mesh is mirrored (1: yz, 2: xz, 3: xy); this is the index of the normal to that plane
         logical :: asym_flow ! Whether the flow is asymmetric about the mirror plane
-        logical :: found_discontinuous_edges
+        logical :: found_discontinuous_edges, midpoints_created
         real,dimension(:),allocatable :: mu, sigma ! Singularity strengths
         real :: S_ref ! Reference parameters
 
         contains
 
+            ! Basic initialization
             procedure :: init => surface_mesh_init
-            procedure :: init_with_flow => surface_mesh_init_with_flow
-            procedure :: output_results => surface_mesh_output_results
             procedure :: locate_adjacent_panels => surface_mesh_locate_adjacent_panels
             procedure :: store_adjacent_vertices => surface_mesh_store_adjacent_vertices
+
+            ! Initialization based on flow properties
+            procedure :: init_with_flow => surface_mesh_init_with_flow
             procedure :: characterize_edges => surface_mesh_characterize_edges
+            procedure :: clone_vertices => surface_mesh_clone_vertices
+            procedure :: set_up_mirroring => surface_mesh_set_up_mirroring
+            procedure :: rearrange_vertices => surface_mesh_rearrange_vertices
+            procedure :: calc_vertex_normals => surface_mesh_calc_vertex_normals
+
+            ! Helpers
             procedure :: find_vertices_on_mirror => surface_mesh_find_vertices_on_mirror
             procedure :: get_indices_to_panel_vertices => surface_mesh_get_indices_to_panel_vertices
             procedure :: allocate_new_vertices => surface_mesh_allocate_new_vertices
-            procedure :: clone_vertices => surface_mesh_clone_vertices
-            procedure :: set_up_mirroring => surface_mesh_set_up_mirroring
             procedure :: get_vertex_sorting_indices => surface_mesh_get_vertex_sorting_indices
-            procedure :: rearrange_vertices => surface_mesh_rearrange_vertices
-            procedure :: calc_vertex_normals => surface_mesh_calc_vertex_normals
+
+            ! Wake stuff
             procedure :: init_wake => surface_mesh_init_wake
             procedure :: update_supersonic_trefftz_distance => surface_mesh_update_supersonic_trefftz_distance
             procedure :: update_subsonic_trefftz_distance => surface_mesh_update_subsonic_trefftz_distance
             procedure :: place_interior_control_points => surface_mesh_place_interior_control_points
+
+            ! Post-processing
+            procedure :: output_results => surface_mesh_output_results
 
     end type surface_mesh
     
@@ -82,6 +91,9 @@ contains
         character(len=:),allocatable :: mesh_file, mirror_plane
         logical :: file_exists
         real :: wake_shedding_angle
+
+        ! Initialize a few things
+        this%midpoints_created = .false.
 
         ! Set singularity orders
         call json_xtnsn_get(settings, 'singularity_order.doublet', doublet_order, 1)
@@ -511,6 +523,10 @@ contains
                 end if
 
             end do
+
+            ! Set flag
+            this%midpoints_created = .true.
+
         end if
 
         if (verbose) write(*,"(a, i7, a)") "Done. Found ", this%N_edges, " edges."
@@ -603,10 +619,12 @@ contains
         call this%init_wake(freestream, wake_file)
 
         ! Set up influencing vertex arrays
+        if (verbose) write(*,"(a)",advance='no') "     Setting influencing vertices for panels..."
         !$OMP parallel do schedule(static)
         do i=1,this%N_panels
             call this%panels(i)%set_influencing_verts()
         end do
+        if (verbose) write(*,*) "Done."
     
     end subroutine surface_mesh_init_with_flow
 
@@ -827,7 +845,7 @@ contains
                 i_vertices(j,i) = this%panels(i)%get_vertex_index(j)
                 
                 ! Get midpoint indices
-                if (doublet_order == 2) then
+                if (this%midpoints_created) then
                     i_vertices(j+this%panels(i)%N,i) = this%panels(i)%get_midpoint_index(j)
                 end if
 
@@ -907,7 +925,7 @@ contains
                 this%panels(i)%vertices(j)%ptr => this%vertices(i_rearrange_inv(i_vertices(j,i)))
 
                 ! Fix midpoint pointers
-                if (doublet_order == 2) then
+                if (this%midpoints_created) then
                     this%panels(i)%midpoints(j)%ptr => this%vertices(i_rearrange_inv(i_vertices(j+this%panels(i)%N,i)))
                 end if
 
