@@ -289,3 +289,20 @@ def test_supersonic_half_wing_source_free_allow_wake_sym_flow():
     assert(abs(Cx - 0.142869043085108) < 1e-7)
     assert(abs(Cy) < 1.e-12)
     assert(abs(Cz - 0.892760941615457) < 2.1e-7)
+
+
+def test_fuselage_subsonic_compressible_iterative():
+
+    C_p_max, C_p_min, Cx, Cy, Cz = run_machline("test/fuselage_input.json")
+
+    print(C_p_max)
+    print(C_p_min)
+    print(Cx)
+    print(Cy)
+    print(Cz)
+
+    assert(abs(C_p_max - 0.955104302502646) < 1e-7)
+    assert(abs(C_p_min - -0.56745347779637) < 1e-7)
+    assert(abs(Cx) < 2.1e-3)
+    assert(abs(Cy) < 2.1e-3)
+    assert(abs(Cz) < 2.1e-3)
