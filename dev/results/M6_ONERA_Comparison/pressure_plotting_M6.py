@@ -128,7 +128,7 @@ class Swept_Plotting:
 
                         # Iterate over calculation type
                         for calc in self.calc_type:
-                            file = f"{data_type}_Data/{calc}/M6_{data_type}_data_{percent_semispan}_percent_semispan_mach_{mach_number[j]}_AoA_{AoA}.csv"
+                            file = f"csv_file_data/{calc}/M6_{data_type}_data_{percent_semispan}_percent_semispan_mach_{mach_number[j]}_AoA_{AoA}.csv"
                             
                             # Call plotting function
                             self.Pressure_Plot(file, calc)

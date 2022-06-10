@@ -41,9 +41,9 @@
         }
     },
     "output": {
-        "body_file": "dev/results/M6_ONERA_Comparison/M6_meshes/MachLine/pressure_corrections/MachLine_mach_0.7001_AoA_2.06_morino.vtk",
-        "wake_file": "dev/results/M6_ONERA_Comparison/M6_meshes/MachLine/pressure_corrections/MachLine_mach_0.7001_AoA_2.06_morino_wake.vtk",
-        "control_point_file": "dev/results/M6_ONERA_Comparison/M6_meshes/MachLine/pressure_corrections/MachLine_mach_0.7001_AoA_2.06_morino_control_points.vtk",
+        "body_file": "dev/results/M6_ONERA_Comparison/vtk_Results/MachLine/pressure_corrections/MachLine_mach_0.7001_AoA_2.06_morino.vtk",
+        "wake_file": "dev/results/M6_ONERA_Comparison/vtk_Results/MachLine/pressure_corrections/MachLine_mach_0.7001_AoA_2.06_morino_wake.vtk",
+        "control_point_file": "dev/results/M6_ONERA_Comparison/vtk_Results/MachLine/pressure_corrections/MachLine_mach_0.7001_AoA_2.06_morino_control_points.vtk",
         "report_file": "../../report.json"
     }
 }

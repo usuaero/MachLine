@@ -66,7 +66,7 @@ def mach_iter(AoA, calculation_type, freestream_mach_number):
 
     # Identify filebases used throughout iterator
     filebase = "dev/results/M6_ONERA_Comparison/"
-    output_filebase = filebase + "M6_meshes/MachLine/" + calculation_type + f"/MachLine_mach_{freestream_mach_number}_AoA_{AoA}"
+    output_filebase = filebase + "vtk_Results/MachLine/" + calculation_type + f"/MachLine_mach_{freestream_mach_number}_AoA_{AoA}"
 
     # Rewrite the input files based on angle of attack and mach number
     dict1 = {
