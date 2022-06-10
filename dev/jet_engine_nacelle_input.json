@@ -1,22 +1,21 @@
 {
     "flow": {
-        "freestream_velocity" : [100.0, 0.0, 0.0],
-        "freestream_mach_number" : 2.0
+        "freestream_velocity" : [100.0, 0.0, 0.0]
     },
     "geometry": {
-        "file": "dev/meshes/jet_engine_nacelle_supersonic.stl"
+        "file": "dev/meshes/jet_engine_nacelle_sharp_te.stl"
     },
     "solver": {
         "formulation": "morino",
         "control_point_offset": 1.1e-05,
-        "matrix_solver" : "BJAC",
+        "matrix_solver" : "LU",
         "tolerance" : 1e-12
     },
     "post_processing": {
     },
     "output": {
-        "body_file":          "dev/results/jet_engine_nacelle_supersonic.vtk",
-        "wake_file":          "dev/results/jet_engine_nacelle_supersonic_wake.vtk",
-        "control_point_file": "dev/results/jet_engine_nacelle_supersonic_control_points.vtk"
+        "body_file":          "dev/results/jet_engine_nacelle_sharp_te.vtk",
+        "wake_file":          "dev/results/jet_engine_nacelle_sharp_te_wake.vtk",
+        "control_point_file": "dev/results/jet_engine_nacelle_sharp_te_control_points.vtk"
     }
 }
