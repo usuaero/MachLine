@@ -1,0 +1,21 @@
+{
+    "flow": {
+        "freestream_velocity": [100.0, 0.0, 0.0],
+    },
+    "geometry": {
+        "file": "dev/meshes/jet_engine_nacelle.stl"
+    },
+    "solver": {
+        "formulation": "source-free",
+        "control_point_offset": 1.1e-05,
+        "matrix_solver" : "BJAC",
+        "tolerance" : 1e-14
+    },
+    "post_processing": {
+    },
+    "output": {
+        "body_file":          "dev/results/jet_engine_nacelle.vtk",
+        "wake_file":          "dev/results/jet_engine_nacelle_wake.vtk",
+        "control_point_file": "dev/results/jet_engine_nacelle_control_points.vtk"
+    }
+}
