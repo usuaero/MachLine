@@ -1,10 +1,12 @@
 {
     "flow": {
-        "freestream_velocity": [237.4, 0.0,0.25],
+        "freestream_velocity": [
+            237.39927183122396,
+            0.0,
+            0.24860402699246048
+        ],
         "gamma": 1.4,
-        "freestream_mach_number": 0
-        
-        
+        "freestream_mach_number": 0.0
     },
     "geometry": {
         "file": "dev/meshes/m6_onera.vtk",
@@ -19,7 +21,9 @@
         }
     },
     "solver": {
-        "formulation": "morino",
+        "formulation": [
+            "morino"
+        ],
         "control_point_offset": 1.1e-05
     },
     "post_processing": {
@@ -40,6 +44,6 @@
         "body_file": "dev/results/M6_ONERA_Comparison/M6_meshes/MachLine/pressure_corrections/MachLine_mach_0.6977_AoA_0.06_morino.vtk",
         "wake_file": "dev/results/M6_ONERA_Comparison/M6_meshes/MachLine/pressure_corrections/MachLine_mach_0.6977_AoA_0.06_morino_wake.vtk",
         "control_point_file": "dev/results/M6_ONERA_Comparison/M6_meshes/MachLine/pressure_corrections/MachLine_mach_0.6977_AoA_0.06_morino_control_points.vtk",
-        "report_file": "dev/report.json"
+        "report_file": "../../report.json"
     }
 }

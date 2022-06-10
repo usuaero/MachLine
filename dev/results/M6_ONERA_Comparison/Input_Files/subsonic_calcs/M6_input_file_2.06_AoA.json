@@ -1,10 +1,12 @@
 {
     "flow": {
-        "freestream_velocity": [238.0, 0.0,8.56],
+        "freestream_velocity": [
+            238.06207469606966,
+            0.0,
+            8.562922085107067
+        ],
         "gamma": 1.4,
         "freestream_mach_number": 0.7001
-        
-        
     },
     "geometry": {
         "file": "dev/meshes/m6_onera.vtk",
@@ -19,7 +21,9 @@
         }
     },
     "solver": {
-        "formulation": "morino",
+        "formulation": [
+            "morino"
+        ],
         "control_point_offset": 1.1e-05
     },
     "post_processing": {
@@ -27,7 +31,7 @@
         "pressure_rules": {
             "incompressible": false,
             "isentropic": true,
-            "second-order": false
+            "second-order": true
         },
         "subsonic_pressure_correction": {
             "correction_mach_number": 0.0,
@@ -40,6 +44,6 @@
         "body_file": "dev/results/M6_ONERA_Comparison/M6_meshes/MachLine/subsonic_calcs/MachLine_mach_0.7001_AoA_2.06_morino.vtk",
         "wake_file": "dev/results/M6_ONERA_Comparison/M6_meshes/MachLine/subsonic_calcs/MachLine_mach_0.7001_AoA_2.06_morino_wake.vtk",
         "control_point_file": "dev/results/M6_ONERA_Comparison/M6_meshes/MachLine/subsonic_calcs/MachLine_mach_0.7001_AoA_2.06_morino_control_points.vtk",
-        "report_file": "dev/report.json"
+        "report_file": "../../report.json"
     }
 }
