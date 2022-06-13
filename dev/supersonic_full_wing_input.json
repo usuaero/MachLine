@@ -1,14 +1,13 @@
 {
     "flow": {
-        "freestream_velocity": [100.0, 5.0, 5.0],
+        "freestream_velocity": [100.0, 0.0, 5.0],
         "gamma" : 1.4,
         "freestream_mach_number" : 2.0
     },
     "geometry": {
-        "file": "dev/meshes/diamond_5_deg_full_coarse.stl",
+        "file": "dev/meshes/diamond_5_deg_full_medium.stl",
         "spanwise_axis" : "+y",
         "wake_model" : {
-            "append_wake" : false
         },
         "reference": {
             "area": 1.0
@@ -18,8 +17,6 @@
         "formulation": "morino",
         "control_point_offset": 1.1e-05,
         "matrix_solver" : "LU",
-        "tolerance" : 1.0e-9,
-        "preconditioner" : "DIAG",
         "write_A_and_b" : true
     },
     "post_processing" : {
