@@ -524,10 +524,10 @@ contains
         type(flow),intent(in) :: freestream
 
         integer :: i, j, k, m, n, temp, top_panel, bottom_panel, i_vert_1, i_vert_2, N_wake_edge_verts
-        integer :: q, cross_max_dir, v_max_dir
         integer,dimension(:),allocatable :: wake_edge_verts
         real :: C_angle, C_min_angle
         real,dimension(3) :: second_normal, cross_result
+        real,dimension(3) :: t_hat_g, d
 
         if (verbose) write(*,'(a)',advance='no') "     Characterizing edges..."
 
@@ -539,7 +539,7 @@ contains
 
         ! Loop through each edge
         !$OMP parallel do private(i, j, second_normal, C_angle, i_vert_1, i_vert_2) reduction(min : C_min_angle) &
-        !$OMP & private(q, cross_result, cross_max_dir, v_max_dir) &
+        !$OMP & private(cross_result, d, t_hat_g) &
         !$OMP & default(none) shared(this, freestream, wake_edge_verts, N_wake_edge_verts)
         do k=1,this%N_edges
 
@@ -566,35 +566,22 @@ contains
             if (C_angle < this%C_wake_shedding_angle) then
 
                 ! Check angle of panel normal with freestream
-                if (inner(this%panels(i)%n_g, freestream%V_inf) > 0.0 .or. inner(second_normal, freestream%V_inf) > 0.0) then
-
-                    ! Check panel normal vectors cross product relationship with freestream
-                    cross_result = cross(this%panels(i)%n_g, second_normal)
-       
-                    do q=1,size(cross_result)
-                        ! Determine unit direction of max value in cross product result
-                        if (abs(cross_result(q)) == maxval(abs(cross_result))) then
-                            cross_max_dir = q
-                        end if
-
-                        ! Determine unit direction of max value in freestream velocity
-                        if (abs(freestream%V_inf(q)) == maxval(abs(freestream%V_inf))) then
-                            v_max_dir = q
-                        end if
-
-                    end do
-
-                    ! Verify sign of sine or panel normals in relation to freestream velocity
+                if (inner(this%panels(i)%n_g, freestream%V_inf) > 1e-12 .or. inner(second_normal, freestream%V_inf) > 1e-12) then
                     
-                    if 
+                    ! Verify sign of sine or panel normals in relation to freestream velocity
+                    ! Get vertex indices (simplifies later code)
+                    i_vert_1 = this%edges(k)%verts(1)
+                    i_vert_2 = this%edges(k)%verts(2)
+                    
+                    ! Calculate tangent in global coords
+                    d = this%vertices(i_vert_2)%loc - this%vertices(i_vert_1)%loc
+                    t_hat_g = d / norm2(d)
 
-                    ! Verify fuselage wing junction isn't creating a wake
-                    if (cross_max_dir /= v_max_dir) then
+                    cross_result = cross(this%panels(i)%n_g, second_normal)
 
-                        ! Get vertex indices (simplifies later code)
-                        i_vert_1 = this%edges(k)%verts(1)
-                        i_vert_2 = this%edges(k)%verts(2)
-
+                    ! Check sign between normal vectors cross product and edge tangent
+                    if (inner(cross_result, t_hat_g) > 0.0) then
+                    
                         ! Set the character of the edge
                         this%edges(k)%sheds_wake = .true.
                         this%edges(k)%discontinuous = .true.
@@ -639,6 +626,7 @@ contains
                         !$OMP end critical
 
                     end if
+                    
                 end if
             end if
 
