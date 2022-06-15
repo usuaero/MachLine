@@ -60,7 +60,7 @@ def mach_iter(AoA, Node, formulation, freestream):
         },
         "post_processing" : {
             "pressure_rules": {
-                "incompressible": False,
+                "incompressible": True,
                 "isentropic": False,
                 "second-order": False
         },
@@ -112,7 +112,7 @@ formulation_input = json_vals["solver"]["formulation"]
 
 # Identify number of CPU available to work with
 # n_processors = mp.cpu_count()
-n_processors = 8
+n_processors = 2
 
 Arguments = []
 

@@ -1,11 +1,12 @@
 {
     "flow": {
-        "freestream_velocity": [-100.0, 0.0, -10.0]
+        "freestream_velocity": [100.0, 0.0, 10.0]
     },
     "geometry": {
-        "file": "dev/meshes/F16_surfaceMesh_single.stl",
+        "file": "dev/meshes/F-16.stl",
         "spanwise_axis" : "+y",
         "wake_model": {
+            "wake_shedding_angle": 90
         },
         "reference": {
             "area": 1.0

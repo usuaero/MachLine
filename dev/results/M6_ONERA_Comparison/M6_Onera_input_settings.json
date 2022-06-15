@@ -1,17 +1,16 @@
 {
-   
     "geometry": {
         "semispan locations and AoA": {
-            "20":  ["0.06", "1.08", "2.06"],
-            "44":  ["0.06", "1.08", "2.06"],
-            "65": ["0.06", "1.08", "2.06"],
-            "80": ["0.06", "1.08", "2.06"],
-            "90": ["0.06", "1.08", "2.06"], 
-            "95": ["0.06", "1.08", "2.06"], 
-            "99": ["0.06", "1.08", "2.06"] 
+            "20":  ["6.09", "0.06", "3.06", "2.06", "1.08", "4.08", "5.06", "0.04"],
+            "44":  ["6.09", "0.06", "3.06", "2.06", "1.08", "4.08", "5.06", "0.04"],
+            "65": ["6.09", "0.06", "3.06", "2.06", "1.08", "4.08", "5.06", "0.04"],
+            "80": ["6.09", "0.06", "3.06", "2.06", "1.08", "4.08", "5.06", "0.04"],
+            "90": ["6.09", "0.06", "3.06", "2.06", "1.08", "4.08", "5.06", "0.04"], 
+            "95": ["6.09", "0.06", "3.06", "2.06", "1.08", "4.08", "5.06", "0.04"], 
+            "99": ["6.09", "0.06", "3.06", "2.06", "1.08", "4.08", "5.06", "0.04"] 
 
         },
-        "AoA list": ["0.06", "1.08", "2.06"],
+        "AoA list": ["6.09", "0.06", "3.06", "2.06", "1.08", "4.08", "5.06", "0.04"],
         "semispan_length": 1.1963,
         "sweep_angle[deg]": 30,
         "semispan_y_loc": {
@@ -24,30 +23,31 @@
             "99": 1.184
             
         },
-        "datasets": ["FlightStream", "MachLine"]
+        "datasets": ["MachLine"]
                 
     },
     
     "flow conditions": {
-        "freestream velocity": 163.0,
-        "mach_numbers": ["0.6977", "0.7003", "0.7001"]
+        "mach_numbers": ["0.6971", "0.6977", "0.6990", "0.7001", "0.7003", "0.7009", "0.7019", "0.8399" ]
         
     },
 
     "solver": {
         "formulation": ["morino"],
+        "calculation_type": ["pressure_corrections", "subsonic_calcs"],
         "control_point_offset": 1.1e-05,
         "options": ["formulation: source-free, morino. NOTE: Iterators can handle one formulation in the list.",
                     "control_point_offset:"]
     },
 
     "plots":{
-        "points to process": ["C_p_inc, sigma, v"],
-        "process_all": true,
+        "points_to_process": ["C_p_PG", "C_p_ise"],
+        "process_all": false,
         "save plots": false,
         "save plot type": "pdf",
         "combine pdfs": false,
-        "options": ["process_all: processes all plots and shows plots at every semispan location one at a time",
+        "options": ["points_to_process: selects the points to process and plot. Options are C_p_inc, C_p_PG, C_p_KT, C_p_L, C_p_ise, C_p_2nd, C_p_sln, C_p_lin",
+                    "process_all: processes all plots and shows plots at every semispan location one at a time",
                     "save plots: true or false",
                     "save plot type: pdf, or svg",
                     "combine pdfs: true or false, this will save combined pdfs in the plot summary file as well as in the respective semispan pdf_plots folder"]

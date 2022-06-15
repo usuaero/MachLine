@@ -639,7 +639,8 @@ contains
 
         integer :: i, j, k, m, n, temp, top_panel, bottom_panel, i_vert_1, i_vert_2, mid, N_wake_edges
         real :: C_angle, C_min_angle
-        real,dimension(3) :: second_normal
+        real,dimension(3) :: second_normal, cross_result
+        real,dimension(3) :: t_hat_g, d
 
         if (verbose) write(*,'(a)',advance='no') "     Characterizing edges..."
 
@@ -648,6 +649,7 @@ contains
         this%found_discontinuous_edges = .false.
 
         !$OMP parallel private(i, j, second_normal, C_angle, i_vert_1, i_vert_2, mid) &
+        !$OMP & private(cross_result, d, t_hat_g) &
         !$OMP & default(none) shared(this, freestream, doublet_order, N_wake_edges) reduction(min : C_min_angle)
 
         ! Loop through each edge
@@ -681,43 +683,52 @@ contains
 
                 ! Check angle of panel normal with freestream
                 if (inner(this%panels(i)%n_g, freestream%V_inf) > 0.0 .or. inner(second_normal, freestream%V_inf) > 0.0) then
-
-                    ! Having passed the previous two checks, we've found a wake-shedding edge
-
-                    ! Set that we've found discontinuous edges
-                    this%found_discontinuous_edges = .true.
-
+                    
                     ! Get vertex indices (simplifies later code)
                     i_vert_1 = this%edges(k)%verts(1)
                     i_vert_2 = this%edges(k)%verts(2)
+                    
+                    ! Calculate tangent in global coords
+                    d = this%vertices(i_vert_2)%loc - this%vertices(i_vert_1)%loc
+                    t_hat_g = d / norm2(d)
+                    
+                    cross_result = cross(this%panels(i)%n_g, second_normal)
+                    
+                    ! Check sign between normal vectors cross product and edge tangent
+                    if (inner(cross_result, t_hat_g) > 0.0) then
+                        
+                        ! Having passed the previous three checks, we've found a wake-shedding edge
+                        
+                        ! Set that we've found discontinuous edges
+                        this%found_discontinuous_edges = .true.
+                        
+                        ! Set the character of the edge
+                        this%edges(k)%sheds_wake = .true.
+                        this%edges(k)%discontinuous = .true.
 
-                    ! Set the character of the edge
-                    this%edges(k)%sheds_wake = .true.
-                    this%edges(k)%discontinuous = .true.
+                        ! Update information for midpoint vertex (unique for the edge, so this doesn't need to be inside the critical block)
+                        if (doublet_order == 2) then
+                            mid = this%edges(k)%i_midpoint
+                            this%vertices(mid)%N_wake_edges = 1
+                            this%vertices(mid)%N_discont_edges = 1
+                            this%vertices(mid)%clone = .true.
+                        end if
 
-                    ! Update information for midpoint vertex (unique for the edge, so this doesn't need to be inside the critical block)
-                    if (doublet_order == 2) then
-                        mid = this%edges(k)%i_midpoint
-                        this%vertices(mid)%N_wake_edges = 1
-                        this%vertices(mid)%N_discont_edges = 1
-                        this%vertices(mid)%clone = .true.
+                        !$OMP critical
+
+                        ! Update number of wake-shedding edges
+                        N_wake_edges = N_wake_edges + 1
+
+                        ! Update number of wake edges touching the first vertex
+                        this%vertices(i_vert_1)%N_wake_edges = this%vertices(i_vert_1)%N_wake_edges + 1
+                        this%vertices(i_vert_1)%N_discont_edges = this%vertices(i_vert_1)%N_discont_edges + 1
+
+                        ! Update number of wake edges touching the second vertex
+                        this%vertices(i_vert_2)%N_wake_edges = this%vertices(i_vert_2)%N_wake_edges + 1
+                        this%vertices(i_vert_2)%N_discont_edges = this%vertices(i_vert_2)%N_discont_edges + 1
+
+                        !$OMP end critical
                     end if
-
-                    !$OMP critical
-
-                    ! Update number of wake-shedding edges
-                    N_wake_edges = N_wake_edges + 1
-
-                    ! Update number of wake edges touching the first vertex
-                    this%vertices(i_vert_1)%N_wake_edges = this%vertices(i_vert_1)%N_wake_edges + 1
-                    this%vertices(i_vert_1)%N_discont_edges = this%vertices(i_vert_1)%N_discont_edges + 1
-
-                    ! Update number of wake edges touching the second vertex
-                    this%vertices(i_vert_2)%N_wake_edges = this%vertices(i_vert_2)%N_wake_edges + 1
-                    this%vertices(i_vert_2)%N_discont_edges = this%vertices(i_vert_2)%N_discont_edges + 1
-
-                    !$OMP end critical
-
                 end if
             end if
 

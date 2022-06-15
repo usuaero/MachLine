@@ -24,7 +24,7 @@
             "89.8": 44,
             "94.9": 46.5
         },
-        "nodes": ["10", "20"],
+        "nodes": ["80"],
         "nodes_notes": ["Nodes 80 and above need to be ran on Ryzen or",
                         "memory cap will fail"],
         "uniform chord length": 20
@@ -44,15 +44,22 @@
     },
 
     "plots":{
-        "points to process": ["C_p_inc, sigma, v"],
+        "points to process": ["C_p_inc"],
         "process_all": true,
         "save plots": true,
         "save plot type": "pdf",
         "combine pdfs": false,
+        "display pressure plots": false,
+        "compare formulations": true,
+        "x axis scale": "auto",
+        "y axis scale": "auto",
         "options": ["process_all: processes all plots and shows plots at every semispan location one at a time",
                     "save plots: true or false",
                     "save plot type: pdf, or svg",
-                    "combine pdfs: true or false, this will save combined pdfs in the plot summary file as well as in the respective semispan pdf_plots folder"]
+                    "combine pdfs: true or false, this will save combined pdfs in the plot summary file as well as in the respective semispan pdf_plots folder",
+                    "compare formulations: compares difference of results between more than one formulation. Uses first formulation given as the baseline if more than 2 are given.",
+                    "x axis scale: auto, or enter value to scale chart size",
+                    "y axis scale: auto, or enter value to scale chart size"]
 
     }
 
