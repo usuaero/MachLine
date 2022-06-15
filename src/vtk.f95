@@ -165,9 +165,9 @@ contains
             ! Number of vertices
             write(this%unit,'(i1) ',advance='no') panels(i)%N
 
-            ! Indices of each vertex; remember VTk files use 0-based indexing
+            ! Indices of each vertex; remember VTK files use 0-based indexing
             do j=1,panels(i)%N
-                write(this%unit,'(i20) ',advance='no') panels(i)%vertices(j)%ptr%index-1
+                write(this%unit,'(i20) ',advance='no') panels(i)%get_vertex_index(j) - 1
             end do
             
             ! Move to next line
@@ -395,8 +395,18 @@ contains
                 read(1,*) vertex_loc(1), vertex_loc(2), vertex_loc(3)
 
                 ! Initialize
-                call vertices(i)%init(vertex_loc, i)
+                call vertices(i)%init(vertex_loc, i, 1)
 
+            end do
+
+            ! Check for duplicate vertices
+            do i=1,N_verts
+                do j=i+1,N_verts
+                    if (dist(vertices(i)%loc, vertices(j)%loc) < 1e-12) then
+                        write(*,*) "!!! Detected duplicate vertices in ", mesh_file, " Solution quality may be reduced."
+                        write(*,*) "!!! ", i, " and ", j, " are duplicate vertices."
+                    end if
+                end do
             end do
 
             ! Determine number of panels

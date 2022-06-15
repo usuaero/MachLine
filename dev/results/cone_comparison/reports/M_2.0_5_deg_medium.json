@@ -1,0 +1,66 @@
+{
+    "info" : {
+        "generated_by" : "MachLine (c) 2022 USU Aerolab",
+        "executed" : "Fri May 20 14:23:58 2022"
+    },
+    "solver_results" : {
+        "residual" : {
+            "max" : 2.05391259555654E-015,
+            "norm" : 1.35553478351579E-014
+        }
+    },
+    "pressure_calculations" : {
+        "isentropic_rule" : {
+            "max" : 3.43952540756381E-002,
+            "min" : 3.43950350883200E-002
+        },
+        "second_order_rule" : {
+            "max" : 3.50687249000789E-002,
+            "min" : 3.50685016248747E-002
+        }
+    },
+    "total_forces" : {
+        "Cx" : -2.69961136968726E-002,
+        "Cy" : 6.88299571689494E-011,
+        "Cz" : 0.00000000000000E+000
+    },
+    "input" : {
+        "flow" : {
+            "freestream_velocity" : [
+                    -1.00000000000000E+002,
+                    0.00000000000000E+000,
+                    0.00000000000000E+000
+                ],
+            "gamma" : 1.40000000000000E+000,
+            "freestream_mach_number" : 2.00000000000000E+000
+        },
+        "geometry" : {
+            "file" : "dev/results/cone_comparison/meshes/cone_5_deg_medium.vtk",
+            "spanwise_axis" : "+y",
+            "mirror_about" : "xy",
+            "wake_model" : {
+                "append_wake" : false
+            },
+            "reference" : {
+                "area" : 4.00000000000000E+000
+            }
+        },
+        "solver" : {
+            "formulation" : "morino",
+            "control_point_offset" : 1.10000000000000E-008,
+            "run_checks" : true
+        },
+        "post_processing" : {
+            "pressure_rules" : {
+                "second-order" : true,
+                "isentropic" : true,
+                "slender-body" : true,
+                "linear" : true
+            }
+        },
+        "output" : {
+            "body_file" : "dev/results/cone_comparison/results/M_2.0_5_deg_medium.vtk",
+            "report_file" : "dev/results/cone_comparison/reports/M_2.0_5_deg_medium.json"
+        }
+    }
+}

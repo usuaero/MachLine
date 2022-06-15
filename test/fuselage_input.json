@@ -1,0 +1,21 @@
+{
+    "flow" : {
+        "freestream_velocity" : [100.0, 0.0, 0.0]
+    },
+    "geometry" : {
+        "file" : "test/commercial_fuselage.vtk"
+    },
+    "solver" : {
+        "formulation" : "morino",
+        "control_point_offset" : 1.0e-5,
+        "matrix_solver" : "BJAC",
+        "tolerance" : 1.0e-14
+    },
+    "post_processing" : {
+    },
+    "output" : {
+        "body_file" :          "test/results/commercial_fuselage.vtk",
+        "control_point_file" : "test/results/commercial_fuselage_control_points.vtk",
+        "report_file" : "test/results/report.json"
+    }
+}

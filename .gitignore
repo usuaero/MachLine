@@ -33,6 +33,9 @@
 
 # MachLine-specific files
 report.json
+iterative_solver_prog.csv
+A_mat.txt
+b_vec.txt
 
 # python stuff
 __pycache__/

@@ -7,6 +7,9 @@
         "file" : "dev/meshes/sphere.vtk",
         "wake_model" : {
             "wake_present" : false
+        },
+        "singularity_order" : {
+            "doublet" : 2
         }
     },
     "solver" : {
@@ -14,13 +17,10 @@
         "control_point_offset" : 1.0e-5
     },
     "post_processing" : {
-        "pressure_rules" : {
-            "isentropic" : true
-        }
     },
     "output" : {
-        "body_file" : "dev/results/sphere.vtk",
-        "wake_file" : "dev/results/sphere_wake.vtk",
+        "body_file" :          "dev/results/sphere.vtk",
+        "wake_file" :          "dev/results/sphere_wake.vtk",
         "control_point_file" : "dev/results/sphere_control_points.vtk"
     }
 }

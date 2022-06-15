@@ -21,43 +21,57 @@ module surface_mesh_mod
 
     type surface_mesh
 
-        integer :: N_verts, N_panels, N_cp, N_edges, N_wake_edges
+        integer :: N_verts, N_panels, N_cp, N_edges
         type(vertex),allocatable,dimension(:) :: vertices
         type(panel),allocatable,dimension(:) :: panels
         type(edge),allocatable,dimension(:) :: edges
         type(wake_mesh) :: wake
-        integer,allocatable,dimension(:) :: wake_edge_verts
         real :: C_wake_shedding_angle, trefftz_distance, C_min_panel_angle
         integer :: N_wake_panels_streamwise
         logical :: wake_present, append_wake
         real,dimension(:,:),allocatable :: cp, cp_mirrored
         real,dimension(:),allocatable :: phi_cp, phi_cp_sigma, phi_cp_mu ! Induced potentials at control points
-        real,dimension(:),allocatable :: C_p_pg, C_p_lai, C_p_kt ! Corrected surface pressure coefficients
         real,dimension(:),allocatable :: Phi_u ! Total potential on outer surface
+        real,dimension(:),allocatable :: C_p_pg, C_p_lai, C_p_kt ! Corrected surface pressure coefficients
         real,dimension(:),allocatable :: C_p_inc, C_p_ise, C_p_2nd, C_p_sln, C_p_lin ! Surface pressure coefficients
         real,dimension(:,:),allocatable :: V, dC_f ! Surface velocities and pressure forces
         real :: control_point_offset
         logical :: mirrored ! Whether the mesh is to be mirrored about any planes
         integer :: mirror_plane ! Index of the plane across which the mesh is mirrored (1: yz, 2: xz, 3: xy); this is the index of the normal to that plane
         logical :: asym_flow ! Whether the flow is asymmetric about the mirror plane
+        logical :: found_discontinuous_edges, midpoints_created
         real,dimension(:),allocatable :: mu, sigma ! Singularity strengths
         real :: S_ref ! Reference parameters
 
         contains
 
+            ! Basic initialization
             procedure :: init => surface_mesh_init
-            procedure :: init_with_flow => surface_mesh_init_with_flow
-            procedure :: output_results => surface_mesh_output_results
             procedure :: locate_adjacent_panels => surface_mesh_locate_adjacent_panels
+            procedure :: store_adjacent_vertices => surface_mesh_store_adjacent_vertices
+
+            ! Initialization based on flow properties
+            procedure :: init_with_flow => surface_mesh_init_with_flow
             procedure :: characterize_edges => surface_mesh_characterize_edges
-            procedure :: find_vertices_on_mirror => surface_mesh_find_vertices_on_mirror
             procedure :: clone_vertices => surface_mesh_clone_vertices
             procedure :: set_up_mirroring => surface_mesh_set_up_mirroring
+            procedure :: rearrange_vertices => surface_mesh_rearrange_vertices
             procedure :: calc_vertex_normals => surface_mesh_calc_vertex_normals
+
+            ! Helpers
+            procedure :: find_vertices_on_mirror => surface_mesh_find_vertices_on_mirror
+            procedure :: get_indices_to_panel_vertices => surface_mesh_get_indices_to_panel_vertices
+            procedure :: allocate_new_vertices => surface_mesh_allocate_new_vertices
+            procedure :: get_vertex_sorting_indices => surface_mesh_get_vertex_sorting_indices
+
+            ! Wake stuff
             procedure :: init_wake => surface_mesh_init_wake
             procedure :: update_supersonic_trefftz_distance => surface_mesh_update_supersonic_trefftz_distance
             procedure :: update_subsonic_trefftz_distance => surface_mesh_update_subsonic_trefftz_distance
             procedure :: place_interior_control_points => surface_mesh_place_interior_control_points
+
+            ! Post-processing
+            procedure :: output_results => surface_mesh_output_results
 
     end type surface_mesh
     
@@ -78,6 +92,9 @@ contains
         logical :: file_exists
         real :: wake_shedding_angle
 
+        ! Initialize a few things
+        this%midpoints_created = .false.
+
         ! Set singularity orders
         call json_xtnsn_get(settings, 'singularity_order.doublet', doublet_order, 1)
         call json_xtnsn_get(settings, 'singularity_order.source', source_order, 0)
@@ -91,8 +108,8 @@ contains
         end if
 
         ! Check doublet distribution
-        if (doublet_order /= 1) then
-            write(*,*) "!!! Only linear doublet distributions are allowed. Quitting..."
+        if (doublet_order < 1 .or. doublet_order > 2) then
+            write(*,*) "!!! Only linear or quadratic doublet distributions are allowed. Quitting..."
             stop
         end if
 
@@ -211,14 +228,16 @@ contains
 
         implicit none
 
-        class(surface_mesh),intent(inout) :: this
+        class(surface_mesh),intent(inout),target :: this
 
-        integer :: i, j, m, n, m1, n1, temp, i_edge, i_panel1, i_panel2, i_vert1, i_vert2, edge_on_mirror, i_edge1, i_edge2, N_edges
-        logical :: already_found_shared, dummy
+        integer :: i, j, m, n, m1, n1, temp, i_edge, N_edges, i_mid, N_orig_verts
+        logical :: already_found_shared, watertight
         real :: distance
-        integer,dimension(2) :: shared_verts
-        integer,dimension(this%N_panels*3) :: panel1, panel2, vertex1, vertex2, edge_index1, edge_index2
+        integer,dimension(2) :: i_endpoints
+        integer,dimension(this%N_panels*3) :: panel1, panel2, vertex1, vertex2, edge_index1, edge_index2 ! By definition, we will have no more than 3*N_panels edges; we should have much less, but some people...
+        real,dimension(this%N_panels*3) :: edge_length
         logical,dimension(this%N_panels*3) :: on_mirror_plane
+        real,dimension(3) :: loc
         
 
         if (verbose) write(*,'(a)',advance='no') "     Locating adjacent panels..."
@@ -227,9 +246,8 @@ contains
         on_mirror_plane = .false.
 
         ! Loop through each panel
-        N_edges = 0
-        !$OMP parallel private(j, already_found_shared, distance, shared_verts, m, m1, n, n1, temp, i_edge) &
-        !$OMP private(i_panel1, i_panel2, i_vert1, i_vert2, edge_on_mirror, i_edge1, i_edge2)
+        this%N_edges = 0
+        !$OMP parallel private(j, already_found_shared, distance, i_endpoints, m, m1, n, n1, temp, i_edge)
 
         !$OMP do schedule(dynamic)
         do i=1,this%N_panels
@@ -249,43 +267,30 @@ contains
                 abutting_loop: do m=1,this%panels(i)%N
                     do n=1,this%panels(j)%N
 
-                        ! Get distance between vertices. This is more robust than checking vertex indices; mesh may not be ideal.
-                        ! TODO : refine mesh import to ensure we can do this purely off of indices
-                        distance = dist(this%panels(i)%get_vertex_loc(m), this%panels(j)%get_vertex_loc(n))
-
-                        ! Check distance
-                        if (distance < 1.e-12) then
+                        ! Check if vertices have the same index
+                        if (this%panels(i)%get_vertex_index(m) == this%panels(j)%get_vertex_index(n)) then
 
                             ! Previously found a shared vertex, so we have abutting panels
                             if (already_found_shared) then
 
                                 ! Store second shared vertex
-                                shared_verts(2) = this%panels(i)%get_vertex_index(m)
+                                i_endpoints(2) = this%panels(i)%get_vertex_index(m)
 
                                 ! Check order; edge should proceed counterclockwise about panel i
                                 if (m1 == 1 .and. m == this%panels(i)%N) then
-                                    temp = shared_verts(1)
-                                    shared_verts(1) = shared_verts(2)
-                                    shared_verts(2) = temp
+                                    temp = i_endpoints(1)
+                                    i_endpoints(1) = i_endpoints(2)
+                                    i_endpoints(2) = temp
                                 end if
 
                                 !$OMP critical
                                 
                                 ! Update number of edges
-                                N_edges = N_edges + 1
-                                i_edge = N_edges
+                                this%N_edges = this%N_edges + 1
+                                i_edge = this%N_edges
 
                                 ! Store vertices being adjacent to one another
-                                if (.not. this%vertices(shared_verts(1))%adjacent_vertices%is_in(shared_verts(2))) then
-                                    call this%vertices(shared_verts(1))%adjacent_vertices%append(shared_verts(2))
-                                end if
-                                if (.not. this%vertices(shared_verts(2))%adjacent_vertices%is_in(shared_verts(1))) then
-                                    call this%vertices(shared_verts(2))%adjacent_vertices%append(shared_verts(1))
-                                end if
-
-                                ! Store that this edge touches the two end vertices
-                                call this%vertices(shared_verts(1))%adjacent_edges%append(i_edge)
-                                call this%vertices(shared_verts(2))%adjacent_edges%append(i_edge)
+                                call this%store_adjacent_vertices(i_endpoints, i_edge)
 
                                 ! Store adjacent panels and panel edges
                                 ! This stores the adjacent panels and edges according to the index of that edge
@@ -297,31 +302,28 @@ contains
                                 ! Otherwise, we're dealing with abs(n1-n) being 1, meaning edge min(n1, n).
                                 if ( (n1 == 1 .and. n == this%panels(j)%N) .or. (n == 1 .and. n1 == this%panels(j)%N) ) then
                                     this%panels(j)%abutting_panels(this%panels(j)%N) = i
-                                    this%panels(j)%edges(this%panels(j)%N) = i_edge
                                     edge_index2(i_edge) = this%panels(j)%N
                                 else
                                     n1 = min(n, n1)
                                     this%panels(j)%abutting_panels(n1) = i
-                                    this%panels(j)%edges(n1) = i_edge
                                     edge_index2(i_edge) = n1
                                 end if
 
                                 ! Store that j is adjacent to i
                                 if (m1 == 1 .and. m == this%panels(i)%N) then ! Nth edge
                                     this%panels(i)%abutting_panels(m) = j
-                                    this%panels(i)%edges(m) = i_edge
                                     edge_index1(i_edge) = m
                                 else ! 1st or 2nd edge
                                     this%panels(i)%abutting_panels(m1) = j
-                                    this%panels(i)%edges(m1) = i_edge
                                     edge_index1(i_edge) = m1
                                 end if
 
                                 ! Store information in arrays for later storage in edge objects
                                 panel1(i_edge) = i
                                 panel2(i_edge) = j
-                                vertex1(i_edge) = shared_verts(1)
-                                vertex2(i_edge) = shared_verts(2)
+                                vertex1(i_edge) = i_endpoints(1)
+                                vertex2(i_edge) = i_endpoints(2)
+                                edge_length(i_edge) = dist(this%vertices(i_endpoints(1))%loc, this%vertices(i_endpoints(2))%loc)
 
                                 !$OMP end critical
                                 
@@ -332,7 +334,7 @@ contains
                             else
 
                                 already_found_shared = .true.
-                                shared_verts(1) = this%panels(i)%get_vertex_index(m)
+                                i_endpoints(1) = this%panels(i)%get_vertex_index(m)
                                 m1 = m
                                 n1 = n
 
@@ -354,55 +356,54 @@ contains
                 ! Loop through vertices
                 mirror_loop: do m=1,this%panels(i)%N
 
+                    ! Check if we've found all neighbors for this panel
+                    if (all(this%panels(i)%abutting_panels /= 0)) then
+                        exit mirror_loop
+                    end if
+
                     ! Check if vertex is on the mirror plane
-                    n = this%panels(i)%vertex_indices(m)
+                    n = this%panels(i)%get_vertex_index(m)
                     if (this%vertices(n)%on_mirror_plane) then
 
                         ! Previously found a vertex on mirror plane, so the panels are abutting
                         if (already_found_shared) then
 
                             ! Store the second shared vertex
-                            shared_verts(2) = n
+                            i_endpoints(2) = n
 
                             ! Check order
                             if (m1 == 1 .and. m == 3) then
-                                temp = shared_verts(1)
-                                shared_verts(1) = shared_verts(2)
-                                shared_verts(2) = temp
+                                temp = i_endpoints(1)
+                                i_endpoints(1) = i_endpoints(2)
+                                i_endpoints(2) = temp
                             end if
 
                             !$OMP critical
                             
                             ! Update number of edges
-                            N_edges = N_edges + 1
-                            i_edge = N_edges
+                            this%N_edges = this%N_edges + 1
+                            i_edge = this%N_edges
 
                             ! Store adjacent vertices
-                            if (.not. this%vertices(shared_verts(1))%adjacent_vertices%is_in(shared_verts(2))) then
-                                call this%vertices(shared_verts(1))%adjacent_vertices%append(shared_verts(2))
-                            end if
-                            if (.not. this%vertices(shared_verts(2))%adjacent_vertices%is_in(shared_verts(1))) then
-                                call this%vertices(shared_verts(2))%adjacent_vertices%append(shared_verts(1))
-                            end if
+                            call this%store_adjacent_vertices(i_endpoints, i_edge)
 
                             ! Store adjacent panel
                             if (m-m1 == 1) then
                                 this%panels(i)%abutting_panels(m1) = i+this%N_panels
-                                this%panels(i)%edges(m1) = i_edge
                                 edge_index1(i_edge) = m1
                             else
                                 this%panels(i)%abutting_panels(m) = i+this%N_panels
-                                this%panels(i)%edges(m) = i_edge
                                 edge_index1(i_edge) = m
                             end if
 
                             ! Store in arrays for later storage in edge objects
                             panel1(i_edge) = i
                             panel2(i_edge) = i+this%N_panels
-                            vertex1(i_edge) = shared_verts(1)
-                            vertex2(i_edge) = shared_verts(2)
+                            vertex1(i_edge) = i_endpoints(1)
+                            vertex2(i_edge) = i_endpoints(2)
                             on_mirror_plane(i_edge) = .true.
                             edge_index2(i_edge) = 0 ! Just a placeholder since the second panel doesn't technically exist
+                            edge_length(i_edge) = dist(this%vertices(i_endpoints(1))%loc, this%vertices(i_endpoints(2))%loc)
 
                             !$OMP end critical
 
@@ -413,7 +414,7 @@ contains
                         else
 
                             already_found_shared = .true.
-                            shared_verts(1) = n
+                            i_endpoints(1) = n
                             m1 = m
 
                         end if
@@ -425,21 +426,43 @@ contains
 
         end do
 
-        ! Check that no panel abuts empty space (i.e. non-watertight mesh)
-        if (run_checks) then
-            !$OMP do schedule(static)
-            do i=1,this%N_panels
-                if (any(this%panels(i)%abutting_panels == 0)) then
-                    write(*,*)
-                    write(*,*) "!!! The supplied mesh is not watertight. Panel", i, "is missing at least one neighbor."
-                    write(*,*) "!!! Solution quality may be adversely affected."
+        ! Check for panels abutting empty space and add those edges.
+        !$OMP single
+        watertight = .true.
+        do i=1,this%N_panels
+
+            ! Check for an edge with no abutting panel
+            do j=1,this%panels(i)%N
+                if (this%panels(i)%abutting_panels(j) == 0) then
+
+                    ! Mark that the mesh is not watertight
+                    watertight = .false.
+
+                    ! Get endpoint indices
+                    i_endpoints(1) = this%panels(i)%get_vertex_index(j)
+                    i_endpoints(2) = this%panels(i)%get_vertex_index(mod(j, this%panels(i)%N) + 1)
+
+                    ! Set up an edge
+                    this%N_edges = this%N_edges + 1
+                    i_edge = this%N_edges
+                    panel1(i_edge) = i
+                    panel2(i_edge) = 0 ! Placeholder
+                    vertex1(i_edge) = i_endpoints(1)
+                    vertex2(i_edge) = i_endpoints(2)
+                    on_mirror_plane(i_edge) = .false.
+                    edge_index1(i_edge) = j
+                    edge_index2(i_edge) = 0
+
+                    ! Store adjacent vertices
+                    call this%store_adjacent_vertices(i_endpoints, i_edge)
+
                 end if
             end do
-        end if
+        end do
+        if (run_checks .and. .not. watertight) write(*,*) "!!! The supplied mesh is not watertight. &
+                                                               Solution quality may be adversely affected."
 
         ! Allocate edge storage
-        !$OMP single
-        this%N_edges = N_edges
         allocate(this%edges(this%N_edges))
         !$OMP end single
 
@@ -448,7 +471,7 @@ contains
         do i=1,this%N_edges
 
             ! Initialize
-            call this%edges(i)%init(vertex1(i), vertex2(i), panel1(i), panel2(i))
+            call this%edges(i)%init(vertex1(i), vertex2(i), panel1(i), panel2(i), edge_length(i))
 
             ! Store more information
             this%edges(i)%on_mirror_plane = on_mirror_plane(i)
@@ -459,9 +482,85 @@ contains
 
         !$OMP end parallel
 
+        ! Initialize midpoint vertex objects
+        if (doublet_order == 2) then
+
+            ! Allocate more space
+            call this%allocate_new_vertices(this%N_edges)
+            N_orig_verts = this%N_verts - this%N_edges
+
+            do i=1,this%N_edges
+
+                ! Determine location
+                loc = 0.5*(this%vertices(vertex1(i))%loc + this%vertices(vertex2(i))%loc)
+
+                ! Initialize vertex object
+                i_mid = N_orig_verts + i
+                call this%vertices(i_mid)%init(loc, i_mid, 2)
+                this%vertices(i_mid)%l_avg = edge_length(i)
+
+                ! Add adjacent vertices
+                call this%vertices(i_mid)%adjacent_vertices%append(vertex1(i))
+                call this%vertices(i_mid)%adjacent_vertices%append(vertex2(i))
+
+                ! Add adjacent panels
+                call this%vertices(i_mid)%panels%append(panel1(i))
+                if (panel2(i) > 0 .and. panel2(i) <= this%N_panels) then
+                    call this%vertices(i_mid)%panels%append(panel2(i))
+                end if
+
+                ! Add edge
+                call this%vertices(i_mid)%adjacent_edges%append(i)
+
+                ! Point edge to it
+                this%edges(i)%i_midpoint = i_mid
+
+                ! Point panels to it
+                this%panels(panel1(i))%midpoints(edge_index1(i))%ptr => this%vertices(i_mid)
+
+                if (panel2(i) > 0 .and. panel2(i) <= this%N_panels) then
+                    this%panels(panel2(i))%midpoints(edge_index2(i))%ptr => this%vertices(i_mid)
+                end if
+
+            end do
+
+            ! Set flag
+            this%midpoints_created = .true.
+
+        end if
+
         if (verbose) write(*,"(a, i7, a)") "Done. Found ", this%N_edges, " edges."
+
+        ! Print info for added midpoint vertices
+        if (verbose .and. doublet_order == 2) write(*,"(a, i7, a, i7, a)") "     For a quadratic doublet distribution, ", &
+                                                                           this%N_edges, " vertices were added. Mesh now has ", &
+                                                                           this%N_verts, " vertices."
     
     end subroutine surface_mesh_locate_adjacent_panels
+
+
+    subroutine surface_mesh_store_adjacent_vertices(this, i_verts, i_edge)
+        ! Stores that the given two vertices are adjacent (i.e. they share an edge)
+
+        implicit none
+
+        class(surface_mesh), intent(inout) :: this
+        integer,dimension(2), intent(in) :: i_verts
+        integer,intent(in) :: i_edge
+
+        ! Store that the vertices are adjacent
+        if (.not. this%vertices(i_verts(1))%adjacent_vertices%is_in(i_verts(2))) then
+            call this%vertices(i_verts(1))%adjacent_vertices%append(i_verts(2))
+        end if
+        if (.not. this%vertices(i_verts(2))%adjacent_vertices%is_in(i_verts(1))) then
+            call this%vertices(i_verts(2))%adjacent_vertices%append(i_verts(1))
+        end if
+
+        ! Store that they touch this edge
+        call this%vertices(i_verts(1))%adjacent_edges%append(i_edge)
+        call this%vertices(i_verts(2))%adjacent_edges%append(i_edge)
+        
+    end subroutine surface_mesh_store_adjacent_vertices
 
 
     subroutine surface_mesh_init_with_flow(this, freestream, wake_file)
@@ -503,14 +602,29 @@ contains
             call this%set_up_mirroring()
         end if
 
-        ! Clone necessary vertices and calculate normals (for placing control points)
+        ! Clone necessary vertices
         if (this%wake_present .or. freestream%supersonic) then
             call this%clone_vertices()
         end if
+
+        ! For supersonic flows, rearrange the vertices to proceed in the freestream direction
+        if (freestream%supersonic) then
+            call this%rearrange_vertices(freestream)
+        end if
+
+        ! Calculate normals (for placing control points)
         call this%calc_vertex_normals()
 
-        ! INitialize wake
+        ! Initialize wake
         call this%init_wake(freestream, wake_file)
+
+        ! Set up influencing vertex arrays
+        if (verbose) write(*,"(a)",advance='no') "     Setting influencing vertices for panels..."
+        !$OMP parallel do schedule(static)
+        do i=1,this%N_panels
+            call this%panels(i)%set_influencing_verts()
+        end do
+        if (verbose) write(*,*) "Done."
     
     end subroutine surface_mesh_init_with_flow
 
@@ -523,8 +637,7 @@ contains
         class(surface_mesh),intent(inout) :: this
         type(flow),intent(in) :: freestream
 
-        integer :: i, j, k, m, n, temp, top_panel, bottom_panel, i_vert_1, i_vert_2, N_wake_edge_verts
-        integer,dimension(:),allocatable :: wake_edge_verts
+        integer :: i, j, k, m, n, temp, top_panel, bottom_panel, i_vert_1, i_vert_2, mid, N_wake_edges
         real :: C_angle, C_min_angle
         real,dimension(3) :: second_normal, cross_result
         real,dimension(3) :: t_hat_g, d
@@ -532,20 +645,23 @@ contains
         if (verbose) write(*,'(a)',advance='no') "     Characterizing edges..."
 
         ! Initialize
-        allocate(wake_edge_verts(this%N_verts/4)) ! I sure hope you're not trying to run a mesh where every fourth vertex has a wake emanating from it...
-        this%N_wake_edges = 0
-        N_wake_edge_verts = 0
-        C_min_angle = 100.
+        N_wake_edges = 0
+        this%found_discontinuous_edges = .false.
+
+        !$OMP parallel private(i, j, second_normal, C_angle, i_vert_1, i_vert_2, mid) &
+        !$OMP & private(cross_result, d, t_hat_g) &
+        !$OMP & default(none) shared(this, freestream, doublet_order, N_wake_edges) reduction(min : C_min_angle)
 
         ! Loop through each edge
-        !$OMP parallel do private(i, j, second_normal, C_angle, i_vert_1, i_vert_2) reduction(min : C_min_angle) &
-        !$OMP & private(cross_result, d, t_hat_g) &
-        !$OMP & default(none) shared(this, freestream, wake_edge_verts, N_wake_edge_verts)
+        !$OMP do schedule(dynamic)
         do k=1,this%N_edges
 
             ! Get info
             i = this%edges(k)%panels(1)
             j = this%edges(k)%panels(2)
+
+            ! Skip edge on empty space
+            if (j == 0) cycle
 
             ! Get normal for panel j (dependent on mirroring)
             if (this%edges(k)%on_mirror_plane) then
@@ -566,9 +682,8 @@ contains
             if (C_angle < this%C_wake_shedding_angle) then
 
                 ! Check angle of panel normal with freestream
-                if (inner(this%panels(i)%n_g, freestream%V_inf) > 1e-12 .or. inner(second_normal, freestream%V_inf) > 1e-12) then
+                if (inner(this%panels(i)%n_g, freestream%V_inf) > 0.0 .or. inner(second_normal, freestream%V_inf) > 0.0) then
                     
-                    ! Verify sign of sine or panel normals in relation to freestream velocity
                     ! Get vertex indices (simplifies later code)
                     i_vert_1 = this%edges(k)%verts(1)
                     i_vert_2 = this%edges(k)%verts(2)
@@ -576,69 +691,61 @@ contains
                     ! Calculate tangent in global coords
                     d = this%vertices(i_vert_2)%loc - this%vertices(i_vert_1)%loc
                     t_hat_g = d / norm2(d)
-
+                    
                     cross_result = cross(this%panels(i)%n_g, second_normal)
-
+                    
                     ! Check sign between normal vectors cross product and edge tangent
                     if (inner(cross_result, t_hat_g) > 0.0) then
-                    
+                        
+                        ! Having passed the previous three checks, we've found a wake-shedding edge
+                        
+                        ! Set that we've found discontinuous edges
+                        this%found_discontinuous_edges = .true.
+                        
                         ! Set the character of the edge
                         this%edges(k)%sheds_wake = .true.
                         this%edges(k)%discontinuous = .true.
 
+                        ! Update information for midpoint vertex (unique for the edge, so this doesn't need to be inside the critical block)
+                        if (doublet_order == 2) then
+                            mid = this%edges(k)%i_midpoint
+                            this%vertices(mid)%N_wake_edges = 1
+                            this%vertices(mid)%N_discont_edges = 1
+                            this%vertices(mid)%clone = .true.
+                        end if
+
                         !$OMP critical
 
                         ! Update number of wake-shedding edges
-                        this%N_wake_edges = this%N_wake_edges + 1
+                        N_wake_edges = N_wake_edges + 1
 
-                        ! If this vertex does not already belong to a wake-shedding edge, add it to the list of wake edge vertices
-                        if (this%vertices(i_vert_1)%N_wake_edges == 0) then 
-                            N_wake_edge_verts = N_wake_edge_verts + 1
-                            wake_edge_verts(N_wake_edge_verts) = i_vert_1
-                            this%vertices(i_vert_1)%index_in_wake_vertices = N_wake_edge_verts
-
-                        ! If it does already belong to a wake-shedding edge, then we may now conclude it is 'in' an edge
-                        ! Because of this, it will likely need to be cloned unless it's on a mirror plane
-                        else if (.not. this%edges(k)%on_mirror_plane) then
-                            this%vertices(i_vert_1)%needs_clone = .true.
-                        end if
-
-                        ! Update number of wake edges touching this vertex
+                        ! Update number of wake edges touching the first vertex
                         this%vertices(i_vert_1)%N_wake_edges = this%vertices(i_vert_1)%N_wake_edges + 1
                         this%vertices(i_vert_1)%N_discont_edges = this%vertices(i_vert_1)%N_discont_edges + 1
 
-                        ! Do the same for the other vertex
-                        if (this%vertices(i_vert_2)%N_wake_edges == 0) then 
-                            N_wake_edge_verts = N_wake_edge_verts + 1
-                            wake_edge_verts(N_wake_edge_verts) = i_vert_2
-                            this%vertices(i_vert_2)%index_in_wake_vertices = N_wake_edge_verts
-
-                        ! If it does already belong to a wake-shedding edge, then we may now conclude it is 'in' an edge
-                        ! Because of this, it will likely need to be cloned unless it's on a mirror plane
-                        else if (.not. this%edges(k)%on_mirror_plane) then
-                            this%vertices(i_vert_2)%needs_clone = .true.
-                        end if
-
-                        ! Update number of wake edges touching this vertex
+                        ! Update number of wake edges touching the second vertex
                         this%vertices(i_vert_2)%N_wake_edges = this%vertices(i_vert_2)%N_wake_edges + 1
                         this%vertices(i_vert_2)%N_discont_edges = this%vertices(i_vert_2)%N_discont_edges + 1
 
                         !$OMP end critical
-
                     end if
-                    
                 end if
             end if
 
         end do
 
+        ! If a given vertex is touching at least two wake-shedding edges, it will need to be cloned
+        !$OMP do schedule(static)
+        do i=1,this%N_verts
+            if (this%vertices(i)%N_wake_edges >= 2) this%vertices(i)%clone = .true.
+        end do
+
+        !$OMP end parallel
+
         ! Store minimum angle
         this%C_min_panel_angle = C_min_angle
 
-        ! Allocate wake vertices array
-        allocate(this%wake_edge_verts, source=wake_edge_verts(1:N_wake_edge_verts))
-
-        if (verbose) write(*,'(a, i3, a, i3, a)') "Done. Found ", this%N_wake_edges, " wake-shedding edges."
+        if (verbose) write(*,'(a, i3, a, i3, a)') "Done. Found ", N_wake_edges, " wake-shedding edges."
 
     end subroutine surface_mesh_characterize_edges
 
@@ -650,9 +757,9 @@ contains
 
         class(surface_mesh),intent(inout) :: this
 
-        integer :: i, j, m, n
+        integer :: i, j, m, n, mid
 
-        if (verbose) write(*,'(a)',advance='no') "     Setting up mesh mirror..."
+        if (verbose) write(*,'(a)',advance='no') "     Setting up mesh mirroring..."
 
         ! If a vertex on the mirror plane doesn't belong to a discontinuous edge, then its mirror will not be unique
         do i=1,this%N_verts
@@ -669,9 +776,10 @@ contains
             ! Check if it is discontinuous
             if (this%edges(i)%discontinuous) then
 
-                ! Get endpoint indices
+                ! Get vertex indices
                 m = this%edges(i)%verts(1)
                 n = this%edges(i)%verts(2)
+                if (doublet_order == 2) mid = this%edges(i)%i_midpoint
 
                 ! If a given discontinuous edge has only one of its endpoints lying on the mirror plane, then that endpoint has another
                 ! adjacent edge, since the edge will be mirrored across that plane. This endpoint will need a clone, but it's mirrored
@@ -685,16 +793,22 @@ contains
 
                         this%vertices(m)%N_wake_edges = this%vertices(m)%N_wake_edges + 1
                         this%vertices(m)%N_discont_edges = this%vertices(m)%N_discont_edges + 1
-                        this%vertices(m)%needs_clone = .true.
+                        this%vertices(m)%clone = .true.
                         this%vertices(m)%mirrored_is_unique = .false.
 
                     else
 
                         this%vertices(n)%N_wake_edges = this%vertices(n)%N_wake_edges + 1
                         this%vertices(n)%N_discont_edges = this%vertices(n)%N_discont_edges + 1
-                        this%vertices(n)%needs_clone = .true.
+                        this%vertices(n)%clone = .true.
                         this%vertices(n)%mirrored_is_unique = .false.
 
+                    end if
+
+                    ! The midpoint will need to be cloned and its mirror will be unique
+                    if (doublet_order == 2) then
+                        this%vertices(mid)%clone = .true.
+                        this%vertices(mid)%mirrored_is_unique = .true.
                     end if
 
                 ! If the discontinuous edge has both endpoints lying on the mirror plane, then these vertices need no clones, but the mirrored
@@ -702,10 +816,16 @@ contains
                 else if (this%edges(i)%on_mirror_plane) then
 
                     ! The mirrored vertices will function as clones
-                    this%vertices(m)%needs_clone = .false.
-                    this%vertices(n)%needs_clone = .false.
+                    this%vertices(m)%clone = .false.
+                    this%vertices(n)%clone = .false.
                     this%vertices(m)%mirrored_is_unique = .true.
                     this%vertices(n)%mirrored_is_unique = .true.
+
+                    ! Same with the midpoint
+                    if (doublet_order == 2) then
+                        this%vertices(mid)%clone = .false.
+                        this%vertices(mid)%mirrored_is_unique = .true.
+                    end if
 
                 end if
             end if
@@ -713,6 +833,146 @@ contains
         if (verbose) write(*,*) "Done."
 
     end subroutine surface_mesh_set_up_mirroring
+
+
+    subroutine surface_mesh_get_indices_to_panel_vertices(this, i_vertices)
+        ! Returns of the list of indices which point to the vertices (and midpoints) of each panel
+
+        implicit none
+
+        class(surface_mesh),intent(in) :: this
+        integer,dimension(:,:),allocatable,intent(out) :: i_vertices
+
+        integer :: i, j
+
+        ! Allocate space
+        allocate(i_vertices(8,this%N_panels))
+
+        ! Get vertex indices for each panel since we will lose this information as soon as this%vertices is reallocated
+        do i=1,this%N_panels
+            do j=1,this%panels(i)%N
+
+                ! Get vertex indices
+                i_vertices(j,i) = this%panels(i)%get_vertex_index(j)
+                
+                ! Get midpoint indices
+                if (this%midpoints_created) then
+                    i_vertices(j+this%panels(i)%N,i) = this%panels(i)%get_midpoint_index(j)
+                end if
+
+            end do
+        end do
+        
+    end subroutine surface_mesh_get_indices_to_panel_vertices
+
+
+    subroutine surface_mesh_allocate_new_vertices(this, N_new_verts, i_rearrange)
+        ! Adds the specified number of vertex objects to the end of the surface mesh's vertex array.
+        ! Handles moving panel pointers to the new allocation of previously-existing vertices.
+        ! i_rearrange may be used to rearrange the vertices for a desired behavior.
+
+        implicit none
+
+        class(surface_mesh),intent(inout),target :: this
+        integer,intent(in) :: N_new_verts
+        integer,dimension(:),allocatable,intent(in),optional :: i_rearrange
+        
+        type(vertex),dimension(:),allocatable :: temp_vertices
+        integer :: i, j
+        integer,dimension(:,:),allocatable :: i_vertices
+        integer,dimension(:),allocatable :: i_rearrange_inv
+
+        ! Get panel vertex indices
+        call this%get_indices_to_panel_vertices(i_vertices)
+
+        ! Allocate more space
+        allocate(temp_vertices(this%N_verts + N_new_verts))
+        allocate(i_rearrange_inv(this%N_verts))
+
+        ! Copy over vertices
+        if (present(i_rearrange)) then
+
+            do i=1,this%N_verts
+
+                ! Copy vertices
+                temp_vertices(i) = this%vertices(i_rearrange(i))
+                temp_vertices(i)%index = i
+
+                ! Get inverse mapping
+                i_rearrange_inv(i_rearrange(i)) = i
+            end do
+
+            ! Fix wake partners
+            do i=1,this%N_verts
+                temp_vertices(i)%i_wake_partner = i_rearrange_inv(temp_vertices(i)%i_wake_partner)
+            end do
+
+            ! Fix edge endpoints
+            do i=1,this%N_edges
+                this%edges(i)%verts(1) = i_rearrange_inv(this%edges(i)%verts(1))
+                this%edges(i)%verts(2) = i_rearrange_inv(this%edges(i)%verts(2))
+            end do
+
+        else
+
+            ! Copy vertices
+            temp_vertices(1:this%N_verts) = this%vertices
+
+            ! Get inverse mapping (identity)
+            do i=1,this%N_verts
+                i_rearrange_inv(i) = i
+            end do
+
+        end if
+
+        ! Move allocation
+        call move_alloc(temp_vertices, this%vertices)
+
+        ! Fix vertex pointers in panel objects (necessary because this%vertices got reallocated)
+        do i=1,this%N_panels
+            do j=1,this%panels(i)%N
+
+                ! Fix vertex pointers
+                this%panels(i)%vertices(j)%ptr => this%vertices(i_rearrange_inv(i_vertices(j,i)))
+
+                ! Fix midpoint pointers
+                if (this%midpoints_created) then
+                    this%panels(i)%midpoints(j)%ptr => this%vertices(i_rearrange_inv(i_vertices(j+this%panels(i)%N,i)))
+                end if
+
+            end do
+        end do
+
+        deallocate(i_vertices)
+
+        ! Fix wake dependencies
+        if (present(i_rearrange) .and. this%wake%N_panels > 0) then
+            do i=1,this%wake%N_verts
+
+                ! Fix top parent
+                if (this%wake%vertices(i)%top_parent > this%N_verts) then
+                    this%wake%vertices(i)%top_parent = i_rearrange_inv(this%wake%vertices(i)%top_parent - this%N_verts) &
+                                                       + this%N_verts + N_new_verts
+                else
+                    this%wake%vertices(i)%top_parent = i_rearrange_inv(this%wake%vertices(i)%top_parent)
+                end if
+
+                ! Fix bottom parent
+                if (this%wake%vertices(i)%bot_parent > this%N_verts) then
+                    this%wake%vertices(i)%bot_parent = i_rearrange_inv(this%wake%vertices(i)%bot_parent - this%N_verts) &
+                                                       + this%N_verts + N_new_verts
+                else
+                    this%wake%vertices(i)%bot_parent = i_rearrange_inv(this%wake%vertices(i)%bot_parent)
+                end if
+            end do
+        end if
+
+        ! Fix edge pointers
+
+        ! Update number of vertices
+        this%N_verts = this%N_verts + N_new_verts
+        
+    end subroutine surface_mesh_allocate_new_vertices
 
 
     subroutine surface_mesh_clone_vertices(this)
@@ -726,68 +986,44 @@ contains
         integer :: i, j, k, m, n, N_clones, i_jango, i_boba, N_discont_verts, i_bot_panel, i_abutting_panel, i_adj_vert, i_top_panel
         integer :: i_edge
         type(vertex),dimension(:),allocatable :: temp_vertices
+        integer,dimension(:),allocatable :: i_clones
 
         ! Check whether any discontinuities exist
-        if (allocated(this%wake_edge_verts)) then
+        if (this%found_discontinuous_edges) then
 
             if (verbose) write(*,'(a)',advance='no') "     Cloning vertices at discontinuous edges..."
 
-            ! Allocate array which will store which discontinuous vertices need to be cloned
-            N_discont_verts = size(this%wake_edge_verts)
-
             ! Determine number of vertices which need to be cloned
             N_clones = 0
-            do i=1,N_discont_verts
-
-                if (this%vertices(this%wake_edge_verts(i))%needs_clone) then
-
-                    ! Update the number of needed clones
-                    N_clones = N_clones + 1
-
-                end if
+            do i=1,this%N_verts
+                if (this%vertices(i)%clone) N_clones = N_clones + 1
             end do
 
-            ! Extend allocation of mesh vertex array
-            allocate(temp_vertices, source=this%vertices)
-            deallocate(this%vertices)
-            allocate(this%vertices(this%N_verts + N_clones))
-
-            ! Place existing vertices in new array
-            this%vertices(1:this%N_verts) = temp_vertices
-            deallocate(temp_vertices)
-
-            ! Update number of vertices
-            this%N_verts = this%N_verts + N_clones
-
-            ! Fix vertex pointers in panel objects (necessary because this%vertices got reallocated)
-            do i=1,this%N_panels
-                do j=1,this%panels(i)%N
-                    this%panels(i)%vertices(j)%ptr => this%vertices(this%panels(i)%vertex_indices(j))
-                end do
-            end do
+            ! Add space for new vertices
+            call this%allocate_new_vertices(N_clones)
+            allocate(i_clones(N_clones))
 
             ! Initialize clones
             j = 1
-            do i=1,N_discont_verts
-
-                ! Get index of vertex to be cloned
-                i_jango = this%wake_edge_verts(i)
+            do i_jango=1,this%N_verts
 
                 ! Check if this vertex needs to be cloned
-                if (this%vertices(i_jango)%needs_clone) then
+                if (this%vertices(i_jango)%clone) then
 
                     ! Get index for the clone
                     i_boba = this%N_verts - N_clones + j ! Will be at position N_verts-N_clones+j in the new vertex array
 
                     ! Initialize clone
-                    call this%vertices(i_boba)%init(this%vertices(i_jango)%loc, i_boba)
+                    call this%vertices(i_boba)%init(this%vertices(i_jango)%loc, i_boba, 1)
+                    i_clones(j) = i_boba
 
                     ! Specify wake partners
                     this%vertices(i_jango)%i_wake_partner = i_boba
                     this%vertices(i_boba)%i_wake_partner = i_jango
 
-                    ! Store number of adjacent wake-shedding edges (probably unecessary at this point, but let's be consistent)
+                    ! Store number of adjacent wake-shedding and discontinuous edges (probably unecessary at this point, but let's be consistent)
                     this%vertices(i_boba)%N_wake_edges = this%vertices(i_jango)%N_wake_edges
+                    this%vertices(i_boba)%N_discont_edges = this%vertices(i_jango)%N_discont_edges
 
                     ! Copy over mirroring properties
                     this%vertices(i_boba)%mirrored_is_unique = this%vertices(i_jango)%mirrored_is_unique
@@ -889,7 +1125,7 @@ contains
 
                         ! Update (doesn't need to be done for mirrored panels)
                         if (i_bot_panel <= this%N_panels) then
-                            call this%panels(i_bot_panel)%point_to_vertex_clone(this%vertices(i_boba))
+                            call this%panels(i_bot_panel)%point_to_new_vertex(this%vertices(i_boba))
                         end if
 
                     end do
@@ -912,12 +1148,78 @@ contains
 
             end do
 
+            ! Store that the cloned vertices are clones
+            do i=1,N_clones
+                this%vertices(i_clones(i))%clone = .true.
+            end do
+
             if (verbose) write(*,'(a, i4, a, i7, a)') "Done. Cloned ", N_clones, " vertices. Mesh now has ", &
                                                       this%N_verts, " vertices."
 
         end if
 
     end subroutine surface_mesh_clone_vertices
+
+
+    subroutine surface_mesh_get_vertex_sorting_indices(this, freestream, i_sorted)
+        ! Determines the vertex indices which will sort them in the conpressibility direction
+
+        implicit none
+
+        class(surface_mesh),intent(in) :: this
+        type(flow),intent(in) :: freestream
+        integer,dimension(:),allocatable,intent(out) :: i_sorted
+
+        real,dimension(:),allocatable :: x
+        integer :: i, j, k
+
+        ! Allocate the compressibility distance array
+        allocate(x(this%N_verts))
+
+        ! Add compressibility distance of each vertex
+        ! What this really should is the compressibility distance of the most-upstream vertex
+        ! of the panels touching this vertex, since influences may be transmitted upstream
+        ! via a panel.
+        do i=1,this%N_verts
+
+            ! Initialize with the compressibility distance of this vertex
+            x(i) = inner(freestream%c_hat_g, this%vertices(i)%loc)
+
+            !! Loop through neighboring vertices
+            !do j=1,this%vertices(i)%adjacent_vertices%len()
+            !    call this%vertices(i)%adjacent_vertices%get(j, k)
+            !    x(i) = max(inner(freestream%c_hat_g, this%vertices(k)%loc), x(i))
+            !end do
+
+        end do
+
+        ! Get sorted indices
+        call insertion_arg_sort(x, i_sorted)
+        
+    end subroutine surface_mesh_get_vertex_sorting_indices
+
+
+    subroutine surface_mesh_rearrange_vertices(this, freestream)
+        ! Rearranges the vertices to proceed in the freestream direction
+
+        implicit none
+
+        class(surface_mesh),intent(inout),target :: this
+        type(flow),intent(in) :: freestream
+
+        integer,dimension(:),allocatable :: i_sorted
+
+        if (verbose) write(*,'(a)',advance='no') "     Sorting vertices for efficient matrix structure..."
+
+        ! Get sorted indices
+        call this%get_vertex_sorting_indices(freestream, i_sorted)
+
+        ! Move the vertices around
+        call this%allocate_new_vertices(0, i_sorted)
+
+        if (verbose) write(*,*) "Done."
+        
+    end subroutine surface_mesh_rearrange_vertices
 
 
     subroutine surface_mesh_calc_vertex_normals(this)
@@ -954,7 +1256,7 @@ contains
 
             ! Calculate mirrored normal for mirrored vertex
             if (this%mirrored) then
-                this%vertices(j)%n_g_mir = mirror_across_plane(this%vertices(j)%n_g_mir, this%mirror_plane)
+                this%vertices(j)%n_g_mir = mirror_across_plane(this%vertices(j)%n_g, this%mirror_plane)
             end if
 
             ! Calculate average edge lengths for each vertex
@@ -995,14 +1297,8 @@ contains
             end if
 
             ! Initialize wake
-            call this%wake%init(freestream, this%wake_edge_verts, &
-                                this%edges, this%N_wake_edges, &
-                                this%N_wake_panels_streamwise, this%vertices, &
-                                this%trefftz_distance, this%asym_flow, &
-                                this%mirror_plane, this%N_panels)
-
-            ! Clean up
-            deallocate(this%wake_edge_verts)
+            call this%wake%init(this%edges, this%vertices, this%N_panels, freestream, &
+                                this%asym_flow, this%mirror_plane, this%N_wake_panels_streamwise, this%trefftz_distance)
         
             ! Export wake geometry
             if (wake_file /= 'none') then
@@ -1052,8 +1348,17 @@ contains
             dist = inner(this%vertices(i)%loc, freestream%c_hat_g)
 
             ! Check maximum
-            if (dist > max_dist) then
-                max_dist = dist
+            max_dist = max(dist, max_dist)
+
+            ! Check for mirror
+            if (this%asym_flow) then
+
+                ! Calculate distance
+                dist = inner(mirror_across_plane(this%vertices(i)%loc, this%mirror_plane), freestream%c_hat_g)
+
+                ! Check maximum
+                max_dist = max(dist, max_dist)
+
             end if
 
         end do
@@ -1098,63 +1403,58 @@ contains
         real,intent(in) :: offset
 
         integer :: i, j, i_panel
-        real,dimension(3) :: normal
+        real,dimension(3) :: n_avg
         real :: offset_ratio
 
-        if (doublet_order == 1) then
+        ! Specify number of control points
+        this%N_cp = this%N_verts
 
-            ! Specify number of control points
-            this%N_cp = this%N_verts
+        ! Allocate memory
+        allocate(this%cp(3,this%N_verts))
 
-            ! Allocate memory
-            allocate(this%cp(3,this%N_verts))
+        ! Calculate offset ratio such that the control point will remain within the body based on the minimum detected angle between panels
+        if (this%wake_present) then
+            offset_ratio = 0.5*sqrt(0.5*(1. + this%C_min_panel_angle))
+        end if
 
-            ! Calculate offset ratio such that the control point will remain within the body based on the minimum detected angle between panels
-            if (this%wake_present) then
-                offset_ratio = 0.5*sqrt(0.5*(1. + this%C_min_panel_angle))
-            end if
+        ! Loop through vertices
+        !$OMP parallel do private(j, n_avg, i_panel) schedule(dynamic) shared(this, offset, offset_ratio) default(none)
+        do i=1,this%N_verts
 
-            ! Loop through vertices
-            !$OMP parallel do private(j, normal, i_panel) schedule(dynamic) shared(this, offset, offset_ratio) default(none)
-            do i=1,this%N_verts
+            ! If the vertex has been cloned, it needs to be shifted off the normal slightly so that it is unique from its counterpart
+            if (this%vertices(i)%clone) then
 
-                ! If the vertex is in a wake edge, it needs to be shifted off the normal slightly so that it is unique from its counterpart
-                if (this%vertices(i)%N_wake_edges > 1) then
+                ! Loop through panels associated with this clone to get their average normal vector
+                n_avg = 0.
+                do j=1,this%vertices(i)%panels_not_across_wake_edge%len()
 
-                    ! Loop through panels associated with this clone to get their average normal vector
-                    normal = 0.
-                    do j=1,this%vertices(i)%panels_not_across_wake_edge%len()
+                    ! Get panel index
+                    call this%vertices(i)%panels_not_across_wake_edge%get(j, i_panel)
 
-                        ! Get panel index
-                        call this%vertices(i)%panels_not_across_wake_edge%get(j, i_panel)
+                    ! Add normal vector
+                    n_avg = n_avg + this%panels(i_panel)%n_g
 
-                        ! Add normal vector
-                        normal = normal + this%panels(i_panel)%n_g
+                end do
 
-                    end do
-
-                    ! Add effect of mirrored panels
-                    if (this%vertices(i)%on_mirror_plane) then
-                        normal(this%mirror_plane) = 0.
-                    end if
-
-                    ! Normalize
-                    normal = normal/norm2(normal)
-
-                    ! Place control point
-                    this%cp(:,i) = this%vertices(i)%loc &
-                                               - offset * (this%vertices(i)%n_g - offset_ratio * normal)*this%vertices(i)%l_avg
-
-                ! If it's not in a wake-shedding edge (i.e. has no clone), then placement simply follows the normal vector
-                else
-
-                    this%cp(:,i) = this%vertices(i)%loc - offset*this%vertices(i)%n_g*this%vertices(i)%l_avg
-
+                ! Add effect of mirrored panels
+                if (this%vertices(i)%on_mirror_plane) then
+                    n_avg(this%mirror_plane) = 0.
                 end if
 
-            end do
+                ! Normalize
+                n_avg = n_avg/norm2(n_avg)
 
-        end if
+                ! Place control point
+                this%cp(:,i) = this%vertices(i)%loc - offset * (this%vertices(i)%n_g - offset_ratio*n_avg)*this%vertices(i)%l_avg
+
+            ! If it has no clone, then placement simply follows the normal vector
+            else
+
+                this%cp(:,i) = this%vertices(i)%loc - offset*this%vertices(i)%n_g*this%vertices(i)%l_avg
+
+            end if
+
+        end do
 
         ! Calculate mirrored points, if necessary
         if (this%mirrored) then

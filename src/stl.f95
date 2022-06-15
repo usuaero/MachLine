@@ -188,7 +188,7 @@ contains
 
                 ! Initialize
                 j = new_ind(i)
-                call vertices(j)%init(vertex_coords(i,:), j)
+                call vertices(j)%init(vertex_coords(i,:), j, 1)
 
             end if
 

@@ -12,8 +12,6 @@ module panel_mod
 
     integer :: doublet_order
     integer :: source_order
-    integer :: eval_count ! Developer counter for optimization purposes
-    logical :: debug = .true. ! Developer toggle
 
 
     type eval_point_geom
@@ -57,10 +55,9 @@ module panel_mod
         integer :: N = 3 ! Number of sides/vertices
         integer :: index ! Index of this panel in the mesh array
         type(vertex_pointer),dimension(:),allocatable :: vertices
-        real :: radius
+        type(vertex_pointer),dimension(:),allocatable :: midpoints
         real,dimension(3) :: n_g, nu_g ! Normal and conormal vectors
         real,dimension(3) :: n_g_mir, nu_g_mir ! Mirrored normal and conormal vectors
-        real,dimension(:,:),allocatable :: midpoints, midpoints_mir
         real,dimension(3) :: centr, centr_mir ! Centroid
         real,dimension(3,3) :: A_g_to_ls, A_ls_to_g ! Coordinate transformation matrices
         real,dimension(3,3) :: A_g_to_ls_mir, A_ls_to_g_mir
@@ -75,20 +72,17 @@ module panel_mod
         real :: A ! Surface area (same for mirror, in global coordinates at least)
         real,dimension(:,:),allocatable :: S_mu_inv, S_sigma_inv ! Matrix relating doublet/source strengths to doublet/source influence parameters
         real,dimension(:,:),allocatable :: S_mu_inv_mir, S_sigma_inv_mir
-        integer,dimension(:),allocatable :: vertex_indices ! Indices of this panel's vertices in the mesh vertex array
         logical :: in_wake ! Whether this panel belongs to a wake mesh
         integer,dimension(3) :: abutting_panels ! Indices of panels abutting this one
-        integer,dimension(3) :: edges ! Indices of this panel's edges
-        integer :: top_parent, bot_parent ! Indices of the top and bottom panels this panel's strength is determined by (for a wake panel w/ constant doublet strength)
         integer :: r, r_mir ! Panel inclination indicator; r=-1 -> superinclined, r=1 -> subinclined
         real :: J, J_mir ! Local scaled transformation Jacobian
+        integer,dimension(:),allocatable :: i_vert_d, i_vert_s
 
         contains
 
             ! Initialization procedures
             procedure :: init => panel_init_3
             procedure :: calc_derived_geom => panel_calc_derived_geom
-            procedure :: calc_midpoints => panel_calc_midpoints
             procedure :: calc_normal => panel_calc_normal
             procedure :: calc_area => panel_calc_area
             procedure :: calc_centroid => panel_calc_centroid
@@ -98,6 +92,7 @@ module panel_mod
             procedure :: calc_g_to_ls_transform => panel_calc_g_to_ls_transform
             procedure :: calc_edge_vectors => panel_calc_edge_vectors
             procedure :: calc_singularity_matrices => panel_calc_singularity_matrices
+            procedure :: set_influencing_verts => panel_set_influencing_verts
 
             ! Mirror initialization
             procedure :: init_mirror => panel_init_mirror
@@ -107,11 +102,13 @@ module panel_mod
 
             ! Getters
             procedure :: get_vertex_loc => panel_get_vertex_loc
+            procedure :: get_midpoint_loc => panel_get_midpoint_loc
             procedure :: get_vertex_index => panel_get_vertex_index
+            procedure :: get_midpoint_index => panel_get_midpoint_index
             procedure :: touches_vertex => panel_touches_vertex
 
             ! Update information
-            procedure :: point_to_vertex_clone => panel_point_to_vertex_clone
+            procedure :: point_to_new_vertex => panel_point_to_new_vertex
 
             ! Influence calculations
             procedure :: check_dod => panel_check_dod
@@ -123,6 +120,7 @@ module panel_mod
             procedure :: calc_supersonic_subinc_edge_integrals => panel_calc_supersonic_subinc_edge_integrals
             procedure :: calc_supersonic_subinc_panel_integrals => panel_calc_supersonic_subinc_panel_integrals
             procedure :: calc_integrals => panel_calc_integrals
+            procedure :: allocate_potential_influences => panel_allocate_potential_influences
             procedure :: calc_potentials => panel_calc_potentials
             procedure :: calc_velocities => panel_calc_velocities
             procedure :: get_velocity_jump => panel_get_velocity_jump
@@ -172,27 +170,24 @@ contains
         ! Set number of sides
         this%N = 3
 
-        ! Allocate vertex array
+        ! Allocate vertex arrays
         allocate(this%vertices(this%N))
-        allocate(this%vertex_indices(this%N))
 
         ! Assign vertex pointers
         this%vertices(1)%ptr => v1
         this%vertices(2)%ptr => v2
         this%vertices(3)%ptr => v3
 
-        ! Store vertex indices
-        this%vertex_indices(1) = v1%index
-        this%vertex_indices(2) = v2%index
-        this%vertex_indices(3) = v3%index
-
         ! Store the index of the panel
         this%index = index
 
         ! Initialize a few things
         this%abutting_panels = 0
-        this%top_parent = 0
-        this%bot_parent = 0
+
+        ! Allocate midpoint arrays
+        if (doublet_order == 2) then
+            allocate(this%midpoints(this%N))
+        end if
 
         call this%calc_derived_geom()
 
@@ -208,7 +203,6 @@ contains
         class(panel),intent(inout) :: this
 
         ! Calculate midpoints
-        call this%calc_midpoints()
 
         ! Calculate normal vec
         call this%calc_normal()
@@ -222,24 +216,6 @@ contains
     end subroutine  panel_calc_derived_geom
 
 
-    subroutine panel_calc_midpoints(this)
-
-        implicit none
-
-        class(panel),intent(inout) :: this
-
-        integer :: i
-
-        ! Determine midpoints
-        allocate(this%midpoints(3,this%N))
-        do i=1,this%N-1
-            this%midpoints(:,i) = 0.5*(this%get_vertex_loc(i)+this%get_vertex_loc(i+1))
-        end do
-        this%midpoints(:,this%N) = 0.5*(this%get_vertex_loc(1)+this%get_vertex_loc(this%N))
-
-    end subroutine panel_calc_midpoints
-
-
     subroutine panel_calc_normal(this)
 
         implicit none
@@ -248,9 +224,9 @@ contains
 
         real,dimension(3) :: d1, d2
 
-        ! Get two chord vectors from midpoints
-        d1 = this%midpoints(:,2)-this%midpoints(:,1)
-        d2 = this%midpoints(:,3)-this%midpoints(:,2)
+        ! Get two edge vectors
+        d1 = this%get_vertex_loc(2)-this%get_vertex_loc(1)
+        d2 = this%get_vertex_loc(3)-this%get_vertex_loc(2)
 
         ! Find normal
         this%n_g = cross(d1, d2)
@@ -304,20 +280,6 @@ contains
 
         ! Set centroid
         this%centr = sum/this%N
-
-        ! Calculate radius
-        this%radius = 0.
-        do i=1,this%N
-
-            ! Distance to i-th vertex
-            x = dist(this%get_vertex_loc(i), this%centr)
-
-            ! Check max
-            if (x > this%radius) then
-                this%radius = x
-            end if
-
-        end do
 
     end subroutine panel_calc_centroid
 
@@ -416,14 +378,16 @@ contains
 
         ! Transform vertex and midpoint coords to ls
         allocate(this%vertices_ls(2,this%N))
-        allocate(this%midpoints_ls(2,this%N))
+        if (doublet_order == 2) allocate(this%midpoints_ls(2,this%N))
         do i=1,this%N
 
             ! Vertices
             this%vertices_ls(:,i) = matmul(this%A_g_to_ls(1:2,:), this%get_vertex_loc(i)-this%centr)
 
             ! Midpoints
-            this%midpoints_ls(:,i) = matmul(this%A_g_to_ls(1:2,:), this%midpoints(:,i)-this%centr)
+            if (doublet_order == 2) then
+                this%midpoints_ls(:,i) = matmul(this%A_g_to_ls(1:2,:), this%get_midpoint_loc(i)-this%centr)
+            end if
 
         end do
 
@@ -589,6 +553,85 @@ contains
     end subroutine panel_calc_singularity_matrices
 
 
+    subroutine panel_set_influencing_verts(this)
+        ! Sets up the arrays of vertex indices which set the influence for this panel
+
+        class(panel),intent(inout) :: this
+
+        ! Source
+        if (source_order == 0) then
+            allocate(this%i_vert_s(1), source=this%index)
+        else if (source_order == 1) then
+            allocate(this%i_vert_s(3))
+            this%i_vert_s(1) = this%get_vertex_index(1)
+            this%i_vert_s(2) = this%get_vertex_index(2)
+            this%i_vert_s(3) = this%get_vertex_index(3)
+        end if
+
+        ! Doublet
+        if (doublet_order == 1) then
+
+            ! Check if this panel belongs to the wake
+            if (this%in_wake) then
+
+                ! Wake panels are influenced by two sets of vertices
+                allocate(this%i_vert_d(6))
+                this%i_vert_d(1) = this%vertices(1)%ptr%top_parent
+                this%i_vert_d(2) = this%vertices(2)%ptr%top_parent
+                this%i_vert_d(3) = this%vertices(3)%ptr%top_parent
+                this%i_vert_d(4) = this%vertices(1)%ptr%bot_parent
+                this%i_vert_d(5) = this%vertices(2)%ptr%bot_parent
+                this%i_vert_d(6) = this%vertices(3)%ptr%bot_parent
+
+            else
+
+                ! Body panels are influenced by only one set of vertices
+                allocate(this%i_vert_d(3))
+                this%i_vert_d(1) = this%get_vertex_index(1)
+                this%i_vert_d(2) = this%get_vertex_index(2)
+                this%i_vert_d(3) = this%get_vertex_index(3)
+
+            end if
+
+        else if (doublet_order == 2) then
+
+            ! Check if this panel belongs to the wake
+            if (this%in_wake) then
+
+                ! Wake panels are influenced by two sets of vertices
+                allocate(this%i_vert_d(12))
+                this%i_vert_d(1) = this%vertices(1)%ptr%top_parent
+                this%i_vert_d(2) = this%vertices(2)%ptr%top_parent
+                this%i_vert_d(3) = this%vertices(3)%ptr%top_parent
+                this%i_vert_d(4) = this%midpoints(1)%ptr%top_parent
+                this%i_vert_d(5) = this%midpoints(2)%ptr%top_parent
+                this%i_vert_d(6) = this%midpoints(3)%ptr%top_parent
+                this%i_vert_d(7) = this%vertices(1)%ptr%bot_parent
+                this%i_vert_d(8) = this%vertices(2)%ptr%bot_parent
+                this%i_vert_d(9) = this%vertices(3)%ptr%bot_parent
+                this%i_vert_d(10) = this%midpoints(1)%ptr%bot_parent
+                this%i_vert_d(11) = this%midpoints(2)%ptr%bot_parent
+                this%i_vert_d(12) = this%midpoints(3)%ptr%bot_parent
+
+            else
+
+                ! Body panels are influenced by only one set of vertices
+                allocate(this%i_vert_d(6))
+                this%i_vert_d(1) = this%get_vertex_index(1)
+                this%i_vert_d(2) = this%get_vertex_index(2)
+                this%i_vert_d(3) = this%get_vertex_index(3)
+                this%i_vert_d(4) = this%get_midpoint_index(1)
+                this%i_vert_d(5) = this%get_midpoint_index(2)
+                this%i_vert_d(6) = this%get_midpoint_index(3)
+
+            end if
+
+        end if
+    
+        
+    end subroutine panel_set_influencing_verts
+
+
     subroutine panel_init_mirror(this, freestream, mirror_plane)
 
         implicit none
@@ -604,12 +647,6 @@ contains
 
         ! Calculate mirrored centroid
         this%centr_mir = mirror_across_plane(this%centr, mirror_plane)
-
-        ! Calculate mirrored midpoints
-        allocate(this%midpoints_mir(3,this%N))
-        do i=1,this%N
-            this%midpoints_mir(:,i) = mirror_across_plane(this%midpoints(:,i), mirror_plane)
-        end do
 
         ! Calculate mirrored g to ls transform
         call this%calc_mirrored_g_to_ls_transform(freestream, mirror_plane)
@@ -645,7 +682,7 @@ contains
 
         ! Get in-panel basis vectors
         if (abs(inner(this%n_g_mir, freestream%c_hat_g) - 1.) < 1e-12) then ! Check the freestream isn't aligned with the normal vector
-            v0 = this%midpoints_mir(:,2)-this%midpoints_mir(:,1)
+            v0 = mirror_across_plane(this%get_vertex_loc(2) - this%get_vertex_loc(1), mirror_plane)
         else
             v0 = cross(this%n_g_mir, freestream%c_hat_g)
         end if
@@ -700,7 +737,7 @@ contains
 
         ! Transform vertex and midpoint coords to ls
         allocate(this%vertices_ls_mir(2,this%N))
-        allocate(this%midpoints_ls_mir(2,this%N))
+        if (doublet_order == 2) allocate(this%midpoints_ls_mir(2,this%N))
         do i=1,this%N
 
             ! Vertices
@@ -708,7 +745,10 @@ contains
                                                mirror_across_plane(this%get_vertex_loc(i), mirror_plane)-this%centr_mir)
 
             ! Midpoints
-            this%midpoints_ls_mir(:,i) = matmul(this%A_g_to_ls_mir(1:2,:), this%midpoints_mir(:,i)-this%centr_mir)
+            if (doublet_order == 2) then
+                this%midpoints_ls_mir(:,i) = matmul(this%A_g_to_ls_mir(1:2,:), &
+                                                    mirror_across_plane(this%get_midpoint_loc(i), mirror_plane)-this%centr_mir)
+            end if
 
         end do
     
@@ -760,7 +800,7 @@ contains
         real,dimension(:,:),allocatable :: S_mu, S_sigma
 
         ! Linear distribution
-        if (doublet_order .eq. 1) then
+        if (doublet_order == 1) then
 
             ! Allocate influence matrices
             allocate(S_mu(3,3))
@@ -774,7 +814,7 @@ contains
             ! Invert
             call matinv(3, S_mu, this%S_mu_inv_mir)
 
-        else if (doublet_order .eq. 2) then
+        else if (doublet_order == 2) then
 
             ! Allocate influence matrix
             allocate(S_mu(6,6))
@@ -858,6 +898,19 @@ contains
     end function panel_get_vertex_loc
 
 
+    function panel_get_midpoint_loc(this, i) result(loc)
+
+        implicit none
+
+        class(panel),intent(in) :: this
+        integer,intent(in) :: i
+        real,dimension(3) :: loc
+
+        loc = this%midpoints(i)%ptr%loc
+
+    end function panel_get_midpoint_loc
+
+
     function panel_get_vertex_index(this, i) result(index)
 
         implicit none
@@ -869,6 +922,19 @@ contains
         index = this%vertices(i)%ptr%index
 
     end function panel_get_vertex_index
+
+
+    function panel_get_midpoint_index(this, i) result(index)
+
+        implicit none
+
+        class(panel),intent(in) :: this
+        integer,intent(in) :: i
+        integer :: index
+
+        index = this%midpoints(i)%ptr%index
+
+    end function panel_get_midpoint_index
 
 
     function panel_touches_vertex(this, i) result(touches)
@@ -886,7 +952,7 @@ contains
         do j=1,this%N
 
             ! Check index
-            if (this%vertex_indices(j) == i) then
+            if (this%get_vertex_index(j) == i) then
                 touches = .true.
                 return
             end if
@@ -896,34 +962,47 @@ contains
     end function panel_touches_vertex
 
 
-    subroutine panel_point_to_vertex_clone(this, clone)
-        ! Updates the panel to point to this new vertex (assumed to be clone of a current vertex)
+    subroutine panel_point_to_new_vertex(this, new_vertex)
+        ! Updates the panel to point to this new vertex (assumed to be a copy of a current vertex)
 
         implicit none
 
         class(panel),intent(inout) :: this
-        type(vertex),intent(in),target :: clone
+        type(vertex),intent(in),target :: new_vertex
         integer :: i
 
-        ! Loop through vertices
+        ! Loop through vertices/midpoints
         do i=1,this%N
 
-            ! Check which vertex this will replace
-            if (dist(this%get_vertex_loc(i), clone%loc) < 1e-12) then
+            ! It's a vertex, so check the vertex locations
+            if (new_vertex%vert_type == 1) then
 
-                ! Update pointer
-                this%vertices(i)%ptr => clone
+                if (dist(this%get_vertex_loc(i), new_vertex%loc) < 1e-12) then
 
-                ! Update index
-                this%vertex_indices(i) = clone%index
+                    ! Update pointer
+                    this%vertices(i)%ptr => new_vertex
 
-                return
+                    return
+
+                end if
+
+            ! Check midpoint locations
+            else
+
+                if (dist(this%get_midpoint_loc(i), new_vertex%loc) < 1e-12) then
+
+                    ! Update pointer
+                    this%midpoints(i)%ptr => new_vertex
+
+                    return
+
+                end if
 
             end if
 
         end do
     
-    end subroutine panel_point_to_vertex_clone
+    end subroutine panel_point_to_new_vertex
 
 
     function panel_check_dod(this, eval_point, freestream, verts_in_dod, mirror_panel, mirror_plane) result(dod_info)
@@ -1345,7 +1424,7 @@ contains
         
         ! Allocate storage
         allocate(int%F111(this%N))
-        if (source_order == 1) then
+        if (source_order == 1 .or. doublet_order == 2) then
             allocate(int%F121(this%N))
             allocate(int%F211(this%N))
         end if
@@ -1381,7 +1460,7 @@ contains
             end if
 
             ! Calculate F(1,2,1) and F(2,1,1)
-            if (source_order == 1) then
+            if (source_order == 1 .or. doublet_order == 2) then
 
                 ! Get edge normals
                 if (mirror_panel) then
@@ -1422,7 +1501,7 @@ contains
         
         ! Allocate integral storage
         allocate(int%F111(this%N), source=0.)
-        if (source_order == 1) then
+        if (source_order == 1 .or. doublet_order == 2) then
             allocate(int%F121(this%N))
             allocate(int%F211(this%N))
         end if
@@ -1473,7 +1552,7 @@ contains
                     series = eps*eps2*(1./3. - b*eps2/5. + (b*eps2)*(b*eps2)/7.)
                     int%F111(i) = -eps + b*series
 
-                    if (source_order == 1) then
+                    if (source_order == 1 .or. doublet_order == 2) then
                         if (mirror_panel) then
                             int%F121(i) = (-v_xi(i)*geom%dR(i)*geom%R1(i)*geom%R2(i) &
                                            + geom%l2(i)*geom%R1(i)*(this%vertices_ls_mir(2,i_next) - geom%P_ls(2)) &
@@ -1505,7 +1584,7 @@ contains
                     else
                         int%F111(i) = -atan2(s_b*F1, F2) / s_b
 
-                        if (source_order == 1) then
+                        if (source_order == 1 .or. doublet_order == 2) then
                             int%F121(i) = -(v_xi(i)*geom%dR(i) + geom%a(i)*v_eta(i)*int%F111(i)) / b
                             int%F211(i) = -v_eta(i)*geom%dR(i) + geom%a(i)*v_xi(i)*int%F111(i) - &
                                           2.*v_xi(i)*v_eta(i)*int%F121(i)
@@ -1518,7 +1597,7 @@ contains
                     F2 = s_b*geom%R2(i) + abs(geom%l2(i))
                     int%F111(i) = -sign(1., v_eta(i))*log(F1/F2)
 
-                    if (source_order == 1) then
+                    if (source_order == 1 .or. doublet_order == 2) then
                         int%F121(i) = -(v_xi(i)*geom%dR(i) + geom%a(i)*v_eta(i)*int%F111(i)) / b
                         int%F211(i) = -v_eta(i)*geom%dR(i) + geom%a(i)*v_xi(i)*int%F111(i) - &
                                       2.*v_xi(i)*v_eta(i)*int%F121(i)
@@ -1584,10 +1663,17 @@ contains
         int%H213 = -sum(v_xi*int%F111)
         int%H123 = -sum(v_eta*int%F111)
 
-        ! Calculate higher-order integrals
+        ! Calculate higher-order source integrals
         if (source_order == 1) then
             int%H211 = 0.5*(-geom%h2*int%H213 + sum(geom%a*int%F211))
             int%H121 = 0.5*(-geom%h2*int%H123 + sum(geom%a*int%F121))
+        end if
+
+        ! Calculate higher-order doublet integrals
+        if (doublet_order == 2) then
+            int%H133 = int%H111 - sum(v_eta*int%F121)
+            int%H223 = -sum(v_xi*int%F121)
+            int%H313 = -int%H133 - geom%h*int%hH113 + int%H111
         end if
 
     end subroutine panel_calc_subsonic_panel_integrals
@@ -1673,10 +1759,17 @@ contains
         int%H213 = -sum(v_xi*int%F111)
         int%H123 = sum(v_eta*int%F111)
 
-        ! Calculate higher-order integrals
+        ! Calculate higher-order source integrals
         if (source_order == 1) then
             int%H211 = 0.5*(-geom%h2*int%H213 - sum(geom%a*int%F211))
             int%H121 = 0.5*(-geom%h2*int%H123 - sum(geom%a*int%F121))
+        end if
+
+        ! Calculate higher-order doublet integrals
+        if (doublet_order == 2) then
+            int%H313 = -sum(v_eta*int%F121) - geom%h*int%hH113
+            int%H223 = sum(v_xi*int%F121)
+            int%H133 = -sum(v_eta*int%F121) - int%H111
         end if
 
         ! Clean up
@@ -1712,7 +1805,58 @@ contains
     end function panel_calc_integrals
 
 
-    subroutine panel_calc_potentials(this, P, freestream, dod_info, mirror_panel, phi_s, phi_d, i_vert_s, i_vert_d)
+    subroutine panel_allocate_potential_influences(this, phi_s, phi_d)
+        ! Allocates the necessary influence arrays
+
+        implicit none
+
+        class(panel),intent(in) :: this
+        real,dimension(:),allocatable,intent(out) :: phi_s, phi_d
+
+        ! Source
+        if (source_order == 0) then
+            allocate(phi_s(1), source=0.)
+        else if (source_order == 1) then
+            allocate(phi_s(3), source=0.)
+        end if
+
+        ! Doublet
+        if (doublet_order == 1) then
+
+            ! Check if this panel belongs to the wake
+            if (this%in_wake) then
+
+                ! Set default influence
+                allocate(phi_d(6), source=0.)
+
+            else
+
+                ! Set default influence
+                allocate(phi_d(3), source=0.)
+
+            end if
+
+        else if (doublet_order == 2) then
+
+            ! Check if this panel belongs to the wake
+            if (this%in_wake) then
+
+                ! Set default influence
+                allocate(phi_d(12), source=0.)
+
+            else
+
+                ! Set default influence
+                allocate(phi_d(6), source=0.)
+
+            end if
+
+        end if
+        
+    end subroutine panel_allocate_potential_influences
+
+
+    subroutine panel_calc_potentials(this, P, freestream, dod_info, mirror_panel, phi_s, phi_d)
         ! Calculates the source- and doublet-induced potentials at the given point P
 
         implicit none
@@ -1723,54 +1867,16 @@ contains
         type(dod),intent(in) :: dod_info
         logical,intent(in) :: mirror_panel
         real,dimension(:),allocatable,intent(out) :: phi_s, phi_d
-        integer,dimension(:),allocatable,intent(out) :: i_vert_s, i_vert_d
 
         type(eval_point_geom) :: geom
         type(integrals) :: int
         integer :: i
 
         ! Specify influencing vertices (also sets zero default influence)
-
-        ! Source
-        if (source_order == 0) then
-            allocate(phi_s(1), source=0.)
-            allocate(i_vert_s(1), source=this%index)
-        else if (source_order == 1) then
-            allocate(phi_s(3), source=0.)
-            allocate(i_vert_s(3), source=this%vertex_indices)
-        end if
-
-        ! Doublet
-        if (doublet_order == 1) then
-
-            ! Check if this panel belongs to the wake
-            if (this%in_wake) then
-
-                ! Wake panels are influenced by two sets of vertices
-                allocate(i_vert_d(6))
-                i_vert_d(1) = this%vertices(1)%ptr%top_parent
-                i_vert_d(2) = this%vertices(2)%ptr%top_parent
-                i_vert_d(3) = this%vertices(3)%ptr%top_parent
-                i_vert_d(4) = this%vertices(1)%ptr%bot_parent
-                i_vert_d(5) = this%vertices(2)%ptr%bot_parent
-                i_vert_d(6) = this%vertices(3)%ptr%bot_parent
-
-                ! Set default influence
-                allocate(phi_d(6), source=0.)
-
-            else
-
-                ! Body panels are influenced by only one set of vertices
-                allocate(i_vert_d, source=this%vertex_indices)
-
-                ! Set default influence
-                allocate(phi_d(3), source=0.)
-
-            end if
-        end if
+        call this%allocate_potential_influences(phi_s, phi_d)
 
         ! Check DoD
-        if (dod_info%in_dod) then
+        if (dod_info%in_dod .and. this%A > 0.) then
 
             ! Calculate geometric parameters
             if (freestream%supersonic) then
@@ -1783,15 +1889,11 @@ contains
             int = this%calc_integrals(geom, 'potential', 'doublet', freestream, mirror_panel, dod_info)
 
             ! Source potential
-            if (source_order == 0) then
-
-                ! Johnson Eq. (D21) including the area factor discussed by Ehlers in Sec. 10.3
-                ! Equivalent to Ehlers Eq. (8.6)
-                phi_s(1) = int%H111
-
-            else if (source_order == 1) then
+            phi_s(1) = int%H111
+            if (source_order == 1) then
 
                 ! Johnson Eq. (D21)
+                ! Equivalent to Ehlers Eq. (8.6)
                 phi_s(1) = int%H111
                 phi_s(2) = int%H111*geom%P_ls(1) + int%H211
                 phi_s(3) = int%H111*geom%P_ls(2) + int%H121
@@ -1809,13 +1911,13 @@ contains
             phi_s = -this%J*freestream%K_inv*phi_s
 
             ! Doublet potential
-            if (doublet_order == 1) then
+            ! Johnson Eq. (D.30)
+            ! Equivalent to Ehlers Eq. (5.17))
+            phi_d(1) = int%hH113
+            phi_d(2) = int%hH113*geom%P_ls(1) + geom%h*int%H213
+            phi_d(3) = int%hH113*geom%P_ls(2) + geom%h*int%H123
 
-                ! Johnson Eq. (D.30)
-                ! Equivalent to Ehlers Eq. (5.17))
-                phi_d(1) = int%hH113
-                phi_d(2) = int%hH113*geom%P_ls(1) + geom%h*int%H213
-                phi_d(3) = int%hH113*geom%P_ls(2) + geom%h*int%H123
+            if (doublet_order == 1) then
 
                 ! Convert to vertex influences (Davis Eq. (4.41))
                 if (mirror_panel) then
@@ -1828,13 +1930,35 @@ contains
                 if (this%in_wake) then
                     phi_d(4:6) = -phi_d(1:3)
                 end if
+
+            else if (doublet_order == 2) then
+
+                ! Add quadratic terms
+                phi_d(4) = 0.5*int%hH113*geom%P_ls(1)**2 + geom%h*(geom%P_ls(1)*int%H213 + 0.5*int%H313)
+
+                phi_d(5) = int%hH113*geom%P_ls(1)*geom%P_ls(2) + geom%h*(geom%P_ls(2)*int%H213 + geom%P_ls(1)*int%H123 + int%H223)
+
+                phi_d(6) = 0.5*int%hH113*geom%P_ls(2)**2 + geom%h*(geom%P_ls(2)*int%H123 + 0.5*int%H133)
+
+                ! Convert to vertex influences (Davis Eq. (4.41))
+                if (mirror_panel) then
+                    phi_d(1:6) = freestream%K_inv*matmul(phi_d(1:6), this%S_mu_inv_mir)
+                else
+                    phi_d(1:6) = freestream%K_inv*matmul(phi_d(1:6), this%S_mu_inv)
+                end if
+
+                ! Wake bottom influence is opposite the top influence
+                if (this%in_wake) then
+                    phi_d(7:12) = -phi_d(1:6)
+                end if
+
             end if
         end if
     
     end subroutine panel_calc_potentials
 
 
-    subroutine panel_calc_velocities(this, P, freestream, dod_info, mirror_panel, v_s, v_d, i_vert_s, i_vert_d)
+    subroutine panel_calc_velocities(this, P, freestream, dod_info, mirror_panel, v_s, v_d)
         ! Calculates the source- and doublet-induced potentials at the given point P
 
         implicit none
@@ -1845,7 +1969,6 @@ contains
         type(dod),intent(in) :: dod_info
         logical,intent(in) :: mirror_panel
         real,dimension(:,:),allocatable,intent(out) :: v_s, v_d
-        integer,dimension(:),allocatable,intent(out) :: i_vert_s, i_vert_d
 
         type(eval_point_geom) :: geom
         type(integrals) :: int
@@ -1863,22 +1986,10 @@ contains
             ! Check if this panel belongs to the wake
             if (this%in_wake) then
 
-                ! Wake panels are influenced by two sets of vertices
-                allocate(i_vert_d(6))
-                i_vert_d(1) = this%vertices(1)%ptr%top_parent
-                i_vert_d(2) = this%vertices(2)%ptr%top_parent
-                i_vert_d(3) = this%vertices(3)%ptr%top_parent
-                i_vert_d(4) = this%vertices(1)%ptr%bot_parent
-                i_vert_d(5) = this%vertices(2)%ptr%bot_parent
-                i_vert_d(6) = this%vertices(3)%ptr%bot_parent
-
                 ! Set default influence
                 allocate(v_d(6,3), source=0.)
 
             else
-
-                ! Body panels are influenced by only one set of vertices
-                allocate(i_vert_d, source=this%vertex_indices)
 
                 ! Set default influence
                 allocate(v_d(3,3), source=0.)
@@ -1887,7 +1998,7 @@ contains
         end if
 
         ! Check DoD
-        if (dod_info%in_dod) then
+        if (dod_info%in_dod .and. this%A > 0.) then
 
             ! Calculate geometric parameters
             if (freestream%supersonic) then
@@ -1925,7 +2036,7 @@ contains
         integer,intent(in) :: mirror_plane
         real,dimension(3) :: dv
 
-        real,dimension(3) :: mu_verts, mu_params
+        real,dimension(:),allocatable :: mu_verts, mu_params
         integer :: i
         real :: s
 
@@ -1933,9 +2044,28 @@ contains
         if (mirrored) then
 
             ! Set up array of doublet strengths to calculate doublet parameters
-            do i=1,this%N
-                mu_verts(i) = mu(this%vertex_indices(i)+size(mu)/2)
-            end do
+            if (doublet_order == 1) then
+
+                ! Allocate
+                allocate(mu_verts(this%N))
+
+                ! Get doublet values
+                do i=1,this%N
+                    mu_verts(i) = mu(this%get_vertex_index(i)+size(mu)/2)
+                end do
+
+            else if (doublet_order == 2) then
+
+                ! Allocate
+                allocate(mu_verts(2*this%N))
+
+                ! Get doublet values
+                do i=1,this%N
+                    mu_verts(i) = mu(this%get_vertex_index(i)+size(mu)/2)
+                    mu_verts(i+this%N) = mu(this%get_midpoint_index(i)+size(mu)/2)
+                end do
+
+            end if
         
             ! Calculate doublet parameters (derivatives)
             mu_params = matmul(this%S_mu_inv_mir, mu_verts)
@@ -1958,7 +2088,7 @@ contains
             else if (source_order == 1) then
                 s = 0.
                 do i=1,this%N
-                    s = s + sigma(this%vertex_indices(i)+size(sigma)/2)
+                    s = s + sigma(this%get_vertex_index(i)+size(sigma)/2)
                 end do
                 s = s/this%N
             end if
@@ -1970,8 +2100,27 @@ contains
         ! Same steps as above
         else
 
+            if (doublet_order == 1) then
+
+                allocate(mu_verts(this%N))
+
+                do i=1,this%N
+                    mu_verts(i) = mu(this%get_vertex_index(i))
+                end do
+
+            else if (doublet_order == 2) then
+
+                allocate(mu_verts(2*this%N))
+
+                do i=1,this%N
+                    mu_verts(i) = mu(this%get_vertex_index(i))
+                    mu_verts(i+this%N) = mu(this%get_midpoint_index(i))
+                end do
+
+            end if
+
             do i=1,this%N
-                mu_verts(i) = mu(this%vertex_indices(i))
+                mu_verts(i) = mu(this%get_vertex_index(i))
             end do
         
             mu_params = matmul(this%S_mu_inv, mu_verts)
@@ -1988,7 +2137,7 @@ contains
             else if (source_order == 1) then
                 s = 0.
                 do i=1,this%N
-                    s = s + sigma(this%vertex_indices(i))
+                    s = s + sigma(this%get_vertex_index(i))
                 end do
                 s = s/this%N
             end if
