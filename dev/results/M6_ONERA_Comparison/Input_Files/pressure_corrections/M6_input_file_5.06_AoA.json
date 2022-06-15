@@ -1,10 +1,12 @@
 {
     "flow": {
-        "freestream_velocity": [237.4, 0.0, 0.25],
+        "freestream_velocity": [
+            237.897751321189,
+            0.0,
+            21.064412230815854
+        ],
         "gamma": 1.4,
         "freestream_mach_number": 0.0
-        
-        
     },
     "geometry": {
         "file": "dev/meshes/m6_onera.vtk",
@@ -30,16 +32,16 @@
             "second-order": false
         },
         "subsonic_pressure_correction": {
-            "correction_mach_number": 0.7977,
+            "correction_mach_number": 0.7019,
             "prandtl-glauert": true,
             "karman-tsien": true,
             "laitone": true
         }
     },
     "output": {
-        "body_file": "dev/results/transonic_test_morino.vtk",
-        "wake_file": "dev/results/transonic_test_morino_wake.vtk",
-        "control_point_file": "dev/results/transonic_test_morino_control_points.vtk",
-        "report_file": "dev/report.json"
+        "body_file": "dev/results/M6_ONERA_Comparison/vtk_Results/MachLine/pressure_corrections/MachLine_mach_0.7019_AoA_5.06_morino.vtk",
+        "wake_file": "dev/results/M6_ONERA_Comparison/vtk_Results/MachLine/pressure_corrections/MachLine_mach_0.7019_AoA_5.06_morino_wake.vtk",
+        "control_point_file": "dev/results/M6_ONERA_Comparison/vtk_Results/MachLine/pressure_corrections/MachLine_mach_0.7019_AoA_5.06_morino_control_points.vtk",
+        "report_file": "../../report.json"
     }
 }

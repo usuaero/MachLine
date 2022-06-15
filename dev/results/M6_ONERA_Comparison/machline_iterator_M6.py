@@ -89,7 +89,7 @@ def mach_iter(AoA, calculation_type, freestream_mach_number):
             }
         },
         "solver": {
-            "formulation": ["morino"],
+            "formulation": "morino",
             "control_point_offset": 1.1e-05
         },
         "post_processing" : {
