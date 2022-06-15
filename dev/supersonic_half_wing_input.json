@@ -1,6 +1,6 @@
 {
     "flow": {
-        "freestream_velocity": [100.0, 5.0, 5.0],
+        "freestream_velocity": [100.0, 0.0, 5.0],
         "gamma" : 1.4,
         "freestream_mach_number" : 2.0
     },
@@ -8,9 +8,6 @@
         "file": "dev/meshes/diamond_5_deg_medium.vtk",
         "mirror_about": "xz",
         "spanwise_axis" : "+y",
-        "wake_model": {
-            "append_wake" : true
-        },
         "reference": {
             "area": 1.0
         }

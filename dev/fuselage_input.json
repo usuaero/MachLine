@@ -3,22 +3,18 @@
         "freestream_velocity" : [100.0, 0.0, 0.0]
     },
     "geometry" : {
-        "file" : "dev/meshes/test_fuselage.vtk",
-        "wake_model" : {
-            "wake_shedding_angle" : 90.0,
-            "trefftz_distance" : 100.0,
-            "N_panels" : 1
-        }
+        "file" : "dev/meshes/commercial_fuselage.vtk"
     },
     "solver" : {
         "formulation" : "morino",
-        "control_point_offset" : 1.0e-5
+        "control_point_offset" : 1.0e-5,
+        "matrix_solver" : "BJAC",
+        "tolerance" : 1.0e-14
     },
     "post_processing" : {
     },
     "output" : {
-        "body_file" : "dev/results/test_fuselage.vtk",
-        "wake_file" : "dev/results/test_fuselage_wake.vtk",
-        "control_point_file" : "dev/results/test_fuselage_control_points.vtk"
+        "body_file" :          "dev/results/commercial_fuselage.vtk",
+        "control_point_file" : "dev/results/commercial_fuselage_control_points.vtk"
     }
 }

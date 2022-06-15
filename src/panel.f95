@@ -971,19 +971,23 @@ contains
         type(vertex),intent(in),target :: new_vertex
         integer :: i
 
-        ! Loop through vertices
+        ! Loop through vertices/midpoints
         do i=1,this%N
 
-            ! Check which vertex this will replace
-            if (dist(this%get_vertex_loc(i), new_vertex%loc) < 1e-12) then
+            ! It's a vertex, so check the vertex locations
+            if (new_vertex%vert_type == 1) then
 
-                ! Update pointer
-                this%vertices(i)%ptr => new_vertex
+                if (dist(this%get_vertex_loc(i), new_vertex%loc) < 1e-12) then
 
-                return
+                    ! Update pointer
+                    this%vertices(i)%ptr => new_vertex
 
-            ! Check midpoints
-            else if (doublet_order == 2) then
+                    return
+
+                end if
+
+            ! Check midpoint locations
+            else
 
                 if (dist(this%get_midpoint_loc(i), new_vertex%loc) < 1e-12) then
 
