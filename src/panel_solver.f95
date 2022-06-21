@@ -1202,8 +1202,14 @@ contains
         end if
 
         ! Check if critical Mach number has been exceeded
-        if ((this%freestream%M_inf > 0.) .or. (this%corrected_M_inf > 0.)) then
-            call this%calc_crit_mach(body)
+        if (this%incompressible_rule) then
+            if ((this%corrected_M_inf < 1) .and. (this%corrected_M_inf /= 0.)) then
+                call this%calc_crit_mach(body)
+            end if
+        else
+            if ((this%freestream%M_inf < 1) .and. (this%freestream%M_inf /= 0.)) then
+                call this%calc_crit_mach(body)
+            end if
         end if
         
     end subroutine panel_solver_calc_pressures
