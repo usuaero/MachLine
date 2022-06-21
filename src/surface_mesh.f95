@@ -1280,7 +1280,7 @@ contains
 
         type(vtk_out) :: wake_vtk
 
-        if (this%append_wake) then
+        if (this%append_wake .and. this%found_discontinuous_edges) then
 
             ! Update default Trefftz distance
             if (this%trefftz_distance < 0.) then
