@@ -85,11 +85,11 @@ contains
 
         ! Calculate B and s
         if (this%supersonic) then
-            this%B = sqrt(this%M_inf**2-1.)
+            this%B = sqrt(this%M_inf**2 - 1.)
             this%s = -1.
             this%K = 2.*pi
         else
-            this%B = sqrt(1.-this%M_inf**2)
+            this%B = sqrt(1. - this%M_inf**2)
             this%s = 1.
             this%K = 4.*pi
         end if

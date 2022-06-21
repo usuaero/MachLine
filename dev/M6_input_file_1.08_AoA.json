@@ -1,15 +1,14 @@
 {
     "flow": {
-        "freestream_velocity": [238.3, 0.0,4.5],
+        "freestream_velocity": [ 238.24174740085218, 0.0, 4.491283079324619 ],
         "gamma": 1.4,
-        "freestream_mach_number": 0.7003
+        "freestream_mach_number": 0.0
     },
     "geometry": {
-        "file": "dev/meshes/m6_onera.vtk",
+        "file": "dev/meshes/m6_onera.tri",
         "mirror_about": "xz",
         "wake_model": {
-            "wake_shedding_angle": 90.0,
-            "N_panels": 1
+            "wake_present" : true
         },
         "reference": {
             "area": 1.0
@@ -17,25 +16,25 @@
     },
     "solver": {
         "formulation": "morino",
-        "control_point_offset": 1.1e-5
+        "control_point_offset": -1.1e-05
     },
     "post_processing": {
-        "pressure_for_forces": "isentropic",
+        "pressure_for_forces": "prandtl-glauert",
         "pressure_rules": {
             "incompressible": true,
-            "isentropic": true,
+            "isentropic": false,
             "second-order": false
         },
         "subsonic_pressure_correction": {
-            "Xcorrection_mach_number": 0.7003,
-            "Xprandtl-glauert": true,
-            "Xkarman-tsien": true,
-            "Xlaitone": true
+            "correction_mach_number": 0.7003,
+            "prandtl-glauert": true,
+            "karman-tsien": true,
+            "laitone": true
         }
     },
     "output": {
-        "body_file": "dev/results/M6_AoA_1.08_morino.vtk",
-        "wake_file": "dev/results/M6_AoA_1.08_morino_wake.vtk",
-        "control_point_file": "dev/results/M6_AoA_1.08_morino_control_points.vtk"
+        "body_file":          "dev/results/M6_onera.vtk",
+        "wake_file":          "dev/results/M6_onera_wake.vtk",
+        "control_point_file": "dev/results/M6_onera_control_points.vtk"
     }
 }

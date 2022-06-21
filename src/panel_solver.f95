@@ -45,6 +45,7 @@ module panel_solver_mod
             procedure :: calc_velocities => panel_solver_calc_velocities
             procedure :: calc_pressures => panel_solver_calc_pressures
             procedure :: subsonic_pressure_correction => panel_solver_subsonic_pressure_correction
+            procedure :: calc_crit_mach => panel_solver_calc_crit_mach
             procedure :: calc_forces => panel_solver_calc_forces
             procedure :: update_report => panel_solver_update_report
 
@@ -67,6 +68,9 @@ contains
         integer :: i, j
         type(vtk_out) :: cp_vtk
 
+        ! Store
+        this%freestream = freestream
+
         ! Get solver_settings
         call json_xtnsn_get(solver_settings, 'formulation', this%formulation, 'morino')        
         call json_xtnsn_get(solver_settings, 'matrix_solver', this%matrix_solver, 'LU')
@@ -79,55 +83,48 @@ contains
         this%morino = this%formulation == 'morino'
 
         ! Get pressure rules
+        call json_xtnsn_get(processing_settings, 'pressure_rules.isentropic', this%isentropic_rule, .true.)
         call json_xtnsn_get(processing_settings, 'pressure_rules.second-order', this%second_order_rule, .false.)
         call json_xtnsn_get(processing_settings, 'pressure_rules.second-order', this%second_order_rule, .false.)
         call json_xtnsn_get(processing_settings, 'pressure_rules.slender-body', this%slender_rule, .false.)
         call json_xtnsn_get(processing_settings, 'pressure_rules.linear', this%linear_rule, .false.)
-
-        ! Verify compatability of pressure rules and selected freestream mach number
-        if (freestream%incompressible) then
-            
-            ! Get incompressible and isentropic settings
-            call json_xtnsn_get(processing_settings, 'pressure_rules.incompressible', this%incompressible_rule, .true.)
-            call json_xtnsn_get(processing_settings, 'pressure_rules.isentropic', this%isentropic_rule, .false.)
-
-            ! Notify user if pressure rule applied is changed based on selected freestream mach number
-            if (this%isentropic_rule) then
-                write(*,*) "!!! The pressure rule has been changed from isentropic to incompressible since a freestream"
-                write(*,*) "!!! Mach number of 0.0 has been selected"
-                this%isentropic_rule = .false.
-                this%incompressible_rule = .true.
-            end if
-
-        else
-            
-            ! Get incompressible and isentropic settings
-            call json_xtnsn_get(processing_settings, 'pressure_rules.incompressible', this%incompressible_rule, .false.)
-            call json_xtnsn_get(processing_settings, 'pressure_rules.isentropic', this%isentropic_rule, .true.)
-
-            ! Notify user if pressure rule applied is changed based on selected freestream mach number
-            if (this%incompressible_rule) then
-                write(*,*) "!!! The pressure rule has been changed from incompressible to isentropic since a freestream"
-                write(*,*) "!!! Mach number greater than 0.0 has been selected"
-                this%incompressible_rule = .false.
-                this%isentropic_rule = .true.
-            end if
-
-        end if
-
-        ! Get mach number for pressure corrections
-        call json_xtnsn_get(processing_settings, 'subsonic_pressure_correction.correction_mach_number', this%corrected_M_inf, 0.0)
+        call json_xtnsn_get(processing_settings, 'pressure_rules.incompressible', this%incompressible_rule, .false.)
         
-        ! Check the correction mach number is positive
-        if (this%corrected_M_inf < 0.0) then
-            write(*,*) "The correction mach number cannot be a negative number. Quitting..."
-            stop
-        end if
-
-        ! Get subsonic pressure corrections requested
+        ! Get information for pressure corrections
+        call json_xtnsn_get(processing_settings, 'subsonic_pressure_correction.correction_mach_number', this%corrected_M_inf, 0.0)
         call json_xtnsn_get(processing_settings, 'subsonic_pressure_correction.prandtl-glauert', this%prandtl_glauert, .false.)
         call json_xtnsn_get(processing_settings, 'subsonic_pressure_correction.karman-tsien', this%karman_tsien, .false.)
         call json_xtnsn_get(processing_settings, 'subsonic_pressure_correction.laitone', this%laitone, .false.)
+        
+        ! Verify compatability of pressure rules and selected freestream mach number
+        if (this%freestream%M_inf > 0.) then
+            ! Notify user if pressure rule applied is changed based on selected freestream mach number
+            if (this%incompressible_rule) then
+                write(*,*) "!!! The pressure rule has been set as the isentropic rule whereas a freestream"
+                write(*,*) "    mach number greater than 0.0 has been selected"
+                this%incompressible_rule = .false.
+            end if
+            this%isentropic_rule = .true.
+        else if (this%freestream%M_inf == 0.) then
+            ! Notify user if pressure rule applied is changed based on selected freestream mach number
+            if (.not. this%incompressible_rule) then
+                write(*,*) "!!! The pressure rule has been set as the incompressible rule whereas a freestream"
+                write(*,*) "    mach number of 0.0 has been selected"
+                this%isentropic_rule = .false.
+                this%incompressible_rule = .true.
+            end if
+        else
+            ! MachLine does not support a negative freestream Mach number
+            write(*,*) "!!! MachLine does not support a negative freestream Mach number. Quitting..."
+            stop
+        end if
+        
+        ! Check the correction mach number is positive
+        if (this%corrected_M_inf < 0.0) then
+            write(*,*) "!!! The correction mach number cannot be a negative number. Quitting..."
+            stop
+        end if
+
 
         ! Check freestream mach number is set to 0 if pressure correction is selected
         if (((this%prandtl_glauert) .or. (this%karman_tsien) .or. (this%laitone)) .and. (freestream%M_inf /= 0.0)) then
@@ -145,7 +142,16 @@ contains
         end if 
 
         ! Get which pressure rule will be used for force calculation
-        if (this%incompressible_rule) then
+        if (this%isentropic_rule) then
+            call json_xtnsn_get(processing_settings, 'pressure_for_forces', this%pressure_for_forces, 'isentropic')
+        else if (this%second_order_rule) then
+            call json_xtnsn_get(processing_settings, 'pressure_for_forces', this%pressure_for_forces, 'second-order')
+        else if (this%slender_rule) then
+            call json_xtnsn_get(processing_settings, 'pressure_for_forces', this%pressure_for_forces, 'slender-body')
+        else if (this%linear_rule) then
+            call json_xtnsn_get(processing_settings, 'pressure_for_forces', this%pressure_for_forces, 'linear')
+        else
+            ! Default to incompressible rule
             ! Check if a compressibility correction will be applied
             if (this%prandtl_glauert) then
                 call json_xtnsn_get(processing_settings, 'pressure_for_forces', this%pressure_for_forces, 'prandtl-glauert')
@@ -156,71 +162,7 @@ contains
             else
                 call json_xtnsn_get(processing_settings, 'pressure_for_forces', this%pressure_for_forces, 'incompressible')
             end if
-        else if (this%isentropic_rule) then
-            call json_xtnsn_get(processing_settings, 'pressure_for_forces', this%pressure_for_forces, 'isentropic')
-        else if (this%second_order_rule) then
-            call json_xtnsn_get(processing_settings, 'pressure_for_forces', this%pressure_for_forces, 'second-order')
         end if
-
-        ! Check that the selected pressure for force calculation has been specified
-        select case (this%pressure_for_forces)
-
-        case ("incompressible")
-            if (.not. this%incompressible_rule) then
-                write(*,*) "!!! Incompressible pressure rule is not available for force calculation. Quitting..."
-                stop
-            end if
-
-        case ("isentropic")
-            if (.not. this%isentropic_rule) then
-                write(*,*) "!!! Isentropic pressure rule is not available for force calculation. Quitting..."
-                stop
-            end if
-
-        case ("second-order")
-            if (.not. this%second_order_rule) then
-                write(*,*) "!!! Second-order pressure rule is not available for force calculation. Quitting..."
-                stop
-            end if
-
-        case ("slender-body")
-            if (.not. this%slender_rule) then
-                write(*,*) "!!! Slender-body pressure rule is not available for force calculation. Quitting..."
-                stop
-            end if
-
-        case ("linear")
-            if (.not. this%linear_rule) then
-                write(*,*) "!!! Linear pressure rule is not available for force calculation. Quitting..."
-                stop
-            end if
-
-        case ("prandtl-glauert")
-            if (.not. this%prandtl_glauert) then
-                write(*,*) "!!! Prandtl-Glauert pressure correction is not available for force calculation. Quitting..."
-                stop
-            end if
-
-        case ("karman-tsien")
-            if (.not. this%prandtl_glauert) then
-                write(*,*) "!!! Karman-Tsien pressure correction is not available for force calculation. Quitting..."
-                stop
-            end if
-
-        case ("laitone")
-            if (.not. this%prandtl_glauert) then
-                write(*,*) "!!! Laitone pressure correction is not available for force calculation. Quitting..."
-                stop
-            end if
-
-        case default
-            write(*,*) "!!! User selected ", this%pressure_for_forces, " for calculating forces. This is not valid. Quitting..."
-            stop
-
-        end select
-
-        ! Store
-        this%freestream = freestream
 
         ! Initialize based on formulation
         if (this%morino .or. this%formulation == 'source-free') then
@@ -1133,7 +1075,6 @@ contains
         real :: a, b, c, C_p_vac, lin, sln
 
         if (verbose) write(*,'(a)',advance='no') "     Calculating surface pressures..."
-        this%N_cells = size(body%V)/3
 
         ! Calculate vacuum pressure coefficient
         C_p_vac = -2./(this%freestream%gamma*this%freestream%M_inf**2)
@@ -1259,9 +1200,14 @@ contains
         if ((this%prandtl_glauert) .or. (this%karman_tsien) .or. (this%laitone)) then
             call this%subsonic_pressure_correction(body)
         end if
+
+        ! Check if critical Mach number has been exceeded
+        if ((this%freestream%M_inf > 0.) .or. (this%corrected_M_inf > 0.)) then
+            call this%calc_crit_mach(body)
+        end if
         
     end subroutine panel_solver_calc_pressures
-    
+
     
     subroutine panel_solver_subsonic_pressure_correction(this, body)
         ! Apply selected method of correcting subsonic pressures
@@ -1284,7 +1230,7 @@ contains
             ! Perform calculations for Prandtl-Glauert Rune (Modern Compressible Flow by John Anderson EQ 9.36)
             body%C_p_pg = body%C_p_inc / (sqrt(1 - (this%corrected_M_inf**2)))
         end if
-
+        
         ! Laitone rule
         if (this%laitone) then
             ! Allocate storage
@@ -1293,12 +1239,12 @@ contains
             
             ! Perform calculations (Modern Compressible Flow by John Anderson EQ 9.39)
             val_holder_L = this%corrected_M_inf**2 * (1 + (0.5 * (this%freestream%gamma - 1) * this%corrected_M_inf**2)) &
-                        / (2 * sqrt(1 - this%corrected_M_inf**2))
-
+            / (2 * sqrt(1 - this%corrected_M_inf**2))
+            
             body%C_p_lai = body%C_p_inc / &
-                            (sqrt(1 - this%corrected_M_inf**2) + (val_holder_L * body%C_p_inc))
+            (sqrt(1 - this%corrected_M_inf**2) + (val_holder_L * body%C_p_inc))
         end if
-
+        
         ! Karman-Tsien rule
         if (this%karman_tsien) then
             ! Allocate storage
@@ -1316,7 +1262,87 @@ contains
         
     end subroutine panel_solver_subsonic_pressure_correction
     
+
+    subroutine panel_solver_calc_crit_mach(this, body)
+        ! Warn the user if body is in transonic flow
+
+        implicit none
+
+        class(panel_solver),intent(inout) :: this
+        type(surface_mesh),intent(inout) :: body
+        integer,dimension(1) :: min_loc
+        real :: C_p_crit, C_p_min, numerator, denominator, M_inf_selected
+
+        ! Locate minimum pressure location on body based on pressure for forces selection
+        select case (this%pressure_for_forces)
+            case ("incompressible")
+                min_loc = MINLOC(body%C_p_inc)
+                C_p_min = MINVAL(body%C_p_inc)
+                M_inf_selected = this%corrected_M_inf  
+            
+            case ("prandtl-glauert")
+                min_loc = MINLOC(body%C_p_pg)
+                C_p_min = MINVAL(body%C_p_pg)
+                M_inf_selected = this%corrected_M_inf
+
+            case ("karman-tsien")
+                min_loc = MINLOC(body%C_p_kt)
+                C_p_min = MINVAL(body%C_p_kt)
+                M_inf_selected = this%corrected_M_inf
+
+            case ("laitone")
+                min_loc = MINLOC(body%C_p_lai)
+                C_p_min = MINVAL(body%C_p_lai)
+                M_inf_selected = this%corrected_M_inf
+
+            case ("isentropic")
+                min_loc = MINLOC(body%C_p_ise)
+                C_p_min = MINVAL(body%C_p_ise)
+                M_inf_selected = this%freestream%M_inf
+
+            case ("second-order")
+                min_loc = MINLOC(body%C_p_2nd)
+                C_p_min = MINVAL(body%C_p_2nd)
+                M_inf_selected = this%freestream%M_inf
+
+            case ("linear")
+                min_loc = MINLOC(body%C_p_lin)
+                C_p_min = MINVAL(body%C_p_lin)
+                M_inf_selected = this%freestream%M_inf
+
+            case ("slender-body")
+                min_loc = MINLOC(body%C_p_sln)
+                C_p_min = MINVAL(body%C_p_sln)
+                M_inf_selected = this%freestream%M_inf
+                
+            case default
+                write(*,*) "!!! ", this%pressure_for_forces," pressure for forces is not available. Quitting..."
+                stop
+        end select
+
+        ! Calculate critical pressure coefficient for the selected Mach number (Modern Compressible Flow by John Anderson EQ 9.55)
+        numerator = 1 + ((this%freestream%gamma - 1) / 2) * M_inf_selected**2 
+        denominator = 1 + (this%freestream%gamma -1) / 2
+
+        C_p_crit = (2 / (this%freestream%gamma * M_inf_selected**2)) &
+                    * (((numerator/denominator) ** (this%freestream%gamma / (this%freestream%gamma - 1))) - 1)
     
+        ! Report the critical mach pressure coefficient and the minimum pressure coefficients to the terminal
+        if (verbose) then
+        write(*,*) "        Critical Mach C_p = ", C_p_crit
+        write(*,*) "        Minimum C_p       = ", C_p_min
+        end if
+
+        ! Throw warning message indicating body is in transonic flow
+        if ((C_p_min <= C_p_crit) .and. (verbose)) then
+            write(*,*) "!!! Critical Mach number has been exceeded along at least panel .", min_loc
+            write(*,*) "!!! Results may not be reliable."
+            
+        end if
+
+    end subroutine panel_solver_calc_crit_mach
+    
+
     subroutine panel_solver_calc_forces(this, body)
         ! Calculates the forces
         

@@ -128,7 +128,7 @@ class Swept_Plotting:
 
                         # Iterate over calculation type
                         for calc in self.calc_type:
-                            file = f"{data_type}_Data/{calc}/M6_{data_type}_data_{percent_semispan}_percent_semispan_mach_{mach_number[j]}_AoA_{AoA}.csv"
+                            file = f"csv_file_data/{calc}/M6_{data_type}_data_{percent_semispan}_percent_semispan_mach_{mach_number[j]}_AoA_{AoA}.csv"
                             
                             # Call plotting function
                             self.Pressure_Plot(file, calc)
@@ -146,9 +146,10 @@ class Swept_Plotting:
                 #Identify labels and notes to include on plots
                 title = f"Pressure Distribution at section {section + 1}, {percent_semispan} percent semispan"
                
-                #Identify angle of atack note to add to plot title
+                #Identify angle of atack and mach number notes to add to plot title
                 y = r'$\alpha$='
                 AoA_Notes = y + AoA + r'$^{\circ}$'
+                M_notes = r'$M_{\infty}$ = ' + mach_number[j] + ","
 
                 #Pull in experimental results for comparison
                 plt.plot(Experimental[:,0], Experimental[:, 1], "o", label="Experimental", color="k", fillstyle="full")
@@ -163,6 +164,7 @@ class Swept_Plotting:
                 # Only include title and notes if the plots aren't going to be saved
                 if (not json_vals["plots"]["save plots"]) or json_vals["plots"]["combine pdfs"]:
                     plt.title(title)
+                    plt.figtext(0.675, 0.01, M_notes)
                     plt.figtext(0.825, 0.015, AoA_Notes)
                 # complete_title = title + ", " + AoA_Notes
                 # Sub_Note = "*" + formulation + " form."

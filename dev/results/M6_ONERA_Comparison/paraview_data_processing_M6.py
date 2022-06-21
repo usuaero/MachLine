@@ -49,10 +49,10 @@ for form in formulation_inputs:
                 # Identify the filename and filepath of the vtk file being processed
                 if data == "MachLine":
                     PassedName= f"{data}_mach_" + mach_numbers[k] + "_AoA_" + AoA + "_" + formulation_adjusted + ".vtk"
-                    vtk_file_location = f'M6_meshes/{data}/{calc}/' + PassedName
+                    vtk_file_location = f'vtk_Results/{data}/{calc}/' + PassedName
                 elif data == "FlightStream":
                     PassedName= f"{data}_mach_" + mach_numbers[k] + "_AoA_" + AoA + ".vtk"
-                    vtk_file_location = f'M6_meshes/{data}/' + PassedName
+                    vtk_file_location = f'vtk_Results/{data}/' + PassedName
                 else:
                     print("Invalid Data Type Selected. Quitting...")
                     exit()
@@ -106,7 +106,7 @@ for form in formulation_inputs:
 
                         # save data
                         if data == "MachLine":
-                            save_location = f"{data}_Data/{calc}/M6_{data}_data_{percent_semispan}_percent_semispan_mach_{mach_numbers[k]}_AoA_{AoA}"'.csv'
+                            save_location = f"csv_file_data/{calc}/M6_{data}_data_{percent_semispan}_percent_semispan_mach_{mach_numbers[k]}_AoA_{AoA}"'.csv'
                         else:
                             save_location = f"{data}_Data/M6_{data}_data_{percent_semispan}_percent_semispan_mach_{mach_numbers[k]}_AoA_{AoA}"'.csv'
                         pvs.SaveData(save_location, proxy=plotOnIntersectionCurves1, PointDataArrays=points_to_process, FieldAssociation='Point Data', Precision=12)
