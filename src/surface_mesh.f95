@@ -1,4 +1,4 @@
-! A surface mesh type encompassing a body, wakes, and shocks
+! A surface mesh type encompassing a body
 module surface_mesh_mod
 
     use omp_lib
@@ -1091,8 +1091,8 @@ contains
                                     ! Check if it is not the top panel
                                     if (i_abutting_panel /= i_top_panel) then
 
-                                        ! Make sure the abutting panel is not a mirrored panel
-                                        if (i_abutting_panel <= this%N_panels) then
+                                        ! Make sure the abutting panel is not a mirrored/nonexistant panel
+                                        if (i_abutting_panel > 0 .and. i_abutting_panel <= this%N_panels) then
 
                                             ! See if this panel touches the vertex
                                             if (this%panels(i_abutting_panel)%touches_vertex(i_jango)) then
