@@ -7,7 +7,7 @@
         "file": "dev/meshes/naca_0010_AR_10_half_coarse.stl",
         "mirror_about": "xz",
         "singularity_order" : {
-            "doublet" : 1
+            "doublet" : 2
         },
         "wake_model" : {
             "wake_present" : true

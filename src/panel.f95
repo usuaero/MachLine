@@ -1473,8 +1473,8 @@ contains
 
                 ! Calculate (these formulas come from PAN AIR and are equivalent to Johnson, but simplified)
                 int%F121(i) = geom%a(i)*v_eta(i)*int%F111(i) + v_xi(i)*geom%dR(i)
-
                 int%F211(i) = geom%a(i)*v_xi(i)*int%F111(i) - v_eta(i)*geom%dR(i)
+
             end if
 
         end do
@@ -1636,7 +1636,7 @@ contains
             v_eta = this%n_hat_ls(2,:)
         end if
 
-        ! Calculate and hH(1,1,3) (Johnson Eqs. (D.41) and (G.24))
+        ! Calculate hH(1,1,3) (Johnson Eqs. (D.41) and (G.24))
         ! No check on the magnitude of h is necessary since we never divide by it
         int%hH113 = 0.
         do i=1,this%N
@@ -1653,7 +1653,7 @@ contains
         
         end do
         
-        ! Calculate hH(1,1,3) (Johnson Eq. (D.42)
+        ! Apply sign factor (Johnson Eq. (D.42)
         int%hH113 = sign(int%hH113, geom%h)
 
         ! Calculate H(1,1,1)
@@ -1671,9 +1671,9 @@ contains
 
         ! Calculate higher-order doublet integrals
         if (doublet_order == 2) then
-            int%H133 = int%H111 - sum(v_eta*int%F121)
-            int%H223 = -sum(v_xi*int%F121)
-            int%H313 = -int%H133 - geom%h*int%hH113 + int%H111
+            int%H313 = -sum(v_eta*int%F121) + geom%h*int%hH113
+            int%H223 = sum(v_xi*int%F121)
+            int%H133 = -int%H111 + sum(v_eta*int%F121)
         end if
 
     end subroutine panel_calc_subsonic_panel_integrals
@@ -1894,7 +1894,6 @@ contains
 
                 ! Johnson Eq. (D21)
                 ! Equivalent to Ehlers Eq. (8.6)
-                phi_s(1) = int%H111
                 phi_s(2) = int%H111*geom%P_ls(1) + int%H211
                 phi_s(3) = int%H111*geom%P_ls(2) + int%H121
 
