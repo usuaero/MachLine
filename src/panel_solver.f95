@@ -81,14 +81,49 @@ contains
         call json_xtnsn_get(solver_settings, 'preconditioner', this%preconditioner, 'NONE')
         call json_xtnsn_get(solver_settings, 'write_A_and_b', this%write_A_and_b, .false.)
         this%morino = this%formulation == 'morino'
+        
+        ! Get incompressible/isentropic pressure rules
+        if (this%freestream%M_inf > 0.) then
 
-        ! Get pressure rules
-        call json_xtnsn_get(processing_settings, 'pressure_rules.isentropic', this%isentropic_rule, .true.)
+            ! Isentropic is default for M > 0
+            call json_xtnsn_get(processing_settings, 'pressure_rules.isentropic', this%isentropic_rule, .true.)
+
+            ! Check for incompressible rule
+            call json_xtnsn_get(processing_settings, 'pressure_rules.incompressible', this%incompressible_rule, .false.)
+
+            ! Notify user if we're throwing out the incompressible rule
+            if (this%incompressible_rule) then
+                write(*,*) "!!! The incompressible pressure rule cannot be used for M > 0."
+                this%incompressible_rule = .false.
+            end if
+
+        else if (this%freestream%M_inf == 0.) then
+
+            ! Incompressible is deafult
+            call json_xtnsn_get(processing_settings, 'pressure_rules.incompressible', this%incompressible_rule, .true.)
+
+            ! Check for isentropic
+            call json_xtnsn_get(processing_settings, 'pressure_rules.isentropic', this%isentropic_rule, .false.)
+
+            ! Notify user if pressure rule applied is changed based on selected freestream mach number
+            if (this%isentropic_rule) then
+                write(*,*) "!!! The isentropic pressure rule cannot be used for M = 0."
+                this%isentropic_rule = .false.
+            end if
+
+        else
+
+            ! MachLine does not support a negative freestream Mach number
+            write(*,*) "!!! MachLine does not support a negative freestream Mach number. Quitting..."
+            stop
+
+        end if
+
+        ! Get other pressure rules
         call json_xtnsn_get(processing_settings, 'pressure_rules.second-order', this%second_order_rule, .false.)
         call json_xtnsn_get(processing_settings, 'pressure_rules.second-order', this%second_order_rule, .false.)
         call json_xtnsn_get(processing_settings, 'pressure_rules.slender-body', this%slender_rule, .false.)
         call json_xtnsn_get(processing_settings, 'pressure_rules.linear', this%linear_rule, .false.)
-        call json_xtnsn_get(processing_settings, 'pressure_rules.incompressible', this%incompressible_rule, .false.)
         
         ! Get information for pressure corrections
         call json_xtnsn_get(processing_settings, 'subsonic_pressure_correction.correction_mach_number', this%corrected_M_inf, 0.0)
@@ -96,72 +131,42 @@ contains
         call json_xtnsn_get(processing_settings, 'subsonic_pressure_correction.karman-tsien', this%karman_tsien, .false.)
         call json_xtnsn_get(processing_settings, 'subsonic_pressure_correction.laitone', this%laitone, .false.)
         
-        ! Verify compatability of pressure rules and selected freestream mach number
-        if (this%freestream%M_inf > 0.) then
-            ! Notify user if pressure rule applied is changed based on selected freestream mach number
-            if (this%incompressible_rule) then
-                write(*,*) "!!! The pressure rule has been set as the isentropic rule whereas a freestream"
-                write(*,*) "    mach number greater than 0.0 has been selected"
-                this%incompressible_rule = .false.
-            end if
-            this%isentropic_rule = .true.
-        else if (this%freestream%M_inf == 0.) then
-            ! Notify user if pressure rule applied is changed based on selected freestream mach number
-            if (.not. this%incompressible_rule) then
-                write(*,*) "!!! The pressure rule has been set as the incompressible rule whereas a freestream"
-                write(*,*) "    mach number of 0.0 has been selected"
-                this%isentropic_rule = .false.
-                this%incompressible_rule = .true.
-            end if
-        else
-            ! MachLine does not support a negative freestream Mach number
-            write(*,*) "!!! MachLine does not support a negative freestream Mach number. Quitting..."
-            stop
-        end if
-        
-        ! Check the correction mach number is positive
+        ! Check the correction Mach number is positive
         if (this%corrected_M_inf < 0.0) then
-            write(*,*) "!!! The correction mach number cannot be a negative number. Quitting..."
+            write(*,*) "!!! The correction Mach number cannot be a negative number. Quitting..."
             stop
         end if
 
-
-        ! Check freestream mach number is set to 0 if pressure correction is selected
+        ! Check freestream Mach number is set to 0 if pressure correction is selected
         if (((this%prandtl_glauert) .or. (this%karman_tsien) .or. (this%laitone)) .and. (freestream%M_inf /= 0.0)) then
-            write(*,*) "!!! In order to apply a subsonic pressure correction, the freestream mach number must be set to '0'."
-            write(*,*) "!!! Include the desired mach number for the correction calculations as the 'correction mach number'."
+            write(*,*) "!!! In order to apply a subsonic pressure correction, the freestream Mach number must be set to '0'."
+            write(*,*) "!!! Include the desired Mach number for the correction calculations as the 'correction_mach_number'."
             write(*,*) "!!! Quitting..."
             stop
         end if
 
         ! Check to see if user selected incompressible rule when applying the compressible pressure corrections
         if (((this%prandtl_glauert) .or. (this%karman_tsien) .or. (this%laitone)) .and. .not. this%incompressible_rule) then
-            write(*,*) "!!! To apply the subsonic compressible rules, the incompressible pressure rule must be selected."
-            write(*,*) "!!! Incompressible rule is now set to true."
             this%incompressible_rule = .true.
         end if 
 
         ! Get which pressure rule will be used for force calculation
-        if (this%isentropic_rule) then
+        if (this%incompressible_rule) then
+            call json_xtnsn_get(processing_settings, 'pressure_for_forces', this%pressure_for_forces, 'incompressible')
+        else if (this%isentropic_rule) then
             call json_xtnsn_get(processing_settings, 'pressure_for_forces', this%pressure_for_forces, 'isentropic')
         else if (this%second_order_rule) then
             call json_xtnsn_get(processing_settings, 'pressure_for_forces', this%pressure_for_forces, 'second-order')
-        else if (this%slender_rule) then
-            call json_xtnsn_get(processing_settings, 'pressure_for_forces', this%pressure_for_forces, 'slender-body')
         else if (this%linear_rule) then
             call json_xtnsn_get(processing_settings, 'pressure_for_forces', this%pressure_for_forces, 'linear')
-        else
-            ! Default to incompressible rule
-            ! Check if a compressibility correction will be applied
-            if (this%prandtl_glauert) then
-                call json_xtnsn_get(processing_settings, 'pressure_for_forces', this%pressure_for_forces, 'prandtl-glauert')
-            else if (this%karman_tsien) then
-                call json_xtnsn_get(processing_settings, 'pressure_for_forces', this%pressure_for_forces, 'karman-tsien')
-            else if (this%laitone) then
-                call json_xtnsn_get(processing_settings, 'pressure_for_forces', this%pressure_for_forces, 'laitone')
-            else
-                call json_xtnsn_get(processing_settings, 'pressure_for_forces', this%pressure_for_forces, 'incompressible')
-            end if
+        else if (this%slender_rule) then
+            call json_xtnsn_get(processing_settings, 'pressure_for_forces', this%pressure_for_forces, 'slender-body')
+        else if (this%prandtl_glauert) then
+            call json_xtnsn_get(processing_settings, 'pressure_for_forces', this%pressure_for_forces, 'prandtl-glauert')
+        else if (this%karman_tsien) then
+            call json_xtnsn_get(processing_settings, 'pressure_for_forces', this%pressure_for_forces, 'karman-tsien')
+        else if (this%laitone) then
+            call json_xtnsn_get(processing_settings, 'pressure_for_forces', this%pressure_for_forces, 'laitone')
         end if
 
         ! Initialize based on formulation

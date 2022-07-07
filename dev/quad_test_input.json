@@ -6,9 +6,6 @@
     "geometry": {
         "file": "dev/meshes/naca_0010_AR_10_half_coarse.stl",
         "mirror_about": "xz",
-        "reference": {
-            "area": 8.0
-        },
         "singularity_order" : {
             "doublet" : 2
         },
