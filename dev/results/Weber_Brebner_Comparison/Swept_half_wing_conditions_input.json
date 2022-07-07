@@ -24,7 +24,7 @@
             "89.8": 44,
             "94.9": 46.5
         },
-        "nodes": ["80"],
+        "nodes": ["10", "20", "40", "80"],
         "nodes_notes": ["Nodes 80 and above need to be ran on Ryzen or",
                         "memory cap will fail"],
         "uniform chord length": 20
@@ -45,8 +45,8 @@
 
     "plots":{
         "points to process": ["C_p_inc"],
-        "process_all": true,
-        "save plots": true,
+        "process_all": false,
+        "save plots": false,
         "save plot type": "pdf",
         "combine pdfs": false,
         "display pressure plots": false,
@@ -61,6 +61,8 @@
                     "x axis scale: auto, or enter value to scale chart size",
                     "y axis scale: auto, or enter value to scale chart size"]
 
-    }
+    },
+
+    "verbose": true
 
 }

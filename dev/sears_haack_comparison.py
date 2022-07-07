@@ -1,6 +1,6 @@
 import json
 import subprocess as sp
-import flow54 as fl
+# import flow54 as fl
 import numpy as np
 import paraview.simple as pvs
 import matplotlib.pyplot as plt
@@ -59,7 +59,7 @@ if __name__=="__main__":
         json.dump(input_dict, input_handle, indent=4)
 
     # Run
-    sp.run(["./machline.exe", input_file])
+    # sp.run(["./machline.exe", input_file])
     
     # Read into ParaView
     data_reader = pvs.LegacyVTKReader(registrationName=body_file.replace("dev/results/", ""), FileNames=body_file)
@@ -85,14 +85,35 @@ if __name__=="__main__":
     data = np.genfromtxt(save_loc, delimiter=',', skip_header=1)
     
     # Plot data from MachLine
-    plt.figure()
-    plt.plot(data[:,4], data[:,0], 'ks', label='2nd')
-    plt.plot(data[:,4], data[:,1], 'kv', label='Ise.')
-    plt.plot(data[:,4], data[:,2], 'ko', label='Slnd.')
-    plt.plot(data[:,4], data[:,3], 'k^', label='Lin.')
+    plt.figure(figsize=(8,6))
+
+
+    # Line types
+    # plt.plot(data[:,5], data[:,0], 'k--.', label='2nd Order')
+    # plt.plot(data[:,5], data[:,1], 'k--', label='Isentropic')
+    # plt.plot(data[:,5], data[:,2], 'k:', label='Slender Body')
+    # plt.plot(data[:,5], data[:,3], 'k-.', label='Linear')
+
+    # Different Shapes
+    # plt.plot(data[:,5], data[:,0], 'ks', markersize=6, label='2nd Order')
+    # plt.plot(data[:,5], data[:,1], 'kv', markersize=6, label='Isentropic')
+    # plt.plot(data[:,5], data[:,2], 'ko', markersize=6, label='Slender Body')
+    # plt.plot(data[:,5], data[:,3], 'k^', markersize=6, label='Linear')
+
+    # Concentric circles
+    plt.plot(data[:,5], data[:,0], 'k.', label='2nd Order', fillstyle="full")
+    plt.plot(data[:,5], data[:,1], 'ko', markersize=8, label='Isentropic')
+    plt.plot(data[:,5], data[:,2], 'ko', markersize=12, label='Slender Body')
+    plt.plot(data[:,5], data[:,3], 'ko', markersize=16,label='Linear')
+
 
     # Format
     plt.xlabel('$x$')
     plt.ylabel('$C_p$')
     plt.legend()
+
+    # Save figure
+    plot_loc = 'dev/results/sears_haack/plots/sears_haack_M_{0}.pdf'.format(M)
+    plt.savefig(plot_loc)
+
     plt.show()

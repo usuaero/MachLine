@@ -2,11 +2,12 @@
     "flow": {
         "freestream_velocity": [550.0, 0.0, 0.0],
         "gamma" : 1.4,
-        "freestream_mach_number" : 1.2
+        "freestream_mach_number" : 1.5
     },
     "geometry": {
-        "file": "dev/results/Delta_Wing/meshes/Coarse_mesh_Delta_Wing.vtk",
+        "file": "dev/results/Delta_Wing/meshes/Delta_wing_coarse_mesh.stl",
         "spanwise_axis" : "+y",
+        "mirrored_about": "xz",
         "wake_model": {
             "append_wake" : false
         },
