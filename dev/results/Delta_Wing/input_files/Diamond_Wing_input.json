@@ -17,7 +17,10 @@
     },
     "solver": {
         "formulation": "morino",
-        "control_point_offset": 1.1e-08
+        "control_point_offset": 1.1e-4,
+        "matrix_solver" : "LU",
+        "tolerance" : 1e-10,
+        "run_checks" : true
     },
     "post_processing" : {
         "pressure_rules" : {
@@ -26,8 +29,8 @@
         }
     },
     "output": {
-        "body_file" : "dev/results/Delta_Wing/Delta_Wing_5_deg_coarse.vtk",
+        "body_file" :          "dev/results/Delta_Wing/Delta_Wing_5_deg_coarse.vtk",
         "control_point_file" : "dev/results/Delta_Wing/Delta_Wing_5_deg_coarse_control_points.vtk",
-        "wake_file": "dev/resutls/Delta_Wing/Delta_Wing_5_deg_coarse_wake.vtk"
+        "wake_file":           "dev/resutls/Delta_Wing/Delta_Wing_5_deg_coarse_wake.vtk"
     }
 }
