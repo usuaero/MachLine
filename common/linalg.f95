@@ -672,6 +672,9 @@ subroutine block_jacobi_solve(N, A, b, block_size, tol, rel, max_iterations, ver
 
   ! Initialize solution vector
   allocate(x(N), source=0.)
+  do i=1,N
+    x(i) = b(i)/A(i,i)
+  end do
 
   ! Calculate number of blocks
   N_blocks = N/block_size
