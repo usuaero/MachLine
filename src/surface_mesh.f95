@@ -563,15 +563,17 @@ contains
     end subroutine surface_mesh_store_adjacent_vertices
 
 
-    subroutine surface_mesh_init_with_flow(this, freestream, wake_file)
+    subroutine surface_mesh_init_with_flow(this, freestream, body_file, wake_file)
 
         implicit none
 
         class(surface_mesh),intent(inout) :: this
         type(flow),intent(in) :: freestream
-        character(len=:),allocatable,intent(in) :: wake_file
+        character(len=:),allocatable,intent(in) :: body_file, wake_file
 
         integer :: i
+        real,dimension(:),allocatable :: panel_inclinations
+        type(vtk_out) :: body_vtk
 
         ! Check flow symmetry condition
         this%asym_flow = .false.
@@ -624,6 +626,29 @@ contains
         do i=1,this%N_panels
             call this%panels(i)%set_influencing_verts()
         end do
+
+        ! Write out body file to ensure it's been parsed correctly
+        if (body_file /= 'none') then
+
+            ! Clear old file
+            call delete_file(body_file)
+
+            ! Get panel inclinations
+            allocate(panel_inclinations(this%N_panels))
+            do i=1,this%N_panels
+                panel_inclinations(i) = this%panels(i)%r
+            end do
+
+            ! Write geometry
+            call body_vtk%begin(body_file)
+            call body_vtk%write_points(this%vertices)
+            call body_vtk%write_panels(this%panels)
+
+            ! Other
+            call body_vtk%write_cell_scalars(panel_inclinations, "inclination")
+            call body_vtk%finish()
+        end if
+
         if (verbose) write(*,*) "Done."
     
     end subroutine surface_mesh_init_with_flow
@@ -1177,19 +1202,10 @@ contains
         allocate(x(this%N_verts))
 
         ! Add compressibility distance of each vertex
-        ! What this really should is the compressibility distance of the most-upstream vertex
-        ! of the panels touching this vertex, since influences may be transmitted upstream
-        ! via a panel.
         do i=1,this%N_verts
 
             ! Initialize with the compressibility distance of this vertex
             x(i) = inner(freestream%c_hat_g, this%vertices(i)%loc)
-
-            !! Loop through neighboring vertices
-            !do j=1,this%vertices(i)%adjacent_vertices%len()
-            !    call this%vertices(i)%adjacent_vertices%get(j, k)
-            !    x(i) = max(inner(freestream%c_hat_g, this%vertices(k)%loc), x(i))
-            !end do
 
         end do
 

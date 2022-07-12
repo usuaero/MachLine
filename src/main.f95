@@ -116,7 +116,7 @@ program main
     call json_xtnsn_get(output_settings, 'mirrored_control_point_file', mirrored_control_point_file, 'none')
 
     ! Perform flow-dependent initialization on the surface mesh
-    call body_mesh%init_with_flow(freestream_flow, wake_file)
+    call body_mesh%init_with_flow(freestream_flow, body_file, wake_file)
 
     ! Initialize panel solver
     call linear_solver%init(solver_settings, processing_settings, body_mesh, freestream_flow, control_point_file)

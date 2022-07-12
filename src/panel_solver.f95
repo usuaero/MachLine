@@ -1232,7 +1232,7 @@ contains
             allocate(body%C_p_pg(this%N_cells), stat=stat)
             call check_allocation(stat, "Prandtl-Glauert corrected surface pressures")
             
-            ! Perform calculations for Prandtl-Glauert Rune (Modern Compressible Flow by John Anderson EQ 9.36)
+            ! Perform calculations for Prandtl-Glauert Rule (Modern Compressible Flow by John Anderson EQ 9.36)
             body%C_p_pg = body%C_p_inc / (sqrt(1 - (this%corrected_M_inf**2)))
         end if
         
