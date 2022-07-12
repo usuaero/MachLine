@@ -9,7 +9,7 @@
         "freestream_mach_number": 2
     },
     "geometry": {
-        "file": "dev/meshes/sears_haack_9800.tri",
+        "file": "dev/results/sears_haack/sears_haack_mesh_love.tri",
         "spanwise_axis": "+y",
         "wake_model": {
             "wake_present": false
@@ -20,7 +20,7 @@
     },
     "solver": {
         "formulation": "source-free",
-        "control_point_offset": 1.1e-10
+        "control_point_offset": 1.1e-08
     },
     "post_processing": {
         "pressure_rules": {
@@ -31,7 +31,7 @@
         }
     },
     "output": {
-        "body_file": "dev/results/sears_haack_9800.vtk",
-        "control_point_file": "dev/results/sears_haack_9800_control_points.vtk"
+        "body_file": "dev/results/sears_haack/sears_haack_9800.vtk",
+        "control_point_file": "dev/results/sears_haack/sears_haack_9800_data_mach_2_control_points.vtk"
     }
 }
