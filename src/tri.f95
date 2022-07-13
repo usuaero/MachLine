@@ -3,6 +3,7 @@ module tri_mod
     use panel_mod
     use vertex_mod
     use math_mod
+    use stl_mod
 
     implicit none
     
@@ -20,22 +21,21 @@ contains
         type(vertex),dimension(:),allocatable,intent(out) :: vertices
         type(panel),dimension(:),allocatable,intent(out) :: panels
 
-        integer :: i, i1, i2, i3, j, N_words
+        integer :: i, i1, i2, i3, j, N_words, N_duplicates, unit
         real,dimension(3) :: vert
         character(len=200) :: dummy_read
         logical :: more_than_three, on_space
+        real,dimension(:,:),allocatable :: vertex_locs
+        integer,dimension(:),allocatable :: new_ind
 
         ! Open mesh file
-        open(12, file=mesh_file)
+        open(newunit=unit, file=mesh_file)
 
             ! Get number of vertices and panels
-            read(12,*) N_verts, N_panels
-
-            ! Allocate vertex storate
-            allocate(vertices(N_verts))
+            read(unit,*) N_verts, N_panels
 
             ! Determine number of elements per line
-            read(12,'(a)') dummy_read
+            read(unit,'(a)') dummy_read
             more_than_three = .false.
 
             ! Loop through each character
@@ -64,33 +64,24 @@ contains
             end do
 
             ! Go back to beginning
-            rewind(12)
-            read(12,'(a)') dummy_read
+            rewind(unit)
+            read(unit,'(a)') dummy_read
 
             ! Read in and initialize vertices
+            allocate(vertex_locs(3,N_verts))
             do i=1,N_verts
 
                 ! Get coords
                 if (more_than_three) then
-                    read(12,*) vert(1), vert(2), vert(3), dummy_read
+                    read(unit,*) vertex_locs(1,i), vertex_locs(2,i), vertex_locs(3,i), dummy_read
                 else
-                    read(12,*) vert(1), vert(2), vert(3)
+                    read(unit,*) vertex_locs(1,i), vertex_locs(2,i), vertex_locs(3,i)
                 end if
 
-                ! Initialize
-                call vertices(i)%init(vert, i, 1)
-
             end do
 
-            ! Check for duplicate vertices
-            do i=1,N_verts
-                do j=i+1,N_verts
-                    if (dist(vertices(i)%loc, vertices(j)%loc) < 1e-12) then
-                        write(*,*) "!!! Detected duplicate vertices in ", mesh_file, " Solution quality may be reduced."
-                        write(*,*) "!!! ", i, " and ", j, " are duplicate vertices."
-                    end if
-                end do
-            end do
+            ! Find duplicates
+            call collapse_duplicate_vertices(vertex_locs, vertices, N_verts, N_duplicates, new_ind)
 
             ! Allocate panel storage
             allocate(panels(N_panels))
@@ -99,15 +90,15 @@ contains
             do i=1,N_panels
 
                 ! Get vertex indices
-                read(12,*) i1, i2, i3
+                read(unit,*) i1, i2, i3
 
                 ! Initialize
-                call panels(i)%init(vertices(i1), vertices(i2), vertices(i3), i)
+                call panels(i)%init(vertices(new_ind(i1)), vertices(new_ind(i2)), vertices(new_ind(i3)), i)
 
                 ! Add panel index to vertices
-                call vertices(i1)%panels%append(i)
-                call vertices(i2)%panels%append(i)
-                call vertices(i3)%panels%append(i)
+                call vertices(new_ind(i1))%panels%append(i)
+                call vertices(new_ind(i2))%panels%append(i)
+                call vertices(new_ind(i3))%panels%append(i)
 
             end do
 

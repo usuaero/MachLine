@@ -5,7 +5,8 @@
         "freestream_mach_number" : 2.0
     },
     "geometry": {
-        "file": "dev/results/Delta_Wing/meshes/Coarse_mesh_53_30_Delta_Wing.tri",
+        "xfile" : "dev/results/Delta_Wing/meshes/Coarse_mesh_53_30_Delta_Wing.tri",
+        "file" : "dev/results/Delta_Wing/Delta_Wing_5_deg_coarse.vtk",
         "spanwise_axis" : "+y",
         "wake_model": {
             "append_wake" : false

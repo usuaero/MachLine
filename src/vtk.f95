@@ -4,6 +4,7 @@ module vtk_mod
     use helpers_mod
     use panel_mod
     use vertex_mod
+    use stl_mod
 
     implicit none
 
@@ -372,45 +373,34 @@ contains
         type(panel),dimension(:),allocatable,intent(inout) :: panels
 
         character(len=200) :: dummy_read
-        real,dimension(3) :: vertex_loc
-        integer :: i, j, N, i1, i2, i3, i4
+        real,dimension(:,:),allocatable :: vertex_locs
+        integer :: i, j, N, i1, i2, i3, N_duplicates,unit
+        integer,dimension(:),allocatable :: new_ind
 
         ! Open file
-        open(1, file=mesh_file)
+        open(newunit=unit, file=mesh_file)
 
             ! Determine number of vertices
-            read(1,*) ! Header
-            read(1,*) ! Header
-            read(1,*) ! Header
-            read(1,*) ! Header
-            read(1,*) dummy_read, N_verts, dummy_read
-
-            ! Allocate vertex array
-            allocate(vertices(N_verts))
+            read(unit,*) ! Header
+            read(unit,*) ! Header
+            read(unit,*) ! Header
+            read(unit,*) ! Header
+            read(unit,*) dummy_read, N_verts, dummy_read
 
             ! Store vertices
+            allocate(vertex_locs(3,N_verts))
             do i=1,N_verts
 
                 ! Read in from file
-                read(1,*) vertex_loc(1), vertex_loc(2), vertex_loc(3)
-
-                ! Initialize
-                call vertices(i)%init(vertex_loc, i, 1)
+                read(unit,*) vertex_locs(1,i), vertex_locs(2,i), vertex_locs(3,i)
 
             end do
 
-            ! Check for duplicate vertices
-            do i=1,N_verts
-                do j=i+1,N_verts
-                    if (dist(vertices(i)%loc, vertices(j)%loc) < 1e-12) then
-                        write(*,*) "!!! Detected duplicate vertices in ", mesh_file, " Solution quality may be reduced."
-                        write(*,*) "!!! ", i, " and ", j, " are duplicate vertices."
-                    end if
-                end do
-            end do
+            ! Find duplicates
+            call collapse_duplicate_vertices(vertex_locs, vertices, N_verts, N_duplicates, new_ind)
 
             ! Determine number of panels
-            read(1,*) dummy_read, N_panels, dummy_read
+            read(unit,*) dummy_read, N_panels, dummy_read
 
             ! Allocate panel array
             allocate(panels(N_panels))
@@ -418,10 +408,10 @@ contains
             ! Initialize panels
             do i=1,N_panels
 
-                ! Get data
-                read(1,'(a)') dummy_read
+                ! Get vertex indices
+                read(unit,'(a)') dummy_read
                 
-                ! Determine size of panel
+                ! Check its a triangular panel
                 if (dummy_read(1:2) == '3 ') then
                     read(dummy_read,*) N, i1, i2, i3
                 else
@@ -429,15 +419,13 @@ contains
                     stop
                 end if
 
-                ! Initialize triangular panel
-                if (N == 3) then
-                    call panels(i)%init(vertices(i1+1), vertices(i2+1), vertices(i3+1), i) ! Need +1 because VTK uses 0-based indexing
+                ! Initialize; need +1 because VTK uses 0-based indexing
+                call panels(i)%init(vertices(new_ind(i1+1)), vertices(new_ind(i2+1)), vertices(new_ind(i3+1)), i)
 
-                    ! Add panel index to vertices
-                    call vertices(i1+1)%panels%append(i)
-                    call vertices(i2+1)%panels%append(i)
-                    call vertices(i3+1)%panels%append(i)
-                end if
+                ! Add panel index to vertices
+                call vertices(new_ind(i1+1))%panels%append(i)
+                call vertices(new_ind(i2+1))%panels%append(i)
+                call vertices(new_ind(i3+1))%panels%append(i)
 
             end do
 

@@ -643,6 +643,7 @@ contains
             call body_vtk%begin(body_file)
             call body_vtk%write_points(this%vertices)
             call body_vtk%write_panels(this%panels)
+            call body_vtk%write_cell_normals(this%panels)
 
             ! Other
             call body_vtk%write_cell_scalars(panel_inclinations, "inclination")
