@@ -150,7 +150,7 @@ program main
         open(newunit=i_unit, file=report_file, status='REPLACE')
         call json_print(report_json, i_unit)
         close(i_unit)
-        if (verbose) write(*,*) "    Report written to: ", report_file
+        if (verbose) write(*,'(a30 a)') "    Report: ", report_file
     end if
 
     ! Destroy pointers

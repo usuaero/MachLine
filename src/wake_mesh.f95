@@ -139,6 +139,15 @@ contains
 
         end if
 
+        !do i=1,this%N_verts
+        !    write(*,*)
+        !    write(*,*) i
+        !    write(*,*) this%vertices(i)%top_parent
+        !    write(*,*) this%vertices(i)%bot_parent
+        !    write(*,*) body_verts(this%vertices(i)%top_parent)%loc
+        !    write(*,*) body_verts(this%vertices(i)%bot_parent)%loc
+        !end do
+
         ! Initialize freestream-dependent properties of panels once the midpoints have been created
         ! The mirror of wake panels will never need to be initialized
         do i=1,this%N_panels
@@ -494,7 +503,7 @@ contains
                                 else
 
                                     ! Loop through wake-shedding edges to find this one's parent
-                                    do k=1,size(wake_edge_indices)
+                                    potential_edge_loop: do k=1,size(wake_edge_indices)
 
                                         ! Get edge index
                                         i_pot_edge = wake_edge_indices(k)
@@ -512,8 +521,10 @@ contains
                                             this%vertices(i_mid)%top_parent = i_midpoint_parent
                                             this%vertices(i_mid)%bot_parent = body_verts(i_midpoint_parent)%i_wake_partner
 
+                                            exit potential_edge_loop
+
                                         end if
-                                    end do
+                                    end do potential_edge_loop
 
                                 end if
 
@@ -564,7 +575,7 @@ contains
                     else
 
                         ! Loop through wake-shedding edges to find this one's parent
-                        do k=1,size(wake_edge_indices)
+                        empty_edge_loop: do k=1,size(wake_edge_indices)
 
                             ! Get edge index
                             i_pot_edge = wake_edge_indices(k)
@@ -581,9 +592,11 @@ contains
                                 ! Set parents
                                 this%vertices(i_mid)%top_parent = i_midpoint_parent
                                 this%vertices(i_mid)%bot_parent = body_verts(i_midpoint_parent)%i_wake_partner
+                                
+                                exit empty_edge_loop
 
                             end if
-                        end do
+                        end do empty_edge_loop
 
                     end if
 

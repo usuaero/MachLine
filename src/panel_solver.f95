@@ -204,12 +204,12 @@ contains
         type(surface_mesh),intent(inout) :: body
 
         real :: offset
-        
-        ! Place control points
-        if (verbose) write(*,'(a)',advance='no') "     Placing control points..."
 
         ! Get offset
         call json_xtnsn_get(solver_settings, 'control_point_offset', offset, 1e-5)
+        
+        ! Place control points
+        if (verbose) write(*,'(a ES10.4 a)',advance='no') "     Placing control points using offset of ", offset, "..."
 
         ! Place control points inside the body
         if (this%morino .or. this%formulation == 'source-free') then
