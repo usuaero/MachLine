@@ -65,7 +65,7 @@ contains
 
         ! Get indices of wake-shedding edges and vertices
         allocate(wake_edge_indices(N_wake_edges))
-        allocate(is_wake_edge_vertex(size(body_verts)))
+        allocate(is_wake_edge_vertex(size(body_verts)), source=.false.)
         j = 0
         do i=1,size(body_edges)
             if (body_edges(i)%sheds_wake) then
@@ -94,6 +94,7 @@ contains
                 body_verts(i)%index_in_wake_vertices = j
             end if
         end do
+        deallocate(is_wake_edge_vertex)
 
         ! Determine necessary number of vertices
         if (asym_flow) then
@@ -112,7 +113,7 @@ contains
         ! Determine necessary number of midpoints
         if (doublet_order == 2) then
             if (asym_flow) then
-                N_mids = (N_wake_edge_verts*N_panels_streamwise + N_wake_edges*(2*N_panels_streamwise + 1) )*2
+                N_mids = ( N_wake_edge_verts*N_panels_streamwise + N_wake_edges*(2*N_panels_streamwise + 1) ) * 2
             else
                 N_mids = N_wake_edge_verts*N_panels_streamwise + N_wake_edges*(2*N_panels_streamwise + 1)
             end if
@@ -591,7 +592,7 @@ contains
             end do
 
         end do
-        
+
     end subroutine wake_mesh_init_midpoints
 
 
