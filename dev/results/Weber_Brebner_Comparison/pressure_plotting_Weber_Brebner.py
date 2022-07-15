@@ -127,7 +127,7 @@ class Swept_Plotting:
 
                 #=== Main Plotting Section ===
                 #Identify labels and notes to include on plots
-                title = "Pressure Distribution at $\frac{2y}{b}=$" + str("{:.3f}".format(float(percent_semispan)/100))
+                title = "Pressure Distribution at" + r"$\frac{2y}{b}=$" + str("{:.3f}".format(float(percent_semispan)/100))
                
                 #Identify angle of atack note to add to plot title
                 y = r'$\alpha$='
@@ -139,17 +139,18 @@ class Swept_Plotting:
                 plt.plot(Experimental[upper_surface_count:,0], Experimental[upper_surface_count:,j+1], "*",color="k", label="Exerimental Lower Surface", fillstyle="full")
 
                 #Plot the figure containing all curves
-                complete_title = title + ", " + AoA_Notes
-                Sub_Note = "*" + formulation + " form."
                 # plt.title(complete_title)
                 xlabel = 'x/c'
                 plt.xlabel(xlabel)
                 plt.ylabel("$C_p$")
 
+                # If verbose, show plot title and other information
+                if json_vals["verbose"]:
+                    complete_title = title + ", " + AoA_Notes
+                    Sub_Note = "*" + formulation + " form."
+                    plt.title(complete_title)
+                    plt.figtext(0.625, 0.015, Sub_Note)
 
-
-                # Identify location of formulation type on plot
-                # plt.figtext(0.625, 0.015, Sub_Note)
 
                 # Split legend into columns
                 plt.legend(ncol = 2, fontsize=6)

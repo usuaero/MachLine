@@ -23,7 +23,7 @@
         }
     },
     "solver": {
-        "formulation": "morino",
+        "formulation": "source-free",
         "control_point_offset": 1.1e-05
     },
     "post_processing": {
@@ -40,15 +40,9 @@
         }
     },
     "output": {
-<<<<<<< HEAD
         "body_file": "dev/results/Weber_Brebner_Comparison/MachLine_Results/2.1_degrees_AoA/half_wing_A_80_nodes_2.1_deg_AoA_source_free_formulation.vtk",
         "wake_file": "dev/results/Weber_Brebner_Comparison/MachLine_Results/2.1_degrees_AoA/half_wing_A_80_nodes_2.1_deg_AoA_source_free_formulation_wake.vtk",
         "control_point_file": "dev/results/Weber_Brebner_Comparison/MachLine_Results/2.1_degrees_AoA/half_wing_A_80_nodes_2.1_deg_AoA_source_free_control_points.vtk",
-=======
-        "body_file": "dev/results/Weber_Brebner_Comparison/MachLine_Results/2.1_degrees_AoA/half_wing_A_80_nodes_2.1_deg_AoA_morino_formulation.vtk",
-        "wake_file": "dev/results/Weber_Brebner_Comparison/MachLine_Results/2.1_degrees_AoA/half_wing_A_80_nodes_2.1_deg_AoA_morino_formulation_wake.vtk",
-        "control_point_file": "dev/results/Weber_Brebner_Comparison/MachLine_Results/2.1_degrees_AoA/half_wing_A_80_nodes_2.1_deg_AoA_morino_control_points.vtk",
->>>>>>> test
         "report_file": "../../report.txt"
     }
 }

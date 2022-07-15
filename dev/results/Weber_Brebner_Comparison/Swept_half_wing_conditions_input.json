@@ -45,11 +45,11 @@
 
     "plots":{
         "points to process": ["C_p_inc"],
-        "process_all": false,
-        "save plots": false,
+        "process_all": true,
+        "save plots": true,
         "save plot type": "pdf",
-        "combine pdfs": false,
-        "display pressure plots": false,
+        "combine pdfs": true,
+        "display pressure plots": true,
         "compare formulations": true,
         "x axis scale": "auto",
         "y axis scale": "auto",
@@ -63,6 +63,6 @@
 
     },
 
-    "verbose": true
+    "verbose": false
 
 }
