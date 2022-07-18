@@ -21,6 +21,7 @@ module panel_mod
         real,dimension(2) :: P_ls ! Transformed point in panel plane
         real :: h, h2 ! Transformed height above panel
         real,dimension(3) :: a, g2, l1, l2, R1, R2, dR ! Edge integration parameters for the Ehlers-Johnson method
+        real,dimension(3) :: v_xi, v_eta ! Edge in-plane normal vectors
 
         contains
 
@@ -1183,55 +1184,45 @@ contains
             call geom%init(eval_point, this%A_g_to_ls, this%centr)
         end if
 
+        ! Store edge in-plane normal vectors
+        if (mirror_panel) then
+            geom%v_xi = this%n_hat_ls_mir(1,:)
+            geom%v_eta = this%n_hat_ls_mir(2,:)
+        else
+            geom%v_xi = this%n_hat_ls(1,:)
+            geom%v_eta = this%n_hat_ls(2,:)
+        end if
+
         ! Calculate edge quantities
         do i=1,this%N
 
             i_next = mod(i, this%N) + 1
 
+            ! Calculate displacement vector from start vertex
             if (mirror_panel) then
-
-                ! Calculate displacements
                 d_ls = this%vertices_ls_mir(:,i) - geom%P_ls
-
-                ! Perpendicular distance in plane from evaluation point to edge
-                geom%a(i) = inner2(d_ls, this%n_hat_ls_mir(:,i))
-
-                ! Integration length on edge to start vertex
-                geom%l1(i) = inner2(d_ls, this%t_hat_ls_mir(:,i))
-
             else
-
-                ! Calculate displacements
                 d_ls = this%vertices_ls(:,i) - geom%P_ls
-
-                ! Perpendicular distance in plane from evaluation point to edge
-                geom%a(i) = inner2(d_ls, this%n_hat_ls(:,i))
-
-                ! Integration length on edge to start vertex
-                geom%l1(i) = inner2(d_ls, this%t_hat_ls(:,i))
-
             end if
+
+            ! Perpendicular distance in plane from evaluation point to edge
+            geom%a(i) = d_ls(1)*geom%v_xi(i) + d_ls(2)*geom%v_eta(i)
+
+            ! Integration length on edge to start vertex
+            geom%l1(i) = -d_ls(1)*geom%v_eta(i) + d_ls(2)*geom%v_xi(i)
 
             ! Distance from evaluation point to start vertex
             geom%R1(i) = sqrt(d_ls(1)**2 + d_ls(2)**2 + geom%h2)
 
+            ! Calculate displacement vector from end vertex
             if (mirror_panel) then
-
-                ! Displacement from end vertex
                 d_ls = this%vertices_ls_mir(:,i_next) - geom%P_ls
-
-                ! Integration length on edge to end vertex
-                geom%l2(i) = inner2(d_ls, this%t_hat_ls_mir(:,i))
-
             else
-
-                ! Displacement from end vertex
                 d_ls = this%vertices_ls(:,i_next) - geom%P_ls
-
-                ! Integration length on edge to end vertex
-                geom%l2(i) = inner2(d_ls, this%t_hat_ls(:,i))
-
             end if
+
+            ! Integration length on edge to start vertex
+            geom%l2(i) = -d_ls(1)*geom%v_eta(i) + d_ls(2)*geom%v_xi(i)
 
         end do
 
@@ -1273,17 +1264,17 @@ contains
         real,dimension(2) :: d_ls, d
         real :: x
         integer :: i, i_next
-        real,dimension(this%N) :: v_xi, v_eta, dummy
+        real,dimension(this%N) :: dummy
 
         ! Initialize
         if (mirror_panel) then
             call geom%init(eval_point, this%A_g_to_ls_mir, this%centr_mir)
-            v_xi = this%n_hat_ls_mir(1,:)
-            v_eta = this%n_hat_ls_mir(2,:)
+            geom%v_xi = this%n_hat_ls_mir(1,:)
+            geom%v_eta = this%n_hat_ls_mir(2,:)
         else
             call geom%init(eval_point, this%A_g_to_ls, this%centr)
-            v_xi = this%n_hat_ls(1,:)
-            v_eta = this%n_hat_ls(2,:)
+            geom%v_xi = this%n_hat_ls(1,:)
+            geom%v_eta = this%n_hat_ls(2,:)
         end if
 
         ! Loop through edges
@@ -1300,10 +1291,10 @@ contains
                 end if
 
                 ! Edge integration length
-                geom%l1(i) = v_eta(i)*d_ls(1) + v_xi(i)*d_ls(2)
+                geom%l1(i) = geom%v_eta(i)*d_ls(1) + geom%v_xi(i)*d_ls(2)
 
                 ! Perpendicular in-plane distance
-                geom%a(i) = v_xi(i)*d_ls(1) + v_eta(i)*d_ls(2)
+                geom%a(i) = geom%v_xi(i)*d_ls(1) + geom%v_eta(i)*d_ls(2)
 
                 ! Perpendicular hyperbolic distance
                 if (mirror_panel) then
@@ -1332,7 +1323,7 @@ contains
                 end if
 
                 ! Edge integration length
-                geom%l2(i) = v_eta(i)*d_ls(1) + v_xi(i)*d_ls(2)
+                geom%l2(i) = geom%v_eta(i)*d_ls(1) + geom%v_xi(i)*d_ls(2)
 
                 ! Hyperbolic radius to first vertex
                 x = d_ls(1)*d_ls(1) - d_ls(2)*d_ls(2) - geom%h2
@@ -1420,14 +1411,6 @@ contains
         type(integrals),intent(inout) :: int
 
         integer :: i
-        real,dimension(this%N) :: v_xi, v_eta
-        
-        ! Allocate storage
-        allocate(int%F111(this%N))
-        if (source_order == 1 .or. doublet_order == 2) then
-            allocate(int%F121(this%N))
-            allocate(int%F211(this%N))
-        end if
 
         ! Loop through edges
         do i=1,this%N
@@ -1459,25 +1442,16 @@ contains
 
             end if
 
-            ! Calculate F(1,2,1) and F(2,1,1)
-            if (source_order == 1 .or. doublet_order == 2) then
-
-                ! Get edge normals
-                if (mirror_panel) then
-                    v_xi = this%n_hat_ls_mir(1,:)
-                    v_eta = this%n_hat_ls_mir(2,:)
-                else
-                    v_xi = this%n_hat_ls(1,:)
-                    v_eta = this%n_hat_ls(2,:)
-                end if
-
-                ! Calculate (these formulas come from PAN AIR and are equivalent to Johnson, but simplified)
-                int%F121(i) = geom%a(i)*v_eta(i)*int%F111(i) + v_xi(i)*geom%dR(i)
-                int%F211(i) = geom%a(i)*v_xi(i)*int%F111(i) - v_eta(i)*geom%dR(i)
-
-            end if
-
         end do
+
+        ! Calculate F(1,2,1) and F(2,1,1)
+        if (source_order == 1 .or. doublet_order == 2) then
+
+            ! Calculate (these formulas come from PAN AIR and are equivalent to Johnson, but simplified)
+            int%F121 = geom%a*geom%v_eta*int%F111 + geom%v_xi*geom%dR
+            int%F211 = geom%a*geom%v_xi*int%F111 - geom%v_eta*geom%dR
+
+        end if
 
     end subroutine panel_calc_subsonic_edge_integrals
 
@@ -1497,23 +1471,6 @@ contains
 
         real :: F1, F2, eps, eps2, series, b, s_b
         integer :: i, i_next
-        real,dimension(this%N) ::v_eta, v_xi
-        
-        ! Allocate integral storage
-        allocate(int%F111(this%N), source=0.)
-        if (source_order == 1 .or. doublet_order == 2) then
-            allocate(int%F121(this%N))
-            allocate(int%F211(this%N))
-        end if
-
-        ! Get edge normal components
-        if (mirror_panel) then
-            v_xi = this%n_hat_ls_mir(1,:)
-            v_eta = this%n_hat_ls_mir(2,:)
-        else
-            v_xi = this%n_hat_ls(1,:)
-            v_eta = this%n_hat_ls(2,:)
-        end if
 
         ! Loop through edges
         do i=1,this%N
@@ -1554,18 +1511,18 @@ contains
 
                     if (source_order == 1 .or. doublet_order == 2) then
                         if (mirror_panel) then
-                            int%F121(i) = (-v_xi(i)*geom%dR(i)*geom%R1(i)*geom%R2(i) &
+                            int%F121(i) = (-geom%v_xi(i)*geom%dR(i)*geom%R1(i)*geom%R2(i) &
                                            + geom%l2(i)*geom%R1(i)*(this%vertices_ls_mir(2,i_next) - geom%P_ls(2)) &
                                            - geom%l1(i)*geom%R2(i)*(this%vertices_ls_mir(2,i) - geom%P_ls(2))) / (geom%g2(i)*F2) &
-                                          - geom%a(i)*v_eta(i)*series
+                                          - geom%a(i)*geom%v_eta(i)*series
                         else
-                            int%F121(i) = (-v_xi(i)*geom%dR(i)*geom%R1(i)*geom%R2(i) &
+                            int%F121(i) = (-geom%v_xi(i)*geom%dR(i)*geom%R1(i)*geom%R2(i) &
                                            + geom%l2(i)*geom%R1(i)*(this%vertices_ls(2,i) - geom%P_ls(2)) &
                                            - geom%l1(i)*geom%R2(i)*(this%vertices_ls(2,i_next) - geom%P_ls(2))) / (geom%g2(i)*F2) &
-                                          - geom%a(i)*v_eta(i)*series
+                                          - geom%a(i)*geom%v_eta(i)*series
                         end if
-                        int%F211(i) = -v_eta(i)*geom%dR(i) + geom%a(i)*v_xi(i)*int%F111(i) - &
-                                      2.*v_xi(i)*v_eta(i)*int%F121(i)
+                        int%F211(i) = -geom%v_eta(i)*geom%dR(i) + geom%a(i)*geom%v_xi(i)*int%F111(i) - &
+                                      2.*geom%v_xi(i)*geom%v_eta(i)*int%F121(i)
                     end if
 
                 ! Supersonic edge
@@ -1576,8 +1533,8 @@ contains
                         int%F111(i) = pi/s_b
 
                         if (source_order == 1) then
-                            int%F121(i) = -geom%a(i)*v_eta(i)*int%F111(i)/b
-                            int%F211(i) = geom%a(i)*v_xi(i)*int%F111(i)/b
+                            int%F121(i) = -geom%a(i)*geom%v_eta(i)*int%F111(i)/b
+                            int%F211(i) = geom%a(i)*geom%v_xi(i)*int%F111(i)/b
                         end if
 
                     ! At least one endpoint in
@@ -1585,9 +1542,9 @@ contains
                         int%F111(i) = -atan2(s_b*F1, F2) / s_b
 
                         if (source_order == 1 .or. doublet_order == 2) then
-                            int%F121(i) = -(v_xi(i)*geom%dR(i) + geom%a(i)*v_eta(i)*int%F111(i)) / b
-                            int%F211(i) = -v_eta(i)*geom%dR(i) + geom%a(i)*v_xi(i)*int%F111(i) - &
-                                          2.*v_xi(i)*v_eta(i)*int%F121(i)
+                            int%F121(i) = -(geom%v_xi(i)*geom%dR(i) + geom%a(i)*geom%v_eta(i)*int%F111(i)) / b
+                            int%F211(i) = -geom%v_eta(i)*geom%dR(i) + geom%a(i)*geom%v_xi(i)*int%F111(i) - &
+                                          2.*geom%v_xi(i)*geom%v_eta(i)*int%F121(i)
                         end if
                     end if
 
@@ -1595,12 +1552,12 @@ contains
                 else
                     F1 = s_b*geom%R1(i) + abs(geom%l1(i))
                     F2 = s_b*geom%R2(i) + abs(geom%l2(i))
-                    int%F111(i) = -sign(1., v_eta(i))*log(F1/F2)
+                    int%F111(i) = -sign(1., geom%v_eta(i))*log(F1/F2)
 
                     if (source_order == 1 .or. doublet_order == 2) then
-                        int%F121(i) = -(v_xi(i)*geom%dR(i) + geom%a(i)*v_eta(i)*int%F111(i)) / b
-                        int%F211(i) = -v_eta(i)*geom%dR(i) + geom%a(i)*v_xi(i)*int%F111(i) - &
-                                      2.*v_xi(i)*v_eta(i)*int%F121(i)
+                        int%F121(i) = -(geom%v_xi(i)*geom%dR(i) + geom%a(i)*geom%v_eta(i)*int%F111(i)) / b
+                        int%F211(i) = -geom%v_eta(i)*geom%dR(i) + geom%a(i)*geom%v_xi(i)*int%F111(i) - &
+                                      2.*geom%v_xi(i)*geom%v_eta(i)*int%F121(i)
                     end if
                 end if
 
@@ -1624,17 +1581,7 @@ contains
         type(integrals),intent(inout) :: int
 
         real :: S, C, nu, c1, c2, x
-        real,dimension(this%N) :: v_xi, v_eta
         integer :: i
-
-        ! Get edge vector components
-        if (mirror_panel) then
-            v_xi = this%n_hat_ls_mir(1,:)
-            v_eta = this%n_hat_ls_mir(2,:)
-        else
-            v_xi = this%n_hat_ls(1,:)
-            v_eta = this%n_hat_ls(2,:)
-        end if
 
         ! Calculate hH(1,1,3) (Johnson Eqs. (D.41) and (G.24))
         ! No check on the magnitude of h is necessary since we never divide by it
@@ -1642,8 +1589,8 @@ contains
         do i=1,this%N
 
             ! Calculate intermediate quantities
-            c1 = geom%g2(i)+abs(geom%h)*geom%R1(i)
-            c2 = geom%g2(i)+abs(geom%h)*geom%R2(i)
+            c1 = geom%g2(i) + abs(geom%h)*geom%R1(i)
+            c2 = geom%g2(i) + abs(geom%h)*geom%R2(i)
         
             ! Add surface integral
             S = geom%a(i)*(geom%l2(i)*c1 - geom%l1(i)*c2)
@@ -1660,8 +1607,8 @@ contains
         int%H111 = -geom%h*int%hH113 + sum(geom%a*int%F111)
 
         ! Calculate H(2,1,3) and H(1,2,3)
-        int%H213 = -sum(v_xi*int%F111)
-        int%H123 = -sum(v_eta*int%F111)
+        int%H213 = -sum(geom%v_xi*int%F111)
+        int%H123 = -sum(geom%v_eta*int%F111)
 
         ! Calculate higher-order source integrals
         if (source_order == 1) then
@@ -1671,9 +1618,9 @@ contains
 
         ! Calculate higher-order doublet integrals
         if (doublet_order == 2) then
-            int%H313 = -sum(v_eta*int%F121) + geom%h*int%hH113
-            int%H223 = sum(v_xi*int%F121)
-            int%H133 = -int%H111 + sum(v_eta*int%F121)
+            int%H313 = -sum(geom%v_eta*int%F121) + geom%h*int%hH113
+            int%H223 = sum(geom%v_xi*int%F121)
+            int%H133 = -int%H111 + sum(geom%v_eta*int%F121)
         end if
 
     end subroutine panel_calc_subsonic_panel_integrals
@@ -1694,16 +1641,6 @@ contains
 
         real :: F1, F2, b, s_b
         integer :: i, i_next
-        real,dimension(:),allocatable :: v_xi, v_eta
-
-        ! Get edge normal derivatives
-        if (mirror_panel) then
-            allocate(v_xi(this%N), source=this%n_hat_ls_mir(1,:))
-            allocate(v_eta(this%N), source=this%n_hat_ls_mir(2,:))
-        else
-            allocate(v_xi(this%N), source=this%n_hat_ls(1,:))
-            allocate(v_eta(this%N), source=this%n_hat_ls(2,:))
-        end if
 
         ! Calculate hH(1,1,3) (Ehlers Eq. (E18))
         int%hH113 = 0.
@@ -1739,7 +1676,7 @@ contains
 
                         ! Mach wedge
                         if (geom%R1(i) == 0. .and. geom%R2(i) == 0.) then
-                            int%hH113 = int%hH113 + pi*sign(1., geom%h*v_xi(i))
+                            int%hH113 = int%hH113 + pi*sign(1., geom%h*geom%v_xi(i))
                         else
                             int%hH113 = int%hH113 + atan2(geom%h*geom%a(i)*F1, geom%R1(i)*geom%R2(i) + geom%h2*F2)
                         end if
@@ -1748,6 +1685,7 @@ contains
                     else
                         int%hH113 = int%hH113 + atan2(geom%h*geom%a(i)*F1, geom%R1(i)*geom%R2(i) + geom%h2*F2)
                     end if
+
                 end if
             end if
         end do
@@ -1756,8 +1694,8 @@ contains
         int%H111 = -geom%h*int%hH113 - sum(geom%a*int%F111)
 
         ! Calculate H(2,1,3) and H(1,2,3)
-        int%H213 = -sum(v_xi*int%F111)
-        int%H123 = sum(v_eta*int%F111)
+        int%H213 = -sum(geom%v_xi*int%F111)
+        int%H123 = sum(geom%v_eta*int%F111)
 
         ! Calculate higher-order source integrals
         if (source_order == 1) then
@@ -1767,14 +1705,10 @@ contains
 
         ! Calculate higher-order doublet integrals
         if (doublet_order == 2) then
-            int%H313 = -sum(v_eta*int%F121) - geom%h*int%hH113
-            int%H223 = sum(v_xi*int%F121)
-            int%H133 = -sum(v_eta*int%F121) - int%H111
+            int%H313 = -sum(geom%v_eta*int%F121) - geom%h*int%hH113
+            int%H223 = sum(geom%v_xi*int%F121)
+            int%H133 = -sum(geom%v_eta*int%F121) - int%H111
         end if
-
-        ! Clean up
-        deallocate(v_xi)
-        deallocate(v_eta)
 
     end subroutine panel_calc_supersonic_subinc_panel_integrals
 
@@ -1792,6 +1726,13 @@ contains
         type(dod),intent(in) :: dod_info
 
         type(integrals) :: int
+
+        ! Allocate space for integrals
+        allocate(int%F111(this%N), source=0.)
+        if (source_order == 1 .or. doublet_order == 2) then
+            allocate(int%F121(this%N))
+            allocate(int%F211(this%N))
+        end if
 
         ! Calculate necessary integrals based on the flow condition and panel type
         if (freestream%supersonic) then

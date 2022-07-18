@@ -116,7 +116,7 @@ program main
     call json_xtnsn_get(output_settings, 'mirrored_control_point_file', mirrored_control_point_file, 'none')
 
     ! Perform flow-dependent initialization on the surface mesh
-    call body_mesh%init_with_flow(freestream_flow, wake_file)
+    call body_mesh%init_with_flow(freestream_flow, body_file, wake_file)
 
     ! Initialize panel solver
     call linear_solver%init(solver_settings, processing_settings, body_mesh, freestream_flow, control_point_file)
@@ -150,7 +150,7 @@ program main
         open(newunit=i_unit, file=report_file, status='REPLACE')
         call json_print(report_json, i_unit)
         close(i_unit)
-        if (verbose) write(*,*) "    Report written to: ", report_file
+        if (verbose) write(*,'(a30 a)') "    Report: ", report_file
     end if
 
     ! Destroy pointers

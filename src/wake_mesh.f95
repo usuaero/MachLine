@@ -65,7 +65,7 @@ contains
 
         ! Get indices of wake-shedding edges and vertices
         allocate(wake_edge_indices(N_wake_edges))
-        allocate(is_wake_edge_vertex(size(body_verts)))
+        allocate(is_wake_edge_vertex(size(body_verts)), source=.false.)
         j = 0
         do i=1,size(body_edges)
             if (body_edges(i)%sheds_wake) then
@@ -94,6 +94,7 @@ contains
                 body_verts(i)%index_in_wake_vertices = j
             end if
         end do
+        deallocate(is_wake_edge_vertex)
 
         ! Determine necessary number of vertices
         if (asym_flow) then
@@ -112,7 +113,7 @@ contains
         ! Determine necessary number of midpoints
         if (doublet_order == 2) then
             if (asym_flow) then
-                N_mids = (N_wake_edge_verts*N_panels_streamwise + N_wake_edges*(2*N_panels_streamwise + 1) )*2
+                N_mids = ( N_wake_edge_verts*N_panels_streamwise + N_wake_edges*(2*N_panels_streamwise + 1) ) * 2
             else
                 N_mids = N_wake_edge_verts*N_panels_streamwise + N_wake_edges*(2*N_panels_streamwise + 1)
             end if
@@ -137,6 +138,15 @@ contains
             this%N_verts = this%N_verts + N_mids
 
         end if
+
+        !do i=1,this%N_verts
+        !    write(*,*)
+        !    write(*,*) i
+        !    write(*,*) this%vertices(i)%top_parent
+        !    write(*,*) this%vertices(i)%bot_parent
+        !    write(*,*) body_verts(this%vertices(i)%top_parent)%loc
+        !    write(*,*) body_verts(this%vertices(i)%bot_parent)%loc
+        !end do
 
         ! Initialize freestream-dependent properties of panels once the midpoints have been created
         ! The mirror of wake panels will never need to be initialized
@@ -493,7 +503,7 @@ contains
                                 else
 
                                     ! Loop through wake-shedding edges to find this one's parent
-                                    do k=1,size(wake_edge_indices)
+                                    potential_edge_loop: do k=1,size(wake_edge_indices)
 
                                         ! Get edge index
                                         i_pot_edge = wake_edge_indices(k)
@@ -511,8 +521,10 @@ contains
                                             this%vertices(i_mid)%top_parent = i_midpoint_parent
                                             this%vertices(i_mid)%bot_parent = body_verts(i_midpoint_parent)%i_wake_partner
 
+                                            exit potential_edge_loop
+
                                         end if
-                                    end do
+                                    end do potential_edge_loop
 
                                 end if
 
@@ -563,7 +575,7 @@ contains
                     else
 
                         ! Loop through wake-shedding edges to find this one's parent
-                        do k=1,size(wake_edge_indices)
+                        empty_edge_loop: do k=1,size(wake_edge_indices)
 
                             ! Get edge index
                             i_pot_edge = wake_edge_indices(k)
@@ -580,9 +592,11 @@ contains
                                 ! Set parents
                                 this%vertices(i_mid)%top_parent = i_midpoint_parent
                                 this%vertices(i_mid)%bot_parent = body_verts(i_midpoint_parent)%i_wake_partner
+                                
+                                exit empty_edge_loop
 
                             end if
-                        end do
+                        end do empty_edge_loop
 
                     end if
 
@@ -591,7 +605,7 @@ contains
             end do
 
         end do
-        
+
     end subroutine wake_mesh_init_midpoints
 
 

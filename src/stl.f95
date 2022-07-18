@@ -15,29 +15,28 @@ contains
 
         character(len=:),allocatable,intent(in) :: mesh_file
         integer,intent(out) :: N_verts, N_panels
-        type(vertex),dimension(:),allocatable,intent(inout) :: vertices
-        type(panel),dimension(:),allocatable,intent(inout) :: panels
+        type(vertex),dimension(:),allocatable,intent(out) :: vertices
+        type(panel),dimension(:),allocatable,intent(out) :: panels
 
         character(len=200) :: dummy_read
         real,dimension(3) :: vertex_loc
-        integer :: N, stat, i, j, i1, i2, i3, N_duplicates, i_panel, i_vert, i_unique
+        integer :: N, stat, i, j, i1, i2, i3, N_duplicates, i_panel, i_vert, i_unique, unit
         integer,dimension(:,:),allocatable :: panel_vertex_indices
-        real,dimension(:,:),allocatable :: vertex_coords
-        logical,dimension(:),allocatable :: is_duplicate
-        integer,dimension(:),allocatable :: new_ind, duplicate_of
+        real,dimension(:,:),allocatable :: vertex_locs
+        integer,dimension(:),allocatable :: new_ind
 
         ! Open mesh file
-        open(12, file=mesh_file)
+        open(newunit=unit, file=mesh_file)
 
             ! Skip header
-            read(12,*)
+            read(unit,*)
 
             ! Figure out how many panels are in the mesh
             N_panels = 0
             do
 
                 ! Read line
-                read(12,*,iostat=stat) dummy_read
+                read(unit,*,iostat=stat) dummy_read
 
                 ! Check status
                 if (stat == 0) then
@@ -58,41 +57,91 @@ contains
 
         ! Allocate storage
         N_verts = N_panels*3
-        allocate(panel_vertex_indices(N_panels,3))
-        allocate(vertex_coords(N_verts,3))
+        allocate(panel_vertex_indices(3,N_panels))
+        allocate(vertex_locs(3,N_verts))
 
         ! Reopen file
-        open(12, file=mesh_file)
+        open(newunit=unit, file=mesh_file)
 
             ! Skip header
-            read(12,*)
+            read(unit,*)
 
             ! Read in vertex locations
             do i=1,N_panels
 
                 ! Skip normal and outer loop
-                read(12,*)
-                read(12,*)
+                read(unit,*)
+                read(unit,*)
 
                 ! Get vertex locations
-                read(12,*) dummy_read, vertex_coords(i*3-2,1), vertex_coords(i*3-2,2), vertex_coords(i*3-2,3)
-                read(12,*) dummy_read, vertex_coords(i*3-1,1), vertex_coords(i*3-1,2), vertex_coords(i*3-1,3)
-                read(12,*) dummy_read, vertex_coords(i*3,1), vertex_coords(i*3,2), vertex_coords(i*3,3)
+                read(unit,*) dummy_read, vertex_locs(1,i*3-2), vertex_locs(2,i*3-2), vertex_locs(3,i*3-2)
+                read(unit,*) dummy_read, vertex_locs(1,i*3-1), vertex_locs(2,i*3-1), vertex_locs(3,i*3-1)
+                read(unit,*) dummy_read, vertex_locs(1,i*3), vertex_locs(2,i*3), vertex_locs(3,i*3)
 
                 ! Skip end loop and end facet
-                read(12,*)
-                read(12,*)
-
-                ! Point panels to vertices
-                panel_vertex_indices(i,1) = i*3-2
-                panel_vertex_indices(i,2) = i*3-1
-                panel_vertex_indices(i,3) = i*3
+                read(unit,*)
+                read(unit,*)
 
             end do
 
-        close(12)
+        close(unit)
+
+        ! Find duplicates
+        call collapse_duplicate_vertices(vertex_locs, vertices, N_verts, N_duplicates, new_ind)
+
+        ! Get panel vertex indices
+        do i=1,N_verts+N_duplicates
+
+            ! Get index of panel and the index of the vertex in that panel
+            i_panel = (i-1)/3+1
+            i_vert = mod(i-1, 3)+1
+
+            ! Point panel to non-duplicate vertex
+            panel_vertex_indices(i_vert, i_panel) = new_ind(i)
+
+        end do
+
+        ! Initialize panel objects
+        allocate(panels(N_panels))
+        !$OMP parallel do private(i1, i2, i3)
+        do i=1,N_panels
+
+            ! Get vertex indices
+            i1 = panel_vertex_indices(1,i)
+            i2 = panel_vertex_indices(2,i)
+            i3 = panel_vertex_indices(3,i)
+
+            ! Initialize
+            call panels(i)%init(vertices(i1), vertices(i2), vertices(i3), i)
+
+            ! Add panel index to vertices
+            !$OMP critical
+            call vertices(i1)%panels%append(i)
+            call vertices(i2)%panels%append(i)
+            call vertices(i3)%panels%append(i)
+            !$OMP end critical
+
+        end do
+
+    end subroutine load_surface_stl
+
+
+    subroutine collapse_duplicate_vertices(vertex_locs, vertices, N_verts, N_duplicates, new_ind)
+        ! Takes in an array of vertex locations, collapses duplicates, and provides a list of indices pointing to the new (unique) vertices
+
+        implicit none
+
+        real,dimension(:,:),allocatable,intent(in) :: vertex_locs
+        type(vertex),dimension(:),allocatable,intent(out) :: vertices
+        integer,intent(out) :: N_verts, N_duplicates
+        integer,dimension(:),allocatable,intent(out) :: new_ind
+
+        integer,dimension(:),allocatable :: duplicate_of
+        logical,dimension(:),allocatable :: is_duplicate
+        integer :: i, j, i_unique
 
         ! Locate duplicate vertices
+        N_verts = size(vertex_locs)/3
         allocate(is_duplicate(N_verts), source=.false.)
         allocate(duplicate_of(N_verts))
         do i=1,N_verts
@@ -113,7 +162,7 @@ contains
                     if (.not. is_duplicate(j)) then
 
                         ! Check if the vertices are the same
-                        if (dist(vertex_coords(i,:), vertex_coords(j,:)) < 1.e-12) then
+                        if (dist(vertex_locs(:,i), vertex_locs(:,j)) < 1.e-12) then
 
                             ! Mark duplicate
                             !$OMP critical
@@ -176,11 +225,8 @@ contains
         ! Determine number of non-duplicate vertices
         N_verts = N_verts - N_duplicates
 
-        ! Allocate vertex and panel object arrays
-        allocate(vertices(N_verts))
-        allocate(panels(N_panels))
-
         ! Initialize vertex objects, skipping duplicates
+        allocate(vertices(N_verts))
         do i=1,N_verts+N_duplicates
 
             ! If this vertex is not a duplicate, initialize its object
@@ -188,41 +234,13 @@ contains
 
                 ! Initialize
                 j = new_ind(i)
-                call vertices(j)%init(vertex_coords(i,:), j, 1)
+                call vertices(j)%init(vertex_locs(:,i), j, 1)
 
             end if
 
-            ! Get index of panel and the index of the vertex in that panel
-            i_panel = (i-1)/3+1
-            i_vert = mod(i-1, 3)+1
-
-            ! Point panel to non-duplicate vertex
-            panel_vertex_indices(i_panel, i_vert) = new_ind(i)
-
         end do
-
-        ! Initialize panel objects
-        !$OMP parallel do private(i1, i2, i3)
-        do i=1,N_panels
-
-            ! Get vertex indices
-            i1 = panel_vertex_indices(i,1)
-            i2 = panel_vertex_indices(i,2)
-            i3 = panel_vertex_indices(i,3)
-
-            ! Initialize
-            call panels(i)%init(vertices(i1), vertices(i2), vertices(i3), i)
-
-            ! Add panel index to vertices
-            !$OMP critical
-            call vertices(i1)%panels%append(i)
-            call vertices(i2)%panels%append(i)
-            call vertices(i3)%panels%append(i)
-            !$OMP end critical
-
-        end do
-
-    end subroutine load_surface_stl
+        
+    end subroutine collapse_duplicate_vertices
     
 
 end module stl_mod

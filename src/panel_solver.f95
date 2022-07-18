@@ -204,12 +204,12 @@ contains
         type(surface_mesh),intent(inout) :: body
 
         real :: offset
-        
-        ! Place control points
-        if (verbose) write(*,'(a)',advance='no') "     Placing control points..."
 
         ! Get offset
         call json_xtnsn_get(solver_settings, 'control_point_offset', offset, 1e-5)
+        
+        ! Place control points
+        if (verbose) write(*,'(a ES10.4 a)',advance='no') "     Placing control points using offset of ", offset, "..."
 
         ! Place control points inside the body
         if (this%morino .or. this%formulation == 'source-free') then
@@ -1238,7 +1238,7 @@ contains
             allocate(body%C_p_pg(this%N_cells), stat=stat)
             call check_allocation(stat, "Prandtl-Glauert corrected surface pressures")
             
-            ! Perform calculations for Prandtl-Glauert Rune (Modern Compressible Flow by John Anderson EQ 9.36)
+            ! Perform calculations for Prandtl-Glauert Rule (Modern Compressible Flow by John Anderson EQ 9.36)
             body%C_p_pg = body%C_p_inc / (sqrt(1 - (this%corrected_M_inf**2)))
         end if
         
