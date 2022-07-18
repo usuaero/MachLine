@@ -84,6 +84,8 @@ class Swept_Plotting:
 
 
     def get_data(self, formulation):
+        # Notify user of process
+        print("Processing pressure plots...")
 
         # Determine formulation formatting for pdf file purposes
         if formulation == "source-free":
@@ -156,11 +158,17 @@ class Swept_Plotting:
                 plt.legend(ncol = 2, fontsize=6)
                 
                 #Save the figure in appropriate location and with the correct size
+                filename = percent_semispan + "_percent_semispan/plots_" + percent_semispan + "_percent_semispan/" + json_vals["plots"]["save plot type"] + "_plots/" + AoA + "degrees_AoA_plot_" + formulation_adjusted + "_formulation." + json_vals["plots"]["save plot type"]
+                list_of_files.append(filename)
                 if json_vals["plots"]["save plots"]:
-                    filename = percent_semispan + "_percent_semispan/plots_" + percent_semispan + "_percent_semispan/" + json_vals["plots"]["save plot type"] + "_plots/" + AoA + "degrees_AoA_plot_" + formulation_adjusted + "_formulation." + json_vals["plots"]["save plot type"]
-                    list_of_files.append(filename)
                     plt.savefig(filename)
-                plt.show()
+                
+                # Show or close the plot
+                if json_vals["plots"]["show plots"]:
+                    plt.show()
+                else:
+                    plt.close()
+
 
             # Combine plots into one pdf for easy review
             if json_vals["plots"]["save plot type"] == "pdf" and json_vals["plots"]["combine pdfs"]:
@@ -182,9 +190,14 @@ class Swept_Plotting:
                     merger.append(name)
                 merger.write(Combined_name_copy)
                 merger.close()
+        
+        print("Done")
 
     def form_comparison(self, formulations, adjust_xscale, adjust_yscale):
         
+        # Notify user
+        print("Processing formulation comparisons...")
+
         # Initialize lists to differentiate plotting markers
         # opacity = [.1, .3, .7, 1]
         size = [15, 10, 7, 3]
@@ -332,11 +345,16 @@ class Swept_Plotting:
                     print()
 
                 # Save the comparison plots in the appropriate locations
+                comparison_plot_name = percent_semispan + "_percent_semispan/plots_" + percent_semispan + "_percent_semispan/" + json_vals["plots"]["save plot type"] + "_plots/Formulation comparison plot " + AoA + " degrees_AoA." + json_vals["plots"]["save plot type"]
+                figure_list.append(comparison_plot_name)
                 if json_vals["plots"]["save plots"]:
-                    comparison_plot_name = percent_semispan + "_percent_semispan/plots_" + percent_semispan + "_percent_semispan/" + json_vals["plots"]["save plot type"] + "_plots/Formulation comparison plot " + AoA + " degrees_AoA." + json_vals["plots"]["save plot type"]
-                    figure_list.append(comparison_plot_name)
                     plt.savefig(comparison_plot_name)
-                plt.show()
+
+                # Display or close the plot
+                if json_vals["plots"]["show plots"]:
+                    plt.show()
+                else:
+                    plt.close()
             
             if json_vals["plots"]["combine pdfs"] and json_vals["plots"]["save plot type"] == "pdf":
                 # Combine files in plot summary folder
@@ -349,66 +367,70 @@ class Swept_Plotting:
                 merger.write(Combined_name)
                 merger.close()
 
+        print("Done")
+
 # =======================================================================================================================================================================================================================================================================================
-# Main script
-inputfile = "Swept_half_wing_conditions_input.json"
-json_string = open(inputfile).read()
-json_vals = json.loads(json_string)
+
+if __name__ == "__main__":
+    # Main script
+    inputfile = "Swept_half_wing_conditions_input.json"
+    json_string = open(inputfile).read()
+    json_vals = json.loads(json_string)
 
 
-# Identify values to pass from input file
+    # Identify values to pass from input file
 
-locations = json_vals["geometry"]["semispan locations and AoA"]
-semispan_xy_loc = json_vals["geometry"]["semispan_xy_loc"]
+    locations = json_vals["geometry"]["semispan locations and AoA"]
+    semispan_xy_loc = json_vals["geometry"]["semispan_xy_loc"]
 
-chord = json_vals["geometry"]["uniform chord length"]
-Nodes = json_vals["geometry"]["nodes"]
-formulation = json_vals["solver"]["formulation"]
+    chord = json_vals["geometry"]["uniform chord length"]
+    Nodes = json_vals["geometry"]["nodes"]
+    formulation = json_vals["solver"]["formulation"]
 
-# Proccesses either one or all semispan locations based on input file
-if json_vals["plots"]["process_all"]:
-    for form in formulation:
+    # Proccesses either one or all semispan locations based on input file
+    if json_vals["plots"]["process_all"]:
+        for form in formulation:
 
-        if json_vals["plots"]["display pressure plots"]:
-            Swept_Plotting(locations, chord, Nodes, semispan_xy_loc).get_data(form)
-
-    # Compare formulation results
-    if json_vals["plots"]["compare formulations"]:
-        # Verify more than one formulation has been selected
-        if len(formulation) < 2:
-            print("Enter at least two formulations for comparison to be possible. Quitting...")
-            exit()
-        xscale = json_vals["plots"]["x axis scale"]
-        yscale = json_vals["plots"]["y axis scale"]
-        Swept_Plotting(locations, chord, Nodes, semispan_xy_loc).form_comparison(formulation, xscale, yscale)
-
-else:
-    x = input("Enter percent semispan for analysis results. Options are 4.1, 8.2, 16.3, 24.5, 36.7, 51.0, 65.3, 89.8, 94.9:   ",)
-    for form in formulation:
-        if x == "51":
-            x = "51.0"
-
-        if x in locations.keys():
-
-            Specific_Semispan = {x: locations[x]}
             if json_vals["plots"]["display pressure plots"]:
-                Swept_Plotting(Specific_Semispan, chord, Nodes, semispan_xy_loc).get_data(form)
+                Swept_Plotting(locations, chord, Nodes, semispan_xy_loc).get_data(form)
 
-        else:
-            print("\n****************\nInvalid Entry. Please run script again.\n****************\n")
-            quit()
-    
-    # Compare formulation results
-    if json_vals["plots"]["compare formulations"]:
-        # Verify more than one formulation has been selected
-        if len(formulation) < 2:
-            print("Enter at least two formulations for comparison to be possible. Quitting...")
-            exit()
+        # Compare formulation results
+        if json_vals["plots"]["compare formulations"]:
+            # Verify more than one formulation has been selected
+            if len(formulation) < 2:
+                print("Enter at least two formulations for comparison to be possible. Quitting...")
+                exit()
+            xscale = json_vals["plots"]["x axis scale"]
+            yscale = json_vals["plots"]["y axis scale"]
+            Swept_Plotting(locations, chord, Nodes, semispan_xy_loc).form_comparison(formulation, xscale, yscale)
 
-        xscale = json_vals["plots"]["x axis scale"]
-        yscale = json_vals["plots"]["y axis scale"]
-        Swept_Plotting(Specific_Semispan, chord, Nodes, semispan_xy_loc).form_comparison(formulation, xscale, yscale)
+    else:
+        x = input("Enter percent semispan for analysis results. Options are 4.1, 8.2, 16.3, 24.5, 36.7, 51.0, 65.3, 89.8, 94.9:   ",)
+        for form in formulation:
+            if x == "51":
+                x = "51.0"
 
-# Print exit statement to verify completion of process 
-print("Pressure plotting executed successfully. \n")
+            if x in locations.keys():
+
+                Specific_Semispan = {x: locations[x]}
+                if json_vals["plots"]["display pressure plots"]:
+                    Swept_Plotting(Specific_Semispan, chord, Nodes, semispan_xy_loc).get_data(form)
+
+            else:
+                print("\n****************\nInvalid Entry. Please run script again.\n****************\n")
+                quit()
+        
+        # Compare formulation results
+        if json_vals["plots"]["compare formulations"]:
+            # Verify more than one formulation has been selected
+            if len(formulation) < 2:
+                print("Enter at least two formulations for comparison to be possible. Quitting...")
+                exit()
+
+            xscale = json_vals["plots"]["x axis scale"]
+            yscale = json_vals["plots"]["y axis scale"]
+            Swept_Plotting(Specific_Semispan, chord, Nodes, semispan_xy_loc).form_comparison(formulation, xscale, yscale)
+
+    # Print exit statement to verify completion of process 
+    print("Pressure plotting executed successfully. \n")
 

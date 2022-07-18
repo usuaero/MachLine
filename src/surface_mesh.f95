@@ -1262,9 +1262,6 @@ contains
 
             ! Check whether the vertex normal points wholly outside the mesh
             do while (any(constraint_array < 0.))
-                write(*,*) "    Fixing constraint..."
-                write(*,*) "Constraint array: ", constraint_array
-                write(*,*) n_avg, j
                 ! Get the normal vector describing the average plane for the panels for which the constraint is not satisfied
                 n_avg_plane = 0.
                 do i=1,this%vertices(j)%panels%len()
