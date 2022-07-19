@@ -3,7 +3,7 @@
         "freestream_velocity": [100.0, 0.0, 15.0]
     },
     "geometry": {
-        "file": "dev/meshes/HSCT.tri",
+        "file": "dev/meshes/HSCT.vtk",
         "mirror_about" : "xz",
         "spanwise_axis" : "+y",
         "wake_model": {
@@ -13,7 +13,7 @@
         }
     },
     "solver": {
-        "formulation": "morino",
+        "formulation": "morinos",
         "control_point_offset": 1.1e-05
     },
     "post_processing" : {

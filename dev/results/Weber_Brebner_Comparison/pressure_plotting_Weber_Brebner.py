@@ -32,7 +32,7 @@ class Swept_Plotting:
             print(f'***{"C_p_inc"} is not found in {file_name}. Quitting')
             exit()
 
-        # Iterate over file columns searching for the x and Cp columns
+        # Iterate over file columns searching for specific columns
         for i, val in enumerate(Data_complete[0,:]):
             if val == 'Points:0':
                 x_loc = i
@@ -68,13 +68,15 @@ class Swept_Plotting:
             opacity = 0.1
             colors = 'y'
         
+        #===========Adjustable plotting options left for user's convenience==========#
+
         # Black and white lines with varying opacity
         plt.plot((x-LE_xy_loc)/Chord_Length,C_p_inc, label=Plot_label, alpha=opacity, color="k")
         
-        # Various colors
+        # Various colored lines
         # plt.plot((x-LE_xy_loc)/Chord_Length,C_p_inc, "o", label=Plot_label, color=colors)
         
-        # Markers alone without lines for all data
+        # Markers only
         # plt.plot((x-LE_xy_loc)/Chord_Length,C_p_inc, label=Plot_label, marker=shape, color="k", linestyle="none")
 
         return
@@ -82,6 +84,8 @@ class Swept_Plotting:
 
 
     def get_data(self, formulation):
+        # Notify user of process
+        print("Processing pressure plots...")
 
         # Determine formulation formatting for pdf file purposes
         if formulation == "source-free":
@@ -125,7 +129,7 @@ class Swept_Plotting:
 
                 #=== Main Plotting Section ===
                 #Identify labels and notes to include on plots
-                title = "Pressure Distribution at $\frac{2y}{b}=$" + str("{:.3f}".format(float(percent_semispan)/100))
+                title = "Pressure Distribution at" + r"$\frac{2y}{b}=$" + str("{:.3f}".format(float(percent_semispan)/100))
                
                 #Identify angle of atack note to add to plot title
                 y = r'$\alpha$='
@@ -137,27 +141,34 @@ class Swept_Plotting:
                 plt.plot(Experimental[upper_surface_count:,0], Experimental[upper_surface_count:,j+1], "*",color="k", label="Exerimental Lower Surface", fillstyle="full")
 
                 #Plot the figure containing all curves
-                complete_title = title + ", " + AoA_Notes
-                Sub_Note = "*" + formulation + " form."
                 # plt.title(complete_title)
                 xlabel = 'x/c'
                 plt.xlabel(xlabel)
                 plt.ylabel("$C_p$")
 
+                # If verbose, show plot title and other information
+                if json_vals["verbose"]:
+                    complete_title = title + ", " + AoA_Notes
+                    Sub_Note = "*" + formulation + " form."
+                    plt.title(complete_title)
+                    plt.figtext(0.625, 0.015, Sub_Note)
 
-
-                # Identify location of formulation type on plot
-                # plt.figtext(0.625, 0.015, Sub_Note)
 
                 # Split legend into columns
                 plt.legend(ncol = 2, fontsize=6)
                 
                 #Save the figure in appropriate location and with the correct size
+                filename = percent_semispan + "_percent_semispan/plots_" + percent_semispan + "_percent_semispan/" + json_vals["plots"]["save plot type"] + "_plots/" + AoA + "degrees_AoA_plot_" + formulation_adjusted + "_formulation." + json_vals["plots"]["save plot type"]
+                list_of_files.append(filename)
                 if json_vals["plots"]["save plots"]:
-                    filename = percent_semispan + "_percent_semispan/plots_" + percent_semispan + "_percent_semispan/" + json_vals["plots"]["save plot type"] + "_plots/" + AoA + "degrees_AoA_plot_" + formulation_adjusted + "_formulation." + json_vals["plots"]["save plot type"]
-                    list_of_files.append(filename)
                     plt.savefig(filename)
-                plt.show()
+                
+                # Show or close the plot
+                if json_vals["plots"]["show plots"]:
+                    plt.show()
+                else:
+                    plt.close()
+
 
             # Combine plots into one pdf for easy review
             if json_vals["plots"]["save plot type"] == "pdf" and json_vals["plots"]["combine pdfs"]:
@@ -179,12 +190,18 @@ class Swept_Plotting:
                     merger.append(name)
                 merger.write(Combined_name_copy)
                 merger.close()
+        
+        print("Done")
 
     def form_comparison(self, formulations, adjust_xscale, adjust_yscale):
         
+        # Notify user
+        print("Processing formulation comparisons...")
+
         # Initialize lists to differentiate plotting markers
         # opacity = [.1, .3, .7, 1]
         size = [15, 10, 7, 3]
+        print()
 
         # Iterate over the percent semispan locations
         for percent_semispan in self.locations:
@@ -202,6 +219,7 @@ class Swept_Plotting:
                 for i, Node in enumerate(self.Nodes):
                     data_locations.append([])
 
+                    force_comparison = []
                     # Iterate over formulations
                     for l,form in enumerate(formulations):
                         if form =="source-free":
@@ -211,6 +229,7 @@ class Swept_Plotting:
                             form_adj = form
                             markersize=5
 
+                        force_comparison.append([])
                         # Determine the data file and create a label for it    
                         data_file =  percent_semispan + "_percent_semispan/" + AoA + "_degrees_AoA/" + percent_semispan + "_percent_semispan_" + Node + "_nodes_results_" + AoA + "_deg_AoA_" + form_adj + "_formulation.csv"
                         data_complete = np.genfromtxt(data_file, delimiter=",", skip_header=0, dtype=str)
@@ -225,10 +244,21 @@ class Swept_Plotting:
 
                         # Locate required columns of data in the data_file
                         for k,column in enumerate(data_complete[0,:]):
-                            if "C_p_inc" == column:
+                            if column == "C_p_inc":
                                 y_loc = k
                             if column == "arc_length":
                                 x_loc = k
+                            if column == "dC_f:0":
+                                x_force_loc = k
+                            if column == "dC_f:1":
+                                y_force_loc = k
+                            if column == "dC_f:2":
+                                z_force_loc = k
+
+                        # Add check to throw errors
+                        if (x_force_loc == y_force_loc) or (x_force_loc == z_force_loc) or (y_force_loc == z_force_loc):
+                            print("    Error. The identified locations of force columns in data file are conflicting. Quitting...")
+                            exit()
 
                         # Pull and reshape data from data file for ease of plotting and organization
                         x_data = data[:,x_loc]
@@ -236,11 +266,12 @@ class Swept_Plotting:
                         x = np.reshape(x_data, (len(x_data),1))
                         y = np.reshape(y_data, (len(y_data),1))
                         plot_data = np.hstack((x, y))
-                        
-                        # Assign organized data to storage list
-                        data_locations[i].append(plot_data)
 
-                        # plt.plot(data_locations[i][l][:,0], data_locations[i][l][:,1], label=Curve_label, color="k", marker="o", markersize=markersize, alpha=opacity[i], fillstyle="none", linestyle="none")
+                        # Assign organized data to storage lists for each formulation
+                        data_locations[i].append(plot_data)
+                        force_comparison[l].append(sum(data[:,x_force_loc])) # Append Cx
+                        force_comparison[l].append(sum(data[:,y_force_loc])) # Append Cy
+                        force_comparison[l].append(sum(data[:,z_force_loc])) # Append Cz
                         
                         # Compute the difference between formulation solutions
                         if l > 0:
@@ -251,7 +282,7 @@ class Swept_Plotting:
                             x_axis = np.array(data_locations[i][l][:,0]).tolist()
                             pos_x_axis = []
                             neg_x_axis = []
-                            
+                
                             # Iterate over values in the x axis
                             for r, val in enumerate(x_axis):
 
@@ -272,15 +303,27 @@ class Swept_Plotting:
                                 else:
                                     neg_difference.append(abs(diff))
                                     neg_x_axis.append(x_axis[r])
-                                    
+
                             # Label curve and plot difference    
                             Curve_label = f"{Node} nodes"
                             plt.plot(pos_x_axis, pos_difference, marker="o", markersize=size[i], label=Curve_label, linestyle="none", color="k")
+                            
                             # Plot negative difference values a different color
                             if len(neg_difference) != 0:
                                 plt.plot(neg_x_axis, neg_difference, marker="o", markersize=size[i], linestyle="none", color="k", alpha=0.3)
-                            
-                
+
+                    # Print force differences if verbose is selected
+                    if json_vals["verbose"]:
+                        # Calculate force difference between formulations at each node count
+                        force_diff = np.array(force_comparison[1]) - np.array(force_comparison[0])
+
+                        # Print force results to terminal to reduce clutter on plots
+                        if i == 0: print(f"Force differences for {percent_semispan} percent semispan and {AoA} deg AoA")
+                        print(f'{Node} nodes:')
+                        print(f"    Cx({formulation[1]} - {formulation[0]}):   ", force_diff[0])
+                        print(f"    Cy({formulation[1]} - {formulation[0]}):   ", force_diff[1])
+                        print(f"    Cz({formulation[1]} - {formulation[0]}):   ", force_diff[2])
+
                 # Format the plot
                 if adjust_xscale != "auto":
                     plt.xlim(-adjust_xscale, adjust_xscale)
@@ -291,20 +334,27 @@ class Swept_Plotting:
                 # plt.gca().invert_yaxis()
                 plt.yscale("log")
                 plt.legend()
-                # Include title if plots will be combined
-                if json_vals["plots"]["combine pdfs"] and json_vals["plots"]["save plot type"] == "pdf":
+
+                # Include title if verbose is selected
+                if json_vals["verbose"]:
                     title = "Formulation Comparison at " + percent_semispan + " percent semispan"
                     angle = r'$\alpha$=' + AoA + r'$^{\circ}$'
 
                     plt.figtext(0.825, 0.025, angle)
                     plt.title(title)
+                    print()
 
                 # Save the comparison plots in the appropriate locations
+                comparison_plot_name = percent_semispan + "_percent_semispan/plots_" + percent_semispan + "_percent_semispan/" + json_vals["plots"]["save plot type"] + "_plots/Formulation comparison plot " + AoA + " degrees_AoA." + json_vals["plots"]["save plot type"]
+                figure_list.append(comparison_plot_name)
                 if json_vals["plots"]["save plots"]:
-                    comparison_plot_name = percent_semispan + "_percent_semispan/plots_" + percent_semispan + "_percent_semispan/" + json_vals["plots"]["save plot type"] + "_plots/Formulation comparison plot " + AoA + " degrees_AoA." + json_vals["plots"]["save plot type"]
-                    figure_list.append(comparison_plot_name)
                     plt.savefig(comparison_plot_name)
-                plt.show()
+
+                # Display or close the plot
+                if json_vals["plots"]["show plots"]:
+                    plt.show()
+                else:
+                    plt.close()
             
             if json_vals["plots"]["combine pdfs"] and json_vals["plots"]["save plot type"] == "pdf":
                 # Combine files in plot summary folder
@@ -317,66 +367,70 @@ class Swept_Plotting:
                 merger.write(Combined_name)
                 merger.close()
 
+        print("Done")
+
 # =======================================================================================================================================================================================================================================================================================
-# Main script
-inputfile = "Swept_half_wing_conditions_input.json"
-json_string = open(inputfile).read()
-json_vals = json.loads(json_string)
 
-# Identify values to pass from input file
+if __name__ == "__main__":
+    # Main script
+    inputfile = "Swept_half_wing_conditions_input.json"
+    json_string = open(inputfile).read()
+    json_vals = json.loads(json_string)
 
-locations = json_vals["geometry"]["semispan locations and AoA"]
-semispan_xy_loc = json_vals["geometry"]["semispan_xy_loc"]
 
-chord = json_vals["geometry"]["uniform chord length"]
-Nodes = json_vals["geometry"]["nodes"]
-formulation = json_vals["solver"]["formulation"]
+    # Identify values to pass from input file
 
-# Proccesses either one or all semispan locations based on input file
-if json_vals["plots"]["process_all"]:
-    for form in formulation:
+    locations = json_vals["geometry"]["semispan locations and AoA"]
+    semispan_xy_loc = json_vals["geometry"]["semispan_xy_loc"]
 
-        if json_vals["plots"]["display pressure plots"]:
-            Swept_Plotting(locations, chord, Nodes, semispan_xy_loc).get_data(form)
+    chord = json_vals["geometry"]["uniform chord length"]
+    Nodes = json_vals["geometry"]["nodes"]
+    formulation = json_vals["solver"]["formulation"]
 
-    # Compare formulation results
-    if json_vals["plots"]["compare formulations"]:
-        # Verify more than one formulation has been selected
-        if len(formulation) < 2:
-            print("Enter at least two formulations for comparison to be possible. Quitting...")
-            exit()
-        xscale = json_vals["plots"]["x axis scale"]
-        yscale = json_vals["plots"]["y axis scale"]
-        Swept_Plotting(locations, chord, Nodes, semispan_xy_loc).form_comparison(formulation, xscale, yscale)
+    # Proccesses either one or all semispan locations based on input file
+    if json_vals["plots"]["process_all"]:
+        for form in formulation:
 
-else:
-    x = input("Enter percent semispan for analysis results. Options are 4.1, 8.2, 16.3, 24.5, 36.7, 51.0, 65.3, 89.8, 94.9:   ",)
-    for form in formulation:
-        if x == "51":
-            x = "51.0"
-
-        if x in locations.keys():
-
-            Specific_Semispan = {x: locations[x]}
             if json_vals["plots"]["display pressure plots"]:
-                Swept_Plotting(Specific_Semispan, chord, Nodes, semispan_xy_loc).get_data(form)
+                Swept_Plotting(locations, chord, Nodes, semispan_xy_loc).get_data(form)
 
-        else:
-            print("\n****************\nInvalid Entry. Please run script again.\n****************\n")
-            quit()
-    
-    # Compare formulation results
-    if json_vals["plots"]["compare formulations"]:
-        # Verify more than one formulation has been selected
-        if len(formulation) < 2:
-            print("Enter at least two formulations for comparison to be possible. Quitting...")
-            exit()
+        # Compare formulation results
+        if json_vals["plots"]["compare formulations"]:
+            # Verify more than one formulation has been selected
+            if len(formulation) < 2:
+                print("Enter at least two formulations for comparison to be possible. Quitting...")
+                exit()
+            xscale = json_vals["plots"]["x axis scale"]
+            yscale = json_vals["plots"]["y axis scale"]
+            Swept_Plotting(locations, chord, Nodes, semispan_xy_loc).form_comparison(formulation, xscale, yscale)
 
-        xscale = json_vals["plots"]["x axis scale"]
-        yscale = json_vals["plots"]["y axis scale"]
-        Swept_Plotting(Specific_Semispan, chord, Nodes, semispan_xy_loc).form_comparison(formulation, xscale, yscale)
+    else:
+        x = input("Enter percent semispan for analysis results. Options are 4.1, 8.2, 16.3, 24.5, 36.7, 51.0, 65.3, 89.8, 94.9:   ",)
+        for form in formulation:
+            if x == "51":
+                x = "51.0"
 
-# Print exit statement to verify completion of process
-print()
-print("Pressure plotting executed successfully. \n")
+            if x in locations.keys():
+
+                Specific_Semispan = {x: locations[x]}
+                if json_vals["plots"]["display pressure plots"]:
+                    Swept_Plotting(Specific_Semispan, chord, Nodes, semispan_xy_loc).get_data(form)
+
+            else:
+                print("\n****************\nInvalid Entry. Please run script again.\n****************\n")
+                quit()
+        
+        # Compare formulation results
+        if json_vals["plots"]["compare formulations"]:
+            # Verify more than one formulation has been selected
+            if len(formulation) < 2:
+                print("Enter at least two formulations for comparison to be possible. Quitting...")
+                exit()
+
+            xscale = json_vals["plots"]["x axis scale"]
+            yscale = json_vals["plots"]["y axis scale"]
+            Swept_Plotting(Specific_Semispan, chord, Nodes, semispan_xy_loc).form_comparison(formulation, xscale, yscale)
+
+    # Print exit statement to verify completion of process 
+    print("Pressure plotting executed successfully. \n")
 

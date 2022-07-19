@@ -76,7 +76,7 @@ def mach_iter(AoA, calculation_type, freestream_mach_number):
             "freestream_mach_number": isentropic_mach
         },
         "geometry": {
-            "file": "dev/meshes/m6_onera.vtk",
+            "file": "dev/meshes/m6_onera_extended.tri",
             "mirror_about": "xz",
   
             "wake_model": {
