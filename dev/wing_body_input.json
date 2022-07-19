@@ -1,10 +1,12 @@
 {
     "flow": {
-        "freestream_velocity": [-100.0, 0.0, -10.0]
+        "freestream_velocity" : [100.0, 0.0, 0.0],
+        "freestream_mach_number" : 1.6
     },
     "geometry": {
-        "file": "dev/meshes/wing_body.vtk",
+        "file": "dev/meshes/supersonic_configuration_hi_res.stl",
         "spanwise_axis" : "+y",
+        "mirror_about" : "xz",
         "wake_model": {
         },
         "reference": {
@@ -12,16 +14,18 @@
         }
     },
     "solver": {
-        "formulation": "morino",
-        "control_point_offset": 1.1e-05,
-        "influence_calculations" : "johnson"
+        "formulation" : "morino",
+        "control_point_offset" : 1.1e-05,
+        "run_checks" : true,
+        "write_A_and_b" : true
     },
     "post_processing" : {
         "pressure_rules" : {
+            "isentropic" : true
         }
     },
     "output": {
-        "body_file" : "dev/results/wing_body.vtk",
-        "wake_file" : "dev/results/wing_body_wake.vtk"
+        "body_file" : "dev/results/supersonic_configuration.vtk",
+        "wake_file" : "dev/results/supersonic_configuration_wake.vtk"
     }
 }

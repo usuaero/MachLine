@@ -1,7 +1,7 @@
 {
     "flow": {
         "freestream_velocity" : [ 100.0, 0.0, 0.0 ],
-        "freestream_mach_number" : 1.5
+        "freestream_mach_number" : 1.62
     },
     "geometry": {
         "file": "dev/meshes/Rough_mesh_53_30_Delta_Wing.tri",
@@ -18,10 +18,7 @@
     },
     "post_processing" : {
         "pressure_rules": {
-            "isentropic": true,
-            "second-order": true,
-            "linear" : true,
-            "slender-body" : true
+            "isentropic": true
         }
     },
     "output": {
