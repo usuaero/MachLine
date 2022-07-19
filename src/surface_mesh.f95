@@ -721,7 +721,7 @@ contains
                     cross_result = cross(this%panels(i)%n_g, second_normal)
                     
                     ! Check sign between normal vectors cross product and edge tangent
-                    if (inner(cross_result, t_hat_g) > 0.0) then
+                    if (inner(cross_result, t_hat_g) > 0.) then
                         
                         ! Having passed the previous three checks, we've found a wake-shedding edge
                         

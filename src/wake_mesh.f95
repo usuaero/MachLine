@@ -139,15 +139,6 @@ contains
 
         end if
 
-        !do i=1,this%N_verts
-        !    write(*,*)
-        !    write(*,*) i
-        !    write(*,*) this%vertices(i)%top_parent
-        !    write(*,*) this%vertices(i)%bot_parent
-        !    write(*,*) body_verts(this%vertices(i)%top_parent)%loc
-        !    write(*,*) body_verts(this%vertices(i)%bot_parent)%loc
-        !end do
-
         ! Initialize freestream-dependent properties of panels once the midpoints have been created
         ! The mirror of wake panels will never need to be initialized
         do i=1,this%N_panels
@@ -155,8 +146,8 @@ contains
             call this%panels(i)%set_influencing_verts()
         end do
 
-        if (verbose) write(*,'(a, i7, a, i7, a)') "Done. Created ", this%N_verts, " wake vertices and ", &
-                                                  this%N_panels, " wake panels."
+        if (verbose) write(*,'(a i7 a i7 a)') "Done. Created ", this%N_verts, " wake vertices and ", &
+                                              this%N_panels, " wake panels."
 
     end subroutine wake_mesh_init
 
@@ -496,6 +487,7 @@ contains
                                 ! Store parent indices for midpoint
                                 ! If the endpoints have the same parents, then the midpoint will too
                                 if (this%vertices(shared_verts(1))%top_parent == this%vertices(shared_verts(2))%top_parent) then
+
                                     this%vertices(i_mid)%top_parent = this%vertices(shared_verts(1))%top_parent
                                     this%vertices(i_mid)%bot_parent = this%vertices(shared_verts(1))%bot_parent
                                 

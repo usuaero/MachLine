@@ -525,30 +525,6 @@ contains
             ! Invert
             call matinv(3, S_sigma, this%S_sigma_inv)
 
-        else if (source_order == 2) then
-
-            ! Allocate influence matrix
-            allocate(S_sigma(6,6))
-            allocate(this%S_sigma_inv(6,6))
-
-            ! Set values
-            S_sigma(:,1) = 1.
-
-            S_sigma(1:3,2) = this%vertices_ls(1,:)
-            S_sigma(1:3,3) = this%vertices_ls(2,:)
-            S_sigma(1:3,4) = this%vertices_ls(1,:)**2
-            S_sigma(1:3,5) = this%vertices_ls(1,:)*this%vertices_ls(2,:)
-            S_sigma(1:3,6) = this%vertices_ls(2,:)**2
-            
-            S_sigma(4:6,2) = this%midpoints_ls(1,:)
-            S_sigma(4:6,3) = this%midpoints_ls(2,:)
-            S_sigma(4:6,4) = this%midpoints_ls(1,:)**2
-            S_sigma(4:6,5) = this%midpoints_ls(1,:)*this%midpoints_ls(2,:)
-            S_sigma(4:6,6) = this%midpoints_ls(2,:)**2
-
-            ! Invert
-            call matinv(6, S_sigma, this%S_sigma_inv)
-
         end if
     
     end subroutine panel_calc_singularity_matrices
@@ -1766,30 +1742,18 @@ contains
 
             ! Check if this panel belongs to the wake
             if (this%in_wake) then
-
-                ! Set default influence
                 allocate(phi_d(6), source=0.)
-
             else
-
-                ! Set default influence
                 allocate(phi_d(3), source=0.)
-
             end if
 
         else if (doublet_order == 2) then
 
             ! Check if this panel belongs to the wake
             if (this%in_wake) then
-
-                ! Set default influence
                 allocate(phi_d(12), source=0.)
-
             else
-
-                ! Set default influence
                 allocate(phi_d(6), source=0.)
-
             end if
 
         end if
