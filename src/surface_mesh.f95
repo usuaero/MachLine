@@ -1557,7 +1557,7 @@ contains
             ! Write geometry
             call body_vtk%begin(body_file)
             call body_vtk%write_points(this%vertices)
-            call body_vtk%write_panels(this%panels)
+            call body_vtk%write_panels(this%panels, subdivide=doublet_order==2)
 
             ! Pressures
             if (allocated(this%C_p_inc)) then
@@ -1626,7 +1626,7 @@ contains
             ! Write geometry
             call body_vtk%begin(mirrored_body_file)
             call body_vtk%write_points(this%vertices, this%mirror_plane)
-            call body_vtk%write_panels(this%panels)
+            call body_vtk%write_panels(this%panels, subdivide=doublet_order==2)
 
             ! Pressures
             if (allocated(this%C_p_inc)) then
@@ -1689,7 +1689,7 @@ contains
                 ! Write out geometry
                 call wake_vtk%begin(wake_file)
                 call wake_vtk%write_points(this%wake%vertices)
-                call wake_vtk%write_panels(this%wake%panels)
+                call wake_vtk%write_panels(this%wake%panels, subdivide=doublet_order==2)
                 call wake_vtk%write_cell_normals(this%wake%panels)
 
                 ! Calculate doublet strengths
