@@ -1549,7 +1549,7 @@ contains
 
     subroutine panel_calc_subsonic_panel_integrals(this, geom, freestream, mirror_panel, int)
         ! Calculates the necessary H integrals to determine the influence of a panel in subsonic flow.
-        ! Taken from Johnson (1980) Appendix D.3.
+        ! Taken from Johnson (1980) Appendix D.3. with alterations made based on PAN AIR.
 
         implicit none
 
@@ -1571,12 +1571,14 @@ contains
             c1 = geom%g2(i) + abs(geom%h)*geom%R1(i)
             c2 = geom%g2(i) + abs(geom%h)*geom%R2(i)
         
-            ! Add surface integral
+            ! Calculate integral for edge
             S = geom%a(i)*(geom%l2(i)*c1 - geom%l1(i)*c2)
             C = c1*c2 + geom%a(i)**2*geom%l1(i)*geom%l2(i)
             x = atan2(S, C)
+
+            ! Sum
             int%hH113 = int%hH113 + x
-        
+
         end do
         
         ! Apply sign factor (Johnson Eq. (D.42)

@@ -1,6 +1,6 @@
 {
     "flow": {
-        "freestream_velocity" : [ 100.0, 0.0, 10.0 ],
+        "freestream_velocity" : [ 100.0, 0.0, 30.0 ],
         "freestream_mach_number" : 0.0
     },
     "geometry": {
