@@ -497,15 +497,15 @@ contains
 
             S_mu(1:3,2) = this%vertices_ls(1,:)
             S_mu(1:3,3) = this%vertices_ls(2,:)
-            S_mu(1:3,4) = this%vertices_ls(1,:)**2
+            S_mu(1:3,4) = this%vertices_ls(1,:)**2*0.5
             S_mu(1:3,5) = this%vertices_ls(1,:)*this%vertices_ls(2,:)
-            S_mu(1:3,6) = this%vertices_ls(2,:)**2
+            S_mu(1:3,6) = this%vertices_ls(2,:)**2*0.5
             
             S_mu(4:6,2) = this%midpoints_ls(1,:)
             S_mu(4:6,3) = this%midpoints_ls(2,:)
-            S_mu(4:6,4) = this%midpoints_ls(1,:)**2
+            S_mu(4:6,4) = this%midpoints_ls(1,:)**2*0.5
             S_mu(4:6,5) = this%midpoints_ls(1,:)*this%midpoints_ls(2,:)
-            S_mu(4:6,6) = this%midpoints_ls(2,:)**2
+            S_mu(4:6,6) = this%midpoints_ls(2,:)**2*0.5
 
             ! Invert
             call matinv(6, S_mu, this%S_mu_inv)
@@ -1843,11 +1843,18 @@ contains
             else if (doublet_order == 2) then
 
                 ! Add quadratic terms
-                phi_d(4) = 0.5*int%hH113*geom%P_ls(1)**2 + geom%h*(geom%P_ls(1)*int%H213 + 0.5*int%H313)
+                phi_d(4) = -0.5*int%hH113*geom%P_ls(1)**2 + geom%h*(geom%P_ls(1)*int%H213 + 0.5*int%H313)
 
                 phi_d(5) = int%hH113*geom%P_ls(1)*geom%P_ls(2) + geom%h*(geom%P_ls(2)*int%H213 + geom%P_ls(1)*int%H123 + int%H223)
 
                 phi_d(6) = 0.5*int%hH113*geom%P_ls(2)**2 + geom%h*(geom%P_ls(2)*int%H123 + 0.5*int%H133)
+
+                ! These terms are identically zero for wake panels (with the current wake model)
+                if (this%in_wake) then
+                    phi_d(2) = 0.
+                    phi_d(5) = 0.
+                    phi_d(6) = 0.
+                end if
 
                 ! Convert to vertex influences (Davis Eq. (4.41))
                 if (mirror_panel) then

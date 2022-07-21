@@ -870,7 +870,7 @@ contains
 
         real,dimension(:,:),allocatable :: A_p
         real,dimension(:),allocatable :: b_p
-        integer :: stat, i, j
+        integer :: stat, i, j, unit
         real,dimension(:),allocatable :: A_ii_inv
 
         if (verbose) write(*,'(a)',advance='no') "     Solving linear system..."
@@ -908,16 +908,21 @@ contains
 
         ! Write A and b to file
         if (this%write_A_and_b) then
-            open(34, file="A_mat.txt")
+
+            ! A
+            open(newunit=unit, file="A_mat.txt")
             do i=1,this%N
-                write(34,*) this%A(i,:)
+                write(unit,*) this%A(i,:)
             end do
-            close(34)
-            open(34, file="b_vec.txt")
+            close(unit)
+
+            ! b
+            open(newunit=unit, file="b_vec.txt")
             do i=1,this%N
-                write(34,*) this%b(i)
+                write(unit,*) this%b(i)
             end do
-            close(34)
+            close(unit)
+
         end if
 
         ! Precondition
