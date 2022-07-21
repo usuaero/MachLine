@@ -495,17 +495,22 @@ contains
             ! Set values
             S_mu(:,1) = 1.
 
+            ! x
             S_mu(1:3,2) = this%vertices_ls(1,:)
-            S_mu(1:3,3) = this%vertices_ls(2,:)
-            S_mu(1:3,4) = this%vertices_ls(1,:)**2*0.5
-            S_mu(1:3,5) = this%vertices_ls(1,:)*this%vertices_ls(2,:)
-            S_mu(1:3,6) = this%vertices_ls(2,:)**2*0.5
-            
             S_mu(4:6,2) = this%midpoints_ls(1,:)
+
+            ! y
+            S_mu(1:3,3) = this%vertices_ls(2,:)
             S_mu(4:6,3) = this%midpoints_ls(2,:)
-            S_mu(4:6,4) = this%midpoints_ls(1,:)**2*0.5
-            S_mu(4:6,5) = this%midpoints_ls(1,:)*this%midpoints_ls(2,:)
-            S_mu(4:6,6) = this%midpoints_ls(2,:)**2*0.5
+
+            ! x^2
+            S_mu(:,4) = S_mu(:,2)**2*0.5
+
+            ! xy
+            S_mu(:,5) = S_mu(:,2)*S_mu(:,3)
+
+            ! y^2
+            S_mu(:,6) = S_mu(:,3)**2*0.5
 
             ! Invert
             call matinv(6, S_mu, this%S_mu_inv)
@@ -722,12 +727,12 @@ contains
 
             ! Vertices
             this%vertices_ls_mir(:,i) = matmul(this%A_g_to_ls_mir(1:2,:), &
-                                               mirror_across_plane(this%get_vertex_loc(i), mirror_plane)-this%centr_mir)
+                                               mirror_across_plane(this%get_vertex_loc(i)-this%centr, mirror_plane))
 
             ! Midpoints
             if (doublet_order == 2) then
                 this%midpoints_ls_mir(:,i) = matmul(this%A_g_to_ls_mir(1:2,:), &
-                                                    mirror_across_plane(this%get_midpoint_loc(i), mirror_plane)-this%centr_mir)
+                                                    mirror_across_plane(this%get_midpoint_loc(i)-this%centr, mirror_plane))
             end if
 
         end do
@@ -803,17 +808,22 @@ contains
             ! Set values
             S_mu(:,1) = 1.
 
+            ! x
             S_mu(1:3,2) = this%vertices_ls_mir(1,:)
-            S_mu(1:3,3) = this%vertices_ls_mir(2,:)
-            S_mu(1:3,4) = this%vertices_ls_mir(1,:)**2
-            S_mu(1:3,5) = this%vertices_ls_mir(1,:)*this%vertices_ls_mir(2,:)
-            S_mu(1:3,6) = this%vertices_ls_mir(2,:)**2
-            
             S_mu(4:6,2) = this%midpoints_ls_mir(1,:)
+
+            ! y
+            S_mu(1:3,3) = this%vertices_ls_mir(2,:)
             S_mu(4:6,3) = this%midpoints_ls_mir(2,:)
-            S_mu(4:6,4) = this%midpoints_ls_mir(1,:)**2
-            S_mu(4:6,5) = this%midpoints_ls_mir(1,:)*this%midpoints_ls_mir(2,:)
-            S_mu(4:6,6) = this%midpoints_ls_mir(2,:)**2
+
+            ! x^2
+            S_mu(:,4) = S_mu(:,2)**2*0.5
+
+            ! xy
+            S_mu(:,5) = S_mu(:,2)*S_mu(:,3)
+
+            ! y^2
+            S_mu(:,6) = S_mu(:,3)**2*0.5
 
             ! Invert
             call matinv(6, S_mu, this%S_mu_inv_mir)
@@ -1843,7 +1853,7 @@ contains
             else if (doublet_order == 2) then
 
                 ! Add quadratic terms
-                phi_d(4) = -0.5*int%hH113*geom%P_ls(1)**2 + geom%h*(geom%P_ls(1)*int%H213 + 0.5*int%H313)
+                phi_d(4) = 0.5*int%hH113*geom%P_ls(1)**2 + geom%h*(geom%P_ls(1)*int%H213 + 0.5*int%H313)
 
                 phi_d(5) = int%hH113*geom%P_ls(1)*geom%P_ls(2) + geom%h*(geom%P_ls(2)*int%H213 + geom%P_ls(1)*int%H123 + int%H223)
 
@@ -1853,7 +1863,7 @@ contains
                 if (this%in_wake) then
                     phi_d(2) = 0.
                     phi_d(5) = 0.
-                    phi_d(6) = 0.
+                    !phi_d(6) = 0.
                 end if
 
                 ! Convert to vertex influences (Davis Eq. (4.41))
