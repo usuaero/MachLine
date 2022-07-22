@@ -1,8 +1,342 @@
+from this import d
 import numpy as np
 
 
 def inner2(x,y):
     return x[0]*y[0] + x[1]*y[1]
+
+
+class SubsonicGeometry:
+    """A class containing all geometric parameters for a point-panel pair."""
+
+    def __init__(self):
+        self.a = np.zeros(4)
+        self.g2 = np.zeros(4)
+        self.l1 = np.zeros(4)
+        self.l2 = np.zeros(4)
+        self.R1 = np.zeros(4)
+        self.R2 = np.zeros(4)
+        self.v_xi = np.zeros(4)
+        self.v_eta = np.zeros(4)
+        self.h = 0.0
+        self.h2 = 0.0
+
+
+class Integrals:
+    """A class containing all necessary integrals."""
+
+    def __init__(self):
+        self.hH113 = 0.0
+        self.H111 = 0.0
+        self.H211 = 0.0
+        self.H121 = 0.0
+        self.H213 = 0.0
+        self.H123 = 0.0
+        self.H313 = 0.0
+        self.H133 = 0.0
+        self.H223 = 0.0
+        self.F111 = np.zeros(4)
+        self.F211 = np.zeros(4)
+        self.F121 = np.zeros(4)
+
+
+class SubsonicPanel:
+    """A class defining a rectangular, subsonic, quadratic-doublet-linear-source panel in incompressible flow.
+    The panel lies in the x-y (z=0) plane and is centered at the origin.
+    
+    Parameters
+    ----------
+    x_dim : float
+        Width in the x direction.
+
+    y_dim : float
+        Width in the y direction.
+    """
+
+    def __init__(self, x_dim, y_dim):
+
+        # Store
+        self.x_dim = x_dim
+        self.y_dim = y_dim
+        self.verts = np.zeros((2,4))
+        
+        # First vertex
+        self.verts[0,0] = 0.5*x_dim
+        self.verts[1,0] = 0.5*y_dim
+        
+        # Second vertex
+        self.verts[0,1] = -0.5*x_dim
+        self.verts[1,1] = 0.5*y_dim
+        
+        # Third vertex
+        self.verts[0,2] = -0.5*x_dim
+        self.verts[1,2] = -0.5*y_dim
+        
+        # Fourth vertex
+        self.verts[0,3] = 0.5*x_dim
+        self.verts[1,3] = -0.5*y_dim
+
+        # Initialize a few things
+        self.mu_params = np.zeros(6)
+        self.sigma_params = np.zeros(3)
+
+
+    def set_doublet_strength(self, mu_params):
+        self.mu_params = mu_params
+
+
+    def set_source_strength(self, sigma_params):
+        self.sigma_params = sigma_params
+
+
+    def calc_geom(self, P):
+        """Calculates the geometry for the panel-point pair.
+        
+        Parameters
+        ----------
+        P : ndarray
+            Point at which to calculate the induced potential.
+
+        Returns
+        -------
+        geom : SubsonicGeometry
+            Geometry of the point relative to the panel
+        """
+
+        # Initialize
+        geom = SubsonicGeometry()
+        geom.h = P[2]
+        geom.h2 = geom.h**2
+
+        # Perpendicular in-plane distances
+        geom.a[0] = P[0] - 0.5*self.x_dim
+        geom.a[1] = P[1] - 0.5*self.y_dim
+        geom.a[2] = P[0] + 0.5*self.x_dim
+        geom.a[3] = P[1] + 0.5*self.y_dim
+
+        # Perpendicular distances
+        geom.g2 = geom.a**2 + geom.h2
+
+        # Tangential in-plane distances
+        geom.l1[0] = P[1] + 0.5*self.y_dim
+        geom.l2[0] = P[1] - 0.5*self.y_dim
+
+        geom.l1[1] = -P[0] + 0.5*self.x_dim
+        geom.l2[1] = -P[0] - 0.5*self.x_dim
+
+        geom.l1[2] = -P[1] - 0.5*self.y_dim
+        geom.l2[2] = -P[1] + 0.5*self.y_dim
+
+        geom.l1[3] = P[0] - 0.5*self.x_dim
+        geom.l2[3] = P[0] + 0.5*self.x_dim
+
+        # Radial distances
+        geom.R1 = np.sqrt(geom.l1**2 + geom.g2)
+        geom.R2 = np.sqrt(geom.l2**2 + geom.g2)
+
+        # Outward normals
+        geom.v_xi[0] = 1.0
+        geom.v_xi[2] = -1.0
+        geom.v_eta[1] = 1.0
+        geom.v_eta[3] = -1.0
+
+        return geom
+
+
+    def calc_F_integrals(self, geom):
+        """Calculates necessary F integrals.
+        
+        Parameters
+        ----------
+        geom : SubsonicGeometry
+            Geometry of the point relative to the panel
+
+        Returns
+        -------
+        integrals : Integrals
+            Container of F integrals.
+        """
+
+        integrals = Integrals()
+
+        # Loop through edges
+        for i in range(4):
+
+            # Within edge
+            if geom.l1[i]*geom.l2[i] < 0.0:
+
+                integrals.F111[i] = np.log(((geom.R1[i] - geom.l1[i])*(geom.R2[i] + geom.l2[i]))/geom.g2[i])
+
+            # Outside edge
+            else:
+
+                integrals.F111[i] = np.sign(geom.l1[i])*np.log((geom.R2[i]+np.abs(geom.l2[i]))/(geom.R1[i]+np.abs(geom.l1[i])))
+
+        return integrals
+
+
+    def calc_H_integrals(self, geom, integrals):
+        """Calculates hH(1,1,3).
+        
+        Parameters
+        ----------
+        geom : SubsonicGeometry
+            Geometry of the point relative to the panel
+
+        integrals : Integrals
+            Integrals calculated thus far
+        """
+
+        # Loop through edges
+        integrals.hH113 = 0.0
+        for i in range(4):
+            
+            # Intermediate quantities
+            c1 = geom.g2[i] + np.abs(geom.h)*geom.R1[i]
+            c2 = geom.g2[i] + np.abs(geom.h)*geom.R2[i]
+
+            # Integral for edge
+            S = geom.a[i]*(geom.l2[i]*c1 - geom.l1[i]*c2)
+            C = c1*c2 + geom.a[i]**2*geom.l1[i]*geom.l2[i]
+
+            # Sum
+            integrals.hH113 += np.arctan2(S, C)
+
+        # Apply sign factor
+        integrals.hH113*np.sign(geom.h)
+
+        # Calculate H(1,1,1)
+        integrals.H111 = -geom.h*integrals.hH113 + np.sum(geom.a*integrals.F111).item()
+
+
+    def calc_analytic_source_potential(self, P):
+        """Calculates the potential induced assuming a continuous distribution of source strength.
+        
+        Parameters
+        ----------
+        P : ndarray
+            Point at which to calculate the induced potential.
+
+        Returns
+        -------
+        phi_s : float
+            source-induced potential.
+        """
+
+        # Calculate geometry
+        geom = self.calc_geom(P)
+
+        # Calculate necessary integrals
+        I = self.calc_F_integrals(geom)
+        self.calc_H_integrals(geom, I)
+
+        phi_s = self.sigma_params[0]*I.H111 + self.sigma_params[1]*(I.H111*P[0] + I.H211) + self.sigma_params[2]*(I.H111*P[1] + I.H121)
+        return -phi_s/(4.0*np.pi)
+
+
+    def calc_analytic_doublet_potential(self, P):
+        """Calculates the potential induced assuming a continuous distribution of doublet strength.
+        
+        Parameters
+        ----------
+        P : ndarray
+            Point at which to calculate the induced potential.
+
+        Returns
+        -------
+        phi_d : float
+            Doublet-induced potential.
+        """
+
+        # Calculate geometry
+        geom = self.calc_geom(P)
+
+        # Calculate necessary integrals
+        I = self.calc_F_integrals(geom)
+        self.calc_H_integrals(geom, I)
+
+        # Calculate potential
+        phi_d = (self.mu_params[0]*I.hH113)/(4.0*np.pi)
+
+        return phi_d
+
+
+    def calc_discrete_source_potential(self, P, Nx, Ny):
+        """Calculates the potential induced assuming a distribution of discrete sources across the panel surface.
+        
+        Parameters
+        ----------
+        P : ndarray
+            Point at which to calculate the induced potential.
+            
+        Nx : integer
+            Number of point sources to distribute in the x direction.
+            
+        Ny : integer
+            Number of point sources to distribute in the y direction.
+
+        Returns
+        -------
+        phi_s : float
+            source-induced potential.
+        """
+
+        # Distribute sources
+        X = np.linspace(-0.5*self.x_dim, 0.5*self.x_dim, Nx)
+        Y = np.linspace(-0.5*self.y_dim, 0.5*self.y_dim, Ny)
+
+        # Loop through sources
+        phi_s = 0.0
+        for i, xi in enumerate(X):
+            for j, yj in enumerate(Y):
+
+                # Get source strength
+                sigma = self.sigma_params[0] + self.sigma_params[1]*xi + self.sigma_params[2]*yj
+
+                # Calculate induced potential
+                R = np.sqrt((P[0]-xi)**2 + (P[1]-yj)**2 + P[2]**2)
+                phi_s += -sigma/(4.0*np.pi*R)
+
+        return phi_s
+
+
+    def calc_discrete_doublet_potential(self, P, Nx, Ny):
+        """Calculates the potential induced assuming a distribution of discrete doublets across the panel surface.
+        
+        Parameters
+        ----------
+        P : ndarray
+            Point at which to calculate the induced potential.
+            
+        Nx : integer
+            Number of point doublets to distribute in the x direction.
+            
+        Ny : integer
+            Number of point doublets to distribute in the y direction.
+
+        Returns
+        -------
+        phi_d : float
+            Doublet-induced potential.
+        """
+
+        # Distribute doublets
+        X = np.linspace(-0.5*self.x_dim, 0.5*self.x_dim, Nx)
+        Y = np.linspace(-0.5*self.y_dim, 0.5*self.y_dim, Ny)
+
+        # Loop through doublets
+        phi_d = 0.0
+        for i, xi in enumerate(X):
+            for j, yj in enumerate(Y):
+
+                # Get doublet strength
+                mu = self.mu_params[0] + self.mu_params[1]*xi + self.mu_params[2]*yj + 0.5*self.mu_params[3]*xi**2 + self.mu_params[4]*xi*yj + 0.5*self.mu_params[5]*yj**2
+
+                # Calculate induced potential
+                R = np.sqrt((P[0]-xi)**2 + (P[1]-yj)**2 + P[2]**2)
+                phi_d += -mu*P[2]/(4.0*np.pi*R**3)
+
+        return phi_d
 
 
 class SubinclinedPanel:
