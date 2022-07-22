@@ -1,4 +1,3 @@
-from this import d
 import numpy as np
 
 
@@ -43,6 +42,14 @@ class Integrals:
 class SubsonicPanel:
     """A class defining a rectangular, subsonic, quadratic-doublet-linear-source panel in incompressible flow.
     The panel lies in the x-y (z=0) plane and is centered at the origin.
+
+           0
+       ----------
+       |        |
+     1 |        | 3
+       |        |
+       ----------
+            2
     
     Parameters
     ----------
@@ -108,37 +115,36 @@ class SubsonicPanel:
         geom.h = P[2]
         geom.h2 = geom.h**2
 
-        # Perpendicular in-plane distances
-        geom.a[0] = P[0] - 0.5*self.x_dim
-        geom.a[1] = P[1] - 0.5*self.y_dim
-        geom.a[2] = P[0] + 0.5*self.x_dim
-        geom.a[3] = P[1] + 0.5*self.y_dim
+        # Outward normals
+        geom.v_eta[0] = 1.0
+        geom.v_eta[2] = -1.0
+        geom.v_xi[1] = 1.0
+        geom.v_xi[3] = -1.0
+
+        # Loop through edges
+        for i in range(4):
+
+            # Displacement to first vertex
+            d = self.verts[:,i] - P[0:2]
+            
+            # Perpendicular in-plane distance
+            geom.a[i] = d[0]*geom.v_xi[i] + d[1]*geom.v_eta[i]
+
+            # Tangential in-plane distance
+            geom.l1[i] = -d[0]*geom.v_eta[i] + d[1]*geom.v_xi[i]
+
+            # Displacement to second vertex
+            d = self.verts[:,(i+1)%4] - P[0:2]
+
+            # Tangential in-plane distance
+            geom.l2[i] = -d[0]*geom.v_eta[i] + d[1]*geom.v_xi[i]
 
         # Perpendicular distances
         geom.g2 = geom.a**2 + geom.h2
 
-        # Tangential in-plane distances
-        geom.l1[0] = P[1] + 0.5*self.y_dim
-        geom.l2[0] = P[1] - 0.5*self.y_dim
-
-        geom.l1[1] = -P[0] + 0.5*self.x_dim
-        geom.l2[1] = -P[0] - 0.5*self.x_dim
-
-        geom.l1[2] = -P[1] - 0.5*self.y_dim
-        geom.l2[2] = -P[1] + 0.5*self.y_dim
-
-        geom.l1[3] = P[0] - 0.5*self.x_dim
-        geom.l2[3] = P[0] + 0.5*self.x_dim
-
         # Radial distances
         geom.R1 = np.sqrt(geom.l1**2 + geom.g2)
         geom.R2 = np.sqrt(geom.l2**2 + geom.g2)
-
-        # Outward normals
-        geom.v_xi[0] = 1.0
-        geom.v_xi[2] = -1.0
-        geom.v_eta[1] = 1.0
-        geom.v_eta[3] = -1.0
 
         return geom
 
@@ -203,7 +209,7 @@ class SubsonicPanel:
             integrals.hH113 += np.arctan2(S, C)
 
         # Apply sign factor
-        integrals.hH113*np.sign(geom.h)
+        integrals.hH113 *= np.sign(geom.h)
 
         # Calculate H(1,1,1)
         integrals.H111 = -geom.h*integrals.hH113 + np.sum(geom.a*integrals.F111).item()
@@ -224,6 +230,7 @@ class SubsonicPanel:
         """
 
         # Calculate geometry
+        P = np.array(P)
         geom = self.calc_geom(P)
 
         # Calculate necessary integrals
@@ -249,6 +256,7 @@ class SubsonicPanel:
         """
 
         # Calculate geometry
+        P = np.array(P)
         geom = self.calc_geom(P)
 
         # Calculate necessary integrals
@@ -282,6 +290,7 @@ class SubsonicPanel:
         """
 
         # Distribute sources
+        N = Nx*Ny
         X = np.linspace(-0.5*self.x_dim, 0.5*self.x_dim, Nx)
         Y = np.linspace(-0.5*self.y_dim, 0.5*self.y_dim, Ny)
 
@@ -297,7 +306,7 @@ class SubsonicPanel:
                 R = np.sqrt((P[0]-xi)**2 + (P[1]-yj)**2 + P[2]**2)
                 phi_s += -sigma/(4.0*np.pi*R)
 
-        return phi_s
+        return phi_s/N
 
 
     def calc_discrete_doublet_potential(self, P, Nx, Ny):
@@ -321,6 +330,7 @@ class SubsonicPanel:
         """
 
         # Distribute doublets
+        N = Nx*Ny
         X = np.linspace(-0.5*self.x_dim, 0.5*self.x_dim, Nx)
         Y = np.linspace(-0.5*self.y_dim, 0.5*self.y_dim, Ny)
 
@@ -334,9 +344,9 @@ class SubsonicPanel:
 
                 # Calculate induced potential
                 R = np.sqrt((P[0]-xi)**2 + (P[1]-yj)**2 + P[2]**2)
-                phi_d += -mu*P[2]/(4.0*np.pi*R**3)
+                phi_d += mu*P[2]/(4.0*np.pi*R**3)
 
-        return phi_d
+        return phi_d/N
 
 
 class SubinclinedPanel:
