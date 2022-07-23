@@ -214,6 +214,10 @@ class SubsonicPanel:
         # Calculate H(1,1,1)
         integrals.H111 = -geom.h*integrals.hH113 + np.sum(geom.a*integrals.F111).item()
 
+        # Calcualte H(2,1,3) and H(1,2,3)
+        integrals.H213 = -np.sum(geom.v_xi*integrals.F111).item()
+        integrals.H123 = -np.sum(geom.v_eta*integrals.F111).item()
+
 
     def calc_analytic_source_potential(self, P):
         """Calculates the potential induced assuming a continuous distribution of source strength.
@@ -264,7 +268,10 @@ class SubsonicPanel:
         self.calc_H_integrals(geom, I)
 
         # Calculate potential
-        phi_d = (self.mu_params[0]*I.hH113)/(4.0*np.pi)
+        phi_d = (self.mu_params[0]*I.hH113 # mu_0
+                 + self.mu_params[1]*(P[0]*I.hH113 + geom.h*I.H213) # mu_x
+                 + self.mu_params[2]*(P[1]*I.hH113 + geom.h*I.H123) # mu_y
+                 )/(4.0*np.pi)
 
         return phi_d
 
