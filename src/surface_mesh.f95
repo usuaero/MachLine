@@ -939,10 +939,18 @@ contains
                 temp_vertices(i)%i_wake_partner = i_rearrange_inv(temp_vertices(i)%i_wake_partner)
             end do
 
-            ! Fix edge endpoints
+            ! Fix edge endpoints (and midpoints if necessary)
             do i=1,this%N_edges
+
+                ! Endpoints
                 this%edges(i)%verts(1) = i_rearrange_inv(this%edges(i)%verts(1))
                 this%edges(i)%verts(2) = i_rearrange_inv(this%edges(i)%verts(2))
+
+                ! Midpoints
+                if (doublet_order == 2) then
+                    this%edges(i)%i_midpoint = i_rearrange_inv(this%edges(i)%i_midpoint)
+                end if
+
             end do
 
         else
