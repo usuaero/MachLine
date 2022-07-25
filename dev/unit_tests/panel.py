@@ -178,6 +178,10 @@ class SubsonicPanel:
 
                 integrals.F111[i] = np.sign(geom.l1[i])*np.log((geom.R2[i]+np.abs(geom.l2[i]))/(geom.R1[i]+np.abs(geom.l1[i])))
 
+        # Calculate F(2,1,1) and F(1,2,1)
+        integrals.F121 = geom.a*geom.v_eta*integrals.F111 + geom.v_xi*(geom.R2-geom.R1)
+        integrals.F211 = geom.a*geom.v_xi*integrals.F111 - geom.v_eta*(geom.R2-geom.R1)
+
         return integrals
 
 
@@ -217,6 +221,10 @@ class SubsonicPanel:
         # Calcualte H(2,1,3) and H(1,2,3)
         integrals.H213 = -np.sum(geom.v_xi*integrals.F111).item()
         integrals.H123 = -np.sum(geom.v_eta*integrals.F111).item()
+        
+        # Calculate H(2,1,1) and H(1,2,1)
+        integrals.H211 = 0.5*(-geom.h**2*integrals.H213 + np.sum(geom.a*integrals.F211).item())
+        integrals.H121 = 0.5*(-geom.h**2*integrals.H123 + np.sum(geom.a*integrals.F121).item())
 
 
     def calc_analytic_source_potential(self, P):
