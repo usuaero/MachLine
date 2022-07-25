@@ -8,8 +8,8 @@ if __name__=="__main__":
 
     # Initialize panel
     panel = SubsonicPanel(1.0, 1.0)
-    mu_params = [0.0, 0.0, 1.0, 0.0, 0.0, 0.0]
-    sigma_params = [0.0, 0.0, 1.0]
+    mu_params = [0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    sigma_params = [1.0, 1.0, 1.0]
     panel.set_doublet_strength(mu_params)
     panel.set_source_strength(sigma_params)
 
@@ -41,14 +41,13 @@ if __name__=="__main__":
     im0 = ax[0].imshow(phi_s_dis.T, cmap='hot', vmin=min_phi, vmax=max_phi)
     im1 = ax[1].imshow(phi_s_anl.T, cmap='hot', vmin=min_phi, vmax=max_phi)
     im2 = ax[2].imshow(np.log10(abs((phi_s_dis-phi_s_anl)/phi_s_anl)).T, cmap='hot')
-    ax[0].set_title('Discrete')
-    ax[1].set_title('Analytic')
+    ax[0].set_title('$\phi_\sigma$ Discrete')
+    ax[1].set_title('$\phi_\sigma$ Analytic')
     ax[2].set_title('$\log|\Delta_{frac}|$')
-    val_cbar_ax = fig.add_axes([0.62, 0.15, 0.01, 0.6])
+    val_cbar_ax = fig.add_axes([0.63, 0.15, 0.01, 0.6])
     fig.colorbar(im0, cax=val_cbar_ax)
-    err_cbar_ax = fig.add_axes([0.93, 0.15, 0.01, 0.6])
+    err_cbar_ax = fig.add_axes([0.95, 0.15, 0.01, 0.6])
     fig.colorbar(im2, cax=err_cbar_ax)
-    fig.suptitle('Source-Induced Potential for {0}'.format(sigma_params))
     plt.show()
 
     # Plot doublet potentials
@@ -58,12 +57,11 @@ if __name__=="__main__":
     im0 = ax[0].imshow(phi_d_dis.T, cmap='hot', vmin=min_phi, vmax=max_phi)
     im1 = ax[1].imshow(phi_d_anl.T, cmap='hot', vmin=min_phi, vmax=max_phi)
     im2 = ax[2].imshow(np.log10(abs((phi_d_dis-phi_d_anl)/phi_d_anl)).T, cmap='hot')
-    ax[0].set_title('Discrete')
-    ax[1].set_title('Analytic')
+    ax[0].set_title('$\phi_\mu$ Discrete')
+    ax[1].set_title('$\phi_\mu$ Analytic')
     ax[2].set_title('$\log|\Delta_{frac}|$')
-    val_cbar_ax = fig.add_axes([0.62, 0.15, 0.01, 0.6])
+    val_cbar_ax = fig.add_axes([0.63, 0.15, 0.01, 0.6])
     fig.colorbar(im0, cax=val_cbar_ax)
-    err_cbar_ax = fig.add_axes([0.93, 0.15, 0.01, 0.6])
+    err_cbar_ax = fig.add_axes([0.95, 0.15, 0.01, 0.6])
     fig.colorbar(im2, cax=err_cbar_ax)
-    fig.suptitle('Doublet-Induced Potential for {0}'.format(mu_params))
     plt.show()

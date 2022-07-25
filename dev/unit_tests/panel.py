@@ -22,7 +22,7 @@ class SubsonicGeometry:
 
 
 class Integrals:
-    """A class containing all necessary integrals."""
+    """A class containing all necessary ints."""
 
     def __init__(self):
         self.hH113 = 0.0
@@ -159,11 +159,11 @@ class SubsonicPanel:
 
         Returns
         -------
-        integrals : Integrals
-            Container of F integrals.
+        ints : Integrals
+            Container of F ints.
         """
 
-        integrals = Integrals()
+        ints = Integrals()
 
         # Loop through edges
         for i in range(4):
@@ -171,34 +171,34 @@ class SubsonicPanel:
             # Within edge
             if geom.l1[i]*geom.l2[i] < 0.0:
 
-                integrals.F111[i] = np.log(((geom.R1[i] - geom.l1[i])*(geom.R2[i] + geom.l2[i]))/geom.g2[i])
+                ints.F111[i] = np.log(((geom.R1[i] - geom.l1[i])*(geom.R2[i] + geom.l2[i]))/geom.g2[i])
 
             # Outside edge
             else:
 
-                integrals.F111[i] = np.sign(geom.l1[i])*np.log((geom.R2[i]+np.abs(geom.l2[i]))/(geom.R1[i]+np.abs(geom.l1[i])))
+                ints.F111[i] = np.sign(geom.l1[i])*np.log((geom.R2[i]+np.abs(geom.l2[i]))/(geom.R1[i]+np.abs(geom.l1[i])))
 
         # Calculate F(2,1,1) and F(1,2,1)
-        integrals.F121 = geom.a*geom.v_eta*integrals.F111 + geom.v_xi*(geom.R2-geom.R1)
-        integrals.F211 = geom.a*geom.v_xi*integrals.F111 - geom.v_eta*(geom.R2-geom.R1)
+        ints.F121 = geom.a*geom.v_eta*ints.F111 + geom.v_xi*(geom.R2-geom.R1)
+        ints.F211 = geom.a*geom.v_xi*ints.F111 - geom.v_eta*(geom.R2-geom.R1)
 
-        return integrals
+        return ints
 
 
-    def calc_H_integrals(self, geom, integrals):
-        """Calculates hH(1,1,3).
+    def calc_H_integrals(self, geom, ints):
+        """Calculates H(M,N,K) integrals.
         
         Parameters
         ----------
         geom : SubsonicGeometry
             Geometry of the point relative to the panel
 
-        integrals : Integrals
+        ints : Integrals
             Integrals calculated thus far
         """
 
         # Loop through edges
-        integrals.hH113 = 0.0
+        ints.hH113 = 0.0
         for i in range(4):
             
             # Intermediate quantities
@@ -210,21 +210,26 @@ class SubsonicPanel:
             C = c1*c2 + geom.a[i]**2*geom.l1[i]*geom.l2[i]
 
             # Sum
-            integrals.hH113 += np.arctan2(S, C)
+            ints.hH113 += np.arctan2(S, C)
 
         # Apply sign factor
-        integrals.hH113 *= np.sign(geom.h)
+        ints.hH113 *= np.sign(geom.h)
 
         # Calculate H(1,1,1)
-        integrals.H111 = -geom.h*integrals.hH113 + np.sum(geom.a*integrals.F111).item()
+        ints.H111 = -geom.h*ints.hH113 + np.sum(geom.a*ints.F111).item()
 
         # Calcualte H(2,1,3) and H(1,2,3)
-        integrals.H213 = -np.sum(geom.v_xi*integrals.F111).item()
-        integrals.H123 = -np.sum(geom.v_eta*integrals.F111).item()
+        ints.H213 = -np.sum(geom.v_xi*ints.F111).item()
+        ints.H123 = -np.sum(geom.v_eta*ints.F111).item()
         
         # Calculate H(2,1,1) and H(1,2,1)
-        integrals.H211 = 0.5*(-geom.h**2*integrals.H213 + np.sum(geom.a*integrals.F211).item())
-        integrals.H121 = 0.5*(-geom.h**2*integrals.H123 + np.sum(geom.a*integrals.F121).item())
+        ints.H211 = 0.5*(-geom.h**2*ints.H213 + np.sum(geom.a*ints.F211).item())
+        ints.H121 = 0.5*(-geom.h**2*ints.H123 + np.sum(geom.a*ints.F121).item())
+
+        # Calculate H(3,1,3), H(2,2,3), and H(1,3,3)
+        ints.H313 = -np.sum(geom.v_eta*ints.F121).item() + geom.h*ints.hH113
+        ints.H223 = np.sum(geom.v_xi*ints.F121).item()
+        ints.H133 = -ints.H111 + np.sum(geom.v_eta*ints.F121).item()
 
 
     def calc_analytic_source_potential(self, P):
@@ -245,7 +250,7 @@ class SubsonicPanel:
         P = np.array(P)
         geom = self.calc_geom(P)
 
-        # Calculate necessary integrals
+        # Calculate necessary ints
         I = self.calc_F_integrals(geom)
         self.calc_H_integrals(geom, I)
 
@@ -271,7 +276,7 @@ class SubsonicPanel:
         P = np.array(P)
         geom = self.calc_geom(P)
 
-        # Calculate necessary integrals
+        # Calculate necessary ints
         I = self.calc_F_integrals(geom)
         self.calc_H_integrals(geom, I)
 
@@ -279,6 +284,9 @@ class SubsonicPanel:
         phi_d = (self.mu_params[0]*I.hH113 # mu_0
                  + self.mu_params[1]*(P[0]*I.hH113 + geom.h*I.H213) # mu_x
                  + self.mu_params[2]*(P[1]*I.hH113 + geom.h*I.H123) # mu_y
+                 + self.mu_params[3]*(0.5*P[0]**2*I.hH113 + geom.h*(P[0]*I.H213 + 0.5*I.H313)) # mu_xx
+                 + self.mu_params[4]*(P[0]*P[1]*I.hH113 + geom.h*(P[0]*I.H123 + P[1]*I.H213 + I.H223)) # mu_xy
+                 + self.mu_params[5]*(0.5*P[0]**2*I.hH113 + geom.h*(P[1]*I.H123 + 0.5*I.H133)) # mu_yy
                  )/(4.0*np.pi)
 
         return phi_d
@@ -512,7 +520,7 @@ class SubinclinedPanel:
 
 
     def _calc_integrals(self, P):
-        # Calculates the needed integrals
+        # Calculates the needed ints
 
         # Calculate geometry
         h, R1, R2, l1, l2, a, g2, in_dod = self._calc_geometry(P)
@@ -596,7 +604,7 @@ class SubinclinedPanel:
         # Calculate geometry
         h,_,_,_,_,a,_,_ = self._calc_geometry(P)
 
-        # Calculate integrals
+        # Calculate ints
         hH113, F111 = self._calc_integrals(P)
 
         phi_s = 0.5*self.sigma*(sum(a*F111) + h*sum(hH113))/np.pi
@@ -613,7 +621,7 @@ class SubinclinedPanel:
             Evaluation point.
         """
 
-        # Calculate integrals
+        # Calculate ints
         hH113,_ = self._calc_integrals(P)
 
         phi_d = 0.5*self.mu*sum(hH113)/np.pi
@@ -732,7 +740,7 @@ class SuperinclinedPanel:
 
 
     def _calc_integrals(self, P):
-        # Calculates the needed integrals
+        # Calculates the needed ints
 
         # Calculate geometry
         h, a, l1, l2, in_dod = self._calc_geometry(P)
@@ -747,7 +755,7 @@ class SuperinclinedPanel:
             Evaluation point.
         """
 
-        # Get integrals
+        # Get ints
         self._calc_integrals(P)
 
         return 0.0, np.zeros(self.N), np.zeros(self.N), np.zeros(self.N)
@@ -762,7 +770,7 @@ class SuperinclinedPanel:
             Evaluation point.
         """
 
-        # Get integrals
+        # Get ints
         self._calc_integrals(P)
         
         return 0.0
