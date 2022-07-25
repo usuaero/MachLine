@@ -4,6 +4,8 @@ import numpy as np
 def inner2(x,y):
     return x[0]*y[0] + x[1]*y[1]
 
+K_inv = 1.0/(4.0*np.pi)
+
 
 class SubsonicGeometry:
     """A class containing all geometric parameters for a point-panel pair."""
@@ -179,6 +181,7 @@ class SubsonicPanel:
                 ints.F111[i] = np.sign(geom.l1[i])*np.log((geom.R2[i]+np.abs(geom.l2[i]))/(geom.R1[i]+np.abs(geom.l1[i])))
 
         # Calculate F(2,1,1) and F(1,2,1)
+        # These are correct because the linear source calculations are correct
         ints.F121 = geom.a*geom.v_eta*ints.F111 + geom.v_xi*(geom.R2-geom.R1)
         ints.F211 = geom.a*geom.v_xi*ints.F111 - geom.v_eta*(geom.R2-geom.R1)
 
@@ -227,9 +230,9 @@ class SubsonicPanel:
         ints.H121 = 0.5*(-geom.h**2*ints.H123 + np.sum(geom.a*ints.F121).item())
 
         # Calculate H(3,1,3), H(2,2,3), and H(1,3,3)
-        ints.H313 = -np.sum(geom.v_eta*ints.F121).item() + geom.h*ints.hH113
-        ints.H223 = np.sum(geom.v_xi*ints.F121).item()
-        ints.H133 = -ints.H111 + np.sum(geom.v_eta*ints.F121).item()
+        ints.H313 = np.sum(geom.v_eta*ints.F121).item() - geom.h*ints.hH113
+        ints.H223 = -np.sum(geom.v_xi*ints.F121).item()
+        ints.H133 = ints.H111 - np.sum(geom.v_eta*ints.F121).item()
 
 
     def calc_analytic_source_potential(self, P):
@@ -255,7 +258,7 @@ class SubsonicPanel:
         self.calc_H_integrals(geom, I)
 
         phi_s = self.sigma_params[0]*I.H111 + self.sigma_params[1]*(I.H111*P[0] + I.H211) + self.sigma_params[2]*(I.H111*P[1] + I.H121)
-        return -phi_s/(4.0*np.pi)
+        return -phi_s*K_inv
 
 
     def calc_analytic_doublet_potential(self, P):
@@ -287,7 +290,7 @@ class SubsonicPanel:
                  + self.mu_params[3]*(0.5*P[0]**2*I.hH113 + geom.h*(P[0]*I.H213 + 0.5*I.H313)) # mu_xx
                  + self.mu_params[4]*(P[0]*P[1]*I.hH113 + geom.h*(P[0]*I.H123 + P[1]*I.H213 + I.H223)) # mu_xy
                  + self.mu_params[5]*(0.5*P[0]**2*I.hH113 + geom.h*(P[1]*I.H123 + 0.5*I.H133)) # mu_yy
-                 )/(4.0*np.pi)
+                 )*K_inv
 
         return phi_d
 
@@ -327,7 +330,7 @@ class SubsonicPanel:
 
                 # Calculate induced potential
                 R = np.sqrt((P[0]-xi)**2 + (P[1]-yj)**2 + P[2]**2)
-                phi_s += -sigma/(4.0*np.pi*R)
+                phi_s += -sigma*K_inv/R
 
         return phi_s/N
 
@@ -367,7 +370,7 @@ class SubsonicPanel:
 
                 # Calculate induced potential
                 R = np.sqrt((P[0]-xi)**2 + (P[1]-yj)**2 + P[2]**2)
-                phi_d += mu*P[2]/(4.0*np.pi*R**3)
+                phi_d += mu*P[2]*K_inv/R**3
 
         return phi_d/N
 

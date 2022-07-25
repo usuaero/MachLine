@@ -8,8 +8,8 @@ if __name__=="__main__":
 
     # Initialize panel
     panel = SubsonicPanel(1.0, 1.0)
-    mu_params = [0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
-    sigma_params = [1.0, 1.0, 1.0]
+    mu_params = [0.0, 0.0, 0.0, 1.0, 0.0, 0.0]
+    sigma_params = [-1.0, 1.0, 3.0]
     panel.set_doublet_strength(mu_params)
     panel.set_source_strength(sigma_params)
 
@@ -24,7 +24,7 @@ if __name__=="__main__":
         for j, zj in enumerate(z):
 
             # Set point
-            P = [xi, xi, zj]
+            P = [xi, -xi, zj]
 
             # Discrete potentials
             phi_s_dis[i,j] = panel.calc_discrete_source_potential(P, 50, 50)
