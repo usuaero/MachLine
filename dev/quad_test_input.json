@@ -1,6 +1,6 @@
 {
     "flow": {
-        "freestream_velocity" : [ 100.0, 0.0, 30.0 ],
+        "freestream_velocity" : [ 100.0, 0.0, 10.0 ],
         "freestream_mach_number" : 0.0
     },
     "geometry": {
@@ -10,7 +10,8 @@
             "doublet" : 2
         },
         "wake_model" : {
-            "wake_present" : true
+            "wake_present" : true,
+            "N_panels" : 20
         }
     },
     "solver": {

@@ -1609,9 +1609,9 @@ contains
 
         ! Calculate higher-order doublet integrals
         if (doublet_order == 2) then
-            int%H313 = -sum(geom%v_eta*int%F121) + geom%h*int%hH113
-            int%H223 = sum(geom%v_xi*int%F121)
-            int%H133 = -int%H111 + sum(geom%v_eta*int%F121)
+            int%H313 = sum(geom%v_eta*int%F121) - geom%h*int%hH113
+            int%H223 = -sum(geom%v_xi*int%F121)
+            int%H133 = int%H111 - sum(geom%v_eta*int%F121)
         end if
 
     end subroutine panel_calc_subsonic_panel_integrals
