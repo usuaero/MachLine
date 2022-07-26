@@ -873,14 +873,14 @@ contains
         integer :: stat, i, j, unit
         real,dimension(:),allocatable :: A_ii_inv
 
-        if (verbose) write(*,'(a)',advance='no') "     Solving linear system..."
-
         ! Set b vector for Morino formulation
         if (this%formulation == "morino") then
             this%b = -body%phi_cp_sigma
         end if
 
         if (run_checks) then
+
+            if (verbose) write(*,'(a)',advance='no') "     Checking validity of linear system..."
 
             ! Check for NaNs
             if (any(isnan(this%A))) then
@@ -904,10 +904,14 @@ contains
                 end if
             end do
 
+            if (verbose) write(*,*) "Done."
+
         end if
 
         ! Write A and b to file
         if (this%write_A_and_b) then
+
+            if (verbose) write(*,'(a)',advance='no') "     Writing linear system to file..."
 
             ! A
             open(newunit=unit, file="A_mat.txt")
@@ -923,7 +927,11 @@ contains
             end do
             close(unit)
 
+            if (verbose) write(*,*) "Done."
+
         end if
+
+        if (verbose) write(*,'(a)',advance='no') "     Solving linear system..."
 
         ! Precondition
         select case(this%preconditioner)
