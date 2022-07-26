@@ -1600,6 +1600,7 @@ contains
         character(len=:),allocatable,intent(in) :: mirrored_body_file, mirrored_control_point_file
 
         real,dimension(:),allocatable :: mu_on_wake, panel_inclinations
+        real,dimension(:,:),allocatable :: cents
         type(vtk_out) :: body_vtk, wake_vtk, cp_vtk
         integer :: i
 
@@ -1609,10 +1610,12 @@ contains
             ! Clear old file
             call delete_file(body_file)
 
-            ! Get panel inclinations
+            ! Get panel inclinations and centroids
             allocate(panel_inclinations(this%N_panels))
+            allocate(cents(3,this%N_panels))
             do i=1,this%N_panels
                 panel_inclinations(i) = this%panels(i)%r
+                cents(:,i) = this%panels(i)%centr
             end do
 
             ! Write geometry
@@ -1657,6 +1660,7 @@ contains
             call body_vtk%write_cell_scalars(panel_inclinations, "inclination")
             call body_vtk%write_cell_vectors(this%v(:,1:this%N_panels), "v")
             call body_vtk%write_cell_vectors(this%dC_f(:,1:this%N_panels), "dC_f")
+            call body_vtk%write_cell_vectors(cents, "centroid")
 
             ! Linear sources
             if (source_order == 1) then
@@ -1679,9 +1683,11 @@ contains
             ! Get panel inclinations
             if (.not. allocated(panel_inclinations)) then
                 allocate(panel_inclinations(this%N_panels))
+                allocate(cents(3,this%N_panels))
             end if
             do i=1,this%N_panels
                 panel_inclinations(i) = this%panels(i)%r_mir
+                cents(:,i) = this%panels(i)%centr_mir
             end do
 
             ! Write geometry
@@ -1725,6 +1731,7 @@ contains
             ! Other
             call body_vtk%write_cell_vectors(this%v(:,this%N_panels+1:this%N_panels*2), "v")
             call body_vtk%write_cell_vectors(this%dC_f(:,this%N_panels+1:this%N_panels*2), "dC_f")
+            call body_vtk%write_cell_vectors(cents, "centroid")
 
             ! Linear sources
             if (source_order == 1) then
