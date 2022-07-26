@@ -1,5 +1,7 @@
-import numpy as np
 import copy
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.spatial import ConvexHull, convex_hull_plot_2d
 
 
 def _export_vtk(filename, vertices, panels):
@@ -257,10 +259,91 @@ def generate_proper_right_cone(filename, h, r, N_transverse, N_theta, N_radial=1
     _export_vtk(filename, vertices, panels)
 
 
+def _get_random_points_on_surface_of_sphere(N, r):
+    """Generates a set of points randomly distributed across the surface of a sphere.
+    
+    Parameters
+    ----------
+    N : integer
+        Number of points.
+        
+    r : float
+        Radius of sphere.
+        
+    Returns
+    -------
+    ndarray
+        Array of points.
+    """
+
+    # Initialize
+    points = np.zeros((N,3))
+
+    # Get azimuth angles
+    psi = np.random.random(N)*2.0*np.pi
+
+    # Get elevation angles (weighted towards equator, so the distribution remains even)
+    theta = np.arccos(1.0-2.0*np.random.random(N))
+
+    # Get coordinates
+    points[:,0] = r*np.sin(theta)*np.cos(psi)
+    points[:,1] = r*np.sin(theta)*np.sin(psi)
+    points[:,2] = r*np.cos(theta)
+
+    return points
+
+
+def generate_random_sphere(filename, N, r):
+    """Generates a random unstructured mesh of a sphere.
+    
+    Parameters
+    ----------
+    filename : str
+        Name of the file to write the mesh to. Must have '.vtk' extension.
+
+    N : integer
+        Number of vertices.
+        
+    r : float
+        Radius of sphere.
+        Array of points.
+    """
+    
+    # Get vertices
+    verts = _get_random_points_on_surface_of_sphere(N, r)
+
+    # Create convex hull
+    hull = ConvexHull(verts)
+
+    # Make sure normal vector points inward
+    fixed_simplices = []
+    for simplex in hull.simplices:
+
+        # Calculate normal and centroid
+        centroid = np.sum(verts[simplex,:], axis=0) / 3.0
+        normal = np.cross(verts[simplex[1],:] - verts[simplex[0],:], verts[simplex[2],:] - verts[simplex[1],:])
+
+        # Check the normal points outward
+        if np.dot(centroid, normal) > 0.0:
+            fixed_simplices.append(simplex)
+        else:
+            fixed_simplices.append(simplex[::-1])
+
+    # Export mesh
+    _export_vtk(filename, verts, np.array(fixed_simplices))
+
+
 if __name__=="__main__":
 
-    # Test cone
-    angles = [1.0, 5.0, 10.0, 15.0]
-    for angle in angles:
-        h = 1.0/np.tan(np.radians(angle))
-        generate_proper_right_cone('dev/meshes/cone_{0}_deg_coarse.vtk'.format(int(angle)), h, 1.0, 30, 25, close_base=False)
+    ## Test cone
+    #angles = [1.0, 5.0, 10.0, 15.0]
+    #for angle in angles:
+    #    h = 1.0/np.tan(np.radians(angle))
+    #    generate_proper_right_cone('dev/meshes/cone_{0}_deg_coarse.vtk'.format(int(angle)), h, 1.0, 30, 25, close_base=False)
+
+    # Random spheres
+    Ns = [500, 1000, 2000, 4000]
+    labels = ['coarse', 'medium', 'fine', 'ultra_fine']
+    for N, label in zip(Ns, labels):
+        for j in range(10):
+            generate_random_sphere('dev/meshes/random_spheres/random_sphere_{0}_sample_{1}.vtk'.format(label, j), N, 1.0)
