@@ -18,7 +18,7 @@ class Swept_Plotting:
         self.Nodes = Node_Counts
        
 
-    def Pressure_Plot(self, file_name, Node_Count, Plot_label,LE_xy_loc, Chord_Length):
+    def Pressure_Plot(self, file_name, Node_Count, Plot_label,line_shape, LE_xy_loc, Chord_Length):
 
         # Identify all data including column headers to identify where desired information is located
         Data_complete = np.genfromtxt(file_name, delimiter=",", skip_header=0, dtype=str)
@@ -71,8 +71,7 @@ class Swept_Plotting:
         #===========Adjustable plotting options left for user's convenience==========#
 
         # Black and white lines with varying opacity
-        plt.plot((x-LE_xy_loc)/Chord_Length,C_p_inc, label=Plot_label, alpha=opacity, color="k")
-        
+        plt.plot((x-LE_xy_loc)/Chord_Length,C_p_inc, label=Plot_label, linestyle=line_shape, alpha=opacity, color="k")
         # Various colored lines
         # plt.plot((x-LE_xy_loc)/Chord_Length,C_p_inc, "o", label=Plot_label, color=colors)
         
@@ -83,15 +82,9 @@ class Swept_Plotting:
 
 
 
-    def get_data(self, formulation):
+    def get_data(self, formulation_options):
         # Notify user of process
         print("Processing pressure plots...")
-
-        # Determine formulation formatting for pdf file purposes
-        if formulation == "source-free":
-            formulation_adjusted = "source_free"
-        else:
-            formulation_adjusted = formulation
 
         # Pull In Results Depending on Location Input
         # In addition to defining leading edge location and respective labels for plot
@@ -108,18 +101,31 @@ class Swept_Plotting:
             for j,AoA in enumerate(self.locations[percent_semispan]):
 
                 # Initialize figure size
-                plt.figure(figsize=(4,3))
-                # Iterate over node counts backwards to allow plot sizing based on highest node count
-                for k,Node in enumerate(reversed(self.Nodes)): 
+                # plt.figure(figsize=(4,3))
+                plt.figure()
 
-                    file =  percent_semispan + "_percent_semispan/" + AoA + "_degrees_AoA/" + percent_semispan + "_percent_semispan_" + Node + "_nodes_results_" + AoA + "_deg_AoA_" + formulation_adjusted + "_formulation.csv"
-                    Curve_label = Node + " Nodes"
-                    self.Pressure_Plot(file, Node, Curve_label, self.semispan_xy_loc[percent_semispan], self.chord)
-                    # Determine sizing for plot formats based on highest node count used
-                    if k == 0:
-                        
-                        xmin, xmax = plt.xlim()
-                        ymin, ymax = plt.ylim()
+                # Iterate over formulations to show the results from both on the same figure
+                for formulation in formulation_options:
+
+                    # Determine formulation formatting for pdf file purposes
+                    if formulation == "source-free":
+                        formulation_adjusted = "source_free"
+                        line_type = "--"
+                    else:
+                        formulation_adjusted = formulation
+                        line_type = "-"
+
+                    # Iterate over node counts backwards to allow plot sizing based on highest node count
+                    for k,Node in enumerate(reversed(self.Nodes)): 
+
+                        file =  percent_semispan + "_percent_semispan/" + AoA + "_degrees_AoA/" + percent_semispan + "_percent_semispan_" + Node + "_nodes_results_" + AoA + "_deg_AoA_" + formulation_adjusted + "_formulation.csv"
+                        Curve_label = Node + " Nodes, " + formulation 
+                        self.Pressure_Plot(file, Node, Curve_label, line_type, self.semispan_xy_loc[percent_semispan], self.chord)
+
+                        # Determine sizing for plot formats based on highest node count used
+                        if k == 0:
+                            xmin, xmax = plt.xlim()
+                            ymin, ymax = plt.ylim()
                 
                 # Scale plot based on highest node count, and invert the Y-axis
                 plt.xlim(xmin, xmax)
@@ -127,24 +133,19 @@ class Swept_Plotting:
                 plt.gca().invert_yaxis()
 
 
-                #=== Main Plotting Section ===
-                #Identify labels and notes to include on plots
+                #=== Plot formatting section ===
+                # Identify 
                 title = "Pressure Distribution at" + r"$\frac{2y}{b}=$" + str("{:.3f}".format(float(percent_semispan)/100))
                
-                #Identify angle of atack note to add to plot title
+                # Identify angle of atack note to add to plot title
                 y = r'$\alpha$='
                 AoA_Notes = y + AoA + r'$^{\circ}$'
 
-                #Pull in experimental results for comparison at each angle of attack differentiating upper and lower surfaces
+                # Pull in experimental results for comparison at each angle of attack differentiating upper and lower surfaces
                 upper_surface_count = Experimental[:,0].size//2 + Experimental[:,0].size%2
                 plt.plot(Experimental[:upper_surface_count+1,0], Experimental[:upper_surface_count+1,j+1], ".",color="k", label="Exerimental Upper Surface", fillstyle="full")
-                plt.plot(Experimental[upper_surface_count:,0], Experimental[upper_surface_count:,j+1], "*",color="k", label="Exerimental Lower Surface", fillstyle="full")
+                plt.plot(Experimental[upper_surface_count:,0], Experimental[upper_surface_count:,j+1], "s",color="k", markersize=3, label="Exerimental Lower Surface", fillstyle="full")
 
-                #Plot the figure containing all curves
-                # plt.title(complete_title)
-                xlabel = 'x/c'
-                plt.xlabel(xlabel)
-                plt.ylabel("$C_p$")
 
                 # If verbose, show plot title and other information
                 if json_vals["verbose"]:
@@ -154,11 +155,13 @@ class Swept_Plotting:
                     plt.figtext(0.625, 0.015, Sub_Note)
 
 
-                # Split legend into columns
-                plt.legend(ncol = 2, fontsize=6)
+                # Split legend into columns and display axes titles
+                plt.legend(ncol=3, fontsize=8)
+                plt.xlabel('x/c')
+                plt.ylabel("$C_p$")
                 
                 #Save the figure in appropriate location and with the correct size
-                filename = percent_semispan + "_percent_semispan/plots_" + percent_semispan + "_percent_semispan/" + json_vals["plots"]["save plot type"] + "_plots/" + AoA + "degrees_AoA_plot_" + formulation_adjusted + "_formulation." + json_vals["plots"]["save plot type"]
+                filename = percent_semispan + "_percent_semispan/plots_" + percent_semispan + "_percent_semispan/" + json_vals["plots"]["save plot type"] + "_plots/" + AoA + "degrees_AoA_plot." + json_vals["plots"]["save plot type"]
                 list_of_files.append(filename)
                 if json_vals["plots"]["save plots"]:
                     plt.savefig(filename)
@@ -197,11 +200,11 @@ class Swept_Plotting:
         
         # Notify user
         print("Processing formulation comparisons...")
-
-        # Initialize lists to differentiate plotting markers
-        # opacity = [.1, .3, .7, 1]
-        size = [15, 10, 7, 3]
         print()
+
+        # Initialize lists to differentiate plotting markers and the maximum difference between formulations
+        size = [15, 10, 7, 3]
+        maximum_difference = 0
 
         # Iterate over the percent semispan locations
         for percent_semispan in self.locations:
@@ -296,7 +299,7 @@ class Swept_Plotting:
                                 
                                 # Calculate difference between formulation results
                                 diff = data_locations[i][l][r,1] - data_locations[i][0][r,1]
-                                
+                                maximum_difference = max(maximum_difference, abs(diff))
                                 if diff >=0.0:
                                     pos_difference.append(diff)
                                     pos_x_axis.append(x_axis[r])
@@ -367,6 +370,7 @@ class Swept_Plotting:
                 merger.write(Combined_name)
                 merger.close()
 
+        print("The maximum difference between the two formulations is ", maximum_difference)
         print("Done")
 
 # =======================================================================================================================================================================================================================================================================================
@@ -389,10 +393,9 @@ if __name__ == "__main__":
 
     # Proccesses either one or all semispan locations based on input file
     if json_vals["plots"]["process_all"]:
-        for form in formulation:
 
-            if json_vals["plots"]["display pressure plots"]:
-                Swept_Plotting(locations, chord, Nodes, semispan_xy_loc).get_data(form)
+        if json_vals["plots"]["display pressure plots"]:
+            Swept_Plotting(locations, chord, Nodes, semispan_xy_loc).get_data(formulation)
 
         # Compare formulation results
         if json_vals["plots"]["compare formulations"]:
@@ -406,20 +409,19 @@ if __name__ == "__main__":
 
     else:
         x = input("Enter percent semispan for analysis results. Options are 4.1, 8.2, 16.3, 24.5, 36.7, 51.0, 65.3, 89.8, 94.9:   ",)
-        for form in formulation:
-            if x == "51":
-                x = "51.0"
+        if x == "51":
+            x = "51.0"
 
-            if x in locations.keys():
+        if x in locations.keys():
 
-                Specific_Semispan = {x: locations[x]}
-                if json_vals["plots"]["display pressure plots"]:
-                    Swept_Plotting(Specific_Semispan, chord, Nodes, semispan_xy_loc).get_data(form)
+            Specific_Semispan = {x: locations[x]}
+            if json_vals["plots"]["display pressure plots"]:
+                Swept_Plotting(Specific_Semispan, chord, Nodes, semispan_xy_loc).get_data(formulation)
 
-            else:
-                print("\n****************\nInvalid Entry. Please run script again.\n****************\n")
-                quit()
-        
+        else:
+            print("\n****************\nInvalid Entry. Please run script again.\n****************\n")
+            quit()
+    
         # Compare formulation results
         if json_vals["plots"]["compare formulations"]:
             # Verify more than one formulation has been selected
