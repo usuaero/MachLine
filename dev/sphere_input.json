@@ -21,8 +21,7 @@
         "matrix_solver" : "LU",
         "tolerance" : 1.5e-12,
         "relaxation" : 0.9,
-        "block_size" : 400,
-        "write_A_and_b" : false
+        "block_size" : 400
     },
     "post_processing" : {
     },

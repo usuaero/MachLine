@@ -5,14 +5,12 @@
     "geometry" : {
         "file" : "test/sphere.vtk",
         "wake_model" : {
-            "wake_shedding_angle" : 90.0,
-            "trefftz_distance" : 40.0,
-            "N_panels" : 50
+            "wake_present" : false
         }
     },
     "solver" : {
         "formulation" : "morino",
-        "control_point_offset" : 1.0e-5
+        "control_point_offset" : 1.1e-5
     },
     "post_processing" : {
     },

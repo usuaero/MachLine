@@ -584,9 +584,6 @@ contains
                                 ! Set parents
                                 this%vertices(i_mid)%top_parent = i_midpoint_parent
                                 this%vertices(i_mid)%bot_parent = body_verts(i_midpoint_parent)%i_wake_partner
-                                write(*,*)
-                                write(*,*) this%vertices(i_mid)%top_parent
-                                write(*,*) this%vertices(i_mid)%bot_parent
                                 
                                 exit empty_edge_loop
 
