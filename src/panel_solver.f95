@@ -1359,8 +1359,7 @@ contains
 
         ! Throw warning message indicating body is in transonic flow
         if ((C_p_min <= C_p_crit) .and. (verbose)) then
-            write(*,*) "!!! Critical Mach number has been exceeded along at least panel .", min_loc
-            write(*,*) "!!! Results may not be reliable."
+            write(*,*) "!!! The critical Mach number has been exceeded over panel ", min_loc, ". Results may not be reliable."
             
         end if
 
@@ -1377,7 +1376,7 @@ contains
         
         integer :: i, stat
 
-        if (verbose) write(*,'(a, a, a)',advance='no') "     Calculating forces using the ", &
+        if (verbose) write(*,'(a, a, a)',advance='no') "     Calculating forces using the ", & 
                                                        this%pressure_for_forces, " pressure rule..."
 
         ! Allocate force storage
