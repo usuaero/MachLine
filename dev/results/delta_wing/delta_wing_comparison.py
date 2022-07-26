@@ -151,9 +151,11 @@ def data_plot(comp_method, angles_of_attack, semispan_locations, semispan_length
             aoa_formatted = str(AoA) + r"$^{\circ}$ deg"
 
             # Plot data
-            plt.plot(data[:,x_loc]/max(data[:,x_loc]), data[:,Cp_loc],color='k', label = aoa_formatted, marker = shape[j], markersize = 3, linestyle="none")
+            plt.plot(data[:,x_loc]/max(data[:,x_loc]), data[:,Cp_loc],color='k', label = aoa_formatted)
+
+            # plt.plot(data[:,x_loc]/max(data[:,x_loc]), data[:,Cp_loc],color='k', label = aoa_formatted, marker = "s", markersize = 3, linestyle="none")
             # plt.plot(experimental_data[:,0], experimental_data[:,1], color='k', marker=".", label="Experimental", linestyle="none", fillstyle="full")
-            plt.plot(experimental_data[:,0], experimental_data[:,1], color='k', label="Experimental")
+            plt.plot(experimental_data[:,0], experimental_data[:,1], color='k', label="Experimental", marker = "o", linestyle="none")
 
 
             # Format plot
@@ -179,7 +181,8 @@ if __name__=="__main__":
     gamma = 1.4
     T_inf = 300.0
     c_inf = np.sqrt(gamma*R_G*T_inf)
-    angles_of_attack = [0.0, 2.0, 4.1]
+    # angles_of_attack = [0.0, 2.0, 4.1, 8.5, 10.75]
+    angles_of_attack = [0.0]
     semispan_loc = [22.5, 64.1]
     b_half = .2315 # meters
     mesh_density = "coarse"
@@ -198,9 +201,11 @@ if __name__=="__main__":
             },
             "geometry": {
                 "file": "dev/results/delta_wing/meshes/delta_wing_{0}_mesh.stl".format(mesh_density),
+                "mirror_about": "xz",
                 "spanwise_axis" : "+y",
                 "wake_model": {
-                    "wake_present" : False,
+                    "wake_present" : True,
+                    "append_wake" : False
                 },
                 "reference": {
                     "area": 1.0
@@ -221,6 +226,7 @@ if __name__=="__main__":
             "output" : {
             "body_file" :          "dev/results/delta_wing/delta_wing_{0}_deg_{1}.vtk".format(alpha,mesh_density),
             "control_point_file" : "dev/results/delta_wing/delta_wing_{0}_deg_{1}_control_points.vtk".format(alpha,mesh_density),
+            "mirrored_body_file" : "dev/results/delta_wing/delta_wing_{0}_deg_{1}_mirror.vtk".format(alpha,mesh_density)
             }
         }
 
@@ -230,7 +236,7 @@ if __name__=="__main__":
             json.dump(input_dict, input_handle, indent=4)
 
         # Run
-        # sp.run(["./machline.exe", input_file])
+        sp.run(["./machline.exe", input_file])
         
         # Verify that MachLine execution was successful
         control_point_file = "delta_wing_{0}_deg_{1}_control_points.vtk".format(alpha,mesh_density)
