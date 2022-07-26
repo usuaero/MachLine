@@ -8,8 +8,8 @@ if __name__=="__main__":
 
     # Initialize panel
     panel = SupersonicSubinclinedPanel(1.0, 1.0)
-    mu_params = [1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-    sigma_params = [1.0, 0.0, 0.0]
+    mu_params = [2.0, -4.0, 0.0, 0.0, 0.0, 0.0]
+    sigma_params = [0.0, 0.0, 1.0]
     panel.set_doublet_strength(mu_params)
     panel.set_source_strength(sigma_params)
 
@@ -24,7 +24,8 @@ if __name__=="__main__":
         for j, zj in enumerate(z):
 
             # Set point
-            P = [xi, 0.0, zj]
+            #P = [xi, 0.0, zj]
+            P = [xi, xi-1.75, zj]
 
             # Discrete potentials
             phi_s_dis[i,j] = panel.calc_discrete_source_potential(P, 50, 50)
@@ -36,8 +37,8 @@ if __name__=="__main__":
 
     # Plot source potentials
     fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(6.5, 2))
-    min_phi = min(np.min(np.min(phi_s_dis)).item(), np.min(np.min(phi_s_anl)).item())
-    max_phi = max(np.max(np.max(phi_s_dis)).item(), np.max(np.max(phi_s_anl)).item())
+    min_phi = np.min(np.min(phi_s_anl)).item()
+    max_phi = np.max(np.max(phi_s_anl)).item()
     im0 = ax[0].imshow(phi_s_dis.T, cmap='hot', vmin=min_phi, vmax=max_phi)
     im1 = ax[1].imshow(phi_s_anl.T, cmap='hot', vmin=min_phi, vmax=max_phi)
     im2 = ax[2].imshow(np.log10(abs((phi_s_dis-phi_s_anl)/phi_s_anl)).T, cmap='hot')
@@ -52,8 +53,8 @@ if __name__=="__main__":
 
     # Plot doublet potentials
     fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(6.5, 2))
-    min_phi = min(np.min(np.min(phi_d_dis)).item(), np.min(np.min(phi_d_anl)).item())
-    max_phi = max(np.max(np.max(phi_d_dis)).item(), np.max(np.max(phi_d_anl)).item())
+    min_phi = np.min(np.min(phi_d_anl)).item()
+    max_phi = np.max(np.max(phi_d_anl)).item()
     im0 = ax[0].imshow(phi_d_dis.T, cmap='hot', vmin=min_phi, vmax=max_phi)
     im1 = ax[1].imshow(phi_d_anl.T, cmap='hot', vmin=min_phi, vmax=max_phi)
     im2 = ax[2].imshow(np.log10(abs((phi_d_dis-phi_d_anl)/phi_d_anl)).T, cmap='hot')

@@ -564,7 +564,7 @@ class SupersonicSubinclinedPanel:
                     ints.F111[i] = -np.sign(geom.v_eta[i])*np.log(F1/F2)
 
         # Calculate F(2,1,1) and F(1,2,1)
-        ints.F121 = geom.a*geom.v_eta*ints.F111 + geom.v_xi*(geom.R2-geom.R1)
+        ints.F121 = -(geom.a*geom.v_eta*ints.F111 + geom.v_xi*(geom.R2-geom.R1))/geom.b
         ints.F211 = geom.a*geom.v_xi*ints.F111 - geom.v_eta*(geom.R2-geom.R1)
 
         return ints
@@ -608,7 +608,7 @@ class SupersonicSubinclinedPanel:
 
                     # Mach wedge region
                     if geom.R1[i] == 0.0 and geom.R2[i] == 0.0:
-                        ints.hH113 += np.pi.np.sign(geom.h*geom.v_xi[i])
+                        ints.hH113 += np.pi*np.sign(geom.h*geom.v_xi[i])
 
                     # Otherwise
                     else:
@@ -619,15 +619,15 @@ class SupersonicSubinclinedPanel:
                     ints.hH113 += np.arctan2(geom.h*geom.a[i]*F1, geom.R1[i]*geom.R2[i] + geom.h2*F2)
 
         # Calculate H(1,1,1)
-        ints.H111 = -geom.h*ints.hH113 - np.sum(geom.a*ints.F111).item()
+        ints.H111 = geom.h*ints.hH113 + np.sum(geom.a*ints.F111).item()
 
         # Calcualte H(2,1,3) and H(1,2,3)
         ints.H213 = -np.sum(geom.v_xi*ints.F111).item()
         ints.H123 = np.sum(geom.v_eta*ints.F111).item()
         
         # Calculate H(2,1,1) and H(1,2,1)
-        ints.H211 = 0.5*(-geom.h2*ints.H213 - np.sum(geom.a*ints.F211).item())
-        ints.H121 = 0.5*(-geom.h2*ints.H123 - np.sum(geom.a*ints.F121).item())
+        ints.H211 = 0.5*(geom.h2*ints.H213 + np.sum(geom.a*ints.F211).item())
+        ints.H121 = 0.5*(geom.h2*ints.H123 + np.sum(geom.a*ints.F121).item())
 
         # Calculate H(3,1,3), H(2,2,3), and H(1,3,3)
         ints.H313 = np.sum(geom.v_eta*ints.F121).item() - geom.h*ints.hH113
