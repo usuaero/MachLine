@@ -1,0 +1,31 @@
+{
+    "flow": {
+        "freestream_velocity" : [100.0, 0.0, 0.0],
+        "freestream_mach_number" : 1.5
+    },
+    "geometry": {
+        "file": "dev/meshes/supersonic_airliner.stl",
+        "spanwise_axis" : "+y",
+        "mirror_about" : "xz",
+        "wake_model": {
+        },
+        "reference": {
+            "area": 1.0
+        }
+    },
+    "solver": {
+        "formulation" : "morino",
+        "control_point_offset" : 1.1e-05,
+        "run_checks" : true
+    },
+    "post_processing" : {
+        "pressure_rules" : {
+            "isentropic" : true
+        }
+    },
+    "output": {
+        "body_file" :          "dev/results/supersonic_airliner.vtk",
+        "wake_file" :          "dev/results/supersonic_airliner_wake.vtk",
+        "control_point_file" : "dev/results/supersonic_airliner_control_point.vtk"
+    }
+}

@@ -256,6 +256,9 @@ contains
             ! Check for zero area
             if (this%A < 1.e-12) then
                 write(*,*) "!!! Panel", this%index, "has zero area. Quitting..."
+                write(*,*) "!!! Vertex 1: ", this%get_vertex_loc(1)
+                write(*,*) "!!! Vertex 2: ", this%get_vertex_loc(2)
+                write(*,*) "!!! Vertex 3: ", this%get_vertex_loc(3)
                 stop
             end if
 
@@ -492,17 +495,22 @@ contains
             ! Set values
             S_mu(:,1) = 1.
 
+            ! x
             S_mu(1:3,2) = this%vertices_ls(1,:)
-            S_mu(1:3,3) = this%vertices_ls(2,:)
-            S_mu(1:3,4) = this%vertices_ls(1,:)**2
-            S_mu(1:3,5) = this%vertices_ls(1,:)*this%vertices_ls(2,:)
-            S_mu(1:3,6) = this%vertices_ls(2,:)**2
-            
             S_mu(4:6,2) = this%midpoints_ls(1,:)
+
+            ! y
+            S_mu(1:3,3) = this%vertices_ls(2,:)
             S_mu(4:6,3) = this%midpoints_ls(2,:)
-            S_mu(4:6,4) = this%midpoints_ls(1,:)**2
-            S_mu(4:6,5) = this%midpoints_ls(1,:)*this%midpoints_ls(2,:)
-            S_mu(4:6,6) = this%midpoints_ls(2,:)**2
+
+            ! x^2
+            S_mu(:,4) = S_mu(:,2)**2*0.5
+
+            ! xy
+            S_mu(:,5) = S_mu(:,2)*S_mu(:,3)
+
+            ! y^2
+            S_mu(:,6) = S_mu(:,3)**2*0.5
 
             ! Invert
             call matinv(6, S_mu, this%S_mu_inv)
@@ -524,30 +532,6 @@ contains
 
             ! Invert
             call matinv(3, S_sigma, this%S_sigma_inv)
-
-        else if (source_order == 2) then
-
-            ! Allocate influence matrix
-            allocate(S_sigma(6,6))
-            allocate(this%S_sigma_inv(6,6))
-
-            ! Set values
-            S_sigma(:,1) = 1.
-
-            S_sigma(1:3,2) = this%vertices_ls(1,:)
-            S_sigma(1:3,3) = this%vertices_ls(2,:)
-            S_sigma(1:3,4) = this%vertices_ls(1,:)**2
-            S_sigma(1:3,5) = this%vertices_ls(1,:)*this%vertices_ls(2,:)
-            S_sigma(1:3,6) = this%vertices_ls(2,:)**2
-            
-            S_sigma(4:6,2) = this%midpoints_ls(1,:)
-            S_sigma(4:6,3) = this%midpoints_ls(2,:)
-            S_sigma(4:6,4) = this%midpoints_ls(1,:)**2
-            S_sigma(4:6,5) = this%midpoints_ls(1,:)*this%midpoints_ls(2,:)
-            S_sigma(4:6,6) = this%midpoints_ls(2,:)**2
-
-            ! Invert
-            call matinv(6, S_sigma, this%S_sigma_inv)
 
         end if
     
@@ -743,12 +727,12 @@ contains
 
             ! Vertices
             this%vertices_ls_mir(:,i) = matmul(this%A_g_to_ls_mir(1:2,:), &
-                                               mirror_across_plane(this%get_vertex_loc(i), mirror_plane)-this%centr_mir)
+                                               mirror_across_plane(this%get_vertex_loc(i)-this%centr, mirror_plane))
 
             ! Midpoints
             if (doublet_order == 2) then
                 this%midpoints_ls_mir(:,i) = matmul(this%A_g_to_ls_mir(1:2,:), &
-                                                    mirror_across_plane(this%get_midpoint_loc(i), mirror_plane)-this%centr_mir)
+                                                    mirror_across_plane(this%get_midpoint_loc(i)-this%centr, mirror_plane))
             end if
 
         end do
@@ -824,17 +808,22 @@ contains
             ! Set values
             S_mu(:,1) = 1.
 
+            ! x
             S_mu(1:3,2) = this%vertices_ls_mir(1,:)
-            S_mu(1:3,3) = this%vertices_ls_mir(2,:)
-            S_mu(1:3,4) = this%vertices_ls_mir(1,:)**2
-            S_mu(1:3,5) = this%vertices_ls_mir(1,:)*this%vertices_ls_mir(2,:)
-            S_mu(1:3,6) = this%vertices_ls_mir(2,:)**2
-            
             S_mu(4:6,2) = this%midpoints_ls_mir(1,:)
+
+            ! y
+            S_mu(1:3,3) = this%vertices_ls_mir(2,:)
             S_mu(4:6,3) = this%midpoints_ls_mir(2,:)
-            S_mu(4:6,4) = this%midpoints_ls_mir(1,:)**2
-            S_mu(4:6,5) = this%midpoints_ls_mir(1,:)*this%midpoints_ls_mir(2,:)
-            S_mu(4:6,6) = this%midpoints_ls_mir(2,:)**2
+
+            ! x^2
+            S_mu(:,4) = S_mu(:,2)**2*0.5
+
+            ! xy
+            S_mu(:,5) = S_mu(:,2)*S_mu(:,3)
+
+            ! y^2
+            S_mu(:,6) = S_mu(:,3)**2*0.5
 
             ! Invert
             call matinv(6, S_mu, this%S_mu_inv_mir)
@@ -1570,7 +1559,7 @@ contains
 
     subroutine panel_calc_subsonic_panel_integrals(this, geom, freestream, mirror_panel, int)
         ! Calculates the necessary H integrals to determine the influence of a panel in subsonic flow.
-        ! Taken from Johnson (1980) Appendix D.3.
+        ! Taken from Johnson (1980) Appendix D.3. with alterations made based on PAN AIR.
 
         implicit none
 
@@ -1592,12 +1581,14 @@ contains
             c1 = geom%g2(i) + abs(geom%h)*geom%R1(i)
             c2 = geom%g2(i) + abs(geom%h)*geom%R2(i)
         
-            ! Add surface integral
+            ! Calculate integral for edge
             S = geom%a(i)*(geom%l2(i)*c1 - geom%l1(i)*c2)
             C = c1*c2 + geom%a(i)**2*geom%l1(i)*geom%l2(i)
             x = atan2(S, C)
+
+            ! Sum
             int%hH113 = int%hH113 + x
-        
+
         end do
         
         ! Apply sign factor (Johnson Eq. (D.42)
@@ -1618,9 +1609,9 @@ contains
 
         ! Calculate higher-order doublet integrals
         if (doublet_order == 2) then
-            int%H313 = -sum(geom%v_eta*int%F121) + geom%h*int%hH113
-            int%H223 = sum(geom%v_xi*int%F121)
-            int%H133 = -int%H111 + sum(geom%v_eta*int%F121)
+            int%H313 = sum(geom%v_eta*int%F121) - geom%h*int%hH113
+            int%H223 = -sum(geom%v_xi*int%F121)
+            int%H133 = int%H111 - sum(geom%v_eta*int%F121)
         end if
 
     end subroutine panel_calc_subsonic_panel_integrals
@@ -1766,30 +1757,18 @@ contains
 
             ! Check if this panel belongs to the wake
             if (this%in_wake) then
-
-                ! Set default influence
                 allocate(phi_d(6), source=0.)
-
             else
-
-                ! Set default influence
                 allocate(phi_d(3), source=0.)
-
             end if
 
         else if (doublet_order == 2) then
 
             ! Check if this panel belongs to the wake
             if (this%in_wake) then
-
-                ! Set default influence
                 allocate(phi_d(12), source=0.)
-
             else
-
-                ! Set default influence
                 allocate(phi_d(6), source=0.)
-
             end if
 
         end if
@@ -1879,6 +1858,13 @@ contains
                 phi_d(5) = int%hH113*geom%P_ls(1)*geom%P_ls(2) + geom%h*(geom%P_ls(2)*int%H213 + geom%P_ls(1)*int%H123 + int%H223)
 
                 phi_d(6) = 0.5*int%hH113*geom%P_ls(2)**2 + geom%h*(geom%P_ls(2)*int%H123 + 0.5*int%H133)
+
+                ! These terms are identically zero for wake panels (with the current wake model)
+                if (this%in_wake) then
+                    phi_d(2) = 0.
+                    phi_d(5) = 0.
+                    !phi_d(6) = 0.
+                end if
 
                 ! Convert to vertex influences (Davis Eq. (4.41))
                 if (mirror_panel) then

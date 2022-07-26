@@ -12,7 +12,7 @@ module vtk_mod
 
         character(len=:),allocatable :: filename
         integer :: unit
-        logical :: cell_data_begun, point_data_begun
+        logical :: cell_data_begun, point_data_begun, cells_subdivided
 
         contains
 
@@ -23,6 +23,7 @@ module vtk_mod
             procedure :: write_panels => vtk_out_write_panels
             procedure :: write_vertices => vtk_out_write_vertices
             procedure :: write_point_scalars => vtk_out_write_point_scalars
+            procedure :: write_cell_header => vtk_out_write_cell_header
             procedure :: write_cell_scalars => vtk_out_write_cell_scalars
             procedure :: write_point_vectors => vtk_out_write_point_vectors
             procedure :: write_cell_vectors => vtk_out_write_cell_vectors
@@ -142,37 +143,65 @@ contains
     end subroutine vtk_out_write_points_array
 
 
-    subroutine vtk_out_write_panels(this, panels)
-        ! Write out panels to the vtk file
+    subroutine vtk_out_write_panels(this, panels, subdivide)
+        ! Write out panels to the vtk file; only handles triangular panels
 
         implicit none
 
-        class(vtk_out),intent(in) :: this
+        class(vtk_out),intent(inout) :: this
         type(panel),dimension(:),intent(in) :: panels
+        logical,intent(in),optional :: subdivide
 
-        integer :: i, j, N_panels, panel_info_size
+        integer :: i, j, N_panels
+
+        ! Determine whether the panels are to be subdivided (for quadratic doublet distributions)
+        ! In this case, the edge midpoints will be used to divide each triangular panel into 4 subpanels
+        if (present(subdivide)) then
+            this%cells_subdivided = subdivide
+        else
+            this%cells_subdivided = .false.
+        end if
 
         ! Determine panel info size
-        panel_info_size = 0
         N_panels = size(panels)
-        do i=1,N_panels
-            panel_info_size = panel_info_size + panels(i)%N + 1
-        end do
+        if (this%cells_subdivided) then
+            write(this%unit,'(a i20 i20)') "POLYGONS", N_panels*4, N_panels*16
+        else
+            write(this%unit,'(a i20 i20)') "POLYGONS", N_panels, N_panels*4
+        end if
         
         ! Write out panels
-        write(this%unit,'(a i20 i20)') "POLYGONS", N_panels, panel_info_size
         do i=1,N_panels
 
-            ! Number of vertices
-            write(this%unit,'(i1) ',advance='no') panels(i)%N
+            ! Write out original panel
+            if (.not. this%cells_subdivided) then
 
-            ! Indices of each vertex; remember VTK files use 0-based indexing
-            do j=1,panels(i)%N
-                write(this%unit,'(i20) ',advance='no') panels(i)%get_vertex_index(j) - 1
-            end do
+                ! Number of vertices
+                write(this%unit,'(i1) ',advance='no') 3
+
+                ! Indices of each vertex; remember VTK files use 0-based indexing
+                do j=1,panels(i)%N
+                    write(this%unit,'(i20) ',advance='no') panels(i)%get_vertex_index(j) - 1
+                end do
             
-            ! Move to next line
-            write(this%unit,*)
+                ! Move to next line
+                write(this%unit,*)
+
+            ! Write subpanels
+            else
+
+                ! Middle panel
+                write(this%unit,'(i1 i20 i20 i20)') 3, panels(i)%get_midpoint_index(1) - 1, &
+                                                       panels(i)%get_midpoint_index(2) - 1, &
+                                                       panels(i)%get_midpoint_index(3) - 1
+
+                ! Corner panels
+                do j=1,panels(i)%N
+                    write(this%unit,'(i1 i20 i20 i20)') 3, panels(i)%get_midpoint_index(j) - 1, &
+                                                           panels(i)%get_vertex_index(modulo(j, panels(i)%N)+1) - 1, &
+                                                           panels(i)%get_midpoint_index(modulo(j, panels(i)%N)+1) - 1
+                end do
+            end if
 
         end do
     
@@ -201,6 +230,29 @@ contains
     end subroutine vtk_out_write_vertices
 
 
+    subroutine vtk_out_write_cell_header(this, N_cells)
+        ! Checks whether the cell data header has been written and writes it if necessary
+
+        class(vtk_out), intent(inout) :: this
+        integer, intent(in) :: N_cells
+
+        if (.not. this%cell_data_begun) then
+            
+            ! Write out header
+            if (this%cells_subdivided) then
+                write(this%unit,'(a i20)') "CELL_DATA", N_cells*4
+            else
+                write(this%unit,'(a i20)') "CELL_DATA", N_cells
+            end if
+
+            ! Set toggle that header has already been written
+            this%cell_data_begun = .true.
+
+        end if
+        
+    end subroutine vtk_out_write_cell_header
+
+
     subroutine vtk_out_write_cell_scalars(this, data, label)
         ! Writes out cell scalar data
 
@@ -210,25 +262,23 @@ contains
         real,dimension(:),intent(in) :: data
         character(len=*),intent(in) :: label
 
-        integer :: N_cells, i
+        integer :: N_cells, i, j
 
         ! Write cell data header
         N_cells = size(data)
-        if (.not. this%cell_data_begun) then
-            
-            ! Write out header
-            write(this%unit,'(a i20)') "CELL_DATA", N_cells
-
-            ! Set toggle that header has already been written
-            this%cell_data_begun = .true.
-
-        end if
+        call this%write_cell_header(N_cells)
 
         ! Write data
         write(this%unit,'(a, a, a)') "SCALARS ", label, " float 1"
         write(this%unit,'(a)') "LOOKUP_TABLE default"
         do i=1,N_cells
-            write(this%unit,'(e20.12)') data(i)
+            if (this%cells_subdivided) then
+                do j=1,4
+                    write(this%unit,'(e20.12)') data(i)
+                end do
+            else
+                write(this%unit,'(e20.12)') data(i)
+            end if
         end do
     
     end subroutine vtk_out_write_cell_scalars
@@ -243,24 +293,21 @@ contains
         real,dimension(:,:),intent(in) :: data
         character(len=*),intent(in) :: label
 
-        integer :: N_cells, i
+        integer :: N_cells, i, j
 
         ! Write cell data header
         N_cells = size(data)/3
-        if (.not. this%cell_data_begun) then
-            
-            ! Write out header
-            write(this%unit,'(a i20)') "CELL_DATA", N_cells
-
-            ! Set toggle that header has already been written
-            this%cell_data_begun = .true.
-
-        end if
+        call this%write_cell_header(N_cells)
 
         ! Write vectors
-        write(1,'(a, a, a)') "VECTORS ", label, " float"
+        write(this%unit,'(a, a, a)') "VECTORS ", label, " float"
         do i=1,N_cells
-            write(1,'(e20.12, e20.12, e20.12)') data(1,i), data(2,i), data(3,i)
+            write(this%unit,'(e20.12, e20.12, e20.12)') data(1,i), data(2,i), data(3,i)
+            if (this%cells_subdivided) then
+                do j=1,3
+                    write(this%unit,'(e20.12, e20.12, e20.12)') data(1,i), data(2,i), data(3,i)
+                end do
+            end if
         end do
     
     end subroutine vtk_out_write_cell_vectors
@@ -275,29 +322,31 @@ contains
         type(panel),dimension(:),intent(in) :: panels
         integer,intent(in),optional :: mirror_plane
 
-        integer :: N_cells, i
+        integer :: N_cells, i, j
         real,dimension(3) :: mirror
 
         ! Write cell data header
         N_cells = size(panels)
-        if (.not. this%cell_data_begun) then
-            
-            ! Write out header
-            write(this%unit,'(a i20)') "CELL_DATA", N_cells
-
-            ! Set toggle that header has already been written
-            this%cell_data_begun = .true.
-
-        end if
+        call this%write_cell_header(N_cells)
 
         ! Write vectors
-        write(1,'(a)') "NORMALS normals float"
+        write(this%unit,'(a)') "NORMALS normals float"
         do i=1,N_cells
             if (present(mirror_plane)) then
                 mirror = mirror_across_plane(panels(i)%n_g, mirror_plane)
-                write(1,'(e20.12, e20.12, e20.12)') mirror(1), mirror(2), mirror(3)
+                write(this%unit,'(e20.12, e20.12, e20.12)') mirror(1), mirror(2), mirror(3)
+                if (this%cells_subdivided) then
+                    do j=1,3
+                        write(this%unit,'(e20.12, e20.12, e20.12)') mirror(1), mirror(2), mirror(3)
+                    end do
+                end if
             else
-                write(1,'(e20.12, e20.12, e20.12)') panels(i)%n_g(1), panels(i)%n_g(2), panels(i)%n_g(3)
+                write(this%unit,'(e20.12, e20.12, e20.12)') panels(i)%n_g(1), panels(i)%n_g(2), panels(i)%n_g(3)
+                if (this%cells_subdivided) then
+                    do j=1,3
+                        write(this%unit,'(e20.12, e20.12, e20.12)') panels(i)%n_g(1), panels(i)%n_g(2), panels(i)%n_g(3)
+                    end do
+                end if
             end if
         end do
     

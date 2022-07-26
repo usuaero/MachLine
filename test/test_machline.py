@@ -142,6 +142,39 @@ def test_half_wing_morino_zero_aoa_zero_beta_inc():
     assert(abs(Cz - -1.6953028193344e-07) < 1e-7)
 
 
+def test_sphere_morino_inc_quad_doublets_iterative():
+    # Tests the sphere case with the Morino formulation using quadratic doublets and an iterative matrix solver
+
+    # Load original input
+    with open("test/sphere_input.json", 'r') as input_handle:
+        input_dict = json.load(input_handle)
+
+    # Alter input
+    input_dict["solver"]["matrix_solver"] = "BJAC"
+    input_dict["solver"]["relaxation"] = 0.9
+    input_dict["geometry"]["singularity_order"] = {"doublet" : 2}
+
+    # Write altered input
+    altered_input_file = "test/altered_sphere_input.json"
+    with open(altered_input_file, 'w') as altered_input_handle:
+        json.dump(input_dict, altered_input_handle, indent=4)
+
+    # Run MachLine
+    C_p_max, C_p_min, Cx, Cy, Cz = run_machline(altered_input_file, remove_input=True)
+
+    print(C_p_max)
+    print(C_p_min)
+    print(Cx)
+    print(Cy)
+    print(Cz)
+
+    assert(abs(C_p_max - 0.984357476701561) < 1e-7)
+    assert(abs(C_p_min - -1.2417084112421) < 1e-7)
+    assert(abs(Cx) < 1e-4)
+    assert(abs(Cy) < 1e-4)
+    assert(abs(Cz) < 1e-4)
+
+
 def test_sphere_morino_inc():
     # Tests the sphere case with the Morino formulation returns the consistent result
 
@@ -153,11 +186,11 @@ def test_sphere_morino_inc():
     print(Cy)
     print(Cz)
 
-    assert(abs(C_p_max - 0.9911419902081444) < 1e-7)
-    assert(abs(C_p_min - -1.2378311776012643) < 1e-7)
-    assert(abs(Cx - -1.2353806873484363e-07) < 1e-7)
-    assert(abs(Cy - 1.557437211145707e-05) < 1e-7)
-    assert(abs(Cz - 2.0418661341725652e-06) < 1e-7)
+    assert(abs(C_p_max - 0.991141910232862) < 1e-7)
+    assert(abs(C_p_min - -1.2378315549138) < 1e-7)
+    assert(abs(Cx) < 1e-4)
+    assert(abs(Cy) < 1e-4)
+    assert(abs(Cz) < 1e-4)
 
 
 def test_full_half_wing_compare_morino_zero_beta_inc():

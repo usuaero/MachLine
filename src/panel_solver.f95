@@ -76,7 +76,7 @@ contains
         call json_xtnsn_get(solver_settings, 'matrix_solver', this%matrix_solver, 'LU')
         call json_xtnsn_get(solver_settings, 'block_size', this%block_size, 100)
         call json_xtnsn_get(solver_settings, 'tolerance', this%tol, 1e-10)
-        call json_xtnsn_get(solver_settings, 'relaxation', this%rel, 0.5)
+        call json_xtnsn_get(solver_settings, 'relaxation', this%rel, 0.9)
         call json_xtnsn_get(solver_settings, 'max_iterations', this%max_iterations, 1000)
         call json_xtnsn_get(solver_settings, 'preconditioner', this%preconditioner, 'NONE')
         call json_xtnsn_get(solver_settings, 'write_A_and_b', this%write_A_and_b, .false.)
@@ -870,10 +870,8 @@ contains
 
         real,dimension(:,:),allocatable :: A_p
         real,dimension(:),allocatable :: b_p
-        integer :: stat, i, j
+        integer :: stat, i, j, unit
         real,dimension(:),allocatable :: A_ii_inv
-
-        if (verbose) write(*,'(a)',advance='no') "     Solving linear system..."
 
         ! Set b vector for Morino formulation
         if (this%formulation == "morino") then
@@ -881,6 +879,8 @@ contains
         end if
 
         if (run_checks) then
+
+            if (verbose) write(*,'(a)',advance='no') "     Checking validity of linear system..."
 
             ! Check for NaNs
             if (any(isnan(this%A))) then
@@ -904,21 +904,34 @@ contains
                 end if
             end do
 
+            if (verbose) write(*,*) "Done."
+
         end if
 
         ! Write A and b to file
         if (this%write_A_and_b) then
-            open(34, file="A_mat.txt")
+
+            if (verbose) write(*,'(a)',advance='no') "     Writing linear system to file..."
+
+            ! A
+            open(newunit=unit, file="A_mat.txt")
             do i=1,this%N
-                write(34,*) this%A(i,:)
+                write(unit,*) this%A(i,:)
             end do
-            close(34)
-            open(34, file="b_vec.txt")
+            close(unit)
+
+            ! b
+            open(newunit=unit, file="b_vec.txt")
             do i=1,this%N
-                write(34,*) this%b(i)
+                write(unit,*) this%b(i)
             end do
-            close(34)
+            close(unit)
+
+            if (verbose) write(*,*) "Done."
+
         end if
+
+        if (verbose) write(*,'(a)',advance='no') "     Solving linear system..."
 
         ! Precondition
         select case(this%preconditioner)
@@ -1346,8 +1359,7 @@ contains
 
         ! Throw warning message indicating body is in transonic flow
         if ((C_p_min <= C_p_crit) .and. (verbose)) then
-            write(*,*) "!!! Critical Mach number has been exceeded along at least panel .", min_loc
-            write(*,*) "!!! Results may not be reliable."
+            write(*,*) "!!! The critical Mach number has been exceeded over panel ", min_loc, ". Results may not be reliable."
             
         end if
 
@@ -1364,7 +1376,7 @@ contains
         
         integer :: i, stat
 
-        if (verbose) write(*,'(a, a, a)',advance='no') "     Calculating forces using the ", &
+        if (verbose) write(*,'(a, a, a)',advance='no') "     Calculating forces using the ", & 
                                                        this%pressure_for_forces, " pressure rule..."
 
         ! Allocate force storage

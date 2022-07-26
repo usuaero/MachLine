@@ -21,7 +21,7 @@ module surface_mesh_mod
 
     type surface_mesh
 
-        integer :: N_verts, N_panels, N_cp, N_edges
+        integer :: N_verts, N_panels, N_cp, N_edges, N_true_verts ! as in, not midpoints
         type(vertex),allocatable,dimension(:) :: vertices
         type(panel),allocatable,dimension(:) :: panels
         type(edge),allocatable,dimension(:) :: edges
@@ -55,7 +55,8 @@ module surface_mesh_mod
             procedure :: characterize_edges => surface_mesh_characterize_edges
             procedure :: clone_vertices => surface_mesh_clone_vertices
             procedure :: set_up_mirroring => surface_mesh_set_up_mirroring
-            procedure :: rearrange_vertices => surface_mesh_rearrange_vertices
+            procedure :: rearrange_vertices_streamwise => surface_mesh_rearrange_vertices_streamwise
+            procedure :: shuffle_midpoints_in => surface_mesh_shuffle_midpoints_in
             procedure :: calc_vertex_normals => surface_mesh_calc_vertex_normals
 
             ! Helpers
@@ -140,6 +141,7 @@ contains
             write(*,*) "MachLine cannot read ", extension, " type mesh files. Quitting..."
             stop
         end if
+        this%N_true_verts = this%N_verts
         if (verbose) write(*,*) "Done."
 
         ! Display mesh info
@@ -611,7 +613,11 @@ contains
 
         ! For supersonic flows, rearrange the vertices to proceed in the freestream direction
         if (freestream%supersonic) then
-            call this%rearrange_vertices(freestream)
+            call this%rearrange_vertices_streamwise(freestream)
+
+        ! For quadratic doublets, the midpoints need to be arranged better
+        else if (doublet_order == 2) then
+            call this%shuffle_midpoints_in()
         end if
 
         ! Calculate normals (for placing control points)
@@ -721,7 +727,7 @@ contains
                     cross_result = cross(this%panels(i)%n_g, second_normal)
                     
                     ! Check sign between normal vectors cross product and edge tangent
-                    if (inner(cross_result, t_hat_g) > 0.0) then
+                    if (inner(cross_result, t_hat_g) > 0.) then
                         
                         ! Having passed the previous three checks, we've found a wake-shedding edge
                         
@@ -933,10 +939,18 @@ contains
                 temp_vertices(i)%i_wake_partner = i_rearrange_inv(temp_vertices(i)%i_wake_partner)
             end do
 
-            ! Fix edge endpoints
+            ! Fix edge endpoints (and midpoints if necessary)
             do i=1,this%N_edges
+
+                ! Endpoints
                 this%edges(i)%verts(1) = i_rearrange_inv(this%edges(i)%verts(1))
                 this%edges(i)%verts(2) = i_rearrange_inv(this%edges(i)%verts(2))
+
+                ! Midpoints
+                if (doublet_order == 2) then
+                    this%edges(i)%i_midpoint = i_rearrange_inv(this%edges(i)%i_midpoint)
+                end if
+
             end do
 
         else
@@ -1040,8 +1054,13 @@ contains
                     i_boba = this%N_verts - N_clones + j ! Will be at position N_verts-N_clones+j in the new vertex array
 
                     ! Initialize clone
-                    call this%vertices(i_boba)%init(this%vertices(i_jango)%loc, i_boba, 1)
+                    call this%vertices(i_boba)%init(this%vertices(i_jango)%loc, i_boba, this%vertices(i_jango)%vert_type)
                     i_clones(j) = i_boba
+
+                    ! Set vertex type
+                    if (this%vertices(i_jango)%vert_type==1) then
+                        this%N_true_verts = this%N_true_verts + 1
+                    end if
 
                     ! Specify wake partners
                     this%vertices(i_jango)%i_wake_partner = i_boba
@@ -1216,7 +1235,7 @@ contains
     end subroutine surface_mesh_get_vertex_sorting_indices
 
 
-    subroutine surface_mesh_rearrange_vertices(this, freestream)
+    subroutine surface_mesh_rearrange_vertices_streamwise(this, freestream)
         ! Rearranges the vertices to proceed in the freestream direction
 
         implicit none
@@ -1236,7 +1255,49 @@ contains
 
         if (verbose) write(*,*) "Done."
         
-    end subroutine surface_mesh_rearrange_vertices
+    end subroutine surface_mesh_rearrange_vertices_streamwise
+
+
+    subroutine surface_mesh_shuffle_midpoints_in(this)
+        ! Rearranges the vertices (originals and midpoints) so that midpoints are in a better location in the array
+
+        class(surface_mesh), intent(inout) :: this
+
+        integer,dimension(:),allocatable :: i_sorted
+        real,dimension(:),allocatable :: i_near_vert
+        integer :: N_inserted, i, j
+
+        if (verbose) write(*,'(a)',advance='no') "     Sorting midpoints into the vertex array..."
+
+        ! Allocate index array
+        allocate(i_near_vert(this%N_verts))
+
+        ! Loop through midpoints
+        N_inserted = 0
+        do i=1,this%N_verts
+
+            ! Check this is a midpoint
+            if (this%vertices(i)%vert_type==2) then
+
+                ! Get first neighboring vertex
+                call this%vertices(i)%adjacent_vertices%get(1, j)
+                i_near_vert(i) = j
+
+            ! If it's not a midpoint, it's its own near neighbor
+            else
+                i_near_vert(i) = i
+            end if
+        end do
+
+        ! Sort
+        call insertion_arg_sort(i_near_vert, i_sorted)
+
+        ! Move the vertices around
+        call this%allocate_new_vertices(0, i_sorted)
+
+        if (verbose) write(*,*) "Done."
+    
+    end subroutine surface_mesh_shuffle_midpoints_in
 
 
     subroutine surface_mesh_calc_vertex_normals(this)
@@ -1539,6 +1600,7 @@ contains
         character(len=:),allocatable,intent(in) :: mirrored_body_file, mirrored_control_point_file
 
         real,dimension(:),allocatable :: mu_on_wake, panel_inclinations
+        real,dimension(:,:),allocatable :: cents
         type(vtk_out) :: body_vtk, wake_vtk, cp_vtk
         integer :: i
 
@@ -1548,16 +1610,18 @@ contains
             ! Clear old file
             call delete_file(body_file)
 
-            ! Get panel inclinations
+            ! Get panel inclinations and centroids
             allocate(panel_inclinations(this%N_panels))
+            allocate(cents(3,this%N_panels))
             do i=1,this%N_panels
                 panel_inclinations(i) = this%panels(i)%r
+                cents(:,i) = this%panels(i)%centr
             end do
 
             ! Write geometry
             call body_vtk%begin(body_file)
             call body_vtk%write_points(this%vertices)
-            call body_vtk%write_panels(this%panels)
+            call body_vtk%write_panels(this%panels, subdivide=doublet_order==2)
 
             ! Pressures
             if (allocated(this%C_p_inc)) then
@@ -1596,6 +1660,7 @@ contains
             call body_vtk%write_cell_scalars(panel_inclinations, "inclination")
             call body_vtk%write_cell_vectors(this%v(:,1:this%N_panels), "v")
             call body_vtk%write_cell_vectors(this%dC_f(:,1:this%N_panels), "dC_f")
+            call body_vtk%write_cell_vectors(cents, "centroid")
 
             ! Linear sources
             if (source_order == 1) then
@@ -1618,15 +1683,17 @@ contains
             ! Get panel inclinations
             if (.not. allocated(panel_inclinations)) then
                 allocate(panel_inclinations(this%N_panels))
+                allocate(cents(3,this%N_panels))
             end if
             do i=1,this%N_panels
                 panel_inclinations(i) = this%panels(i)%r_mir
+                cents(:,i) = this%panels(i)%centr_mir
             end do
 
             ! Write geometry
             call body_vtk%begin(mirrored_body_file)
             call body_vtk%write_points(this%vertices, this%mirror_plane)
-            call body_vtk%write_panels(this%panels)
+            call body_vtk%write_panels(this%panels, subdivide=doublet_order==2)
 
             ! Pressures
             if (allocated(this%C_p_inc)) then
@@ -1664,6 +1731,7 @@ contains
             ! Other
             call body_vtk%write_cell_vectors(this%v(:,this%N_panels+1:this%N_panels*2), "v")
             call body_vtk%write_cell_vectors(this%dC_f(:,this%N_panels+1:this%N_panels*2), "dC_f")
+            call body_vtk%write_cell_vectors(cents, "centroid")
 
             ! Linear sources
             if (source_order == 1) then
@@ -1689,7 +1757,7 @@ contains
                 ! Write out geometry
                 call wake_vtk%begin(wake_file)
                 call wake_vtk%write_points(this%wake%vertices)
-                call wake_vtk%write_panels(this%wake%panels)
+                call wake_vtk%write_panels(this%wake%panels, subdivide=doublet_order==2)
                 call wake_vtk%write_cell_normals(this%wake%panels)
 
                 ! Calculate doublet strengths

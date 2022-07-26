@@ -1,6 +1,6 @@
 {
     "flow" : {
-        "freestream_velocity" : [0.0, 0.0, 10.0],
+        "freestream_velocity" : [0.0, 10.0, 0.0],
         "freestream_mach_number" : 0.0
     },
     "geometry" : {
@@ -10,11 +10,18 @@
         },
         "singularity_order" : {
             "doublet" : 2
+        },
+        "reference" : {
+            "area" : 5026
         }
     },
     "solver" : {
         "formulation" : "morino",
-        "control_point_offset" : 1.0e-5
+        "control_point_offset" : 1.0e-5,
+        "matrix_solver" : "LU",
+        "tolerance" : 1.5e-12,
+        "relaxation" : 0.9,
+        "block_size" : 400
     },
     "post_processing" : {
     },

@@ -39,3 +39,6 @@ b_vec.txt
 
 # python stuff
 __pycache__/
+
+# Fortran error files
+fort.*
