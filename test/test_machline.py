@@ -328,6 +328,7 @@ def test_supersonic_half_wing_source_free_allow_wake_sym_flow():
 
     input_dict["flow"]["freestream_velocity"] = [100.0, 0.0, 5.0]
     input_dict["geometry"]["wake_model"]["append_wake"] = True
+    input_dict["solver"]["formulation"] = "source-free"
 
     with open("test/altered_supersonic_input.json", 'w') as input_handle:
         input_dict = json.dump(input_dict, input_handle, indent=4)
@@ -340,11 +341,11 @@ def test_supersonic_half_wing_source_free_allow_wake_sym_flow():
     print(Cy)
     print(Cz)
 
-    assert(abs(C_p_max - 0.194950373758269) < 1e-7)
-    assert(abs(C_p_min - -0.301607918132292) < 1e-7)
-    assert(abs(Cx - 0.142869043085108) < 1e-7)
+    assert(abs(C_p_max - 0.19495037375827) < 1e-7)
+    assert(abs(C_p_min - -0.295390254033452) < 1e-7)
+    assert(abs(Cx - 0.14285972246912) < 1e-7)
     assert(abs(Cy) < 1.e-12)
-    assert(abs(Cz - 0.892760941615457) < 2.1e-7)
+    assert(abs(Cz - 0.892154892789264) < 2.1e-7)
 
 
 def test_fuselage_subsonic_compressible_iterative():

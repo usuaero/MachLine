@@ -1652,29 +1652,26 @@ contains
                 ! Check not on panel plane
                 if (abs(geom%h) > 1.e-12) then
 
-                    ! Calculate F factors
-                    if (b > 0.) then
-                        F1 = (geom%l1(i)*geom%R2(i) - geom%l2(i)*geom%R1(i)) / geom%g2(i)
-                        F2 = (b*geom%R1(i)*geom%R2(i) + geom%l1(i)*geom%l2(i)) / geom%g2(i)
+                    ! Mach wedge
+                    if (geom%R1(i) == 0. .and. geom%R2(i) == 0.) then
+                        int%hH113 = int%hH113 + pi*sign(1., geom%h*geom%v_xi(i))
                     else
-                        F1 = geom%dR(i)*(geom%R2(i) + geom%R1(i)) / (geom%l1(i)*geom%R2(i) + geom%l2(i)*geom%R1(i))
-                        F2 = (geom%g2(i) - geom%l1(i)**2 - geom%l2(i)**2) &
-                             / (b*geom%R1(i)*geom%R2(i) - geom%l1(i)*geom%l2(i))
-                    end if
 
-                    ! Supersonic edge
-                    if (b > 0.) then
+                        ! Calculate F factors for supersonic edge
+                        if (b > 0.) then
+                            F1 = (geom%l1(i)*geom%R2(i) - geom%l2(i)*geom%R1(i)) / geom%g2(i)
+                            F2 = (b*geom%R1(i)*geom%R2(i) + geom%l1(i)*geom%l2(i)) / geom%g2(i)
 
-                        ! Mach wedge
-                        if (geom%R1(i) == 0. .and. geom%R2(i) == 0.) then
-                            int%hH113 = int%hH113 + pi*sign(1., geom%h*geom%v_xi(i))
+                        ! Calculate F factors for subsonic edge
                         else
-                            int%hH113 = int%hH113 + atan2(geom%h*geom%a(i)*F1, geom%R1(i)*geom%R2(i) + geom%h2*F2)
+                            F1 = geom%dR(i)*(geom%R2(i) + geom%R1(i)) / (geom%l1(i)*geom%R2(i) + geom%l2(i)*geom%R1(i))
+                            F2 = (geom%g2(i) - geom%l1(i)**2 - geom%l2(i)**2) &
+                                 / (b*geom%R1(i)*geom%R2(i) - geom%l1(i)*geom%l2(i))
                         end if
 
-                    ! Subsonic edge
-                    else
+                        ! Calculate hH113
                         int%hH113 = int%hH113 + atan2(geom%h*geom%a(i)*F1, geom%R1(i)*geom%R2(i) + geom%h2*F2)
+
                     end if
 
                 end if
@@ -1690,15 +1687,26 @@ contains
 
         ! Calculate higher-order source integrals
         if (source_order == 1) then
-            int%H211 = 0.5*(-geom%h2*int%H213 - sum(geom%a*int%F211))
-            int%H121 = 0.5*(-geom%h2*int%H123 - sum(geom%a*int%F121))
+            int%H211 = 0.5*(geom%h2*int%H213 + sum(geom%a*int%F211))
+            int%H121 = 0.5*(geom%h2*int%H123 + sum(geom%a*int%F121))
         end if
 
         ! Calculate higher-order doublet integrals
         if (doublet_order == 2) then
-            int%H313 = -sum(geom%v_eta*int%F121) - geom%h*int%hH113
-            int%H223 = sum(geom%v_xi*int%F121)
-            int%H133 = -sum(geom%v_eta*int%F121) - int%H111
+            int%H313 = int%H111 - sum(geom%v_xi*int%F211)
+            int%H223 = -sum(geom%v_xi*int%F121)
+            int%H133 = -int%H111 + sum(geom%v_eta*int%F121)
+
+            ! Run checks
+            if (abs(sum(geom%v_eta*int%F211) - int%H223) > 1e-12) then
+                write(*,*) "!!! Influence calculation failed for H(2,2,3). Quitting..."
+                stop
+            end if
+
+            if (abs(int%H111 - int%H313 + int%H133 + geom%h*int%hH113) > 1e-12) then
+                write(*,*) "!!! Influence calculation failed for H(3,1,3) and H(1,3,3). Quitting..."
+                stop
+            end if
         end if
 
     end subroutine panel_calc_supersonic_subinc_panel_integrals
