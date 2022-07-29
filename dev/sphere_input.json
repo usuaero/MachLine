@@ -18,10 +18,11 @@
     "solver" : {
         "formulation" : "morino",
         "control_point_offset" : 1.0e-5,
-        "matrix_solver" : "LU",
+        "matrix_solver" : "BJAC",
         "tolerance" : 1.5e-12,
         "relaxation" : 0.9,
-        "block_size" : 400
+        "block_size" : 400,
+        "write_A_and_b" : true
     },
     "post_processing" : {
     },

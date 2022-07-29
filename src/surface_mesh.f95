@@ -615,9 +615,9 @@ contains
         if (freestream%supersonic) then
             call this%rearrange_vertices_streamwise(freestream)
 
-        ! For quadratic doublets, the midpoints need to be arranged better
+        ! For quadratic doublets, the midpoints need to be arranged better in subsonic flow
         else if (doublet_order == 2) then
-            call this%shuffle_midpoints_in()
+            !call this%shuffle_midpoints_in() ! System converges faster on sphere without this
         end if
 
         ! Calculate normals (for placing control points)
@@ -1025,8 +1025,7 @@ contains
 
         integer :: i, j, k, m, n, N_clones, i_jango, i_boba, N_discont_verts, i_bot_panel, i_abutting_panel, i_adj_vert, i_top_panel
         integer :: i_edge
-        type(vertex),dimension(:),allocatable :: temp_vertices
-        integer,dimension(:),allocatable :: i_clones
+        integer,dimension(:),allocatable :: i_rearrange, i_rearrange_inv
 
         ! Check whether any discontinuities exist
         if (this%found_discontinuous_edges) then
@@ -1041,21 +1040,29 @@ contains
 
             ! Add space for new vertices
             call this%allocate_new_vertices(N_clones)
-            allocate(i_clones(N_clones))
+
+            ! Allocate rearranged indices array
+            allocate(i_rearrange(this%N_verts), source=0)
+            allocate(i_rearrange_inv(this%N_verts), source=0)
 
             ! Initialize clones
-            j = 1
-            do i_jango=1,this%N_verts
+            j = 0
+            do i_jango=1,this%N_verts-N_clones ! Only need to loop through original vertices here
 
                 ! Check if this vertex needs to be cloned
                 if (this%vertices(i_jango)%clone) then
 
                     ! Get index for the clone
+                    j = j + 1
                     i_boba = this%N_verts - N_clones + j ! Will be at position N_verts-N_clones+j in the new vertex array
+
+                    ! Get rearranged indices
+                    i_rearrange_inv(i_jango) = i_jango + j - 1
+                    i_rearrange_inv(i_boba) = i_jango + j
 
                     ! Initialize clone
                     call this%vertices(i_boba)%init(this%vertices(i_jango)%loc, i_boba, this%vertices(i_jango)%vert_type)
-                    i_clones(j) = i_boba
+                    this%vertices(i_boba)%clone = .true.
 
                     ! Set vertex type
                     if (this%vertices(i_jango)%vert_type==1) then
@@ -1175,10 +1182,10 @@ contains
 
                     end do
 
-                    ! Update clone index
-                    j = j + 1
-
                 else
+
+                    ! Get rearranged indices
+                    i_rearrange_inv(i_jango) = i_jango + j
 
                     ! If this vertex did not need to be cloned, but it is on the mirror plane and its mirror is unique
                     ! then the wake strength will be determined by its mirror as well in the case of an asymmetric flow.
@@ -1193,10 +1200,13 @@ contains
 
             end do
 
-            ! Store that the cloned vertices are clones
-            do i=1,N_clones
-                this%vertices(i_clones(i))%clone = .true.
+            ! Get inverse mapping
+            do i=1,this%N_verts
+                i_rearrange(i_rearrange_inv(i)) = i
             end do
+
+            ! Rearrange vertices so clones are next to clones
+            call this%allocate_new_vertices(0, i_rearrange)
 
             if (verbose) write(*,'(a, i4, a, i7, a)') "Done. Cloned ", N_clones, " vertices. Mesh now has ", &
                                                       this%N_verts, " vertices."

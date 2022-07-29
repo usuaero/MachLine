@@ -7,12 +7,15 @@
     "geometry": {
         "file": "dev/meshes/diamond_5_deg_full_medium.stl",
         "spanwise_axis" : "+y",
+        "singularity_order" : {
+            "source" : 0
+        },
         "reference": {
             "area": 1.0
         }
     },
     "solver": {
-        "formulation": "source-free",
+        "formulation": "morino",
         "control_point_offset": 1.1e-06,
         "matrix_solver" : "LU"
     },

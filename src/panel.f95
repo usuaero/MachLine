@@ -1707,6 +1707,7 @@ contains
                 write(*,*) "!!! Influence calculation failed for H(3,1,3) and H(1,3,3). Quitting..."
                 stop
             end if
+
         end if
 
     end subroutine panel_calc_supersonic_subinc_panel_integrals

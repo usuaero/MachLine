@@ -4,7 +4,7 @@
         "freestream_mach_number" : 0.0
     },
     "geometry": {
-        "file": "dev/meshes/naca_0010_AR_10_half_medium.stl",
+        "file": "dev/meshes/naca_0010_AR_10_half_fine.stl",
         "mirror_about": "xz",
         "reference": {
             "area": 8.0
@@ -16,14 +16,12 @@
     "solver": {
         "formulation" : "morino",
         "control_point_offset" : 1.1e-05,
-        "run_checks" : true,
-        "matrix_solver" : "LU",
-        "relaxation" : 0.5,
-        "tolerance" : 1.3e-7,
-        "block_size" : 50,
-        "max_iterations" : 200,
-        "precondition" : true,
-        "write_A_and_b" : false
+        "matrix_solver" : "BSOR",
+        "relaxation" : 0.9,
+        "tolerance" : 1.5e-12,
+        "block_size" : 300,
+        "max_iterations" : 10000,
+        "precondition" : true
     },
     "post_processing" : {
         "pressure_rules": {
@@ -32,11 +30,11 @@
     },
     "output": {
         "verbose" : true,
-        "body_file" :                   "dev/results/naca_0010_AR_10_half_medium.vtk",
-        "wake_file" :                   "dev/results/naca_0010_AR_10_half_medium_wake.vtk",
-        "control_point_file" :          "dev/results/naca_0010_AR_10_half_medium_control_points.vtk",
-        "mirrored_body_file" :          "dev/results/naca_0010_AR_10_half_medium_left.vtk",
-        "mirrored_control_point_file" : "dev/results/naca_0010_AR_10_half_medium_control_points_left.vtk",
+        "body_file" :                   "dev/results/naca_0010_AR_10_half_fine.vtk",
+        "wake_file" :                   "dev/results/naca_0010_AR_10_half_fine_wake.vtk",
+        "control_point_file" :          "dev/results/naca_0010_AR_10_half_fine_control_points.vtk",
+        "mirrored_body_file" :          "dev/results/naca_0010_AR_10_half_fine_left.vtk",
+        "mirrored_control_point_file" : "dev/results/naca_0010_AR_10_half_fine_control_points_left.vtk",
         "report_file" : "dev/results/report.json"
     }
 }
