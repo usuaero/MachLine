@@ -19,7 +19,7 @@
         "matrix_solver" : "BSOR",
         "relaxation" : 0.9,
         "tolerance" : 1.5e-12,
-        "block_size" : 300,
+        "block_size" : 500,
         "max_iterations" : 10000,
         "precondition" : true
     },

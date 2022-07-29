@@ -11,7 +11,7 @@ program main
     implicit none
 
     character(100) :: input_file
-    character(len=:),allocatable :: body_file, wake_file, control_point_file
+    character(len=:),allocatable :: body_file, wake_file, control_point_file, slice_file
     character(len=:),allocatable :: mirrored_body_file, mirrored_control_point_file
     character(len=:),allocatable :: report_file, spanwise_axis
 
@@ -114,6 +114,7 @@ program main
     call json_xtnsn_get(output_settings, 'control_point_file', control_point_file, 'none')
     call json_xtnsn_get(output_settings, 'mirrored_body_file', mirrored_body_file, 'none')
     call json_xtnsn_get(output_settings, 'mirrored_control_point_file', mirrored_control_point_file, 'none')
+    call json_xtnsn_get(output_settings, 'potential_slice.file', slice_file, 'none')
 
     ! Perform flow-dependent initialization on the surface mesh
     call body_mesh%init_with_flow(freestream_flow, body_file, wake_file)
@@ -132,6 +133,11 @@ program main
 
     ! Update report
     call linear_solver%update_report(report_json, body_mesh)
+
+    ! Output slice
+    if (slice_file /= 'none') then
+        call linear_solver%export_potential_slice(slice_file, output_settings, body_mesh, freestream_flow)
+    end if
 
     ! Write input
     call json_value_create(p_parent)
@@ -158,6 +164,7 @@ program main
 
     ! Output mesh results
     call body_mesh%output_results(body_file, wake_file, control_point_file, mirrored_body_file, mirrored_control_point_file)
+    if (slice_file /= 'none' .and. verbose) write(*,'(a30 a)') "               Slice: ", slice_file
 
     ! Goodbye
     call cpu_time(end)

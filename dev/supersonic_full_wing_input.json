@@ -27,6 +27,17 @@
     "output": {
         "body_file" :          "dev/results/diamond_5_deg_full_medium.vtk",
         "wake_file" :          "dev/results/diamond_5_deg_full_medium_wake.vtk",
-        "control_point_file" : "dev/results/diamond_5_deg_full_medium_control_points.vtk"
+        "control_point_file" : "dev/results/diamond_5_deg_full_medium_control_points.vtk",
+        "potential_slice" : {
+            "file" : "dev/results/slice.csv",
+            "parallel_to" : "xz",
+            "y_loc" : 0.0,
+            "x_min" : -2.0,
+            "z_min" : -3.0,
+            "x_max" : 5.0,
+            "z_max" : 3.0,
+            "Nx" : 50,
+            "Nz" : 50
+        }
     }
 }
