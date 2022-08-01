@@ -36,6 +36,7 @@ report.json
 iterative_solver_prog.csv
 A_mat.txt
 b_vec.txt
+*.csv
 
 # python stuff
 __pycache__/

@@ -54,6 +54,7 @@ module panel_solver_mod
             procedure :: calc_forces => panel_solver_calc_forces
             procedure :: update_report => panel_solver_update_report
             procedure :: export_potential_slice => panel_solver_export_potential_slice
+            procedure :: get_panel_induced_potentials => panel_solver_get_panel_induced_potentials
 
     end type panel_solver
 
@@ -1550,6 +1551,60 @@ contains
     end subroutine panel_solver_update_report
 
 
+    function panel_solver_get_panel_induced_potentials(this, i_panel, source_inf, doublet_inf, mirror_panel, body) result(phi)
+        ! Calculates the induced potential from the panel
+
+        implicit none
+
+        class(panel_solver),intent(in) :: this
+        integer,intent(in) :: i_panel
+        real,dimension(:),allocatable,intent(in) :: source_inf, doublet_inf
+        logical,intent(in) :: mirror_panel
+        type(surface_mesh),intent(in) :: body
+
+        real :: phi
+
+        integer :: k
+
+        phi = 0.
+
+        ! Add source influence (if sources are present)
+        if (this%morino) then
+
+            ! Constant
+            if (source_order == 0) then
+                if (mirror_panel) then
+                    phi = phi + source_inf(1)*body%sigma(i_panel + body%N_panels)
+                else
+                    phi = phi + source_inf(1)*body%sigma(i_panel)
+                end if
+
+            ! Linear
+            else
+                do k=1,size(body%panels(i_panel)%i_vert_s)
+                    if (mirror_panel) then
+                        phi = phi + source_inf(k)*body%sigma(body%panels(i_panel)%i_vert_s(k) + body%N_cp)
+                    else
+                        phi = phi + source_inf(k)*body%sigma(body%panels(i_panel)%i_vert_s(k))
+                    end if
+                end do
+            end if
+        end if
+
+        ! Add doublet influence
+        ! This method is the same for linear and quadratic doublets
+        ! Loop through panel vertices
+        do k=1,size(body%panels(i_panel)%i_vert_d)
+            if (mirror_panel) then
+                phi = phi + doublet_inf(k)*body%mu(body%panels(i_panel)%i_vert_d(k) + body%N_cp)
+            else
+                phi = phi + doublet_inf(k)*body%mu(body%panels(i_panel)%i_vert_d(k))
+            end if
+        end do
+        
+    end function panel_solver_get_panel_induced_potentials
+
+
     subroutine panel_solver_export_potential_slice(this, slice_file, output_settings, body, freestream)
 
         implicit none
@@ -1563,9 +1618,9 @@ contains
         integer :: i, j, k, unit, i_fixed, i_var_1, i_var_2, N_var_1, N_var_2, N_points, stat
         character(len=:),allocatable :: parallel_plane
         real,dimension(2) :: var_lims_1, var_lims_2
-        real :: fixed_dim, d1, d2, var_1_min, var_2_min, var_1_max, var_2_max
+        real,dimension(3) :: vert_loc, mirrored_vert_loc
+        real :: fixed_dim, d1, d2, var_1_min, var_2_min, var_1_max, var_2_max, phi, phi_inf
         real,dimension(:,:,:),allocatable :: points
-        real,dimension(:,:),allocatable :: phi
         real,dimension(:),allocatable :: var_1_space, var_2_space, source_inf, doublet_inf
         type(dod),dimension(:,:,:),allocatable :: dod_info
         logical,dimension(:),allocatable :: verts_in_dod
@@ -1638,171 +1693,116 @@ contains
             call check_allocation(stat, "vertex domain of dependence storage")
         end if
 
-        !! If the freestream is supersonic, calculate domain of dependence info
-        !if (this%freestream%supersonic) then
+        ! If the freestream is supersonic, calculate domain of dependence info
+        if (this%freestream%supersonic) then
 
-        !    ! Loop through control points
-        !    !!$OMP parallel do private(i, vert_loc, mirrored_vert_loc, verts_in_dod, mirrored_verts_in_dod) &
-        !    !!$OMP & private(wake_verts_in_dod, mirrored_wake_verts_in_dod)
-        !    do i=1,N_var_1
-        !        do j=1,body%N_cp
+            ! Loop through control points
+            !$OMP parallel do private(i, vert_loc, mirrored_vert_loc, verts_in_dod)
+            do i=1,N_var_1
+                do j=1,N_var_2
 
-        !            ! Initialize for this control point
-        !            verts_in_dod = .false.
-        !            if (body%asym_flow) then
-        !                mirrored_verts_in_dod = .false.
-        !            end if
-        !            if (body%mirrored .and. .not. body%asym_flow) then
-        !                mirrored_wake_verts_in_dod = .false.
-        !            end if
+                    ! Initialize for this point
+                    verts_in_dod = .false.
 
-        !            ! Loop through body vertices
-        !            do i=1,body%N_verts
+                    ! Loop through body vertices
+                    do k=1,body%N_verts
 
-        !                vert_loc = body%vertices(i)%loc
+                        ! Get this vertex location
+                        vert_loc = body%vertices(k)%loc
 
-        !                ! Original vertex and original control point
-        !                verts_in_dod(i) = this%freestream%point_in_dod(vert_loc, body%cp(:,j))
+                        ! Check if this vertex is in the DoD
+                        verts_in_dod(k) = this%freestream%point_in_dod(vert_loc, points(:,j,i))
 
-        !                if (body%mirrored) then
+                        if (body%mirrored) then
 
-        !                    mirrored_vert_loc = mirror_across_plane(vert_loc, body%mirror_plane)
+                            ! Get the mirrored vertex location
+                            mirrored_vert_loc = mirror_across_plane(vert_loc, body%mirror_plane)
 
-        !                    ! Mirrored vertex and original control point
-        !                    verts_in_dod(i+body%N_verts) = this%freestream%point_in_dod(mirrored_vert_loc, &
-        !                                                                                       body%cp(:,j))
+                            ! Check if this vertex is in the DoD
+                            verts_in_dod(k+body%N_verts) = this%freestream%point_in_dod(mirrored_vert_loc, &
+                                                                                        points(:,j,i))
 
-        !                    if (body%asym_flow) then
+                        end if
+                    end do
 
-        !                        ! Original vertex and mirrored control point
-        !                        mirrored_verts_in_dod(i) = this%freestream%point_in_dod(vert_loc, body%cp_mirrored(:,j))
+                    ! Loop through body panels
+                    do k=1,body%N_panels
 
-        !                        ! Mirrored vertex and mirrored control point
-        !                        mirrored_verts_in_dod(i+body%N_verts) = this%freestream%point_in_dod(mirrored_vert_loc, &
-        !                                                                                             body%cp_mirrored(:,j))
+                        ! Check if the panel is in the DoD
+                        dod_info(k,j,i) = body%panels(k)%check_dod(points(:,j,i), this%freestream, verts_in_dod)
 
-        !                    end if
-        !                end if
-        !            end do
+                        if (body%mirrored) then
 
-        !            ! Loop through wake vertices
-        !            do i=1,body%wake%N_verts
+                            ! Check DoD for mirrored panel
+                            dod_info(k+body%N_panels,j,i) = body%panels(i)%check_dod(points(:,j,i), this%freestream, &
+                                                                                     verts_in_dod, &
+                                                                                     .true., body%mirror_plane)
+                        end if
+                    end do
 
-        !                vert_loc = body%wake%vertices(i)%loc
+                end do
+            end do
 
-        !                ! Original vertex and original control point
-        !                wake_verts_in_dod(i) = this%freestream%point_in_dod(vert_loc, body%cp(:,j))
+        end if
+        deallocate(verts_in_dod)
 
-        !                if (body%mirrored) then
+        ! Open slice file
+        100 format(e20.12, ', ', e20.12, ', ', e20.12, ', ', e20.12, ', ', e20.12, ', ', e20.12)
+        open(newunit=unit, file=slice_file)
 
-        !                    if (body%asym_flow) then
-
-        !                        ! Original vertex and mirrored control point
-        !                        wake_verts_in_dod(i) = this%freestream%point_in_dod(vert_loc, body%cp_mirrored(:,j))
-
-        !                    else
-
-        !                        ! Mirrored vertex and original control point
-        !                        mirrored_vert_loc = mirror_across_plane(vert_loc, body%mirror_plane)
-        !                        mirrored_wake_verts_in_dod(i+body%wake%N_verts) = this%freestream%point_in_dod(mirrored_vert_loc, &
-        !                                                                                                       body%cp(:,j))
-        !                    end if
-        !                end if
-        !            end do
-
-        !            ! Loop through body panels
-        !            do i=1,body%N_panels
-
-        !                ! Original panel and original control point
-        !                this%dod_info(i,j) = body%panels(i)%check_dod(body%cp(:,j), this%freestream, verts_in_dod)
-
-        !                if (body%mirrored) then
-
-        !                    ! Check DoD for mirrored panel and original control point
-        !                    this%dod_info(i+body%N_panels,j) = body%panels(i)%check_dod(body%cp(:,j), this%freestream, &
-        !                                                                                verts_in_dod, &
-        !                                                                                .true., body%mirror_plane)
-
-        !                    if (body%asym_flow) then
-
-        !                        ! Check DoD for original panel and mirrored control point
-        !                        this%dod_info(i,j+body%N_cp) = body%panels(i)%check_dod(body%cp_mirrored(:,j), this%freestream, &
-        !                                                                                mirrored_verts_in_dod)
-
-        !                        ! Check DoD for mirrored panel and mirrored control point
-        !                        this%dod_info(i+body%N_panels,j+body%N_cp) = body%panels(i)%check_dod(body%cp_mirrored(:,j), &
-        !                                                                                              this%freestream, &
-        !                                                                                              mirrored_verts_in_dod, &
-        !                                                                                              .true., body%mirror_plane)
-
-        !                    end if
-        !                end if
-        !            end do
-
-        !            ! Loop through wake panels
-        !            do i=1,body%wake%N_panels
-
-        !                ! Check DoD for panel and original control point
-        !                this%wake_dod_info(i,j) = body%wake%panels(i)%check_dod(body%cp(:,j), this%freestream, wake_verts_in_dod)
-
-        !                if (body%mirrored) then
-
-        !                    if (body%asym_flow) then
-
-        !                        ! Check DoD for panel and mirrored control point
-        !                        this%wake_dod_info(i,j+body%N_cp) = body%wake%panels(i)%check_dod(body%cp_mirrored(:,j), &
-        !                                                                                          this%freestream, &
-        !                                                                                          wake_verts_in_dod)
-
-        !                    else
-
-        !                        ! Check DoD for mirrored panel and original control point
-        !                        this%wake_dod_info(i+body%wake%N_panels,j) = body%wake%panels(i)%check_dod(body%cp(:,j), &
-        !                                                                                                   this%freestream, &
-        !                                                                                                   mirrored_wake_verts_in_dod, &
-        !                                                                                                   .true., body%mirror_plane)
-
-        !                    end if
-        !                end if
-        !            end do
-
-        !        end do
-        !    end do
-
-        !end if
+        ! Write header
+        write(unit,*) 'x,y,z,phi_inf,phi,Phi'
 
         ! Calculate potentials
-        allocate(phi(N_var_2,N_var_1))
         do i=1,N_var_1
             do j=1,N_var_2
 
-                ! Add freestream potential
-                phi(j,i) = inner(points(:,j,i), freestream%c_hat_g)
+                ! Calculate freestream potential
+                phi_inf = this%freestream%U*inner(points(:,j,i), freestream%c_hat_g)
 
                 ! Loop through panels
+                phi = 0.
                 do k=1,body%N_panels
-                    
-                    ! Calculate influence
-                    call body%panels(k)%calc_potentials(points(:,j,i), this%freestream, dod_info(k,j,i), .false., &
-                                                        source_inf, doublet_inf)
 
-                    ! Add influence
+                    ! Check DoD
+                    if (dod_info(k,j,i)%in_dod) then
+                    
+                        ! Calculate influence
+                        call body%panels(k)%calc_potentials(points(:,j,i), this%freestream, dod_info(k,j,i), .false., &
+                                                            source_inf, doublet_inf)
+
+                        ! Add influence
+                        phi = phi + this%get_panel_induced_potentials(k, source_inf, doublet_inf, .false., body)
+
+                    end if
 
                     ! Calculate mirrored influences
                     if (body%mirrored) then
 
-                        ! Get influence of mirrored panel
-                        call body%panels(k)%calc_potentials(points(:,j,i), this%freestream, &
-                                                            dod_info(k+body%N_panels,j,i), .true., &
-                                                            source_inf, doublet_inf)
+                        if (dod_info(k+body%N_panels,j,i)%in_dod) then
 
-                        if (body%asym_flow) then
+                            if (body%asym_flow) then
 
-                            ! Add influence of mirrored panel using asymmetrical strengths
+                                ! Get influence of mirrored panel
+                                call body%panels(k)%calc_potentials(points(:,j,i), this%freestream, &
+                                                                    dod_info(k+body%N_panels,j,i), .true., &
+                                                                    source_inf, doublet_inf)
 
-                        else
+                                ! Add influence of mirrored panel using asymmetrical strengths
+                                phi = phi + this%get_panel_induced_potentials(k, source_inf, doublet_inf, .true., body)
 
-                            ! Add influence of mirrored panel using symmetrical strengths
+                            else
+
+                                ! Get influence of panel on mirrored point
+                                call body%panels(k)%calc_potentials(mirror_across_plane(points(:,j,i), body%mirror_plane), &
+                                                                    this%freestream, &
+                                                                    dod_info(k+body%N_panels,j,i), .false., &
+                                                                    source_inf, doublet_inf)
+
+                                ! Add influence of mirrored panel using symmetrical strengths
+                                phi = phi + this%get_panel_induced_potentials(k, source_inf, doublet_inf, .false., body)
+
+                            end if
 
                         end if
 
@@ -1810,20 +1810,10 @@ contains
 
                 end do
 
-            end do
-        end do
+                ! Write to file
+                phi = phi*this%freestream%U
+                write(unit,100) points(1,j,i), points(2,j,i), points(3,j,i), phi_inf, phi, phi_inf + phi
 
-        ! Scale
-        phi = phi*freestream%U
-
-        ! Export
-        100 format(e20.12, ', ', e20.12, ', ', e20.12, ', ', e20.12)
-        open(newunit=unit, file=slice_file)
-
-        write(unit,*) 'x,y,z,phi'
-        do i=1,N_var_1
-            do j=1,N_var_2
-                write(unit,100) points(1,j,i), points(2,j,i), points(3,j,i), phi(j,i)
             end do
         end do
 
