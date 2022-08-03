@@ -748,11 +748,11 @@ contains
 
             ! Set target potential for source-free formulation
             else
-                this%b(i) = -this%freestream%s*inner(x, body%cp(:,i))
+                this%b(i) = -inner(x, body%cp(:,i))
 
                 ! Set for unique mirrored control  points
                 if (body%asym_flow .and. body%vertices(i)%mirrored_is_unique) then
-                    this%b(i+body%N_cp) = -this%freestream%s*inner(x, body%cp_mirrored(:,i))
+                    this%b(i+body%N_cp) = -inner(x, body%cp_mirrored(:,i))
                 end if
             end if
             !$OMP end critical
@@ -1551,7 +1551,7 @@ contains
     end subroutine panel_solver_update_report
 
 
-    function panel_solver_get_panel_induced_potentials(this, i_panel, source_inf, doublet_inf, mirror_panel, body) result(phi)
+    subroutine panel_solver_get_panel_induced_potentials(this, i_panel, source_inf, doublet_inf, mirror_panel, body, phi_d, phi_s)
         ! Calculates the induced potential from the panel
 
         implicit none
@@ -1561,12 +1561,12 @@ contains
         real,dimension(:),allocatable,intent(in) :: source_inf, doublet_inf
         logical,intent(in) :: mirror_panel
         type(surface_mesh),intent(in) :: body
-
-        real :: phi
+        real,intent(out) :: phi_d, phi_s
 
         integer :: k
 
-        phi = 0.
+        phi_d = 0.
+        phi_s = 0.
 
         ! Add source influence (if sources are present)
         if (this%morino) then
@@ -1574,18 +1574,18 @@ contains
             ! Constant
             if (source_order == 0) then
                 if (mirror_panel) then
-                    phi = phi + source_inf(1)*body%sigma(i_panel + body%N_panels)
+                    phi_s = source_inf(1)*body%sigma(i_panel + body%N_panels)
                 else
-                    phi = phi + source_inf(1)*body%sigma(i_panel)
+                    phi_s = source_inf(1)*body%sigma(i_panel)
                 end if
 
             ! Linear
             else
                 do k=1,size(body%panels(i_panel)%i_vert_s)
                     if (mirror_panel) then
-                        phi = phi + source_inf(k)*body%sigma(body%panels(i_panel)%i_vert_s(k) + body%N_cp)
+                        phi_s = phi_s + source_inf(k)*body%sigma(body%panels(i_panel)%i_vert_s(k) + body%N_cp)
                     else
-                        phi = phi + source_inf(k)*body%sigma(body%panels(i_panel)%i_vert_s(k))
+                        phi_s = phi_s + source_inf(k)*body%sigma(body%panels(i_panel)%i_vert_s(k))
                     end if
                 end do
             end if
@@ -1596,16 +1596,17 @@ contains
         ! Loop through panel vertices
         do k=1,size(body%panels(i_panel)%i_vert_d)
             if (mirror_panel) then
-                phi = phi + doublet_inf(k)*body%mu(body%panels(i_panel)%i_vert_d(k) + body%N_cp)
+                phi_d = phi_d + doublet_inf(k)*body%mu(body%panels(i_panel)%i_vert_d(k) + body%N_cp)
             else
-                phi = phi + doublet_inf(k)*body%mu(body%panels(i_panel)%i_vert_d(k))
+                phi_d = phi_d + doublet_inf(k)*body%mu(body%panels(i_panel)%i_vert_d(k))
             end if
         end do
         
-    end function panel_solver_get_panel_induced_potentials
+    end subroutine panel_solver_get_panel_induced_potentials
 
 
     subroutine panel_solver_export_potential_slice(this, slice_file, output_settings, body, freestream)
+        ! Writes out a csv file of potentials on a user-specified slice of the flow
 
         implicit none
 
@@ -1619,7 +1620,7 @@ contains
         character(len=:),allocatable :: parallel_plane
         real,dimension(2) :: var_lims_1, var_lims_2
         real,dimension(3) :: vert_loc, mirrored_vert_loc
-        real :: fixed_dim, d1, d2, var_1_min, var_2_min, var_1_max, var_2_max, phi, phi_inf
+        real :: fixed_dim, d1, d2, var_1_min, var_2_min, var_1_max, var_2_max, phi_inf, phi_d, phi_s, phi_d_tot, phi_s_tot
         real,dimension(:,:,:),allocatable :: points
         real,dimension(:),allocatable :: var_1_space, var_2_space, source_inf, doublet_inf
         type(dod),dimension(:,:,:),allocatable :: dod_info
@@ -1747,11 +1748,11 @@ contains
         deallocate(verts_in_dod)
 
         ! Open slice file
-        100 format(e20.12, ', ', e20.12, ', ', e20.12, ', ', e20.12, ', ', e20.12, ', ', e20.12)
+        100 format(e20.12, ', ', e20.12, ', ', e20.12, ', ', e20.12, ', ', e20.12, ', ', e20.12, ', ', e20.12, ', ', e20.12)
         open(newunit=unit, file=slice_file)
 
         ! Write header
-        write(unit,*) 'x,y,z,phi_inf,phi,Phi'
+        write(unit,*) 'x,y,z,phi_inf,phi_d,phi_s,phi,Phi'
 
         ! Calculate potentials
         do i=1,N_var_1
@@ -1761,7 +1762,8 @@ contains
                 phi_inf = this%freestream%U*inner(points(:,j,i), freestream%c_hat_g)
 
                 ! Loop through panels
-                phi = 0.
+                phi_s_tot = 0.
+                phi_d_tot = 0.
                 do k=1,body%N_panels
 
                     ! Check DoD
@@ -1772,7 +1774,9 @@ contains
                                                             source_inf, doublet_inf)
 
                         ! Add influence
-                        phi = phi + this%get_panel_induced_potentials(k, source_inf, doublet_inf, .false., body)
+                        call this%get_panel_induced_potentials(k, source_inf, doublet_inf, .false., body, phi_d, phi_s)
+                        phi_d_tot = phi_d_tot + phi_d
+                        phi_s_tot = phi_s_tot + phi_s
 
                     end if
 
@@ -1789,7 +1793,9 @@ contains
                                                                     source_inf, doublet_inf)
 
                                 ! Add influence of mirrored panel using asymmetrical strengths
-                                phi = phi + this%get_panel_induced_potentials(k, source_inf, doublet_inf, .true., body)
+                                call this%get_panel_induced_potentials(k, source_inf, doublet_inf, .true., body, phi_d, phi_s)
+                                phi_d_tot = phi_d_tot + phi_d
+                                phi_s_tot = phi_s_tot + phi_s
 
                             else
 
@@ -1800,7 +1806,9 @@ contains
                                                                     source_inf, doublet_inf)
 
                                 ! Add influence of mirrored panel using symmetrical strengths
-                                phi = phi + this%get_panel_induced_potentials(k, source_inf, doublet_inf, .false., body)
+                                call this%get_panel_induced_potentials(k, source_inf, doublet_inf, .false., body, phi_d, phi_s)
+                                phi_d_tot = phi_d_tot + phi_d
+                                phi_s_tot = phi_s_tot + phi_s
 
                             end if
 
@@ -1811,8 +1819,10 @@ contains
                 end do
 
                 ! Write to file
-                phi = phi*this%freestream%U
-                write(unit,100) points(1,j,i), points(2,j,i), points(3,j,i), phi_inf, phi, phi_inf + phi
+                phi_d_tot = phi_d_tot*this%freestream%U
+                phi_s_tot = phi_s_tot*this%freestream%U
+                write(unit,100) points(1,j,i), points(2,j,i), points(3,j,i), phi_inf, phi_d_tot, phi_s_tot, phi_d_tot + phi_s_tot, &
+                                phi_inf + phi_d_tot + phi_s_tot
 
             end do
         end do

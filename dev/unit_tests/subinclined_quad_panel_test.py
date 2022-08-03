@@ -8,7 +8,7 @@ if __name__=="__main__":
 
     # Initialize panel
     panel = SupersonicSubinclinedPanel(1.0, 1.0)
-    mu_params = [0.1, -2.0, 8.0, 3.0, -1.0, 3.0]
+    mu_params = [0.1, -0.0, 0.0, 0.0, -0.0, 0.0]
     sigma_params = [-5.0, 3.0, 3.0]
     panel.set_doublet_strength(mu_params)
     panel.set_source_strength(sigma_params)
