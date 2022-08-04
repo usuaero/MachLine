@@ -50,9 +50,11 @@ module surface_mesh_mod
             procedure :: init => surface_mesh_init
             procedure :: locate_adjacent_panels => surface_mesh_locate_adjacent_panels
             procedure :: store_adjacent_vertices => surface_mesh_store_adjacent_vertices
+            procedure :: check_panels_adjacent => surface_mesh_check_panels_adjacent
 
             ! Initialization based on flow properties
             procedure :: init_with_flow => surface_mesh_init_with_flow
+            procedure :: count_panel_inclinations => surface_mesh_count_panel_inclinations
             procedure :: characterize_edges => surface_mesh_characterize_edges
             procedure :: clone_vertices => surface_mesh_clone_vertices
             procedure :: set_up_mirroring => surface_mesh_set_up_mirroring
@@ -236,7 +238,7 @@ contains
 
         class(surface_mesh),intent(inout),target :: this
 
-        integer :: i, j, m, n, m1, n1, temp, i_edge, N_edges, i_mid, N_orig_verts, edge_index
+        integer :: i, j, m, n, m1, n1, temp, i_edge, N_edges, i_mid, N_orig_verts, edge_index_i, edge_index_j
         logical :: already_found_shared, watertight
         real :: distance
         integer,dimension(2) :: i_endpoints
@@ -253,110 +255,17 @@ contains
 
         ! Loop through each panel
         this%N_edges = 0
-        !$OMP parallel private(j, already_found_shared, distance, i_endpoints, m, m1, n, n1, temp, i_edge)
+        !$OMP parallel private(j, already_found_shared, distance, i_endpoints, m, m1, n, n1, temp, i_edge) &
+        !$OMP & private(edge_index_i, edge_index_j)
 
         !$OMP do schedule(dynamic)
         do i=1,this%N_panels
 
-            ! Loop through each potential neighbor
-            neighbor_loop: do j=i+1,this%N_panels
-
-                ! Check if we've found all neighbors for this panel
-                if (all(this%panels(i)%abutting_panels /= 0)) then
-                    exit neighbor_loop
-                end if
-
-                ! Initialize for this panel pair
-                already_found_shared = .false.
-
-                ! Check if the panels are abutting
-                abutting_loop: do m=1,this%panels(i)%N
-                    do n=1,this%panels(j)%N
-
-                        ! Check if vertices have the same index
-                        if (this%panels(i)%get_vertex_index(m) == this%panels(j)%get_vertex_index(n)) then
-
-                            ! Previously found a shared vertex, so we have abutting panels
-                            if (already_found_shared) then
-
-                                ! Store second shared vertex
-                                i_endpoints(2) = this%panels(i)%get_vertex_index(m)
-
-                                ! Check order; edge should proceed counterclockwise about panel i
-                                if (m1 == 1 .and. m == this%panels(i)%N) then
-                                    temp = i_endpoints(1)
-                                    i_endpoints(1) = i_endpoints(2)
-                                    i_endpoints(2) = temp
-                                end if
-
-                                !$OMP critical
-                                
-                                ! Update number of edges
-                                this%N_edges = this%N_edges + 1
-                                i_edge = this%N_edges
-
-                                ! Store vertices being adjacent to one another
-                                call this%store_adjacent_vertices(i_endpoints, i_edge)
-
-                                ! Store adjacent panels and panel edges
-                                ! This stores the adjacent panels and edges according to the index of that edge
-                                ! for the current panel
-
-                                ! Store that i is adjacent to j
-                                ! This one is more complicated because we don't know that n1 will be less than n; just the nature of the nested loop.
-                                ! Basically, if one is 1 and the other is N, then we're dealing with edge N for panel j.
-                                ! Otherwise, we're dealing with abs(n1-n) being 1, meaning edge min(n1, n).
-                                if ( (n1 == 1 .and. n == this%panels(j)%N) .or. (n == 1 .and. n1 == this%panels(j)%N) ) then
-                                    this%panels(j)%abutting_panels(this%panels(j)%N) = i
-                                    edge_index2(i_edge) = this%panels(j)%N
-                                else
-                                    n1 = min(n, n1)
-                                    this%panels(j)%abutting_panels(n1) = i
-                                    edge_index2(i_edge) = n1
-                                end if
-
-                                ! Store that j is adjacent to i
-                                if (m1 == 1 .and. m == this%panels(i)%N) then ! Nth edge
-                                    this%panels(i)%abutting_panels(m) = j
-                                    edge_index1(i_edge) = m
-                                else ! 1st or 2nd edge
-                                    this%panels(i)%abutting_panels(m1) = j
-                                    edge_index1(i_edge) = m1
-                                end if
-
-                                ! Store information in arrays for later storage in edge objects
-                                panel1(i_edge) = i
-                                panel2(i_edge) = j
-                                vertex1(i_edge) = i_endpoints(1)
-                                vertex2(i_edge) = i_endpoints(2)
-                                edge_length(i_edge) = dist(this%vertices(i_endpoints(1))%loc, this%vertices(i_endpoints(2))%loc)
-
-                                !$OMP end critical
-                                
-                                ! Break out of loop
-                                exit abutting_loop
-
-                            ! First shared vertex
-                            else
-
-                                already_found_shared = .true.
-                                i_endpoints(1) = this%panels(i)%get_vertex_index(m)
-                                m1 = m
-                                n1 = n
-
-                            end if
-                        end if
-
-                    end do
-
-                end do abutting_loop
-
-            end do neighbor_loop
-
             ! For each panel, check if it abuts the mirror plane
             if (this%mirrored) then
 
-                if (this%panels(i)%check_abutting_mirror_plane(this%N_panels, i_endpoints, edge_index)) then
+                ! Perform check
+                if (this%panels(i)%check_abutting_mirror_plane(this%N_panels, i_endpoints, edge_index_i)) then
 
                     !$OMP critical
                     
@@ -368,7 +277,7 @@ contains
                     call this%store_adjacent_vertices(i_endpoints, i_edge)
 
                     ! Store edge index for this panel
-                    edge_index1(i_edge) = edge_index
+                    edge_index1(i_edge) = edge_index_i
 
                     ! Store in arrays for later storage in edge objects
                     panel1(i_edge) = i
@@ -384,6 +293,41 @@ contains
                 end if
 
             end if
+
+            ! Loop through each potential neighbor
+            neighbor_loop: do j=i+1,this%N_panels
+
+                ! Check if we've found all neighbors for this panel
+                if (all(this%panels(i)%abutting_panels /= 0)) exit neighbor_loop
+
+                ! Check if these are abutting
+                if (this%check_panels_adjacent(i, j, i_endpoints, edge_index_i, edge_index_j)) then
+
+                    !$OMP critical
+                    
+                    ! Update number of edges
+                    this%N_edges = this%N_edges + 1
+                    i_edge = this%N_edges
+
+                    ! Store vertices being adjacent to one another
+                    call this%store_adjacent_vertices(i_endpoints, i_edge)
+
+                    ! Store adjacent panels and panel edges
+                    edge_index1(i_edge) = edge_index_i
+                    edge_index2(i_edge) = edge_index_j
+
+                    ! Store information in arrays for later storage in edge objects
+                    panel1(i_edge) = i
+                    panel2(i_edge) = j
+                    vertex1(i_edge) = i_endpoints(1)
+                    vertex2(i_edge) = i_endpoints(2)
+                    edge_length(i_edge) = dist(this%vertices(i_endpoints(1))%loc, this%vertices(i_endpoints(2))%loc)
+
+                    !$OMP end critical
+
+                end if
+
+            end do neighbor_loop
 
         end do
 
@@ -524,6 +468,93 @@ contains
     end subroutine surface_mesh_store_adjacent_vertices
 
 
+    function surface_mesh_check_panels_adjacent(this, i, j, i_endpoints, edge_index_i, edge_index_j) result(adjacent)
+        ! Checks whether panels i and j are adjacent
+
+        class(surface_mesh),intent(inout) :: this
+        integer,intent(in) :: i, j
+        integer,dimension(2),intent(out) :: i_endpoints
+        integer,intent(out) :: edge_index_i, edge_index_j
+
+        logical :: adjacent
+
+        logical :: already_found_shared
+        integer :: m, n, m1, n1, temp
+
+        ! Initialize
+        adjacent = .false.
+
+        ! Initialize for this panel pair
+        already_found_shared = .false.
+
+        ! Check if the panels are abutting
+        abutting_loop: do m=1,this%panels(i)%N
+            do n=1,this%panels(j)%N
+
+                ! Check if vertices have the same index
+                if (this%panels(i)%get_vertex_index(m) == this%panels(j)%get_vertex_index(n)) then
+
+                    ! Previously found a shared vertex, so we have abutting panels
+                    if (already_found_shared) then
+
+                        adjacent = .true.
+
+                        ! Store second shared vertex
+                        i_endpoints(2) = this%panels(i)%get_vertex_index(m)
+
+                        ! Check order; edge should proceed counterclockwise about panel i
+                        if (m1 == 1 .and. m == this%panels(i)%N) then
+                            temp = i_endpoints(1)
+                            i_endpoints(1) = i_endpoints(2)
+                            i_endpoints(2) = temp
+                        end if
+
+                        ! Store adjacent panels and panel edges
+                        ! This stores the adjacent panels and edges according to the index of that edge
+                        ! for the current panel
+
+                        ! Store that i is adjacent to j
+                        ! This one is more complicated because we don't know that n1 will be less than n; just the nature of the nested loop.
+                        ! Basically, if one is 1 and the other is N, then we're dealing with edge N for panel j.
+                        ! Otherwise, we're dealing with abs(n1-n) being 1, meaning edge min(n1, n).
+                        if ( (n1 == 1 .and. n == this%panels(j)%N) .or. (n == 1 .and. n1 == this%panels(j)%N) ) then
+                            this%panels(j)%abutting_panels(this%panels(j)%N) = i
+                            edge_index_j = this%panels(j)%N
+                        else
+                            n1 = min(n, n1)
+                            this%panels(j)%abutting_panels(n1) = i
+                            edge_index_j = n1
+                        end if
+
+                        ! Store that j is adjacent to i
+                        if (m1 == 1 .and. m == this%panels(i)%N) then ! Nth edge
+                            this%panels(i)%abutting_panels(m) = j
+                            edge_index_i = m
+                        else ! 1st or 2nd edge
+                            this%panels(i)%abutting_panels(m1) = j
+                            edge_index_i = m1
+                        end if
+
+                        return
+
+                    ! First shared vertex
+                    else
+
+                        already_found_shared = .true.
+                        i_endpoints(1) = this%panels(i)%get_vertex_index(m)
+                        m1 = m
+                        n1 = n
+
+                    end if
+                end if
+
+            end do
+
+        end do abutting_loop
+    
+    end function surface_mesh_check_panels_adjacent
+
+
     subroutine surface_mesh_init_with_flow(this, freestream, body_file, wake_file)
 
         implicit none
@@ -544,34 +575,16 @@ contains
             end if
         end if
 
-        ! Calculate panel coordinate transformations
+        ! Initialize properties of panels dependent upon the flow
+        if (verbose) write(*,'(a)',advance='no') "     Calculating panel properties..."
         !$OMP parallel do schedule(static)
         do i=1,this%N_panels
             call this%panels(i)%init_with_flow(freestream, this%asym_flow, this%mirror_plane)
         end do
+        if (verbose) write(*,*) "Done."
 
         ! Determine number of sub- and superinclined panels
-        this%N_subinc = 0
-        this%N_supinc = 0
-        do i=1,this%N_panels
-
-            ! Original panel
-            if (this%panels(i)%r > 0.) then
-                this%N_subinc = this%N_subinc + 1
-            else
-                this%N_supinc = this%N_supinc + 1
-            end if
-
-            ! Mirrored panel
-            if (this%asym_flow) then
-                if (this%panels(i)%r_mir > 0.) then
-                    this%N_subinc = this%N_subinc + 1
-                else
-                    this%N_supinc = this%N_supinc + 1
-                end if
-            end if
-
-        end do
+        call this%count_panel_inclinations()
 
         ! Figure out wake-shedding edges, discontinuous edges, etc.
         ! Edge-characterization is only necessary for flows with wakes
@@ -641,6 +654,40 @@ contains
         if (verbose) write(*,*) "Done."
     
     end subroutine surface_mesh_init_with_flow
+
+
+    subroutine surface_mesh_count_panel_inclinations(this)
+        ! Counts the number of sub- and superinclined panels
+
+        implicit none
+        
+        class(surface_mesh), intent(inout) :: this
+
+        integer :: i
+    
+        this%N_subinc = 0
+        this%N_supinc = 0
+        do i=1,this%N_panels
+
+            ! Original panel
+            if (this%panels(i)%r > 0.) then
+                this%N_subinc = this%N_subinc + 1
+            else
+                this%N_supinc = this%N_supinc + 1
+            end if
+
+            ! Mirrored panel
+            if (this%asym_flow) then
+                if (this%panels(i)%r_mir > 0.) then
+                    this%N_subinc = this%N_subinc + 1
+                else
+                    this%N_supinc = this%N_supinc + 1
+                end if
+            end if
+
+        end do
+        
+    end subroutine surface_mesh_count_panel_inclinations
 
 
     subroutine surface_mesh_characterize_edges(this, freestream)

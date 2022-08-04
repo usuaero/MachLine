@@ -973,9 +973,6 @@ contains
         ! Loop through vertices
         mirror_loop: do m=1,this%N
 
-            ! Check all neighbors for this panel have already been found
-            if (all(this%abutting_panels /= 0)) return
-
             ! Check if vertex is on the mirror plane
             if (this%vertices(m)%ptr%on_mirror_plane) then
 
