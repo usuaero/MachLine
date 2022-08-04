@@ -107,6 +107,7 @@ module panel_mod
             procedure :: get_vertex_index => panel_get_vertex_index
             procedure :: get_midpoint_index => panel_get_midpoint_index
             procedure :: touches_vertex => panel_touches_vertex
+            procedure :: check_abutting_mirror_plane => panel_check_abutting_mirror_plane
 
             ! Update information
             procedure :: point_to_new_vertex => panel_point_to_new_vertex
@@ -952,6 +953,73 @@ contains
     end function panel_touches_vertex
 
 
+    function panel_check_abutting_mirror_plane(this, N_panels, i_endpoints, edge_index) result(abuts)
+        ! Tells whether this panel abuts the mirror plane.
+
+        class(panel),intent(inout) :: this
+        integer,intent(in) :: N_panels
+        integer,dimension(2),intent(out) :: i_endpoints
+        integer,intent(out) :: edge_index
+
+        logical :: abuts
+
+        logical :: already_found_vert_on_mirror_plane
+        integer :: m, m1, temp
+
+        ! Initialize checks
+        already_found_vert_on_mirror_plane = .false.
+        abuts = .false.
+
+        ! Loop through vertices
+        mirror_loop: do m=1,this%N
+
+            ! Check all neighbors for this panel have already been found
+            if (all(this%abutting_panels /= 0)) return
+
+            ! Check if vertex is on the mirror plane
+            if (this%vertices(m)%ptr%on_mirror_plane) then
+
+                ! Previously found a vertex on mirror plane, so the panels are abutting
+                if (already_found_vert_on_mirror_plane) then
+
+                    abuts = .true.
+
+                    ! Store the second shared vertex
+                    i_endpoints(2) = this%get_vertex_index(m)
+
+                    ! Check order
+                    if (m1 == 1 .and. m == 3) then
+                        temp = i_endpoints(1)
+                        i_endpoints(1) = i_endpoints(2)
+                        i_endpoints(2) = temp
+                    end if
+
+                    ! Store adjacent panel
+                    if (m-m1 == 1) then
+                        this%abutting_panels(m1) = this%index + N_panels
+                        edge_index = m1
+                    else
+                        this%abutting_panels(m) = this%index + N_panels
+                        edge_index = m
+                    end if
+
+                    return
+
+                ! First vertex on the mirror plane
+                else
+
+                    already_found_vert_on_mirror_plane = .true.
+                    i_endpoints(1) = this%get_vertex_index(m)
+                    m1 = m
+
+                end if
+            end if
+
+        end do mirror_loop
+        
+    end function panel_check_abutting_mirror_plane
+
+
     subroutine panel_point_to_new_vertex(this, new_vertex)
         ! Updates the panel to point to this new vertex (assumed to be a copy of a current vertex)
 
@@ -1607,6 +1675,8 @@ contains
             int%H313 = sum(geom%v_eta*int%F121) - geom%h*int%hH113
             int%H223 = -sum(geom%v_xi*int%F121)
             int%H133 = int%H111 - sum(geom%v_eta*int%F121)
+
+            ! TODO: Add checks
         end if
 
     end subroutine panel_calc_subsonic_panel_integrals
@@ -1693,7 +1763,10 @@ contains
             int%H133 = int%H111 - sum(geom%v_eta*int%F121)
 
             ! Run checks
-            if (abs(sum(geom%v_eta*int%F211) - int%H223) > 1e-12) then
+            if (abs(sum(geom%v_eta*int%F211) + int%H223) > 1e-12) then
+                write(*,*)
+                write(*,*) sum(geom%v_xi*int%F121)
+                write(*,*) sum(geom%v_eta*int%F211)
                 write(*,*) "!!! Influence calculation failed for H(2,2,3). Quitting..."
                 stop
             end if

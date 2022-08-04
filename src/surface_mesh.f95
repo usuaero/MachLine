@@ -22,6 +22,7 @@ module surface_mesh_mod
     type surface_mesh
 
         integer :: N_verts, N_panels, N_cp, N_edges, N_true_verts ! as in, not midpoints
+        integer :: N_subinc, N_supinc
         type(vertex),allocatable,dimension(:) :: vertices
         type(panel),allocatable,dimension(:) :: panels
         type(edge),allocatable,dimension(:) :: edges
@@ -141,7 +142,10 @@ contains
             write(*,*) "MachLine cannot read ", extension, " type mesh files. Quitting..."
             stop
         end if
+
+        ! Store some mesh parameters
         this%N_true_verts = this%N_verts
+
         if (verbose) write(*,*) "Done."
 
         ! Display mesh info
@@ -232,7 +236,7 @@ contains
 
         class(surface_mesh),intent(inout),target :: this
 
-        integer :: i, j, m, n, m1, n1, temp, i_edge, N_edges, i_mid, N_orig_verts
+        integer :: i, j, m, n, m1, n1, temp, i_edge, N_edges, i_mid, N_orig_verts, edge_index
         logical :: already_found_shared, watertight
         real :: distance
         integer,dimension(2) :: i_endpoints
@@ -352,77 +356,32 @@ contains
             ! For each panel, check if it abuts the mirror plane
             if (this%mirrored) then
 
-                ! Initialize checks
-                already_found_shared = .false.
+                if (this%panels(i)%check_abutting_mirror_plane(this%N_panels, i_endpoints, edge_index)) then
 
-                ! Loop through vertices
-                mirror_loop: do m=1,this%panels(i)%N
+                    !$OMP critical
+                    
+                    ! Update number of edges
+                    this%N_edges = this%N_edges + 1
+                    i_edge = this%N_edges
 
-                    ! Check if we've found all neighbors for this panel
-                    if (all(this%panels(i)%abutting_panels /= 0)) then
-                        exit mirror_loop
-                    end if
+                    ! Store adjacent vertices
+                    call this%store_adjacent_vertices(i_endpoints, i_edge)
 
-                    ! Check if vertex is on the mirror plane
-                    n = this%panels(i)%get_vertex_index(m)
-                    if (this%vertices(n)%on_mirror_plane) then
+                    ! Store edge index for this panel
+                    edge_index1(i_edge) = edge_index
 
-                        ! Previously found a vertex on mirror plane, so the panels are abutting
-                        if (already_found_shared) then
+                    ! Store in arrays for later storage in edge objects
+                    panel1(i_edge) = i
+                    panel2(i_edge) = i+this%N_panels
+                    vertex1(i_edge) = i_endpoints(1)
+                    vertex2(i_edge) = i_endpoints(2)
+                    on_mirror_plane(i_edge) = .true.
+                    edge_index2(i_edge) = 0 ! Just a placeholder since the second panel doesn't technically exist
+                    edge_length(i_edge) = dist(this%vertices(i_endpoints(1))%loc, this%vertices(i_endpoints(2))%loc)
 
-                            ! Store the second shared vertex
-                            i_endpoints(2) = n
+                    !$OMP end critical
 
-                            ! Check order
-                            if (m1 == 1 .and. m == 3) then
-                                temp = i_endpoints(1)
-                                i_endpoints(1) = i_endpoints(2)
-                                i_endpoints(2) = temp
-                            end if
-
-                            !$OMP critical
-                            
-                            ! Update number of edges
-                            this%N_edges = this%N_edges + 1
-                            i_edge = this%N_edges
-
-                            ! Store adjacent vertices
-                            call this%store_adjacent_vertices(i_endpoints, i_edge)
-
-                            ! Store adjacent panel
-                            if (m-m1 == 1) then
-                                this%panels(i)%abutting_panels(m1) = i+this%N_panels
-                                edge_index1(i_edge) = m1
-                            else
-                                this%panels(i)%abutting_panels(m) = i+this%N_panels
-                                edge_index1(i_edge) = m
-                            end if
-
-                            ! Store in arrays for later storage in edge objects
-                            panel1(i_edge) = i
-                            panel2(i_edge) = i+this%N_panels
-                            vertex1(i_edge) = i_endpoints(1)
-                            vertex2(i_edge) = i_endpoints(2)
-                            on_mirror_plane(i_edge) = .true.
-                            edge_index2(i_edge) = 0 ! Just a placeholder since the second panel doesn't technically exist
-                            edge_length(i_edge) = dist(this%vertices(i_endpoints(1))%loc, this%vertices(i_endpoints(2))%loc)
-
-                            !$OMP end critical
-
-                            ! Break out of loop
-                            exit mirror_loop
-
-                        ! First vertex on the mirror plane
-                        else
-
-                            already_found_shared = .true.
-                            i_endpoints(1) = n
-                            m1 = m
-
-                        end if
-                    end if
-
-                end do mirror_loop
+                end if
 
             end if
 
@@ -589,6 +548,29 @@ contains
         !$OMP parallel do schedule(static)
         do i=1,this%N_panels
             call this%panels(i)%init_with_flow(freestream, this%asym_flow, this%mirror_plane)
+        end do
+
+        ! Determine number of sub- and superinclined panels
+        this%N_subinc = 0
+        this%N_supinc = 0
+        do i=1,this%N_panels
+
+            ! Original panel
+            if (this%panels(i)%r > 0.) then
+                this%N_subinc = this%N_subinc + 1
+            else
+                this%N_supinc = this%N_supinc + 1
+            end if
+
+            ! Mirrored panel
+            if (this%asym_flow) then
+                if (this%panels(i)%r_mir > 0.) then
+                    this%N_subinc = this%N_subinc + 1
+                else
+                    this%N_supinc = this%N_supinc + 1
+                end if
+            end if
+
         end do
 
         ! Figure out wake-shedding edges, discontinuous edges, etc.

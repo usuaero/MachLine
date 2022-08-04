@@ -29,7 +29,7 @@ module panel_solver_mod
         real,dimension(3) :: C_F
         real,dimension(:,:),allocatable :: A
         real,dimension(:), allocatable :: b
-        integer :: N, wake_start, N_cells, block_size, max_iterations
+        integer :: N, wake_start, N_cells, block_size, max_iterations, N_unknown, N_d_unknown, N_s_unknown
 
         contains
 
