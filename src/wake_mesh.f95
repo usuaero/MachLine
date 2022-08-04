@@ -10,6 +10,7 @@ module wake_mesh_mod
     use math_mod
     use flow_mod
     use edge_mod
+    use vtk_mod
 
     implicit none
 
@@ -28,6 +29,7 @@ module wake_mesh_mod
             procedure :: has_zero_area => wake_mesh_has_zero_area
             procedure :: init_panel => wake_mesh_init_panel
             procedure :: init_midpoints => wake_mesh_init_midpoints
+            procedure :: write_wake => wake_mesh_write_wake
 
     end type wake_mesh
 
@@ -599,6 +601,55 @@ contains
         end do
 
     end subroutine wake_mesh_init_midpoints
+
+
+    subroutine wake_mesh_write_wake(this, wake_file, exported, mu)
+        ! Writes the wake out to file
+
+        implicit none
+        
+        class(wake_mesh),intent(in) :: this
+        character(len=:),allocatable,intent(in) :: wake_file
+        logical,intent(out) :: exported
+        real,dimension(:),allocatable,intent(in),optional :: mu
+
+        type(vtk_out) :: wake_vtk
+        integer :: i
+        real,dimension(:),allocatable :: mu_on_wake
+
+        ! Clear old file
+        call delete_file(wake_file)
+
+        if (this%N_panels > 0) then
+
+            ! Write out geometry
+            call wake_vtk%begin(wake_file)
+            call wake_vtk%write_points(this%vertices)
+            call wake_vtk%write_panels(this%panels, subdivide=doublet_order==2)
+            call wake_vtk%write_cell_normals(this%panels)
+
+            if (present(mu)) then
+
+                ! Calculate doublet strengths
+                allocate(mu_on_wake(this%N_verts))
+                do i=1,this%N_verts
+                    mu_on_wake(i) = mu(this%vertices(i)%top_parent)-mu(this%vertices(i)%bot_parent)
+                end do
+
+                ! Write doublet strengths
+                call wake_vtk%write_point_scalars(mu_on_wake, "mu")
+            end if
+
+            ! Finish up
+            call wake_vtk%finish()
+            exported = .true.
+
+        else
+            exported = .false.
+
+        end if
+        
+    end subroutine wake_mesh_write_wake
 
 
 end module wake_mesh_mod

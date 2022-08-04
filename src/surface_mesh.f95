@@ -1626,6 +1626,7 @@ contains
         real,dimension(:,:),allocatable :: cents
         type(vtk_out) :: body_vtk, wake_vtk, cp_vtk
         integer :: i
+        logical :: wake_exported
 
         ! Write out data for body
         if (body_file /= 'none') then
@@ -1641,34 +1642,12 @@ contains
         
         ! Write out data for wake
         if (wake_file /= 'none') then
+            call this%wake%write_wake(wake_file, wake_exported, this%mu)
 
-            ! Clear old file
-            call delete_file(wake_file)
-
-            if (this%wake%N_panels > 0) then
-
-                ! Write out geometry
-                call wake_vtk%begin(wake_file)
-                call wake_vtk%write_points(this%wake%vertices)
-                call wake_vtk%write_panels(this%wake%panels, subdivide=doublet_order==2)
-                call wake_vtk%write_cell_normals(this%wake%panels)
-
-                ! Calculate doublet strengths
-                allocate(mu_on_wake(this%wake%N_verts))
-                do i=1,this%wake%N_verts
-                    mu_on_wake(i) = this%mu(this%wake%vertices(i)%top_parent)-this%mu(this%wake%vertices(i)%bot_parent)
-                end do
-
-                ! Write doublet strengths
-                call wake_vtk%write_point_scalars(mu_on_wake, "mu")
-
-                ! Finish up
-                call wake_vtk%finish()
+            if (wake_exported) then
                 if (verbose) write(*,'(a30 a)') "    Wake: ", wake_file
-
             else
                 if (verbose) write(*,'(a30 a)') "    Wake: ", "no wake to export"
-
             end if
         end if
         
