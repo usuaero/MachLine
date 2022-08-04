@@ -76,6 +76,8 @@ module surface_mesh_mod
 
             ! Post-processing
             procedure :: output_results => surface_mesh_output_results
+            procedure :: write_body => surface_mesh_write_body
+            procedure :: write_body_mirror => surface_mesh_write_body_mirror
 
     end type surface_mesh
     
@@ -630,25 +632,7 @@ contains
 
         ! Write out body file to ensure it's been parsed correctly
         if (body_file /= 'none') then
-
-            ! Clear old file
-            call delete_file(body_file)
-
-            ! Get panel inclinations
-            allocate(panel_inclinations(this%N_panels))
-            do i=1,this%N_panels
-                panel_inclinations(i) = this%panels(i)%r
-            end do
-
-            ! Write geometry
-            call body_vtk%begin(body_file)
-            call body_vtk%write_points(this%vertices)
-            call body_vtk%write_panels(this%panels)
-            call body_vtk%write_cell_normals(this%panels)
-
-            ! Other
-            call body_vtk%write_cell_scalars(panel_inclinations, "inclination")
-            call body_vtk%finish()
+            call this%write_body(body_file, .false.)
         end if
 
         if (verbose) write(*,*) "Done."
@@ -1645,144 +1629,14 @@ contains
 
         ! Write out data for body
         if (body_file /= 'none') then
-
-            ! Clear old file
-            call delete_file(body_file)
-
-            ! Get panel inclinations and centroids
-            allocate(panel_inclinations(this%N_panels))
-            allocate(cents(3,this%N_panels))
-            do i=1,this%N_panels
-                panel_inclinations(i) = this%panels(i)%r
-                cents(:,i) = this%panels(i)%centr
-            end do
-
-            ! Write geometry
-            call body_vtk%begin(body_file)
-            call body_vtk%write_points(this%vertices)
-            call body_vtk%write_panels(this%panels, subdivide=doublet_order==2)
-
-            ! Pressures
-            if (allocated(this%C_p_inc)) then
-                call body_vtk%write_cell_scalars(this%C_p_inc(1:this%N_panels), "C_p_inc")
-            end if
-            if (allocated(this%C_p_ise)) then
-                call body_vtk%write_cell_scalars(this%C_p_ise(1:this%N_panels), "C_p_ise")
-            end if
-            if (allocated(this%C_p_2nd)) then
-                call body_vtk%write_cell_scalars(this%C_p_2nd(1:this%N_panels), "C_p_2nd")
-            end if
-            if (allocated(this%C_p_lin)) then
-                call body_vtk%write_cell_scalars(this%C_p_lin(1:this%N_panels), "C_p_lin")
-            end if
-            if (allocated(this%C_p_sln)) then
-                call body_vtk%write_cell_scalars(this%C_p_sln(1:this%N_panels), "C_p_sln")
-            end if
-
-            ! Corrected pressures
-            if (allocated(this%C_p_pg)) then
-                call body_vtk%write_cell_scalars(this%C_p_pg(1:this%N_panels), "C_p_PG")
-            end if
-            if (allocated(this%C_p_kt)) then
-                call body_vtk%write_cell_scalars(this%C_p_kt(1:this%N_panels), "C_p_KT")
-            end if
-            if (allocated(this%C_p_lai)) then
-                call body_vtk%write_cell_scalars(this%C_p_lai(1:this%N_panels), "C_p_L")
-            end if
-
-            ! Constant sources
-            if (source_order == 0) then
-                call body_vtk%write_cell_scalars(this%sigma(1:this%N_panels), "sigma")
-            end if
-
-            ! Other
-            call body_vtk%write_cell_scalars(panel_inclinations, "inclination")
-            call body_vtk%write_cell_vectors(this%v(:,1:this%N_panels), "v")
-            call body_vtk%write_cell_vectors(this%dC_f(:,1:this%N_panels), "dC_f")
-            call body_vtk%write_cell_vectors(cents, "centroid")
-
-            ! Linear sources
-            if (source_order == 1) then
-                call body_vtk%write_point_scalars(this%sigma(1:this%N_verts), "sigma")
-            end if
-
-            call body_vtk%write_point_scalars(this%mu(1:this%N_verts), "mu")
-            call body_vtk%write_point_scalars(this%Phi_u(1:this%N_verts), "Phi_u")
-            call body_vtk%finish()
-
+            call this%write_body(body_file, .true.)
             if (verbose) write(*,'(a30 a)') "    Surface: ", body_file
         end if
 
         ! Write out data for mirrored body
         if (mirrored_body_file /= 'none' .and. this%asym_flow) then
-
-            ! Clear old file
-            call delete_file(mirrored_body_file)
-
-            ! Get panel inclinations
-            if (.not. allocated(panel_inclinations)) then
-                allocate(panel_inclinations(this%N_panels))
-                allocate(cents(3,this%N_panels))
-            end if
-            do i=1,this%N_panels
-                panel_inclinations(i) = this%panels(i)%r_mir
-                cents(:,i) = this%panels(i)%centr_mir
-            end do
-
-            ! Write geometry
-            call body_vtk%begin(mirrored_body_file)
-            call body_vtk%write_points(this%vertices, this%mirror_plane)
-            call body_vtk%write_panels(this%panels, subdivide=doublet_order==2)
-
-            ! Pressures
-            if (allocated(this%C_p_inc)) then
-                call body_vtk%write_cell_scalars(this%C_p_inc(this%N_panels+1:this%N_panels*2), "C_p_inc")
-            end if
-            if (allocated(this%C_p_ise)) then
-                call body_vtk%write_cell_scalars(this%C_p_ise(this%N_panels+1:this%N_panels*2), "C_p_ise")
-            end if
-            if (allocated(this%C_p_2nd)) then
-                call body_vtk%write_cell_scalars(this%C_p_2nd(this%N_panels+1:this%N_panels*2), "C_p_2nd")
-            end if
-            if (allocated(this%C_p_lin)) then
-                call body_vtk%write_cell_scalars(this%C_p_lin(this%N_panels+1:this%N_panels*2), "C_p_lin")
-            end if
-            if (allocated(this%C_p_sln)) then
-                call body_vtk%write_cell_scalars(this%C_p_sln(this%N_panels+1:this%N_panels*2), "C_p_sln")
-            end if
-
-            ! Corrected pressures
-            if (allocated(this%C_p_pg)) then
-                call body_vtk%write_cell_scalars(this%C_p_pg(this%N_panels+1:this%N_panels*2), "C_p_PG")
-            end if
-            if (allocated(this%C_p_kt)) then
-                call body_vtk%write_cell_scalars(this%C_p_kt(this%N_panels+1:this%N_panels*2), "C_p_KT")
-            end if
-            if (allocated(this%C_p_lai)) then
-                call body_vtk%write_cell_scalars(this%C_p_lai(this%N_panels+1:this%N_panels*2), "C_p_L")
-            end if
-
-            ! Constant sources
-            if (source_order == 0) then
-                call body_vtk%write_cell_scalars(this%sigma(this%N_panels+1:this%N_panels*2), "sigma")
-            end if
-
-            ! Other
-            call body_vtk%write_cell_vectors(this%v(:,this%N_panels+1:this%N_panels*2), "v")
-            call body_vtk%write_cell_vectors(this%dC_f(:,this%N_panels+1:this%N_panels*2), "dC_f")
-            call body_vtk%write_cell_vectors(cents, "centroid")
-
-            ! Linear sources
-            if (source_order == 1) then
-                call body_vtk%write_point_scalars(this%sigma(this%N_verts+1:this%N_verts*2), "sigma")
-            end if
-
-            call body_vtk%write_point_scalars(this%mu(this%N_cp+1:this%N_cp*2), "mu")
-            call body_vtk%write_point_scalars(this%Phi_u(this%N_verts+1:this%N_verts*2), "Phi_u")
-            call body_vtk%finish()
-
+            call this%write_body_mirror(body_file, .true.)
             if (verbose) write(*,'(a30 a)') "    Mirrored surface: ", mirrored_body_file
-
         end if
         
         ! Write out data for wake
@@ -1856,5 +1710,175 @@ contains
     
     end subroutine surface_mesh_output_results
 
+
+    subroutine surface_mesh_write_body(this, body_file, solved)
+        ! Writes the body and results (if solved) out to file
+
+        implicit none
+        
+        class(surface_mesh),intent(in) :: this
+        character(len=:),allocatable,intent(in) :: body_file
+        logical,intent(in) :: solved
+
+        type(vtk_out) :: body_vtk
+        integer :: i
+        real,dimension(:),allocatable :: panel_inclinations
+        real,dimension(:,:),allocatable :: cents
+
+        ! Clear old file
+        call delete_file(body_file)
+
+        ! Get panel inclinations and centroids
+        allocate(panel_inclinations(this%N_panels))
+        allocate(cents(3,this%N_panels))
+        do i=1,this%N_panels
+            panel_inclinations(i) = this%panels(i)%r
+            cents(:,i) = this%panels(i)%centr
+        end do
+
+        ! Write geometry
+        call body_vtk%begin(body_file)
+        call body_vtk%write_points(this%vertices)
+        call body_vtk%write_panels(this%panels, subdivide=doublet_order==2)
+
+        if (solved) then
+
+            ! Pressures
+            if (allocated(this%C_p_inc)) then
+                call body_vtk%write_cell_scalars(this%C_p_inc(1:this%N_panels), "C_p_inc")
+            end if
+            if (allocated(this%C_p_ise)) then
+                call body_vtk%write_cell_scalars(this%C_p_ise(1:this%N_panels), "C_p_ise")
+            end if
+            if (allocated(this%C_p_2nd)) then
+                call body_vtk%write_cell_scalars(this%C_p_2nd(1:this%N_panels), "C_p_2nd")
+            end if
+            if (allocated(this%C_p_lin)) then
+                call body_vtk%write_cell_scalars(this%C_p_lin(1:this%N_panels), "C_p_lin")
+            end if
+            if (allocated(this%C_p_sln)) then
+                call body_vtk%write_cell_scalars(this%C_p_sln(1:this%N_panels), "C_p_sln")
+            end if
+
+            ! Corrected pressures
+            if (allocated(this%C_p_pg)) then
+                call body_vtk%write_cell_scalars(this%C_p_pg(1:this%N_panels), "C_p_PG")
+            end if
+            if (allocated(this%C_p_kt)) then
+                call body_vtk%write_cell_scalars(this%C_p_kt(1:this%N_panels), "C_p_KT")
+            end if
+            if (allocated(this%C_p_lai)) then
+                call body_vtk%write_cell_scalars(this%C_p_lai(1:this%N_panels), "C_p_L")
+            end if
+
+            ! Constant sources
+            if (source_order == 0) then
+                call body_vtk%write_cell_scalars(this%sigma(1:this%N_panels), "sigma")
+            end if
+
+        end if
+
+        ! Other
+        call body_vtk%write_cell_scalars(panel_inclinations, "inclination")
+        call body_vtk%write_cell_vectors(cents, "centroid")
+        if (solved) then
+            call body_vtk%write_cell_vectors(this%v(:,1:this%N_panels), "v")
+            call body_vtk%write_cell_vectors(this%dC_f(:,1:this%N_panels), "dC_f")
+
+            ! Linear sources
+            if (source_order == 1) then
+                call body_vtk%write_point_scalars(this%sigma(1:this%N_verts), "sigma")
+            end if
+
+            call body_vtk%write_point_scalars(this%mu(1:this%N_verts), "mu")
+            call body_vtk%write_point_scalars(this%Phi_u(1:this%N_verts), "Phi_u")
+        end if
+
+        ! Finalize
+        call body_vtk%finish()
+    
+    end subroutine surface_mesh_write_body
+
+
+    subroutine surface_mesh_write_body_mirror(this, mirrored_body_file, solved)
+        ! Writes the body mirror and results (if solved) out to file
+
+        implicit none
+        
+        class(surface_mesh),intent(in) :: this
+        character(len=:),allocatable,intent(in) :: mirrored_body_file
+        logical,intent(in) :: solved
+
+        type(vtk_out) :: body_vtk
+        integer :: i
+        real,dimension(:),allocatable :: panel_inclinations
+        real,dimension(:,:),allocatable :: cents
+
+        ! Clear old file
+        call delete_file(mirrored_body_file)
+
+        ! Get panel inclinations
+        if (.not. allocated(panel_inclinations)) then
+            allocate(panel_inclinations(this%N_panels))
+            allocate(cents(3,this%N_panels))
+        end if
+        do i=1,this%N_panels
+            panel_inclinations(i) = this%panels(i)%r_mir
+            cents(:,i) = this%panels(i)%centr_mir
+        end do
+
+        ! Write geometry
+        call body_vtk%begin(mirrored_body_file)
+        call body_vtk%write_points(this%vertices, this%mirror_plane)
+        call body_vtk%write_panels(this%panels, subdivide=doublet_order==2)
+
+        ! Pressures
+        if (allocated(this%C_p_inc)) then
+            call body_vtk%write_cell_scalars(this%C_p_inc(this%N_panels+1:this%N_panels*2), "C_p_inc")
+        end if
+        if (allocated(this%C_p_ise)) then
+            call body_vtk%write_cell_scalars(this%C_p_ise(this%N_panels+1:this%N_panels*2), "C_p_ise")
+        end if
+        if (allocated(this%C_p_2nd)) then
+            call body_vtk%write_cell_scalars(this%C_p_2nd(this%N_panels+1:this%N_panels*2), "C_p_2nd")
+        end if
+        if (allocated(this%C_p_lin)) then
+            call body_vtk%write_cell_scalars(this%C_p_lin(this%N_panels+1:this%N_panels*2), "C_p_lin")
+        end if
+        if (allocated(this%C_p_sln)) then
+            call body_vtk%write_cell_scalars(this%C_p_sln(this%N_panels+1:this%N_panels*2), "C_p_sln")
+        end if
+
+        ! Corrected pressures
+        if (allocated(this%C_p_pg)) then
+            call body_vtk%write_cell_scalars(this%C_p_pg(this%N_panels+1:this%N_panels*2), "C_p_PG")
+        end if
+        if (allocated(this%C_p_kt)) then
+            call body_vtk%write_cell_scalars(this%C_p_kt(this%N_panels+1:this%N_panels*2), "C_p_KT")
+        end if
+        if (allocated(this%C_p_lai)) then
+            call body_vtk%write_cell_scalars(this%C_p_lai(this%N_panels+1:this%N_panels*2), "C_p_L")
+        end if
+
+        ! Constant sources
+        if (source_order == 0) then
+            call body_vtk%write_cell_scalars(this%sigma(this%N_panels+1:this%N_panels*2), "sigma")
+        end if
+
+        ! Other
+        call body_vtk%write_cell_vectors(this%v(:,this%N_panels+1:this%N_panels*2), "v")
+        call body_vtk%write_cell_vectors(this%dC_f(:,this%N_panels+1:this%N_panels*2), "dC_f")
+        call body_vtk%write_cell_vectors(cents, "centroid")
+
+        ! Linear sources
+        if (source_order == 1) then
+            call body_vtk%write_point_scalars(this%sigma(this%N_verts+1:this%N_verts*2), "sigma")
+        end if
+
+        call body_vtk%write_point_scalars(this%mu(this%N_cp+1:this%N_cp*2), "mu")
+        call body_vtk%write_point_scalars(this%Phi_u(this%N_verts+1:this%N_verts*2), "Phi_u")
+        call body_vtk%finish()
+
+    end subroutine surface_mesh_write_body_mirror
 
 end module surface_mesh_mod
