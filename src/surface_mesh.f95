@@ -78,6 +78,8 @@ module surface_mesh_mod
             procedure :: output_results => surface_mesh_output_results
             procedure :: write_body => surface_mesh_write_body
             procedure :: write_body_mirror => surface_mesh_write_body_mirror
+            procedure :: write_control_points => surface_mesh_write_control_points
+            procedure :: write_mirrored_control_points => surface_mesh_write_mirrored_control_points
 
     end type surface_mesh
     
@@ -1622,21 +1624,17 @@ contains
         character(len=:),allocatable,intent(in) :: body_file, wake_file, control_point_file
         character(len=:),allocatable,intent(in) :: mirrored_body_file, mirrored_control_point_file
 
-        real,dimension(:),allocatable :: mu_on_wake, panel_inclinations
-        real,dimension(:,:),allocatable :: cents
-        type(vtk_out) :: body_vtk, wake_vtk, cp_vtk
-        integer :: i
         logical :: wake_exported
 
         ! Write out data for body
         if (body_file /= 'none') then
-            call this%write_body(body_file, .true.)
+            call this%write_body(body_file, solved=.true.)
             if (verbose) write(*,'(a30 a)') "    Surface: ", body_file
         end if
 
         ! Write out data for mirrored body
         if (mirrored_body_file /= 'none' .and. this%asym_flow) then
-            call this%write_body_mirror(body_file, .true.)
+            call this%write_body_mirror(body_file, solved=.true.)
             if (verbose) write(*,'(a30 a)') "    Mirrored surface: ", mirrored_body_file
         end if
         
@@ -1653,36 +1651,14 @@ contains
         
         ! Write out data for control points
         if (control_point_file /= 'none') then
-
-            ! Clear old file
-            call delete_file(control_point_file)
-
-            ! Write out data
-            call cp_vtk%begin(control_point_file)
-            call cp_vtk%write_points(this%cp)
-            call cp_vtk%write_vertices(this%N_cp)
-            call cp_vtk%write_point_scalars(this%phi_cp(1:this%N_cp), "phi")
-            call cp_vtk%write_point_scalars(this%phi_cp_mu(1:this%N_cp), "phi_mu")
-            call cp_vtk%write_point_scalars(this%phi_cp_sigma(1:this%N_cp), "phi_sigma")
-            call cp_vtk%finish()
+            call this%write_control_points(control_point_file, solved=.true.)
 
             if (verbose) write(*,'(a30 a)') "    Control points: ", control_point_file
         end if
         
         ! Write out data for mirrored control points
         if (mirrored_control_point_file /= 'none' .and. this%asym_flow) then
-
-            ! Clear old file
-            call delete_file(mirrored_control_point_file)
-
-            ! Write out data
-            call cp_vtk%begin(mirrored_control_point_file)
-            call cp_vtk%write_points(this%cp_mirrored)
-            call cp_vtk%write_vertices(this%N_cp)
-            call cp_vtk%write_point_scalars(this%phi_cp(this%N_cp+1:this%N_cp*2), "phi")
-            call cp_vtk%write_point_scalars(this%phi_cp_mu(this%N_cp+1:this%N_cp*2), "phi_mu")
-            call cp_vtk%write_point_scalars(this%phi_cp_sigma(this%N_cp+1:this%N_cp*2), "phi_sigma")
-            call cp_vtk%finish()
+            call this%write_mirrored_control_points(mirrored_control_point_file, solved=.true.)
 
             if (verbose) write(*,'(a30 a)') "    Mirrored control points: ", mirrored_control_point_file
         end if
@@ -1859,5 +1835,69 @@ contains
         call body_vtk%finish()
 
     end subroutine surface_mesh_write_body_mirror
+
+
+    subroutine surface_mesh_write_control_points(this, control_point_file, solved)
+        ! Writes the control points (and results if solved) out to file
+
+        implicit none
+        
+        class(surface_mesh),intent(in) :: this
+        character(len=:),allocatable,intent(in) :: control_point_file
+        logical,intent(in) :: solved
+
+        type(vtk_out) :: cp_vtk
+
+        ! Clear old file
+        call delete_file(control_point_file)
+
+        ! Write out data
+        call cp_vtk%begin(control_point_file)
+        call cp_vtk%write_points(this%cp)
+        call cp_vtk%write_vertices(this%N_cp)
+        
+        ! Results
+        if (solved) then
+            call cp_vtk%write_point_scalars(this%phi_cp(1:this%N_cp), "phi")
+            call cp_vtk%write_point_scalars(this%phi_cp_mu(1:this%N_cp), "phi_mu")
+            call cp_vtk%write_point_scalars(this%phi_cp_sigma(1:this%N_cp), "phi_sigma")
+        end if
+
+        call cp_vtk%finish()
+    
+        
+    end subroutine surface_mesh_write_control_points
+
+
+    subroutine surface_mesh_write_mirrored_control_points(this, control_point_file, solved)
+        ! Writes the control points (and results if solved) out to file
+
+        implicit none
+        
+        class(surface_mesh),intent(in) :: this
+        character(len=:),allocatable,intent(in) :: control_point_file
+        logical,intent(in) :: solved
+
+        type(vtk_out) :: cp_vtk
+
+        ! Clear old file
+        call delete_file(control_point_file)
+
+        ! Write out data
+        call cp_vtk%begin(control_point_file)
+        call cp_vtk%write_points(this%cp)
+        call cp_vtk%write_vertices(this%N_cp)
+        
+        ! Results
+        if (solved) then
+            call cp_vtk%write_point_scalars(this%phi_cp(this%N_cp+1:this%N_cp*2), "phi")
+            call cp_vtk%write_point_scalars(this%phi_cp_mu(this%N_cp+1:this%N_cp*2), "phi_mu")
+            call cp_vtk%write_point_scalars(this%phi_cp_sigma(this%N_cp+1:this%N_cp*2), "phi_sigma")
+        end if
+
+        call cp_vtk%finish()
+    
+        
+    end subroutine surface_mesh_write_mirrored_control_points
 
 end module surface_mesh_mod

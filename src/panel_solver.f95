@@ -183,16 +183,7 @@ contains
         
         ! Write out control point geometry
         if (control_point_file /= 'none') then
-
-            ! Clear old file
-            call delete_file(control_point_file)
-
-            ! Write out points
-            call cp_vtk%begin(control_point_file)
-            call cp_vtk%write_points(body%cp)
-            call cp_vtk%write_vertices(body%N_cp)
-            call cp_vtk%finish()
-
+            call body%write_control_points(control_point_file, solved=.false.)
         end if
 
         ! Calculate domains of dependence
