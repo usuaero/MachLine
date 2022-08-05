@@ -35,6 +35,8 @@ module panel_solver_mod
 
             ! Initialization
             procedure :: init => panel_solver_init
+            procedure :: parse_solver_settings => panel_solver_parse_solver_settings
+            procedure :: parse_processing_settings => panel_solver_parse_processing_settings
             procedure :: init_dirichlet => panel_solver_init_dirichlet
             procedure :: calc_domains_of_dependence => panel_solver_calc_domains_of_dependence
 
@@ -72,13 +74,40 @@ contains
         type(flow),intent(inout) :: freestream
         character(len=:),allocatable,intent(in) :: control_point_file
 
-        integer :: i, j
-        type(vtk_out) :: cp_vtk
-
         ! Store
         this%freestream = freestream
 
-        ! Get solver_settings
+        ! Get solver settings
+        call this%parse_solver_settings(solver_settings)
+
+        ! Get post-processing settings
+        call this%parse_processing_settings(processing_settings)
+
+        ! Initialize based on formulation
+        if (this%morino .or. this%formulation == 'source-free') then
+            call this%init_dirichlet(solver_settings, body)
+        end if
+        
+        ! Write out control point geometry
+        if (control_point_file /= 'none') then
+            call body%write_control_points(control_point_file, solved=.false.)
+        end if
+
+        ! Calculate domains of dependence
+        call this%calc_domains_of_dependence(body)
+
+    end subroutine panel_solver_init
+
+
+    subroutine panel_solver_parse_solver_settings(this, solver_settings)
+        ! Parses the solver settings from the input
+
+        implicit none
+        
+        class(panel_solver), intent(inout) :: this
+        type(json_value),pointer, intent(in) :: solver_settings
+        
+        ! Parse settings
         call json_xtnsn_get(solver_settings, 'formulation', this%formulation, 'morino')        
         call json_xtnsn_get(solver_settings, 'matrix_solver', this%matrix_solver, 'LU')
         call json_xtnsn_get(solver_settings, 'block_size', this%block_size, 100)
@@ -88,6 +117,17 @@ contains
         call json_xtnsn_get(solver_settings, 'preconditioner', this%preconditioner, 'NONE')
         call json_xtnsn_get(solver_settings, 'write_A_and_b', this%write_A_and_b, .false.)
         this%morino = this%formulation == 'morino'
+        
+    end subroutine panel_solver_parse_solver_settings
+
+
+    subroutine panel_solver_parse_processing_settings(this, processing_settings)
+        ! Parses the post-processing settings from the input
+
+        implicit none
+        
+        class(panel_solver), intent(inout) :: this
+        type(json_value),pointer, intent(in) :: processing_settings
         
         ! Get incompressible/isentropic pressure rules
         if (this%freestream%M_inf > 0.) then
@@ -100,8 +140,9 @@ contains
 
             ! Notify user if we're throwing out the incompressible rule
             if (this%incompressible_rule) then
-                write(*,*) "!!! The incompressible pressure rule cannot be used for M > 0."
+                write(*,*) "!!! The incompressible pressure rule cannot be used for M > 0. Switching to the isentropic rule."
                 this%incompressible_rule = .false.
+                this%isentropic_rule = .true.
             end if
 
         else if (this%freestream%M_inf == 0.) then
@@ -112,22 +153,22 @@ contains
             ! Check for isentropic
             call json_xtnsn_get(processing_settings, 'pressure_rules.isentropic', this%isentropic_rule, .false.)
 
-            ! Notify user if pressure rule applied is changed based on selected freestream mach number
+            ! Notify user if pressure rule applied is changed based on selected freestream Mach number
             if (this%isentropic_rule) then
-                write(*,*) "!!! The isentropic pressure rule cannot be used for M = 0."
+                write(*,*) "!!! The isentropic pressure rule cannot be used for M = 0. Switching to the incompressible rule."
                 this%isentropic_rule = .false.
+                this%incompressible_rule = .true.
             end if
 
         else
 
             ! MachLine does not support a negative freestream Mach number
-            write(*,*) "!!! MachLine does not support a negative freestream Mach number. Quitting..."
+            write(*,*) "!!! A negative freestream Mach number is not allowed. Quitting..."
             stop
 
         end if
 
-        ! Get other pressure rules
-        call json_xtnsn_get(processing_settings, 'pressure_rules.second-order', this%second_order_rule, .false.)
+        ! Get other pressure rules (these are applicable for all Mach numbers)
         call json_xtnsn_get(processing_settings, 'pressure_rules.second-order', this%second_order_rule, .false.)
         call json_xtnsn_get(processing_settings, 'pressure_rules.slender-body', this%slender_rule, .false.)
         call json_xtnsn_get(processing_settings, 'pressure_rules.linear', this%linear_rule, .false.)
@@ -138,17 +179,17 @@ contains
         call json_xtnsn_get(processing_settings, 'subsonic_pressure_correction.karman-tsien', this%karman_tsien, .false.)
         call json_xtnsn_get(processing_settings, 'subsonic_pressure_correction.laitone', this%laitone, .false.)
         
-        ! Check the correction Mach number is positive
-        if (this%corrected_M_inf < 0.0) then
-            write(*,*) "!!! The correction Mach number cannot be a negative number. Quitting..."
+        ! Check the correction Mach number is subsonic
+        if (this%corrected_M_inf < 0.0 .or. this%corrected_M_inf >= 1.0) then
+            write(*,*) "!!! The pressure correction Mach number must be greater than zero and subsonic. Quitting..."
             stop
         end if
 
         ! Check freestream Mach number is set to 0 if pressure correction is selected
-        if (((this%prandtl_glauert) .or. (this%karman_tsien) .or. (this%laitone)) .and. (freestream%M_inf /= 0.0)) then
+        if (((this%prandtl_glauert) .or. (this%karman_tsien) .or. (this%laitone)) .and. (this%freestream%M_inf /= 0.0)) then
             write(*,*) "!!! In order to apply a subsonic pressure correction, the freestream Mach number must be set to '0'."
-            write(*,*) "!!! Include the desired Mach number for the correction calculations as the 'correction_mach_number'."
-            write(*,*) "!!! Quitting..."
+            write(*,*) "!!! Include the desired Mach number for the correction calculations as 'correction_mach_number' under"
+            write(*,*) "!!! 'post-processing'-'subsonic_pressure_correction'. Quitting..."
             stop
         end if
 
@@ -175,21 +216,8 @@ contains
         else if (this%laitone) then
             call json_xtnsn_get(processing_settings, 'pressure_for_forces', this%pressure_for_forces, 'laitone')
         end if
-
-        ! Initialize based on formulation
-        if (this%morino .or. this%formulation == 'source-free') then
-            call this%init_dirichlet(solver_settings, body)
-        end if
         
-        ! Write out control point geometry
-        if (control_point_file /= 'none') then
-            call body%write_control_points(control_point_file, solved=.false.)
-        end if
-
-        ! Calculate domains of dependence
-        call this%calc_domains_of_dependence(body)
-
-    end subroutine panel_solver_init
+    end subroutine panel_solver_parse_processing_settings
 
 
     subroutine panel_solver_init_dirichlet(this, solver_settings, body)
