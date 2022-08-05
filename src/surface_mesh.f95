@@ -221,15 +221,7 @@ contains
 
         ! Search for vertices lying on mirror plane
         do i=1,this%N_verts
-
-            ! Check coordinate normal to mirror plane
-            if (abs(this%vertices(i)%loc(this%mirror_plane))<1e-12) then
-
-                ! The vertex is on the mirror plane
-                this%vertices(i)%on_mirror_plane = .true.
-
-            end if
-            
+            call this%vertices(i)%set_whether_on_mirror_plane(this%mirror_plane)
         end do
     
     end subroutine surface_mesh_find_vertices_on_mirror
@@ -250,7 +242,6 @@ contains
         real,dimension(this%N_panels*3) :: edge_length
         logical,dimension(this%N_panels*3) :: on_mirror_plane
         real,dimension(3) :: loc
-        
 
         if (verbose) write(*,'(a)',advance='no') "     Locating adjacent panels..."
 
@@ -285,7 +276,7 @@ contains
 
                     ! Store in arrays for later storage in edge objects
                     panel1(i_edge) = i
-                    panel2(i_edge) = i+this%N_panels
+                    panel2(i_edge) = i + this%N_panels
                     vertex1(i_edge) = i_endpoints(1)
                     vertex2(i_edge) = i_endpoints(2)
                     on_mirror_plane(i_edge) = .true.
@@ -420,6 +411,11 @@ contains
 
                 ! Add edge
                 call this%vertices(i_mid)%adjacent_edges%append(i)
+
+                ! Check if midpoint is on mirror plane
+                if (this%mirrored) then
+                    call this%vertices(i_mid)%set_whether_on_mirror_plane(this%mirror_plane)
+                end if
 
                 ! Point edge to it
                 this%edges(i)%i_midpoint = i_mid
@@ -1634,7 +1630,7 @@ contains
 
         ! Write out data for mirrored body
         if (mirrored_body_file /= 'none' .and. this%asym_flow) then
-            call this%write_body_mirror(body_file, solved=.true.)
+            call this%write_body_mirror(mirrored_body_file, solved=.true.)
             if (verbose) write(*,'(a30 a)') "    Mirrored surface: ", mirrored_body_file
         end if
         
@@ -1885,7 +1881,7 @@ contains
 
         ! Write out data
         call cp_vtk%begin(control_point_file)
-        call cp_vtk%write_points(this%cp)
+        call cp_vtk%write_points(this%cp_mirrored)
         call cp_vtk%write_vertices(this%N_cp)
         
         ! Results

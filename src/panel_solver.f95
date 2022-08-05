@@ -746,13 +746,16 @@ contains
 
             ! Update for mirrored points
             if (body%asym_flow) then
-                this%A(i+body%N_cp,:) = A_i_mir
 
                 ! Enforce doublet strength matching (i.e. for non-unique, mirrored control points, the
                 ! doublet strengths must be the same). The RHS for these rows should still be zero.
                 if (.not. body%vertices(i)%mirrored_is_unique) then
                     this%A(i+body%N_cp,i) = 1.
                     this%A(i+body%N_cp,i+body%N_cp) = -1.
+
+                ! Otherwise, add influences
+                else
+                    this%A(i+body%N_cp,:) = A_i_mir
                 end if
             end if
 
@@ -823,8 +826,7 @@ contains
             do j=1,body%wake%N_panels
 
                 ! Caclulate influence of existing panel on existing control point
-                call body%wake%panels(j)%calc_potentials(body%cp(:,i), this%freestream, &
-                                                         this%wake_dod_info(j,i), .false., &
+                call body%wake%panels(j)%calc_potentials(body%cp(:,i), this%freestream, this%wake_dod_info(j,i), .false., &
                                                          source_inf, doublet_inf)
 
                 ! Add influence

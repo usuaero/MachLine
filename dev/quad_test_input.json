@@ -16,7 +16,10 @@
     },
     "solver": {
         "formulation" : "morino",
-        "control_point_offset" : 1.1e-06
+        "control_point_offset" : 1.1e-06,
+        "run_checks" : true,
+        "write_A_and_b" : true,
+        "matrix_solver" : "LU"
     },
     "post_processing" : {
         "pressure_rules": {
