@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 
 
 def inner2(x,y):
@@ -42,7 +43,133 @@ class Integrals:
         self.F121 = np.zeros(4)
 
 
-class SubsonicPanel:
+class Panel:
+    """A class defining a quadrlateral panel.
+    
+    Parameters
+    ----------
+    verts : ndarray
+        Array of vertex locations. Of shape (2,4).
+    """
+
+    
+    def __init__(self, verts):
+        
+        # Store
+        self.verts = verts
+
+
+    def get_point_on_surface(self, u, v):
+        """Returns the coordinates of a point having the nondimensional coordinates (u, v).
+        u and v vary from 0 to 1.
+
+        Parameters
+        ----------
+        u, v : float
+            Nondimensional coordinates.
+
+        Returns
+        -------
+        point : ndarray
+            Surface coordinates of the point
+        """
+
+        # Calculate weights
+        w = np.zeros(4)
+        w[0] = (1.0-u)*(1.0-v)
+        w[1] = (1.0-u)*v
+        w[2] = u*v
+        w[3] = u*(1.0-v)
+
+        # Calcluate point
+        point = np.zeros(2)
+        point[0] = np.inner(self.verts[0,:], w)
+        point[1] = np.inner(self.verts[1,:], w)
+
+        return point
+
+
+    def get_points_dist(self, Nu, Nv):
+        """Returns a set of points distributed across the panel.
+        
+        Parameters
+        ----------
+        Nu : int
+            Number of points in the first dimension.
+            
+        Nv : int
+            Number of points in the second dimension.
+        
+        Returns
+        -------
+        points :: ndarray
+            Array of points with shape (N1*N2,2).
+        """
+
+        # Get coordinate distributions
+        us = np.linspace(0.0, 1.0, Nu)
+        vs = np.linspace(0.0, 1.0, Nv)
+        Us, Vs = np.meshgrid(us, vs)
+        points = np.zeros((Nu*Nv,2))
+
+        # Get points
+        for i, (u, v) in enumerate(zip(Us.flatten(), Vs.flatten())):
+            points[i,:] = self.get_point_on_surface(u, v)
+
+        return points
+
+
+    def distribute_points(self, Nu, Nv):
+        """Creates a distribution of discrete points across the panel surface.
+        
+        Parameters
+        ----------
+        Nu : int
+            Number of points in the first dimension.
+            
+        Nv : int
+            Number of points in the second dimension.
+        """
+
+        self.points = self.get_points_dist(Nu, Nv)
+        self.N = Nu*Nv
+
+
+    def get_local_doublet_strength(self, point):
+        """Returns the local doublet strength at the specified point.
+        
+        Parameters
+        ----------
+        point : array
+            Coordinates of point on surface.
+
+        Returns
+        -------
+        mu : float
+            Doublet strength
+        """
+
+        return self.mu_params[0] + self.mu_params[1]*point[0] + self.mu_params[2]*point[1] + 0.5*self.mu_params[3]*point[0]**2 + self.mu_params[4]*point[0]*point[1] + 0.5*self.mu_params[5]*point[1]**2
+
+
+    def get_local_source_strength(self, point):
+        """Returns the local source strength at the specified point.
+        
+        Parameters
+        ----------
+        point : array
+            Coordinates of point on surface.
+
+        Returns
+        -------
+        mu : float
+            Source strength
+        """
+
+        return self.sigma_params[0] + self.sigma_params[1]*point[0] + self.sigma_params[2]*point[1]
+
+
+class SubsonicPanel(Panel):
     """A class defining a rectangular, subsonic, quadratic-doublet-linear-source panel in incompressible flow.
     The panel lies in the x-y (z=0) plane and is centered at the origin.
 
@@ -68,23 +195,24 @@ class SubsonicPanel:
         # Store
         self.x_dim = x_dim
         self.y_dim = y_dim
-        self.verts = np.zeros((2,4))
+        verts = np.zeros((2,4))
         
         # First vertex
-        self.verts[0,0] = 0.5*x_dim
-        self.verts[1,0] = 0.5*y_dim
+        verts[0,0] = 0.5*x_dim
+        verts[1,0] = 0.5*y_dim
         
         # Second vertex
-        self.verts[0,1] = -0.5*x_dim
-        self.verts[1,1] = 0.5*y_dim
+        verts[0,1] = -0.5*x_dim
+        verts[1,1] = 0.5*y_dim
         
         # Third vertex
-        self.verts[0,2] = -0.5*x_dim
-        self.verts[1,2] = -0.5*y_dim
+        verts[0,2] = -0.5*x_dim
+        verts[1,2] = -0.5*y_dim
         
         # Fourth vertex
-        self.verts[0,3] = 0.5*x_dim
-        self.verts[1,3] = -0.5*y_dim
+        verts[0,3] = 0.5*x_dim
+        verts[1,3] = -0.5*y_dim
+        super().__init__(verts)
 
         # Initialize a few things
         self.mu_params = np.zeros(6)
@@ -296,19 +424,13 @@ class SubsonicPanel:
         return phi_d
 
 
-    def calc_discrete_source_potential(self, P, Nx, Ny):
+    def calc_discrete_source_potential(self, P):
         """Calculates the potential induced assuming a distribution of discrete sources across the panel surface.
         
         Parameters
         ----------
         P : ndarray
             Point at which to calculate the induced potential.
-            
-        Nx : integer
-            Number of point sources to distribute in the x direction.
-            
-        Ny : integer
-            Number of point sources to distribute in the y direction.
 
         Returns
         -------
@@ -316,39 +438,24 @@ class SubsonicPanel:
             source-induced potential.
         """
 
-        # Distribute sources
-        N = Nx*Ny
-        X = np.linspace(-0.5*self.x_dim, 0.5*self.x_dim, Nx)
-        Y = np.linspace(-0.5*self.y_dim, 0.5*self.y_dim, Ny)
-
         # Loop through sources
         phi_s = 0.0
-        for i, xi in enumerate(X):
-            for j, yj in enumerate(Y):
+        for point in self.points:
 
-                # Get source strength
-                sigma = self.sigma_params[0] + self.sigma_params[1]*xi + self.sigma_params[2]*yj
+            # Calculate induced potential
+            R = np.sqrt((P[0]-point[0])**2 + (P[1]-point[1])**2 + P[2]**2)
+            phi_s += -self.get_local_source_strength(point)*K_inv/R
 
-                # Calculate induced potential
-                R = np.sqrt((P[0]-xi)**2 + (P[1]-yj)**2 + P[2]**2)
-                phi_s += -sigma*K_inv/R
-
-        return phi_s/N
+        return phi_s/self.N
 
 
-    def calc_discrete_doublet_potential(self, P, Nx, Ny):
+    def calc_discrete_doublet_potential(self, P):
         """Calculates the potential induced assuming a distribution of discrete doublets across the panel surface.
         
         Parameters
         ----------
         P : ndarray
             Point at which to calculate the induced potential.
-            
-        Nx : integer
-            Number of point doublets to distribute in the x direction.
-            
-        Ny : integer
-            Number of point doublets to distribute in the y direction.
 
         Returns
         -------
@@ -356,27 +463,18 @@ class SubsonicPanel:
             Doublet-induced potential.
         """
 
-        # Distribute doublets
-        N = Nx*Ny
-        X = np.linspace(-0.5*self.x_dim, 0.5*self.x_dim, Nx)
-        Y = np.linspace(-0.5*self.y_dim, 0.5*self.y_dim, Ny)
-
         # Loop through doublets
         phi_d = 0.0
-        for i, xi in enumerate(X):
-            for j, yj in enumerate(Y):
+        for point in self.points:
 
-                # Get doublet strength
-                mu = self.mu_params[0] + self.mu_params[1]*xi + self.mu_params[2]*yj + 0.5*self.mu_params[3]*xi**2 + self.mu_params[4]*xi*yj + 0.5*self.mu_params[5]*yj**2
+            # Calculate induced potential
+            R = np.sqrt((P[0]-point[0])**2 + (P[1]-point[1])**2 + P[2]**2)
+            phi_d += self.get_local_doublet_strength(point)/R**3
 
-                # Calculate induced potential
-                R = np.sqrt((P[0]-xi)**2 + (P[1]-yj)**2 + P[2]**2)
-                phi_d += mu*P[2]*K_inv/R**3
-
-        return phi_d/N
+        return phi_d*P[2]*K_inv/self.N
 
 
-class SupersonicSubinclinedPanel:
+class SupersonicSubinclinedPanel(Panel):
     """A class defining a rectangular, supersonic, subinclined, quadratic-doublet-linear-source panel in incompressible flow.
     The panel lies in the x-y (z=0) plane and is centered at the origin. The freestream is aligned with the x-axis.
 
@@ -390,35 +488,14 @@ class SupersonicSubinclinedPanel:
     
     Parameters
     ----------
-    x_dim : float
-        Width in the x direction.
-
-    y_dim : float
-        Width in the y direction.
+    verts : ndarray
+        Array of vertex locations. Of shape (2,4).
     """
 
-    def __init__(self, x_dim, y_dim):
+    def __init__(self, verts):
 
         # Store
-        self.x_dim = x_dim
-        self.y_dim = y_dim
-        self.verts = np.zeros((2,4))
-        
-        # First vertex
-        self.verts[0,0] = 0.5*x_dim
-        self.verts[1,0] = 0.5*y_dim
-        
-        # Second vertex
-        self.verts[0,1] = -0.5*x_dim
-        self.verts[1,1] = 0.5*y_dim
-        
-        # Third vertex
-        self.verts[0,2] = -0.5*x_dim
-        self.verts[1,2] = -0.5*y_dim
-        
-        # Fourth vertex
-        self.verts[0,3] = 0.5*x_dim
-        self.verts[1,3] = -0.5*y_dim
+        super().__init__(verts)
 
         # Initialize a few things
         self.mu_params = np.zeros(6)
@@ -700,19 +777,13 @@ class SupersonicSubinclinedPanel:
         return phi_d*K_inv*2.0
 
 
-    def calc_discrete_source_potential(self, P, Nx, Ny):
+    def calc_discrete_source_potential(self, P):
         """Calculates the potential induced assuming a distribution of discrete sources across the panel surface.
         
         Parameters
         ----------
         P : ndarray
             Point at which to calculate the induced potential.
-            
-        Nx : integer
-            Number of point sources to distribute in the x direction.
-            
-        Ny : integer
-            Number of point sources to distribute in the y direction.
 
         Returns
         -------
@@ -720,47 +791,32 @@ class SupersonicSubinclinedPanel:
             source-induced potential.
         """
 
-        # Distribute sources
-        N = Nx*Ny
-        X = np.linspace(-0.5*self.x_dim, 0.5*self.x_dim, Nx)
-        Y = np.linspace(-0.5*self.y_dim, 0.5*self.y_dim, Ny)
-
         # Loop through sources
         phi_s = 0.0
-        for i, xi in enumerate(X):
-            for j, yj in enumerate(Y):
+        for point in self.points:
 
-                # Calculate hyperbolic distance
-                R2 = (P[0]-xi)**2 - (P[1]-yj)**2 - P[2]**2
+            # Calculate hyperbolic distance
+            R2 = (P[0]-point[0])**2 - (P[1]-point[1])**2 - P[2]**2
 
-                # Check
-                if R2 > 0.0 and P[0]-xi > 0.0:
+            # Check
+            if R2 > 0.0 and P[0]-point[0] > 0.0:
 
-                    # Get distance
-                    R = np.sqrt(R2)
+                # Get distance
+                R = np.sqrt(R2)
 
-                    # Get source strength
-                    sigma = self.sigma_params[0] + self.sigma_params[1]*xi + self.sigma_params[2]*yj
+                # Calculate induced potential
+                phi_s += self.get_local_source_strength(point)/R
 
-                    # Calculate induced potential
-                    phi_s += sigma/R
-
-        return -2.0*K_inv*phi_s/N
+        return -2.0*K_inv*phi_s/self.N
 
 
-    def calc_discrete_doublet_potential(self, P, Nx, Ny):
+    def calc_discrete_doublet_potential(self, P):
         """Calculates the potential induced assuming a distribution of discrete doublets across the panel surface.
         
         Parameters
         ----------
         P : ndarray
             Point at which to calculate the induced potential.
-            
-        Nx : integer
-            Number of point doublets to distribute in the x direction.
-            
-        Ny : integer
-            Number of point doublets to distribute in the y direction.
 
         Returns
         -------
@@ -768,29 +824,20 @@ class SupersonicSubinclinedPanel:
             Doublet-induced potential.
         """
 
-        # Distribute doublets
-        N = Nx*Ny
-        X = np.linspace(-0.5*self.x_dim, 0.5*self.x_dim, Nx)
-        Y = np.linspace(-0.5*self.y_dim, 0.5*self.y_dim, Ny)
-
         # Loop through doublets
         phi_d = 0.0
-        for i, xi in enumerate(X):
-            for j, yj in enumerate(Y):
+        for point in self.points:
 
-                # Calculate hyperbolic distance
-                R2 = (P[0]-xi)**2 - (P[1]-yj)**2 - P[2]**2
+            # Calculate hyperbolic distance
+            R2 = (P[0]-point[0])**2 - (P[1]-point[1])**2 - P[2]**2
 
-                # Check
-                if R2 > 0.0:
+            # Check
+            if R2 > 0.0 and P[0]-point[0] > 0.0:
 
-                    # Get distance
-                    R = np.sqrt(R2)
+                # Get distance
+                R = np.sqrt(R2)
 
-                    # Get doublet strength
-                    mu = self.mu_params[0] + self.mu_params[1]*xi + self.mu_params[2]*yj + 0.5*self.mu_params[3]*xi**2 + self.mu_params[4]*xi*yj + 0.5*self.mu_params[5]*yj**2
+                # Calculate induced potential
+                phi_d += self.get_local_doublet_strength(point)/R**3
 
-                    # Calculate induced potential
-                    phi_d += mu/R**3
-
-        return 2.0*K_inv*P[2]*phi_d/N
+        return -2.0*K_inv*P[2]*phi_d/self.N # I don't know why a negative sign is needed here, but it makes everything in MachLine work

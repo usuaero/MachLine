@@ -7,9 +7,12 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 if __name__=="__main__":
 
     # Initialize panel
-    panel = SupersonicSubinclinedPanel(1.0, 1.0)
-    mu_params = [0.1, -0.0, 0.0, 0.0, -0.0, 0.0]
-    sigma_params = [-5.0, 3.0, 3.0]
+    verts = np.array([[0.5, -0.5, -1.5, 0.5],
+                      [0.5, 0.5, -1.5, -0.5]])
+    panel = SupersonicSubinclinedPanel(verts)
+    panel.distribute_points(50, 50)
+    mu_params = [1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    sigma_params = [1.0, 0.0, 0.0]
     panel.set_doublet_strength(mu_params)
     panel.set_source_strength(sigma_params)
 
@@ -28,8 +31,8 @@ if __name__=="__main__":
             P = [xi, xi-1.75, zj]
 
             # Discrete potentials
-            phi_s_dis[i,j] = panel.calc_discrete_source_potential(P, 100, 100)
-            phi_d_dis[i,j] = panel.calc_discrete_doublet_potential(P, 100, 100)
+            phi_s_dis[i,j] = panel.calc_discrete_source_potential(P)
+            phi_d_dis[i,j] = panel.calc_discrete_doublet_potential(P)
 
             # Analytic potentials
             phi_s_anl[i,j] = panel.calc_analytic_source_potential(P)
