@@ -7,7 +7,8 @@
         ]
     },
     "geometry": {
-        "file": "test/full_wing.vtk",
+        "file": "test/meshes/half_wing_right.vtk",
+        "mirror_about": "xz",
         "wake_model": {
             "wake_shedding_angle": 90.0,
             "trefftz_distance": 100.0,
@@ -18,15 +19,13 @@
         }
     },
     "solver": {
-        "formulation": "morino",
+        "formulation": "source-free",
         "control_point_offset": 1.1e-05
     },
     "post_processing" : {
     },
     "output": {
-        "body_file": "test/results/full_wing.vtk",
-        "wake_file": "test/results/full_wing_wake.vtk",
-        "control_point_file": "test/results/full_wing_control_points.vtk",
+        "body_file" : "test/results/half_wing_right.vtk",
         "report_file": "test/results/report.json"
     }
 }

@@ -3,7 +3,7 @@
         "freestream_velocity" : [0.0, 0.0, 10.0]
     },
     "geometry" : {
-        "file" : "test/sphere.vtk",
+        "file" : "test/meshes/sphere.vtk",
         "wake_model" : {
             "wake_present" : false
         }
