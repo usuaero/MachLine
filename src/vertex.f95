@@ -67,9 +67,9 @@ contains
         this%bot_parent = 0
 
         ! Default cases
-        this%mirrored_is_unique = .true. ! This will almost always be the case; we'll set the exceptions later
-        this%clone = .false. ! Same
-        this%on_mirror_plane = .false. ! Same
+        this%mirrored_is_unique = .true.
+        this%clone = .false.
+        this%on_mirror_plane = .false.
         this%i_wake_partner = index
 
     end subroutine vertex_init
