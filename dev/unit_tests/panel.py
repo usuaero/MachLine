@@ -5,8 +5,6 @@ import matplotlib.pyplot as plt
 def inner2(x,y):
     return x[0]*y[0] + x[1]*y[1]
 
-K_inv = 1.0/(4.0*np.pi)
-
 
 class Geometry:
     """A class containing all geometric parameters for a point-panel pair."""
@@ -224,6 +222,7 @@ class SubsonicPanel(Panel):
         # Initialize a few things
         self.mu_params = np.zeros(6)
         self.sigma_params = np.zeros(3)
+        self.K_inv = 0.25/np.pi
 
 
     def set_doublet_strength(self, mu_params):
@@ -395,7 +394,7 @@ class SubsonicPanel(Panel):
         self.calc_H_integrals(geom, I)
 
         phi_s = self.sigma_params[0]*I.H111 + self.sigma_params[1]*(I.H111*P[0] + I.H211) + self.sigma_params[2]*(I.H111*P[1] + I.H121)
-        return -phi_s*K_inv
+        return -phi_s*self.K_inv
 
 
     def calc_analytic_doublet_potential(self, P):
@@ -427,7 +426,7 @@ class SubsonicPanel(Panel):
                  + self.mu_params[3]*(0.5*P[0]**2*I.hH113 + geom.h*(P[0]*I.H213 + 0.5*I.H313)) # mu_xx
                  + self.mu_params[4]*(P[0]*P[1]*I.hH113 + geom.h*(P[0]*I.H123 + P[1]*I.H213 + I.H223)) # mu_xy
                  + self.mu_params[5]*(0.5*P[0]**2*I.hH113 + geom.h*(P[1]*I.H123 + 0.5*I.H133)) # mu_yy
-                 )*K_inv
+                 )*self.K_inv
 
         return phi_d
 
@@ -452,9 +451,9 @@ class SubsonicPanel(Panel):
 
             # Calculate induced potential
             R = np.sqrt((P[0]-point[0])**2 + (P[1]-point[1])**2 + P[2]**2)
-            phi_s += -self.get_local_source_strength(point)*K_inv/R
+            phi_s += -self.get_local_source_strength(point)/R
 
-        return phi_s*self.dA
+        return phi_s*self.dA*self.K_inv
 
 
     def calc_discrete_doublet_potential(self, P):
@@ -479,7 +478,7 @@ class SubsonicPanel(Panel):
             R = np.sqrt((P[0]-point[0])**2 + (P[1]-point[1])**2 + P[2]**2)
             phi_d += self.get_local_doublet_strength(point)/R**3
 
-        return phi_d*P[2]*K_inv*self.dA
+        return phi_d*P[2]*self.K_inv*self.dA
 
 
 class SupersonicSubinclinedPanel(Panel):
@@ -508,6 +507,7 @@ class SupersonicSubinclinedPanel(Panel):
         # Initialize a few things
         self.mu_params = np.zeros(6)
         self.sigma_params = np.zeros(3)
+        self.K_inv = 0.5/np.pi
 
 
     def set_doublet_strength(self, mu_params):
@@ -608,62 +608,67 @@ class SupersonicSubinclinedPanel(Panel):
         for i in range(4):
 
             # Check DoD
-            if geom.R1[i] > 0.0 and geom.R2[i] > 0.0:
+            if (geom.R1[i] > 0.0 or geom.R2[i] > 0.0) or (geom.b[i] > 0.0 and geom.g2[i] > 0.0 and geom.l1[i]*geom.l2[i] < 0.0 and geom.a[i]*geom.v_xi[i] < 0.0):
 
                 # Get square root of b
                 sb = np.sqrt(np.abs(geom.b[i]))
 
-                # Calculate F factors
-                if geom.b[i] > 0.0:
-                    F1 = (geom.l1[i]*geom.R2[i] - geom.l2[i]*geom.R1[i]) / geom.g2[i]
-                    F2 = (geom.b[i]*geom.R1[i]*geom.R2[i] + geom.l1[i]*geom.l2[i]) / geom.g2[i]
+                # Mach wedge region
+                if geom.R1[i] == 0.0 and geom.R2[i] == 0.0:
+                    ints.F111[i] = np.pi/sb
+
+                    # F(1,2,1) and F(2,1,1)
+                    ints.F121[i] = -geom.a[i]*geom.v_eta[i]*ints.F111[i]/geom.b[i]
+                    ints.F211[i] = geom.a[i]*geom.v_xi[i]*ints.F111[i]/geom.b[i]
+
                 else:
-                    F1 = (geom.R2[i] - geom.R1[i])*(geom.R2[i] + geom.R1[i]) / (geom.l1[i]*geom.R2[i] + geom.l2[i]*geom.R1[i])
-                    F2 = (geom.g2[i] - geom.l1[i]**2 - geom.l2[i]**2) / (geom.b[i]*geom.R1[i]*geom.R2[i] - geom.l1[i]*geom.l2[i])
 
-                # Calculate F(1,1,1)
-
-                # Nearly-sonic edge
-                if abs(F2) > 100.0*sb*abs(F1):
-
-                    # Series solution
-                    eps = F1/F2
-                    eps2 = eps*eps
-                    series = eps*eps2*(1.0/3.0 - geom.b[i]*eps2/5.0 + (geom.b[i]*eps2)*(geom.b[i]*eps2)/7.0)
-                    ints.F111[i] = -eps + geom.b[i]*series
-
-                    # F(1,2,1)
-                    ints.F121[i] = (-geom.v_xi[i]*(geom.R2[i]-geom.R1[i])*geom.R1[i]*geom.R2[i] + geom.l2[i]*geom.R1[i]*(self.verts[1,i]-geom.P[1]) - geom.l1[i]*geom.R2[i]*(self.verts[1,(i+1)%4]-geom.P[1]))/(geom.g2[i]*F2) \
-                                    -geom.a[i]*geom.v_eta[i]*series
-
-                # Supersonic edge
-                elif geom.b[i] > 0.0:
-
-                    # Mach wedge region
-                    if geom.R1[i] == 0.0 and geom.R2[i] == 0.0:
-                        ints.F111[i] = np.pi/sb
-
-                    # At least one endpoint in
+                    # Calculate F factors
+                    if geom.b[i] > 0.0:
+                        F1 = (geom.l1[i]*geom.R2[i] - geom.l2[i]*geom.R1[i]) / geom.g2[i]
+                        F2 = (geom.b[i]*geom.R1[i]*geom.R2[i] + geom.l1[i]*geom.l2[i]) / geom.g2[i]
                     else:
+                        F1 = (geom.R2[i] - geom.R1[i])*(geom.R2[i] + geom.R1[i]) / (geom.l1[i]*geom.R2[i] + geom.l2[i]*geom.R1[i])
+                        F2 = (geom.g2[i] - geom.l1[i]**2 - geom.l2[i]**2) / (geom.b[i]*geom.R1[i]*geom.R2[i] - geom.l1[i]*geom.l2[i])
+
+                    # Calculate F(1,1,1)
+
+                    # Nearly-sonic edge
+                    if abs(F2) > 100.0*sb*abs(F1):
+
+                        # Series solution
+                        eps = F1/F2
+                        eps2 = eps*eps
+                        series = eps*eps2*(1.0/3.0 - geom.b[i]*eps2/5.0 + (geom.b[i]*eps2)*(geom.b[i]*eps2)/7.0)
+                        ints.F111[i] = -eps + geom.b[i]*series
+
+                        # F(1,2,1) and F(2,1,1)
+                        ints.F121[i] = (- geom.v_xi[i]*(geom.R2[i]-geom.R1[i])*geom.R1[i]*geom.R2[i] 
+                                        + geom.l2[i]*geom.R1[i]*(self.verts[1,i]-geom.P[1]) 
+                                        - geom.l1[i]*geom.R2[i]*(self.verts[1,(i+1)%4]-geom.P[1]) ) / (geom.g2[i]*F2) \
+                                        - geom.a[i]*geom.v_eta[i]*series
+                        ints.F211 = geom.a*geom.v_xi*ints.F111 - geom.v_eta*(geom.R2-geom.R1) - 2.0*geom.v_xi*geom.v_eta*ints.F121
+
+                    # Supersonic edge
+                    elif geom.b[i] > 0.0:
                         ints.F111[i] = -np.arctan2(sb*F1, F2)/sb
-                        
-                    # F(1,2,1)
-                    ints.F121[i] = -(geom.v_xi[i]*(geom.R2[i]-geom.R1[i]) + geom.a[i]*geom.v_eta[i]*ints.F111[i])/geom.b[i]
 
-                # Subsonic edge
-                else:
-                    F1 = sb*geom.R1[i] + np.abs(geom.l1[i])
-                    F2 = sb*geom.R2[i] + np.abs(geom.l2[i])
-                    ints.F111[i] = -np.sign(geom.v_eta[i])*np.log(F1/F2)/sb
-                        
-                    # F(1,2,1)
-                    ints.F121[i] = -(geom.v_xi[i]*(geom.R2[i]-geom.R1[i]) + geom.a[i]*geom.v_eta[i]*ints.F111[i])/geom.b[i]
+                        # F(1,2,1) and F(2,1,1)
+                        ints.F121[i] = -(geom.v_xi[i]*(geom.R2[i]-geom.R1[i]) + geom.a[i]*geom.v_eta[i]*ints.F111[i])/geom.b[i]
+                        ints.F211 = geom.a*geom.v_xi*ints.F111 - geom.v_eta*(geom.R2-geom.R1) - 2.0*geom.v_xi*geom.v_eta*ints.F121
 
-        # Calculate F(2,1,1)
-        ints.F211 = geom.a*geom.v_xi*ints.F111 - geom.v_eta*(geom.R2-geom.R1) - 2.0*geom.v_xi*geom.v_eta*ints.F121
+                    # Subsonic edge
+                    else:
+                        F1 = sb*geom.R1[i] + np.abs(geom.l1[i])
+                        F2 = sb*geom.R2[i] + np.abs(geom.l2[i])
+                        ints.F111[i] = -np.sign(geom.v_eta[i])*np.log(F1/F2)/sb
+
+                        # F(1,2,1) and F(2,1,1)
+                        ints.F121[i] = -(geom.v_xi[i]*(geom.R2[i]-geom.R1[i]) + geom.a[i]*geom.v_eta[i]*ints.F111[i])/geom.b[i]
+                        ints.F211 = geom.a*geom.v_xi*ints.F111 - geom.v_eta*(geom.R2-geom.R1) - 2.0*geom.v_xi*geom.v_eta*ints.F121
         
         # Check
-        #assert((geom.v_xi*ints.F211 + geom.v_eta*ints.F121 == geom.a*ints.F111).all())
+        assert((np.abs(geom.v_xi*ints.F211 + geom.v_eta*ints.F121 - geom.a*ints.F111) < 1.0e-12).all())
 
         return ints
 
@@ -684,24 +689,27 @@ class SupersonicSubinclinedPanel(Panel):
         ints.hH113 = 0.0
         for i in range(4):
 
-            # Check in plane of panel
-            if abs(geom.h) > 1e-12:
+            # Check DoD
+            if (geom.R1[i] > 0.0 or geom.R2[i] > 0.0) or (geom.b[i] > 0.0 and geom.g2[i] > 0.0 and geom.l1[i]*geom.l2[i] < 0.0 and geom.a[i]*geom.v_xi[i] < 0.0):
 
-                # Mach wedge region
-                if geom.R1[i] == 0.0 and geom.R2[i] == 0.0:
-                    ints.hH113 -= np.pi*np.sign(geom.h*geom.v_xi[i])
+                # Check in plane of panel
+                if abs(geom.h) > 1e-12:
 
-                else:
+                    # Mach wedge region
+                    if geom.R1[i] == 0.0 and geom.R2[i] == 0.0:
+                        ints.hH113 -= np.pi*np.sign(geom.h*geom.v_xi[i])
 
-                    # F factors
-                    if geom.b[i] > 0.0:
-                        F1 = (geom.l1[i]*geom.R2[i] - geom.l2[i]*geom.R1[i]) / geom.g2[i]
-                        F2 = (geom.b[i]*geom.R1[i]*geom.R2[i] + geom.l1[i]*geom.l2[i]) / geom.g2[i]
                     else:
-                        F1 = (geom.R2[i] - geom.R1[i])*(geom.R2[i] + geom.R1[i]) / (geom.l1[i]*geom.R2[i] + geom.l2[i]*geom.R1[i])
-                        F2 = (geom.g2[i] - geom.l1[i]**2 - geom.l2[i]**2) / (geom.b[i]*geom.R1[i]*geom.R2[i] - geom.l1[i]*geom.l2[i])
 
-                    ints.hH113 -= np.arctan2(geom.h*geom.a[i]*F1, geom.R1[i]*geom.R2[i] + geom.h2*F2)
+                        # F factors
+                        if geom.b[i] > 0.0:
+                            F1 = (geom.l1[i]*geom.R2[i] - geom.l2[i]*geom.R1[i]) / geom.g2[i]
+                            F2 = (geom.b[i]*geom.R1[i]*geom.R2[i] + geom.l1[i]*geom.l2[i]) / geom.g2[i]
+                        else:
+                            F1 = (geom.R2[i] - geom.R1[i])*(geom.R2[i] + geom.R1[i]) / (geom.l1[i]*geom.R2[i] + geom.l2[i]*geom.R1[i])
+                            F2 = (geom.g2[i] - geom.l1[i]**2 - geom.l2[i]**2) / (geom.b[i]*geom.R1[i]*geom.R2[i] - geom.l1[i]*geom.l2[i])
+
+                        ints.hH113 -= np.arctan2(geom.h*geom.a[i]*F1, geom.R1[i]*geom.R2[i] + geom.h2*F2)
 
         # Calculate H(1,1,1)
         ints.H111 = -geom.h*ints.hH113 + np.sum(geom.a*ints.F111).item()
@@ -749,7 +757,7 @@ class SupersonicSubinclinedPanel(Panel):
         self.calc_H_integrals(geom, I)
 
         phi_s = self.sigma_params[0]*I.H111 + self.sigma_params[1]*(I.H111*P[0] + I.H211) + self.sigma_params[2]*(I.H111*P[1] + I.H121)
-        return -phi_s*K_inv*2.0
+        return -phi_s*self.K_inv*2.0
 
 
     def calc_analytic_doublet_potential(self, P):
@@ -782,7 +790,7 @@ class SupersonicSubinclinedPanel(Panel):
                 + self.mu_params[4]*(P[0]*P[1]*I.hH113 + geom.h*(P[0]*I.H123 + P[1]*I.H213 + I.H223)) # mu_xy
                 + self.mu_params[5]*(0.5*P[1]**2*I.hH113 + geom.h*(P[1]*I.H123 + 0.5*I.H133)) ) # mu_yy
 
-        return phi_d*K_inv*2.0
+        return phi_d*self.K_inv*2.0
 
 
     def calc_discrete_source_potential(self, P):
@@ -815,7 +823,7 @@ class SupersonicSubinclinedPanel(Panel):
                 # Calculate induced potential
                 phi_s += self.get_local_source_strength(point)/R
 
-        return -2.0*K_inv*phi_s*self.dA
+        return -2.0*self.K_inv*phi_s*self.dA
 
 
     def calc_discrete_doublet_potential(self, P):
@@ -848,4 +856,4 @@ class SupersonicSubinclinedPanel(Panel):
                 # Calculate induced potential
                 phi_d += self.get_local_doublet_strength(point)/R**3
 
-        return -2.0*K_inv*P[2]*phi_d*self.dA # I don't know why a negative sign is needed here, but it makes everything in MachLine work
+        return -2.0*self.K_inv*P[2]*phi_d*self.dA # I don't know why a negative sign is needed here, but it makes everything in MachLine work
