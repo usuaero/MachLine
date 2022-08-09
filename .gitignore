@@ -36,6 +36,10 @@ report.json
 iterative_solver_prog.csv
 A_mat.txt
 b_vec.txt
+*.csv
+
+# Study files
+*.pdf
 
 # python stuff
 __pycache__/

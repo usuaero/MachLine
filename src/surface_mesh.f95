@@ -22,6 +22,7 @@ module surface_mesh_mod
     type surface_mesh
 
         integer :: N_verts, N_panels, N_cp, N_edges, N_true_verts ! as in, not midpoints
+        integer :: N_subinc, N_supinc
         type(vertex),allocatable,dimension(:) :: vertices
         type(panel),allocatable,dimension(:) :: panels
         type(edge),allocatable,dimension(:) :: edges
@@ -49,9 +50,11 @@ module surface_mesh_mod
             procedure :: init => surface_mesh_init
             procedure :: locate_adjacent_panels => surface_mesh_locate_adjacent_panels
             procedure :: store_adjacent_vertices => surface_mesh_store_adjacent_vertices
+            procedure :: check_panels_adjacent => surface_mesh_check_panels_adjacent
 
             ! Initialization based on flow properties
             procedure :: init_with_flow => surface_mesh_init_with_flow
+            procedure :: count_panel_inclinations => surface_mesh_count_panel_inclinations
             procedure :: characterize_edges => surface_mesh_characterize_edges
             procedure :: clone_vertices => surface_mesh_clone_vertices
             procedure :: set_up_mirroring => surface_mesh_set_up_mirroring
@@ -73,6 +76,10 @@ module surface_mesh_mod
 
             ! Post-processing
             procedure :: output_results => surface_mesh_output_results
+            procedure :: write_body => surface_mesh_write_body
+            procedure :: write_body_mirror => surface_mesh_write_body_mirror
+            procedure :: write_control_points => surface_mesh_write_control_points
+            procedure :: write_mirrored_control_points => surface_mesh_write_mirrored_control_points
 
     end type surface_mesh
     
@@ -141,7 +148,10 @@ contains
             write(*,*) "MachLine cannot read ", extension, " type mesh files. Quitting..."
             stop
         end if
+
+        ! Store some mesh parameters
         this%N_true_verts = this%N_verts
+
         if (verbose) write(*,*) "Done."
 
         ! Display mesh info
@@ -211,15 +221,7 @@ contains
 
         ! Search for vertices lying on mirror plane
         do i=1,this%N_verts
-
-            ! Check coordinate normal to mirror plane
-            if (abs(this%vertices(i)%loc(this%mirror_plane))<1e-12) then
-
-                ! The vertex is on the mirror plane
-                this%vertices(i)%on_mirror_plane = .true.
-
-            end if
-            
+            call this%vertices(i)%set_whether_on_mirror_plane(this%mirror_plane)
         end do
     
     end subroutine surface_mesh_find_vertices_on_mirror
@@ -232,7 +234,7 @@ contains
 
         class(surface_mesh),intent(inout),target :: this
 
-        integer :: i, j, m, n, m1, n1, temp, i_edge, N_edges, i_mid, N_orig_verts
+        integer :: i, j, m, n, m1, n1, temp, i_edge, N_edges, i_mid, N_orig_verts, edge_index_i, edge_index_j
         logical :: already_found_shared, watertight
         real :: distance
         integer,dimension(2) :: i_endpoints
@@ -240,7 +242,6 @@ contains
         real,dimension(this%N_panels*3) :: edge_length
         logical,dimension(this%N_panels*3) :: on_mirror_plane
         real,dimension(3) :: loc
-        
 
         if (verbose) write(*,'(a)',advance='no') "     Locating adjacent panels..."
 
@@ -249,182 +250,79 @@ contains
 
         ! Loop through each panel
         this%N_edges = 0
-        !$OMP parallel private(j, already_found_shared, distance, i_endpoints, m, m1, n, n1, temp, i_edge)
+        !$OMP parallel private(j, already_found_shared, distance, i_endpoints, m, m1, n, n1, temp, i_edge) &
+        !$OMP & private(edge_index_i, edge_index_j)
 
         !$OMP do schedule(dynamic)
         do i=1,this%N_panels
+
+            ! For each panel, check if it abuts the mirror plane
+            if (this%mirrored) then
+
+                ! Perform check
+                if (this%panels(i)%check_abutting_mirror_plane(this%N_panels, i_endpoints, edge_index_i)) then
+
+                    !$OMP critical
+                    
+                    ! Update number of edges
+                    this%N_edges = this%N_edges + 1
+                    i_edge = this%N_edges
+
+                    ! Store adjacent vertices
+                    call this%store_adjacent_vertices(i_endpoints, i_edge)
+
+                    ! Store edge index for this panel
+                    edge_index1(i_edge) = edge_index_i
+
+                    ! Store in arrays for later storage in edge objects
+                    panel1(i_edge) = i
+                    panel2(i_edge) = i + this%N_panels
+                    vertex1(i_edge) = i_endpoints(1)
+                    vertex2(i_edge) = i_endpoints(2)
+                    on_mirror_plane(i_edge) = .true.
+                    edge_index2(i_edge) = 0 ! Just a placeholder since the second panel doesn't technically exist
+                    edge_length(i_edge) = dist(this%vertices(i_endpoints(1))%loc, this%vertices(i_endpoints(2))%loc)
+
+                    !$OMP end critical
+
+                end if
+
+            end if
 
             ! Loop through each potential neighbor
             neighbor_loop: do j=i+1,this%N_panels
 
                 ! Check if we've found all neighbors for this panel
-                if (all(this%panels(i)%abutting_panels /= 0)) then
-                    exit neighbor_loop
+                if (all(this%panels(i)%abutting_panels /= 0)) exit neighbor_loop
+
+                ! Check if these are abutting
+                if (this%check_panels_adjacent(i, j, i_endpoints, edge_index_i, edge_index_j)) then
+
+                    !$OMP critical
+                    
+                    ! Update number of edges
+                    this%N_edges = this%N_edges + 1
+                    i_edge = this%N_edges
+
+                    ! Store vertices being adjacent to one another
+                    call this%store_adjacent_vertices(i_endpoints, i_edge)
+
+                    ! Store adjacent panels and panel edges
+                    edge_index1(i_edge) = edge_index_i
+                    edge_index2(i_edge) = edge_index_j
+
+                    ! Store information in arrays for later storage in edge objects
+                    panel1(i_edge) = i
+                    panel2(i_edge) = j
+                    vertex1(i_edge) = i_endpoints(1)
+                    vertex2(i_edge) = i_endpoints(2)
+                    edge_length(i_edge) = dist(this%vertices(i_endpoints(1))%loc, this%vertices(i_endpoints(2))%loc)
+
+                    !$OMP end critical
+
                 end if
 
-                ! Initialize for this panel pair
-                already_found_shared = .false.
-
-                ! Check if the panels are abutting
-                abutting_loop: do m=1,this%panels(i)%N
-                    do n=1,this%panels(j)%N
-
-                        ! Check if vertices have the same index
-                        if (this%panels(i)%get_vertex_index(m) == this%panels(j)%get_vertex_index(n)) then
-
-                            ! Previously found a shared vertex, so we have abutting panels
-                            if (already_found_shared) then
-
-                                ! Store second shared vertex
-                                i_endpoints(2) = this%panels(i)%get_vertex_index(m)
-
-                                ! Check order; edge should proceed counterclockwise about panel i
-                                if (m1 == 1 .and. m == this%panels(i)%N) then
-                                    temp = i_endpoints(1)
-                                    i_endpoints(1) = i_endpoints(2)
-                                    i_endpoints(2) = temp
-                                end if
-
-                                !$OMP critical
-                                
-                                ! Update number of edges
-                                this%N_edges = this%N_edges + 1
-                                i_edge = this%N_edges
-
-                                ! Store vertices being adjacent to one another
-                                call this%store_adjacent_vertices(i_endpoints, i_edge)
-
-                                ! Store adjacent panels and panel edges
-                                ! This stores the adjacent panels and edges according to the index of that edge
-                                ! for the current panel
-
-                                ! Store that i is adjacent to j
-                                ! This one is more complicated because we don't know that n1 will be less than n; just the nature of the nested loop.
-                                ! Basically, if one is 1 and the other is N, then we're dealing with edge N for panel j.
-                                ! Otherwise, we're dealing with abs(n1-n) being 1, meaning edge min(n1, n).
-                                if ( (n1 == 1 .and. n == this%panels(j)%N) .or. (n == 1 .and. n1 == this%panels(j)%N) ) then
-                                    this%panels(j)%abutting_panels(this%panels(j)%N) = i
-                                    edge_index2(i_edge) = this%panels(j)%N
-                                else
-                                    n1 = min(n, n1)
-                                    this%panels(j)%abutting_panels(n1) = i
-                                    edge_index2(i_edge) = n1
-                                end if
-
-                                ! Store that j is adjacent to i
-                                if (m1 == 1 .and. m == this%panels(i)%N) then ! Nth edge
-                                    this%panels(i)%abutting_panels(m) = j
-                                    edge_index1(i_edge) = m
-                                else ! 1st or 2nd edge
-                                    this%panels(i)%abutting_panels(m1) = j
-                                    edge_index1(i_edge) = m1
-                                end if
-
-                                ! Store information in arrays for later storage in edge objects
-                                panel1(i_edge) = i
-                                panel2(i_edge) = j
-                                vertex1(i_edge) = i_endpoints(1)
-                                vertex2(i_edge) = i_endpoints(2)
-                                edge_length(i_edge) = dist(this%vertices(i_endpoints(1))%loc, this%vertices(i_endpoints(2))%loc)
-
-                                !$OMP end critical
-                                
-                                ! Break out of loop
-                                exit abutting_loop
-
-                            ! First shared vertex
-                            else
-
-                                already_found_shared = .true.
-                                i_endpoints(1) = this%panels(i)%get_vertex_index(m)
-                                m1 = m
-                                n1 = n
-
-                            end if
-                        end if
-
-                    end do
-
-                end do abutting_loop
-
             end do neighbor_loop
-
-            ! For each panel, check if it abuts the mirror plane
-            if (this%mirrored) then
-
-                ! Initialize checks
-                already_found_shared = .false.
-
-                ! Loop through vertices
-                mirror_loop: do m=1,this%panels(i)%N
-
-                    ! Check if we've found all neighbors for this panel
-                    if (all(this%panels(i)%abutting_panels /= 0)) then
-                        exit mirror_loop
-                    end if
-
-                    ! Check if vertex is on the mirror plane
-                    n = this%panels(i)%get_vertex_index(m)
-                    if (this%vertices(n)%on_mirror_plane) then
-
-                        ! Previously found a vertex on mirror plane, so the panels are abutting
-                        if (already_found_shared) then
-
-                            ! Store the second shared vertex
-                            i_endpoints(2) = n
-
-                            ! Check order
-                            if (m1 == 1 .and. m == 3) then
-                                temp = i_endpoints(1)
-                                i_endpoints(1) = i_endpoints(2)
-                                i_endpoints(2) = temp
-                            end if
-
-                            !$OMP critical
-                            
-                            ! Update number of edges
-                            this%N_edges = this%N_edges + 1
-                            i_edge = this%N_edges
-
-                            ! Store adjacent vertices
-                            call this%store_adjacent_vertices(i_endpoints, i_edge)
-
-                            ! Store adjacent panel
-                            if (m-m1 == 1) then
-                                this%panels(i)%abutting_panels(m1) = i+this%N_panels
-                                edge_index1(i_edge) = m1
-                            else
-                                this%panels(i)%abutting_panels(m) = i+this%N_panels
-                                edge_index1(i_edge) = m
-                            end if
-
-                            ! Store in arrays for later storage in edge objects
-                            panel1(i_edge) = i
-                            panel2(i_edge) = i+this%N_panels
-                            vertex1(i_edge) = i_endpoints(1)
-                            vertex2(i_edge) = i_endpoints(2)
-                            on_mirror_plane(i_edge) = .true.
-                            edge_index2(i_edge) = 0 ! Just a placeholder since the second panel doesn't technically exist
-                            edge_length(i_edge) = dist(this%vertices(i_endpoints(1))%loc, this%vertices(i_endpoints(2))%loc)
-
-                            !$OMP end critical
-
-                            ! Break out of loop
-                            exit mirror_loop
-
-                        ! First vertex on the mirror plane
-                        else
-
-                            already_found_shared = .true.
-                            i_endpoints(1) = n
-                            m1 = m
-
-                        end if
-                    end if
-
-                end do mirror_loop
-
-            end if
 
         end do
 
@@ -514,6 +412,11 @@ contains
                 ! Add edge
                 call this%vertices(i_mid)%adjacent_edges%append(i)
 
+                ! Check if midpoint is on mirror plane
+                if (this%mirrored) then
+                    call this%vertices(i_mid)%set_whether_on_mirror_plane(this%mirror_plane)
+                end if
+
                 ! Point edge to it
                 this%edges(i)%i_midpoint = i_mid
 
@@ -565,6 +468,93 @@ contains
     end subroutine surface_mesh_store_adjacent_vertices
 
 
+    function surface_mesh_check_panels_adjacent(this, i, j, i_endpoints, edge_index_i, edge_index_j) result(adjacent)
+        ! Checks whether panels i and j are adjacent
+
+        class(surface_mesh),intent(inout) :: this
+        integer,intent(in) :: i, j
+        integer,dimension(2),intent(out) :: i_endpoints
+        integer,intent(out) :: edge_index_i, edge_index_j
+
+        logical :: adjacent
+
+        logical :: already_found_shared
+        integer :: m, n, m1, n1, temp
+
+        ! Initialize
+        adjacent = .false.
+
+        ! Initialize for this panel pair
+        already_found_shared = .false.
+
+        ! Check if the panels are abutting
+        abutting_loop: do m=1,this%panels(i)%N
+            do n=1,this%panels(j)%N
+
+                ! Check if vertices have the same index
+                if (this%panels(i)%get_vertex_index(m) == this%panels(j)%get_vertex_index(n)) then
+
+                    ! Previously found a shared vertex, so we have abutting panels
+                    if (already_found_shared) then
+
+                        adjacent = .true.
+
+                        ! Store second shared vertex
+                        i_endpoints(2) = this%panels(i)%get_vertex_index(m)
+
+                        ! Check order; edge should proceed counterclockwise about panel i
+                        if (m1 == 1 .and. m == this%panels(i)%N) then
+                            temp = i_endpoints(1)
+                            i_endpoints(1) = i_endpoints(2)
+                            i_endpoints(2) = temp
+                        end if
+
+                        ! Store adjacent panels and panel edges
+                        ! This stores the adjacent panels and edges according to the index of that edge
+                        ! for the current panel
+
+                        ! Store that i is adjacent to j
+                        ! This one is more complicated because we don't know that n1 will be less than n; just the nature of the nested loop.
+                        ! Basically, if one is 1 and the other is N, then we're dealing with edge N for panel j.
+                        ! Otherwise, we're dealing with abs(n1-n) being 1, meaning edge min(n1, n).
+                        if ( (n1 == 1 .and. n == this%panels(j)%N) .or. (n == 1 .and. n1 == this%panels(j)%N) ) then
+                            this%panels(j)%abutting_panels(this%panels(j)%N) = i
+                            edge_index_j = this%panels(j)%N
+                        else
+                            n1 = min(n, n1)
+                            this%panels(j)%abutting_panels(n1) = i
+                            edge_index_j = n1
+                        end if
+
+                        ! Store that j is adjacent to i
+                        if (m1 == 1 .and. m == this%panels(i)%N) then ! Nth edge
+                            this%panels(i)%abutting_panels(m) = j
+                            edge_index_i = m
+                        else ! 1st or 2nd edge
+                            this%panels(i)%abutting_panels(m1) = j
+                            edge_index_i = m1
+                        end if
+
+                        return
+
+                    ! First shared vertex
+                    else
+
+                        already_found_shared = .true.
+                        i_endpoints(1) = this%panels(i)%get_vertex_index(m)
+                        m1 = m
+                        n1 = n
+
+                    end if
+                end if
+
+            end do
+
+        end do abutting_loop
+    
+    end function surface_mesh_check_panels_adjacent
+
+
     subroutine surface_mesh_init_with_flow(this, freestream, body_file, wake_file)
 
         implicit none
@@ -585,11 +575,16 @@ contains
             end if
         end if
 
-        ! Calculate panel coordinate transformations
+        ! Initialize properties of panels dependent upon the flow
+        if (verbose) write(*,'(a)',advance='no') "     Calculating panel properties..."
         !$OMP parallel do schedule(static)
         do i=1,this%N_panels
             call this%panels(i)%init_with_flow(freestream, this%asym_flow, this%mirror_plane)
         end do
+        if (verbose) write(*,*) "Done."
+
+        ! Determine number of sub- and superinclined panels
+        call this%count_panel_inclinations()
 
         ! Figure out wake-shedding edges, discontinuous edges, etc.
         ! Edge-characterization is only necessary for flows with wakes
@@ -615,9 +610,9 @@ contains
         if (freestream%supersonic) then
             call this%rearrange_vertices_streamwise(freestream)
 
-        ! For quadratic doublets, the midpoints need to be arranged better
+        ! For quadratic doublets, the midpoints need to be arranged better in subsonic flow
         else if (doublet_order == 2) then
-            call this%shuffle_midpoints_in()
+            !call this%shuffle_midpoints_in() ! System converges faster on sphere without this
         end if
 
         ! Calculate normals (for placing control points)
@@ -635,30 +630,46 @@ contains
 
         ! Write out body file to ensure it's been parsed correctly
         if (body_file /= 'none') then
-
-            ! Clear old file
-            call delete_file(body_file)
-
-            ! Get panel inclinations
-            allocate(panel_inclinations(this%N_panels))
-            do i=1,this%N_panels
-                panel_inclinations(i) = this%panels(i)%r
-            end do
-
-            ! Write geometry
-            call body_vtk%begin(body_file)
-            call body_vtk%write_points(this%vertices)
-            call body_vtk%write_panels(this%panels)
-            call body_vtk%write_cell_normals(this%panels)
-
-            ! Other
-            call body_vtk%write_cell_scalars(panel_inclinations, "inclination")
-            call body_vtk%finish()
+            call this%write_body(body_file, .false.)
         end if
 
         if (verbose) write(*,*) "Done."
     
     end subroutine surface_mesh_init_with_flow
+
+
+    subroutine surface_mesh_count_panel_inclinations(this)
+        ! Counts the number of sub- and superinclined panels
+
+        implicit none
+        
+        class(surface_mesh), intent(inout) :: this
+
+        integer :: i
+    
+        this%N_subinc = 0
+        this%N_supinc = 0
+        do i=1,this%N_panels
+
+            ! Original panel
+            if (this%panels(i)%r > 0.) then
+                this%N_subinc = this%N_subinc + 1
+            else
+                this%N_supinc = this%N_supinc + 1
+            end if
+
+            ! Mirrored panel
+            if (this%asym_flow) then
+                if (this%panels(i)%r_mir > 0.) then
+                    this%N_subinc = this%N_subinc + 1
+                else
+                    this%N_supinc = this%N_supinc + 1
+                end if
+            end if
+
+        end do
+        
+    end subroutine surface_mesh_count_panel_inclinations
 
 
     subroutine surface_mesh_characterize_edges(this, freestream)
@@ -1025,8 +1036,7 @@ contains
 
         integer :: i, j, k, m, n, N_clones, i_jango, i_boba, N_discont_verts, i_bot_panel, i_abutting_panel, i_adj_vert, i_top_panel
         integer :: i_edge
-        type(vertex),dimension(:),allocatable :: temp_vertices
-        integer,dimension(:),allocatable :: i_clones
+        integer,dimension(:),allocatable :: i_rearrange, i_rearrange_inv
 
         ! Check whether any discontinuities exist
         if (this%found_discontinuous_edges) then
@@ -1041,21 +1051,29 @@ contains
 
             ! Add space for new vertices
             call this%allocate_new_vertices(N_clones)
-            allocate(i_clones(N_clones))
+
+            ! Allocate rearranged indices array
+            allocate(i_rearrange(this%N_verts), source=0)
+            allocate(i_rearrange_inv(this%N_verts), source=0)
 
             ! Initialize clones
-            j = 1
-            do i_jango=1,this%N_verts
+            j = 0
+            do i_jango=1,this%N_verts-N_clones ! Only need to loop through original vertices here
 
                 ! Check if this vertex needs to be cloned
                 if (this%vertices(i_jango)%clone) then
 
                     ! Get index for the clone
+                    j = j + 1
                     i_boba = this%N_verts - N_clones + j ! Will be at position N_verts-N_clones+j in the new vertex array
+
+                    ! Get rearranged indices
+                    i_rearrange_inv(i_jango) = i_jango + j - 1
+                    i_rearrange_inv(i_boba) = i_jango + j
 
                     ! Initialize clone
                     call this%vertices(i_boba)%init(this%vertices(i_jango)%loc, i_boba, this%vertices(i_jango)%vert_type)
-                    i_clones(j) = i_boba
+                    this%vertices(i_boba)%clone = .true.
 
                     ! Set vertex type
                     if (this%vertices(i_jango)%vert_type==1) then
@@ -1175,10 +1193,10 @@ contains
 
                     end do
 
-                    ! Update clone index
-                    j = j + 1
-
                 else
+
+                    ! Get rearranged indices
+                    i_rearrange_inv(i_jango) = i_jango + j
 
                     ! If this vertex did not need to be cloned, but it is on the mirror plane and its mirror is unique
                     ! then the wake strength will be determined by its mirror as well in the case of an asymmetric flow.
@@ -1193,10 +1211,13 @@ contains
 
             end do
 
-            ! Store that the cloned vertices are clones
-            do i=1,N_clones
-                this%vertices(i_clones(i))%clone = .true.
+            ! Get inverse mapping
+            do i=1,this%N_verts
+                i_rearrange(i_rearrange_inv(i)) = i
             end do
+
+            ! Rearrange vertices so clones are next to clones
+            call this%allocate_new_vertices(0, i_rearrange)
 
             if (verbose) write(*,'(a, i4, a, i7, a)') "Done. Cloned ", N_clones, " vertices. Mesh now has ", &
                                                       this%N_verts, " vertices."
@@ -1599,29 +1620,79 @@ contains
         character(len=:),allocatable,intent(in) :: body_file, wake_file, control_point_file
         character(len=:),allocatable,intent(in) :: mirrored_body_file, mirrored_control_point_file
 
-        real,dimension(:),allocatable :: mu_on_wake, panel_inclinations
-        real,dimension(:,:),allocatable :: cents
-        type(vtk_out) :: body_vtk, wake_vtk, cp_vtk
-        integer :: i
+        logical :: wake_exported
 
         ! Write out data for body
         if (body_file /= 'none') then
+            call this%write_body(body_file, solved=.true.)
+            if (verbose) write(*,'(a30 a)') "    Surface: ", body_file
+        end if
 
-            ! Clear old file
-            call delete_file(body_file)
+        ! Write out data for mirrored body
+        if (mirrored_body_file /= 'none' .and. this%asym_flow) then
+            call this%write_body_mirror(mirrored_body_file, solved=.true.)
+            if (verbose) write(*,'(a30 a)') "    Mirrored surface: ", mirrored_body_file
+        end if
+        
+        ! Write out data for wake
+        if (wake_file /= 'none') then
+            call this%wake%write_wake(wake_file, wake_exported, this%mu)
 
-            ! Get panel inclinations and centroids
-            allocate(panel_inclinations(this%N_panels))
-            allocate(cents(3,this%N_panels))
-            do i=1,this%N_panels
-                panel_inclinations(i) = this%panels(i)%r
-                cents(:,i) = this%panels(i)%centr
-            end do
+            if (wake_exported) then
+                if (verbose) write(*,'(a30 a)') "    Wake: ", wake_file
+            else
+                if (verbose) write(*,'(a30 a)') "    Wake: ", "no wake to export"
+            end if
+        end if
+        
+        ! Write out data for control points
+        if (control_point_file /= 'none') then
+            call this%write_control_points(control_point_file, solved=.true.)
 
-            ! Write geometry
-            call body_vtk%begin(body_file)
-            call body_vtk%write_points(this%vertices)
-            call body_vtk%write_panels(this%panels, subdivide=doublet_order==2)
+            if (verbose) write(*,'(a30 a)') "    Control points: ", control_point_file
+        end if
+        
+        ! Write out data for mirrored control points
+        if (mirrored_control_point_file /= 'none' .and. this%asym_flow) then
+            call this%write_mirrored_control_points(mirrored_control_point_file, solved=.true.)
+
+            if (verbose) write(*,'(a30 a)') "    Mirrored control points: ", mirrored_control_point_file
+        end if
+    
+    end subroutine surface_mesh_output_results
+
+
+    subroutine surface_mesh_write_body(this, body_file, solved)
+        ! Writes the body and results (if solved) out to file
+
+        implicit none
+        
+        class(surface_mesh),intent(in) :: this
+        character(len=:),allocatable,intent(in) :: body_file
+        logical,intent(in) :: solved
+
+        type(vtk_out) :: body_vtk
+        integer :: i
+        real,dimension(:),allocatable :: panel_inclinations
+        real,dimension(:,:),allocatable :: cents
+
+        ! Clear old file
+        call delete_file(body_file)
+
+        ! Get panel inclinations and centroids
+        allocate(panel_inclinations(this%N_panels))
+        allocate(cents(3,this%N_panels))
+        do i=1,this%N_panels
+            panel_inclinations(i) = this%panels(i)%r
+            cents(:,i) = this%panels(i)%centr
+        end do
+
+        ! Write geometry
+        call body_vtk%begin(body_file)
+        call body_vtk%write_points(this%vertices)
+        call body_vtk%write_panels(this%panels, subdivide=doublet_order==2)
+
+        if (solved) then
 
             ! Pressures
             if (allocated(this%C_p_inc)) then
@@ -1656,11 +1727,14 @@ contains
                 call body_vtk%write_cell_scalars(this%sigma(1:this%N_panels), "sigma")
             end if
 
-            ! Other
-            call body_vtk%write_cell_scalars(panel_inclinations, "inclination")
+        end if
+
+        ! Other
+        call body_vtk%write_cell_scalars(panel_inclinations, "inclination")
+        call body_vtk%write_cell_vectors(cents, "centroid")
+        if (solved) then
             call body_vtk%write_cell_vectors(this%v(:,1:this%N_panels), "v")
             call body_vtk%write_cell_vectors(this%dC_f(:,1:this%N_panels), "dC_f")
-            call body_vtk%write_cell_vectors(cents, "centroid")
 
             ! Linear sources
             if (source_order == 1) then
@@ -1669,153 +1743,157 @@ contains
 
             call body_vtk%write_point_scalars(this%mu(1:this%N_verts), "mu")
             call body_vtk%write_point_scalars(this%Phi_u(1:this%N_verts), "Phi_u")
-            call body_vtk%finish()
-
-            if (verbose) write(*,'(a30 a)') "    Surface: ", body_file
         end if
 
-        ! Write out data for mirrored body
-        if (mirrored_body_file /= 'none' .and. this%asym_flow) then
+        ! Finalize
+        call body_vtk%finish()
+    
+    end subroutine surface_mesh_write_body
 
-            ! Clear old file
-            call delete_file(mirrored_body_file)
 
-            ! Get panel inclinations
-            if (.not. allocated(panel_inclinations)) then
-                allocate(panel_inclinations(this%N_panels))
-                allocate(cents(3,this%N_panels))
-            end if
-            do i=1,this%N_panels
-                panel_inclinations(i) = this%panels(i)%r_mir
-                cents(:,i) = this%panels(i)%centr_mir
-            end do
+    subroutine surface_mesh_write_body_mirror(this, mirrored_body_file, solved)
+        ! Writes the body mirror and results (if solved) out to file
 
-            ! Write geometry
-            call body_vtk%begin(mirrored_body_file)
-            call body_vtk%write_points(this%vertices, this%mirror_plane)
-            call body_vtk%write_panels(this%panels, subdivide=doublet_order==2)
-
-            ! Pressures
-            if (allocated(this%C_p_inc)) then
-                call body_vtk%write_cell_scalars(this%C_p_inc(this%N_panels+1:this%N_panels*2), "C_p_inc")
-            end if
-            if (allocated(this%C_p_ise)) then
-                call body_vtk%write_cell_scalars(this%C_p_ise(this%N_panels+1:this%N_panels*2), "C_p_ise")
-            end if
-            if (allocated(this%C_p_2nd)) then
-                call body_vtk%write_cell_scalars(this%C_p_2nd(this%N_panels+1:this%N_panels*2), "C_p_2nd")
-            end if
-            if (allocated(this%C_p_lin)) then
-                call body_vtk%write_cell_scalars(this%C_p_lin(this%N_panels+1:this%N_panels*2), "C_p_lin")
-            end if
-            if (allocated(this%C_p_sln)) then
-                call body_vtk%write_cell_scalars(this%C_p_sln(this%N_panels+1:this%N_panels*2), "C_p_sln")
-            end if
-
-            ! Corrected pressures
-            if (allocated(this%C_p_pg)) then
-                call body_vtk%write_cell_scalars(this%C_p_pg(this%N_panels+1:this%N_panels*2), "C_p_PG")
-            end if
-            if (allocated(this%C_p_kt)) then
-                call body_vtk%write_cell_scalars(this%C_p_kt(this%N_panels+1:this%N_panels*2), "C_p_KT")
-            end if
-            if (allocated(this%C_p_lai)) then
-                call body_vtk%write_cell_scalars(this%C_p_lai(this%N_panels+1:this%N_panels*2), "C_p_L")
-            end if
-
-            ! Constant sources
-            if (source_order == 0) then
-                call body_vtk%write_cell_scalars(this%sigma(this%N_panels+1:this%N_panels*2), "sigma")
-            end if
-
-            ! Other
-            call body_vtk%write_cell_vectors(this%v(:,this%N_panels+1:this%N_panels*2), "v")
-            call body_vtk%write_cell_vectors(this%dC_f(:,this%N_panels+1:this%N_panels*2), "dC_f")
-            call body_vtk%write_cell_vectors(cents, "centroid")
-
-            ! Linear sources
-            if (source_order == 1) then
-                call body_vtk%write_point_scalars(this%sigma(this%N_verts+1:this%N_verts*2), "sigma")
-            end if
-
-            call body_vtk%write_point_scalars(this%mu(this%N_cp+1:this%N_cp*2), "mu")
-            call body_vtk%write_point_scalars(this%Phi_u(this%N_verts+1:this%N_verts*2), "Phi_u")
-            call body_vtk%finish()
-
-            if (verbose) write(*,'(a30 a)') "    Mirrored surface: ", mirrored_body_file
-
-        end if
+        implicit none
         
-        ! Write out data for wake
-        if (wake_file /= 'none') then
+        class(surface_mesh),intent(in) :: this
+        character(len=:),allocatable,intent(in) :: mirrored_body_file
+        logical,intent(in) :: solved
 
-            ! Clear old file
-            call delete_file(wake_file)
+        type(vtk_out) :: body_vtk
+        integer :: i
+        real,dimension(:),allocatable :: panel_inclinations
+        real,dimension(:,:),allocatable :: cents
 
-            if (this%wake%N_panels > 0) then
+        ! Clear old file
+        call delete_file(mirrored_body_file)
 
-                ! Write out geometry
-                call wake_vtk%begin(wake_file)
-                call wake_vtk%write_points(this%wake%vertices)
-                call wake_vtk%write_panels(this%wake%panels, subdivide=doublet_order==2)
-                call wake_vtk%write_cell_normals(this%wake%panels)
-
-                ! Calculate doublet strengths
-                allocate(mu_on_wake(this%wake%N_verts))
-                do i=1,this%wake%N_verts
-                    mu_on_wake(i) = this%mu(this%wake%vertices(i)%top_parent)-this%mu(this%wake%vertices(i)%bot_parent)
-                end do
-
-                ! Write doublet strengths
-                call wake_vtk%write_point_scalars(mu_on_wake, "mu")
-
-                ! Finish up
-                call wake_vtk%finish()
-                if (verbose) write(*,'(a30 a)') "    Wake: ", wake_file
-
-            else
-                if (verbose) write(*,'(a30 a)') "    Wake: ", "no wake to export"
-
-            end if
+        ! Get panel inclinations
+        if (.not. allocated(panel_inclinations)) then
+            allocate(panel_inclinations(this%N_panels))
+            allocate(cents(3,this%N_panels))
         end if
+        do i=1,this%N_panels
+            panel_inclinations(i) = this%panels(i)%r_mir
+            cents(:,i) = this%panels(i)%centr_mir
+        end do
+
+        ! Write geometry
+        call body_vtk%begin(mirrored_body_file)
+        call body_vtk%write_points(this%vertices, this%mirror_plane)
+        call body_vtk%write_panels(this%panels, subdivide=doublet_order==2)
+
+        ! Pressures
+        if (allocated(this%C_p_inc)) then
+            call body_vtk%write_cell_scalars(this%C_p_inc(this%N_panels+1:this%N_panels*2), "C_p_inc")
+        end if
+        if (allocated(this%C_p_ise)) then
+            call body_vtk%write_cell_scalars(this%C_p_ise(this%N_panels+1:this%N_panels*2), "C_p_ise")
+        end if
+        if (allocated(this%C_p_2nd)) then
+            call body_vtk%write_cell_scalars(this%C_p_2nd(this%N_panels+1:this%N_panels*2), "C_p_2nd")
+        end if
+        if (allocated(this%C_p_lin)) then
+            call body_vtk%write_cell_scalars(this%C_p_lin(this%N_panels+1:this%N_panels*2), "C_p_lin")
+        end if
+        if (allocated(this%C_p_sln)) then
+            call body_vtk%write_cell_scalars(this%C_p_sln(this%N_panels+1:this%N_panels*2), "C_p_sln")
+        end if
+
+        ! Corrected pressures
+        if (allocated(this%C_p_pg)) then
+            call body_vtk%write_cell_scalars(this%C_p_pg(this%N_panels+1:this%N_panels*2), "C_p_PG")
+        end if
+        if (allocated(this%C_p_kt)) then
+            call body_vtk%write_cell_scalars(this%C_p_kt(this%N_panels+1:this%N_panels*2), "C_p_KT")
+        end if
+        if (allocated(this%C_p_lai)) then
+            call body_vtk%write_cell_scalars(this%C_p_lai(this%N_panels+1:this%N_panels*2), "C_p_L")
+        end if
+
+        ! Constant sources
+        if (source_order == 0) then
+            call body_vtk%write_cell_scalars(this%sigma(this%N_panels+1:this%N_panels*2), "sigma")
+        end if
+
+        ! Other
+        call body_vtk%write_cell_vectors(this%v(:,this%N_panels+1:this%N_panels*2), "v")
+        call body_vtk%write_cell_vectors(this%dC_f(:,this%N_panels+1:this%N_panels*2), "dC_f")
+        call body_vtk%write_cell_vectors(cents, "centroid")
+
+        ! Linear sources
+        if (source_order == 1) then
+            call body_vtk%write_point_scalars(this%sigma(this%N_verts+1:this%N_verts*2), "sigma")
+        end if
+
+        call body_vtk%write_point_scalars(this%mu(this%N_cp+1:this%N_cp*2), "mu")
+        call body_vtk%write_point_scalars(this%Phi_u(this%N_verts+1:this%N_verts*2), "Phi_u")
+        call body_vtk%finish()
+
+    end subroutine surface_mesh_write_body_mirror
+
+
+    subroutine surface_mesh_write_control_points(this, control_point_file, solved)
+        ! Writes the control points (and results if solved) out to file
+
+        implicit none
         
-        ! Write out data for control points
-        if (control_point_file /= 'none') then
+        class(surface_mesh),intent(in) :: this
+        character(len=:),allocatable,intent(in) :: control_point_file
+        logical,intent(in) :: solved
 
-            ! Clear old file
-            call delete_file(control_point_file)
+        type(vtk_out) :: cp_vtk
 
-            ! Write out data
-            call cp_vtk%begin(control_point_file)
-            call cp_vtk%write_points(this%cp)
-            call cp_vtk%write_vertices(this%N_cp)
+        ! Clear old file
+        call delete_file(control_point_file)
+
+        ! Write out data
+        call cp_vtk%begin(control_point_file)
+        call cp_vtk%write_points(this%cp)
+        call cp_vtk%write_vertices(this%N_cp)
+        
+        ! Results
+        if (solved) then
             call cp_vtk%write_point_scalars(this%phi_cp(1:this%N_cp), "phi")
             call cp_vtk%write_point_scalars(this%phi_cp_mu(1:this%N_cp), "phi_mu")
             call cp_vtk%write_point_scalars(this%phi_cp_sigma(1:this%N_cp), "phi_sigma")
-            call cp_vtk%finish()
-
-            if (verbose) write(*,'(a30 a)') "    Control points: ", control_point_file
         end if
+
+        call cp_vtk%finish()
+    
         
-        ! Write out data for mirrored control points
-        if (mirrored_control_point_file /= 'none' .and. this%asym_flow) then
+    end subroutine surface_mesh_write_control_points
 
-            ! Clear old file
-            call delete_file(mirrored_control_point_file)
 
-            ! Write out data
-            call cp_vtk%begin(mirrored_control_point_file)
-            call cp_vtk%write_points(this%cp_mirrored)
-            call cp_vtk%write_vertices(this%N_cp)
+    subroutine surface_mesh_write_mirrored_control_points(this, control_point_file, solved)
+        ! Writes the control points (and results if solved) out to file
+
+        implicit none
+        
+        class(surface_mesh),intent(in) :: this
+        character(len=:),allocatable,intent(in) :: control_point_file
+        logical,intent(in) :: solved
+
+        type(vtk_out) :: cp_vtk
+
+        ! Clear old file
+        call delete_file(control_point_file)
+
+        ! Write out data
+        call cp_vtk%begin(control_point_file)
+        call cp_vtk%write_points(this%cp_mirrored)
+        call cp_vtk%write_vertices(this%N_cp)
+        
+        ! Results
+        if (solved) then
             call cp_vtk%write_point_scalars(this%phi_cp(this%N_cp+1:this%N_cp*2), "phi")
             call cp_vtk%write_point_scalars(this%phi_cp_mu(this%N_cp+1:this%N_cp*2), "phi_mu")
             call cp_vtk%write_point_scalars(this%phi_cp_sigma(this%N_cp+1:this%N_cp*2), "phi_sigma")
-            call cp_vtk%finish()
-
-            if (verbose) write(*,'(a30 a)') "    Mirrored control points: ", mirrored_control_point_file
         end if
-    
-    end subroutine surface_mesh_output_results
 
+        call cp_vtk%finish()
+    
+        
+    end subroutine surface_mesh_write_mirrored_control_points
 
 end module surface_mesh_mod

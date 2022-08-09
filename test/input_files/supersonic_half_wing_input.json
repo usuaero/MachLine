@@ -5,7 +5,7 @@
         "freestream_mach_number" : 2.0
     },
     "geometry": {
-        "file": "test/diamond_half_wing.vtk",
+        "file": "test/meshes/diamond_half_wing.vtk",
         "mirror_about": "xz",
         "spanwise_axis" : "+y",
         "wake_model": {

@@ -1,0 +1,4 @@
+# MachLine Studies
+Since MachLine is first and foremost and academic code, we have found it desirable to include a collection of the studies we have conducted on MachLine. These studies cover a wide range of aspects from paneling sensitivity and grid convergence to accuracy compared to wind tunnel data.
+
+Each study consists of a set of meshes, one or more input files, and one or more Python scripts used to run MachLine automatically, parse the data, and process results. For each, the Python scripts should be run from the directory in which they are stored. Do not worry about copying the MachLine executable; the Python scripts are set up to automatically find the executable in the MachLine root directory.

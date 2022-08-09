@@ -64,7 +64,7 @@ def run_machline(input_file, remove_input=False):
 def test_half_wing_source_free_asym_inc_flow():
     # Tests the half wing case with the source-free formulation returns the consistent result
 
-    C_p_max, C_p_min, Cx, Cy, Cz = run_machline("test/half_wing_input.json")
+    C_p_max, C_p_min, Cx, Cy, Cz = run_machline("test/input_files/half_wing_input.json")
 
     print(C_p_max)
     print(C_p_min)
@@ -72,30 +72,30 @@ def test_half_wing_source_free_asym_inc_flow():
     print(Cy)
     print(Cz)
 
-    assert(abs(C_p_max - 0.749203172588596) < 1e-7)
-    assert(abs(C_p_min - -1.27770150667225) < 1e-7)
-    assert(abs(Cx - -0.393161802358241) < 1e-7)
-    assert(abs(Cy - -0.046892410949686) < 1e-7)
-    assert(abs(Cz - 20.6218617377561) < 1.1e-7)
+    assert(abs(C_p_max - 0.749288172064042) < 1e-7)
+    assert(abs(C_p_min - -1.28109104392554) < 1e-7)
+    assert(abs(Cx - -0.393436207597783) < 1e-7)
+    assert(abs(Cy - -0.0468413463525662) < 1e-7)
+    assert(abs(Cz - 20.6417067562562) < 1.1e-7)
 
 
 def test_half_wing_morino_asym_inc_flow():
     # Tests the half wing case with the source-free formulation returns the consistent result
 
     # Load original input
-    with open("test/half_wing_input.json", 'r') as input_handle:
+    with open("test/input_files/half_wing_input.json", 'r') as input_handle:
         input_dict = json.load(input_handle)
 
     # Alter input
     input_dict["solver"]["formulation"] = "morino"
 
     # Write altered input
-    altered_input_file = "test/altered_half_wing_input.json"
+    altered_input_file = "test/input_files/altered_half_wing_input.json"
     with open(altered_input_file, 'w') as altered_input_handle:
         json.dump(input_dict, altered_input_handle, indent=4)
 
     # Run MachLine
-    C_p_max, C_p_min, Cx, Cy, Cz = run_machline("test/altered_half_wing_input.json", remove_input=True)
+    C_p_max, C_p_min, Cx, Cy, Cz = run_machline("test/input_files/altered_half_wing_input.json", remove_input=True)
 
     print(C_p_max)
     print(C_p_min)
@@ -103,18 +103,18 @@ def test_half_wing_morino_asym_inc_flow():
     print(Cy)
     print(Cz)
 
-    assert(abs(C_p_max - 0.749203884486916) < 1e-7)
-    assert(abs(C_p_min - -1.27775688504459) < 1e-7)
-    assert(abs(Cx - -0.393164042327084) < 1e-7)
-    assert(abs(Cy - -0.0468954335679093) < 1e-7)
-    assert(abs(Cz - 20.6220753512639) < 1e-7)
+    assert(abs(C_p_max - 0.749289075330898) < 1e-7)
+    assert(abs(C_p_min - -1.28108290598932) < 1e-7)
+    assert(abs(Cx - -0.393437926685924) < 1e-7)
+    assert(abs(Cy - -0.0468408139136181) < 1e-7)
+    assert(abs(Cz - 20.641756742193) < 1e-7)
 
 
 def test_half_wing_morino_zero_aoa_zero_beta_inc():
     # Tests the half wing case at zero angle of attack with the Morino formulation
 
     # Load original input
-    with open("test/half_wing_input.json", 'r') as input_handle:
+    with open("test/input_files/half_wing_input.json", 'r') as input_handle:
         input_dict = json.load(input_handle)
 
     # Alter input
@@ -122,7 +122,7 @@ def test_half_wing_morino_zero_aoa_zero_beta_inc():
     input_dict["solver"]["formulation"] = "morino"
 
     # Write altered input
-    altered_input_file = "test/altered_half_wing_input.json"
+    altered_input_file = "test/input_files/altered_half_wing_input.json"
     with open(altered_input_file, 'w') as altered_input_handle:
         json.dump(input_dict, altered_input_handle, indent=4)
 
@@ -135,18 +135,18 @@ def test_half_wing_morino_zero_aoa_zero_beta_inc():
     print(Cy)
     print(Cz)
 
-    assert(abs(C_p_max - 0.221658891565984) < 1e-7)
-    assert(abs(C_p_min - -0.427587709978507) < 1e-7)
-    assert(abs(Cx - 0.301886573119651) < 1e-7)
+    assert(abs(C_p_max - 0.221658893091056) < 1e-7)
+    assert(abs(C_p_min - -0.427587706833639) < 1e-7)
+    assert(abs(Cx - 0.301899498884529) < 1e-7)
     assert(abs(Cy) < 1e-12)
-    assert(abs(Cz - -1.6953028193344e-07) < 1e-7)
+    assert(abs(Cz) < 1e-7)
 
 
 def test_sphere_morino_inc_quad_doublets_iterative():
     # Tests the sphere case with the Morino formulation using quadratic doublets and an iterative matrix solver
 
     # Load original input
-    with open("test/sphere_input.json", 'r') as input_handle:
+    with open("test/input_files/sphere_input.json", 'r') as input_handle:
         input_dict = json.load(input_handle)
 
     # Alter input
@@ -155,7 +155,7 @@ def test_sphere_morino_inc_quad_doublets_iterative():
     input_dict["geometry"]["singularity_order"] = {"doublet" : 2}
 
     # Write altered input
-    altered_input_file = "test/altered_sphere_input.json"
+    altered_input_file = "test/input_files/altered_sphere_input.json"
     with open(altered_input_file, 'w') as altered_input_handle:
         json.dump(input_dict, altered_input_handle, indent=4)
 
@@ -178,7 +178,7 @@ def test_sphere_morino_inc_quad_doublets_iterative():
 def test_sphere_morino_inc():
     # Tests the sphere case with the Morino formulation returns the consistent result
 
-    C_p_max, C_p_min, Cx, Cy, Cz = run_machline("test/sphere_input.json")
+    C_p_max, C_p_min, Cx, Cy, Cz = run_machline("test/input_files/sphere_input.json")
 
     print(C_p_max)
     print(C_p_min)
@@ -197,29 +197,29 @@ def test_full_half_wing_compare_morino_zero_beta_inc():
     # Tests the full wing and half wing with the Morino formulation return identical results
 
     # Set full wing input
-    with open("test/full_wing_input.json", 'r') as full_wing_input_handle:
+    with open("test/input_files/full_wing_input.json", 'r') as full_wing_input_handle:
         input_dict = json.load(full_wing_input_handle)
 
     input_dict["flow"]["freestream_velocity"] = [100.0, 0.0, 10.0]
     input_dict["solver"]["formulation"] = 'morino'
 
-    with open("test/altered_full_wing_input.json", 'w') as full_wing_input_handle:
+    with open("test/input_files/altered_full_wing_input.json", 'w') as full_wing_input_handle:
         input_dict = json.dump(input_dict, full_wing_input_handle, indent=4)
 
     # Run full wing
-    C_p_max_full, C_p_min_full, Cx_full, Cy_full, Cz_full = run_machline("test/altered_full_wing_input.json", remove_input=True)
+    C_p_max_full, C_p_min_full, Cx_full, Cy_full, Cz_full = run_machline("test/input_files/altered_full_wing_input.json", remove_input=True)
 
     # Set half wing input
-    with open("test/half_wing_input.json", 'r') as half_wing_input_handle:
+    with open("test/input_files/half_wing_input.json", 'r') as half_wing_input_handle:
         input_dict = json.load(half_wing_input_handle)
 
     input_dict["flow"]["freestream_velocity"] = [100.0, 0.0, 10.0]
     input_dict["solver"]["formulation"] = 'morino'
 
-    with open("test/altered_half_wing_input.json", 'w') as half_wing_input_handle:
+    with open("test/input_files/altered_half_wing_input.json", 'w') as half_wing_input_handle:
         input_dict = json.dump(input_dict, half_wing_input_handle, indent=4)
 
-    C_p_max_half, C_p_min_half, Cx_half, Cy_half, Cz_half = run_machline("test/altered_half_wing_input.json", remove_input=True)
+    C_p_max_half, C_p_min_half, Cx_half, Cy_half, Cz_half = run_machline("test/input_files/altered_half_wing_input.json", remove_input=True)
 
     print(abs(C_p_max_full-C_p_max_half))
     print(abs(C_p_min_full-C_p_min_half))
@@ -227,18 +227,18 @@ def test_full_half_wing_compare_morino_zero_beta_inc():
     print(abs(Cy_full-Cy_half))
     print(abs(Cz_full-Cz_half))
 
-    assert(abs(C_p_max_full-C_p_max_half)<1e-4)
-    assert(abs(C_p_min_full-C_p_min_half)<2e-4)
-    assert(abs(Cx_full-Cx_half)<1e-4)
-    assert(abs(Cy_full-Cy_half)<1e-4)
-    assert(abs(Cz_full-Cz_half)<1e-4)
+    assert(abs(C_p_max_full-C_p_max_half)<1e-3)
+    assert(abs(C_p_min_full-C_p_min_half)<2e-3)
+    assert(abs(Cx_full-Cx_half)<1e-3)
+    assert(abs(Cy_full-Cy_half)<1e-3)
+    assert(abs(Cz_full-Cz_half)<2e-2)
 
 
 def test_subsonic_comp_pressure_corrections():
 
     # Tests the half wing case with the source-free formulation returns the consistent result
 
-    C_p_max, C_p_min, Cx, Cy, Cz = run_machline("test/compressible_half_wing_input.json")
+    C_p_max, C_p_min, Cx, Cy, Cz = run_machline("test/input_files/compressible_half_wing_input.json")
 
     print(C_p_max)
     print(C_p_min)
@@ -246,16 +246,16 @@ def test_subsonic_comp_pressure_corrections():
     print(Cy)
     print(Cz)
 
-    assert(abs(C_p_max - 0.817137373208248) < 1e-7)
-    assert(abs(C_p_min - -1.09340572438493) < 1e-7)
-    assert(abs(Cx - 0.507724687944559) < 1e-7)
-    assert(abs(Cy - -0.0101999867329524) < 1e-7)
-    assert(abs(Cz - -26.2478894537363) < 1.1e-7)
+    assert(abs(C_p_max - 0.817226877202845) < 1e-7)
+    assert(abs(C_p_min - -1.09359536107271) < 1e-7)
+    assert(abs(Cx - 0.508045433823973) < 1e-7)
+    assert(abs(Cy - -0.0101884430545404) < 1e-7)
+    assert(abs(Cz - -26.271978936734) < 1.1e-7)
 
 
 def test_supersonic_half_wing_morino_zero_aoa_zero_beta():
 
-    C_p_max, C_p_min, Cx, Cy, Cz = run_machline("test/supersonic_half_wing_input.json")
+    C_p_max, C_p_min, Cx, Cy, Cz = run_machline("test/input_files/supersonic_half_wing_input.json")
 
     print(C_p_max)
     print(C_p_min)
@@ -272,15 +272,15 @@ def test_supersonic_half_wing_morino_zero_aoa_zero_beta():
 
 def test_supersonic_half_wing_source_free_zero_aoa_zero_beta():
 
-    with open("test/supersonic_half_wing_input.json", 'r') as input_handle:
+    with open("test/input_files/supersonic_half_wing_input.json", 'r') as input_handle:
         input_dict = json.load(input_handle)
 
     input_dict["solver"]["formulation"] = 'source-free'
 
-    with open("test/altered_supersonic_input.json", 'w') as input_handle:
+    with open("test/input_files/altered_supersonic_input.json", 'w') as input_handle:
         input_dict = json.dump(input_dict, input_handle, indent=4)
 
-    C_p_max, C_p_min, Cx, Cy, Cz = run_machline("test/altered_supersonic_input.json", remove_input=True)
+    C_p_max, C_p_min, Cx, Cy, Cz = run_machline("test/input_files/altered_supersonic_input.json", remove_input=True)
 
     print(C_p_max)
     print(C_p_min)
@@ -297,16 +297,16 @@ def test_supersonic_half_wing_source_free_zero_aoa_zero_beta():
 
 def test_supersonic_half_wing_morino_allow_wake_asym_flow():
 
-    with open("test/supersonic_half_wing_input.json", 'r') as input_handle:
+    with open("test/input_files/supersonic_half_wing_input.json", 'r') as input_handle:
         input_dict = json.load(input_handle)
 
     input_dict["flow"]["freestream_velocity"] = [100.0, 5.0, 5.0]
     input_dict["geometry"]["wake_model"]["append_wake"] = True
 
-    with open("test/altered_supersonic_input.json", 'w') as input_handle:
+    with open("test/input_files/altered_supersonic_input.json", 'w') as input_handle:
         input_dict = json.dump(input_dict, input_handle, indent=4)
 
-    C_p_max, C_p_min, Cx, Cy, Cz = run_machline("test/altered_supersonic_input.json", remove_input=True)
+    C_p_max, C_p_min, Cx, Cy, Cz = run_machline("test/input_files/altered_supersonic_input.json", remove_input=True)
 
     print(C_p_max)
     print(C_p_min)
@@ -323,16 +323,17 @@ def test_supersonic_half_wing_morino_allow_wake_asym_flow():
 
 def test_supersonic_half_wing_source_free_allow_wake_sym_flow():
 
-    with open("test/supersonic_half_wing_input.json", 'r') as input_handle:
+    with open("test/input_files/supersonic_half_wing_input.json", 'r') as input_handle:
         input_dict = json.load(input_handle)
 
     input_dict["flow"]["freestream_velocity"] = [100.0, 0.0, 5.0]
     input_dict["geometry"]["wake_model"]["append_wake"] = True
+    input_dict["solver"]["formulation"] = "source-free"
 
-    with open("test/altered_supersonic_input.json", 'w') as input_handle:
+    with open("test/input_files/altered_supersonic_input.json", 'w') as input_handle:
         input_dict = json.dump(input_dict, input_handle, indent=4)
 
-    C_p_max, C_p_min, Cx, Cy, Cz = run_machline("test/altered_supersonic_input.json", remove_input=True)
+    C_p_max, C_p_min, Cx, Cy, Cz = run_machline("test/input_files/altered_supersonic_input.json", remove_input=True)
 
     print(C_p_max)
     print(C_p_min)
@@ -340,16 +341,16 @@ def test_supersonic_half_wing_source_free_allow_wake_sym_flow():
     print(Cy)
     print(Cz)
 
-    assert(abs(C_p_max - 0.194950373758269) < 1e-7)
-    assert(abs(C_p_min - -0.301607918132292) < 1e-7)
-    assert(abs(Cx - 0.142869043085108) < 1e-7)
+    assert(abs(C_p_max - 0.19495037375827) < 1e-7)
+    assert(abs(C_p_min - -0.295391818263764) < 1e-7)
+    assert(abs(Cx - 0.14286400786453) < 1e-7)
     assert(abs(Cy) < 1.e-12)
-    assert(abs(Cz - 0.892760941615457) < 2.1e-7)
+    assert(abs(Cz - 0.89234934625429) < 2.1e-7)
 
 
 def test_fuselage_subsonic_compressible_iterative():
 
-    C_p_max, C_p_min, Cx, Cy, Cz = run_machline("test/fuselage_input.json")
+    C_p_max, C_p_min, Cx, Cy, Cz = run_machline("test/input_files/fuselage_input.json")
 
     print(C_p_max)
     print(C_p_min)
@@ -362,3 +363,38 @@ def test_fuselage_subsonic_compressible_iterative():
     assert(abs(Cx) < 2.1e-3)
     assert(abs(Cy) < 2.1e-3)
     assert(abs(Cz) < 2.1e-3)
+
+
+def test_subsonic_quad_doublets_naca_wing_asym():
+    # Tests subsonic quadartic doublets on a half wing in asymmetric flow
+
+    # Load original input
+    with open("test/input_files/half_wing_input.json", 'r') as input_handle:
+        input_dict = json.load(input_handle)
+
+    # Alter input
+    input_dict["flow"]["freestream_velocity"] = [100.0, 10.0, 10.0]
+    input_dict["solver"]["formulation"] = "morino"
+    input_dict["geometry"]["singularity_order"] = { "doublet" : 2 }
+    input_dict["geometry"]["file"] = "test/meshes/naca_0010_AR_10_half_coarse.stl"
+
+    # Write altered input
+    altered_input_file = "test/input_files/altered_half_wing_input.json"
+    with open(altered_input_file, 'w') as altered_input_handle:
+        json.dump(input_dict, altered_input_handle, indent=4)
+
+    # Run MachLine
+    C_p_max, C_p_min, Cx, Cy, Cz = run_machline(altered_input_file, remove_input=True)
+
+    print(C_p_max)
+    print(C_p_min)
+    print(Cx)
+    print(Cy)
+    print(Cz)
+
+    assert(abs(C_p_max - 0.9923328907096) < 1e-7)
+    assert(abs(C_p_min - -6.84061256413501) < 1e-7)
+    assert(abs(Cx - -0.21245223433281) < 1e-7)
+    assert(abs(Cy - 0.002675744551902) < 1e-12)
+    assert(abs(Cz - 3.85804126684473) < 1e-7)
+

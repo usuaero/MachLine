@@ -32,6 +32,7 @@ module vertex_mod
 
             procedure :: init => vertex_init
             procedure :: calc_average_edge_length => vertex_calc_average_edge_length
+            procedure :: set_whether_on_mirror_plane => vertex_set_whether_on_mirror_plane
 
     end type vertex
 
@@ -66,9 +67,9 @@ contains
         this%bot_parent = 0
 
         ! Default cases
-        this%mirrored_is_unique = .true. ! This will almost always be the case; we'll set the exceptions later
-        this%clone = .false. ! Same
-        this%on_mirror_plane = .false. ! Same
+        this%mirrored_is_unique = .true.
+        this%clone = .false.
+        this%on_mirror_plane = .false.
         this%i_wake_partner = index
 
     end subroutine vertex_init
@@ -114,6 +115,26 @@ contains
         this%l_avg = this%l_avg/N
     
     end subroutine vertex_calc_average_edge_length
+
+
+    subroutine vertex_set_whether_on_mirror_plane(this, mirror_plane)
+        ! Sets the member variable telling whether this vertex is on the mirror plane
+
+        implicit none
+        
+        class(vertex), intent(inout) :: this
+        integer, intent(in) :: mirror_plane
+
+        ! Check distance from mirror plane
+        if (abs(this%loc(mirror_plane))<1e-12) then
+
+            ! The vertex is on the mirror plane
+            this%on_mirror_plane = .true.
+
+        end if
+    
+        
+    end subroutine vertex_set_whether_on_mirror_plane
 
     
 end module vertex_mod

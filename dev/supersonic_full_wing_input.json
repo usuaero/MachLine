@@ -1,21 +1,24 @@
 {
     "flow": {
-        "freestream_velocity": [100.0, 0.0, 0.0],
+        "freestream_velocity": [1.0, 0.0, 0.0],
         "gamma" : 1.4,
         "freestream_mach_number" : 2.0
     },
     "geometry": {
         "file": "dev/meshes/diamond_5_deg_full_medium.stl",
         "spanwise_axis" : "+y",
+        "singularity_order" : {
+            "source" : 0,
+            "doublet" : 2
+        },
         "reference": {
             "area": 1.0
         }
     },
     "solver": {
-        "formulation": "source-free",
-        "control_point_offset": 1.1e-05,
-        "matrix_solver" : "LU",
-        "write_A_and_b" : true
+        "formulation": "morino",
+        "control_point_offset": 1.1e-06,
+        "matrix_solver" : "LU"
     },
     "post_processing" : {
         "pressure_rules" : {
@@ -25,6 +28,17 @@
     "output": {
         "body_file" :          "dev/results/diamond_5_deg_full_medium.vtk",
         "wake_file" :          "dev/results/diamond_5_deg_full_medium_wake.vtk",
-        "control_point_file" : "dev/results/diamond_5_deg_full_medium_control_points.vtk"
+        "control_point_file" : "dev/results/diamond_5_deg_full_medium_control_points.vtk",
+        "potential_slice" : {
+            "file" : "dev/results/slice.csv",
+            "parallel_to" : "xz",
+            "y_loc" : 0.0,
+            "x_min" : -0.1,
+            "z_min" : -0.1,
+            "x_max" : 1.1,
+            "z_max" : 0.1,
+            "Nx" : 300,
+            "Nz" : 50
+        }
     }
 }

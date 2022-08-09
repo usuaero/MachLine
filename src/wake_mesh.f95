@@ -10,6 +10,7 @@ module wake_mesh_mod
     use math_mod
     use flow_mod
     use edge_mod
+    use vtk_mod
 
     implicit none
 
@@ -19,6 +20,7 @@ module wake_mesh_mod
         type(vertex),allocatable,dimension(:) :: vertices
         type(panel),allocatable,dimension(:) :: panels
         integer :: N_verts, N_panels = 0
+        logical :: midpoints_created = .false.
 
         contains
 
@@ -28,6 +30,10 @@ module wake_mesh_mod
             procedure :: has_zero_area => wake_mesh_has_zero_area
             procedure :: init_panel => wake_mesh_init_panel
             procedure :: init_midpoints => wake_mesh_init_midpoints
+            procedure :: determine_midpoint_parents => wake_mesh_determine_midpoint_parents
+            procedure :: get_indices_to_panel_vertices => wake_mesh_get_indices_to_panel_vertices
+            procedure :: allocate_new_vertices => wake_mesh_allocate_new_vertices
+            procedure :: write_wake => wake_mesh_write_wake
 
     end type wake_mesh
 
@@ -51,7 +57,7 @@ contains
         real,intent(in) :: trefftz_dist
 
         integer :: i, j
-        integer :: N_wake_edge_verts, N_wake_edges, N_mids
+        integer :: N_wake_edge_verts, N_wake_edges
         integer,dimension(:),allocatable :: wake_edge_indices, wake_edge_verts
         logical,dimension(:),allocatable :: is_wake_edge_vertex
 
@@ -110,19 +116,8 @@ contains
             this%N_panels = N_wake_edges*N_panels_streamwise*2
         end if
 
-        ! Determine necessary number of midpoints
-        if (doublet_order == 2) then
-            if (asym_flow) then
-                N_mids = ( N_wake_edge_verts*N_panels_streamwise + N_wake_edges*(2*N_panels_streamwise + 1) ) * 2
-            else
-                N_mids = N_wake_edge_verts*N_panels_streamwise + N_wake_edges*(2*N_panels_streamwise + 1)
-            end if
-        else
-            N_mids = 0
-        end if
-
         ! Initialize vertices
-        allocate(this%vertices(this%N_verts + N_mids))
+        allocate(this%vertices(this%N_verts))
         call this%init_vertices(body_verts, freestream, wake_edge_verts, asym_flow, trefftz_dist, N_panels_streamwise, mirror_plane)
 
         ! Initialize panels
@@ -131,12 +126,7 @@ contains
 
         ! Initialize midpoints (if needed)
         if (doublet_order == 2) then
-
-            call this%init_midpoints(body_edges, body_verts, wake_edge_indices)
-        
-            ! Include midpoints in the total number of vertices
-            this%N_verts = this%N_verts + N_mids
-
+            call this%init_midpoints(body_edges, body_verts, wake_edge_indices, asym_flow)
         end if
 
         ! Initialize freestream-dependent properties of panels once the midpoints have been created
@@ -407,30 +397,40 @@ contains
     end subroutine wake_mesh_init_panel
 
 
-    subroutine wake_mesh_init_midpoints(this, body_edges, body_verts, wake_edge_indices)
+    subroutine wake_mesh_init_midpoints(this, body_edges, body_verts, wake_edge_indices, asym_flow)
         ! Initializes the midpoints for the wake mesh
 
         class(wake_mesh),intent(inout),target :: this
         type(edge),allocatable,dimension(:),intent(in) :: body_edges
         type(vertex),dimension(:),allocatable,intent(in) :: body_verts
         integer,dimension(:),allocatable,intent(in) :: wake_edge_indices
+        logical,intent(in) :: asym_flow
 
-        integer :: i_mid, i, j, k, m, n, m1, n1, temp, i_edge, i_midpoint_parent, i_pot_edge
+        integer :: i_mid, i, j, k, m, n, m1, n1, temp, i_edge, i_midpoint_parent, i_pot_edge, j_next, i_start, N_mids
         real :: distance
-        integer,dimension(2) :: shared_verts
+        integer,dimension(2) :: shared
+        integer,dimension(:,:),allocatable :: shared_verts
+        integer,dimension(:),allocatable :: edge_for_panel_i, edge_for_panel_j, panel_i, panel_j
         logical :: already_found_shared
         real,dimension(3) :: loc
 
+        ! Initialize
+        N_mids = 0
         i_mid = this%N_verts
-        do i=1,this%N_panels
+        allocate(shared_verts(2,3*this%N_panels))
+        allocate(edge_for_panel_i(3*this%N_panels))
+        allocate(edge_for_panel_j(3*this%N_panels))
+        allocate(panel_i(3*this%N_panels))
+        allocate(panel_j(3*this%N_panels))
+
+        ! Loop through panels
+        panel_loop: do i=1,this%N_panels
 
             ! Loop through each potential neighbor
             neighbor_loop: do j=i+1,this%N_panels
 
                 ! Check if we've found all neighbors for this panel
-                if (all(this%panels(i)%abutting_panels /= 0)) then
-                    exit neighbor_loop
-                end if
+                if (all(this%panels(i)%abutting_panels /= 0)) cycle panel_loop
 
                 ! Initialize for this panel pair
                 already_found_shared = .false.
@@ -448,77 +448,41 @@ contains
                             ! Previously found a shared vertex, so we have abutting panels
                             if (already_found_shared) then
 
+                                ! Update number of midpoints
+                                N_mids = N_mids + 1
+
                                 ! Store second shared vertex
-                                shared_verts(2) = this%panels(i)%get_vertex_index(m)
+                                shared(2) = this%panels(i)%get_vertex_index(m)
 
                                 ! Check order; edge should proceed counterclockwise about panel i
                                 if (m1 == 1 .and. m == this%panels(i)%N) then
-                                    temp = shared_verts(1)
-                                    shared_verts(1) = shared_verts(2)
-                                    shared_verts(2) = temp
+                                    temp = shared(1)
+                                    shared(1) = shared(2)
+                                    shared(2) = temp
                                 end if
 
-                                ! Initialize midpoint
-                                i_mid = i_mid + 1
-                                loc = 0.5*(this%vertices(shared_verts(1))%loc + this%vertices(shared_verts(2))%loc)
-                                call this%vertices(i_mid)%init(loc, i_mid, 2)
+                                ! Store in arrays
+                                shared_verts(:,N_mids) = shared
+                                panel_i(N_mids) = i
+                                panel_j(N_mids) = j
 
-                                ! Store adjacent panels
-
-                                ! Store that i is adjacent to j
+                                ! Determine which edge this is for each panel
                                 if ( (n1 == 1 .and. n == this%panels(j)%N) .or. (n == 1 .and. n1 == this%panels(j)%N) ) then
                                     i_edge = this%panels(j)%N
                                 else
                                     n1 = min(n, n1)
                                     i_edge = n1
                                 end if
+                                edge_for_panel_j(N_mids) = i_edge
                                 this%panels(j)%abutting_panels(i_edge) = i
-                                this%panels(j)%midpoints(i_edge)%ptr => this%vertices(i_mid)
 
-                                ! Store that j is adjacent to i
                                 if (m1 == 1 .and. m == this%panels(i)%N) then ! Nth edge
                                     i_edge = m
                                 else ! 1st or 2nd edge
                                     i_edge = m1
                                 end if
+                                edge_for_panel_i(N_mids) = i_edge
                                 this%panels(i)%abutting_panels(i_edge) = j
-                                this%panels(i)%midpoints(i_edge)%ptr => this%vertices(i_mid)
-
-                                ! Store parent indices for midpoint
-                                ! If the endpoints have the same parents, then the midpoint will too
-                                if (this%vertices(shared_verts(1))%top_parent == this%vertices(shared_verts(2))%top_parent) then
-
-                                    this%vertices(i_mid)%top_parent = this%vertices(shared_verts(1))%top_parent
-                                    this%vertices(i_mid)%bot_parent = this%vertices(shared_verts(1))%bot_parent
-                                
-                                ! Otherwise, this midpoint's parents are also midpoints
-                                else
-
-                                    ! Loop through wake-shedding edges to find this one's parent
-                                    potential_edge_loop: do k=1,size(wake_edge_indices)
-
-                                        ! Get edge index
-                                        i_pot_edge = wake_edge_indices(k)
-
-                                        ! Check the vertices match
-                                        if ((this%vertices(shared_verts(1))%top_parent == body_edges(i_pot_edge)%verts(1).and.&
-                                             this%vertices(shared_verts(2))%top_parent == body_edges(i_pot_edge)%verts(2)).or.&
-                                            (this%vertices(shared_verts(2))%top_parent == body_edges(i_pot_edge)%verts(1).and.&
-                                             this%vertices(shared_verts(1))%top_parent == body_edges(i_pot_edge)%verts(2)))then
-
-                                            ! Get midpoint index
-                                            i_midpoint_parent = body_edges(i_pot_edge)%i_midpoint
-
-                                            ! Set parents
-                                            this%vertices(i_mid)%top_parent = i_midpoint_parent
-                                            this%vertices(i_mid)%bot_parent = body_verts(i_midpoint_parent)%i_wake_partner
-
-                                            exit potential_edge_loop
-
-                                        end if
-                                    end do potential_edge_loop
-
-                                end if
 
                                 ! Break out of loop
                                 exit abutting_loop
@@ -527,7 +491,7 @@ contains
                             else
 
                                 already_found_shared = .true.
-                                shared_verts(1) = this%panels(i)%get_vertex_index(m)
+                                shared(1) = this%panels(i)%get_vertex_index(m)
                                 m1 = m
                                 n1 = n
 
@@ -545,60 +509,275 @@ contains
 
                 if (this%panels(i)%abutting_panels(j) == 0) then
 
-                    ! Initialize midpoint
-                    i_mid = i_mid + 1
-                    loc = 0.5*(this%panels(i)%get_vertex_loc(j) + this%panels(i)%get_vertex_loc(modulo(j, this%panels(i)%N)+1))
-                    call this%vertices(i_mid)%init(loc, i_mid, 2)
+                    j_next = modulo(j, this%panels(i)%N)+1
 
-                    ! Point panel to it
-                    this%panels(i)%midpoints(j)%ptr => this%vertices(i_mid)
+                    ! Update number of midpoints
+                    N_mids = N_mids + 1
 
-                    ! Get endpoints
-                    shared_verts(1) = this%panels(i)%get_vertex_index(j)
-                    shared_verts(2) = this%panels(i)%get_vertex_index(modulo(j, this%panels(i)%N)+1)
-
-                    ! Store parent indices for midpoint
-                    ! If the endpoints have the same parents, then the midpoint will too
-                    if (this%vertices(shared_verts(1))%top_parent == this%vertices(shared_verts(2))%top_parent) then
-                        this%vertices(i_mid)%top_parent = this%vertices(shared_verts(1))%top_parent
-                        this%vertices(i_mid)%bot_parent = this%vertices(shared_verts(1))%bot_parent
-                    
-                    ! Otherwise, this midpoint's parents are also midpoints
-                    else
-
-                        ! Loop through wake-shedding edges to find this one's parent
-                        empty_edge_loop: do k=1,size(wake_edge_indices)
-
-                            ! Get edge index
-                            i_pot_edge = wake_edge_indices(k)
-
-                            ! Check the vertices match
-                            if ((this%vertices(shared_verts(1))%top_parent == body_edges(i_pot_edge)%verts(1).and.&
-                                 this%vertices(shared_verts(2))%top_parent == body_edges(i_pot_edge)%verts(2)).or.&
-                                (this%vertices(shared_verts(2))%top_parent == body_edges(i_pot_edge)%verts(1).and.&
-                                 this%vertices(shared_verts(1))%top_parent == body_edges(i_pot_edge)%verts(2)))then
-
-                                ! Get midpoint index
-                                i_midpoint_parent = body_edges(i_pot_edge)%i_midpoint
-
-                                ! Set parents
-                                this%vertices(i_mid)%top_parent = i_midpoint_parent
-                                this%vertices(i_mid)%bot_parent = body_verts(i_midpoint_parent)%i_wake_partner
-                                
-                                exit empty_edge_loop
-
-                            end if
-                        end do empty_edge_loop
-
-                    end if
+                    ! Store info
+                    shared_verts(1,N_mids) = this%panels(i)%get_vertex_index(j)
+                    shared_verts(2,N_mids) = this%panels(i)%get_vertex_index(j_next)
+                    panel_i(N_mids) = i
+                    panel_j(N_mids) = 0
+                    edge_for_panel_i(N_mids) = j
 
                 end if
 
             end do
 
+        end do panel_loop
+
+        ! Add more vertices
+        call this%allocate_new_vertices(N_mids)
+
+        ! Initialize midpoints
+        i_start = this%N_verts - N_mids
+        do i=1,N_mids
+
+            i_mid = i_start + i
+
+            ! Get location
+            loc = 0.5*(this%vertices(shared_verts(1,i))%loc + this%vertices(shared_verts(2,i))%loc)
+            call this%vertices(i_mid)%init(loc, i_mid, 2)
+
+            ! Store parent indices for midpoint
+            call this%determine_midpoint_parents(i_mid, shared_verts(:,i), body_edges, body_verts, wake_edge_indices, asym_flow)
+
+            ! Store for panels
+            this%panels(panel_i(i))%midpoints(edge_for_panel_i(i))%ptr => this%vertices(i_mid)
+            if (panel_j(i) > 0) then
+                this%panels(panel_j(i))%midpoints(edge_for_panel_j(i))%ptr => this%vertices(i_mid)
+            end if
+
         end do
 
+        this%midpoints_created = .true.
+
     end subroutine wake_mesh_init_midpoints
+
+
+    subroutine wake_mesh_determine_midpoint_parents(this, i_mid, shared, body_edges, body_verts, wake_edge_indices, asym_flow)
+        ! Determines which mesh vertices are the parents of the given midpoint
+
+        implicit none
+        
+        class(wake_mesh),intent(inout) :: this
+        integer,intent(in) :: i_mid
+        integer,dimension(2),intent(in) :: shared
+        type(edge),allocatable,dimension(:),intent(in) :: body_edges
+        type(vertex),dimension(:),allocatable,intent(in) :: body_verts
+        integer,dimension(:),allocatable,intent(in) :: wake_edge_indices
+        logical,intent(in) :: asym_flow
+
+        integer :: k, i_pot_edge, i_midpoint_parent, N_body_verts
+
+        N_body_verts = size(body_verts)
+
+        ! If this midpoints parents are a vertex, then both neighboring vertices will have the same parents
+        if (this%vertices(shared(1))%top_parent == this%vertices(shared(2))%top_parent) then
+
+            this%vertices(i_mid)%top_parent = this%vertices(shared(1))%top_parent
+            this%vertices(i_mid)%bot_parent = this%vertices(shared(1))%bot_parent
+        
+        ! Otherwise, this midpoint's parents are also midpoints
+        else
+
+            ! Loop through wake-shedding edges to find this one's parent
+            potential_edge_loop: do k=1,size(wake_edge_indices)
+
+                ! Get edge index
+                i_pot_edge = wake_edge_indices(k)
+
+                ! Check if the vertices match on original mesh
+                if ((this%vertices(shared(1))%top_parent == body_edges(i_pot_edge)%verts(1).and.&
+                     this%vertices(shared(2))%top_parent == body_edges(i_pot_edge)%verts(2)).or.&
+                    (this%vertices(shared(2))%top_parent == body_edges(i_pot_edge)%verts(1).and.&
+                     this%vertices(shared(1))%top_parent == body_edges(i_pot_edge)%verts(2)))then
+
+                    ! Get midpoint index
+                    i_midpoint_parent = body_edges(i_pot_edge)%i_midpoint
+
+                    ! Set parents
+                    this%vertices(i_mid)%top_parent = i_midpoint_parent
+                    this%vertices(i_mid)%bot_parent = body_verts(i_midpoint_parent)%i_wake_partner
+
+                    exit potential_edge_loop
+
+                ! Check if the vertices match the mirror
+                else if (asym_flow .and. &
+                ((this%vertices(shared(1))%top_parent == body_edges(i_pot_edge)%verts(1)+N_body_verts.and.&
+                  this%vertices(shared(2))%top_parent == body_edges(i_pot_edge)%verts(2)+N_body_verts).or.&
+                 (this%vertices(shared(2))%top_parent == body_edges(i_pot_edge)%verts(1)+N_body_verts.and.&
+                  this%vertices(shared(1))%top_parent == body_edges(i_pot_edge)%verts(2)+N_body_verts)))then
+
+                    ! Get midpoint index
+                    i_midpoint_parent = body_edges(i_pot_edge)%i_midpoint
+
+                    ! Set parents
+                    this%vertices(i_mid)%top_parent = i_midpoint_parent + N_body_verts
+                    this%vertices(i_mid)%bot_parent = body_verts(i_midpoint_parent)%i_wake_partner &
+                                                      + N_body_verts
+
+                end if
+            end do potential_edge_loop
+
+        end if
+    
+    end subroutine wake_mesh_determine_midpoint_parents
+
+
+    subroutine wake_mesh_get_indices_to_panel_vertices(this, i_vertices)
+        ! Returns of the list of indices which point to the vertices (and midpoints) of each panel
+
+        implicit none
+
+        class(wake_mesh),intent(in) :: this
+        integer,dimension(:,:),allocatable,intent(out) :: i_vertices
+
+        integer :: i, j
+
+        ! Allocate space
+        allocate(i_vertices(8,this%N_panels))
+
+        ! Get vertex indices for each panel since we will lose this information as soon as this%vertices is reallocated
+        do i=1,this%N_panels
+            do j=1,this%panels(i)%N
+
+                ! Get vertex indices
+                i_vertices(j,i) = this%panels(i)%get_vertex_index(j)
+                
+                ! Get midpoint indices
+                if (this%midpoints_created) then
+                    i_vertices(j+this%panels(i)%N,i) = this%panels(i)%get_midpoint_index(j)
+                end if
+
+            end do
+        end do
+        
+    end subroutine wake_mesh_get_indices_to_panel_vertices
+
+
+    subroutine wake_mesh_allocate_new_vertices(this, N_new_verts, i_rearrange)
+        ! Adds the specified number of vertex objects to the end of the wake mesh's vertex array.
+        ! Handles moving panel pointers to the new allocation of previously-existing vertices.
+        ! i_rearrange may be used to rearrange the vertices for a desired behavior.
+
+        implicit none
+
+        class(wake_mesh),intent(inout),target :: this
+        integer,intent(in) :: N_new_verts
+        integer,dimension(:),allocatable,intent(in),optional :: i_rearrange
+        
+        type(vertex),dimension(:),allocatable :: temp_vertices
+        integer :: i, j
+        integer,dimension(:,:),allocatable :: i_vertices
+        integer,dimension(:),allocatable :: i_rearrange_inv
+
+        ! Get panel vertex indices
+        call this%get_indices_to_panel_vertices(i_vertices)
+
+        ! Allocate more space
+        allocate(temp_vertices(this%N_verts + N_new_verts))
+        allocate(i_rearrange_inv(this%N_verts))
+
+        ! Copy over vertices
+        if (present(i_rearrange)) then
+
+            do i=1,this%N_verts
+
+                ! Copy vertices
+                temp_vertices(i) = this%vertices(i_rearrange(i))
+                temp_vertices(i)%index = i
+
+                ! Get inverse mapping
+                i_rearrange_inv(i_rearrange(i)) = i
+            end do
+
+        else
+
+            ! Copy vertices
+            temp_vertices(1:this%N_verts) = this%vertices
+
+            ! Get inverse mapping (identity)
+            do i=1,this%N_verts
+                i_rearrange_inv(i) = i
+            end do
+
+        end if
+
+        ! Move allocation
+        call move_alloc(temp_vertices, this%vertices)
+
+        ! Fix vertex pointers in panel objects (necessary because this%vertices got reallocated)
+        do i=1,this%N_panels
+            do j=1,this%panels(i)%N
+
+                ! Fix vertex pointers
+                this%panels(i)%vertices(j)%ptr => this%vertices(i_rearrange_inv(i_vertices(j,i)))
+
+                ! Fix midpoint pointers
+                if (this%midpoints_created) then
+                    this%panels(i)%midpoints(j)%ptr => this%vertices(i_rearrange_inv(i_vertices(j+this%panels(i)%N,i)))
+                end if
+
+            end do
+        end do
+
+        deallocate(i_vertices)
+
+        ! Update number of vertices
+        this%N_verts = this%N_verts + N_new_verts
+        
+    end subroutine wake_mesh_allocate_new_vertices
+
+
+    subroutine wake_mesh_write_wake(this, wake_file, exported, mu)
+        ! Writes the wake out to file
+
+        implicit none
+        
+        class(wake_mesh),intent(in) :: this
+        character(len=:),allocatable,intent(in) :: wake_file
+        logical,intent(out) :: exported
+        real,dimension(:),allocatable,intent(in),optional :: mu
+
+        type(vtk_out) :: wake_vtk
+        integer :: i
+        real,dimension(:),allocatable :: mu_on_wake
+
+        ! Clear old file
+        call delete_file(wake_file)
+
+        if (this%N_panels > 0) then
+
+            ! Write out geometry
+            call wake_vtk%begin(wake_file)
+            call wake_vtk%write_points(this%vertices)
+            call wake_vtk%write_panels(this%panels, subdivide=doublet_order==2)
+            call wake_vtk%write_cell_normals(this%panels)
+
+            if (present(mu)) then
+
+                ! Calculate doublet strengths
+                allocate(mu_on_wake(this%N_verts))
+                do i=1,this%N_verts
+                    mu_on_wake(i) = mu(this%vertices(i)%top_parent) - mu(this%vertices(i)%bot_parent)
+                end do
+
+                ! Write doublet strengths
+                call wake_vtk%write_point_scalars(mu_on_wake, "mu")
+            end if
+
+            ! Finish up
+            call wake_vtk%finish()
+            exported = .true.
+
+        else
+            exported = .false.
+
+        end if
+        
+    end subroutine wake_mesh_write_wake
 
 
 end module wake_mesh_mod
