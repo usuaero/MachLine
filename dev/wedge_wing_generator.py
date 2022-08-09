@@ -4,16 +4,96 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+def spanwise_coord(spanwise_nodes, semispan, **kwargs):
+    """
+    Determines z coordinates of nodes along the wingspan.
+    Also determines the leading and trailing edges of the wing.
 
-def airfoil_coord(x_c, t_c, node_ratio, z_location, chordwise_cluster=True):
+    Parameters
+    ----------
+    sweep_angle : float
+        Leading edge sweep angle, given in radians
+    taper_ratio : float
+        Taper ratio
+    cosine_cluster: bool
+        Cosine clusters the spanwise nodes
 
-    # Identify ratio of nodes forward of max thickness location
-    if type(node_ratio) != float:
-        LE_nodes = round(cw_nodes / (1/x_c))
+    Output
+    ------
+    Zoc : numpy 1-D array
+        Spanwise z locations of the nodes. Nondimensionalized by root chord
+    LE_xloc : numpy 1-D array
+        x location coordinate points of the leading edge
+    TE_xloc : numpy 1-D array
+        y location coordinate points of the trailing edge
+    """
+
+    sweep_angle = kwargs.get('sweep_angle', 0.0)
+    taper = kwargs.get('taper_ratio', 1.0)
+    cosine_cluster = kwargs.get('cosine_cluster', True)
+
+    # Identify node locations along semispan
+    # Cosine cluster points
+    if cosine_cluster:
+        vTheta = np.linspace(0, np.pi, spanwise_nodes)
+        Zoc = 0.5 * semispan *  (1 - np.cos(vTheta))
     else:
-        LE_nodes = round(cw_nodes / (1/node_ratio))
+        Zoc = np.linspace(0, semispan, spanwise_nodes)
+
+    # Determine LE and TE locations at each z
+    tip_LE = b_2c * np.tan(sweep_angle)
+    tip_TE = tip_LE + R_T
+
+    LE_xloc = Zoc * np.tan(sweep_angle)
+    TE_slope = (semispan * np.tan(sweep_angle) + taper - 1) / semispan
+    TE_xloc = TE_slope * Zoc + 1
+
+
+
+    return Zoc, LE_xloc, TE_xloc
+
+
+def init_airfoil(chord_spacing, **kwargs):
+    """
+    Returns the mesh coordinates along the xy plane at the wing root. (Airfoil coordinates)
     
-    aft_nodes = cw_nodes - LE_nodes
+    Parameters
+    ----------
+    x_c : float
+        x location of max thickness(nondimensionalized by local chord length)
+    t_c : float
+        max thickness of airfoil (nondimensionalized by local chord length)
+    LE_loc : float
+        x location of leading edge of the airfoil (nondimensionalized by root chord)
+    TE_loc : float
+        x location of trailing edge of the airfoil (nondimensionalized by root chord)
+    node_shift : float
+        Ratio of nodes in front of max thickness location. Remainder will be aft of max thickness lcocation
+    cosine_cluster : bool
+        Determines if cosine clustering will be used for the chordwise distribution of node points
+
+    Returns
+    -------
+    xloc : 1-D numpy array
+        x locations associated with airfoil coordinates
+    yloc : 1-D numpy array
+        y locations associated with airfoil coordinates
+    """
+    # Pull in values from kwargs dict
+    x_c = kwargs.get('x_c', 0.5)
+    t_c = kwargs.get('t_c', 0.15)
+    node_ratio = kwargs.get('node_shift', 0.5)
+    chordwise_cluster = kwargs.get('cosine_cluster', True)
+
+    # Determine number of nodes, preventing needle panels near tips
+    chord_nodes = int(np.ceil(1 / chord_spacing))
+    if chord_nodes < 5:
+        chord_nodes += 1
+        
+    # Identify ratio of nodes forward and aft of max thickness location
+    LE_nodes = round(chord_nodes / (1/node_ratio))
+    aft_nodes = chord_nodes - LE_nodes
+
     # Account for when we remove the duplicate value
     LE_nodes += 1
 
@@ -21,7 +101,7 @@ def airfoil_coord(x_c, t_c, node_ratio, z_location, chordwise_cluster=True):
     if chordwise_cluster:
         # Clustering forward of max thickness location
         vTheta = np.linspace(0,np.pi, LE_nodes)
-        fwd_xloc = 0.5 * x_c * (1-np.cos(vTheta))
+        fwd_xloc = 0.5 * (x_c) * (1-np.cos(vTheta))
 
         # Clustering aft of the max thickness location
         vTheta = np.linspace(0, np.pi, aft_nodes)
@@ -31,111 +111,147 @@ def airfoil_coord(x_c, t_c, node_ratio, z_location, chordwise_cluster=True):
     else:
         fwd_xloc = np.linspace(0, x_c, LE_nodes)
         aft_xloc = np.linspace(x_c, 1, aft_nodes)
+    
 
     # Calculate the y location based on point slope form
-    fwd_yloc = t_c / x_c * fwd_xloc # equation derived from point slope form
-    aft_yloc = -t_c/(1-x_c) * aft_xloc + (t_c / (1 - x_c)) # equation derived from point slope form
+    fwd_yloc = t_c / x_c * (fwd_xloc) # equation derived from point slope form
+    aft_yloc = -t_c/(1-x_c) * (aft_xloc) + (t_c / (1 - x_c)) # equation derived from point slope form
     
     # Append fwd and aft wedge datapoints with removing redundant points
     fwd_xloc = fwd_xloc[:-1]
     fwd_yloc = fwd_yloc[:-1]
-    xloc = np.append(fwd_xloc, aft_xloc)
-    yloc = np.append(fwd_yloc, aft_yloc)
+    x_vert = np.append(fwd_xloc, aft_xloc)
+    y_vert = np.append(fwd_yloc, aft_yloc)
 
-    return xloc, yloc
+    return x_vert, y_vert
 
-def spanwise_coord(spanwise_nodes, semispan, LE_sweep, R_T, spanwise_cluster=True):
 
-    # Convert degrees to radians
-    LE_sweep = LE_sweep * np.pi/180
+def scale_airfoil(x_root, y_root, **kwargs):
+    """
+    Returns the mesh coordinates along the xy plane at the wing root. (Airfoil coordinates)
+    
+    Parameters
+    ----------
+    x_root : numpy 1-D array
+        x values for airfoil coordinates at root
+    y_root : numpy 1-D array
+        y values for airfoil coordinates at root
+    x_c : float
+        x location of max thickness(nondimensionalized by local chord length)
+    t_c : float
+        max thickness of airfoil (nondimensionalized by local chord length)
+    LE_xloc : float
+        x location of leading edge of the airfoil (nondimensionalized by root chord)
+    TE_xloc : float
+        x location of trailing edge of the airfoil (nondimensionalized by root chord)
+    
+    Returns
+    -------
+    x vertices: numpy 1-D array
+        x vertices for scaled airfoil
 
-    # Identify node locations along semispan
-    # Cosine cluster points
-    if spanwise_cluster:
-        vTheta = np.linspace(0, np.pi, spanwise_nodes)
-        Zob = 0.5 * semispan *  (1 - np.cos(vTheta))
-    else:
-        Zob = np.linspace(0, semispan, spanwise_nodes)
+    y vertices: numpy 1-D array
+        y vertices for scaled airfoil
+    """
+    # Pull values from kwargs dictionary
+    x_c = kwargs.get('x_c', 0.5)
+    t_c = kwargs.get('t_c', 0.15)
+    LE_xloc = kwargs.get('LE_xloc', 0.0)
+    TE_xloc = kwargs.get('TE_xloc', 1.0)
 
-    # Determine x location at each z
-
-    LE_xloc = Zob * np.tan(LE_sweep)
-    TE_xloc = (semispan * np.tan(LE_sweep) + R_T - 1) / semispan * (Zob - 1)
-
-    breakpoint()
-
-    print()
-
-    return Zob, LE_xloc, TE_xloc
+    # Determine local chord relative to root chord
+    c_local = TE_xloc - LE_xloc
+    
+    # Scale airfoil based on local chord size
+    x_vert = x_root * c_local + LE_xloc # also shifts airfoil back to line up with local leading edge
+    y_vert = y_root * c_local
+    print(' Local chord:', c_local)
+    return x_vert, y_vert
 
 def plot_wing_3D(x, y, z):
 
     ax = plt.axes(projection='3d')
-    ax.scatter3D(x, y, z)
+    for i,x_loc in enumerate(x):
+        ax.scatter3D(x_loc, y[i], z)
 
     ax.set_xlabel('x')
     ax.set_ylabel('y')
     ax.set_zlabel('z')
 
-    ax.view_init(30, 0) # pass angles to view the plot in degrees
+    # ax.view_init(30, 0) # pass angles to view the plot in degrees
 
-    plt.show()
+    
 
     # https://www.youtube.com/watch?v=gqoLLGgbeAE for seeing tutorial on plotting in 3D, including a wireframe
+
+def plot_airfoil(x,y):
+    fig, ax = plt.subplots()
+    ax.scatter(x,y)
+    ax.axis('equal')
+    plt.show()
 
 if __name__ == '__main__':
 
     # Define necessary portions of wing geometry
-    xc = 0.18 # nondimensional location of max thickness
+    x_cr = 0.18 # nondimensional location of max thickness at root
+    x_ct = 0.18 # nondimensional location of max thickness at tip
     tc = 0.08 # nondimensional max thickness
     b_2c = 1.0065 # semispan nondimensionalized by root chord
-    R_T = 0.25 # taper ratio c_t/c_R
+    R_T = 0.0 # taper ratio c_t/c_R
     LE_sweep = 44.85 # leading edge sweep angle in degrees
-    node_ratio = "standard" # User input ratio of nodes to be placed forward of the max thickness location
-                            # Default is number of nodes * xc rounded.
+    node_ratio = .25 # User input ratio of nodes to be placed forward of the max thickness location
 
 
     # Initialize number of nodes in chord and spanwize directions
     cw_nodes = 40
-    sw_nodes = 40
+    sw_nodes = 20
     cluster_cw = True
     cluster_sw = True
 
+    # Determine average node spacing at root chord
+    S_avg = 1 / cw_nodes
+    # Convert sweep angle to radians
+    LE_sweep = LE_sweep * np.pi / 180
 
+    # Determine spanwise locations where mesh will be generated
+    zoc, le_xloc, te_xloc = spanwise_coord(sw_nodes, b_2c, sweep_angle=LE_sweep, taper_ratio=R_T, cosine_cluster=cluster_sw)
+   
+    # Interpolate the location of max thickness along the semispan of the wing
+    xc_local = np.linspace(x_cr, x_ct, len(zoc))   
+    
+    # Determine airfoil coordinates at each root location
+    x_coord, y_coord = init_airfoil(S_avg, x_c=xc_local[0], t_c=tc, node_shift=node_ratio, cosine_cluster=cluster_cw)
+    plot_airfoil(x_coord, y_coord)
 
-    Zoc = 0
-    # Determine airfoil coordinates at root
-    zloc, yloc = airfoil_coord(xc, tc, node_ratio, Zoc, cluster_cw)
+    for i, val in enumerate(zoc):
+        print("Node ", i, end='')
+        x_scaled, y_scaled = scale_airfoil(x_coord, y_coord, x_c=xc_local[i], t_c=tc, LE_xloc=le_xloc[i], TE_xloc=te_xloc[i])
+        plot_airfoil(x_scaled, y_scaled)
 
-    spanwise_coord(sw_nodes, b_2c, R_T, cluster_sw)
+        # plot_wing_3D(x_scaled, y_scaled, val)
+    plt.show()
+
     
     # Calculate location of tip leading edge
     tip_LE = b_2c * np.tan(LE_sweep)
     tip_TE = tip_LE + R_T
-    
-    
+    # breakpoint()
+    # Plot airfoil at each semispan location
+    # for i, semispan in enumerate(z_vert[i]):
+        # plot_airfoil(x_vert[i], y_vert[i])
+
     # Arrange vertices in ccw direction starting at root leading edge
     vertices = np.array([[0, 1, tip_TE, tip_LE, 0], # x axis
                          [0, 0, 0, 0, 0], # y axis
-                         [-0, -0, -b_2c, -b_2c, -0]]) # z axis
+                         [0, 0, b_2c, b_2c, 0]]) # z axis
 
     # Check planform outline
     plt.figure()
-    # plt.scatter(xloc, yloc, c='k') # plot wedge airfoil
-    # plt.plot(xloc, yloc, color='k', marker='.')
     plt.plot(vertices[2], vertices[0], 'k') # planform plot
-    plt.plot([0.0, min(vertices[2])], [xc, tip_LE], 'k') # wedge airfoil ridge line
-    plt.gca().invert_yaxis()  
-    plt.gca().set_aspect('equal')
+    plt.plot([0.0, max(vertices[2])], [x_cr, tip_LE+x_ct*(tip_TE-tip_LE)], 'k') # wedge airfoil ridge line
+    plt.gca().invert_yaxis()  # aligns x axis with airfoil coordinate system
+    plt.gca().invert_xaxis()  # aligns z axis with airfoil coordinate system
+    plt.gca().set_aspect('equal') # ensure plot isn't skewed in any direction
     plt.show()
-    
-    # Cosine cluster in the spanwise direction
-    if cluster_sw:
-        vTheta = np.linspace(0, np.pi, sw_nodes)
-
-    else:
-        sw_loc = np.linspace(0, b_2c, sw_nodes)
-
-    
 
     print("Geometry created")

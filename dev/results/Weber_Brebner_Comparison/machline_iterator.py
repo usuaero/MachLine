@@ -75,7 +75,7 @@ def mach_iter(AoA, Node, formulation, freestream):
             "body_file": output_filebase + "_formulation.vtk",
             "wake_file": output_filebase + "_formulation_wake.vtk",
             "control_point_file": output_filebase + "_control_points.vtk",
-            "report_file": "../../report.txt"
+            "report_file": "../../report.json"
         }
     }
     
