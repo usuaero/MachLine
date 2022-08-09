@@ -728,10 +728,10 @@ class SupersonicSubinclinedPanel(Panel):
         ints.H133 = ints.H111 - np.sum(geom.v_eta*ints.F121).item()
 
         # Check based on (E5) and (E6)
-        #assert(abs(-np.sum(geom.v_xi*ints.F121).item() - np.sum(geom.v_eta*ints.F211).item()) < 1e-12)
+        assert(abs(ints.H223 + np.sum(geom.v_eta*ints.F211).item()) < 1e-12)
 
         # Check based on (E4)
-        #assert(abs(ints.H111 + ints.H313 - ints.H133 - geom.h*ints.hH113) < 1e-12)
+        assert(abs(ints.H111 + ints.H313 - ints.H133 - geom.h*ints.hH113) < 1e-12)
 
 
     def calc_analytic_source_potential(self, P):

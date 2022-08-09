@@ -1538,57 +1538,69 @@ contains
                     s_b = this%sqrt_b(i)
                 end if
 
-                ! Calculate F factors
-                if (b > 0.) then
-                    F1 = (geom%l1(i)*geom%R2(i) - geom%l2(i)*geom%R1(i)) / geom%g2(i)
-                    F2 = (b*geom%R1(i)*geom%R2(i) + geom%l1(i)*geom%l2(i)) / geom%g2(i)
-                else
-                    F1 = (geom%R2(i) - geom%R1(i))*(geom%R2(i) + geom%R1(i)) / (geom%l1(i)*geom%R2(i) + geom%l2(i)*geom%R1(i))
-                    F2 = (geom%g2(i) - geom%l1(i)**2 - geom%l2(i)**2) / (b*geom%R1(i)*geom%R2(i) - geom%l1(i)*geom%l2(i))
-                end if
+                ! Mach wedge
+                if (geom%R1(i) == 0. .and. geom%R2(i) == 0) then
+                    int%F111(i) = pi/s_b
 
-                ! Calculate F(1,1,1) and other higher integrals if necessary
-
-                ! Nearly-sonic edge
-                if (abs(F2) > 100.0*abs(s_b*F1)) then
-
-                    ! Calculate series solution
-                    eps = F1/F2
-                    eps2 = eps*eps
-                    series = eps*eps2*(1./3. - b*eps2/5. + (b*eps2)*(b*eps2)/7.)
-                    int%F111(i) = -eps + b*series
-
-                    if (source_order == 1 .or. doublet_order == 2) then
-                        if (mirror_panel) then
-                            int%F121(i) = (-geom%v_xi(i)*geom%dR(i)*geom%R1(i)*geom%R2(i) &
-                                           + geom%l2(i)*geom%R1(i)*(this%vertices_ls_mir(2,i_next) - geom%P_ls(2)) &
-                                           - geom%l1(i)*geom%R2(i)*(this%vertices_ls_mir(2,i) - geom%P_ls(2))) / (geom%g2(i)*F2) &
-                                          - geom%a(i)*geom%v_eta(i)*series
-                        else
-                            int%F121(i) = (-geom%v_xi(i)*geom%dR(i)*geom%R1(i)*geom%R2(i) &
-                                           + geom%l2(i)*geom%R1(i)*(this%vertices_ls(2,i) - geom%P_ls(2)) &
-                                           - geom%l1(i)*geom%R2(i)*(this%vertices_ls(2,i_next) - geom%P_ls(2))) / (geom%g2(i)*F2) &
-                                          - geom%a(i)*geom%v_eta(i)*series
-                        end if
-                        int%F211(i) = -geom%v_eta(i)*geom%dR(i) + geom%a(i)*geom%v_xi(i)*int%F111(i) - &
-                                      2.*geom%v_xi(i)*geom%v_eta(i)*int%F121(i)
+                    if (source_order == 1) then
+                        int%F121(i) = -geom%a(i)*geom%v_eta(i)*int%F111(i)/b
+                        int%F211(i) = geom%a(i)*geom%v_xi(i)*int%F111(i)/b
                     end if
 
-                ! Supersonic edge
-                else if (b > 0.) then
+                else
 
-                    ! Mach wedge
-                    if (geom%R1(i) == 0. .and. geom%R2(i) == 0) then
-                        int%F111(i) = pi/s_b
+                    ! Calculate F factors
+                    if (b > 0.) then
+                        F1 = (geom%l1(i)*geom%R2(i) - geom%l2(i)*geom%R1(i)) / geom%g2(i)
+                        F2 = (b*geom%R1(i)*geom%R2(i) + geom%l1(i)*geom%l2(i)) / geom%g2(i)
+                    else
+                        F1 = (geom%R2(i) - geom%R1(i))*(geom%R2(i) + geom%R1(i)) / (geom%l1(i)*geom%R2(i) + geom%l2(i)*geom%R1(i))
+                        F2 = (geom%g2(i) - geom%l1(i)**2 - geom%l2(i)**2) / (b*geom%R1(i)*geom%R2(i) - geom%l1(i)*geom%l2(i))
+                    end if
 
-                        if (source_order == 1) then
-                            int%F121(i) = -geom%a(i)*geom%v_eta(i)*int%F111(i)/b
-                            int%F211(i) = geom%a(i)*geom%v_xi(i)*int%F111(i)/b
+                    ! Calculate F(1,1,1) and other higher integrals if necessary
+
+                    ! Nearly-sonic edge
+                    if (abs(F2) > 100.0*abs(s_b*F1)) then
+
+                        ! Calculate series solution
+                        eps = F1/F2
+                        eps2 = eps*eps
+                        series = eps*eps2*(1./3. - b*eps2/5. + (b*eps2)*(b*eps2)/7.)
+                        int%F111(i) = -eps + b*series
+
+                        if (source_order == 1 .or. doublet_order == 2) then
+                            if (mirror_panel) then
+                                int%F121(i) = (-geom%v_xi(i)*geom%dR(i)*geom%R1(i)*geom%R2(i) &
+                                               + geom%l2(i)*geom%R1(i)*(this%vertices_ls_mir(2,i_next) - geom%P_ls(2)) &
+                                               - geom%l1(i)*geom%R2(i)*(this%vertices_ls_mir(2,i) - geom%P_ls(2)))/(geom%g2(i)*F2)&
+                                              - geom%a(i)*geom%v_eta(i)*series
+                            else
+                                int%F121(i) = (-geom%v_xi(i)*geom%dR(i)*geom%R1(i)*geom%R2(i) &
+                                               + geom%l2(i)*geom%R1(i)*(this%vertices_ls(2,i) - geom%P_ls(2)) &
+                                               - geom%l1(i)*geom%R2(i)*(this%vertices_ls(2,i_next) - geom%P_ls(2)))/(geom%g2(i)*F2)&
+                                              - geom%a(i)*geom%v_eta(i)*series
+                            end if
+                            int%F211(i) = -geom%v_eta(i)*geom%dR(i) + geom%a(i)*geom%v_xi(i)*int%F111(i) - &
+                                          2.*geom%v_xi(i)*geom%v_eta(i)*int%F121(i)
                         end if
 
-                    ! At least one endpoint in
-                    else
+                    ! Supersonic edge
+                    else if (b > 0.) then
+
                         int%F111(i) = -atan2(s_b*F1, F2) / s_b
+
+                        if (source_order == 1 .or. doublet_order == 2) then
+                            int%F121(i) = -(geom%v_xi(i)*geom%dR(i) + geom%a(i)*geom%v_eta(i)*int%F111(i)) / b
+                            int%F211(i) = -geom%v_eta(i)*geom%dR(i) + geom%a(i)*geom%v_xi(i)*int%F111(i) - &
+                                          2.*geom%v_xi(i)*geom%v_eta(i)*int%F121(i)
+                        end if
+
+                    ! Subsonic edge
+                    else
+                        F1 = s_b*geom%R1(i) + abs(geom%l1(i))
+                        F2 = s_b*geom%R2(i) + abs(geom%l2(i))
+                        int%F111(i) = -sign(1., geom%v_eta(i))*log(F1/F2)
 
                         if (source_order == 1 .or. doublet_order == 2) then
                             int%F121(i) = -(geom%v_xi(i)*geom%dR(i) + geom%a(i)*geom%v_eta(i)*int%F111(i)) / b
@@ -1597,17 +1609,6 @@ contains
                         end if
                     end if
 
-                ! Subsonic edge
-                else
-                    F1 = s_b*geom%R1(i) + abs(geom%l1(i))
-                    F2 = s_b*geom%R2(i) + abs(geom%l2(i))
-                    int%F111(i) = -sign(1., geom%v_eta(i))*log(F1/F2)
-
-                    if (source_order == 1 .or. doublet_order == 2) then
-                        int%F121(i) = -(geom%v_xi(i)*geom%dR(i) + geom%a(i)*geom%v_eta(i)*int%F111(i)) / b
-                        int%F211(i) = -geom%v_eta(i)*geom%dR(i) + geom%a(i)*geom%v_xi(i)*int%F111(i) - &
-                                      2.*geom%v_xi(i)*geom%v_eta(i)*int%F121(i)
-                    end if
                 end if
 
             end if
