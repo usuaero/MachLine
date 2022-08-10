@@ -1995,6 +1995,9 @@ contains
         type(eval_point_geom) :: geom
         type(integrals) :: int
 
+        write(*,*) "!!! Velocity calculation not yet implemented. Quitting..."
+        stop
+
         ! Specify influencing vertices (also sets zero default influence)
 
         ! Source
@@ -2047,8 +2050,9 @@ contains
     end subroutine panel_calc_velocities
 
 
-    function panel_get_velocity_jump(this, mu, sigma, mirrored, mirror_plane) result(dv)
-        ! Calculates the jump in perturbation velocity across this panel in global coordinates
+    function panel_get_velocity_jump(this, mu, sigma, mirrored, mirror_plane, point) result(dv)
+        ! Calculates the jump in perturbation velocity across this panel in global coordinates at the given location
+        ! If a location is not given, this will default to the centroid
 
         implicit none
 
@@ -2056,117 +2060,98 @@ contains
         real,dimension(:),allocatable,intent(in) :: mu, sigma
         logical,intent(in) :: mirrored
         integer,intent(in) :: mirror_plane
+        real,dimension(3),intent(in),optional :: point
+
         real,dimension(3) :: dv
 
-        real,dimension(:),allocatable :: mu_verts, mu_params
-        integer :: i
+        real,dimension(:),allocatable :: mu_verts, mu_params, sigma_verts, sigma_params
+        integer :: i, mu_shift, sigma_shift
         real :: s
+        real,dimension(2) :: Q_ls
+        real,dimension(3) :: s_dir
+        real,dimension(:,:),allocatable :: A_g_to_ls, S_mu_inv, S_sigma_inv
 
-        ! Jump calculations for mirrored panel
-        if (mirrored) then
-
-            ! Set up array of doublet strengths to calculate doublet parameters
-            if (doublet_order == 1) then
-
-                ! Allocate
-                allocate(mu_verts(this%N))
-
-                ! Get doublet values
-                do i=1,this%N
-                    mu_verts(i) = mu(this%get_vertex_index(i)+size(mu)/2)
-                end do
-
-            else if (doublet_order == 2) then
-
-                ! Allocate
-                allocate(mu_verts(2*this%N))
-
-                ! Get doublet values
-                do i=1,this%N
-                    mu_verts(i) = mu(this%get_vertex_index(i)+size(mu)/2)
-                    mu_verts(i+this%N) = mu(this%get_midpoint_index(i)+size(mu)/2)
-                end do
-
+        ! Get point
+        if (present(point)) then
+            if (mirrored) then
+                Q_ls = matmul(this%A_g_to_ls_mir(1:2,:), point-this%centr_mir)
+            else
+                Q_ls = matmul(this%A_g_to_ls(1:2,:), point-this%centr)
             end if
-        
-            ! Calculate doublet parameters (derivatives)
-            mu_params = matmul(this%S_mu_inv_mir, mu_verts)
-
-            ! Calculate tangential velocity jump in panel coordinates E&M Eq. (N.1.11b)
-            dv(1) = mu_params(2)
-            dv(2) = mu_params(3)
-            dv(3) = 0.
-
-            ! Transform to global coordinates
-            dv = matmul(transpose(this%A_g_to_ls_mir), dv)
-
-            ! Get source strength
-            
-            ! Constant
-            if (source_order == 0) then
-                s = sigma(this%index+size(sigma)/2)
-
-            ! For linear distribution, use the average
-            else if (source_order == 1) then
-                s = 0.
-                do i=1,this%N
-                    s = s + sigma(this%get_vertex_index(i)+size(sigma)/2)
-                end do
-                s = s/this%N
-            end if
-
-            ! Add normal velocity jump in global coords E&M Eq. (N.1.11b)
-            dv = dv + s*this%n_g_mir/inner(this%nu_g_mir, this%n_g_mir)
-
-        ! Jump calculations for original panel
-        ! Same steps as above
         else
+            Q_ls = 0.
+        end if
 
-            if (doublet_order == 1) then
+        ! Allocate strength arrays
+        if (doublet_order == 1) allocate(mu_verts(this%N))
+        if (doublet_order == 2) allocate(mu_verts(2*this%N))
+        if (source_order == 1) allocate(sigma_verts(this%N))
 
-                allocate(mu_verts(this%N))
+        ! Determine shifts and matrices to use
+        if (mirrored) then
+            mu_shift = size(mu)/2
+            sigma_shift = size(sigma)/2
+            allocate(A_g_to_ls, source=this%A_g_to_ls_mir)
+            allocate(S_mu_inv, source=this%S_mu_inv_mir)
+            if (source_order==1) allocate(S_sigma_inv, source=this%S_sigma_inv_mir)
+            s_dir = this%n_g_mir/inner(this%nu_g_mir, this%n_g_mir)
+        else
+            mu_shift = 0
+            sigma_shift = 0
+            allocate(A_g_to_ls, source=this%A_g_to_ls)
+            allocate(S_mu_inv, source=this%S_mu_inv)
+            if (source_order==1) allocate(S_sigma_inv, source=this%S_sigma_inv)
+            s_dir = this%n_g/inner(this%nu_g, this%n_g)
+        end if
 
-                do i=1,this%N
-                    mu_verts(i) = mu(this%get_vertex_index(i))
-                end do
+        ! Get doublet strengths at vertices
+        do i=1,this%N
+            
+            ! Vertices
+            mu_verts(i) = mu(this%get_vertex_index(i)+mu_shift)
 
-            else if (doublet_order == 2) then
+            ! Midpoints
+            if (doublet_order == 2) mu_verts(i+this%N) = mu(this%get_midpoint_index(i)+mu_shift)
 
-                allocate(mu_verts(2*this%N))
+        end do
 
-                do i=1,this%N
-                    mu_verts(i) = mu(this%get_vertex_index(i))
-                    mu_verts(i+this%N) = mu(this%get_midpoint_index(i))
-                end do
+        ! Calculate doublet parameters (derivatives)
+        mu_params = matmul(S_mu_inv, mu_verts)
 
-            end if
+        ! Calculate tangential velocity jump in panel coordinates E&M Eq. (N.1.11b)
+        dv(1) = mu_params(2)
+        dv(2) = mu_params(3)
+        dv(3) = 0.
+        if (doublet_order == 2) then
+            dv(1) = dv(1) + mu_params(4)*Q_ls(1) + mu_params(5)*Q_ls(2)
+            dv(2) = dv(2) + mu_params(5)*Q_ls(1) + mu_params(6)*Q_ls(2)
+        end if
 
+        ! Transform to global coordinates
+        dv = matmul(transpose(A_g_to_ls), dv)
+
+        ! Source strengths
+
+        ! Constant
+        if (source_order == 0) then
+            s = sigma(this%index+sigma_shift)
+
+        ! Linear
+        else if (source_order == 1) then
+
+            ! Get source strengths at vertices
             do i=1,this%N
-                mu_verts(i) = mu(this%get_vertex_index(i))
+                sigma_verts(i) = sigma(this%get_vertex_index(i)+sigma_shift)
             end do
-        
-            mu_params = matmul(this%S_mu_inv, mu_verts)
 
-            dv(1) = mu_params(2)
-            dv(2) = mu_params(3)
-            dv(3) = 0.
-
-            dv = matmul(transpose(this%A_g_to_ls), dv)
-
-            if (source_order == 0) then
-                s = sigma(this%index)
-
-            else if (source_order == 1) then
-                s = 0.
-                do i=1,this%N
-                    s = s + sigma(this%get_vertex_index(i))
-                end do
-                s = s/this%N
-            end if
-
-            dv = dv + s*this%n_g/inner(this%nu_g, this%n_g)
+            ! Calculate parameters
+            sigma_params = matmul(S_sigma_inv, sigma_verts)
+            s = sigma_params(1) + sigma_params(2)*Q_ls(1) + sigma_params(3)*Q_ls(2)
 
         end if
+
+        ! Add normal velocity jump in global coords E&M Eq. (N.1.11b)
+        dv = dv + s*s_dir
 
     end function panel_get_velocity_jump
 
