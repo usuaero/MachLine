@@ -2050,7 +2050,7 @@ contains
     end subroutine panel_calc_velocities
 
 
-    function panel_get_velocity_jump(this, mu, sigma, mirrored, mirror_plane, point) result(dv)
+    function panel_get_velocity_jump(this, mu, sigma, mirrored, point) result(dv)
         ! Calculates the jump in perturbation velocity across this panel in global coordinates at the given location
         ! If a location is not given, this will default to the centroid
 
@@ -2059,7 +2059,6 @@ contains
         class(panel),intent(in) :: this
         real,dimension(:),allocatable,intent(in) :: mu, sigma
         logical,intent(in) :: mirrored
-        integer,intent(in) :: mirror_plane
         real,dimension(3),intent(in),optional :: point
 
         real,dimension(3) :: dv

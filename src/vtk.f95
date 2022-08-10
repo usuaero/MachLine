@@ -24,6 +24,7 @@ module vtk_mod
             procedure :: write_vertices => vtk_out_write_vertices
             procedure :: write_point_scalars => vtk_out_write_point_scalars
             procedure :: write_cell_header => vtk_out_write_cell_header
+            procedure :: write_point_header => vtk_out_write_point_header
             procedure :: write_cell_scalars => vtk_out_write_cell_scalars
             procedure :: write_point_vectors => vtk_out_write_point_vectors
             procedure :: write_cell_vectors => vtk_out_write_cell_vectors
@@ -55,21 +56,8 @@ contains
             write(*,*) "Cannot write to ", this%filename, ". Already opened."
         end if
 
-        ! Find an available unit
-        is_open = .true.
-        this%unit = 0
-        do while (is_open)
-
-            ! Update unit number
-            this%unit = this%unit + 1
-
-            ! Check if it is open
-            inquire(unit=this%unit, opened=is_open)
-
-        end do
-
         ! Open file
-        open(this%unit, file=this%filename)
+        open(newunit=this%unit, file=this%filename)
 
         ! Write header
         write(this%unit,'(a)') "# vtk DataFile Version 3.0"
@@ -230,6 +218,25 @@ contains
     end subroutine vtk_out_write_vertices
 
 
+    subroutine vtk_out_write_point_header(this, N_points)
+        ! Checks whether the point data header has been written and writes it if necessary
+
+        class(vtk_out), intent(inout) :: this
+        integer, intent(in) :: N_points
+
+        if (.not. this%point_data_begun) then
+            
+            ! Write out header
+            write(this%unit,'(a i20)') "POINT_DATA", N_points
+
+            ! Set toggle that header has already been written
+            this%point_data_begun = .true.
+
+        end if
+        
+    end subroutine vtk_out_write_point_header
+
+
     subroutine vtk_out_write_cell_header(this, N_cells)
         ! Checks whether the cell data header has been written and writes it if necessary
 
@@ -366,15 +373,7 @@ contains
 
         ! Write point data header
         N_points = size(data)
-        if (.not. this%point_data_begun) then
-            
-            ! Write out header
-            write(this%unit,'(a i20)') "POINT_DATA", N_points
-
-            ! Set toggle that header has already been written
-            this%point_data_begun = .true.
-
-        end if
+        call this%write_point_header(N_points)
 
         ! Write data
         write(1,'(a, a, a)') "SCALARS ", label, " float 1"
@@ -386,13 +385,26 @@ contains
     end subroutine vtk_out_write_point_scalars
 
 
-    subroutine vtk_out_write_point_vectors(this, data)
+    subroutine vtk_out_write_point_vectors(this, data, label)
         ! Writes out point vector data
 
         implicit none
 
         class(vtk_out),intent(inout) :: this
         real,dimension(:,:),intent(in) :: data
+        character(len=*),intent(in) :: label
+
+        integer :: N_points, i
+
+        ! Write cell data header
+        N_points = size(data)/3
+        call this%write_point_header(N_points)
+
+        ! Write vectors
+        write(this%unit,'(a, a, a)') "VECTORS ", label, " float"
+        do i=1,N_points
+            write(this%unit,'(e20.12, e20.12, e20.12)') data(1,i), data(2,i), data(3,i)
+        end do
     
     end subroutine vtk_out_write_point_vectors
     
@@ -412,14 +424,13 @@ contains
 
     subroutine load_surface_vtk(mesh_file, N_verts, N_panels, vertices, panels)
         ! Loads a surface mesh from a vtk file. Only a body.
-        ! Needs to be updated to automatically delete duplicate vertices.
 
         implicit none
 
         character(len=:),allocatable,intent(in) :: mesh_file
         integer,intent(out) :: N_verts, N_panels
-        type(vertex),dimension(:),allocatable,intent(inout) :: vertices
-        type(panel),dimension(:),allocatable,intent(inout) :: panels
+        type(vertex),dimension(:),allocatable,intent(out) :: vertices
+        type(panel),dimension(:),allocatable,intent(out) :: panels
 
         character(len=200) :: dummy_read
         real,dimension(:,:),allocatable :: vertex_locs
@@ -471,10 +482,14 @@ contains
                 ! Initialize; need +1 because VTK uses 0-based indexing
                 call panels(i)%init(vertices(new_ind(i1+1)), vertices(new_ind(i2+1)), vertices(new_ind(i3+1)), i)
 
-                ! Add panel index to vertices
+                ! Add panel index to vertices' panel lists
                 call vertices(new_ind(i1+1))%panels%append(i)
                 call vertices(new_ind(i2+1))%panels%append(i)
                 call vertices(new_ind(i3+1))%panels%append(i)
+
+                call vertices(new_ind(i1+1))%panels_not_across_wake_edge%append(i)
+                call vertices(new_ind(i2+1))%panels_not_across_wake_edge%append(i)
+                call vertices(new_ind(i3+1))%panels_not_across_wake_edge%append(i)
 
             end do
 

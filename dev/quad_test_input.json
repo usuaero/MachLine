@@ -7,6 +7,7 @@
         "file": "dev/meshes/naca_0010_AR_10_half_coarse.stl",
         "mirror_about": "xz",
         "singularity_order" : {
+            "source" : 1,
             "doublet" : 2
         },
         "wake_model" : {
@@ -17,8 +18,6 @@
     "solver": {
         "formulation" : "morino",
         "control_point_offset" : 1.1e-06,
-        "run_checks" : true,
-        "write_A_and_b" : true,
         "matrix_solver" : "LU"
     },
     "post_processing" : {
