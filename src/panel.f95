@@ -833,7 +833,7 @@ contains
 
         ! Determine influence of vertex source strengths on integral parameters
         ! Linear distribution
-        if (source_order .eq. 1) then
+        if (source_order == 1) then
 
             ! Allocate influence matrices
             allocate(S_sigma(3,3))
@@ -847,7 +847,8 @@ contains
             ! Invert
             call matinv(3, S_sigma, this%S_sigma_inv_mir)
 
-        else if (source_order .eq. 2) then
+        ! Quadratic distribution; I don't anticipate this will ever be used
+        else if (source_order == 2) then
 
             ! Allocate influence matrix
             allocate(S_sigma(6,6))
@@ -1520,6 +1521,10 @@ contains
 
         real :: F1, F2, eps, eps2, series, b, s_b
         integer :: i, i_next
+        logical :: higher_order
+
+        ! Check order
+        higher_order = source_order == 1 .or. doublet_order == 2
 
         ! Loop through edges
         do i=1,this%N
@@ -1529,7 +1534,7 @@ contains
             ! Check DoD
             if (dod_info%edges_in_dod(i)) then
 
-                ! Get b a and its square root
+                ! Get b and its square root; doing this removes a lot of mirror checks later
                 if (mirror_panel) then
                     b = this%b_mir(i)
                     s_b = this%sqrt_b_mir(i)
@@ -1540,9 +1545,12 @@ contains
 
                 ! Mach wedge
                 if (geom%R1(i) == 0. .and. geom%R2(i) == 0) then
+
+                    ! F(1,1,1)
                     int%F111(i) = pi/s_b
 
-                    if (source_order == 1) then
+                    ! Higher-order
+                    if (higher_order) then
                         int%F121(i) = -geom%a(i)*geom%v_eta(i)*int%F111(i)/b
                         int%F211(i) = geom%a(i)*geom%v_xi(i)*int%F111(i)/b
                     end if
@@ -1558,18 +1566,17 @@ contains
                         F2 = (geom%g2(i) - geom%l1(i)**2 - geom%l2(i)**2) / (b*geom%R1(i)*geom%R2(i) - geom%l1(i)*geom%l2(i))
                     end if
 
-                    ! Calculate F(1,1,1) and other higher integrals if necessary
-
                     ! Nearly-sonic edge
                     if (abs(F2) > 100.0*abs(s_b*F1)) then
 
-                        ! Calculate series solution
+                        ! F(1,1,1)
                         eps = F1/F2
                         eps2 = eps*eps
                         series = eps*eps2*(1./3. - b*eps2/5. + (b*eps2)*(b*eps2)/7.)
                         int%F111(i) = -eps + b*series
 
-                        if (source_order == 1 .or. doublet_order == 2) then
+                        ! Higher-order
+                        if (higher_order) then
                             if (mirror_panel) then
                                 int%F121(i) = (-geom%v_xi(i)*geom%dR(i)*geom%R1(i)*geom%R2(i) &
                                                + geom%l2(i)*geom%R1(i)*(this%vertices_ls_mir(2,i_next) - geom%P_ls(2)) &
@@ -1588,9 +1595,11 @@ contains
                     ! Supersonic edge
                     else if (b > 0.) then
 
+                        ! F(1,1,1)
                         int%F111(i) = -atan2(s_b*F1, F2) / s_b
 
-                        if (source_order == 1 .or. doublet_order == 2) then
+                        ! Higher-order
+                        if (higher_order) then
                             int%F121(i) = -(geom%v_xi(i)*geom%dR(i) + geom%a(i)*geom%v_eta(i)*int%F111(i)) / b
                             int%F211(i) = -geom%v_eta(i)*geom%dR(i) + geom%a(i)*geom%v_xi(i)*int%F111(i) - &
                                           2.*geom%v_xi(i)*geom%v_eta(i)*int%F121(i)
@@ -1598,11 +1607,14 @@ contains
 
                     ! Subsonic edge
                     else
+                        
+                        ! F(1,1,1)
                         F1 = s_b*geom%R1(i) + abs(geom%l1(i))
                         F2 = s_b*geom%R2(i) + abs(geom%l2(i))
-                        int%F111(i) = -sign(1., geom%v_eta(i))*log(F1/F2)
+                        int%F111(i) = -sign(1., geom%v_eta(i))*log(F1/F2)/s_b
 
-                        if (source_order == 1 .or. doublet_order == 2) then
+                        ! Higher-order
+                        if (higher_order) then
                             int%F121(i) = -(geom%v_xi(i)*geom%dR(i) + geom%a(i)*geom%v_eta(i)*int%F111(i)) / b
                             int%F211(i) = -geom%v_eta(i)*geom%dR(i) + geom%a(i)*geom%v_xi(i)*int%F111(i) - &
                                           2.*geom%v_xi(i)*geom%v_eta(i)*int%F121(i)
@@ -1611,6 +1623,22 @@ contains
 
                 end if
 
+            end if
+
+            ! Check
+            if (higher_order) then
+                if (abs(geom%v_xi(i)*int%F211(i) + geom%v_eta(i)*int%F121(i) - geom%a(i)*int%F111(i)) > 1.e-12) then
+                    write(*,*)
+                    write(*,*) b
+                    write(*,*) geom%R1(i), geom%R2(i)
+                    write(*,*) geom%v_xi(i)*int%F211(i) + geom%v_eta(i)*int%F121(i)
+                    write(*,*) geom%a(i)*int%F111(i)
+                    write(*,*) geom%a(i), int%F111(i)
+                    write(*,*) geom%v_xi(i), geom%v_eta(i)
+                    write(*,*) int%F211(i), int%F121(i)
+                    write(*,*) "!!! Calculation of F(2,1,1) and F(1,2,1) failed. Quitting..."
+                    stop
+                end if
             end if
 
         end do
@@ -1793,11 +1821,11 @@ contains
 
         type(integrals) :: int
 
-        ! Allocate space for integrals
+        ! Allocate space for edge integrals
         allocate(int%F111(this%N), source=0.)
         if (source_order == 1 .or. doublet_order == 2) then
-            allocate(int%F121(this%N))
-            allocate(int%F211(this%N))
+            allocate(int%F121(this%N), source=0.)
+            allocate(int%F211(this%N), source=0.)
         end if
 
         ! Calculate necessary integrals based on the flow condition and panel type

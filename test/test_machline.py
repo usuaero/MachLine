@@ -263,9 +263,9 @@ def test_supersonic_half_wing_morino_zero_aoa_zero_beta():
     print(Cy)
     print(Cz)
 
-    assert(abs(C_p_max - 0.12170587871737629) < 1e-7)
-    assert(abs(C_p_min - -0.11606239507721998) < 1e-7)
-    assert(abs(Cx - 0.14238137125495076) < 1e-7)
+    assert(abs(C_p_max - 0.121696390659706) < 1e-7)
+    assert(abs(C_p_min - -0.116093699972989) < 1e-7)
+    assert(abs(Cx - 0.142400837528326) < 1e-7)
     assert(abs(Cy) < 1e-12)
     assert(abs(Cz) < 1e-7)
 
@@ -288,9 +288,9 @@ def test_supersonic_half_wing_source_free_zero_aoa_zero_beta():
     print(Cy)
     print(Cz)
 
-    assert(abs(C_p_max - 0.121707118043971) < 1e-7)
-    assert(abs(C_p_min - -0.116058405091721) < 1e-7)
-    assert(abs(Cx - 0.142379818437667) < 1e-7)
+    assert(abs(C_p_max - 0.12169639015583) < 1e-7)
+    assert(abs(C_p_min - -0.11609368580733) < 1e-7)
+    assert(abs(Cx - 0.142400837085419) < 1e-7)
     assert(abs(Cy) < 1.e-12)
     assert(abs(Cz) < 2.1e-7)
 
@@ -314,11 +314,11 @@ def test_supersonic_half_wing_morino_allow_wake_asym_flow():
     print(Cy)
     print(Cz)
 
-    assert(abs(C_p_max - 0.803079382999673) < 1e-7)
-    assert(abs(C_p_min - -0.355152163248553) < 1e-7)
-    assert(abs(Cx - 0.141371468627056) < 1e-7)
-    assert(abs(Cy - 0.000914046488943176) < 1.e-12)
-    assert(abs(Cz - 0.910059453750861) < 2.1e-7)
+    assert(abs(C_p_max - 0.801724604954474) < 1e-7)
+    assert(abs(C_p_min - -0.355120851513625) < 1e-7)
+    assert(abs(Cx - 0.141382393725026) < 1e-7)
+    assert(abs(Cy - 0.000849106730582424) < 1.e-12)
+    assert(abs(Cz - 0.908879891315356) < 2.1e-7)
 
 
 def test_supersonic_half_wing_source_free_allow_wake_sym_flow():
@@ -342,10 +342,10 @@ def test_supersonic_half_wing_source_free_allow_wake_sym_flow():
     print(Cz)
 
     assert(abs(C_p_max - 0.19495037375827) < 1e-7)
-    assert(abs(C_p_min - -0.295391818263764) < 1e-7)
-    assert(abs(Cx - 0.14286400786453) < 1e-7)
+    assert(abs(C_p_min - -0.291491228620272) < 1e-7)
+    assert(abs(Cx - 0.142881823841829) < 1e-7)
     assert(abs(Cy) < 1.e-12)
-    assert(abs(Cz - 0.89234934625429) < 2.1e-7)
+    assert(abs(Cz - 0.892099862170874) < 2.1e-7)
 
 
 def test_fuselage_subsonic_compressible_iterative():
