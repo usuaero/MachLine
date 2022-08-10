@@ -35,7 +35,7 @@ module surface_mesh_mod
         real,dimension(:),allocatable :: Phi_u ! Total potential on outer surface
         real,dimension(:),allocatable :: C_p_pg, C_p_lai, C_p_kt ! Corrected surface pressure coefficients
         real,dimension(:),allocatable :: C_p_inc, C_p_ise, C_p_2nd, C_p_sln, C_p_lin ! Surface pressure coefficients
-        real,dimension(:,:),allocatable :: V_cells, V_verts_avg, V_verts_var, V_verts_spr, dC_f ! Surface velocities and pressure forces
+        real,dimension(:,:),allocatable :: V_cells, V_verts_avg, V_verts_std, dC_f ! Surface velocities and pressure forces
         real :: control_point_offset
         logical :: mirrored ! Whether the mesh is to be mirrored about any planes
         integer :: mirror_plane ! Index of the plane across which the mesh is mirrored (1: yz, 2: xz, 3: xy); this is the index of the normal to that plane
@@ -1746,8 +1746,7 @@ contains
             ! Quadratic doublets
             if (doublet_order == 2) then
                 call body_vtk%write_point_vectors(this%V_verts_avg(:,1:this%N_verts), "v_avg")
-                call body_vtk%write_point_vectors(this%V_verts_var(:,1:this%N_verts), "v_variance")
-                call body_vtk%write_point_vectors(this%V_verts_spr(:,1:this%N_verts), "v_spread")
+                call body_vtk%write_point_vectors(this%V_verts_std(:,1:this%N_verts), "v_std_dev")
             end if
         end if
 
@@ -1838,8 +1837,7 @@ contains
         ! Quadratic doublets
         if (doublet_order == 2) then
             call body_vtk%write_point_vectors(this%V_verts_avg(:,this%N_verts+1:this%N_verts*2), "v_avg")
-            call body_vtk%write_point_vectors(this%V_verts_var(:,this%N_verts+1:this%N_verts*2), "v_variance")
-            call body_vtk%write_point_vectors(this%V_verts_spr(:,this%N_verts+1:this%N_verts*2), "v_spread")
+            call body_vtk%write_point_vectors(this%V_verts_std(:,this%N_verts+1:this%N_verts*2), "v_std_dev")
         end if
 
         call body_vtk%finish()

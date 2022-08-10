@@ -108,6 +108,7 @@ module panel_mod
             procedure :: get_midpoint_index => panel_get_midpoint_index
             procedure :: touches_vertex => panel_touches_vertex
             procedure :: check_abutting_mirror_plane => panel_check_abutting_mirror_plane
+            procedure :: get_subpanel_centroid => panel_get_subpanel_centroid
 
             ! Update information
             procedure :: point_to_new_vertex => panel_point_to_new_vertex
@@ -1016,6 +1017,23 @@ contains
         end do mirror_loop
         
     end function panel_check_abutting_mirror_plane
+
+
+    function panel_get_subpanel_centroid(this, j) result(cent)
+        ! Calculates the centroid of the subpanel on edges j and j+1
+
+        implicit none
+        
+        class(panel),intent(in) :: this
+        integer,intent(in) :: j
+
+        real,dimension(3) :: cent
+
+        cent = ( this%get_midpoint_loc(j) &
+               + this%get_vertex_loc(modulo(j, this%N)+1) & 
+               + this%get_midpoint_loc(modulo(j, this%N)+1) ) / 3.0
+        
+    end function panel_get_subpanel_centroid
 
 
     subroutine panel_point_to_new_vertex(this, new_vertex)
