@@ -251,33 +251,34 @@ def create_panels(airfoil_locations, vertices, le_list, xc_max):
             panel_iter = panel_generator(root, tip, vertices, upper_surf, le_list, xc_max)
             panels += panel_iter
 
+
+    # Create a modified list of airfoil locations over the lower surface
+    lower_surf = copy.deepcopy(airfoil_locations)
+    for semi in lower_surf:
+        semi.remove(semi[0])
+
+
+    for i, root in enumerate(lower_surf):
+        if i < len(airfoil_locations)-1:
+            tip = lower_surf[i+1]
+
             # Create panels over lower surface of wing
+            panel_iter = panel_generator(root, tip, vertices, lower_surf, le_list, xc_max)
+            panels += panel_iter
+
+            # # Connect final panel on lower surface to trailing edge
+            p_one = root[1] + 1
+            p_three = root[1]
+
+            # Determine the middle vertex based on what isn't already used
+            if airfoil_locations[i][0] not in panels[-1]:
+                p_two = airfoil_locations[i][0]
+            else:
+                p_two = airfoil_locations[i+1][0]
+            
+            panels.append([p_one, p_two, p_three])
 
                 
-
-    # # Iterate over airfoil locations
-    # for i, root in enumerate(airfoil_locations):
-    #     if i < len(airfoil_locations)-1:
-    #         tip = airfoil_locations[i+1]
-
-    #         # Create panels over upper surface of wing
-    #         panel_iter, previous_advance = panel_generator(root, tip, vertices)
-    #         panels += panel_iter
-
-    #         # Create panels over lower surface of wing
-
-                
-            # # Add one last panel to complete the lower surface of the trailing edge
-            # if previous_advance == 'root':
-            #     p_one = tip[0]
-            #     p_three = root[2]
-            #     p_two = root[0]
-            # else:
-            #     p_one = tip[2]
-            #     p_three = root[0]
-            #     p_two = tip[0]
-            # panels.append([p_one, p_two, p_three])
-
     return panels
 
 
@@ -286,53 +287,58 @@ def panel_generator(root, tip, vertices, surface_verts, le_list, xc_max):
     # Iterating fwd over airfoil locations requires to exclude the last location
         
     # Initialize counters and max iteration trackers
-    i_root_max = (root[1]-root[0])
-    i_tip_max = (tip[1] - tip[0])
+    i_root_max = (root[1]-root[0]) + 1
+    i_tip_max = (tip[1] - tip[0]) + 1
     i_root = 0
     i_tip = 0
     panel_iter = []
     error_iter = 0
-    previous_advance = 'root'
 
     # Iterate over vertices
-    while (i_root < i_root_max) and (i_tip < i_tip_max): # Needs to be an or statement
+    while (i_root < i_root_max) and (i_tip < i_tip_max): # Needs to be an and statement
 
         # Always start panel numbering with given vertex on next semispan location
         p_one = tip[0] + i_tip
         p_three = root[0] + i_root
 
 
+
         # Minimize aspect ratio of panel
         next_tip = p_one + 1
         next_root = p_three + 1
 
-        # Check to see if next vertex is on max thickness ridge
-        if (next_root in xc_max) and ((p_one in xc_max) or (p_three in xc_max)):
-            p_two = next_root
+        # Check to see if next_tip will be the only node at the trailing edge
+        if (next_tip in le_list) and (next_tip in xc_max):
+            p_two = p_three + 1
             i_root += 1
-            previous_advance = 'root'
-            
-        elif (next_tip in xc_max) and ((p_one in xc_max) or (p_three in xc_max)):
-            p_two = next_tip
-            i_tip += 1
-            previous_advance = 'tip'
             
         # Check to see if next vertex is on leading edge
         elif (next_root in le_list) and ((p_one in le_list) or (p_three in le_list)):
             p_two = next_root
             i_tip += 1
-            previous_advance = 'root'
+
 
         elif (next_tip in le_list) and ((p_one in le_list) or (p_three in le_list)):
             p_two = next_tip
             i_root += 1
-            previous_advance = 'tip'
+
+
+        # Check to see if next vertex is on max thickness ridge
+        elif (next_root in xc_max) and ((p_one in xc_max) or (p_three in xc_max)):
+            p_two = next_root
+            i_root += 1
+
+            
+        elif (next_tip in xc_max) and ((p_one in xc_max) or (p_three in xc_max)):
+            p_two = next_tip
+            i_tip += 1
+
 
         else:
             # Check for tip conidition with one vertex and measure distances
             max_vert = (surface_verts[-1][1]-1)
             if (p_one < max_vert) and (p_three < max_vert):
-                # Determine distance based on previous advance
+                # Determine diagonal distances
                 # print('p_one: ', p_one)
                 # print('p_three: ', p_three)
                 # print('next_tip: ', next_tip)
@@ -356,33 +362,18 @@ def panel_generator(root, tip, vertices, surface_verts, le_list, xc_max):
                 # Increment along tip airfoil
                 i_tip += 1
                 p_two = tip[0] + i_tip
-                previous_advance = 'tip'
                 
             else:
                 # Increment along root airfoil
                 i_root += 1
                 p_two = root[0] + i_root
-                previous_advance = 'root'
+
+        if (p_one == p_two) or (p_two == p_three):
+            return panel_iter
+            
 
         # Append panels to list in ccw direction
         panel_iter.append([p_one, p_two, p_three])
-
-    # Add one last panel to complete the lower surface of the edge of surface created
-    breakpoint()
-    if previous_advance == 'root':
-        p_one = tip[0]-1
-        p_three = root[1]
-        p_two = tip[0]
-    else:
-        p_one = root[0]-1
-        p_three = tip[1]
-        p_two = root[0]
-
-    panel_iter.append([p_one, p_two, p_three])
-
-
-
-
 
     return panel_iter
 

@@ -89,7 +89,7 @@ if __name__=="__main__":
     # angles_of_attack = [0.0]
     semispan_loc = [22.5, 64.1]
     b_half = .2315 # meters
-    mesh_density = "semi_fine"
+    mesh_density = "coarse_test"
 
 
     # Iterate over angles of attack
@@ -104,7 +104,7 @@ if __name__=="__main__":
                 "freestream_mach_number" : M
             },
             "geometry": {
-                "file": "dev/results/delta_wing/meshes/delta_wing_{0}_mesh.stl".format(mesh_density),
+                "file": "dev/results/delta_wing/meshes/delta_wing_{0}_mesh.vtk".format(mesh_density),
                 "spanwise_axis" : "+y",
                 "wake_model": {
                     "wake_present" : True,

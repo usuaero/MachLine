@@ -9,7 +9,7 @@
         "freestream_mach_number": 1.62
     },
     "geometry": {
-        "file": "dev/results/delta_wing/meshes/delta_wing_semi_fine_mesh.stl",
+        "file": "dev/results/delta_wing/meshes/delta_wing_coarse_test_mesh.vtk",
         "spanwise_axis": "+y",
         "wake_model": {
             "wake_present": true,
@@ -32,7 +32,7 @@
         }
     },
     "output": {
-        "body_file": "dev/results/delta_wing/delta_wing_10.75_deg_semi_fine.vtk",
-        "control_point_file": "dev/results/delta_wing/delta_wing_10.75_deg_semi_fine_control_points.vtk"
+        "body_file": "dev/results/delta_wing/delta_wing_10.75_deg_coarse_test.vtk",
+        "control_point_file": "dev/results/delta_wing/delta_wing_10.75_deg_coarse_test_control_points.vtk"
     }
 }
