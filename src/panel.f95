@@ -108,6 +108,7 @@ module panel_mod
             procedure :: get_midpoint_index => panel_get_midpoint_index
             procedure :: touches_vertex => panel_touches_vertex
             procedure :: check_abutting_mirror_plane => panel_check_abutting_mirror_plane
+            procedure :: get_subpanel_centroid => panel_get_subpanel_centroid
 
             ! Update information
             procedure :: point_to_new_vertex => panel_point_to_new_vertex
@@ -833,7 +834,7 @@ contains
 
         ! Determine influence of vertex source strengths on integral parameters
         ! Linear distribution
-        if (source_order .eq. 1) then
+        if (source_order == 1) then
 
             ! Allocate influence matrices
             allocate(S_sigma(3,3))
@@ -847,7 +848,8 @@ contains
             ! Invert
             call matinv(3, S_sigma, this%S_sigma_inv_mir)
 
-        else if (source_order .eq. 2) then
+        ! Quadratic distribution; I don't anticipate this will ever be used
+        else if (source_order == 2) then
 
             ! Allocate influence matrix
             allocate(S_sigma(6,6))
@@ -1015,6 +1017,23 @@ contains
         end do mirror_loop
         
     end function panel_check_abutting_mirror_plane
+
+
+    function panel_get_subpanel_centroid(this, j) result(cent)
+        ! Calculates the centroid of the subpanel on edges j and j+1
+
+        implicit none
+        
+        class(panel),intent(in) :: this
+        integer,intent(in) :: j
+
+        real,dimension(3) :: cent
+
+        cent = ( this%get_midpoint_loc(j) &
+               + this%get_vertex_loc(modulo(j, this%N)+1) & 
+               + this%get_midpoint_loc(modulo(j, this%N)+1) ) / 3.0
+        
+    end function panel_get_subpanel_centroid
 
 
     subroutine panel_point_to_new_vertex(this, new_vertex)
@@ -1520,6 +1539,10 @@ contains
 
         real :: F1, F2, eps, eps2, series, b, s_b
         integer :: i, i_next
+        logical :: higher_order
+
+        ! Check order
+        higher_order = source_order == 1 .or. doublet_order == 2
 
         ! Loop through edges
         do i=1,this%N
@@ -1529,7 +1552,7 @@ contains
             ! Check DoD
             if (dod_info%edges_in_dod(i)) then
 
-                ! Get b a and its square root
+                ! Get b and its square root; doing this removes a lot of mirror checks later
                 if (mirror_panel) then
                     b = this%b_mir(i)
                     s_b = this%sqrt_b_mir(i)
@@ -1538,78 +1561,102 @@ contains
                     s_b = this%sqrt_b(i)
                 end if
 
-                ! Calculate F factors
-                if (b > 0.) then
-                    F1 = (geom%l1(i)*geom%R2(i) - geom%l2(i)*geom%R1(i)) / geom%g2(i)
-                    F2 = (b*geom%R1(i)*geom%R2(i) + geom%l1(i)*geom%l2(i)) / geom%g2(i)
-                else
-                    F1 = (geom%R2(i) - geom%R1(i))*(geom%R2(i) + geom%R1(i)) / (geom%l1(i)*geom%R2(i) + geom%l2(i)*geom%R1(i))
-                    F2 = (geom%g2(i) - geom%l1(i)**2 - geom%l2(i)**2) / (b*geom%R1(i)*geom%R2(i) - geom%l1(i)*geom%l2(i))
-                end if
+                ! Mach wedge
+                if (geom%R1(i) == 0. .and. geom%R2(i) == 0) then
 
-                ! Calculate F(1,1,1) and other higher integrals if necessary
+                    ! F(1,1,1)
+                    int%F111(i) = pi/s_b
 
-                ! Nearly-sonic edge
-                if (abs(F2) > 100.0*abs(s_b*F1)) then
-
-                    ! Calculate series solution
-                    eps = F1/F2
-                    eps2 = eps*eps
-                    series = eps*eps2*(1./3. - b*eps2/5. + (b*eps2)*(b*eps2)/7.)
-                    int%F111(i) = -eps + b*series
-
-                    if (source_order == 1 .or. doublet_order == 2) then
-                        if (mirror_panel) then
-                            int%F121(i) = (-geom%v_xi(i)*geom%dR(i)*geom%R1(i)*geom%R2(i) &
-                                           + geom%l2(i)*geom%R1(i)*(this%vertices_ls_mir(2,i_next) - geom%P_ls(2)) &
-                                           - geom%l1(i)*geom%R2(i)*(this%vertices_ls_mir(2,i) - geom%P_ls(2))) / (geom%g2(i)*F2) &
-                                          - geom%a(i)*geom%v_eta(i)*series
-                        else
-                            int%F121(i) = (-geom%v_xi(i)*geom%dR(i)*geom%R1(i)*geom%R2(i) &
-                                           + geom%l2(i)*geom%R1(i)*(this%vertices_ls(2,i) - geom%P_ls(2)) &
-                                           - geom%l1(i)*geom%R2(i)*(this%vertices_ls(2,i_next) - geom%P_ls(2))) / (geom%g2(i)*F2) &
-                                          - geom%a(i)*geom%v_eta(i)*series
-                        end if
-                        int%F211(i) = -geom%v_eta(i)*geom%dR(i) + geom%a(i)*geom%v_xi(i)*int%F111(i) - &
-                                      2.*geom%v_xi(i)*geom%v_eta(i)*int%F121(i)
+                    ! Higher-order
+                    if (higher_order) then
+                        int%F121(i) = -geom%a(i)*geom%v_eta(i)*int%F111(i)/b
+                        int%F211(i) = geom%a(i)*geom%v_xi(i)*int%F111(i)/b
                     end if
 
-                ! Supersonic edge
-                else if (b > 0.) then
+                else
 
-                    ! Mach wedge
-                    if (geom%R1(i) == 0. .and. geom%R2(i) == 0) then
-                        int%F111(i) = pi/s_b
+                    ! Calculate F factors
+                    if (b > 0.) then
+                        F1 = (geom%l1(i)*geom%R2(i) - geom%l2(i)*geom%R1(i)) / geom%g2(i)
+                        F2 = (b*geom%R1(i)*geom%R2(i) + geom%l1(i)*geom%l2(i)) / geom%g2(i)
+                    else
+                        F1 = (geom%R2(i) - geom%R1(i))*(geom%R2(i) + geom%R1(i)) / (geom%l1(i)*geom%R2(i) + geom%l2(i)*geom%R1(i))
+                        F2 = (geom%g2(i) - geom%l1(i)**2 - geom%l2(i)**2) / (b*geom%R1(i)*geom%R2(i) - geom%l1(i)*geom%l2(i))
+                    end if
 
-                        if (source_order == 1) then
-                            int%F121(i) = -geom%a(i)*geom%v_eta(i)*int%F111(i)/b
-                            int%F211(i) = geom%a(i)*geom%v_xi(i)*int%F111(i)/b
+                    ! Nearly-sonic edge
+                    if (abs(F2) > 100.0*abs(s_b*F1)) then
+
+                        ! F(1,1,1)
+                        eps = F1/F2
+                        eps2 = eps*eps
+                        series = eps*eps2*(1./3. - b*eps2/5. + (b*eps2)*(b*eps2)/7.)
+                        int%F111(i) = -eps + b*series
+
+                        ! Higher-order
+                        if (higher_order) then
+                            if (mirror_panel) then
+                                int%F121(i) = (-geom%v_xi(i)*geom%dR(i)*geom%R1(i)*geom%R2(i) &
+                                               + geom%l2(i)*geom%R1(i)*(this%vertices_ls_mir(2,i_next) - geom%P_ls(2)) &
+                                               - geom%l1(i)*geom%R2(i)*(this%vertices_ls_mir(2,i) - geom%P_ls(2)))/(geom%g2(i)*F2)&
+                                              - geom%a(i)*geom%v_eta(i)*series
+                            else
+                                int%F121(i) = (-geom%v_xi(i)*geom%dR(i)*geom%R1(i)*geom%R2(i) &
+                                               + geom%l2(i)*geom%R1(i)*(this%vertices_ls(2,i) - geom%P_ls(2)) &
+                                               - geom%l1(i)*geom%R2(i)*(this%vertices_ls(2,i_next) - geom%P_ls(2)))/(geom%g2(i)*F2)&
+                                              - geom%a(i)*geom%v_eta(i)*series
+                            end if
+                            int%F211(i) = -geom%v_eta(i)*geom%dR(i) + geom%a(i)*geom%v_xi(i)*int%F111(i) - &
+                                          2.*geom%v_xi(i)*geom%v_eta(i)*int%F121(i)
                         end if
 
-                    ! At least one endpoint in
-                    else
+                    ! Supersonic edge
+                    else if (b > 0.) then
+
+                        ! F(1,1,1)
                         int%F111(i) = -atan2(s_b*F1, F2) / s_b
 
-                        if (source_order == 1 .or. doublet_order == 2) then
+                        ! Higher-order
+                        if (higher_order) then
+                            int%F121(i) = -(geom%v_xi(i)*geom%dR(i) + geom%a(i)*geom%v_eta(i)*int%F111(i)) / b
+                            int%F211(i) = -geom%v_eta(i)*geom%dR(i) + geom%a(i)*geom%v_xi(i)*int%F111(i) - &
+                                          2.*geom%v_xi(i)*geom%v_eta(i)*int%F121(i)
+                        end if
+
+                    ! Subsonic edge
+                    else
+                        
+                        ! F(1,1,1)
+                        F1 = s_b*geom%R1(i) + abs(geom%l1(i))
+                        F2 = s_b*geom%R2(i) + abs(geom%l2(i))
+                        int%F111(i) = -sign(1., geom%v_eta(i))*log(F1/F2)/s_b
+
+                        ! Higher-order
+                        if (higher_order) then
                             int%F121(i) = -(geom%v_xi(i)*geom%dR(i) + geom%a(i)*geom%v_eta(i)*int%F111(i)) / b
                             int%F211(i) = -geom%v_eta(i)*geom%dR(i) + geom%a(i)*geom%v_xi(i)*int%F111(i) - &
                                           2.*geom%v_xi(i)*geom%v_eta(i)*int%F121(i)
                         end if
                     end if
 
-                ! Subsonic edge
-                else
-                    F1 = s_b*geom%R1(i) + abs(geom%l1(i))
-                    F2 = s_b*geom%R2(i) + abs(geom%l2(i))
-                    int%F111(i) = -sign(1., geom%v_eta(i))*log(F1/F2)
-
-                    if (source_order == 1 .or. doublet_order == 2) then
-                        int%F121(i) = -(geom%v_xi(i)*geom%dR(i) + geom%a(i)*geom%v_eta(i)*int%F111(i)) / b
-                        int%F211(i) = -geom%v_eta(i)*geom%dR(i) + geom%a(i)*geom%v_xi(i)*int%F111(i) - &
-                                      2.*geom%v_xi(i)*geom%v_eta(i)*int%F121(i)
-                    end if
                 end if
 
+            end if
+
+            ! Check
+            if (higher_order) then
+                if (abs(geom%v_xi(i)*int%F211(i) + geom%v_eta(i)*int%F121(i) - geom%a(i)*int%F111(i)) > 1.e-12) then
+                    write(*,*)
+                    write(*,*) b
+                    write(*,*) geom%R1(i), geom%R2(i)
+                    write(*,*) geom%v_xi(i)*int%F211(i) + geom%v_eta(i)*int%F121(i)
+                    write(*,*) geom%a(i)*int%F111(i)
+                    write(*,*) geom%a(i), int%F111(i)
+                    write(*,*) geom%v_xi(i), geom%v_eta(i)
+                    write(*,*) int%F211(i), int%F121(i)
+                    write(*,*) "!!! Calculation of F(2,1,1) and F(1,2,1) failed. Quitting..."
+                    stop
+                end if
             end if
 
         end do
@@ -1792,11 +1839,11 @@ contains
 
         type(integrals) :: int
 
-        ! Allocate space for integrals
+        ! Allocate space for edge integrals
         allocate(int%F111(this%N), source=0.)
         if (source_order == 1 .or. doublet_order == 2) then
-            allocate(int%F121(this%N))
-            allocate(int%F211(this%N))
+            allocate(int%F121(this%N), source=0.)
+            allocate(int%F211(this%N), source=0.)
         end if
 
         ! Calculate necessary integrals based on the flow condition and panel type
@@ -1966,6 +2013,9 @@ contains
         type(eval_point_geom) :: geom
         type(integrals) :: int
 
+        write(*,*) "!!! Velocity calculation not yet implemented. Quitting..."
+        stop
+
         ! Specify influencing vertices (also sets zero default influence)
 
         ! Source
@@ -2018,126 +2068,107 @@ contains
     end subroutine panel_calc_velocities
 
 
-    function panel_get_velocity_jump(this, mu, sigma, mirrored, mirror_plane) result(dv)
-        ! Calculates the jump in perturbation velocity across this panel in global coordinates
+    function panel_get_velocity_jump(this, mu, sigma, mirrored, point) result(dv)
+        ! Calculates the jump in perturbation velocity across this panel in global coordinates at the given location
+        ! If a location is not given, this will default to the centroid
 
         implicit none
 
         class(panel),intent(in) :: this
         real,dimension(:),allocatable,intent(in) :: mu, sigma
         logical,intent(in) :: mirrored
-        integer,intent(in) :: mirror_plane
+        real,dimension(3),intent(in),optional :: point
+
         real,dimension(3) :: dv
 
-        real,dimension(:),allocatable :: mu_verts, mu_params
-        integer :: i
+        real,dimension(:),allocatable :: mu_verts, mu_params, sigma_verts, sigma_params
+        integer :: i, mu_shift, sigma_shift
         real :: s
+        real,dimension(2) :: Q_ls
+        real,dimension(3) :: s_dir
+        real,dimension(:,:),allocatable :: A_g_to_ls, S_mu_inv, S_sigma_inv
 
-        ! Jump calculations for mirrored panel
-        if (mirrored) then
-
-            ! Set up array of doublet strengths to calculate doublet parameters
-            if (doublet_order == 1) then
-
-                ! Allocate
-                allocate(mu_verts(this%N))
-
-                ! Get doublet values
-                do i=1,this%N
-                    mu_verts(i) = mu(this%get_vertex_index(i)+size(mu)/2)
-                end do
-
-            else if (doublet_order == 2) then
-
-                ! Allocate
-                allocate(mu_verts(2*this%N))
-
-                ! Get doublet values
-                do i=1,this%N
-                    mu_verts(i) = mu(this%get_vertex_index(i)+size(mu)/2)
-                    mu_verts(i+this%N) = mu(this%get_midpoint_index(i)+size(mu)/2)
-                end do
-
+        ! Get point
+        if (present(point)) then
+            if (mirrored) then
+                Q_ls = matmul(this%A_g_to_ls_mir(1:2,:), point-this%centr_mir)
+            else
+                Q_ls = matmul(this%A_g_to_ls(1:2,:), point-this%centr)
             end if
-        
-            ! Calculate doublet parameters (derivatives)
-            mu_params = matmul(this%S_mu_inv_mir, mu_verts)
-
-            ! Calculate tangential velocity jump in panel coordinates E&M Eq. (N.1.11b)
-            dv(1) = mu_params(2)
-            dv(2) = mu_params(3)
-            dv(3) = 0.
-
-            ! Transform to global coordinates
-            dv = matmul(transpose(this%A_g_to_ls_mir), dv)
-
-            ! Get source strength
-            
-            ! Constant
-            if (source_order == 0) then
-                s = sigma(this%index+size(sigma)/2)
-
-            ! For linear distribution, use the average
-            else if (source_order == 1) then
-                s = 0.
-                do i=1,this%N
-                    s = s + sigma(this%get_vertex_index(i)+size(sigma)/2)
-                end do
-                s = s/this%N
-            end if
-
-            ! Add normal velocity jump in global coords E&M Eq. (N.1.11b)
-            dv = dv + s*this%n_g_mir/inner(this%nu_g_mir, this%n_g_mir)
-
-        ! Jump calculations for original panel
-        ! Same steps as above
         else
+            Q_ls = 0.
+        end if
 
-            if (doublet_order == 1) then
+        ! Allocate strength arrays
+        if (doublet_order == 1) allocate(mu_verts(this%N))
+        if (doublet_order == 2) allocate(mu_verts(2*this%N))
+        if (source_order == 1) allocate(sigma_verts(this%N))
 
-                allocate(mu_verts(this%N))
+        ! Determine shifts and matrices to use
+        if (mirrored) then
+            mu_shift = size(mu)/2
+            sigma_shift = size(sigma)/2
+            allocate(A_g_to_ls, source=this%A_g_to_ls_mir)
+            allocate(S_mu_inv, source=this%S_mu_inv_mir)
+            if (source_order==1) allocate(S_sigma_inv, source=this%S_sigma_inv_mir)
+            s_dir = this%n_g_mir/inner(this%nu_g_mir, this%n_g_mir)
+        else
+            mu_shift = 0
+            sigma_shift = 0
+            allocate(A_g_to_ls, source=this%A_g_to_ls)
+            allocate(S_mu_inv, source=this%S_mu_inv)
+            if (source_order==1) allocate(S_sigma_inv, source=this%S_sigma_inv)
+            s_dir = this%n_g/inner(this%nu_g, this%n_g)
+        end if
 
-                do i=1,this%N
-                    mu_verts(i) = mu(this%get_vertex_index(i))
-                end do
+        ! Get doublet strengths at vertices
+        do i=1,this%N
+            
+            ! Vertices
+            mu_verts(i) = mu(this%get_vertex_index(i)+mu_shift)
 
-            else if (doublet_order == 2) then
+            ! Midpoints
+            if (doublet_order == 2) mu_verts(i+this%N) = mu(this%get_midpoint_index(i)+mu_shift)
 
-                allocate(mu_verts(2*this%N))
+        end do
 
-                do i=1,this%N
-                    mu_verts(i) = mu(this%get_vertex_index(i))
-                    mu_verts(i+this%N) = mu(this%get_midpoint_index(i))
-                end do
+        ! Calculate doublet parameters (derivatives)
+        mu_params = matmul(S_mu_inv, mu_verts)
 
-            end if
+        ! Calculate tangential velocity jump in panel coordinates E&M Eq. (N.1.11b)
+        dv(1) = mu_params(2)
+        dv(2) = mu_params(3)
+        dv(3) = 0.
+        if (doublet_order == 2) then
+            dv(1) = dv(1) + mu_params(4)*Q_ls(1) + mu_params(5)*Q_ls(2)
+            dv(2) = dv(2) + mu_params(5)*Q_ls(1) + mu_params(6)*Q_ls(2)
+        end if
 
+        ! Transform to global coordinates
+        dv = matmul(transpose(A_g_to_ls), dv)
+
+        ! Source strengths
+
+        ! Constant
+        if (source_order == 0) then
+            s = sigma(this%index+sigma_shift)
+
+        ! Linear
+        else if (source_order == 1) then
+
+            ! Get source strengths at vertices
             do i=1,this%N
-                mu_verts(i) = mu(this%get_vertex_index(i))
+                sigma_verts(i) = sigma(this%get_vertex_index(i)+sigma_shift)
             end do
-        
-            mu_params = matmul(this%S_mu_inv, mu_verts)
 
-            dv(1) = mu_params(2)
-            dv(2) = mu_params(3)
-            dv(3) = 0.
-
-            dv = matmul(transpose(this%A_g_to_ls), dv)
-
-            if (source_order == 0) then
-                s = sigma(this%index)
-
-            else if (source_order == 1) then
-                s = 0.
-                do i=1,this%N
-                    s = s + sigma(this%get_vertex_index(i))
-                end do
-                s = s/this%N
-            end if
-
-            dv = dv + s*this%n_g/inner(this%nu_g, this%n_g)
+            ! Calculate parameters
+            sigma_params = matmul(S_sigma_inv, sigma_verts)
+            s = sigma_params(1) + sigma_params(2)*Q_ls(1) + sigma_params(3)*Q_ls(2)
 
         end if
+
+        ! Add normal velocity jump in global coords E&M Eq. (N.1.11b)
+        dv = dv + s*s_dir
 
     end function panel_get_velocity_jump
 

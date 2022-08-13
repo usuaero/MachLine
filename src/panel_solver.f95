@@ -26,7 +26,7 @@ module panel_solver_mod
         type(dod),dimension(:,:),allocatable :: dod_info, wake_dod_info
         type(flow) :: freestream
         real :: norm_res, max_res, tol, rel
-        real,dimension(3) :: C_F
+        real,dimension(3) :: C_F, inner_flow
         real,dimension(:,:),allocatable :: A
         real,dimension(:), allocatable :: b
         integer :: N, wake_start, N_cells, block_size, max_iterations, N_unknown, N_d_unknown, N_s_unknown
@@ -49,7 +49,9 @@ module panel_solver_mod
             procedure :: solve_system => panel_solver_solve_system
 
             ! Post-processing
-            procedure :: calc_velocities => panel_solver_calc_velocities
+            procedure :: calc_cell_velocities => panel_solver_calc_cell_velocities
+            procedure :: calc_point_velocities => panel_solver_calc_point_velocities
+            procedure :: calc_surface_potentials => panel_solver_calc_surface_potentials
             procedure :: calc_pressures => panel_solver_calc_pressures
             procedure :: subsonic_pressure_correction => panel_solver_subsonic_pressure_correction
             procedure :: calc_crit_mach => panel_solver_calc_crit_mach
@@ -247,6 +249,12 @@ contains
             this%N = body%N_cp*2
         else
             this%N = body%N_cp
+        end if
+
+        ! Calculate target inner flow
+        this%inner_flow = this%freestream%c_hat_g
+        if (this%formulation == 'source-free') then
+            this%inner_flow = this%inner_flow - matmul(this%freestream%B_mat_g_inv, this%freestream%c_hat_g)
         end if
 
         if (verbose) write(*,'(a, i6, a)') "Done. Placed", body%N_cp, " control points."
@@ -467,7 +475,11 @@ contains
         call this%solve_system(body)
 
         ! Calculate velocities
-        call this%calc_velocities(body)
+        call this%calc_cell_velocities(body)
+        if (doublet_order == 2) call this%calc_point_velocities(body)
+        
+        ! Calculate potentials
+        call this%calc_surface_potentials(body)
 
         ! Calculate pressures
         call this%calc_pressures(body)
@@ -1038,8 +1050,180 @@ contains
     end subroutine panel_solver_solve_system
 
 
-    subroutine panel_solver_calc_velocities(this, body)
-        ! Calculates the surface velocities
+    subroutine panel_solver_calc_cell_velocities(this, body)
+        ! Calculates the surface velocities on the mesh cells
+
+        implicit none
+
+        class(panel_solver),intent(inout) :: this
+        type(surface_mesh),intent(inout) :: body
+
+        integer :: i, stat, N_neighbors, j, i_panel, N_cycle
+        real,dimension(3) :: v_jump, loc_mir, cent
+        real,dimension(:,:),allocatable :: Vs
+
+        if (verbose) write(*,'(a)',advance='no') "     Calculating surface velocities..."
+
+        ! Determine number of surface cells
+        this%N_cells = body%N_panels
+        N_cycle = 1
+        if (body%asym_flow) then
+            this%N_cells = this%N_cells*2
+        end if
+        if (doublet_order == 2) then
+            this%N_cells = this%N_cells*4
+            N_cycle = 4
+        end if
+
+        ! Allocate cell velocity storage
+        allocate(body%V_cells(3,this%N_cells), stat=stat)
+        call check_allocation(stat, "surface velocity vectors")
+
+        ! Calculate the surface velocity on each existing panel
+        !$OMP parallel do private(Vs, N_neighbors, v_jump, j, i_panel, loc_mir, cent) schedule(static)
+        do i=1,body%N_panels
+
+            ! Get velocity jump at centroid
+            v_jump = body%panels(i)%get_velocity_jump(body%mu, body%sigma, .false.)
+
+            ! Calculate velocity
+            body%V_cells(:,(i-1)*N_cycle+1) = this%freestream%U*(this%inner_flow + v_jump)
+
+            ! Calculate for subpanels
+            if (doublet_order == 2) then
+                do j=1,body%panels(i)%N
+
+                    ! Get centroid
+                    cent = body%panels(i)%get_subpanel_centroid(j)
+
+                    ! Calculate velocity
+                    v_jump = body%panels(i)%get_velocity_jump(body%mu, body%sigma, .false., cent)
+                    body%V_cells(:,(i-1)*N_cycle+1+j) = this%freestream%U*(this%inner_flow + v_jump)
+
+                end do
+            end if
+
+            ! Calculate surface velocity on each mirrored panel
+            if (body%asym_flow) then
+
+                ! Get velocity jump
+                v_jump = body%panels(i)%get_velocity_jump(body%mu, body%sigma, .true.)
+
+                ! Calculate velocity
+                body%V_cells(:,(i-1)*N_cycle+1+body%N_panels) = this%freestream%U*(this%inner_flow + v_jump)
+
+                ! Calculate for subpanels
+                if (doublet_order == 2) then
+                    do j=1,body%panels(i)%N
+
+                        ! Get centroid
+                        cent = mirror_across_plane(body%panels(i)%get_subpanel_centroid(j), body%mirror_plane)
+
+                        ! Calculate velocity
+                        v_jump = body%panels(i)%get_velocity_jump(body%mu, body%sigma, .true., cent)
+                        body%V_cells(:,(i-1)*N_cycle+1+j+body%N_panels) = this%freestream%U*(this%inner_flow + v_jump)
+
+                    end do
+                end if
+
+            end if
+        end do
+
+        if (verbose) write(*,*) "Done."
+
+    end subroutine panel_solver_calc_cell_velocities
+
+
+    subroutine panel_solver_calc_point_velocities(this, body)
+        ! Calculates the surface velocities the mesh vertices
+
+        implicit none
+
+        class(panel_solver),intent(inout) :: this
+        type(surface_mesh),intent(inout) :: body
+
+        integer :: i, stat, N_neighbors, j, i_panel, N_cycle
+        real,dimension(3) :: v_jump, loc_mir, cent
+        real,dimension(:,:),allocatable :: Vs
+
+        if (verbose) write(*,'(a)',advance='no') "     Calculating point velocities..."
+
+        ! Allocate vertex velocity storage
+        allocate(body%V_verts_avg(3,this%N))
+        allocate(body%V_verts_std(3,this%N), source=0.)
+
+        ! Calculate total potential on outside of mesh and quadratic-doublet velocity discrepancies
+        !$OMP parallel do private(Vs, N_neighbors, v_jump, j, i_panel, loc_mir, cent) schedule(dynamic)
+        do i=1,body%N_verts
+
+            ! Allocate storage
+            N_neighbors = body%vertices(i)%panels_not_across_wake_edge%len()
+            allocate(Vs(3,N_neighbors))
+
+            ! Get velocities
+            do j=1,N_neighbors
+
+                ! Get panel index
+                call body%vertices(i)%panels_not_across_wake_edge%get(j, i_panel)
+
+                ! Get velocity jump at the vertex location
+                v_jump = body%panels(i_panel)%get_velocity_jump(body%mu, body%sigma, .false., body%vertices(i)%loc)
+
+                ! Store
+                Vs(:,j) = this%freestream%U*(this%inner_flow + v_jump)
+            end do
+
+            ! Calculate stats
+            body%V_verts_avg(:,i) = sum(Vs, dim=2)/N_neighbors
+            if (N_neighbors > 1) then
+                do j=1,N_neighbors
+                    body%V_verts_std(:,i) = body%V_verts_std(:,i) + (Vs(:,j) - body%V_verts_avg(:,i))**2
+                end do
+                body%V_verts_std(:,i) = body%V_verts_std(:,i)/(N_neighbors - 1)
+            end if
+
+            ! Mirrored vertices
+            if (body%asym_flow) then
+
+                ! Get mirrored location
+                loc_mir = mirror_across_plane(body%vertices(i)%loc, body%mirror_plane)
+
+                ! Get velocities
+                do j=1,N_neighbors
+
+                    ! Get panel index
+                    call body%vertices(i)%panels_not_across_wake_edge%get(j, i_panel)
+
+                    ! Get velocity jump at the vertex location
+                    v_jump = body%panels(i_panel)%get_velocity_jump(body%mu, body%sigma, .true., loc_mir)
+
+                    ! Store
+                    Vs(:,j) = this%freestream%U*(this%inner_flow + v_jump)
+                end do
+
+                ! Calculate stats
+                body%V_verts_avg(:,i+body%N_verts) = sum(Vs, dim=2)/N_neighbors
+                if (N_neighbors > 1) then
+                    do j=1,N_neighbors
+                        body%V_verts_std(:,i+body%N_verts) = body%V_verts_std(:,i+body%N_verts) &
+                                                             + (Vs(:,j) - body%V_verts_avg(:,i))**2
+                    end do
+                    body%V_verts_std(:,i+body%N_verts) = body%V_verts_std(:,i+body%N_verts)/(N_neighbors - 1)
+                end if
+
+            end if
+
+            deallocate(Vs)
+
+        end do
+
+        if (verbose) write(*,*) "Done."
+
+    end subroutine panel_solver_calc_point_velocities
+
+
+    subroutine panel_solver_calc_surface_potentials(this, body)
+        ! Calculates the total outer potential at mesh vertices
 
         implicit none
 
@@ -1047,65 +1231,31 @@ contains
         type(surface_mesh),intent(inout) :: body
 
         integer :: i, stat
-        real,dimension(3) :: x, v_jump
+        real,dimension(3) :: loc_mir
 
-        if (verbose) write(*,'(a)',advance='no') "     Calculating surface velocities..."
+        if (verbose) write(*,'(a)',advance='no') "     Calculating upper surface potentials..."
 
-        ! Allocate velocity storage
-        if (body%asym_flow) then
-            this%N_cells = body%N_panels*2
-        else
-            this%N_cells = body%N_panels
-        end if
-        allocate(body%V(3,this%N_cells), stat=stat)
-        allocate(body%Phi_u, source=body%mu)
-        call check_allocation(stat, "surface velocity vectors")
+        ! Allocate storage
+        allocate(body%Phi_u, source=body%mu, stat=stat)
+        call check_allocation(stat, "total outer surface potential")
 
-        ! Calculate influence of the freestream and inner potentials
-        if (this%formulation == 'source-free') then
-            x = this%freestream%c_hat_g - matmul(this%freestream%B_mat_g_inv, this%freestream%c_hat_g)
-        else
-            x = this%freestream%c_hat_g ! Inner perturbation potential is zero
-        end if
-
-        ! Calculate the surface velocity on each existing panel
-        !$OMP parallel do private(v_jump) schedule(static)
-        do i=1,body%N_panels
-
-            ! Get velocity jump
-            v_jump = body%panels(i)%get_velocity_jump(body%mu, body%sigma, .false., 0)
-
-            ! Calculate velocity
-            body%V(:,i) = this%freestream%U*(x + v_jump)
-
-            ! Calculate surface velocity on each mirrored panel
-            if (body%asym_flow) then
-
-                ! Get velocity jump
-                v_jump = body%panels(i)%get_velocity_jump(body%mu, body%sigma, .true., body%mirror_plane)
-
-                ! Calculate velocity
-                body%V(:,i+body%N_panels) = this%freestream%U*(x + v_jump)
-
-            end if
-        end do
-
-        ! Calculate total potential on outside of mesh
-        !$OMP parallel do schedule(static)
+        ! Calculate total potential on outside of mesh and quadratic-doublet velocity discrepancies
+        !$OMP parallel do private(loc_mir) schedule(dynamic)
         do i=1,body%N_verts
 
             ! Existing points
-            body%Phi_u(i) = body%Phi_u(i) + inner(x, body%vertices(i)%loc)
+            body%Phi_u(i) = body%Phi_u(i) + inner(this%inner_flow, body%vertices(i)%loc)
 
             ! Mirrored points
             if (body%asym_flow) then
-                body%Phi_u(i+body%N_verts) = body%phi_u(i+body%N_verts) + &
-                                             inner(x, mirror_across_plane(body%vertices(i)%loc, body%mirror_plane))
+                loc_mir = mirror_across_plane(body%vertices(i)%loc, body%mirror_plane)
+                body%Phi_u(i+body%N_verts) = body%phi_u(i+body%N_verts) + inner(this%inner_flow, loc_mir)
             end if
         end do
+
         if (verbose) write(*,*) "Done."
 
-    end subroutine panel_solver_calc_velocities
+    end subroutine panel_solver_calc_surface_potentials
 
 
     subroutine panel_solver_calc_pressures(this, body)
@@ -1164,13 +1314,13 @@ contains
 
             ! Incompressible rule
             if (this%incompressible_rule) then
-                body%C_p_inc(i) = 1.-inner(body%V(:,i), body%V(:,i))*this%freestream%U_inv**2
+                body%C_p_inc(i) = 1.-inner(body%V_cells(:,i), body%V_cells(:,i))*this%freestream%U_inv**2
             end if
         
             ! Isentropic rule
             if (this%isentropic_rule) then
                 
-                body%C_p_ise(i) = 1. - inner(body%V(:,i), body%V(:,i))*this%freestream%U_inv**2
+                body%C_p_ise(i) = 1. - inner(body%V_cells(:,i), body%V_cells(:,i))*this%freestream%U_inv**2
                 body%C_p_ise(i) = a*( (1. + b*body%C_p_ise(i))**c - 1.)
 
                 ! Check for NaN and replace with vacuum pressure
@@ -1180,7 +1330,7 @@ contains
             end if
 
             ! Get perturbation velocity in the compressible frame
-            V_pert = matmul(this%freestream%A_g_to_c, body%V(:,i)-this%freestream%v_inf)
+            V_pert = matmul(this%freestream%A_g_to_c, body%V_cells(:,i)-this%freestream%v_inf)
 
             ! Linear term
             if (this%linear_rule .or. this%slender_rule .or. this%second_order_rule) then

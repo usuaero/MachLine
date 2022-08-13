@@ -119,6 +119,10 @@ contains
             call vertices(i1)%panels%append(i)
             call vertices(i2)%panels%append(i)
             call vertices(i3)%panels%append(i)
+
+            call vertices(i1)%panels_not_across_wake_edge%append(i)
+            call vertices(i2)%panels_not_across_wake_edge%append(i)
+            call vertices(i3)%panels_not_across_wake_edge%append(i)
             !$OMP end critical
 
         end do

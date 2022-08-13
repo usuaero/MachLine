@@ -14,8 +14,8 @@ def plot_comparison(x, z, phi_dis, phi_anl, sing_type):
     max_phi = np.max(np.max(phi_anl)).item()
 
     # Plot potentials
-    im0 = ax[0].contourf(x, z, phi_dis.T, levels=50, cmap='hot', vmin=min_phi, vmax=max_phi)
     im1 = ax[1].contourf(x, z, phi_anl.T, levels=50, cmap='hot', vmin=min_phi, vmax=max_phi)
+    im0 = ax[0].contourf(x, z, phi_dis.T, levels=im1.levels, cmap='hot', vmin=min_phi, vmax=max_phi)
 
     # Plot fractional difference
     frac_diff = np.log10(abs((phi_dis-phi_anl)/phi_anl)).T
@@ -34,9 +34,9 @@ def plot_comparison(x, z, phi_dis, phi_anl, sing_type):
 
     # Add colorbars
     fig.colorbar(im1, cax=ax[2])
-    ax[2].set_aspect(15)
+    ax[2].set_aspect(20)
     fig.colorbar(im2, cax=ax[4])
-    ax[4].set_aspect(15)
+    ax[4].set_aspect(20)
 
     plt.show()
 
@@ -47,17 +47,17 @@ if __name__=="__main__":
     verts = np.array([[0.5, -1.5, -0.5, 0.5],
                       [0.5, 0.5, -0.5, -0.5]])
     panel = SupersonicSubinclinedPanel(verts)
-    panel.distribute_points(30, 30)
+    panel.distribute_points(40, 40)
 
     # Initialize singularity distributions
-    mu_params = [1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-    sigma_params = [1.0, 0.0, 0.0]
+    mu_params = [0.0, 0.0, 0.0, 1.0, 0.0, 0.0]
+    sigma_params = [0.0, 0.0, 1.0]
     panel.set_doublet_strength(mu_params)
     panel.set_source_strength(sigma_params)
 
     # Calculate slice of potentials
-    Nx = 40
-    Nz = 20
+    Nx = 80
+    Nz = 40
     x = np.linspace(0.0, 4.0, Nx)
     z = np.linspace(-1.0, 1.0, Nz)
     phi_s_dis = np.zeros((Nx, Nz))
@@ -69,24 +69,24 @@ if __name__=="__main__":
 
             # Set point
             #P = [xi, 0.0, zj]
-            P = [xi, xi-1.5, zj]
+            P = [xi, 1.0, zj]
 
             # Discrete potentials
-            phi_s_dis[i,j] = panel.calc_discrete_source_potential(P)
+            #phi_s_dis[i,j] = panel.calc_discrete_source_potential(P)
             phi_d_dis[i,j] = panel.calc_discrete_doublet_potential(P)
 
             # Analytic potentials
-            phi_s_anl[i,j] = panel.calc_analytic_source_potential(P)
+            #phi_s_anl[i,j] = panel.calc_analytic_source_potential(P)
             phi_d_anl[i,j] = panel.calc_analytic_doublet_potential(P)
 
     # Plot source potentials
-    plot_comparison(x, z, phi_s_dis, phi_s_anl, "sigma")
+    #plot_comparison(x, z, phi_s_dis, phi_s_anl, "sigma")
 
     # Plot doublet potentials
     plot_comparison(x, z, phi_d_dis, phi_d_anl, "mu")
 
-    # Plot source potentials subset
-    plot_comparison(x[Nx//2:], z, phi_s_dis[Nx//2:,:], phi_s_anl[Nx//2:,:], "sigma")
+    ## Plot source potentials subset
+    #plot_comparison(x[Nx//2:], z, phi_s_dis[Nx//2:,:], phi_s_anl[Nx//2:,:], "sigma")
 
-    # Plot doublet potentials subset
-    plot_comparison(x[Nx//2:], z, phi_d_dis[Nx//2:,:], phi_d_anl[Nx//2:,:], "mu")
+    ## Plot doublet potentials subset
+    #plot_comparison(x[Nx//2:], z, phi_d_dis[Nx//2:,:], phi_d_anl[Nx//2:,:], "mu")

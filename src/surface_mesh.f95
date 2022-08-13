@@ -35,7 +35,7 @@ module surface_mesh_mod
         real,dimension(:),allocatable :: Phi_u ! Total potential on outer surface
         real,dimension(:),allocatable :: C_p_pg, C_p_lai, C_p_kt ! Corrected surface pressure coefficients
         real,dimension(:),allocatable :: C_p_inc, C_p_ise, C_p_2nd, C_p_sln, C_p_lin ! Surface pressure coefficients
-        real,dimension(:,:),allocatable :: V, dC_f ! Surface velocities and pressure forces
+        real,dimension(:,:),allocatable :: V_cells, V_verts_avg, V_verts_std, dC_f ! Surface velocities and pressure forces
         real :: control_point_offset
         logical :: mirrored ! Whether the mesh is to be mirrored about any planes
         integer :: mirror_plane ! Index of the plane across which the mesh is mirrored (1: yz, 2: xz, 3: xy); this is the index of the normal to that plane
@@ -405,8 +405,10 @@ contains
 
                 ! Add adjacent panels
                 call this%vertices(i_mid)%panels%append(panel1(i))
+                call this%vertices(i_mid)%panels_not_across_wake_edge%append(panel1(i))
                 if (panel2(i) > 0 .and. panel2(i) <= this%N_panels) then
                     call this%vertices(i_mid)%panels%append(panel2(i))
+                    call this%vertices(i_mid)%panels_not_across_wake_edge%append(panel2(i))
                 end if
 
                 ! Add edge
@@ -1101,9 +1103,6 @@ contains
                         ! Copy to clone
                         call this%vertices(i_boba)%panels%append(i_abutting_panel)
 
-                        ! Copy to original vertex's panels_not_across_wake_edge list (bottom panels will be removed)
-                        call this%vertices(i_jango)%panels_not_across_wake_edge%append(i_abutting_panel)
-
                     end do
 
                     ! Copy over adjacent vertices
@@ -1733,7 +1732,7 @@ contains
         call body_vtk%write_cell_scalars(panel_inclinations, "inclination")
         call body_vtk%write_cell_vectors(cents, "centroid")
         if (solved) then
-            call body_vtk%write_cell_vectors(this%v(:,1:this%N_panels), "v")
+            call body_vtk%write_cell_vectors(this%V_cells(:,1:this%N_panels), "v")
             call body_vtk%write_cell_vectors(this%dC_f(:,1:this%N_panels), "dC_f")
 
             ! Linear sources
@@ -1743,6 +1742,12 @@ contains
 
             call body_vtk%write_point_scalars(this%mu(1:this%N_verts), "mu")
             call body_vtk%write_point_scalars(this%Phi_u(1:this%N_verts), "Phi_u")
+
+            ! Quadratic doublets
+            if (doublet_order == 2) then
+                call body_vtk%write_point_vectors(this%V_verts_avg(:,1:this%N_verts), "v_avg")
+                call body_vtk%write_point_vectors(this%V_verts_std(:,1:this%N_verts), "v_std_dev")
+            end if
         end if
 
         ! Finalize
@@ -1817,7 +1822,7 @@ contains
         end if
 
         ! Other
-        call body_vtk%write_cell_vectors(this%v(:,this%N_panels+1:this%N_panels*2), "v")
+        call body_vtk%write_cell_vectors(this%V_cells(:,this%N_panels+1:this%N_panels*2), "v")
         call body_vtk%write_cell_vectors(this%dC_f(:,this%N_panels+1:this%N_panels*2), "dC_f")
         call body_vtk%write_cell_vectors(cents, "centroid")
 
@@ -1828,6 +1833,13 @@ contains
 
         call body_vtk%write_point_scalars(this%mu(this%N_cp+1:this%N_cp*2), "mu")
         call body_vtk%write_point_scalars(this%Phi_u(this%N_verts+1:this%N_verts*2), "Phi_u")
+
+        ! Quadratic doublets
+        if (doublet_order == 2) then
+            call body_vtk%write_point_vectors(this%V_verts_avg(:,this%N_verts+1:this%N_verts*2), "v_avg")
+            call body_vtk%write_point_vectors(this%V_verts_std(:,this%N_verts+1:this%N_verts*2), "v_std_dev")
+        end if
+
         call body_vtk%finish()
 
     end subroutine surface_mesh_write_body_mirror

@@ -100,6 +100,10 @@ contains
                 call vertices(new_ind(i2))%panels%append(i)
                 call vertices(new_ind(i3))%panels%append(i)
 
+                call vertices(new_ind(i1))%panels_not_across_wake_edge%append(i)
+                call vertices(new_ind(i2))%panels_not_across_wake_edge%append(i)
+                call vertices(new_ind(i3))%panels_not_across_wake_edge%append(i)
+
             end do
 
         close(12)
