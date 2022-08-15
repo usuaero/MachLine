@@ -29,6 +29,7 @@
         "body_file" :          "dev/results/diamond_5_deg_full_coarse.vtk",
         "wake_file" :          "dev/results/diamond_5_deg_full_coarse_wake.vtk",
         "control_point_file" : "dev/results/diamond_5_deg_full_coarse_control_points.vtk",
+        "report_file" :        "dev/results/report.json",
         "potntial_slice" : {
             "file" : "dev/results/slice.csv",
             "parallel_to" : "xz",

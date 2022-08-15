@@ -136,7 +136,7 @@ program main
 
     ! Output slice
     if (slice_file /= 'none') then
-        call linear_solver%export_potential_slice(slice_file, output_settings, body_mesh, freestream_flow)
+        call linear_solver%export_potential_slice(slice_file, output_settings, body_mesh)
     end if
 
     ! Write input

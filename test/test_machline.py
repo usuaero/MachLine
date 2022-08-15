@@ -168,11 +168,11 @@ def test_sphere_morino_inc_quad_doublets_iterative():
     print(Cy)
     print(Cz)
 
-    assert(abs(C_p_max - 0.984357476701561) < 1e-7)
-    assert(abs(C_p_min - -1.2417084112421) < 1e-7)
-    assert(abs(Cx) < 1e-4)
-    assert(abs(Cy) < 1e-4)
-    assert(abs(Cz) < 1e-4)
+    assert(abs(C_p_max - 0.996050603246009) < 1e-7)
+    assert(abs(C_p_min - -1.24733544905577) < 1e-7)
+    assert(abs(Cx) < 1e-6)
+    assert(abs(Cy) < 1e-6)
+    assert(abs(Cz) < 1e-6)
 
 
 def test_sphere_morino_inc():
@@ -248,9 +248,9 @@ def test_subsonic_comp_pressure_corrections():
 
     assert(abs(C_p_max - 0.817226877202845) < 1e-7)
     assert(abs(C_p_min - -1.09359536107271) < 1e-7)
-    assert(abs(Cx - 0.508045433823973) < 1e-7)
-    assert(abs(Cy - -0.0101884430545404) < 1e-7)
-    assert(abs(Cz - -26.271978936734) < 1.1e-7)
+    assert(abs(Cx - -0.508045433823973) < 1e-7)
+    assert(abs(Cy - 0.0101884430545404) < 1e-7)
+    assert(abs(Cz - 26.271978936734) < 1.1e-7)
 
 
 def test_supersonic_half_wing_morino_zero_aoa_zero_beta():
@@ -392,9 +392,9 @@ def test_subsonic_quad_doublets_naca_wing_asym():
     print(Cy)
     print(Cz)
 
-    assert(abs(C_p_max - 0.9923328907096) < 1e-7)
-    assert(abs(C_p_min - -6.84061256413501) < 1e-7)
-    assert(abs(Cx - -0.21245223433281) < 1e-7)
-    assert(abs(Cy - 0.002675744551902) < 1e-12)
-    assert(abs(Cz - 3.85804126684473) < 1e-7)
+    assert(abs(C_p_max - 0.994142517649952) < 1e-7)
+    assert(abs(C_p_min - -9.56988654099356) < 1e-7)
+    assert(abs(Cx - -0.228492114229978) < 1e-7)
+    assert(abs(Cy - 0.00269509970391099) < 1e-12)
+    assert(abs(Cz - 3.84337869925502) < 1e-7)
 
