@@ -12,7 +12,7 @@ SRCS = $(wildcard $(COM_DIR)/*.f95 $(SRC_DIR)/*.f95)
 COMPILER = gfortran
 
 # Flags
-FLAGS = -O2 -fdefault-real-8 -fbounds-check #-ffpe-trap=invalid,zero
+FLAGS = -O2 -fdefault-real-8 -fbounds-check -fbacktrace #-ffpe-trap=invalid,zero
 OMP_FLAG = -fopenmp
 
 # Program name

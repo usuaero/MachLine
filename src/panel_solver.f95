@@ -59,7 +59,7 @@ module panel_solver_mod
             procedure :: calc_forces_with_pressure => panel_solver_calc_forces_with_pressure
             procedure :: update_report => panel_solver_update_report
             procedure :: add_pressure_to_report => panel_solver_add_pressure_to_report
-            procedure :: export_potential_slice => panel_solver_export_potential_slice
+            procedure :: export_off_body_points => panel_solver_export_off_body_points
 
     end type panel_solver
 
@@ -1755,100 +1755,83 @@ contains
     end subroutine panel_solver_add_pressure_to_report
 
 
-    subroutine panel_solver_export_potential_slice(this, slice_file, output_settings, body)
+    subroutine panel_solver_export_off_body_points(this, points_file, points_output_file, body)
         ! Writes out a csv file of potentials on a user-specified slice of the flow
 
         implicit none
 
-        class(panel_solver),intent(inout) :: this
-        character(len=:),allocatable :: slice_file
-        type(json_value),pointer,intent(in) :: output_settings
-        type(surface_mesh),intent(inout) :: body
+        class(panel_solver),intent(in) :: this
+        character(len=:),allocatable,intent(in) :: points_file, points_output_file
+        type(surface_mesh),intent(in) :: body
 
-        integer :: i, j, unit, i_fixed, i_var_1, i_var_2, N_var_1, N_var_2, N_points
-        character(len=:),allocatable :: parallel_plane
-        real,dimension(2) :: var_lims_1, var_lims_2
-        real :: fixed_dim, d1, d2, var_1_min, var_2_min, var_1_max, var_2_max, phi_inf, phi_d, phi_s
-        real,dimension(:,:,:),allocatable :: points
-        real,dimension(:),allocatable :: var_1_space, var_2_space
+        integer :: i, unit, N_points, stat
+        real :: phi_inf, phi_d, phi_s
+        real,dimension(:,:),allocatable :: points
+        character(len=200) :: dummy_read
 
-        if (verbose) write(*,'(a)',advance='no') "    Calculating potential on user-specified slice..."
+        if (verbose) write(*,'(a)',advance='no') "    Calculating potentials at off-body points..."
 
-        ! Get settings
-        call json_xtnsn_get(output_settings, 'potential_slice.parallel_to', parallel_plane, 'xz')        
+        ! Get number of points from file
+        N_points = 0
+        open(newunit=unit, file=points_file)
 
-        select case(parallel_plane)
+        ! Skip header
+        read(unit,*)
 
-        case ('xz')
+        ! Loop through lines
+        do
 
-            ! Specify which axes are fixed and which are variable
-            i_fixed = 2
-            i_var_1 = 1
-            i_var_2 = 3
+            ! Read line
+            read(unit,*,iostat=stat) dummy_read
 
-            ! Get location of slice
-            call json_xtnsn_get(output_settings, 'potential_slice.y_loc', fixed_dim, 0.0)
-            call json_xtnsn_get(output_settings, 'potential_slice.x_min', var_lims_1(1))
-            call json_xtnsn_get(output_settings, 'potential_slice.z_min', var_lims_2(1))
-            call json_xtnsn_get(output_settings, 'potential_slice.x_max', var_lims_1(2))
-            call json_xtnsn_get(output_settings, 'potential_slice.z_max', var_lims_2(2))
+            ! Check status
+            if (stat == 0) then
+                N_points = N_points + 1
 
-            ! Get number of points in the slice
-            call json_xtnsn_get(output_settings, 'potential_slice.Nx', N_var_1)
-            call json_xtnsn_get(output_settings, 'potential_slice.Nx', N_var_2)
+            else
+                exit
+            end if
 
-        end select
-
-        ! Initialize ranges of variable locations
-        allocate(var_1_space(N_var_1))
-        d1 = (var_lims_1(2) - var_lims_1(1))/(N_var_1-1)
-        do i=1,N_var_1
-            var_1_space(i) = var_lims_1(1) + (i-1)*d1
         end do
 
-        allocate(var_2_space(N_var_2))
-        d2 = (var_lims_2(2) - var_lims_2(1))/(N_var_2-1)
-        do i=1,N_var_2
-            var_2_space(i) = var_lims_2(1) + (i-1)*d2
+        close(unit)
+
+        ! Get points
+        allocate(points(3,N_points))
+        open(newunit=unit, file=points_file)
+
+        ! Skip header
+        read(unit,*)
+
+        ! Loop through lines
+        do i=1,N_points
+            read(unit,*) points(1,i), points(2,i), points(3,i)
         end do
 
-        ! Initialize points
-        N_points = N_var_1*N_var_2
-        allocate(points(3, N_var_2, N_var_1))
-        points(i_fixed,:,:) = fixed_dim
-        do i=1,N_var_1
-            do j=1,N_var_2
-                points(i_var_1,j,i) = var_1_space(i)
-                points(i_var_2,j,i) = var_2_space(j)
-            end do
-        end do
-        deallocate(var_1_space)
-        deallocate(var_2_space)
+        close(unit)
 
-        ! Open slice file
+        ! Open output file
         100 format(e20.12, ', ', e20.12, ', ', e20.12, ', ', e20.12, ', ', e20.12, ', ', e20.12, ', ', e20.12, ', ', e20.12)
-        open(newunit=unit, file=slice_file)
+        open(newunit=unit, file=points_output_file)
 
         ! Write header
         write(unit,*) 'x,y,z,phi_inf,phi_d,phi_s,phi,Phi'
 
-        ! Calculate potentials
-        do i=1,N_var_1
-            do j=1,N_var_2
+        ! Calculate potentials and write out to file
+        do i=1,N_points
 
-                ! Calculate freestream potential
-                phi_inf = this%freestream%U*inner(points(:,j,i), this%freestream%c_hat_g)
+            ! Calculate freestream potential
+            phi_inf = this%freestream%U*inner(points(:,i), this%freestream%c_hat_g)
 
-                ! Get induced potentials
-                call body%get_induced_potentials_at_point(points(:,j,i), this%freestream, phi_d, phi_s)
+            ! Get induced potentials
+            call body%get_induced_potentials_at_point(points(:,i), this%freestream, phi_d, phi_s)
 
-                ! Write to file
-                phi_d = phi_d*this%freestream%U
-                phi_s = phi_s*this%freestream%U
-                write(unit,100) points(1,j,i), points(2,j,i), points(3,j,i), phi_inf, phi_d, phi_s, phi_d + phi_s, &
-                                phi_inf + phi_d + phi_s
+            ! Write to file
+            phi_d = phi_d*this%freestream%U
+            phi_s = phi_s*this%freestream%U
+            write(unit,100) points(1,i), points(2,i), points(3,i), phi_inf, phi_d, phi_s, phi_d + phi_s, &
+                            phi_inf + phi_d + phi_s
 
-            end do
         end do
 
         close(unit)
@@ -1856,7 +1839,7 @@ contains
         write(*,*) "Done."
 
 
-    end subroutine panel_solver_export_potential_slice
+    end subroutine panel_solver_export_off_body_points
 
 
 end module panel_solver_mod

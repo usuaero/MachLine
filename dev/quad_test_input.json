@@ -32,17 +32,6 @@
         "control_point_file" :          "dev/results/naca_0010_AR_10_half_coarse_control_points.vtk",
         "mirrored_body_file" :          "dev/results/naca_0010_AR_10_half_coarse_left.vtk",
         "mirrored_control_point_file" : "dev/results/naca_0010_AR_10_half_coarse_control_points_left.vtk",
-        "report_file" : "dev/results/report.json",
-        "poential_slice" : {
-            "file" : "dev/results/slice.csv",
-            "parallel_to" : "xz",
-            "y_loc" : 0.0,
-            "x_min" : -0.1,
-            "z_min" : -0.1,
-            "x_max" : 1.1,
-            "z_max" : 0.1,
-            "Nx" : 400,
-            "Nz" : 50
-        }
+        "report_file" : "dev/results/report.json"
     }
 }

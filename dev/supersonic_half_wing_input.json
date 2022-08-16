@@ -34,6 +34,10 @@
         "body_file" :          "dev/results/diamond_5_deg_coarse_right.vtk",
         "wake_file" :          "dev/results/diamond_5_deg_coarse_wake.vtk",
         "mirrored_body_file" : "dev/results/diamond_5_deg_coarse_left.vtk",
-        "control_point_file" : "dev/results/diamond_5_deg_coarse_right_control_points.vtk"
+        "control_point_file" : "dev/results/diamond_5_deg_coarse_right_control_points.vtk",
+        "offbody_points" : {
+            "points_file" : "dev/points.csv",
+            "output_file" : "dev/results/slice.csv"
+        }
     }
 }
