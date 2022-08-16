@@ -8,7 +8,7 @@ class MachLineError(Exception):
     pass
 
 
-def run_machline(input_file, remove_input=False):
+def run_machline(input_file, remove_input=False, remove_results=True):
     # Runs MachLine and delivers the output; cleans up output files
     
     # Create results directory
@@ -37,11 +37,12 @@ def run_machline(input_file, remove_input=False):
         success = False
 
     # Clean up results directory
-    shutil.rmtree("test/results")
+    if remove_results:
+        shutil.rmtree("test/results")
 
-    # Other files to clean up
-    if os.path.exists("iterative_solver_prog.csv"):
-        os.remove("iterative_solver_prog.csv")
+        # Other files to clean up
+        if os.path.exists("iterative_solver_prog.csv"):
+            os.remove("iterative_solver_prog.csv")
 
     if not success:
         print(result.stdout)
@@ -263,9 +264,9 @@ def test_supersonic_half_wing_morino_zero_aoa_zero_beta():
     print(Cy)
     print(Cz)
 
-    assert(abs(C_p_max - 0.121696390659706) < 1e-7)
-    assert(abs(C_p_min - -0.116093699972989) < 1e-7)
-    assert(abs(Cx - 0.142400837528326) < 1e-7)
+    assert(abs(C_p_max - 0.121696594155118) < 1e-7)
+    assert(abs(C_p_min - -0.116093853136405) < 1e-7)
+    assert(abs(Cx - 0.142400851813033) < 1e-7)
     assert(abs(Cy) < 1e-12)
     assert(abs(Cz) < 1e-7)
 
@@ -288,9 +289,9 @@ def test_supersonic_half_wing_source_free_zero_aoa_zero_beta():
     print(Cy)
     print(Cz)
 
-    assert(abs(C_p_max - 0.12169639015583) < 1e-7)
-    assert(abs(C_p_min - -0.11609368580733) < 1e-7)
-    assert(abs(Cx - 0.142400837085419) < 1e-7)
+    assert(abs(C_p_max - 0.121696594150578) < 1e-7)
+    assert(abs(C_p_min - -0.116093852992482) < 1e-7)
+    assert(abs(Cx - 0.142400851808611) < 1e-7)
     assert(abs(Cy) < 1.e-12)
     assert(abs(Cz) < 2.1e-7)
 
@@ -314,11 +315,11 @@ def test_supersonic_half_wing_morino_allow_wake_asym_flow():
     print(Cy)
     print(Cz)
 
-    assert(abs(C_p_max - 0.801724604954474) < 1e-7)
-    assert(abs(C_p_min - -0.355120851513625) < 1e-7)
-    assert(abs(Cx - 0.141382393725026) < 1e-7)
-    assert(abs(Cy - 0.000849106730582424) < 1.e-12)
-    assert(abs(Cz - 0.908879891315356) < 2.1e-7)
+    assert(abs(C_p_max - 0.194725933710378) < 1e-7)
+    assert(abs(C_p_min - -0.299065931669888) < 1e-7)
+    assert(abs(Cx - 0.142772050282981) < 1e-7)
+    assert(abs(Cy - 0.000849266188930479) < 1.e-12)
+    assert(abs(Cz - 0.89225978177343) < 2.1e-7)
 
 
 def test_supersonic_half_wing_source_free_allow_wake_sym_flow():
@@ -341,11 +342,11 @@ def test_supersonic_half_wing_source_free_allow_wake_sym_flow():
     print(Cy)
     print(Cz)
 
-    assert(abs(C_p_max - 0.19495037375827) < 1e-7)
-    assert(abs(C_p_min - -0.291491228620272) < 1e-7)
-    assert(abs(Cx - 0.142881823841829) < 1e-7)
+    assert(abs(C_p_max - 0.194950373758272) < 1e-7)
+    assert(abs(C_p_min - -0.291598742730983) < 1e-7)
+    assert(abs(Cx - 0.142904936385657) < 1e-7)
     assert(abs(Cy) < 1.e-12)
-    assert(abs(Cz - 0.892099862170874) < 2.1e-7)
+    assert(abs(Cz - 0.893525798329167) < 2.1e-7)
 
 
 def test_fuselage_subsonic_compressible_iterative():
@@ -395,6 +396,36 @@ def test_subsonic_quad_doublets_naca_wing_asym():
     assert(abs(C_p_max - 0.994142517649952) < 1e-7)
     assert(abs(C_p_min - -9.56988654099356) < 1e-7)
     assert(abs(Cx - -0.228492114229978) < 1e-7)
-    assert(abs(Cy - 0.00269509970391099) < 1e-12)
+    assert(abs(Cy - 0.00269509970391099) < 1e-7)
     assert(abs(Cz - 3.84337869925502) < 1e-7)
 
+
+def test_supersonic_half_wing_morino_quad_doublets_lin_sources_asym_flow():
+
+    with open("test/input_files/supersonic_half_wing_input.json", 'r') as input_handle:
+        input_dict = json.load(input_handle)
+
+    input_dict["geometry"]["singularity_order"] = {
+        "source" : 1,
+        "doublet" : 2
+    }
+    input_dict["flow"]["freestream_velocity"] = [100.0, 5.0, 5.0]
+    input_dict["output"]["body_file"] = "test/results/supersonic_half_wing_right.vtk"
+    input_dict["output"]["mirrored_body_file"] = "test/results/supersonic_half_wing_left.vtk"
+
+    with open("test/input_files/altered_supersonic_input.json", 'w') as input_handle:
+        input_dict = json.dump(input_dict, input_handle, indent=4)
+
+    C_p_max, C_p_min, Cx, Cy, Cz = run_machline("test/input_files/altered_supersonic_input.json", remove_input=True)
+
+    print(C_p_max)
+    print(C_p_min)
+    print(Cx)
+    print(Cy)
+    print(Cz)
+
+    assert(abs(C_p_max - 0.313769790804035) < 1e-7)
+    assert(abs(C_p_min - -0.357142857142857) < 1e-7)
+    assert(abs(Cx - 0.129712529824287) < 1e-7)
+    assert(abs(Cy - 0.00105686536639882) < 1e-7)
+    assert(abs(Cz - 0.826571714647556) < 1e-7)

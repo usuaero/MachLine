@@ -753,7 +753,7 @@ contains
             ! Write out geometry
             call wake_vtk%begin(wake_file)
             call wake_vtk%write_points(this%vertices)
-            call wake_vtk%write_panels(this%panels, subdivide=doublet_order==2)
+            call wake_vtk%write_panels(this%panels, subdivide=doublet_order==2, mirror=.false.)
             call wake_vtk%write_cell_normals(this%panels)
 
             if (present(mu)) then

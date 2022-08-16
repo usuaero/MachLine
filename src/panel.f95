@@ -683,12 +683,6 @@ contains
         this%nu_g_mir = matmul(freestream%B_mat_g, this%n_g_mir)
         x = inner(this%n_g_mir, this%nu_g_mir)
 
-        ! Check for Mach-inclined panels
-        if (freestream%supersonic .and. abs(x) < 1e-12) then
-            write(*,*) "!!! Mirror of panel", this%index, "is Mach-inclined, which is not allowed. Quitting..."
-            stop
-        end if
-
         ! Calculate panel inclination indicator (E&M Eq. (E.3.16b))
         this%r_mir = sign(1., x) ! r=-1 -> superinclined, r=1 -> subinclined
 
@@ -731,12 +725,12 @@ contains
 
             ! Vertices
             this%vertices_ls_mir(:,i) = matmul(this%A_g_to_ls_mir(1:2,:), &
-                                               mirror_across_plane(this%get_vertex_loc(i)-this%centr, mirror_plane))
+                                               mirror_across_plane(this%get_vertex_loc(i), mirror_plane)-this%centr_mir)
 
             ! Midpoints
             if (doublet_order == 2) then
                 this%midpoints_ls_mir(:,i) = matmul(this%A_g_to_ls_mir(1:2,:), &
-                                                    mirror_across_plane(this%get_midpoint_loc(i)-this%centr, mirror_plane))
+                                                    mirror_across_plane(this%get_midpoint_loc(i), mirror_plane)-this%centr_mir)
             end if
 
         end do
@@ -764,7 +758,8 @@ contains
             i_next = mod(i, this%N)+1
 
             ! Calculate tangent in local scaled coords 
-            d_ls = this%vertices_ls_mir(:,i_next) - this%vertices_ls_mir(:,i)
+            ! Direction is flipped so that we're still going counter-clockwise about the panel
+            d_ls = this%vertices_ls_mir(:,i) - this%vertices_ls_mir(:,i_next)
             this%t_hat_ls_mir(:,i) = d_ls/norm2(d_ls)
 
         end do
@@ -821,13 +816,13 @@ contains
             S_mu(4:6,3) = this%midpoints_ls_mir(2,:)
 
             ! x^2
-            S_mu(:,4) = S_mu(:,2)**2*0.5
+            S_mu(:,4) = 0.5*S_mu(:,2)**2
 
             ! xy
             S_mu(:,5) = S_mu(:,2)*S_mu(:,3)
 
             ! y^2
-            S_mu(:,6) = S_mu(:,3)**2*0.5
+            S_mu(:,6) = 0.5*S_mu(:,3)**2
 
             ! Invert
             call matinv(6, S_mu, this%S_mu_inv_mir)
@@ -1334,7 +1329,7 @@ contains
         real,dimension(2) :: d_ls, d
         real :: x
         integer :: i, i_next
-        real,dimension(this%N) :: dummy
+        real :: dummy
 
         ! Initialize
         if (mirror_panel) then
@@ -1404,20 +1399,33 @@ contains
                     geom%R2(i) = 0.
                 end if
 
+                ! Swap directions for mirror
+                if (mirror_panel) then
+
+                    ! Swap l1 and l2
+                    ! The check is necessary because we set the sign of l1 and l2 in the case of R=0 based on which end each came from
+                    dummy = geom%l1(i)
+                    if (geom%R2(i) == 0.) then
+                        geom%l1(i) = -geom%l2(i)
+                    else
+                        geom%l1(i) = geom%l2(i)
+                    end if
+                    if (geom%R1(i) == 0) then
+                        geom%l2(i) = -dummy
+                    else
+                        geom%l2(i) = dummy
+                    end if
+
+                    ! Swap R1 and R2
+                    dummy = geom%R1(i)
+                    geom%R1(i) = geom%R2(i)
+                    geom%R2(i) = dummy
+
+                end if
+
             end if
 
         end do
-
-        ! Swap directions for mirror
-        if (mirror_panel) then
-            dummy = geom%l1
-            geom%l1 = geom%l2
-            geom%l2 = dummy
-
-            dummy = geom%R1
-            geom%R1 = geom%R2
-            geom%R2 = dummy
-        end if
 
         ! Difference in R
         geom%dR = geom%R2 - geom%R1
@@ -1549,10 +1557,10 @@ contains
         ! Loop through edges
         do i=1,this%N
 
-            i_next = mod(i, this%N) + 1
-
             ! Check DoD
             if (dod_info%edges_in_dod(i)) then
+
+                i_next = mod(i, this%N) + 1
 
                 ! Get b and its square root; doing this removes a lot of mirror checks later
                 if (mirror_panel) then
@@ -1600,13 +1608,13 @@ contains
                             if (mirror_panel) then
                                 int%F121(i) = (-geom%v_xi(i)*geom%dR(i)*geom%R1(i)*geom%R2(i) &
                                                + geom%l2(i)*geom%R1(i)*(this%vertices_ls_mir(2,i_next) - geom%P_ls(2)) &
-                                               - geom%l1(i)*geom%R2(i)*(this%vertices_ls_mir(2,i) - geom%P_ls(2)))/(geom%g2(i)*F2)&
-                                              - geom%a(i)*geom%v_eta(i)*series
+                                               - geom%l1(i)*geom%R2(i)*(this%vertices_ls_mir(2,i) - geom%P_ls(2)) &
+                                              ) / (geom%g2(i)*F2) - geom%a(i)*geom%v_eta(i)*series
                             else
                                 int%F121(i) = (-geom%v_xi(i)*geom%dR(i)*geom%R1(i)*geom%R2(i) &
                                                + geom%l2(i)*geom%R1(i)*(this%vertices_ls(2,i) - geom%P_ls(2)) &
-                                               - geom%l1(i)*geom%R2(i)*(this%vertices_ls(2,i_next) - geom%P_ls(2)))/(geom%g2(i)*F2)&
-                                              - geom%a(i)*geom%v_eta(i)*series
+                                               - geom%l1(i)*geom%R2(i)*(this%vertices_ls(2,i_next) - geom%P_ls(2)) &
+                                              ) / (geom%g2(i)*F2) - geom%a(i)*geom%v_eta(i)*series
                             end if
                             int%F211(i) = -geom%v_eta(i)*geom%dR(i) + geom%a(i)*geom%v_xi(i)*int%F111(i) - &
                                           2.*geom%v_xi(i)*geom%v_eta(i)*int%F121(i)
@@ -1648,14 +1656,6 @@ contains
             ! Check
             if (higher_order) then
                 if (abs(geom%v_xi(i)*int%F211(i) + geom%v_eta(i)*int%F121(i) - geom%a(i)*int%F111(i)) > 1.e-12) then
-                    write(*,*)
-                    write(*,*) b
-                    write(*,*) geom%R1(i), geom%R2(i)
-                    write(*,*) geom%v_xi(i)*int%F211(i) + geom%v_eta(i)*int%F121(i)
-                    write(*,*) geom%a(i)*int%F111(i)
-                    write(*,*) geom%a(i), int%F111(i)
-                    write(*,*) geom%v_xi(i), geom%v_eta(i)
-                    write(*,*) int%F211(i), int%F121(i)
                     write(*,*) "!!! Calculation of F(2,1,1) and F(1,2,1) failed. Quitting..."
                     stop
                 end if
@@ -1722,7 +1722,16 @@ contains
             int%H223 = -sum(geom%v_xi*int%F121)
             int%H133 = int%H111 - sum(geom%v_eta*int%F121)
 
-            ! TODO: Add checks
+            ! Run checks
+            if (abs(sum(geom%v_eta*int%F211) + int%H223) > 1e-12) then
+                write(*,*) "!!! Influence calculation failed for H(2,2,3). Quitting..."
+                stop
+            end if
+
+            if (abs(int%H111 - int%H313 - int%H133 - geom%h*int%hH113) > 1e-12) then
+                write(*,*) "!!! Influence calculation failed for H(3,1,3) and H(1,3,3). Quitting..."
+                stop
+            end if
         end if
 
     end subroutine panel_calc_subsonic_panel_integrals
@@ -1810,9 +1819,6 @@ contains
 
             ! Run checks
             if (abs(sum(geom%v_eta*int%F211) + int%H223) > 1e-12) then
-                write(*,*)
-                write(*,*) sum(geom%v_xi*int%F121)
-                write(*,*) sum(geom%v_eta*int%F211)
                 write(*,*) "!!! Influence calculation failed for H(2,2,3). Quitting..."
                 stop
             end if
@@ -2100,16 +2106,13 @@ contains
         real,dimension(6) :: mu_params
 
         integer :: shift, i
-        real,dimension(:,:),allocatable :: S_mu_inv
         real,dimension(6) :: mu_verts
 
-        ! Determine shifts and matrices to use
+        ! Determine shift
         if (mirror) then
             shift = size(mu)/2
-            allocate(S_mu_inv, source=this%S_mu_inv_mir)
         else
             shift = 0
-            allocate(S_mu_inv, source=this%S_mu_inv)
         end if
 
         ! Get doublet strengths at vertices
@@ -2125,9 +2128,17 @@ contains
 
         ! Calculate doublet parameters (derivatives)
         if (doublet_order == 2) then
-            mu_params = matmul(S_mu_inv, mu_verts)
+            if (mirror) then
+                mu_params = matmul(this%S_mu_inv_mir, mu_verts)
+            else
+                mu_params = matmul(this%S_mu_inv, mu_verts)
+            end if
         else
-            mu_params(1:3) = matmul(S_mu_inv, mu_verts(1:3))
+            if (mirror) then
+                mu_params(1:3) = matmul(this%S_mu_inv_mir, mu_verts(1:3))
+            else
+                mu_params(1:3) = matmul(this%S_mu_inv, mu_verts(1:3))
+            end if
             mu_params(4:6) = 0.
         end if
         

@@ -1489,7 +1489,7 @@ contains
         type(flow),intent(in) :: freestream
         character(len=:),allocatable,intent(in) :: wake_file
 
-        type(vtk_out) :: wake_vtk
+        logical :: dummy
 
         if (this%append_wake .and. this%found_discontinuous_edges) then
 
@@ -1513,20 +1513,7 @@ contains
         
             ! Export wake geometry
             if (wake_file /= 'none') then
-
-                ! Clear old file
-                call delete_file(wake_file)
-
-                ! Write new geometry
-                if (this%wake%N_panels > 0) then
-
-                    call wake_vtk%begin(wake_file)
-                    call wake_vtk%write_points(this%wake%vertices)
-                    call wake_vtk%write_panels(this%wake%panels)
-                    call wake_vtk%write_cell_normals(this%wake%panels)
-                    call wake_vtk%finish()
-
-                end if
+                call this%wake%write_wake(wake_file, dummy)
             end if
 
         else
@@ -1837,7 +1824,7 @@ contains
         ! Write geometry
         call body_vtk%begin(body_file)
         call body_vtk%write_points(this%vertices)
-        call body_vtk%write_panels(this%panels, subdivide=doublet_order==2)
+        call body_vtk%write_panels(this%panels, subdivide=doublet_order==2, mirror=.false.)
         call body_vtk%write_cell_normals(this%panels)
         call body_vtk%write_cell_scalars(panel_inclinations, "inclination", .true.)
         call body_vtk%write_cell_vectors(cents, "centroid", .true.)
@@ -1942,7 +1929,7 @@ contains
         ! Write geometry
         call body_vtk%begin(mirrored_body_file)
         call body_vtk%write_points(this%vertices, this%mirror_plane)
-        call body_vtk%write_panels(this%panels, subdivide=doublet_order==2)
+        call body_vtk%write_panels(this%panels, subdivide=doublet_order==2, mirror=.true.)
         call body_vtk%write_cell_normals(this%panels, this%mirror_plane)
         call body_vtk%write_cell_scalars(panel_inclinations, "inclination", .true.)
         call body_vtk%write_cell_vectors(cents, "centroid", .true.)

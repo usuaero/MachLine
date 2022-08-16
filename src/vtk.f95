@@ -131,24 +131,20 @@ contains
     end subroutine vtk_out_write_points_array
 
 
-    subroutine vtk_out_write_panels(this, panels, subdivide)
+    subroutine vtk_out_write_panels(this, panels, subdivide, mirror)
         ! Write out panels to the vtk file; only handles triangular panels
 
         implicit none
 
         class(vtk_out),intent(inout) :: this
         type(panel),dimension(:),intent(in) :: panels
-        logical,intent(in),optional :: subdivide
+        logical,intent(in) :: subdivide, mirror
 
         integer :: i, j, N_panels
 
         ! Determine whether the panels are to be subdivided (for quadratic doublet distributions)
         ! In this case, the edge midpoints will be used to divide each triangular panel into 4 subpanels
-        if (present(subdivide)) then
-            this%cells_subdivided = subdivide
-        else
-            this%cells_subdivided = .false.
-        end if
+        this%cells_subdivided = subdivide
 
         ! Determine panel info size
         N_panels = size(panels)
@@ -168,9 +164,15 @@ contains
                 write(this%unit,'(i1) ',advance='no') 3
 
                 ! Indices of each vertex; remember VTK files use 0-based indexing
-                do j=1,panels(i)%N
-                    write(this%unit,'(i20) ',advance='no') panels(i)%get_vertex_index(j) - 1
-                end do
+                if (mirror) then
+                    do j=panels(i)%N,1,-1
+                        write(this%unit,'(i20) ',advance='no') panels(i)%get_vertex_index(j) - 1
+                    end do
+                else
+                    do j=1,panels(i)%N
+                        write(this%unit,'(i20) ',advance='no') panels(i)%get_vertex_index(j) - 1
+                    end do
+                end if
             
                 ! Move to next line
                 write(this%unit,*)
@@ -179,15 +181,27 @@ contains
             else
 
                 ! Middle panel
-                write(this%unit,'(i1 i20 i20 i20)') 3, panels(i)%get_midpoint_index(1) - 1, &
-                                                       panels(i)%get_midpoint_index(2) - 1, &
-                                                       panels(i)%get_midpoint_index(3) - 1
+                if (mirror) then
+                    write(this%unit,'(i1 i20 i20 i20)') 3, panels(i)%get_midpoint_index(3) - 1, &
+                                                           panels(i)%get_midpoint_index(2) - 1, &
+                                                           panels(i)%get_midpoint_index(1) - 1
+                else
+                    write(this%unit,'(i1 i20 i20 i20)') 3, panels(i)%get_midpoint_index(1) - 1, &
+                                                           panels(i)%get_midpoint_index(2) - 1, &
+                                                           panels(i)%get_midpoint_index(3) - 1
+                end if
 
                 ! Corner panels
                 do j=1,panels(i)%N
-                    write(this%unit,'(i1 i20 i20 i20)') 3, panels(i)%get_midpoint_index(j) - 1, &
-                                                           panels(i)%get_vertex_index(modulo(j, panels(i)%N)+1) - 1, &
-                                                           panels(i)%get_midpoint_index(modulo(j, panels(i)%N)+1) - 1
+                    if (mirror) then
+                        write(this%unit,'(i1 i20 i20 i20)') 3, panels(i)%get_midpoint_index(modulo(j, panels(i)%N)+1) - 1, &
+                                                               panels(i)%get_vertex_index(modulo(j, panels(i)%N)+1) - 1, &
+                                                               panels(i)%get_midpoint_index(j) - 1
+                    else
+                        write(this%unit,'(i1 i20 i20 i20)') 3, panels(i)%get_midpoint_index(j) - 1, &
+                                                               panels(i)%get_vertex_index(modulo(j, panels(i)%N)+1) - 1, &
+                                                               panels(i)%get_midpoint_index(modulo(j, panels(i)%N)+1) - 1
+                    end if
                 end do
             end if
 
