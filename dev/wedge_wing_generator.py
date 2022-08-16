@@ -421,8 +421,8 @@ if __name__ == '__main__':
 
 
     # Initialize number of nodes in chord and spanwize directions
-    cw_nodes = 20
-    sw_nodes = 20
+    cw_nodes = 40 # Issues may occur in mesh calculations if chordwise and spanwise nodes are different
+    sw_nodes = 40
     cluster_cw = True
     cluster_sw = True
 
