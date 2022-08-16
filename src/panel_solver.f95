@@ -1810,6 +1810,9 @@ contains
 
         close(unit)
 
+        ! Delete old output file
+        call delete_file(points_output_file)
+
         ! Open output file
         100 format(e20.12, ', ', e20.12, ', ', e20.12, ', ', e20.12, ', ', e20.12, ', ', e20.12, ', ', e20.12, ', ', e20.12)
         open(newunit=unit, file=points_output_file)
