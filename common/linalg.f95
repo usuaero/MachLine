@@ -859,5 +859,91 @@ subroutine purcell_solve(N, A, b, x)
   
 end subroutine purcell_solve
 
+
+function calc_upper_bandwidth(N, A) result(upper_bandwidth)
+  ! Calculates the upper bandwidth of the matrix A, which is assumed to be NxN
+
+  implicit none
+  
+  integer,intent(in) :: N
+  real,dimension(N,N),intent(in) :: A
+
+  integer :: upper_bandwidth
+
+  integer :: i, j
+  logical :: found_nonzero
+
+  ! Initialize 
+  upper_bandwidth = 0
+
+  ! Loop through rows
+  do i=1,N
+
+    ! Initialize for this row
+    found_nonzero = .false.
+    j = N+1
+
+    ! Loop through columns starting at the right side
+    column_loop: do while (.not. found_nonzero .and. j>i)
+
+      ! Decrement column index
+      j = j - 1
+
+      ! Check this element
+      found_nonzero = abs(A(i,j)) > 1.0e-12
+
+    end do column_loop
+
+    ! We want the largest bandwidth here
+    if (found_nonzero) then
+      upper_bandwidth = max(upper_bandwidth, j-i)
+    end if
+  end do
+  
+end function calc_upper_bandwidth
+
+
+subroutine GE_solve_lower_pentagonal(N, A, b, x)
+  ! Solves [A]x = b using Gauss elimination assuming A is lower-pentagonal
+  ! Replaces A partially with its LU decomposition
+  ! Based on Chen "Matrix Preconditioning Techniques and Applications" Alg. 2.5.8
+
+  implicit none
+  
+  integer,intent(in) :: N
+  real,dimension(N,N), intent(inout) :: A
+  real,dimension(N),intent(in) :: b
+  real,dimension(:),allocatable,intent(out) :: x
+
+  integer :: B_u, i, j, k
+  real :: m
+
+  ! Get bandwidth
+  B_u = calc_upper_bandwidth(N, A)
+  write(*,*) B_u
+
+  ! Allocate solution
+  allocate(x, source=b)
+
+  ! Outer loop
+  do k=1,N
+
+    ! Loop through rows
+    do i=k+1,N
+
+      m = A(i,k)/A(k,k)
+      x(i) = x(i) - m*x(k)
+
+      ! Loop through columns up to bandwidth or the edge of the matrix, whichever is smaller
+      ! We hope B_u is small
+      do j=k,min(k+B_u, N) 
+        A(i,j) = A(i,j) - m*A(k,j)
+      end do
+
+    end do
+  end do
+  
+end subroutine GE_solve_lower_pentagonal
+
     
 end module linalg_mod

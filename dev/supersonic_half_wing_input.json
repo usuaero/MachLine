@@ -1,6 +1,6 @@
 {
     "flow": {
-        "freestream_velocity": [100.0, 5.0, 5.0],
+        "freestream_velocity": [100.0, 0.0, 0.0],
         "gamma" : 1.4,
         "freestream_mach_number" : 2.0
     },
@@ -20,9 +20,7 @@
         "formulation": "morino",
         "control_point_offset": 1.1e-06,
         "matrix_solver" : "LU",
-        "block_sizex" : 400,
-        "relaxation" : 0.8,
-        "tolerance" : 1.1e-12
+        "write_A_and_b" : true
     },
     "post_processing" : {
         "pressure_rules" : {
@@ -34,10 +32,6 @@
         "body_file" :          "dev/results/diamond_5_deg_coarse_right.vtk",
         "wake_file" :          "dev/results/diamond_5_deg_coarse_wake.vtk",
         "mirrored_body_file" : "dev/results/diamond_5_deg_coarse_left.vtk",
-        "control_point_file" : "dev/results/diamond_5_deg_coarse_right_control_points.vtk",
-        "offbody_points" : {
-            "points_file" : "dev/points.csv",
-            "output_file" : "dev/results/slice.csv"
-        }
+        "control_point_file" : "dev/results/diamond_5_deg_coarse_right_control_points.vtk"
     }
 }
