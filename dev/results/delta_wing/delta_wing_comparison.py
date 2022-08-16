@@ -165,9 +165,10 @@ def data_plot(comp_method, angles_of_attack, semispan_locations, semispan_length
             plt.title(f"{semi} percent semispan")
 
             # Save figure
-            plot_loc = 'dev/results/delta_wing/plots/delta_wing_comparison.pdf'
+            plot_loc = 'dev/results/delta_wing/plots/delta_wing_comparison_{0}_semispan_{1}_aoa.pdf'.format(semi, AoA)
             plt.savefig(plot_loc)
-
+            print("AoA: ", AoA, " semispan: ", semi)
+            print("Adjusted semi: ", semi*b_half/100)
             plt.show()
 
 if __name__=="__main__":
@@ -206,7 +207,7 @@ if __name__=="__main__":
                 }
             },
             "solver": {
-                "formulation": "source-free",
+                "formulation": "morino",
                 "control_point_offset": 1.1e-8
             },
             "post_processing" : {
