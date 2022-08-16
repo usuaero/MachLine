@@ -61,6 +61,7 @@ module surface_mesh_mod
             procedure :: rearrange_vertices_streamwise => surface_mesh_rearrange_vertices_streamwise
             procedure :: shuffle_midpoints_in => surface_mesh_shuffle_midpoints_in
             procedure :: calc_vertex_normals => surface_mesh_calc_vertex_normals
+            procedure :: calc_point_dod => surface_mesh_calc_point_dod
 
             ! Helpers
             procedure :: find_vertices_on_mirror => surface_mesh_find_vertices_on_mirror
@@ -75,6 +76,7 @@ module surface_mesh_mod
             procedure :: place_interior_control_points => surface_mesh_place_interior_control_points
 
             ! Post-processing
+            procedure :: get_induced_potentials_at_point => surface_mesh_get_induced_potentials_at_point
             procedure :: output_results => surface_mesh_output_results
             procedure :: write_body => surface_mesh_write_body
             procedure :: write_body_mirror => surface_mesh_write_body_mirror
@@ -1406,6 +1408,78 @@ contains
     end subroutine surface_mesh_calc_vertex_normals
 
 
+    function surface_mesh_calc_point_dod(this, point, freestream) result(dod_info)
+        ! Calculates the domain of dependence for the point
+
+        implicit none
+        
+        class(surface_mesh),intent(in) :: this
+        real,dimension(3),intent(in) :: point
+        type(flow),intent(in) :: freestream
+
+        type(dod),dimension(:),allocatable :: dod_info
+
+        logical,dimension(:),allocatable :: verts_in_dod
+        integer :: k, stat
+        real,dimension(3) :: vert_loc, mirrored_vert_loc
+
+        ! Allocate DoD storage
+        if (this%mirrored) then
+            allocate(dod_info(2*this%N_panels), stat=stat)
+            call check_allocation(stat, "domain of dependence storage")
+
+            allocate(verts_in_dod(2*this%N_verts), source=.false., stat=stat)
+            call check_allocation(stat, "vertex domain of dependence storage")
+        else
+            allocate(dod_info(this%N_panels), stat=stat)
+            call check_allocation(stat, "domain of dependence storage")
+
+            allocate(verts_in_dod(this%N_verts), source=.false., stat=stat)
+            call check_allocation(stat, "vertex domain of dependence storage")
+        end if
+
+        ! If the freestream is supersonic, calculate domain of dependence info
+        if (freestream%supersonic) then
+
+            ! Loop through body vertices
+            do k=1,this%N_verts
+
+                ! Get this vertex location
+                vert_loc = this%vertices(k)%loc
+
+                ! Check if this vertex is in the DoD
+                verts_in_dod(k) = freestream%point_in_dod(vert_loc, point)
+
+                if (this%mirrored) then
+
+                    ! Get the mirrored vertex location
+                    mirrored_vert_loc = mirror_across_plane(vert_loc, this%mirror_plane)
+
+                    ! Check if this vertex is in the DoD
+                    verts_in_dod(k+this%N_verts) = freestream%point_in_dod(mirrored_vert_loc, point)
+
+                end if
+            end do
+
+            ! Loop through body panels
+            do k=1,this%N_panels
+
+                ! Check if the panel is in the DoD
+                dod_info(k) = this%panels(k)%check_dod(point, freestream, verts_in_dod)
+
+                if (this%mirrored) then
+
+                    ! Check DoD for mirrored panel
+                    dod_info(k+this%N_panels) = this%panels(k)%check_dod(point, freestream, verts_in_dod, &
+                                                                         .true., this%mirror_plane)
+                end if
+            end do
+
+        end if
+        
+    end function surface_mesh_calc_point_dod
+
+
     subroutine surface_mesh_init_wake(this, freestream, wake_file)
         ! Handles wake initialization
 
@@ -1415,7 +1489,7 @@ contains
         type(flow),intent(in) :: freestream
         character(len=:),allocatable,intent(in) :: wake_file
 
-        type(vtk_out) :: wake_vtk
+        logical :: dummy
 
         if (this%append_wake .and. this%found_discontinuous_edges) then
 
@@ -1439,20 +1513,7 @@ contains
         
             ! Export wake geometry
             if (wake_file /= 'none') then
-
-                ! Clear old file
-                call delete_file(wake_file)
-
-                ! Write new geometry
-                if (this%wake%N_panels > 0) then
-
-                    call wake_vtk%begin(wake_file)
-                    call wake_vtk%write_points(this%wake%vertices)
-                    call wake_vtk%write_panels(this%wake%panels)
-                    call wake_vtk%write_cell_normals(this%wake%panels)
-                    call wake_vtk%finish()
-
-                end if
+                call this%wake%write_wake(wake_file, dummy)
             end if
 
         else
@@ -1610,6 +1671,73 @@ contains
     end subroutine surface_mesh_place_interior_control_points
 
 
+    subroutine surface_mesh_get_induced_potentials_at_point(this, point, freestream, phi_d, phi_s)
+        ! Calculates the source- and doublet-induced potentials at the given point
+
+        implicit none
+        
+        class(surface_mesh),intent(in) :: this
+        real,dimension(3),intent(in) :: point
+        type(flow),intent(in) :: freestream
+        real,intent(out) :: phi_d, phi_s
+
+        integer :: i, j, k
+        real :: phi_d_panel, phi_s_panel
+        logical,dimension(:),allocatable :: verts_in_dod
+        type(dod),dimension(:),allocatable :: dod_info
+
+        ! Calculate domain of dependence
+        dod_info = this%calc_point_dod(point, freestream)
+
+        ! Loop through panels
+        phi_s = 0.
+        phi_d = 0.
+        do k=1,this%N_panels
+
+            ! Check DoD
+            if (dod_info(k)%in_dod) then
+            
+                ! Calculate influence
+                call this%panels(k)%calc_potentials(point, freestream, dod_info(k), .false., &
+                                                    this%sigma, this%mu, phi_s_panel, phi_d_panel)
+                phi_d = phi_d + phi_d_panel
+                phi_s = phi_s + phi_s_panel
+
+            end if
+
+            ! Calculate mirrored influences
+            if (this%mirrored) then
+
+                if (dod_info(k+this%N_panels)%in_dod) then
+
+                    if (this%asym_flow) then
+
+                        ! Get influence of mirrored panel
+                        call this%panels(k)%calc_potentials(point, freestream, dod_info(k+this%N_panels), .true., &
+                                                            this%sigma, this%mu, phi_s_panel, phi_d_panel)
+                        phi_d = phi_d + phi_d_panel
+                        phi_s = phi_s + phi_s_panel
+
+                    else
+
+                        ! Get influence of panel on mirrored point
+                        call this%panels(k)%calc_potentials(mirror_across_plane(point, this%mirror_plane), freestream, &
+                                                            dod_info(k+this%N_panels), .false., &
+                                                            this%sigma, this%mu, phi_s_panel, phi_d_panel)
+                        phi_d = phi_d + phi_d_panel
+                        phi_s = phi_s + phi_s_panel
+
+                    end if
+
+                end if
+
+            end if
+
+        end do
+        
+    end subroutine surface_mesh_get_induced_potentials_at_point
+
+
     subroutine surface_mesh_output_results(this, body_file, wake_file, control_point_file, mirrored_body_file, &
                                            mirrored_control_point_file)
 
@@ -1671,12 +1799,19 @@ contains
         logical,intent(in) :: solved
 
         type(vtk_out) :: body_vtk
-        integer :: i
+        integer :: i, N_cells
         real,dimension(:),allocatable :: panel_inclinations
         real,dimension(:,:),allocatable :: cents
 
         ! Clear old file
         call delete_file(body_file)
+
+        ! Determine number of cells to export
+        if (doublet_order == 2) then
+            N_cells = this%N_panels*4
+        else
+            N_cells = this%N_panels
+        end if
 
         ! Get panel inclinations and centroids
         allocate(panel_inclinations(this%N_panels))
@@ -1689,51 +1824,52 @@ contains
         ! Write geometry
         call body_vtk%begin(body_file)
         call body_vtk%write_points(this%vertices)
-        call body_vtk%write_panels(this%panels, subdivide=doublet_order==2)
+        call body_vtk%write_panels(this%panels, subdivide=doublet_order==2, mirror=.false.)
+        call body_vtk%write_cell_normals(this%panels)
+        call body_vtk%write_cell_scalars(panel_inclinations, "inclination", .true.)
+        call body_vtk%write_cell_vectors(cents, "centroid", .true.)
 
         if (solved) then
 
             ! Pressures
             if (allocated(this%C_p_inc)) then
-                call body_vtk%write_cell_scalars(this%C_p_inc(1:this%N_panels), "C_p_inc")
+                call body_vtk%write_cell_scalars(this%C_p_inc(1:N_cells), "C_p_inc", .false.)
             end if
             if (allocated(this%C_p_ise)) then
-                call body_vtk%write_cell_scalars(this%C_p_ise(1:this%N_panels), "C_p_ise")
+                call body_vtk%write_cell_scalars(this%C_p_ise(1:N_cells), "C_p_ise", .false.)
             end if
             if (allocated(this%C_p_2nd)) then
-                call body_vtk%write_cell_scalars(this%C_p_2nd(1:this%N_panels), "C_p_2nd")
+                call body_vtk%write_cell_scalars(this%C_p_2nd(1:N_cells), "C_p_2nd", .false.)
             end if
             if (allocated(this%C_p_lin)) then
-                call body_vtk%write_cell_scalars(this%C_p_lin(1:this%N_panels), "C_p_lin")
+                call body_vtk%write_cell_scalars(this%C_p_lin(1:N_cells), "C_p_lin", .false.)
             end if
             if (allocated(this%C_p_sln)) then
-                call body_vtk%write_cell_scalars(this%C_p_sln(1:this%N_panels), "C_p_sln")
+                call body_vtk%write_cell_scalars(this%C_p_sln(1:N_cells), "C_p_sln", .false.)
             end if
 
             ! Corrected pressures
             if (allocated(this%C_p_pg)) then
-                call body_vtk%write_cell_scalars(this%C_p_pg(1:this%N_panels), "C_p_PG")
+                call body_vtk%write_cell_scalars(this%C_p_pg(1:N_cells), "C_p_PG", .false.)
             end if
             if (allocated(this%C_p_kt)) then
-                call body_vtk%write_cell_scalars(this%C_p_kt(1:this%N_panels), "C_p_KT")
+                call body_vtk%write_cell_scalars(this%C_p_kt(1:N_cells), "C_p_KT", .false.)
             end if
             if (allocated(this%C_p_lai)) then
-                call body_vtk%write_cell_scalars(this%C_p_lai(1:this%N_panels), "C_p_L")
+                call body_vtk%write_cell_scalars(this%C_p_lai(1:N_cells), "C_p_L", .false.)
             end if
 
             ! Constant sources
             if (source_order == 0) then
-                call body_vtk%write_cell_scalars(this%sigma(1:this%N_panels), "sigma")
+                call body_vtk%write_cell_scalars(this%sigma(1:this%N_panels), "sigma", .true.)
             end if
 
         end if
 
         ! Other
-        call body_vtk%write_cell_scalars(panel_inclinations, "inclination")
-        call body_vtk%write_cell_vectors(cents, "centroid")
         if (solved) then
-            call body_vtk%write_cell_vectors(this%V_cells(:,1:this%N_panels), "v")
-            call body_vtk%write_cell_vectors(this%dC_f(:,1:this%N_panels), "dC_f")
+            call body_vtk%write_cell_vectors(this%V_cells(:,1:N_cells), "v", .false.)
+            call body_vtk%write_cell_vectors(this%dC_f(:,1:N_cells), "dC_f", .false.)
 
             ! Linear sources
             if (source_order == 1) then
@@ -1766,12 +1902,19 @@ contains
         logical,intent(in) :: solved
 
         type(vtk_out) :: body_vtk
-        integer :: i
+        integer :: i, N_cells
         real,dimension(:),allocatable :: panel_inclinations
         real,dimension(:,:),allocatable :: cents
 
         ! Clear old file
         call delete_file(mirrored_body_file)
+
+        ! Determine number of cells to export
+        if (doublet_order == 2) then
+            N_cells = this%N_panels*4
+        else
+            N_cells = this%N_panels
+        end if
 
         ! Get panel inclinations
         if (.not. allocated(panel_inclinations)) then
@@ -1786,45 +1929,47 @@ contains
         ! Write geometry
         call body_vtk%begin(mirrored_body_file)
         call body_vtk%write_points(this%vertices, this%mirror_plane)
-        call body_vtk%write_panels(this%panels, subdivide=doublet_order==2)
+        call body_vtk%write_panels(this%panels, subdivide=doublet_order==2, mirror=.true.)
+        call body_vtk%write_cell_normals(this%panels, this%mirror_plane)
+        call body_vtk%write_cell_scalars(panel_inclinations, "inclination", .true.)
+        call body_vtk%write_cell_vectors(cents, "centroid", .true.)
 
         ! Pressures
         if (allocated(this%C_p_inc)) then
-            call body_vtk%write_cell_scalars(this%C_p_inc(this%N_panels+1:this%N_panels*2), "C_p_inc")
+            call body_vtk%write_cell_scalars(this%C_p_inc(N_cells+1:N_cells*2), "C_p_inc", .false.)
         end if
         if (allocated(this%C_p_ise)) then
-            call body_vtk%write_cell_scalars(this%C_p_ise(this%N_panels+1:this%N_panels*2), "C_p_ise")
+            call body_vtk%write_cell_scalars(this%C_p_ise(N_cells+1:N_cells*2), "C_p_ise", .false.)
         end if
         if (allocated(this%C_p_2nd)) then
-            call body_vtk%write_cell_scalars(this%C_p_2nd(this%N_panels+1:this%N_panels*2), "C_p_2nd")
+            call body_vtk%write_cell_scalars(this%C_p_2nd(N_cells+1:N_cells*2), "C_p_2nd", .false.)
         end if
         if (allocated(this%C_p_lin)) then
-            call body_vtk%write_cell_scalars(this%C_p_lin(this%N_panels+1:this%N_panels*2), "C_p_lin")
+            call body_vtk%write_cell_scalars(this%C_p_lin(N_cells+1:N_cells*2), "C_p_lin", .false.)
         end if
         if (allocated(this%C_p_sln)) then
-            call body_vtk%write_cell_scalars(this%C_p_sln(this%N_panels+1:this%N_panels*2), "C_p_sln")
+            call body_vtk%write_cell_scalars(this%C_p_sln(N_cells+1:N_cells*2), "C_p_sln", .false.)
         end if
 
         ! Corrected pressures
         if (allocated(this%C_p_pg)) then
-            call body_vtk%write_cell_scalars(this%C_p_pg(this%N_panels+1:this%N_panels*2), "C_p_PG")
+            call body_vtk%write_cell_scalars(this%C_p_pg(N_cells+1:N_cells*2), "C_p_PG", .false.)
         end if
         if (allocated(this%C_p_kt)) then
-            call body_vtk%write_cell_scalars(this%C_p_kt(this%N_panels+1:this%N_panels*2), "C_p_KT")
+            call body_vtk%write_cell_scalars(this%C_p_kt(N_cells+1:N_cells*2), "C_p_KT", .false.)
         end if
         if (allocated(this%C_p_lai)) then
-            call body_vtk%write_cell_scalars(this%C_p_lai(this%N_panels+1:this%N_panels*2), "C_p_L")
+            call body_vtk%write_cell_scalars(this%C_p_lai(N_cells+1:N_cells*2), "C_p_L", .false.)
         end if
 
         ! Constant sources
         if (source_order == 0) then
-            call body_vtk%write_cell_scalars(this%sigma(this%N_panels+1:this%N_panels*2), "sigma")
+            call body_vtk%write_cell_scalars(this%sigma(this%N_panels+1:this%N_panels*2), "sigma", .true.)
         end if
 
         ! Other
-        call body_vtk%write_cell_vectors(this%V_cells(:,this%N_panels+1:this%N_panels*2), "v")
-        call body_vtk%write_cell_vectors(this%dC_f(:,this%N_panels+1:this%N_panels*2), "dC_f")
-        call body_vtk%write_cell_vectors(cents, "centroid")
+        call body_vtk%write_cell_vectors(this%V_cells(:,N_cells+1:N_cells*2), "v", .false.)
+        call body_vtk%write_cell_vectors(this%dC_f(:,N_cells+1:N_cells*2), "dC_f", .false.)
 
         ! Linear sources
         if (source_order == 1) then

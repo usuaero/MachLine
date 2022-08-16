@@ -124,8 +124,10 @@ module panel_mod
             procedure :: calc_supersonic_subinc_panel_integrals => panel_calc_supersonic_subinc_panel_integrals
             procedure :: calc_integrals => panel_calc_integrals
             procedure :: allocate_potential_influences => panel_allocate_potential_influences
+            procedure :: calc_potential_influences => panel_calc_potential_influences
             procedure :: calc_potentials => panel_calc_potentials
-            procedure :: calc_velocities => panel_calc_velocities
+            procedure :: get_source_dist_parameters => panel_get_source_dist_parameters
+            procedure :: get_doublet_dist_parameters => panel_get_doublet_dist_parameters
             procedure :: get_velocity_jump => panel_get_velocity_jump
 
     end type panel
@@ -681,12 +683,6 @@ contains
         this%nu_g_mir = matmul(freestream%B_mat_g, this%n_g_mir)
         x = inner(this%n_g_mir, this%nu_g_mir)
 
-        ! Check for Mach-inclined panels
-        if (freestream%supersonic .and. abs(x) < 1e-12) then
-            write(*,*) "!!! Mirror of panel", this%index, "is Mach-inclined, which is not allowed. Quitting..."
-            stop
-        end if
-
         ! Calculate panel inclination indicator (E&M Eq. (E.3.16b))
         this%r_mir = sign(1., x) ! r=-1 -> superinclined, r=1 -> subinclined
 
@@ -729,12 +725,12 @@ contains
 
             ! Vertices
             this%vertices_ls_mir(:,i) = matmul(this%A_g_to_ls_mir(1:2,:), &
-                                               mirror_across_plane(this%get_vertex_loc(i)-this%centr, mirror_plane))
+                                               mirror_across_plane(this%get_vertex_loc(i), mirror_plane)-this%centr_mir)
 
             ! Midpoints
             if (doublet_order == 2) then
                 this%midpoints_ls_mir(:,i) = matmul(this%A_g_to_ls_mir(1:2,:), &
-                                                    mirror_across_plane(this%get_midpoint_loc(i)-this%centr, mirror_plane))
+                                                    mirror_across_plane(this%get_midpoint_loc(i), mirror_plane)-this%centr_mir)
             end if
 
         end do
@@ -762,7 +758,8 @@ contains
             i_next = mod(i, this%N)+1
 
             ! Calculate tangent in local scaled coords 
-            d_ls = this%vertices_ls_mir(:,i_next) - this%vertices_ls_mir(:,i)
+            ! Direction is flipped so that we're still going counter-clockwise about the panel
+            d_ls = this%vertices_ls_mir(:,i) - this%vertices_ls_mir(:,i_next)
             this%t_hat_ls_mir(:,i) = d_ls/norm2(d_ls)
 
         end do
@@ -819,13 +816,13 @@ contains
             S_mu(4:6,3) = this%midpoints_ls_mir(2,:)
 
             ! x^2
-            S_mu(:,4) = S_mu(:,2)**2*0.5
+            S_mu(:,4) = 0.5*S_mu(:,2)**2
 
             ! xy
             S_mu(:,5) = S_mu(:,2)*S_mu(:,3)
 
             ! y^2
-            S_mu(:,6) = S_mu(:,3)**2*0.5
+            S_mu(:,6) = 0.5*S_mu(:,3)**2
 
             ! Invert
             call matinv(6, S_mu, this%S_mu_inv_mir)
@@ -1084,7 +1081,7 @@ contains
 
         implicit none
 
-        class(panel),intent(inout) :: this
+        class(panel),intent(in) :: this
         real,dimension(3),intent(in) :: eval_point
         type(flow),intent(in) :: freestream
         logical,dimension(:),intent(in) :: verts_in_dod
@@ -1332,7 +1329,7 @@ contains
         real,dimension(2) :: d_ls, d
         real :: x
         integer :: i, i_next
-        real,dimension(this%N) :: dummy
+        real :: dummy
 
         ! Initialize
         if (mirror_panel) then
@@ -1402,20 +1399,33 @@ contains
                     geom%R2(i) = 0.
                 end if
 
+                ! Swap directions for mirror
+                if (mirror_panel) then
+
+                    ! Swap l1 and l2
+                    ! The check is necessary because we set the sign of l1 and l2 in the case of R=0 based on which end each came from
+                    dummy = geom%l1(i)
+                    if (geom%R2(i) == 0.) then
+                        geom%l1(i) = -geom%l2(i)
+                    else
+                        geom%l1(i) = geom%l2(i)
+                    end if
+                    if (geom%R1(i) == 0) then
+                        geom%l2(i) = -dummy
+                    else
+                        geom%l2(i) = dummy
+                    end if
+
+                    ! Swap R1 and R2
+                    dummy = geom%R1(i)
+                    geom%R1(i) = geom%R2(i)
+                    geom%R2(i) = dummy
+
+                end if
+
             end if
 
         end do
-
-        ! Swap directions for mirror
-        if (mirror_panel) then
-            dummy = geom%l1
-            geom%l1 = geom%l2
-            geom%l2 = dummy
-
-            dummy = geom%R1
-            geom%R1 = geom%R2
-            geom%R2 = dummy
-        end if
 
         ! Difference in R
         geom%dR = geom%R2 - geom%R1
@@ -1547,10 +1557,10 @@ contains
         ! Loop through edges
         do i=1,this%N
 
-            i_next = mod(i, this%N) + 1
-
             ! Check DoD
             if (dod_info%edges_in_dod(i)) then
+
+                i_next = mod(i, this%N) + 1
 
                 ! Get b and its square root; doing this removes a lot of mirror checks later
                 if (mirror_panel) then
@@ -1598,13 +1608,13 @@ contains
                             if (mirror_panel) then
                                 int%F121(i) = (-geom%v_xi(i)*geom%dR(i)*geom%R1(i)*geom%R2(i) &
                                                + geom%l2(i)*geom%R1(i)*(this%vertices_ls_mir(2,i_next) - geom%P_ls(2)) &
-                                               - geom%l1(i)*geom%R2(i)*(this%vertices_ls_mir(2,i) - geom%P_ls(2)))/(geom%g2(i)*F2)&
-                                              - geom%a(i)*geom%v_eta(i)*series
+                                               - geom%l1(i)*geom%R2(i)*(this%vertices_ls_mir(2,i) - geom%P_ls(2)) &
+                                              ) / (geom%g2(i)*F2) - geom%a(i)*geom%v_eta(i)*series
                             else
                                 int%F121(i) = (-geom%v_xi(i)*geom%dR(i)*geom%R1(i)*geom%R2(i) &
                                                + geom%l2(i)*geom%R1(i)*(this%vertices_ls(2,i) - geom%P_ls(2)) &
-                                               - geom%l1(i)*geom%R2(i)*(this%vertices_ls(2,i_next) - geom%P_ls(2)))/(geom%g2(i)*F2)&
-                                              - geom%a(i)*geom%v_eta(i)*series
+                                               - geom%l1(i)*geom%R2(i)*(this%vertices_ls(2,i_next) - geom%P_ls(2)) &
+                                              ) / (geom%g2(i)*F2) - geom%a(i)*geom%v_eta(i)*series
                             end if
                             int%F211(i) = -geom%v_eta(i)*geom%dR(i) + geom%a(i)*geom%v_xi(i)*int%F111(i) - &
                                           2.*geom%v_xi(i)*geom%v_eta(i)*int%F121(i)
@@ -1646,14 +1656,6 @@ contains
             ! Check
             if (higher_order) then
                 if (abs(geom%v_xi(i)*int%F211(i) + geom%v_eta(i)*int%F121(i) - geom%a(i)*int%F111(i)) > 1.e-12) then
-                    write(*,*)
-                    write(*,*) b
-                    write(*,*) geom%R1(i), geom%R2(i)
-                    write(*,*) geom%v_xi(i)*int%F211(i) + geom%v_eta(i)*int%F121(i)
-                    write(*,*) geom%a(i)*int%F111(i)
-                    write(*,*) geom%a(i), int%F111(i)
-                    write(*,*) geom%v_xi(i), geom%v_eta(i)
-                    write(*,*) int%F211(i), int%F121(i)
                     write(*,*) "!!! Calculation of F(2,1,1) and F(1,2,1) failed. Quitting..."
                     stop
                 end if
@@ -1720,7 +1722,16 @@ contains
             int%H223 = -sum(geom%v_xi*int%F121)
             int%H133 = int%H111 - sum(geom%v_eta*int%F121)
 
-            ! TODO: Add checks
+            ! Run checks
+            if (abs(sum(geom%v_eta*int%F211) + int%H223) > 1e-12) then
+                write(*,*) "!!! Influence calculation failed for H(2,2,3). Quitting..."
+                stop
+            end if
+
+            if (abs(int%H111 - int%H313 - int%H133 - geom%h*int%hH113) > 1e-12) then
+                write(*,*) "!!! Influence calculation failed for H(3,1,3) and H(1,3,3). Quitting..."
+                stop
+            end if
         end if
 
     end subroutine panel_calc_subsonic_panel_integrals
@@ -1808,9 +1819,6 @@ contains
 
             ! Run checks
             if (abs(sum(geom%v_eta*int%F211) + int%H223) > 1e-12) then
-                write(*,*)
-                write(*,*) sum(geom%v_xi*int%F121)
-                write(*,*) sum(geom%v_eta*int%F211)
                 write(*,*) "!!! Influence calculation failed for H(2,2,3). Quitting..."
                 stop
             end if
@@ -1897,7 +1905,7 @@ contains
     end subroutine panel_allocate_potential_influences
 
 
-    subroutine panel_calc_potentials(this, P, freestream, dod_info, mirror_panel, phi_s, phi_d)
+    subroutine panel_calc_potential_influences(this, P, freestream, dod_info, mirror_panel, phi_s, phi_d)
         ! Calculates the source- and doublet-induced potentials at the given point P
 
         implicit none
@@ -1995,77 +2003,146 @@ contains
             end if
         end if
     
-    end subroutine panel_calc_potentials
+    end subroutine panel_calc_potential_influences
 
 
-    subroutine panel_calc_velocities(this, P, freestream, dod_info, mirror_panel, v_s, v_d)
-        ! Calculates the source- and doublet-induced potentials at the given point P
+    subroutine panel_calc_potentials(this, P, freestream, dod_info, mirror_panel, sigma, mu, phi_d, phi_s)
+        ! Calculates the potentials induced at the given point
 
         implicit none
-
+        
         class(panel),intent(in) :: this
         real,dimension(3),intent(in) :: P
         type(flow),intent(in) :: freestream
         type(dod),intent(in) :: dod_info
         logical,intent(in) :: mirror_panel
-        real,dimension(:,:),allocatable,intent(out) :: v_s, v_d
+        real,dimension(:),allocatable,intent(in) :: sigma, mu
+        real,intent(out) :: phi_d, phi_s
 
-        type(eval_point_geom) :: geom
-        type(integrals) :: int
+        real,dimension(:),allocatable :: source_inf, doublet_inf
+        real,dimension(6) :: mu_params
+        real,dimension(3) :: sigma_params
 
-        write(*,*) "!!! Velocity calculation not yet implemented. Quitting..."
-        stop
+        ! Get influences
+        call this%calc_potential_influences(P, freestream, dod_info, mirror_panel, source_inf, doublet_inf)
 
-        ! Specify influencing vertices (also sets zero default influence)
+        ! Get strengths
+        mu_params = this%get_doublet_dist_parameters(mu, mirror_panel)
+        sigma_params = this%get_source_dist_parameters(mu, mirror_panel)
 
+        ! Apply strengths to calculate potentials
         ! Source
-        if (source_order == 0) then
-            allocate(v_s(1,3), source=0.)
+        if (source_order == 1) then
+            phi_s = sum(source_inf*sigma_params)
+        else
+            phi_s = source_inf(1)*sigma_params(1)
         end if
 
         ! Doublet
-        if (doublet_order == 1) then
-
-            ! Check if this panel belongs to the wake
-            if (this%in_wake) then
-
-                ! Set default influence
-                allocate(v_d(6,3), source=0.)
-
-            else
-
-                ! Set default influence
-                allocate(v_d(3,3), source=0.)
-
-            end if
-        end if
-
-        ! Check DoD
-        if (dod_info%in_dod .and. this%A > 0.) then
-
-            ! Calculate geometric parameters
-            if (freestream%supersonic) then
-                geom = this%calc_supersonic_subinc_geom(P, freestream, mirror_panel, dod_info)
-            else
-                geom = this%calc_subsonic_geom(P, freestream, mirror_panel)
-            end if
-
-            ! Get integrals
-            int = this%calc_integrals(geom, "velocity", "doublet", freestream, mirror_panel, dod_info)
-
-            ! Source velocity
-            if (source_order == 0) then
-                v_s(1,1) = this%J*freestream%K_inv*sum(this%n_hat_ls(1,:)*int%F111(:))
-                v_s(1,2) = this%J*freestream%K_inv*sum(this%n_hat_ls(2,:)*int%F111(:))
-                v_s(1,3) = this%J*freestream%K_inv*int%hH113
-            end if
-
-            ! Doublet velocity
-            if (doublet_order == 1) then
-            end if
+        if (doublet_order == 2) then
+            phi_d = sum(doublet_inf*mu_params)
+        else
+            phi_d = sum(doublet_inf(1:3)*mu_params(1:3))
         end if
     
-    end subroutine panel_calc_velocities
+    end subroutine panel_calc_potentials
+
+
+    function panel_get_source_dist_parameters(this, sigma, mirror) result(sigma_params)
+        ! Returns a vector describing the distribution of source strength across the panel surface
+
+        implicit none
+        
+        class(panel),intent(in) :: this
+        real,dimension(:),allocatable,intent(in) :: sigma
+        logical,intent(in) :: mirror
+        
+        real,dimension(3) :: sigma_params
+
+        integer :: i, shift
+        real,dimension(3) :: sigma_verts
+        real,dimension(3,3) :: S_sigma_inv
+
+        ! Determine shift to use
+        if (mirror) then
+            shift = size(sigma)/2
+        else
+            shift = 0
+        end if
+
+        ! Constant sources
+        if (source_order == 0) then
+            sigma_params(1) = sigma(this%index+shift)
+            sigma_params(2:3) = 0.
+
+        ! Linear sources
+        else
+
+            ! Get source strengths at vertices
+            do i=1,this%N
+                sigma_verts(i) = sigma(this%get_vertex_index(i)+shift)
+            end do
+
+            ! Calculate parameters
+            if (mirror) then
+                sigma_params = matmul(this%S_sigma_inv_mir, sigma_verts)
+            else
+                sigma_params = matmul(this%S_sigma_inv, sigma_verts)
+            end if
+        end if
+            
+    end function panel_get_source_dist_parameters
+
+
+    function panel_get_doublet_dist_parameters(this, mu, mirror) result(mu_params)
+        ! Returns a vector describing the distribution of doublet strength across the panel surface
+
+        implicit none
+        
+        class(panel),intent(in) :: this
+        real,dimension(:),allocatable,intent(in) :: mu
+        logical,intent(in) :: mirror
+
+        real,dimension(6) :: mu_params
+
+        integer :: shift, i
+        real,dimension(6) :: mu_verts
+
+        ! Determine shift
+        if (mirror) then
+            shift = size(mu)/2
+        else
+            shift = 0
+        end if
+
+        ! Get doublet strengths at vertices
+        do i=1,this%N
+            
+            ! Vertices
+            mu_verts(i) = mu(this%get_vertex_index(i)+shift)
+
+            ! Midpoints
+            if (doublet_order == 2) mu_verts(i+3) = mu(this%get_midpoint_index(i)+shift)
+
+        end do
+
+        ! Calculate doublet parameters (derivatives)
+        if (doublet_order == 2) then
+            if (mirror) then
+                mu_params = matmul(this%S_mu_inv_mir, mu_verts)
+            else
+                mu_params = matmul(this%S_mu_inv, mu_verts)
+            end if
+        else
+            if (mirror) then
+                mu_params(1:3) = matmul(this%S_mu_inv_mir, mu_verts(1:3))
+            else
+                mu_params(1:3) = matmul(this%S_mu_inv, mu_verts(1:3))
+            end if
+            mu_params(4:6) = 0.
+        end if
+        
+    end function panel_get_doublet_dist_parameters
 
 
     function panel_get_velocity_jump(this, mu, sigma, mirrored, point) result(dv)
@@ -2081,12 +2158,11 @@ contains
 
         real,dimension(3) :: dv
 
-        real,dimension(:),allocatable :: mu_verts, mu_params, sigma_verts, sigma_params
-        integer :: i, mu_shift, sigma_shift
-        real :: s
+        real,dimension(6) :: mu_params
+        real,dimension(3) :: s_dir, sigma_params
         real,dimension(2) :: Q_ls
-        real,dimension(3) :: s_dir
-        real,dimension(:,:),allocatable :: A_g_to_ls, S_mu_inv, S_sigma_inv
+        integer :: i
+        real :: s
 
         ! Get point
         if (present(point)) then
@@ -2099,73 +2175,31 @@ contains
             Q_ls = 0.
         end if
 
-        ! Allocate strength arrays
-        if (doublet_order == 1) allocate(mu_verts(this%N))
-        if (doublet_order == 2) allocate(mu_verts(2*this%N))
-        if (source_order == 1) allocate(sigma_verts(this%N))
+        ! Calculate doublet parameters (derivatives)
+        mu_params = this%get_doublet_dist_parameters(mu, mirrored)
 
-        ! Determine shifts and matrices to use
+        ! Calculate tangential velocity jump in panel coordinates E&M Eq. (N.1.11b)
+        dv(1) = mu_params(2) + mu_params(4)*Q_ls(1) + mu_params(5)*Q_ls(2)
+        dv(2) = mu_params(3) + mu_params(5)*Q_ls(1) + mu_params(6)*Q_ls(2)
+        dv(3) = 0.
+
+        ! Transform to global coordinates
         if (mirrored) then
-            mu_shift = size(mu)/2
-            sigma_shift = size(sigma)/2
-            allocate(A_g_to_ls, source=this%A_g_to_ls_mir)
-            allocate(S_mu_inv, source=this%S_mu_inv_mir)
-            if (source_order==1) allocate(S_sigma_inv, source=this%S_sigma_inv_mir)
+            dv = matmul(transpose(this%A_g_to_ls_mir), dv)
+        else
+            dv = matmul(transpose(this%A_g_to_ls), dv)
+        end if
+
+        ! Get source direction
+        if (mirrored) then
             s_dir = this%n_g_mir/inner(this%nu_g_mir, this%n_g_mir)
         else
-            mu_shift = 0
-            sigma_shift = 0
-            allocate(A_g_to_ls, source=this%A_g_to_ls)
-            allocate(S_mu_inv, source=this%S_mu_inv)
-            if (source_order==1) allocate(S_sigma_inv, source=this%S_sigma_inv)
             s_dir = this%n_g/inner(this%nu_g, this%n_g)
         end if
 
-        ! Get doublet strengths at vertices
-        do i=1,this%N
-            
-            ! Vertices
-            mu_verts(i) = mu(this%get_vertex_index(i)+mu_shift)
-
-            ! Midpoints
-            if (doublet_order == 2) mu_verts(i+this%N) = mu(this%get_midpoint_index(i)+mu_shift)
-
-        end do
-
-        ! Calculate doublet parameters (derivatives)
-        mu_params = matmul(S_mu_inv, mu_verts)
-
-        ! Calculate tangential velocity jump in panel coordinates E&M Eq. (N.1.11b)
-        dv(1) = mu_params(2)
-        dv(2) = mu_params(3)
-        dv(3) = 0.
-        if (doublet_order == 2) then
-            dv(1) = dv(1) + mu_params(4)*Q_ls(1) + mu_params(5)*Q_ls(2)
-            dv(2) = dv(2) + mu_params(5)*Q_ls(1) + mu_params(6)*Q_ls(2)
-        end if
-
-        ! Transform to global coordinates
-        dv = matmul(transpose(A_g_to_ls), dv)
-
-        ! Source strengths
-
-        ! Constant
-        if (source_order == 0) then
-            s = sigma(this%index+sigma_shift)
-
-        ! Linear
-        else if (source_order == 1) then
-
-            ! Get source strengths at vertices
-            do i=1,this%N
-                sigma_verts(i) = sigma(this%get_vertex_index(i)+sigma_shift)
-            end do
-
-            ! Calculate parameters
-            sigma_params = matmul(S_sigma_inv, sigma_verts)
-            s = sigma_params(1) + sigma_params(2)*Q_ls(1) + sigma_params(3)*Q_ls(2)
-
-        end if
+        ! Source strength
+        sigma_params = this%get_source_dist_parameters(sigma, mirrored)
+        s = sigma_params(1) + sigma_params(2)*Q_ls(1) + sigma_params(3)*Q_ls(2)
 
         ! Add normal velocity jump in global coords E&M Eq. (N.1.11b)
         dv = dv + s*s_dir

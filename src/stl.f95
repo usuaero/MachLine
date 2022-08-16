@@ -53,7 +53,7 @@ contains
 
             end do
 
-        close(12)
+        close(unit)
 
         ! Allocate storage
         N_verts = N_panels*3

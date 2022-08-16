@@ -1,6 +1,6 @@
 {
     "flow": {
-        "freestream_velocity" : [ 100.0, 0.0, 0.0 ],
+        "freestream_velocity" : [ 100.0, 5.0, 0.0 ],
         "freestream_mach_number" : 0.0
     },
     "geometry": {
@@ -17,8 +17,7 @@
         "formulation" : "morino",
         "control_point_offset" : 1.1e-05,
         "matrix_solver" : "BJAC",
-        "tolerance" : 1.0e-12,
-        "write_A_and_b" : true
+        "tolerance" : 1.0e-12
     },
     "post_processing" : {
         "pressure_rules": {
