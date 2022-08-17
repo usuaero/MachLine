@@ -1,0 +1,32 @@
+{
+    "flow": {
+        "freestream_velocity": [
+            10.0,
+            0.0,
+            0.0
+        ]
+    },
+    "geometry": {
+        "file": "studies/panel_regularity_sphere_study/meshes/random_sphere_ultra_fine_sample_9.vtk",
+        "spanwise_axis": "+y",
+        "wake_model": {
+            "wake_present": false
+        },
+        "reference": {
+            "area": 3.141592653589793
+        }
+    },
+    "solver": {
+        "formulation": "morino",
+        "control_point_offset": 1.1e-06,
+        "matrix_solver": "BJAC",
+        "relaxation": 0.9,
+        "tolerance": 1.1e-11,
+        "block_size": 400
+    },
+    "post_processing": {},
+    "output": {
+        "body_file": "studies/panel_regularity_sphere_study/meshes/random_sphere_ultra_fine_sample_9.vtk",
+        "report_file": "studies/panel_regularity_sphere_study/reports/random_sphere_ultra_fine_sample_9.json"
+    }
+}

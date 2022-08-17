@@ -1,0 +1,56 @@
+{
+    "info" : {
+        "generated_by" : "MachLine (c) 2022 USU Aerolab",
+        "executed" : "Wed Aug 17 11:10:57 2022"
+    },
+    "solver_results" : {
+        "residual" : {
+            "max" : 1.68583896842378E-013,
+            "norm" : 4.14588974517010E-012
+        }
+    },
+    "pressure_calculations" : {
+        "incompressible_rule" : {
+            "max" : 9.96413238236720E-001,
+            "min" : -1.83010075250620E+000
+        }
+    },
+    "total_forces" : {
+        "Cx" : -4.19797921304070E-003,
+        "Cy" : 8.07615288671865E-004,
+        "Cz" : 3.08364303574941E-003
+    },
+    "input" : {
+        "flow" : {
+            "freestream_velocity" : [
+                    1.00000000000000E+001,
+                    0.00000000000000E+000,
+                    0.00000000000000E+000
+                ]
+        },
+        "geometry" : {
+            "file" : "studies/panel_regularity_sphere_study/meshes/random_sphere_fine_sample_2.vtk",
+            "spanwise_axis" : "+y",
+            "wake_model" : {
+                "wake_present" : false
+            },
+            "reference" : {
+                "area" : 3.14159265358979E+000
+            }
+        },
+        "solver" : {
+            "formulation" : "morino",
+            "control_point_offset" : 1.10000000000000E-006,
+            "matrix_solver" : "BJAC",
+            "relaxation" : 9.00000000000000E-001,
+            "tolerance" : 1.10000000000000E-011,
+            "block_size" : 400
+        },
+        "post_processing" : {
+        },
+        "output" : {
+            "body_file" : "studies/panel_regularity_sphere_study/meshes/random_sphere_fine_sample_2.vtk",
+            "report_file" : "studies/panel_regularity_sphere_study/reports/random_sphere_fine_sample_2.json"
+        }
+    }
+}

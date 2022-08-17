@@ -342,8 +342,8 @@ if __name__=="__main__":
     #    generate_proper_right_cone('dev/meshes/cone_{0}_deg_coarse.vtk'.format(int(angle)), h, 1.0, 30, 25, close_base=False)
 
     # Random spheres
-    Ns = [500, 1000, 2000, 4000]
-    labels = ['coarse', 'medium', 'fine', 'ultra_fine']
+    Ns = [125, 250, 500, 1000, 2000]
+    labels = ['ultra_coarse', 'coarse', 'medium', 'fine', 'ultra_fine']
     for N, label in zip(Ns, labels):
         for j in range(10):
-            generate_random_sphere('dev/meshes/random_spheres/random_sphere_{0}_sample_{1}.vtk'.format(label, j), N, 1.0)
+            generate_random_sphere('studies/panel_regularity_sphere_study/meshes/random_sphere_{0}_sample_{1}.vtk'.format(label, j), N, 1.0)

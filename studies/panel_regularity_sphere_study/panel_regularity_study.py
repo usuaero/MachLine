@@ -12,10 +12,10 @@ def run_sphere_comparison(grid, sample, run_machline=True):
 
     # Storage locations
     case_name = "random_sphere_{0}_sample_{1}".format(grid, sample)
-    plot_dir = "dev/studies/random_sphere/plots/"
-    body_file = "dev/studies/random_sphere/meshes/"+case_name+".vtk"
-    report_file = "dev/studies/random_sphere/reports/"+case_name+".json"
-    data_file = 'dev/studies/random_sphere/data/'+case_name+'.csv'
+    plot_dir = "studies/panel_regularity_sphere_study/plots/"
+    body_file = "studies/panel_regularity_sphere_study/meshes/"+case_name+".vtk"
+    report_file = "studies/panel_regularity_sphere_study/reports/"+case_name+".json"
+    data_file = 'studies/panel_regularity_sphere_study/data/'+case_name+'.csv'
 
     if run_machline:
 
@@ -25,7 +25,7 @@ def run_sphere_comparison(grid, sample, run_machline=True):
                 "freestream_velocity": [10.0, 0.0, 0.0]
             },
             "geometry" : {
-                "file" : "dev/meshes/random_spheres/{0}.vtk".format(case_name),
+                "file" : body_file,
                 "spanwise_axis" : "+y",
                 "wake_model" : {
                     "wake_present" : False
@@ -51,7 +51,7 @@ def run_sphere_comparison(grid, sample, run_machline=True):
         }
 
         # Dump
-        input_file = "dev/studies/random_sphere/sphere_input.json"
+        input_file = "studies/panel_regularity_sphere_study/sphere_input.json"
         with open(input_file, 'w') as input_handle:
             json.dump(input_dict, input_handle, indent=4)
 
@@ -106,8 +106,8 @@ def run_sphere_comparison(grid, sample, run_machline=True):
 
 if __name__=="__main__":
 
-    Ns = [500, 1000, 2000, 4000]
-    grids = ["coarse", "medium", "fine", "ultra_fine"]
+    Ns = [125, 250, 500, 1000, 2000]
+    grids = ["ultra_coarse", "coarse", "medium", "fine", "ultra_fine"]
     samples = [x for x in range(10)]
 
     C_f = np.zeros((len(grids), len(samples), 3))
@@ -116,12 +116,12 @@ if __name__=="__main__":
     for i, grid in enumerate(grids):
         for j, sample in enumerate(samples):
 
-                C_f[i,j,0], C_f[i,j,1], C_f[i,j,2] = run_sphere_comparison(grid, sample, run_machline=False)
+                C_f[i,j,0], C_f[i,j,1], C_f[i,j,2] = run_sphere_comparison(grid, sample, run_machline=True)
 
     # Plot convergence
     avg = np.average(C_f, axis=1)
     std_dev = np.std(C_f, axis=1)
-    plot_dir = "dev/studies/random_sphere/plots/"
+    plot_dir = "studies/panel_regularity_sphere_study/plots/"
     plt.figure()
     plt.errorbar(Ns, avg[:,0], 0.0, std_dev[:,0], fmt='ks', label="$C_x$")
     plt.errorbar(Ns, avg[:,1], 0.0, std_dev[:,1], fmt='ko', label="$C_y$")
@@ -131,4 +131,4 @@ if __name__=="__main__":
     plt.xlabel("$N_{verts}$")
     plt.ylabel("Force Coefficient")
     plt.legend()
-    plt.savefig("dev/studies/random_sphere/plots/convergence.pdf")
+    plt.savefig("studies/panel_regularity_sphere_study/plots/convergence.pdf")

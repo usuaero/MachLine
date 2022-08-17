@@ -40,6 +40,9 @@ b_vec.txt
 
 # Study files
 *.pdf
+studies/*/data/*
+studies/*/plots/*
+studies/*/reports/*
 
 # python stuff
 __pycache__/
