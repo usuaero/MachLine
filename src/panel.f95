@@ -1639,7 +1639,7 @@ contains
                         ! F(1,1,1)
                         F1 = s_b*geom%R1(i) + abs(geom%l1(i))
                         F2 = s_b*geom%R2(i) + abs(geom%l2(i))
-                        int%F111(i) = -sign(log(F1/F2)/s_b, geom%v_eta(i))
+                        int%F111(i) = -sign(1., geom%v_eta(i))*log(F1/F2)/s_b
 
                         ! Higher-order
                         if (higher_order) then

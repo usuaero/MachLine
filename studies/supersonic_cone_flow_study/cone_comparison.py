@@ -15,6 +15,7 @@ def run_comparison(M, grid, half_angle, run_machline=True):
     # Storage locations
     case_name = "M_{0}_{1}_deg_{2}".format(M, int(half_angle), grid)
     plot_dir = "studies/supersonic_cone_flow_study/plots/"
+    mesh_file = "studies/supersonic_cone_flow_study/meshes/cone_{0}_deg_{1}.vtk".format(int(half_angle), grid)
     body_file = "studies/supersonic_cone_flow_study/results/"+case_name+".vtk"
     report_file = "studies/supersonic_cone_flow_study/reports/"+case_name+".json"
     data_file = 'studies/supersonic_cone_flow_study/data/'+case_name+'.csv'
@@ -29,7 +30,7 @@ def run_comparison(M, grid, half_angle, run_machline=True):
                 "freestream_mach_number" : M
             },
             "geometry": {
-                "file": "studies/supersonic_cone_flow_study/meshes/cone_{0}_deg_{1}.vtk".format(int(half_angle), grid),
+                "file": mesh_file,
                 "spanwise_axis" : "+y",
                 "mirror_about" : "xy",
                 "wake_model": {
@@ -133,7 +134,7 @@ if __name__=="__main__":
         for j, M in enumerate(Ms):
             for k, half_angle in enumerate(half_angles):
 
-                C_p_2nd, C_p_ise, C_p_sln, C_p_lin = run_comparison(M, grid, half_angle, run_machline=False)
+                C_p_2nd, C_p_ise, C_p_sln, C_p_lin = run_comparison(M, grid, half_angle, run_machline=True)
                 C_p_2nd_avg[i,j,k] = np.average(C_p_2nd).item()
                 C_p_ise_avg[i,j,k] = np.average(C_p_ise).item()
                 C_p_sln_avg[i,j,k] = np.average(C_p_sln).item()

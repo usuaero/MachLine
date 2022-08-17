@@ -43,6 +43,7 @@ b_vec.txt
 studies/*/data/*
 studies/*/plots/*
 studies/*/reports/*
+studies/*/results/*
 
 # python stuff
 __pycache__/

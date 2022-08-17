@@ -20,7 +20,8 @@ def run_comparison(M, alpha, grid, half_angle, run_machline=True):
     # Storage locations
     case_name = "M_{0}_aoa_{1}_{2}_deg_{3}".format(M, alpha, int(half_angle), grid)
     plot_dir = "studies/diamond_airfoil_study/plots/"
-    body_file = "studies/diamond_airfoil_study/meshes/"+case_name+".vtk"
+    mesh_file = "studies/diamond_airfoil_study/meshes/diamond_{0}_deg_full_{1}.stl".format(int(half_angle), grid)
+    results_file = "studies/diamond_airfoil_study/results/"+case_name+".vtk"
     report_file = "studies/diamond_airfoil_study/reports/"+case_name+".json"
     data_file = 'studies/diamond_airfoil_study/data/'+case_name+'.csv'
 
@@ -34,7 +35,7 @@ def run_comparison(M, alpha, grid, half_angle, run_machline=True):
                 "freestream_mach_number" : M
             },
             "geometry": {
-                "file": "studies/diamond_airfoil_study/meshes/diamond_{0}_deg_full_{1}.stl".format(int(half_angle), grid),
+                "file": mesh_file,
                 "spanwise_axis" : "+y",
                 "wake_model": {
                     "append_wake" : False,
@@ -56,7 +57,7 @@ def run_comparison(M, alpha, grid, half_angle, run_machline=True):
                 }
             },
             "output" : {
-                "body_file" : body_file,
+                "body_file" : results_file,
                 "report_file" : report_file
             }
         }
@@ -93,7 +94,7 @@ def run_comparison(M, alpha, grid, half_angle, run_machline=True):
     CD_ml = Cx*C_a + Cz*S_a
 
     # Read into ParaView
-    data_reader = pvs.LegacyVTKReader(registrationName=body_file.replace("dev/results/", ""), FileNames=body_file)
+    data_reader = pvs.LegacyVTKReader(registrationName=case_name, FileNames=results_file)
 
     # Filter cell data to point data
     filter = pvs.CellDatatoPointData(registrationName='Filter', Input=data_reader)
@@ -158,7 +159,7 @@ if __name__=="__main__":
             for k, alpha in enumerate(alphas):
                 for l, half_angle in enumerate(half_angles):
 
-                    _,_,CLs[i,j,k,l], CDs[i,j,k,l] = run_comparison(M, alpha, grid, half_angle, run_machline=False)
+                    _,_,CLs[i,j,k,l], CDs[i,j,k,l] = run_comparison(M, alpha, grid, half_angle, run_machline=True)
 
     plot_dir = "studies/diamond_airfoil_study/plots/"
     for j, M in enumerate(Ms):
