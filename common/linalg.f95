@@ -993,5 +993,165 @@ subroutine GE_solve_upper_pentagonal_iterative(N, A, b, tol, x)
   
 end subroutine GE_solve_upper_pentagonal_iterative
 
-    
+
+subroutine gen_givens_rot(x, y, c, s)
+  ! Calculates the plane rotation from x and y
+  ! Also applies the rotation to x and y
+
+  implicit none
+  
+  real,intent(inout) :: x, y
+  real,intent(out) :: c, s
+
+  real :: d
+
+  ! Check for nonzero bottom element
+  if (abs(y) < 1.e-12) then
+    c = 1.
+    s = 0.
+  else
+    d = sqrt(x*x + y*y)
+    c = x/d
+    s = y/d
+    x = d
+    y = 0.
+  end if
+  
+end subroutine gen_givens_rot
+
+
+subroutine apply_givens_rot(c, s, x, y, N)
+  ! Applies the Givesn rotation to the two vectors x and y of length N
+
+  implicit none
+  
+  real,intent(in) :: c, s
+  real,dimension(N),intent(inout) :: x, y
+  integer,intent(in) :: N
+
+  real,dimension(:),allocatable :: t
+
+  ! Apply to first row using temp storage
+  allocate(t, source=c*x + s*y)
+
+  ! Apply to second row
+  y = c*y - s*x
+
+  ! Move first row into place
+  x = t
+  
+end subroutine apply_givens_rot
+
+
+subroutine QR_givens_solve(N, A, b, x)
+  ! Solves the equation [A]x = b using the QR factorization via Givens rotations
+
+  implicit none
+  
+  integer,intent(in) :: N
+  real,dimension(N,N),intent(inout) :: A
+  real,dimension(N),intent(inout) :: b
+  real,dimension(:),allocatable,intent(out) :: x
+
+  integer :: i, j
+  real :: summ, s, c
+
+  ! Initialize
+  allocate(x(N))
+
+  ! Zero out lower triangle
+
+  ! Loop through columns
+  do j=1,N
+
+    ! Loop through rows
+    do i=N,j+1,-1
+
+      ! Generate Givens rotation
+      call gen_givens_rot(A(i-1,j), A(i,j), s, c)
+
+      ! Apply to rest of row
+      call apply_givens_rot(s, c, A(i-1,j+1:), A(i,j+1:), N-j-1)
+
+      ! Apply to b vector
+      call apply_givens_rot(s, c, b(i-1), b(i), 1)
+
+    end do
+  end do
+
+  ! Back substitution
+  do i=N,1,-1
+
+    summ = b(i)
+
+    ! Loop through known x values
+    do j=i+1,N
+      summ = summ - A(i,j)*x(j)
+    end do
+
+    ! Divide by diagonal coefficient
+    x(i) = summ / A(i,i)
+
+  end do
+  
+end subroutine QR_givens_solve
+
+
+subroutine QR_givens_solve_upper_pentagonal(N, A, b, x)
+  ! Solves the equation [A]x = b using the QR factorization via Givens rotations
+  ! Assumes A is upper-pentagonal
+
+  implicit none
+  
+  integer,intent(in) :: N
+  real,dimension(N,N),intent(inout) :: A
+  real,dimension(N),intent(inout) :: b
+  real,dimension(:),allocatable,intent(out) :: x
+
+  integer :: i, j, B_l
+  real :: summ, s, c
+
+  ! Initialize
+  allocate(x(N))
+
+  ! Get lower bandwidth
+  B_l = calc_lower_bandwidth(N, A)
+
+  ! Zero out lower triangle
+
+  ! Loop through columns
+  do j=1,N
+
+    ! Loop through rows
+    do i=min(j+B_l,N),j+1,-1
+
+      ! Generate Givens rotation
+      call gen_givens_rot(A(i-1,j), A(i,j), s, c)
+
+      ! Apply to rest of row
+      call apply_givens_rot(s, c, A(i-1,j+1:), A(i,j+1:), N-j-1)
+
+      ! Apply to b vector
+      call apply_givens_rot(s, c, b(i-1), b(i), 1)
+
+    end do
+  end do
+
+  ! Back substitution
+  do i=N,1,-1
+
+    summ = b(i)
+
+    ! Loop through known x values
+    do j=i+1,N
+      summ = summ - A(i,j)*x(j)
+    end do
+
+    ! Divide by diagonal coefficient
+    x(i) = summ / A(i,i)
+
+  end do
+  
+end subroutine QR_givens_solve_upper_pentagonal
+
 end module linalg_mod

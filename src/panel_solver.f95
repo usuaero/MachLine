@@ -1001,6 +1001,14 @@ contains
         case ('GEUP')
             call GE_solve_upper_pentagonal_iterative(this%N, A_p, b_p, 1.0e-12, body%mu)
 
+        ! QR via Givens rotations
+        case ('QR')
+            call QR_givens_solve(this%N, A_p, b_p, body%mu)
+
+        ! QR via Givens rotations for upper-pentagonal
+        case ('QRUP')
+            call QR_givens_solve_upper_pentagonal(this%N, A_p, b_p, body%mu)
+
         ! Purcell's method
         case ('PURC')
             call purcell_solve(this%N, A_p, b_p, body%mu)
