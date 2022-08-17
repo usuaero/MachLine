@@ -1247,7 +1247,7 @@ contains
         do i=1,this%N_verts
 
             ! Initialize with the compressibility distance of this vertex
-            x(i) = inner(freestream%c_hat_g, this%vertices(i)%loc)
+            x(i) = -inner(freestream%c_hat_g, this%vertices(i)%loc)
 
         end do
 

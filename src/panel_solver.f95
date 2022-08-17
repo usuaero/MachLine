@@ -995,11 +995,11 @@ contains
 
         ! LU decomposition
         case ('LU')
-            if (this%freestream%supersonic) then
-                call GE_solve_lower_pentagonal(this%N, A_p, b_p, body%mu)
-            else
-                call lu_solve(this%N, A_p, b_p, body%mu)
-            end if
+            call lu_solve(this%N, A_p, b_p, body%mu)
+
+        ! upper-pentagonal Gauss elimination
+        case ('GEUP')
+            call GE_solve_upper_pentagonal_iterative(this%N, A_p, b_p, 1.0e-12, body%mu)
 
         ! Purcell's method
         case ('PURC')

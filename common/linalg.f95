@@ -860,51 +860,48 @@ subroutine purcell_solve(N, A, b, x)
 end subroutine purcell_solve
 
 
-function calc_upper_bandwidth(N, A) result(upper_bandwidth)
-  ! Calculates the upper bandwidth of the matrix A, which is assumed to be NxN
+function calc_lower_bandwidth(N, A) result(lower_bandwidth)
+  ! Calculates the lower bandwidth of the matrix A, which is assumed to be NxN
 
   implicit none
   
   integer,intent(in) :: N
   real,dimension(N,N),intent(in) :: A
 
-  integer :: upper_bandwidth
+  integer :: lower_bandwidth
 
   integer :: i, j
   logical :: found_nonzero
 
   ! Initialize 
-  upper_bandwidth = 0
+  lower_bandwidth = 0
 
-  ! Loop through rows
-  do i=1,N
+  ! Loop through rows, starting at the bottom
+  do i=N,1,-1
 
     ! Initialize for this row
     found_nonzero = .false.
-    j = N+1
 
-    ! Loop through columns starting at the right side
-    column_loop: do while (.not. found_nonzero .and. j>i)
-
-      ! Decrement column index
-      j = j - 1
+    ! Loop through columns starting at the left
+    column_loop: do j=1,i-1
 
       ! Check this element
       found_nonzero = abs(A(i,j)) > 1.0e-12
+      if (found_nonzero) exit column_loop
 
     end do column_loop
 
-    ! We want the largest bandwidth here
+    ! We want a maximum bound on the bandwidth
     if (found_nonzero) then
-      upper_bandwidth = max(upper_bandwidth, j-i)
+      lower_bandwidth = max(lower_bandwidth, i-j)
     end if
   end do
   
-end function calc_upper_bandwidth
+end function calc_lower_bandwidth
 
 
-subroutine GE_solve_lower_pentagonal(N, A, b, x)
-  ! Solves [A]x = b using Gauss elimination assuming A is lower-pentagonal
+subroutine GE_solve_upper_pentagonal(N, A, b, x)
+  ! Solves [A]x = b using Gauss elimination assuming A is upper-pentagonal
   ! Replaces A partially with its LU decomposition
   ! Based on Chen "Matrix Preconditioning Techniques and Applications" Alg. 2.5.8
 
@@ -915,12 +912,11 @@ subroutine GE_solve_lower_pentagonal(N, A, b, x)
   real,dimension(N),intent(in) :: b
   real,dimension(:),allocatable,intent(out) :: x
 
-  integer :: B_u, i, j, k
+  integer :: B_l, i, j, k
   real :: m
 
   ! Get bandwidth
-  B_u = calc_upper_bandwidth(N, A)
-  write(*,*) B_u
+  B_l = calc_lower_bandwidth(N, A)
 
   ! Allocate solution
   allocate(x, source=b)
@@ -929,21 +925,73 @@ subroutine GE_solve_lower_pentagonal(N, A, b, x)
   do k=1,N
 
     ! Loop through rows
-    do i=k+1,N
+    do i=k+1,min(k+B_l, N)
 
+      ! Get scale factor
       m = A(i,k)/A(k,k)
-      x(i) = x(i) - m*x(k)
 
-      ! Loop through columns up to bandwidth or the edge of the matrix, whichever is smaller
-      ! We hope B_u is small
-      do j=k,min(k+B_u, N) 
-        A(i,j) = A(i,j) - m*A(k,j)
-      end do
+      ! Check size of factor
+      if (abs(m) > 1.0e-12) then
+
+        ! Update solution
+        x(i) = x(i) - m*x(k)
+
+        ! Apply row operation to other columns of A
+        do j=k,N
+          A(i,j) = A(i,j) - m*A(k,j)
+        end do
+
+      end if
 
     end do
   end do
   
-end subroutine GE_solve_lower_pentagonal
+end subroutine GE_solve_upper_pentagonal
+
+
+subroutine GE_solve_upper_pentagonal_iterative(N, A, b, tol, x)
+  ! Iteratively applies the upper-pentagonal Gauss-elimination to find a better solution to the system of equations
+
+  implicit none
+  
+  integer,intent(in) :: N
+  real,dimension(N,N),intent(inout) :: A
+  real,dimension(N),intent(in) :: b
+  real,intent(in) :: tol
+  real,dimension(:),allocatable,intent(out) :: x
+
+  real,dimension(:),allocatable :: xi, bi
+  real,dimension(N,N) :: Ai
+  real :: res
+
+  ! Initialize
+  res = tol + 1.
+  allocate(bi, source=b)
+  allocate(x(N), source=0.)
+
+  ! Calculate residual
+  bi = b - matmul(A, x)
+  res = norm2(bi)
+
+  ! Loop
+  do while (res > tol)
+
+    ! Reset A
+    Ai = A
+
+    ! Solve the current system
+    call GE_solve_upper_pentagonal(N, Ai, bi, xi)
+
+    ! Update solution
+    x = x + xi
+
+    ! Calculate residual
+    bi = b - matmul(A, x)
+    res = norm2(bi)
+
+  end do
+  
+end subroutine GE_solve_upper_pentagonal_iterative
 
     
 end module linalg_mod

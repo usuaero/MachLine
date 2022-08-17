@@ -8,8 +8,8 @@
         "file": "dev/meshes/diamond_5_deg_full_coarse.stl",
         "spanwise_axis" : "+y",
         "singularity_order" : {
-            "source" : 1,
-            "doublet" : 2
+            "source" : 0,
+            "doublet" : 1
         },
         "reference": {
             "area": 1.0
@@ -18,7 +18,8 @@
     "solver": {
         "formulation": "morino",
         "control_point_offset": 1.1e-06,
-        "matrix_solver" : "LU"
+        "matrix_solver" : "GEUP",
+        "write_A_and_b" : true
     },
     "post_processing" : {
         "pressure_rules" : {

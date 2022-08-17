@@ -19,8 +19,8 @@
     "solver": {
         "formulation": "morino",
         "control_point_offset": 1.1e-06,
-        "matrix_solver" : "LU",
-        "write_A_and_b" : true
+        "matrix_solver" : "GELP",
+        "write_A_and_" : true
     },
     "post_processing" : {
         "pressure_rules" : {
