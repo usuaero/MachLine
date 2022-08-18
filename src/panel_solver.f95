@@ -28,8 +28,9 @@ module panel_solver_mod
         real :: norm_res, max_res, tol, rel
         real,dimension(3) :: C_F, inner_flow
         real,dimension(:,:),allocatable :: A
-        real,dimension(:), allocatable :: b
-        integer :: N, wake_start, N_cells, block_size, max_iterations, N_unknown, N_d_unknown, N_s_unknown
+        real,dimension(:),allocatable :: b
+        integer,dimension(:),allocatable :: P, P_inv
+        integer :: N, N_cells, block_size, max_iterations, N_unknown, N_d_unknown, N_s_unknown
 
         contains
 
@@ -39,6 +40,7 @@ module panel_solver_mod
             procedure :: parse_processing_settings => panel_solver_parse_processing_settings
             procedure :: init_dirichlet => panel_solver_init_dirichlet
             procedure :: calc_domains_of_dependence => panel_solver_calc_domains_of_dependence
+            procedure :: set_permutation => panel_solver_set_permutation
 
             ! Solve
             procedure :: solve => panel_solver_solve
@@ -99,6 +101,9 @@ contains
         ! Calculate domains of dependence
         call this%calc_domains_of_dependence(body)
 
+        ! Set up permutation for linear system
+        call this%set_permutation(body)
+
     end subroutine panel_solver_init
 
 
@@ -112,12 +117,16 @@ contains
         
         ! Parse settings
         call json_xtnsn_get(solver_settings, 'formulation', this%formulation, 'morino')        
-        call json_xtnsn_get(solver_settings, 'matrix_solver', this%matrix_solver, 'LU')
+        if (this%freestream%supersonic) then
+            call json_xtnsn_get(solver_settings, 'matrix_solver', this%matrix_solver, 'QRUP')
+        else
+            call json_xtnsn_get(solver_settings, 'matrix_solver', this%matrix_solver, 'LU')
+        end if
         call json_xtnsn_get(solver_settings, 'block_size', this%block_size, 400)
         call json_xtnsn_get(solver_settings, 'tolerance', this%tol, 1e-12)
         call json_xtnsn_get(solver_settings, 'relaxation', this%rel, 0.8)
         call json_xtnsn_get(solver_settings, 'max_iterations', this%max_iterations, 1000)
-        call json_xtnsn_get(solver_settings, 'preconditioner', this%preconditioner, 'NONE')
+        call json_xtnsn_get(solver_settings, 'preconditioner', this%preconditioner, 'DIAG')
         call json_xtnsn_get(solver_settings, 'write_A_and_b', this%write_A_and_b, .false.)
         this%morino = this%formulation == 'morino'
         
@@ -453,6 +462,57 @@ contains
     end subroutine panel_solver_calc_domains_of_dependence
 
 
+    subroutine panel_solver_set_permutation(this, body)
+        ! Creates a vertex/control point permutation which should lead to a more efficient solution of the matrix equation
+
+        implicit none
+        
+        class(panel_solver),intent(inout) :: this
+        type(surface_mesh),intent(in) :: body
+
+        real,dimension(:),allocatable :: x
+        integer :: i, temp
+
+        ! Sort vertices in compressibility direction
+        if (this%freestream%supersonic) then
+
+            ! Allocate the compressibility distance array
+            allocate(x(this%N))
+
+            ! Add compressibility distance of each vertex
+            do i=1,body%N_verts
+                x(i) = -inner(this%freestream%c_hat_g, body%vertices(i)%loc)
+
+                ! Mirrored vertex
+                if (body%asym_flow) then
+                    x(i+body%N_verts) = -inner(this%freestream%c_hat_g, &
+                                               mirror_across_plane(body%vertices(i)%loc, body%mirror_plane))
+                end if
+
+            end do
+
+            ! Get inverse permutation
+            call insertion_arg_sort(x, this%P_inv)
+
+        else
+
+            ! Identity
+            allocate(this%P_inv(this%N))
+            do i=1,this%N
+                this%P_inv(i) = i
+            end do
+
+        end if
+
+        ! Invert inverse to get original permutation
+        allocate(this%P(this%N))
+        do i=1,this%N
+            this%P(this%P_inv(i)) = i
+        end do
+    
+    end subroutine panel_solver_set_permutation
+
+
     subroutine panel_solver_solve(this, body)
         ! Calls the relevant subroutine to solve the case based on the selected formulation
 
@@ -610,10 +670,10 @@ contains
         ! Loop through panel vertices
         do k=1,size(body%panels(i_panel)%i_vert_d)
             if (mirrored_panel) then
-                A_row(body%panels(i_panel)%i_vert_d(k)+body%N_cp) = A_row(body%panels(i_panel)%i_vert_d(k)+body%N_cp) &
-                                                                    + doublet_inf(k)
+                A_row(this%P(body%panels(i_panel)%i_vert_d(k)+body%N_cp)) = &
+                        A_row(this%P(body%panels(i_panel)%i_vert_d(k)+body%N_cp)) + doublet_inf(k)
             else
-                A_row(body%panels(i_panel)%i_vert_d(k)) = A_row(body%panels(i_panel)%i_vert_d(k)) + doublet_inf(k)
+                A_row(this%P(body%panels(i_panel)%i_vert_d(k))) = A_row(this%P(body%panels(i_panel)%i_vert_d(k))) + doublet_inf(k)
             end if
         end do
     
@@ -755,7 +815,7 @@ contains
 
             ! Update A matrix with rows
             !$OMP critical
-            this%A(i,:) = A_i
+            this%A(this%P(i),:) = A_i
 
             ! Update for mirrored points
             if (body%asym_flow) then
@@ -763,12 +823,12 @@ contains
                 ! Enforce doublet strength matching (i.e. for non-unique, mirrored control points, the
                 ! doublet strengths must be the same). The RHS for these rows should still be zero.
                 if (.not. body%vertices(i)%mirrored_is_unique) then
-                    this%A(i+body%N_cp,i) = 1.
-                    this%A(i+body%N_cp,i+body%N_cp) = -1.
+                    this%A(this%P(i+body%N_cp),this%P(i)) = 1.
+                    this%A(this%P(i+body%N_cp),this%P(i+body%N_cp)) = -1.
 
                 ! Otherwise, add influences
                 else
-                    this%A(i+body%N_cp,:) = A_i_mir
+                    this%A(this%P(i+body%N_cp),:) = A_i_mir
                 end if
             end if
 
@@ -783,11 +843,11 @@ contains
 
             ! Set target potential for source-free formulation
             else
-                this%b(i) = -inner(x, body%cp(:,i))
+                this%b(this%P(i)) = -inner(x, body%cp(:,i))
 
                 ! Set for unique mirrored control  points
                 if (body%asym_flow .and. body%vertices(i)%mirrored_is_unique) then
-                    this%b(i+body%N_cp) = -inner(x, body%cp_mirrored(:,i))
+                    this%b(this%P(i+body%N_cp)) = -inner(x, body%cp_mirrored(:,i))
                 end if
             end if
             !$OMP end critical
@@ -885,9 +945,9 @@ contains
 
             ! Update rows of A
             !$OMP critical
-            this%A(i,:) = this%A(i,:) + A_i
+            this%A(this%P(i),:) = this%A(this%P(i),:) + A_i
             if (body%asym_flow) then
-                this%A(i+body%N_cp,:) = this%A(i+body%N_cp,:) + A_i_mir
+                this%A(this%P(i+body%N_cp),:) = this%A(this%P(i+body%N_cp),:) + A_i_mir
             end if
             !$OMP end critical
 
@@ -910,15 +970,18 @@ contains
         type(surface_mesh),intent(inout) :: body
 
         real,dimension(:,:),allocatable :: A_p
-        real,dimension(:),allocatable :: b_p
+        real,dimension(:),allocatable :: b_p, x, R
         integer :: stat, i, j, unit
         real,dimension(:),allocatable :: A_ii_inv
 
         ! Set b vector for Morino formulation
         if (this%formulation == "morino") then
-            this%b = -body%phi_cp_sigma
+            do i=1,this%N
+                this%b(this%P(i)) = -body%phi_cp_sigma(i)
+            end do
         end if
 
+        ! Run checks
         if (run_checks) then
 
             if (verbose) write(*,'(a)',advance='no') "     Checking validity of linear system..."
@@ -936,11 +999,11 @@ contains
             ! Check for uninfluenced/ing points
             do i=1,this%N
                 if (all(this%A(i,:) == 0.)) then
-                    write(*,*) "!!! Control point ", i, " is not influenced. Quitting..."
+                    write(*,*) "!!! Control point ", this%P_inv(i), " is not influenced. Quitting..."
                     stop
                 end if
                 if (all(this%A(:,i) == 0.)) then
-                    write(*,*) "!!! Vertex ", i, " exerts no influence. Quitting..."
+                    write(*,*) "!!! Vertex ", this%P_inv(i), " exerts no influence. Quitting..."
                     stop
                 end if
             end do
@@ -995,49 +1058,49 @@ contains
 
         ! LU decomposition
         case ('LU')
-            call lu_solve(this%N, A_p, b_p, body%mu)
+            call lu_solve(this%N, A_p, b_p, x)
 
         ! Upper-pentagonal Gauss elimination
         case ('GEUP')
-            call GE_solve_upper_pentagonal_iterative(this%N, A_p, b_p, 1.0e-12, body%mu)
+            call GE_solve_upper_pentagonal_iterative(this%N, A_p, b_p, 1.0e-12, x)
 
         ! QR via Givens rotations
         case ('QR')
-            call QR_givens_solve(this%N, A_p, b_p, body%mu)
+            call QR_givens_solve(this%N, A_p, b_p, x)
 
         ! QR via Givens rotations for upper-pentagonal
         case ('QRUP')
-            call QR_givens_solve_upper_pentagonal(this%N, A_p, b_p, body%mu)
+            call QR_givens_solve_upper_pentagonal(this%N, A_p, b_p, x)
 
         ! Purcell's method
         case ('PURC')
-            call purcell_solve(this%N, A_p, b_p, body%mu)
+            call purcell_solve(this%N, A_p, b_p, x)
 
         ! Block successive over-relaxation
         case ('BSOR')
             call block_sor_solve(this%N, A_p, b_p, this%block_size, this%tol, this%rel, &
-                                 this%max_iterations, verbose, body%mu)
+                                 this%max_iterations, verbose, x)
 
         ! Adaptive block SOR
         case ('ABSOR')
             this%rel = -1.
             call block_sor_solve(this%N, A_p, b_p, this%block_size, this%tol, this%rel, &
-                                 this%max_iterations, verbose, body%mu)
+                                 this%max_iterations, verbose, x)
         
         ! Block Jacobi
         case ('BJAC')
             call block_jacobi_solve(this%N, A_p, b_p, this%block_size, this%tol, this%rel, &
-                                    this%max_iterations, verbose, body%mu)
+                                    this%max_iterations, verbose, x)
 
         ! Optimally relaxed block Jacobi
         case ('ORBJ')
             this%rel = -1.
             call block_jacobi_solve(this%N, A_p, b_p, this%block_size, this%tol, this%rel, &
-                                    this%max_iterations, verbose, body%mu)
+                                    this%max_iterations, verbose, x)
         ! Improper specification
         case default
             write(*,*) "!!! ", this%matrix_solver, " is not a valid option. Defaulting to LU decomposition."
-            call lu_solve(this%N, A_p, b_p, body%mu)
+            call lu_solve(this%N, A_p, b_p, x)
 
         end select
         if (verbose) write(*,*) "Done."
@@ -1046,19 +1109,32 @@ contains
         deallocate(A_p)
         deallocate(b_p)
 
-        ! Calculate potential at control points
-        body%phi_cp_mu = matmul(this%A, body%mu)
+        ! Transfer solution to body storage
+        allocate(body%mu(this%N))
+        do i=1,this%N
+            body%mu(this%P_inv(i)) = x(i)
+        end do
+
+        ! Get residual vector
+        allocate(R(this%N))
+        R = matmul(this%A, x) - this%b
         deallocate(this%A)
-        body%phi_cp = body%phi_cp_mu+body%phi_cp_sigma
 
         ! Calculate residual parameters
-        this%max_res = maxval(abs(body%phi_cp_mu-this%b))
-        this%norm_res = sqrt(sum((body%phi_cp_mu-this%b)**2))
-        deallocate(this%b)
+        this%max_res = maxval(abs(R))
+        this%norm_res = sqrt(sum(R*R))
         if (verbose) then
             write(*,*) "        Maximum residual:", this%max_res
             write(*,*) "        Norm of residual:", this%norm_res
         end if
+
+        ! Get potentials at control points
+        allocate(body%phi_cp_mu(this%N))
+        do i=1,this%N
+            body%phi_cp_mu(this%P_inv(i)) = R(i) + this%b(i)
+        end do
+        body%phi_cp = body%phi_cp_mu + body%phi_cp_sigma
+        deallocate(this%b)
 
     end subroutine panel_solver_solve_system
 

@@ -237,7 +237,7 @@ contains
         class(surface_mesh),intent(inout),target :: this
 
         integer :: i, j, m, n, m1, n1, temp, i_edge, N_edges, i_mid, N_orig_verts, edge_index_i, edge_index_j
-        logical :: already_found_shared, watertight
+        logical :: already_found_shared
         real :: distance
         integer,dimension(2) :: i_endpoints
         integer,dimension(this%N_panels*3) :: panel1, panel2, vertex1, vertex2, edge_index1, edge_index2 ! By definition, we will have no more than 3*N_panels edges; we should have much less, but some people...
@@ -330,15 +330,17 @@ contains
 
         ! Check for panels abutting empty space and add those edges.
         !$OMP single
-        watertight = .true.
         do i=1,this%N_panels
 
             ! Check for an edge with no abutting panel
             do j=1,this%panels(i)%N
                 if (this%panels(i)%abutting_panels(j) == 0) then
 
-                    ! Mark that the mesh is not watertight
-                    watertight = .false.
+                    ! Warn that the mesh is not watertight
+                    if (run_checks) then
+                        write(*,*) "!!! Panel ", i, " is missing a neighbor, meaning the supplied mesh may not be watertight."
+                        write(*,*) "!!! Solution quality may be adversely affected."
+                    end if
 
                     ! Get endpoint indices
                     i_endpoints(1) = this%panels(i)%get_vertex_index(j)
@@ -361,8 +363,6 @@ contains
                 end if
             end do
         end do
-        if (run_checks .and. .not. watertight) write(*,*) "!!! The supplied mesh is not watertight. &
-                                                               Solution quality may be adversely affected."
 
         ! Allocate edge storage
         allocate(this%edges(this%N_edges))
@@ -610,15 +610,6 @@ contains
             call this%clone_vertices()
         end if
 
-        ! For supersonic flows, rearrange the vertices to proceed in the freestream direction
-        if (freestream%supersonic) then
-            call this%rearrange_vertices_streamwise(freestream)
-
-        ! For quadratic doublets, the midpoints need to be arranged better in subsonic flow
-        else if (doublet_order == 2) then
-            !call this%shuffle_midpoints_in() ! System converges faster on sphere without this
-        end if
-
         ! Calculate normals (for placing control points)
         call this%calc_vertex_normals()
 
@@ -632,12 +623,12 @@ contains
             call this%panels(i)%set_influencing_verts()
         end do
 
+        if (verbose) write(*,*) "Done."
+
         ! Write out body file to ensure it's been parsed correctly
         if (body_file /= 'none') then
             call this%write_body(body_file, .false.)
         end if
-
-        if (verbose) write(*,*) "Done."
     
     end subroutine surface_mesh_init_with_flow
 
@@ -1238,7 +1229,7 @@ contains
         integer,dimension(:),allocatable,intent(out) :: i_sorted
 
         real,dimension(:),allocatable :: x
-        integer :: i, j, k
+        integer :: i
 
         ! Allocate the compressibility distance array
         allocate(x(this%N_verts))

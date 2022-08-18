@@ -9,13 +9,14 @@ if __name__=="__main__":
     filename = sys.argv[-1]
     
     # Read into array
-    elements = np.genfromtxt(filename)
-    element_mags = np.log10(np.abs(elements))
-    np.nan_to_num(element_mags, copy=False, neginf=-20.0)
-    print(element_mags.shape)
+    elements = np.genfromtxt(filename, dtype=np.single)
+    elements = np.abs(elements, dtype=np.single)
+    elements = np.log10(elements, dtype=np.single)
+    np.nan_to_num(elements, copy=False, neginf=-20.0)
+    print(elements.shape)
 
     # Plot
     plt.figure()
-    plt.imshow(element_mags, cmap='hot')
+    plt.imshow(elements, cmap='hot')
     plt.colorbar()
     plt.show()
