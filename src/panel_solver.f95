@@ -997,7 +997,7 @@ contains
         case ('LU')
             call lu_solve(this%N, A_p, b_p, body%mu)
 
-        ! upper-pentagonal Gauss elimination
+        ! Upper-pentagonal Gauss elimination
         case ('GEUP')
             call GE_solve_upper_pentagonal_iterative(this%N, A_p, b_p, 1.0e-12, body%mu)
 
@@ -1027,13 +1027,13 @@ contains
         ! Block Jacobi
         case ('BJAC')
             call block_jacobi_solve(this%N, A_p, b_p, this%block_size, this%tol, this%rel, &
-                                 this%max_iterations, verbose, body%mu)
+                                    this%max_iterations, verbose, body%mu)
 
         ! Optimally relaxed block Jacobi
         case ('ORBJ')
             this%rel = -1.
             call block_jacobi_solve(this%N, A_p, b_p, this%block_size, this%tol, this%rel, &
-                                 this%max_iterations, verbose, body%mu)
+                                    this%max_iterations, verbose, body%mu)
         ! Improper specification
         case default
             write(*,*) "!!! ", this%matrix_solver, " is not a valid option. Defaulting to LU decomposition."

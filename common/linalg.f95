@@ -1109,7 +1109,7 @@ subroutine QR_givens_solve_upper_pentagonal(N, A, b, x)
   real,dimension(:),allocatable,intent(out) :: x
 
   integer :: i, j, B_l
-  real :: summ, s, c
+  real :: s, c
 
   ! Get lower bandwidth
   B_l = calc_lower_bandwidth(N, A)
