@@ -339,6 +339,7 @@ contains
 
                     ! Mark that the mesh is not watertight
                     watertight = .false.
+                    write(*,*) "!!! Panel ", i, " is not watertight"
 
                     ! Get endpoint indices
                     i_endpoints(1) = this%panels(i)%get_vertex_index(j)

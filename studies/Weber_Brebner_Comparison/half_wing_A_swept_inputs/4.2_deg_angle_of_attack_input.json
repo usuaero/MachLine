@@ -1,0 +1,48 @@
+{
+    "flow": {
+        "freestream_velocity": [
+            162.56225978758667,
+            0.0,
+            11.937826131803964
+        ]
+    },
+    "geometry": {
+        "file": "studies/Weber_Brebner_Comparison/half_wing_A_meshes/half_wing_A_80_nodes.vtk",
+        "mirror_about": "xz",
+        "singularity_order": {
+            "doublet": 1,
+            "source": 0
+        },
+        "wake_model": {
+            "wake_shedding_angle": 90.0,
+            "trefftz_distance": 10000.0,
+            "N_panels": 1
+        },
+        "reference": {
+            "area": 1.0
+        }
+    },
+    "solver": {
+        "formulation": "source-free",
+        "control_point_offset": 1.1e-05
+    },
+    "post_processing": {
+        "pressure_rules": {
+            "incompressible": true,
+            "isentropic": false,
+            "second-order": false
+        },
+        "subsonic_pressure_correction": {
+            "correction_mach_number": 0.0,
+            "prandtl-glauert": false,
+            "karman-tsien": false,
+            "laitone": false
+        }
+    },
+    "output": {
+        "body_file": "studies/Weber_Brebner_Comparison/MachLine_Results/4.2_degrees_AoA/half_wing_A_80_nodes_4.2_deg_AoA_source_free_formulation.vtk",
+        "wake_file": "studies/Weber_Brebner_Comparison/MachLine_Results/4.2_degrees_AoA/half_wing_A_80_nodes_4.2_deg_AoA_source_free_formulation_wake.vtk",
+        "control_point_file": "studies/Weber_Brebner_Comparison/MachLine_Results/4.2_degrees_AoA/half_wing_A_80_nodes_4.2_deg_AoA_source_free_control_points.vtk",
+        "report_file": "../../report.json"
+    }
+}

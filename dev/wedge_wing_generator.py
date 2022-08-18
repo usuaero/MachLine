@@ -248,7 +248,7 @@ def create_panels(airfoil_locations, vertices, le_list, xc_max):
             tip = upper_surf[i+1]
 
             # Create panels over upper surface of wing
-            panel_iter = panel_generator(root, tip, vertices, upper_surf, le_list, xc_max)
+            panel_iter = panel_generator(i, airfoil_locations, root, tip, vertices, upper_surf, le_list, xc_max)
             panels += panel_iter
 
 
@@ -263,12 +263,12 @@ def create_panels(airfoil_locations, vertices, le_list, xc_max):
             tip = lower_surf[i+1]
 
             # Create panels over lower surface of wing
-            panel_iter = panel_generator(root, tip, vertices, lower_surf, le_list, xc_max)
+            panel_iter = panel_generator(i, airfoil_locations, root, tip, vertices, lower_surf, le_list, xc_max)
             panels += panel_iter
 
-            # # Connect final panel on lower surface to trailing edge
-            p_one = root[1] + 1
-            p_three = root[1]
+            # Connect final panel on lower surface to trailing edge
+            p_three = root[1] + 1
+            p_one = root[1]
 
             # Determine the middle vertex based on what isn't already used
             if airfoil_locations[i][0] not in panels[-1]:
@@ -277,14 +277,11 @@ def create_panels(airfoil_locations, vertices, le_list, xc_max):
                 p_two = airfoil_locations[i+1][0]
             
             panels.append([p_one, p_two, p_three])
-
                 
     return panels
 
 
-def panel_generator(root, tip, vertices, surface_verts, le_list, xc_max):
-
-    # Iterating fwd over airfoil locations requires to exclude the last location
+def panel_generator(iter, airfoil_locations, root, tip, vertices, surface_verts, le_list, xc_max):
         
     # Initialize counters and max iteration trackers
     i_root_max = (root[1]-root[0]) + 1
@@ -296,40 +293,49 @@ def panel_generator(root, tip, vertices, surface_verts, le_list, xc_max):
 
     # Iterate over vertices
     while (i_root < i_root_max) and (i_tip < i_tip_max): # Needs to be an and statement
-
         # Always start panel numbering with given vertex on next semispan location
-        p_one = tip[0] + i_tip
-        p_three = root[0] + i_root
-
-
+        p_three = tip[0] + i_tip
+        p_one = root[0] + i_root
 
         # Minimize aspect ratio of panel
-        next_tip = p_one + 1
-        next_root = p_three + 1
+        next_tip = p_three + 1
+        next_root = p_one + 1
+
+        # Run a series of check to ensure proper choice of which vertex will be chosen for this iteration
+        # Verify that the next tip and root locations are not on the next airfoil over
+        if next_tip > tip[1]:
+            next_tip = airfoil_locations[iter+1][0]
+            # breakpoint()
+            # print('tip')
+
+        elif next_root > root[1]:
+            next_root = airfoil_locations[iter][0]
+            # breakpoint()
+            # print('root')
 
         # Check to see if next_tip will be the only node at the trailing edge
         if (next_tip in le_list) and (next_tip in xc_max):
-            p_two = p_three + 1
+            p_two = p_one + 1
             i_root += 1
             
         # Check to see if next vertex is on leading edge
-        elif (next_root in le_list) and ((p_one in le_list) or (p_three in le_list)):
+        elif (next_root in le_list) and ((p_three in le_list) or (p_one in le_list)):
             p_two = next_root
             i_tip += 1
 
 
-        elif (next_tip in le_list) and ((p_one in le_list) or (p_three in le_list)):
+        elif (next_tip in le_list) and ((p_three in le_list) or (p_one in le_list)):
             p_two = next_tip
             i_root += 1
 
 
         # Check to see if next vertex is on max thickness ridge
-        elif (next_root in xc_max) and ((p_one in xc_max) or (p_three in xc_max)):
+        elif (next_root in xc_max) and ((p_three in xc_max) or (p_one in xc_max)):
             p_two = next_root
             i_root += 1
 
             
-        elif (next_tip in xc_max) and ((p_one in xc_max) or (p_three in xc_max)):
+        elif (next_tip in xc_max) and ((p_three in xc_max) or (p_one in xc_max)):
             p_two = next_tip
             i_tip += 1
 
@@ -337,14 +343,10 @@ def panel_generator(root, tip, vertices, surface_verts, le_list, xc_max):
         else:
             # Check for tip conidition with one vertex and measure distances
             max_vert = (surface_verts[-1][1]-1)
-            if (p_one < max_vert) and (p_three < max_vert):
-                # Determine diagonal distances
-                # print('p_one: ', p_one)
-                # print('p_three: ', p_three)
-                # print('next_tip: ', next_tip)
-                # print('next_root: ', next_root)
-                dist_root = distance(vertices[p_one], vertices[next_root], dimension='2D')
-                dist_tip = distance(vertices[p_three], vertices[next_tip], dimension='2D')
+            if (p_three < max_vert) and (p_one < max_vert):
+                # Determine diagonal distances between vertices
+                dist_root = distance(vertices[p_three], vertices[next_root], dimension='2D')
+                dist_tip = distance(vertices[p_one], vertices[next_tip], dimension='2D')
 
             # if only one node on tip airfoil
             else:
@@ -368,7 +370,8 @@ def panel_generator(root, tip, vertices, surface_verts, le_list, xc_max):
                 i_root += 1
                 p_two = root[0] + i_root
 
-        if (p_one == p_two) or (p_two == p_three):
+        # Check if next point is the wingtip with a single point
+        if (p_three == p_two) or (p_two == p_one):
             return panel_iter
             
 
@@ -421,8 +424,8 @@ if __name__ == '__main__':
 
 
     # Initialize number of nodes in chord and spanwize directions
-    cw_nodes = 40 # Issues may occur in mesh calculations if chordwise and spanwise nodes are different
-    sw_nodes = 40
+    cw_nodes = 20 # Issues may occur in mesh calculations if chordwise and spanwise nodes are different
+    sw_nodes = 20
     cluster_cw = True
     cluster_sw = True
 
@@ -476,20 +479,13 @@ if __name__ == '__main__':
         # Store end location of airfoil location
         airfoil_locs[i].append(vertex_cnt)
     
-    # Check vertices
-    print("vertex count: ", vertex_cnt)
-    max_dim = 0
-    for vertex in vertices:
-        if len(vertex) > max_dim:
-            max_dim = len(vertex)
-    
-    print("Max dimension is ", max_dim)
-    
     panels = np.array(create_panels(airfoil_locs, vertices, leading_edges, max_thickness), dtype=int)
 
+    filename= 'studies/delta_wing/meshes/delta_wing_coarse_mesh.vtk'
     _export_vtk('wedge_wing_test.vtk', vertices, panels)
 
 
 
 
     print("Geometry created")
+    print("file location: ", filename)
