@@ -1068,13 +1068,13 @@ subroutine QR_givens_solve(N, A, b, x)
     do i=N,j+1,-1
 
       ! Generate Givens rotation
-      call gen_givens_rot(A(i-1,j), A(i,j), s, c)
+      call gen_givens_rot(A(i-1,j), A(i,j), c, s)
 
       ! Apply to rest of row
-      call apply_givens_rot(s, c, A(i-1,j+1:), A(i,j+1:), N-j-1)
+      call apply_givens_rot(c, s, A(i-1,j+1:), A(i,j+1:), N-j-1)
 
       ! Apply to b vector
-      call apply_givens_rot(s, c, b(i-1), b(i), 1)
+      call apply_givens_rot(c, s, b(i-1), b(i), 1)
 
     end do
   end do
@@ -1111,9 +1111,6 @@ subroutine QR_givens_solve_upper_pentagonal(N, A, b, x)
   integer :: i, j, B_l
   real :: summ, s, c
 
-  ! Initialize
-  allocate(x(N))
-
   ! Get lower bandwidth
   B_l = calc_lower_bandwidth(N, A)
 
@@ -1126,32 +1123,57 @@ subroutine QR_givens_solve_upper_pentagonal(N, A, b, x)
     do i=min(j+B_l,N),j+1,-1
 
       ! Generate Givens rotation
-      call gen_givens_rot(A(i-1,j), A(i,j), s, c)
+      call gen_givens_rot(A(i-1,j), A(i,j), c, s)
 
-      ! Apply to rest of row
-      call apply_givens_rot(s, c, A(i-1,j+1:), A(i,j+1:), N-j-1)
+      ! Check if something is actually being done
+      if (abs(s) > 1.e-12) then
 
-      ! Apply to b vector
-      call apply_givens_rot(s, c, b(i-1), b(i), 1)
+        ! Apply to rest of row
+        call apply_givens_rot(c, s, A(i-1,j+1:), A(i,j+1:), N-j-1)
+
+        ! Apply to b vector
+        call apply_givens_rot(c, s, b(i-1), b(i), 1)
+
+      end if
 
     end do
   end do
 
   ! Back substitution
-  do i=N,1,-1
+  call QR_back_sub(N, A, b, x)
+  
+end subroutine QR_givens_solve_upper_pentagonal
 
-    summ = b(i)
+
+subroutine QR_back_sub(N, A, b, x)
+  ! Performs back substitution on the system [R] x = [Q]^H b
+  ! It is assumed that b has already been multiplied by [Q]
+
+  implicit none
+  
+  integer,intent(in) :: N
+  real,dimension(N,N),intent(in) :: A
+  real,dimension(N),intent(in) :: b
+  real,dimension(:),allocatable,intent(out) :: x
+
+  integer :: i, j
+
+  ! Initialize
+  allocate(x, source=b)
+
+  ! Back substitution
+  do i=N,1,-1
 
     ! Loop through known x values
     do j=i+1,N
-      summ = summ - A(i,j)*x(j)
+      x(i) = x(i) - A(i,j)*x(j)
     end do
 
     ! Divide by diagonal coefficient
-    x(i) = summ / A(i,i)
+    x(i) = x(i) / A(i,i)
 
   end do
   
-end subroutine QR_givens_solve_upper_pentagonal
+end subroutine QR_back_sub
 
 end module linalg_mod

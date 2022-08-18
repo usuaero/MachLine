@@ -972,7 +972,7 @@ contains
 
         end if
 
-        if (verbose) write(*,'(a)',advance='no') "     Solving linear system..."
+        if (verbose) write(*,'(a, a, a)',advance='no') "     Solving linear system (method: ", this%matrix_solver, ")..."
 
         ! Precondition
         select case(this%preconditioner)
