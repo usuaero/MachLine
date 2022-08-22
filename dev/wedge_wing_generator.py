@@ -88,8 +88,8 @@ def init_airfoil(chord_spacing, **kwargs):
 
     # Determine number of nodes, preventing needle panels near tips
     chord_nodes = int(np.ceil(local_chord / chord_spacing))
-    if chord_nodes < 3:
-        chord_nodes = 3
+    if chord_nodes < 5:
+        chord_nodes = 5
     # Check if at the wingtip where there should only be one node
     if abs(local_chord) < 10e-12:
         chord_nodes = 1
@@ -98,8 +98,8 @@ def init_airfoil(chord_spacing, **kwargs):
         return x_vert, y_vert
         
     # Identify ratio of nodes forward and aft of max thickness location
-    LE_nodes = round(chord_nodes / (1/node_ratio))
-    aft_nodes = chord_nodes - LE_nodes
+    LE_nodes = max(round(chord_nodes / (1/node_ratio)), 1)
+    aft_nodes = max(chord_nodes - LE_nodes, 2)
 
     # Account for when we remove the duplicate value
     LE_nodes += 1
@@ -230,6 +230,35 @@ def distance(v1, v2, **kwargs):
 
     return dist
 
+def between(value, bound_1, bound_2):
+    """Checks if a value is between two boundary values.
+    Parameters
+    ----------
+    bound_1 : int
+        boundary for check. Can be greater or less than boundary 2
+    bound_2 : int
+        boundary for check. Can be greater or less than boundary 1
+    value : int
+        value to verify if between bound_1 and bound_2
+        
+    Returns
+    -------
+    check : True/False
+        boolean identifying if the passed value is between the 2 given boundaries
+    """
+    if (value == bound_1) and (value == bound_2):
+        print("All values when comparing distances cannot be the same. Quitting...")
+        exit()
+
+    if bound_1 > bound_2:
+        check = value in list(range(bound_2, bound_1+1))
+    elif bound_2 > bound_1:
+        check = value in list(range(bound_1, bound_2+1))
+    else:
+        check = False
+
+    return check
+
 
 def create_panels(airfoil_locations, vertices, le_list, xc_max):
     """Creates a list of panels, using ccw rrh to assign order of vertices."""
@@ -248,7 +277,7 @@ def create_panels(airfoil_locations, vertices, le_list, xc_max):
             tip = upper_surf[i+1]
 
             # Create panels over upper surface of wing
-            panel_iter = panel_generator(i, airfoil_locations, root, tip, vertices, upper_surf, le_list, xc_max)
+            panel_iter = panel_generator(i, root, tip, vertices, le_list, xc_max, 'upper')
             panels += panel_iter
 
 
@@ -263,12 +292,12 @@ def create_panels(airfoil_locations, vertices, le_list, xc_max):
             tip = lower_surf[i+1]
 
             # Create panels over lower surface of wing
-            panel_iter = panel_generator(i, airfoil_locations, root, tip, vertices, lower_surf, le_list, xc_max)
+            panel_iter = panel_generator(i, root, tip, vertices, le_list, xc_max, 'lower')
             panels += panel_iter
 
             # Connect final panel on lower surface to trailing edge
-            p_three = root[1] + 1
             p_one = root[1]
+            p_three = root[1] + 1
 
             # Determine the middle vertex based on what isn't already used
             if airfoil_locations[i][0] not in panels[-1]:
@@ -281,94 +310,101 @@ def create_panels(airfoil_locations, vertices, le_list, xc_max):
     return panels
 
 
-def panel_generator(iter, airfoil_locations, root, tip, vertices, surface_verts, le_list, xc_max):
-        
+def panel_generator(iter, root, tip, vertices, le_list, xc_max, upper_or_lower):
+
     # Initialize counters and max iteration trackers
-    i_root_max = (root[1]-root[0]) + 1
-    i_tip_max = (tip[1] - tip[0]) + 1
+    i_root_max = (root[1]-root[0]) + (upper_or_lower == 'lower') # Lower surface iterations requires 1 additional tip iteration
+    i_tip_max = (tip[1] - tip[0]) + 1 
     i_root = 0
     i_tip = 0
     panel_iter = []
-    error_iter = 0
 
     # Iterate over vertices
     while (i_root < i_root_max) and (i_tip < i_tip_max): # Needs to be an and statement
+        
+        # Initialize default for p_two
+        p_two = -1
+
         # Always start panel numbering with given vertex on next semispan location
         p_three = tip[0] + i_tip
         p_one = root[0] + i_root
 
-        # Minimize aspect ratio of panel
+        # Identify next vertices along root and tip airfoils
         next_tip = p_three + 1
         next_root = p_one + 1
 
         # Run a series of check to ensure proper choice of which vertex will be chosen for this iteration
         # Verify that the next tip and root locations are not on the next airfoil over
         if next_tip > tip[1]:
-            next_tip = airfoil_locations[iter+1][0]
-            # breakpoint()
-            # print('tip')
+            p_two = next_root
+            i_root += 1
 
         elif next_root > root[1]:
-            next_root = airfoil_locations[iter][0]
-            # breakpoint()
-            # print('root')
+            p_two = next_tip
+            i_tip += 1
 
         # Check to see if next_tip will be the only node at the trailing edge
-        if (next_tip in le_list) and (next_tip in xc_max):
+        elif (next_tip in le_list) and (next_tip in xc_max):
             p_two = p_one + 1
             i_root += 1
             
         # Check to see if next vertex is on leading edge
-        elif (next_root in le_list) and ((p_three in le_list) or (p_one in le_list)):
+        elif (next_root in le_list) and (p_three in le_list):
             p_two = next_root
-            i_tip += 1
-
-
-        elif (next_tip in le_list) and ((p_three in le_list) or (p_one in le_list)):
-            p_two = next_tip
             i_root += 1
+
+
+        elif (next_tip in le_list) and (p_one in le_list):
+            p_two = next_tip
+            i_tip += 1
 
 
         # Check to see if next vertex is on max thickness ridge
-        elif (next_root in xc_max) and ((p_three in xc_max) or (p_one in xc_max)):
-            p_two = next_root
-            i_root += 1
-
-            
-        elif (next_tip in xc_max) and ((p_three in xc_max) or (p_one in xc_max)):
-            p_two = next_tip
-            i_tip += 1
-
-
-        else:
-            # Check for tip conidition with one vertex and measure distances
-            max_vert = (surface_verts[-1][1]-1)
-            if (p_three < max_vert) and (p_one < max_vert):
-                # Determine diagonal distances between vertices
-                dist_root = distance(vertices[p_three], vertices[next_root], dimension='2D')
-                dist_tip = distance(vertices[p_one], vertices[next_tip], dimension='2D')
-
-            # if only one node on tip airfoil
+        elif (p_one in xc_max):
+            # Check relation of tip vertex relative to next_root
+            if upper_or_lower == 'lower':
+                crit_location = le_list[iter+1]
             else:
-                dist_root = 0.0
-                dist_tip = 1.0
-                error_iter += 1
-                if error_iter > 10:
-                    print("You entered the never ending loop...quitting")
-                    exit()
-                # breakpoint()
-            
+                crit_location = tip[0]
+
+            tip_max_xc = xc_max[xc_max.index(p_one) + 2]
+
+            # If next tip has passed max thickness location
+            if between(next_tip, crit_location, tip_max_xc):
+                p_two = next_tip
+                i_tip += 1           
+
+           
+        elif (p_three in xc_max):
+            # Check relation of root vertex relative to next_tip
+            if upper_or_lower == 'lower':
+                crit_location = le_list[iter]
+            else:
+                crit_location = root[0]
+
+            root_max_xc = xc_max[xc_max.index(p_three) - 2]
+
+            # If next root has passed max thickness location
+            if between(next_root, crit_location, root_max_xc):
+                p_two = next_root
+                i_root += 1
+
+
+        if p_two == -1:
+            # Check for tip conidition with one vertex and measure distances
+            dist_root = distance(vertices[p_three], vertices[next_root])
+            dist_tip = distance(vertices[p_one], vertices[next_tip])            
 
             # Check if shortest distance is along tip airfoil
             if dist_tip < dist_root:
                 # Increment along tip airfoil
+                p_two = next_tip
                 i_tip += 1
-                p_two = tip[0] + i_tip
                 
             else:
                 # Increment along root airfoil
+                p_two = next_root
                 i_root += 1
-                p_two = root[0] + i_root
 
         # Check if next point is the wingtip with a single point
         if (p_three == p_two) or (p_two == p_one):
@@ -420,14 +456,14 @@ if __name__ == '__main__':
     b_2c = 1.0065 # semispan nondimensionalized by root chord
     R_T = 0.0 # taper ratio c_t/c_R
     LE_sweep = 44.85 # leading edge sweep angle in degrees
-    node_ratio = .25 # User input ratio of nodes to be placed forward of the max thickness location
+    node_ratio = .45 # User input ratio of nodes to be placed forward of the max thickness location
 
 
     # Initialize number of nodes in chord and spanwize directions
-    cw_nodes = 20 # Issues may occur in mesh calculations if chordwise and spanwise nodes are different
-    sw_nodes = 20
+    cw_nodes = 50 # Issues may occur in mesh calculations if chordwise and spanwise nodes are different
+    sw_nodes = 50
     cluster_cw = True
-    cluster_sw = True
+    cluster_sw = False
 
     # Determine average node spacing at root chord
     S_avg = 1 / cw_nodes
@@ -481,8 +517,8 @@ if __name__ == '__main__':
     
     panels = np.array(create_panels(airfoil_locs, vertices, leading_edges, max_thickness), dtype=int)
 
-    filename= 'studies/delta_wing/meshes/delta_wing_coarse_mesh.vtk'
-    _export_vtk('wedge_wing_test.vtk', vertices, panels)
+    filename= '../studies/delta_wing/meshes/delta_wing_clustered_mesh.vtk'
+    _export_vtk(filename, vertices, panels)
 
 
 

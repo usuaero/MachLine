@@ -1,15 +1,15 @@
 {
     "flow": {
         "freestream_velocity": [
-            694.4475790151479,
+            1041.6713685227219,
             0.0,
             0.0
         ],
         "gamma": 1.4,
-        "freestream_mach_number": 2
+        "freestream_mach_number": 3
     },
     "geometry": {
-        "file": "studies/sears_haack/sears_haack_mesh_love.tri",
+        "file": "studies/sears_haack/meshes/sears_haack_mesh_love.tri",
         "spanwise_axis": "+y",
         "wake_model": {
             "wake_present": false
@@ -31,7 +31,7 @@
         }
     },
     "output": {
-        "body_file": "studies/sears_haack/machline_results/sears_haack_9800.vtk",
-        "control_point_file": "studies/sears_haack/machline_results/sears_haack_9800_data_mach_2_control_points.vtk"
+        "body_file": "studies/sears_haack/machline_results/sears_haack_9800_data_mach_3.vtk",
+        "control_point_file": "studies/sears_haack/machline_results/sears_haack_9800_data_mach_3_control_points.vtk"
     }
 }

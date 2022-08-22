@@ -1,6 +1,5 @@
 import json
 import subprocess as sp
-# import flow54 as fl
 import numpy as np
 import paraview.simple as pvs
 import matplotlib.pyplot as plt
@@ -113,17 +112,19 @@ def data_plot(comp_method, Mach_numbers):
         comp_type = "C_p_2nd"
 
     # Initialize figure and shapes to be plotted
-    plt.figure(figsize=(10,8))
     shape = [".", "^", "s", "v"]
 
     # Loop over Mach Numbers
     for k,Mach in enumerate(Mach_numbers):
-        data_location = 'studies/sears_haack/sears_haack_{0}_data_mach_{1}.csv'.format(grid,Mach)
+        plt.figure(figsize=(10,8))
+        data_location = 'studies/sears_haack/machline_results/sears_haack_{0}_data_mach_{1}.csv'.format(grid,Mach)
 
-
+        comparison_data_loc = 'studies/sears_haack/sears_haack_Stivers_mach_{}.csv'.format(Mach)
+        
         # Identify which column of data is associated with selected comp method
         column_data = np.genfromtxt(data_location, delimiter=",", dtype=str)
         column_data = np.char.replace(column_data[0,:],'"',"")
+        comparison_data = np.genfromtxt(comparison_data_loc, delimiter=',', dtype=float)
 
         # Identify locations of method data selected by user
         Cp_loc = -1
@@ -141,26 +142,28 @@ def data_plot(comp_method, Mach_numbers):
         data = np.genfromtxt(data_location, delimiter=",", skip_header=1, dtype=float)
 
         # Plot data
-        plt.plot(data[:,x_loc]/max(data[:,x_loc]), data[:,Cp_loc],color='k', label = Mach, marker = shape[k], markersize = 3, linestyle="none")
-   
-    # Format plot
-    plt.xlabel(r"$\frac{x}{l}$")
-    y_title = r"$C_p$ " + comp_method
-    plt.ylabel(y_title)
-    plt.gca().invert_yaxis()
-    plt.legend()
+        plt.plot(data[:,x_loc]/max(data[:,x_loc]), data[:,Cp_loc],color='k', label = "MachLine", marker = '.', markersize = 5, linestyle="none")
+        plt.plot(comparison_data[:,0], comparison_data[:,1], 'k-', label="Stivers")
 
-    # Save figure
-    plot_loc = 'studies/sears_haack/plots/sears_haack_M_{0}.pdf'.format(Mach)
-    plt.savefig(plot_loc)
+        # Format plot
+        plt.xlabel("x/l")
+        y_title = r"$C_p$ " + comp_method
+        plt.ylabel(y_title)
+        plt.gca().invert_yaxis()
+        plt.legend()
+        plt.title(f"Mach {Mach}")
 
-    plt.show()
+        # Save figure
+        plot_loc = 'studies/sears_haack/plots/sears_haack_M_{0}.pdf'.format(Mach)
+        plt.savefig(plot_loc)
+
+        plt.show()
 
 if __name__=="__main__":
 
     # Parameters
-    M = 2
-    Mach_Numbers = [2] # Only for plotting purposes. The data needs to already be calculated previously
+    M = 3
+    Mach_Numbers = [2, 3] # Only for plotting purposes. The data needs to already be calculated previously
     R_G = 287.058
     gamma = 1.4
     T_inf = 300.0
@@ -174,7 +177,7 @@ if __name__=="__main__":
         chdir('../..')
 
     # Declare MachLine input
-    body_file = "studies/sears_haack/machline_results/sears_haack_{0}.vtk".format(grid)
+    body_file = "studies/sears_haack/machline_results/sears_haack_{0}_data_mach_{1}.vtk".format(grid, M)
     input_dict = {
         "flow": {
             "freestream_velocity": [M*c_inf*np.cos(np.radians(alpha)), 0.0, M*c_inf*np.sin(np.radians(alpha))],
@@ -182,8 +185,7 @@ if __name__=="__main__":
             "freestream_mach_number" : M
         },
         "geometry": {
-            # "file": "studies/sears_haack/meshes/sears_haack_{0}.tri".format(grid),
-            "file": "studies/sears_haack/sears_haack_mesh_love.tri",
+            "file": "studies/sears_haack/meshes/sears_haack_mesh_love.tri",
             "spanwise_axis" : "+y",
             "wake_model": {
                 "wake_present" : False,
@@ -242,7 +244,7 @@ if __name__=="__main__":
     view.Update()
     display.XArrayName = 'Points_X'
     view.Update()
-    save_loc = 'studies/sears_haack/sears_haack_{0}_data_mach_{1}.csv'.format(grid,M)
+    save_loc = 'studies/sears_haack/machline_results/sears_haack_{0}_data_mach_{1}.csv'.format(grid,M)
     pvs.SaveData(save_loc, proxy=plot, PointDataArrays=data_to_process, FieldAssociation='Point Data', Precision=12)
     # Read from json file which rules were selected
     json_string = open(input_file).read()

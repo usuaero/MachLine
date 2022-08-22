@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from sys import exit
 from os import listdir, chdir, getcwd
 
-def data_plot(comp_method, angles_of_attack, semispan_locations, semispan_length):
+def data_plot(comp_method, angles_of_attack, semispan_locations):
 
     # Reformat computational method
     if comp_method == "isentropic":
@@ -33,7 +33,7 @@ def data_plot(comp_method, angles_of_attack, semispan_locations, semispan_length
             plt.figure(figsize=(10,8))
             shape = ["o", "^", "s", "v"]
 
-            data_location = 'studies/delta_wing/delta_wing_{0}_semispan_{1}_deg_results.csv'.format(semi, AoA)
+            data_location = 'studies/delta_wing/results/delta_wing_{0}_semispan_{1}_deg_results.csv'.format(semi, AoA)
 
             # Identify which column of data is associated with selected comp method
             column_data = np.genfromtxt(data_location, delimiter=",", dtype=str)
@@ -50,15 +50,14 @@ def data_plot(comp_method, angles_of_attack, semispan_locations, semispan_length
                 # Break out of loop if all points have been located
                 if min(Cp_loc,x_loc) > -1:
                     break
-            
+
             # Read in data without column headers
             data = np.genfromtxt(data_location, delimiter=",", skip_header=1, dtype=float)
-
             # Format angle of attack for legend
             aoa_formatted = str(AoA) + r"$^{\circ}$ deg"
 
             # Plot data
-            plt.plot(data[:,x_loc]/max(data[:,x_loc]), data[:,Cp_loc],color='k', label = 'MachLine')
+            plt.plot(data[:,x_loc]/max(data[:,x_loc]), data[:,Cp_loc],color='k', label = 'MachLine',)
             # plt.plot(data[:,x_loc]/max(data[:,x_loc]), data[:,Cp_loc],color='k', label = 'MachLine', marker = "s", linestyle="none")
             # plt.plot(experimental_data[:,0], experimental_data[:,1], color='k', marker=".", label="Experimental", linestyle="none", fillstyle="full")
             plt.plot(experimental_data[:,0], experimental_data[:,1], color='k', label="Experimental", marker = "o", linestyle="none", fillstyle='full')
@@ -85,11 +84,11 @@ if __name__=="__main__":
     gamma = 1.4
     T_inf = 300.0
     c_inf = np.sqrt(gamma*R_G*T_inf)
-    angles_of_attack = [0.0]#, 2.0, 4.1, 8.5, 10.75]
+    angles_of_attack = [0.0, 2.0, 4.1, 8.5, 10.75]
     # angles_of_attack = [0.0]
     semispan_loc = [22.5, 64.1]
-    b_half = .2315 # meters
-    mesh_density = "coarse_test"
+    b_half = 1.0065 # nondimensionalized by root chord
+    mesh_density = "clustered"
 
     # Check working directory and re-route if necessary
     check_dir = getcwd()
@@ -101,7 +100,7 @@ if __name__=="__main__":
     for alpha in angles_of_attack:
         
         # Declare MachLine input
-        body_file = "studies/delta_wing/delta_wing_{0}_deg_{1}.vtk".format(alpha,mesh_density)
+        body_file = "studies/delta_wing/results/delta_wing_{0}_deg_{1}.vtk".format(alpha,mesh_density)
         input_dict = {
             "flow": {
                 "freestream_velocity": [M*c_inf*np.cos(np.radians(alpha)), 0.0, M*c_inf*np.sin(np.radians(alpha))],
@@ -136,9 +135,7 @@ if __name__=="__main__":
             "output" : {
             "verbose": True,
             "body_file" :          body_file,
-            "mirrored_body_file":   "studies/delta_wing/delta_wing_{0}_deg_{1}_mirrored_body.vtk".format(alpha,mesh_density),
-            "control_point_file" : "studies/delta_wing/delta_wing_{0}_deg_{1}_control_points.vtk".format(alpha,mesh_density),
-            "mirrored_control_point_file": "studies/delta_wing/delta_wing_{0}_deg_{1}_mirrored_control_points.vtk".format(alpha,mesh_density)
+            "control_point_file" : "studies/delta_wing/results/delta_wing_{0}_deg_{1}_control_points.vtk".format(alpha,mesh_density)
             }
         }
 
@@ -152,14 +149,14 @@ if __name__=="__main__":
         
         # Verify that MachLine execution was successful
         control_point_file = "delta_wing_{0}_deg_{1}_control_points.vtk".format(alpha,mesh_density)
-        if control_point_file not in listdir("studies/delta_wing/"):
-            print(f"The desired file cannot be located:  studies/delta_wing/{control_point_file}")
+        if control_point_file not in listdir("studies/delta_wing/results/"):
+            print(f"The desired file cannot be located:  studies/delta_wing/results/{control_point_file}")
             exit()
 
 
 
         # Read into ParaView
-        data_reader = pvs.LegacyVTKReader(registrationName=body_file.replace("studies/", ""), FileNames=body_file)
+        data_reader = pvs.LegacyVTKReader(registrationName=body_file.replace("studies/delta_wing/results", ""), FileNames=body_file)
 
         # Filter cell data to point data
         # filter = pvs.CellDatatoPointData(registrationName='Filter', Input=data_reader)
@@ -176,8 +173,8 @@ if __name__=="__main__":
             slicer.SliceType = 'Plane'
             # slicer.HyperTreeGridSlicer = 'Plane'
             slicer.SliceOffsetValues = [0.0]
-            slicer.SliceType.Origin = [0.0, percent_semispan, 0.0]
-            slicer.SliceType.Normal = [0.0, 1.0, 0.0]
+            slicer.SliceType.Origin = [0.0, 0.0, percent_semispan]
+            slicer.SliceType.Normal = [0.0, 0.0, 1.0]
             # slicer.HyperTreeGridSlicer = [0.0, 1.0, 0.0]
 
             # Extract and save data
@@ -186,9 +183,8 @@ if __name__=="__main__":
             display = pvs.Show(plot, view, 'XYChartRepresentation')
             display.XArrayName = 'centroid_X'
             view.Update()
-            save_loc = 'studies/delta_wing/delta_wing_{0}_semispan_{1}_deg_results.csv'.format(semispan_str, alpha)
+            save_loc = 'studies/delta_wing/results/delta_wing_{0}_semispan_{1}_deg_results.csv'.format(semispan_str, alpha)
             pvs.SaveData(save_loc, proxy=plot, ChooseArraysToWrite=1, CellDataArrays=data_to_process, FieldAssociation='Cell Data')
-
     # Plot single computational method over a range of angles of attack at each semispan location
     computational_method = "isentropic" # isentropic, second order, slender-body, or linear
-    data_plot(computational_method, angles_of_attack, semispan_loc, b_half)
+    data_plot(computational_method, angles_of_attack, semispan_loc)
