@@ -129,7 +129,7 @@ subroutine lu_solve(N, A, b, x)
     integer,allocatable,dimension(:) :: indx
     integer :: D, info
 
-    allocate(indx(n))
+    allocate(indx(N))
 
     ! Compute decomposition
     call lu_decomp(A, N, indx, D, info)
@@ -860,7 +860,7 @@ subroutine purcell_solve(N, A, b, x)
 end subroutine purcell_solve
 
 
-function calc_lower_bandwidth(N, A) result(lower_bandwidth)
+function get_lower_bandwidth(N, A) result(B_l)
   ! Calculates the lower bandwidth of the matrix A, which is assumed to be NxN
 
   implicit none
@@ -868,15 +868,16 @@ function calc_lower_bandwidth(N, A) result(lower_bandwidth)
   integer,intent(in) :: N
   real,dimension(N,N),intent(in) :: A
 
-  integer :: lower_bandwidth
+  integer :: B_l
 
   integer :: i, j
   logical :: found_nonzero
 
   ! Initialize 
-  lower_bandwidth = 0
+  B_l = 0
 
   ! Loop through rows, starting at the bottom
+  !$OMP parallel do private(j, found_nonzero) reduction(max : B_l)
   do i=N,1,-1
 
     ! Initialize for this row
@@ -893,11 +894,11 @@ function calc_lower_bandwidth(N, A) result(lower_bandwidth)
 
     ! We want a maximum bound on the bandwidth
     if (found_nonzero) then
-      lower_bandwidth = max(lower_bandwidth, i-j)
+      B_l = max(B_l, i-j)
     end if
   end do
   
-end function calc_lower_bandwidth
+end function get_lower_bandwidth
 
 
 subroutine GE_solve_upper_pentagonal(N, A, b, x)
@@ -916,7 +917,7 @@ subroutine GE_solve_upper_pentagonal(N, A, b, x)
   real :: m
 
   ! Get bandwidth
-  B_l = calc_lower_bandwidth(N, A)
+  B_l = get_lower_bandwidth(N, A)
 
   ! Allocate solution
   allocate(x, source=b)
@@ -951,6 +952,7 @@ end subroutine GE_solve_upper_pentagonal
 
 subroutine GE_solve_upper_pentagonal_iterative(N, A, b, tol, x)
   ! Iteratively applies the upper-pentagonal Gauss-elimination to find a better solution to the system of equations
+  ! Does really bad
 
   implicit none
   
@@ -1054,7 +1056,7 @@ subroutine QR_givens_solve(N, A, b, x)
   real,dimension(:),allocatable,intent(out) :: x
 
   integer :: i, j
-  real :: summ, s, c
+  real :: s, c
 
   ! Initialize
   allocate(x(N))
@@ -1080,19 +1082,7 @@ subroutine QR_givens_solve(N, A, b, x)
   end do
 
   ! Back substitution
-  do i=N,1,-1
-
-    summ = b(i)
-
-    ! Loop through known x values
-    do j=i+1,N
-      summ = summ - A(i,j)*x(j)
-    end do
-
-    ! Divide by diagonal coefficient
-    x(i) = summ / A(i,i)
-
-  end do
+  call QR_back_sub(N, A, b, x)
   
 end subroutine QR_givens_solve
 
@@ -1112,7 +1102,7 @@ subroutine QR_givens_solve_upper_pentagonal(N, A, b, x)
   real :: s, c
 
   ! Get lower bandwidth
-  B_l = calc_lower_bandwidth(N, A)
+  B_l = get_lower_bandwidth(N, A)
 
   ! Zero out lower triangle
 
@@ -1145,35 +1135,39 @@ subroutine QR_givens_solve_upper_pentagonal(N, A, b, x)
 end subroutine QR_givens_solve_upper_pentagonal
 
 
-subroutine QR_back_sub(N, A, b, x)
+subroutine QR_back_sub(N, R, b, x)
   ! Performs back substitution on the system [R] x = [Q]^H b
   ! It is assumed that b has already been multiplied by [Q]
+  ! P is a permutation vector allowing for pivoting
 
   implicit none
   
   integer,intent(in) :: N
-  real,dimension(N,N),intent(in) :: A
+  real,dimension(N,N),intent(in) :: R
   real,dimension(N),intent(in) :: b
   real,dimension(:),allocatable,intent(out) :: x
 
   integer :: i, j
 
   ! Initialize
-  allocate(x, source=b)
+  allocate(x(N))
 
   ! Back substitution
   do i=N,1,-1
 
+    x(i) = b(i)
+
     ! Loop through known x values
     do j=i+1,N
-      x(i) = x(i) - A(i,j)*x(j)
+      x(i) = x(i) - R(i,j)*x(j)
     end do
 
     ! Divide by diagonal coefficient
-    x(i) = x(i) / A(i,i)
+    x(i) = x(i) / R(i,i)
 
   end do
   
 end subroutine QR_back_sub
+
 
 end module linalg_mod

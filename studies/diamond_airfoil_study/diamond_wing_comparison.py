@@ -46,7 +46,7 @@ def run_comparison(M, alpha, grid, half_angle, run_machline=True):
             },
             "solver": {
                 "formulation": "morino",
-                "control_point_offset": 1.1e-8
+                "control_point_offset": 1.1e-6
             },
             "post_processing" : {
                 "pressure_rules" : {

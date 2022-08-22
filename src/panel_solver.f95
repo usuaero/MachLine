@@ -38,6 +38,8 @@ module panel_solver_mod
             procedure :: init => panel_solver_init
             procedure :: parse_solver_settings => panel_solver_parse_solver_settings
             procedure :: parse_processing_settings => panel_solver_parse_processing_settings
+
+            ! Setup
             procedure :: init_dirichlet => panel_solver_init_dirichlet
             procedure :: calc_domains_of_dependence => panel_solver_calc_domains_of_dependence
             procedure :: set_permutation => panel_solver_set_permutation
@@ -59,6 +61,8 @@ module panel_solver_mod
             procedure :: calc_crit_mach => panel_solver_calc_crit_mach
             procedure :: calc_forces => panel_solver_calc_forces
             procedure :: calc_forces_with_pressure => panel_solver_calc_forces_with_pressure
+
+            ! Results export
             procedure :: update_report => panel_solver_update_report
             procedure :: add_pressure_to_report => panel_solver_add_pressure_to_report
             procedure :: export_off_body_points => panel_solver_export_off_body_points
@@ -244,7 +248,7 @@ contains
         real :: offset
 
         ! Get offset
-        call json_xtnsn_get(solver_settings, 'control_point_offset', offset, 1e-5)
+        call json_xtnsn_get(solver_settings, 'control_point_offset', offset, 1e-6)
         
         ! Place control points
         if (verbose) write(*,'(a ES10.4 a)',advance='no') "     Placing control points using offset of ", offset, "..."
@@ -1062,7 +1066,7 @@ contains
 
         ! Upper-pentagonal Gauss elimination
         case ('GEUP')
-            call GE_solve_upper_pentagonal_iterative(this%N, A_p, b_p, 1.0e-12, x)
+            call GE_solve_upper_pentagonal(this%N, A_p, b_p, x)
 
         ! QR via Givens rotations
         case ('QR')

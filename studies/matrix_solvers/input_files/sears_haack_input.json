@@ -1,0 +1,26 @@
+{
+    "flow" : {
+        "freestream_velocity" : [ 1.0, 0.0, 0.0 ],
+        "gamma" : 1.4,
+        "freestream_mach_number" : 2
+    },
+    "geometry" : {
+        "file" : "studies/matrix_solvers/meshes/sears_haack_9800.tri",
+        "spanwise_axis" : "+y",
+        "wake_model" : {
+            "wake_present" : false
+        },
+        "reference" : {
+            "area" : 1.0
+        }
+    },
+    "solver" : {
+        "matrix_solver" : "QRUP",
+        "write_A_and_b" : true
+    },
+    "post_processing" : {
+    },
+    "output" : {
+        "body_file" : "studies/matrix_solvers/results/sears_haack.vtk"
+    }
+}
