@@ -1164,7 +1164,12 @@ subroutine QR_back_sub(N, R, b, x)
     end do
 
     ! Divide by diagonal coefficient
-    x(i) = x(i) / R(i,i)
+    if (R(i,i) /= 0.) then
+      x(i) = x(i) / R(i,i)
+    else
+      write(*,*) "!!! Zero found on the diagonal of R. QR back substitution failed. Quitting..."
+      stop
+    end if
 
   end do
   

@@ -221,11 +221,11 @@ contains
         integer :: i
 
         ! Write out vertices
-        write(1,'(a i20 i20)') "VERTICES", N_verts, N_verts*2
+        write(this%unit,'(a i20 i20)') "VERTICES", N_verts, N_verts*2
         do i=1,N_verts
 
             ! Index of each vertex
-            write(1,'(i1 i20)') 1, i-1
+            write(this%unit,'(i1 i20)') 1, i-1
 
         end do
     

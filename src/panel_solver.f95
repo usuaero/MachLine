@@ -475,9 +475,10 @@ contains
         type(surface_mesh),intent(in) :: body
 
         real,dimension(:),allocatable :: x
-        integer :: i, temp
+        integer :: i, j, i_vert
 
         ! Sort vertices in compressibility direction
+        ! We proceed from most downstream to most upstream so as to get an upper-pentagonal matrix
         if (this%freestream%supersonic) then
 
             ! Allocate the compressibility distance array
@@ -485,17 +486,37 @@ contains
 
             ! Add compressibility distance of each vertex
             do i=1,body%N_verts
-                x(i) = -inner(this%freestream%c_hat_g, body%vertices(i)%loc)
+
+                ! Loop through neighboring vertices to find the furthest back
+                x(i) = huge(x(i))
+                do j=1,body%vertices(i)%adjacent_vertices%len()
+                    call body%vertices(i)%adjacent_vertices%get(j, i_vert)
+                    x(i) = min(x(i), -inner(this%freestream%c_hat_g, body%vertices(i_vert)%loc))
+                end do
+
+                ! Based on just the location of the vertex itself
+                !x(i) = min(x(i), -inner(this%freestream%c_hat_g, body%vertices(i)%loc))
 
                 ! Mirrored vertex
                 if (body%asym_flow) then
-                    x(i+body%N_verts) = -inner(this%freestream%c_hat_g, &
-                                               mirror_across_plane(body%vertices(i)%loc, body%mirror_plane))
+
+                    ! Loop through neighboring vertices to find the furthest back
+                    x(i+body%N_verts) = huge(x(i+body%N_verts))
+                    do j=1,body%vertices(i)%adjacent_vertices%len()
+                        call body%vertices(i)%adjacent_vertices%get(j, i_vert)
+                        x(i+body%N_verts) = min(x(i+body%N_verts), -inner(this%freestream%c_hat_g, &
+                                                mirror_across_plane(body%vertices(i_vert)%loc, body%mirror_plane)))
+                    end do
+
+                    ! Based on just the location of the vertex iteself
+                    !x(i+body%N_verts) = -inner(this%freestream%c_hat_g, &
+                    !                           mirror_across_plane(body%vertices(i)%loc, body%mirror_plane))
                 end if
 
             end do
 
             ! Get inverse permutation
+            ! Sorts into increasing order
             call insertion_arg_sort(x, this%P_inv)
 
         else
