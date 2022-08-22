@@ -1,6 +1,6 @@
 {
     "flow": {
-        "freestream_velocity": [700.0, 0.0, 50.0],
+        "freestream_velocity": [700.0, 0.0, 0.0],
         "gamma" : 1.4,
         "freestream_mach_number" : 2.0
     },
@@ -17,9 +17,7 @@
     },
     "solver": {
         "formulation": "morino",
-        "control_point_offset": 1.1e-06,
-        "matrix_solver" : "QRUP",
-        "preconditioner" : "DIAG"
+        "matrix_solver" : "QRUP"
     },
     "post_processing" : {
         "pressure_rules" : {

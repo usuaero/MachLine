@@ -1005,14 +1005,15 @@ subroutine gen_givens_rot(x, y, c, s)
   real,intent(inout) :: x, y
   real,intent(out) :: c, s
 
-  real :: d
+  real :: d, t
 
-  ! Check for nonzero bottom element
-  if (abs(y) < 1.e-12) then
+  ! Check for nonzero elements
+  if (abs(y) == 0.) then
     c = 1.
     s = 0.
   else
-    d = sqrt(x*x + y*y)
+    t = abs(x) + abs(y)
+    d = t*sqrt((x/t)**2 + (y/t)**2)
     c = x/d
     s = y/d
     x = d
@@ -1116,7 +1117,7 @@ subroutine QR_givens_solve_upper_pentagonal(N, A, b, x)
       call gen_givens_rot(A(i-1,j), A(i,j), c, s)
 
       ! Check if something is actually being done
-      if (abs(s) > 1.e-12) then
+      if (s /= 0.) then
 
         ! Apply to rest of row
         call apply_givens_rot(c, s, A(i-1,j+1:), A(i,j+1:), N-j-1)
