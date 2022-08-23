@@ -20,8 +20,13 @@
     },
     "solver": {
         "formulation": "source-free",
+<<<<<<< HEAD:studies/sears_haack/sears_haack_input.json
         "run_checks": true,
         "control_point_offset": 1.1e-08
+=======
+        "control_point_offset": 1.1e-08,
+        "matrix_solver" : "QRUP"
+>>>>>>> test:dev/sears_haack_input.json
     },
     "post_processing": {
         "pressure_rules": {

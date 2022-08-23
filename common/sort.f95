@@ -341,7 +341,7 @@ contains
 
 
   subroutine insertion_sort(array)
-    real, intent(inout) :: array(:)
+    real,intent(inout) :: array(:)
     integer :: i,j
     real :: temp
 
@@ -361,7 +361,7 @@ contains
 
    implicit none
 
-    real,dimension(:),allocatable,intent(in) :: array
+    real,intent(in) :: array(:)
     integer,dimension(:),allocatable,intent(out) :: i_sorted
 
     integer :: i, j, N, temp

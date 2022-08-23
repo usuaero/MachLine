@@ -1,15 +1,15 @@
 {
     "flow": {
-        "freestream_velocity": [1.0, 0.0, 0.0],
+        "freestream_velocity": [700.0, 0.0, 0.0],
         "gamma" : 1.4,
         "freestream_mach_number" : 2.0
     },
     "geometry": {
-        "file": "dev/meshes/diamond_5_deg_full_coarse.stl",
+        "file": "dev/meshes/diamond_5_deg_full_fine.stl",
         "spanwise_axis" : "+y",
         "singularity_order" : {
-            "source" : 1,
-            "doublet" : 2
+            "source" : 0,
+            "doublet" : 1
         },
         "reference": {
             "area": 1.0
@@ -17,8 +17,7 @@
     },
     "solver": {
         "formulation": "morino",
-        "control_point_offset": 1.1e-06,
-        "matrix_solver" : "LU"
+        "matrix_solver" : "QRUP"
     },
     "post_processing" : {
         "pressure_rules" : {
@@ -26,9 +25,9 @@
         }
     },
     "output": {
-        "body_file" :          "dev/results/diamond_5_deg_full_coarse.vtk",
-        "wake_file" :          "dev/results/diamond_5_deg_full_coarse_wake.vtk",
-        "control_point_file" : "dev/results/diamond_5_deg_full_coarse_control_points.vtk",
+        "body_file" :          "dev/results/diamond_5_deg_full_fine.vtk",
+        "wake_file" :          "dev/results/diamond_5_deg_full_fine_wake.vtk",
+        "control_point_file" : "dev/results/diamond_5_deg_full_fine_control_points.vtk",
         "report_file" :        "dev/results/report.json"
     }
 }

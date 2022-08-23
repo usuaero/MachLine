@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from panel import SupersonicSubinclinedPanel
+from panel import SupersonicSuperinclinedPanel
 
 
 def plot_comparison(x, z, phi_dis, phi_anl, sing_type):
@@ -46,7 +46,7 @@ if __name__=="__main__":
     # Initialize panel
     verts = np.array([[0.5, -1.5, -0.5, 0.5],
                       [0.5, 0.5, -0.5, -0.5]])
-    panel = SupersonicSubinclinedPanel(verts)
+    panel = SupersonicSuperinclinedPanel(verts)
     panel.distribute_points(40, 40)
 
     # Initialize singularity distributions

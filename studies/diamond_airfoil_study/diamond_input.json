@@ -1,0 +1,37 @@
+{
+    "flow": {
+        "freestream_velocity": [
+            520.7563584639237,
+            0.0,
+            9.089836048769937
+        ],
+        "gamma": 1.4,
+        "freestream_mach_number": 1.5
+    },
+    "geometry": {
+        "file": "studies/diamond_airfoil_study/meshes/diamond_5_deg_full_ultra_fine.stl",
+        "spanwise_axis": "+y",
+        "wake_model": {
+            "append_wake": false
+        },
+        "reference": {
+            "area": 4.0
+        }
+    },
+    "solver": {
+        "formulation": "morino",
+        "control_point_offset": 1.1e-08
+    },
+    "post_processing": {
+        "pressure_rules": {
+            "second-order": true,
+            "isentropic": true,
+            "slender-body": true,
+            "linear": true
+        }
+    },
+    "output": {
+        "body_file": "studies/diamond_airfoil_study/results/M_1.5_aoa_1.0_5_deg_ultra_fine.vtk",
+        "report_file": "studies/diamond_airfoil_study/reports/M_1.5_aoa_1.0_5_deg_ultra_fine.json"
+    }
+}

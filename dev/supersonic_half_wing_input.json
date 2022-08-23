@@ -1,6 +1,6 @@
 {
     "flow": {
-        "freestream_velocity": [100.0, 5.0, 5.0],
+        "freestream_velocity": [100.0, 0.0, 0.0],
         "gamma" : 1.4,
         "freestream_mach_number" : 2.0
     },
@@ -9,20 +9,16 @@
         "mirror_about": "xz",
         "spanwise_axis" : "+y",
         "singularity_order" : {
-            "source" : 1,
-            "doublet" : 2
+            "source" : 0,
+            "doublet" : 1
         },
         "reference": {
             "area": 1.0
         }
     },
     "solver": {
-        "formulation": "morino",
-        "control_point_offset": 1.1e-06,
-        "matrix_solver" : "LU",
-        "block_sizex" : 400,
-        "relaxation" : 0.8,
-        "tolerance" : 1.1e-12
+        "matrix_solver" : "QRUP",
+        "write_A_and_b" : true
     },
     "post_processing" : {
         "pressure_rules" : {
@@ -31,13 +27,9 @@
         }
     },
     "output": {
-        "body_file" :          "dev/results/diamond_5_deg_coarse_right.vtk",
-        "wake_file" :          "dev/results/diamond_5_deg_coarse_wake.vtk",
-        "mirrored_body_file" : "dev/results/diamond_5_deg_coarse_left.vtk",
-        "control_point_file" : "dev/results/diamond_5_deg_coarse_right_control_points.vtk",
-        "offbody_points" : {
-            "points_file" : "dev/points.csv",
-            "output_file" : "dev/results/slice.csv"
-        }
+        "body_file" :          "dev/results/diamond_5_deg_mirrored_right.vtk",
+        "wake_file" :          "dev/results/diamond_5_deg_mirrored_wake.vtk",
+        "mirrored_body_file" : "dev/results/diamond_5_deg_mirrored_left.vtk",
+        "control_point_file" : "dev/results/diamond_5_deg_mirrored_right_control_points.vtk"
     }
 }

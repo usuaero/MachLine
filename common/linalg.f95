@@ -129,7 +129,7 @@ subroutine lu_solve(N, A, b, x)
     integer,allocatable,dimension(:) :: indx
     integer :: D, info
 
-    allocate(indx(n))
+    allocate(indx(N))
 
     ! Compute decomposition
     call lu_decomp(A, N, indx, D, info)
@@ -859,5 +859,321 @@ subroutine purcell_solve(N, A, b, x)
   
 end subroutine purcell_solve
 
-    
+
+function get_lower_bandwidth(N, A) result(B_l)
+  ! Calculates the lower bandwidth of the matrix A, which is assumed to be NxN
+
+  implicit none
+  
+  integer,intent(in) :: N
+  real,dimension(N,N),intent(in) :: A
+
+  integer :: B_l
+
+  integer :: i, j
+  logical :: found_nonzero
+
+  ! Initialize 
+  B_l = 0
+
+  ! Loop through rows, starting at the bottom
+  !$OMP parallel do private(j, found_nonzero) reduction(max : B_l)
+  do i=N,1,-1
+
+    ! Initialize for this row
+    found_nonzero = .false.
+
+    ! Loop through columns starting at the left
+    column_loop: do j=1,i-1
+
+      ! Check this element
+      found_nonzero = abs(A(i,j)) > 1.0e-12
+      if (found_nonzero) exit column_loop
+
+    end do column_loop
+
+    ! We want a maximum bound on the bandwidth
+    if (found_nonzero) then
+      B_l = max(B_l, i-j)
+    end if
+  end do
+  
+end function get_lower_bandwidth
+
+
+subroutine GE_solve_upper_pentagonal(N, A, b, x)
+  ! Solves [A]x = b using Gauss elimination assuming A is upper-pentagonal
+  ! Replaces A partially with its LU decomposition
+  ! Based on Chen "Matrix Preconditioning Techniques and Applications" Alg. 2.5.8
+
+  implicit none
+  
+  integer,intent(in) :: N
+  real,dimension(N,N), intent(inout) :: A
+  real,dimension(N),intent(in) :: b
+  real,dimension(:),allocatable,intent(out) :: x
+
+  integer :: B_l, i, j, k
+  real :: m
+
+  ! Get bandwidth
+  B_l = get_lower_bandwidth(N, A)
+
+  ! Allocate solution
+  allocate(x, source=b)
+
+  ! Outer loop
+  do k=1,N
+
+    ! Loop through rows
+    do i=k+1,min(k+B_l, N)
+
+      ! Get scale factor
+      m = A(i,k)/A(k,k)
+
+      ! Check size of factor
+      if (abs(m) > 1.0e-12) then
+
+        ! Update solution
+        x(i) = x(i) - m*x(k)
+
+        ! Apply row operation to other columns of A
+        do j=k,N
+          A(i,j) = A(i,j) - m*A(k,j)
+        end do
+
+      end if
+
+    end do
+  end do
+  
+end subroutine GE_solve_upper_pentagonal
+
+
+subroutine GE_solve_upper_pentagonal_iterative(N, A, b, tol, x)
+  ! Iteratively applies the upper-pentagonal Gauss-elimination to find a better solution to the system of equations
+  ! Does really bad
+
+  implicit none
+  
+  integer,intent(in) :: N
+  real,dimension(N,N),intent(inout) :: A
+  real,dimension(N),intent(in) :: b
+  real,intent(in) :: tol
+  real,dimension(:),allocatable,intent(out) :: x
+
+  real,dimension(:),allocatable :: xi, bi
+  real,dimension(N,N) :: Ai
+  real :: res
+
+  ! Initialize
+  res = tol + 1.
+  allocate(bi, source=b)
+  allocate(x(N), source=0.)
+
+  ! Calculate residual
+  bi = b - matmul(A, x)
+  res = norm2(bi)
+
+  ! Loop
+  do while (res > tol)
+
+    ! Reset A
+    Ai = A
+
+    ! Solve the current system
+    call GE_solve_upper_pentagonal(N, Ai, bi, xi)
+
+    ! Update solution
+    x = x + xi
+
+    ! Calculate residual
+    bi = b - matmul(A, x)
+    res = norm2(bi)
+
+  end do
+  
+end subroutine GE_solve_upper_pentagonal_iterative
+
+
+subroutine gen_givens_rot(x, y, c, s)
+  ! Calculates the plane rotation from x and y
+  ! Also applies the rotation to x and y
+
+  implicit none
+  
+  real,intent(inout) :: x, y
+  real,intent(out) :: c, s
+
+  real :: d, t
+
+  ! Check for nonzero elements
+  if (abs(y) == 0.) then
+    c = 1.
+    s = 0.
+  else
+    t = abs(x) + abs(y)
+    d = t*sqrt((x/t)**2 + (y/t)**2)
+    c = x/d
+    s = y/d
+    x = d
+    y = 0.
+  end if
+  
+end subroutine gen_givens_rot
+
+
+subroutine apply_givens_rot(c, s, x, y, N)
+  ! Applies the Givesn rotation to the two vectors x and y of length N
+
+  implicit none
+  
+  real,intent(in) :: c, s
+  real,dimension(N),intent(inout) :: x, y
+  integer,intent(in) :: N
+
+  real,dimension(:),allocatable :: t
+
+  ! Apply to first row using temp storage
+  allocate(t, source=c*x + s*y)
+
+  ! Apply to second row
+  y = c*y - s*x
+
+  ! Move first row into place
+  x = t
+  
+end subroutine apply_givens_rot
+
+
+subroutine QR_givens_solve(N, A, b, x)
+  ! Solves the equation [A]x = b using the QR factorization via Givens rotations
+
+  implicit none
+  
+  integer,intent(in) :: N
+  real,dimension(N,N),intent(inout) :: A
+  real,dimension(N),intent(inout) :: b
+  real,dimension(:),allocatable,intent(out) :: x
+
+  integer :: i, j
+  real :: s, c
+
+  ! Initialize
+  allocate(x(N))
+
+  ! Zero out lower triangle
+
+  ! Loop through columns
+  do j=1,N
+
+    ! Loop through rows
+    do i=N,j+1,-1
+
+      ! Generate Givens rotation
+      call gen_givens_rot(A(i-1,j), A(i,j), c, s)
+
+      ! Apply to rest of row
+      call apply_givens_rot(c, s, A(i-1,j+1:), A(i,j+1:), N-j-1)
+
+      ! Apply to b vector
+      call apply_givens_rot(c, s, b(i-1), b(i), 1)
+
+    end do
+  end do
+
+  ! Back substitution
+  call QR_back_sub(N, A, b, x)
+  
+end subroutine QR_givens_solve
+
+
+subroutine QR_givens_solve_upper_pentagonal(N, A, b, x)
+  ! Solves the equation [A]x = b using the QR factorization via Givens rotations
+  ! Assumes A is upper-pentagonal
+
+  implicit none
+  
+  integer,intent(in) :: N
+  real,dimension(N,N),intent(inout) :: A
+  real,dimension(N),intent(inout) :: b
+  real,dimension(:),allocatable,intent(out) :: x
+
+  integer :: i, j, B_l
+  real :: s, c
+
+  ! Get lower bandwidth
+  B_l = get_lower_bandwidth(N, A)
+
+  ! Zero out lower triangle
+
+  ! Loop through columns
+  do j=1,N
+
+    ! Loop through rows
+    do i=min(j+B_l,N),j+1,-1
+
+      ! Generate Givens rotation
+      call gen_givens_rot(A(i-1,j), A(i,j), c, s)
+
+      ! Check if something is actually being done
+      if (s /= 0.) then
+
+        ! Apply to rest of row
+        call apply_givens_rot(c, s, A(i-1,j+1:), A(i,j+1:), N-j-1)
+
+        ! Apply to b vector
+        call apply_givens_rot(c, s, b(i-1), b(i), 1)
+
+      end if
+
+    end do
+  end do
+
+  ! Back substitution
+  call QR_back_sub(N, A, b, x)
+  
+end subroutine QR_givens_solve_upper_pentagonal
+
+
+subroutine QR_back_sub(N, R, b, x)
+  ! Performs back substitution on the system [R] x = [Q]^H b
+  ! It is assumed that b has already been multiplied by [Q]
+  ! P is a permutation vector allowing for pivoting
+
+  implicit none
+  
+  integer,intent(in) :: N
+  real,dimension(N,N),intent(in) :: R
+  real,dimension(N),intent(in) :: b
+  real,dimension(:),allocatable,intent(out) :: x
+
+  integer :: i, j
+
+  ! Initialize
+  allocate(x(N))
+
+  ! Back substitution
+  do i=N,1,-1
+
+    x(i) = b(i)
+
+    ! Loop through known x values
+    do j=i+1,N
+      x(i) = x(i) - R(i,j)*x(j)
+    end do
+
+    ! Divide by diagonal coefficient
+    if (R(i,i) /= 0.) then
+      x(i) = x(i) / R(i,i)
+    else
+      write(*,*) "!!! Zero found on the diagonal of R. QR back substitution failed. Quitting..."
+      stop
+    end if
+
+  end do
+  
+end subroutine QR_back_sub
+
+
 end module linalg_mod

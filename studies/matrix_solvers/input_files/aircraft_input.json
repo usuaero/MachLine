@@ -1,0 +1,26 @@
+{
+    "flow" : {
+        "freestream_velocity" : [ 1.0, 0.0, 0.0 ],
+        "gamma" : 1.4,
+        "freestream_mach_number" : 2.0
+    },
+    "geometry" : {
+        "file" : "studies/matrix_solvers/meshes/supersonic_configuration.stl",
+        "mirror_about" : "xz",
+        "spanwise_axis" : "+y",
+        "reference" : {
+            "area" : 1.0
+        }
+    },
+    "solver" : {
+        "matrix_solver" : "QRUP",
+        "write_A_and_b" : true
+    },
+    "post_processing" : {
+    },
+    "output" : {
+        "body_file" : "studies/matrix_solvers/results/supersonic_configuration.vtk",
+        "control_point_file" : "studies/matrix_solvers/results/supersonic_configuration_control_points.vtk",
+        "wake_file" : "studies/matrix_solvers/results/supersonic_configuration_wake.vtk",
+    }
+}

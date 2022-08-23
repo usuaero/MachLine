@@ -57,6 +57,7 @@ module surface_mesh_mod
             procedure :: count_panel_inclinations => surface_mesh_count_panel_inclinations
             procedure :: characterize_edges => surface_mesh_characterize_edges
             procedure :: clone_vertices => surface_mesh_clone_vertices
+            procedure :: init_vertex_clone => surface_mesh_init_vertex_clone
             procedure :: set_up_mirroring => surface_mesh_set_up_mirroring
             procedure :: rearrange_vertices_streamwise => surface_mesh_rearrange_vertices_streamwise
             procedure :: shuffle_midpoints_in => surface_mesh_shuffle_midpoints_in
@@ -73,6 +74,8 @@ module surface_mesh_mod
             procedure :: init_wake => surface_mesh_init_wake
             procedure :: update_supersonic_trefftz_distance => surface_mesh_update_supersonic_trefftz_distance
             procedure :: update_subsonic_trefftz_distance => surface_mesh_update_subsonic_trefftz_distance
+
+            ! Control points
             procedure :: place_interior_control_points => surface_mesh_place_interior_control_points
 
             ! Post-processing
@@ -237,7 +240,7 @@ contains
         class(surface_mesh),intent(inout),target :: this
 
         integer :: i, j, m, n, m1, n1, temp, i_edge, N_edges, i_mid, N_orig_verts, edge_index_i, edge_index_j
-        logical :: already_found_shared, watertight
+        logical :: already_found_shared
         real :: distance
         integer,dimension(2) :: i_endpoints
         integer,dimension(this%N_panels*3) :: panel1, panel2, vertex1, vertex2, edge_index1, edge_index2 ! By definition, we will have no more than 3*N_panels edges; we should have much less, but some people...
@@ -330,13 +333,13 @@ contains
 
         ! Check for panels abutting empty space and add those edges.
         !$OMP single
-        watertight = .true.
         do i=1,this%N_panels
 
             ! Check for an edge with no abutting panel
             do j=1,this%panels(i)%N
                 if (this%panels(i)%abutting_panels(j) == 0) then
 
+<<<<<<< HEAD
                     ! Mark that the mesh is not watertight
                     watertight = .false.
                     write(*,*) "!!! Panel ", i, " is not watertight"
@@ -344,6 +347,13 @@ contains
                     write(*,*) this%panels(i)%get_vertex_index(1)
                     write(*,*) this%panels(i)%get_vertex_index(2)
                     write(*,*) this%panels(i)%get_vertex_index(3)
+=======
+                    ! Warn that the mesh is not watertight
+                    if (run_checks) then
+                        write(*,*) "!!! Panel ", i, " is missing a neighbor, meaning the supplied mesh may not be watertight."
+                        write(*,*) "!!! Solution quality may be adversely affected."
+                    end if
+>>>>>>> test
 
                     ! Get endpoint indices
                     i_endpoints(1) = this%panels(i)%get_vertex_index(j)
@@ -366,8 +376,6 @@ contains
                 end if
             end do
         end do
-        if (run_checks .and. .not. watertight) write(*,*) "!!! The supplied mesh is not watertight. &
-                                                               Solution quality may be adversely affected."
 
         ! Allocate edge storage
         allocate(this%edges(this%N_edges))
@@ -615,15 +623,6 @@ contains
             call this%clone_vertices()
         end if
 
-        ! For supersonic flows, rearrange the vertices to proceed in the freestream direction
-        if (freestream%supersonic) then
-            call this%rearrange_vertices_streamwise(freestream)
-
-        ! For quadratic doublets, the midpoints need to be arranged better in subsonic flow
-        else if (doublet_order == 2) then
-            !call this%shuffle_midpoints_in() ! System converges faster on sphere without this
-        end if
-
         ! Calculate normals (for placing control points)
         call this%calc_vertex_normals()
 
@@ -637,12 +636,12 @@ contains
             call this%panels(i)%set_influencing_verts()
         end do
 
+        if (verbose) write(*,*) "Done."
+
         ! Write out body file to ensure it's been parsed correctly
         if (body_file /= 'none') then
             call this%write_body(body_file, .false.)
         end if
-
-        if (verbose) write(*,*) "Done."
     
     end subroutine surface_mesh_init_with_flow
 
@@ -1041,10 +1040,9 @@ contains
 
         implicit none
 
-        class(surface_mesh),intent(inout),target :: this
+        class(surface_mesh),intent(inout) :: this
 
-        integer :: i, j, k, m, n, N_clones, i_jango, i_boba, N_discont_verts, i_bot_panel, i_abutting_panel, i_adj_vert, i_top_panel
-        integer :: i_edge
+        integer :: i, j, N_clones, i_jango, i_boba
         integer,dimension(:),allocatable :: i_rearrange, i_rearrange_inv
 
         ! Check whether any discontinuities exist
@@ -1081,123 +1079,7 @@ contains
                     i_rearrange_inv(i_boba) = i_jango + j
 
                     ! Initialize clone
-                    call this%vertices(i_boba)%init(this%vertices(i_jango)%loc, i_boba, this%vertices(i_jango)%vert_type)
-                    this%vertices(i_boba)%clone = .true.
-
-                    ! Set vertex type
-                    if (this%vertices(i_jango)%vert_type==1) then
-                        this%N_true_verts = this%N_true_verts + 1
-                    end if
-
-                    ! Specify wake partners
-                    this%vertices(i_jango)%i_wake_partner = i_boba
-                    this%vertices(i_boba)%i_wake_partner = i_jango
-
-                    ! Store number of adjacent wake-shedding and discontinuous edges (probably unecessary at this point, but let's be consistent)
-                    this%vertices(i_boba)%N_wake_edges = this%vertices(i_jango)%N_wake_edges
-                    this%vertices(i_boba)%N_discont_edges = this%vertices(i_jango)%N_discont_edges
-
-                    ! Copy over mirroring properties
-                    this%vertices(i_boba)%mirrored_is_unique = this%vertices(i_jango)%mirrored_is_unique
-                    this%vertices(i_boba)%on_mirror_plane = this%vertices(i_jango)%on_mirror_plane
-
-                    ! Copy over adjacent panels
-                    do k=1,this%vertices(i_jango)%panels%len()
-
-                        ! Get adjacent panel index from original vertex
-                        call this%vertices(i_jango)%panels%get(k, i_abutting_panel)
-
-                        ! Copy to clone
-                        call this%vertices(i_boba)%panels%append(i_abutting_panel)
-
-                    end do
-
-                    ! Copy over adjacent vertices
-                    do k=1,this%vertices(i_jango)%adjacent_vertices%len()
-
-                        ! Get adjacent panel index from original vertex
-                        call this%vertices(i_jango)%adjacent_vertices%get(k, i_adj_vert)
-
-                        ! Copy to new vertex
-                        call this%vertices(i_boba)%adjacent_vertices%append(i_adj_vert)
-
-                    end do
-
-                    ! Remove bottom panels from top vertex and give them to the bottom vertex
-                    ! Loop through edges adjacent to this vertex
-                    do n=1,this%vertices(i_jango)%adjacent_edges%len()
-
-                        ! Get edge index
-                        call this%vertices(i_jango)%adjacent_edges%get(n, i_edge)
-
-                        ! Copy to new vertex
-                        call this%vertices(i_boba)%adjacent_edges%append(i_edge)
-
-                        ! Check if this is a wake-shedding edge
-                        if (this%edges(i_edge)%sheds_wake) then
-
-                            ! Get bottom panel index
-                            i_top_panel = this%edges(i_edge)%panels(1)
-                            i_bot_panel = this%edges(i_edge)%panels(2)
-
-                            ! Make sure this bottom panel is not a mirrored panel
-                            if (i_bot_panel <= this%N_panels) then
-
-                                ! Remove bottom panel index from original vertex
-                                call this%vertices(i_jango)%panels_not_across_wake_edge%delete(i_bot_panel)
-
-                                ! Add to clone
-                                if (.not. this%vertices(i_boba)%panels_not_across_wake_edge%is_in(i_bot_panel)) then
-                                    call this%vertices(i_boba)%panels_not_across_wake_edge%append(i_bot_panel)
-                                end if
-
-                                ! If there are any panels attached to this vertex and abutting the bottom panel, shift them over as well
-                                do m=1,this%panels(i_bot_panel)%N
-
-                                    ! Get the index of the panel abutting this bottom panel
-                                    i_abutting_panel = this%panels(i_bot_panel)%abutting_panels(m)
-
-                                    ! Check if it is not the top panel
-                                    if (i_abutting_panel /= i_top_panel) then
-
-                                        ! Make sure the abutting panel is not a mirrored/nonexistant panel
-                                        if (i_abutting_panel > 0 .and. i_abutting_panel <= this%N_panels) then
-
-                                            ! See if this panel touches the vertex
-                                            if (this%panels(i_abutting_panel)%touches_vertex(i_jango)) then
-
-                                                ! Remove from original vertex
-                                                call this%vertices(i_jango)%panels_not_across_wake_edge%delete(i_abutting_panel)
-
-                                                ! Add to cloned vertex
-                                                if (.not.this%vertices(i_boba)%panels_not_across_wake_edge%is_in(i_abutting_panel))&
-                                                    then
-                                                    call this%vertices(i_boba)%panels_not_across_wake_edge%append(i_abutting_panel)
-                                                end if
-
-                                            end if
-                                        end if
-                                    end if
-                                end do
-
-                            end if
-
-                        end if
-
-                    end do
-
-                    ! Update bottom panels to point to cloned vertex
-                    do k=1,this%vertices(i_boba)%panels_not_across_wake_edge%len()
-
-                        ! Get panel index
-                        call this%vertices(i_boba)%panels_not_across_wake_edge%get(k, i_bot_panel)
-
-                        ! Update (doesn't need to be done for mirrored panels)
-                        if (i_bot_panel <= this%N_panels) then
-                            call this%panels(i_bot_panel)%point_to_new_vertex(this%vertices(i_boba))
-                        end if
-
-                    end do
+                    call this%init_vertex_clone(i_jango, i_boba)
 
                 else
 
@@ -1233,6 +1115,136 @@ contains
     end subroutine surface_mesh_clone_vertices
 
 
+    subroutine surface_mesh_init_vertex_clone(this, i_jango, i_boba)
+        ! Clones the vertex at i_jango into i_boba
+
+        implicit none
+        
+        class(surface_mesh), intent(inout) :: this
+        integer,intent(in) :: i_jango, i_boba
+
+        integer :: k, m, n, i_bot_panel, i_abutting_panel, i_adj_vert, i_top_panel, i_edge
+
+        ! Basic initialization
+        call this%vertices(i_boba)%init(this%vertices(i_jango)%loc, i_boba, this%vertices(i_jango)%vert_type)
+        this%vertices(i_boba)%clone = .true.
+
+        ! If this is a true vertex (not a midpoint), add to the count
+        if (this%vertices(i_jango)%vert_type==1) this%N_true_verts = this%N_true_verts + 1
+
+        ! Specify wake partners
+        this%vertices(i_jango)%i_wake_partner = i_boba
+        this%vertices(i_boba)%i_wake_partner = i_jango
+
+        ! Store number of adjacent wake-shedding and discontinuous edges (probably unecessary at this point, but let's be consistent)
+        this%vertices(i_boba)%N_wake_edges = this%vertices(i_jango)%N_wake_edges
+        this%vertices(i_boba)%N_discont_edges = this%vertices(i_jango)%N_discont_edges
+
+        ! Copy over mirroring properties
+        this%vertices(i_boba)%mirrored_is_unique = this%vertices(i_jango)%mirrored_is_unique
+        this%vertices(i_boba)%on_mirror_plane = this%vertices(i_jango)%on_mirror_plane
+
+        ! Copy over adjacent panels
+        do k=1,this%vertices(i_jango)%panels%len()
+
+            ! Get adjacent panel index from original vertex
+            call this%vertices(i_jango)%panels%get(k, i_abutting_panel)
+
+            ! Copy to clone
+            call this%vertices(i_boba)%panels%append(i_abutting_panel)
+
+        end do
+
+        ! Copy over adjacent vertices
+        do k=1,this%vertices(i_jango)%adjacent_vertices%len()
+
+            ! Get adjacent panel index from original vertex
+            call this%vertices(i_jango)%adjacent_vertices%get(k, i_adj_vert)
+
+            ! Copy to new vertex
+            call this%vertices(i_boba)%adjacent_vertices%append(i_adj_vert)
+
+        end do
+
+        ! Remove bottom panels from top vertex and give them to the bottom vertex
+        ! Loop through edges adjacent to this vertex
+        do n=1,this%vertices(i_jango)%adjacent_edges%len()
+
+            ! Get edge index
+            call this%vertices(i_jango)%adjacent_edges%get(n, i_edge)
+
+            ! Copy to new vertex
+            call this%vertices(i_boba)%adjacent_edges%append(i_edge)
+
+            ! Check if this is a wake-shedding edge
+            if (this%edges(i_edge)%sheds_wake) then
+
+                ! Get bottom panel index
+                i_top_panel = this%edges(i_edge)%panels(1)
+                i_bot_panel = this%edges(i_edge)%panels(2)
+
+                ! Make sure this bottom panel is not a mirrored panel
+                if (i_bot_panel <= this%N_panels) then
+
+                    ! Remove bottom panel index from original vertex
+                    call this%vertices(i_jango)%panels_not_across_wake_edge%delete(i_bot_panel)
+
+                    ! Add to clone
+                    if (.not. this%vertices(i_boba)%panels_not_across_wake_edge%is_in(i_bot_panel)) then
+                        call this%vertices(i_boba)%panels_not_across_wake_edge%append(i_bot_panel)
+                    end if
+
+                    ! If there are any panels attached to this vertex and abutting the bottom panel, shift them over as well
+                    do m=1,this%panels(i_bot_panel)%N
+
+                        ! Get the index of the panel abutting this bottom panel
+                        i_abutting_panel = this%panels(i_bot_panel)%abutting_panels(m)
+
+                        ! Check if it is not the top panel
+                        if (i_abutting_panel /= i_top_panel) then
+
+                            ! Make sure the abutting panel is not a mirrored/nonexistant panel
+                            if (i_abutting_panel > 0 .and. i_abutting_panel <= this%N_panels) then
+
+                                ! See if this panel touches the vertex
+                                if (this%panels(i_abutting_panel)%touches_vertex(i_jango)) then
+
+                                    ! Remove from original vertex
+                                    call this%vertices(i_jango)%panels_not_across_wake_edge%delete(i_abutting_panel)
+
+                                    ! Add to cloned vertex
+                                    if (.not.this%vertices(i_boba)%panels_not_across_wake_edge%is_in(i_abutting_panel))&
+                                        then
+                                        call this%vertices(i_boba)%panels_not_across_wake_edge%append(i_abutting_panel)
+                                    end if
+
+                                end if
+                            end if
+                        end if
+                    end do
+
+                end if
+
+            end if
+
+        end do
+
+        ! Update bottom panels to point to cloned vertex
+        do k=1,this%vertices(i_boba)%panels_not_across_wake_edge%len()
+
+            ! Get panel index
+            call this%vertices(i_boba)%panels_not_across_wake_edge%get(k, i_bot_panel)
+
+            ! Update (doesn't need to be done for mirrored panels)
+            if (i_bot_panel <= this%N_panels) then
+                call this%panels(i_bot_panel)%point_to_new_vertex(this%vertices(i_boba))
+            end if
+
+        end do
+        
+    end subroutine surface_mesh_init_vertex_clone
+
+
     subroutine surface_mesh_get_vertex_sorting_indices(this, freestream, i_sorted)
         ! Determines the vertex indices which will sort them in the conpressibility direction
 
@@ -1243,7 +1255,7 @@ contains
         integer,dimension(:),allocatable,intent(out) :: i_sorted
 
         real,dimension(:),allocatable :: x
-        integer :: i, j, k
+        integer :: i
 
         ! Allocate the compressibility distance array
         allocate(x(this%N_verts))
@@ -1252,7 +1264,7 @@ contains
         do i=1,this%N_verts
 
             ! Initialize with the compressibility distance of this vertex
-            x(i) = inner(freestream%c_hat_g, this%vertices(i)%loc)
+            x(i) = -inner(freestream%c_hat_g, this%vertices(i)%loc)
 
         end do
 
@@ -1649,6 +1661,7 @@ contains
 
                 ! Place control point
                 this%cp(:,i) = this%vertices(i)%loc - offset * (this%vertices(i)%n_g - offset_ratio*n_avg)*this%vertices(i)%l_avg
+                !this%cp(:,i) = this%vertices(i)%loc - offset*this%vertices(i)%n_g*this%vertices(i)%l_avg*3.
 
             ! If it has no clone, then placement simply follows the normal vector
             else
