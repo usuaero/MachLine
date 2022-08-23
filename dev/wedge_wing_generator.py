@@ -81,7 +81,8 @@ def init_airfoil(chord_spacing, **kwargs):
     """
     # Pull in values from kwargs dict
     x_c = kwargs.get('x_c', 0.5)
-    t_c = kwargs.get('t_c', 0.15)
+    t_c = kwargs.get('t_c', 0.15) / 2 # The thickness is split in half here because 
+                                      # it will be mirrored about the chordline for the lower surface
     node_ratio = kwargs.get('node_shift', 0.5)
     chordwise_cluster = kwargs.get('cosine_cluster', True)
     local_chord = kwargs.get('local_chord', 1.0)
@@ -143,10 +144,6 @@ def scale_airfoil(x_root, y_root, **kwargs):
         x values for airfoil coordinates at root
     y_root : numpy 1-D array
         y values for airfoil coordinates at root
-    x_c : float
-        x location of max thickness(nondimensionalized by local chord length)
-    t_c : float
-        max thickness of airfoil (nondimensionalized by local chord length)
     LE_xloc : float
         leading edge x location of wing at identified semispan locations
     local_chord : float
@@ -161,8 +158,6 @@ def scale_airfoil(x_root, y_root, **kwargs):
         y vertices for scaled airfoil
     """
     # Pull values from kwargs dictionary
-    x_c = kwargs.get('x_c', 0.5)
-    t_c = kwargs.get('t_c', 0.15)
     LE_xloc = kwargs.get('LE_xloc', 0.0)
     local_chord = kwargs.get('local_chord', 1.0)
     
@@ -193,6 +188,45 @@ def mirror_y(temp_list):
         mirrored_list = np.append(temp_list[:-1], -1*(temp_list[::-1])) # remove duplicate leading edge vertex
 
         return mirrored_list[:-1] # remove duplicate trailing edge vertex
+
+def mirror_body(vertices, panels):
+    """Mirror vertices about the xy plane
+    
+    Parameters
+    ----------
+    vertices : list of lists
+        Complete list of vertices used for non-mirrored body
+    panels : list of lists
+        Complete list of panles for non-mirrored body.    
+
+    Returns
+    -------
+    combined_vertices : list of lists
+        Complete list of vertices, mirrored and original body
+    combined_panels : 2-D numpy array
+        Complete list of panels, mirrored and original body
+    """
+    # Initialize containers
+    combined_vertices = []
+    combined_panels = []
+    N = len(vertices)
+
+
+    # Mirror vertices accross the xy plane
+    mirrored_vertices = []
+    for val in vertices:
+        mirrored_vertices.append([val[0], val[1], -val[2]])
+
+    # Mirror panels, correcting ordering for outward normal and referencing mirrored vertices
+    mirrored_panels = []
+    for pan in panels:
+        mirrored_panels.append([pan[2]+N, pan[1]+N, pan[0]+N])
+
+    # Combined mirrored panels and mirrored vertices
+    combined_panels = np.array(np.ndarray.tolist(panels) + mirrored_panels, dtype=int)
+    combined_vertices = vertices + mirrored_vertices
+
+    return combined_vertices, combined_panels
 
 
 def distance(v1, v2, **kwargs):
@@ -261,8 +295,26 @@ def between(value, bound_1, bound_2):
 
 
 def create_panels(airfoil_locations, vertices, le_list, xc_max):
-    """Creates a list of panels, using ccw rrh to assign order of vertices."""
-    # Initialize panel container
+    """Creates a list of panels, using ccw rrh to assign order of vertices.
+    
+    Parameters
+    ----------
+    airfoil_locations : list of lits 
+        Contains the vertex locations of the TE, LE, and final vertex of each airfoil location
+    vertices : list of lists
+        Each inner list contains the x, y, z coordinates of the vertex locations
+    le_list : list
+        Single list containing the vertex locations of the leading edge vertices
+    xc_max : list
+        Single list containing the vertex locations of the max thickness location vertices
+    
+    Returns
+    -------
+    panels : list of lists
+        Each inner list is a panel, identifying the orientation and location of each panel along the mesh
+    """
+
+    # Initialize panel container and number of vertices
     panels = []
 
     # Create a modified list of airfoil locations over upper surface
@@ -306,7 +358,7 @@ def create_panels(airfoil_locations, vertices, le_list, xc_max):
                 p_two = airfoil_locations[i+1][0]
             
             panels.append([p_one, p_two, p_three])
-                
+
     return panels
 
 
@@ -456,13 +508,13 @@ if __name__ == '__main__':
     b_2c = 1.0065 # semispan nondimensionalized by root chord
     R_T = 0.0 # taper ratio c_t/c_R
     LE_sweep = 44.85 # leading edge sweep angle in degrees
-    node_ratio = .45 # User input ratio of nodes to be placed forward of the max thickness location
-
+    node_ratio = .3 # User input ratio of nodes to be placed forward of the max thickness location
+    mirror_xy = True # Mirrors body across xy plane
 
     # Initialize number of nodes in chord and spanwize directions
-    cw_nodes = 50 # Issues may occur in mesh calculations if chordwise and spanwise nodes are different
-    sw_nodes = 50
-    cluster_cw = True
+    cw_nodes = 25 # Issues may occur in mesh calculations if chordwise and spanwise nodes are different
+    sw_nodes = 10
+    cluster_cw = False
     cluster_sw = False
 
     # Determine average node spacing at root chord
@@ -490,7 +542,7 @@ if __name__ == '__main__':
 
         c_local = te_xloc[i] - le_xloc[i]
         x_coord, y_coord = init_airfoil(S_avg, local_chord=c_local, x_c=xc_local[0], t_c=tc, node_shift=node_ratio, cosine_cluster=cluster_cw)
-        x_scaled, y_scaled = scale_airfoil(x_coord, y_coord, x_c=xc_local[i], t_c=tc, local_chord=c_local, LE_xloc=le_xloc[i])
+        x_scaled, y_scaled = scale_airfoil(x_coord, y_coord, local_chord=c_local, LE_xloc=le_xloc[i])
         # mirror x and y scaled airfoils
         x_vert = mirror_x(x_scaled)
         y_vert = mirror_y(y_scaled)
@@ -515,13 +567,17 @@ if __name__ == '__main__':
         # Store end location of airfoil location
         airfoil_locs[i].append(vertex_cnt)
     
+    # Determine panels for non-mirrored mesh
     panels = np.array(create_panels(airfoil_locs, vertices, leading_edges, max_thickness), dtype=int)
 
-    filename= '../studies/delta_wing/meshes/delta_wing_clustered_mesh.vtk'
-    _export_vtk(filename, vertices, panels)
+    # Mirror (if selected) and output final mesh to selected location
+    filename= '../studies/delta_wing/meshes/delta_wing_nonclustered_mesh.vtk'
+    if mirror_xy:
+        combined_verts, combined_panels = mirror_body(vertices, panels)
 
-
-
+        _export_vtk(filename, combined_verts, combined_panels)
+    else:
+        _export_vtk(filename, vertices, panels)
 
     print("Geometry created")
     print("file location: ", filename)

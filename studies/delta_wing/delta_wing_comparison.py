@@ -30,7 +30,7 @@ def data_plot(comp_method, angles_of_attack, semispan_locations):
             experimental_data = np.genfromtxt(exper_data_loc, delimiter=",", dtype=float) # x in column 0, Cp in column 1 from Love, page 57
 
             # Initialize figure and shapes to be plotted
-            plt.figure(figsize=(10,8))
+            plt.figure(figsize=(6,4))
             shape = ["o", "^", "s", "v"]
 
             data_location = 'studies/delta_wing/results/delta_wing_{0}_semispan_{1}_deg_results.csv'.format(semi, AoA)
@@ -69,7 +69,7 @@ def data_plot(comp_method, angles_of_attack, semispan_locations):
             plt.ylabel(y_title)
             plt.gca().invert_yaxis()
             plt.legend()
-            plt.title(f"{semi} percent semispan at {aoa_formatted}")
+            # plt.title(f"{semi} percent semispan at {aoa_formatted}")
 
             # Save figure
             plot_loc = 'studies/delta_wing/plots/delta_wing_comparison_{0}_semispan_{1}_aoa.pdf'.format(semi, AoA)
@@ -87,8 +87,11 @@ if __name__=="__main__":
     angles_of_attack = [0.0, 2.0, 4.1, 8.5, 10.75]
     # angles_of_attack = [0.0]
     semispan_loc = [22.5, 64.1]
-    b_half = 1.0065 # nondimensionalized by root chord
-    mesh_density = "clustered"
+    # b_half = 1.0065 # semispan length nondimensionalized by root chord
+    b_half = 0.2315 # semispan length for OpenVSP model
+    # mesh_density = "clustered"
+    mesh_density = 'clustered_VSP'
+    mesh_filetype = 'stl'
 
     # Check working directory and re-route if necessary
     check_dir = getcwd()
@@ -103,14 +106,12 @@ if __name__=="__main__":
         body_file = "studies/delta_wing/results/delta_wing_{0}_deg_{1}.vtk".format(alpha,mesh_density)
         input_dict = {
             "flow": {
-                "freestream_velocity": [M*c_inf*np.cos(np.radians(alpha)), 0.0, M*c_inf*np.sin(np.radians(alpha))],
+                "freestream_velocity": [M*c_inf*np.cos(np.radians(alpha)),0.0,  M*c_inf*np.sin(np.radians(alpha))],
                 "gamma" : gamma,
                 "freestream_mach_number" : M
             },
             "geometry": {
-                "file": "studies/delta_wing/meshes/delta_wing_{0}_mesh.vtk".format(mesh_density),
-                "spanwise_axis" : "+y",
-                "mirror_about": "xy",
+                "file": "studies/delta_wing/meshes/delta_wing_{0}_mesh.{1}".format(mesh_density, mesh_filetype),
                 "wake_model": {
                     "wake_present" : True,
                     "append_wake" : False
@@ -173,8 +174,8 @@ if __name__=="__main__":
             slicer.SliceType = 'Plane'
             # slicer.HyperTreeGridSlicer = 'Plane'
             slicer.SliceOffsetValues = [0.0]
-            slicer.SliceType.Origin = [0.0, 0.0, percent_semispan]
-            slicer.SliceType.Normal = [0.0, 0.0, 1.0]
+            slicer.SliceType.Origin = [0.0, percent_semispan, 0.0]
+            slicer.SliceType.Normal = [0.0, 1.0, 0.0]
             # slicer.HyperTreeGridSlicer = [0.0, 1.0, 0.0]
 
             # Extract and save data

@@ -20,6 +20,7 @@
     },
     "solver": {
         "formulation": "source-free",
+        "run_checks": true,
         "control_point_offset": 1.1e-08
     },
     "post_processing": {
@@ -31,6 +32,7 @@
         }
     },
     "output": {
+        "verbose": true,
         "body_file": "studies/sears_haack/machline_results/sears_haack_9800_data_mach_3.vtk",
         "control_point_file": "studies/sears_haack/machline_results/sears_haack_9800_data_mach_3_control_points.vtk"
     }

@@ -58,7 +58,7 @@ def comparison_plots(data_location, Mach):
     x_axis = data[:,x_loc] / max(data[:,x_loc]) # non-dimensionalized by total length
 
     # Plot data from MachLine
-    plt.figure(figsize=(10,8))
+    plt.figure(figsize=(6,4))
     plt.yscale("log")
 
     # Differentiate positive and negative restults and plot for each identified method
@@ -112,11 +112,11 @@ def data_plot(comp_method, Mach_numbers):
         comp_type = "C_p_2nd"
 
     # Initialize figure and shapes to be plotted
-    shape = [".", "^", "s", "v"]
+    shape = [".", "s", "^", "v"]
 
     # Loop over Mach Numbers
     for k,Mach in enumerate(Mach_numbers):
-        plt.figure(figsize=(10,8))
+        plt.figure(figsize=(6,4))
         data_location = 'studies/sears_haack/machline_results/sears_haack_{0}_data_mach_{1}.csv'.format(grid,Mach)
 
         comparison_data_loc = 'studies/sears_haack/sears_haack_Stivers_mach_{}.csv'.format(Mach)
@@ -142,16 +142,16 @@ def data_plot(comp_method, Mach_numbers):
         data = np.genfromtxt(data_location, delimiter=",", skip_header=1, dtype=float)
 
         # Plot data
-        plt.plot(data[:,x_loc]/max(data[:,x_loc]), data[:,Cp_loc],color='k', label = "MachLine", marker = '.', markersize = 5, linestyle="none")
+        plt.plot(data[:,x_loc]/max(data[:,x_loc]), data[:,Cp_loc],color='k', label = "MachLine", marker = '.', linestyle="none", fillstyle='full')
         plt.plot(comparison_data[:,0], comparison_data[:,1], 'k-', label="Stivers")
 
         # Format plot
         plt.xlabel("x/l")
-        y_title = r"$C_p$ " + comp_method
+        y_title = r"$C_p$"
         plt.ylabel(y_title)
         plt.gca().invert_yaxis()
         plt.legend()
-        plt.title(f"Mach {Mach}")
+        # plt.title(f"Mach {Mach}")
 
         # Save figure
         plot_loc = 'studies/sears_haack/plots/sears_haack_M_{0}.pdf'.format(Mach)
@@ -196,6 +196,7 @@ if __name__=="__main__":
         },
         "solver": {
             "formulation": "source-free",
+            "run_checks": True,
             "control_point_offset": 1.1e-8
         },
         "post_processing" : {
@@ -207,6 +208,7 @@ if __name__=="__main__":
             }
         },
         "output" : {
+            "verbose": True,
             "body_file" : body_file,
             "control_point_file" : "studies/sears_haack/machline_results/sears_haack_{0}_data_mach_{1}_control_points.vtk".format(grid,M)
         }
@@ -261,5 +263,5 @@ if __name__=="__main__":
     # comparison_plots(save_loc, M)
 
     # Plot single computational method over a range of mach numbers
-    computational_method = "isentropic" # isentropic, second order, slender-body, or linear
+    computational_method = "slender-body" # isentropic, second order, slender-body, or linear
     data_plot(computational_method,Mach_Numbers)
