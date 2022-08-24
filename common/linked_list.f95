@@ -457,7 +457,6 @@ contains
 
     type(node),pointer :: curr_node, prev_node, del_node
     integer :: curr_val
-    write(*,*) "Deleting", int
 
     ! Check if it's in the list
     if (.not. this%is_in(int)) then
@@ -528,7 +527,6 @@ contains
 
       end do
     end if
-    write(*,*) "Finished deleting", int
 
   end subroutine list_delete_integer
 

@@ -491,7 +491,6 @@ contains
                 x(i) = huge(x(i))
                 do j=1,body%vertices(i)%adjacent_vertices%len()
                     call body%vertices(i)%adjacent_vertices%get(j, i_vert)
-                    write(*,*) i, i_vert
                     x(i) = min(x(i), -inner(this%freestream%c_hat_g, body%vertices(i_vert)%loc))
                 end do
 
