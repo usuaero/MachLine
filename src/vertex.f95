@@ -14,6 +14,7 @@ module vertex_mod
         real,dimension(3) :: loc ! Location
         real,dimension(3) :: n_g, n_g_mir ! Normal vector associated with this control point
         real :: l_avg ! Average of the edge lengths adjacent to this vertex
+        real :: l_min ! Minimum of the edge lengths adjacent to this vertex
         type(list) :: adjacent_vertices ! List of indices for the vertices which share an edge with this vertex
         type(list) :: adjacent_edges ! List of indices for the edges which touch this vertex
         type(list) :: panels ! List of indices for the panels which connect to this vertex
@@ -84,27 +85,35 @@ contains
         type(vertex),dimension(:),allocatable,intent(in) :: vertices
 
         integer :: i, adj_ind, N
+        real :: l_i
 
         ! Loop through adjacent vertices
         this%l_avg = 0.
+        this%l_min = huge(this%l_min)
         N = 0
         do i=1,this%adjacent_vertices%len()
             
             ! Get index of adjacent vertex
             call this%adjacent_vertices%get(i, adj_ind)
 
+            ! Calculate edge length
+            l_i = dist(this%loc, vertices(adj_ind)%loc)
+
+            ! Get minimum
+            this%l_min = min(this%l_min, l_i)
+
             ! For a vertex on the mirror plane where the adjacent vertex is not on the mirror plane
             ! that length will need to be added twice
             if (this%on_mirror_plane .and. .not. vertices(adj_ind)%on_mirror_plane) then
 
                 ! Add twice
-                this%l_avg = this%l_avg + dist(this%loc, vertices(adj_ind)%loc)*2
+                this%l_avg = this%l_avg + 2*l_i
                 N = N + 2
                 
             else
 
                 ! Add once
-                this%l_avg = this%l_avg + dist(this%loc, vertices(adj_ind)%loc)
+                this%l_avg = this%l_avg + l_i
                 N = N + 1
 
             end if

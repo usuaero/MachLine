@@ -57,6 +57,7 @@ module linked_list_mod
     procedure :: len => list_length
     procedure :: append => list_append_item
     procedure :: delete => list_delete_integer
+    procedure :: clear => list_clear
     procedure :: print => list_print_integer
     procedure :: get_item_character => list_get_item_character
     procedure :: get_item_complex => list_get_item_complex
@@ -426,6 +427,24 @@ contains
       end select
     end if
   end subroutine list_get_item_real
+
+
+  subroutine list_clear(this)
+    ! Removes all elements from this list
+
+    implicit none
+    
+    class(list), intent(inout) :: this
+
+    integer :: i
+  
+    ! Delete every item
+    do while (this%len() > 0) 
+      call this%get(1, i)
+      call this%delete(i)
+    end do
+    
+  end subroutine list_clear
 
 
   subroutine list_delete_integer(this, int)

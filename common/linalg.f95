@@ -1139,7 +1139,6 @@ end subroutine QR_givens_solve_upper_pentagonal
 subroutine QR_back_sub(N, R, b, x)
   ! Performs back substitution on the system [R] x = [Q]^H b
   ! It is assumed that b has already been multiplied by [Q]
-  ! P is a permutation vector allowing for pivoting
 
   implicit none
   
@@ -1149,6 +1148,11 @@ subroutine QR_back_sub(N, R, b, x)
   real,dimension(:),allocatable,intent(out) :: x
 
   integer :: i, j
+  real :: det
+
+  ! Calculate the determinant
+  !det = QR_calc_det(N, R)
+  !write(*,'(a, e20.12, a)',advance='no') "(Scaled determinant of R: ", det, ")"
 
   ! Initialize
   allocate(x(N))
@@ -1174,6 +1178,34 @@ subroutine QR_back_sub(N, R, b, x)
   end do
   
 end subroutine QR_back_sub
+
+
+function QR_calc_det(N, R) result(det)
+  ! Calculates the absolute value of the determinant of R (assuming R is trangular)
+
+  implicit none
+  
+  integer,intent(in) :: N
+  real,dimension(N,N),intent(in) :: R
+
+  real :: det
+  integer :: i
+
+  ! Initialize
+  det = 1.
+
+  ! Assemble product of diagonal elements
+  do i=1,N
+    det = det*abs(R(i,i)/maxval(abs(R(i,:))))
+    write(*,*)
+    write(*,*) "Row", i
+    write(*,*) "Max value: ", R(i,maxloc(abs(R(i,:))))
+    write(*,*) "Location of max value: ", maxloc(abs(R(i,:)))
+    write(*,*) "Diagonal element: ", R(i,i)
+    write(*,*) "Determinant: ", det
+  end do
+
+end function QR_calc_det
 
 
 end module linalg_mod

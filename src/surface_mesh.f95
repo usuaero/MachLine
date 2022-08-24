@@ -921,7 +921,7 @@ contains
         type(vertex),dimension(:),allocatable :: temp_vertices
         integer :: i, j
         integer,dimension(:,:),allocatable :: i_vertices
-        integer,dimension(:),allocatable :: i_rearrange_inv
+        integer,dimension(:),allocatable :: i_rearrange_inv, i_adj_vert
 
         ! Get panel vertex indices
         call this%get_indices_to_panel_vertices(i_vertices)
@@ -946,6 +946,27 @@ contains
             ! Fix wake partners
             do i=1,this%N_verts
                 temp_vertices(i)%i_wake_partner = i_rearrange_inv(temp_vertices(i)%i_wake_partner)
+            end do
+
+            ! Fix adjacent vertex lists
+            do i=1,this%N_verts
+
+                ! Get new indices
+                allocate(i_adj_vert(temp_vertices(i)%adjacent_vertices%len()))
+                do j=1,temp_vertices(i)%adjacent_vertices%len()
+                    call temp_vertices(i)%adjacent_vertices%get(j, i_adj_vert(j))
+                    i_adj_vert(j) = i_rearrange_inv(i_adj_vert(j))
+                end do
+
+                ! Clear out old list
+                call temp_vertices(i)%adjacent_vertices%clear()
+
+                ! Update vertices
+                do j=1,size(i_adj_vert)
+                    call temp_vertices(i)%adjacent_vertices%append(i_adj_vert(j))
+                end do
+                deallocate(i_adj_vert)
+
             end do
 
             ! Fix edge endpoints (and midpoints if necessary)
@@ -1050,7 +1071,6 @@ contains
             call this%allocate_new_vertices(N_clones)
 
             ! Allocate rearranged indices array
-            allocate(i_rearrange(this%N_verts), source=0)
             allocate(i_rearrange_inv(this%N_verts), source=0)
 
             ! Initialize clones
@@ -1090,6 +1110,7 @@ contains
             end do
 
             ! Get inverse mapping
+            allocate(i_rearrange(this%N_verts), source=0)
             do i=1,this%N_verts
                 i_rearrange(i_rearrange_inv(i)) = i
             end do
@@ -1651,7 +1672,7 @@ contains
 
                 ! Place control point
                 this%cp(:,i) = this%vertices(i)%loc - offset * (this%vertices(i)%n_g - offset_ratio*n_avg)*this%vertices(i)%l_avg
-                !this%cp(:,i) = this%vertices(i)%loc - offset*this%vertices(i)%n_g*this%vertices(i)%l_avg*3.
+                !this%cp(:,i) = this%vertices(i)%loc - this%vertices(i)%n_g*this%vertices(i)%l_min*0.125
 
             ! If it has no clone, then placement simply follows the normal vector
             else

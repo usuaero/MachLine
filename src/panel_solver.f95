@@ -495,7 +495,7 @@ contains
                 end do
 
                 ! Based on just the location of the vertex itself
-                !x(i) = min(x(i), -inner(this%freestream%c_hat_g, body%vertices(i)%loc))
+                !x(i) = -inner(this%freestream%c_hat_g, body%vertices(i)%loc)
 
                 ! Mirrored vertex
                 if (body%asym_flow) then
@@ -929,7 +929,7 @@ contains
 
                 ! Add influence
                 do k=1,size(body%wake%panels(j)%i_vert_d)
-                    A_i(body%wake%panels(j)%i_vert_d(k)) = A_i(body%wake%panels(j)%i_vert_d(k)) + doublet_inf(k)
+                    A_i(this%P(body%wake%panels(j)%i_vert_d(k))) = A_i(this%P(body%wake%panels(j)%i_vert_d(k))) + doublet_inf(k)
                 end do
 
                 ! Get influence on mirrored control point
@@ -945,7 +945,8 @@ contains
                         ! Add influence
                         if (body%vertices(i)%mirrored_is_unique) then
                             do k=1,size(body%wake%panels(j)%i_vert_d)
-                                A_i_mir(body%wake%panels(j)%i_vert_d(k)) = A_i_mir(body%wake%panels(j)%i_vert_d(k)) + doublet_inf(k)
+                                A_i_mir(this%P(body%wake%panels(j)%i_vert_d(k))) = &
+                                        A_i_mir(this%P(body%wake%panels(j)%i_vert_d(k))) + doublet_inf(k)
                             end do
                         end if
 
@@ -960,7 +961,8 @@ contains
 
                         ! Add influence
                         do k=1,size(body%wake%panels(j)%i_vert_d)
-                            A_i(body%wake%panels(j)%i_vert_d(k)) = A_i(body%wake%panels(j)%i_vert_d(k)) + doublet_inf(k)
+                            A_i(this%P(body%wake%panels(j)%i_vert_d(k))) = &
+                                        A_i(this%P(body%wake%panels(j)%i_vert_d(k))) + doublet_inf(k)
                         end do
 
                     end if

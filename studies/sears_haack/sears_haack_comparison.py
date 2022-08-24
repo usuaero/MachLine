@@ -162,7 +162,7 @@ def data_plot(comp_method, Mach_numbers):
 if __name__=="__main__":
 
     # Parameters
-    M = 3
+    M = 2
     Mach_Numbers = [2, 3] # Only for plotting purposes. The data needs to already be calculated previously
     R_G = 287.058
     gamma = 1.4
