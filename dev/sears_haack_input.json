@@ -19,9 +19,8 @@
         }
     },
     "solver": {
-        "formulation": "source-free",
-        "control_point_offset": 1.1e-08,
-        "matrix_solver" : "QRUP"
+        "matrix_solver" : "QRUP",
+        "write_A_and_b" : true
     },
     "post_processing": {
         "pressure_rules": {

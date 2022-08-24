@@ -5,8 +5,7 @@
         "freestream_mach_number" : 2.0
     },
     "geometry": {
-        "file": "dev/meshes/diamond_5_deg_coarse.vtk",
-        "mirror_about": "xz",
+        "file": "test/meshes/diamond_full_wing.stl",
         "spanwise_axis" : "+y",
         "singularity_order" : {
             "source" : 0,
@@ -20,19 +19,17 @@
         }
     },
     "solver": {
-        "matrix_solver" : "QRUP",
-        "write_A_and_b" : true
+        "matrix_solver" : "QRUP"
     },
     "post_processing" : {
         "pressure_rules" : {
-            "second-order" : true,
             "isentropic" : true
         }
     },
     "output": {
-        "body_file" :          "dev/results/diamond_5_deg_mirrored_right.vtk",
-        "wake_file" :          "dev/results/diamond_5_deg_mirrored_wake.vtk",
-        "mirrored_body_file" : "dev/results/diamond_5_deg_mirrored_left.vtk",
-        "control_point_file" : "dev/results/diamond_5_deg_mirrored_right_control_points.vtk"
+        "body_file" :          "test/results/diamond_5_deg_full_medium.vtk",
+        "wake_file" :          "test/results/diamond_5_deg_full_medium_wake.vtk",
+        "control_point_file" : "test/results/diamond_5_deg_full_medium_control_points.vtk",
+        "report_file" :        "test/results/report.json"
     }
 }

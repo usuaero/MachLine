@@ -15,8 +15,6 @@
         }
     },
     "solver": {
-        "formulation": "morino",
-        "control_point_offset": 1.1e-6,
         "matrix_solver" : "QRUP"
     },
     "post_processing" : {
