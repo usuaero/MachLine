@@ -84,14 +84,14 @@ if __name__=="__main__":
     gamma = 1.4
     T_inf = 300.0
     c_inf = np.sqrt(gamma*R_G*T_inf)
-    angles_of_attack = [0.0, 2.0, 4.1, 8.5, 10.75]
-    # angles_of_attack = [0.0]
+    # angles_of_attack = [0.0, 2.0, 4.1, 8.5, 10.75]
+    angles_of_attack = [0.0]
     semispan_loc = [22.5, 64.1]
-    # b_half = 1.0065 # semispan length nondimensionalized by root chord
-    b_half = 0.2315 # semispan length for OpenVSP model
+    b_half = 1.0065 # semispan length nondimensionalized by root chord
+    # b_half = 0.2315 # semispan length for OpenVSP model
     # mesh_density = "clustered"
-    mesh_density = 'clustered_VSP'
-    mesh_filetype = 'stl'
+    mesh_density = 'clustered'
+    mesh_filetype = 'vtk'
 
     # Check working directory and re-route if necessary
     check_dir = getcwd()
@@ -106,7 +106,7 @@ if __name__=="__main__":
         body_file = "studies/delta_wing/results/delta_wing_{0}_deg_{1}.vtk".format(alpha,mesh_density)
         input_dict = {
             "flow": {
-                "freestream_velocity": [M*c_inf*np.cos(np.radians(alpha)),0.0,  M*c_inf*np.sin(np.radians(alpha))],
+                "freestream_velocity": [M*c_inf*np.cos(np.radians(alpha)), M*c_inf*np.sin(np.radians(alpha)), 0.0],
                 "gamma" : gamma,
                 "freestream_mach_number" : M
             },
@@ -114,7 +114,8 @@ if __name__=="__main__":
                 "file": "studies/delta_wing/meshes/delta_wing_{0}_mesh.{1}".format(mesh_density, mesh_filetype),
                 "wake_model": {
                     "wake_present" : True,
-                    "append_wake" : False
+                    "append_wake" : True,
+                    "trefftz_distance": 20,
                 },
                 "reference": {
                     "area": 1.0
@@ -122,6 +123,7 @@ if __name__=="__main__":
             },
             "solver": {
                 "formulation": "morino",
+                "matrix_solver": 'LU',
                 "run_checks": True,
                 "control_point_offset": 1.1e-8
             },
@@ -136,7 +138,8 @@ if __name__=="__main__":
             "output" : {
             "verbose": True,
             "body_file" :          body_file,
-            "control_point_file" : "studies/delta_wing/results/delta_wing_{0}_deg_{1}_control_points.vtk".format(alpha,mesh_density)
+            "control_point_file" : "studies/delta_wing/results/delta_wing_{0}_deg_{1}_control_points.vtk".format(alpha,mesh_density),
+            "wake_file": "studies/delta_wing/results/delta_wing_{0}_deg_{1}_wake.vtk".format(alpha, mesh_density)
             }
         }
 
@@ -174,9 +177,13 @@ if __name__=="__main__":
             slicer.SliceType = 'Plane'
             # slicer.HyperTreeGridSlicer = 'Plane'
             slicer.SliceOffsetValues = [0.0]
-            slicer.SliceType.Origin = [0.0, percent_semispan, 0.0]
-            slicer.SliceType.Normal = [0.0, 1.0, 0.0]
-            # slicer.HyperTreeGridSlicer = [0.0, 1.0, 0.0]
+
+            if 'VSP' in mesh_density:
+                slicer.SliceType.Origin = [0.0, percent_semispan, 0.0]
+                slicer.SliceType.Normal = [0.0, 1.0, 0.0]
+            else:
+                slicer.SliceType.Origin = [0.0, 0.0, percent_semispan]
+                slicer.SliceType.Normal = [0.0, 0.0, 1.0]
 
             # Extract and save data
             plot = pvs.PlotData(registrationName="Plot")
@@ -188,4 +195,4 @@ if __name__=="__main__":
             pvs.SaveData(save_loc, proxy=plot, ChooseArraysToWrite=1, CellDataArrays=data_to_process, FieldAssociation='Cell Data')
     # Plot single computational method over a range of angles of attack at each semispan location
     computational_method = "isentropic" # isentropic, second order, slender-body, or linear
-    data_plot(computational_method, angles_of_attack, semispan_loc)
+    # data_plot(computational_method, angles_of_attack, semispan_loc)

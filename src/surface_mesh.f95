@@ -339,21 +339,11 @@ contains
             do j=1,this%panels(i)%N
                 if (this%panels(i)%abutting_panels(j) == 0) then
 
-<<<<<<< HEAD
-                    ! Mark that the mesh is not watertight
-                    watertight = .false.
-                    write(*,*) "!!! Panel ", i, " is not watertight"
-                    write(*,*) this%panels(i)%abutting_panels
-                    write(*,*) this%panels(i)%get_vertex_index(1)
-                    write(*,*) this%panels(i)%get_vertex_index(2)
-                    write(*,*) this%panels(i)%get_vertex_index(3)
-=======
                     ! Warn that the mesh is not watertight
                     if (run_checks) then
                         write(*,*) "!!! Panel ", i, " is missing a neighbor, meaning the supplied mesh may not be watertight."
                         write(*,*) "!!! Solution quality may be adversely affected."
                     end if
->>>>>>> test
 
                     ! Get endpoint indices
                     i_endpoints(1) = this%panels(i)%get_vertex_index(j)
@@ -625,17 +615,17 @@ contains
 
         ! Calculate normals (for placing control points)
         call this%calc_vertex_normals()
-
+        
         ! Initialize wake
         call this%init_wake(freestream, wake_file)
-
+        
         ! Set up influencing vertex arrays
         if (verbose) write(*,"(a)",advance='no') "     Setting influencing vertices for panels..."
         !$OMP parallel do schedule(static)
         do i=1,this%N_panels
             call this%panels(i)%set_influencing_verts()
         end do
-
+        
         if (verbose) write(*,*) "Done."
 
         ! Write out body file to ensure it's been parsed correctly

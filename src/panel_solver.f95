@@ -121,15 +121,11 @@ contains
         
         ! Parse settings
         call json_xtnsn_get(solver_settings, 'formulation', this%formulation, 'morino')        
-<<<<<<< HEAD
-        call json_xtnsn_get(solver_settings, 'matrix_solver', this%matrix_solver, 'LU')
-=======
         if (this%freestream%supersonic) then
             call json_xtnsn_get(solver_settings, 'matrix_solver', this%matrix_solver, 'QRUP')
         else
             call json_xtnsn_get(solver_settings, 'matrix_solver', this%matrix_solver, 'LU')
         end if
->>>>>>> test
         call json_xtnsn_get(solver_settings, 'block_size', this%block_size, 400)
         call json_xtnsn_get(solver_settings, 'tolerance', this%tol, 1e-12)
         call json_xtnsn_get(solver_settings, 'relaxation', this%rel, 0.8)

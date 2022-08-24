@@ -1,0 +1,43 @@
+{
+    "flow": {
+        "freestream_velocity": [
+            562.5025390022698,
+            0.0,
+            0.0
+        ],
+        "gamma": 1.4,
+        "freestream_mach_number": 1.62
+    },
+    "geometry": {
+        "file": "studies/delta_wing/meshes/tapered_wing_test.vtk",
+        "wake_model": {
+            "wake_present": true,
+            "append_wake": true,
+            "wake_shedding_angle": 120,
+            "trefftz_distance": 20
+        },
+        "reference": {
+            "area": 1.0
+        }
+    },
+    "solver": {
+        "formulation": "morino",
+        "matrix_solver": "LU",
+        "run_checks": true,
+        "control_point_offset": 1.1e-08
+    },
+    "post_processing": {
+        "pressure_rules": {
+            "second-order": true,
+            "isentropic": true,
+            "slender-body": true,
+            "linear": true
+        }
+    },
+    "output": {
+        "verbose": true,
+        "body_file": "studies/delta_wing/results/tapered_wing_test_0.0_deg_clustered.vtk",
+        "control_point_file": "studies/delta_wing/results/tapered_wing_test_0.0_deg_clustered_control_points.vtk",
+        "wake_file": "studies/delta_wing/results/tapered_wing_test_0.0_deg_clustered_wake.vtk"
+    }
+}

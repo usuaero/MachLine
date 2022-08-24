@@ -1,6 +1,7 @@
 # This script generates a vtk mesh file for symmetric wedge wings with an arbitrary taper ratio
 # Airfoil coordinates are used throughout this script
 
+from urllib.robotparser import RobotFileParser
 import numpy as np
 import matplotlib.pyplot as plt
 import copy
@@ -88,7 +89,8 @@ def init_airfoil(chord_spacing, **kwargs):
     local_chord = kwargs.get('local_chord', 1.0)
 
     # Determine number of nodes, preventing needle panels near tips
-    chord_nodes = int(np.ceil(local_chord / chord_spacing))
+    # chord_nodes = int(np.ceil(local_chord / chord_spacing))
+    chord_nodes = cw_nodes
     if chord_nodes < 5:
         chord_nodes = 5
     # Check if at the wingtip where there should only be one node
@@ -189,44 +191,7 @@ def mirror_y(temp_list):
 
         return mirrored_list[:-1] # remove duplicate trailing edge vertex
 
-def mirror_body(vertices, panels):
-    """Mirror vertices about the xy plane
-    
-    Parameters
-    ----------
-    vertices : list of lists
-        Complete list of vertices used for non-mirrored body
-    panels : list of lists
-        Complete list of panles for non-mirrored body.    
 
-    Returns
-    -------
-    combined_vertices : list of lists
-        Complete list of vertices, mirrored and original body
-    combined_panels : 2-D numpy array
-        Complete list of panels, mirrored and original body
-    """
-    # Initialize containers
-    combined_vertices = []
-    combined_panels = []
-    N = len(vertices)
-
-
-    # Mirror vertices accross the xy plane
-    mirrored_vertices = []
-    for val in vertices:
-        mirrored_vertices.append([val[0], val[1], -val[2]])
-
-    # Mirror panels, correcting ordering for outward normal and referencing mirrored vertices
-    mirrored_panels = []
-    for pan in panels:
-        mirrored_panels.append([pan[2]+N, pan[1]+N, pan[0]+N])
-
-    # Combined mirrored panels and mirrored vertices
-    combined_panels = np.array(np.ndarray.tolist(panels) + mirrored_panels, dtype=int)
-    combined_vertices = vertices + mirrored_vertices
-
-    return combined_vertices, combined_panels
 
 
 def distance(v1, v2, **kwargs):
@@ -234,8 +199,8 @@ def distance(v1, v2, **kwargs):
     
     Parameters
     ----------
-    airfoil_plane : str
-        Plane which the airfoil sections lie along. ex 'xz', 'yz', 'xz'
+    plane : str
+        plane in which to measure the 2D distance ex. 'xz', 'yz', 'xz'
     dimension : str
         select '2D' or '3D'
 
@@ -248,14 +213,14 @@ def distance(v1, v2, **kwargs):
     dim = kwargs.get('dimension', '3D')
 
     if dim == '2D':
-        plane = kwargs.get('airfoil_plane', 'xy')
+        plane = kwargs.get('plane', 'xz')
 
-        if plane == 'xz':
-            dist = np.sqrt((v2[1]-v1[1])**2 + (v2[0]-v1[0])**2) # compare xy distance
+        if plane == 'xy':
+            dist = np.sqrt((v2[1]-v1[1])**2 + (v2[0]-v1[0])**2) 
+        elif plane == 'xz':
+            dist = np.sqrt((v2[2]-v1[2])**2  + (v2[0]-v1[0])**2) 
         elif plane == 'yz':
-            dist = np.sqrt((v2[2]-v1[2])**2  + (v2[0]-v1[0])**2) # compare xz distance
-        elif plane == 'xy':
-            dist = np.sqrt((v2[2]-v1[2])**2 + (v2[1]-v1[1])**2) # compare yz distance
+            dist = np.sqrt((v2[2]-v1[2])**2 + (v2[1]-v1[1])**2) 
         else:
             print(plane, ' is an unrecognized entry for the airfoil plane. Quitting')
             exit()
@@ -328,8 +293,12 @@ def create_panels(airfoil_locations, vertices, le_list, xc_max):
         if i < len(airfoil_locations)-1:
             tip = upper_surf[i+1]
 
+            root_list = list(range(root[0], root[1]+1))
+            tip_list = list(range(tip[0], tip[1]+1)) 
+
+
             # Create panels over upper surface of wing
-            panel_iter = panel_generator(i, root, tip, vertices, le_list, xc_max, 'upper')
+            panel_iter = panel_generator(i, airfoil_locations, root_list, tip_list, vertices, le_list, xc_max, 'upper')
             panels += panel_iter
 
 
@@ -343,61 +312,76 @@ def create_panels(airfoil_locations, vertices, le_list, xc_max):
         if i < len(airfoil_locations)-1:
             tip = lower_surf[i+1]
 
+            root_list = list(range(root[0], root[1]+1))
+            tip_list = list(range(tip[0], tip[1]+1))
+
             # Create panels over lower surface of wing
-            panel_iter = panel_generator(i, root, tip, vertices, le_list, xc_max, 'lower')
+            panel_iter = panel_generator(i, airfoil_locations, root_list, tip_list, vertices, le_list, xc_max, 'lower')
             panels += panel_iter
 
             # Connect final panel on lower surface to trailing edge
-            p_one = root[1]
-            p_three = root[1] + 1
-
+            p_one = airfoil_locations[i][0]
+            p_three = airfoil_locations[i+1][0]
+            # breakpoint()
             # Determine the middle vertex based on what isn't already used
-            if airfoil_locations[i][0] not in panels[-1]:
-                p_two = airfoil_locations[i][0]
+            if p_one not in panels[-1]:
+                p_two = airfoil_locations[i][-1]
             else:
-                p_two = airfoil_locations[i+1][0]
+                p_two = airfoil_locations[i+1][-1]
+
+            # Avoid zero area panels
+            if not ((p_two == p_three) or (p_two == p_one)):
             
-            panels.append([p_one, p_two, p_three])
+                panels.append([p_one, p_three, p_two])
 
     return panels
 
 
-def panel_generator(iter, root, tip, vertices, le_list, xc_max, upper_or_lower):
+def panel_generator(iter, airfoil_locations, root, tip, vertices, le_list, xc_max, upper_or_lower):
 
     # Initialize counters and max iteration trackers
-    i_root_max = (root[1]-root[0]) + (upper_or_lower == 'lower') # Lower surface iterations requires 1 additional tip iteration
-    i_tip_max = (tip[1] - tip[0]) + 1 
+    i_root_max = int(abs(root[-1]-root[0])) + (upper_or_lower == 'lower') # Lower surface iterations requires 1 additional tip iteration
+    i_tip_max = int(abs(tip[-1] - tip[0])) + 1
     i_root = 0
     i_tip = 0
     panel_iter = []
 
+
     # Iterate over vertices
     while (i_root < i_root_max) and (i_tip < i_tip_max): # Needs to be an and statement
-        
-        # Initialize default for p_two
-        p_two = -1
 
         # Always start panel numbering with given vertex on next semispan location
-        p_three = tip[0] + i_tip
-        p_one = root[0] + i_root
+        p_three = tip[i_tip]
+        p_one = root[i_root]
 
-        # Identify next vertices along root and tip airfoils
-        next_tip = p_three + 1
-        next_root = p_one + 1
-
-        # Run a series of check to ensure proper choice of which vertex will be chosen for this iteration
+        # Run a series of checks to ensure proper choice of which vertex will be chosen for this iteration
         # Verify that the next tip and root locations are not on the next airfoil over
-        if next_tip > tip[1]:
-            p_two = next_root
+        if ((i_tip + 1) > len(tip)-1):
+            
+            # Check if the next root location is on trailing edge
+            if i_root <= (len(root)-2):
+                p_two = root[i_root + 1]
+            else:
+                p_two = airfoil_locations[iter][0]
             i_root += 1
 
-        elif next_root > root[1]:
-            p_two = next_tip
+        elif ((i_root + 1) > len(root)-1):
+            p_two = tip[i_tip + 1]
             i_tip += 1
+        
+
+        # Set default for p_two and next_root and next_tip
+        else:
+            p_two = -1
+            next_tip = tip[i_tip + 1]
+            next_root = root[i_root + 1]
+
+        if p_two != -1:
+            pass
 
         # Check to see if next_tip will be the only node at the trailing edge
         elif (next_tip in le_list) and (next_tip in xc_max):
-            p_two = p_one + 1
+            p_two = next_root
             i_root += 1
             
         # Check to see if next vertex is on leading edge
@@ -461,43 +445,124 @@ def panel_generator(iter, root, tip, vertices, le_list, xc_max, upper_or_lower):
         # Check if next point is the wingtip with a single point
         if (p_three == p_two) or (p_two == p_one):
             return panel_iter
-            
-
-        # Append panels to list in ccw direction
-        panel_iter.append([p_one, p_two, p_three])
+        else:   
+            # Append panels to list in ccw direction
+            panel_iter.append([p_one, p_two, p_three])
 
     return panel_iter
 
 
+def wingtip_cap(vertices, airfoil_locations, le_locations, max_thickness, **kwargs):
+    """ Creates caps for the wingtips on both sides of the mesh
+    
+    Parameters
+    ----------
+    cap_type : str
+        type of cap to add to wingtip: edge
+    scale_factor : float
+        percent of semispan length that the wingtip cap protrudes
+    cap_angle : float
+        degree angle of cap leading edge relative to wing leading edge
 
-def plot_airfoil(x,y):
-    fig, ax = plt.subplots()
-    ax.scatter(x,y)
-    ax.set_xlim([0,1.])
-    ax.set_ylim([-0.25, 0.25])
-    ax.set_aspect('equal')
-    plt.show()
+    Returns
+    -------
+    panels : list of lists
+        updated panels list that includes the wingtip cap panels
+    vertices : list of lists
+        updated vertex list that inclues the wingtip vertices
+    le_locations : list
+        updated list of leading edge locations
+    max_thickness : list
+        updated list of max thickness locations
+    """
+    # Pull in given key word arguments
+    cap_type = kwargs.get('cap_type', 'flat')
+    scale_factor = kwargs.get('scale_factor', 0.02)
+    cap_angle = kwargs.get('cap_angle', 60.0) * np.pi / 180.0
 
-def plot_planform(semispan, sweep_angle, taper, xcr, xct):
-    # Calculate location of tip leading edge
-    tip_LE = semispan * np.tan(sweep_angle)
-    tip_TE = tip_LE + taper
+    # Initialize containers
+    cap_panels = []
+    tip = airfoil_locations[-1]
+
+    # Determine x location of each vertex along the cap
+    nodes = tip[-1] - tip[0] + 1
+
+    # Determine how far out cap will protrude in the z direction
+    # if cap_type == 'edge':
+    #     z_cap = vertices[airfoil_locations[-1][-1]][-1] * (1 + scale_factor)
+
+    if cap_type == 'flat':
+        z_cap = vertices[tip[-1]][-1]
 
 
-    # Arrange vertices in ccw direction starting at root leading edge
-    vertices = np.array([[0, 1, tip_TE, tip_LE, 0], # x axis
-                         [0, 0, 0, 0, 0], # y axis
-                         [0, 0, semispan, semispan, 0]]) # z axis
 
-    # Check planform outline
-    plt.figure()
-    plt.plot(vertices[2], vertices[0], 'k') # planform plot
-    plt.plot([0.0, max(vertices[2])], [xcr, tip_LE+xct*(tip_TE-tip_LE)], 'k') # wedge airfoil ridge line
-    plt.gca().invert_yaxis()  # aligns x axis with airfoil coordinate system
-    plt.gca().invert_xaxis()  # aligns z axis with airfoil coordinate system
-    plt.gca().set_aspect('equal') # ensure plot isn't skewed in any direction
-    plt.show()
-    return
+        # Iterate over nodes at wingtip
+        temp = tip[0]
+        tip_verts = vertices[temp::]
+        # for i, val in enumerate(tip_verts):
+        upper = list(range(tip[0], tip[1]+1))
+        lower = list(range(tip[2], tip[1],-1))
+
+        cap_bounds = [[tip[0], tip[1]], [tip[1], tip[2]]] # Serves as airfoil locations for the cap
+        
+
+    else:
+        print('Only "flat" cap types are supported at this time. Quitting...')
+        exit()
+
+
+    # Create dummy variables to avoid errors when generating panels
+    le_list = [5,6,7]
+    xc_max = [0,1,2]
+    iter = 0
+    
+    # Create panels over the cap of the wingtip
+    panel_iter = panel_generator(iter, cap_bounds, upper, lower, vertices, le_list, xc_max, 'upper')
+    cap_panels += panel_iter
+
+
+    return cap_panels
+
+def mirror_body(vertices, panels):
+    """Mirror vertices about the xy plane
+    
+    Parameters
+    ----------
+    vertices : list of lists
+        Complete list of vertices used for non-mirrored body
+    panels : list of lists
+        Complete list of panles for non-mirrored body.    
+
+    Returns
+    -------
+    combined_vertices : list of lists
+        Complete list of vertices, mirrored and original body
+    combined_panels : 2-D numpy array
+        Complete list of panels, mirrored and original body
+    """
+    # Initialize containers
+    combined_vertices = []
+    combined_panels = []
+    N = len(vertices)
+
+
+    # Mirror vertices accross the xy plane
+    mirrored_vertices = []
+    for val in vertices:
+        mirrored_vertices.append([val[0], val[1], -val[2]])
+
+    # Mirror panels, correcting ordering for outward normal and referencing mirrored vertices
+    mirrored_panels = []
+    for pan in panels:
+        mirrored_panels.append([pan[2]+N, pan[1]+N, pan[0]+N])
+
+    # Combined mirrored panels and mirrored vertices
+    combined_panels = np.array(np.ndarray.tolist(panels) + mirrored_panels, dtype=int)
+    combined_vertices = vertices + mirrored_vertices
+
+    return combined_vertices, combined_panels
+
+
 
 if __name__ == '__main__':
 
@@ -506,16 +571,16 @@ if __name__ == '__main__':
     x_ct = 0.18 # nondimensional location of max thickness at tip
     tc = 0.08 # nondimensional max thickness
     b_2c = 1.0065 # semispan nondimensionalized by root chord
-    R_T = 0.0 # taper ratio c_t/c_R
+    R_T = 0.01 # taper ratio c_t/c_R
     LE_sweep = 44.85 # leading edge sweep angle in degrees
-    node_ratio = .3 # User input ratio of nodes to be placed forward of the max thickness location
+    node_ratio = .45 # User input ratio of nodes to be placed forward of the max thickness location
     mirror_xy = True # Mirrors body across xy plane
 
     # Initialize number of nodes in chord and spanwize directions
-    cw_nodes = 25 # Issues may occur in mesh calculations if chordwise and spanwise nodes are different
-    sw_nodes = 10
-    cluster_cw = False
-    cluster_sw = False
+    cw_nodes = 50 # Number of nodes along the upper surface
+    sw_nodes = 50 # Number of nodes along the semispan
+    cluster_cw = True
+    cluster_sw = True
 
     # Determine average node spacing at root chord
     S_avg = 1 / cw_nodes
@@ -534,14 +599,25 @@ if __name__ == '__main__':
     max_thickness = []
     leading_edges = []
     vertex_cnt = -1
+
+    temp_chord = te_xloc[0] - le_xloc[0]
+    temp_x, temp_y = init_airfoil(S_avg, local_chord=temp_chord, x_c=xc_local[0], t_c=tc, node_shift=node_ratio, cosine_cluster=cluster_cw)
+    temp_v1 = [temp_x[-1], temp_y[-1]]
+    temp_v2 = [temp_x[-2], temp_y[-2]]
+    dist = distance(temp_v1, temp_v2, dimension='2D', plane='xy')
+    TE_dist = dist/temp_chord
+    
+    
+    
+    # breakpoint()
     # Iterate over semispan locations, updating the vertex information at each point
-   
     for i, z in enumerate(zoc):
         # Store location of beginning of airfoil location
         airfoil_locs.append([vertex_cnt+1])
 
         c_local = te_xloc[i] - le_xloc[i]
-        x_coord, y_coord = init_airfoil(S_avg, local_chord=c_local, x_c=xc_local[0], t_c=tc, node_shift=node_ratio, cosine_cluster=cluster_cw)
+        # c_local = 1.0
+        x_coord, y_coord = init_airfoil(S_avg, local_chord=c_local, x_c=xc_local[i], t_c=tc, node_shift=node_ratio, cosine_cluster=cluster_cw)
         x_scaled, y_scaled = scale_airfoil(x_coord, y_coord, local_chord=c_local, LE_xloc=le_xloc[i])
         # mirror x and y scaled airfoils
         x_vert = mirror_x(x_scaled)
@@ -567,11 +643,22 @@ if __name__ == '__main__':
         # Store end location of airfoil location
         airfoil_locs[i].append(vertex_cnt)
     
+
     # Determine panels for non-mirrored mesh
-    panels = np.array(create_panels(airfoil_locs, vertices, leading_edges, max_thickness), dtype=int)
+    panels = create_panels(airfoil_locs, vertices, leading_edges, max_thickness)
+
+    # Add caps to the wingtips
+    if R_T != 0.0:
+        cap_panels = wingtip_cap(vertices, airfoil_locs, leading_edges, max_thickness)
+        
+        panels += cap_panels
+    
 
     # Mirror (if selected) and output final mesh to selected location
-    filename= '../studies/delta_wing/meshes/delta_wing_nonclustered_mesh.vtk'
+    # filename= '../studies/delta_wing/meshes/delta_wing_clustered_mesh.vtk'
+    filename= '../studies/delta_wing/meshes/tapered_wing_test.vtk'
+    panels = np.array(panels, dtype=int)
+
     if mirror_xy:
         combined_verts, combined_panels = mirror_body(vertices, panels)
 
