@@ -475,64 +475,90 @@ contains
         type(surface_mesh),intent(in) :: body
 
         real,dimension(:),allocatable :: x
-        integer :: i, j, i_vert
+        integer :: i, j, i_neighbor, i_vert
+        integer,dimension(:),allocatable :: P_inv_1, P_inv_2
 
         ! Sort vertices in compressibility direction
         ! We proceed from most downstream to most upstream so as to get an upper-pentagonal matrix
         if (this%freestream%supersonic) then
 
-            ! Allocate the compressibility distance array
+            if (verbose) write(*,'(a)',advance='no') "     Permuting vertices for efficient system solution..."
+
+            ! Sort by actual vertex location first
             allocate(x(this%N))
 
             ! Add compressibility distance of each vertex
             do i=1,body%N_verts
-
-                ! Loop through neighboring vertices to find the furthest back
-                x(i) = huge(x(i))
-                do j=1,body%vertices(i)%adjacent_vertices%len()
-                    call body%vertices(i)%adjacent_vertices%get(j, i_vert)
-                    x(i) = min(x(i), -inner(this%freestream%c_hat_g, body%vertices(i_vert)%loc))
-                end do
-
-                ! Based on just the location of the vertex itself
-                !x(i) = -inner(this%freestream%c_hat_g, body%vertices(i)%loc)
+                x(i) = -inner(this%freestream%c_hat_g, body%vertices(i)%loc)
 
                 ! Mirrored vertex
                 if (body%asym_flow) then
+                    x(i+body%N_verts) = -inner(this%freestream%c_hat_g, &
+                                               mirror_across_plane(body%vertices(i)%loc, body%mirror_plane))
+                end if
+
+            end do
+
+            ! Get inverse permutation based on vertex location
+            call insertion_arg_sort(x, P_inv_1)
+
+            ! Now sort again based on location of most-downstream neighboring vertex
+            ! For vertices sharing a downstream vertex, this will preserve the previous order, since insertion sort is stable
+            do i=1,size(P_inv_1)
+
+                ! Get vertex index
+                i_vert = P_inv_1(i)
+
+                ! Mirrored vertex
+                if (i_vert > body%N_verts) then
 
                     ! Loop through neighboring vertices to find the furthest back
-                    x(i+body%N_verts) = huge(x(i+body%N_verts))
-                    do j=1,body%vertices(i)%adjacent_vertices%len()
-                        call body%vertices(i)%adjacent_vertices%get(j, i_vert)
-                        x(i+body%N_verts) = min(x(i+body%N_verts), -inner(this%freestream%c_hat_g, &
-                                                mirror_across_plane(body%vertices(i_vert)%loc, body%mirror_plane)))
+                    x(i) = huge(x(i))
+                    do j=1,body%vertices(i_vert-body%N_verts)%adjacent_vertices%len()
+                        call body%vertices(i_vert-body%N_verts)%adjacent_vertices%get(j, i_neighbor)
+                        x(i) = min(x(i), -inner(this%freestream%c_hat_g, mirror_across_plane(body%vertices(i_neighbor)%loc, &
+                                                                                             body%mirror_plane)))
                     end do
 
-                    ! Based on just the location of the vertex iteself
-                    !x(i+body%N_verts) = -inner(this%freestream%c_hat_g, &
-                    !                           mirror_across_plane(body%vertices(i)%loc, body%mirror_plane))
+                else
+
+                    ! Loop through neighboring vertices to find the furthest back
+                    x(i) = huge(x(i))
+                    do j=1,body%vertices(i_vert)%adjacent_vertices%len()
+                        call body%vertices(i_vert)%adjacent_vertices%get(j, i_neighbor)
+                        x(i) = min(x(i), -inner(this%freestream%c_hat_g, body%vertices(i_neighbor)%loc))
+                    end do
+
                 end if
 
             end do
 
             ! Get inverse permutation
             ! Sorts into increasing order
-            call insertion_arg_sort(x, this%P_inv)
+            call insertion_arg_sort(x, P_inv_2)
+
+            ! Get overall permuation
+            allocate(this%P(this%N))
+            do i=1,this%N
+                this%P(P_inv_1(P_inv_2(i))) = i
+            end do
+
+            if (verbose) write(*,*) "Done."
 
         else
 
-            ! Identity
-            allocate(this%P_inv(this%N))
+            ! Identity permutation
+            allocate(this%P(this%N))
             do i=1,this%N
-                this%P_inv(i) = i
+                this%P(i) = i
             end do
 
         end if
 
-        ! Invert inverse to get original permutation
-        allocate(this%P(this%N))
+        ! Invert 
+        allocate(this%P_inv(this%N))
         do i=1,this%N
-            this%P(this%P_inv(i)) = i
+            this%P_inv(this%P(i)) = i
         end do
     
     end subroutine panel_solver_set_permutation

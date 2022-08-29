@@ -133,7 +133,7 @@ contains
         ! Check mesh file exists
         inquire(file=mesh_file, exist=file_exists)
         if (.not. file_exists) then
-            write(*,*) "!!! Mesh file", mesh_file, "does not exist. Quitting..."
+            write(*,*) "!!! Mesh file ", mesh_file, " does not exist. Quitting..."
             stop
         end if
 

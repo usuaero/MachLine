@@ -25,7 +25,6 @@ default:
 	common/math.f95 \
 	common/linalg.f95 \
 	common/preconditioners.f95 \
-	common/sparsity.f95 \
 	common/json.f95 \
 	common/json_xtnsn.f95 \
 	common/sort.f95 \

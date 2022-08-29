@@ -1099,7 +1099,7 @@ subroutine QR_givens_solve_upper_pentagonal(N, A, b, x)
   real,dimension(N),intent(inout) :: b
   real,dimension(:),allocatable,intent(out) :: x
 
-  integer :: i, j, B_l
+  integer :: i, j, B_l, unit
   real :: s, c
 
   ! Get lower bandwidth
@@ -1129,6 +1129,13 @@ subroutine QR_givens_solve_upper_pentagonal(N, A, b, x)
 
     end do
   end do
+
+  ! Write R matrix
+  open(newunit=unit, file="R_mat.txt")
+  do i=1,N
+      write(unit,*) A(i,:)
+  end do
+  close(unit)
 
   ! Back substitution
   call QR_back_sub(N, A, b, x)

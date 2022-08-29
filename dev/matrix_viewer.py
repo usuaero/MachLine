@@ -12,7 +12,9 @@ if __name__=="__main__":
     elements = np.genfromtxt(filename, dtype=np.single)
     elements = np.abs(elements, dtype=np.single)
     elements = np.log10(elements, dtype=np.single)
-    np.nan_to_num(elements, copy=False, neginf=-20.0)
+    np.nan_to_num(elements, copy=False, neginf=np.nan)
+    e_min = np.nanmin(np.nanmin(elements)).item()
+    np.nan_to_num(elements, copy=False, nan=e_min-2.0)
     print(elements.shape)
 
     # Plot
