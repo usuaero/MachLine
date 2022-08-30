@@ -11,7 +11,6 @@ module edge_mod
         integer,dimension(2) :: edge_index_for_panel ! Index of the edge which this is for each panel; edge should proceed counterclockwise for the top panel
         logical :: on_mirror_plane ! Whether this edge lies on the mirror plane
         logical :: sheds_wake ! Whether this edge sheds a wake
-        logical :: discontinuous ! Whether this edge has a jump in doublet strength
         real :: l ! Length
 
         contains
@@ -47,7 +46,6 @@ contains
         ! Set defaults
         this%on_mirror_plane = .false.
         this%sheds_wake = .false.
-        this%discontinuous = .false.
     
     end subroutine edge_init
 

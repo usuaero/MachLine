@@ -36,6 +36,7 @@ report.json
 iterative_solver_prog.csv
 A_mat.txt
 b_vec.txt
+R_mat.txt
 *.csv
 
 # Study files
@@ -47,6 +48,3 @@ studies/*/results/*
 
 # python stuff
 __pycache__/
-
-# Fortran error files
-fort.*
