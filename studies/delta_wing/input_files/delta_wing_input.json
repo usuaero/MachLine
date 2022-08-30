@@ -21,7 +21,6 @@
     },
     "solver": {
         "formulation": "morino",
-        "matrix_solver": "LU",
         "run_checks": true,
         "control_point_offset": 1.1e-08
     },

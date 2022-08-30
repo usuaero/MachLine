@@ -87,8 +87,8 @@ if __name__=="__main__":
     # angles_of_attack = [0.0, 2.0, 4.1, 8.5, 10.75]
     angles_of_attack = [0.0]
     semispan_loc = [22.5, 64.1]
-    b_half = 1.0065 # semispan length nondimensionalized by root chord
-    # b_half = 0.2315 # semispan length for OpenVSP model
+    # b_half = 1.0065 # semispan length nondimensionalized by root chord
+    b_half = 0.2315 # semispan length for OpenVSP model
     # mesh_density = "clustered"
     mesh_density = 'clustered'
     mesh_filetype = 'vtk'
@@ -123,7 +123,7 @@ if __name__=="__main__":
             },
             "solver": {
                 "formulation": "morino",
-                "matrix_solver": 'LU',
+                "matrix_solver": "LU",
                 "run_checks": True,
                 "control_point_offset": 1.1e-8
             },

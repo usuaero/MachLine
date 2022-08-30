@@ -41,7 +41,10 @@ def spanwise_coord(spanwise_nodes, semispan, **kwargs):
     # Cosine cluster points
     if cosine_cluster:
         vTheta = np.linspace(0, np.pi, spanwise_nodes)
+        
         Zoc = 0.5 * semispan *  (1 - np.cos(vTheta))
+
+
     else:
         Zoc = np.linspace(0, semispan, spanwise_nodes)
 
@@ -52,6 +55,9 @@ def spanwise_coord(spanwise_nodes, semispan, **kwargs):
     LE_xloc = Zoc * np.tan(sweep_angle)
     TE_slope = (semispan * np.tan(sweep_angle) + taper - 1) / semispan
     TE_xloc = TE_slope * Zoc + 1
+    print("Zoc length: ", len(Zoc))
+    print("TE slope: ", TE_slope)
+    print("TE_xloc: ", TE_xloc)
 
     return Zoc, LE_xloc, TE_xloc
 
@@ -289,17 +295,17 @@ def create_panels(airfoil_locations, vertices, le_list, xc_max):
         semi.remove(semi[-1])
 
     # Iterate over airfoil locations along upper surface
-    for i, root in enumerate(upper_surf):
-        if i < len(airfoil_locations)-1:
-            tip = upper_surf[i+1]
+    # for i, root in enumerate(upper_surf):
+    #     if i < len(airfoil_locations)-1:
+    #         tip = upper_surf[i+1]
 
-            root_list = list(range(root[0], root[1]+1))
-            tip_list = list(range(tip[0], tip[1]+1)) 
+    #         root_list = list(range(root[0], root[1]+1))
+    #         tip_list = list(range(tip[0], tip[1]+1)) 
 
 
-            # Create panels over upper surface of wing
-            panel_iter = panel_generator(i, airfoil_locations, root_list, tip_list, vertices, le_list, xc_max, 'upper')
-            panels += panel_iter
+    #         # Create panels over upper surface of wing
+    #         panel_iter = panel_generator(i, airfoil_locations, root_list, tip_list, vertices, le_list, xc_max, 'upper')
+    #         panels += panel_iter
 
 
     # Create a modified list of airfoil locations over the lower surface
@@ -332,7 +338,7 @@ def create_panels(airfoil_locations, vertices, le_list, xc_max):
             # Avoid zero area panels
             if not ((p_two == p_three) or (p_two == p_one)):
             
-                panels.append([p_one, p_three, p_two])
+                panels.append([p_one, p_two, p_three]) # one, three, two
 
     return panels
 
@@ -447,7 +453,7 @@ def panel_generator(iter, airfoil_locations, root, tip, vertices, le_list, xc_ma
             return panel_iter
         else:   
             # Append panels to list in ccw direction
-            panel_iter.append([p_one, p_two, p_three])
+            panel_iter.append([p_one, p_three, p_two]) # one, two, three
 
     return panel_iter
 
@@ -549,7 +555,7 @@ def mirror_body(vertices, panels):
     # Mirror vertices accross the xy plane
     mirrored_vertices = []
     for val in vertices:
-        mirrored_vertices.append([val[0], val[1], -val[2]])
+        mirrored_vertices.append([val[0], -val[1], val[2]])
 
     # Mirror panels, correcting ordering for outward normal and referencing mirrored vertices
     mirrored_panels = []
@@ -571,16 +577,17 @@ if __name__ == '__main__':
     x_ct = 0.18 # nondimensional location of max thickness at tip
     tc = 0.08 # nondimensional max thickness
     b_2c = 1.0065 # semispan nondimensionalized by root chord
-    R_T = 0.01 # taper ratio c_t/c_R
-    LE_sweep = 44.85 # leading edge sweep angle in degrees
+    R_T = 1.0 # taper ratio c_t/c_R
+    # LE_sweep = 44.85 # leading edge sweep angle in degrees
+    LE_sweep = 0.0
     node_ratio = .45 # User input ratio of nodes to be placed forward of the max thickness location
     mirror_xy = True # Mirrors body across xy plane
 
     # Initialize number of nodes in chord and spanwize directions
-    cw_nodes = 50 # Number of nodes along the upper surface
-    sw_nodes = 50 # Number of nodes along the semispan
-    cluster_cw = True
-    cluster_sw = True
+    cw_nodes = 30 # Number of nodes along the upper surface
+    sw_nodes = 30 # Number of nodes along the semispan
+    cluster_cw = False
+    cluster_sw = False
 
     # Determine average node spacing at root chord
     S_avg = 1 / cw_nodes
@@ -598,16 +605,7 @@ if __name__ == '__main__':
     airfoil_locs = []
     max_thickness = []
     leading_edges = []
-    vertex_cnt = -1
-
-    temp_chord = te_xloc[0] - le_xloc[0]
-    temp_x, temp_y = init_airfoil(S_avg, local_chord=temp_chord, x_c=xc_local[0], t_c=tc, node_shift=node_ratio, cosine_cluster=cluster_cw)
-    temp_v1 = [temp_x[-1], temp_y[-1]]
-    temp_v2 = [temp_x[-2], temp_y[-2]]
-    dist = distance(temp_v1, temp_v2, dimension='2D', plane='xy')
-    TE_dist = dist/temp_chord
-    
-    
+    vertex_cnt = -1 
     
     # breakpoint()
     # Iterate over semispan locations, updating the vertex information at each point
@@ -625,7 +623,7 @@ if __name__ == '__main__':
 
         # Iterate over airfoil datapoints
         for j, x in enumerate(x_vert):
-            vertices.append([x, y_vert[j], z])
+            vertices.append([x, z, y_vert[j]])
             vertex_cnt += 1
 
             temp = (len(x_vert)//2 + len(x_vert)%2)
