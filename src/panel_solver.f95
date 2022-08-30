@@ -556,10 +556,7 @@ contains
         end if
 
         ! Invert 
-        allocate(this%P_inv(this%N))
-        do i=1,this%N
-            this%P_inv(this%P(i)) = i
-        end do
+        call invert_permutation_vector(this%N, this%P, this%P_inv)
     
     end subroutine panel_solver_set_permutation
 

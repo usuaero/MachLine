@@ -121,7 +121,11 @@ contains
         end do
         
         ! Compute average
-        this%l_avg = this%l_avg/N
+        if (N > 0) then
+            this%l_avg = this%l_avg/N
+        else
+            this%l_avg = 1.
+        end if
     
     end subroutine vertex_calc_average_edge_length
 

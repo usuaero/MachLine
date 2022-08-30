@@ -194,17 +194,17 @@ contains
 
         ! Store settings for wake models
         if (this%wake_present) then
-            call json_xtnsn_get(settings, 'wake_model.wake_shedding_angle', wake_shedding_angle, 90.0) ! Maximum allowable angle between panel normals without having separation
-            this%C_wake_shedding_angle = cos(wake_shedding_angle*pi/180.0)
+            call json_xtnsn_get(settings, 'wake_model.wake_shedding_angle', wake_shedding_angle, 90.) ! Maximum allowable angle between panel normals without having separation
+            this%C_wake_shedding_angle = cos(wake_shedding_angle*pi/180.)
 
             if (this%append_wake) then
-                call json_xtnsn_get(settings, 'wake_model.trefftz_distance', this%trefftz_distance, -1.0) ! Distance from origin to wake termination
+                call json_xtnsn_get(settings, 'wake_model.trefftz_distance', this%trefftz_distance, -1.) ! Distance from origin to wake termination
                 call json_xtnsn_get(settings, 'wake_model.N_panels', this%N_wake_panels_streamwise, 1)
             end if
         end if
 
         ! Store references
-        call json_xtnsn_get(settings, 'reference.area', this%S_ref, 1.0)
+        call json_xtnsn_get(settings, 'reference.area', this%S_ref, 1.)
 
         ! Locate which vertices are on the mirror plane
         if (this%mirrored) then
@@ -742,19 +742,13 @@ contains
                     if (inner(cross_result, t_hat_g) > 0.) then
                         
                         ! Having passed the previous three checks, we've found a wake-shedding edge
-                        
-                        ! Set that we've found discontinuous edges
                         this%found_discontinuous_edges = .true.
-                        
-                        ! Set the character of the edge
                         this%edges(k)%sheds_wake = .true.
-                        this%edges(k)%discontinuous = .true.
 
                         ! Update information for midpoint vertex (unique for the edge, so this doesn't need to be inside the critical block)
                         if (doublet_order == 2) then
                             mid = this%edges(k)%i_midpoint
                             this%vertices(mid)%N_wake_edges = 1
-                            this%vertices(mid)%clone = .true.
                         end if
 
                         !$OMP critical
@@ -773,12 +767,6 @@ contains
                 end if
             end if
 
-        end do
-
-        ! If a given vertex is touching at least two wake-shedding edges, it will need to be cloned
-        !$OMP do schedule(static)
-        do i=1,this%N_verts
-            if (this%vertices(i)%N_wake_edges >= 2) this%vertices(i)%clone = .true.
         end do
 
         !$OMP end parallel
@@ -815,7 +803,7 @@ contains
         do i=1,this%N_edges
 
             ! Check if it is discontinuous
-            if (this%edges(i)%discontinuous) then
+            if (this%edges(i)%sheds_wake) then
 
                 ! Get vertex indices
                 m = this%edges(i)%verts(1)
@@ -833,20 +821,17 @@ contains
                     if (this%vertices(m)%on_mirror_plane) then
 
                         this%vertices(m)%N_wake_edges = this%vertices(m)%N_wake_edges + 1
-                        this%vertices(m)%clone = .true.
                         this%vertices(m)%mirrored_is_unique = .false.
 
                     else
 
                         this%vertices(n)%N_wake_edges = this%vertices(n)%N_wake_edges + 1
-                        this%vertices(n)%clone = .true.
                         this%vertices(n)%mirrored_is_unique = .false.
 
                     end if
 
                     ! The midpoint will need to be cloned and its mirror will be unique
                     if (doublet_order == 2) then
-                        this%vertices(mid)%clone = .true.
                         this%vertices(mid)%mirrored_is_unique = .true.
                     end if
 
@@ -862,7 +847,6 @@ contains
 
                     ! Same with the midpoint
                     if (doublet_order == 2) then
-                        this%vertices(mid)%clone = .false.
                         this%vertices(mid)%mirrored_is_unique = .true.
                     end if
 
@@ -943,7 +927,11 @@ contains
 
             ! Fix wake partners
             do i=1,this%N_verts
-                temp_vertices(i)%i_wake_partner = i_rearrange_inv(temp_vertices(i)%i_wake_partner)
+                if (temp_vertices(i)%i_wake_partner > this%N_verts) then
+                    temp_vertices(i)%i_wake_partner = i_rearrange_inv(temp_vertices(i)%i_wake_partner-this%N_verts)+this%N_verts
+                else
+                    temp_vertices(i)%i_wake_partner = i_rearrange_inv(temp_vertices(i)%i_wake_partner)
+                end if
             end do
 
             ! Fix adjacent vertex lists
@@ -1054,6 +1042,20 @@ contains
 
         ! Loop through vertices
         do i=1,this%N_verts
+
+            ! If a given vertex is touching at least two wake-shedding edges, it will need to be cloned
+            if (this%vertices(i)%N_wake_edges >= 2) then
+                this%vertices(i)%clone = .true.
+
+            ! If it's a midpoint in a wake edge, it needs to be cloned unless it is on the mirror plane
+            else if (this%vertices(i)%vert_type == 2 .and. this%vertices(i)%N_wake_edges == 1) then
+                if (this%vertices(i)%on_mirror_plane) then
+                    this%vertices(i)%clone = .false.
+                else
+                    this%vertices(i)%clone = .true.
+                end if
+            end if
+
         end do
         
     end subroutine surface_mesh_locate_vertices_needing_cloning
@@ -1075,7 +1077,10 @@ contains
 
             if (verbose) write(*,'(a)',advance='no') "     Cloning vertices at wake-shedding edges..."
 
-            ! Determine number of vertices which need to be cloned
+            ! Determine which vertices need to be cloned
+            call this%locate_vertices_needing_cloning()
+
+            ! Determine how many clones we need to produce
             N_clones = 0
             do i=1,this%N_verts
                 N_clones = N_clones + this%vertices(i)%get_N_needed_clones()
@@ -1126,17 +1131,13 @@ contains
             end do
 
             ! Get inverse mapping
-            allocate(i_rearrange(this%N_verts), source=0)
-            do i=1,this%N_verts
-                i_rearrange(i_rearrange_inv(i)) = i
-            end do
+            call invert_permutation_vector(this%N_verts, i_rearrange_inv, i_rearrange)
 
             ! Rearrange vertices so clones are next to clones
             call this%allocate_new_vertices(0, i_rearrange)
 
             if (verbose) write(*,'(a, i4, a, i7, a)') "Done. Cloned ", N_clones, " vertices. Mesh now has ", &
                                                       this%N_verts, " vertices."
-
         end if
 
     end subroutine surface_mesh_clone_vertices
@@ -1301,6 +1302,10 @@ contains
             ! For vertices on the mirror plane, the component normal to the plane should be zeroed
             if (this%mirrored .and. this%vertices(j)%on_mirror_plane) then
                 n_avg(this%mirror_plane) = 0.
+                if (norm2(n_avg) < 1.e-12) then
+                    write(*,*) "!!! There is a panel lying entirely on the mirror plane. Quitting..."
+                    stop
+                end if
             end if
 
             ! Get the inner products with the panel normals and the computed vertex normal
@@ -1312,6 +1317,7 @@ contains
 
             ! Check whether the vertex normal points wholly outside the mesh
             do while (any(constraint_array < 0.))
+
                 ! Get the normal vector describing the average plane for the panels for which the constraint is not satisfied
                 n_avg_plane = 0.
                 do i=1,this%vertices(j)%panels%len()
@@ -1327,7 +1333,7 @@ contains
                 ! Normalize
                 n_avg_plane = n_avg_plane/norm2(n_avg_plane)
 
-                ! Calculate new vertex normal
+                ! Reflect vertex normal across average panel plane
                 n_avg = n_avg - 2.*inner(n_avg, n_avg_plane)*n_avg_plane
 
                 ! Recalculate constraint array
@@ -1569,18 +1575,19 @@ contains
         !$OMP parallel do private(j, n_avg, i_panel) schedule(dynamic) shared(this, offset, offset_ratio) default(none)
         do i=1,this%N_verts
 
-            ! If the vertex has been cloned, it needs to be shifted off the normal slightly so that it is unique from its counterpart
+            ! If the vertex is a clone, it needs to be shifted off the normal slightly so that it is unique from its counterpart
             if (this%vertices(i)%clone) then
 
                 ! Loop through panels associated with this clone to get their average normal vector
-                write(*,*)
-                write(*,*) i
+                !write(*,*)
+                !write(*,*) "Vertex: ", i
+                !write(*,*) "Neighbors:"
                 n_avg = 0.
                 do j=1,this%vertices(i)%panels_not_across_wake_edge%len()
 
                     ! Get panel index
                     call this%vertices(i)%panels_not_across_wake_edge%get(j, i_panel)
-                    write(*,*) i_panel
+                    !write(*,*) i_panel
 
                     ! Add normal vector
                     n_avg = n_avg + this%panels(i_panel)%n_g
@@ -1593,7 +1600,11 @@ contains
                 end if
 
                 ! Normalize
-                n_avg = n_avg/norm2(n_avg)
+                if (norm2(n_avg) > 1.e-12) then
+                    n_avg = n_avg/norm2(n_avg)
+                else
+                    n_avg = 0.
+                end if
 
                 ! Place control point
                 this%cp(:,i) = this%vertices(i)%loc - offset * (this%vertices(i)%n_g - offset_ratio*n_avg)*this%vertices(i)%l_avg

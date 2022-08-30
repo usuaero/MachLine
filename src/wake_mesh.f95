@@ -154,12 +154,13 @@ contains
         real,intent(in) :: trefftz_dist
         integer,intent(in) :: N_panels_streamwise, mirror_plane
 
-        integer :: i_vert, i, j, i_top_parent, i_bot_parent, i_mirrored_vert, N_wake_edge_verts
+        integer :: i_vert, i, j, i_top_parent, i_bot_parent, i_mirrored_vert, N_wake_edge_verts, N_body_verts
         real :: distance, vertex_separation, mirrored_distance, mirrored_vertex_separation
         real,dimension(3) :: start, loc, mirrored_start
 
         ! Determine vertex placement
         i_vert = 0
+        N_body_verts = size(body_verts)
         N_wake_edge_verts = size(wake_edge_verts)
         do i=1,N_wake_edge_verts
 
@@ -174,10 +175,12 @@ contains
                 start = body_verts(i_top_parent)%loc
                 distance = trefftz_dist - inner(start, freestream%c_hat_g)
 
-                ! Double-check
-                if (dist(start, body_verts(i_bot_parent)%loc) > 1.e-12) then
-                    write(*,*) "!!! Wake edge vertices are not identical. Quitting..."
-                    stop
+                ! Double-check starting location for starting points not on the mirror plane
+                if (i_bot_parent < N_body_verts) then
+                    if (dist(start, body_verts(i_bot_parent)%loc) > 1.e-12) then
+                        write(*,*) "!!! Wake edge vertices are not identical. Quitting..."
+                        stop
+                    end if
                 end if
 
                 ! Determine vertex separation
@@ -221,8 +224,8 @@ contains
                         call this%vertices(i_mirrored_vert)%init(loc, i_mirrored_vert, 1)
 
                         ! Set parent index
-                        this%vertices(i_mirrored_vert)%top_parent = i_top_parent + size(body_verts)
-                        this%vertices(i_mirrored_vert)%bot_parent = i_bot_parent + size(body_verts)
+                        this%vertices(i_mirrored_vert)%top_parent = i_top_parent + N_body_verts
+                        this%vertices(i_mirrored_vert)%bot_parent = i_bot_parent + N_body_verts
 
                     end if
 

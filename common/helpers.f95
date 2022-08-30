@@ -54,6 +54,26 @@ contains
     end function mirror_across_plane
 
 
+    subroutine invert_permutation_vector(N, P, P_inv)
+        ! Inverts the given permutation vector
+
+        implicit none
+        
+        integer,intent(in) :: N
+        integer,dimension(N),intent(in) :: P
+        integer,dimension(:),allocatable,intent(out) :: P_inv
+
+        integer :: i
+
+        ! Invert
+        allocate(P_inv(N))
+        do i=1,N
+            P_inv(P(i)) = i
+        end do
+        
+    end subroutine invert_permutation_vector
+
+
     subroutine progress_bar_init(this, N_total)
         ! Sets up the progress bar
 
