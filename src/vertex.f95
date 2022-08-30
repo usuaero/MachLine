@@ -20,7 +20,6 @@ module vertex_mod
         type(list) :: panels ! List of indices for the panels which connect to this vertex
         type(list) :: panels_not_across_wake_edge ! List of indices for the panels which connect to this vertex not across a wake-shedding edge
         integer :: N_wake_edges ! Number of wake edges this vertex belongs to
-        integer :: N_discont_edges ! Number of discontinuous edges this vertex belongs to
         integer :: index ! Index of this vertex in the mesh
         integer :: index_in_wake_vertices ! Index of this vertex in the list of wake-shedding vertices
         integer :: top_parent, bot_parent ! Indices of the top and bottom vertices this vertex's strength is determined by (for a wake vertex)
@@ -34,6 +33,7 @@ module vertex_mod
             procedure :: init => vertex_init
             procedure :: calc_average_edge_length => vertex_calc_average_edge_length
             procedure :: set_whether_on_mirror_plane => vertex_set_whether_on_mirror_plane
+            procedure :: get_N_needed_clones => vertex_get_N_needed_clones
 
     end type vertex
 
@@ -144,6 +144,34 @@ contains
     
         
     end subroutine vertex_set_whether_on_mirror_plane
+
+
+    function vertex_get_N_needed_clones(this) result(N_clones)
+        ! Returns the number of clones this vertex needs
+
+        implicit none
+        
+        class(vertex),intent(in) :: this
+
+        integer :: N_clones
+
+        ! Check if clones are needed at all
+        if (this%clone) then
+
+            ! Regular vertices need one less than the number of adjacent wake edges
+            if (this%vert_type == 1) then
+                N_clones = this%N_wake_edges - 1
+
+            ! Midpoints only ever need one
+            else
+                N_clones = 1
+            end if
+
+        else
+            N_clones = 0
+        end if
+        
+    end function vertex_get_N_needed_clones
 
     
 end module vertex_mod

@@ -204,15 +204,13 @@ subroutine lu_decomp(A, N, indx, D, code)
     ! Check the largest element in this row is nonzero
     if (amax <= tiny) then
       code = 1 ! Singular matrix
+      return
     end if
 
-    ! Store implicit scaling
+    ! Store scaling
     vv(i) = 1.0 / amax
 
   end do
-
-  ! Check for singular matrix
-  if (code == 1) return
 
   ! Loop over columns of Crout's method
   do j=1,N
@@ -1213,6 +1211,21 @@ function QR_calc_det(N, R) result(det)
   end do
 
 end function QR_calc_det
+
+
+subroutine gen_fast_givens_rot(N, x, y, c, s, D, rot_type)
+  ! Generates a fast Givens rotation
+
+  implicit none
+  
+  integer,intent(in) :: N
+  real,intent(inout) :: x, y
+  real,intent(out) :: c, s
+  real,dimension(N),intent(inout) :: D
+  integer,intent(out) :: rot_type
+
+  
+end subroutine gen_fast_givens_rot
 
 
 end module linalg_mod

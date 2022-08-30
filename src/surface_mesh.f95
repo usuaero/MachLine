@@ -56,19 +56,20 @@ module surface_mesh_mod
             procedure :: init_with_flow => surface_mesh_init_with_flow
             procedure :: count_panel_inclinations => surface_mesh_count_panel_inclinations
             procedure :: characterize_edges => surface_mesh_characterize_edges
+            procedure :: set_up_mirroring => surface_mesh_set_up_mirroring
+
+            ! Cloning vertices
+            procedure :: locate_vertices_needing_cloning => surface_mesh_locate_vertices_needing_cloning
             procedure :: clone_vertices => surface_mesh_clone_vertices
             procedure :: init_vertex_clone => surface_mesh_init_vertex_clone
-            procedure :: set_up_mirroring => surface_mesh_set_up_mirroring
-            procedure :: rearrange_vertices_streamwise => surface_mesh_rearrange_vertices_streamwise
-            procedure :: shuffle_midpoints_in => surface_mesh_shuffle_midpoints_in
-            procedure :: calc_vertex_normals => surface_mesh_calc_vertex_normals
+
+            ! Domains of dependence
             procedure :: calc_point_dod => surface_mesh_calc_point_dod
 
             ! Helpers
             procedure :: find_vertices_on_mirror => surface_mesh_find_vertices_on_mirror
             procedure :: get_indices_to_panel_vertices => surface_mesh_get_indices_to_panel_vertices
             procedure :: allocate_new_vertices => surface_mesh_allocate_new_vertices
-            procedure :: get_vertex_sorting_indices => surface_mesh_get_vertex_sorting_indices
 
             ! Wake stuff
             procedure :: init_wake => surface_mesh_init_wake
@@ -76,6 +77,7 @@ module surface_mesh_mod
             procedure :: update_subsonic_trefftz_distance => surface_mesh_update_subsonic_trefftz_distance
 
             ! Control points
+            procedure :: calc_vertex_normals => surface_mesh_calc_vertex_normals
             procedure :: place_interior_control_points => surface_mesh_place_interior_control_points
 
             ! Post-processing
@@ -610,6 +612,7 @@ contains
 
         ! Clone necessary vertices
         if (this%wake_present .or. freestream%supersonic) then
+            call this%locate_vertices_needing_cloning()
             call this%clone_vertices()
         end if
 
@@ -751,7 +754,6 @@ contains
                         if (doublet_order == 2) then
                             mid = this%edges(k)%i_midpoint
                             this%vertices(mid)%N_wake_edges = 1
-                            this%vertices(mid)%N_discont_edges = 1
                             this%vertices(mid)%clone = .true.
                         end if
 
@@ -762,11 +764,9 @@ contains
 
                         ! Update number of wake edges touching the first vertex
                         this%vertices(i_vert_1)%N_wake_edges = this%vertices(i_vert_1)%N_wake_edges + 1
-                        this%vertices(i_vert_1)%N_discont_edges = this%vertices(i_vert_1)%N_discont_edges + 1
 
                         ! Update number of wake edges touching the second vertex
                         this%vertices(i_vert_2)%N_wake_edges = this%vertices(i_vert_2)%N_wake_edges + 1
-                        this%vertices(i_vert_2)%N_discont_edges = this%vertices(i_vert_2)%N_discont_edges + 1
 
                         !$OMP end critical
                     end if
@@ -802,10 +802,10 @@ contains
 
         if (verbose) write(*,'(a)',advance='no') "     Setting up mesh mirroring..."
 
-        ! If a vertex on the mirror plane doesn't belong to a discontinuous edge, then its mirror will not be unique
+        ! If a vertex on the mirror plane doesn't belong to a wake edge, then its mirror will not be unique
         do i=1,this%N_verts
 
-            if (this%vertices(i)%on_mirror_plane .and. this%vertices(i)%N_discont_edges == 0) then
+            if (this%vertices(i)%on_mirror_plane .and. this%vertices(i)%N_wake_edges == 0) then
                 this%vertices(i)%mirrored_is_unique = .false.
             end if
             
@@ -833,14 +833,12 @@ contains
                     if (this%vertices(m)%on_mirror_plane) then
 
                         this%vertices(m)%N_wake_edges = this%vertices(m)%N_wake_edges + 1
-                        this%vertices(m)%N_discont_edges = this%vertices(m)%N_discont_edges + 1
                         this%vertices(m)%clone = .true.
                         this%vertices(m)%mirrored_is_unique = .false.
 
                     else
 
                         this%vertices(n)%N_wake_edges = this%vertices(n)%N_wake_edges + 1
-                        this%vertices(n)%N_discont_edges = this%vertices(n)%N_discont_edges + 1
                         this%vertices(n)%clone = .true.
                         this%vertices(n)%mirrored_is_unique = .false.
 
@@ -1045,26 +1043,42 @@ contains
     end subroutine surface_mesh_allocate_new_vertices
 
 
+    subroutine surface_mesh_locate_vertices_needing_cloning(this)
+        ! Determines which vertices need to be cloned
+
+        implicit none
+        
+        class(surface_mesh),intent(inout) :: this
+
+        integer :: i
+
+        ! Loop through vertices
+        do i=1,this%N_verts
+        end do
+        
+    end subroutine surface_mesh_locate_vertices_needing_cloning
+
+
     subroutine surface_mesh_clone_vertices(this)
-        ! Takes vertices which lie within discontinuous edges and splits them into two vertices.
+        ! Takes vertices which lie within wake-shedding edges and splits them into two vertices.
         ! Handles rearranging of necessary dependencies.
 
         implicit none
 
         class(surface_mesh),intent(inout) :: this
 
-        integer :: i, j, N_clones, i_jango, i_boba
+        integer :: i, j, N_clones, i_jango, i_boba, N_boba
         integer,dimension(:),allocatable :: i_rearrange, i_rearrange_inv
 
         ! Check whether any discontinuities exist
         if (this%found_discontinuous_edges) then
 
-            if (verbose) write(*,'(a)',advance='no') "     Cloning vertices at discontinuous edges..."
+            if (verbose) write(*,'(a)',advance='no') "     Cloning vertices at wake-shedding edges..."
 
             ! Determine number of vertices which need to be cloned
             N_clones = 0
             do i=1,this%N_verts
-                if (this%vertices(i)%clone) N_clones = N_clones + 1
+                N_clones = N_clones + this%vertices(i)%get_N_needed_clones()
             end do
 
             ! Add space for new vertices
@@ -1077,34 +1091,36 @@ contains
             j = 0
             do i_jango=1,this%N_verts-N_clones ! Only need to loop through original vertices here
 
-                ! Check if this vertex needs to be cloned
-                if (this%vertices(i_jango)%clone) then
+                ! Get location of original vertex in new array
+                i_rearrange_inv(i_jango) = i_jango + j
+
+                ! Get number of needed clones
+                N_boba = this%vertices(i_jango)%get_N_needed_clones()
+
+                ! There will be multiple clones if more than 2 wake-shedding edges are attached
+                do i=1,N_boba
 
                     ! Get index for the clone
                     j = j + 1
                     i_boba = this%N_verts - N_clones + j ! Will be at position N_verts-N_clones+j in the new vertex array
 
                     ! Get rearranged indices
-                    i_rearrange_inv(i_jango) = i_jango + j - 1
                     i_rearrange_inv(i_boba) = i_jango + j
 
                     ! Initialize clone
                     call this%init_vertex_clone(i_jango, i_boba)
 
-                else
+                end do
 
-                    ! Get rearranged indices
-                    i_rearrange_inv(i_jango) = i_jango + j
-
-                    ! If this vertex did not need to be cloned, but it is on the mirror plane and its mirror is unique
-                    ! then the wake strength will be determined by its mirror as well in the case of an asymmetric flow.
+                ! If this vertex did not need to be cloned, but it is on the mirror plane and its mirror is unique
+                ! then the wake strength will be determined by its mirror as well in the case of an asymmetric flow.
+                if  (N_boba == 0) then
                     if (this%mirrored .and. this%asym_flow .and.  this%vertices(i_jango)%on_mirror_plane .and. &
                         this%vertices(i_jango)%mirrored_is_unique) then
 
                         this%vertices(i_jango)%i_wake_partner = i_jango + this%N_verts
 
                     end if
-
                 end if
 
             end do
@@ -1141,15 +1157,15 @@ contains
         this%vertices(i_boba)%clone = .true.
 
         ! If this is a true vertex (not a midpoint), add to the count
-        if (this%vertices(i_jango)%vert_type==1) this%N_true_verts = this%N_true_verts + 1
+        if (this%vertices(i_jango)%vert_type == 1) this%N_true_verts = this%N_true_verts + 1
 
         ! Specify wake partners
+        ! TODO: Generalize to arbitrary number of wake-shedding edges...
         this%vertices(i_jango)%i_wake_partner = i_boba
         this%vertices(i_boba)%i_wake_partner = i_jango
 
         ! Store number of adjacent wake-shedding and discontinuous edges (probably unecessary at this point, but let's be consistent)
         this%vertices(i_boba)%N_wake_edges = this%vertices(i_jango)%N_wake_edges
-        this%vertices(i_boba)%N_discont_edges = this%vertices(i_jango)%N_discont_edges
 
         ! Copy over mirroring properties
         this%vertices(i_boba)%mirrored_is_unique = this%vertices(i_jango)%mirrored_is_unique
@@ -1254,100 +1270,6 @@ contains
         end do
         
     end subroutine surface_mesh_init_vertex_clone
-
-
-    subroutine surface_mesh_get_vertex_sorting_indices(this, freestream, i_sorted)
-        ! Determines the vertex indices which will sort them in the conpressibility direction
-
-        implicit none
-
-        class(surface_mesh),intent(in) :: this
-        type(flow),intent(in) :: freestream
-        integer,dimension(:),allocatable,intent(out) :: i_sorted
-
-        real,dimension(:),allocatable :: x
-        integer :: i
-
-        ! Allocate the compressibility distance array
-        allocate(x(this%N_verts))
-
-        ! Add compressibility distance of each vertex
-        do i=1,this%N_verts
-
-            ! Initialize with the compressibility distance of this vertex
-            x(i) = -inner(freestream%c_hat_g, this%vertices(i)%loc)
-
-        end do
-
-        ! Get sorted indices
-        call insertion_arg_sort(x, i_sorted)
-        
-    end subroutine surface_mesh_get_vertex_sorting_indices
-
-
-    subroutine surface_mesh_rearrange_vertices_streamwise(this, freestream)
-        ! Rearranges the vertices to proceed in the freestream direction
-
-        implicit none
-
-        class(surface_mesh),intent(inout),target :: this
-        type(flow),intent(in) :: freestream
-
-        integer,dimension(:),allocatable :: i_sorted
-
-        if (verbose) write(*,'(a)',advance='no') "     Sorting vertices for efficient matrix structure..."
-
-        ! Get sorted indices
-        call this%get_vertex_sorting_indices(freestream, i_sorted)
-
-        ! Move the vertices around
-        call this%allocate_new_vertices(0, i_sorted)
-
-        if (verbose) write(*,*) "Done."
-        
-    end subroutine surface_mesh_rearrange_vertices_streamwise
-
-
-    subroutine surface_mesh_shuffle_midpoints_in(this)
-        ! Rearranges the vertices (originals and midpoints) so that midpoints are in a better location in the array
-
-        class(surface_mesh), intent(inout) :: this
-
-        integer,dimension(:),allocatable :: i_sorted
-        real,dimension(:),allocatable :: i_near_vert
-        integer :: N_inserted, i, j
-
-        if (verbose) write(*,'(a)',advance='no') "     Sorting midpoints into the vertex array..."
-
-        ! Allocate index array
-        allocate(i_near_vert(this%N_verts))
-
-        ! Loop through midpoints
-        N_inserted = 0
-        do i=1,this%N_verts
-
-            ! Check this is a midpoint
-            if (this%vertices(i)%vert_type==2) then
-
-                ! Get first neighboring vertex
-                call this%vertices(i)%adjacent_vertices%get(1, j)
-                i_near_vert(i) = j
-
-            ! If it's not a midpoint, it's its own near neighbor
-            else
-                i_near_vert(i) = i
-            end if
-        end do
-
-        ! Sort
-        call insertion_arg_sort(i_near_vert, i_sorted)
-
-        ! Move the vertices around
-        call this%allocate_new_vertices(0, i_sorted)
-
-        if (verbose) write(*,*) "Done."
-    
-    end subroutine surface_mesh_shuffle_midpoints_in
 
 
     subroutine surface_mesh_calc_vertex_normals(this)
@@ -1651,11 +1573,14 @@ contains
             if (this%vertices(i)%clone) then
 
                 ! Loop through panels associated with this clone to get their average normal vector
+                write(*,*)
+                write(*,*) i
                 n_avg = 0.
                 do j=1,this%vertices(i)%panels_not_across_wake_edge%len()
 
                     ! Get panel index
                     call this%vertices(i)%panels_not_across_wake_edge%get(j, i_panel)
+                    write(*,*) i_panel
 
                     ! Add normal vector
                     n_avg = n_avg + this%panels(i_panel)%n_g
