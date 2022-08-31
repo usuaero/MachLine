@@ -5,7 +5,7 @@
         "freestream_mach_number" : 2.0
     },
     "geometry": {
-        "file": "dev/meshes/diamond_5_deg_full_medium.stl",
+        "file": "dev/meshes/diamond_5_deg_full_fine.stl",
         "spanwise_axis" : "+y",
         "singularity_order" : {
             "source" : 0,
@@ -19,8 +19,7 @@
         }
     },
     "solver": {
-        "matrix_solver" : "QRUP",
-        "write_A_and_b" : true
+        "matrix_solver" : "QRUP"
     },
     "post_processing" : {
         "pressure_rules" : {
@@ -28,9 +27,9 @@
         }
     },
     "output": {
-        "body_file" :          "dev/results/diamond_5_deg_full_medium.vtk",
-        "wake_file" :          "dev/results/diamond_5_deg_full_medium_wake.vtk",
-        "control_point_file" : "dev/results/diamond_5_deg_full_medium_control_points.vtk",
+        "body_file" :          "dev/results/diamond_5_deg_full_fine.vtk",
+        "wake_file" :          "dev/results/diamond_5_deg_full_fine_wake.vtk",
+        "control_point_file" : "dev/results/diamond_5_deg_full_fine_control_points.vtk",
         "report_file" :        "dev/results/report.json"
     }
 }

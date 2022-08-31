@@ -1005,18 +1005,12 @@ subroutine gen_givens_rot(x, y, c, s)
 
   real :: d, t
 
-  ! Check for nonzero elements
-  if (abs(y) == 0.) then
-    c = 1.
-    s = 0.
-  else
-    t = abs(x) + abs(y)
-    d = t*sqrt((x/t)**2 + (y/t)**2)
-    c = x/d
-    s = y/d
-    x = d
-    y = 0.
-  end if
+  t = abs(x) + abs(y)
+  d = t*sqrt((x/t)**2 + (y/t)**2)
+  c = x/d
+  s = y/d
+  x = d
+  y = 0.
   
 end subroutine gen_givens_rot
 
@@ -1111,11 +1105,11 @@ subroutine QR_givens_solve_upper_pentagonal(N, A, b, x)
     ! Loop through rows
     do i=min(j+B_l,N),j+1,-1
 
-      ! Generate Givens rotation
-      call gen_givens_rot(A(i-1,j), A(i,j), c, s)
+      ! Check nonzero
+      if (A(i,j) /= 0.) then
 
-      ! Check if something is actually being done
-      if (s /= 0.) then
+        ! Generate Givens rotation
+        call gen_givens_rot(A(i-1,j), A(i,j), c, s)
 
         ! Apply to rest of row
         call apply_givens_rot(c, s, A(i-1,j+1:), A(i,j+1:), N-j-1)
@@ -1127,13 +1121,6 @@ subroutine QR_givens_solve_upper_pentagonal(N, A, b, x)
 
     end do
   end do
-
-  ! Write R matrix
-  open(newunit=unit, file="R_mat.txt")
-  do i=1,N
-      write(unit,*) A(i,:)
-  end do
-  close(unit)
 
   ! Back substitution
   call QR_back_sub(N, A, b, x)
