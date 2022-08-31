@@ -18,6 +18,7 @@ class Geometry:
         self.R2 = np.zeros(4)
         self.v_xi = np.zeros(4)
         self.v_eta = np.zeros(4)
+        self.t = np.zeros((2,4))
         self.h = 0.0
         self.h2 = 0.0
         self.b = np.ones(4)
@@ -920,11 +921,13 @@ class SupersonicSuperinclinedPanel(Panel):
         # Loop through edges
         for i in range(4):
             
+            # Calculate tangents
+            geom.t[:,i] = self.verts[:,(i+1)%4] - self.verts[:,i]
+            geom.t[:,i] = geom.t[:,i]/np.linalg.norm(geom.t[:,i])
+
             # Calculate outward normals
-            t = self.verts[:,(i+1)%4] - self.verts[:,i]
-            t = t/np.linalg.norm(t)
-            geom.v_xi[i] = t[1]
-            geom.v_eta[i] = -t[0]
+            geom.v_xi[i] = geom.t[1,i]
+            geom.v_eta[i] = -geom.t[0,i]
 
             # Displacement to first vertex
             d = self.verts[:,i] - P[0:2]
@@ -933,7 +936,7 @@ class SupersonicSuperinclinedPanel(Panel):
             geom.a[i] = d[0]*geom.v_xi[i] + d[1]*geom.v_eta[i]
 
             # Tangential in-plane distance
-            geom.l1[i] = d[0]*t[0] + d[1]*t[1]
+            geom.l1[i] = d[0]*geom.t[0,i] + d[1]*geom.t[1,i]
 
             # Radial distance
             R1_sq = -d[0]**2 - d[1]**2 + geom.h2
@@ -948,7 +951,7 @@ class SupersonicSuperinclinedPanel(Panel):
             d = self.verts[:,i_next] - P[0:2]
 
             # Tangential in-plane distance
-            geom.l2[i] = d[0]*t[0] + d[1]*t[1]
+            geom.l2[i] = d[0]*geom.t[0,i] + d[1]*geom.t[1,i]
 
             # Radial distance
             R2_sq = -d[0]**2 - d[1]**2 + geom.h2
@@ -1003,15 +1006,32 @@ class SupersonicSuperinclinedPanel(Panel):
         """
 
         # Loop through edges
-        ints.hH113 = 0.0
+        ints.hH113 = 2.0*np.pi
         for i in range(4):
 
-            # Check DoD
-            if (geom.R1[i] > 0.0 or geom.R2[i] > 0.0) or (abs(geom.a[i]) < geom.h and geom.h != 0.0 and geom.l1[i]*geom.l2[i] < 0.0):
+            # Add corner influence
+            if geom.R1[i] > 0.0:
+                ints.hH113 += np.pi
 
-                # Check in plane of panel
-                if abs(geom.h) > 1e-12:
-                    pass
+            # Add edge influence
+            if (geom.R1[i] > 0.0 or geom.R2[i] > 0.0) or (abs(geom.a[i]) < geom.h and geom.h != 0.0 and geom.l1[i]*geom.l2[i] < 0.0):
+                ints.hH113 -= np.pi
+
+            # Add complicated corner influence
+            if geom.R1[i] > 0.0:
+                i_prev = i-1
+
+                # Get dot and cross products
+                tktkp1 = np.inner(geom.t[:,i], geom.t[:,i_prev])
+                tcross = np.cross(geom.t[:,i_prev], geom.t[:,i])
+
+                # Intermediate values
+                X = geom.a[i]*geom.a[i_prev] - geom.h2*tktkp1
+                Y = geom.h*geom.R1[i]*tcross
+
+                # Update hH113
+                ints.hH113 -= np.arctan2(Y, -X)
+
 
         # Calculate H(1,1,1)
         ints.H111 = -geom.h*ints.hH113 + np.sum(geom.a*ints.F111).item()
