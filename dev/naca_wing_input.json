@@ -1,10 +1,10 @@
 {
     "flow": {
-        "freestream_velocity" : [ 100.0, 0.0, 10.0 ],
+        "freestream_velocity" : [ 100.0, 10.0, 10.0 ],
         "freestream_mach_number" : 0.0
     },
     "geometry": {
-        "file": "dev/meshes/naca_0010_AR_10_half_medium.stl",
+        "file": "dev/meshes/naca_0010_AR_10_half_fine.stl",
         "mirror_about": "xz",
         "reference": {
             "area": 8.0
@@ -21,11 +21,11 @@
         }
     },
     "output": {
-        "body_file" :                   "dev/results/naca_0010_AR_10_half_medium.vtk",
-        "wake_file" :                   "dev/results/naca_0010_AR_10_half_medium_wake.vtk",
-        "control_point_file" :          "dev/results/naca_0010_AR_10_half_medium_control_points.vtk",
-        "mirrored_body_file" :          "dev/results/naca_0010_AR_10_half_medium_left.vtk",
-        "mirrored_control_point_file" : "dev/results/naca_0010_AR_10_half_medium_control_points_left.vtk",
+        "body_file" :                   "dev/results/naca_0010_AR_10_half_fine.vtk",
+        "wake_file" :                   "dev/results/naca_0010_AR_10_half_fine_wake.vtk",
+        "control_point_file" :          "dev/results/naca_0010_AR_10_half_fine_control_points.vtk",
+        "mirrored_body_file" :          "dev/results/naca_0010_AR_10_half_fine_left.vtk",
+        "mirrored_control_point_file" : "dev/results/naca_0010_AR_10_half_fine_control_points_left.vtk",
         "report_file" : "dev/results/report.json"
     }
 }

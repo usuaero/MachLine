@@ -1122,6 +1122,10 @@ contains
         case ('QRUP')
             call QR_givens_solve_upper_pentagonal(this%N, A_p, b_p, x)
 
+        ! GMRES
+        case ('GMRES')
+            call GMRES(this%N, A_p, b_p, this%tol, this%max_iterations, x)
+
         ! Purcell's method
         case ('PURC')
             call purcell_solve(this%N, A_p, b_p, x)

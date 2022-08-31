@@ -1228,4 +1228,150 @@ subroutine gen_fast_givens_rot(N, x, y, c, s, D, rot_type)
 end subroutine gen_fast_givens_rot
 
 
+subroutine arnoldi(N, A, k, q1, Q, H)
+  ! Uses the Arnoldi algorithm to find an orthonormal basis for the k-th Krylov subspace of A
+
+  implicit none
+  
+  integer,intent(in) :: N, k
+  real,dimension(N,N) :: A
+  real,dimension(N) :: q1
+  real,dimension(:,:),allocatable,intent(out) :: Q, H
+
+  integer :: i, j
+
+  ! Allocate basis storage
+  allocate(Q(N,k))
+  allocate(H(k+1,k))
+
+  ! Store first
+  Q(:,1) = q1
+
+  ! Assemble basis
+  do j=1,k-1
+
+    ! Add dimension to Krylov subspace
+    Q(:,j+1) = matmul(A, Q(:,j))
+
+    ! Orthogonalize
+    do i=1,j
+      H(i,j) = sum(Q(:,j+1)*Q(:,i))
+      Q(:,j+1) = Q(:,j+1) - H(i,j)*Q(:,i)
+    end do
+
+    ! Normalize
+    H(j+1,j) = norm2(Q(:,j+1))
+    Q(:,j+1) = Q(:,j+1)/H(j+1,j)
+
+  end do
+  
+end subroutine arnoldi
+
+
+subroutine arnoldi_update(N, A, k, Q, H)
+  ! Uses the Arnoldi algorithm to update the orthonormal basis
+
+  implicit none
+  
+  integer,intent(in) :: N, k
+  real,dimension(N,N),intent(in) :: A
+  real,dimension(:,:),allocatable,intent(inout) :: Q, H
+
+  integer :: i
+
+  ! Add dimension to Krylov subspace
+  Q(:,k+1) = matmul(A, Q(:,k))
+
+  ! Orthogonalize
+  do i=1,k
+    H(i,k) = sum(Q(:,k+1)*Q(:,i))
+    Q(:,k+1) = Q(:,k+1) - H(i,k)*Q(:,i)
+  end do
+
+  ! Normalize
+  H(k+1,k) = norm2(Q(:,k+1))
+  Q(:,k+1) = Q(:,k+1)/H(k+1,k)
+  
+end subroutine arnoldi_update
+
+
+subroutine GMRES(N, A, b, tol, max_iterations, x)
+  ! Uses the generalized minimum residual algorithm to estimate the solution to Ax=b
+  ! Taken from "Handbook of Linear Algebra" Leslie Hogben ed.
+
+  implicit none
+  
+  integer,intent(in) :: N, max_iterations
+  real,dimension(N,N),intent(in) :: A
+  real,dimension(N),intent(in) :: b
+  real,intent(in) :: tol
+  real,dimension(:),allocatable,intent(out) :: x
+
+  integer :: i, j, k, k_max
+  real,dimension(:,:),allocatable :: Q, H
+  real,dimension(N) :: E, r0
+  real :: beta, temp, err, d
+  real,dimension(:),allocatable :: y, c, s
+
+  ! We cannot have more iterations than the size of the matrix
+  k_max = min(N, max_iterations)
+
+  ! Allocate memory for storing the orthonormal basis and rotations
+  allocate(Q(N,k_max), source=0.)
+  allocate(H(k_max+1,k_max), source=0.)
+  allocate(c(k_max), source=0.)
+  allocate(s(k_max), source=0.)
+
+  ! Initialize
+  E(1) = 1.
+  E(2:) = 0.
+  r0 = b
+  beta = norm2(r0)
+  Q(:,1) = r0/beta
+  err = tol + 1
+  k = 0
+
+  ! Loop through subspaces
+  do while (err > tol .and. k < k_max-1)
+
+    k = k + 1
+
+    ! Update orthonormal basis using Arnoldi algorithm
+    call arnoldi_update(N, A, k, Q, H)
+
+    ! Apply rotations to new last column of H
+    do i=1,k-1
+      temp = c(i)*H(i,k) + s(i)*H(i+1,k)
+      H(i+1,k) = -s(i)*h(i,k) + c(i)*H(i+1,k)
+      H(i,k) = temp
+    end do
+
+    ! Calculate k-th rotation
+    d = sqrt(H(k,k)**2 + H(k+1,k)**2)
+    c(k) = abs(H(k,k)) / d
+    s(k) = sign(1., H(k,k))*H(k+1,k) / d
+
+    ! Apply to H
+    H(k,k) = c(k)*H(k,k) + s(k)*H(k+1,k)
+    H(k+1,k) = 0.
+
+    ! Apply to E
+    E(k+1) = -s(k)*E(k)
+    E(k) = c(k)*E(k)
+
+    ! Calculate residual norm estimate
+    err = beta*abs(E(k+1))
+    if (err < tol) exit
+
+  end do
+
+  ! Solve upper triangular system
+  call QR_back_sub(k, H(1:k,1:k), beta*E(1:k), y)
+
+  ! Get estimate for x
+  x = matmul(Q(:,1:k), y)
+  
+end subroutine GMRES
+
+
 end module linalg_mod
