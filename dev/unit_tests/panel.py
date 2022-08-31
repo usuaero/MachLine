@@ -985,7 +985,16 @@ class SupersonicSuperinclinedPanel(Panel):
 
             # Check DoD
             if (geom.R1[i] > 0.0 or geom.R2[i] > 0.0) or (abs(geom.a[i]) < geom.h and geom.h != 0.0 and geom.l1[i]*geom.l2[i] < 0.0):
-                pass
+                
+                # Mach wedge
+                if geom.R1[i] == 0.0 and geom.R2[i] == 0.0:
+                    ints.F111[i] = -np.pi
+
+                # At least one endpoint in
+                else:
+                    X = geom.l1[i]*geom.l2[i] + geom.R1[i]*geom.R2[i]
+                    Y = geom.R2[i]*geom.l1[i] - geom.R1[i]*geom.l2[i]
+                    ints.F111[i] = np.arctan2(Y, X)
 
         # Check
         #assert((np.abs(geom.v_xi*ints.F211 + geom.v_eta*ints.F121 - geom.a*ints.F111) < 1.0e-12).all())
@@ -1034,7 +1043,7 @@ class SupersonicSuperinclinedPanel(Panel):
 
 
         # Calculate H(1,1,1)
-        ints.H111 = -geom.h*ints.hH113 + np.sum(geom.a*ints.F111).item()
+        ints.H111 = -geom.h*ints.hH113 - np.sum(geom.a*ints.F111).item()
 
         ## Calcualte H(2,1,3) and H(1,2,3)
         #ints.H213 = np.sum(geom.v_xi*ints.F111).item()
