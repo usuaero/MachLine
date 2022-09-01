@@ -56,10 +56,10 @@ if __name__=="__main__":
     panel.set_source_strength(sigma_params)
 
     # Calculate slice of potentials
-    Nx = 20
-    Nz = 20
-    x = np.linspace(-0.0, 2.0, Nx)
-    z = np.linspace(-0.75, 1.25, Nz)
+    Nx = 40
+    Nz = 40
+    x = np.linspace(-2.0, 2.0, Nx)
+    z = np.linspace(-0.75, 3.25, Nz)
     phi_s_dis = np.zeros((Nx, Nz))
     phi_d_dis = np.zeros((Nx, Nz))
     phi_s_anl = np.zeros((Nx, Nz))

@@ -1026,7 +1026,7 @@ class SupersonicSuperinclinedPanel(Panel):
         """
 
         # Check DoD
-        if geom.edge_in.any():
+        if geom.edge_in.any() or (not geom.edge_in.any() and (geom.a > 0.0).all() and geom.h > 0.0):
 
             # Loop through edges
             ints.hH113 = 2.0*np.pi
