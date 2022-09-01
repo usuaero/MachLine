@@ -22,6 +22,7 @@ class Geometry:
         self.h = 0.0
         self.h2 = 0.0
         self.b = np.ones(4)
+        self.edge_in = np.zeros(4, dtype=bool)
 
 
 class Integrals:
@@ -922,7 +923,8 @@ class SupersonicSuperinclinedPanel(Panel):
         for i in range(4):
             
             # Calculate tangents
-            geom.t[:,i] = self.verts[:,(i+1)%4] - self.verts[:,i]
+            i_next = (i+1)%4
+            geom.t[:,i] = self.verts[:,i_next] - self.verts[:,i]
             geom.t[:,i] = geom.t[:,i]/np.linalg.norm(geom.t[:,i])
 
             # Calculate outward normals
@@ -940,14 +942,8 @@ class SupersonicSuperinclinedPanel(Panel):
 
             # Radial distance
             R1_sq = -d[0]**2 - d[1]**2 + geom.h2
-            if R1_sq > 0.0 and P[2] > 0.0:
-                geom.R1[i] = np.sqrt(R1_sq)
-            else:
-                geom.R1[i] = 0.0
-                geom.l1[i] = -1.0
 
             # Displacement to second vertex
-            i_next = (i+1)%4
             d = self.verts[:,i_next] - P[0:2]
 
             # Tangential in-plane distance
@@ -955,7 +951,22 @@ class SupersonicSuperinclinedPanel(Panel):
 
             # Radial distance
             R2_sq = -d[0]**2 - d[1]**2 + geom.h2
-            if R2_sq > 0.0 and P[2] > 0.0:
+
+            # Check if edge is in
+            if geom.h > 0.0 and (R1_sq > 0.0 or R2_sq > 0.0) or (abs(geom.a[i]) < geom.h and geom.l1[i]*geom.l2[i] < 0.0):
+                geom.edge_in[i] = True
+            else:
+                geom.edge_in[i] = False
+
+            # Check corners for DoD
+            if R1_sq > 0.0 and geom.h > 0.0:
+                geom.R1[i] = np.sqrt(R1_sq)
+            else:
+                geom.R1[i] = 0.0
+                geom.l1[i] = -1.0
+
+            # Check corners for DoD
+            if R2_sq > 0.0 and geom.h > 0.0:
                 geom.R2[i] = np.sqrt(R2_sq)
             else:
                 geom.R2[i] = 0.0
@@ -984,8 +995,8 @@ class SupersonicSuperinclinedPanel(Panel):
         for i in range(4):
 
             # Check DoD
-            if (geom.R1[i] > 0.0 or geom.R2[i] > 0.0) or (abs(geom.a[i]) < geom.h and geom.h != 0.0 and geom.l1[i]*geom.l2[i] < 0.0):
-                
+            if geom.edge_in[i]:
+
                 # Mach wedge
                 if geom.R1[i] == 0.0 and geom.R2[i] == 0.0:
                     ints.F111[i] = -np.pi
@@ -1014,40 +1025,42 @@ class SupersonicSuperinclinedPanel(Panel):
             Integrals calculated thus far
         """
 
-        # Loop through edges
-        ints.hH113 = 2.0*np.pi
-        for i in range(4):
+        # Check DoD
+        if geom.edge_in.any():
 
-            # Add corner influence
-            if geom.R1[i] > 0.0:
-                ints.hH113 += np.pi
+            # Loop through edges
+            ints.hH113 = 2.0*np.pi
+            for i in range(4):
 
-            # Add edge influence
-            if (geom.R1[i] > 0.0 or geom.R2[i] > 0.0) or (abs(geom.a[i]) < geom.h and geom.h != 0.0 and geom.l1[i]*geom.l2[i] < 0.0):
-                ints.hH113 -= np.pi
+                # Add corner influence
+                if geom.R1[i] > 0.0:
+                    ints.hH113 += np.pi
 
-            # Add complicated corner influence
-            if geom.R1[i] > 0.0:
-                i_prev = i-1
+                # Add edge influence
+                if geom.edge_in[i]:
+                    ints.hH113 -= np.pi
 
-                # Get dot and cross products
-                tktkp1 = np.inner(geom.t[:,i], geom.t[:,i_prev])
-                tcross = np.cross(geom.t[:,i_prev], geom.t[:,i])
+                # Add complicated corner influence
+                if geom.R1[i] > 0.0:
+                    i_prev = i-1
 
-                # Intermediate values
-                X = geom.a[i]*geom.a[i_prev] - geom.h2*tktkp1
-                Y = geom.h*geom.R1[i]*tcross
+                    # Get dot and cross products
+                    tktkp1 = np.inner(geom.t[:,i], geom.t[:,i_prev])
+                    tcross = np.cross(geom.t[:,i_prev], geom.t[:,i])
 
-                # Update hH113
-                ints.hH113 -= np.arctan2(Y, -X)
+                    # Intermediate values
+                    X = geom.a[i]*geom.a[i_prev] - geom.h2*tktkp1
+                    Y = geom.h*geom.R1[i]*tcross
 
+                    # Update hH113
+                    ints.hH113 -= np.arctan2(Y, -X)
 
         # Calculate H(1,1,1)
-        ints.H111 = -geom.h*ints.hH113 - np.sum(geom.a*ints.F111).item()
+        ints.H111 = geom.h*ints.hH113 - np.sum(geom.a*ints.F111).item()
 
-        ## Calcualte H(2,1,3) and H(1,2,3)
-        #ints.H213 = np.sum(geom.v_xi*ints.F111).item()
-        #ints.H123 = -np.sum(geom.v_eta*ints.F111).item()
+        # Calcualte H(2,1,3) and H(1,2,3)
+        ints.H213 = np.sum(geom.v_xi*ints.F111).item()
+        ints.H123 = np.sum(geom.v_eta*ints.F111).item()
         
         ## Calculate H(2,1,1) and H(1,2,1)
         #ints.H211 = 0.5*(-geom.h2*ints.H213 + np.sum(geom.a*ints.F211).item())
