@@ -77,7 +77,7 @@ def test_half_wing_source_free_asym_inc_flow():
     assert(abs(C_p_min - -1.27770147944078) < 1e-7)
     assert(abs(Cx - -0.393161802847563) < 1e-7)
     assert(abs(Cy - -0.0468924089116137) < 1e-7)
-    assert(abs(Cz - 20.6218617152729) < 1.1e-7)
+    assert(abs(Cz - 20.6218621133509) < 1.1e-7)
 
 
 def test_half_wing_morino_asym_inc_flow():
@@ -108,7 +108,7 @@ def test_half_wing_morino_asym_inc_flow():
     assert(abs(C_p_min - -1.27775688535512) < 1e-7)
     assert(abs(Cx - -0.393164042328241) < 1e-7)
     assert(abs(Cy - -0.0468954336112259) < 1e-7)
-    assert(abs(Cz - 20.6220753522517) < 1e-7)
+    assert(abs(Cz - 20.6220755966273) < 1e-7)
 
 
 def test_half_wing_morino_zero_aoa_zero_beta_inc():
@@ -318,7 +318,7 @@ def test_supersonic_half_wing_morino_allow_wake_asym_flow():
     assert(abs(C_p_max - 0.194725933709647) < 1e-7)
     assert(abs(C_p_min - -0.298887713982522) < 1e-7)
     assert(abs(Cx - 0.142766061037829) < 1e-7)
-    assert(abs(Cy - 0.000849118470386655) < 1.e-12)
+    assert(abs(Cy - 0.000849118470386655) < 1.e-11)
     assert(abs(Cz - 0.891813786839355) < 2.1e-7)
 
 
@@ -346,7 +346,7 @@ def test_supersonic_half_wing_source_free_allow_wake_sym_flow():
     assert(abs(C_p_min - -0.291500988852043) < 1e-7)
     assert(abs(Cx - 0.142893375049277) < 1e-7)
     assert(abs(Cy) < 1.e-12)
-    assert(abs(Cz - 0.892752135458748) < 2.1e-7)
+    assert(abs(Cz - 0.892752609731879) < 2.1e-7)
 
 
 def test_fuselage_subsonic_compressible_iterative():
@@ -394,10 +394,10 @@ def test_subsonic_quad_doublets_naca_wing_asym():
     print(Cz)
 
     assert(abs(C_p_max - 0.994093723964344) < 1e-7)
-    assert(abs(C_p_min - -9.75791334231181) < 1e-7)
-    assert(abs(Cx - -0.228460330660933) < 1e-7)
-    assert(abs(Cy - 0.0027251202547848) < 1e-7)
-    assert(abs(Cz - 3.84392501626197) < 1e-7)
+    assert(abs(C_p_min - -9.75791935002073) < 1e-6)
+    assert(abs(Cx - -0.228460331405455) < 1e-7)
+    assert(abs(Cy - 0.00272512182628459) < 1e-7)
+    assert(abs(Cz - 3.84392502477667) < 1e-7)
 
 
 def test_supersonic_half_wing_morino_quad_doublets_lin_sources_asym_flow():

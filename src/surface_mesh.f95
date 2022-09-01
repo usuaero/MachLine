@@ -48,9 +48,14 @@ module surface_mesh_mod
 
             ! Basic initialization
             procedure :: init => surface_mesh_init
+            procedure :: parse_singularity_settings => surface_mesh_parse_singularity_settings
+            procedure :: load_mesh_file => surface_mesh_load_mesh_file
+            procedure :: parse_mirror_settings => surface_mesh_parse_mirror_settings
+            procedure :: parse_wake_settings => surface_mesh_parse_wake_settings
             procedure :: locate_adjacent_panels => surface_mesh_locate_adjacent_panels
             procedure :: store_adjacent_vertices => surface_mesh_store_adjacent_vertices
             procedure :: check_panels_adjacent => surface_mesh_check_panels_adjacent
+            procedure :: create_midpoints => surface_mesh_create_midpoints
 
             ! Initialization based on flow properties
             procedure :: init_with_flow => surface_mesh_init_with_flow
@@ -99,16 +104,49 @@ contains
         implicit none
 
         class(surface_mesh),intent(inout) :: this
-        type(json_value),pointer,intent(inout) :: settings
+        type(json_value),pointer,intent(in) :: settings
 
-        character(len=:),allocatable :: extension
-        integer :: loc, i
-        character(len=:),allocatable :: mesh_file, mirror_plane
-        logical :: file_exists
-        real :: wake_shedding_angle
+        character(len=:),allocatable :: mesh_file
 
         ! Initialize a few things
         this%midpoints_created = .false.
+
+        ! Get singularity settings
+        call this%parse_singularity_settings(settings)
+
+        ! Load mesh from file
+        call json_get(settings, 'file', mesh_file)
+        mesh_file = trim(mesh_file)
+        call this%load_mesh_file(mesh_file)
+
+        ! Determine mirroring
+        call this%parse_mirror_settings(settings)
+
+        ! Load wake settings
+        call this%parse_wake_settings(settings)
+
+        ! Store references
+        call json_xtnsn_get(settings, 'reference.area', this%S_ref, 1.)
+
+        ! Locate which vertices are on the mirror plane
+        if (this%mirrored) call this%find_vertices_on_mirror()
+
+        ! Locate adjacent panels
+        call this%locate_adjacent_panels()
+
+        ! Create midpoints (if needed)
+        if (doublet_order == 2) call this%create_midpoints()
+
+    end subroutine surface_mesh_init
+
+
+    subroutine surface_mesh_parse_singularity_settings(this, settings)
+        ! Parses the settings regarding singularity distributions from the input
+
+        implicit none
+        
+        class(surface_mesh), intent(inout) :: this
+        type(json_value),pointer,intent(in) :: settings
 
         ! Set singularity orders
         call json_xtnsn_get(settings, 'singularity_order.doublet', doublet_order, 1)
@@ -127,10 +165,21 @@ contains
             write(*,*) "!!! Only linear or quadratic doublet distributions are allowed. Quitting..."
             stop
         end if
+    
+    end subroutine surface_mesh_parse_singularity_settings
 
-        ! Get mesh file
-        call json_get(settings, 'file', mesh_file)
-        mesh_file = trim(mesh_file)
+
+    subroutine surface_mesh_load_mesh_file(this, mesh_file)
+        ! Loads the mesh from file
+
+        implicit none
+        
+        class(surface_mesh),intent(inout) :: this
+        character(len=:),allocatable,intent(in) :: mesh_file
+
+        logical :: file_exists
+        integer :: loc
+        character(len=:),allocatable :: extension
 
         ! Check mesh file exists
         inquire(file=mesh_file, exist=file_exists)
@@ -155,15 +204,26 @@ contains
             write(*,*) "MachLine cannot read ", extension, " type mesh files. Quitting..."
             stop
         end if
+        if (verbose) write(*,*) "Done."
 
         ! Store some mesh parameters
         this%N_true_verts = this%N_verts
 
-        if (verbose) write(*,*) "Done."
-
         ! Display mesh info
         if (verbose) write(*,'(a, i7, a, i7, a)') "     Surface mesh has ", this%N_verts, " vertices and ", &
                                                   this%N_panels, " panels."
+        
+    end subroutine surface_mesh_load_mesh_file
+
+
+    subroutine surface_mesh_parse_mirror_settings(this, settings)
+
+        implicit none
+        
+        class(surface_mesh),intent(inout) :: this
+        type(json_value),pointer,intent(in) :: settings
+
+        character(len=:),allocatable :: mirror_plane
 
         ! Get mirroring
         call json_xtnsn_get(settings, 'mirror_about', mirror_plane, "none")
@@ -182,6 +242,18 @@ contains
             this%mirror_plane = 0
             this%mirrored = .false.
         end select
+        
+    end subroutine surface_mesh_parse_mirror_settings
+
+
+    subroutine surface_mesh_parse_wake_settings(this, settings)
+
+        implicit none
+        
+        class(surface_mesh),intent(inout) :: this
+        type(json_value),pointer,intent(in) :: settings
+
+        real :: wake_shedding_angle
 
         ! Check if the user wants a wake
         call json_xtnsn_get(settings, 'wake_model.wake_present', this%wake_present, .true.)
@@ -202,19 +274,8 @@ contains
                 call json_xtnsn_get(settings, 'wake_model.N_panels', this%N_wake_panels_streamwise, 1)
             end if
         end if
-
-        ! Store references
-        call json_xtnsn_get(settings, 'reference.area', this%S_ref, 1.)
-
-        ! Locate which vertices are on the mirror plane
-        if (this%mirrored) then
-            call this%find_vertices_on_mirror()
-        end if
-
-        ! Locate adjacent panels
-        call this%locate_adjacent_panels()
-
-    end subroutine surface_mesh_init
+        
+    end subroutine surface_mesh_parse_wake_settings
 
 
     subroutine surface_mesh_find_vertices_on_mirror(this)
@@ -389,66 +450,7 @@ contains
 
         !$OMP end parallel
 
-        ! Initialize midpoint vertex objects
-        if (doublet_order == 2) then
-
-            ! Allocate more space
-            call this%allocate_new_vertices(this%N_edges)
-            N_orig_verts = this%N_verts - this%N_edges
-
-            do i=1,this%N_edges
-
-                ! Determine location
-                loc = 0.5*(this%vertices(vertex1(i))%loc + this%vertices(vertex2(i))%loc)
-
-                ! Initialize vertex object
-                i_mid = N_orig_verts + i
-                call this%vertices(i_mid)%init(loc, i_mid, 2)
-                this%vertices(i_mid)%l_avg = edge_length(i)
-
-                ! Add adjacent vertices
-                call this%vertices(i_mid)%adjacent_vertices%append(vertex1(i))
-                call this%vertices(i_mid)%adjacent_vertices%append(vertex2(i))
-
-                ! Add adjacent panels
-                call this%vertices(i_mid)%panels%append(panel1(i))
-                call this%vertices(i_mid)%panels_not_across_wake_edge%append(panel1(i))
-                if (panel2(i) > 0 .and. panel2(i) <= this%N_panels) then
-                    call this%vertices(i_mid)%panels%append(panel2(i))
-                    call this%vertices(i_mid)%panels_not_across_wake_edge%append(panel2(i))
-                end if
-
-                ! Add edge
-                call this%vertices(i_mid)%adjacent_edges%append(i)
-
-                ! Check if midpoint is on mirror plane
-                if (this%mirrored) then
-                    call this%vertices(i_mid)%set_whether_on_mirror_plane(this%mirror_plane)
-                end if
-
-                ! Point edge to it
-                this%edges(i)%i_midpoint = i_mid
-
-                ! Point panels to it
-                this%panels(panel1(i))%midpoints(edge_index1(i))%ptr => this%vertices(i_mid)
-
-                if (panel2(i) > 0 .and. panel2(i) <= this%N_panels) then
-                    this%panels(panel2(i))%midpoints(edge_index2(i))%ptr => this%vertices(i_mid)
-                end if
-
-            end do
-
-            ! Set flag
-            this%midpoints_created = .true.
-
-        end if
-
         if (verbose) write(*,"(a, i7, a)") "Done. Found ", this%N_edges, " edges."
-
-        ! Print info for added midpoint vertices
-        if (verbose .and. doublet_order == 2) write(*,"(a, i7, a, i7, a)") "     For a quadratic doublet distribution, ", &
-                                                                           this%N_edges, " vertices were added. Mesh now has ", &
-                                                                           this%N_verts, " vertices."
     
     end subroutine surface_mesh_locate_adjacent_panels
 
@@ -562,6 +564,75 @@ contains
         end do abutting_loop
     
     end function surface_mesh_check_panels_adjacent
+
+
+    subroutine surface_mesh_create_midpoints(this)
+        ! Creates a midpoint vertex for each edge
+
+        implicit none
+        
+        class(surface_mesh),target,intent(inout) :: this
+
+        integer :: i, i_mid, N_orig_verts
+        real,dimension(3) :: loc
+
+        ! Allocate more space
+        call this%allocate_new_vertices(this%N_edges)
+        N_orig_verts = this%N_verts - this%N_edges
+
+        do i=1,this%N_edges
+
+            ! Determine location
+            loc = 0.5*(this%vertices(this%edges(i)%verts(1))%loc + this%vertices(this%edges(i)%verts(2))%loc)
+
+            ! Initialize vertex object
+            i_mid = N_orig_verts + i
+            call this%vertices(i_mid)%init(loc, i_mid, 2)
+            this%vertices(i_mid)%l_avg = this%edges(i)%l
+
+            ! Add adjacent vertices
+            call this%vertices(i_mid)%adjacent_vertices%append(this%edges(i)%verts(1))
+            call this%vertices(i_mid)%adjacent_vertices%append(this%edges(i)%verts(2))
+
+            ! Add adjacent panels
+            call this%vertices(i_mid)%panels%append(this%edges(i)%panels(1))
+            call this%vertices(i_mid)%panels_not_across_wake_edge%append(this%edges(i)%panels(1))
+            
+            ! Make sure the second panel exists
+            if (this%edges(i)%panels(2) > 0 .and. this%edges(i)%panels(2) <= this%N_panels) then
+                call this%vertices(i_mid)%panels%append(this%edges(i)%panels(2))
+                call this%vertices(i_mid)%panels_not_across_wake_edge%append(this%edges(i)%panels(2))
+            end if
+
+            ! Add edge
+            call this%vertices(i_mid)%adjacent_edges%append(i)
+
+            ! Check if midpoint is on mirror plane
+            if (this%mirrored) then
+                call this%vertices(i_mid)%set_whether_on_mirror_plane(this%mirror_plane)
+            end if
+
+            ! Point edge to it
+            this%edges(i)%i_midpoint = i_mid
+
+            ! Point panels to it
+            this%panels(this%edges(i)%panels(1))%midpoints(this%edges(i)%edge_index_for_panel(1))%ptr => this%vertices(i_mid)
+
+            if (this%edges(i)%panels(2) > 0 .and. this%edges(i)%panels(2) <= this%N_panels) then
+                this%panels(this%edges(i)%panels(2))%midpoints(this%edges(i)%edge_index_for_panel(2))%ptr => this%vertices(i_mid)
+            end if
+
+        end do
+
+        ! Set flag
+        this%midpoints_created = .true.
+
+        ! Print info for added midpoint vertices
+        if (verbose) write(*,"(a, i7, a, i7, a)") "     For a quadratic doublet distribution, ", &
+                                                  this%N_edges, " vertices were added. Mesh now has ", &
+                                                  this%N_verts, " vertices."
+        
+    end subroutine surface_mesh_create_midpoints
 
 
     subroutine surface_mesh_init_with_flow(this, freestream, body_file, wake_file)
