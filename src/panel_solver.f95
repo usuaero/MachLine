@@ -1911,7 +1911,7 @@ contains
         real,dimension(:,:),allocatable :: points
         character(len=200) :: dummy_read
 
-        if (verbose) write(*,'(a)',advance='no') "    Calculating potentials at off-body points..."
+        if (verbose) write(*,'(a)',advance='no') "    Calculating potentials at off-body points "
 
         ! Get number of points from file
         N_points = 0
@@ -1922,21 +1922,19 @@ contains
 
         ! Loop through lines
         do
-
-            ! Read line
             read(unit,*,iostat=stat) dummy_read
 
-            ! Check status
+            ! If a line was actually read, increment the number of points
             if (stat == 0) then
                 N_points = N_points + 1
-
             else
-                exit
+                exit ! No more lines
             end if
-
         end do
 
         close(unit)
+
+        if (verbose) write(*,'(a, i7, a)',advance='no') "(got ", N_points, " points)..."
 
         ! Get points
         allocate(points(3,N_points))
@@ -1956,7 +1954,7 @@ contains
         call delete_file(points_output_file)
 
         ! Open output file
-        100 format(e20.12, ', ', e20.12, ', ', e20.12, ', ', e20.12, ', ', e20.12, ', ', e20.12, ', ', e20.12, ', ', e20.12)
+        100 format(e20.12, ',', e20.12, ',', e20.12, ',', e20.12, ',', e20.12, ',', e20.12, ',', e20.12, ',', e20.12)
         open(newunit=unit, file=points_output_file)
 
         ! Write header
@@ -1981,8 +1979,7 @@ contains
 
         close(unit)
 
-        write(*,*) "Done."
-
+        if (verbose) write(*,*) "Done."
 
     end subroutine panel_solver_export_off_body_points
 

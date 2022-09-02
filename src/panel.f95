@@ -113,19 +113,31 @@ module panel_mod
             ! Update information
             procedure :: point_to_new_vertex => panel_point_to_new_vertex
 
-            ! Influence calculations
+            ! Domain of dependence checking
             procedure :: check_dod => panel_check_dod
+
+            ! Influence calculations
+
+            ! Geometry
             procedure :: calc_subsonic_geom => panel_calc_subsonic_geom
             procedure :: calc_supersonic_subinc_geom => panel_calc_supersonic_subinc_geom
+
+            ! Fundamental integrals
             procedure :: E_i_M_N_K => panel_E_i_M_N_K
             procedure :: calc_subsonic_edge_integrals => panel_calc_subsonic_edge_integrals
             procedure :: calc_subsonic_panel_integrals => panel_calc_subsonic_panel_integrals
             procedure :: calc_supersonic_subinc_edge_integrals => panel_calc_supersonic_subinc_edge_integrals
             procedure :: calc_supersonic_subinc_panel_integrals => panel_calc_supersonic_subinc_panel_integrals
             procedure :: calc_integrals => panel_calc_integrals
+
+            ! Influences
             procedure :: allocate_potential_influences => panel_allocate_potential_influences
             procedure :: calc_potential_influences => panel_calc_potential_influences
             procedure :: calc_potentials => panel_calc_potentials
+
+            ! Results
+            procedure :: get_source_strengths => panel_get_source_strengths
+            procedure :: get_doublet_strengths => panel_get_doublet_strengths
             procedure :: get_source_dist_parameters => panel_get_source_dist_parameters
             procedure :: get_doublet_dist_parameters => panel_get_doublet_dist_parameters
             procedure :: get_velocity_jump => panel_get_velocity_jump
@@ -2006,7 +2018,7 @@ contains
     end subroutine panel_calc_potential_influences
 
 
-    subroutine panel_calc_potentials(this, P, freestream, dod_info, mirror_panel, sigma, mu, phi_d, phi_s)
+    subroutine panel_calc_potentials(this, P, freestream, dod_info, mirror_panel, sigma, mu, phi_s, phi_d)
         ! Calculates the potentials induced at the given point
 
         implicit none
@@ -2020,32 +2032,68 @@ contains
         real,intent(out) :: phi_d, phi_s
 
         real,dimension(:),allocatable :: source_inf, doublet_inf
-        real,dimension(6) :: mu_params
-        real,dimension(3) :: sigma_params
+        real,dimension(6) :: mu_verts
+        real,dimension(3) :: sigma_verts
 
         ! Get influences
         call this%calc_potential_influences(P, freestream, dod_info, mirror_panel, source_inf, doublet_inf)
 
         ! Get strengths
-        mu_params = this%get_doublet_dist_parameters(mu, mirror_panel)
-        sigma_params = this%get_source_dist_parameters(mu, mirror_panel)
+        sigma_verts = this%get_source_strengths(sigma, mirror_panel)
+        mu_verts = this%get_doublet_strengths(mu, mirror_panel)
 
         ! Apply strengths to calculate potentials
         ! Source
         if (source_order == 1) then
-            phi_s = sum(source_inf*sigma_params)
+            phi_s = sum(source_inf*sigma_verts)
         else
-            phi_s = source_inf(1)*sigma_params(1)
+            phi_s = source_inf(1)*sigma_verts(1)
         end if
 
         ! Doublet
         if (doublet_order == 2) then
-            phi_d = sum(doublet_inf*mu_params)
+            phi_d = sum(doublet_inf*mu_verts)
         else
-            phi_d = sum(doublet_inf(1:3)*mu_params(1:3))
+            phi_d = sum(doublet_inf(1:3)*mu_verts(1:3))
         end if
     
     end subroutine panel_calc_potentials
+
+
+    function panel_get_source_strengths(this, sigma, mirror) result(sigma_strengths)
+        ! Returns a vector of the relevant source strengths for this panel
+
+        implicit none
+        
+        class(panel),intent(in) :: this
+        real,dimension(:),allocatable,intent(in) :: sigma
+        logical,intent(in) :: mirror
+
+        real,dimension(3) :: sigma_strengths
+
+        integer :: i, shift
+
+        ! Determine shift to use
+        if (mirror) then
+            shift = size(sigma)/2
+        else
+            shift = 0
+        end if
+
+        ! Constant sources
+        if (source_order == 0) then
+            sigma_strengths(1) = sigma(this%index+shift)
+            sigma_strengths(2:3) = 0.
+
+        ! Linear sources
+        else
+            do i=1,this%N
+                sigma_strengths(i) = sigma(this%get_vertex_index(i)+shift)
+            end do
+        end if
+    
+        
+    end function panel_get_source_strengths
 
 
     function panel_get_source_dist_parameters(this, sigma, mirror) result(sigma_params)
@@ -2059,31 +2107,18 @@ contains
         
         real,dimension(3) :: sigma_params
 
-        integer :: i, shift
         real,dimension(3) :: sigma_verts
         real,dimension(3,3) :: S_sigma_inv
 
-        ! Determine shift to use
-        if (mirror) then
-            shift = size(sigma)/2
-        else
-            shift = 0
-        end if
+        ! Get strengths
+        sigma_verts = this%get_source_strengths(sigma, mirror)
 
         ! Constant sources
         if (source_order == 0) then
-            sigma_params(1) = sigma(this%index+shift)
-            sigma_params(2:3) = 0.
+            sigma_params = sigma_verts
 
         ! Linear sources
         else
-
-            ! Get source strengths at vertices
-            do i=1,this%N
-                sigma_verts(i) = sigma(this%get_vertex_index(i)+shift)
-            end do
-
-            ! Calculate parameters
             if (mirror) then
                 sigma_params = matmul(this%S_sigma_inv_mir, sigma_verts)
             else
@@ -2092,6 +2127,40 @@ contains
         end if
             
     end function panel_get_source_dist_parameters
+
+
+    function panel_get_doublet_strengths(this, mu, mirror) result(mu_strengths)
+        ! Returns the relevant doublet strengths for this panel
+
+        implicit none
+        
+        class(panel),intent(in) :: this
+        real,dimension(:),allocatable,intent(in) :: mu
+        logical,intent(in) :: mirror
+
+        real,dimension(6) :: mu_strengths
+
+        integer :: shift, i
+
+        ! Determine shift
+        if (mirror) then
+            shift = size(mu)/2
+        else
+            shift = 0
+        end if
+
+        ! Get doublet strengths at vertices
+        do i=1,this%N
+            
+            ! Vertices
+            mu_strengths(i) = mu(this%get_vertex_index(i)+shift)
+
+            ! Midpoints
+            if (doublet_order == 2) mu_strengths(i+3) = mu(this%get_midpoint_index(i)+shift)
+
+        end do
+        
+    end function panel_get_doublet_strengths
 
 
     function panel_get_doublet_dist_parameters(this, mu, mirror) result(mu_params)
@@ -2105,26 +2174,10 @@ contains
 
         real,dimension(6) :: mu_params
 
-        integer :: shift, i
         real,dimension(6) :: mu_verts
 
-        ! Determine shift
-        if (mirror) then
-            shift = size(mu)/2
-        else
-            shift = 0
-        end if
-
         ! Get doublet strengths at vertices
-        do i=1,this%N
-            
-            ! Vertices
-            mu_verts(i) = mu(this%get_vertex_index(i)+shift)
-
-            ! Midpoints
-            if (doublet_order == 2) mu_verts(i+3) = mu(this%get_midpoint_index(i)+shift)
-
-        end do
+        mu_verts = this%get_doublet_strengths(mu, mirror)
 
         ! Calculate doublet parameters (derivatives)
         if (doublet_order == 2) then

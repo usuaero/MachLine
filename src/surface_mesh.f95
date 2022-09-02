@@ -1435,78 +1435,6 @@ contains
     end subroutine surface_mesh_calc_vertex_normals
 
 
-    function surface_mesh_calc_point_dod(this, point, freestream) result(dod_info)
-        ! Calculates the domain of dependence for the point
-
-        implicit none
-        
-        class(surface_mesh),intent(in) :: this
-        real,dimension(3),intent(in) :: point
-        type(flow),intent(in) :: freestream
-
-        type(dod),dimension(:),allocatable :: dod_info
-
-        logical,dimension(:),allocatable :: verts_in_dod
-        integer :: k, stat
-        real,dimension(3) :: vert_loc, mirrored_vert_loc
-
-        ! Allocate DoD storage
-        if (this%mirrored) then
-            allocate(dod_info(2*this%N_panels), stat=stat)
-            call check_allocation(stat, "domain of dependence storage")
-
-            allocate(verts_in_dod(2*this%N_verts), source=.false., stat=stat)
-            call check_allocation(stat, "vertex domain of dependence storage")
-        else
-            allocate(dod_info(this%N_panels), stat=stat)
-            call check_allocation(stat, "domain of dependence storage")
-
-            allocate(verts_in_dod(this%N_verts), source=.false., stat=stat)
-            call check_allocation(stat, "vertex domain of dependence storage")
-        end if
-
-        ! If the freestream is supersonic, calculate domain of dependence info
-        if (freestream%supersonic) then
-
-            ! Loop through body vertices
-            do k=1,this%N_verts
-
-                ! Get this vertex location
-                vert_loc = this%vertices(k)%loc
-
-                ! Check if this vertex is in the DoD
-                verts_in_dod(k) = freestream%point_in_dod(vert_loc, point)
-
-                if (this%mirrored) then
-
-                    ! Get the mirrored vertex location
-                    mirrored_vert_loc = mirror_across_plane(vert_loc, this%mirror_plane)
-
-                    ! Check if this vertex is in the DoD
-                    verts_in_dod(k+this%N_verts) = freestream%point_in_dod(mirrored_vert_loc, point)
-
-                end if
-            end do
-
-            ! Loop through body panels
-            do k=1,this%N_panels
-
-                ! Check if the panel is in the DoD
-                dod_info(k) = this%panels(k)%check_dod(point, freestream, verts_in_dod)
-
-                if (this%mirrored) then
-
-                    ! Check DoD for mirrored panel
-                    dod_info(k+this%N_panels) = this%panels(k)%check_dod(point, freestream, verts_in_dod, &
-                                                                         .true., this%mirror_plane)
-                end if
-            end do
-
-        end if
-        
-    end function surface_mesh_calc_point_dod
-
-
     subroutine surface_mesh_init_wake(this, freestream, wake_file)
         ! Handles wake initialization
 
@@ -1707,6 +1635,127 @@ contains
     end subroutine surface_mesh_place_interior_control_points
 
 
+    subroutine surface_mesh_calc_point_dod(this, point, freestream, dod_info, wake_dod_info)
+        ! Calculates the domain of dependence for the point
+
+        implicit none
+        
+        class(surface_mesh),intent(in) :: this
+        real,dimension(3),intent(in) :: point
+        type(flow),intent(in) :: freestream
+        type(dod),dimension(:),allocatable,intent(out) :: dod_info, wake_dod_info
+
+        logical,dimension(:),allocatable :: verts_in_dod, wake_verts_in_dod
+        integer :: k, stat
+        real,dimension(3) :: vert_loc, mirrored_vert_loc
+
+        ! Allocate DoD storage for body
+        if (this%mirrored) then
+            allocate(dod_info(2*this%N_panels), stat=stat)
+            call check_allocation(stat, "domain of dependence storage")
+
+            allocate(verts_in_dod(2*this%N_verts), source=.false., stat=stat)
+            call check_allocation(stat, "vertex domain of dependence storage")
+        else
+            allocate(dod_info(this%N_panels), stat=stat)
+            call check_allocation(stat, "domain of dependence storage")
+
+            allocate(verts_in_dod(this%N_verts), source=.false., stat=stat)
+            call check_allocation(stat, "vertex domain of dependence storage")
+        end if
+
+        ! Allocate DoD storage for wake
+        if (this%mirrored .and. .not. this%asym_flow) then ! This is the only case where the wake is mirrored
+            allocate(wake_dod_info(2*this%wake%N_panels), stat=stat)
+            call check_allocation(stat, "domain of dependence storage")
+
+            allocate(wake_verts_in_dod(2*this%wake%N_verts), stat=stat)
+            call check_allocation(stat, "vertex domain of dependence storage")
+        else
+            allocate(wake_dod_info(this%wake%N_panels), stat=stat)
+            call check_allocation(stat, "domain of dependence storage")
+
+            allocate(wake_verts_in_dod(this%wake%N_verts), stat=stat)
+            call check_allocation(stat, "vertex domain of dependence storage")
+        end if
+
+        ! If the freestream is supersonic, calculate domain of dependence info
+        if (freestream%supersonic) then
+
+            ! Loop through body vertices
+            do k=1,this%N_verts
+
+                ! Get this vertex location
+                vert_loc = this%vertices(k)%loc
+
+                ! Check if this vertex is in the DoD
+                verts_in_dod(k) = freestream%point_in_dod(vert_loc, point)
+
+                if (this%mirrored) then
+
+                    ! Get the mirrored vertex location
+                    mirrored_vert_loc = mirror_across_plane(vert_loc, this%mirror_plane)
+
+                    ! Check if this vertex is in the DoD
+                    verts_in_dod(k+this%N_verts) = freestream%point_in_dod(mirrored_vert_loc, point)
+
+                end if
+            end do
+
+            ! Loop through body panels
+            do k=1,this%N_panels
+
+                ! Check if the panel is in the DoD
+                dod_info(k) = this%panels(k)%check_dod(point, freestream, verts_in_dod)
+
+                if (this%mirrored) then
+
+                    ! Check DoD for mirrored panel
+                    dod_info(k+this%N_panels) = this%panels(k)%check_dod(point, freestream, verts_in_dod, &
+                                                                         .true., this%mirror_plane)
+                end if
+            end do
+
+            deallocate(verts_in_dod)
+
+            ! Loop through wake vertices
+            do k=1,this%wake%N_verts
+
+                ! Get vertex location
+                vert_loc = this%wake%vertices(k)%loc
+
+                ! Original vertex and original control point
+                wake_verts_in_dod(k) = freestream%point_in_dod(vert_loc, point)
+
+                if (this%mirrored .and. .not. this%asym_flow) then
+
+                    ! Get mirrored vertex location
+                    mirrored_vert_loc = mirror_across_plane(vert_loc, this%mirror_plane)
+
+                    ! Check if this vertex is in the DoD
+                    wake_verts_in_dod(k+this%wake%N_verts) = freestream%point_in_dod(mirrored_vert_loc, point)
+
+                end if
+            end do
+
+            ! Loop through wake panels
+            do k=1,this%wake%N_panels
+
+                ! Check if the panel is in the DoD
+                wake_dod_info(k) = this%wake%panels(k)%check_dod(point, freestream, wake_verts_in_dod)
+
+                ! Check DoD for mirrored panel
+                if (this%mirrored .and. .not. this%asym_flow) then
+                    wake_dod_info(k+this%wake%N_panels) = this%wake%panels(k)%check_dod(point, freestream, wake_verts_in_dod, &
+                                                                                        .true., this%mirror_plane)
+                end if
+            end do
+
+        end if
+
+    end subroutine surface_mesh_calc_point_dod
+
+
     subroutine surface_mesh_get_induced_potentials_at_point(this, point, freestream, phi_d, phi_s)
         ! Calculates the source- and doublet-induced potentials at the given point
 
@@ -1720,10 +1769,10 @@ contains
         integer :: i, j, k
         real :: phi_d_panel, phi_s_panel
         logical,dimension(:),allocatable :: verts_in_dod
-        type(dod),dimension(:),allocatable :: dod_info
+        type(dod),dimension(:),allocatable :: dod_info, wake_dod_info
 
         ! Calculate domain of dependence
-        dod_info = this%calc_point_dod(point, freestream)
+        call this%calc_point_dod(point, freestream, dod_info, wake_dod_info)
 
         ! Loop through panels
         phi_s = 0.
@@ -1736,8 +1785,8 @@ contains
                 ! Calculate influence
                 call this%panels(k)%calc_potentials(point, freestream, dod_info(k), .false., &
                                                     this%sigma, this%mu, phi_s_panel, phi_d_panel)
-                phi_d = phi_d + phi_d_panel
                 phi_s = phi_s + phi_s_panel
+                phi_d = phi_d + phi_d_panel
 
             end if
 
@@ -1751,8 +1800,8 @@ contains
                         ! Get influence of mirrored panel
                         call this%panels(k)%calc_potentials(point, freestream, dod_info(k+this%N_panels), .true., &
                                                             this%sigma, this%mu, phi_s_panel, phi_d_panel)
-                        phi_d = phi_d + phi_d_panel
                         phi_s = phi_s + phi_s_panel
+                        phi_d = phi_d + phi_d_panel
 
                     else
 
@@ -1760,10 +1809,41 @@ contains
                         call this%panels(k)%calc_potentials(mirror_across_plane(point, this%mirror_plane), freestream, &
                                                             dod_info(k+this%N_panels), .false., &
                                                             this%sigma, this%mu, phi_s_panel, phi_d_panel)
-                        phi_d = phi_d + phi_d_panel
                         phi_s = phi_s + phi_s_panel
+                        phi_d = phi_d + phi_d_panel
 
                     end if
+
+                end if
+
+            end if
+
+        end do
+
+        ! Loop through wake panels
+        do k=1,this%wake%N_panels
+
+            ! Check DoD
+            if (wake_dod_info(k)%in_dod) then
+            
+                ! Calculate influence
+                call this%panels(k)%calc_potentials(point, freestream, wake_dod_info(k), .false., &
+                                                    this%sigma, this%mu, phi_s_panel, phi_d_panel)
+                phi_s = phi_s + phi_s_panel
+                phi_d = phi_d + phi_d_panel
+
+            end if
+
+            ! Calculate mirrored influences
+            if (this%mirrored .and. .not. this%asym_flow) then
+
+                if (wake_dod_info(k+this%N_panels)%in_dod) then
+
+                    ! Get influence of mirrored panel
+                    call this%panels(k)%calc_potentials(point, freestream, wake_dod_info(k+this%N_panels), .true., &
+                                                        this%sigma, this%mu, phi_s_panel, phi_d_panel)
+                    phi_s = phi_s + phi_s_panel
+                    phi_d = phi_d + phi_d_panel
 
                 end if
 
