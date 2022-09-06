@@ -127,7 +127,7 @@ contains
             call json_xtnsn_get(solver_settings, 'matrix_solver', this%matrix_solver, 'GMRES')
         end if
         call json_xtnsn_get(solver_settings, 'block_size', this%block_size, 400)
-        call json_xtnsn_get(solver_settings, 'tolerance', this%tol, 1e-12)
+        call json_xtnsn_get(solver_settings, 'tolerance', this%tol, 1.e-12)
         call json_xtnsn_get(solver_settings, 'relaxation', this%rel, 0.8)
         call json_xtnsn_get(solver_settings, 'max_iterations', this%max_iterations, 1000)
         call json_xtnsn_get(solver_settings, 'preconditioner', this%preconditioner, 'DIAG')
@@ -248,7 +248,11 @@ contains
         real :: offset
 
         ! Get offset
-        call json_xtnsn_get(solver_settings, 'control_point_offset', offset, 1e-6)
+        call json_xtnsn_get(solver_settings, 'control_point_offset', offset, 1.e-6)
+        if (offset <= 0.) then
+            write(*,*) "!!! Control point offset must be finite and positive. Defaulting to 1e-6."
+            offset = 1.e-6
+        end if
         
         ! Place control points
         if (verbose) write(*,'(a ES10.4 a)',advance='no') "     Placing control points using offset of ", offset, "..."
@@ -480,7 +484,7 @@ contains
 
         ! Sort vertices in compressibility direction
         ! We proceed from most downstream to most upstream so as to get an upper-pentagonal matrix
-        if (this%freestream%supersonic) then
+        if (this%freestream%supersonic .and. this%matrix_solver == 'QRUP') then
 
             if (verbose) write(*,'(a)',advance='no') "     Permuting vertices for efficient system solution..."
 

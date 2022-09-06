@@ -1,18 +1,15 @@
 {
     "flow": {
-        "freestream_velocity": [100.0, 0.0, 0.0],
+        "freestream_velocity": [100.0, 0.0, 10.0],
         "gamma" : 1.4,
-        "freestream_mach_number" : 1.3
+        "freestream_mach_number" : 1.5
     },
     "geometry": {
         "file": "dev/meshes/swept_double_wedge_wing.vtk",
         "spanwise_axis" : "+y",
-        "singularity_order" : {
-            "source" : 0,
-            "doublet" : 1
-        },
         "wake_model" : {
-            "trefftz_distance" : 20.0
+            "trefftz_distance" : 20.0,
+            "wake_shedding_angle" : 100.0
         },
         "reference": {
             "area": 1.0

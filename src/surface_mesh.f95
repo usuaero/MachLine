@@ -1232,7 +1232,7 @@ contains
         if (this%vertices(i_jango)%vert_type == 1) this%N_true_verts = this%N_true_verts + 1
 
         ! Specify wake partners
-        ! TODO: Generalize to arbitrary number of wake-shedding edges...
+        ! TODO: Generalize to arbitrary number of wake-shedding edges...this is going to be interesting...
         this%vertices(i_jango)%i_wake_partner = i_boba
         this%vertices(i_boba)%i_wake_partner = i_jango
 
@@ -1578,15 +1578,11 @@ contains
             if (this%vertices(i)%clone) then
 
                 ! Loop through panels associated with this clone to get their average normal vector
-                !write(*,*)
-                !write(*,*) "Vertex: ", i
-                !write(*,*) "Neighbors:"
                 n_avg = 0.
                 do j=1,this%vertices(i)%panels_not_across_wake_edge%len()
 
                     ! Get panel index
                     call this%vertices(i)%panels_not_across_wake_edge%get(j, i_panel)
-                    !write(*,*) i_panel
 
                     ! Add normal vector
                     n_avg = n_avg + this%panels(i_panel)%n_g
