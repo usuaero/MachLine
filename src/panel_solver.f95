@@ -1120,7 +1120,11 @@ contains
 
         ! QR via Givens rotations for upper-pentagonal
         case ('QRUP')
-            call QR_givens_solve_upper_pentagonal(this%N, A_p, b_p, x)
+            call QR_row_givens_solve_UP(this%N, A_p, b_p, x)
+
+        ! QR via fast Givens rotations for upper-pentagonal
+        case ('FQRUP')
+            call QR_fast_givens_solve_upper_pentagonal(this%N, A_p, b_p, x)
 
         ! GMRES
         case ('GMRES')
