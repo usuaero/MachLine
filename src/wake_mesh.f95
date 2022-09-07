@@ -117,11 +117,9 @@ contains
         end if
 
         ! Initialize vertices
-        allocate(this%vertices(this%N_verts))
         call this%init_vertices(body_verts, freestream, wake_edge_verts, asym_flow, trefftz_dist, N_panels_streamwise, mirror_plane)
 
         ! Initialize panels
-        allocate(this%panels(this%N_panels))
         call this%init_panels(body_edges, body_verts, N_panels_streamwise, wake_edge_indices, asym_flow, N_body_panels)
 
         ! Initialize midpoints (if needed)
@@ -157,6 +155,9 @@ contains
         integer :: i_vert, i, j, i_top_parent, i_bot_parent, i_mirrored_vert, N_wake_edge_verts, N_body_verts
         real :: distance, vertex_separation, mirrored_distance, mirrored_vertex_separation
         real,dimension(3) :: start, loc, mirrored_start
+
+        ! Allocate memory
+        allocate(this%vertices(this%N_verts))
 
         ! Determine vertex placement
         i_vert = 0
@@ -250,6 +251,9 @@ contains
         integer :: i, j, k, i_start, i_stop, i_panel, i1, i2, i3, N_wake_edges, N_skipped
         logical,dimension(:),allocatable :: skipped_panels
         type(panel),dimension(:),allocatable :: temp_panels
+
+        ! Allocate memory
+        allocate(this%panels(this%N_panels))
 
         ! Initialize storage for skipping zero-area panels
         allocate(skipped_panels(this%N_panels), source=.false.)

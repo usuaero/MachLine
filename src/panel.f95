@@ -2073,23 +2073,31 @@ contains
 
         integer :: i, shift
 
-        ! Determine shift to use
-        if (mirror) then
-            shift = size(sigma)/2
-        else
-            shift = 0
-        end if
+        ! Check we're not in the wake
+        if (.not. this%in_wake) then
 
-        ! Constant sources
-        if (source_order == 0) then
-            sigma_strengths(1) = sigma(this%index+shift)
-            sigma_strengths(2:3) = 0.
+            ! Determine shift to use
+            if (mirror) then
+                shift = size(sigma)/2
+            else
+                shift = 0
+            end if
 
-        ! Linear sources
+            ! Constant sources
+            if (source_order == 0) then
+                sigma_strengths(1) = sigma(this%index+shift)
+                sigma_strengths(2:3) = 0.
+
+            ! Linear sources
+            else
+                do i=1,this%N
+                    sigma_strengths(i) = sigma(this%get_vertex_index(i)+shift)
+                end do
+            end if
+
+        ! Wakes no not have source distributions
         else
-            do i=1,this%N
-                sigma_strengths(i) = sigma(this%get_vertex_index(i)+shift)
-            end do
+            sigma_strengths = 0.
         end if
     
         
@@ -2149,16 +2157,32 @@ contains
             shift = 0
         end if
 
+        ! Get doublet strengths based on parents
+        if (this%in_wake) then
+            do i=1,this%N
+
+                ! Vertices
+                mu_strengths(i) = mu(this%vertices(i)%ptr%top_parent+shift) - mu(this%vertices(i)%ptr%bot_parent+shift)
+
+                ! Midpoints
+                if (doublet_order == 2) then
+                    mu_strengths(i+3) = mu(this%midpoints(i)%ptr%top_parent+shift) - mu(this%midpoints(i)%ptr%bot_parent+shift)
+                end if
+
+            end do
+
         ! Get doublet strengths at vertices
-        do i=1,this%N
-            
-            ! Vertices
-            mu_strengths(i) = mu(this%get_vertex_index(i)+shift)
+        else
+            do i=1,this%N
 
-            ! Midpoints
-            if (doublet_order == 2) mu_strengths(i+3) = mu(this%get_midpoint_index(i)+shift)
+                ! Vertices
+                mu_strengths(i) = mu(this%get_vertex_index(i)+shift)
 
-        end do
+                ! Midpoints
+                if (doublet_order == 2) mu_strengths(i+3) = mu(this%get_midpoint_index(i)+shift)
+
+            end do
+        end if
         
     end function panel_get_doublet_strengths
 

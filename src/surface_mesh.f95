@@ -1836,8 +1836,8 @@ contains
                 if (wake_dod_info(k+this%N_panels)%in_dod) then
 
                     ! Get influence of mirrored panel
-                    call this%panels(k)%calc_potentials(point, freestream, wake_dod_info(k+this%N_panels), .true., &
-                                                        this%sigma, this%mu, phi_s_panel, phi_d_panel)
+                    call this%wake%panels(k)%calc_potentials(point, freestream, wake_dod_info(k+this%N_panels), .true., &
+                                                             this%sigma, this%mu, phi_s_panel, phi_d_panel)
                     phi_s = phi_s + phi_s_panel
                     phi_d = phi_d + phi_d_panel
 
