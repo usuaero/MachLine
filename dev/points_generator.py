@@ -5,14 +5,14 @@ if __name__=="__main__":
     # Limits
     x_max = 1.05
     x_min = 0.95
-    y_max = 0.05
-    y_min = -0.05
+    y_max = 0.2
+    y_min = -0.00
     z_max = 0.05
     z_min = -0.05
 
     # Number of points to distribute
     Nx = 30
-    Ny = 30
+    Ny = 60
     Nz = 30
 
     # Distributions in each direction

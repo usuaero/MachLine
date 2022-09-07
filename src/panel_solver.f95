@@ -29,7 +29,7 @@ module panel_solver_mod
         real,dimension(3) :: C_F, inner_flow
         real,dimension(:,:),allocatable :: A
         real,dimension(:),allocatable :: b
-        integer,dimension(:),allocatable :: P, P_inv
+        integer,dimension(:),allocatable :: P
         integer :: N, N_cells, block_size, max_iterations, N_unknown, N_d_unknown, N_s_unknown
 
         contains
@@ -558,9 +558,6 @@ contains
             end do
 
         end if
-
-        ! Invert 
-        call invert_permutation_vector(this%N, this%P, this%P_inv)
     
     end subroutine panel_solver_set_permutation
 
@@ -1052,12 +1049,12 @@ contains
 
             ! Check for uninfluenced/ing points
             do i=1,this%N
-                if (all(this%A(i,:) == 0.)) then
-                    write(*,*) "!!! Control point ", this%P_inv(i), " is not influenced. Quitting..."
+                if (all(this%A(this%P(i),:) == 0.)) then
+                    write(*,*) "!!! Control point ", i, " is not influenced. Quitting..."
                     stop
                 end if
-                if (all(this%A(:,i) == 0.)) then
-                    write(*,*) "!!! Vertex ", this%P_inv(i), " exerts no influence. Quitting..."
+                if (all(this%A(:,this%P(i)) == 0.)) then
+                    write(*,*) "!!! Vertex ", i, " exerts no influence. Quitting..."
                     stop
                 end if
             end do
@@ -1174,7 +1171,7 @@ contains
         ! Transfer solution to body storage
         allocate(body%mu(this%N))
         do i=1,this%N
-            body%mu(this%P_inv(i)) = x(i)
+            body%mu(i) = x(this%P(i))
         end do
 
         ! Get residual vector
@@ -1193,7 +1190,7 @@ contains
         ! Get potentials at control points
         allocate(body%phi_cp_mu(this%N))
         do i=1,this%N
-            body%phi_cp_mu(this%P_inv(i)) = R(i) + this%b(i)
+            body%phi_cp_mu(i) = R(this%P(i)) + this%b(this%P(i))
         end do
         body%phi_cp = body%phi_cp_mu + body%phi_cp_sigma
         deallocate(this%b)
@@ -1401,9 +1398,12 @@ contains
             ! Mirrored points
             if (body%asym_flow) then
                 loc_mir = mirror_across_plane(body%vertices(i)%loc, body%mirror_plane)
-                body%Phi_u(i+body%N_verts) = body%phi_u(i+body%N_verts) + inner(this%inner_flow, loc_mir)
+                body%Phi_u(i+body%N_verts) = body%Phi_u(i+body%N_verts) + inner(this%inner_flow, loc_mir)
             end if
         end do
+
+        ! Factor in freestream velocity
+        body%Phi_u = body%Phi_u*this%freestream%U
 
         if (verbose) write(*,*) "Done."
 
