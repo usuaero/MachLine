@@ -1915,9 +1915,10 @@ contains
         type(surface_mesh),intent(in) :: body
 
         integer :: i, unit, N_points, stat
-        real :: phi_inf, phi_d, phi_s
+        real :: phi_inf
         real,dimension(:,:),allocatable :: points
         character(len=200) :: dummy_read
+        real,dimension(:),allocatable :: phi_s, phi_d
 
         if (verbose) write(*,'(a)',advance='no') "    Calculating potentials at off-body points "
 
@@ -1958,6 +1959,23 @@ contains
 
         close(unit)
 
+        ! Allocate potential storage
+        allocate(phi_s(N_points), stat=stat)
+        call check_allocation(stat, "off-body source potentials")
+        allocate(phi_d(N_points), stat=stat)
+        call check_allocation(stat, "off-body doublet potentials")
+
+        ! Calculate potentials
+        !$OMP parallel do
+        do i=1,N_points
+
+            ! Get induced potentials
+            call body%get_induced_potentials_at_point(points(:,i), this%freestream, phi_d(i), phi_s(i))
+
+        end do
+        phi_d = phi_d*this%freestream%U
+        phi_s = phi_s*this%freestream%U
+
         ! Delete old output file
         call delete_file(points_output_file)
 
@@ -1968,20 +1986,15 @@ contains
         ! Write header
         write(unit,*) 'x,y,z,phi_inf,phi_d,phi_s,phi,Phi'
 
-        ! Calculate potentials and write out to file
+        ! Write potentials out to file
         do i=1,N_points
 
             ! Calculate freestream potential
             phi_inf = this%freestream%U*inner(points(:,i), this%freestream%c_hat_g)
 
-            ! Get induced potentials
-            call body%get_induced_potentials_at_point(points(:,i), this%freestream, phi_d, phi_s)
-
             ! Write to file
-            phi_d = phi_d*this%freestream%U
-            phi_s = phi_s*this%freestream%U
-            write(unit,100) points(1,i), points(2,i), points(3,i), phi_inf, phi_d, phi_s, phi_d + phi_s, &
-                            phi_inf + phi_d + phi_s
+            write(unit,100) points(1,i), points(2,i), points(3,i), phi_inf, phi_d(i), phi_s(i), phi_d(i) + phi_s(i), &
+                            phi_inf + phi_d(i) + phi_s(i)
 
         end do
 
