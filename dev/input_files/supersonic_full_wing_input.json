@@ -12,9 +12,6 @@
             "trefftz_distance" : 20.0
         }
     },
-    "solver": {
-        "matrix_solver" : "GMRES"
-    },
     "post_processing" : {
         "pressure_rules" : {
             "isentropic" : true
