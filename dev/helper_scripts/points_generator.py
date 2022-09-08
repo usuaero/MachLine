@@ -5,15 +5,15 @@ if __name__=="__main__":
     # Limits
     x_max = 1.05
     x_min = 0.95
-    y_max = 0.3
-    y_min = -0.00
-    z_max = 0.05
-    z_min = -0.05
+    y_max = 0.05
+    y_min = -0.05
+    z_max = 0.1
+    z_min = -0.0
 
     # Number of points to distribute
-    Nx = 30
-    Ny = 90
-    Nz = 30
+    Nx = 25
+    Ny = 25
+    Nz = 25
 
     # Distributions in each direction
     x = np.linspace(x_min, x_max, Nx)
