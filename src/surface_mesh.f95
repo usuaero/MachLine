@@ -1010,8 +1010,6 @@ contains
             end do
         end do
 
-        deallocate(i_vertices)
-
         ! Update number of vertices
         this%N_verts = this%N_verts + N_new_verts
         

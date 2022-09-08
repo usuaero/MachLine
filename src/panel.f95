@@ -1651,7 +1651,11 @@ contains
                         ! F(1,1,1)
                         F1 = s_b*geom%R1(i) + abs(geom%l1(i))
                         F2 = s_b*geom%R2(i) + abs(geom%l2(i))
-                        int%F111(i) = -sign(1., geom%v_eta(i))*log(F1/F2)/s_b
+                        if (F1 /= 0. .and. F2 /= 0.) then
+                            int%F111(i) = -sign(1., geom%v_eta(i))*log(F1/F2)/s_b
+                        else
+                            if (verbose) write(*,*) "!!! Detected evaluation point on perimeter of panel. Solution may be affected."
+                        end if
 
                         ! Higher-order
                         if (higher_order) then
@@ -1950,25 +1954,27 @@ contains
             int = this%calc_integrals(geom, 'potential', 'doublet', freestream, mirror_panel, dod_info)
 
             ! Source potential
-            phi_s(1) = int%H111
-            if (source_order == 1) then
+            if (.not. this%in_wake) then
+                phi_s(1) = int%H111
+                if (source_order == 1) then
 
-                ! Johnson Eq. (D21)
-                ! Equivalent to Ehlers Eq. (8.6)
-                phi_s(2) = int%H111*geom%P_ls(1) + int%H211
-                phi_s(3) = int%H111*geom%P_ls(2) + int%H121
+                    ! Johnson Eq. (D21)
+                    ! Equivalent to Ehlers Eq. (8.6)
+                    phi_s(2) = int%H111*geom%P_ls(1) + int%H211
+                    phi_s(3) = int%H111*geom%P_ls(2) + int%H121
 
-                ! Convert to vertex influences (Davis Eq. (4.41))
-                if (mirror_panel) then
-                    phi_s = matmul(phi_s, this%S_sigma_inv_mir)
-                else
-                    phi_s = matmul(phi_s, this%S_sigma_inv)
+                    ! Convert to vertex influences (Davis Eq. (4.41))
+                    if (mirror_panel) then
+                        phi_s = matmul(phi_s, this%S_sigma_inv_mir)
+                    else
+                        phi_s = matmul(phi_s, this%S_sigma_inv)
+                    end if
+
                 end if
-
-            end if
             
-            ! Add area Jacobian and kappa factor
-            phi_s = -this%J*freestream%K_inv*phi_s
+                ! Add area Jacobian and kappa factor
+                phi_s = -this%J*freestream%K_inv*phi_s
+            end if
 
             ! Doublet potential
             ! Johnson Eq. (D.30)
