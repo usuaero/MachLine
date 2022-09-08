@@ -553,9 +553,10 @@ contains
 
             ! Identity permutation
             allocate(this%P(this%N))
-            do i=1,this%N
-                this%P(i) = i
-            end do
+            this%P(1:body%N_verts) = body%vertex_ordering
+            if (this%N > body%N_verts) then
+                this%P(body%N_verts+1:) = body%vertex_ordering + body%N_verts
+            end if
 
         end if
     

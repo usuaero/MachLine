@@ -77,7 +77,7 @@ def test_half_wing_source_free_asym_inc_flow():
     assert(abs(C_p_min - -1.27770147944078) < 1e-7)
     assert(abs(Cx - -0.393161802847563) < 1e-7)
     assert(abs(Cy - -0.0468924089116137) < 1e-7)
-    assert(abs(Cz - 20.6218621133509) < 1.1e-7)
+    assert(abs(Cz - 20.621861827297) < 1.1e-7)
 
 
 def test_half_wing_morino_asym_inc_flow():
@@ -108,7 +108,7 @@ def test_half_wing_morino_asym_inc_flow():
     assert(abs(C_p_min - -1.27775688535512) < 1e-7)
     assert(abs(Cx - -0.393164042328241) < 1e-7)
     assert(abs(Cy - -0.0468954336112259) < 1e-7)
-    assert(abs(Cz - 20.6220755966273) < 1e-7)
+    assert(abs(Cz - 20.6220754438474) < 1e-7)
 
 
 def test_half_wing_morino_zero_aoa_zero_beta_inc():

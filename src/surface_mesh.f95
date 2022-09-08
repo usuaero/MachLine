@@ -43,6 +43,7 @@ module surface_mesh_mod
         logical :: found_discontinuous_edges, midpoints_created
         real,dimension(:),allocatable :: mu, sigma ! Singularity strengths
         real :: S_ref ! Reference parameters
+        integer,dimension(:),allocatable :: vertex_ordering
 
         contains
 
@@ -583,7 +584,7 @@ contains
         do i=1,this%N_edges
 
             ! Determine location
-            loc = 0.5*(this%vertices(this%edges(i)%verts(1))%loc + this%vertices(this%edges(i)%verts(2))%loc)
+            loc = 0.5*(this%vertices(this%edges(i)%top_verts(1))%loc + this%vertices(this%edges(i)%top_verts(2))%loc)
 
             ! Initialize vertex object
             i_mid = N_orig_verts + i
@@ -591,8 +592,8 @@ contains
             this%vertices(i_mid)%l_avg = this%edges(i)%l
 
             ! Add adjacent vertices
-            call this%vertices(i_mid)%adjacent_vertices%append(this%edges(i)%verts(1))
-            call this%vertices(i_mid)%adjacent_vertices%append(this%edges(i)%verts(2))
+            call this%vertices(i_mid)%adjacent_vertices%append(this%edges(i)%top_verts(1))
+            call this%vertices(i_mid)%adjacent_vertices%append(this%edges(i)%top_verts(2))
 
             ! Add adjacent panels
             call this%vertices(i_mid)%panels%append(this%edges(i)%panels(1))
@@ -680,6 +681,12 @@ contains
         if (this%mirrored) then
             call this%set_up_mirroring()
         end if
+
+        ! Initialize vertex ordering
+        allocate(this%vertex_ordering(this%N_verts))
+        do i=1,this%N_verts
+            this%vertex_ordering(i) = i
+        end do
 
         ! Clone necessary vertices
         if (this%wake_present .or. freestream%supersonic) then
@@ -800,8 +807,8 @@ contains
                 if (inner(this%panels(i)%n_g, freestream%V_inf) > 0.0 .or. inner(second_normal, freestream%V_inf) > 0.0) then
                     
                     ! Get vertex indices (simplifies later code)
-                    i_vert_1 = this%edges(k)%verts(1)
-                    i_vert_2 = this%edges(k)%verts(2)
+                    i_vert_1 = this%edges(k)%top_verts(1)
+                    i_vert_2 = this%edges(k)%top_verts(2)
                     
                     ! Calculate tangent in global coords
                     d = this%vertices(i_vert_2)%loc - this%vertices(i_vert_1)%loc
@@ -877,8 +884,8 @@ contains
             if (this%edges(i)%sheds_wake) then
 
                 ! Get vertex indices
-                m = this%edges(i)%verts(1)
-                n = this%edges(i)%verts(2)
+                m = this%edges(i)%top_verts(1)
+                n = this%edges(i)%top_verts(2)
                 if (doublet_order == 2) mid = this%edges(i)%i_midpoint
 
                 ! If a given discontinuous edge has only one of its endpoints lying on the mirror plane, then that endpoint has another
@@ -960,97 +967,30 @@ contains
     end subroutine surface_mesh_get_indices_to_panel_vertices
 
 
-    subroutine surface_mesh_allocate_new_vertices(this, N_new_verts, i_rearrange)
+    subroutine surface_mesh_allocate_new_vertices(this, N_new_verts)
         ! Adds the specified number of vertex objects to the end of the surface mesh's vertex array.
         ! Handles moving panel pointers to the new allocation of previously-existing vertices.
-        ! i_rearrange may be used to rearrange the vertices for a desired behavior.
 
         implicit none
 
         class(surface_mesh),intent(inout),target :: this
         integer,intent(in) :: N_new_verts
-        integer,dimension(:),allocatable,intent(in),optional :: i_rearrange
         
         type(vertex),dimension(:),allocatable :: temp_vertices
         integer :: i, j
         integer,dimension(:,:),allocatable :: i_vertices
-        integer,dimension(:),allocatable :: i_rearrange_inv, i_adj_vert
+        integer,dimension(:),allocatable :: i_adj_vert
 
         ! Get panel vertex indices
         call this%get_indices_to_panel_vertices(i_vertices)
 
         ! Allocate more space
         allocate(temp_vertices(this%N_verts + N_new_verts))
-        allocate(i_rearrange_inv(this%N_verts))
 
         ! Copy over vertices
-        if (present(i_rearrange)) then
 
-            do i=1,this%N_verts
-
-                ! Copy vertices
-                temp_vertices(i) = this%vertices(i_rearrange(i))
-                temp_vertices(i)%index = i
-
-                ! Get inverse mapping
-                i_rearrange_inv(i_rearrange(i)) = i
-            end do
-
-            ! Fix wake partners
-            do i=1,this%N_verts
-                if (temp_vertices(i)%i_wake_partner > this%N_verts) then
-                    temp_vertices(i)%i_wake_partner = i_rearrange_inv(temp_vertices(i)%i_wake_partner-this%N_verts)+this%N_verts
-                else
-                    temp_vertices(i)%i_wake_partner = i_rearrange_inv(temp_vertices(i)%i_wake_partner)
-                end if
-            end do
-
-            ! Fix adjacent vertex lists
-            do i=1,this%N_verts
-
-                ! Get new indices
-                allocate(i_adj_vert(temp_vertices(i)%adjacent_vertices%len()))
-                do j=1,temp_vertices(i)%adjacent_vertices%len()
-                    call temp_vertices(i)%adjacent_vertices%get(j, i_adj_vert(j))
-                    i_adj_vert(j) = i_rearrange_inv(i_adj_vert(j))
-                end do
-
-                ! Clear out old list
-                call temp_vertices(i)%adjacent_vertices%clear()
-
-                ! Update vertices
-                do j=1,size(i_adj_vert)
-                    call temp_vertices(i)%adjacent_vertices%append(i_adj_vert(j))
-                end do
-                deallocate(i_adj_vert)
-
-            end do
-
-            ! Fix edge endpoints (and midpoints if necessary)
-            do i=1,this%N_edges
-
-                ! Endpoints
-                this%edges(i)%verts(1) = i_rearrange_inv(this%edges(i)%verts(1))
-                this%edges(i)%verts(2) = i_rearrange_inv(this%edges(i)%verts(2))
-
-                ! Midpoints
-                if (doublet_order == 2) then
-                    this%edges(i)%i_midpoint = i_rearrange_inv(this%edges(i)%i_midpoint)
-                end if
-
-            end do
-
-        else
-
-            ! Copy vertices
-            temp_vertices(1:this%N_verts) = this%vertices
-
-            ! Get inverse mapping (identity)
-            do i=1,this%N_verts
-                i_rearrange_inv(i) = i
-            end do
-
-        end if
+        ! Copy vertices
+        temp_vertices(1:this%N_verts) = this%vertices
 
         ! Move allocation
         call move_alloc(temp_vertices, this%vertices)
@@ -1060,41 +1000,17 @@ contains
             do j=1,this%panels(i)%N
 
                 ! Fix vertex pointers
-                this%panels(i)%vertices(j)%ptr => this%vertices(i_rearrange_inv(i_vertices(j,i)))
+                this%panels(i)%vertices(j)%ptr => this%vertices(i_vertices(j,i))
 
                 ! Fix midpoint pointers
                 if (this%midpoints_created) then
-                    this%panels(i)%midpoints(j)%ptr => this%vertices(i_rearrange_inv(i_vertices(j+this%panels(i)%N,i)))
+                    this%panels(i)%midpoints(j)%ptr => this%vertices(i_vertices(j+this%panels(i)%N,i))
                 end if
 
             end do
         end do
 
         deallocate(i_vertices)
-
-        ! Fix wake dependencies
-        if (present(i_rearrange) .and. this%wake%N_panels > 0) then
-            do i=1,this%wake%N_verts
-
-                ! Fix top parent
-                if (this%wake%vertices(i)%top_parent > this%N_verts) then
-                    this%wake%vertices(i)%top_parent = i_rearrange_inv(this%wake%vertices(i)%top_parent - this%N_verts) &
-                                                       + this%N_verts + N_new_verts
-                else
-                    this%wake%vertices(i)%top_parent = i_rearrange_inv(this%wake%vertices(i)%top_parent)
-                end if
-
-                ! Fix bottom parent
-                if (this%wake%vertices(i)%bot_parent > this%N_verts) then
-                    this%wake%vertices(i)%bot_parent = i_rearrange_inv(this%wake%vertices(i)%bot_parent - this%N_verts) &
-                                                       + this%N_verts + N_new_verts
-                else
-                    this%wake%vertices(i)%bot_parent = i_rearrange_inv(this%wake%vertices(i)%bot_parent)
-                end if
-            end do
-        end if
-
-        ! Fix edge pointers
 
         ! Update number of vertices
         this%N_verts = this%N_verts + N_new_verts
@@ -1202,10 +1118,10 @@ contains
             end do
 
             ! Get inverse mapping
-            call invert_permutation_vector(this%N_verts, i_rearrange_inv, i_rearrange)
+            call invert_permutation_vector(this%N_verts, i_rearrange_inv, this%vertex_ordering)
 
             ! Rearrange vertices so clones are next to clones
-            call this%allocate_new_vertices(0, i_rearrange)
+            !call this%allocate_new_vertices(0, this%vertex_ordering)
 
             if (verbose) write(*,'(a, i4, a, i7, a)') "Done. Cloned ", N_clones, " vertices. Mesh now has ", &
                                                       this%N_verts, " vertices."
