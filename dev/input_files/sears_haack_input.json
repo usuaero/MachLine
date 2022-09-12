@@ -9,26 +9,19 @@
         "freestream_mach_number": 2
     },
     "geometry": {
-        "file": "studies/sears_haack/meshes/sears_haack_mesh_love.tri",
+        "file": "dev/results/sears_haack/sears_haack_mesh_love.tri",
         "spanwise_axis": "+y",
         "wake_model": {
             "wake_present": false
         }
     },
     "solver": {
-<<<<<<< HEAD:studies/sears_haack/sears_haack_input.json
-        "formulation": "source-free",
-        "run_checks": true,
-        "control_point_offset": 1.1e-08
-=======
         "matrix_solver" : "QRUP"
->>>>>>> test:dev/input_files/sears_haack_input.json
     },
     "post_processing": {
     },
     "output": {
-        "verbose": true,
-        "body_file": "studies/sears_haack/machline_results/sears_haack_9800_data_mach_2.vtk",
-        "control_point_file": "studies/sears_haack/machline_results/sears_haack_9800_data_mach_2_control_points.vtk"
+        "body_file": "dev/results/sears_haack/sears_haack_9800.vtk",
+        "control_point_file": "dev/results/sears_haack/sears_haack_9800_data_mach_2_control_points.vtk"
     }
 }
