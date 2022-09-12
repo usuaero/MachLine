@@ -38,8 +38,8 @@ subroutine wake_strip_init(this, freestream, starting_edge, mirror_start, mirror
     type(vertex),dimension(:),allocatable,intent(in) :: body_verts
 
     real,dimension(3) :: start_1, start_2, loc_1, loc_2
-    real :: distance_1, distance_2, separation_1, separation_2
-    integer :: i, N_body_verts
+    real :: d1, d2, sep_1, sep_2
+    integer :: i, N_body_verts, i1, i2, advance
 
     ! Determine number of panels and vertices
     N_panels = N_panels_streamwise*2
@@ -82,19 +82,19 @@ subroutine wake_strip_init(this, freestream, starting_edge, mirror_start, mirror
     call this%vertices(2,1)%init(start_2, 0, 1) ! We don't need to know the indices here
 
     ! Calculate distances to Trefftz plane
-    distance_1 = trefftz_dist - inner(start_1, freestream%c_hat_g)
-    distance_2 = trefftz_dist - inner(start_2, freestream%c_hat_g)
+    d1 = trefftz_dist - inner(start_1, freestream%c_hat_g)
+    d2 = trefftz_dist - inner(start_2, freestream%c_hat_g)
 
     ! Calculate spacing between vertices
-    separation_1 = distance_1/N_panels_streamwise
-    separation_2 = distance_2/N_panels_streamwise
+    sep_1 = d1/N_panels_streamwise
+    sep_2 = d2/N_panels_streamwise
 
     ! Loop through following vertices
-    do i=2,N_panels_streamwise
+    do i=2,N_panels_streamwise+1
 
         ! Calculate location of vertices
-        loc_1 = start_1 + separation_1*(i-1)*freestream%c_hat_g
-        loc_2 = start_2 + separation_2*(i-1)*freestream%c_hat_g
+        loc_1 = start_1 + sep_1*(i-1)*freestream%c_hat_g
+        loc_2 = start_2 + sep_2*(i-1)*freestream%c_hat_g
 
         ! Initialize vertices
         call this%vertices(1,i)%init(loc_1, 0, 1)
@@ -111,6 +111,44 @@ subroutine wake_strip_init(this, freestream, starting_edge, mirror_start, mirror
             this%vertices(1,i)%bot_parent = i_bot_parent_1
             this%vertices(2,i)%top_parent = i_top_parent_2
             this%vertices(2,i)%bot_parent = i_bot_parent_2
+        end if
+
+    end do
+
+    ! Create panels
+    i1 = 1
+    i2 = 1
+    do i=1,this%N_panels
+        
+        ! Initialize
+        advance = 0
+
+        ! See if one is at the end
+        if (i1 == N_panels_streamwise+1) then
+            advance = 2
+        else if (i2 == N_panels_streamwise+1) then
+            advance = 1
+        else
+
+            ! Check lengths of hypotenuses
+            d1 = dist(this%vertices(1,i1+1)%loc, this%vertices(2,i2)%loc)
+            d2 = dist(this%vertices(1,i1)%loc, this%vertices(2,i2+1)%loc)
+
+            ! Pick which one
+            if (d1 < d2) then
+                advance = 1
+            else
+                advance = 2
+            end if
+        end if
+
+        ! Advance
+        if (advance == 1) then
+            call this%panels(i)%init(this%vertices(1,i1), this%vertices(1,i1+1), this%vertices(2,i2), i)
+            i1 = i1 + 1
+        else
+            call this%panels(i)%init(this%vertices(1,i1), this%vertices(2,i2+1), this%vertices(2,i2), i)
+            i2 = i2 + 1
         end if
 
     end do

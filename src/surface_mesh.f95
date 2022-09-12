@@ -1517,7 +1517,15 @@ contains
 
                 ! Place control point
                 this%cp(:,i) = this%vertices(i)%loc - offset * (this%vertices(i)%n_g - offset_ratio*n_avg)*this%vertices(i)%l_avg
-                !this%cp(:,i) = this%vertices(i)%loc - this%vertices(i)%n_g*this%vertices(i)%l_min*0.125
+                !if (i+1 <= this%N_verts) then
+                !    if (this%vertices(i+1)%clone) then
+                !        this%cp(:,i) = this%vertices(i)%loc - offset*this%vertices(i)%n_g*this%vertices(i)%l_avg*10.0
+                !    else
+                !        this%cp(:,i) = this%vertices(i)%loc - offset*this%vertices(i)%n_g*this%vertices(i)%l_avg
+                !    end if
+                !else
+                !    this%cp(:,i) = this%vertices(i)%loc - offset*this%vertices(i)%n_g*this%vertices(i)%l_avg
+                !end if
 
             ! If it has no clone, then placement simply follows the normal vector
             else

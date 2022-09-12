@@ -14,7 +14,6 @@
         }
     },
     "solver": {
-        "write_A_and_b" : true
     },
     "post_processing" : {
         "pressure_rules" : {

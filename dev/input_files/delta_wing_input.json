@@ -12,16 +12,16 @@
         }
     },
     "solver": {
-        "matrix_solver" : "GMRES"
-    },
-    "post_processing" : {
+        "matrix_solver" : "QRUP",
+        "run_checks" : true,
+        "write_A_and_b" : true
     },
     "output": {
         "body_file" :          "dev/results/delta_wing.vtk",
         "wake_file" :          "dev/results/delta_wing_wake.vtk",
         "control_point_file" : "dev/results/delta_wing_control_points.vtk",
         "report_file" :        "dev/results/report.json",
-        "offbody_points" : {
+        "xoffbody_points" : {
             "points_file" : "dev/delta_wing_trailing_edge_sample_points.csv",
             "output_file" : "dev/results/delta_wing_trailing_edge_sample_points.csv"
         }

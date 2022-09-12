@@ -17,7 +17,7 @@
         "wake_file" :          "dev/results/diamond_5_deg_full_fine_wake.vtk",
         "control_point_file" : "dev/results/diamond_5_deg_full_fine_control_points.vtk",
         "report_file" :        "dev/results/report.json",
-        "offbody_points" : {
+        "ffbody_points" : {
             "points_file" : "dev/delta_wing_trailing_edge_sample_points.csv",
             "output_file" : "dev/results/diamond_wing_trailing_edge_sample_points.csv"
         }

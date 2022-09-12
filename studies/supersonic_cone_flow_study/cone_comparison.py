@@ -94,8 +94,8 @@ def run_comparison(M, grid, half_angle, run_machline=True):
     data = np.genfromtxt(data_file, delimiter=',', skip_header=1)
     C_p_2nd = data[:,0]
     C_p_ise = data[:,1]
-    C_p_sln = data[:,2]
-    C_p_lin = data[:,3]
+    C_p_lin = data[:,2]
+    C_p_sln = data[:,3]
     
     # Plot data from MachLine
     plt.figure()
@@ -114,13 +114,29 @@ def run_comparison(M, grid, half_angle, run_machline=True):
     return C_p_2nd, C_p_ise, C_p_sln, C_p_lin
 
 
+def get_analytic_data(filename):
+    """Reads in the analytic data from the given file."""
+
+    # Get raw data
+    raw_data = np.genfromtxt(filename, dtype=str, delimiter=',')
+
+    # Parse data
+    Ms = raw_data[2:,1].astype(float)
+    thetas =  raw_data[1,2:].astype(float)
+    Cps = raw_data[2:,2:].astype(float)
+
+    return Ms, thetas, Cps
+
+
 if __name__=="__main__":
 
-    grids = ["coarse", "medium"]#, "fine"]
+    # Study parameters
+    grids = ["coarse"]#, "medium"]#, "fine"]
     N_verts = [402, 1090, 3770, 13266]
     Ms = [1.4, 1.5, 1.7, 2.0, 2.4, 2.8, 3.3]
-    half_angles = [1, 5, 10, 15]
+    half_angles = [5, 10, 15] # Need to add 2.5 deg case (mesh)
 
+    # Initialize storage
     C_p_2nd_avg = np.zeros((len(grids), len(Ms), len(half_angles)))
     C_p_ise_avg = np.zeros((len(grids), len(Ms), len(half_angles)))
     C_p_sln_avg = np.zeros((len(grids), len(Ms), len(half_angles)))
@@ -130,6 +146,7 @@ if __name__=="__main__":
     C_p_sln_s_dev = np.zeros((len(grids), len(Ms), len(half_angles)))
     C_p_lin_s_dev = np.zeros((len(grids), len(Ms), len(half_angles)))
 
+    # Run cases
     for i, grid in enumerate(grids):
         for j, M in enumerate(Ms):
             for k, half_angle in enumerate(half_angles):
@@ -144,6 +161,9 @@ if __name__=="__main__":
                 C_p_sln_s_dev[i,j,k] = np.std(C_p_sln).item()
                 C_p_lin_s_dev[i,j,k] = np.std(C_p_lin).item()
 
+    # Get analytic data
+    Ms_anl, thetas_anl, Cps_anl = get_analytic_data("studies/supersonic_cone_flow_study/Cone Data Zero AoA.csv")
+
     # Plot overall data
     for k, half_angle in enumerate(half_angles):
 
@@ -155,7 +175,11 @@ if __name__=="__main__":
         plt.errorbar(Ms, C_p_sln_avg[-1,:,k], mfc='k', marker='o', ls='', mec='k', yerr=C_p_sln_s_dev[-1,:,k], markersize=3, ecolor='k', label='Slender-Body')
         plt.errorbar(Ms, C_p_lin_avg[-1,:,k], mfc='k', marker='^', ls='', mec='k', yerr=C_p_lin_s_dev[-1,:,k], markersize=3, ecolor='k', label='Linear')
 
-        plt.xlabel("$M_0$")
+        # Get analytic data for this half angle
+        i_theta = np.where(thetas_anl == half_angle)
+        plt.plot(Ms_anl[:6], Cps_anl[:6,i_theta].flatten(), 'k', label='Taylor-MacColl')
+
+        plt.xlabel("$M_\infty$")
         plt.ylabel("$C_p$")
-        plt.legend(title="Pressure Rule", fontsize=6, title_fontsize=6)
+        plt.legend(fontsize=6, title_fontsize=6)
         plt.savefig("studies/supersonic_cone_flow_study/plots/C_p_over_M_{0}_deg.pdf".format(half_angle))

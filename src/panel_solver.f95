@@ -119,8 +119,11 @@ contains
         class(panel_solver), intent(inout) :: this
         type(json_value),pointer, intent(in) :: solver_settings
         
-        ! Parse settings
+        ! Get formulation
         call json_xtnsn_get(solver_settings, 'formulation', this%formulation, 'morino')        
+        this%morino = this%formulation == 'morino'
+
+        ! Get matrix solver settings
         if (this%freestream%supersonic) then
             call json_xtnsn_get(solver_settings, 'matrix_solver', this%matrix_solver, 'GMRES')
         else
@@ -131,8 +134,9 @@ contains
         call json_xtnsn_get(solver_settings, 'relaxation', this%rel, 0.8)
         call json_xtnsn_get(solver_settings, 'max_iterations', this%max_iterations, 1000)
         call json_xtnsn_get(solver_settings, 'preconditioner', this%preconditioner, 'DIAG')
+
+        ! Whether to write the linear system to file
         call json_xtnsn_get(solver_settings, 'write_A_and_b', this%write_A_and_b, .false.)
-        this%morino = this%formulation == 'morino'
         
     end subroutine panel_solver_parse_solver_settings
 
@@ -250,7 +254,7 @@ contains
         ! Get offset
         call json_xtnsn_get(solver_settings, 'control_point_offset', offset, 1.e-6)
         if (offset <= 0.) then
-            write(*,*) "!!! Control point offset must be finite and positive. Defaulting to 1e-6."
+            write(*,*) "!!! Control point offset must be greater than 0. Defaulting to 1e-6."
             offset = 1.e-6
         end if
         
@@ -484,7 +488,8 @@ contains
 
         ! Sort vertices in compressibility direction
         ! We proceed from most downstream to most upstream so as to get an upper-pentagonal matrix
-        if (this%freestream%supersonic .and. this%matrix_solver == 'QRUP') then
+        ! This sorting seems to improve the performance of iterative solvers for supersonic flow as well
+        if (this%freestream%supersonic) then ! .and. this%matrix_solver == 'QRUP') then
 
             if (verbose) write(*,'(a)',advance='no') "     Permuting vertices for efficient system solution..."
 
@@ -1025,6 +1030,7 @@ contains
         real,dimension(:),allocatable :: b_p, x, R
         integer :: stat, i, j, unit
         real,dimension(:),allocatable :: A_ii_inv
+        integer,dimension(:),allocatable :: P_inv
 
         ! Set b vector for Morino formulation
         if (this%formulation == "morino") then
@@ -1070,9 +1076,13 @@ contains
             if (verbose) write(*,'(a)',advance='no') "     Writing linear system to file..."
 
             ! A
+            call invert_permutation_vector(this%N, this%P, P_inv)
             open(newunit=unit, file="A_mat.txt")
             do i=1,this%N
-                write(unit,*) this%A(i,:)
+                do j=1,this%N
+                    write(unit,'(e20.12)',advance='no') this%A(this%P(i),this%P(j))
+                end do
+                write(unit,*)
             end do
             close(unit)
 
