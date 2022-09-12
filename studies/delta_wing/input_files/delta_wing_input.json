@@ -1,8 +1,8 @@
 {
     "flow": {
         "freestream_velocity": [
-            562.5025390022698,
-            0.0,
+            562.1598776538196,
+            19.63105550505814,
             0.0
         ],
         "gamma": 1.4,
@@ -21,6 +21,7 @@
     },
     "solver": {
         "formulation": "morino",
+        "matrix_solver": "QRUP",
         "run_checks": true,
         "control_point_offset": 1.1e-08
     },
@@ -34,8 +35,8 @@
     },
     "output": {
         "verbose": true,
-        "body_file": "studies/delta_wing/results/delta_wing_0.0_deg_clustered.vtk",
-        "control_point_file": "studies/delta_wing/results/delta_wing_0.0_deg_clustered_control_points.vtk",
-        "wake_file": "studies/delta_wing/results/delta_wing_0.0_deg_clustered_wake.vtk"
+        "body_file": "studies/delta_wing/results/delta_wing_2.0_deg_clustered.vtk",
+        "control_point_file": "studies/delta_wing/results/delta_wing_2.0_deg_clustered_control_points.vtk",
+        "wake_file": "studies/delta_wing/results/delta_wing_2.0_deg_clustered_wake.vtk"
     }
 }

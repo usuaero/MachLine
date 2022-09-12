@@ -85,7 +85,7 @@ if __name__=="__main__":
     T_inf = 300.0
     c_inf = np.sqrt(gamma*R_G*T_inf)
     # angles_of_attack = [0.0, 2.0, 4.1, 8.5, 10.75]
-    angles_of_attack = [0.0]
+    angles_of_attack = [2.0]
     semispan_loc = [22.5, 64.1]
     # b_half = 1.0065 # semispan length nondimensionalized by root chord
     b_half = 0.2315 # semispan length for OpenVSP model
@@ -101,12 +101,16 @@ if __name__=="__main__":
 
     # Iterate over angles of attack
     for alpha in angles_of_attack:
+        if 'VSP' in mesh_density:
+            freestream = [M*c_inf*np.cos(np.radians(alpha)), 0.0, M*c_inf*np.sin(np.radians(alpha))]
+        else:
+            freestream = [M*c_inf*np.cos(np.radians(alpha)), M*c_inf*np.sin(np.radians(alpha)), 0.0]
         
         # Declare MachLine input
         body_file = "studies/delta_wing/results/delta_wing_{0}_deg_{1}.vtk".format(alpha,mesh_density)
         input_dict = {
             "flow": {
-                "freestream_velocity": [M*c_inf*np.cos(np.radians(alpha)), M*c_inf*np.sin(np.radians(alpha)), 0.0],
+                "freestream_velocity": freestream,
                 "gamma" : gamma,
                 "freestream_mach_number" : M
             },
@@ -123,7 +127,7 @@ if __name__=="__main__":
             },
             "solver": {
                 "formulation": "morino",
-                "matrix_solver": "LU",
+                "matrix_solver": "QRUP",
                 "run_checks": True,
                 "control_point_offset": 1.1e-8
             },
@@ -178,6 +182,7 @@ if __name__=="__main__":
             # slicer.HyperTreeGridSlicer = 'Plane'
             slicer.SliceOffsetValues = [0.0]
 
+            
             if 'VSP' in mesh_density:
                 slicer.SliceType.Origin = [0.0, percent_semispan, 0.0]
                 slicer.SliceType.Normal = [0.0, 1.0, 0.0]
