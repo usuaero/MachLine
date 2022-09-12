@@ -29,7 +29,7 @@ module panel_solver_mod
         real,dimension(3) :: C_F, inner_flow
         real,dimension(:,:),allocatable :: A
         real,dimension(:),allocatable :: b
-        integer,dimension(:),allocatable :: P, P_inv
+        integer,dimension(:),allocatable :: P
         integer :: N, N_cells, block_size, max_iterations, N_unknown, N_d_unknown, N_s_unknown
 
         contains
@@ -119,20 +119,24 @@ contains
         class(panel_solver), intent(inout) :: this
         type(json_value),pointer, intent(in) :: solver_settings
         
-        ! Parse settings
+        ! Get formulation
         call json_xtnsn_get(solver_settings, 'formulation', this%formulation, 'morino')        
+        this%morino = this%formulation == 'morino'
+
+        ! Get matrix solver settings
         if (this%freestream%supersonic) then
-            call json_xtnsn_get(solver_settings, 'matrix_solver', this%matrix_solver, 'QRUP')
+            call json_xtnsn_get(solver_settings, 'matrix_solver', this%matrix_solver, 'GMRES')
         else
-            call json_xtnsn_get(solver_settings, 'matrix_solver', this%matrix_solver, 'LU')
+            call json_xtnsn_get(solver_settings, 'matrix_solver', this%matrix_solver, 'GMRES')
         end if
         call json_xtnsn_get(solver_settings, 'block_size', this%block_size, 400)
-        call json_xtnsn_get(solver_settings, 'tolerance', this%tol, 1e-12)
+        call json_xtnsn_get(solver_settings, 'tolerance', this%tol, 1.e-12)
         call json_xtnsn_get(solver_settings, 'relaxation', this%rel, 0.8)
         call json_xtnsn_get(solver_settings, 'max_iterations', this%max_iterations, 1000)
         call json_xtnsn_get(solver_settings, 'preconditioner', this%preconditioner, 'DIAG')
+
+        ! Whether to write the linear system to file
         call json_xtnsn_get(solver_settings, 'write_A_and_b', this%write_A_and_b, .false.)
-        this%morino = this%formulation == 'morino'
         
     end subroutine panel_solver_parse_solver_settings
 
@@ -248,7 +252,11 @@ contains
         real :: offset
 
         ! Get offset
-        call json_xtnsn_get(solver_settings, 'control_point_offset', offset, 1e-6)
+        call json_xtnsn_get(solver_settings, 'control_point_offset', offset, 1.e-6)
+        if (offset <= 0.) then
+            write(*,*) "!!! Control point offset must be greater than 0. Defaulting to 1e-6."
+            offset = 1.e-6
+        end if
         
         ! Place control points
         if (verbose) write(*,'(a ES10.4 a)',advance='no') "     Placing control points using offset of ", offset, "..."
@@ -480,7 +488,8 @@ contains
 
         ! Sort vertices in compressibility direction
         ! We proceed from most downstream to most upstream so as to get an upper-pentagonal matrix
-        if (this%freestream%supersonic) then
+        ! This sorting seems to improve the performance of iterative solvers for supersonic flow as well
+        if (this%freestream%supersonic) then ! .and. this%matrix_solver == 'QRUP') then
 
             if (verbose) write(*,'(a)',advance='no') "     Permuting vertices for efficient system solution..."
 
@@ -549,14 +558,12 @@ contains
 
             ! Identity permutation
             allocate(this%P(this%N))
-            do i=1,this%N
-                this%P(i) = i
-            end do
+            this%P(1:body%N_verts) = body%vertex_ordering
+            if (this%N > body%N_verts) then
+                this%P(body%N_verts+1:) = body%vertex_ordering + body%N_verts
+            end if
 
         end if
-
-        ! Invert 
-        call invert_permutation_vector(this%N, this%P, this%P_inv)
     
     end subroutine panel_solver_set_permutation
 
@@ -1023,6 +1030,7 @@ contains
         real,dimension(:),allocatable :: b_p, x, R
         integer :: stat, i, j, unit
         real,dimension(:),allocatable :: A_ii_inv
+        integer,dimension(:),allocatable :: P_inv
 
         ! Set b vector for Morino formulation
         if (this%formulation == "morino") then
@@ -1048,12 +1056,12 @@ contains
 
             ! Check for uninfluenced/ing points
             do i=1,this%N
-                if (all(this%A(i,:) == 0.)) then
-                    write(*,*) "!!! Control point ", this%P_inv(i), " is not influenced. Quitting..."
+                if (all(this%A(this%P(i),:) == 0.)) then
+                    write(*,*) "!!! Control point ", i, " is not influenced. Quitting..."
                     stop
                 end if
-                if (all(this%A(:,i) == 0.)) then
-                    write(*,*) "!!! Vertex ", this%P_inv(i), " exerts no influence. Quitting..."
+                if (all(this%A(:,this%P(i)) == 0.)) then
+                    write(*,*) "!!! Vertex ", i, " exerts no influence. Quitting..."
                     stop
                 end if
             end do
@@ -1068,9 +1076,13 @@ contains
             if (verbose) write(*,'(a)',advance='no') "     Writing linear system to file..."
 
             ! A
+            call invert_permutation_vector(this%N, this%P, P_inv)
             open(newunit=unit, file="A_mat.txt")
             do i=1,this%N
-                write(unit,*) this%A(i,:)
+                do j=1,this%N
+                    write(unit,'(e20.12)',advance='no') this%A(this%P(i),this%P(j))
+                end do
+                write(unit,*)
             end do
             close(unit)
 
@@ -1120,7 +1132,15 @@ contains
 
         ! QR via Givens rotations for upper-pentagonal
         case ('QRUP')
-            call QR_givens_solve_upper_pentagonal(this%N, A_p, b_p, x)
+            call QR_row_givens_solve_UP(this%N, A_p, b_p, x)
+
+        ! QR via fast Givens rotations for upper-pentagonal
+        case ('FQRUP')
+            call QR_fast_givens_solve_upper_pentagonal(this%N, A_p, b_p, x)
+
+        ! GMRES
+        case ('GMRES')
+            call GMRES(this%N, A_p, b_p, this%tol, this%max_iterations, x)
 
         ! Purcell's method
         case ('PURC')
@@ -1162,7 +1182,7 @@ contains
         ! Transfer solution to body storage
         allocate(body%mu(this%N))
         do i=1,this%N
-            body%mu(this%P_inv(i)) = x(i)
+            body%mu(i) = x(this%P(i))
         end do
 
         ! Get residual vector
@@ -1181,7 +1201,7 @@ contains
         ! Get potentials at control points
         allocate(body%phi_cp_mu(this%N))
         do i=1,this%N
-            body%phi_cp_mu(this%P_inv(i)) = R(i) + this%b(i)
+            body%phi_cp_mu(i) = R(this%P(i)) + this%b(this%P(i))
         end do
         body%phi_cp = body%phi_cp_mu + body%phi_cp_sigma
         deallocate(this%b)
@@ -1389,9 +1409,12 @@ contains
             ! Mirrored points
             if (body%asym_flow) then
                 loc_mir = mirror_across_plane(body%vertices(i)%loc, body%mirror_plane)
-                body%Phi_u(i+body%N_verts) = body%phi_u(i+body%N_verts) + inner(this%inner_flow, loc_mir)
+                body%Phi_u(i+body%N_verts) = body%Phi_u(i+body%N_verts) + inner(this%inner_flow, loc_mir)
             end if
         end do
+
+        ! Factor in freestream velocity
+        body%Phi_u = body%Phi_u*this%freestream%U
 
         if (verbose) write(*,*) "Done."
 
@@ -1903,11 +1926,12 @@ contains
         type(surface_mesh),intent(in) :: body
 
         integer :: i, unit, N_points, stat
-        real :: phi_inf, phi_d, phi_s
+        real :: phi_inf
         real,dimension(:,:),allocatable :: points
         character(len=200) :: dummy_read
+        real,dimension(:),allocatable :: phi_s, phi_d
 
-        if (verbose) write(*,'(a)',advance='no') "    Calculating potentials at off-body points..."
+        if (verbose) write(*,'(a)',advance='no') "    Calculating potentials at off-body points "
 
         ! Get number of points from file
         N_points = 0
@@ -1918,21 +1942,19 @@ contains
 
         ! Loop through lines
         do
-
-            ! Read line
             read(unit,*,iostat=stat) dummy_read
 
-            ! Check status
+            ! If a line was actually read, increment the number of points
             if (stat == 0) then
                 N_points = N_points + 1
-
             else
-                exit
+                exit ! No more lines
             end if
-
         end do
 
         close(unit)
+
+        if (verbose) write(*,'(a, i7, a)',advance='no') "(got ", N_points, " points)..."
 
         ! Get points
         allocate(points(3,N_points))
@@ -1948,37 +1970,48 @@ contains
 
         close(unit)
 
+        ! Allocate potential storage
+        allocate(phi_s(N_points), stat=stat)
+        call check_allocation(stat, "off-body source potentials")
+        allocate(phi_d(N_points), stat=stat)
+        call check_allocation(stat, "off-body doublet potentials")
+
+        ! Calculate potentials
+        !$OMP parallel do
+        do i=1,N_points
+
+            ! Get induced potentials
+            call body%get_induced_potentials_at_point(points(:,i), this%freestream, phi_d(i), phi_s(i))
+
+        end do
+        phi_d = phi_d*this%freestream%U
+        phi_s = phi_s*this%freestream%U
+
         ! Delete old output file
         call delete_file(points_output_file)
 
         ! Open output file
-        100 format(e20.12, ', ', e20.12, ', ', e20.12, ', ', e20.12, ', ', e20.12, ', ', e20.12, ', ', e20.12, ', ', e20.12)
+        100 format(e20.12, ',', e20.12, ',', e20.12, ',', e20.12, ',', e20.12, ',', e20.12, ',', e20.12, ',', e20.12)
         open(newunit=unit, file=points_output_file)
 
         ! Write header
         write(unit,*) 'x,y,z,phi_inf,phi_d,phi_s,phi,Phi'
 
-        ! Calculate potentials and write out to file
+        ! Write potentials out to file
         do i=1,N_points
 
             ! Calculate freestream potential
             phi_inf = this%freestream%U*inner(points(:,i), this%freestream%c_hat_g)
 
-            ! Get induced potentials
-            call body%get_induced_potentials_at_point(points(:,i), this%freestream, phi_d, phi_s)
-
             ! Write to file
-            phi_d = phi_d*this%freestream%U
-            phi_s = phi_s*this%freestream%U
-            write(unit,100) points(1,i), points(2,i), points(3,i), phi_inf, phi_d, phi_s, phi_d + phi_s, &
-                            phi_inf + phi_d + phi_s
+            write(unit,100) points(1,i), points(2,i), points(3,i), phi_inf, phi_d(i), phi_s(i), phi_d(i) + phi_s(i), &
+                            phi_inf + phi_d(i) + phi_s(i)
 
         end do
 
         close(unit)
 
-        write(*,*) "Done."
-
+        if (verbose) write(*,*) "Done."
 
     end subroutine panel_solver_export_off_body_points
 

@@ -5,7 +5,8 @@ module edge_mod
     type edge
         ! A mesh edge
 
-        integer,dimension(2) :: verts ! Indices of the end vertices in the mesh vertex array (ignoring clones)
+        integer,dimension(2) :: top_verts ! Indices of the end vertices in the mesh vertex array belonging to the top panel
+        integer,dimension(2) :: bot_verts ! Indices of the end vertices in the mesh vertex array belonging to the bottom panel
         integer,dimension(2) :: panels ! Indices of the top and bottom (an odd thing to call these) panels for this edge
         integer :: i_midpoint
         integer,dimension(2) :: edge_index_for_panel ! Index of the edge which this is for each panel; edge should proceed counterclockwise for the top panel
@@ -33,8 +34,8 @@ contains
         real,intent(in) :: l
 
         ! Store indices
-        this%verts(1) = i1
-        this%verts(2) = i2
+        this%top_verts(1) = i1
+        this%top_verts(2) = i2
 
         ! Store panels
         this%panels(1) = top_panel
@@ -46,6 +47,7 @@ contains
         ! Set defaults
         this%on_mirror_plane = .false.
         this%sheds_wake = .false.
+        this%bot_verts = this%top_verts
     
     end subroutine edge_init
 

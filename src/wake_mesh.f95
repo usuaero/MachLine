@@ -81,8 +81,8 @@ contains
                 wake_edge_indices(j) = i
 
                 ! Store that the vertices are wake-shedding
-                is_wake_edge_vertex(body_edges(i)%verts(1)) = .true.
-                is_wake_edge_vertex(body_edges(i)%verts(2)) = .true.
+                is_wake_edge_vertex(body_edges(i)%top_verts(1)) = .true.
+                is_wake_edge_vertex(body_edges(i)%top_verts(2)) = .true.
 
             end if
         end do
@@ -117,11 +117,9 @@ contains
         end if
 
         ! Initialize vertices
-        allocate(this%vertices(this%N_verts))
         call this%init_vertices(body_verts, freestream, wake_edge_verts, asym_flow, trefftz_dist, N_panels_streamwise, mirror_plane)
 
         ! Initialize panels
-        allocate(this%panels(this%N_panels))
         call this%init_panels(body_edges, body_verts, N_panels_streamwise, wake_edge_indices, asym_flow, N_body_panels)
 
         ! Initialize midpoints (if needed)
@@ -157,6 +155,9 @@ contains
         integer :: i_vert, i, j, i_top_parent, i_bot_parent, i_mirrored_vert, N_wake_edge_verts, N_body_verts
         real :: distance, vertex_separation, mirrored_distance, mirrored_vertex_separation
         real,dimension(3) :: start, loc, mirrored_start
+
+        ! Allocate memory
+        allocate(this%vertices(this%N_verts))
 
         ! Determine vertex placement
         i_vert = 0
@@ -251,6 +252,9 @@ contains
         logical,dimension(:),allocatable :: skipped_panels
         type(panel),dimension(:),allocatable :: temp_panels
 
+        ! Allocate memory
+        allocate(this%panels(this%N_panels))
+
         ! Initialize storage for skipping zero-area panels
         allocate(skipped_panels(this%N_panels), source=.false.)
 
@@ -262,8 +266,8 @@ contains
             i = wake_edge_indices(k)
 
             ! Determine which wake-shedding vertices this panel lies between
-            i_start = body_verts(body_edges(i)%verts(1))%index_in_wake_vertices
-            i_stop = body_verts(body_edges(i)%verts(2))%index_in_wake_vertices
+            i_start = body_verts(body_edges(i)%top_verts(1))%index_in_wake_vertices
+            i_stop = body_verts(body_edges(i)%top_verts(2))%index_in_wake_vertices
 
             ! Create panels heading downstream
             do j=1,N_panels_streamwise
@@ -592,10 +596,10 @@ contains
                 i_pot_edge = wake_edge_indices(k)
 
                 ! Check if the vertices match on original mesh
-                if ((this%vertices(shared(1))%top_parent == body_edges(i_pot_edge)%verts(1).and.&
-                     this%vertices(shared(2))%top_parent == body_edges(i_pot_edge)%verts(2)).or.&
-                    (this%vertices(shared(2))%top_parent == body_edges(i_pot_edge)%verts(1).and.&
-                     this%vertices(shared(1))%top_parent == body_edges(i_pot_edge)%verts(2)))then
+                if ((this%vertices(shared(1))%top_parent == body_edges(i_pot_edge)%top_verts(1).and.&
+                     this%vertices(shared(2))%top_parent == body_edges(i_pot_edge)%top_verts(2)).or.&
+                    (this%vertices(shared(2))%top_parent == body_edges(i_pot_edge)%top_verts(1).and.&
+                     this%vertices(shared(1))%top_parent == body_edges(i_pot_edge)%top_verts(2)))then
 
                     ! Get midpoint index
                     i_midpoint_parent = body_edges(i_pot_edge)%i_midpoint
@@ -608,10 +612,10 @@ contains
 
                 ! Check if the vertices match the mirror
                 else if (asym_flow .and. &
-                ((this%vertices(shared(1))%top_parent == body_edges(i_pot_edge)%verts(1)+N_body_verts.and.&
-                  this%vertices(shared(2))%top_parent == body_edges(i_pot_edge)%verts(2)+N_body_verts).or.&
-                 (this%vertices(shared(2))%top_parent == body_edges(i_pot_edge)%verts(1)+N_body_verts.and.&
-                  this%vertices(shared(1))%top_parent == body_edges(i_pot_edge)%verts(2)+N_body_verts)))then
+                ((this%vertices(shared(1))%top_parent == body_edges(i_pot_edge)%top_verts(1)+N_body_verts.and.&
+                  this%vertices(shared(2))%top_parent == body_edges(i_pot_edge)%top_verts(2)+N_body_verts).or.&
+                 (this%vertices(shared(2))%top_parent == body_edges(i_pot_edge)%top_verts(1)+N_body_verts.and.&
+                  this%vertices(shared(1))%top_parent == body_edges(i_pot_edge)%top_verts(2)+N_body_verts)))then
 
                     ! Get midpoint index
                     i_midpoint_parent = body_edges(i_pot_edge)%i_midpoint

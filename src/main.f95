@@ -26,7 +26,7 @@ program main
     type(flow) :: freestream_flow
     type(panel_solver) :: linear_solver
     real :: start, end
-    logical :: exists
+    logical :: exists, found
     integer :: i_unit
 
     ! Start timer
@@ -57,11 +57,11 @@ program main
     ! Load settings from input file
     call input_json%load_file(filename=input_file)
     call json_check()
-    call input_json%get('flow', flow_settings)
-    call input_json%get('geometry', geom_settings)
-    call input_json%get('solver', solver_settings)
-    call input_json%get('post_processing', processing_settings)
-    call input_json%get('output', output_settings)
+    call input_json%get('flow', flow_settings, found)
+    call input_json%get('geometry', geom_settings, found)
+    call input_json%get('solver', solver_settings, found)
+    call input_json%get('post_processing', processing_settings, found)
+    call input_json%get('output', output_settings, found)
 
     ! Get checks and verbose toggles
     call json_xtnsn_get(solver_settings, 'run_checks', run_checks, .false.)
@@ -75,7 +75,7 @@ program main
         write(*,*) "        /          ____"
         write(*,*) "       /          /   /"
         write(*,*) "      /     MachLine (c) 2022 USU Aerolab"
-        write(*,*) "     /          /   /    v2.1"
+        write(*,*) "     /          /   /    v2.2"
         write(*,*) "    / _________/___/_______________"
         write(*,*) "   ( (__________________________"
         write(*,*) "    \          \   \"

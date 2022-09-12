@@ -23,8 +23,8 @@
     "solver": {
         "formulation": "morino",
         "matrix_solver": "QRUP",
-        "run_checks": true,
-        "control_point_offset": 1.1e-08
+        "run_checks": true
+        
     },
     "post_processing": {
         "pressure_rules": {

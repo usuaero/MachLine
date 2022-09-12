@@ -113,19 +113,31 @@ module panel_mod
             ! Update information
             procedure :: point_to_new_vertex => panel_point_to_new_vertex
 
-            ! Influence calculations
+            ! Domain of dependence checking
             procedure :: check_dod => panel_check_dod
+
+            ! Influence calculations
+
+            ! Geometry
             procedure :: calc_subsonic_geom => panel_calc_subsonic_geom
             procedure :: calc_supersonic_subinc_geom => panel_calc_supersonic_subinc_geom
+
+            ! Fundamental integrals
             procedure :: E_i_M_N_K => panel_E_i_M_N_K
             procedure :: calc_subsonic_edge_integrals => panel_calc_subsonic_edge_integrals
             procedure :: calc_subsonic_panel_integrals => panel_calc_subsonic_panel_integrals
             procedure :: calc_supersonic_subinc_edge_integrals => panel_calc_supersonic_subinc_edge_integrals
             procedure :: calc_supersonic_subinc_panel_integrals => panel_calc_supersonic_subinc_panel_integrals
             procedure :: calc_integrals => panel_calc_integrals
+
+            ! Influences
             procedure :: allocate_potential_influences => panel_allocate_potential_influences
             procedure :: calc_potential_influences => panel_calc_potential_influences
             procedure :: calc_potentials => panel_calc_potentials
+
+            ! Results
+            procedure :: get_source_strengths => panel_get_source_strengths
+            procedure :: get_doublet_strengths => panel_get_doublet_strengths
             procedure :: get_source_dist_parameters => panel_get_source_dist_parameters
             procedure :: get_doublet_dist_parameters => panel_get_doublet_dist_parameters
             procedure :: get_velocity_jump => panel_get_velocity_jump
@@ -1639,7 +1651,11 @@ contains
                         ! F(1,1,1)
                         F1 = s_b*geom%R1(i) + abs(geom%l1(i))
                         F2 = s_b*geom%R2(i) + abs(geom%l2(i))
-                        int%F111(i) = -sign(1., geom%v_eta(i))*log(F1/F2)/s_b
+                        if (F1 /= 0. .and. F2 /= 0.) then
+                            int%F111(i) = -sign(1., geom%v_eta(i))*log(F1/F2)/s_b
+                        else
+                            if (verbose) write(*,*) "!!! Detected evaluation point on perimeter of panel. Solution may be affected."
+                        end if
 
                         ! Higher-order
                         if (higher_order) then
@@ -1938,25 +1954,27 @@ contains
             int = this%calc_integrals(geom, 'potential', 'doublet', freestream, mirror_panel, dod_info)
 
             ! Source potential
-            phi_s(1) = int%H111
-            if (source_order == 1) then
+            if (.not. this%in_wake) then
+                phi_s(1) = int%H111
+                if (source_order == 1) then
 
-                ! Johnson Eq. (D21)
-                ! Equivalent to Ehlers Eq. (8.6)
-                phi_s(2) = int%H111*geom%P_ls(1) + int%H211
-                phi_s(3) = int%H111*geom%P_ls(2) + int%H121
+                    ! Johnson Eq. (D21)
+                    ! Equivalent to Ehlers Eq. (8.6)
+                    phi_s(2) = int%H111*geom%P_ls(1) + int%H211
+                    phi_s(3) = int%H111*geom%P_ls(2) + int%H121
 
-                ! Convert to vertex influences (Davis Eq. (4.41))
-                if (mirror_panel) then
-                    phi_s = matmul(phi_s, this%S_sigma_inv_mir)
-                else
-                    phi_s = matmul(phi_s, this%S_sigma_inv)
+                    ! Convert to vertex influences (Davis Eq. (4.41))
+                    if (mirror_panel) then
+                        phi_s = matmul(phi_s, this%S_sigma_inv_mir)
+                    else
+                        phi_s = matmul(phi_s, this%S_sigma_inv)
+                    end if
+
                 end if
-
-            end if
             
-            ! Add area Jacobian and kappa factor
-            phi_s = -this%J*freestream%K_inv*phi_s
+                ! Add area Jacobian and kappa factor
+                phi_s = -this%J*freestream%K_inv*phi_s
+            end if
 
             ! Doublet potential
             ! Johnson Eq. (D.30)
@@ -2006,7 +2024,7 @@ contains
     end subroutine panel_calc_potential_influences
 
 
-    subroutine panel_calc_potentials(this, P, freestream, dod_info, mirror_panel, sigma, mu, phi_d, phi_s)
+    subroutine panel_calc_potentials(this, P, freestream, dod_info, mirror_panel, sigma, mu, phi_s, phi_d)
         ! Calculates the potentials induced at the given point
 
         implicit none
@@ -2020,32 +2038,76 @@ contains
         real,intent(out) :: phi_d, phi_s
 
         real,dimension(:),allocatable :: source_inf, doublet_inf
-        real,dimension(6) :: mu_params
-        real,dimension(3) :: sigma_params
+        real,dimension(6) :: mu_verts
+        real,dimension(3) :: sigma_verts
 
         ! Get influences
         call this%calc_potential_influences(P, freestream, dod_info, mirror_panel, source_inf, doublet_inf)
 
         ! Get strengths
-        mu_params = this%get_doublet_dist_parameters(mu, mirror_panel)
-        sigma_params = this%get_source_dist_parameters(mu, mirror_panel)
+        sigma_verts = this%get_source_strengths(sigma, mirror_panel)
+        mu_verts = this%get_doublet_strengths(mu, mirror_panel)
 
         ! Apply strengths to calculate potentials
         ! Source
         if (source_order == 1) then
-            phi_s = sum(source_inf*sigma_params)
+            phi_s = sum(source_inf*sigma_verts)
         else
-            phi_s = source_inf(1)*sigma_params(1)
+            phi_s = source_inf(1)*sigma_verts(1)
         end if
 
         ! Doublet
         if (doublet_order == 2) then
-            phi_d = sum(doublet_inf*mu_params)
+            phi_d = sum(doublet_inf*mu_verts)
         else
-            phi_d = sum(doublet_inf(1:3)*mu_params(1:3))
+            phi_d = sum(doublet_inf(1:3)*mu_verts(1:3))
         end if
     
     end subroutine panel_calc_potentials
+
+
+    function panel_get_source_strengths(this, sigma, mirror) result(sigma_strengths)
+        ! Returns a vector of the relevant source strengths for this panel
+
+        implicit none
+        
+        class(panel),intent(in) :: this
+        real,dimension(:),allocatable,intent(in) :: sigma
+        logical,intent(in) :: mirror
+
+        real,dimension(3) :: sigma_strengths
+
+        integer :: i, shift
+
+        ! Check we're not in the wake
+        if (.not. this%in_wake) then
+
+            ! Determine shift to use
+            if (mirror) then
+                shift = size(sigma)/2
+            else
+                shift = 0
+            end if
+
+            ! Constant sources
+            if (source_order == 0) then
+                sigma_strengths(1) = sigma(this%index+shift)
+                sigma_strengths(2:3) = 0.
+
+            ! Linear sources
+            else
+                do i=1,this%N
+                    sigma_strengths(i) = sigma(this%get_vertex_index(i)+shift)
+                end do
+            end if
+
+        ! Wakes no not have source distributions
+        else
+            sigma_strengths = 0.
+        end if
+    
+        
+    end function panel_get_source_strengths
 
 
     function panel_get_source_dist_parameters(this, sigma, mirror) result(sigma_params)
@@ -2059,31 +2121,18 @@ contains
         
         real,dimension(3) :: sigma_params
 
-        integer :: i, shift
         real,dimension(3) :: sigma_verts
         real,dimension(3,3) :: S_sigma_inv
 
-        ! Determine shift to use
-        if (mirror) then
-            shift = size(sigma)/2
-        else
-            shift = 0
-        end if
+        ! Get strengths
+        sigma_verts = this%get_source_strengths(sigma, mirror)
 
         ! Constant sources
         if (source_order == 0) then
-            sigma_params(1) = sigma(this%index+shift)
-            sigma_params(2:3) = 0.
+            sigma_params = sigma_verts
 
         ! Linear sources
         else
-
-            ! Get source strengths at vertices
-            do i=1,this%N
-                sigma_verts(i) = sigma(this%get_vertex_index(i)+shift)
-            end do
-
-            ! Calculate parameters
             if (mirror) then
                 sigma_params = matmul(this%S_sigma_inv_mir, sigma_verts)
             else
@@ -2092,6 +2141,56 @@ contains
         end if
             
     end function panel_get_source_dist_parameters
+
+
+    function panel_get_doublet_strengths(this, mu, mirror) result(mu_strengths)
+        ! Returns the relevant doublet strengths for this panel
+
+        implicit none
+        
+        class(panel),intent(in) :: this
+        real,dimension(:),allocatable,intent(in) :: mu
+        logical,intent(in) :: mirror
+
+        real,dimension(6) :: mu_strengths
+
+        integer :: shift, i
+
+        ! Determine shift
+        if (mirror) then
+            shift = size(mu)/2
+        else
+            shift = 0
+        end if
+
+        ! Get doublet strengths based on parents
+        if (this%in_wake) then
+            do i=1,this%N
+
+                ! Vertices
+                mu_strengths(i) = mu(this%vertices(i)%ptr%top_parent+shift) - mu(this%vertices(i)%ptr%bot_parent+shift)
+
+                ! Midpoints
+                if (doublet_order == 2) then
+                    mu_strengths(i+3) = mu(this%midpoints(i)%ptr%top_parent+shift) - mu(this%midpoints(i)%ptr%bot_parent+shift)
+                end if
+
+            end do
+
+        ! Get doublet strengths at vertices
+        else
+            do i=1,this%N
+
+                ! Vertices
+                mu_strengths(i) = mu(this%get_vertex_index(i)+shift)
+
+                ! Midpoints
+                if (doublet_order == 2) mu_strengths(i+3) = mu(this%get_midpoint_index(i)+shift)
+
+            end do
+        end if
+        
+    end function panel_get_doublet_strengths
 
 
     function panel_get_doublet_dist_parameters(this, mu, mirror) result(mu_params)
@@ -2105,26 +2204,10 @@ contains
 
         real,dimension(6) :: mu_params
 
-        integer :: shift, i
         real,dimension(6) :: mu_verts
 
-        ! Determine shift
-        if (mirror) then
-            shift = size(mu)/2
-        else
-            shift = 0
-        end if
-
         ! Get doublet strengths at vertices
-        do i=1,this%N
-            
-            ! Vertices
-            mu_verts(i) = mu(this%get_vertex_index(i)+shift)
-
-            ! Midpoints
-            if (doublet_order == 2) mu_verts(i+3) = mu(this%get_midpoint_index(i)+shift)
-
-        end do
+        mu_verts = this%get_doublet_strengths(mu, mirror)
 
         ! Calculate doublet parameters (derivatives)
         if (doublet_order == 2) then

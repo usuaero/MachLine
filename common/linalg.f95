@@ -1005,23 +1005,17 @@ subroutine gen_givens_rot(x, y, c, s)
 
   real :: d, t
 
-  ! Check for nonzero elements
-  if (abs(y) == 0.) then
-    c = 1.
-    s = 0.
-  else
-    t = abs(x) + abs(y)
-    d = t*sqrt((x/t)**2 + (y/t)**2)
-    c = x/d
-    s = y/d
-    x = d
-    y = 0.
-  end if
+  t = abs(x) + abs(y)
+  d = t*sqrt((x/t)**2 + (y/t)**2)
+  c = x/d
+  s = y/d
+  x = d
+  y = 0.
   
 end subroutine gen_givens_rot
 
 
-subroutine apply_givens_rot(c, s, x, y, N)
+subroutine apply_givens_row_rot(c, s, x, y, N)
   ! Applies the Givesn rotation to the two vectors x and y of length N
 
   implicit none
@@ -1041,7 +1035,27 @@ subroutine apply_givens_rot(c, s, x, y, N)
   ! Move first row into place
   x = t
   
-end subroutine apply_givens_rot
+end subroutine apply_givens_row_rot
+
+
+subroutine apply_givens_col_rot(c, s, x, y, N)
+  ! Applies the Givesn rotation to the two vectors x and y of length N
+
+  implicit none
+  
+  real,intent(in) :: c, s
+  real,dimension(N),intent(inout) :: x, y
+  integer,intent(in) :: N
+
+  real,dimension(:),allocatable :: t
+
+  ! Apply to first col using temp storage
+
+  ! Apply to second col
+
+  ! Move first col into place
+  
+end subroutine apply_givens_col_rot
 
 
 subroutine QR_givens_solve(N, A, b, x)
@@ -1072,22 +1086,22 @@ subroutine QR_givens_solve(N, A, b, x)
       call gen_givens_rot(A(i-1,j), A(i,j), c, s)
 
       ! Apply to rest of row
-      call apply_givens_rot(c, s, A(i-1,j+1:), A(i,j+1:), N-j-1)
+      call apply_givens_row_rot(c, s, A(i-1,j+1:), A(i,j+1:), N-j-1)
 
       ! Apply to b vector
-      call apply_givens_rot(c, s, b(i-1), b(i), 1)
+      call apply_givens_row_rot(c, s, b(i-1), b(i), 1)
 
     end do
   end do
 
   ! Back substitution
-  call QR_back_sub(N, A, b, x)
+  call upper_triangular_back_sub(N, A, b, x)
   
 end subroutine QR_givens_solve
 
 
-subroutine QR_givens_solve_upper_pentagonal(N, A, b, x)
-  ! Solves the equation [A]x = b using the QR factorization via Givens rotations
+subroutine QR_row_givens_solve_UP(N, A, b, x)
+  ! Solves the equation [A]x = b using the QR factorization via row-oriented Givens rotations
   ! Assumes A is upper-pentagonal
 
   implicit none
@@ -1097,7 +1111,7 @@ subroutine QR_givens_solve_upper_pentagonal(N, A, b, x)
   real,dimension(N),intent(inout) :: b
   real,dimension(:),allocatable,intent(out) :: x
 
-  integer :: i, j, B_l, unit
+  integer :: i, j, B_l
   real :: s, c
 
   ! Get lower bandwidth
@@ -1111,39 +1125,31 @@ subroutine QR_givens_solve_upper_pentagonal(N, A, b, x)
     ! Loop through rows
     do i=min(j+B_l,N),j+1,-1
 
-      ! Generate Givens rotation
-      call gen_givens_rot(A(i-1,j), A(i,j), c, s)
+      ! Check nonzero
+      if (A(i,j) /= 0.) then
 
-      ! Check if something is actually being done
-      if (s /= 0.) then
+        ! Generate Givens rotation
+        call gen_givens_rot(A(j,j), A(i,j), c, s)
 
         ! Apply to rest of row
-        call apply_givens_rot(c, s, A(i-1,j+1:), A(i,j+1:), N-j-1)
+        call apply_givens_row_rot(c, s, A(j,j+1:), A(i,j+1:), N-j-1)
 
         ! Apply to b vector
-        call apply_givens_rot(c, s, b(i-1), b(i), 1)
+        call apply_givens_row_rot(c, s, b(j), b(i), 1)
 
       end if
 
     end do
   end do
 
-  ! Write R matrix
-  open(newunit=unit, file="R_mat.txt")
-  do i=1,N
-      write(unit,*) A(i,:)
-  end do
-  close(unit)
-
   ! Back substitution
-  call QR_back_sub(N, A, b, x)
+  call upper_triangular_back_sub(N, A, b, x)
   
-end subroutine QR_givens_solve_upper_pentagonal
+end subroutine QR_row_givens_solve_UP
 
 
-subroutine QR_back_sub(N, R, b, x)
-  ! Performs back substitution on the system [R] x = [Q]^H b
-  ! It is assumed that b has already been multiplied by [Q]
+subroutine upper_triangular_back_sub(N, R, b, x)
+  ! Performs back substitution (not pivoted) on the system [R] x = b where [R] is an upper-triangular matrix
 
   implicit none
   
@@ -1156,7 +1162,7 @@ subroutine QR_back_sub(N, R, b, x)
   real :: det
 
   ! Calculate the determinant
-  !det = QR_calc_det(N, R)
+  !det = upper_triangular_det(N, R)
   !write(*,'(a, e20.12, a)',advance='no') "(Scaled determinant of R: ", det, ")"
 
   ! Initialize
@@ -1182,11 +1188,11 @@ subroutine QR_back_sub(N, R, b, x)
 
   end do
   
-end subroutine QR_back_sub
+end subroutine upper_triangular_back_sub
 
 
-function QR_calc_det(N, R) result(det)
-  ! Calculates the absolute value of the determinant of R (assuming R is trangular)
+function upper_triangular_det(N, R) result(det)
+  ! Calculates the scaled absolute value of the determinant of an upper-triangular matrix
 
   implicit none
   
@@ -1210,22 +1216,320 @@ function QR_calc_det(N, R) result(det)
     write(*,*) "Determinant: ", det
   end do
 
-end function QR_calc_det
+end function upper_triangular_det
 
 
-subroutine gen_fast_givens_rot(N, x, y, c, s, D, rot_type)
+subroutine gen_fast_givens_rot(x, y, a, b, D1, D2, rot_type)
   ! Generates a fast Givens rotation
 
   implicit none
   
-  integer,intent(in) :: N
   real,intent(inout) :: x, y
-  real,intent(out) :: c, s
-  real,dimension(N),intent(inout) :: D
+  real,intent(out) :: a, b
+  real,intent(inout) :: D1, D2
   integer,intent(out) :: rot_type
 
+  real :: gamma, t
+
+  ! Check for nonzero second element
+  if (y /= 0.) then
+
+    ! Calculate initial factors
+    a = -x/y
+    b = -a*D2/D1
+    gamma = -a/b
+
+    ! Chec for the right type of rotation
+    if (gamma >= 1.) then
+
+      ! Set type
+      rot_type = 1
+
+      ! Update diagonals
+      t = D1
+      D1 = (1. + gamma)*D2
+      D2 = (1. + gamma)*t
+
+    else
+
+      ! Set type
+      rot_type = 2
+
+      ! Update rotation factors
+      a = 1./a
+      b = 1./b
+      gamma = 1./gamma
+
+      ! Update diagonals
+      D1 = (1. + gamma)*D1
+      D2 = (1. + gamma)*D2
+
+    end if
+
+  else
+
+    ! Set type
+    rot_type = 2
+
+    ! Set factors (diagonals remain unchanged)
+    a = 0
+    b = 0
+
+  end if
   
 end subroutine gen_fast_givens_rot
+
+
+subroutine apply_fast_givens_rot(a, b, x, y, N, rot_type)
+  ! Applies the fast Givens rotation to the vectors x and y
+
+  implicit none
+  
+  real,intent(in) :: a, b
+  real,dimension(N),intent(inout) :: x, y
+  integer,intent(in) :: N, rot_type
+
+  real,dimension(N) :: temp1, temp2
+
+  ! Check type
+  if (rot_type == 1) then
+
+    ! Store vectors
+    temp1 = x
+    temp2 = y
+
+    ! Apply rotation
+    x = b*temp1 + temp2
+    y = temp1 + a*temp2
+
+  else
+
+    ! Store vectors
+    temp1 = x
+    temp2 = y
+
+    ! Apply rotation
+    x = temp1 + b*temp2
+    y = a*temp1 + temp2
+
+  end if
+  
+end subroutine apply_fast_givens_rot
+
+
+subroutine QR_fast_givens_solve_upper_pentagonal(N, A, b, x)
+  ! Solves the equation [A]x = b using the QR factorization via fast Givens rotations
+  ! Assumes A is upper-pentagonal
+
+  implicit none
+  
+  integer,intent(in) :: N
+  real,dimension(N,N),intent(inout) :: A
+  real,dimension(N),intent(inout) :: b
+  real,dimension(:),allocatable,intent(out) :: x
+
+  integer :: i, j, k, B_l, rot_type, iter
+  real :: alpha, beta, sqrt_D, A_max
+  real,dimension(N) :: D
+
+  ! Initialize diagonals
+  D = 1.
+
+  ! Get lower bandwidth
+  B_l = get_lower_bandwidth(N, A)
+
+  ! Zero out lower triangle
+
+  ! Loop through columns
+  iter = 0
+  do j=1,N
+
+    ! Loop through rows
+    do i=min(j+B_l,N),j+1,-1
+
+      ! Check nonzero
+      if (A(i,j) /= 0.) then
+
+        ! Update number of iterations where we've done something
+        iter = iter + 1
+
+        ! Generate Givens rotation
+        call gen_fast_givens_rot(A(i-1,j), A(i,j), alpha, beta, D(i-1), D(i), rot_type)
+
+        ! Apply to rest of row
+        call apply_fast_givens_rot(alpha, beta, A(i-1,j+1:), A(i,j+1:), N-j-1, rot_type)
+
+        ! Apply to b vector
+        call apply_fast_givens_rot(alpha, beta, b(i-1), b(i), 1, rot_type)
+
+        !! Check in on magnitude of A's elements
+        !if (iter == 30) then
+        !  do k=1,N
+        !    A_max = maxval(abs(A(k,:)))
+        !    if (A_max >= 1.e12) then
+        !      A(k,:) = A(k,:) / A_max
+        !      b(k) = b(k) / A_max
+        !    end if
+        !  end do
+        !  iter = 0
+        !end if
+
+      end if
+
+    end do
+
+  end do
+
+  ! Back substitution
+  call upper_triangular_back_sub(N, A, b, x)
+  
+end subroutine QR_fast_givens_solve_upper_pentagonal
+
+
+subroutine arnoldi(N, A, k, q1, Q, H)
+  ! Uses the Arnoldi algorithm to find an orthonormal basis for the k-th Krylov subspace of A
+
+  implicit none
+  
+  integer,intent(in) :: N, k
+  real,dimension(N,N) :: A
+  real,dimension(N) :: q1
+  real,dimension(:,:),allocatable,intent(out) :: Q, H
+
+  integer :: i, j
+
+  ! Allocate basis storage
+  allocate(Q(N,k))
+  allocate(H(k+1,k))
+
+  ! Store first
+  Q(:,1) = q1
+
+  ! Assemble basis
+  do j=1,k-1
+
+    ! Add dimension to Krylov subspace
+    Q(:,j+1) = matmul(A, Q(:,j))
+
+    ! Orthogonalize
+    do i=1,j
+      H(i,j) = sum(Q(:,j+1)*Q(:,i))
+      Q(:,j+1) = Q(:,j+1) - H(i,j)*Q(:,i)
+    end do
+
+    ! Normalize
+    H(j+1,j) = norm2(Q(:,j+1))
+    Q(:,j+1) = Q(:,j+1)/H(j+1,j)
+
+  end do
+  
+end subroutine arnoldi
+
+
+subroutine arnoldi_update(N, A, k, Q, H)
+  ! Uses the Arnoldi algorithm to update the orthonormal basis
+
+  implicit none
+  
+  integer,intent(in) :: N, k
+  real,dimension(N,N),intent(in) :: A
+  real,dimension(:,:),allocatable,intent(inout) :: Q, H
+
+  integer :: i
+
+  ! Add dimension to Krylov subspace
+  Q(:,k+1) = matmul(A, Q(:,k))
+
+  ! Orthogonalize
+  do i=1,k
+    H(i,k) = sum(Q(:,k+1)*Q(:,i))
+    Q(:,k+1) = Q(:,k+1) - H(i,k)*Q(:,i)
+  end do
+
+  ! Normalize
+  H(k+1,k) = norm2(Q(:,k+1))
+  Q(:,k+1) = Q(:,k+1)/H(k+1,k)
+  
+end subroutine arnoldi_update
+
+
+subroutine GMRES(N, A, b, tol, max_iterations, x)
+  ! Uses the generalized minimum residual algorithm to estimate the solution to Ax=b
+  ! Taken from "Handbook of Linear Algebra" Leslie Hogben ed.
+
+  implicit none
+  
+  integer,intent(in) :: N, max_iterations
+  real,dimension(N,N),intent(in) :: A
+  real,dimension(N),intent(in) :: b
+  real,intent(in) :: tol
+  real,dimension(:),allocatable,intent(out) :: x
+
+  integer :: i, j, k, k_max
+  real,dimension(:,:),allocatable :: Q, H
+  real,dimension(N) :: E, r0
+  real :: beta, temp, err, d
+  real,dimension(:),allocatable :: y, c, s
+
+  ! We cannot have more iterations than the size of the matrix
+  k_max = min(N, max_iterations)
+
+  ! Allocate memory for storing the orthonormal basis and rotations
+  allocate(Q(N,k_max), source=0.)
+  allocate(H(k_max+1,k_max), source=0.)
+  allocate(c(k_max), source=0.)
+  allocate(s(k_max), source=0.)
+
+  ! Initialize
+  E(1) = 1.
+  E(2:) = 0.
+  r0 = b
+  beta = norm2(r0)
+  Q(:,1) = r0/beta
+  err = tol + 1
+  k = 0
+
+  ! Loop through subspaces
+  do while (err > tol .and. k < k_max-1)
+
+    k = k + 1
+
+    ! Update orthonormal basis using Arnoldi algorithm
+    call arnoldi_update(N, A, k, Q, H)
+
+    ! Apply rotations to new last column of H
+    do i=1,k-1
+      temp = c(i)*H(i,k) + s(i)*H(i+1,k)
+      H(i+1,k) = -s(i)*h(i,k) + c(i)*H(i+1,k)
+      H(i,k) = temp
+    end do
+
+    ! Calculate k-th rotation
+    d = sqrt(H(k,k)**2 + H(k+1,k)**2)
+    c(k) = abs(H(k,k)) / d
+    s(k) = sign(1., H(k,k))*H(k+1,k) / d
+
+    ! Apply to H
+    H(k,k) = c(k)*H(k,k) + s(k)*H(k+1,k)
+    H(k+1,k) = 0.
+
+    ! Apply to E
+    E(k+1) = -s(k)*E(k)
+    E(k) = c(k)*E(k)
+
+    ! Calculate residual norm estimate
+    err = beta*abs(E(k+1))
+    if (err < tol) exit
+
+  end do
+
+  ! Solve upper triangular system
+  call upper_triangular_back_sub(k, H(1:k,1:k), beta*E(1:k), y)
+
+  ! Get estimate for x
+  x = matmul(Q(:,1:k), y)
+  
+end subroutine GMRES
 
 
 end module linalg_mod
