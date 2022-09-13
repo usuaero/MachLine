@@ -19,6 +19,7 @@
     "output": {
         "body_file" :          "dev/results/delta_wing_medium.vtk",
         "wake_file" :          "dev/results/delta_wing_medium_wake.vtk",
+        "wake_strip_file" :    "dev/results/delta_wing_medium_wake_strips.vtk",
         "control_point_file" : "dev/results/delta_wing_medium_control_points.vtk",
         "report_file" :        "dev/results/report.json",
         "xoffbody_points" : {

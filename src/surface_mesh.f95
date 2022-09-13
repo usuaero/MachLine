@@ -9,6 +9,7 @@ module surface_mesh_mod
     use tri_mod
     use vertex_mod
     use panel_mod
+    use mesh_mod
     use flow_mod
     use math_mod
     use edge_mod
@@ -19,12 +20,10 @@ module surface_mesh_mod
     implicit none
 
 
-    type surface_mesh
+    type, extends(mesh) :: surface_mesh
 
-        integer :: N_verts, N_panels, N_cp, N_edges, N_true_verts ! as in, not midpoints
+        integer :: N_cp, N_edges, N_true_verts ! as in, not midpoints
         integer :: N_subinc, N_supinc
-        type(vertex),allocatable,dimension(:) :: vertices
-        type(panel),allocatable,dimension(:) :: panels
         type(edge),allocatable,dimension(:) :: edges
         type(wake_mesh) :: wake
         real :: C_wake_shedding_angle, trefftz_distance, C_min_panel_angle
@@ -40,7 +39,7 @@ module surface_mesh_mod
         logical :: mirrored ! Whether the mesh is to be mirrored about any planes
         integer :: mirror_plane ! Index of the plane across which the mesh is mirrored (1: yz, 2: xz, 3: xy); this is the index of the normal to that plane
         logical :: asym_flow ! Whether the flow is asymmetric about the mirror plane
-        logical :: found_discontinuous_edges, midpoints_created
+        logical :: found_discontinuous_edges
         real,dimension(:),allocatable :: mu, sigma ! Singularity strengths
         real :: S_ref ! Reference parameters
         integer,dimension(:),allocatable :: vertex_ordering
@@ -74,8 +73,6 @@ module surface_mesh_mod
 
             ! Helpers
             procedure :: find_vertices_on_mirror => surface_mesh_find_vertices_on_mirror
-            procedure :: get_indices_to_panel_vertices => surface_mesh_get_indices_to_panel_vertices
-            procedure :: allocate_new_vertices => surface_mesh_allocate_new_vertices
 
             ! Wake stuff
             procedure :: init_wake => surface_mesh_init_wake
@@ -936,84 +933,50 @@ contains
     end subroutine surface_mesh_set_up_mirroring
 
 
-    subroutine surface_mesh_get_indices_to_panel_vertices(this, i_vertices)
-        ! Returns of the list of indices which point to the vertices (and midpoints) of each panel
+    !subroutine surface_mesh_allocate_new_vertices(this, N_new_verts)
+    !    ! Adds the specified number of vertex objects to the end of the surface mesh's vertex array.
+    !    ! Handles moving panel pointers to the new allocation of previously-existing vertices.
 
-        implicit none
+    !    implicit none
 
-        class(surface_mesh),intent(in) :: this
-        integer,dimension(:,:),allocatable,intent(out) :: i_vertices
+    !    class(surface_mesh),intent(inout),target :: this
+    !    integer,intent(in) :: N_new_verts
+    !    
+    !    type(vertex),dimension(:),allocatable :: temp_vertices
+    !    integer :: i, j
+    !    integer,dimension(:,:),allocatable :: i_vertices
 
-        integer :: i, j
+    !    ! Get panel vertex indices
+    !    call this%get_indices_to_panel_vertices(i_vertices)
 
-        ! Allocate space
-        allocate(i_vertices(8,this%N_panels))
+    !    ! Allocate more space
+    !    allocate(temp_vertices(this%N_verts + N_new_verts))
 
-        ! Get vertex indices for each panel since we will lose this information as soon as this%vertices is reallocated
-        do i=1,this%N_panels
-            do j=1,this%panels(i)%N
+    !    ! Copy vertices
+    !    temp_vertices(1:this%N_verts) = this%vertices
 
-                ! Get vertex indices
-                i_vertices(j,i) = this%panels(i)%get_vertex_index(j)
-                
-                ! Get midpoint indices
-                if (this%midpoints_created) then
-                    i_vertices(j+this%panels(i)%N,i) = this%panels(i)%get_midpoint_index(j)
-                end if
+    !    ! Move allocation
+    !    call move_alloc(temp_vertices, this%vertices)
 
-            end do
-        end do
-        
-    end subroutine surface_mesh_get_indices_to_panel_vertices
+    !    ! Fix vertex pointers in panel objects (necessary because this%vertices got reallocated)
+    !    do i=1,this%N_panels
+    !        do j=1,this%panels(i)%N
 
+    !            ! Fix vertex pointers
+    !            this%panels(i)%vertices(j)%ptr => this%vertices(i_vertices(j,i))
 
-    subroutine surface_mesh_allocate_new_vertices(this, N_new_verts)
-        ! Adds the specified number of vertex objects to the end of the surface mesh's vertex array.
-        ! Handles moving panel pointers to the new allocation of previously-existing vertices.
+    !            ! Fix midpoint pointers
+    !            if (this%midpoints_created) then
+    !                this%panels(i)%midpoints(j)%ptr => this%vertices(i_vertices(j+this%panels(i)%N,i))
+    !            end if
 
-        implicit none
+    !        end do
+    !    end do
 
-        class(surface_mesh),intent(inout),target :: this
-        integer,intent(in) :: N_new_verts
-        
-        type(vertex),dimension(:),allocatable :: temp_vertices
-        integer :: i, j
-        integer,dimension(:,:),allocatable :: i_vertices
-        integer,dimension(:),allocatable :: i_adj_vert
-
-        ! Get panel vertex indices
-        call this%get_indices_to_panel_vertices(i_vertices)
-
-        ! Allocate more space
-        allocate(temp_vertices(this%N_verts + N_new_verts))
-
-        ! Copy over vertices
-
-        ! Copy vertices
-        temp_vertices(1:this%N_verts) = this%vertices
-
-        ! Move allocation
-        call move_alloc(temp_vertices, this%vertices)
-
-        ! Fix vertex pointers in panel objects (necessary because this%vertices got reallocated)
-        do i=1,this%N_panels
-            do j=1,this%panels(i)%N
-
-                ! Fix vertex pointers
-                this%panels(i)%vertices(j)%ptr => this%vertices(i_vertices(j,i))
-
-                ! Fix midpoint pointers
-                if (this%midpoints_created) then
-                    this%panels(i)%midpoints(j)%ptr => this%vertices(i_vertices(j+this%panels(i)%N,i))
-                end if
-
-            end do
-        end do
-
-        ! Update number of vertices
-        this%N_verts = this%N_verts + N_new_verts
-        
-    end subroutine surface_mesh_allocate_new_vertices
+    !    ! Update number of vertices
+    !    this%N_verts = this%N_verts + N_new_verts
+    !    
+    !end subroutine surface_mesh_allocate_new_vertices
 
 
     subroutine surface_mesh_locate_vertices_needing_cloning(this)

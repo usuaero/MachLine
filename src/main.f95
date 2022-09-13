@@ -11,7 +11,7 @@ program main
     implicit none
 
     character(100) :: input_file
-    character(len=:),allocatable :: body_file, wake_file, control_point_file, points_file, points_output_file
+    character(len=:),allocatable :: body_file, wake_file, control_point_file, points_file, points_output_file, wake_strip_file
     character(len=:),allocatable :: mirrored_body_file, mirrored_control_point_file
     character(len=:),allocatable :: report_file, spanwise_axis
 
@@ -26,7 +26,7 @@ program main
     type(flow) :: freestream_flow
     type(panel_solver) :: linear_solver
     real :: start, end
-    logical :: exists, found
+    logical :: exists, found, exported
     integer :: i_unit
 
     ! Start timer
@@ -111,6 +111,7 @@ program main
     ! Get result files
     call json_xtnsn_get(output_settings, 'body_file', body_file, 'none')
     call json_xtnsn_get(output_settings, 'wake_file', wake_file, 'none')
+    call json_xtnsn_get(output_settings, 'wake_strip_file', wake_strip_file, 'none')
     call json_xtnsn_get(output_settings, 'control_point_file', control_point_file, 'none')
     call json_xtnsn_get(output_settings, 'mirrored_body_file', mirrored_body_file, 'none')
     call json_xtnsn_get(output_settings, 'mirrored_control_point_file', mirrored_control_point_file, 'none')
@@ -167,6 +168,11 @@ program main
     call body_mesh%output_results(body_file, wake_file, control_point_file, mirrored_body_file, mirrored_control_point_file)
     if (points_file /= 'none' .and. points_output_file /= 'none' .and. verbose) then
         write(*,'(a30 a)') "     Off-Body Points: ", points_output_file
+    end if
+
+    ! Wake strips
+    if (wake_strip_file /= 'none') then
+        call body_mesh%wake%write_strips(wake_strip_file, exported)
     end if
 
     ! Goodbye

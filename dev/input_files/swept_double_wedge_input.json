@@ -26,6 +26,7 @@
     "output": {
         "body_file" :          "dev/results/swept_double_wedge_wing.vtk",
         "wake_file" :          "dev/results/swept_double_wedge_wing_wake.vtk",
+        "wake_strip_file" :    "dev/results/swept_double_wedge_wing_wake_strips.vtk",
         "control_point_file" : "dev/results/swept_double_wedge_wing_control_points.vtk"
     }
 }
