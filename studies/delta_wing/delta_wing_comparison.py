@@ -84,8 +84,8 @@ if __name__=="__main__":
     gamma = 1.4
     T_inf = 300.0
     c_inf = np.sqrt(gamma*R_G*T_inf)
-    # angles_of_attack = [0.0, 2.0, 4.1, 8.5, 10.75]
-    angles_of_attack = [2.0]
+    angles_of_attack = [0.0, 2.0, 4.1, 8.5, 10.75]
+    # angles_of_attack = [0.0]
     semispan_loc = [22.5, 64.1]
     # b_half = 1.0065 # semispan length nondimensionalized by root chord
     b_half = 0.2315 # semispan length for OpenVSP model
@@ -128,8 +128,7 @@ if __name__=="__main__":
             "solver": {
                 "formulation": "morino",
                 "matrix_solver": "QRUP",
-                "run_checks": True,
-                "control_point_offset": 1.1e-8
+                "run_checks": True
             },
             "post_processing" : {
                 "pressure_rules" : {
@@ -153,7 +152,7 @@ if __name__=="__main__":
             json.dump(input_dict, input_handle, indent=4)
 
         # Run
-        sp.run(["./machline.exe", input_file])
+        # sp.run(["./machline.exe", input_file])
         
         # Verify that MachLine execution was successful
         control_point_file = "delta_wing_{0}_deg_{1}_control_points.vtk".format(alpha,mesh_density)
@@ -200,4 +199,4 @@ if __name__=="__main__":
             pvs.SaveData(save_loc, proxy=plot, ChooseArraysToWrite=1, CellDataArrays=data_to_process, FieldAssociation='Cell Data')
     # Plot single computational method over a range of angles of attack at each semispan location
     computational_method = "isentropic" # isentropic, second order, slender-body, or linear
-    # data_plot(computational_method, angles_of_attack, semispan_loc)
+    data_plot(computational_method, angles_of_attack, semispan_loc)

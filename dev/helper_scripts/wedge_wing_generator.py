@@ -57,10 +57,6 @@ def spanwise_coord(spanwise_nodes, semispan, **kwargs):
     TE_slope = (semispan * np.tan(sweep_angle) + taper - 1) / semispan
     TE_xloc = TE_slope * Zoc + 1
 
-    print("Zoc length: ", len(Zoc))
-    print("TE slope: ", TE_slope)
-    print("TE_xloc: ", TE_xloc)
-
     return Zoc, LE_xloc, TE_xloc
 
 
@@ -591,13 +587,12 @@ if __name__ == '__main__':
     b_2c = 0.2315 / 0.230 # semispan nondimensionalized by root chord
     R_T = 0.0 # taper ratio c_t/c_R
     LE_sweep = 44.85 # leading edge sweep angle in degrees
-    # LE_sweep = 0.0
     node_ratio = .35 # User input ratio of nodes to be placed forward of the max thickness location
     mirror_xy = True # Mirrors body across xy plane
 
     # Initialize number of nodes in chord and spanwize directions
-    cw_nodes = 20 # Number of nodes along the upper surface
-    sw_nodes = 20 # Number of nodes along the semispan
+    cw_nodes = 50 # Number of nodes along the upper surface
+    sw_nodes = 50 # Number of nodes along the semispan
     cluster_cw = True
     cluster_sw = False
 
@@ -665,11 +660,13 @@ if __name__ == '__main__':
     
 
     # Mirror (if selected) and output final mesh to selected location
-    if 'dev' in os.getcwd(): 
+    if 'helper_scripts' in os.getcwd(): 
+        os.chdir('../../')
+    elif 'dev' in os.getcwd():
         os.chdir('../')
 
-    # filename= 'studies/delta_wing/meshes/delta_wing_clustered_mesh.vtk'
-    filename= 'studies/delta_wing/meshes/tapered_wing_test.vtk'
+    filename= 'studies/delta_wing/meshes/delta_wing_clustered_mesh.vtk'
+    # filename= 'studies/delta_wing/meshes/tapered_wing_test.vtk'
 
 
     panels = np.array(panels, dtype=int)
