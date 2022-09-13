@@ -1,10 +1,10 @@
 {
     "flow": {
         "freestream_velocity" : [ 100.0, 0.0, 0.0 ],
-        "freestream_mach_number" : 1.7
+        "freestream_mach_number" : 1.62
     },
     "geometry": {
-        "file": "dev/meshes/delta_wing.vtk",
+        "file": "dev/meshes/delta_wing_medium.vtk",
         "wake_model" : {
             "wake_present" : true,
             "append_wake" : true,
@@ -12,14 +12,14 @@
         }
     },
     "solver": {
-        "matrix_solver" : "QRUP",
-        "run_checks" : true,
-        "write_A_and_b" : true
+        "matrix_solver" : "GMRES",
+        "control_point_offset" : 1.0e-6,
+        "write_A_and_" : true
     },
     "output": {
-        "body_file" :          "dev/results/delta_wing.vtk",
-        "wake_file" :          "dev/results/delta_wing_wake.vtk",
-        "control_point_file" : "dev/results/delta_wing_control_points.vtk",
+        "body_file" :          "dev/results/delta_wing_medium.vtk",
+        "wake_file" :          "dev/results/delta_wing_medium_wake.vtk",
+        "control_point_file" : "dev/results/delta_wing_medium_control_points.vtk",
         "report_file" :        "dev/results/report.json",
         "xoffbody_points" : {
             "points_file" : "dev/delta_wing_trailing_edge_sample_points.csv",

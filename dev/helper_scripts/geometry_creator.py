@@ -335,15 +335,15 @@ def generate_random_sphere(filename, N, r):
 
 if __name__=="__main__":
 
-    ## Test cone
-    #angles = [1.0, 5.0, 10.0, 15.0]
-    #for angle in angles:
-    #    h = 1.0/np.tan(np.radians(angle))
-    #    generate_proper_right_cone('dev/meshes/cone_{0}_deg_coarse.vtk'.format(int(angle)), h, 1.0, 30, 25, close_base=False)
+    # Test cone
+    angles = [2.5, 5.0, 10.0, 15.0]
+    for angle in angles:
+        h = 1.0/np.tan(np.radians(angle))
+        generate_proper_right_cone('studies/supersonic_cone_flow_study/meshes/cone_{0}_deg_fine.vtk'.format(int(angle)), h, 1.0, 120, 100, close_base=False)
 
-    # Random spheres
-    Ns = [125, 250, 500, 1000, 2000]
-    labels = ['ultra_coarse', 'coarse', 'medium', 'fine', 'ultra_fine']
-    for N, label in zip(Ns, labels):
-        for j in range(10):
-            generate_random_sphere('studies/panel_regularity_sphere_study/meshes/random_sphere_{0}_sample_{1}.vtk'.format(label, j), N, 1.0)
+    ## Random spheres
+    #Ns = [125, 250, 500, 1000, 2000]
+    #labels = ['ultra_coarse', 'coarse', 'medium', 'fine', 'ultra_fine']
+    #for N, label in zip(Ns, labels):
+    #    for j in range(10):
+    #        generate_random_sphere('studies/panel_regularity_sphere_study/meshes/random_sphere_{0}_sample_{1}.vtk'.format(label, j), N, 1.0)
