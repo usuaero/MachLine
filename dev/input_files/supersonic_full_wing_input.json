@@ -5,17 +5,21 @@
         "freestream_mach_number" : 2.0
     },
     "geometry": {
-        "file": "dev/meshes/diamond_5_deg_full_fine.stl",
+        "file": "dev/meshes/diamond_5_deg_full_medium.stl",
         "spanwise_axis" : "+y",
+        "singularity_order" : {
+            "doublet" : 2,
+            "source" : 1
+        },
         "wake_model" : {
             "append_wake" : true,
             "trefftz_distance" : 20.0
         }
     },
     "output": {
-        "body_file" :          "dev/results/diamond_5_deg_full_fine.vtk",
-        "wake_file" :          "dev/results/diamond_5_deg_full_fine_wake.vtk",
-        "control_point_file" : "dev/results/diamond_5_deg_full_fine_control_points.vtk",
+        "body_file" :          "dev/results/diamond_5_deg_full_medium.vtk",
+        "wake_file" :          "dev/results/diamond_5_deg_full_medium_wake.vtk",
+        "control_point_file" : "dev/results/diamond_5_deg_full_medium_control_points.vtk",
         "report_file" :        "dev/results/report.json",
         "ffbody_points" : {
             "points_file" : "dev/delta_wing_trailing_edge_sample_points.csv",

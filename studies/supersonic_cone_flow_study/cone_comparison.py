@@ -68,8 +68,11 @@ def run_comparison(M, grid, half_angle, run_machline=True):
         sp.run(["./machline.exe", input_file])
     
     # Load MachLine report file
-    with open(report_file, 'r') as report_handle:
-        report = json.load(report_handle)
+    try:
+        with open(report_file, 'r') as report_handle:
+            report = json.load(report_handle)
+    except FileNotFoundError:
+        return np.nan, np.nan, np.nan, np.nan
 
     # Read into ParaView
     data_reader = pvs.LegacyVTKReader(registrationName=body_file.replace("dev/results/", ""), FileNames=body_file)
@@ -131,10 +134,9 @@ def get_analytic_data(filename):
 if __name__=="__main__":
 
     # Study parameters
-    grids = ["coarse"]#, "medium"]#, "fine"]
-    N_verts = [402, 1090, 3770, 13266]
-    Ms = [1.4, 1.5, 1.7, 2.0, 2.4, 2.8, 3.3]
-    half_angles = [5, 10, 15] # Need to add 2.5 deg case (mesh)
+    grids = ["coarse", "medium"]#, "fine"]
+    Ms = [1.4, 1.5, 1.7, 2.0, 2.4, 2.8, 3.3, 4.0]
+    half_angles = [2.5, 5, 10, 15]
 
     # Initialize storage
     C_p_2nd_avg = np.zeros((len(grids), len(Ms), len(half_angles)))
@@ -177,9 +179,10 @@ if __name__=="__main__":
 
         # Get analytic data for this half angle
         i_theta = np.where(thetas_anl == half_angle)
-        plt.plot(Ms_anl[:6], Cps_anl[:6,i_theta].flatten(), 'k', label='Taylor-MacColl')
+        plt.plot(Ms_anl[:7], Cps_anl[:7,i_theta].flatten(), 'k', label='Taylor-MacColl', linewidth=1)
 
         plt.xlabel("$M_\infty$")
         plt.ylabel("$C_p$")
+        plt.ylim(bottom=0.0)
         plt.legend(fontsize=6, title_fontsize=6)
         plt.savefig("studies/supersonic_cone_flow_study/plots/C_p_over_M_{0}_deg.pdf".format(half_angle))

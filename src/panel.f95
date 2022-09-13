@@ -109,6 +109,8 @@ module panel_mod
             procedure :: touches_vertex => panel_touches_vertex
             procedure :: check_abutting_mirror_plane => panel_check_abutting_mirror_plane
             procedure :: get_subpanel_centroid => panel_get_subpanel_centroid
+            procedure :: get_corner_angle => panel_get_corner_angle
+            procedure :: get_weighted_normal_at_corner => panel_get_weighted_normal_at_corner
 
             ! Update information
             procedure :: point_to_new_vertex => panel_point_to_new_vertex
@@ -1043,6 +1045,73 @@ contains
                + this%get_midpoint_loc(modulo(j, this%N)+1) ) / 3.0
         
     end function panel_get_subpanel_centroid
+
+
+    function panel_get_corner_angle(this, vert_loc) result(angle)
+        ! Calculates the angle of the corner at which the given vertex lies
+
+        implicit none
+        
+        class(panel),intent(in) :: this
+        real,dimension(3),intent(in) :: vert_loc
+
+        real :: angle
+
+        integer :: i, i_prev
+
+        ! Find the right corner
+        do i=1,this%N
+
+            ! Check vertex
+            if (dist(this%get_vertex_loc(i), vert_loc) < 1.e-12) then
+
+                ! Get previous edge index
+                if (i == 1) then
+                    i_prev = this%N
+                else
+                    i_prev = i-1
+                end if
+
+                ! Calculate angle
+                angle = acos(inner(-this%n_hat_g(:,i), this%n_hat_g(:,i_prev)))
+                return
+
+            end if
+
+            ! Check midpoint
+            if (doublet_order == 2) then
+                if (dist(this%get_midpoint_loc(i), vert_loc) < 1.e-12) then
+                    angle = pi
+                    return
+                end if
+            end if
+        end do
+
+        ! This vertex doesn't belong, so it has no angle
+        angle = 0.
+        
+    end function panel_get_corner_angle
+
+
+    function panel_get_weighted_normal_at_corner(this, vert_loc) result(n_weighted)
+        ! Returns the panel normal weighted by the angle of the corner given
+
+        implicit none
+        
+        class(panel),intent(in) :: this
+        real,dimension(3),intent(in) :: vert_loc
+
+        real,dimension(3) :: n_weighted
+
+        real :: W
+
+        ! Get angle
+        W = this%get_corner_angle(vert_loc)
+    
+        ! Apply weight
+        n_weighted = this%n_g*W
+
+    end function panel_get_weighted_normal_at_corner
 
 
     subroutine panel_point_to_new_vertex(this, new_vertex)

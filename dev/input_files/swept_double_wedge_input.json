@@ -16,7 +16,6 @@
         }
     },
     "solver": {
-        "matrix_solver" : "QRUP",
         "write_A_and_" : true
     },
     "post_processing" : {

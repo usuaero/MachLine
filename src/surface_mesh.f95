@@ -1267,69 +1267,80 @@ contains
         class(surface_mesh),intent(inout) :: this
 
         real,dimension(3) :: n_avg, n_avg_plane
-        integer :: i, j, i_panel
+        integer :: i, j, i_panel, N_panels
         real,dimension(:),allocatable :: constraint_array
+        real,dimension(:,:),allocatable :: n_g_panels
         real :: x
 
         if (verbose) write(*,'(a)',advance='no') "     Calculating vertex normals..."
 
         ! Loop through vertices
-        !$OMP parallel do private(n_avg, i, i_panel, constraint_array, n_avg_plane) schedule(dynamic)
+        !$OMP parallel do private(n_avg, i, i_panel, constraint_array, n_avg_plane, N_panels, n_g_panels) schedule(dynamic)
         do j=1,this%N_verts
+
+            ! Allocate storage for the panel normals
+            N_panels = this%vertices(j)%panels%len()
+            allocate(n_g_panels(3,N_panels))
 
             ! Loop through neighboring panels and compute the average of their normal vectors
             n_avg = 0
-            do i=1,this%vertices(j)%panels%len()
+            do i=1,N_panels
+
+                ! Get panel index
                 call this%vertices(j)%panels%get(i, i_panel)
-                n_avg = n_avg + this%panels(i_panel)%n_g
+
+                ! Get weighted normal
+                n_g_panels(:,i) = this%panels(i_panel)%get_weighted_normal_at_corner(this%vertices(j)%loc)
+
+                ! Update using weighted normal
+                n_avg = n_avg + n_g_panels(:,i)
+
+                ! Normalize for later computations
+                n_g_panels(:,i) = n_g_panels(:,i)/norm2(n_g_panels(:,i))
+
             end do
 
             ! For vertices on the mirror plane, the component normal to the plane should be zeroed
-            if (this%mirrored .and. this%vertices(j)%on_mirror_plane) then
+            if (this%vertices(j)%on_mirror_plane) then
                 n_avg(this%mirror_plane) = 0.
-                if (norm2(n_avg) < 1.e-12) then
-                    write(*,*) "!!! There is a panel lying entirely on the mirror plane. Quitting..."
-                    stop
-                end if
             end if
 
-            ! Get the inner products with the panel normals and the computed vertex normal
-            allocate(constraint_array(this%vertices(j)%panels%len()))
-            do i=1,this%vertices(j)%panels%len()
-                call this%vertices(j)%panels%get(i, i_panel)
-                constraint_array(i) = inner(this%panels(i_panel)%n_g, n_avg)
-            end do
+            !! Get the inner products with the panel normals and the computed vertex normal
+            !allocate(constraint_array(N_panels))
+            !do i=1,N_panels
+            !    constraint_array(i) = inner(n_g_panels(:,i), n_avg)
+            !end do
 
-            ! Check whether the vertex normal points wholly outside the mesh
-            do while (any(constraint_array < 0.))
+            !! Check whether the vertex normal points wholly outside the mesh
+            !do while (any(constraint_array < 0.))
 
-                ! Get the normal vector describing the average plane for the panels for which the constraint is not satisfied
-                n_avg_plane = 0.
-                do i=1,this%vertices(j)%panels%len()
+            !    ! Get the normal vector describing the average plane for the panels for which the constraint is not satisfied
+            !    n_avg_plane = 0.
+            !    do i=1,N_panels
 
-                    ! Loop through neighboring panels
-                    if (constraint_array(i) < 0.) then
-                        call this%vertices(j)%panels%get(i, i_panel)
-                        n_avg_plane = n_avg_plane + this%panels(i_panel)%n_g
-                    end if
-                    
-                end do
+            !        ! Loop through neighboring panels
+            !        if (constraint_array(i) < 0.) then
+            !            call this%vertices(j)%panels%get(i, i_panel)
+            !            n_avg_plane = n_avg_plane + n_g_panels(:,i)
+            !        end if
+            !        
+            !    end do
 
-                ! Normalize
-                n_avg_plane = n_avg_plane/norm2(n_avg_plane)
+            !    ! Normalize plane vector
+            !    n_avg_plane = n_avg_plane/norm2(n_avg_plane)
 
-                ! Reflect vertex normal across average panel plane
-                n_avg = n_avg - 2.*inner(n_avg, n_avg_plane)*n_avg_plane
+            !    ! Reflect vertex normal across average panel plane
+            !    n_avg = n_avg - 2.*inner(n_avg, n_avg_plane)*n_avg_plane
 
-                ! Recalculate constraint array
-                do i=1,this%vertices(j)%panels%len()
-                    call this%vertices(j)%panels%get(i, i_panel)
-                    constraint_array(i) = inner(this%panels(i_panel)%n_g, n_avg)
-                end do
+            !    ! Recalculate constraint array
+            !    do i=1,N_panels
+            !        constraint_array(i) = inner(n_g_panels(:,i), n_avg)
+            !    end do
 
-            end do
+            !end do
 
-            deallocate(constraint_array)
+            !deallocate(constraint_array)
+            deallocate(n_g_panels)
 
             ! Normalize and store
             this%vertices(j)%n_g = n_avg/norm2(n_avg)
@@ -1340,7 +1351,7 @@ contains
             end if
 
             ! Calculate average edge lengths for each vertex
-            call this%vertices(j)%calc_average_edge_length(this%vertices)
+            call this%vertices(j)%set_average_edge_length(this%vertices)
 
         end do
 
@@ -1498,8 +1509,8 @@ contains
                     ! Get panel index
                     call this%vertices(i)%panels_not_across_wake_edge%get(j, i_panel)
 
-                    ! Add normal vector
-                    n_avg = n_avg + this%panels(i_panel)%n_g
+                    ! Add weighted normal vector
+                    n_avg = n_avg + this%panels(i_panel)%get_weighted_normal_at_corner(this%vertices(i)%loc)
 
                 end do
 

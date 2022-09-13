@@ -31,8 +31,12 @@ module vertex_mod
         contains
 
             procedure :: init => vertex_init
-            procedure :: calc_average_edge_length => vertex_calc_average_edge_length
+
+            ! Initializer-setters
             procedure :: set_whether_on_mirror_plane => vertex_set_whether_on_mirror_plane
+            procedure :: set_average_edge_length => vertex_set_average_edge_length
+
+            ! Getters
             procedure :: get_N_needed_clones => vertex_get_N_needed_clones
 
     end type vertex
@@ -76,7 +80,7 @@ contains
     end subroutine vertex_init
 
 
-    subroutine vertex_calc_average_edge_length(this, vertices)
+    subroutine vertex_set_average_edge_length(this, vertices)
         ! Calculates the average edge length of edges adjacent to this vertex
 
         implicit none
@@ -127,7 +131,7 @@ contains
             this%l_avg = 1.
         end if
     
-    end subroutine vertex_calc_average_edge_length
+    end subroutine vertex_set_average_edge_length
 
 
     subroutine vertex_set_whether_on_mirror_plane(this, mirror_plane)

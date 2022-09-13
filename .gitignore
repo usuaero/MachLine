@@ -39,6 +39,9 @@ b_vec.txt
 R_mat.txt
 *.csv
 
+# Test results
+test/results/
+
 # Study files
 *.pdf
 studies/*/data/*
