@@ -50,6 +50,8 @@ module panel_solver_mod
             procedure :: update_system_row => panel_solver_update_system_row
             procedure :: calc_body_influences => panel_solver_calc_body_influences
             procedure :: calc_wake_influences => panel_solver_calc_wake_influences
+            procedure :: check_system => panel_solver_check_system
+            procedure :: write_system => panel_solver_write_system
             procedure :: solve_system => panel_solver_solve_system
 
             ! Post-processing
@@ -583,9 +585,7 @@ contains
         call this%calc_body_influences(body)
 
         ! Calculate wake influences
-        if (body%wake%N_panels > 0) then
-            call this%calc_wake_influences(body)
-        end if
+        if (body%wake%N_panels > 0) call this%calc_wake_influences(body)
 
         ! Solve the linear system
         call this%solve_system(body)
@@ -1018,6 +1018,77 @@ contains
     end subroutine panel_solver_calc_wake_influences
 
 
+    subroutine panel_solver_check_system(this)
+        ! Checks the validity of the linear system
+
+        implicit none
+        
+        class(paneL_solver),intent(in) :: this
+
+        integer :: i
+
+        if (verbose) write(*,'(a)',advance='no') "     Checking validity of linear system..."
+
+        ! Check for NaNs
+        if (any(isnan(this%A))) then
+            write(*,*) "!!! Invalid value detected in A matrix. Quitting..."
+            stop
+        end if
+        if (any(isnan(this%b))) then
+            write(*,*) "!!! Invalid value detected in b vector. Quitting..."
+            stop
+        end if
+
+        ! Check for uninfluenced/ing points
+        do i=1,this%N
+            if (all(this%A(this%P(i),:) == 0.)) then
+                write(*,*) "!!! Control point ", i, " is not influenced. Quitting..."
+                stop
+            end if
+            if (all(this%A(:,this%P(i)) == 0.)) then
+                write(*,*) "!!! Vertex ", i, " exerts no influence. Quitting..."
+                stop
+            end if
+        end do
+
+        if (verbose) write(*,*) "Done."
+
+    end subroutine panel_solver_check_system
+
+
+    subroutine panel_solver_write_system(this)
+        ! Writes the linear system to file
+
+        implicit none
+        
+        class(panel_solver),intent(in) :: this
+
+        integer :: i, j, unit
+
+        if (verbose) write(*,'(a)',advance='no') "     Writing linear system to file..."
+
+        ! A
+        open(newunit=unit, file="A_mat.txt")
+        do i=1,this%N
+            do j=1,this%N
+                write(unit,'(e20.12)',advance='no') this%A(this%P(i),this%P(j))
+            end do
+            write(unit,*)
+        end do
+        close(unit)
+
+        ! b
+        open(newunit=unit, file="b_vec.txt")
+        do i=1,this%N
+            write(unit,*) this%b(i)
+        end do
+        close(unit)
+
+        if (verbose) write(*,*) "Done."
+
+    end subroutine panel_solver_write_system
+
+
     subroutine panel_solver_solve_system(this, body)
         ! Solves the linear system for the singularity strengths
 
@@ -1028,9 +1099,7 @@ contains
 
         real,dimension(:,:),allocatable :: A_p
         real,dimension(:),allocatable :: b_p, x, R
-        integer :: stat, i, j, unit
-        real,dimension(:),allocatable :: A_ii_inv
-        integer,dimension(:),allocatable :: P_inv
+        integer :: stat, i, j
 
         ! Set b vector for Morino formulation
         if (this%formulation == "morino") then
@@ -1040,62 +1109,10 @@ contains
         end if
 
         ! Run checks
-        if (run_checks) then
+        if (run_checks) call this%check_system()
 
-            if (verbose) write(*,'(a)',advance='no') "     Checking validity of linear system..."
-
-            ! Check for NaNs
-            if (any(isnan(this%A))) then
-                write(*,*) "!!! Invalid value detected in A matrix. Quitting..."
-                stop
-            end if
-            if (any(isnan(this%b))) then
-                write(*,*) "!!! Invalid value detected in b vector. Quitting..."
-                stop
-            end if
-
-            ! Check for uninfluenced/ing points
-            do i=1,this%N
-                if (all(this%A(this%P(i),:) == 0.)) then
-                    write(*,*) "!!! Control point ", i, " is not influenced. Quitting..."
-                    stop
-                end if
-                if (all(this%A(:,this%P(i)) == 0.)) then
-                    write(*,*) "!!! Vertex ", i, " exerts no influence. Quitting..."
-                    stop
-                end if
-            end do
-
-            if (verbose) write(*,*) "Done."
-
-        end if
-
-        ! Write A and b to file
-        if (this%write_A_and_b) then
-
-            if (verbose) write(*,'(a)',advance='no') "     Writing linear system to file..."
-
-            ! A
-            call invert_permutation_vector(this%N, this%P, P_inv)
-            open(newunit=unit, file="A_mat.txt")
-            do i=1,this%N
-                do j=1,this%N
-                    write(unit,'(e20.12)',advance='no') this%A(this%P(i),this%P(j))
-                end do
-                write(unit,*)
-            end do
-            close(unit)
-
-            ! b
-            open(newunit=unit, file="b_vec.txt")
-            do i=1,this%N
-                write(unit,*) this%b(i)
-            end do
-            close(unit)
-
-            if (verbose) write(*,*) "Done."
-
-        end if
+        ! Write to file
+        if (this%write_A_and_b) call this%write_system()
 
         if (verbose) write(*,'(a, a, a)',advance='no') "     Solving linear system (method: ", this%matrix_solver, ")..."
 

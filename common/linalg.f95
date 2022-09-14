@@ -1229,54 +1229,103 @@ subroutine gen_fast_givens_rot(x, y, a, b, D1, D2, rot_type)
   real,intent(inout) :: D1, D2
   integer,intent(out) :: rot_type
 
-  real :: gamma, t
+  real :: gamma, t, d, temp, ratio
+  real :: x2, y2
 
-  ! Check for nonzero second element
-  if (y /= 0.) then
-
-    ! Calculate initial factors
-    a = -x/y
-    b = -a*D2/D1
-    gamma = -a/b
-
-    ! Chec for the right type of rotation
-    if (gamma >= 1.) then
-
-      ! Set type
-      rot_type = 1
-
-      ! Update diagonals
-      t = D1
-      D1 = (1. + gamma)*D2
-      D2 = (1. + gamma)*t
-
-    else
-
-      ! Set type
-      rot_type = 2
-
-      ! Update rotation factors
-      a = 1./a
-      b = 1./b
-      gamma = 1./gamma
-
-      ! Update diagonals
-      D1 = (1. + gamma)*D1
-      D2 = (1. + gamma)*D2
-
-    end if
-
+  ! Preliminaries
+  x2 = x*x
+  y2 = y*y
+  gamma = D1/D2
+  if (x /= 0.) then
+    ratio = y2/x2
   else
-
-    ! Set type
-    rot_type = 2
-
-    ! Set factors (diagonals remain unchanged)
-    a = 0
-    b = 0
-
+    ratio = gamma + 1.
   end if
-  
+
+  ! Determine case
+  if (D1 >= D2) then
+    if (ratio <= gamma) then
+      rot_type = 1
+    else
+      rot_type = 3
+    end if
+  else
+    if (ratio <= gamma) then
+      rot_type = 2
+    else
+      rot_type = 4
+    end if
+  end if
+
+  select case (rot_type)
+
+  case (1)
+
+    ! Calculate factors
+    t = y/x
+    b = t/gamma
+    d = 1. + b*t
+    a = t/d
+
+    ! Scale diagonals
+    D1 = D1/d
+    D2 = D2*d
+
+    ! Set first element
+    x = x*d
+
+  case (2)
+
+    ! Calculate factors
+    a = y/x
+    t = a/gamma
+    d = 1. + a*t
+    b = t/d
+
+    ! Scale diagonals
+    D1 = D1*d
+    D2 = D2/d
+
+    ! Set first element
+    x = x
+
+  case (3)
+
+    ! Calculate factors
+    a = x/y
+    t = a*gamma
+    d = 1. + a*t
+    b = t/d
+
+    ! Scale diagonals
+    temp = D2*d
+    D2 = D1/d
+    D1 = temp
+
+    ! Set first element
+    x = y
+
+  case (4)
+
+    ! Calculate factors
+    t = x/y
+    b = t*gamma
+    d = 1. + b*t
+    a = t/d
+
+    ! Scale diagonals
+    temp = D2/d
+    D2 = D1*d
+    D1 = temp
+
+    ! Set first element
+    x = y*d
+
+  end select
+
+  ! Zero second element
+  y = 0.
+
 end subroutine gen_fast_givens_rot
 
 
@@ -1289,30 +1338,34 @@ subroutine apply_fast_givens_rot(a, b, x, y, N, rot_type)
   real,dimension(N),intent(inout) :: x, y
   integer,intent(in) :: N, rot_type
 
-  real,dimension(N) :: temp1, temp2
+  real,dimension(N) :: temp
 
-  ! Check type
-  if (rot_type == 1) then
+  ! Select rotation type
+  select case (rot_type)
 
-    ! Store vectors
-    temp1 = x
-    temp2 = y
+  case (1)
 
-    ! Apply rotation
-    x = b*temp1 + temp2
-    y = temp1 + a*temp2
+    x = x + b*y
+    y = -a*x + y
 
-  else
+  case (2)
 
-    ! Store vectors
-    temp1 = x
-    temp2 = y
+    y = -a*x + y
+    x = x + b*y
 
-    ! Apply rotation
-    x = temp1 + b*temp2
-    y = a*temp1 + temp2
+  case (3)
 
-  end if
+    temp = y
+    y = -x + a*y
+    x = temp - b*y
+
+  case (4)
+
+    temp = x
+    x = b*x + y
+    y = a*x - temp
+
+  end select
   
 end subroutine apply_fast_givens_rot
 
@@ -1328,8 +1381,8 @@ subroutine QR_fast_givens_solve_upper_pentagonal(N, A, b, x)
   real,dimension(N),intent(inout) :: b
   real,dimension(:),allocatable,intent(out) :: x
 
-  integer :: i, j, k, B_l, rot_type, iter
-  real :: alpha, beta, sqrt_D, A_max
+  integer :: i, j, B_l, rot_type
+  real :: alpha, beta
   real,dimension(N) :: D
 
   ! Initialize diagonals
@@ -1341,7 +1394,6 @@ subroutine QR_fast_givens_solve_upper_pentagonal(N, A, b, x)
   ! Zero out lower triangle
 
   ! Loop through columns
-  iter = 0
   do j=1,N
 
     ! Loop through rows
@@ -1349,9 +1401,6 @@ subroutine QR_fast_givens_solve_upper_pentagonal(N, A, b, x)
 
       ! Check nonzero
       if (A(i,j) /= 0.) then
-
-        ! Update number of iterations where we've done something
-        iter = iter + 1
 
         ! Generate Givens rotation
         call gen_fast_givens_rot(A(i-1,j), A(i,j), alpha, beta, D(i-1), D(i), rot_type)
@@ -1362,18 +1411,6 @@ subroutine QR_fast_givens_solve_upper_pentagonal(N, A, b, x)
         ! Apply to b vector
         call apply_fast_givens_rot(alpha, beta, b(i-1), b(i), 1, rot_type)
 
-        !! Check in on magnitude of A's elements
-        !if (iter == 30) then
-        !  do k=1,N
-        !    A_max = maxval(abs(A(k,:)))
-        !    if (A_max >= 1.e12) then
-        !      A(k,:) = A(k,:) / A_max
-        !      b(k) = b(k) / A_max
-        !    end if
-        !  end do
-        !  iter = 0
-        !end if
-
       end if
 
     end do
@@ -1382,6 +1419,11 @@ subroutine QR_fast_givens_solve_upper_pentagonal(N, A, b, x)
 
   ! Back substitution
   call upper_triangular_back_sub(N, A, b, x)
+
+  ! Get b = D^-1 c
+  do i=1,N
+    b(i) = b(i)/sqrt(D(i))
+  end do
   
 end subroutine QR_fast_givens_solve_upper_pentagonal
 
