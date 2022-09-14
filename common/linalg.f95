@@ -1403,13 +1403,13 @@ subroutine QR_fast_givens_solve_upper_pentagonal(N, A, b, x)
       if (A(i,j) /= 0.) then
 
         ! Generate Givens rotation
-        call gen_fast_givens_rot(A(i-1,j), A(i,j), alpha, beta, D(i-1), D(i), rot_type)
+        call gen_fast_givens_rot(A(j,j), A(i,j), alpha, beta, D(j), D(i), rot_type)
 
         ! Apply to rest of row
-        call apply_fast_givens_rot(alpha, beta, A(i-1,j+1:), A(i,j+1:), N-j-1, rot_type)
+        call apply_fast_givens_rot(alpha, beta, A(j,j+1:), A(i,j+1:), N-j-1, rot_type)
 
         ! Apply to b vector
-        call apply_fast_givens_rot(alpha, beta, b(i-1), b(i), 1, rot_type)
+        call apply_fast_givens_rot(alpha, beta, b(j), b(i), 1, rot_type)
 
       end if
 
