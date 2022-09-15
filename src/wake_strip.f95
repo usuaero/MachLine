@@ -12,6 +12,7 @@ module wake_strip_mod
     type, extends(mesh) :: wake_strip
 
         integer :: i_top_parent_1, i_top_parent_2, i_bot_parent_1, i_bot_parent_2
+        integer :: i_top_parent_mid, i_bot_parent_mid
 
         contains
 
@@ -19,6 +20,7 @@ module wake_strip_mod
             procedure :: init_vertices => wake_strip_init_vertices
             procedure :: init_panels => wake_strip_init_panels
             procedure :: init_panel => wake_strip_init_panel
+            procedure :: init_midpoints => wake_strip_init_midpoints
 
     end type wake_strip
     
@@ -40,7 +42,7 @@ contains
         type(vertex),dimension(:),allocatable,intent(in) :: body_verts
 
         real,dimension(3) :: start_1, start_2
-        integer :: N_body_verts
+        integer :: N_body_verts, i
 
         ! Get number of vertices on the body
         N_body_verts = size(body_verts)
@@ -73,11 +75,33 @@ contains
 
         end if
 
+        ! Get midpoint parent vertices
+        if (doublet_order == 2) then
+            if (mirror_start) then
+                this%i_top_parent_mid = starting_edge%i_midpoint + N_body_verts
+                this%i_bot_parent_mid = body_verts(starting_edge%i_midpoint)%i_wake_partner + N_body_verts
+            else
+                this%i_top_parent_mid = starting_edge%i_midpoint
+                this%i_bot_parent_mid = body_verts(starting_edge%i_midpoint)%i_wake_partner
+            end if
+        end if
+
         ! Initialize vertices
         call this%init_vertices(freestream, mirror_start, N_panels_streamwise, trefftz_dist, start_1, start_2, body_verts)
 
         ! Intialize panels
         call this%init_panels(N_panels_streamwise)
+
+        ! Initialize midpoints
+        if (doublet_order == 2) then
+            call this%init_midpoints()
+        end if
+
+        ! Initialize other panel properties
+        do i=1,this%N_panels
+            call this%panels(i)%init_with_flow(freestream, .false., mirror_plane)
+            call this%panels(i)%set_influencing_verts()
+        end do
 
     end subroutine wake_strip_init
 
@@ -114,8 +138,8 @@ contains
         d2 = trefftz_dist - inner(start_2, freestream%c_hat_g)
 
         ! Calculate spacing between vertices
-        sep_1 = d1/N_panels_streamwise
-        sep_2 = d2/N_panels_streamwise
+        sep_1 = d1 / N_panels_streamwise
+        sep_2 = d2 / N_panels_streamwise
 
         ! Loop through following vertices
         do i=3,this%N_verts
@@ -263,7 +287,135 @@ contains
         else
             call this%panels(i_panel)%init(this%vertices(i1), this%vertices(i2), this%vertices(i3), i_panel)
         end if
+
+        ! Set that it's in the wake
+        this%panels(i_panel)%in_wake = .true.
     
     end subroutine wake_strip_init_panel
+
+
+    subroutine wake_strip_init_midpoints(this)
+        ! Initializes the mesh midpoints
+
+        implicit none
+        
+        class(wake_strip),target,intent(inout) :: this
+
+        integer :: N_mids, i_mid, i, edge_prev
+        real,dimension(3) :: loc
+
+        ! Determine how many midpoints we need
+        N_mids = 2*this%N_panels + 1
+
+        ! Allocate more space
+        call this%allocate_new_vertices(N_mids)
+
+        ! Loop through panels (since we know how the mesh is basically structured)
+        i_mid = this%N_verts - N_mids
+        do i=1,this%N_panels
+
+            ! Create midpoint at the base of this panel
+            i_mid = i_mid + 1
+
+            ! Get location
+            loc = 0.5*(this%panels(i)%get_vertex_loc(1) + this%panels(i)%get_vertex_loc(3))
+
+            ! Initialize
+            call this%vertices(i_mid)%init(loc, i_mid, 2)
+
+            ! Store adjacent panels
+            call this%vertices(i_mid)%panels%append(i)
+            if (i > 1) call this%vertices(i_mid)%panels%append(i-1)
+
+            ! Store adjacent vertices
+            call this%vertices(i_mid)%adjacent_vertices%append(this%panels(i)%get_vertex_index(1))
+            call this%vertices(i_mid)%adjacent_vertices%append(this%panels(i)%get_vertex_index(3))
+
+            ! Point panel to it
+            this%panels(i)%midpoints(3)%ptr => this%vertices(i_mid)
+
+            ! Point previous panel to it
+            if (i > 1) then
+                if (edge_prev == 1) then
+                    this%panels(i-1)%midpoints(2)%ptr => this%vertices(i_mid)
+                else
+                    this%panels(i-1)%midpoints(1)%ptr => this%vertices(i_mid)
+                end if
+            end if
+
+            ! Initialize side midpoint
+            i_mid = i_mid + 1
+            
+            ! Check which side we're on
+            ! Side 1
+            if (this%panels(i)%get_vertex_index(2) - this%panels(i)%get_vertex_index(1) == 2) then
+
+                ! Get location
+                loc = 0.5*(this%panels(i)%get_vertex_loc(1) + this%panels(i)%get_vertex_loc(2))
+
+                ! Initialize
+                call this%vertices(i_mid)%init(loc, i_mid, 2)
+
+                ! Store adjacent panels
+                call this%vertices(i_mid)%panels%append(i)
+
+                ! Store adjacent vertices
+                call this%vertices(i_mid)%adjacent_vertices%append(this%panels(i)%get_vertex_index(1))
+                call this%vertices(i_mid)%adjacent_vertices%append(this%panels(i)%get_vertex_index(2))
+
+                ! Point panel to it
+                this%panels(i)%midpoints(1)%ptr => this%vertices(i_mid)
+                edge_prev = 1
+
+            ! Side 2
+            else
+
+                ! Get location
+                loc = 0.5*(this%panels(i)%get_vertex_loc(3) + this%panels(i)%get_vertex_loc(2))
+
+                ! Initialize
+                call this%vertices(i_mid)%init(loc, i_mid, 2)
+
+                ! Store adjacent panels
+                call this%vertices(i_mid)%panels%append(i)
+
+                ! Store adjacent vertices
+                call this%vertices(i_mid)%adjacent_vertices%append(this%panels(i)%get_vertex_index(3))
+                call this%vertices(i_mid)%adjacent_vertices%append(this%panels(i)%get_vertex_index(2))
+
+                ! Point panel to it
+                this%panels(i)%midpoints(2)%ptr => this%vertices(i_mid)
+                edge_prev = 2
+
+            end if
+
+        end do
+
+        ! Initialize final midpoint
+        i_mid = i_mid + 1
+
+        ! Get location
+        loc = 0.5*(this%vertices(this%N_verts-N_mids)%loc + this%vertices(this%N_verts-1-N_mids)%loc)
+
+        ! Initialize
+        call this%vertices(i_mid)%init(loc, i_mid, 2)
+
+        ! Store adjacent panels
+        call this%vertices(i_mid)%panels%append(this%N_panels)
+
+        ! Store adjacent vertices
+        call this%vertices(i_mid)%adjacent_vertices%append(this%N_verts-1-N_mids)
+        call this%vertices(i_mid)%adjacent_vertices%append(this%N_verts-N_mids)
+
+        ! Point previous panel to it
+        if (edge_prev == 1) then
+            this%panels(this%N_panels)%midpoints(2)%ptr => this%vertices(i_mid)
+        else
+            this%panels(this%N_panels)%midpoints(1)%ptr => this%vertices(i_mid)
+        end if
+
+        this%midpoints_created = .true.
+        
+    end subroutine wake_strip_init_midpoints
     
 end module wake_strip_mod

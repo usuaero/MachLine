@@ -13,7 +13,7 @@
         }
     },
     "solver" : {
-        "matrix_solver" : "GMRES"
+        "matrix_solver" : "FQRUP"
     },
     "output": {
         "body_file" :          "dev/results/diamond_5_deg_full_fine.vtk",

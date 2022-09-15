@@ -456,7 +456,7 @@ subroutine decompose_blocks(N, A, N_blocks, block_size, A_blocks, N_last, ind_P,
 end subroutine decompose_blocks
 
 
-subroutine block_sor_solve(N, A, b, block_size, tol, rel, max_iterations, verbose, x)
+subroutine block_sor_solve(N, A, b, block_size, tol, rel, max_iterations, output_file, x)
   ! Iteratively solves the [A]x=b system using block (symmetric) successive overrelaxation
   ! N is the size of the system
   ! A is the system matrix; block diagonals will be replaced with their LU decompositions
@@ -477,7 +477,7 @@ subroutine block_sor_solve(N, A, b, block_size, tol, rel, max_iterations, verbos
   real,dimension(N,N),intent(inout) :: A
   real,dimension(N),intent(in) :: b
   real,intent(inout) :: tol, rel
-  logical,intent(in) :: verbose
+  character(len=:),allocatable,intent(in) :: output_file
   real,dimension(:),allocatable,intent(out) :: x
 
   real :: err, dx 
@@ -488,7 +488,10 @@ subroutine block_sor_solve(N, A, b, block_size, tol, rel, max_iterations, verbos
   integer :: i, N_blocks, r, N_last, iteration, step, start, end, unit
   integer,dimension(:),allocatable :: i_start_block, i_end_block
   integer,dimension(:,:),allocatable :: ind_P
-  logical :: adaptive
+  logical :: adaptive, verbose
+
+  ! Check if we need to output
+  verbose = output_file /= 'none'
 
   ! Give initial error estimate
   err = tol + 1.
@@ -519,7 +522,7 @@ subroutine block_sor_solve(N, A, b, block_size, tol, rel, max_iterations, verbos
 
   ! Write out header
   if (verbose) then
-    open(newunit=unit, file='iterative_solver_prog.csv')
+    open(newunit=unit, file=output_file)
     write(unit,*) "method"
     if (adaptive) then
       write(unit,*) "ABSOR"
@@ -619,7 +622,7 @@ subroutine block_sor_solve(N, A, b, block_size, tol, rel, max_iterations, verbos
 end subroutine block_sor_solve
 
 
-subroutine block_jacobi_solve(N, A, b, block_size, tol, rel, max_iterations, verbose, x)
+subroutine block_jacobi_solve(N, A, b, block_size, tol, rel, max_iterations, output_file, x)
   ! Iteratively solves the [A]x=b system using the specified block Jacobi method
   ! Will alternate directions through the blocks on each iteration
   ! N is the size of the system
@@ -629,7 +632,6 @@ subroutine block_jacobi_solve(N, A, b, block_size, tol, rel, max_iterations, ver
   ! tol is the convergence tolerance between iterations
   ! rel is a relaxation factor
   ! max_iterations
-  ! verbose
   ! x is the solution
 
   ! rel between 0 and 2 will specify the relaxation factor should be constant
@@ -641,7 +643,7 @@ subroutine block_jacobi_solve(N, A, b, block_size, tol, rel, max_iterations, ver
   real,dimension(N,N),intent(inout) :: A
   real,dimension(N),intent(in) :: b
   real,intent(inout) :: tol, rel
-  logical,intent(in) :: verbose
+  character(len=:),allocatable,intent(in) :: output_file
   real,dimension(:),allocatable,intent(out) :: x
 
   real :: err, dx, vkTvk, bTvk, vkp1Tvkp1, vkp1Tvk, bTvkp1
@@ -652,7 +654,10 @@ subroutine block_jacobi_solve(N, A, b, block_size, tol, rel, max_iterations, ver
   integer :: i, N_blocks, r, N_last, iteration, step, start, end, unit
   integer,dimension(:),allocatable :: i_start_block, i_end_block
   integer,dimension(:,:),allocatable :: ind_P
-  logical :: optimal_rel
+  logical :: optimal_rel, verbose
+
+  ! Determine whether we need to output
+  verbose = output_file /= 'none'
 
   ! Give initial error estimate
   err = tol + 1.
@@ -686,7 +691,7 @@ subroutine block_jacobi_solve(N, A, b, block_size, tol, rel, max_iterations, ver
 
   ! Write out header
   if (verbose) then
-    open(newunit=unit, file='iterative_solver_prog.csv')
+    open(newunit=unit, file=output_file)
     write(unit,*) "method"
     if (optimal_rel) then
       write(unit,*) "ORBJ"
@@ -903,6 +908,7 @@ subroutine GE_solve_upper_pentagonal(N, A, b, x)
   ! Solves [A]x = b using Gauss elimination assuming A is upper-pentagonal
   ! Replaces A partially with its LU decomposition
   ! Based on Chen "Matrix Preconditioning Techniques and Applications" Alg. 2.5.8
+  ! Essentially useless; I was just trying it out.
 
   implicit none
   
@@ -946,52 +952,6 @@ subroutine GE_solve_upper_pentagonal(N, A, b, x)
   end do
   
 end subroutine GE_solve_upper_pentagonal
-
-
-subroutine GE_solve_upper_pentagonal_iterative(N, A, b, tol, x)
-  ! Iteratively applies the upper-pentagonal Gauss-elimination to find a better solution to the system of equations
-  ! Does really bad
-
-  implicit none
-  
-  integer,intent(in) :: N
-  real,dimension(N,N),intent(inout) :: A
-  real,dimension(N),intent(in) :: b
-  real,intent(in) :: tol
-  real,dimension(:),allocatable,intent(out) :: x
-
-  real,dimension(:),allocatable :: xi, bi
-  real,dimension(N,N) :: Ai
-  real :: res
-
-  ! Initialize
-  res = tol + 1.
-  allocate(bi, source=b)
-  allocate(x(N), source=0.)
-
-  ! Calculate residual
-  bi = b - matmul(A, x)
-  res = norm2(bi)
-
-  ! Loop
-  do while (res > tol)
-
-    ! Reset A
-    Ai = A
-
-    ! Solve the current system
-    call GE_solve_upper_pentagonal(N, Ai, bi, xi)
-
-    ! Update solution
-    x = x + xi
-
-    ! Calculate residual
-    bi = b - matmul(A, x)
-    res = norm2(bi)
-
-  end do
-  
-end subroutine GE_solve_upper_pentagonal_iterative
 
 
 subroutine gen_givens_rot(x, y, c, s)
@@ -1245,83 +1205,82 @@ subroutine gen_fast_givens_rot(x, y, a, b, D1, D2, rot_type)
   ! Determine case
   if (D1 >= D2) then
     if (ratio <= gamma) then
+
       rot_type = 1
+
+      ! Calculate factors
+      t = y/x
+      b = t/gamma
+      d = 1. + b*t
+      a = t/d
+
+      ! Scale diagonals
+      D1 = D1/d
+      D2 = D2*d
+
+      ! Set first element
+      x = x*d
+
     else
+
       rot_type = 3
+
+      ! Calculate factors
+      a = x/y
+      t = a*gamma
+      d = 1. + a*t
+      b = t/d
+
+      ! Scale diagonals
+      temp = D2*d
+      D2 = D1/d
+      D1 = temp
+
+      ! Set first element
+      x = y
+
     end if
+
   else
+
     if (ratio <= gamma) then
+
       rot_type = 2
+
+      ! Calculate factors
+      a = y/x
+      t = a/gamma
+      d = 1. + a*t
+      b = t/d
+
+      ! Scale diagonals
+      D1 = D1*d
+      D2 = D2/d
+
+      ! Set first element
+      x = x
+
     else
+
       rot_type = 4
+
+      ! Calculate factors
+      t = x/y
+      b = t*gamma
+      d = 1. + b*t
+      a = t/d
+
+      ! Scale diagonals
+      temp = D2/d
+      D2 = D1*d
+      D1 = temp
+
+      ! Set first element
+      x = y*d
+
     end if
+
   end if
-
-  select case (rot_type)
-
-  case (1)
-
-    ! Calculate factors
-    t = y/x
-    b = t/gamma
-    d = 1. + b*t
-    a = t/d
-
-    ! Scale diagonals
-    D1 = D1/d
-    D2 = D2*d
-
-    ! Set first element
-    x = x*d
-
-  case (2)
-
-    ! Calculate factors
-    a = y/x
-    t = a/gamma
-    d = 1. + a*t
-    b = t/d
-
-    ! Scale diagonals
-    D1 = D1*d
-    D2 = D2/d
-
-    ! Set first element
-    x = x
-
-  case (3)
-
-    ! Calculate factors
-    a = x/y
-    t = a*gamma
-    d = 1. + a*t
-    b = t/d
-
-    ! Scale diagonals
-    temp = D2*d
-    D2 = D1/d
-    D1 = temp
-
-    ! Set first element
-    x = y
-
-  case (4)
-
-    ! Calculate factors
-    t = x/y
-    b = t*gamma
-    d = 1. + b*t
-    a = t/d
-
-    ! Scale diagonals
-    temp = D2/d
-    D2 = D1*d
-    D1 = temp
-
-    ! Set first element
-    x = y*d
-
-  end select
 
   ! Zero second element
   y = 0.
@@ -1420,11 +1379,6 @@ subroutine QR_fast_givens_solve_upper_pentagonal(N, A, b, x)
   ! Back substitution
   call upper_triangular_back_sub(N, A, b, x)
 
-  ! Get b = D^-1 c
-  do i=1,N
-    b(i) = b(i)/sqrt(D(i))
-  end do
-  
 end subroutine QR_fast_givens_solve_upper_pentagonal
 
 
@@ -1495,7 +1449,7 @@ subroutine arnoldi_update(N, A, k, Q, H)
 end subroutine arnoldi_update
 
 
-subroutine GMRES(N, A, b, tol, max_iterations, x)
+subroutine GMRES(N, A, b, tol, max_iterations, output_file, x)
   ! Uses the generalized minimum residual algorithm to estimate the solution to Ax=b
   ! Taken from "Handbook of Linear Algebra" Leslie Hogben ed.
 
@@ -1505,13 +1459,15 @@ subroutine GMRES(N, A, b, tol, max_iterations, x)
   real,dimension(N,N),intent(in) :: A
   real,dimension(N),intent(in) :: b
   real,intent(in) :: tol
+  character(len=:),allocatable :: output_file
   real,dimension(:),allocatable,intent(out) :: x
 
-  integer :: i, j, k, k_max
+  integer :: i, j, k, k_max, unit
   real,dimension(:,:),allocatable :: Q, H
   real,dimension(N) :: E, r0
   real :: beta, temp, err, d
   real,dimension(:),allocatable :: y, c, s
+  logical :: verbose
 
   ! We cannot have more iterations than the size of the matrix
   k_max = min(N, max_iterations)
@@ -1530,6 +1486,15 @@ subroutine GMRES(N, A, b, tol, max_iterations, x)
   Q(:,1) = r0/beta
   err = tol + 1
   k = 0
+
+  ! Start output
+  verbose = output_file /= 'none'
+  if (verbose) then
+    open(newunit=unit, file=output_file)
+    write(unit,*) "method"
+    write(unit,*) "GMRES"
+    write(unit,*) "iteration,||err||"
+  end if
 
   ! Loop through subspaces
   do while (err > tol .and. k < k_max-1)
@@ -1561,6 +1526,11 @@ subroutine GMRES(N, A, b, tol, max_iterations, x)
 
     ! Calculate residual norm estimate
     err = beta*abs(E(k+1))
+
+    ! Output progress
+    if (verbose) write(unit,'(i6, a, ES10.3)') k, ',', err
+
+    ! Check termination
     if (err < tol) exit
 
   end do
@@ -1570,6 +1540,9 @@ subroutine GMRES(N, A, b, tol, max_iterations, x)
 
   ! Get estimate for x
   x = matmul(Q(:,1:k), y)
+
+  ! Finish output
+  if (verbose) close(unit)
   
 end subroutine GMRES
 

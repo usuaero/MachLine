@@ -19,7 +19,7 @@ module panel_solver_mod
     type panel_solver
 
         real :: corrected_M_inf 
-        character(len=:),allocatable :: formulation, pressure_for_forces, matrix_solver, preconditioner
+        character(len=:),allocatable :: formulation, pressure_for_forces, matrix_solver, preconditioner, iteration_file
         logical :: incompressible_rule, isentropic_rule, second_order_rule, slender_rule, linear_rule
         logical :: morino, write_A_and_b
         logical :: compressible_correction, prandtl_glauert, karman_tsien, laitone
@@ -136,6 +136,7 @@ contains
         call json_xtnsn_get(solver_settings, 'relaxation', this%rel, 0.8)
         call json_xtnsn_get(solver_settings, 'max_iterations', this%max_iterations, 1000)
         call json_xtnsn_get(solver_settings, 'preconditioner', this%preconditioner, 'DIAG')
+        call json_xtnsn_get(solver_settings, 'iterative_solver_output', this%iteration_file, 'none')
 
         ! Whether to write the linear system to file
         call json_xtnsn_get(solver_settings, 'write_A_and_b', this%write_A_and_b, .false.)
@@ -377,11 +378,11 @@ contains
                         if (body%asym_flow) then
 
                             ! Original vertex and mirrored control point
-                            mirrored_verts_in_dod(i) = this%freestream%point_in_dod(vert_loc, body%cp_mirrored(:,j))
+                            mirrored_verts_in_dod(i) = this%freestream%point_in_dod(vert_loc, body%cp_mir(:,j))
 
                             ! Mirrored vertex and mirrored control point
                             mirrored_verts_in_dod(i+body%N_verts) = this%freestream%point_in_dod(mirrored_vert_loc, &
-                                                                                                 body%cp_mirrored(:,j))
+                                                                                                 body%cp_mir(:,j))
 
                         end if
                     end if
@@ -400,7 +401,7 @@ contains
                         if (body%asym_flow) then
 
                             ! Original vertex and mirrored control point
-                            wake_verts_in_dod(i) = this%freestream%point_in_dod(vert_loc, body%cp_mirrored(:,j))
+                            wake_verts_in_dod(i) = this%freestream%point_in_dod(vert_loc, body%cp_mir(:,j))
 
                         else
 
@@ -428,11 +429,11 @@ contains
                         if (body%asym_flow) then
 
                             ! Check DoD for original panel and mirrored control point
-                            this%dod_info(i,j+body%N_cp) = body%panels(i)%check_dod(body%cp_mirrored(:,j), this%freestream, &
+                            this%dod_info(i,j+body%N_cp) = body%panels(i)%check_dod(body%cp_mir(:,j), this%freestream, &
                                                                                     mirrored_verts_in_dod)
 
                             ! Check DoD for mirrored panel and mirrored control point
-                            this%dod_info(i+body%N_panels,j+body%N_cp) = body%panels(i)%check_dod(body%cp_mirrored(:,j), &
+                            this%dod_info(i+body%N_panels,j+body%N_cp) = body%panels(i)%check_dod(body%cp_mir(:,j), &
                                                                                                   this%freestream, &
                                                                                                   mirrored_verts_in_dod, &
                                                                                                   .true., body%mirror_plane)
@@ -452,7 +453,7 @@ contains
                         if (body%asym_flow) then
 
                             ! Check DoD for panel and mirrored control point
-                            this%wake_dod_info(i,j+body%N_cp) = body%wake%panels(i)%check_dod(body%cp_mirrored(:,j), &
+                            this%wake_dod_info(i,j+body%N_cp) = body%wake%panels(i)%check_dod(body%cp_mir(:,j), &
                                                                                               this%freestream, &
                                                                                               wake_verts_in_dod)
 
@@ -812,7 +813,7 @@ contains
                             ! If the flow is symmetric or incompressible, this will be the same as already calculated
                             if (this%dod_info(j+body%N_panels,i+body%N_cp)%in_dod) then
                                 if (.not. this%freestream%incompressible) then
-                                    call body%panels(j)%calc_potential_influences(body%cp_mirrored(:,i), this%freestream, &
+                                    call body%panels(j)%calc_potential_influences(body%cp_mir(:,i), this%freestream, &
                                                                         this%dod_info(j+body%N_panels,i+body%N_cp), .true., &
                                                                         source_inf, doublet_inf)
                                 end if
@@ -826,7 +827,7 @@ contains
                         ! Calculate influence of existing panel on mirrored control point
                         if (this%dod_info(j,i+body%N_cp)%in_dod) then
                             if (body%vertices(i)%mirrored_is_unique .or. this%freestream%incompressible) then
-                                call body%panels(j)%calc_potential_influences(body%cp_mirrored(:,i), this%freestream, &
+                                call body%panels(j)%calc_potential_influences(body%cp_mir(:,i), this%freestream, &
                                                                     this%dod_info(j,i+body%N_cp), .false., &
                                                                     source_inf, doublet_inf)
                             end if
@@ -855,7 +856,7 @@ contains
                         ! This is the same as the influence of the mirrored panel on the existing control point,
                         ! even for compressible flow, since we know the flow is symmetric here
                         if (this%dod_info(j+body%N_panels,i)%in_dod) then
-                            call body%panels(j)%calc_potential_influences(body%cp_mirrored(:,i), this%freestream, &
+                            call body%panels(j)%calc_potential_influences(body%cp_mir(:,i), this%freestream, &
                                                                 this%dod_info(j+body%N_panels,i), &
                                                                 .false., source_inf, doublet_inf)
 
@@ -902,7 +903,7 @@ contains
 
                 ! Set for unique mirrored control  points
                 if (body%asym_flow .and. body%vertices(i)%mirrored_is_unique) then
-                    this%b(this%P(i+body%N_cp)) = -inner(x, body%cp_mirrored(:,i))
+                    this%b(this%P(i+body%N_cp)) = -inner(x, body%cp_mir(:,i))
                 end if
             end if
             !$OMP end critical
@@ -968,7 +969,7 @@ contains
                     if (body%asym_flow) then
 
                         ! Calculate influence of existing panel on mirrored point
-                        call body%wake%panels(j)%calc_potential_influences(body%cp_mirrored(:,i), this%freestream, &
+                        call body%wake%panels(j)%calc_potential_influences(body%cp_mir(:,i), this%freestream, &
                                                                  this%wake_dod_info(j,i+body%N_cp), .false., &
                                                                  source_inf, doublet_inf)
 
@@ -985,7 +986,7 @@ contains
                         ! Calculate influence of existing panel on mirrored control point
                         ! This is the same as the influence of a mirrored panel on an existing control point
                         ! even for compressible flow, since we know the flow is symmetric here
-                        call body%wake%panels(j)%calc_potential_influences(body%cp_mirrored(:,i), this%freestream, &
+                        call body%wake%panels(j)%calc_potential_influences(body%cp_mir(:,i), this%freestream, &
                                                                  this%wake_dod_info(j+body%wake%N_panels,i), .false., & ! No, this is not the DoD for this computation; yes, it is equivalent
                                                                  source_inf, doublet_inf)
 
@@ -1139,14 +1140,6 @@ contains
         case ('LU')
             call lu_solve(this%N, A_p, b_p, x)
 
-        ! Upper-pentagonal Gauss elimination
-        case ('GEUP')
-            call GE_solve_upper_pentagonal(this%N, A_p, b_p, x)
-
-        ! QR via Givens rotations
-        case ('QR')
-            call QR_givens_solve(this%N, A_p, b_p, x)
-
         ! QR via Givens rotations for upper-pentagonal
         case ('QRUP')
             call QR_row_givens_solve_UP(this%N, A_p, b_p, x)
@@ -1157,7 +1150,7 @@ contains
 
         ! GMRES
         case ('GMRES')
-            call GMRES(this%N, A_p, b_p, this%tol, this%max_iterations, x)
+            call GMRES(this%N, A_p, b_p, this%tol, this%max_iterations, this%iteration_file, x)
 
         ! Purcell's method
         case ('PURC')
@@ -1166,28 +1159,28 @@ contains
         ! Block successive over-relaxation
         case ('BSOR')
             call block_sor_solve(this%N, A_p, b_p, this%block_size, this%tol, this%rel, &
-                                 this%max_iterations, verbose, x)
+                                 this%max_iterations, this%iteration_file, x)
 
         ! Adaptive block SOR
         case ('ABSOR')
             this%rel = -1.
             call block_sor_solve(this%N, A_p, b_p, this%block_size, this%tol, this%rel, &
-                                 this%max_iterations, verbose, x)
+                                 this%max_iterations, this%iteration_file, x)
         
         ! Block Jacobi
         case ('BJAC')
             call block_jacobi_solve(this%N, A_p, b_p, this%block_size, this%tol, this%rel, &
-                                    this%max_iterations, verbose, x)
+                                    this%max_iterations, this%iteration_file, x)
 
         ! Optimally relaxed block Jacobi
         case ('ORBJ')
             this%rel = -1.
             call block_jacobi_solve(this%N, A_p, b_p, this%block_size, this%tol, this%rel, &
-                                    this%max_iterations, verbose, x)
+                                    this%max_iterations, this%iteration_file, x)
         ! Improper specification
         case default
-            write(*,*) "!!! ", this%matrix_solver, " is not a valid option. Defaulting to LU decomposition."
-            call lu_solve(this%N, A_p, b_p, x)
+            write(*,*) "!!! ", this%matrix_solver, " is not a valid option. Defaulting to the GMRES algorithm."
+            call GMRES(this%N, A_p, b_p, this%tol, this%max_iterations, this%iteration_file, x)
 
         end select
         if (verbose) write(*,*) "Done."
