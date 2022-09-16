@@ -780,6 +780,22 @@ contains
                 shift = shift + this%strips(k)%N_verts
             end do
 
+            if (present(mu)) then
+
+                ! Calculate doublet strengths
+                allocate(mu_on_wake(N_verts))
+                i = 0
+                do k=1,this%N_strips
+                    do j=1,this%strips(k)%N_verts
+                        i = i + 1
+                        mu_on_wake(i) = mu(this%strips(k)%vertices(j)%top_parent) - mu(this%strips(k)%vertices(j)%bot_parent)
+                    end do
+                end do
+
+                ! Write doublet strengths
+                call wake_vtk%write_point_scalars(mu_on_wake, "mu")
+            end if
+
             ! Finish up
             call wake_vtk%finish()
             exported = .true.

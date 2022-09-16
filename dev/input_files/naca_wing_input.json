@@ -6,8 +6,8 @@
         "file" : "dev/meshes/naca_0010_AR_10_half_coarse.stl",
         "mirror_about" : "xz",
         "singularity_order" : {
-            "doublet" : 2,
-            "source" : 1
+            "doublt" : 2,
+            "sourc" : 1
         },
         "reference" : {
             "area" : 8.0

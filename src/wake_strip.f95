@@ -133,6 +133,12 @@ contains
         call this%vertices(1)%init(start_1, 1, 1)
         call this%vertices(2)%init(start_2, 2, 1)
 
+        ! Set parents
+        this%vertices(1)%top_parent = this%i_top_parent_1 + N_body_verts
+        this%vertices(1)%bot_parent = this%i_bot_parent_1 + N_body_verts
+        this%vertices(2)%top_parent = this%i_top_parent_2 + N_body_verts
+        this%vertices(2)%bot_parent = this%i_bot_parent_2 + N_body_verts
+
         ! Calculate distances to Trefftz plane
         d1 = trefftz_dist - inner(start_1, freestream%c_hat_g)
         d2 = trefftz_dist - inner(start_2, freestream%c_hat_g)
@@ -155,22 +161,12 @@ contains
             call this%vertices(i)%init(loc, i, 1)
 
             ! Set parents
-            if (mirror_start) then
-                if (modulo(i, 2) == 0) then
-                    this%vertices(i)%top_parent = this%i_top_parent_2 + N_body_verts
-                    this%vertices(i)%bot_parent = this%i_bot_parent_2 + N_body_verts
-                else
-                    this%vertices(i)%top_parent = this%i_top_parent_1 + N_body_verts
-                    this%vertices(i)%bot_parent = this%i_bot_parent_1 + N_body_verts
-                end if
+            if (modulo(i, 2) == 0) then
+                this%vertices(i)%top_parent = this%i_top_parent_2
+                this%vertices(i)%bot_parent = this%i_bot_parent_2
             else
-                if (modulo(i, 2) == 0) then
-                    this%vertices(i)%top_parent = this%i_top_parent_2
-                    this%vertices(i)%bot_parent = this%i_bot_parent_2
-                else
-                    this%vertices(i)%top_parent = this%i_top_parent_1
-                    this%vertices(i)%bot_parent = this%i_bot_parent_1
-                end if
+                this%vertices(i)%top_parent = this%i_top_parent_1
+                this%vertices(i)%bot_parent = this%i_bot_parent_1
             end if
 
         end do

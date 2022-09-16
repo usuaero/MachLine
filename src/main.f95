@@ -172,7 +172,7 @@ program main
 
     ! Wake strips
     if (wake_strip_file /= 'none') then
-        call body_mesh%wake%write_strips(wake_strip_file, exported)
+        call body_mesh%wake%write_strips(wake_strip_file, exported, body_mesh%mu)
     end if
 
     ! Goodbye
