@@ -21,7 +21,7 @@ module panel_solver_mod
         real :: corrected_M_inf 
         character(len=:),allocatable :: formulation, pressure_for_forces, matrix_solver, preconditioner, iteration_file
         logical :: incompressible_rule, isentropic_rule, second_order_rule, slender_rule, linear_rule
-        logical :: morino, write_A_and_b
+        logical :: morino, write_A_and_b, sort_system
         logical :: compressible_correction, prandtl_glauert, karman_tsien, laitone
         type(dod),dimension(:,:),allocatable :: dod_info, wake_dod_info
         type(flow) :: freestream
@@ -30,7 +30,7 @@ module panel_solver_mod
         real,dimension(:,:),allocatable :: A
         real,dimension(:),allocatable :: b
         integer,dimension(:),allocatable :: P
-        integer :: N, N_cells, block_size, max_iterations, N_unknown, N_d_unknown, N_s_unknown
+        integer :: N, N_cells, block_size, max_iterations, N_unknown, N_d_unknown, N_s_unknown, solver_iterations
 
         contains
 
@@ -137,6 +137,8 @@ contains
         call json_xtnsn_get(solver_settings, 'max_iterations', this%max_iterations, 1000)
         call json_xtnsn_get(solver_settings, 'preconditioner', this%preconditioner, 'DIAG')
         call json_xtnsn_get(solver_settings, 'iterative_solver_output', this%iteration_file, 'none')
+        call json_xtnsn_get(solver_settings, 'sort_system', this%sort_system, this%freestream%supersonic)
+        this%solver_iterations = -1
 
         ! Whether to write the linear system to file
         call json_xtnsn_get(solver_settings, 'write_A_and_b', this%write_A_and_b, .false.)
@@ -492,7 +494,7 @@ contains
         ! Sort vertices in compressibility direction
         ! We proceed from most downstream to most upstream so as to get an upper-pentagonal matrix
         ! This sorting seems to improve the performance of iterative solvers for supersonic flow as well
-        if (this%freestream%supersonic) then ! .and. this%matrix_solver == 'QRUP') then
+        if (this%sort_system) then
 
             if (verbose) write(*,'(a)',advance='no') "     Permuting vertices for efficient system solution..."
 
@@ -1150,7 +1152,7 @@ contains
 
         ! GMRES
         case ('GMRES')
-            call GMRES(this%N, A_p, b_p, this%tol, this%max_iterations, this%iteration_file, x)
+            call GMRES(this%N, A_p, b_p, this%tol, this%max_iterations, this%iteration_file, this%solver_iterations, x)
 
         ! Purcell's method
         case ('PURC')
@@ -1159,28 +1161,29 @@ contains
         ! Block successive over-relaxation
         case ('BSOR')
             call block_sor_solve(this%N, A_p, b_p, this%block_size, this%tol, this%rel, &
-                                 this%max_iterations, this%iteration_file, x)
+                                 this%max_iterations, this%iteration_file, this%solver_iterations, x)
 
         ! Adaptive block SOR
         case ('ABSOR')
             this%rel = -1.
             call block_sor_solve(this%N, A_p, b_p, this%block_size, this%tol, this%rel, &
-                                 this%max_iterations, this%iteration_file, x)
+                                 this%max_iterations, this%iteration_file, this%solver_iterations, x)
         
         ! Block Jacobi
         case ('BJAC')
             call block_jacobi_solve(this%N, A_p, b_p, this%block_size, this%tol, this%rel, &
-                                    this%max_iterations, this%iteration_file, x)
+                                    this%max_iterations, this%iteration_file, this%solver_iterations, x)
 
         ! Optimally relaxed block Jacobi
         case ('ORBJ')
             this%rel = -1.
             call block_jacobi_solve(this%N, A_p, b_p, this%block_size, this%tol, this%rel, &
-                                    this%max_iterations, this%iteration_file, x)
+                                    this%max_iterations, this%iteration_file, this%solver_iterations, x)
+
         ! Improper specification
         case default
-            write(*,*) "!!! ", this%matrix_solver, " is not a valid option. Defaulting to the GMRES algorithm."
-            call GMRES(this%N, A_p, b_p, this%tol, this%max_iterations, this%iteration_file, x)
+            write(*,*) "!!! ", this%matrix_solver, " is not a valid option. Defaulting to GMRES."
+            call GMRES(this%N, A_p, b_p, this%tol, this%max_iterations, this%iteration_file, this%solver_iterations, x)
 
         end select
         if (verbose) write(*,*) "Done."
@@ -1838,6 +1841,7 @@ contains
         call json_value_create(p_parent)
         call to_object(p_parent, 'solver_results')
         call json_value_add(p_json, p_parent)
+        if (this%solver_iterations > -1) call json_value_add(p_parent, 'iterations', this%solver_iterations)
         call json_value_create(p_child)
         call to_object(p_child, 'residual')
         call json_value_add(p_parent, p_child)

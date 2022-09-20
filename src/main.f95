@@ -25,13 +25,12 @@ program main
     type(surface_mesh) :: body_mesh
     type(flow) :: freestream_flow
     type(panel_solver) :: linear_solver
-    real :: start, end
+    real :: start_time, end_time, runtime
     logical :: exists, found, exported
     integer :: i_unit
 
     ! Start timer
-    call cpu_time(start)
-    !$ start = omp_get_wtime()
+    call cpu_time(start_time)
 
     ! Set up run
     call json_initialize()
@@ -153,17 +152,6 @@ program main
         write(*,*) "Writing results to file"
     end if
 
-    ! Write report
-    if (report_file /= 'none') then
-        open(newunit=i_unit, file=report_file, status='REPLACE')
-        call json_print(report_json, i_unit)
-        close(i_unit)
-        if (verbose) write(*,'(a30 a)') "    Report: ", report_file
-    end if
-
-    ! Destroy pointers
-    call json_destroy(report_json)
-
     ! Output mesh results
     call body_mesh%output_results(body_file, wake_file, control_point_file, mirrored_body_file, mirrored_control_point_file)
     if (points_file /= 'none' .and. points_output_file /= 'none' .and. verbose) then
@@ -175,10 +163,24 @@ program main
         call body_mesh%wake%write_strips(wake_strip_file, exported, body_mesh%mu)
     end if
 
+    ! Figure out how long this took
+    call cpu_time(end_time)
+    runtime = end_time - start_time
+    call json_value_add(report_json, "total_runtime", runtime)
+
+    ! Write report
+    if (report_file /= 'none') then
+        open(newunit=i_unit, file=report_file, status='REPLACE')
+        call json_print(report_json, i_unit)
+        close(i_unit)
+        if (verbose) write(*,'(a30 a)') "    Report: ", report_file
+    end if
+
+    ! Destroy pointers
+    call json_destroy(report_json)
+
     ! Goodbye
-    call cpu_time(end)
-    !$ end = omp_get_wtime()
     if (verbose) write(*,*)
-    write(*,'(a, f10.4, a)') " MachLine exited successfully. Execution time: ", end-start, " s"
+    write(*,'(a, f10.4, a)') " MachLine exited successfully. Execution time: ", runtime, " s"
 
 end program main

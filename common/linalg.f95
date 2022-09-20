@@ -456,7 +456,7 @@ subroutine decompose_blocks(N, A, N_blocks, block_size, A_blocks, N_last, ind_P,
 end subroutine decompose_blocks
 
 
-subroutine block_sor_solve(N, A, b, block_size, tol, rel, max_iterations, output_file, x)
+subroutine block_sor_solve(N, A, b, block_size, tol, rel, max_iter, output_file, total_iter, x)
   ! Iteratively solves the [A]x=b system using block (symmetric) successive overrelaxation
   ! N is the size of the system
   ! A is the system matrix; block diagonals will be replaced with their LU decompositions
@@ -464,7 +464,7 @@ subroutine block_sor_solve(N, A, b, block_size, tol, rel, max_iterations, output
   ! block_size is the desired size of each block
   ! tol is the convergence tolerance between iterations
   ! rel is a relaxation factor
-  ! max_iterations
+  ! max_iter
   ! verbose
   ! x is the solution
 
@@ -473,11 +473,13 @@ subroutine block_sor_solve(N, A, b, block_size, tol, rel, max_iterations, output
 
   implicit none
 
-  integer,intent(in) :: N, block_size, max_iterations
+  integer,intent(in) :: N, block_size, max_iter
   real,dimension(N,N),intent(inout) :: A
   real,dimension(N),intent(in) :: b
-  real,intent(inout) :: tol, rel
+  real,intent(in) :: tol
+  real,intent(inout) :: rel
   character(len=:),allocatable,intent(in) :: output_file
+  integer,intent(out) :: total_iter
   real,dimension(:),allocatable,intent(out) :: x
 
   real :: err, dx 
@@ -534,7 +536,7 @@ subroutine block_sor_solve(N, A, b, block_size, tol, rel, max_iterations, output
 
   ! Iterate
   iteration = 0
-  do while(err >= tol .and. iteration < max_iterations)
+  do while(err >= tol .and. iteration < max_iter)
 
     ! Update iteration number
     iteration = iteration + 1
@@ -619,10 +621,12 @@ subroutine block_sor_solve(N, A, b, block_size, tol, rel, max_iterations, output
 
   close(unit)
 
+  total_iter = iteration
+
 end subroutine block_sor_solve
 
 
-subroutine block_jacobi_solve(N, A, b, block_size, tol, rel, max_iterations, output_file, x)
+subroutine block_jacobi_solve(N, A, b, block_size, tol, rel, max_iter, output_file, total_iter, x)
   ! Iteratively solves the [A]x=b system using the specified block Jacobi method
   ! Will alternate directions through the blocks on each iteration
   ! N is the size of the system
@@ -631,7 +635,7 @@ subroutine block_jacobi_solve(N, A, b, block_size, tol, rel, max_iterations, out
   ! block_size is the desired size of each block
   ! tol is the convergence tolerance between iterations
   ! rel is a relaxation factor
-  ! max_iterations
+  ! max_iter
   ! x is the solution
 
   ! rel between 0 and 2 will specify the relaxation factor should be constant
@@ -639,11 +643,13 @@ subroutine block_jacobi_solve(N, A, b, block_size, tol, rel, max_iterations, out
 
   implicit none
 
-  integer,intent(in) :: N, block_size, max_iterations
+  integer,intent(in) :: N, block_size, max_iter
   real,dimension(N,N),intent(inout) :: A
   real,dimension(N),intent(in) :: b
-  real,intent(inout) :: tol, rel
+  real,intent(in) :: tol
+  real,intent(inout) :: rel
   character(len=:),allocatable,intent(in) :: output_file
+  integer,intent(out) :: total_iter
   real,dimension(:),allocatable,intent(out) :: x
 
   real :: err, dx, vkTvk, bTvk, vkp1Tvkp1, vkp1Tvk, bTvkp1
@@ -703,7 +709,7 @@ subroutine block_jacobi_solve(N, A, b, block_size, tol, rel, max_iterations, out
 
   ! Iterate
   iteration = 0
-  do while(err >= tol .and. iteration < max_iterations)
+  do while(err >= tol .and. iteration < max_iter)
 
     ! Update iteration number
     iteration = iteration + 1
@@ -793,6 +799,8 @@ subroutine block_jacobi_solve(N, A, b, block_size, tol, rel, max_iterations, out
   end do
 
   close(unit)
+
+  total_iter = iteration
 
 end subroutine block_jacobi_solve
 
@@ -998,26 +1006,6 @@ subroutine apply_givens_row_rot(c, s, x, y, N)
 end subroutine apply_givens_row_rot
 
 
-subroutine apply_givens_col_rot(c, s, x, y, N)
-  ! Applies the Givesn rotation to the two vectors x and y of length N
-
-  implicit none
-  
-  real,intent(in) :: c, s
-  real,dimension(N),intent(inout) :: x, y
-  integer,intent(in) :: N
-
-  real,dimension(:),allocatable :: t
-
-  ! Apply to first col using temp storage
-
-  ! Apply to second col
-
-  ! Move first col into place
-  
-end subroutine apply_givens_col_rot
-
-
 subroutine QR_givens_solve(N, A, b, x)
   ! Solves the equation [A]x = b using the QR factorization via Givens rotations
 
@@ -1119,11 +1107,6 @@ subroutine upper_triangular_back_sub(N, R, b, x)
   real,dimension(:),allocatable,intent(out) :: x
 
   integer :: i, j
-  real :: det
-
-  ! Calculate the determinant
-  !det = upper_triangular_det(N, R)
-  !write(*,'(a, e20.12, a)',advance='no') "(Scaled determinant of R: ", det, ")"
 
   ! Initialize
   allocate(x(N))
@@ -1449,17 +1432,18 @@ subroutine arnoldi_update(N, A, k, Q, H)
 end subroutine arnoldi_update
 
 
-subroutine GMRES(N, A, b, tol, max_iterations, output_file, x)
+subroutine GMRES(N, A, b, tol, max_iter, output_file, total_iter, x)
   ! Uses the generalized minimum residual algorithm to estimate the solution to Ax=b
   ! Taken from "Handbook of Linear Algebra" Leslie Hogben ed.
 
   implicit none
   
-  integer,intent(in) :: N, max_iterations
+  integer,intent(in) :: N, max_iter
   real,dimension(N,N),intent(in) :: A
   real,dimension(N),intent(in) :: b
   real,intent(in) :: tol
   character(len=:),allocatable :: output_file
+  integer,intent(out) :: total_iter
   real,dimension(:),allocatable,intent(out) :: x
 
   integer :: i, j, k, k_max, unit
@@ -1470,7 +1454,7 @@ subroutine GMRES(N, A, b, tol, max_iterations, output_file, x)
   logical :: verbose
 
   ! We cannot have more iterations than the size of the matrix
-  k_max = min(N, max_iterations)
+  k_max = min(N, max_iter)
 
   ! Allocate memory for storing the orthonormal basis and rotations
   allocate(Q(N,k_max), source=0.)
@@ -1484,8 +1468,6 @@ subroutine GMRES(N, A, b, tol, max_iterations, output_file, x)
   r0 = b
   beta = norm2(r0)
   Q(:,1) = r0/beta
-  err = tol + 1
-  k = 0
 
   ! Start output
   verbose = output_file /= 'none'
@@ -1497,6 +1479,8 @@ subroutine GMRES(N, A, b, tol, max_iterations, output_file, x)
   end if
 
   ! Loop through subspaces
+  k = 0
+  err = tol + 1
   do while (err > tol .and. k < k_max-1)
 
     k = k + 1
@@ -1543,6 +1527,8 @@ subroutine GMRES(N, A, b, tol, max_iterations, output_file, x)
 
   ! Finish output
   if (verbose) close(unit)
+
+  total_iter = k
   
 end subroutine GMRES
 
