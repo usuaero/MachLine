@@ -23,10 +23,15 @@ def get_solver_runtime(solver):
     # Gets the runtime for the given solver
     
     # Run
-    result = sp.run(["./solver_timer.exe", solver, 'A_mat.txt', 'b_vec.txt'], capture_output=True)
-    runtime = float(result.stdout.split()[-2])
-    return runtime
-
+    result = sp.run(["./solver_timer.exe", solver, 'A_mat.txt', 'b_vec.txt'], capture_output=True, text=True)
+    if "Solution" in result.stdout:
+        print(result.stdout)
+        runtime = float(result.stdout.split()[-2])
+        return runtime
+    else:
+        print(result.stdout)
+        print(result.stderr)
+        raise RuntimeError("Solver timer failed.")
 
 def write_input_file(input_filename, mesh_root_name, v_inf, M, solver, refinement, preconditioner, sort_system, write_system, iter_file='none', mirror_plane='none'):
     # Writes an input file
@@ -68,7 +73,7 @@ def run_paces(mesh_root_name, v_inf, M, mirror_plane):
     # Assumes the mesh has 'coase', 'medium', and 'fine' refinements available
 
     # Options to iterate through
-    solver_options = ["GMRES", "QRUP", "BJAC", "BSOR", "LU", "FQRUP"]
+    solver_options = ["QRUP", "BJAC", "BSOR", "LU", "FQRUP", "GMRES"]
     refinement_options = ["coarse", "medium", "fine"]
     preconditioner_options = ["DIAG", "none"]
     sort_system_options = [True, False]
@@ -96,8 +101,9 @@ def run_paces(mesh_root_name, v_inf, M, mirror_plane):
 
                         # If this is an iterative solver, run one time writing out the residual history
                         if solver in ["GMRES", "BJAC", "BSOR"]:
-                            iter_file = "studies/matrix_solver/results/{0}_{1}_{2}_prec_history.csv".format(solver, refinement, preconditioner)
+                            iter_file = "studies/matrix_solvers/results/{0}_{1}_{2}_prec_history.csv".format(solver, refinement, preconditioner)
                             write_input_file(input_filename, mesh_root_name, v_inf, M, solver, refinement, preconditioner, sort_system, False, iter_file=iter_file, mirror_plane=mirror_plane)
+                            sp.run(["./machline.exe", input_filename])
 
                         for i in range(N_avg):
 
@@ -121,7 +127,7 @@ if __name__=="__main__":
 
     # Compile solver timer
     print("Compiling timer...")
-    result = sp.run(["gfortran", "-fdefault-real-8", "common/linalg.f95", "dev/time_matrix_solver.f95", "-o", "solver_timer.exe"], capture_output=True, text=True)
+    result = sp.run(["gfortran", "-O2", "-fbounds-check", "-fbacktrace", "-fdefault-real-8", "common/linalg.f95", "dev/time_matrix_solver.f95", "-o", "solver_timer.exe"], capture_output=True, text=True)
     if result.returncode != 0:
         print(result.stdout)
         print(result.stderr)

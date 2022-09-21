@@ -409,6 +409,8 @@ if __name__=="__main__":
     #for angle in angles:
     #    h = 1.0/np.tan(np.radians(angle))
     #    generate_proper_right_cone('studies/supersonic_cone_flow_study/meshes/cone_{0}_deg_fine.vtk'.format(int(angle)), h, 1.0, 120, 100, close_base=False)
+    h = 1.0/np.tan(np.radians(10.0))
+    generate_proper_right_cone('studies/matrix_solvers/meshes/cone_10_deg_medium.vtk', h, 1.0, 40, 30, close_base=False)
 
     ## Random spheres
     #Ns = [125, 250, 500, 1000, 2000]
@@ -417,8 +419,8 @@ if __name__=="__main__":
     #    for j in range(10):
     #        generate_random_sphere('studies/panel_regularity_sphere_study/meshes/random_sphere_{0}_sample_{1}.vtk'.format(label, j), N, 1.0)
 
-    # Test random spindle
-    def r_of_x(x):
-        return 0.05*x*(1.0-x)
+    ## Test random spindle
+    #def r_of_x(x):
+    #    return 0.05*x*(1.0-x)
 
-    generate_random_spindle("studies/panel_regularity_spindle_study/meshes/random_spindle_1000.vtk", 1000, 1.0, r_of_x)
+    #generate_random_spindle("studies/panel_regularity_spindle_study/meshes/random_spindle_1000.vtk", 1000, 1.0, r_of_x)

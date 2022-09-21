@@ -13,7 +13,7 @@
         "mirror_about": "xy"
     },
     "solver": {
-        "matrix_solver": "FQRUP",
+        "matrix_solver": "GMRES",
         "preconditioner": "none",
         "sort_system": false,
         "write_A_and_b": false,

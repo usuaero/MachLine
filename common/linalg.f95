@@ -1446,7 +1446,7 @@ subroutine GMRES(N, A, b, tol, max_iter, output_file, total_iter, x)
   integer,intent(out) :: total_iter
   real,dimension(:),allocatable,intent(out) :: x
 
-  integer :: i, j, k, k_max, unit
+  integer :: i, k, k_max, unit
   real,dimension(:,:),allocatable :: Q, H
   real,dimension(N) :: E, r0
   real :: beta, temp, err, d

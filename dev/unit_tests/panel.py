@@ -1001,14 +1001,21 @@ class SupersonicSuperinclinedPanel(Panel):
                 if geom.R1[i] == 0.0 and geom.R2[i] == 0.0:
                     ints.F111[i] = -np.pi
 
+                    # F(1,2,1) and F(2,1,1)
+                    ints.F211[i] = geom.a[i]*geom.v_xi[i]*ints.F111[i]
+                    ints.F121[i] = geom.a[i]*geom.v_eta[i]*ints.F111[i]
+
                 # At least one endpoint in
                 else:
                     X = geom.l1[i]*geom.l2[i] + geom.R1[i]*geom.R2[i]
                     Y = geom.R2[i]*geom.l1[i] - geom.R1[i]*geom.l2[i]
                     ints.F111[i] = np.arctan2(Y, X)
 
+                    # F(1,2,1) and F(2,1,1)
+                    ints.F211[i] = geom.a[i]*geom.v_xi[i]*ints.F111[i] - geom.v_eta[i]*(geom.R2[i]-geom.R1[i])
+                    ints.F121[i] = geom.a[i]*geom.v_eta[i]*ints.F111[i] + geom.v_xi[i]*(geom.R2[i]-geom.R1[i])
         # Check
-        #assert((np.abs(geom.v_xi*ints.F211 + geom.v_eta*ints.F121 - geom.a*ints.F111) < 1.0e-12).all())
+        assert((np.abs(geom.v_xi*ints.F211 + geom.v_eta*ints.F121 - geom.a*ints.F111) < 1.0e-12).all())
 
         return ints
 
@@ -1062,20 +1069,20 @@ class SupersonicSuperinclinedPanel(Panel):
         ints.H213 = np.sum(geom.v_xi*ints.F111).item()
         ints.H123 = np.sum(geom.v_eta*ints.F111).item()
         
-        ## Calculate H(2,1,1) and H(1,2,1)
-        #ints.H211 = 0.5*(-geom.h2*ints.H213 + np.sum(geom.a*ints.F211).item())
-        #ints.H121 = 0.5*(-geom.h2*ints.H123 + np.sum(geom.a*ints.F121).item())
+        # Calculate H(2,1,1) and H(1,2,1)
+        ints.H211 = 0.5*(geom.h2*ints.H213 - np.sum(geom.a*ints.F211).item())
+        ints.H121 = 0.5*(geom.h2*ints.H123 - np.sum(geom.a*ints.F121).item())
 
-        ## Calculate H(3,1,3), H(2,2,3), and H(1,3,3)
-        #ints.H313 = -ints.H111 + np.sum(geom.v_xi*ints.F211).item()
-        #ints.H223 = np.sum(geom.v_xi*ints.F121).item()
-        #ints.H133 = ints.H111 - np.sum(geom.v_eta*ints.F121).item()
+        # Calculate H(3,1,3), H(2,2,3), and H(1,3,3)
+        ints.H313 = ints.H111 + np.sum(geom.v_xi*ints.F211).item()
+        ints.H223 = np.sum(geom.v_xi*ints.F121).item()
+        ints.H133 = ints.H111 + np.sum(geom.v_eta*ints.F121).item()
 
         # Check based on (E5) and (E6)
-        #assert(abs(ints.H223 + np.sum(geom.v_eta*ints.F211).item()) < 1e-12)
+        assert(abs(ints.H223 - np.sum(geom.v_eta*ints.F211).item()) < 1e-12)
 
         # Check based on (E4)
-        #assert(abs(ints.H111 + ints.H313 - ints.H133 - geom.h*ints.hH113) < 1e-12)
+        assert(abs(ints.H111 - ints.H313 - ints.H133 + geom.h*ints.hH113) < 1e-12)
 
 
     def calc_analytic_source_potential(self, P):

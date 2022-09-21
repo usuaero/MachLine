@@ -1074,7 +1074,7 @@ contains
         open(newunit=unit, file="A_mat.txt")
         do i=1,this%N
             do j=1,this%N
-                write(unit,'(e20.12)',advance='no') this%A(this%P(i),this%P(j))
+                write(unit,'(e20.12)',advance='no') this%A(i,j)
             end do
             write(unit,*)
         end do
