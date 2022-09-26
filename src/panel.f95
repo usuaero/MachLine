@@ -44,7 +44,6 @@ module panel_mod
         ! Container type for parameters of whether a panel lies in a point's domain of dependence
 
         logical :: in_dod = .true.
-        logical,dimension(3) :: verts_in_dod = .true.
         logical,dimension(3) :: edges_in_dod = .true.
 
     end type dod
@@ -123,13 +122,15 @@ module panel_mod
             ! Geometry
             procedure :: calc_subsonic_geom => panel_calc_subsonic_geom
             procedure :: calc_supersonic_subinc_geom => panel_calc_supersonic_subinc_geom
+            procedure :: calc_supersonic_supinc_geom => panel_calc_supersonic_supinc_geom
 
             ! Fundamental integrals
-            procedure :: E_i_M_N_K => panel_E_i_M_N_K
             procedure :: calc_subsonic_edge_integrals => panel_calc_subsonic_edge_integrals
             procedure :: calc_subsonic_panel_integrals => panel_calc_subsonic_panel_integrals
             procedure :: calc_supersonic_subinc_edge_integrals => panel_calc_supersonic_subinc_edge_integrals
             procedure :: calc_supersonic_subinc_panel_integrals => panel_calc_supersonic_subinc_panel_integrals
+            procedure :: calc_supersonic_supinc_edge_integrals => panel_calc_supersonic_supinc_edge_integrals
+            procedure :: calc_supersonic_supinc_panel_integrals => panel_calc_supersonic_supinc_panel_integrals
             procedure :: calc_integrals => panel_calc_integrals
 
             ! Influences
@@ -1175,6 +1176,7 @@ contains
         integer :: i, i_next
         real :: x, s_star
         logical :: mirrored, in_panel
+        logical,dimension(3) :: these_verts_in_dod
 
         ! Set default mirroring
         if (present(mirror_panel)) then
@@ -1189,14 +1191,14 @@ contains
             ! Read in vertex information
             do i=1,this%N
                 if (mirrored) then
-                    dod_info%verts_in_dod(i) = verts_in_dod(this%get_vertex_index(i)+size(verts_in_dod)/2)
+                    these_verts_in_dod(i) = verts_in_dod(this%get_vertex_index(i)+size(verts_in_dod)/2)
                 else
-                    dod_info%verts_in_dod(i) = verts_in_dod(this%get_vertex_index(i))
+                    these_verts_in_dod(i) = verts_in_dod(this%get_vertex_index(i))
                 end if
             end do
 
             ! If all the vertices are in, then the panel is totally in and we can be done
-            if (all(dod_info%verts_in_dod)) then
+            if (all(these_verts_in_dod)) then
                 dod_info%in_dod = .true.
                 dod_info%edges_in_dod = .true.
 
@@ -1208,8 +1210,8 @@ contains
                     
                     i_next = mod(i, this%N)+1
 
-                    ! If if at least on endpoint is in, then the edge is in (you gotta love convex subspaces)
-                    if (dod_info%verts_in_dod(i) .or. dod_info%verts_in_dod(i_next)) then
+                    ! If if at least one endpoint is in, then the edge is in (you gotta love convex subspaces)
+                    if (these_verts_in_dod(i) .or. these_verts_in_dod(i_next)) then
                         dod_info%edges_in_dod(i) = .true.
 
                     ! If both aren't in, then the intersection will depend on the edge type
@@ -1254,7 +1256,7 @@ contains
                 end do
 
                 ! If any edge or vertex is in the DoD, then the panel is in
-                if (any(dod_info%verts_in_dod) .or. any(dod_info%edges_in_dod)) then
+                if (any(these_verts_in_dod) .or. any(dod_info%edges_in_dod)) then
                     dod_info%in_dod = .true.
 
                 ! If a supersonic panel has no edges or vertices in the DoD, check if the DoD is encompassed by the panel
@@ -1303,7 +1305,6 @@ contains
             ! Subsonic flow. DoD is everywhere. Life is easy.
             ! This shouldn't be necessary, but I'll keep it here for now.
             dod_info%in_dod = .true.
-            dod_info%verts_in_dod = .true.
             dod_info%edges_in_dod = .true.
 
         end if
@@ -1514,47 +1515,116 @@ contains
     end function panel_calc_supersonic_subinc_geom
 
 
-    function panel_E_i_M_N_K(this, geom, i, M, N, K, freestream, mirror_panel) result(E)
-        ! Calculates E_i(M,N,K)
+    function panel_calc_supersonic_supinc_geom(this, eval_point, freestream, mirror_panel, dod_info) result(geom)
+        ! Calculates the geometric parameters necessary for calculating the influence of the panel at the given evaluation point
 
         implicit none
 
         class(panel),intent(in) :: this
-        type(eval_point_geom),intent(in) :: geom
-        integer,intent(in) :: i, M, N, K
+        real,dimension(3),intent(in) :: eval_point
         type(flow),intent(in) :: freestream
         logical,intent(in) :: mirror_panel
+        type(dod),intent(in) :: dod_info
+        type(eval_point_geom) :: geom
 
-        real :: E
+        real,dimension(2) :: d_ls, d
+        real :: x
+        integer :: i, i_next
+        real :: dummy
 
-        real :: E1, E2
-        integer :: i_next
-
-        i_next = mod(i, this%N) + 1
-
-        if (.not. mirror_panel) then
-
-            ! Evaluate at start vertex
-            E1 = ((this%vertices_ls(1,i)-geom%P_ls(1))**(M-1)*(this%vertices_ls(2,i)-geom%P_ls(2))**(N-1))/geom%R1(i)**K
-
-            ! Evaluate at end vertex
-            E2 = ((this%vertices_ls(1,i_next)-geom%P_ls(1))**(M-1)*(this%vertices_ls(2,i_next)-geom%P_ls(2))**(N-1))/geom%R2(i)**K
-
+        ! Initialize
+        if (mirror_panel) then
+            call geom%init(eval_point, this%A_g_to_ls_mir, this%centr_mir)
+            geom%v_xi = this%n_hat_ls_mir(1,:)
+            geom%v_eta = this%n_hat_ls_mir(2,:)
         else
-
-            ! Evaluate at start vertex (order is swapped due to mirroring)
-            E2 = ((this%vertices_ls_mir(1,i)-geom%P_ls(1))**(M-1)*(this%vertices_ls_mir(2,i)-geom%P_ls(2))**(N-1))/geom%R1(i)**K
-
-            ! Evaluate at end vertex
-            E1 = ((this%vertices_ls_mir(1,i_next)-geom%P_ls(1))**(M-1)*(this%vertices_ls_mir(2,i_next)-geom%P_ls(2))**(N-1)) &
-                 /geom%R2(i)**K
-
+            call geom%init(eval_point, this%A_g_to_ls, this%centr)
+            geom%v_xi = this%n_hat_ls(1,:)
+            geom%v_eta = this%n_hat_ls(2,:)
         end if
 
-        ! Calculate difference
-        E = E2 - E1
+        ! Loop through edges
+        do i=1,this%N
 
-    end function panel_E_i_M_N_K
+            ! Check DoD
+            if (dod_info%edges_in_dod(i)) then
+
+                ! Calculate displacement from first vertex
+                if (mirror_panel) then
+                    d_ls = this%vertices_ls_mir(:,i) - geom%P_ls
+                else
+                    d_ls = this%vertices_ls(:,i) - geom%P_ls
+                end if
+
+                ! Perpendicular in-plane distance
+                geom%a(i) = geom%v_xi(i)*d_ls(1) + geom%v_eta(i)*d_ls(2)
+
+                ! Edge integration length
+                geom%l1(i) = -geom%v_eta(i)*d_ls(1) + geom%v_xi(i)*d_ls(2)
+
+                ! Hyperbolic radius to first vertex
+                x = -d_ls(1)*d_ls(1) - d_ls(2)*d_ls(2) + geom%h2
+                if (geom%h > 0. .and. x > 0.) then
+                    geom%R1(i) = sqrt(x)
+                else
+                    geom%l1(i) = -1.
+                    geom%R1(i) = 0.
+                end if
+
+                ! Get index of end vertex
+                i_next = mod(i, this%N)+1
+
+                ! Calculate displacement from second vertex
+                if (mirror_panel) then
+                    d_ls = this%vertices_ls_mir(:,i_next) - geom%P_ls
+                else
+                    d_ls = this%vertices_ls(:,i_next) - geom%P_ls
+                end if
+
+                ! Edge integration length
+                geom%l2(i) = -geom%v_eta(i)*d_ls(1) + geom%v_xi(i)*d_ls(2)
+
+                ! Hyperbolic radius to first vertex
+                x = -d_ls(1)*d_ls(1) - d_ls(2)*d_ls(2) + geom%h2
+                if (geom%h > 0. .and. x > 0.) then
+                    geom%R2(i) = sqrt(x)
+                else
+                    geom%l2(i) = 1.
+                    geom%R2(i) = 0.
+                end if
+
+                ! Swap directions for mirror
+                if (mirror_panel) then
+
+                    ! Swap l1 and l2
+                    ! The check is necessary because we set the sign of l1 and l2 in the case of R=0 based on which end each came from
+                    dummy = geom%l1(i)
+                    if (geom%R2(i) == 0.) then
+                        geom%l1(i) = -geom%l2(i)
+                    else
+                        geom%l1(i) = geom%l2(i)
+                    end if
+                    if (geom%R1(i) == 0) then
+                        geom%l2(i) = -dummy
+                    else
+                        geom%l2(i) = dummy
+                    end if
+
+                    ! Swap R1 and R2
+                    dummy = geom%R1(i)
+                    geom%R1(i) = geom%R2(i)
+                    geom%R2(i) = dummy
+
+                end if
+
+            end if
+
+        end do
+
+        ! Difference in R
+        geom%dR = geom%R2 - geom%R1
+
+    end function panel_calc_supersonic_supinc_geom
 
 
     subroutine panel_calc_subsonic_edge_integrals(this, geom, freestream, mirror_panel, int)
@@ -1751,6 +1821,76 @@ contains
     end subroutine panel_calc_supersonic_subinc_edge_integrals
 
 
+    subroutine panel_calc_supersonic_supinc_edge_integrals(this, geom, dod_info, freestream, mirror_panel, int)
+        ! Calculates the F integrals necessary to determine the influence of a superinclined triangular panel in supersonic flow.
+        ! Taken from Epton and Magnus, but mostly the PAN AIR source code
+
+        implicit none
+
+        class(panel),intent(in) :: this
+        type(eval_point_geom),intent(in) :: geom
+        type(dod),intent(in) :: dod_info
+        type(flow),intent(in) :: freestream
+        logical,intent(in) :: mirror_panel
+        type(integrals),intent(inout) :: int
+
+        real :: F1, F2
+        integer :: i
+        logical :: higher_order
+
+        ! Check order
+        higher_order = source_order == 1 .or. doublet_order == 2
+
+        ! Loop through edges
+        do i=1,this%N
+
+            ! Check DoD
+            if (dod_info%edges_in_dod(i)) then
+
+                ! Mach wedge
+                if (geom%R1(i) == 0. .and. geom%R2(i) == 0) then
+
+                    ! F(1,1,1)
+                    int%F111(i) = -pi
+
+                    ! Higher-order
+                    if (higher_order) then
+                        int%F211(i) = geom%a(i)*geom%v_xi(i)*int%F111(i)
+                        int%F121(i) = geom%a(i)*geom%v_eta(i)*int%F111(i)
+                    end if
+
+                else
+
+                    ! Calculate F factors
+                    F1 = geom%l1(i)*geom%R2(i) - geom%l2(i)*geom%R1(i)
+                    F2 = geom%R1(i)*geom%R2(i) + geom%l1(i)*geom%l2(i)
+
+                    ! F(1,1,1)
+                    int%F111(i) = -atan2(F1, F2)
+
+                    ! Higher-order
+                    if (higher_order) then
+                        int%F211(i) = geom%a(i)*geom%v_xi(i)*int%F111(i) - geom%v_eta(i)*geom%dR(i)
+                        int%F121(i) = geom%a(i)*geom%v_eta(i)*int%F111(i) + geom%v_xi(i)*geom%dR(i)
+                    end if
+
+                end if
+
+            end if
+
+            ! Check
+            if (higher_order) then
+                if (abs(geom%v_xi(i)*int%F211(i) + geom%v_eta(i)*int%F121(i) - geom%a(i)*int%F111(i)) > 1.e-12) then
+                    write(*,*) "!!! Calculation of F(2,1,1) and F(1,2,1) failed. Quitting..."
+                    stop
+                end if
+            end if
+
+        end do
+
+    end subroutine panel_calc_supersonic_supinc_edge_integrals
+
+
     subroutine panel_calc_subsonic_panel_integrals(this, geom, freestream, mirror_panel, int)
         ! Calculates the necessary H integrals to determine the influence of a panel in subsonic flow.
         ! Taken from Johnson (1980) Appendix D.3. with alterations made based on PAN AIR.
@@ -1918,6 +2058,95 @@ contains
     end subroutine panel_calc_supersonic_subinc_panel_integrals
 
 
+    subroutine panel_calc_supersonic_supinc_panel_integrals(this, geom, dod_info, freestream, mirror_panel, int)
+        ! Calculates the necessary H integrals to determine the influence of a superinclined panel in supersonic flow.
+        ! Taken from Epton and Magnus, but mostly the PAN AIR source code
+
+        implicit none
+
+        class(panel),intent(in) :: this
+        type(eval_point_geom),intent(in) :: geom
+        type(dod),intent(in) :: dod_info
+        type(flow),intent(in) :: freestream
+        logical,intent(in) :: mirror_panel
+        type(integrals),intent(inout) :: int
+
+        real :: t_dot, t_cross, X, Y
+        integer :: i, i_prev
+
+        ! Calculate hH(1,1,3)
+        int%hH113 = 2.*pi
+
+        ! Loop through corners
+        do i=1,this%N
+
+            ! Edge influence
+            if (dod_info%edges_in_dod(i)) then
+                int%hH113 = int%hH113 + pi
+            end if
+
+            ! Corner influence
+            if (geom%R1(i) > 0.) then
+
+                ! Cancel out edge influence
+                int%hH113 = int%hH113 = pi
+
+                ! Get index of previous corner
+                if (i == 1) then
+                    i_prev = this%N
+                else
+                    i_prev = i-1
+                end if
+
+                ! Get dot and cross products
+                t_dot = geom%v_xi(i)*geom%v_xi(i_prev) + geom%v_eta(i)*geom%v_eta(i_prev)
+                t_cross = -geom%v_eta(i_prev)*geom%v_xi(i) + geom%v_xi(i_prev)*geom%v_eta(i)
+
+                ! Intermediate values
+                X = geom%a(i)*geom%a(i_prev) - geom%h2*t_dot
+                Y = geom%h*geom%R1(i)*t_cross
+
+                ! Update hH113
+                int%hH113 = int%hH113 - atan2(Y, -X)
+
+            end if
+        end do
+
+        ! Calculate H(1,1,1)
+        int%H111 = geom%h*int%hH113 - sum(geom%a*int%F111)
+
+        ! Calculate H(2,1,3) and H(1,2,3)
+        int%H213 = sum(geom%v_xi*int%F111)
+        int%H123 = sum(geom%v_eta*int%F111)
+
+        ! Calculate higher-order source integrals
+        if (source_order == 1) then
+            int%H211 = 0.5*(geom%h2*int%H213 - sum(geom%a*int%F211))
+            int%H121 = 0.5*(geom%h2*int%H123 - sum(geom%a*int%F121))
+        end if
+
+        ! Calculate higher-order doublet integrals
+        if (doublet_order == 2) then
+            int%H313 = int%H111 + sum(geom%v_xi*int%F211)
+            int%H223 = sum(geom%v_xi*int%F121)
+            int%H133 = int%H111 + sum(geom%v_eta*int%F121)
+
+            ! Run checks
+            if (abs(sum(geom%v_eta*int%F211) - int%H223) > 1e-12) then
+                write(*,*) "!!! Influence calculation failed for H(2,2,3). Quitting..."
+                stop
+            end if
+
+            if (abs(int%H111 - int%H313 - int%H133 + geom%h*int%hH113) > 1e-12) then
+                write(*,*) "!!! Influence calculation failed for H(3,1,3) and H(1,3,3). Quitting..."
+                stop
+            end if
+
+        end if
+
+    end subroutine panel_calc_supersonic_supinc_panel_integrals
+
+
     function panel_calc_integrals(this, geom, influence_type, singularity_type, freestream, mirror_panel, dod_info) result(int)
         ! Calculates the H and F integrals necessary for the given influence
 
@@ -1941,8 +2170,23 @@ contains
 
         ! Calculate necessary integrals based on the flow condition and panel type
         if (freestream%supersonic) then
-            call this%calc_supersonic_subinc_edge_integrals(geom, dod_info, freestream, mirror_panel, int)
-            call this%calc_supersonic_subinc_panel_integrals(geom, dod_info, freestream, mirror_panel, int)
+            if (this%mirror_panel) then
+                if (this%r_mir == 1.) then
+                    call this%calc_supersonic_subinc_edge_integrals(geom, dod_info, freestream, mirror_panel, int)
+                    call this%calc_supersonic_subinc_panel_integrals(geom, dod_info, freestream, mirror_panel, int)
+                else
+                    call this%calc_supersonic_supinc_edge_integrals(geom, dod_info, freestream, mirror_panel, int)
+                    call this%calc_supersonic_supinc_panel_integrals(geom, dod_info, freestream, mirror_panel, int)
+                end if
+            else
+                if (this%r == 1.) then
+                    call this%calc_supersonic_subinc_edge_integrals(geom, dod_info, freestream, mirror_panel, int)
+                    call this%calc_supersonic_subinc_panel_integrals(geom, dod_info, freestream, mirror_panel, int)
+                else
+                    call this%calc_supersonic_supinc_edge_integrals(geom, dod_info, freestream, mirror_panel, int)
+                    call this%calc_supersonic_supinc_panel_integrals(geom, dod_info, freestream, mirror_panel, int)
+                end if
+            end if
         else
             call this%calc_subsonic_edge_integrals(geom, freestream, mirror_panel, int)
             call this%calc_subsonic_panel_integrals(geom, freestream, mirror_panel, int)
