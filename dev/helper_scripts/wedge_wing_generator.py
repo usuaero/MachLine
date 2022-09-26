@@ -585,14 +585,14 @@ if __name__ == '__main__':
     x_ct = 0.18 # nondimensional location of max thickness at tip
     tc = 0.08 # nondimensional max thickness
     b_2c = 0.2315 / 0.230 # semispan nondimensionalized by root chord
-    R_T = 0.0 # taper ratio c_t/c_R
+    R_T = 0.25 # taper ratio c_t/c_R
     LE_sweep = 44.85 # leading edge sweep angle in degrees
     node_ratio = .35 # User input ratio of nodes to be placed forward of the max thickness location
     mirror_xy = True # Mirrors body across xy plane
 
     # Initialize number of nodes in chord and spanwize directions
-    cw_nodes = 50 # Number of nodes along the upper surface
-    sw_nodes = 50 # Number of nodes along the semispan
+    cw_nodes = 30 # Number of nodes along the upper surface
+    sw_nodes = 30 # Number of nodes along the semispan
     cluster_cw = True
     cluster_sw = False
 
@@ -665,8 +665,8 @@ if __name__ == '__main__':
     elif 'dev' in os.getcwd():
         os.chdir('../')
 
-    filename= 'studies/delta_wing/meshes/delta_wing_clustered_mesh.vtk'
-    # filename= 'studies/delta_wing/meshes/tapered_wing_test.vtk'
+    # filename= 'studies/delta_wing/meshes/delta_wing_clustered_mesh.vtk'
+    filename= 'studies/delta_wing/meshes/tapered_wing_test.vtk'
 
 
     panels = np.array(panels, dtype=int)

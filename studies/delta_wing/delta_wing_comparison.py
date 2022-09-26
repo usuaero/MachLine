@@ -87,8 +87,8 @@ if __name__=="__main__":
     angles_of_attack = [0.0, 2.0, 4.1, 8.5, 10.75]
     # angles_of_attack = [0.0]
     semispan_loc = [22.5, 64.1]
-    # b_half = 1.0065 # semispan length nondimensionalized by root chord
-    b_half = 0.2315 # semispan length for OpenVSP model
+    b_half = 1.0065 # semispan length nondimensionalized by root chord
+    # b_half = 0.2315 # semispan length for OpenVSP model
     # mesh_density = "clustered"
     mesh_density = 'clustered'
     mesh_filetype = 'vtk'
@@ -173,7 +173,7 @@ if __name__=="__main__":
         # Iterate over semispan locations
         for i, percent_semispan in enumerate(semispan_loc):
             semispan_str = str(percent_semispan)
-            percent_semispan = percent_semispan * b_half / 100.0
+            percent_semi = percent_semispan * b_half / 100.0
 
             # Slice mesh at each semispan location
             slicer = pvs.Slice(registrationName= "Slice", Input=data_reader)
@@ -183,11 +183,15 @@ if __name__=="__main__":
 
             
             if 'VSP' in mesh_density:
-                slicer.SliceType.Origin = [0.0, percent_semispan, 0.0]
-                slicer.SliceType.Normal = [0.0, 1.0, 0.0]
+                origin = [0.0, percent_semi, 0.0]
+                normal = [0.0, 1.0, 0.0]
             else:
-                slicer.SliceType.Origin = [0.0, 0.0, percent_semispan]
-                slicer.SliceType.Normal = [0.0, 0.0, 1.0]
+                origin = [0.0, 0.0, percent_semi]
+                normal = [0.0, 0.0, 1.0]
+
+            slicer.SliceType.Origin = origin
+            slicer.SliceType.Normal = normal
+
 
             # Extract and save data
             plot = pvs.PlotData(registrationName="Plot")
