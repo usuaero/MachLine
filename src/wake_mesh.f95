@@ -11,29 +11,28 @@ module wake_mesh_mod
     use flow_mod
     use edge_mod
     use vtk_mod
+    use wake_strip_mod
+    use mesh_mod
 
     implicit none
 
 
-    type wake_mesh
+    type, extends(mesh) ::  wake_mesh
 
-        type(vertex),allocatable,dimension(:) :: vertices
-        type(panel),allocatable,dimension(:) :: panels
-        integer :: N_verts, N_panels = 0
-        logical :: midpoints_created = .false.
+        type(wake_strip),allocatable,dimension(:) :: strips
+        integer :: N_strips = 0
 
         contains
 
             procedure :: init => wake_mesh_init
+            procedure :: init_strips => wake_mesh_init_strips
             procedure :: init_vertices => wake_mesh_init_vertices
             procedure :: init_panels => wake_mesh_init_panels
-            procedure :: has_zero_area => wake_mesh_has_zero_area
             procedure :: init_panel => wake_mesh_init_panel
             procedure :: init_midpoints => wake_mesh_init_midpoints
             procedure :: determine_midpoint_parents => wake_mesh_determine_midpoint_parents
-            procedure :: get_indices_to_panel_vertices => wake_mesh_get_indices_to_panel_vertices
-            procedure :: allocate_new_vertices => wake_mesh_allocate_new_vertices
             procedure :: write_wake => wake_mesh_write_wake
+            procedure :: write_strips => wake_mesh_write_strips
 
     end type wake_mesh
 
@@ -43,7 +42,7 @@ contains
 
     subroutine wake_mesh_init(this, body_edges, body_verts, N_body_panels, freestream, asym_flow, mirror_plane, &
                               N_panels_streamwise, trefftz_dist)
-        ! Creates the vertices and panels. Handles vertex association.
+        ! Initializes the wake mesh
 
         implicit none
 
@@ -62,6 +61,9 @@ contains
         logical,dimension(:),allocatable :: is_wake_edge_vertex
 
         if (verbose) write(*,'(a ES10.4 a)',advance='no') "     Initializing wake with a Trefftz distance of ", trefftz_dist, "..."
+
+        ! Initialize strips
+        !call this%init_strips(body_edges, body_verts, freestream, asym_flow, mirror_plane, N_panels_streamwise, trefftz_dist)
 
         ! Count up wake-shedding edges
         N_wake_edges = 0
@@ -138,6 +140,68 @@ contains
                                               this%N_panels, " wake panels."
 
     end subroutine wake_mesh_init
+
+
+    subroutine wake_mesh_init_strips(this, body_edges, body_verts, freestream, asym_flow, mirror_plane, &
+                              N_panels_streamwise, trefftz_dist)
+        ! Creates the strips for this wake
+
+        implicit none
+
+        class(wake_mesh),intent(inout),target :: this
+        type(edge),allocatable,dimension(:),intent(in) :: body_edges
+        type(vertex),allocatable,dimension(:),intent(inout) :: body_verts
+        type(flow),intent(in) :: freestream
+        logical,intent(in) :: asym_flow
+        integer,intent(in) :: mirror_plane, N_panels_streamwise
+        real,intent(in) :: trefftz_dist
+
+        integer :: i, i_strip, i_start_edge
+        type(list) :: wake_shedding_edges
+
+        ! Loop through edges to find which ones shed a wake and how many there are
+        this%N_strips = 0
+        do i=1,size(body_edges)
+
+            ! Check if it sheds a wake
+            if (body_edges(i)%sheds_wake) then
+                this%N_strips = this%N_strips + 1
+                call wake_shedding_edges%append(i)
+
+                ! If the flow is asymmetric, then wake-shedding edges not on the mirror plane will also be used to generate a wake strip
+                if (asym_flow .and. .not. body_edges(i)%on_mirror_plane) then
+                    this%N_strips = this%N_strips + 1
+                end if
+            end if
+
+        end do
+
+        ! Allocate strip storage
+        allocate(this%strips(this%N_strips))
+    
+        ! Initialize strips
+        i = 0
+        i_strip = 0
+        do while (i_strip < this%N_strips)
+
+            ! Get starting edge index
+            i = i + 1
+            call wake_shedding_edges%get(i, i_start_edge)
+
+            ! Initialize strip
+            i_strip = i_strip + 1
+            call this%strips(i_strip)%init(freestream, body_edges(i_start_edge), .false., 0, &
+                                           N_panels_streamwise, trefftz_dist, body_verts)
+
+            ! Check if we need to create a mirror strip
+            if (asym_flow .and. .not. body_edges(i_start_edge)%on_mirror_plane) then
+                i_strip = i_strip + 1
+                call this%strips(i_strip)%init(freestream, body_edges(i_start_edge), .true., mirror_plane, &
+                                               N_panels_streamwise, trefftz_dist, body_verts)
+            end if
+        end do
+        
+    end subroutine wake_mesh_init_strips
 
 
     subroutine wake_mesh_init_vertices(this, body_verts, freestream, wake_edge_verts, asym_flow, &
@@ -357,21 +421,6 @@ contains
         this%N_panels = this%N_panels - N_skipped
         
     end subroutine wake_mesh_init_panels
-
-
-    function wake_mesh_has_zero_area(this, i1, i2, i3) result(has)
-        ! Checks whether the panel to be defined by the three given vertices will have zero area
-
-        implicit none
-        
-        class(wake_mesh),intent(in) :: this
-        integer,intent(in) :: i1, i2, i3
-        logical :: has
-
-        ! Check for zero area
-        has = norm2(cross(this%vertices(i3)%loc-this%vertices(i2)%loc, this%vertices(i2)%loc-this%vertices(i1)%loc)) < 1.e-12
-        
-    end function wake_mesh_has_zero_area
 
 
     subroutine wake_mesh_init_panel(this, i_panel, i1, i2, i3, skipped_panels, mirror)
@@ -633,111 +682,6 @@ contains
     end subroutine wake_mesh_determine_midpoint_parents
 
 
-    subroutine wake_mesh_get_indices_to_panel_vertices(this, i_vertices)
-        ! Returns of the list of indices which point to the vertices (and midpoints) of each panel
-
-        implicit none
-
-        class(wake_mesh),intent(in) :: this
-        integer,dimension(:,:),allocatable,intent(out) :: i_vertices
-
-        integer :: i, j
-
-        ! Allocate space
-        allocate(i_vertices(8,this%N_panels))
-
-        ! Get vertex indices for each panel since we will lose this information as soon as this%vertices is reallocated
-        do i=1,this%N_panels
-            do j=1,this%panels(i)%N
-
-                ! Get vertex indices
-                i_vertices(j,i) = this%panels(i)%get_vertex_index(j)
-                
-                ! Get midpoint indices
-                if (this%midpoints_created) then
-                    i_vertices(j+this%panels(i)%N,i) = this%panels(i)%get_midpoint_index(j)
-                end if
-
-            end do
-        end do
-        
-    end subroutine wake_mesh_get_indices_to_panel_vertices
-
-
-    subroutine wake_mesh_allocate_new_vertices(this, N_new_verts, i_rearrange)
-        ! Adds the specified number of vertex objects to the end of the wake mesh's vertex array.
-        ! Handles moving panel pointers to the new allocation of previously-existing vertices.
-        ! i_rearrange may be used to rearrange the vertices for a desired behavior.
-
-        implicit none
-
-        class(wake_mesh),intent(inout),target :: this
-        integer,intent(in) :: N_new_verts
-        integer,dimension(:),allocatable,intent(in),optional :: i_rearrange
-        
-        type(vertex),dimension(:),allocatable :: temp_vertices
-        integer :: i, j
-        integer,dimension(:,:),allocatable :: i_vertices
-        integer,dimension(:),allocatable :: i_rearrange_inv
-
-        ! Get panel vertex indices
-        call this%get_indices_to_panel_vertices(i_vertices)
-
-        ! Allocate more space
-        allocate(temp_vertices(this%N_verts + N_new_verts))
-        allocate(i_rearrange_inv(this%N_verts))
-
-        ! Copy over vertices
-        if (present(i_rearrange)) then
-
-            do i=1,this%N_verts
-
-                ! Copy vertices
-                temp_vertices(i) = this%vertices(i_rearrange(i))
-                temp_vertices(i)%index = i
-
-                ! Get inverse mapping
-                i_rearrange_inv(i_rearrange(i)) = i
-            end do
-
-        else
-
-            ! Copy vertices
-            temp_vertices(1:this%N_verts) = this%vertices
-
-            ! Get inverse mapping (identity)
-            do i=1,this%N_verts
-                i_rearrange_inv(i) = i
-            end do
-
-        end if
-
-        ! Move allocation
-        call move_alloc(temp_vertices, this%vertices)
-
-        ! Fix vertex pointers in panel objects (necessary because this%vertices got reallocated)
-        do i=1,this%N_panels
-            do j=1,this%panels(i)%N
-
-                ! Fix vertex pointers
-                this%panels(i)%vertices(j)%ptr => this%vertices(i_rearrange_inv(i_vertices(j,i)))
-
-                ! Fix midpoint pointers
-                if (this%midpoints_created) then
-                    this%panels(i)%midpoints(j)%ptr => this%vertices(i_rearrange_inv(i_vertices(j+this%panels(i)%N,i)))
-                end if
-
-            end do
-        end do
-
-        deallocate(i_vertices)
-
-        ! Update number of vertices
-        this%N_verts = this%N_verts + N_new_verts
-        
-    end subroutine wake_mesh_allocate_new_vertices
-
-
     subroutine wake_mesh_write_wake(this, wake_file, exported, mu)
         ! Writes the wake out to file
 
@@ -781,10 +725,86 @@ contains
 
         else
             exported = .false.
-
         end if
         
     end subroutine wake_mesh_write_wake
+
+
+    subroutine wake_mesh_write_strips(this, wake_file, exported, mu)
+        ! Writes the wake out to file
+
+        implicit none
+        
+        class(wake_mesh),intent(in) :: this
+        character(len=:),allocatable,intent(in) :: wake_file
+        logical,intent(out) :: exported
+        real,dimension(:),allocatable,intent(in),optional :: mu
+
+        type(vtk_out) :: wake_vtk
+        integer :: i, j, k, N_verts, N_panels, shift
+        real,dimension(:),allocatable :: mu_on_wake
+        real,dimension(:,:),allocatable :: verts
+
+        ! Clear old file
+        call delete_file(wake_file)
+
+        if (this%N_strips > 0) then
+
+            ! Get total number of vertices and panels
+            N_verts = 0
+            N_panels = 0
+            do i=1,this%N_strips
+                N_verts = N_verts + this%strips(i)%N_verts
+                N_panels = N_panels + this%strips(i)%N_panels
+            end do
+
+            ! Get all vertices
+            allocate(verts(3,N_verts))
+            i = 0
+            do k=1,this%N_strips
+                do j=1,this%strips(k)%N_verts
+                    i = i + 1
+                    verts(:,i) = this%strips(k)%vertices(j)%loc
+                end do
+            end do
+
+            ! Initialize and write out vertices
+            call wake_vtk%begin(wake_file)
+            call wake_vtk%write_points(verts)
+
+            ! Write out panels
+            shift = 0
+            do k=1,this%N_strips
+                call wake_vtk%write_panels(this%strips(k)%panels, subdivide=doublet_order==2, mirror=.false., &
+                                           vertex_index_shift=shift, N_total_panels=N_panels)
+                shift = shift + this%strips(k)%N_verts
+            end do
+
+            if (present(mu)) then
+
+                ! Calculate doublet strengths
+                allocate(mu_on_wake(N_verts))
+                i = 0
+                do k=1,this%N_strips
+                    do j=1,this%strips(k)%N_verts
+                        i = i + 1
+                        mu_on_wake(i) = mu(this%strips(k)%vertices(j)%top_parent) - mu(this%strips(k)%vertices(j)%bot_parent)
+                    end do
+                end do
+
+                ! Write doublet strengths
+                call wake_vtk%write_point_scalars(mu_on_wake, "mu")
+            end if
+
+            ! Finish up
+            call wake_vtk%finish()
+            exported = .true.
+
+        else
+            exported = .false.
+        end if
+        
+    end subroutine wake_mesh_write_strips
 
 
 end module wake_mesh_mod

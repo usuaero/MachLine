@@ -1,4 +1,4 @@
-! A surface mesh type encompassing a body
+! A type for defining closed bodies to be analyzed by a linear panel method
 module surface_mesh_mod
 
     use omp_lib
@@ -9,6 +9,7 @@ module surface_mesh_mod
     use tri_mod
     use vertex_mod
     use panel_mod
+    use mesh_mod
     use flow_mod
     use math_mod
     use edge_mod
@@ -19,18 +20,16 @@ module surface_mesh_mod
     implicit none
 
 
-    type surface_mesh
+    type, extends(mesh) :: surface_mesh
 
-        integer :: N_verts, N_panels, N_cp, N_edges, N_true_verts ! as in, not midpoints
+        integer :: N_cp, N_edges, N_true_verts ! as in, not midpoints
         integer :: N_subinc, N_supinc
-        type(vertex),allocatable,dimension(:) :: vertices
-        type(panel),allocatable,dimension(:) :: panels
         type(edge),allocatable,dimension(:) :: edges
         type(wake_mesh) :: wake
         real :: C_wake_shedding_angle, trefftz_distance, C_min_panel_angle
         integer :: N_wake_panels_streamwise
         logical :: wake_present, append_wake
-        real,dimension(:,:),allocatable :: cp, cp_mirrored
+        real,dimension(:,:),allocatable :: cp, cp_mir ! Control points
         real,dimension(:),allocatable :: phi_cp, phi_cp_sigma, phi_cp_mu ! Induced potentials at control points
         real,dimension(:),allocatable :: Phi_u ! Total potential on outer surface
         real,dimension(:),allocatable :: C_p_pg, C_p_lai, C_p_kt ! Corrected surface pressure coefficients
@@ -40,7 +39,7 @@ module surface_mesh_mod
         logical :: mirrored ! Whether the mesh is to be mirrored about any planes
         integer :: mirror_plane ! Index of the plane across which the mesh is mirrored (1: yz, 2: xz, 3: xy); this is the index of the normal to that plane
         logical :: asym_flow ! Whether the flow is asymmetric about the mirror plane
-        logical :: found_discontinuous_edges, midpoints_created
+        logical :: found_discontinuous_edges
         real,dimension(:),allocatable :: mu, sigma ! Singularity strengths
         real :: S_ref ! Reference parameters
         integer,dimension(:),allocatable :: vertex_ordering
@@ -74,8 +73,6 @@ module surface_mesh_mod
 
             ! Helpers
             procedure :: find_vertices_on_mirror => surface_mesh_find_vertices_on_mirror
-            procedure :: get_indices_to_panel_vertices => surface_mesh_get_indices_to_panel_vertices
-            procedure :: allocate_new_vertices => surface_mesh_allocate_new_vertices
 
             ! Wake stuff
             procedure :: init_wake => surface_mesh_init_wake
@@ -936,86 +933,6 @@ contains
     end subroutine surface_mesh_set_up_mirroring
 
 
-    subroutine surface_mesh_get_indices_to_panel_vertices(this, i_vertices)
-        ! Returns of the list of indices which point to the vertices (and midpoints) of each panel
-
-        implicit none
-
-        class(surface_mesh),intent(in) :: this
-        integer,dimension(:,:),allocatable,intent(out) :: i_vertices
-
-        integer :: i, j
-
-        ! Allocate space
-        allocate(i_vertices(8,this%N_panels))
-
-        ! Get vertex indices for each panel since we will lose this information as soon as this%vertices is reallocated
-        do i=1,this%N_panels
-            do j=1,this%panels(i)%N
-
-                ! Get vertex indices
-                i_vertices(j,i) = this%panels(i)%get_vertex_index(j)
-                
-                ! Get midpoint indices
-                if (this%midpoints_created) then
-                    i_vertices(j+this%panels(i)%N,i) = this%panels(i)%get_midpoint_index(j)
-                end if
-
-            end do
-        end do
-        
-    end subroutine surface_mesh_get_indices_to_panel_vertices
-
-
-    subroutine surface_mesh_allocate_new_vertices(this, N_new_verts)
-        ! Adds the specified number of vertex objects to the end of the surface mesh's vertex array.
-        ! Handles moving panel pointers to the new allocation of previously-existing vertices.
-
-        implicit none
-
-        class(surface_mesh),intent(inout),target :: this
-        integer,intent(in) :: N_new_verts
-        
-        type(vertex),dimension(:),allocatable :: temp_vertices
-        integer :: i, j
-        integer,dimension(:,:),allocatable :: i_vertices
-        integer,dimension(:),allocatable :: i_adj_vert
-
-        ! Get panel vertex indices
-        call this%get_indices_to_panel_vertices(i_vertices)
-
-        ! Allocate more space
-        allocate(temp_vertices(this%N_verts + N_new_verts))
-
-        ! Copy over vertices
-
-        ! Copy vertices
-        temp_vertices(1:this%N_verts) = this%vertices
-
-        ! Move allocation
-        call move_alloc(temp_vertices, this%vertices)
-
-        ! Fix vertex pointers in panel objects (necessary because this%vertices got reallocated)
-        do i=1,this%N_panels
-            do j=1,this%panels(i)%N
-
-                ! Fix vertex pointers
-                this%panels(i)%vertices(j)%ptr => this%vertices(i_vertices(j,i))
-
-                ! Fix midpoint pointers
-                if (this%midpoints_created) then
-                    this%panels(i)%midpoints(j)%ptr => this%vertices(i_vertices(j+this%panels(i)%N,i))
-                end if
-
-            end do
-        end do
-
-        ! Update number of vertices
-        this%N_verts = this%N_verts + N_new_verts
-        
-    end subroutine surface_mesh_allocate_new_vertices
-
-
     subroutine surface_mesh_locate_vertices_needing_cloning(this)
         ! Determines which vertices need to be cloned
 
@@ -1266,21 +1183,19 @@ contains
 
         class(surface_mesh),intent(inout) :: this
 
-        real,dimension(3) :: n_avg, n_avg_plane
+        real,dimension(3) :: n_avg, n_avg_plane, n_g_panel
         integer :: i, j, i_panel, N_panels
         real,dimension(:),allocatable :: constraint_array
-        real,dimension(:,:),allocatable :: n_g_panels
         real :: x
 
         if (verbose) write(*,'(a)',advance='no') "     Calculating vertex normals..."
 
         ! Loop through vertices
-        !$OMP parallel do private(n_avg, i, i_panel, constraint_array, n_avg_plane, N_panels, n_g_panels) schedule(dynamic)
+        !$OMP parallel do private(n_avg, i, i_panel, constraint_array, n_avg_plane, N_panels, n_g_panel) schedule(dynamic)
         do j=1,this%N_verts
 
             ! Allocate storage for the panel normals
             N_panels = this%vertices(j)%panels%len()
-            allocate(n_g_panels(3,N_panels))
 
             ! Loop through neighboring panels and compute the average of their normal vectors
             n_avg = 0
@@ -1290,13 +1205,10 @@ contains
                 call this%vertices(j)%panels%get(i, i_panel)
 
                 ! Get weighted normal
-                n_g_panels(:,i) = this%panels(i_panel)%get_weighted_normal_at_corner(this%vertices(j)%loc)
+                n_g_panel = this%panels(i_panel)%get_weighted_normal_at_corner(this%vertices(j)%loc)
 
                 ! Update using weighted normal
-                n_avg = n_avg + n_g_panels(:,i)
-
-                ! Normalize for later computations
-                n_g_panels(:,i) = n_g_panels(:,i)/norm2(n_g_panels(:,i))
+                n_avg = n_avg + n_g_panel
 
             end do
 
@@ -1304,43 +1216,6 @@ contains
             if (this%vertices(j)%on_mirror_plane) then
                 n_avg(this%mirror_plane) = 0.
             end if
-
-            !! Get the inner products with the panel normals and the computed vertex normal
-            !allocate(constraint_array(N_panels))
-            !do i=1,N_panels
-            !    constraint_array(i) = inner(n_g_panels(:,i), n_avg)
-            !end do
-
-            !! Check whether the vertex normal points wholly outside the mesh
-            !do while (any(constraint_array < 0.))
-
-            !    ! Get the normal vector describing the average plane for the panels for which the constraint is not satisfied
-            !    n_avg_plane = 0.
-            !    do i=1,N_panels
-
-            !        ! Loop through neighboring panels
-            !        if (constraint_array(i) < 0.) then
-            !            call this%vertices(j)%panels%get(i, i_panel)
-            !            n_avg_plane = n_avg_plane + n_g_panels(:,i)
-            !        end if
-            !        
-            !    end do
-
-            !    ! Normalize plane vector
-            !    n_avg_plane = n_avg_plane/norm2(n_avg_plane)
-
-            !    ! Reflect vertex normal across average panel plane
-            !    n_avg = n_avg - 2.*inner(n_avg, n_avg_plane)*n_avg_plane
-
-            !    ! Recalculate constraint array
-            !    do i=1,N_panels
-            !        constraint_array(i) = inner(n_g_panels(:,i), n_avg)
-            !    end do
-
-            !end do
-
-            !deallocate(constraint_array)
-            deallocate(n_g_panels)
 
             ! Normalize and store
             this%vertices(j)%n_g = n_avg/norm2(n_avg)
@@ -1401,6 +1276,7 @@ contains
             ! Set parameters to let later code know the wake is not being modeled
             this%wake%N_panels = 0
             this%wake%N_verts = 0
+            this%wake%N_strips = 0
 
         end if
     
@@ -1551,12 +1427,12 @@ contains
         if (this%mirrored) then
 
             ! Allocate memory
-            allocate(this%cp_mirrored(3,this%N_cp))
+            allocate(this%cp_mir(3,this%N_cp))
 
             ! Calculate mirrors
             !$OMP parallel do schedule(static)
             do i=1,this%N_cp
-                this%cp_mirrored(:,i) = mirror_across_plane(this%cp(:,i), this%mirror_plane)
+                this%cp_mir(:,i) = mirror_across_plane(this%cp(:,i), this%mirror_plane)
             end do
 
         end if
@@ -2083,7 +1959,7 @@ contains
 
         ! Write out data
         call cp_vtk%begin(control_point_file)
-        call cp_vtk%write_points(this%cp_mirrored)
+        call cp_vtk%write_points(this%cp_mir)
         call cp_vtk%write_vertices(this%N_cp)
         
         ! Results

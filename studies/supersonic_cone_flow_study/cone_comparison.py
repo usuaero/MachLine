@@ -153,7 +153,7 @@ if __name__=="__main__":
         for j, M in enumerate(Ms):
             for k, half_angle in enumerate(half_angles):
 
-                C_p_2nd, C_p_ise, C_p_sln, C_p_lin = run_comparison(M, grid, half_angle, run_machline=True)
+                C_p_2nd, C_p_ise, C_p_sln, C_p_lin = run_comparison(M, grid, half_angle, run_machline=False)
                 C_p_2nd_avg[i,j,k] = np.average(C_p_2nd).item()
                 C_p_ise_avg[i,j,k] = np.average(C_p_ise).item()
                 C_p_sln_avg[i,j,k] = np.average(C_p_sln).item()
@@ -172,10 +172,10 @@ if __name__=="__main__":
         plt.figure()
 
         # Plots using the most-refined grid
-        plt.errorbar(Ms, C_p_2nd_avg[-1,:,k], mfc='k', marker='s', ls='', mec='k', yerr=C_p_2nd_s_dev[-1,:,k], markersize=3, ecolor='k', label='Second-Order')
-        plt.errorbar(Ms, C_p_ise_avg[-1,:,k], mfc='k', marker='v', ls='', mec='k', yerr=C_p_ise_s_dev[-1,:,k], markersize=3, ecolor='k', label='Isentropic')
-        plt.errorbar(Ms, C_p_sln_avg[-1,:,k], mfc='k', marker='o', ls='', mec='k', yerr=C_p_sln_s_dev[-1,:,k], markersize=3, ecolor='k', label='Slender-Body')
-        plt.errorbar(Ms, C_p_lin_avg[-1,:,k], mfc='k', marker='^', ls='', mec='k', yerr=C_p_lin_s_dev[-1,:,k], markersize=3, ecolor='k', label='Linear')
+        plt.plot(Ms, C_p_2nd_avg[-1,:,k], mfc='k', marker='s', ls='', mec='k', markersize=3, label='Second-Order')
+        plt.plot(Ms, C_p_ise_avg[-1,:,k], mfc='k', marker='v', ls='', mec='k', markersize=3, label='Isentropic')
+        plt.plot(Ms, C_p_sln_avg[-1,:,k], mfc='k', marker='o', ls='', mec='k', markersize=3, label='Slender-Body')
+        plt.plot(Ms, C_p_lin_avg[-1,:,k], mfc='k', marker='^', ls='', mec='k', markersize=3, label='Linear')
 
         # Get analytic data for this half angle
         i_theta = np.where(thetas_anl == half_angle)
@@ -186,3 +186,15 @@ if __name__=="__main__":
         plt.ylim(bottom=0.0)
         plt.legend(fontsize=6, title_fontsize=6)
         plt.savefig("studies/supersonic_cone_flow_study/plots/C_p_over_M_{0}_deg.pdf".format(half_angle))
+
+    # Determine max standard deviation
+    std_max_ise = np.nanmax(np.nanmax(np.nanmax(C_p_ise_s_dev))).item()
+    std_max_2nd = np.nanmax(np.nanmax(np.nanmax(C_p_2nd_s_dev))).item()
+    std_max_lin = np.nanmax(np.nanmax(np.nanmax(C_p_lin_s_dev))).item()
+    std_max_sln = np.nanmax(np.nanmax(np.nanmax(C_p_sln_s_dev))).item()
+    print()
+    print("Maximum standard deviations:")
+    print("    Isentropic: ", std_max_ise)
+    print("    Second-order: ", std_max_2nd)
+    print("    Linear: ", std_max_lin)
+    print("    Slender-body: ", std_max_sln)

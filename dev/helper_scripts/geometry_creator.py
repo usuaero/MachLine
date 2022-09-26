@@ -333,13 +333,84 @@ def generate_random_sphere(filename, N, r):
     _export_vtk(filename, verts, np.array(fixed_simplices))
 
 
+def _get_random_points_on_surface_of_spindle(N, c, r_of_x):
+    # Generates a set of random points (except for 2 at the apexes) on a spindle
+
+    # Initialize
+    points = np.zeros((N,3))
+
+    # Get chordwise locations
+    x = np.random.random(N-2)
+
+    # Get radii
+    r = r_of_x(x)
+
+    # Get asimuth angles
+    psi = np.random.random(N-2)*2.0*np.pi
+
+    # Get coordinates
+    points[:N-2,0] = x*c
+    points[:N-2,1] = c*r*np.sin(psi)
+    points[:N-2,2] = c*r*np.cos(psi)
+
+    # Add endpoints
+    points[N-2,:] = [0.0, 0.0, 0.0]
+    points[N-1,:] = [c, 0.0, 0.0]
+
+    return points
+
+
+def generate_random_spindle(filename, N, c, r_of_x):
+    """Generates a random unstructured mesh of a spindle.
+    
+    Parameters
+    ----------
+    filename : str
+        Name of the file to write the mesh to. Must have '.vtk' extension.
+
+    N : integer
+        Number of vertices.
+        
+    c : float
+        Chord length.
+    
+    r_of_x : callable
+        Gives the radius as a function of the nondimensional chord position.
+    """
+    
+    # Get vertices
+    verts = _get_random_points_on_surface_of_spindle(N, c, r_of_x)
+
+    # Create convex hull
+    hull = ConvexHull(verts)
+
+    # Make sure normal vector points outward
+    fixed_simplices = []
+    for simplex in hull.simplices:
+
+        # Calculate normal and centroid
+        centroid = np.sum(verts[simplex,:], axis=0) / 3.0
+        normal = np.cross(verts[simplex[1],:] - verts[simplex[0],:], verts[simplex[2],:] - verts[simplex[1],:])
+
+        # Check the normal points outward
+        if np.dot(centroid, normal) > 0.0:
+            fixed_simplices.append(simplex)
+        else:
+            fixed_simplices.append(simplex[::-1])
+
+    # Export mesh
+    _export_vtk(filename, verts, np.array(fixed_simplices))
+
+
 if __name__=="__main__":
 
-    # Test cone
-    angles = [2.5, 5.0, 10.0, 15.0]
-    for angle in angles:
-        h = 1.0/np.tan(np.radians(angle))
-        generate_proper_right_cone('studies/supersonic_cone_flow_study/meshes/cone_{0}_deg_fine.vtk'.format(int(angle)), h, 1.0, 120, 100, close_base=False)
+    ## Test cone
+    #angles = [2.5, 5.0, 10.0, 15.0]
+    #for angle in angles:
+    #    h = 1.0/np.tan(np.radians(angle))
+    #    generate_proper_right_cone('studies/supersonic_cone_flow_study/meshes/cone_{0}_deg_fine.vtk'.format(int(angle)), h, 1.0, 120, 100, close_base=False)
+    h = 1.0/np.tan(np.radians(10.0))
+    generate_proper_right_cone('studies/matrix_solvers/meshes/cone_10_deg_medium.vtk', h, 1.0, 40, 30, close_base=False)
 
     ## Random spheres
     #Ns = [125, 250, 500, 1000, 2000]
@@ -347,3 +418,9 @@ if __name__=="__main__":
     #for N, label in zip(Ns, labels):
     #    for j in range(10):
     #        generate_random_sphere('studies/panel_regularity_sphere_study/meshes/random_sphere_{0}_sample_{1}.vtk'.format(label, j), N, 1.0)
+
+    ## Test random spindle
+    #def r_of_x(x):
+    #    return 0.05*x*(1.0-x)
+
+    #generate_random_spindle("studies/panel_regularity_spindle_study/meshes/random_spindle_1000.vtk", 1000, 1.0, r_of_x)

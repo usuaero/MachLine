@@ -50,14 +50,14 @@ if __name__=="__main__":
     panel.distribute_points(40, 40)
 
     # Initialize singularity distributions
-    mu_params = [0.0, 1.0, 0.0, 0.0, 0.0, 0.0]
-    sigma_params = [1.0, 0.0, 0.0]
+    mu_params = [0.0, 0.0, 0.0, 1.0, 0.0, 0.0]
+    sigma_params = [0.0, 0.0, 1.0]
     panel.set_doublet_strength(mu_params)
     panel.set_source_strength(sigma_params)
 
     # Calculate slice of potentials
-    Nx = 40
-    Nz = 40
+    Nx = 30
+    Nz = 30
     x = np.linspace(-2.0, 2.0, Nx)
     z = np.linspace(-0.75, 3.25, Nz)
     phi_s_dis = np.zeros((Nx, Nz))

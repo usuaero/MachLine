@@ -32,9 +32,11 @@ default:
 	src/vertex.f95 \
 	src/edge.f95 \
 	src/panel.f95 \
+	src/mesh.f95 \
 	src/stl.f95 \
 	src/vtk.f95 \
 	src/tri.f95 \
+	src/wake_strip.f95 \
 	src/wake_mesh.f95 \
 	src/surface_mesh.f95 \
 	src/panel_solver.f95 \
@@ -63,9 +65,11 @@ serial:
 	src/vertex.f95 \
 	src/edge.f95 \
 	src/panel.f95 \
+	src/mesh.f95 \
 	src/vtk.f95 \
 	src/stl.f95 \
 	src/tri.f95 \
+	src/wake_strip.f95 \
 	src/wake_mesh.f95 \
 	src/surface_mesh.f95 \
 	src/panel_solver.f95 \

@@ -1,0 +1,25 @@
+{
+    "flow": {
+        "freestream_velocity": [
+            1.0,
+            0.0,
+            0.0
+        ],
+        "gamma": 1.4,
+        "freestream_mach_number": 1.4142135623730951
+    },
+    "solver": {
+        "matrix_solver": "FQRUP"
+    },
+    "geometry": {
+        "file": "studies/panel_regularity_spindle_study/meshes/random_spindle.vtk",
+        "spanwise_axis": "+y",
+        "wake_model": {
+            "wake_present": false
+        }
+    },
+    "output": {
+        "body_file": "studies/panel_regularity_spindle_study/results/random_spindle.vtk",
+        "control_point_file": "studies/panel_regularity_spindle_study/results/random_spindle_control_points.vtk"
+    }
+}

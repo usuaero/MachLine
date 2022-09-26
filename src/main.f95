@@ -11,7 +11,7 @@ program main
     implicit none
 
     character(100) :: input_file
-    character(len=:),allocatable :: body_file, wake_file, control_point_file, points_file, points_output_file
+    character(len=:),allocatable :: body_file, wake_file, control_point_file, points_file, points_output_file, wake_strip_file
     character(len=:),allocatable :: mirrored_body_file, mirrored_control_point_file
     character(len=:),allocatable :: report_file, spanwise_axis
 
@@ -25,13 +25,12 @@ program main
     type(surface_mesh) :: body_mesh
     type(flow) :: freestream_flow
     type(panel_solver) :: linear_solver
-    real :: start, end
-    logical :: exists, found
+    real :: start_time, end_time, runtime
+    logical :: exists, found, exported
     integer :: i_unit
 
     ! Start timer
-    call cpu_time(start)
-    !$ start = omp_get_wtime()
+    call cpu_time(start_time)
 
     ! Set up run
     call json_initialize()
@@ -111,6 +110,7 @@ program main
     ! Get result files
     call json_xtnsn_get(output_settings, 'body_file', body_file, 'none')
     call json_xtnsn_get(output_settings, 'wake_file', wake_file, 'none')
+    call json_xtnsn_get(output_settings, 'wake_strip_file', wake_strip_file, 'none')
     call json_xtnsn_get(output_settings, 'control_point_file', control_point_file, 'none')
     call json_xtnsn_get(output_settings, 'mirrored_body_file', mirrored_body_file, 'none')
     call json_xtnsn_get(output_settings, 'mirrored_control_point_file', mirrored_control_point_file, 'none')
@@ -152,6 +152,22 @@ program main
         write(*,*) "Writing results to file"
     end if
 
+    ! Output mesh results
+    call body_mesh%output_results(body_file, wake_file, control_point_file, mirrored_body_file, mirrored_control_point_file)
+    if (points_file /= 'none' .and. points_output_file /= 'none' .and. verbose) then
+        write(*,'(a30 a)') "     Off-Body Points: ", points_output_file
+    end if
+
+    ! Wake strips
+    if (wake_strip_file /= 'none') then
+        call body_mesh%wake%write_strips(wake_strip_file, exported, body_mesh%mu)
+    end if
+
+    ! Figure out how long this took
+    call cpu_time(end_time)
+    runtime = end_time - start_time
+    call json_value_add(report_json, "total_runtime", runtime)
+
     ! Write report
     if (report_file /= 'none') then
         open(newunit=i_unit, file=report_file, status='REPLACE')
@@ -163,16 +179,8 @@ program main
     ! Destroy pointers
     call json_destroy(report_json)
 
-    ! Output mesh results
-    call body_mesh%output_results(body_file, wake_file, control_point_file, mirrored_body_file, mirrored_control_point_file)
-    if (points_file /= 'none' .and. points_output_file /= 'none' .and. verbose) then
-        write(*,'(a30 a)') "     Off-Body Points: ", points_output_file
-    end if
-
     ! Goodbye
-    call cpu_time(end)
-    !$ end = omp_get_wtime()
     if (verbose) write(*,*)
-    write(*,'(a, f10.4, a)') " MachLine exited successfully. Execution time: ", end-start, " s"
+    write(*,'(a, f10.4, a)') " MachLine exited successfully. Execution time: ", runtime, " s"
 
 end program main

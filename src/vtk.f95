@@ -12,7 +12,7 @@ module vtk_mod
 
         character(len=:),allocatable :: filename
         integer :: unit
-        logical :: cell_data_begun, point_data_begun, cells_subdivided
+        logical :: cell_data_begun, point_data_begun, cells_subdivided, panels_already_started
 
         contains
 
@@ -67,6 +67,7 @@ contains
         ! Initialize a few checks
         this%cell_data_begun = .false.
         this%point_data_begun = .false.
+        this%panels_already_started = .false.
     
     end subroutine vtk_out_begin
 
@@ -131,7 +132,7 @@ contains
     end subroutine vtk_out_write_points_array
 
 
-    subroutine vtk_out_write_panels(this, panels, subdivide, mirror)
+    subroutine vtk_out_write_panels(this, panels, subdivide, mirror, vertex_index_shift, N_total_panels)
         ! Write out panels to the vtk file; only handles triangular panels
 
         implicit none
@@ -139,23 +140,40 @@ contains
         class(vtk_out),intent(inout) :: this
         type(panel),dimension(:),intent(in) :: panels
         logical,intent(in) :: subdivide, mirror
+        integer,intent(in),optional :: vertex_index_shift, N_total_panels
 
-        integer :: i, j, N_panels
+        integer :: i, j, N_panels, shift
+
+        ! Check for shift
+        if (present(vertex_index_shift)) then
+            shift = vertex_index_shift
+        else
+            shift = 0
+        end if
 
         ! Determine whether the panels are to be subdivided (for quadratic doublet distributions)
         ! In this case, the edge midpoints will be used to divide each triangular panel into 4 subpanels
         this%cells_subdivided = subdivide
 
         ! Determine panel info size
-        N_panels = size(panels)
-        if (this%cells_subdivided) then
-            write(this%unit,'(a i20 i20)') "POLYGONS", N_panels*4, N_panels*16
+        if (present(N_total_panels)) then
+            N_panels = N_total_panels
         else
-            write(this%unit,'(a i20 i20)') "POLYGONS", N_panels, N_panels*4
+            N_panels = size(panels)
+        end if
+
+        ! Write polygon header
+        if (.not. this%panels_already_started) then
+            this%panels_already_started = .true.
+            if (this%cells_subdivided) then
+                write(this%unit,'(a i20 i20)') "POLYGONS", N_panels*4, N_panels*16
+            else
+                write(this%unit,'(a i20 i20)') "POLYGONS", N_panels, N_panels*4
+            end if
         end if
         
         ! Write out panels
-        do i=1,N_panels
+        do i=1,size(panels)
 
             ! Write out original panel
             if (.not. this%cells_subdivided) then
@@ -166,11 +184,11 @@ contains
                 ! Indices of each vertex; remember VTK files use 0-based indexing
                 if (mirror) then
                     do j=panels(i)%N,1,-1
-                        write(this%unit,'(i20) ',advance='no') panels(i)%get_vertex_index(j) - 1
+                        write(this%unit,'(i20) ',advance='no') panels(i)%get_vertex_index(j) - 1 + shift
                     end do
                 else
                     do j=1,panels(i)%N
-                        write(this%unit,'(i20) ',advance='no') panels(i)%get_vertex_index(j) - 1
+                        write(this%unit,'(i20) ',advance='no') panels(i)%get_vertex_index(j) - 1 + shift
                     end do
                 end if
             
@@ -182,25 +200,25 @@ contains
 
                 ! Middle panel
                 if (mirror) then
-                    write(this%unit,'(i1 i20 i20 i20)') 3, panels(i)%get_midpoint_index(3) - 1, &
-                                                           panels(i)%get_midpoint_index(2) - 1, &
-                                                           panels(i)%get_midpoint_index(1) - 1
+                    write(this%unit,'(i1 i20 i20 i20)') 3, panels(i)%get_midpoint_index(3) - 1 + shift, &
+                                                           panels(i)%get_midpoint_index(2) - 1 + shift, &
+                                                           panels(i)%get_midpoint_index(1) - 1 + shift
                 else
-                    write(this%unit,'(i1 i20 i20 i20)') 3, panels(i)%get_midpoint_index(1) - 1, &
-                                                           panels(i)%get_midpoint_index(2) - 1, &
-                                                           panels(i)%get_midpoint_index(3) - 1
+                    write(this%unit,'(i1 i20 i20 i20)') 3, panels(i)%get_midpoint_index(1) - 1 + shift, &
+                                                           panels(i)%get_midpoint_index(2) - 1 + shift, &
+                                                           panels(i)%get_midpoint_index(3) - 1 + shift
                 end if
 
                 ! Corner panels
                 do j=1,panels(i)%N
                     if (mirror) then
-                        write(this%unit,'(i1 i20 i20 i20)') 3, panels(i)%get_midpoint_index(modulo(j, panels(i)%N)+1) - 1, &
-                                                               panels(i)%get_vertex_index(modulo(j, panels(i)%N)+1) - 1, &
-                                                               panels(i)%get_midpoint_index(j) - 1
+                        write(this%unit,'(i1 i20 i20 i20)') 3, panels(i)%get_midpoint_index(modulo(j, panels(i)%N)+1) - 1 + shift, &
+                                                               panels(i)%get_vertex_index(modulo(j, panels(i)%N)+1) - 1 + shift, &
+                                                               panels(i)%get_midpoint_index(j) - 1 + shift
                     else
-                        write(this%unit,'(i1 i20 i20 i20)') 3, panels(i)%get_midpoint_index(j) - 1, &
-                                                               panels(i)%get_vertex_index(modulo(j, panels(i)%N)+1) - 1, &
-                                                               panels(i)%get_midpoint_index(modulo(j, panels(i)%N)+1) - 1
+                        write(this%unit,'(i1 i20 i20 i20)') 3, panels(i)%get_midpoint_index(j) - 1 + shift, &
+                                                               panels(i)%get_vertex_index(modulo(j, panels(i)%N)+1) - 1 + shift, &
+                                                               panels(i)%get_midpoint_index(modulo(j, panels(i)%N)+1) - 1 + shift
                     end if
                 end do
             end if

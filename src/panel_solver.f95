@@ -19,9 +19,9 @@ module panel_solver_mod
     type panel_solver
 
         real :: corrected_M_inf 
-        character(len=:),allocatable :: formulation, pressure_for_forces, matrix_solver, preconditioner
+        character(len=:),allocatable :: formulation, pressure_for_forces, matrix_solver, preconditioner, iteration_file
         logical :: incompressible_rule, isentropic_rule, second_order_rule, slender_rule, linear_rule
-        logical :: morino, write_A_and_b
+        logical :: morino, write_A_and_b, sort_system
         logical :: compressible_correction, prandtl_glauert, karman_tsien, laitone
         type(dod),dimension(:,:),allocatable :: dod_info, wake_dod_info
         type(flow) :: freestream
@@ -30,7 +30,7 @@ module panel_solver_mod
         real,dimension(:,:),allocatable :: A
         real,dimension(:),allocatable :: b
         integer,dimension(:),allocatable :: P
-        integer :: N, N_cells, block_size, max_iterations, N_unknown, N_d_unknown, N_s_unknown
+        integer :: N, N_cells, block_size, max_iterations, N_unknown, N_d_unknown, N_s_unknown, solver_iterations
 
         contains
 
@@ -50,6 +50,8 @@ module panel_solver_mod
             procedure :: update_system_row => panel_solver_update_system_row
             procedure :: calc_body_influences => panel_solver_calc_body_influences
             procedure :: calc_wake_influences => panel_solver_calc_wake_influences
+            procedure :: check_system => panel_solver_check_system
+            procedure :: write_system => panel_solver_write_system
             procedure :: solve_system => panel_solver_solve_system
 
             ! Post-processing
@@ -134,6 +136,9 @@ contains
         call json_xtnsn_get(solver_settings, 'relaxation', this%rel, 0.8)
         call json_xtnsn_get(solver_settings, 'max_iterations', this%max_iterations, 1000)
         call json_xtnsn_get(solver_settings, 'preconditioner', this%preconditioner, 'DIAG')
+        call json_xtnsn_get(solver_settings, 'iterative_solver_output', this%iteration_file, 'none')
+        call json_xtnsn_get(solver_settings, 'sort_system', this%sort_system, this%freestream%supersonic)
+        this%solver_iterations = -1
 
         ! Whether to write the linear system to file
         call json_xtnsn_get(solver_settings, 'write_A_and_b', this%write_A_and_b, .false.)
@@ -375,11 +380,11 @@ contains
                         if (body%asym_flow) then
 
                             ! Original vertex and mirrored control point
-                            mirrored_verts_in_dod(i) = this%freestream%point_in_dod(vert_loc, body%cp_mirrored(:,j))
+                            mirrored_verts_in_dod(i) = this%freestream%point_in_dod(vert_loc, body%cp_mir(:,j))
 
                             ! Mirrored vertex and mirrored control point
                             mirrored_verts_in_dod(i+body%N_verts) = this%freestream%point_in_dod(mirrored_vert_loc, &
-                                                                                                 body%cp_mirrored(:,j))
+                                                                                                 body%cp_mir(:,j))
 
                         end if
                     end if
@@ -398,7 +403,7 @@ contains
                         if (body%asym_flow) then
 
                             ! Original vertex and mirrored control point
-                            wake_verts_in_dod(i) = this%freestream%point_in_dod(vert_loc, body%cp_mirrored(:,j))
+                            wake_verts_in_dod(i) = this%freestream%point_in_dod(vert_loc, body%cp_mir(:,j))
 
                         else
 
@@ -426,11 +431,11 @@ contains
                         if (body%asym_flow) then
 
                             ! Check DoD for original panel and mirrored control point
-                            this%dod_info(i,j+body%N_cp) = body%panels(i)%check_dod(body%cp_mirrored(:,j), this%freestream, &
+                            this%dod_info(i,j+body%N_cp) = body%panels(i)%check_dod(body%cp_mir(:,j), this%freestream, &
                                                                                     mirrored_verts_in_dod)
 
                             ! Check DoD for mirrored panel and mirrored control point
-                            this%dod_info(i+body%N_panels,j+body%N_cp) = body%panels(i)%check_dod(body%cp_mirrored(:,j), &
+                            this%dod_info(i+body%N_panels,j+body%N_cp) = body%panels(i)%check_dod(body%cp_mir(:,j), &
                                                                                                   this%freestream, &
                                                                                                   mirrored_verts_in_dod, &
                                                                                                   .true., body%mirror_plane)
@@ -450,7 +455,7 @@ contains
                         if (body%asym_flow) then
 
                             ! Check DoD for panel and mirrored control point
-                            this%wake_dod_info(i,j+body%N_cp) = body%wake%panels(i)%check_dod(body%cp_mirrored(:,j), &
+                            this%wake_dod_info(i,j+body%N_cp) = body%wake%panels(i)%check_dod(body%cp_mir(:,j), &
                                                                                               this%freestream, &
                                                                                               wake_verts_in_dod)
 
@@ -489,7 +494,7 @@ contains
         ! Sort vertices in compressibility direction
         ! We proceed from most downstream to most upstream so as to get an upper-pentagonal matrix
         ! This sorting seems to improve the performance of iterative solvers for supersonic flow as well
-        if (this%freestream%supersonic) then ! .and. this%matrix_solver == 'QRUP') then
+        if (this%sort_system) then
 
             if (verbose) write(*,'(a)',advance='no') "     Permuting vertices for efficient system solution..."
 
@@ -583,9 +588,7 @@ contains
         call this%calc_body_influences(body)
 
         ! Calculate wake influences
-        if (body%wake%N_panels > 0) then
-            call this%calc_wake_influences(body)
-        end if
+        if (body%wake%N_panels > 0) call this%calc_wake_influences(body)
 
         ! Solve the linear system
         call this%solve_system(body)
@@ -812,7 +815,7 @@ contains
                             ! If the flow is symmetric or incompressible, this will be the same as already calculated
                             if (this%dod_info(j+body%N_panels,i+body%N_cp)%in_dod) then
                                 if (.not. this%freestream%incompressible) then
-                                    call body%panels(j)%calc_potential_influences(body%cp_mirrored(:,i), this%freestream, &
+                                    call body%panels(j)%calc_potential_influences(body%cp_mir(:,i), this%freestream, &
                                                                         this%dod_info(j+body%N_panels,i+body%N_cp), .true., &
                                                                         source_inf, doublet_inf)
                                 end if
@@ -826,7 +829,7 @@ contains
                         ! Calculate influence of existing panel on mirrored control point
                         if (this%dod_info(j,i+body%N_cp)%in_dod) then
                             if (body%vertices(i)%mirrored_is_unique .or. this%freestream%incompressible) then
-                                call body%panels(j)%calc_potential_influences(body%cp_mirrored(:,i), this%freestream, &
+                                call body%panels(j)%calc_potential_influences(body%cp_mir(:,i), this%freestream, &
                                                                     this%dod_info(j,i+body%N_cp), .false., &
                                                                     source_inf, doublet_inf)
                             end if
@@ -855,7 +858,7 @@ contains
                         ! This is the same as the influence of the mirrored panel on the existing control point,
                         ! even for compressible flow, since we know the flow is symmetric here
                         if (this%dod_info(j+body%N_panels,i)%in_dod) then
-                            call body%panels(j)%calc_potential_influences(body%cp_mirrored(:,i), this%freestream, &
+                            call body%panels(j)%calc_potential_influences(body%cp_mir(:,i), this%freestream, &
                                                                 this%dod_info(j+body%N_panels,i), &
                                                                 .false., source_inf, doublet_inf)
 
@@ -902,7 +905,7 @@ contains
 
                 ! Set for unique mirrored control  points
                 if (body%asym_flow .and. body%vertices(i)%mirrored_is_unique) then
-                    this%b(this%P(i+body%N_cp)) = -inner(x, body%cp_mirrored(:,i))
+                    this%b(this%P(i+body%N_cp)) = -inner(x, body%cp_mir(:,i))
                 end if
             end if
             !$OMP end critical
@@ -968,7 +971,7 @@ contains
                     if (body%asym_flow) then
 
                         ! Calculate influence of existing panel on mirrored point
-                        call body%wake%panels(j)%calc_potential_influences(body%cp_mirrored(:,i), this%freestream, &
+                        call body%wake%panels(j)%calc_potential_influences(body%cp_mir(:,i), this%freestream, &
                                                                  this%wake_dod_info(j,i+body%N_cp), .false., &
                                                                  source_inf, doublet_inf)
 
@@ -985,7 +988,7 @@ contains
                         ! Calculate influence of existing panel on mirrored control point
                         ! This is the same as the influence of a mirrored panel on an existing control point
                         ! even for compressible flow, since we know the flow is symmetric here
-                        call body%wake%panels(j)%calc_potential_influences(body%cp_mirrored(:,i), this%freestream, &
+                        call body%wake%panels(j)%calc_potential_influences(body%cp_mir(:,i), this%freestream, &
                                                                  this%wake_dod_info(j+body%wake%N_panels,i), .false., & ! No, this is not the DoD for this computation; yes, it is equivalent
                                                                  source_inf, doublet_inf)
 
@@ -1018,6 +1021,77 @@ contains
     end subroutine panel_solver_calc_wake_influences
 
 
+    subroutine panel_solver_check_system(this)
+        ! Checks the validity of the linear system
+
+        implicit none
+        
+        class(paneL_solver),intent(in) :: this
+
+        integer :: i
+
+        if (verbose) write(*,'(a)',advance='no') "     Checking validity of linear system..."
+
+        ! Check for NaNs
+        if (any(isnan(this%A))) then
+            write(*,*) "!!! Invalid value detected in A matrix. Quitting..."
+            stop
+        end if
+        if (any(isnan(this%b))) then
+            write(*,*) "!!! Invalid value detected in b vector. Quitting..."
+            stop
+        end if
+
+        ! Check for uninfluenced/ing points
+        do i=1,this%N
+            if (all(this%A(this%P(i),:) == 0.)) then
+                write(*,*) "!!! Control point ", i, " is not influenced. Quitting..."
+                stop
+            end if
+            if (all(this%A(:,this%P(i)) == 0.)) then
+                write(*,*) "!!! Vertex ", i, " exerts no influence. Quitting..."
+                stop
+            end if
+        end do
+
+        if (verbose) write(*,*) "Done."
+
+    end subroutine panel_solver_check_system
+
+
+    subroutine panel_solver_write_system(this)
+        ! Writes the linear system to file
+
+        implicit none
+        
+        class(panel_solver),intent(in) :: this
+
+        integer :: i, j, unit
+
+        if (verbose) write(*,'(a)',advance='no') "     Writing linear system to file..."
+
+        ! A
+        open(newunit=unit, file="A_mat.txt")
+        do i=1,this%N
+            do j=1,this%N
+                write(unit,'(e20.12)',advance='no') this%A(i,j)
+            end do
+            write(unit,*)
+        end do
+        close(unit)
+
+        ! b
+        open(newunit=unit, file="b_vec.txt")
+        do i=1,this%N
+            write(unit,*) this%b(i)
+        end do
+        close(unit)
+
+        if (verbose) write(*,*) "Done."
+
+    end subroutine panel_solver_write_system
+
+
     subroutine panel_solver_solve_system(this, body)
         ! Solves the linear system for the singularity strengths
 
@@ -1028,9 +1102,7 @@ contains
 
         real,dimension(:,:),allocatable :: A_p
         real,dimension(:),allocatable :: b_p, x, R
-        integer :: stat, i, j, unit
-        real,dimension(:),allocatable :: A_ii_inv
-        integer,dimension(:),allocatable :: P_inv
+        integer :: stat, i, j
 
         ! Set b vector for Morino formulation
         if (this%formulation == "morino") then
@@ -1040,62 +1112,10 @@ contains
         end if
 
         ! Run checks
-        if (run_checks) then
+        if (run_checks) call this%check_system()
 
-            if (verbose) write(*,'(a)',advance='no') "     Checking validity of linear system..."
-
-            ! Check for NaNs
-            if (any(isnan(this%A))) then
-                write(*,*) "!!! Invalid value detected in A matrix. Quitting..."
-                stop
-            end if
-            if (any(isnan(this%b))) then
-                write(*,*) "!!! Invalid value detected in b vector. Quitting..."
-                stop
-            end if
-
-            ! Check for uninfluenced/ing points
-            do i=1,this%N
-                if (all(this%A(this%P(i),:) == 0.)) then
-                    write(*,*) "!!! Control point ", i, " is not influenced. Quitting..."
-                    stop
-                end if
-                if (all(this%A(:,this%P(i)) == 0.)) then
-                    write(*,*) "!!! Vertex ", i, " exerts no influence. Quitting..."
-                    stop
-                end if
-            end do
-
-            if (verbose) write(*,*) "Done."
-
-        end if
-
-        ! Write A and b to file
-        if (this%write_A_and_b) then
-
-            if (verbose) write(*,'(a)',advance='no') "     Writing linear system to file..."
-
-            ! A
-            call invert_permutation_vector(this%N, this%P, P_inv)
-            open(newunit=unit, file="A_mat.txt")
-            do i=1,this%N
-                do j=1,this%N
-                    write(unit,'(e20.12)',advance='no') this%A(this%P(i),this%P(j))
-                end do
-                write(unit,*)
-            end do
-            close(unit)
-
-            ! b
-            open(newunit=unit, file="b_vec.txt")
-            do i=1,this%N
-                write(unit,*) this%b(i)
-            end do
-            close(unit)
-
-            if (verbose) write(*,*) "Done."
-
-        end if
+        ! Write to file
+        if (this%write_A_and_b) call this%write_system()
 
         if (verbose) write(*,'(a, a, a)',advance='no') "     Solving linear system (method: ", this%matrix_solver, ")..."
 
@@ -1122,14 +1142,6 @@ contains
         case ('LU')
             call lu_solve(this%N, A_p, b_p, x)
 
-        ! Upper-pentagonal Gauss elimination
-        case ('GEUP')
-            call GE_solve_upper_pentagonal(this%N, A_p, b_p, x)
-
-        ! QR via Givens rotations
-        case ('QR')
-            call QR_givens_solve(this%N, A_p, b_p, x)
-
         ! QR via Givens rotations for upper-pentagonal
         case ('QRUP')
             call QR_row_givens_solve_UP(this%N, A_p, b_p, x)
@@ -1140,7 +1152,7 @@ contains
 
         ! GMRES
         case ('GMRES')
-            call GMRES(this%N, A_p, b_p, this%tol, this%max_iterations, x)
+            call GMRES(this%N, A_p, b_p, this%tol, this%max_iterations, this%iteration_file, this%solver_iterations, x)
 
         ! Purcell's method
         case ('PURC')
@@ -1149,28 +1161,29 @@ contains
         ! Block successive over-relaxation
         case ('BSOR')
             call block_sor_solve(this%N, A_p, b_p, this%block_size, this%tol, this%rel, &
-                                 this%max_iterations, verbose, x)
+                                 this%max_iterations, this%iteration_file, this%solver_iterations, x)
 
         ! Adaptive block SOR
         case ('ABSOR')
             this%rel = -1.
             call block_sor_solve(this%N, A_p, b_p, this%block_size, this%tol, this%rel, &
-                                 this%max_iterations, verbose, x)
+                                 this%max_iterations, this%iteration_file, this%solver_iterations, x)
         
         ! Block Jacobi
         case ('BJAC')
             call block_jacobi_solve(this%N, A_p, b_p, this%block_size, this%tol, this%rel, &
-                                    this%max_iterations, verbose, x)
+                                    this%max_iterations, this%iteration_file, this%solver_iterations, x)
 
         ! Optimally relaxed block Jacobi
         case ('ORBJ')
             this%rel = -1.
             call block_jacobi_solve(this%N, A_p, b_p, this%block_size, this%tol, this%rel, &
-                                    this%max_iterations, verbose, x)
+                                    this%max_iterations, this%iteration_file, this%solver_iterations, x)
+
         ! Improper specification
         case default
-            write(*,*) "!!! ", this%matrix_solver, " is not a valid option. Defaulting to LU decomposition."
-            call lu_solve(this%N, A_p, b_p, x)
+            write(*,*) "!!! ", this%matrix_solver, " is not a valid option. Defaulting to GMRES."
+            call GMRES(this%N, A_p, b_p, this%tol, this%max_iterations, this%iteration_file, this%solver_iterations, x)
 
         end select
         if (verbose) write(*,*) "Done."
@@ -1828,6 +1841,7 @@ contains
         call json_value_create(p_parent)
         call to_object(p_parent, 'solver_results')
         call json_value_add(p_json, p_parent)
+        if (this%solver_iterations > -1) call json_value_add(p_parent, 'iterations', this%solver_iterations)
         call json_value_create(p_child)
         call to_object(p_child, 'residual')
         call json_value_add(p_parent, p_child)
