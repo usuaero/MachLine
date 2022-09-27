@@ -581,15 +581,6 @@ contains
                 ! Initialize; need +1 because VTK uses 0-based indexing
                 call panels(i)%init(vertices(new_ind(i1+1)), vertices(new_ind(i2+1)), vertices(new_ind(i3+1)), i)
 
-                ! Add panel index to vertices' panel lists
-                call vertices(new_ind(i1+1))%panels%append(i)
-                call vertices(new_ind(i2+1))%panels%append(i)
-                call vertices(new_ind(i3+1))%panels%append(i)
-
-                call vertices(new_ind(i1+1))%panels_not_across_wake_edge%append(i)
-                call vertices(new_ind(i2+1))%panels_not_across_wake_edge%append(i)
-                call vertices(new_ind(i3+1))%panels_not_across_wake_edge%append(i)
-
             end do
 
         close(1)

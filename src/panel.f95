@@ -74,6 +74,7 @@ module panel_mod
         real,dimension(:,:),allocatable :: S_mu_inv_mir, S_sigma_inv_mir
         logical :: in_wake ! Whether this panel belongs to a wake mesh
         integer,dimension(3) :: abutting_panels ! Indices of panels abutting this one
+        integer,dimension(3) :: edges ! Indices of the edges of this panel
         integer :: r, r_mir ! Panel inclination indicator; r=-1 -> superinclined, r=1 -> subinclined
         real :: J, J_mir ! Local scaled transformation Jacobian
         integer,dimension(:),allocatable :: i_vert_d, i_vert_s
@@ -184,8 +185,10 @@ contains
         implicit none
 
         class(panel),intent(inout) :: this
-        type(vertex),intent(in),target :: v1, v2, v3
+        type(vertex),intent(inout),target :: v1, v2, v3
         integer,intent(in) :: index
+
+        integer :: i
 
         ! Set number of sides
         this%N = 3
@@ -200,6 +203,12 @@ contains
 
         ! Store the index of the panel
         this%index = index
+
+        ! Store that this panel is attached to its vertices
+        do i=1,this%N
+            call this%vertices(i)%ptr%panels%append(this%index)
+            call this%vertices(i)%ptr%panels_not_across_wake_edge%append(this%index)
+        end do
 
         ! Initialize a few things
         this%abutting_panels = 0
@@ -2089,7 +2098,7 @@ contains
             if (geom%R1(i) > 0.) then
 
                 ! Cancel out edge influence
-                int%hH113 = int%hH113 = pi
+                int%hH113 = int%hH113 - pi
 
                 ! Get index of previous corner
                 if (i == 1) then
@@ -2170,7 +2179,7 @@ contains
 
         ! Calculate necessary integrals based on the flow condition and panel type
         if (freestream%supersonic) then
-            if (this%mirror_panel) then
+            if (mirror_panel) then
                 if (this%r_mir == 1.) then
                     call this%calc_supersonic_subinc_edge_integrals(geom, dod_info, freestream, mirror_panel, int)
                     call this%calc_supersonic_subinc_panel_integrals(geom, dod_info, freestream, mirror_panel, int)

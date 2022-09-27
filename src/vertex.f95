@@ -27,6 +27,7 @@ module vertex_mod
         logical :: clone ! Whether this vertex needs a clone depending on whether it's in a wake-shedding edge
         logical :: mirrored_is_unique ! Whether this vertice's mirror image will be the same for an asymmetric freestream condition
         integer :: i_wake_partner ! Index of the vertex, which along with this one, will determine wake strength
+        integer :: N_needed_clones
 
         contains
 
@@ -74,8 +75,10 @@ contains
         ! Default cases
         this%mirrored_is_unique = .true.
         this%clone = .false.
+        this%N_needed_clones = 0
         this%on_mirror_plane = .false.
         this%i_wake_partner = index
+        this%N_wake_edges = 0
 
     end subroutine vertex_init
 
@@ -163,21 +166,7 @@ contains
 
         integer :: N_clones
 
-        ! Check if clones are needed at all
-        if (this%clone) then
-
-            ! Regular vertices need one less than the number of adjacent wake edges
-            if (this%vert_type == 1) then
-                N_clones = this%N_wake_edges - 1
-
-            ! Midpoints only ever need one
-            else
-                N_clones = 1
-            end if
-
-        else
-            N_clones = 0
-        end if
+        N_clones = this%N_needed_clones
         
     end function vertex_get_N_needed_clones
 

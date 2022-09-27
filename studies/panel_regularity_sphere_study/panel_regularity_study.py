@@ -68,23 +68,24 @@ def run_sphere_comparison(grid, sample, run_machline=True):
     Cz = report["total_forces"]["Cz"]
 
     # Read into ParaView
-    data_reader = pvs.LegacyVTKReader(registrationName=case_name, FileNames=body_file)
+    sphere_vtk = pvs.LegacyVTKReader(registrationName=case_name, FileNames=body_file)
+    pvs.SaveData(data_file, proxy=sphere_vtk, FieldAssociation="Cell Data")
 
-    # Filter cell data to point data
-    filter = pvs.CellDatatoPointData(registrationName='Filter', Input=data_reader)
-    data_to_process = ['C_p_inc']
-    filter.CellDataArraytoprocess = data_to_process
+    ## Filter cell data to point data
+    #filter = pvs.CellDatatoPointData(registrationName='Filter', Input=sphere_vtk)
+    #data_to_process = ['C_p_inc']
+    #filter.CellDataArraytoprocess = data_to_process
 
-    # Extract and save data
-    plot = pvs.PlotOnIntersectionCurves(registrationName='Plot', Input=filter)
-    plot.SliceType = 'Plane'
-    plot.SliceType.Normal = [0.0, 1.0, 0.0]
-    view = pvs.CreateView('XYChartView')
-    display = pvs.Show(plot, view, 'XYChartRepresentation')
-    view.Update()
-    display.XArrayName = 'Points_X'
-    view.Update()
-    pvs.SaveData(data_file, proxy=plot, PointDataArrays=data_to_process, FieldAssociation='Point Data', Precision=12)
+    ## Extract and save data
+    #plot = pvs.PlotOnIntersectionCurves(registrationName='Plot', Input=filter)
+    #plot.SliceType = 'Plane'
+    #plot.SliceType.Normal = [0.0, 1.0, 0.0]
+    #view = pvs.CreateView('XYChartView')
+    #display = pvs.Show(plot, view, 'XYChartRepresentation')
+    #view.Update()
+    #display.XArrayName = 'Points_X'
+    #view.Update()
+    #pvs.SaveData(data_file, proxy=plot, PointDataArrays=data_to_process, FieldAssociation='Point Data', Precision=12)
 
     # Read in data
     data = np.genfromtxt(data_file, delimiter=',', skip_header=1)

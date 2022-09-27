@@ -30,7 +30,6 @@ default:
 	common/sort.f95 \
 	src/flow.f95 \
 	src/vertex.f95 \
-	src/node.f95 \
 	src/edge.f95 \
 	src/panel.f95 \
 	src/mesh.f95 \

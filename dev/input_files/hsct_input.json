@@ -7,7 +7,6 @@
         "mirror_about" : "xz",
         "spanwise_axis" : "+y",
         "wake_model": {
-            "wake_shedding_angle" : 100.0
         },
         "reference": {
             "area": 1.0
