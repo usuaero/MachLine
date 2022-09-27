@@ -8,9 +8,7 @@
         "gamma": 1.4,
         "freestream_mach_number": 1.4142135623730951
     },
-    "solver": {
-        "matrix_solver": "FQRUP"
-    },
+    "solver": {},
     "geometry": {
         "file": "studies/panel_regularity_spindle_study/meshes/random_spindle.vtk",
         "spanwise_axis": "+y",

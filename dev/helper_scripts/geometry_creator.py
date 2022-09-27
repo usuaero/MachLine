@@ -1,7 +1,7 @@
 import copy
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.spatial import ConvexHull, convex_hull_plot_2d
+from scipy.spatial import ConvexHull
 
 
 def _export_vtk(filename, vertices, panels):
