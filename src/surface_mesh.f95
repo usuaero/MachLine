@@ -1124,7 +1124,7 @@ contains
         logical,intent(in) :: mirrored_is_unique
         integer,dimension(:),allocatable,intent(in) :: panels_for_this_clone
 
-        integer :: k, m, n, i_bot_panel, i_abutting_panel, i_adj_vert, i_top_panel, i_edge
+        integer :: k, i_vert, i_panel
 
         ! Basic initialization
         call this%vertices(i_boba)%init(this%vertices(i_jango)%loc, i_boba, this%vertices(i_jango)%vert_type)
@@ -1149,10 +1149,10 @@ contains
         do k=1,this%vertices(i_jango)%panels%len()
 
             ! Get adjacent panel index from original vertex
-            call this%vertices(i_jango)%panels%get(k, i_abutting_panel)
+            call this%vertices(i_jango)%panels%get(k, i_panel)
 
             ! Copy to clone
-            call this%vertices(i_boba)%panels%append(i_abutting_panel)
+            call this%vertices(i_boba)%panels%append(i_panel)
 
         end do
 
@@ -1160,85 +1160,33 @@ contains
         do k=1,this%vertices(i_jango)%adjacent_vertices%len()
 
             ! Get adjacent panel index from original vertex
-            call this%vertices(i_jango)%adjacent_vertices%get(k, i_adj_vert)
+            call this%vertices(i_jango)%adjacent_vertices%get(k, i_vert)
 
             ! Copy to new vertex
-            call this%vertices(i_boba)%adjacent_vertices%append(i_adj_vert)
+            call this%vertices(i_boba)%adjacent_vertices%append(i_vert)
 
         end do
 
-        ! Remove bottom panels from top vertex and give them to the bottom vertex
-        ! Loop through edges adjacent to this vertex
-        do n=1,this%vertices(i_jango)%adjacent_edges%len()
+        ! Remove necessary panels from Jango and give them to Boba
+        do k=1,size(panels_for_this_clone)
 
-            ! Get edge index
-            call this%vertices(i_jango)%adjacent_edges%get(n, i_edge)
+            ! Make sure panel exists
+            i_panel = panels_for_this_clone(k)
+            if (i_panel /= 0) then
 
-            ! Copy to new vertex
-            call this%vertices(i_boba)%adjacent_edges%append(i_edge)
+                ! Remove from Jango
+                call this%vertices(i_jango)%panels_not_across_wake_edge%delete(i_panel)
 
-            ! Check if this is a wake-shedding edge
-            if (this%edges(i_edge)%sheds_wake) then
-
-                ! Get bottom panel index
-                i_top_panel = this%edges(i_edge)%panels(1)
-                i_bot_panel = this%edges(i_edge)%panels(2)
-
-                ! Make sure this bottom panel is not a mirrored panel
-                if (i_bot_panel <= this%N_panels) then
-
-                    ! Remove bottom panel index from original vertex
-                    call this%vertices(i_jango)%panels_not_across_wake_edge%delete(i_bot_panel)
-
-                    ! Add to clone
-                    if (.not. this%vertices(i_boba)%panels_not_across_wake_edge%is_in(i_bot_panel)) then
-                        call this%vertices(i_boba)%panels_not_across_wake_edge%append(i_bot_panel)
-                    end if
-
-                    ! If there are any panels attached to this vertex and abutting the bottom panel, shift them over as well
-                    do m=1,this%panels(i_bot_panel)%N
-
-                        ! Get the index of the panel abutting this bottom panel
-                        i_abutting_panel = this%panels(i_bot_panel)%abutting_panels(m)
-
-                        ! Check if it is not the top panel
-                        if (i_abutting_panel /= i_top_panel) then
-
-                            ! Make sure the abutting panel is not a mirrored/nonexistant panel
-                            if (i_abutting_panel > 0 .and. i_abutting_panel <= this%N_panels) then
-
-                                ! See if this panel touches the vertex
-                                if (this%panels(i_abutting_panel)%touches_vertex(i_jango)) then
-
-                                    ! Remove from original vertex
-                                    call this%vertices(i_jango)%panels_not_across_wake_edge%delete(i_abutting_panel)
-
-                                    ! Add to cloned vertex
-                                    if (.not.this%vertices(i_boba)%panels_not_across_wake_edge%is_in(i_abutting_panel))&
-                                        then
-                                        call this%vertices(i_boba)%panels_not_across_wake_edge%append(i_abutting_panel)
-                                    end if
-
-                                end if
-                            end if
-                        end if
-                    end do
-
+                ! Add to Boba
+                if (.not. this%vertices(i_boba)%panels_not_across_wake_edge%is_in(i_panel)) then
+                    call this%vertices(i_boba)%panels_not_across_wake_edge%append(i_panel)
                 end if
 
-            end if
+                ! Update panel to point to Boba (doesn't need to be done for mirrored panels)
+                if (i_panel <= this%N_panels) then
+                    call this%panels(i_panel)%point_to_new_vertex(this%vertices(i_boba))
+                end if
 
-        end do
-
-        ! Update bottom panels to point to cloned vertex
-        do k=1,this%vertices(i_boba)%panels_not_across_wake_edge%len()
-
-            ! Get panel index
-            call this%vertices(i_boba)%panels_not_across_wake_edge%get(k, i_bot_panel)
-
-            ! Update (doesn't need to be done for mirrored panels)
-            if (i_bot_panel <= this%N_panels) then
-                call this%panels(i_bot_panel)%point_to_new_vertex(this%vertices(i_boba))
             end if
 
         end do
@@ -1256,13 +1204,11 @@ contains
 
         real,dimension(3) :: n_avg, n_avg_plane, n_g_panel
         integer :: i, j, i_panel, N_panels
-        real,dimension(:),allocatable :: constraint_array
-        real :: x
 
         if (verbose) write(*,'(a)',advance='no') "     Calculating vertex normals..."
 
         ! Loop through vertices
-        !$OMP parallel do private(n_avg, i, i_panel, constraint_array, n_avg_plane, N_panels, n_g_panel) schedule(dynamic)
+        !$OMP parallel do private(n_avg, i, i_panel, n_avg_plane, N_panels, n_g_panel) schedule(dynamic)
         do j=1,this%N_verts
 
             ! Allocate storage for the panel normals
@@ -1427,9 +1373,9 @@ contains
         class(surface_mesh),intent(inout) :: this
         real,intent(in) :: offset
 
-        integer :: i, j, i_panel
-        real,dimension(3) :: n_avg
-        real :: offset_ratio
+        integer :: i, j, k, i_panel, i_adj_vert_1, i_adj_vert_2
+        real,dimension(3) :: n_avg, dir, t1, t2
+        real :: offset_ratio, C_min_edge_angle, C_edge_angle
 
         ! Specify number of control points
         this%N_cp = this%N_verts
@@ -1438,12 +1384,14 @@ contains
         allocate(this%cp(3,this%N_verts))
 
         ! Calculate offset ratio such that the control point will remain within the body based on the minimum detected angle between panels
-        if (this%wake_present) then
-            offset_ratio = 0.5*sqrt(0.5*(1. + this%C_min_panel_angle))
-        end if
+        !if (this%wake_present) then
+        !    offset_ratio = 0.5*sqrt(0.5*(1. + this%C_min_panel_angle))
+        !end if
 
         ! Loop through vertices
-        !$OMP parallel do private(j, n_avg, i_panel) schedule(dynamic) shared(this, offset, offset_ratio) default(none)
+        !$OMP parallel do private(j, n_avg, i_panel, dir, offset_ratio, C_min_edge_angle, i_adj_vert_1, i_adj_vert_2) &
+        !$OMP & private(t1, t2, C_edge_angle) &
+        !$OMP & schedule(dynamic) shared(this, offset) default(none)
         do i=1,this%N_verts
 
             ! If the vertex is a clone, it needs to be shifted off the normal slightly so that it is unique from its counterpart
@@ -1473,24 +1421,62 @@ contains
                     n_avg = 0.
                 end if
 
-                ! Place control point
-                this%cp(:,i) = this%vertices(i)%loc - offset * (this%vertices(i)%n_g - offset_ratio*n_avg)*this%vertices(i)%l_avg
-                !if (i+1 <= this%N_verts) then
-                !    if (this%vertices(i+1)%clone) then
-                !        this%cp(:,i) = this%vertices(i)%loc - offset*this%vertices(i)%n_g*this%vertices(i)%l_avg*10.0
-                !    else
-                !        this%cp(:,i) = this%vertices(i)%loc - offset*this%vertices(i)%n_g*this%vertices(i)%l_avg
-                !    end if
-                !else
-                !    this%cp(:,i) = this%vertices(i)%loc - offset*this%vertices(i)%n_g*this%vertices(i)%l_avg
-                !end if
+                ! Figure out offset ratio to keep this control point inside the mesh
+                C_min_edge_angle = 0.0
+                do j=1,this%vertices(i)%adjacent_vertices%len()
+
+                    ! Get vector to adjacent vertex
+                    call this%vertices(i)%adjacent_vertices%get(j, i_adj_vert_1)
+                    t1 = this%vertices(i_adj_vert_1)%loc - this%vertices(i)%loc
+                    t1 = t1/norm2(t1)
+
+                    ! Loop through other possible vectors
+                    do k=1,this%vertices(i)%adjacent_vertices%len()
+
+                        ! Get vector to adjacent vertex
+                        call this%vertices(i)%adjacent_vertices%get(k, i_adj_vert_2)
+                        t2 = this%vertices(i_adj_vert_2)%loc - this%vertices(i)%loc
+                        t2 = t2/norm2(t2)
+
+                        ! Get cos of minimum edge angle
+                        C_edge_angle = inner(t1, t2)
+                        if (C_edge_angle < 0.999999) then ! To avoid tangents formed from vertex clones
+                            C_min_edge_angle = max(C_min_edge_angle, C_edge_angle)
+                        end if
+
+                    end do
+                end do
+
+                ! Calculate offset ratio
+                offset_ratio = 0.5*sqrt(0.5*(1.0-C_min_edge_angle))
+
+                ! Set direction
+                dir = -this%vertices(i)%n_g + offset_ratio*n_avg
 
             ! If it has no clone, then placement simply follows the normal vector
             else
 
-                this%cp(:,i) = this%vertices(i)%loc - offset*this%vertices(i)%n_g*this%vertices(i)%l_avg
+                ! Set direction
+                dir = -this%vertices(i)%n_g
 
             end if
+
+            ! Check if the control point is going to be outside the mesh
+            do j=1,this%vertices(i)%panels%len()
+
+                ! Get panel index
+                call this%vertices(i)%panels%get(j, i_panel)
+
+                ! Check
+                if (inner(this%panels(i_panel)%n_g, dir) > 0.) then
+                    write(*,*) "!!! Control point ", i, " is outside the mesh. Quitting...", inner(this%panels(i_panel)%n_g, dir)
+                    !stop
+                end if
+
+            end do
+            
+            ! Place control point
+            this%cp(:,i) = this%vertices(i)%loc + offset*dir*this%vertices(i)%l_avg
 
         end do
 

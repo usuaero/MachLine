@@ -1,19 +1,20 @@
 {
     "flow": {
-        "freestream_velocity": [100.0, 0.0, 0.0]
+        "freestream_velocity": [100.0, 0.01, 10.0]
     },
     "geometry": {
         "file": "dev/meshes/HSCT.vtk",
         "mirror_about" : "xz",
         "spanwise_axis" : "+y",
         "wake_model": {
+            "trefftz_distance" : 100.0
         },
         "reference": {
             "area": 1.0
         }
     },
     "solver": {
-        "control_point_offset" : 0.1,
+        "control_point_offset" : 1.e-6,
         "run_checks" : false
     },
     "post_processing" : {
