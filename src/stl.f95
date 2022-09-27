@@ -1,7 +1,7 @@
 module stl_mod
 
     use panel_mod
-    use vertex_mod
+    use base_geom_mod
     use math_mod
 
     implicit none

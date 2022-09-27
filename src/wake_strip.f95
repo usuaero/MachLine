@@ -1,9 +1,7 @@
 module wake_strip_mod
 
-    use vertex_mod
     use panel_mod
-    use vertex_mod
-    use edge_mod
+    use base_geom_mod
     use helpers_mod
     use mesh_mod
 
@@ -78,11 +76,11 @@ contains
         ! Get midpoint parent vertices
         if (doublet_order == 2) then
             if (mirror_start) then
-                this%i_top_parent_mid = starting_edge%i_midpoint + N_body_verts
-                this%i_bot_parent_mid = body_verts(starting_edge%i_midpoint)%i_wake_partner + N_body_verts
+                this%i_top_parent_mid = starting_edge%top_midpoint + N_body_verts
+                this%i_bot_parent_mid = starting_edge%bot_midpoint + N_body_verts
             else
-                this%i_top_parent_mid = starting_edge%i_midpoint
-                this%i_bot_parent_mid = body_verts(starting_edge%i_midpoint)%i_wake_partner
+                this%i_top_parent_mid = starting_edge%top_midpoint
+                this%i_bot_parent_mid = starting_edge%bot_midpoint
             end if
         end if
 
@@ -134,10 +132,10 @@ contains
         call this%vertices(2)%init(start_2, 2, 1)
 
         ! Set parents
-        this%vertices(1)%top_parent = this%i_top_parent_1 + N_body_verts
-        this%vertices(1)%bot_parent = this%i_bot_parent_1 + N_body_verts
-        this%vertices(2)%top_parent = this%i_top_parent_2 + N_body_verts
-        this%vertices(2)%bot_parent = this%i_bot_parent_2 + N_body_verts
+        this%vertices(1)%top_parent = this%i_top_parent_1
+        this%vertices(1)%bot_parent = this%i_bot_parent_1
+        this%vertices(2)%top_parent = this%i_top_parent_2
+        this%vertices(2)%bot_parent = this%i_bot_parent_2
 
         ! Calculate distances to Trefftz plane
         d1 = trefftz_dist - inner(start_1, freestream%c_hat_g)
@@ -339,6 +337,10 @@ contains
                 end if
             end if
 
+            ! Store parents
+            this%vertices(i_mid)%top_parent = this%i_top_parent_mid
+            this%vertices(i_mid)%bot_parent = this%i_bot_parent_mid
+
             ! Initialize side midpoint
             i_mid = i_mid + 1
             
@@ -363,6 +365,10 @@ contains
                 this%panels(i)%midpoints(1)%ptr => this%vertices(i_mid)
                 edge_prev = 1
 
+                ! Store parents
+                this%vertices(i_mid)%top_parent = this%i_top_parent_1
+                this%vertices(i_mid)%bot_parent = this%i_bot_parent_1
+
             ! Side 2
             else
 
@@ -382,6 +388,10 @@ contains
                 ! Point panel to it
                 this%panels(i)%midpoints(2)%ptr => this%vertices(i_mid)
                 edge_prev = 2
+
+                ! Store parents
+                this%vertices(i_mid)%top_parent = this%i_top_parent_2
+                this%vertices(i_mid)%bot_parent = this%i_bot_parent_2
 
             end if
 
@@ -409,6 +419,10 @@ contains
         else
             this%panels(this%N_panels)%midpoints(1)%ptr => this%vertices(i_mid)
         end if
+
+        ! Store parents
+        this%vertices(i_mid)%top_parent = this%i_top_parent_mid
+        this%vertices(i_mid)%bot_parent = this%i_bot_parent_mid
 
         this%midpoints_created = .true.
         

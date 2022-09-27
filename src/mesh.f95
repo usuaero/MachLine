@@ -1,7 +1,7 @@
 ! A basic mesh type consisting of a collection of vertices and panels
 module mesh_mod
 
-    use vertex_mod
+    use base_geom_mod
     use panel_mod
 
     implicit none

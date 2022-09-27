@@ -12,8 +12,6 @@
         }
     },
     "solver": {
-        "matrix_solver" : "GMRES",
-        "control_point_offset" : 1.0e-6,
         "write_A_and_" : true
     },
     "output": {

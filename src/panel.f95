@@ -3,7 +3,7 @@ module panel_mod
 
     use helpers_mod
     use linked_list_mod
-    use vertex_mod
+    use base_geom_mod
     use math_mod
     use flow_mod
     use linalg_mod

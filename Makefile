@@ -29,8 +29,7 @@ default:
 	common/json_xtnsn.f95 \
 	common/sort.f95 \
 	src/flow.f95 \
-	src/vertex.f95 \
-	src/edge.f95 \
+	src/base_geom.f95 \
 	src/panel.f95 \
 	src/mesh.f95 \
 	src/stl.f95 \
@@ -62,8 +61,7 @@ serial:
 	common/json_xtnsn.f95 \
 	common/sort.f95 \
 	src/flow.f95 \
-	src/vertex.f95 \
-	src/edge.f95 \
+	src/base_geom.f95 \
 	src/panel.f95 \
 	src/mesh.f95 \
 	src/vtk.f95 \

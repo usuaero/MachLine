@@ -5,11 +5,10 @@ module wake_mesh_mod
     use json_xtnsn_mod
     use linked_list_mod
     use helpers_mod
-    use vertex_mod
+    use base_geom_mod
     use panel_mod
     use math_mod
     use flow_mod
-    use edge_mod
     use vtk_mod
     use wake_strip_mod
     use mesh_mod
@@ -462,7 +461,7 @@ contains
         integer,dimension(:),allocatable,intent(in) :: wake_edge_indices
         logical,intent(in) :: asym_flow
 
-        integer :: i_mid, i, j, k, m, n, m1, n1, temp, i_edge, i_midpoint_parent, i_pot_edge, j_next, i_start, N_mids
+        integer :: i_mid, i, j, k, m, n, m1, n1, temp, i_edge, i_pot_edge, j_next, i_start, N_mids
         real :: distance
         integer,dimension(2) :: shared
         integer,dimension(:,:),allocatable :: shared_verts
@@ -625,7 +624,7 @@ contains
         integer,dimension(:),allocatable,intent(in) :: wake_edge_indices
         logical,intent(in) :: asym_flow
 
-        integer :: k, i_pot_edge, i_midpoint_parent, N_body_verts
+        integer :: k, i_pot_edge, N_body_verts
 
         N_body_verts = size(body_verts)
 
@@ -650,12 +649,9 @@ contains
                     (this%vertices(shared(2))%top_parent == body_edges(i_pot_edge)%top_verts(1).and.&
                      this%vertices(shared(1))%top_parent == body_edges(i_pot_edge)%top_verts(2)))then
 
-                    ! Get midpoint index
-                    i_midpoint_parent = body_edges(i_pot_edge)%i_midpoint
-
                     ! Set parents
-                    this%vertices(i_mid)%top_parent = i_midpoint_parent
-                    this%vertices(i_mid)%bot_parent = body_verts(i_midpoint_parent)%i_wake_partner
+                    this%vertices(i_mid)%top_parent = body_edges(i_pot_edge)%top_midpoint
+                    this%vertices(i_mid)%bot_parent = body_edges(i_pot_edge)%bot_midpoint
 
                     exit potential_edge_loop
 
@@ -667,12 +663,10 @@ contains
                   this%vertices(shared(1))%top_parent == body_edges(i_pot_edge)%top_verts(2)+N_body_verts)))then
 
                     ! Get midpoint index
-                    i_midpoint_parent = body_edges(i_pot_edge)%i_midpoint
 
                     ! Set parents
-                    this%vertices(i_mid)%top_parent = i_midpoint_parent + N_body_verts
-                    this%vertices(i_mid)%bot_parent = body_verts(i_midpoint_parent)%i_wake_partner &
-                                                      + N_body_verts
+                    this%vertices(i_mid)%top_parent = body_edges(i_pot_edge)%top_midpoint + N_body_verts
+                    this%vertices(i_mid)%bot_parent = body_edges(i_pot_edge)%bot_midpoint + N_body_verts
 
                 end if
             end do potential_edge_loop

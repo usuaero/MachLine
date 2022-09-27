@@ -3,7 +3,7 @@ module vtk_mod
 
     use helpers_mod
     use panel_mod
-    use vertex_mod
+    use base_geom_mod
     use stl_mod
 
     implicit none

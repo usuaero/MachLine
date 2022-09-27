@@ -7,12 +7,11 @@ module surface_mesh_mod
     use vtk_mod
     use stl_mod
     use tri_mod
-    use vertex_mod
+    use base_geom_mod
     use panel_mod
     use mesh_mod
     use flow_mod
     use math_mod
-    use edge_mod
     use wake_mesh_mod
     use sort_mod
     use helpers_mod
@@ -62,7 +61,6 @@ module surface_mesh_mod
             procedure :: count_panel_inclinations => surface_mesh_count_panel_inclinations
             procedure :: characterize_edges => surface_mesh_characterize_edges
             procedure :: set_needed_vertex_clones => surface_mesh_set_needed_vertex_clones
-            procedure :: set_up_mirroring => surface_mesh_set_up_mirroring
 
             ! Cloning vertices
             procedure :: find_next_wake_edge =>surface_mesh_find_next_wake_edge
@@ -616,7 +614,8 @@ contains
             end if
 
             ! Point edge to it
-            this%edges(i)%i_midpoint = i_mid
+            this%edges(i)%top_midpoint = i_mid
+            this%edges(i)%bot_midpoint = i_mid
 
             ! Point panels to it
             this%panels(this%edges(i)%panels(1))%midpoints(this%edges(i)%edge_index_for_panel(1))%ptr => this%vertices(i_mid)
@@ -678,11 +677,6 @@ contains
         if (this%wake_present) then
             call this%characterize_edges(freestream)
             call this%set_needed_vertex_clones()
-        end if
-
-        ! Set up mirroring
-        if (this%mirrored) then
-            call this%set_up_mirroring()
         end if
 
         ! Initialize vertex ordering
@@ -761,7 +755,7 @@ contains
         class(surface_mesh),intent(inout) :: this
         type(flow),intent(in) :: freestream
 
-        integer :: i, j, k, m, n, temp, top_panel, bottom_panel, i_vert_1, i_vert_2, mid, N_wake_edges
+        integer :: i, j, k, m, n, temp, top_panel, bottom_panel, i_vert_1, i_vert_2, N_wake_edges
         real :: C_angle, C_min_angle
         real,dimension(3) :: second_normal, cross_result
         real,dimension(3) :: t_hat_g, d
@@ -772,7 +766,7 @@ contains
         N_wake_edges = 0
         this%found_discontinuous_edges = .false.
 
-        !$OMP parallel private(i, j, second_normal, C_angle, i_vert_1, i_vert_2, mid) &
+        !$OMP parallel private(i, j, second_normal, C_angle, i_vert_1, i_vert_2) &
         !$OMP & private(cross_result, d, t_hat_g) &
         !$OMP & default(none) shared(this, freestream, doublet_order, N_wake_edges) reduction(min : C_min_angle)
 
@@ -812,10 +806,10 @@ contains
                     i_vert_1 = this%edges(k)%top_verts(1)
                     i_vert_2 = this%edges(k)%top_verts(2)
                     
-                    ! Calculate tangent in global coords
-                    d = this%vertices(i_vert_2)%loc - this%vertices(i_vert_1)%loc
-                    t_hat_g = d / norm2(d)
+                    ! Calculate tangent in global coords (all we care about is the sign, so we don't need to normalize this)
+                    t_hat_g = this%vertices(i_vert_2)%loc - this%vertices(i_vert_1)%loc
                     
+                    ! Calculate cross product
                     cross_result = cross(this%panels(i)%n_g, second_normal)
                     
                     ! Check sign between normal vectors cross product and edge tangent
@@ -826,10 +820,7 @@ contains
                         this%edges(k)%sheds_wake = .true.
 
                         ! Update information for midpoint vertex (unique for the edge, so this doesn't need to be inside the critical block)
-                        if (doublet_order == 2) then
-                            mid = this%edges(k)%i_midpoint
-                            this%vertices(mid)%N_wake_edges = 1
-                        end if
+                        if (doublet_order == 2) this%vertices(this%edges(k)%top_midpoint)%N_wake_edges = 1
 
                         ! Update number of wake-shedding edges
                         !$OMP critical
@@ -859,130 +850,18 @@ contains
         
         class(surface_mesh), intent(inout) :: this
 
-        integer :: i, i_edge, j, N_wake_edges_on_mirror_plane
+        integer :: i
 
         if (verbose) write(*,'(a)',advance='no') "     Determining where vertex clones are needed..."
 
         ! Loop through vertices
         do i=1,this%N_verts
-
-            ! Initialize for this vertex
-            N_wake_edges_on_mirror_plane = 0
-
-            ! Loop through edges
-            do j=1,this%vertices(i)%adjacent_edges%len()
-
-                ! Get edge index
-                call this%vertices(i)%adjacent_edges%get(j, i_edge)
-
-                ! Check if this is a wake-shedding edge
-                if (this%edges(i_edge)%sheds_wake) then
-
-                    ! Update number of wake edges touching this vertex
-                    this%vertices(i)%N_wake_edges = this%vertices(i)%N_wake_edges + 1
-
-                    ! Check if this edge is on the mirror plane
-                    if (this%edges(i_edge)%on_mirror_plane) then
-
-                        ! Update counter
-                        N_wake_edges_on_mirror_plane = N_wake_edges_on_mirror_plane + 1
-
-                        ! If this is a midpoint, then its clone will be unique and it doesn't need any clone
-                        if (this%vertices(i)%vert_type == 2) then
-                            this%vertices(i)%mirrored_is_unique = .true.
-                        end if
-
-                    end if
-
-                end if
-            end do
-
-            ! Set number of needed clones for vertices which have at least one wake edge
-            if (this%vertices(i)%N_wake_edges > 0) then
-
-                ! For regular vertices, this depends on how many wake edges it has
-                if (this%vertices(i)%vert_type == 1) then
-
-                    ! If the vertex is on the mirror plane, then how many clones is dependent upon how many wake edges are on the mirror plane
-                    if (this%vertices(i)%on_mirror_plane) then
-                        this%vertices(i)%N_needed_clones = this%vertices(i)%N_wake_edges - N_wake_edges_on_mirror_plane
-
-                    ! If the vertex is not on the mirror plane, then we need one fewer clones than edges
-                    else
-                        this%vertices(i)%N_needed_clones = this%vertices(i)%N_wake_edges - 1
-                    end if
-                
-                ! For midpoints, we will need 1 clone iff it's off the mirror plane
-                else
-                    if (this%vertices(i)%on_mirror_plane) then
-                        this%vertices(i)%N_needed_clones = 0
-                    else
-                        this%vertices(i)%N_needed_clones = 1
-                    end if
-                end if
-            end if
-
-            ! If a vertex on the mirror plane doesn't belong to any wake edge, this its mirror will not be unique
-            if (this%vertices(i)%on_mirror_plane .and. this%vertices(i)%N_wake_edges == 0) then
-                this%vertices(i)%mirrored_is_unique = .false.
-            end if
-
-            ! Set boolean for whether this vertex needs cloning
-            if (this%vertices(i)%N_needed_clones > 0) then
-                this%vertices(i)%clone = .true.
-            end if
-
+            call this%vertices(i)%set_needed_clones(this%edges)
         end do
+
         if (verbose) write(*,*) "Done."
         
     end subroutine surface_mesh_set_needed_vertex_clones
-
-
-    subroutine surface_mesh_set_up_mirroring(this)
-        ! Sets up information necessary for mirroring the mesh
-
-        implicit none
-
-        class(surface_mesh),intent(inout) :: this
-
-        integer :: i, j, m, n
-
-        if (verbose) write(*,'(a)',advance='no') "     Setting up mesh mirroring..."
-
-        ! Check if any discontinuous edges touch the mirror plane
-        do i=1,this%N_edges
-
-            ! Check if it is discontinuous
-            if (this%edges(i)%sheds_wake) then
-
-                ! Get vertex indices
-                m = this%edges(i)%top_verts(1)
-                n = this%edges(i)%top_verts(2)
-
-                ! If a given discontinuous edge has only one of its endpoints lying on the mirror plane, then that endpoint has another
-                ! adjacent edge, since the edge will be mirrored across that plane. This endpoint will need a clone, but it's mirrored
-                ! vertex will be the same
-
-                ! Check for edge touching mirror plane at only one end
-                if (this%vertices(m)%on_mirror_plane .neqv. this%vertices(n)%on_mirror_plane) then
-
-                    ! Only add discontinuous edge if the endpoint is on the mirror plane
-                    if (this%vertices(m)%on_mirror_plane) then
-
-                        this%vertices(m)%mirrored_is_unique = .false.
-
-                    else
-
-                        this%vertices(n)%mirrored_is_unique = .false.
-
-                    end if
-
-                end if
-            end if
-        end do
-        if (verbose) write(*,*) "Done."
-
-    end subroutine surface_mesh_set_up_mirroring
 
 
     subroutine surface_mesh_clone_vertices(this)
@@ -993,8 +872,8 @@ contains
 
         class(surface_mesh),intent(inout) :: this
 
-        integer :: i, j, k, N_clones, i_jango, i_boba, N_boba, i_start_edge, i_end_edge, i_start_panel
-        integer,dimension(:),allocatable :: i_panels_between, i_rearrange_inv
+        integer :: i, j, k, N_clones, i_jango, i_boba, N_boba, i_edge, i_start_panel
+        integer,dimension(:),allocatable :: i_panels_between, i_rearrange_inv, i_start_edge, i_end_edge
         integer,dimension(:,:),allocatable :: i_panels_between_all
         logical,dimension(:),allocatable :: mirrored_is_unique
 
@@ -1006,24 +885,24 @@ contains
             ! Determine how many clones we need to produce
             N_clones = 0
             do i=1,this%N_verts
-                N_clones = N_clones + this%vertices(i)%get_N_needed_clones()
+                N_clones = N_clones + this%vertices(i)%get_needed_clones()
             end do
 
             ! Add space for new vertices
             call this%allocate_new_vertices(N_clones)
 
-            ! Allocate rearranged indices array
+            ! Allocate rearranged indices array; we use this to place clones next to clones in the linear system
             allocate(i_rearrange_inv(this%N_verts), source=0)
 
             ! Initialize clones
             j = 0
             do i_jango=1,this%N_verts-N_clones ! Only need to loop through original vertices here
 
-                ! Get location of original vertex in new array
+                ! Get location of original vertex in new array; this is shifted forward by how many clones have already been created
                 i_rearrange_inv(i_jango) = i_jango + j
 
                 ! Get number of needed clones
-                N_boba = this%vertices(i_jango)%get_N_needed_clones()
+                N_boba = this%vertices(i_jango)%get_needed_clones()
 
                 ! Create clones
                 if (N_boba > 0) then
@@ -1031,56 +910,75 @@ contains
                     ! Get starting edge index for figuring out how to divvy up panels
                     ! We prefer to start at an edge on the mirror plane
                     ! Otherwise, we want to start at a wake-shedding edge
+                    allocate(i_start_edge(N_boba+1))
+                    allocate(i_end_edge(N_boba+1))
                     starting_edge_loop: do i=1,this%vertices(i_jango)%adjacent_edges%len()
 
                         ! Get edge index
-                        call this%vertices(i_jango)%adjacent_edges%get(i, k)
+                        call this%vertices(i_jango)%adjacent_edges%get(i, i_edge)
 
                         ! Check if it's on the mirror plane
-                        if (this%edges(k)%sheds_wake) then
-                            i_start_edge = k
+                        if (this%edges(i_edge)%on_mirror_plane) then
+                            i_start_edge(1) = i_edge
                             exit starting_edge_loop
                         end if
 
                         ! Check if it's a wake-shedding edge
-                        if (this%edges(k)%sheds_wake) then
-                            i_start_edge = k ! We don't exit here because we may find a better edge
+                        if (this%edges(i_edge)%sheds_wake) then
+                            i_start_edge(1) = i_edge ! We don't exit here because we may find a better edge
                         end if
 
                     end do starting_edge_loop
 
                     ! Loop through segments of the mesh surrounding the vertex divided by the wake edges
-                    allocate(i_panels_between_all(20,N_boba+1), source=0)
+                    ! We only need to do this for true vertices, as midpoints have only two neighboring panels and one wake-shedding edge
                     allocate(mirrored_is_unique(N_boba+1), source=.true.)
-                    i_start_panel = this%edges(i_start_edge)%panels(1)
-                    do i=1,N_boba+1
+                    if (this%vertices(i_jango)%vert_type == 1) then
+                        allocate(i_panels_between_all(20,N_boba+1), source=0) ! I'm hoping we don't ever have more than 20 panels here
+                        i_start_panel = this%edges(i_start_edge(1))%panels(1)
+                        do i=1,N_boba+1
 
-                        ! Figure out segment of panels
-                        call this%find_next_wake_edge(i_start_edge, i_jango, i_start_panel, i_end_edge, i_panels_between)
+                            ! Figure out segment of panels
+                            call this%find_next_wake_edge(i_start_edge(i), i_jango, i_start_panel, i_end_edge(i), i_panels_between)
 
-                        ! Store panels
-                        i_panels_between_all(1:size(i_panels_between),i) = i_panels_between
+                            ! Store panels
+                            i_panels_between_all(1:size(i_panels_between),i) = i_panels_between
 
-                        ! Check if the mirrored vertex for this segment will be unique
-                        if (this%edges(i_start_edge)%on_mirror_plane .and. .not. this%edges(i_start_edge)%sheds_wake) then
-                            mirrored_is_unique(i) = .false.
-                        else if (this%edges(i_end_edge)%on_mirror_plane .and. .not. this%edges(i_end_edge)%sheds_wake) then
-                            mirrored_is_unique(i) = .false.
-                        end if
+                            ! Check if the mirrored vertex for this segment will be unique
+                            if (this%edges(i_start_edge(i))%on_mirror_plane .and. .not. this%edges(i_start_edge(i))%sheds_wake) then
+                                mirrored_is_unique(i) = .false.
+                            end if
+                            if (this%edges(i_end_edge(i))%on_mirror_plane .and. .not. this%edges(i_end_edge(i))%sheds_wake) then
+                                mirrored_is_unique(i) = .false.
+                            end if
 
-                        ! Move on to the next edge
-                        i_start_edge = i_end_edge
+                            ! Move on to the next edge
+                            if (i <= N_boba) i_start_edge(i+1) = i_end_edge(i)
 
-                        ! The start panel will be across the ending edge from the last panel
-                        i_start_panel = this%edges(i_end_edge)%get_opposing_panel(i_panels_between(size(i_panels_between)))
+                            ! The start panel will be across the ending edge from the last panel
+                            i_start_panel = this%edges(i_end_edge(i))%get_opposing_panel(i_panels_between(size(i_panels_between)))
 
-                    end do
-                    deallocate(i_panels_between)
+                        end do
+                        deallocate(i_panels_between)
+
+                    ! Midpoints
+                    else
+                        
+                        ! Set panels
+                        allocate(i_panels_between_all(1,2))
+                        i_panels_between_all(1,1) = this%edges(i_edge)%panels(1)
+                        i_panels_between_all(1,2) = this%edges(i_edge)%panels(2)
+
+                        ! Set edges
+                        i_start_edge(2) = i_edge
+                        i_end_edge(2) = i_edge
+
+                    end if
 
                     ! Set whether Jango has a unique mirror
                     this%vertices(i_jango)%mirrored_is_unique = mirrored_is_unique(1)
 
-                    ! There will be multiple clones if more than 2 wake-shedding edges are attached
+                    ! Create all the clones
                     do i=1,N_boba
 
                         ! Get index for the clone
@@ -1095,9 +993,25 @@ contains
                         call this%init_vertex_clone(i_jango, i_boba, mirrored_is_unique(i+1), i_panels_between)
                         deallocate(i_panels_between)
 
+                        ! Update vertices for edges to point to clones
+
+                        ! For the starting edge, the clones will always be on the bottom
+                        call this%edges(i_start_edge(i+1))%point_bottom_to_new_vert(i_jango, i_boba)
+
+                        ! For the end edge, all but the last clone will be on the top
+                        if (i < N_boba) then
+                            call this%edges(i_end_edge(i+1))%point_top_to_new_vert(i_jango, i_boba)
+                        else
+                            call this%edges(i_end_edge(i+1))%point_bottom_to_new_vert(i_jango, i_boba)
+                        end if
+
                     end do
+
+                    ! Clean up memory for next iteration
                     deallocate(mirrored_is_unique)
                     deallocate(i_panels_between_all)
+                    deallocate(i_start_edge)
+                    deallocate(i_end_edge)
 
                 ! If this vertex did not need to be cloned, but it is on the mirror plane and its mirror is unique
                 ! then the wake strength will be determined by its mirror as well in the case of an asymmetric flow.
@@ -1105,7 +1019,17 @@ contains
                     if (this%mirrored .and. this%asym_flow .and.  this%vertices(i_jango)%on_mirror_plane .and. &
                         this%vertices(i_jango)%mirrored_is_unique) then
 
-                        this%vertices(i_jango)%i_wake_partner = i_jango + this%N_verts
+                        ! Loop through edges
+                        do k=1,this%vertices(i_jango)%adjacent_edges%len()
+
+                            ! Get edge index
+                            call this%vertices(i_jango)%adjacent_edges%get(k, i_edge)
+
+                            ! If this edge is a wake edge, set the bottom vert
+                            if (this%edges(i_edge)%sheds_wake) then
+                                call this%edges(i_edge)%point_bottom_to_new_vert(i_jango, i_jango+this%N_verts)
+                            end if
+                        end do
 
                     end if
                 end if
@@ -1146,10 +1070,6 @@ contains
         step_loop: do
 
             ! Add the current panel to the list
-            write(*,*)
-            write(*,*) i_shared_vert
-            write(*,*) i_curr_panel
-
             call i_panels_between_list%append(i_curr_panel)
 
             ! Find the neighboring panel that touches the relevant vertex but isn't going backwards
@@ -1209,7 +1129,6 @@ contains
         ! Basic initialization
         call this%vertices(i_boba)%init(this%vertices(i_jango)%loc, i_boba, this%vertices(i_jango)%vert_type)
         this%vertices(i_boba)%clone = .true.
-        this%vertices(i_boba)%mirrored_is_unique = mirrored_is_unique
 
         ! If this is a true vertex (not a midpoint), add to the count
         if (this%vertices(i_jango)%vert_type == 1) this%N_true_verts = this%N_true_verts + 1
@@ -1222,9 +1141,9 @@ contains
         ! Store number of adjacent wake-shedding and discontinuous edges (probably unecessary at this point, but let's be consistent)
         this%vertices(i_boba)%N_wake_edges = this%vertices(i_jango)%N_wake_edges
 
-        ! Copy over mirroring properties
-        this%vertices(i_boba)%mirrored_is_unique = this%vertices(i_jango)%mirrored_is_unique
+        ! Mirroring properties
         this%vertices(i_boba)%on_mirror_plane = this%vertices(i_jango)%on_mirror_plane
+        this%vertices(i_boba)%mirrored_is_unique = mirrored_is_unique
 
         ! Copy over adjacent panels
         do k=1,this%vertices(i_jango)%panels%len()
@@ -1443,7 +1362,7 @@ contains
         class(surface_mesh),intent(inout) :: this
         type(flow),intent(in) :: freestream
 
-        real :: dist, max_dist
+        real :: max_dist, distance
         integer :: i
 
         ! Loop through mesh vertices, looking for the most downstream
@@ -1451,19 +1370,19 @@ contains
         do i=1,this%N_verts
 
             ! Calculate distance
-            dist = inner(this%vertices(i)%loc, freestream%c_hat_g)
+            distance = inner(this%vertices(i)%loc, freestream%c_hat_g)
 
             ! Check maximum
-            max_dist = max(dist, max_dist)
+            max_dist = max(distance, max_dist)
 
             ! Check for mirror
             if (this%asym_flow) then
 
                 ! Calculate distance
-                dist = inner(mirror_across_plane(this%vertices(i)%loc, this%mirror_plane), freestream%c_hat_g)
+                distance = inner(mirror_across_plane(this%vertices(i)%loc, this%mirror_plane), freestream%c_hat_g)
 
                 ! Check maximum
-                max_dist = max(dist, max_dist)
+                max_dist = max(distance, max_dist)
 
             end if
 

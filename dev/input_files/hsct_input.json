@@ -13,6 +13,8 @@
         }
     },
     "solver": {
+        "control_point_offset" : 0.1,
+        "run_checks" : false
     },
     "post_processing" : {
         "pressure_rules" : {
@@ -21,6 +23,7 @@
     "output": {
         "body_file" : "dev/results/HSCT.vtk",
         "wake_file" : "dev/results/HSCT_wake.vtk",
+        "wake_strip_file" : "dev/results/HSCT_wake_strips.vtk",
         "control_point_file" : "dev/results/HSCT_control_points.vtk"
     }
 }
