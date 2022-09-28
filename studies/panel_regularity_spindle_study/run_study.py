@@ -22,7 +22,7 @@ if __name__=="__main__":
     # Generate mesh
     def r_of_x(x):
         return 0.2*x*(1.0-x)
-    generate_random_spindle(mesh_file, 10000, 1.0, r_of_x)
+    generate_random_spindle(mesh_file, 200, 1.0, r_of_x)
 
     # Write input
     input_dict = {
