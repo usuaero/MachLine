@@ -9,18 +9,16 @@
         "mirror_about": "xz",
         "spanwise_axis" : "+y",
         "singularity_order" : {
-            "source" : 0,
-            "doublet" : 1
+            "source" : 1,
+            "doublet" : 2
         },
         "wake_model" : {
-            "trefftz_distance" : 20.0
         },
         "reference": {
             "area": 1.0
         }
     },
     "solver": {
-        "matrix_solver" : "QRUP"
     },
     "post_processing" : {
         "pressure_rules" : {

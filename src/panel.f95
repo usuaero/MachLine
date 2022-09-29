@@ -111,6 +111,7 @@ module panel_mod
             procedure :: get_subpanel_centroid => panel_get_subpanel_centroid
             procedure :: get_corner_angle => panel_get_corner_angle
             procedure :: get_weighted_normal_at_corner => panel_get_weighted_normal_at_corner
+            procedure :: get_projection_onto_surface => panel_get_projection_onto_surface
 
             ! Update information
             procedure :: point_to_new_vertex => panel_point_to_new_vertex
@@ -1122,6 +1123,27 @@ contains
         n_weighted = this%n_g*W
 
     end function panel_get_weighted_normal_at_corner
+
+
+    function panel_get_projection_onto_surface(this, v, mirror_panel) result(v_proj)
+        ! Projects the given vector into the plane of the panel
+
+        implicit none
+        
+        class(panel),intent(in) :: this
+        real,dimension(3),intent(in) :: v
+        logical,intent(in) :: mirror_panel
+
+        real,dimension(3) :: v_proj
+    
+        ! Project
+        if (mirror_panel) then
+            v_proj = v - this%n_g_mir*inner(v, this%n_g_mir)
+        else
+            v_proj = v - this%n_g*inner(v, this%n_g)
+        end if
+        
+    end function panel_get_projection_onto_surface
 
 
     subroutine panel_point_to_new_vertex(this, new_vertex)

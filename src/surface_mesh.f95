@@ -1013,6 +1013,9 @@ contains
                     deallocate(i_start_edge)
                     deallocate(i_end_edge)
 
+                    ! Set that this vertex has been cloned
+                    this%vertices(i_jango)%clone = .true.
+
                 ! If this vertex did not need to be cloned, but it is on the mirror plane and its mirror is unique
                 ! then the wake strength will be determined by its mirror as well in the case of an asymmetric flow.
                 else
@@ -1124,7 +1127,7 @@ contains
         logical,intent(in) :: mirrored_is_unique
         integer,dimension(:),allocatable,intent(in) :: panels_for_this_clone
 
-        integer :: k, i_vert, i_panel
+        integer :: k, i_vert, i_panel, i_edge
 
         ! Basic initialization
         call this%vertices(i_boba)%init(this%vertices(i_jango)%loc, i_boba, this%vertices(i_jango)%vert_type)
@@ -1159,11 +1162,22 @@ contains
         ! Copy over adjacent vertices
         do k=1,this%vertices(i_jango)%adjacent_vertices%len()
 
-            ! Get adjacent panel index from original vertex
+            ! Get adjacent vertex index from original vertex
             call this%vertices(i_jango)%adjacent_vertices%get(k, i_vert)
 
             ! Copy to new vertex
             call this%vertices(i_boba)%adjacent_vertices%append(i_vert)
+
+        end do
+
+        ! Copy over adjacent edges
+        do k=1,this%vertices(i_jango)%adjacent_edges%len()
+
+            ! Get adjacent edge index from original vertex
+            call this%vertices(i_jango)%adjacent_edges%get(k, i_edge)
+
+            ! Copy to new vertex
+            call this%vertices(i_boba)%adjacent_edges%append(i_edge)
 
         end do
 
@@ -1203,26 +1217,24 @@ contains
         class(surface_mesh),intent(inout) :: this
 
         real,dimension(3) :: n_avg, n_avg_plane, n_g_panel
-        integer :: i, j, i_panel, N_panels
+        integer :: i, j, k, j_panel, k_panel, N_panels
 
         if (verbose) write(*,'(a)',advance='no') "     Calculating vertex normals..."
 
         ! Loop through vertices
-        !$OMP parallel do private(n_avg, i, i_panel, n_avg_plane, N_panels, n_g_panel) schedule(dynamic)
-        do j=1,this%N_verts
-
-            ! Allocate storage for the panel normals
-            N_panels = this%vertices(j)%panels%len()
+        !$OMP parallel do private(n_avg, j, k, j_panel, n_avg_plane, N_panels, n_g_panel) schedule(dynamic)
+        do i=1,this%N_verts
 
             ! Loop through neighboring panels and compute the average of their normal vectors
             n_avg = 0
-            do i=1,N_panels
+            N_panels = this%vertices(i)%panels%len()
+            do j=1,N_panels
 
                 ! Get panel index
-                call this%vertices(j)%panels%get(i, i_panel)
+                call this%vertices(i)%panels%get(j, j_panel)
 
                 ! Get weighted normal
-                n_g_panel = this%panels(i_panel)%get_weighted_normal_at_corner(this%vertices(j)%loc)
+                n_g_panel = this%panels(j_panel)%get_weighted_normal_at_corner(this%vertices(i)%loc)
 
                 ! Update using weighted normal
                 n_avg = n_avg + n_g_panel
@@ -1230,20 +1242,20 @@ contains
             end do
 
             ! For vertices on the mirror plane, the component normal to the plane should be zeroed
-            if (this%vertices(j)%on_mirror_plane) then
+            if (this%vertices(i)%on_mirror_plane) then
                 n_avg(this%mirror_plane) = 0.
             end if
 
             ! Normalize and store
-            this%vertices(j)%n_g = n_avg/norm2(n_avg)
+            this%vertices(i)%n_g = n_avg/norm2(n_avg)
 
             ! Calculate mirrored normal for mirrored vertex
             if (this%mirrored) then
-                this%vertices(j)%n_g_mir = mirror_across_plane(this%vertices(j)%n_g, this%mirror_plane)
+                this%vertices(i)%n_g_mir = mirror_across_plane(this%vertices(i)%n_g, this%mirror_plane)
             end if
 
             ! Calculate average edge lengths for each vertex
-            call this%vertices(j)%set_average_edge_length(this%vertices)
+            call this%vertices(i)%set_average_edge_length(this%vertices)
 
         end do
 
@@ -1373,9 +1385,10 @@ contains
         class(surface_mesh),intent(inout) :: this
         real,intent(in) :: offset
 
-        integer :: i, j, k, i_panel, i_adj_vert_1, i_adj_vert_2
-        real,dimension(3) :: n_avg, dir, t1, t2
+        integer :: i, j, k, i_panel, i_adj_vert_1, i_adj_vert_2, i_vert_1_for_min
+        real,dimension(3) :: n_avg, dir, t1, t2, t1_min, t2_min
         real :: offset_ratio, C_min_edge_angle, C_edge_angle
+        logical :: select_first
 
         ! Specify number of control points
         this%N_cp = this%N_verts
@@ -1384,13 +1397,13 @@ contains
         allocate(this%cp(3,this%N_verts))
 
         ! Calculate offset ratio such that the control point will remain within the body based on the minimum detected angle between panels
-        !if (this%wake_present) then
-        !    offset_ratio = 0.5*sqrt(0.5*(1. + this%C_min_panel_angle))
-        !end if
+        if (this%wake_present) then
+            offset_ratio = 0.5*sqrt(0.5*(1. + this%C_min_panel_angle))
+        end if
 
         ! Loop through vertices
         !$OMP parallel do private(j, n_avg, i_panel, dir, offset_ratio, C_min_edge_angle, i_adj_vert_1, i_adj_vert_2) &
-        !$OMP & private(t1, t2, C_edge_angle) &
+        !$OMP & private(t1, t2, C_edge_angle, t1_min, t2_min, select_first, i_vert_1_for_min) &
         !$OMP & schedule(dynamic) shared(this, offset) default(none)
         do i=1,this%N_verts
 
@@ -1422,36 +1435,55 @@ contains
                 end if
 
                 ! Figure out offset ratio to keep this control point inside the mesh
-                C_min_edge_angle = 0.0
-                do j=1,this%vertices(i)%adjacent_vertices%len()
-
-                    ! Get vector to adjacent vertex
-                    call this%vertices(i)%adjacent_vertices%get(j, i_adj_vert_1)
-                    t1 = this%vertices(i_adj_vert_1)%loc - this%vertices(i)%loc
-                    t1 = t1/norm2(t1)
-
-                    ! Loop through other possible vectors
-                    do k=1,this%vertices(i)%adjacent_vertices%len()
+                if (this%vertices(i)%vert_type == 1) then
+                    C_min_edge_angle = 0.0
+                    do j=1,this%vertices(i)%adjacent_vertices%len()
 
                         ! Get vector to adjacent vertex
-                        call this%vertices(i)%adjacent_vertices%get(k, i_adj_vert_2)
-                        t2 = this%vertices(i_adj_vert_2)%loc - this%vertices(i)%loc
-                        t2 = t2/norm2(t2)
+                        call this%vertices(i)%adjacent_vertices%get(j, i_adj_vert_1)
+                        t1 = this%vertices(i_adj_vert_1)%loc - this%vertices(i)%loc
+                        t1 = t1/norm2(t1)
 
-                        ! Get cos of minimum edge angle
-                        C_edge_angle = inner(t1, t2)
-                        if (C_edge_angle < 0.999999) then ! To avoid tangents formed from vertex clones
-                            C_min_edge_angle = max(C_min_edge_angle, C_edge_angle)
-                        end if
+                        ! Loop through other possible vectors
+                        do k=j+1,this%vertices(i)%adjacent_vertices%len()
 
+                            ! Get vector to adjacent vertex
+                            call this%vertices(i)%adjacent_vertices%get(k, i_adj_vert_2)
+                            t2 = this%vertices(i_adj_vert_2)%loc - this%vertices(i)%loc
+                            t2 = t2/norm2(t2)
+
+                            ! Get cos of minimum edge angle
+                            C_edge_angle = inner(t1, t2)
+                            if (C_edge_angle < 0.999999 .and. C_edge_angle > C_min_edge_angle) then ! To avoid tangents formed from vertex clones
+                                C_min_edge_angle = C_edge_angle
+                                t1_min = t1
+                                t2_min = t2
+                                i_vert_1_for_min = i_adj_vert_1
+                            end if
+
+                        end do
                     end do
-                end do
 
-                ! Calculate offset ratio
-                offset_ratio = 0.5*sqrt(0.5*(1.0-C_min_edge_angle))
+                    ! Calculate offset ratio
+                    offset_ratio = 0.5*sqrt(0.5*(1.0-C_min_edge_angle))
+
+                else
+
+                    ! Get cosine of angle between panels
+                    call this%vertices(i)%adjacent_edges%get(1, k)
+                    t1 = this%panels(this%edges(k)%panels(1))%n_g
+                    t2 = this%panels(this%edges(k)%panels(2))%n_g
+                    write(*,*) this%vertices(i)%adjacent_edges%len()
+                    C_min_edge_angle = inner(t1, t2)
+
+                    ! Calculate offset ratio
+                    offset_ratio = 0.5*sqrt(0.5*(1.0+C_min_edge_angle))
+
+                end if
 
                 ! Set direction
                 dir = -this%vertices(i)%n_g + offset_ratio*n_avg
+                dir = dir/norm2(dir)
 
             ! If it has no clone, then placement simply follows the normal vector
             else
@@ -1469,8 +1501,7 @@ contains
 
                 ! Check
                 if (inner(this%panels(i_panel)%n_g, dir) > 0.) then
-                    write(*,*) "!!! Control point ", i, " is outside the mesh. Quitting...", inner(this%panels(i_panel)%n_g, dir)
-                    !stop
+                    write(*,*) "!!! Control point ", i, " is outside panel ", i_panel, "."
                 end if
 
             end do
