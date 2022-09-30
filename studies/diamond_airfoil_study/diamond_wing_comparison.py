@@ -94,32 +94,36 @@ def run_comparison(M, alpha, grid, half_angle, run_machline=True):
 
     # Read into ParaView
     data_reader = pvs.LegacyVTKReader(registrationName=case_name, FileNames=results_file)
+    pvs.SaveData(data_file, proxy=data_reader, FieldAssociation="Cell Data")
 
-    # Filter cell data to point data
-    filter = pvs.CellDatatoPointData(registrationName='Filter', Input=data_reader)
-    data_to_process = ['C_p_ise', 'C_p_2nd', 'mu', 'sigma']
-    filter.CellDataArraytoprocess = data_to_process
+    ## Filter cell data to point data
+    #filter = pvs.CellDatatoPointData(registrationName='Filter', Input=data_reader)
+    #data_to_process = ['C_p_ise', 'C_p_2nd', 'mu', 'sigma']
+    #filter.CellDataArraytoprocess = data_to_process
 
-    # Extract and save data
-    plot = pvs.PlotOnIntersectionCurves(registrationName='Plot', Input=filter)
-    plot.SliceType = 'Plane'
-    plot.SliceType.Normal = [0.0, 1.0, 0.0]
-    view = pvs.CreateView('XYChartView')
-    display = pvs.Show(plot, view, 'XYChartRepresentation')
-    view.Update()
-    display.XArrayName = 'Points_X'
-    view.Update()
-    pvs.SaveData(data_file, proxy=plot, PointDataArrays=data_to_process, FieldAssociation='Point Data', Precision=12)
+    ## Extract and save data
+    #plot = pvs.PlotOnIntersectionCurves(registrationName='Plot', Input=filter)
+    #plot.SliceType = 'Plane'
+    #plot.SliceType.Normal = [0.0, 1.0, 0.0]
+    #view = pvs.CreateView('XYChartView')
+    #display = pvs.Show(plot, view, 'XYChartRepresentation')
+    #view.Update()
+    #display.XArrayName = 'Points_X'
+    #view.Update()
+    #pvs.SaveData(data_file, proxy=plot, PointDataArrays=data_to_process, FieldAssociation='Point Data', Precision=12)
 
     # Read in data
     data = np.genfromtxt(data_file, delimiter=',', skip_header=1)
+
+    needed_rows = np.where(data[:,5] == np.min(np.abs(data[:,5])))
+    needed_rows = needed_rows[0]
     
     # Plot data from MachLine
     plt.figure()
-    plt.plot(data[:,5], data[:,0], 'ks', markersize=3, label='Second-Order')
-    plt.plot(data[:,5], data[:,1], 'kv', markersize=3, label='Isentropic')
-    plt.plot(data[:,5], data[:,2], 'ko', markersize=3, label='Slender-Body')
-    plt.plot(data[:,5], data[:,3], 'k^', markersize=3, label='Linear')
+    plt.plot(data[needed_rows,4], data[needed_rows,7], 'ks', markersize=3, label='Second-Order')
+    plt.plot(data[needed_rows,4], data[needed_rows,8], 'kv', markersize=3, label='Isentropic')
+    plt.plot(data[needed_rows,4], data[needed_rows,9], 'ko', markersize=3, label='Slender-Body')
+    plt.plot(data[needed_rows,4], data[needed_rows,10], 'k^', markersize=3, label='Linear')
 
     # Plot data from shock-expansion theory
     x = np.linspace(0.0, 1.0, 100)
@@ -135,7 +139,7 @@ def run_comparison(M, alpha, grid, half_angle, run_machline=True):
     # Format
     plt.xlabel('$x$')
     plt.ylabel('$C_p$')
-    plt.legend(title='Pressure Rule', fontsize=6, title_fontsize=6)
+    plt.legend(fontsize=6, title_fontsize=6)
     plt.savefig(plot_dir+case_name+".pdf".format(M, alpha, int(half_angle)))
     plt.close()
 
