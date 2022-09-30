@@ -82,7 +82,10 @@ program main
         write(*,*) "      \          \   \"
         write(*,*) "       \          \___\"
         write(*,*) "        \"
-        write(*,*) "Loading input file: ", input_file
+        write(*,*)
+        write(*,*) "Got input file: ", input_file
+        write(*,*)
+        write(*,*) "Reading and analyzing surface mesh"
     end if
 
     ! Initialize report JSON
@@ -104,7 +107,7 @@ program main
 
     if (verbose) then
         write(*,*)
-        write(*,*) "Initializing"
+        write(*,*) "Initializing based on flow properties"
     end if
     
     ! Get result files

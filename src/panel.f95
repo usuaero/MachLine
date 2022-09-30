@@ -63,8 +63,6 @@ module panel_mod
         real,dimension(3,3) :: A_g_to_ls_mir, A_ls_to_g_mir
         real,dimension(:,:),allocatable :: vertices_ls, midpoints_ls ! Location of the vertices and edge midpoints described in local scaled coords
         real,dimension(:,:),allocatable :: vertices_ls_mir, midpoints_ls_mir
-        real,dimension(:,:),allocatable :: t_hat_ls ! Edge unit tangents
-        real,dimension(:,:),allocatable :: t_hat_ls_mir
         real,dimension(:,:),allocatable :: n_hat_g, n_hat_ls ! Edge unit outward normals
         real,dimension(:,:),allocatable :: n_hat_g_mir, n_hat_ls_mir
         real,dimension(:),allocatable :: b, sqrt_b ! Edge parameter
@@ -87,11 +85,12 @@ module panel_mod
             procedure :: calc_normal => panel_calc_normal
             procedure :: calc_area => panel_calc_area
             procedure :: calc_centroid => panel_calc_centroid
+            procedure :: calc_g_edge_vectors => panel_calc_g_edge_vectors
 
             ! Flow-dependent initialization procedures
             procedure :: init_with_flow => panel_init_with_flow
             procedure :: calc_g_to_ls_transform => panel_calc_g_to_ls_transform
-            procedure :: calc_edge_vectors => panel_calc_edge_vectors
+            procedure :: calc_ls_edge_vectors => panel_calc_ls_edge_vectors
             procedure :: calc_singularity_matrices => panel_calc_singularity_matrices
             procedure :: set_influencing_verts => panel_set_influencing_verts
 
@@ -243,6 +242,9 @@ contains
         ! Calculate centroid
         call this%calc_centroid()
 
+        ! Calculate ledge vectors
+        call this%calc_g_edge_vectors()
+
     end subroutine  panel_calc_derived_geom
 
 
@@ -317,6 +319,37 @@ contains
     end subroutine panel_calc_centroid
 
 
+    subroutine panel_calc_g_edge_vectors(this)
+
+        implicit none
+
+        class(panel),intent(inout) :: this
+
+        real,dimension(3) :: d_g, t_hat_g
+        integer :: i, i_next
+
+        ! Allocate memory
+        allocate(this%n_hat_g(3,this%N))
+
+        ! Loop through edges
+        do i=1,this%N
+
+            i_next = mod(i, this%N)+1
+
+            ! Calculate edge vector based on index
+            d_g = this%get_vertex_loc(i_next)-this%get_vertex_loc(i)
+
+            ! Calculate tangent in global coords
+            t_hat_g = d_g/norm2(d_g)
+
+            ! Calculate edge outward normal
+            this%n_hat_g(:,i) = cross(t_hat_g, this%n_g)
+
+        end do
+    
+    end subroutine panel_calc_g_edge_vectors
+
+
     subroutine panel_init_with_flow(this, freestream, initialize_mirror, mirror_plane)
 
         implicit none
@@ -330,7 +363,7 @@ contains
         call this%calc_g_to_ls_transform(freestream)
 
         ! Calculate properties dependent on the transforms
-        call this%calc_edge_vectors(freestream)
+        call this%calc_ls_edge_vectors(freestream)
         call this%calc_singularity_matrices()
 
         ! Calculate mirrored properties
@@ -439,20 +472,19 @@ contains
     end subroutine panel_calc_g_to_ls_transform
 
 
-    subroutine panel_calc_edge_vectors(this, freestream)
+    subroutine panel_calc_ls_edge_vectors(this, freestream)
 
         implicit none
 
         class(panel),intent(inout) :: this
         type(flow),intent(in) :: freestream
 
-        real,dimension(3) :: d_g, t_hat_g
         real,dimension(2) :: d_ls
+        real,dimension(:,:),allocatable :: t_hat_ls
         integer :: i, i_next
 
         ! Allocate memory
-        allocate(this%n_hat_g(3,this%N))
-        allocate(this%t_hat_ls(2,this%N))
+        allocate(t_hat_ls(2,this%N))
         allocate(this%n_hat_ls(2,this%N))
         allocate(this%b(this%N))
         allocate(this%b_mir(this%N)) ! This needs to be initialized here because of some DoD checks. It will have no effect.
@@ -463,30 +495,21 @@ contains
 
             i_next = mod(i, this%N)+1
 
-            ! Calculate edge vector based on index
-            d_g = this%get_vertex_loc(i_next)-this%get_vertex_loc(i)
-
-            ! Calculate tangent in global coords
-            t_hat_g = d_g/norm2(d_g)
-
             ! Calculate tangent in local scaled coords 
             d_ls = this%vertices_ls(:,i_next) - this%vertices_ls(:,i)
-            this%t_hat_ls(:,i) = d_ls/norm2(d_ls)
-
-            ! Calculate edge outward normal
-            this%n_hat_g(:,i) = cross(t_hat_g, this%n_g)
+            t_hat_ls(:,i) = d_ls/norm2(d_ls)
 
         end do
 
         ! Calculate edge normal in local scaled coords E&M Eq. (J.6.45)
-        this%n_hat_ls(1,:) = this%t_hat_ls(2,:)
-        this%n_hat_ls(2,:) = -this%t_hat_ls(1,:)
+        this%n_hat_ls(1,:) = t_hat_ls(2,:)
+        this%n_hat_ls(2,:) = -t_hat_ls(1,:)
 
         ! Calculate edge parameter (Ehlers Eq. (E14))
         this%b = (this%n_hat_ls(1,:) - this%n_hat_ls(2,:))*(this%n_hat_ls(1,:) + this%n_hat_ls(2,:))
         this%sqrt_b = sqrt(abs(this%b))
     
-    end subroutine panel_calc_edge_vectors
+    end subroutine panel_calc_ls_edge_vectors
 
 
     subroutine panel_calc_singularity_matrices(this)
@@ -770,10 +793,11 @@ contains
         class(panel),intent(inout) :: this
 
         real,dimension(2) :: d_ls
+        real,dimension(:,:),allocatable :: t_hat_ls_mir
         integer :: i, i_next
 
         ! Allocate memory
-        allocate(this%t_hat_ls_mir(2,this%N))
+        allocate(t_hat_ls_mir(2,this%N))
         allocate(this%n_hat_ls_mir(2,this%N))
         allocate(this%sqrt_b_mir(this%N))
 
@@ -785,13 +809,13 @@ contains
             ! Calculate tangent in local scaled coords 
             ! Direction is flipped so that we're still going counter-clockwise about the panel
             d_ls = this%vertices_ls_mir(:,i) - this%vertices_ls_mir(:,i_next)
-            this%t_hat_ls_mir(:,i) = d_ls/norm2(d_ls)
+            t_hat_ls_mir(:,i) = d_ls/norm2(d_ls)
 
         end do
 
         ! Calculate edge normal in local scaled coords E&M Eq. (J.6.45)
-        this%n_hat_ls_mir(1,:) = this%t_hat_ls_mir(2,:)
-        this%n_hat_ls_mir(2,:) = -this%t_hat_ls_mir(1,:)
+        this%n_hat_ls_mir(1,:) = t_hat_ls_mir(2,:)
+        this%n_hat_ls_mir(2,:) = -t_hat_ls_mir(1,:)
 
         ! Calculate edge parameter (Ehlers Eq. (E14))
         this%b_mir = (this%n_hat_ls_mir(1,:) - this%n_hat_ls_mir(2,:))*(this%n_hat_ls_mir(1,:) + this%n_hat_ls_mir(2,:))

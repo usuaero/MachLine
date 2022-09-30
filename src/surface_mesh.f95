@@ -55,6 +55,7 @@ module surface_mesh_mod
             procedure :: store_adjacent_vertices => surface_mesh_store_adjacent_vertices
             procedure :: check_panels_adjacent => surface_mesh_check_panels_adjacent
             procedure :: create_midpoints => surface_mesh_create_midpoints
+            procedure :: calc_vertex_parameters => surface_mesh_calc_vertex_parameters
 
             ! Initialization based on flow properties
             procedure :: init_with_flow => surface_mesh_init_with_flow
@@ -79,7 +80,6 @@ module surface_mesh_mod
             procedure :: update_subsonic_trefftz_distance => surface_mesh_update_subsonic_trefftz_distance
 
             ! Control points
-            procedure :: calc_vertex_normals => surface_mesh_calc_vertex_normals
             procedure :: place_interior_control_points => surface_mesh_place_interior_control_points
 
             ! Post-processing
@@ -133,6 +133,9 @@ contains
 
         ! Create midpoints (if needed)
         if (doublet_order == 2) call this%create_midpoints()
+
+        ! Calculate vertex geometries
+        call this%calc_vertex_parameters()
 
     end subroutine surface_mesh_init
 
@@ -637,6 +640,62 @@ contains
     end subroutine surface_mesh_create_midpoints
 
 
+    subroutine surface_mesh_calc_vertex_parameters(this)
+        ! Initializes the geometric parameters for the vertices which are dependent upon other parts of the mesh
+
+        implicit none
+        
+        class(surface_mesh),intent(inout) :: this
+
+        real,dimension(3) :: n_avg, n_g_panel
+        integer :: i, j, k, j_panel, k_panel, N_panels
+
+        if (verbose) write(*,'(a)',advance='no') "     Calculating vertex geometric parameters..."
+
+        ! Loop through vertices
+        !$OMP parallel do private(n_avg, j, k, j_panel, N_panels, n_g_panel) schedule(dynamic)
+        do i=1,this%N_verts
+
+            ! Loop through neighboring panels and compute the average of their normal vectors
+            n_avg = 0
+            N_panels = this%vertices(i)%panels%len()
+            do j=1,N_panels
+
+                ! Get panel index
+                call this%vertices(i)%panels%get(j, j_panel)
+
+                ! Get weighted normal
+                n_g_panel = this%panels(j_panel)%get_weighted_normal_at_corner(this%vertices(i)%loc)
+
+                ! Update using weighted normal
+                n_avg = n_avg + n_g_panel
+
+            end do
+
+            ! For vertices on the mirror plane, the component normal to the plane should be zeroed
+            if (this%vertices(i)%on_mirror_plane) then
+                n_avg(this%mirror_plane) = 0.
+            end if
+
+            ! Normalize and store
+            this%vertices(i)%n_g = n_avg/norm2(n_avg)
+
+            ! Calculate mirrored normal for mirrored vertex
+            if (this%mirrored) then
+                this%vertices(i)%n_g_mir = mirror_across_plane(this%vertices(i)%n_g, this%mirror_plane)
+            end if
+
+            ! Calculate average edge lengths
+            call this%vertices(i)%set_average_edge_length(this%vertices)
+
+        end do
+
+        if (verbose) write(*,*) "Done."
+    
+        
+    end subroutine surface_mesh_calc_vertex_parameters
+
+
     subroutine surface_mesh_init_with_flow(this, freestream, body_file, wake_file)
 
         implicit none
@@ -658,46 +717,50 @@ contains
         end if
 
         ! Initialize properties of panels dependent upon the flow
-        if (verbose) write(*,'(a)',advance='no') "     Calculating panel properties..."
+        if (verbose) write(*,'(a)',advance='no') "     Calculating panel local transformations.."
+
         !$OMP parallel do schedule(static)
         do i=1,this%N_panels
             call this%panels(i)%init_with_flow(freestream, this%asym_flow, this%mirror_plane)
         end do
+
         if (verbose) write(*,*) "Done."
 
         ! Determine number of sub- and superinclined panels
         call this%count_panel_inclinations()
 
-        ! Figure out wake-shedding edges, discontinuous edges, etc.
-        ! Edge-characterization is only necessary for flows with wakes
-        ! According to Davis, sharp, subsonic, leading edges in supersonic flow must have discontinuous doublet strength.
-        ! I don't know why this would be, except in the case of leading-edge vortex separation. But Davis doesn't
-        ! model leading-edge vortices. Wake-shedding trailing edges are still discontinuous in supersonic flow. Supersonic
-        ! leading edges should have continuous doublet strength.
         if (this%wake_present) then
+
+            ! Figure out wake-shedding edges, discontinuous edges, etc.
+            ! Edge-characterization is only necessary for flows with wakes
+            ! According to Davis, sharp, subsonic, leading edges in supersonic flow must have discontinuous doublet strength.
+            ! I don't know why this would be, except in the case of leading-edge vortex separation. But Davis doesn't
+            ! model leading-edge vortices. Wake-shedding trailing edges are still discontinuous in supersonic flow. Supersonic
+            ! leading edges should have continuous doublet strength.
             call this%characterize_edges(freestream)
             call this%set_needed_vertex_clones()
-        end if
 
-        ! Initialize vertex ordering
-        allocate(this%vertex_ordering(this%N_verts))
-        do i=1,this%N_verts
-            this%vertex_ordering(i) = i
-        end do
-
-        ! Clone necessary vertices
-        if (this%wake_present) then
+            ! Clone necessary vertices
             call this%clone_vertices()
+
         end if
 
-        ! Calculate normals (for placing control points)
-        call this%calc_vertex_normals()
+        ! Initialize vertex ordering (normally happens during vertex cloning)
+        if (.not. this%found_discontinuous_edges) then
+
+            allocate(this%vertex_ordering(this%N_verts))
+            do i=1,this%N_verts
+                this%vertex_ordering(i) = i
+            end do
+
+        end if
 
         ! Initialize wake
         call this%init_wake(freestream, wake_file)
 
         ! Set up influencing vertex arrays
         if (verbose) write(*,"(a)",advance='no') "     Setting influencing vertices for panels..."
+
         !$OMP parallel do schedule(static)
         do i=1,this%N_panels
             call this%panels(i)%set_influencing_verts()
@@ -705,7 +768,7 @@ contains
 
         if (verbose) write(*,*) "Done."
 
-        ! Write out body file to ensure it's been parsed correctly
+        ! Write out body file to let user ensure it's been parsed correctly
         if (body_file /= 'none') then
             call this%write_body(body_file, .false.)
         end if
@@ -718,7 +781,7 @@ contains
 
         implicit none
         
-        class(surface_mesh), intent(inout) :: this
+        class(surface_mesh),intent(inout) :: this
 
         integer :: i
     
@@ -1133,6 +1196,9 @@ contains
         call this%vertices(i_boba)%init(this%vertices(i_jango)%loc, i_boba, this%vertices(i_jango)%vert_type)
         this%vertices(i_boba)%clone = .true.
 
+        ! Copy information which is the same
+        call this%vertices(i_jango)%copy_to(this%vertices(i_boba))
+
         ! If this is a true vertex (not a midpoint), add to the count
         if (this%vertices(i_jango)%vert_type == 1) this%N_true_verts = this%N_true_verts + 1
 
@@ -1141,45 +1207,8 @@ contains
         this%vertices(i_jango)%i_wake_partner = i_boba
         this%vertices(i_boba)%i_wake_partner = i_jango
 
-        ! Store number of adjacent wake-shedding and discontinuous edges (probably unecessary at this point, but let's be consistent)
-        this%vertices(i_boba)%N_wake_edges = this%vertices(i_jango)%N_wake_edges
-
         ! Mirroring properties
-        this%vertices(i_boba)%on_mirror_plane = this%vertices(i_jango)%on_mirror_plane
         this%vertices(i_boba)%mirrored_is_unique = mirrored_is_unique
-
-        ! Copy over adjacent panels
-        do k=1,this%vertices(i_jango)%panels%len()
-
-            ! Get adjacent panel index from original vertex
-            call this%vertices(i_jango)%panels%get(k, i_panel)
-
-            ! Copy to clone
-            call this%vertices(i_boba)%panels%append(i_panel)
-
-        end do
-
-        ! Copy over adjacent vertices
-        do k=1,this%vertices(i_jango)%adjacent_vertices%len()
-
-            ! Get adjacent vertex index from original vertex
-            call this%vertices(i_jango)%adjacent_vertices%get(k, i_vert)
-
-            ! Copy to new vertex
-            call this%vertices(i_boba)%adjacent_vertices%append(i_vert)
-
-        end do
-
-        ! Copy over adjacent edges
-        do k=1,this%vertices(i_jango)%adjacent_edges%len()
-
-            ! Get adjacent edge index from original vertex
-            call this%vertices(i_jango)%adjacent_edges%get(k, i_edge)
-
-            ! Copy to new vertex
-            call this%vertices(i_boba)%adjacent_edges%append(i_edge)
-
-        end do
 
         ! Remove necessary panels from Jango and give them to Boba
         do k=1,size(panels_for_this_clone)
@@ -1206,62 +1235,6 @@ contains
         end do
         
     end subroutine surface_mesh_init_vertex_clone
-
-
-    subroutine surface_mesh_calc_vertex_normals(this)
-        ! Initializes the normal vectors associated with each vertex.
-        ! Must be called only once wake-shedding edge vertices have been cloned.
-
-        implicit none
-
-        class(surface_mesh),intent(inout) :: this
-
-        real,dimension(3) :: n_avg, n_avg_plane, n_g_panel
-        integer :: i, j, k, j_panel, k_panel, N_panels
-
-        if (verbose) write(*,'(a)',advance='no') "     Calculating vertex normals..."
-
-        ! Loop through vertices
-        !$OMP parallel do private(n_avg, j, k, j_panel, n_avg_plane, N_panels, n_g_panel) schedule(dynamic)
-        do i=1,this%N_verts
-
-            ! Loop through neighboring panels and compute the average of their normal vectors
-            n_avg = 0
-            N_panels = this%vertices(i)%panels%len()
-            do j=1,N_panels
-
-                ! Get panel index
-                call this%vertices(i)%panels%get(j, j_panel)
-
-                ! Get weighted normal
-                n_g_panel = this%panels(j_panel)%get_weighted_normal_at_corner(this%vertices(i)%loc)
-
-                ! Update using weighted normal
-                n_avg = n_avg + n_g_panel
-
-            end do
-
-            ! For vertices on the mirror plane, the component normal to the plane should be zeroed
-            if (this%vertices(i)%on_mirror_plane) then
-                n_avg(this%mirror_plane) = 0.
-            end if
-
-            ! Normalize and store
-            this%vertices(i)%n_g = n_avg/norm2(n_avg)
-
-            ! Calculate mirrored normal for mirrored vertex
-            if (this%mirrored) then
-                this%vertices(i)%n_g_mir = mirror_across_plane(this%vertices(i)%n_g, this%mirror_plane)
-            end if
-
-            ! Calculate average edge lengths for each vertex
-            call this%vertices(i)%set_average_edge_length(this%vertices)
-
-        end do
-
-        if (verbose) write(*,*) "Done."
-
-    end subroutine surface_mesh_calc_vertex_normals
 
 
     subroutine surface_mesh_init_wake(this, freestream, wake_file)
@@ -1473,7 +1446,6 @@ contains
                     call this%vertices(i)%adjacent_edges%get(1, k)
                     t1 = this%panels(this%edges(k)%panels(1))%n_g
                     t2 = this%panels(this%edges(k)%panels(2))%n_g
-                    write(*,*) this%vertices(i)%adjacent_edges%len()
                     C_min_edge_angle = inner(t1, t2)
 
                     ! Calculate offset ratio

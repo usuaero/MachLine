@@ -41,6 +41,9 @@ module base_geom_mod
             ! Getters
             procedure :: get_needed_clones => vertex_get_needed_clones
 
+            ! Cloning
+            procedure :: copy_to => vertex_copy_to
+
     end type vertex
 
 
@@ -263,6 +266,64 @@ contains
         N_clones = this%N_needed_clones
         
     end function vertex_get_needed_clones
+
+
+    subroutine vertex_copy_to(this, new_vert)
+        ! Copies the information to the new vertex which will be the same for a clone
+
+        implicit none
+        
+        class(vertex),intent(in) :: this
+        type(vertex),intent(inout) :: new_vert
+
+        integer :: k, i_panel, i_vert, i_edge
+
+        ! Store number of adjacent wake-shedding and discontinuous edges (probably unecessary at this point, but let's be consistent)
+        new_vert%N_wake_edges = this%N_wake_edges
+
+        ! Mirroring properties
+        new_vert%on_mirror_plane = this%on_mirror_plane
+
+        ! Geometry
+        new_vert%n_g = this%n_g
+        new_vert%n_g_mir = this%n_g_mir
+        new_vert%l_avg = this%l_avg
+
+        ! Copy over adjacent panels
+        do k=1,this%panels%len()
+
+            ! Get adjacent panel index from original vertex
+            call this%panels%get(k, i_panel)
+
+            ! Copy to clone
+            call new_vert%panels%append(i_panel)
+
+        end do
+
+        ! Copy over adjacent vertices
+        do k=1,this%adjacent_vertices%len()
+
+            ! Get adjacent vertex index from original vertex
+            call this%adjacent_vertices%get(k, i_vert)
+
+            ! Copy to new vertex
+            call new_vert%adjacent_vertices%append(i_vert)
+
+        end do
+
+        ! Copy over adjacent edges
+        do k=1,this%adjacent_edges%len()
+
+            ! Get adjacent edge index from original vertex
+            call this%adjacent_edges%get(k, i_edge)
+
+            ! Copy to new vertex
+            call new_vert%adjacent_edges%append(i_edge)
+
+        end do
+    
+        
+    end subroutine vertex_copy_to
 
 
     subroutine edge_init(this, i1, i2, top_panel, bottom_panel, l)
