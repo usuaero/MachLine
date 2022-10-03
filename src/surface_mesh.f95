@@ -691,7 +691,6 @@ contains
         end do
 
         if (verbose) write(*,*) "Done."
-    
         
     end subroutine surface_mesh_calc_vertex_geometry
 
@@ -1384,43 +1383,61 @@ contains
             if (this%vertices(i)%clone) then
 
                 ! Get the two edges defining the split for this vertex
-                found_first = .false.
-                do j=1,this%vertices(i)%adjacent_edges%len()
-                        
-                    ! Get index
-                    call this%vertices(i)%adjacent_edges%get(j, i_edge)
+                if (this%vertices(i)%vert_type == 1) then
+                    found_first = .false.
+                    i_edge_2 = 0
+                    do j=1,this%vertices(i)%adjacent_edges%len()
 
-                    ! Make sure it's a wake-shedding edge (we don't need to check other edges)
-                    if (this%edges(i_edge)%sheds_wake) then
+                        ! Get index
+                        call this%vertices(i)%adjacent_edges%get(j, i_edge)
 
-                        ! See if only one of this edge's panels belongs to the panels not across a wake edge for this vertex
-                        panel1 = this%edges(i_edge)%panels(1)
-                        panel2 = this%edges(i_edge)%panels(2)
-                        if ((this%vertices(i)%panels_not_across_wake_edge%is_in(panel1) &
-                             .and. .not. this%vertices(i)%panels_not_across_wake_edge%is_in(panel2)) .or. &
-                            (this%vertices(i)%panels_not_across_wake_edge%is_in(panel2) &
-                             .and. .not. this%vertices(i)%panels_not_across_wake_edge%is_in(panel1))) then
+                        ! Make sure it's a wake-shedding edge (we don't need to check other edges)
+                        if (this%edges(i_edge)%sheds_wake) then
 
-                            ! Store
-                            if (found_first) then
-                                i_edge_2 = i_edge
-                            else
-                                i_edge_1 = i_edge
-                                found_first = .true.
+                            ! See if only one of this edge's panels belongs to the panels not across a wake edge for this vertex
+                            panel1 = this%edges(i_edge)%panels(1)
+                            panel2 = this%edges(i_edge)%panels(2)
+                            if ((this%vertices(i)%panels_not_across_wake_edge%is_in(panel1) &
+                                 .and. .not. this%vertices(i)%panels_not_across_wake_edge%is_in(panel2)) .or. &
+                                (this%vertices(i)%panels_not_across_wake_edge%is_in(panel2) &
+                                 .and. .not. this%vertices(i)%panels_not_across_wake_edge%is_in(panel1))) then
+
+                                ! Store
+                                if (found_first) then
+                                    i_edge_2 = i_edge
+                                else
+                                    i_edge_1 = i_edge
+                                    found_first = .true.
+                                end if
                             end if
+
                         end if
 
+                    end do
+
+                    ! Get average tangent vector for the edge
+                    ! If we've found both, then we can use both
+                    if (i_edge_2 /= 0) then
+                        t1 = this%vertices(i)%loc - this%vertices(this%edges(i_edge_1)%get_opposite_endpoint(i, this%vertices))%loc
+                        t1 = t1/norm2(t1)
+                        t2 = this%vertices(this%edges(i_edge_2)%get_opposite_endpoint(i, this%vertices))%loc - this%vertices(i)%loc
+                        t2 = t2/norm2(t2)
+                        t_avg = t1 + t2
+                        t_avg = t_avg/norm2(t_avg)
+
+                    ! If we've only found one, then the other edge must be mirrored
+                    else
+                        t_avg = 0.
+                        t_avg(this%mirror_plane) = 1.
                     end if
 
-                end do
-
-                ! Get average tangent vector for the edge
-                t1 = this%vertices(i)%loc - this%vertices(this%edges(i_edge_1)%get_opposite_endpoint(i, this%vertices))%loc
-                t1 = t1/norm2(t1)
-                t2 = this%vertices(this%edges(i_edge_2)%get_opposite_endpoint(i, this%vertices))%loc - this%vertices(i)%loc
-                t2 = t2/norm2(t2)
-                t_avg = t1 + t2
-                t_avg = t_avg/norm2(t_avg)
+                ! For midpoints, this is just the edge it belongs to
+                else
+                    call this%vertices(i)%adjacent_edges%get(1, i_edge_1)
+                    t_avg = this%vertices(this%edges(i_edge_1)%top_verts(1))%loc - &
+                            this%vertices(this%edges(i_edge_1)%top_verts(2))%loc
+                    t_avg = t_avg/norm2(t_avg)
+                end if
 
                 ! Get the vector which is perpendicular to t_avg that also lies inside one of the panels not across a wake edge
                 tp_loop: do j=1,this%vertices(i)%panels_not_across_wake_edge%len()
@@ -1485,15 +1502,6 @@ contains
                 offset_ratio = 0.5*sqrt(0.5*(1. + C_min_panel_angle))
                 dir = tp - offset_ratio*n_avg
                 dir = dir/norm2(dir)
-
-                if (i==3374) then
-                    write(*,*)
-                    write(*,*) n_avg
-                    write(*,*) tp
-                    write(*,*) dir
-                end if
-
-                ! Check if it's outside any of the panels across the wake edge
 
             ! If it has no clone, then placement simply follows the average normal vector
             else
