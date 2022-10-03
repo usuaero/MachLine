@@ -3,6 +3,7 @@ module base_geom_mod
 
     use linked_list_mod
     use math_mod
+    use helpers_mod
 
     implicit none
 
@@ -74,6 +75,8 @@ module base_geom_mod
             procedure :: touches_vertex => edge_touches_vertex
             procedure :: point_top_to_new_vert => edge_point_top_to_new_vert
             procedure :: point_bottom_to_new_vert => edge_point_bottom_to_new_vert
+            procedure :: shares_panel_with => edge_shares_panel_with
+            procedure :: get_opposite_endpoint => edge_get_opposite_endpoint
 
     end type edge
     
@@ -426,6 +429,44 @@ contains
         end if
         
     end subroutine edge_point_bottom_to_new_vert
+
+
+    function edge_shares_panel_with(this, other_edge) result(shares)
+        ! Checks whether this edge shares a panel with the other edge
+
+        implicit none
+        
+        class(edge),intent(in) :: this
+        type(edge),intent(in) :: other_edge
+
+        logical :: shares
+    
+        shares = (this%panels(1) == other_edge%panels(1)) .or. &
+                 (this%panels(1) == other_edge%panels(2)) .or. &
+                 (this%panels(2) == other_edge%panels(2)) .or. &
+                 (this%panels(2) == other_edge%panels(1))
+        
+    end function edge_shares_panel_with
+
+
+    function edge_get_opposite_endpoint(this, i_vert, mesh_verts) result(i_opp_vert)
+        ! Returns the index of the top vertex opposite the given vertex (may be top or bottom) on this edge
+
+        implicit none
+        
+        class(edge),intent(in) :: this
+        integer,intent(in) :: i_vert
+        type(vertex),dimension(:),allocatable :: mesh_verts
+
+        integer :: i_opp_vert
+    
+        if (dist(mesh_verts(i_vert)%loc, mesh_verts(this%top_verts(1))%loc) < 1.e-12) then
+            i_opp_vert = this%top_verts(2)
+        else
+            i_opp_vert = this%top_verts(1)
+        end if
+        
+    end function edge_get_opposite_endpoint
 
     
 end module base_geom_mod

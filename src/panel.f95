@@ -105,12 +105,16 @@ module panel_mod
             procedure :: get_midpoint_loc => panel_get_midpoint_loc
             procedure :: get_vertex_index => panel_get_vertex_index
             procedure :: get_midpoint_index => panel_get_midpoint_index
-            procedure :: touches_vertex => panel_touches_vertex
-            procedure :: check_abutting_mirror_plane => panel_check_abutting_mirror_plane
             procedure :: get_subpanel_centroid => panel_get_subpanel_centroid
             procedure :: get_corner_angle => panel_get_corner_angle
             procedure :: get_weighted_normal_at_corner => panel_get_weighted_normal_at_corner
             procedure :: get_projection_onto_surface => panel_get_projection_onto_surface
+
+            ! Checks
+            procedure :: touches_vertex => panel_touches_vertex
+            procedure :: check_abutting_mirror_plane => panel_check_abutting_mirror_plane
+            procedure :: projection_inside => panel_projection_inside
+            procedure :: point_outside => panel_point_outside
 
             ! Update information
             procedure :: point_to_new_vertex => panel_point_to_new_vertex
@@ -1063,6 +1067,84 @@ contains
         end do mirror_loop
         
     end function panel_check_abutting_mirror_plane
+
+
+    function panel_projection_inside(this, point, mirror_panel, mirror_plane) result(inside)
+        ! Checks whether the given point, when projected into the plane of the panel, is inside the panel
+
+        implicit none
+        
+        class(panel),intent(in) :: this
+        real,dimension(3),intent(in) :: point
+        logical,intent(in) :: mirror_panel
+        integer,intent(in) :: mirror_plane
+
+        logical :: inside
+
+        real,dimension(3) :: d
+        integer :: i
+        real :: x
+
+        ! Loop through edges
+        inside = .true.
+        do i=1,this%N
+
+            ! Shift origin to the edge
+            if (mirror_panel) then
+                d = point - mirror_across_plane(this%get_vertex_loc(i), mirror_plane)
+            else
+                d = point - this%get_vertex_loc(i)
+            end if
+            
+            ! Get dot product with outer normal
+            if (mirror_panel) then
+                x = inner(d, this%n_hat_g_mir)
+            else
+                x = inner(d, this%n_hat_g)
+            end if
+
+            ! Check
+            if (x > 0.) then
+                inside = .false.
+                return
+            end if
+
+        end do
+        
+    end function panel_projection_inside
+
+
+    function panel_point_outside(this, point, mirror_panel, mirror_plane) result(outside)
+        ! Tells whether the given point is above the panel and its projection is inside the surface of the panel
+
+        implicit none
+        
+        class(panel),intent(in) :: this
+        real,dimension(3),intent(in) :: point
+        logical,intent(in) :: mirror_panel
+        integer,intent(in) :: mirror_plane
+
+        logical :: outside
+
+        real :: h
+
+        ! Get height above panel
+        if (mirror_panel) then
+            h = inner(point-this%centr_mir, this%n_g_mir)
+        else
+            h = inner(point-this%centr, this%n_g)
+        end if
+
+        ! If height is negative, we know this isn't outside the panel
+        if (h < 0.) then
+            outside = .false.
+
+        ! Otherwise, it's dependent upon whether the projection is inside the panel surface
+        else
+            outside = this%projection_inside(point, mirror_panel, mirror_plane)
+        end if
+        
+    end function panel_point_outside
 
 
     function panel_get_subpanel_centroid(this, j) result(cent)

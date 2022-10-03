@@ -1,6 +1,6 @@
 {
     "flow": {
-        "freestream_velocity" : [ 100.0, 10.0, 0.0 ],
+        "freestream_velocity" : [ 100.0, 1.0, 0.0 ],
         "freestream_mach_number" : 1.62
     },
     "geometry": {
@@ -12,6 +12,7 @@
         }
     },
     "solver": {
+        "matrix_solver" : "FQRUP",
         "write_A_and_" : true
     },
     "output": {
