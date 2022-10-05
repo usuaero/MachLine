@@ -92,9 +92,9 @@ def run_sphere_comparison(grid, sample, run_machline=True):
     
     # Plot data from MachLine
     plt.figure()
-    theta = np.degrees(np.arccos(data[:,2]))
+    theta = np.degrees(np.arccos(data[:,4]))
     theta_a = np.linspace(0.0, np.pi, 100)
-    plt.plot(theta, data[:,0], 'k.', markersize=3, label='MachLine')
+    plt.plot(theta, data[:,7], 'k.', markersize=1, label='MachLine')
     plt.plot(np.degrees(theta_a), 1.0-2.25*np.sin(theta_a)**2, 'k-', label='Analytic')
     plt.xlabel('$\\theta [^\circ]$')
     plt.ylabel('$C_p$')
@@ -117,7 +117,7 @@ if __name__=="__main__":
     for i, grid in enumerate(grids):
         for j, sample in enumerate(samples):
 
-                C_f[i,j,0], C_f[i,j,1], C_f[i,j,2] = run_sphere_comparison(grid, sample, run_machline=True)
+                C_f[i,j,0], C_f[i,j,1], C_f[i,j,2] = run_sphere_comparison(grid, sample, run_machline=False)
 
     # Plot convergence
     avg = np.average(C_f, axis=1)
