@@ -79,6 +79,23 @@ module base_geom_mod
             procedure :: get_opposite_endpoint => edge_get_opposite_endpoint
 
     end type edge
+
+
+    type eval_point_geom
+        ! Container type for the geometric parameters necessary for calculating a panel's influence on a given field point
+
+        real,dimension(3) :: P_g ! Point position in global coords
+        real,dimension(2) :: P_ls ! Transformed point in panel plane
+        real :: h, h2 ! Transformed height above panel
+        real,dimension(3) :: a, g2, l1, l2, R1, R2, dR ! Edge integration parameters for the Ehlers-Johnson method
+        real,dimension(3) :: v_xi, v_eta ! Edge in-plane normal vectors
+
+        contains
+
+            procedure :: init => eval_point_geom_init
+
+    end type eval_point_geom
+
     
 contains
 
@@ -467,6 +484,33 @@ contains
         end if
         
     end function edge_get_opposite_endpoint
+
+
+    subroutine eval_point_geom_init(this, P, A_g_to_ls, centr)
+
+        implicit none
+
+        class(eval_point_geom),intent(out) :: this
+        real,dimension(3),intent(in) :: P, centr
+        real,dimension(3,3),intent(in) :: A_g_to_ls
+
+        real,dimension(3) :: x
+
+        ! Store point
+        this%P_g = P
+
+        ! Transform to local scaled coordinates
+        x = matmul(A_g_to_ls, this%P_g-centr)
+        this%P_ls = x(1:2)
+        this%h = x(3) ! Equivalent to E&M Eq. (J.7.41)
+        this%h2 = this%h**2
+
+        ! These are sometimes accessed when the DoD is not checked, so they need to be set to zero
+        this%R1 = 0.
+        this%R2 = 0.
+        this%a = 0.
+    
+    end subroutine eval_point_geom_init
 
     
 end module base_geom_mod

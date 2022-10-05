@@ -1264,12 +1264,12 @@ contains
             end if
 
             ! Initialize wake
-            call this%wake%init(this%edges, this%vertices, this%N_panels, freestream, &
-                                this%asym_flow, this%mirror_plane, this%N_wake_panels_streamwise, this%trefftz_distance)
+            call this%wake%init(this%edges, this%vertices, freestream, this%asym_flow, this%mirror_plane, &
+                                this%N_wake_panels_streamwise, this%trefftz_distance)
         
             ! Export wake geometry
             if (wake_file /= 'none') then
-                call this%wake%write_wake(wake_file, dummy)
+                call this%wake%write_strips(wake_file, dummy)
             end if
 
         else
@@ -1554,10 +1554,12 @@ contains
         class(surface_mesh),intent(in) :: this
         real,dimension(3),intent(in) :: point
         type(flow),intent(in) :: freestream
-        type(dod),dimension(:),allocatable,intent(out) :: dod_info, wake_dod_info
+        type(dod),dimension(:),allocatable,intent(out) :: dod_info
+        type(dod),dimension(:,:),allocatable :: wake_dod_info
 
-        logical,dimension(:),allocatable :: verts_in_dod, wake_verts_in_dod
-        integer :: k, stat
+        logical,dimension(:),allocatable :: verts_in_dod
+        logical,dimension(:,:),allocatable :: wake_verts_in_dod
+        integer :: j, k, stat
         real,dimension(3) :: vert_loc, mirrored_vert_loc
 
         ! Allocate DoD storage for body
@@ -1577,17 +1579,17 @@ contains
 
         ! Allocate DoD storage for wake
         if (this%mirrored .and. .not. this%asym_flow) then ! This is the only case where the wake is mirrored
-            allocate(wake_dod_info(2*this%wake%N_panels), stat=stat)
-            call check_allocation(stat, "domain of dependence storage")
+            allocate(wake_dod_info(2*this%wake%N_max_strip_panels, this%wake%N_strips), stat=stat)
+            call check_allocation(stat, "wake domain of dependence storage")
 
-            allocate(wake_verts_in_dod(2*this%wake%N_verts), stat=stat)
-            call check_allocation(stat, "vertex domain of dependence storage")
+            allocate(wake_verts_in_dod(2*this%wake%N_max_strip_verts, this%wake%N_strips), stat=stat)
+            call check_allocation(stat, "wake vertex domain of dependence storage")
         else
-            allocate(wake_dod_info(this%wake%N_panels), stat=stat)
-            call check_allocation(stat, "domain of dependence storage")
+            allocate(wake_dod_info(this%wake%N_max_strip_panels, this%wake%N_strips), stat=stat)
+            call check_allocation(stat, "wake domain of dependence storage")
 
-            allocate(wake_verts_in_dod(this%wake%N_verts), stat=stat)
-            call check_allocation(stat, "vertex domain of dependence storage")
+            allocate(wake_verts_in_dod(this%wake%N_max_strip_verts, this%wake%N_strips), stat=stat)
+            call check_allocation(stat, "wake vertex domain of dependence storage")
         end if
 
         ! If the freestream is supersonic, calculate domain of dependence info
@@ -1630,36 +1632,41 @@ contains
             deallocate(verts_in_dod)
 
             ! Loop through wake vertices
-            do k=1,this%wake%N_verts
+            do j=1,this%wake%N_strips
+                do k=1,this%wake%strips(j)%N_verts
 
-                ! Get vertex location
-                vert_loc = this%wake%vertices(k)%loc
+                    ! Get vertex location
+                    vert_loc = this%wake%strips(j)%vertices(k)%loc
 
-                ! Original vertex and original control point
-                wake_verts_in_dod(k) = freestream%point_in_dod(vert_loc, point)
+                    ! Original vertex and original control point
+                    wake_verts_in_dod(k,j) = freestream%point_in_dod(vert_loc, point)
 
-                if (this%mirrored .and. .not. this%asym_flow) then
+                    if (this%mirrored .and. .not. this%asym_flow) then
 
-                    ! Get mirrored vertex location
-                    mirrored_vert_loc = mirror_across_plane(vert_loc, this%mirror_plane)
+                        ! Get mirrored vertex location
+                        mirrored_vert_loc = mirror_across_plane(vert_loc, this%mirror_plane)
 
-                    ! Check if this vertex is in the DoD
-                    wake_verts_in_dod(k+this%wake%N_verts) = freestream%point_in_dod(mirrored_vert_loc, point)
+                        ! Check if this vertex is in the DoD
+                        wake_verts_in_dod(k+this%wake%N_max_strip_verts,j) = freestream%point_in_dod(mirrored_vert_loc, point)
 
-                end if
+                    end if
+                end do
             end do
 
             ! Loop through wake panels
-            do k=1,this%wake%N_panels
+            do j=1,this%wake%N_strips
+                do k=1,this%wake%strips(j)%N_panels
 
-                ! Check if the panel is in the DoD
-                wake_dod_info(k) = this%wake%panels(k)%check_dod(point, freestream, wake_verts_in_dod)
+                    ! Check if the panel is in the DoD
+                    wake_dod_info(k,j) = this%wake%strips(j)%panels(k)%check_dod(point, freestream, wake_verts_in_dod(:,j))
 
-                ! Check DoD for mirrored panel
-                if (this%mirrored .and. .not. this%asym_flow) then
-                    wake_dod_info(k+this%wake%N_panels) = this%wake%panels(k)%check_dod(point, freestream, wake_verts_in_dod, &
-                                                                                        .true., this%mirror_plane)
-                end if
+                    ! Check DoD for mirrored panel
+                    if (this%mirrored .and. .not. this%asym_flow) then
+                        wake_dod_info(k+this%wake%N_max_strip_panels,j) = &
+                            this%wake%strips(j)%panels(k)%check_dod(point, freestream, wake_verts_in_dod(:,j), &
+                                                                    .true., this%mirror_plane)
+                    end if
+                end do
             end do
 
         end if
@@ -1680,7 +1687,8 @@ contains
         integer :: i, j, k
         real :: phi_d_panel, phi_s_panel
         logical,dimension(:),allocatable :: verts_in_dod
-        type(dod),dimension(:),allocatable :: dod_info, wake_dod_info
+        type(dod),dimension(:),allocatable :: dod_info
+        type(dod),dimension(:,:),allocatable :: wake_dod_info
 
         ! Calculate domain of dependence
         call this%calc_point_dod(point, freestream, dod_info, wake_dod_info)
@@ -1732,34 +1740,37 @@ contains
         end do
 
         ! Loop through wake panels
-        do k=1,this%wake%N_panels
+        do j=1,this%wake%N_strips
+            do k=1,this%wake%strips(j)%N_panels
 
-            ! Check DoD
-            if (wake_dod_info(k)%in_dod) then
-            
-                ! Calculate influence
-                call this%wake%panels(k)%calc_potentials(point, freestream, wake_dod_info(k), .false., &
-                                                         this%sigma, this%mu, phi_s_panel, phi_d_panel)
-                phi_s = phi_s + phi_s_panel
-                phi_d = phi_d + phi_d_panel
-
-            end if
-
-            ! Calculate mirrored influences
-            if (this%mirrored .and. .not. this%asym_flow) then
-
-                if (wake_dod_info(k+this%N_panels)%in_dod) then
-
-                    ! Get influence of mirrored panel
-                    call this%wake%panels(k)%calc_potentials(point, freestream, wake_dod_info(k+this%N_panels), .true., &
+                ! Check DoD
+                if (wake_dod_info(k,j)%in_dod) then
+                
+                    ! Calculate influence
+                    call this%wake%strips(j)%panels(k)%calc_potentials(point, freestream, wake_dod_info(k,j), .false., &
                                                              this%sigma, this%mu, phi_s_panel, phi_d_panel)
                     phi_s = phi_s + phi_s_panel
                     phi_d = phi_d + phi_d_panel
 
                 end if
 
-            end if
+                ! Calculate mirrored influences
+                if (this%mirrored .and. .not. this%asym_flow) then
 
+                    if (wake_dod_info(k+this%wake%N_max_strip_panels,j)%in_dod) then
+
+                        ! Get influence of mirrored panel
+                        call this%wake%strips(j)%panels(k)%calc_potentials(point, freestream, &
+                                                                 wake_dod_info(k+this%wake%N_max_strip_panels,j), .true., &
+                                                                 this%sigma, this%mu, phi_s_panel, phi_d_panel)
+                        phi_s = phi_s + phi_s_panel
+                        phi_d = phi_d + phi_d_panel
+
+                    end if
+
+                end if
+
+            end do
         end do
         
     end subroutine surface_mesh_get_induced_potentials_at_point
@@ -1790,7 +1801,7 @@ contains
         
         ! Write out data for wake
         if (wake_file /= 'none') then
-            call this%wake%write_wake(wake_file, wake_exported, this%mu)
+            call this%wake%write_strips(wake_file, wake_exported, this%mu)
 
             if (wake_exported) then
                 if (verbose) write(*,'(a30 a)') "    Wake: ", wake_file

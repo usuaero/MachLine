@@ -23,7 +23,8 @@ module panel_solver_mod
         logical :: incompressible_rule, isentropic_rule, second_order_rule, slender_rule, linear_rule
         logical :: morino, write_A_and_b, sort_system
         logical :: compressible_correction, prandtl_glauert, karman_tsien, laitone
-        type(dod),dimension(:,:),allocatable :: dod_info, wake_dod_info
+        type(dod),dimension(:,:),allocatable :: dod_info
+        type(dod),dimension(:,:,:),allocatable :: wake_dod_info
         type(flow) :: freestream
         real :: norm_res, max_res, tol, rel
         real,dimension(3) :: C_F, inner_flow
@@ -297,9 +298,10 @@ contains
         class(panel_solver),intent(inout) :: this
         type(surface_mesh),intent(inout) :: body
 
-        integer :: i, j, stat
+        integer :: i, j, k, stat
         real,dimension(3) :: vert_loc, mirrored_vert_loc
-        logical,dimension(:),allocatable :: wake_verts_in_dod, mirrored_wake_verts_in_dod, verts_in_dod, mirrored_verts_in_dod
+        logical,dimension(:),allocatable :: verts_in_dod, mirrored_verts_in_dod
+        logical,dimension(:,:),allocatable :: wake_verts_in_dod, mirrored_wake_verts_in_dod
 
         ! For asymmetric flow on a mirrored mesh, all domains of dependence must be calculated. There are no shortcuts.
         ! For symmetric flow on a mirrored mesh, domains of dependence will be the same between mirrored panels and mirrored
@@ -327,19 +329,19 @@ contains
 
         ! Allocate arrays for domain of dependence information for the wake
         if (body%mirrored .and. .not. body%asym_flow) then ! This is the only case where the wake is mirrored
-            allocate(this%wake_dod_info(2*body%wake%N_panels, this%N), stat=stat)
-            call check_allocation(stat, "domain of dependence storage")
+            allocate(this%wake_dod_info(2*body%wake%N_max_strip_panels, body%wake%N_strips, this%N), stat=stat)
+            call check_allocation(stat, "wake strip domain of dependence storage")
 
-            allocate(wake_verts_in_dod(2*body%wake%N_verts), stat=stat)
+            allocate(wake_verts_in_dod(2*body%wake%N_max_strip_verts, body%wake%N_strips), stat=stat)
             call check_allocation(stat, "vertex domain of dependence storage")
 
-            allocate(mirrored_wake_verts_in_dod(2*body%wake%N_verts), stat=stat)
+            allocate(mirrored_wake_verts_in_dod(2*body%wake%N_max_strip_verts, body%wake%N_strips), stat=stat)
             call check_allocation(stat, "vertex domain of dependence storage")
         else
-            allocate(this%wake_dod_info(body%wake%N_panels, this%N), stat=stat)
-            call check_allocation(stat, "domain of dependence storage")
+            allocate(this%wake_dod_info(body%wake%N_max_strip_panels, body%wake%N_strips, this%N), stat=stat)
+            call check_allocation(stat, "wake strip domain of dependence storage")
 
-            allocate(wake_verts_in_dod(body%wake%N_verts), stat=stat)
+            allocate(wake_verts_in_dod(body%wake%N_max_strip_verts, body%wake%N_strips), stat=stat)
             call check_allocation(stat, "vertex domain of dependence storage")
         end if
 
@@ -347,8 +349,8 @@ contains
         if (this%freestream%supersonic) then
 
             ! Loop through control points
-            !$OMP parallel do private(i, vert_loc, mirrored_vert_loc, verts_in_dod, mirrored_verts_in_dod) &
-            !$OMP & private(wake_verts_in_dod, mirrored_wake_verts_in_dod)
+            !$OMP parallel do private(i, k, vert_loc, mirrored_vert_loc, verts_in_dod, mirrored_verts_in_dod) &
+            !$OMP & private(mirrored_wake_verts_in_dod, wake_verts_in_dod)
             do j=1,body%N_cp
 
                 ! Initialize for this control point
@@ -390,29 +392,32 @@ contains
                     end if
                 end do
 
-                ! Loop through wake vertices
-                do i=1,body%wake%N_verts
+                ! Loop through wake strip vertices
+                do i=1,body%wake%N_strips
+                    do k=1,body%wake%strips(i)%N_verts
 
-                    vert_loc = body%wake%vertices(i)%loc
+                        vert_loc = body%wake%strips(i)%vertices(k)%loc
 
-                    ! Original vertex and original control point
-                    wake_verts_in_dod(i) = this%freestream%point_in_dod(vert_loc, body%cp(:,j))
+                        ! Original vertex and original control point
+                        wake_verts_in_dod(k,i) = this%freestream%point_in_dod(vert_loc, body%cp(:,j))
 
-                    if (body%mirrored) then
+                        if (body%mirrored) then
 
-                        if (body%asym_flow) then
+                            if (body%asym_flow) then
 
-                            ! Original vertex and mirrored control point
-                            wake_verts_in_dod(i) = this%freestream%point_in_dod(vert_loc, body%cp_mir(:,j))
+                                ! Original vertex and mirrored control point
+                                wake_verts_in_dod(k,i) = this%freestream%point_in_dod(vert_loc, body%cp_mir(:,j))
 
-                        else
+                            else
 
-                            ! Mirrored vertex and original control point
-                            mirrored_vert_loc = mirror_across_plane(vert_loc, body%mirror_plane)
-                            mirrored_wake_verts_in_dod(i+body%wake%N_verts) = this%freestream%point_in_dod(mirrored_vert_loc, &
-                                                                                                           body%cp(:,j))
+                                ! Mirrored vertex and original control point
+                                mirrored_vert_loc = mirror_across_plane(vert_loc, body%mirror_plane)
+                                mirrored_wake_verts_in_dod(k+body%wake%N_max_strip_verts,i) = &
+                                    this%freestream%point_in_dod(mirrored_vert_loc, body%cp(:,j)) ! Should be able to use original vert and cp_mir here. Check later.
+
+                            end if
                         end if
-                    end if
+                    end do
                 end do
 
                 ! Loop through body panels
@@ -444,31 +449,35 @@ contains
                     end if
                 end do
 
-                ! Loop through wake panels
-                do i=1,body%wake%N_panels
+                ! Loop through wake strip panels
+                do i=1,body%wake%N_strips
+                    do k=1,body%wake%strips(i)%N_panels
 
-                    ! Check DoD for panel and original control point
-                    this%wake_dod_info(i,j) = body%wake%panels(i)%check_dod(body%cp(:,j), this%freestream, wake_verts_in_dod)
+                        ! Check DoD for panel and original control point
+                        this%wake_dod_info(k,i,j) = body%wake%strips(i)%panels(k)%check_dod(body%cp(:,j), this%freestream, &
+                                                                                                  wake_verts_in_dod(:,i))
 
-                    if (body%mirrored) then
+                        if (body%mirrored) then
 
-                        if (body%asym_flow) then
+                            if (body%asym_flow) then
 
-                            ! Check DoD for panel and mirrored control point
-                            this%wake_dod_info(i,j+body%N_cp) = body%wake%panels(i)%check_dod(body%cp_mir(:,j), &
-                                                                                              this%freestream, &
-                                                                                              wake_verts_in_dod)
+                                ! Check DoD for panel and mirrored control point
+                                this%wake_dod_info(k,i,j+body%N_cp) = &
+                                    body%wake%strips(i)%panels(k)%check_dod(body%cp_mir(:,j), &
+                                                                            this%freestream, &
+                                                                            wake_verts_in_dod(:,i))
 
-                        else
+                            else
 
-                            ! Check DoD for mirrored panel and original control point
-                            this%wake_dod_info(i+body%wake%N_panels,j) = body%wake%panels(i)%check_dod(body%cp(:,j), &
-                                                                                                       this%freestream, &
-                                                                                                       mirrored_wake_verts_in_dod, &
-                                                                                                       .true., body%mirror_plane)
+                                ! Check DoD for mirrored panel and original control point
+                                this%wake_dod_info(k+body%wake%N_max_strip_verts,i,j) = &
+                                    body%wake%strips(i)%panels(k)%check_dod(body%cp(:,j), this%freestream, &
+                                                                            mirrored_wake_verts_in_dod(:,i), &
+                                                                            .true., body%mirror_plane)
 
+                            end if
                         end if
-                    end if
+                    end do
                 end do
 
             end do
@@ -928,7 +937,7 @@ contains
         class(panel_solver),intent(inout) :: this
         type(surface_mesh),intent(inout) :: body
 
-        integer :: i, j, k
+        integer :: i, j, k, l
         real,dimension(:),allocatable ::  doublet_inf, source_inf, A_i, A_i_mir
 
         ! Calculate influence of wake
@@ -950,57 +959,58 @@ contains
                 A_i_mir = 0.
             end if
 
-            ! Get doublet influence from wake
-            ! Note that for the wake, in the case of mirrored meshes with asymmetric flow, the mirrored wake panels have actually been created.
-            ! In this case, there are technically no mirrored panels, and this loop will cycle through both existing and mirrored panels.
-            ! For symmetric flow, mirrored panels still need to be added as before.
-            do j=1,body%wake%N_panels
+            ! Get doublet influence from wake strips
+            do j=1,body%wake%N_strips
+                do l=1,body%wake%strips(j)%N_panels
 
-                ! Caclulate influence of existing panel on existing control point
-                call body%wake%panels(j)%calc_potential_influences(body%cp(:,i), this%freestream, this%wake_dod_info(j,i), &
-                                                                   .false., source_inf, doublet_inf)
+                    ! Caclulate influence of existing panel on existing control point
+                    call body%wake%strips(j)%panels(l)%calc_potential_influences(body%cp(:,i), this%freestream, &
+                                                                                 this%wake_dod_info(l,j,i), &
+                                                                                 .false., source_inf, doublet_inf)
 
-                ! Add influence
-                do k=1,size(body%wake%panels(j)%i_vert_d)
-                    A_i(this%P(body%wake%panels(j)%i_vert_d(k))) = A_i(this%P(body%wake%panels(j)%i_vert_d(k))) + doublet_inf(k)
-                end do
+                    ! Add influence
+                    do k=1,size(body%wake%strips(j)%panels(l)%i_vert_d)
+                        A_i(this%P(body%wake%strips(j)%panels(l)%i_vert_d(k))) = &
+                            A_i(this%P(body%wake%strips(j)%panels(l)%i_vert_d(k))) + doublet_inf(k)
+                    end do
 
-                ! Get influence on mirrored control point
-                if (body%mirrored) then
+                    ! Get influence on mirrored control point
+                    if (body%mirrored) then
 
-                    if (body%asym_flow) then
+                        if (body%asym_flow) then
 
-                        ! Calculate influence of existing panel on mirrored point
-                        call body%wake%panels(j)%calc_potential_influences(body%cp_mir(:,i), this%freestream, &
-                                                                 this%wake_dod_info(j,i+body%N_cp), .false., &
-                                                                 source_inf, doublet_inf)
+                            ! Calculate influence of existing panel on mirrored point
+                            if (body%vertices(i)%mirrored_is_unique) then
+                                call body%wake%strips(j)%panels(l)%calc_potential_influences(body%cp_mir(:,i), this%freestream, &
+                                                                         this%wake_dod_info(l,j,i+body%N_cp), .false., &
+                                                                         source_inf, doublet_inf)
 
-                        ! Add influence
-                        if (body%vertices(i)%mirrored_is_unique) then
-                            do k=1,size(body%wake%panels(j)%i_vert_d)
-                                A_i_mir(this%P(body%wake%panels(j)%i_vert_d(k))) = &
-                                        A_i_mir(this%P(body%wake%panels(j)%i_vert_d(k))) + doublet_inf(k)
+                                ! Add influence
+                                do k=1,size(body%wake%strips(j)%panels(l)%i_vert_d)
+                                    A_i_mir(this%P(body%wake%strips(j)%panels(l)%i_vert_d(k))) = &
+                                            A_i_mir(this%P(body%wake%strips(j)%panels(l)%i_vert_d(k))) + doublet_inf(k)
+                                end do
+                            end if
+
+                        else
+
+                            ! Calculate influence of existing panel on mirrored control point
+                            ! This is the same as the influence of a mirrored panel on an existing control point
+                            ! even for compressible flow, since we know the flow is symmetric here
+                            call body%wake%strips(j)%panels(l)%calc_potential_influences(body%cp_mir(:,i), this%freestream, &
+                                                                     this%wake_dod_info(l+body%wake%N_max_strip_panels,j,i), & ! No, this is not the DoD for this computation; yes, it is equivalent
+                                                                     .false., source_inf, doublet_inf)
+
+                            ! Add influence
+                            do k=1,size(body%wake%strips(j)%panels(l)%i_vert_d)
+                                A_i(this%P(body%wake%strips(j)%panels(l)%i_vert_d(k))) = &
+                                            A_i(this%P(body%wake%strips(j)%panels(l)%i_vert_d(k))) + doublet_inf(k)
                             end do
+
                         end if
 
-                    else
-
-                        ! Calculate influence of existing panel on mirrored control point
-                        ! This is the same as the influence of a mirrored panel on an existing control point
-                        ! even for compressible flow, since we know the flow is symmetric here
-                        call body%wake%panels(j)%calc_potential_influences(body%cp_mir(:,i), this%freestream, &
-                                                                 this%wake_dod_info(j+body%wake%N_panels,i), .false., & ! No, this is not the DoD for this computation; yes, it is equivalent
-                                                                 source_inf, doublet_inf)
-
-                        ! Add influence
-                        do k=1,size(body%wake%panels(j)%i_vert_d)
-                            A_i(this%P(body%wake%panels(j)%i_vert_d(k))) = &
-                                        A_i(this%P(body%wake%panels(j)%i_vert_d(k))) + doublet_inf(k)
-                        end do
-
                     end if
-
-                end if
+                end do
             end do
 
             ! Update rows of A

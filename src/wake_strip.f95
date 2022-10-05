@@ -11,6 +11,7 @@ module wake_strip_mod
 
         integer :: i_top_parent_1, i_top_parent_2, i_bot_parent_1, i_bot_parent_2
         integer :: i_top_parent_mid, i_bot_parent_mid
+        logical :: on_mirror_plane
 
         contains
 
@@ -44,6 +45,9 @@ contains
 
         ! Get number of vertices on the body
         N_body_verts = size(body_verts)
+
+        ! Store whether it's on the mirror plane
+        this%on_mirror_plane = starting_edge%on_mirror_plane
 
         ! Get starting locations and parent vertices
         if (mirror_start) then

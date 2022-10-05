@@ -1,6 +1,6 @@
 {
     "flow": {
-        "freestream_velocity": [100.0, 5.0, 5.0],
+        "freestream_velocity": [100.0, 0.0, 5.0],
         "gamma" : 1.4,
         "freestream_mach_number" : 2.0
     },
@@ -9,8 +9,8 @@
         "mirror_about": "xz",
         "spanwise_axis" : "+y",
         "singularity_order" : {
-            "source" : 1,
-            "doublet" : 2
+            "source" : 0,
+            "doublet" : 1
         },
         "wake_model" : {
         },
