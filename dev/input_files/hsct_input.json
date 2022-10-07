@@ -1,6 +1,7 @@
 {
     "flow": {
-        "freestream_velocity": [100.0, 10.0, 10.0]
+        "freestream_velocity": [100.0, 0.0, 0.0],
+        "freestream_mach_number" : 2.0
     },
     "geometry": {
         "file": "dev/meshes/HSCT.vtk",
@@ -10,12 +11,12 @@
             "trefftz_distance" : 100.0
         },
         "reference": {
-            "area": 1.0
+            "area": 0.15
         }
     },
     "solver": {
         "control_point_offset" : 1.e-6,
-        "run_checks" : false
+        "run_checks" : true
     },
     "post_processing" : {
         "pressure_rules" : {

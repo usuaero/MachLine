@@ -59,7 +59,7 @@ module surface_mesh_mod
 
             ! Initialization based on flow properties
             procedure :: init_with_flow => surface_mesh_init_with_flow
-            procedure :: count_panel_inclinations => surface_mesh_count_panel_inclinations
+            procedure :: init_panels_with_flow => surface_mesh_init_panels_with_flow
             procedure :: characterize_edges => surface_mesh_characterize_edges
             procedure :: set_needed_vertex_clones => surface_mesh_set_needed_vertex_clones
 
@@ -716,17 +716,7 @@ contains
         end if
 
         ! Initialize properties of panels dependent upon the flow
-        if (verbose) write(*,'(a)',advance='no') "     Calculating panel local transformations.."
-
-        !$OMP parallel do schedule(static)
-        do i=1,this%N_panels
-            call this%panels(i)%init_with_flow(freestream, this%asym_flow, this%mirror_plane)
-        end do
-
-        if (verbose) write(*,*) "Done."
-
-        ! Determine number of sub- and superinclined panels
-        call this%count_panel_inclinations()
+        call this%init_panels_with_flow(freestream)
 
         if (this%wake_present) then
 
@@ -775,15 +765,24 @@ contains
     end subroutine surface_mesh_init_with_flow
 
 
-    subroutine surface_mesh_count_panel_inclinations(this)
+    subroutine surface_mesh_init_panels_with_flow(this, freestream)
         ! Counts the number of sub- and superinclined panels
 
         implicit none
         
         class(surface_mesh),intent(inout) :: this
+        type(flow),intent(in) :: freestream
 
         integer :: i
-    
+
+        if (verbose) write(*,'(a)',advance='no') "     Initializing flow-dependent panel properties..."
+
+        !$OMP parallel do schedule(static)
+        do i=1,this%N_panels
+            call this%panels(i)%init_with_flow(freestream, this%asym_flow, this%mirror_plane)
+        end do
+
+        ! Determine number of sub- and superinclined panels
         this%N_subinc = 0
         this%N_supinc = 0
         do i=1,this%N_panels
@@ -805,8 +804,10 @@ contains
             end if
 
         end do
+
+        if (verbose) write(*,'(a i7 a)') " Done. Found ", this%N_supinc, " superinclined panels."
         
-    end subroutine surface_mesh_count_panel_inclinations
+    end subroutine surface_mesh_init_panels_with_flow
 
 
     subroutine surface_mesh_characterize_edges(this, freestream)

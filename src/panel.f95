@@ -349,7 +349,7 @@ contains
         integer :: i, rs
 
         ! Get in-panel basis vectors
-        if (abs(inner(this%n_g, freestream%c_hat_g) - 1.) < 1e-12) then ! Check the freestream isn't aligned with the normal vector
+        if (abs(abs(inner(this%n_g, freestream%c_hat_g)) - 1.) < 1e-12) then ! Check the freestream isn't aligned with the normal vector
             v0 = this%get_vertex_loc(2)-this%get_vertex_loc(1)
         else
             v0 = cross(this%n_g, freestream%c_hat_g)
@@ -363,19 +363,13 @@ contains
         x = inner(this%n_g, this%nu_g)
 
         ! Check for Mach-inclined panels
-        if (freestream%supersonic .and. abs(x) < 1e-12) then
+        if (freestream%supersonic .and. abs(x) < 1.e-12) then
             write(*,*) "!!! Panel", this%index, "is Mach-inclined, which is not allowed. Quitting..."
             stop
         end if
 
         ! Calculate panel inclination indicator (E&M Eq. (E.3.16b))
-        this%r = sign(1., x) ! r=-1 -> superinclined, r=1 -> subinclined
-
-        ! Check for superinclined panels
-        if (this%r < 0) then
-            write(*,*) "!!! Panel", this%index, "is superinclined, which is not allowed. Quitting..."
-            stop
-        end if
+        this%r = sign(1., x) ! r = -1 -> superinclined, r = 1 -> subinclined
 
         ! Other inclination parameters
         rs = this%r*freestream%s
@@ -388,7 +382,7 @@ contains
 
         ! Check determinant
         x = det3(this%A_g_to_ls)
-        if (abs(x-freestream%B**2) >= 1e-12) then
+        if (abs(x - freestream%B*freestream%B) > 1.e-12) then
             write(*,*) "!!! Calculation of local scaled coordinate transform failed. Quitting..."
             stop
         end if
@@ -467,8 +461,20 @@ contains
         this%n_hat_ls(2,:) = -t_hat_ls(1,:)
 
         ! Calculate edge parameter (Ehlers Eq. (E14))
-        this%b = (this%n_hat_ls(1,:) - this%n_hat_ls(2,:))*(this%n_hat_ls(1,:) + this%n_hat_ls(2,:))
-        this%sqrt_b = sqrt(abs(this%b))
+        ! This really only matters for subinclined, supersonic panels
+        ! But we set defaults for the other cases to make unified calcs work
+        if (freestream%supersonic) then
+            if (this%r > 0) then
+                this%b = (this%n_hat_ls(1,:) - this%n_hat_ls(2,:))*(this%n_hat_ls(1,:) + this%n_hat_ls(2,:))
+                this%sqrt_b = sqrt(abs(this%b))
+            else
+                this%b = 1.
+                this%sqrt_b = 1.
+            end if
+        else
+            this%b = -1.
+            this%sqrt_b = 1.
+        end if
     
     end subroutine panel_calc_ls_edge_vectors
 
@@ -657,7 +663,7 @@ contains
         end do
 
         ! Local-scaled
-        call this%calc_mirrored_edge_vectors()
+        call this%calc_mirrored_edge_vectors(freestream)
 
         ! Calculate mirrored singularity matrices
         call this%calc_mirrored_singularity_matrices()
@@ -679,7 +685,7 @@ contains
         integer :: i, rs
 
         ! Get in-panel basis vectors
-        if (abs(inner(this%n_g_mir, freestream%c_hat_g) - 1.) < 1e-12) then ! Check the freestream isn't aligned with the normal vector
+        if (abs(abs(inner(this%n_g_mir, freestream%c_hat_g)) - 1.) < 1e-12) then ! Check the freestream isn't aligned with the normal vector
             v0 = mirror_across_plane(this%get_vertex_loc(2) - this%get_vertex_loc(1), mirror_plane)
         else
             v0 = cross(this%n_g_mir, freestream%c_hat_g)
@@ -747,11 +753,12 @@ contains
     end subroutine panel_calc_mirrored_g_to_ls_transform
 
 
-    subroutine panel_calc_mirrored_edge_vectors(this)
+    subroutine panel_calc_mirrored_edge_vectors(this, freestream)
 
         implicit none
 
         class(panel),intent(inout) :: this
+        type(flow),intent(in) :: freestream
 
         real,dimension(2) :: d_ls
         real,dimension(:,:),allocatable :: t_hat_ls_mir
@@ -779,8 +786,18 @@ contains
         this%n_hat_ls_mir(2,:) = -t_hat_ls_mir(1,:)
 
         ! Calculate edge parameter (Ehlers Eq. (E14))
-        this%b_mir = (this%n_hat_ls_mir(1,:) - this%n_hat_ls_mir(2,:))*(this%n_hat_ls_mir(1,:) + this%n_hat_ls_mir(2,:))
-        this%sqrt_b_mir = sqrt(abs(this%b_mir))
+        if (freestream%supersonic) then
+            if (this%r_mir > 0) then
+                this%b_mir = (this%n_hat_ls_mir(1,:) - this%n_hat_ls_mir(2,:))*(this%n_hat_ls_mir(1,:) + this%n_hat_ls_mir(2,:))
+                this%sqrt_b_mir = sqrt(abs(this%b_mir))
+            else
+                this%b_mir = 1.
+                this%sqrt_b_mir = 1.
+            end if
+        else
+            this%b_mir = -1.
+            this%sqrt_b_mir = 1.
+        end if
     
     end subroutine panel_calc_mirrored_edge_vectors
 
@@ -1279,7 +1296,7 @@ contains
             mirrored = .false.
         end if
 
-        ! First check the flow is supersonic (check_dod is always called)
+        ! First check the flow is supersonic
         if (freestream%supersonic) then
 
             ! Read in vertex information
@@ -1353,13 +1370,13 @@ contains
                 if (any(these_verts_in_dod) .or. any(dod_info%edges_in_dod)) then
                     dod_info%in_dod = .true.
 
-                ! If a supersonic panel has no edges or vertices in the DoD, check if the DoD is encompassed by the panel
+                ! If a superinclined panel has no edges or vertices in the DoD, check if the DoD is encompassed by the panel
                 else if (this%r == -1) then
 
                     ! Get the projection of the evaluation point onto the panel in the direction of c_hat
                     if (mirrored) then
-                        s_star = inner(mirror_across_plane(this%get_vertex_loc(1), mirror_plane) - eval_point, this%n_g) &
-                                 / inner(freestream%c_hat_g, this%n_g)
+                        s_star = inner(mirror_across_plane(this%get_vertex_loc(1), mirror_plane) - eval_point, this%n_g_mir) &
+                                 / inner(freestream%c_hat_g, this%n_g_mir)
                     else
                         s_star = inner(this%get_vertex_loc(1)-eval_point, this%n_g)/inner(freestream%c_hat_g, this%n_g)
                     end if
@@ -1387,7 +1404,7 @@ contains
                     ! Store information
                     dod_info%in_dod = in_panel
 
-                ! Not supersonic and no edges or vertices in. Not in.
+                ! Not superinclined and no edges or vertices in. Not in.
                 else
                     dod_info%in_dod = .false.
 
@@ -1415,6 +1432,7 @@ contains
         real,dimension(3),intent(in) :: eval_point
         type(flow),intent(in) :: freestream
         logical,intent(in) :: mirror_panel
+
         type(eval_point_geom) :: geom
 
         real,dimension(2) :: d_ls
@@ -2264,22 +2282,12 @@ contains
 
         ! Calculate necessary integrals based on the flow condition and panel type
         if (freestream%supersonic) then
-            if (mirror_panel) then
-                if (this%r_mir == 1.) then
-                    call this%calc_supersonic_subinc_edge_integrals(geom, dod_info, freestream, mirror_panel, int)
-                    call this%calc_supersonic_subinc_panel_integrals(geom, dod_info, freestream, mirror_panel, int)
-                else
-                    call this%calc_supersonic_supinc_edge_integrals(geom, dod_info, freestream, mirror_panel, int)
-                    call this%calc_supersonic_supinc_panel_integrals(geom, dod_info, freestream, mirror_panel, int)
-                end if
+            if ((mirror_panel .and. this%r_mir < 0.) .or. (.not. mirror_panel .and. this%r < 0.)) then
+                call this%calc_supersonic_supinc_edge_integrals(geom, dod_info, freestream, mirror_panel, int)
+                call this%calc_supersonic_supinc_panel_integrals(geom, dod_info, freestream, mirror_panel, int)
             else
-                if (this%r == 1.) then
-                    call this%calc_supersonic_subinc_edge_integrals(geom, dod_info, freestream, mirror_panel, int)
-                    call this%calc_supersonic_subinc_panel_integrals(geom, dod_info, freestream, mirror_panel, int)
-                else
-                    call this%calc_supersonic_supinc_edge_integrals(geom, dod_info, freestream, mirror_panel, int)
-                    call this%calc_supersonic_supinc_panel_integrals(geom, dod_info, freestream, mirror_panel, int)
-                end if
+                call this%calc_supersonic_subinc_edge_integrals(geom, dod_info, freestream, mirror_panel, int)
+                call this%calc_supersonic_subinc_panel_integrals(geom, dod_info, freestream, mirror_panel, int)
             end if
         else
             call this%calc_subsonic_edge_integrals(geom, freestream, mirror_panel, int)
@@ -2352,7 +2360,11 @@ contains
 
             ! Calculate geometric parameters
             if (freestream%supersonic) then
-                geom = this%calc_supersonic_subinc_geom(P, freestream, mirror_panel, dod_info)
+                if ((mirror_panel .and. this%r_mir < 0.) .or. (.not. mirror_panel .and. this%r < 0.)) then
+                    geom = this%calc_supersonic_supinc_geom(P, freestream, mirror_panel, dod_info)
+                else
+                    geom = this%calc_supersonic_subinc_geom(P, freestream, mirror_panel, dod_info)
+                end if
             else
                 geom = this%calc_subsonic_geom(P, freestream, mirror_panel)
             end if

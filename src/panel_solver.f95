@@ -300,8 +300,8 @@ contains
 
         integer :: i, j, k, stat
         real,dimension(3) :: vert_loc, mirrored_vert_loc
-        logical,dimension(:),allocatable :: verts_in_dod, mirrored_verts_in_dod
-        logical,dimension(:,:),allocatable :: wake_verts_in_dod, mirrored_wake_verts_in_dod
+        logical,dimension(:),allocatable :: verts_in_dod, verts_in_dod_of_mirrored
+        logical,dimension(:,:),allocatable :: wake_verts_in_dod, wake_verts_in_dod_of_mirrored
 
         ! For asymmetric flow on a mirrored mesh, all domains of dependence must be calculated. There are no shortcuts.
         ! For symmetric flow on a mirrored mesh, domains of dependence will be the same between mirrored panels and mirrored
@@ -317,7 +317,7 @@ contains
             allocate(verts_in_dod(2*body%N_verts), stat=stat)
             call check_allocation(stat, "vertex domain of dependence storage")
 
-            allocate(mirrored_verts_in_dod(2*body%N_verts), stat=stat)
+            allocate(verts_in_dod_of_mirrored(2*body%N_verts), stat=stat)
             call check_allocation(stat, "vertex domain of dependence storage")
         else
             allocate(this%dod_info(body%N_panels, this%N), stat=stat)
@@ -335,7 +335,7 @@ contains
             allocate(wake_verts_in_dod(2*body%wake%N_max_strip_verts, body%wake%N_strips), stat=stat)
             call check_allocation(stat, "vertex domain of dependence storage")
 
-            allocate(mirrored_wake_verts_in_dod(2*body%wake%N_max_strip_verts, body%wake%N_strips), stat=stat)
+            allocate(wake_verts_in_dod_of_mirrored(2*body%wake%N_max_strip_verts, body%wake%N_strips), stat=stat)
             call check_allocation(stat, "vertex domain of dependence storage")
         else
             allocate(this%wake_dod_info(body%wake%N_max_strip_panels, body%wake%N_strips, this%N), stat=stat)
@@ -349,18 +349,18 @@ contains
         if (this%freestream%supersonic) then
 
             ! Loop through control points
-            !$OMP parallel do private(i, k, vert_loc, mirrored_vert_loc, verts_in_dod, mirrored_verts_in_dod) &
-            !$OMP & private(mirrored_wake_verts_in_dod, wake_verts_in_dod)
+            !$OMP parallel do private(i, k, vert_loc, mirrored_vert_loc, verts_in_dod, verts_in_dod_of_mirrored) &
+            !$OMP & private(wake_verts_in_dod_of_mirrored, wake_verts_in_dod)
             do j=1,body%N_cp
 
                 ! Initialize for this control point
                 verts_in_dod = .false.
                 wake_verts_in_dod = .false.
                 if (body%asym_flow) then
-                    mirrored_verts_in_dod = .false.
+                    verts_in_dod_of_mirrored = .false.
                 end if
                 if (body%mirrored .and. .not. body%asym_flow) then
-                    mirrored_wake_verts_in_dod = .false.
+                    wake_verts_in_dod_of_mirrored = .false.
                 end if
 
                 ! Loop through body vertices
@@ -373,19 +373,19 @@ contains
 
                     if (body%mirrored) then
 
-                        mirrored_vert_loc = mirror_across_plane(vert_loc, body%mirror_plane)
-
-                        ! Mirrored vertex and original control point
-                        verts_in_dod(i+body%N_verts) = this%freestream%point_in_dod(mirrored_vert_loc, &
-                                                                                           body%cp(:,j))
+                        ! Original vertex and mirrored control point
+                        verts_in_dod_of_mirrored(i) = this%freestream%point_in_dod(vert_loc, body%cp_mir(:,j))
 
                         if (body%asym_flow) then
 
-                            ! Original vertex and mirrored control point
-                            mirrored_verts_in_dod(i) = this%freestream%point_in_dod(vert_loc, body%cp_mir(:,j))
+                            mirrored_vert_loc = mirror_across_plane(vert_loc, body%mirror_plane)
+
+                            ! Mirrored vertex and original control point
+                            verts_in_dod(i+body%N_verts) = this%freestream%point_in_dod(mirrored_vert_loc, &
+                                                                                               body%cp(:,j))
 
                             ! Mirrored vertex and mirrored control point
-                            mirrored_verts_in_dod(i+body%N_verts) = this%freestream%point_in_dod(mirrored_vert_loc, &
+                            verts_in_dod_of_mirrored(i+body%N_verts) = this%freestream%point_in_dod(mirrored_vert_loc, &
                                                                                                  body%cp_mir(:,j))
 
                         end if
@@ -412,7 +412,7 @@ contains
 
                                 ! Mirrored vertex and original control point
                                 mirrored_vert_loc = mirror_across_plane(vert_loc, body%mirror_plane)
-                                mirrored_wake_verts_in_dod(k+body%wake%N_max_strip_verts,i) = &
+                                wake_verts_in_dod_of_mirrored(k+body%wake%N_max_strip_verts,i) = &
                                     this%freestream%point_in_dod(mirrored_vert_loc, body%cp(:,j)) ! Should be able to use original vert and cp_mir here. Check later.
 
                             end if
@@ -428,22 +428,29 @@ contains
 
                     if (body%mirrored) then
 
-                        ! Check DoD for mirrored panel and original control point
-                        this%dod_info(i+body%N_panels,j) = body%panels(i)%check_dod(body%cp(:,j), this%freestream, &
-                                                                                    verts_in_dod, &
-                                                                                    .true., body%mirror_plane)
-
                         if (body%asym_flow) then
+
+                            ! Check DoD for mirrored panel and original control point
+                            this%dod_info(i+body%N_panels,j) = body%panels(i)%check_dod(body%cp(:,j), this%freestream, &
+                                                                                        verts_in_dod, &
+                                                                                        .true., body%mirror_plane)
 
                             ! Check DoD for original panel and mirrored control point
                             this%dod_info(i,j+body%N_cp) = body%panels(i)%check_dod(body%cp_mir(:,j), this%freestream, &
-                                                                                    mirrored_verts_in_dod)
+                                                                                    verts_in_dod_of_mirrored)
 
                             ! Check DoD for mirrored panel and mirrored control point
                             this%dod_info(i+body%N_panels,j+body%N_cp) = body%panels(i)%check_dod(body%cp_mir(:,j), &
                                                                                                   this%freestream, &
-                                                                                                  mirrored_verts_in_dod, &
+                                                                                                  verts_in_dod_of_mirrored, &
                                                                                                   .true., body%mirror_plane)
+
+                        else
+
+                            ! Check DoD for mirrored panel and original control point
+                            ! We will actually do the opposite, but they are equivalent
+                            this%dod_info(i+body%N_panels,j) = body%panels(i)%check_dod(body%cp_mir(:,j), this%freestream, &
+                                                                                        verts_in_dod_of_mirrored)
 
                         end if
                     end if
@@ -470,10 +477,10 @@ contains
                             else
 
                                 ! Check DoD for mirrored panel and original control point
-                                this%wake_dod_info(k+body%wake%N_max_strip_verts,i,j) = &
-                                    body%wake%strips(i)%panels(k)%check_dod(body%cp(:,j), this%freestream, &
-                                                                            mirrored_wake_verts_in_dod(:,i), &
-                                                                            .true., body%mirror_plane)
+                                ! Again, we do the opposite but it is equivalent
+                                this%wake_dod_info(k+body%wake%N_max_strip_panels,i,j) = &
+                                    body%wake%strips(i)%panels(k)%check_dod(body%cp_mir(:,j), this%freestream, &
+                                                                            wake_verts_in_dod_of_mirrored(:,i))
 
                             end if
                         end if
@@ -1192,7 +1199,7 @@ contains
 
         ! Improper specification
         case default
-            write(*,*) "!!! ", this%matrix_solver, " is not a valid option. Defaulting to GMRES."
+            write(*,*) "!!! ", this%matrix_solver, " is not a valid solver option. Defaulting to GMRES."
             call GMRES(this%N, A_p, b_p, this%tol, this%max_iterations, this%iteration_file, this%solver_iterations, x)
 
         end select
@@ -1201,12 +1208,6 @@ contains
         ! Clean up memory
         deallocate(A_p)
         deallocate(b_p)
-
-        ! Transfer solution to body storage
-        allocate(body%mu(this%N))
-        do i=1,this%N
-            body%mu(i) = x(this%P(i))
-        end do
 
         ! Get residual vector
         allocate(R(this%N))
@@ -1220,6 +1221,19 @@ contains
             write(*,*) "        Maximum residual:", this%max_res
             write(*,*) "        Norm of residual:", this%norm_res
         end if
+
+        ! Check
+        if (isnan(this%norm_res)) then
+            write(*,*) "!!! Linear system failed to produce a valid solution. Quitting..."
+            stop
+        end if
+
+        ! Transfer solution to body storage
+        allocate(body%mu(this%N))
+        do i=1,this%N
+            body%mu(i) = x(this%P(i))
+        end do
+        deallocate(x)
 
         ! Get potentials at control points
         allocate(body%phi_cp_mu(this%N))
