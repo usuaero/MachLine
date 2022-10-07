@@ -311,38 +311,74 @@ contains
 
         ! Allocate arrays for domain of dependence information for the body
         if (body%mirrored) then
+
+            if (body%asym_flow) then ! This is the only case when we have mirrored control points
+
+                ! Whether vertices are in the DoD of the mirrored control point
+                allocate(verts_in_dod_of_mirrored(2*body%N_verts), stat=stat)
+                call check_allocation(stat, "vertex domain of dependence storage")
+
+            end if
+
+            ! DoD info for panels
             allocate(this%dod_info(2*body%N_panels, this%N), stat=stat)
             call check_allocation(stat, "domain of dependence storage")
 
+            ! Whether vertices are in the DoD of the original control point
             allocate(verts_in_dod(2*body%N_verts), stat=stat)
             call check_allocation(stat, "vertex domain of dependence storage")
 
-            allocate(verts_in_dod_of_mirrored(2*body%N_verts), stat=stat)
-            call check_allocation(stat, "vertex domain of dependence storage")
         else
+
+            ! DoD info for panels
             allocate(this%dod_info(body%N_panels, this%N), stat=stat)
             call check_allocation(stat, "domain of dependence storage")
 
+            ! Whether vertices are in the DoD of the original control point
             allocate(verts_in_dod(body%N_verts), stat=stat)
             call check_allocation(stat, "vertex domain of dependence storage")
+
         end if
 
         ! Allocate arrays for domain of dependence information for the wake
-        if (body%mirrored .and. .not. body%asym_flow) then ! This is the only case where the wake is mirrored
-            allocate(this%wake_dod_info(2*body%wake%N_max_strip_panels, body%wake%N_strips, this%N), stat=stat)
-            call check_allocation(stat, "wake strip domain of dependence storage")
+        if (body%mirrored) then
 
-            allocate(wake_verts_in_dod(2*body%wake%N_max_strip_verts, body%wake%N_strips), stat=stat)
-            call check_allocation(stat, "vertex domain of dependence storage")
+            if (body%asym_flow) then ! Wake is not mirrored but we do have more control points
 
-            allocate(wake_verts_in_dod_of_mirrored(2*body%wake%N_max_strip_verts, body%wake%N_strips), stat=stat)
-            call check_allocation(stat, "vertex domain of dependence storage")
+                ! DoD info for panels
+                allocate(this%wake_dod_info(body%wake%N_max_strip_panels, body%wake%N_strips, this%N), stat=stat)
+                call check_allocation(stat, "wake strip domain of dependence storage")
+
+                ! Whether vertices are in the DoD of the original control point
+                allocate(wake_verts_in_dod(body%wake%N_max_strip_verts, body%wake%N_strips), stat=stat)
+                call check_allocation(stat, "vertex domain of dependence storage")
+
+                ! Whether vertices are in the DoD of the mirrored control point
+                allocate(wake_verts_in_dod_of_mirrored(body%wake%N_max_strip_verts, body%wake%N_strips), stat=stat)
+                call check_allocation(stat, "vertex domain of dependence storage")
+
+            else ! Wake is mirrored and we have more control points
+
+                ! DoD info for panels
+                allocate(this%wake_dod_info(2*body%wake%N_max_strip_panels, body%wake%N_strips, this%N), stat=stat)
+                call check_allocation(stat, "wake strip domain of dependence storage")
+
+                ! Whether vertices are in the DoD of the original control point
+                allocate(wake_verts_in_dod(2*body%wake%N_max_strip_verts, body%wake%N_strips), stat=stat)
+                call check_allocation(stat, "vertex domain of dependence storage")
+
+            end if
+
         else
+
+            ! DoD info for panels
             allocate(this%wake_dod_info(body%wake%N_max_strip_panels, body%wake%N_strips, this%N), stat=stat)
             call check_allocation(stat, "wake strip domain of dependence storage")
 
+            ! Whether vertices are in the DoD of the original control point
             allocate(wake_verts_in_dod(body%wake%N_max_strip_verts, body%wake%N_strips), stat=stat)
             call check_allocation(stat, "vertex domain of dependence storage")
+
         end if
 
         ! If the freestream is subsonic, these don't need to be checked
@@ -353,71 +389,50 @@ contains
             !$OMP & private(wake_verts_in_dod_of_mirrored, wake_verts_in_dod)
             do j=1,body%N_cp
 
-                ! Initialize for this control point
-                verts_in_dod = .false.
-                wake_verts_in_dod = .false.
-                if (body%asym_flow) then
-                    verts_in_dod_of_mirrored = .false.
+                ! Get whether body vertices are in the DoD of this control point
+                verts_in_dod(1:body%N_verts) = body%get_verts_in_dod_of_point(body%cp(:,j), this%freestream, .false.)
+
+                if (body%mirrored) then
+
+                    ! Mirrored vertices and original control point
+                    verts_in_dod(body%N_verts+1:) = body%get_verts_in_dod_of_point(body%cp(:,j), this%freestream, .true.)
+
+                    if (body%asym_flow) then
+
+                        ! Get whether original body vertices are in the DoD of the mirrored control point
+                        verts_in_dod_of_mirrored(1:body%N_verts) = &
+                            body%get_verts_in_dod_of_point(body%cp_mir(:,j), this%freestream, .false.)
+
+                        ! Mirrored vertices and mirrored control point
+                        verts_in_dod_of_mirrored(body%N_verts+1:) = &
+                            body%get_verts_in_dod_of_point(body%cp_mir(:,j), this%freestream, .true.)
+                    end if
+
                 end if
-                if (body%mirrored .and. .not. body%asym_flow) then
-                    wake_verts_in_dod_of_mirrored = .false.
-                end if
 
-                ! Loop through body vertices
-                do i=1,body%N_verts
+                ! Loop through wake strips
+                do i=1,body%wake%N_strips
 
-                    vert_loc = body%vertices(i)%loc
-
-                    ! Original vertex and original control point
-                    verts_in_dod(i) = this%freestream%point_in_dod(vert_loc, body%cp(:,j))
+                    ! Get whether wake vertices are in the DoD of this control point
+                    wake_verts_in_dod(1:body%wake%strips(i)%N_verts,i) = &
+                        body%wake%strips(i)%get_verts_in_dod_of_point(body%cp(:,j), this%freestream, .false.)
 
                     if (body%mirrored) then
 
-                        ! Original vertex and mirrored control point
-                        verts_in_dod_of_mirrored(i) = this%freestream%point_in_dod(vert_loc, body%cp_mir(:,j))
-
                         if (body%asym_flow) then
 
-                            mirrored_vert_loc = mirror_across_plane(vert_loc, body%mirror_plane)
+                            ! Original vertex and mirrored control point
+                            wake_verts_in_dod_of_mirrored(1:body%wake%strips(i)%N_verts,i) = &
+                                body%wake%strips(i)%get_verts_in_dod_of_point(body%cp_mir(:,j), this%freestream, .false.)
+
+                        else
 
                             ! Mirrored vertex and original control point
-                            verts_in_dod(i+body%N_verts) = this%freestream%point_in_dod(mirrored_vert_loc, &
-                                                                                               body%cp(:,j))
-
-                            ! Mirrored vertex and mirrored control point
-                            verts_in_dod_of_mirrored(i+body%N_verts) = this%freestream%point_in_dod(mirrored_vert_loc, &
-                                                                                                 body%cp_mir(:,j))
+                            wake_verts_in_dod(body%wake%strips(i)%N_verts+1:,i) = &
+                                body%wake%strips(i)%get_verts_in_dod_of_point(body%cp(:,j), this%freestream, .true.)
 
                         end if
                     end if
-                end do
-
-                ! Loop through wake strip vertices
-                do i=1,body%wake%N_strips
-                    do k=1,body%wake%strips(i)%N_verts
-
-                        vert_loc = body%wake%strips(i)%vertices(k)%loc
-
-                        ! Original vertex and original control point
-                        wake_verts_in_dod(k,i) = this%freestream%point_in_dod(vert_loc, body%cp(:,j))
-
-                        if (body%mirrored) then
-
-                            if (body%asym_flow) then
-
-                                ! Original vertex and mirrored control point
-                                wake_verts_in_dod(k,i) = this%freestream%point_in_dod(vert_loc, body%cp_mir(:,j))
-
-                            else
-
-                                ! Mirrored vertex and original control point
-                                mirrored_vert_loc = mirror_across_plane(vert_loc, body%mirror_plane)
-                                wake_verts_in_dod_of_mirrored(k+body%wake%N_max_strip_verts,i) = &
-                                    this%freestream%point_in_dod(mirrored_vert_loc, body%cp(:,j)) ! Should be able to use original vert and cp_mir here. Check later.
-
-                            end if
-                        end if
-                    end do
                 end do
 
                 ! Loop through body panels
@@ -448,9 +463,9 @@ contains
                         else
 
                             ! Check DoD for mirrored panel and original control point
-                            ! We will actually do the opposite, but they are equivalent
-                            this%dod_info(i+body%N_panels,j) = body%panels(i)%check_dod(body%cp_mir(:,j), this%freestream, &
-                                                                                        verts_in_dod_of_mirrored)
+                            this%dod_info(i+body%N_panels,j) = body%panels(i)%check_dod(body%cp(:,j), this%freestream, &
+                                                                                        verts_in_dod, &
+                                                                                        .true., body%mirror_plane)
 
                         end if
                     end if
@@ -472,15 +487,15 @@ contains
                                 this%wake_dod_info(k,i,j+body%N_cp) = &
                                     body%wake%strips(i)%panels(k)%check_dod(body%cp_mir(:,j), &
                                                                             this%freestream, &
-                                                                            wake_verts_in_dod(:,i))
+                                                                            wake_verts_in_dod_of_mirrored(:,i))
 
                             else
 
                                 ! Check DoD for mirrored panel and original control point
-                                ! Again, we do the opposite but it is equivalent
                                 this%wake_dod_info(k+body%wake%N_max_strip_panels,i,j) = &
-                                    body%wake%strips(i)%panels(k)%check_dod(body%cp_mir(:,j), this%freestream, &
-                                                                            wake_verts_in_dod_of_mirrored(:,i))
+                                    body%wake%strips(i)%panels(k)%check_dod(body%cp(:,j), this%freestream, &
+                                                                            wake_verts_in_dod(:,i), &
+                                                                            .true., body%mirror_plane)
 
                             end if
                         end if

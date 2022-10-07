@@ -27,7 +27,7 @@ contains
 
 
     subroutine wake_strip_init(this, freestream, starting_edge, mirror_start, mirror_plane, &
-                               N_panels_streamwise, trefftz_dist, body_verts)
+                               N_panels_streamwise, trefftz_dist, body_verts, wake_mirrored)
         ! Initializes this wake strip based on the provided info
 
         implicit none
@@ -39,6 +39,7 @@ contains
         integer,intent(in) :: mirror_plane, N_panels_streamwise
         real,intent(in) :: trefftz_dist
         type(vertex),dimension(:),allocatable,intent(in) :: body_verts
+        logical,intent(in) :: wake_mirrored
 
         real,dimension(3) :: start_1, start_2
         integer :: N_body_verts, i
@@ -46,8 +47,10 @@ contains
         ! Get number of vertices on the body
         N_body_verts = size(body_verts)
 
-        ! Store whether it's on the mirror plane
+        ! Set mirroring
         this%on_mirror_plane = starting_edge%on_mirror_plane
+        this%mirror_plane = mirror_plane
+        this%mirrored = wake_mirrored .and. .not. this%on_mirror_plane
 
         ! Get starting locations and parent vertices
         if (mirror_start) then
@@ -101,7 +104,7 @@ contains
 
         ! Initialize other panel properties
         do i=1,this%N_panels
-            call this%panels(i)%init_with_flow(freestream, .false., mirror_plane)
+            call this%panels(i)%init_with_flow(freestream, this%mirrored, mirror_plane)
             call this%panels(i)%set_influencing_verts()
         end do
 

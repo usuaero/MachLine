@@ -701,12 +701,6 @@ contains
         ! Calculate panel inclination indicator (E&M Eq. (E.3.16b))
         this%r_mir = sign(1., x) ! r=-1 -> superinclined, r=1 -> subinclined
 
-        ! Check for superinclined panels
-        if (this%r_mir < 0) then
-            write(*,*) "!!! Mirror of panel", this%index, "is superinclined, which is not allowed. Quitting..."
-            stop
-        end if
-
         ! Other inclination parameters
         rs = this%r*freestream%s
 
@@ -1489,6 +1483,7 @@ contains
         geom%g2 = geom%a**2 + geom%h2
 
         ! Distance from evaluation point to end vertices
+        !geom%R1 = sqrt(geom%l1*geom%l1 + geom%h2)
         geom%R2 = cshift(geom%R1, 1)
 
         ! Swap directions for mirror
@@ -2193,9 +2188,7 @@ contains
         do i=1,this%N
 
             ! Edge influence
-            if (dod_info%edges_in_dod(i)) then
-                int%hH113 = int%hH113 + pi
-            end if
+            if (dod_info%edges_in_dod(i)) int%hH113 = int%hH113 + pi
 
             ! Corner influence
             if (geom%R1(i) > 0.) then

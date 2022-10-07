@@ -41,7 +41,8 @@ module wake_mesh_mod
 contains
 
 
-    subroutine wake_mesh_init(this, body_edges, body_verts, freestream, asym_flow, mirror_plane, N_panels_streamwise, trefftz_dist)
+    subroutine wake_mesh_init(this, body_edges, body_verts, freestream, asym_flow, mirror_plane, N_panels_streamwise, &
+                              trefftz_dist, body_mirrored)
         ! Initializes the wake mesh
 
         implicit none
@@ -53,6 +54,7 @@ contains
         logical,intent(in) :: asym_flow
         integer,intent(in) :: mirror_plane, N_panels_streamwise
         real,intent(in) :: trefftz_dist
+        logical,intent(in) :: body_mirrored
 
         integer :: i, j
         integer :: N_wake_edge_verts, N_wake_edges
@@ -60,6 +62,10 @@ contains
         logical,dimension(:),allocatable :: is_wake_edge_vertex
 
         if (verbose) write(*,'(a ES10.4 a)',advance='no') "     Initializing wake with a Trefftz distance of ", trefftz_dist, "..."
+
+        ! Set whether the wake will be mirrored
+        this%mirrored = body_mirrored .and. .not. asym_flow
+        this%mirror_plane = mirror_plane
 
         ! Initialize strips
         call this%init_strips(body_edges, body_verts, freestream, asym_flow, mirror_plane, N_panels_streamwise, trefftz_dist)
@@ -190,14 +196,14 @@ contains
 
             ! Initialize strip
             i_strip = i_strip + 1
-            call this%strips(i_strip)%init(freestream, body_edges(i_start_edge), .false., 0, &
-                                           N_panels_streamwise, trefftz_dist, body_verts)
+            call this%strips(i_strip)%init(freestream, body_edges(i_start_edge), .false., mirror_plane, &
+                                           N_panels_streamwise, trefftz_dist, body_verts, this%mirrored)
 
             ! Check if we need to create a mirror strip
             if (asym_flow .and. .not. body_edges(i_start_edge)%on_mirror_plane) then
                 i_strip = i_strip + 1
                 call this%strips(i_strip)%init(freestream, body_edges(i_start_edge), .true., mirror_plane, &
-                                               N_panels_streamwise, trefftz_dist, body_verts)
+                                               N_panels_streamwise, trefftz_dist, body_verts, this%mirrored)
             end if
         end do
 
