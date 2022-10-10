@@ -143,8 +143,8 @@ def test_half_wing_morino_zero_aoa_zero_beta_inc():
     assert(abs(Cz) < 2.2e-7)
 
 
-def test_sphere_morino_inc_quad_doublets_iterative():
-    # Tests the sphere case with the Morino formulation using quadratic doublets and an iterative matrix solver
+def test_sphere_morino_inc_quad_doublets_lin_sources_iterative():
+    # Tests the sphere case with the Morino formulation using quadratic doublets and linear sources and an iterative matrix solver
 
     # Load original input
     with open("test/input_files/sphere_input.json", 'r') as input_handle:
@@ -153,7 +153,7 @@ def test_sphere_morino_inc_quad_doublets_iterative():
     # Alter input
     input_dict["solver"]["matrix_solver"] = "BJAC"
     input_dict["solver"]["relaxation"] = 0.9
-    input_dict["geometry"]["singularity_order"] = {"doublet" : 2}
+    input_dict["geometry"]["singularity_order"] = "higher"
 
     # Write altered input
     altered_input_file = "test/input_files/altered_sphere_input.json"
@@ -169,11 +169,11 @@ def test_sphere_morino_inc_quad_doublets_iterative():
     print(Cy)
     print(Cz)
 
-    assert(abs(C_p_max - 0.996050603246009) < 1e-7)
-    assert(abs(C_p_min - -1.24733544905577) < 1e-7)
-    assert(abs(Cx) < 1e-6)
-    assert(abs(Cy) < 1e-6)
-    assert(abs(Cz) < 1e-6)
+    assert(abs(C_p_max - 0.99596105880109) < 1e-7)
+    assert(abs(C_p_min - -1.24727187845845) < 1e-7)
+    assert(abs(Cx) < 1e-5)
+    assert(abs(Cy) < 1e-5)
+    assert(abs(Cz) < 1e-5)
 
 
 def test_sphere_morino_inc():
@@ -376,7 +376,7 @@ def test_subsonic_quad_doublets_naca_wing_asym():
     # Alter input
     input_dict["flow"]["freestream_velocity"] = [100.0, 10.0, 10.0]
     input_dict["solver"]["formulation"] = "morino"
-    input_dict["geometry"]["singularity_order"] = { "doublet" : 2 }
+    input_dict["geometry"]["singularity_order"] = "higher"
     input_dict["geometry"]["file"] = "test/meshes/naca_0010_AR_10_half_coarse.stl"
 
     # Write altered input
@@ -393,11 +393,11 @@ def test_subsonic_quad_doublets_naca_wing_asym():
     print(Cy)
     print(Cz)
 
-    assert(abs(C_p_max - 0.994090489533536) < 1e-7)
-    assert(abs(C_p_min - -9.76090124380638) < 1e-6)
-    assert(abs(Cx - -0.228481325563316) < 1e-7)
-    assert(abs(Cy - 0.00272623414285243) < 1e-7)
-    assert(abs(Cz - 3.84409968032631) < 1e-7)
+    assert(abs(C_p_max - 0.977838955557014) < 1e-7)
+    assert(abs(C_p_min - -7.58516171735622) < 1e-6)
+    assert(abs(Cx - -0.167488125529584) < 1e-7)
+    assert(abs(Cy - 0.00221084444442775) < 1e-7)
+    assert(abs(Cz - 3.33783599081536) < 1e-7)
 
 
 def test_supersonic_half_wing_morino_quad_doublets_lin_sources_asym_flow():
@@ -405,10 +405,7 @@ def test_supersonic_half_wing_morino_quad_doublets_lin_sources_asym_flow():
     with open("test/input_files/supersonic_half_wing_input.json", 'r') as input_handle:
         input_dict = json.load(input_handle)
 
-    input_dict["geometry"]["singularity_order"] = {
-        "source" : 1,
-        "doublet" : 2
-    }
+    input_dict["geometry"]["singularity_order"] = "higher"
     input_dict["flow"]["freestream_velocity"] = [100.0, 5.0, 5.0]
     input_dict["output"]["body_file"] = "test/results/supersonic_half_wing_right.vtk"
     input_dict["output"]["mirrored_body_file"] = "test/results/supersonic_half_wing_left.vtk"

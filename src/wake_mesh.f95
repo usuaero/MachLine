@@ -130,7 +130,7 @@ contains
         !call this%init_panels(body_edges, body_verts, N_panels_streamwise, wake_edge_indices, asym_flow, N_body_panels)
 
         !! Initialize midpoints (if needed)
-        !if (doublet_order == 2) then
+        !if (higher_order) then
         !    call this%init_midpoints(body_edges, body_verts, wake_edge_indices, asym_flow)
         !end if
 
@@ -725,7 +725,7 @@ contains
             ! Write out geometry
             call wake_vtk%begin(wake_file)
             call wake_vtk%write_points(this%vertices)
-            call wake_vtk%write_panels(this%panels, subdivide=doublet_order==2, mirror=.false.)
+            call wake_vtk%write_panels(this%panels, subdivide=higher_order, mirror=.false.)
             call wake_vtk%write_cell_normals(this%panels)
 
             if (present(mu)) then
@@ -796,7 +796,7 @@ contains
             ! Write out panels
             shift = 0
             do k=1,this%N_strips
-                call wake_vtk%write_panels(this%strips(k)%panels, subdivide=doublet_order==2, mirror=.false., &
+                call wake_vtk%write_panels(this%strips(k)%panels, subdivide=higher_order, mirror=.false., &
                                            vertex_index_shift=shift, N_total_panels=N_panels)
                 shift = shift + this%strips(k)%N_verts
             end do

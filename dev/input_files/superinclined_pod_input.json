@@ -4,14 +4,10 @@
         "freestream_mach_number" : 1.3
     },
     "geometry": {
-        "file": "dev/meshes/HSCT.vtk",
-        "mirror_about" : "xz",
+        "file": "dev/meshes/pod.stl",
         "spanwise_axis" : "+y",
         "wake_model": {
-            "trefftz_distance" : 100.0
-        },
-        "reference": {
-            "area": 0.15
+            "wake_present" : false
         }
     },
     "solver": {
@@ -24,9 +20,7 @@
         }
     },
     "output": {
-        "body_file" : "dev/results/HSCT.vtk",
-        "wake_file" : "dev/results/HSCT_wake.vtk",
-        "wake_strip_file" : "dev/results/HSCT_wake_strips.vtk",
-        "control_point_file" : "dev/results/HSCT_control_points.vtk"
+        "body_file" : "dev/results/pod.vtk",
+        "control_point_file" : "dev/results/pod_control_points.vtk"
     }
 }

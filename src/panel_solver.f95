@@ -626,7 +626,7 @@ contains
 
         ! Calculate velocities
         call this%calc_cell_velocities(body)
-        if (doublet_order == 2) call this%calc_point_velocities(body)
+        if (higher_order) call this%calc_point_velocities(body)
         
         ! Calculate potentials
         call this%calc_surface_potentials(body)
@@ -641,7 +641,7 @@ contains
 
 
     subroutine panel_solver_calc_source_strengths(this, body)
-        ! Calculates the necessary source strengths
+        ! Calculates the necessary source strengths for subinclined panels
 
         implicit none
 
@@ -651,20 +651,20 @@ contains
         integer :: N_sigma, i, stat
 
         ! Determine number of source strengths
-        if (source_order == 0) then
-
-            if (body%asym_flow) then
-                N_sigma = body%N_panels*2
-            else
-                N_sigma = body%N_panels
-            end if
-
-        else if (source_order == 1) then
+        if (higher_order) then
 
             if (body%asym_flow) then
                 N_sigma = body%N_verts*2
             else
                 N_sigma = body%N_verts
+            end if
+
+        else
+
+            if (body%asym_flow) then
+                N_sigma = body%N_panels*2
+            else
+                N_sigma = body%N_panels
             end if
 
         end if
@@ -678,23 +678,8 @@ contains
 
             if (verbose) write(*,'(a)',advance='no') "     Calculating source strengths..."
 
-            ! Use panel normals
-            if (source_order == 0) then
-
-                ! Loop through panels
-                do i=1,body%N_panels
-
-                    ! Existing panels
-                    body%sigma(i) = -inner(body%panels(i)%n_g, this%freestream%c_hat_g)
-
-                    ! Mirrored panels for asymmetric flow
-                    if (body%asym_flow) then
-                        body%sigma(i+body%N_panels) = -inner(body%panels(i)%n_g_mir, this%freestream%c_hat_g)
-                    end if
-                end do
-
             ! Use vertex normals
-            else if (source_order == 1) then
+            if (higher_order) then
 
                 ! Loop through vertices
                 do i=1,body%N_verts
@@ -705,6 +690,21 @@ contains
                     ! Mirrored panels for asymmetric flow
                     if (body%asym_flow) then
                         body%sigma(i+body%N_verts) = -inner(body%vertices(i)%n_g_mir, this%freestream%c_hat_g)
+                    end if
+                end do
+
+            ! Use panel normals
+            else
+
+                ! Loop through panels
+                do i=1,body%N_panels
+
+                    ! Existing panels
+                    if (body%panels(i)%r > 0) body%sigma(i) = -inner(body%panels(i)%n_g, this%freestream%c_hat_g)
+
+                    ! Mirrored panels for asymmetric flow
+                    if (body%asym_flow .and. body%panels(i)%r_mir > 0) then
+                        body%sigma(i+body%N_panels) = -inner(body%panels(i)%n_g_mir, this%freestream%c_hat_g)
                     end if
                 end do
 
@@ -735,7 +735,7 @@ contains
         if (this%morino) then
 
             ! Constant
-            if (source_order == 0) then
+            if (.not. higher_order) then
                 if (mirrored_panel) then
                     phi_cp_s = phi_cp_s + source_inf(1)*body%sigma(i_panel+body%N_panels)
                 else
@@ -1280,7 +1280,7 @@ contains
         if (body%asym_flow) then
             this%N_cells = this%N_cells*2
         end if
-        if (doublet_order == 2) then
+        if (higher_order) then
             this%N_cells = this%N_cells*4
             N_cycle = 4
         end if
@@ -1300,7 +1300,7 @@ contains
             body%V_cells(:,(i-1)*N_cycle+1) = this%freestream%U*(this%inner_flow + v_jump)
 
             ! Calculate for subpanels
-            if (doublet_order == 2) then
+            if (higher_order) then
                 do j=1,body%panels(i)%N
 
                     ! Get centroid
@@ -1323,7 +1323,7 @@ contains
                 body%V_cells(:,(i-1)*N_cycle+1+this%N_cells/2) = this%freestream%U*(this%inner_flow + v_jump)
 
                 ! Calculate for subpanels
-                if (doublet_order == 2) then
+                if (higher_order) then
                     do j=1,body%panels(i)%N
 
                         ! Get centroid
@@ -1839,7 +1839,7 @@ contains
         do i=1,body%N_panels
 
             ! Discrete force coefficient acting on panel
-            if (doublet_order == 2) then
+            if (higher_order) then
                 do j=1,4
                     body%dC_f(:,4*(i-1)+j) = -pressures(4*(i-1)+j)*0.25*body%panels(i)%A*body%panels(i)%n_g
                 end do
@@ -1849,7 +1849,7 @@ contains
 
             ! Mirror
             if (body%asym_flow) then
-                if (doublet_order == 2) then
+                if (higher_order) then
                     do j=1,4
                         body%dC_f(:,4*(i-1)+j+this%N_cells/2) = &
                             -pressures(4*(i-1)+j+this%N_cells/2)*0.25*body%panels(i)%A*body%panels(i)%n_g_mir

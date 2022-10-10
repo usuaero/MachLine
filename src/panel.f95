@@ -10,8 +10,7 @@ module panel_mod
 
     implicit none
 
-    integer :: doublet_order
-    integer :: source_order
+    logical :: higher_order
 
 
     type integrals
@@ -175,7 +174,7 @@ contains
         this%abutting_panels = 0
 
         ! Allocate midpoint arrays
-        if (doublet_order == 2) then
+        if (higher_order) then
             allocate(this%midpoints(this%N))
         end if
 
@@ -399,14 +398,14 @@ contains
 
         ! Transform vertex and midpoint coords to ls
         allocate(this%vertices_ls(2,this%N))
-        if (doublet_order == 2) allocate(this%midpoints_ls(2,this%N))
+        if (higher_order) allocate(this%midpoints_ls(2,this%N))
         do i=1,this%N
 
             ! Vertices
             this%vertices_ls(:,i) = matmul(this%A_g_to_ls(1:2,:), this%get_vertex_loc(i)-this%centr)
 
             ! Midpoints
-            if (doublet_order == 2) then
+            if (higher_order) then
                 this%midpoints_ls(:,i) = matmul(this%A_g_to_ls(1:2,:), this%get_midpoint_loc(i)-this%centr)
             end if
 
@@ -491,21 +490,7 @@ contains
         ! Determine influence of vertex doublet strengths on integral parameters
 
         ! Linear distribution
-        if (doublet_order == 1) then
-
-            ! Allocate influence matrices
-            allocate(S_mu(3,3))
-            allocate(this%S_mu_inv(3,3))
-
-            ! Set values
-            S_mu(:,1) = 1.
-            S_mu(:,2) = this%vertices_ls(1,:)
-            S_mu(:,3) = this%vertices_ls(2,:)
-
-            ! Invert
-            call matinv(3, S_mu, this%S_mu_inv)
-
-        else if (doublet_order == 2) then
+        if (higher_order) then
 
             ! Allocate influence matrix
             allocate(S_mu(6,6))
@@ -534,11 +519,25 @@ contains
             ! Invert
             call matinv(6, S_mu, this%S_mu_inv)
 
+        else
+
+            ! Allocate influence matrices
+            allocate(S_mu(3,3))
+            allocate(this%S_mu_inv(3,3))
+
+            ! Set values
+            S_mu(:,1) = 1.
+            S_mu(:,2) = this%vertices_ls(1,:)
+            S_mu(:,3) = this%vertices_ls(2,:)
+
+            ! Invert
+            call matinv(3, S_mu, this%S_mu_inv)
+
         end if
 
         ! Determine influence of vertex source strengths on integral parameters
         ! Linear distribution
-        if (source_order == 1) then
+        if (higher_order) then
 
             ! Allocate influence matrices
             allocate(S_sigma(3,3))
@@ -563,41 +562,17 @@ contains
         class(panel),intent(inout) :: this
 
         ! Source
-        if (source_order == 0) then
-            allocate(this%i_vert_s(1), source=this%index)
-        else if (source_order == 1) then
+        if (higher_order) then
             allocate(this%i_vert_s(3))
             this%i_vert_s(1) = this%get_vertex_index(1)
             this%i_vert_s(2) = this%get_vertex_index(2)
             this%i_vert_s(3) = this%get_vertex_index(3)
+        else
+            allocate(this%i_vert_s(1), source=this%index)
         end if
 
         ! Doublet
-        if (doublet_order == 1) then
-
-            ! Check if this panel belongs to the wake
-            if (this%in_wake) then
-
-                ! Wake panels are influenced by two sets of vertices
-                allocate(this%i_vert_d(6))
-                this%i_vert_d(1) = this%vertices(1)%ptr%top_parent
-                this%i_vert_d(2) = this%vertices(2)%ptr%top_parent
-                this%i_vert_d(3) = this%vertices(3)%ptr%top_parent
-                this%i_vert_d(4) = this%vertices(1)%ptr%bot_parent
-                this%i_vert_d(5) = this%vertices(2)%ptr%bot_parent
-                this%i_vert_d(6) = this%vertices(3)%ptr%bot_parent
-
-            else
-
-                ! Body panels are influenced by only one set of vertices
-                allocate(this%i_vert_d(3))
-                this%i_vert_d(1) = this%get_vertex_index(1)
-                this%i_vert_d(2) = this%get_vertex_index(2)
-                this%i_vert_d(3) = this%get_vertex_index(3)
-
-            end if
-
-        else if (doublet_order == 2) then
+        if (higher_order) then
 
             ! Check if this panel belongs to the wake
             if (this%in_wake) then
@@ -627,6 +602,30 @@ contains
                 this%i_vert_d(4) = this%get_midpoint_index(1)
                 this%i_vert_d(5) = this%get_midpoint_index(2)
                 this%i_vert_d(6) = this%get_midpoint_index(3)
+
+            end if
+
+        else
+
+            ! Check if this panel belongs to the wake
+            if (this%in_wake) then
+
+                ! Wake panels are influenced by two sets of vertices
+                allocate(this%i_vert_d(6))
+                this%i_vert_d(1) = this%vertices(1)%ptr%top_parent
+                this%i_vert_d(2) = this%vertices(2)%ptr%top_parent
+                this%i_vert_d(3) = this%vertices(3)%ptr%top_parent
+                this%i_vert_d(4) = this%vertices(1)%ptr%bot_parent
+                this%i_vert_d(5) = this%vertices(2)%ptr%bot_parent
+                this%i_vert_d(6) = this%vertices(3)%ptr%bot_parent
+
+            else
+
+                ! Body panels are influenced by only one set of vertices
+                allocate(this%i_vert_d(3))
+                this%i_vert_d(1) = this%get_vertex_index(1)
+                this%i_vert_d(2) = this%get_vertex_index(2)
+                this%i_vert_d(3) = this%get_vertex_index(3)
 
             end if
 
@@ -729,7 +728,7 @@ contains
 
         ! Transform vertex and midpoint coords to ls
         allocate(this%vertices_ls_mir(2,this%N))
-        if (doublet_order == 2) allocate(this%midpoints_ls_mir(2,this%N))
+        if (higher_order) allocate(this%midpoints_ls_mir(2,this%N))
         do i=1,this%N
 
             ! Vertices
@@ -737,7 +736,7 @@ contains
                                                mirror_across_plane(this%get_vertex_loc(i), mirror_plane)-this%centr_mir)
 
             ! Midpoints
-            if (doublet_order == 2) then
+            if (higher_order) then
                 this%midpoints_ls_mir(:,i) = matmul(this%A_g_to_ls_mir(1:2,:), &
                                                     mirror_across_plane(this%get_midpoint_loc(i), mirror_plane)-this%centr_mir)
             end if
@@ -805,21 +804,7 @@ contains
         real,dimension(:,:),allocatable :: S_mu, S_sigma
 
         ! Linear distribution
-        if (doublet_order == 1) then
-
-            ! Allocate influence matrices
-            allocate(S_mu(3,3))
-            allocate(this%S_mu_inv_mir(3,3))
-
-            ! Set values
-            S_mu(:,1) = 1.
-            S_mu(:,2) = this%vertices_ls_mir(1,:)
-            S_mu(:,3) = this%vertices_ls_mir(2,:)
-
-            ! Invert
-            call matinv(3, S_mu, this%S_mu_inv_mir)
-
-        else if (doublet_order == 2) then
+        if (higher_order) then
 
             ! Allocate influence matrix
             allocate(S_mu(6,6))
@@ -848,11 +833,25 @@ contains
             ! Invert
             call matinv(6, S_mu, this%S_mu_inv_mir)
 
+        else
+
+            ! Allocate influence matrices
+            allocate(S_mu(3,3))
+            allocate(this%S_mu_inv_mir(3,3))
+
+            ! Set values
+            S_mu(:,1) = 1.
+            S_mu(:,2) = this%vertices_ls_mir(1,:)
+            S_mu(:,3) = this%vertices_ls_mir(2,:)
+
+            ! Invert
+            call matinv(3, S_mu, this%S_mu_inv_mir)
+
         end if
 
         ! Determine influence of vertex source strengths on integral parameters
         ! Linear distribution
-        if (source_order == 1) then
+        if (higher_order) then
 
             ! Allocate influence matrices
             allocate(S_sigma(3,3))
@@ -865,31 +864,6 @@ contains
 
             ! Invert
             call matinv(3, S_sigma, this%S_sigma_inv_mir)
-
-        ! Quadratic distribution; I don't anticipate this will ever be used
-        else if (source_order == 2) then
-
-            ! Allocate influence matrix
-            allocate(S_sigma(6,6))
-            allocate(this%S_sigma_inv_mir(6,6))
-
-            ! Set values
-            S_sigma(:,1) = 1.
-
-            S_sigma(1:3,2) = this%vertices_ls_mir(1,:)
-            S_sigma(1:3,3) = this%vertices_ls_mir(2,:)
-            S_sigma(1:3,4) = this%vertices_ls_mir(1,:)**2
-            S_sigma(1:3,5) = this%vertices_ls_mir(1,:)*this%vertices_ls_mir(2,:)
-            S_sigma(1:3,6) = this%vertices_ls_mir(2,:)**2
-            
-            S_sigma(4:6,2) = this%midpoints_ls_mir(1,:)
-            S_sigma(4:6,3) = this%midpoints_ls_mir(2,:)
-            S_sigma(4:6,4) = this%midpoints_ls_mir(1,:)**2
-            S_sigma(4:6,5) = this%midpoints_ls_mir(1,:)*this%midpoints_ls_mir(2,:)
-            S_sigma(4:6,6) = this%midpoints_ls_mir(2,:)**2
-
-            ! Invert
-            call matinv(6, S_sigma, this%S_sigma_inv_mir)
 
         end if
     
@@ -1164,7 +1138,7 @@ contains
             end if
 
             ! Check midpoint
-            if (doublet_order == 2) then
+            if (higher_order) then
                 if (dist(this%get_midpoint_loc(i), vert_loc) < 1.e-12) then
                     angle = pi
                     return
@@ -1781,7 +1755,7 @@ contains
         end do
 
         ! Calculate F(1,2,1) and F(2,1,1)
-        if (source_order == 1 .or. doublet_order == 2) then
+        if (higher_order) then
 
             ! Calculate (these formulas come from PAN AIR and are equivalent to Johnson, but simplified)
             int%F121 = geom%a*geom%v_eta*int%F111 + geom%v_xi*geom%dR
@@ -1807,10 +1781,6 @@ contains
 
         real :: F1, F2, eps, eps2, series, b, s_b
         integer :: i, i_next
-        logical :: higher_order
-
-        ! Check order
-        higher_order = source_order == 1 .or. doublet_order == 2
 
         ! Loop through edges
         do i=1,this%N
@@ -1943,10 +1913,6 @@ contains
 
         real :: F1, F2
         integer :: i
-        logical :: higher_order
-
-        ! Check order
-        higher_order = source_order == 1 .or. doublet_order == 2
 
         ! Loop through edges
         do i=1,this%N
@@ -2042,14 +2008,13 @@ contains
         int%H213 = -sum(geom%v_xi*int%F111)
         int%H123 = -sum(geom%v_eta*int%F111)
 
-        ! Calculate higher-order source integrals
-        if (source_order == 1) then
+        if (higher_order) then
+
+            ! Calculate higher-order source integrals
             int%H211 = 0.5*(-geom%h2*int%H213 + sum(geom%a*int%F211))
             int%H121 = 0.5*(-geom%h2*int%H123 + sum(geom%a*int%F121))
-        end if
 
-        ! Calculate higher-order doublet integrals
-        if (doublet_order == 2) then
+            ! Calculate higher-order doublet integrals
             int%H313 = sum(geom%v_eta*int%F121) - geom%h*int%hH113
             int%H223 = -sum(geom%v_xi*int%F121)
             int%H133 = int%H111 - sum(geom%v_eta*int%F121)
@@ -2137,14 +2102,13 @@ contains
         int%H213 = sum(geom%v_xi*int%F111)
         int%H123 = -sum(geom%v_eta*int%F111)
 
-        ! Calculate higher-order source integrals
-        if (source_order == 1) then
+        if (higher_order) then
+
+            ! Calculate higher-order source integrals
             int%H211 = 0.5*(-geom%h2*int%H213 + sum(geom%a*int%F211))
             int%H121 = 0.5*(-geom%h2*int%H123 + sum(geom%a*int%F121))
-        end if
 
-        ! Calculate higher-order doublet integrals
-        if (doublet_order == 2) then
+            ! Calculate higher-order doublet integrals
             int%H313 = -int%H111 + sum(geom%v_xi*int%F211)
             int%H223 = sum(geom%v_xi*int%F121)
             int%H133 = int%H111 - sum(geom%v_eta*int%F121)
@@ -2224,14 +2188,13 @@ contains
         int%H213 = sum(geom%v_xi*int%F111)
         int%H123 = sum(geom%v_eta*int%F111)
 
-        ! Calculate higher-order source integrals
-        if (source_order == 1) then
+        if (higher_order) then
+
+            ! Calculate higher-order source integrals
             int%H211 = 0.5*(geom%h2*int%H213 - sum(geom%a*int%F211))
             int%H121 = 0.5*(geom%h2*int%H123 - sum(geom%a*int%F121))
-        end if
 
-        ! Calculate higher-order doublet integrals
-        if (doublet_order == 2) then
+            ! Calculate higher-order doublet integrals
             int%H313 = int%H111 + sum(geom%v_xi*int%F211)
             int%H223 = sum(geom%v_xi*int%F121)
             int%H133 = int%H111 + sum(geom%v_eta*int%F121)
@@ -2268,7 +2231,7 @@ contains
 
         ! Allocate space for edge integrals
         allocate(int%F111(this%N), source=0.)
-        if (source_order == 1 .or. doublet_order == 2) then
+        if (higher_order) then
             allocate(int%F121(this%N), source=0.)
             allocate(int%F211(this%N), source=0.)
         end if
@@ -2299,29 +2262,29 @@ contains
         real,dimension(:),allocatable,intent(out) :: phi_s, phi_d
 
         ! Source
-        if (source_order == 0) then
-            allocate(phi_s(1), source=0.)
-        else if (source_order == 1) then
+        if (higher_order) then
             allocate(phi_s(3), source=0.)
+        else
+            allocate(phi_s(1), source=0.)
         end if
 
         ! Doublet
-        if (doublet_order == 1) then
-
-            ! Check if this panel belongs to the wake
-            if (this%in_wake) then
-                allocate(phi_d(6), source=0.)
-            else
-                allocate(phi_d(3), source=0.)
-            end if
-
-        else if (doublet_order == 2) then
+        if (higher_order) then
 
             ! Check if this panel belongs to the wake
             if (this%in_wake) then
                 allocate(phi_d(12), source=0.)
             else
                 allocate(phi_d(6), source=0.)
+            end if
+
+        else
+
+            ! Check if this panel belongs to the wake
+            if (this%in_wake) then
+                allocate(phi_d(6), source=0.)
+            else
+                allocate(phi_d(3), source=0.)
             end if
 
         end if
@@ -2368,7 +2331,7 @@ contains
             ! Source potential
             if (.not. this%in_wake) then
                 phi_s(1) = int%H111
-                if (source_order == 1) then
+                if (higher_order) then
 
                     ! Johnson Eq. (D21)
                     ! Equivalent to Ehlers Eq. (8.6)
@@ -2395,21 +2358,7 @@ contains
             phi_d(2) = int%hH113*geom%P_ls(1) + geom%h*int%H213
             phi_d(3) = int%hH113*geom%P_ls(2) + geom%h*int%H123
 
-            if (doublet_order == 1) then
-
-                ! Convert to vertex influences (Davis Eq. (4.41))
-                if (mirror_panel) then
-                    phi_d(1:3) = freestream%K_inv*matmul(phi_d(1:3), this%S_mu_inv_mir)
-                else
-                    phi_d(1:3) = freestream%K_inv*matmul(phi_d(1:3), this%S_mu_inv)
-                end if
-
-                ! Wake bottom influence is opposite the top influence
-                if (this%in_wake) then
-                    phi_d(4:6) = -phi_d(1:3)
-                end if
-
-            else if (doublet_order == 2) then
+            if (higher_order) then
 
                 ! Add quadratic terms
                 phi_d(4) = 0.5*int%hH113*geom%P_ls(1)**2 + geom%h*(geom%P_ls(1)*int%H213 + 0.5*int%H313)
@@ -2428,6 +2377,20 @@ contains
                 ! Wake bottom influence is opposite the top influence
                 if (this%in_wake) then
                     phi_d(7:12) = -phi_d(1:6)
+                end if
+
+            else
+
+                ! Convert to vertex influences (Davis Eq. (4.41))
+                if (mirror_panel) then
+                    phi_d(1:3) = freestream%K_inv*matmul(phi_d(1:3), this%S_mu_inv_mir)
+                else
+                    phi_d(1:3) = freestream%K_inv*matmul(phi_d(1:3), this%S_mu_inv)
+                end if
+
+                ! Wake bottom influence is opposite the top influence
+                if (this%in_wake) then
+                    phi_d(4:6) = -phi_d(1:3)
                 end if
 
             end if
@@ -2461,20 +2424,14 @@ contains
         mu_verts = this%get_doublet_strengths(mu, mirror_panel)
 
         ! Apply strengths to calculate potentials
-        ! Source
-        if (source_order == 1) then
+        if (higher_order) then
             phi_s = sum(source_inf*sigma_verts)
-        else
-            phi_s = source_inf(1)*sigma_verts(1)
-        end if
-
-        ! Doublet
-        if (doublet_order == 2) then
             phi_d = sum(doublet_inf*mu_verts)
         else
+            phi_s = source_inf(1)*sigma_verts(1)
             phi_d = sum(doublet_inf(1:3)*mu_verts(1:3))
         end if
-    
+
     end subroutine panel_calc_potentials
 
 
@@ -2501,16 +2458,16 @@ contains
                 shift = 0
             end if
 
-            ! Constant sources
-            if (source_order == 0) then
-                sigma_strengths(1) = sigma(this%index+shift)
-                sigma_strengths(2:3) = 0.
-
             ! Linear sources
-            else
+            if (higher_order) then
                 do i=1,this%N
                     sigma_strengths(i) = sigma(this%get_vertex_index(i)+shift)
                 end do
+
+            ! Constant sources
+            else
+                sigma_strengths(1) = sigma(this%index+shift)
+                sigma_strengths(2:3) = 0.
             end if
 
         ! Wakes no not have source distributions
@@ -2539,17 +2496,17 @@ contains
         ! Get strengths
         sigma_verts = this%get_source_strengths(sigma, mirror)
 
-        ! Constant sources
-        if (source_order == 0) then
-            sigma_params = sigma_verts
-
         ! Linear sources
-        else
+        if (higher_order) then
             if (mirror) then
                 sigma_params = matmul(this%S_sigma_inv_mir, sigma_verts)
             else
                 sigma_params = matmul(this%S_sigma_inv, sigma_verts)
             end if
+
+        ! Constant sources
+        else
+            sigma_params = sigma_verts
         end if
             
     end function panel_get_source_dist_parameters
@@ -2583,7 +2540,7 @@ contains
                 mu_strengths(i) = mu(this%vertices(i)%ptr%top_parent+shift) - mu(this%vertices(i)%ptr%bot_parent+shift)
 
                 ! Midpoints
-                if (doublet_order == 2) then
+                if (higher_order) then
                     mu_strengths(i+3) = mu(this%midpoints(i)%ptr%top_parent+shift) - mu(this%midpoints(i)%ptr%bot_parent+shift)
                 end if
 
@@ -2597,7 +2554,7 @@ contains
                 mu_strengths(i) = mu(this%get_vertex_index(i)+shift)
 
                 ! Midpoints
-                if (doublet_order == 2) mu_strengths(i+3) = mu(this%get_midpoint_index(i)+shift)
+                if (higher_order) mu_strengths(i+3) = mu(this%get_midpoint_index(i)+shift)
 
             end do
         end if
@@ -2622,7 +2579,7 @@ contains
         mu_verts = this%get_doublet_strengths(mu, mirror)
 
         ! Calculate doublet parameters (derivatives)
-        if (doublet_order == 2) then
+        if (higher_order) then
             if (mirror) then
                 mu_params = matmul(this%S_mu_inv_mir, mu_verts)
             else

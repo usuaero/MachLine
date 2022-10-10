@@ -81,7 +81,7 @@ contains
         end if
 
         ! Get midpoint parent vertices
-        if (doublet_order == 2) then
+        if (higher_order) then
             if (mirror_start) then
                 this%i_top_parent_mid = starting_edge%top_midpoint + N_body_verts
                 this%i_bot_parent_mid = starting_edge%bot_midpoint + N_body_verts
@@ -98,7 +98,7 @@ contains
         call this%init_panels(N_panels_streamwise)
 
         ! Initialize midpoints
-        if (doublet_order == 2) then
+        if (higher_order) then
             call this%init_midpoints()
         end if
 

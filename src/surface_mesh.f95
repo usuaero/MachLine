@@ -130,7 +130,7 @@ contains
         call this%locate_adjacent_panels()
 
         ! Create midpoints (if needed)
-        if (doublet_order == 2) call this%create_midpoints()
+        if (higher_order) call this%create_midpoints()
 
         ! Calculate vertex geometries
         call this%calc_vertex_geometry()
@@ -146,22 +146,17 @@ contains
         class(surface_mesh), intent(inout) :: this
         type(json_value),pointer,intent(in) :: settings
 
+        character(len=:),allocatable :: order
+
         ! Set singularity orders
-        call json_xtnsn_get(settings, 'singularity_order.doublet', doublet_order, 1)
-        call json_xtnsn_get(settings, 'singularity_order.source', source_order, 0)
-        if (verbose) write(*,'(a, i1, a, i1, a)') "     User has selected ", doublet_order, &
-                                                  "-order doublet and ", source_order, "-order source panels."
-
-        ! Check source distribution
-        if (source_order < 0 .or. source_order > 1) then
-            write(*,*) "!!! Only constant or linear source distributions are allowed. Quitting..."
-            stop
-        end if
-
-        ! Check doublet distribution
-        if (doublet_order < 1 .or. doublet_order > 2) then
-            write(*,*) "!!! Only linear or quadratic doublet distributions are allowed. Quitting..."
-            stop
+        call json_xtnsn_get(settings, 'singularity_order', order, 'lower')
+        higher_order = order == "higher"
+        if (verbose) then
+            if (higher_order) then
+                write(*,'(a, i1, a, i1, a)') "     User has selected quadratic-doublet-linear-source panels."
+            else
+                write(*,'(a, i1, a, i1, a)') "     User has selected linear-doublet-constant-source panels."
+            end if
         end if
     
     end subroutine surface_mesh_parse_singularity_settings
@@ -829,7 +824,7 @@ contains
 
         !$OMP parallel private(i, j, second_normal, C_angle, i_vert_1, i_vert_2) &
         !$OMP & private(cross_result, d, t_hat_g) &
-        !$OMP & default(none) shared(this, freestream, doublet_order, N_wake_edges) reduction(min : C_min_angle)
+        !$OMP & default(none) shared(this, freestream, higher_order, N_wake_edges) reduction(min : C_min_angle)
 
         ! Loop through each edge
         !$OMP do schedule(dynamic)
@@ -881,7 +876,7 @@ contains
                         this%edges(k)%sheds_wake = .true.
 
                         ! Update information for midpoint vertex (unique for the edge, so this doesn't need to be inside the critical block)
-                        if (doublet_order == 2) this%vertices(this%edges(k)%top_midpoint)%N_wake_edges = 1
+                        if (higher_order) this%vertices(this%edges(k)%top_midpoint)%N_wake_edges = 1
 
                         ! Update number of wake-shedding edges
                         !$OMP critical
@@ -1827,7 +1822,7 @@ contains
         call delete_file(body_file)
 
         ! Determine number of cells to export
-        if (doublet_order == 2) then
+        if (higher_order) then
             N_cells = this%N_panels*4
         else
             N_cells = this%N_panels
@@ -1844,7 +1839,7 @@ contains
         ! Write geometry
         call body_vtk%begin(body_file)
         call body_vtk%write_points(this%vertices)
-        call body_vtk%write_panels(this%panels, subdivide=doublet_order==2, mirror=.false.)
+        call body_vtk%write_panels(this%panels, subdivide=higher_order, mirror=.false.)
         call body_vtk%write_cell_normals(this%panels)
         call body_vtk%write_cell_scalars(panel_inclinations, "inclination", .true.)
         call body_vtk%write_cell_vectors(cents, "centroid", .true.)
@@ -1880,7 +1875,7 @@ contains
             end if
 
             ! Constant sources
-            if (source_order == 0) then
+            if (.not. higher_order) then
                 call body_vtk%write_cell_scalars(this%sigma(1:this%N_panels), "sigma", .true.)
             end if
 
@@ -1892,7 +1887,7 @@ contains
             call body_vtk%write_cell_vectors(this%dC_f(:,1:N_cells), "dC_f", .false.)
 
             ! Linear sources
-            if (source_order == 1) then
+            if (higher_order) then
                 call body_vtk%write_point_scalars(this%sigma(1:this%N_verts), "sigma")
             end if
 
@@ -1900,7 +1895,7 @@ contains
             call body_vtk%write_point_scalars(this%Phi_u(1:this%N_verts), "Phi_u")
 
             ! Quadratic doublets
-            if (doublet_order == 2) then
+            if (higher_order) then
                 call body_vtk%write_point_vectors(this%V_verts_avg(:,1:this%N_verts), "v_avg")
                 call body_vtk%write_point_vectors(this%V_verts_std(:,1:this%N_verts), "v_std_dev")
             end if
@@ -1930,7 +1925,7 @@ contains
         call delete_file(mirrored_body_file)
 
         ! Determine number of cells to export
-        if (doublet_order == 2) then
+        if (higher_order) then
             N_cells = this%N_panels*4
         else
             N_cells = this%N_panels
@@ -1949,7 +1944,7 @@ contains
         ! Write geometry
         call body_vtk%begin(mirrored_body_file)
         call body_vtk%write_points(this%vertices, this%mirror_plane)
-        call body_vtk%write_panels(this%panels, subdivide=doublet_order==2, mirror=.true.)
+        call body_vtk%write_panels(this%panels, subdivide=higher_order, mirror=.true.)
         call body_vtk%write_cell_normals(this%panels, this%mirror_plane)
         call body_vtk%write_cell_scalars(panel_inclinations, "inclination", .true.)
         call body_vtk%write_cell_vectors(cents, "centroid", .true.)
@@ -1983,7 +1978,7 @@ contains
         end if
 
         ! Constant sources
-        if (source_order == 0) then
+        if (.not. higher_order) then
             call body_vtk%write_cell_scalars(this%sigma(this%N_panels+1:this%N_panels*2), "sigma", .true.)
         end if
 
@@ -1992,7 +1987,7 @@ contains
         call body_vtk%write_cell_vectors(this%dC_f(:,N_cells+1:N_cells*2), "dC_f", .false.)
 
         ! Linear sources
-        if (source_order == 1) then
+        if (higher_order) then
             call body_vtk%write_point_scalars(this%sigma(this%N_verts+1:this%N_verts*2), "sigma")
         end if
 
@@ -2000,7 +1995,7 @@ contains
         call body_vtk%write_point_scalars(this%Phi_u(this%N_verts+1:this%N_verts*2), "Phi_u")
 
         ! Quadratic doublets
-        if (doublet_order == 2) then
+        if (higher_order) then
             call body_vtk%write_point_vectors(this%V_verts_avg(:,this%N_verts+1:this%N_verts*2), "v_avg")
             call body_vtk%write_point_vectors(this%V_verts_std(:,this%N_verts+1:this%N_verts*2), "v_std_dev")
         end if
