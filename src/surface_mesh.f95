@@ -1575,54 +1575,44 @@ contains
         type(dod),dimension(:,:),allocatable :: wake_dod_info
 
         logical,dimension(:),allocatable :: verts_in_dod, wake_verts_in_dod
-        integer :: j, k, stat
+        integer :: j, k, stat, N_verts, N_panels, N_strip_verts, N_strip_panels
         real,dimension(3) :: vert_loc, mirrored_vert_loc
 
-        ! Allocate DoD storage for body
+        ! Figure out how many verts and panels we're going to consider
         if (this%mirrored) then
-
-            ! Whether mesh vertices are in the DoD
-            allocate(verts_in_dod(2*this%N_verts), source=.false., stat=stat)
-            call check_allocation(stat, "vertex domain of dependence storage")
-
-            ! DoD info for panels
-            allocate(dod_info(2*this%N_panels), stat=stat)
-            call check_allocation(stat, "domain of dependence storage")
-
+            if (this%asym_flow) then
+                N_strip_verts = this%wake%N_max_strip_verts
+                N_strip_panels = this%wake%N_max_strip_panels
+            else
+                N_strip_verts = 2*this%wake%N_max_strip_verts
+                N_strip_panels = 2*this%wake%N_max_strip_panels
+            end if
+            N_verts = 2*this%N_verts
+            N_panels = 2*this%N_panels
         else
-
-            ! Whether mesh vertices are in the DoD
-            allocate(verts_in_dod(this%N_verts), source=.false., stat=stat)
-            call check_allocation(stat, "vertex domain of dependence storage")
-
-            ! DoD info for panels
-            allocate(dod_info(this%N_panels), stat=stat)
-            call check_allocation(stat, "domain of dependence storage")
-
+            N_verts = this%N_verts
+            N_panels = this%N_panels
+            N_strip_verts = this%wake%N_max_strip_verts
+            N_strip_panels = this%wake%N_max_strip_panels
         end if
 
-        ! Allocate DoD storage for wake
-        if (this%mirrored .and. .not. this%asym_flow) then ! This is the only case where the wake is mirrored
+        ! Allocate
 
-            ! Whether wake vertices are in the DoD
-            allocate(wake_verts_in_dod(2*this%wake%N_max_strip_verts), stat=stat)
-            call check_allocation(stat, "wake vertex domain of dependence storage")
+        ! Whether mesh vertices are in the DoD
+        allocate(verts_in_dod(N_verts), source=.false., stat=stat)
+        call check_allocation(stat, "vertex domain of dependence storage")
 
-            ! DoD info for wake panels
-            allocate(wake_dod_info(2*this%wake%N_max_strip_panels,this%wake%N_strips), stat=stat)
-            call check_allocation(stat, "wake domain of dependence storage")
+        ! DoD info for panels
+        allocate(dod_info(N_panels), stat=stat)
+        call check_allocation(stat, "domain of dependence storage")
 
-        else
+        ! Whether wake vertices are in the DoD
+        allocate(wake_verts_in_dod(N_strip_verts), stat=stat)
+        call check_allocation(stat, "wake vertex domain of dependence storage")
 
-            ! Whether wake vertices are in the DoD
-            allocate(wake_verts_in_dod(this%wake%N_max_strip_verts), stat=stat)
-            call check_allocation(stat, "wake vertex domain of dependence storage")
-
-            ! DoD info for wake panels
-            allocate(wake_dod_info(this%wake%N_max_strip_panels,this%wake%N_strips), stat=stat)
-            call check_allocation(stat, "wake domain of dependence storage")
-
-        end if
+        ! DoD info for wake panels
+        allocate(wake_dod_info(N_strip_panels,this%wake%N_strips), stat=stat)
+        call check_allocation(stat, "wake domain of dependence storage")
 
         ! If the freestream is supersonic, calculate domain of dependence info
         if (freestream%supersonic) then
@@ -1817,13 +1807,6 @@ contains
             if (verbose) write(*,'(a30 a)') "    Control points: ", control_point_file
         end if
         
-        !! Write out data for mirrored control points
-        !if (mirrored_control_point_file /= 'none' .and. this%asym_flow) then
-        !    call this%write_mirrored_control_points(mirrored_control_point_file, solved=.true.)
-
-        !    if (verbose) write(*,'(a30 a)') "    Mirrored control points: ", mirrored_control_point_file
-        !end if
-    
     end subroutine surface_mesh_output_results
 
 

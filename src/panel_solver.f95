@@ -383,7 +383,20 @@ contains
             ! Surface control points
             case (3)
 
-                call body%cp(i)%set_bc(3) ! TODO: need a normal vector here
+                ! Need to get correct normal vector
+                if (body%cp(i)%tied_to_type ==1 ) then
+                    if (body%cp(i)%is_mirror) then
+                        call body%cp(i)%set_bc(3, body%vertices(body%cp(i)%tied_to_index)%n_g_mir)
+                    else
+                        call body%cp(i)%set_bc(3, body%vertices(body%cp(i)%tied_to_index)%n_g)
+                    end if
+                else
+                    if (body%cp(i)%is_mirror) then
+                        call body%cp(i)%set_bc(3, body%panels(body%cp(i)%tied_to_index)%n_g_mir)
+                    else
+                        call body%cp(i)%set_bc(3, body%panels(body%cp(i)%tied_to_index)%n_g)
+                    end if
+                end if
             
             end select
 
@@ -400,62 +413,48 @@ contains
         class(panel_solver),intent(inout) :: this
         type(surface_mesh),intent(inout) :: body
 
-        integer :: i, j, k, stat
+        integer :: i, j, k, stat, N_panels, N_verts, N_strip_panels, N_strip_verts
         real,dimension(3) :: vert_loc, mirrored_vert_loc
         logical,dimension(:),allocatable :: verts_in_dod
         logical,dimension(:,:),allocatable :: wake_verts_in_dod
 
-        ! For asymmetric flow on a mirrored mesh, all domains of dependence must be calculated. There are no shortcuts.
-        ! For symmetric flow on a mirrored mesh, domains of dependence will be the same between mirrored panels and mirrored
-        ! control points. So, we just need to calculate the DoD for mirrored control points, and then we're good.
-
         if (this%freestream%supersonic .and. verbose) write(*,'(a)',advance='no') "     Calculating domains of dependence..."
 
-        ! Allocate arrays for domain of dependence information for the body
+        ! Figure out how many verts/panels we're going to consider
         if (body%mirrored) then
-
-            ! DoD info for panels
-            allocate(this%dod_info(2*body%N_panels, this%N_unknown), stat=stat)
-            call check_allocation(stat, "domain of dependence storage")
-
-            ! Whether vertices are in the DoD of the original control point
-            allocate(verts_in_dod(2*body%N_verts), stat=stat)
-            call check_allocation(stat, "vertex domain of dependence storage")
-
+            if (body%asym_flow) then
+                N_strip_panels = body%wake%N_max_strip_panels
+                N_strip_verts = body%wake%N_max_strip_verts
+            else
+                N_strip_panels = 2*body%wake%N_max_strip_panels
+                N_strip_verts = 2*body%wake%N_max_strip_verts
+            end if
+            N_panels = 2*body%N_panels
+            N_verts = 2*body%N_verts
         else
-
-            ! DoD info for panels
-            allocate(this%dod_info(body%N_panels, this%N_unknown), stat=stat)
-            call check_allocation(stat, "domain of dependence storage")
-
-            ! Whether vertices are in the DoD of the original control point
-            allocate(verts_in_dod(body%N_verts), stat=stat)
-            call check_allocation(stat, "vertex domain of dependence storage")
-
+            N_panels = body%N_panels
+            N_verts = body%N_verts
+            N_strip_panels = body%wake%N_max_strip_panels
+            N_strip_verts = body%wake%N_max_strip_verts
         end if
 
-        ! Allocate arrays for domain of dependence information for the wake
-        if (body%mirrored .and. .not. body%asym_flow) then
+        ! Allocate
 
-            ! DoD info for panels
-            allocate(this%wake_dod_info(2*body%wake%N_max_strip_panels, body%wake%N_strips, this%N_unknown), stat=stat)
-            call check_allocation(stat, "wake domain of dependence storage")
+        ! DoD info for panels
+        allocate(this%dod_info(N_panels, this%N_unknown), stat=stat)
+        call check_allocation(stat, "domain of dependence storage")
 
-            ! Whether vertices are in the DoD of the original control point
-            allocate(wake_verts_in_dod(2*body%wake%N_max_strip_verts, body%wake%N_strips), stat=stat)
-            call check_allocation(stat, "vertex domain of dependence storage")
+        ! Whether vertices are in the DoD of the original control point
+        allocate(verts_in_dod(N_verts), stat=stat)
+        call check_allocation(stat, "vertex domain of dependence storage")
 
-        else
+        ! DoD info for panels
+        allocate(this%wake_dod_info(N_strip_panels, body%wake%N_strips, this%N_unknown), stat=stat)
+        call check_allocation(stat, "wake domain of dependence storage")
 
-            ! DoD info for panels
-            allocate(this%wake_dod_info(body%wake%N_max_strip_panels, body%wake%N_strips, this%N_unknown), stat=stat)
-            call check_allocation(stat, "wake domain of dependence storage")
-
-            ! Whether vertices are in the DoD of the original control point
-            allocate(wake_verts_in_dod(body%wake%N_max_strip_verts, body%wake%N_strips), stat=stat)
-            call check_allocation(stat, "vertex domain of dependence storage")
-
-        end if
+        ! Whether vertices are in the DoD of the original control point
+        allocate(wake_verts_in_dod(N_strip_verts, body%wake%N_strips), stat=stat)
+        call check_allocation(stat, "vertex domain of dependence storage")
 
         ! If the freestream is subsonic, these don't need to be checked
         if (this%freestream%supersonic) then
