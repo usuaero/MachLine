@@ -79,6 +79,7 @@ module surface_mesh_mod
 
             ! Control points
             procedure :: place_interior_control_points => surface_mesh_place_interior_control_points
+            procedure :: get_clone_control_point_dir => surface_mesh_get_clone_control_point_dir
 
             ! Post-processing
             procedure :: get_induced_potentials_at_point => surface_mesh_get_induced_potentials_at_point
@@ -639,13 +640,13 @@ contains
         
         class(surface_mesh),intent(inout) :: this
 
-        real,dimension(3) :: n_avg, n_g_panel
-        integer :: i, j, k, j_panel, k_panel, N_panels
+        real,dimension(3) :: n_avg
+        integer :: i, j, j_panel, N_panels
 
         if (verbose) write(*,'(a)',advance='no') "     Calculating vertex geometric parameters..."
 
         ! Loop through vertices
-        !$OMP parallel do private(n_avg, j, k, j_panel, N_panels, n_g_panel) schedule(dynamic)
+        !$OMP parallel do private(n_avg, j, j_panel, N_panels) schedule(dynamic)
         do i=1,this%N_verts
 
             ! Loop through neighboring panels and compute the average of their normal vectors
@@ -656,11 +657,8 @@ contains
                 ! Get panel index
                 call this%vertices(i)%panels%get(j, j_panel)
 
-                ! Get weighted normal
-                n_g_panel = this%panels(j_panel)%get_weighted_normal_at_corner(this%vertices(i)%loc)
-
                 ! Update using weighted normal
-                n_avg = n_avg + n_g_panel
+                n_avg = n_avg + this%panels(j_panel)%get_weighted_normal_at_corner(this%vertices(i)%loc)
 
             end do
 
@@ -1350,10 +1348,8 @@ contains
         class(surface_mesh),intent(inout) :: this
         real,intent(in) :: offset
 
-        integer :: i, j, k, i_panel, i_edge_1, i_edge_2, i_edge, panel1, panel2
-        real,dimension(3) :: dir, t1, t2, t_avg, tp, n_avg
-        real :: C_min_panel_angle, offset_ratio, x
-        logical :: found_first
+        integer :: i, j, i_panel
+        real,dimension(3) :: dir
 
         ! Specify number of control points
         if (this%asym_flow) then
@@ -1365,140 +1361,15 @@ contains
         ! Allocate memory
         allocate(this%cp(this%N_cp))
 
-        ! Calculate offset ratio such that the control point will remain within the body based on the minimum detected angle between panels
-        if (this%wake_present) then
-            offset_ratio = 0.5*sqrt(0.5*(1. + this%C_min_panel_angle))
-        end if
-
         ! Loop through vertices
-        !$OMP parallel do private(j, k, i_panel, dir, found_first, i_edge, i_edge_1, i_edge_2, panel1, panel2, t1, t2, t_avg, tp) &
-        !$OMP & private(C_min_panel_angle, offset_ratio, n_avg, x) &
+        !$OMP parallel do private(j, i_panel, dir) &
         !$OMP & schedule(dynamic) shared(this, offset) default(none)
         do i=1,this%N_verts
 
             ! If the vertex is a clone, it needs to be shifted off the normal slightly so that it is unique from its counterpart
             if (this%vertices(i)%clone) then
 
-                ! Get the two edges defining the split for this vertex
-                if (this%vertices(i)%vert_type == 1) then
-                    found_first = .false.
-                    i_edge_2 = 0
-                    do j=1,this%vertices(i)%adjacent_edges%len()
-
-                        ! Get index
-                        call this%vertices(i)%adjacent_edges%get(j, i_edge)
-
-                        ! Make sure it's a wake-shedding edge (we don't need to check other edges)
-                        if (this%edges(i_edge)%sheds_wake) then
-
-                            ! See if only one of this edge's panels belongs to the panels not across a wake edge for this vertex
-                            panel1 = this%edges(i_edge)%panels(1)
-                            panel2 = this%edges(i_edge)%panels(2)
-                            if ((this%vertices(i)%panels_not_across_wake_edge%is_in(panel1) &
-                                 .and. .not. this%vertices(i)%panels_not_across_wake_edge%is_in(panel2)) .or. &
-                                (this%vertices(i)%panels_not_across_wake_edge%is_in(panel2) &
-                                 .and. .not. this%vertices(i)%panels_not_across_wake_edge%is_in(panel1))) then
-
-                                ! Store
-                                if (found_first) then
-                                    i_edge_2 = i_edge
-                                else
-                                    i_edge_1 = i_edge
-                                    found_first = .true.
-                                end if
-                            end if
-
-                        end if
-
-                    end do
-
-                    ! Get average tangent vector for the edge
-                    ! If we've found both, then we can use both
-                    if (i_edge_2 /= 0) then
-                        t1 = this%vertices(i)%loc - this%vertices(this%edges(i_edge_1)%get_opposite_endpoint(i, this%vertices))%loc
-                        t1 = t1/norm2(t1)
-                        t2 = this%vertices(this%edges(i_edge_2)%get_opposite_endpoint(i, this%vertices))%loc - this%vertices(i)%loc
-                        t2 = t2/norm2(t2)
-                        t_avg = t1 + t2
-                        t_avg = t_avg/norm2(t_avg)
-
-                    ! If we've only found one, then the other edge must be mirrored
-                    else
-                        t_avg = 0.
-                        t_avg(this%mirror_plane) = 1.
-                    end if
-
-                ! For midpoints, this is just the edge it belongs to
-                else
-                    call this%vertices(i)%adjacent_edges%get(1, i_edge_1)
-                    t_avg = this%vertices(this%edges(i_edge_1)%top_verts(1))%loc - &
-                            this%vertices(this%edges(i_edge_1)%top_verts(2))%loc
-                    t_avg = t_avg/norm2(t_avg)
-                end if
-
-                ! Get the vector which is perpendicular to t_avg that also lies inside one of the panels not across a wake edge
-                tp_loop: do j=1,this%vertices(i)%panels_not_across_wake_edge%len()
-
-                    ! Get a vector in the plane of panel j
-                    call this%vertices(i)%panels_not_across_wake_edge%get(j, i_panel)
-                    tp = this%panels(i_panel)%centr - this%vertices(i)%loc
-
-                    ! Project the vector so it is perpendicular to t_avg
-                    tp = tp - t_avg*inner(t_avg, tp)
-
-                    ! If it's still inside the panel, we've found our vector
-                    if (this%panels(i_panel)%projection_inside(tp+this%vertices(i)%loc, .false., 0)) exit tp_loop
-
-                end do tp_loop
-
-                ! Normalize
-                tp = tp/norm2(tp)
-
-                ! Find minimum angle between panels
-                C_min_panel_angle = 1.
-                do j=1,this%vertices(i)%panels%len()
-
-                    ! Get index for first panel
-                    call this%vertices(i)%panels%get(j, panel1)
-
-                    do k=j+1,this%vertices(i)%panels%len()
-
-                        ! Get index for second panel
-                        call this%vertices(i)%panels%get(k, panel2)
-
-                        ! Get minimum angle
-                        x = inner(this%panels(panel1)%n_g, this%panels(panel2)%n_g)
-                        C_min_panel_angle = min(C_min_panel_angle, x)
-
-                    end do
-
-                    ! Check angle between the panel and the mirror plane
-                    if (this%mirrored .and. this%vertices(i)%on_mirror_plane) then
-
-                        x = -this%panels(panel1)%n_g(this%mirror_plane)
-                        C_min_panel_angle = min(C_min_panel_angle, x)
-
-                    end if
-
-                end do
-
-                ! Get average normal vector for panels not across wake edge
-                n_avg = 0.
-                do j=1,this%vertices(i)%panels_not_across_wake_edge%len()
-
-                    ! Get index
-                    call this%vertices(i)%panels_not_across_wake_edge%get(j, i_panel)
-
-                    ! Update normal
-                    n_avg = n_avg + this%panels(i_panel)%get_weighted_normal_at_corner(this%vertices(i)%loc)
-
-                end do
-                n_avg = n_avg/norm2(n_avg)
-
-                ! Place control point
-                offset_ratio = 0.5*sqrt(0.5*(1. + C_min_panel_angle))
-                dir = tp - offset_ratio*n_avg
-                dir = dir/norm2(dir)
+                dir = this%get_clone_control_point_dir(i)
 
             ! If it has no clone, then placement simply follows the average normal vector
             else
@@ -1544,6 +1415,152 @@ contains
         end if
 
     end subroutine surface_mesh_place_interior_control_points
+
+
+    function surface_mesh_get_clone_control_point_dir(this, i_vert) result(dir)
+        ! Calculates the offset direction for the control point associated with the cloned vertex
+
+        implicit none
+        
+        class(surface_mesh),intent(in) :: this
+        integer,intent(in) :: i_vert
+        real,dimension(3) :: dir
+
+        integer :: j, k, i_panel, i_edge_1, i_edge_2, i_edge, panel1, panel2
+        real,dimension(3) :: t1, t2, t_avg, tp, n_avg
+        real :: C_min_panel_angle, offset_ratio, x
+        logical :: found_first
+
+        ! Get the two edges defining the split for this vertex
+        if (this%vertices(i_vert)%vert_type == 1) then
+            found_first = .false.
+            i_edge_2 = 0
+            do j=1,this%vertices(i_vert)%adjacent_edges%len()
+
+                ! Get index
+                call this%vertices(i_vert)%adjacent_edges%get(j, i_edge)
+
+                ! Make sure it's a wake-shedding edge (we don't need to check other edges)
+                if (this%edges(i_edge)%sheds_wake) then
+
+                    ! See if only one of this edge's panels belongs to the panels not across a wake edge for this vertex
+                    panel1 = this%edges(i_edge)%panels(1)
+                    panel2 = this%edges(i_edge)%panels(2)
+                    if ((this%vertices(i_vert)%panels_not_across_wake_edge%is_in(panel1) &
+                         .and. .not. this%vertices(i_vert)%panels_not_across_wake_edge%is_in(panel2)) .or. &
+                        (this%vertices(i_vert)%panels_not_across_wake_edge%is_in(panel2) &
+                         .and. .not. this%vertices(i_vert)%panels_not_across_wake_edge%is_in(panel1))) then
+
+                        ! Store
+                        if (found_first) then
+                            i_edge_2 = i_edge
+                        else
+                            i_edge_1 = i_edge
+                            found_first = .true.
+                        end if
+                    end if
+
+                end if
+
+            end do
+
+            ! Get average tangent vector for the edge
+            ! If we've found both, then we can use both
+            if (i_edge_2 /= 0) then
+
+                ! First edge
+                t1 = this%vertices(i_vert)%loc - &
+                        this%vertices(this%edges(i_edge_1)%get_opposite_endpoint(i_vert, this%vertices))%loc
+                t1 = t1/norm2(t1)
+
+                ! Second edge
+                t2 = this%vertices(this%edges(i_edge_2)%get_opposite_endpoint(i_vert, this%vertices))%loc - &
+                        this%vertices(i_vert)%loc
+                t2 = t2/norm2(t2)
+
+                ! Get average
+                t_avg = t1 + t2
+                t_avg = t_avg/norm2(t_avg)
+
+            ! If we've only found one, then the other edge must be mirrored
+            else
+                t_avg = 0.
+                t_avg(this%mirror_plane) = 1.
+            end if
+
+        ! For midpoints, this is just the edge it belongs to
+        else
+            call this%vertices(i_vert)%adjacent_edges%get(1, i_edge_1)
+            t_avg = this%vertices(this%edges(i_edge_1)%top_verts(1))%loc - &
+                    this%vertices(this%edges(i_edge_1)%top_verts(2))%loc
+            t_avg = t_avg/norm2(t_avg)
+        end if
+
+        ! Get the vector which is perpendicular to t_avg that also lies inside one of the panels not across a wake edge
+        tp_loop: do j=1,this%vertices(i_vert)%panels_not_across_wake_edge%len()
+
+            ! Get a vector in the plane of panel j
+            call this%vertices(i_vert)%panels_not_across_wake_edge%get(j, i_panel)
+            tp = this%panels(i_panel)%centr - this%vertices(i_vert)%loc
+
+            ! Project the vector so it is perpendicular to t_avg
+            tp = tp - t_avg*inner(t_avg, tp)
+
+            ! If it's still inside the panel, we've found our vector
+            if (this%panels(i_panel)%projection_inside(tp+this%vertices(i_vert)%loc, .false., 0)) exit tp_loop
+
+        end do tp_loop
+
+        ! Normalize
+        tp = tp/norm2(tp)
+
+        ! Find minimum angle between panels
+        C_min_panel_angle = 1.
+        do j=1,this%vertices(i_vert)%panels%len()
+
+            ! Get index for first panel
+            call this%vertices(i_vert)%panels%get(j, panel1)
+
+            do k=j+1,this%vertices(i_vert)%panels%len()
+
+                ! Get index for second panel
+                call this%vertices(i_vert)%panels%get(k, panel2)
+
+                ! Get minimum angle
+                x = inner(this%panels(panel1)%n_g, this%panels(panel2)%n_g)
+                C_min_panel_angle = min(C_min_panel_angle, x)
+
+            end do
+
+            ! Check angle between the panel and the mirror plane
+            if (this%mirrored .and. this%vertices(i_vert)%on_mirror_plane) then
+
+                x = -this%panels(panel1)%n_g(this%mirror_plane)
+                C_min_panel_angle = min(C_min_panel_angle, x)
+
+            end if
+
+        end do
+
+        ! Get average normal vector for panels not across wake edge
+        n_avg = 0.
+        do j=1,this%vertices(i_vert)%panels_not_across_wake_edge%len()
+
+            ! Get index
+            call this%vertices(i_vert)%panels_not_across_wake_edge%get(j, i_panel)
+
+            ! Update normal
+            n_avg = n_avg + this%panels(i_panel)%get_weighted_normal_at_corner(this%vertices(i_vert)%loc)
+
+        end do
+        n_avg = n_avg/norm2(n_avg)
+
+        ! Place control point
+        offset_ratio = 0.5*sqrt(0.5*(1. + C_min_panel_angle))
+        dir = tp - offset_ratio*n_avg
+        dir = dir/norm2(dir)
+    
+    end function surface_mesh_get_clone_control_point_dir
 
 
     subroutine surface_mesh_calc_point_dod(this, point, freestream, dod_info, wake_dod_info)
