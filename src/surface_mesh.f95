@@ -28,7 +28,7 @@ module surface_mesh_mod
         real :: C_wake_shedding_angle, trefftz_distance, C_min_panel_angle
         integer :: N_wake_panels_streamwise
         logical :: wake_present, append_wake
-        real,dimension(:,:),allocatable :: cp, cp_mir ! Control points
+        type(control_point),dimension(:),allocatable :: cp, cp_mir ! Control points
         real,dimension(:),allocatable :: phi_cp, phi_cp_sigma, phi_cp_mu ! Induced potentials at control points
         real,dimension(:),allocatable :: Phi_u ! Total potential on outer surface
         real,dimension(:),allocatable :: C_p_pg, C_p_lai, C_p_kt ! Corrected surface pressure coefficients
@@ -86,7 +86,6 @@ module surface_mesh_mod
             procedure :: write_body => surface_mesh_write_body
             procedure :: write_body_mirror => surface_mesh_write_body_mirror
             procedure :: write_control_points => surface_mesh_write_control_points
-            procedure :: write_mirrored_control_points => surface_mesh_write_mirrored_control_points
 
     end type surface_mesh
     
@@ -1357,10 +1356,14 @@ contains
         logical :: found_first
 
         ! Specify number of control points
-        this%N_cp = this%N_verts
+        if (this%asym_flow) then
+            this%N_cp = this%N_verts*2
+        else
+            this%N_cp = this%N_verts
+        end if
 
         ! Allocate memory
-        allocate(this%cp(3,this%N_verts))
+        allocate(this%cp(this%N_cp))
 
         ! Calculate offset ratio such that the control point will remain within the body based on the minimum detected angle between panels
         if (this%wake_present) then
@@ -1505,8 +1508,8 @@ contains
 
             end if
             
-            ! Place control point
-            this%cp(:,i) = this%vertices(i)%loc + offset*dir*this%vertices(i)%l_avg
+            ! Initialize control point
+            call this%cp(i)%init(this%vertices(i)%loc + offset*dir*this%vertices(i)%l_avg, 1, 1, i)
 
             ! Check if the control point is going to be outside the mesh
             do j=1,this%vertices(i)%panels%len()
@@ -1515,7 +1518,7 @@ contains
                 call this%vertices(i)%panels%get(j, i_panel)
 
                 ! Check
-                if (this%panels(i_panel)%point_outside(this%cp(:,i), .false., 0)) then
+                if (this%panels(i_panel)%point_outside(this%cp(i)%loc, .false., 0)) then
                     write(*,*) "!!! Control point ", i, " may be outside panel ", i_panel, "."
                 end if
 
@@ -1523,16 +1526,19 @@ contains
 
         end do
 
-        ! Calculate mirrored points, if necessary
-        if (this%mirrored) then
-
-            ! Allocate memory
-            allocate(this%cp_mir(3,this%N_cp))
+        ! Calculate mirrored control points, if necessary
+        if (this%asym_flow) then
 
             ! Calculate mirrors
             !$OMP parallel do schedule(static)
-            do i=1,this%N_cp
-                this%cp_mir(:,i) = mirror_across_plane(this%cp(:,i), this%mirror_plane)
+            do i=1,this%N_cp/2
+
+                ! Initialize
+                call this%cp(i+this%N_cp/2)%init(mirror_across_plane(this%cp(i)%loc, this%mirror_plane), 1, 1, i)
+
+                ! Specify that this is a mirror
+                this%cp(i+this%N_cp/2)%is_mirror = .true.
+
             end do
 
         end if
@@ -1794,12 +1800,12 @@ contains
             if (verbose) write(*,'(a30 a)') "    Control points: ", control_point_file
         end if
         
-        ! Write out data for mirrored control points
-        if (mirrored_control_point_file /= 'none' .and. this%asym_flow) then
-            call this%write_mirrored_control_points(mirrored_control_point_file, solved=.true.)
+        !! Write out data for mirrored control points
+        !if (mirrored_control_point_file /= 'none' .and. this%asym_flow) then
+        !    call this%write_mirrored_control_points(mirrored_control_point_file, solved=.true.)
 
-            if (verbose) write(*,'(a30 a)') "    Mirrored control points: ", mirrored_control_point_file
-        end if
+        !    if (verbose) write(*,'(a30 a)') "    Mirrored control points: ", mirrored_control_point_file
+        !end if
     
     end subroutine surface_mesh_output_results
 
@@ -1991,7 +1997,7 @@ contains
             call body_vtk%write_point_scalars(this%sigma(this%N_verts+1:this%N_verts*2), "sigma")
         end if
 
-        call body_vtk%write_point_scalars(this%mu(this%N_cp+1:this%N_cp*2), "mu")
+        call body_vtk%write_point_scalars(this%mu(this%N_verts+1:this%N_verts*2), "mu")
         call body_vtk%write_point_scalars(this%Phi_u(this%N_verts+1:this%N_verts*2), "Phi_u")
 
         ! Quadratic doublets
@@ -2015,13 +2021,20 @@ contains
         logical,intent(in) :: solved
 
         type(vtk_out) :: cp_vtk
+        real,dimension(3,this%N_cp) :: cp_locs
+        integer :: i
+
+        ! Get control point locations
+        do i=1,this%N_cp
+            cp_locs(:,i) = this%cp(i)%loc
+        end do
 
         ! Clear old file
         call delete_file(control_point_file)
 
         ! Write out data
         call cp_vtk%begin(control_point_file)
-        call cp_vtk%write_points(this%cp)
+        call cp_vtk%write_points(cp_locs)
         call cp_vtk%write_vertices(this%N_cp)
         
         ! Results
@@ -2035,37 +2048,5 @@ contains
     
         
     end subroutine surface_mesh_write_control_points
-
-
-    subroutine surface_mesh_write_mirrored_control_points(this, control_point_file, solved)
-        ! Writes the control points (and results if solved) out to file
-
-        implicit none
-        
-        class(surface_mesh),intent(in) :: this
-        character(len=:),allocatable,intent(in) :: control_point_file
-        logical,intent(in) :: solved
-
-        type(vtk_out) :: cp_vtk
-
-        ! Clear old file
-        call delete_file(control_point_file)
-
-        ! Write out data
-        call cp_vtk%begin(control_point_file)
-        call cp_vtk%write_points(this%cp_mir)
-        call cp_vtk%write_vertices(this%N_cp)
-        
-        ! Results
-        if (solved) then
-            call cp_vtk%write_point_scalars(this%phi_cp(this%N_cp+1:this%N_cp*2), "phi")
-            call cp_vtk%write_point_scalars(this%phi_cp_mu(this%N_cp+1:this%N_cp*2), "phi_mu")
-            call cp_vtk%write_point_scalars(this%phi_cp_sigma(this%N_cp+1:this%N_cp*2), "phi_sigma")
-        end if
-
-        call cp_vtk%finish()
-    
-        
-    end subroutine surface_mesh_write_mirrored_control_points
 
 end module surface_mesh_mod

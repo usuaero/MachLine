@@ -96,6 +96,24 @@ module base_geom_mod
 
     end type eval_point_geom
 
+
+    type control_point
+
+        real,dimension(3) :: loc
+        integer :: cp_type ! 1 = internal, 2 = external, 3 = surface
+        integer :: bc ! 1 = zero perturbation potential (for Morino), 2 = source-free internal potential, 3 = zero normal mass flux, 4 = strength-matching (for mirroring)
+        real,dimension(3) :: n_g ! Normal vector associated with bc = 3
+        logical :: is_mirror ! Whether this control point belongs to the mirrored half of the mesh
+        integer :: tied_to_type ! 1 = this control point is associated with a vertex, 2 = panel
+        integer :: tied_to_index ! Index of the mesh component this control point is tied to
+    
+        contains
+
+            procedure :: init => control_point_init
+            procedure :: set_bc => control_point_set_bc
+    
+    end type control_point
+
     
 contains
 
@@ -511,6 +529,52 @@ contains
         this%a = 0.
     
     end subroutine eval_point_geom_init
+
+
+    subroutine control_point_init(this, loc, cp_type, tied_to_type, tied_to_index)
+        ! Initializes this control point
+
+        implicit none
+        
+        class(control_point),intent(inout) :: this
+        real,dimension(3),intent(in) :: loc
+        integer,intent(in) :: cp_type, tied_to_type, tied_to_index
+
+        ! Store
+        this%loc = loc
+        this%cp_type = cp_type
+        this%tied_to_type = tied_to_type
+        this%tied_to_index = tied_to_index
+
+        ! Set defaults
+        this%is_mirror = .false.
+        
+    end subroutine control_point_init
+
+
+    subroutine control_point_set_bc(this, bc, n)
+        ! Sets up the boundary condition on this control point
+
+        implicit none
+        
+        class(control_point),intent(inout) :: this
+        integer,intent(in) :: bc
+        real,dimension(3),optional :: n
+
+        ! Store type
+        this%bc = bc
+
+        ! Get normal (if needed)
+        if (this%bc == 3) then
+            if (.not. present(n)) then
+                write(*,*) "!!! Associated normal vector is required for enforcing a zero-mass-flux boundary condition."
+                stop
+            else
+                this%n_g = n
+            end if
+        end if
+        
+    end subroutine control_point_set_bc
 
     
 end module base_geom_mod
