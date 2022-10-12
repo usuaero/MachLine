@@ -29,9 +29,10 @@ module panel_solver_mod
         real :: norm_res, max_res, tol, rel
         real,dimension(3) :: C_F, inner_flow
         real,dimension(:,:),allocatable :: A
-        real,dimension(:),allocatable :: b, RHS_des, LHS_known
+        real,dimension(:),allocatable :: b, I_known, BC
         integer,dimension(:),allocatable :: P
-        integer :: N, N_cells, block_size, max_iterations, N_unknown, N_d_unknown, N_s_unknown, solver_iterations
+        integer :: N_cells, block_size, max_iterations, N_unknown, N_d_unknown, N_s_unknown, solver_iterations
+        logical,dimension(:),allocatable :: sigma_known
 
         contains
 
@@ -49,6 +50,7 @@ module panel_solver_mod
 
             ! Solve
             procedure :: solve => panel_solver_solve
+            procedure :: assemble_BC_vector => panel_solver_assemble_BC_vector
             procedure :: calc_source_strengths => panel_solver_calc_source_strengths
             procedure :: update_system_row => panel_solver_update_system_row
             procedure :: calc_body_influences => panel_solver_calc_body_influences
@@ -278,30 +280,19 @@ contains
 
         ! Determine unknowns
         call this%determine_dirichlet_unknowns(solver_settings, body)
+        if (this%N_unknown /= body%N_cp) then
+            write(*,*) "!!! The number of unknowns is not the same as the number of control points. Quitting..."
+            stop
+        end if
+
+        ! Set boundary conditions
+        call this%init_dirichlet_boundary_conditions(body)
 
         ! Calculate target inner flow
         this%inner_flow = this%freestream%c_hat_g
         if (this%formulation == 'source-free') then
             this%inner_flow = this%inner_flow - matmul(this%freestream%B_mat_g_inv, this%freestream%c_hat_g)
         end if
-
-        ! Set desired right-hand side
-        allocate(this%RHS_des(this%N_unknown), source=0.)
-        if (this%formulation == "source-free") then
-            x = matmul(this%freestream%B_mat_g_inv, this%freestream%c_hat_g)
-        end if
-
-        ! Loop through control points
-        do i=1,body%N_cp
-
-            ! Set needed inner potential for source-free formulation
-            ! All other BC types have a target of zero
-            if (body%cp(i)%bc == 2) then
-
-                ! Original
-                this%RHS_des(i) = -inner(x, body%cp(i)%loc)
-            end if
-        end do
 
         if (verbose) write(*,'(a, i6, a)') "Done. Placed", body%N_cp, " control points."
     
@@ -334,7 +325,6 @@ contains
 
         ! Total number of unknowns
         this%N_unknown = this%N_d_unknown + this%N_s_unknown
-        this%N = this%N_unknown
         
     end subroutine panel_solver_determine_dirichlet_unknowns
 
@@ -541,28 +531,41 @@ contains
         type(surface_mesh),intent(in) :: body
 
         real,dimension(:),allocatable :: x
-        integer :: i, j, i_neighbor, i_vert
+        real,dimension(3) :: loc
+        integer :: i, j, i_neighbor, i_cp, i_vert, i_panel
         integer,dimension(:),allocatable :: P_inv_1, P_inv_2
 
-        ! Sort vertices in compressibility direction
+        ! Sort control points in the compressibility direction
+        ! We do this using the location of the vertex/panel centroid tied to each control point
         ! We proceed from most downstream to most upstream so as to get an upper-pentagonal matrix
         ! This sorting seems to improve the performance of iterative solvers for supersonic flow as well
         if (this%sort_system) then
 
-            if (verbose) write(*,'(a)',advance='no') "     Permuting vertices for efficient system solution..."
+            if (verbose) write(*,'(a)',advance='no') "     Permuting linear system for efficient solution..."
 
             ! Sort by actual vertex location first
-            allocate(x(this%N))
+            allocate(x(this%N_unknown))
 
-            ! Add compressibility distance of each vertex
-            do i=1,body%N_verts
-                x(i) = -inner(this%freestream%c_hat_g, body%vertices(i)%loc)
+            ! Add compressibility distance of each vertex/panel centroid
+            do i=1,body%N_cp
 
-                ! Mirrored vertex
-                if (body%asym_flow) then
-                    x(i+body%N_verts) = -inner(this%freestream%c_hat_g, &
-                                               mirror_across_plane(body%vertices(i)%loc, body%mirror_plane))
+                ! Get location
+                if (body%cp(i)%is_mirror) then
+                    if (body%cp(i)%tied_to_type == 1) then
+                        loc = mirror_across_plane(body%vertices(body%cp(i)%tied_to_index)%loc, body%mirror_plane)
+                    else
+                        loc = body%panels(body%cp(i)%tied_to_index)%centr_mir
+                    end if
+                else
+                    if (body%cp(i)%tied_to_type == 1) then
+                        loc = body%vertices(body%cp(i)%tied_to_index)%loc
+                    else
+                        loc = body%panels(body%cp(i)%tied_to_index)%centr
+                    end if
                 end if
+
+                ! Get compressibility distance
+                x(i) = -inner(this%freestream%c_hat_g, loc)
 
             end do
 
@@ -573,28 +576,60 @@ contains
             ! For vertices sharing a downstream vertex, this will preserve the previous order, since insertion sort is stable
             do i=1,size(P_inv_1)
 
-                ! Get vertex index
-                i_vert = P_inv_1(i)
+                ! Get control point index
+                i_cp = P_inv_1(i)
 
-                ! Mirrored vertex
-                if (i_vert > body%N_verts) then
+                ! Mirrored control point
+                if (body%cp(i_cp)%is_mirror) then
 
-                    ! Loop through neighboring vertices to find the furthest back
-                    x(i) = huge(x(i))
-                    do j=1,body%vertices(i_vert-body%N_verts)%adjacent_vertices%len()
-                        call body%vertices(i_vert-body%N_verts)%adjacent_vertices%get(j, i_neighbor)
-                        x(i) = min(x(i), -inner(this%freestream%c_hat_g, mirror_across_plane(body%vertices(i_neighbor)%loc, &
-                                                                                             body%mirror_plane)))
-                    end do
+                    ! Tied to vertex
+                    if (body%cp(i_cp)%tied_to_type == 1) then
+
+                        ! Loop through neighboring vertices to find the furthest back
+                        i_vert = body%cp(i_cp)%tied_to_index
+                        x(i) = huge(x(i))
+                        do j=1,body%vertices(i_vert)%adjacent_vertices%len()
+                            call body%vertices(i_vert)%adjacent_vertices%get(j, i_neighbor)
+                            x(i) = min(x(i), -inner(this%freestream%c_hat_g, mirror_across_plane(body%vertices(i_neighbor)%loc, &
+                                                                                                 body%mirror_plane)))
+                        end do
+
+                    ! Tied to panel
+                    else
+
+                        ! Loop through this panel's vertices to find the furthest back
+                        i_panel = body%cp(i_cp)%tied_to_index
+                        x(i) = huge(x(i))
+                        do j=1,body%panels(i_panel)%N
+                            loc = mirror_across_plane(body%panels(i_panel)%get_vertex_loc(j), body%mirror_plane)
+                            x(i) = min(x(i), -inner(this%freestream%c_hat_g, loc))
+                        end do
+                    end if
 
                 else
 
-                    ! Loop through neighboring vertices to find the furthest back
-                    x(i) = huge(x(i))
-                    do j=1,body%vertices(i_vert)%adjacent_vertices%len()
-                        call body%vertices(i_vert)%adjacent_vertices%get(j, i_neighbor)
-                        x(i) = min(x(i), -inner(this%freestream%c_hat_g, body%vertices(i_neighbor)%loc))
-                    end do
+                    ! Tied to vertex
+                    if (body%cp(i_cp)%tied_to_type == 1) then
+
+                        ! Loop through neighboring vertices to find the furthest back
+                        i_vert = body%cp(i_cp)%tied_to_index
+                        x(i) = huge(x(i))
+                        do j=1,body%vertices(i_vert)%adjacent_vertices%len()
+                            call body%vertices(i_vert)%adjacent_vertices%get(j, i_neighbor)
+                            x(i) = min(x(i), -inner(this%freestream%c_hat_g, body%vertices(i_neighbor)%loc))
+                        end do
+
+                    ! Tied to panel
+                    else
+
+                        ! Loop through this panel's vertices to find the furthest back
+                        i_panel = body%cp(i_cp)%tied_to_index
+                        x(i) = huge(x(i))
+                        do j=1,body%panels(i_panel)%N
+                            loc = body%panels(i_panel)%get_vertex_loc(j)
+                            x(i) = min(x(i), -inner(this%freestream%c_hat_g, loc))
+                        end do
+                    end if
 
                 end if
 
@@ -605,8 +640,8 @@ contains
             call insertion_arg_sort(x, P_inv_2)
 
             ! Get overall permuation
-            allocate(this%P(this%N))
-            do i=1,this%N
+            allocate(this%P(this%N_unknown))
+            do i=1,this%N_unknown
                 this%P(P_inv_1(P_inv_2(i))) = i
             end do
 
@@ -615,9 +650,9 @@ contains
         else
 
             ! Identity permutation
-            allocate(this%P(this%N))
+            allocate(this%P(this%N_unknown))
             this%P(1:body%N_verts) = body%vertex_ordering
-            if (this%N > body%N_verts) then
+            if (this%N_unknown > body%N_verts) then
                 this%P(body%N_verts+1:) = body%vertex_ordering + body%N_verts
             end if
 
@@ -628,11 +663,36 @@ contains
 
     subroutine panel_solver_solve(this, body)
         ! Calls the relevant subroutine to solve the case based on the selected formulation
+        ! We are solving the equation
+        !
+        !    [A] | mu    | + I_known = BC
+        !        | sigma |
+        !
+        ! I_known represents known singularity influences
+        ! BC represents target values for each control point based on the boundary condition enforced there
 
         implicit none
 
         class(panel_solver),intent(inout) :: this
         type(surface_mesh),intent(inout) :: body
+
+        integer :: stat
+
+        ! Allocate space for inner potential calculations
+        allocate(body%phi_cp_sigma(this%N_unknown), source=0., stat=stat)
+        call check_allocation(stat, "induced potential vector")
+
+        ! Allocate known influence storage
+        allocate(this%I_known(this%N_unknown), source=0., stat=stat)
+        call check_allocation(stat, "known influence vector")
+
+        ! Allocate AIC matrix
+        allocate(this%A(this%N_unknown, this%N_unknown), source=0., stat=stat)
+        call check_allocation(stat, "AIC matrix")
+
+        ! Allocate b vector
+        allocate(this%b(this%N_unknown), source=0., stat=stat)
+        call check_allocation(stat, "b vector")
 
         ! Calculate source strengths
         call this%calc_source_strengths(body)
@@ -642,6 +702,9 @@ contains
 
         ! Calculate wake influences
         if (body%wake%N_panels > 0) call this%calc_wake_influences(body)
+
+        ! Assemble boundary condition vector
+        call this%assemble_BC_vector(body)
 
         ! Solve the linear system
         call this%solve_system(body)
@@ -662,12 +725,47 @@ contains
     end subroutine panel_solver_solve
 
 
+    subroutine panel_solver_assemble_BC_vector(this, body)
+        ! Sets up the {BC} vector used in the linear system synthesis
+
+        implicit none
+        
+        class(panel_solver), intent(inout) :: this
+        type(surface_mesh), intent(in) :: body
+
+        integer :: i
+        real,dimension(3) :: x
+
+        ! Allocate
+        allocate(this%BC(this%N_unknown), source=0.)
+
+        ! Vector for source-free target potential calculation
+        x = matmul(this%freestream%B_mat_g_inv, this%freestream%c_hat_g)
+
+        ! Loop through control points
+        do i=1,body%N_cp
+            
+            ! Check boundary condition type
+            select case (body%cp(i)%bc)
+
+            case (2) ! Source-free formulation
+                this%BC(this%P(i)) = -inner(x, body%cp(i)%loc)
+
+            case default ! All other cases
+                cycle
+
+            end select
+        end do
+        
+    end subroutine panel_solver_assemble_BC_vector
+
+
     subroutine panel_solver_calc_source_strengths(this, body)
         ! Calculates the necessary source strengths for subinclined panels
 
         implicit none
 
-        class(panel_solver),intent(in) :: this
+        class(panel_solver),intent(inout) :: this
         type(surface_mesh),intent(inout) :: body
 
         integer :: N_sigma, i, stat
@@ -691,9 +789,10 @@ contains
 
         end if
 
-        ! Allocate source strength array (yes this does need to be allocated for the source-free formulation)
+        ! Allocate source strength array
         allocate(body%sigma(N_sigma), source=0., stat=stat)
         call check_allocation(stat, "source strength array")
+        allocate(this%sigma_known(N_sigma), source=.false.)
 
         ! Set source strengths
         if (this%morino) then
@@ -708,10 +807,12 @@ contains
 
                     ! Existing vertices
                     body%sigma(i) = -inner(body%vertices(i)%n_g, this%freestream%c_hat_g)
+                    this%sigma_known(i) = .true.
 
                     ! Mirrored panels for asymmetric flow
                     if (body%asym_flow) then
                         body%sigma(i+body%N_verts) = -inner(body%vertices(i)%n_g_mir, this%freestream%c_hat_g)
+                        this%sigma_known(i+body%N_verts) = .true.
                     end if
                 end do
 
@@ -722,11 +823,15 @@ contains
                 do i=1,body%N_panels
 
                     ! Existing panels
-                    if (body%panels(i)%r > 0) body%sigma(i) = -inner(body%panels(i)%n_g, this%freestream%c_hat_g)
+                    if (body%panels(i)%r > 0) then
+                        body%sigma(i) = -inner(body%panels(i)%n_g, this%freestream%c_hat_g)
+                        this%sigma_known(i) = .true.
+                    end if
 
                     ! Mirrored panels for asymmetric flow
                     if (body%asym_flow .and. body%panels(i)%r_mir > 0) then
                         body%sigma(i+body%N_panels) = -inner(body%panels(i)%n_g_mir, this%freestream%c_hat_g)
+                        this%sigma_known(i+body%N_panels) = .true.
                     end if
                 end do
 
@@ -738,39 +843,50 @@ contains
     end subroutine panel_solver_calc_source_strengths
 
 
-    subroutine panel_solver_update_system_row(this, body, A_row, phi_cp_s, i_panel, source_inf, doublet_inf, mirrored_panel)
+    subroutine panel_solver_update_system_row(this, body, cp, A_row, I_known_i, i_panel, source_inf, doublet_inf, mirrored_panel)
         ! Updates the linear system with the source and doublet influences
 
         implicit none
 
         class(panel_solver),intent(inout) :: this
         type(surface_mesh),intent(inout) :: body
-        real,dimension(:),allocatable,intent(inout) :: A_row
-        real,intent(inout) :: phi_cp_s
+        type(control_point),intent(in) :: cp
+        real,dimension(this%N_unknown),intent(inout) :: A_row
+        real,intent(inout) :: I_known_i
         integer,intent(in) :: i_panel
         real,dimension(:),allocatable,intent(in) :: source_inf, doublet_inf
         logical,intent(in) :: mirrored_panel
 
-        integer :: k
+        integer :: i, k
 
         ! Add source influence (if sources are present)
-        if (this%morino) then
+        if (cp%bc == 1 .or. cp%bc == 3) then
 
             ! Constant
             if (.not. higher_order) then
+
+                ! Get determining index
                 if (mirrored_panel) then
-                    phi_cp_s = phi_cp_s + source_inf(1)*body%sigma(i_panel+body%N_panels)
+                    i = i_panel + body%N_panels
                 else
-                    phi_cp_s = phi_cp_s + source_inf(1)*body%sigma(i_panel)
+                    i = i_panel
+                end if
+
+                ! Add to known influences if sigma is known
+                if (this%sigma_known(i)) then
+                    I_known_i = I_known_i + source_inf(1)*body%sigma(i)
+
+                ! Add to A matrix if not
+                else
                 end if
 
             ! Linear
             else
                 do k=1,size(body%panels(i_panel)%i_vert_s)
                     if (mirrored_panel) then
-                        phi_cp_s = phi_cp_s + source_inf(k)*body%sigma(body%panels(i_panel)%i_vert_s(k)+body%N_verts)
+                        I_known_i = I_known_i + source_inf(k)*body%sigma(body%panels(i_panel)%i_vert_s(k)+body%N_verts)
                     else
-                        phi_cp_s = phi_cp_s + source_inf(k)*body%sigma(body%panels(i_panel)%i_vert_s(k))
+                        I_known_i = I_known_i + source_inf(k)*body%sigma(body%panels(i_panel)%i_vert_s(k))
                     end if
                 end do
             end if
@@ -804,41 +920,20 @@ contains
         class(panel_solver),intent(inout) :: this
         type(surface_mesh),intent(inout) :: body
 
-        integer :: i, j, k, stat
-        real,dimension(:),allocatable :: source_inf, doublet_inf, A_i, A_i_mir
-        real :: phi_cp_s
-        real,dimension(3) :: x
-
-        ! Allocate space for inner potential calculations
-        allocate(body%phi_cp_sigma(this%N), source=0., stat=stat)
-        call check_allocation(stat, "induced potential vector")
-
-        ! Allocate AIC matrix
-        allocate(this%A(this%N_unknown, this%N_unknown), source=0., stat=stat)
-        call check_allocation(stat, "AIC matrix")
-
-        ! Allocate b vector
-        allocate(this%b(this%N_unknown), source=0., stat=stat)
-        call check_allocation(stat, "b vector")
-
-        ! Allocate row of A
-        allocate(A_i(this%N_unknown))
+        integer :: i, j
+        real,dimension(:),allocatable :: source_inf, doublet_inf
+        real,dimension(this%N_unknown) :: A_i
+        real :: I_known_i
 
         if (verbose) write(*,'(a)',advance='no') "     Calculating body influences..."
-        
-        ! Parameter used for calculating inner potential for the source-free formulation
-        if (this%formulation == 'source-free') then
-            x = matmul(this%freestream%B_mat_g_inv, this%freestream%c_hat_g)
-        end if
 
         ! Calculate source and doublet influences from body on each control point
-        !$OMP parallel do private(j, source_inf, doublet_inf, k, A_i, phi_cp_s) &
-        !$OMP schedule(dynamic)
+        !$OMP parallel do private(j, source_inf, doublet_inf, A_i, I_known_i) schedule(dynamic)
         do i=1,body%N_cp
 
             ! Initialize
             A_i = 0.
-            phi_cp_s = 0.
+            I_known_i = 0.
 
             ! Determine the type of boundary condition on this control point
             select case (body%cp(i)%bc)
@@ -850,7 +945,9 @@ contains
                 this%A(this%P(i),this%P(i-body%N_cp/2)) = -1.
                 !$OMP end critical
 
-            case default ! Calculate regular influences
+            case (3) ! Calculate velocity influences
+
+            case default ! Calculate potential influences
 
                 ! Loop through panels
                 do j=1,body%N_panels
@@ -863,7 +960,7 @@ contains
                                                                       .false., source_inf, doublet_inf)
 
                         ! Add influence
-                        call this%update_system_row(body, A_i, phi_cp_s, j, source_inf, doublet_inf, .false.)
+                        call this%update_system_row(body, body%cp(i), A_i, I_known_i, j, source_inf, doublet_inf, .false.)
 
                     end if
 
@@ -878,34 +975,26 @@ contains
                                                                           .true., source_inf, doublet_inf)
 
                             ! Add influence
-                            call this%update_system_row(body, A_i, phi_cp_s, j, source_inf, doublet_inf, body%asym_flow)
+                            call this%update_system_row(body, body%cp(i), A_i, I_known_i, j, &
+                                                        source_inf, doublet_inf, body%asym_flow)
                         end if
 
                     end if
 
                 end do
 
-                ! Update A matrix
+                ! Update system
                 !$OMP critical
+
+                ! Update A matrix
                 this%A(this%P(i),:) = A_i
+
+                ! Update I_known
+                this%I_known(this%P(i)) = I_known_i
+
                 !$OMP end critical
 
             end select
-
-            ! Set target potentials
-            if (body%cp(i)%bc /= 4) then
-
-                ! Morino formulation
-                !$OMP critical
-                if (this%morino) then
-                    body%phi_cp_sigma(i) = phi_cp_s
-
-                ! Source-free formulation
-                else
-                    this%b(this%P(i)) = -inner(x, body%cp(i)%loc)
-                end if
-                !$OMP end critical
-            end if
 
         end do
 
@@ -1082,12 +1171,8 @@ contains
         real,dimension(:),allocatable :: b_p, x, R
         integer :: stat, i, j
 
-        ! Set b vector for Morino formulation
-        if (this%formulation == "morino") then
-            do i=1,this%N
-                this%b(this%P(i)) = -body%phi_cp_sigma(i)
-            end do
-        end if
+        ! Set b vector
+        this%b = this%BC - this%I_known
 
         ! Run checks
         if (run_checks) call this%check_system()
@@ -1205,8 +1290,8 @@ contains
         deallocate(x)
 
         ! Get potentials at control points
-        allocate(body%phi_cp_mu(this%N))
-        do i=1,this%N
+        allocate(body%phi_cp_mu(this%N_unknown))
+        do i=1,this%N_unknown
             body%phi_cp_mu(i) = R(this%P(i)) + this%b(this%P(i))
         end do
         body%phi_cp = body%phi_cp_mu + body%phi_cp_sigma

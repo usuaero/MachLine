@@ -1,6 +1,6 @@
 {
     "flow": {
-        "freestream_velocity": [100.0, 0.0, 5.0],
+        "freestream_velocity": [100.0, 5.0, 5.0],
         "gamma" : 1.4,
         "freestream_mach_number" : 2.0
     },
@@ -19,6 +19,7 @@
         }
     },
     "solver": {
+        "formulation" : "morino"
     },
     "post_processing" : {
         "pressure_rules" : {
@@ -30,6 +31,6 @@
         "body_file" :          "dev/results/diamond_5_deg_mirrored_right.vtk",
         "wake_file" :          "dev/results/diamond_5_deg_mirrored_wake.vtk",
         "mirrored_body_file" : "dev/results/diamond_5_deg_mirrored_left.vtk",
-        "control_point_file" : "dev/results/diamond_5_deg_mirrored_right_control_points.vtk"
+        "control_point_file" : "dev/results/diamond_5_deg_mirrored_control_points.vtk"
     }
 }
