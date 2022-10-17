@@ -1,7 +1,7 @@
 {
     "flow": {
         "freestream_velocity": [100.0, 0.0, 0.0],
-        "freestream_mach_number" : 1.3
+        "freestream_mach_number" : 1.2
     },
     "geometry": {
         "file": "dev/meshes/HSCT.vtk",
@@ -15,7 +15,7 @@
         }
     },
     "solver": {
-        "matrix_solver" : "FQRUP",
+        "matrix_solver" : "GMRES",
         "control_point_offset" : 1.e-6,
         "run_checks" : true
     },

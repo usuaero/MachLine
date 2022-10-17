@@ -29,7 +29,7 @@ module surface_mesh_mod
         integer :: N_wake_panels_streamwise
         logical :: wake_present, append_wake
         type(control_point),dimension(:),allocatable :: cp, cp_mir ! Control points
-        real,dimension(:),allocatable :: phi_cp, phi_cp_sigma, phi_cp_mu ! Induced potentials at control points
+        real,dimension(:),allocatable :: R_cp ! System residuals at each control point
         real,dimension(:),allocatable :: Phi_u ! Total potential on outer surface
         real,dimension(:),allocatable :: C_p_pg, C_p_lai, C_p_kt ! Corrected surface pressure coefficients
         real,dimension(:),allocatable :: C_p_inc, C_p_ise, C_p_2nd, C_p_sln, C_p_lin ! Surface pressure coefficients
@@ -1341,15 +1341,16 @@ contains
     end subroutine surface_mesh_update_subsonic_trefftz_distance
 
 
-    subroutine surface_mesh_place_interior_control_points(this, offset)
+    subroutine surface_mesh_place_interior_control_points(this, offset, freestream)
 
         implicit none
 
         class(surface_mesh),intent(inout) :: this
         real,intent(in) :: offset
+        type(flow),intent(in) :: freestream
 
         integer :: i, j, i_panel
-        real,dimension(3) :: dir
+        real,dimension(3) :: dir, loc
 
         ! Specify number of control points
         if (this%asym_flow) then
@@ -1357,6 +1358,7 @@ contains
         else
             this%N_cp = this%N_verts
         end if
+        this%N_cp = this%N_cp + this%N_supinc
 
         ! Allocate memory
         allocate(this%cp(this%N_cp))
@@ -1396,6 +1398,31 @@ contains
             end do
 
         end do
+
+        ! Calculate control points tied to superinclined panels
+        if (this%N_supinc > 0) then
+
+            ! Loop through panels
+            j = this%N_verts
+            do i=1,this%N_panels
+
+                ! Check if this panel is superinclined
+                if (this%panels(i)%r < 0) then
+
+                    ! Get location on downstream side of panel
+                    if (inner(this%panels(i)%n_g, freestream%c_hat_g) > 0) then
+                        loc = this%panels(i)%centr + this%panels(i)%n_g*offset
+                    else
+                        loc = this%panels(i)%centr - this%panels(i)%n_g*offset
+                    end if
+
+                    ! Initialize
+                    j = j + 1
+                    call this%cp(j)%init(loc, 1, 2, i)
+
+                end if
+            end do
+        end if
 
         ! Calculate mirrored control points, if necessary
         if (this%asym_flow) then
@@ -2022,11 +2049,13 @@ contains
 
         type(vtk_out) :: cp_vtk
         real,dimension(3,this%N_cp) :: cp_locs
+        integer,dimension(this%N_cp) :: cp_bcs
         integer :: i
 
-        ! Get control point locations
+        ! Get control point locations and boundary conditions
         do i=1,this%N_cp
             cp_locs(:,i) = this%cp(i)%loc
+            cp_bcs(i) = this%cp(i)%bc
         end do
 
         ! Clear old file
@@ -2036,16 +2065,14 @@ contains
         call cp_vtk%begin(control_point_file)
         call cp_vtk%write_points(cp_locs)
         call cp_vtk%write_vertices(this%N_cp)
+        call cp_vtk%write_point_scalars(cp_bcs, "BC_type")
         
         ! Results
         if (solved) then
-            call cp_vtk%write_point_scalars(this%phi_cp(1:this%N_cp), "phi")
-            call cp_vtk%write_point_scalars(this%phi_cp_mu(1:this%N_cp), "phi_mu")
-            call cp_vtk%write_point_scalars(this%phi_cp_sigma(1:this%N_cp), "phi_sigma")
+            call cp_vtk%write_point_scalars(this%R_cp, "residual")
         end if
 
         call cp_vtk%finish()
-    
         
     end subroutine surface_mesh_write_control_points
 

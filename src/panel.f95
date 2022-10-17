@@ -1018,31 +1018,33 @@ contains
         
         class(panel),intent(in) :: this
         real,dimension(3),intent(in) :: point
-        logical,intent(in) :: mirror_panel
-        integer,intent(in) :: mirror_plane
+        logical,intent(in),optional :: mirror_panel
+        integer,intent(in),optional :: mirror_plane
 
         logical :: inside
 
         real,dimension(3) :: d
         integer :: i
         real :: x
+        logical :: mirrored
+
+        if (present(mirror_panel)) then
+            mirrored = mirror_panel
+        else
+            mirrored = .false.
+        end if
 
         ! Loop through edges
         inside = .true.
         do i=1,this%N
 
-            ! Shift origin to the edge
-            if (mirror_panel) then
+            ! Shift origin to the edge and get inner product
+            if (mirrored) then
                 d = point - mirror_across_plane(this%get_vertex_loc(i), mirror_plane)
+                x = inner(d, this%n_hat_g_mir(:,i))
             else
                 d = point - this%get_vertex_loc(i)
-            end if
-            
-            ! Get dot product with outer normal
-            if (mirror_panel) then
-                x = inner(d, this%n_hat_g_mir)
-            else
-                x = inner(d, this%n_hat_g)
+                x = inner(d, this%n_hat_g(:,i))
             end if
 
             ! Check
@@ -1289,7 +1291,7 @@ contains
                     
                     i_next = mod(i, this%N)+1
 
-                    ! If if at least one endpoint is in, then the edge is in (you gotta love convex subspaces)
+                    ! If if at least one endpoint is in, then the edge is in
                     if (these_verts_in_dod(i) .or. these_verts_in_dod(i_next)) then
                         dod_info%edges_in_dod(i) = .true.
 
@@ -1339,7 +1341,7 @@ contains
                     dod_info%in_dod = .true.
 
                 ! If a superinclined panel has no edges or vertices in the DoD, check if the DoD is encompassed by the panel
-                else if (this%r == -1) then
+                else if (this%r < 0) then
 
                     ! Get the projection of the evaluation point onto the panel in the direction of c_hat
                     if (mirrored) then
@@ -1351,23 +1353,11 @@ contains
                     R_star = eval_point + freestream%c_hat_g*s_star
 
                     ! See if the projected point is in the panel
-                    in_panel = .true.
-                    do i=1,this%N
-
-                        ! Get edge displacement
-                        if (mirrored) then
-                            x = inner(R_star, this%n_hat_g_mir(:,i))
-                        else
-                            x = inner(R_star, this%n_hat_g(:,i))
-                        end if
-
-                        ! Check sign (should be negative if interior to the panel)
-                        if (x >= 0.) then
-                            in_panel = .false.
-                            exit ! Don't need to check any more
-                        end if
-
-                    end do
+                    if (mirrored) then
+                        in_panel = this%projection_inside(R_star, mirror_panel, mirror_plane)
+                    else
+                        in_panel = this%projection_inside(R_star)
+                    end if
 
                     ! Store information
                     dod_info%in_dod = in_panel

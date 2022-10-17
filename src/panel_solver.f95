@@ -10,7 +10,6 @@ module panel_solver_mod
     use math_mod
     use linalg_mod
     use preconditioners_mod
-    use sparsity_mod
     use sort_mod
 
     implicit none
@@ -31,8 +30,9 @@ module panel_solver_mod
         real,dimension(:,:),allocatable :: A
         real,dimension(:),allocatable :: b, I_known, BC
         integer,dimension(:),allocatable :: P
-        integer :: N_cells, block_size, max_iterations, N_unknown, N_d_unknown, N_s_unknown, solver_iterations
+        integer :: N_cells, block_size, max_iterations, N_unknown, N_d_unknown, N_s_unknown, solver_iterations, N_sigma
         logical,dimension(:),allocatable :: sigma_known
+        integer,dimension(:),allocatable :: i_sigma_in_sys, i_sys_sigma_in_body
 
         contains
 
@@ -275,7 +275,7 @@ contains
 
         ! Place control points inside the body
         if (this%morino .or. this%formulation == 'source-free') then
-            call body%place_interior_control_points(offset)
+            call body%place_interior_control_points(offset, this%freestream)
         end if
 
         ! Determine unknowns
@@ -308,6 +308,27 @@ contains
         type(json_value),pointer,intent(in) :: solver_settings
         type(surface_mesh),intent(in) :: body
 
+        integer :: i, j
+
+        ! Determine number of source strengths
+        if (higher_order) then
+
+            if (body%asym_flow) then
+                this%N_sigma = body%N_verts*2
+            else
+                this%N_sigma = body%N_verts
+            end if
+
+        else
+
+            if (body%asym_flow) then
+                this%N_sigma = body%N_panels*2
+            else
+                this%N_sigma = body%N_panels
+            end if
+
+        end if
+
         ! The number of doublet unknowns is equal to the number of mesh vertices
         ! In the case of an asymmetric flow over a mirrored mesh, this must be doubled
         if (body%asym_flow) then
@@ -319,8 +340,43 @@ contains
         ! The number of source unknowns is dependent upon the number of superinclined panels
         ! For lower-order distributions, the number of source unknowns is simply the number of superinclined panels
         ! For higher-order distributions, the number of source unknowns is the number of vertices which touch only superinclined panels (?)
+        allocate(this%sigma_known(this%N_sigma), source=.true.)
         if (.not. higher_order) then
             this%N_s_unknown = body%N_supinc
+
+            ! Allocate vectors mapping unknown sigmas into the (unpermuted) linear system and back
+            allocate(this%i_sigma_in_sys(this%N_sigma), source=0)
+            allocate(this%i_sys_sigma_in_body(this%N_s_unknown), source=0)
+
+            ! Create mapping
+            j = this%N_d_unknown
+
+            ! Loop through original panels
+            do i=1,body%N_panels
+
+                ! Check for superinclined
+                if (body%panels(i)%r < 0) then
+                    j = j + 1
+                    this%i_sigma_in_sys(i) = j
+                    this%i_sys_sigma_in_body(j-this%N_d_unknown) = i
+                    this%sigma_known(i) = .false.
+                end if
+            end do
+
+            ! Loop through mirrored panels
+            if (body%asym_flow) then
+                do i=1,body%N_panels
+
+                    ! Check for superinclined
+                    if (body%panels(i)%r_mir < 0) then
+                        j = j + 1
+                        this%i_sigma_in_sys(i+body%N_panels) = j
+                        this%i_sys_sigma_in_body(j-this%N_d_unknown) = i+body%N_panels
+                        this%sigma_known(i+body%N_panels) = .false.
+                    end if
+                end do
+            end if
+
         end if
 
         ! Total number of unknowns
@@ -668,6 +724,8 @@ contains
         !    [A] | mu    | + I_known = BC
         !        | sigma |
         !
+        ! Thus, b = BC - I_known
+        !
         ! I_known represents known singularity influences
         ! BC represents target values for each control point based on the boundary condition enforced there
 
@@ -677,10 +735,6 @@ contains
         type(surface_mesh),intent(inout) :: body
 
         integer :: stat
-
-        ! Allocate space for inner potential calculations
-        allocate(body%phi_cp_sigma(this%N_unknown), source=0., stat=stat)
-        call check_allocation(stat, "induced potential vector")
 
         ! Allocate known influence storage
         allocate(this%I_known(this%N_unknown), source=0., stat=stat)
@@ -768,31 +822,11 @@ contains
         class(panel_solver),intent(inout) :: this
         type(surface_mesh),intent(inout) :: body
 
-        integer :: N_sigma, i, stat
-
-        ! Determine number of source strengths
-        if (higher_order) then
-
-            if (body%asym_flow) then
-                N_sigma = body%N_verts*2
-            else
-                N_sigma = body%N_verts
-            end if
-
-        else
-
-            if (body%asym_flow) then
-                N_sigma = body%N_panels*2
-            else
-                N_sigma = body%N_panels
-            end if
-
-        end if
+        integer :: i, stat
 
         ! Allocate source strength array
-        allocate(body%sigma(N_sigma), source=0., stat=stat)
+        allocate(body%sigma(this%N_sigma), source=0., stat=stat)
         call check_allocation(stat, "source strength array")
-        allocate(this%sigma_known(N_sigma), source=.false.)
 
         ! Set source strengths
         if (this%morino) then
@@ -807,12 +841,10 @@ contains
 
                     ! Existing vertices
                     body%sigma(i) = -inner(body%vertices(i)%n_g, this%freestream%c_hat_g)
-                    this%sigma_known(i) = .true.
 
                     ! Mirrored panels for asymmetric flow
                     if (body%asym_flow) then
                         body%sigma(i+body%N_verts) = -inner(body%vertices(i)%n_g_mir, this%freestream%c_hat_g)
-                        this%sigma_known(i+body%N_verts) = .true.
                     end if
                 end do
 
@@ -823,15 +855,15 @@ contains
                 do i=1,body%N_panels
 
                     ! Existing panels
-                    if (body%panels(i)%r > 0) then
+                    if (this%sigma_known(i)) then
                         body%sigma(i) = -inner(body%panels(i)%n_g, this%freestream%c_hat_g)
-                        this%sigma_known(i) = .true.
                     end if
 
                     ! Mirrored panels for asymmetric flow
-                    if (body%asym_flow .and. body%panels(i)%r_mir > 0) then
-                        body%sigma(i+body%N_panels) = -inner(body%panels(i)%n_g_mir, this%freestream%c_hat_g)
-                        this%sigma_known(i+body%N_panels) = .true.
+                    if (body%asym_flow) then
+                        if (this%sigma_known(i+body%N_panels)) then
+                            body%sigma(i+body%N_panels) = -inner(body%panels(i)%n_g_mir, this%freestream%c_hat_g)
+                        end if
                     end if
                 end do
 
@@ -878,6 +910,7 @@ contains
 
                 ! Add to A matrix if not
                 else
+                    A_row(this%P(this%i_sigma_in_sys(i))) = A_row(this%P(this%i_sigma_in_sys(i))) + source_inf(1)
                 end if
 
             ! Linear
@@ -1015,16 +1048,14 @@ contains
         type(surface_mesh),intent(inout) :: body
 
         integer :: i, j, k, l
-        real,dimension(:),allocatable ::  doublet_inf, source_inf, A_i
+        real,dimension(:),allocatable ::  doublet_inf, source_inf
+        real,dimension(this%N_unknown) :: A_i
 
         ! Calculate influence of wake
         if (verbose) write(*,'(a)',advance='no') "     Calculating wake influences..."
 
-        ! Allocate A rows
-        allocate(A_i(this%N_unknown))
-
         ! Loop through control points
-        !$OMP parallel do private(j, source_inf, doublet_inf, k, A_i) schedule(dynamic)
+        !$OMP parallel do private(j, k, l, source_inf, doublet_inf, A_i) schedule(dynamic)
         do i=1,body%N_cp
 
             ! Check boundary condition
@@ -1033,7 +1064,9 @@ contains
             case (4) ! Strength matching
                 cycle
 
-            case default ! Regular influence calculations
+            case (3) ! Calculate velocity influences
+
+            case default ! Calculate potential influences
 
                 ! Initialize
                 A_i = 0.
@@ -1054,7 +1087,7 @@ contains
                         end do
 
                         ! Get influence of mirrored panel
-                        if (body%mirrored .and. .not. body%asym_flow) then
+                        if (body%wake%strips(j)%mirrored) then
 
                             ! Calculate influence of mirrored panel on control point
                             call body%wake%strips(j)%panels(l)%calc_potential_influences(body%cp(i)%loc, this%freestream, &
@@ -1226,7 +1259,7 @@ contains
             call block_sor_solve(this%N_unknown, A_p, b_p, this%block_size, this%tol, this%rel, &
                                  this%max_iterations, this%iteration_file, this%solver_iterations, x)
 
-        ! Adaptive block SOR
+        ! Adaptive block SOR (almost garbage)
         case ('ABSOR')
             this%rel = -1.
             call block_sor_solve(this%N_unknown, A_p, b_p, this%block_size, this%tol, this%rel, &
@@ -1237,7 +1270,7 @@ contains
             call block_jacobi_solve(this%N_unknown, A_p, b_p, this%block_size, this%tol, this%rel, &
                                     this%max_iterations, this%iteration_file, this%solver_iterations, x)
 
-        ! Optimally relaxed block Jacobi
+        ! Optimally relaxed block Jacobi (garbage)
         case ('ORBJ')
             this%rel = -1.
             call block_jacobi_solve(this%N_unknown, A_p, b_p, this%block_size, this%tol, this%rel, &
@@ -1256,13 +1289,14 @@ contains
         deallocate(b_p)
 
         ! Get residual vector
-        allocate(R(this%N_unknown))
-        R = matmul(this%A, x) - this%b
+        allocate(body%R_cp(this%N_unknown))
+        body%R_cp = matmul(this%A, x) - this%b
         deallocate(this%A)
+        deallocate(this%b)
 
         ! Calculate residual parameters
-        this%max_res = maxval(abs(R))
-        this%norm_res = sqrt(sum(R*R))
+        this%max_res = maxval(abs(body%R_cp))
+        this%norm_res = sqrt(sum(body%R_cp*body%R_cp))
         if (verbose) then
             write(*,*) "        Maximum residual:", this%max_res
             write(*,*) "        Norm of residual:", this%norm_res
@@ -1286,16 +1320,8 @@ contains
 
         ! Transfer solved source strengths to body storage
         do i=1,this%N_s_unknown
+            body%sigma(this%i_sys_sigma_in_body(i)) = x(this%P(i))
         end do
-        deallocate(x)
-
-        ! Get potentials at control points
-        allocate(body%phi_cp_mu(this%N_unknown))
-        do i=1,this%N_unknown
-            body%phi_cp_mu(i) = R(this%P(i)) + this%b(this%P(i))
-        end do
-        body%phi_cp = body%phi_cp_mu + body%phi_cp_sigma
-        deallocate(this%b)
 
     end subroutine panel_solver_solve_system
 
