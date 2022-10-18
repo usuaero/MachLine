@@ -1320,7 +1320,7 @@ contains
 
         ! Transfer solved source strengths to body storage
         do i=1,this%N_s_unknown
-            body%sigma(this%i_sys_sigma_in_body(i)) = x(this%P(i))
+            body%sigma(this%i_sys_sigma_in_body(i)) = x(this%P(this%N_d_unknown+i))
         end do
 
     end subroutine panel_solver_solve_system

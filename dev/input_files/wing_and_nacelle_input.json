@@ -1,0 +1,29 @@
+{
+    "flow": {
+        "freestream_velocity": [100.0, 0.0, 0.0],
+        "freestream_mach_number" : 1.5
+    },
+    "geometry": {
+        "file": "dev/meshes/wing_and_superinclined_nacelle.stl",
+        "spanwise_axis" : "+y",
+        "wake_model": {
+            "trefftz_distance" : 10.0,
+            "wake_present" : true
+        },
+        "reference": {
+        }
+    },
+    "solver": {
+        "matrix_solver" : "FQRUP",
+        "run_checks" : true
+    },
+    "post_processing" : {
+        "pressure_rules" : {
+        }
+    },
+    "output": {
+        "body_file" :          "dev/results/wing_and_superinclined_nacelle.vtk",
+        "wake_file" :          "dev/results/wing_and_superinclined_nacelle_wake.vtk",
+        "control_point_file" : "dev/results/wing_and_superinclined_nacelle_control_points.vtk"
+    }
+}

@@ -1384,18 +1384,18 @@ contains
             ! Initialize control point
             call this%cp(i)%init(this%vertices(i)%loc + offset*dir*this%vertices(i)%l_avg, 1, 1, i)
 
-            ! Check if the control point is going to be outside the mesh
-            do j=1,this%vertices(i)%panels%len()
+            !! Check if the control point is going to be outside the mesh
+            !do j=1,this%vertices(i)%panels%len()
 
-                ! Get panel index
-                call this%vertices(i)%panels%get(j, i_panel)
+            !    ! Get panel index
+            !    call this%vertices(i)%panels%get(j, i_panel)
 
-                ! Check
-                if (this%panels(i_panel)%point_outside(this%cp(i)%loc, .false., 0)) then
-                    write(*,*) "!!! Control point ", i, " may be outside panel ", i_panel, "."
-                end if
+            !    ! Check
+            !    if (this%panels(i_panel)%point_outside(this%cp(i)%loc, .false., 0)) then
+            !        write(*,*) "!!! Control point ", i, " may be outside panel ", i_panel, "."
+            !    end if
 
-            end do
+            !end do
 
         end do
 
