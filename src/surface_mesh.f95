@@ -439,7 +439,7 @@ contains
             this%edges(i)%edge_index_for_panel(1) = edge_index1(i)
             this%edges(i)%edge_index_for_panel(2) = edge_index2(i)
             this%panels(panel1(i))%edges(this%edges(i)%edge_index_for_panel(1)) = i
-            if (panel2(i) <= this%N_panels) then
+            if (panel2(i) <= this%N_panels .and. panel2(i) > 0) then
                 this%panels(panel2(i))%edges(this%edges(i)%edge_index_for_panel(2)) = i
             end if
 

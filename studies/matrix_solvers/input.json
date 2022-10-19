@@ -13,7 +13,7 @@
         "mirror_about": "xy"
     },
     "solver": {
-        "matrix_solver": "GMRES",
+        "matrix_solver": "QRUP",
         "preconditioner": "none",
         "sort_system": false,
         "write_A_and_b": false,
@@ -22,6 +22,6 @@
     "post_processing": {},
     "output": {
         "body_file": "studies/matrix_solvers/results/cone_10_deg_fine.vtk",
-        "report_file": "studies/matrix_solvers/results/report.json"
+        "report_file": "studies/matrix_solvers/reports/cone_10_deg_fine.json"
     }
 }
