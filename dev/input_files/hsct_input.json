@@ -1,7 +1,7 @@
 {
     "flow": {
         "freestream_velocity": [100.0, 0.0, 0.0],
-        "freestream_mach_number" : 1.15
+        "freestream_mach_number" : 0.15
     },
     "geometry": {
         "file": "dev/meshes/HSCT_for_supersonic.vtk",
@@ -15,7 +15,7 @@
         }
     },
     "solver": {
-        "matrix_solver" : "FQRUP",
+        "matrix_solver" : "GMRES",
         "control_point_offset" : 1.e-6,
         "run_checks" : true
     },
@@ -26,7 +26,6 @@
     "output": {
         "body_file" : "dev/results/HSCT.vtk",
         "wake_file" : "dev/results/HSCT_wake.vtk",
-        "wake_strip_file" : "dev/results/HSCT_wake_strips.vtk",
         "control_point_file" : "dev/results/HSCT_control_points.vtk"
     }
 }

@@ -20,8 +20,13 @@ def get_full_method_results(input_filename):
     # Run
     sp.run(["./machline.exe", input_filename])
 
+    # Get path to report file
+    with open(input_filename, 'r') as input_handle:
+        input_dict = json.load(input_handle)
+        report_file = input_dict["output"]["report_file"]
+
     # Get results
-    with open("studies/matrix_solvers/results/report.json", 'r') as report_handle:
+    with open(report_file, 'r') as report_handle:
         report = json.load(report_handle)
     runtime = report["total_runtime"]
     res_norm = report["solver_results"]["residual"]["norm"]

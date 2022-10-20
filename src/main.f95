@@ -25,12 +25,12 @@ program main
     type(surface_mesh) :: body_mesh
     type(flow) :: freestream_flow
     type(panel_solver) :: linear_solver
-    real :: start_time, end_time, runtime
+    integer :: start_count, end_count, i_unit
+    real :: count_rate, runtime
     logical :: exists, found, exported
-    integer :: i_unit
 
     ! Start timer
-    call cpu_time(start_time)
+    call system_clock(start_count, count_rate)
 
     ! Set up run
     call json_initialize()
@@ -167,8 +167,8 @@ program main
     end if
 
     ! Figure out how long this took
-    call cpu_time(end_time)
-    runtime = end_time - start_time
+    call system_clock(end_count)
+    runtime = real(end_count - start_count)/count_rate
     call json_value_add(report_json, "total_runtime", runtime)
 
     ! Write report

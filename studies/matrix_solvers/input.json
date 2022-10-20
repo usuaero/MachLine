@@ -14,7 +14,7 @@
     },
     "solver": {
         "matrix_solver": "QRUP",
-        "preconditioner": "none",
+        "preconditioner": "DIAG",
         "sort_system": false,
         "write_A_and_b": false,
         "iterative_solver_output": "none"
