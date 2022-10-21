@@ -104,6 +104,6 @@ program time_matrix_solver
     end select
 
     ! Report time
-    write(*,*) "Solution time: ", end_time-start_time, " s"
+    write(*,*) "Solution time: ", real(end_count-start_count)/count_rate, " s"
     
 end program time_matrix_solver
