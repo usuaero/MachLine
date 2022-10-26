@@ -160,12 +160,12 @@ if __name__=="__main__":
         raise RuntimeError("MachLine compilation failed.")
 
     # Run for cone
-    case_root_name = "cone_10_deg_"
-    run_paces(case_root_name, [-1.0, 0.0, 0.0], 1.5, 'xy', True)
+    case_root_name = "cone_10_deg_" # [coarse = 584, medium = 2369, fine = 9539]
+    #run_paces(case_root_name, [-1.0, 0.0, 0.0], 1.5, 'xy', True)
 
-    # Run for diamond wing
+    # Run for diamond wing [coarse = 800, medium = 2152, fine = 7535]
     case_root_name = "diamond_5_deg_full_"
-    run_paces(case_root_name, [1.0, 0.0, 0.0], 2.0, 'None', False)
+    #run_paces(case_root_name, [1.0, 0.0, 0.0], 2.0, 'None', False)
 
     # Run for full configuration [coarse = 600, medium = 2400, fine = 11000]
     case_root_name = "full_config_"

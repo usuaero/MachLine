@@ -13,8 +13,8 @@
         "mirror_about": "xz"
     },
     "solver": {
-        "matrix_solver": "QRUP",
-        "preconditioner": "DIAG",
+        "matrix_solver": "GMRES",
+        "preconditioner": "none",
         "sort_system": false,
         "write_A_and_b": false,
         "iterative_solver_output": "none"
