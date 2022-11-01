@@ -7,17 +7,12 @@
         "file": "dev/meshes/HSCT_for_supersonic.vtk",
         "mirror_about" : "xz",
         "spanwise_axis" : "+y",
-        "wake_model": {
-            "trefftz_distance" : 100.0
-        },
         "reference": {
             "area": 0.15
         }
     },
     "solver": {
-        "matrix_solver" : "GMRES",
-        "control_point_offset" : 1.e-6,
-        "run_checks" : true
+        "matrix_solver" : "GMRES"
     },
     "post_processing" : {
         "pressure_rules" : {

@@ -25,13 +25,22 @@ def get_full_method_results(input_filename):
         input_dict = json.load(input_handle)
         report_file = input_dict["output"]["report_file"]
 
-    # Get results
+    # Read in report
     with open(report_file, 'r') as report_handle:
         report = json.load(report_handle)
+
+    # Check status
+    solver_stat = report["solver_results"]["solver_status_code"]
+    
+    # Get results
     runtime = report["total_runtime"]
-    res_norm = report["solver_results"]["residual"]["norm"]
-    iterations = report["solver_results"].get("iterations", "N/A")
-    return runtime, res_norm, iterations
+    if solver_stat == 0:
+        solver_time = report["solver_results"]["matrix_solver_time"]
+        res_norm = report["solver_results"]["residual"]["norm"]
+        iterations = report["solver_results"].get("iterations", "N/A")
+        return runtime, solver_time, res_norm, iterations
+    else:
+        return runtime, solver_stat
 
 
 def get_solver_runtime(solver):
@@ -121,7 +130,7 @@ def run_paces(mesh_root_name, v_inf, M, mirror_plane, vtk_mesh):
 
                         # If this is an iterative solver, run one time writing out the residual history
                         if solver in ["GMRES", "BJAC", "BSOR"]:
-                            iter_file = iteration_dir + "{0}_{1}_{2}_prec_history.csv".format(solver, refinement, preconditioner)
+                            iter_file = iteration_dir + "{0}{1}_{2}_{3}_{4}_prec_history.csv".format(mesh_root_name, solver, refinement, preconditioner, "sorted" if sort_system else "unsorted")
                             write_input_file(input_filename, mesh_root_name, v_inf, M, solver, refinement, preconditioner, sort_system, False, vtk_mesh, iter_file=iter_file, mirror_plane=mirror_plane)
                             sp.run(["./machline.exe", input_filename])
 
@@ -130,26 +139,32 @@ def run_paces(mesh_root_name, v_inf, M, mirror_plane, vtk_mesh):
                             # Create input file
                             write_input_file(input_filename, mesh_root_name, v_inf, M, solver, refinement, preconditioner, sort_system, False, vtk_mesh, mirror_plane=mirror_plane)
 
-                            # Get run time for all of MachLine
-                            runtime_m, res_norm, iterations = get_full_method_results(input_filename)
+                            # Get run times
+                            result = get_full_method_results(input_filename)
+                            if len(result) == 4:
+                                runtime_m, runtime_s, res_norm, iterations = result
 
-                            # Get run time for matrix solver by itself
-                            runtime_s = get_solver_runtime(solver)
+                                # Write results
+                                print("{0},{1},{2},{3},{4},{5:.12e},{6:.12e},{7:.12e},{8}".format(solver, refinement, preconditioner, sort_system, i, runtime_m, runtime_s, res_norm, iterations), file=data_handle)
+                                data_handle.flush()
 
-                            # Write results
-                            print("{0},{1},{2},{3},{4},{5},{6},{7},{8}".format(solver, refinement, preconditioner, sort_system, i, runtime_m, runtime_s, res_norm, iterations), file=data_handle)
-                            data_handle.flush()
+                            # Execution failed
+                            else:
+
+                                # Write results
+                                print("{0},{1},{2},{3},{4},{5},{6},{7},{8}".format(solver, refinement, preconditioner, sort_system, i, 'N/A', 'N/A', 'N/A', 'N/A'), file=data_handle)
+                                data_handle.flush()
 
 
 if __name__=="__main__":
 
-    # Compile solver timer
-    print("Compiling timer...")
-    result = sp.run(["gfortran", "-O2", "-fbounds-check", "-fbacktrace", "-fdefault-real-8", "common/linalg.f95", "dev/time_matrix_solver.f95", "-o", "solver_timer.exe"], capture_output=True, text=True)
-    if result.returncode != 0:
-        print(result.stdout)
-        print(result.stderr)
-        raise RuntimeError("Solver timer compilation failed.")
+    ## Compile solver timer
+    #print("Compiling timer...")
+    #result = sp.run(["gfortran", "-O2", "-fbounds-check", "-fbacktrace", "-fdefault-real-8", "common/linalg.f95", "dev/time_matrix_solver.f95", "-o", "solver_timer.exe"], capture_output=True, text=True)
+    #if result.returncode != 0:
+    #    print(result.stdout)
+    #    print(result.stderr)
+    #    raise RuntimeError("Solver timer compilation failed.")
 
     # Perform serial compilation of MachLine
     print("Compiling MachLine...")
@@ -160,12 +175,12 @@ if __name__=="__main__":
         raise RuntimeError("MachLine compilation failed.")
 
     # Run for cone
-    case_root_name = "cone_10_deg_" # [coarse = 584, medium = 2369, fine = 9539]
-    #run_paces(case_root_name, [-1.0, 0.0, 0.0], 1.5, 'xy', True)
+    case_root_name = "cone_10_deg_" # [coarse = 321, medium = 1241, fine = 4881]
+    run_paces(case_root_name, [-1.0, 0.0, 0.0], 1.5, 'xy', True)
 
     # Run for diamond wing [coarse = 800, medium = 2152, fine = 7535]
     case_root_name = "diamond_5_deg_full_"
-    #run_paces(case_root_name, [1.0, 0.0, 0.0], 2.0, 'None', False)
+    run_paces(case_root_name, [1.0, 0.0, 0.0], 2.0, 'None', False)
 
     # Run for full configuration [coarse = 600, medium = 2400, fine = 11000]
     case_root_name = "full_config_"

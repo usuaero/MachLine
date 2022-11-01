@@ -704,6 +704,7 @@ subroutine block_jacobi_solve(N, A, b, block_size, tol, rel, max_iter, output_fi
     else
       write(unit,*) "BJAC"
     end if
+    write(unit,*) "N=", N
     write(unit,*) "iteration,||dx||,||err||,relaxation"
   end if
 
@@ -1475,6 +1476,7 @@ subroutine GMRES(N, A, b, tol, max_iter, output_file, total_iter, x)
     open(newunit=unit, file=output_file)
     write(unit,*) "method"
     write(unit,*) "GMRES"
+    write(unit,*) "N=", N
     write(unit,*) "iteration,||err||"
   end if
 

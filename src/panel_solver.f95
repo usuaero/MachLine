@@ -25,7 +25,7 @@ module panel_solver_mod
         type(dod),dimension(:,:),allocatable :: dod_info
         type(dod),dimension(:,:,:),allocatable :: wake_dod_info
         type(flow) :: freestream
-        real :: norm_res, max_res, tol, rel
+        real :: norm_res, max_res, tol, rel, solver_time
         real,dimension(3) :: C_F, inner_flow
         real,dimension(:,:),allocatable :: A
         real,dimension(:),allocatable :: b, I_known, BC
@@ -717,7 +717,7 @@ contains
     end subroutine panel_solver_set_permutation
 
 
-    subroutine panel_solver_solve(this, body)
+    subroutine panel_solver_solve(this, body, solver_stat)
         ! Calls the relevant subroutine to solve the case based on the selected formulation
         ! We are solving the equation
         !
@@ -733,8 +733,12 @@ contains
 
         class(panel_solver),intent(inout) :: this
         type(surface_mesh),intent(inout) :: body
+        integer,intent(out) :: solver_stat
 
         integer :: stat
+
+        ! Set default status
+        solver_stat = 0
 
         ! Allocate known influence storage
         allocate(this%I_known(this%N_unknown), source=0., stat=stat)
@@ -761,7 +765,10 @@ contains
         call this%assemble_BC_vector(body)
 
         ! Solve the linear system
-        call this%solve_system(body)
+        call this%solve_system(body, solver_stat)
+        
+        ! Check for errors
+        if (solver_stat /= 0) return
 
         ! Calculate velocities
         call this%calc_cell_velocities(body)
@@ -1121,12 +1128,13 @@ contains
     end subroutine panel_solver_calc_wake_influences
 
 
-    subroutine panel_solver_check_system(this)
+    subroutine panel_solver_check_system(this, solver_stat)
         ! Checks the validity of the linear system
 
         implicit none
         
         class(paneL_solver),intent(in) :: this
+        integer,intent(inout) :: solver_stat
 
         integer :: i
 
@@ -1134,23 +1142,27 @@ contains
 
         ! Check for NaNs
         if (any(isnan(this%A))) then
-            write(*,*) "!!! Invalid value detected in A matrix. Quitting..."
-            stop
+            write(*,*) "!!! Invalid value detected in A matrix."
+            solver_stat = 1
+            return
         end if
         if (any(isnan(this%b))) then
-            write(*,*) "!!! Invalid value detected in b vector. Quitting..."
-            stop
+            write(*,*) "!!! Invalid value detected in b vector."
+            solver_stat = 1
+            return
         end if
 
         ! Check for uninfluenced/ing points
         do i=1,this%N_unknown
             if (all(this%A(this%P(i),:) == 0.)) then
-                write(*,*) "!!! Control point ", i, " is not influenced. Quitting..."
-                stop
+                write(*,*) "!!! Control point ", i, " is not influenced."
+                solver_stat = 2
+                return
             end if
             if (all(this%A(:,this%P(i)) == 0.)) then
-                write(*,*) "!!! Vertex ", i, " exerts no influence. Quitting..."
-                stop
+                write(*,*) "!!! Vertex ", i, " exerts no influence."
+                solver_stat = 2
+                return
             end if
         end do
 
@@ -1192,23 +1204,26 @@ contains
     end subroutine panel_solver_write_system
 
 
-    subroutine panel_solver_solve_system(this, body)
+    subroutine panel_solver_solve_system(this, body, solver_stat)
         ! Solves the linear system for the singularity strengths
 
         implicit none
 
         class(panel_solver),intent(inout) :: this
         type(surface_mesh),intent(inout) :: body
+        integer,intent(inout) :: solver_stat
 
         real,dimension(:,:),allocatable :: A_p
         real,dimension(:),allocatable :: b_p, x, R
         integer :: stat, i, j
+        integer(8) :: start_count, end_count
+        real(16) :: count_rate
 
         ! Set b vector
         this%b = this%BC - this%I_known
 
         ! Run checks
-        if (run_checks) call this%check_system()
+        if (run_checks) call this%check_system(solver_stat)
 
         ! Write to file
         if (this%write_A_and_b) call this%write_system()
@@ -1236,53 +1251,76 @@ contains
 
         ! LU decomposition
         case ('LU')
+            call system_clock(start_count, count_rate)
             call lu_solve(this%N_unknown, A_p, b_p, x)
+            call system_clock(end_count)
 
         ! QR via Givens rotations for upper-pentagonal
         case ('QRUP')
+            call system_clock(start_count, count_rate)
             call QR_row_givens_solve_UP(this%N_unknown, A_p, b_p, x)
+            call system_clock(end_count)
 
         ! QR via fast Givens rotations for upper-pentagonal
         case ('FQRUP')
+            call system_clock(start_count, count_rate)
             call QR_fast_givens_solve_upper_pentagonal(this%N_unknown, A_p, b_p, x)
+            call system_clock(end_count)
 
         ! GMRES
         case ('GMRES')
+            call system_clock(start_count, count_rate)
             call GMRES(this%N_unknown, A_p, b_p, this%tol, this%max_iterations, this%iteration_file, this%solver_iterations, x)
+            call system_clock(end_count)
 
         ! Purcell's method
         case ('PURC')
+            call system_clock(start_count, count_rate)
             call purcell_solve(this%N_unknown, A_p, b_p, x)
+            call system_clock(end_count)
 
         ! Block successive over-relaxation
         case ('BSOR')
+            call system_clock(start_count, count_rate)
             call block_sor_solve(this%N_unknown, A_p, b_p, this%block_size, this%tol, this%rel, &
                                  this%max_iterations, this%iteration_file, this%solver_iterations, x)
+            call system_clock(end_count)
 
         ! Adaptive block SOR (almost garbage)
         case ('ABSOR')
             this%rel = -1.
+            call system_clock(start_count, count_rate)
             call block_sor_solve(this%N_unknown, A_p, b_p, this%block_size, this%tol, this%rel, &
                                  this%max_iterations, this%iteration_file, this%solver_iterations, x)
+            call system_clock(end_count)
         
         ! Block Jacobi
         case ('BJAC')
+            call system_clock(start_count, count_rate)
             call block_jacobi_solve(this%N_unknown, A_p, b_p, this%block_size, this%tol, this%rel, &
                                     this%max_iterations, this%iteration_file, this%solver_iterations, x)
+            call system_clock(end_count)
 
         ! Optimally relaxed block Jacobi (garbage)
         case ('ORBJ')
             this%rel = -1.
+            call system_clock(start_count, count_rate)
             call block_jacobi_solve(this%N_unknown, A_p, b_p, this%block_size, this%tol, this%rel, &
                                     this%max_iterations, this%iteration_file, this%solver_iterations, x)
+            call system_clock(end_count)
 
         ! Improper specification
         case default
             write(*,*) "!!! ", this%matrix_solver, " is not a valid solver option. Defaulting to GMRES."
+            call system_clock(start_count, count_rate)
             call GMRES(this%N_unknown, A_p, b_p, this%tol, this%max_iterations, this%iteration_file, this%solver_iterations, x)
+            call system_clock(end_count)
 
         end select
         if (verbose) write(*,*) "Done."
+
+        ! Calculate how much time the matrix solver took
+        this%solver_time = real(end_count-start_count)/count_rate
 
         ! Clean up memory
         deallocate(A_p)
@@ -1304,8 +1342,9 @@ contains
 
         ! Check
         if (isnan(this%norm_res)) then
-            write(*,*) "!!! Linear system failed to produce a valid solution. Quitting..."
-            stop
+            write(*,*) "!!! Linear system failed to produce a valid solution."
+            solver_stat = 4
+            return
         end if
 
         ! Transfer solved doublet strengths to body storage
@@ -1936,7 +1975,7 @@ contains
     end subroutine panel_solver_calc_forces_with_pressure
 
 
-    subroutine panel_solver_update_report(this, p_json, body)
+    subroutine panel_solver_update_report(this, p_json, body, solver_stat)
         ! Updates the report JSON with the information relevant to the solver
 
         implicit none
@@ -1944,6 +1983,7 @@ contains
         class(panel_solver),intent(in) :: this
         type(json_value),pointer,intent(inout) :: p_json
         type(surface_mesh),intent(in) :: body
+        integer,intent(in) :: solver_stat
 
         type(json_value),pointer :: p_parent, p_child
         integer :: i_unit
@@ -1952,69 +1992,85 @@ contains
         call json_value_create(p_parent)
         call to_object(p_parent, 'solver_results')
         call json_value_add(p_json, p_parent)
-        if (this%solver_iterations > -1) call json_value_add(p_parent, 'iterations', this%solver_iterations)
-        call json_value_create(p_child)
-        call to_object(p_child, 'residual')
-        call json_value_add(p_parent, p_child)
-        call json_value_add(p_child, 'max', this%max_res)
-        call json_value_add(p_child, 'norm', this%norm_res)
-        nullify(p_parent)
-        nullify(p_child)
 
-        ! Write pressure results
-        call json_value_create(p_parent)
-        call to_object(p_parent, 'pressure_calculations')
-        call json_value_add(p_json, p_parent)
+        ! Solver code
+        call json_value_add(p_parent, 'solver_status_code', solver_stat)
+        call json_value_add(p_parent, 'matrix_solver_time', this%solver_time)
+        call json_value_add(p_parent, 'system_dimension', this%N_unknown)
 
-        ! Incompressible rule
-        if (this%incompressible_rule) then
-            call this%add_pressure_to_report(p_parent, 'incompressible_rule', body%C_p_inc)
+        ! Check there wasn't an error
+        if (solver_stat == 0) then
+
+            ! Iterations
+            if (this%solver_iterations > -1) call json_value_add(p_parent, 'iterations', this%solver_iterations)
+
+            ! Residuals
+            call json_value_create(p_child)
+            call to_object(p_child, 'residual')
+            call json_value_add(p_parent, p_child)
+            call json_value_add(p_child, 'max', this%max_res)
+            call json_value_add(p_child, 'norm', this%norm_res)
+
+            ! Clean up pointers
+            nullify(p_parent)
+            nullify(p_child)
+
+            ! Write pressure results
+            call json_value_create(p_parent)
+            call to_object(p_parent, 'pressure_calculations')
+            call json_value_add(p_json, p_parent)
+
+            ! Incompressible rule
+            if (this%incompressible_rule) then
+                call this%add_pressure_to_report(p_parent, 'incompressible_rule', body%C_p_inc)
+            end if
+
+            ! Isentropic rule
+            if (this%isentropic_rule) then
+                call this%add_pressure_to_report(p_parent, 'isentropic_rule', body%C_p_ise)
+            end if
+
+            ! Second-order rule
+            if (this%second_order_rule) then
+                call this%add_pressure_to_report(p_parent, 'second_order_rule', body%C_p_2nd)
+            end if
+
+            ! Slender-body rule
+            if (this%slender_rule) then
+                call this%add_pressure_to_report(p_parent, 'slender_body_rule', body%C_p_sln)
+            end if
+
+            ! Linear rule
+            if (this%linear_rule) then
+                call this%add_pressure_to_report(p_parent, 'linear_rule', body%C_p_lin)
+            end if
+
+            ! Prandtl-Galuert rule
+            if (this%prandtl_glauert) then
+                call this%add_pressure_to_report(p_parent, 'prandtl_glauert', body%C_p_pg)
+            end if
+
+            ! Second-order rule
+            if (this%karman_tsien) then
+                call this%add_pressure_to_report(p_parent, 'karman_tsien', body%C_p_kt)
+            end if
+
+            ! Second-order rule
+            if (this%laitone) then
+                call this%add_pressure_to_report(p_parent, 'laitone', body%C_p_lai)
+            end if
+            nullify(p_parent)
+
+            ! Write forces
+            call json_value_create(p_parent)
+            call to_object(p_parent, 'total_forces')
+            call json_value_add(p_json, p_parent)
+            call json_value_add(p_parent, 'Cx', this%C_F(1))
+            call json_value_add(p_parent, 'Cy', this%C_F(2))
+            call json_value_add(p_parent, 'Cz', this%C_F(3))
+            nullify(p_parent)
+
         end if
-
-        ! Isentropic rule
-        if (this%isentropic_rule) then
-            call this%add_pressure_to_report(p_parent, 'isentropic_rule', body%C_p_ise)
-        end if
-
-        ! Second-order rule
-        if (this%second_order_rule) then
-            call this%add_pressure_to_report(p_parent, 'second_order_rule', body%C_p_2nd)
-        end if
-
-        ! Slender-body rule
-        if (this%slender_rule) then
-            call this%add_pressure_to_report(p_parent, 'slender_body_rule', body%C_p_sln)
-        end if
-
-        ! Linear rule
-        if (this%linear_rule) then
-            call this%add_pressure_to_report(p_parent, 'linear_rule', body%C_p_lin)
-        end if
-
-        ! Prandtl-Galuert rule
-        if (this%prandtl_glauert) then
-            call this%add_pressure_to_report(p_parent, 'prandtl_glauert', body%C_p_pg)
-        end if
-
-        ! Second-order rule
-        if (this%karman_tsien) then
-            call this%add_pressure_to_report(p_parent, 'karman_tsien', body%C_p_kt)
-        end if
-
-        ! Second-order rule
-        if (this%laitone) then
-            call this%add_pressure_to_report(p_parent, 'laitone', body%C_p_lai)
-        end if
-        nullify(p_parent)
-
-        ! Write forces
-        call json_value_create(p_parent)
-        call to_object(p_parent, 'total_forces')
-        call json_value_add(p_json, p_parent)
-        call json_value_add(p_parent, 'Cx', this%C_F(1))
-        call json_value_add(p_parent, 'Cy', this%C_F(2))
-        call json_value_add(p_parent, 'Cz', this%C_F(3))
-        nullify(p_parent)
 
     end subroutine panel_solver_update_report
 
