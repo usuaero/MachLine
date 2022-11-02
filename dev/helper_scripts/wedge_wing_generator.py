@@ -50,14 +50,11 @@ def spanwise_coord(spanwise_nodes, semispan, **kwargs):
         Zoc = np.linspace(0, semispan, spanwise_nodes)
 
     # Determine LE and TE locations at each z
-    # tip_LE = b_2c * np.tan(sweep_angle)
-    # tip_TE = tip_LE + R_T
-
-    LE_xloc = Zoc * np.tan(sweep_angle)
+    Leading_edge_x = Zoc * np.tan(sweep_angle)
     TE_slope = (semispan * np.tan(sweep_angle) + taper - 1) / semispan
     TE_xloc = TE_slope * Zoc + 1
 
-    return Zoc, LE_xloc, TE_xloc
+    return Zoc, Leading_edge_x, TE_xloc
 
 
 def init_airfoil(chord_spacing, **kwargs):
@@ -171,6 +168,9 @@ def scale_airfoil(x_root, y_root, **kwargs):
     # Scale airfoil and shift based on local chord length and leading edge x location
     x_vert = x_root * local_chord + LE_xloc 
     y_vert = y_root * local_chord
+
+    breakpoint()
+    print()
     
 
     return x_vert, y_vert
