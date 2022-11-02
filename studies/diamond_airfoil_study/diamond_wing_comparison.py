@@ -45,8 +45,7 @@ def run_comparison(M, alpha, grid, half_angle, run_machline=True):
                 }
             },
             "solver": {
-                "formulation": "morino",
-                "control_point_offset": 1.1e-6
+                "formulation": "morino"
             },
             "post_processing" : {
                 "pressure_rules" : {
@@ -95,32 +94,36 @@ def run_comparison(M, alpha, grid, half_angle, run_machline=True):
 
     # Read into ParaView
     data_reader = pvs.LegacyVTKReader(registrationName=case_name, FileNames=results_file)
+    pvs.SaveData(data_file, proxy=data_reader, FieldAssociation="Cell Data")
 
-    # Filter cell data to point data
-    filter = pvs.CellDatatoPointData(registrationName='Filter', Input=data_reader)
-    data_to_process = ['C_p_ise', 'C_p_2nd', 'mu', 'sigma']
-    filter.CellDataArraytoprocess = data_to_process
+    ## Filter cell data to point data
+    #filter = pvs.CellDatatoPointData(registrationName='Filter', Input=data_reader)
+    #data_to_process = ['C_p_ise', 'C_p_2nd', 'mu', 'sigma']
+    #filter.CellDataArraytoprocess = data_to_process
 
-    # Extract and save data
-    plot = pvs.PlotOnIntersectionCurves(registrationName='Plot', Input=filter)
-    plot.SliceType = 'Plane'
-    plot.SliceType.Normal = [0.0, 1.0, 0.0]
-    view = pvs.CreateView('XYChartView')
-    display = pvs.Show(plot, view, 'XYChartRepresentation')
-    view.Update()
-    display.XArrayName = 'Points_X'
-    view.Update()
-    pvs.SaveData(data_file, proxy=plot, PointDataArrays=data_to_process, FieldAssociation='Point Data', Precision=12)
+    ## Extract and save data
+    #plot = pvs.PlotOnIntersectionCurves(registrationName='Plot', Input=filter)
+    #plot.SliceType = 'Plane'
+    #plot.SliceType.Normal = [0.0, 1.0, 0.0]
+    #view = pvs.CreateView('XYChartView')
+    #display = pvs.Show(plot, view, 'XYChartRepresentation')
+    #view.Update()
+    #display.XArrayName = 'Points_X'
+    #view.Update()
+    #pvs.SaveData(data_file, proxy=plot, PointDataArrays=data_to_process, FieldAssociation='Point Data', Precision=12)
 
     # Read in data
     data = np.genfromtxt(data_file, delimiter=',', skip_header=1)
+
+    needed_rows = np.where(data[:,5] == np.min(np.abs(data[:,5])))
+    needed_rows = needed_rows[0]
     
     # Plot data from MachLine
     plt.figure()
-    plt.plot(data[:,4], data[:,0], 'ks', markersize=3, label='Second-Order')
-    plt.plot(data[:,4], data[:,1], 'kv', markersize=3, label='Isentropic')
-    plt.plot(data[:,4], data[:,2], 'ko', markersize=3, label='Slender-Body')
-    plt.plot(data[:,4], data[:,3], 'k^', markersize=3, label='Linear')
+    plt.plot(data[needed_rows,4], data[needed_rows,7], 'ks', markersize=3, label='Second-Order')
+    plt.plot(data[needed_rows,4], data[needed_rows,8], 'kv', markersize=3, label='Isentropic')
+    plt.plot(data[needed_rows,4], data[needed_rows,9], 'ko', markersize=3, label='Slender-Body')
+    plt.plot(data[needed_rows,4], data[needed_rows,10], 'k^', markersize=3, label='Linear')
 
     # Plot data from shock-expansion theory
     x = np.linspace(0.0, 1.0, 100)
@@ -136,7 +139,7 @@ def run_comparison(M, alpha, grid, half_angle, run_machline=True):
     # Format
     plt.xlabel('$x$')
     plt.ylabel('$C_p$')
-    plt.legend(title='Pressure Rule', fontsize=6, title_fontsize=6)
+    plt.legend(fontsize=6, title_fontsize=6)
     plt.savefig(plot_dir+case_name+".pdf".format(M, alpha, int(half_angle)))
     plt.close()
 
@@ -159,7 +162,7 @@ if __name__=="__main__":
             for k, alpha in enumerate(alphas):
                 for l, half_angle in enumerate(half_angles):
 
-                    _,_,CLs[i,j,k,l], CDs[i,j,k,l] = run_comparison(M, alpha, grid, half_angle, run_machline=True)
+                    _,_,CLs[i,j,k,l], CDs[i,j,k,l] = run_comparison(M, alpha, grid, half_angle, run_machline=False)
 
     plot_dir = "studies/diamond_airfoil_study/plots/"
     for j, M in enumerate(Ms):
@@ -185,3 +188,44 @@ if __name__=="__main__":
                 plt.ylabel('Error in $C_D$')
                 plt.savefig(plot_dir+case_name+"_CD.pdf")
                 plt.close()
+
+    # Plot combined CL convergences
+    slopes = []
+    plt.figure()
+    for j, M in enumerate(Ms):
+        for k, alpha in enumerate(alphas):
+            if k == 0:
+                continue
+            for l,half_angle in enumerate(half_angles):
+                err = abs((CLs[:-1,j,k,l]-CLs[-1,j,k,l])/CLs[-1,j,k,l])
+                plt.plot(N_verts[:-1], err, 'k-', linewidth=1)
+                coefs = np.polyfit(np.log(N_verts[:-1]), np.log(err), deg=1)
+                slopes.append(coefs[0])
+
+    print("Average CL convergence rate: ", np.average(slopes))
+    plt.xscale('log')
+    plt.yscale('log')
+    plt.xlabel('$N_{verts}$')
+    plt.ylabel('Percent Error in $C_L$')
+    plt.savefig(plot_dir+"collected_CL_convergence.pdf")
+    plt.close()
+
+    # Plot combined CD convergences
+    slopes = []
+    plt.figure()
+    for j, M in enumerate(Ms):
+        for k, alpha in enumerate(alphas):
+            for l,half_angle in enumerate(half_angles):
+                err = abs((CLs[:-1,j,k,l]-CLs[-1,j,k,l])/CLs[-1,j,k,l])
+                plt.plot(N_verts[:-1], abs((CDs[:-1,j,k,l]-CDs[-1,j,k,l])/CDs[-1,j,k,l]), 'k-', linewidth=1)
+                coefs = np.polyfit(np.log(N_verts[:-1]), np.log(err), deg=1)
+                slopes.append(coefs[0])
+
+    print("Average CD convergence rate: ", np.average(slopes))
+    plt.xscale('log')
+    plt.yscale('log')
+    plt.xlabel('$N_{verts}$')
+    plt.ylabel('Percent Error in $C_D$')
+    plt.savefig(plot_dir+"collected_CD_convergence.pdf")
+    plt.close()
+

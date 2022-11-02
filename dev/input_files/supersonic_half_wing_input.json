@@ -13,14 +13,13 @@
             "doublet" : 1
         },
         "wake_model" : {
-            "trefftz_distance" : 20.0
         },
         "reference": {
             "area": 1.0
         }
     },
     "solver": {
-        "matrix_solver" : "QRUP"
+        "formulation" : "morino"
     },
     "post_processing" : {
         "pressure_rules" : {
@@ -32,6 +31,6 @@
         "body_file" :          "dev/results/diamond_5_deg_mirrored_right.vtk",
         "wake_file" :          "dev/results/diamond_5_deg_mirrored_wake.vtk",
         "mirrored_body_file" : "dev/results/diamond_5_deg_mirrored_left.vtk",
-        "control_point_file" : "dev/results/diamond_5_deg_mirrored_right_control_points.vtk"
+        "control_point_file" : "dev/results/diamond_5_deg_mirrored_control_points.vtk"
     }
 }

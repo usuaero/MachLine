@@ -1,7 +1,7 @@
 module tri_mod
 
     use panel_mod
-    use vertex_mod
+    use base_geom_mod
     use math_mod
     use stl_mod
 
@@ -94,15 +94,6 @@ contains
 
                 ! Initialize
                 call panels(i)%init(vertices(new_ind(i1)), vertices(new_ind(i2)), vertices(new_ind(i3)), i)
-
-                ! Add panel index to vertices
-                call vertices(new_ind(i1))%panels%append(i)
-                call vertices(new_ind(i2))%panels%append(i)
-                call vertices(new_ind(i3))%panels%append(i)
-
-                call vertices(new_ind(i1))%panels_not_across_wake_edge%append(i)
-                call vertices(new_ind(i2))%panels_not_across_wake_edge%append(i)
-                call vertices(new_ind(i3))%panels_not_across_wake_edge%append(i)
 
             end do
 

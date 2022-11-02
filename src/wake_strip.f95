@@ -1,9 +1,7 @@
 module wake_strip_mod
 
-    use vertex_mod
     use panel_mod
-    use vertex_mod
-    use edge_mod
+    use base_geom_mod
     use helpers_mod
     use mesh_mod
 
@@ -13,6 +11,7 @@ module wake_strip_mod
 
         integer :: i_top_parent_1, i_top_parent_2, i_bot_parent_1, i_bot_parent_2
         integer :: i_top_parent_mid, i_bot_parent_mid
+        logical :: on_mirror_plane
 
         contains
 
@@ -28,7 +27,7 @@ contains
 
 
     subroutine wake_strip_init(this, freestream, starting_edge, mirror_start, mirror_plane, &
-                               N_panels_streamwise, trefftz_dist, body_verts)
+                               N_panels_streamwise, trefftz_dist, body_verts, wake_mirrored)
         ! Initializes this wake strip based on the provided info
 
         implicit none
@@ -40,12 +39,18 @@ contains
         integer,intent(in) :: mirror_plane, N_panels_streamwise
         real,intent(in) :: trefftz_dist
         type(vertex),dimension(:),allocatable,intent(in) :: body_verts
+        logical,intent(in) :: wake_mirrored
 
         real,dimension(3) :: start_1, start_2
         integer :: N_body_verts, i
 
         ! Get number of vertices on the body
         N_body_verts = size(body_verts)
+
+        ! Set mirroring
+        this%on_mirror_plane = starting_edge%on_mirror_plane
+        this%mirror_plane = mirror_plane
+        this%mirrored = wake_mirrored .and. .not. this%on_mirror_plane
 
         ! Get starting locations and parent vertices
         if (mirror_start) then
@@ -76,13 +81,13 @@ contains
         end if
 
         ! Get midpoint parent vertices
-        if (doublet_order == 2) then
+        if (higher_order) then
             if (mirror_start) then
-                this%i_top_parent_mid = starting_edge%i_midpoint + N_body_verts
-                this%i_bot_parent_mid = body_verts(starting_edge%i_midpoint)%i_wake_partner + N_body_verts
+                this%i_top_parent_mid = starting_edge%top_midpoint + N_body_verts
+                this%i_bot_parent_mid = starting_edge%bot_midpoint + N_body_verts
             else
-                this%i_top_parent_mid = starting_edge%i_midpoint
-                this%i_bot_parent_mid = body_verts(starting_edge%i_midpoint)%i_wake_partner
+                this%i_top_parent_mid = starting_edge%top_midpoint
+                this%i_bot_parent_mid = starting_edge%bot_midpoint
             end if
         end if
 
@@ -93,13 +98,13 @@ contains
         call this%init_panels(N_panels_streamwise)
 
         ! Initialize midpoints
-        if (doublet_order == 2) then
+        if (higher_order) then
             call this%init_midpoints()
         end if
 
         ! Initialize other panel properties
         do i=1,this%N_panels
-            call this%panels(i)%init_with_flow(freestream, .false., mirror_plane)
+            call this%panels(i)%init_with_flow(freestream, this%mirrored, mirror_plane)
             call this%panels(i)%set_influencing_verts()
         end do
 
@@ -134,10 +139,10 @@ contains
         call this%vertices(2)%init(start_2, 2, 1)
 
         ! Set parents
-        this%vertices(1)%top_parent = this%i_top_parent_1 + N_body_verts
-        this%vertices(1)%bot_parent = this%i_bot_parent_1 + N_body_verts
-        this%vertices(2)%top_parent = this%i_top_parent_2 + N_body_verts
-        this%vertices(2)%bot_parent = this%i_bot_parent_2 + N_body_verts
+        this%vertices(1)%top_parent = this%i_top_parent_1
+        this%vertices(1)%bot_parent = this%i_bot_parent_1
+        this%vertices(2)%top_parent = this%i_top_parent_2
+        this%vertices(2)%bot_parent = this%i_bot_parent_2
 
         ! Calculate distances to Trefftz plane
         d1 = trefftz_dist - inner(start_1, freestream%c_hat_g)
@@ -339,6 +344,10 @@ contains
                 end if
             end if
 
+            ! Store parents
+            this%vertices(i_mid)%top_parent = this%i_top_parent_mid
+            this%vertices(i_mid)%bot_parent = this%i_bot_parent_mid
+
             ! Initialize side midpoint
             i_mid = i_mid + 1
             
@@ -363,6 +372,10 @@ contains
                 this%panels(i)%midpoints(1)%ptr => this%vertices(i_mid)
                 edge_prev = 1
 
+                ! Store parents
+                this%vertices(i_mid)%top_parent = this%i_top_parent_1
+                this%vertices(i_mid)%bot_parent = this%i_bot_parent_1
+
             ! Side 2
             else
 
@@ -382,6 +395,10 @@ contains
                 ! Point panel to it
                 this%panels(i)%midpoints(2)%ptr => this%vertices(i_mid)
                 edge_prev = 2
+
+                ! Store parents
+                this%vertices(i_mid)%top_parent = this%i_top_parent_2
+                this%vertices(i_mid)%bot_parent = this%i_bot_parent_2
 
             end if
 
@@ -409,6 +426,10 @@ contains
         else
             this%panels(this%N_panels)%midpoints(1)%ptr => this%vertices(i_mid)
         end if
+
+        ! Store parents
+        this%vertices(i_mid)%top_parent = this%i_top_parent_mid
+        this%vertices(i_mid)%bot_parent = this%i_bot_parent_mid
 
         this%midpoints_created = .true.
         

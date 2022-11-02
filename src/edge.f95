@@ -17,6 +17,8 @@ module edge_mod
         contains
 
             procedure :: init => edge_init
+            procedure :: get_opposing_panel => edge_get_opposing_panel
+            procedure :: touches_vertex => edge_touches_vertex
 
     end type edge
 
@@ -50,6 +52,42 @@ contains
         this%bot_verts = this%top_verts
     
     end subroutine edge_init
+
+
+    function edge_get_opposing_panel(this, i_panel) result(i_oppose)
+        ! Returns the index of the panel opposite this one on the edge
+
+        implicit none
+        
+        class(edge),intent(in) :: this
+        integer,intent(in) :: i_panel
+
+        integer :: i_oppose
+
+        if (i_panel == this%panels(1)) then
+            i_oppose = this%panels(2)
+        else if (i_panel == this%panels(2)) then
+            i_oppose = this%panels(1)
+        else
+            i_oppose = 0
+        end if
+        
+    end function edge_get_opposing_panel
+
+
+    function edge_touches_vertex(this, i_vert) result(touches)
+        ! Checks whether the edge touches the given vertex
+
+        implicit none
+        
+        class(edge),intent(in) :: this
+        integer,intent(in) :: i_vert
+
+        logical :: touches
+
+        touches = this%top_verts(1) == i_vert .or. this%top_verts(2) == i_vert
+        
+    end function edge_touches_vertex
 
     
 end module edge_mod

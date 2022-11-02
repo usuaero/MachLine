@@ -1,7 +1,7 @@
 module stl_mod
 
     use panel_mod
-    use vertex_mod
+    use base_geom_mod
     use math_mod
 
     implicit none
@@ -103,7 +103,6 @@ contains
 
         ! Initialize panel objects
         allocate(panels(N_panels))
-        !$OMP parallel do private(i1, i2, i3)
         do i=1,N_panels
 
             ! Get vertex indices
@@ -113,17 +112,6 @@ contains
 
             ! Initialize
             call panels(i)%init(vertices(i1), vertices(i2), vertices(i3), i)
-
-            ! Add panel index to vertices
-            !$OMP critical
-            call vertices(i1)%panels%append(i)
-            call vertices(i2)%panels%append(i)
-            call vertices(i3)%panels%append(i)
-
-            call vertices(i1)%panels_not_across_wake_edge%append(i)
-            call vertices(i2)%panels_not_across_wake_edge%append(i)
-            call vertices(i3)%panels_not_across_wake_edge%append(i)
-            !$OMP end critical
 
         end do
 

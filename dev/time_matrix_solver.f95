@@ -9,7 +9,8 @@ program time_matrix_solver
     integer :: N, unit, i, stat
     real,dimension(:,:),allocatable :: A
     real,dimension(:),allocatable :: b, x
-    real :: start_time, end_time, rel
+    real :: count_rate, rel
+    integer :: start_count, end_count
 
     ! Initialize
     rel = 0.5
@@ -62,39 +63,39 @@ program time_matrix_solver
 
     ! LU decomposition
     case ('LU')
-        call cpu_time(start_time)
+        call system_clock(start_count, count_rate)
         call lu_solve(N, A, b, x)
-        call cpu_time(end_time)
+        call system_clock(end_count)
 
     ! QR via Givens rotations for upper-pentagonal
     case ('QRUP')
-        call cpu_time(start_time)
+        call system_clock(start_count, count_rate)
         call QR_row_givens_solve_UP(N, A, b, x)
-        call cpu_time(end_time)
+        call system_clock(end_count)
 
     ! QR via fast Givens rotations for upper-pentagonal
     case ('FQRUP')
-        call cpu_time(start_time)
+        call system_clock(start_count, count_rate)
         call QR_fast_givens_solve_upper_pentagonal(N, A, b, x)
-        call cpu_time(end_time)
+        call system_clock(end_count)
 
     ! GMRES
     case ('GMRES')
-        call cpu_time(start_time)
+        call system_clock(start_count, count_rate)
         call GMRES(N, A, b, 1.e-12, 1000, output_file, i, x)
-        call cpu_time(end_time)
+        call system_clock(end_count)
 
     ! Block successive over-relaxation
     case ('BSOR')
-        call cpu_time(start_time)
+        call system_clock(start_count, count_rate)
         call block_sor_solve(N, A, b, 400, 1.e-12, rel, 1000, output_file, i, x)
-        call cpu_time(end_time)
+        call system_clock(end_count)
     
     ! Block Jacobi
     case ('BJAC')
-        call cpu_time(start_time)
+        call system_clock(start_count, count_rate)
         call block_jacobi_solve(N, A, b, 400, 1.e-12, rel, 1000, output_file, i, x)
-        call cpu_time(end_time)
+        call system_clock(end_count)
 
     ! Improper specification
     case default
@@ -103,6 +104,6 @@ program time_matrix_solver
     end select
 
     ! Report time
-    write(*,*) "Solution time: ", end_time-start_time, " s"
+    write(*,*) "Solution time: ", real(end_count-start_count)/count_rate, " s"
     
 end program time_matrix_solver

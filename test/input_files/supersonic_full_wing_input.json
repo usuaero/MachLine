@@ -19,7 +19,7 @@
         }
     },
     "solver": {
-        "matrix_solver" : "QRUP"
+        "matrix_solver" : "FQRUP"
     },
     "post_processing" : {
         "pressure_rules" : {

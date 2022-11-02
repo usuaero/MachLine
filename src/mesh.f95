@@ -1,8 +1,9 @@
 ! A basic mesh type consisting of a collection of vertices and panels
 module mesh_mod
 
-    use vertex_mod
+    use base_geom_mod
     use panel_mod
+    use flow_mod
 
     implicit none
 
@@ -12,12 +13,16 @@ module mesh_mod
         type(vertex),allocatable,dimension(:) :: vertices
         type(panel),allocatable,dimension(:) :: panels
         logical :: midpoints_created = .false.
+        logical :: mirrored = .false. ! Whether the mesh is to be mirrored about any planes
+        integer :: mirror_plane ! Index of the plane across which the mesh is mirrored (1: yz, 2: xz, 3: xy); this is the index of the normal to that plane
 
         contains
 
             procedure :: has_zero_area => mesh_has_zero_area
             procedure :: get_indices_to_panel_vertices => mesh_get_indices_to_panel_vertices
             procedure :: allocate_new_vertices => mesh_allocate_new_vertices
+            procedure :: get_verts_in_dod_of_point => mesh_get_verts_in_dod_of_point
+            procedure :: get_panel_dod_info_for_point => mesh_get_panel_dod_info_for_point
 
     end type mesh
 
@@ -114,5 +119,56 @@ contains
         this%N_verts = this%N_verts + N_new_verts
         
     end subroutine mesh_allocate_new_vertices
+
+
+    function mesh_get_verts_in_dod_of_point(this, point, freestream, mirror_points) result(verts_in_dod)
+        ! Returns an array telling which vertices in the mesh belong to the DoD of the given point
+
+        implicit none
+        
+        class(mesh),intent(in) :: this
+        real,dimension(3),intent(in) :: point
+        type(flow),intent(in) :: freestream
+        logical,intent(in) :: mirror_points
+
+        logical,dimension(this%N_verts) :: verts_in_dod
+
+        integer :: i
+
+        ! Loop through vertices
+        do i=1,this%N_verts
+
+            ! Check DoD
+            if (mirror_points) then
+                verts_in_dod(i) = freestream%point_in_dod(mirror_across_plane(this%vertices(i)%loc, this%mirror_plane), point)
+            else
+                verts_in_dod(i) = freestream%point_in_dod(this%vertices(i)%loc, point)
+            end if
+        end do
+    
+    end function mesh_get_verts_in_dod_of_point
+
+
+    function mesh_get_panel_dod_info_for_point(this, point, freestream, verts_in_dod, mirror_panels) result(dod_info)
+        ! Returns an array describing how the panels in the mesh fall wrt the DoD of the given point
+
+        implicit none
+        
+        class(mesh),intent(in) :: this
+        real,dimension(3),intent(in) :: point
+        type(flow),intent(in) :: freestream
+        logical,dimension(:),allocatable,intent(in) :: verts_in_dod
+        logical,intent(in) :: mirror_panels
+
+        type(dod),dimension(this%N_panels) :: dod_info
+
+        integer :: i
+
+        ! Loop through panels
+        do i=1,this%N_panels
+            dod_info(i) = this%panels(i)%check_dod(point, freestream, verts_in_dod, mirror_panels, this%mirror_plane)
+        end do
+        
+    end function mesh_get_panel_dod_info_for_point
     
 end module mesh_mod

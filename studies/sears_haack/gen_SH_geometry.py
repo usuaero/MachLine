@@ -9,12 +9,12 @@ def _generate_SH(rmax, length, num_ax = 100, num_theta = 30):
     r_range = rmax*(4*(x_range/length)*(1 - (x_range/length)))**(3./4.)
     theta_range = np.linspace(0, 2*np.pi, num_theta + 1)
     
-    # Initialize vertice position arrays
+    # Initialize vertex position arrays
     x = np.ones((num_ax, num_theta))
     y = np.ones((num_ax, num_theta))
     z = np.ones((num_ax, num_theta))
     
-    # generate vertice values
+    # generate vertex values
     for i in range(num_ax):
         x[i,:] = x[i,:]*x_range[i]
         if i == 0 or i == (num_ax - 1):
@@ -25,10 +25,10 @@ def _generate_SH(rmax, length, num_ax = 100, num_theta = 30):
                 y[i,j] = r_range[i]*np.sin(theta_range[j])
                 z[i,j] = r_range[i]*np.cos(theta_range[j])
     
-    # Initialize concatenated vertice array
+    # Initialize concatenated vertex array
     vertices = np.ones((2 + (num_theta*(num_ax - 2)),3))
     
-    # generate concatenated vertice values
+    # generate concatenated vertex values
     for i in range(num_ax):
         if i == 0:
             vertices[0,:] = [x[0,0], y[0,0], z[0,0]]
@@ -107,18 +107,12 @@ def _write_TRI(nVerts, nTris, vertices, tri_verts, comp_num, filename = 'test_fi
 '''------------RUN SCRIPT------------'''
 if __name__ == "__main__":
 
-    num_ax = 40 # number of axial panels
-    num_theta = 20 # number of tangential panels
+    num_ax = 80 # number of axial panels
+    num_theta = 30 # number of radial panels
     length = 0.6096 # length of SH body
     rmax = length * 0.037879 # maximum radius of SH body
         
     nVerts, nTris, vertices, tri_verts, comp_num, r_l_ratio = _generate_SH(rmax, length, num_ax, num_theta)
     print('R over L ratio: ', r_l_ratio)
 
-    _write_TRI(nVerts, nTris, vertices, tri_verts, comp_num, filename = 'sears_haack_mesh_love.tri')
-
-
-
-
-
-
+    _write_TRI(nVerts, nTris, vertices, tri_verts, comp_num, filename = 'studies/sears_haack/meshes/SH_{0}_{1}.tri'.format(num_ax, num_theta))

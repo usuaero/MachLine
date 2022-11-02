@@ -3,7 +3,7 @@ module vtk_mod
 
     use helpers_mod
     use panel_mod
-    use vertex_mod
+    use base_geom_mod
     use stl_mod
 
     implicit none
@@ -22,7 +22,9 @@ module vtk_mod
             generic :: write_points => vtk_out_write_points_vertices, vtk_out_write_points_array
             procedure :: write_panels => vtk_out_write_panels
             procedure :: write_vertices => vtk_out_write_vertices
-            procedure :: write_point_scalars => vtk_out_write_point_scalars
+            generic :: write_point_scalars => write_point_scalars_real, write_point_scalars_integer
+            procedure :: write_point_scalars_real => vtk_out_write_point_scalars_real
+            procedure :: write_point_scalars_integer => vtk_out_write_point_scalars_integer
             procedure :: write_cell_header => vtk_out_write_cell_header
             procedure :: write_point_header => vtk_out_write_point_header
             procedure :: write_cell_scalars => vtk_out_write_cell_scalars
@@ -459,7 +461,7 @@ contains
     end subroutine vtk_out_write_cell_normals
 
 
-    subroutine vtk_out_write_point_scalars(this, data, label)
+    subroutine vtk_out_write_point_scalars_real(this, data, label)
         ! Writes out point scalar data
 
         implicit none
@@ -481,7 +483,32 @@ contains
             write(this%unit,'(e20.12)') data(i)
         end do
     
-    end subroutine vtk_out_write_point_scalars
+    end subroutine vtk_out_write_point_scalars_real
+
+
+    subroutine vtk_out_write_point_scalars_integer(this, data, label)
+        ! Writes out point scalar data
+
+        implicit none
+
+        class(vtk_out),intent(inout) :: this
+        integer,dimension(:),intent(in) :: data
+        character(len=*),intent(in) :: label
+
+        integer :: i, N_points
+
+        ! Write point data header
+        N_points = size(data)
+        call this%write_point_header(N_points)
+
+        ! Write data
+        write(this%unit,'(a, a, a)') "SCALARS ", label, " int 1"
+        write(this%unit,'(a)') "LOOKUP_TABLE default"
+        do i=1,N_points
+            write(this%unit,'(i12)') data(i)
+        end do
+    
+    end subroutine vtk_out_write_point_scalars_integer
 
 
     subroutine vtk_out_write_point_vectors(this, data, label)
@@ -580,15 +607,6 @@ contains
 
                 ! Initialize; need +1 because VTK uses 0-based indexing
                 call panels(i)%init(vertices(new_ind(i1+1)), vertices(new_ind(i2+1)), vertices(new_ind(i3+1)), i)
-
-                ! Add panel index to vertices' panel lists
-                call vertices(new_ind(i1+1))%panels%append(i)
-                call vertices(new_ind(i2+1))%panels%append(i)
-                call vertices(new_ind(i3+1))%panels%append(i)
-
-                call vertices(new_ind(i1+1))%panels_not_across_wake_edge%append(i)
-                call vertices(new_ind(i2+1))%panels_not_across_wake_edge%append(i)
-                call vertices(new_ind(i3+1))%panels_not_across_wake_edge%append(i)
 
             end do
 

@@ -5,11 +5,10 @@ module wake_mesh_mod
     use json_xtnsn_mod
     use linked_list_mod
     use helpers_mod
-    use vertex_mod
+    use base_geom_mod
     use panel_mod
     use math_mod
     use flow_mod
-    use edge_mod
     use vtk_mod
     use wake_strip_mod
     use mesh_mod
@@ -21,6 +20,8 @@ module wake_mesh_mod
 
         type(wake_strip),allocatable,dimension(:) :: strips
         integer :: N_strips = 0
+        integer :: N_max_strip_verts = 0
+        integer :: N_max_strip_panels = 0
 
         contains
 
@@ -40,8 +41,8 @@ module wake_mesh_mod
 contains
 
 
-    subroutine wake_mesh_init(this, body_edges, body_verts, N_body_panels, freestream, asym_flow, mirror_plane, &
-                              N_panels_streamwise, trefftz_dist)
+    subroutine wake_mesh_init(this, body_edges, body_verts, freestream, asym_flow, mirror_plane, N_panels_streamwise, &
+                              trefftz_dist, body_mirrored)
         ! Initializes the wake mesh
 
         implicit none
@@ -49,11 +50,11 @@ contains
         class(wake_mesh),intent(inout),target :: this
         type(edge),allocatable,dimension(:),intent(in) :: body_edges
         type(vertex),allocatable,dimension(:),intent(inout) :: body_verts
-        integer,intent(in) :: N_body_panels
         type(flow),intent(in) :: freestream
         logical,intent(in) :: asym_flow
         integer,intent(in) :: mirror_plane, N_panels_streamwise
         real,intent(in) :: trefftz_dist
+        logical,intent(in) :: body_mirrored
 
         integer :: i, j
         integer :: N_wake_edge_verts, N_wake_edges
@@ -62,82 +63,87 @@ contains
 
         if (verbose) write(*,'(a ES10.4 a)',advance='no') "     Initializing wake with a Trefftz distance of ", trefftz_dist, "..."
 
+        ! Set whether the wake will be mirrored
+        this%mirrored = body_mirrored .and. .not. asym_flow
+        this%mirror_plane = mirror_plane
+
         ! Initialize strips
-        !call this%init_strips(body_edges, body_verts, freestream, asym_flow, mirror_plane, N_panels_streamwise, trefftz_dist)
+        call this%init_strips(body_edges, body_verts, freestream, asym_flow, mirror_plane, N_panels_streamwise, trefftz_dist)
 
-        ! Count up wake-shedding edges
-        N_wake_edges = 0
-        do i=1,size(body_edges)
-            if (body_edges(i)%sheds_wake) N_wake_edges = N_wake_edges + 1
-        end do
+        !! Count up wake-shedding edges
+        !N_wake_edges = 0
+        !do i=1,size(body_edges)
+        !    if (body_edges(i)%sheds_wake) N_wake_edges = N_wake_edges + 1
+        !end do
 
-        ! Get indices of wake-shedding edges and vertices
-        allocate(wake_edge_indices(N_wake_edges))
-        allocate(is_wake_edge_vertex(size(body_verts)), source=.false.)
-        j = 0
-        do i=1,size(body_edges)
-            if (body_edges(i)%sheds_wake) then
+        !! Get indices of wake-shedding edges and vertices
+        !allocate(wake_edge_indices(N_wake_edges))
+        !allocate(is_wake_edge_vertex(size(body_verts)), source=.false.)
+        !j = 0
+        !do i=1,size(body_edges)
+        !    if (body_edges(i)%sheds_wake) then
 
-                ! Store edge index
-                j = j + 1
-                wake_edge_indices(j) = i
+        !        ! Store edge index
+        !        j = j + 1
+        !        wake_edge_indices(j) = i
 
-                ! Store that the vertices are wake-shedding
-                is_wake_edge_vertex(body_edges(i)%top_verts(1)) = .true.
-                is_wake_edge_vertex(body_edges(i)%top_verts(2)) = .true.
+        !        ! Store that the vertices are wake-shedding
+        !        is_wake_edge_vertex(body_edges(i)%top_verts(1)) = .true.
+        !        is_wake_edge_vertex(body_edges(i)%top_verts(2)) = .true.
 
-            end if
-        end do
+        !    end if
+        !end do
 
-        ! Determine how many vertices are along the wake-shedding edges
-        N_wake_edge_verts = count(is_wake_edge_vertex)
+        !! Determine how many vertices are along the wake-shedding edges
+        !N_wake_edge_verts = count(is_wake_edge_vertex)
 
-        ! Get wake-shedding edge vertex indices
-        allocate(wake_edge_verts(N_wake_edge_verts))
-        j = 0
-        do i=1,size(body_verts)
-            if (is_wake_edge_vertex(i)) then
-                j = j + 1
-                wake_edge_verts(j) = i
-                body_verts(i)%index_in_wake_vertices = j
-            end if
-        end do
-        deallocate(is_wake_edge_vertex)
+        !! Get wake-shedding edge vertex indices
+        !allocate(wake_edge_verts(N_wake_edge_verts))
+        !j = 0
+        !do i=1,size(body_verts)
+        !    if (is_wake_edge_vertex(i)) then
+        !        j = j + 1
+        !        wake_edge_verts(j) = i
+        !        body_verts(i)%index_in_wake_vertices = j
+        !    end if
+        !end do
+        !deallocate(is_wake_edge_vertex)
 
-        ! Determine necessary number of vertices
-        if (asym_flow) then
-            this%N_verts = N_wake_edge_verts*(N_panels_streamwise+1)*2
-        else
-            this%N_verts = N_wake_edge_verts*(N_panels_streamwise+1)
-        end if
+        !! Determine necessary number of vertices
+        !if (asym_flow) then
+        !    this%N_verts = N_wake_edge_verts*(N_panels_streamwise+1)*2
+        !else
+        !    this%N_verts = N_wake_edge_verts*(N_panels_streamwise+1)
+        !end if
 
-        ! Determine necessary number of panels
-        if (asym_flow) then
-            this%N_panels = N_wake_edges*N_panels_streamwise*4
-        else
-            this%N_panels = N_wake_edges*N_panels_streamwise*2
-        end if
+        !! Determine necessary number of panels
+        !if (asym_flow) then
+        !    this%N_panels = N_wake_edges*N_panels_streamwise*4
+        !else
+        !    this%N_panels = N_wake_edges*N_panels_streamwise*2
+        !end if
 
-        ! Initialize vertices
-        call this%init_vertices(body_verts, freestream, wake_edge_verts, asym_flow, trefftz_dist, N_panels_streamwise, mirror_plane)
+        !! Initialize vertices
+        !call this%init_vertices(body_verts, freestream, wake_edge_verts, asym_flow, trefftz_dist, N_panels_streamwise, mirror_plane)
 
-        ! Initialize panels
-        call this%init_panels(body_edges, body_verts, N_panels_streamwise, wake_edge_indices, asym_flow, N_body_panels)
+        !! Initialize panels
+        !call this%init_panels(body_edges, body_verts, N_panels_streamwise, wake_edge_indices, asym_flow, N_body_panels)
 
-        ! Initialize midpoints (if needed)
-        if (doublet_order == 2) then
-            call this%init_midpoints(body_edges, body_verts, wake_edge_indices, asym_flow)
-        end if
+        !! Initialize midpoints (if needed)
+        !if (higher_order) then
+        !    call this%init_midpoints(body_edges, body_verts, wake_edge_indices, asym_flow)
+        !end if
 
-        ! Initialize freestream-dependent properties of panels once the midpoints have been created
-        ! The mirror of wake panels will never need to be initialized
-        do i=1,this%N_panels
-            call this%panels(i)%init_with_flow(freestream, .false., mirror_plane)
-            call this%panels(i)%set_influencing_verts()
-        end do
+        !! Initialize freestream-dependent properties of panels once the midpoints have been created
+        !! The mirror of wake panels will never need to be initialized
+        !do i=1,this%N_panels
+        !    call this%panels(i)%init_with_flow(freestream, .false., mirror_plane)
+        !    call this%panels(i)%set_influencing_verts()
+        !end do
 
-        if (verbose) write(*,'(a i7 a i7 a)') "Done. Created ", this%N_verts, " wake vertices and ", &
-                                              this%N_panels, " wake panels."
+        if (verbose) write(*,'(a i7 a i7 a i7 a)') "Done. Created ", this%N_verts, " wake vertices and ", &
+                                              this%N_panels, " wake panels distributed between ", &
+                                              this%N_strips, " strips."
 
     end subroutine wake_mesh_init
 
@@ -190,15 +196,29 @@ contains
 
             ! Initialize strip
             i_strip = i_strip + 1
-            call this%strips(i_strip)%init(freestream, body_edges(i_start_edge), .false., 0, &
-                                           N_panels_streamwise, trefftz_dist, body_verts)
+            call this%strips(i_strip)%init(freestream, body_edges(i_start_edge), .false., mirror_plane, &
+                                           N_panels_streamwise, trefftz_dist, body_verts, this%mirrored)
 
             ! Check if we need to create a mirror strip
             if (asym_flow .and. .not. body_edges(i_start_edge)%on_mirror_plane) then
                 i_strip = i_strip + 1
                 call this%strips(i_strip)%init(freestream, body_edges(i_start_edge), .true., mirror_plane, &
-                                               N_panels_streamwise, trefftz_dist, body_verts)
+                                               N_panels_streamwise, trefftz_dist, body_verts, this%mirrored)
             end if
+        end do
+
+        ! Find out the maximum number of vertices and panels between the strips and totals
+        this%N_verts = 0
+        this%N_panels = 0
+        do i=1,this%N_strips
+
+            ! Find maxima
+            this%N_max_strip_panels = max(this%N_max_strip_panels, this%strips(i)%N_panels)
+            this%N_max_strip_verts = max(this%N_max_strip_verts, this%strips(i)%N_verts)
+
+            ! Sum totals
+            this%N_verts = this%N_verts + this%strips(i)%N_verts
+            this%N_panels = this%N_panels + this%strips(i)%N_panels
         end do
         
     end subroutine wake_mesh_init_strips
@@ -207,6 +227,7 @@ contains
     subroutine wake_mesh_init_vertices(this, body_verts, freestream, wake_edge_verts, asym_flow, &
                                        trefftz_dist, N_panels_streamwise, mirror_plane)
         ! Initializes the vertices for the mesh
+        ! Obsolete
 
         class(wake_mesh),intent(inout) :: this
         type(vertex),allocatable,dimension(:),intent(inout) :: body_verts
@@ -304,6 +325,7 @@ contains
 
     subroutine wake_mesh_init_panels(this, body_edges, body_verts, N_panels_streamwise, wake_edge_indices, asym_flow, N_body_panels)
         ! Initializes the wake panels
+        ! Obsolete
 
         class(wake_mesh),intent(inout) :: this
         type(edge),allocatable,dimension(:),intent(in) :: body_edges
@@ -425,6 +447,7 @@ contains
 
     subroutine wake_mesh_init_panel(this, i_panel, i1, i2, i3, skipped_panels, mirror)
         ! Creates the specified panel
+        ! Obsolete
 
         implicit none
         
@@ -455,6 +478,7 @@ contains
 
     subroutine wake_mesh_init_midpoints(this, body_edges, body_verts, wake_edge_indices, asym_flow)
         ! Initializes the midpoints for the wake mesh
+        ! Obsolete
 
         class(wake_mesh),intent(inout),target :: this
         type(edge),allocatable,dimension(:),intent(in) :: body_edges
@@ -462,7 +486,7 @@ contains
         integer,dimension(:),allocatable,intent(in) :: wake_edge_indices
         logical,intent(in) :: asym_flow
 
-        integer :: i_mid, i, j, k, m, n, m1, n1, temp, i_edge, i_midpoint_parent, i_pot_edge, j_next, i_start, N_mids
+        integer :: i_mid, i, j, k, m, n, m1, n1, temp, i_edge, i_pot_edge, j_next, i_start, N_mids
         real :: distance
         integer,dimension(2) :: shared
         integer,dimension(:,:),allocatable :: shared_verts
@@ -614,6 +638,7 @@ contains
 
     subroutine wake_mesh_determine_midpoint_parents(this, i_mid, shared, body_edges, body_verts, wake_edge_indices, asym_flow)
         ! Determines which mesh vertices are the parents of the given midpoint
+        ! Obsolete
 
         implicit none
         
@@ -625,7 +650,7 @@ contains
         integer,dimension(:),allocatable,intent(in) :: wake_edge_indices
         logical,intent(in) :: asym_flow
 
-        integer :: k, i_pot_edge, i_midpoint_parent, N_body_verts
+        integer :: k, i_pot_edge, N_body_verts
 
         N_body_verts = size(body_verts)
 
@@ -650,12 +675,9 @@ contains
                     (this%vertices(shared(2))%top_parent == body_edges(i_pot_edge)%top_verts(1).and.&
                      this%vertices(shared(1))%top_parent == body_edges(i_pot_edge)%top_verts(2)))then
 
-                    ! Get midpoint index
-                    i_midpoint_parent = body_edges(i_pot_edge)%i_midpoint
-
                     ! Set parents
-                    this%vertices(i_mid)%top_parent = i_midpoint_parent
-                    this%vertices(i_mid)%bot_parent = body_verts(i_midpoint_parent)%i_wake_partner
+                    this%vertices(i_mid)%top_parent = body_edges(i_pot_edge)%top_midpoint
+                    this%vertices(i_mid)%bot_parent = body_edges(i_pot_edge)%bot_midpoint
 
                     exit potential_edge_loop
 
@@ -667,12 +689,10 @@ contains
                   this%vertices(shared(1))%top_parent == body_edges(i_pot_edge)%top_verts(2)+N_body_verts)))then
 
                     ! Get midpoint index
-                    i_midpoint_parent = body_edges(i_pot_edge)%i_midpoint
 
                     ! Set parents
-                    this%vertices(i_mid)%top_parent = i_midpoint_parent + N_body_verts
-                    this%vertices(i_mid)%bot_parent = body_verts(i_midpoint_parent)%i_wake_partner &
-                                                      + N_body_verts
+                    this%vertices(i_mid)%top_parent = body_edges(i_pot_edge)%top_midpoint + N_body_verts
+                    this%vertices(i_mid)%bot_parent = body_edges(i_pot_edge)%bot_midpoint + N_body_verts
 
                 end if
             end do potential_edge_loop
@@ -684,6 +704,7 @@ contains
 
     subroutine wake_mesh_write_wake(this, wake_file, exported, mu)
         ! Writes the wake out to file
+        ! Obsolete
 
         implicit none
         
@@ -704,7 +725,7 @@ contains
             ! Write out geometry
             call wake_vtk%begin(wake_file)
             call wake_vtk%write_points(this%vertices)
-            call wake_vtk%write_panels(this%panels, subdivide=doublet_order==2, mirror=.false.)
+            call wake_vtk%write_panels(this%panels, subdivide=higher_order, mirror=.false.)
             call wake_vtk%write_cell_normals(this%panels)
 
             if (present(mu)) then
@@ -731,7 +752,7 @@ contains
 
 
     subroutine wake_mesh_write_strips(this, wake_file, exported, mu)
-        ! Writes the wake out to file
+        ! Writes the wake strips out to file
 
         implicit none
         
@@ -775,7 +796,7 @@ contains
             ! Write out panels
             shift = 0
             do k=1,this%N_strips
-                call wake_vtk%write_panels(this%strips(k)%panels, subdivide=doublet_order==2, mirror=.false., &
+                call wake_vtk%write_panels(this%strips(k)%panels, subdivide=higher_order, mirror=.false., &
                                            vertex_index_shift=shift, N_total_panels=N_panels)
                 shift = shift + this%strips(k)%N_verts
             end do

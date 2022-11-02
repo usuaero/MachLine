@@ -7,7 +7,7 @@
         ]
     },
     "geometry": {
-        "file": "studies/panel_regularity_sphere_study/meshes/random_sphere_ultra_fine_sample_9.vtk",
+        "file": "studies/panel_regularity_sphere_study/meshes/random_sphere_ultra_coarse_sample_0.vtk",
         "spanwise_axis": "+y",
         "wake_model": {
             "wake_present": false
@@ -26,7 +26,7 @@
     },
     "post_processing": {},
     "output": {
-        "body_file": "studies/panel_regularity_sphere_study/meshes/random_sphere_ultra_fine_sample_9.vtk",
-        "report_file": "studies/panel_regularity_sphere_study/reports/random_sphere_ultra_fine_sample_9.json"
+        "body_file": "studies/panel_regularity_sphere_study/meshes/random_sphere_ultra_coarse_sample_0.vtk",
+        "report_file": "studies/panel_regularity_sphere_study/reports/random_sphere_ultra_coarse_sample_0.json"
     }
 }

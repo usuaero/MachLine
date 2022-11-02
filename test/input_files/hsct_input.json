@@ -1,0 +1,25 @@
+{
+    "flow": {
+        "freestream_velocity": [1.0, 0.0, 0.1]
+    },
+    "geometry": {
+        "file": "test/meshes/HSCT.vtk",
+        "mirror_about" : "xz",
+        "spanwise_axis" : "+y",
+        "wake_model": {
+            "trefftz_distance" : 100.0
+        },
+        "reference": {
+            "area": 0.15
+        }
+    },
+    "solver": {
+    },
+    "post_processing" : {
+        "pressure_rules" : {
+        }
+    },
+    "output": {
+        "report_file" : "test/results/report.json"
+    }
+}
