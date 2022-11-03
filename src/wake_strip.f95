@@ -27,7 +27,7 @@ contains
 
 
     subroutine wake_strip_init(this, freestream, starting_edge, mirror_start, mirror_plane, &
-                               N_panels_streamwise, trefftz_dist, body_verts, wake_mirrored)
+                               N_panels_streamwise, trefftz_dist, body_verts, wake_mirrored, initial_panel_order)
         ! Initializes this wake strip based on the provided info
 
         implicit none
@@ -36,7 +36,7 @@ contains
         type(flow),intent(in) :: freestream
         type(edge),intent(in) :: starting_edge
         logical,intent(in) :: mirror_start
-        integer,intent(in) :: mirror_plane, N_panels_streamwise
+        integer,intent(in) :: mirror_plane, N_panels_streamwise, initial_panel_order
         real,intent(in) :: trefftz_dist
         type(vertex),dimension(:),allocatable,intent(in) :: body_verts
         logical,intent(in) :: wake_mirrored
@@ -80,32 +80,16 @@ contains
 
         end if
 
-        ! Get midpoint parent vertices
-        if (higher_order) then
-            if (mirror_start) then
-                this%i_top_parent_mid = starting_edge%top_midpoint + N_body_verts
-                this%i_bot_parent_mid = starting_edge%bot_midpoint + N_body_verts
-            else
-                this%i_top_parent_mid = starting_edge%top_midpoint
-                this%i_bot_parent_mid = starting_edge%bot_midpoint
-            end if
-        end if
-
         ! Initialize vertices
         call this%init_vertices(freestream, mirror_start, N_panels_streamwise, trefftz_dist, start_1, start_2, body_verts)
 
         ! Intialize panels
         call this%init_panels(N_panels_streamwise)
 
-        ! Initialize midpoints
-        if (higher_order) then
-            call this%init_midpoints()
-        end if
-
         ! Initialize other panel properties
         do i=1,this%N_panels
             call this%panels(i)%init_with_flow(freestream, this%mirrored, mirror_plane)
-            call this%panels(i)%set_influencing_verts()
+            call this%panels(i)%set_distribution(initial_panel_order, this%panels, mirrored=this%mirrored)
         end do
 
     end subroutine wake_strip_init

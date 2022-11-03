@@ -66,6 +66,7 @@ module base_geom_mod
         integer,dimension(2) :: edge_index_for_panel ! Index of the edge which this is for each panel; edge should proceed counterclockwise for the top panel
         logical :: on_mirror_plane ! Whether this edge lies on the mirror plane
         logical :: sheds_wake ! Whether this edge sheds a wake
+        logical :: discontinuous ! Whether this edge is discontinuous in a geometric sense
         real :: l ! Length
 
         contains

@@ -35,10 +35,12 @@ def get_full_method_results(input_filename):
     # Get results
     runtime = report["total_runtime"]
     if solver_stat == 0:
-        solver_time = report["solver_results"]["matrix_solver_time"]
+        sort_time = report["solver_results"]["timing"]["system_sorting"]
+        prec_time = report["solver_results"]["timing"]["preconditioner"]
+        solver_time = report["solver_results"]["timing"]["matrix_solver"]
         res_norm = report["solver_results"]["residual"]["norm"]
         iterations = report["solver_results"].get("iterations", "N/A")
-        return runtime, solver_time, res_norm, iterations
+        return runtime, sort_time, prec_time, solver_time, res_norm, iterations
     else:
         return runtime, solver_stat
 
@@ -102,7 +104,7 @@ def run_paces(mesh_root_name, v_inf, M, mirror_plane, vtk_mesh):
     # Assumes the mesh has 'coase', 'medium', and 'fine' refinements available
 
     # Options to iterate through
-    solver_options = ["QRUP", "BJAC", "BSOR", "LU", "FQRUP", "GMRES"]
+    solver_options = ["LU", "BJAC", "BSOR", "QRUP", "FQRUP", "GMRES"]
     refinement_options = ["coarse", "medium", "fine"]
     preconditioner_options = ["DIAG", "none"]
     sort_system_options = [True, False]
@@ -119,14 +121,10 @@ def run_paces(mesh_root_name, v_inf, M, mirror_plane, vtk_mesh):
         data_handle.flush()
 
         # Iterate
-        for solver in solver_options:
-            for refinement in refinement_options:
+        for sort_system in sort_system_options:
+            for solver in solver_options:
                 for preconditioner in preconditioner_options:
-                    for sort_system in sort_system_options:
-
-                        # Run MachLine once to write out linear system (need to set fast solver here)
-                        write_input_file(input_filename, mesh_root_name, v_inf, M, "GMRES", refinement, preconditioner, sort_system, True, vtk_mesh, mirror_plane=mirror_plane)
-                        sp.run(["./machline.exe", input_filename])
+                    for refinement in refinement_options:
 
                         # If this is an iterative solver, run one time writing out the residual history
                         if solver in ["GMRES", "BJAC", "BSOR"]:
@@ -141,11 +139,11 @@ def run_paces(mesh_root_name, v_inf, M, mirror_plane, vtk_mesh):
 
                             # Get run times
                             result = get_full_method_results(input_filename)
-                            if len(result) == 4:
-                                runtime_m, runtime_s, res_norm, iterations = result
+                            if len(result) == 6:
+                                runtime_m, sort_time, prec_time, solver_time, res_norm, iterations = result
 
                                 # Write results
-                                print("{0},{1},{2},{3},{4},{5:.12e},{6:.12e},{7:.12e},{8}".format(solver, refinement, preconditioner, sort_system, i, runtime_m, runtime_s, res_norm, iterations), file=data_handle)
+                                print("{0},{1},{2},{3},{4},{5:.12e},{6:.12e},{7:.12e},{8}".format(solver, refinement, preconditioner, sort_system, i, runtime_m, solver_time+sort_time+prec_time, res_norm, iterations), file=data_handle)
                                 data_handle.flush()
 
                             # Execution failed

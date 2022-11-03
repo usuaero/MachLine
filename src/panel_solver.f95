@@ -25,8 +25,9 @@ module panel_solver_mod
         type(dod),dimension(:,:),allocatable :: dod_info
         type(dod),dimension(:,:,:),allocatable :: wake_dod_info
         type(flow) :: freestream
-        real :: norm_res, max_res, tol, rel, solver_time
-        real,dimension(3) :: C_F, inner_flow
+        real :: norm_res, max_res, tol, rel
+        real :: sort_time, prec_time, solver_time
+        real,dimension(3) :: C_F, C_M, inner_flow
         real,dimension(:,:),allocatable :: A
         real,dimension(:),allocatable :: b, I_known, BC
         integer,dimension(:),allocatable :: P
@@ -67,6 +68,7 @@ module panel_solver_mod
             procedure :: subsonic_pressure_correction => panel_solver_subsonic_pressure_correction
             procedure :: calc_crit_mach => panel_solver_calc_crit_mach
             procedure :: calc_forces => panel_solver_calc_forces
+            procedure :: calc_moments => panel_solver_calc_moments
             procedure :: calc_forces_with_pressure => panel_solver_calc_forces_with_pressure
 
             ! Results export
@@ -311,22 +313,10 @@ contains
         integer :: i, j
 
         ! Determine number of source strengths
-        if (higher_order) then
-
-            if (body%asym_flow) then
-                this%N_sigma = body%N_verts*2
-            else
-                this%N_sigma = body%N_verts
-            end if
-
+        if (body%asym_flow) then
+            this%N_sigma = body%N_panels*2
         else
-
-            if (body%asym_flow) then
-                this%N_sigma = body%N_panels*2
-            else
-                this%N_sigma = body%N_panels
-            end if
-
+            this%N_sigma = body%N_panels
         end if
 
         ! The number of doublet unknowns is equal to the number of mesh vertices
@@ -337,46 +327,41 @@ contains
             this%N_d_unknown = body%N_verts
         end if
 
-        ! The number of source unknowns is dependent upon the number of superinclined panels
-        ! For lower-order distributions, the number of source unknowns is simply the number of superinclined panels
-        ! For higher-order distributions, the number of source unknowns is the number of vertices which touch only superinclined panels (?)
+        ! The number of source unknowns is simply the number of superinclined panels
         allocate(this%sigma_known(this%N_sigma), source=.true.)
-        if (.not. higher_order) then
-            this%N_s_unknown = body%N_supinc
+        this%N_s_unknown = body%N_supinc
 
-            ! Allocate vectors mapping unknown sigmas into the (unpermuted) linear system and back
-            allocate(this%i_sigma_in_sys(this%N_sigma), source=0)
-            allocate(this%i_sys_sigma_in_body(this%N_s_unknown), source=0)
+        ! Allocate vectors mapping unknown sigmas into the (unpermuted) linear system and back
+        allocate(this%i_sigma_in_sys(this%N_sigma), source=0)
+        allocate(this%i_sys_sigma_in_body(this%N_s_unknown), source=0)
 
-            ! Create mapping
-            j = this%N_d_unknown
+        ! Create mapping
+        j = this%N_d_unknown
 
-            ! Loop through original panels
+        ! Loop through original panels
+        do i=1,body%N_panels
+
+            ! Check for superinclined
+            if (body%panels(i)%r < 0) then
+                j = j + 1
+                this%i_sigma_in_sys(i) = j
+                this%i_sys_sigma_in_body(j-this%N_d_unknown) = i
+                this%sigma_known(i) = .false.
+            end if
+        end do
+
+        ! Loop through mirrored panels
+        if (body%asym_flow) then
             do i=1,body%N_panels
 
                 ! Check for superinclined
-                if (body%panels(i)%r < 0) then
+                if (body%panels(i)%r_mir < 0) then
                     j = j + 1
-                    this%i_sigma_in_sys(i) = j
-                    this%i_sys_sigma_in_body(j-this%N_d_unknown) = i
-                    this%sigma_known(i) = .false.
+                    this%i_sigma_in_sys(i+body%N_panels) = j
+                    this%i_sys_sigma_in_body(j-this%N_d_unknown) = i+body%N_panels
+                    this%sigma_known(i+body%N_panels) = .false.
                 end if
             end do
-
-            ! Loop through mirrored panels
-            if (body%asym_flow) then
-                do i=1,body%N_panels
-
-                    ! Check for superinclined
-                    if (body%panels(i)%r_mir < 0) then
-                        j = j + 1
-                        this%i_sigma_in_sys(i+body%N_panels) = j
-                        this%i_sys_sigma_in_body(j-this%N_d_unknown) = i+body%N_panels
-                        this%sigma_known(i+body%N_panels) = .false.
-                    end if
-                end do
-            end if
-
         end if
 
         ! Total number of unknowns
@@ -590,6 +575,8 @@ contains
         real,dimension(3) :: loc
         integer :: i, j, i_neighbor, i_cp, i_vert, i_panel
         integer,dimension(:),allocatable :: P_inv_1, P_inv_2
+        integer(8) :: start_count, end_count
+        real(16) :: count_rate
 
         ! Sort control points in the compressibility direction
         ! We do this using the location of the vertex/panel centroid tied to each control point
@@ -600,6 +587,7 @@ contains
             if (verbose) write(*,'(a)',advance='no') "     Permuting linear system for efficient solution..."
 
             ! Sort by actual vertex location first
+            call system_clock(start_count, count_rate)
             allocate(x(this%N_unknown))
 
             ! Add compressibility distance of each vertex/panel centroid
@@ -701,18 +689,26 @@ contains
                 this%P(P_inv_1(P_inv_2(i))) = i
             end do
 
+            ! Get timing
+            call system_clock(end_count)
+
             if (verbose) write(*,*) "Done."
 
         else
 
             ! Identity permutation
+            call system_clock(start_count, count_rate)
             allocate(this%P(this%N_unknown))
             this%P(1:body%N_verts) = body%vertex_ordering
             if (this%N_unknown > body%N_verts) then
                 this%P(body%N_verts+1:) = body%vertex_ordering + body%N_verts
             end if
+            call system_clock(end_count)
 
         end if
+
+        ! Calculate elapsed time
+        this%sort_time = real(end_count - start_count)/count_rate
     
     end subroutine panel_solver_set_permutation
 
@@ -772,7 +768,6 @@ contains
 
         ! Calculate velocities
         call this%calc_cell_velocities(body)
-        if (higher_order) call this%calc_point_velocities(body)
         
         ! Calculate potentials
         call this%calc_surface_potentials(body)
@@ -782,6 +777,9 @@ contains
 
         ! Calculate forces
         call this%calc_forces(body)
+
+        ! Calculate moments
+        call this%calc_moments(body)
 
     end subroutine panel_solver_solve
 
@@ -840,41 +838,21 @@ contains
 
             if (verbose) write(*,'(a)',advance='no') "     Calculating source strengths..."
 
-            ! Use vertex normals
-            if (higher_order) then
+            ! Loop through panels
+            do i=1,body%N_panels
 
-                ! Loop through vertices
-                do i=1,body%N_verts
+                ! Existing panels
+                if (this%sigma_known(i)) then
+                    body%sigma(i) = -inner(body%panels(i)%n_g, this%freestream%c_hat_g)
+                end if
 
-                    ! Existing vertices
-                    body%sigma(i) = -inner(body%vertices(i)%n_g, this%freestream%c_hat_g)
-
-                    ! Mirrored panels for asymmetric flow
-                    if (body%asym_flow) then
-                        body%sigma(i+body%N_verts) = -inner(body%vertices(i)%n_g_mir, this%freestream%c_hat_g)
+                ! Mirrored panels for asymmetric flow
+                if (body%asym_flow) then
+                    if (this%sigma_known(i+body%N_panels)) then
+                        body%sigma(i+body%N_panels) = -inner(body%panels(i)%n_g_mir, this%freestream%c_hat_g)
                     end if
-                end do
-
-            ! Use panel normals
-            else
-
-                ! Loop through panels
-                do i=1,body%N_panels
-
-                    ! Existing panels
-                    if (this%sigma_known(i)) then
-                        body%sigma(i) = -inner(body%panels(i)%n_g, this%freestream%c_hat_g)
-                    end if
-
-                    ! Mirrored panels for asymmetric flow
-                    if (body%asym_flow) then
-                        if (this%sigma_known(i+body%N_panels)) then
-                            body%sigma(i+body%N_panels) = -inner(body%panels(i)%n_g_mir, this%freestream%c_hat_g)
-                        end if
-                    end if
-                end do
-
-            end if
+                end if
+            end do
 
             if (verbose) write(*,*) "Done."
         end if
@@ -896,56 +874,55 @@ contains
         real,dimension(:),allocatable,intent(in) :: source_inf, doublet_inf
         logical,intent(in) :: mirrored_panel
 
-        integer :: i, k
+        integer :: i, k, index
 
         ! Add source influence (if sources are present)
         if (cp%bc == 1 .or. cp%bc == 3) then
 
-            ! Constant
-            if (.not. higher_order) then
+            ! Get determining index
+            if (mirrored_panel) then
+                i = i_panel + body%N_panels
+            else
+                i = i_panel
+            end if
 
-                ! Get determining index
+            ! Loop through influencing panels
+            do k=1,size(body%panels(i_panel)%i_panel_s)
+
+                ! Need to shift indices for mirrored panels
                 if (mirrored_panel) then
-                    i = i_panel + body%N_panels
+                    index = body%panels(i_panel)%i_panel_s(k)+body%N_panels
                 else
-                    i = i_panel
+                    index = body%panels(i_panel)%i_panel_s(k)
                 end if
 
                 ! Add to known influences if sigma is known
-                if (this%sigma_known(i)) then
-                    I_known_i = I_known_i + source_inf(1)*body%sigma(i)
+                if (this%sigma_known(index)) then
+                    I_known_i = I_known_i + source_inf(1)*body%sigma(index)
 
                 ! Add to A matrix if not
                 else
-                    A_row(this%P(this%i_sigma_in_sys(i))) = A_row(this%P(this%i_sigma_in_sys(i))) + source_inf(1)
+                    A_row(this%P(this%i_sigma_in_sys(index))) = A_row(this%P(this%i_sigma_in_sys(index))) + source_inf(1)
                 end if
 
-            ! Linear
-            else
-                do k=1,size(body%panels(i_panel)%i_vert_s)
-                    if (mirrored_panel) then
-                        I_known_i = I_known_i + source_inf(k)*body%sigma(body%panels(i_panel)%i_vert_s(k)+body%N_verts)
-                    else
-                        I_known_i = I_known_i + source_inf(k)*body%sigma(body%panels(i_panel)%i_vert_s(k))
-                    end if
-                end do
-            end if
+            end do
+
         end if
 
         ! Add doublet influence
-        ! This method is the same for linear and quadratic doublets
-        ! Loop through panel vertices
+
+        ! Loop through influencing vertices
         do k=1,size(body%panels(i_panel)%i_vert_d)
 
             ! Need to shift indices for mirrored panels
             if (mirrored_panel) then
-                A_row(this%P(body%panels(i_panel)%i_vert_d(k)+body%N_verts)) = &
-                        A_row(this%P(body%panels(i_panel)%i_vert_d(k)+body%N_verts)) + doublet_inf(k)
-
-            ! Not mirrored
+                index = body%panels(i_panel)%i_vert_d(k)+body%N_verts
             else
-                A_row(this%P(body%panels(i_panel)%i_vert_d(k))) = A_row(this%P(body%panels(i_panel)%i_vert_d(k))) + doublet_inf(k)
+                index = body%panels(i_panel)%i_vert_d(k)
             end if
+
+            ! Update
+            A_row(this%P(index)) = A_row(this%P(index)) + doublet_inf(k)
 
         end do
     
@@ -1235,16 +1212,23 @@ contains
 
         ! Diagonal preconditioning
         case ('DIAG')
+            call system_clock(start_count, count_rate)
             call diagonal_preconditioner(this%N_unknown, this%A, this%b, A_p, b_p)
+            call system_clock(end_count)
 
         ! No preconditioning
         case default
+            call system_clock(start_count, count_rate)
             allocate(A_p, source=this%A, stat=stat)
             call check_allocation(stat, "solver copy of AIC matrix")
             allocate(b_p, source=this%b, stat=stat)
             call check_allocation(stat, "solver copy of b vector")
+            call system_clock(end_count)
 
         end select
+
+        ! Calculate how much time preconditioning took
+        this%prec_time = real(end_count-start_count)/count_rate
 
         ! Solve
         select case(this%matrix_solver)
@@ -1384,10 +1368,6 @@ contains
         if (body%asym_flow) then
             this%N_cells = this%N_cells*2
         end if
-        if (higher_order) then
-            this%N_cells = this%N_cells*4
-            N_cycle = 4
-        end if
 
         ! Allocate cell velocity storage
         allocate(body%V_cells(3,this%N_cells), stat=stat)
@@ -1403,20 +1383,6 @@ contains
             ! Calculate velocity
             body%V_cells(:,(i-1)*N_cycle+1) = this%freestream%U*(this%inner_flow + v_jump)
 
-            ! Calculate for subpanels
-            if (higher_order) then
-                do j=1,body%panels(i)%N
-
-                    ! Get centroid
-                    cent = body%panels(i)%get_subpanel_centroid(j)
-
-                    ! Calculate velocity
-                    v_jump = body%panels(i)%get_velocity_jump(body%mu, body%sigma, .false., cent)
-                    body%V_cells(:,(i-1)*N_cycle+1+j) = this%freestream%U*(this%inner_flow + v_jump)
-
-                end do
-            end if
-
             ! Calculate surface velocity on each mirrored panel
             if (body%asym_flow) then
 
@@ -1425,20 +1391,6 @@ contains
 
                 ! Calculate velocity
                 body%V_cells(:,(i-1)*N_cycle+1+this%N_cells/2) = this%freestream%U*(this%inner_flow + v_jump)
-
-                ! Calculate for subpanels
-                if (higher_order) then
-                    do j=1,body%panels(i)%N
-
-                        ! Get centroid
-                        cent = mirror_across_plane(body%panels(i)%get_subpanel_centroid(j), body%mirror_plane)
-
-                        ! Calculate velocity
-                        v_jump = body%panels(i)%get_velocity_jump(body%mu, body%sigma, .true., cent)
-                        body%V_cells(:,(i-1)*N_cycle+1+j+this%N_cells/2) = this%freestream%U*(this%inner_flow + v_jump)
-
-                    end do
-                end if
 
             end if
         end do
@@ -1935,7 +1887,7 @@ contains
         
         implicit none
         
-        class(panel_solver),intent(inout) :: this
+        class(panel_solver),intent(in) :: this
         type(surface_mesh),intent(inout) :: body
         real,dimension(:),allocatable :: pressures
         
@@ -1950,29 +1902,70 @@ contains
         do i=1,body%N_panels
 
             ! Discrete force coefficient acting on panel
-            if (higher_order) then
-                do j=1,4
-                    body%dC_f(:,4*(i-1)+j) = -pressures(4*(i-1)+j)*0.25*body%panels(i)%A*body%panels(i)%n_g
-                end do
-            else
-                body%dC_f(:,i) = -pressures(i)*body%panels(i)%A*body%panels(i)%n_g
-            end if
+            body%dC_f(:,i) = -pressures(i)*body%panels(i)%A*body%panels(i)%n_g
 
             ! Mirror
             if (body%asym_flow) then
-                if (higher_order) then
-                    do j=1,4
-                        body%dC_f(:,4*(i-1)+j+this%N_cells/2) = &
-                            -pressures(4*(i-1)+j+this%N_cells/2)*0.25*body%panels(i)%A*body%panels(i)%n_g_mir
-                    end do
-                else
-                    body%dC_f(:,i+this%N_cells/2) = -pressures(i+this%N_cells/2)*body%panels(i)%A*body%panels(i)%n_g_mir
-                end if
+                body%dC_f(:,i+this%N_cells/2) = -pressures(i+this%N_cells/2)*body%panels(i)%A*body%panels(i)%n_g_mir
             end if
 
         end do
     
     end subroutine panel_solver_calc_forces_with_pressure
+
+
+    subroutine panel_solver_calc_moments(this, body)
+        ! Calculates the moments acting on the body
+
+        implicit none
+        
+        class(panel_solver),intent(inout) :: this
+        type(surface_mesh),intent(inout) :: body
+
+        integer i, stat
+        real,dimension(:,:),allocatable :: dC_m
+
+        if (verbose) write(*,'(a)',advance='no') "     Calculating moments..."
+
+        ! Allocate moment storage
+        allocate(dC_m(3,this%N_cells), stat=stat)
+        call check_allocation(stat, "cell moments")
+    
+        ! Calculate moment induced by each panel
+        !$OMP parallel do schedule(static)
+        do i=1,body%N_panels
+
+            ! Discrete moment acting on each panel
+            dC_m(:,i) = cross(body%panels(i)%centr-body%CG, body%dC_f(:,i))
+
+            ! Mirror
+            if (body%asym_flow) then
+                dC_m(:,i+this%N_cells/2) = cross(body%panels(i)%centr_mir-body%CG, body%dC_f(:,i))
+            end if
+        end do
+
+        ! Sum
+        this%C_M = sum(dC_m, dim=2)/(body%l_ref*body%S_ref)
+
+        ! Add contributions from mirrored half
+        if (body%mirrored .and. .not. body%asym_flow) then
+            do i=1,3
+                if (i == body%mirror_plane) then
+                    this%C_M(i) = 2.*this%C_M(i)
+                else
+                    this%C_M(i) = 0.
+                end if
+            end do
+        end if
+
+        if (verbose) then
+            write(*,*) "Done."
+            write(*,*) "        CMx:", this%C_M(1)
+            write(*,*) "        CMy:", this%C_M(2)
+            write(*,*) "        CMz:", this%C_M(3)
+        end if
+        
+    end subroutine panel_solver_calc_moments
 
 
     subroutine panel_solver_update_report(this, p_json, body, solver_stat)
@@ -1993,10 +1986,18 @@ contains
         call to_object(p_parent, 'solver_results')
         call json_value_add(p_json, p_parent)
 
-        ! Solver code
+        ! Solver results
         call json_value_add(p_parent, 'solver_status_code', solver_stat)
-        call json_value_add(p_parent, 'matrix_solver_time', this%solver_time)
         call json_value_add(p_parent, 'system_dimension', this%N_unknown)
+
+        ! Timing
+        call json_value_create(p_child)
+        call to_object(p_child, 'timing')
+        call json_value_add(p_parent, p_child)
+        call json_value_add(p_child, 'system_sorting', this%sort_time)
+        call json_value_add(p_child, 'preconditioner', this%prec_time)
+        call json_value_add(p_child, 'matrix_solver', this%solver_time)
+        nullify(p_child)
 
         ! Check there wasn't an error
         if (solver_stat == 0) then
@@ -2068,6 +2069,15 @@ contains
             call json_value_add(p_parent, 'Cx', this%C_F(1))
             call json_value_add(p_parent, 'Cy', this%C_F(2))
             call json_value_add(p_parent, 'Cz', this%C_F(3))
+            nullify(p_parent)
+
+            ! Write moments
+            call json_value_create(p_parent)
+            call to_object(p_parent, 'total_moments')
+            call json_value_add(p_json, p_parent)
+            call json_value_add(p_parent, 'CMx', this%C_M(1))
+            call json_value_add(p_parent, 'CMy', this%C_M(2))
+            call json_value_add(p_parent, 'CMz', this%C_M(3))
             nullify(p_parent)
 
         end if
