@@ -138,7 +138,7 @@ contains
         else
             call json_xtnsn_get(solver_settings, 'matrix_solver', this%matrix_solver, 'GMRES')
         end if
-        call json_xtnsn_get(solver_settings, 'block_size', this%block_size, 400)
+        call json_xtnsn_get(solver_settings, 'block_size', this%block_size, -1)
         call json_xtnsn_get(solver_settings, 'tolerance', this%tol, 1.e-12)
         call json_xtnsn_get(solver_settings, 'relaxation', this%rel, 0.8)
         call json_xtnsn_get(solver_settings, 'max_iterations', this%max_iterations, 1000)
@@ -1230,6 +1230,11 @@ contains
         ! Calculate how much time preconditioning took
         this%prec_time = real(end_count-start_count)/count_rate
 
+        ! Check block size
+        if (this%block_size <= 0) then
+            this%block_size = this%N_unknown / 5
+        end if
+
         ! Solve
         select case(this%matrix_solver)
 
@@ -1263,31 +1268,15 @@ contains
             call purcell_solve(this%N_unknown, A_p, b_p, x)
             call system_clock(end_count)
 
-        ! Block successive over-relaxation
-        case ('BSOR')
+        ! Block symmetric successive over-relaxation
+        case ('BSSOR')
             call system_clock(start_count, count_rate)
-            call block_sor_solve(this%N_unknown, A_p, b_p, this%block_size, this%tol, this%rel, &
-                                 this%max_iterations, this%iteration_file, this%solver_iterations, x)
-            call system_clock(end_count)
-
-        ! Adaptive block SOR (almost garbage)
-        case ('ABSOR')
-            this%rel = -1.
-            call system_clock(start_count, count_rate)
-            call block_sor_solve(this%N_unknown, A_p, b_p, this%block_size, this%tol, this%rel, &
+            call block_ssor_solve(this%N_unknown, A_p, b_p, this%block_size, this%tol, this%rel, &
                                  this%max_iterations, this%iteration_file, this%solver_iterations, x)
             call system_clock(end_count)
         
         ! Block Jacobi
         case ('BJAC')
-            call system_clock(start_count, count_rate)
-            call block_jacobi_solve(this%N_unknown, A_p, b_p, this%block_size, this%tol, this%rel, &
-                                    this%max_iterations, this%iteration_file, this%solver_iterations, x)
-            call system_clock(end_count)
-
-        ! Optimally relaxed block Jacobi (garbage)
-        case ('ORBJ')
-            this%rel = -1.
             call system_clock(start_count, count_rate)
             call block_jacobi_solve(this%N_unknown, A_p, b_p, this%block_size, this%tol, this%rel, &
                                     this%max_iterations, this%iteration_file, this%solver_iterations, x)

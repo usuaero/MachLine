@@ -1280,7 +1280,8 @@ contains
 
             ! Initialize wake
             call this%wake%init(this%edges, this%vertices, freestream, this%asym_flow, this%mirror_plane, &
-                                this%N_wake_panels_streamwise, this%trefftz_distance, this%mirrored, this%initial_panel_order)
+                                this%N_wake_panels_streamwise, this%trefftz_distance, this%mirrored, this%initial_panel_order, &
+                                this%N_panels)
         
             ! Export wake geometry
             if (wake_file /= 'none') then

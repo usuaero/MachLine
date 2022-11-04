@@ -36,7 +36,7 @@ contains
 
 
     subroutine wake_mesh_init(this, body_edges, body_verts, freestream, asym_flow, mirror_plane, N_panels_streamwise, &
-                              trefftz_dist, body_mirrored, initial_panel_order)
+                              trefftz_dist, body_mirrored, initial_panel_order, N_body_panels)
         ! Initializes the wake mesh
 
         implicit none
@@ -46,7 +46,7 @@ contains
         type(vertex),allocatable,dimension(:),intent(inout) :: body_verts
         type(flow),intent(in) :: freestream
         logical,intent(in) :: asym_flow
-        integer,intent(in) :: mirror_plane, N_panels_streamwise, initial_panel_order
+        integer,intent(in) :: mirror_plane, N_panels_streamwise, initial_panel_order, N_body_panels
         real,intent(in) :: trefftz_dist
         logical,intent(in) :: body_mirrored
 
@@ -63,7 +63,7 @@ contains
 
         ! Initialize strips
         call this%init_strips(body_edges, body_verts, freestream, asym_flow, mirror_plane, N_panels_streamwise, &
-                              trefftz_dist, initial_panel_order)
+                              trefftz_dist, initial_panel_order, N_body_panels)
 
         if (verbose) write(*,'(a i7 a i7 a i7 a)') "Done. Created ", this%N_verts, " wake vertices and ", &
                                               this%N_panels, " wake panels distributed between ", &
@@ -73,7 +73,7 @@ contains
 
 
     subroutine wake_mesh_init_strips(this, body_edges, body_verts, freestream, asym_flow, mirror_plane, &
-                              N_panels_streamwise, trefftz_dist, initial_panel_order)
+                              N_panels_streamwise, trefftz_dist, initial_panel_order, N_body_panels)
         ! Creates the strips for this wake
 
         implicit none
@@ -83,7 +83,7 @@ contains
         type(vertex),allocatable,dimension(:),intent(inout) :: body_verts
         type(flow),intent(in) :: freestream
         logical,intent(in) :: asym_flow
-        integer,intent(in) :: mirror_plane, N_panels_streamwise, initial_panel_order
+        integer,intent(in) :: mirror_plane, N_panels_streamwise, initial_panel_order, N_body_panels
         real,intent(in) :: trefftz_dist
 
         integer :: i, i_strip, i_start_edge
@@ -121,13 +121,15 @@ contains
             ! Initialize strip
             i_strip = i_strip + 1
             call this%strips(i_strip)%init(freestream, body_edges(i_start_edge), .false., mirror_plane, &
-                                           N_panels_streamwise, trefftz_dist, body_verts, this%mirrored, initial_panel_order)
+                                           N_panels_streamwise, trefftz_dist, body_verts, this%mirrored, &
+                                           initial_panel_order, N_body_panels)
 
             ! Check if we need to create a mirror strip
             if (asym_flow .and. .not. body_edges(i_start_edge)%on_mirror_plane) then
                 i_strip = i_strip + 1
                 call this%strips(i_strip)%init(freestream, body_edges(i_start_edge), .true., mirror_plane, &
-                                               N_panels_streamwise, trefftz_dist, body_verts, this%mirrored, initial_panel_order)
+                                               N_panels_streamwise, trefftz_dist, body_verts, this%mirrored, &
+                                               initial_panel_order, N_body_panels)
             end if
         end do
 

@@ -53,6 +53,7 @@ module panel_mod
         real,dimension(:,:),allocatable :: S_mu_inv, S_sigma_inv ! Matrix relating doublet/source strengths to doublet/source influence parameters
         real,dimension(:,:),allocatable :: S_mu_inv_mir, S_sigma_inv_mir
         logical :: in_wake ! Whether this panel belongs to a wake mesh
+        integer :: i_top_parent, i_bot_parent ! The parent panels for this panel, if it is in the wake
         integer,dimension(3) :: abutting_panels ! Indices of panels abutting this one
         integer,dimension(3) :: edges ! Indices of the edges of this panel
         integer :: r, r_mir ! Panel inclination indicator; r=-1 -> superinclined, r=1 -> subinclined
@@ -176,8 +177,10 @@ contains
 
         ! Initialize a few things
         this%abutting_panels = 0
-        this%order = 1
+        this%i_top_parent = 0
+        this%i_bot_parent = 0
 
+        ! Calculate panel geometries only dependent upon vertex locations (nothing flow-dependent at this point)
         call this%calc_derived_geom()
 
     end subroutine panel_init_3

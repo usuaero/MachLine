@@ -10,6 +10,7 @@ module wake_strip_mod
     type, extends(mesh) :: wake_strip
 
         integer :: i_top_parent_1, i_top_parent_2, i_bot_parent_1, i_bot_parent_2
+        integer :: i_top_parent, i_bot_parent
         integer :: i_top_parent_mid, i_bot_parent_mid
         logical :: on_mirror_plane
 
@@ -27,7 +28,7 @@ contains
 
 
     subroutine wake_strip_init(this, freestream, starting_edge, mirror_start, mirror_plane, &
-                               N_panels_streamwise, trefftz_dist, body_verts, wake_mirrored, initial_panel_order)
+                               N_panels_streamwise, trefftz_dist, body_verts, wake_mirrored, initial_panel_order, N_body_panels)
         ! Initializes this wake strip based on the provided info
 
         implicit none
@@ -36,7 +37,7 @@ contains
         type(flow),intent(in) :: freestream
         type(edge),intent(in) :: starting_edge
         logical,intent(in) :: mirror_start
-        integer,intent(in) :: mirror_plane, N_panels_streamwise, initial_panel_order
+        integer,intent(in) :: mirror_plane, N_panels_streamwise, initial_panel_order, N_body_panels
         real,intent(in) :: trefftz_dist
         type(vertex),dimension(:),allocatable,intent(in) :: body_verts
         logical,intent(in) :: wake_mirrored
@@ -66,6 +67,10 @@ contains
             this%i_bot_parent_1 = starting_edge%bot_verts(2) + N_body_verts
             this%i_bot_parent_2 = starting_edge%bot_verts(1) + N_body_verts
 
+            ! Get parent panels
+            this%i_top_parent = starting_edge%panels(1) + N_body_panels
+            this%i_top_parent = starting_edge%panels(2) + N_body_panels
+
         else
 
             ! Get starting location
@@ -77,6 +82,10 @@ contains
             this%i_top_parent_2 = starting_edge%top_verts(2)
             this%i_bot_parent_1 = starting_edge%bot_verts(1)
             this%i_bot_parent_2 = starting_edge%bot_verts(2)
+
+            ! Get parent panels
+            this%i_top_parent = starting_edge%panels(1)
+            this%i_top_parent = starting_edge%panels(2)
 
         end if
 
