@@ -5,7 +5,7 @@
             0.0,
             0.0
         ],
-        "freestream_mach_number": 1.5
+        "freestream_mach_number": 2.0
     },
     "geometry": {
         "file": "studies/matrix_solvers/meshes/cone_10_deg_medium.vtk",
@@ -13,11 +13,10 @@
         "mirror_about": "xy"
     },
     "solver": {
-        "matrix_solver": "BSSOR",
-        "preconditioner": "DIAG",
-        "sort_system": false,
-        "write_A_and_b": false,
-        "iterative_solver_output": "none"
+        "matrix_solver": "GMRES",
+        "sort_system": true,
+        "restart_iterations" : 10,
+        "iterative_solver_output": "prog.txt"
     },
     "post_processing": {},
     "output": {

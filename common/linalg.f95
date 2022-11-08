@@ -1048,41 +1048,13 @@ subroutine upper_triangular_back_sub(N, R, b, x)
     if (R(i,i) /= 0.) then
       x(i) = x(i) / R(i,i)
     else
-      write(*,*) "!!! Zero found on the diagonal of R. QR back substitution failed. Quitting..."
+      write(*,*) "!!! Zero found on the diagonal of R. Upper-triangular back substitution failed. Quitting..."
       stop
     end if
 
   end do
   
 end subroutine upper_triangular_back_sub
-
-
-function upper_triangular_det(N, R) result(det)
-  ! Calculates the scaled absolute value of the determinant of an upper-triangular matrix
-
-  implicit none
-  
-  integer,intent(in) :: N
-  real,dimension(N,N),intent(in) :: R
-
-  real :: det
-  integer :: i
-
-  ! Initialize
-  det = 1.
-
-  ! Assemble product of diagonal elements
-  do i=1,N
-    det = det*abs(R(i,i)/maxval(abs(R(i,:))))
-    write(*,*)
-    write(*,*) "Row", i
-    write(*,*) "Max value: ", R(i,maxloc(abs(R(i,:))))
-    write(*,*) "Location of max value: ", maxloc(abs(R(i,:)))
-    write(*,*) "Diagonal element: ", R(i,i)
-    write(*,*) "Determinant: ", det
-  end do
-
-end function upper_triangular_det
 
 
 subroutine gen_fast_givens_rot(x, y, a, b, D1, D2, rot_type)
@@ -1455,6 +1427,125 @@ subroutine GMRES(N, A, b, tol, max_iter, output_file, total_iter, x)
   total_iter = k
   
 end subroutine GMRES
+
+
+subroutine restarted_GMRES(N, A, b, tol, max_iter, restart_iter, output_file, total_iter, x)
+  ! Uses the generalized minimum residual algorithm to estimate the solution to Ax=b
+  ! with restarts to improve performance
+  ! Taken from "Handbook of Linear Algebra" Leslie Hogben ed.
+
+  implicit none
+  
+  integer,intent(in) :: N, max_iter, restart_iter
+  real,dimension(N,N),intent(in) :: A
+  real,dimension(N),intent(in) :: b
+  real,intent(in) :: tol
+  character(len=:),allocatable :: output_file
+  integer,intent(out) :: total_iter
+  real,dimension(:),allocatable,intent(out) :: x
+
+  integer :: i, k, k_max, unit, outer_iter
+  real,dimension(:,:),allocatable :: Q, H
+  real,dimension(N) :: E, r0
+  real :: beta, temp, err, d
+  real,dimension(:),allocatable :: y, c, s
+  logical :: verbose
+
+  ! Intialize iterations
+  total_iter = 0
+  outer_iter = 0
+
+  ! We cannot have more iterations than the size of the matrix
+  k_max = min(restart_iter, N)
+
+  ! Allocate memory for storing the orthonormal basis and rotations
+  allocate(Q(N,k_max))
+  allocate(H(k_max+1,k_max))
+  allocate(c(k_max))
+  allocate(s(k_max))
+
+  ! Initial guess
+  allocate(x(N), source=0.)
+
+  ! Start output
+  verbose = output_file /= 'none'
+  if (verbose) then
+    open(newunit=unit, file=output_file)
+    write(unit,*) "method"
+    write(unit,*) "GMRES"
+    write(unit,*) "N=", N
+    write(unit,*) "iteration,outer iteration,inner iteration,||err||"
+  end if
+
+  ! Iterate through restarts
+  err = tol + 1
+  do while (err > tol .and. total_iter <= max_iter)
+
+    outer_iter = outer_iter + 1
+
+    ! Wipe previous iteration
+    Q = 0.
+    H = 0.
+    c = 0.
+    s = 0.
+
+    ! Initialize
+    E(1) = 1.
+    E(2:) = 0.
+    r0 = b - matmul(A, x)
+    beta = norm2(r0)
+    Q(:,1) = r0/beta
+
+    ! Loop through subspaces
+    k = 0
+    do while (err > tol .and. k < k_max-1)
+
+      k = k + 1
+      total_iter = total_iter + 1
+
+      ! Update orthonormal basis using Arnoldi algorithm
+      call arnoldi_update(N, A, k, Q, H)
+
+      ! Apply rotations to new last column of H
+      do i=1,k-1
+        temp = c(i)*H(i,k) + s(i)*H(i+1,k)
+        H(i+1,k) = -s(i)*h(i,k) + c(i)*H(i+1,k)
+        H(i,k) = temp
+      end do
+
+      ! Calculate k-th rotation
+      d = sqrt(H(k,k)**2 + H(k+1,k)**2)
+      c(k) = abs(H(k,k)) / d
+      s(k) = sign(1., H(k,k))*H(k+1,k) / d
+
+      ! Apply to H
+      H(k,k) = c(k)*H(k,k) + s(k)*H(k+1,k)
+      H(k+1,k) = 0.
+
+      ! Apply to E
+      E(k+1) = -s(k)*E(k)
+      E(k) = c(k)*E(k)
+
+      ! Calculate upper residual norm estimate
+      err = beta*abs(E(k+1))
+
+      ! Output progress
+      if (verbose) write(unit,'(i6, a, i6, a, i6, a, ES10.3)') total_iter, ',', outer_iter, ',', k, ',', err
+
+    end do
+
+    ! Solve upper triangular system
+    call upper_triangular_back_sub(k, H(1:k,1:k), beta*E(1:k), y)
+
+    ! Update estimate for x
+    x = x + matmul(Q(:,1:k), y)
+
+  end do
+
+  ! Finish output
+  if (verbose) close(unit)
+
+end subroutine restarted_GMRES
 
 !!! --------------------------------------------------------------------------------------------------
 !!! OBSOLETE FUNCTIONS

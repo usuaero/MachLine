@@ -32,6 +32,7 @@ module panel_solver_mod
         real,dimension(:),allocatable :: b, I_known, BC
         integer,dimension(:),allocatable :: P
         integer :: N_cells, block_size, max_iterations, N_unknown, N_d_unknown, N_s_unknown, solver_iterations, N_sigma
+        integer :: restart_iterations
         logical,dimension(:),allocatable :: sigma_known
         integer,dimension(:),allocatable :: i_sigma_in_sys, i_sys_sigma_in_body
 
@@ -142,6 +143,7 @@ contains
         call json_xtnsn_get(solver_settings, 'tolerance', this%tol, 1.e-12)
         call json_xtnsn_get(solver_settings, 'relaxation', this%rel, 0.8)
         call json_xtnsn_get(solver_settings, 'max_iterations', this%max_iterations, 1000)
+        call json_xtnsn_get(solver_settings, 'restart_iterations', this%restart_iterations, 20)
         call json_xtnsn_get(solver_settings, 'preconditioner', this%preconditioner, 'DIAG')
         call json_xtnsn_get(solver_settings, 'iterative_solver_output', this%iteration_file, 'none')
         call json_xtnsn_get(solver_settings, 'sort_system', this%sort_system, this%freestream%supersonic)
@@ -1262,6 +1264,13 @@ contains
             call GMRES(this%N_unknown, A_p, b_p, this%tol, this%max_iterations, this%iteration_file, this%solver_iterations, x)
             call system_clock(end_count)
 
+        ! Restarted GMRES
+        case ('RGMRES')
+            call system_clock(start_count, count_rate)
+            call restarted_GMRES(this%N_unknown, A_p, b_p, this%tol, this%max_iterations, this%restart_iterations, &
+                                 this%iteration_file, this%solver_iterations, x)
+            call system_clock(end_count)
+
         ! Purcell's method
         case ('PURC')
             call system_clock(start_count, count_rate)
@@ -1272,7 +1281,7 @@ contains
         case ('BSSOR')
             call system_clock(start_count, count_rate)
             call block_ssor_solve(this%N_unknown, A_p, b_p, this%block_size, this%tol, this%rel, &
-                                 this%max_iterations, this%iteration_file, this%solver_iterations, x)
+                                  this%max_iterations, this%iteration_file, this%solver_iterations, x)
             call system_clock(end_count)
         
         ! Block Jacobi
