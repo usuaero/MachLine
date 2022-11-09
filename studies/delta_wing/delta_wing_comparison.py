@@ -94,8 +94,8 @@ def data_plot(comp_method, angles_of_attack, semispan_locations):
             # plt.plot(data[:,x_loc]/max(data[:,x_loc]), data[:,Cp_loc],color='k', label = 'MachLine', marker = "s", linestyle="none")
 
             # Format plot
-            plt.xlabel(r"$\frac{x}{l}$")
-            y_title = r"$C_p$ " + comp_method
+            plt.xlabel(r"$\frac{x}{c_{root}}$")
+            y_title = r"$C_p$"
             plt.ylabel(y_title)
             plt.gca().invert_yaxis()
             plt.legend()
@@ -106,7 +106,7 @@ def data_plot(comp_method, angles_of_attack, semispan_locations):
             plt.savefig(plot_loc)
             plt.show()
 
-def force_plot(AoA_list):
+def force_plot(AoA_list,M,densities):
 
     # Pull in experimental data
     CD_exp_loc = 'studies/delta_wing/experimental_data/delta_wing_exp_CD.csv'
@@ -117,29 +117,71 @@ def force_plot(AoA_list):
     CL_exp = np.genfromtxt(CL_exp_loc, delimiter=',')
     CM_exp = np.genfromtxt(CM_exp_loc, delimiter=',')
 
-    # Initialize lists to store force values over AoA range
-    CD = []
-    CL = []
-    CM = []
+    # Pull in CPanel data to compare against
+    CPanel_CD_loc = 'studies/delta_wing/experimental_data/Davis_CPanel_CD.csv'
+    CPanel_CL_loc = 'studies/delta_wing/experimental_data/Davis_CPanel_CL.csv'
 
-    # Iterate over AoA list
+    CPanel_CD = np.genfromtxt(CPanel_CD_loc, delimiter=',')
+    CPanel_CL = np.genfromtxt(CPanel_CL_loc, delimiter=',')
+
+    # Initialize lists to store force values over AoA range
+    CD_coarse = []
+    CL_coarse = []
+    CD_semi_fine = []
+    CL_semi_fine = []
+    CD_fine = []
+    CL_fine = []
+
+    # Iterate over AoA list and mesh densities
+
+    # Results for coarse mesh
     for AoA in AoA_list:
-        results_loc = 'studies/delta_wing/results/delta_wing_{0}.json'.format(AoA)
+        results_loc = 'studies/delta_wing/results/delta_wing_{0}_coarse.json'.format(AoA)
 
         # Pull MachLine force data
         json_string = open(results_loc).read()
         json_vals = json.loads(json_string) 
 
         loc = json_vals['total_forces']
-        CD.append(loc['Cx'] * np.cos(AoA*np.pi/180) + loc['Cy'] * np.sin(AoA*np.pi/180))
-        CL.append(-loc['Cx'] * np.sin(AoA*np.pi/180) + loc['Cy'] * np.cos(AoA*np.pi/180))
+        CD_coarse.append(loc['Cx'] * np.cos(AoA*np.pi/180) + loc['Cy'] * np.sin(AoA*np.pi/180))
+        CL_coarse.append(-loc['Cx'] * np.sin(AoA*np.pi/180) + loc['Cy'] * np.cos(AoA*np.pi/180))
 
+    # Results for semi_fine mesh
+    for AoA in AoA_list:
+        results_loc = 'studies/delta_wing/results/delta_wing_{0}_semi_fine.json'.format(AoA)
+
+        # Pull MachLine force data
+        json_string = open(results_loc).read()
+        json_vals = json.loads(json_string) 
+
+        loc = json_vals['total_forces']
+        CD_semi_fine.append(loc['Cx'] * np.cos(AoA*np.pi/180) + loc['Cy'] * np.sin(AoA*np.pi/180))
+        CL_semi_fine.append(-loc['Cx'] * np.sin(AoA*np.pi/180) + loc['Cy'] * np.cos(AoA*np.pi/180))
+
+
+    # Results for fine mesh
+    for AoA in AoA_list:
+        results_loc = 'studies/delta_wing/results/delta_wing_{0}_fine.json'.format(AoA)
+
+        # Pull MachLine force data
+        json_string = open(results_loc).read()
+        json_vals = json.loads(json_string) 
+
+        loc = json_vals['total_forces']
+        CD_fine.append(loc['Cx'] * np.cos(AoA*np.pi/180) + loc['Cy'] * np.sin(AoA*np.pi/180))
+        CL_fine.append(-loc['Cx'] * np.sin(AoA*np.pi/180) + loc['Cy'] * np.cos(AoA*np.pi/180))
+    
+    
     # Plot results against experimental data
 
     # CD plot
     plt.figure()
-    plt.errorbar(AoA_list, CD, label="MachLine", marker='s', color='k', fillstyle='full', linestyle='none')
-    plt.errorbar(CD_exp[:,0], CD_exp[:,1], yerr=0.0004, label='Experimental Data', marker='o', color='k', fillstyle='full', linestyle='none')
+    plt.scatter(AoA_list, CD_coarse, label="MachLine: coarse", marker='o', s= 300, edgecolors='k', facecolors='none')
+    plt.scatter(AoA_list, CD_semi_fine, label="MachLine: semi-fine", marker='o', s= 100, edgecolors='k', facecolors='none')
+    plt.scatter(AoA_list, CD_fine, label="MachLine: fine", marker='o', s= 30, edgecolors='k', facecolors='none')
+    plt.scatter(CD_exp[:,0], CD_exp[:,1], label='Experimental Data', marker='s', edgecolors='k', facecolors='none') # errorbars are not included due to webplotdigitizer uncertainty magnitude
+    plt.scatter(CPanel_CD[:,0], CPanel_CD[:,1], label='CPanel', marker='D', edgecolors='k', facecolors='none')
+
     plt.legend()
     plt.xlabel('Angle of Attack [deg]')
     plt.ylabel('CD')
@@ -149,8 +191,11 @@ def force_plot(AoA_list):
 
     # CL plot
     plt.figure()
-    plt.errorbar(AoA_list, CL, label="MachLine", marker='s', color='k', fillstyle='full', linestyle='none')
-    plt.errorbar(CL_exp[:,0], CL_exp[:,1], yerr=0.0004, label='Experimental Data', marker='o', color='k', fillstyle='full', linestyle='none')
+    plt.scatter(AoA_list, CL_coarse, label="MachLine: coarse", marker='o', s=300, edgecolors='k', facecolors='none')
+    plt.scatter(AoA_list, CL_semi_fine, label="MachLine: semi-fine", marker='o', s=100, edgecolors='k', facecolors='none')
+    plt.scatter(AoA_list, CL_fine, label="MachLine: fine", marker='o', s=30, edgecolors='k', facecolors='none')
+    plt.scatter(CL_exp[:,0], CL_exp[:,1], label='Experimental Data', marker='s', edgecolors='k', facecolors='none') # errorbars are not included due to webplotdigitizer uncertainty magnitude
+    plt.scatter(CPanel_CL[:,0], CPanel_CL[:,1], label='CPanel', marker='D', edgecolors='k', facecolors='none')
     plt.legend()
     plt.xlabel('Angle of Attack [deg]')
     plt.ylabel('CL')
@@ -178,16 +223,18 @@ if __name__=="__main__":
     gamma = 1.4
     T_inf = 300.0
     c_inf = np.sqrt(gamma*R_G*T_inf)
-    # angles_of_attack = [0.0, 2.0, 4.1, 8.5, 10.75]
+    angles_of_attack = [0.0, 2.0, 4.1, 8.5, 10.75]
     # angles_of_attack = [-6., -5., -4., -3., -2., -1., 0., 1., 2., 3., 4., 5.]
-    angles_of_attack = [5.0]
+    # angles_of_attack = [5.0]
     semispan_loc = [22.5, 64.1]
     b_half = (0.463/2/.230) # semispan length nondimensionalized by root chord
     R_A = 4.023
     # b_half = 0.2315 # semispan length for OpenVSP model
-    # mesh_density = "clustered"
-    mesh_density = 'clustered'
+    # mesh_type = "clustered"
+    mesh_type = 'clustered'
+    mesh_density = 'semi_fine' # coarse, semi_fine, fine are the options created with 20, 40, and 80 nodes respectively
     mesh_filetype = 'vtk'
+    force_plot_densities = ['coarse', 'semi_fine', 'fine']
 
     # Check working directory and re-route if necessary
     check_dir = getcwd()
@@ -197,7 +244,7 @@ if __name__=="__main__":
 
     # Iterate over angles of attack
     for alpha in angles_of_attack:
-        if 'VSP' in mesh_density:
+        if 'VSP' in mesh_type:
             freestream = [M*c_inf*np.cos(np.radians(alpha)), 0.0, M*c_inf*np.sin(np.radians(alpha))]
         else:
             freestream = [M*c_inf*np.cos(np.radians(alpha)), M*c_inf*np.sin(np.radians(alpha)), 0.0]
@@ -211,7 +258,7 @@ if __name__=="__main__":
                 "freestream_mach_number" : M
             },
             "geometry": {
-                "file": "studies/delta_wing/meshes/delta_wing_{0}_mesh.{1}".format(mesh_density, mesh_filetype),
+                "file": "studies/delta_wing/meshes/delta_wing_{0}_mesh_{1}.{2}".format(mesh_type, mesh_density, mesh_filetype),
                 "wake_model": {
                     "wake_present" : True,
                     "append_wake" : True,
@@ -241,7 +288,7 @@ if __name__=="__main__":
             "body_file" :          body_file,
             "control_point_file" : "studies/delta_wing/results/delta_wing_{0}_deg_{1}_control_points.vtk".format(alpha,mesh_density),
             "wake_file": "studies/delta_wing/results/delta_wing_{0}_deg_{1}_wake.vtk".format(alpha, mesh_density),
-            "report_file": "studies/delta_wing/results/delta_wing_{0}.json".format(alpha)
+            "report_file": "studies/delta_wing/results/delta_wing_{0}_{1}.json".format(alpha, mesh_density)
             }
         }
 
@@ -280,7 +327,7 @@ if __name__=="__main__":
             slicer.SliceOffsetValues = [0.0]
 
             
-            if 'VSP' in mesh_density:
+            if 'VSP' in mesh_type:
                 origin = [0.0, percent_semi, 0.0]
                 normal = [0.0, 1.0, 0.0]
             else:
@@ -301,7 +348,7 @@ if __name__=="__main__":
             pvs.SaveData(save_loc, proxy=plot, ChooseArraysToWrite=1, CellDataArrays=data_to_process, FieldAssociation='Cell Data')
     # Plot single computational method over a range of angles of attack at each semispan location
     computational_method = "isentropic" # isentropic, second order, slender-body, or linear
-    # data_plot(computational_method, angles_of_attack, semispan_loc)
+    data_plot(computational_method, angles_of_attack, semispan_loc)
 
     # Plot CL CD CM
-    force_plot(angles_of_attack)
+    # force_plot(angles_of_attack, M, force_plot_densities)
