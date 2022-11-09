@@ -325,7 +325,6 @@ contains
         real :: distance
         integer,dimension(2) :: i_endpoints
         integer,dimension(this%N_panels*3) :: panel1, panel2, vertex1, vertex2, edge_index1, edge_index2 ! By definition, we will have no more than 3*N_panels edges; we should have much less, but some people...
-        real,dimension(this%N_panels*3) :: edge_length
         logical,dimension(this%N_panels*3) :: on_mirror_plane
         real,dimension(3) :: loc
 
@@ -367,7 +366,6 @@ contains
                     vertex2(i_edge) = i_endpoints(2)
                     on_mirror_plane(i_edge) = .true.
                     edge_index2(i_edge) = 0 ! Just a placeholder since the second panel doesn't technically exist
-                    edge_length(i_edge) = dist(this%vertices(i_endpoints(1))%loc, this%vertices(i_endpoints(2))%loc)
 
                     !$OMP end critical
 
@@ -402,7 +400,6 @@ contains
                     panel2(i_edge) = j
                     vertex1(i_edge) = i_endpoints(1)
                     vertex2(i_edge) = i_endpoints(2)
-                    edge_length(i_edge) = dist(this%vertices(i_endpoints(1))%loc, this%vertices(i_endpoints(2))%loc)
 
                     !$OMP end critical
 
@@ -457,7 +454,7 @@ contains
         do i=1,this%N_edges
 
             ! Initialize
-            call this%edges(i)%init(vertex1(i), vertex2(i), panel1(i), panel2(i), edge_length(i))
+            call this%edges(i)%init(vertex1(i), vertex2(i), panel1(i), panel2(i))
 
             ! Store more information
             this%edges(i)%on_mirror_plane = on_mirror_plane(i)
@@ -610,7 +607,6 @@ contains
             ! Initialize vertex object
             i_mid = N_orig_verts + i
             call this%vertices(i_mid)%init(loc, i_mid, 2)
-            this%vertices(i_mid)%l_avg = this%edges(i)%l
 
             ! Add adjacent vertices
             call this%vertices(i_mid)%adjacent_vertices%append(this%edges(i)%top_verts(1))
@@ -767,7 +763,7 @@ contains
 
         !$OMP parallel do schedule(static)
         do i=1,this%N_panels
-            call this%panels(i)%set_distribution(this%initial_panel_order, this%panels, this%edges, this%mirrored)
+            call this%panels(i)%set_distribution(this%initial_panel_order, this%panels, this%vertices, this%edges, this%mirrored)
         end do
 
         if (verbose) write(*,*) "Done."
@@ -1215,11 +1211,6 @@ contains
 
         ! If this is a true vertex (not a midpoint), add to the count
         if (this%vertices(i_jango)%vert_type == 1) this%N_true_verts = this%N_true_verts + 1
-
-        ! Specify wake partners
-        ! Soon to be obsolete
-        this%vertices(i_jango)%i_wake_partner = i_boba
-        this%vertices(i_boba)%i_wake_partner = i_jango
 
         ! Mirroring properties
         this%vertices(i_boba)%mirrored_is_unique = mirrored_is_unique

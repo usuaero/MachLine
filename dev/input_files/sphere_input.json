@@ -8,11 +8,9 @@
         "wake_model" : {
             "wake_present" : false
         },
-        "singularity_order" : {
-            "doublet" : 2
-        },
+        "singularity_order" : "higher",
         "reference" : {
-            "area" : 5026
+            "area" : 5026.0
         }
     },
     "solver" : {

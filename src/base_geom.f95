@@ -22,12 +22,10 @@ module base_geom_mod
         type(list) :: panels_not_across_wake_edge ! List of indices for the panels which connect to this vertex not across a wake-shedding edge
         integer :: N_wake_edges ! Number of wake edges this vertex belongs to
         integer :: index ! Index of this vertex in the mesh
-        integer :: index_in_wake_vertices ! Index of this vertex in the list of wake-shedding vertices
         integer :: top_parent, bot_parent ! Indices of the top and bottom vertices this vertex's strength is determined by (for a wake vertex)
         logical :: on_mirror_plane ! Whether this vertex lies in the mirroring plane
         logical :: clone ! Whether this vertex needs a clone depending on whether it's in a wake-shedding edge
         logical :: mirrored_is_unique ! Whether this vertice's mirror image will be the same for an asymmetric freestream condition
-        integer :: i_wake_partner ! Index of the vertex, which along with this one, will determine wake strength
         integer :: N_needed_clones
 
         contains
@@ -67,7 +65,6 @@ module base_geom_mod
         logical :: on_mirror_plane ! Whether this edge lies on the mirror plane
         logical :: sheds_wake ! Whether this edge sheds a wake
         logical :: discontinuous ! Whether this edge is discontinuous in a geometric sense
-        real :: l ! Length
 
         contains
 
@@ -142,7 +139,6 @@ contains
         this%clone = .false.
         this%N_needed_clones = 0
         this%on_mirror_plane = .false.
-        this%i_wake_partner = index
         this%N_wake_edges = 0
 
     end subroutine vertex_init
@@ -365,14 +361,13 @@ contains
     end subroutine vertex_copy_to
 
 
-    subroutine edge_init(this, i1, i2, top_panel, bottom_panel, l)
+    subroutine edge_init(this, i1, i2, top_panel, bottom_panel)
 
         implicit none
 
         class(edge),intent(inout) :: this
         integer,intent(in) :: i1, i2
         integer,intent(in) :: top_panel, bottom_panel
-        real,intent(in) :: l
 
         ! Store indices
         this%top_verts(1) = i1
@@ -381,9 +376,6 @@ contains
         ! Store panels
         this%panels(1) = top_panel
         this%panels(2) = bottom_panel
-
-        ! Store length
-        this%l = l
 
         ! Set defaults
         this%on_mirror_plane = .false.

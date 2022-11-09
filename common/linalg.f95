@@ -1068,14 +1068,11 @@ subroutine gen_fast_givens_rot(x, y, a, b, D1, D2, rot_type)
   integer,intent(out) :: rot_type
 
   real :: gamma, t, d, temp, ratio
-  real :: x2, y2
 
   ! Preliminaries
-  x2 = x*x
-  y2 = y*y
   gamma = D1/D2
   if (x /= 0.) then
-    ratio = y2/x2
+    ratio = (y*y)/(x*x)
   else
     ratio = gamma + 1.
   end if
@@ -1183,17 +1180,17 @@ subroutine apply_fast_givens_rot(a, b, x, y, N, rot_type)
   case (1)
 
     x = x + b*y
-    y = -a*x + y
+    y = y - a*x
 
   case (2)
 
-    y = -a*x + y
+    y = y - a*x
     x = x + b*y
 
   case (3)
 
     temp = y
-    y = -x + a*y
+    y = a*y - x
     x = temp - b*y
 
   case (4)

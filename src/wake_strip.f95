@@ -98,7 +98,7 @@ contains
         ! Initialize other panel properties
         do i=1,this%N_panels
             call this%panels(i)%init_with_flow(freestream, this%mirrored, mirror_plane)
-            call this%panels(i)%set_distribution(initial_panel_order, this%panels, mirrored=this%mirrored)
+            call this%panels(i)%set_distribution(initial_panel_order, this%panels, this%vertices, mirrored=this%mirrored)
         end do
 
     end subroutine wake_strip_init

@@ -5,7 +5,7 @@
             0.0,
             0.0
         ],
-        "freestream_mach_number": 2.0
+        "freestream_mach_number": 1.5
     },
     "geometry": {
         "file": "studies/matrix_solvers/meshes/cone_10_deg_medium.vtk",
@@ -13,7 +13,7 @@
         "mirror_about": "xy"
     },
     "solver": {
-        "matrix_solver": "GMRES",
+        "matrix_solver": "FQRUP",
         "sort_system": true,
         "restart_iterations" : 10,
         "iterative_solver_output": "prog.txt"

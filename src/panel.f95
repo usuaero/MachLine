@@ -97,6 +97,7 @@ module panel_mod
             procedure :: get_corner_angle => panel_get_corner_angle
             procedure :: get_weighted_normal_at_corner => panel_get_weighted_normal_at_corner
             procedure :: get_projection_onto_surface => panel_get_projection_onto_surface
+            procedure :: get_opposite_vertex => panel_get_opposite_vertex
 
             ! Checks
             procedure :: touches_vertex => panel_touches_vertex
@@ -471,7 +472,7 @@ contains
     end subroutine panel_calc_ls_edge_vectors
 
 
-    subroutine panel_set_distribution(this, order, body_panels, body_edges, mirrored)
+    subroutine panel_set_distribution(this, order, body_panels, body_verts, body_edges, mirrored)
         ! Sets up the singularity distribution for this panel
 
         implicit none
@@ -479,6 +480,7 @@ contains
         class(panel),intent(inout) :: this
         integer,intent(in) :: order
         type(panel),dimension(:),allocatable,intent(in) :: body_panels
+        type(vertex),dimension(:),allocatable,intent(in) :: body_verts
         type(edge),dimension(:),allocatable,intent(in),optional :: body_edges
         logical,intent(in),optional :: mirrored
 
@@ -487,49 +489,50 @@ contains
         ! Store order
         this%order = order
 
-        ! Count how many discontinuous edges this panel has
-        ! For first-order distributions, we don't care
-        this%N_discont_edges = 0
-        if (this%order == 2) then
-            allocate(this%discont_edges(this%N), source=.false.)
-            do i=1,this%N
-                if (body_edges(this%edges(i))%discontinuous) then
-                    this%N_discont_edges = this%N_discont_edges + 1
-                    this%discont_edges(i) = .true.
-                end if
-            end do
-        end if
-
         ! Set up influencing verts
-        call this%set_influencing_verts()
+        call this%set_influencing_verts(body_panels)
 
         ! Set up strength-parameter matrices
-        call this%calc_singularity_matrices()
+        call this%calc_singularity_matrices(body_verts)
         if (present(mirrored)) then
-            if (mirrored) call this%calc_mirrored_singularity_matrices()
+            if (mirrored) call this%calc_mirrored_singularity_matrices(body_verts)
         end if
         
     end subroutine panel_set_distribution
 
 
-    subroutine panel_set_influencing_verts(this)
+    subroutine panel_set_influencing_verts(this, body_panels)
         ! Sets up the arrays of vertex indices which set the influence for this panel
 
         class(panel),intent(inout) :: this
+        type(panel),dimension(:),allocatable,intent(in) :: body_panels
+
+        integer :: i, i_neighbor
 
         ! Source
         if (this%order == 2) then
-            allocate(this%i_panel_s(4-this%N_discont_edges))
+
+            ! Allocate storage
+            allocate(this%i_panel_s(4))
+
+            ! This panel is first
             this%i_panel_s(1) = this%index
+
+            ! Loop through neighbors
+            do i=1,this%N
+                this%i_panel_s(i+1) = this%abutting_panels(i+1)
+            end do
+
         else
             allocate(this%i_panel_s(1), source=this%index)
         end if
 
         ! Doublet
-        if (this%order == 2) then
 
-            ! Check if this panel belongs to the wake
-            if (this%in_wake) then
+        ! Check if this panel belongs to the wake
+        if (this%in_wake) then
+
+            if (this%order == 2) then
 
                 ! Wake panels are influenced by two sets of vertices
                 allocate(this%i_vert_d(12))
@@ -542,50 +545,46 @@ contains
 
             else
 
-                ! Body panels are influenced by only one set of vertices
+                ! Wake panels are influenced by two sets of vertices
                 allocate(this%i_vert_d(6))
-                this%i_vert_d(1) = this%get_vertex_index(1)
-                this%i_vert_d(2) = this%get_vertex_index(2)
-                this%i_vert_d(3) = this%get_vertex_index(3)
+                do i=1,this%N
+                    this%i_vert_d(i) = this%vertices(i)%ptr%top_parent
+                    this%i_vert_d(i+3) = this%vertices(i)%ptr%bot_parent
+                end do
 
             end if
 
         else
 
-            ! Check if this panel belongs to the wake
-            if (this%in_wake) then
+            ! Allocate space
+            allocate(this%i_vert_d(3*this%order))
 
-                ! Wake panels are influenced by two sets of vertices
-                allocate(this%i_vert_d(6))
-                this%i_vert_d(1) = this%vertices(1)%ptr%top_parent
-                this%i_vert_d(2) = this%vertices(2)%ptr%top_parent
-                this%i_vert_d(3) = this%vertices(3)%ptr%top_parent
-                this%i_vert_d(4) = this%vertices(1)%ptr%bot_parent
-                this%i_vert_d(5) = this%vertices(2)%ptr%bot_parent
-                this%i_vert_d(6) = this%vertices(3)%ptr%bot_parent
+            ! This panel
+            do i=1,this%N
+                this%i_vert_d(i) = this%get_vertex_index(i)
+            end do
 
-            else
-
-                ! Body panels are influenced by only one set of vertices
-                allocate(this%i_vert_d(3))
-                this%i_vert_d(1) = this%get_vertex_index(1)
-                this%i_vert_d(2) = this%get_vertex_index(2)
-                this%i_vert_d(3) = this%get_vertex_index(3)
-
+            ! Neighbors (if needed)
+            if (this%order == 2) then
+                do i=1,this%N
+                    i_neighbor = this%abutting_panels(i)
+                    this%i_vert_d(i+3) = body_panels(i_neighbor)%get_opposite_vertex(this%get_vertex_index(i), &
+                                                                                     this%get_vertex_index(mod(i, this%N)+1))
+                end do
             end if
 
         end if
-    
         
     end subroutine panel_set_influencing_verts
 
 
-    subroutine panel_calc_singularity_matrices(this)
+    subroutine panel_calc_singularity_matrices(this, body_verts)
         ! Calculates the matrices which relate the singularity strengths to the singularity parameters
 
         implicit none
 
         class(panel),intent(inout) :: this
+        type(vertex),dimension(:),allocatable,intent(in) :: body_verts
 
         real,dimension(:,:),allocatable :: S_mu, S_sigma
 
@@ -639,11 +638,12 @@ contains
     end subroutine panel_calc_singularity_matrices
 
 
-    subroutine panel_calc_mirrored_singularity_matrices(this)
+    subroutine panel_calc_mirrored_singularity_matrices(this, body_verts)
 
         implicit none
 
         class(panel),intent(inout) :: this
+        type(vertex),dimension(:),allocatable,intent(in) :: body_verts
 
         real,dimension(:,:),allocatable :: S_mu, S_sigma
 
@@ -1175,6 +1175,40 @@ contains
         end if
         
     end function panel_get_projection_onto_surface
+
+
+    function panel_get_opposite_vertex(this, i1, i2) result(i_opp)
+        ! Returns the index of the vertex opposite of the two given
+
+        implicit none
+        
+        class(panel),intent(in) :: this
+        integer,intent(in) :: i1, i2
+
+        integer :: i_opp
+    
+        integer :: i, j
+
+        ! Return zero if we can't find it
+        i_opp = 0
+
+        ! Find the first vertex
+        do i=1,3
+            if (this%get_vertex_index(i) == i1) then
+
+                ! Find the second vertex
+                do j=1,3
+                    if (j /= i .and. this%get_vertex_index(j) /= i2) then
+                        i_opp = this%get_vertex_index(j)
+                        exit
+                    end if
+                end do
+                
+                exit
+            end if
+        end do
+        
+    end function panel_get_opposite_vertex
 
 
     subroutine panel_point_to_new_vertex(this, new_vertex)
