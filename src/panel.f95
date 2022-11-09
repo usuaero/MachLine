@@ -493,7 +493,7 @@ contains
         call this%set_influencing_verts(body_panels)
 
         ! Set up strength-parameter matrices
-        call this%calc_singularity_matrices(body_verts)
+        call this%calc_singularity_matrices(body_panels, body_verts)
         if (present(mirrored)) then
             if (mirrored) call this%calc_mirrored_singularity_matrices(body_verts)
         end if
@@ -520,7 +520,7 @@ contains
 
             ! Loop through neighbors
             do i=1,this%N
-                this%i_panel_s(i+1) = this%abutting_panels(i+1)
+                this%i_panel_s(i+1) = this%abutting_panels(i)
             end do
 
         else
@@ -578,33 +578,42 @@ contains
     end subroutine panel_set_influencing_verts
 
 
-    subroutine panel_calc_singularity_matrices(this, body_verts)
-        ! Calculates the matrices which relate the singularity strengths to the singularity parameters
+    subroutine panel_calc_singularity_matrices(this, body_panels, body_verts)
+        ! Calculates the matrices which relate the singularity strengths to the distribution parameters
 
         implicit none
 
         class(panel),intent(inout) :: this
+        type(panel),dimension(:),allocatable,intent(in) :: body_panels
         type(vertex),dimension(:),allocatable,intent(in) :: body_verts
 
-        real,dimension(:,:),allocatable :: S_mu, S_sigma
+        real,dimension(:,:),allocatable :: S_mu, S_sigma, SS_inv
+        integer :: i
+        real,dimension(3) :: P_g, P_ls
 
-        ! Determine influence of vertex doublet strengths on integral parameters
+        ! Doublets
+
+        ! Allocate space
+        allocate(S_mu(3*this%order,3*this%order))
+        allocate(this%S_mu_inv(3*this%order,3*this%order))
+
+        ! Constant
+        S_mu(:,1) = 1.
+
+        ! x and y from this panel
+        S_mu(1:3,2) = this%vertices_ls(1,:)
+        S_mu(1:3,3) = this%vertices_ls(2,:)
 
         ! Quadratic
         if (this%order == 2) then
 
-            ! Allocate influence matrix
-            allocate(S_mu(6,6))
-            allocate(this%S_mu_inv(6,6))
-
-            ! Set values
-            S_mu(:,1) = 1.
-
-            ! x
-            S_mu(1:3,2) = this%vertices_ls(1,:)
-
-            ! y
-            S_mu(1:3,3) = this%vertices_ls(2,:)
+            ! x and y from neighbors
+            do i=4,6
+                P_g = body_verts(this%i_vert_d(i))%loc
+                P_ls = matmul(this%A_g_to_ls, P_g - this%centr)
+                S_mu(i,2) = P_ls(1)
+                S_mu(i,3) = P_ls(2)
+            end do
 
             ! x^2
             S_mu(:,4) = S_mu(:,2)**2*0.5
@@ -615,23 +624,36 @@ contains
             ! y^2
             S_mu(:,6) = S_mu(:,3)**2*0.5
 
-            ! Invert
-            call matinv(6, S_mu, this%S_mu_inv)
+        end if
 
-        ! Linear
-        else
+        ! Invert
+        call matinv(3*this%order, S_mu, this%S_mu_inv)
 
-            ! Allocate influence matrices
-            allocate(S_mu(3,3))
-            allocate(this%S_mu_inv(3,3))
+        ! Sources
 
-            ! Set values
-            S_mu(:,1) = 1.
-            S_mu(:,2) = this%vertices_ls(1,:)
-            S_mu(:,3) = this%vertices_ls(2,:)
+        ! Linear (not needed for constant-strength source panels)
+        if (this%order == 2) then
 
-            ! Invert
-            call matinv(3, S_mu, this%S_mu_inv)
+            ! Allocate space
+            allocate(S_sigma(4,3))
+            allocate(this%S_sigma_inv(3,4))
+            allocate(SS_inv(3,3))
+
+            ! Constant
+            S_sigma(:,1) = 1.
+
+            ! x and y
+            S_sigma(1,2:3) = 0.
+            do i=1,3
+                P_g = body_panels(this%abutting_panels(i))%centr
+                P_ls = matmul(this%A_g_to_ls, P_g - this%centr)
+                S_sigma(i+1,2) = P_ls(1)
+                S_sigma(i+1,3) = P_ls(2)
+            end do
+
+            ! Invert (pseudoinverse using least-squares)
+            call matinv(3, matmul(transpose(S_sigma), S_sigma), SS_inv)
+            this%S_sigma_inv = matmul(SS_inv, transpose(S_sigma))
 
         end if
 
@@ -691,24 +713,6 @@ contains
 
         end if
 
-        ! Determine influence of vertex source strengths on integral parameters
-        ! Linear distribution
-        if (this%order == 2) then
-
-            ! Allocate influence matrices
-            allocate(S_sigma(3,3))
-            allocate(this%S_sigma_inv_mir(3,3))
-
-            ! Set values
-            S_sigma(:,1) = 1.
-            S_sigma(:,2) = this%vertices_ls_mir(1,:)
-            S_sigma(:,3) = this%vertices_ls_mir(2,:)
-
-            ! Invert
-            call matinv(3, S_sigma, this%S_sigma_inv_mir)
-
-        end if
-    
     end subroutine panel_calc_mirrored_singularity_matrices
 
 
@@ -2449,7 +2453,7 @@ contains
         real,dimension(:),allocatable,intent(in) :: sigma
         logical,intent(in) :: mirror
 
-        real,dimension(3) :: sigma_strengths
+        real,dimension(4) :: sigma_strengths
 
         integer :: i, shift
 
@@ -2463,20 +2467,13 @@ contains
                 shift = 0
             end if
 
-            ! Linear sources
-            if (this%order == 2) then
-
-            ! Constant sources
-            else
-                sigma_strengths(1) = sigma(this%index+shift)
-                sigma_strengths(2:3) = 0.
-            end if
-
-        ! Wakes no not have source distributions
-        else
+            ! Get strengths
             sigma_strengths = 0.
+            do i=1,size(this%i_panel_s)
+                sigma_strengths(i) = sigma(this%i_panel_s(i) + shift)
+            end do
+
         end if
-    
         
     end function panel_get_source_strengths
 
@@ -2492,18 +2489,21 @@ contains
         
         real,dimension(3) :: sigma_params
 
-        real,dimension(3) :: sigma_verts
+        real,dimension(4) :: sigma_strengths
         real,dimension(3,3) :: S_sigma_inv
 
         ! Get strengths
-        sigma_verts = this%get_source_strengths(sigma, mirror)
+        sigma_strengths = this%get_source_strengths(sigma, mirror)
 
         ! Linear sources
         if (this%order == 2) then
 
+            sigma_params = matmul(this%S_sigma_inv, sigma_strengths)
+
         ! Constant sources
         else
-            sigma_params = sigma_verts
+            sigma_params(1) = sigma_strengths(1)
+            sigma_params(2:) = 0.
         end if
             
     end function panel_get_source_dist_parameters
