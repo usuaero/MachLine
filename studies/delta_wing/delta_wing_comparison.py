@@ -177,7 +177,7 @@ def force_plot(AoA_list,M,densities):
     # CD plot
     plt.figure()
     plt.scatter(AoA_list, CD_coarse, label="MachLine: coarse", marker='o', s= 300, edgecolors='k', facecolors='none')
-    plt.scatter(AoA_list, CD_semi_fine, label="MachLine: semi-fine", marker='o', s= 100, edgecolors='k', facecolors='none')
+    plt.scatter(AoA_list, CD_semi_fine, label="MachLine: medium", marker='o', s= 100, edgecolors='k', facecolors='none')
     plt.scatter(AoA_list, CD_fine, label="MachLine: fine", marker='o', s= 30, edgecolors='k', facecolors='none')
     plt.scatter(CD_exp[:,0], CD_exp[:,1], label='Experimental Data', marker='s', edgecolors='k', facecolors='none') # errorbars are not included due to webplotdigitizer uncertainty magnitude
     plt.scatter(CPanel_CD[:,0], CPanel_CD[:,1], label='CPanel', marker='D', edgecolors='k', facecolors='none')
@@ -192,7 +192,7 @@ def force_plot(AoA_list,M,densities):
     # CL plot
     plt.figure()
     plt.scatter(AoA_list, CL_coarse, label="MachLine: coarse", marker='o', s=300, edgecolors='k', facecolors='none')
-    plt.scatter(AoA_list, CL_semi_fine, label="MachLine: semi-fine", marker='o', s=100, edgecolors='k', facecolors='none')
+    plt.scatter(AoA_list, CL_semi_fine, label="MachLine: medium", marker='o', s=100, edgecolors='k', facecolors='none')
     plt.scatter(AoA_list, CL_fine, label="MachLine: fine", marker='o', s=30, edgecolors='k', facecolors='none')
     plt.scatter(CL_exp[:,0], CL_exp[:,1], label='Experimental Data', marker='s', edgecolors='k', facecolors='none') # errorbars are not included due to webplotdigitizer uncertainty magnitude
     plt.scatter(CPanel_CL[:,0], CPanel_CL[:,1], label='CPanel', marker='D', edgecolors='k', facecolors='none')
@@ -223,8 +223,8 @@ if __name__=="__main__":
     gamma = 1.4
     T_inf = 300.0
     c_inf = np.sqrt(gamma*R_G*T_inf)
-    angles_of_attack = [0.0, 2.0, 4.1, 8.5, 10.75]
-    # angles_of_attack = [-6., -5., -4., -3., -2., -1., 0., 1., 2., 3., 4., 5.]
+    # angles_of_attack = [0.0, 2.0, 4.1, 8.5, 10.75]
+    angles_of_attack = [-6., -5., -4., -3., -2., -1., 0., 1., 2., 3., 4., 5.]
     # angles_of_attack = [0.0]
     semispan_loc = [22.5, 64.1]
     b_half = (0.463/2/.230) # semispan length nondimensionalized by root chord
@@ -347,7 +347,7 @@ if __name__=="__main__":
             pvs.SaveData(save_loc, proxy=plot, ChooseArraysToWrite=1, CellDataArrays=data_to_process, FieldAssociation=fields_to_process)
     # Plot single computational method over a range of angles of attack at each semispan location
     computational_method = "isentropic" # isentropic, second order, slender-body, or linear
-    data_plot(computational_method, angles_of_attack, semispan_loc)
+    # data_plot(computational_method, angles_of_attack, semispan_loc)
 
     # Plot CL CD CM
-    # force_plot(angles_of_attack, M, force_plot_densities)
+    force_plot(angles_of_attack, M, force_plot_densities)
