@@ -225,7 +225,7 @@ if __name__=="__main__":
     c_inf = np.sqrt(gamma*R_G*T_inf)
     angles_of_attack = [0.0, 2.0, 4.1, 8.5, 10.75]
     # angles_of_attack = [-6., -5., -4., -3., -2., -1., 0., 1., 2., 3., 4., 5.]
-    # angles_of_attack = [5.0]
+    # angles_of_attack = [0.0]
     semispan_loc = [22.5, 64.1]
     b_half = (0.463/2/.230) # semispan length nondimensionalized by root chord
     R_A = 4.023
@@ -298,7 +298,7 @@ if __name__=="__main__":
             json.dump(input_dict, input_handle, indent=4)
 
         # Run
-        sp.run(["./machline.exe", input_file])
+        # sp.run(["./machline.exe", input_file])
         
         # Verify that MachLine execution was successful
         control_point_file = "delta_wing_{0}_deg_{1}_control_points.vtk".format(alpha,mesh_density)
@@ -311,9 +311,10 @@ if __name__=="__main__":
         data_reader = pvs.LegacyVTKReader(registrationName=body_file.replace("studies/delta_wing/results", ""), FileNames=body_file)
 
         # Filter cell data to point data
-        # filter = pvs.CellDatatoPointData(registrationName='Filter', Input=data_reader)
+        filter = pvs.CellDatatoPointData(registrationName='Filter', Input=data_reader)
         data_to_process = ['C_p_ise', 'C_p_2nd', 'C_p_lin', 'C_p_sln', 'centroid']
-        # filter.CellDataArraytoprocess = data_to_process
+        filter.CellDataArraytoprocess = data_to_process
+        fields_to_process = 'Point Data'
 
         # Iterate over semispan locations
         for i, percent_semispan in enumerate(semispan_loc):
@@ -321,11 +322,9 @@ if __name__=="__main__":
             percent_semi = percent_semispan * b_half / 100.0
 
             # Slice mesh at each semispan location
-            slicer = pvs.Slice(registrationName= "Slice", Input=data_reader)
+            slicer = pvs.PlotOnIntersectionCurves(registrationName= "Slice", Input=filter)
             slicer.SliceType = 'Plane'
             # slicer.HyperTreeGridSlicer = 'Plane'
-            slicer.SliceOffsetValues = [0.0]
-
             
             if 'VSP' in mesh_type:
                 origin = [0.0, percent_semi, 0.0]
@@ -345,7 +344,7 @@ if __name__=="__main__":
             display.XArrayName = 'centroid_X'
             view.Update()
             save_loc = 'studies/delta_wing/results/delta_wing_{0}_semispan_{1}_deg_results.csv'.format(semispan_str, alpha)
-            pvs.SaveData(save_loc, proxy=plot, ChooseArraysToWrite=1, CellDataArrays=data_to_process, FieldAssociation='Cell Data')
+            pvs.SaveData(save_loc, proxy=plot, ChooseArraysToWrite=1, CellDataArrays=data_to_process, FieldAssociation=fields_to_process)
     # Plot single computational method over a range of angles of attack at each semispan location
     computational_method = "isentropic" # isentropic, second order, slender-body, or linear
     data_plot(computational_method, angles_of_attack, semispan_loc)
