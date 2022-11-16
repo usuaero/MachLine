@@ -45,6 +45,7 @@ module panel_solver_mod
 
             ! Setup
             procedure :: init_dirichlet => panel_solver_init_dirichlet
+            procedure :: set_panel_sources => panel_solver_set_panel_sources
             procedure :: determine_dirichlet_unknowns => panel_solver_determine_dirichlet_unknowns
             procedure :: init_dirichlet_boundary_conditions => panel_solver_init_dirichlet_boundary_conditions
             procedure :: calc_domains_of_dependence => panel_solver_calc_domains_of_dependence
@@ -282,6 +283,9 @@ contains
             call body%place_interior_control_points(offset, this%freestream)
         end if
 
+        ! Set needed sources
+        call this%set_panel_sources(body)
+
         ! Determine unknowns
         call this%determine_dirichlet_unknowns(solver_settings, body)
         if (this%N_unknown /= body%N_cp) then
@@ -301,6 +305,24 @@ contains
         if (verbose) write(*,'(a, i6, a)') "Done. Placed", body%N_cp, " control points."
     
     end subroutine panel_solver_init_dirichlet
+
+
+    subroutine panel_solver_set_panel_sources(this, body)
+        ! Tells the panels whether they have sources or not
+
+        implicit none
+        
+        class(panel_solver),intent(in) :: this
+        type(surface_mesh),intent(inout) :: body
+
+        integer :: i
+
+        ! Loop through panels
+        do i=1,body%N_panels
+            body%panels(i)%has_sources = (this%formulation == 'morino') .or. (body%panels(i)%r < 0.)
+        end do
+        
+    end subroutine panel_solver_set_panel_sources
 
 
     subroutine panel_solver_determine_dirichlet_unknowns(this, solver_settings, body)
@@ -698,12 +720,27 @@ contains
 
         else
 
-            ! Identity permutation
+            ! Only permute as needed for placing vertex clones next to each other
             call system_clock(start_count, count_rate)
             allocate(this%P(this%N_unknown))
+
+            ! Copy vertex ordering
             this%P(1:body%N_verts) = body%vertex_ordering
-            if (this%N_unknown > body%N_verts) then
-                this%P(body%N_verts+1:) = body%vertex_ordering + body%N_verts
+
+            ! Copy identity for unknown sources
+            do i=1,body%N_supinc
+                this%P(body%N_verts+i) = body%N_verts + i
+            end do
+
+            if (body%asym_flow) then
+
+                ! For a mirrored, asymmetric condition, copy the vertex ordering again
+                this%P(body%N_verts+body%N_supinc+1:2*body%N_verts+body%N_supinc) = body%vertex_ordering + body%N_verts
+
+                ! Copy identity for unknown sources
+                do i=1,body%N_supinc
+                    this%P(2*body%N_verts+body%N_supinc+i) = 2*body%N_verts+body%N_supinc + i
+                end do
             end if
             call system_clock(end_count)
 

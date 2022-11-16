@@ -61,6 +61,7 @@ module panel_mod
         integer,dimension(:),allocatable :: i_vert_d, i_panel_s
         integer :: order, N_discont_edges
         logical,dimension(:),allocatable :: discont_edges
+        logical :: has_sources ! Whether this panel has a source distribution
 
         contains
 
@@ -180,6 +181,7 @@ contains
         this%abutting_panels = 0
         this%i_top_parent = 0
         this%i_bot_parent = 0
+        this%has_sources = .true.
 
         ! Calculate panel geometries only dependent upon vertex locations (nothing flow-dependent at this point)
         call this%calc_derived_geom()
@@ -1273,10 +1275,12 @@ contains
         type(dod) :: dod_info
 
         real,dimension(3) :: d, point, a, b, R_star, Q_end
+        real,dimension(3,this%N) :: d_from_vert
         integer :: i, i_next
         real :: x, s_star
         logical :: mirrored, in_panel
         logical,dimension(3) :: these_verts_in_dod
+        logical :: downstream
 
         ! Set default mirroring
         if (present(mirror_panel)) then
@@ -1305,86 +1309,114 @@ contains
             ! If it is not guaranteed to be totally in, then check all the edges
             else
 
-                ! Check edges
+                ! Get displacements from vertices
                 do i=1,this%N
-                    
-                    i_next = mod(i, this%N)+1
-
-                    ! If if at least one endpoint is in, then the edge is in
-                    if (these_verts_in_dod(i) .or. these_verts_in_dod(i_next)) then
-                        dod_info%edges_in_dod(i) = .true.
-
-                    ! If both aren't in, then the intersection will depend on the edge type
+                    if (mirrored) then
+                        d_from_vert(:,i) = eval_point - mirror_across_plane(this%get_vertex_loc(i), mirror_plane)
                     else
-
-                        ! For a subsonic or sonic edge, both being out means the edge is out
-                        if ((.not. mirrored .and. this%b(i) <= 0.) .or. (mirrored .and. this%b_mir(i) <= 0.)) then
-                            dod_info%edges_in_dod(i) = .false.
-
-                        ! For a supersonic edge, the edge can still intersect the DoD, so calculate the point of closest approach
-                        else
-
-                            ! Get end vertex and vector describing edge
-                            if (mirrored) then
-                                Q_end = mirror_across_plane(this%get_vertex_loc(i_next), mirror_plane)
-                                d = Q_end - mirror_across_plane(this%get_vertex_loc(i), mirror_plane)
-                            else
-                                Q_end = this%get_vertex_loc(i_next)
-                                d = Q_end - this%get_vertex_loc(i)
-                            end if
-                        
-                            ! Calculate nondimensional location of the point of closest approach (E&M Eq. (J.3.39))
-                            a = cross(freestream%c_hat_g, d)
-                            b = cross(freestream%c_hat_g, Q_end - eval_point)
-                            s_star = inner(a, b)/abs(inner(a, a))
-
-                            ! Calculate point of closest approach
-                            R_star = Q_end - s_star*d
-
-                            ! Check if the point of closest approach is in the edge and in the DoD
-                            if (s_star > 0. .and. s_star < 1. .and. freestream%point_in_dod(R_star, eval_point)) then
-                                dod_info%edges_in_dod(i) = .true.
-
-                            ! If not, this edge is not in the DoD
-                            else
-                                dod_info%edges_in_dod(i) = .false.
-
-                            end if
-                        end if
+                        d_from_vert(:,i) = eval_point - this%get_vertex_loc(i)
                     end if
+                end do
+
+                ! Make sure we're downstream
+                downstream = .false.
+                do i=1,this%N
+
+                    ! Get downstream distance
+                    x = inner(d_from_vert(:,i), freestream%c_hat_g)
+
+                    ! Check
+                    downstream = x > 0. .or. downstream
 
                 end do
 
-                ! If any edge or vertex is in the DoD, then the panel is in
-                if (any(these_verts_in_dod) .or. any(dod_info%edges_in_dod)) then
-                    dod_info%in_dod = .true.
+                if (downstream) then
 
-                ! If a superinclined panel has no edges or vertices in the DoD, check if the DoD is encompassed by the panel
-                else if (this%r < 0) then
+                    ! Check edges
+                    do i=1,this%N
 
-                    ! Get the projection of the evaluation point onto the panel in the direction of c_hat
-                    if (mirrored) then
-                        s_star = inner(mirror_across_plane(this%get_vertex_loc(1), mirror_plane) - eval_point, this%n_g_mir) &
-                                 / inner(freestream%c_hat_g, this%n_g_mir)
+                        i_next = mod(i, this%N)+1
+
+                        ! If if at least one endpoint is in, then the edge is in
+                        if (these_verts_in_dod(i) .or. these_verts_in_dod(i_next)) then
+                            dod_info%edges_in_dod(i) = .true.
+
+                        ! If both aren't in, then the intersection will depend on the edge type
+                        else
+
+                            ! For a subsonic or sonic edge, both being out means the edge is out
+                            if ((.not. mirrored .and. this%b(i) <= 0.) .or. (mirrored .and. this%b_mir(i) <= 0.)) then
+                                dod_info%edges_in_dod(i) = .false.
+
+                            ! For a supersonic edge, the edge can still intersect the DoD, so calculate the point of closest approach
+                            else
+
+                                ! Get end vertex and vector describing edge
+                                if (mirrored) then
+                                    Q_end = mirror_across_plane(this%get_vertex_loc(i_next), mirror_plane)
+                                    d = Q_end - mirror_across_plane(this%get_vertex_loc(i), mirror_plane)
+                                else
+                                    Q_end = this%get_vertex_loc(i_next)
+                                    d = Q_end - this%get_vertex_loc(i)
+                                end if
+                            
+                                ! Calculate nondimensional location of the point of closest approach (E&M Eq. (J.3.39))
+                                a = cross(freestream%c_hat_g, d)
+                                b = cross(freestream%c_hat_g, -d_from_vert(:,i_next))
+                                s_star = inner(a, b)/abs(inner(a, a))
+
+                                ! Calculate point of closest approach
+                                R_star = Q_end - s_star*d
+
+                                ! Check if the point of closest approach is in the edge and in the DoD
+                                if (s_star > 0. .and. s_star < 1.) then
+                                    dod_info%edges_in_dod(i) = freestream%point_in_dod(R_star, eval_point)
+
+                                ! If not, this edge is not in the DoD
+                                else
+                                    dod_info%edges_in_dod(i) = .false.
+
+                                end if
+                            end if
+                        end if
+
+                    end do
+
+                    ! If any edge or vertex is in the DoD, then the panel is in
+                    if (any(these_verts_in_dod) .or. any(dod_info%edges_in_dod)) then
+                        dod_info%in_dod = .true.
+
+                    ! If a superinclined panel has no edges or vertices in the DoD, check if the DoD is encompassed by the panel
+                    else if (this%r < 0.) then
+
+                        ! Get the projection of the evaluation point onto the panel in the direction of c_hat
+                        if (mirrored) then
+                            s_star = inner(-d_from_vert(:,1), this%n_g_mir) / inner(freestream%c_hat_g, this%n_g_mir)
+                        else
+                            s_star = inner(-d_from_vert(:,1), this%n_g) / inner(freestream%c_hat_g, this%n_g)
+                        end if
+                        R_star = eval_point + freestream%c_hat_g*s_star
+
+                        ! See if the projected point is in the panel
+                        if (mirrored) then
+                            in_panel = this%projection_inside(R_star, mirror_panel, mirror_plane)
+                        else
+                            in_panel = this%projection_inside(R_star)
+                        end if
+
+                        ! Store information
+                        dod_info%in_dod = in_panel
+
+                    ! Not superinclined and no edges or vertices in. Not in.
                     else
-                        s_star = inner(this%get_vertex_loc(1)-eval_point, this%n_g)/inner(freestream%c_hat_g, this%n_g)
-                    end if
-                    R_star = eval_point + freestream%c_hat_g*s_star
+                        dod_info%in_dod = .false.
 
-                    ! See if the projected point is in the panel
-                    if (mirrored) then
-                        in_panel = this%projection_inside(R_star, mirror_panel, mirror_plane)
-                    else
-                        in_panel = this%projection_inside(R_star)
                     end if
 
-                    ! Store information
-                    dod_info%in_dod = in_panel
-
-                ! Not superinclined and no edges or vertices in. Not in.
+                ! Not downstream
                 else
+                    dod_info%edges_in_dod = .false.
                     dod_info%in_dod = .false.
-
                 end if
             end if
 
@@ -2011,7 +2043,7 @@ contains
         int%hH113 = sign(int%hH113, geom%h)
 
         ! Calculate H(1,1,1)
-        int%H111 = -geom%h*int%hH113 + sum(geom%a*int%F111)
+        if (this%has_sources) int%H111 = -geom%h*int%hH113 + sum(geom%a*int%F111)
 
         ! Calculate H(2,1,3) and H(1,2,3)
         int%H213 = -sum(geom%v_xi*int%F111)
@@ -2020,8 +2052,10 @@ contains
         if (this%order == 2) then
 
             ! Calculate higher-order source integrals
-            int%H211 = 0.5*(-geom%h2*int%H213 + sum(geom%a*int%F211))
-            int%H121 = 0.5*(-geom%h2*int%H123 + sum(geom%a*int%F121))
+            if (this%has_sources) then
+                int%H211 = 0.5*(-geom%h2*int%H213 + sum(geom%a*int%F211))
+                int%H121 = 0.5*(-geom%h2*int%H123 + sum(geom%a*int%F121))
+            end if
 
             ! Calculate higher-order doublet integrals
             int%H313 = sum(geom%v_eta*int%F121) - geom%h*int%hH113
@@ -2105,7 +2139,7 @@ contains
         end do
 
         ! Calculate H(1,1,1)
-        int%H111 = -geom%h*int%hH113 + sum(geom%a*int%F111)
+        if (this%has_sources) int%H111 = -geom%h*int%hH113 + sum(geom%a*int%F111)
 
         ! Calculate H(2,1,3) and H(1,2,3)
         int%H213 = sum(geom%v_xi*int%F111)
@@ -2114,8 +2148,10 @@ contains
         if (this%order == 2) then
 
             ! Calculate higher-order source integrals
-            int%H211 = 0.5*(-geom%h2*int%H213 + sum(geom%a*int%F211))
-            int%H121 = 0.5*(-geom%h2*int%H123 + sum(geom%a*int%F121))
+            if (this%has_sources) then
+                int%H211 = 0.5*(-geom%h2*int%H213 + sum(geom%a*int%F211))
+                int%H121 = 0.5*(-geom%h2*int%H123 + sum(geom%a*int%F121))
+            end if
 
             ! Calculate higher-order doublet integrals
             int%H313 = -int%H111 + sum(geom%v_xi*int%F211)
@@ -2191,7 +2227,7 @@ contains
         end do
 
         ! Calculate H(1,1,1)
-        int%H111 = geom%h*int%hH113 - sum(geom%a*int%F111)
+        if (this%has_sources) int%H111 = geom%h*int%hH113 - sum(geom%a*int%F111)
 
         ! Calculate H(2,1,3) and H(1,2,3)
         int%H213 = sum(geom%v_xi*int%F111)
@@ -2200,8 +2236,10 @@ contains
         if (this%order == 2) then
 
             ! Calculate higher-order source integrals
-            int%H211 = 0.5*(geom%h2*int%H213 - sum(geom%a*int%F211))
-            int%H121 = 0.5*(geom%h2*int%H123 - sum(geom%a*int%F121))
+            if (this%has_sources) then
+                int%H211 = 0.5*(geom%h2*int%H213 - sum(geom%a*int%F211))
+                int%H121 = 0.5*(geom%h2*int%H123 - sum(geom%a*int%F121))
+            end if
 
             ! Calculate higher-order doublet integrals
             int%H313 = int%H111 + sum(geom%v_xi*int%F211)
@@ -2224,39 +2262,43 @@ contains
     end subroutine panel_calc_supersonic_supinc_panel_integrals
 
 
-    function panel_calc_integrals(this, geom, influence_type, singularity_type, freestream, mirror_panel, dod_info) result(int)
+    function panel_calc_integrals(this, geom, influence_type, freestream, mirror_panel, dod_info) result(int)
         ! Calculates the H and F integrals necessary for the given influence
 
         implicit none
 
         class(panel),intent(in) :: this
         type(eval_point_geom),intent(in) :: geom
-        character(len=*),intent(in) :: influence_type, singularity_type
+        character(len=*),intent(in) :: influence_type
         type(flow),intent(in) :: freestream
         logical,intent(in) :: mirror_panel
         type(dod),intent(in) :: dod_info
 
         type(integrals) :: int
 
-        ! Allocate space for edge integrals
-        allocate(int%F111(this%N), source=0.)
-        if (this%order == 2) then
-            allocate(int%F121(this%N), source=0.)
-            allocate(int%F211(this%N), source=0.)
-        end if
+        if (influence_type == 'potential') then
 
-        ! Calculate necessary integrals based on the flow condition and panel type
-        if (freestream%supersonic) then
-            if ((mirror_panel .and. this%r_mir < 0.) .or. (.not. mirror_panel .and. this%r < 0.)) then
-                call this%calc_supersonic_supinc_edge_integrals(geom, dod_info, freestream, mirror_panel, int)
-                call this%calc_supersonic_supinc_panel_integrals(geom, dod_info, freestream, mirror_panel, int)
-            else
-                call this%calc_supersonic_subinc_edge_integrals(geom, dod_info, freestream, mirror_panel, int)
-                call this%calc_supersonic_subinc_panel_integrals(geom, dod_info, freestream, mirror_panel, int)
+            ! Allocate space for edge integrals
+            allocate(int%F111(this%N), source=0.)
+            if (this%order == 2) then
+                allocate(int%F121(this%N), source=0.)
+                allocate(int%F211(this%N), source=0.)
             end if
-        else
-            call this%calc_subsonic_edge_integrals(geom, freestream, mirror_panel, int)
-            call this%calc_subsonic_panel_integrals(geom, freestream, mirror_panel, int)
+
+            ! Calculate necessary integrals based on the flow condition and panel type
+            if (freestream%supersonic) then
+                if ((mirror_panel .and. this%r_mir < 0.) .or. (.not. mirror_panel .and. this%r < 0.)) then
+                    call this%calc_supersonic_supinc_edge_integrals(geom, dod_info, freestream, mirror_panel, int)
+                    call this%calc_supersonic_supinc_panel_integrals(geom, dod_info, freestream, mirror_panel, int)
+                else
+                    call this%calc_supersonic_subinc_edge_integrals(geom, dod_info, freestream, mirror_panel, int)
+                    call this%calc_supersonic_subinc_panel_integrals(geom, dod_info, freestream, mirror_panel, int)
+                end if
+            else
+                call this%calc_subsonic_edge_integrals(geom, freestream, mirror_panel, int)
+                call this%calc_subsonic_panel_integrals(geom, freestream, mirror_panel, int)
+            end if
+
         end if
 
     end function panel_calc_integrals
@@ -2335,11 +2377,15 @@ contains
             end if
 
             ! Get integrals
-            int = this%calc_integrals(geom, 'potential', 'doublet', freestream, mirror_panel, dod_info)
+            int = this%calc_integrals(geom, 'potential', freestream, mirror_panel, dod_info)
 
             ! Source potential
-            if (.not. this%in_wake) then
+            if (this%has_sources) then
+
+                ! Constant influence
                 phi_s(1) = int%H111
+
+                ! Linear influences
                 if (this%order == 2) then
 
                     ! Johnson Eq. (D21)
@@ -2422,23 +2468,23 @@ contains
         real,intent(out) :: phi_d, phi_s
 
         real,dimension(:),allocatable :: source_inf, doublet_inf
-        real,dimension(6) :: mu_verts
-        real,dimension(3) :: sigma_verts
+        real,dimension(6) :: doublet_strengths
+        real,dimension(4) :: source_strengths
 
         ! Get influences
         call this%calc_potential_influences(P, freestream, dod_info, mirror_panel, source_inf, doublet_inf)
 
         ! Get strengths
-        sigma_verts = this%get_source_strengths(sigma, mirror_panel)
-        mu_verts = this%get_doublet_strengths(mu, mirror_panel)
+        source_strengths = this%get_source_strengths(sigma, mirror_panel)
+        doublet_strengths = this%get_doublet_strengths(mu, mirror_panel)
 
         ! Apply strengths to calculate potentials
         if (this%order == 2) then
-            phi_s = sum(source_inf*sigma_verts)
-            phi_d = sum(doublet_inf*mu_verts)
+            phi_s = sum(source_inf*source_strengths)
+            phi_d = sum(doublet_inf*doublet_strengths)
         else
-            phi_s = source_inf(1)*sigma_verts(1)
-            phi_d = sum(doublet_inf(1:3)*mu_verts(1:3))
+            phi_s = source_inf(1)*source_strengths(1)
+            phi_d = sum(doublet_inf(1:3)*doublet_strengths(1:3))
         end if
 
     end subroutine panel_calc_potentials
@@ -2625,19 +2671,24 @@ contains
             dv = matmul(transpose(this%A_g_to_ls), dv)
         end if
 
-        ! Get source direction
-        if (mirrored) then
-            s_dir = this%n_g_mir/inner(this%nu_g_mir, this%n_g_mir)
-        else
-            s_dir = this%n_g/inner(this%nu_g, this%n_g)
+        ! Add source component
+        if (this%has_sources) then
+
+            ! Get source direction
+            if (mirrored) then
+                s_dir = this%n_g_mir/inner(this%nu_g_mir, this%n_g_mir)
+            else
+                s_dir = this%n_g/inner(this%nu_g, this%n_g)
+            end if
+
+            ! Source strength
+            sigma_params = this%get_source_dist_parameters(sigma, mirrored)
+            s = sigma_params(1) + sigma_params(2)*Q_ls(1) + sigma_params(3)*Q_ls(2)
+
+            ! Add normal velocity jump in global coords E&M Eq. (N.1.11b)
+            dv = dv + s*s_dir
+
         end if
-
-        ! Source strength
-        sigma_params = this%get_source_dist_parameters(sigma, mirrored)
-        s = sigma_params(1) + sigma_params(2)*Q_ls(1) + sigma_params(3)*Q_ls(2)
-
-        ! Add normal velocity jump in global coords E&M Eq. (N.1.11b)
-        dv = dv + s*s_dir
 
     end function panel_get_velocity_jump
 

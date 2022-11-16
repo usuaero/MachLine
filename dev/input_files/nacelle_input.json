@@ -14,7 +14,7 @@
         }
     },
     "solver": {
-        "matrix_solver" : "FQRUP",
+        "matrix_solver" : "GMRES",
         "run_checks" : true
     },
     "post_processing" : {
@@ -24,6 +24,10 @@
     "output": {
         "body_file" :          "dev/results/superinclined_nacelle.vtk",
         "wake_file" :          "dev/results/superinclined_nacelle_wake.vtk",
-        "control_point_file" : "dev/results/superinclined_nacelle_control_points.vtk"
+        "control_point_file" : "dev/results/superinclined_nacelle_control_points.vtk",
+        "offbody_points" : {
+            "points_file" : "dev/pod_sample_points.csv",
+            "output_file" : "dev/results/superinclined_nacelle_sample_points.csv"
+        }
     }
 }

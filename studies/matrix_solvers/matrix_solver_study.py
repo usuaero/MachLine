@@ -107,11 +107,14 @@ def run_paces(mesh_root_name, v_inf, M, mirror_plane, vtk_mesh):
     # Assumes the mesh has 'coarse', 'medium', and 'fine' refinements available
 
     # Options to iterate through
-    #solver_options = ["LU", "BJAC", "BSSOR", "QRUP", "FQRUP", "GMRES"]
-    solver_options = ["BJAC", "BSSOR"]
+    solver_options = ["LU", "BJAC", "BSSOR", "QRUP", "FQRUP", "GMRES"]
+    #solver_options = ["BJAC", "BSSOR"]
+    #solver_options = ["BSSOR"]
+    #refinement_options = ["fine"]
     refinement_options = ["coarse", "medium", "fine"]
     preconditioner_options = ["DIAG", "none"]
     sort_system_options = [False, True]
+    #sort_system_options = [True]
     N_avg = 5
 
     # We'll just overwrite the input every time
@@ -170,7 +173,7 @@ def update_csv(mesh_root_name, solver, refinement, preconditioner, sort_system, 
         for row in reader:
 
             # Update this row
-            if row["Solver"] == solver and row["Mesh Refinement"] == refinement and row["Preconditioner"] == preconditioner and row["Sorted"] == str(sort_system) and int(row["Trial"]) == i:
+            if row["Solver"] == solver and row["Mesh Refinement"] == refinement and row["Preconditioner"] == preconditioner and row["Sorted"].title() == str(sort_system) and int(row["Trial"]) == i:
 
                 # Update row
                 row["Method Run Time"] = runtime_m

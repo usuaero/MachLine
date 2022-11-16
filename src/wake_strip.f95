@@ -284,6 +284,7 @@ contains
 
         ! Set that it's in the wake
         this%panels(i_panel)%in_wake = .true.
+        this%panels(i_panel)%has_sources = .false.
     
     end subroutine wake_strip_init_panel
 

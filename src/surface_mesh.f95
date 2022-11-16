@@ -1367,6 +1367,7 @@ contains
 
         integer :: i, j, i_panel
         real,dimension(3) :: dir, loc
+        logical :: surrounded
 
         ! Specify number of control points
         if (this%asym_flow) then
@@ -1380,8 +1381,8 @@ contains
         allocate(this%cp(this%N_cp))
 
         ! Loop through vertices
-        !$OMP parallel do private(j, i_panel, dir) &
-        !$OMP & schedule(dynamic) shared(this, offset) default(none)
+        !$OMP parallel do private(j, i_panel, dir, surrounded) &
+        !$OMP & schedule(dynamic) shared(this, offset, freestream) default(none)
         do i=1,this%N_verts
 
             ! If the vertex is a clone, it needs to be shifted off the normal slightly so that it is unique from its counterpart
@@ -1395,23 +1396,37 @@ contains
                 ! Set direction
                 dir = -this%vertices(i)%n_g
 
+                ! Check if this vertex is entirely surrounded by superinclined panels
+                if (this%N_supinc > 0) then
+                    surrounded = .true.
+                    do j=1,this%vertices(i)%panels%len()
+
+                        ! Get panel index
+                        call this%vertices(i)%panels%get(j, i_panel)
+
+                        ! Check for a subinclined panel, in which case we're not surrounded
+                        if (this%panels(i_panel)%r > 0.) then
+                            surrounded = .false.
+                            exit
+                        end if
+
+                    end do
+
+                    ! If we are surrounded, place the control point in the downstream direction
+                    if (surrounded) then
+                        if (inner(this%panels(i_panel)%n_g, freestream%c_hat_g) > 0.) then
+                            dir = -dir/offset
+                        else
+                            dir = dir/offset
+                        end if
+                    end if
+
+                end if 
+
             end if
             
             ! Initialize control point
             call this%cp(i)%init(this%vertices(i)%loc + offset*dir*this%vertices(i)%l_avg, 1, 1, i)
-
-            !! Check if the control point is going to be outside the mesh
-            !do j=1,this%vertices(i)%panels%len()
-
-            !    ! Get panel index
-            !    call this%vertices(i)%panels%get(j, i_panel)
-
-            !    ! Check
-            !    if (this%panels(i_panel)%point_outside(this%cp(i)%loc, .false., 0)) then
-            !        write(*,*) "!!! Control point ", i, " may be outside panel ", i_panel, "."
-            !    end if
-
-            !end do
 
         end do
 
@@ -1423,10 +1438,10 @@ contains
             do i=1,this%N_panels
 
                 ! Check if this panel is superinclined
-                if (this%panels(i)%r < 0) then
+                if (this%panels(i)%r < 0.) then
 
                     ! Get location on downstream side of panel
-                    if (inner(this%panels(i)%n_g, freestream%c_hat_g) > 0) then
+                    if (inner(this%panels(i)%n_g, freestream%c_hat_g) > 0.) then
                         loc = this%panels(i)%centr + this%panels(i)%n_g*offset
                     else
                         loc = this%panels(i)%centr - this%panels(i)%n_g*offset
