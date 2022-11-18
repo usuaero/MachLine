@@ -119,16 +119,18 @@ module panel_mod
             procedure :: calc_supersonic_subinc_geom => panel_calc_supersonic_subinc_geom
             procedure :: calc_supersonic_supinc_geom => panel_calc_supersonic_supinc_geom
 
-            ! Fundamental integrals
+            ! Edge integrals
             procedure :: calc_subsonic_edge_integrals => panel_calc_subsonic_edge_integrals
             procedure :: calc_subsonic_panel_integrals => panel_calc_subsonic_panel_integrals
             procedure :: calc_supersonic_subinc_edge_integrals => panel_calc_supersonic_subinc_edge_integrals
+
+            ! Panel integrals
             procedure :: calc_supersonic_subinc_panel_integrals => panel_calc_supersonic_subinc_panel_integrals
             procedure :: calc_supersonic_supinc_edge_integrals => panel_calc_supersonic_supinc_edge_integrals
             procedure :: calc_supersonic_supinc_panel_integrals => panel_calc_supersonic_supinc_panel_integrals
-            procedure :: calc_integrals => panel_calc_integrals
 
             ! Influences
+            procedure :: calc_integrals => panel_calc_integrals
             procedure :: allocate_potential_influences => panel_allocate_potential_influences
             procedure :: calc_potential_influences => panel_calc_potential_influences
             procedure :: calc_potentials => panel_calc_potentials
@@ -2191,19 +2193,19 @@ contains
         integer :: i, i_prev
 
         ! Calculate hH(1,1,3)
-        int%hH113 = 2.*pi
+        int%hH113 = -2.*pi
 
         ! Loop through corners
         do i=1,this%N
 
             ! Edge influence
-            if (dod_info%edges_in_dod(i)) int%hH113 = int%hH113 + pi
+            if (dod_info%edges_in_dod(i)) int%hH113 = int%hH113 - pi
 
             ! Corner influence
             if (geom%R1(i) > 0.) then
 
                 ! Cancel out edge influence
-                int%hH113 = int%hH113 - pi
+                int%hH113 = int%hH113 + pi
 
                 ! Get index of previous corner
                 if (i == 1) then
@@ -2221,38 +2223,38 @@ contains
                 Y = geom%h*geom%R1(i)*t_cross
 
                 ! Update hH113
-                int%hH113 = int%hH113 - atan2(Y, -X)
+                int%hH113 = int%hH113 + atan2(Y, -X)
 
             end if
         end do
 
         ! Calculate H(1,1,1)
-        if (this%has_sources) int%H111 = geom%h*int%hH113 - sum(geom%a*int%F111)
+        if (this%has_sources) int%H111 = -geom%h*int%hH113 - sum(geom%a*int%F111)
 
         ! Calculate H(2,1,3) and H(1,2,3)
-        int%H213 = sum(geom%v_xi*int%F111)
-        int%H123 = sum(geom%v_eta*int%F111)
+        int%H213 = -sum(geom%v_xi*int%F111)
+        int%H123 = -sum(geom%v_eta*int%F111)
 
         if (this%order == 2) then
 
             ! Calculate higher-order source integrals
             if (this%has_sources) then
-                int%H211 = 0.5*(geom%h2*int%H213 - sum(geom%a*int%F211))
-                int%H121 = 0.5*(geom%h2*int%H123 - sum(geom%a*int%F121))
+                int%H211 = 0.5*(-geom%h2*int%H213 - sum(geom%a*int%F211))
+                int%H121 = 0.5*(-geom%h2*int%H123 - sum(geom%a*int%F121))
             end if
 
             ! Calculate higher-order doublet integrals
-            int%H313 = int%H111 + sum(geom%v_xi*int%F211)
-            int%H223 = sum(geom%v_xi*int%F121)
-            int%H133 = int%H111 + sum(geom%v_eta*int%F121)
+            int%H313 = -int%H111 - sum(geom%v_xi*int%F211)
+            int%H223 = -sum(geom%v_xi*int%F121)
+            int%H133 = -int%H111 - sum(geom%v_eta*int%F121)
 
             ! Run checks
-            if (abs(sum(geom%v_eta*int%F211) - int%H223) > 1e-12) then
+            if (abs(sum(geom%v_eta*int%F211) + int%H223) > 1e-12) then
                 write(*,*) "!!! Influence calculation failed for H(2,2,3). Quitting..."
                 stop
             end if
 
-            if (abs(int%H111 - int%H313 - int%H133 + geom%h*int%hH113) > 1e-12) then
+            if (abs(int%H111 + int%H313 + int%H133 - geom%h*int%hH113) > 1e-12) then
                 write(*,*) "!!! Influence calculation failed for H(3,1,3) and H(1,3,3). Quitting..."
                 stop
             end if
@@ -2583,8 +2585,8 @@ contains
 
         ! Get doublet strengths at vertices
         else
-            do i=1,this%N
-                mu_strengths(i) = mu(this%get_vertex_index(i)+shift)
+            do i=1,size(this%i_vert_d)
+                mu_strengths(i) = mu(this%i_vert_d(i)+shift)
             end do
         end if
         

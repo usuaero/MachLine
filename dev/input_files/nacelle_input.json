@@ -14,7 +14,7 @@
         }
     },
     "solver": {
-        "matrix_solver" : "GMRES",
+        "matrix_solver" : "FQRUP",
         "run_checks" : true
     },
     "post_processing" : {

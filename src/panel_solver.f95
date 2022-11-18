@@ -1286,7 +1286,7 @@ contains
         ! QR via Givens rotations for upper-pentagonal
         case ('QRUP')
             call system_clock(start_count, count_rate)
-            call QR_row_givens_solve_UP(this%N_unknown, A_p, b_p, x)
+            call QR_givens_solve_UP(this%N_unknown, A_p, b_p, x)
             call system_clock(end_count)
 
         ! QR via fast Givens rotations for upper-pentagonal

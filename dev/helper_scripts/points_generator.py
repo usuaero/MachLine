@@ -5,7 +5,7 @@ if __name__=="__main__":
     # Limits
     x_max = 6.0
     x_min = 0.0
-    y_max = 0.8
+    y_max = 2.0
     y_min = 0.0
     z_max = 0.0
     z_min = 0.0

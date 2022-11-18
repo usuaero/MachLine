@@ -162,17 +162,17 @@ contains
 
         ! First order
         case ('lower')
-            if (verbose) write(*,*) "     User has selected linear-doublet-constant-source panels."
+            if (verbose) write(*,*) "    User has selected linear-doublet-constant-source panels."
             this%initial_panel_order = 1
             p_refine = .false.
 
         case ('higher')
-            if (verbose) write(*,*) "     User has selected quadratic-doublet-linear-source panels."
+            if (verbose) write(*,*) "    User has selected quadratic-doublet-linear-source panels."
             this%initial_panel_order = 2
             p_refine = .false.
 
         case ('adaptive')
-            if (verbose) write(*,*) "     User has selected adaptive singularity distributions."
+            if (verbose) write(*,*) "    User has selected adaptive singularity distributions."
             this%initial_panel_order = 1
             p_refine = .true.
 

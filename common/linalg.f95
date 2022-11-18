@@ -15,7 +15,7 @@ subroutine matinv(n, a, ai)
       ! io - Work array, a 1-dimensional integer array of length n used by the subroutine.
 
       ! NEVER INVERT A MARTIX EXPLICITLY!
-      ! Unless you know what you're doing. Odds are you may not, so be careful.
+      ! Unless you know what you're doing. It's okay for small (N<10) matrices that are well-conditioned.
 
       implicit none
 
@@ -835,56 +835,6 @@ function get_lower_bandwidth(N, A) result(B_l)
 end function get_lower_bandwidth
 
 
-subroutine GE_solve_upper_pentagonal(N, A, b, x)
-  ! Solves [A]x = b using Gauss elimination assuming A is upper-pentagonal
-  ! Replaces A partially with its LU decomposition
-  ! Based on Chen "Matrix Preconditioning Techniques and Applications" Alg. 2.5.8
-  ! Essentially useless; I was just trying it out.
-
-  implicit none
-  
-  integer,intent(in) :: N
-  real,dimension(N,N), intent(inout) :: A
-  real,dimension(N),intent(in) :: b
-  real,dimension(:),allocatable,intent(out) :: x
-
-  integer :: B_l, i, j, k
-  real :: m
-
-  ! Get bandwidth
-  B_l = get_lower_bandwidth(N, A)
-
-  ! Allocate solution
-  allocate(x, source=b)
-
-  ! Outer loop
-  do k=1,N
-
-    ! Loop through rows
-    do i=k+1,min(k+B_l, N)
-
-      ! Get scale factor
-      m = A(i,k)/A(k,k)
-
-      ! Check size of factor
-      if (abs(m) > 1.0e-12) then
-
-        ! Update solution
-        x(i) = x(i) - m*x(k)
-
-        ! Apply row operation to other columns of A
-        do j=k,N
-          A(i,j) = A(i,j) - m*A(k,j)
-        end do
-
-      end if
-
-    end do
-  end do
-  
-end subroutine GE_solve_upper_pentagonal
-
-
 subroutine gen_givens_rot(x, y, c, s)
   ! Calculates the plane rotation from x and y
   ! Also applies the rotation to x and y
@@ -929,49 +879,7 @@ subroutine apply_givens_row_rot(c, s, x, y, N)
 end subroutine apply_givens_row_rot
 
 
-subroutine QR_givens_solve(N, A, b, x)
-  ! Solves the equation [A]x = b using the QR factorization via Givens rotations
-
-  implicit none
-  
-  integer,intent(in) :: N
-  real,dimension(N,N),intent(inout) :: A
-  real,dimension(N),intent(inout) :: b
-  real,dimension(:),allocatable,intent(out) :: x
-
-  integer :: i, j
-  real :: s, c
-
-  ! Initialize
-  allocate(x(N))
-
-  ! Zero out lower triangle
-
-  ! Loop through columns
-  do j=1,N
-
-    ! Loop through rows
-    do i=N,j+1,-1
-
-      ! Generate Givens rotation
-      call gen_givens_rot(A(i-1,j), A(i,j), c, s)
-
-      ! Apply to rest of row
-      call apply_givens_row_rot(c, s, A(i-1,j+1:), A(i,j+1:), N-j-1)
-
-      ! Apply to b vector
-      call apply_givens_row_rot(c, s, b(i-1), b(i), 1)
-
-    end do
-  end do
-
-  ! Back substitution
-  call upper_triangular_back_sub(N, A, b, x)
-  
-end subroutine QR_givens_solve
-
-
-subroutine QR_row_givens_solve_UP(N, A, b, x)
+subroutine QR_givens_solve_UP(N, A, b, x)
   ! Solves the equation [A]x = b using the QR factorization via row-oriented Givens rotations
   ! Assumes A is upper-pentagonal
 
@@ -1016,7 +924,7 @@ subroutine QR_row_givens_solve_UP(N, A, b, x)
   ! Back substitution
   call upper_triangular_back_sub(N, A, b, x)
   
-end subroutine QR_row_givens_solve_UP
+end subroutine QR_givens_solve_UP
 
 
 subroutine upper_triangular_back_sub(N, R, b, x)
