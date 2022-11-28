@@ -4,7 +4,7 @@
     },
     "geometry" : {
         "file" : "dev/meshes/commercial_fuselage.vtk",
-        "singularity_order" : "higher"
+        "singularity_order" : "lower"
     },
     "solver" : {
         "formulation" : "morino",

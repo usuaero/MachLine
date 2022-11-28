@@ -22,7 +22,7 @@ if __name__=="__main__":
     # Generate mesh
     def r_of_x(x):
         return 0.2*x*(1.0-x)
-    generate_random_spindle(mesh_file, 200, 1.0, r_of_x)
+    generate_random_spindle(mesh_file, 400, 1.0, r_of_x)
 
     # Write input
     input_dict = {
@@ -67,7 +67,7 @@ if __name__=="__main__":
 
     # Plot
     plt.figure()
-    plt.plot(x_ML, C_p_ML, 'k.', markersize=3, label='MachLine')
+    plt.plot(x_ML, C_p_ML, 'k.', markersize=3, label='Random Mesh')
     plt.plot(x_anl, C_p_anl, 'k', label='Meth. of Char.')
     plt.xlabel("$x$")
     plt.ylabel("$C_P$")

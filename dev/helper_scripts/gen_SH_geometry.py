@@ -1,5 +1,6 @@
 import numpy as np
 
+
 def _generate_SH(rmax, length, num_ax = 100, num_theta = 30):
     
     R_L_ratio = rmax/length
@@ -107,15 +108,15 @@ def _write_TRI(nVerts, nTris, vertices, tri_verts, comp_num, filename = 'test_fi
 '''------------RUN SCRIPT------------'''
 if __name__ == "__main__":
 
-    num_ax = 40 # number of axial panels
-    num_theta = 20 # number of tangential panels
+    num_ax = 120 # number of axial panels
+    num_theta = 45 # number of tangential panels
     length = 0.6096 # length of SH body
     rmax = length * 0.037879 # maximum radius of SH body
         
     nVerts, nTris, vertices, tri_verts, comp_num, r_l_ratio = _generate_SH(rmax, length, num_ax, num_theta)
     print('R over L ratio: ', r_l_ratio)
 
-    _write_TRI(nVerts, nTris, vertices, tri_verts, comp_num, filename = 'sears_haack_mesh.tri')
+    _write_TRI(nVerts, nTris, vertices, tri_verts, comp_num, filename = 'studies/sears_haack/meshes/SH_{0}_{1}.tri'.format(num_ax, num_theta))
 
 
 

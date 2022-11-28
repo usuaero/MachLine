@@ -497,23 +497,21 @@ contains
     end function edge_get_opposite_endpoint
 
 
-    subroutine eval_point_geom_init(this, P, A_g_to_ls, centr)
+    subroutine eval_point_geom_init(this, P_g, P_ls)
 
         implicit none
 
         class(eval_point_geom),intent(out) :: this
-        real,dimension(3),intent(in) :: P, centr
-        real,dimension(3,3),intent(in) :: A_g_to_ls
+        real,dimension(3),intent(in) :: P_g, P_ls
 
         real,dimension(3) :: x
 
         ! Store point
-        this%P_g = P
+        this%P_g = P_g
 
         ! Transform to local scaled coordinates
-        x = matmul(A_g_to_ls, this%P_g-centr)
-        this%P_ls = x(1:2)
-        this%h = x(3) ! Equivalent to E&M Eq. (J.7.41)
+        this%P_ls = P_ls(1:2)
+        this%h = P_ls(3) ! Equivalent to E&M Eq. (J.7.41)
         this%h2 = this%h**2
 
         ! These are sometimes accessed when the DoD is not checked, so they need to be set to zero

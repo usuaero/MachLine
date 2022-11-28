@@ -9,7 +9,7 @@
         "freestream_mach_number": 4.0
     },
     "geometry": {
-        "file": "studies/supersonic_cone_flow_study/meshes/cone_15_deg_medium.vtk",
+        "file": "studies/supersonic_cone_flow_study/meshes/cone_15_deg_fine.vtk",
         "spanwise_axis": "+y",
         "mirror_about": "xy",
         "wake_model": {
@@ -33,7 +33,7 @@
         }
     },
     "output": {
-        "body_file": "studies/supersonic_cone_flow_study/results/M_4.0_15_deg_medium.vtk",
-        "report_file": "studies/supersonic_cone_flow_study/reports/M_4.0_15_deg_medium.json"
+        "body_file": "studies/supersonic_cone_flow_study/results/M_4.0_15_deg_fine.vtk",
+        "report_file": "studies/supersonic_cone_flow_study/reports/M_4.0_15_deg_fine.json"
     }
 }

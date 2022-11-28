@@ -99,6 +99,7 @@ module panel_mod
             procedure :: get_weighted_normal_at_corner => panel_get_weighted_normal_at_corner
             procedure :: get_projection_onto_surface => panel_get_projection_onto_surface
             procedure :: get_opposite_vertex => panel_get_opposite_vertex
+            procedure :: get_local_coords_of_point => panel_get_local_coords_of_point
 
             ! Checks
             procedure :: touches_vertex => panel_touches_vertex
@@ -1219,6 +1220,26 @@ contains
     end function panel_get_opposite_vertex
 
 
+    function panel_get_local_coords_of_point(this, P, mirrored) result(P_ls)
+        ! Calculates the coordinates of the given point in local-scaled coordinates
+
+        implicit none
+        
+        class(panel),intent(in) :: this
+        real,dimension(3),intent(in) :: P
+        logical,intent(in) :: mirrored
+
+        real,dimension(3) :: P_ls
+
+        if (mirrored) then
+            P_ls = matmul(this%A_g_to_ls_mir, P-this%centr_mir)
+        else
+            P_ls = matmul(this%A_g_to_ls, P-this%centr)
+        end if
+        
+    end function panel_get_local_coords_of_point
+
+
     subroutine panel_point_to_new_vertex(this, new_vertex)
         ! Updates the panel to point to this new vertex (assumed to be a copy of a current vertex)
 
@@ -1453,12 +1474,11 @@ contains
         real,dimension(this%N) :: dummy
 
         ! Initialize
+        call geom%init(eval_point, this%get_local_coords_of_point(eval_point, mirror_panel))
         if (mirror_panel) then
-            call geom%init(eval_point, this%A_g_to_ls_mir, this%centr_mir)
             geom%v_xi = this%n_hat_ls_mir(1,:)
             geom%v_eta = this%n_hat_ls_mir(2,:)
         else
-            call geom%init(eval_point, this%A_g_to_ls, this%centr)
             geom%v_xi = this%n_hat_ls(1,:)
             geom%v_eta = this%n_hat_ls(2,:)
         end if
@@ -1538,12 +1558,11 @@ contains
         real :: dummy
 
         ! Initialize
+        call geom%init(eval_point, this%get_local_coords_of_point(eval_point, mirror_panel))
         if (mirror_panel) then
-            call geom%init(eval_point, this%A_g_to_ls_mir, this%centr_mir)
             geom%v_xi = this%n_hat_ls_mir(1,:)
             geom%v_eta = this%n_hat_ls_mir(2,:)
         else
-            call geom%init(eval_point, this%A_g_to_ls, this%centr)
             geom%v_xi = this%n_hat_ls(1,:)
             geom%v_eta = this%n_hat_ls(2,:)
         end if
@@ -1657,12 +1676,11 @@ contains
         real :: dummy
 
         ! Initialize
+        call geom%init(eval_point, this%get_local_coords_of_point(eval_point, mirror_panel))
         if (mirror_panel) then
-            call geom%init(eval_point, this%A_g_to_ls_mir, this%centr_mir)
             geom%v_xi = this%n_hat_ls_mir(1,:)
             geom%v_eta = this%n_hat_ls_mir(2,:)
         else
-            call geom%init(eval_point, this%A_g_to_ls, this%centr)
             geom%v_xi = this%n_hat_ls(1,:)
             geom%v_eta = this%n_hat_ls(2,:)
         end if
@@ -2643,17 +2661,13 @@ contains
 
         real,dimension(6) :: mu_params
         real,dimension(3) :: s_dir, sigma_params
-        real,dimension(2) :: Q_ls
+        real,dimension(3) :: Q_ls
         integer :: i
         real :: s
 
         ! Get point
         if (present(point)) then
-            if (mirrored) then
-                Q_ls = matmul(this%A_g_to_ls_mir(1:2,:), point-this%centr_mir)
-            else
-                Q_ls = matmul(this%A_g_to_ls(1:2,:), point-this%centr)
-            end if
+            Q_ls = this%get_local_coords_of_point(point, mirrored)
         else
             Q_ls = 0.
         end if

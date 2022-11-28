@@ -10,10 +10,13 @@
     },
     "solver": {},
     "geometry": {
-        "file": "studies/sears_haack/meshes/SH_80_30.tri",
+        "file": "studies/sears_haack/meshes/SH_160_60.tri",
         "spanwise_axis": "+y",
         "wake_model": {
             "wake_present": false
+        },
+        "reference": {
+            "area": 0.001675
         }
     },
     "post_processing": {
@@ -25,6 +28,7 @@
         }
     },
     "output": {
-        "body_file": "studies/sears_haack/results/SH_80_30_M_3.0.vtk"
+        "body_file": "studies/sears_haack/results/SH_160_60_M_3.0.vtk",
+        "report_file": "studies/sears_haack/reports/SH_160_60_M_3.0.json"
     }
 }
