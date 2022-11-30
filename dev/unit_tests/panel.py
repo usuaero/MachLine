@@ -1207,4 +1207,4 @@ class SupersonicSuperinclinedPanel(Panel):
                 # Calculate induced potential
                 phi_d += self.get_local_doublet_strength(point)/R**3
 
-        return -2.0*self.K_inv*P[2]*phi_d*self.dA # I don't know why a negative sign is needed here, but it makes everything in MachLine work
+        return -2.0*self.K_inv*P[2]*phi_d*self.dA

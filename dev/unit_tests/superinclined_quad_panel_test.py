@@ -50,8 +50,8 @@ if __name__=="__main__":
     panel.distribute_points(40, 40)
 
     # Initialize singularity distributions
-    mu_params = [1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-    sigma_params = [0.0, 0.0, 1.0]
+    mu_params = [0.0, 0.0, 1.0, 0.0, 0.0, 0.0]
+    sigma_params = [1.0, 0.0, 0.0]
     panel.set_doublet_strength(mu_params)
     panel.set_source_strength(sigma_params)
 

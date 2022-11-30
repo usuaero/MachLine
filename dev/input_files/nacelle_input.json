@@ -15,6 +15,7 @@
     },
     "solver": {
         "matrix_solver" : "FQRUP",
+        "control_point_offset" : 1.e-3,
         "run_checks" : true
     },
     "post_processing" : {

@@ -1415,9 +1415,9 @@ contains
                     ! If we are surrounded, place the control point in the downstream direction
                     if (surrounded) then
                         if (inner(this%panels(i_panel)%n_g, freestream%c_hat_g) > 0.) then
-                            dir = -dir/offset
+                            dir = -dir
                         else
-                            dir = dir/offset
+                            dir = dir
                         end if
                     end if
 
@@ -1443,13 +1443,13 @@ contains
                     ! Get location on downstream side of panel
                     if (inner(this%panels(i)%n_g, freestream%c_hat_g) > 0.) then
                         loc = this%panels(i)%centr + this%panels(i)%n_g*offset
+                        j = j + 1
+                        call this%cp(j)%init(loc, 2, 2, i)
                     else
                         loc = this%panels(i)%centr - this%panels(i)%n_g*offset
+                        j = j + 1
+                        call this%cp(j)%init(loc, 1, 2, i)
                     end if
-
-                    ! Initialize
-                    j = j + 1
-                    call this%cp(j)%init(loc, 1, 2, i)
 
                 end if
             end do
@@ -1463,7 +1463,8 @@ contains
             do i=1,this%N_cp/2
 
                 ! Initialize
-                call this%cp(i+this%N_cp/2)%init(mirror_across_plane(this%cp(i)%loc, this%mirror_plane), 1, 1, i)
+                call this%cp(i+this%N_cp/2)%init(mirror_across_plane(this%cp(i)%loc, this%mirror_plane), &
+                                                 this%cp(i)%cp_type, this%cp(i)%tied_to_type, this%cp(i)%tied_to_index)
 
                 ! Specify that this is a mirror
                 this%cp(i+this%N_cp/2)%is_mirror = .true.

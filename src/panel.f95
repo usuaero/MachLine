@@ -2000,7 +2000,7 @@ contains
                     F2 = geom%R1(i)*geom%R2(i) + geom%l1(i)*geom%l2(i)
 
                     ! F(1,1,1)
-                    int%F111(i) = -atan2(F1, F2)
+                    int%F111(i) = atan2(F1, F2)
 
                     ! Higher-order
                     if (this%order == 2) then
@@ -2211,7 +2211,7 @@ contains
         integer :: i, i_prev
 
         ! Calculate hH(1,1,3)
-        int%hH113 = -2.*pi
+        int%hH113 = 2.*pi
 
         ! Loop through corners
         do i=1,this%N
@@ -2241,30 +2241,30 @@ contains
                 Y = geom%h*geom%R1(i)*t_cross
 
                 ! Update hH113
-                int%hH113 = int%hH113 + atan2(Y, -X)
+                int%hH113 = int%hH113 - atan2(Y, -X)
 
             end if
         end do
 
         ! Calculate H(1,1,1)
-        if (this%has_sources) int%H111 = -geom%h*int%hH113 - sum(geom%a*int%F111)
+        if (this%has_sources) int%H111 = geom%h*int%hH113 - sum(geom%a*int%F111)
 
         ! Calculate H(2,1,3) and H(1,2,3)
-        int%H213 = -sum(geom%v_xi*int%F111)
-        int%H123 = -sum(geom%v_eta*int%F111)
+        int%H213 = sum(geom%v_xi*int%F111)
+        int%H123 = sum(geom%v_eta*int%F111)
 
         if (this%order == 2) then
 
             ! Calculate higher-order source integrals
             if (this%has_sources) then
-                int%H211 = 0.5*(-geom%h2*int%H213 - sum(geom%a*int%F211))
-                int%H121 = 0.5*(-geom%h2*int%H123 - sum(geom%a*int%F121))
+                int%H211 = 0.5*(geom%h2*int%H213 - sum(geom%a*int%F211))
+                int%H121 = 0.5*(geom%h2*int%H123 - sum(geom%a*int%F121))
             end if
 
             ! Calculate higher-order doublet integrals
-            int%H313 = -int%H111 - sum(geom%v_xi*int%F211)
-            int%H223 = -sum(geom%v_xi*int%F121)
-            int%H133 = -int%H111 - sum(geom%v_eta*int%F121)
+            int%H313 = int%H111 + sum(geom%v_xi*int%F211)
+            int%H223 = sum(geom%v_xi*int%F121)
+            int%H133 = int%H111 + sum(geom%v_eta*int%F121)
 
             ! Run checks
             if (abs(sum(geom%v_eta*int%F211) + int%H223) > 1e-12) then
