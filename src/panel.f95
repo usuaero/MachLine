@@ -19,6 +19,8 @@ module panel_mod
         real :: H111, H211, H121 ! Source integrals
         real :: hH113, H213, H123, H313, H223, H133 ! Doublet integrals; we use hH(1,1,3) because it can be reliably calculated, unlike H(1,1,3)
         real,dimension(:),allocatable :: F111, F211, F121 ! Necessary line integrals
+        real :: H115, H215, H125, H225, H315, H135, H415, H145, H325, H235 ! Doublet velocity integrals. Yeah, there are a lot...
+        real,dimension(:),allocatable :: F113, F123, F213, F133, F313 ! Necessary for doublet velocity integrals
 
     end type integrals
 
@@ -116,25 +118,38 @@ module panel_mod
             ! Influence calculations
 
             ! Geometry
+            procedure :: calc_basic_geom => panel_calc_basic_geom
             procedure :: calc_subsonic_geom => panel_calc_subsonic_geom
             procedure :: calc_supersonic_subinc_geom => panel_calc_supersonic_subinc_geom
             procedure :: calc_supersonic_supinc_geom => panel_calc_supersonic_supinc_geom
+            
+            ! Endpoint integrals
+            procedure :: calc_subsonic_EMNK => panel_calc_subsonic_EMNK
 
             ! Edge integrals
             procedure :: calc_subsonic_edge_integrals => panel_calc_subsonic_edge_integrals
-            procedure :: calc_subsonic_panel_integrals => panel_calc_subsonic_panel_integrals
             procedure :: calc_supersonic_subinc_edge_integrals => panel_calc_supersonic_subinc_edge_integrals
+            procedure :: calc_supersonic_supinc_edge_integrals => panel_calc_supersonic_supinc_edge_integrals
 
             ! Panel integrals
+            procedure :: calc_subsonic_panel_integrals => panel_calc_subsonic_panel_integrals
             procedure :: calc_supersonic_subinc_panel_integrals => panel_calc_supersonic_subinc_panel_integrals
-            procedure :: calc_supersonic_supinc_edge_integrals => panel_calc_supersonic_supinc_edge_integrals
             procedure :: calc_supersonic_supinc_panel_integrals => panel_calc_supersonic_supinc_panel_integrals
 
-            ! Influences
+            ! Velocity integrals
+            procedure :: calc_subsonic_velocity_integrals => panel_calc_subsonic_velocity_integrals
+
+            ! All integrals
             procedure :: calc_integrals => panel_calc_integrals
+
+            ! Potentials
             procedure :: allocate_potential_influences => panel_allocate_potential_influences
             procedure :: calc_potential_influences => panel_calc_potential_influences
             procedure :: calc_potentials => panel_calc_potentials
+
+            ! Velocities
+            procedure :: allocate_velocity_influences => panel_allocate_velocity_influences
+            procedure :: calc_velocity_influences => panel_calc_velocity_influences
 
             ! Results
             procedure :: get_source_strengths => panel_get_source_strengths
@@ -1455,6 +1470,43 @@ contains
     end function panel_check_dod
 
 
+    function panel_calc_basic_geom(this, eval_point, mirror_panel) result(geom)
+        ! Initializes geometry common to the three panel types
+
+        implicit none
+        
+        class(panel), intent(in) :: this
+        real,dimension(3),intent(in) :: eval_point
+        logical,intent(in) :: mirror_panel
+
+        type(eval_point_geom) :: geom
+
+        integer :: i
+
+        ! Initialize
+        call geom%init(eval_point, this%get_local_coords_of_point(eval_point, mirror_panel))
+
+        ! Get edge normal vectors
+        if (mirror_panel) then
+            geom%v_xi = this%n_hat_ls_mir(1,:)
+            geom%v_eta = this%n_hat_ls_mir(2,:)
+        else
+            geom%v_xi = this%n_hat_ls(1,:)
+            geom%v_eta = this%n_hat_ls(2,:)
+        end if
+
+        ! Calculate vertex displacements
+        do i=1,this%N
+            if (mirror_panel) then
+                geom%d_ls(:,i) = this%vertices_ls_mir(:,i) - geom%P_ls
+            else
+                geom%d_ls(:,i) = this%vertices_ls(:,i) - geom%P_ls
+            end if
+        end do
+    
+    end function panel_calc_basic_geom
+
+
     function panel_calc_subsonic_geom(this, eval_point, freestream, mirror_panel) result(geom)
         ! Calculates the geometric parameters necessary for calculating the influence of the panel at the given evaluation point in subsonic flow.
 
@@ -1474,53 +1526,30 @@ contains
         real,dimension(this%N) :: dummy
 
         ! Initialize
-        call geom%init(eval_point, this%get_local_coords_of_point(eval_point, mirror_panel))
-        if (mirror_panel) then
-            geom%v_xi = this%n_hat_ls_mir(1,:)
-            geom%v_eta = this%n_hat_ls_mir(2,:)
-        else
-            geom%v_xi = this%n_hat_ls(1,:)
-            geom%v_eta = this%n_hat_ls(2,:)
-        end if
+        geom = this%calc_basic_geom(eval_point, mirror_panel)
 
         ! Calculate edge quantities
         do i=1,this%N
 
+            ! Get index of end vertex
             i_next = mod(i, this%N) + 1
 
-            ! Calculate displacement vector from start vertex
-            if (mirror_panel) then
-                d_ls = this%vertices_ls_mir(:,i) - geom%P_ls
-            else
-                d_ls = this%vertices_ls(:,i) - geom%P_ls
-            end if
-
-            ! Perpendicular distance in plane from evaluation point to edge
-            geom%a(i) = d_ls(1)*geom%v_xi(i) + d_ls(2)*geom%v_eta(i)
+            ! Integration length on edge to start vertex
+            geom%l1(i) = -geom%d_ls(1,i)*geom%v_eta(i) + geom%d_ls(2,i)*geom%v_xi(i)
 
             ! Integration length on edge to start vertex
-            geom%l1(i) = -d_ls(1)*geom%v_eta(i) + d_ls(2)*geom%v_xi(i)
-
-            ! Distance from evaluation point to start vertex
-            geom%R1(i) = sqrt(d_ls(1)**2 + d_ls(2)**2 + geom%h2)
-
-            ! Calculate displacement vector from end vertex
-            if (mirror_panel) then
-                d_ls = this%vertices_ls_mir(:,i_next) - geom%P_ls
-            else
-                d_ls = this%vertices_ls(:,i_next) - geom%P_ls
-            end if
-
-            ! Integration length on edge to start vertex
-            geom%l2(i) = -d_ls(1)*geom%v_eta(i) + d_ls(2)*geom%v_xi(i)
+            geom%l2(i) = -geom%d_ls(1,i_next)*geom%v_eta(i) + geom%d_ls(2,i_next)*geom%v_xi(i)
 
         end do
 
+        ! Perpendicular distance in plane from evaluation point to edge
+        geom%a = geom%d_ls(1,:)*geom%v_xi + geom%d_ls(2,:)*geom%v_eta
+
         ! Square of the perpendicular distance to edge
-        geom%g2 = geom%a**2 + geom%h2
+        geom%g2 = geom%a*geom%a + geom%h2
 
         ! Distance from evaluation point to end vertices
-        !geom%R1 = sqrt(geom%l1*geom%l1 + geom%h2)
+        geom%R1 = sqrt(geom%d_ls(1,:)*geom%d_ls(1,:) + geom%d_ls(2,:)*geom%d_ls(2,:) + geom%h2)
         geom%R2 = cshift(geom%R1, 1)
 
         ! Swap directions for mirror
@@ -1558,14 +1587,7 @@ contains
         real :: dummy
 
         ! Initialize
-        call geom%init(eval_point, this%get_local_coords_of_point(eval_point, mirror_panel))
-        if (mirror_panel) then
-            geom%v_xi = this%n_hat_ls_mir(1,:)
-            geom%v_eta = this%n_hat_ls_mir(2,:)
-        else
-            geom%v_xi = this%n_hat_ls(1,:)
-            geom%v_eta = this%n_hat_ls(2,:)
-        end if
+        geom = this%calc_basic_geom(eval_point, mirror_panel)
 
         ! Loop through edges
         do i=1,this%N
@@ -1573,18 +1595,15 @@ contains
             ! Check DoD
             if (dod_info%edges_in_dod(i)) then
 
-                ! Calculate displacement from first vertex
-                if (mirror_panel) then
-                    d_ls = this%vertices_ls_mir(:,i) - geom%P_ls
-                else
-                    d_ls = this%vertices_ls(:,i) - geom%P_ls
-                end if
+                ! Get index of end vertex
+                i_next = mod(i, this%N)+1
 
-                ! Edge integration length
-                geom%l1(i) = geom%v_eta(i)*d_ls(1) + geom%v_xi(i)*d_ls(2)
+                ! Edge integration lengths
+                geom%l1(i) = geom%v_eta(i)*geom%d_ls(1,i) + geom%v_xi(i)*geom%d_ls(2,i)
+                geom%l2(i) = geom%v_eta(i)*geom%d_ls(1,i_next) + geom%v_xi(i)*geom%d_ls(2,i_next)
 
                 ! Perpendicular in-plane distance
-                geom%a(i) = geom%v_xi(i)*d_ls(1) + geom%v_eta(i)*d_ls(2)
+                geom%a(i) = geom%v_xi(i)*geom%d_ls(1,i) + geom%v_eta(i)*geom%d_ls(2,i)
 
                 ! Perpendicular hyperbolic distance
                 if (mirror_panel) then
@@ -1594,30 +1613,17 @@ contains
                 end if
 
                 ! Hyperbolic radius to first vertex
-                x = d_ls(1)*d_ls(1) - d_ls(2)*d_ls(2) - geom%h2
-                if (x > 0. .and. d_ls(1) < 0.) then
+                x = geom%d_ls(1,i)*geom%d_ls(1,i) - geom%d_ls(2,i)*geom%d_ls(2,i) - geom%h2
+                if (x > 0. .and. geom%d_ls(1,i) < 0.) then
                     geom%R1(i) = sqrt(x)
                 else
                     geom%l1(i) = -sqrt(abs(geom%g2(i)))
                     geom%R1(i) = 0.
                 end if
 
-                ! Get index of end vertex
-                i_next = mod(i, this%N)+1
-
-                ! Calculate displacement from second vertex
-                if (mirror_panel) then
-                    d_ls = this%vertices_ls_mir(:,i_next) - geom%P_ls
-                else
-                    d_ls = this%vertices_ls(:,i_next) - geom%P_ls
-                end if
-
-                ! Edge integration length
-                geom%l2(i) = geom%v_eta(i)*d_ls(1) + geom%v_xi(i)*d_ls(2)
-
-                ! Hyperbolic radius to first vertex
-                x = d_ls(1)*d_ls(1) - d_ls(2)*d_ls(2) - geom%h2
-                if (x > 0. .and. d_ls(1) < 0.) then
+                ! Hyperbolic radius to second vertex
+                x = geom%d_ls(1,i_next)*geom%d_ls(1,i_next) - geom%d_ls(2,i_next)*geom%d_ls(2,i_next) - geom%h2
+                if (x > 0. .and. geom%d_ls(1,i_next) < 0.) then
                     geom%R2(i) = sqrt(x)
                 else
                     geom%l2(i) = sqrt(abs(geom%g2(i)))
@@ -1676,14 +1682,7 @@ contains
         real :: dummy
 
         ! Initialize
-        call geom%init(eval_point, this%get_local_coords_of_point(eval_point, mirror_panel))
-        if (mirror_panel) then
-            geom%v_xi = this%n_hat_ls_mir(1,:)
-            geom%v_eta = this%n_hat_ls_mir(2,:)
-        else
-            geom%v_xi = this%n_hat_ls(1,:)
-            geom%v_eta = this%n_hat_ls(2,:)
-        end if
+        geom = this%calc_basic_geom(eval_point, mirror_panel)
 
         ! Loop through edges
         do i=1,this%N
@@ -1691,21 +1690,18 @@ contains
             ! Check DoD
             if (dod_info%edges_in_dod(i)) then
 
-                ! Calculate displacement from first vertex
-                if (mirror_panel) then
-                    d_ls = this%vertices_ls_mir(:,i) - geom%P_ls
-                else
-                    d_ls = this%vertices_ls(:,i) - geom%P_ls
-                end if
+                ! Get index of end vertex
+                i_next = mod(i, this%N)+1
 
                 ! Perpendicular in-plane distance
-                geom%a(i) = geom%v_xi(i)*d_ls(1) + geom%v_eta(i)*d_ls(2)
+                geom%a(i) = geom%v_xi(i)*geom%d_ls(1,i) + geom%v_eta(i)*geom%d_ls(2,i)
 
-                ! Edge integration length
-                geom%l1(i) = -geom%v_eta(i)*d_ls(1) + geom%v_xi(i)*d_ls(2)
+                ! Edge integration lengths
+                geom%l1(i) = -geom%v_eta(i)*geom%d_ls(1,i) + geom%v_xi(i)*geom%d_ls(2,i)
+                geom%l2(i) = -geom%v_eta(i)*geom%d_ls(1,i_next) + geom%v_xi(i)*geom%d_ls(2,i_next)
 
                 ! Hyperbolic radius to first vertex
-                x = -d_ls(1)*d_ls(1) - d_ls(2)*d_ls(2) + geom%h2
+                x = -geom%d_ls(1,i)*geom%d_ls(1,i) - geom%d_ls(2,i)*geom%d_ls(2,i) + geom%h2
                 if (geom%h > 0. .and. x > 0.) then
                     geom%R1(i) = sqrt(x)
                 else
@@ -1713,21 +1709,8 @@ contains
                     geom%R1(i) = 0.
                 end if
 
-                ! Get index of end vertex
-                i_next = mod(i, this%N)+1
-
-                ! Calculate displacement from second vertex
-                if (mirror_panel) then
-                    d_ls = this%vertices_ls_mir(:,i_next) - geom%P_ls
-                else
-                    d_ls = this%vertices_ls(:,i_next) - geom%P_ls
-                end if
-
-                ! Edge integration length
-                geom%l2(i) = -geom%v_eta(i)*d_ls(1) + geom%v_xi(i)*d_ls(2)
-
-                ! Hyperbolic radius to first vertex
-                x = -d_ls(1)*d_ls(1) - d_ls(2)*d_ls(2) + geom%h2
+                ! Hyperbolic radius to second vertex
+                x = -geom%d_ls(1,i_next)*geom%d_ls(1,i_next) - geom%d_ls(2,i_next)*geom%d_ls(2,i_next) + geom%h2
                 if (geom%h > 0. .and. x > 0.) then
                     geom%R2(i) = sqrt(x)
                 else
@@ -1767,6 +1750,38 @@ contains
         geom%dR = geom%R2 - geom%R1
 
     end function panel_calc_supersonic_supinc_geom
+
+
+    function panel_calc_subsonic_EMNK(this, geom, M, N, K) result(E)
+        ! Calculates E(M,N,K) using Johnson (D.58)
+
+        implicit none
+        
+        class(panel),intent(in) :: this
+        type(eval_point_geom),intent(in) :: geom
+        integer,intent(in) :: M, N, K
+
+        real,dimension(this%N) :: E
+
+        integer :: i, i_next
+        real :: E1, E2
+
+        ! Get displacements from vertices
+
+        ! Loop through edges
+        do i=1,this%N
+
+            ! Get index of end vertex
+            i_next = mod(i, this%N)+1
+
+            ! Calculate E(M,N,K)
+            E1 = geom%d_ls(1,i)**(M-1) * geom%d_ls(2,i)**(N-1) / geom%R1**K
+            E2 = geom%d_ls(1,i_next)**(M-1) * geom%d_ls(2,i_next)**(N-1) / geom%R2**K
+            E(i) = E2 - E1
+
+        end do
+        
+    end function panel_calc_subsonic_EMNK
 
 
     subroutine panel_calc_subsonic_edge_integrals(this, geom, freestream, mirror_panel, int)
@@ -2282,6 +2297,45 @@ contains
     end subroutine panel_calc_supersonic_supinc_panel_integrals
 
 
+    subroutine panel_calc_subsonic_velocity_integrals(this, geom, freestream, mirror_panel, int)
+        ! Calculates the additional necessary integrals to determine the velocity influence of a panel in subsonic flow.
+
+        implicit none
+
+        class(panel),intent(in) :: this
+        type(eval_point_geom),intent(in) :: geom
+        type(flow),intent(in) :: freestream
+        logical,intent(in) :: mirror_panel
+        type(integrals),intent(inout) :: int
+
+        ! Get additional F integrals
+        int%F113 = (int%F111 &
+                    - geom%v_eta*this%calc_subsonic_EMNK(geom, 2, 1, 1) &
+                    + geom%v_xi*this%calc_subsonic_EMNK(geom, 1, 2, 1)) / geom%g2 ! Johnson (D.61)
+        int%F123 = geom%v_eta*geom%a*int%F113 - geom%v_xi*this%calc_subsonic_EMNK(geom, 1, 1, 1) ! Johnson (D.66)
+        int%F133 = 2.*geom%a*geom%v_eta*int%F123 - (geom%a*geom%a + geom%v_xi*geom%v_xi*geom%h2)*int%F113 &
+                   + geom%v_xi*geom%v_xi*int%F111 ! Johnson (D.67)
+
+        ! Get additional H integrals
+        ! Johnson (D.42)
+        int%H115 = (int%hH113/geom%h + sum(geom%a*int%F113)) / (3.*geom%h2)
+
+        ! Johnson (D.46)
+        int%H125 = -sum(geom%v_eta*int%F113)/3.
+        int%H135 = (int%hH113/geom%h - sum(geom%v_eta*int%F123))/3.
+        int%H145 = (2.*int%H123 - sum(geom%v_eta*int%F133))/3.
+
+        ! Johnson (D.47)
+        int%H215 = -sum(geom%v_xi*int%F113)/3.
+        int%H225 = -sum(geom%v_xi*int%F123)/3.
+        int%H235 = -sum(geom%v_xi*int%F133)/3.
+
+        ! Johnson (D.48)
+        int%H315 = -int%H135 - geom%h2*int%H115 + int%hH113/geom%h
+
+    end subroutine panel_calc_subsonic_velocity_integrals
+
+
     function panel_calc_integrals(this, geom, influence_type, freestream, mirror_panel, dod_info) result(int)
         ! Calculates the H and F integrals necessary for the given influence
 
@@ -2296,29 +2350,35 @@ contains
 
         type(integrals) :: int
 
-        if (influence_type == 'potential') then
+        ! Allocate space for edge integrals
+        allocate(int%F111(this%N), source=0.)
+        if (this%order == 2) then
+            allocate(int%F121(this%N), source=0.)
+            allocate(int%F211(this%N), source=0.)
+        end if
 
-            ! Allocate space for edge integrals
-            allocate(int%F111(this%N), source=0.)
-            if (this%order == 2) then
-                allocate(int%F121(this%N), source=0.)
-                allocate(int%F211(this%N), source=0.)
-            end if
-
-            ! Calculate necessary integrals based on the flow condition and panel type
-            if (freestream%supersonic) then
-                if ((mirror_panel .and. this%r_mir < 0.) .or. (.not. mirror_panel .and. this%r < 0.)) then
-                    call this%calc_supersonic_supinc_edge_integrals(geom, dod_info, freestream, mirror_panel, int)
-                    call this%calc_supersonic_supinc_panel_integrals(geom, dod_info, freestream, mirror_panel, int)
-                else
-                    call this%calc_supersonic_subinc_edge_integrals(geom, dod_info, freestream, mirror_panel, int)
-                    call this%calc_supersonic_subinc_panel_integrals(geom, dod_info, freestream, mirror_panel, int)
-                end if
+        ! Calculate necessary integrals based on the flow condition and panel type
+        ! These are needed for both velocity and potential calculations
+        if (freestream%supersonic) then
+            if ((mirror_panel .and. this%r_mir < 0.) .or. (.not. mirror_panel .and. this%r < 0.)) then
+                call this%calc_supersonic_supinc_edge_integrals(geom, dod_info, freestream, mirror_panel, int)
+                call this%calc_supersonic_supinc_panel_integrals(geom, dod_info, freestream, mirror_panel, int)
             else
-                call this%calc_subsonic_edge_integrals(geom, freestream, mirror_panel, int)
-                call this%calc_subsonic_panel_integrals(geom, freestream, mirror_panel, int)
+                call this%calc_supersonic_subinc_edge_integrals(geom, dod_info, freestream, mirror_panel, int)
+                call this%calc_supersonic_subinc_panel_integrals(geom, dod_info, freestream, mirror_panel, int)
             end if
+        else
+            call this%calc_subsonic_edge_integrals(geom, freestream, mirror_panel, int)
+            call this%calc_subsonic_panel_integrals(geom, freestream, mirror_panel, int)
+        end if
 
+        ! Get velocity integrals
+        if (influence_type == 'velocity') then
+
+            if (freestream%supersonic) then
+            else
+                call this%calc_subsonic_velocity_integrals(geom, freestream, mirror_panel, int)
+            end if
         end if
 
     end function panel_calc_integrals
@@ -2423,7 +2483,11 @@ contains
                 end if
             
                 ! Add area Jacobian and kappa factor
-                phi_s = -this%J*freestream%K_inv*phi_s
+                if (mirror_panel) then
+                    phi_s = -this%J_mir*freestream%K_inv*phi_s
+                else
+                    phi_s = -this%J*freestream%K_inv*phi_s
+                end if
             end if
 
             ! Doublet potential
@@ -2508,6 +2572,143 @@ contains
         end if
 
     end subroutine panel_calc_potentials
+
+
+    subroutine panel_allocate_velocity_influences(this, v_s, v_d)
+        ! Allocates the necessary influence arrays
+
+        implicit none
+
+        class(panel),intent(in) :: this
+        real,dimension(:,:),allocatable,intent(out) :: v_s, v_d
+
+        ! Source
+        if (this%order == 2) then
+            allocate(v_s(3,3), source=0.)
+        else
+            allocate(v_s(3,1), source=0.)
+        end if
+
+        ! Doublet
+        if (this%order == 2) then
+
+            ! Check if this panel belongs to the wake
+            if (this%in_wake) then
+                allocate(v_d(3,12), source=0.)
+            else
+                allocate(v_d(3,6), source=0.)
+            end if
+
+        else
+
+            ! Check if this panel belongs to the wake
+            if (this%in_wake) then
+                allocate(v_d(3,6), source=0.)
+            else
+                allocate(v_d(3,3), source=0.)
+            end if
+
+        end if
+        
+    end subroutine panel_allocate_velocity_influences
+
+
+    subroutine panel_calc_velocity_influences(this, P, freestream, dod_info, mirror_panel, v_s, v_d)
+        ! Calculates the source- and doublet-induced potentials at the given point P
+
+        implicit none
+
+        class(panel),intent(in) :: this
+        real,dimension(3),intent(in) :: P
+        type(flow),intent(in) :: freestream
+        type(dod),intent(in) :: dod_info
+        logical,intent(in) :: mirror_panel
+        real,dimension(:,:),allocatable,intent(out) :: v_s, v_d
+
+        type(eval_point_geom) :: geom
+        type(integrals) :: int
+        integer :: i
+
+        call this%allocate_velocity_influences(v_s, v_d)
+
+        ! Check DoD
+        if (dod_info%in_dod .and. this%A > 0.) then
+
+            ! Calculate geometric parameters
+            if (freestream%supersonic) then
+                if ((mirror_panel .and. this%r_mir < 0.) .or. (.not. mirror_panel .and. this%r < 0.)) then
+                    geom = this%calc_supersonic_supinc_geom(P, freestream, mirror_panel, dod_info)
+                else
+                    geom = this%calc_supersonic_subinc_geom(P, freestream, mirror_panel, dod_info)
+                end if
+            else
+                geom = this%calc_subsonic_geom(P, freestream, mirror_panel)
+            end if
+
+            ! Get integrals
+            int = this%calc_integrals(geom, 'velocity', freestream, mirror_panel, dod_info)
+
+            ! Source velocity
+            if (this%has_sources) then
+
+                ! Constant influence
+                v_s(1,1) = int%H213
+                v_s(2,1) = int%H123
+                v_s(3,1) = -int%hH113
+
+                ! Linear influences
+                if (this%order == 2) then
+
+                    ! x-component
+                    v_s(1,2) = int%H213*geom%P_ls(1) + int%H313
+                    v_s(1,3) = int%H213*geom%P_ls(2) + int%H223
+
+                    ! y-component
+                    v_s(2,2) = int%H123*geom%P_ls(1) + int%H223
+                    v_s(2,3) = int%H123*geom%P_ls(2) + int%H133
+
+                    ! z-component
+                    v_s(3,2) = -int%hH113*geom%P_ls(1) - geom%h*int%H213
+                    v_s(3,3) = -int%hH113*geom%P_ls(2) - geom%h*int%H123
+
+                    ! Convert to vertex influences
+                    if (mirror_panel) then
+                        v_s = matmul(v_s, this%S_sigma_inv_mir)
+                    else
+                        v_s = matmul(v_s, this%S_sigma_inv)
+                    end if
+
+                end if
+            
+                ! Add area Jacobian and kappa factor
+                if (mirror_panel) then
+                    v_s = v_s*freestream%K_inv*this%J_mir
+                else
+                    v_s = v_s*freestream%K_inv*this%J
+                end if
+                
+            end if
+
+            ! Doublet potential
+
+            if (this%order == 2) then
+
+                ! Add quadratic terms
+
+                ! Convert to vertex influences (Davis Eq. (4.41))
+
+                ! Wake bottom influence is opposite the top influence
+
+            else
+
+                ! Convert to vertex influences (Davis Eq. (4.41))
+
+                ! Wake bottom influence is opposite the top influence
+
+            end if
+        end if
+    
+    end subroutine panel_calc_velocity_influences
 
 
     function panel_get_source_strengths(this, sigma, mirror) result(sigma_strengths)
