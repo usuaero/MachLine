@@ -2249,7 +2249,7 @@ contains
 
                 ! Get dot and cross products
                 t_dot = geom%v_xi(i)*geom%v_xi(i_prev) + geom%v_eta(i)*geom%v_eta(i_prev)
-                t_cross = -geom%v_eta(i_prev)*geom%v_xi(i) + geom%v_xi(i_prev)*geom%v_eta(i)
+                t_cross = geom%v_xi(i_prev)*geom%v_eta(i) - geom%v_eta(i_prev)*geom%v_xi(i)
 
                 ! Intermediate values
                 X = geom%a(i)*geom%a(i_prev) - geom%h2*t_dot

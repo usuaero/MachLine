@@ -101,6 +101,7 @@ def run_sphere_comparison(grid, sample, run_machline=True):
     plt.ylim(bottom=-2.5)
     plt.legend(fontsize=6, title_fontsize=6)
     plt.savefig(plot_dir+case_name+".pdf")
+    plt.savefig(plot_dir+case_name+".svg")
     plt.close()
 
     return Cx, Cy, Cz
@@ -134,3 +135,4 @@ if __name__=="__main__":
     plt.ylabel("Force Coefficient")
     plt.legend()
     plt.savefig("studies/panel_regularity_sphere_study/plots/convergence.pdf")
+    plt.savefig("studies/panel_regularity_sphere_study/plots/convergence.svg")

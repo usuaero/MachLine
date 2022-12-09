@@ -1039,16 +1039,15 @@ class SupersonicSuperinclinedPanel(Panel):
             ints.hH113 = 2.0*np.pi
             for i in range(4):
 
-                # Add corner influence
-                if geom.R1[i] > 0.0:
-                    ints.hH113 += np.pi
-
                 # Add edge influence
                 if geom.edge_in[i]:
                     ints.hH113 -= np.pi
 
-                # Add complicated corner influence
+                # Add corner influence
                 if geom.R1[i] > 0.0:
+
+                    ints.hH113 += np.pi
+
                     i_prev = i-1
 
                     # Get dot and cross products
