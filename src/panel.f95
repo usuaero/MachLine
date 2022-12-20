@@ -1775,8 +1775,8 @@ contains
             i_next = mod(i, this%N)+1
 
             ! Calculate E(M,N,K)
-            E1 = geom%d_ls(1,i)**(M-1) * geom%d_ls(2,i)**(N-1) / geom%R1**K
-            E2 = geom%d_ls(1,i_next)**(M-1) * geom%d_ls(2,i_next)**(N-1) / geom%R2**K
+            E1 = geom%d_ls(1,i)**(M-1) * geom%d_ls(2,i)**(N-1) / geom%R1(i)**K
+            E2 = geom%d_ls(1,i_next)**(M-1) * geom%d_ls(2,i_next)**(N-1) / geom%R2(i)**K
             E(i) = E2 - E1
 
         end do
