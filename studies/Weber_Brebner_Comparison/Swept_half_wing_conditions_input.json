@@ -24,7 +24,7 @@
             "89.8": 44,
             "94.9": 46.5
         },
-        "nodes": ["10", "20", "40", "80"],
+        "nodes": [ "10", "20"],
         "nodes_notes": ["Nodes 80 and above need to be ran on Ryzen or",
                         "memory cap will fail"],
         "uniform chord length": 20
@@ -49,9 +49,9 @@
         "save plots": false,
         "save plot type": "pdf",
         "combine pdfs": false,
-        "display pressure plots": false,
-        "compare formulations": true,
-        "show plots": false,
+        "display pressure plots": true,
+        "compare formulations": false,
+        "show plots": true,
         "x axis scale": "auto",
         "y axis scale": "auto",
         "options": ["process_all: processes all plots and shows plots at every semispan location one at a time",
@@ -64,6 +64,6 @@
 
     },
 
-    "verbose": false
+    "verbose": true
 
 }

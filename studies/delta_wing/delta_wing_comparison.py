@@ -203,16 +203,20 @@ def force_plot(AoA_list,M,densities):
     plt.savefig(plot_loc)
     plt.show()
 
-    # # CM plot
-    # plt.figure()
-    # # plt.scatter(AoA_list, CM, label="MachLine", marker='o', color='k')
-    # plt.errorbar(CM_exp[:,0], CM_exp[:,1], yerr=0.0018, label='Experimental Data', marker='s', color='k', fillstyle='full', linestyle='none')
-    # plt.legend()
-    # plt.xlabel('Angle of Attack [deg]')
-    # plt.ylabel('CM')
-    # plot_loc = 'studies/delta_wing/plots/delta_wing_CM_comparison.pdf'
-    # plt.savefig(plot_loc)
-    # plt.show()
+
+    # Print CD and CL results along with exerimental data, allowing for quanitification
+    # of difference between MachLine and experimental resutls for paper purposes.
+
+    csv_loc = 'studies/delta_wing/error_quantification_test.csv'
+    # Transpose all arrays to format for column vectors
+    angles_col = np.array([AoA_list]).T
+    CD_col = np.array([CD_fine]).T
+    CD_ML = np.array([CD_fine]).T
+    CL_ML = np.array([CL_fine]).T
+    
+    force_array = np.hstack((angles_col, CD_ML))
+    force_array = np.hstack((force_array, CL_ML))
+    # file = np.savetxt(csv_loc, force_array, delimiter=',')
 
 
 if __name__=="__main__":

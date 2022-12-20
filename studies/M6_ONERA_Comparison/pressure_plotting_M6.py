@@ -177,9 +177,10 @@ class Swept_Plotting:
                     filename = f"Plots/M6_Onera_comparison_mach_{mach_number[j]}_section_{section+1}." + json_vals["plots"]["save plot type"]
                     list_of_files.append(filename)
                     plt.savefig(filename)
-                plt.show(block=False)
-                plt.pause(0.5)
-                plt.close()
+                plt.show()
+                # plt.show(block=False)
+                # plt.pause(0.5)
+                # plt.close()
 
             # Combine plots into one pdf for easy review
             if json_vals["plots"]["save plot type"] == "pdf" and json_vals["plots"]["combine pdfs"]:
