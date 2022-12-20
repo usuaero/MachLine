@@ -26,6 +26,7 @@ module surface_mesh_mod
         type(edge),allocatable,dimension(:) :: edges
         type(wake_mesh) :: wake
         real :: C_wake_shedding_angle, trefftz_distance, C_min_panel_angle
+        real,dimension(:),allocatable :: CG
         integer :: N_wake_panels_streamwise
         logical :: wake_present, append_wake
         type(control_point),dimension(:),allocatable :: cp, cp_mir ! Control points
@@ -38,8 +39,11 @@ module surface_mesh_mod
         logical :: asym_flow ! Whether the flow is asymmetric about the mirror plane
         logical :: found_discontinuous_edges
         real,dimension(:),allocatable :: mu, sigma ! Singularity strengths
-        real :: S_ref ! Reference parameters
+        real :: S_ref, l_ref ! Reference parameters
         integer,dimension(:),allocatable :: vertex_ordering
+        integer :: initial_panel_order ! Distribution order for the panels (initially)
+        character(len=:),allocatable :: singularity_order
+        real :: cont_tol ! A tolerance on the surface continuity for determining which edges should be discontinuous for second-order distributions
 
         contains
 
@@ -102,6 +106,7 @@ contains
         type(json_value),pointer,intent(in) :: settings
 
         character(len=:),allocatable :: mesh_file
+        logical :: found
 
         ! Initialize a few things
         this%midpoints_created = .false.
@@ -122,15 +127,17 @@ contains
 
         ! Store references
         call json_xtnsn_get(settings, 'reference.area', this%S_ref, 1.)
+        call json_xtnsn_get(settings, 'reference.length', this%l_ref, 1.)
+        call json_get(settings, 'reference.CG', this%CG, found)
+        if (.not. found) then
+            allocate(this%CG(3), source=0.)
+        end if
 
         ! Locate which vertices are on the mirror plane
         if (this%mirrored) call this%find_vertices_on_mirror()
 
         ! Locate adjacent panels
         call this%locate_adjacent_panels()
-
-        ! Create midpoints (if needed)
-        if (higher_order) call this%create_midpoints()
 
         ! Calculate vertex geometries
         call this%calc_vertex_geometry()
@@ -146,18 +153,36 @@ contains
         class(surface_mesh), intent(inout) :: this
         type(json_value),pointer,intent(in) :: settings
 
-        character(len=:),allocatable :: order
+        ! Get continuity tolerance
+        call json_xtnsn_get(settings, 'surface_continuity_tolerance', this%cont_tol, default_value=0.8)
 
         ! Set singularity orders
-        call json_xtnsn_get(settings, 'singularity_order', order, 'lower')
-        higher_order = order == "higher"
-        if (verbose) then
-            if (higher_order) then
-                write(*,'(a, i1, a, i1, a)') "     User has selected quadratic-doublet-linear-source panels."
-            else
-                write(*,'(a, i1, a, i1, a)') "     User has selected linear-doublet-constant-source panels."
-            end if
-        end if
+        call json_xtnsn_get(settings, 'singularity_order', this%singularity_order, default_value='lower')
+        select case (this%singularity_order)
+
+        ! First order
+        case ('lower')
+            if (verbose) write(*,*) "    User has selected linear-doublet-constant-source panels."
+            this%initial_panel_order = 1
+            p_refine = .false.
+
+        case ('higher')
+            if (verbose) write(*,*) "    User has selected quadratic-doublet-linear-source panels."
+            this%initial_panel_order = 2
+            p_refine = .false.
+
+        case ('adaptive')
+            if (verbose) write(*,*) "    User has selected adaptive singularity distributions."
+            this%initial_panel_order = 1
+            p_refine = .true.
+
+        case default
+            write(*,*) "!!! ", this%singularity_order, " is not a valid singularity order. Defaulting to 'lower'."
+            this%singularity_order = 'lower'
+            this%initial_panel_order = 1
+            p_refine = .false.
+
+        end select
     
     end subroutine surface_mesh_parse_singularity_settings
 
@@ -300,7 +325,6 @@ contains
         real :: distance
         integer,dimension(2) :: i_endpoints
         integer,dimension(this%N_panels*3) :: panel1, panel2, vertex1, vertex2, edge_index1, edge_index2 ! By definition, we will have no more than 3*N_panels edges; we should have much less, but some people...
-        real,dimension(this%N_panels*3) :: edge_length
         logical,dimension(this%N_panels*3) :: on_mirror_plane
         real,dimension(3) :: loc
 
@@ -342,7 +366,6 @@ contains
                     vertex2(i_edge) = i_endpoints(2)
                     on_mirror_plane(i_edge) = .true.
                     edge_index2(i_edge) = 0 ! Just a placeholder since the second panel doesn't technically exist
-                    edge_length(i_edge) = dist(this%vertices(i_endpoints(1))%loc, this%vertices(i_endpoints(2))%loc)
 
                     !$OMP end critical
 
@@ -377,7 +400,6 @@ contains
                     panel2(i_edge) = j
                     vertex1(i_edge) = i_endpoints(1)
                     vertex2(i_edge) = i_endpoints(2)
-                    edge_length(i_edge) = dist(this%vertices(i_endpoints(1))%loc, this%vertices(i_endpoints(2))%loc)
 
                     !$OMP end critical
 
@@ -432,7 +454,7 @@ contains
         do i=1,this%N_edges
 
             ! Initialize
-            call this%edges(i)%init(vertex1(i), vertex2(i), panel1(i), panel2(i), edge_length(i))
+            call this%edges(i)%init(vertex1(i), vertex2(i), panel1(i), panel2(i))
 
             ! Store more information
             this%edges(i)%on_mirror_plane = on_mirror_plane(i)
@@ -585,7 +607,6 @@ contains
             ! Initialize vertex object
             i_mid = N_orig_verts + i
             call this%vertices(i_mid)%init(loc, i_mid, 2)
-            this%vertices(i_mid)%l_avg = this%edges(i)%l
 
             ! Add adjacent vertices
             call this%vertices(i_mid)%adjacent_vertices%append(this%edges(i)%top_verts(1))
@@ -736,13 +757,13 @@ contains
 
         ! Initialize wake
         call this%init_wake(freestream, wake_file)
-        
-        ! Set up influencing vertex arrays
-        if (verbose) write(*,"(a)",advance='no') "     Setting influencing vertices for panels..."
+
+        ! Set up panel distributions
+        if (verbose) write(*,"(a)",advance='no') "     Setting up panel singularity distributions..."
 
         !$OMP parallel do schedule(static)
         do i=1,this%N_panels
-            call this%panels(i)%set_influencing_verts()
+            call this%panels(i)%set_distribution(this%initial_panel_order, this%panels, this%vertices, this%edges, this%mirrored)
         end do
         
         if (verbose) write(*,*) "Done."
@@ -820,8 +841,7 @@ contains
         this%found_discontinuous_edges = .false.
 
         !$OMP parallel private(i, j, second_normal, C_angle, i_vert_1, i_vert_2) &
-        !$OMP & private(cross_result, d, t_hat_g) &
-        !$OMP & default(none) shared(this, freestream, higher_order, N_wake_edges) reduction(min : C_min_angle)
+        !$OMP & private(cross_result, d, t_hat_g) reduction(min : C_min_angle)
 
         ! Loop through each edge
         !$OMP do schedule(dynamic)
@@ -843,6 +863,9 @@ contains
 
             ! Calculate angle between panels (this is the flow-turning angle; it is the most straightforward to compute)
             C_angle = inner(this%panels(i)%n_g, second_normal)
+
+            ! Store whether this edge is discontinuous
+            this%edges(k)%discontinuous = C_angle < this%cont_tol
 
             ! Update minimum angle
             C_min_angle = min(C_angle, C_min_angle)
@@ -871,9 +894,6 @@ contains
                         ! Having passed the previous three checks, we've found a wake-shedding edge
                         this%found_discontinuous_edges = .true.
                         this%edges(k)%sheds_wake = .true.
-
-                        ! Update information for midpoint vertex (unique for the edge, so this doesn't need to be inside the critical block)
-                        if (higher_order) this%vertices(this%edges(k)%top_midpoint)%N_wake_edges = 1
 
                         ! Update number of wake-shedding edges
                         !$OMP critical
@@ -1192,11 +1212,6 @@ contains
         ! If this is a true vertex (not a midpoint), add to the count
         if (this%vertices(i_jango)%vert_type == 1) this%N_true_verts = this%N_true_verts + 1
 
-        ! Specify wake partners
-        ! Soon to be obsolete
-        this%vertices(i_jango)%i_wake_partner = i_boba
-        this%vertices(i_boba)%i_wake_partner = i_jango
-
         ! Mirroring properties
         this%vertices(i_boba)%mirrored_is_unique = mirrored_is_unique
 
@@ -1256,7 +1271,8 @@ contains
 
             ! Initialize wake
             call this%wake%init(this%edges, this%vertices, freestream, this%asym_flow, this%mirror_plane, &
-                                this%N_wake_panels_streamwise, this%trefftz_distance, this%mirrored)
+                                this%N_wake_panels_streamwise, this%trefftz_distance, this%mirrored, this%initial_panel_order, &
+                                this%N_panels)
         
             ! Export wake geometry
             if (wake_file /= 'none') then
@@ -1351,6 +1367,7 @@ contains
 
         integer :: i, j, i_panel
         real,dimension(3) :: dir, loc
+        logical :: surrounded
 
         ! Specify number of control points
         if (this%asym_flow) then
@@ -1364,8 +1381,8 @@ contains
         allocate(this%cp(this%N_cp))
 
         ! Loop through vertices
-        !$OMP parallel do private(j, i_panel, dir) &
-        !$OMP & schedule(dynamic) shared(this, offset) default(none)
+        !$OMP parallel do private(j, i_panel, dir, surrounded) &
+        !$OMP & schedule(dynamic) shared(this, offset, freestream) default(none)
         do i=1,this%N_verts
 
             ! If the vertex is a clone, it needs to be shifted off the normal slightly so that it is unique from its counterpart
@@ -1379,23 +1396,37 @@ contains
                 ! Set direction
                 dir = -this%vertices(i)%n_g
 
+                ! Check if this vertex is entirely surrounded by superinclined panels
+                if (this%N_supinc > 0) then
+                    surrounded = .true.
+                    do j=1,this%vertices(i)%panels%len()
+
+                        ! Get panel index
+                        call this%vertices(i)%panels%get(j, i_panel)
+
+                        ! Check for a subinclined panel, in which case we're not surrounded
+                        if (this%panels(i_panel)%r > 0.) then
+                            surrounded = .false.
+                            exit
+                        end if
+
+                    end do
+
+                    ! If we are surrounded, place the control point in the downstream direction
+                    if (surrounded) then
+                        if (inner(this%panels(i_panel)%n_g, freestream%c_hat_g) > 0.) then
+                            dir = -dir
+                        else
+                            dir = dir
+                        end if
+                    end if
+
+                end if 
+
             end if
             
             ! Initialize control point
             call this%cp(i)%init(this%vertices(i)%loc + offset*dir*this%vertices(i)%l_avg, 1, 1, i)
-
-            !! Check if the control point is going to be outside the mesh
-            !do j=1,this%vertices(i)%panels%len()
-
-            !    ! Get panel index
-            !    call this%vertices(i)%panels%get(j, i_panel)
-
-            !    ! Check
-            !    if (this%panels(i_panel)%point_outside(this%cp(i)%loc, .false., 0)) then
-            !        write(*,*) "!!! Control point ", i, " may be outside panel ", i_panel, "."
-            !    end if
-
-            !end do
 
         end do
 
@@ -1407,18 +1438,18 @@ contains
             do i=1,this%N_panels
 
                 ! Check if this panel is superinclined
-                if (this%panels(i)%r < 0) then
+                if (this%panels(i)%r < 0.) then
 
                     ! Get location on downstream side of panel
-                    if (inner(this%panels(i)%n_g, freestream%c_hat_g) > 0) then
+                    if (inner(this%panels(i)%n_g, freestream%c_hat_g) > 0.) then
                         loc = this%panels(i)%centr + this%panels(i)%n_g*offset
+                        j = j + 1
+                        call this%cp(j)%init(loc, 2, 2, i)
                     else
                         loc = this%panels(i)%centr - this%panels(i)%n_g*offset
+                        j = j + 1
+                        call this%cp(j)%init(loc, 1, 2, i)
                     end if
-
-                    ! Initialize
-                    j = j + 1
-                    call this%cp(j)%init(loc, 1, 2, i)
 
                 end if
             end do
@@ -1432,7 +1463,8 @@ contains
             do i=1,this%N_cp/2
 
                 ! Initialize
-                call this%cp(i+this%N_cp/2)%init(mirror_across_plane(this%cp(i)%loc, this%mirror_plane), 1, 1, i)
+                call this%cp(i+this%N_cp/2)%init(mirror_across_plane(this%cp(i)%loc, this%mirror_plane), &
+                                                 this%cp(i)%cp_type, this%cp(i)%tied_to_type, this%cp(i)%tied_to_index)
 
                 ! Specify that this is a mirror
                 this%cp(i+this%N_cp/2)%is_mirror = .true.
@@ -1855,11 +1887,7 @@ contains
         call delete_file(body_file)
 
         ! Determine number of cells to export
-        if (higher_order) then
-            N_cells = this%N_panels*4
-        else
-            N_cells = this%N_panels
-        end if
+        N_cells = this%N_panels
 
         ! Get panel inclinations and centroids
         allocate(panel_inclinations(this%N_panels))
@@ -1872,7 +1900,7 @@ contains
         ! Write geometry
         call body_vtk%begin(body_file)
         call body_vtk%write_points(this%vertices)
-        call body_vtk%write_panels(this%panels, subdivide=higher_order, mirror=.false.)
+        call body_vtk%write_panels(this%panels, subdivide=.false., mirror=.false.)
         call body_vtk%write_cell_normals(this%panels)
         call body_vtk%write_cell_scalars(panel_inclinations, "inclination", .true.)
         call body_vtk%write_cell_vectors(cents, "centroid", .true.)
@@ -1907,31 +1935,17 @@ contains
                 call body_vtk%write_cell_scalars(this%C_p_lai(1:N_cells), "C_p_L", .false.)
             end if
 
-            ! Constant sources
-            if (.not. higher_order) then
-                call body_vtk%write_cell_scalars(this%sigma(1:this%N_panels), "sigma", .true.)
-            end if
+            ! Source strengths
+            call body_vtk%write_cell_scalars(this%sigma(1:this%N_panels), "sigma", .true.)
 
-        end if
-
-        ! Other
-        if (solved) then
+            ! Cell velocities and sources
             call body_vtk%write_cell_vectors(this%V_cells(:,1:N_cells), "v", .false.)
             call body_vtk%write_cell_vectors(this%dC_f(:,1:N_cells), "dC_f", .false.)
 
-            ! Linear sources
-            if (higher_order) then
-                call body_vtk%write_point_scalars(this%sigma(1:this%N_verts), "sigma")
-            end if
-
+            ! Surface potential values
             call body_vtk%write_point_scalars(this%mu(1:this%N_verts), "mu")
             call body_vtk%write_point_scalars(this%Phi_u(1:this%N_verts), "Phi_u")
 
-            ! Quadratic doublets
-            if (higher_order) then
-                call body_vtk%write_point_vectors(this%V_verts_avg(:,1:this%N_verts), "v_avg")
-                call body_vtk%write_point_vectors(this%V_verts_std(:,1:this%N_verts), "v_std_dev")
-            end if
         end if
 
         ! Finalize
@@ -1958,11 +1972,7 @@ contains
         call delete_file(mirrored_body_file)
 
         ! Determine number of cells to export
-        if (higher_order) then
-            N_cells = this%N_panels*4
-        else
-            N_cells = this%N_panels
-        end if
+        N_cells = this%N_panels
 
         ! Get panel inclinations
         if (.not. allocated(panel_inclinations)) then
@@ -1977,7 +1987,7 @@ contains
         ! Write geometry
         call body_vtk%begin(mirrored_body_file)
         call body_vtk%write_points(this%vertices, this%mirror_plane)
-        call body_vtk%write_panels(this%panels, subdivide=higher_order, mirror=.true.)
+        call body_vtk%write_panels(this%panels, subdivide=.false., mirror=.true.)
         call body_vtk%write_cell_normals(this%panels, this%mirror_plane)
         call body_vtk%write_cell_scalars(panel_inclinations, "inclination", .true.)
         call body_vtk%write_cell_vectors(cents, "centroid", .true.)
@@ -2010,28 +2020,16 @@ contains
             call body_vtk%write_cell_scalars(this%C_p_lai(N_cells+1:N_cells*2), "C_p_L", .false.)
         end if
 
-        ! Constant sources
-        if (.not. higher_order) then
-            call body_vtk%write_cell_scalars(this%sigma(this%N_panels+1:this%N_panels*2), "sigma", .true.)
-        end if
+        ! Sources
+        call body_vtk%write_cell_scalars(this%sigma(this%N_panels+1:this%N_panels*2), "sigma", .true.)
 
         ! Other
         call body_vtk%write_cell_vectors(this%V_cells(:,N_cells+1:N_cells*2), "v", .false.)
         call body_vtk%write_cell_vectors(this%dC_f(:,N_cells+1:N_cells*2), "dC_f", .false.)
 
-        ! Linear sources
-        if (higher_order) then
-            call body_vtk%write_point_scalars(this%sigma(this%N_verts+1:this%N_verts*2), "sigma")
-        end if
-
+        ! Surface potentials
         call body_vtk%write_point_scalars(this%mu(this%N_verts+1:this%N_verts*2), "mu")
         call body_vtk%write_point_scalars(this%Phi_u(this%N_verts+1:this%N_verts*2), "Phi_u")
-
-        ! Quadratic doublets
-        if (higher_order) then
-            call body_vtk%write_point_vectors(this%V_verts_avg(:,this%N_verts+1:this%N_verts*2), "v_avg")
-            call body_vtk%write_point_vectors(this%V_verts_std(:,this%N_verts+1:this%N_verts*2), "v_std_dev")
-        end if
 
         call body_vtk%finish()
 

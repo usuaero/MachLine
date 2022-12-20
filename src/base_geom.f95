@@ -22,12 +22,10 @@ module base_geom_mod
         type(list) :: panels_not_across_wake_edge ! List of indices for the panels which connect to this vertex not across a wake-shedding edge
         integer :: N_wake_edges ! Number of wake edges this vertex belongs to
         integer :: index ! Index of this vertex in the mesh
-        integer :: index_in_wake_vertices ! Index of this vertex in the list of wake-shedding vertices
         integer :: top_parent, bot_parent ! Indices of the top and bottom vertices this vertex's strength is determined by (for a wake vertex)
         logical :: on_mirror_plane ! Whether this vertex lies in the mirroring plane
         logical :: clone ! Whether this vertex needs a clone depending on whether it's in a wake-shedding edge
         logical :: mirrored_is_unique ! Whether this vertice's mirror image will be the same for an asymmetric freestream condition
-        integer :: i_wake_partner ! Index of the vertex, which along with this one, will determine wake strength
         integer :: N_needed_clones
 
         contains
@@ -66,7 +64,7 @@ module base_geom_mod
         integer,dimension(2) :: edge_index_for_panel ! Index of the edge which this is for each panel; edge should proceed counterclockwise for the top panel
         logical :: on_mirror_plane ! Whether this edge lies on the mirror plane
         logical :: sheds_wake ! Whether this edge sheds a wake
-        real :: l ! Length
+        logical :: discontinuous ! Whether this edge is discontinuous in a geometric sense
 
         contains
 
@@ -86,6 +84,7 @@ module base_geom_mod
 
         real,dimension(3) :: P_g ! Point position in global coords
         real,dimension(2) :: P_ls ! Transformed point in panel plane
+        real,dimension(2,3) :: d_ls ! Local displacements from panel vertices
         real :: h, h2 ! Transformed height above panel
         real,dimension(3) :: a, g2, l1, l2, R1, R2, dR ! Edge integration parameters for the Ehlers-Johnson method
         real,dimension(3) :: v_xi, v_eta ! Edge in-plane normal vectors
@@ -141,7 +140,6 @@ contains
         this%clone = .false.
         this%N_needed_clones = 0
         this%on_mirror_plane = .false.
-        this%i_wake_partner = index
         this%N_wake_edges = 0
 
     end subroutine vertex_init
@@ -364,14 +362,13 @@ contains
     end subroutine vertex_copy_to
 
 
-    subroutine edge_init(this, i1, i2, top_panel, bottom_panel, l)
+    subroutine edge_init(this, i1, i2, top_panel, bottom_panel)
 
         implicit none
 
         class(edge),intent(inout) :: this
         integer,intent(in) :: i1, i2
         integer,intent(in) :: top_panel, bottom_panel
-        real,intent(in) :: l
 
         ! Store indices
         this%top_verts(1) = i1
@@ -380,9 +377,6 @@ contains
         ! Store panels
         this%panels(1) = top_panel
         this%panels(2) = bottom_panel
-
-        ! Store length
-        this%l = l
 
         ! Set defaults
         this%on_mirror_plane = .false.
@@ -504,23 +498,21 @@ contains
     end function edge_get_opposite_endpoint
 
 
-    subroutine eval_point_geom_init(this, P, A_g_to_ls, centr)
+    subroutine eval_point_geom_init(this, P_g, P_ls)
 
         implicit none
 
         class(eval_point_geom),intent(out) :: this
-        real,dimension(3),intent(in) :: P, centr
-        real,dimension(3,3),intent(in) :: A_g_to_ls
+        real,dimension(3),intent(in) :: P_g, P_ls
 
         real,dimension(3) :: x
 
         ! Store point
-        this%P_g = P
+        this%P_g = P_g
 
         ! Transform to local scaled coordinates
-        x = matmul(A_g_to_ls, this%P_g-centr)
-        this%P_ls = x(1:2)
-        this%h = x(3) ! Equivalent to E&M Eq. (J.7.41)
+        this%P_ls = P_ls(1:2)
+        this%h = P_ls(3) ! Equivalent to E&M Eq. (J.7.41)
         this%h2 = this%h**2
 
         ! These are sometimes accessed when the DoD is not checked, so they need to be set to zero

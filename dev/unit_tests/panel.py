@@ -759,7 +759,7 @@ class SupersonicSubinclinedPanel(Panel):
         self.calc_H_integrals(geom, I)
 
         phi_s = self.sigma_params[0]*I.H111 + self.sigma_params[1]*(I.H111*P[0] + I.H211) + self.sigma_params[2]*(I.H111*P[1] + I.H121)
-        return -phi_s*self.K_inv*2.0
+        return -phi_s*self.K_inv
 
 
     def calc_analytic_doublet_potential(self, P):
@@ -792,7 +792,7 @@ class SupersonicSubinclinedPanel(Panel):
                 + self.mu_params[4]*(P[0]*P[1]*I.hH113 + geom.h*(P[0]*I.H123 + P[1]*I.H213 + I.H223)) # mu_xy
                 + self.mu_params[5]*(0.5*P[1]**2*I.hH113 + geom.h*(P[1]*I.H123 + 0.5*I.H133)) ) # mu_yy
 
-        return phi_d*self.K_inv*2.0
+        return phi_d*self.K_inv
 
 
     def calc_discrete_source_potential(self, P):
@@ -825,7 +825,7 @@ class SupersonicSubinclinedPanel(Panel):
                 # Calculate induced potential
                 phi_s += self.get_local_source_strength(point)/R
 
-        return -2.0*self.K_inv*phi_s*self.dA
+        return -self.K_inv*phi_s*self.dA
 
 
     def calc_discrete_doublet_potential(self, P):
@@ -858,7 +858,7 @@ class SupersonicSubinclinedPanel(Panel):
                 # Calculate induced potential
                 phi_d += self.get_local_doublet_strength(point)/R**3
 
-        return -2.0*self.K_inv*P[2]*phi_d*self.dA # I don't know why a negative sign is needed here, but it makes everything in MachLine work
+        return -self.K_inv*P[2]*phi_d*self.dA # I don't know why a negative sign is needed here, but it makes everything in MachLine work
 
 
 class SupersonicSuperinclinedPanel(Panel):
@@ -1039,16 +1039,15 @@ class SupersonicSuperinclinedPanel(Panel):
             ints.hH113 = 2.0*np.pi
             for i in range(4):
 
-                # Add corner influence
-                if geom.R1[i] > 0.0:
-                    ints.hH113 += np.pi
-
                 # Add edge influence
                 if geom.edge_in[i]:
                     ints.hH113 -= np.pi
 
-                # Add complicated corner influence
+                # Add corner influence
                 if geom.R1[i] > 0.0:
+
+                    ints.hH113 += np.pi
+
                     i_prev = i-1
 
                     # Get dot and cross products
@@ -1108,7 +1107,7 @@ class SupersonicSuperinclinedPanel(Panel):
         self.calc_H_integrals(geom, I)
 
         phi_s = self.sigma_params[0]*I.H111 + self.sigma_params[1]*(I.H111*P[0] + I.H211) + self.sigma_params[2]*(I.H111*P[1] + I.H121)
-        return -phi_s*self.K_inv*2.0
+        return -phi_s*self.K_inv
 
 
     def calc_analytic_doublet_potential(self, P):
@@ -1141,7 +1140,7 @@ class SupersonicSuperinclinedPanel(Panel):
                 + self.mu_params[4]*(P[0]*P[1]*I.hH113 + geom.h*(P[0]*I.H123 + P[1]*I.H213 + I.H223)) # mu_xy
                 + self.mu_params[5]*(0.5*P[1]**2*I.hH113 + geom.h*(P[1]*I.H123 + 0.5*I.H133)) ) # mu_yy
 
-        return phi_d*self.K_inv*2.0
+        return phi_d*self.K_inv
 
 
     def calc_discrete_source_potential(self, P):
@@ -1174,7 +1173,7 @@ class SupersonicSuperinclinedPanel(Panel):
                 # Calculate induced potential
                 phi_s += self.get_local_source_strength(point)/R
 
-        return -2.0*self.K_inv*phi_s*self.dA
+        return -self.K_inv*phi_s*self.dA
 
 
     def calc_discrete_doublet_potential(self, P):
@@ -1207,4 +1206,4 @@ class SupersonicSuperinclinedPanel(Panel):
                 # Calculate induced potential
                 phi_d += self.get_local_doublet_strength(point)/R**3
 
-        return -2.0*self.K_inv*P[2]*phi_d*self.dA # I don't know why a negative sign is needed here, but it makes everything in MachLine work
+        return -self.K_inv*P[2]*phi_d*self.dA

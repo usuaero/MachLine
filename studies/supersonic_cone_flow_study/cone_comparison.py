@@ -134,7 +134,8 @@ def get_analytic_data(filename):
 if __name__=="__main__":
 
     # Study parameters
-    grids = ["coarse", "medium"]#, "fine"]
+    grids = ["coarse", "medium", "fine"]
+    #grids = ["fine"]
     Ms = [1.4, 1.5, 1.7, 2.0, 2.4, 2.8, 3.3, 4.0]
     half_angles = [2.5, 5, 10, 15]
 
@@ -153,15 +154,25 @@ if __name__=="__main__":
         for j, M in enumerate(Ms):
             for k, half_angle in enumerate(half_angles):
 
-                C_p_2nd, C_p_ise, C_p_sln, C_p_lin = run_comparison(M, grid, half_angle, run_machline=False)
-                C_p_2nd_avg[i,j,k] = np.average(C_p_2nd).item()
-                C_p_ise_avg[i,j,k] = np.average(C_p_ise).item()
-                C_p_sln_avg[i,j,k] = np.average(C_p_sln).item()
-                C_p_lin_avg[i,j,k] = np.average(C_p_lin).item()
-                C_p_2nd_s_dev[i,j,k] = np.std(C_p_2nd).item()
-                C_p_ise_s_dev[i,j,k] = np.std(C_p_ise).item()
-                C_p_sln_s_dev[i,j,k] = np.std(C_p_sln).item()
-                C_p_lin_s_dev[i,j,k] = np.std(C_p_lin).item()
+                if M == 4.0 and half_angle == 15.0:
+                    C_p_2nd_avg[i,j,k] = np.nan
+                    C_p_ise_avg[i,j,k] = np.nan
+                    C_p_sln_avg[i,j,k] = np.nan
+                    C_p_lin_avg[i,j,k] = np.nan
+                    C_p_2nd_s_dev[i,j,k] = np.nan
+                    C_p_ise_s_dev[i,j,k] = np.nan
+                    C_p_sln_s_dev[i,j,k] = np.nan
+                    C_p_lin_s_dev[i,j,k] = np.nan
+                else:
+                    C_p_2nd, C_p_ise, C_p_sln, C_p_lin = run_comparison(M, grid, half_angle, run_machline=False)
+                    C_p_2nd_avg[i,j,k] = np.average(C_p_2nd).item()
+                    C_p_ise_avg[i,j,k] = np.average(C_p_ise).item()
+                    C_p_sln_avg[i,j,k] = np.average(C_p_sln).item()
+                    C_p_lin_avg[i,j,k] = np.average(C_p_lin).item()
+                    C_p_2nd_s_dev[i,j,k] = np.std(C_p_2nd).item()
+                    C_p_ise_s_dev[i,j,k] = np.std(C_p_ise).item()
+                    C_p_sln_s_dev[i,j,k] = np.std(C_p_sln).item()
+                    C_p_lin_s_dev[i,j,k] = np.std(C_p_lin).item()
 
     # Get analytic data
     Ms_anl, thetas_anl, Cps_anl = get_analytic_data("studies/supersonic_cone_flow_study/Cone Data Zero AoA.csv")
@@ -186,15 +197,82 @@ if __name__=="__main__":
         plt.ylim(bottom=0.0)
         plt.legend(fontsize=6, title_fontsize=6)
         plt.savefig("studies/supersonic_cone_flow_study/plots/C_p_over_M_{0}_deg.pdf".format(half_angle))
+        plt.savefig("studies/supersonic_cone_flow_study/plots/C_p_over_M_{0}_deg.svg".format(half_angle))
+        plt.close()
 
-    # Determine max standard deviation
-    std_max_ise = np.nanmax(np.nanmax(np.nanmax(C_p_ise_s_dev))).item()
-    std_max_2nd = np.nanmax(np.nanmax(np.nanmax(C_p_2nd_s_dev))).item()
-    std_max_lin = np.nanmax(np.nanmax(np.nanmax(C_p_lin_s_dev))).item()
-    std_max_sln = np.nanmax(np.nanmax(np.nanmax(C_p_sln_s_dev))).item()
-    print()
-    print("Maximum standard deviations:")
-    print("    Isentropic: ", std_max_ise)
-    print("    Second-order: ", std_max_2nd)
-    print("    Linear: ", std_max_lin)
-    print("    Slender-body: ", std_max_sln)
+    ## Determine max standard deviation
+    #std_max_ise = np.nanmax(np.nanmax(np.nanmax(C_p_ise_s_dev))).item()
+    #std_max_2nd = np.nanmax(np.nanmax(np.nanmax(C_p_2nd_s_dev))).item()
+    #std_max_lin = np.nanmax(np.nanmax(np.nanmax(C_p_lin_s_dev))).item()
+    #std_max_sln = np.nanmax(np.nanmax(np.nanmax(C_p_sln_s_dev))).item()
+    #print()
+    #print("Maximum standard deviations:")
+    #print("    Isentropic: ", std_max_ise)
+    #print("    Second-order: ", std_max_2nd)
+    #print("    Linear: ", std_max_lin)
+    #print("    Slender-body: ", std_max_sln)
+
+    ## Plot convergence
+    #plt.figure()
+    #for k, half_angle in enumerate(half_angles):
+    #    if k==1:
+    #        plt.plot(Ms, C_p_ise_avg[0,:,k], mfc='w', marker='o', ls='', mec='k', markersize=10, label='Coarse')
+    #        plt.plot(Ms, C_p_ise_avg[1,:,k], mfc='w', marker='o', ls='', mec='k', markersize=7, label='Medium')
+    #        plt.plot(Ms, C_p_ise_avg[2,:,k], mfc='w', marker='o', ls='', mec='k', markersize=4, label='Fine')
+    #    else:
+    #        plt.plot(Ms, C_p_ise_avg[0,:,k], mfc='w', marker='o', ls='', mec='k', markersize=10)
+    #        plt.plot(Ms, C_p_ise_avg[1,:,k], mfc='w', marker='o', ls='', mec='k', markersize=7)
+    #        plt.plot(Ms, C_p_ise_avg[2,:,k], mfc='w', marker='o', ls='', mec='k', markersize=4)
+    #plt.xlabel("$M_\infty$")
+    #plt.ylabel("$C_p$")
+    #plt.ylim(bottom=0.0)
+    #plt.legend(fontsize=6, title_fontsize=6)
+    #plt.savefig("studies/supersonic_cone_flow_study/plots/C_p_ise_convergence.pdf")
+
+    #plt.figure()
+    #for k, half_angle in enumerate(half_angles):
+    #    if k==1:
+    #        plt.plot(Ms, C_p_2nd_avg[0,:,k], mfc='w', marker='o', ls='', mec='k', markersize=10, label='Coarse')
+    #        plt.plot(Ms, C_p_2nd_avg[1,:,k], mfc='w', marker='o', ls='', mec='k', markersize=5, label='Medium')
+    #        plt.plot(Ms, C_p_2nd_avg[2,:,k], mfc='w', marker='o', ls='', mec='k', markersize=3, label='Fine')
+    #    else:
+    #        plt.plot(Ms, C_p_2nd_avg[0,:,k], mfc='w', marker='o', ls='', mec='k', markersize=10)
+    #        plt.plot(Ms, C_p_2nd_avg[1,:,k], mfc='w', marker='o', ls='', mec='k', markersize=5)
+    #        plt.plot(Ms, C_p_2nd_avg[2,:,k], mfc='w', marker='o', ls='', mec='k', markersize=3)
+    #plt.xlabel("$M_\infty$")
+    #plt.ylabel("$C_p$")
+    #plt.ylim(bottom=0.0)
+    #plt.legend(fontsize=6, title_fontsize=6)
+    #plt.savefig("studies/supersonic_cone_flow_study/plots/C_p_2nd_convergence.pdf")
+
+    #plt.figure()
+    #for k, half_angle in enumerate(half_angles):
+    #    if k==1:
+    #        plt.plot(Ms, C_p_sln_avg[0,:,k], mfc='w', marker='o', ls='', mec='k', markersize=10, label='Coarse')
+    #        plt.plot(Ms, C_p_sln_avg[1,:,k], mfc='w', marker='o', ls='', mec='k', markersize=5, label='Medium')
+    #        plt.plot(Ms, C_p_sln_avg[2,:,k], mfc='w', marker='o', ls='', mec='k', markersize=3, label='Fine')
+    #    else:
+    #        plt.plot(Ms, C_p_sln_avg[0,:,k], mfc='w', marker='o', ls='', mec='k', markersize=10)
+    #        plt.plot(Ms, C_p_sln_avg[1,:,k], mfc='w', marker='o', ls='', mec='k', markersize=5)
+    #        plt.plot(Ms, C_p_sln_avg[2,:,k], mfc='w', marker='o', ls='', mec='k', markersize=3)
+    #plt.xlabel("$M_\infty$")
+    #plt.ylabel("$C_p$")
+    #plt.ylim(bottom=0.0)
+    #plt.legend(fontsize=6, title_fontsize=6)
+    #plt.savefig("studies/supersonic_cone_flow_study/plots/C_p_sln_convergence.pdf")
+
+    #plt.figure()
+    #for k, half_angle in enumerate(half_angles):
+    #    if k==1:
+    #        plt.plot(Ms, C_p_lin_avg[0,:,k], mfc='w', marker='o', ls='', mec='k', markersize=10, label='Coarse')
+    #        plt.plot(Ms, C_p_lin_avg[1,:,k], mfc='w', marker='o', ls='', mec='k', markersize=5, label='Medium')
+    #        plt.plot(Ms, C_p_lin_avg[2,:,k], mfc='w', marker='o', ls='', mec='k', markersize=3, label='Fine')
+    #    else:
+    #        plt.plot(Ms, C_p_lin_avg[0,:,k], mfc='w', marker='o', ls='', mec='k', markersize=10)
+    #        plt.plot(Ms, C_p_lin_avg[1,:,k], mfc='w', marker='o', ls='', mec='k', markersize=5)
+    #        plt.plot(Ms, C_p_lin_avg[2,:,k], mfc='w', marker='o', ls='', mec='k', markersize=3)
+    #plt.xlabel("$M_\infty$")
+    #plt.ylabel("$C_p$")
+    #plt.ylim(bottom=0.0)
+    #plt.legend(fontsize=6, title_fontsize=6)
+    #plt.savefig("studies/supersonic_cone_flow_study/plots/C_p_lin_convergence.pdf")

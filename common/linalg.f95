@@ -15,7 +15,7 @@ subroutine matinv(n, a, ai)
       ! io - Work array, a 1-dimensional integer array of length n used by the subroutine.
 
       ! NEVER INVERT A MARTIX EXPLICITLY!
-      ! Unless you know what you're doing. Odds are you may not, so be careful.
+      ! Unless you know what you're doing. It's okay for small (N<10) matrices that are well-conditioned.
 
       implicit none
 
@@ -456,20 +456,17 @@ subroutine decompose_blocks(N, A, N_blocks, block_size, A_blocks, N_last, ind_P,
 end subroutine decompose_blocks
 
 
-subroutine block_sor_solve(N, A, b, block_size, tol, rel, max_iter, output_file, total_iter, x)
-  ! Iteratively solves the [A]x=b system using block (symmetric) successive overrelaxation
+subroutine block_ssor_solve(N, A, b, block_size, tol, rel, max_iter, output_file, total_iter, x)
+  ! Iteratively solves the [A]x=b system using block symmetric successive overrelaxation
   ! N is the size of the system
   ! A is the system matrix; block diagonals will be replaced with their LU decompositions
   ! b is the RHS vector
   ! block_size is the desired size of each block
   ! tol is the convergence tolerance between iterations
-  ! rel is a relaxation factor
+  ! rel is a relaxation factor between 0 and 2
   ! max_iter
   ! verbose
   ! x is the solution
-
-  ! rel between 0 and 2 specifies a constant relaxation factor
-  ! rel = -1 specifies the relaxation factor is to be adaptively updated
 
   implicit none
 
@@ -490,7 +487,7 @@ subroutine block_sor_solve(N, A, b, block_size, tol, rel, max_iter, output_file,
   integer :: i, N_blocks, r, N_last, iteration, step, start, end, unit
   integer,dimension(:),allocatable :: i_start_block, i_end_block
   integer,dimension(:,:),allocatable :: ind_P
-  logical :: adaptive, verbose
+  logical :: verbose
 
   ! Check if we need to output
   verbose = output_file /= 'none'
@@ -500,14 +497,6 @@ subroutine block_sor_solve(N, A, b, block_size, tol, rel, max_iter, output_file,
 
   ! Initialize alterantion
   step = -1
-
-  ! Check for adaptive relaxation factor
-  if (rel < 0.) then
-    adaptive = .true.
-    rel = 0.5
-  else
-    adaptive = .false.
-  end if
 
   ! Initialize solution vector
   allocate(x(N), source=0.)
@@ -526,11 +515,7 @@ subroutine block_sor_solve(N, A, b, block_size, tol, rel, max_iter, output_file,
   if (verbose) then
     open(newunit=unit, file=output_file)
     write(unit,*) "method"
-    if (adaptive) then
-      write(unit,*) "ABSOR"
-    else
-      write(unit,*) "BSOR"
-    end if
+    write(unit,*) "BSSOR"
     write(unit,*) "iteration,||dx||,||err||,relaxation"
   end if
 
@@ -553,7 +538,7 @@ subroutine block_sor_solve(N, A, b, block_size, tol, rel, max_iter, output_file,
     end if
 
     ! Perform iteration on blocks
-    do i=1,N_blocks
+    do i=start,end,step
 
       ! Last block
       if (i == N_blocks) then
@@ -598,19 +583,6 @@ subroutine block_sor_solve(N, A, b, block_size, tol, rel, max_iter, output_file,
     err = norm2(vk - b)
     dx = norm2(x - x_new)
 
-    ! Update relaxation for ABSOR method
-    if (adaptive) then
-
-      ! Aim for a step size that's of the same order of magnitude as the error
-      rel = rel - 0.1*(log10(dx/err))
-
-      ! Nowhere should we go above 2
-      if (rel > 2.) rel = 2.
-
-      ! Make sure the relaxation factor stays positive
-      if (rel < 0.) rel = 0.01
-    end if
-
     ! Output progress
     if (verbose) write(unit,'(i6, a, ES10.3, a, ES10.3, a, ES10.3)') iteration, ',', dx, ',', err, ',', rel
 
@@ -623,7 +595,7 @@ subroutine block_sor_solve(N, A, b, block_size, tol, rel, max_iter, output_file,
 
   total_iter = iteration
 
-end subroutine block_sor_solve
+end subroutine block_ssor_solve
 
 
 subroutine block_jacobi_solve(N, A, b, block_size, tol, rel, max_iter, output_file, total_iter, x)
@@ -634,12 +606,9 @@ subroutine block_jacobi_solve(N, A, b, block_size, tol, rel, max_iter, output_fi
   ! b is the RHS vector
   ! block_size is the desired size of each block
   ! tol is the convergence tolerance between iterations
-  ! rel is a relaxation factor
+  ! rel is a relaxation factor between 0 and 2
   ! max_iter
   ! x is the solution
-
-  ! rel between 0 and 2 will specify the relaxation factor should be constant
-  ! rel = -1 specifies that the optimal relaxation factor is to be used at each iteration
 
   implicit none
 
@@ -652,15 +621,15 @@ subroutine block_jacobi_solve(N, A, b, block_size, tol, rel, max_iter, output_fi
   integer,intent(out) :: total_iter
   real,dimension(:),allocatable,intent(out) :: x
 
-  real :: err, dx, vkTvk, bTvk, vkp1Tvkp1, vkp1Tvk, bTvkp1
-  real,dimension(N) :: x_new, vk, vkp1
+  real :: err, dx
+  real,dimension(N) :: x_new, vk
   real,dimension(:,:,:),allocatable :: A_blocks
   real,dimension(block_size) :: bi
   real,dimension(:),allocatable :: xi
-  integer :: i, N_blocks, r, N_last, iteration, step, start, end, unit
+  integer :: i, N_blocks, r, N_last, iteration, step, unit
   integer,dimension(:),allocatable :: i_start_block, i_end_block
   integer,dimension(:,:),allocatable :: ind_P
-  logical :: optimal_rel, verbose
+  logical :: verbose
 
   ! Determine whether we need to output
   verbose = output_file /= 'none'
@@ -670,14 +639,6 @@ subroutine block_jacobi_solve(N, A, b, block_size, tol, rel, max_iter, output_fi
 
   ! Initialize alterantion
   step = -1
-
-  ! Initialize method
-  if (rel < 0) then
-    optimal_rel = .true.
-    vk = 0.
-  else
-    optimal_rel = .false.
-  end if
 
   ! Initialize solution vector
   allocate(x(N), source=0.)
@@ -699,11 +660,7 @@ subroutine block_jacobi_solve(N, A, b, block_size, tol, rel, max_iter, output_fi
   if (verbose) then
     open(newunit=unit, file=output_file)
     write(unit,*) "method"
-    if (optimal_rel) then
-      write(unit,*) "ORBJ"
-    else
-      write(unit,*) "BJAC"
-    end if
+    write(unit,*) "BJAC"
     write(unit,*) "N=", N
     write(unit,*) "iteration,||dx||,||err||,relaxation"
   end if
@@ -714,17 +671,6 @@ subroutine block_jacobi_solve(N, A, b, block_size, tol, rel, max_iter, output_fi
 
     ! Update iteration number
     iteration = iteration + 1
-
-    ! Alternate direction
-    if (step == 1) then
-      start = N_blocks
-      end = 1
-      step = -1
-    else
-      start = 1
-      end = N_blocks
-      step = 1
-    end if
 
     ! Perform Jacobi iteration on blocks
     !$OMP parallel do private(bi, xi)
@@ -759,35 +705,11 @@ subroutine block_jacobi_solve(N, A, b, block_size, tol, rel, max_iter, output_fi
       end if
     end do
 
-    ! Calculate optimal relaxation for the ORBJ method
-    if (optimal_rel) then
-
-      ! Preliminary quantities
-      vkTvk = dot_product(vk, vk)
-      bTvk = dot_product(b, vk)
-      vkp1 = matmul(A, x_new)
-      bTvkp1 = dot_product(b, vkp1)
-      vkp1Tvk = dot_product(vkp1, vk)
-      vkp1Tvkp1 = dot_product(vkp1, vkp1)
-
-      ! Check for zero denominator
-      if (vkTvk - 2.*vkp1Tvk + vkp1Tvkp1 /= 0.) then
-        rel = (vkTvk - vkp1Tvk - bTvk + bTvkp1) / (vkTvk - 2.*vkp1Tvk + vkp1Tvkp1)
-      else
-        rel = 1.0
-      end if
-
-    end if
-
     ! Calculate new x
     x_new = (1.-rel)*x + rel*x_new
 
     ! Calculate error
-    if (optimal_rel) then
-      vk = (1.-rel)*vk + rel*vkp1
-    else
-      vk = matmul(A, x_new)
-    end if
+    vk = matmul(A, x_new)
     err = norm2(vk - b)
     dx = norm2(x - x_new)
 
@@ -913,56 +835,6 @@ function get_lower_bandwidth(N, A) result(B_l)
 end function get_lower_bandwidth
 
 
-subroutine GE_solve_upper_pentagonal(N, A, b, x)
-  ! Solves [A]x = b using Gauss elimination assuming A is upper-pentagonal
-  ! Replaces A partially with its LU decomposition
-  ! Based on Chen "Matrix Preconditioning Techniques and Applications" Alg. 2.5.8
-  ! Essentially useless; I was just trying it out.
-
-  implicit none
-  
-  integer,intent(in) :: N
-  real,dimension(N,N), intent(inout) :: A
-  real,dimension(N),intent(in) :: b
-  real,dimension(:),allocatable,intent(out) :: x
-
-  integer :: B_l, i, j, k
-  real :: m
-
-  ! Get bandwidth
-  B_l = get_lower_bandwidth(N, A)
-
-  ! Allocate solution
-  allocate(x, source=b)
-
-  ! Outer loop
-  do k=1,N
-
-    ! Loop through rows
-    do i=k+1,min(k+B_l, N)
-
-      ! Get scale factor
-      m = A(i,k)/A(k,k)
-
-      ! Check size of factor
-      if (abs(m) > 1.0e-12) then
-
-        ! Update solution
-        x(i) = x(i) - m*x(k)
-
-        ! Apply row operation to other columns of A
-        do j=k,N
-          A(i,j) = A(i,j) - m*A(k,j)
-        end do
-
-      end if
-
-    end do
-  end do
-  
-end subroutine GE_solve_upper_pentagonal
-
-
 subroutine gen_givens_rot(x, y, c, s)
   ! Calculates the plane rotation from x and y
   ! Also applies the rotation to x and y
@@ -1007,49 +879,7 @@ subroutine apply_givens_row_rot(c, s, x, y, N)
 end subroutine apply_givens_row_rot
 
 
-subroutine QR_givens_solve(N, A, b, x)
-  ! Solves the equation [A]x = b using the QR factorization via Givens rotations
-
-  implicit none
-  
-  integer,intent(in) :: N
-  real,dimension(N,N),intent(inout) :: A
-  real,dimension(N),intent(inout) :: b
-  real,dimension(:),allocatable,intent(out) :: x
-
-  integer :: i, j
-  real :: s, c
-
-  ! Initialize
-  allocate(x(N))
-
-  ! Zero out lower triangle
-
-  ! Loop through columns
-  do j=1,N
-
-    ! Loop through rows
-    do i=N,j+1,-1
-
-      ! Generate Givens rotation
-      call gen_givens_rot(A(i-1,j), A(i,j), c, s)
-
-      ! Apply to rest of row
-      call apply_givens_row_rot(c, s, A(i-1,j+1:), A(i,j+1:), N-j-1)
-
-      ! Apply to b vector
-      call apply_givens_row_rot(c, s, b(i-1), b(i), 1)
-
-    end do
-  end do
-
-  ! Back substitution
-  call upper_triangular_back_sub(N, A, b, x)
-  
-end subroutine QR_givens_solve
-
-
-subroutine QR_row_givens_solve_UP(N, A, b, x)
+subroutine QR_givens_solve_UP(N, A, b, x)
   ! Solves the equation [A]x = b using the QR factorization via row-oriented Givens rotations
   ! Assumes A is upper-pentagonal
 
@@ -1094,7 +924,7 @@ subroutine QR_row_givens_solve_UP(N, A, b, x)
   ! Back substitution
   call upper_triangular_back_sub(N, A, b, x)
   
-end subroutine QR_row_givens_solve_UP
+end subroutine QR_givens_solve_UP
 
 
 subroutine upper_triangular_back_sub(N, R, b, x)
@@ -1126,41 +956,13 @@ subroutine upper_triangular_back_sub(N, R, b, x)
     if (R(i,i) /= 0.) then
       x(i) = x(i) / R(i,i)
     else
-      write(*,*) "!!! Zero found on the diagonal of R. QR back substitution failed. Quitting..."
+      write(*,*) "!!! Zero found on the diagonal of R. Upper-triangular back substitution failed. Quitting..."
       stop
     end if
 
   end do
   
 end subroutine upper_triangular_back_sub
-
-
-function upper_triangular_det(N, R) result(det)
-  ! Calculates the scaled absolute value of the determinant of an upper-triangular matrix
-
-  implicit none
-  
-  integer,intent(in) :: N
-  real,dimension(N,N),intent(in) :: R
-
-  real :: det
-  integer :: i
-
-  ! Initialize
-  det = 1.
-
-  ! Assemble product of diagonal elements
-  do i=1,N
-    det = det*abs(R(i,i)/maxval(abs(R(i,:))))
-    write(*,*)
-    write(*,*) "Row", i
-    write(*,*) "Max value: ", R(i,maxloc(abs(R(i,:))))
-    write(*,*) "Location of max value: ", maxloc(abs(R(i,:)))
-    write(*,*) "Diagonal element: ", R(i,i)
-    write(*,*) "Determinant: ", det
-  end do
-
-end function upper_triangular_det
 
 
 subroutine gen_fast_givens_rot(x, y, a, b, D1, D2, rot_type)
@@ -1174,14 +976,11 @@ subroutine gen_fast_givens_rot(x, y, a, b, D1, D2, rot_type)
   integer,intent(out) :: rot_type
 
   real :: gamma, t, d, temp, ratio
-  real :: x2, y2
 
   ! Preliminaries
-  x2 = x*x
-  y2 = y*y
   gamma = D1/D2
   if (x /= 0.) then
-    ratio = y2/x2
+    ratio = (y*y)/(x*x)
   else
     ratio = gamma + 1.
   end if
@@ -1289,17 +1088,17 @@ subroutine apply_fast_givens_rot(a, b, x, y, N, rot_type)
   case (1)
 
     x = x + b*y
-    y = -a*x + y
+    y = y - a*x
 
   case (2)
 
-    y = -a*x + y
+    y = y - a*x
     x = x + b*y
 
   case (3)
 
     temp = y
-    y = -x + a*y
+    y = a*y - x
     x = temp - b*y
 
   case (4)
@@ -1533,6 +1332,467 @@ subroutine GMRES(N, A, b, tol, max_iter, output_file, total_iter, x)
   total_iter = k
   
 end subroutine GMRES
+
+
+subroutine restarted_GMRES(N, A, b, tol, max_iter, restart_iter, output_file, total_iter, x)
+  ! Uses the generalized minimum residual algorithm to estimate the solution to Ax=b
+  ! with restarts to improve performance
+  ! Taken from "Handbook of Linear Algebra" Leslie Hogben ed.
+
+  implicit none
+  
+  integer,intent(in) :: N, max_iter, restart_iter
+  real,dimension(N,N),intent(in) :: A
+  real,dimension(N),intent(in) :: b
+  real,intent(in) :: tol
+  character(len=:),allocatable :: output_file
+  integer,intent(out) :: total_iter
+  real,dimension(:),allocatable,intent(out) :: x
+
+  integer :: i, k, k_max, unit, outer_iter
+  real,dimension(:,:),allocatable :: Q, H
+  real,dimension(N) :: E, r0
+  real :: beta, temp, err, d
+  real,dimension(:),allocatable :: y, c, s
+  logical :: verbose
+
+  ! Intialize iterations
+  total_iter = 0
+  outer_iter = 0
+
+  ! We cannot have more iterations than the size of the matrix
+  k_max = min(restart_iter, N)
+
+  ! Allocate memory for storing the orthonormal basis and rotations
+  allocate(Q(N,k_max))
+  allocate(H(k_max+1,k_max))
+  allocate(c(k_max))
+  allocate(s(k_max))
+
+  ! Initial guess
+  allocate(x(N), source=0.)
+
+  ! Start output
+  verbose = output_file /= 'none'
+  if (verbose) then
+    open(newunit=unit, file=output_file)
+    write(unit,*) "method"
+    write(unit,*) "GMRES"
+    write(unit,*) "N=", N
+    write(unit,*) "iteration,outer iteration,inner iteration,||err||"
+  end if
+
+  ! Iterate through restarts
+  err = tol + 1
+  do while (err > tol .and. total_iter <= max_iter)
+
+    outer_iter = outer_iter + 1
+
+    ! Wipe previous iteration
+    Q = 0.
+    H = 0.
+    c = 0.
+    s = 0.
+
+    ! Initialize
+    E(1) = 1.
+    E(2:) = 0.
+    r0 = b - matmul(A, x)
+    beta = norm2(r0)
+    Q(:,1) = r0/beta
+
+    ! Loop through subspaces
+    k = 0
+    do while (err > tol .and. k < k_max-1)
+
+      k = k + 1
+      total_iter = total_iter + 1
+
+      ! Update orthonormal basis using Arnoldi algorithm
+      call arnoldi_update(N, A, k, Q, H)
+
+      ! Apply rotations to new last column of H
+      do i=1,k-1
+        temp = c(i)*H(i,k) + s(i)*H(i+1,k)
+        H(i+1,k) = -s(i)*h(i,k) + c(i)*H(i+1,k)
+        H(i,k) = temp
+      end do
+
+      ! Calculate k-th rotation
+      d = sqrt(H(k,k)**2 + H(k+1,k)**2)
+      c(k) = abs(H(k,k)) / d
+      s(k) = sign(1., H(k,k))*H(k+1,k) / d
+
+      ! Apply to H
+      H(k,k) = c(k)*H(k,k) + s(k)*H(k+1,k)
+      H(k+1,k) = 0.
+
+      ! Apply to E
+      E(k+1) = -s(k)*E(k)
+      E(k) = c(k)*E(k)
+
+      ! Calculate upper residual norm estimate
+      err = beta*abs(E(k+1))
+
+      ! Output progress
+      if (verbose) write(unit,'(i6, a, i6, a, i6, a, ES10.3)') total_iter, ',', outer_iter, ',', k, ',', err
+
+    end do
+
+    ! Solve upper triangular system
+    call upper_triangular_back_sub(k, H(1:k,1:k), beta*E(1:k), y)
+
+    ! Update estimate for x
+    x = x + matmul(Q(:,1:k), y)
+
+  end do
+
+  ! Finish output
+  if (verbose) close(unit)
+
+end subroutine restarted_GMRES
+
+!!! --------------------------------------------------------------------------------------------------
+!!! OBSOLETE FUNCTIONS
+!!! --------------------------------------------------------------------------------------------------
+
+subroutine block_ssor_solve_with_adaptation(N, A, b, block_size, tol, rel, max_iter, output_file, total_iter, x)
+  ! Iteratively solves the [A]x=b system using block symmetric successive overrelaxation
+  ! N is the size of the system
+  ! A is the system matrix; block diagonals will be replaced with their LU decompositions
+  ! b is the RHS vector
+  ! block_size is the desired size of each block
+  ! tol is the convergence tolerance between iterations
+  ! rel is a relaxation factor
+  ! max_iter
+  ! verbose
+  ! x is the solution
+
+  ! rel between 0 and 2 specifies a constant relaxation factor
+  ! rel = -1 specifies the relaxation factor is to be adaptively updated
+
+  implicit none
+
+  integer,intent(in) :: N, block_size, max_iter
+  real,dimension(N,N),intent(inout) :: A
+  real,dimension(N),intent(in) :: b
+  real,intent(in) :: tol
+  real,intent(inout) :: rel
+  character(len=:),allocatable,intent(in) :: output_file
+  integer,intent(out) :: total_iter
+  real,dimension(:),allocatable,intent(out) :: x
+
+  real :: err, dx 
+  real,dimension(N) :: x_new, vk
+  real,dimension(:,:,:),allocatable :: A_blocks
+  real,dimension(block_size) :: bi
+  real,dimension(:),allocatable :: xi
+  integer :: i, N_blocks, r, N_last, iteration, step, start, end, unit
+  integer,dimension(:),allocatable :: i_start_block, i_end_block
+  integer,dimension(:,:),allocatable :: ind_P
+  logical :: adaptive, verbose
+
+  ! Check if we need to output
+  verbose = output_file /= 'none'
+
+  ! Give initial error estimate
+  err = tol + 1.
+
+  ! Initialize alterantion
+  step = -1
+
+  ! Check for adaptive relaxation factor
+  if (rel < 0.) then
+    adaptive = .true.
+    rel = 0.5
+  else
+    adaptive = .false.
+  end if
+
+  ! Initialize solution vector
+  allocate(x(N), source=0.)
+
+  ! Calculate number of blocks
+  N_blocks = N/block_size
+  r = modulo(N, block_size)
+  if (r > 0) then
+    N_blocks = N_blocks + 1
+  end if
+
+  ! Decompose blocks
+  call decompose_blocks(N, A, N_blocks, block_size, A_blocks, N_last, ind_P, i_start_block, i_end_block)
+
+  ! Write out header
+  if (verbose) then
+    open(newunit=unit, file=output_file)
+    write(unit,*) "method"
+    if (adaptive) then
+      write(unit,*) "ABSSOR"
+    else
+      write(unit,*) "BSSOR"
+    end if
+    write(unit,*) "iteration,||dx||,||err||,relaxation"
+  end if
+
+  ! Iterate
+  iteration = 0
+  do while(err >= tol .and. iteration < max_iter)
+
+    ! Update iteration number
+    iteration = iteration + 1
+
+    ! Alternate direction
+    if (step == 1) then
+      start = N_blocks
+      end = 1
+      step = -1
+    else
+      start = 1
+      end = N_blocks
+      step = 1
+    end if
+
+    ! Perform iteration on blocks
+    do i=start,end,step
+
+      ! Last block
+      if (i == N_blocks) then
+
+        ! Calculate new RHS vector
+        if (step == 1) then
+          bi(1:N_last) = b(i_start_block(i):N) - matmul(A(i_start_block(i):N,1:i_start_block(i)-1), x_new(1:i_start_block(i)-1))
+        else
+          bi(1:N_last) = b(i_start_block(i):N) - matmul(A(i_start_block(i):N,1:i_start_block(i)-1), x(1:i_start_block(i)-1))
+        end if
+
+        ! Solve
+        call lu_back_sub(A_blocks(1:N_last,1:N_last,i), N_last, ind_P(1:N_last,i), bi, xi)
+
+        ! Store
+        x_new(i_start_block(i):N) = (1.-rel)*x(i_start_block(i):N) + rel*xi
+
+      ! Not last block
+      else
+
+        ! Calculate new RHS vector
+        bi = b(i_start_block(i):i_end_block(i))
+        if (step == 1) then
+          bi = bi - matmul(A(i_start_block(i):i_end_block(i),1:i_start_block(i)-1), x_new(1:i_start_block(i)-1))
+          bi = bi - matmul(A(i_start_block(i):i_end_block(i),i_end_block(i)+1:N), x(i_end_block(i)+1:N))
+        else
+          bi = bi - matmul(A(i_start_block(i):i_end_block(i),1:i_start_block(i)-1), x(1:i_start_block(i)-1))
+          bi = bi - matmul(A(i_start_block(i):i_end_block(i),i_end_block(i)+1:N), x_new(i_end_block(i)+1:N))
+        end if
+
+        ! Solve
+        call lu_back_sub(A_blocks(:,:,i), block_size, ind_P(:,i), bi, xi)
+
+        ! Store
+        x_new(i_start_block(i):i_end_block(i)) = (1.-rel)*x(i_start_block(i):i_end_block(i)) + rel*xi
+
+      end if
+    end do
+
+    ! Calculate error
+    vk = matmul(A, x_new)
+    err = norm2(vk - b)
+    dx = norm2(x - x_new)
+
+    ! Update relaxation for ABSOR method
+    if (adaptive) then
+
+      ! Aim for a step size that's of the same order of magnitude as the error
+      rel = rel - 0.1*(log10(dx/err))
+
+      ! Nowhere should we go above 2
+      if (rel > 2.) rel = 2.
+
+      ! Make sure the relaxation factor stays positive
+      if (rel < 0.) rel = 0.01
+    end if
+
+    ! Output progress
+    if (verbose) write(unit,'(i6, a, ES10.3, a, ES10.3, a, ES10.3)') iteration, ',', dx, ',', err, ',', rel
+
+    ! Prepare for next iteration
+    x = x_new
+
+  end do
+
+  close(unit)
+
+  total_iter = iteration
+
+end subroutine block_ssor_solve_with_adaptation
+
+
+subroutine block_jacobi_solve_with_optimal(N, A, b, block_size, tol, rel, max_iter, output_file, total_iter, x)
+  ! Iteratively solves the [A]x=b system using the specified block Jacobi method
+  ! Will alternate directions through the blocks on each iteration
+  ! N is the size of the system
+  ! A is the system matrix; block diagonals will be replaced with their LU decompositions
+  ! b is the RHS vector
+  ! block_size is the desired size of each block
+  ! tol is the convergence tolerance between iterations
+  ! rel is a relaxation factor
+  ! max_iter
+  ! x is the solution
+
+  ! rel between 0 and 2 will specify the relaxation factor should be constant
+  ! rel = -1 specifies that the optimal relaxation factor is to be used at each iteration
+
+  implicit none
+
+  integer,intent(in) :: N, block_size, max_iter
+  real,dimension(N,N),intent(inout) :: A
+  real,dimension(N),intent(in) :: b
+  real,intent(in) :: tol
+  real,intent(inout) :: rel
+  character(len=:),allocatable,intent(in) :: output_file
+  integer,intent(out) :: total_iter
+  real,dimension(:),allocatable,intent(out) :: x
+
+  real :: err, dx, vkTvk, bTvk, vkp1Tvkp1, vkp1Tvk, bTvkp1
+  real,dimension(N) :: x_new, vk, vkp1
+  real,dimension(:,:,:),allocatable :: A_blocks
+  real,dimension(block_size) :: bi
+  real,dimension(:),allocatable :: xi
+  integer :: i, N_blocks, r, N_last, iteration, step, unit
+  integer,dimension(:),allocatable :: i_start_block, i_end_block
+  integer,dimension(:,:),allocatable :: ind_P
+  logical :: optimal_rel, verbose
+
+  ! Determine whether we need to output
+  verbose = output_file /= 'none'
+
+  ! Give initial error estimate
+  err = tol + 1.
+
+  ! Initialize alterantion
+  step = -1
+
+  ! Initialize method
+  if (rel < 0) then
+    optimal_rel = .true.
+    vk = 0.
+  else
+    optimal_rel = .false.
+  end if
+
+  ! Initialize solution vector
+  allocate(x(N), source=0.)
+  do i=1,N
+    x(i) = b(i)/A(i,i)
+  end do
+
+  ! Calculate number of blocks
+  N_blocks = N/block_size
+  r = modulo(N, block_size)
+  if (r > 0) then
+    N_blocks = N_blocks + 1
+  end if
+
+  ! Decompose blocks
+  call decompose_blocks(N, A, N_blocks, block_size, A_blocks, N_last, ind_P, i_start_block, i_end_block)
+
+  ! Write out header
+  if (verbose) then
+    open(newunit=unit, file=output_file)
+    write(unit,*) "method"
+    if (optimal_rel) then
+      write(unit,*) "ORBJ"
+    else
+      write(unit,*) "BJAC"
+    end if
+    write(unit,*) "N=", N
+    write(unit,*) "iteration,||dx||,||err||,relaxation"
+  end if
+
+  ! Iterate
+  iteration = 0
+  do while(err >= tol .and. iteration < max_iter)
+
+    ! Update iteration number
+    iteration = iteration + 1
+
+    ! Perform Jacobi iteration on blocks
+    !$OMP parallel do private(bi, xi)
+    do i=1,N_blocks
+
+      ! Last block
+      if (i == N_blocks) then
+
+        ! Calculate new RHS vector
+        bi(1:N_last) = b(i_start_block(i):N) - matmul(A(i_start_block(i):N,1:i_start_block(i)-1), x(1:i_start_block(i)-1))
+
+        ! Solve
+        call lu_back_sub(A_blocks(1:N_last,1:N_last,i), N_last, ind_P(1:N_last,i), bi, xi)
+
+        ! Store
+        x_new(i_start_block(i):N) = xi
+
+      ! Not last block
+      else
+
+        ! Calculate new RHS vector
+        bi = b(i_start_block(i):i_end_block(i))
+        bi = bi - matmul(A(i_start_block(i):i_end_block(i),1:i_start_block(i)-1), x(1:i_start_block(i)-1))
+        bi = bi - matmul(A(i_start_block(i):i_end_block(i),i_end_block(i)+1:N), x(i_end_block(i)+1:N))
+
+        ! Solve
+        call lu_back_sub(A_blocks(:,:,i), block_size, ind_P(:,i), bi, xi)
+
+        ! Store
+        x_new(i_start_block(i):i_end_block(i)) = xi
+
+      end if
+    end do
+
+    ! Calculate optimal relaxation for the ORBJ method
+    if (optimal_rel) then
+
+      ! Preliminary quantities
+      vkTvk = dot_product(vk, vk)
+      bTvk = dot_product(b, vk)
+      vkp1 = matmul(A, x_new)
+      bTvkp1 = dot_product(b, vkp1)
+      vkp1Tvk = dot_product(vkp1, vk)
+      vkp1Tvkp1 = dot_product(vkp1, vkp1)
+
+      ! Check for zero denominator
+      if (vkTvk - 2.*vkp1Tvk + vkp1Tvkp1 /= 0.) then
+        rel = (vkTvk - vkp1Tvk - bTvk + bTvkp1) / (vkTvk - 2.*vkp1Tvk + vkp1Tvkp1)
+      else
+        rel = 1.0
+      end if
+
+    end if
+
+    ! Calculate new x
+    x_new = (1.-rel)*x + rel*x_new
+
+    ! Calculate error
+    if (optimal_rel) then
+      vk = (1.-rel)*vk + rel*vkp1
+    else
+      vk = matmul(A, x_new)
+    end if
+    err = norm2(vk - b)
+    dx = norm2(x - x_new)
+
+    ! Output progress
+    if (verbose) write(unit,'(i6, a, ES10.3, a, ES10.3, a, ES10.3)') iteration, ',', dx, ',', err, ',', rel
+
+    ! Prepare for next iteration
+    x = x_new
+
+  end do
+
+  close(unit)
+
+  total_iter = iteration
+
+end subroutine block_jacobi_solve_with_optimal
 
 
 end module linalg_mod

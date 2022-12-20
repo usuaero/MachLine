@@ -1,7 +1,7 @@
 {
     "flow": {
         "freestream_velocity": [100.0, 0.0, 0.0],
-        "freestream_mach_number" : 0.15
+        "freestream_mach_number" : 1.3
     },
     "geometry": {
         "file": "dev/meshes/HSCT_for_supersonic.vtk",
@@ -12,7 +12,7 @@
         }
     },
     "solver": {
-        "matrix_solver" : "GMRES"
+        "formulation" : "morino"
     },
     "post_processing" : {
         "pressure_rules" : {

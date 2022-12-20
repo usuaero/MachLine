@@ -37,7 +37,7 @@ def _export_vtk(filename, vertices, panels):
             print("3 "+" ".join([str(i) for i in panel]), file=export_handle)
             
 
-def _get_proper_points_and_panels_for_closed_right_cone(h, r, N_transverse, N_theta, N_radial):
+def _get_regular_points_and_panels_for_closed_right_cone(h, r, N_transverse, N_theta, N_radial):
     # Generates the points and panels for half of a closed right cone, aligned with the x-axis and its base at the origin.
     # resultant mesh should be mirrored about the xy plane.
 
@@ -143,7 +143,7 @@ def _get_proper_points_and_panels_for_closed_right_cone(h, r, N_transverse, N_th
     return vertices, panels
             
 
-def _get_proper_points_and_panels_for_closed_right_cone(h, r, N_transverse, N_theta):
+def _get_regular_points_and_panels_for_open_right_cone(h, r, N_transverse, N_theta):
     # Generates the points and panels for half of a closed right cone, aligned with the x-axis and its base at the origin.
     # resultant mesh should be mirrored about the xy plane.
 
@@ -221,7 +221,7 @@ def _get_proper_points_and_panels_for_closed_right_cone(h, r, N_transverse, N_th
     return vertices, panels
 
 
-def generate_proper_right_cone(filename, h, r, N_transverse, N_theta, N_radial=1, close_base=True):
+def generate_regular_right_cone(filename, h, r, N_transverse, N_theta, N_radial=1, close_base=True):
     """Generates a mesh of half of a right cone, aligned with the x-axis and its base at the origin.
     The resultant mesh should be mirrored about the xy plane.
     
@@ -251,12 +251,56 @@ def generate_proper_right_cone(filename, h, r, N_transverse, N_theta, N_radial=1
 
     # Get geometry
     if close_base:
-        vertices, panels = _get_proper_points_and_panels_for_closed_right_cone(h, r, N_transverse, N_theta, N_radial)
+        vertices, panels = _get_regular_points_and_panels_for_closed_right_cone(h, r, N_transverse, N_theta, N_radial)
     else:
-        vertices, panels = _get_proper_points_and_panels_for_closed_right_cone(h, r, N_transverse, N_theta)
+        vertices, panels = _get_regular_points_and_panels_for_open_right_cone(h, r, N_transverse, N_theta)
 
     # Export
     _export_vtk(filename, vertices, panels)
+
+
+def generate_regular_sphere(filename, r, N_azimuth, N_elevation):
+    """Generates a mesh of a sphere, aligned with the x-axis and centered on the origin.
+    
+    Parameters
+    ----------
+    filename : str
+        Name of the file to write the mesh to. Must have '.vtk' extension.
+
+    r : float
+        Radius.
+    
+    N_azimuth : int
+        Number of discretizations to make around the circumfrence of the circle (longitudinal divisions).
+
+    N_elevation : int
+        Number of discretizations to make from the north to south poles (latitudinal divisions).
+    """
+
+    # Get points
+    N_verts = (N_elevation-1)*N_azimuth + 2
+    vertices = np.zeros((N_verts,3))
+
+    # Poles
+    vertices[0,:] = [r, 0.0, 0.0]
+    vertices[-1,:] = [-r, 0.0, 0.0]
+
+    # Get angular steps
+    thetas = np.linspace(-0.5*np.pi, 0.5*np.pi, N_elevation+1)
+    psis = np.linspace(0.0, 2.0*np.pi, N_azimuth+1)
+
+    # Get points
+    for i, theta in enumerate(thetas[1:-1]):
+        r_i = r*np.cos(theta)
+        x = r*np.sin(theta)
+        for j, psi in enumerate(psis[:-1]):
+            vertices[i*N_azimuth+j+1,0] = x
+            vertices[i*N_azimuth+j+1,1] = r_i*np.cos(psi)
+            vertices[i*N_azimuth+j+1,2] = r_i*np.sin(psi)
+
+    # Export
+    _export_hull_of_points(vertices, filename)
+    #_export_vtk(filename, vertices, panels)
 
 
 def _get_random_points_on_surface_of_sphere(N, r):
@@ -293,24 +337,8 @@ def _get_random_points_on_surface_of_sphere(N, r):
     return points
 
 
-def generate_random_sphere(filename, N, r):
-    """Generates a random unstructured mesh of a sphere.
-    
-    Parameters
-    ----------
-    filename : str
-        Name of the file to write the mesh to. Must have '.vtk' extension.
-
-    N : integer
-        Number of vertices.
-        
-    r : float
-        Radius of sphere.
-        Array of points.
-    """
-    
-    # Get vertices
-    verts = _get_random_points_on_surface_of_sphere(N, r)
+def _export_hull_of_points(verts, filename):
+    # Takes the given vertices, generates a convex hull, and writes it to a vtk
 
     # Create convex hull
     hull = ConvexHull(verts)
@@ -331,6 +359,29 @@ def generate_random_sphere(filename, N, r):
 
     # Export mesh
     _export_vtk(filename, verts, np.array(fixed_simplices))
+
+
+def generate_random_sphere(filename, N, r):
+    """Generates a random unstructured mesh of a sphere.
+    
+    Parameters
+    ----------
+    filename : str
+        Name of the file to write the mesh to. Must have '.vtk' extension.
+
+    N : integer
+        Number of vertices.
+        
+    r : float
+        Radius of sphere.
+        Array of points.
+    """
+    
+    # Get vertices
+    verts = _get_random_points_on_surface_of_sphere(N, r)
+
+    # Export
+    _export_hull_of_points(verts, filename)
 
 
 def _get_random_points_on_surface_of_spindle(N, c, r_of_x):
@@ -381,25 +432,8 @@ def generate_random_spindle(filename, N, c, r_of_x):
     # Get vertices
     verts = _get_random_points_on_surface_of_spindle(N, c, r_of_x)
 
-    # Create convex hull
-    hull = ConvexHull(verts)
-
-    # Make sure normal vector points outward
-    fixed_simplices = []
-    for simplex in hull.simplices:
-
-        # Calculate normal and centroid
-        centroid = np.sum(verts[simplex,:], axis=0) / 3.0
-        normal = np.cross(verts[simplex[1],:] - verts[simplex[0],:], verts[simplex[2],:] - verts[simplex[1],:])
-
-        # Check the normal points outward
-        if np.dot(centroid, normal) > 0.0:
-            fixed_simplices.append(simplex)
-        else:
-            fixed_simplices.append(simplex[::-1])
-
-    # Export mesh
-    _export_vtk(filename, verts, np.array(fixed_simplices))
+    # Export
+    _export_hull_of_points(verts, filename)
 
 
 if __name__=="__main__":
@@ -408,9 +442,9 @@ if __name__=="__main__":
     #angles = [2.5, 5.0, 10.0, 15.0]
     #for angle in angles:
     #    h = 1.0/np.tan(np.radians(angle))
-    #    generate_proper_right_cone('studies/supersonic_cone_flow_study/meshes/cone_{0}_deg_fine.vtk'.format(int(angle)), h, 1.0, 120, 100, close_base=False)
-    h = 1.0/np.tan(np.radians(10.0))
-    generate_proper_right_cone('studies/matrix_solvers/meshes/cone_10_deg_medium.vtk', h, 1.0, 40, 30, close_base=False)
+    #    generate_regular_right_cone('studies/supersonic_cone_flow_study/meshes/cone_{0}_deg_fine.vtk'.format(int(angle)), h, 1.0, 120, 100, close_base=False)
+    #h = 1.0/np.tan(np.radians(10.0))
+    #generate_regular_right_cone('studies/matrix_solvers/meshes/cone_10_deg_medium.vtk', h, 1.0, 40, 30, close_base=False)
 
     ## Random spheres
     #Ns = [125, 250, 500, 1000, 2000]
@@ -424,3 +458,6 @@ if __name__=="__main__":
     #    return 0.05*x*(1.0-x)
 
     #generate_random_spindle("studies/panel_regularity_spindle_study/meshes/random_spindle_1000.vtk", 1000, 1.0, r_of_x)
+
+    # Regular sphere
+    generate_regular_sphere("dev/meshes/regular_sphere.vtk", 1.0, 40, 20)

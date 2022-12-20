@@ -9,10 +9,13 @@
         "freestream_mach_number": 3.0
     },
     "geometry": {
-        "file": "studies/sears_haack/meshes/SH_80_30.tri",
+        "file": "studies/sears_haack/meshes/SH_160_60.tri",
         "spanwise_axis": "+y",
         "wake_model": {
             "wake_present": false
+        },
+        "reference": {
+            "area": 0.001675
         }
     },
 
@@ -26,9 +29,7 @@
     "post_processing": {
     },
     "output": {
-        "verbose": true,
-        "body_file": "studies/sears_haack/machline_results/sears_haack_9800_data_mach_2.vtk",
-        "control_point_file": "studies/sears_haack/machline_results/sears_haack_9800_data_mach_2_control_points.vtk"
-
+        "body_file": "studies/sears_haack/results/SH_160_60_M_3.0.vtk",
+        "report_file": "studies/sears_haack/reports/SH_160_60_M_3.0.json"
     }
 }

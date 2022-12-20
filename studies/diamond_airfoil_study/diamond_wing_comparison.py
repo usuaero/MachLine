@@ -141,6 +141,7 @@ def run_comparison(M, alpha, grid, half_angle, run_machline=True):
     plt.ylabel('$C_p$')
     plt.legend(fontsize=6, title_fontsize=6)
     plt.savefig(plot_dir+case_name+".pdf".format(M, alpha, int(half_angle)))
+    plt.savefig(plot_dir+case_name+".svg".format(M, alpha, int(half_angle)))
     plt.close()
 
     return CL_se, CD_se, CL_ml, CD_ml
@@ -165,29 +166,29 @@ if __name__=="__main__":
                     _,_,CLs[i,j,k,l], CDs[i,j,k,l] = run_comparison(M, alpha, grid, half_angle, run_machline=False)
 
     plot_dir = "studies/diamond_airfoil_study/plots/"
-    for j, M in enumerate(Ms):
-        for k, alpha in enumerate(alphas):
-            for l,half_angle in enumerate(half_angles):
+    #for j, M in enumerate(Ms):
+    #    for k, alpha in enumerate(alphas):
+    #        for l,half_angle in enumerate(half_angles):
 
-                case_name = "M_{0}_aoa_{1}_{2}_deg_convergence".format(M, alpha, int(half_angle))
+    #            case_name = "M_{0}_aoa_{1}_{2}_deg_convergence".format(M, alpha, int(half_angle))
 
-                plt.figure()
-                plt.plot(N_verts[:-1], abs((CLs[:-1,j,k,l]-CLs[-1,j,k,l])/CLs[-1,j,k,l]), 'k-')
-                plt.xscale('log')
-                plt.yscale('log')
-                plt.xlabel('$N_{verts}$')
-                plt.ylabel('Error in $C_L$')
-                plt.savefig(plot_dir+case_name+"_CL.pdf")
-                plt.close()
+    #            plt.figure()
+    #            plt.plot(N_verts[:-1], abs((CLs[:-1,j,k,l]-CLs[-1,j,k,l])/CLs[-1,j,k,l]), 'k-')
+    #            plt.xscale('log')
+    #            plt.yscale('log')
+    #            plt.xlabel('$N_{verts}$')
+    #            plt.ylabel('Error in $C_L$')
+    #            plt.savefig(plot_dir+case_name+"_CL.pdf")
+    #            plt.close()
 
-                plt.figure()
-                plt.plot(N_verts[:-1], abs((CDs[:-1,j,k,l]-CDs[-1,j,k,l])/CDs[-1,j,k,l]), 'k-')
-                plt.xscale('log')
-                plt.yscale('log')
-                plt.xlabel('$N_{verts}$')
-                plt.ylabel('Error in $C_D$')
-                plt.savefig(plot_dir+case_name+"_CD.pdf")
-                plt.close()
+    #            plt.figure()
+    #            plt.plot(N_verts[:-1], abs((CDs[:-1,j,k,l]-CDs[-1,j,k,l])/CDs[-1,j,k,l]), 'k-')
+    #            plt.xscale('log')
+    #            plt.yscale('log')
+    #            plt.xlabel('$N_{verts}$')
+    #            plt.ylabel('Error in $C_D$')
+    #            plt.savefig(plot_dir+case_name+"_CD.pdf")
+    #            plt.close()
 
     # Plot combined CL convergences
     slopes = []
@@ -208,6 +209,7 @@ if __name__=="__main__":
     plt.xlabel('$N_{verts}$')
     plt.ylabel('Percent Error in $C_L$')
     plt.savefig(plot_dir+"collected_CL_convergence.pdf")
+    plt.savefig(plot_dir+"collected_CL_convergence.svg")
     plt.close()
 
     # Plot combined CD convergences
@@ -227,5 +229,6 @@ if __name__=="__main__":
     plt.xlabel('$N_{verts}$')
     plt.ylabel('Percent Error in $C_D$')
     plt.savefig(plot_dir+"collected_CD_convergence.pdf")
+    plt.savefig(plot_dir+"collected_CD_convergence.svg")
     plt.close()
 
