@@ -396,6 +396,6 @@ def test_hsct_morino_sym():
     assert(abs(C_p_min - -2.11305744098367) < 1e-3)
     assert(abs(Cx - -0.0130461069947071) < 1e-3)
     assert(abs(Cy) < 1e-12)
-    assert(abs(Cz - 0.167389692395461) < 1e-3) # These results ary more between runs than I would like. I need to look into this.
+    assert(abs(Cz - 0.167389692395461) < 1e-3) # These results vary more between runs than I would like. I need to look into this.
 
     

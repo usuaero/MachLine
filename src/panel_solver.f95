@@ -1015,8 +1015,6 @@ contains
                         call body%panels(j)%calc_potential_influences(body%cp(i)%loc, this%freestream, this%dod_info(j,i), &
                                                                       .false., source_inf, doublet_inf)
 
-                        if (i==1736 .and. j==3241) write(*,*) source_inf, doublet_inf
-
                         ! Add influence
                         call this%update_system_row(body, body%cp(i), A_i, I_known_i, j, source_inf, doublet_inf, .false.)
 

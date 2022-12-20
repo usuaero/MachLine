@@ -14,8 +14,6 @@
         "body_file" :                   "dev/results/swept_0010_wing.vtk",
         "wake_file" :                   "dev/results/swept_0010_wing_wake.vtk",
         "control_point_file" :          "dev/results/swept_0010_wing_control_points.vtk",
-        "mirrored_body_file" :          "dev/results/swept_0010_wing_left.vtk",
-        "mirrored_control_point_file" : "dev/results/swept_0010_wing_control_points_left.vtk",
         "report_file" : "dev/results/report.json"
     }
 }

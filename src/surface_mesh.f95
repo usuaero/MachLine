@@ -1558,15 +1558,40 @@ contains
         ! Get the vector which is perpendicular to t_avg that also lies inside one of the panels not across a wake edge
         tp_loop: do j=1,this%vertices(i_vert)%panels_not_across_wake_edge%len()
 
-            ! Get a vector in the plane of panel j
+            ! Get index of panel
             call this%vertices(i_vert)%panels_not_across_wake_edge%get(j, i_panel)
+
+            ! Loop through vertices of panel j
+            vertex_loop: do k=1,this%panels(i_panel)%N
+
+                ! Get vector to vertex
+                tp = this%panels(i_panel)%get_vertex_loc(k) - this%vertices(i_vert)%loc
+
+                ! Check we've got a different vertex than the one we're trying to place a control point for
+                if (.not. norm2(tp) > 1.e-12) cycle vertex_loop
+
+                ! Project the vector so it is perpendicular to t_avg
+                tp = tp - t_avg*inner(t_avg, tp)
+
+                ! Check tp isn't perfectly aligned with t_avg
+                if (.not. norm2(tp) > 1.e-12) cycle vertex_loop
+
+                ! If it's still inside the panel, we've found our vector
+                if (this%panels(i_panel)%projection_inside(tp + this%vertices(i_vert)%loc, .false., 0)) exit tp_loop
+
+            end do vertex_loop
+
+            ! If none of the vertices worked, try the centroid
             tp = this%panels(i_panel)%centr - this%vertices(i_vert)%loc
 
             ! Project the vector so it is perpendicular to t_avg
             tp = tp - t_avg*inner(t_avg, tp)
 
+            ! Check tp isn't perfectly aligned with t_avg
+            if (.not. norm2(tp) > 1.e-12) cycle tp_loop
+
             ! If it's still inside the panel, we've found our vector
-            if (this%panels(i_panel)%projection_inside(tp+this%vertices(i_vert)%loc, .false., 0)) exit tp_loop
+            if (this%panels(i_panel)%projection_inside(tp + this%vertices(i_vert)%loc, .false., 0)) exit tp_loop
 
         end do tp_loop
 
