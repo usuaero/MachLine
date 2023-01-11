@@ -1,28 +1,27 @@
 {
     "flow": {
         "freestream_velocity": [
-            1.0,
+            -1.0,
             0.0,
             0.0
         ],
-        "freestream_mach_number": 2.0
+        "freestream_mach_number": 1.5
     },
     "geometry": {
-        "file": "studies/matrix_solvers/meshes/full_config_coarse.stl",
+        "file": "studies/matrix_solvers/meshes/cone_10_deg_coarse.vtk",
         "spanwise_axis": "+y",
-        "mirror_about": "xz"
+        "mirror_about": "xy"
     },
     "solver": {
-        "matrix_solver": "BJAC",
-        "relaxation" : 0.1,
-        "preconditioner": "none",
-        "sort_system": false,
-        "write_A_and_b": false,
-        "iterative_solver_output": "prog.txt"
+        "matrix_solver": "GMRES",
+        "preconditioner": "DIAG",
+        "sort_system": true,
+        "write_A_and_b": true,
+        "iterative_solver_output": "none"
     },
     "post_processing": {},
     "output": {
-        "body_file": "studies/matrix_solvers/results/full_config_coarse.vtk",
-        "report_file": "studies/matrix_solvers/reports/full_config_coarse.json"
+        "body_file": "studies/matrix_solvers/results/cone_10_deg_coarse.vtk",
+        "report_file": "studies/matrix_solvers/reports/cone_10_deg_coarse.json"
     }
 }

@@ -4,7 +4,7 @@
         "freestream_mach_number" : 1.62
     },
     "geometry": {
-        "file": "dev/meshes/delta_wing_bad_TE.vtk",
+        "file": "dev/meshes/very_fine_delta_wing.stl",
         "wake_model" : {
             "wake_present" : true,
             "append_wake" : true,
@@ -12,15 +12,15 @@
         }
     },
     "solver": {
-        "matrix_solver" : "FQRUP",
+        "matrix_solver" : "GMRES",
         "write_A_and_" : true
     },
     "output": {
-        "body_file" :          "dev/results/delta_wing_bad_TE.vtk",
-        "wake_file" :          "dev/results/delta_wing_bad_TE_wake.vtk",
-        "control_point_file" : "dev/results/delta_wing_bad_TE_control_points.vtk",
+        "body_file" :          "dev/results/very_fine_delta_wing.vtk",
+        "wake_file" :          "dev/results/very_fine_delta_wing_wake.vtk",
+        "control_point_file" : "dev/results/very_fine_delta_wing_control_points.vtk",
         "report_file" :        "dev/results/report.json",
-        "offbody_points" : {
+        "offbody_pointsx" : {
             "points_file" : "dev/delta_wing_trailing_edge_sample_points.csv",
             "output_file" : "dev/results/delta_wing_trailing_edge_sample_points.csv"
         }
