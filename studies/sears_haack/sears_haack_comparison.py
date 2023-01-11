@@ -6,7 +6,10 @@ import matplotlib.pyplot as plt
 from sys import exit
 from os import listdir, chdir, getcwd
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> ammon-dev
 def comparison_plots(data_location, Mach):
     # Initialize location holders and other information for plotting
     sec_loc = -1
@@ -100,7 +103,10 @@ def comparison_plots(data_location, Mach):
 
     plt.show()
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> ammon-dev
 def data_plot(comp_method, Mach_numbers):
 
     # Reformat computational method

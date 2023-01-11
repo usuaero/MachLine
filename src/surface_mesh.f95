@@ -765,7 +765,7 @@ contains
         do i=1,this%N_panels
             call this%panels(i)%set_distribution(this%initial_panel_order, this%panels, this%vertices, this%edges, this%mirrored)
         end do
-
+        
         if (verbose) write(*,*) "Done."
 
         ! Write out body file to let user ensure it's been parsed correctly
