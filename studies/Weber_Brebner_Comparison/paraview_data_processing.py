@@ -1,6 +1,7 @@
 import paraview.simple as pvs
 import numpy as np
 import json
+import os
 
 # Import geometry and processing locations from the input file
 filename = "Swept_half_wing_conditions_input.json"
@@ -80,7 +81,10 @@ for form in formulation_inputs:
                     lineChartView1.Update()
 
                     # save data
-                    save_location = percent_semispan + '_percent_semispan/' + AoA + '_degrees_AoA/' + percent_semispan + '_percent_semispan_' + Node + '_nodes_results_' + AoA + '_deg_AoA_' + formulation_adjusted + '_formulation.csv'
+                    save_folder = percent_semispan + '_percent_semispan/' + AoA + '_degrees_AoA/'
+                    if not os.path.exists(save_folder):
+                        os.makedirs(save_folder)
+                    save_location = save_folder + percent_semispan + '_percent_semispan_' + Node + '_nodes_results_' + AoA + '_deg_AoA_' + formulation_adjusted + '_formulation.csv'
                     pvs.SaveData(save_location, proxy=plotOnIntersectionCurves1, PointDataArrays=points_to_process, FieldAssociation='Point Data', Precision=12)
 
                     

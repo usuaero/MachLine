@@ -1,9 +1,12 @@
 # make for MachLine
 
 # Directories
-SRC_DIR = ./src
-COM_DIR = ./common
-BIN_DIR = ./bin
+SRC_PATH := ./src/
+COM_PATH := ./common/
+BIN_PATH := ./bin/
+
+# Executable name
+TARGET := exe
 
 # Find source files
 SRCS = $(wildcard $(COM_DIR)/*.f95 $(SRC_DIR)/*.f95)
@@ -24,7 +27,6 @@ default:
 	common/linked_list.f95 \
 	common/math.f95 \
 	common/linalg.f95 \
-	common/preconditioners.f95 \
 	common/json.f95 \
 	common/json_xtnsn.f95 \
 	common/sort.f95 \
@@ -56,7 +58,6 @@ serial:
 	common/linked_list.f95 \
 	common/math.f95 \
 	common/linalg.f95 \
-	common/preconditioners.f95 \
 	common/json.f95 \
 	common/json_xtnsn.f95 \
 	common/sort.f95 \

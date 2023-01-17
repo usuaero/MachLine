@@ -21,8 +21,8 @@
     },
     "solver": {
         "formulation": "morino",
-        "matrix_solver": "QRUP",
-        "run_checks": true
+        "matrix_solver": "GMRES",
+        "run_checks": false
     },
     "post_processing": {
         "pressure_rules": {

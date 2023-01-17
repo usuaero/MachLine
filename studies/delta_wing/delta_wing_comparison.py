@@ -5,6 +5,7 @@ import paraview.simple as pvs
 import matplotlib.pyplot as plt
 from sys import exit
 from os import listdir, chdir, getcwd
+import os
 
 def data_plot(comp_method, angles_of_attack, semispan_locations):
 
@@ -27,10 +28,10 @@ def data_plot(comp_method, angles_of_attack, semispan_locations):
 
             # pull in experimental data
             exper_data_loc = "studies/delta_wing/experimental_data/delta_wing_exp_{0}_deg_aoa_{1}_semispan.csv".format(AoA,semi)
-            experimental_data = np.genfromtxt(exper_data_loc, delimiter=",", dtype=float) # x in column 0, Cp in column 1 from Love, page 57
+            #experimental_data = np.genfromtxt(exper_data_loc, delimiter=",", dtype=float) # x in column 0, Cp in column 1 from Love, page 57
 
             # Initialize figure and shapes to be plotted
-            plt.figure(figsize=(6,4))
+            plt.figure()
             shape = ["o", "^", "s", "v"]
 
             data_location = 'studies/delta_wing/results/delta_wing_{0}_semispan_{1}_deg_results.csv'.format(semi, AoA)
@@ -57,24 +58,26 @@ def data_plot(comp_method, angles_of_attack, semispan_locations):
             aoa_formatted = str(AoA) + r"$^{\circ}$ deg"
 
             # Plot data
-            plt.plot(data[:,x_loc]/max(data[:,x_loc]), data[:,Cp_loc],color='k', label = 'MachLine',)
+            plt.plot(data[:,x_loc]/max(data[:,x_loc]), data[:,Cp_loc], color='k', label = 'MachLine',)
             # plt.plot(data[:,x_loc]/max(data[:,x_loc]), data[:,Cp_loc],color='k', label = 'MachLine', marker = "s", linestyle="none")
             # plt.plot(experimental_data[:,0], experimental_data[:,1], color='k', marker=".", label="Experimental", linestyle="none", fillstyle="full")
-            plt.plot(experimental_data[:,0], experimental_data[:,1], color='k', label="Experimental", marker = "o", linestyle="none", fillstyle='full')
+            #plt.plot(experimental_data[:,0], experimental_data[:,1], color='k', label="Experimental", marker = "o", linestyle="none", fillstyle='full')
 
 
             # Format plot
-            plt.xlabel(r"$\frac{x}{l}$")
-            y_title = r"$C_p$ " + comp_method
-            plt.ylabel(y_title)
+            plt.xlabel("$\\frac{x}{l}$")
+            plt.ylabel("$C_P$")
             plt.gca().invert_yaxis()
             plt.legend()
             # plt.title(f"{semi} percent semispan at {aoa_formatted}")
 
             # Save figure
-            plot_loc = 'studies/delta_wing/plots/delta_wing_comparison_{0}_semispan_{1}_aoa.pdf'.format(semi, AoA)
+            if not os.path.exists('studies/delta_wing/plots/'):
+                os.makedirs('studies/delta_wing/plots/')
+            plot_loc = 'studies/delta_wing/plots/delta_wing_comparison_{0}_semispan_{1}_aoa_{2}.pdf'.format(semi, AoA, comp_method)
             plt.savefig(plot_loc)
-            plt.show()
+            #plt.show()
+
 
 if __name__=="__main__":
 
@@ -127,8 +130,8 @@ if __name__=="__main__":
             },
             "solver": {
                 "formulation": "morino",
-                "matrix_solver": "QRUP",
-                "run_checks": True
+                "matrix_solver": "GMRES",
+                "run_checks": False
             },
             "post_processing" : {
                 "pressure_rules" : {
@@ -139,10 +142,10 @@ if __name__=="__main__":
                 }
             },
             "output" : {
-            "verbose": True,
-            "body_file" :          body_file,
-            "control_point_file" : "studies/delta_wing/results/delta_wing_{0}_deg_{1}_control_points.vtk".format(alpha,mesh_density),
-            "wake_file": "studies/delta_wing/results/delta_wing_{0}_deg_{1}_wake.vtk".format(alpha, mesh_density)
+                "verbose": True,
+                "body_file" :          body_file,
+                "control_point_file" : "studies/delta_wing/results/delta_wing_{0}_deg_{1}_control_points.vtk".format(alpha,mesh_density),
+                "wake_file": "studies/delta_wing/results/delta_wing_{0}_deg_{1}_wake.vtk".format(alpha, mesh_density)
             }
         }
 
@@ -159,8 +162,6 @@ if __name__=="__main__":
         if control_point_file not in listdir("studies/delta_wing/results/"):
             print(f"The desired file cannot be located:  studies/delta_wing/results/{control_point_file}")
             exit()
-
-
 
         # Read into ParaView
         data_reader = pvs.LegacyVTKReader(registrationName=body_file.replace("studies/delta_wing/results", ""), FileNames=body_file)
@@ -192,7 +193,6 @@ if __name__=="__main__":
             slicer.SliceType.Origin = origin
             slicer.SliceType.Normal = normal
 
-
             # Extract and save data
             plot = pvs.PlotData(registrationName="Plot")
             view = pvs.CreateView('XYChartView')
@@ -201,6 +201,7 @@ if __name__=="__main__":
             view.Update()
             save_loc = 'studies/delta_wing/results/delta_wing_{0}_semispan_{1}_deg_results.csv'.format(semispan_str, alpha)
             pvs.SaveData(save_loc, proxy=plot, ChooseArraysToWrite=1, CellDataArrays=data_to_process, FieldAssociation='Cell Data')
+
     # Plot single computational method over a range of angles of attack at each semispan location
     computational_method = "isentropic" # isentropic, second order, slender-body, or linear
     data_plot(computational_method, angles_of_attack, semispan_loc)

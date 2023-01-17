@@ -8,9 +8,6 @@ import multiprocessing as mp
 import os
 from sys import exit
 
-# Record and print the time required to run MachLine
-start_time = time.time()
-
 def mach_iter(AoA, calculation_type, freestream_mach_number):
 
     # Convert angle of attack to radians
@@ -76,7 +73,7 @@ def mach_iter(AoA, calculation_type, freestream_mach_number):
             "freestream_mach_number": isentropic_mach
         },
         "geometry": {
-            "file": "studies/meshes/m6_onera.vtk",
+            "file": "studies/M6_ONERA_Comparison/meshes/m6_onera.vtk",
             "mirror_about": "xz",
   
             "wake_model": {
@@ -127,24 +124,28 @@ def mach_iter(AoA, calculation_type, freestream_mach_number):
 
 ## Main
 if __name__ == "__main__":
+
+    # Record and print the time required to run MachLine
+    start_time = time.time()
+
+    # Check which directory we're in
     check_dir = os.getcwd()
     if 'M6' in check_dir:
         os.chdir('../..')
 
+    # Get run settings
     input_conditions = "studies/M6_ONERA_Comparison/M6_Onera_input_settings.json"
     with open(input_conditions, "r") as json_string:
         json_vals = json.load(json_string)
 
-
     # Identify values to pass from input conditions file
-
     AoA_list_input = json_vals["geometry"]["AoA list"]
     calculations = json_vals["solver"]["calculation_type"]
     mach_numbers = json_vals["flow conditions"]["mach_numbers"]
 
     # Identify number of CPU available to work with
     # n_processors = mp.cpu_count()
-    n_processors = 4
+    n_processors = 8
 
     Arguments = []
 

@@ -9,7 +9,7 @@
         "freestream_mach_number": 0.6977
     },
     "geometry": {
-        "file": "studies/meshes/m6_onera.vtk",
+        "file": "studies/M6_ONERA_Comparison/meshes/m6_onera.vtk",
         "mirror_about": "xz",
         "wake_model": {
             "wake_shedding_angle": 90.0,

@@ -119,7 +119,7 @@ class Swept_Plotting:
             # Iterate over angles of attack for each semispan
             for j,AoA in enumerate(self.locations[percent_semispan]):
                 # Pull in experimental results
-                file_experimental = f"Experimental_Data/M6_Data_mach_{mach_number[j]}_AoA_{AoA}.csv"
+                file_experimental = f"studies/M6_ONERA_Comparison/Experimental_Data/M6_Data_mach_{mach_number[j]}_AoA_{AoA}.csv"
             
                 Experimental = np.genfromtxt(file_experimental, delimiter=",", skip_header=2, dtype=float, usecols=(section*2, section*2+1))
                 # Iterate over data sources
@@ -128,12 +128,12 @@ class Swept_Plotting:
 
                         # Iterate over calculation type
                         for calc in self.calc_type:
-                            file = f"csv_file_data/{calc}/M6_{data_type}_data_{percent_semispan}_percent_semispan_mach_{mach_number[j]}_AoA_{AoA}.csv"
+                            file = f"studies/M6_ONERA_Comparison/csv_file_data/{calc}/M6_{data_type}_data_{percent_semispan}_percent_semispan_mach_{mach_number[j]}_AoA_{AoA}.csv"
                             
                             # Call plotting function
                             self.Pressure_Plot(file, calc)
                     else:
-                        file = f"{data_type}_Data/M6_{data_type}_data_{percent_semispan}_percent_semispan_mach_{mach_number[j]}_AoA_{AoA}.csv"
+                        file = f"studies/M6_ONERA_Comparison/{data_type}_Data/M6_{data_type}_data_{percent_semispan}_percent_semispan_mach_{mach_number[j]}_AoA_{AoA}.csv"
                     
                         # Call plotting function
                         self.Pressure_Plot(file, data_type)
@@ -173,7 +173,7 @@ class Swept_Plotting:
                 
                 #Save the figure in appropriate location and with the correct size
                 if json_vals["plots"]["save plots"]:
-                    filename = f"Plots/M6_Onera_comparison_mach_{mach_number[j]}_section_{section+1}." + json_vals["plots"]["save plot type"]
+                    filename = f"studies/M6_ONERA_Comparison/Plots/M6_Onera_comparison_mach_{mach_number[j]}_section_{section+1}." + json_vals["plots"]["save plot type"]
                     list_of_files.append(filename)
                     plt.savefig(filename)
                 plt.show()
@@ -183,7 +183,7 @@ class Swept_Plotting:
 
                 # Combine files in Combined Plots Folder
                 merger = PdfFileMerger()
-                Combined_name = f"Plots/Combined_Plots/M6_Onera_comparison_{percent_semispan}_percent_semispan." + json_vals["plots"]["save plot type"]
+                Combined_name = f"studies/M6_ONERA_Comparison/Plots/Combined_Plots/M6_Onera_comparison_{percent_semispan}_percent_semispan." + json_vals["plots"]["save plot type"]
 
                 for name in list_of_files:
                     merger.append(name)
@@ -192,7 +192,7 @@ class Swept_Plotting:
                 merger.close()
 
 # Main script
-inputfile = "M6_Onera_input_settings.json"
+inputfile = "studies/M6_ONERA_Comparison/M6_Onera_input_settings.json"
 json_string = open(inputfile).read()
 json_vals = json.loads(json_string)
 

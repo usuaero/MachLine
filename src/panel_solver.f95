@@ -9,7 +9,6 @@ module panel_solver_mod
     use flow_mod
     use math_mod
     use linalg_mod
-    use preconditioners_mod
     use sort_mod
 
     implicit none

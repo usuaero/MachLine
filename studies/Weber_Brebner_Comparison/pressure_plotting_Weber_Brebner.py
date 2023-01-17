@@ -3,6 +3,7 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
+import os
 import json
 from PyPDF2 import PdfFileMerger
 
@@ -161,7 +162,10 @@ class Swept_Plotting:
                 plt.ylabel("$C_p$")
                 
                 #Save the figure in appropriate location and with the correct size
-                filename = percent_semispan + "_percent_semispan/plots_" + percent_semispan + "_percent_semispan/" + json_vals["plots"]["save plot type"] + "_plots/" + AoA + "degrees_AoA_plot." + json_vals["plots"]["save plot type"]
+                foldername = percent_semispan + "_percent_semispan/plots_" + percent_semispan + "_percent_semispan/" + json_vals["plots"]["save plot type"] + "_plots/"
+                if not os.path.exists(foldername):
+                    os.makedirs(foldername)
+                filename = foldername + AoA + "degrees_AoA_plot." + json_vals["plots"]["save plot type"]
                 list_of_files.append(filename)
                 if json_vals["plots"]["save plots"]:
                     plt.savefig(filename)
@@ -348,7 +352,10 @@ class Swept_Plotting:
                     print()
 
                 # Save the comparison plots in the appropriate locations
-                comparison_plot_name = percent_semispan + "_percent_semispan/plots_" + percent_semispan + "_percent_semispan/" + json_vals["plots"]["save plot type"] + "_plots/Formulation comparison plot " + AoA + " degrees_AoA." + json_vals["plots"]["save plot type"]
+                comparison_plot_folder = percent_semispan + "_percent_semispan/plots_" + percent_semispan + "_percent_semispan/" + json_vals["plots"]["save plot type"] + "_plots/"
+                if not os.path.exists(comparison_plot_folder):
+                    os.makedirs(comparison_plot_folder)
+                comparison_plot_name = comparison_plot_folder + "Formulation comparison plot " + AoA + " degrees_AoA." + json_vals["plots"]["save plot type"]
                 figure_list.append(comparison_plot_name)
                 if json_vals["plots"]["save plots"]:
                     plt.savefig(comparison_plot_name)
