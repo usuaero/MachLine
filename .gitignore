@@ -37,7 +37,7 @@ iterative_solver_prog.csv
 A_mat.txt
 b_vec.txt
 R_mat.txt
-*.csv
+#*.csv
 
 # Test results
 test/results/
