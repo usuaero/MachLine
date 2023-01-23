@@ -7,7 +7,7 @@
         ]
     },
     "geometry": {
-        "file": "studies/Weber_Brebner_Comparison/half_wing_A_meshes/half_wing_A_80_nodes.vtk",
+        "file": "studies/Weber_Brebner_Comparison/half_wing_A_meshes/half_wing_A_20_nodes.vtk",
         "mirror_about": "xz",
         "singularity_order": {
             "doublet": 1,
@@ -24,7 +24,7 @@
     },
     "solver": {
         "formulation": "source-free",
-        "control_point_offset": 1.1e-05
+        "control_point_offset": 0.2
     },
     "post_processing": {
         "pressure_rules": {
@@ -40,9 +40,9 @@
         }
     },
     "output": {
-        "body_file": "studies/Weber_Brebner_Comparison/MachLine_Results/8.6_degrees_AoA/half_wing_A_80_nodes_8.6_deg_AoA_source_free_formulation.vtk",
-        "wake_file": "studies/Weber_Brebner_Comparison/MachLine_Results/8.6_degrees_AoA/half_wing_A_80_nodes_8.6_deg_AoA_source_free_formulation_wake.vtk",
-        "control_point_file": "studies/Weber_Brebner_Comparison/MachLine_Results/8.6_degrees_AoA/half_wing_A_80_nodes_8.6_deg_AoA_source_free_control_points.vtk",
+        "body_file": "studies/Weber_Brebner_Comparison/MachLine_Results/8.6_degrees_AoA/half_wing_A_20_nodes_8.6_deg_AoA_source_free_formulation.vtk",
+        "wake_file": "studies/Weber_Brebner_Comparison/MachLine_Results/8.6_degrees_AoA/half_wing_A_20_nodes_8.6_deg_AoA_source_free_formulation_wake.vtk",
+        "control_point_file": "studies/Weber_Brebner_Comparison/MachLine_Results/8.6_degrees_AoA/half_wing_A_20_nodes_8.6_deg_AoA_source_free_control_points.vtk",
         "report_file": "../../report.json"
     }
 }

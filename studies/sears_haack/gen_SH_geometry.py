@@ -9,20 +9,11 @@ def _generate_SH(rmax, length, num_ax = 100, num_theta = 30):
     r_range = rmax*(4*(x_range/length)*(1 - (x_range/length)))**(3./4.)
     theta_range = np.linspace(0, 2*np.pi, num_theta + 1)
     
-<<<<<<< HEAD
-    # Initialize vertex position arrays
-=======
-    # Initialize vertice position arrays
->>>>>>> ammon-dev
     x = np.ones((num_ax, num_theta))
     y = np.ones((num_ax, num_theta))
     z = np.ones((num_ax, num_theta))
-    
-<<<<<<< HEAD
-    # generate vertex values
-=======
-    # generate vertice values
->>>>>>> ammon-dev
+
+    # Generate vertices
     for i in range(num_ax):
         x[i,:] = x[i,:]*x_range[i]
         if i == 0 or i == (num_ax - 1):
@@ -33,17 +24,14 @@ def _generate_SH(rmax, length, num_ax = 100, num_theta = 30):
                 y[i,j] = r_range[i]*np.sin(theta_range[j])
                 z[i,j] = r_range[i]*np.cos(theta_range[j])
     
-<<<<<<< HEAD
     # Initialize concatenated vertex array
     vertices = np.ones((2 + (num_theta*(num_ax - 2)),3))
     
     # generate concatenated vertex values
-=======
     # Initialize concatenated vertice array
     vertices = np.ones((2 + (num_theta*(num_ax - 2)),3))
     
     # generate concatenated vertice values
->>>>>>> ammon-dev
     for i in range(num_ax):
         if i == 0:
             vertices[0,:] = [x[0,0], y[0,0], z[0,0]]
@@ -122,27 +110,12 @@ def _write_TRI(nVerts, nTris, vertices, tri_verts, comp_num, filename = 'test_fi
 '''------------RUN SCRIPT------------'''
 if __name__ == "__main__":
 
-<<<<<<< HEAD
     num_ax = 80 # number of axial panels
     num_theta = 30 # number of radial panels
-=======
-    num_ax = 40 # number of axial panels
-    num_theta = 20 # number of tangential panels
->>>>>>> ammon-dev
     length = 0.6096 # length of SH body
     rmax = length * 0.037879 # maximum radius of SH body
         
     nVerts, nTris, vertices, tri_verts, comp_num, r_l_ratio = _generate_SH(rmax, length, num_ax, num_theta)
     print('R over L ratio: ', r_l_ratio)
 
-<<<<<<< HEAD
     _write_TRI(nVerts, nTris, vertices, tri_verts, comp_num, filename = 'studies/sears_haack/meshes/SH_{0}_{1}.tri'.format(num_ax, num_theta))
-=======
-    _write_TRI(nVerts, nTris, vertices, tri_verts, comp_num, filename = 'sears_haack_mesh_love.tri')
-
-
-
-
-
-
->>>>>>> ammon-dev

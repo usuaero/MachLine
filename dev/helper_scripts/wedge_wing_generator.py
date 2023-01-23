@@ -50,14 +50,11 @@ def spanwise_coord(spanwise_nodes, semispan, **kwargs):
         Zoc = np.linspace(0, semispan, spanwise_nodes)
 
     # Determine LE and TE locations at each z
-    # tip_LE = b_2c * np.tan(sweep_angle)
-    # tip_TE = tip_LE + R_T
-
-    LE_xloc = Zoc * np.tan(sweep_angle)
+    Leading_edge_x = Zoc * np.tan(sweep_angle)
     TE_slope = (semispan * np.tan(sweep_angle) + taper - 1) / semispan
     TE_xloc = TE_slope * Zoc + 1
 
-    return Zoc, LE_xloc, TE_xloc
+    return Zoc, Leading_edge_x, TE_xloc
 
 
 def init_airfoil(chord_spacing, **kwargs):
@@ -171,7 +168,7 @@ def scale_airfoil(x_root, y_root, **kwargs):
     # Scale airfoil and shift based on local chord length and leading edge x location
     x_vert = x_root * local_chord + LE_xloc 
     y_vert = y_root * local_chord
-    
+
 
     return x_vert, y_vert
 
@@ -360,8 +357,7 @@ def panel_generator(iter, airfoil_locations, root, tip, vertices, le_list, xc_ma
         p_three = tip[i_tip]
         p_one = root[i_root]
         p_two = -1 # Default value to ensure it has been assigned properly
-        # if (p_one ==54) or (p_three==54):
-        #     breakpoint()
+
         # Run a series of checks to ensure proper choice of which vertex will be chosen for this iteration
         # Verify that the next tip and root locations are not on the next airfoil over
         if ((i_tip + 1) >= len(tip)):
@@ -585,14 +581,14 @@ if __name__ == '__main__':
     x_ct = 0.18 # nondimensional location of max thickness at tip
     tc = 0.08 # nondimensional max thickness
     b_2c = 0.2315 / 0.230 # semispan nondimensionalized by root chord
-    R_T = 0.25 # taper ratio c_t/c_R
+    R_T = 0.0 # taper ratio c_t/c_R
     LE_sweep = 44.85 # leading edge sweep angle in degrees
     node_ratio = .35 # User input ratio of nodes to be placed forward of the max thickness location
     mirror_xy = True # Mirrors body across xy plane
 
     # Initialize number of nodes in chord and spanwize directions
-    cw_nodes = 30 # Number of nodes along the upper surface
-    sw_nodes = 30 # Number of nodes along the semispan
+    cw_nodes = 80 # Number of nodes along the upper surface ### Mesh density study using 25, 50, and 100 nodes
+    sw_nodes = 80 # Number of nodes along the semispan ### Mesh density study using 25, 50, and 100 nodes
     cluster_cw = True
     cluster_sw = False
 
@@ -614,7 +610,6 @@ if __name__ == '__main__':
     leading_edges = []
     vertex_cnt = -1 
     
-    # breakpoint()
     # Iterate over semispan locations, updating the vertex information at each point
     for i, z in enumerate(zoc):
         # Store location of beginning of airfoil location
@@ -665,8 +660,8 @@ if __name__ == '__main__':
     elif 'dev' in os.getcwd():
         os.chdir('../')
 
-    # filename= 'studies/delta_wing/meshes/delta_wing_clustered_mesh.vtk'
-    filename= 'studies/delta_wing/meshes/tapered_wing_test.vtk'
+    filename= 'studies/delta_wing/meshes/delta_wing_clustered_mesh_fine.vtk'
+    # filename= 'studies/delta_wing/meshes/tapered_wing_test.vtk'
 
 
     panels = np.array(panels, dtype=int)

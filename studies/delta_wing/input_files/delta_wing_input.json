@@ -1,22 +1,22 @@
 {
     "flow": {
         "freestream_velocity": [
-            552.630843164389,
-            104.92024383986403,
+            560.3620470172065,
+            49.02532658418638,
             0.0
         ],
         "gamma": 1.4,
         "freestream_mach_number": 1.62
     },
     "geometry": {
-        "file": "studies/delta_wing/meshes/delta_wing_clustered_mesh.vtk",
+        "file": "studies/delta_wing/meshes/delta_wing_clustered_mesh_fine.vtk",
         "wake_model": {
             "wake_present": true,
             "append_wake": true,
             "trefftz_distance": 20
         },
         "reference": {
-            "area": 1.0
+            "area": 1.0065217391304349
         }
     },
     "solver": {
@@ -34,8 +34,9 @@
     },
     "output": {
         "verbose": true,
-        "body_file": "studies/delta_wing/results/delta_wing_10.75_deg_clustered.vtk",
-        "control_point_file": "studies/delta_wing/results/delta_wing_10.75_deg_clustered_control_points.vtk",
-        "wake_file": "studies/delta_wing/results/delta_wing_10.75_deg_clustered_wake.vtk"
+        "body_file": "studies/delta_wing/results/delta_wing_5.0_deg_fine.vtk",
+        "control_point_file": "studies/delta_wing/results/delta_wing_5.0_deg_fine_control_points.vtk",
+        "wake_file": "studies/delta_wing/results/delta_wing_5.0_deg_fine_wake.vtk",
+        "report_file": "studies/delta_wing/results/delta_wing_5.0_fine.json"
     }
 }

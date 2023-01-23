@@ -1,19 +1,13 @@
 {
     "flow": {
         "freestream_velocity": [
-<<<<<<< HEAD
-            1.0,
-=======
             694.4475790151479,
->>>>>>> ammon-dev
             0.0,
             0.0
         ],
         "gamma": 1.4,
-<<<<<<< HEAD
         "freestream_mach_number": 3.0
     },
-    "solver": {},
     "geometry": {
         "file": "studies/sears_haack/meshes/SH_160_60.tri",
         "spanwise_axis": "+y",
@@ -24,42 +18,18 @@
             "area": 0.001675
         }
     },
+
+    "solver": {
+
+        "formulation": "source-free",
+        "run_checks": true,
+        "control_point_offset": 1.1e-08
+
+    },
     "post_processing": {
-        "pressure_rules": {
-            "isentropic": true,
-            "second-order": true,
-            "slender-body": true,
-            "linear": true
-        }
     },
     "output": {
         "body_file": "studies/sears_haack/results/SH_160_60_M_3.0.vtk",
         "report_file": "studies/sears_haack/reports/SH_160_60_M_3.0.json"
-=======
-        "freestream_mach_number": 2
-    },
-    "geometry": {
-        "file": "studies/sears_haack/meshes/sears_haack_mesh_love.tri",
-        "spanwise_axis": "+y",
-        "wake_model": {
-            "wake_present": false
-        }
-    },
-    "solver": {
-<<<<<<< HEAD:studies/sears_haack/sears_haack_input.json
-        "formulation": "source-free",
-        "run_checks": true,
-        "control_point_offset": 1.1e-08
-=======
-        "matrix_solver" : "QRUP"
->>>>>>> test:dev/input_files/sears_haack_input.json
-    },
-    "post_processing": {
-    },
-    "output": {
-        "verbose": true,
-        "body_file": "studies/sears_haack/machline_results/sears_haack_9800_data_mach_2.vtk",
-        "control_point_file": "studies/sears_haack/machline_results/sears_haack_9800_data_mach_2_control_points.vtk"
->>>>>>> ammon-dev
     }
 }

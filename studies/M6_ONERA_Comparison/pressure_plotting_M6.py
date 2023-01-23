@@ -73,6 +73,7 @@ class Swept_Plotting:
             Chord_Length = max(x) - min(x)
             LE_loc = min(x)
             x_axis = (x-LE_loc)/Chord_Length
+
             
             # Black and white lines with line types and varying opacity
             plt.plot(x_axis, point_data, label=f"${dict_copy[point]}$", linestyle=linetype[j], alpha=opacity[j], color="k")
@@ -177,6 +178,9 @@ class Swept_Plotting:
                     list_of_files.append(filename)
                     plt.savefig(filename)
                 plt.show()
+                # plt.show(block=False)
+                # plt.pause(0.5)
+                # plt.close()
 
             # Combine plots into one pdf for easy review
             if json_vals["plots"]["save plot type"] == "pdf" and json_vals["plots"]["combine pdfs"]:
@@ -216,6 +220,10 @@ for name in temp:
         if letter == "_":
             spot = j
     new_name = name[:spot+1] + "{" + name[spot+1:] + "}"
+
+    # Account for changing isentropic to direct (ise -> dir)
+    if 'ise' in new_name:
+        new_name = np.char.replace(new_name, "ise", "dir",1)
     new_temp.append(new_name)
 
 # Create a dictionary to contain the legend names properly formatted for the requested parameters

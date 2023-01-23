@@ -56,7 +56,7 @@ def mach_iter(AoA, Node, formulation, freestream):
         },
         "solver": {
             "formulation": formulation,
-            "control_point_offset": 1.1e-05
+            "control_point_offset": 0.2
         },
         "post_processing" : {
             "pressure_rules": {
