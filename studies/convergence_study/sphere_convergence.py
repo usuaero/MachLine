@@ -90,8 +90,11 @@ if __name__=="__main__":
             coefs = np.polyfit(np.log(N), np.log(err), deg=1)
             orders.append(coefs[0])
 
+    # Report average order
     avg_order = np.average(orders)
+    print()
     print("Average order of convergence: ", avg_order)
+    print("Std dev: ", np.std(orders))
 
     # plot
     plt.figure()
