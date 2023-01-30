@@ -1,6 +1,6 @@
 {
     "flow" : {
-        "freestream_velocity" : [0.0, 1.0, 0.0],
+        "freestream_velocity" : [1.0, 1.0, 1.0],
         "freestream_mach_number" : 0.0
     },
     "geometry" : {
@@ -10,7 +10,7 @@
         },
         "singularity_order" : "lower",
         "reference" : {
-            "area" : 5026.0
+            "area" : 0.7853981
         }
     },
     "solver" : {
@@ -25,7 +25,6 @@
     },
     "output" : {
         "body_file" :          "dev/results/sphere.vtk",
-        "wake_file" :          "dev/results/sphere_wake.vtk",
         "control_point_file" : "dev/results/sphere_control_points.vtk"
     }
 }

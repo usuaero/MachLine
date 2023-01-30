@@ -66,7 +66,6 @@ def plot_pressure_slices(pressure_rule, angles_of_attack, semispan_locations):
                 surf = ['_upper', '_lower']
             
             # Initialize list to store marker shapes
-            shape = ['o', 's']
             fill = ['k', 'w']
 
             # Iterate over upper and lower surface results from experimental data and plot each surface as a different marker

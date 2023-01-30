@@ -556,12 +556,10 @@ contains
 
                 ! Wake panels are influenced by two sets of vertices
                 allocate(this%i_vert_d(12))
-                this%i_vert_d(1) = this%vertices(1)%ptr%top_parent
-                this%i_vert_d(2) = this%vertices(2)%ptr%top_parent
-                this%i_vert_d(3) = this%vertices(3)%ptr%top_parent
-                this%i_vert_d(7) = this%vertices(1)%ptr%bot_parent
-                this%i_vert_d(8) = this%vertices(2)%ptr%bot_parent
-                this%i_vert_d(9) = this%vertices(3)%ptr%bot_parent
+                do i=1,this%N
+                    this%i_vert_d(i) = this%vertices(i)%ptr%top_parent
+                    this%i_vert_d(i+6) = this%vertices(i)%ptr%bot_parent
+                end do
 
             else
 
@@ -659,16 +657,16 @@ contains
             allocate(this%S_sigma_inv(3,4))
             allocate(SS_inv(3,3))
 
-            ! Constant
-            S_sigma(:,1) = 1.
+            ! Influence of this panel
+            S_sigma(1,:) = (/1., 0., 0./)
 
-            ! x and y
-            S_sigma(1,2:3) = 0.
-            do i=1,3
-                P_g = body_panels(this%abutting_panels(i))%centr
+            ! Influence of neighboring panels
+            do i=2,4
+                P_g = body_panels(this%i_panel_s(i))%centr
                 P_ls = matmul(this%A_g_to_ls, P_g - this%centr)
-                S_sigma(i+1,2) = P_ls(1)
-                S_sigma(i+1,3) = P_ls(2)
+                S_sigma(i,1) = 1.
+                S_sigma(i,2) = P_ls(1)
+                S_sigma(i,3) = P_ls(2)
             end do
 
             ! Invert (pseudoinverse using least-squares)

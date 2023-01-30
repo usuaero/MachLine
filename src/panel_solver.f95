@@ -914,15 +914,8 @@ contains
 
         integer :: i, k, index
 
-        ! Add source influence (if sources are present)
+        ! Add source influence depending on boundary condition
         if (cp%bc == 1 .or. cp%bc == 3) then
-
-            ! Get determining index
-            if (mirrored_panel) then
-                i = i_panel + body%N_panels
-            else
-                i = i_panel
-            end if
 
             ! Loop through influencing panels
             do k=1,size(body%panels(i_panel)%i_panel_s)
@@ -936,11 +929,11 @@ contains
 
                 ! Add to known influences if sigma is known
                 if (this%sigma_known(index)) then
-                    I_known_i = I_known_i + source_inf(1)*body%sigma(index)
+                    I_known_i = I_known_i + source_inf(k)*body%sigma(index)
 
                 ! Add to A matrix if not
                 else
-                    A_row(this%P(this%i_sigma_in_sys(index))) = A_row(this%P(this%i_sigma_in_sys(index))) + source_inf(1)
+                    A_row(this%P(this%i_sigma_in_sys(index))) = A_row(this%P(this%i_sigma_in_sys(index))) + source_inf(k)
                 end if
 
             end do
@@ -1001,6 +994,8 @@ contains
                 !$OMP end critical
 
             case (3) ! Calculate velocity influences
+
+                ! TODO: Do this
 
             case default ! Calculate potential influences
 

@@ -1905,7 +1905,7 @@ contains
 
         type(vtk_out) :: body_vtk
         integer :: i, N_cells
-        real,dimension(:),allocatable :: panel_inclinations
+        real,dimension(:),allocatable :: panel_inclinations, orders
         real,dimension(:,:),allocatable :: cents
 
         ! Clear old file
@@ -1914,11 +1914,13 @@ contains
         ! Determine number of cells to export
         N_cells = this%N_panels
 
-        ! Get panel inclinations and centroids
+        ! Get panel inclinations, centroids, and distribution orders
         allocate(panel_inclinations(this%N_panels))
+        allocate(orders(this%N_panels))
         allocate(cents(3,this%N_panels))
         do i=1,this%N_panels
             panel_inclinations(i) = this%panels(i)%r
+            orders(i) = this%panels(i)%order
             cents(:,i) = this%panels(i)%centr
         end do
 
@@ -1928,6 +1930,7 @@ contains
         call body_vtk%write_panels(this%panels, subdivide=.false., mirror=.false.)
         call body_vtk%write_cell_normals(this%panels)
         call body_vtk%write_cell_scalars(panel_inclinations, "inclination", .true.)
+        call body_vtk%write_cell_scalars(orders, "distribution_order", .true.)
         call body_vtk%write_cell_vectors(cents, "centroid", .true.)
 
         if (solved) then
@@ -1990,7 +1993,7 @@ contains
 
         type(vtk_out) :: body_vtk
         integer :: i, N_cells
-        real,dimension(:),allocatable :: panel_inclinations
+        real,dimension(:),allocatable :: panel_inclinations, orders
         real,dimension(:,:),allocatable :: cents
 
         ! Clear old file
@@ -1999,13 +2002,13 @@ contains
         ! Determine number of cells to export
         N_cells = this%N_panels
 
-        ! Get panel inclinations
-        if (.not. allocated(panel_inclinations)) then
-            allocate(panel_inclinations(this%N_panels))
-            allocate(cents(3,this%N_panels))
-        end if
+        ! Get panel inclinations, centroids, and orders
+        allocate(panel_inclinations(this%N_panels))
+        allocate(orders(this%N_panels))
+        allocate(cents(3,this%N_panels))
         do i=1,this%N_panels
             panel_inclinations(i) = this%panels(i)%r_mir
+            orders(i) = this%panels(i)%order
             cents(:,i) = this%panels(i)%centr_mir
         end do
 
@@ -2015,6 +2018,7 @@ contains
         call body_vtk%write_panels(this%panels, subdivide=.false., mirror=.true.)
         call body_vtk%write_cell_normals(this%panels, this%mirror_plane)
         call body_vtk%write_cell_scalars(panel_inclinations, "inclination", .true.)
+        call body_vtk%write_cell_scalars(orders, "distribution_order", .true.)
         call body_vtk%write_cell_vectors(cents, "centroid", .true.)
 
         ! Pressures
