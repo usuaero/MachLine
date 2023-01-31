@@ -834,7 +834,7 @@ contains
         real,dimension(3) :: x
 
         ! Allocate
-        allocate(this%BC(this%N_unknown), source=0.)
+        allocate(this%BC(this%N_unknown))
 
         ! Vector for source-free target potential calculation
         x = matmul(this%freestream%B_mat_g_inv, this%freestream%c_hat_g)
@@ -845,11 +845,16 @@ contains
             ! Check boundary condition type
             select case (body%cp(i)%bc)
 
-            case (2) ! Source-free formulation
+            ! Source-free formulation
+            case (2)
                 this%BC(this%P(i)) = -inner(x, body%cp(i)%loc)
 
-            case default ! All other cases
-                cycle
+            ! All other cases
+            ! 1: For Morino, desired BC is zero inner potential
+            ! 3: Velocity BC not yet implemented
+            ! 4: For strength-matching, desired BC is zero difference between strengths
+            case default
+                this%BC(this%P(i)) = 0.
 
             end select
         end do
@@ -922,7 +927,7 @@ contains
 
                 ! Need to shift indices for mirrored panels
                 if (mirrored_panel) then
-                    index = body%panels(i_panel)%i_panel_s(k)+body%N_panels
+                    index = body%panels(i_panel)%i_panel_s(k) + body%N_panels
                 else
                     index = body%panels(i_panel)%i_panel_s(k)
                 end if
@@ -947,7 +952,7 @@ contains
 
             ! Need to shift indices for mirrored panels
             if (mirrored_panel) then
-                index = body%panels(i_panel)%i_vert_d(k)+body%N_verts
+                index = body%panels(i_panel)%i_vert_d(k) + body%N_verts
             else
                 index = body%panels(i_panel)%i_vert_d(k)
             end if

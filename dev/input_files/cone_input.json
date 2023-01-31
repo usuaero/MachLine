@@ -4,9 +4,10 @@
         "gamma" : 1.4,
         "freestream_mach_number" : 2.0
     },
-    "geometry": {
-        "file": "dev/meshes/cone_10_deg_medium.vtk",
-        "mirror_about": "xy",
+    "geometry" : {
+        "file" : "dev/meshes/cone_10_deg_medium.vtk",
+        "mirror_about" : "xy",
+        "singularity_order" : "higher",
         "wake_model" : {
             "wake_present" : false
         },
@@ -14,12 +15,12 @@
             "area": 1.0
         }
     },
-    "solver": {
-        "matrix_solver" : "QRUP"
+    "solver" : {
+        "matrix_solver" : "FQRUP"
     },
     "post_processing" : {
     },
-    "output": {
+    "output" : {
         "body_file" :                   "dev/results/cone_10_deg_medium_right.vtk",
         "wake_file" :                   "dev/results/cone_10_deg_medium_wake.vtk",
         "control_point_file" :          "dev/results/cone_10_deg_medium_right_control_points.vtk",

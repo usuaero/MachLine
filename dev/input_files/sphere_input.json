@@ -1,6 +1,6 @@
 {
     "flow" : {
-        "freestream_velocity" : [0.0, 0.0, 1.0],
+        "freestream_velocity" : [1.0, 1.0, 1.0],
         "freestream_mach_number" : 0.0
     },
     "geometry" : {
@@ -8,18 +8,19 @@
         "wake_model" : {
             "wake_present" : false
         },
-        "singularity_order" : "lower",
+        "singularity_order" : "higher",
         "reference" : {
             "area" : 0.7853981
         }
     },
     "solver" : {
-        "formulation" : "morino",
+        "formulation" : "source-free",
         "control_point_offset" : 1.0e-5,
         "matrix_solver" : "BJAC",
         "tolerance" : 1.e-12,
         "relaxation" : 0.8,
-        "block_size" : 200
+        "block_size" : 200,
+        "write_A_and_bx" : true
     },
     "post_processing" : {
     },

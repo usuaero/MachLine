@@ -154,8 +154,8 @@ module panel_mod
             ! Results
             procedure :: get_source_strengths => panel_get_source_strengths
             procedure :: get_doublet_strengths => panel_get_doublet_strengths
-            procedure :: get_source_dist_parameters => panel_get_source_dist_parameters
-            procedure :: get_doublet_dist_parameters => panel_get_doublet_dist_parameters
+            procedure :: get_source_parameters => panel_get_source_parameters
+            procedure :: get_doublet_parameters => panel_get_doublet_parameters
             procedure :: get_velocity_jump => panel_get_velocity_jump
 
     end type panel
@@ -609,7 +609,7 @@ contains
             end if
 
         end if
-        
+
     end subroutine panel_set_influencing_verts
 
 
@@ -2557,23 +2557,20 @@ contains
 
                     ! Convert to strength influences (Davis Eq. (4.41))
                     if (mirror_panel) then
-                        phi_s_S_space = matmul(phi_s_sigma_space, this%S_sigma_inv_mir)
+                        phi_s_S_space = -this%J_mir*freestream%K_inv*matmul(phi_s_sigma_space, this%S_sigma_inv_mir)
                     else
-                        phi_s_S_space = matmul(phi_s_sigma_space, this%S_sigma_inv)
+                        phi_s_S_space = -this%J*freestream%K_inv*matmul(phi_s_sigma_space, this%S_sigma_inv)
                     end if
 
                 else
 
                     ! Convert to strength influence
-                    phi_s_S_space = phi_s_sigma_space
+                    if (mirror_panel) then
+                        phi_s_S_space = -this%J_mir*freestream%K_inv*phi_s_sigma_space
+                    else
+                        phi_s_S_space = -this%J*freestream%K_inv*phi_s_sigma_space
+                    end if
 
-                end if
-
-                ! Add area Jacobian and kappa factor
-                if (mirror_panel) then
-                    phi_s_S_space = -this%J_mir*freestream%K_inv*phi_s_S_space
-                else
-                    phi_s_S_space = -this%J*freestream%K_inv*phi_s_S_space
                 end if
             end if
 
@@ -2596,7 +2593,7 @@ contains
 
             end if
 
-            ! Convert to vertex influences (Davis Eq. (4.41))
+            ! Convert to strength influences (Davis Eq. (4.41))
             if (mirror_panel) then
                 phi_d_M_space(1:this%M_dim) = freestream%K_inv*matmul(phi_d_mu_space, this%S_mu_inv_mir)
             else
@@ -2626,8 +2623,8 @@ contains
         real,intent(out) :: phi_d, phi_s
 
         real,dimension(:),allocatable :: source_inf, doublet_inf
-        real,dimension(6) :: doublet_strengths
-        real,dimension(4) :: source_strengths
+        real,dimension(this%M_dim) :: doublet_strengths
+        real,dimension(this%S_dim) :: source_strengths
 
         ! Get influences
         call this%calc_potential_influences(P, freestream, dod_info, mirror_panel, source_inf, doublet_inf)
@@ -2637,13 +2634,8 @@ contains
         doublet_strengths = this%get_doublet_strengths(mu, mirror_panel)
 
         ! Apply strengths to calculate potentials
-        if (this%order == 2) then
-            phi_s = sum(source_inf*source_strengths)
-            phi_d = sum(doublet_inf*doublet_strengths)
-        else
-            phi_s = source_inf(1)*source_strengths(1)
-            phi_d = sum(doublet_inf(1:3)*doublet_strengths(1:3))
-        end if
+        phi_s = sum(source_inf*source_strengths)
+        phi_d = sum(doublet_inf*doublet_strengths)
 
     end subroutine panel_calc_potentials
 
@@ -2819,7 +2811,7 @@ contains
     end function panel_get_source_strengths
 
 
-    function panel_get_source_dist_parameters(this, sigma, mirror) result(sigma_params)
+    function panel_get_source_parameters(this, sigma, mirror) result(sigma_params)
         ! Returns a vector describing the distribution of source strength across the panel surface
 
         implicit none
@@ -2845,7 +2837,7 @@ contains
             sigma_params(1) = sigma_strengths(1)
         end if
             
-    end function panel_get_source_dist_parameters
+    end function panel_get_source_parameters
 
 
     function panel_get_doublet_strengths(this, mu, mirror) result(mu_strengths)
@@ -2884,7 +2876,7 @@ contains
     end function panel_get_doublet_strengths
 
 
-    function panel_get_doublet_dist_parameters(this, mu, mirror) result(mu_params)
+    function panel_get_doublet_parameters(this, mu, mirror) result(mu_params)
         ! Returns a vector describing the distribution of doublet strength across the panel surface
 
         implicit none
@@ -2907,7 +2899,7 @@ contains
             mu_params = matmul(this%S_mu_inv, mu_verts)
         end if
         
-    end function panel_get_doublet_dist_parameters
+    end function panel_get_doublet_parameters
 
 
     function panel_get_velocity_jump(this, mu, sigma, mirrored, point) result(dv)
@@ -2937,10 +2929,10 @@ contains
         end if
 
         ! Calculate doublet parameters (derivatives)
-        mu_params = this%get_doublet_dist_parameters(mu, mirrored)
+        mu_params = this%get_doublet_parameters(mu, mirrored)
 
         ! Calculate tangential velocity jump in panel coordinates E&M Eq. (N.1.11b)
-        if (this%mu_dim > 3) then
+        if (this%order == 2) then
             dv(1) = mu_params(2) + mu_params(4)*Q_ls(1) + mu_params(5)*Q_ls(2)
             dv(2) = mu_params(3) + mu_params(5)*Q_ls(1) + mu_params(6)*Q_ls(2)
         else
@@ -2967,7 +2959,7 @@ contains
             end if
 
             ! Source strength
-            sigma_params = this%get_source_dist_parameters(sigma, mirrored)
+            sigma_params = this%get_source_parameters(sigma, mirrored)
             if (this%sigma_dim > 1) then
                 s = sigma_params(1) + sigma_params(2)*Q_ls(1) + sigma_params(3)*Q_ls(2)
             else
