@@ -2555,15 +2555,20 @@ contains
                     phi_s_sigma_space(2) = int%H111*geom%P_ls(1) + int%H211
                     phi_s_sigma_space(3) = int%H111*geom%P_ls(2) + int%H121
 
-                    ! Convert to vertex influences (Davis Eq. (4.41))
+                    ! Convert to strength influences (Davis Eq. (4.41))
                     if (mirror_panel) then
                         phi_s_S_space = matmul(phi_s_sigma_space, this%S_sigma_inv_mir)
                     else
                         phi_s_S_space = matmul(phi_s_sigma_space, this%S_sigma_inv)
                     end if
 
+                else
+
+                    ! Convert to strength influence
+                    phi_s_S_space = phi_s_sigma_space
+
                 end if
-            
+
                 ! Add area Jacobian and kappa factor
                 if (mirror_panel) then
                     phi_s_S_space = -this%J_mir*freestream%K_inv*phi_s_S_space

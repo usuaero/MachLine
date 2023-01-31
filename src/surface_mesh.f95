@@ -875,14 +875,17 @@ contains
                 ! Set that the edge is discontinuous
                 this%edges(k)%discontinuous = .true.
 
-                ! Update number of discontinuous edges
                 !$OMP critical
-                this%panels(this%edges(k)%panels(1))%N_discont_edges = this%panels(this%edges(k)%panels(1))%N_discont_edges + 1
-                this%panels(this%edges(k)%panels(2))%N_discont_edges = this%panels(this%edges(k)%panels(2))%N_discont_edges + 1
 
-                ! Update which edges are discontinuous
+                ! Update panel 1
+                this%panels(this%edges(k)%panels(1))%N_discont_edges = this%panels(this%edges(k)%panels(1))%N_discont_edges + 1
                 this%panels(this%edges(k)%panels(1))%edge_is_discontinuous(this%edges(k)%edge_index_for_panel(1)) = .true.
-                this%panels(this%edges(k)%panels(2))%edge_is_discontinuous(this%edges(k)%edge_index_for_panel(2)) = .true.
+
+                ! Update panel 2
+                if (.not. this%edges(k)%on_mirror_plane) then
+                    this%panels(this%edges(k)%panels(2))%N_discont_edges = this%panels(this%edges(k)%panels(2))%N_discont_edges + 1
+                    this%panels(this%edges(k)%panels(2))%edge_is_discontinuous(this%edges(k)%edge_index_for_panel(2)) = .true.
+                end if
                 !$OMP end critical
 
             end if
