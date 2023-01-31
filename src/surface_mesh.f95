@@ -25,7 +25,7 @@ module surface_mesh_mod
         integer :: N_subinc, N_supinc
         type(edge),allocatable,dimension(:) :: edges
         type(wake_mesh) :: wake
-        real :: C_wake_shedding_angle, trefftz_distance, C_min_panel_angle
+        real :: C_wake_shedding_angle, trefftz_distance, C_min_panel_angle, C_max_cont_angle
         real,dimension(:),allocatable :: CG
         integer :: N_wake_panels_streamwise
         logical :: wake_present, append_wake
@@ -43,7 +43,6 @@ module surface_mesh_mod
         integer,dimension(:),allocatable :: vertex_ordering
         integer :: initial_panel_order ! Distribution order for the panels (initially)
         character(len=:),allocatable :: singularity_order
-        real :: cont_tol ! A tolerance on the surface continuity for determining which edges should be discontinuous for second-order distributions
 
         contains
 
@@ -153,8 +152,7 @@ contains
         class(surface_mesh), intent(inout) :: this
         type(json_value),pointer,intent(in) :: settings
 
-        ! Get continuity tolerance
-        call json_xtnsn_get(settings, 'surface_continuity_tolerance', this%cont_tol, default_value=0.8)
+        real :: discont_angle
 
         ! Set singularity orders
         call json_xtnsn_get(settings, 'singularity_order', this%singularity_order, default_value='lower')
@@ -183,6 +181,10 @@ contains
             p_refine = .false.
 
         end select
+
+        ! Store cosine of max continuity angle
+        call json_xtnsn_get(settings, 'max_continuity_angle', discont_angle, default_value=45.)
+        this%C_max_cont_angle = cos(pi*discont_angle/180.)
     
     end subroutine surface_mesh_parse_singularity_settings
 
@@ -729,15 +731,16 @@ contains
         ! Initialize properties of panels dependent upon the flow
         call this%init_panels_with_flow(freestream)
 
+        ! Figure out wake-shedding edges, discontinuous edges, etc.
+        ! According to Davis, sharp, subsonic, leading edges in supersonic flow must have discontinuous doublet strength.
+        ! I don't know why this would be, except in the case of leading-edge vortex separation. But Davis doesn't
+        ! model leading-edge vortices. Wake-shedding trailing edges are still discontinuous in supersonic flow. Supersonic
+        ! leading edges should have continuous doublet strength.
+        call this%characterize_edges(freestream)
+
         if (this%wake_present) then
 
-            ! Figure out wake-shedding edges, discontinuous edges, etc.
-            ! Edge-characterization is only necessary for flows with wakes
-            ! According to Davis, sharp, subsonic, leading edges in supersonic flow must have discontinuous doublet strength.
-            ! I don't know why this would be, except in the case of leading-edge vortex separation. But Davis doesn't
-            ! model leading-edge vortices. Wake-shedding trailing edges are still discontinuous in supersonic flow. Supersonic
-            ! leading edges should have continuous doublet strength.
-            call this%characterize_edges(freestream)
+            ! Determine how cloning needs to be done
             call this%set_needed_vertex_clones()
 
             ! Clone necessary vertices
@@ -865,12 +868,30 @@ contains
             C_angle = inner(this%panels(i)%n_g, second_normal)
 
             ! Store whether this edge is discontinuous
-            this%edges(k)%discontinuous = C_angle < this%cont_tol
+
+            ! Update panel information
+            if (C_angle < this%C_max_cont_angle) then
+
+                ! Set that the edge is discontinuous
+                this%edges(k)%discontinuous = .true.
+
+                ! Update number of discontinuous edges
+                !$OMP critical
+                this%panels(this%edges(k)%panels(1))%N_discont_edges = this%panels(this%edges(k)%panels(1))%N_discont_edges + 1
+                this%panels(this%edges(k)%panels(2))%N_discont_edges = this%panels(this%edges(k)%panels(2))%N_discont_edges + 1
+
+                ! Update which edges are discontinuous
+                this%panels(this%edges(k)%panels(1))%edge_is_discontinuous(this%edges(k)%edge_index_for_panel(1)) = .true.
+                this%panels(this%edges(k)%panels(2))%edge_is_discontinuous(this%edges(k)%edge_index_for_panel(2)) = .true.
+                !$OMP end critical
+
+            end if
 
             ! Update minimum angle
             C_min_angle = min(C_angle, C_min_angle)
 
             ! Determine if this edge is wake-shedding
+            if (.not. this%wake_present) cycle
 
             ! Check the angle between the panels
             if (C_angle < this%C_wake_shedding_angle) then
@@ -1905,7 +1926,7 @@ contains
 
         type(vtk_out) :: body_vtk
         integer :: i, N_cells
-        real,dimension(:),allocatable :: panel_inclinations, orders
+        real,dimension(:),allocatable :: panel_inclinations, orders, N_discont_edges
         real,dimension(:,:),allocatable :: cents
 
         ! Clear old file
@@ -1917,10 +1938,12 @@ contains
         ! Get panel inclinations, centroids, and distribution orders
         allocate(panel_inclinations(this%N_panels))
         allocate(orders(this%N_panels))
+        allocate(N_discont_edges(this%N_panels))
         allocate(cents(3,this%N_panels))
         do i=1,this%N_panels
             panel_inclinations(i) = this%panels(i)%r
             orders(i) = this%panels(i)%order
+            N_discont_edges(i) = this%panels(i)%N_discont_edges
             cents(:,i) = this%panels(i)%centr
         end do
 
@@ -1931,6 +1954,7 @@ contains
         call body_vtk%write_cell_normals(this%panels)
         call body_vtk%write_cell_scalars(panel_inclinations, "inclination", .true.)
         call body_vtk%write_cell_scalars(orders, "distribution_order", .true.)
+        call body_vtk%write_cell_scalars(N_discont_edges, "N_discontinuous_edges", .true.)
         call body_vtk%write_cell_vectors(cents, "centroid", .true.)
 
         if (solved) then
@@ -1993,7 +2017,7 @@ contains
 
         type(vtk_out) :: body_vtk
         integer :: i, N_cells
-        real,dimension(:),allocatable :: panel_inclinations, orders
+        real,dimension(:),allocatable :: panel_inclinations, orders, N_discont_edges
         real,dimension(:,:),allocatable :: cents
 
         ! Clear old file
@@ -2005,10 +2029,12 @@ contains
         ! Get panel inclinations, centroids, and orders
         allocate(panel_inclinations(this%N_panels))
         allocate(orders(this%N_panels))
+        allocate(N_discont_edges(this%N_panels))
         allocate(cents(3,this%N_panels))
         do i=1,this%N_panels
             panel_inclinations(i) = this%panels(i)%r_mir
             orders(i) = this%panels(i)%order
+            N_discont_edges(i) = this%panels(i)%N_discont_edges
             cents(:,i) = this%panels(i)%centr_mir
         end do
 
@@ -2019,6 +2045,7 @@ contains
         call body_vtk%write_cell_normals(this%panels, this%mirror_plane)
         call body_vtk%write_cell_scalars(panel_inclinations, "inclination", .true.)
         call body_vtk%write_cell_scalars(orders, "distribution_order", .true.)
+        call body_vtk%write_cell_scalars(N_discont_edges, "N_discontinuous_edges", .true.)
         call body_vtk%write_cell_vectors(cents, "centroid", .true.)
 
         ! Pressures

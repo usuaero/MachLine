@@ -8,6 +8,7 @@
         "file": "dev/meshes/diamond_5_deg_full_fine.stl",
         "spanwise_axis" : "+y",
         "singularity_order" : "higher",
+        "max_continuity_angle" : 45.0,
         "wake_model" : {
             "wake_present" : false,
             "append_wake" : true,
@@ -15,7 +16,7 @@
         }
     },
     "solver" : {
-        "formulation" : "morino",
+        "formulation" : "source-free",
         "matrix_solver" : "GMRES"
     },
     "output": {

@@ -8,13 +8,13 @@
         "wake_model" : {
             "wake_present" : false
         },
-        "singularity_order" : "lower",
+        "singularity_order" : "higher",
         "reference" : {
             "area" : 0.7853981
         }
     },
     "solver" : {
-        "formulation" : "morino",
+        "formulation" : "source-free",
         "control_point_offset" : 1.0e-5,
         "matrix_solver" : "BJAC",
         "tolerance" : 1.e-12,

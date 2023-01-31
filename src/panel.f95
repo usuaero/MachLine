@@ -62,7 +62,7 @@ module panel_mod
         real :: J, J_mir ! Local scaled transformation Jacobian
         integer,dimension(:),allocatable :: i_vert_d, i_panel_s
         integer :: order, N_discont_edges
-        logical,dimension(:),allocatable :: discont_edges
+        logical,dimension(:),allocatable :: edge_is_discontinuous
         logical :: has_sources ! Whether this panel has a source distribution
 
         contains
@@ -200,6 +200,7 @@ contains
         this%i_top_parent = 0
         this%i_bot_parent = 0
         this%has_sources = .true.
+        allocate(this%edge_is_discontinuous(3), source=.false.)
 
         ! Calculate panel geometries only dependent upon vertex locations (nothing flow-dependent at this point)
         call this%calc_derived_geom()
@@ -575,7 +576,11 @@ contains
         else
 
             ! Allocate space
-            allocate(this%i_vert_d(3*this%order))
+            if (this%order == 1) then
+                allocate(this%i_vert_d(3))
+            else
+                allocate(this%i_vert_d(6-this%N_discont_edges))
+            end if
 
             ! This panel
             do i=1,this%N
@@ -585,9 +590,11 @@ contains
             ! Neighbors (if needed)
             if (this%order == 2) then
                 do i=1,this%N
-                    i_neighbor = this%abutting_panels(i)
-                    this%i_vert_d(i+3) = body_panels(i_neighbor)%get_opposite_vertex(this%get_vertex_index(i), &
-                                                                                     this%get_vertex_index(mod(i, this%N)+1))
+                    if (.not. this%edge_is_discontinuous(i)) then
+                        i_neighbor = this%abutting_panels(i)
+                        this%i_vert_d(i+3) = body_panels(i_neighbor)%get_opposite_vertex(this%get_vertex_index(i), &
+                                                                                         this%get_vertex_index(mod(i, this%N)+1))
+                    end if
                 end do
             end if
 
@@ -605,15 +612,29 @@ contains
         type(panel),dimension(:),allocatable,intent(in) :: body_panels
         type(vertex),dimension(:),allocatable,intent(in) :: body_verts
 
-        real,dimension(:,:),allocatable :: S_mu, S_sigma, SS_inv
-        integer :: i
+        real,dimension(:,:),allocatable :: S_mu, S_sigma, SS_inv, R_mat, A_mat, RSA_inv
+        integer :: i, i_edge_1, i_edge_2
         real,dimension(3) :: P_g, P_ls
+        integer :: mu_dim, M_dim, sigma_dim, S_dim
+        real :: r, r_inv
+        logical :: eliminate_xx, eliminate_yy, eliminate_xy
 
         ! Doublets
 
+        ! Get dimension of {mu} (parameter space) and {M} (strength space)
+        if (this%order == 1) then
+            mu_dim = 3
+            M_dim = 3
+        else
+            mu_dim = 6
+            M_dim = 6 - this%N_discont_edges
+        end if
+
         ! Allocate space
-        allocate(S_mu(3*this%order,3*this%order))
-        allocate(this%S_mu_inv(3*this%order,3*this%order))
+        allocate(S_mu(mu_dim, mu_dim))
+        allocate(this%S_mu_inv(mu_dim, M_dim))
+
+        ! Set up S_mu
 
         ! Constant
         S_mu(:,1) = 1.
@@ -622,8 +643,8 @@ contains
         S_mu(1:3,2) = this%vertices_ls(1,:)
         S_mu(1:3,3) = this%vertices_ls(2,:)
 
-        ! Quadratic
-        if (this%order == 2) then
+        ! Add in quadratic contributions
+        if (this%order == 2 .and. this%N_discont_edges < 3) then
 
             ! x and y from neighbors
             do i=4,6
@@ -644,8 +665,83 @@ contains
 
         end if
 
-        ! Invert
-        call matinv(3*this%order, S_mu, this%S_mu_inv)
+        ! When there are no discontinuous edges, all discontinuous edges, then we simply invert S_mu
+        if (this%order == 1 .or. this%N_discont_edges == 0 .or. this%N_discont_edges == 3) then
+
+            ! Invert
+            call matinv(3*this%order, S_mu, this%S_mu_inv)
+
+        ! Otherwise, we have to account for the discontinuities
+        else if (this%N_discont_edges == 1) then
+
+            ! Figure out which edge it is
+            do i=1,3
+                if (this%edge_is_discontinuous(i)) then
+                    i_edge_1 = 1
+                    exit
+                end if
+            end do
+
+            ! Pick which parameter it is we want to eliminate
+            if (abs(this%n_hat_ls(i_edge_1,1)) < abs(this%n_hat_ls(i_edge_1,2))) then
+                eliminate_yy = .true.
+                eliminate_xx = .false.
+            else
+                eliminate_xx = .true.
+                eliminate_yy = .false.
+            end if
+
+            ! Initialize A and R matrices
+            allocate(A_mat(6,5), source=0.)
+            allocate(R_mat(5,6), source=0.)
+            do i=1,3
+                A_mat(i,i) = 1.
+                R_mat(i,i) = 1.
+            end do
+
+            ! Add in replacement for mu_xx
+            if (eliminate_xx) then
+
+                ! Calculate ratio
+                r = this%n_hat_ls(i_edge_1,2)/this%n_hat_ls(i_edge_1,1)
+
+                ! Calculate replacement
+                A_mat(4,4) = -2.*r
+                A_mat(4,5) = -r*r
+
+                ! Keep mu_xy and my_yy
+                A_mat(5,4) = 1.
+                A_mat(6,5) = 1.
+
+                ! Finish setting up R
+                R_mat(4,5) = 1.
+                R_mat(5,6) = 1.
+
+            else
+
+                ! Calculate ratio
+                r = this%n_hat_ls(i_edge_1,1)/this%n_hat_ls(i_edge_1,2)
+
+                ! Calculate replacement
+                A_mat(6,4) = -r*r
+                A_mat(6,5) = -2.*r
+
+                ! Keep mu_xx and my_xy
+                A_mat(4,4) = 1.
+                A_mat(5,5) = 1.
+
+                ! Finish setting up R
+                R_mat(4,4) = 1.
+                R_mat(5,4) = 1.
+
+            end if
+
+            ! Calculate S_mu_inv
+            allocate(RSA_inv(5,5))
+            call matinv(5, matmul(R_mat, matmul(S_mu, A_mat)), RSA_inv)
+            this%S_mu_inv = matmul(A_mat, RSA_inv)
+
+        end if
 
         ! Sources
 
@@ -2101,9 +2197,11 @@ contains
                 stop
             end if
 
-            if (abs(int%H111 - int%H313 - int%H133 - geom%h*int%hH113) > 1e-12) then
-                write(*,*) "!!! Influence calculation failed for H(3,1,3) and H(1,3,3). Quitting..."
-                stop
+            if (this%has_sources) then
+                if (abs(int%H111 - int%H313 - int%H133 - geom%h*int%hH113) > 1e-12) then
+                    write(*,*) "!!! Influence calculation failed for H(3,1,3) and H(1,3,3). Quitting..."
+                    stop
+                end if
             end if
         end if
 
@@ -2197,9 +2295,11 @@ contains
                 stop
             end if
 
-            if (abs(int%H111 + int%H313 - int%H133 - geom%h*int%hH113) > 1e-12) then
-                write(*,*) "!!! Influence calculation failed for H(3,1,3) and H(1,3,3). Quitting..."
-                stop
+            if (this%has_sources) then
+                if (abs(int%H111 + int%H313 - int%H133 - geom%h*int%hH113) > 1e-12) then
+                    write(*,*) "!!! Influence calculation failed for H(3,1,3) and H(1,3,3). Quitting..."
+                    stop
+                end if
             end if
 
         end if
@@ -2285,9 +2385,11 @@ contains
                 stop
             end if
 
-            if (abs(int%H111 + int%H313 + int%H133 - geom%h*int%hH113) > 1e-12) then
-                write(*,*) "!!! Influence calculation failed for H(3,1,3) and H(1,3,3). Quitting..."
-                stop
+            if (this%has_sources) then
+                if (abs(int%H111 + int%H313 + int%H133 - geom%h*int%hH113) > 1e-12) then
+                    write(*,*) "!!! Influence calculation failed for H(3,1,3) and H(1,3,3). Quitting..."
+                    stop
+                end if
             end if
 
         end if
@@ -2421,7 +2523,7 @@ contains
     end subroutine panel_allocate_potential_influences
 
 
-    subroutine panel_calc_potential_influences(this, P, freestream, dod_info, mirror_panel, phi_s, phi_d)
+    subroutine panel_calc_potential_influences(this, P, freestream, dod_info, mirror_panel, phi_s_S_space, phi_d_M_space)
         ! Calculates the source- and doublet-induced potentials at the given point P
 
         implicit none
@@ -2431,14 +2533,15 @@ contains
         type(flow),intent(in) :: freestream
         type(dod),intent(in) :: dod_info
         logical,intent(in) :: mirror_panel
-        real,dimension(:),allocatable,intent(out) :: phi_s, phi_d
+        real,dimension(:),allocatable,intent(out) :: phi_s_S_space, phi_d_M_space
 
         type(eval_point_geom) :: geom
         type(integrals) :: int
         integer :: i
+        real,dimension(:),allocatable :: phi_s_sigma_space, phi_d_mu_space
 
         ! Specify influencing vertices (also sets zero default influence)
-        call this%allocate_potential_influences(phi_s, phi_d)
+        call this%allocate_potential_influences(phi_s_sigma_space, phi_d_mu_space)
 
         ! Check DoD
         if (dod_info%in_dod .and. this%A > 0.) then
@@ -2461,54 +2564,55 @@ contains
             if (this%has_sources) then
 
                 ! Constant influence
-                phi_s(1) = int%H111
+                phi_s_sigma_space(1) = int%H111
 
                 ! Linear influences
                 if (this%order == 2) then
 
                     ! Johnson Eq. (D21)
                     ! Equivalent to Ehlers Eq. (8.6)
-                    phi_s(2) = int%H111*geom%P_ls(1) + int%H211
-                    phi_s(3) = int%H111*geom%P_ls(2) + int%H121
+                    phi_s_sigma_space(2) = int%H111*geom%P_ls(1) + int%H211
+                    phi_s_sigma_space(3) = int%H111*geom%P_ls(2) + int%H121
 
                     ! Convert to vertex influences (Davis Eq. (4.41))
                     if (mirror_panel) then
-                        phi_s = matmul(phi_s, this%S_sigma_inv_mir)
+                        phi_s_S_space = matmul(phi_s_sigma_space, this%S_sigma_inv_mir)
                     else
-                        phi_s = matmul(phi_s, this%S_sigma_inv)
+                        phi_s_S_space = matmul(phi_s_sigma_space, this%S_sigma_inv)
                     end if
 
                 end if
             
                 ! Add area Jacobian and kappa factor
                 if (mirror_panel) then
-                    phi_s = -this%J_mir*freestream%K_inv*phi_s
+                    phi_s_S_space = -this%J_mir*freestream%K_inv*phi_s_S_space
                 else
-                    phi_s = -this%J*freestream%K_inv*phi_s
+                    phi_s_S_space = -this%J*freestream%K_inv*phi_s_S_space
                 end if
             end if
 
             ! Doublet potential
             ! Johnson Eq. (D.30)
             ! Equivalent to Ehlers Eq. (5.17))
-            phi_d(1) = int%hH113
-            phi_d(2) = int%hH113*geom%P_ls(1) + geom%h*int%H213
-            phi_d(3) = int%hH113*geom%P_ls(2) + geom%h*int%H123
+            phi_d_mu_space(1) = int%hH113
+            phi_d_mu_space(2) = int%hH113*geom%P_ls(1) + geom%h*int%H213
+            phi_d_mu_space(3) = int%hH113*geom%P_ls(2) + geom%h*int%H123
 
             if (this%order == 2) then
 
                 ! Add quadratic terms
-                phi_d(4) = 0.5*int%hH113*geom%P_ls(1)**2 + geom%h*(geom%P_ls(1)*int%H213 + 0.5*int%H313)
+                phi_d_mu_space(4) = 0.5*int%hH113*geom%P_ls(1)**2 + geom%h*(geom%P_ls(1)*int%H213 + 0.5*int%H313)
 
-                phi_d(5) = int%hH113*geom%P_ls(1)*geom%P_ls(2) + geom%h*(geom%P_ls(2)*int%H213 + geom%P_ls(1)*int%H123 + int%H223)
+                phi_d_mu_space(5) = int%hH113*geom%P_ls(1)*geom%P_ls(2) &
+                                    + geom%h*(geom%P_ls(2)*int%H213 + geom%P_ls(1)*int%H123 + int%H223)
 
-                phi_d(6) = 0.5*int%hH113*geom%P_ls(2)**2 + geom%h*(geom%P_ls(2)*int%H123 + 0.5*int%H133)
+                phi_d_mu_space(6) = 0.5*int%hH113*geom%P_ls(2)**2 + geom%h*(geom%P_ls(2)*int%H123 + 0.5*int%H133)
 
                 ! Convert to vertex influences (Davis Eq. (4.41))
                 if (mirror_panel) then
-                    phi_d(1:6) = freestream%K_inv*matmul(phi_d(1:6), this%S_mu_inv_mir)
+                    phi_d_M_space(1:6-this%N_discont_edges) = freestream%K_inv*matmul(phi_d_mu_space(1:6), this%S_mu_inv_mir)
                 else
-                    phi_d(1:6) = freestream%K_inv*matmul(phi_d(1:6), this%S_mu_inv)
+                    phi_d_M_space(1:6-this%N_discont_edges) = freestream%K_inv*matmul(phi_d_mu_space(1:6), this%S_mu_inv)
                 end if
 
                 ! Wake bottom influence is opposite the top influence
