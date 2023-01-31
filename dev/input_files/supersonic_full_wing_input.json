@@ -16,7 +16,7 @@
         }
     },
     "solver" : {
-        "formulation" : "source-free",
+        "formulation" : "morino",
         "matrix_solver" : "GMRES"
     },
     "output": {

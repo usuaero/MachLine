@@ -64,6 +64,7 @@ module panel_mod
         integer :: order, N_discont_edges
         logical,dimension(:),allocatable :: edge_is_discontinuous
         logical :: has_sources ! Whether this panel has a source distribution
+        integer :: mu_dim, M_dim, sigma_dim, S_dim ! Dimensions of doublet and source parameter and strength spaces
 
         contains
 
@@ -143,7 +144,6 @@ module panel_mod
             procedure :: calc_integrals => panel_calc_integrals
 
             ! Potentials
-            procedure :: allocate_potential_influences => panel_allocate_potential_influences
             procedure :: calc_potential_influences => panel_calc_potential_influences
             procedure :: calc_potentials => panel_calc_potentials
 
@@ -510,6 +510,19 @@ contains
         ! Store order
         this%order = order
 
+        ! Get dimension of {mu} and {sigma} (parameter space), and {M} and {S} (strength space)
+        if (this%order == 1) then
+            this%mu_dim = 3
+            this%M_dim = 3
+            this%sigma_dim = 1
+            this%S_dim = 1
+        else
+            this%mu_dim = 6
+            this%M_dim = 6 - this%N_discont_edges
+            this%sigma_dim = 3
+            this%S_dim = 4 - this%N_discont_edges
+        end if
+
         ! Set up influencing verts
         call this%set_influencing_verts(body_panels)
 
@@ -528,24 +541,23 @@ contains
         class(panel),intent(inout) :: this
         type(panel),dimension(:),allocatable,intent(in) :: body_panels
 
-        integer :: i, i_neighbor
+        integer :: i, j
 
         ! Source
+        allocate(this%i_panel_s(this%S_dim))
+
+        ! This panel is first
+        this%i_panel_s(1) = this%index
+
+        ! Loop through neighbors for linear distribution
         if (this%order == 2) then
-
-            ! Allocate storage
-            allocate(this%i_panel_s(4))
-
-            ! This panel is first
-            this%i_panel_s(1) = this%index
-
-            ! Loop through neighbors
+            j = 2
             do i=1,this%N
-                this%i_panel_s(i+1) = this%abutting_panels(i)
+                if (.not. this%edge_is_discontinuous(i)) then ! Skip neighbors across discontinuous edges
+                    this%i_panel_s(j) = this%abutting_panels(i)
+                    j = j + 1
+                end if
             end do
-
-        else
-            allocate(this%i_panel_s(1), source=this%index)
         end if
 
         ! Doublet
@@ -553,22 +565,23 @@ contains
         ! Check if this panel belongs to the wake
         if (this%in_wake) then
 
+            ! Allocate space
+            allocate(this%i_vert_d(this%M_dim*2))
+
             if (this%order == 2) then
 
                 ! Wake panels are influenced by two sets of vertices
-                allocate(this%i_vert_d(12))
                 do i=1,this%N
                     this%i_vert_d(i) = this%vertices(i)%ptr%top_parent
-                    this%i_vert_d(i+6) = this%vertices(i)%ptr%bot_parent
+                    this%i_vert_d(i+this%M_dim) = this%vertices(i)%ptr%bot_parent
                 end do
 
             else
 
                 ! Wake panels are influenced by two sets of vertices
-                allocate(this%i_vert_d(6))
                 do i=1,this%N
                     this%i_vert_d(i) = this%vertices(i)%ptr%top_parent
-                    this%i_vert_d(i+3) = this%vertices(i)%ptr%bot_parent
+                    this%i_vert_d(i+this%M_dim) = this%vertices(i)%ptr%bot_parent
                 end do
 
             end if
@@ -576,11 +589,7 @@ contains
         else
 
             ! Allocate space
-            if (this%order == 1) then
-                allocate(this%i_vert_d(3))
-            else
-                allocate(this%i_vert_d(6-this%N_discont_edges))
-            end if
+            allocate(this%i_vert_d(this%M_dim))
 
             ! This panel
             do i=1,this%N
@@ -589,11 +598,12 @@ contains
 
             ! Neighbors (if needed)
             if (this%order == 2) then
+                j = 4
                 do i=1,this%N
-                    if (.not. this%edge_is_discontinuous(i)) then
-                        i_neighbor = this%abutting_panels(i)
-                        this%i_vert_d(i+3) = body_panels(i_neighbor)%get_opposite_vertex(this%get_vertex_index(i), &
-                                                                                         this%get_vertex_index(mod(i, this%N)+1))
+                    if (.not. this%edge_is_discontinuous(i)) then ! Skip neighbors across discontinuous edges
+                        this%i_vert_d(j) = body_panels(this%abutting_panels(i))%get_opposite_vertex(this%get_vertex_index(i), &
+                                                                                       this%get_vertex_index(mod(i, this%N)+1))
+                        j = j + 1
                     end if
                 end do
             end if
@@ -615,24 +625,14 @@ contains
         real,dimension(:,:),allocatable :: S_mu, S_sigma, SS_inv, R_mat, A_mat, RSA_inv
         integer :: i, i_edge_1, i_edge_2
         real,dimension(3) :: P_g, P_ls
-        integer :: mu_dim, M_dim, sigma_dim, S_dim
         real :: r, r_inv
         logical :: eliminate_xx, eliminate_yy, eliminate_xy
 
         ! Doublets
 
-        ! Get dimension of {mu} (parameter space) and {M} (strength space)
-        if (this%order == 1) then
-            mu_dim = 3
-            M_dim = 3
-        else
-            mu_dim = 6
-            M_dim = 6 - this%N_discont_edges
-        end if
-
         ! Allocate space
-        allocate(S_mu(mu_dim, mu_dim))
-        allocate(this%S_mu_inv(mu_dim, M_dim))
+        allocate(S_mu(this%M_dim, this%mu_dim))
+        allocate(this%S_mu_inv(this%mu_dim, this%M_dim))
 
         ! Set up S_mu
 
@@ -647,7 +647,7 @@ contains
         if (this%order == 2 .and. this%N_discont_edges < 3) then
 
             ! x and y from neighbors
-            do i=4,6
+            do i=4,this%M_dim
                 P_g = body_verts(this%i_vert_d(i))%loc
                 P_ls = matmul(this%A_g_to_ls, P_g - this%centr)
                 S_mu(i,2) = P_ls(1)
@@ -665,11 +665,11 @@ contains
 
         end if
 
-        ! When there are no discontinuous edges, all discontinuous edges, then we simply invert S_mu
-        if (this%order == 1 .or. this%N_discont_edges == 0 .or. this%N_discont_edges == 3) then
+        ! When there are no discontinuous edges or all discontinuous edges, then we simply invert S_mu
+        if (this%M_dim == 3 .or. this%M_dim == 6) then
 
             ! Invert
-            call matinv(3*this%order, S_mu, this%S_mu_inv)
+            call matinv(this%M_dim, S_mu, this%S_mu_inv)
 
         ! Otherwise, we have to account for the discontinuities
         else if (this%N_discont_edges == 1) then
@@ -677,13 +677,13 @@ contains
             ! Figure out which edge it is
             do i=1,3
                 if (this%edge_is_discontinuous(i)) then
-                    i_edge_1 = 1
+                    i_edge_1 = i
                     exit
                 end if
             end do
 
             ! Pick which parameter it is we want to eliminate
-            if (abs(this%n_hat_ls(i_edge_1,1)) < abs(this%n_hat_ls(i_edge_1,2))) then
+            if (abs(this%n_hat_ls(1,i_edge_1)) < abs(this%n_hat_ls(2,i_edge_1))) then
                 eliminate_yy = .true.
                 eliminate_xx = .false.
             else
@@ -703,7 +703,7 @@ contains
             if (eliminate_xx) then
 
                 ! Calculate ratio
-                r = this%n_hat_ls(i_edge_1,2)/this%n_hat_ls(i_edge_1,1)
+                r = this%n_hat_ls(2,i_edge_1)/this%n_hat_ls(1,i_edge_1)
 
                 ! Calculate replacement
                 A_mat(4,4) = -2.*r
@@ -720,7 +720,7 @@ contains
             else
 
                 ! Calculate ratio
-                r = this%n_hat_ls(i_edge_1,1)/this%n_hat_ls(i_edge_1,2)
+                r = this%n_hat_ls(1,i_edge_1)/this%n_hat_ls(2,i_edge_1)
 
                 ! Calculate replacement
                 A_mat(6,4) = -r*r
@@ -737,8 +737,8 @@ contains
             end if
 
             ! Calculate S_mu_inv
-            allocate(RSA_inv(5,5))
-            call matinv(5, matmul(R_mat, matmul(S_mu, A_mat)), RSA_inv)
+            allocate(RSA_inv(this%M_dim,this%M_dim))
+            call matinv(this%M_dim, matmul(S_mu, A_mat), RSA_inv)
             this%S_mu_inv = matmul(A_mat, RSA_inv)
 
         end if
@@ -746,18 +746,18 @@ contains
         ! Sources
 
         ! Linear (not needed for constant-strength source panels)
-        if (this%order == 2) then
+        if (this%S_dim > 1) then
 
             ! Allocate space
-            allocate(S_sigma(4,3))
-            allocate(this%S_sigma_inv(3,4))
-            allocate(SS_inv(3,3))
+            allocate(S_sigma(this%S_dim, this%sigma_dim))
+            allocate(this%S_sigma_inv(this%sigma_dim, this%S_dim))
+            allocate(SS_inv(this%sigma_dim, this%sigma_dim))
 
             ! Influence of this panel
             S_sigma(1,:) = (/1., 0., 0./)
 
             ! Influence of neighboring panels
-            do i=2,4
+            do i=2,this%S_dim
                 P_g = body_panels(this%i_panel_s(i))%centr
                 P_ls = matmul(this%A_g_to_ls, P_g - this%centr)
                 S_sigma(i,1) = 1.
@@ -765,9 +765,22 @@ contains
                 S_sigma(i,3) = P_ls(2)
             end do
 
-            ! Invert (pseudoinverse using least-squares)
-            call matinv(3, matmul(transpose(S_sigma), S_sigma), SS_inv)
-            this%S_sigma_inv = matmul(SS_inv, transpose(S_sigma))
+            ! Invert 
+            select case (this%S_dim)
+
+            ! For overdetermined, do pseudoinverse using least-squares
+            case (4)
+                call matinv(3, matmul(transpose(S_sigma), S_sigma), SS_inv)
+                this%S_sigma_inv = matmul(SS_inv, transpose(S_sigma))
+
+            ! For well-posed, do standard inverse
+            case (3)
+                call matinv(this%S_dim, S_sigma, this%S_sigma_inv)
+
+            ! Two discontinuous edges
+            case (2)
+
+            end select
 
         end if
 
@@ -2484,45 +2497,6 @@ contains
     end function panel_calc_integrals
 
 
-    subroutine panel_allocate_potential_influences(this, phi_s, phi_d)
-        ! Allocates the necessary influence arrays
-
-        implicit none
-
-        class(panel),intent(in) :: this
-        real,dimension(:),allocatable,intent(out) :: phi_s, phi_d
-
-        ! Source
-        if (this%order == 2) then
-            allocate(phi_s(3), source=0.)
-        else
-            allocate(phi_s(1), source=0.)
-        end if
-
-        ! Doublet
-        if (this%order == 2) then
-
-            ! Check if this panel belongs to the wake
-            if (this%in_wake) then
-                allocate(phi_d(12), source=0.)
-            else
-                allocate(phi_d(6), source=0.)
-            end if
-
-        else
-
-            ! Check if this panel belongs to the wake
-            if (this%in_wake) then
-                allocate(phi_d(6), source=0.)
-            else
-                allocate(phi_d(3), source=0.)
-            end if
-
-        end if
-        
-    end subroutine panel_allocate_potential_influences
-
-
     subroutine panel_calc_potential_influences(this, P, freestream, dod_info, mirror_panel, phi_s_S_space, phi_d_M_space)
         ! Calculates the source- and doublet-induced potentials at the given point P
 
@@ -2540,8 +2514,15 @@ contains
         integer :: i
         real,dimension(:),allocatable :: phi_s_sigma_space, phi_d_mu_space
 
-        ! Specify influencing vertices (also sets zero default influence)
-        call this%allocate_potential_influences(phi_s_sigma_space, phi_d_mu_space)
+        ! Allocate space
+        allocate(phi_s_sigma_space(this%sigma_dim), source=0.)
+        allocate(phi_s_S_space(this%S_dim), source=0.)
+        allocate(phi_d_mu_space(this%mu_dim), source=0.)
+        if (this%in_wake) then
+            allocate(phi_d_M_space(this%M_dim*2), source=0.)
+        else
+            allocate(phi_d_M_space(this%M_dim), source=0.)
+        end if
 
         ! Check DoD
         if (dod_info%in_dod .and. this%A > 0.) then
@@ -2608,32 +2589,18 @@ contains
 
                 phi_d_mu_space(6) = 0.5*int%hH113*geom%P_ls(2)**2 + geom%h*(geom%P_ls(2)*int%H123 + 0.5*int%H133)
 
-                ! Convert to vertex influences (Davis Eq. (4.41))
-                if (mirror_panel) then
-                    phi_d_M_space(1:6-this%N_discont_edges) = freestream%K_inv*matmul(phi_d_mu_space(1:6), this%S_mu_inv_mir)
-                else
-                    phi_d_M_space(1:6-this%N_discont_edges) = freestream%K_inv*matmul(phi_d_mu_space(1:6), this%S_mu_inv)
-                end if
+            end if
 
-                ! Wake bottom influence is opposite the top influence
-                if (this%in_wake) then
-                    phi_d(7:12) = -phi_d(1:6)
-                end if
-
+            ! Convert to vertex influences (Davis Eq. (4.41))
+            if (mirror_panel) then
+                phi_d_M_space(1:this%M_dim) = freestream%K_inv*matmul(phi_d_mu_space, this%S_mu_inv_mir)
             else
+                phi_d_M_space(1:this%M_dim) = freestream%K_inv*matmul(phi_d_mu_space, this%S_mu_inv)
+            end if
 
-                ! Convert to vertex influences (Davis Eq. (4.41))
-                if (mirror_panel) then
-                    phi_d(1:3) = freestream%K_inv*matmul(phi_d(1:3), this%S_mu_inv_mir)
-                else
-                    phi_d(1:3) = freestream%K_inv*matmul(phi_d(1:3), this%S_mu_inv)
-                end if
-
-                ! Wake bottom influence is opposite the top influence
-                if (this%in_wake) then
-                    phi_d(4:6) = -phi_d(1:3)
-                end if
-
+            ! Wake bottom influence is opposite the top influence
+            if (this%in_wake) then
+                phi_d_M_space(this%M_dim+1:this%M_dim*2) = -phi_d_M_space(1:this%M_dim)
             end if
         end if
     
@@ -2822,7 +2789,7 @@ contains
         real,dimension(:),allocatable,intent(in) :: sigma
         logical,intent(in) :: mirror
 
-        real,dimension(4) :: sigma_strengths
+        real,dimension(this%S_dim) :: sigma_strengths
 
         integer :: i, shift
 
@@ -2856,23 +2823,21 @@ contains
         real,dimension(:),allocatable,intent(in) :: sigma
         logical,intent(in) :: mirror
         
-        real,dimension(3) :: sigma_params
+        real,dimension(this%sigma_dim) :: sigma_params
 
-        real,dimension(4) :: sigma_strengths
-        real,dimension(3,3) :: S_sigma_inv
+        real,dimension(this%S_dim) :: sigma_strengths
 
         ! Get strengths
         sigma_strengths = this%get_source_strengths(sigma, mirror)
 
         ! Linear sources
-        if (this%order == 2) then
+        if (this%sigma_dim > 1) then
 
             sigma_params = matmul(this%S_sigma_inv, sigma_strengths)
 
         ! Constant sources
         else
             sigma_params(1) = sigma_strengths(1)
-            sigma_params(2:) = 0.
         end if
             
     end function panel_get_source_dist_parameters
@@ -2887,7 +2852,7 @@ contains
         real,dimension(:),allocatable,intent(in) :: mu
         logical,intent(in) :: mirror
 
-        real,dimension(6) :: mu_strengths
+        real,dimension(this%M_dim) :: mu_strengths
 
         integer :: shift, i
 
@@ -2923,27 +2888,18 @@ contains
         real,dimension(:),allocatable,intent(in) :: mu
         logical,intent(in) :: mirror
 
-        real,dimension(6) :: mu_params
+        real,dimension(this%mu_dim) :: mu_params
 
-        real,dimension(6) :: mu_verts
+        real,dimension(this%M_dim) :: mu_verts
 
         ! Get doublet strengths at vertices
         mu_verts = this%get_doublet_strengths(mu, mirror)
 
-        ! Calculate doublet parameters (derivatives)
-        if (this%order == 2) then
-            if (mirror) then
-                mu_params = matmul(this%S_mu_inv_mir, mu_verts)
-            else
-                mu_params = matmul(this%S_mu_inv, mu_verts)
-            end if
+        ! Calculate doublet parameters
+        if (mirror) then
+            mu_params = matmul(this%S_mu_inv_mir, mu_verts)
         else
-            if (mirror) then
-                mu_params(1:3) = matmul(this%S_mu_inv_mir, mu_verts(1:3))
-            else
-                mu_params(1:3) = matmul(this%S_mu_inv, mu_verts(1:3))
-            end if
-            mu_params(4:6) = 0.
+            mu_params = matmul(this%S_mu_inv, mu_verts)
         end if
         
     end function panel_get_doublet_dist_parameters
@@ -2962,9 +2918,9 @@ contains
 
         real,dimension(3) :: dv
 
-        real,dimension(6) :: mu_params
-        real,dimension(3) :: s_dir, sigma_params
-        real,dimension(3) :: Q_ls
+        real,dimension(this%mu_dim) :: mu_params
+        real,dimension(this%sigma_dim) :: sigma_params
+        real,dimension(3) :: Q_ls, s_dir
         integer :: i
         real :: s
 
@@ -2979,8 +2935,13 @@ contains
         mu_params = this%get_doublet_dist_parameters(mu, mirrored)
 
         ! Calculate tangential velocity jump in panel coordinates E&M Eq. (N.1.11b)
-        dv(1) = mu_params(2) + mu_params(4)*Q_ls(1) + mu_params(5)*Q_ls(2)
-        dv(2) = mu_params(3) + mu_params(5)*Q_ls(1) + mu_params(6)*Q_ls(2)
+        if (this%mu_dim > 3) then
+            dv(1) = mu_params(2) + mu_params(4)*Q_ls(1) + mu_params(5)*Q_ls(2)
+            dv(2) = mu_params(3) + mu_params(5)*Q_ls(1) + mu_params(6)*Q_ls(2)
+        else
+            dv(1) = mu_params(2)
+            dv(2) = mu_params(3)
+        end if
         dv(3) = 0.
 
         ! Transform to global coordinates
@@ -3002,7 +2963,11 @@ contains
 
             ! Source strength
             sigma_params = this%get_source_dist_parameters(sigma, mirrored)
-            s = sigma_params(1) + sigma_params(2)*Q_ls(1) + sigma_params(3)*Q_ls(2)
+            if (this%sigma_dim > 1) then
+                s = sigma_params(1) + sigma_params(2)*Q_ls(1) + sigma_params(3)*Q_ls(2)
+            else
+                s = sigma_params(1)
+            end if
 
             ! Add normal velocity jump in global coords E&M Eq. (N.1.11b)
             dv = dv + s*s_dir
