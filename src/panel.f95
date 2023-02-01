@@ -510,6 +510,9 @@ contains
         ! Store order
         this%order = order
 
+        ! A higher-order panel with 3 discontinuous edges is just a lower-order panel
+        if (this%N_discont_edges == 3 .and. this%order == 2) this%order = 1 
+
         ! Get dimension of {mu} and {sigma} (parameter space), and {M} and {S} (strength space)
         if (this%order == 1) then
             this%mu_dim = 3
@@ -568,20 +571,16 @@ contains
             ! Allocate space
             allocate(this%i_vert_d(this%M_dim*2))
 
+            ! Get top and bottom vertices on panel
+            do i=1,this%N
+                this%i_vert_d(i) = this%vertices(i)%ptr%top_parent
+                this%i_vert_d(i+this%M_dim) = this%vertices(i)%ptr%bot_parent
+            end do
+
             if (this%order == 2) then
 
-                ! Wake panels are influenced by two sets of vertices
+                ! Get neighbors
                 do i=1,this%N
-                    this%i_vert_d(i) = this%vertices(i)%ptr%top_parent
-                    this%i_vert_d(i+this%M_dim) = this%vertices(i)%ptr%bot_parent
-                end do
-
-            else
-
-                ! Wake panels are influenced by two sets of vertices
-                do i=1,this%N
-                    this%i_vert_d(i) = this%vertices(i)%ptr%top_parent
-                    this%i_vert_d(i+this%M_dim) = this%vertices(i)%ptr%bot_parent
                 end do
 
             end if
@@ -622,7 +621,7 @@ contains
         type(panel),dimension(:),allocatable,intent(in) :: body_panels
         type(vertex),dimension(:),allocatable,intent(in) :: body_verts
 
-        real,dimension(:,:),allocatable :: S_mu, S_sigma, SS_inv, R_mat, A_mat, RSA_inv
+        real,dimension(:,:),allocatable :: S_mu, S_sigma, SS_inv, A_mat, SA_inv
         integer :: i, i_edge_1, i_edge_2
         real,dimension(3) :: P_g, P_ls
         real :: r, r_inv
@@ -634,7 +633,7 @@ contains
         allocate(S_mu(this%M_dim, this%mu_dim))
         allocate(this%S_mu_inv(this%mu_dim, this%M_dim))
 
-        ! Set up S_mu
+        ! Set up S_mu (maps from {mu} to {M})
 
         ! Constant
         S_mu(:,1) = 1.
@@ -644,7 +643,7 @@ contains
         S_mu(1:3,3) = this%vertices_ls(2,:)
 
         ! Add in quadratic contributions
-        if (this%order == 2 .and. this%N_discont_edges < 3) then
+        if (this%order == 2) then
 
             ! x and y from neighbors
             do i=4,this%M_dim
@@ -655,13 +654,13 @@ contains
             end do
 
             ! x^2
-            S_mu(:,4) = S_mu(:,2)**2*0.5
+            S_mu(:,4) = 0.5*S_mu(:,2)**2
 
             ! xy
             S_mu(:,5) = S_mu(:,2)*S_mu(:,3)
 
             ! y^2
-            S_mu(:,6) = S_mu(:,3)**2*0.5
+            S_mu(:,6) = 0.5*S_mu(:,3)**2
 
         end if
 
@@ -693,10 +692,8 @@ contains
 
             ! Initialize A and R matrices
             allocate(A_mat(6,5), source=0.)
-            allocate(R_mat(5,6), source=0.)
             do i=1,3
                 A_mat(i,i) = 1.
-                R_mat(i,i) = 1.
             end do
 
             ! Add in replacement for mu_xx
@@ -713,10 +710,6 @@ contains
                 A_mat(5,4) = 1.
                 A_mat(6,5) = 1.
 
-                ! Finish setting up R
-                R_mat(4,5) = 1.
-                R_mat(5,6) = 1.
-
             else
 
                 ! Calculate ratio
@@ -730,23 +723,19 @@ contains
                 A_mat(4,4) = 1.
                 A_mat(5,5) = 1.
 
-                ! Finish setting up R
-                R_mat(4,4) = 1.
-                R_mat(5,4) = 1.
-
             end if
 
             ! Calculate S_mu_inv
-            allocate(RSA_inv(this%M_dim,this%M_dim))
-            call matinv(this%M_dim, matmul(S_mu, A_mat), RSA_inv)
-            this%S_mu_inv = matmul(A_mat, RSA_inv)
+            allocate(SA_inv(this%M_dim,this%M_dim))
+            call matinv(this%M_dim, matmul(S_mu, A_mat), SA_inv)
+            this%S_mu_inv = matmul(A_mat, SA_inv)
 
         end if
 
         ! Sources
 
         ! Linear (not needed for constant-strength source panels)
-        if (this%S_dim > 1) then
+        if (this%order == 2) then
 
             ! Allocate space
             allocate(S_sigma(this%S_dim, this%sigma_dim))
@@ -779,6 +768,25 @@ contains
 
             ! Two discontinuous edges
             case (2)
+
+                ! Build A matrix
+                deallocate(A_mat)
+                allocate(A_mat(this%sigma_dim, this%S_dim), source=0.)
+                A_mat(1,1) = 1.
+
+                ! Determine which parameter to eliminate
+                if (abs(P_ls(1)) > abs(P_ls(2))) then
+                    A_mat(2,2) = 1.
+                    A_mat(3,2) = P_ls(2)/P_ls(1)
+                else
+                    A_mat(2,2) = P_ls(1)/P_ls(2)
+                    A_mat(3,2) = 1.
+                end if
+
+                ! Get inverse
+                allocate(SA_inv(this%S_dim,this%S_dim))
+                call matinv(this%S_dim, matmul(S_sigma, A_mat), SA_inv)
+                this%S_sigma_inv = matmul(A_mat, SA_inv)
 
             end select
 

@@ -14,7 +14,7 @@
         }
     },
     "solver" : {
-        "formulation" : "morino",
+        "formulation" : "source-free",
         "control_point_offset" : 1.0e-5,
         "matrix_solver" : "BJAC",
         "tolerance" : 1.e-12,
