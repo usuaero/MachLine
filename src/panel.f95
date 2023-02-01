@@ -2185,7 +2185,7 @@ contains
         int%hH113 = sign(int%hH113, geom%h)
 
         ! Calculate H(1,1,1)
-        if (this%has_sources) int%H111 = -geom%h*int%hH113 + sum(geom%a*int%F111)
+        int%H111 = -geom%h*int%hH113 + sum(geom%a*int%F111)
 
         ! Calculate H(2,1,3) and H(1,2,3)
         int%H213 = -sum(geom%v_xi*int%F111)
@@ -2283,7 +2283,7 @@ contains
         end do
 
         ! Calculate H(1,1,1)
-        if (this%has_sources) int%H111 = -geom%h*int%hH113 + sum(geom%a*int%F111)
+        int%H111 = -geom%h*int%hH113 + sum(geom%a*int%F111)
 
         ! Calculate H(2,1,3) and H(1,2,3)
         int%H213 = sum(geom%v_xi*int%F111)
@@ -2373,7 +2373,7 @@ contains
         end do
 
         ! Calculate H(1,1,1)
-        if (this%has_sources) int%H111 = geom%h*int%hH113 - sum(geom%a*int%F111)
+        int%H111 = geom%h*int%hH113 - sum(geom%a*int%F111)
 
         ! Calculate H(2,1,3) and H(1,2,3)
         int%H213 = sum(geom%v_xi*int%F111)
@@ -2581,16 +2581,12 @@ contains
             phi_d_mu_space(2) = int%hH113*geom%P_ls(1) + geom%h*int%H213
             phi_d_mu_space(3) = int%hH113*geom%P_ls(2) + geom%h*int%H123
 
+            ! Add quadratic terms
             if (this%order == 2) then
-
-                ! Add quadratic terms
                 phi_d_mu_space(4) = 0.5*int%hH113*geom%P_ls(1)**2 + geom%h*(geom%P_ls(1)*int%H213 + 0.5*int%H313)
-
                 phi_d_mu_space(5) = int%hH113*geom%P_ls(1)*geom%P_ls(2) &
                                     + geom%h*(geom%P_ls(2)*int%H213 + geom%P_ls(1)*int%H123 + int%H223)
-
                 phi_d_mu_space(6) = 0.5*int%hH113*geom%P_ls(2)**2 + geom%h*(geom%P_ls(2)*int%H123 + 0.5*int%H133)
-
             end if
 
             ! Convert to strength influences (Davis Eq. (4.41))
