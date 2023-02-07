@@ -14,12 +14,13 @@
         }
     },
     "solver" : {
-        "formulation" : "source-free",
+        "formulation" : "morino",
         "control_point_offset" : 1.0e-5,
         "matrix_solver" : "BJAC",
         "tolerance" : 1.e-12,
         "relaxation" : 0.8,
         "block_size" : 200,
+        "run_checks" : true,
         "write_A_and_bx" : true
     },
     "post_processing" : {

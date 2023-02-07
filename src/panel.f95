@@ -621,17 +621,14 @@ contains
         type(panel),dimension(:),allocatable,intent(in) :: body_panels
         type(vertex),dimension(:),allocatable,intent(in) :: body_verts
 
-        real,dimension(:,:),allocatable :: S_mu, S_sigma, SS_inv, A_mat, SA_inv
-        integer :: i, i_edge_1, i_edge_2, j, k
+        real,dimension(:,:),allocatable :: S_mu, S_sigma, SS_inv, A_mat, S_inv, M_mat, SA_inv
+        integer :: i, i_next, j
         real,dimension(3) :: P_g, P_ls
-        real :: r, r_inv, t_x_1, t_y_1, t_x_2, t_y_2
-        integer :: eliminate_first, eliminate_second
-        logical :: found_first
 
         ! Doublets
 
         ! Allocate space
-        allocate(S_mu(this%M_dim, this%mu_dim))
+        allocate(S_mu(this%mu_dim, this%mu_dim))
         allocate(this%S_mu_inv(this%mu_dim, this%M_dim))
 
         ! Set up S_mu (maps from {mu} to {M})
@@ -646,13 +643,9 @@ contains
         ! Add in quadratic contributions
         if (this%order == 2) then
 
-            ! x and y from neighbors
-            do i=4,this%M_dim
-                P_g = body_verts(this%i_vert_d(i))%loc
-                P_ls = matmul(this%A_g_to_ls, P_g - this%centr)
-                S_mu(i,2) = P_ls(1)
-                S_mu(i,3) = P_ls(2)
-            end do
+            ! x and y from edge midpoints
+            S_mu(4:6,2) = 0.5*(S_mu(1:3,2) + cshift(S_mu(1:3,2), 1))
+            S_mu(4:6,3) = 0.5*(S_mu(1:3,3) + cshift(S_mu(1:3,3), 1))
 
             ! x^2
             S_mu(:,4) = 0.5*S_mu(:,2)**2
@@ -665,142 +658,52 @@ contains
 
         end if
 
-        ! When there are no discontinuous edges or all discontinuous edges, then we simply invert S_mu
-        if (this%M_dim == 3 .or. this%M_dim == 6) then
+        ! Invert S_mu
+        allocate(S_inv(this%mu_dim, this%mu_dim))
+        call matinv(this%mu_dim, S_mu, S_inv)
 
-            ! Invert
-            call matinv(this%M_dim, S_mu, this%S_mu_inv)
+        ! For a linear distribution, that's all that's needed
+        if (this%order == 1) then
 
-        ! Otherwise, we have to account for the discontinuous edges
+            this%S_mu_inv = S_inv
+
+        ! For a quadratic distribution, we need to build the M matrix as well
         else
 
-            ! Figure out which edge(s) is(are) discontinuous
-            found_first = .false.
+            ! Allocate
+            allocate(M_mat(this%mu_dim, this%M_dim), source=0.)
 
-            ! Loop through edges
+            ! Upper-left identity
             do i=1,3
-                
-                ! Check if this edge is discontinuous
+                M_mat(i,i) = 1.
+            end do
+
+            ! Loop through edges to skip discontinuous edges
+            j = 4
+            do i=1,3
+
+                ! If the edge is discontinuous, then the midpoint strength is simply the average of the endpoint strengths
                 if (this%edge_is_discontinuous(i)) then
 
-                    ! Second edge
-                    if (found_first) then
-                        i_edge_2 = i
+                    ! Average of neighboring vertices
+                    M_mat(i+3,i) = 0.5
+                    M_mat(i+3,modulo(i,3)+1) = 0.5
 
-                    ! First edge
-                    else
-                        i_edge_1 = i
-                        found_first = .true.
+                ! If the edge is not discontinuous, then the midpoint strength is influenced by the opposing vertex strengths as well
+                else
 
-                        ! Skip the rest if this is the only one
-                        if (this%N_discont_edges == 1) exit
+                    ! Average of four surrounding vertices
+                    M_mat(i+3,1:3) = 0.3
+                    M_mat(i+3,j) = 0.1
 
-                    end if
+                    ! Increment column
+                    j = j + 1
+
                 end if
             end do
 
-            ! Decide which edge to use first if there are more than one
-            if (this%N_discont_edges > 1) then
-            end if
-
-            ! Extract vector components; note we're converting the outward normal back to the tangent here
-            t_x_1 = -this%n_hat_ls(2,i_edge_1)
-            t_y_1 = this%n_hat_ls(1,i_edge_1)
-            if (this%N_discont_edges > 1) then
-                t_x_2 = -this%n_hat_ls(2,i_edge_2)
-                t_y_2 = this%n_hat_ls(1,i_edge_2)
-            end if
-
-            ! Pick which parameter it is we want to eliminate first; we never choose to eliminate mu_xy first
-            if (abs(t_x_1) < abs(t_y_1)) then
-                eliminate_first = 6 ! mu_yy
-            else
-                eliminate_first = 4 ! mu_xx
-            end if
-
-            ! Initialize A and R matrices
-            allocate(A_mat(6,5), source=0.)
-            do i=1,3
-                A_mat(i,i) = 1.
-            end do
-
-            ! Perform first elimination
-            select case (eliminate_first)
-
-            case (4) ! Eliminate mu_xx
-
-                ! Calculate ratio
-                r = t_y_1/t_x_1
-
-                ! Calculate replacement
-                A_mat(4,4) = -2.*r
-                A_mat(4,5) = -r*r
-
-                ! Keep mu_xy and my_yy
-                A_mat(5,4) = 1.
-                A_mat(6,5) = 1.
-
-            case (6) ! Eliminate mu_yy
-
-                ! Calculate ratio
-                r_inv = t_x_1/t_y_1
-
-                ! Calculate replacement
-                A_mat(6,4) = -r_inv*r_inv
-                A_mat(6,5) = -2.*r_inv
-
-                ! Keep mu_xx and my_xy
-                A_mat(4,4) = 1.
-                A_mat(5,5) = 1.
-
-            end select
-
-            ! Calculate S_mu_inv
-            allocate(SA_inv(this%M_dim, this%M_dim))
-            call matinv(this%M_dim, matmul(S_mu, A_mat), SA_inv)
-
-            !write(*,*) "SA^-1"
-            !do i=1,5
-            !    write(*,*) SA_inv(i,:)
-            !end do
-
-            this%S_mu_inv = matmul(A_mat, SA_inv)
-            outer_loop: do j=1,6
-                do k=1,5
-                    if (isnan(this%S_mu_inv(j,k))) then
-
-                        write(*,*)
-                        write(*,*)
-                        write(*,*) "A"
-                        do i=1,6
-                            write(*,*) A_mat(i,:)
-                        end do
-
-                        write(*,*) "S_mu"
-                        do i=1,5
-                            write(*,*) S_mu(i,:)
-                        end do
-
-                        write(*,*) "SA^-1"
-                        do i=1,5
-                            write(*,*) SA_inv(i,:)
-                        end do
-
-                        SA_inv = matmul(S_mu, A_mat)
-                        write(*,*) "SA"
-                        do i=1,5
-                            write(*,*) SA_inv(i,:)
-                        end do
-
-                        write(*,*) "S_mu^-1"
-                        do i=1,6
-                            write(*,*) this%S_mu_inv(i,:)
-                        end do
-
-                        exit outer_loop
-                    end if
-                end do
-            end do outer_loop
+            ! Calculate transformation
+            this%S_mu_inv = matmul(S_inv, M_mat)
 
         end if
 
