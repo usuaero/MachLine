@@ -622,10 +622,11 @@ contains
         type(vertex),dimension(:),allocatable,intent(in) :: body_verts
 
         real,dimension(:,:),allocatable :: S_mu, S_sigma, SS_inv, A_mat, SA_inv
-        integer :: i, i_edge_1, i_edge_2
+        integer :: i, i_edge_1, i_edge_2, j, k
         real,dimension(3) :: P_g, P_ls
-        real :: r, r_inv
-        logical :: eliminate_xx, eliminate_yy, eliminate_xy
+        real :: r, r_inv, t_x_1, t_y_1, t_x_2, t_y_2
+        integer :: eliminate_first, eliminate_second
+        logical :: found_first
 
         ! Doublets
 
@@ -670,24 +671,51 @@ contains
             ! Invert
             call matinv(this%M_dim, S_mu, this%S_mu_inv)
 
-        ! Otherwise, we have to account for the discontinuities
-        else if (this%N_discont_edges == 1) then
+        ! Otherwise, we have to account for the discontinuous edges
+        else
 
-            ! Figure out which edge it is
+            ! Figure out which edge(s) is(are) discontinuous
+            found_first = .false.
+
+            ! Loop through edges
             do i=1,3
+                
+                ! Check if this edge is discontinuous
                 if (this%edge_is_discontinuous(i)) then
-                    i_edge_1 = i
-                    exit
+
+                    ! Second edge
+                    if (found_first) then
+                        i_edge_2 = i
+
+                    ! First edge
+                    else
+                        i_edge_1 = i
+                        found_first = .true.
+
+                        ! Skip the rest if this is the only one
+                        if (this%N_discont_edges == 1) exit
+
+                    end if
                 end if
             end do
 
-            ! Pick which parameter it is we want to eliminate
-            if (abs(this%n_hat_ls(1,i_edge_1)) < abs(this%n_hat_ls(2,i_edge_1))) then
-                eliminate_yy = .true.
-                eliminate_xx = .false.
+            ! Decide which edge to use first if there are more than one
+            if (this%N_discont_edges > 1) then
+            end if
+
+            ! Extract vector components; note we're converting the outward normal back to the tangent here
+            t_x_1 = -this%n_hat_ls(2,i_edge_1)
+            t_y_1 = this%n_hat_ls(1,i_edge_1)
+            if (this%N_discont_edges > 1) then
+                t_x_2 = -this%n_hat_ls(2,i_edge_2)
+                t_y_2 = this%n_hat_ls(1,i_edge_2)
+            end if
+
+            ! Pick which parameter it is we want to eliminate first; we never choose to eliminate mu_xy first
+            if (abs(t_x_1) < abs(t_y_1)) then
+                eliminate_first = 6 ! mu_yy
             else
-                eliminate_xx = .true.
-                eliminate_yy = .false.
+                eliminate_first = 4 ! mu_xx
             end if
 
             ! Initialize A and R matrices
@@ -696,11 +724,13 @@ contains
                 A_mat(i,i) = 1.
             end do
 
-            ! Add in replacement for mu_xx
-            if (eliminate_xx) then
+            ! Perform first elimination
+            select case (eliminate_first)
+
+            case (4) ! Eliminate mu_xx
 
                 ! Calculate ratio
-                r = this%n_hat_ls(2,i_edge_1)/this%n_hat_ls(1,i_edge_1)
+                r = t_y_1/t_x_1
 
                 ! Calculate replacement
                 A_mat(4,4) = -2.*r
@@ -710,25 +740,67 @@ contains
                 A_mat(5,4) = 1.
                 A_mat(6,5) = 1.
 
-            else
+            case (6) ! Eliminate mu_yy
 
                 ! Calculate ratio
-                r = this%n_hat_ls(1,i_edge_1)/this%n_hat_ls(2,i_edge_1)
+                r_inv = t_x_1/t_y_1
 
                 ! Calculate replacement
-                A_mat(6,4) = -r*r
-                A_mat(6,5) = -2.*r
+                A_mat(6,4) = -r_inv*r_inv
+                A_mat(6,5) = -2.*r_inv
 
                 ! Keep mu_xx and my_xy
                 A_mat(4,4) = 1.
                 A_mat(5,5) = 1.
 
-            end if
+            end select
 
             ! Calculate S_mu_inv
-            allocate(SA_inv(this%M_dim,this%M_dim))
+            allocate(SA_inv(this%M_dim, this%M_dim))
             call matinv(this%M_dim, matmul(S_mu, A_mat), SA_inv)
+
+            !write(*,*) "SA^-1"
+            !do i=1,5
+            !    write(*,*) SA_inv(i,:)
+            !end do
+
             this%S_mu_inv = matmul(A_mat, SA_inv)
+            outer_loop: do j=1,6
+                do k=1,5
+                    if (isnan(this%S_mu_inv(j,k))) then
+
+                        write(*,*)
+                        write(*,*)
+                        write(*,*) "A"
+                        do i=1,6
+                            write(*,*) A_mat(i,:)
+                        end do
+
+                        write(*,*) "S_mu"
+                        do i=1,5
+                            write(*,*) S_mu(i,:)
+                        end do
+
+                        write(*,*) "SA^-1"
+                        do i=1,5
+                            write(*,*) SA_inv(i,:)
+                        end do
+
+                        SA_inv = matmul(S_mu, A_mat)
+                        write(*,*) "SA"
+                        do i=1,5
+                            write(*,*) SA_inv(i,:)
+                        end do
+
+                        write(*,*) "S_mu^-1"
+                        do i=1,6
+                            write(*,*) this%S_mu_inv(i,:)
+                        end do
+
+                        exit outer_loop
+                    end if
+                end do
+            end do outer_loop
 
         end if
 

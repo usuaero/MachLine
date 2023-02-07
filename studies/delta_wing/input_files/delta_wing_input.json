@@ -1,8 +1,8 @@
 {
     "flow": {
         "freestream_velocity": [
-            552.630843164389,
-            104.92024383986403,
+            560.3620470172065,
+            49.02532658418638,
             0.0
         ],
         "gamma": 1.4,
@@ -30,13 +30,14 @@
             "isentropic": true,
             "slender-body": true,
             "linear": true
-        }
+        },
+        "pressure_for_forces": "second-order"
     },
     "output": {
         "verbose": true,
-        "body_file": "studies/delta_wing/results/delta_wing_10.75_deg_fine.vtk",
-        "control_point_file": "studies/delta_wing/results/delta_wing_10.75_deg_fine_control_points.vtk",
-        "wake_file": "studies/delta_wing/results/delta_wing_10.75_deg_fine_wake.vtk",
-        "report_file": "studies/delta_wing/results/delta_wing_10.75_fine.json"
+        "body_file": "studies/delta_wing/results/delta_wing_5.0_deg_fine.vtk",
+        "control_point_file": "studies/delta_wing/results/delta_wing_5.0_deg_fine_control_points.vtk",
+        "wake_file": "studies/delta_wing/results/delta_wing_5.0_deg_fine_wake.vtk",
+        "report_file": "studies/delta_wing/results/delta_wing_5.0_fine.json"
     }
 }

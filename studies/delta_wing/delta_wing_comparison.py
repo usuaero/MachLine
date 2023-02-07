@@ -17,7 +17,7 @@ def plot_pressure_slices(pressure_rule, angles_of_attack, semispan_locations):
         pressure_rule_label = "C_p_sln"
     elif pressure_rule == "linear":
         pressure_rule_label = "C_p_lin"
-    elif pressure_rule == "second order":
+    elif pressure_rule == "second-order":
         pressure_rule_label = "C_p_2nd"
     
     # Loop over angles of attack
@@ -50,13 +50,6 @@ def plot_pressure_slices(pressure_rule, angles_of_attack, semispan_locations):
             # Read in data without column headers
             data = np.genfromtxt(data_file_ml, delimiter=",", skip_header=1, dtype=float)
 
-            # Plot data from MachLine
-            plt.figure()
-            #plt.plot(data[:,x_loc]/max(data[:,x_loc]), data[:,Cp_loc], color='k', label = 'MachLine',)
-
-            # plt.plot(data[:,x_loc]/max(data[:,x_loc]), data[:,Cp_loc],color='k', label = 'MachLine', marker = "s", linestyle="none")
-            # plt.plot(experimental_data[:,0], experimental_data[:,1], color='k', marker=".", label="Experimental", linestyle="none", fillstyle="full")
-
             # pull in experimental data based on Angle of Attack
             if AoA == 0.0:
                 surf = ['']
@@ -69,8 +62,9 @@ def plot_pressure_slices(pressure_rule, angles_of_attack, semispan_locations):
             fill = ['k', 'w']
 
             # Iterate over upper and lower surface results from experimental data and plot each surface as a different marker
+            plt.figure()
             for i, surface in enumerate(surf):
-                surf_label = "Experimental " + surface[1:].title()
+                surf_label = "Exp. " + surface[1:].title()
                 
                 data_file_exp = "studies/delta_wing/experimental_data/delta_wing_exp_{0}_deg_aoa_{1}_semispan{2}.csv".format(AoA,semi,surface)
                 experimental_data = np.genfromtxt(data_file_exp, delimiter=",", dtype=float) # x in column 0, Cp in column 1 from Love, page 57
@@ -83,16 +77,16 @@ def plot_pressure_slices(pressure_rule, angles_of_attack, semispan_locations):
                 theory_loc = "studies/delta_wing/experimental_data/delta_wing_exp_theory_0.0_deg_aoa_{0}_semispan.csv".format(semi)
                 theory_data = np.genfromtxt(theory_loc, delimiter=",", dtype=float)
 
-                plt.plot(theory_data[:,0], theory_data[:,1], 'k:', label="Theory")
+                plt.plot(theory_data[:,0], theory_data[:,1], 'k:', label="Love-Hayes")
             
             # Differentiate between the upper and lower surfaces of MachLine's results
             half = round(len(data[:,x_loc])/2)
 
             # Plot upper surface
-            plt.plot(data[0:half,x_loc]/max(data[:,x_loc]), data[:half,Cp_loc], 'k-', label='MachLine Upper')
+            plt.plot(data[0:half,x_loc]/max(data[:,x_loc]), data[:half,Cp_loc], 'k-', label='ML Upper')
             
             # Plot lower surface
-            plt.plot(data[half::,x_loc]/max(data[:,x_loc]), data[half:,Cp_loc], 'k--', label = 'MachLine Lower')
+            plt.plot(data[half::,x_loc]/max(data[:,x_loc]), data[half:,Cp_loc], 'k--', label = 'ML Lower')
 
             # Format plot
             plt.xlabel("$\\frac{x}{c_r}$")
@@ -144,9 +138,9 @@ def plot_force_convergence_over_AoA(AoA_list, M, densities):
         json_string = open(results_loc).read()
         json_vals = json.loads(json_string) 
 
-        loc = json_vals['total_forces']
-        CD_coarse.append(loc['Cx'] * np.cos(AoA*np.pi/180) + loc['Cy'] * np.sin(AoA*np.pi/180))
-        CL_coarse.append(-loc['Cx'] * np.sin(AoA*np.pi/180) + loc['Cy'] * np.cos(AoA*np.pi/180))
+        force_coefs = json_vals['total_forces']
+        CD_coarse.append(force_coefs['Cx'] * np.cos(AoA*np.pi/180) + force_coefs['Cy'] * np.sin(AoA*np.pi/180))
+        CL_coarse.append(-force_coefs['Cx'] * np.sin(AoA*np.pi/180) + force_coefs['Cy'] * np.cos(AoA*np.pi/180))
 
     # Results for semi_fine mesh
     for AoA in AoA_list:
@@ -156,9 +150,9 @@ def plot_force_convergence_over_AoA(AoA_list, M, densities):
         json_string = open(results_loc).read()
         json_vals = json.loads(json_string) 
 
-        loc = json_vals['total_forces']
-        CD_semi_fine.append(loc['Cx'] * np.cos(AoA*np.pi/180) + loc['Cy'] * np.sin(AoA*np.pi/180))
-        CL_semi_fine.append(-loc['Cx'] * np.sin(AoA*np.pi/180) + loc['Cy'] * np.cos(AoA*np.pi/180))
+        force_coefs = json_vals['total_forces']
+        CD_semi_fine.append(force_coefs['Cx'] * np.cos(AoA*np.pi/180) + force_coefs['Cy'] * np.sin(AoA*np.pi/180))
+        CL_semi_fine.append(-force_coefs['Cx'] * np.sin(AoA*np.pi/180) + force_coefs['Cy'] * np.cos(AoA*np.pi/180))
 
 
     # Results for fine mesh
@@ -169,9 +163,9 @@ def plot_force_convergence_over_AoA(AoA_list, M, densities):
         json_string = open(results_loc).read()
         json_vals = json.loads(json_string) 
 
-        loc = json_vals['total_forces']
-        CD_fine.append(loc['Cx'] * np.cos(AoA*np.pi/180) + loc['Cy'] * np.sin(AoA*np.pi/180))
-        CL_fine.append(-loc['Cx'] * np.sin(AoA*np.pi/180) + loc['Cy'] * np.cos(AoA*np.pi/180))
+        force_coefs = json_vals['total_forces']
+        CD_fine.append(force_coefs['Cx'] * np.cos(AoA*np.pi/180) + force_coefs['Cy'] * np.sin(AoA*np.pi/180))
+        CL_fine.append(-force_coefs['Cx'] * np.sin(AoA*np.pi/180) + force_coefs['Cy'] * np.cos(AoA*np.pi/180))
     
     
     # Plot results against experimental data
@@ -235,7 +229,6 @@ def plot_force_AoA(AoA_list, M):
     # Pull in CPanel data to compare against
     CPanel_CD_loc = 'studies/delta_wing/experimental_data/Davis_CPanel_CD.csv'
     CPanel_CL_loc = 'studies/delta_wing/experimental_data/Davis_CPanel_CL.csv'
-
     CPanel_CD = np.genfromtxt(CPanel_CD_loc, delimiter=',')
     CPanel_CL = np.genfromtxt(CPanel_CL_loc, delimiter=',')
 
@@ -249,15 +242,18 @@ def plot_force_AoA(AoA_list, M):
 
     # Results for fine mesh
     for AoA in AoA_list:
-        results_loc = 'studies/delta_wing/results/delta_wing_{0}_fine.json'.format(AoA)
 
         # Pull MachLine force data
-        json_string = open(results_loc).read()
-        json_vals = json.loads(json_string) 
+        results_loc = 'studies/delta_wing/results/delta_wing_{0}_fine.json'.format(AoA)
+        with open(results_loc) as report_handle:
+            report_dict = json.load(report_handle)
 
-        loc = json_vals['total_forces']
-        CD_fine.append(loc['Cx'] * np.cos(AoA*np.pi/180) + loc['Cy'] * np.sin(AoA*np.pi/180))
-        CL_fine.append(-loc['Cx'] * np.sin(AoA*np.pi/180) + loc['Cy'] * np.cos(AoA*np.pi/180))
+        force_coefs = report_dict['total_forces']
+        CD_fine.append(force_coefs['Cx'] * np.cos(AoA*np.pi/180) + force_coefs['Cy'] * np.sin(AoA*np.pi/180))
+        CL_fine.append(-force_coefs['Cx'] * np.sin(AoA*np.pi/180) + force_coefs['Cy'] * np.cos(AoA*np.pi/180))
+
+        # Get which pressure rule was used for the forces
+        pressure_for_forces = report_dict["input"]["post_processing"].get('pressure_for_forces', 'isentropic')
     
     # Plot results against experimental data
 
@@ -266,12 +262,11 @@ def plot_force_AoA(AoA_list, M):
     plt.plot(AoA_list, CD_fine, 'ko', label="MachLine", markersize=3)
     plt.plot(CD_exp[:,0], CD_exp[:,1], 'ks', label='Experiment', markersize=3)
     plt.plot(CPanel_CD[:,0], CPanel_CD[:,1], 'kv', label='CPanel', markersize=3)
-
     plt.legend()
     plt.xlabel('$\\alpha [^\circ]$')
     plt.ylabel('$C_D$')
     plt.ylim(bottom=0.0)
-    plot_loc = 'studies/delta_wing/plots/delta_wing_CD_comparison.pdf'
+    plot_loc = 'studies/delta_wing/plots/delta_wing_CD_comparison_{0}.pdf'.format(pressure_for_forces)
     plt.savefig(plot_loc)
     plt.close()
 
@@ -283,7 +278,7 @@ def plot_force_AoA(AoA_list, M):
     plt.legend()
     plt.xlabel('$\\alpha [^\circ]$')
     plt.ylabel('$C_L$')
-    plot_loc = 'studies/delta_wing/plots/delta_wing_CL_comparison.pdf'
+    plot_loc = 'studies/delta_wing/plots/delta_wing_CL_comparison_{0}.pdf'.format(pressure_for_forces)
     plt.savefig(plot_loc)
     plt.close()
 
@@ -362,7 +357,7 @@ def run_pressure_distribution_comparison(run_machline=False):
             pvs.SaveData(save_loc, proxy=plot, CellDataArrays=data_to_process, FieldAssociation='Point Data')
 
     # Plot pressure rule method over a range of angles of attack at each semispan location
-    pressure_rule = "isentropic" # isentropic, second order, slender-body, or linear
+    pressure_rule = "isentropic" # isentropic, second-order, slender-body, or linear
     plot_pressure_slices(pressure_rule, angles_of_attack, semispan_loc)
 
 
@@ -431,7 +426,7 @@ def run_machline_cases(angles_of_attack, mesh_type, M, c_inf, mesh_density, mesh
                     "slender-body" : True,
                     "linear" : True
                 },
-                # "pressure_for_forces" : 'slender-body'
+                "pressure_for_forces" : 'second-order'
             },
             "output" : {
                 "verbose": True,
