@@ -621,7 +621,8 @@ contains
         type(panel),dimension(:),allocatable,intent(in) :: body_panels
         type(vertex),dimension(:),allocatable,intent(in) :: body_verts
 
-        real,dimension(:,:),allocatable :: S_mu, S_sigma, SS_inv, A_mat, S_inv, M_mat, SA_inv
+        real,dimension(:,:),allocatable :: S_mu, S_sigma, SS_inv, A_mat, S_inv, M_mat, SA_inv, E_mat, EE_inv
+        real,dimension(:),allocatable :: M_row
         integer :: i, i_next, j
         real,dimension(3) :: P_g, P_ls
 
@@ -664,19 +665,24 @@ contains
 
         ! For a linear distribution, that's all that's needed
         if (this%order == 1) then
-
             this%S_mu_inv = S_inv
 
         ! For a quadratic distribution, we need to build the M matrix as well
         else
 
-            ! Allocate
+            ! Allocate necessary matrices
             allocate(M_mat(this%mu_dim, this%M_dim), source=0.)
+            allocate(M_row(4))
+            allocate(EE_inv(4,4))
 
             ! Upper-left identity
             do i=1,3
                 M_mat(i,i) = 1.
             end do
+
+            ! Initialize E matrix
+            allocate(E_mat(4, this%mu_dim), source=0.)
+            E_mat(1:3,:) = S_mu(1:3,:)
 
             ! Loop through edges to skip discontinuous edges
             j = 4
@@ -689,12 +695,28 @@ contains
                     M_mat(i+3,i) = 0.5
                     M_mat(i+3,modulo(i,3)+1) = 0.5
 
-                ! If the edge is not discontinuous, then the midpoint strength is influenced by the opposing vertex strengths as well
+                ! If the edge is not discontinuous, then build up the underdetermined least-squares fit
                 else
 
-                    ! Average of four surrounding vertices
-                    M_mat(i+3,1:3) = 0.3
-                    M_mat(i+3,j) = 0.1
+                    ! Get opposite vertex location
+                    P_g = body_verts(this%i_vert_d(j))%loc
+                    P_ls = matmul(this%A_g_to_ls, P_g - this%centr)
+
+                    ! Add to E matrix
+                    E_mat(4,1) = 1.
+                    E_mat(4,2) = P_ls(1)
+                    E_mat(4,3) = P_ls(2)
+                    E_mat(4,4) = 0.5*P_ls(1)**2
+                    E_mat(4,5) = P_ls(1)*P_ls(2)
+                    E_mat(4,6) = 0.5*P_ls(2)**2
+
+                    ! Create pseudoinverse
+                    call matinv(4, matmul(E_mat, transpose(E_mat)), EE_inv)
+
+                    ! Add to M matrix
+                    M_row = matmul(S_mu(i+3,:), matmul(transpose(E_mat), EE_inv))
+                    M_mat(i+3,1:3) = M_row(1:3)
+                    M_mat(i+3,j) = M_row(4)
 
                     ! Increment column
                     j = j + 1
