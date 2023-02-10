@@ -767,7 +767,7 @@ contains
             case (2)
 
                 ! Build A matrix
-                deallocate(A_mat)
+                if (allocated(A_mat)) deallocate(A_mat)
                 allocate(A_mat(this%sigma_dim, this%S_dim), source=0.)
                 A_mat(1,1) = 1.
 
