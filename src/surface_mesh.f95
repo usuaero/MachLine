@@ -766,7 +766,8 @@ contains
 
         !$OMP parallel do schedule(static)
         do i=1,this%N_panels
-            call this%panels(i)%set_distribution(this%initial_panel_order, this%panels, this%vertices, this%edges, this%mirrored)
+            call this%panels(i)%set_distribution(this%initial_panel_order, this%panels, &
+                                                 this%vertices, this%mirrored, this%mirror_plane)
         end do
         
         if (verbose) write(*,*) "Done."
@@ -854,8 +855,22 @@ contains
             i = this%edges(k)%panels(1)
             j = this%edges(k)%panels(2)
 
-            ! Skip edge on empty space
-            if (j == 0) cycle
+            ! Check for edge on empty space, as this will definitely be discontinuous
+            if (j == 0) then
+
+                ! Mark as discontinuous
+                this%edges(k)%discontinuous = .true.
+
+                ! Store for panel
+                !$OMP critical
+                this%panels(this%edges(k)%panels(1))%N_discont_edges = this%panels(this%edges(k)%panels(1))%N_discont_edges + 1
+                this%panels(this%edges(k)%panels(1))%edge_is_discontinuous(this%edges(k)%edge_index_for_panel(1)) = .true.
+                !$OMP end critical
+
+                ! Skip the rest
+                cycle
+
+            end if
 
             ! Get normal for panel j (dependent on mirroring)
             if (this%edges(k)%on_mirror_plane) then
@@ -1874,14 +1889,13 @@ contains
     end subroutine surface_mesh_get_induced_potentials_at_point
 
 
-    subroutine surface_mesh_output_results(this, body_file, wake_file, control_point_file, mirrored_body_file, &
-                                           mirrored_control_point_file)
+    subroutine surface_mesh_output_results(this, body_file, wake_file, control_point_file, mirrored_body_file)
 
         implicit none
 
         class(surface_mesh),intent(inout) :: this
         character(len=:),allocatable,intent(in) :: body_file, wake_file, control_point_file
-        character(len=:),allocatable,intent(in) :: mirrored_body_file, mirrored_control_point_file
+        character(len=:),allocatable,intent(in) :: mirrored_body_file
 
         logical :: wake_exported
 

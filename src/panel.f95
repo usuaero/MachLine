@@ -493,7 +493,7 @@ contains
     end subroutine panel_calc_ls_edge_vectors
 
 
-    subroutine panel_set_distribution(this, order, body_panels, body_verts, body_edges, mirrored)
+    subroutine panel_set_distribution(this, order, body_panels, body_verts, mirrored, mirror_plane)
         ! Sets up the singularity distribution for this panel
 
         implicit none
@@ -502,8 +502,8 @@ contains
         integer,intent(in) :: order
         type(panel),dimension(:),allocatable,intent(in) :: body_panels
         type(vertex),dimension(:),allocatable,intent(in) :: body_verts
-        type(edge),dimension(:),allocatable,intent(in),optional :: body_edges
-        logical,intent(in),optional :: mirrored
+        logical,intent(in) :: mirrored
+        integer,intent(in) :: mirror_plane
 
         integer :: i
 
@@ -527,24 +527,27 @@ contains
         end if
 
         ! Set up influencing verts
-        call this%set_influencing_verts(body_panels)
+        call this%set_influencing_verts(body_panels, size(body_verts))
 
         ! Set up strength-parameter matrices
-        call this%calc_singularity_matrices(body_panels, body_verts)
-        if (present(mirrored)) then
-            if (mirrored) call this%calc_mirrored_singularity_matrices(body_verts)
+        call this%calc_singularity_matrices(body_panels, body_verts, mirror_plane)
+        if (mirrored) then
+            if (mirrored) call this%calc_mirrored_singularity_matrices(body_panels, body_verts, mirror_plane)
         end if
         
     end subroutine panel_set_distribution
 
 
-    subroutine panel_set_influencing_verts(this, body_panels)
+    subroutine panel_set_influencing_verts(this, body_panels, N_body_verts)
         ! Sets up the arrays of vertex indices which set the influence for this panel
 
         class(panel),intent(inout) :: this
         type(panel),dimension(:),allocatable,intent(in) :: body_panels
+        integer,intent(in) :: N_body_verts
 
-        integer :: i, j
+        integer :: i, j, N_body_panels
+
+        N_body_panels = size(body_panels)
 
         ! Source
         allocate(this%i_panel_s(this%S_dim))
@@ -599,9 +602,20 @@ contains
             if (this%order == 2) then
                 j = 4
                 do i=1,this%N
-                    if (.not. this%edge_is_discontinuous(i)) then ! Skip neighbors across discontinuous edges
-                        this%i_vert_d(j) = body_panels(this%abutting_panels(i))%get_opposite_vertex(this%get_vertex_index(i), &
-                                                                                       this%get_vertex_index(mod(i, this%N)+1))
+
+                    ! Check this edge is not discontinuous
+                    if (.not. this%edge_is_discontinuous(i)) then
+
+                        ! Check for neighbor that is a mirror
+                        if (this%abutting_panels(i) > N_body_panels) then
+                            this%i_vert_d(j) = this%get_opposite_vertex(this%get_vertex_index(i), &
+                                                                        this%get_vertex_index(mod(i, this%N)+1)) + N_body_verts
+
+                        ! Neighbor is not a mirror
+                        else
+                            this%i_vert_d(j) = body_panels(this%abutting_panels(i))%get_opposite_vertex(this%get_vertex_index(i), &
+                                                                                           this%get_vertex_index(mod(i, this%N)+1))
+                        end if
                         j = j + 1
                     end if
                 end do
@@ -612,7 +626,7 @@ contains
     end subroutine panel_set_influencing_verts
 
 
-    subroutine panel_calc_singularity_matrices(this, body_panels, body_verts)
+    subroutine panel_calc_singularity_matrices(this, body_panels, body_verts, mirror_plane)
         ! Calculates the matrices which relate the singularity strengths to the distribution parameters
 
         implicit none
@@ -620,6 +634,7 @@ contains
         class(panel),intent(inout) :: this
         type(panel),dimension(:),allocatable,intent(in) :: body_panels
         type(vertex),dimension(:),allocatable,intent(in) :: body_verts
+        integer,intent(in) :: mirror_plane
 
         real,dimension(:,:),allocatable :: S_mu, S_sigma, SS_inv, A_mat, S_inv, M_mat, SA_inv, E_mat, EE_inv
         real,dimension(:),allocatable :: M_row
@@ -699,7 +714,11 @@ contains
                 else
 
                     ! Get opposite vertex location
-                    P_g = body_verts(this%i_vert_d(j))%loc
+                    if (this%i_vert_d(j) > size(body_verts)) then
+                        P_g = mirror_across_plane(body_verts(this%i_vert_d(j)-size(body_verts))%loc, mirror_plane)
+                    else
+                        P_g = body_verts(this%i_vert_d(j))%loc
+                    end if
                     P_ls = matmul(this%A_g_to_ls, P_g - this%centr)
 
                     ! Add to E matrix
@@ -744,7 +763,11 @@ contains
 
             ! Influence of neighboring panels
             do i=2,this%S_dim
-                P_g = body_panels(this%i_panel_s(i))%centr
+                if (this%i_panel_s(i) > size(body_panels)) then
+                    P_g = mirror_across_plane(body_panels(this%i_panel_s(i)-size(body_panels))%centr, mirror_plane)
+                else
+                    P_g = body_panels(this%i_panel_s(i))%centr
+                end if
                 P_ls = matmul(this%A_g_to_ls, P_g - this%centr)
                 S_sigma(i,1) = 1.
                 S_sigma(i,2) = P_ls(1)
@@ -792,30 +815,41 @@ contains
     end subroutine panel_calc_singularity_matrices
 
 
-    subroutine panel_calc_mirrored_singularity_matrices(this, body_verts)
+    subroutine panel_calc_mirrored_singularity_matrices(this, body_panels, body_verts, mirror_plane)
 
         implicit none
 
         class(panel),intent(inout) :: this
+        type(panel),dimension(:),allocatable,intent(in) :: body_panels
         type(vertex),dimension(:),allocatable,intent(in) :: body_verts
+        integer,intent(in) :: mirror_plane
 
-        real,dimension(:,:),allocatable :: S_mu, S_sigma
+        real,dimension(:,:),allocatable :: S_mu, S_sigma, SS_inv, A_mat, S_inv, M_mat, SA_inv, E_mat, EE_inv
+        real,dimension(:),allocatable :: M_row
+        integer :: i, i_next, j
+        real,dimension(3) :: P_g, P_ls
 
-        ! Linear distribution
+        ! Doublets
+
+        ! Allocate space
+        allocate(S_mu(this%mu_dim, this%mu_dim))
+        allocate(this%S_mu_inv_mir(this%mu_dim, this%M_dim))
+
+        ! Set up S_mu (maps from {mu} to {M})
+
+        ! Constant
+        S_mu(:,1) = 1.
+
+        ! x from this panel
+        S_mu(1:3,2) = this%vertices_ls_mir(1,:)
+        S_mu(1:3,3) = this%vertices_ls_mir(2,:)
+
+        ! Add in quadratic contributions
         if (this%order == 2) then
 
-            ! Allocate influence matrix
-            allocate(S_mu(6,6))
-            allocate(this%S_mu_inv_mir(6,6))
-
-            ! Set values
-            S_mu(:,1) = 1.
-
-            ! x
-            S_mu(1:3,2) = this%vertices_ls_mir(1,:)
-
-            ! y
-            S_mu(1:3,3) = this%vertices_ls_mir(2,:)
+            ! x and y from edge midpoints
+            S_mu(4:6,2) = 0.5*(S_mu(1:3,2) + cshift(S_mu(1:3,2), 1))
+            S_mu(4:6,3) = 0.5*(S_mu(1:3,3) + cshift(S_mu(1:3,3), 1))
 
             ! x^2
             S_mu(:,4) = 0.5*S_mu(:,2)**2
@@ -826,22 +860,145 @@ contains
             ! y^2
             S_mu(:,6) = 0.5*S_mu(:,3)**2
 
-            ! Invert
-            call matinv(6, S_mu, this%S_mu_inv_mir)
+        end if
 
+        ! Invert
+        allocate(S_inv(this%mu_dim, this%mu_dim))
+        call matinv(this%mu_dim, S_mu, S_inv)
+
+        ! For a linear distribution, that's all that's needed
+        if (this%order == 1) then
+            this%S_mu_inv_mir = S_inv
+
+
+        ! For a quadratic distribution, we need to build the M matrix as well
         else
 
-            ! Allocate influence matrices
-            allocate(S_mu(3,3))
-            allocate(this%S_mu_inv_mir(3,3))
+            ! Allocate necessary matrices
+            allocate(M_mat(this%mu_dim, this%M_dim), source=0.)
+            allocate(M_row(4))
+            allocate(EE_inv(4,4))
 
-            ! Set values
-            S_mu(:,1) = 1.
-            S_mu(:,2) = this%vertices_ls_mir(1,:)
-            S_mu(:,3) = this%vertices_ls_mir(2,:)
+            ! Upper-left identity
+            do i=1,3
+                M_mat(i,i) = 1.
+            end do
+
+            ! Initialize E matrix
+            allocate(E_mat(4, this%mu_dim), source=0.)
+            E_mat(1:3,:) = S_mu(1:3,:)
+
+            ! Loop through edges to skip discontinuous edges
+            j = 4
+            do i=1,3
+
+                ! If the edge is discontinuous, then the midpoint strength is just the average of the endpoint strengths
+                if (this%edge_is_discontinuous(i)) then
+
+                    ! Average of neighboring vertices
+                    M_mat(i+3,i) = 0.5
+                    M_mat(i+3,modulo(i,3)+1) = 0.5
+
+                ! If the edge is not discontinuous, then build up the undetermined least-squares fit
+                else
+
+                    ! Get opposite vertex location
+                    if (this%i_vert_d(j) > size(body_verts)) then
+                        P_g = body_verts(this%i_vert_d(j)-size(body_verts))%loc
+                    else
+                        P_g = mirror_across_plane(body_verts(this%i_vert_d(j))%loc, mirror_plane)
+                    end if
+                    P_ls = matmul(this%A_g_to_ls_mir, P_g - this%centr_mir)
+
+                    ! Add to E matrix
+                    E_mat(4,1) = 1.
+                    E_mat(4,2) = P_ls(1)
+                    E_mat(4,3) = P_ls(2)
+                    E_mat(4,4) = 0.5*P_ls(1)**2
+                    E_mat(4,5) = P_ls(1)*P_ls(2)
+                    E_mat(4,6) = 0.5*P_ls(2)**2
+
+                    ! Create pseudoinverse
+                    call matinv(4, matmul(E_mat, transpose(E_mat)), EE_inv)
+
+                    ! Add to M matrix
+                    M_row = matmul(S_mu(i+3,:), matmul(transpose(E_mat), EE_inv))
+                    M_mat(i+3,1:3) = M_row(1:3)
+                    M_mat(i+3,j) = M_row(4)
+
+                    ! Increment column
+                    j = j + 1
+
+                end if
+
+            end do
+
+            ! Calculate transformation
+            this%S_mu_inv_mir = matmul(S_inv, M_mat)
+
+        end if
+
+        ! Sources
+
+        ! Linear (not needed for constant-strength source panels)
+        if (this%order == 2) then
+
+            ! Allocate space
+            allocate(S_sigma(this%S_dim, this%sigma_dim))
+            allocate(this%S_sigma_inv_mir(this%sigma_dim, this%S_dim))
+            allocate(SS_inv(this%sigma_dim, this%sigma_dim))
+
+            ! Influence of this panel
+            S_sigma(1,:) = (/1., 0., 0./)
+
+            ! Influence of neighboring panels
+            do i=2,this%S_dim
+                if (this%i_panel_s(i) > size(body_panels)) then
+                    P_g = body_panels(this%i_panel_s(i)-size(body_panels))%centr
+                else
+                    P_g = body_panels(this%i_panel_s(i))%centr_mir
+                end if
+                P_ls = matmul(this%A_g_to_ls_mir, P_g - this%centr_mir)
+                S_sigma(i,1) = 1.
+                S_sigma(i,2) = P_ls(1)
+                S_sigma(i,3) = P_ls(2)
+            end do
 
             ! Invert
-            call matinv(3, S_mu, this%S_mu_inv_mir)
+            select case (this%S_dim)
+
+            ! For overdetermined, do pseudoinverse using least-squares
+            case (4)
+                call matinv(3, matmul(transpose(S_sigma), S_sigma), SS_inv)
+                this%S_sigma_inv_mir = matmul(SS_inv, transpose(S_sigma))
+
+            ! For well-posed, do standard inverse
+            case (3)
+                call matinv(this%S_dim, S_sigma, this%S_sigma_inv_mir)
+
+            ! Two discontinuous edges
+            case (2)
+
+                ! Build A matrix
+                if (allocated(A_mat)) deallocate(A_mat)
+                allocate(A_mat(this%sigma_dim, this%S_dim), source=0.)
+                A_mat(1,1) = 1.
+
+                ! Determine which parameter to eliminate
+                if (abs(P_ls(1)) > abs(P_ls(2))) then
+                    A_mat(2,2) = 1.
+                    A_mat(3,2) = P_ls(2)/P_ls(1)
+                else
+                    A_mat(2,2) = P_ls(1)/P_ls(2)
+                    A_mat(3,2) = 1.
+                end if
+
+                ! Get inverse
+                allocate(SA_inv(this%S_dim, this%S_dim))
+                call matinv(this%S_dim, matmul(S_sigma, A_mat), SA_inv)
+                this%S_sigma_inv_mir = matmul(A_mat, SA_inv)
+
+            end select
 
         end if
 
@@ -2778,7 +2935,7 @@ contains
     end subroutine panel_calc_velocity_influences
 
 
-    function panel_get_source_strengths(this, sigma, mirror) result(sigma_strengths)
+    function panel_get_source_strengths(this, sigma, mirror, N_body_panels, N_body_verts) result(sigma_strengths)
         ! Returns a vector of the relevant source strengths for this panel
 
         implicit none
@@ -2786,6 +2943,7 @@ contains
         class(panel),intent(in) :: this
         real,dimension(:),allocatable,intent(in) :: sigma
         logical,intent(in) :: mirror
+        integer,intent(in) :: N_body_panels, N_body_verts
 
         real,dimension(this%S_dim) :: sigma_strengths
 
@@ -2794,17 +2952,20 @@ contains
         ! Check we're not in the wake
         if (.not. this%in_wake) then
 
-            ! Determine shift to use
-            if (mirror) then
-                shift = size(sigma)/2
-            else
-                shift = 0
-            end if
-
             ! Get strengths
             sigma_strengths = 0.
             do i=1,size(this%i_panel_s)
-                sigma_strengths(i) = sigma(this%i_panel_s(i) + shift)
+
+                ! Handle mirroring
+                if (this%i_panel_s(i) > N_body_panels) then
+                    sigma_strengths(i) = sigma(this%i_panel_s(i) - N_body_panels)
+                else
+                    if (mirror) then
+                        sigma_strengths(i) = sigma(this%i_panel_s(i) + N_body_panels)
+                    else
+                        sigma_strengths(i) = sigma(this%i_panel_s(i))
+                    end if
+                end if
             end do
 
         end if
@@ -2812,7 +2973,7 @@ contains
     end function panel_get_source_strengths
 
 
-    function panel_get_source_parameters(this, sigma, mirror) result(sigma_params)
+    function panel_get_source_parameters(this, sigma, mirror, N_body_panels, N_body_verts) result(sigma_params)
         ! Returns a vector describing the distribution of source strength across the panel surface
 
         implicit none
@@ -2820,18 +2981,23 @@ contains
         class(panel),intent(in) :: this
         real,dimension(:),allocatable,intent(in) :: sigma
         logical,intent(in) :: mirror
+        integer,intent(in) :: N_body_panels, N_body_verts
         
         real,dimension(this%sigma_dim) :: sigma_params
 
         real,dimension(this%S_dim) :: sigma_strengths
 
         ! Get strengths
-        sigma_strengths = this%get_source_strengths(sigma, mirror)
+        sigma_strengths = this%get_source_strengths(sigma, mirror, N_body_panels, N_body_verts)
 
         ! Linear sources
         if (this%sigma_dim > 1) then
 
-            sigma_params = matmul(this%S_sigma_inv, sigma_strengths)
+            if (mirror) then
+                sigma_params = matmul(this%S_sigma_inv_mir, sigma_strengths)
+            else
+                sigma_params = matmul(this%S_sigma_inv, sigma_strengths)
+            end if
 
         ! Constant sources
         else
@@ -2841,7 +3007,7 @@ contains
     end function panel_get_source_parameters
 
 
-    function panel_get_doublet_strengths(this, mu, mirror) result(mu_strengths)
+    function panel_get_doublet_strengths(this, mu, mirror, N_body_panels, N_body_verts) result(mu_strengths)
         ! Returns the relevant doublet strengths for this panel
 
         implicit none
@@ -2849,6 +3015,7 @@ contains
         class(panel),intent(in) :: this
         real,dimension(:),allocatable,intent(in) :: mu
         logical,intent(in) :: mirror
+        integer,intent(in) :: N_body_panels, N_body_verts
 
         real,dimension(this%M_dim) :: mu_strengths
 
@@ -2864,20 +3031,28 @@ contains
         ! Get doublet strengths based on parents
         if (this%in_wake) then
             do i=1,this%N
-                mu_strengths(i) = mu(this%vertices(i)%ptr%top_parent+shift) - mu(this%vertices(i)%ptr%bot_parent+shift)
+                mu_strengths(i) = mu(this%vertices(i)%ptr%top_parent + shift) - mu(this%vertices(i)%ptr%bot_parent + shift)
             end do
 
         ! Get doublet strengths at vertices
         else
             do i=1,size(this%i_vert_d)
-                mu_strengths(i) = mu(this%i_vert_d(i)+shift)
+                if (this%i_vert_d(i) > N_body_verts) then
+                    mu_strengths(i) = mu(this%i_vert_d(i) - N_body_verts)
+                else
+                    if (mirror) then
+                        mu_strengths(i) = mu(this%i_vert_d(i) + N_body_verts)
+                    else
+                        mu_strengths(i) = mu(this%i_vert_d(i))
+                    end if
+                end if
             end do
         end if
         
     end function panel_get_doublet_strengths
 
 
-    function panel_get_doublet_parameters(this, mu, mirror) result(mu_params)
+    function panel_get_doublet_parameters(this, mu, mirror, N_body_panels, N_body_verts) result(mu_params)
         ! Returns a vector describing the distribution of doublet strength across the panel surface
 
         implicit none
@@ -2885,13 +3060,14 @@ contains
         class(panel),intent(in) :: this
         real,dimension(:),allocatable,intent(in) :: mu
         logical,intent(in) :: mirror
+        integer,intent(in) :: N_body_panels, N_body_verts
 
         real,dimension(this%mu_dim) :: mu_params
 
         real,dimension(this%M_dim) :: mu_verts
 
         ! Get doublet strengths at vertices
-        mu_verts = this%get_doublet_strengths(mu, mirror)
+        mu_verts = this%get_doublet_strengths(mu, mirror, N_body_panels, N_body_verts)
 
         ! Calculate doublet parameters
         if (mirror) then
@@ -2903,7 +3079,7 @@ contains
     end function panel_get_doublet_parameters
 
 
-    function panel_get_velocity_jump(this, mu, sigma, mirrored, point) result(dv)
+    function panel_get_velocity_jump(this, mu, sigma, mirrored, point, N_body_panels, N_body_verts) result(dv)
         ! Calculates the jump in perturbation velocity across this panel in global coordinates at the given location
         ! If a location is not given, this will default to the centroid
 
@@ -2913,6 +3089,7 @@ contains
         real,dimension(:),allocatable,intent(in) :: mu, sigma
         logical,intent(in) :: mirrored
         real,dimension(3),intent(in),optional :: point
+        integer,intent(in) :: N_body_panels, N_body_verts
 
         real,dimension(3) :: dv
 

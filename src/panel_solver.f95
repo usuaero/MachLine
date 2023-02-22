@@ -63,7 +63,6 @@ module panel_solver_mod
 
             ! Post-processing
             procedure :: calc_cell_velocities => panel_solver_calc_cell_velocities
-            procedure :: calc_point_velocities => panel_solver_calc_point_velocities
             procedure :: calc_surface_potentials => panel_solver_calc_surface_potentials
             procedure :: calc_pressures => panel_solver_calc_pressures
             procedure :: subsonic_pressure_correction => panel_solver_subsonic_pressure_correction
@@ -927,9 +926,21 @@ contains
 
                 ! Need to shift indices for mirrored panels
                 if (mirrored_panel) then
-                    index = body%panels(i_panel)%i_panel_s(k) + body%N_panels
+
+                    ! Check for dependence across mirror plane
+                    if (body%panels(i_panel)%i_panel_s(k) > body%N_panels) then
+                        index = body%panels(i_panel)%i_panel_s(k) - body%N_panels
+                    else
+                        index = body%panels(i_panel)%i_panel_s(k) + body%N_panels
+                    end if
+
                 else
-                    index = body%panels(i_panel)%i_panel_s(k)
+                    ! Check for dependence across mirror plane
+                    if (body%panels(i_panel)%i_panel_s(k) > body%N_panels) then
+                        index = body%panels(i_panel)%i_panel_s(k) - body%N_panels
+                    else
+                        index = body%panels(i_panel)%i_panel_s(k)
+                    end if
                 end if
 
                 ! Add to known influences if sigma is known
@@ -952,9 +963,22 @@ contains
 
             ! Need to shift indices for mirrored panels
             if (mirrored_panel) then
-                index = body%panels(i_panel)%i_vert_d(k) + body%N_verts
+
+                ! Check for dependence across mirror plane
+                if (body%panels(i_panel)%i_vert_d(k) > body%N_verts) then
+                    index = body%panels(i_panel)%i_vert_d(k) - body%N_verts
+                else
+                    index = body%panels(i_panel)%i_vert_d(k) + body%N_verts
+                end if
+
             else
-                index = body%panels(i_panel)%i_vert_d(k)
+
+                ! Check for dependence across mirror plane
+                if (body%panels(i_panel)%i_vert_d(k) > body%N_verts) then
+                    index = body%panels(i_panel)%i_vert_d(k) - body%N_verts
+                else
+                    index = body%panels(i_panel)%i_vert_d(k)
+                end if
             end if
 
             ! Update
@@ -1412,7 +1436,7 @@ contains
         do i=1,body%N_panels
 
             ! Get velocity jump at centroid
-            v_jump = body%panels(i)%get_velocity_jump(body%mu, body%sigma, .false.)
+            v_jump = body%panels(i)%get_velocity_jump(body%mu, body%sigma, .false., body%N_panels, body%N_verts)
 
             ! Calculate velocity
             body%V_cells(:,(i-1)*N_cycle+1) = this%freestream%U*(this%inner_flow + v_jump)
@@ -1421,7 +1445,7 @@ contains
             if (body%asym_flow) then
 
                 ! Get velocity jump
-                v_jump = body%panels(i)%get_velocity_jump(body%mu, body%sigma, .true.)
+                v_jump = body%panels(i)%get_velocity_jump(body%mu, body%sigma, .true., body%N_panels, body%N_verts)
 
                 ! Calculate velocity
                 body%V_cells(:,(i-1)*N_cycle+1+this%N_cells/2) = this%freestream%U*(this%inner_flow + v_jump)
@@ -1432,103 +1456,6 @@ contains
         if (verbose) write(*,*) "Done."
 
     end subroutine panel_solver_calc_cell_velocities
-
-
-    subroutine panel_solver_calc_point_velocities(this, body)
-        ! Calculates the surface velocities the mesh vertices
-
-        implicit none
-
-        class(panel_solver),intent(inout) :: this
-        type(surface_mesh),intent(inout) :: body
-
-        integer :: i, stat, N_neighbors, j, i_panel
-        real,dimension(3) :: v_jump, loc_mir
-        real,dimension(:,:),allocatable :: Vs
-
-        if (verbose) write(*,'(a)',advance='no') "     Calculating point velocities..."
-
-        ! Allocate vertex velocity storage
-        if (body%asym_flow) then
-            allocate(body%V_verts_avg(3,2*body%N_verts), stat=stat)
-            call check_allocation(stat, "average point velocity vectors")
-            allocate(body%V_verts_std(3,2*body%N_verts), source=0., stat=stat)
-            call check_allocation(stat, "standard deviation of point velocity vectors")
-        else
-            allocate(body%V_verts_avg(3,body%N_verts), stat=stat)
-            call check_allocation(stat, "average point velocity vectors")
-            allocate(body%V_verts_std(3,body%N_verts), source=0., stat=stat)
-            call check_allocation(stat, "standard deviation of point velocity vectors")
-        end if
-
-        ! Calculate total potential on outside of mesh and quadratic-doublet velocity discrepancies
-        !$OMP parallel do private(Vs, N_neighbors, v_jump, j, i_panel, loc_mir) schedule(dynamic)
-        do i=1,body%N_verts
-
-            ! Allocate storage
-            N_neighbors = body%vertices(i)%panels_not_across_wake_edge%len()
-            allocate(Vs(3,N_neighbors))
-
-            ! Get velocities
-            do j=1,N_neighbors
-
-                ! Get panel index
-                call body%vertices(i)%panels_not_across_wake_edge%get(j, i_panel)
-
-                ! Get velocity jump at the vertex location
-                v_jump = body%panels(i_panel)%get_velocity_jump(body%mu, body%sigma, .false., body%vertices(i)%loc)
-
-                ! Store
-                Vs(:,j) = this%freestream%U*(this%inner_flow + v_jump)
-            end do
-
-            ! Calculate stats
-            body%V_verts_avg(:,i) = sum(Vs, dim=2)/N_neighbors
-            if (N_neighbors > 1) then
-                do j=1,N_neighbors
-                    body%V_verts_std(:,i) = body%V_verts_std(:,i) + (Vs(:,j) - body%V_verts_avg(:,i))**2
-                end do
-                body%V_verts_std(:,i) = body%V_verts_std(:,i)/(N_neighbors - 1)
-            end if
-
-            ! Mirrored vertices
-            if (body%asym_flow) then
-
-                ! Get mirrored location
-                loc_mir = mirror_across_plane(body%vertices(i)%loc, body%mirror_plane)
-
-                ! Get velocities
-                do j=1,N_neighbors
-
-                    ! Get panel index
-                    call body%vertices(i)%panels_not_across_wake_edge%get(j, i_panel)
-
-                    ! Get velocity jump at the vertex location
-                    v_jump = body%panels(i_panel)%get_velocity_jump(body%mu, body%sigma, .true., loc_mir)
-
-                    ! Store
-                    Vs(:,j) = this%freestream%U*(this%inner_flow + v_jump)
-                end do
-
-                ! Calculate stats
-                body%V_verts_avg(:,i+body%N_verts) = sum(Vs, dim=2)/N_neighbors
-                if (N_neighbors > 1) then
-                    do j=1,N_neighbors
-                        body%V_verts_std(:,i+body%N_verts) = body%V_verts_std(:,i+body%N_verts) &
-                                                             + (Vs(:,j) - body%V_verts_avg(:,i))**2
-                    end do
-                    body%V_verts_std(:,i+body%N_verts) = body%V_verts_std(:,i+body%N_verts)/(N_neighbors - 1)
-                end if
-
-            end if
-
-            deallocate(Vs)
-
-        end do
-
-        if (verbose) write(*,*) "Done."
-
-    end subroutine panel_solver_calc_point_velocities
 
 
     subroutine panel_solver_calc_surface_potentials(this, body)

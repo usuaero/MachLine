@@ -1,6 +1,6 @@
 {
     "flow": {
-        "freestream_velocity" : [ -100.0, 0.0, 0.0 ],
+        "freestream_velocity" : [ -100.0, 0.0, 10.0 ],
         "gamma" : 1.4,
         "freestream_mach_number" : 2.0
     },
@@ -16,7 +16,7 @@
         }
     },
     "solver" : {
-        "matrix_solver" : "FQRUP"
+        "matrix_solver" : "GMRES"
     },
     "post_processing" : {
     },
@@ -25,6 +25,5 @@
         "wake_file" :                   "dev/results/cone_10_deg_medium_wake.vtk",
         "control_point_file" :          "dev/results/cone_10_deg_medium_right_control_points.vtk",
         "mirrored_body_file" :          "dev/results/cone_10_deg_medium_left.vtk",
-        "mirrored_control_point_file" : "dev/results/cone_10_deg_medium_left_control_points.vtk"
     }
 }
