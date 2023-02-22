@@ -922,7 +922,7 @@ contains
         if (cp%bc == 1 .or. cp%bc == 3) then
 
             ! Loop through influencing panels
-            do k=1,size(body%panels(i_panel)%i_panel_s)
+            do k=1,body%panels(i_panel)%S_dim
 
                 ! Need to shift indices for mirrored panels
                 if (mirrored_panel) then
@@ -959,7 +959,7 @@ contains
         ! Add doublet influence
 
         ! Loop through influencing vertices
-        do k=1,size(body%panels(i_panel)%i_vert_d)
+        do k=1,body%panels(i_panel)%M_dim
 
             ! Need to shift indices for mirrored panels
             if (mirrored_panel) then
@@ -1436,7 +1436,7 @@ contains
         do i=1,body%N_panels
 
             ! Get velocity jump at centroid
-            v_jump = body%panels(i)%get_velocity_jump(body%mu, body%sigma, .false., body%N_panels, body%N_verts)
+            v_jump = body%panels(i)%get_velocity_jump(body%mu, body%sigma, .false., body%N_panels, body%N_verts, body%asym_flow)
 
             ! Calculate velocity
             body%V_cells(:,(i-1)*N_cycle+1) = this%freestream%U*(this%inner_flow + v_jump)
@@ -1445,7 +1445,7 @@ contains
             if (body%asym_flow) then
 
                 ! Get velocity jump
-                v_jump = body%panels(i)%get_velocity_jump(body%mu, body%sigma, .true., body%N_panels, body%N_verts)
+                v_jump = body%panels(i)%get_velocity_jump(body%mu, body%sigma, .true., body%N_panels, body%N_verts, body%asym_flow)
 
                 ! Calculate velocity
                 body%V_cells(:,(i-1)*N_cycle+1+this%N_cells/2) = this%freestream%U*(this%inner_flow + v_jump)

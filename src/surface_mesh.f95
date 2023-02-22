@@ -1816,7 +1816,8 @@ contains
             
                 ! Calculate influence
                 call this%panels(k)%calc_potentials(point, freestream, dod_info(k), .false., &
-                                                    this%sigma, this%mu, phi_s_panel, phi_d_panel)
+                                                    this%sigma, this%mu, this%N_panels, this%N_verts, &
+                                                    this%asym_flow, phi_s_panel, phi_d_panel)
                 phi_s = phi_s + phi_s_panel
                 phi_d = phi_d + phi_d_panel
 
@@ -1831,7 +1832,8 @@ contains
 
                         ! Get influence of mirrored panel
                         call this%panels(k)%calc_potentials(point, freestream, dod_info(k+this%N_panels), .true., &
-                                                            this%sigma, this%mu, phi_s_panel, phi_d_panel)
+                                                            this%sigma, this%mu, this%N_panels, this%N_verts, &
+                                                            this%asym_flow, phi_s_panel, phi_d_panel)
                         phi_s = phi_s + phi_s_panel
                         phi_d = phi_d + phi_d_panel
 
@@ -1840,7 +1842,8 @@ contains
                         ! Get influence of panel on mirrored point
                         call this%panels(k)%calc_potentials(mirror_across_plane(point, this%mirror_plane), freestream, &
                                                             dod_info(k+this%N_panels), .false., &
-                                                            this%sigma, this%mu, phi_s_panel, phi_d_panel)
+                                                            this%sigma, this%mu, this%N_panels, this%N_verts, &
+                                                            this%asym_flow, phi_s_panel, phi_d_panel)
                         phi_s = phi_s + phi_s_panel
                         phi_d = phi_d + phi_d_panel
 
@@ -1861,7 +1864,8 @@ contains
                 
                     ! Calculate influence
                     call this%wake%strips(j)%panels(k)%calc_potentials(point, freestream, wake_dod_info(k,j), .false., &
-                                                             this%sigma, this%mu, phi_s_panel, phi_d_panel)
+                                                             this%sigma, this%mu, this%N_panels, this%N_verts, &
+                                                             this%asym_flow, phi_s_panel, phi_d_panel)
                     phi_s = phi_s + phi_s_panel
                     phi_d = phi_d + phi_d_panel
 
@@ -1875,7 +1879,8 @@ contains
                         ! Get influence of mirrored panel
                         call this%wake%strips(j)%panels(k)%calc_potentials(point, freestream, &
                                                                  wake_dod_info(k+this%wake%N_max_strip_panels,j), .true., &
-                                                                 this%sigma, this%mu, phi_s_panel, phi_d_panel)
+                                                                 this%sigma, this%mu, this%N_panels, this%N_verts, &
+                                                                 this%asym_flow, phi_s_panel, phi_d_panel)
                         phi_s = phi_s + phi_s_panel
                         phi_d = phi_d + phi_d_panel
 

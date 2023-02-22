@@ -638,8 +638,10 @@ contains
 
         real,dimension(:,:),allocatable :: S_mu, S_sigma, SS_inv, A_mat, S_inv, M_mat, SA_inv, E_mat, EE_inv
         real,dimension(:),allocatable :: M_row
-        integer :: i, i_next, j
+        integer :: i, i_next, j, N_body_verts
         real,dimension(3) :: P_g, P_ls
+
+        N_body_verts = size(body_verts)
 
         ! Doublets
 
@@ -714,8 +716,8 @@ contains
                 else
 
                     ! Get opposite vertex location
-                    if (this%i_vert_d(j) > size(body_verts)) then
-                        P_g = mirror_across_plane(body_verts(this%i_vert_d(j)-size(body_verts))%loc, mirror_plane)
+                    if (this%i_vert_d(j) > N_body_verts) then
+                        P_g = mirror_across_plane(body_verts(this%i_vert_d(j) - N_body_verts)%loc, mirror_plane)
                     else
                         P_g = body_verts(this%i_vert_d(j))%loc
                     end if
@@ -870,7 +872,6 @@ contains
         if (this%order == 1) then
             this%S_mu_inv_mir = S_inv
 
-
         ! For a quadratic distribution, we need to build the M matrix as well
         else
 
@@ -946,7 +947,6 @@ contains
             ! Allocate space
             allocate(S_sigma(this%S_dim, this%sigma_dim))
             allocate(this%S_sigma_inv_mir(this%sigma_dim, this%S_dim))
-            allocate(SS_inv(this%sigma_dim, this%sigma_dim))
 
             ! Influence of this panel
             S_sigma(1,:) = (/1., 0., 0./)
@@ -969,6 +969,7 @@ contains
 
             ! For overdetermined, do pseudoinverse using least-squares
             case (4)
+                allocate(SS_inv(this%sigma_dim, this%sigma_dim))
                 call matinv(3, matmul(transpose(S_sigma), S_sigma), SS_inv)
                 this%S_sigma_inv_mir = matmul(SS_inv, transpose(S_sigma))
 
@@ -2767,7 +2768,8 @@ contains
     end subroutine panel_calc_potential_influences
 
 
-    subroutine panel_calc_potentials(this, P, freestream, dod_info, mirror_panel, sigma, mu, phi_s, phi_d)
+    subroutine panel_calc_potentials(this, P, freestream, dod_info, mirror_panel, sigma, mu, &
+                                     N_body_panels, N_body_verts, asym_flow, phi_s, phi_d)
         ! Calculates the potentials induced at the given point
 
         implicit none
@@ -2776,8 +2778,9 @@ contains
         real,dimension(3),intent(in) :: P
         type(flow),intent(in) :: freestream
         type(dod),intent(in) :: dod_info
-        logical,intent(in) :: mirror_panel
+        logical,intent(in) :: mirror_panel, asym_flow
         real,dimension(:),allocatable,intent(in) :: sigma, mu
+        integer,intent(in) :: N_body_panels, N_body_verts
         real,intent(out) :: phi_d, phi_s
 
         real,dimension(:),allocatable :: source_inf, doublet_inf
@@ -2788,8 +2791,8 @@ contains
         call this%calc_potential_influences(P, freestream, dod_info, mirror_panel, source_inf, doublet_inf)
 
         ! Get strengths
-        source_strengths = this%get_source_strengths(sigma, mirror_panel)
-        doublet_strengths = this%get_doublet_strengths(mu, mirror_panel)
+        source_strengths = this%get_source_strengths(sigma, mirror_panel, N_body_panels, asym_flow)
+        doublet_strengths = this%get_doublet_strengths(mu, mirror_panel, N_body_verts, asym_flow)
 
         ! Apply strengths to calculate potentials
         phi_s = sum(source_inf*source_strengths)
@@ -2935,7 +2938,7 @@ contains
     end subroutine panel_calc_velocity_influences
 
 
-    function panel_get_source_strengths(this, sigma, mirror, N_body_panels, N_body_verts) result(sigma_strengths)
+    function panel_get_source_strengths(this, sigma, mirror, N_body_panels, asym_flow) result(sigma_strengths)
         ! Returns a vector of the relevant source strengths for this panel
 
         implicit none
@@ -2943,7 +2946,8 @@ contains
         class(panel),intent(in) :: this
         real,dimension(:),allocatable,intent(in) :: sigma
         logical,intent(in) :: mirror
-        integer,intent(in) :: N_body_panels, N_body_verts
+        integer,intent(in) :: N_body_panels
+        logical,intent(in) :: asym_flow
 
         real,dimension(this%S_dim) :: sigma_strengths
 
@@ -2957,15 +2961,24 @@ contains
             do i=1,size(this%i_panel_s)
 
                 ! Handle mirroring
-                if (this%i_panel_s(i) > N_body_panels) then
-                    sigma_strengths(i) = sigma(this%i_panel_s(i) - N_body_panels)
-                else
+                if (asym_flow) then
                     if (mirror) then
-                        sigma_strengths(i) = sigma(this%i_panel_s(i) + N_body_panels)
+                        if (this%i_panel_s(i) > N_body_panels) then
+                            sigma_strengths(i) = sigma(this%i_panel_s(i) - N_body_panels)
+                        else
+                            sigma_strengths(i) = sigma(this%i_panel_s(i) + N_body_panels)
+                        end if
+                    else
+                        sigma_strengths(i) = sigma(this%i_panel_s(i))
+                    end if
+                else
+                    if (this%i_panel_s(i) > N_body_panels) then
+                        sigma_strengths(i) = sigma(this%i_panel_s(i) - N_body_panels)
                     else
                         sigma_strengths(i) = sigma(this%i_panel_s(i))
                     end if
                 end if
+
             end do
 
         end if
@@ -2973,7 +2986,7 @@ contains
     end function panel_get_source_strengths
 
 
-    function panel_get_source_parameters(this, sigma, mirror, N_body_panels, N_body_verts) result(sigma_params)
+    function panel_get_source_parameters(this, sigma, mirror, N_body_panels, asym_flow) result(sigma_params)
         ! Returns a vector describing the distribution of source strength across the panel surface
 
         implicit none
@@ -2981,14 +2994,15 @@ contains
         class(panel),intent(in) :: this
         real,dimension(:),allocatable,intent(in) :: sigma
         logical,intent(in) :: mirror
-        integer,intent(in) :: N_body_panels, N_body_verts
+        integer,intent(in) :: N_body_panels
+        logical,intent(in) :: asym_flow
         
         real,dimension(this%sigma_dim) :: sigma_params
 
         real,dimension(this%S_dim) :: sigma_strengths
 
         ! Get strengths
-        sigma_strengths = this%get_source_strengths(sigma, mirror, N_body_panels, N_body_verts)
+        sigma_strengths = this%get_source_strengths(sigma, mirror, N_body_panels, asym_flow)
 
         ! Linear sources
         if (this%sigma_dim > 1) then
@@ -3007,7 +3021,7 @@ contains
     end function panel_get_source_parameters
 
 
-    function panel_get_doublet_strengths(this, mu, mirror, N_body_panels, N_body_verts) result(mu_strengths)
+    function panel_get_doublet_strengths(this, mu, mirror, N_body_verts, asym_flow) result(mu_strengths)
         ! Returns the relevant doublet strengths for this panel
 
         implicit none
@@ -3015,7 +3029,8 @@ contains
         class(panel),intent(in) :: this
         real,dimension(:),allocatable,intent(in) :: mu
         logical,intent(in) :: mirror
-        integer,intent(in) :: N_body_panels, N_body_verts
+        integer,intent(in) :: N_body_verts
+        logical,intent(in) :: asym_flow
 
         real,dimension(this%M_dim) :: mu_strengths
 
@@ -3037,22 +3052,33 @@ contains
         ! Get doublet strengths at vertices
         else
             do i=1,size(this%i_vert_d)
-                if (this%i_vert_d(i) > N_body_verts) then
-                    mu_strengths(i) = mu(this%i_vert_d(i) - N_body_verts)
-                else
+
+                ! Handle mirroring
+                if (asym_flow) then
                     if (mirror) then
-                        mu_strengths(i) = mu(this%i_vert_d(i) + N_body_verts)
+                        if (this%i_vert_d(i) > N_body_verts) then
+                            mu_strengths(i) = mu(this%i_vert_d(i) - N_body_verts)
+                        else
+                            mu_strengths(i) = mu(this%i_vert_d(i) + N_body_verts)
+                        end if
+                    else
+                        mu_strengths(i) = mu(this%i_vert_d(i))
+                    end if
+                else
+                    if (this%i_vert_d(i) > N_body_verts) then
+                        mu_strengths(i) = mu(this%i_vert_d(i) - N_body_verts)
                     else
                         mu_strengths(i) = mu(this%i_vert_d(i))
                     end if
                 end if
+
             end do
         end if
         
     end function panel_get_doublet_strengths
 
 
-    function panel_get_doublet_parameters(this, mu, mirror, N_body_panels, N_body_verts) result(mu_params)
+    function panel_get_doublet_parameters(this, mu, mirror, N_body_verts, asym_flow) result(mu_params)
         ! Returns a vector describing the distribution of doublet strength across the panel surface
 
         implicit none
@@ -3060,14 +3086,15 @@ contains
         class(panel),intent(in) :: this
         real,dimension(:),allocatable,intent(in) :: mu
         logical,intent(in) :: mirror
-        integer,intent(in) :: N_body_panels, N_body_verts
+        integer,intent(in) :: N_body_verts
+        logical,intent(in) :: asym_flow
 
         real,dimension(this%mu_dim) :: mu_params
 
         real,dimension(this%M_dim) :: mu_verts
 
         ! Get doublet strengths at vertices
-        mu_verts = this%get_doublet_strengths(mu, mirror, N_body_panels, N_body_verts)
+        mu_verts = this%get_doublet_strengths(mu, mirror, N_body_verts, asym_flow)
 
         ! Calculate doublet parameters
         if (mirror) then
@@ -3079,7 +3106,7 @@ contains
     end function panel_get_doublet_parameters
 
 
-    function panel_get_velocity_jump(this, mu, sigma, mirrored, point, N_body_panels, N_body_verts) result(dv)
+    function panel_get_velocity_jump(this, mu, sigma, mirrored, N_body_panels, N_body_verts, asym_flow, point) result(dv)
         ! Calculates the jump in perturbation velocity across this panel in global coordinates at the given location
         ! If a location is not given, this will default to the centroid
 
@@ -3087,9 +3114,9 @@ contains
 
         class(panel),intent(in) :: this
         real,dimension(:),allocatable,intent(in) :: mu, sigma
-        logical,intent(in) :: mirrored
-        real,dimension(3),intent(in),optional :: point
+        logical,intent(in) :: mirrored, asym_flow
         integer,intent(in) :: N_body_panels, N_body_verts
+        real,dimension(3),intent(in),optional :: point
 
         real,dimension(3) :: dv
 
@@ -3107,7 +3134,7 @@ contains
         end if
 
         ! Calculate doublet parameters (derivatives)
-        mu_params = this%get_doublet_parameters(mu, mirrored)
+        mu_params = this%get_doublet_parameters(mu, mirrored, N_body_verts, asym_flow)
 
         ! Calculate tangential velocity jump in panel coordinates E&M Eq. (N.1.11b)
         if (this%order == 2) then
@@ -3137,7 +3164,7 @@ contains
             end if
 
             ! Source strength
-            sigma_params = this%get_source_parameters(sigma, mirrored)
+            sigma_params = this%get_source_parameters(sigma, mirrored, N_body_panels, asym_flow)
             if (this%sigma_dim > 1) then
                 s = sigma_params(1) + sigma_params(2)*Q_ls(1) + sigma_params(3)*Q_ls(2)
             else
