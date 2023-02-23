@@ -86,11 +86,14 @@ module panel_mod
             procedure :: calc_mirrored_g_to_ls_transform => panel_calc_mirrored_g_to_ls_transform
             procedure :: calc_mirrored_edge_vectors => panel_calc_mirrored_edge_vectors
 
-            ! Singularity distribution function
+            ! Singularity distributions
             procedure :: set_distribution => panel_set_distribution
-            procedure :: set_influencing_verts => panel_set_influencing_verts
-            procedure :: calc_singularity_matrices => panel_calc_singularity_matrices
-            procedure :: calc_mirrored_singularity_matrices => panel_calc_mirrored_singularity_matrices
+            procedure :: set_doublet_verts => panel_set_doublet_verts
+            procedure :: set_source_panels => panel_set_source_panels
+            procedure :: calc_M_mu_transform => panel_calc_M_mu_transform
+            procedure :: calc_mirrored_M_mu_transform => panel_calc_mirrored_M_mu_transform
+            procedure :: calc_S_sigma_transform => panel_calc_S_sigma_transform
+            procedure :: calc_mirrored_S_sigma_transform => panel_calc_mirrored_S_sigma_transform
 
             ! Getters
             procedure :: get_vertex_loc => panel_get_vertex_loc
@@ -526,19 +529,26 @@ contains
             this%S_dim = 4 - this%N_discont_edges
         end if
 
-        ! Set up influencing verts
-        call this%set_influencing_verts(body_panels, size(body_verts))
+        ! Set up doublet distribution
+        call this%set_doublet_verts(body_panels, size(body_verts))
+        call this%calc_M_mu_transform(body_verts, mirrored, mirror_plane)
 
-        ! Set up strength-parameter matrices
-        call this%calc_singularity_matrices(body_panels, body_verts, mirror_plane)
+        ! Set up source distribution
+        if (this%has_sources) then
+            call this%set_source_panels()
+            call this%calc_S_sigma_transform(body_panels, mirrored, mirror_plane)
+        end if
+
+        ! Set up transformations for mirrored panels
         if (mirrored) then
-            if (mirrored) call this%calc_mirrored_singularity_matrices(body_panels, body_verts, mirror_plane)
+            call this%calc_mirrored_M_mu_transform(body_panels, body_verts, mirror_plane)
+            call this%calc_mirrored_S_sigma_transform(body_panels, body_verts, mirror_plane)
         end if
         
     end subroutine panel_set_distribution
 
 
-    subroutine panel_set_influencing_verts(this, body_panels, N_body_verts)
+    subroutine panel_set_doublet_verts(this, body_panels, N_body_verts)
         ! Sets up the arrays of vertex indices which set the influence for this panel
 
         class(panel),intent(inout) :: this
@@ -547,26 +557,8 @@ contains
 
         integer :: i, j, N_body_panels
 
+        ! Get number of panels
         N_body_panels = size(body_panels)
-
-        ! Source
-        allocate(this%i_panel_s(this%S_dim))
-
-        ! This panel is first
-        this%i_panel_s(1) = this%index
-
-        ! Loop through neighbors for linear distribution
-        if (this%order == 2) then
-            j = 2
-            do i=1,this%N
-                if (.not. this%edge_is_discontinuous(i)) then ! Skip neighbors across discontinuous edges
-                    this%i_panel_s(j) = this%abutting_panels(i)
-                    j = j + 1
-                end if
-            end do
-        end if
-
-        ! Doublet
 
         ! Check if this panel belongs to the wake
         if (this%in_wake) then
@@ -623,27 +615,54 @@ contains
 
         end if
 
-    end subroutine panel_set_influencing_verts
+    end subroutine panel_set_doublet_verts
 
 
-    subroutine panel_calc_singularity_matrices(this, body_panels, body_verts, mirror_plane)
-        ! Calculates the matrices which relate the singularity strengths to the distribution parameters
+    subroutine panel_set_source_panels(this)
+        ! Sets the panel indices which influence this panel's source distribution
+
+        implicit none
+        
+        class(panel),intent(inout) :: this
+
+        integer :: i, j
+
+        allocate(this%i_panel_s(this%S_dim))
+
+        ! This panel is first
+        this%i_panel_s(1) = this%index
+
+        ! Loop through neighbors for linear distribution
+        if (this%order == 2) then
+            j = 2
+            do i=1,this%N
+                if (.not. this%edge_is_discontinuous(i)) then ! Skip neighbors across discontinuous edges
+                    this%i_panel_s(j) = this%abutting_panels(i)
+                    j = j + 1
+                end if
+            end do
+        end if
+        
+    end subroutine panel_set_source_panels
+
+
+    subroutine panel_calc_M_mu_transform(this, body_verts, mirror, mirror_plane)
+        ! Calculates the transformation from M space to mu space
 
         implicit none
 
         class(panel),intent(inout) :: this
-        type(panel),dimension(:),allocatable,intent(in) :: body_panels
         type(vertex),dimension(:),allocatable,intent(in) :: body_verts
+        logical,intent(in) :: mirror
         integer,intent(in) :: mirror_plane
 
-        real,dimension(:,:),allocatable :: S_mu, S_sigma, SS_inv, A_mat, S_inv, M_mat, SA_inv, E_mat, EE_inv
+        real,dimension(:,:),allocatable :: S_mu, S_inv, M_mat, E_mat, EE_inv
         real,dimension(:),allocatable :: M_row
         integer :: i, i_next, j, N_body_verts
         real,dimension(3) :: P_g, P_ls
 
+        ! Get number of vertices
         N_body_verts = size(body_verts)
-
-        ! Doublets
 
         ! Allocate space
         allocate(S_mu(this%mu_dim, this%mu_dim))
@@ -749,75 +768,11 @@ contains
             this%S_mu_inv = matmul(S_inv, M_mat)
 
         end if
-
-        ! Sources
-
-        ! Linear (not needed for constant-strength source panels)
-        if (this%order == 2) then
-
-            ! Allocate space
-            allocate(S_sigma(this%S_dim, this%sigma_dim))
-            allocate(this%S_sigma_inv(this%sigma_dim, this%S_dim))
-            allocate(SS_inv(this%sigma_dim, this%sigma_dim))
-
-            ! Influence of this panel
-            S_sigma(1,:) = (/1., 0., 0./)
-
-            ! Influence of neighboring panels
-            do i=2,this%S_dim
-                if (this%i_panel_s(i) > size(body_panels)) then
-                    P_g = mirror_across_plane(body_panels(this%i_panel_s(i)-size(body_panels))%centr, mirror_plane)
-                else
-                    P_g = body_panels(this%i_panel_s(i))%centr
-                end if
-                P_ls = matmul(this%A_g_to_ls, P_g - this%centr)
-                S_sigma(i,1) = 1.
-                S_sigma(i,2) = P_ls(1)
-                S_sigma(i,3) = P_ls(2)
-            end do
-
-            ! Invert 
-            select case (this%S_dim)
-
-            ! For overdetermined, do pseudoinverse using least-squares
-            case (4)
-                call matinv(3, matmul(transpose(S_sigma), S_sigma), SS_inv)
-                this%S_sigma_inv = matmul(SS_inv, transpose(S_sigma))
-
-            ! For well-posed, do standard inverse
-            case (3)
-                call matinv(this%S_dim, S_sigma, this%S_sigma_inv)
-
-            ! Two discontinuous edges
-            case (2)
-
-                ! Build A matrix
-                if (allocated(A_mat)) deallocate(A_mat)
-                allocate(A_mat(this%sigma_dim, this%S_dim), source=0.)
-                A_mat(1,1) = 1.
-
-                ! Determine which parameter to eliminate
-                if (abs(P_ls(1)) > abs(P_ls(2))) then
-                    A_mat(2,2) = 1.
-                    A_mat(3,2) = P_ls(2)/P_ls(1)
-                else
-                    A_mat(2,2) = P_ls(1)/P_ls(2)
-                    A_mat(3,2) = 1.
-                end if
-
-                ! Get inverse
-                allocate(SA_inv(this%S_dim,this%S_dim))
-                call matinv(this%S_dim, matmul(S_sigma, A_mat), SA_inv)
-                this%S_sigma_inv = matmul(A_mat, SA_inv)
-
-            end select
-
-        end if
-
-    end subroutine panel_calc_singularity_matrices
+        
+    end subroutine panel_calc_M_mu_transform
 
 
-    subroutine panel_calc_mirrored_singularity_matrices(this, body_panels, body_verts, mirror_plane)
+    subroutine panel_calc_mirrored_M_mu_transform(this, body_panels, body_verts, mirror_plane)
 
         implicit none
 
@@ -830,8 +785,6 @@ contains
         real,dimension(:),allocatable :: M_row
         integer :: i, i_next, j
         real,dimension(3) :: P_g, P_ls
-
-        ! Doublets
 
         ! Allocate space
         allocate(S_mu(this%mu_dim, this%mu_dim))
@@ -939,7 +892,100 @@ contains
 
         end if
 
-        ! Sources
+    end subroutine panel_calc_mirrored_M_mu_transform
+
+
+    subroutine panel_calc_S_sigma_transform(this, body_panels, mirror, mirror_plane)
+        ! Calculates the transformation from S space to sigma space
+
+        implicit none
+        
+        class(panel), intent(inout) :: this
+        type(panel),dimension(:),allocatable,intent(in) :: body_panels
+        logical,intent(in) :: mirror
+        integer,intent(in) :: mirror_plane
+
+        real,dimension(:,:),allocatable :: S_sigma, SS_inv, A_mat, S_inv, SA_inv
+        integer :: i
+        real,dimension(3) :: P_g, P_ls
+
+        ! Linear (not needed for constant-strength source panels)
+        if (this%order == 2) then
+
+            ! Allocate space
+            allocate(S_sigma(this%S_dim, this%sigma_dim))
+            allocate(this%S_sigma_inv(this%sigma_dim, this%S_dim))
+            allocate(SS_inv(this%sigma_dim, this%sigma_dim))
+
+            ! Influence of this panel
+            S_sigma(1,:) = (/1., 0., 0./)
+
+            ! Influence of neighboring panels
+            do i=2,this%S_dim
+                if (this%i_panel_s(i) > size(body_panels)) then
+                    P_g = mirror_across_plane(body_panels(this%i_panel_s(i)-size(body_panels))%centr, mirror_plane)
+                else
+                    P_g = body_panels(this%i_panel_s(i))%centr
+                end if
+                P_ls = matmul(this%A_g_to_ls, P_g - this%centr)
+                S_sigma(i,1) = 1.
+                S_sigma(i,2) = P_ls(1)
+                S_sigma(i,3) = P_ls(2)
+            end do
+
+            ! Invert 
+            select case (this%S_dim)
+
+            ! For overdetermined, do pseudoinverse using least-squares
+            case (4)
+                call matinv(3, matmul(transpose(S_sigma), S_sigma), SS_inv)
+                this%S_sigma_inv = matmul(SS_inv, transpose(S_sigma))
+
+            ! For well-posed, do standard inverse
+            case (3)
+                call matinv(this%S_dim, S_sigma, this%S_sigma_inv)
+
+            ! Two discontinuous edges
+            case (2)
+
+                ! Build A matrix
+                allocate(A_mat(this%sigma_dim, this%S_dim), source=0.)
+                A_mat(1,1) = 1.
+
+                ! Determine which parameter to eliminate
+                if (abs(P_ls(1)) > abs(P_ls(2))) then
+                    A_mat(2,2) = 1.
+                    A_mat(3,2) = P_ls(2)/P_ls(1)
+                else
+                    A_mat(2,2) = P_ls(1)/P_ls(2)
+                    A_mat(3,2) = 1.
+                end if
+
+                ! Get inverse
+                allocate(SA_inv(this%S_dim,this%S_dim))
+                call matinv(this%S_dim, matmul(S_sigma, A_mat), SA_inv)
+                this%S_sigma_inv = matmul(A_mat, SA_inv)
+
+            end select
+
+        end if
+        
+    end subroutine panel_calc_S_sigma_transform
+
+
+    subroutine panel_calc_mirrored_S_sigma_transform(this, body_panels, body_verts, mirror_plane)
+
+        implicit none
+
+        class(panel),intent(inout) :: this
+        type(panel),dimension(:),allocatable,intent(in) :: body_panels
+        type(vertex),dimension(:),allocatable,intent(in) :: body_verts
+        integer,intent(in) :: mirror_plane
+
+        real,dimension(:,:),allocatable :: S_mu, S_sigma, SS_inv, A_mat, S_inv, M_mat, SA_inv, E_mat, EE_inv
+        real,dimension(:),allocatable :: M_row
+        integer :: i, i_next, j
+        real,dimension(3) :: P_g, P_ls
 
         ! Linear (not needed for constant-strength source panels)
         if (this%order == 2) then
@@ -1003,7 +1049,7 @@ contains
 
         end if
 
-    end subroutine panel_calc_mirrored_singularity_matrices
+    end subroutine panel_calc_mirrored_S_sigma_transform
 
 
     subroutine panel_init_mirror(this, freestream, mirror_plane)
