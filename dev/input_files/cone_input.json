@@ -5,7 +5,7 @@
         "freestream_mach_number" : 2.0
     },
     "geometry" : {
-        "file" : "dev/meshes/cone_10_deg_medium.vtk",
+        "file" : "dev/meshes/cone_equal_aspect.vtk",
         "mirror_about" : "xy",
         "singularity_order" : "higher",
         "wake_model" : {
@@ -16,7 +16,7 @@
         }
     },
     "solver" : {
-        "formulation" : "morino",
+        "formulation" : "source-free",
         "matrix_solver" : "GMRES"
     },
     "post_processing" : {

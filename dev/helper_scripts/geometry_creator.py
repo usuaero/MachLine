@@ -143,7 +143,7 @@ def _get_regular_points_and_panels_for_closed_right_cone(h, r, N_transverse, N_t
     return vertices, panels
             
 
-def _get_regular_points_and_panels_for_open_right_cone(h, r, N_transverse, N_theta):
+def _get_regular_points_and_panels_for_open_right_cone(h, r, N_transverse, N_theta, equal_aspect=True):
     # Generates the points and panels for half of a closed right cone, aligned with the x-axis and its base at the origin.
     # resultant mesh should be mirrored about the xy plane.
 
@@ -161,7 +161,12 @@ def _get_regular_points_and_panels_for_open_right_cone(h, r, N_transverse, N_the
     vertices[0,0] = h
 
     # Generate distribution of locations in x, r, and theta
-    X = np.linspace(h, 0.0, N_transverse+1)
+    if equal_aspect:
+        X = np.logspace(-1, 0, N_transverse)
+        X = (1.0-X[::-1])*h
+        X = np.insert(X, 0, 0.0)
+    else:
+        X = np.linspace(h, 0.0, N_transverse+1)
     TH = np.linspace(0.0, np.pi, N_theta+1)
 
     # Calculate radii of side sections
@@ -221,7 +226,7 @@ def _get_regular_points_and_panels_for_open_right_cone(h, r, N_transverse, N_the
     return vertices, panels
 
 
-def generate_regular_right_cone(filename, h, r, N_transverse, N_theta, N_radial=1, close_base=True):
+def generate_regular_right_cone(filename, h, r, N_transverse, N_theta, N_radial=1, close_base=True, equal_aspect=True):
     """Generates a mesh of half of a right cone, aligned with the x-axis and its base at the origin.
     The resultant mesh should be mirrored about the xy plane.
     
@@ -247,13 +252,17 @@ def generate_regular_right_cone(filename, h, r, N_transverse, N_theta, N_radial=
 
     close_base : logical, optional
         Whether to close the bottom of the cone. Defaults to True.
+
+    equal_aspect : logical, optional
+        Whether to space the panels along the length such that the panel aspect ratio remains more constant over the mesh.
+        Only available for open cone.
     """
 
     # Get geometry
     if close_base:
         vertices, panels = _get_regular_points_and_panels_for_closed_right_cone(h, r, N_transverse, N_theta, N_radial)
     else:
-        vertices, panels = _get_regular_points_and_panels_for_open_right_cone(h, r, N_transverse, N_theta)
+        vertices, panels = _get_regular_points_and_panels_for_open_right_cone(h, r, N_transverse, N_theta, equal_aspect=equal_aspect)
 
     # Export
     _export_vtk(filename, vertices, panels)
@@ -443,8 +452,9 @@ if __name__=="__main__":
     #for angle in angles:
     #    h = 1.0/np.tan(np.radians(angle))
     #    generate_regular_right_cone('studies/supersonic_cone_flow_study/meshes/cone_{0}_deg_fine.vtk'.format(int(angle)), h, 1.0, 120, 100, close_base=False)
-    #h = 1.0/np.tan(np.radians(10.0))
+    h = 1.0/np.tan(np.radians(10.0))
     #generate_regular_right_cone('studies/matrix_solvers/meshes/cone_10_deg_medium.vtk', h, 1.0, 40, 30, close_base=False)
+    generate_regular_right_cone('dev/meshes/cone_equal_aspect.vtk', h, 1.0, 40, 30, close_base=False, equal_aspect=True)
 
     ## Random spheres
     #Ns = [125, 250, 500, 1000, 2000]

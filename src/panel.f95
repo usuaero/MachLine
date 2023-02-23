@@ -494,7 +494,7 @@ contains
     end subroutine panel_calc_ls_edge_vectors
 
 
-    subroutine panel_set_distribution(this, order, body_panels, body_verts, mirrored, mirror_plane)
+    subroutine panel_set_distribution(this, order, body_panels, body_verts, mirror_needed, mirror_plane)
         ! Sets up the singularity distribution for this panel
 
         implicit none
@@ -503,7 +503,7 @@ contains
         integer,intent(in) :: order
         type(panel),dimension(:),allocatable,intent(in) :: body_panels
         type(vertex),dimension(:),allocatable,intent(in) :: body_verts
-        logical,intent(in) :: mirrored
+        logical,intent(in) :: mirror_needed
         integer,intent(in) :: mirror_plane
 
         integer :: i
@@ -538,7 +538,7 @@ contains
         end if
 
         ! Set up transformations for mirrored panels
-        if (mirrored) then
+        if (mirror_needed) then
             call this%calc_M_mu_transform(body_verts, .true., mirror_plane)
             if (this%has_sources) call this%calc_S_sigma_transform(body_panels, .true., mirror_plane)
         end if
@@ -644,17 +644,18 @@ contains
     end subroutine panel_set_source_panels
 
 
-    subroutine panel_calc_M_mu_transform(this, body_verts, mirror, mirror_plane)
+    subroutine panel_calc_M_mu_transform(this, body_verts, calc_mirror, mirror_plane)
         ! Calculates the transformation from M space to mu space
+        ! calc_mirror tells whether the transformation for this panel or its mirror needs to be calculated
 
         implicit none
 
         class(panel),intent(inout) :: this
         type(vertex),dimension(:),allocatable,intent(in) :: body_verts
-        logical,intent(in) :: mirror
+        logical,intent(in) :: calc_mirror
         integer,intent(in) :: mirror_plane
 
-        real,dimension(:,:),allocatable :: S_mu, S_inv, M_mat, E_mat, EE_inv
+        real,dimension(:,:),allocatable :: S_mu, S_inv, M_mat, E_mat, EE_inv, S_mu_inv
         real,dimension(:),allocatable :: M_row
         integer :: i, i_next, j, N_body_verts
         real,dimension(3) :: P_g, P_ls
@@ -662,21 +663,14 @@ contains
         ! Get number of vertices
         N_body_verts = size(body_verts)
 
-        ! Allocate space
-        allocate(S_mu(this%mu_dim, this%mu_dim))
-        if (mirror) then
-            allocate(this%S_mu_inv_mir(this%mu_dim, this%M_dim))
-        else
-            allocate(this%S_mu_inv(this%mu_dim, this%M_dim))
-        end if
-
         ! Set up S_mu
+        allocate(S_mu(this%mu_dim, this%mu_dim))
 
         ! Constant
         S_mu(:,1) = 1.
 
         ! x and y from this panel
-        if (mirror) then
+        if (calc_mirror) then
             S_mu(1:3,2) = this%vertices_ls_mir(1,:)
             S_mu(1:3,3) = this%vertices_ls_mir(2,:)
         else
@@ -706,13 +700,12 @@ contains
         allocate(S_inv(this%mu_dim, this%mu_dim))
         call matinv(this%mu_dim, S_mu, S_inv)
 
+        ! Allocate transformation matrix
+        allocate(S_mu_inv(this%mu_dim, this%M_dim))
+
         ! For a linear distribution, that's all that's needed
         if (this%order == 1) then
-            if (mirror) then
-                this%S_mu_inv_mir = S_inv
-            else
-                this%S_mu_inv = S_inv
-            end if
+            S_mu_inv = S_inv
 
         ! For a quadratic distribution, we need to build the M matrix as well
         else
@@ -746,7 +739,7 @@ contains
                 else
 
                     ! Get opposite vertex location
-                    if (mirror) then
+                    if (calc_mirror) then
                         if (this%i_vert_d(j) > N_body_verts) then
                             P_g = body_verts(this%i_vert_d(j) - N_body_verts)%loc
                         else
@@ -785,25 +778,38 @@ contains
             end do
 
             ! Calculate transformation
-            if (mirror) then
-                this%S_mu_inv_mir = matmul(S_inv, M_mat)
-            else
-                this%S_mu_inv = matmul(S_inv, M_mat)
-            end if
+            S_mu_inv = matmul(S_inv, M_mat)
 
         end if
         
+        ! Store
+        if (calc_mirror) then
+            allocate(this%S_mu_inv_mir(this%mu_dim, this%M_dim))
+            this%S_mu_inv_mir = S_mu_inv
+        else
+            allocate(this%S_mu_inv(this%mu_dim, this%M_dim))
+            this%S_mu_inv = S_mu_inv
+        end if
+        
+        if (this%index < 51) then
+            write(*,*)
+            write(*,*) this%mu_dim
+            write(*,*) this%M_dim
+            write(*,*) this%S_mu_inv
+        end if
+
     end subroutine panel_calc_M_mu_transform
 
 
-    subroutine panel_calc_S_sigma_transform(this, body_panels, mirror, mirror_plane)
+    subroutine panel_calc_S_sigma_transform(this, body_panels, calc_mirror, mirror_plane)
         ! Calculates the transformation from S space to sigma space
+        ! calc_mirror tells whether the transformation for this panel or its mirror needs to be calculated
 
         implicit none
         
         class(panel), intent(inout) :: this
         type(panel),dimension(:),allocatable,intent(in) :: body_panels
-        logical,intent(in) :: mirror
+        logical,intent(in) :: calc_mirror
         integer,intent(in) :: mirror_plane
 
         real,dimension(:,:),allocatable :: S_sigma, SS_inv, A_mat, S_inv, SA_inv
@@ -823,7 +829,7 @@ contains
             do i=2,this%S_dim
 
                 ! Get coordinates
-                if (mirror) then
+                if (calc_mirror) then
                     if (this%i_panel_s(i) > size(body_panels)) then
                         P_g = body_panels(this%i_panel_s(i)-size(body_panels))%centr
                     else
@@ -846,7 +852,7 @@ contains
             end do
 
             ! Invert 
-            if (mirror) then
+            if (calc_mirror) then
                 allocate(this%S_sigma_inv_mir(this%sigma_dim, this%S_dim))
             else
                 allocate(this%S_sigma_inv(this%sigma_dim, this%S_dim))
@@ -857,7 +863,7 @@ contains
             case (4)
                 allocate(SS_inv(this%sigma_dim, this%sigma_dim))
                 call matinv(3, matmul(transpose(S_sigma), S_sigma), SS_inv)
-                if (mirror) then
+                if (calc_mirror) then
                     this%S_sigma_inv_mir = matmul(SS_inv, transpose(S_sigma))
                 else
                     this%S_sigma_inv = matmul(SS_inv, transpose(S_sigma))
@@ -865,7 +871,7 @@ contains
 
             ! For well-posed, do standard inverse
             case (3)
-                if (mirror) then
+                if (calc_mirror) then
                     call matinv(this%S_dim, S_sigma, this%S_sigma_inv_mir)
                 else
                     call matinv(this%S_dim, S_sigma, this%S_sigma_inv)
@@ -890,7 +896,7 @@ contains
                 ! Get inverse
                 allocate(SA_inv(this%S_dim,this%S_dim))
                 call matinv(this%S_dim, matmul(S_sigma, A_mat), SA_inv)
-                if (mirror) then
+                if (calc_mirror) then
                     this%S_sigma_inv_mir = matmul(A_mat, SA_inv)
                 else
                     this%S_sigma_inv = matmul(A_mat, SA_inv)

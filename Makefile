@@ -1,15 +1,20 @@
 # make for MachLine
 
 # Directories
-SRC_PATH := ./src/
-COM_PATH := ./common/
-BIN_PATH := ./bin/
+SRC_DIR = src
+COM_DIR = common
+BIN_DIR = bin
 
-# Executable name
-TARGET := exe
+# List common files (ordered based on dependency)
+COMMON_FILES = helpers.f95 linked_list.f95 math.f95 linalg.f95 json.f95 json_xtnsn.f95 sort.f95
+COMMON_PATHS = $(addprefix $(COM_DIR)/, $(COMMON_FILES))
 
-# Find source files
-SRCS = $(wildcard $(COM_DIR)/*.f95 $(SRC_DIR)/*.f95)
+# List source files (ordered based on dependency)
+SRC_FILES = flow.f95 base_geom.f95 panel.f95 mesh.f95 stl.f95 vtk.f95 tri.f95 wake_strip.f95 wake_mesh.f95 surface_mesh.f95 panel_solver.f95
+SRC_PATHS = $(addprefix $(SRC_DIR)/, $(SRC_FILES))
+
+# Main
+MAIN_PATH = src/main.f95
 
 # Compiler
 COMPILER = gfortran
@@ -22,54 +27,16 @@ OMP_FLAG = -fopenmp
 PROGRAM = machline.exe
 
 default:
-	$(COMPILER) $(FLAGS) $(OMP_FLAG) -o $(PROGRAM) \
-	common/helpers.f95 \
-	common/linked_list.f95 \
-	common/math.f95 \
-	common/linalg.f95 \
-	common/json.f95 \
-	common/json_xtnsn.f95 \
-	common/sort.f95 \
-	src/flow.f95 \
-	src/base_geom.f95 \
-	src/panel.f95 \
-	src/mesh.f95 \
-	src/stl.f95 \
-	src/vtk.f95 \
-	src/tri.f95 \
-	src/wake_strip.f95 \
-	src/wake_mesh.f95 \
-	src/surface_mesh.f95 \
-	src/panel_solver.f95 \
-	src/main.f95
+	$(COMPILER) $(FLAGS) $(OMP_FLAG) -o $(PROGRAM) $(COMMON_PATHS) $(SRC_PATHS) $(MAIN_PATH)
 
 # Debug option
 debug:
-	@echo "SRCS=$(SRCS)"
-
-# Cleanup
-clean:
-	rm -f *.mod *.exe $(SRC_DIR)/*.mod $(COM_DIR)/*.mod
+	$(COMPILER) $(FLAGS) $(OMP_FLAG) -Wall -o $(PROGRAM) $(COMMON_PATHS) $(SRC_PATHS) $(MAIN_PATH)
 
 # Serial compilation (without OpenMP)
 serial:
-	$(COMPILER) $(FLAGS) -o $(PROGRAM) \
-	common/helpers.f95 \
-	common/linked_list.f95 \
-	common/math.f95 \
-	common/linalg.f95 \
-	common/json.f95 \
-	common/json_xtnsn.f95 \
-	common/sort.f95 \
-	src/flow.f95 \
-	src/base_geom.f95 \
-	src/panel.f95 \
-	src/mesh.f95 \
-	src/stl.f95 \
-	src/vtk.f95 \
-	src/tri.f95 \
-	src/wake_strip.f95 \
-	src/wake_mesh.f95 \
-	src/surface_mesh.f95 \
-	src/panel_solver.f95 \
-	src/main.f95
+	$(COMPILER) $(FLAGS) -o $(PROGRAM) $(COMMON_PATHS) $(SRC_PATHS) $(MAIN_PATH)
+
+# Cleanup
+clean:
+	rm -rf *.mod *.exe $(SRC_DIR)/*.mod $(COM_DIR)/*.mod
