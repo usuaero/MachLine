@@ -91,9 +91,7 @@ module panel_mod
             procedure :: set_doublet_verts => panel_set_doublet_verts
             procedure :: set_source_panels => panel_set_source_panels
             procedure :: calc_M_mu_transform => panel_calc_M_mu_transform
-            procedure :: calc_mirrored_M_mu_transform => panel_calc_mirrored_M_mu_transform
             procedure :: calc_S_sigma_transform => panel_calc_S_sigma_transform
-            procedure :: calc_mirrored_S_sigma_transform => panel_calc_mirrored_S_sigma_transform
 
             ! Getters
             procedure :: get_vertex_loc => panel_get_vertex_loc
@@ -531,18 +529,18 @@ contains
 
         ! Set up doublet distribution
         call this%set_doublet_verts(body_panels, size(body_verts))
-        call this%calc_M_mu_transform(body_verts, mirrored, mirror_plane)
+        call this%calc_M_mu_transform(body_verts, .false., mirror_plane)
 
         ! Set up source distribution
         if (this%has_sources) then
             call this%set_source_panels()
-            call this%calc_S_sigma_transform(body_panels, mirrored, mirror_plane)
+            call this%calc_S_sigma_transform(body_panels, .false., mirror_plane)
         end if
 
         ! Set up transformations for mirrored panels
         if (mirrored) then
-            call this%calc_mirrored_M_mu_transform(body_panels, body_verts, mirror_plane)
-            call this%calc_mirrored_S_sigma_transform(body_panels, body_verts, mirror_plane)
+            call this%calc_M_mu_transform(body_verts, .true., mirror_plane)
+            if (this%has_sources) call this%calc_S_sigma_transform(body_panels, .true., mirror_plane)
         end if
         
     end subroutine panel_set_distribution
@@ -666,16 +664,25 @@ contains
 
         ! Allocate space
         allocate(S_mu(this%mu_dim, this%mu_dim))
-        allocate(this%S_mu_inv(this%mu_dim, this%M_dim))
+        if (mirror) then
+            allocate(this%S_mu_inv_mir(this%mu_dim, this%M_dim))
+        else
+            allocate(this%S_mu_inv(this%mu_dim, this%M_dim))
+        end if
 
-        ! Set up S_mu (maps from {mu} to {M})
+        ! Set up S_mu
 
         ! Constant
         S_mu(:,1) = 1.
 
         ! x and y from this panel
-        S_mu(1:3,2) = this%vertices_ls(1,:)
-        S_mu(1:3,3) = this%vertices_ls(2,:)
+        if (mirror) then
+            S_mu(1:3,2) = this%vertices_ls_mir(1,:)
+            S_mu(1:3,3) = this%vertices_ls_mir(2,:)
+        else
+            S_mu(1:3,2) = this%vertices_ls(1,:)
+            S_mu(1:3,3) = this%vertices_ls(2,:)
+        end if
 
         ! Add in quadratic contributions
         if (this%order == 2) then
@@ -701,7 +708,11 @@ contains
 
         ! For a linear distribution, that's all that's needed
         if (this%order == 1) then
-            this%S_mu_inv = S_inv
+            if (mirror) then
+                this%S_mu_inv_mir = S_inv
+            else
+                this%S_mu_inv = S_inv
+            end if
 
         ! For a quadratic distribution, we need to build the M matrix as well
         else
@@ -735,12 +746,21 @@ contains
                 else
 
                     ! Get opposite vertex location
-                    if (this%i_vert_d(j) > N_body_verts) then
-                        P_g = mirror_across_plane(body_verts(this%i_vert_d(j) - N_body_verts)%loc, mirror_plane)
+                    if (mirror) then
+                        if (this%i_vert_d(j) > N_body_verts) then
+                            P_g = body_verts(this%i_vert_d(j) - N_body_verts)%loc
+                        else
+                            P_g = mirror_across_plane(body_verts(this%i_vert_d(j))%loc, mirror_plane)
+                        end if
+                        P_ls = matmul(this%A_g_to_ls_mir, P_g - this%centr_mir)
                     else
-                        P_g = body_verts(this%i_vert_d(j))%loc
+                        if (this%i_vert_d(j) > N_body_verts) then
+                            P_g = mirror_across_plane(body_verts(this%i_vert_d(j) - N_body_verts)%loc, mirror_plane)
+                        else
+                            P_g = body_verts(this%i_vert_d(j))%loc
+                        end if
+                        P_ls = matmul(this%A_g_to_ls, P_g - this%centr)
                     end if
-                    P_ls = matmul(this%A_g_to_ls, P_g - this%centr)
 
                     ! Add to E matrix
                     E_mat(4,1) = 1.
@@ -765,134 +785,15 @@ contains
             end do
 
             ! Calculate transformation
-            this%S_mu_inv = matmul(S_inv, M_mat)
+            if (mirror) then
+                this%S_mu_inv_mir = matmul(S_inv, M_mat)
+            else
+                this%S_mu_inv = matmul(S_inv, M_mat)
+            end if
 
         end if
         
     end subroutine panel_calc_M_mu_transform
-
-
-    subroutine panel_calc_mirrored_M_mu_transform(this, body_panels, body_verts, mirror_plane)
-
-        implicit none
-
-        class(panel),intent(inout) :: this
-        type(panel),dimension(:),allocatable,intent(in) :: body_panels
-        type(vertex),dimension(:),allocatable,intent(in) :: body_verts
-        integer,intent(in) :: mirror_plane
-
-        real,dimension(:,:),allocatable :: S_mu, S_sigma, SS_inv, A_mat, S_inv, M_mat, SA_inv, E_mat, EE_inv
-        real,dimension(:),allocatable :: M_row
-        integer :: i, i_next, j
-        real,dimension(3) :: P_g, P_ls
-
-        ! Allocate space
-        allocate(S_mu(this%mu_dim, this%mu_dim))
-        allocate(this%S_mu_inv_mir(this%mu_dim, this%M_dim))
-
-        ! Set up S_mu (maps from {mu} to {M})
-
-        ! Constant
-        S_mu(:,1) = 1.
-
-        ! x from this panel
-        S_mu(1:3,2) = this%vertices_ls_mir(1,:)
-        S_mu(1:3,3) = this%vertices_ls_mir(2,:)
-
-        ! Add in quadratic contributions
-        if (this%order == 2) then
-
-            ! x and y from edge midpoints
-            S_mu(4:6,2) = 0.5*(S_mu(1:3,2) + cshift(S_mu(1:3,2), 1))
-            S_mu(4:6,3) = 0.5*(S_mu(1:3,3) + cshift(S_mu(1:3,3), 1))
-
-            ! x^2
-            S_mu(:,4) = 0.5*S_mu(:,2)**2
-
-            ! xy
-            S_mu(:,5) = S_mu(:,2)*S_mu(:,3)
-
-            ! y^2
-            S_mu(:,6) = 0.5*S_mu(:,3)**2
-
-        end if
-
-        ! Invert
-        allocate(S_inv(this%mu_dim, this%mu_dim))
-        call matinv(this%mu_dim, S_mu, S_inv)
-
-        ! For a linear distribution, that's all that's needed
-        if (this%order == 1) then
-            this%S_mu_inv_mir = S_inv
-
-        ! For a quadratic distribution, we need to build the M matrix as well
-        else
-
-            ! Allocate necessary matrices
-            allocate(M_mat(this%mu_dim, this%M_dim), source=0.)
-            allocate(M_row(4))
-            allocate(EE_inv(4,4))
-
-            ! Upper-left identity
-            do i=1,3
-                M_mat(i,i) = 1.
-            end do
-
-            ! Initialize E matrix
-            allocate(E_mat(4, this%mu_dim), source=0.)
-            E_mat(1:3,:) = S_mu(1:3,:)
-
-            ! Loop through edges to skip discontinuous edges
-            j = 4
-            do i=1,3
-
-                ! If the edge is discontinuous, then the midpoint strength is just the average of the endpoint strengths
-                if (this%edge_is_discontinuous(i)) then
-
-                    ! Average of neighboring vertices
-                    M_mat(i+3,i) = 0.5
-                    M_mat(i+3,modulo(i,3)+1) = 0.5
-
-                ! If the edge is not discontinuous, then build up the undetermined least-squares fit
-                else
-
-                    ! Get opposite vertex location
-                    if (this%i_vert_d(j) > size(body_verts)) then
-                        P_g = body_verts(this%i_vert_d(j)-size(body_verts))%loc
-                    else
-                        P_g = mirror_across_plane(body_verts(this%i_vert_d(j))%loc, mirror_plane)
-                    end if
-                    P_ls = matmul(this%A_g_to_ls_mir, P_g - this%centr_mir)
-
-                    ! Add to E matrix
-                    E_mat(4,1) = 1.
-                    E_mat(4,2) = P_ls(1)
-                    E_mat(4,3) = P_ls(2)
-                    E_mat(4,4) = 0.5*P_ls(1)**2
-                    E_mat(4,5) = P_ls(1)*P_ls(2)
-                    E_mat(4,6) = 0.5*P_ls(2)**2
-
-                    ! Create pseudoinverse
-                    call matinv(4, matmul(E_mat, transpose(E_mat)), EE_inv)
-
-                    ! Add to M matrix
-                    M_row = matmul(S_mu(i+3,:), matmul(transpose(E_mat), EE_inv))
-                    M_mat(i+3,1:3) = M_row(1:3)
-                    M_mat(i+3,j) = M_row(4)
-
-                    ! Increment column
-                    j = j + 1
-
-                end if
-
-            end do
-
-            ! Calculate transformation
-            this%S_mu_inv_mir = matmul(S_inv, M_mat)
-
-        end if
-
-    end subroutine panel_calc_mirrored_M_mu_transform
 
 
     subroutine panel_calc_S_sigma_transform(this, body_panels, mirror, mirror_plane)
@@ -914,36 +815,61 @@ contains
 
             ! Allocate space
             allocate(S_sigma(this%S_dim, this%sigma_dim))
-            allocate(this%S_sigma_inv(this%sigma_dim, this%S_dim))
-            allocate(SS_inv(this%sigma_dim, this%sigma_dim))
 
             ! Influence of this panel
             S_sigma(1,:) = (/1., 0., 0./)
 
             ! Influence of neighboring panels
             do i=2,this%S_dim
-                if (this%i_panel_s(i) > size(body_panels)) then
-                    P_g = mirror_across_plane(body_panels(this%i_panel_s(i)-size(body_panels))%centr, mirror_plane)
+
+                ! Get coordinates
+                if (mirror) then
+                    if (this%i_panel_s(i) > size(body_panels)) then
+                        P_g = body_panels(this%i_panel_s(i)-size(body_panels))%centr
+                    else
+                        P_g = body_panels(this%i_panel_s(i))%centr_mir
+                    end if
+                    P_ls = matmul(this%A_g_to_ls_mir, P_g - this%centr_mir)
                 else
-                    P_g = body_panels(this%i_panel_s(i))%centr
+                    if (this%i_panel_s(i) > size(body_panels)) then
+                        P_g = mirror_across_plane(body_panels(this%i_panel_s(i)-size(body_panels))%centr, mirror_plane)
+                    else
+                        P_g = body_panels(this%i_panel_s(i))%centr
+                    end if
+                    P_ls = matmul(this%A_g_to_ls, P_g - this%centr)
                 end if
-                P_ls = matmul(this%A_g_to_ls, P_g - this%centr)
+
+                ! Parse
                 S_sigma(i,1) = 1.
                 S_sigma(i,2) = P_ls(1)
                 S_sigma(i,3) = P_ls(2)
             end do
 
             ! Invert 
+            if (mirror) then
+                allocate(this%S_sigma_inv_mir(this%sigma_dim, this%S_dim))
+            else
+                allocate(this%S_sigma_inv(this%sigma_dim, this%S_dim))
+            end if
             select case (this%S_dim)
 
             ! For overdetermined, do pseudoinverse using least-squares
             case (4)
+                allocate(SS_inv(this%sigma_dim, this%sigma_dim))
                 call matinv(3, matmul(transpose(S_sigma), S_sigma), SS_inv)
-                this%S_sigma_inv = matmul(SS_inv, transpose(S_sigma))
+                if (mirror) then
+                    this%S_sigma_inv_mir = matmul(SS_inv, transpose(S_sigma))
+                else
+                    this%S_sigma_inv = matmul(SS_inv, transpose(S_sigma))
+                end if
 
             ! For well-posed, do standard inverse
             case (3)
-                call matinv(this%S_dim, S_sigma, this%S_sigma_inv)
+                if (mirror) then
+                    call matinv(this%S_dim, S_sigma, this%S_sigma_inv_mir)
+                else
+                    call matinv(this%S_dim, S_sigma, this%S_sigma_inv)
+                end if
 
             ! Two discontinuous edges
             case (2)
@@ -964,92 +890,17 @@ contains
                 ! Get inverse
                 allocate(SA_inv(this%S_dim,this%S_dim))
                 call matinv(this%S_dim, matmul(S_sigma, A_mat), SA_inv)
-                this%S_sigma_inv = matmul(A_mat, SA_inv)
+                if (mirror) then
+                    this%S_sigma_inv_mir = matmul(A_mat, SA_inv)
+                else
+                    this%S_sigma_inv = matmul(A_mat, SA_inv)
+                end if
 
             end select
 
         end if
         
     end subroutine panel_calc_S_sigma_transform
-
-
-    subroutine panel_calc_mirrored_S_sigma_transform(this, body_panels, body_verts, mirror_plane)
-
-        implicit none
-
-        class(panel),intent(inout) :: this
-        type(panel),dimension(:),allocatable,intent(in) :: body_panels
-        type(vertex),dimension(:),allocatable,intent(in) :: body_verts
-        integer,intent(in) :: mirror_plane
-
-        real,dimension(:,:),allocatable :: S_mu, S_sigma, SS_inv, A_mat, S_inv, M_mat, SA_inv, E_mat, EE_inv
-        real,dimension(:),allocatable :: M_row
-        integer :: i, i_next, j
-        real,dimension(3) :: P_g, P_ls
-
-        ! Linear (not needed for constant-strength source panels)
-        if (this%order == 2) then
-
-            ! Allocate space
-            allocate(S_sigma(this%S_dim, this%sigma_dim))
-            allocate(this%S_sigma_inv_mir(this%sigma_dim, this%S_dim))
-
-            ! Influence of this panel
-            S_sigma(1,:) = (/1., 0., 0./)
-
-            ! Influence of neighboring panels
-            do i=2,this%S_dim
-                if (this%i_panel_s(i) > size(body_panels)) then
-                    P_g = body_panels(this%i_panel_s(i)-size(body_panels))%centr
-                else
-                    P_g = body_panels(this%i_panel_s(i))%centr_mir
-                end if
-                P_ls = matmul(this%A_g_to_ls_mir, P_g - this%centr_mir)
-                S_sigma(i,1) = 1.
-                S_sigma(i,2) = P_ls(1)
-                S_sigma(i,3) = P_ls(2)
-            end do
-
-            ! Invert
-            select case (this%S_dim)
-
-            ! For overdetermined, do pseudoinverse using least-squares
-            case (4)
-                allocate(SS_inv(this%sigma_dim, this%sigma_dim))
-                call matinv(3, matmul(transpose(S_sigma), S_sigma), SS_inv)
-                this%S_sigma_inv_mir = matmul(SS_inv, transpose(S_sigma))
-
-            ! For well-posed, do standard inverse
-            case (3)
-                call matinv(this%S_dim, S_sigma, this%S_sigma_inv_mir)
-
-            ! Two discontinuous edges
-            case (2)
-
-                ! Build A matrix
-                if (allocated(A_mat)) deallocate(A_mat)
-                allocate(A_mat(this%sigma_dim, this%S_dim), source=0.)
-                A_mat(1,1) = 1.
-
-                ! Determine which parameter to eliminate
-                if (abs(P_ls(1)) > abs(P_ls(2))) then
-                    A_mat(2,2) = 1.
-                    A_mat(3,2) = P_ls(2)/P_ls(1)
-                else
-                    A_mat(2,2) = P_ls(1)/P_ls(2)
-                    A_mat(3,2) = 1.
-                end if
-
-                ! Get inverse
-                allocate(SA_inv(this%S_dim, this%S_dim))
-                call matinv(this%S_dim, matmul(S_sigma, A_mat), SA_inv)
-                this%S_sigma_inv_mir = matmul(A_mat, SA_inv)
-
-            end select
-
-        end if
-
-    end subroutine panel_calc_mirrored_S_sigma_transform
 
 
     subroutine panel_init_mirror(this, freestream, mirror_plane)
