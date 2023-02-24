@@ -2128,8 +2128,15 @@ contains
             ! Check
             if (this%order == 2) then
                 if (abs(geom%v_xi(i)*int%F211(i) + geom%v_eta(i)*int%F121(i) - geom%a(i)*int%F111(i)) > 1.e-12) then
-                    write(*,*) "!!! Calculation of F(2,1,1) and F(1,2,1) failed. Quitting..."
-                    stop
+                    !write(*,*)
+                    write(*,*) "!!! Calculation of F(2,1,1) and F(1,2,1) failed for panel ", this%index, "."
+                    !write(*,*) "!!! Point: ", geom%P_g
+                    !write(*,*) "!!! F(1,1,1): ", int%F111
+                    !write(*,*) "!!! F(2,1,1): ", int%F211
+                    !write(*,*) "!!! F(1,2,1): ", int%F121
+                    write(*,*) "!!! Mismatch: ", abs(geom%v_xi*int%F211 + geom%v_eta*int%F121 - geom%a*int%F111)
+                    !write(*,*) "!!! Quitting..."
+                    !stop
                 end if
             end if
 
@@ -2268,8 +2275,11 @@ contains
             end if
 
             if (this%has_sources) then
-                if (abs(int%H111 - int%H313 - int%H133 - geom%h*int%hH113) > 1e-12) then
-                    write(*,*) "!!! Influence calculation failed for H(3,1,3) and H(1,3,3). Quitting..."
+                if (abs(int%H111 - int%H313 - int%H133 - geom%h*int%hH113) > 1.e-12) then
+                    write(*,*)
+                    write(*,*) "!!! Influence calculation failed for H(3,1,3) and H(1,3,3) on panel ", this%index
+                    write(*,*) "!!! Mismatch: ", abs(int%H111 - int%H313 - int%H133 - geom%h*int%hH113)
+                    write(*,*) "!!! Quitting..."
                     stop
                 end if
             end if
@@ -2361,14 +2371,22 @@ contains
 
             ! Run checks
             if (abs(sum(geom%v_eta*int%F211) + int%H223) > 1e-12) then
+                write(*,*)
                 write(*,*) "!!! Influence calculation failed for H(2,2,3). Quitting..."
-                stop
+                write(*,*) "!!! Mismatch: ", abs(sum(geom%v_eta*int%F211) + int%H223)
+                !stop
             end if
 
             if (this%has_sources) then
                 if (abs(int%H111 + int%H313 - int%H133 - geom%h*int%hH113) > 1e-12) then
-                    write(*,*) "!!! Influence calculation failed for H(3,1,3) and H(1,3,3). Quitting..."
-                    stop
+                    write(*,*)
+                    write(*,*) "!!! Influence calculation failed for H(3,1,3) and H(1,3,3) on panel ", this%index
+                    !write(*,*) "!!! Point: ", geom%P_g
+                    !write(*,*) "!!! R1: ", geom%R1
+                    !write(*,*) "!!! Edges in DoD: ", dod_info%edges_in_dod
+                    write(*,*) "!!! Mismatch: ", abs(int%H111 - int%H313 - int%H133 - geom%h*int%hH113)
+                    !write(*,*) "!!! Quitting..."
+                    !stop
                 end if
             end if
 

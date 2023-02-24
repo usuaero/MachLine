@@ -1,23 +1,24 @@
 {
     "flow": {
-        "freestream_velocity" : [100.0, 0.0, 0.0],
+        "freestream_velocity" : [100.0, 20.0, 0.0],
         "freestream_mach_number" : 1.6
     },
     "geometry": {
-        "file": "dev/meshes/supersonic_configuration_hi_res.stl",
+        "file": "dev/meshes/supersonic_configuration.stl",
         "spanwise_axis" : "+y",
         "mirror_about" : "xz",
+        "singularity_order" : "higher",
+        "max_continuity_angle" : 5.0,
         "wake_model": {
+            "wake_present" : true,
+            "append_wake" : false
         },
         "reference": {
             "area": 1.0
         }
     },
     "solver": {
-        "formulation" : "morino",
-        "control_point_offset" : 1.1e-05,
-        "run_checks" : true,
-        "write_A_and_b" : true
+        "formulation" : "morino"
     },
     "post_processing" : {
         "pressure_rules" : {
@@ -25,7 +26,9 @@
         }
     },
     "output": {
-        "body_file" : "dev/results/supersonic_configuration.vtk",
-        "wake_file" : "dev/results/supersonic_configuration_wake.vtk"
+        "body_file" :          "dev/results/supersonic_configuration.vtk",
+        "mirrored_body_file" : "dev/results/supersonic_configuration_mirror.vtk",
+        "wake_file" :          "dev/results/supersonic_configuration_wake.vtk",
+        "control_point_file" : "dev/results/supersonic_configuration_control_points.vtk"
     }
 }
