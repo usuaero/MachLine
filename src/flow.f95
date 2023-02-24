@@ -50,7 +50,6 @@ contains
         character(len=:),allocatable,intent(in) :: spanwise_axis
 
         logical :: found
-        integer :: i
 
         ! Get flow params
         call json_get(settings, 'freestream_velocity', this%v_inf, found)
@@ -158,7 +157,7 @@ contains
         class(flow),intent(inout) :: this
         character(len=:),allocatable,intent(in) :: spanwise_axis
 
-        real,dimension(3) :: j_g, c_hat_c, c_hat_s
+        real,dimension(3) :: j_g, c_hat_c
 
         ! Set positive spanwise axis
         j_g = 0.

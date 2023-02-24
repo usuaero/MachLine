@@ -21,8 +21,7 @@ contains
         type(vertex),dimension(:),allocatable,intent(out) :: vertices
         type(panel),dimension(:),allocatable,intent(out) :: panels
 
-        integer :: i, i1, i2, i3, j, N_words, N_duplicates, unit
-        real,dimension(3) :: vert
+        integer :: i, i1, i2, i3, N_words, N_duplicates, unit
         character(len=200) :: dummy_read
         logical :: more_than_three, on_space
         real,dimension(:,:),allocatable :: vertex_locs

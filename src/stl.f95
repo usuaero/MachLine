@@ -19,8 +19,7 @@ contains
         type(panel),dimension(:),allocatable,intent(out) :: panels
 
         character(len=200) :: dummy_read
-        real,dimension(3) :: vertex_loc
-        integer :: N, stat, i, j, i1, i2, i3, N_duplicates, i_panel, i_vert, i_unique, unit
+        integer :: stat, i, i1, i2, i3, N_duplicates, i_panel, i_vert, unit
         integer,dimension(:,:),allocatable :: panel_vertex_indices
         real,dimension(:,:),allocatable :: vertex_locs
         integer,dimension(:),allocatable :: new_ind

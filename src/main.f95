@@ -26,7 +26,7 @@ program main
     type(panel_solver) :: linear_solver
     integer :: start_count, end_count, i_unit
     real :: count_rate, runtime
-    logical :: exists, found, exported
+    logical :: exists, found
     integer :: solver_stat
 
     ! Start timer

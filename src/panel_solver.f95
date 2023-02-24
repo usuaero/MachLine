@@ -263,8 +263,6 @@ contains
         type(surface_mesh),intent(inout) :: body
 
         real :: offset
-        integer :: i
-        real,dimension(3) :: x
 
         ! Get offset
         call json_xtnsn_get(solver_settings, 'control_point_offset', offset, 1.e-6)
@@ -285,7 +283,7 @@ contains
         call this%set_panel_sources(body)
 
         ! Determine unknowns
-        call this%determine_dirichlet_unknowns(solver_settings, body)
+        call this%determine_dirichlet_unknowns(body)
         if (this%N_unknown /= body%N_cp) then
             write(*,*) "!!! The number of unknowns is not the same as the number of control points. Quitting..."
             stop
@@ -323,13 +321,12 @@ contains
     end subroutine panel_solver_set_panel_sources
 
 
-    subroutine panel_solver_determine_dirichlet_unknowns(this, solver_settings, body)
+    subroutine panel_solver_determine_dirichlet_unknowns(this, body)
         ! Determines the number and type of unknown parameters to be solved for
 
         implicit none
         
         class(panel_solver),intent(inout) :: this
-        type(json_value),pointer,intent(in) :: solver_settings
         type(surface_mesh),intent(in) :: body
 
         integer :: i, j
@@ -916,7 +913,7 @@ contains
         real,dimension(:),allocatable,intent(in) :: source_inf, doublet_inf
         logical,intent(in) :: mirrored_panel
 
-        integer :: i, k, index
+        integer :: k, index
 
         ! Add source influence depending on boundary condition
         if (cp%bc == 1 .or. cp%bc == 3) then
@@ -1253,8 +1250,8 @@ contains
         integer,intent(inout) :: solver_stat
 
         real,dimension(:,:),allocatable :: A_p
-        real,dimension(:),allocatable :: b_p, x, R
-        integer :: stat, i, j
+        real,dimension(:),allocatable :: b_p, x
+        integer :: stat, i
         integer(8) :: start_count, end_count
         real(16) :: count_rate
 
@@ -1657,7 +1654,7 @@ contains
         
         class(panel_solver),intent(inout) :: this
         type(surface_mesh),intent(inout) :: body
-        integer :: i,stat
+        integer :: stat
         real :: val_holder_L, val_holder_KT
 
         if (verbose) write(*,'(a)',advance='no') "     Calculating compressibility pressure corrections..."        
@@ -1790,8 +1787,6 @@ contains
         class(panel_solver),intent(inout) :: this
         type(surface_mesh),intent(inout) :: body
         
-        integer :: i, stat
-
         if (verbose) write(*,'(a, a, a)',advance='no') "     Calculating forces using the ", & 
                                                        this%pressure_for_forces, " pressure rule..."
 
@@ -1852,7 +1847,7 @@ contains
         type(surface_mesh),intent(inout) :: body
         real,dimension(:),allocatable :: pressures
         
-        integer :: i, j, stat
+        integer :: i, stat
 
         ! Allocate force storage
         allocate(body%dC_f(3,this%N_cells), stat=stat)
@@ -1940,7 +1935,6 @@ contains
         integer,intent(in) :: solver_stat
 
         type(json_value),pointer :: p_parent, p_child
-        integer :: i_unit
 
         ! Write solver results
         call json_value_create(p_parent)

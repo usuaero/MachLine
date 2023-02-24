@@ -321,13 +321,12 @@ contains
 
         class(surface_mesh),intent(inout),target :: this
 
-        integer :: i, j, m, n, m1, n1, temp, i_edge, N_edges, i_mid, N_orig_verts, edge_index_i, edge_index_j
+        integer :: i, j, i_edge, edge_index_i, edge_index_j
         logical :: already_found_shared
         real :: distance
         integer,dimension(2) :: i_endpoints
         integer,dimension(this%N_panels*3) :: panel1, panel2, vertex1, vertex2, edge_index1, edge_index2 ! By definition, we will have no more than 3*N_panels edges; we should have much less, but some people...
         logical,dimension(this%N_panels*3) :: on_mirror_plane
-        real,dimension(3) :: loc
 
         if (verbose) write(*,'(a)',advance='no') "     Locating adjacent panels..."
 
@@ -336,7 +335,7 @@ contains
 
         ! Loop through each panel
         this%N_edges = 0
-        !$OMP parallel private(j, already_found_shared, distance, i_endpoints, m, m1, n, n1, temp, i_edge) &
+        !$OMP parallel private(j, already_found_shared, distance, i_endpoints, i_edge) &
         !$OMP & private(edge_index_i, edge_index_j)
 
         !$OMP do schedule(dynamic)
@@ -716,8 +715,6 @@ contains
         character(len=:),allocatable,intent(in) :: body_file, wake_file
 
         integer :: i
-        real,dimension(:),allocatable :: panel_inclinations
-        type(vtk_out) :: body_vtk
 
         ! Check flow symmetry condition
         this%asym_flow = .false.
@@ -832,7 +829,7 @@ contains
         class(surface_mesh),intent(inout) :: this
         type(flow),intent(in) :: freestream
 
-        integer :: i, j, k, m, n, temp, top_panel, bottom_panel, i_vert_1, i_vert_2, N_wake_edges
+        integer :: i, j, k, i_vert_1, i_vert_2, N_wake_edges
         real :: C_angle, C_min_angle
         real,dimension(3) :: second_normal, cross_result
         real,dimension(3) :: t_hat_g, d
@@ -1173,7 +1170,7 @@ contains
         integer,intent(out) :: i_end_edge
         integer,dimension(:),allocatable,intent(out) :: i_panels_between
 
-        integer :: i_curr_panel, i_next_panel, i_prev_panel, i, j, i_edge
+        integer :: i_curr_panel, i_next_panel, i_prev_panel, i
         type(list) :: i_panels_between_list
     
         ! Initialize the panel stepping
@@ -1238,7 +1235,7 @@ contains
         logical,intent(in) :: mirrored_is_unique
         integer,dimension(:),allocatable,intent(in) :: panels_for_this_clone
 
-        integer :: k, i_vert, i_panel, i_edge
+        integer :: k, i_panel
 
         ! Basic initialization
         call this%vertices(i_boba)%init(this%vertices(i_jango)%loc, i_boba, this%vertices(i_jango)%vert_type)
@@ -1697,8 +1694,7 @@ contains
         type(dod),dimension(:,:),allocatable :: wake_dod_info
 
         logical,dimension(:),allocatable :: verts_in_dod, wake_verts_in_dod
-        integer :: j, k, stat, N_verts, N_panels, N_strip_verts, N_strip_panels
-        real,dimension(3) :: vert_loc, mirrored_vert_loc
+        integer :: j, stat, N_verts, N_panels, N_strip_verts, N_strip_panels
 
         ! Figure out how many verts and panels we're going to consider
         if (this%mirrored) then
@@ -1796,9 +1792,8 @@ contains
         type(flow),intent(in) :: freestream
         real,intent(out) :: phi_d, phi_s
 
-        integer :: i, j, k
+        integer :: j, k
         real :: phi_d_panel, phi_s_panel
-        logical,dimension(:),allocatable :: verts_in_dod
         type(dod),dimension(:),allocatable :: dod_info
         type(dod),dimension(:,:),allocatable :: wake_dod_info
 
@@ -2069,44 +2064,48 @@ contains
         call body_vtk%write_cell_scalars(N_discont_edges, "N_discontinuous_edges", .true.)
         call body_vtk%write_cell_vectors(cents, "centroid", .true.)
 
-        ! Pressures
-        if (allocated(this%C_p_inc)) then
-            call body_vtk%write_cell_scalars(this%C_p_inc(N_cells+1:N_cells*2), "C_p_inc", .false.)
-        end if
-        if (allocated(this%C_p_ise)) then
-            call body_vtk%write_cell_scalars(this%C_p_ise(N_cells+1:N_cells*2), "C_p_ise", .false.)
-        end if
-        if (allocated(this%C_p_2nd)) then
-            call body_vtk%write_cell_scalars(this%C_p_2nd(N_cells+1:N_cells*2), "C_p_2nd", .false.)
-        end if
-        if (allocated(this%C_p_lin)) then
-            call body_vtk%write_cell_scalars(this%C_p_lin(N_cells+1:N_cells*2), "C_p_lin", .false.)
-        end if
-        if (allocated(this%C_p_sln)) then
-            call body_vtk%write_cell_scalars(this%C_p_sln(N_cells+1:N_cells*2), "C_p_sln", .false.)
-        end if
+        if (solved) then
 
-        ! Corrected pressures
-        if (allocated(this%C_p_pg)) then
-            call body_vtk%write_cell_scalars(this%C_p_pg(N_cells+1:N_cells*2), "C_p_PG", .false.)
-        end if
-        if (allocated(this%C_p_kt)) then
-            call body_vtk%write_cell_scalars(this%C_p_kt(N_cells+1:N_cells*2), "C_p_KT", .false.)
-        end if
-        if (allocated(this%C_p_lai)) then
-            call body_vtk%write_cell_scalars(this%C_p_lai(N_cells+1:N_cells*2), "C_p_L", .false.)
-        end if
+            ! Pressures
+            if (allocated(this%C_p_inc)) then
+                call body_vtk%write_cell_scalars(this%C_p_inc(N_cells+1:N_cells*2), "C_p_inc", .false.)
+            end if
+            if (allocated(this%C_p_ise)) then
+                call body_vtk%write_cell_scalars(this%C_p_ise(N_cells+1:N_cells*2), "C_p_ise", .false.)
+            end if
+            if (allocated(this%C_p_2nd)) then
+                call body_vtk%write_cell_scalars(this%C_p_2nd(N_cells+1:N_cells*2), "C_p_2nd", .false.)
+            end if
+            if (allocated(this%C_p_lin)) then
+                call body_vtk%write_cell_scalars(this%C_p_lin(N_cells+1:N_cells*2), "C_p_lin", .false.)
+            end if
+            if (allocated(this%C_p_sln)) then
+                call body_vtk%write_cell_scalars(this%C_p_sln(N_cells+1:N_cells*2), "C_p_sln", .false.)
+            end if
 
-        ! Sources
-        call body_vtk%write_cell_scalars(this%sigma(this%N_panels+1:this%N_panels*2), "sigma", .true.)
+            ! Corrected pressures
+            if (allocated(this%C_p_pg)) then
+                call body_vtk%write_cell_scalars(this%C_p_pg(N_cells+1:N_cells*2), "C_p_PG", .false.)
+            end if
+            if (allocated(this%C_p_kt)) then
+                call body_vtk%write_cell_scalars(this%C_p_kt(N_cells+1:N_cells*2), "C_p_KT", .false.)
+            end if
+            if (allocated(this%C_p_lai)) then
+                call body_vtk%write_cell_scalars(this%C_p_lai(N_cells+1:N_cells*2), "C_p_L", .false.)
+            end if
 
-        ! Other
-        call body_vtk%write_cell_vectors(this%V_cells(:,N_cells+1:N_cells*2), "v", .false.)
-        call body_vtk%write_cell_vectors(this%dC_f(:,N_cells+1:N_cells*2), "dC_f", .false.)
+            ! Sources
+            call body_vtk%write_cell_scalars(this%sigma(this%N_panels+1:this%N_panels*2), "sigma", .true.)
 
-        ! Surface potentials
-        call body_vtk%write_point_scalars(this%mu(this%N_verts+1:this%N_verts*2), "mu")
-        call body_vtk%write_point_scalars(this%Phi_u(this%N_verts+1:this%N_verts*2), "Phi_u")
+            ! Other
+            call body_vtk%write_cell_vectors(this%V_cells(:,N_cells+1:N_cells*2), "v", .false.)
+            call body_vtk%write_cell_vectors(this%dC_f(:,N_cells+1:N_cells*2), "dC_f", .false.)
+
+            ! Surface potentials
+            call body_vtk%write_point_scalars(this%mu(this%N_verts+1:this%N_verts*2), "mu")
+            call body_vtk%write_point_scalars(this%Phi_u(this%N_verts+1:this%N_verts*2), "Phi_u")
+
+        end if
 
         call body_vtk%finish()
 

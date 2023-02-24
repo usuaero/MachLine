@@ -258,7 +258,7 @@ contains
         implicit none
 
         class(panel),intent(inout) :: this
-        real,dimension(3) :: d1, d2, d3, d4
+        real,dimension(3) :: d1, d2
 
         ! 3-sided panel
         if (this%N == 3) then
@@ -291,7 +291,6 @@ contains
         class(panel),intent(inout) :: this
         real,dimension(3) :: sum
         integer :: i
-        real :: x
 
         ! Get average of corner points
         sum = 0.
@@ -393,10 +392,10 @@ contains
         end if
 
         ! Calculate panel inclination indicator (E&M Eq. (E.3.16b))
-        this%r = sign(1., x) ! r = -1 -> superinclined, r = 1 -> subinclined
+        this%r = int(sign(1., x)) ! r = -1 -> superinclined, r = 1 -> subinclined
 
         ! Other inclination parameters
-        rs = this%r*freestream%s
+        rs = int(this%r*freestream%s)
 
         ! Calculate transformation
         y = 1./sqrt(abs(x))
@@ -505,8 +504,6 @@ contains
         type(vertex),dimension(:),allocatable,intent(in) :: body_verts
         logical,intent(in) :: mirror_needed
         integer,intent(in) :: mirror_plane
-
-        integer :: i
 
         ! Store order
         this%order = order
@@ -657,7 +654,7 @@ contains
 
         real,dimension(:,:),allocatable :: S_mu, S_inv, M_mat, E_mat, EE_inv, S_mu_inv
         real,dimension(:),allocatable :: M_row
-        integer :: i, i_next, j, N_body_verts
+        integer :: i, j, N_body_verts
         real,dimension(3) :: P_g, P_ls
 
         ! Get number of vertices
@@ -812,7 +809,7 @@ contains
         logical,intent(in) :: calc_mirror
         integer,intent(in) :: mirror_plane
 
-        real,dimension(:,:),allocatable :: S_sigma, SS_inv, A_mat, S_inv, SA_inv
+        real,dimension(:,:),allocatable :: S_sigma, SS_inv, A_mat, SA_inv
         integer :: i
         real,dimension(3) :: P_g, P_ls
 
@@ -950,7 +947,6 @@ contains
         integer,intent(in) :: mirror_plane
 
         real,dimension(3) :: u0, v0
-        real,dimension(3,3) :: B_mat_ls
         real :: x, y
         integer :: i, rs
 
@@ -969,10 +965,10 @@ contains
         x = inner(this%n_g_mir, this%nu_g_mir)
 
         ! Calculate panel inclination indicator (E&M Eq. (E.3.16b))
-        this%r_mir = sign(1., x) ! r=-1 -> superinclined, r=1 -> subinclined
+        this%r_mir = int(sign(1., x)) ! r=-1 -> superinclined, r=1 -> subinclined
 
         ! Other inclination parameters
-        rs = this%r*freestream%s
+        rs = int(this%r*freestream%s)
 
         ! Calculate transformation
         y = 1./sqrt(abs(x))
@@ -1485,7 +1481,7 @@ contains
 
         type(dod) :: dod_info
 
-        real,dimension(3) :: d, point, a, b, R_star, Q_end
+        real,dimension(3) :: d, a, b, R_star, Q_end
         real,dimension(3,this%N) :: d_from_vert
         integer :: i, i_next
         real :: x, s_star
@@ -1692,10 +1688,7 @@ contains
 
         type(eval_point_geom) :: geom
 
-        real,dimension(2) :: d_ls
-        real,dimension(3) :: d_g
         integer :: i, i_next
-        real :: val
         real,dimension(this%N) :: dummy
 
         ! Initialize
@@ -1754,7 +1747,6 @@ contains
         type(dod),intent(in) :: dod_info
         type(eval_point_geom) :: geom
 
-        real,dimension(2) :: d_ls, d
         real :: x
         integer :: i, i_next
         real :: dummy
@@ -1849,7 +1841,6 @@ contains
         type(dod),intent(in) :: dod_info
         type(eval_point_geom) :: geom
 
-        real,dimension(2) :: d_ls, d
         real :: x
         integer :: i, i_next
         real :: dummy
@@ -2225,7 +2216,7 @@ contains
         logical,intent(in) :: mirror_panel
         type(integrals),intent(inout) :: int
 
-        real :: S, C, nu, c1, c2, x
+        real :: S, C, c1, c2, x
         integer :: i
 
         ! Calculate hH(1,1,3) (Johnson Eqs. (D.41) and (G.24))
@@ -2300,8 +2291,8 @@ contains
         logical,intent(in) :: mirror_panel
         type(integrals),intent(inout) :: int
 
-        real :: F1, F2, b, s_b
-        integer :: i, i_next
+        real :: F1, F2, b
+        integer :: i
 
         ! Calculate hH(1,1,3) (Ehlers Eq. (E18))
         int%hH113 = 0.
@@ -2577,7 +2568,6 @@ contains
 
         type(eval_point_geom) :: geom
         type(integrals) :: int
-        integer :: i
         real,dimension(:),allocatable :: phi_s_sigma_space, phi_d_mu_space
 
         ! Allocate space
@@ -2757,7 +2747,6 @@ contains
 
         type(eval_point_geom) :: geom
         type(integrals) :: int
-        integer :: i
 
         call this%allocate_velocity_influences(v_s, v_d)
 
@@ -2854,7 +2843,7 @@ contains
 
         real,dimension(this%S_dim) :: sigma_strengths
 
-        integer :: i, shift
+        integer :: i
 
         ! Check we're not in the wake
         if (.not. this%in_wake) then
@@ -3026,7 +3015,6 @@ contains
         real,dimension(this%mu_dim) :: mu_params
         real,dimension(this%sigma_dim) :: sigma_params
         real,dimension(3) :: Q_ls, s_dir
-        integer :: i
         real :: s
 
         ! Get point

@@ -50,11 +50,6 @@ contains
         real,intent(in) :: trefftz_dist
         logical,intent(in) :: body_mirrored
 
-        integer :: i, j
-        integer :: N_wake_edge_verts, N_wake_edges
-        integer,dimension(:),allocatable :: wake_edge_indices, wake_edge_verts
-        logical,dimension(:),allocatable :: is_wake_edge_vertex
-
         if (verbose) write(*,'(a ES10.4 a)',advance='no') "     Initializing wake with a Trefftz distance of ", trefftz_dist, "..."
 
         ! Set whether the wake will be mirrored

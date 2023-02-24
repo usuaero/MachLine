@@ -90,7 +90,7 @@ contains
         end if
 
         ! Initialize vertices
-        call this%init_vertices(freestream, mirror_start, N_panels_streamwise, trefftz_dist, start_1, start_2, body_verts)
+        call this%init_vertices(freestream, N_panels_streamwise, trefftz_dist, start_1, start_2, body_verts)
 
         ! Intialize panels
         call this%init_panels(N_panels_streamwise)
@@ -104,7 +104,7 @@ contains
     end subroutine wake_strip_init
 
 
-    subroutine wake_strip_init_vertices(this, freestream, mirror_start, N_panels_streamwise, trefftz_dist, &
+    subroutine wake_strip_init_vertices(this, freestream, N_panels_streamwise, trefftz_dist, &
                                         start_1, start_2, body_verts)
         ! Initializes this wake strip's vertices based on the provided info
 
@@ -112,13 +112,12 @@ contains
 
         class(wake_strip),intent(inout) :: this
         type(flow),intent(in) :: freestream
-        logical,intent(in) :: mirror_start
         integer,intent(in) :: N_panels_streamwise
         real,intent(in) :: trefftz_dist
         real,dimension(3),intent(in) :: start_1, start_2
         type(vertex),dimension(:),allocatable,intent(in) :: body_verts
 
-        real,dimension(3) :: loc_1, loc_2, loc
+        real,dimension(3) :: loc
         real :: d1, d2, sep_1, sep_2
         integer :: i, N_body_verts
 

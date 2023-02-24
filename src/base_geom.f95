@@ -227,7 +227,7 @@ contains
         class(vertex),intent(inout) :: this
         type(edge),dimension(:),allocatable,intent(in) :: mesh_edges
 
-        integer :: i, j, i_edge, N_wake_edges_on_mirror_plane
+        integer :: j, i_edge, N_wake_edges_on_mirror_plane
 
         ! Initialize
         this%N_wake_edges = 0
@@ -504,8 +504,6 @@ contains
 
         class(eval_point_geom),intent(out) :: this
         real,dimension(3),intent(in) :: P_g, P_ls
-
-        real,dimension(3) :: x
 
         ! Store point
         this%P_g = P_g

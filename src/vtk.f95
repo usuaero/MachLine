@@ -560,7 +560,7 @@ contains
 
         character(len=200) :: dummy_read
         real,dimension(:,:),allocatable :: vertex_locs
-        integer :: i, j, N, i1, i2, i3, N_duplicates,unit
+        integer :: i, N, i1, i2, i3, N_duplicates,unit
         integer,dimension(:),allocatable :: new_ind
 
         ! Open file

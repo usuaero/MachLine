@@ -23,8 +23,9 @@ MAIN_PATH = src/main.f95
 COMPILER = gfortran
 
 # Flags
-FLAGS = -O2 -fdefault-real-8 -fbounds-check -fbacktrace #-ffpe-trap=invalid,zero
+FLAGS = -O2 -fdefault-real-8
 OMP_FLAG = -fopenmp
+DEBUG_FLAGS = -fbounds-check -fbacktrace
 
 # Program name
 PROGRAM = machline.exe
@@ -35,7 +36,11 @@ default:
 
 # Debug option
 debug:
-	$(COMPILER) $(FLAGS) $(OMP_FLAG) -Wall -o $(PROGRAM) $(COMMON_PATHS) $(SRC_PATHS) $(MAIN_PATH)
+	$(COMPILER) $(FLAGS) $(OMP_FLAG) $(DEBUG_FLAGS) -o $(PROGRAM) $(COMMON_PATHS) $(SRC_PATHS) $(MAIN_PATH)
+
+# Debug with all warnings
+wall:
+	$(COMPILER) $(FLAGS) $(OMP_FLAG) $(DEBUG_FLAGS) -Wall -o $(PROGRAM) $(COMMON_PATHS) $(SRC_PATHS) $(MAIN_PATH)
 
 # Serial compilation (without OpenMP)
 serial:
