@@ -1,5 +1,8 @@
 # make for MachLine
 
+# Deactivate implicit rules
+.SUFFIXES:
+
 # Directories
 SRC_DIR = src
 COM_DIR = common
@@ -26,6 +29,7 @@ OMP_FLAG = -fopenmp
 # Program name
 PROGRAM = machline.exe
 
+# Default make
 default:
 	$(COMPILER) $(FLAGS) $(OMP_FLAG) -o $(PROGRAM) $(COMMON_PATHS) $(SRC_PATHS) $(MAIN_PATH)
 

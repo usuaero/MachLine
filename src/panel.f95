@@ -791,12 +791,12 @@ contains
             this%S_mu_inv = S_mu_inv
         end if
         
-        if (this%index < 51) then
-            write(*,*)
-            write(*,*) this%mu_dim
-            write(*,*) this%M_dim
-            write(*,*) this%S_mu_inv
-        end if
+        !if (this%index < 51) then
+        !    write(*,*)
+        !    write(*,*) this%mu_dim
+        !    write(*,*) this%M_dim
+        !    write(*,*) this%S_mu_inv
+        !end if
 
     end subroutine panel_calc_M_mu_transform
 

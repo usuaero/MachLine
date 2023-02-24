@@ -5,7 +5,7 @@
         "freestream_mach_number" : 2.0
     },
     "geometry" : {
-        "file" : "dev/meshes/cone_equal_aspect.vtk",
+        "file" : "dev/meshes/cone_10_deg_medium.vtk",
         "mirror_about" : "xy",
         "singularity_order" : "higher",
         "wake_model" : {

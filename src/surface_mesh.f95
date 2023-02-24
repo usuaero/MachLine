@@ -1,7 +1,6 @@
 ! A type for defining closed bodies to be analyzed by a linear panel method
 module surface_mesh_mod
 
-    use omp_lib
     use json_mod
     use json_xtnsn_mod
     use vtk_mod

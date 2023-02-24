@@ -6,7 +6,6 @@ program main
     use flow_mod
     use panel_solver_mod
     use helpers_mod
-    use omp_lib
 
     implicit none
 
