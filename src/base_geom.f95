@@ -86,7 +86,8 @@ module base_geom_mod
         real,dimension(2) :: P_ls ! Transformed point in panel plane
         real,dimension(2,3) :: d_ls ! Local displacements from panel vertices
         real :: h, h2 ! Transformed height above panel
-        real,dimension(3) :: a, g2, l1, l2, R1, R2, dR ! Edge integration parameters for the Ehlers-Johnson method
+        real,dimension(3) :: a, l1, l2, R1, R2, dR ! Edge integration parameters for the Ehlers-Johnson method
+        real,dimension(3) :: g2 ! Also
         real,dimension(3) :: v_xi, v_eta ! Edge in-plane normal vectors
 
         contains
