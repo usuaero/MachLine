@@ -165,7 +165,7 @@ module panel_mod
 contains
 
 
-    subroutine panel_init_3(this, v1, v2, v3, index)
+    subroutine panel_init_3(this, v1, v2, v3, index, in_wake)
         ! Initializes a 3-panel
 
         implicit none
@@ -173,6 +173,7 @@ contains
         class(panel),intent(inout) :: this
         type(vertex),intent(inout),target :: v1, v2, v3
         integer,intent(in) :: index
+        logical,intent(in),optional :: in_wake
 
         integer :: i
 
@@ -200,7 +201,13 @@ contains
         this%abutting_panels = 0
         this%i_top_parent = 0
         this%i_bot_parent = 0
-        this%has_sources = .true.
+        if (present(in_wake)) then
+            this%in_wake = in_wake
+            this%has_sources = .not. in_wake
+        else
+            this%in_wake = .false.
+            this%has_sources = .true.
+        end if
         allocate(this%edge_is_discontinuous(3), source=.false.)
 
         ! Calculate panel geometries only dependent upon vertex locations (nothing flow-dependent at this point)
@@ -505,8 +512,13 @@ contains
         logical,intent(in) :: mirror_needed
         integer,intent(in) :: mirror_plane
 
-        ! Store order
-        this%order = order
+        ! Store order, while forcing wake panels to be lower-order
+        if (this%in_wake) then
+            this%order = 1
+            this%has_sources = .false. ! A wake panel also will not have sources
+        else
+            this%order = order
+        end if
 
         ! A higher-order panel with 3 discontinuous edges is just a lower-order panel
         if (this%N_discont_edges == 3 .and. this%order == 2) this%order = 1 
@@ -555,7 +567,7 @@ contains
         ! Get number of panels
         N_body_panels = size(body_panels)
 
-        ! Check if this panel belongs to the wake
+        ! Wake panel (always linear)
         if (this%in_wake) then
 
             ! Allocate space
@@ -567,14 +579,7 @@ contains
                 this%i_vert_d(i+this%M_dim) = this%vertices(i)%ptr%bot_parent
             end do
 
-            if (this%order == 2) then
-
-                ! Get neighbors
-                do i=1,this%N
-                end do
-
-            end if
-
+        ! Non-wake panel
         else
 
             ! Allocate space
@@ -788,13 +793,6 @@ contains
             this%S_mu_inv = S_mu_inv
         end if
         
-        !if (this%index < 51) then
-        !    write(*,*)
-        !    write(*,*) this%mu_dim
-        !    write(*,*) this%M_dim
-        !    write(*,*) this%S_mu_inv
-        !end if
-
     end subroutine panel_calc_M_mu_transform
 
 

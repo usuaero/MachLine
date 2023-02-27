@@ -20,7 +20,6 @@ module wake_strip_mod
             procedure :: init_vertices => wake_strip_init_vertices
             procedure :: init_panels => wake_strip_init_panels
             procedure :: init_panel => wake_strip_init_panel
-            procedure :: init_midpoints => wake_strip_init_midpoints
 
     end type wake_strip
     
@@ -98,7 +97,7 @@ contains
         ! Initialize other panel properties
         do i=1,this%N_panels
             call this%panels(i)%init_with_flow(freestream, this%mirrored, mirror_plane)
-            call this%panels(i)%set_distribution(initial_panel_order, this%panels, this%vertices, this%mirrored, mirror_plane)
+            call this%panels(i)%set_distribution(1, this%panels, this%vertices, this%mirrored, mirror_plane) ! With the current formulation, wake panels are always linear
         end do
 
     end subroutine wake_strip_init
@@ -278,154 +277,10 @@ contains
         if (this%has_zero_area(i1, i2, i3)) then
             skipped_panels(i_panel) = .true.
         else
-            call this%panels(i_panel)%init(this%vertices(i1), this%vertices(i2), this%vertices(i3), i_panel)
+            call this%panels(i_panel)%init(this%vertices(i1), this%vertices(i2), this%vertices(i3), i_panel, in_wake=.true.)
         end if
 
-        ! Set that it's in the wake
-        this%panels(i_panel)%in_wake = .true.
-        this%panels(i_panel)%has_sources = .false.
-    
     end subroutine wake_strip_init_panel
 
-
-    subroutine wake_strip_init_midpoints(this)
-        ! Initializes the mesh midpoints
-
-        implicit none
-        
-        class(wake_strip),target,intent(inout) :: this
-
-        integer :: N_mids, i_mid, i, edge_prev
-        real,dimension(3) :: loc
-
-        ! Determine how many midpoints we need
-        N_mids = 2*this%N_panels + 1
-
-        ! Allocate more space
-        call this%allocate_new_vertices(N_mids)
-
-        ! Loop through panels (since we know how the mesh is basically structured)
-        i_mid = this%N_verts - N_mids
-        do i=1,this%N_panels
-
-            ! Create midpoint at the base of this panel
-            i_mid = i_mid + 1
-
-            ! Get location
-            loc = 0.5*(this%panels(i)%get_vertex_loc(1) + this%panels(i)%get_vertex_loc(3))
-
-            ! Initialize
-            call this%vertices(i_mid)%init(loc, i_mid, 2)
-
-            ! Store adjacent panels
-            call this%vertices(i_mid)%panels%append(i)
-            if (i > 1) call this%vertices(i_mid)%panels%append(i-1)
-
-            ! Store adjacent vertices
-            call this%vertices(i_mid)%adjacent_vertices%append(this%panels(i)%get_vertex_index(1))
-            call this%vertices(i_mid)%adjacent_vertices%append(this%panels(i)%get_vertex_index(3))
-
-            ! Point panel to it
-            this%panels(i)%midpoints(3)%ptr => this%vertices(i_mid)
-
-            ! Point previous panel to it
-            if (i > 1) then
-                if (edge_prev == 1) then
-                    this%panels(i-1)%midpoints(2)%ptr => this%vertices(i_mid)
-                else
-                    this%panels(i-1)%midpoints(1)%ptr => this%vertices(i_mid)
-                end if
-            end if
-
-            ! Store parents
-            this%vertices(i_mid)%top_parent = this%i_top_parent_mid
-            this%vertices(i_mid)%bot_parent = this%i_bot_parent_mid
-
-            ! Initialize side midpoint
-            i_mid = i_mid + 1
-            
-            ! Check which side we're on
-            ! Side 1
-            if (this%panels(i)%get_vertex_index(2) - this%panels(i)%get_vertex_index(1) == 2) then
-
-                ! Get location
-                loc = 0.5*(this%panels(i)%get_vertex_loc(1) + this%panels(i)%get_vertex_loc(2))
-
-                ! Initialize
-                call this%vertices(i_mid)%init(loc, i_mid, 2)
-
-                ! Store adjacent panels
-                call this%vertices(i_mid)%panels%append(i)
-
-                ! Store adjacent vertices
-                call this%vertices(i_mid)%adjacent_vertices%append(this%panels(i)%get_vertex_index(1))
-                call this%vertices(i_mid)%adjacent_vertices%append(this%panels(i)%get_vertex_index(2))
-
-                ! Point panel to it
-                this%panels(i)%midpoints(1)%ptr => this%vertices(i_mid)
-                edge_prev = 1
-
-                ! Store parents
-                this%vertices(i_mid)%top_parent = this%i_top_parent_1
-                this%vertices(i_mid)%bot_parent = this%i_bot_parent_1
-
-            ! Side 2
-            else
-
-                ! Get location
-                loc = 0.5*(this%panels(i)%get_vertex_loc(3) + this%panels(i)%get_vertex_loc(2))
-
-                ! Initialize
-                call this%vertices(i_mid)%init(loc, i_mid, 2)
-
-                ! Store adjacent panels
-                call this%vertices(i_mid)%panels%append(i)
-
-                ! Store adjacent vertices
-                call this%vertices(i_mid)%adjacent_vertices%append(this%panels(i)%get_vertex_index(3))
-                call this%vertices(i_mid)%adjacent_vertices%append(this%panels(i)%get_vertex_index(2))
-
-                ! Point panel to it
-                this%panels(i)%midpoints(2)%ptr => this%vertices(i_mid)
-                edge_prev = 2
-
-                ! Store parents
-                this%vertices(i_mid)%top_parent = this%i_top_parent_2
-                this%vertices(i_mid)%bot_parent = this%i_bot_parent_2
-
-            end if
-
-        end do
-
-        ! Initialize final midpoint
-        i_mid = i_mid + 1
-
-        ! Get location
-        loc = 0.5*(this%vertices(this%N_verts-N_mids)%loc + this%vertices(this%N_verts-1-N_mids)%loc)
-
-        ! Initialize
-        call this%vertices(i_mid)%init(loc, i_mid, 2)
-
-        ! Store adjacent panels
-        call this%vertices(i_mid)%panels%append(this%N_panels)
-
-        ! Store adjacent vertices
-        call this%vertices(i_mid)%adjacent_vertices%append(this%N_verts-1-N_mids)
-        call this%vertices(i_mid)%adjacent_vertices%append(this%N_verts-N_mids)
-
-        ! Point previous panel to it
-        if (edge_prev == 1) then
-            this%panels(this%N_panels)%midpoints(2)%ptr => this%vertices(i_mid)
-        else
-            this%panels(this%N_panels)%midpoints(1)%ptr => this%vertices(i_mid)
-        end if
-
-        ! Store parents
-        this%vertices(i_mid)%top_parent = this%i_top_parent_mid
-        this%vertices(i_mid)%bot_parent = this%i_bot_parent_mid
-
-        this%midpoints_created = .true.
-        
-    end subroutine wake_strip_init_midpoints
     
 end module wake_strip_mod

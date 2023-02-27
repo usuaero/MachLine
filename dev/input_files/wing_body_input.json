@@ -11,7 +11,7 @@
         "max_continuity_angle" : 5.0,
         "wake_model": {
             "wake_present" : true,
-            "append_wake" : false
+            "append_wake" : true
         },
         "reference": {
             "area": 1.0

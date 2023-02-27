@@ -1,6 +1,6 @@
 {
     "flow": {
-        "freestream_velocity": [100.0, 30.0, 0.0],
+        "freestream_velocity": [100.0, 0.0, 5.0],
         "gamma" : 1.4,
         "freestream_mach_number" : 1.5
     },
@@ -11,7 +11,7 @@
         "max_continuity_angle" : 5.0,
         "wake_model" : {
             "wake_present" : true,
-            "append_wake" : false,
+            "append_wake" : true,
             "trefftz_distance" : 20.0
         }
     },
