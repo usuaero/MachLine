@@ -224,9 +224,136 @@ def _get_regular_points_and_panels_for_open_right_cone(h, r, N_transverse, N_the
             panels[ind,2] = 1 + j+1 + i*(N_theta+1)
 
     return vertices, panels
+            
+
+def _get_regular_points_and_panels_for_open_isosceles_right_cone(h, r, N_transverse, N_theta):
+    # Generates the points and panels for half of a closed right cone, aligned with the x-axis and its base at the origin.
+    # resultant mesh should be mirrored about the xy plane.
+    # The number of triangles on each row of the cone increases, making each tri in the mesh isosceles-ish
+    # N_theta is the number of triangles in the first row
+
+    # Determine number of panels
+    N_panels = N_theta + 2*(N_transverse-1)*N_theta + 2*(N_transverse-2) - 1
+
+    # Initialize storage
+    panels = np.zeros((N_panels,3), dtype=int)
+    X_v = []
+    Y_v = []
+    Z_v = []
+
+    # Apex
+    X_v.append(h)
+    Y_v.append(0.0)
+    Z_v.append(0.0)
+
+    # Generate distribution of locations in x
+    X = np.linspace(h, 0.0, N_transverse+1)
+
+    # Calculate radii of side sections
+    R_x = (h-X)*r/h
+
+    # Generate points going down the side
+    i_curr = 0
+    for i in range(N_transverse):
+
+        # Get number of theta stations for this slice
+        N_theta_i = N_theta + i + 1
+
+        # Get distribution of angles
+        TH = np.linspace(0.0, np.pi, N_theta_i)
+
+        # Calculate trig functions
+        C_TH = np.cos(TH)
+        S_TH = np.sin(TH)
+
+        # Place vertices
+        for j in range(N_theta_i):
+
+            # Update index
+            i_curr += 1
+
+            # x coordinate
+            X_v.append(X[i+1])
+
+            # y coordinate
+            Y_v.append(C_TH[j]*R_x[i+1])
+
+            # z coordinate
+            Z_v.append(S_TH[j]*R_x[i+1])
+
+    vertices = np.array([X_v, Y_v, Z_v]).T
+
+    # Initialize panels
+
+    panel_0 = []
+    panel_1 = []
+    panel_2 = []
+
+    # First row at tip
+    i_base_corner = 0
+    i_forward_corner = 1
+    for i in range(N_theta):
+
+        # Update indices
+        i_forward_corner += 1
+        i_prev_start = 1
+
+        # Set indices
+        panel_0.append(i_base_corner)
+        panel_1.append(i_forward_corner - 1)
+        panel_2.append(i_forward_corner)
+
+    # Subsequent rows up side
+    # Each loop iteration will create 2 panels
+    for i in range(N_transverse-1):
+
+        # Get number of panels in theta for this slice
+        N_theta_i = N_theta + i
+
+        # Set indices
+        i_base_corner = i_prev_start
+        i_forward_corner += 1
+
+        for j in range(N_theta_i):
+
+            # Set start corner
+            if j==0:
+                i_prev_start = i_forward_corner
+
+            # Update indices
+            i_curr += 1
+            i_forward_corner += 1
+
+            # Set indices
+            panel_0.append(i_base_corner)
+            panel_1.append(i_forward_corner - 1)
+            panel_2.append(i_forward_corner)
+
+            # Determine index of second panel
+            i_curr += 1
+
+            # Set indices
+            panel_0.append(i_base_corner)
+            panel_1.append(i_forward_corner)
+            panel_2.append(i_base_corner + 1)
+
+            i_base_corner += 1
+
+        # Create last panel
+        i_curr += 1
+        i_forward_corner += 1
+
+        # Set indices
+        panel_0.append(i_base_corner)
+        panel_1.append(i_forward_corner - 1)
+        panel_2.append(i_forward_corner)
+
+    panels = np.array([panel_0, panel_1, panel_2]).T
+
+    return vertices, panels
 
 
-def generate_regular_right_cone(filename, h, r, N_transverse, N_theta, N_radial=1, close_base=True, equal_aspect=True):
+def generate_regular_right_cone(filename, h, r, N_transverse, N_theta, N_radial=1, close_base=True, equal_aspect=True, isosceles=False):
     """Generates a mesh of half of a right cone, aligned with the x-axis and its base at the origin.
     The resultant mesh should be mirrored about the xy plane.
     
@@ -262,7 +389,10 @@ def generate_regular_right_cone(filename, h, r, N_transverse, N_theta, N_radial=
     if close_base:
         vertices, panels = _get_regular_points_and_panels_for_closed_right_cone(h, r, N_transverse, N_theta, N_radial)
     else:
-        vertices, panels = _get_regular_points_and_panels_for_open_right_cone(h, r, N_transverse, N_theta, equal_aspect=equal_aspect)
+        if isosceles:
+            vertices, panels = _get_regular_points_and_panels_for_open_isosceles_right_cone(h, r, N_transverse, N_theta)
+        else:
+            vertices, panels = _get_regular_points_and_panels_for_open_right_cone(h, r, N_transverse, N_theta, equal_aspect=equal_aspect)
 
     # Export
     _export_vtk(filename, vertices, panels)
@@ -454,7 +584,7 @@ if __name__=="__main__":
     #    generate_regular_right_cone('studies/supersonic_cone_flow_study/meshes/cone_{0}_deg_fine.vtk'.format(int(angle)), h, 1.0, 120, 100, close_base=False)
     h = 1.0/np.tan(np.radians(10.0))
     #generate_regular_right_cone('studies/matrix_solvers/meshes/cone_10_deg_medium.vtk', h, 1.0, 40, 30, close_base=False)
-    generate_regular_right_cone('dev/meshes/cone_equal_aspect.vtk', h, 1.0, 40, 30, close_base=False, equal_aspect=True)
+    generate_regular_right_cone('dev/meshes/half_cone_coarse.vtk', h, 1.0, 100, 6, close_base=False, isosceles=True)
 
     ## Random spheres
     #Ns = [125, 250, 500, 1000, 2000]
@@ -470,4 +600,4 @@ if __name__=="__main__":
     #generate_random_spindle("studies/panel_regularity_spindle_study/meshes/random_spindle_1000.vtk", 1000, 1.0, r_of_x)
 
     # Regular sphere
-    generate_regular_sphere("dev/meshes/regular_sphere.vtk", 1.0, 40, 20)
+    #generate_regular_sphere("dev/meshes/regular_sphere.vtk", 1.0, 40, 20)
