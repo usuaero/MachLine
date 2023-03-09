@@ -1,0 +1,20 @@
+{
+    "flow": {
+        "V_inf": [-100.0, 0.0, 0.0]
+    },
+    "geometry": {
+        "file": "knight_wing.vtk",
+        "mirror_about": "xz",
+        "reference": {
+            "S": 2.0
+        }
+    },
+    "solver": {
+        "formulation": "morino",
+        "control_point_offset": 1.1e-05
+    },
+    "output": {
+        "body_file": "knight_wing_results.vtk",
+        "report_file": "report.json"
+    }
+}
