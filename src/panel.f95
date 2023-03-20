@@ -52,8 +52,9 @@ module panel_mod
         real,dimension(:),allocatable :: b, sqrt_b ! Edge parameter
         real,dimension(:),allocatable :: b_mir, sqrt_b_mir
         real :: A ! Surface area (same for mirror, in global coordinates at least)
-        real,dimension(:,:),allocatable :: S_mu_inv, S_sigma_inv ! Matrix relating doublet/source strengths to doublet/source influence parameters
-        real,dimension(:,:),allocatable :: S_mu_inv_mir, S_sigma_inv_mir
+        real,dimension(:,:),allocatable :: T_mu, T_sigma ! Matrix relating doublet/source strengths to doublet/source influence parameters
+        real,dimension(:,:),allocatable :: T_mu_mir, T_sigma_mir
+        real,dimension(:,:),allocatable :: C, C_mir ! Integrals for integrating a quadratic pressure distribution
         logical :: in_wake ! Whether this panel belongs to a wake mesh
         integer :: i_top_parent, i_bot_parent ! The parent panels for this panel, if it is in the wake
         integer,dimension(3) :: abutting_panels ! Indices of panels abutting this one
@@ -92,6 +93,10 @@ module panel_mod
             procedure :: set_source_panels => panel_set_source_panels
             procedure :: calc_M_mu_transform => panel_calc_M_mu_transform
             procedure :: calc_S_sigma_transform => panel_calc_S_sigma_transform
+
+            ! Pressure integration
+            procedure :: calc_C_integrals => panel_calc_C_integrals
+            procedure :: calc_C_mir_integrals => panel_calc_C_mir_integrals
 
             ! Getters
             procedure :: get_vertex_loc => panel_get_vertex_loc
@@ -152,11 +157,13 @@ module panel_mod
             procedure :: allocate_velocity_influences => panel_allocate_velocity_influences
             procedure :: calc_velocity_influences => panel_calc_velocity_influences
 
-            ! Results
+            ! Quantities for source and doublet distributions
             procedure :: get_source_strengths => panel_get_source_strengths
             procedure :: get_doublet_strengths => panel_get_doublet_strengths
             procedure :: get_source_parameters => panel_get_source_parameters
             procedure :: get_doublet_parameters => panel_get_doublet_parameters
+
+            ! Surface properties
             procedure :: get_velocity_jump => panel_get_velocity_jump
 
     end type panel
@@ -551,6 +558,12 @@ contains
             call this%calc_M_mu_transform(body_verts, .true., mirror_plane)
             if (this%has_sources) call this%calc_S_sigma_transform(body_panels, .true., mirror_plane)
         end if
+
+        ! Calculate quadratic pressure integrals
+        if (this%order == 2) then
+            call this%calc_C_integrals()
+            if (mirror_needed) call this%calc_C_mir_integrals()
+        end if
         
     end subroutine panel_set_distribution
 
@@ -657,7 +670,7 @@ contains
         logical,intent(in) :: calc_mirror
         integer,intent(in) :: mirror_plane
 
-        real,dimension(:,:),allocatable :: S_mu, S_inv, M_mat, E_mat, EE_inv, S_mu_inv
+        real,dimension(:,:),allocatable :: S_mu, S_mu_inv, M_mat, E_mat, EE_inv, T_mu
         real,dimension(:),allocatable :: M_row
         integer :: i, j, N_body_verts
         real,dimension(3) :: P_g, P_ls
@@ -699,15 +712,15 @@ contains
         end if
 
         ! Invert S_mu
-        allocate(S_inv(this%mu_dim, this%mu_dim))
-        call matinv(this%mu_dim, S_mu, S_inv)
+        allocate(S_mu_inv(this%mu_dim, this%mu_dim))
+        call matinv(this%mu_dim, S_mu, S_mu_inv)
 
         ! Allocate transformation matrix
-        allocate(S_mu_inv(this%mu_dim, this%M_dim))
+        allocate(T_mu(this%mu_dim, this%M_dim))
 
         ! For a linear distribution, that's all that's needed
         if (this%order == 1) then
-            S_mu_inv = S_inv
+            T_mu = S_mu_inv
 
         ! For a quadratic distribution, we need to build the M matrix as well
         else
@@ -780,17 +793,17 @@ contains
             end do
 
             ! Calculate transformation
-            S_mu_inv = matmul(S_inv, M_mat)
+            T_mu = matmul(S_mu_inv, M_mat)
 
         end if
         
         ! Store
         if (calc_mirror) then
-            allocate(this%S_mu_inv_mir(this%mu_dim, this%M_dim))
-            this%S_mu_inv_mir = S_mu_inv
+            allocate(this%T_mu_mir(this%mu_dim, this%M_dim))
+            this%T_mu_mir = T_mu
         else
-            allocate(this%S_mu_inv(this%mu_dim, this%M_dim))
-            this%S_mu_inv = S_mu_inv
+            allocate(this%T_mu(this%mu_dim, this%M_dim))
+            this%T_mu = T_mu
         end if
         
     end subroutine panel_calc_M_mu_transform
@@ -807,7 +820,7 @@ contains
         logical,intent(in) :: calc_mirror
         integer,intent(in) :: mirror_plane
 
-        real,dimension(:,:),allocatable :: S_sigma, SS_inv, A_mat, SA_inv
+        real,dimension(:,:),allocatable :: S_sigma, SS_inv, A_mat, SA_inv, T_sigma
         integer :: i
         real,dimension(3) :: P_g, P_ls
 
@@ -846,31 +859,19 @@ contains
                 S_sigma(i,3) = P_ls(2)
             end do
 
-            ! Invert 
-            if (calc_mirror) then
-                allocate(this%S_sigma_inv_mir(this%sigma_dim, this%S_dim))
-            else
-                allocate(this%S_sigma_inv(this%sigma_dim, this%S_dim))
-            end if
+            ! Invert based on number of source strengths
+            allocate(T_sigma(this%sigma_dim, this%S_dim))
             select case (this%S_dim)
 
             ! For overdetermined, do pseudoinverse using least-squares
             case (4)
                 allocate(SS_inv(this%sigma_dim, this%sigma_dim))
                 call matinv(3, matmul(transpose(S_sigma), S_sigma), SS_inv)
-                if (calc_mirror) then
-                    this%S_sigma_inv_mir = matmul(SS_inv, transpose(S_sigma))
-                else
-                    this%S_sigma_inv = matmul(SS_inv, transpose(S_sigma))
-                end if
+                T_sigma = matmul(SS_inv, transpose(S_sigma))
 
             ! For well-posed, do standard inverse
             case (3)
-                if (calc_mirror) then
-                    call matinv(this%S_dim, S_sigma, this%S_sigma_inv_mir)
-                else
-                    call matinv(this%S_dim, S_sigma, this%S_sigma_inv)
-                end if
+                call matinv(this%S_dim, S_sigma, T_sigma)
 
             ! Two discontinuous edges
             case (2)
@@ -891,13 +892,18 @@ contains
                 ! Get inverse
                 allocate(SA_inv(this%S_dim,this%S_dim))
                 call matinv(this%S_dim, matmul(S_sigma, A_mat), SA_inv)
-                if (calc_mirror) then
-                    this%S_sigma_inv_mir = matmul(A_mat, SA_inv)
-                else
-                    this%S_sigma_inv = matmul(A_mat, SA_inv)
-                end if
+                T_sigma = matmul(A_mat, SA_inv)
 
             end select
+
+            ! Store
+            if (calc_mirror) then
+                allocate(this%T_sigma_mir(this%sigma_dim, this%S_dim))
+                this%T_sigma_mir = T_sigma
+            else
+                allocate(this%T_sigma(this%sigma_dim, this%S_dim))
+                this%T_sigma = T_sigma
+            end if
 
         end if
         
@@ -1048,6 +1054,88 @@ contains
         end if
     
     end subroutine panel_calc_mirrored_edge_vectors
+
+
+    subroutine panel_calc_C_integrals(this)
+        ! Calculates the C integrals for integrating quadratic pressure distributions
+
+        implicit none
+        
+        class(panel),intent(inout) :: this
+
+        integer :: i, j, k, k_next
+        real,dimension(3) :: d_eta, d_xi
+        real,dimension(:,:,:),allocatable :: G, H
+        real,dimension(:,:,:,:),allocatable :: II
+
+        ! Calculate offsets
+        do k=1,3
+
+            ! Get endpoint index
+            k_next = modulo(k, 3) + 1
+
+            ! Get offset
+            d_xi = this%vertices_ls(1,k_next) - this%vertices_ls(1,k)
+            d_eta = this%vertices_ls(2,k_next) - this%vertices_ls(2,k)
+
+        end do
+
+        ! Initialize H integrals
+        allocate(H(7,0:2,3))
+        do i=1,7
+            H(i,0,:) = 1./(i+1.)
+        end do
+
+        ! Calculate H integrals
+        do j=1,2
+            do i=1,7-j
+                H(i,j,:) = this%vertices_ls(2,:)*H(i,j-1,:) + d_eta*H(i+1,j-1,:)
+            end do 
+        end do
+
+        ! Initialize I integrals
+        allocate(II(6,0:2,0:3,3))
+        do i=1,6
+            do j=0,2
+                II(i,j,0,:) = H(i,j,:)
+            end do
+        end do
+
+        ! Calculate I integrals
+        do k=1,3
+            do j=0,2
+                do i=1,6-k
+                    II(i,j,k,:) = this%vertices_ls(1,:)*II(i+1,j,k-1,:) + d_xi*II(i,j,k-1,:)
+                end do
+            end do
+        end do
+
+        ! Extract G integrals
+        allocate(G(3,0:2,3))
+        do i=1,3
+            G(i,:,:) = II(i,:,i,:)
+        end do
+
+        ! Calculate C integrals
+        allocate(this%C(0:2,0:2))
+        do i=0,2
+            do j=0,2
+                this%C(i,j) = sum(d_eta*G(i+1,j,:))/(i+1)
+            end do
+        end do
+        
+    end subroutine panel_calc_C_integrals
+
+
+    subroutine panel_calc_C_mir_integrals(this)
+        ! Calculates the mirrored C integrals
+
+        implicit none
+        
+        class(panel),intent(inout) :: this
+    
+        
+    end subroutine panel_calc_C_mir_integrals
 
 
     function panel_get_vertex_loc(this, i) result(loc)
@@ -2647,9 +2735,9 @@ contains
 
                     ! Convert to strength influences (Davis Eq. (4.41))
                     if (mirror_panel) then
-                        phi_s_S_space = -this%J_mir*freestream%K_inv*matmul(phi_s_sigma_space, this%S_sigma_inv_mir)
+                        phi_s_S_space = -this%J_mir*freestream%K_inv*matmul(phi_s_sigma_space, this%T_sigma_mir)
                     else
-                        phi_s_S_space = -this%J*freestream%K_inv*matmul(phi_s_sigma_space, this%S_sigma_inv)
+                        phi_s_S_space = -this%J*freestream%K_inv*matmul(phi_s_sigma_space, this%T_sigma)
                     end if
 
                 else
@@ -2681,9 +2769,9 @@ contains
 
             ! Convert to strength influences (Davis Eq. (4.41))
             if (mirror_panel) then
-                phi_d_M_space(1:this%M_dim) = freestream%K_inv*matmul(phi_d_mu_space, this%S_mu_inv_mir)
+                phi_d_M_space(1:this%M_dim) = freestream%K_inv*matmul(phi_d_mu_space, this%T_mu_mir)
             else
-                phi_d_M_space(1:this%M_dim) = freestream%K_inv*matmul(phi_d_mu_space, this%S_mu_inv)
+                phi_d_M_space(1:this%M_dim) = freestream%K_inv*matmul(phi_d_mu_space, this%T_mu)
             end if
 
             ! Wake bottom influence is opposite the top influence
@@ -2826,9 +2914,9 @@ contains
 
                     ! Convert to vertex influences
                     if (mirror_panel) then
-                        v_s = matmul(v_s, this%S_sigma_inv_mir)
+                        v_s = matmul(v_s, this%T_sigma_mir)
                     else
-                        v_s = matmul(v_s, this%S_sigma_inv)
+                        v_s = matmul(v_s, this%T_sigma)
                     end if
 
                 end if
@@ -2934,9 +3022,9 @@ contains
         if (this%sigma_dim > 1) then
 
             if (mirror) then
-                sigma_params = matmul(this%S_sigma_inv_mir, sigma_strengths)
+                sigma_params = matmul(this%T_sigma_mir, sigma_strengths)
             else
-                sigma_params = matmul(this%S_sigma_inv, sigma_strengths)
+                sigma_params = matmul(this%T_sigma, sigma_strengths)
             end if
 
         ! Constant sources
@@ -3024,9 +3112,9 @@ contains
 
         ! Calculate doublet parameters
         if (mirror) then
-            mu_params = matmul(this%S_mu_inv_mir, mu_verts)
+            mu_params = matmul(this%T_mu_mir, mu_verts)
         else
-            mu_params = matmul(this%S_mu_inv, mu_verts)
+            mu_params = matmul(this%T_mu, mu_verts)
         end if
         
     end function panel_get_doublet_parameters

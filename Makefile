@@ -25,7 +25,7 @@ COMPILER = gfortran
 # Flags
 FLAGS = -O2 -fdefault-real-8
 OMP_FLAG = -fopenmp
-DEBUG_FLAGS = -fbounds-check -fbacktrace
+DEBUG_FLAGS = -fbounds-check -fbacktrace -g
 
 # Program name
 PROGRAM = machline.exe

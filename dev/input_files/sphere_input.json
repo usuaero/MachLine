@@ -20,7 +20,7 @@
         "tolerance" : 1.e-12,
         "relaxation" : 0.8,
         "block_size" : 200,
-        "run_checks" : true,
+        "run_checks" : false,
         "write_A_and_bx" : true
     },
     "post_processing" : {
