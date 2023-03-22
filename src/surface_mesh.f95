@@ -54,7 +54,6 @@ module surface_mesh_mod
             procedure :: locate_adjacent_panels => surface_mesh_locate_adjacent_panels
             procedure :: store_adjacent_vertices => surface_mesh_store_adjacent_vertices
             procedure :: check_panels_adjacent => surface_mesh_check_panels_adjacent
-            procedure :: create_midpoints => surface_mesh_create_midpoints
             procedure :: calc_vertex_geometry => surface_mesh_calc_vertex_geometry
 
             ! Initialization based on flow properties
@@ -105,9 +104,6 @@ contains
 
         character(len=:),allocatable :: mesh_file
         logical :: found
-
-        ! Initialize a few things
-        this%midpoints_created = .false.
 
         ! Get singularity settings
         call this%parse_singularity_settings(settings)
@@ -583,75 +579,6 @@ contains
         end do abutting_loop
     
     end function surface_mesh_check_panels_adjacent
-
-
-    subroutine surface_mesh_create_midpoints(this)
-        ! Creates a midpoint vertex for each edge
-
-        implicit none
-        
-        class(surface_mesh),target,intent(inout) :: this
-
-        integer :: i, i_mid, N_orig_verts
-        real,dimension(3) :: loc
-
-        ! Allocate more space
-        call this%allocate_new_vertices(this%N_edges)
-        N_orig_verts = this%N_verts - this%N_edges
-
-        do i=1,this%N_edges
-
-            ! Determine location
-            loc = 0.5*(this%vertices(this%edges(i)%top_verts(1))%loc + this%vertices(this%edges(i)%top_verts(2))%loc)
-
-            ! Initialize vertex object
-            i_mid = N_orig_verts + i
-            call this%vertices(i_mid)%init(loc, i_mid, 2)
-
-            ! Add adjacent vertices
-            call this%vertices(i_mid)%adjacent_vertices%append(this%edges(i)%top_verts(1))
-            call this%vertices(i_mid)%adjacent_vertices%append(this%edges(i)%top_verts(2))
-
-            ! Add adjacent panels
-            call this%vertices(i_mid)%panels%append(this%edges(i)%panels(1))
-            call this%vertices(i_mid)%panels_not_across_wake_edge%append(this%edges(i)%panels(1))
-            
-            ! Make sure the second panel exists
-            if (this%edges(i)%panels(2) > 0 .and. this%edges(i)%panels(2) <= this%N_panels) then
-                call this%vertices(i_mid)%panels%append(this%edges(i)%panels(2))
-                call this%vertices(i_mid)%panels_not_across_wake_edge%append(this%edges(i)%panels(2))
-            end if
-
-            ! Add edge
-            call this%vertices(i_mid)%adjacent_edges%append(i)
-
-            ! Check if midpoint is on mirror plane
-            if (this%mirrored) then
-                call this%vertices(i_mid)%set_whether_on_mirror_plane(this%mirror_plane)
-            end if
-
-            ! Point edge to it
-            this%edges(i)%top_midpoint = i_mid
-            this%edges(i)%bot_midpoint = i_mid
-
-            ! Point panels to it
-            this%panels(this%edges(i)%panels(1))%midpoints(this%edges(i)%edge_index_for_panel(1))%ptr => this%vertices(i_mid)
-
-            if (this%edges(i)%panels(2) > 0 .and. this%edges(i)%panels(2) <= this%N_panels) then
-                this%panels(this%edges(i)%panels(2))%midpoints(this%edges(i)%edge_index_for_panel(2))%ptr => this%vertices(i_mid)
-            end if
-
-        end do
-
-        ! Set flag
-        this%midpoints_created = .true.
-
-        ! Print info for added midpoint vertices
-        if (verbose) write(*,"(a, i7, a, i7, a)") "     For a quadratic doublet distribution, ", &
-                                                  this%N_edges, " vertices were added. Mesh now has ", &
-                                                  this%N_verts, " vertices."
-        
-    end subroutine surface_mesh_create_midpoints
 
 
     subroutine surface_mesh_calc_vertex_geometry(this)
@@ -1966,49 +1893,49 @@ contains
         ! Write geometry
         call body_vtk%begin(body_file)
         call body_vtk%write_points(this%vertices)
-        call body_vtk%write_panels(this%panels, subdivide=.false., mirror=.false.)
+        call body_vtk%write_panels(this%panels, mirror=.false.)
         call body_vtk%write_cell_normals(this%panels)
-        call body_vtk%write_cell_scalars(panel_inclinations, "inclination", .true.)
-        call body_vtk%write_cell_scalars(orders, "distribution_order", .true.)
-        call body_vtk%write_cell_scalars(N_discont_edges, "N_discontinuous_edges", .true.)
-        call body_vtk%write_cell_vectors(cents, "centroid", .true.)
+        call body_vtk%write_cell_scalars(panel_inclinations, "inclination")
+        call body_vtk%write_cell_scalars(orders, "distribution_order")
+        call body_vtk%write_cell_scalars(N_discont_edges, "N_discontinuous_edges")
+        call body_vtk%write_cell_vectors(cents, "centroid")
 
         if (solved) then
 
             ! Pressures
             if (allocated(this%C_p_inc)) then
-                call body_vtk%write_cell_scalars(this%C_p_inc(1:N_cells), "C_p_inc", .false.)
+                call body_vtk%write_cell_scalars(this%C_p_inc(1:N_cells), "C_p_inc")
             end if
             if (allocated(this%C_p_ise)) then
-                call body_vtk%write_cell_scalars(this%C_p_ise(1:N_cells), "C_p_ise", .false.)
+                call body_vtk%write_cell_scalars(this%C_p_ise(1:N_cells), "C_p_ise")
             end if
             if (allocated(this%C_p_2nd)) then
-                call body_vtk%write_cell_scalars(this%C_p_2nd(1:N_cells), "C_p_2nd", .false.)
+                call body_vtk%write_cell_scalars(this%C_p_2nd(1:N_cells), "C_p_2nd")
             end if
             if (allocated(this%C_p_lin)) then
-                call body_vtk%write_cell_scalars(this%C_p_lin(1:N_cells), "C_p_lin", .false.)
+                call body_vtk%write_cell_scalars(this%C_p_lin(1:N_cells), "C_p_lin")
             end if
             if (allocated(this%C_p_sln)) then
-                call body_vtk%write_cell_scalars(this%C_p_sln(1:N_cells), "C_p_sln", .false.)
+                call body_vtk%write_cell_scalars(this%C_p_sln(1:N_cells), "C_p_sln")
             end if
 
             ! Corrected pressures
             if (allocated(this%C_p_pg)) then
-                call body_vtk%write_cell_scalars(this%C_p_pg(1:N_cells), "C_p_PG", .false.)
+                call body_vtk%write_cell_scalars(this%C_p_pg(1:N_cells), "C_p_PG")
             end if
             if (allocated(this%C_p_kt)) then
-                call body_vtk%write_cell_scalars(this%C_p_kt(1:N_cells), "C_p_KT", .false.)
+                call body_vtk%write_cell_scalars(this%C_p_kt(1:N_cells), "C_p_KT")
             end if
             if (allocated(this%C_p_lai)) then
-                call body_vtk%write_cell_scalars(this%C_p_lai(1:N_cells), "C_p_L", .false.)
+                call body_vtk%write_cell_scalars(this%C_p_lai(1:N_cells), "C_p_L")
             end if
 
             ! Source strengths
-            call body_vtk%write_cell_scalars(this%sigma(1:this%N_panels), "sigma", .true.)
+            call body_vtk%write_cell_scalars(this%sigma(1:this%N_panels), "sigma")
 
             ! Cell velocities and sources
-            call body_vtk%write_cell_vectors(this%V_cells(:,1:N_cells), "v", .false.)
-            call body_vtk%write_cell_vectors(this%dC_f(:,1:N_cells), "dC_f", .false.)
+            call body_vtk%write_cell_vectors(this%V_cells(:,1:N_cells), "v")
+            call body_vtk%write_cell_vectors(this%dC_f(:,1:N_cells), "dC_f")
 
             ! Surface potential values
             call body_vtk%write_point_scalars(this%mu(1:this%N_verts), "mu")
@@ -2057,49 +1984,49 @@ contains
         ! Write geometry
         call body_vtk%begin(mirrored_body_file)
         call body_vtk%write_points(this%vertices, this%mirror_plane)
-        call body_vtk%write_panels(this%panels, subdivide=.false., mirror=.true.)
+        call body_vtk%write_panels(this%panels, mirror=.true.)
         call body_vtk%write_cell_normals(this%panels, this%mirror_plane)
-        call body_vtk%write_cell_scalars(panel_inclinations, "inclination", .true.)
-        call body_vtk%write_cell_scalars(orders, "distribution_order", .true.)
-        call body_vtk%write_cell_scalars(N_discont_edges, "N_discontinuous_edges", .true.)
-        call body_vtk%write_cell_vectors(cents, "centroid", .true.)
+        call body_vtk%write_cell_scalars(panel_inclinations, "inclination")
+        call body_vtk%write_cell_scalars(orders, "distribution_order")
+        call body_vtk%write_cell_scalars(N_discont_edges, "N_discontinuous_edges")
+        call body_vtk%write_cell_vectors(cents, "centroid")
 
         if (solved) then
 
             ! Pressures
             if (allocated(this%C_p_inc)) then
-                call body_vtk%write_cell_scalars(this%C_p_inc(N_cells+1:N_cells*2), "C_p_inc", .false.)
+                call body_vtk%write_cell_scalars(this%C_p_inc(N_cells+1:N_cells*2), "C_p_inc")
             end if
             if (allocated(this%C_p_ise)) then
-                call body_vtk%write_cell_scalars(this%C_p_ise(N_cells+1:N_cells*2), "C_p_ise", .false.)
+                call body_vtk%write_cell_scalars(this%C_p_ise(N_cells+1:N_cells*2), "C_p_ise")
             end if
             if (allocated(this%C_p_2nd)) then
-                call body_vtk%write_cell_scalars(this%C_p_2nd(N_cells+1:N_cells*2), "C_p_2nd", .false.)
+                call body_vtk%write_cell_scalars(this%C_p_2nd(N_cells+1:N_cells*2), "C_p_2nd")
             end if
             if (allocated(this%C_p_lin)) then
-                call body_vtk%write_cell_scalars(this%C_p_lin(N_cells+1:N_cells*2), "C_p_lin", .false.)
+                call body_vtk%write_cell_scalars(this%C_p_lin(N_cells+1:N_cells*2), "C_p_lin")
             end if
             if (allocated(this%C_p_sln)) then
-                call body_vtk%write_cell_scalars(this%C_p_sln(N_cells+1:N_cells*2), "C_p_sln", .false.)
+                call body_vtk%write_cell_scalars(this%C_p_sln(N_cells+1:N_cells*2), "C_p_sln")
             end if
 
             ! Corrected pressures
             if (allocated(this%C_p_pg)) then
-                call body_vtk%write_cell_scalars(this%C_p_pg(N_cells+1:N_cells*2), "C_p_PG", .false.)
+                call body_vtk%write_cell_scalars(this%C_p_pg(N_cells+1:N_cells*2), "C_p_PG")
             end if
             if (allocated(this%C_p_kt)) then
-                call body_vtk%write_cell_scalars(this%C_p_kt(N_cells+1:N_cells*2), "C_p_KT", .false.)
+                call body_vtk%write_cell_scalars(this%C_p_kt(N_cells+1:N_cells*2), "C_p_KT")
             end if
             if (allocated(this%C_p_lai)) then
-                call body_vtk%write_cell_scalars(this%C_p_lai(N_cells+1:N_cells*2), "C_p_L", .false.)
+                call body_vtk%write_cell_scalars(this%C_p_lai(N_cells+1:N_cells*2), "C_p_L")
             end if
 
             ! Sources
-            call body_vtk%write_cell_scalars(this%sigma(this%N_panels+1:this%N_panels*2), "sigma", .true.)
+            call body_vtk%write_cell_scalars(this%sigma(this%N_panels+1:this%N_panels*2), "sigma")
 
             ! Other
-            call body_vtk%write_cell_vectors(this%V_cells(:,N_cells+1:N_cells*2), "v", .false.)
-            call body_vtk%write_cell_vectors(this%dC_f(:,N_cells+1:N_cells*2), "dC_f", .false.)
+            call body_vtk%write_cell_vectors(this%V_cells(:,N_cells+1:N_cells*2), "v")
+            call body_vtk%write_cell_vectors(this%dC_f(:,N_cells+1:N_cells*2), "dC_f")
 
             ! Surface potentials
             call body_vtk%write_point_scalars(this%mu(this%N_verts+1:this%N_verts*2), "mu")

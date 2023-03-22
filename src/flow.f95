@@ -25,6 +25,8 @@ module flow_mod
         real,dimension(3,3) :: C_mat_g, C_mat_c ! Metric matrix
         logical :: supersonic, incompressible
         real,dimension(3,3) :: A_g_to_c, A_c_to_s, A_g_to_s ! Coordinate transformation matrices
+        real :: a_ise, b_ise, c_ise ! Constant parameters for isentropic pressure coefficient calculations
+        real :: C_P_vac ! Vacuum pressure coefficient for this flow
 
         contains
 
@@ -34,6 +36,12 @@ module flow_mod
             procedure :: B_g_inner => flow_B_g_inner
             procedure :: C_g_inner => flow_C_g_inner
             procedure :: point_in_dod => flow_point_in_dod
+            procedure :: get_C_P_inc => flow_get_C_P_inc
+            procedure :: get_C_P_ise => flow_get_C_P_ise
+            procedure :: get_v_pert_c => flow_get_v_pert_c
+            procedure :: get_C_P_2nd => flow_get_C_P_2nd
+            procedure :: get_C_P_sln => flow_get_C_P_sln
+            procedure :: get_C_P_lin => flow_get_C_P_lin
 
     end type flow
 
@@ -106,6 +114,14 @@ contains
         ! Calculate relevant matrices
         call this%calc_metric_matrices()
         call this%calc_transforms(spanwise_axis)
+
+        ! Parameters for calculating isentropic pressure coefficients
+        this%a_ise = 2./(this%gamma*this%M_inf**2)
+        this%b_ise = 0.5*(this%gamma-1.)*this%M_inf**2
+        this%c_ise = this%gamma/(this%gamma-1.)
+        
+        ! Vacuum pressure coefficient
+        this%C_P_vac = -this%a_ise
 
     end subroutine flow_init
 
@@ -271,6 +287,116 @@ contains
         end if
         
     end function flow_point_in_dod
+
+
+    function flow_get_C_P_inc(this, v) result(C_P_inc)
+        ! Calculates the incompressible pressure coefficient for the given velocity
+
+        implicit none
+        
+        class(flow),intent(in) :: this
+        real,dimension(3),intent(in) :: v
+
+        real :: C_P_inc
+
+        C_P_inc = 1.-inner(v, v)*this%U_inv*this%U_inv
+        
+    end function flow_get_C_P_inc
+
+
+    function flow_get_C_P_ise(this, v) result(C_P_ise)
+        ! Calculates the isentropic pressure coefficient for the given velocity
+
+        implicit none
+        
+        class(flow),intent(in) :: this
+        real,dimension(3),intent(in) :: v
+
+        real :: C_P_ise
+
+        C_P_ise = this%get_C_P_inc(v)
+        C_P_ise = this%a_ise*( (1. + this%b_ise*C_P_ise)**this%c_ise - 1.)
+        
+    end function flow_get_C_P_ise
+
+
+    function flow_get_v_pert_c(this, v) result(v_pert_c)
+        ! Calculates the perturbation velocity expressed in the compressible frame
+
+        implicit none
+        
+        class(flow),intent(in) :: this
+        real,dimension(3),intent(in) :: v
+
+        real,dimension(3) :: v_pert_c
+
+        v_pert_c = matmul(this%A_g_to_c, v - this%v_inf)
+        
+    end function flow_get_v_pert_c
+
+
+    function flow_get_C_P_2nd(this, v) result(C_P_2nd)
+        ! Calculates the second-order pressure coefficient for the given velocity
+
+        implicit none
+        
+        class(flow),intent(in) :: this
+        real,dimension(3),intent(in) :: v
+
+        real :: C_P_2nd
+
+        real :: C_P_sln
+        real,dimension(3) :: v_pert_c
+
+        ! Get prerequisites
+        C_P_sln = this%get_C_P_sln(v)
+        v_pert_c = this%get_v_pert_c(v)
+
+        C_P_2nd = C_P_sln - (1.-this%M_inf**2)*v_pert_c(1)**2*this%U_inv**2
+        
+    end function flow_get_C_P_2nd
+
+
+    function flow_get_C_P_sln(this, v) result(C_P_sln)
+        ! Calculates the slender-body pressure coefficient for the given velocity
+
+        implicit none
+        
+        class(flow),intent(in) :: this
+        real,dimension(3),intent(in) :: v
+
+        real :: C_P_sln
+
+        real :: C_P_lin
+        real,dimension(3) :: v_pert_c
+
+        ! Get prerequisites
+        C_P_lin = this%get_C_P_lin(v)
+        v_pert_c = this%get_v_pert_c(v)
+
+        C_P_sln = C_P_lin - (v_pert_c(2)**2 + v_pert_c(3)**2)*this%U_inv**2
+        
+    end function flow_get_C_P_sln
+
+
+    function flow_get_C_P_lin(this, v) result(C_P_lin)
+        ! Calculates the second-order pressure coefficient for the given velocity
+
+        implicit none
+        
+        class(flow),intent(in) :: this
+        real,dimension(3),intent(in) :: v
+
+        real :: C_P_lin
+
+        real,dimension(3) :: v_pert_c
+
+        ! Get prerequisites
+        v_pert_c = this%get_v_pert_c(v)
+
+        C_P_lin = -2.*v_pert_c(1)*this%U_inv
+        
+    end function flow_get_C_P_lin
 
 
 end module flow_mod

@@ -1504,12 +1504,9 @@ contains
 
         integer :: i, stat
         real,dimension(3) :: V_pert
-        real :: a, b, c, C_p_vac, lin, sln
+        real :: a, b, c, lin, sln
 
         if (verbose) write(*,'(a)',advance='no') "     Calculating surface pressures..."
-
-        ! Calculate vacuum pressure coefficient
-        C_p_vac = -2./(this%freestream%gamma*this%freestream%M_inf**2)
 
         ! Allocate storage
         if (this%incompressible_rule) then
@@ -1537,60 +1534,39 @@ contains
             call check_allocation(stat, "linear surface pressures")
         end if
 
-        ! Calculate reusable terms for the isentropic rule
-        if (this%isentropic_rule) then
-            a = 2./(this%freestream%gamma*this%freestream%M_inf**2)
-            b = 0.5*(this%freestream%gamma-1.)*this%freestream%M_inf**2
-            c = this%freestream%gamma/(this%freestream%gamma-1.)
-        end if
-
         ! Calculate pressures
         !$OMP parallel do private(V_pert, lin, sln) schedule(static)
         do i=1,this%N_cells
 
             ! Incompressible rule
             if (this%incompressible_rule) then
-                body%C_p_inc(i) = 1.-inner(body%V_cells(:,i), body%V_cells(:,i))*this%freestream%U_inv**2
+                body%C_p_inc(i) = this%freestream%get_C_P_inc(body%V_cells(:,i))
             end if
         
             ! Isentropic rule
             if (this%isentropic_rule) then
                 
-                body%C_p_ise(i) = 1. - inner(body%V_cells(:,i), body%V_cells(:,i))*this%freestream%U_inv**2
-                body%C_p_ise(i) = a*( (1. + b*body%C_p_ise(i))**c - 1.)
+                body%C_p_ise(i) = this%freestream%get_C_P_ise(body%V_cells(:,i))
 
                 ! Check for NaN and replace with vacuum pressure
                 if (isnan(body%C_p_ise(i))) then
-                    body%C_p_ise(i) = C_p_vac
+                    body%C_p_ise(i) = this%freestream%C_P_vac
                 end if
             end if
 
-            ! Get perturbation velocity in the compressible frame
-            V_pert = matmul(this%freestream%A_g_to_c, body%V_cells(:,i)-this%freestream%v_inf)
-
-            ! Linear term
-            if (this%linear_rule .or. this%slender_rule .or. this%second_order_rule) then
-                lin = -2.*V_pert(1)*this%freestream%U_inv
-            end if
-
-            ! Slender-body term
-            if (this%slender_rule .or. this%second_order_rule) then
-                sln = lin - (V_pert(2)**2 + V_pert(3)**2)*this%freestream%U_inv**2
-            end if
-        
             ! Second-order rule
             if (this%second_order_rule) then
-                body%C_p_2nd(i) = sln - (1.-this%freestream%M_inf**2)*V_pert(1)**2*this%freestream%U_inv**2
+                body%C_p_2nd(i) = this%freestream%get_C_P_2nd(body%V_cells(:,i))
             end if
         
             ! Slender-body rule
             if (this%slender_rule) then
-                body%C_p_sln(i) = sln
+                body%C_p_sln(i) = this%freestream%get_C_P_sln(body%V_cells(:,i))
             end if
         
             ! Linear rule
             if (this%linear_rule) then
-                body%C_p_lin(i) = lin
+                body%C_p_lin(i) = this%freestream%get_C_P_lin(body%V_cells(:,i))
             end if
 
         end do
@@ -1625,7 +1601,7 @@ contains
         
         ! Report vacuum pressure coefficient
         if (this%freestream%M_inf > 0.) then
-            if (verbose) write(*,*) "        Vacuum pressure coefficient:", C_p_vac
+            if (verbose) write(*,*) "        Vacuum pressure coefficient:", this%freestream%C_P_vac
         end if
         
         ! Apply subsonic pressure corrections

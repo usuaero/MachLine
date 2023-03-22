@@ -12,7 +12,6 @@ module mesh_mod
         integer :: N_verts, N_panels = 0
         type(vertex),allocatable,dimension(:) :: vertices
         type(panel),allocatable,dimension(:) :: panels
-        logical :: midpoints_created = .false.
         logical :: mirrored = .false. ! Whether the mesh is to be mirrored about any planes
         integer :: mirror_plane ! Index of the plane across which the mesh is mirrored (1: yz, 2: xz, 3: xy); this is the index of the normal to that plane
 
@@ -45,7 +44,7 @@ contains
 
 
     subroutine mesh_get_indices_to_panel_vertices(this, i_vertices)
-        ! Returns of the list of indices which point to the vertices (and midpoints) of each panel
+        ! Returns of the list of indices which point to the vertices of each panel
 
         implicit none
 
@@ -64,11 +63,6 @@ contains
                 ! Get vertex indices
                 i_vertices(j,i) = this%panels(i)%get_vertex_index(j)
                 
-                ! Get midpoint indices
-                if (this%midpoints_created) then
-                    i_vertices(j+this%panels(i)%N,i) = this%panels(i)%get_midpoint_index(j)
-                end if
-
             end do
         end do
         
@@ -106,11 +100,6 @@ contains
 
                 ! Fix vertex pointers
                 this%panels(i)%vertices(j)%ptr => this%vertices(i_vertices(j,i))
-
-                ! Fix midpoint pointers
-                if (this%midpoints_created) then
-                    this%panels(i)%midpoints(j)%ptr => this%vertices(i_vertices(j+this%panels(i)%N,i))
-                end if
 
             end do
         end do

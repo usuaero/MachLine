@@ -315,10 +315,10 @@ def test_supersonic_half_wing_morino_allow_wake_asym_flow():
     print(Cz)
 
     assert(abs(C_p_max - 0.194725933974826) < 1e-7)
-    assert(abs(C_p_min - -0.298886927642741) < 1e-7)
-    assert(abs(Cx - 0.142766232967191) < 1e-7)
-    assert(abs(Cy - 0.000849118583460313) < 1.e-11)
-    assert(abs(Cz - 0.891813340501702) < 2.1e-7)
+    assert(abs(C_p_min - -0.298653111488057) < 1e-7)
+    assert(abs(Cx - 0.142769902753526) < 1e-7)
+    assert(abs(Cy - 0.000852208801905482) < 1.e-11)
+    assert(abs(Cz - 0.891846547634185) < 2.1e-7)
 
 
 def test_supersonic_half_wing_source_free_allow_wake_sym_flow():

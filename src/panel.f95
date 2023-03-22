@@ -40,7 +40,6 @@ module panel_mod
         integer :: N = 3 ! Number of sides/vertices
         integer :: index ! Index of this panel in the mesh array
         type(vertex_pointer),dimension(:),allocatable :: vertices
-        type(vertex_pointer),dimension(:),allocatable :: midpoints
         real,dimension(3) :: n_g, nu_g ! Normal and conormal vectors
         real,dimension(3) :: n_g_mir, nu_g_mir ! Mirrored normal and conormal vectors
         real,dimension(3) :: centr, centr_mir ! Centroid
@@ -53,7 +52,7 @@ module panel_mod
         real,dimension(:),allocatable :: b_mir, sqrt_b_mir
         real :: A ! Surface area (same for mirror, in global coordinates at least)
         real,dimension(:,:),allocatable :: T_mu, T_sigma ! Matrix relating doublet/source strengths to doublet/source influence parameters
-        real,dimension(:,:),allocatable :: T_mu_mir, T_sigma_mir
+        real,dimension(:,:),allocatable :: T_mu_mir, T_sigma_mir ! Same for mirrored panels
         real,dimension(:,:),allocatable :: C, C_mir ! Integrals for integrating a quadratic pressure distribution
         logical :: in_wake ! Whether this panel belongs to a wake mesh
         integer :: i_top_parent, i_bot_parent ! The parent panels for this panel, if it is in the wake
@@ -100,10 +99,7 @@ module panel_mod
 
             ! Getters
             procedure :: get_vertex_loc => panel_get_vertex_loc
-            procedure :: get_midpoint_loc => panel_get_midpoint_loc
             procedure :: get_vertex_index => panel_get_vertex_index
-            procedure :: get_midpoint_index => panel_get_midpoint_index
-            procedure :: get_subpanel_centroid => panel_get_subpanel_centroid
             procedure :: get_corner_angle => panel_get_corner_angle
             procedure :: get_weighted_normal_at_corner => panel_get_weighted_normal_at_corner
             procedure :: get_projection_onto_surface => panel_get_projection_onto_surface
@@ -165,6 +161,7 @@ module panel_mod
 
             ! Surface properties
             procedure :: get_velocity_jump => panel_get_velocity_jump
+            procedure :: get_avg_pressure_coef => panel_get_avg_pressure_coef
 
     end type panel
 
@@ -1151,19 +1148,6 @@ contains
     end function panel_get_vertex_loc
 
 
-    function panel_get_midpoint_loc(this, i) result(loc)
-
-        implicit none
-
-        class(panel),intent(in) :: this
-        integer,intent(in) :: i
-        real,dimension(3) :: loc
-
-        loc = this%midpoints(i)%ptr%loc
-
-    end function panel_get_midpoint_loc
-
-
     function panel_get_vertex_index(this, i) result(index)
 
         implicit none
@@ -1175,19 +1159,6 @@ contains
         index = this%vertices(i)%ptr%index
 
     end function panel_get_vertex_index
-
-
-    function panel_get_midpoint_index(this, i) result(index)
-
-        implicit none
-
-        class(panel),intent(in) :: this
-        integer,intent(in) :: i
-        integer :: index
-
-        index = this%midpoints(i)%ptr%index
-
-    end function panel_get_midpoint_index
 
 
     function panel_touches_vertex(this, i) result(touches)
@@ -1359,23 +1330,6 @@ contains
     end function panel_point_outside
 
 
-    function panel_get_subpanel_centroid(this, j) result(cent)
-        ! Calculates the centroid of the subpanel on edges j and j+1
-
-        implicit none
-        
-        class(panel),intent(in) :: this
-        integer,intent(in) :: j
-
-        real,dimension(3) :: cent
-
-        cent = ( this%get_midpoint_loc(j) &
-               + this%get_vertex_loc(modulo(j, this%N)+1) & 
-               + this%get_midpoint_loc(modulo(j, this%N)+1) ) / 3.0
-        
-    end function panel_get_subpanel_centroid
-
-
     function panel_get_corner_angle(this, vert_loc) result(angle)
         ! Calculates the angle of the corner at which the given vertex lies
 
@@ -1519,7 +1473,7 @@ contains
         type(vertex),intent(in),target :: new_vertex
         integer :: i
 
-        ! Loop through vertices/midpoints
+        ! Loop through vertices
         do i=1,this%N
 
             ! It's a vertex, so check the vertex locations
@@ -1529,18 +1483,6 @@ contains
 
                     ! Update pointer
                     this%vertices(i)%ptr => new_vertex
-
-                    return
-
-                end if
-
-            ! Check midpoint locations
-            else
-
-                if (dist(this%get_midpoint_loc(i), new_vertex%loc) < 1e-12) then
-
-                    ! Update pointer
-                    this%midpoints(i)%ptr => new_vertex
 
                     return
 
@@ -3190,6 +3132,34 @@ contains
         end if
 
     end function panel_get_velocity_jump
+
+
+    function panel_get_avg_pressure_coef(this, mu, sigma, mirrored, N_body_panels, N_body_verts, asym_flow, rule) result(C_P_avg)
+        ! Calculates the average pressure coefficient on the panel
+
+        implicit none
+
+        class(panel),intent(in) :: this
+        real,dimension(:),allocatable,intent(in) :: mu, sigma
+        logical,intent(in) :: mirrored, asym_flow
+        integer,intent(in) :: N_body_panels, N_body_verts
+        character(len=*),intent(in) :: rule
+
+        real :: C_P_avg
+
+        real,dimension(3) :: dv
+
+        ! Get velocity jump
+        dv = this%get_velocity_jump(mu, sigma, mirrored, N_body_panels, N_body_verts, asym_flow)
+
+        ! Calculate pressures
+        select case (rule)
+
+        case ("inc")
+
+        end select
+        
+    end function panel_get_avg_pressure_coef
 
     
 end module panel_mod

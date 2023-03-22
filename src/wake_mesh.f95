@@ -190,7 +190,7 @@ contains
             ! Write out panels
             shift = 0
             do k=1,this%N_strips
-                call wake_vtk%write_panels(this%strips(k)%panels, subdivide=.false., mirror=.false., &
+                call wake_vtk%write_panels(this%strips(k)%panels, mirror=.false., &
                                            vertex_index_shift=shift, N_total_panels=N_panels)
                 shift = shift + this%strips(k)%N_verts
             end do
