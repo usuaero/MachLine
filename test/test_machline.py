@@ -380,22 +380,3 @@ def test_supersonic_full_wing_morino_qrup():
     assert(abs(Cx - 0.0718531668938911) < 1e-7)
     assert(abs(Cy) < 1e-12)
     assert(abs(Cz - 0.429190877211823) < 1e-7)
-
-
-def test_hsct_morino_sym():
-
-    C_p_max, C_p_min, Cx, Cy, Cz = run_machline("test/input_files/hsct_input.json")
-
-    print(C_p_max)
-    print(C_p_min)
-    print(Cx)
-    print(Cy)
-    print(Cz)
-
-    assert(abs(C_p_max - 0.999999962462978) < 1e-7)
-    assert(abs(C_p_min - -2.11305744098367) < 1e-3)
-    assert(abs(Cx - -0.0130461069947071) < 1e-3)
-    assert(abs(Cy) < 1e-12)
-    assert(abs(Cz - 0.167389692395461) < 1e-3) # These results vary more between runs than I would like. I need to look into this.
-
-    

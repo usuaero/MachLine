@@ -53,6 +53,7 @@ module panel_mod
         real :: A ! Surface area (same for mirror, in global coordinates at least)
         real,dimension(:,:),allocatable :: T_mu, T_sigma ! Matrix relating doublet/source strengths to doublet/source influence parameters
         real,dimension(:,:),allocatable :: T_mu_mir, T_sigma_mir ! Same for mirrored panels
+        real,dimension(:,:),allocatable :: S_mu_inv, S_mu_inv_mir
         real,dimension(:,:),allocatable :: C, C_mir ! Integrals for integrating a quadratic pressure distribution
         logical :: in_wake ! Whether this panel belongs to a wake mesh
         integer :: i_top_parent, i_bot_parent ! The parent panels for this panel, if it is in the wake
@@ -161,6 +162,7 @@ module panel_mod
 
             ! Surface properties
             procedure :: get_velocity_jump => panel_get_velocity_jump
+            procedure :: get_velocity => panel_get_velocity
             procedure :: get_avg_pressure_coef => panel_get_avg_pressure_coef
 
     end type panel
@@ -712,6 +714,15 @@ contains
         allocate(S_mu_inv(this%mu_dim, this%mu_dim))
         call matinv(this%mu_dim, S_mu, S_mu_inv)
 
+        ! Store inverse of S_mu
+        if (this%order == 2) then
+            if (calc_mirror) then
+                allocate(this%S_mu_inv_mir, source=S_mu_inv)
+            else
+                allocate(this%S_mu_inv, source=S_mu_inv)
+            end if
+        end if
+
         ! Allocate transformation matrix
         allocate(T_mu(this%mu_dim, this%M_dim))
 
@@ -1072,21 +1083,25 @@ contains
             k_next = modulo(k, 3) + 1
 
             ! Get offset
-            d_xi = this%vertices_ls(1,k_next) - this%vertices_ls(1,k)
-            d_eta = this%vertices_ls(2,k_next) - this%vertices_ls(2,k)
+            d_xi(k) = this%vertices_ls(1,k_next) - this%vertices_ls(1,k)
+            d_eta(k) = this%vertices_ls(2,k_next) - this%vertices_ls(2,k)
 
         end do
 
         ! Initialize H integrals
-        allocate(H(7,0:2,3))
-        do i=1,7
+        allocate(H(8,0:2,3))
+        do i=1,8
             H(i,0,:) = 1./(i+1.)
         end do
 
         ! Calculate H integrals
         do j=1,2
-            do i=1,7-j
+            do i=1,8-j
                 H(i,j,:) = this%vertices_ls(2,:)*H(i,j-1,:) + d_eta*H(i+1,j-1,:)
+                if (any(H(i+1,j-1,:) == 0.) .or. any(H(i,j-1,:) == 0.)) then
+                    write(*,*) "Not enough H(i,0)!!!!"
+                    stop
+                end if
             end do 
         end do
 
@@ -1095,14 +1110,22 @@ contains
         do i=1,6
             do j=0,2
                 II(i,j,0,:) = H(i,j,:)
+                if (any(H(i,j,:) == 0.)) then
+                    write(*,*) "Not enough H(i,j)!!!!"
+                    stop
+                end if
             end do
         end do
 
         ! Calculate I integrals
-        do k=1,3
-            do j=0,2
+        do j=0,2
+            do k=1,3
                 do i=1,6-k
                     II(i,j,k,:) = this%vertices_ls(1,:)*II(i+1,j,k-1,:) + d_xi*II(i,j,k-1,:)
+                    if (any(II(i+1,j,k-1,:) == 0.) .or. any(II(i,j,k-1,:) == 0.)) then
+                        write(*,*) "Not enough I(i,j,k)!!!!"
+                        stop
+                    end if
                 end do
             end do
         end do
@@ -3134,7 +3157,40 @@ contains
     end function panel_get_velocity_jump
 
 
-    function panel_get_avg_pressure_coef(this, mu, sigma, mirrored, N_body_panels, N_body_verts, asym_flow, rule) result(C_P_avg)
+    function panel_get_velocity(this, mu, sigma, mirrored, N_body_panels, N_body_verts, asym_flow, &
+                                freestream, inner_flow, point) result(v)
+        ! Calculates the velocity on the outside of this panel in global coordinates at the given location
+        ! If a location is not given, this will default to the centroid
+
+        implicit none
+
+        class(panel),intent(in) :: this
+        real,dimension(:),allocatable,intent(in) :: mu, sigma
+        logical,intent(in) :: mirrored, asym_flow
+        integer,intent(in) :: N_body_panels, N_body_verts
+        type(flow),intent(in) :: freestream
+        real,dimension(3),intent(in) :: inner_flow
+        real,dimension(3),intent(in),optional :: point
+
+        real,dimension(3) :: v
+
+        real,dimension(3) :: dv
+
+        ! Get velocity jump
+        if (present(point)) then
+            dv = this%get_velocity_jump(mu, sigma, mirrored, N_body_panels, N_body_verts, asym_flow, point)
+        else
+            dv = this%get_velocity_jump(mu, sigma, mirrored, N_body_panels, N_body_verts, asym_flow)
+        end if
+
+        ! Get total velocity
+        v = freestream%U*(inner_flow + dv)
+
+    end function panel_get_velocity
+
+
+    function panel_get_avg_pressure_coef(this, mu, sigma, mirrored, N_body_panels, N_body_verts, asym_flow, &
+                                         freestream, inner_flow, rule) result(C_P_avg)
         ! Calculates the average pressure coefficient on the panel
 
         implicit none
@@ -3143,22 +3199,88 @@ contains
         real,dimension(:),allocatable,intent(in) :: mu, sigma
         logical,intent(in) :: mirrored, asym_flow
         integer,intent(in) :: N_body_panels, N_body_verts
+        type(flow),intent(in) :: freestream
+        real,dimension(3),intent(in) :: inner_flow
         character(len=*),intent(in) :: rule
 
         real :: C_P_avg
 
-        real,dimension(3) :: dv
+        integer :: i, i_next
+        real,dimension(3) :: v, p
+        real,dimension(:),allocatable :: C_P, C_P_params
 
-        ! Get velocity jump
-        dv = this%get_velocity_jump(mu, sigma, mirrored, N_body_panels, N_body_verts, asym_flow)
+        ! Constant pressure
+        if (this%order == 1) then
 
-        ! Calculate pressures
-        select case (rule)
+        ! Quadratic pressure
+        else
 
-        case ("inc")
+            ! Allocate pressure coefficient array
+            allocate(C_P(6))
 
-        end select
-        
+            ! Get pressures at vertices
+            do i=1,3
+
+                ! Get velocity
+                v = this%get_velocity(mu, sigma, mirrored, N_body_panels, N_body_verts, asym_flow, &
+                                      freestream, inner_flow, point=this%get_vertex_loc(i))
+
+                ! Get pressure
+                C_P(i) = freestream%get_C_P(v, rule=rule)
+
+            end do
+
+            ! Get pressures at midpoints
+            do i=1,3
+
+                ! Get point
+                i_next = modulo(i, 3) + 1
+                p = 0.5*(this%get_vertex_loc(i) + this%get_vertex_loc(i_next))
+
+                ! Get velocity
+                v = this%get_velocity(mu, sigma, mirrored, N_body_panels, N_body_verts, asym_flow, &
+                                      freestream, inner_flow, point=p)
+
+                ! Get pressure
+                C_P(i+3) = freestream%get_C_P(v, rule=rule)
+
+            end do
+
+            ! Get pressure distribution parameters and integrate
+            if (mirrored) then
+
+                ! Get distribution parameters
+                C_P_params = matmul(this%S_mu_inv_mir, C_P)
+
+                ! Integrate
+                C_P_avg = this%C_mir(0,0)*C_P_params(1) + this%C_mir(1,0)*C_P_params(2) + this%C_mir(0,1)*C_P_params(3) + &
+                          0.5*this%C_mir(2,0)*C_P_params(4) + this%C_mir(1,1)*C_P_params(5) + 0.5*this%C_mir(0,2)*C_P_params(6)
+
+                ! Calculate average
+                C_P_avg = this%J_mir*C_P_avg/this%A
+
+            else
+
+                ! Get distribution parameters
+                C_P_params = matmul(this%S_mu_inv, C_P)
+                if (this%index == 1) then
+                    write(*,*)
+                    write(*,*) this%C(0,0)*this%J
+                    write(*,*) this%A
+                    write(*,*) C_P_params
+                end if
+
+                ! Integrate
+                C_P_avg = this%C(0,0)*C_P_params(1) + this%C(1,0)*C_P_params(2) + this%C(0,1)*C_P_params(3) + &
+                          0.5*this%C(2,0)*C_P_params(4) + this%C(1,1)*C_P_params(5) + 0.5*this%C(0,2)*C_P_params(6)
+
+                ! Calculate average
+                C_P_avg = this%J*C_P_avg/this%A
+
+            end if
+
+        end if
+
     end function panel_get_avg_pressure_coef
 
     

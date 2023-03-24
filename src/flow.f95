@@ -19,7 +19,7 @@ module flow_mod
         real :: c ! Freestream speed of sound
         real :: mu, C_mu ! Mach angle
         real :: K, K_inv ! Kappa factor
-        real,dimension(3) :: c_hat_g ! Compressibility axis (assumed in TriPan to be aligned with the freestream direction)
+        real,dimension(3) :: c_hat_g ! Compressibility axis (assumed in MachLine to be aligned with the freestream direction)
         logical,dimension(3) :: sym_about ! Whether the flow condition is symmetric about any plane
         real,dimension(3,3) :: B_mat_g, B_mat_c, B_mat_g_inv ! Dual metric matrix
         real,dimension(3,3) :: C_mat_g, C_mat_c ! Metric matrix
@@ -42,6 +42,11 @@ module flow_mod
             procedure :: get_C_P_2nd => flow_get_C_P_2nd
             procedure :: get_C_P_sln => flow_get_C_P_sln
             procedure :: get_C_P_lin => flow_get_C_P_lin
+            procedure :: get_C_P_crit => flow_get_C_P_crit
+            procedure :: correct_C_P_PG => flow_correct_C_P_PG
+            procedure :: correct_C_P_KT => flow_correct_C_P_KT
+            procedure :: correct_C_P_L => flow_correct_C_P_L
+            procedure :: get_C_P => flow_get_C_P
 
     end type flow
 
@@ -397,6 +402,133 @@ contains
         C_P_lin = -2.*v_pert_c(1)*this%U_inv
         
     end function flow_get_C_P_lin
+
+
+    function flow_get_C_P_crit(this, M) result(C_P_crit)
+        ! Calculates the critical pressure coefficient for the given Mach number
+
+        implicit none
+        
+        class(flow),intent(in) :: this
+        real,intent(in) :: M
+
+        real :: C_P_crit
+
+        real :: x, n, d, M2
+
+        ! Modern Compressible Flow by John Anderson Eq. (9.55)
+        M2 = M*M
+        x = 0.5*(this%gamma - 1.)
+        n = 1. + x*M2
+        d = 1. + x
+        C_P_crit = 2./(this%gamma*M2)*((n/d)**(this%gamma/(this%gamma-1.)) - 1.)
+        
+    end function flow_get_C_P_crit
+
+
+    function flow_correct_C_P_PG(this, C_P_inc, M_corr) result(C_P_PG)
+        ! Corrects the given incompressible pressure coefficient for compressibility using the Prandtl-Glauert correction
+
+        implicit none
+        
+        class(flow),intent(in) :: this
+        real,intent(in) :: C_P_inc, M_corr
+
+        real :: C_P_PG
+
+        ! Modern Compressible Flow by John Anderson Eq. (9.36)
+        C_P_PG = C_P_inc / sqrt(1. - M_corr*M_corr)
+        
+    end function flow_correct_C_P_PG
+
+
+    function flow_correct_C_P_KT(this, C_P_inc, M_corr) result(C_P_KT)
+        ! Corrects the given incompressible pressure coefficient for compressibility using the Karman-Tsien correction
+
+        implicit none
+        
+        class(flow),intent(in) :: this
+        real,intent(in) :: C_P_inc, M_corr
+
+        real :: C_P_KT
+
+        real :: x, M2, sM2
+            
+        ! Modern Compressible Flow by John Anderson Eq. (9.40)
+        M2 = M_corr*M_corr
+        sM2 = sqrt(1. - M2)
+        x = M2 / (1. + sM2)
+        C_P_KT = C_P_inc / (sM2 + 0.5*x*C_P_inc)
+
+    end function flow_correct_C_P_KT
+
+
+    function flow_correct_C_P_L(this, C_P_inc, M_corr) result(C_P_L)
+        ! Corrects the given incompressible pressure coefficient for compressibility using the Laitone correction
+
+        implicit none
+        
+        class(flow),intent(in) :: this
+        real,intent(in) :: C_P_inc, M_corr
+
+        real :: C_P_L
+
+        real :: x, M2, sM2
+            
+        ! Modern Compressible Flow by John Anderson Eq. (9.39)
+        M2 = M_corr*M_corr
+        sM2 = sqrt(1. - M2)
+        x = M2 * (1. + (0.5 * (this%gamma - 1.) * M2)) / (2 * sM2)
+        C_P_L = C_P_inc / (sM2 + (x * C_P_inc))
+
+    end function flow_correct_C_P_L
+
+
+    function flow_get_C_P(this, v, rule) result(C_P)
+        ! Calculates the pressure coefficient for the given velocity using the given rule
+        ! Rule defaults to the incompressible or isentropic rule, based on the freestream Mach number
+
+        implicit none
+        
+        class(flow),intent(in) :: this
+        real,dimension(3),intent(in) :: v
+        character(len=*),intent(in),optional :: rule
+
+        real :: C_P
+        character(len=:),allocatable :: pressure_rule
+
+        ! Get pressure rule
+        if (present(rule)) then
+            pressure_rule = rule
+        else
+            if (this%M_inf == 0.) then
+                pressure_rule = "incompressible"
+            else
+                pressure_rule = "isentropic"
+            end if
+        end if
+
+        ! Calculate
+        select case (pressure_rule)
+
+        case ("incompressible")
+            C_P = this%get_C_P_inc(v)
+
+        case ("isentropic")
+            C_P = this%get_C_P_ise(v)
+
+        case ("second-order")
+            C_P = this%get_C_P_2nd(v)
+
+        case ("slender-body")
+            C_P = this%get_C_P_sln(v)
+
+        case ("linear")
+            C_P = this%get_C_P_lin(v)
+
+        end select
+        
+    end function flow_get_C_P
 
 
 end module flow_mod

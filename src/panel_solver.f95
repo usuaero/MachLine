@@ -1405,21 +1405,20 @@ contains
 
 
     subroutine panel_solver_calc_cell_velocities(this, body)
-        ! Calculates the surface velocities on the mesh cells
+        ! Calculates the surface velocities on the mesh panels
 
         implicit none
 
         class(panel_solver),intent(inout) :: this
         type(surface_mesh),intent(inout) :: body
 
-        integer :: i, stat, j, N_cycle
+        integer :: i, stat, j
         real,dimension(3) :: v_jump, cent
 
         if (verbose) write(*,'(a)',advance='no') "     Calculating surface velocities..."
 
         ! Determine number of surface cells
         this%N_cells = body%N_panels
-        N_cycle = 1
         if (body%asym_flow) then
             this%N_cells = this%N_cells*2
         end if
@@ -1428,24 +1427,19 @@ contains
         allocate(body%V_cells(3,this%N_cells), stat=stat)
         call check_allocation(stat, "surface velocity vectors")
 
-        ! Calculate the surface velocity on each existing panel
+        ! Get the surface velocity on each existing panel
         !$OMP parallel do private(v_jump, j, cent) schedule(static)
         do i=1,body%N_panels
+            body%V_cells(:,(i-1)+1) = body%panels(i)%get_velocity(body%mu, body%sigma, .false., body%N_panels, &
+                                                                          body%N_verts, body%asym_flow, this%freestream, &
+                                                                          this%inner_flow)
 
-            ! Get velocity jump at centroid
-            v_jump = body%panels(i)%get_velocity_jump(body%mu, body%sigma, .false., body%N_panels, body%N_verts, body%asym_flow)
-
-            ! Calculate velocity
-            body%V_cells(:,(i-1)*N_cycle+1) = this%freestream%U*(this%inner_flow + v_jump)
-
-            ! Calculate surface velocity on each mirrored panel
+            ! Get surface velocity on each mirrored panel
             if (body%asym_flow) then
-
-                ! Get velocity jump
-                v_jump = body%panels(i)%get_velocity_jump(body%mu, body%sigma, .true., body%N_panels, body%N_verts, body%asym_flow)
-
-                ! Calculate velocity
-                body%V_cells(:,(i-1)*N_cycle+1+this%N_cells/2) = this%freestream%U*(this%inner_flow + v_jump)
+                body%V_cells(:,(i-1)+1+this%N_cells/2) = body%panels(i)%get_velocity(body%mu, body%sigma, .true., &
+                                                                                             body%N_panels, body%N_verts, &
+                                                                                             body%asym_flow, this%freestream, &
+                                                                                             this%inner_flow)
 
             end if
         end do
@@ -1540,7 +1534,10 @@ contains
 
             ! Incompressible rule
             if (this%incompressible_rule) then
-                body%C_p_inc(i) = this%freestream%get_C_P_inc(body%V_cells(:,i))
+                !body%C_p_inc(i) = this%freestream%get_C_P_inc(body%V_cells(:,i))
+                body%C_p_inc(i) = body%panels(i)%get_avg_pressure_coef(body%mu, body%sigma, .false., body%N_panels, body%N_verts, &
+                                                                       .false., this%freestream, this%inner_flow, &
+                                                                       "incompressible")
             end if
         
             ! Isentropic rule
@@ -1630,8 +1627,8 @@ contains
         
         class(panel_solver),intent(inout) :: this
         type(surface_mesh),intent(inout) :: body
-        integer :: stat
-        real :: val_holder_L, val_holder_KT
+
+        integer :: stat, i
 
         if (verbose) write(*,'(a)',advance='no') "     Calculating compressibility pressure corrections..."        
         
@@ -1641,8 +1638,10 @@ contains
             allocate(body%C_p_pg(this%N_cells), stat=stat)
             call check_allocation(stat, "Prandtl-Glauert corrected surface pressures")
             
-            ! Perform calculations for Prandtl-Glauert Rule (Modern Compressible Flow by John Anderson EQ 9.36)
-            body%C_p_pg = body%C_p_inc / (sqrt(1 - (this%corrected_M_inf**2)))
+            ! Perform calculations for Prandtl-Glauert Rule
+            do i=1,this%N_cells
+                body%C_p_pg(i) = this%freestream%correct_C_P_PG(body%C_p_inc(i), this%corrected_M_inf)
+            end do
         end if
         
         ! Laitone rule
@@ -1651,12 +1650,10 @@ contains
             allocate(body%C_p_lai(this%N_cells), stat=stat)
             call check_allocation(stat, "Laitone corrected surface pressures")
             
-            ! Perform calculations (Modern Compressible Flow by John Anderson EQ 9.39)
-            val_holder_L = this%corrected_M_inf**2 * (1 + (0.5 * (this%freestream%gamma - 1) * this%corrected_M_inf**2)) &
-            / (2 * sqrt(1 - this%corrected_M_inf**2))
-            
-            body%C_p_lai = body%C_p_inc / &
-            (sqrt(1 - this%corrected_M_inf**2) + (val_holder_L * body%C_p_inc))
+            ! Perform calculations
+            do i=1,this%N_cells
+                body%C_p_lai(i) = this%freestream%correct_C_P_L(body%C_p_inc(i), this%corrected_M_inf)
+            end do
         end if
         
         ! Karman-Tsien rule
@@ -1665,11 +1662,10 @@ contains
             allocate(body%C_p_kt(this%N_cells), stat=stat)
             call check_allocation(stat, "Karman-Tsien corrected surface pressures")
             
-            ! Perform calculations (Modern Compressible Flow by John Anderson EQ 9.40)
-            val_holder_KT = this%corrected_M_inf**2 / (1 + sqrt(1 - this%corrected_M_inf**2))
-            
-            body%C_p_kt = body%C_p_inc / &
-            (sqrt(1 - this%corrected_M_inf**2) + val_holder_KT * (0.5 * body%C_p_inc))
+            ! Perform calculations
+            do i=1,this%N_cells
+                body%C_p_kt(i) = this%freestream%correct_C_P_KT(body%C_p_inc(i), this%corrected_M_inf)
+            end do
         end if
 
         if (verbose) write(*,*) "Done. "  
@@ -1678,7 +1674,7 @@ contains
     
 
     subroutine panel_solver_calc_crit_mach(this, body)
-        ! Warn the user if body is in transonic flow
+        ! Calculates the critical Mach number based on the freestream condition and the pressure solution
 
         implicit none
 
@@ -1735,16 +1731,12 @@ contains
         end select
 
         ! Calculate critical pressure coefficient for the selected Mach number (Modern Compressible Flow by John Anderson EQ 9.55)
-        numerator = 1 + ((this%freestream%gamma - 1) / 2) * M_inf_selected**2 
-        denominator = 1 + (this%freestream%gamma -1) / 2
-
-        C_p_crit = (2 / (this%freestream%gamma * M_inf_selected**2)) &
-                    * (((numerator/denominator) ** (this%freestream%gamma / (this%freestream%gamma - 1))) - 1)
+        C_p_crit = this%freestream%get_C_P_crit(M_inf_selected)
     
         ! Report the critical mach pressure coefficient and the minimum pressure coefficients to the terminal
         if (verbose) then
-        write(*,*) "        Critical Mach C_p = ", C_p_crit
-        write(*,*) "        Minimum C_p       = ", C_p_min
+            write(*,*) "        Critical Mach C_p = ", C_p_crit
+            write(*,*) "        Minimum C_p       = ", C_p_min
         end if
 
         ! Throw warning message indicating body is in transonic flow
