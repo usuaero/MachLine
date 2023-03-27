@@ -1,7 +1,7 @@
 {
     "flow" : {
         "freestream_velocity" : [1.0, 1.0, 1.0],
-        "freestream_mach_number" : 0.0
+        "freestream_mach_number" : 0.5
     },
     "geometry" : {
         "file" : "dev/meshes/sphere.vtk",
@@ -14,7 +14,7 @@
         }
     },
     "solver" : {
-        "formulation" : "source-free",
+        "formulation" : "morino",
         "control_point_offset" : 1.0e-5,
         "matrix_solver" : "BJAC",
         "tolerance" : 1.e-12,
@@ -24,6 +24,9 @@
         "write_A_and_bx" : true
     },
     "post_processing" : {
+        "pressure_rules" : {
+            "isentropic" : true
+        }
     },
     "output" : {
         "body_file" :          "dev/results/sphere.vtk",

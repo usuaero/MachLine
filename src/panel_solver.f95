@@ -16,7 +16,7 @@ module panel_solver_mod
 
     type panel_solver
 
-        real :: corrected_M_inf 
+        real :: M_inf_corr 
         character(len=:),allocatable :: formulation, pressure_for_forces, matrix_solver, preconditioner, iteration_file
         logical :: incompressible_rule, isentropic_rule, second_order_rule, slender_rule, linear_rule
         logical :: morino, write_A_and_b, sort_system
@@ -61,12 +61,18 @@ module panel_solver_mod
             procedure :: write_system => panel_solver_write_system
             procedure :: solve_system => panel_solver_solve_system
 
-            ! Post-processing
+            ! Surface properties
             procedure :: calc_cell_velocities => panel_solver_calc_cell_velocities
             procedure :: calc_surface_potentials => panel_solver_calc_surface_potentials
+
+            ! Pressures
+            procedure :: allocate_pressure_storage => panel_solver_allocate_pressure_storage
+            procedure :: calc_avg_pressure_on_panel => panel_solver_calc_avg_pressure_on_panel
             procedure :: calc_pressures => panel_solver_calc_pressures
-            procedure :: subsonic_pressure_correction => panel_solver_subsonic_pressure_correction
+            procedure :: output_pressures_to_terminal => panel_solver_output_pressures_to_terminal
             procedure :: calc_crit_mach => panel_solver_calc_crit_mach
+
+            ! Force and moment integration
             procedure :: calc_forces => panel_solver_calc_forces
             procedure :: calc_moments => panel_solver_calc_moments
             procedure :: calc_forces_with_pressure => panel_solver_calc_forces_with_pressure
@@ -207,13 +213,13 @@ contains
         call json_xtnsn_get(processing_settings, 'pressure_rules.linear', this%linear_rule, .false.)
         
         ! Get information for pressure corrections
-        call json_xtnsn_get(processing_settings, 'subsonic_pressure_correction.correction_mach_number', this%corrected_M_inf, 0.0)
+        call json_xtnsn_get(processing_settings, 'subsonic_pressure_correction.correction_mach_number', this%M_inf_corr, 0.0)
         call json_xtnsn_get(processing_settings, 'subsonic_pressure_correction.prandtl-glauert', this%prandtl_glauert, .false.)
         call json_xtnsn_get(processing_settings, 'subsonic_pressure_correction.karman-tsien', this%karman_tsien, .false.)
         call json_xtnsn_get(processing_settings, 'subsonic_pressure_correction.laitone', this%laitone, .false.)
         
         ! Check the correction Mach number is subsonic
-        if (this%corrected_M_inf < 0.0 .or. this%corrected_M_inf >= 1.0) then
+        if (this%M_inf_corr < 0.0 .or. this%M_inf_corr >= 1.0) then
             write(*,*) "!!! The pressure correction Mach number must be between zero and one. Quitting..."
             stop
         end if
@@ -1430,16 +1436,14 @@ contains
         ! Get the surface velocity on each existing panel
         !$OMP parallel do private(v_jump, j, cent) schedule(static)
         do i=1,body%N_panels
-            body%V_cells(:,(i-1)+1) = body%panels(i)%get_velocity(body%mu, body%sigma, .false., body%N_panels, &
-                                                                          body%N_verts, body%asym_flow, this%freestream, &
-                                                                          this%inner_flow)
+            body%V_cells(:,i) = body%panels(i)%get_velocity(body%mu, body%sigma, .false., body%N_panels, &
+                                                            body%N_verts, body%asym_flow, this%freestream, this%inner_flow)
 
             ! Get surface velocity on each mirrored panel
             if (body%asym_flow) then
-                body%V_cells(:,(i-1)+1+this%N_cells/2) = body%panels(i)%get_velocity(body%mu, body%sigma, .true., &
-                                                                                             body%N_panels, body%N_verts, &
-                                                                                             body%asym_flow, this%freestream, &
-                                                                                             this%inner_flow)
+                body%V_cells(:,i+body%N_panels) = body%panels(i)%get_velocity(body%mu, body%sigma, .true., body%N_panels, &
+                                                                              body%N_verts, body%asym_flow, this%freestream, &
+                                                                              this%inner_flow)
 
             end if
         end do
@@ -1480,7 +1484,7 @@ contains
             end if
         end do
 
-        ! Factor in freestream velocity
+        ! Factor in freestream velocity magnitude
         body%Phi_u = body%Phi_u*this%freestream%U
 
         if (verbose) write(*,*) "Done."
@@ -1488,21 +1492,16 @@ contains
     end subroutine panel_solver_calc_surface_potentials
 
 
-    subroutine panel_solver_calc_pressures(this, body)
-        ! Calculates the surface pressures
+    subroutine panel_solver_allocate_pressure_storage(this, body)
+        ! Allocates vectors for storing pressure results
 
         implicit none
-
-        class(panel_solver),intent(inout) :: this
+        
+        class(panel_solver),intent(in) :: this
         type(surface_mesh),intent(inout) :: body
 
-        integer :: i, stat
-        real,dimension(3) :: V_pert
-        real :: a, b, c, lin, sln
+        integer :: stat
 
-        if (verbose) write(*,'(a)',advance='no') "     Calculating surface pressures..."
-
-        ! Allocate storage
         if (this%incompressible_rule) then
             allocate(body%C_p_inc(this%N_cells), stat=stat)
             call check_allocation(stat, "incompressible surface pressures")
@@ -1527,150 +1526,191 @@ contains
             allocate(body%C_p_lin(this%N_cells), stat=stat)
             call check_allocation(stat, "linear surface pressures")
         end if
+        
+        if (this%prandtl_glauert) then
+            allocate(body%C_p_pg(this%N_cells), stat=stat)
+            call check_allocation(stat, "Prandtl-Glauert corrected surface pressures")
+        end if
+        
+        if (this%laitone) then
+            allocate(body%C_p_lai(this%N_cells), stat=stat)
+            call check_allocation(stat, "Laitone corrected surface pressures")
+        end if
+        
+        if (this%karman_tsien) then
+            allocate(body%C_p_kt(this%N_cells), stat=stat)
+            call check_allocation(stat, "Karman-Tsien corrected surface pressures")
+        end if
+        
+    end subroutine panel_solver_allocate_pressure_storage
+
+
+    function panel_solver_calc_avg_pressure_on_panel(this, i_panel, body, mirrored, rule) result(C_P_avg)
+        ! Calls the panel function with the needed variables to get the average pressure coefficient on that panel
+
+        implicit none
+        
+        class(panel_solver),intent(in) :: this
+        integer,intent(in) :: i_panel
+        type(surface_mesh),intent(in) :: body
+        logical,intent(in) :: mirrored
+        character(len=*),intent(in) :: rule
+
+        real :: C_P_avg
+
+        C_P_avg = body%panels(i_panel)%get_avg_pressure_coef(body%mu, body%sigma, mirrored, body%N_panels, body%N_verts, &
+                                                             body%asym_flow, this%freestream, this%inner_flow, body%mirror_plane, &
+                                                             rule, M_corr=this%M_inf_corr)
+        
+    end function panel_solver_calc_avg_pressure_on_panel
+
+
+    subroutine panel_solver_calc_pressures(this, body)
+        ! Calculates the surface pressures
+
+        implicit none
+
+        class(panel_solver),intent(inout) :: this
+        type(surface_mesh),intent(inout) :: body
+
+        integer :: i, stat
+        real,dimension(3) :: V_pert
+        real :: a, b, c, lin, sln
+
+        if (verbose) write(*,'(a)',advance='no') "     Calculating surface pressures..."
+
+        ! Allocate storage
+        call this%allocate_pressure_storage(body)
 
         ! Calculate pressures
         !$OMP parallel do private(V_pert, lin, sln) schedule(static)
-        do i=1,this%N_cells
+        do i=1,body%N_panels
 
             ! Incompressible rule
             if (this%incompressible_rule) then
-                !body%C_p_inc(i) = this%freestream%get_C_P_inc(body%V_cells(:,i))
-                body%C_p_inc(i) = body%panels(i)%get_avg_pressure_coef(body%mu, body%sigma, .false., body%N_panels, body%N_verts, &
-                                                                       .false., this%freestream, this%inner_flow, &
-                                                                       "incompressible")
+                body%C_p_inc(i) = this%calc_avg_pressure_on_panel(i, body, .false., "incompressible")
+                if (body%asym_flow) then
+                    body%C_p_inc(i+body%N_panels) = this%calc_avg_pressure_on_panel(i, body, .true., "incompressible")
+                end if
             end if
         
             ! Isentropic rule
             if (this%isentropic_rule) then
-                
-                body%C_p_ise(i) = this%freestream%get_C_P_ise(body%V_cells(:,i))
-
-                ! Check for NaN and replace with vacuum pressure
-                if (isnan(body%C_p_ise(i))) then
-                    body%C_p_ise(i) = this%freestream%C_P_vac
+                body%C_p_ise(i) = this%calc_avg_pressure_on_panel(i, body, .false., "isentropic")
+                if (body%asym_flow) then
+                    body%C_p_ise(i+body%N_panels) = this%calc_avg_pressure_on_panel(i, body, .true., "isentropic")
                 end if
             end if
 
             ! Second-order rule
             if (this%second_order_rule) then
-                body%C_p_2nd(i) = this%freestream%get_C_P_2nd(body%V_cells(:,i))
+                body%C_p_2nd(i) = this%calc_avg_pressure_on_panel(i, body, .false., "second-order")
+                if (body%asym_flow) then
+                    body%C_p_2nd(i+body%N_panels) = this%calc_avg_pressure_on_panel(i, body, .true., "second-order")
+                end if
             end if
         
             ! Slender-body rule
             if (this%slender_rule) then
-                body%C_p_sln(i) = this%freestream%get_C_P_sln(body%V_cells(:,i))
+                body%C_p_sln(i) = this%calc_avg_pressure_on_panel(i, body, .false., "slender-body")
+                if (body%asym_flow) then
+                    body%C_p_sln(i+body%N_panels) = this%calc_avg_pressure_on_panel(i, body, .true., "slender-body")
+                end if
             end if
         
             ! Linear rule
             if (this%linear_rule) then
-                body%C_p_lin(i) = this%freestream%get_C_P_lin(body%V_cells(:,i))
+                body%C_p_lin(i) = this%calc_avg_pressure_on_panel(i, body, .false., "linear")
+                if (body%asym_flow) then
+                    body%C_p_lin(i+body%N_panels) = this%calc_avg_pressure_on_panel(i, body, .true., "linear")
+                end if
+            end if
+
+            ! Prandtl-Glauert correction
+            if (this%prandtl_glauert) then
+                body%C_p_pg(i) = this%calc_avg_pressure_on_panel(i, body, .false., "prandtl-glauert")
+                if (body%asym_flow) then
+                    body%C_p_pg(i+body%N_panels) = this%calc_avg_pressure_on_panel(i, body, .true., "prandtl-glauert")
+                end if
+            end if
+
+            ! Karman-Tsien correction
+            if (this%karman_tsien) then
+                body%C_p_kt(i) = this%calc_avg_pressure_on_panel(i, body, .false., "karman-tsien")
+                if (body%asym_flow) then
+                    body%C_p_kt(i+body%N_panels) = this%calc_avg_pressure_on_panel(i, body, .true., "karman-tsien")
+                end if
+            end if
+
+            ! Laitone correction
+            if (this%laitone) then
+                body%C_p_lai(i) = this%calc_avg_pressure_on_panel(i, body, .false., "laitone")
+                if (body%asym_flow) then
+                    body%C_p_lai(i+body%N_panels) = this%calc_avg_pressure_on_panel(i, body, .true., "laitone")
+                end if
             end if
 
         end do
 
-        if (verbose) write(*,*) "Done."
-        
-        ! Report min and max pressure coefficients
-        if (this%incompressible_rule .and. verbose) then
-            write(*,*) "        Maximum incompressible pressure coefficient:", maxval(body%C_p_inc)
-            write(*,*) "        Minimum incompressible pressure coefficient:", minval(body%C_p_inc)
+        if (verbose) then
+            write(*,*) "Done."
+            call this%output_pressures_to_terminal(body)
         end if
         
-        if (this%isentropic_rule .and. verbose) then
-            write(*,*) "        Maximum isentropic pressure coefficient:", maxval(body%C_p_ise)
-            write(*,*) "        Minimum isentropic pressure coefficient:", minval(body%C_p_ise)
-        end if
-        
-        if (this%second_order_rule .and. verbose) then
-            write(*,*) "        Maximum second-order pressure coefficient:", maxval(body%C_p_2nd)
-            write(*,*) "        Minimum second-order pressure coefficient:", minval(body%C_p_2nd)
-        end if
-        
-        if (this%slender_rule .and. verbose) then
-            write(*,*) "        Maximum slender-body pressure coefficient:", maxval(body%C_p_sln)
-            write(*,*) "        Minimum slender-body pressure coefficient:", minval(body%C_p_sln)
-        end if
-        
-        if (this%linear_rule .and. verbose) then
-            write(*,*) "        Maximum linear pressure coefficient:", maxval(body%C_p_lin)
-            write(*,*) "        Minimum linear pressure coefficient:", minval(body%C_p_lin)
-        end if
-        
-        ! Report vacuum pressure coefficient
-        if (this%freestream%M_inf > 0.) then
-            if (verbose) write(*,*) "        Vacuum pressure coefficient:", this%freestream%C_P_vac
-        end if
-        
-        ! Apply subsonic pressure corrections
-        if (this%prandtl_glauert .or. this%karman_tsien .or. this%laitone) then
-            call this%subsonic_pressure_correction(body)
-        end if
-
         ! Check if critical Mach number has been exceeded
         if (this%incompressible_rule) then
-            if ((this%corrected_M_inf < 1) .and. (this%corrected_M_inf /= 0.)) then
+            if ((this%M_inf_corr < 1.) .and. (this%M_inf_corr /= 0.)) then
                 call this%calc_crit_mach(body)
             end if
         else
-            if ((this%freestream%M_inf < 1) .and. (this%freestream%M_inf /= 0.)) then
+            if ((this%freestream%M_inf < 1.) .and. (this%freestream%M_inf /= 0.)) then
                 call this%calc_crit_mach(body)
             end if
         end if
         
     end subroutine panel_solver_calc_pressures
 
-    
-    subroutine panel_solver_subsonic_pressure_correction(this, body)
-        ! Apply selected method of correcting subsonic pressures
-        
+
+    subroutine panel_solver_output_pressures_to_terminal(this, body)
+        ! Writes pertinent pressure values to the terminal
+
         implicit none
         
-        class(panel_solver),intent(inout) :: this
-        type(surface_mesh),intent(inout) :: body
-
-        integer :: stat, i
-
-        if (verbose) write(*,'(a)',advance='no') "     Calculating compressibility pressure corrections..."        
+        class(panel_solver), intent(in) :: this
+        type(surface_mesh), intent(in) :: body
         
-        ! Prandtl-Glauert rule
-        if (this%prandtl_glauert) then
-            ! Allocate storage
-            allocate(body%C_p_pg(this%N_cells), stat=stat)
-            call check_allocation(stat, "Prandtl-Glauert corrected surface pressures")
-            
-            ! Perform calculations for Prandtl-Glauert Rule
-            do i=1,this%N_cells
-                body%C_p_pg(i) = this%freestream%correct_C_P_PG(body%C_p_inc(i), this%corrected_M_inf)
-            end do
+        ! Report min and max pressure coefficients
+        if (this%incompressible_rule) then
+            write(*,*) "        Maximum incompressible pressure coefficient:", maxval(body%C_p_inc)
+            write(*,*) "        Minimum incompressible pressure coefficient:", minval(body%C_p_inc)
         end if
         
-        ! Laitone rule
-        if (this%laitone) then
-            ! Allocate storage
-            allocate(body%C_p_lai(this%N_cells), stat=stat)
-            call check_allocation(stat, "Laitone corrected surface pressures")
-            
-            ! Perform calculations
-            do i=1,this%N_cells
-                body%C_p_lai(i) = this%freestream%correct_C_P_L(body%C_p_inc(i), this%corrected_M_inf)
-            end do
+        if (this%isentropic_rule) then
+            write(*,*) "        Maximum isentropic pressure coefficient:", maxval(body%C_p_ise)
+            write(*,*) "        Minimum isentropic pressure coefficient:", minval(body%C_p_ise)
         end if
         
-        ! Karman-Tsien rule
-        if (this%karman_tsien) then
-            ! Allocate storage
-            allocate(body%C_p_kt(this%N_cells), stat=stat)
-            call check_allocation(stat, "Karman-Tsien corrected surface pressures")
-            
-            ! Perform calculations
-            do i=1,this%N_cells
-                body%C_p_kt(i) = this%freestream%correct_C_P_KT(body%C_p_inc(i), this%corrected_M_inf)
-            end do
+        if (this%second_order_rule) then
+            write(*,*) "        Maximum second-order pressure coefficient:", maxval(body%C_p_2nd)
+            write(*,*) "        Minimum second-order pressure coefficient:", minval(body%C_p_2nd)
         end if
-
-        if (verbose) write(*,*) "Done. "  
         
-    end subroutine panel_solver_subsonic_pressure_correction
+        if (this%slender_rule) then
+            write(*,*) "        Maximum slender-body pressure coefficient:", maxval(body%C_p_sln)
+            write(*,*) "        Minimum slender-body pressure coefficient:", minval(body%C_p_sln)
+        end if
+        
+        if (this%linear_rule) then
+            write(*,*) "        Maximum linear pressure coefficient:", maxval(body%C_p_lin)
+            write(*,*) "        Minimum linear pressure coefficient:", minval(body%C_p_lin)
+        end if
+        
+        ! Report vacuum pressure coefficient
+        if (this%freestream%M_inf > 0.) then
+            write(*,*) "        Vacuum pressure coefficient:", this%freestream%C_P_vac
+        end if
+    
+    end subroutine panel_solver_output_pressures_to_terminal
     
 
     subroutine panel_solver_calc_crit_mach(this, body)
@@ -1688,22 +1728,22 @@ contains
             case ("incompressible")
                 min_loc = MINLOC(body%C_p_inc)
                 C_p_min = MINVAL(body%C_p_inc)
-                M_inf_selected = this%corrected_M_inf  
+                M_inf_selected = this%M_inf_corr  
             
             case ("prandtl-glauert")
                 min_loc = MINLOC(body%C_p_pg)
                 C_p_min = MINVAL(body%C_p_pg)
-                M_inf_selected = this%corrected_M_inf
+                M_inf_selected = this%M_inf_corr
 
             case ("karman-tsien")
                 min_loc = MINLOC(body%C_p_kt)
                 C_p_min = MINVAL(body%C_p_kt)
-                M_inf_selected = this%corrected_M_inf
+                M_inf_selected = this%M_inf_corr
 
             case ("laitone")
                 min_loc = MINLOC(body%C_p_lai)
                 C_p_min = MINVAL(body%C_p_lai)
-                M_inf_selected = this%corrected_M_inf
+                M_inf_selected = this%M_inf_corr
 
             case ("isentropic")
                 min_loc = MINLOC(body%C_p_ise)
@@ -1830,7 +1870,7 @@ contains
 
             ! Mirror
             if (body%asym_flow) then
-                body%dC_f(:,i+this%N_cells/2) = -pressures(i+this%N_cells/2)*body%panels(i)%A*body%panels(i)%n_g_mir
+                body%dC_f(:,i+body%N_panels) = -pressures(i+body%N_panels)*body%panels(i)%A*body%panels(i)%n_g_mir
             end if
 
         end do

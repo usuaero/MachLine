@@ -96,7 +96,7 @@ module panel_mod
 
             ! Pressure integration
             procedure :: calc_C_integrals => panel_calc_C_integrals
-            procedure :: calc_C_mir_integrals => panel_calc_C_mir_integrals
+            procedure :: calc_mirrored_C_integrals => panel_calc_mirrored_C_integrals
 
             ! Getters
             procedure :: get_vertex_loc => panel_get_vertex_loc
@@ -561,7 +561,7 @@ contains
         ! Calculate quadratic pressure integrals
         if (this%order == 2) then
             call this%calc_C_integrals()
-            if (mirror_needed) call this%calc_C_mir_integrals()
+            if (mirror_needed) call this%calc_mirrored_C_integrals()
         end if
         
     end subroutine panel_set_distribution
@@ -1073,10 +1073,9 @@ contains
 
         integer :: i, j, k, k_next
         real,dimension(3) :: d_eta, d_xi
-        real,dimension(:,:,:),allocatable :: G, H
         real,dimension(:,:,:,:),allocatable :: II
 
-        ! Calculate offsets
+        ! Calculate offsets for each edge
         do k=1,3
 
             ! Get endpoint index
@@ -1088,74 +1087,93 @@ contains
 
         end do
 
-        ! Initialize H integrals
-        allocate(H(8,0:2,3))
-        do i=1,8
-            H(i,0,:) = 1./(i+1.)
+        ! Initialize H integrals (remember II(i,j,0,:) = H(i,j,:))
+        allocate(II(0:4,0:2,0:3,3))
+        do i=0,4
+            II(i,0,0,:) = 1./(i+1.)
         end do
 
-        ! Calculate H integrals
+        ! Calculate other H integrals using eta recursion
         do j=1,2
-            do i=1,8-j
-                H(i,j,:) = this%vertices_ls(2,:)*H(i,j-1,:) + d_eta*H(i+1,j-1,:)
-                if (any(H(i+1,j-1,:) == 0.) .or. any(H(i,j-1,:) == 0.)) then
-                    write(*,*) "Not enough H(i,0)!!!!"
-                    stop
-                end if
+            do i=0,3-j
+                II(i,j,0,:) = this%vertices_ls(2,:)*II(i,j-1,0,:) + d_eta*II(i+1,j-1,0,:)
             end do 
         end do
 
-        ! Initialize I integrals
-        allocate(II(6,0:2,0:3,3))
-        do i=1,6
-            do j=0,2
-                II(i,j,0,:) = H(i,j,:)
-                if (any(H(i,j,:) == 0.)) then
-                    write(*,*) "Not enough H(i,j)!!!!"
-                    stop
-                end if
-            end do
-        end do
-
-        ! Calculate I integrals
+        ! Calculate I integrals using xi recursion
         do j=0,2
-            do k=1,3
-                do i=1,6-k
-                    II(i,j,k,:) = this%vertices_ls(1,:)*II(i+1,j,k-1,:) + d_xi*II(i,j,k-1,:)
-                    if (any(II(i+1,j,k-1,:) == 0.) .or. any(II(i,j,k-1,:) == 0.)) then
-                        write(*,*) "Not enough I(i,j,k)!!!!"
-                        stop
-                    end if
+            do k=1,3-j
+                do i=3-j,k,-1
+                    II(i,j,k,:) = this%vertices_ls(1,:)*II(i-1,j,k-1,:) + d_xi*II(i,j,k-1,:)
                 end do
             end do
         end do
 
-        ! Extract G integrals
-        allocate(G(3,0:2,3))
-        do i=1,3
-            G(i,:,:) = II(i,:,i,:)
-        end do
-
-        ! Calculate C integrals
+        ! Calculate C integrals (remember G(i,j,:) = II(i,j,i,:))
         allocate(this%C(0:2,0:2))
         do i=0,2
             do j=0,2
-                this%C(i,j) = sum(d_eta*G(i+1,j,:))/(i+1)
+                this%C(i,j) = sum(d_eta*II(i+1,j,i+1,:))/(i+1)
             end do
         end do
         
     end subroutine panel_calc_C_integrals
 
 
-    subroutine panel_calc_C_mir_integrals(this)
-        ! Calculates the mirrored C integrals
+    subroutine panel_calc_mirrored_C_integrals(this)
+        ! Calculates the C integrals for integrating quadratic pressure distributions for the mirrored panel
 
         implicit none
         
         class(panel),intent(inout) :: this
-    
+
+        integer :: i, j, k, k_next
+        real,dimension(3) :: d_eta, d_xi
+        real,dimension(:,:,:,:),allocatable :: II
+
+        ! Calculate offsets for each edge
+        do k=1,3
+
+            ! Get endpoint index
+            k_next = modulo(k, 3) + 1
+
+            ! Get offset
+            d_xi(k_next) = this%vertices_ls_mir(1,k) - this%vertices_ls_mir(1,k_next)
+            d_eta(k_next) = this%vertices_ls_mir(2,k) - this%vertices_ls_mir(2,k_next)
+
+        end do
+
+        ! Initialize H integrals (remember II(i,j,0,:) = H(i,j,:))
+        allocate(II(0:4,0:2,0:3,3))
+        do i=0,4
+            II(i,0,0,:) = 1./(i+1.)
+        end do
+
+        ! Calculate other H integrals using eta recursion
+        do j=1,2
+            do i=0,3-j
+                II(i,j,0,:) = this%vertices_ls_mir(2,:)*II(i,j-1,0,:) + d_eta*II(i+1,j-1,0,:)
+            end do 
+        end do
+
+        ! Calculate I integrals using xi recursion
+        do j=0,2
+            do k=1,3-j
+                do i=3-j,k,-1
+                    II(i,j,k,:) = this%vertices_ls_mir(1,:)*II(i-1,j,k-1,:) + d_xi*II(i,j,k-1,:)
+                end do
+            end do
+        end do
+
+        ! Calculate C integrals (remember G(i,j,:) = II(i,j,i,:))
+        allocate(this%C_mir(0:2,0:2))
+        do i=0,2
+            do j=0,2
+                this%C_mir(i,j) = sum(d_eta*II(i+1,j,i+1,:))/(i+1)
+            end do
+        end do
         
-    end subroutine panel_calc_C_mir_integrals
+    end subroutine panel_calc_mirrored_C_integrals
 
 
     function panel_get_vertex_loc(this, i) result(loc)
@@ -3190,7 +3208,7 @@ contains
 
 
     function panel_get_avg_pressure_coef(this, mu, sigma, mirrored, N_body_panels, N_body_verts, asym_flow, &
-                                         freestream, inner_flow, rule) result(C_P_avg)
+                                         freestream, inner_flow, mirror_plane, rule, M_corr) result(C_P_avg)
         ! Calculates the average pressure coefficient on the panel
 
         implicit none
@@ -3201,7 +3219,9 @@ contains
         integer,intent(in) :: N_body_panels, N_body_verts
         type(flow),intent(in) :: freestream
         real,dimension(3),intent(in) :: inner_flow
+        integer,intent(in) :: mirror_plane
         character(len=*),intent(in) :: rule
+        real,intent(in),optional :: M_corr
 
         real :: C_P_avg
 
@@ -3211,6 +3231,17 @@ contains
 
         ! Constant pressure
         if (this%order == 1) then
+
+            ! Get velocity at centroid
+            v = this%get_velocity(mu, sigma, mirrored, N_body_panels, N_body_verts, asym_flow, &
+                                  freestream, inner_flow)
+
+            ! Get pressure
+            if (present(M_corr)) then
+                C_P_avg = freestream%get_C_P(v, rule=rule, M_corr=M_corr)
+            else
+                C_P_avg = freestream%get_C_P(v, rule=rule)
+            end if
 
         ! Quadratic pressure
         else
@@ -3226,7 +3257,11 @@ contains
                                       freestream, inner_flow, point=this%get_vertex_loc(i))
 
                 ! Get pressure
-                C_P(i) = freestream%get_C_P(v, rule=rule)
+                if (present(M_corr)) then
+                    C_P(i) = freestream%get_C_P(v, rule=rule, M_corr=M_corr)
+                else
+                    C_P(i) = freestream%get_C_P(v, rule=rule)
+                end if
 
             end do
 
@@ -3236,13 +3271,18 @@ contains
                 ! Get point
                 i_next = modulo(i, 3) + 1
                 p = 0.5*(this%get_vertex_loc(i) + this%get_vertex_loc(i_next))
+                if (mirrored) p = mirror_across_plane(p, mirror_plane)
 
                 ! Get velocity
                 v = this%get_velocity(mu, sigma, mirrored, N_body_panels, N_body_verts, asym_flow, &
                                       freestream, inner_flow, point=p)
 
                 ! Get pressure
-                C_P(i+3) = freestream%get_C_P(v, rule=rule)
+                if (present(M_corr)) then
+                    C_P(i+3) = freestream%get_C_P(v, rule=rule, M_corr=M_corr)
+                else
+                    C_P(i+3) = freestream%get_C_P(v, rule=rule)
+                end if
 
             end do
 
@@ -3263,12 +3303,6 @@ contains
 
                 ! Get distribution parameters
                 C_P_params = matmul(this%S_mu_inv, C_P)
-                if (this%index == 1) then
-                    write(*,*)
-                    write(*,*) this%C(0,0)*this%J
-                    write(*,*) this%A
-                    write(*,*) C_P_params
-                end if
 
                 ! Integrate
                 C_P_avg = this%C(0,0)*C_P_params(1) + this%C(1,0)*C_P_params(2) + this%C(0,1)*C_P_params(3) + &

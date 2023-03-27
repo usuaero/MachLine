@@ -319,8 +319,12 @@ contains
 
         real :: C_P_ise
 
+        ! Calculate
         C_P_ise = this%get_C_P_inc(v)
         C_P_ise = this%a_ise*( (1. + this%b_ise*C_P_ise)**this%c_ise - 1.)
+
+        ! Check for NaN
+        if (isnan(C_P_ise)) C_P_ise = this%C_P_vac
         
     end function flow_get_C_P_ise
 
@@ -484,7 +488,7 @@ contains
     end function flow_correct_C_P_L
 
 
-    function flow_get_C_P(this, v, rule) result(C_P)
+    function flow_get_C_P(this, v, rule, M_corr) result(C_P)
         ! Calculates the pressure coefficient for the given velocity using the given rule
         ! Rule defaults to the incompressible or isentropic rule, based on the freestream Mach number
 
@@ -493,6 +497,7 @@ contains
         class(flow),intent(in) :: this
         real,dimension(3),intent(in) :: v
         character(len=*),intent(in),optional :: rule
+        real,intent(in),optional :: M_corr
 
         real :: C_P
         character(len=:),allocatable :: pressure_rule
@@ -525,6 +530,18 @@ contains
 
         case ("linear")
             C_P = this%get_C_P_lin(v)
+
+        case ("prandtl-glauert")
+            C_P = this%get_C_P_inc(v)
+            C_P = this%correct_C_P_PG(C_P, M_corr)
+
+        case ("karman-tsien")
+            C_P = this%get_C_P_inc(v)
+            C_P = this%correct_C_P_KT(C_P, M_corr)
+
+        case ("laitone")
+            C_P = this%get_C_P_inc(v)
+            C_P = this%correct_C_P_L(C_P, M_corr)
 
         end select
         
