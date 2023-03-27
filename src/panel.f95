@@ -163,7 +163,9 @@ module panel_mod
             ! Surface properties
             procedure :: get_velocity_jump => panel_get_velocity_jump
             procedure :: get_velocity => panel_get_velocity
+            procedure :: get_quadratic_pressure_params => panel_get_quadratic_pressure_params
             procedure :: get_avg_pressure_coef => panel_get_avg_pressure_coef
+            procedure :: get_moment_about_centroid => panel_get_moment_about_centroid
 
     end type panel
 
@@ -1075,6 +1077,12 @@ contains
         real,dimension(3) :: d_eta, d_xi
         real,dimension(:,:,:,:),allocatable :: II
 
+        integer :: Ni, Nj
+
+        ! Set how many C integrals we need
+        Ni = 3
+        Nj = 3
+
         ! Calculate offsets for each edge
         do k=1,3
 
@@ -1088,31 +1096,31 @@ contains
         end do
 
         ! Initialize H integrals (remember II(i,j,0,:) = H(i,j,:))
-        allocate(II(0:4,0:2,0:3,3))
-        do i=0,4
+        allocate(II(0:Ni+2,0:Nj,0:Ni+1,3))
+        do i=0,Ni+2
             II(i,0,0,:) = 1./(i+1.)
         end do
 
         ! Calculate other H integrals using eta recursion
-        do j=1,2
-            do i=0,3-j
+        do j=1,Nj
+            do i=0,Ni-j
                 II(i,j,0,:) = this%vertices_ls(2,:)*II(i,j-1,0,:) + d_eta*II(i+1,j-1,0,:)
             end do 
         end do
 
         ! Calculate I integrals using xi recursion
-        do j=0,2
-            do k=1,3-j
-                do i=3-j,k,-1
+        do j=0,Nj
+            do k=1,Ni-j
+                do i=Ni-j,k,-1
                     II(i,j,k,:) = this%vertices_ls(1,:)*II(i-1,j,k-1,:) + d_xi*II(i,j,k-1,:)
                 end do
             end do
         end do
 
         ! Calculate C integrals (remember G(i,j,:) = II(i,j,i,:))
-        allocate(this%C(0:2,0:2))
-        do i=0,2
-            do j=0,2
+        allocate(this%C(0:Ni,0:Nj))
+        do i=0,Ni
+            do j=0,Nj
                 this%C(i,j) = sum(d_eta*II(i+1,j,i+1,:))/(i+1)
             end do
         end do
@@ -1131,6 +1139,12 @@ contains
         real,dimension(3) :: d_eta, d_xi
         real,dimension(:,:,:,:),allocatable :: II
 
+        integer :: Ni, Nj
+
+        ! Set how many C integrals we need
+        Ni = 3
+        Nj = 3
+
         ! Calculate offsets for each edge
         do k=1,3
 
@@ -1144,31 +1158,31 @@ contains
         end do
 
         ! Initialize H integrals (remember II(i,j,0,:) = H(i,j,:))
-        allocate(II(0:4,0:2,0:3,3))
-        do i=0,4
+        allocate(II(0:Ni+2,0:Nj,0:Ni+1,3))
+        do i=0,Ni+2
             II(i,0,0,:) = 1./(i+1.)
         end do
 
         ! Calculate other H integrals using eta recursion
-        do j=1,2
-            do i=0,3-j
+        do j=1,Nj
+            do i=0,Ni-j
                 II(i,j,0,:) = this%vertices_ls_mir(2,:)*II(i,j-1,0,:) + d_eta*II(i+1,j-1,0,:)
             end do 
         end do
 
         ! Calculate I integrals using xi recursion
-        do j=0,2
-            do k=1,3-j
-                do i=3-j,k,-1
+        do j=0,Nj
+            do k=1,Ni-j
+                do i=Ni-j,k,-1
                     II(i,j,k,:) = this%vertices_ls_mir(1,:)*II(i-1,j,k-1,:) + d_xi*II(i,j,k-1,:)
                 end do
             end do
         end do
 
         ! Calculate C integrals (remember G(i,j,:) = II(i,j,i,:))
-        allocate(this%C_mir(0:2,0:2))
-        do i=0,2
-            do j=0,2
+        allocate(this%C_mir(0:Ni,0:Nj))
+        do i=0,Ni
+            do j=0,Nj
                 this%C_mir(i,j) = sum(d_eta*II(i+1,j,i+1,:))/(i+1)
             end do
         end do
@@ -3207,6 +3221,75 @@ contains
     end function panel_get_velocity
 
 
+    function panel_get_quadratic_pressure_params(this, mu, sigma, mirrored, N_body_panels, N_body_verts, asym_flow, &
+                                         freestream, inner_flow, mirror_plane, rule, M_corr) result(C_P_params)
+        ! Calculates the average pressure coefficient on the panel
+
+        implicit none
+
+        class(panel),intent(in) :: this
+        real,dimension(:),allocatable,intent(in) :: mu, sigma
+        logical,intent(in) :: mirrored, asym_flow
+        integer,intent(in) :: N_body_panels, N_body_verts
+        type(flow),intent(in) :: freestream
+        real,dimension(3),intent(in) :: inner_flow
+        integer,intent(in) :: mirror_plane
+        character(len=*),intent(in) :: rule
+        real,intent(in),optional :: M_corr
+
+        real,dimension(6) :: C_P_params
+
+        integer :: i, i_next
+        real,dimension(3) :: v, p
+        real,dimension(6) :: C_P
+
+        ! Get pressures at vertices
+        do i=1,3
+
+            ! Get velocity
+            v = this%get_velocity(mu, sigma, mirrored, N_body_panels, N_body_verts, asym_flow, &
+                                  freestream, inner_flow, point=this%get_vertex_loc(i))
+
+            ! Get pressure
+            if (present(M_corr)) then
+                C_P(i) = freestream%get_C_P(v, rule=rule, M_corr=M_corr)
+            else
+                C_P(i) = freestream%get_C_P(v, rule=rule)
+            end if
+
+        end do
+
+        ! Get pressures at midpoints
+        do i=1,3
+
+            ! Get point
+            i_next = modulo(i, 3) + 1
+            p = 0.5*(this%get_vertex_loc(i) + this%get_vertex_loc(i_next))
+            if (mirrored) p = mirror_across_plane(p, mirror_plane)
+
+            ! Get velocity
+            v = this%get_velocity(mu, sigma, mirrored, N_body_panels, N_body_verts, asym_flow, &
+                                  freestream, inner_flow, point=p)
+
+            ! Get pressure
+            if (present(M_corr)) then
+                C_P(i+3) = freestream%get_C_P(v, rule=rule, M_corr=M_corr)
+            else
+                C_P(i+3) = freestream%get_C_P(v, rule=rule)
+            end if
+
+        end do
+
+        ! Get pressure distribution parameters
+        if (mirrored) then
+            C_P_params = matmul(this%S_mu_inv_mir, C_P)
+        else
+            C_P_params = matmul(this%S_mu_inv, C_P)
+        end if
+        
+    end function panel_get_quadratic_pressure_params
+
+
     function panel_get_avg_pressure_coef(this, mu, sigma, mirrored, N_body_panels, N_body_verts, asym_flow, &
                                          freestream, inner_flow, mirror_plane, rule, M_corr) result(C_P_avg)
         ! Calculates the average pressure coefficient on the panel
@@ -3225,9 +3308,8 @@ contains
 
         real :: C_P_avg
 
-        integer :: i, i_next
-        real,dimension(3) :: v, p
-        real,dimension(:),allocatable :: C_P, C_P_params
+        real,dimension(3) :: v
+        real,dimension(6) :: C_P_params
 
         ! Constant pressure
         if (this%order == 1) then
@@ -3246,51 +3328,17 @@ contains
         ! Quadratic pressure
         else
 
-            ! Allocate pressure coefficient array
-            allocate(C_P(6))
+            ! Get pressure distribution parameters
+            if (present(M_corr)) then
+                C_P_params = this%get_quadratic_pressure_params(mu, sigma, mirrored, N_body_panels, N_body_verts, asym_flow, &
+                                                                freestream, inner_flow, mirror_plane, rule, M_corr)
+            else
+                C_P_params = this%get_quadratic_pressure_params(mu, sigma, mirrored, N_body_panels, N_body_verts, asym_flow, &
+                                                                freestream, inner_flow, mirror_plane, rule)
+            end if
 
-            ! Get pressures at vertices
-            do i=1,3
-
-                ! Get velocity
-                v = this%get_velocity(mu, sigma, mirrored, N_body_panels, N_body_verts, asym_flow, &
-                                      freestream, inner_flow, point=this%get_vertex_loc(i))
-
-                ! Get pressure
-                if (present(M_corr)) then
-                    C_P(i) = freestream%get_C_P(v, rule=rule, M_corr=M_corr)
-                else
-                    C_P(i) = freestream%get_C_P(v, rule=rule)
-                end if
-
-            end do
-
-            ! Get pressures at midpoints
-            do i=1,3
-
-                ! Get point
-                i_next = modulo(i, 3) + 1
-                p = 0.5*(this%get_vertex_loc(i) + this%get_vertex_loc(i_next))
-                if (mirrored) p = mirror_across_plane(p, mirror_plane)
-
-                ! Get velocity
-                v = this%get_velocity(mu, sigma, mirrored, N_body_panels, N_body_verts, asym_flow, &
-                                      freestream, inner_flow, point=p)
-
-                ! Get pressure
-                if (present(M_corr)) then
-                    C_P(i+3) = freestream%get_C_P(v, rule=rule, M_corr=M_corr)
-                else
-                    C_P(i+3) = freestream%get_C_P(v, rule=rule)
-                end if
-
-            end do
-
-            ! Get pressure distribution parameters and integrate
+            ! Integrate
             if (mirrored) then
-
-                ! Get distribution parameters
-                C_P_params = matmul(this%S_mu_inv_mir, C_P)
 
                 ! Integrate
                 C_P_avg = this%C_mir(0,0)*C_P_params(1) + this%C_mir(1,0)*C_P_params(2) + this%C_mir(0,1)*C_P_params(3) + &
@@ -3300,9 +3348,6 @@ contains
                 C_P_avg = this%J_mir*C_P_avg/this%A
 
             else
-
-                ! Get distribution parameters
-                C_P_params = matmul(this%S_mu_inv, C_P)
 
                 ! Integrate
                 C_P_avg = this%C(0,0)*C_P_params(1) + this%C(1,0)*C_P_params(2) + this%C(0,1)*C_P_params(3) + &
@@ -3316,6 +3361,75 @@ contains
         end if
 
     end function panel_get_avg_pressure_coef
+
+
+    function panel_get_moment_about_centroid(this, mu, sigma, mirrored, N_body_panels, N_body_verts, asym_flow, &
+                                                   freestream, inner_flow, mirror_plane, rule, M_corr) result(C_M)
+        ! Calculates the moment coefficient (units of length) about the panel centroid
+
+        implicit none
+
+        class(panel),intent(in) :: this
+        real,dimension(:),allocatable,intent(in) :: mu, sigma
+        logical,intent(in) :: mirrored, asym_flow
+        integer,intent(in) :: N_body_panels, N_body_verts
+        type(flow),intent(in) :: freestream
+        real,dimension(3),intent(in) :: inner_flow
+        integer,intent(in) :: mirror_plane
+        character(len=*),intent(in) :: rule
+        real,intent(in),optional :: M_corr
+
+        real,dimension(3) :: C_M
+
+        real,dimension(6) :: C_P_params
+
+        ! Constant pressure
+        if (this%order == 1) then
+
+            C_M = 0.
+
+        ! Quadratic pressure
+        else
+
+            ! Get pressure distribution parameters
+            if (present(M_corr)) then
+                C_P_params = this%get_quadratic_pressure_params(mu, sigma, mirrored, N_body_panels, N_body_verts, asym_flow, &
+                                                                freestream, inner_flow, mirror_plane, rule, M_corr)
+            else
+                C_P_params = this%get_quadratic_pressure_params(mu, sigma, mirrored, N_body_panels, N_body_verts, asym_flow, &
+                                                                freestream, inner_flow, mirror_plane, rule)
+            end if
+
+            ! Integrate
+            if (mirrored) then
+
+                ! Integrate
+                C_M(1) = this%C_mir(1,0)*C_P_params(1) + this%C_mir(2,0)*C_P_params(2) + this%C_mir(1,1)*C_P_params(3) + &
+                         0.5*this%C_mir(3,0)*C_P_params(4) + this%C_mir(2,1)*C_P_params(5) + 0.5*this%C_mir(1,2)*C_P_params(6)
+                C_M(2) = this%C_mir(0,1)*C_P_params(1) + this%C_mir(1,1)*C_P_params(2) + this%C_mir(0,2)*C_P_params(3) + &
+                         0.5*this%C_mir(2,1)*C_P_params(4) + this%C_mir(1,2)*C_P_params(5) + 0.5*this%C_mir(0,3)*C_P_params(6)
+                C_M(3) = 0.
+
+                ! Apply area factor and transform
+                C_M = -this%J_mir*cross(this%n_g_mir, matmul(this%A_ls_to_g_mir, C_M))
+
+            else
+
+                ! Integrate
+                C_M(1) = this%C(1,0)*C_P_params(1) + this%C(2,0)*C_P_params(2) + this%C(1,1)*C_P_params(3) + &
+                         0.5*this%C(3,0)*C_P_params(4) + this%C(2,1)*C_P_params(5) + 0.5*this%C(1,2)*C_P_params(6)
+                C_M(2) = this%C(0,1)*C_P_params(1) + this%C(1,1)*C_P_params(2) + this%C(0,2)*C_P_params(3) + &
+                         0.5*this%C(2,1)*C_P_params(4) + this%C(1,2)*C_P_params(5) + 0.5*this%C(0,3)*C_P_params(6)
+                C_M(3) = 0.
+
+                ! Apply area factor and transform
+                C_M = -this%J*cross(this%n_g, matmul(this%A_ls_to_g, C_M))
+
+            end if
+
+        end if
+        
+    end function panel_get_moment_about_centroid
 
     
 end module panel_mod

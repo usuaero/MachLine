@@ -76,6 +76,7 @@ module panel_solver_mod
             procedure :: calc_forces => panel_solver_calc_forces
             procedure :: calc_moments => panel_solver_calc_moments
             procedure :: calc_forces_with_pressure => panel_solver_calc_forces_with_pressure
+            procedure :: calc_moment_about_centroid_of_panel => panel_solver_calc_moment_about_centroid_of_panel
 
             ! Results export
             procedure :: update_report => panel_solver_update_report
@@ -1878,6 +1879,26 @@ contains
     end subroutine panel_solver_calc_forces_with_pressure
 
 
+    function panel_solver_calc_moment_about_centroid_of_panel(this, i_panel, body, mirrored, rule) result(C_M)
+        ! Calls the panel function with the needed variables to get the moment coefficient about the panel centroid
+
+        implicit none
+        
+        class(panel_solver),intent(in) :: this
+        integer,intent(in) :: i_panel
+        type(surface_mesh),intent(in) :: body
+        logical,intent(in) :: mirrored
+        character(len=*),intent(in) :: rule
+
+        real,dimension(3) :: C_M
+
+        C_M = body%panels(i_panel)%get_moment_about_centroid(body%mu, body%sigma, mirrored, body%N_panels, body%N_verts, &
+                                                             body%asym_flow, this%freestream, this%inner_flow, body%mirror_plane, &
+                                                             rule, M_corr=this%M_inf_corr)
+        
+    end function panel_solver_calc_moment_about_centroid_of_panel
+
+
     subroutine panel_solver_calc_moments(this, body)
         ! Calculates the moments acting on the body
 
@@ -1902,14 +1923,27 @@ contains
             ! Discrete moment acting on each panel
             dC_m(:,i) = cross(body%panels(i)%centr-body%CG, body%dC_f(:,i))
 
+            ! Add in contribution of varying pressure
+            if (body%panels(i)%order == 2) then
+                dC_m(:,i) = dC_m(:,i) + this%calc_moment_about_centroid_of_panel(i, body, .false., this%pressure_for_forces)
+            end if
+
             ! Mirror
             if (body%asym_flow) then
-                dC_m(:,i+this%N_cells/2) = cross(body%panels(i)%centr_mir-body%CG, body%dC_f(:,i))
+
+                dC_m(:,i+body%N_panels) = cross(body%panels(i)%centr_mir-body%CG, body%dC_f(:,i))
+
+                ! Add in contribution of varying pressure
+                if (body%panels(i)%order == 2) then
+                    dC_m(:,i+body%N_panels) = dC_m(:,i+body%N_panels) + this%calc_moment_about_centroid_of_panel(i, body, &
+                                                                            .true., this%pressure_for_forces)
+                end if
+
             end if
         end do
 
         ! Sum
-        this%C_M = sum(dC_m, dim=2)/(body%l_ref*body%S_ref)
+        this%C_M = sum(dC_m, dim=2)/body%l_ref
 
         ! Add contributions from mirrored half
         if (body%mirrored .and. .not. body%asym_flow) then
