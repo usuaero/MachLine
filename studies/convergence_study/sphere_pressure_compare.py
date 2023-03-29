@@ -24,6 +24,7 @@ def run_machline(input_dict, input_filename):
             report = json.load(report_handle)
             return report
 
+
 def extract_pressures(result_file):
 
     # Read into ParaView

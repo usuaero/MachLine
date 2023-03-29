@@ -76,6 +76,7 @@ module panel_mod
             procedure :: calc_area => panel_calc_area
             procedure :: calc_centroid => panel_calc_centroid
             procedure :: calc_g_edge_vectors => panel_calc_g_edge_vectors
+            procedure :: get_characteristic_length => panel_get_characteristic_length
 
             ! Flow-dependent initialization procedures
             procedure :: init_with_flow => panel_init_with_flow
@@ -348,6 +349,20 @@ contains
         end do
     
     end subroutine panel_calc_g_edge_vectors
+
+
+    function panel_get_characteristic_length(this) result(l)
+        ! Returns the square root of the panel area
+
+        implicit none
+        
+        class(panel),intent(in) :: this
+
+        real :: l
+
+        l = sqrt(this%A)
+        
+    end function panel_get_characteristic_length
 
 
     subroutine panel_init_with_flow(this, freestream, mirrored, mirror_plane)

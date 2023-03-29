@@ -1,0 +1,37 @@
+{
+    "flow": {
+        "freestream_velocity": [
+            1.0,
+            1.0,
+            1.0
+        ],
+        "freestream_mach_number": 0.5
+    },
+    "geometry": {
+        "file": "dev/meshes/sphere.vtk",
+        "wake_model": {
+            "wake_present": false
+        },
+        "singularity_order": "lower",
+        "reference": {
+            "area": 0.7853981
+        }
+    },
+    "solver": {
+        "formulation": "source-free",
+        "matrix_solver": "BJAC",
+        "relaxation": 0.8,
+        "block_size": 200,
+        "run_checks": false,
+        "write_A_and_bx": true
+    },
+    "post_processing": {
+        "pressure_rules": {
+            "isentropic": true
+        }
+    },
+    "output": {
+        "body_file": "dev/results/sphere_QUAD_lower-order_source-free.vtk",
+        "control_point_file": "dev/results/sphere_control_points_QUAD_lower-order_source-free.vtk"
+    }
+}

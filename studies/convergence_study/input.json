@@ -1,1 +1,0 @@
-{"flow": {"freestream_velocity": [1.0, 1.0, 1.3]}, "geometry": {"file": "studies/convergence_study/meshes/sphere_medium.stl", "singularity_order": "higher", "spanwise_axis": "+y"}, "solver": {}, "post_processing": {}, "output": {"body_file": "studies/convergence_study/results/sphere_medium.vtk", "report_file": "studies/convergence_study/reports/sphere_medium.json"}}

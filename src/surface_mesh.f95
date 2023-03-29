@@ -55,6 +55,7 @@ module surface_mesh_mod
             procedure :: store_adjacent_vertices => surface_mesh_store_adjacent_vertices
             procedure :: check_panels_adjacent => surface_mesh_check_panels_adjacent
             procedure :: calc_vertex_geometry => surface_mesh_calc_vertex_geometry
+            procedure :: get_avg_characteristic_panel_length => surface_mesh_get_avg_characteristic_panel_length
 
             ! Initialization based on flow properties
             procedure :: init_with_flow => surface_mesh_init_with_flow
@@ -631,6 +632,27 @@ contains
         if (verbose) write(*,*) "Done."
         
     end subroutine surface_mesh_calc_vertex_geometry
+
+
+    function surface_mesh_get_avg_characteristic_panel_length(this) result(l_avg)
+        ! Returns the average characteristic length of the panels
+
+        implicit none
+        
+        class(surface_mesh),intent(in) :: this
+
+        real :: l_avg
+
+        integer :: i
+
+        ! Loop through panels
+        l_avg = 0.
+        do i=1,this%N_panels
+            l_avg = l_avg + this%panels(i)%get_characteristic_length()
+        end do
+        l_avg = l_avg/this%N_panels
+        
+    end function surface_mesh_get_avg_characteristic_panel_length
 
 
     subroutine surface_mesh_init_with_flow(this, freestream, body_file, wake_file)

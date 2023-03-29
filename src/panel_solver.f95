@@ -525,7 +525,7 @@ contains
 
                 if (body%mirrored) then
 
-                    ! Mirrored vertices and original control point
+                    ! Get whether mirrored vertices are in the DoD of this control point
                     verts_in_dod(body%N_verts+1:) = body%get_verts_in_dod_of_point(body%cp(j)%loc, this%freestream, .true.)
 
                 end if
@@ -1977,6 +1977,12 @@ contains
         integer,intent(in) :: solver_stat
 
         type(json_value),pointer :: p_parent, p_child
+
+        ! Write mesh info
+        call json_value_create(p_parent)
+        call to_object(p_parent, 'mesh_info')
+        call json_value_add(p_json, p_parent)
+        call json_value_add(p_parent, 'average_characteristic_length', body%get_avg_characteristic_panel_length())
 
         ! Write solver results
         call json_value_create(p_parent)
