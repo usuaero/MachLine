@@ -83,21 +83,9 @@ if __name__=="__main__":
     for i in range(len(psis)):
         for j in range(len(thetas)):
             for k in range(4):
-
-                # Cx
-                err = abs(Cx[i,j,:,k])
-                coefs = np.polyfit(np.log(l_avg), np.log(err), deg=1)
-                orders[k].append(coefs[0])
-
-                # Cy
-                err = abs(Cy[i,j,:,k])
-                coefs = np.polyfit(np.log(l_avg), np.log(err), deg=1)
-                orders[k].append(coefs[0])
-
-                # Cz
-                err = abs(Cz[i,j,:,k])
-                coefs = np.polyfit(np.log(l_avg), np.log(err), deg=1)
-                orders[k].append(coefs[0])
+                orders[k].append(get_order_of_convergence(l_avg, Cx[i,j,:,k], truth_from_results=False))
+                orders[k].append(get_order_of_convergence(l_avg, Cy[i,j,:,k], truth_from_results=False))
+                orders[k].append(get_order_of_convergence(l_avg, Cz[i,j,:,k], truth_from_results=False))
 
     # Report average orders of convergence
     orders = np.array(orders)

@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+import numpy as np
 
 import subprocess as sp
 
@@ -28,6 +29,8 @@ def write_altered_input_file(original_filename, input_dict, order, formulation):
     for key, value in input_dict["output"].items():
         if "vtk" in value:
             copy_dict["output"][key] = value.replace(".vtk", "_QUAD_{0}-order_{1}.vtk".format(order, formulation))
+        elif "json" in value:
+            copy_dict["output"][key] = value.replace(".json", "_QUAD_{0}-order_{1}.json".format(order, formulation))
 
     # Write file
     new_filename = original_filename.replace(".json", "_QUAD_{0}-order_{1}.json".format(order, formulation))
@@ -89,3 +92,30 @@ def run_quad(input_filename, delete_input=True):
             reports.append(run_machline(altered_input_filename, delete_input=delete_input))
 
     return reports
+
+
+def get_order_of_convergence(grid_parameter, result, truth_from_results=True):
+    """Returns the order of convergence from the provided results.
+    
+    Parameters
+    ----------
+    grid_parameter : list or ndarray
+        List of grid parameters, such as number of vertices, length scales, against which the convergence will be measured.
+
+    result : list or ndarray
+        The resulting value of which the convergence is to be determined. Should be the same length as grid_parameter.
+
+    truth_from_results : bool, optional
+        Whether the truth result should be determined from the results using Richarson extrapolation. Defaults to True.
+        If set to False, the truth is assumed to be zero.
+    """
+
+    # Get the error
+    if truth_from_results:
+        pass
+    else:
+        err = np.abs(result)
+
+    # Calculate order of convergence
+    coefs = np.polyfit(np.log(grid_parameter), np.log(err), deg=1)
+    return np.abs(coefs[0].item())
