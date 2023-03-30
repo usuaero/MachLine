@@ -7,8 +7,15 @@ import subprocess as sp
 from copy import deepcopy
 
 
+def write_input_file(input_dict, input_filename):
+    """Writes the given input dict to the given file location."""
+
+    with open(input_filename, 'w') as input_handle:
+        json.dump(input_dict, input_handle, indent=4)
+
+
 def write_altered_input_file(original_filename, input_dict, order, formulation):
-    # Updates the input dict and writes a new file
+    """Updates the input dict and writes a new file. For use with run_quad()."""
 
     # Create copy
     copy_dict = deepcopy(input_dict)
@@ -22,18 +29,15 @@ def write_altered_input_file(original_filename, input_dict, order, formulation):
         if "vtk" in value:
             copy_dict["output"][key] = value.replace(".vtk", "_QUAD_{0}-order_{1}.vtk".format(order, formulation))
 
-    # Get new filename
+    # Write file
     new_filename = original_filename.replace(".json", "_QUAD_{0}-order_{1}.json".format(order, formulation))
-
-    # Dump
-    with open(new_filename, 'w') as new_handle:
-        json.dump(copy_dict, new_handle, indent=4)
+    write_input_file(copy_dict, new_filename)
 
     return new_filename
 
 
 def run_machline(input_filename, delete_input=True):
-    # Runs MachLine with the given input
+    """Runs MachLine with the given input and returns the report if MachLine generated one."""
 
     # Run
     sp.run(["./machline.exe", input_filename])
@@ -56,17 +60,25 @@ def run_machline(input_filename, delete_input=True):
 
 
 def run_quad(input_filename, delete_input=True):
-    # Runs the given filename with the four option combinations
+    """Runs the given filename with the four option combinations
+
+    The reports will be returned in the order:
+        1-Morino, lower-order
+        2-Morino, higher-order
+        3-Source-free, lower-order
+        4-Source-free, higher-order
+    """
 
     # Load input
     with open(input_filename, 'r') as input_handle:
         input_dict = json.load(input_handle)
 
     # Options
-    formulations = ["source-free", "morino"]
+    formulations = ["morino", "source-free"]
     orders = ["lower", "higher"]
 
     # Get inputs and run
+    reports = []
     for formulation in formulations:
         for order in orders:
 
@@ -74,13 +86,6 @@ def run_quad(input_filename, delete_input=True):
             altered_input_filename = write_altered_input_file(input_filename, input_dict, order, formulation)
 
             # Run MachLine
-            run_machline(altered_input_filename, delete_input=False)
+            reports.append(run_machline(altered_input_filename, delete_input=delete_input))
 
-
-if __name__=="__main__":
-
-    # Get input file
-    input_filename = sys.argv[-1]
-
-    # Run
-    run_quad(input_filename)
+    return reports

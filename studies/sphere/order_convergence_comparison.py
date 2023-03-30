@@ -37,8 +37,8 @@ if __name__=="__main__":
     for i, density in enumerate(densities):
 
         # Initialize input
-        result_file = "studies/convergence_study/results/sphere_{0}.vtk".format(density)
-        report_file = "studies/convergence_study/reports/sphere_{0}.json".format(density)
+        result_file = "studies/sphere/results/sphere_{0}.vtk".format(density)
+        report_file = "studies/sphere/reports/sphere_{0}.json".format(density)
 
         # Lower-order results
         input_dict ={
@@ -46,7 +46,7 @@ if __name__=="__main__":
                 "freestream_velocity" : [1.0, 1.0, 1.3]
             },
             "geometry" : {
-                "file" : "studies/convergence_study/meshes/sphere_{0}.stl".format(density),
+                "file" : "studies/sphere/meshes/sphere_{0}.stl".format(density),
                 "spanwise_axis" : "+y"
             },
             "solver" : {
@@ -60,7 +60,7 @@ if __name__=="__main__":
         }
 
         # Run
-        report = run_machline(input_dict, "studies/convergence_study/input.json")
+        report = run_machline(input_dict, "studies/sphere/input.json")
 
         # Store data
         N.append(report["solver_results"]["system_dimension"])
@@ -74,7 +74,7 @@ if __name__=="__main__":
                 "freestream_velocity" : [1.0, 1.0, 1.3]
             },
             "geometry" : {
-                "file" : "studies/convergence_study/meshes/sphere_{0}.stl".format(density),
+                "file" : "studies/sphere/meshes/sphere_{0}.stl".format(density),
                 "singularity_order" : "higher",
                 "spanwise_axis" : "+y"
             },
@@ -89,7 +89,7 @@ if __name__=="__main__":
         }
 
         # Run
-        report = run_machline(input_dict, "studies/convergence_study/input.json")
+        report = run_machline(input_dict, "studies/sphere/input.json")
 
         # Store data
         Cx_higher.append(report["total_forces"]["Cx"])

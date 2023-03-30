@@ -1,0 +1,19 @@
+{
+    "flow": {
+        "freestream_velocity": [
+            0.2500000000000001,
+            0.4330127018922194,
+            0.8660254037844386
+        ]
+    },
+    "geometry": {
+        "file": "studies/sphere/meshes/sphere_medium.stl",
+        "spanwise_axis": "+y"
+    },
+    "solver": {},
+    "post_processing": {},
+    "output": {
+        "body_file": "studies/sphere/results/sphere_medium.vtk",
+        "report_file": "studies/sphere/reports/sphere_medium.json"
+    }
+}

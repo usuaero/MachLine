@@ -54,8 +54,8 @@ if __name__=="__main__":
         for j, theta in enumerate(thetas):
 
             # Initialize input
-            result_file = "studies/convergence_study/results/sphere_{0}.vtk".format(density)
-            report_file = "studies/convergence_study/reports/sphere_{0}.json".format(density)
+            result_file = "studies/sphere/results/sphere_{0}.vtk".format(density)
+            report_file = "studies/sphere/reports/sphere_{0}.json".format(density)
 
             V_inf = [np.cos(phi)*np.cos(theta), np.sin(phi)*np.cos(theta), np.sin(theta)]
 
@@ -65,7 +65,7 @@ if __name__=="__main__":
                     "freestream_velocity" : V_inf
                 },
                 "geometry" : {
-                    "file" : "studies/convergence_study/meshes/sphere_{0}.stl".format(density),
+                    "file" : "studies/sphere/meshes/sphere_{0}.stl".format(density),
                     "spanwise_axis" : "+y"
                 },
                 "solver" : {
@@ -79,7 +79,7 @@ if __name__=="__main__":
             }
 
             # Run
-            report = run_machline(input_dict, "studies/convergence_study/input.json")
+            report = run_machline(input_dict, "studies/sphere/input.json")
 
             # Get pressures
             locs, C_P = extract_pressures(result_file)
