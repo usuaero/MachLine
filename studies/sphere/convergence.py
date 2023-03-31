@@ -2,8 +2,10 @@ import json
 import numpy as np
 import subprocess as sp
 import matplotlib.pyplot as plt
-from dev.helper_scripts.case_running_functions import *
+from studies.case_running_functions import run_quad, get_order_of_convergence
 
+
+RERUN_MACHLINE = False
 
 
 def run_cases_for_orientation_and_mesh_density(psi, theta, density):
@@ -36,7 +38,7 @@ def run_cases_for_orientation_and_mesh_density(psi, theta, density):
         json.dump(input_dict, input_handle, indent=4)
 
     # Run quad
-    reports = run_quad(input_filename)
+    reports = run_quad(input_filename, run=RERUN_MACHLINE)
 
     N_sys = reports[0]["solver_results"]["system_dimension"]
     l_avg = reports[0]["mesh_info"]["average_characteristic_length"]

@@ -39,11 +39,12 @@ def write_altered_input_file(original_filename, input_dict, order, formulation):
     return new_filename
 
 
-def run_machline(input_filename, delete_input=True):
+def run_machline(input_filename, delete_input=True, run=True):
     """Runs MachLine with the given input and returns the report if MachLine generated one."""
 
     # Run
-    sp.run(["./machline.exe", input_filename])
+    if run:
+        sp.run(["./machline.exe", input_filename])
 
     # Get report
     with open(input_filename, 'r') as input_handle:
@@ -62,7 +63,7 @@ def run_machline(input_filename, delete_input=True):
     return report
 
 
-def run_quad(input_filename, delete_input=True):
+def run_quad(input_filename, delete_input=True, run=True):
     """Runs the given filename with the four option combinations
 
     The reports will be returned in the order:
@@ -89,7 +90,7 @@ def run_quad(input_filename, delete_input=True):
             altered_input_filename = write_altered_input_file(input_filename, input_dict, order, formulation)
 
             # Run MachLine
-            reports.append(run_machline(altered_input_filename, delete_input=delete_input))
+            reports.append(run_machline(altered_input_filename, delete_input=delete_input, run=run))
 
     return reports
 
