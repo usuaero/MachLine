@@ -6,39 +6,24 @@ import subprocess as sp
 import paraview.simple as pvs
 import matplotlib.pyplot as plt
 
+from studies.case_running_functions import run_machline, write_input_file
+from studies.paraview_functions import extract_all_data, get_data_column_from_array
 
-def run_machline(input_dict, input_filename):
-    # Runs MachLine using the provided input dictionary. Will write out to the specified filename
 
-    # Write input
-    with open(input_filename, 'w') as input_handle:
-        json.dump(input_dict, input_handle)
-
-    # Run MachLine
-    sp.run(["./machline.exe", input_filename])
-
-    # Get report
-    report_file = input_dict["output"].get("report_file")
-    if report_file is not None:
-        with open(report_file) as report_handle:
-            report = json.load(report_handle)
-            return report
+RERUN_MACHLINE = True
 
 
 def extract_pressures(result_file):
 
-    # Read into ParaView
-    sphere_vtk = pvs.LegacyVTKReader(registrationName='sphere', FileNames=result_file)
-    pvs.SaveData("temp.csv", proxy=sphere_vtk, FieldAssociation="Cell Data")
-
-    # Read in data
-    data = np.genfromtxt("temp.csv", delimiter=',', skip_header=1)
-    #os.remove("temp.csv")
+    # Get data
+    headers, data = extract_all_data(result_file, which_data='cell')
 
     # Get locations and pressures
-    locs = data[:,4:7]
-    locs[:,0] -= 1.0
-    C_P = data[:,7]
+    C_P = get_data_column_from_array(headers, data, 'C_p_inc')
+    locs = np.zeros((len(C_P),3))
+    locs[:,0] = get_data_column_from_array(headers, data, 'centroid:0') - 1.0
+    locs[:,1] = get_data_column_from_array(headers, data, 'centroid:1')
+    locs[:,2] = get_data_column_from_array(headers, data, 'centroid:2')
 
     return locs, C_P
 
@@ -79,7 +64,9 @@ if __name__=="__main__":
             }
 
             # Run
-            report = run_machline(input_dict, "studies/sphere/input.json")
+            input_filename = "studies/sphere/input.json"
+            write_input_file(input_dict, input_filename)
+            report = run_machline(input_filename, run=RERUN_MACHLINE, delete_input=False)
 
             # Get pressures
             locs, C_P = extract_pressures(result_file)

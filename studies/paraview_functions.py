@@ -22,8 +22,8 @@ def get_data_from_csv(csv_file, remove_csv=True):
     column_headers : ndarray
         Array of column headers.
 
-    cell_data : ndarray
-        Cell data. Columns correspond to column headers.
+    data : ndarray
+        Data array. Columns correspond to column headers.
     """
 
     # Read into arrays
@@ -60,8 +60,8 @@ def extract_all_data(data_file, which_data='point'):
     column_headers : ndarray
         Array of column headers.
 
-    cell_data : ndarray
-        Cell data. Columns correspond to column headers.
+    data : ndarray
+        Data array. Columns correspond to column headers.
     """
 
     # Read into ParaView
@@ -70,6 +70,40 @@ def extract_all_data(data_file, which_data='point'):
     _save(thing, which_data)
 
     return get_data_from_csv(TEMP_CSV_LOC)
+
+
+def get_data_column_from_array(headers, data, col_des):
+    """Returns the data vector from data with the header col_des.
+    
+    Parameters
+    ----------
+    headers : list of str
+        Lsit of column headers.
+
+    data : ndarray
+        Data array.
+
+    col_des : str
+        Header of column to pull data from.
+
+    Returns
+    -------
+    vector
+        Data in desired column.
+
+    Raises
+    ------
+    ValueError
+        If col_des is not found in headers.
+    """
+
+    # Get column index
+    try:
+        ind = headers.index(col_des)
+    except ValueError:
+        raise ValueError("Desired column header not found.")
+
+    return data[:,ind].flatten()
 
 
 def extract_plane_slice(data_file, normal_vector, plane_origin, filter=False, which_data='point'):
