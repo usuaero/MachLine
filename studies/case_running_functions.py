@@ -113,10 +113,11 @@ def get_order_of_convergence(grid_parameter, result, truth_from_results=True):
 
     # Get the error
     if truth_from_results:
-        pass
+        err = np.abs((result[:-1] - result[-1])/result[-1])
+        coefs = np.polyfit(np.log(grid_parameter[:-1]), np.log(err), deg=1)
     else:
         err = np.abs(result)
+        coefs = np.polyfit(np.log(grid_parameter), np.log(err), deg=1)
 
     # Calculate order of convergence
-    coefs = np.polyfit(np.log(grid_parameter), np.log(err), deg=1)
     return np.abs(coefs[0].item())

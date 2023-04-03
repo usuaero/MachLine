@@ -6,7 +6,10 @@ import paraview.simple as pvs
 import matplotlib.pyplot as plt
 
 
-def run_comparison(M, alpha, grid, half_angle, run_machline=True):
+RERUN_MACHLINE = True
+
+
+def run_comparison(M, alpha, grid, half_angle):
     # Runs the comparison of the diamond wing to shock-expansion theory
 
     # Parameters
@@ -19,13 +22,13 @@ def run_comparison(M, alpha, grid, half_angle, run_machline=True):
 
     # Storage locations
     case_name = "M_{0}_aoa_{1}_{2}_deg_{3}".format(M, alpha, int(half_angle), grid)
-    plot_dir = "studies/diamond_airfoil_study/plots/"
-    mesh_file = "studies/diamond_airfoil_study/meshes/diamond_{0}_deg_full_{1}.stl".format(int(half_angle), grid)
-    results_file = "studies/diamond_airfoil_study/results/"+case_name+".vtk"
-    report_file = "studies/diamond_airfoil_study/reports/"+case_name+".json"
-    data_file = 'studies/diamond_airfoil_study/data/'+case_name+'.csv'
+    plot_dir = "studies/supersonic_double_wedge_wing/plots/"
+    mesh_file = "studies/supersonic_double_wedge_wing/meshes/diamond_{0}_deg_full_{1}.stl".format(int(half_angle), grid)
+    results_file = "studies/supersonic_double_wedge_wing/results/"+case_name+".vtk"
+    report_file = "studies/supersonic_double_wedge_wing/reports/"+case_name+".json"
+    data_file = 'studies/supersonic_double_wedge_wing/data/'+case_name+'.csv'
 
-    if run_machline:
+    if RERUN_MACHLINE:
 
         # Declare MachLine input
         input_dict = {
@@ -62,7 +65,7 @@ def run_comparison(M, alpha, grid, half_angle, run_machline=True):
         }
 
         # Dump
-        input_file = "studies/diamond_airfoil_study/diamond_input.json"
+        input_file = "studies/supersonic_double_wedge_wing/diamond_input.json"
         with open(input_file, 'w') as input_handle:
             json.dump(input_dict, input_handle, indent=4)
 
@@ -165,7 +168,7 @@ if __name__=="__main__":
 
                     _,_,CLs[i,j,k,l], CDs[i,j,k,l] = run_comparison(M, alpha, grid, half_angle, run_machline=False)
 
-    plot_dir = "studies/diamond_airfoil_study/plots/"
+    plot_dir = "studies/supersonic_double_wedge_wing/plots/"
     #for j, M in enumerate(Ms):
     #    for k, alpha in enumerate(alphas):
     #        for l,half_angle in enumerate(half_angles):
