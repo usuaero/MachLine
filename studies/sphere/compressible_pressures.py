@@ -5,7 +5,7 @@ from studies.case_running_functions import write_input_file, run_quad
 from studies.paraview_functions import extract_all_data, get_data_column_from_array
 
 
-RERUN_MACHLINE = True
+RERUN_MACHLINE = False
 study_dir = "studies/sphere/"
 plot_dir = study_dir + "plots/"
 
@@ -16,13 +16,47 @@ def extract_pressures(result_file):
     headers, data = extract_all_data(result_file, which_data='cell')
 
     # Get locations and pressures
-    C_P = get_data_column_from_array(headers, data, 'C_p_inc')
+    C_P = get_data_column_from_array(headers, data, 'C_p_ise')
     locs = np.zeros((len(C_P),3))
     locs[:,0] = get_data_column_from_array(headers, data, 'centroid:0') - 1.0
     locs[:,1] = get_data_column_from_array(headers, data, 'centroid:1')
     locs[:,2] = get_data_column_from_array(headers, data, 'centroid:2')
 
     return locs, C_P
+
+
+def extract_velocity_magnitudes(result_file):
+
+    # Get data
+    headers, data = extract_all_data(result_file, which_data='cell')
+
+    # Get locations and pressures
+    u = get_data_column_from_array(headers, data, 'v:0')
+    v = get_data_column_from_array(headers, data, 'v:1')
+    w = get_data_column_from_array(headers, data, 'v:2')
+    V = np.sqrt(u**2 + v**2 + w**2)
+    locs = np.zeros((len(u),3))
+    locs[:,0] = get_data_column_from_array(headers, data, 'centroid:0') - 1.0
+    locs[:,1] = get_data_column_from_array(headers, data, 'centroid:1')
+    locs[:,2] = get_data_column_from_array(headers, data, 'centroid:2')
+
+    return locs, V
+
+
+def get_tamada_pressures():
+    # Returns the pressures from Tamada as a function of theta
+
+    # Read in 
+    data_file = study_dir + "surface_velocities.csv"
+    data = np.genfromtxt(data_file, delimiter=',', skip_header=2)
+
+    # Parse
+    theta_04 = np.radians(data[:,0]).flatten()
+    v_04 = data[:,1].flatten()
+    theta_05 = np.radians(data[:,2]).flatten()
+    v_05 = data[:,3].flatten()
+
+    return theta_04, v_04, theta_05, v_05
 
 
 if __name__=="__main__":
@@ -33,8 +67,13 @@ if __name__=="__main__":
     thetas = np.radians([30.0, 45.0, 60.0])
     Ms = [0.4, 0.5]
 
+    # Get analytic results
+    theta_04, v_04, theta_05, v_05 = get_tamada_pressures()
+    theta_anl = [theta_04, theta_05]
+    v_anl = [v_04, v_05]
+
     # Loop
-    for M in Ms:
+    for k, M in enumerate(Ms):
         for density in densities:
 
             for i, phi in enumerate(phis):
@@ -72,21 +111,20 @@ if __name__=="__main__":
                     write_input_file(input_dict, input_filename)
                     reports = run_quad(input_filename, run=RERUN_MACHLINE)
 
-                    ## Loop through cases
-                    #for report, case in zip(reports, ['ML', 'MH', 'SL', 'SH']):
+                    # Loop through cases
+                    plt.figure()
+                    for report, case in zip(reports, ['ML', 'MH', 'SL', 'SH']):
 
-                    #    # Get pressures
-                    #    result_file = report["input"]["output"]["body_file"]
-                    #    locs, C_P = extract_pressures(result_file)
+                        # Get pressures and velocities
+                        result_file = report["input"]["output"]["body_file"]
+                        locs, C_P = extract_pressures(result_file)
+                        _, V = extract_velocity_magnitudes(result_file)
 
-                    #    # Figure out thetas
-                    #    theta_space = np.arccos(np.einsum('ij,j->i', locs, V_inf))
-                    #    C_P_anl = 1.0 - 2.25*np.sin(theta_space)**2
-                    #    err = abs((C_P - C_P_anl)/C_P_anl)
-                    #    plt.figure()
-                    #    plt.plot(np.degrees(theta_space), err, 'k.', markersize=1)
-                    #    plt.yscale('log')
-                    #    plt.xlabel('$\\theta [^\circ]$')
-                    #    plt.ylabel('$|(C_P - C_{P_{anl}})/C_{P_{anl}}|$')
-                    #    plt.savefig(plot_dir + "compressible_C_P_err_M_{0}_{1}_{2}_{3}_{4}.pdf".format(M, case, round(np.degrees(phi)), round(np.degrees(theta)), density))
-                    #    plt.close()
+                        # Figure out thetas
+                        theta_space = np.arccos(np.einsum('ij,j->i', locs, V_inf))
+                        plt.plot(np.degrees(theta_space), V, 'k.', markersize=1, label='MachLine')
+                        plt.plot(np.degrees(theta_anl[k]), v_anl[k], 'k-', label='Tamada')
+                        plt.xlabel('$\\theta [^\circ]$')
+                        plt.ylabel('$|\mathbf{u}|$')
+                        plt.savefig(plot_dir + "compressible_C_P_M_{0}_{1}_{2}_{3}_{4}.pdf".format(M, case, round(np.degrees(phi)), round(np.degrees(theta)), density))
+                        plt.close()
