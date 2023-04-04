@@ -10,12 +10,15 @@
     },
     "geometry": {
         "file": "studies/sphere/meshes/sphere_medium.stl",
-        "spanwise_axis": "+y"
+        "spanwise_axis": "+y",
+        "singularity_order": "higher"
     },
-    "solver": {},
+    "solver": {
+        "formulation": "morino"
+    },
     "post_processing": {},
     "output": {
-        "body_file": "studies/sphere/results/sphere_M_0.4_60_45_medium.vtk",
-        "report_file": "studies/sphere/reports/sphere_M_0.4_60_45_medium.json"
+        "body_file": "studies/sphere/results/sphere_M_0.4_60_45_medium_QUAD_higher-order_morino.vtk",
+        "report_file": "studies/sphere/reports/sphere_M_0.4_60_45_medium_QUAD_higher-order_morino.json"
     }
 }

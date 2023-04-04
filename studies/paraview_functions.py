@@ -28,7 +28,7 @@ def get_data_from_csv(csv_file, remove_csv=True):
 
     # Read into arrays
     with open(csv_file, 'r') as data_file:
-        column_headers = np.array(data_file.readline().split(','), dtype=str)
+        column_headers = [x.strip().replace('"', '') for x in data_file.readline().split(',')]
     cell_data = np.genfromtxt(csv_file, delimiter=',', skip_header=1)
 
     # Remove csv

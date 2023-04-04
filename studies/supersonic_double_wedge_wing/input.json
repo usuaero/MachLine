@@ -11,7 +11,7 @@
     "geometry": {
         "file": "studies/supersonic_double_wedge_wing/meshes/diamond_5_deg_full_ultra_fine.stl",
         "spanwise_axis": "+y",
-        "max_continuity_angle": 2.5,
+        "max_continuity_angle": 45.0,
         "wake_model": {
             "append_wake": false
         },
@@ -31,7 +31,7 @@
         }
     },
     "output": {
-        "body_file": "studies/supersonic_double_wedge_wing/results/M_5.0_aoa_5.0_5_deg_ultra_fine_MCA_2.5.vtk",
-        "report_file": "studies/supersonic_double_wedge_wing/reports/M_5.0_aoa_5.0_5_deg_ultra_fine_MCA_2.5.json"
+        "body_file": "studies/supersonic_double_wedge_wing/results/M_5.0_aoa_5.0_5_deg_ultra_fine_MCA_45.0.vtk",
+        "report_file": "studies/supersonic_double_wedge_wing/reports/M_5.0_aoa_5.0_5_deg_ultra_fine_MCA_45.0.json"
     }
 }

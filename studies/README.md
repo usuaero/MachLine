@@ -5,6 +5,8 @@ Each study consists of a set of meshes, one or more input files, and one or more
 
 The results of these studies are reproduced in various of the technical works documenting the development of MachLine.
 
+Most studies require ParaView, which can be downloaded [here](https://www.paraview.org/download/). You'll need to have the ParaView Python libraries added to your PYTHONPATH and LD_LIBRARY_PATH variables, as well as the ParaView ```bin/``` directory added to the PATH variable. For some users, the study scripts will need to be run using ```pvpython``` rather than regular old Python so that the ParaView modules are correctly accessed.
+
 ## For Developers
 The studies should be organized by the type of geometry/flow being organized. So, for example, rather than lumping a bunch of grid convergence studies for various geometries together, keep the sphere convergence study with the other sphere studies, and the double-wedge wing convergence study with the comparison against shock-expansion theory. This should help with keeping storage requirements down, since the mesh files are probably the largest out of all the files being stored.
 

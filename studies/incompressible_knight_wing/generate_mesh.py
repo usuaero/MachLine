@@ -1,6 +1,7 @@
 import numpy as np
 import machupX as mx
 import matplotlib.pyplot as plt
+from dev.helper_scripts.stl_to_vtk import *
 
 
 def gen_knight_wing_mesh(N_spanwise, N_chordwise, N_round, filename):
@@ -53,4 +54,6 @@ if __name__ == "__main__":
 
     for i, density in enumerate(densities):
 
-        gen_knight_wing_mesh(N_spanwises[i], N_chordwises[i], N_rounds[i], "studies/incompressible_knight_wing/meshes/knight_wing_{0}.stl".format(density))
+        stl_file = "studies/incompressible_knight_wing/meshes/knight_wing_{0}.stl".format(density)
+        gen_knight_wing_mesh(N_spanwises[i], N_chordwises[i], N_rounds[i], stl_file)
+        convert_stl_to_vtk(stl_file)

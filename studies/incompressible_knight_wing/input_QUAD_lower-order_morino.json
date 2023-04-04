@@ -13,7 +13,8 @@
         "wake_model": {},
         "reference": {
             "area": 4.0
-        }
+        },
+        "singularity_order": "lower"
     },
     "solver": {
         "formulation": "morino"
@@ -24,7 +25,7 @@
         }
     },
     "output": {
-        "body_file": "studies/incompressible_knight_wing/results/aoa_-8.0_coarse.vtk",
-        "report_file": "studies/incompressible_knight_wing/reports/aoa_-8.0_coarse.json"
+        "body_file": "studies/incompressible_knight_wing/results/aoa_-8.0_coarse_QUAD_lower-order_morino.vtk",
+        "report_file": "studies/incompressible_knight_wing/reports/aoa_-8.0_coarse_QUAD_lower-order_morino.json"
     }
 }

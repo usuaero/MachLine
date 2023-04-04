@@ -1,13 +1,23 @@
-import copy
 import sys
-import pypan as pp
-import numpy as np
+import vtk
+
+print(vtk)
+
+def convert_stl_to_vtk(stl_file):
+    a = vtk.vtkSTLReader()
+    a.SetFileName(stl_file)
+    a.Update()
+    a = a.GetOutput()
+
+    new_file = stl_file.replace('.stl', '.vtk')
+    b = vtk.vtkPolyDataWriter()
+    b.SetFileName(new_file)
+    b.SetInputData(a)
+    b.Update()
 
 if __name__=="__main__":
 
     for mesh_file in sys.argv:
         if ".stl" not in mesh_file:
             continue
-
-        my_mesh = pp.Mesh(name="", mesh_file=mesh_file, mesh_file_type="STL", kutta_angle=90.0, verbose=True)
-        my_mesh.export_vtk(mesh_file.replace(".stl", ".vtk"))
+        convert_stl_to_vtk(mesh_file)
