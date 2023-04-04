@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from studies.case_running_functions import run_quad, get_order_of_convergence, write_input_file
 
 
-RERUN_MACHLINE = False
+RERUN_MACHLINE = True
 
 
 def run_quad_for_mach_aoa_and_mesh(M, alpha, density):
@@ -18,9 +18,10 @@ def run_quad_for_mach_aoa_and_mesh(M, alpha, density):
     c_inf = np.sqrt(gamma*R_G*T_inf)
     rho = 1.225
     p_inf = 1.0e5
+    max_continuity_angle = 2.5
 
     # Storage locations
-    case_name = "M_{0}_aoa_{1}_{2}_deg_{3}".format(M, alpha, int(half_angle), grid)
+    case_name = "M_{0}_aoa_{1}_{2}_deg_{3}_MCA_{4}".format(M, alpha, int(half_angle), grid, max_continuity_angle)
     plot_dir = "studies/supersonic_double_wedge_wing/plots/"
     mesh_file = "studies/supersonic_double_wedge_wing/meshes/diamond_{0}_deg_full_{1}.stl".format(int(half_angle), grid)
     results_file = "studies/supersonic_double_wedge_wing/results/"+case_name+".vtk"
@@ -39,7 +40,7 @@ def run_quad_for_mach_aoa_and_mesh(M, alpha, density):
         "geometry": {
             "file": mesh_file,
             "spanwise_axis" : "+y",
-            "max_continuity_angle" : 2.5,
+            "max_continuity_angle" : max_continuity_angle,
             "wake_model": {
                 "append_wake" : False,
             },
@@ -111,27 +112,27 @@ if __name__=="__main__":
     # Plot C_x errors
     cases = ['ML', 'MH', 'SL', 'SH']
     line_styles = ['k-', 'k--', 'k:', 'k-.']
-    #for j, M in enumerate(Ms):
-    #    for k, alpha in enumerate(alphas):
+    for j, M in enumerate(Ms):
+        for k, alpha in enumerate(alphas):
 
-    #        # Plot
-    #        plt.figure()
-    #        print()
-    #        print("M={0}, alpha={1}".format(M, alpha))
-    #        for l, case in enumerate(cases):
-    #            plt.plot(l_avg[:-1], err[:,j,k,l,0], line_styles[l], label=case)
+            # Plot
+            plt.figure()
+            print()
+            print("M={0}, alpha={1}".format(M, alpha))
+            for l, case in enumerate(cases):
+                plt.plot(l_avg[:-1], err[:,j,k,l,0], line_styles[l], label=case)
 
-    #            # Get convergence
-    #            print("Order for case {0}: {1}".format(case, get_order_of_convergence(l_avg, C_F[:,j,k,l,0], truth_from_results=True)))
+                # Get convergence
+                print("Order for case {0}: {1}".format(case, get_order_of_convergence(l_avg, C_F[:,j,k,l,0], truth_from_results=True)))
 
-    #        # Format
-    #        plt.xlabel('$l_{avg}$')
-    #        plt.ylabel('Fractional Error')
-    #        plt.xscale('log')
-    #        plt.yscale('log')
-    #        plt.title('$C_x$ error for $M={0},\,\\alpha={1}$'.format(M, alpha))
-    #        plt.legend()
-    #        plt.show()
+            # Format
+            plt.xlabel('$l_{avg}$')
+            plt.ylabel('Fractional Error')
+            plt.xscale('log')
+            plt.yscale('log')
+            plt.title('$C_x$ error for $M={0},\,\\alpha={1}$'.format(M, alpha))
+            plt.legend()
+            plt.savefig(plot_dir+"err_C_x_M_{0}_alpha_{1}_MCA_{2}.pdf".format(M, alpha, max_continuity_angle))
 
     # Plot C_z errors
     for j, M in enumerate(Ms):
@@ -156,7 +157,7 @@ if __name__=="__main__":
             plt.yscale('log')
             plt.title('$C_z$ error for $M={0},\,\\alpha={1}$'.format(M, alpha))
             plt.legend()
-            plt.show()
+            plt.savefig(plot_dir+"err_C_z_M_{0}_alpha_{1}_MCA_{2}.pdf".format(M, alpha, max_continuity_angle))
 
     #Analyze convergence of Cx
     print()
@@ -165,9 +166,6 @@ if __name__=="__main__":
         slopes.append([])
         for j, M in enumerate(Ms):
             for k, alpha in enumerate(alphas):
-                #err = abs((CLs[:-1,j,k,l]-CLs[-1,j,k,l])/CLs[-1,j,k,l])
-                #plt.plot(N_verts[:-1], err, 'k-', linewidth=1)
-                #coefs = np.polyfit(np.log(N_verts[:-1]), np.log(err), deg=1)
                 slopes[l].append(get_order_of_convergence(l_avg, C_F[:,j,k,l,0], truth_from_results=True))
 
         print("Average Cx convergence rate case {0}: ".format(case), np.average(slopes[l]))
@@ -181,38 +179,6 @@ if __name__=="__main__":
             for k, alpha in enumerate(alphas):
                 if k==0:
                     continue
-                #err = abs((CLs[:-1,j,k,l]-CLs[-1,j,k,l])/CLs[-1,j,k,l])
-                #plt.plot(N_verts[:-1], err, 'k-', linewidth=1)
-                #coefs = np.polyfit(np.log(N_verts[:-1]), np.log(err), deg=1)
                 slopes[l].append(get_order_of_convergence(l_avg, C_F[:,j,k,l,2], truth_from_results=True))
 
         print("Average Cz convergence rate case {0}: ".format(case), np.average(slopes[l]))
-
-
-        #plt.xscale('log')
-        #plt.yscale('log')
-        #plt.xlabel('$N_{verts}$')
-        #plt.ylabel('Percent Error in $C_L$')
-        #plt.savefig(plot_dir+"collected_CL_convergence_{0}.pdf".format(case))
-        #plt.savefig(plot_dir+"collected_CL_convergence_{0}.svg".format(case))
-        #plt.close()
-
-        ## Plot combined CD convergences
-        #slopes = []
-        #plt.figure()
-        #for j, M in enumerate(Ms):
-        #    for k, alpha in enumerate(alphas):
-        #        for l,half_angle in enumerate(half_angles):
-        #            err = abs((CLs[:-1,j,k,l]-CLs[-1,j,k,l])/CLs[-1,j,k,l])
-        #            plt.plot(N_verts[:-1], abs((CDs[:-1,j,k,l]-CDs[-1,j,k,l])/CDs[-1,j,k,l]), 'k-', linewidth=1)
-        #            coefs = np.polyfit(np.log(N_verts[:-1]), np.log(err), deg=1)
-        #            slopes[l].append(coefs[0])
-
-        #print("Average CD convergence rate: ", np.average(slopes))
-        #plt.xscale('log')
-        #plt.yscale('log')
-        #plt.xlabel('$N_{verts}$')
-        #plt.ylabel('Percent Error in $C_D$')
-        #plt.savefig(plot_dir+"collected_CD_convergence_{0}.pdf".format(case))
-        #plt.savefig(plot_dir+"collected_CD_convergence_{0}.svg".format(case))
-        #plt.close()

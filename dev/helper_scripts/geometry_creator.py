@@ -523,7 +523,7 @@ def generate_random_sphere(filename, N, r):
     _export_hull_of_points(verts, filename)
 
 
-def _get_random_points_on_surface_of_spindle(N, c, r_of_x):
+def _get_random_points_on_surface_of_spindle(N, l, r_of_x):
     # Generates a set of random points (except for 2 at the apexes) on a spindle
 
     # Initialize
@@ -539,18 +539,18 @@ def _get_random_points_on_surface_of_spindle(N, c, r_of_x):
     psi = np.random.random(N-2)*2.0*np.pi
 
     # Get coordinates
-    points[:N-2,0] = x*c
-    points[:N-2,1] = c*r*np.sin(psi)
-    points[:N-2,2] = c*r*np.cos(psi)
+    points[:N-2,0] = x*l
+    points[:N-2,1] = l*r*np.sin(psi)
+    points[:N-2,2] = l*r*np.cos(psi)
 
     # Add endpoints
     points[N-2,:] = [0.0, 0.0, 0.0]
-    points[N-1,:] = [c, 0.0, 0.0]
+    points[N-1,:] = [l, 0.0, 0.0]
 
     return points
 
 
-def generate_random_spindle(filename, N, c, r_of_x):
+def generate_random_spindle(filename, N, l, r_of_x):
     """Generates a random unstructured mesh of a spindle.
     
     Parameters
@@ -561,17 +561,89 @@ def generate_random_spindle(filename, N, c, r_of_x):
     N : integer
         Number of vertices.
         
-    c : float
-        Chord length.
+    l : float
+        Length of spindle
     
     r_of_x : callable
         Gives the radius as a function of the nondimensional chord position.
     """
     
     # Get vertices
-    verts = _get_random_points_on_surface_of_spindle(N, c, r_of_x)
+    verts = _get_random_points_on_surface_of_spindle(N, l, r_of_x)
 
     # Export
+    _export_hull_of_points(verts, filename)
+
+
+def generate_spindle(filename, N_ax, N_theta, l, r_of_x, r_l_ratio=None, cosine_cluster=True):
+    """Generates a regularly-paneled spindle aligned with the x-axis.
+    
+    Parameters
+    ----------
+    filename : str
+        Name of the file to write the mesh to. Must have '.vtk' extension.
+
+    N_ax : integer
+        Number of disctreizations (panels) to make in the axial direction.
+
+    N_theta : integer
+        Half the number of discretizations (panels) to make in the circumferential direction.
+        
+    l : float
+        Length of spindle
+    
+    r_of_x : callable or str
+        Gives the radius as a function of the **nondimensional** axial position.
+        Must be able to accept an array of x locations.
+        Alternatively, may be 'SH', in which case a Sears-Haack body will be created.
+
+    r_l_ratio : float, optional
+        Maximum radius divided by the length. Required only for r_of_x='SH'.
+
+    cosine_cluster : bool, optional
+        Whether to cosine cluster the panels in the axial direction. Defaults to True.
+    """
+
+    # Determine numbers of panels and vertices
+    N_verts = 2 + N_theta*(N_ax-1)
+    N_panels = 2*N_theta*N_ax
+
+    # Generate axial distribution
+    if cosine_cluster:
+        theta_range = np.linspace(np.pi, 0.0, N_ax+1)
+        x_range = 0.5*l*(1.0 + np.cos(theta_range))
+    else:
+        x_range = np.linspace(0.0, l, N_ax+1)
+
+    # Get radial distribution
+    if r_of_x == 'SH':
+        r_max = r_l_ratio*l
+        r_range = r_max*(4.0*(x_range/l)*(1.0 - (x_range/l)))**0.75
+    else:
+        r_range = r_of_x(x_range/l)
+
+    # Generate circuferential distribution
+    theta_range = np.linspace(0.0, 2.0*np.pi, N_theta)
+
+    # Initialize vertex storage
+    verts = np.zeros((N_verts,3))
+
+    # Place vertices
+    for i, x in enumerate(x_range[1:-1]):
+        for j, theta in enumerate(theta_range):
+
+            # Get index of vertex
+            ind = 1 + i*N_theta + j
+
+            # Place coordinates
+            r = r_range[i]
+            verts[ind,0] = x
+            verts[ind,1] = r*np.cos(theta)
+            verts[ind,2] = r*np.sin(theta)
+
+    # Tip
+    verts[-1,0] = l
+
     _export_hull_of_points(verts, filename)
 
 
@@ -582,9 +654,9 @@ if __name__=="__main__":
     #for angle in angles:
     #    h = 1.0/np.tan(np.radians(angle))
     #    generate_regular_right_cone('studies/supersonic_cone_flow_study/meshes/cone_{0}_deg_fine.vtk'.format(int(angle)), h, 1.0, 120, 100, close_base=False)
-    h = 1.0/np.tan(np.radians(10.0))
+    #h = 1.0/np.tan(np.radians(10.0))
     #generate_regular_right_cone('studies/matrix_solvers/meshes/cone_10_deg_medium.vtk', h, 1.0, 40, 30, close_base=False)
-    generate_regular_right_cone('dev/meshes/half_cone_coarse.vtk', h, 1.0, 100, 6, close_base=False, isosceles=True)
+    #generate_regular_right_cone('dev/meshes/half_cone_coarse.vtk', h, 1.0, 100, 6, close_base=False, isosceles=True)
 
     ## Random spheres
     #Ns = [125, 250, 500, 1000, 2000]
@@ -601,3 +673,6 @@ if __name__=="__main__":
 
     # Regular sphere
     #generate_regular_sphere("dev/meshes/regular_sphere.vtk", 1.0, 40, 20)
+
+    # Sears-Haack
+    generate_spindle('dev/meshes/test_sears_haack.vtk', 100, 100, 1.0, 'SH', 0.037879, cosine_cluster=False)
