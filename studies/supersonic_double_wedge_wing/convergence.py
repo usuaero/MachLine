@@ -5,6 +5,7 @@ from studies.case_running_functions import run_quad, get_order_of_convergence, w
 
 
 RERUN_MACHLINE = True
+max_continuity_angle = 45.0
 
 
 def run_quad_for_mach_aoa_and_mesh(M, alpha, density):
@@ -18,7 +19,6 @@ def run_quad_for_mach_aoa_and_mesh(M, alpha, density):
     c_inf = np.sqrt(gamma*R_G*T_inf)
     rho = 1.225
     p_inf = 1.0e5
-    max_continuity_angle = 2.5
 
     # Storage locations
     case_name = "M_{0}_aoa_{1}_{2}_deg_{3}_MCA_{4}".format(M, alpha, int(half_angle), grid, max_continuity_angle)
@@ -133,6 +133,7 @@ if __name__=="__main__":
             plt.title('$C_x$ error for $M={0},\,\\alpha={1}$'.format(M, alpha))
             plt.legend()
             plt.savefig(plot_dir+"err_C_x_M_{0}_alpha_{1}_MCA_{2}.pdf".format(M, alpha, max_continuity_angle))
+            plt.close()
 
     # Plot C_z errors
     for j, M in enumerate(Ms):
@@ -158,6 +159,7 @@ if __name__=="__main__":
             plt.title('$C_z$ error for $M={0},\,\\alpha={1}$'.format(M, alpha))
             plt.legend()
             plt.savefig(plot_dir+"err_C_z_M_{0}_alpha_{1}_MCA_{2}.pdf".format(M, alpha, max_continuity_angle))
+            plt.close()
 
     #Analyze convergence of Cx
     print()

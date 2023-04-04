@@ -1,6 +1,72 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from dev.helper_scripts.paraview_functions import *
+
+from studies.case_running_functions import run_quad, write_input_file
+
+
+RERUN_MACHLINE = True
+
+
+def run_quad_for_aoa_and_mesh(alpha, density):
+    """Runs a case quad for the given angle of attack and mesh density."""
+
+    # Storage locations
+    case_name = "aoa_{0}_{1}".format(alpha, density)
+    plot_dir = "studies/incompressible_knight_wing/plots/"
+    mesh_file = "studies/incompressible_knight_wing/meshes/knight_wing_{0}.stl".format(density)
+    results_file = "studies/incompressible_knight_wing/results/"+case_name+".vtk"
+    report_file = "studies/incompressible_knight_wing/reports/"+case_name+".json"
+    data_file = 'studies/incompressible_knight_wing/data/'+case_name+'.csv'
+
+    # Write out input file
+
+    # Declare MachLine input
+    input_dict = {
+        "flow": {
+            "freestream_velocity": [np.cos(np.radians(alpha)), 0.0, np.sin(np.radians(alpha))]
+        },
+        "geometry": {
+            "file": mesh_file,
+            "spanwise_axis" : "+y",
+            "wake_model": {
+            },
+            "reference": {
+                "area": 4.0
+            }
+        },
+        "solver": {
+            "formulation": "morino"
+        },
+        "post_processing" : {
+            "pressure_rules" : {
+                "incompressible" : True
+            }
+        },
+        "output" : {
+            "body_file" : results_file,
+            "report_file" : report_file
+        }
+    }
+
+    # Dump
+    input_file = "studies/incompressible_knight_wing/input.json"
+    write_input_file(input_dict, input_file)
+
+    # Run quad
+    reports = run_quad(input_file, run=RERUN_MACHLINE)
+
+    # Pull out forces
+    C_F = np.zeros((4,3))
+    for i, report in enumerate(reports):
+        C_F[i,0] = report["total_forces"]["Cx"]
+        C_F[i,1] = report["total_forces"]["Cy"]
+        C_F[i,2] = report["total_forces"]["Cz"]
+
+    # Get system dimension and average characteristic length
+    N_sys = reports[0]["solver_results"]["system_dimension"]
+    l_avg = reports[0]["mesh_info"]["average_characteristic_length"]
+
+    return N_sys, l_avg, C_F
 
 
 if __name__=="__main__":

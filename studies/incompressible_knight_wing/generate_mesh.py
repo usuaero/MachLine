@@ -1,14 +1,10 @@
 import numpy as np
 import machupX as mx
 import matplotlib.pyplot as plt
-import pypan as pp
-
-import matplotlib
-import json
-import copy
 
 
-if __name__ == "__main__":
+def gen_knight_wing_mesh(N_spanwise, N_chordwise, N_round, filename):
+    """Generates an stl of Knight's straight wing with the given parameters."""
 
     # Declare MachUpX input
     V = 59.5
@@ -19,7 +15,7 @@ if __name__ == "__main__":
             "G387FB" : {
                 "type" : "linear",
                 "geometry" : {
-                    "outline_points" : "G387FB.csv"
+                    "outline_points" : "studies/incompressible_knight_wing/data/G387FB.csv"
                 }
             }
         },
@@ -32,11 +28,11 @@ if __name__ == "__main__":
                 "chord" : [5.0, "in"],
                 "airfoil" : "G387FB",
                 "grid" : {
-                    "N" : 30
+                    "N" : N_spanwise
                 },
                 "CAD_options" : {
                     "round_wing_tip" : True,
-                    "n_rounding_sections" : 6
+                    "n_rounding_sections" : N_round
                 }
             }
         }
@@ -45,7 +41,16 @@ if __name__ == "__main__":
     # Export mesh
     scene = mx.Scene()
     scene.add_aircraft("wing", wing_input, state={"velocity" : V})
-    scene.export_stl(filename="knight_wing.stl", section_resolution=51)
+    scene.export_stl(filename=filename, section_resolution=N_chordwise)
 
-    my_mesh = pp.Mesh(name="", mesh_file="knight_wing.stl", mesh_file_type="STL")
-    my_mesh.export_vtk("knight_wing.vtk")
+
+if __name__ == "__main__":
+
+    densities = ['coarse', 'medium', 'fine']
+    N_spanwises = [15, 30, 60]
+    N_chordwises = [21, 41, 81]
+    N_rounds = [4, 8, 16]
+
+    for i, density in enumerate(densities):
+
+        gen_knight_wing_mesh(N_spanwises[i], N_chordwises[i], N_rounds[i], "studies/incompressible_knight_wing/meshes/knight_wing_{0}.stl".format(density))
