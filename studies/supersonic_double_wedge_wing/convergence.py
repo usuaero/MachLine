@@ -39,6 +39,7 @@ def run_quad_for_mach_aoa_and_mesh(M, alpha, density):
         "geometry": {
             "file": mesh_file,
             "spanwise_axis" : "+y",
+            "max_continuity_angle" : 2.5,
             "wake_model": {
                 "append_wake" : False,
             },
@@ -104,11 +105,64 @@ if __name__=="__main__":
     # Set up plotting
     plot_dir = "studies/supersonic_double_wedge_wing/plots/"
 
+    # Get errors
+    err = np.abs((C_F[:-1] - C_F[-1])/C_F[-1])
+
+    # Plot C_x errors
+    cases = ['ML', 'MH', 'SL', 'SH']
+    line_styles = ['k-', 'k--', 'k:', 'k-.']
+    #for j, M in enumerate(Ms):
+    #    for k, alpha in enumerate(alphas):
+
+    #        # Plot
+    #        plt.figure()
+    #        print()
+    #        print("M={0}, alpha={1}".format(M, alpha))
+    #        for l, case in enumerate(cases):
+    #            plt.plot(l_avg[:-1], err[:,j,k,l,0], line_styles[l], label=case)
+
+    #            # Get convergence
+    #            print("Order for case {0}: {1}".format(case, get_order_of_convergence(l_avg, C_F[:,j,k,l,0], truth_from_results=True)))
+
+    #        # Format
+    #        plt.xlabel('$l_{avg}$')
+    #        plt.ylabel('Fractional Error')
+    #        plt.xscale('log')
+    #        plt.yscale('log')
+    #        plt.title('$C_x$ error for $M={0},\,\\alpha={1}$'.format(M, alpha))
+    #        plt.legend()
+    #        plt.show()
+
+    # Plot C_z errors
+    for j, M in enumerate(Ms):
+        for k, alpha in enumerate(alphas):
+            if k==0:
+                continue
+
+            # Plot
+            plt.figure()
+            print()
+            print("M={0}, alpha={1}".format(M, alpha))
+            for l, case in enumerate(cases):
+                plt.plot(l_avg[:-1], err[:,j,k,l,2], line_styles[l], label=case)
+
+                # Get convergence
+                print("Order for case {0}: {1}".format(case, get_order_of_convergence(l_avg, C_F[:,j,k,l,2], truth_from_results=True)))
+
+            # Format
+            plt.xlabel('$l_{avg}$')
+            plt.ylabel('Fractional Error')
+            plt.xscale('log')
+            plt.yscale('log')
+            plt.title('$C_z$ error for $M={0},\,\\alpha={1}$'.format(M, alpha))
+            plt.legend()
+            plt.show()
+
     #Analyze convergence of Cx
+    print()
     slopes = []
     for l, case in enumerate(['ML', 'MH', 'SL', 'SH']):
         slopes.append([])
-        plt.figure()
         for j, M in enumerate(Ms):
             for k, alpha in enumerate(alphas):
                 #err = abs((CLs[:-1,j,k,l]-CLs[-1,j,k,l])/CLs[-1,j,k,l])
@@ -119,12 +173,14 @@ if __name__=="__main__":
         print("Average Cx convergence rate case {0}: ".format(case), np.average(slopes[l]))
 
     #Analyze convergence of Cz
+    print()
     slopes = []
     for l, case in enumerate(['ML', 'MH', 'SL', 'SH']):
         slopes.append([])
-        plt.figure()
         for j, M in enumerate(Ms):
             for k, alpha in enumerate(alphas):
+                if k==0:
+                    continue
                 #err = abs((CLs[:-1,j,k,l]-CLs[-1,j,k,l])/CLs[-1,j,k,l])
                 #plt.plot(N_verts[:-1], err, 'k-', linewidth=1)
                 #coefs = np.polyfit(np.log(N_verts[:-1]), np.log(err), deg=1)

@@ -11,6 +11,7 @@
     "geometry": {
         "file": "studies/supersonic_double_wedge_wing/meshes/diamond_5_deg_full_ultra_fine.stl",
         "spanwise_axis": "+y",
+        "max_continuity_angle": 2.5,
         "wake_model": {
             "append_wake": false
         },
