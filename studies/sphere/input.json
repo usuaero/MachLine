@@ -1,12 +1,12 @@
 {
     "flow": {
         "freestream_velocity": [
-            0.35355339059327384,
-            0.6123724356957946,
-            0.7071067811865475
+            0.2500000000000001,
+            0.4330127018922194,
+            0.8660254037844386
         ],
         "gamma": 1.4,
-        "freestream_mach_number": 0.4
+        "freestream_mach_number": 0.5
     },
     "geometry": {
         "file": "studies/sphere/meshes/sphere_medium.stl",
@@ -15,7 +15,7 @@
     "solver": {},
     "post_processing": {},
     "output": {
-        "body_file": "studies/sphere/results/sphere_M_0.4_60_45_medium.vtk",
-        "report_file": "studies/sphere/reports/sphere_M_0.4_60_45_medium.json"
+        "body_file": "studies/sphere/results/sphere_M_0.5_60_60_medium.vtk",
+        "report_file": "studies/sphere/reports/sphere_M_0.5_60_60_medium.json"
     }
 }
