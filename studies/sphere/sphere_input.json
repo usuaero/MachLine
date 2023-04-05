@@ -7,7 +7,7 @@
         ]
     },
     "geometry": {
-        "file": "studies/sphere/meshes/random_sphere_coarse_sample_3.vtk",
+        "file": "studies/sphere/meshes/random_sphere_ultra_fine_sample_9.vtk",
         "spanwise_axis": "+y",
         "wake_model": {
             "wake_present": false
@@ -26,7 +26,7 @@
     },
     "post_processing": {},
     "output": {
-        "body_file": "studies/sphere/results/random_sphere_coarse_sample_3.vtk",
-        "report_file": "studies/sphere/reports/random_sphere_coarse_sample_3.json"
+        "body_file": "studies/sphere/results/random_sphere_ultra_fine_sample_9.vtk",
+        "report_file": "studies/sphere/reports/random_sphere_ultra_fine_sample_9.json"
     }
 }

@@ -99,6 +99,9 @@ if __name__=="__main__":
                         "solver" : {
                         },
                         "post_processing" : {
+                            "pressure_rules" : {
+                                "isentropic" : True
+                            }
                         },
                         "output" : {
                             "body_file" : result_file,

@@ -9,7 +9,7 @@ from studies.paraview_functions import extract_all_data, get_data_column_from_ar
 from studies.case_running_functions import write_input_file, run_quad, cases, line_styles
 
 
-RERUN_MACHLINE = True
+RERUN_MACHLINE = False
 
 
 def run_sphere_comparison(grid, sample, run_machline=True):
@@ -92,12 +92,16 @@ def run_sphere_comparison(grid, sample, run_machline=True):
         plt.savefig(plot_dir+case_name+"_{0}.svg".format(cases[i]))
         plt.close()
 
-    return Cx, Cy, Cz
+        # Get average characteristic length
+        l_avg = report["mesh_info"]["average_characteristic_length"]
+
+    return Cx, Cy, Cz, l_avg
 
 
 if __name__=="__main__":
 
     Ns = [125, 250, 500, 1000, 2000]
+    l_avg = []
     grids = ["ultra_coarse", "coarse", "medium", "fine", "ultra_fine"]
     samples = [x for x in range(10)]
 
@@ -105,22 +109,24 @@ if __name__=="__main__":
 
     # Plot each sample
     for i, grid in enumerate(grids):
+        l_avg.append([])
         for j, sample in enumerate(samples):
 
-                C_f[i,j,:,0], C_f[i,j,:,1], C_f[i,j,:,2] = run_sphere_comparison(grid, sample, run_machline=False)
+            C_f[i,j,:,0], C_f[i,j,:,1], C_f[i,j,:,2], l = run_sphere_comparison(grid, sample, run_machline=False)
+            l_avg[i].append(l)
 
-    ## Plot convergence
-    #avg = np.average(C_f, axis=1)
-    #std_dev = np.std(C_f, axis=1)
-    #plot_dir = "studies/sphere/plots/"
-    #plt.figure()
-    #plt.plot(Ns, np.abs(avg[:,0]), 'ks-', label="$C_x$")
-    #plt.plot(Ns, np.abs(avg[:,1]), 'ko--', label="$C_y$")
-    #plt.plot(Ns, np.abs(avg[:,2]), 'kv-.', label="$C_z$")
-    #plt.xscale('log')
-    #plt.yscale('log')
-    #plt.xlabel("$N_{verts}$")
-    #plt.ylabel("Force Coefficient")
-    #plt.legend()
-    #plt.savefig("studies/sphere/plots/convergence.pdf")
-    #plt.savefig("studies/sphere/plots/convergence.svg")
+
+    # Plot convergence
+    l_avg = np.average(np.array(l_avg), 1)
+    plt.figure()
+    plot_dir = "studies/sphere/plots/"
+    avg_force_norm = np.average(np.linalg.norm(C_f, axis=-1), axis=1)
+    for i, case in enumerate(cases):
+        plt.plot(l_avg, avg_force_norm[:,i], line_styles[i], label=case)
+    plt.xscale('log')
+    plt.yscale('log')
+    plt.xlabel("$l_{avg}$")
+    plt.ylabel("Average Norm of Force Coefficient Vector")
+    plt.legend()
+    plt.savefig("studies/sphere/plots/convergence.pdf")
+    plt.savefig("studies/sphere/plots/convergence.svg")
