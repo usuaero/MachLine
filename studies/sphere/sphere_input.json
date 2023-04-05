@@ -1,0 +1,32 @@
+{
+    "flow": {
+        "freestream_velocity": [
+            10.0,
+            0.0,
+            0.0
+        ]
+    },
+    "geometry": {
+        "file": "studies/sphere/meshes/random_sphere_coarse_sample_3.vtk",
+        "spanwise_axis": "+y",
+        "wake_model": {
+            "wake_present": false
+        },
+        "reference": {
+            "area": 3.141592653589793
+        }
+    },
+    "solver": {
+        "formulation": "morino",
+        "control_point_offset": 1.1e-06,
+        "matrix_solver": "BJAC",
+        "relaxation": 0.9,
+        "tolerance": 1.1e-11,
+        "block_size": 400
+    },
+    "post_processing": {},
+    "output": {
+        "body_file": "studies/sphere/results/random_sphere_coarse_sample_3.vtk",
+        "report_file": "studies/sphere/reports/random_sphere_coarse_sample_3.json"
+    }
+}
