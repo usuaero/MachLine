@@ -8,6 +8,10 @@ import subprocess as sp
 from copy import deepcopy
 
 
+cases = ['ML', 'MH', 'SL', 'SH']
+line_styles = ['k-', 'k--', 'k:', 'k-.']
+
+
 def write_input_file(input_dict, input_filename):
     """Writes the given input dict to the given file location."""
 
@@ -51,8 +55,11 @@ def run_machline(input_filename, delete_input=True, run=True):
         input_dict = json.load(input_handle)
     report_file = input_dict["output"].get("report_file")
     if report_file is not None:
-        with open(report_file) as report_handle:
-            report = json.load(report_handle)
+        try:
+            with open(report_file) as report_handle:
+                report = json.load(report_handle)
+        except:
+            report = None
     else:
         report = None
 

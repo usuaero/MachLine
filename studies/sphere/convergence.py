@@ -2,7 +2,7 @@ import json
 import numpy as np
 import subprocess as sp
 import matplotlib.pyplot as plt
-from studies.case_running_functions import run_quad, get_order_of_convergence
+from studies.case_running_functions import run_quad, get_order_of_convergence, cases, line_styles
 
 
 RERUN_MACHLINE = False
@@ -101,18 +101,16 @@ if __name__=="__main__":
     print("Source-free, higher-order: ", avg_orders[3], " +/- ", np.std(orders[3]))
 
     # Plot
-    line_sytles = ['k-', 'k--', 'k:', 'k-.']
-    labels = ['ML', 'MH', 'SL', 'SH']
     plt.figure()
     for i in range(len(psis)):
         for j in range(len(thetas)):
             for k in range(4):
                 if i==0 and j==0:
-                    plt.plot(l_avg, np.abs(Cx[i,j,:]), line_sytles[k], label=labels[k])
+                    plt.plot(l_avg, np.abs(Cx[i,j,:]), line_styles[k], label=cases[k])
                 else:
-                    plt.plot(l_avg, np.abs(Cx[i,j,:]), line_sytles[k])
-                plt.plot(l_avg, np.abs(Cy[i,j,:]), line_sytles[k])
-                plt.plot(l_avg, np.abs(Cz[i,j,:]), line_sytles[k])
+                    plt.plot(l_avg, np.abs(Cx[i,j,:]), line_styles[k])
+                plt.plot(l_avg, np.abs(Cy[i,j,:]), line_styles[k])
+                plt.plot(l_avg, np.abs(Cz[i,j,:]), line_styles[k])
     plt.xscale('log')
     plt.yscale('log')
     plt.xlabel('$l_{avg}$')
