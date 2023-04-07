@@ -7,7 +7,7 @@ from studies.paraview_functions import extract_all_data, get_data_column_from_ar
 
 RERUN_MACHLINE = True
 study_dir = "studies/sphere/"
-plot_dir = study_dir + "plots/"
+plot_dir = study_dir + "plots/incompressible_pressures/"
 
 
 def extract_pressures(result_file):
@@ -30,8 +30,8 @@ if __name__=="__main__":
     # Options
     densities = ['ultra_coarse', 'very_coarse', 'coarse', 'medium']
     for density in densities:
-        phis = np.radians([30.0, 45.0, 60.0])
-        thetas = np.radians([30.0, 45.0, 60.0])
+        phis = np.radians([0.0, 30.0, 45.0, 60.0])
+        thetas = np.radians([0.0, 0.0, 45.0, 60.0])
 
         for i, phi in enumerate(phis):
             for j, theta in enumerate(thetas):
@@ -82,5 +82,5 @@ if __name__=="__main__":
                     plt.yscale('log')
                     plt.xlabel('$\\theta [^\circ]$')
                     plt.ylabel('$|(C_P - C_{P_{anl}})/C_{P_{anl}}|$')
-                    plt.savefig(plot_dir + "C_P_err_{0}_{1}_{2}_{3}".format(case, round(np.degrees(phi)), round(np.degrees(theta)), density))
+                    plt.savefig(plot_dir + "err_{0}_{1}_{2}_{3}".format(case, round(np.degrees(phi)), round(np.degrees(theta)), density))
                     plt.close()

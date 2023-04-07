@@ -5,9 +5,9 @@ from studies.case_running_functions import write_input_file, run_quad
 from studies.paraview_functions import extract_all_data, get_data_column_from_array
 
 
-RERUN_MACHLINE = False
+RERUN_MACHLINE = True
 study_dir = "studies/sphere/"
-plot_dir = study_dir + "plots/"
+plot_dir = study_dir + "plots/compressible_pressures/"
 
 
 def extract_pressures(result_file):
@@ -63,8 +63,8 @@ if __name__=="__main__":
 
     # Options
     densities = ['ultra_coarse', 'very_coarse', 'coarse', 'medium']
-    phis = np.radians([30.0, 45.0, 60.0])
-    thetas = np.radians([30.0, 45.0, 60.0])
+    phis = np.radians([0.0, 30.0, 45.0, 60.0])
+    thetas = np.radians([0.0, 30.0, 45.0, 60.0])
     Ms = [0.4, 0.5]
 
     # Get analytic results
@@ -129,5 +129,5 @@ if __name__=="__main__":
                         plt.plot(np.degrees(theta_anl[k]), v_anl[k], 'k-', label='Tamada')
                         plt.xlabel('$\\theta [^\circ]$')
                         plt.ylabel('$|\mathbf{u}|$')
-                        plt.savefig(plot_dir + "compressible_C_P_M_{0}_{1}_{2}_{3}_{4}.pdf".format(M, case, round(np.degrees(phi)), round(np.degrees(theta)), density))
+                        plt.savefig(plot_dir + "M_{0}_{1}_{2}_{3}_{4}.pdf".format(M, case, round(np.degrees(phi)), round(np.degrees(theta)), density))
                         plt.close()

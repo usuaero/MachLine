@@ -1,7 +1,3 @@
-import json
-
-import numpy as np
-import subprocess as sp
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -10,6 +6,7 @@ from studies.case_running_functions import write_input_file, run_quad, cases, li
 
 
 RERUN_MACHLINE = False
+plot_dir = "studies/sphere/plots/regularity/"
 
 
 def run_sphere_comparison(grid, sample, run_machline=True):
@@ -17,7 +14,6 @@ def run_sphere_comparison(grid, sample, run_machline=True):
 
     # Storage locations
     case_name = "random_sphere_{0}_sample_{1}".format(grid, sample)
-    plot_dir = "studies/sphere/plots/"
     mesh_file = "studies/sphere/meshes/"+case_name+".vtk"
     body_file = "studies/sphere/results/"+case_name+".vtk"
     report_file = "studies/sphere/reports/"+case_name+".json"
@@ -128,5 +124,5 @@ if __name__=="__main__":
     plt.xlabel("$l_{avg}$")
     plt.ylabel("Average Norm of Force Coefficient Vector")
     plt.legend()
-    plt.savefig("studies/sphere/plots/convergence.pdf")
-    plt.savefig("studies/sphere/plots/convergence.svg")
+    plt.savefig("studies/sphere/plots/random_convergence.pdf")
+    plt.savefig("studies/sphere/plots/random_convergence.svg")
