@@ -5,7 +5,7 @@ from studies.case_running_functions import write_input_file, run_quad
 from studies.paraview_functions import extract_all_data, get_data_column_from_array
 
 
-RERUN_MACHLINE = True
+RERUN_MACHLINE = False
 study_dir = "studies/sphere/"
 plot_dir = study_dir + "plots/compressible_pressures/"
 
@@ -125,9 +125,10 @@ if __name__=="__main__":
 
                         # Figure out thetas
                         theta_space = np.arccos(np.einsum('ij,j->i', locs, V_inf))
-                        plt.plot(np.degrees(theta_space), V, 'k.', markersize=1, label='MachLine')
+                        plt.plot(np.degrees(theta_space[np.where(theta_space <= 0.5*np.pi)]), V[np.where(theta_space <= 0.5*np.pi)], 'k.', markersize=1, label='MachLine')
                         plt.plot(np.degrees(theta_anl[k]), v_anl[k], 'k-', label='Tamada')
                         plt.xlabel('$\\theta [^\circ]$')
                         plt.ylabel('$|\mathbf{u}|$')
+                        plt.legend()
                         plt.savefig(plot_dir + "M_{0}_{1}_{2}_{3}_{4}.pdf".format(M, case, round(np.degrees(phi)), round(np.degrees(theta)), density))
                         plt.close()

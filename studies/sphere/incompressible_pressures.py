@@ -5,7 +5,7 @@ from studies.case_running_functions import write_input_file, run_quad
 from studies.paraview_functions import extract_all_data, get_data_column_from_array
 
 
-RERUN_MACHLINE = True
+RERUN_MACHLINE = False
 study_dir = "studies/sphere/"
 plot_dir = study_dir + "plots/incompressible_pressures/"
 
@@ -29,9 +29,10 @@ if __name__=="__main__":
 
     # Options
     densities = ['ultra_coarse', 'very_coarse', 'coarse', 'medium']
-    for density in densities:
+    err_max = np.zeros((4,4))
+    for k, density in enumerate(densities):
         phis = np.radians([0.0, 30.0, 45.0, 60.0])
-        thetas = np.radians([0.0, 0.0, 45.0, 60.0])
+        thetas = np.radians([0.0, 30.0, 45.0, 60.0])
 
         for i, phi in enumerate(phis):
             for j, theta in enumerate(thetas):
@@ -67,7 +68,7 @@ if __name__=="__main__":
                 reports = run_quad(input_filename, run=RERUN_MACHLINE)
 
                 # Loop through cases
-                for report, case in zip(reports, ['ML', 'MH', 'SL', 'SH']):
+                for l, (report, case) in enumerate(zip(reports, ['ML', 'MH', 'SL', 'SH'])):
 
                     # Get pressures
                     result_file = report["input"]["output"]["body_file"]
@@ -77,6 +78,7 @@ if __name__=="__main__":
                     theta_space = np.arccos(np.einsum('ij,j->i', locs, V_inf))
                     C_P_anl = 1.0 - 2.25*np.sin(theta_space)**2
                     err = abs((C_P - C_P_anl)/C_P_anl)
+                    err_max[k,l] = max(np.max(np.abs(C_P-C_P_anl)), err_max[k,l])
                     plt.figure()
                     plt.plot(np.degrees(theta_space), err, 'k.', markersize=1)
                     plt.yscale('log')
@@ -84,3 +86,6 @@ if __name__=="__main__":
                     plt.ylabel('$|(C_P - C_{P_{anl}})/C_{P_{anl}}|$')
                     plt.savefig(plot_dir + "err_{0}_{1}_{2}_{3}".format(case, round(np.degrees(phi)), round(np.degrees(theta)), density))
                     plt.close()
+
+    print()
+    print(err_max)
