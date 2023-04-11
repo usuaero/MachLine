@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from studies.case_running_functions import write_input_file, run_quad
+from studies.case_running_functions import write_input_file, run_quad, cases
 from studies.paraview_functions import extract_all_data, get_data_column_from_array
 
 
@@ -29,7 +29,8 @@ if __name__=="__main__":
 
     # Options
     densities = ['ultra_coarse', 'very_coarse', 'coarse', 'medium']
-    err_max = np.zeros((4,4))
+    frac_err_max = np.zeros((4,4))
+    abs_err_max = np.zeros((4,4))
     for k, density in enumerate(densities):
         phis = np.radians([0.0, 30.0, 45.0, 60.0])
         thetas = np.radians([0.0, 30.0, 45.0, 60.0])
@@ -68,7 +69,7 @@ if __name__=="__main__":
                 reports = run_quad(input_filename, run=RERUN_MACHLINE)
 
                 # Loop through cases
-                for l, (report, case) in enumerate(zip(reports, ['ML', 'MH', 'SL', 'SH'])):
+                for l, (report, case) in enumerate(zip(reports, cases)):
 
                     # Get pressures
                     result_file = report["input"]["output"]["body_file"]
@@ -77,15 +78,33 @@ if __name__=="__main__":
                     # Figure out thetas
                     theta_space = np.arccos(np.einsum('ij,j->i', locs, V_inf))
                     C_P_anl = 1.0 - 2.25*np.sin(theta_space)**2
-                    err = abs((C_P - C_P_anl)/C_P_anl)
-                    err_max[k,l] = max(np.max(np.abs(C_P-C_P_anl)), err_max[k,l])
+                    frac_err = abs((C_P - C_P_anl)/C_P_anl)
+                    abs_err = abs(C_P - C_P_anl)
+                    frac_err_max[k,l] = max(np.max(frac_err), frac_err_max[k,l])
+                    abs_err_max[k,l] = max(np.max(abs_err), abs_err_max[k,l])
+
+                    # Plot fractional error
                     plt.figure()
-                    plt.plot(np.degrees(theta_space), err, 'k.', markersize=1)
+                    plt.plot(np.degrees(theta_space), frac_err, 'k.', markersize=1)
                     plt.yscale('log')
                     plt.xlabel('$\\theta [^\circ]$')
-                    plt.ylabel('$|(C_P - C_{P_{anl}})/C_{P_{anl}}|$')
-                    plt.savefig(plot_dir + "err_{0}_{1}_{2}_{3}".format(case, round(np.degrees(phi)), round(np.degrees(theta)), density))
+                    plt.ylabel('$\left|\\frac{C_P - C_{P_{anl}}}{C_{P_{anl}}}\\right|$')
+                    plt.savefig(plot_dir + "frac_err_{0}_{1}_{2}_{3}".format(case, round(np.degrees(phi)), round(np.degrees(theta)), density))
+                    plt.close()
+
+                    # Plot absolute error
+                    plt.figure()
+                    plt.plot(np.degrees(theta_space), abs_err, 'k.', markersize=1)
+                    plt.yscale('log')
+                    plt.xlabel('$\\theta [^\circ]$')
+                    plt.ylabel('$|C_P - C_{P_{anl}}|$')
+                    plt.savefig(plot_dir + "abs_err_{0}_{1}_{2}_{3}".format(case, round(np.degrees(phi)), round(np.degrees(theta)), density))
                     plt.close()
 
     print()
-    print(err_max)
+    print("Maximum fractional errors:")
+    print(cases)
+    print(frac_err_max)
+    print("Maximum absolute errors:")
+    print(cases)
+    print(abs_err_max)

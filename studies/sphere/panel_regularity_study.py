@@ -9,7 +9,7 @@ RERUN_MACHLINE = False
 plot_dir = "studies/sphere/plots/regularity/"
 
 
-def run_sphere_comparison(grid, sample, run_machline=True):
+def run_sphere_comparison(grid, sample):
     # Runs the comparison of the random sphere
 
     # Storage locations
@@ -78,7 +78,7 @@ def run_sphere_comparison(grid, sample, run_machline=True):
         plt.figure()
         theta = np.degrees(np.arccos(x[i]))
         theta_a = np.linspace(0.0, np.pi, 100)
-        plt.plot(theta, C_P[i], 'k.', markersize=1, label=cases[i])
+        plt.plot(theta, C_P[i], 'k.', markersize=1, label='MachLine')
         plt.plot(np.degrees(theta_a), 1.0-2.25*np.sin(theta_a)**2, 'k-', label='Analytic')
         plt.xlabel('$\\theta [^\circ]$')
         plt.ylabel('$C_p$')
@@ -108,9 +108,8 @@ if __name__=="__main__":
         l_avg.append([])
         for j, sample in enumerate(samples):
 
-            C_f[i,j,:,0], C_f[i,j,:,1], C_f[i,j,:,2], l = run_sphere_comparison(grid, sample, run_machline=False)
+            C_f[i,j,:,0], C_f[i,j,:,1], C_f[i,j,:,2], l = run_sphere_comparison(grid, sample)
             l_avg[i].append(l)
-
 
     # Plot convergence
     l_avg = np.average(np.array(l_avg), 1)
@@ -122,7 +121,7 @@ if __name__=="__main__":
     plt.xscale('log')
     plt.yscale('log')
     plt.xlabel("$l_{avg}$")
-    plt.ylabel("Average Norm of Force Coefficient Vector")
+    plt.ylabel("$|C_F|_{avg}$")
     plt.legend()
     plt.savefig("studies/sphere/plots/random_convergence.pdf")
     plt.savefig("studies/sphere/plots/random_convergence.svg")
