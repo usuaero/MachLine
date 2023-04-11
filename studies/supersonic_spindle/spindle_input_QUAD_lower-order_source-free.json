@@ -9,7 +9,7 @@
         "freestream_mach_number": 1.4142135623730951
     },
     "geometry": {
-        "file": "studies/supersonic_spindle/meshes/random_spindle.vtk",
+        "file": "studies/supersonic_spindle/meshes/random_spindle_800.vtk",
         "spanwise_axis": "+y",
         "wake_model": {
             "wake_present": false
@@ -18,6 +18,7 @@
     },
     "solver": {
         "matrix_solver": "FQRUP",
+        "control_point_offset": 1.1e-08,
         "control_point_offset_type": "global",
         "formulation": "source-free"
     },
@@ -30,8 +31,8 @@
         }
     },
     "output": {
-        "body_file": "studies/supersonic_spindle/results/random_spindle_800_QUAD_lower-order_source-free.vtk",
-        "control_point_file": "studies/supersonic_spindle/results/random_spindle_800_control_points_QUAD_lower-order_source-free.vtk",
-        "report_file": "studies/supersonic_spindle/reports/random_spindle_800_QUAD_lower-order_source-free.json"
+        "body_file": "studies/supersonic_spindle/results/random_spindle_800_-8_QUAD_lower-order_source-free.vtk",
+        "control_point_file": "studies/supersonic_spindle/results/random_spindle_800_-8_control_points_QUAD_lower-order_source-free.vtk",
+        "report_file": "studies/supersonic_spindle/reports/random_spindle_800_-8_QUAD_lower-order_source-free.json"
     }
 }

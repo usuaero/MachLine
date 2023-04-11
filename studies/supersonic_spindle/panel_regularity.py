@@ -7,28 +7,30 @@ from studies.case_running_functions import run_quad, write_input_file, cases
 
 
 RERUN_MACHLINE = True
+REGENERATE_MESHES = False
 
 # Parameters
 study_dir = "studies/supersonic_spindle/"
 input_file = study_dir + "spindle_input.json"
-mesh_file = study_dir + "meshes/random_spindle.vtk"
 data_file = study_dir + "results/random_spindle_data.csv"
 analytic_data_file = study_dir + "method_of_char_from_ehlers.csv"
 plot_dir = study_dir + "plots/regularity/"
 M = np.sqrt(2)
 
 
-def run_random_spindle(N):
-    """Runs a random spindle with N vertices through MachLine and plots the pressures."""
+def run_random_spindle(N, cpo=1.1e-6, regenerate_mesh=False):
+    """Runs a random spindle with N vertices and a control point offset of cpo through MachLine and plots the pressures."""
 
     # Name results file for this number of vertices
-    result_file = study_dir + "results/random_spindle_{0}.vtk".format(N)
-    report_file = study_dir + "reports/random_spindle_{0}.json".format(N)
+    mesh_file = study_dir + "meshes/random_spindle_{0}.vtk".format(N)
+    result_file = study_dir + "results/random_spindle_{0}_{1}.vtk".format(N, round(np.log10(cpo)))
+    report_file = study_dir + "reports/random_spindle_{0}_{1}.json".format(N, round(np.log10(cpo)))
 
     # Generate mesh
-    def r_of_x(x):
-        return 0.2*x*(1.0-x)
-    generate_random_spindle(mesh_file, N, 1.0, r_of_x)
+    if regenerate_mesh:
+        def r_of_x(x):
+            return 0.2*x*(1.0-x)
+        generate_random_spindle(mesh_file, N, 1.0, r_of_x)
 
     # Write input
     input_dict = {
@@ -46,6 +48,7 @@ def run_random_spindle(N):
         },
         "solver" : {
             "matrix_solver" : "FQRUP",
+            "control_point_offset" : cpo,
             "control_point_offset_type" : "global"
         },
         "post-processing" : {
@@ -69,6 +72,12 @@ def run_random_spindle(N):
 
     for i, (case, report) in enumerate(zip(cases, reports)):
 
+        if report is None:
+            continue
+
+        if report["solver_results"]["solver_status_code"] != 0:
+            continue
+
         # Get result file
         quad_result_file = report["input"]["output"]["body_file"]
 
@@ -89,8 +98,8 @@ def run_random_spindle(N):
         plt.xlabel("$x$")
         plt.ylabel("$C_P$")
         plt.legend(fontsize=6, title_fontsize=6)
-        plt.savefig(plot_dir + 'M_{0}_{1}_{2}.pdf'.format(round(M, 2), N, case))
-        plt.savefig(plot_dir + 'M_{0}_{1}_{2}.svg'.format(round(M, 2), N, case))
+        plt.savefig(plot_dir + 'M_{0}_{1}_{2}_{3}.pdf'.format(round(M, 2), round(np.log10(cpo)), N, case))
+        plt.savefig(plot_dir + 'M_{0}_{1}_{2}_{3}.svg'.format(round(M, 2), round(np.log10(cpo)), N, case))
         plt.close()
 
 
@@ -98,6 +107,10 @@ if __name__=="__main__":
 
     # Numbers of vertices
     Ns = [50, 100, 200, 400, 800]
+    
+    # Control point offsets
+    cpos = [1.1e-4, 1.1e-6, 1.1e-8]
 
     for N in Ns:
-        run_random_spindle(N)
+        for cpo in cpos:
+            run_random_spindle(N, cpo, regenerate_mesh=REGENERATE_MESHES)
