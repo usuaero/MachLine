@@ -270,20 +270,23 @@ contains
         type(surface_mesh),intent(inout) :: body
 
         real :: offset
+        character(len=:),allocatable :: offset_type
 
         ! Get offset
         call json_xtnsn_get(solver_settings, 'control_point_offset', offset, 1.e-6)
+        call json_xtnsn_get(solver_settings, 'control_point_offset_type', offset_type, 'local')
         if (offset <= 0.) then
             write(*,*) "!!! Control point offset must be greater than 0. Defaulting to 1e-6."
             offset = 1.e-6
         end if
         
         ! Place control points
-        if (verbose) write(*,'(a ES10.4 a)',advance='no') "     Placing control points using offset of ", offset, "..."
+        if (verbose) write(*,'(a a a ES10.4 a)',advance='no') "     Placing control points using a ", offset_type, &
+            " offset ratio of ", offset, "..."
 
         ! Place control points inside the body
         if (this%morino .or. this%formulation == 'source-free') then
-            call body%place_interior_control_points(offset, this%freestream)
+            call body%place_interior_control_points(offset, offset_type, this%freestream)
         end if
 
         ! Set needed sources

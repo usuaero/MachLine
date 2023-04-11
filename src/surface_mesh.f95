@@ -47,15 +47,16 @@ module surface_mesh_mod
 
             ! Basic initialization
             procedure :: init => surface_mesh_init
-            procedure :: parse_singularity_settings => surface_mesh_parse_singularity_settings
             procedure :: load_mesh_file => surface_mesh_load_mesh_file
-            procedure :: parse_mirror_settings => surface_mesh_parse_mirror_settings
-            procedure :: parse_wake_settings => surface_mesh_parse_wake_settings
             procedure :: locate_adjacent_panels => surface_mesh_locate_adjacent_panels
             procedure :: store_adjacent_vertices => surface_mesh_store_adjacent_vertices
             procedure :: check_panels_adjacent => surface_mesh_check_panels_adjacent
             procedure :: calc_vertex_geometry => surface_mesh_calc_vertex_geometry
-            procedure :: get_avg_characteristic_panel_length => surface_mesh_get_avg_characteristic_panel_length
+
+            ! Loading settings
+            procedure :: parse_singularity_settings => surface_mesh_parse_singularity_settings
+            procedure :: parse_mirror_settings => surface_mesh_parse_mirror_settings
+            procedure :: parse_wake_settings => surface_mesh_parse_wake_settings
 
             ! Initialization based on flow properties
             procedure :: init_with_flow => surface_mesh_init_with_flow
@@ -73,6 +74,10 @@ module surface_mesh_mod
 
             ! Helpers
             procedure :: find_vertices_on_mirror => surface_mesh_find_vertices_on_mirror
+
+            ! Getters
+            procedure :: get_avg_characteristic_panel_length => surface_mesh_get_avg_characteristic_panel_length
+            procedure :: get_max_cardinal_length => surface_mesh_get_max_cardinal_length
 
             ! Wake stuff
             procedure :: init_wake => surface_mesh_init_wake
@@ -653,6 +658,44 @@ contains
         l_avg = l_avg/this%N_panels
         
     end function surface_mesh_get_avg_characteristic_panel_length
+
+
+    function surface_mesh_get_max_cardinal_length(this) result(l_max)
+        ! Returns the maximum length of the mesh along any of the global axes
+
+        implicit none
+        
+        class(surface_mesh), intent(in) :: this
+
+        real :: l_max
+
+        real,dimension(3) :: l = 0.
+        real :: x_max, x_min
+        integer :: i, j
+
+        ! Get max length in each direction
+        do j=1,3
+
+            ! Loop through vertices to get extreme positions
+            x_max = this%vertices(1)%loc(j)
+            x_min = this%vertices(1)%loc(j)
+            do i=2,this%N_verts
+                x_max = max(x_max, this%vertices(i)%loc(j))
+                x_min = min(x_min, this%vertices(i)%loc(j))
+            end do
+
+            ! Store
+            l(j) = x_max - x_min
+        end do
+
+        ! Double if needed
+        if (this%mirrored) then
+            l(this%mirror_plane) = 2.*l(this%mirror_plane)
+        end if
+
+        l_max = maxval(l)
+        
+    end function surface_mesh_get_max_cardinal_length
 
 
     subroutine surface_mesh_init_with_flow(this, freestream, body_file, wake_file)
@@ -1341,17 +1384,22 @@ contains
     end subroutine surface_mesh_update_subsonic_trefftz_distance
 
 
-    subroutine surface_mesh_place_interior_control_points(this, offset, freestream)
+    subroutine surface_mesh_place_interior_control_points(this, offset, offset_type, freestream)
 
         implicit none
 
         class(surface_mesh),intent(inout) :: this
         real,intent(in) :: offset
+        character(len=:),allocatable,intent(in) :: offset_type
         type(flow),intent(in) :: freestream
 
         integer :: i, j, i_panel
         real,dimension(3) :: dir, loc
+        real :: l_max
         logical :: surrounded
+
+        ! Get max cardinal length, if needed
+        if (offset_type=='global') l_max = this%get_max_cardinal_length()
 
         ! Specify number of control points
         if (this%asym_flow) then
@@ -1366,7 +1414,7 @@ contains
 
         ! Loop through vertices
         !$OMP parallel do private(j, i_panel, dir, surrounded) &
-        !$OMP & schedule(dynamic) shared(this, offset, freestream) default(none)
+        !$OMP & schedule(dynamic) shared(this, offset, freestream, l_max, offset_type) default(none)
         do i=1,this%N_verts
 
             ! If the vertex is a clone, it needs to be shifted off the normal slightly so that it is unique from its counterpart
@@ -1410,11 +1458,17 @@ contains
             end if
             
             ! Initialize control point
-            call this%cp(i)%init(this%vertices(i)%loc + offset*dir*this%vertices(i)%l_avg, 1, 1, i)
+            if (offset_type=='global') then
+                call this%cp(i)%init(this%vertices(i)%loc + offset*dir*l_max, 1, 1, i)
+            else
+                call this%cp(i)%init(this%vertices(i)%loc + offset*dir*this%vertices(i)%l_avg, 1, 1, i)
+            end if
 
         end do
 
         ! Calculate control points tied to superinclined panels
+        !!!! THIS SECTION IS EXPERIMENTAL !!!!
+        !!!! MACHLINE IS NOT CURRENTLY IMPLEMENTED TO CORRECTLY HANDLE SUPERINCLINED PANELS !!!!
         if (this%N_supinc > 0) then
 
             ! Loop through panels
