@@ -8,16 +8,28 @@
         "gamma": 1.4,
         "freestream_mach_number": 1.4142135623730951
     },
-    "solver": {},
     "geometry": {
-        "file": "studies/panel_regularity_spindle_study/meshes/random_spindle.vtk",
+        "file": "studies/supersonic_spindle/meshes/random_spindle.vtk",
         "spanwise_axis": "+y",
         "wake_model": {
             "wake_present": false
         }
     },
+    "solver": {
+        "matrix_solver": "FQRUP",
+        "control_point_offset_type": "global"
+    },
+    "post-processing": {
+        "pressure_rules": {
+            "isentropic": true,
+            "second-order": true,
+            "slender-body": true,
+            "linear": true
+        }
+    },
     "output": {
-        "body_file": "studies/panel_regularity_spindle_study/results/random_spindle.vtk",
-        "control_point_file": "studies/panel_regularity_spindle_study/results/random_spindle_control_points.vtk"
+        "body_file": "studies/supersonic_spindle/results/random_spindle_800.vtk",
+        "control_point_file": "studies/supersonic_spindle/results/random_spindle_800_control_points.vtk",
+        "report_file": "studies/supersonic_spindle/reports/random_spindle_800.json"
     }
 }
