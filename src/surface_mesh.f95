@@ -594,7 +594,7 @@ contains
         
         class(surface_mesh),intent(inout) :: this
 
-        real,dimension(3) :: n_avg
+        real(16),dimension(3) :: n_avg
         integer :: i, j, j_panel, N_panels
 
         if (verbose) write(*,'(a)',advance='no') "     Calculating vertex geometric parameters..."

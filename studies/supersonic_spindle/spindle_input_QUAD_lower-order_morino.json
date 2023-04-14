@@ -17,9 +17,9 @@
         "singularity_order": "lower"
     },
     "solver": {
-        "matrix_solver": "FQRUP",
+        "matrix_solver": "GMRES",
         "control_point_offset": 1.1e-10,
-        "control_point_offset_type": "global",
+        "control_point_offset_type": "direct",
         "formulation": "morino"
     },
     "post-processing": {

@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from studies.case_running_functions import run_quad, write_input_file, cases, line_styles
 
 RERUN_MACHLINE = True
-study_dir = "studies/supersonic_double_wedge_wing/"
+study_dir = "studies/supersonic_spindle/"
 mesh_dir = study_dir + "meshes/"
 report_dir = study_dir + "reports/"
 
@@ -13,18 +13,18 @@ if __name__=="__main__":
     # Double-wedge
     input_dict = {
         "flow": {
-            "freestream_velocity": [ 694.4475790151479, 0.0, 0.0 ],
+            "freestream_velocity": [ 1.0, 0.0, 0.0 ],
             "gamma": 1.4,
-            "freestream_mach_number": 2.0
+            "freestream_mach_number": np.sqrt(2)
         },
         "geometry": {
-            "file": mesh_dir + "diamond_5_deg_full_coarse.stl",
+            "file": mesh_dir + "ehlers_spindle_coarse.vtk",
             "spanwise_axis": "+y",
             "wake_model": {
-                "append_wake": False
+                "wake_present" : False
             },
             "reference": {
-                "area": 4.0
+                "area": np.pi*0.02**2
             }
         },
         "solver": {
@@ -60,14 +60,14 @@ if __name__=="__main__":
         
         # Load results
         for j, report in enumerate(reports):
-            if report is None:
-                Cx[j,i] = np.nan
-                Cy[j,i] = np.nan
-                Cz[j,i] = np.nan
-            else:
+            try:
                 Cx[j,i] = report["total_forces"]["Cx"]
                 Cy[j,i] = report["total_forces"]["Cy"]
                 Cz[j,i] = report["total_forces"]["Cz"]
+            except:
+                Cx[j,i] = np.nan
+                Cy[j,i] = np.nan
+                Cz[j,i] = np.nan
 
     # Plot y and z coefficients
     plt.figure()

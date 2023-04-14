@@ -7,7 +7,7 @@
         ]
     },
     "geometry": {
-        "file": "studies/sphere/meshes/sphere_medium.stl",
+        "file": "studies/sphere/meshes/sphere_coarse.stl",
         "wake_model": {
             "wake_present": false
         },
@@ -16,6 +16,7 @@
         }
     },
     "solver": {
+        "control_point_offset_type": "direct",
         "control_point_offset": 1.0023052380778996
     },
     "post_processing": {},

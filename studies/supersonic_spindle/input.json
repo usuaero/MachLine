@@ -1,0 +1,37 @@
+{
+    "flow": {
+        "freestream_velocity": [
+            1.0,
+            0.0,
+            0.0
+        ],
+        "gamma": 1.4,
+        "freestream_mach_number": 1.4142135623730951
+    },
+    "geometry": {
+        "file": "studies/supersonic_spindle/meshes/ehlers_spindle_coarse.vtk",
+        "spanwise_axis": "+y",
+        "wake_model": {
+            "wake_present": false
+        },
+        "reference": {
+            "area": 0.0012566370614359172
+        }
+    },
+    "solver": {
+        "formulation": "morino",
+        "control_point_offset": 1.e-8,
+        "control_point_offset_type": "direct",
+        "run_checks" : true
+    },
+    "post_processing": {
+        "pressure_rules": {
+            "isentropic": true
+        }
+    },
+    "output": {
+        "body_file" : "studies/supersonic_spindle/results/ehlers_spindle.vtk",
+        "control_point_file" : "studies/supersonic_spindle/results/ehlers_spindle_control_points.vtk",
+        "report_file" : "studies/supersonic_spindle/reports/report.json"
+    }
+}

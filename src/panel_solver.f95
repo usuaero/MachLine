@@ -1991,6 +1991,9 @@ contains
         call json_value_create(p_parent)
         call to_object(p_parent, 'mesh_info')
         call json_value_add(p_json, p_parent)
+        call json_value_add(p_parent, 'N_body_panels', body%N_panels)
+        call json_value_add(p_parent, 'N_body_vertices', body%N_verts)
+        call json_value_add(p_parent, 'N_wake_panels', body%wake%N_panels)
         call json_value_add(p_parent, 'average_characteristic_length', body%get_avg_characteristic_panel_length())
 
         ! Write solver results

@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from studies.case_running_functions import run_quad, write_input_file, cases, line_styles
 
 
-RERUN_MACHLINE = False
+RERUN_MACHLINE = True
 
 
 if __name__=="__main__":
@@ -18,7 +18,7 @@ if __name__=="__main__":
             "freestream_velocity" : [1.0, 1.0, 1.0]
         },
         "geometry" : {
-            "file" : "studies/sphere/meshes/sphere_medium.stl",
+            "file" : "studies/sphere/meshes/sphere_coarse.stl",
             "wake_model" : {
                 "wake_present" : False
             },
@@ -27,6 +27,7 @@ if __name__=="__main__":
             }
         },
         "solver" : {
+            "control_point_offset_type" : "direct"
         },
         "post_processing" : {
         },

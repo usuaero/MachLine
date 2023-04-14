@@ -7,7 +7,7 @@ from studies.case_running_functions import run_quad, write_input_file, cases
 
 
 RERUN_MACHLINE = True
-REGENERATE_MESHES = False
+REGENERATE_MESHES = True
 
 # Parameters
 study_dir = "studies/supersonic_spindle/"
@@ -47,9 +47,9 @@ def run_random_spindle(N, cpo=1.1e-6, regenerate_mesh=False):
             }
         },
         "solver" : {
-            "matrix_solver" : "FQRUP",
+            "matrix_solver" : "GMRES",
             "control_point_offset" : cpo,
-            "control_point_offset_type" : "global"
+            "control_point_offset_type" : "direct"
         },
         "post-processing" : {
             "pressure_rules"  : {

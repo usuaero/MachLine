@@ -476,25 +476,43 @@ def _get_random_points_on_surface_of_sphere(N, r):
     return points
 
 
-def _export_hull_of_points(verts, filename):
+def _export_hull_of_points(verts, filename, check_normal='sphere'):
     # Takes the given vertices, generates a convex hull, and writes it to a vtk
 
     # Create convex hull
     hull = ConvexHull(verts)
 
-    # Make sure normal vector points inward
-    fixed_simplices = []
-    for simplex in hull.simplices:
+    # Make sure normal vector points outward
+    if check_normal == 'sphere':
+        fixed_simplices = []
+        for simplex in hull.simplices:
 
-        # Calculate normal and centroid
-        centroid = np.sum(verts[simplex,:], axis=0) / 3.0
-        normal = np.cross(verts[simplex[1],:] - verts[simplex[0],:], verts[simplex[2],:] - verts[simplex[1],:])
+            # Calculate normal and centroid
+            centroid = np.sum(verts[simplex,:], axis=0) / 3.0
+            normal = np.cross(verts[simplex[1],:] - verts[simplex[0],:], verts[simplex[2],:] - verts[simplex[1],:])
 
-        # Check the normal points outward
-        if np.dot(centroid, normal) > 0.0:
-            fixed_simplices.append(simplex)
-        else:
-            fixed_simplices.append(simplex[::-1])
+            # Check the normal points outward
+            if np.dot(centroid, normal) > 0.0:
+                fixed_simplices.append(simplex)
+            else:
+                fixed_simplices.append(simplex[::-1])
+
+    elif check_normal == 'spindle':
+        fixed_simplices = []
+        for simplex in hull.simplices:
+
+            # Calculate normal and centroid
+            centroid = np.sum(verts[simplex,:], axis=0) / 3.0
+            normal = np.cross(verts[simplex[1],:] - verts[simplex[0],:], verts[simplex[2],:] - verts[simplex[1],:])
+
+            # Check the normal points outward
+            if np.dot(centroid[1:], normal[1:]) > 0.0:
+                fixed_simplices.append(simplex)
+            else:
+                fixed_simplices.append(simplex[::-1])
+
+    else:
+        fixed_simplices = hull.simplices
 
     # Export mesh
     _export_vtk(filename, verts, np.array(fixed_simplices))
@@ -606,7 +624,6 @@ def generate_spindle(filename, N_ax, N_theta, l, r_of_x, r_l_ratio=None, cosine_
 
     # Determine numbers of panels and vertices
     N_verts = 2 + N_theta*(N_ax-1)
-    N_panels = 2*N_theta*N_ax
 
     # Generate axial distribution
     if cosine_cluster:
@@ -636,7 +653,7 @@ def generate_spindle(filename, N_ax, N_theta, l, r_of_x, r_l_ratio=None, cosine_
             ind = 1 + i*N_theta + j
 
             # Place coordinates
-            r = r_range[i]
+            r = r_range[i+1]
             verts[ind,0] = x
             verts[ind,1] = r*np.cos(theta)
             verts[ind,2] = r*np.sin(theta)
@@ -644,7 +661,7 @@ def generate_spindle(filename, N_ax, N_theta, l, r_of_x, r_l_ratio=None, cosine_
     # Tip
     verts[-1,0] = l
 
-    _export_hull_of_points(verts, filename)
+    _export_hull_of_points(verts, filename, check_normal='spindle')
 
 
 if __name__=="__main__":
@@ -675,4 +692,7 @@ if __name__=="__main__":
     #generate_regular_sphere("dev/meshes/regular_sphere.vtk", 1.0, 40, 20)
 
     # Sears-Haack
-    generate_spindle('dev/meshes/test_sears_haack.vtk', 100, 100, 1.0, 'SH', 0.037879, cosine_cluster=False)
+    #generate_spindle('dev/meshes/test_sears_haack.vtk', 100, 100, 1.0, 'SH', 0.037879, cosine_cluster=False)
+    def r_of_x(x):
+        return 0.2*x*(1.0-x)
+    generate_spindle('studies/supersonic_spindle/meshes/ehlers_spindle_fine.vtk', 80, 80, 1.0, r_of_x, cosine_cluster=True)

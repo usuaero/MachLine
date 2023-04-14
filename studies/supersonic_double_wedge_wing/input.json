@@ -9,7 +9,7 @@
         "freestream_mach_number": 2.0
     },
     "geometry": {
-        "file": "studies/supersonic_double_wedge_wing/meshes/diamond_5_deg_full_medium.stl",
+        "file": "studies/supersonic_double_wedge_wing/meshes/diamond_5_deg_full_coarse.stl",
         "spanwise_axis": "+y",
         "wake_model": {
             "append_wake": false

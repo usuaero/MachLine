@@ -1408,7 +1408,7 @@ contains
         class(panel),intent(in) :: this
         real,dimension(3),intent(in) :: vert_loc
 
-        real :: angle
+        real(16) :: angle
 
         integer :: i, i_prev
 
@@ -1446,9 +1446,9 @@ contains
         class(panel),intent(in) :: this
         real,dimension(3),intent(in) :: vert_loc
 
-        real,dimension(3) :: n_weighted
+        real(16),dimension(3) :: n_weighted
 
-        real :: W
+        real(16) :: W
 
         ! Get angle
         W = this%get_corner_angle(vert_loc)
