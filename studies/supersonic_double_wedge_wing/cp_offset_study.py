@@ -1,41 +1,24 @@
-import subprocess as sp
 import numpy as np
 import matplotlib.pyplot as plt
-import json
+
+from studies.case_running_functions import run_quad, write_input_file, cases, line_styles
+
+RERUN_MACHLINE = True
+study_dir = "studies/supersonic_double_wedge_wing/"
+mesh_dir = study_dir + "meshes/"
+report_dir = study_dir + "reports/"
 
 if __name__=="__main__":
 
-    # Sphere
-    sphere_input = {
-        "flow" : {
-            "freestream_velocity" : [0.0, 0.0, 10.0]
-        },
-        "geometry" : {
-            "file" : "sphere.vtk",
-            "wake_model" : {
-                "wake_present" : False
-            }
-        },
-        "solver" : {
-            "formulation" : "source-free",
-            "control_point_offset" : 1.0e-5
-        },
-        "post_processing" : {
-        },
-        "output" : {
-            "report_file" : "report.json"
-        }
-    }
-
     # Double-wedge
-    wing_input = {
+    input_dict = {
         "flow": {
             "freestream_velocity": [ 694.4475790151479, 0.0, 0.0 ],
             "gamma": 1.4,
             "freestream_mach_number": 2.0
         },
         "geometry": {
-            "file": "diamond_5_deg_full_medium.stl",
+            "file": mesh_dir + "diamond_5_deg_full_medium.stl",
             "spanwise_axis": "+y",
             "wake_model": {
                 "append_wake": False
@@ -54,60 +37,55 @@ if __name__=="__main__":
             }
         },
         "output": {
-            "report_file" : "report.json"
+            "report_file" : report_dir + "report.json"
         }
     }
 
     # Set up offsets
     offsets = np.logspace(-11.999, 0.001, 13)
-    Cx = np.zeros(13)
-    Cy = np.zeros(13)
-    Cz = np.zeros(13)
-
-    # Choose which file to use
-    input_dict = wing_input
+    Cx = np.zeros((4,13))
+    Cy = np.zeros((4,13))
+    Cz = np.zeros((4,13))
 
     for i, offset in enumerate(offsets):
 
         # Set offset
         input_dict["solver"]["control_point_offset"] = offset
-        with open("input.json", 'w') as input_file_handle:
-            json.dump(input_dict, input_file_handle, indent=4)
+        input_file = study_dir + "input.json"
+        write_input_file(input_dict, input_file)
 
         # Run
-        result = sp.run(["./machline.exe", "input.json"], capture_output=True, text=True)
+        reports = run_quad(input_file, run=RERUN_MACHLINE)
         
         # Load results
-        if "successfully" in result.stdout:
-            with open("report.json", 'r') as results_file:
-                results = json.load(results_file)
-            Cx[i] = results["total_forces"]["Cx"]
-            Cy[i] = results["total_forces"]["Cy"]
-            Cz[i] = results["total_forces"]["Cz"]
-        else:
-            Cx[i] = np.nan
-            Cy[i] = np.nan
-            Cz[i] = np.nan
+        for j, report in enumerate(reports):
+            if report is None:
+                Cx[j,i] = np.nan
+                Cy[j,i] = np.nan
+                Cz[j,i] = np.nan
+            else:
+                Cx[j,i] = report["total_forces"]["Cx"]
+                Cy[j,i] = report["total_forces"]["Cy"]
+                Cz[j,i] = report["total_forces"]["Cz"]
 
-    # Plot
+    # Plot y and z coefficients
     plt.figure()
-    #plt.plot(offsets, np.abs(Cx), 'k-', label="$C_x$")
-    plt.plot(offsets, np.abs(Cy), 'k--', label="$C_z$")
-    plt.plot(offsets, np.abs(Cz), 'k-.', label="$C_y$")
-    plt.xlabel('Control Point Offset')
-    plt.ylabel('Force Coefficient')
+    for j, (case, line_style) in enumerate(zip(cases, line_styles)):
+        plt.plot(offsets, np.abs(Cy[j]), line_style, label=case)
+        plt.plot(offsets, np.abs(Cz[j]), line_style)
+    plt.xlabel('$k_1$')
+    plt.ylabel('Off-Axis Force Coefficients')
     plt.xscale('log')
     plt.yscale('log')
     plt.legend()
     plt.show()
 
-    # Plot
+    # Plot x coefficient
     plt.figure()
-    plt.plot(offsets, np.abs(Cx), 'k-', label="$C_x$")
-    #plt.plot(offsets, np.abs(Cy), 'k--', label="$C_z$")
-    #plt.plot(offsets, np.abs(Cz), 'k-.', label="$C_y$")
-    plt.xlabel('Control Point Offset')
-    plt.ylabel('Force Coefficient')
+    for j, (case, line_style) in enumerate(zip(cases, line_styles)):
+        plt.plot(offsets, np.abs(Cx[j]), line_style, label=case)
+    plt.xlabel('$k_1$')
+    plt.ylabel('Axial Force Coefficient')
     plt.xscale('log')
     #plt.yscale('log')
     plt.legend()
