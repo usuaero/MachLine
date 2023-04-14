@@ -29,7 +29,8 @@ if __name__=="__main__":
         },
         "solver": {
             "formulation": "source-free",
-            "control_point_offset": 1.1e-08
+            "control_point_offset": 1.1e-08,
+            "control_point_offset_type" : 'direct'
         },
         "post_processing": {
             "pressure_rules": {

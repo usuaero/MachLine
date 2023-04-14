@@ -281,8 +281,14 @@ contains
         end if
         
         ! Place control points
-        if (verbose) write(*,'(a a a ES10.4 a)',advance='no') "     Placing control points using a ", offset_type, &
-            " offset ratio of ", offset, "..."
+        if (verbose) then
+            if (offset_type == 'direct') then
+                write(*,'(a ES10.4 a)',advance='no') "     Placing control points using a direct offset of ", offset, "..."
+            else
+                write(*,'(a a a ES10.4 a)',advance='no') "     Placing control points using a ", offset_type, &
+                    " offset ratio of ", offset, "..."
+            end if
+        end if
 
         ! Place control points inside the body
         if (this%morino .or. this%formulation == 'source-free') then

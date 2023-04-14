@@ -1458,11 +1458,18 @@ contains
             end if
             
             ! Initialize control point
-            if (offset_type=='global') then
+            select case (offset_type)
+
+            case ('global')
                 call this%cp(i)%init(this%vertices(i)%loc + offset*dir*l_max, 1, 1, i)
-            else
+
+            case ('direct')
+                call this%cp(i)%init(this%vertices(i)%loc + offset*dir, 1, 1, i)
+                
+            case default ! Local
                 call this%cp(i)%init(this%vertices(i)%loc + offset*dir*this%vertices(i)%l_avg, 1, 1, i)
-            end if
+
+            end select
 
         end do
 
