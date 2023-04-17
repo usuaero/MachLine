@@ -1,12 +1,14 @@
-import json
-import subprocess as sp
 import flow54 as fl
 import numpy as np
-import paraview.simple as pvs
 import matplotlib.pyplot as plt
+
+from studies.case_running_functions import run_quad, write_input_file, cases, line_styles
+from studies.paraview_functions import extract_all_data, get_data_colum_from_array, extract_plane_slice
 
 
 RERUN_MACHLINE = True
+study_dir = "studies/supersonic_double_wedge_wing/"
+plot_dir = study_dir + "plots/"
 
 
 def run_comparison(M, alpha, grid, half_angle):
@@ -22,55 +24,51 @@ def run_comparison(M, alpha, grid, half_angle):
 
     # Storage locations
     case_name = "M_{0}_aoa_{1}_{2}_deg_{3}".format(M, alpha, int(half_angle), grid)
-    plot_dir = "studies/supersonic_double_wedge_wing/plots/"
-    mesh_file = "studies/supersonic_double_wedge_wing/meshes/diamond_{0}_deg_full_{1}.stl".format(int(half_angle), grid)
-    results_file = "studies/supersonic_double_wedge_wing/results/"+case_name+".vtk"
-    report_file = "studies/supersonic_double_wedge_wing/reports/"+case_name+".json"
-    data_file = 'studies/supersonic_double_wedge_wing/data/'+case_name+'.csv'
+    mesh_file = study_dir + "meshes/diamond_{0}_deg_full_{1}.stl".format(int(half_angle), grid)
+    results_file = study_dir + "results/"+case_name+".vtk"
+    report_file = study_dir + "reports/"+case_name+".json"
+    data_file = study_dir + 'data/'+case_name+'.csv'
 
-    if RERUN_MACHLINE:
-
-        # Declare MachLine input
-        input_dict = {
-            "flow": {
-                "freestream_velocity": [M*c_inf*np.cos(np.radians(alpha)), 0.0, M*c_inf*np.sin(np.radians(alpha))],
-                "gamma" : gamma,
-                "freestream_mach_number" : M
+    # Declare MachLine input
+    input_dict = {
+        "flow": {
+            "freestream_velocity": [M*c_inf*np.cos(np.radians(alpha)), 0.0, M*c_inf*np.sin(np.radians(alpha))],
+            "gamma" : gamma,
+            "freestream_mach_number" : M
+        },
+        "geometry": {
+            "file": mesh_file,
+            "spanwise_axis" : "+y",
+            "wake_model": {
+                "append_wake" : False,
             },
-            "geometry": {
-                "file": mesh_file,
-                "spanwise_axis" : "+y",
-                "wake_model": {
-                    "append_wake" : False,
-                },
-                "reference": {
-                    "area": 4.0
-                }
-            },
-            "solver": {
-                "formulation": "morino"
-            },
-            "post_processing" : {
-                "pressure_rules" : {
-                    "second-order" : True,
-                    "isentropic" : True,
-                    "slender-body" : True,
-                    "linear" : True
-                }
-            },
-            "output" : {
-                "body_file" : results_file,
-                "report_file" : report_file
+            "reference": {
+                "area": 4.0
             }
+        },
+        "solver": {
+            "formulation": "morino"
+        },
+        "post_processing" : {
+            "pressure_rules" : {
+                "second-order" : True,
+                "isentropic" : True,
+                "slender-body" : True,
+                "linear" : True
+            }
+        },
+        "output" : {
+            "body_file" : results_file,
+            "report_file" : report_file
         }
+    }
 
-        # Dump
-        input_file = "studies/supersonic_double_wedge_wing/diamond_input.json"
-        with open(input_file, 'w') as input_handle:
-            json.dump(input_dict, input_handle, indent=4)
+    # Dump
+    input_file = study_dir + "diamond_input.json"
+    write_input_file(input_dict, input_file)
 
-        # Run
-        sp.run(["./machline.exe", input_file])
+    # Run
+    reports = run_quad(input_file, run=RERUN_MACHLINE)
     
     # Run shock-expansion comparison
     airfoil = fl.DiamondAirfoil(5.0, 1.0)
@@ -81,157 +79,57 @@ def run_comparison(M, alpha, grid, half_angle):
     Cp3 = (p3/p_inf-1.0)/x
     Cp4 = (p4/p_inf-1.0)/x
     Cp5 = (p5/p_inf-1.0)/x
-    CL_se, CD_se = airfoil.get_inviscid_lift_and_drag_coefs()
     
-    # Load MachLine report file
-    with open(report_file, 'r') as report_handle:
-        report = json.load(report_handle)
+    # Loop through reports
+    for i, (case, report) in enumerate(zip(cases, reports)):
 
-    # Extract lift and drag coefficients
-    Cx = report["total_forces"]["Cx"]
-    Cz = report["total_forces"]["Cz"]
-    C_a = np.cos(np.radians(alpha))
-    S_a = np.sin(np.radians(alpha))
-    CL_ml = Cz*C_a - Cx*S_a
-    CD_ml = Cx*C_a + Cz*S_a
+        # Get data
+        result_file = report["input"]["output"]["body_file"]
+        headers, data = extract_all_data(result_file)
+        headers, data = extract_plane_slice(result_file, [0.0, 1.0, 0.0], [0.0, 0.0, 0.0], which_data='cell')
+        x = get_data_colum_from_array(headers, data, 'centroid:0')
+        C_p_ise = get_data_colum_from_array(headers, data, 'C_p_ise')
+        C_p_2nd = get_data_colum_from_array(headers, data, 'C_p_2nd')
+        C_p_sln = get_data_colum_from_array(headers, data, 'C_p_sln')
+        C_p_lin = get_data_colum_from_array(headers, data, 'C_p_lin')
 
-    # Read into ParaView
-    data_reader = pvs.LegacyVTKReader(registrationName=case_name, FileNames=results_file)
-    pvs.SaveData(data_file, proxy=data_reader, FieldAssociation="Cell Data")
+        # Plot data from MachLine
+        plt.figure()
+        plt.plot(x, C_p_2nd, 'ks', markersize=3, label='Second-Order')
+        plt.plot(x, C_p_ise, 'kv', markersize=3, label='Isentropic')
+        plt.plot(x, C_p_sln, 'ko', markersize=3, label='Slender-Body')
+        plt.plot(x, C_p_lin, 'k^', markersize=3, label='Linear')
 
-    ## Filter cell data to point data
-    #filter = pvs.CellDatatoPointData(registrationName='Filter', Input=data_reader)
-    #data_to_process = ['C_p_ise', 'C_p_2nd', 'mu', 'sigma']
-    #filter.CellDataArraytoprocess = data_to_process
+        # Plot data from shock-expansion theory
+        x = np.linspace(0.0, 1.0, 100)
+        Cp_upper = np.ones_like(x)
+        Cp_upper[:50] *= Cp3
+        Cp_upper[50:] *= Cp5
+        Cp_lower = np.ones_like(x)
+        Cp_lower[:50] *= Cp2
+        Cp_lower[50:] *= Cp4
+        plt.plot(x, Cp_upper, 'k-', label='Shock-Expansion', linewidth=0.5)
+        plt.plot(x, Cp_lower, 'k-', linewidth=0.5)
 
-    ## Extract and save data
-    #plot = pvs.PlotOnIntersectionCurves(registrationName='Plot', Input=filter)
-    #plot.SliceType = 'Plane'
-    #plot.SliceType.Normal = [0.0, 1.0, 0.0]
-    #view = pvs.CreateView('XYChartView')
-    #display = pvs.Show(plot, view, 'XYChartRepresentation')
-    #view.Update()
-    #display.XArrayName = 'Points_X'
-    #view.Update()
-    #pvs.SaveData(data_file, proxy=plot, PointDataArrays=data_to_process, FieldAssociation='Point Data', Precision=12)
-
-    # Read in data
-    data = np.genfromtxt(data_file, delimiter=',', skip_header=1)
-
-    needed_rows = np.where(data[:,5] == np.min(np.abs(data[:,5])))
-    needed_rows = needed_rows[0]
-    
-    # Plot data from MachLine
-    plt.figure()
-    plt.plot(data[needed_rows,4], data[needed_rows,7], 'ks', markersize=3, label='Second-Order')
-    plt.plot(data[needed_rows,4], data[needed_rows,8], 'kv', markersize=3, label='Isentropic')
-    plt.plot(data[needed_rows,4], data[needed_rows,9], 'ko', markersize=3, label='Slender-Body')
-    plt.plot(data[needed_rows,4], data[needed_rows,10], 'k^', markersize=3, label='Linear')
-
-    # Plot data from shock-expansion theory
-    x = np.linspace(0.0, 1.0, 100)
-    Cp_upper = np.ones_like(x)
-    Cp_upper[:50] *= Cp3
-    Cp_upper[50:] *= Cp5
-    Cp_lower = np.ones_like(x)
-    Cp_lower[:50] *= Cp2
-    Cp_lower[50:] *= Cp4
-    plt.plot(x, Cp_upper, 'k-', label='Shock-Expansion', linewidth=0.5)
-    plt.plot(x, Cp_lower, 'k-', linewidth=0.5)
-
-    # Format
-    plt.xlabel('$x$')
-    plt.ylabel('$C_p$')
-    plt.legend(fontsize=6, title_fontsize=6)
-    plt.savefig(plot_dir+case_name+".pdf".format(M, alpha, int(half_angle)))
-    plt.savefig(plot_dir+case_name+".svg".format(M, alpha, int(half_angle)))
-    plt.close()
-
-    return CL_se, CD_se, CL_ml, CD_ml
+        # Format
+        plt.xlabel('$x$')
+        plt.ylabel('$C_P$')
+        plt.legend(fontsize=6, title_fontsize=6)
+        plt.savefig(plot_dir+case_name+"_{0}.pdf".format(case))
+        plt.savefig(plot_dir+case_name+"_{0}.svg".format(case))
+        plt.close()
 
 
 if __name__=="__main__":
 
     grids = ["coarse", "medium", "fine", "ultra_fine"]
-    N_verts = [402, 1090, 3770, 13266]
     Ms = [1.5, 2.0, 3.0, 5.0]
     alphas = np.linspace(0.0, 5.0, 6)
     half_angles = [5]
-
-    CLs = np.zeros((len(grids), len(Ms), len(alphas), len(half_angles)))
-    CDs = np.zeros((len(grids), len(Ms), len(alphas), len(half_angles)))
 
     for i, grid in enumerate(grids):
         for j, M in enumerate(Ms):
             for k, alpha in enumerate(alphas):
                 for l, half_angle in enumerate(half_angles):
 
-                    _,_,CLs[i,j,k,l], CDs[i,j,k,l] = run_comparison(M, alpha, grid, half_angle, run_machline=False)
-
-    plot_dir = "studies/supersonic_double_wedge_wing/plots/"
-    #for j, M in enumerate(Ms):
-    #    for k, alpha in enumerate(alphas):
-    #        for l,half_angle in enumerate(half_angles):
-
-    #            case_name = "M_{0}_aoa_{1}_{2}_deg_convergence".format(M, alpha, int(half_angle))
-
-    #            plt.figure()
-    #            plt.plot(N_verts[:-1], abs((CLs[:-1,j,k,l]-CLs[-1,j,k,l])/CLs[-1,j,k,l]), 'k-')
-    #            plt.xscale('log')
-    #            plt.yscale('log')
-    #            plt.xlabel('$N_{verts}$')
-    #            plt.ylabel('Error in $C_L$')
-    #            plt.savefig(plot_dir+case_name+"_CL.pdf")
-    #            plt.close()
-
-    #            plt.figure()
-    #            plt.plot(N_verts[:-1], abs((CDs[:-1,j,k,l]-CDs[-1,j,k,l])/CDs[-1,j,k,l]), 'k-')
-    #            plt.xscale('log')
-    #            plt.yscale('log')
-    #            plt.xlabel('$N_{verts}$')
-    #            plt.ylabel('Error in $C_D$')
-    #            plt.savefig(plot_dir+case_name+"_CD.pdf")
-    #            plt.close()
-
-    # Plot combined CL convergences
-    slopes = []
-    plt.figure()
-    for j, M in enumerate(Ms):
-        for k, alpha in enumerate(alphas):
-            if k == 0:
-                continue
-            for l,half_angle in enumerate(half_angles):
-                err = abs((CLs[:-1,j,k,l]-CLs[-1,j,k,l])/CLs[-1,j,k,l])
-                plt.plot(N_verts[:-1], err, 'k-', linewidth=1)
-                coefs = np.polyfit(np.log(N_verts[:-1]), np.log(err), deg=1)
-                slopes.append(coefs[0])
-
-    print("Average CL convergence rate: ", np.average(slopes))
-    plt.xscale('log')
-    plt.yscale('log')
-    plt.xlabel('$N_{verts}$')
-    plt.ylabel('Percent Error in $C_L$')
-    plt.savefig(plot_dir+"collected_CL_convergence.pdf")
-    plt.savefig(plot_dir+"collected_CL_convergence.svg")
-    plt.close()
-
-    # Plot combined CD convergences
-    slopes = []
-    plt.figure()
-    for j, M in enumerate(Ms):
-        for k, alpha in enumerate(alphas):
-            for l,half_angle in enumerate(half_angles):
-                err = abs((CLs[:-1,j,k,l]-CLs[-1,j,k,l])/CLs[-1,j,k,l])
-                plt.plot(N_verts[:-1], abs((CDs[:-1,j,k,l]-CDs[-1,j,k,l])/CDs[-1,j,k,l]), 'k-', linewidth=1)
-                coefs = np.polyfit(np.log(N_verts[:-1]), np.log(err), deg=1)
-                slopes.append(coefs[0])
-
-    print("Average CD convergence rate: ", np.average(slopes))
-    plt.xscale('log')
-    plt.yscale('log')
-    plt.xlabel('$N_{verts}$')
-    plt.ylabel('Percent Error in $C_D$')
-    plt.savefig(plot_dir+"collected_CD_convergence.pdf")
-    plt.savefig(plot_dir+"collected_CD_convergence.svg")
-    plt.close()
-
+                    run_comparison(M, alpha, grid, half_angle, run_machline=False)

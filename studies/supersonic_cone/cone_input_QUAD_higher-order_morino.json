@@ -17,7 +17,8 @@
         },
         "reference": {
             "area": 4.0
-        }
+        },
+        "singularity_order": "higher"
     },
     "solver": {
         "formulation": "morino",
@@ -33,7 +34,7 @@
         }
     },
     "output": {
-        "body_file": "studies/supersonic_cone/results/M_1.4_5_deg_fine.vtk",
-        "report_file": "studies/supersonic_cone/reports/M_1.4_5_deg_fine.json"
+        "body_file": "studies/supersonic_cone/results/M_1.4_5_deg_fine_QUAD_higher-order_morino.vtk",
+        "report_file": "studies/supersonic_cone/reports/M_1.4_5_deg_fine_QUAD_higher-order_morino.json"
     }
 }

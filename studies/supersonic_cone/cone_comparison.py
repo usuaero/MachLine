@@ -4,8 +4,16 @@ import numpy as np
 import paraview.simple as pvs
 import matplotlib.pyplot as plt
 
+from studies.case_running_functions import run_quad, write_input_file, cases, line_styles
+from studies.paraview_functions import extract_all_data, get_data_column_from_array
 
-def run_comparison(M, grid, half_angle, run_machline=True):
+
+RERUN_MACHLINE = True
+study_dir = "studies/supersonic_cone/"
+plot_dir = study_dir + "plots/"
+
+
+def run_comparison(M, grid, half_angle):
     # Runs the comparison of a cone with the Taylor-MacColl result
 
     # Parameters
@@ -13,107 +21,111 @@ def run_comparison(M, grid, half_angle, run_machline=True):
 
     # Storage locations
     case_name = "M_{0}_{1}_deg_{2}".format(M, int(half_angle), grid)
-    plot_dir = "studies/supersonic_cone_flow_study/plots/"
-    mesh_file = "studies/supersonic_cone_flow_study/meshes/cone_{0}_deg_{1}.vtk".format(int(half_angle), grid)
-    body_file = "studies/supersonic_cone_flow_study/results/"+case_name+".vtk"
-    report_file = "studies/supersonic_cone_flow_study/reports/"+case_name+".json"
-    data_file = 'studies/supersonic_cone_flow_study/data/'+case_name+'.csv'
+    mesh_file = study_dir + "meshes/cone_{0}_deg_{1}.vtk".format(int(half_angle), grid)
+    body_file = study_dir + "results/"+case_name+".vtk"
+    report_file = study_dir + "reports/"+case_name+".json"
 
-    if run_machline:
-
-        # Declare MachLine input
-        input_dict = {
-            "flow": {
-                "freestream_velocity": [-100.0, 0.0, 0.0],
-                "gamma" : gamma,
-                "freestream_mach_number" : M
+    # Declare MachLine input
+    input_dict = {
+        "flow": {
+            "freestream_velocity": [-1.0, 0.0, 0.0],
+            "gamma" : gamma,
+            "freestream_mach_number" : M
+        },
+        "geometry": {
+            "file": mesh_file,
+            "spanwise_axis" : "+y",
+            "mirror_about" : "xy",
+            "wake_model": {
+                "append_wake" : False,
             },
-            "geometry": {
-                "file": mesh_file,
-                "spanwise_axis" : "+y",
-                "mirror_about" : "xy",
-                "wake_model": {
-                    "append_wake" : False,
-                },
-                "reference": {
-                    "area": 4.0
-                }
-            },
-            "solver": {
-                "formulation": "morino",
-                "control_point_offset": 1.1e-8,
-                "run_checks" : True
-            },
-            "post_processing" : {
-                "pressure_rules" : {
-                    "second-order" : True,
-                    "isentropic" : True,
-                    "slender-body" : True,
-                    "linear" : True
-                }
-            },
-            "output" : {
-                "body_file" : body_file,
-                "report_file" : report_file
+            "reference": {
+                "area": 4.0
             }
+        },
+        "solver": {
+            "formulation": "morino",
+            "control_point_offset": 1.1e-8,
+            "control_point_offset_type" : 'direct'
+        },
+        "post_processing" : {
+            "pressure_rules" : {
+                "second-order" : True,
+                "isentropic" : True,
+                "slender-body" : True,
+                "linear" : True
+            }
+        },
+        "output" : {
+            "body_file" : body_file,
+            "report_file" : report_file
         }
+    }
 
-        # Dump
-        input_file = "studies/supersonic_cone_flow_study/cone_input.json"
-        with open(input_file, 'w') as input_handle:
-            json.dump(input_dict, input_handle, indent=4)
+    # Dump
+    input_file = study_dir + "cone_input.json"
+    write_input_file(input_dict, input_file)
 
-        # Run
-        sp.run(["./machline.exe", input_file])
+    # Run
+    reports = run_quad(input_file, run=RERUN_MACHLINE)
+
+
+    # Extract data
+    C_p_2nd_avg = np.zeros(4)
+    C_p_2nd_std = np.zeros(4)
+    C_p_ise_avg = np.zeros(4)
+    C_p_ise_std = np.zeros(4)
+    C_p_lin_avg = np.zeros(4)
+    C_p_lin_std = np.zeros(4)
+    C_p_sln_avg = np.zeros(4)
+    C_p_sln_std = np.zeros(4)
+    for i, report in enumerate(reports):
     
-    # Load MachLine report file
-    try:
-        with open(report_file, 'r') as report_handle:
-            report = json.load(report_handle)
-    except FileNotFoundError:
-        return np.nan, np.nan, np.nan, np.nan
+        try:
 
-    # Read into ParaView
-    data_reader = pvs.LegacyVTKReader(registrationName=body_file.replace("dev/results/", ""), FileNames=body_file)
+            # Get data
+            headers, data = extract_all_data(report["input"]["output"]["body_file"])
+            C_p_2nd = get_data_column_from_array(headers, data, 'C_p_2nd')
+            C_p_ise = get_data_column_from_array(headers, data, 'C_p_ise')
+            C_p_lin = get_data_column_from_array(headers, data, 'C_p_lin')
+            C_p_sln = get_data_column_from_array(headers, data, 'C_p_sln')
+            x = get_data_column_from_array(headers, data, 'centroid:0')
 
-    # Filter cell data to point data
-    filter = pvs.CellDatatoPointData(registrationName='Filter', Input=data_reader)
-    data_to_process = ['C_p_ise', 'C_p_2nd', 'C_p_sln', 'C_p_lin', 'mu', 'sigma']
-    filter.CellDataArraytoprocess = data_to_process
-
-    # Extract and save data
-    plot = pvs.PlotOnIntersectionCurves(registrationName='Plot', Input=filter)
-    plot.SliceType = 'Plane'
-    plot.SliceType.Normal = [0.0, 1.0, 0.0]
-    view = pvs.CreateView('XYChartView')
-    display = pvs.Show(plot, view, 'XYChartRepresentation')
-    view.Update()
-    display.XArrayName = 'Points_X'
-    view.Update()
-    pvs.SaveData(data_file, proxy=plot, PointDataArrays=data_to_process, FieldAssociation='Point Data', Precision=12)
-
-    # Read in data
-    data = np.genfromtxt(data_file, delimiter=',', skip_header=1)
-    C_p_2nd = data[:,0]
-    C_p_ise = data[:,1]
-    C_p_lin = data[:,2]
-    C_p_sln = data[:,3]
+            # Calculate statistics
+            C_p_2nd_avg = np.average(C_p_2nd).item()
+            C_p_2nd_std = np.std(C_p_2nd).item()
+            C_p_ise_avg = np.average(C_p_ise).item()
+            C_p_ise_std = np.std(C_p_ise).item()
+            C_p_sln_avg = np.average(C_p_sln).item()
+            C_p_sln_std = np.std(C_p_sln).item()
+            C_p_lin_avg = np.average(C_p_lin).item()
+            C_p_lin_std = np.std(C_p_lin).item()
     
-    # Plot data from MachLine
-    plt.figure()
-    plt.plot(data[:,4], C_p_2nd, 'ks', markersize=3, label='Second-Order')
-    plt.plot(data[:,4], C_p_ise, 'kv', markersize=3, label='Isentropic')
-    plt.plot(data[:,4], C_p_sln, 'ko', markersize=3, label='Slender-Body')
-    plt.plot(data[:,4], C_p_lin, 'k^', markersize=3, label='Linear')
+            # Plot data
+            plt.figure()
+            plt.plot(x, C_p_2nd, 'ks', markersize=3, label='Second-Order')
+            plt.plot(x, C_p_ise, 'kv', markersize=3, label='Isentropic')
+            plt.plot(x, C_p_sln, 'ko', markersize=3, label='Slender-Body')
+            plt.plot(x, C_p_lin, 'k^', markersize=3, label='Linear')
 
-    # Format
-    plt.xlabel('$x$')
-    plt.ylabel('$C_p$')
-    plt.legend(title="Pressure Rule", fontsize=6, title_fontsize=6)
-    plt.savefig(plot_dir+case_name+".pdf")
-    plt.close()
+            # Format
+            plt.xlabel('$x$')
+            plt.ylabel('$C_p$')
+            plt.legend(title="Pressure Rule", fontsize=6, title_fontsize=6)
+            plt.savefig(plot_dir+case_name+"_{0}.pdf".format(cases[i]))
+            plt.close()
+            
+        except:
+            C_p_2nd_avg[i] = np.nan
+            C_p_2nd_std[i] = np.nan
+            C_p_ise_avg[i] = np.nan
+            C_p_ise_std[i] = np.nan
+            C_p_sln_avg[i] = np.nan
+            C_p_sln_std[i] = np.nan
+            C_p_lin_avg[i] = np.nan
+            C_p_lin_std[i] = np.nan
 
-    return C_p_2nd, C_p_ise, C_p_sln, C_p_lin
+    return C_p_2nd_avg, C_p_2nd_std, C_p_ise_avg, C_p_ise_std, C_p_sln_avg, C_p_sln_std, C_p_lin_avg, C_p_lin_std
 
 
 def get_analytic_data(filename):
@@ -139,14 +151,14 @@ if __name__=="__main__":
     half_angles = [2.5, 5, 10, 15]
 
     # Initialize storage
-    C_p_2nd_avg = np.zeros((len(grids), len(Ms), len(half_angles)))
-    C_p_ise_avg = np.zeros((len(grids), len(Ms), len(half_angles)))
-    C_p_sln_avg = np.zeros((len(grids), len(Ms), len(half_angles)))
-    C_p_lin_avg = np.zeros((len(grids), len(Ms), len(half_angles)))
-    C_p_2nd_s_dev = np.zeros((len(grids), len(Ms), len(half_angles)))
-    C_p_ise_s_dev = np.zeros((len(grids), len(Ms), len(half_angles)))
-    C_p_sln_s_dev = np.zeros((len(grids), len(Ms), len(half_angles)))
-    C_p_lin_s_dev = np.zeros((len(grids), len(Ms), len(half_angles)))
+    C_p_2nd_avg = np.zeros((len(grids), len(Ms), len(half_angles), 4))
+    C_p_ise_avg = np.zeros((len(grids), len(Ms), len(half_angles), 4))
+    C_p_sln_avg = np.zeros((len(grids), len(Ms), len(half_angles), 4))
+    C_p_lin_avg = np.zeros((len(grids), len(Ms), len(half_angles), 4))
+    C_p_2nd_std = np.zeros((len(grids), len(Ms), len(half_angles), 4))
+    C_p_ise_std = np.zeros((len(grids), len(Ms), len(half_angles), 4))
+    C_p_sln_std = np.zeros((len(grids), len(Ms), len(half_angles), 4))
+    C_p_lin_std = np.zeros((len(grids), len(Ms), len(half_angles), 4))
 
     # Run cases
     for i, grid in enumerate(grids):
@@ -154,50 +166,43 @@ if __name__=="__main__":
             for k, half_angle in enumerate(half_angles):
 
                 if M == 4.0 and half_angle == 15.0:
-                    C_p_2nd_avg[i,j,k] = np.nan
-                    C_p_ise_avg[i,j,k] = np.nan
-                    C_p_sln_avg[i,j,k] = np.nan
-                    C_p_lin_avg[i,j,k] = np.nan
-                    C_p_2nd_s_dev[i,j,k] = np.nan
-                    C_p_ise_s_dev[i,j,k] = np.nan
-                    C_p_sln_s_dev[i,j,k] = np.nan
-                    C_p_lin_s_dev[i,j,k] = np.nan
+                    C_p_2nd_avg[i,j,k,:] = np.nan
+                    C_p_ise_avg[i,j,k,:] = np.nan
+                    C_p_sln_avg[i,j,k,:] = np.nan
+                    C_p_lin_avg[i,j,k,:] = np.nan
+                    C_p_2nd_std[i,j,k,:] = np.nan
+                    C_p_ise_std[i,j,k,:] = np.nan
+                    C_p_sln_std[i,j,k,:] = np.nan
+                    C_p_lin_std[i,j,k,:] = np.nan
                 else:
-                    C_p_2nd, C_p_ise, C_p_sln, C_p_lin = run_comparison(M, grid, half_angle, run_machline=False)
-                    C_p_2nd_avg[i,j,k] = np.average(C_p_2nd).item()
-                    C_p_ise_avg[i,j,k] = np.average(C_p_ise).item()
-                    C_p_sln_avg[i,j,k] = np.average(C_p_sln).item()
-                    C_p_lin_avg[i,j,k] = np.average(C_p_lin).item()
-                    C_p_2nd_s_dev[i,j,k] = np.std(C_p_2nd).item()
-                    C_p_ise_s_dev[i,j,k] = np.std(C_p_ise).item()
-                    C_p_sln_s_dev[i,j,k] = np.std(C_p_sln).item()
-                    C_p_lin_s_dev[i,j,k] = np.std(C_p_lin).item()
+                    C_p_2nd_avg[i,j,k], C_p_2nd_std[i,j,k], C_p_ise_avg[i,j,k], C_p_ise_std[i,j,k], C_p_sln_avg[i,j,k], C_p_sln_std[i,j,k], C_p_lin_avg[i,j,k], C_p_lin_std[i,j,k] = run_comparison(M, grid, half_angle)
 
     # Get analytic data
     Ms_anl, thetas_anl, Cps_anl = get_analytic_data("studies/supersonic_cone_flow_study/Cone Data Zero AoA.csv")
 
     # Plot overall data
     for k, half_angle in enumerate(half_angles):
+        for j, (case, line_style) in enumerate(zip(cases, line_styles)):
 
-        plt.figure()
+            plt.figure()
 
-        # Plots using the most-refined grid
-        plt.plot(Ms, C_p_2nd_avg[-1,:,k], mfc='k', marker='s', ls='', mec='k', markersize=3, label='Second-Order')
-        plt.plot(Ms, C_p_ise_avg[-1,:,k], mfc='k', marker='v', ls='', mec='k', markersize=3, label='Isentropic')
-        plt.plot(Ms, C_p_sln_avg[-1,:,k], mfc='k', marker='o', ls='', mec='k', markersize=3, label='Slender-Body')
-        plt.plot(Ms, C_p_lin_avg[-1,:,k], mfc='k', marker='^', ls='', mec='k', markersize=3, label='Linear')
+            # Plots using the most-refined grid
+            plt.errorbar(Ms, C_p_2nd_avg[-1,:,k,j], fmt='ks', yerr=C_p_2nd_std, markersize=3, label='Second-Order')
+            plt.errorbar(Ms, C_p_ise_avg[-1,:,k,j], fmt='kv', yerr=C_p_ise_std, markersize=3, label='Isentropic')
+            plt.errorbar(Ms, C_p_sln_avg[-1,:,k,j], fmt='ko', yerr=C_p_sln_std, markersize=3, label='Slender-Body')
+            plt.errorbar(Ms, C_p_lin_avg[-1,:,k,j], fmt='k^', yerr=C_p_lin_std, markersize=3, label='Linear')
 
-        # Get analytic data for this half angle
-        i_theta = np.where(thetas_anl == half_angle)
-        plt.plot(Ms_anl[:7], Cps_anl[:7,i_theta].flatten(), 'k', label='Taylor-MacColl', linewidth=1)
+            # Get analytic data for this half angle
+            i_theta = np.where(thetas_anl == half_angle)
+            plt.plot(Ms_anl[:7], Cps_anl[:7,i_theta].flatten(), 'k', label='Taylor-MacColl', linewidth=1)
 
-        plt.xlabel("$M_\infty$")
-        plt.ylabel("$C_p$")
-        plt.ylim(bottom=0.0)
-        plt.legend(fontsize=6, title_fontsize=6)
-        plt.savefig("studies/supersonic_cone_flow_study/plots/C_p_over_M_{0}_deg.pdf".format(half_angle))
-        plt.savefig("studies/supersonic_cone_flow_study/plots/C_p_over_M_{0}_deg.svg".format(half_angle))
-        plt.close()
+            plt.xlabel("$M_\infty$")
+            plt.ylabel("$C_P$")
+            plt.ylim(bottom=0.0)
+            plt.legend(fontsize=6, title_fontsize=6)
+            plt.savefig(plot_dir + "C_p_over_M_{0}_deg_{1}.pdf".format(half_angle, case))
+            plt.savefig(plot_dir + "C_p_over_M_{0}_deg_{1}.svg".format(half_angle, case))
+            plt.close()
 
     ## Determine max standard deviation
     #std_max_ise = np.nanmax(np.nanmax(np.nanmax(C_p_ise_s_dev))).item()
