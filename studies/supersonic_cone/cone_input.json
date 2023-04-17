@@ -6,7 +6,7 @@
             0.0
         ],
         "gamma": 1.4,
-        "freestream_mach_number": 1.4
+        "freestream_mach_number": 1.5
     },
     "geometry": {
         "file": "studies/supersonic_cone/meshes/cone_5_deg_fine.vtk",
@@ -33,7 +33,7 @@
         }
     },
     "output": {
-        "body_file": "studies/supersonic_cone/results/M_1.4_5_deg_fine.vtk",
-        "report_file": "studies/supersonic_cone/reports/M_1.4_5_deg_fine.json"
+        "body_file": "studies/supersonic_cone/results/M_1.5_5_deg_fine.vtk",
+        "report_file": "studies/supersonic_cone/reports/M_1.5_5_deg_fine.json"
     }
 }

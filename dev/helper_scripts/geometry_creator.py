@@ -35,6 +35,16 @@ def _export_vtk(filename, vertices, panels):
         print("POLYGONS {0} {1}".format(N_panels, size), file=export_handle)
         for panel in panels:
             print("3 "+" ".join([str(i) for i in panel]), file=export_handle)
+
+        # Write cell header
+        print("CELL_DATA {0}".format(len(panels)), file=export_handle)
+
+        # Write normals
+        print("NORMALS normals float", file=export_handle)
+        for panel in panels:
+            n = np.cross(vertices[panel[1]]-vertices[panel[0]], vertices[panel[2]]-vertices[panel[1]])
+            n /= np.linalg.norm(n)
+            print(" ".join([str(ni) for ni in n]), file=export_handle)
             
 
 def _get_regular_points_and_panels_for_closed_right_cone(h, r, N_transverse, N_theta, N_radial):
@@ -502,8 +512,8 @@ def _export_hull_of_points(verts, filename, check_normal='sphere'):
         for simplex in hull.simplices:
 
             # Calculate normal and centroid
-            centroid = np.sum(verts[simplex,:], axis=0) / 3.0
-            normal = np.cross(verts[simplex[1],:] - verts[simplex[0],:], verts[simplex[2],:] - verts[simplex[1],:])
+            centroid = (verts[simplex[0],:] + verts[simplex[1],:] + verts[simplex[2],:]) / 3.0
+            normal = np.cross(verts[simplex[1],:] - verts[simplex[0],:], verts[simplex[2],:] - verts[simplex[0],:])
 
             # Check the normal points outward
             if np.dot(centroid[1:], normal[1:]) > 0.0:
@@ -590,7 +600,7 @@ def generate_random_spindle(filename, N, l, r_of_x):
     verts = _get_random_points_on_surface_of_spindle(N, l, r_of_x)
 
     # Export
-    _export_hull_of_points(verts, filename)
+    _export_hull_of_points(verts, filename, check_normal='spindle')
 
 
 def generate_spindle(filename, N_ax, N_theta, l, r_of_x, r_l_ratio=None, cosine_cluster=True):
@@ -686,7 +696,6 @@ if __name__=="__main__":
     #def r_of_x(x):
     #    return 0.05*x*(1.0-x)
 
-    #generate_random_spindle("studies/panel_regularity_spindle_study/meshes/random_spindle_1000.vtk", 1000, 1.0, r_of_x)
 
     # Regular sphere
     #generate_regular_sphere("dev/meshes/regular_sphere.vtk", 1.0, 40, 20)
@@ -695,4 +704,5 @@ if __name__=="__main__":
     #generate_spindle('dev/meshes/test_sears_haack.vtk', 100, 100, 1.0, 'SH', 0.037879, cosine_cluster=False)
     def r_of_x(x):
         return 0.2*x*(1.0-x)
-    generate_spindle('studies/supersonic_spindle/meshes/ehlers_spindle_fine.vtk', 80, 80, 1.0, r_of_x, cosine_cluster=True)
+    #generate_spindle('studies/supersonic_spindle/meshes/ehlers_spindle_fine.vtk', 80, 80, 1.0, r_of_x, cosine_cluster=True)
+    generate_random_spindle("studies/supersonic_spindle/meshes/random_spindle_100.vtk", 100, 1.0, r_of_x)

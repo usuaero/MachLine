@@ -68,7 +68,7 @@ def run_random_spindle(N, cpo=1.1e-6, regenerate_mesh=False):
     write_input_file(input_dict, input_file)
 
     # Run
-    reports = run_quad(input_file, run=RERUN_MACHLINE, delete_input=False)
+    reports = run_quad(input_file, run=RERUN_MACHLINE, delete_input=True)
 
     for i, (case, report) in enumerate(zip(cases, reports)):
 
@@ -109,7 +109,8 @@ if __name__=="__main__":
     Ns = [50, 100, 200, 400, 800]
     
     # Control point offsets
-    cpos = [1.1e-4, 1.1e-6, 1.1e-8, 1.1e-10]
+    #cpos = [1.1e-4, 1.1e-6, 1.1e-8, 1.1e-10]
+    cpos = [1.1e-10]
 
     for N in Ns:
         for cpo in cpos:
