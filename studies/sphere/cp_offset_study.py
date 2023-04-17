@@ -18,7 +18,7 @@ if __name__=="__main__":
             "freestream_velocity" : [1.0, 1.0, 1.0]
         },
         "geometry" : {
-            "file" : "studies/sphere/meshes/sphere_coarse.stl",
+            "file" : "studies/sphere/meshes/sphere_medium.stl",
             "wake_model" : {
                 "wake_present" : False
             },
@@ -27,7 +27,7 @@ if __name__=="__main__":
             }
         },
         "solver" : {
-            "control_point_offset_type" : "direct"
+            "control_point_offset_type" : "local"
         },
         "post_processing" : {
         },
