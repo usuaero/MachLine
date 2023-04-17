@@ -109,8 +109,7 @@ if __name__=="__main__":
     Ns = [50, 100, 200, 400, 800]
     
     # Control point offsets
-    #cpos = [1.1e-4, 1.1e-6, 1.1e-8, 1.1e-10]
-    cpos = [1.1e-10]
+    cpos = [1.1e-4, 1.1e-6, 1.1e-8, 1.1e-10]
 
     for N in Ns:
         for cpo in cpos:

@@ -5,7 +5,7 @@ from studies.paraview_functions import extract_all_data, get_data_column_from_ar
 from studies.case_running_functions import write_input_file, run_quad, cases, line_styles
 
 
-RERUN_MACHLINE = False
+RERUN_MACHLINE = True
 plot_dir = "studies/sphere/plots/regularity/"
 
 
@@ -36,6 +36,7 @@ def run_sphere_comparison(grid, sample):
         "solver": {
             "formulation": "morino",
             "control_point_offset": 1.1e-6,
+            "control_point_offset_type" : "direct",
             "matrix_solver" : "BJAC",
             "relaxation" : 0.9,
             "tolerance" : 1.1e-11,

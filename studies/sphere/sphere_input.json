@@ -19,6 +19,7 @@
     "solver": {
         "formulation": "morino",
         "control_point_offset": 1.1e-06,
+        "control_point_offset_type": "direct",
         "matrix_solver": "BJAC",
         "relaxation": 0.9,
         "tolerance": 1.1e-11,
