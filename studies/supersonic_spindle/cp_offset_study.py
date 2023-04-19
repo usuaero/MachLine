@@ -13,18 +13,18 @@ if __name__=="__main__":
     # Double-wedge
     input_dict = {
         "flow": {
-            "freestream_velocity": [ 1.0, 0.0, 0.0 ],
+            "freestream_velocity": [ 694.4475790151479, 0.0, 0.0 ],
             "gamma": 1.4,
-            "freestream_mach_number": np.sqrt(2)
+            "freestream_mach_number": 2.0
         },
         "geometry": {
-            "file": mesh_dir + "ehlers_spindle_coarse.vtk",
+            "file": mesh_dir + "ehlers_spindle_fine.vtk",
             "spanwise_axis": "+y",
             "wake_model": {
-                "wake_present" : False
+                "append_wake": False
             },
             "reference": {
-                "area": np.pi*0.02**2
+                "area": 4.0
             }
         },
         "solver": {
@@ -60,14 +60,14 @@ if __name__=="__main__":
         
         # Load results
         for j, report in enumerate(reports):
-            try:
-                Cx[j,i] = report["total_forces"]["Cx"]
-                Cy[j,i] = report["total_forces"]["Cy"]
-                Cz[j,i] = report["total_forces"]["Cz"]
-            except:
+            if report is None:
                 Cx[j,i] = np.nan
                 Cy[j,i] = np.nan
                 Cz[j,i] = np.nan
+            else:
+                Cx[j,i] = report["total_forces"]["Cx"]
+                Cy[j,i] = report["total_forces"]["Cy"]
+                Cz[j,i] = report["total_forces"]["Cz"]
 
     # Plot y and z coefficients
     plt.figure()

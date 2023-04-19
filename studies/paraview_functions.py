@@ -147,6 +147,6 @@ def extract_plane_slice(data_file, normal_vector, plane_origin, filter=False, wh
     slice.SliceType.Origin = plane_origin
     slice.SliceType.Normal = normal_vector
 
-    _save(thing, which_data)
+    _save(slice, which_data)
 
     return get_data_from_csv(TEMP_CSV_LOC)

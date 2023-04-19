@@ -8,7 +8,7 @@ from studies.case_running_functions import run_quad, write_input_file, cases, li
 from studies.paraview_functions import extract_all_data, get_data_column_from_array
 
 
-RERUN_MACHLINE = True
+RERUN_MACHLINE = False
 study_dir = "studies/supersonic_cone/"
 plot_dir = study_dir + "plots/"
 
@@ -84,7 +84,7 @@ def run_comparison(M, grid, half_angle):
         try:
 
             # Get data
-            headers, data = extract_all_data(report["input"]["output"]["body_file"])
+            headers, data = extract_all_data(report["input"]["output"]["body_file"], which_data='cell')
             C_p_2nd = get_data_column_from_array(headers, data, 'C_p_2nd')
             C_p_ise = get_data_column_from_array(headers, data, 'C_p_ise')
             C_p_lin = get_data_column_from_array(headers, data, 'C_p_lin')
@@ -92,28 +92,28 @@ def run_comparison(M, grid, half_angle):
             x = get_data_column_from_array(headers, data, 'centroid:0')
 
             # Calculate statistics
-            C_p_2nd_avg = np.average(C_p_2nd).item()
-            C_p_2nd_std = np.std(C_p_2nd).item()
-            C_p_ise_avg = np.average(C_p_ise).item()
-            C_p_ise_std = np.std(C_p_ise).item()
-            C_p_sln_avg = np.average(C_p_sln).item()
-            C_p_sln_std = np.std(C_p_sln).item()
-            C_p_lin_avg = np.average(C_p_lin).item()
-            C_p_lin_std = np.std(C_p_lin).item()
+            C_p_2nd_avg[i] = np.average(C_p_2nd).item()
+            C_p_2nd_std[i] = np.std(C_p_2nd).item()
+            C_p_ise_avg[i] = np.average(C_p_ise).item()
+            C_p_ise_std[i] = np.std(C_p_ise).item()
+            C_p_sln_avg[i] = np.average(C_p_sln).item()
+            C_p_sln_std[i] = np.std(C_p_sln).item()
+            C_p_lin_avg[i] = np.average(C_p_lin).item()
+            C_p_lin_std[i] = np.std(C_p_lin).item()
     
-            # Plot data
-            plt.figure()
-            plt.plot(x, C_p_2nd, 'ks', markersize=3, label='Second-Order')
-            plt.plot(x, C_p_ise, 'kv', markersize=3, label='Isentropic')
-            plt.plot(x, C_p_sln, 'ko', markersize=3, label='Slender-Body')
-            plt.plot(x, C_p_lin, 'k^', markersize=3, label='Linear')
+            ## Plot data
+            #plt.figure()
+            #plt.plot(x, C_p_2nd, 'ks', markersize=3, label='Second-Order')
+            #plt.plot(x, C_p_ise, 'kv', markersize=3, label='Isentropic')
+            #plt.plot(x, C_p_sln, 'ko', markersize=3, label='Slender-Body')
+            #plt.plot(x, C_p_lin, 'k^', markersize=3, label='Linear')
 
-            # Format
-            plt.xlabel('$x$')
-            plt.ylabel('$C_p$')
-            plt.legend(title="Pressure Rule", fontsize=6, title_fontsize=6)
-            plt.savefig(plot_dir+case_name+"_{0}.pdf".format(cases[i]))
-            plt.close()
+            ## Format
+            #plt.xlabel('$x$')
+            #plt.ylabel('$C_p$')
+            #plt.legend(title="Pressure Rule", fontsize=6, title_fontsize=6)
+            #plt.savefig(plot_dir+case_name+"_{0}.pdf".format(cases[i]))
+            #plt.close()
             
         except:
             C_p_2nd_avg[i] = np.nan
@@ -178,7 +178,7 @@ if __name__=="__main__":
                     C_p_2nd_avg[i,j,k], C_p_2nd_std[i,j,k], C_p_ise_avg[i,j,k], C_p_ise_std[i,j,k], C_p_sln_avg[i,j,k], C_p_sln_std[i,j,k], C_p_lin_avg[i,j,k], C_p_lin_std[i,j,k] = run_comparison(M, grid, half_angle)
 
     # Get analytic data
-    Ms_anl, thetas_anl, Cps_anl = get_analytic_data("studies/supersonic_cone_flow_study/Cone Data Zero AoA.csv")
+    Ms_anl, thetas_anl, Cps_anl = get_analytic_data(study_dir + "Cone Data Zero AoA.csv")
 
     # Plot overall data
     for k, half_angle in enumerate(half_angles):
@@ -187,10 +187,11 @@ if __name__=="__main__":
             plt.figure()
 
             # Plots using the most-refined grid
-            plt.errorbar(Ms, C_p_2nd_avg[-1,:,k,j], fmt='ks', yerr=C_p_2nd_std, markersize=3, label='Second-Order')
-            plt.errorbar(Ms, C_p_ise_avg[-1,:,k,j], fmt='kv', yerr=C_p_ise_std, markersize=3, label='Isentropic')
-            plt.errorbar(Ms, C_p_sln_avg[-1,:,k,j], fmt='ko', yerr=C_p_sln_std, markersize=3, label='Slender-Body')
-            plt.errorbar(Ms, C_p_lin_avg[-1,:,k,j], fmt='k^', yerr=C_p_lin_std, markersize=3, label='Linear')
+            which_mesh = -1
+            plt.errorbar(Ms, C_p_2nd_avg[which_mesh,:,k,j], fmt='ks', yerr=C_p_2nd_std[which_mesh,:,k,j], elinewidth=0.5, markersize=3, label='Second-Order')
+            plt.errorbar(Ms, C_p_ise_avg[which_mesh,:,k,j], fmt='kv', yerr=C_p_ise_std[which_mesh,:,k,j], elinewidth=0.5, markersize=3, label='Isentropic')
+            plt.errorbar(Ms, C_p_sln_avg[which_mesh,:,k,j], fmt='ko', yerr=C_p_sln_std[which_mesh,:,k,j], elinewidth=0.5, markersize=3, label='Slender-Body')
+            plt.errorbar(Ms, C_p_lin_avg[which_mesh,:,k,j], fmt='k^', yerr=C_p_lin_std[which_mesh,:,k,j], elinewidth=0.5, markersize=3, label='Linear')
 
             # Get analytic data for this half angle
             i_theta = np.where(thetas_anl == half_angle)
@@ -198,7 +199,7 @@ if __name__=="__main__":
 
             plt.xlabel("$M_\infty$")
             plt.ylabel("$C_P$")
-            plt.ylim(bottom=0.0)
+            plt.ylim(bottom=0.0, top=1.1*np.nanmax(C_p_lin_avg[which_mesh,:,k,j]).item())
             plt.legend(fontsize=6, title_fontsize=6)
             plt.savefig(plot_dir + "C_p_over_M_{0}_deg_{1}.pdf".format(half_angle, case))
             plt.savefig(plot_dir + "C_p_over_M_{0}_deg_{1}.svg".format(half_angle, case))

@@ -1,9 +1,8 @@
-import flow54 as fl
 import numpy as np
 import matplotlib.pyplot as plt
 
 from studies.case_running_functions import run_quad, write_input_file, cases, line_styles
-from studies.paraview_functions import extract_all_data, get_data_colum_from_array, extract_plane_slice
+from studies.paraview_functions import extract_all_data, get_data_column_from_array, extract_plane_slice
 
 
 RERUN_MACHLINE = True
@@ -11,7 +10,7 @@ study_dir = "studies/supersonic_double_wedge_wing/"
 plot_dir = study_dir + "plots/"
 
 
-def run_comparison(M, alpha, grid, half_angle):
+def run_comparison(M, alpha, grid, half_angle, se_pressures):
     # Runs the comparison of the diamond wing to shock-expansion theory
 
     # Parameters
@@ -27,7 +26,6 @@ def run_comparison(M, alpha, grid, half_angle):
     mesh_file = study_dir + "meshes/diamond_{0}_deg_full_{1}.stl".format(int(half_angle), grid)
     results_file = study_dir + "results/"+case_name+".vtk"
     report_file = study_dir + "reports/"+case_name+".json"
-    data_file = study_dir + 'data/'+case_name+'.csv'
 
     # Declare MachLine input
     input_dict = {
@@ -39,6 +37,7 @@ def run_comparison(M, alpha, grid, half_angle):
         "geometry": {
             "file": mesh_file,
             "spanwise_axis" : "+y",
+            "max_continuity_angle" : 1.0,
             "wake_model": {
                 "append_wake" : False,
             },
@@ -70,28 +69,23 @@ def run_comparison(M, alpha, grid, half_angle):
     # Run
     reports = run_quad(input_file, run=RERUN_MACHLINE)
     
-    # Run shock-expansion comparison
-    airfoil = fl.DiamondAirfoil(5.0, 1.0)
-    airfoil.set_state(M, alpha, gamma, p_inf, T_inf, c_inf, rho, 1.0e-5, 800.0, 0.7)
-    p2, p3, p4, p5 = airfoil.get_pressures()
-    x = 0.5*gamma*M**2
-    Cp2 = (p2/p_inf-1.0)/x
-    Cp3 = (p3/p_inf-1.0)/x
-    Cp4 = (p4/p_inf-1.0)/x
-    Cp5 = (p5/p_inf-1.0)/x
+    # Parse out shock-expansion data
+    Cp2 = se_pressures[0]
+    Cp3 = se_pressures[1]
+    Cp4 = se_pressures[2]
+    Cp5 = se_pressures[3]
     
     # Loop through reports
     for i, (case, report) in enumerate(zip(cases, reports)):
 
         # Get data
         result_file = report["input"]["output"]["body_file"]
-        headers, data = extract_all_data(result_file)
-        headers, data = extract_plane_slice(result_file, [0.0, 1.0, 0.0], [0.0, 0.0, 0.0], which_data='cell')
-        x = get_data_colum_from_array(headers, data, 'centroid:0')
-        C_p_ise = get_data_colum_from_array(headers, data, 'C_p_ise')
-        C_p_2nd = get_data_colum_from_array(headers, data, 'C_p_2nd')
-        C_p_sln = get_data_colum_from_array(headers, data, 'C_p_sln')
-        C_p_lin = get_data_colum_from_array(headers, data, 'C_p_lin')
+        headers, data = extract_plane_slice(result_file, np.array([0.0, 1.0, 0.0]), np.array([0.0, 0.0, 0.0]), which_data='cell')
+        x = get_data_column_from_array(headers, data, 'centroid:0')
+        C_p_ise = get_data_column_from_array(headers, data, 'C_p_ise')
+        C_p_2nd = get_data_column_from_array(headers, data, 'C_p_2nd')
+        C_p_sln = get_data_column_from_array(headers, data, 'C_p_sln')
+        C_p_lin = get_data_column_from_array(headers, data, 'C_p_lin')
 
         # Plot data from MachLine
         plt.figure()
@@ -122,14 +116,19 @@ def run_comparison(M, alpha, grid, half_angle):
 
 if __name__=="__main__":
 
+    # options
     grids = ["coarse", "medium", "fine", "ultra_fine"]
     Ms = [1.5, 2.0, 3.0, 5.0]
     alphas = np.linspace(0.0, 5.0, 6)
     half_angles = [5]
+
+    # Load shock-expansion data
+    se_data = np.genfromtxt(study_dir + "shock_expansion_data.csv", delimiter=',')
+    se_data = se_data.reshape((len(grids), len(Ms), len(alphas), len(half_angles), 4))
 
     for i, grid in enumerate(grids):
         for j, M in enumerate(Ms):
             for k, alpha in enumerate(alphas):
                 for l, half_angle in enumerate(half_angles):
 
-                    run_comparison(M, alpha, grid, half_angle, run_machline=False)
+                    run_comparison(M, alpha, grid, half_angle, se_data[i,j,k,l])

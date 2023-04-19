@@ -16,7 +16,8 @@
         },
         "reference": {
             "area": 4.0
-        }
+        },
+        "singularity_order": "higher"
     },
     "solver": {
         "formulation": "source-free",
@@ -29,6 +30,6 @@
         }
     },
     "output": {
-        "report_file": "studies/supersonic_spindle/reports/report.json"
+        "report_file": "studies/supersonic_spindle/reports/report_QUAD_higher-order_source-free.json"
     }
 }

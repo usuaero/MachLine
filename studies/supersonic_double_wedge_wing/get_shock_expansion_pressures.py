@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 study_dir = "studies/supersonic_double_wedge_wing/"
 
 
-def run_comparison(M, alpha, grid, half_angle):
+def run_comparison(M, alpha, half_angle):
     # Runs the comparison of the diamond wing to shock-expansion theory
 
     # Parameters
@@ -17,7 +17,7 @@ def run_comparison(M, alpha, grid, half_angle):
     p_inf = 1.0e5
     
     # Run shock-expansion comparison
-    airfoil = fl.DiamondAirfoil(5.0, 1.0)
+    airfoil = fl.DiamondAirfoil(half_angle, 1.0)
     airfoil.set_state(M, alpha, gamma, p_inf, T_inf, c_inf, rho, 1.0e-5, 800.0, 0.7)
     p2, p3, p4, p5 = airfoil.get_pressures()
     x = 0.5*gamma*M**2
@@ -43,6 +43,6 @@ if __name__=="__main__":
             for k, alpha in enumerate(alphas):
                 for l, half_angle in enumerate(half_angles):
 
-                    Cps[i,j,k,l] = run_comparison(M, alpha, grid, half_angle, run_machline=False)
+                    Cps[i,j,k,l] = run_comparison(M, alpha, half_angle)
 
-    np.savetxt(study_dir + "shock_expansion_data.csv", delimiter=',')
+    np.savetxt(study_dir + "shock_expansion_data.csv", Cps.reshape((len(grids)*len(Ms)*len(alphas)*len(half_angles), 4)), delimiter=',')
