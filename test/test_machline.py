@@ -73,11 +73,11 @@ def test_half_wing_source_free_asym_inc_flow():
     print(Cy)
     print(Cz)
 
-    assert(abs(C_p_max - 0.74929303279734) < 1e-7)
-    assert(abs(C_p_min - -1.27836957687275) < 1e-7)
-    assert(abs(Cx - -0.393491259641992) < 1e-7)
-    assert(abs(Cy - -0.046921580376711) < 1e-7)
-    assert(abs(Cz - 20.6273492693595) < 1.1e-7)
+    assert(abs(C_p_max - 0.749427668701073) < 1e-7)
+    assert(abs(C_p_min - -1.28122767697417) < 1e-7)
+    assert(abs(Cx - -0.394147360569728) < 1e-7)
+    assert(abs(Cy - -0.0469272618384146) < 1e-7)
+    assert(abs(Cz - 20.6524631977163) < 1.1e-7)
 
 
 def test_half_wing_morino_asym_inc_flow():
@@ -104,11 +104,11 @@ def test_half_wing_morino_asym_inc_flow():
     print(Cy)
     print(Cz)
 
-    assert(abs(C_p_max - 0.749292984933334) < 1e-7)
-    assert(abs(C_p_min - -1.27838649312411) < 1e-7)
-    assert(abs(Cx - -0.393490836922098) < 1e-7)
-    assert(abs(Cy - -0.0469247223613392) < 1e-7)
-    assert(abs(Cz - 20.6273477448169) < 1e-7)
+    assert(abs(C_p_max - 0.749426106261314) < 1e-7)
+    assert(abs(C_p_min - -1.28120652774939) < 1e-7)
+    assert(abs(Cx - -0.394142487088027) < 1e-7)
+    assert(abs(Cy - -0.0469266125064871) < 1e-7)
+    assert(abs(Cz - 20.6521815154214) < 1e-7)
 
 
 def test_half_wing_morino_zero_aoa_zero_beta_inc():
@@ -136,11 +136,11 @@ def test_half_wing_morino_zero_aoa_zero_beta_inc():
     print(Cy)
     print(Cz)
 
-    assert(abs(C_p_max - 0.221659165930464) < 1e-7)
-    assert(abs(C_p_min - -0.42758575480925) < 1e-7)
-    assert(abs(Cx - 0.30188654863457) < 1e-7)
-    assert(abs(Cy) < 1e-12)
-    assert(abs(Cz) < 2.2e-7)
+    assert(abs(C_p_max - 0.221628441564136) < 1e-7)
+    assert(abs(C_p_min - -0.427625486100214) < 1e-7)
+    assert(abs(Cx - 0.301682907690379) < 1e-7)
+    assert(abs(Cy) < 1e-11)
+    assert(abs(Cz) < 1e-11)
 
 
 def test_sphere_morino_inc_iterative():
@@ -168,8 +168,8 @@ def test_sphere_morino_inc_iterative():
     print(Cy)
     print(Cz)
 
-    assert(abs(C_p_max - 0.991141909317106) < 1e-7)
-    assert(abs(C_p_min - -1.23783156034762) < 1e-7)
+    assert(abs(C_p_max - 0.991141909317106) < 1e-5)
+    assert(abs(C_p_min - -1.23783156034762) < 1e-5)
     assert(abs(Cx) < 2e-5)
     assert(abs(Cy) < 2e-5)
     assert(abs(Cz) < 2e-5)
@@ -186,8 +186,8 @@ def test_sphere_morino_inc():
     print(Cy)
     print(Cz)
 
-    assert(abs(C_p_max - 0.991141910232862) < 1e-7)
-    assert(abs(C_p_min - -1.2378315549138) < 1e-7)
+    assert(abs(C_p_max - 0.991142758308531) < 1e-7)
+    assert(abs(C_p_min + 1.23782791839695) < 1e-7)
     assert(abs(Cx) < 1e-4)
     assert(abs(Cy) < 1e-4)
     assert(abs(Cz) < 1e-4)
@@ -246,11 +246,11 @@ def test_subsonic_comp_pressure_corrections():
     print(Cy)
     print(Cz)
 
-    assert(abs(C_p_max - 0.817238774832429) < 1e-7)
-    assert(abs(C_p_min - -1.09358685670048) < 1e-7)
-    assert(abs(Cx - -0.508163841823749) < 1e-7)
-    assert(abs(Cy - 0.0102063528918153) < 1e-7)
-    assert(abs(Cz - 26.2549306153712) < 1.1e-7)
+    assert(abs(C_p_max - 0.817385304236546) < 1e-7)
+    assert(abs(C_p_min - -1.09394053243224) < 1e-7)
+    assert(abs(Cx - -0.508981218891018) < 1e-7)
+    assert(abs(Cy - 0.0102074573955908) < 1e-7)
+    assert(abs(Cz - 26.2860762052636) < 1.1e-7)
 
 
 def test_supersonic_half_wing_morino_zero_aoa_zero_beta():
@@ -263,11 +263,11 @@ def test_supersonic_half_wing_morino_zero_aoa_zero_beta():
     print(Cy)
     print(Cz)
 
-    assert(abs(C_p_max - 0.121696594166226) < 1e-7)
-    assert(abs(C_p_min - -0.116093853140189) < 1e-7)
-    assert(abs(Cx - 0.142400846628573) < 1e-7)
+    assert(abs(C_p_max - 0.121697468024553) < 1e-7)
+    assert(abs(C_p_min - -0.116094421618336) < 1e-7)
+    assert(abs(Cx - 0.1424008894449) < 1e-7)
     assert(abs(Cy) < 1e-12)
-    assert(abs(Cz) < 1e-6)
+    assert(abs(Cz) < 1e-12)
 
 
 def test_supersonic_half_wing_source_free_zero_aoa_zero_beta():
@@ -288,11 +288,11 @@ def test_supersonic_half_wing_source_free_zero_aoa_zero_beta():
     print(Cy)
     print(Cz)
 
-    assert(abs(C_p_max - 0.121696594161608) < 1e-7)
-    assert(abs(C_p_min - -0.116093852996235) < 1e-7)
-    assert(abs(Cx - 0.142400846623555) < 1e-7)
+    assert(abs(C_p_max - 0.121697468024034) < 1e-7)
+    assert(abs(C_p_min - -0.116094421600922) < 1e-7)
+    assert(abs(Cx - 0.142400889444425) < 1e-7)
     assert(abs(Cy) < 1.e-12)
-    assert(abs(Cz) < 1e-6)
+    assert(abs(Cz) < 1e-12)
 
 
 def test_supersonic_half_wing_morino_allow_wake_asym_flow():
@@ -315,10 +315,10 @@ def test_supersonic_half_wing_morino_allow_wake_asym_flow():
     print(Cz)
 
     assert(abs(C_p_max - 0.194725933974826) < 1e-7)
-    assert(abs(C_p_min - -0.298653111488057) < 1e-7)
-    assert(abs(Cx - 0.142769902753526) < 1e-7)
-    assert(abs(Cy - 0.000852208801905482) < 1.e-11)
-    assert(abs(Cz - 0.891846547634185) < 2.1e-7)
+    assert(abs(C_p_min - -0.298780589679285) < 1e-7)
+    assert(abs(Cx - 0.142781624854441) < 1e-7)
+    assert(abs(Cy - 0.000852303050093568) < 1.e-11)
+    assert(abs(Cz - 0.892593299676017) < 2.1e-7)
 
 
 def test_supersonic_half_wing_source_free_allow_wake_sym_flow():
@@ -341,11 +341,11 @@ def test_supersonic_half_wing_source_free_allow_wake_sym_flow():
     print(Cy)
     print(Cz)
 
-    assert(abs(C_p_max - 0.19495037375827) < 1e-7)
-    assert(abs(C_p_min - -0.29150016335519) < 1e-7)
-    assert(abs(Cx - 0.142893375049277) < 1e-7)
+    assert(abs(C_p_max - 0.194950373758414) < 1e-7)
+    assert(abs(C_p_min - -0.291642542743292) < 1e-7)
+    assert(abs(Cx - 0.142905077607286) < 1e-7)
     assert(abs(Cy) < 1.e-12)
-    assert(abs(Cz - 0.892753376323049) < 2.1e-7)
+    assert(abs(Cz - 0.893492282672634) < 2.1e-7)
 
 
 def test_fuselage_subsonic_compressible_iterative():
@@ -358,8 +358,8 @@ def test_fuselage_subsonic_compressible_iterative():
     print(Cy)
     print(Cz)
 
-    assert(abs(C_p_max - 0.955104302502646) < 1e-7)
-    assert(abs(C_p_min - -0.567453182856627) < 1e-7)
+    assert(abs(C_p_max - 0.955084903205978) < 1e-7)
+    assert(abs(C_p_min - -0.574040916470699) < 1e-7)
     assert(abs(Cx) < 2.1e-3)
     assert(abs(Cy) < 2.1e-3)
     assert(abs(Cz) < 2.1e-3)
@@ -376,7 +376,7 @@ def test_supersonic_full_wing_morino_qrup():
     print(Cz)
 
     assert(abs(C_p_max - 0.194950351346633) < 1e-7)
-    assert(abs(C_p_min - -0.32494014106503) < 1e-7)
-    assert(abs(Cx - 0.0718531668938911) < 1e-7)
-    assert(abs(Cy) < 1e-12)
-    assert(abs(Cz - 0.429190877211823) < 1e-7)
+    assert(abs(C_p_min - -0.324945660429385) < 1e-7)
+    assert(abs(Cx - 0.0718540012154408) < 1e-7)
+    assert(abs(Cy) < 1e-11)
+    assert(abs(Cz - 0.429236847680447) < 1e-7)

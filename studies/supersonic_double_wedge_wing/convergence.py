@@ -1,18 +1,17 @@
-import json
 import numpy as np
-import matplotlib.pyplot as plt
 from studies.case_running_functions import run_quad, get_order_of_convergence, write_input_file
 
 
 RERUN_MACHLINE = True
-max_continuity_angle = 45.0
+study_dir = "studies/supersonic_double_wedge_wing/"
+plot_dir = study_dir + "plots/convergence/"
 
 
-def run_quad_for_mach_aoa_and_mesh(M, alpha, density):
+def run_quad_for_mach_aoa_and_mesh(M, alpha, grid, MCA):
     """Runs a case quad for the given Mach number, angle of attack, and mesh density."""
 
     # Parameters
-    half_angle = 5
+    half_angle = 5.0
     R_G = 287.058
     gamma = 1.4
     T_inf = 300.0
@@ -21,12 +20,10 @@ def run_quad_for_mach_aoa_and_mesh(M, alpha, density):
     p_inf = 1.0e5
 
     # Storage locations
-    case_name = "M_{0}_aoa_{1}_{2}_deg_{3}_MCA_{4}".format(M, alpha, int(half_angle), grid, max_continuity_angle)
-    plot_dir = "studies/supersonic_double_wedge_wing/plots/"
-    mesh_file = "studies/supersonic_double_wedge_wing/meshes/diamond_{0}_deg_full_{1}.stl".format(int(half_angle), grid)
-    results_file = "studies/supersonic_double_wedge_wing/results/"+case_name+".vtk"
-    report_file = "studies/supersonic_double_wedge_wing/reports/"+case_name+".json"
-    data_file = 'studies/supersonic_double_wedge_wing/data/'+case_name+'.csv'
+    case_name = "M_{0}_aoa_{1}_{2}_deg_{3}_MCA_{4}".format(M, alpha, int(half_angle), grid, MCA)
+    mesh_file = study_dir + "meshes/diamond_{0}_deg_full_{1}.stl".format(int(half_angle), grid)
+    results_file = study_dir + "results/"+case_name+".vtk"
+    report_file = study_dir + "reports/"+case_name+".json"
 
     # Write out input file
 
@@ -40,7 +37,7 @@ def run_quad_for_mach_aoa_and_mesh(M, alpha, density):
         "geometry": {
             "file": mesh_file,
             "spanwise_axis" : "+y",
-            "max_continuity_angle" : max_continuity_angle,
+            "max_continuity_angle" : MCA,
             "wake_model": {
                 "append_wake" : False,
             },
@@ -66,7 +63,7 @@ def run_quad_for_mach_aoa_and_mesh(M, alpha, density):
     }
 
     # Dump
-    input_file = "studies/supersonic_double_wedge_wing/input.json"
+    input_file = study_dir + "input.json"
     write_input_file(input_dict, input_file)
 
     # Run quad
@@ -92,95 +89,102 @@ if __name__=="__main__":
     grids = ["coarse", "medium", "fine", "ultra_fine"]
     Ms = [1.5, 2.0, 3.0, 5.0]
     alphas = np.linspace(0.0, 5.0, 6)
+    MCAs = [1.0]#, 2.5, 45.0]
 
     # Loop through parameters
     N_sys = np.zeros(len(grids))
     l_avg = np.zeros(len(grids))
-    C_F = np.zeros((len(grids), len(Ms), len(alphas), 4, 3))
+    C_F = np.zeros((len(grids), len(Ms), len(alphas), len(MCAs), 4, 3))
     for i, grid in enumerate(grids):
         for j, M in enumerate(Ms):
             for k, alpha in enumerate(alphas):
+                for l, MCA in enumerate(MCAs):
 
-                N_sys[i], l_avg[i], C_F[i,j,k] = run_quad_for_mach_aoa_and_mesh(M, alpha, grid)
+                    N_sys[i], l_avg[i], C_F[i,j,k,l] = run_quad_for_mach_aoa_and_mesh(M, alpha, grid, MCA)
 
     # Set up plotting
-    plot_dir = "studies/supersonic_double_wedge_wing/plots/"
 
     # Get errors
     err = np.abs((C_F[:-1] - C_F[-1])/C_F[-1])
 
-    # Plot C_x errors
-    cases = ['ML', 'MH', 'SL', 'SH']
-    line_styles = ['k-', 'k--', 'k:', 'k-.']
-    for j, M in enumerate(Ms):
-        for k, alpha in enumerate(alphas):
+    ## Plot C_x errors
+    #for j, M in enumerate(Ms):
+    #    for k, alpha in enumerate(alphas):
 
-            # Plot
-            plt.figure()
-            print()
-            print("M={0}, alpha={1}".format(M, alpha))
-            for l, case in enumerate(cases):
-                plt.plot(l_avg[:-1], err[:,j,k,l,0], line_styles[l], label=case)
+    #        # Plot
+    #        plt.figure()
+    #        print()
+    #        print("M={0}, alpha={1}".format(M, alpha))
+    #        for l, case in enumerate(cases):
+    #            plt.plot(l_avg[:-1], err[:,j,k,l,0], line_styles[l], label=case)
 
-                # Get convergence
-                print("Order for case {0}: {1}".format(case, get_order_of_convergence(l_avg, C_F[:,j,k,l,0], truth_from_results=True)))
+    #            # Get convergence
+    #            print("Order for case {0}: {1}".format(case, get_order_of_convergence(l_avg, C_F[:,j,k,l,0], truth_from_results=True)))
 
-            # Format
-            plt.xlabel('$l_{avg}$')
-            plt.ylabel('Fractional Error')
-            plt.xscale('log')
-            plt.yscale('log')
-            plt.title('$C_x$ error for $M={0},\,\\alpha={1}$'.format(M, alpha))
-            plt.legend()
-            plt.savefig(plot_dir+"err_C_x_M_{0}_alpha_{1}_MCA_{2}.pdf".format(M, alpha, max_continuity_angle))
-            plt.close()
+    #        # Format
+    #        plt.xlabel('$l_{avg}$')
+    #        plt.ylabel('Fractional Error')
+    #        plt.xscale('log')
+    #        plt.yscale('log')
+    #        plt.title('$C_x$ error for $M={0},\,\\alpha={1}$'.format(M, alpha))
+    #        plt.legend()
+    #        plt.savefig(plot_dir+"err_C_x_M_{0}_alpha_{1}_MCA_{2}.pdf".format(M, alpha, max_continuity_angle))
+    #        plt.close()
 
-    # Plot C_z errors
-    for j, M in enumerate(Ms):
-        for k, alpha in enumerate(alphas):
-            if k==0:
-                continue
+    ## Plot C_z errors
+    #for j, M in enumerate(Ms):
+    #    for k, alpha in enumerate(alphas):
+    #        if k==0:
+    #            continue
 
-            # Plot
-            plt.figure()
-            print()
-            print("M={0}, alpha={1}".format(M, alpha))
-            for l, case in enumerate(cases):
-                plt.plot(l_avg[:-1], err[:,j,k,l,2], line_styles[l], label=case)
+    #        # Plot
+    #        plt.figure()
+    #        print()
+    #        print("M={0}, alpha={1}".format(M, alpha))
+    #        for l, case in enumerate(cases):
+    #            plt.plot(l_avg[:-1], err[:,j,k,l,2], line_styles[l], label=case)
 
-                # Get convergence
-                print("Order for case {0}: {1}".format(case, get_order_of_convergence(l_avg, C_F[:,j,k,l,2], truth_from_results=True)))
+    #            # Get convergence
+    #            print("Order for case {0}: {1}".format(case, get_order_of_convergence(l_avg, C_F[:,j,k,l,2], truth_from_results=True)))
 
-            # Format
-            plt.xlabel('$l_{avg}$')
-            plt.ylabel('Fractional Error')
-            plt.xscale('log')
-            plt.yscale('log')
-            plt.title('$C_z$ error for $M={0},\,\\alpha={1}$'.format(M, alpha))
-            plt.legend()
-            plt.savefig(plot_dir+"err_C_z_M_{0}_alpha_{1}_MCA_{2}.pdf".format(M, alpha, max_continuity_angle))
-            plt.close()
+    #        # Format
+    #        plt.xlabel('$l_{avg}$')
+    #        plt.ylabel('Fractional Error')
+    #        plt.xscale('log')
+    #        plt.yscale('log')
+    #        plt.title('$C_z$ error for $M={0},\,\\alpha={1}$'.format(M, alpha))
+    #        plt.legend()
+    #        plt.savefig(plot_dir+"err_C_z_M_{0}_alpha_{1}_MCA_{2}.pdf".format(M, alpha, max_continuity_angle))
+    #        plt.close()
 
     #Analyze convergence of Cx
     print()
+    print("Cx Convergence Rate")
+    print("-------------------")
     slopes = []
-    for l, case in enumerate(['ML', 'MH', 'SL', 'SH']):
-        slopes.append([])
-        for j, M in enumerate(Ms):
-            for k, alpha in enumerate(alphas):
-                slopes[l].append(get_order_of_convergence(l_avg, C_F[:,j,k,l,0], truth_from_results=True))
+    for i, MCA in enumerate(MCAs):
+        print("---Max Continuity Angle: {0} degrees---".format(MCA))
+        for l, case in enumerate(['ML', 'MH', 'SL', 'SH']):
+            slopes.append([])
+            for j, M in enumerate(Ms):
+                for k, alpha in enumerate(alphas):
+                    slopes[l].append(get_order_of_convergence(l_avg, C_F[:,j,k,i,l,0], truth_from_results=True))
 
-        print("Average Cx convergence rate case {0}: ".format(case), np.average(slopes[l]))
+            print("{0}: ".format(case), np.average(slopes[l]))
 
     #Analyze convergence of Cz
     print()
+    print("Cz Convergence Rate")
+    print("-------------------")
     slopes = []
-    for l, case in enumerate(['ML', 'MH', 'SL', 'SH']):
-        slopes.append([])
-        for j, M in enumerate(Ms):
-            for k, alpha in enumerate(alphas):
-                if k==0:
-                    continue
-                slopes[l].append(get_order_of_convergence(l_avg, C_F[:,j,k,l,2], truth_from_results=True))
+    for i, MCA in enumerate(MCAs):
+        print("---Max Continuity Angle: {0} degrees---".format(MCA))
+        for l, case in enumerate(['ML', 'MH', 'SL', 'SH']):
+            slopes.append([])
+            for j, M in enumerate(Ms):
+                for k, alpha in enumerate(alphas):
+                    if k==0:
+                        continue
+                    slopes[l].append(get_order_of_convergence(l_avg, C_F[:,j,k,i,l,2], truth_from_results=True))
 
-        print("Average Cz convergence rate case {0}: ".format(case), np.average(slopes[l]))
+            print("{0}: ".format(case), np.average(slopes[l]))

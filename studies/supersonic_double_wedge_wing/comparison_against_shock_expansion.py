@@ -7,13 +7,14 @@ from studies.paraview_functions import extract_all_data, get_data_column_from_ar
 
 RERUN_MACHLINE = True
 study_dir = "studies/supersonic_double_wedge_wing/"
-plot_dir = study_dir + "plots/"
+plot_dir = study_dir + "plots/shock_expansion/"
 
 
-def run_comparison(M, alpha, grid, half_angle, se_pressures):
+def run_comparison(M, alpha, grid, MCA, se_pressures):
     # Runs the comparison of the diamond wing to shock-expansion theory
 
     # Parameters
+    half_angle = 5.0
     R_G = 287.058
     gamma = 1.4
     T_inf = 300.0
@@ -22,7 +23,7 @@ def run_comparison(M, alpha, grid, half_angle, se_pressures):
     p_inf = 1.0e5
 
     # Storage locations
-    case_name = "M_{0}_aoa_{1}_{2}_deg_{3}".format(M, alpha, int(half_angle), grid)
+    case_name = "M_{0}_aoa_{1}_{2}_deg_{3}_MCA_{4}".format(M, alpha, int(half_angle), grid, MCA)
     mesh_file = study_dir + "meshes/diamond_{0}_deg_full_{1}.stl".format(int(half_angle), grid)
     results_file = study_dir + "results/"+case_name+".vtk"
     report_file = study_dir + "reports/"+case_name+".json"
@@ -37,7 +38,7 @@ def run_comparison(M, alpha, grid, half_angle, se_pressures):
         "geometry": {
             "file": mesh_file,
             "spanwise_axis" : "+y",
-            "max_continuity_angle" : 1.0,
+            "max_continuity_angle" : MCA,
             "wake_model": {
                 "append_wake" : False,
             },
@@ -120,15 +121,15 @@ if __name__=="__main__":
     grids = ["coarse", "medium", "fine", "ultra_fine"]
     Ms = [1.5, 2.0, 3.0, 5.0]
     alphas = np.linspace(0.0, 5.0, 6)
-    half_angles = [5]
+    MCAs = [1.0, 2.5, 45.0]
 
     # Load shock-expansion data
     se_data = np.genfromtxt(study_dir + "shock_expansion_data.csv", delimiter=',')
-    se_data = se_data.reshape((len(grids), len(Ms), len(alphas), len(half_angles), 4))
+    se_data = se_data.reshape((len(grids), len(Ms), len(alphas), len(MCAs), 4))
 
     for i, grid in enumerate(grids):
         for j, M in enumerate(Ms):
             for k, alpha in enumerate(alphas):
-                for l, half_angle in enumerate(half_angles):
+                for l, MCA in enumerate(MCAs):
 
-                    run_comparison(M, alpha, grid, half_angle, se_data[i,j,k,l])
+                    run_comparison(M, alpha, grid, MCA, se_data[i,j,k,l])

@@ -20,7 +20,7 @@
     },
     "solver": {
         "formulation": "source-free",
-        "control_point_offset": 1.0023052380778984e-11,
+        "control_point_offset": 1.0023052380778996,
         "control_point_offset_type": "direct"
     },
     "post_processing": {
