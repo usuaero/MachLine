@@ -1,9 +1,9 @@
 import os
-import sys
 import json
 import numpy as np
 
 import subprocess as sp
+import multiprocessing as mp
 
 from copy import deepcopy
 
@@ -68,6 +68,53 @@ def run_machline(input_filename, delete_input=True, run=True):
         os.remove(input_filename)
 
     return report
+
+
+def _run_order_and_formulation(*args):
+    # Runs the given order and formulation
+
+    input_filename = args[0]
+    input_dict = args[1]
+    order = args[2]
+    formulation = args[3]
+    delete_input = args[4]
+    run = args[5]
+
+    # Write out new input
+    altered_input_filename = write_altered_input_file(input_filename, input_dict, order, formulation)
+
+    # Run MachLine
+    return run_machline(altered_input_filename, delete_input=delete_input, run=run)
+
+
+def run_quad_parallel(input_filename, delete_input=True, run=True):
+    """Runs the given filename with the four option combinations in parallel
+
+    The reports will be returned in the order:
+        1-Morino, lower-order
+        2-Morino, higher-order
+        3-Source-free, lower-order
+        4-Source-free, higher-order
+    """
+
+    # Load input
+    with open(input_filename, 'r') as input_handle:
+        input_dict = json.load(input_handle)
+
+    # Options
+    formulations = ["morino", "source-free"]
+    orders = ["lower", "higher"]
+
+    # Get inputs and run
+    arg_list = []
+    for formulation in formulations:
+        for order in orders:
+            arg_list.append((input_filename, input_dict, order, formulation, delete_input, run))
+
+    with mp.Pool() as pool:
+        reports = pool.map(_run_order_and_formulation, arg_list)
+
+    return reports
 
 
 def run_quad(input_filename, delete_input=True, run=True):

@@ -89,7 +89,7 @@ if __name__=="__main__":
     grids = ["coarse", "medium", "fine", "ultra_fine"]
     Ms = [1.5, 2.0, 3.0, 5.0]
     alphas = np.linspace(0.0, 5.0, 6)
-    MCAs = [1.0]#, 2.5, 45.0]
+    MCAs = [1.0, 2.5, 45.0]
 
     # Loop through parameters
     N_sys = np.zeros(len(grids))

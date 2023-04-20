@@ -1,17 +1,17 @@
 {
     "flow": {
         "freestream_velocity": [
-            519.5669547116102,
+            1729.512490793847,
             0.0,
-            36.33166073418116
+            151.3127363709456
         ],
         "gamma": 1.4,
-        "freestream_mach_number": 1.5
+        "freestream_mach_number": 5.0
     },
     "geometry": {
-        "file": "studies/supersonic_double_wedge_wing/meshes/diamond_5_deg_full_medium.stl",
+        "file": "studies/supersonic_double_wedge_wing/meshes/diamond_5_deg_full_ultra_fine.stl",
         "spanwise_axis": "+y",
-        "max_continuity_angle": 1.0,
+        "max_continuity_angle": 45.0,
         "wake_model": {
             "append_wake": false
         },
@@ -31,7 +31,7 @@
         }
     },
     "output": {
-        "body_file": "studies/supersonic_double_wedge_wing/results/M_1.5_aoa_4.0_5_deg_medium_MCA_1.0.vtk",
-        "report_file": "studies/supersonic_double_wedge_wing/reports/M_1.5_aoa_4.0_5_deg_medium_MCA_1.0.json"
+        "body_file": "studies/supersonic_double_wedge_wing/results/M_5.0_aoa_5.0_5_deg_ultra_fine_MCA_45.0.vtk",
+        "report_file": "studies/supersonic_double_wedge_wing/reports/M_5.0_aoa_5.0_5_deg_ultra_fine_MCA_45.0.json"
     }
 }
