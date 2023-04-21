@@ -113,6 +113,7 @@ module panel_mod
             procedure :: check_abutting_mirror_plane => panel_check_abutting_mirror_plane
             procedure :: projection_inside => panel_projection_inside
             procedure :: point_outside => panel_point_outside
+            procedure :: line_passes_through => panel_line_passes_through
 
             ! Update information
             procedure :: point_to_new_vertex => panel_point_to_new_vertex
@@ -1398,6 +1399,50 @@ contains
         end if
         
     end function panel_point_outside
+
+
+    function panel_line_passes_through(this, a, b, mirror_panel, mirror_plane) result(passes_through)
+        ! Determines whether the line given by r(s) = a + s*b passes through the panel
+
+        implicit none
+        
+        class(panel),intent(in) :: this
+        real,dimension(3),intent(in) :: a, b
+        logical :: mirror_panel
+        integer :: mirror_plane
+
+        logical :: passes_through
+
+        real :: s, d
+        real,dimension(3) :: loc
+
+        ! Get denominator
+        if (mirror_panel) then
+            d = inner(b, this%n_g_mir)
+        else
+            d = inner(b, this%n_g)
+        end if
+
+        ! Check whether the line is parallel to the panel
+        if (abs(d) < 1.e-12) then
+            passes_through = .false.
+            return
+        end if
+
+        ! Get s otherwise
+        if (mirror_panel) then
+            s = inner(this%centr_mir - a, this%n_g_mir)/d
+        else
+            s = inner(this%centr - a, this%n_g)/d
+        end if
+
+        ! Calculate intersection point
+        loc = a + s*b
+
+        ! Check whether the intersection point is inside the panel
+        passes_through = this%projection_inside(loc, mirror_panel, mirror_plane)
+        
+    end function panel_line_passes_through
 
 
     function panel_get_corner_angle(this, vert_loc) result(angle)

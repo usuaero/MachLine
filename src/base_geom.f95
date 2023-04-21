@@ -26,6 +26,7 @@ module base_geom_mod
         logical :: on_mirror_plane ! Whether this vertex lies in the mirroring plane
         logical :: clone ! Whether this vertex needs a clone depending on whether it's in a wake-shedding edge
         logical :: mirrored_is_unique ! Whether this vertice's mirror image will be the same for an asymmetric freestream condition
+        logical :: convex ! Whether the mesh is convex at this vertex
         integer :: N_needed_clones
 
         contains

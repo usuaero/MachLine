@@ -85,6 +85,8 @@ module surface_mesh_mod
 
             ! Control points
             procedure :: is_convex_at_vertex => surface_mesh_is_convex_at_vertex
+            procedure :: control_point_outside_mesh => surface_mesh_control_point_outside_mesh
+            procedure :: get_minimum_angle_vectors => surface_mesh_get_minimum_angle_vectors
             procedure :: place_interior_control_points => surface_mesh_place_interior_control_points
             procedure :: get_clone_control_point_dir => surface_mesh_get_clone_control_point_dir
 
@@ -707,6 +709,11 @@ contains
             end do
 
         end if
+
+        ! Determine surface convexity at each vertex
+        do i=1,this%N_verts
+            this%vertices(i)%convex = this%is_convex_at_vertex(i)
+        end do
 
         ! Initialize wake
         call this%init_wake(freestream, wake_file)
@@ -1357,7 +1364,7 @@ contains
         logical :: is_convex
 
         integer :: i, i_neighbor, j, j_neighbor
-        real :: s, h, C, S, theta
+        real :: s, h, theta
         logical :: first
 
         ! Initialize
@@ -1381,17 +1388,43 @@ contains
                 h = inner(this%panels(i_neighbor)%n_g, this%vertices(j_neighbor)%loc-this%panels(i_neighbor)%centr)
 
                 ! If it's in the plane of the panel, we can't say anything, and don't want to improperly initialize s
-                if (abs(h) < 1.e-12) cycle vertex_loop
+                if (abs(h) > 1.e-10) then
 
-                ! Check sign of height
-                if (first) then
-                    call sign(s, h)
-                    first = .false.
-                else
-                    if (s*h < 0.) then
-                        is_convex = .false.
-                        return
+                    ! Check sign of height
+                    if (first) then
+                        s = sign(s, h)
+                        first = .false.
+                    else
+                        if (s*h < 0.) then
+                            is_convex = .false.
+                            return
+                        end if
                     end if
+
+                end if
+
+                ! Do mirror checks
+                if (this%vertices(i_vert)%on_mirror_plane) then
+
+                    ! Check height above the mirrored panel
+                    h = inner(this%panels(i_neighbor)%n_g_mir, this%vertices(j_neighbor)%loc-this%panels(i_neighbor)%centr_mir)
+
+                    ! If it's in the plane of the panel, we can't say anything, and don't want to improperly initialize s
+                    if (abs(h) > 1.e-10) then
+
+                        ! Check sign of height
+                        if (first) then
+                            s = sign(s, h)
+                            first = .false.
+                        else
+                            if (s*h < 0.) then
+                                is_convex = .false.
+                                return
+                            end if
+                        end if
+
+                    end if
+
                 end if
 
             end do vertex_loop
@@ -1399,6 +1432,215 @@ contains
         end do
         
     end function surface_mesh_is_convex_at_vertex
+
+
+    function surface_mesh_control_point_outside_mesh(this, cp_loc, i_vert) result(outside)
+        ! Checks whether the given control point (tied to vertex i_vert) is outside the mesh
+        ! Note this will only check panels (and their mirrors) touching the vertex
+        ! Uses the ray-casting algorithm
+
+        implicit none
+        
+        class(surface_mesh),intent(in) :: this
+        real,dimension(3),intent(in) :: cp_loc
+        integer,intent(in) :: i_vert
+
+        logical :: outside
+
+        real,dimension(3) :: start, dir
+        integer :: N_crosses, i, i_panel
+
+        ! As the starting point for the ray-casting algorithm, we'll pick a point just above the first neighboring panel
+        call this%vertices(i_vert)%panels%get(1, i_panel)
+        start = 0.01*this%panels(i_panel)%get_characteristic_length()*this%panels(i_panel)%n_g
+        dir = cp_loc - start
+
+        ! Loop through neighboring panels, counting the number of times the line passes through
+        N_crosses = 0
+        do i=1,this%vertices(i_vert)%panels%len()
+
+            ! Get panel index
+            call this%vertices(i_vert)%panels%get(i, i_panel)
+
+            ! Check for original panel
+            if (this%panels(i_panel)%line_passes_through(start, dir, .false., 0)) then
+                N_crosses = N_crosses + 1
+            end if
+
+            ! Check for mirrored panel
+            if (this%vertices(i_vert)%on_mirror_plane) then
+                if (this%panels(i_panel)%line_passes_through(start, dir, .true., this%mirror_plane)) then
+                    N_crosses = N_crosses + 1
+                end if
+            end if
+        end do
+
+        ! The point is outside if there was an even number of crossings
+        outside = mod(N_crosses, 2) == 0
+        
+    end function surface_mesh_control_point_outside_mesh
+
+
+    subroutine surface_mesh_get_minimum_angle_vectors(this, i_vert, vec1, vec2)
+        ! Finds the two vectors attached to the given vertex which together form the minimum *interior* angle for the surface at the given vertex
+        ! We're looking for the two vectors whose inner product is a maximum
+
+        implicit none
+        
+        class(surface_mesh),intent(in) :: this
+        integer,intent(in) :: i_vert
+        real,dimension(3),intent(out) :: vec1, vec2
+
+        integer :: N_possible, i, j, i_adj, j_adj, k, k_panel
+        real :: max_inner, x
+        real,dimension(3) :: poss_vec1, poss_vec2
+        logical :: in_same_plane
+
+        ! Initialize
+        max_inner = -1.
+
+        ! Loop through adjacent vertices
+        do i=1,this%vertices(i_vert)%adjacent_vertices%len()
+
+            ! First possible vector is that pointing to this adjacent vertex
+            call this%vertices(i_vert)%adjacent_vertices%get(i, i_adj)
+            poss_vec1 = this%vertices(i_adj)%loc - this%vertices(i_vert)%loc
+            poss_vec1 = poss_vec1/norm2(poss_vec1)
+
+            ! Check mirror of this vertex
+            if (this%vertices(i_vert)%on_mirror_plane .and. .not. this%vertices(i_adj)%on_mirror_plane) then
+
+                poss_vec2 = mirror_across_plane(poss_vec1, this%mirror_plane)
+                poss_vec2 = poss_vec2/norm2(poss_vec2)
+
+                ! Get inner product
+                x = inner(poss_vec1, poss_vec2)
+
+                ! Check
+                if (x > max_inner) then
+
+                    ! Check both do not belong to the same surface
+                    in_same_plane = .false.
+                    adj_panel_loop1: do k=1,this%vertices(i_vert)%panels%len()
+                        
+                        ! Get panel index
+                        call this%vertices(i_vert)%panels%get(k, k_panel)
+
+                        ! Check inner products
+                        in_same_plane = (abs(inner(this%panels(k_panel)%n_g, poss_vec1)) < 1.e-10) .and. &
+                                        (abs(inner(this%panels(k_panel)%n_g, poss_vec2)) < 1.e-10)
+
+                        ! Check inner products with mirror
+                        if (this%vertices(i_vert)%on_mirror_plane) then
+                            in_same_plane = (abs(inner(this%panels(k_panel)%n_g_mir, poss_vec1)) < 1.e-10) .and. &
+                                            (abs(inner(this%panels(k_panel)%n_g_mir, poss_vec2)) < 1.e-10)
+                        end if
+
+                        if (in_same_plane) exit adj_panel_loop1
+
+                    end do adj_panel_loop1
+
+                    ! If they're not in the same plane, the update the maximum
+                    if (.not. in_same_plane) then
+                        vec1 = poss_vec1
+                        vec2 = poss_vec2
+                        max_inner = x
+                    end if
+
+                end if
+
+            end if
+
+            ! Loop through other adjacent vertices
+            other_adj_loop: do j=i+1,this%vertices(i_vert)%adjacent_vertices%len()
+
+                ! Get other direction
+                call this%vertices(i_vert)%adjacent_vertices%get(j, j_adj)
+                poss_vec2 = this%vertices(j_adj)%loc - this%vertices(i_vert)%loc
+                poss_vec2 = poss_vec2/norm2(poss_vec2)
+
+                ! Get inner product
+                x = inner(poss_vec1, poss_vec2)
+
+                ! Check 
+                if (x > max_inner) then
+
+                    ! Check both do not belong to the same surface
+                    in_same_plane = .false.
+                    adj_panel_loop2: do k=1,this%vertices(i_vert)%panels%len()
+                        
+                        ! Get panel index
+                        call this%vertices(i_vert)%panels%get(k, k_panel)
+
+                        ! Check inner products
+                        in_same_plane = (abs(inner(this%panels(k_panel)%n_g, poss_vec1)) < 1.e-10) .and. &
+                                        (abs(inner(this%panels(k_panel)%n_g, poss_vec2)) < 1.e-10)
+
+                        ! Check inner products with mirror
+                        if (this%vertices(i_vert)%on_mirror_plane) then
+                            in_same_plane = (abs(inner(this%panels(k_panel)%n_g_mir, poss_vec1)) < 1.e-10) .and. &
+                                            (abs(inner(this%panels(k_panel)%n_g_mir, poss_vec2)) < 1.e-10)
+                        end if
+
+                        if (in_same_plane) exit adj_panel_loop2
+
+                    end do adj_panel_loop2
+
+                    ! If they're not in the same plane, the update the maximum
+                    if (.not. in_same_plane) then
+                        vec1 = poss_vec1
+                        vec2 = poss_vec2
+                        max_inner = x
+                    end if
+                end if
+
+                ! Check mirror
+                if (this%vertices(i_vert)%on_mirror_plane .and. .not. this%vertices(j_adj)%on_mirror_plane) then
+
+                    ! Mirror
+                    poss_vec2 = mirror_across_plane(poss_vec2, this%mirror_plane)
+
+                    ! Get inner product
+                    x = inner(poss_vec1, poss_vec2)
+
+                    ! Check 
+                    if (x > max_inner) then
+
+                        ! Check both do not belong to the same surface
+                        in_same_plane = .false.
+                        adj_panel_loop3: do k=1,this%vertices(i_vert)%panels%len()
+
+                            ! Get panel index
+                            call this%vertices(i_vert)%panels%get(k, k_panel)
+
+                            ! Check inner products
+                            in_same_plane = (abs(inner(this%panels(k_panel)%n_g, poss_vec1)) < 1.e-10) .and. &
+                                            (abs(inner(this%panels(k_panel)%n_g, poss_vec2)) < 1.e-10)
+
+                            ! Check inner products with mirror
+                            if (this%vertices(i_vert)%on_mirror_plane) then
+                                in_same_plane = (abs(inner(this%panels(k_panel)%n_g_mir, poss_vec1)) < 1.e-10) .and. &
+                                                (abs(inner(this%panels(k_panel)%n_g_mir, poss_vec2)) < 1.e-10)
+                            end if
+
+                            if (in_same_plane) exit adj_panel_loop3
+
+                        end do adj_panel_loop3
+
+                        ! If they're not in the same plane, the update the maximum
+                        if (.not. in_same_plane) then
+                            vec1 = poss_vec1
+                            vec2 = poss_vec2
+                            max_inner = x
+                        end if
+                    end if
+                end if
+            
+            end do other_adj_loop
+
+        end do
+
+    end subroutine surface_mesh_get_minimum_angle_vectors
 
 
     subroutine surface_mesh_place_interior_control_points(this, offset, offset_type, freestream)
@@ -1411,9 +1653,8 @@ contains
         type(flow),intent(in) :: freestream
 
         integer :: i, j, i_panel
-        real,dimension(3) :: dir, loc
-        real :: l_max
-        logical :: surrounded, is_convex
+        real,dimension(3) :: dir, vec1, vec2, n_avg
+        logical :: surrounded
 
         ! Specify number of control points
         if (this%asym_flow) then
@@ -1427,8 +1668,8 @@ contains
         allocate(this%cp(this%N_cp))
 
         ! Loop through vertices
-        !$OMP parallel do private(j, i_panel, dir, surrounded, is_convex) &
-        !$OMP & schedule(dynamic) shared(this, offset, freestream, l_max, offset_type) default(none)
+        !$OMP parallel do private(j, i_panel, dir, surrounded, vec1, vec2, n_avg) &
+        !$OMP & schedule(dynamic) shared(this, offset, freestream, offset_type)
         do i=1,this%N_verts
 
             ! If the vertex is a clone, it needs to be shifted off the normal slightly so that it is unique from its counterpart
@@ -1439,35 +1680,8 @@ contains
             ! If it has no clone, then placement simply follows the average normal vector
             else
 
-                ! Set direction
+                ! Set direction simply off of the average normal vector
                 dir = -this%vertices(i)%n_g
-
-                ! Check if this vertex is entirely surrounded by superinclined panels
-                if (this%N_supinc > 0) then
-                    surrounded = .true.
-                    do j=1,this%vertices(i)%panels%len()
-
-                        ! Get panel index
-                        call this%vertices(i)%panels%get(j, i_panel)
-
-                        ! Check for a subinclined panel, in which case we're not surrounded
-                        if (this%panels(i_panel)%r > 0.) then
-                            surrounded = .false.
-                            exit
-                        end if
-
-                    end do
-
-                    ! If we are surrounded, place the control point in the downstream direction
-                    if (surrounded) then
-                        if (inner(this%panels(i_panel)%n_g, freestream%c_hat_g) > 0.) then
-                            dir = -dir
-                        else
-                            dir = dir
-                        end if
-                    end if
-
-                end if 
 
             end if
             
@@ -1481,6 +1695,37 @@ contains
                 call this%cp(i)%init(this%vertices(i)%loc + offset*dir, 1, 1, i)
 
             end select
+
+            ! Check if the control point is outside the mesh
+            do while (this%control_point_outside_mesh(this%cp(i)%loc, i))
+
+                ! Loop through neighboring panels to find ones the control point is outside
+                n_avg = 0.
+                do j=1,this%vertices(i)%panels%len()
+                    
+                    ! Get panel index
+                    call this%vertices(i)%panels%get(j, i_panel)
+
+                    ! Check if it's outside the original panel
+                    if (this%panels(i_panel)%point_outside(this%cp(i)%loc, .false., 0)) then
+                        n_avg = n_avg + this%panels(i_panel)%n_g
+                    end if
+
+                    ! Check if it's outside the mirrored panel
+                    if (this%vertices(i)%on_mirror_plane) then
+                        if (this%panels(i_panel)%point_outside(this%cp(i)%loc, .true., this%mirror_plane)) then
+                            n_avg = n_avg + this%panels(i_panel)%n_g_mir
+                        end if
+                    end if
+                end do
+
+                ! Reflect (partially) across plane defined by n_avg
+                n_avg = n_avg/norm2(n_avg)
+                write(*,*) "! Reflecting control point ", i
+                this%cp(i)%loc = this%cp(i)%loc - 1.1*n_avg*inner(this%cp(i)%loc-this%vertices(i)%loc, n_avg)
+                write(*,*) this%cp(i)%loc
+
+            end do
 
         end do
 
@@ -1936,7 +2181,7 @@ contains
 
         type(vtk_out) :: body_vtk
         integer :: i, N_cells
-        real,dimension(:),allocatable :: panel_inclinations, orders, N_discont_edges
+        real,dimension(:),allocatable :: panel_inclinations, orders, N_discont_edges, convex
         real,dimension(:,:),allocatable :: cents
 
         ! Clear old file
@@ -1950,11 +2195,15 @@ contains
         allocate(orders(this%N_panels))
         allocate(N_discont_edges(this%N_panels))
         allocate(cents(3,this%N_panels))
+        allocate(convex(this%N_verts), source=0.)
         do i=1,this%N_panels
             panel_inclinations(i) = this%panels(i)%r
             orders(i) = this%panels(i)%order
             N_discont_edges(i) = this%panels(i)%N_discont_edges
             cents(:,i) = this%panels(i)%centr
+        end do
+        do i=1,this%N_verts
+            if (this%vertices(i)%convex) convex(i) = 1.
         end do
 
         ! Write geometry
@@ -2007,6 +2256,7 @@ contains
             ! Surface potential values
             call body_vtk%write_point_scalars(this%mu(1:this%N_verts), "mu")
             call body_vtk%write_point_scalars(this%Phi_u(1:this%N_verts), "Phi_u")
+            call body_vtk%write_point_scalars(convex, "convex")
 
         end if
 
@@ -2027,7 +2277,7 @@ contains
 
         type(vtk_out) :: body_vtk
         integer :: i, N_cells
-        real,dimension(:),allocatable :: panel_inclinations, orders, N_discont_edges
+        real,dimension(:),allocatable :: panel_inclinations, orders, N_discont_edges, convex
         real,dimension(:,:),allocatable :: cents
 
         ! Clear old file
@@ -2041,11 +2291,15 @@ contains
         allocate(orders(this%N_panels))
         allocate(N_discont_edges(this%N_panels))
         allocate(cents(3,this%N_panels))
+        allocate(convex(this%N_verts), source=0.)
         do i=1,this%N_panels
             panel_inclinations(i) = this%panels(i)%r_mir
             orders(i) = this%panels(i)%order
             N_discont_edges(i) = this%panels(i)%N_discont_edges
             cents(:,i) = this%panels(i)%centr_mir
+        end do
+        do i=1,this%N_verts
+            if (this%vertices(i)%convex) convex(i) = 1.
         end do
 
         ! Write geometry
@@ -2098,6 +2352,7 @@ contains
             ! Surface potentials
             call body_vtk%write_point_scalars(this%mu(this%N_verts+1:this%N_verts*2), "mu")
             call body_vtk%write_point_scalars(this%Phi_u(this%N_verts+1:this%N_verts*2), "Phi_u")
+            call body_vtk%write_point_scalars(convex, "convex")
 
         end if
 
