@@ -77,7 +77,6 @@ module surface_mesh_mod
 
             ! Getters
             procedure :: get_avg_characteristic_panel_length => surface_mesh_get_avg_characteristic_panel_length
-            procedure :: get_max_cardinal_length => surface_mesh_get_max_cardinal_length
 
             ! Wake stuff
             procedure :: init_wake => surface_mesh_init_wake
@@ -85,6 +84,7 @@ module surface_mesh_mod
             procedure :: update_subsonic_trefftz_distance => surface_mesh_update_subsonic_trefftz_distance
 
             ! Control points
+            procedure :: is_convex_at_vertex => surface_mesh_is_convex_at_vertex
             procedure :: place_interior_control_points => surface_mesh_place_interior_control_points
             procedure :: get_clone_control_point_dir => surface_mesh_get_clone_control_point_dir
 
@@ -658,44 +658,6 @@ contains
         l_avg = l_avg/this%N_panels
         
     end function surface_mesh_get_avg_characteristic_panel_length
-
-
-    function surface_mesh_get_max_cardinal_length(this) result(l_max)
-        ! Returns the maximum length of the mesh along any of the global axes
-
-        implicit none
-        
-        class(surface_mesh), intent(in) :: this
-
-        real :: l_max
-
-        real,dimension(3) :: l = 0.
-        real :: x_max, x_min
-        integer :: i, j
-
-        ! Get max length in each direction
-        do j=1,3
-
-            ! Loop through vertices to get extreme positions
-            x_max = this%vertices(1)%loc(j)
-            x_min = this%vertices(1)%loc(j)
-            do i=2,this%N_verts
-                x_max = max(x_max, this%vertices(i)%loc(j))
-                x_min = min(x_min, this%vertices(i)%loc(j))
-            end do
-
-            ! Store
-            l(j) = x_max - x_min
-        end do
-
-        ! Double if needed
-        if (this%mirrored) then
-            l(this%mirror_plane) = 2.*l(this%mirror_plane)
-        end if
-
-        l_max = maxval(l)
-        
-    end function surface_mesh_get_max_cardinal_length
 
 
     subroutine surface_mesh_init_with_flow(this, freestream, body_file, wake_file)
@@ -1384,6 +1346,61 @@ contains
     end subroutine surface_mesh_update_subsonic_trefftz_distance
 
 
+    function surface_mesh_is_convex_at_vertex(this, i_vert) result(is_convex)
+        ! Determines whether the mesh is convex at the given vertex
+
+        implicit none
+        
+        class(surface_mesh),intent(in) :: this
+        integer,intent(in) :: i_vert
+
+        logical :: is_convex
+
+        integer :: i, i_neighbor, j, j_neighbor
+        real :: s, h, C, S, theta
+        logical :: first
+
+        ! Initialize
+        is_convex = .true.
+        first = .true.
+        s = 1.
+
+        ! Loop through neighboring panels
+        do i=1,this%vertices(i_vert)%panels%len()
+
+            ! Get index
+            call this%vertices(i_vert)%panels%get(i, i_neighbor)
+
+            ! Loop through neighboring vertices
+            vertex_loop: do j=1,this%vertices(i_vert)%adjacent_vertices%len()
+
+                ! Get index
+                call this%vertices(i_vert)%adjacent_vertices%get(j, j_neighbor)
+
+                ! Check height above this panel
+                h = inner(this%panels(i_neighbor)%n_g, this%vertices(j_neighbor)%loc-this%panels(i_neighbor)%centr)
+
+                ! If it's in the plane of the panel, we can't say anything, and don't want to improperly initialize s
+                if (abs(h) < 1.e-12) cycle vertex_loop
+
+                ! Check sign of height
+                if (first) then
+                    call sign(s, h)
+                    first = .false.
+                else
+                    if (s*h < 0.) then
+                        is_convex = .false.
+                        return
+                    end if
+                end if
+
+            end do vertex_loop
+
+        end do
+        
+    end function surface_mesh_is_convex_at_vertex
+
+
     subroutine surface_mesh_place_interior_control_points(this, offset, offset_type, freestream)
 
         implicit none
@@ -1396,10 +1413,7 @@ contains
         integer :: i, j, i_panel
         real,dimension(3) :: dir, loc
         real :: l_max
-        logical :: surrounded
-
-        ! Get max cardinal length, if needed
-        if (offset_type=='global') l_max = this%get_max_cardinal_length()
+        logical :: surrounded, is_convex
 
         ! Specify number of control points
         if (this%asym_flow) then
@@ -1413,7 +1427,7 @@ contains
         allocate(this%cp(this%N_cp))
 
         ! Loop through vertices
-        !$OMP parallel do private(j, i_panel, dir, surrounded) &
+        !$OMP parallel do private(j, i_panel, dir, surrounded, is_convex) &
         !$OMP & schedule(dynamic) shared(this, offset, freestream, l_max, offset_type) default(none)
         do i=1,this%N_verts
 
@@ -1460,45 +1474,15 @@ contains
             ! Initialize control point
             select case (offset_type)
 
-            case ('global')
-                call this%cp(i)%init(this%vertices(i)%loc + offset*dir*l_max, 1, 1, i)
-
-            case ('direct')
-                call this%cp(i)%init(this%vertices(i)%loc + offset*dir, 1, 1, i)
-                
-            case default ! Local
+            case ('local')
                 call this%cp(i)%init(this%vertices(i)%loc + offset*dir*this%vertices(i)%l_avg, 1, 1, i)
+
+            case default ! Direct
+                call this%cp(i)%init(this%vertices(i)%loc + offset*dir, 1, 1, i)
 
             end select
 
         end do
-
-        ! Calculate control points tied to superinclined panels
-        !!!! THIS SECTION IS EXPERIMENTAL !!!!
-        !!!! MACHLINE IS NOT CURRENTLY IMPLEMENTED TO CORRECTLY HANDLE SUPERINCLINED PANELS !!!!
-        if (this%N_supinc > 0) then
-
-            ! Loop through panels
-            j = this%N_verts
-            do i=1,this%N_panels
-
-                ! Check if this panel is superinclined
-                if (this%panels(i)%r < 0.) then
-
-                    ! Get location on downstream side of panel
-                    if (inner(this%panels(i)%n_g, freestream%c_hat_g) > 0.) then
-                        loc = this%panels(i)%centr + this%panels(i)%n_g*offset
-                        j = j + 1
-                        call this%cp(j)%init(loc, 2, 2, i)
-                    else
-                        loc = this%panels(i)%centr - this%panels(i)%n_g*offset
-                        j = j + 1
-                        call this%cp(j)%init(loc, 1, 2, i)
-                    end if
-
-                end if
-            end do
-        end if
 
         ! Calculate mirrored control points, if necessary
         if (this%asym_flow) then
