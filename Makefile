@@ -42,6 +42,10 @@ debug:
 wall:
 	$(COMPILER) $(FLAGS) $(OMP_FLAG) $(DEBUG_FLAGS) -Wall -o $(PROGRAM) $(COMMON_PATHS) $(SRC_PATHS) $(MAIN_PATH)
 
+# Debug with all warnings
+debug-serial:
+	$(COMPILER) $(FLAGS) $(DEBUG_FLAGS) -o $(PROGRAM) $(COMMON_PATHS) $(SRC_PATHS) $(MAIN_PATH)
+
 # Serial compilation (without OpenMP)
 serial:
 	$(COMPILER) $(FLAGS) -o $(PROGRAM) $(COMMON_PATHS) $(SRC_PATHS) $(MAIN_PATH)

@@ -113,6 +113,7 @@ module panel_mod
             procedure :: check_abutting_mirror_plane => panel_check_abutting_mirror_plane
             procedure :: projection_inside => panel_projection_inside
             procedure :: point_outside => panel_point_outside
+            procedure :: point_above => panel_point_above
             procedure :: line_passes_through => panel_line_passes_through
 
             ! Update information
@@ -1358,7 +1359,7 @@ contains
             end if
 
             ! Check
-            if (x > 1.e-12) then
+            if (x > 0.) then
                 inside = .false.
                 return
             end if
@@ -1401,6 +1402,37 @@ contains
     end function panel_point_outside
 
 
+    function panel_point_above(this, point, mirror_panel, mirror_plane) result(above)
+        ! Tells whether the given point is above the panel
+
+        implicit none
+        
+        class(panel),intent(in) :: this
+        real,dimension(3),intent(in) :: point
+        logical,intent(in) :: mirror_panel
+        integer,intent(in) :: mirror_plane
+
+        logical :: above
+
+        real :: h
+
+        ! Get height above panel
+        if (mirror_panel) then
+            h = inner(point-this%centr_mir, this%n_g_mir)
+        else
+            h = inner(point-this%centr, this%n_g)
+        end if
+
+        ! If height is negative, we know this isn't outside the panel
+        if (h < 0.) then
+            above = .false.
+        else
+            above = .true.
+        end if
+        
+    end function panel_point_above
+
+
     function panel_line_passes_through(this, a, b, mirror_panel, mirror_plane) result(passes_through)
         ! Determines whether the line given by r(s) = a + s*b passes through the panel
 
@@ -1424,7 +1456,7 @@ contains
         end if
 
         ! Check whether the line is parallel to the panel
-        if (abs(d) < 1.e-12) then
+        if (abs(d) < 1.e-16) then
             passes_through = .false.
             return
         end if

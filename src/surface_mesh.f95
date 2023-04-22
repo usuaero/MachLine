@@ -1653,7 +1653,8 @@ contains
         type(flow),intent(in) :: freestream
 
         integer :: i, j, i_panel
-        real,dimension(3) :: dir, vec1, vec2, n_avg
+        real,dimension(3) :: dir, new_dir, n_avg, disp
+        real :: this_offset
         logical :: surrounded
 
         ! Specify number of control points
@@ -1668,7 +1669,7 @@ contains
         allocate(this%cp(this%N_cp))
 
         ! Loop through vertices
-        !$OMP parallel do private(j, i_panel, dir, surrounded, vec1, vec2, n_avg) &
+        !$OMP parallel do private(j, i_panel, dir, surrounded, new_dir, n_avg, this_offset, disp) &
         !$OMP & schedule(dynamic) shared(this, offset, freestream, offset_type)
         do i=1,this%N_verts
 
@@ -1684,20 +1685,26 @@ contains
                 dir = -this%vertices(i)%n_g
 
             end if
-            
-            ! Initialize control point
+
+            ! Determine offset
             select case (offset_type)
 
             case ('local')
-                call this%cp(i)%init(this%vertices(i)%loc + offset*dir*this%vertices(i)%l_avg, 1, 1, i)
+                this_offset = offset*this%vertices(i)%l_avg
 
             case default ! Direct
-                call this%cp(i)%init(this%vertices(i)%loc + offset*dir, 1, 1, i)
+                this_offset = offset
 
             end select
+            
+            ! Initialize control point
+            call this%cp(i)%init(this%vertices(i)%loc + this_offset*dir, 1, 1, i)
 
             ! Check if the control point is outside the mesh
-            do while (this%control_point_outside_mesh(this%cp(i)%loc, i))
+            get_back_in_loop: do while (this%control_point_outside_mesh(this%cp(i)%loc, i))
+                write(*,*)
+                write(*,*) "!!! Control point ", i, " is outside the mesh."
+                write(*,*) "!!! Location: ", this%cp(i)%loc
 
                 ! Loop through neighboring panels to find ones the control point is outside
                 n_avg = 0.
@@ -1706,26 +1713,31 @@ contains
                     ! Get panel index
                     call this%vertices(i)%panels%get(j, i_panel)
 
-                    ! Check if it's outside the original panel
-                    if (this%panels(i_panel)%point_outside(this%cp(i)%loc, .false., 0)) then
-                        n_avg = n_avg + this%panels(i_panel)%n_g
+                    ! Check if it's above the original panel
+                    if (this%panels(i_panel)%point_above(this%cp(i)%loc, .false., 0)) then
+                        write(*,*) "    It's above panel ", i_panel
+                        write(*,*) "        ", this%panels(i_panel)%n_g
+                        n_avg = n_avg + this%panels(i_panel)%get_weighted_normal_at_corner(this%vertices(i)%loc)
                     end if
 
-                    ! Check if it's outside the mirrored panel
-                    if (this%vertices(i)%on_mirror_plane) then
-                        if (this%panels(i_panel)%point_outside(this%cp(i)%loc, .true., this%mirror_plane)) then
-                            n_avg = n_avg + this%panels(i_panel)%n_g_mir
-                        end if
-                    end if
                 end do
 
-                ! Reflect (partially) across plane defined by n_avg
-                n_avg = n_avg/norm2(n_avg)
-                write(*,*) "! Reflecting control point ", i
-                this%cp(i)%loc = this%cp(i)%loc - 1.1*n_avg*inner(this%cp(i)%loc-this%vertices(i)%loc, n_avg)
-                write(*,*) this%cp(i)%loc
+                ! A control point on the mirror plane should stay there
+                if (this%vertices(i)%on_mirror_plane) n_avg(this%mirror_plane) = 0.
 
-            end do
+                ! If there were no panels this control point was above, then exit
+                if (norm2(n_avg) < 1.e-16) exit get_back_in_loop
+
+                ! Reflect (partially, length-preserving) across plane defined by n_avg
+                n_avg = n_avg/norm2(n_avg)
+                write(*,*) "!!! Reflecting across the plane defined by ", n_avg
+                disp = this%cp(i)%loc - this%vertices(i)%loc
+                new_dir = disp - 1.1*n_avg*inner(disp, n_avg)
+                new_dir = new_dir/norm2(new_dir)
+                this%cp(i)%loc = this%vertices(i)%loc + this_offset*new_dir
+                write(*,*) "!!! New location: ", this%cp(i)%loc
+
+            end do get_back_in_loop
 
         end do
 
