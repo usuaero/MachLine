@@ -1450,9 +1450,9 @@ contains
         real,dimension(3) :: start, dir
         integer :: N_crosses, i, i_panel
 
-        ! As the starting point for the ray-casting algorithm, we'll pick a point just above the first neighboring panel
+        ! As the starting point for the ray-casting algorithm, we'll pick a point above the first neighboring panel
         call this%vertices(i_vert)%panels%get(1, i_panel)
-        start = 0.01*this%panels(i_panel)%get_characteristic_length()*this%panels(i_panel)%n_g
+        start = this%panels(i_panel)%get_characteristic_length()*this%panels(i_panel)%n_g
         dir = cp_loc - start
 
         ! Loop through neighboring panels, counting the number of times the line passes through
@@ -1702,9 +1702,9 @@ contains
 
             ! Check if the control point is outside the mesh
             get_back_in_loop: do while (this%control_point_outside_mesh(this%cp(i)%loc, i))
-                write(*,*)
-                write(*,*) "!!! Control point ", i, " is outside the mesh."
-                write(*,*) "!!! Location: ", this%cp(i)%loc
+                !write(*,*)
+                !write(*,*) "!!! Control point ", i, " is outside the mesh."
+                !write(*,*) "!!! Location: ", this%cp(i)%loc
 
                 ! Loop through neighboring panels to find ones the control point is outside
                 n_avg = 0.
@@ -1715,8 +1715,8 @@ contains
 
                     ! Check if it's above the original panel
                     if (this%panels(i_panel)%point_above(this%cp(i)%loc, .false., 0)) then
-                        write(*,*) "    It's above panel ", i_panel
-                        write(*,*) "        ", this%panels(i_panel)%n_g
+                        !write(*,*) "    It's above panel ", i_panel
+                        !write(*,*) "        ", this%panels(i_panel)%n_g
                         n_avg = n_avg + this%panels(i_panel)%get_weighted_normal_at_corner(this%vertices(i)%loc)
                     end if
 
@@ -1730,12 +1730,12 @@ contains
 
                 ! Reflect (partially, length-preserving) across plane defined by n_avg
                 n_avg = n_avg/norm2(n_avg)
-                write(*,*) "!!! Reflecting across the plane defined by ", n_avg
+                !write(*,*) "!!! Reflecting across the plane defined by ", n_avg
                 disp = this%cp(i)%loc - this%vertices(i)%loc
                 new_dir = disp - 1.1*n_avg*inner(disp, n_avg)
                 new_dir = new_dir/norm2(new_dir)
                 this%cp(i)%loc = this%vertices(i)%loc + this_offset*new_dir
-                write(*,*) "!!! New location: ", this%cp(i)%loc
+                !write(*,*) "!!! New location: ", this%cp(i)%loc
 
             end do get_back_in_loop
 

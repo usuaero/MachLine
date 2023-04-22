@@ -65,7 +65,7 @@ def run_study_at_mach(M):
 if __name__=="__main__":
 
     # Mach numbers
-    Ms = [1.5, 2.0, 2.5]
+    Ms = [1.5]#, 2.0, 2.5]
 
     for M in Ms:
         run_study_at_mach(M)
