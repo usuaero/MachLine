@@ -5,7 +5,7 @@ from studies.case_running_functions import run_quad, cases, line_styles, write_i
 from studies.paraview_functions import extract_plane_slice, get_data_column_from_array
 
 
-RERUN_MACHLINE = False
+RERUN_MACHLINE = True
 study_dir = "studies/nacelles/"
 plot_dir = study_dir + "plots/supersonic/"
 
@@ -132,7 +132,7 @@ def run_study_at_mach(M):
 if __name__=="__main__":
 
     # Mach numbers
-    Ms = [1.5, 2.0, 2.5]
+    Ms = [1.5, 1.9, 2.0, 2.1, 2.5]
 
     for M in Ms:
         run_study_at_mach(M)
