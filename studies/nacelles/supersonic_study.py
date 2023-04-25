@@ -105,7 +105,7 @@ def run_study_at_mach(M):
             C_P = CP
 
             # Get location of front
-            front_ind = np.argmin(x) + 1
+            front_ind = np.argmin(x) + 2
 
             # Plot inside pressures
             inner_ax.plot(x[:front_ind], C_P[:front_ind], color=line_colors[i])
