@@ -6,7 +6,7 @@
             0.0
         ],
         "gamma": 1.4,
-        "freestream_mach_number": 1.5
+        "freestream_mach_number": 2.5
     },
     "geometry": {
         "file": "studies/nacelles/meshes/supersonic_ultra_fine.stl",
@@ -24,8 +24,8 @@
         }
     },
     "output": {
-        "body_file": "studies/nacelles/results/supersonic_M_1.5_ultra_fine.vtk",
-        "control_point_file": "studies/nacelles/results/supersonic_M_1.5_ultra_fine_control_points.vtk",
-        "report_file": "studies/nacelles/reports/supersonic_M_1.5_ultra_fine.json"
+        "body_file": "studies/nacelles/results/supersonic_M_2.5_ultra_fine.vtk",
+        "control_point_file": "studies/nacelles/results/supersonic_M_2.5_ultra_fine_control_points.vtk",
+        "report_file": "studies/nacelles/reports/supersonic_M_2.5_ultra_fine.json"
     }
 }
