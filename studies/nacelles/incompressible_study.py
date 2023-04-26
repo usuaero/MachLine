@@ -40,7 +40,7 @@ def run_study():
                     "spanwise_axis" : "+y",
                     "wake_model": {
                         "wake_present" : True,
-                        "append_wake" : False
+                        "append_wake" : True
                     },
                     "reference": {
                     }
@@ -76,6 +76,8 @@ def run_study():
         axial_ax = axial_fig.subplots()
         circu_fig = plt.figure(2)
         circu_ax = circu_fig.subplots()
+        both_fig = plt.figure(3)
+        both_ax = both_fig.subplots()
 
         # Loop through grid densities
         for i, grid in enumerate(grids):
@@ -111,21 +113,41 @@ def run_study():
 
             # Plot varied axial pressures
             axial_ax.plot(x, C_P, color=line_colors[i])
-            #plt.figure(1)
-            #plt.plot(x)
-            #plt.savefig('test.pdf')
-            #plt.close(1)
+
+            # Get results for both varied
+            report = report_dicts[i][i][k]
+
+            # Get result file
+            result_file = report["input"]["output"]["body_file"]
+
+            # Load slice
+            headers, data = extract_plane_slice(result_file, [0.0, 1.0, 0.0], [0.0, 0.0, 0.0], which_data='cell')
+
+            # Get data
+            x = get_data_column_from_array(headers, data, 'centroid:0')
+            C_P = get_data_column_from_array(headers, data, 'C_p_inc')
+
+            # Plot
+            both_ax.plot(x, C_P, color=line_colors[i])
 
         # Format plots
         axial_ax.set_xlabel("$x$")
         axial_ax.set_ylabel("$C_{P_{inc}}$")
+        axial_ax.invert_yaxis()
         axial_fig.savefig(plot_dir + "axial_pressures_{0}.pdf".format(case))
         plt.close(axial_fig)
 
         circu_ax.set_xlabel("$x$")
         circu_ax.set_ylabel("$C_{P_{inc}}$")
+        circu_ax.invert_yaxis()
         circu_fig.savefig(plot_dir + "circumferential_pressures_{0}.pdf".format(case))
         plt.close(circu_fig)
+
+        both_ax.set_xlabel("$x$")
+        both_ax.set_ylabel("$C_{P_{inc}}$")
+        both_ax.invert_yaxis()
+        both_fig.savefig(plot_dir + "both_pressures_{0}.pdf".format(case))
+        plt.close(both_fig)
 
 
 if __name__=="__main__":
