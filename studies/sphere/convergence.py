@@ -93,10 +93,8 @@ if __name__=="__main__":
     print()
     print("Average Orders of Convergence")
     print("-----------------------------")
-    print("Morino, lower-order: ", avg_orders[0], " +/- ", np.std(orders[0]))
-    print("Morino, higher-order: ", avg_orders[1], " +/- ", np.std(orders[1]))
-    print("Source-free, lower-order: ", avg_orders[2], " +/- ", np.std(orders[2]))
-    print("Source-free, higher-order: ", avg_orders[3], " +/- ", np.std(orders[3]))
+    for k, case in enumerate(cases):
+        print(case, ": ", avg_orders[k], " +/- ", np.std(orders[k]))
 
     # Plot
     plt.figure()

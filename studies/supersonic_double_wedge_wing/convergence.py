@@ -1,8 +1,9 @@
 import numpy as np
+
 from studies.case_running_functions import run_quad, get_order_of_convergence, write_input_file
 
 
-RERUN_MACHLINE = True
+RERUN_MACHLINE = False
 study_dir = "studies/supersonic_double_wedge_wing/"
 plot_dir = study_dir + "plots/convergence/"
 
@@ -161,30 +162,28 @@ if __name__=="__main__":
     print()
     print("Cx Convergence Rate")
     print("-------------------")
-    slopes = []
     for i, MCA in enumerate(MCAs):
         print("---Max Continuity Angle: {0} degrees---".format(MCA))
         for l, case in enumerate(['ML', 'MH', 'SL', 'SH']):
-            slopes.append([])
+            slopes = []
             for j, M in enumerate(Ms):
                 for k, alpha in enumerate(alphas):
-                    slopes[l].append(get_order_of_convergence(l_avg, C_F[:,j,k,i,l,0], truth_from_results=True))
+                    slopes.append(get_order_of_convergence(l_avg, C_F[:,j,k,i,l,0], truth_from_results=True))
 
-            print("{0}: ".format(case), np.average(slopes[l]))
+            print("{0}: {1} +/- {2}".format(case, round(np.average(slopes), 3), round(np.std(slopes), 3)))
 
     #Analyze convergence of Cz
     print()
     print("Cz Convergence Rate")
     print("-------------------")
-    slopes = []
     for i, MCA in enumerate(MCAs):
         print("---Max Continuity Angle: {0} degrees---".format(MCA))
         for l, case in enumerate(['ML', 'MH', 'SL', 'SH']):
-            slopes.append([])
+            slopes = []
             for j, M in enumerate(Ms):
                 for k, alpha in enumerate(alphas):
                     if k==0:
                         continue
-                    slopes[l].append(get_order_of_convergence(l_avg, C_F[:,j,k,i,l,2], truth_from_results=True))
+                    slopes.append(get_order_of_convergence(l_avg, C_F[:,j,k,i,l,2], truth_from_results=True))
 
-            print("{0}: ".format(case), np.average(slopes[l]))
+            print("{0}: {1} +/- {2}".format(case, round(np.average(slopes), 3), round(np.std(slopes), 3)))
