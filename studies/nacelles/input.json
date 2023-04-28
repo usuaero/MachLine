@@ -4,28 +4,26 @@
             1.0,
             0.0,
             0.0
-        ],
-        "gamma": 1.4,
-        "freestream_mach_number": 1.5
+        ]
     },
     "geometry": {
-        "file": "studies/nacelles/meshes/supersonic_ultra_fine.stl",
+        "file": "studies/nacelles/meshes/NACA_0010_fine_fine.stl",
         "spanwise_axis": "+y",
-        "max_continuity_angle": 5.0,
         "wake_model": {
-            "append_wake": false
+            "wake_present": true,
+            "append_wake": true
         },
         "reference": {}
     },
     "solver": {},
     "post_processing": {
         "pressure_rules": {
-            "isentropic": true
+            "incompressible": true
         }
     },
     "output": {
-        "body_file": "studies/nacelles/results/supersonic_M_1.5_ultra_fine.vtk",
-        "control_point_file": "studies/nacelles/results/supersonic_M_1.5_ultra_fine_control_points.vtk",
-        "report_file": "studies/nacelles/reports/supersonic_M_1.5_ultra_fine.json"
+        "body_file": "studies/nacelles/results/NACA_0010_fine_fine.vtk",
+        "control_point_file": "studies/nacelles/results/NACA_0010_fine_fine_control_points.vtk",
+        "report_file": "studies/nacelles/reports/NACA_0010_fine_fine.json"
     }
 }

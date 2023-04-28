@@ -1,8 +1,7 @@
-import json
 import numpy as np
-import subprocess as sp
 import matplotlib.pyplot as plt
-from studies.case_running_functions import run_quad, get_order_of_convergence, cases, line_styles
+
+from studies.case_running_functions import run_quad, get_order_of_convergence, cases, line_styles, write_input_file
 
 
 RERUN_MACHLINE = False
@@ -34,8 +33,7 @@ def run_cases_for_orientation_and_mesh_density(psi, theta, density):
     }
 
     # Write to file
-    with open(input_filename, 'w') as input_handle:
-        json.dump(input_dict, input_handle, indent=4)
+    write_input_file(input_dict, input_filename)
 
     # Run quad
     reports = run_quad(input_filename, run=RERUN_MACHLINE)
@@ -104,15 +102,16 @@ if __name__=="__main__":
     plt.figure()
     for i in range(len(psis)):
         for j in range(len(thetas)):
-            for k in range(4):
+            for k, (line_style, case) in enumerate(zip(line_styles, cases)):
                 if i==0 and j==0:
-                    plt.plot(l_avg, np.abs(Cx[i,j,:]), line_styles[k], label=cases[k])
+                    plt.plot(l_avg, np.abs(Cx[i,j,:]), line_style, label=case)
                 else:
-                    plt.plot(l_avg, np.abs(Cx[i,j,:]), line_styles[k])
-                plt.plot(l_avg, np.abs(Cy[i,j,:]), line_styles[k])
-                plt.plot(l_avg, np.abs(Cz[i,j,:]), line_styles[k])
+                    plt.plot(l_avg, np.abs(Cx[i,j,:]), line_style)
+                plt.plot(l_avg, np.abs(Cy[i,j,:]), line_style)
+                plt.plot(l_avg, np.abs(Cz[i,j,:]), line_style)
     plt.xscale('log')
     plt.yscale('log')
     plt.xlabel('$l_{avg}$')
     plt.ylabel('$C_F$')
+    plt.legend()
     plt.show()

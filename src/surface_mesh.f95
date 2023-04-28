@@ -1441,6 +1441,7 @@ contains
         logical :: outside
 
         real,dimension(3) :: start, dir
+        real :: s_star
         integer :: N_crosses, i, i_panel
 
         ! As the starting point for the ray-casting algorithm, we'll pick a point above the first neighboring panel
@@ -1456,14 +1457,14 @@ contains
             call this%vertices(i_vert)%panels%get(i, i_panel)
 
             ! Check for original panel
-            if (this%panels(i_panel)%line_passes_through(start, dir, .false., 0)) then
-                N_crosses = N_crosses + 1
+            if (this%panels(i_panel)%line_passes_through(start, dir, .false., 0, s_star)) then
+                if (s_star <= 1. .and. s_star >= 0.) N_crosses = N_crosses + 1
             end if
 
             ! Check for mirrored panel
             if (this%vertices(i_vert)%on_mirror_plane) then
-                if (this%panels(i_panel)%line_passes_through(start, dir, .true., this%mirror_plane)) then
-                    N_crosses = N_crosses + 1
+                if (this%panels(i_panel)%line_passes_through(start, dir, .true., this%mirror_plane, s_star)) then
+                    if (s_star <= 1. .and. s_star >= 0.) N_crosses = N_crosses + 1
                 end if
             end if
         end do

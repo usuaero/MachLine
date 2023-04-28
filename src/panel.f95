@@ -1433,19 +1433,20 @@ contains
     end function panel_point_above
 
 
-    function panel_line_passes_through(this, a, b, mirror_panel, mirror_plane) result(passes_through)
+    function panel_line_passes_through(this, a, b, mirror_panel, mirror_plane, s_star) result(passes_through)
         ! Determines whether the line given by r(s) = a + s*b passes through the panel
 
         implicit none
         
         class(panel),intent(in) :: this
         real,dimension(3),intent(in) :: a, b
-        logical :: mirror_panel
-        integer :: mirror_plane
+        logical,intent(in) :: mirror_panel
+        integer,intent(in) :: mirror_plane
+        real,intent(out) :: s_star
 
         logical :: passes_through
 
-        real :: s, d
+        real :: d
         real,dimension(3) :: loc
 
         ! Get denominator
@@ -1463,13 +1464,13 @@ contains
 
         ! Get s otherwise
         if (mirror_panel) then
-            s = inner(this%centr_mir - a, this%n_g_mir)/d
+            s_star = inner(this%centr_mir - a, this%n_g_mir)/d
         else
-            s = inner(this%centr - a, this%n_g)/d
+            s_star = inner(this%centr - a, this%n_g)/d
         end if
 
         ! Calculate intersection point
-        loc = a + s*b
+        loc = a + s_star*b
 
         ! Check whether the intersection point is inside the panel
         passes_through = this%projection_inside(loc, mirror_panel, mirror_plane)
