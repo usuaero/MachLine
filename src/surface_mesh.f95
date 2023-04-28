@@ -326,8 +326,6 @@ contains
         class(surface_mesh),intent(inout),target :: this
 
         integer :: i, j, i_edge, edge_index_i, edge_index_j
-        logical :: already_found_shared
-        real :: distance
         integer,dimension(2) :: i_endpoints
         integer,dimension(this%N_panels*3) :: panel1, panel2, vertex1, vertex2, edge_index1, edge_index2 ! By definition, we will have no more than 3*N_panels edges; we should have much less, but some people...
         logical,dimension(this%N_panels*3) :: on_mirror_plane
@@ -339,43 +337,9 @@ contains
 
         ! Loop through each panel
         this%N_edges = 0
-        !$OMP parallel private(j, already_found_shared, distance, i_endpoints, i_edge) &
-        !$OMP & private(edge_index_i, edge_index_j)
 
-        !$OMP do schedule(dynamic)
+        !$OMP parallel do schedule(dynamic) private(j, i_endpoints, i_edge, edge_index_i, edge_index_j)
         do i=1,this%N_panels
-
-            ! For each panel, check if it abuts the mirror plane
-            if (this%mirrored) then
-
-                ! Perform check
-                if (this%panels(i)%check_abutting_mirror_plane(this%N_panels, i_endpoints, edge_index_i)) then
-
-                    !$OMP critical
-                    
-                    ! Update number of edges
-                    this%N_edges = this%N_edges + 1
-                    i_edge = this%N_edges
-
-                    ! Store adjacent vertices
-                    call this%store_adjacent_vertices(i_endpoints, i_edge)
-
-                    ! Store edge index for this panel
-                    edge_index1(i_edge) = edge_index_i
-
-                    ! Store in arrays for later storage in edge objects
-                    panel1(i_edge) = i
-                    panel2(i_edge) = i + this%N_panels
-                    vertex1(i_edge) = i_endpoints(1)
-                    vertex2(i_edge) = i_endpoints(2)
-                    on_mirror_plane(i_edge) = .true.
-                    edge_index2(i_edge) = 0 ! Just a placeholder since the second panel doesn't technically exist
-
-                    !$OMP end critical
-
-                end if
-
-            end if
 
             ! Loop through each potential neighbor
             neighbor_loop: do j=i+1,this%N_panels
@@ -413,8 +377,41 @@ contains
 
         end do
 
+        ! For each panel, check if it abuts the mirror plane
+        if (this%mirrored) then
+
+            mirror_plane_loop: do i=1,this%N_panels
+
+                ! Check whether all neighbors have not been found
+                if (all(this%panels(i)%abutting_panels /= 0)) cycle mirror_plane_loop
+
+                ! Perform check
+                if (this%panels(i)%check_abutting_mirror_plane(this%N_panels, i_endpoints, edge_index_i)) then
+
+                    ! Update number of edges
+                    this%N_edges = this%N_edges + 1
+                    i_edge = this%N_edges
+
+                    ! Store adjacent vertices
+                    call this%store_adjacent_vertices(i_endpoints, i_edge)
+
+                    ! Store edge index for this panel
+                    edge_index1(i_edge) = edge_index_i
+
+                    ! Store in arrays for later storage in edge objects
+                    panel1(i_edge) = i
+                    panel2(i_edge) = i + this%N_panels
+                    vertex1(i_edge) = i_endpoints(1)
+                    vertex2(i_edge) = i_endpoints(2)
+                    on_mirror_plane(i_edge) = .true.
+                    edge_index2(i_edge) = 0 ! Just a placeholder since the second panel doesn't technically exist
+
+                end if
+
+            end do mirror_plane_loop
+        end if
+
         ! Check for panels abutting empty space and add those edges.
-        !$OMP single
         do i=1,this%N_panels
 
             ! Check for an edge with no abutting panel
@@ -451,10 +448,8 @@ contains
 
         ! Allocate edge storage
         allocate(this%edges(this%N_edges))
-        !$OMP end single
 
         ! Initialize edges
-        !$OMP do schedule(static)
         do i=1,this%N_edges
 
             ! Initialize
@@ -470,8 +465,6 @@ contains
             end if
 
         end do
-
-        !$OMP end parallel
 
         if (verbose) write(*,"(a, i7, a)") "Done. Found ", this%N_edges, " edges."
     
