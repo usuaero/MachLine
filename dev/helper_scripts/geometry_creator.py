@@ -704,5 +704,5 @@ if __name__=="__main__":
     #generate_spindle('dev/meshes/test_sears_haack.vtk', 100, 100, 1.0, 'SH', 0.037879, cosine_cluster=False)
     def r_of_x(x):
         return 0.2*x*(1.0-x)
-    generate_spindle('studies/supersonic_spindle/meshes/ehlers_spindle_ultra_fine.vtk', 160, 160, 1.0, r_of_x, cosine_cluster=True)
+    generate_spindle('studies/supersonic_spindle/meshes/ehlers_spindle_ultra_coarse.vtk', 10, 10, 1.0, r_of_x, cosine_cluster=True)
     #generate_random_spindle("studies/supersonic_spindle/meshes/random_spindle_100.vtk", 100, 1.0, r_of_x)

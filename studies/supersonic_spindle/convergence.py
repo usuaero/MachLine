@@ -3,7 +3,7 @@ import numpy as np
 from studies.case_running_functions import run_quad, get_order_of_convergence, write_input_file
 
 
-RERUN_MACHLINE = True
+RERUN_MACHLINE = False
 study_dir = "studies/supersonic_spindle/"
 plot_dir = study_dir + "plots/convergence/"
 
@@ -83,7 +83,7 @@ def run_quad_for_mach_and_mesh(M, grid):
 if __name__=="__main__":
 
     # Study parameters
-    grids = ["coarse", "medium", "fine", "ultra_fine"]
+    grids = ["ultra_coarse", "coarse", "medium", "fine"]#, "ultra_fine"]
     Ms = [1.5, 1.7, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0]
 
     # Loop through parameters
