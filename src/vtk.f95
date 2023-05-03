@@ -441,9 +441,47 @@ contains
         type(vertex),dimension(:),allocatable,intent(out) :: vertices
         type(panel),dimension(:),allocatable,intent(out) :: panels
 
-        character(len=200) :: dummy_read
+        character(len=200) :: line
+        integer :: ind, ver, unit
+
+        ! Determine version
+        open(newunit=unit, file=mesh_file)
+        read(unit,'(a)') line
+        ind = index(line, 'Version')
+        read(line(ind+8:ind+8),*) ver
+        close(unit)
+
+        ! Load based on version
+        select case (ver)
+
+        case (3)
+            call load_surface_vtk_ver_3(mesh_file, N_verts, N_panels, vertices, panels)
+
+        case (5)
+            call load_surface_vtk_ver_5(mesh_file, N_verts, N_panels, vertices, panels)
+
+        case default
+            write(*,*) "!!! VTK file version ", ver, " not recognized. Quitting..."
+            stop
+
+        end select
+    
+    end subroutine load_surface_vtk
+
+
+    subroutine load_surface_vtk_ver_3(mesh_file, N_verts, N_panels, vertices, panels)
+        ! Loads a surface mesh from a vtk file version 3. Only a body.
+
+        implicit none
+
+        character(len=:),allocatable,intent(in) :: mesh_file
+        integer,intent(out) :: N_verts, N_panels
+        type(vertex),dimension(:),allocatable,intent(out) :: vertices
+        type(panel),dimension(:),allocatable,intent(out) :: panels
+
+        character(len=200) :: dummy_read, line
         real,dimension(:,:),allocatable :: vertex_locs
-        integer :: i, N, i1, i2, i3, N_duplicates,unit
+        integer :: i, N, i1, i2, i3, N_duplicates, unit
         integer,dimension(:),allocatable :: new_ind
 
         ! Open file
@@ -458,29 +496,34 @@ contains
 
             ! Store vertices
             allocate(vertex_locs(3,N_verts))
+
+            ! Read in one from each line
             do i=1,N_verts
-
-                ! Read in from file
                 read(unit,*) vertex_locs(1,i), vertex_locs(2,i), vertex_locs(3,i)
-
             end do
 
             ! Find duplicates
             call collapse_duplicate_vertices(vertex_locs, vertices, N_verts, N_duplicates, new_ind)
 
+            ! Get to start of polygons
+            read(unit,'(a)') line
+            do while (index(line, 'POLYGONS') == 0)
+                read(unit,'(a)') line
+            end do
+
             ! Determine number of panels
-            read(unit,*) dummy_read, N_panels, dummy_read
+            read(line,*) dummy_read, N_panels, dummy_read
 
             ! Allocate panel array
             allocate(panels(N_panels))
 
-            ! Initialize panels
+            ! Read in panels
             do i=1,N_panels
 
                 ! Get vertex indices
                 read(unit,'(a)') dummy_read
-                
-                ! Check its a triangular panel
+
+                ! Check it's a triangular panel
                 if (dummy_read(1:2) == '3 ') then
                     read(dummy_read,*) N, i1, i2, i3
                 else
@@ -493,9 +536,164 @@ contains
 
             end do
 
-        close(1)
+        close(unit)
     
-    end subroutine load_surface_vtk
+    end subroutine load_surface_vtk_ver_3
+
+
+    subroutine load_surface_vtk_ver_5(mesh_file, N_verts, N_panels, vertices, panels)
+        ! Loads a surface mesh from a vtk file. Only a body.
+
+        implicit none
+
+        character(len=:),allocatable,intent(in) :: mesh_file
+        integer,intent(out) :: N_verts, N_panels
+        type(vertex),dimension(:),allocatable,intent(out) :: vertices
+        type(panel),dimension(:),allocatable,intent(out) :: panels
+
+        character(len=200) :: dummy_read, line
+        real,dimension(:,:),allocatable :: vertex_locs
+        integer :: i, N, i1, i2, i3, N_duplicates, unit, ind, N_words
+        integer,dimension(:),allocatable :: new_ind, vertex_inds
+
+        ! Open file
+        open(newunit=unit, file=mesh_file)
+
+            ! Determine number of vertices
+            read(unit,*) ! Header
+            read(unit,*) ! Header
+            read(unit,*) ! Header
+            read(unit,*) ! Header
+            read(unit,*) dummy_read, N_verts, dummy_read
+
+            ! Store vertices
+            allocate(vertex_locs(3,N_verts))
+
+            ! Read in three from each line
+            do i=1,N_verts/3
+                read(unit,*) vertex_locs(1,3*(i-1)+1), vertex_locs(2,3*(i-1)+1), vertex_locs(3,3*(i-1)+1), &
+                             vertex_locs(1,3*(i-1)+2), vertex_locs(2,3*(i-1)+2), vertex_locs(3,3*(i-1)+2), &
+                             vertex_locs(1,3*(i-1)+3), vertex_locs(2,3*(i-1)+3), vertex_locs(3,3*(i-1)+3)
+            end do
+
+            ! Get last line
+            if (mod(N_verts, 3) == 1) then
+                read(unit,*) vertex_locs(1,N_verts), vertex_locs(2,N_verts), vertex_locs(3,N_verts)
+            else if (mod(N_verts, 3) == 2) then
+                read(unit,*) vertex_locs(1,N_verts-1), vertex_locs(2,N_verts-1), vertex_locs(3,N_verts-1), &
+                             vertex_locs(1,N_verts), vertex_locs(2,N_verts), vertex_locs(3,N_verts)
+            end if
+
+            ! Find duplicates
+            call collapse_duplicate_vertices(vertex_locs, vertices, N_verts, N_duplicates, new_ind)
+
+            ! Get to start of polygons
+            read(unit,'(a)') line
+            do while (index(line, 'POLYGONS') == 0 .and. index(line, 'CELLS') == 0)
+                read(unit,'(a)') line
+            end do
+
+            ! Determine number of panels
+            read(line,*) dummy_read, N_panels, dummy_read
+            N_panels = N_panels - 1
+
+            ! Allocate panel array
+            allocate(panels(N_panels))
+
+            ! Get to start of mapping
+            read(unit,'(a)') line
+            do while (index(line, 'CONNECTIVITY') == 0)
+                read(unit,'(a)') line
+            end do
+
+            ! Read in three panels at a time
+            ind = 0
+            do while (.true.)
+
+                ! Update index
+                ind = ind + 1
+
+                ! Check we've not gone over
+                if (ind > N_panels) exit
+
+                ! Read in line
+                read(unit,'(a)') line
+
+                ! Get number of points on the line
+                N_words = get_N_words_in_string(line)
+
+                ! Allocate vertex indices
+                if (allocated(vertex_inds)) deallocate(vertex_inds)
+                allocate(vertex_inds(N_words))
+                read(line,*) vertex_inds
+
+                ! Initialize first panel; need +1 because VTK uses 0-based indexing
+                call panels(ind)%init(vertices(new_ind(vertex_inds(1)+1)), &
+                                      vertices(new_ind(vertex_inds(2)+1)), &
+                                      vertices(new_ind(vertex_inds(3)+1)), &
+                                      ind)
+
+                ! Move on to second panel
+                if (N_words > 3) then
+                    ind = ind + 1
+
+                    ! Initialize second panel
+                    call panels(ind)%init(vertices(new_ind(vertex_inds(4)+1)), &
+                                          vertices(new_ind(vertex_inds(5)+1)), &
+                                          vertices(new_ind(vertex_inds(6)+1)), &
+                                          ind)
+
+                    ! Move on to third panel
+                    if (N_words > 6) then
+                        ind = ind + 1
+
+                        ! Initialize second panel
+                        call panels(ind)%init(vertices(new_ind(vertex_inds(7)+1)), &
+                                              vertices(new_ind(vertex_inds(8)+1)), &
+                                              vertices(new_ind(vertex_inds(9)+1)), &
+                                              ind)
+                    end if
+                end if
+
+
+            end do
+
+        close(unit)
+    
+    end subroutine load_surface_vtk_ver_5
+
+
+    function get_N_words_in_string(line) result(N_words)
+        ! Counts the number of words in the line
+
+        implicit none
+        
+        character(len=*),intent(in) :: line
+
+        integer :: N_words
+
+        integer :: i
+        logical :: on_space
+
+        ! Loop through each character
+        on_space = .true.
+        N_words = 0
+        do i=1,len(line)
+
+            ! Check if we're on a space
+            if (line(i:i) == ' ') then
+
+                on_space = .true.
+
+            ! If we're not on a space but we were, then we've moved onto a word
+            else if (on_space) then
+                N_words = N_words + 1
+                on_space = .false.
+            end if
+
+        end do
+        
+    end function get_N_words_in_string
 
     
 end module vtk_mod
