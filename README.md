@@ -3,7 +3,7 @@ MachLine (Multi-order Approach to Calculating High-speed Linear aerodynamics) is
 
 THIS SOFTWARE COMES WITH ABSOLUTELY NO WARRANTY, EXPRESSED OR IMPLIED.
 
-MachLine is under active development and is not yet fully capable. We anticipate development to be completed sometime in the summer of 2023. As new features are added, the documentation will be updated accordingly. Please refer to the documentation for the full scope of features currently available in MachLine.
+MachLine is under active development and is not yet fully capable. We anticipate development to be completed sometime in the summer of 2024. As new features are added, the documentation will be updated accordingly. Please refer to the documentation for the full scope of features currently available in MachLine.
 
 ## Documentation
 Documentation can be found on the [MachLine Wiki](https://github.com/usuaero/MachLine/wiki). There, you'll find instructions on how to compile and run MachLine, an overview of the theory and implementation, and references to relevant literature to help with gaining a deeper understanding of linear panel methods.
