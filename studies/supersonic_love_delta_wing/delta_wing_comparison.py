@@ -9,12 +9,15 @@ from studies.case_running_functions import run_quad, write_input_file, cases, li
 from studies.paraview_functions import extract_all_data, get_data_column_from_array, extract_plane_slice
 
 
-RERUN_MACHLINE = True
+RERUN_MACHLINE = False
+PRESSURE_FOR_FORCES = 'isentropic'
 study_dir = "studies/supersonic_love_delta_wing/"
+results_dir = study_dir + "results/"
+reports_dir = study_dir + "reports/"
 M = 1.62
 semispan_locs = [22.5, 64.1]
 b_mid = (0.463/2/.230)
-convergence_plot_densities = ['coarse', 'medium', 'fine']
+mesh_densities = ['coarse', 'medium', 'fine']
 
 
 def plot_pressure_slices(pressure_rule, angles_of_attack, mesh_density):
@@ -93,248 +96,118 @@ def plot_pressure_slices(pressure_rule, angles_of_attack, mesh_density):
                 # Save figure
                 if not os.path.exists(study_dir + 'plots/'):
                     os.makedirs(study_dir + 'plots/')
-                plot_loc = study_dir + 'plots/delta_wing_comparison_{0}_semispan_{1}_alpha_{2}_{3}.pdf'.format(semi, alpha, pressure_rule, case)
-                plt.savefig(plot_loc)
+                plot_loc = study_dir + 'plots/delta_wing_comparison_{0}_{1}_semispan_{2}_alpha_{3}_{4}'.format(mesh_density, semi, alpha, pressure_rule, case)
+                plt.savefig(plot_loc+'.pdf')
+                plt.savefig(plot_loc+'.svg')
                 plt.close()
 
 
 def plot_force_convergence_over_alpha(alpha_list):
 
     # Pull in experimental data
-    CD_exp_loc = study_dir + 'experimental_data/delta_wing_exp_CD.csv'
-    CL_exp_loc = study_dir + 'experimental_data/delta_wing_exp_CL.csv'
-    CM_exp_loc = study_dir + 'experimental_data/delta_wing_exp_CM.csv'
-
-    CD_exp = np.genfromtxt(CD_exp_loc, delimiter=',')
-    CL_exp = np.genfromtxt(CL_exp_loc, delimiter=',')
-    CM_exp = np.genfromtxt(CM_exp_loc, delimiter=',')
+    CD_exp = np.genfromtxt(study_dir + 'experimental_data/delta_wing_exp_CD.csv', delimiter=',')
+    CL_exp = np.genfromtxt(study_dir + 'experimental_data/delta_wing_exp_CL.csv', delimiter=',')
+    CM_exp = np.genfromtxt(study_dir + 'experimental_data/delta_wing_exp_CM.csv', delimiter=',')
 
     # Pull in CPanel data to compare against
-    CPanel_CD_loc = study_dir + 'experimental_data/Davis_CPanel_CD.csv'
-    CPanel_CL_loc = study_dir + 'experimental_data/Davis_CPanel_CL.csv'
+    CPanel_CD = np.genfromtxt(study_dir + 'experimental_data/Davis_CPanel_CD.csv', delimiter=',')
+    CPanel_CL = np.genfromtxt(study_dir + 'experimental_data/Davis_CPanel_CL.csv', delimiter=',')
 
-    CPanel_CD = np.genfromtxt(CPanel_CD_loc, delimiter=',')
-    CPanel_CL = np.genfromtxt(CPanel_CL_loc, delimiter=',')
+    # Initialize storage
+    CD = np.zeros((len(cases), len(mesh_densities), len(alpha_list)))
+    CL = np.zeros((len(cases), len(mesh_densities), len(alpha_list)))
 
-    # Initialize lists to store force values over alpha range
-    CD_coarse = []
-    CL_coarse = []
-    CD_medium = []
-    CL_medium = []
-    CD_fine = []
-    CL_fine = []
+    # Iterate over cases
+    for i, (case, quad_label) in enumerate(zip(cases, quad_labels)):
 
-    # Iterate over alpha list and mesh densities
+        # Iterate over mesh densities
+        for j, mesh_density in enumerate(mesh_densities):
 
-    # Results for coarse mesh
-    for alpha in alpha_list:
-        results_loc = study_dir + 'results/delta_wing_{0}_coarse.json'.format(alpha)
+            # Iterate over alpha
+            for k, alpha in enumerate(alpha_list):
 
-        # Pull MachLine force data
-        json_string = open(results_loc).read()
-        json_vals = json.loads(json_string) 
+                # Get trig ratios
+                S = np.sin(np.radians(alpha))
+                C = np.cos(np.radians(alpha))
 
-        force_coefs = json_vals['total_forces']
-        CD_coarse.append(force_coefs['Cx'] * np.cos(alpha*np.pi/180) + force_coefs['Cy'] * np.sin(alpha*np.pi/180))
-        CL_coarse.append(-force_coefs['Cx'] * np.sin(alpha*np.pi/180) + force_coefs['Cy'] * np.cos(alpha*np.pi/180))
+                # Get report
+                report_loc = reports_dir + 'delta_wing_{0}_{1}{2}.json'.format(alpha, mesh_density, quad_label)
+                with open(report_loc, 'r') as results_handle:
+                    report = json.load(results_handle) 
 
-    # Results for medium mesh
-    for alpha in alpha_list:
-        results_loc = study_dir + 'results/delta_wing_{0}_medium.json'.format(alpha)
-
-        # Pull MachLine force data
-        json_string = open(results_loc).read()
-        json_vals = json.loads(json_string) 
-
-        force_coefs = json_vals['total_forces']
-        CD_medium.append(force_coefs['Cx'] * np.cos(alpha*np.pi/180) + force_coefs['Cy'] * np.sin(alpha*np.pi/180))
-        CL_medium.append(-force_coefs['Cx'] * np.sin(alpha*np.pi/180) + force_coefs['Cy'] * np.cos(alpha*np.pi/180))
-
-
-    # Results for fine mesh
-    for alpha in alpha_list:
-        results_loc = study_dir + 'results/delta_wing_{0}_fine.json'.format(alpha)
-
-        # Pull MachLine force data
-        json_string = open(results_loc).read()
-        json_vals = json.loads(json_string) 
-
-        force_coefs = json_vals['total_forces']
-        CD_fine.append(force_coefs['Cx'] * np.cos(alpha*np.pi/180) + force_coefs['Cy'] * np.sin(alpha*np.pi/180))
-        CL_fine.append(-force_coefs['Cx'] * np.sin(alpha*np.pi/180) + force_coefs['Cy'] * np.cos(alpha*np.pi/180))
+                # Store force data
+                force_coefs = report['total_forces']
+                CD[i,j,k] = force_coefs['Cx']*C + force_coefs['Cy']*S
+                CL[i,j,k] = -force_coefs['Cx']*S + force_coefs['Cy']*C
     
+        # Plot convergence against experimental data
+
+        # CD convergence plot
+        plt.figure()
+        for j, mesh_density in enumerate(mesh_densities):
+            plt.plot(alpha_list, CD[i,j,:], 'o', label="ML " + mesh_density.title(), markersize=8-3*j, mec='k', mfc='none')
+        #plt.plot(CD_exp[:,0], CD_exp[:,1], 'ks', label='Experiment', markersize=3)
+        #plt.plot(CPanel_CD[:,0], CPanel_CD[:,1], 'kv', label='CPanel', markersize=3)
+        plt.legend()
+        plt.xlabel('$\\alpha\,[^\circ]$')
+        plt.ylabel('$C_D$')
+        #plt.ylim(bottom=0.0)
+        plot_loc = study_dir + 'plots/delta_wing_CD_convergence{0}'.format(quad_label)
+        plt.savefig(plot_loc + ".pdf")
+        plt.savefig(plot_loc + ".svg")
+        plt.close()
+
+        # CL convergence plot
+        plt.figure()
+        for j, mesh_density in enumerate(mesh_densities):
+            plt.plot(alpha_list, CL[i,j,:], 'o', label="ML " + mesh_density.title(), markersize=8-3*j, mec='k', mfc='none')
+        #plt.plot(CL_exp[:,0], CL_exp[:,1], 'ks', label='Experiment', markersize=3)
+        #plt.plot(CPanel_CL[:,0], CPanel_CL[:,1], 'kv', label='CPanel', markersize=3)
+        plt.legend()
+        plt.xlabel('$\\alpha\,[^\circ]$')
+        plt.ylabel('$C_L$')
+        plot_loc = study_dir + 'plots/delta_wing_CL_convergence{0}'.format(quad_label)
+        plt.savefig(plot_loc + ".pdf")
+        plt.savefig(plot_loc + ".svg")
+        plt.close()
     
-    # Plot results against experimental data
+        # Plot most refined results against experimental data
 
-    # CD plot
-    plt.figure()
-    plt.scatter(alpha_list, CD_coarse, label="MachLine: coarse", marker='o', s= 300, edgecolors='k', facecolors='none')
-    plt.scatter(alpha_list, CD_medium, label="MachLine: medium", marker='o', s= 100, edgecolors='k', facecolors='none')
-    plt.scatter(alpha_list, CD_fine, label="MachLine: fine", marker='o', s= 30, edgecolors='k', facecolors='none')
-    plt.scatter(CD_exp[:,0], CD_exp[:,1], label='Experimental Data', marker='s', edgecolors='k', facecolors='none')
-    plt.scatter(CPanel_CD[:,0], CPanel_CD[:,1], label='CPanel', marker='D', edgecolors='k', facecolors='none')
+        # CD plot
+        plt.figure()
+        plt.plot(alpha_list, CD[i,-1,:], 'ko', label="MachLine", markersize=3)
+        plt.plot(CD_exp[:,0], CD_exp[:,1], 'ks', label='Experiment', markersize=3)
+        plt.plot(CPanel_CD[:,0], CPanel_CD[:,1], 'kv', label='CPanel', markersize=3)
+        plt.legend()
+        plt.xlabel('$\\alpha\,[^\circ]$')
+        plt.ylabel('$C_D$')
+        plt.ylim(bottom=0.0)
+        plot_loc = study_dir + 'plots/delta_wing_CD_comparison_{0}{1}'.format(PRESSURE_FOR_FORCES, quad_label)
+        plt.savefig(plot_loc + ".pdf")
+        plt.savefig(plot_loc + ".svg")
+        plt.close()
 
-    plt.legend()
-    plt.xlabel('Angle of Attack [deg]')
-    plt.ylabel('CD')
-    plot_loc = study_dir + 'plots/delta_wing_CD_convergence.pdf'
-    plt.savefig(plot_loc)
-    plt.close()
-
-    # CL plot
-    plt.figure()
-    plt.scatter(alpha_list, CL_coarse, label="MachLine: coarse", marker='o', s=300, edgecolors='k', facecolors='none')
-    plt.scatter(alpha_list, CL_medium, label="MachLine: medium", marker='o', s=100, edgecolors='k', facecolors='none')
-    plt.scatter(alpha_list, CL_fine, label="MachLine: fine", marker='o', s=30, edgecolors='k', facecolors='none')
-    plt.scatter(CL_exp[:,0], CL_exp[:,1], label='Experimental Data', marker='s', edgecolors='k', facecolors='none')
-    plt.scatter(CPanel_CL[:,0], CPanel_CL[:,1], label='CPanel', marker='D', edgecolors='k', facecolors='none')
-    plt.legend()
-    plt.xlabel('Angle of Attack [deg]')
-    plt.ylabel('CL')
-    plot_loc = study_dir + 'plots/delta_wing_CL_convergence.pdf'
-    plt.savefig(plot_loc)
-    plt.close()
-
-    # Print CD and CL results along with exerimental data, allowing for quanitification
-    # of difference between MachLine and experimental resutls for paper purposes.
-
-    csv_loc = study_dir + 'error_quantification_test.csv'
-    # Transpose all arrays to format for column vectors
-    angles_col = np.array([alpha_list]).T
-    CD_col = np.array([CD_fine]).T
-    CD_ML = np.array([CD_fine]).T
-    CL_ML = np.array([CL_fine]).T
-    
-    force_array = np.hstack((angles_col, CD_ML))
-    force_array = np.hstack((force_array, CL_ML))
-    # file = np.savetxt(csv_loc, force_array, delimiter=',')
+        # CL plot
+        plt.figure()
+        plt.plot(alpha_list, CL[i,-1,:], 'ko', label="MachLine", markersize=3)
+        plt.plot(CL_exp[:,0], CL_exp[:,1], 'ks', label='Experiment', markersize=3)
+        plt.plot(CPanel_CL[:,0], CPanel_CL[:,1], 'kv', label='CPanel', markersize=3)
+        plt.legend()
+        plt.xlabel('$\\alpha\,[^\circ]$')
+        plt.ylabel('$C_L$')
+        plot_loc = study_dir + 'plots/delta_wing_CL_comparison_{0}{1}'.format(PRESSURE_FOR_FORCES, quad_label)
+        plt.savefig(plot_loc + ".pdf")
+        plt.savefig(plot_loc + ".svg")
+        plt.close()
 
 
-def plot_force_alpha(alpha_list, M):
-    # uses the fine mesh
-
-    # Pull in experimental data
-    CD_exp_loc = study_dir + 'experimental_data/delta_wing_exp_CD.csv'
-    CL_exp_loc = study_dir + 'experimental_data/delta_wing_exp_CL.csv'
-    CM_exp_loc = study_dir + 'experimental_data/delta_wing_exp_CM.csv'
-
-    CD_exp = np.genfromtxt(CD_exp_loc, delimiter=',')
-    CL_exp = np.genfromtxt(CL_exp_loc, delimiter=',')
-    CM_exp = np.genfromtxt(CM_exp_loc, delimiter=',')
-
-    # Pull in CPanel data to compare against
-    CPanel_CD_loc = study_dir + 'experimental_data/Davis_CPanel_CD.csv'
-    CPanel_CL_loc = study_dir + 'experimental_data/Davis_CPanel_CL.csv'
-    CPanel_CD = np.genfromtxt(CPanel_CD_loc, delimiter=',')
-    CPanel_CL = np.genfromtxt(CPanel_CL_loc, delimiter=',')
-
-    # Initialize lists to store force values over alpha range
-    CD_coarse = []
-    CL_coarse = []
-    CD_medium = []
-    CL_medium = []
-    CD_fine = []
-    CL_fine = []
-
-    # Results for fine mesh
-    for alpha in alpha_list:
-
-        # Pull MachLine force data
-        results_loc = study_dir + 'results/delta_wing_{0}_fine.json'.format(alpha)
-        with open(results_loc) as report_handle:
-            report_dict = json.load(report_handle)
-
-        force_coefs = report_dict['total_forces']
-        CD_fine.append(force_coefs['Cx'] * np.cos(alpha*np.pi/180) + force_coefs['Cy'] * np.sin(alpha*np.pi/180))
-        CL_fine.append(-force_coefs['Cx'] * np.sin(alpha*np.pi/180) + force_coefs['Cy'] * np.cos(alpha*np.pi/180))
-
-        # Get which pressure rule was used for the forces
-        pressure_for_forces = report_dict["input"]["post_processing"].get('pressure_for_forces', 'isentropic')
-    
-    # Plot results against experimental data
-
-    # CD plot
-    plt.figure()
-    plt.plot(alpha_list, CD_fine, 'ko', label="MachLine", markersize=3)
-    plt.plot(CD_exp[:,0], CD_exp[:,1], 'ks', label='Experiment', markersize=3)
-    plt.plot(CPanel_CD[:,0], CPanel_CD[:,1], 'kv', label='CPanel', markersize=3)
-    plt.legend()
-    plt.xlabel('$\\alpha [^\circ]$')
-    plt.ylabel('$C_D$')
-    plt.ylim(bottom=0.0)
-    plot_loc = study_dir + 'plots/delta_wing_CD_comparison_{0}.pdf'.format(pressure_for_forces)
-    plt.savefig(plot_loc)
-    plt.close()
-
-    # CL plot
-    plt.figure()
-    plt.plot(alpha_list, CL_fine, 'ko', label="MachLine", markersize=3)
-    plt.plot(CL_exp[:,0], CL_exp[:,1], 'ks', label='Experiment', markersize=3)
-    plt.plot(CPanel_CL[:,0], CPanel_CL[:,1], 'kv', label='CPanel', markersize=3)
-    plt.legend()
-    plt.xlabel('$\\alpha [^\circ]$')
-    plt.ylabel('$C_L$')
-    plot_loc = study_dir + 'plots/delta_wing_CL_comparison_{0}.pdf'.format(pressure_for_forces)
-    plt.savefig(plot_loc)
-    plt.close()
-
-    # Print CD and CL results along with exerimental data, allowing for quanitification
-    # of difference between MachLine and experimental results for paper purposes.
-    csv_loc = study_dir + 'error_quantification_test.csv'
-
-    # Transpose all arrays to format for column vectors
-    angles_col = np.array([alpha_list]).T
-    CD_col = np.array([CD_fine]).T
-    CD_ML = np.array([CD_fine]).T
-    CL_ML = np.array([CL_fine]).T
-    
-    force_array = np.hstack((angles_col, CD_ML))
-    force_array = np.hstack((force_array, CL_ML))
-    # file = np.savetxt(csv_loc, force_array, delimiter=',')
-
-
-def run_pressure_distribution_comparison():
+def run_pressure_distribution_comparison(mesh_density):
 
     # Parameters
     angles_of_attack = [0.0, 2.0, 4.1, 8.5, 10.75]
-    mesh_density = 'coarse' # coarse, medium, fine are the options created with 20, 40, and 80 nodes respectively
 
     # Run MachLine
     run_machline_cases(angles_of_attack, M, mesh_density)
-
-    #for alpha in angles_of_attack:
-
-    #    # Read into ParaView
-    #    body_file = study_dir + "results/delta_wing_{0}_deg_{1}.vtk".format(alpha, mesh_density)
-    #    data_reader = pvs.LegacyVTKReader(registrationName=body_file.replace(study_dir + "results", ""), FileNames=body_file)
-
-    #    # Filter cell data to point data
-    #    filter = pvs.CellDatatoPointData(registrationName='Filter', Input=data_reader)
-    #    data_to_process = ['C_p_ise', 'C_p_2nd', 'C_p_lin', 'C_p_sln', 'centroid']
-    #    filter.CellDataArraytoprocess = data_to_process
-    #    fields_to_process = 'Point Data'
-
-    #    # Iterate over semispan locations
-    #    for i, percent_semispan in enumerate(semispan_locs):
-    #        semispan_str = str(percent_semispan)
-    #        percent_semi = percent_semispan * b_mid / 100.0
-
-    #        # Slice mesh at each semispan location
-    #        slicer = pvs.PlotOnIntersectionCurves(registrationName="Slice", Input=filter)
-    #        slicer.SliceType = 'Plane'
-    #        
-
-    #        slicer.SliceType.Origin = origin
-    #        slicer.SliceType.Normal = normal
-
-    #        # Extract and save data
-    #        plot = pvs.PlotData(registrationName="Plot")
-    #        view = pvs.CreateView('XYChartView')
-    #        display = pvs.Show(plot, view, 'XYChartRepresentation')
-    #        display.XArrayName = 'centroid_X'
-    #        view.Update()
-    #        save_loc = study_dir + 'results/delta_wing_{0}_semispan_{1}_deg_results.csv'.format(semispan_str, alpha)
-    #        pvs.SaveData(save_loc, proxy=plot, CellDataArrays=data_to_process, FieldAssociation='Point Data')
 
     # Plot pressure rule method over a range of angles of attack at each semispan location
     pressure_rule = "isentropic" # isentropic, second-order, slender-body, or linear
@@ -345,14 +218,13 @@ def run_force_comparison():
 
     # Parameters
     angles_of_attack = [-6., -5., -4., -3., -2., -1., 0., 1., 2., 3., 4., 5.]
-    mesh_density = 'fine' # coarse, medium, fine are the options created with 20, 40, and 80 nodes respectively
 
     # Run MachLine
-    run_machline_cases(angles_of_attack, M, mesh_density)
+    for mesh_density in mesh_densities:
+        run_machline_cases(angles_of_attack, M, mesh_density)
 
     # Plot
-    plot_force_alpha(angles_of_attack, M)
-    plot_force_convergence_over_alpha(angles_of_attack, M)
+    plot_force_convergence_over_alpha(angles_of_attack)
 
 
 def run_machline_cases(angles_of_attack, M, mesh_density):
@@ -392,13 +264,13 @@ def run_machline_cases(angles_of_attack, M, mesh_density):
                     "slender-body" : True,
                     "linear" : True
                 },
-                "pressure_for_forces" : 'second-order'
+                "PRESSURE_FOR_FORCES" : PRESSURE_FOR_FORCES
             },
             "output" : {
                 "body_file" :          body_file,
-                "control_point_file" : study_dir + "results/delta_wing_{0}_deg_{1}_control_points.vtk".format(alpha,mesh_density),
-                "wake_file": study_dir + "results/delta_wing_{0}_deg_{1}_wake.vtk".format(alpha, mesh_density),
-                "report_file": study_dir + "reports/delta_wing_{0}_{1}.json".format(alpha, mesh_density)
+                "control_point_file" : results_dir + "delta_wing_{0}_deg_{1}_control_points.vtk".format(alpha,mesh_density),
+                "wake_file": results_dir + "delta_wing_{0}_deg_{1}_wake.vtk".format(alpha, mesh_density),
+                "report_file": reports_dir + "delta_wing_{0}_{1}.json".format(alpha, mesh_density)
             }
         }
 
@@ -413,5 +285,6 @@ def run_machline_cases(angles_of_attack, M, mesh_density):
 if __name__=="__main__":
 
     # Run comparisons
-    run_pressure_distribution_comparison()
-    #run_force_comparison()
+    #for mesh_density in mesh_densities:
+    #    run_pressure_distribution_comparison(mesh_density)
+    run_force_comparison()

@@ -105,7 +105,7 @@ if __name__=="__main__":
     for i, (case, line_style) in enumerate(zip(cases, line_styles)):
         plt.figure()
         for j, grid in enumerate(grids):
-            plt.plot(Ms, -Cz[j,:,i], 'ko', mfc='white', markersize=10-3*j)
+            plt.plot(Ms, -Cz[j,:,i], 'ko', mfc='none', markersize=10-3*j)
         plt.xlabel('$M_\infty$')
         plt.ylabel('$C_x$')
         plt.savefig(plot_dir+"c_z_over_M_{0}.pdf".format(case))
