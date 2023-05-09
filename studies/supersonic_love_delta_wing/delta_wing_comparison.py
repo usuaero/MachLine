@@ -151,7 +151,7 @@ def plot_force_convergence_over_alpha(alpha_list):
         plt.legend()
         plt.xlabel('$\\alpha\,[^\circ]$')
         plt.ylabel('$C_D$')
-        #plt.ylim(bottom=0.0)
+        plt.ylim(bottom=0.0)
         plot_loc = study_dir + 'plots/delta_wing_CD_convergence{0}'.format(quad_label)
         plt.savefig(plot_loc + ".pdf")
         plt.savefig(plot_loc + ".svg")
@@ -264,7 +264,7 @@ def run_machline_cases(angles_of_attack, M, mesh_density):
                     "slender-body" : True,
                     "linear" : True
                 },
-                "PRESSURE_FOR_FORCES" : PRESSURE_FOR_FORCES
+                "pressure_for_forces" : PRESSURE_FOR_FORCES
             },
             "output" : {
                 "body_file" :          body_file,

@@ -10,7 +10,7 @@ from copy import deepcopy
 
 cases = ['ML', 'MH', 'SL', 'SH']
 line_styles = ['k-', 'k--', 'k:', 'k-.']
-quad_labels = ['_QUAD_lower-order_morino', '_QUAD_higher-order_morino', '_QUAD_lower-order_source-free', '_QUAD_higher-order_source-free', ]
+quad_labels = ['_QUAD_lower-order_morino', '_QUAD_higher-order_morino', '_QUAD_lower-order_source-free', '_QUAD_higher-order_source-free']
 
 
 def write_input_file(input_dict, input_filename):

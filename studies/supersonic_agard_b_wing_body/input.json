@@ -14,7 +14,7 @@
         "mirror_about": "yz",
         "wake_model": {},
         "reference": {
-            "area": 0.0929
+            "area": 1.0
         }
     },
     "solver": {
