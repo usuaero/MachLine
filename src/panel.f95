@@ -832,7 +832,7 @@ contains
             allocate(this%T_mu(this%mu_dim, this%M_dim))
             this%T_mu = T_mu
         end if
-        
+
     end subroutine panel_calc_M_mu_transform
 
 

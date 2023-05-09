@@ -9,7 +9,7 @@
         "freestream_mach_number": 1.62
     },
     "geometry": {
-        "file": "studies/supersonic_love_delta_wing/meshes/delta_wing_clustered_mesh_medium.vtk",
+        "file": "studies/supersonic_love_delta_wing/meshes/delta_wing_clustered_mesh_coarse.vtk",
         "spanwise_axis": "+z",
         "max_continuity_angle": 1.0,
         "singularity_order" : "higher",
