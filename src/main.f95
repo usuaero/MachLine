@@ -94,7 +94,7 @@ program main
     call json_value_create(p_parent)
     call to_object(p_parent, 'info')
     call json_value_add(report_json, p_parent)
-    call json_value_add(p_parent, 'generated_by', 'MachLine (c) 2022 USU Aerolab')
+    call json_value_add(p_parent, 'generated_by', 'MachLine (c) 2023 USU Aerolab')
     call json_value_add(p_parent, 'executed', fdate())
     nullify(p_parent)
 

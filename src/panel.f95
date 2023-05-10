@@ -227,7 +227,7 @@ contains
     end subroutine panel_init_3
 
 
-    subroutine  panel_calc_derived_geom(this)
+    subroutine panel_calc_derived_geom(this)
         ! Initializes geometry based on the location of the vertices.
         ! Should be called when panel geometry is updated.
 

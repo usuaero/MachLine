@@ -145,13 +145,10 @@ def plot_force_convergence_over_alpha(alpha_list):
         # CD convergence plot
         plt.figure()
         for j, mesh_density in enumerate(mesh_densities):
-            plt.plot(alpha_list, CD[i,j,:], 'o', label="ML " + mesh_density.title(), markersize=8-3*j, mec='k', mfc='none')
-        #plt.plot(CD_exp[:,0], CD_exp[:,1], 'ks', label='Experiment', markersize=3)
-        #plt.plot(CPanel_CD[:,0], CPanel_CD[:,1], 'kv', label='CPanel', markersize=3)
+            plt.plot(alpha_list, CD[i,j,:], 'o', label=mesh_density.title(), markersize=8-3*j, mec='k', mfc='none')
         plt.legend()
         plt.xlabel('$\\alpha\,[^\circ]$')
         plt.ylabel('$C_D$')
-        plt.ylim(bottom=0.0)
         plot_loc = study_dir + 'plots/delta_wing_CD_convergence{0}'.format(quad_label)
         plt.savefig(plot_loc + ".pdf")
         plt.savefig(plot_loc + ".svg")
@@ -160,9 +157,7 @@ def plot_force_convergence_over_alpha(alpha_list):
         # CL convergence plot
         plt.figure()
         for j, mesh_density in enumerate(mesh_densities):
-            plt.plot(alpha_list, CL[i,j,:], 'o', label="ML " + mesh_density.title(), markersize=8-3*j, mec='k', mfc='none')
-        #plt.plot(CL_exp[:,0], CL_exp[:,1], 'ks', label='Experiment', markersize=3)
-        #plt.plot(CPanel_CL[:,0], CPanel_CL[:,1], 'kv', label='CPanel', markersize=3)
+            plt.plot(alpha_list, CL[i,j,:], 'o', label=mesh_density.title(), markersize=8-3*j, mec='k', mfc='none')
         plt.legend()
         plt.xlabel('$\\alpha\,[^\circ]$')
         plt.ylabel('$C_L$')

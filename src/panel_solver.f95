@@ -1189,7 +1189,7 @@ contains
 
         implicit none
         
-        class(paneL_solver),intent(in) :: this
+        class(panel_solver),intent(in) :: this
         integer,intent(inout) :: solver_stat
 
         integer :: i
@@ -1338,8 +1338,6 @@ contains
         ! GMRES
         case ('GMRES')
             call system_clock(start_count, count_rate)
-            write(*,*)
-            write(*,*) this%N_unknown
             call GMRES(this%N_unknown, A_p, b_p, this%tol, this%max_iterations, this%iteration_file, this%solver_iterations, x)
             call system_clock(end_count)
 

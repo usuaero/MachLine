@@ -37,6 +37,7 @@ iterative_solver_prog.csv
 A_mat.txt
 b_vec.txt
 R_mat.txt
+prog.txt
 *temp*
 
 # Test results
@@ -50,6 +51,9 @@ studies/*/reports/*
 studies/*/results/*
 dev/unit_tests/plots/*
 dev/renderings/*
+
+# Other stuf
+*.png
 
 # python stuff
 __pycache__/

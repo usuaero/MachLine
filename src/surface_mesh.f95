@@ -217,16 +217,23 @@ contains
 
         ! Load mesh file
         if (verbose) write(*,'(a, a, a)',advance='no') "     Reading surface mesh in from file ", mesh_file, "..."
-        if (extension == '.vtk') then
+
+        select case (extension)
+
+        case ('.vtk')
             call load_surface_vtk(mesh_file, this%N_verts, this%N_panels, this%vertices, this%panels)
-        else if (extension == '.stl') then
+            
+        case (".stl")
             call load_surface_stl(mesh_file, this%N_verts, this%N_panels, this%vertices, this%panels)
-        else if (extension == '.tri') then
+
+        case ('.tri')
             call load_surface_tri(mesh_file, this%N_verts, this%N_panels, this%vertices, this%panels)
-        else
+            
+        case default
             write(*,*) "MachLine cannot read ", extension, " type mesh files. Quitting..."
             stop
-        end if
+            
+        end select
         if (verbose) write(*,*) "Done."
 
         ! Store some mesh parameters
