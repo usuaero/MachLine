@@ -1,0 +1,30 @@
+{
+    "flow": {
+        "freestream_velocity": [
+            10.0,
+            0.0,
+            0.0
+        ],
+        "freestream_mach_number": 0.6971
+    },
+    "geometry": {
+        "file": "studies/subsonic_onera_m6_wing/meshes/m6_onera.vtk",
+        "mirror_about": "xz",
+        "spanwise_axis": "+y"
+    },
+    "solver": {
+        "formulation": "morino"
+    },
+    "post_processing": {
+        "pressure_for_forces": "isentropic",
+        "pressure_rules": {
+            "incompressible": false,
+            "isentropic": true,
+            "second-order": true
+        },
+        "subsonic_pressure_correction": {
+            "correction_mach_number": 0.0,
+            "prandtl-glauert": false
+        }
+    }
+}
