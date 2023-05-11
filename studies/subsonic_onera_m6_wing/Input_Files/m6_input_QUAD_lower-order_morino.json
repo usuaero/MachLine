@@ -1,11 +1,11 @@
 {
     "flow": {
         "freestream_velocity": [
-            0.999822352380809,
+            0.9943564755676915,
             0.0,
-            0.018848439715408175
+            0.10609052500859356
         ],
-        "freestream_mach_number": 0.7003
+        "freestream_mach_number": 0.0
     },
     "geometry": {
         "file": "studies/subsonic_onera_m6_wing/meshes/m6_onera.vtk",
@@ -14,7 +14,7 @@
         "singularity_order": "lower"
     },
     "solver": {
-        "formulation": "source-free"
+        "formulation": "morino"
     },
     "post_processing": {
         "pressure_rules": {
@@ -22,12 +22,12 @@
             "isentropic": true
         },
         "subsonic_pressure_correction": {
-            "correction_mach_number": 0.0,
-            "prandtl-glauert": false
+            "correction_mach_number": 0.6971,
+            "prandtl-glauert": true
         }
     },
     "output": {
-        "body_file": "studies/subsonic_onera_m6_wing/results/m6_onera_AoA_1.08_mach_0.7003_direct_QUAD_lower-order_source-free.vtk",
-        "report_file": "studies/subsonic_onera_m6_wing/results/m6_onera_AoA_1.08_mach_0.7003_direct_QUAD_lower-order_source-free.json"
+        "body_file": "studies/subsonic_onera_m6_wing/results/m6_onera_AoA_6.09_mach_0.6971_pg_QUAD_lower-order_morino.vtk",
+        "report_file": "studies/subsonic_onera_m6_wing/results/m6_onera_AoA_6.09_mach_0.6971_pg_QUAD_lower-order_morino.json"
     }
 }

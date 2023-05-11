@@ -34,7 +34,7 @@ def run_wing_quad_comparison(AoA, mach_num, correction=False):
     if correction:
         correction_mach_number = mach_num
         prandtl_glauert = True
-        mach_num = 0
+        mach_num = 0.0
         
 
     # Declare Machline Input
@@ -52,11 +52,9 @@ def run_wing_quad_comparison(AoA, mach_num, correction=False):
             "formulation" : "morino"
         },
         "post_processing" : {
-            "pressure_for_forces" : "isentropic",
             "pressure_rules": {
                 "incompressible": False,
-                "isentropic": True,
-                "second-order": True
+                "isentropic": True
             },
             "subsonic_pressure_correction" : {
                 "correction_mach_number" : correction_mach_number,
@@ -77,7 +75,91 @@ def run_wing_quad_comparison(AoA, mach_num, correction=False):
     # Run
     reports = run_quad(input_file, run = RERUN_MACHLINE)
 
+    return case_name
 
+
+
+
+def run_cases(AoA, mach_num):
+
+    # Run With and without prandtl-glauert correction
+    case_name_pg = run_wing_quad_comparison(AoA,mach_num,True)
+    case_name_direct = run_wing_quad_comparison(AoA,mach_num,False)
+
+    # Define Plot dir 
+    plot_dir = "studies/subsonic_onera_m6_wing/plots/"
+
+    # Pull Experimental Data
+    column_headers, cell_data = get_data_from_csv(csv_file = "studies/subsonic_onera_m6_wing/Experimental_Data/M6_Data_mach_{0:.4f}".format(mach_num)+"_AoA_"+str(AoA)+".csv", remove_csv =False)
+    
+    # Define locations of y_slices
+    y_loc = [0.239,0.526,0.778,0.957,1.077,1.136,1.184]
+    semispan = [20,44,65,80,90,95,99]
+
+    # Define Formulation Appendices
+    form_app = ["_QUAD_higher-order_morino", "_QUAD_lower-order_morino", "_QUAD_higher-order_source-free", "_QUAD_lower-order_source-free"]
+
+    # Loop Through Slices
+    for i, y in enumerate(y_loc):
+
+        # Define Slice Values
+        slice_normal = [0,1,0]
+        slice_origin = [0,y,0]
+        
+        # Retrieve Experimental Data
+        x_exp = get_data_column_from_array(column_headers,cell_data,"x/l_{0}".format(i+1))
+        Cp_exp = get_data_column_from_array(column_headers,cell_data,"Cp_{0}".format(i+1))
+
+        # Loop Through Formulations
+        for j, formulation in enumerate(form_app):
+            
+            # Pull Machline Data at slice
+            data_dir_pg = "studies/subsonic_onera_m6_wing/results/" + case_name_pg + formulation + ".vtk"
+            data_dir_direct = "studies/subsonic_onera_m6_wing/results/" + case_name_direct + formulation + ".vtk"
+
+            headers_pg, slice_data_pg = extract_plane_slice(data_dir_pg, slice_normal, slice_origin, filter=False, which_data="cell")
+            headers_direct, slice_data_direct = extract_plane_slice(data_dir_direct, slice_normal, slice_origin, filter=False, which_data="cell")
+
+            x_mach_pg = get_data_column_from_array(headers_pg,slice_data_pg,"centroid:0")
+            Cp_pg = get_data_column_from_array(headers_pg,slice_data_pg, "C_p_PG")
+            x_mach_direct = get_data_column_from_array(headers_direct,slice_data_direct,"centroid:0")
+            Cp_ise_direct = get_data_column_from_array(headers_direct,slice_data_direct, "C_p_ise")
+
+            # Modify machline x-axis
+            x_mach_pg = [(x - min(x_mach_pg)) for x in x_mach_pg]
+            x_mach_pg = [x/max(x_mach_pg) for x in x_mach_pg]
+            
+            x_mach_direct = [(x - min(x_mach_direct)) for x in x_mach_direct]
+            x_mach_direct = [x/max(x_mach_direct) for x in x_mach_direct]
+
+            # Differentiate between upper and lower surface
+            half_pg = round(len(x_mach_pg)/2)
+            half_direct = round(len(x_mach_direct)/2)
+
+            # Plot Experimental data
+            plt.figure()
+            plt.plot(x_exp,Cp_exp, 'ks', label='Experimental')
+
+            # Plot Machline Direct Data
+            plt.plot(x_mach_direct[:half_direct],Cp_ise_direct[:half_direct], 'k-', label='Direct')
+            plt.plot(x_mach_direct[half_direct:],Cp_ise_direct[half_direct:], 'k-')
+
+            # Plot Machline Prandtl Glauert Correction Data
+            plt.plot(x_mach_pg[:half_pg],Cp_pg[:half_pg], 'k--', label='PG')
+            plt.plot(x_mach_pg[half_pg:],Cp_pg[half_pg:], 'k--')
+
+            # Define Case Name
+            case_name = case_name_pg[:-3]
+
+            # Plot and save figure
+            plt.xlabel('$x/l$')
+            plt.ylabel('$C_p$')
+            plt.ylim(bottom=-3)
+            plt.gca().invert_yaxis()
+            plt.legend(fontsize=6, title_fontsize=6)
+            plt.savefig(plot_dir+case_name+formulation+"_{0}.pdf".format(semispan[i]))
+            plt.savefig(plot_dir+case_name+formulation+"_{0}.svg".format(semispan[i]))
+            plt.close()
 
 
 
@@ -89,46 +171,8 @@ if __name__ == "__main__":
 
     # Run Machline for all Mach Numbers and associated AoA
     for i in range(len(mach_nums)):
-        print ("Run ", AoA_nums[i], mach_nums[i])
+        run_cases(AoA_nums[i], mach_nums[i])
     
-    #run_wing_quad_comparison(mach_num=0.6971, AoA=6.09)
-
-    # Pull Experimental Data
-    column_headers, cell_data = get_data_from_csv(csv_file = "studies/subsonic_onera_m6_wing/Experimental_Data/M6_Data_mach_0.6971_AoA_6.09.csv", remove_csv =False)
-    x_exp = get_data_column_from_array(column_headers,cell_data,"x/l_1")
-    Cp_exp = get_data_column_from_array(column_headers,cell_data,"Cp_1")
-
-    # Define Slice Values
-    slice_normal = [0,1,0]
-    slice_origin = [0,0.239,0]
-    data_dir = "studies/subsonic_onera_m6_wing/results/m6_onera_AoA_6.09_mach_0.6971_direct_QUAD_higher-order_morino.vtk"
-
-    # Pull Machline Data
-    column_headers, slice_data = extract_plane_slice(data_dir,slice_normal,slice_origin,filter=True)
-    x_mach = get_data_column_from_array(column_headers,slice_data,"centroid:0")
-    Cp_ise_direct = get_data_column_from_array(column_headers,slice_data, "C_p_ise")
-
-    # Modify machline x-axis
-    x_mach = [(x - min(x_mach)) for x in x_mach]
-    x_mach = [x/x_mach[-1 : ] for x in x_mach]
-
-    # Differentiate between upper and lower surfaces of Machline results
-    half = round(len(x_mach)/2)
-    print(half)
-
-
-    # Plot Experimental Data
-    plot_dir = "studies/subsonic_onera_m6_wing/plots/"
-
-    plt.figure()
-    plt.plot(x_exp,Cp_exp, 'ks', label='Experimental')
-    plt.plot(x_mach[0:half],Cp_ise_direct, 'k-', label='Direct')
-    plt.plot(x_mach[half:],Cp_ise_direct, 'k-', label='Direct')
-    plt.xlabel('$x/l$')
-    plt.ylabel('$C_p$')
-    plt.gca().invert_yaxis()
-    plt.legend(fontsize=6, title_fontsize=6)
-    plt.show()
 
 
 
