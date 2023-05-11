@@ -4,12 +4,12 @@ from studies.case_running_functions import run_quad, get_order_of_convergence, w
 
 
 RERUN_MACHLINE = False
-study_dir = "studies/supersonic_double_wedge_wing/"
+study_dir = "studies/supersonic_spindle/"
 plot_dir = study_dir + "plots/convergence/"
 
 
-def run_quad_for_mach_aoa_and_mesh(M, alpha, grid, MCA):
-    """Runs a case quad for the given Mach number, angle of attack, and mesh density."""
+def run_quad_for_mach_and_mesh(M, grid):
+    """Runs a case quad for the given Mach number and mesh density."""
 
     # Parameters
     half_angle = 5.0
@@ -21,8 +21,8 @@ def run_quad_for_mach_aoa_and_mesh(M, alpha, grid, MCA):
     p_inf = 1.0e5
 
     # Storage locations
-    case_name = "M_{0}_aoa_{1}_{2}_deg_{3}_MCA_{4}".format(M, alpha, int(half_angle), grid, MCA)
-    mesh_file = study_dir + "meshes/diamond_{0}_deg_full_{1}.stl".format(int(half_angle), grid)
+    case_name = "M_{0}_{1}".format(M, grid)
+    mesh_file = study_dir + "meshes/ehlers_spindle_{0}.vtk".format(grid)
     results_file = study_dir + "results/"+case_name+".vtk"
     report_file = study_dir + "reports/"+case_name+".json"
 
@@ -31,19 +31,15 @@ def run_quad_for_mach_aoa_and_mesh(M, alpha, grid, MCA):
     # Declare MachLine input
     input_dict = {
         "flow": {
-            "freestream_velocity": [M*c_inf*np.cos(np.radians(alpha)), 0.0, M*c_inf*np.sin(np.radians(alpha))],
+            "freestream_velocity": [1.0, 0.0, 0.0],
             "gamma" : gamma,
             "freestream_mach_number" : M
         },
         "geometry": {
             "file": mesh_file,
             "spanwise_axis" : "+y",
-            "max_continuity_angle" : MCA,
             "wake_model": {
-                "append_wake" : False,
-            },
-            "reference": {
-                "area": 4.0
+                "wake_present" : False
             }
         },
         "solver": {
@@ -87,21 +83,17 @@ def run_quad_for_mach_aoa_and_mesh(M, alpha, grid, MCA):
 if __name__=="__main__":
 
     # Study parameters
-    grids = ["coarse", "medium", "fine", "ultra_fine"]
-    Ms = [1.5, 2.0, 3.0, 5.0]
-    alphas = np.linspace(0.0, 5.0, 6)
-    MCAs = [1.0, 2.5, 45.0]
+    grids = ["ultra_coarse", "coarse", "medium", "fine"]#, "ultra_fine"]
+    Ms = [1.5, 1.7, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0]
 
     # Loop through parameters
     N_sys = np.zeros(len(grids))
     l_avg = np.zeros(len(grids))
-    C_F = np.zeros((len(grids), len(Ms), len(alphas), len(MCAs), 4, 3))
+    C_F = np.zeros((len(grids), len(Ms), 4, 3))
     for i, grid in enumerate(grids):
         for j, M in enumerate(Ms):
-            for k, alpha in enumerate(alphas):
-                for l, MCA in enumerate(MCAs):
 
-                    N_sys[i], l_avg[i], C_F[i,j,k,l] = run_quad_for_mach_aoa_and_mesh(M, alpha, grid, MCA)
+            N_sys[i], l_avg[i], C_F[i,j] = run_quad_for_mach_and_mesh(M, grid)
 
     # Set up plotting
 
@@ -162,28 +154,10 @@ if __name__=="__main__":
     print()
     print("Cx Convergence Rate")
     print("-------------------")
-    for i, MCA in enumerate(MCAs):
-        print("---Max Continuity Angle: {0} degrees---".format(MCA))
-        for l, case in enumerate(['ML', 'MH', 'SL', 'SH']):
-            slopes = []
-            for j, M in enumerate(Ms):
-                for k, alpha in enumerate(alphas):
-                    slopes.append(get_order_of_convergence(l_avg, C_F[:,j,k,i,l,0], truth_from_results=True))
+    slopes = []
+    for l, case in enumerate(['ML', 'MH', 'SL', 'SH']):
+        slopes.append([])
+        for j, M in enumerate(Ms):
+            slopes[l].append(get_order_of_convergence(l_avg, C_F[:,j,l,0], truth_from_results=True))
 
-            print("{0}: {1} +/- {2}".format(case, round(np.average(slopes), 3), round(np.std(slopes), 3)))
-
-    #Analyze convergence of Cz
-    print()
-    print("Cz Convergence Rate")
-    print("-------------------")
-    for i, MCA in enumerate(MCAs):
-        print("---Max Continuity Angle: {0} degrees---".format(MCA))
-        for l, case in enumerate(['ML', 'MH', 'SL', 'SH']):
-            slopes = []
-            for j, M in enumerate(Ms):
-                for k, alpha in enumerate(alphas):
-                    if k==0:
-                        continue
-                    slopes.append(get_order_of_convergence(l_avg, C_F[:,j,k,i,l,2], truth_from_results=True))
-
-            print("{0}: {1} +/- {2}".format(case, round(np.average(slopes), 3), round(np.std(slopes), 3)))
+        print("{0}: {1} +/- {2}".format(case, round(np.average(slopes[l]), 3), round(np.std(slopes[l]), 3)))

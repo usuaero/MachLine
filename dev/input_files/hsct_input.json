@@ -16,6 +16,7 @@
     },
     "post_processing" : {
         "pressure_rules" : {
+            "isentropic" : true
         }
     },
     "output": {

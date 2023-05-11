@@ -1,0 +1,37 @@
+{
+    "flow": {
+        "freestream_velocity": [
+            0.0,
+            0.0,
+            -1.0
+        ],
+        "gamma": 1.4,
+        "freestream_mach_number": 1.6
+    },
+    "geometry": {
+        "file": "studies/supersonic_agard_b_wing_body/meshes/agard_b_fine.vtk",
+        "spanwise_axis": "+x",
+        "mirror_about": "yz",
+        "wake_model": {},
+        "reference": {
+            "area": 1.0
+        }
+    },
+    "solver": {
+        "formulation": "morino",
+        "run_checks": true
+    },
+    "post_processing": {
+        "pressure_rules": {
+            "second-order": true,
+            "isentropic": true,
+            "slender-body": true,
+            "linear": true
+        }
+    },
+    "output": {
+        "body_file": "studies/supersonic_agard_b_wing_body/results/M_1.6_fine.vtk",
+        "control_point_file": "studies/supersonic_agard_b_wing_body/results/M_1.6_fine_control_points.vtk",
+        "report_file": "studies/supersonic_agard_b_wing_body/reports/M_1.6_fine.json"
+    }
+}

@@ -137,6 +137,10 @@ contains
         
         ! Get formulation
         call json_xtnsn_get(solver_settings, 'formulation', this%formulation, 'morino')        
+        if (this%formulation /= 'morino' .and. this%formulation /= 'source-free') then
+            write(*,*) "!!! ", this%formulation, " is not a recognized boundary condition formulation. Quitting..."
+            stop
+        end if
         this%morino = this%formulation == 'morino'
 
         ! Get matrix solver settings
@@ -1334,6 +1338,8 @@ contains
         ! GMRES
         case ('GMRES')
             call system_clock(start_count, count_rate)
+            write(*,*)
+            write(*,*) this%N_unknown
             call GMRES(this%N_unknown, A_p, b_p, this%tol, this%max_iterations, this%iteration_file, this%solver_iterations, x)
             call system_clock(end_count)
 

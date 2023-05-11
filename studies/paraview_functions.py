@@ -101,7 +101,7 @@ def get_data_column_from_array(headers, data, col_des):
     try:
         ind = headers.index(col_des)
     except ValueError:
-        raise ValueError("Desired column header not found.")
+        raise ValueError("Desired column header not found. Headers available: {0}".format(headers))
 
     return data[:,ind].flatten()
 

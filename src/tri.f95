@@ -62,9 +62,8 @@ contains
 
             end do
 
-            ! Go back to beginning
-            rewind(unit)
-            read(unit,'(a)') dummy_read
+            ! Go back a line
+            backspace(unit)
 
             ! Read in and initialize vertices
             allocate(vertex_locs(3,N_verts))
@@ -96,7 +95,7 @@ contains
 
             end do
 
-        close(12)
+        close(unit)
 
     end subroutine load_surface_tri
 

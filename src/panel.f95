@@ -291,9 +291,9 @@ contains
             ! Check for zero area
             if (this%A < 1.e-12) then
                 write(*,*) "!!! Panel", this%index, "has zero area. Quitting..."
-                write(*,*) "!!! Vertex 1: ", this%get_vertex_loc(1)
-                write(*,*) "!!! Vertex 2: ", this%get_vertex_loc(2)
-                write(*,*) "!!! Vertex 3: ", this%get_vertex_loc(3)
+                write(*,*) "!!! Vertex 1 (", this%get_vertex_index(1), "): ", this%get_vertex_loc(1)
+                write(*,*) "!!! Vertex 2 (", this%get_vertex_index(2), "): ", this%get_vertex_loc(2)
+                write(*,*) "!!! Vertex 3 (", this%get_vertex_index(3), "): ", this%get_vertex_loc(3)
                 stop
             end if
 
@@ -832,7 +832,7 @@ contains
             allocate(this%T_mu(this%mu_dim, this%M_dim))
             this%T_mu = T_mu
         end if
-        
+
     end subroutine panel_calc_M_mu_transform
 
 

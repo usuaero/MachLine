@@ -48,6 +48,8 @@ studies/*/data/*
 studies/*/plots/*
 studies/*/reports/*
 studies/*/results/*
+dev/unit_tests/plots/*
+dev/renderings/*
 
 # python stuff
 __pycache__/
