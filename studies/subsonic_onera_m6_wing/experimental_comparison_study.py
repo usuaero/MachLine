@@ -3,27 +3,27 @@ import matplotlib.pyplot as plt
 import sys
 
 sys.path.insert(0, './studies')
-sys.path.insert(1, 'C:/Program Files/ParaView 5.11.0/bin/Lib/site-packages')
+#sys.path.insert(1, 'C:/Program Files/ParaView 5.11.0/bin/Lib/site-packages')
 from paraview_functions import get_data_from_csv, get_data_column_from_array, extract_plane_slice
-from case_running_functions import write_input_file, run_quad, cases
+from case_running_functions import write_input_file, run_quad, cases, quad_labels
 
-RERUN_MACHLINE = True
-
+RERUN_MACHLINE = False
+study_dir = "studies/subsonic_onera_m6_wing/"
 
 
 def run_wing_quad_comparison(AoA, mach_num, correction=False):
     # Runs the Onera M6 wing at the angle of attack
 
     # Storage Locations
-    if correction: case_name = "m6_onera_AoA_{0}_mach_{1}_pg".format(AoA, mach_num)
-    else : case_name = "m6_onera_AoA_{0}_mach_{1}_direct".format(AoA, mach_num)
-    mesh_file = "studies/subsonic_onera_m6_wing/meshes/m6_onera.vtk"
-    body_file = "studies/subsonic_onera_m6_wing/results/"+case_name+".vtk"
-    report_file = "studies/subsonic_onera_m6_wing/results/"+case_name+".json"
-
+    if correction:
+        case_name = "m6_onera_AoA_{0}_mach_{1}_pg".format(AoA, mach_num)
+    else:
+        case_name = "m6_onera_AoA_{0}_mach_{1}_direct".format(AoA, mach_num)
+    mesh_file = study_dir + "meshes/M6_onera.vtk"
+    body_file = study_dir + "results/"+case_name+".vtk"
+    report_file = study_dir + "results/"+case_name+".json"
 
     # Calculate Freestream Velocity
-
     AoA_rd = ( AoA * np.pi ) / 180
     freestream_velocity = [np.cos(AoA_rd), 0.0, np.sin(AoA_rd)]
 
@@ -49,7 +49,7 @@ def run_wing_quad_comparison(AoA, mach_num, correction=False):
             "spanwise_axis" : "+y"
         },
         "solver": {
-            "formulation" : "morino"
+            "label" : "morino"
         },
         "post_processing" : {
             "pressure_rules": {
@@ -69,15 +69,13 @@ def run_wing_quad_comparison(AoA, mach_num, correction=False):
     }
 
     # Dump
-    input_file = "studies/subsonic_onera_m6_wing/Input_files/m6_input.json"
+    input_file = study_dir + "input_files/M6_input.json"
     write_input_file(input_dict,input_file)
 
     # Run
     reports = run_quad(input_file, run = RERUN_MACHLINE)
 
     return case_name
-
-
 
 
 def run_cases(AoA, mach_num):
@@ -87,17 +85,14 @@ def run_cases(AoA, mach_num):
     case_name_direct = run_wing_quad_comparison(AoA,mach_num,False)
 
     # Define Plot dir 
-    plot_dir = "studies/subsonic_onera_m6_wing/plots/"
+    plot_dir = study_dir + "plots/"
 
     # Pull Experimental Data
-    column_headers, cell_data = get_data_from_csv(csv_file = "studies/subsonic_onera_m6_wing/Experimental_Data/M6_Data_mach_{0:.4f}".format(mach_num)+"_AoA_"+str(AoA)+".csv", remove_csv =False)
+    column_headers, cell_data = get_data_from_csv(csv_file = study_dir + "experimental_data/M6_Data_mach_{0:.4f}".format(mach_num)+"_AoA_"+str(AoA)+".csv", remove_csv =False)
     
     # Define locations of y_slices
     y_loc = [0.239,0.526,0.778,0.957,1.077,1.136,1.184]
     semispan = [20,44,65,80,90,95,99]
-
-    # Define Formulation Appendices
-    form_app = ["_QUAD_higher-order_morino", "_QUAD_lower-order_morino", "_QUAD_higher-order_source-free", "_QUAD_lower-order_source-free"]
 
     # Loop Through Slices
     for i, y in enumerate(y_loc):
@@ -111,55 +106,68 @@ def run_cases(AoA, mach_num):
         Cp_exp = get_data_column_from_array(column_headers,cell_data,"Cp_{0}".format(i+1))
 
         # Loop Through Formulations
-        for j, formulation in enumerate(form_app):
+        for j, label in enumerate(quad_labels):
             
             # Pull Machline Data at slice
-            data_dir_pg = "studies/subsonic_onera_m6_wing/results/" + case_name_pg + formulation + ".vtk"
-            data_dir_direct = "studies/subsonic_onera_m6_wing/results/" + case_name_direct + formulation + ".vtk"
+            data_dir_pg = study_dir + "results/" + case_name_pg + label + ".vtk"
+            data_dir_direct = study_dir + "results/" + case_name_direct + label + ".vtk"
 
-            headers_pg, slice_data_pg = extract_plane_slice(data_dir_pg, slice_normal, slice_origin, filter=False, which_data="cell")
-            headers_direct, slice_data_direct = extract_plane_slice(data_dir_direct, slice_normal, slice_origin, filter=False, which_data="cell")
+            # Switch between filtering and not
+            for filter, which in zip([True, False], ['point', 'cell']):
 
-            x_mach_pg = get_data_column_from_array(headers_pg,slice_data_pg,"centroid:0")
-            Cp_pg = get_data_column_from_array(headers_pg,slice_data_pg, "C_p_PG")
-            x_mach_direct = get_data_column_from_array(headers_direct,slice_data_direct,"centroid:0")
-            Cp_ise_direct = get_data_column_from_array(headers_direct,slice_data_direct, "C_p_ise")
+                # Get slice
+                headers_pg, slice_data_pg = extract_plane_slice(data_dir_pg, slice_normal, slice_origin, filter=filter, which_data=which)
+                headers_direct, slice_data_direct = extract_plane_slice(data_dir_direct, slice_normal, slice_origin, filter=filter, which_data=which)
 
-            # Modify machline x-axis
-            x_mach_pg = [(x - min(x_mach_pg)) for x in x_mach_pg]
-            x_mach_pg = [x/max(x_mach_pg) for x in x_mach_pg]
+                # Get data we want to plot
+                if filter:
+                    x_mach_pg = get_data_column_from_array(headers_pg,slice_data_pg,"Points:0")
+                    x_mach_direct = get_data_column_from_array(headers_direct,slice_data_direct,"Points:0")
+                else:
+                    x_mach_pg = get_data_column_from_array(headers_pg,slice_data_pg,"centroid:0")
+                    x_mach_direct = get_data_column_from_array(headers_direct,slice_data_direct,"centroid:0")
+                Cp_pg = get_data_column_from_array(headers_pg,slice_data_pg, "C_p_PG")
+                Cp_ise_direct = get_data_column_from_array(headers_direct,slice_data_direct, "C_p_ise")
+
+                # Modify machline x-axis
+                x_mach_pg = [(x - min(x_mach_pg)) for x in x_mach_pg]
+                x_mach_pg = [x/max(x_mach_pg) for x in x_mach_pg]
             
-            x_mach_direct = [(x - min(x_mach_direct)) for x in x_mach_direct]
-            x_mach_direct = [x/max(x_mach_direct) for x in x_mach_direct]
+                x_mach_direct = [(x - min(x_mach_direct)) for x in x_mach_direct]
+                x_mach_direct = [x/max(x_mach_direct) for x in x_mach_direct]
 
-            # Differentiate between upper and lower surface
-            half_pg = round(len(x_mach_pg)/2)
-            half_direct = round(len(x_mach_direct)/2)
+                # Differentiate between upper and lower surface
+                half_pg = round(len(x_mach_pg)/2)
+                half_direct = round(len(x_mach_direct)/2)
 
-            # Plot Experimental data
-            plt.figure()
-            plt.plot(x_exp,Cp_exp, 'ks', label='Experimental')
+                # Plot Experimental data
+                plt.figure()
+                plt.plot(x_exp, Cp_exp, 'ko', label='Experiment', markersize=3)
 
-            # Plot Machline Direct Data
-            plt.plot(x_mach_direct[:half_direct],Cp_ise_direct[:half_direct], 'k-', label='Direct')
-            plt.plot(x_mach_direct[half_direct:],Cp_ise_direct[half_direct:], 'k-')
+                # Plot Machline Direct Data
+                plt.plot(x_mach_direct[:half_direct],Cp_ise_direct[:half_direct], 'k-', linewidth=0.5, label='Direct')
+                plt.plot(x_mach_direct[half_direct:],Cp_ise_direct[half_direct:], 'k-', linewidth=0.5)
 
-            # Plot Machline Prandtl Glauert Correction Data
-            plt.plot(x_mach_pg[:half_pg],Cp_pg[:half_pg], 'k--', label='PG')
-            plt.plot(x_mach_pg[half_pg:],Cp_pg[half_pg:], 'k--')
+                # Plot Machline Prandtl Glauert Correction Data
+                plt.plot(x_mach_pg[:half_pg],Cp_pg[:half_pg], 'k--', linewidth=0.5, label='P-G')
+                plt.plot(x_mach_pg[half_pg:],Cp_pg[half_pg:], 'k--', linewidth=0.5)
 
-            # Define Case Name
-            case_name = case_name_pg[:-3]
+                # Define Case Name
+                case_name = case_name_pg[:-3]
 
-            # Plot and save figure
-            plt.xlabel('$x/l$')
-            plt.ylabel('$C_p$')
-            plt.ylim(bottom=-3)
-            plt.gca().invert_yaxis()
-            plt.legend(fontsize=6, title_fontsize=6)
-            plt.savefig(plot_dir+case_name+formulation+"_{0}.pdf".format(semispan[i]))
-            plt.savefig(plot_dir+case_name+formulation+"_{0}.svg".format(semispan[i]))
-            plt.close()
+                # Plot and save figure
+                plt.xlabel('$x/c$')
+                plt.ylabel('$C_P$')
+                plt.gca().invert_yaxis()
+                plt.ylim(top=1.2*np.nanmin(Cp_exp).item(), bottom=1.2*np.nanmax(Cp_exp).item())
+                plt.legend(fontsize=6, title_fontsize=6)
+                if filter:
+                    plt.savefig(plot_dir+case_name+label+"_filtered_{0}.pdf".format(semispan[i]))
+                    plt.savefig(plot_dir+case_name+label+"_filtered_{0}.svg".format(semispan[i]))
+                else:
+                    plt.savefig(plot_dir+case_name+label+"_{0}.pdf".format(semispan[i]))
+                    plt.savefig(plot_dir+case_name+label+"_{0}.svg".format(semispan[i]))
+                plt.close()
 
 
 
@@ -172,7 +180,3 @@ if __name__ == "__main__":
     # Run Machline for all Mach Numbers and associated AoA
     for i in range(len(mach_nums)):
         run_cases(AoA_nums[i], mach_nums[i])
-    
-
-
-
