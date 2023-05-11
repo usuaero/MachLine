@@ -1,0 +1,35 @@
+{
+    "flow": {
+        "freestream_velocity": [
+            0.9943564755676915,
+            0.0,
+            0.10609052500859356
+        ],
+        "freestream_mach_number": 0.6971
+    },
+    "geometry": {
+        "file": "studies/subsonic_onera_m6_wing/meshes/m6_onera.vtk",
+        "mirror_about": "xz",
+        "spanwise_axis": "+y",
+        "singularity_order": "lower"
+    },
+    "solver": {
+        "formulation": "source-free"
+    },
+    "post_processing": {
+        "pressure_for_forces": "isentropic",
+        "pressure_rules": {
+            "incompressible": false,
+            "isentropic": true,
+            "second-order": true
+        },
+        "subsonic_pressure_correction": {
+            "correction_mach_number": 0.0,
+            "prandtl-glauert": false
+        }
+    },
+    "output": {
+        "body_file": "studies/subsonic_onera_m6_wing/results/m6_onera_AoA_6.09_mach_0.6971_direct_QUAD_lower-order_source-free.vtk",
+        "report_file": "studies/subsonic_onera_m6_wing/results/m6_onera_AoA_6.09_mach_0.6971_direct_QUAD_lower-order_source-free.json"
+    }
+}
