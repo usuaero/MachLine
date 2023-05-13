@@ -1,6 +1,7 @@
+import os
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
-import sys
 
 sys.path.insert(0, './studies')
 #sys.path.insert(1, 'C:/Program Files/ParaView 5.11.0/bin/Lib/site-packages')
@@ -155,18 +156,24 @@ def run_cases(AoA, mach_num):
                 # Define Case Name
                 case_name = case_name_pg[:-3]
 
-                # Plot and save figure
+                # Plot
                 plt.xlabel('$x/c$')
                 plt.ylabel('$C_P$')
                 plt.gca().invert_yaxis()
-                plt.ylim(top=1.2*np.nanmin(Cp_exp).item(), bottom=1.2*np.nanmax(Cp_exp).item())
+                plt.ylim(top=np.nanmin(Cp_exp).item()-0.5, bottom=np.nanmax(Cp_exp).item()+0.5)
                 plt.legend(fontsize=6, title_fontsize=6)
+
+                # Save
+                if not os.path.exists(study_dir + "plots/filtered/"):
+                    os.makedirs(study_dir + "plots/filtered/")
+                if not os.path.exists(study_dir + "plots/unfiltered/"):
+                    os.makedirs(study_dir + "plots/unfiltered/")
                 if filter:
-                    plt.savefig(plot_dir+case_name+label+"_filtered_{0}.pdf".format(semispan[i]))
-                    plt.savefig(plot_dir+case_name+label+"_filtered_{0}.svg".format(semispan[i]))
+                    plt.savefig(plot_dir+"filtered/"+case_name+label+"_filtered_{0}.pdf".format(semispan[i]))
+                    plt.savefig(plot_dir+"filtered/"+case_name+label+"_filtered_{0}.svg".format(semispan[i]))
                 else:
-                    plt.savefig(plot_dir+case_name+label+"_{0}.pdf".format(semispan[i]))
-                    plt.savefig(plot_dir+case_name+label+"_{0}.svg".format(semispan[i]))
+                    plt.savefig(plot_dir+"unfiltered/"+case_name+label+"_{0}.pdf".format(semispan[i]))
+                    plt.savefig(plot_dir+"unfiltered/"+case_name+label+"_{0}.svg".format(semispan[i]))
                 plt.close()
 
 
