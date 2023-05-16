@@ -8,19 +8,13 @@ from studies.paraview_functions import extract_all_data, get_data_column_from_ar
 RERUN_MACHLINE = False
 study_dir = "studies/supersonic_double_wedge_wing/"
 plot_dir = study_dir + "plots/shock_expansion/"
+MCA = 1.0
+half_angle = 5.0
+gamma = 1.4
 
 
-def run_comparison(M, alpha, grid, MCA, se_pressures):
-    # Runs the comparison of the diamond wing to shock-expansion theory
-
-    # Parameters
-    half_angle = 5.0
-    R_G = 287.058
-    gamma = 1.4
-    T_inf = 300.0
-    c_inf = np.sqrt(gamma*R_G*T_inf)
-    rho = 1.225
-    p_inf = 1.0e5
+def run_machline(M, alpha, grid):
+    # Runs MachLine with the given parameters
 
     # Storage locations
     case_name = "M_{0}_aoa_{1}_{2}_deg_{3}_MCA_{4}".format(M, alpha, int(half_angle), grid, MCA)
@@ -31,7 +25,7 @@ def run_comparison(M, alpha, grid, MCA, se_pressures):
     # Declare MachLine input
     input_dict = {
         "flow": {
-            "freestream_velocity": [M*c_inf*np.cos(np.radians(alpha)), 0.0, M*c_inf*np.sin(np.radians(alpha))],
+            "freestream_velocity": [np.cos(np.radians(alpha)), 0.0, np.sin(np.radians(alpha))],
             "gamma" : gamma,
             "freestream_mach_number" : M
         },
@@ -69,49 +63,111 @@ def run_comparison(M, alpha, grid, MCA, se_pressures):
 
     # Run
     reports = run_quad(input_file, run=RERUN_MACHLINE)
-    
-    # Parse out shock-expansion data
-    Cp2 = se_pressures[0]
-    Cp3 = se_pressures[1]
-    Cp4 = se_pressures[2]
-    Cp5 = se_pressures[3]
-    
-    # Loop through reports
-    for i, (case, report) in enumerate(zip(cases, reports)):
 
-        # Get data
-        result_file = report["input"]["output"]["body_file"]
-        headers, data = extract_plane_slice(result_file, np.array([0.0, 1.0, 0.0]), np.array([0.0, 0.0, 0.0]), which_data='cell')
-        x = get_data_column_from_array(headers, data, 'centroid:0')
-        C_p_ise = get_data_column_from_array(headers, data, 'C_p_ise')
-        C_p_2nd = get_data_column_from_array(headers, data, 'C_p_2nd')
-        C_p_sln = get_data_column_from_array(headers, data, 'C_p_sln')
-        C_p_lin = get_data_column_from_array(headers, data, 'C_p_lin')
+    return reports
+
+
+def plot_comparison(M, alphas, grid, se_pressures, reports):
+    # Plots the comparison of the diamond wing to shock-expansion theory
+
+    # Loop through cases
+    for i, case in enumerate(cases):
+
+        case_name = "M_{0}_{1}_{2}".format(M, grid, case)
+
+        # Parse out shock-expansion data
+        Cp2 = se_pressures[:,0]
+        Cp3 = se_pressures[:,1]
+        Cp4 = se_pressures[:,2]
+        Cp5 = se_pressures[:,3]
+
+        # Initialize plot with SE data
+        plt.figure()
+        plt.plot(alphas, Cp2, "k-" )#, label="$C_{P_2}$")
+        plt.plot(alphas, Cp3, "k--")#, label="$C_{P_3}$")
+        plt.plot(alphas, Cp4, "k-.")#, label="$C_{P_4}$")
+        plt.plot(alphas, Cp5, "k:" )#, label="$C_{P_5}$")
+
+        # Initialize MachLine data storage
+        C_p_ise_2_ML = np.zeros(len(alphas))
+        C_p_ise_3_ML = np.zeros(len(alphas))
+        C_p_ise_4_ML = np.zeros(len(alphas))
+        C_p_ise_5_ML = np.zeros(len(alphas))
+        C_p_2nd_2_ML = np.zeros(len(alphas))
+        C_p_2nd_3_ML = np.zeros(len(alphas))
+        C_p_2nd_4_ML = np.zeros(len(alphas))
+        C_p_2nd_5_ML = np.zeros(len(alphas))
+        C_p_sln_2_ML = np.zeros(len(alphas))
+        C_p_sln_3_ML = np.zeros(len(alphas))
+        C_p_sln_4_ML = np.zeros(len(alphas))
+        C_p_sln_5_ML = np.zeros(len(alphas))
+        C_p_lin_2_ML = np.zeros(len(alphas))
+        C_p_lin_3_ML = np.zeros(len(alphas))
+        C_p_lin_4_ML = np.zeros(len(alphas))
+        C_p_lin_5_ML = np.zeros(len(alphas))
+    
+        # Loop through angles of attack to get data from MachLine
+        for j, alpha in enumerate(alphas):
+
+            # Get data
+            result_file = reports[j][i]["input"]["output"]["body_file"]
+            headers, data = extract_plane_slice(result_file, np.array([0.0, 1.0, 0.0]), np.array([0.0, 0.0, 0.0]), which_data='cell')
+            x = get_data_column_from_array(headers, data, 'centroid:0')
+            z = get_data_column_from_array(headers, data, 'centroid:2')
+            C_p_ise = get_data_column_from_array(headers, data, 'C_p_ise')
+            C_p_2nd = get_data_column_from_array(headers, data, 'C_p_2nd')
+            C_p_sln = get_data_column_from_array(headers, data, 'C_p_sln')
+            C_p_lin = get_data_column_from_array(headers, data, 'C_p_lin')
+
+            # Figure out which points belong to which surfaces
+            ind2 = np.where(np.logical_and(x < 0.5, z<0))
+            ind3 = np.where(np.logical_and(x < 0.5, z>0))
+            ind4 = np.where(np.logical_and(x > 0.5, z<0))
+            ind5 = np.where(np.logical_and(x > 0.5, z>0))
+
+            # Get average pressures
+            C_p_ise_2_ML[j] = np.average(C_p_ise[ind2])
+            C_p_ise_3_ML[j] = np.average(C_p_ise[ind3])
+            C_p_ise_4_ML[j] = np.average(C_p_ise[ind4])
+            C_p_ise_5_ML[j] = np.average(C_p_ise[ind5])
+            C_p_2nd_2_ML[j] = np.average(C_p_2nd[ind2])
+            C_p_2nd_3_ML[j] = np.average(C_p_2nd[ind3])
+            C_p_2nd_4_ML[j] = np.average(C_p_2nd[ind4])
+            C_p_2nd_5_ML[j] = np.average(C_p_2nd[ind5])
+            C_p_sln_2_ML[j] = np.average(C_p_sln[ind2])
+            C_p_sln_3_ML[j] = np.average(C_p_sln[ind3])
+            C_p_sln_4_ML[j] = np.average(C_p_sln[ind4])
+            C_p_sln_5_ML[j] = np.average(C_p_sln[ind5])
+            C_p_lin_2_ML[j] = np.average(C_p_lin[ind2])
+            C_p_lin_3_ML[j] = np.average(C_p_lin[ind3])
+            C_p_lin_4_ML[j] = np.average(C_p_lin[ind4])
+            C_p_lin_5_ML[j] = np.average(C_p_lin[ind5])
 
         # Plot data from MachLine
-        plt.figure()
-        plt.plot(x, C_p_2nd, 'ks', markersize=3, label='Second-Order')
-        plt.plot(x, C_p_ise, 'kv', markersize=3, label='Isentropic')
-        plt.plot(x, C_p_sln, 'ko', markersize=3, label='Slender-Body')
-        plt.plot(x, C_p_lin, 'k^', markersize=3, label='Linear')
-
-        # Plot data from shock-expansion theory
-        x = np.linspace(0.0, 1.0, 100)
-        Cp_upper = np.ones_like(x)
-        Cp_upper[:50] *= Cp3
-        Cp_upper[50:] *= Cp5
-        Cp_lower = np.ones_like(x)
-        Cp_lower[:50] *= Cp2
-        Cp_lower[50:] *= Cp4
-        plt.plot(x, Cp_upper, 'k-', label='Shock-Expansion', linewidth=0.5)
-        plt.plot(x, Cp_lower, 'k-', linewidth=0.5)
+        plt.plot(alphas, C_p_ise_2_ML, 'kv', markersize=3, label="Isentropic")
+        plt.plot(alphas, C_p_ise_3_ML, 'kv', markersize=3)
+        plt.plot(alphas, C_p_ise_4_ML, 'kv', markersize=3)
+        plt.plot(alphas, C_p_ise_5_ML, 'kv', markersize=3)
+        plt.plot(alphas, C_p_2nd_2_ML, 'ks', markersize=3, label="Second-Order")
+        plt.plot(alphas, C_p_2nd_3_ML, 'ks', markersize=3)
+        plt.plot(alphas, C_p_2nd_4_ML, 'ks', markersize=3)
+        plt.plot(alphas, C_p_2nd_5_ML, 'ks', markersize=3)
+        plt.plot(alphas, C_p_sln_2_ML, 'ko', markersize=3, label="Slender-Body")
+        plt.plot(alphas, C_p_sln_3_ML, 'ko', markersize=3)
+        plt.plot(alphas, C_p_sln_4_ML, 'ko', markersize=3)
+        plt.plot(alphas, C_p_sln_5_ML, 'ko', markersize=3)
+        plt.plot(alphas, C_p_lin_2_ML, 'k^', markersize=3, label="Linear")
+        plt.plot(alphas, C_p_lin_3_ML, 'k^', markersize=3)
+        plt.plot(alphas, C_p_lin_4_ML, 'k^', markersize=3)
+        plt.plot(alphas, C_p_lin_5_ML, 'k^', markersize=3)
 
         # Format
-        plt.xlabel('$x$')
+        plt.xlabel('$\\alpha$')
         plt.ylabel('$C_P$')
         plt.legend(fontsize=6, title_fontsize=6)
-        plt.savefig(plot_dir+case_name+"_{0}.pdf".format(case))
-        plt.savefig(plot_dir+case_name+"_{0}.svg".format(case))
+        plt.gca().invert_yaxis()
+        plt.savefig(plot_dir+case_name+".pdf")
+        plt.savefig(plot_dir+case_name+".svg")
         plt.close()
 
 
@@ -121,15 +177,19 @@ if __name__=="__main__":
     grids = ["coarse", "medium", "fine", "ultra_fine"]
     Ms = [1.5, 2.0, 3.0, 5.0]
     alphas = np.linspace(0.0, 5.0, 6)
-    MCAs = [1.0, 2.5, 45.0]
 
     # Load shock-expansion data
     se_data = np.genfromtxt(study_dir + "shock_expansion_data.csv", delimiter=',')
-    se_data = se_data.reshape((len(grids), len(Ms), len(alphas), len(MCAs), 4))
+    se_data = se_data.reshape((len(Ms), len(alphas), 4))
 
+    # Loop through cases
     for i, grid in enumerate(grids):
         for j, M in enumerate(Ms):
+            reports = []
             for k, alpha in enumerate(alphas):
-                for l, MCA in enumerate(MCAs):
 
-                    run_comparison(M, alpha, grid, MCA, se_data[i,j,k,l])
+                # Run MachLine
+                reports.append(run_machline(M, alpha, grid))
+
+            # Plot
+            plot_comparison(M, alphas, grid, se_data[j,:,:], reports)

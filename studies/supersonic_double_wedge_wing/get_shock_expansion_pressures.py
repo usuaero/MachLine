@@ -1,11 +1,10 @@
 import flow54 as fl
 import numpy as np
-import matplotlib.pyplot as plt
 
 study_dir = "studies/supersonic_double_wedge_wing/"
 
 
-def run_comparison(M, alpha, half_angle):
+def get_se_pressures(M, alpha, half_angle):
     # Runs the comparison of the diamond wing to shock-expansion theory
 
     # Parameters
@@ -31,18 +30,14 @@ def run_comparison(M, alpha, half_angle):
 
 if __name__=="__main__":
 
-    grids = ["coarse", "medium", "fine", "ultra_fine"]
     Ms = [1.5, 2.0, 3.0, 5.0]
     alphas = np.linspace(0.0, 5.0, 6)
-    half_angles = [5]
+    half_angle = 5
 
-    Cps = np.zeros((len(grids), len(Ms), len(alphas), len(half_angles), 4))
+    Cps = np.zeros((len(Ms), len(alphas), 4))
 
-    for i, grid in enumerate(grids):
-        for j, M in enumerate(Ms):
-            for k, alpha in enumerate(alphas):
-                for l, half_angle in enumerate(half_angles):
+    for j, M in enumerate(Ms):
+        for k, alpha in enumerate(alphas):
+            Cps[j,k,:] = get_se_pressures(M, alpha, half_angle)
 
-                    Cps[i,j,k,l] = run_comparison(M, alpha, half_angle)
-
-    np.savetxt(study_dir + "shock_expansion_data.csv", Cps.reshape((len(grids)*len(Ms)*len(alphas)*len(half_angles), 4)), delimiter=',')
+    np.savetxt(study_dir + "shock_expansion_data.csv", Cps.reshape((len(Ms)*len(alphas), 4)), delimiter=',')
