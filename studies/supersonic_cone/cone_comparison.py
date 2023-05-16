@@ -100,20 +100,6 @@ def run_comparison(M, grid, half_angle):
             C_p_sln_std[i] = np.std(C_p_sln).item()
             C_p_lin_avg[i] = np.average(C_p_lin).item()
             C_p_lin_std[i] = np.std(C_p_lin).item()
-    
-            ## Plot data
-            #plt.figure()
-            #plt.plot(x, C_p_2nd, 'ks', markersize=3, label='Second-Order')
-            #plt.plot(x, C_p_ise, 'kv', markersize=3, label='Isentropic')
-            #plt.plot(x, C_p_sln, 'ko', markersize=3, label='Slender-Body')
-            #plt.plot(x, C_p_lin, 'k^', markersize=3, label='Linear')
-
-            ## Format
-            #plt.xlabel('$x$')
-            #plt.ylabel('$C_p$')
-            #plt.legend(title="Pressure Rule", fontsize=6, title_fontsize=6)
-            #plt.savefig(plot_dir+case_name+"_{0}.pdf".format(cases[i]))
-            #plt.close()
             
         except:
             C_p_2nd_avg[i] = np.nan
@@ -181,29 +167,29 @@ if __name__=="__main__":
     Ms_anl, thetas_anl, Cps_anl = get_analytic_data(study_dir + "Cone Data Zero AoA.csv")
 
     # Plot overall data
-    for k, half_angle in enumerate(half_angles):
-        for j, (case, line_style) in enumerate(zip(cases, line_styles)):
+    for i, grid in enumerate(grids):
+        for k, half_angle in enumerate(half_angles):
+            for j, (case, line_style) in enumerate(zip(cases, line_styles)):
 
-            plt.figure()
+                # Plot MachLine data
+                plt.figure()
+                plt.errorbar(Ms, C_p_2nd_avg[i,:,k,j], fmt='ks', yerr=C_p_2nd_std[i,:,k,j], elinewidth=0.5, markersize=3, label='Second-Order')
+                plt.errorbar(Ms, C_p_ise_avg[i,:,k,j], fmt='kv', yerr=C_p_ise_std[i,:,k,j], elinewidth=0.5, markersize=3, label='Isentropic')
+                plt.errorbar(Ms, C_p_sln_avg[i,:,k,j], fmt='ko', yerr=C_p_sln_std[i,:,k,j], elinewidth=0.5, markersize=3, label='Slender-Body')
+                plt.errorbar(Ms, C_p_lin_avg[i,:,k,j], fmt='k^', yerr=C_p_lin_std[i,:,k,j], elinewidth=0.5, markersize=3, label='Linear')
 
-            # Plots using the most-refined grid
-            which_mesh = -1
-            plt.errorbar(Ms, C_p_2nd_avg[which_mesh,:,k,j], fmt='ks', yerr=C_p_2nd_std[which_mesh,:,k,j], elinewidth=0.5, markersize=3, label='Second-Order')
-            plt.errorbar(Ms, C_p_ise_avg[which_mesh,:,k,j], fmt='kv', yerr=C_p_ise_std[which_mesh,:,k,j], elinewidth=0.5, markersize=3, label='Isentropic')
-            plt.errorbar(Ms, C_p_sln_avg[which_mesh,:,k,j], fmt='ko', yerr=C_p_sln_std[which_mesh,:,k,j], elinewidth=0.5, markersize=3, label='Slender-Body')
-            plt.errorbar(Ms, C_p_lin_avg[which_mesh,:,k,j], fmt='k^', yerr=C_p_lin_std[which_mesh,:,k,j], elinewidth=0.5, markersize=3, label='Linear')
+                # Get analytic data for this half angle
+                i_theta = np.where(thetas_anl == half_angle)
+                plt.plot(Ms_anl[:7], Cps_anl[:7,i_theta].flatten(), 'k', label='Taylor-MacColl', linewidth=1)
 
-            # Get analytic data for this half angle
-            i_theta = np.where(thetas_anl == half_angle)
-            plt.plot(Ms_anl[:7], Cps_anl[:7,i_theta].flatten(), 'k', label='Taylor-MacColl', linewidth=1)
-
-            plt.xlabel("$M_\infty$")
-            plt.ylabel("$C_P$")
-            plt.ylim(bottom=0.0, top=1.1*np.nanmax(C_p_lin_avg[which_mesh,:,k,j]).item())
-            plt.legend(fontsize=6, title_fontsize=6)
-            plt.savefig(plot_dir + "C_p_over_M_{0}_deg_{1}.pdf".format(half_angle, case))
-            plt.savefig(plot_dir + "C_p_over_M_{0}_deg_{1}.svg".format(half_angle, case))
-            plt.close()
+                plt.xlabel("$M_\infty$")
+                plt.ylabel("$C_P$")
+                plt.ylim(bottom=0.0, top=1.1*np.nanmax(C_p_lin_avg[i,:,k,j]).item())
+                if case=='MH':
+                    plt.legend(fontsize=6, title_fontsize=6)
+                plt.savefig(plot_dir + "C_p_over_M_{0}_deg_{1}_{2}.pdf".format(half_angle, case, grid))
+                plt.savefig(plot_dir + "C_p_over_M_{0}_deg_{1}_{2}.svg".format(half_angle, case, grid))
+                plt.close()
 
     ## Determine max standard deviation
     #std_max_ise = np.nanmax(np.nanmax(np.nanmax(C_p_ise_s_dev))).item()
