@@ -5,7 +5,7 @@ from studies.paraview_functions import extract_all_data, get_data_column_from_ar
 from studies.case_running_functions import write_input_file, run_quad, cases, line_styles
 
 
-RERUN_MACHLINE = True
+RERUN_MACHLINE = False
 plot_dir = "studies/sphere/plots/regularity/"
 
 
@@ -84,7 +84,8 @@ def run_sphere_comparison(grid, sample):
         plt.xlabel('$\\theta [^\circ]$')
         plt.ylabel('$C_p$')
         plt.ylim(bottom=-2.5)
-        plt.legend(fontsize=6, title_fontsize=6)
+        if i==1:
+            plt.legend(fontsize=6, title_fontsize=6)
         plt.savefig(plot_dir+case_name+"_{0}.pdf".format(cases[i]))
         plt.savefig(plot_dir+case_name+"_{0}.svg".format(cases[i]))
         plt.close()

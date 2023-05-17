@@ -78,7 +78,7 @@ if __name__=="__main__":
     plt.ylabel('Off-Axis Force Coefficients')
     plt.xscale('log')
     plt.yscale('log')
-    plt.legend()
+    #plt.legend()
     plt.show()
 
     # Plot x coefficient

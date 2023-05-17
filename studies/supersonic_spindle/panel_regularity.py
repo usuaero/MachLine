@@ -6,8 +6,8 @@ from studies.paraview_functions import extract_all_data, get_data_column_from_ar
 from studies.case_running_functions import run_quad, write_input_file, cases
 
 
-RERUN_MACHLINE = True
-REGENERATE_MESHES = True
+RERUN_MACHLINE = False
+REGENERATE_MESHES = False
 
 # Parameters
 study_dir = "studies/supersonic_spindle/"
@@ -97,7 +97,8 @@ def run_random_spindle(N, cpo=1.1e-6, regenerate_mesh=False):
         plt.plot(x_anl, C_p_anl, 'k', label='Meth. of Char.')
         plt.xlabel("$x$")
         plt.ylabel("$C_P$")
-        plt.legend(fontsize=6, title_fontsize=6)
+        if case=='MH':
+            plt.legend(fontsize=6, title_fontsize=6)
         plt.savefig(plot_dir + 'M_{0}_{1}_{2}_{3}.pdf'.format(round(M, 2), round(np.log10(cpo)), N, case))
         plt.savefig(plot_dir + 'M_{0}_{1}_{2}_{3}.svg'.format(round(M, 2), round(np.log10(cpo)), N, case))
         plt.close()

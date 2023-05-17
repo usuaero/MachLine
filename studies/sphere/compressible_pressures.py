@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from studies.case_running_functions import write_input_file, run_quad
+from studies.case_running_functions import write_input_file, run_quad, cases
 from studies.paraview_functions import extract_all_data, get_data_column_from_array
 
 
@@ -116,7 +116,7 @@ if __name__=="__main__":
 
                     # Loop through cases
                     plt.figure()
-                    for report, case in zip(reports, ['ML', 'MH', 'SL', 'SH']):
+                    for report, case in zip(reports, cases):
 
                         # Get pressures and velocities
                         result_file = report["input"]["output"]["body_file"]
@@ -129,6 +129,7 @@ if __name__=="__main__":
                         plt.plot(np.degrees(theta_anl[k]), v_anl[k], 'k-', label='Tamada')
                         plt.xlabel('$\\theta [^\circ]$')
                         plt.ylabel('$|\mathbf{u}|$')
-                        plt.legend()
+                        if case=='MH':
+                            plt.legend()
                         plt.savefig(plot_dir + "M_{0}_{1}_{2}_{3}_{4}.pdf".format(M, case, round(np.degrees(phi)), round(np.degrees(theta)), density))
                         plt.close()

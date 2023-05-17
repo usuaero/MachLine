@@ -8,6 +8,7 @@ sys.path.insert(0, './studies')
 from paraview_functions import get_data_from_csv, get_data_column_from_array, extract_plane_slice
 from case_running_functions import write_input_file, run_quad, cases, quad_labels
 
+
 RERUN_MACHLINE = False
 study_dir = "studies/subsonic_onera_m6_wing/"
 
@@ -161,7 +162,8 @@ def run_cases(AoA, mach_num):
                 plt.ylabel('$C_P$')
                 plt.gca().invert_yaxis()
                 plt.ylim(top=np.nanmin(Cp_exp).item()-0.5, bottom=np.nanmax(Cp_exp).item()+0.5)
-                plt.legend(fontsize=6, title_fontsize=6)
+                if j==1:
+                    plt.legend(fontsize=6, title_fontsize=6)
 
                 # Save
                 if not os.path.exists(study_dir + "plots/filtered/"):
