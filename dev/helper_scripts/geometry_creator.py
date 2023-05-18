@@ -676,13 +676,17 @@ def generate_spindle(filename, N_ax, N_theta, l, r_of_x, r_l_ratio=None, cosine_
 
 if __name__=="__main__":
 
-    ## Test cone
-    #angles = [2.5, 5.0, 10.0, 15.0]
-    #for angle in angles:
-    #    h = 1.0/np.tan(np.radians(angle))
-    #    generate_regular_right_cone('studies/supersonic_cone_flow_study/meshes/cone_{0}_deg_fine.vtk'.format(int(angle)), h, 1.0, 120, 100, close_base=False)
+    # Cone
+    angles = [2.5, 5.0, 10.0, 15.0]
+    N_transverses = [30, 60, 120]
+    N_thetas = [8, 16, 32, 48]
+    grids = ["coarse", "medium", "fine"]
+    for i, (angle, N_theta) in enumerate(zip(angles, N_thetas)):
+        h = 1.0/np.tan(np.radians(angle))
+        for N_transverse, tr_grid in zip(N_transverses, grids):
+            generate_regular_right_cone('studies/supersonic_cone/meshes/cone_{0}_deg_{1}_improved.vtk'.format(int(angle), tr_grid), h, 1.0, N_transverse, N_theta, close_base=False, equal_aspect=False)
     #h = 1.0/np.tan(np.radians(10.0))
-    #generate_regular_right_cone('studies/matrix_solvers/meshes/cone_10_deg_medium.vtk', h, 1.0, 40, 30, close_base=False)
+    #generate_regular_right_cone('studies/supersonic_cone/meshes/cone_10_deg_medium_medium.vtk', h, 1.0, 40, 30, close_base=False, equal_aspect=False)
     #generate_regular_right_cone('dev/meshes/half_cone_coarse.vtk', h, 1.0, 100, 6, close_base=False, isosceles=True)
 
     ## Random spheres
@@ -702,7 +706,7 @@ if __name__=="__main__":
 
     # Sears-Haack
     #generate_spindle('dev/meshes/test_sears_haack.vtk', 100, 100, 1.0, 'SH', 0.037879, cosine_cluster=False)
-    def r_of_x(x):
-        return 0.2*x*(1.0-x)
-    generate_spindle('studies/supersonic_spindle/meshes/ehlers_spindle_ultra_coarse.vtk', 10, 10, 1.0, r_of_x, cosine_cluster=True)
+    #def r_of_x(x):
+    #    return 0.2*x*(1.0-x)
+    #generate_spindle('studies/supersonic_spindle/meshes/ehlers_spindle_ultra_coarse.vtk', 10, 10, 1.0, r_of_x, cosine_cluster=True)
     #generate_random_spindle("studies/supersonic_spindle/meshes/random_spindle_100.vtk", 100, 1.0, r_of_x)

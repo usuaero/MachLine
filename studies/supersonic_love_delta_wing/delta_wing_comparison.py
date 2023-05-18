@@ -2,7 +2,6 @@ import os
 import json
 
 import numpy as np
-import paraview.simple as pvs
 import matplotlib.pyplot as plt
 
 from studies.case_running_functions import run_quad, write_input_file, cases, line_styles, quad_labels
@@ -76,7 +75,7 @@ def plot_pressure_slices(pressure_rule, angles_of_attack, mesh_density):
                     theory_loc = study_dir + "experimental_data/delta_wing_exp_theory_0.0_deg_aoa_{0}_semispan.csv".format(semi)
                     theory_data = np.genfromtxt(theory_loc, delimiter=",", dtype=float)
 
-                    plt.plot(theory_data[:,0], theory_data[:,1], 'k:', label="Love-Hayes")
+                    plt.plot(theory_data[1:,0], theory_data[1:,1], 'k:', label="Love-Hayes")
             
                 # Differentiate between the upper and lower surfaces of MachLine's results
                 mid = round(len(x_ML)/2)
@@ -91,7 +90,8 @@ def plot_pressure_slices(pressure_rule, angles_of_attack, mesh_density):
                 plt.xlabel("$\\frac{x}{c_r}$")
                 plt.ylabel("$C_P$")
                 plt.gca().invert_yaxis()
-                plt.legend()
+                if case=='MH':
+                    plt.legend()
 
                 # Save figure
                 if not os.path.exists(study_dir + 'plots/'):
@@ -146,7 +146,8 @@ def plot_force_convergence_over_alpha(alpha_list):
         plt.figure()
         for j, mesh_density in enumerate(mesh_densities):
             plt.plot(alpha_list, CD[i,j,:], 'o', label=mesh_density.title(), markersize=8-3*j, mec='k', mfc='none')
-        plt.legend()
+        if case=="MH":
+            plt.legend()
         plt.xlabel('$\\alpha\,[^\circ]$')
         plt.ylabel('$C_D$')
         plot_loc = study_dir + 'plots/delta_wing_CD_convergence{0}'.format(quad_label)
@@ -158,7 +159,8 @@ def plot_force_convergence_over_alpha(alpha_list):
         plt.figure()
         for j, mesh_density in enumerate(mesh_densities):
             plt.plot(alpha_list, CL[i,j,:], 'o', label=mesh_density.title(), markersize=8-3*j, mec='k', mfc='none')
-        plt.legend()
+        if case=="MH":
+            plt.legend()
         plt.xlabel('$\\alpha\,[^\circ]$')
         plt.ylabel('$C_L$')
         plot_loc = study_dir + 'plots/delta_wing_CL_convergence{0}'.format(quad_label)
@@ -173,7 +175,8 @@ def plot_force_convergence_over_alpha(alpha_list):
         plt.plot(alpha_list, CD[i,-1,:], 'ko', label="MachLine", markersize=3)
         plt.plot(CD_exp[:,0], CD_exp[:,1], 'ks', label='Experiment', markersize=3)
         plt.plot(CPanel_CD[:,0], CPanel_CD[:,1], 'kv', label='CPanel', markersize=3)
-        plt.legend()
+        if case=="MH":
+            plt.legend()
         plt.xlabel('$\\alpha\,[^\circ]$')
         plt.ylabel('$C_D$')
         plt.ylim(bottom=0.0)
@@ -187,7 +190,8 @@ def plot_force_convergence_over_alpha(alpha_list):
         plt.plot(alpha_list, CL[i,-1,:], 'ko', label="MachLine", markersize=3)
         plt.plot(CL_exp[:,0], CL_exp[:,1], 'ks', label='Experiment', markersize=3)
         plt.plot(CPanel_CL[:,0], CPanel_CL[:,1], 'kv', label='CPanel', markersize=3)
-        plt.legend()
+        if case=="MH":
+            plt.legend()
         plt.xlabel('$\\alpha\,[^\circ]$')
         plt.ylabel('$C_L$')
         plot_loc = study_dir + 'plots/delta_wing_CL_comparison_{0}{1}'.format(PRESSURE_FOR_FORCES, quad_label)
@@ -280,6 +284,6 @@ def run_machline_cases(angles_of_attack, M, mesh_density):
 if __name__=="__main__":
 
     # Run comparisons
-    #for mesh_density in mesh_densities:
-    #    run_pressure_distribution_comparison(mesh_density)
+    for mesh_density in mesh_densities:
+        run_pressure_distribution_comparison(mesh_density)
     run_force_comparison()

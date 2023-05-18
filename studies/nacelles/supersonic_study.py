@@ -5,7 +5,7 @@ from studies.case_running_functions import run_quad, cases, line_styles, write_i
 from studies.paraview_functions import extract_plane_slice, get_data_column_from_array
 
 
-RERUN_MACHLINE = True
+RERUN_MACHLINE = False
 study_dir = "studies/nacelles/"
 plot_dir = study_dir + "plots/supersonic/"
 
@@ -120,12 +120,19 @@ def run_study_at_mach(M):
         # Format plots
         inner_ax.set_xlabel("$x$")
         inner_ax.set_ylabel("$C_{P_{ise}}$")
+        inner_ax.invert_yaxis()
+        if M==2.5:
+            inner_ax.set_ylim(top=-0.03)
         inner_fig.savefig(plot_dir + "inside_pressures_M_{0}_{1}.pdf".format(M, case))
+        inner_fig.savefig(plot_dir + "inside_pressures_M_{0}_{1}.svg".format(M, case))
         plt.close(inner_fig)
 
         outer_ax.set_xlabel("$x$")
         outer_ax.set_ylabel("$C_{P_{ise}}$")
+        outer_ax.invert_yaxis()
+        outer_ax.set_ylim(bottom=0.2, top=-0.2)
         outer_fig.savefig(plot_dir + "outside_pressures_M_{0}_{1}.pdf".format(M, case))
+        outer_fig.savefig(plot_dir + "outside_pressures_M_{0}_{1}.svg".format(M, case))
         plt.close(outer_fig)
 
 

@@ -8,7 +8,7 @@ from studies.case_running_functions import run_quad, write_input_file, cases, li
 from studies.paraview_functions import extract_all_data, get_data_column_from_array
 
 
-RERUN_MACHLINE = False
+RERUN_MACHLINE = True
 study_dir = "studies/supersonic_cone/"
 plot_dir = study_dir + "plots/"
 
@@ -21,7 +21,7 @@ def run_comparison(M, grid, half_angle):
 
     # Storage locations
     case_name = "M_{0}_{1}_deg_{2}".format(M, int(half_angle), grid)
-    mesh_file = study_dir + "meshes/cone_{0}_deg_{1}.vtk".format(int(half_angle), grid)
+    mesh_file = study_dir + "meshes/cone_{0}_deg_{1}_improved.vtk".format(int(half_angle), grid)
     body_file = study_dir + "results/"+case_name+".vtk"
     report_file = study_dir + "reports/"+case_name+".json"
 
@@ -34,7 +34,7 @@ def run_comparison(M, grid, half_angle):
         },
         "geometry": {
             "file": mesh_file,
-            "spanwise_axis" : "+y",
+            "spanwise_axis" : "+z",
             "mirror_about" : "xy",
             "wake_model": {
                 "append_wake" : False,
@@ -44,9 +44,7 @@ def run_comparison(M, grid, half_angle):
             }
         },
         "solver": {
-            "formulation": "morino",
-            "control_point_offset": 1.1e-8,
-            "control_point_offset_type" : 'direct'
+            "formulation": "morino"
         },
         "post_processing" : {
             "pressure_rules" : {
@@ -146,10 +144,15 @@ if __name__=="__main__":
     C_p_sln_std = np.zeros((len(grids), len(Ms), len(half_angles), 4))
     C_p_lin_std = np.zeros((len(grids), len(Ms), len(half_angles), 4))
 
+    # Get analytic data
+    Ms_anl, thetas_anl, Cps_anl = get_analytic_data(study_dir + "Cone Data Zero AoA.csv")
+
     # Run cases
     for i, grid in enumerate(grids):
-        for j, M in enumerate(Ms):
-            for k, half_angle in enumerate(half_angles):
+        for k, half_angle in enumerate(half_angles):
+
+            # Get all Mach numbers
+            for j, M in enumerate(Ms):
 
                 if M == 4.0 and half_angle == 15.0:
                     C_p_2nd_avg[i,j,k,:] = np.nan
@@ -163,12 +166,7 @@ if __name__=="__main__":
                 else:
                     C_p_2nd_avg[i,j,k], C_p_2nd_std[i,j,k], C_p_ise_avg[i,j,k], C_p_ise_std[i,j,k], C_p_sln_avg[i,j,k], C_p_sln_std[i,j,k], C_p_lin_avg[i,j,k], C_p_lin_std[i,j,k] = run_comparison(M, grid, half_angle)
 
-    # Get analytic data
-    Ms_anl, thetas_anl, Cps_anl = get_analytic_data(study_dir + "Cone Data Zero AoA.csv")
-
-    # Plot overall data
-    for i, grid in enumerate(grids):
-        for k, half_angle in enumerate(half_angles):
+            # Loop through case plots
             for j, (case, line_style) in enumerate(zip(cases, line_styles)):
 
                 # Plot MachLine data
