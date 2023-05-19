@@ -1775,7 +1775,7 @@ contains
         integer :: j, k, i_panel, i_edge_1, i_edge_2, i_edge, panel1, panel2
         real,dimension(3) :: t1, t2, t_avg, tp, n_avg
         real :: C_min_panel_angle, offset_ratio, x
-        logical :: found_first
+        logical :: found_first, tp_found
 
         ! Get the two edges defining the split for this vertex
         if (this%vertices(i_vert)%vert_type == 1) then
@@ -1834,15 +1834,10 @@ contains
                 t_avg(this%mirror_plane) = 1.
             end if
 
-        ! For midpoints, this is just the edge it belongs to
-        else
-            call this%vertices(i_vert)%adjacent_edges%get(1, i_edge_1)
-            t_avg = this%vertices(this%edges(i_edge_1)%top_verts(1))%loc - &
-                    this%vertices(this%edges(i_edge_1)%top_verts(2))%loc
-            t_avg = t_avg/norm2(t_avg)
         end if
 
         ! Get the vector which is perpendicular to t_avg that also lies inside one of the panels not across a wake edge
+        tp_found = .false.
         tp_loop: do j=1,this%vertices(i_vert)%panels_not_across_wake_edge%len()
 
             ! Get index of panel
@@ -1851,11 +1846,11 @@ contains
             ! Loop through vertices of panel j
             vertex_loop: do k=1,this%panels(i_panel)%N
 
+                ! Check we've got a different vertex than the one we're trying to place a control point for
+                if (i_vert == this%panels(i_panel)%get_vertex_index(k)) cycle vertex_loop
+
                 ! Get vector to vertex
                 tp = this%panels(i_panel)%get_vertex_loc(k) - this%vertices(i_vert)%loc
-
-                ! Check we've got a different vertex than the one we're trying to place a control point for
-                if (.not. norm2(tp) > 1.e-12) cycle vertex_loop
 
                 ! Project the vector so it is perpendicular to t_avg
                 tp = tp - t_avg*inner(t_avg, tp)
@@ -1864,7 +1859,10 @@ contains
                 if (.not. norm2(tp) > 1.e-12) cycle vertex_loop
 
                 ! If it's still inside the panel, we've found our vector
-                if (this%panels(i_panel)%projection_inside(tp + this%vertices(i_vert)%loc, .false., 0)) exit tp_loop
+                if (this%panels(i_panel)%projection_inside(tp + this%vertices(i_vert)%loc, .false., 0)) then
+                    tp_found = .true.
+                    exit tp_loop
+                end if
 
             end do vertex_loop
 
@@ -1878,9 +1876,19 @@ contains
             if (.not. norm2(tp) > 1.e-12) cycle tp_loop
 
             ! If it's still inside the panel, we've found our vector
-            if (this%panels(i_panel)%projection_inside(tp + this%vertices(i_vert)%loc, .false., 0)) exit tp_loop
+            if (this%panels(i_panel)%projection_inside(tp + this%vertices(i_vert)%loc, .false., 0)) then
+                tp_found = .true.
+                exit tp_loop
+            end if
 
         end do tp_loop
+
+        ! Check we actually found tp
+        if (.not. tp_found) then
+            write(*,*)
+            write(*,*) "!!! Failed to find t_p for placing a cloned control point at near vertex ", i_vert, ". Quitting..."
+            stop
+        end if
 
         ! Normalize
         tp = tp/norm2(tp)
@@ -1926,9 +1934,16 @@ contains
         end do
         n_avg = n_avg/norm2(n_avg)
 
-        ! Place control point
+        ! Determine direction
         offset_ratio = 0.5*sqrt(0.5*(1. + C_min_panel_angle))
         dir = tp - offset_ratio*n_avg
+
+        ! Put in mirror plane
+        if (this%vertices(i_vert)%on_mirror_plane) then
+            dir(this%mirror_plane) = 0.
+        end if
+
+        ! Normalize
         dir = dir/norm2(dir)
     
     end function surface_mesh_get_clone_control_point_dir

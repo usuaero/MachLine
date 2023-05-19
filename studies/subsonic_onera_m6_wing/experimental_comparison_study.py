@@ -9,21 +9,22 @@ from paraview_functions import get_data_from_csv, get_data_column_from_array, ex
 from case_running_functions import write_input_file, run_quad, cases, quad_labels
 
 
-RERUN_MACHLINE = False
+RERUN_MACHLINE = True
 study_dir = "studies/subsonic_onera_m6_wing/"
 
 
-def run_wing_quad_comparison(AoA, mach_num, correction=False):
+def run_wing_quad_comparison(AoA, mach_num, correction, grid):
     # Runs the Onera M6 wing at the angle of attack
 
     # Storage Locations
     if correction:
-        case_name = "m6_onera_AoA_{0}_mach_{1}_pg".format(AoA, mach_num)
+        case_name = "m6_onera_AoA_{0}_mach_{1}_{2}_pg".format(AoA, mach_num, grid)
     else:
-        case_name = "m6_onera_AoA_{0}_mach_{1}_direct".format(AoA, mach_num)
-    mesh_file = study_dir + "meshes/M6_onera.vtk"
+        case_name = "m6_onera_AoA_{0}_mach_{1}_{2}_direct".format(AoA, mach_num, grid)
+    mesh_file = study_dir + "meshes/M6_onera_{0}.stl".format(grid)
+    #mesh_file = study_dir + "meshes/M6_onera.vtk"
     body_file = study_dir + "results/"+case_name+".vtk"
-    report_file = study_dir + "results/"+case_name+".json"
+    report_file = study_dir + "reports/"+case_name+".json"
 
     # Calculate Freestream Velocity
     AoA_rd = ( AoA * np.pi ) / 180
@@ -48,10 +49,12 @@ def run_wing_quad_comparison(AoA, mach_num, correction=False):
         "geometry" : {
             "file" : mesh_file,
             "mirror_about" : "xz",
-            "spanwise_axis" : "+y"
+            "spanwise_axis" : "+y",
+            "reference" : {
+                "area" : 0.7532
+            }
         },
         "solver": {
-            "label" : "morino"
         },
         "post_processing" : {
             "pressure_rules": {
@@ -67,11 +70,10 @@ def run_wing_quad_comparison(AoA, mach_num, correction=False):
             "body_file": body_file,
             "report_file": report_file
         }
-
     }
 
     # Dump
-    input_file = study_dir + "input_files/M6_input.json"
+    input_file = study_dir + "M6_input.json"
     write_input_file(input_dict,input_file)
 
     # Run
@@ -80,11 +82,11 @@ def run_wing_quad_comparison(AoA, mach_num, correction=False):
     return case_name
 
 
-def run_cases(AoA, mach_num):
+def run_cases(AoA, mach_num, grid):
 
     # Run With and without prandtl-glauert correction
-    case_name_pg = run_wing_quad_comparison(AoA,mach_num,True)
-    case_name_direct = run_wing_quad_comparison(AoA,mach_num,False)
+    case_name_pg = run_wing_quad_comparison(AoA, mach_num, True, grid)
+    case_name_direct = run_wing_quad_comparison(AoA, mach_num, False, grid)
 
     # Define Plot dir 
     plot_dir = study_dir + "plots/"
@@ -185,7 +187,9 @@ if __name__ == "__main__":
     # Define Case Mach Numbers
     mach_nums = [0.6971, 0.6977, 0.6990, 0.7001, 0.7003, 0.7009, 0.7019, 0.8399]
     AoA_nums = [6.09, 0.06, 3.06, 2.06, 1.08, 4.08, 5.06, 0.04]
+    grids = ["coarse", "medium", "fine"]
 
     # Run Machline for all Mach Numbers and associated AoA
-    for i in range(len(mach_nums)):
-        run_cases(AoA_nums[i], mach_nums[i])
+    for grid in grids:
+        for i in range(len(mach_nums)):
+            run_cases(AoA_nums[i], mach_nums[i], grid)

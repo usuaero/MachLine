@@ -1359,7 +1359,7 @@ contains
             end if
 
             ! Check
-            if (x > 0.) then
+            if (x >= 1.e-16) then
                 inside = .false.
                 return
             end if
