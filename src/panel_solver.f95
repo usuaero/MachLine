@@ -31,7 +31,7 @@ module panel_solver_mod
         real,dimension(:),allocatable :: b, I_known, BC
         integer,dimension(:),allocatable :: P
         integer :: N_cells, block_size, max_iterations, N_unknown, N_d_unknown, N_s_unknown, solver_iterations, N_sigma
-        integer :: restart_iterations
+        integer :: restart_iterations, B_l_system
         logical,dimension(:),allocatable :: sigma_known
         integer,dimension(:),allocatable :: i_sigma_in_sys, i_sys_sigma_in_body
 
@@ -612,7 +612,7 @@ contains
 
         real,dimension(:),allocatable :: x
         real,dimension(3) :: loc
-        integer :: i, j, i_neighbor, i_cp, i_vert, i_panel
+        integer :: i, j, k, i_neighbor, i_cp, i_vert, i_panel, i_vert_for_panel, i2, i3, i_panel_abutting, i_opp_edge
         integer,dimension(:),allocatable :: P_inv_1, P_inv_2
         integer(8) :: start_count, end_count
         real(16) :: count_rate
@@ -620,7 +620,7 @@ contains
         ! Sort control points in the compressibility direction
         ! We do this using the location of the vertex/panel centroid tied to each control point
         ! We proceed from most downstream to most upstream so as to get an upper-pentagonal matrix
-        ! This sorting seems to improve the performance of iterative solvers for supersonic flow as well
+        ! This sorting sometimes improves the performance of iterative solvers for supersonic flow as well
         if (this%sort_system) then
 
             if (verbose) write(*,'(a)',advance='no') "     Permuting linear system for efficient solution..."
@@ -668,14 +668,55 @@ contains
                     ! Tied to vertex
                     if (body%cp(i_cp)%tied_to_type == 1) then
 
-                        ! Loop through neighboring vertices to find the furthest back
-                        i_vert = body%cp(i_cp)%tied_to_index
+                        ! Initialize
+                        i_vert = body%cp(i_cp)%tied_to_index ! Index of original, not mirrored, vertex
                         x(i) = huge(x(i))
+
+                        ! Loop through neighboring vertices to find the furthest back
                         do j=1,body%vertices(i_vert)%adjacent_vertices%len()
+
+                            ! Get neighbor index
                             call body%vertices(i_vert)%adjacent_vertices%get(j, i_neighbor)
+
+                            ! Update sorting parameter
                             x(i) = min(x(i), -inner(this%freestream%c_hat_g, mirror_across_plane(body%vertices(i_neighbor)%loc, &
                                                                                                  body%mirror_plane)))
                         end do
+
+                        ! For higher-order distributions, loop through panels abutting neighboring panels as well (not across discontinuous edges)
+                        if (higher_order) then
+                            abutting_panel_loop_mir: do j=1,body%vertices(i_vert)%panels_not_across_wake_edge%len()
+
+                                ! Get panel index
+                                call body%vertices(i_vert)%panels_not_across_wake_edge%get(j, i_panel)
+
+                                ! Get index of the edge opposite this vertex
+                                i_opp_edge = body%panels(i_panel)%get_opposite_edge(i_vert)
+                                
+                                ! Check whether this edge is discontinuous
+                                if (body%edges(i_opp_edge)%discontinuous) cycle abutting_panel_loop_mir
+
+                                ! Check whether this edge is on the mirror plane; if so, then the vertex we're looking for is the original one, and we can skip this
+                                if (body%edges(i_opp_edge)%on_mirror_plane) cycle abutting_panel_loop_mir
+
+                                ! Get abutting panel
+                                if (body%edges(i_opp_edge)%panels(1) == i_panel) then
+                                    i_panel_abutting = body%edges(i_opp_edge)%panels(2)
+                                else
+                                    i_panel_abutting = body%edges(i_opp_edge)%panels(1)
+                                end if
+
+                                ! Get index of vertex opposite this edge on the abutting panel
+                                i_neighbor = &
+                                    body%panels(i_panel_abutting)%get_opposite_vertex(body%edges(i_opp_edge)%top_verts(1), &
+                                                                                      body%edges(i_opp_edge)%top_verts(2)) ! We can always use top_verts here because no wake-shedding edge will be continuous
+
+                                ! Update sorting parameter
+                                x(i) = min(x(i), -inner(this%freestream%c_hat_g, mirror_across_plane(body%vertices(i_neighbor)%loc,&
+                                                                                                     body%mirror_plane)))
+
+                            end do abutting_panel_loop_mir
+                        end if
 
                     ! Tied to panel
                     else
@@ -687,6 +728,11 @@ contains
                             loc = mirror_across_plane(body%panels(i_panel)%get_vertex_loc(j), body%mirror_plane)
                             x(i) = min(x(i), -inner(this%freestream%c_hat_g, loc))
                         end do
+
+                        ! TODO: For higher-order distributions, loop through abutting panels as well (not across discontinuous edges)
+                        if (higher_order) then
+                        end if
+
                     end if
 
                 else
@@ -694,13 +740,54 @@ contains
                     ! Tied to vertex
                     if (body%cp(i_cp)%tied_to_type == 1) then
 
-                        ! Loop through neighboring vertices to find the furthest back
+                        ! Initialize
                         i_vert = body%cp(i_cp)%tied_to_index
                         x(i) = huge(x(i))
+
+                        ! Loop through neighboring vertices to find the furthest back
                         do j=1,body%vertices(i_vert)%adjacent_vertices%len()
+
+                            ! Get index of neighbor
                             call body%vertices(i_vert)%adjacent_vertices%get(j, i_neighbor)
+
+                            ! Update sorting parameter
                             x(i) = min(x(i), -inner(this%freestream%c_hat_g, body%vertices(i_neighbor)%loc))
+
                         end do
+
+                        ! For higher-order distributions, loop through panels abutting neighboring panels as well (not across discontinuous edges)
+                        if (higher_order) then
+                            abutting_panel_loop: do j=1,body%vertices(i_vert)%panels_not_across_wake_edge%len()
+
+                                ! Get panel index
+                                call body%vertices(i_vert)%panels_not_across_wake_edge%get(j, i_panel)
+
+                                ! Get index of the edge opposite this vertex
+                                i_opp_edge = body%panels(i_panel)%get_opposite_edge(i_vert)
+                                
+                                ! Check whether this edge is discontinuous
+                                if (body%edges(i_opp_edge)%discontinuous) cycle abutting_panel_loop
+
+                                ! Check whether this edge is on the mirror plane; if so, then the vertex we're looking for is the original one, and we can skip this
+                                if (body%edges(i_opp_edge)%on_mirror_plane) cycle abutting_panel_loop
+
+                                ! Get abutting panel
+                                if (body%edges(i_opp_edge)%panels(1) == i_panel) then
+                                    i_panel_abutting = body%edges(i_opp_edge)%panels(2)
+                                else
+                                    i_panel_abutting = body%edges(i_opp_edge)%panels(1)
+                                end if
+
+                                ! Get index of vertex opposite this edge on the abutting panel
+                                i_neighbor = &
+                                    body%panels(i_panel_abutting)%get_opposite_vertex(body%edges(i_opp_edge)%top_verts(1), &
+                                                                                      body%edges(i_opp_edge)%top_verts(2)) ! We can always use top_verts here because no wake-shedding edge will be continuous
+
+                                ! Update sorting parameter
+                                x(i) = min(x(i), -inner(this%freestream%c_hat_g, body%vertices(i_neighbor)%loc))
+
+                            end do abutting_panel_loop
+                        end if
 
                     ! Tied to panel
                     else
@@ -712,6 +799,11 @@ contains
                             loc = body%panels(i_panel)%get_vertex_loc(j)
                             x(i) = min(x(i), -inner(this%freestream%c_hat_g, loc))
                         end do
+
+                        ! TODO: For higher-order distributions, loop through abutting panels as well (not across discontinuous edges)
+                        if (higher_order) then
+                        end if
+
                     end if
 
                 end if
@@ -1281,6 +1373,9 @@ contains
         ! Run checks
         if (run_checks) call this%check_system(solver_stat)
 
+        ! Calculate lower bandwidth
+        if (this%sort_system) this%B_l_system = get_lower_bandwidth(this%N_unknown, this%A)
+
         ! Write to file
         if (this%write_A_and_b) call this%write_system()
 
@@ -1397,6 +1492,7 @@ contains
         if (verbose) then
             write(*,*) "        Maximum residual:", this%max_res
             write(*,*) "        Norm of residual:", this%norm_res
+            if (this%sort_system) write(*,*) "        Lower bandwidth of A matrix:", this%B_l_system
         end if
 
         ! Check
@@ -2023,6 +2119,9 @@ contains
 
             ! Iterations
             if (this%solver_iterations > -1) call json_value_add(p_parent, 'iterations', this%solver_iterations)
+
+            ! System lower bandwidth
+            if (this%sort_system) call json_value_add(p_parent, "system_lower_bandwidth", this%B_l_system)
 
             ! Residuals
             call json_value_create(p_child)

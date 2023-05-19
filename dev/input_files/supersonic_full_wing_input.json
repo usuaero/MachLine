@@ -8,7 +8,7 @@
         "file": "dev/meshes/diamond_5_deg_full_medium.stl",
         "spanwise_axis" : "+y",
         "singularity_order" : "lower",
-        "max_continuity_angle" : 5.0,
+        "max_continuity_angle" : 1.0,
         "wake_model" : {
             "wake_present" : true,
             "append_wake" : true,
@@ -17,8 +17,8 @@
     },
     "solver" : {
         "formulation" : "morino",
-        "matrix_solver" : "GMRES",
-        "write_A_and_bx" : true
+        "matrix_solver" : "FQRUP",
+        "write_A_and_b" : true
     },
     "output": {
         "body_file" :          "dev/results/diamond_5_deg_full.vtk",

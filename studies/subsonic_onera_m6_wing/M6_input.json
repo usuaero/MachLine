@@ -1,35 +1,33 @@
 {
-    "flow" : {
-        "freestream_velocity" : [
-                9.96102882603233E-001,
-                0.00000000000000E+000,
-                8.81989074168673E-002
-            ],
-        "freestream_mach_number" : 7.01900000000000E-001
+    "flow": {
+        "freestream_velocity": [
+            0.999822352380809,
+            0.0,
+            0.018848439715408175
+        ],
+        "freestream_mach_number": 0.7003
     },
-    "geometry" : {
-        "file" : "studies/subsonic_onera_m6_wing/meshes/M6_onera_fine.stl",
-        "mirror_about" : "xz",
-        "spanwise_axis" : "+y",
-        "singularity_order" : "higher"
-    },
-    "solver" : {
-        "formulation" : "source-free"
-    },
-    "post_processing" : {
-        "pressure_rules" : {
-            "incompressible" : false,
-            "isentropic" : true
-        },
-        "subsonic_pressure_correction" : {
-            "correction_mach_number" : 0.00000000000000E+000,
-            "prandtl-glauert" : false
+    "geometry": {
+        "file": "studies/subsonic_onera_m6_wing/meshes/M6_onera_fine.stl",
+        "mirror_about": "xz",
+        "spanwise_axis": "+y",
+        "reference": {
+            "area": 0.7532
         }
     },
-    "output" : {
-        "body_file" : "studies/subsonic_onera_m6_wing/results/m6_onera_AoA_5.06_mach_0.7019_fine_direct_QUAD_higher-order_source-free.vtk",
-        "control_point_file" : "studies/subsonic_onera_m6_wing/results/m6_onera_AoA_5.06_mach_0.7019_fine_direct_QUAD_higher-order_source-free_control_points.vtk",
-        "wake_file" : "studies/subsonic_onera_m6_wing/results/m6_onera_AoA_5.06_mach_0.7019_fine_direct_QUAD_higher-order_source-free_wake.vtk",
-        "report_file" : "studies/subsonic_onera_m6_wing/reports/m6_onera_AoA_5.06_mach_0.7019_fine_direct_QUAD_higher-order_source-free.json"
+    "solver": {},
+    "post_processing": {
+        "pressure_rules": {
+            "incompressible": false,
+            "isentropic": true
+        },
+        "subsonic_pressure_correction": {
+            "correction_mach_number": 0.0,
+            "prandtl-glauert": false
+        }
+    },
+    "output": {
+        "body_file": "studies/subsonic_onera_m6_wing/results/m6_onera_AoA_1.08_mach_0.7003_fine_direct.vtk",
+        "report_file": "studies/subsonic_onera_m6_wing/reports/m6_onera_AoA_1.08_mach_0.7003_fine_direct.json"
     }
 }

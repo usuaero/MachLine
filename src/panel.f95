@@ -106,6 +106,8 @@ module panel_mod
             procedure :: get_weighted_normal_at_corner => panel_get_weighted_normal_at_corner
             procedure :: get_projection_onto_surface => panel_get_projection_onto_surface
             procedure :: get_opposite_vertex => panel_get_opposite_vertex
+            procedure :: get_opposite_panel => panel_get_opposite_panel
+            procedure :: get_opposite_edge => panel_get_opposite_edge
             procedure :: get_local_coords_of_point => panel_get_local_coords_of_point
 
             ! Checks
@@ -1590,6 +1592,64 @@ contains
         end do
         
     end function panel_get_opposite_vertex
+
+
+    function panel_get_opposite_panel(this, i_vert) result(i_panel_opp)
+        ! Returns the index of the panel abutting the edge opposite the given vertex
+
+        implicit none
+        
+        class(panel),intent(in) :: this
+        integer,intent(in) :: i_vert
+
+        integer :: i_panel_opp
+    
+        integer :: i, j, ind, i_vert_for_panel
+
+        ! Return zero if we can't find it
+        i_panel_opp = 0
+
+        ! Figure out which vertex this is for this panel
+        do i=1,3
+            if (i_vert == this%get_vertex_index(i)) then
+                i_vert_for_panel = i
+            end if
+        end do
+
+        ! Figure out opposite panel
+        ind = mod(i_vert_for_panel, 3) + 1
+        i_panel_opp = this%abutting_panels(ind)
+
+    end function panel_get_opposite_panel
+
+
+    function panel_get_opposite_edge(this, i_vert) result(i_edge_opp)
+        ! Returns the index of the edge opposite the given vertex
+
+        implicit none
+        
+        class(panel),intent(in) :: this
+        integer,intent(in) :: i_vert
+
+        integer :: i_edge_opp
+    
+        integer :: i, j, ind, i_vert_for_panel
+
+        ! Return zero if we can't find it
+        i_edge_opp = 0
+
+        ! Figure out which vertex this is for this panel
+        do i=1,3
+            if (i_vert == this%get_vertex_index(i)) then
+                i_vert_for_panel = i
+            end if
+        end do
+
+        ! Figure out opposite panel
+        ind = mod(i_vert_for_panel, 3) + 1
+        i_edge_opp = this%edges(ind)
+
+    end function panel_get_opposite_edge
 
 
     function panel_get_local_coords_of_point(this, P, mirrored) result(P_ls)
