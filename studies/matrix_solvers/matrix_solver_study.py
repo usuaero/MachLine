@@ -1,6 +1,4 @@
-import os
 import json
-import numpy as np
 import subprocess as sp
 from tempfile import NamedTemporaryFile
 import shutil
