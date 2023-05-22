@@ -187,7 +187,8 @@ if __name__ == "__main__":
     # Define Case Mach Numbers
     mach_nums = [0.6971, 0.6977, 0.6990, 0.7001, 0.7003, 0.7009, 0.7019, 0.8399]
     AoA_nums = [6.09, 0.06, 3.06, 2.06, 1.08, 4.08, 5.06, 0.04]
-    grids = ["coarse", "medium", "fine"]
+    #grids = ["coarse", "medium", "fine"]
+    grids = ["fine"]
 
     # Run Machline for all Mach Numbers and associated AoA
     for grid in grids:

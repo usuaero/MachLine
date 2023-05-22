@@ -1,11 +1,11 @@
 {
     "flow": {
         "freestream_velocity": [
-            0.9961028826032333,
+            0.9999997563060741,
             0.0,
-            0.08819890741686734
+            0.0006981316440875792
         ],
-        "freestream_mach_number": 0.7019
+        "freestream_mach_number": 0.8399
     },
     "geometry": {
         "file": "studies/subsonic_onera_m6_wing/meshes/M6_onera_fine.stl",
@@ -27,7 +27,7 @@
         }
     },
     "output": {
-        "body_file": "studies/subsonic_onera_m6_wing/results/m6_onera_AoA_5.06_mach_0.7019_fine_direct.vtk",
-        "report_file": "studies/subsonic_onera_m6_wing/reports/m6_onera_AoA_5.06_mach_0.7019_fine_direct.json"
+        "body_file": "studies/subsonic_onera_m6_wing/results/m6_onera_AoA_0.04_mach_0.8399_fine_direct.vtk",
+        "report_file": "studies/subsonic_onera_m6_wing/reports/m6_onera_AoA_0.04_mach_0.8399_fine_direct.json"
     }
 }

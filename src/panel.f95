@@ -3564,7 +3564,7 @@ contains
                 C_M(3) = 0.
 
                 ! Apply area factor and transform
-                C_M = -this%J_mir*cross(this%n_g_mir, matmul(this%A_ls_to_g_mir, C_M))
+                C_M = this%J_mir*cross(this%n_g_mir, matmul(this%A_ls_to_g_mir, C_M))
 
             else
 
@@ -3576,7 +3576,7 @@ contains
                 C_M(3) = 0.
 
                 ! Apply area factor and transform
-                C_M = -this%J*cross(this%n_g, matmul(this%A_ls_to_g, C_M))
+                C_M = this%J*cross(this%n_g, matmul(this%A_ls_to_g, C_M))
 
             end if
 
