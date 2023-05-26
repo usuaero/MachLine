@@ -11,12 +11,12 @@
         <CORZ Value="0.000000000000000000e+00" ID="ALOIONODMIS"/>
         <PanX Value="0.000000000000000000e+00" ID="OETWRNILPBZ"/>
         <PanY Value="0.000000000000000000e+00" ID="ROWGRUXBRXM"/>
-        <RotationX Value="2.241395219540842731e+01" ID="TPHSVZATYUV"/>
-        <RotationY Value="-5.608923342638873777e+01" ID="JNHTCXABSCI"/>
-        <RotationZ Value="-6.918268557473567171e+01" ID="PBKSKVSAMGO"/>
+        <RotationX Value="4.315673810092773977e+01" ID="TPHSVZATYUV"/>
+        <RotationY Value="-6.711864338869284552e+01" ID="JNHTCXABSCI"/>
+        <RotationZ Value="-4.108240281980570074e+01" ID="PBKSKVSAMGO"/>
         <ViewportX Value="0.000000000000000000e+00" ID="PNTKLHSQGQZ"/>
         <ViewportY Value="0.000000000000000000e+00" ID="RJHQPJQKLML"/>
-        <Zoom Value="1.651057740673422813e-03" ID="OQBUDYTBGSW"/>
+        <Zoom Value="8.060005493462085724e-04" ID="OQBUDYTBGSW"/>
       </AdjustView>
       <AirfoilExport>
         <AFAppendGeomIDFlag Value="1.000000000000000000e+00" ID="JWTMBCLEWAU"/>
@@ -28,7 +28,7 @@
       </Axis>
       <BBox>
         <X_Len Value="1.146566042171701216e+00" ID="DLBQTKYIPLT"/>
-        <X_Min Value="-4.170376654327328398e-18" ID="XAQZAPSSCSF"/>
+        <X_Min Value="0.000000000000000000e+00" ID="XAQZAPSSCSF"/>
         <Y_Len Value="1.216187923640728474e+00" ID="SDLDUKOXLTQ"/>
         <Y_Min Value="0.000000000000000000e+00" ID="EGYWRWBNKOD"/>
         <Z_Len Value="7.893049475310395802e-02" ID="FVJWTIOFTTQ"/>
@@ -341,7 +341,7 @@
           <CapUMinOption Value="0.000000000000000000e+00" ID="VBXSTGLGQTD"/>
           <CapUMinStrength Value="5.000000000000000000e-01" ID="HIBZQSGZFHA"/>
           <CapUMinSweepFlag Value="0.000000000000000000e+00" ID="SGIJCEEVOAE"/>
-          <CapUMinTess Value="1.300000000000000000e+01" ID="MQATXCFNFIF"/>
+          <CapUMinTess Value="3.000000000000000000e+00" ID="MQATXCFNFIF"/>
         </EndCap>
         <Index>
           <ActiveAirfoil Value="1.000000000000000000e+00" ID="SDIWIYXFMAJ"/>
@@ -370,7 +370,7 @@
         </ParasiteDragProps>
         <Shape>
           <Tess_U Value="1.600000000000000000e+01" ID="GNFGBNYKLYQ"/>
-          <Tess_W Value="1.010000000000000000e+02" ID="DFKCYGBWWDJ"/>
+          <Tess_W Value="2.100000000000000000e+01" ID="DFKCYGBWWDJ"/>
           <Wake Value="0.000000000000000000e+00" ID="MUAQYNJXIXU"/>
         </Shape>
         <Sym>
@@ -386,11 +386,11 @@
         </WakeSettings>
         <WingGeom>
           <LECluster Value="2.500000000000000000e-01" ID="YLLYBFOXDWD"/>
-          <MaxGrowth Value="1.127070549081677031e+00" ID="YWPUEESQIKM"/>
+          <MaxGrowth Value="1.747690581185424863e+00" ID="YWPUEESQIKM"/>
           <RelativeDihedralFlag Value="0.000000000000000000e+00" ID="LBUWUPMTJPU"/>
           <RelativeTwistFlag Value="0.000000000000000000e+00" ID="JUYPDZSGEHN"/>
           <RotateAirfoilMatchDideralFlag Value="0.000000000000000000e+00" ID="OFDZBWXHOWP"/>
-          <SmallPanelW Value="2.377208242231328757e-03" ID="KMGGPTVIVDB"/>
+          <SmallPanelW Value="1.488389317980193423e-02" ID="KMGGPTVIVDB"/>
           <TECluster Value="2.500000000000000000e-01" ID="JQKSERWLTJL"/>
           <TotalAR Value="1.900095298602287208e+00" ID="ZSSWAHGEMFD"/>
           <TotalArea Value="7.531904799999998845e-01" ID="XBXSEXZWFBZ"/>
@@ -612,7 +612,7 @@
                 <Root_Chord Value="8.058999999999999497e-01" ID="UTLXCIPVRGK"/>
                 <Sec_Sweep Value="1.578072423343530239e+01" ID="VBMSAGIAMLK"/>
                 <Sec_Sweep_Location Value="1.000000000000000000e+00" ID="TEMYDEVHTKH"/>
-                <SectTess_U Value="1.000000000000000000e+02" ID="GRBFPRRSLOB"/>
+                <SectTess_U Value="2.000000000000000000e+01" ID="GRBFPRRSLOB"/>
                 <Span Value="1.196299999999999919e+00" ID="HTWBPAMVLFR"/>
                 <Sweep Value="3.000000000000000000e+01" ID="FRVDVUZWIDN"/>
                 <Sweep_Location Value="0.000000000000000000e+00" ID="BWGSTPFCQYB"/>

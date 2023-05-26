@@ -10,15 +10,17 @@
     "geometry": {
         "file": "studies/subsonic_onera_m6_wing/meshes/M6_onera_fine.stl",
         "mirror_about": "xz",
+        "singularity_order" : "higher",
         "spanwise_axis": "+y",
         "reference": {
             "area": 0.7532
         }
     },
-    "solver": {},
+    "solver": {
+        "formulation" : "source-free"
+    },
     "post_processing": {
         "pressure_rules": {
-            "incompressible": false,
             "isentropic": true
         },
         "subsonic_pressure_correction": {

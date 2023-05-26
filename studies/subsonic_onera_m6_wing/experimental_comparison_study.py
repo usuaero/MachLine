@@ -58,8 +58,6 @@ def run_wing_quad_comparison(AoA, mach_num, correction, grid):
         },
         "post_processing" : {
             "pressure_rules": {
-                "incompressible": False,
-                "isentropic": True
             },
             "subsonic_pressure_correction" : {
                 "correction_mach_number" : correction_mach_number,
@@ -71,6 +69,12 @@ def run_wing_quad_comparison(AoA, mach_num, correction, grid):
             "report_file": report_file
         }
     }
+
+    # Add pressure rule
+    if correction:
+        input_dict["post_processing"]["pressure_rules"]["incompressible"] = True
+    else:
+        input_dict["post_processing"]["pressure_rules"]["isentropic"] = True
 
     # Dump
     input_file = study_dir + "M6_input.json"
@@ -110,7 +114,7 @@ def run_cases(AoA, mach_num, grid):
         Cp_exp = get_data_column_from_array(column_headers,cell_data,"Cp_{0}".format(i+1))
 
         # Loop Through Formulations
-        for j, label in enumerate(quad_labels):
+        for j, (case, label) in enumerate(zip(cases, quad_labels)):
             
             # Pull Machline Data at slice
             data_dir_pg = study_dir + "results/" + case_name_pg + label + ".vtk"
@@ -173,11 +177,11 @@ def run_cases(AoA, mach_num, grid):
                 if not os.path.exists(study_dir + "plots/unfiltered/"):
                     os.makedirs(study_dir + "plots/unfiltered/")
                 if filter:
-                    plt.savefig(plot_dir+"filtered/"+case_name+label+"_filtered_{0}.pdf".format(semispan[i]))
-                    plt.savefig(plot_dir+"filtered/"+case_name+label+"_filtered_{0}.svg".format(semispan[i]))
+                    plt.savefig(plot_dir+"filtered/"+case_name+"_"+case+"_filtered_{0}.pdf".format(semispan[i]))
+                    plt.savefig(plot_dir+"filtered/"+case_name+"_"+case+"_filtered_{0}.svg".format(semispan[i]))
                 else:
-                    plt.savefig(plot_dir+"unfiltered/"+case_name+label+"_{0}.pdf".format(semispan[i]))
-                    plt.savefig(plot_dir+"unfiltered/"+case_name+label+"_{0}.svg".format(semispan[i]))
+                    plt.savefig(plot_dir+"unfiltered/"+case_name+"_"+case+"_{0}.pdf".format(semispan[i]))
+                    plt.savefig(plot_dir+"unfiltered/"+case_name+"_"+case+"_{0}.svg".format(semispan[i]))
                 plt.close()
 
 
@@ -187,8 +191,8 @@ if __name__ == "__main__":
     # Define Case Mach Numbers
     mach_nums = [0.6971, 0.6977, 0.6990, 0.7001, 0.7003, 0.7009, 0.7019, 0.8399]
     AoA_nums = [6.09, 0.06, 3.06, 2.06, 1.08, 4.08, 5.06, 0.04]
-    #grids = ["coarse", "medium", "fine"]
-    grids = ["fine"]
+    grids = ["coarse", "medium", "fine"]
+    #grids = ["fine"]
 
     # Run Machline for all Mach Numbers and associated AoA
     for grid in grids:

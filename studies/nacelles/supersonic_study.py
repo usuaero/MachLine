@@ -130,7 +130,10 @@ def run_study_at_mach(M):
         outer_ax.set_xlabel("$x$")
         outer_ax.set_ylabel("$C_{P_{ise}}$")
         outer_ax.invert_yaxis()
-        outer_ax.set_ylim(bottom=0.2, top=-0.2)
+        if M==2.5:
+            outer_ax.set_ylim(bottom=0.05, top=-0.05)
+        else:
+            outer_ax.set_ylim(bottom=0.2, top=-0.2)
         outer_fig.savefig(plot_dir + "outside_pressures_M_{0}_{1}.pdf".format(M, case))
         outer_fig.savefig(plot_dir + "outside_pressures_M_{0}_{1}.svg".format(M, case))
         plt.close(outer_fig)
