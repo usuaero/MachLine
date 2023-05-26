@@ -684,15 +684,17 @@ contains
                         end do
 
                         ! For higher-order distributions, loop through panels abutting neighboring panels as well (not across discontinuous edges)
-                        if (higher_order) then
-                            abutting_panel_loop_mir: do j=1,body%vertices(i_vert)%panels_not_across_wake_edge%len()
+                        abutting_panel_loop_mir: do j=1,body%vertices(i_vert)%panels_not_across_wake_edge%len()
 
-                                ! Get panel index
-                                call body%vertices(i_vert)%panels_not_across_wake_edge%get(j, i_panel)
+                            ! Get panel index
+                            call body%vertices(i_vert)%panels_not_across_wake_edge%get(j, i_panel)
+
+                            ! Check if this panel has a higher-order distribution
+                            if (body%panels(i_panel)%order == 2) then
 
                                 ! Get index of the edge opposite this vertex
                                 i_opp_edge = body%panels(i_panel)%get_opposite_edge(i_vert)
-                                
+                            
                                 ! Check whether this edge is discontinuous
                                 if (body%edges(i_opp_edge)%discontinuous) cycle abutting_panel_loop_mir
 
@@ -714,9 +716,9 @@ contains
                                 ! Update sorting parameter
                                 x(i) = min(x(i), -inner(this%freestream%c_hat_g, mirror_across_plane(body%vertices(i_neighbor)%loc,&
                                                                                                      body%mirror_plane)))
+                            end if
 
-                            end do abutting_panel_loop_mir
-                        end if
+                        end do abutting_panel_loop_mir
 
                     ! Tied to panel
                     else
@@ -730,8 +732,6 @@ contains
                         end do
 
                         ! TODO: For higher-order distributions, loop through abutting panels as well (not across discontinuous edges)
-                        if (higher_order) then
-                        end if
 
                     end if
 
@@ -756,11 +756,13 @@ contains
                         end do
 
                         ! For higher-order distributions, loop through panels abutting neighboring panels as well (not across discontinuous edges)
-                        if (higher_order) then
-                            abutting_panel_loop: do j=1,body%vertices(i_vert)%panels_not_across_wake_edge%len()
+                        abutting_panel_loop: do j=1,body%vertices(i_vert)%panels_not_across_wake_edge%len()
 
-                                ! Get panel index
-                                call body%vertices(i_vert)%panels_not_across_wake_edge%get(j, i_panel)
+                            ! Get panel index
+                            call body%vertices(i_vert)%panels_not_across_wake_edge%get(j, i_panel)
+
+                            ! Check if this panel has a higher-order distribution
+                            if (body%panels(i_panel)%order == 2) then
 
                                 ! Get index of the edge opposite this vertex
                                 i_opp_edge = body%panels(i_panel)%get_opposite_edge(i_vert)
@@ -786,8 +788,9 @@ contains
                                 ! Update sorting parameter
                                 x(i) = min(x(i), -inner(this%freestream%c_hat_g, body%vertices(i_neighbor)%loc))
 
-                            end do abutting_panel_loop
-                        end if
+                            end if
+
+                        end do abutting_panel_loop
 
                     ! Tied to panel
                     else
@@ -801,8 +804,6 @@ contains
                         end do
 
                         ! TODO: For higher-order distributions, loop through abutting panels as well (not across discontinuous edges)
-                        if (higher_order) then
-                        end if
 
                     end if
 

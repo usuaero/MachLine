@@ -8,16 +8,17 @@
         "freestream_mach_number": 0.8399
     },
     "geometry": {
-        "file": "studies/subsonic_onera_m6_wing/meshes/M6_onera_fine.stl",
+        "file": "studies/subsonic_onera_m6_wing/meshes/M6_onera_medium.stl",
         "mirror_about": "xz",
         "singularity_order" : "higher",
+        "force_sigma_match" : true,
         "spanwise_axis": "+y",
         "reference": {
             "area": 0.7532
         }
     },
     "solver": {
-        "formulation" : "source-free"
+        "formulation" : "morino"
     },
     "post_processing": {
         "pressure_rules": {
@@ -29,7 +30,7 @@
         }
     },
     "output": {
-        "body_file": "studies/subsonic_onera_m6_wing/results/m6_onera_AoA_0.04_mach_0.8399_fine_direct.vtk",
-        "report_file": "studies/subsonic_onera_m6_wing/reports/m6_onera_AoA_0.04_mach_0.8399_fine_direct.json"
+        "body_file": "studies/subsonic_onera_m6_wing/results/m6_onera_AoA_0.04_mach_0.8399_medium_direct_sigma_match.vtk",
+        "report_file": "studies/subsonic_onera_m6_wing/reports/m6_onera_AoA_0.04_mach_0.8399_medium_direct.json"
     }
 }

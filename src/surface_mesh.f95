@@ -188,6 +188,9 @@ contains
         ! Store cosine of max continuity angle
         call json_xtnsn_get(settings, 'max_continuity_angle', discont_angle, default_value=45.)
         this%C_max_cont_angle = cos(pi*discont_angle/180.)
+
+        ! Get how sigma distributions should be calculated
+        call json_xtnsn_get(settings, 'force_sigma_match', force_sigma_match, default_value=.false.)
     
     end subroutine surface_mesh_parse_singularity_settings
 

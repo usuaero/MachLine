@@ -10,7 +10,7 @@ module panel_mod
 
     implicit none
 
-    logical :: higher_order, p_refine
+    logical :: force_sigma_match, p_refine
 
 
     type integrals
@@ -889,14 +889,30 @@ contains
             end do
 
             ! Invert based on number of source strengths
-            allocate(T_sigma(this%sigma_dim, this%S_dim))
+            allocate(T_sigma(this%sigma_dim, this%S_dim), source=0.)
             select case (this%S_dim)
 
             ! For overdetermined, do pseudoinverse using least-squares
             case (4)
-                allocate(SS_inv(this%sigma_dim, this%sigma_dim))
-                call matinv(3, matmul(transpose(S_sigma), S_sigma), SS_inv)
-                T_sigma = matmul(SS_inv, transpose(S_sigma))
+
+                ! Method that does not force sigma_0 = sigma_i
+                if (.not. force_sigma_match) then
+                    allocate(SS_inv(this%sigma_dim, this%sigma_dim))
+                    call matinv(3, matmul(transpose(S_sigma), S_sigma), SS_inv)
+                    T_sigma = matmul(SS_inv, transpose(S_sigma))
+
+                ! Method that does force sigma_0 = sigma_i
+                else
+                    allocate(SS_inv(this%sigma_dim-1, this%sigma_dim-1))
+                    call matinv(2, matmul(transpose(S_sigma(2:4,2:3)), S_sigma(2:4,2:3)), SS_inv)
+                    allocate(A_mat(3,4), source=0.)
+                    A_mat(:,1) = -1.
+                    A_mat(1,2) = 1.
+                    A_mat(2,3) = 1.
+                    A_mat(3,4) = 1.
+                    T_sigma(1,1) = 1.
+                    T_sigma(2:3,:) = matmul(SS_inv, matmul(transpose(S_sigma(2:4,2:3)), A_mat))
+                end if
 
             ! For well-posed, do standard inverse
             case (3)

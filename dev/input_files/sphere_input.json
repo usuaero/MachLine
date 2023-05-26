@@ -9,6 +9,7 @@
             "wake_present" : false
         },
         "singularity_order" : "higher",
+        "force_sigma_match" : true,
         "reference" : {
             "area" : 0.7853981
         }
@@ -22,14 +23,10 @@
     "post_processing" : {
         "pressure_rules" : {
             "incompressible" : true
-        },
-        "subsonic_pressure_correction" : {
-            "correction_mach_number" : 0.5,
-            "prandtl-glauert" : true
         }
     },
     "output" : {
-        "body_file" :          "dev/results/sphere.vtk",
+        "body_file" :          "dev/results/sphere_sigma_match.vtk",
         "control_point_file" : "dev/results/sphere_control_points.vtk"
     }
 }
