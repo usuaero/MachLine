@@ -1,6 +1,7 @@
 import numpy as np
+import matplotlib.pyplot as plt
 
-from studies.case_running_functions import run_quad, get_order_of_convergence, write_input_file
+from studies.case_running_functions import run_quad, get_order_of_convergence, write_input_file, cases, line_styles
 
 
 RERUN_MACHLINE = False
@@ -100,55 +101,24 @@ if __name__=="__main__":
     # Get errors
     err = np.abs((C_F[:-1] - C_F[-1])/C_F[-1])
 
-    ## Plot C_x errors
-    #for j, M in enumerate(Ms):
-    #    for k, alpha in enumerate(alphas):
+    # Plot C_x errors
+    for j, M in enumerate(Ms):
 
-    #        # Plot
-    #        plt.figure()
-    #        print()
-    #        print("M={0}, alpha={1}".format(M, alpha))
-    #        for l, case in enumerate(cases):
-    #            plt.plot(l_avg[:-1], err[:,j,k,l,0], line_styles[l], label=case)
+        # Plot
+        plt.figure()
+        for l, case in enumerate(cases):
+            plt.plot(l_avg[:-1], err[:,j,l,0], line_styles[l], label=case)
 
-    #            # Get convergence
-    #            print("Order for case {0}: {1}".format(case, get_order_of_convergence(l_avg, C_F[:,j,k,l,0], truth_from_results=True)))
-
-    #        # Format
-    #        plt.xlabel('$l_{avg}$')
-    #        plt.ylabel('Fractional Error')
-    #        plt.xscale('log')
-    #        plt.yscale('log')
-    #        plt.title('$C_x$ error for $M={0},\,\\alpha={1}$'.format(M, alpha))
-    #        plt.legend()
-    #        plt.savefig(plot_dir+"err_C_x_M_{0}_alpha_{1}_MCA_{2}.pdf".format(M, alpha, max_continuity_angle))
-    #        plt.close()
-
-    ## Plot C_z errors
-    #for j, M in enumerate(Ms):
-    #    for k, alpha in enumerate(alphas):
-    #        if k==0:
-    #            continue
-
-    #        # Plot
-    #        plt.figure()
-    #        print()
-    #        print("M={0}, alpha={1}".format(M, alpha))
-    #        for l, case in enumerate(cases):
-    #            plt.plot(l_avg[:-1], err[:,j,k,l,2], line_styles[l], label=case)
-
-    #            # Get convergence
-    #            print("Order for case {0}: {1}".format(case, get_order_of_convergence(l_avg, C_F[:,j,k,l,2], truth_from_results=True)))
-
-    #        # Format
-    #        plt.xlabel('$l_{avg}$')
-    #        plt.ylabel('Fractional Error')
-    #        plt.xscale('log')
-    #        plt.yscale('log')
-    #        plt.title('$C_z$ error for $M={0},\,\\alpha={1}$'.format(M, alpha))
-    #        plt.legend()
-    #        plt.savefig(plot_dir+"err_C_z_M_{0}_alpha_{1}_MCA_{2}.pdf".format(M, alpha, max_continuity_angle))
-    #        plt.close()
+        # Format
+        plt.xlabel('$l_{avg}$')
+        plt.ylabel('Fractional Error in $C_x$')
+        plt.xscale('log')
+        plt.yscale('log')
+        if j==0:
+            plt.legend()
+        plt.savefig(plot_dir+"err_C_x_M_{0}.pdf".format(M))
+        plt.savefig(plot_dir+"err_C_x_M_{0}.svg".format(M))
+        plt.close()
 
     #Analyze convergence of Cx
     print()
@@ -160,4 +130,4 @@ if __name__=="__main__":
         for j, M in enumerate(Ms):
             slopes[l].append(get_order_of_convergence(l_avg, C_F[:,j,l,0], truth_from_results=True))
 
-        print("{0}: {1} +/- {2}".format(case, round(np.average(slopes[l]), 3), round(np.std(slopes[l]), 3)))
+        print("{0}: {1} +/- {2}".format(case, round(np.average(slopes[l]), 4), round(np.std(slopes[l]), 4)))
