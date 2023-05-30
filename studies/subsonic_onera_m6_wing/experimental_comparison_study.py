@@ -55,6 +55,7 @@ def run_wing_quad_comparison(AoA, mach_num, correction, grid):
             }
         },
         "solver": {
+            "write_A_and_b" : True
         },
         "post_processing" : {
             "pressure_rules": {
@@ -86,11 +87,26 @@ def run_wing_quad_comparison(AoA, mach_num, correction, grid):
     return case_name
 
 
+def get_min_and_max_SV_from_A_mat():
+    # Reads in the A matrix and returns its largest and smallest singular values
+
+    # Read in
+    filename = "A_mat.txt"
+    A = np.genfromtxt(filename)
+    
+    # Get singular values
+    S = np.linalg.svd(A, compute_uv=False)
+
+    return S[0], S[-1]
+
+
 def run_cases(AoA, mach_num, grid):
 
     # Run With and without prandtl-glauert correction
     case_name_pg = run_wing_quad_comparison(AoA, mach_num, True, grid)
     case_name_direct = run_wing_quad_comparison(AoA, mach_num, False, grid)
+    S_max, S_min = get_min_and_max_SV_from_A_mat()
+    cond = np.sqrt(S_max/S_min)
 
     # Define Plot dir 
     plot_dir = study_dir + "plots/"
@@ -184,6 +200,8 @@ def run_cases(AoA, mach_num, grid):
                     plt.savefig(plot_dir+"unfiltered/"+case_name+"_"+case+"_{0}.svg".format(semispan[i]))
                 plt.close()
 
+    return S_max, S_min, cond
+
 
 
 if __name__ == "__main__":
@@ -195,6 +213,9 @@ if __name__ == "__main__":
     #grids = ["fine"]
 
     # Run Machline for all Mach Numbers and associated AoA
+    print()
+    print("Grid   M   alpha   S_max    S_min   cond")
     for grid in grids:
         for i in range(len(mach_nums)):
-            run_cases(AoA_nums[i], mach_nums[i], grid)
+            S_max, S_min, cond = run_cases(AoA_nums[i], mach_nums[i], grid)
+            print(grid, mach_nums[i], AoA_nums[i], S_max, S_min, cond)
