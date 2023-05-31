@@ -5,12 +5,12 @@
             0.0,
             0.0
         ],
-        "gamma": 1.4,
         "freestream_mach_number": 5.0
     },
     "geometry": {
         "file": "studies/supersonic_spindle/meshes/ehlers_spindle_fine.vtk",
         "spanwise_axis": "+y",
+        "force_sigma_match": false,
         "wake_model": {
             "wake_present": false
         }
@@ -20,10 +20,7 @@
     },
     "post_processing": {
         "pressure_rules": {
-            "second-order": true,
-            "isentropic": true,
-            "slender-body": true,
-            "linear": true
+            "isentropic": true
         }
     },
     "output": {

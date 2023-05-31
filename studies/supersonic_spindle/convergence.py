@@ -4,41 +4,34 @@ import matplotlib.pyplot as plt
 from studies.case_running_functions import run_quad, get_order_of_convergence, write_input_file, cases, line_styles
 
 
-RERUN_MACHLINE = False
+RERUN_MACHLINE = True
 study_dir = "studies/supersonic_spindle/"
 plot_dir = study_dir + "plots/convergence/"
 
 
-def run_quad_for_mach_and_mesh(M, grid):
+def run_quad_for_mach_and_mesh(M, grid, force_sigma_match):
     """Runs a case quad for the given Mach number and mesh density."""
 
-    # Parameters
-    half_angle = 5.0
-    R_G = 287.058
-    gamma = 1.4
-    T_inf = 300.0
-    c_inf = np.sqrt(gamma*R_G*T_inf)
-    rho = 1.225
-    p_inf = 1.0e5
-
     # Storage locations
-    case_name = "M_{0}_{1}".format(M, grid)
+    if force_sigma_match:
+        case_name = "M_{0}_{1}_sigma_matched".format(M, grid)
+    else:
+        case_name = "M_{0}_{1}".format(M, grid)
     mesh_file = study_dir + "meshes/ehlers_spindle_{0}.vtk".format(grid)
     results_file = study_dir + "results/"+case_name+".vtk"
     report_file = study_dir + "reports/"+case_name+".json"
-
-    # Write out input file
+    input_file = study_dir + "input.json"
 
     # Declare MachLine input
     input_dict = {
         "flow": {
             "freestream_velocity": [1.0, 0.0, 0.0],
-            "gamma" : gamma,
             "freestream_mach_number" : M
         },
         "geometry": {
             "file": mesh_file,
             "spanwise_axis" : "+y",
+            "force_sigma_match" : force_sigma_match,
             "wake_model": {
                 "wake_present" : False
             }
@@ -48,10 +41,7 @@ def run_quad_for_mach_and_mesh(M, grid):
         },
         "post_processing" : {
             "pressure_rules" : {
-                "second-order" : True,
-                "isentropic" : True,
-                "slender-body" : True,
-                "linear" : True
+                "isentropic" : True
             }
         },
         "output" : {
@@ -61,7 +51,6 @@ def run_quad_for_mach_and_mesh(M, grid):
     }
 
     # Dump
-    input_file = study_dir + "input.json"
     write_input_file(input_dict, input_file)
 
     # Run quad
@@ -90,11 +79,13 @@ if __name__=="__main__":
     # Loop through parameters
     N_sys = np.zeros(len(grids))
     l_avg = np.zeros(len(grids))
-    C_F = np.zeros((len(grids), len(Ms), 4, 3))
-    for i, grid in enumerate(grids):
-        for j, M in enumerate(Ms):
+    sigma_options = [True, False]
+    C_F = np.zeros((len(grids), len(Ms), 4, 3, 2))
+    for k, option in enumerate(sigma_options):
+        for i, grid in enumerate(grids):
+            for j, M in enumerate(Ms):
 
-            N_sys[i], l_avg[i], C_F[i,j] = run_quad_for_mach_and_mesh(M, grid)
+                N_sys[i], l_avg[i], C_F[i,j,:,:,k] = run_quad_for_mach_and_mesh(M, grid, option)
 
     # Set up plotting
 
@@ -102,32 +93,41 @@ if __name__=="__main__":
     err = np.abs((C_F[:-1] - C_F[-1])/C_F[-1])
 
     # Plot C_x errors
-    for j, M in enumerate(Ms):
-
-        # Plot
-        plt.figure()
-        for l, case in enumerate(cases):
-            plt.plot(l_avg[:-1], err[:,j,l,0], line_styles[l], label=case)
-
-        # Format
-        plt.xlabel('$l_{avg}$')
-        plt.ylabel('Fractional Error in $C_x$')
-        plt.xscale('log')
-        plt.yscale('log')
-        if j==0:
-            plt.legend()
-        plt.savefig(plot_dir+"err_C_x_M_{0}.pdf".format(M))
-        plt.savefig(plot_dir+"err_C_x_M_{0}.svg".format(M))
-        plt.close()
-
-    #Analyze convergence of Cx
-    print()
-    print("Cx Convergence Rate")
-    print("-------------------")
-    slopes = []
-    for l, case in enumerate(['ML', 'MH', 'SL', 'SH']):
-        slopes.append([])
+    for k, option in enumerate(sigma_options):
         for j, M in enumerate(Ms):
-            slopes[l].append(get_order_of_convergence(l_avg, C_F[:,j,l,0], truth_from_results=True))
 
-        print("{0}: {1} +/- {2}".format(case, round(np.average(slopes[l]), 4), round(np.std(slopes[l]), 4)))
+            # Plot
+            plt.figure()
+            for l, case in enumerate(cases):
+                plt.plot(l_avg[:-1], err[:,j,l,0,k], line_styles[l], label=case)
+
+            # Format
+            plt.xlabel('$l_{avg}$')
+            plt.ylabel('Fractional Error in $C_x$')
+            plt.xscale('log')
+            plt.yscale('log')
+            if j==0:
+                plt.legend()
+            if option:
+                plt.savefig(plot_dir+"err_C_x_M_{0}_sigma_matched.pdf".format(M))
+                plt.savefig(plot_dir+"err_C_x_M_{0}_sigma_matched.svg".format(M))
+            else:
+                plt.savefig(plot_dir+"err_C_x_M_{0}.pdf".format(M))
+                plt.savefig(plot_dir+"err_C_x_M_{0}.svg".format(M))
+            plt.close()
+
+        #Analyze convergence of Cx
+        print()
+        print("Cx Convergence Rate")
+        if option:
+            print("    Sigma Matched")
+        else:
+            print("    Sigma Not Matched")
+        print("-------------------")
+        slopes = []
+        for l, case in enumerate(['ML', 'MH', 'SL', 'SH']):
+            slopes.append([])
+            for j, M in enumerate(Ms):
+                slopes[l].append(get_order_of_convergence(l_avg, C_F[:,j,l,0,k], truth_from_results=True))
+
+            print("{0}: {1} +/- {2}".format(case, round(np.average(slopes[l]), 4), round(np.std(slopes[l]), 4)))

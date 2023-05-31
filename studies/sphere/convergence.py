@@ -159,7 +159,7 @@ if __name__=="__main__":
         plt.xscale('log')
         plt.yscale('log')
         plt.xlabel('$l_{avg}$')
-        plt.ylabel('$||C_F||$')
+        plt.ylabel('$\lVert C_F \\rVert$')
         plt.legend()
         if option:
             plt.savefig(study_dir + "plots/convergence_sigma_matched.pdf")

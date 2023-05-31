@@ -10,13 +10,14 @@
     "geometry": {
         "file": "studies/matrix_solvers/meshes/full_config_fine.stl",
         "spanwise_axis": "+y",
-        "mirror_about": "xz",
-        "singularity_order": "higher"
+        "mirror_about": "xz"
     },
     "solver": {
-        "matrix_solver": "FQRUP",
+        "matrix_solver": "GMRES",
         "preconditioner": "DIAG",
-        "sort_system": true
+        "sort_system": true,
+        "write_A_and_b": true,
+        "iterative_solver_output": "none"
     },
     "post_processing": {},
     "output": {

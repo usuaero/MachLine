@@ -191,6 +191,13 @@ contains
 
         ! Get how sigma distributions should be calculated
         call json_xtnsn_get(settings, 'force_sigma_match', force_sigma_match, default_value=.false.)
+        if (this%singularity_order=="higher" .and. verbose) then
+            if (force_sigma_match) then
+                write(*,*) "    User has selected matched source distributions."
+            else
+                write(*,*) "    User has selected unmatched source distributions."
+            end if
+        end if
     
     end subroutine surface_mesh_parse_singularity_settings
 
