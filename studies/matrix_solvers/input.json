@@ -14,7 +14,7 @@
     },
     "solver": {
         "matrix_solver": "GMRES",
-        "preconditioner": "DIAG",
+        "preconditioner": "none",
         "sort_system": true,
         "write_A_and_b": true,
         "iterative_solver_output": "none"
