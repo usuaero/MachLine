@@ -8,7 +8,8 @@
     },
     "geometry": {
         "file": "studies/sphere/meshes/sphere_medium.stl",
-        "spanwise_axis": "+y"
+        "spanwise_axis": "+y",
+        "force_sigma_match": false
     },
     "solver": {},
     "post_processing": {},

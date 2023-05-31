@@ -8,11 +8,15 @@ RERUN_MACHLINE = False
 study_dir = "studies/sphere/"
 
 
-def run_cases_for_orientation_and_mesh_density(psi, theta, density):
+def run_cases_for_orientation_and_mesh_density(psi, theta, density, force_sigma_match):
 
     # Initialize input
-    result_file = study_dir + "results/sphere_{0}.vtk".format(density)
-    report_file = study_dir + "reports/sphere_{0}.json".format(density)
+    if force_sigma_match:
+        result_file = study_dir + "results/sphere_{0}_sigma_matched.vtk".format(density)
+        report_file = study_dir + "reports/sphere_{0}_sigma_matched.json".format(density)
+    else:
+        result_file = study_dir + "results/sphere_{0}.vtk".format(density)
+        report_file = study_dir + "reports/sphere_{0}.json".format(density)
 
     # Lower-order results
     input_dict ={
@@ -21,7 +25,8 @@ def run_cases_for_orientation_and_mesh_density(psi, theta, density):
         },
         "geometry" : {
             "file" : study_dir + "meshes/sphere_{0}.stl".format(density),
-            "spanwise_axis" : "+y"
+            "spanwise_axis" : "+y",
+            "force_sigma_match" : force_sigma_match
         },
         "solver" : {
         },
@@ -58,97 +63,108 @@ if __name__=="__main__":
     densities = ["ultra_coarse", "very_coarse", "coarse", "medium"]
     psis = np.radians([30.0, 45.0, 60.0])
     thetas = np.radians([30.0, 45.0, 60.0])
+    sigma_options = [True, False]
     N = []
     l_avg = []
-    Cx = np.zeros((len(psis), len(thetas), len(densities), 4))
-    Cy = np.zeros((len(psis), len(thetas), len(densities), 4))
-    Cz = np.zeros((len(psis), len(thetas), len(densities), 4))
+    Cx = np.zeros((2, len(psis), len(thetas), len(densities), 4))
+    Cy = np.zeros((2, len(psis), len(thetas), len(densities), 4))
+    Cz = np.zeros((2, len(psis), len(thetas), len(densities), 4))
 
-    for i, psi in enumerate(psis):
-        for j, theta in enumerate(thetas):
-            for k, density in enumerate(densities):
+    for l, option in enumerate(sigma_options):
+        for i, psi in enumerate(psis):
+            for j, theta in enumerate(thetas):
+                for k, density in enumerate(densities):
 
-                # Run
-                N_sys_i, l_avg_i, C_F = run_cases_for_orientation_and_mesh_density(psi, theta, density)
+                    # Run
+                    N_sys_i, l_avg_i, C_F = run_cases_for_orientation_and_mesh_density(psi, theta, density, option)
 
-                # Store
-                if i==0 and j==0:
-                    N.append(N_sys_i)
-                    l_avg.append(l_avg_i)
-                Cx[i,j,k,:] = C_F[:,0]
-                Cy[i,j,k,:] = C_F[:,1]
-                Cz[i,j,k,:] = C_F[:,2]
+                    # Store
+                    if l==0 and i==0 and j==0:
+                        N.append(N_sys_i)
+                        l_avg.append(l_avg_i)
+                    Cx[l,i,j,k,:] = C_F[:,0]
+                    Cy[l,i,j,k,:] = C_F[:,1]
+                    Cz[l,i,j,k,:] = C_F[:,2]
 
     # Calculate norms of force vectors
     C_F_norms = np.sqrt(Cx**2 + Cy**2 + Cz**2)
 
     # Calculate convergence rates
-    orders = [[], [], [], []]
-    order_Cx = [[], [], [], []]
-    order_Cy = [[], [], [], []]
-    order_Cz = [[], [], [], []]
-    order_norm = [[], [], [], []]
-    for i in range(len(psis)):
-        for j in range(len(thetas)):
-            for k in range(4):
-                orders[k].append(get_order_of_convergence(l_avg, Cx[i,j,:,k], truth_from_results=False))
-                orders[k].append(get_order_of_convergence(l_avg, Cy[i,j,:,k], truth_from_results=False))
-                orders[k].append(get_order_of_convergence(l_avg, Cz[i,j,:,k], truth_from_results=False))
-                order_Cx[k].append(get_order_of_convergence(l_avg, Cx[i,j,:,k], truth_from_results=False))
-                order_Cy[k].append(get_order_of_convergence(l_avg, Cy[i,j,:,k], truth_from_results=False))
-                order_Cz[k].append(get_order_of_convergence(l_avg, Cz[i,j,:,k], truth_from_results=False))
-                order_norm[k].append(get_order_of_convergence(l_avg, C_F_norms[i,j,:,k], truth_from_results=False))
-            
-    # Create arrays
-    orders = np.array(orders)
-    order_Cx = np.array(order_Cx)
-    order_Cy = np.array(order_Cy)
-    order_Cz = np.array(order_Cz)
-    order_norm = np.array(order_norm)
+    for l, option in enumerate(sigma_options):
+        orders = [[], [], [], []]
+        order_Cx = [[], [], [], []]
+        order_Cy = [[], [], [], []]
+        order_Cz = [[], [], [], []]
+        order_norm = [[], [], [], []]
+        for i in range(len(psis)):
+            for j in range(len(thetas)):
+                for k in range(4): # Looping through cases
+                    orders[k].append(get_order_of_convergence(l_avg, Cx[l,i,j,:,k], truth_from_results=False))
+                    orders[k].append(get_order_of_convergence(l_avg, Cy[l,i,j,:,k], truth_from_results=False))
+                    orders[k].append(get_order_of_convergence(l_avg, Cz[l,i,j,:,k], truth_from_results=False))
+                    order_Cx[k].append(get_order_of_convergence(l_avg, Cx[l,i,j,:,k], truth_from_results=False))
+                    order_Cy[k].append(get_order_of_convergence(l_avg, Cy[l,i,j,:,k], truth_from_results=False))
+                    order_Cz[k].append(get_order_of_convergence(l_avg, Cz[l,i,j,:,k], truth_from_results=False))
+                    order_norm[k].append(get_order_of_convergence(l_avg, C_F_norms[l,i,j,:,k], truth_from_results=False))
 
-    # Report average orders of convergence
-    avg_orders = np.average(orders, axis=1)
-    avg_order_Cx = np.average(order_Cx, axis=1)
-    avg_order_Cy = np.average(order_Cy, axis=1)
-    avg_order_Cz = np.average(order_Cz, axis=1)
-    avg_order_norm = np.average(order_norm, axis=1)
-    print()
-    print("Average Orders of Convergence")
-    print("-----------------------------")
-    print("Between Forces")
-    for k, case in enumerate(cases):
-        print(case, ": ", avg_orders[k], " +/- ", np.std(orders[k]))
-    print("Cx")
-    for k, case in enumerate(cases):
-        print(case, ": ", avg_order_Cx[k], " +/- ", np.std(order_Cx[k]))
-    print("Cy")
-    for k, case in enumerate(cases):
-        print(case, ": ", avg_order_Cy[k], " +/- ", np.std(order_Cy[k]))
-    print("Cz")
-    for k, case in enumerate(cases):
-        print(case, ": ", avg_order_Cz[k], " +/- ", np.std(order_Cz[k]))
-    print("Norm")
-    for k, case in enumerate(cases):
-        print(case, ": ", avg_order_norm[k], " +/- ", np.std(order_norm[k]))
+        # Create arrays
+        orders = np.array(orders)
+        order_Cx = np.array(order_Cx)
+        order_Cy = np.array(order_Cy)
+        order_Cz = np.array(order_Cz)
+        order_norm = np.array(order_norm)
 
-    # Plot
-    plt.figure()
-    for i in range(len(psis)):
-        for j in range(len(thetas)):
-            for k, (line_style, case) in enumerate(zip(line_styles, cases)):
-                if i==0 and j==0:
-                    plt.plot(l_avg, C_F_norms[i,j,:,k], line_style, label=case)
-                    #plt.plot(l_avg, np.abs(Cx[i,j,:,k]), line_style, label=case)
-                else:
-                    plt.plot(l_avg, C_F_norms[i,j,:,k], line_style)
-                    #plt.plot(l_avg, np.abs(Cx[i,j,:,k]), line_style)
-                #plt.plot(l_avg, np.abs(Cy[i,j,:,k]), line_style)
-                #plt.plot(l_avg, np.abs(Cz[i,j,:,k]), line_style)
-    plt.xscale('log')
-    plt.yscale('log')
-    plt.xlabel('$l_{avg}$')
-    plt.ylabel('$||C_F||$')
-    plt.legend()
-    plt.savefig(study_dir + "plots/convergence.pdf")
-    plt.savefig(study_dir + "plots/convergence.svg")
-    plt.close()
+        # Report average orders of convergence
+        avg_orders = np.average(orders, axis=1)
+        avg_order_Cx = np.average(order_Cx, axis=1)
+        avg_order_Cy = np.average(order_Cy, axis=1)
+        avg_order_Cz = np.average(order_Cz, axis=1)
+        avg_order_norm = np.average(order_norm, axis=1)
+        print()
+        print("Average Orders of Convergence")
+        if option:
+            print("    Sigma Matched")
+        else:
+            print("    Sigma Not Matched")
+        print("-----------------------------")
+        print("Between Forces")
+        for k, case in enumerate(cases):
+            print(case, ": ", avg_orders[k], " +/- ", np.std(orders[k]))
+        print("Cx")
+        for k, case in enumerate(cases):
+            print(case, ": ", avg_order_Cx[k], " +/- ", np.std(order_Cx[k]))
+        print("Cy")
+        for k, case in enumerate(cases):
+            print(case, ": ", avg_order_Cy[k], " +/- ", np.std(order_Cy[k]))
+        print("Cz")
+        for k, case in enumerate(cases):
+            print(case, ": ", avg_order_Cz[k], " +/- ", np.std(order_Cz[k]))
+        print("Norm")
+        for k, case in enumerate(cases):
+            print(case, ": ", avg_order_norm[k], " +/- ", np.std(order_norm[k]))
+
+        # Plot
+        plt.figure()
+        for i in range(len(psis)):
+            for j in range(len(thetas)):
+                for k, (line_style, case) in enumerate(zip(line_styles, cases)):
+                    if i==0 and j==0:
+                        plt.plot(l_avg, C_F_norms[l,i,j,:,k], line_style, label=case)
+                        #plt.plot(l_avg, np.abs(Cx[i,j,:,k]), line_style, label=case)
+                    else:
+                        plt.plot(l_avg, C_F_norms[l,i,j,:,k], line_style)
+                        #plt.plot(l_avg, np.abs(Cx[i,j,:,k]), line_style)
+                    #plt.plot(l_avg, np.abs(Cy[i,j,:,k]), line_style)
+                    #plt.plot(l_avg, np.abs(Cz[i,j,:,k]), line_style)
+        plt.xscale('log')
+        plt.yscale('log')
+        plt.xlabel('$l_{avg}$')
+        plt.ylabel('$||C_F||$')
+        plt.legend()
+        if option:
+            plt.savefig(study_dir + "plots/convergence_sigma_matched.pdf")
+            plt.savefig(study_dir + "plots/convergence_sigma_matched.svg")
+        else:
+            plt.savefig(study_dir + "plots/convergence.pdf")
+            plt.savefig(study_dir + "plots/convergence.svg")
+        plt.close()
