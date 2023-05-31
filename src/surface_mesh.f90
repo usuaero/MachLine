@@ -822,10 +822,10 @@ contains
                 this%edges(k)%discontinuous = .true.
 
                 ! Store for panel
-                !$OMP critical
+                !$OMP critical(update_edge)
                 this%panels(this%edges(k)%panels(1))%N_discont_edges = this%panels(this%edges(k)%panels(1))%N_discont_edges + 1
                 this%panels(this%edges(k)%panels(1))%edge_is_discontinuous(this%edges(k)%edge_index_for_panel(1)) = .true.
-                !$OMP end critical
+                !$OMP end critical(update_edge)
 
                 ! Skip the rest
                 cycle
@@ -850,7 +850,7 @@ contains
                 ! Set that the edge is discontinuous
                 this%edges(k)%discontinuous = .true.
 
-                !$OMP critical
+                !$OMP critical(update_edge)
 
                 ! Update panel 1
                 this%panels(this%edges(k)%panels(1))%N_discont_edges = this%panels(this%edges(k)%panels(1))%N_discont_edges + 1
@@ -861,7 +861,7 @@ contains
                     this%panels(this%edges(k)%panels(2))%N_discont_edges = this%panels(this%edges(k)%panels(2))%N_discont_edges + 1
                     this%panels(this%edges(k)%panels(2))%edge_is_discontinuous(this%edges(k)%edge_index_for_panel(2)) = .true.
                 end if
-                !$OMP end critical
+                !$OMP end critical(update_edge)
 
             end if
 
