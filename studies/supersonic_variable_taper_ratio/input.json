@@ -6,10 +6,10 @@
             0.0
         ],
         "gamma": 1.4,
-        "freestream_mach_number": 2.5
+        "freestream_mach_number": 2
     },
     "geometry": {
-        "file": "studies/supersonic_variable_taper_ratio/meshes/wing_R_T_100_coarse_non-clustered.vtk",
+        "file": "studies/supersonic_variable_taper_ratio/meshes/wing_R_T_50_fine_non-clustered.vtk",
         "spanwise_axis": "+z",
         "mirror_about": "xy",
         "reference": {
@@ -29,7 +29,7 @@
         }
     },
     "output": {
-        "body_file": "studies/supersonic_variable_taper_ratio/results/M_2.5_R_T_100_coarse_non-clustered.vtk",
-        "report_file": "studies/supersonic_variable_taper_ratio/reports/M_2.5_R_T_100_coarse_non-clustered.json"
+        "body_file": "studies/supersonic_variable_taper_ratio/results/M_2_R_T_50_fine_non-clustered.vtk",
+        "report_file": "studies/supersonic_variable_taper_ratio/reports/M_2_R_T_50_fine_non-clustered.json"
     }
 }
