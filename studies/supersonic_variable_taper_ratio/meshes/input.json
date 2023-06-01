@@ -1,0 +1,32 @@
+{
+    "flow": {
+        "freestream_velocity": [ 100.0, 0.0, 0.0 ],
+        "freestream_mach_number": 2
+    },
+    "geometry": {
+        "file": "studies/supersonic_variable_taper_ratio/meshes/wing_R_T_100_fine_clustered.vtk",
+        "mirror_about": "xy",
+        "wake_model": {
+            "wake_shedding_angle": 90.0,
+            "trefftz_distance": 100.0,
+            "N_panels": 1
+        },
+        "reference": {
+            "area": 1.0
+        }
+    },
+    "solver": {
+        "formulation": "morino"
+    },
+    "post_processing" : {
+        "pressure_for_forces": "isentropic",
+        "pressure_rules": {
+            "isentropic": true,
+            "second-order": true
+        }
+    },
+    "output": {
+        "verbose": true,
+        "body_file": "studies/supersonic_variable_taper_ratio/results/swept_wing_result.vtk"
+    }
+}

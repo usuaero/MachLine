@@ -42,7 +42,7 @@ def _export_vtk(filename, vertices, panels):
         # Write normals
         print("NORMALS normals float", file=export_handle)
         for panel in panels:
-            n = np.cross(vertices[panel[1]]-vertices[panel[0]], vertices[panel[2]]-vertices[panel[1]])
+            n = np.cross(np.array(vertices[panel[1]])-np.array(vertices[panel[0]]), np.array(vertices[panel[2]])-np.array(vertices[panel[1]]))
             n /= np.linalg.norm(n)
             print(" ".join([str(ni) for ni in n]), file=export_handle)
             

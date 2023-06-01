@@ -111,12 +111,12 @@ def init_airfoil(chord_spacing, **kwargs):
     # Cluster chorwise direction along the x axis
     if chordwise_cluster:
         # Clustering forward of max thickness location
-        vTheta = np.linspace(0,np.pi, LE_nodes)
-        fwd_xloc = 0.5 * (x_c) * (1-np.cos(vTheta))
+        vTheta = np.linspace(np.pi/8, 7*np.pi/8, LE_nodes)
+        fwd_xloc = 0.5 * (x_c) * (1.0-(1.08239*np.cos(vTheta)))
 
         # Clustering aft of the max thickness location
-        vTheta = np.linspace(0, np.pi, aft_nodes)
-        aft_xloc = 0.5 * (1.0-x_c) * (1.0-np.cos(vTheta)) + x_c
+        vTheta = np.linspace(np.pi/8, 7*np.pi/8, aft_nodes)
+        aft_xloc = 0.5 * (1.0-x_c) * (1.0-(1.08239*np.cos(vTheta))) + x_c
         
 
     # No chordwise clustering
@@ -285,6 +285,7 @@ def create_panels(airfoil_locations, vertices, le_list, xc_max):
     # Initialize panel container and number of vertices
     panels = []
 
+
     # Create a modified list of airfoil locations over upper surface
     upper_surf = copy.deepcopy(airfoil_locations)
     
@@ -303,6 +304,18 @@ def create_panels(airfoil_locations, vertices, le_list, xc_max):
             # Create panels over upper surface of wing
             panel_iter = panel_generator(i, airfoil_locations, root_list, tip_list, vertices, le_list, xc_max, 'upper')
             panels += panel_iter
+
+            if vertices[le_list[i]][0] == vertices[le_list[i+1]][0]:
+                # Connect final panel on upper surface to the leading edge
+                p_one = le_list[i]
+                p_two = le_list[i+1]
+                p_three = le_list[i+1]-1
+
+                if not ((p_two == p_three) or (p_three == p_one)):
+                    panels.append([p_one, p_two, p_three])
+
+
+            
 
 
     # Create a modified list of airfoil locations over the lower surface
@@ -462,7 +475,7 @@ def panel_generator(iter, airfoil_locations, root, tip, vertices, le_list, xc_ma
     return panel_iter
 
 
-def wingtip_cap(vertices, airfoil_locations, le_locations, max_thickness, **kwargs):
+def wingtip_cap(R_T, b_2c, LE_sweep, sw_nodes, vertices, airfoil_locations, le_locations, max_thickness, **kwargs):
     """ Creates caps for the wingtips on both sides of the mesh
     
     Parameters
@@ -488,7 +501,7 @@ def wingtip_cap(vertices, airfoil_locations, le_locations, max_thickness, **kwar
     # Pull in given key word arguments
     cap_type = kwargs.get('cap_type', 'flat')
     scale_factor = kwargs.get('scale_factor', 0.02)
-    cap_angle = kwargs.get('cap_angle', 60.0) * np.pi / 180.0
+
 
     # Initialize containers
     cap_panels = []
@@ -502,33 +515,86 @@ def wingtip_cap(vertices, airfoil_locations, le_locations, max_thickness, **kwar
     #     z_cap = vertices[airfoil_locations[-1][-1]][-1] * (1 + scale_factor)
 
     if cap_type == 'flat':
-        z_cap = vertices[tip[-1]][-1]
 
-
-
-        # Iterate over nodes at wingtip
-        temp = tip[0]
-        tip_verts = vertices[temp::]
-        # for i, val in enumerate(tip_verts):
         upper = list(range(tip[0], tip[1]+1))
         lower = list(range(tip[2], tip[1],-1))
 
         cap_bounds = [[tip[0], tip[1]], [tip[1], tip[2]]] # Serves as airfoil locations for the cap
+     
+        # Create dummy variables to avoid errors when generating panels
+        le_list = [5,6,7]
+        xc_max = [0,1,2]
+        iter = 0
+
+        # Create panels over the cap of the wingtip
+        panel_iter = panel_generator(iter, cap_bounds, upper, lower, vertices, le_list, xc_max, 'upper')
+        cap_panels += panel_iter
+
+    elif cap_type == 'round':
+        
+        # Find Trailing edge sweep
+        TE_sweep = np.arctan2((R_T+b_2c*(np.tan(LE_sweep))-1), b_2c)
+        
+        upper = list(range(tip[0], tip[1]+1))
+        lower = list(range(tip[2], tip[1],-1))
+        cap_bounds = [[tip[0], tip[1]], [tip[0], tip[1]]]
+        final_ind = tip[2]
+
+        # Interpolate cap angles
+        cap_angles = np.linspace(TE_sweep, LE_sweep, len(upper))
+
+        # Create dummy variables to avoid errors when generating panels
+        le_list = [5,6,7]
+        xc_max = [0,1,2]
+        iter = 0
+        
+        thetas = []
+        divisions = sw_nodes//10
+        if divisions < 3 :
+            divisions = 3
+
+        for i in range(divisions-1):
+            thetas.append((i+1)*np.pi/divisions)
+
+        slices = []
+        for j, theta in enumerate(thetas):
+            for i, (ind, angle) in enumerate(zip(upper, cap_angles)):
+                if i == 0:
+                    pass
+                elif ind == tip[1] or ind == tip[0]:
+                    pass
+                else:
+                    new_vert = [vertices[ind][0]+np.sin(theta)*vertices[ind][1]*np.tan(angle), np.cos(theta)*vertices[ind][1], 1.0 + np.sin(theta)*vertices[ind][1]]
+                    vertices.append(new_vert)
+            slice = list(range(final_ind+1, final_ind+(len(upper)-1)))
+            slice.append(tip[1])
+            slice.insert(0, tip[0])
+
+            slices.append(slice)
+            final_ind += len(upper)-2
+
+        
+        for i, slice in enumerate(slices):
+            if i == 0:
+                panel_iter = panel_generator(iter, cap_bounds, upper, slice[1:(len(slice)-1)], vertices, le_list, xc_max, 'upper')
+                cap_panels += panel_iter
+
+            elif i == len(slices)-1:
+                panel_iter = panel_generator(iter, cap_bounds, slices[i-1], slice[1:(len(slice)-1)], vertices, le_list, xc_max, 'upper')
+                cap_panels += panel_iter
+                panel_iter = panel_generator(iter, cap_bounds, slice, lower, vertices, le_list, xc_max, 'upper')
+                cap_panels += panel_iter
+
+            else:
+                panel_iter = panel_generator(iter, cap_bounds, slices[i-1], slice[1:(len(slice)-1)], vertices, le_list, xc_max, 'upper')
+                cap_panels += panel_iter
+
         
 
     else:
-        print('Only "flat" cap types are supported at this time. Quitting...')
+        print('Unsupported cap type. Quitting...')
         exit()
 
-
-    # Create dummy variables to avoid errors when generating panels
-    le_list = [5,6,7]
-    xc_max = [0,1,2]
-    iter = 0
-    
-    # Create panels over the cap of the wingtip
-    panel_iter = panel_generator(iter, cap_bounds, upper, lower, vertices, le_list, xc_max, 'upper')
-    cap_panels += panel_iter
 
 
     return cap_panels
@@ -572,25 +638,8 @@ def mirror_body(vertices, panels):
 
     return combined_vertices, combined_panels
 
+def mesh_creator(filename, x_cr=.5, x_ct=.5, tc=.08, b_2c=1, R_T=0.0, LE_sweep=45, node_ratio=.5, mirror_xy=True, cw_nodes=25, sw_nodes=25, cluster_cw=False, cluster_sw=False):
 
-
-if __name__ == '__main__':
-
-    # Define necessary portions of wing geometry
-    x_cr = 0.18 # nondimensional location of max thickness at root
-    x_ct = 0.18 # nondimensional location of max thickness at tip
-    tc = 0.08 # nondimensional max thickness
-    b_2c = 0.2315 / 0.230 # semispan nondimensionalized by root chord
-    R_T = 0.0 # taper ratio c_t/c_R
-    LE_sweep = 44.85 # leading edge sweep angle in degrees
-    node_ratio = .35 # User input ratio of nodes to be placed forward of the max thickness location
-    mirror_xy = True # Mirrors body across xy plane
-
-    # Initialize number of nodes in chord and spanwize directions
-    cw_nodes = 80 # Number of nodes along the upper surface ### Mesh density study using 25, 50, and 100 nodes
-    sw_nodes = 80 # Number of nodes along the semispan ### Mesh density study using 25, 50, and 100 nodes
-    cluster_cw = True
-    cluster_sw = False
 
     # Determine average node spacing at root chord
     S_avg = 1 / cw_nodes
@@ -634,22 +683,22 @@ if __name__ == '__main__':
                 airfoil_locs[i].append(vertex_cnt)
             # Store max thickness location
             temp_thickness = c_local * xc_local[i] + le_xloc[i]
-            if x == temp_thickness:
+            if abs(x - temp_thickness) <= 0.0001:
                 max_thickness.append(vertex_cnt)
-            if x == le_xloc[i]:
+            if abs(x-le_xloc[i]) <=0.0001:
                 leading_edges.append(vertex_cnt)
             
         
         # Store end location of airfoil location
         airfoil_locs[i].append(vertex_cnt)
-    
+
 
     # Determine panels for non-mirrored mesh
     panels = create_panels(airfoil_locs, vertices, leading_edges, max_thickness)
 
     # Add caps to the wingtips
     if R_T != 0.0:
-        cap_panels = wingtip_cap(vertices, airfoil_locs, leading_edges, max_thickness)
+        cap_panels = wingtip_cap(R_T, b_2c, LE_sweep, sw_nodes, vertices, airfoil_locs, leading_edges, max_thickness, cap_type='round')
         
         panels += cap_panels
     
@@ -660,7 +709,108 @@ if __name__ == '__main__':
     elif 'dev' in os.getcwd():
         os.chdir('../')
 
-    filename= 'studies/delta_wing/meshes/delta_wing_clustered_mesh_fine.vtk'
+
+    panels = np.array(panels, dtype=int)
+
+    if mirror_xy:
+        combined_verts, combined_panels = mirror_body(vertices, panels)
+
+        _export_vtk(filename, combined_verts, combined_panels)
+    else:
+        _export_vtk(filename, vertices, panels)
+
+    print("Geometry created")
+    print("file location: ", filename)
+ 
+
+if __name__ == '__main__':
+
+    # Define necessary portions of wing geometry
+    x_cr = 0.5 # nondimensional location of max thickness at root
+    x_ct = 0.5 # nondimensional location of max thickness at tip
+    tc = 0.08  # nondimensional max thickness
+    b_2c = 1 # semispan nondimensionalized by root chord
+    R_T = 0 # taper ratio c_t/c_R
+    LE_sweep = 45 # leading edge sweep angle in degrees
+    node_ratio = .5 # User input ratio of nodes to be placed forward of the max thickness location
+    mirror_xy = False # Mirrors body across xy plane
+
+    # Initialize number of nodes in chord and spanwize directions
+    cw_nodes = 20 # Number of nodes along the upper surface ### Mesh density study using 25, 50, and 100 nodes
+    sw_nodes = 20 # Number of nodes along the semispan ### Mesh density study using 25, 50, and 100 nodes
+    cluster_cw = True
+    cluster_sw = False
+
+    # Determine average node spacing at root chord
+    S_avg = 1 / cw_nodes
+    # Convert sweep angle to radians
+    LE_sweep = LE_sweep * np.pi / 180
+
+    # Determine spanwise locations where mesh will be generated
+    zoc, le_xloc, te_xloc = spanwise_coord(sw_nodes, b_2c, sweep_angle=LE_sweep, taper_ratio=R_T, cosine_cluster=cluster_sw)
+   
+    # Interpolate the location of max thickness along the semispan of the wing
+    xc_local = np.linspace(x_cr, x_ct, len(zoc))
+
+
+    # Initialize vertex containers
+    vertices = []
+    airfoil_locs = []
+    max_thickness = []
+    leading_edges = []
+    vertex_cnt = -1 
+    
+    # Iterate over semispan locations, updating the vertex information at each point
+    for i, z in enumerate(zoc):
+        # Store location of beginning of airfoil location
+        airfoil_locs.append([vertex_cnt+1])
+
+        c_local = te_xloc[i] - le_xloc[i]
+        # c_local = 1.0
+        x_coord, y_coord = init_airfoil(S_avg, local_chord=c_local, x_c=xc_local[i], t_c=tc, node_shift=node_ratio, cosine_cluster=cluster_cw)
+        x_scaled, y_scaled = scale_airfoil(x_coord, y_coord, local_chord=c_local, LE_xloc=le_xloc[i])
+        # mirror x and y scaled airfoils
+        x_vert = mirror_x(x_scaled)
+        y_vert = mirror_y(y_scaled)
+
+        # Iterate over airfoil datapoints
+        for j, x in enumerate(x_vert):
+            vertices.append([x, y_vert[j], z])
+            vertex_cnt += 1
+
+            temp = (len(x_vert)//2 + len(x_vert)%2)
+            # Store location of leading edge
+            if (j == temp) or (temp==1):
+                airfoil_locs[i].append(vertex_cnt)
+            # Store max thickness location
+            temp_thickness = c_local * xc_local[i] + le_xloc[i]
+            if abs(x - temp_thickness) <= 0.0001:
+                max_thickness.append(vertex_cnt)
+            if abs(x - le_xloc[i]) <= 0.0001:
+                leading_edges.append(vertex_cnt)
+            
+        
+        # Store end location of airfoil location
+        airfoil_locs[i].append(vertex_cnt)
+    print(max_thickness)
+
+    # Determine panels for non-mirrored mesh
+    panels = create_panels(airfoil_locs, vertices, leading_edges, max_thickness)
+
+    # Add caps to the wingtips
+    if R_T != 0.0:
+        cap_panels = wingtip_cap(R_T, b_2c, LE_sweep, sw_nodes, vertices, airfoil_locs, leading_edges, max_thickness, cap_type='round')
+        
+        panels += cap_panels
+    
+
+    # Mirror (if selected) and output final mesh to selected location
+    if 'helper_scripts' in os.getcwd(): 
+        os.chdir('../../')
+    elif 'dev' in os.getcwd():
+        os.chdir('../')
+
+    filename= 'studies/supersonic_variable_taper_ratio/meshes/delta_wing_test.vtk'
     # filename= 'studies/delta_wing/meshes/tapered_wing_test.vtk'
 
 

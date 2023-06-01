@@ -1,0 +1,34 @@
+{
+    "flow": {
+        "freestream_velocity": [
+            1.0,
+            0.0,
+            0.0
+        ],
+        "gamma": 1.4,
+        "freestream_mach_number": 4
+    },
+    "geometry": {
+        "file": "studies/supersonic_variable_taper_ratio/meshes/wing_R_T_100_fine_non-clustered.vtk",
+        "spanwise_axis": "+z",
+        "mirror_about": "xy",
+        "reference": {
+            "area": 1.0
+        }
+    },
+    "solver": {
+        "formulation": "morino"
+    },
+    "post_processing": {
+        "pressure_rules": {
+            "second-order": true,
+            "isentropic": true,
+            "slender-body": true,
+            "linear": true
+        }
+    },
+    "output": {
+        "body_file": "studies/supersonic_variable_taper_ratio/results/M_4_R_T_100_fine.vtk",
+        "report_file": "studies/supersonic_variable_taper_ratio/reports/M_4_R_T_100_fine.json"
+    }
+}
