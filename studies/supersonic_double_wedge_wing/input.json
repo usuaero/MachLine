@@ -1,16 +1,17 @@
 {
     "flow": {
         "freestream_velocity": [
-            694.4475790151479,
+            0.9975640502598242,
             0.0,
-            0.0
+            0.0697564737441253
         ],
-        "gamma": 1.4,
-        "freestream_mach_number": 2.0
+        "freestream_mach_number": 3.0
     },
     "geometry": {
-        "file": "studies/supersonic_double_wedge_wing/meshes/diamond_5_deg_full_coarse.stl",
+        "file": "studies/supersonic_double_wedge_wing/meshes/diamond_5_deg_full_medium.stl",
         "spanwise_axis": "+y",
+        "max_continuity_angle": 45.0,
+        "force_sigma_match": true,
         "wake_model": {
             "append_wake": false
         },
@@ -19,16 +20,18 @@
         }
     },
     "solver": {
-        "formulation": "source-free",
-        "control_point_offset": 1.0023052380778996,
-        "control_point_offset_type": "direct"
+        "formulation": "morino"
     },
     "post_processing": {
         "pressure_rules": {
-            "isentropic": true
+            "second-order": true,
+            "isentropic": true,
+            "slender-body": true,
+            "linear": true
         }
     },
     "output": {
-        "report_file": "studies/supersonic_double_wedge_wing/reports/report.json"
+        "body_file": "studies/supersonic_double_wedge_wing/results/M_3.0_aoa_4.0_5_deg_medium_MCA_45.0.vtk",
+        "report_file": "studies/supersonic_double_wedge_wing/reports/M_3.0_aoa_4.0_5_deg_medium_MCA_45.0.json"
     }
 }
