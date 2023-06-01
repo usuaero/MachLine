@@ -13,10 +13,10 @@ def run_wing_quad(R_T, M, grid, clustered):
 
     # Storage Locations
     if clustered:
-        case_name = "M_{0}_R_T_{1:.0f}_{2}_c".format(M,R_T*100,grid)
+        case_name = "M_{0}_R_T_{1:.0f}_{2}_clustered".format(M,R_T*100,grid)
         mesh_file = study_dir + "meshes/wing_R_T_{0:.0f}_{1}_{2}.vtk".format(R_T*100, grid, "clustered")
     else: 
-        case_name = "M_{0}_R_T_{1:.0f}_{2}".format(M,R_T*100,grid)
+        case_name = "M_{0}_R_T_{1:.0f}_{2}_non-clustered".format(M,R_T*100,grid)
         mesh_file = study_dir + "meshes/wing_R_T_{0:.0f}_{1}_{2}.vtk".format(R_T*100, grid, "non-clustered")
     if not os.path.exists(study_dir + "results/"):
         os.mkdir(study_dir + "results/")
@@ -40,7 +40,8 @@ def run_wing_quad(R_T, M, grid, clustered):
             }
         },
         "solver": {
-            "formulation": "morino"
+            "formulation": "morino",
+            "sort_system": False
         },
         "post_processing" : {
             "pressure_rules" : {
