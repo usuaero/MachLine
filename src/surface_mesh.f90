@@ -36,7 +36,7 @@ module surface_mesh_mod
         real,dimension(:,:),allocatable :: V_cells, V_verts_avg, V_verts_std, dC_f ! Surface velocities and pressure forces
         real :: control_point_offset
         logical :: asym_flow ! Whether the flow is asymmetric about the mirror plane
-        logical :: found_discontinuous_edges
+        logical :: found_wake_edges
         real,dimension(:),allocatable :: mu, sigma ! Singularity strengths
         real :: S_ref, l_ref ! Reference parameters
         integer,dimension(:),allocatable :: vertex_ordering
@@ -711,7 +711,7 @@ contains
         end if
 
         ! Initialize vertex ordering (normally happens during vertex cloning)
-        if (.not. this%found_discontinuous_edges) then
+        if (.not. this%found_wake_edges) then
 
             allocate(this%vertex_ordering(this%N_verts))
             do i=1,this%N_verts
@@ -809,7 +809,7 @@ contains
 
         ! Initialize
         N_wake_edges = 0
-        this%found_discontinuous_edges = .false.
+        this%found_wake_edges = .false.
 
         !$OMP parallel private(i, j, second_normal, C_angle, i_vert_1, i_vert_2) &
         !$OMP & private(cross_result, d, t_hat_g) reduction(min : C_min_angle)
@@ -898,8 +898,9 @@ contains
                     if (inner(cross_result, t_hat_g) > 0.) then
                         
                         ! Having passed the previous three checks, we've found a wake-shedding edge
-                        this%found_discontinuous_edges = .true.
+                        this%found_wake_edges = .true.
                         this%edges(k)%sheds_wake = .true.
+                        this%edges(k)%discontinuous = .true.
 
                         ! Update number of wake-shedding edges
                         !$OMP critical
@@ -956,8 +957,8 @@ contains
         integer,dimension(:,:),allocatable :: i_panels_between_all
         logical,dimension(:),allocatable :: mirrored_is_unique
 
-        ! Check whether any discontinuities exist
-        if (this%found_discontinuous_edges) then
+        ! Check whether any wake edges exist
+        if (this%found_wake_edges) then
 
             if (verbose) write(*,'(a)',advance='no') "     Cloning vertices at wake-shedding edges..."
 
@@ -1206,7 +1207,8 @@ contains
         logical,intent(in) :: mirrored_is_unique
         integer,dimension(:),allocatable,intent(in) :: panels_for_this_clone
 
-        integer :: k, i_panel
+        integer :: j, k, i_panel, i_edge
+        logical :: found_edge
 
         ! Basic initialization
         call this%vertices(i_boba)%init(this%vertices(i_jango)%loc, i_boba, this%vertices(i_jango)%vert_type)
@@ -1244,6 +1246,39 @@ contains
             end if
 
         end do
+
+        ! Update edges
+        edge_loop: do k=1,this%vertices(i_boba)%adjacent_edges%len()
+
+            ! Get edge index
+            call this%vertices(i_boba)%adjacent_edges%get(k, i_edge)
+
+            ! If this is a wake-shedding edge, just skip it, because the vertex reassignment has already been handled
+            if (this%edges(i_edge)%sheds_wake) cycle edge_loop
+
+            ! Loop through the panels being assigned to this clone to see if this edge touches any of them
+            found_edge = .false.
+            panel_loop: do j=1,size(panels_for_this_clone)
+
+                ! Get panel index
+                i_panel = panels_for_this_clone(j)
+
+                ! Check if the edge touches this panel
+                if (this%edges(i_edge)%panels(1)==i_panel .or. this%edges(i_edge)%panels(2)==i_panel) then
+                    found_edge = .true.
+                    exit panel_loop
+                end if
+
+            end do panel_loop
+
+            ! If the edge touched a panel being assigned to this clone, update that edge as well
+            ! We can do both top and bottom verts here, because this edge doesn't have top and bottom panels; it's not wake-shedding
+            if (found_edge) then
+                call this%edges(i_edge)%point_top_to_new_vert(i_jango, i_boba)
+                call this%edges(i_edge)%point_bottom_to_new_vert(i_jango, i_boba)
+            end if
+
+        end do edge_loop
         
     end subroutine surface_mesh_init_vertex_clone
 
@@ -1259,7 +1294,7 @@ contains
 
         logical :: dummy
 
-        if (this%append_wake .and. this%found_discontinuous_edges) then
+        if (this%append_wake .and. this%found_wake_edges) then
 
             ! Update default Trefftz distance
             if (this%trefftz_distance < 0.) then
