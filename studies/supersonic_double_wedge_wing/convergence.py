@@ -1,9 +1,10 @@
 import numpy as np
+import matplotlib.pyplot as plt
 
-from studies.case_running_functions import run_quad, get_order_of_convergence, write_input_file
+from studies.case_running_functions import run_quad, get_order_of_convergence, write_input_file, cases, line_styles
 
 
-RERUN_MACHLINE = False
+RERUN_MACHLINE = True
 study_dir = "studies/supersonic_double_wedge_wing/"
 plot_dir = study_dir + "plots/convergence/"
 
@@ -13,12 +14,6 @@ def run_quad_for_mach_aoa_and_mesh(M, alpha, grid, MCA):
 
     # Parameters
     half_angle = 5.0
-    R_G = 287.058
-    gamma = 1.4
-    T_inf = 300.0
-    c_inf = np.sqrt(gamma*R_G*T_inf)
-    rho = 1.225
-    p_inf = 1.0e5
 
     # Storage locations
     case_name = "M_{0}_aoa_{1}_{2}_deg_{3}_MCA_{4}".format(M, alpha, int(half_angle), grid, MCA)
@@ -31,14 +26,14 @@ def run_quad_for_mach_aoa_and_mesh(M, alpha, grid, MCA):
     # Declare MachLine input
     input_dict = {
         "flow": {
-            "freestream_velocity": [M*c_inf*np.cos(np.radians(alpha)), 0.0, M*c_inf*np.sin(np.radians(alpha))],
-            "gamma" : gamma,
+            "freestream_velocity": [np.cos(np.radians(alpha)), 0.0, np.sin(np.radians(alpha))],
             "freestream_mach_number" : M
         },
         "geometry": {
             "file": mesh_file,
             "spanwise_axis" : "+y",
             "max_continuity_angle" : MCA,
+            "force_sigma_match" : True,
             "wake_model": {
                 "append_wake" : False,
             },
@@ -108,55 +103,61 @@ if __name__=="__main__":
     # Get errors
     err = np.abs((C_F[:-1] - C_F[-1])/C_F[-1])
 
-    ## Plot C_x errors
-    #for j, M in enumerate(Ms):
-    #    for k, alpha in enumerate(alphas):
+    # We want the lowest MCA here
+    l = 0
+    max_continuity_angle = MCAs[l]
 
-    #        # Plot
-    #        plt.figure()
-    #        print()
-    #        print("M={0}, alpha={1}".format(M, alpha))
-    #        for l, case in enumerate(cases):
-    #            plt.plot(l_avg[:-1], err[:,j,k,l,0], line_styles[l], label=case)
+    # Plot C_x errors
+    for j, M in enumerate(Ms):
+        for k, alpha in enumerate(alphas):
 
-    #            # Get convergence
-    #            print("Order for case {0}: {1}".format(case, get_order_of_convergence(l_avg, C_F[:,j,k,l,0], truth_from_results=True)))
+            # Plot
+            plt.figure()
+            print()
+            print("M={0}, alpha={1}".format(M, alpha))
+            for m, case in enumerate(cases):
+                plt.plot(l_avg[:-1], err[:,j,k,m,0], line_styles[m], label=case)
 
-    #        # Format
-    #        plt.xlabel('$l_{avg}$')
-    #        plt.ylabel('Fractional Error')
-    #        plt.xscale('log')
-    #        plt.yscale('log')
-    #        plt.title('$C_x$ error for $M={0},\,\\alpha={1}$'.format(M, alpha))
-    #        plt.legend()
-    #        plt.savefig(plot_dir+"err_C_x_M_{0}_alpha_{1}_MCA_{2}.pdf".format(M, alpha, max_continuity_angle))
-    #        plt.close()
+                # Get convergence
+                print("Order for case {0}: {1}".format(case, get_order_of_convergence(l_avg, C_F[:,j,k,m,0], truth_from_results=True)))
 
-    ## Plot C_z errors
-    #for j, M in enumerate(Ms):
-    #    for k, alpha in enumerate(alphas):
-    #        if k==0:
-    #            continue
+            # Format
+            plt.xlabel('$l_{avg}$')
+            plt.ylabel('Fractional Error in $C_x$')
+            plt.xscale('log')
+            plt.yscale('log')
+            #plt.title('$C_x$ error for $M={0},\,\\alpha={1}$'.format(M, alpha))
+            plt.legend()
+            plt.savefig(plot_dir+"err_C_x_M_{0}_alpha_{1}_MCA_{2}.pdf".format(M, alpha, max_continuity_angle))
+            plt.savefig(plot_dir+"err_C_x_M_{0}_alpha_{1}_MCA_{2}.svg".format(M, alpha, max_continuity_angle))
+            plt.close()
 
-    #        # Plot
-    #        plt.figure()
-    #        print()
-    #        print("M={0}, alpha={1}".format(M, alpha))
-    #        for l, case in enumerate(cases):
-    #            plt.plot(l_avg[:-1], err[:,j,k,l,2], line_styles[l], label=case)
+    # Plot C_z errors
+    for j, M in enumerate(Ms):
+        for k, alpha in enumerate(alphas):
+            if k==0:
+                continue
 
-    #            # Get convergence
-    #            print("Order for case {0}: {1}".format(case, get_order_of_convergence(l_avg, C_F[:,j,k,l,2], truth_from_results=True)))
+            # Plot
+            plt.figure()
+            print()
+            print("M={0}, alpha={1}".format(M, alpha))
+            for m, case in enumerate(cases):
+                plt.plot(l_avg[:-1], err[:,j,k,m,2], line_styles[l], label=case)
 
-    #        # Format
-    #        plt.xlabel('$l_{avg}$')
-    #        plt.ylabel('Fractional Error')
-    #        plt.xscale('log')
-    #        plt.yscale('log')
-    #        plt.title('$C_z$ error for $M={0},\,\\alpha={1}$'.format(M, alpha))
-    #        plt.legend()
-    #        plt.savefig(plot_dir+"err_C_z_M_{0}_alpha_{1}_MCA_{2}.pdf".format(M, alpha, max_continuity_angle))
-    #        plt.close()
+                # Get convergence
+                print("Order for case {0}: {1}".format(case, get_order_of_convergence(l_avg, C_F[:,j,k,m,2], truth_from_results=True)))
+
+            # Format
+            plt.xlabel('$l_{avg}$')
+            plt.ylabel('Fractional Error in $C_z$')
+            plt.xscale('log')
+            plt.yscale('log')
+            #plt.title('$C_z$ error for $M={0},\,\\alpha={1}$'.format(M, alpha))
+            plt.legend()
+            plt.savefig(plot_dir+"err_C_z_M_{0}_alpha_{1}_MCA_{2}.pdf".format(M, alpha, max_continuity_angle))
+            plt.savefig(plot_dir+"err_C_z_M_{0}_alpha_{1}_MCA_{2}.svg".format(M, alpha, max_continuity_angle))
+            plt.close()
 
     #Analyze convergence of Cx
     print()

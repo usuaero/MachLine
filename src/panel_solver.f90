@@ -1127,10 +1127,8 @@ contains
 
             case (4) ! Strength matching
 
-                !$OMP critical
-                this%A(this%P(i),this%P(i)) = 1.
-                this%A(this%P(i),this%P(i-body%N_cp/2)) = -1.
-                !$OMP end critical
+                A_i(this%P(i)) = 1.
+                A_i(this%P(i-body%N_cp/2)) = -1.
 
             case (3) ! Calculate velocity influences
 
@@ -1172,18 +1170,18 @@ contains
 
                 end do
 
-                ! Update system
-                !$OMP critical
-
-                ! Update A matrix
-                this%A(this%P(i),:) = A_i
-
-                ! Update I_known
-                this%I_known(this%P(i)) = I_known_i
-
-                !$OMP end critical
-
             end select
+
+            ! Update system
+            !$OMP critical
+
+            ! Update A matrix
+            this%A(this%P(i),:) = A_i
+
+            ! Update I_known
+            this%I_known(this%P(i)) = I_known_i
+
+            !$OMP end critical
 
         end do
 
@@ -1260,12 +1258,12 @@ contains
                     end do
                 end do
 
-                ! Update row of A
-                !$OMP critical
-                this%A(this%P(i),:) = this%A(this%P(i),:) + A_i
-                !$OMP end critical
-
             end select
+
+            ! Update row of A
+            !$OMP critical
+            this%A(this%P(i),:) = this%A(this%P(i),:) + A_i
+            !$OMP end critical
 
         end do
 
