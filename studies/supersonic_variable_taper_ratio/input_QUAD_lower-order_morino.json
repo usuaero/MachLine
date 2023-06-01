@@ -14,7 +14,8 @@
         "mirror_about": "xy",
         "reference": {
             "area": 1.0
-        }
+        },
+        "singularity_order": "lower"
     },
     "solver": {
         "formulation": "morino",
@@ -29,7 +30,7 @@
         }
     },
     "output": {
-        "body_file": "studies/supersonic_variable_taper_ratio/results/M_4_R_T_25_fine_clustered.vtk",
-        "report_file": "studies/supersonic_variable_taper_ratio/reports/M_4_R_T_25_fine_clustered.json"
+        "body_file": "studies/supersonic_variable_taper_ratio/results/M_4_R_T_25_fine_clustered_QUAD_lower-order_morino.vtk",
+        "report_file": "studies/supersonic_variable_taper_ratio/reports/M_4_R_T_25_fine_clustered_QUAD_lower-order_morino.json"
     }
 }
