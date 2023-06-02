@@ -4,10 +4,12 @@ import matplotlib.pyplot as plt
 from dev.helper_scripts.geometry_creator import generate_random_spindle
 from studies.paraview_functions import extract_all_data, get_data_column_from_array
 from studies.case_running_functions import run_quad, write_input_file, cases
+import studies.case_running_functions as crf
 
 
-RERUN_MACHLINE = False
+RERUN_MACHLINE = True
 REGENERATE_MESHES = False
+crf.RERUN_MH_ONLY = True
 
 # Parameters
 study_dir = "studies/supersonic_spindle/"
