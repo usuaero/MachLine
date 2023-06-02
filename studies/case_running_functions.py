@@ -11,6 +11,7 @@ from copy import deepcopy
 cases = ['ML', 'MH', 'SL', 'SH']
 line_styles = ['k-', 'k--', 'k:', 'k-.']
 quad_labels = ['_QUAD_lower-order_morino', '_QUAD_higher-order_morino', '_QUAD_lower-order_source-free', '_QUAD_higher-order_source-free']
+RERUN_MH_ONLY = False
 
 
 def write_input_file(input_dict, input_filename):
@@ -140,6 +141,10 @@ def run_quad(input_filename, delete_input=True, run=True):
     reports = []
     for formulation in formulations:
         for order in orders:
+
+            if RERUN_MH_ONLY:
+                if order != "higher" or formulation != "morino":
+                    continue
 
             # Write out new input
             altered_input_filename = write_altered_input_file(input_filename, input_dict, order, formulation)
