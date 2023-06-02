@@ -2085,6 +2085,7 @@ contains
         integer,intent(in) :: solver_stat
 
         type(json_value),pointer :: p_parent, p_child
+        real :: max_flow_turning_angle
 
         ! Write mesh info
         call json_value_create(p_parent)
@@ -2094,6 +2095,8 @@ contains
         call json_value_add(p_parent, 'N_body_vertices', body%N_verts)
         call json_value_add(p_parent, 'N_wake_panels', body%wake%N_panels)
         call json_value_add(p_parent, 'average_characteristic_length', body%get_avg_characteristic_panel_length())
+        max_flow_turning_angle = acos(body%C_min_panel_angle)*180./pi
+        call json_value_add(p_parent, 'max_flow_turning_angle', max_flow_turning_angle)
 
         ! Write solver results
         call json_value_create(p_parent)

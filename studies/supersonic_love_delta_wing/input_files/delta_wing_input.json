@@ -1,15 +1,15 @@
 {
     "flow": {
         "freestream_velocity": [
-            0.9961946980917455,
-            0.08715574274765817,
+            0.9993908270190958,
+            0.03489949670250097,
             0.0
         ],
         "gamma": 1.4,
         "freestream_mach_number": 1.62
     },
     "geometry": {
-        "file": "studies/supersonic_love_delta_wing/meshes/delta_wing_clustered_mesh_fine.vtk",
+        "file": "studies/supersonic_love_delta_wing/meshes/delta_wing_clustered_mesh_coarse.vtk",
         "spanwise_axis": "+z",
         "max_continuity_angle": 1.0,
         "wake_model": {
@@ -35,9 +35,9 @@
         "pressure_for_forces": "isentropic"
     },
     "output": {
-        "body_file": "studies/supersonic_love_delta_wing/results/delta_wing_5.0_deg_fine.vtk",
-        "control_point_file": "studies/supersonic_love_delta_wing/results/delta_wing_5.0_deg_fine_control_points.vtk",
-        "wake_file": "studies/supersonic_love_delta_wing/results/delta_wing_5.0_deg_fine_wake.vtk",
-        "report_file": "studies/supersonic_love_delta_wing/reports/delta_wing_5.0_fine.json"
+        "body_file": "studies/supersonic_love_delta_wing/results/delta_wing_2.0_deg_coarse.vtk",
+        "control_point_file": "studies/supersonic_love_delta_wing/results/delta_wing_2.0_deg_coarse_control_points.vtk",
+        "wake_file": "studies/supersonic_love_delta_wing/results/delta_wing_2.0_deg_coarse_wake.vtk",
+        "report_file": "studies/supersonic_love_delta_wing/reports/delta_wing_2.0_coarse.json"
     }
 }

@@ -8,7 +8,7 @@ from studies.case_running_functions import run_quad, write_input_file, cases, li
 from studies.paraview_functions import extract_all_data, get_data_column_from_array, extract_plane_slice
 
 
-RERUN_MACHLINE = False
+RERUN_MACHLINE = True
 PRESSURE_FOR_FORCES = 'isentropic'
 study_dir = "studies/supersonic_love_delta_wing/"
 results_dir = study_dir + "results/"
