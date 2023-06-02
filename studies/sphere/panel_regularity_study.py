@@ -3,9 +3,11 @@ import matplotlib.pyplot as plt
 
 from studies.paraview_functions import extract_all_data, get_data_column_from_array
 from studies.case_running_functions import write_input_file, run_quad, cases, line_styles
+import studies.case_running_functions as crf
 
 
-RERUN_MACHLINE = False
+RERUN_MACHLINE = True
+crf.RERUN_MH_ONLY = True
 plot_dir = "studies/sphere/plots/regularity/"
 
 

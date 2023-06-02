@@ -142,15 +142,18 @@ def run_quad(input_filename, delete_input=True, run=True):
     for formulation in formulations:
         for order in orders:
 
-            if RERUN_MH_ONLY:
-                if order != "higher" or formulation != "morino":
-                    continue
-
             # Write out new input
             altered_input_filename = write_altered_input_file(input_filename, input_dict, order, formulation)
 
             # Run MachLine
-            reports.append(run_machline(altered_input_filename, delete_input=delete_input, run=run))
+            if RERUN_MH_ONLY:
+                if order == "higher" and formulation == "morino":
+                    reports.append(run_machline(altered_input_filename, delete_input=delete_input, run=True))
+                else:
+                    reports.append(run_machline(altered_input_filename, delete_input=delete_input, run=False))
+
+            else:
+                reports.append(run_machline(altered_input_filename, delete_input=delete_input, run=run))
 
     return reports
 

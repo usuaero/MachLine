@@ -5,8 +5,8 @@ from studies.case_running_functions import run_quad, get_order_of_convergence, w
 import studies.case_running_functions as crf
 
 
-RERUN_MACHLINE = True
-crf.RERUN_MH_ONLY = True
+RERUN_MACHLINE = False
+crf.RERUN_MH_ONLY = False
 study_dir = "studies/supersonic_double_wedge_wing/"
 plot_dir = study_dir + "plots/convergence/"
 
@@ -84,8 +84,8 @@ def run_quad_for_mach_aoa_and_mesh(M, alpha, grid, MCA):
 if __name__=="__main__":
 
     # Study parameters
-    #grids = ["coarse", "medium", "fine", "ultra_fine"]
-    grids = ["ultra_fine"]
+    grids = ["coarse", "medium", "fine", "ultra_fine"]
+    #grids = ["ultra_fine"]
     Ms = [1.5, 2.0, 3.0, 5.0]
     alphas = np.linspace(0.0, 5.0, 6)
     MCAs = [1.0, 45.0]
@@ -117,12 +117,13 @@ if __name__=="__main__":
             # Plot
             plt.figure()
             print()
+            print("C_x")
             print("M={0}, alpha={1}".format(M, alpha))
             for m, case in enumerate(cases):
-                plt.plot(l_avg[:-1], err[:,j,k,m,0], line_styles[m], label=case)
+                plt.plot(l_avg[:-1], err[:,j,k,l,m,0], line_styles[m], label=case)
 
                 # Get convergence
-                print("Order for case {0}: {1}".format(case, get_order_of_convergence(l_avg, C_F[:,j,k,m,0], truth_from_results=True)))
+                print("Order for case {0}: {1}".format(case, get_order_of_convergence(l_avg, C_F[:,j,k,l,m,0], truth_from_results=True)))
 
             # Format
             plt.xlabel('$l_{avg}$')
@@ -130,7 +131,8 @@ if __name__=="__main__":
             plt.xscale('log')
             plt.yscale('log')
             #plt.title('$C_x$ error for $M={0},\,\\alpha={1}$'.format(M, alpha))
-            plt.legend()
+            if M==1.5 and alpha==1.0:
+                plt.legend()
             plt.savefig(plot_dir+"err_C_x_M_{0}_alpha_{1}_MCA_{2}.pdf".format(M, alpha, max_continuity_angle))
             plt.savefig(plot_dir+"err_C_x_M_{0}_alpha_{1}_MCA_{2}.svg".format(M, alpha, max_continuity_angle))
             plt.close()
@@ -144,12 +146,13 @@ if __name__=="__main__":
             # Plot
             plt.figure()
             print()
+            print("C_z")
             print("M={0}, alpha={1}".format(M, alpha))
             for m, case in enumerate(cases):
-                plt.plot(l_avg[:-1], err[:,j,k,m,2], line_styles[l], label=case)
+                plt.plot(l_avg[:-1], err[:,j,k,l,m,2], line_styles[m], label=case)
 
                 # Get convergence
-                print("Order for case {0}: {1}".format(case, get_order_of_convergence(l_avg, C_F[:,j,k,m,2], truth_from_results=True)))
+                print("Order for case {0}: {1}".format(case, get_order_of_convergence(l_avg, C_F[:,j,k,l,m,2], truth_from_results=True)))
 
             # Format
             plt.xlabel('$l_{avg}$')
@@ -157,7 +160,8 @@ if __name__=="__main__":
             plt.xscale('log')
             plt.yscale('log')
             #plt.title('$C_z$ error for $M={0},\,\\alpha={1}$'.format(M, alpha))
-            plt.legend()
+            if M==1.5 and alpha==1.0:
+                plt.legend()
             plt.savefig(plot_dir+"err_C_z_M_{0}_alpha_{1}_MCA_{2}.pdf".format(M, alpha, max_continuity_angle))
             plt.savefig(plot_dir+"err_C_z_M_{0}_alpha_{1}_MCA_{2}.svg".format(M, alpha, max_continuity_angle))
             plt.close()
@@ -174,7 +178,7 @@ if __name__=="__main__":
                 for k, alpha in enumerate(alphas):
                     slopes.append(get_order_of_convergence(l_avg, C_F[:,j,k,i,l,0], truth_from_results=True))
 
-            print("{0}: {1} +/- {2}".format(case, round(np.average(slopes), 3), round(np.std(slopes), 3)))
+            print("{0}: {1} +/- {2}".format(case, round(np.average(slopes), 4), round(np.std(slopes), 4)))
 
     #Analyze convergence of Cz
     print()
@@ -190,4 +194,4 @@ if __name__=="__main__":
                         continue
                     slopes.append(get_order_of_convergence(l_avg, C_F[:,j,k,i,l,2], truth_from_results=True))
 
-            print("{0}: {1} +/- {2}".format(case, round(np.average(slopes), 3), round(np.std(slopes), 3)))
+            print("{0}: {1} +/- {2}".format(case, round(np.average(slopes), 4), round(np.std(slopes), 4)))
