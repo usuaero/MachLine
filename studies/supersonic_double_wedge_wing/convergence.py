@@ -2,9 +2,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from studies.case_running_functions import run_quad, get_order_of_convergence, write_input_file, cases, line_styles
+import studies.case_running_functions as crf
 
 
 RERUN_MACHLINE = True
+crf.RERUN_MH_ONLY = True
 study_dir = "studies/supersonic_double_wedge_wing/"
 plot_dir = study_dir + "plots/convergence/"
 
@@ -82,10 +84,11 @@ def run_quad_for_mach_aoa_and_mesh(M, alpha, grid, MCA):
 if __name__=="__main__":
 
     # Study parameters
-    grids = ["coarse", "medium", "fine", "ultra_fine"]
+    #grids = ["coarse", "medium", "fine", "ultra_fine"]
+    grids = ["ultra_fine"]
     Ms = [1.5, 2.0, 3.0, 5.0]
     alphas = np.linspace(0.0, 5.0, 6)
-    MCAs = [1.0, 2.5, 45.0]
+    MCAs = [1.0, 45.0]
 
     # Loop through parameters
     N_sys = np.zeros(len(grids))

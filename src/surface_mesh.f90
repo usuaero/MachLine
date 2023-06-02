@@ -190,7 +190,7 @@ contains
         this%C_max_cont_angle = cos(pi*discont_angle/180.)
 
         ! Get how sigma distributions should be calculated
-        call json_xtnsn_get(settings, 'force_sigma_match', force_sigma_match, default_value=.false.)
+        call json_xtnsn_get(settings, 'force_sigma_match', force_sigma_match, default_value=.true.)
         if (this%singularity_order=="higher" .and. verbose) then
             if (force_sigma_match) then
                 write(*,*) "    User has selected matched source distributions."
