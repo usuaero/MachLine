@@ -6,6 +6,7 @@ from scipy.spatial import ConvexHull
 
 def _export_vtk(filename, vertices, panels):
     # Exports the vertices and panel data to a VTK file.
+    # Vertices and panels should be shape = (N_verts or N_panels, 3)
 
     # Check extension
     if '.vtk' not in filename:
