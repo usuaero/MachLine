@@ -40,6 +40,9 @@ R_mat.txt
 prog.txt
 *temp*
 
+# Bad Fortran files
+fort.*
+
 # Test results
 test/results/
 
@@ -51,6 +54,17 @@ studies/*/reports/*
 studies/*/results/*
 dev/unit_tests/plots/*
 dev/renderings/*
+
+# PAN AIR files
+ffm*
+ft*
+rwms*
+panair*
+news
+nli*
+agps
+fmgp
+
 
 # Other stuf
 *.png

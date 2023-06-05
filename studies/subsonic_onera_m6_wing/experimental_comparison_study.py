@@ -24,6 +24,7 @@ def run_wing_quad_comparison(AoA, mach_num, correction, grid):
     mesh_file = study_dir + "meshes/M6_onera_{0}.stl".format(grid)
     #mesh_file = study_dir + "meshes/M6_onera.vtk"
     body_file = study_dir + "results/"+case_name+".vtk"
+    control_point_file = body_file.replace(".vtk", "_control_points.vtk")
     report_file = study_dir + "reports/"+case_name+".json"
 
     # Calculate Freestream Velocity
@@ -67,6 +68,7 @@ def run_wing_quad_comparison(AoA, mach_num, correction, grid):
         },
         "output": {
             "body_file": body_file,
+            "control_point_file": control_point_file,
             "report_file": report_file
         }
     }
