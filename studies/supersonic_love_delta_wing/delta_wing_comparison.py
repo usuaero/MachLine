@@ -4,11 +4,11 @@ import json
 import numpy as np
 import matplotlib.pyplot as plt
 
-from studies.case_running_functions import run_quad, write_input_file, cases, line_styles, quad_labels
-from studies.paraview_functions import extract_all_data, get_data_column_from_array, extract_plane_slice
+from studies.case_running_functions import run_quad, write_input_file, cases, line_styles, quad_labels, get_order_of_convergence
+from studies.paraview_functions import get_data_column_from_array, extract_plane_slice
 
 
-RERUN_MACHLINE = True
+RERUN_MACHLINE = False
 PRESSURE_FOR_FORCES = 'isentropic'
 study_dir = "studies/supersonic_love_delta_wing/"
 results_dir = study_dir + "results/"
@@ -16,7 +16,8 @@ reports_dir = study_dir + "reports/"
 M = 1.62
 semispan_locs = [22.5, 64.1]
 b_mid = (0.463/2/.230)
-mesh_densities = ['coarse', 'medium', 'fine']
+mesh_densities = ['ultra_coarse', 'coarse', 'medium', 'fine', 'ultra_fine']
+#mesh_densities = ["ultra_fine"]
 
 
 def plot_pressure_slices(pressure_rule, angles_of_attack, mesh_density):
@@ -116,6 +117,9 @@ def plot_force_convergence_over_alpha(alpha_list):
     # Initialize storage
     CD = np.zeros((len(cases), len(mesh_densities), len(alpha_list)))
     CL = np.zeros((len(cases), len(mesh_densities), len(alpha_list)))
+    Cx = np.zeros((len(cases), len(mesh_densities), len(alpha_list)))
+    Cy = np.zeros((len(cases), len(mesh_densities), len(alpha_list)))
+    l_avg = np.zeros(len(mesh_densities))
 
     # Iterate over cases
     for i, (case, quad_label) in enumerate(zip(cases, quad_labels)):
@@ -137,15 +141,20 @@ def plot_force_convergence_over_alpha(alpha_list):
 
                 # Store force data
                 force_coefs = report['total_forces']
+                Cx[i,j,k] = force_coefs['Cx']
+                Cy[i,j,k] = force_coefs['Cy']
                 CD[i,j,k] = force_coefs['Cx']*C + force_coefs['Cy']*S
                 CL[i,j,k] = -force_coefs['Cx']*S + force_coefs['Cy']*C
+
+                # Store average characteristic length
+                l_avg[j] = report["mesh_info"]["average_characteristic_length"]
     
         # Plot convergence against experimental data
 
         # CD convergence plot
         plt.figure()
         for j, mesh_density in enumerate(mesh_densities):
-            plt.plot(alpha_list, CD[i,j,:], 'o', label=mesh_density.title(), markersize=8-3*j, mec='k', mfc='none')
+            plt.plot(alpha_list, CD[i,j,:], 'o', label=mesh_density.replace("_", " ").title(), markersize=10-2*j, mec='k', mfc='none')
         if case=="MH":
             plt.legend()
         plt.xlabel('$\\alpha\,[^\circ]$')
@@ -158,7 +167,7 @@ def plot_force_convergence_over_alpha(alpha_list):
         # CL convergence plot
         plt.figure()
         for j, mesh_density in enumerate(mesh_densities):
-            plt.plot(alpha_list, CL[i,j,:], 'o', label=mesh_density.title(), markersize=8-3*j, mec='k', mfc='none')
+            plt.plot(alpha_list, CL[i,j,:], 'o', label=mesh_density.replace("_", " ").title(), markersize=10-2*j, mec='k', mfc='none')
         if case=="MH":
             plt.legend()
         plt.xlabel('$\\alpha\,[^\circ]$')
@@ -198,6 +207,83 @@ def plot_force_convergence_over_alpha(alpha_list):
         plt.savefig(plot_loc + ".pdf")
         plt.savefig(plot_loc + ".svg")
         plt.close()
+
+    # Analyze force convergence
+    plt.figure()
+    print()
+    print("CL Convergence Rate")
+    print("-------------------")
+    for i, case in enumerate(cases):
+        slopes = []
+        alpha_to_plot = []
+        for k, alpha in enumerate(alpha_list):
+            if alpha==0.0:
+                continue
+            slopes.append(get_order_of_convergence(l_avg, CL[i,:,k], truth_from_results=True))
+            alpha_to_plot.append(alpha)
+        print("{0}: {1} +/- {2}".format(case, round(np.average(slopes), 4), round(np.std(slopes), 4)))
+        plt.plot(alpha_to_plot, slopes, line_styles[i], label=case)
+    plt.xlabel('$\\alpha$')
+    plt.ylabel('Order of Convergence in $C_L$')
+    plt.legend()
+    plt.savefig(study_dir + "plots/CL_convergence_over_alpha.pdf")
+    plt.savefig(study_dir + "plots/CL_convergence_over_alpha.svg")
+    plt.close()
+
+    plt.figure()
+    print()
+    print("CD Convergence Rate")
+    print("-------------------")
+    for i, case in enumerate(cases):
+        slopes = []
+        for k, alpha in enumerate(alpha_list):
+            slopes.append(get_order_of_convergence(l_avg, CD[i,:,k], truth_from_results=True))
+        print("{0}: {1} +/- {2}".format(case, round(np.average(slopes), 4), round(np.std(slopes), 4)))
+        plt.plot(alpha_list, slopes, line_styles[i], label=case)
+    plt.xlabel('$\\alpha$')
+    plt.ylabel('Order of Convergence in $C_D$')
+    plt.legend()
+    plt.savefig(study_dir + "plots/CD_convergence_over_alpha.pdf")
+    plt.savefig(study_dir + "plots/CD_convergence_over_alpha.svg")
+    plt.close()
+
+    plt.figure()
+    print()
+    print("Cx Convergence Rate")
+    print("-------------------")
+    for i, case in enumerate(cases):
+        slopes = []
+        for k, alpha in enumerate(alpha_list):
+            slopes.append(get_order_of_convergence(l_avg, Cx[i,:,k], truth_from_results=True))
+        print("{0}: {1} +/- {2}".format(case, round(np.average(slopes), 4), round(np.std(slopes), 4)))
+        plt.plot(alpha_list, slopes, line_styles[i], label=case)
+    plt.xlabel('$\\alpha$')
+    plt.ylabel('Order of Convergence in $C_x$')
+    plt.legend()
+    plt.savefig(study_dir + "plots/Cx_convergence_over_alpha.pdf")
+    plt.savefig(study_dir + "plots/Cx_convergence_over_alpha.svg")
+    plt.close()
+
+    plt.figure()
+    print()
+    print("Cy Convergence Rate")
+    print("-------------------")
+    for i, case in enumerate(cases):
+        slopes = []
+        alpha_to_plot = []
+        for k, alpha in enumerate(alpha_list):
+            if alpha==0.0:
+                continue
+            slopes.append(get_order_of_convergence(l_avg, Cy[i,:,k], truth_from_results=True))
+            alpha_to_plot.append(alpha)
+        print("{0}: {1} +/- {2}".format(case, round(np.average(slopes), 4), round(np.std(slopes), 4)))
+        plt.plot(alpha_to_plot, slopes, line_styles[i], label=case)
+    plt.xlabel('$\\alpha$')
+    plt.ylabel('Order of Convergence in $C_z$')
+    #plt.legend()
+    plt.savefig(study_dir + "plots/Cy_convergence_over_alpha.pdf")
+    plt.savefig(study_dir + "plots/Cy_convergence_over_alpha.svg")
+    plt.close()
 
 
 def run_pressure_distribution_comparison(mesh_density):
@@ -267,7 +353,7 @@ def run_machline_cases(angles_of_attack, M, mesh_density):
             },
             "output" : {
                 "body_file" :          body_file,
-                "control_point_file" : results_dir + "delta_wing_{0}_deg_{1}_control_points.vtk".format(alpha,mesh_density),
+                "control_point_file" : results_dir + "delta_wing_{0}_deg_{1}_control_points.vtk".format(alpha, mesh_density),
                 "wake_file": results_dir + "delta_wing_{0}_deg_{1}_wake.vtk".format(alpha, mesh_density),
                 "report_file": reports_dir + "delta_wing_{0}_{1}.json".format(alpha, mesh_density)
             }
@@ -284,6 +370,6 @@ def run_machline_cases(angles_of_attack, M, mesh_density):
 if __name__=="__main__":
 
     # Run comparisons
-    for mesh_density in mesh_densities:
-        run_pressure_distribution_comparison(mesh_density)
+    #for mesh_density in mesh_densities:
+    #    run_pressure_distribution_comparison(mesh_density)
     run_force_comparison()

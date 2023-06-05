@@ -7,8 +7,8 @@ sys.path.insert(0, './dev/helper_scripts')
 from wedge_wing_generator import mesh_creator
 
 
-nodes = [20,40,60]
-grids = ['coarse', 'medium', 'fine']
+nodes = [20, 29, 42, 62, 90]
+grids = ['ultra_coarse', 'coarse', 'medium', 'fine', 'ultra_fine']
 
 
 for i, (node, grid) in enumerate(zip(nodes, grids)):

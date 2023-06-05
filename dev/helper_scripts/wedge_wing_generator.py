@@ -1,7 +1,6 @@
 # This script generates a vtk mesh file for symmetric wedge wings with an arbitrary taper ratio
 # Airfoil coordinates are used throughout this script
 
-from urllib.robotparser import RobotFileParser
 import numpy as np
 import matplotlib.pyplot as plt
 import copy
