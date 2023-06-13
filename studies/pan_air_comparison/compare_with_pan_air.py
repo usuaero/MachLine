@@ -1,7 +1,6 @@
 import numpy as np
 import panairwrapper.panairwrapper as pnr
 
-from scipy.spatial import ConvexHull
 from dev.helper_scripts.geometry_creator import _export_vtk
 
 # Geometry parameters (for a Love's delta wing #11)
@@ -23,9 +22,10 @@ def create_networks(N_chordwise_fore, N_chordwise_aft, N_spanwise):
 
     networks = []
     network_names = []
+    network_types = []
 
     # Initialize fore network
-    fore_network = np.zeros((N_spanwise, N_chordwise_fore, 3))
+    fore_network = np.zeros((N_chordwise_fore, N_spanwise, 3))
 
     # Get points at root
     x_root = np.linspace(0.0, c_t_max*c_root, N_chordwise_fore)
@@ -39,16 +39,24 @@ def create_networks(N_chordwise_fore, N_chordwise_aft, N_spanwise):
 
     # Interpolate
     for i in range(N_chordwise_fore):
-        fore_network[:,i,0] = np.linspace(x_root[i], x_tip, N_spanwise)
-        fore_network[:,i,1] = np.linspace(y_root[i], y_tip, N_spanwise)
-        fore_network[:,i,2] = np.linspace(z_root[i], z_tip, N_spanwise)
+        fore_network[i,:,0] = np.linspace(x_root[i], x_tip, N_spanwise)
+        fore_network[i,:,1] = np.linspace(y_root[i], y_tip, N_spanwise)
+        fore_network[i,:,2] = np.linspace(z_root[i], z_tip, N_spanwise)
 
     # Add
     networks.append(fore_network)
-    network_names.append("fore")
+    network_names.append("upper_fore")
+    network_types.append(11)
+
+    # Set up bottom
+    bottom_fore_network = fore_network[:,::-1,:]
+    bottom_fore_network[:,:,2] = -bottom_fore_network[:,:,2]
+    networks.append(bottom_fore_network)
+    network_names.append("lower_fore")
+    network_types.append(11)
 
     # Initialize aft network
-    aft_network = np.zeros((N_spanwise, N_chordwise_aft, 3))
+    aft_network = np.zeros((N_chordwise_aft, N_spanwise, 3))
 
     # Get points at root
     x_root = np.linspace(c_t_max*c_root, c_root, N_chordwise_aft)
@@ -57,15 +65,39 @@ def create_networks(N_chordwise_fore, N_chordwise_aft, N_spanwise):
 
     # Interpolate
     for i in range(N_chordwise_aft):
-        aft_network[:,i,0] = np.linspace(x_root[i], x_tip, N_spanwise)
-        aft_network[:,i,1] = np.linspace(y_root[i], y_tip, N_spanwise)
-        aft_network[:,i,2] = np.linspace(z_root[i], z_tip, N_spanwise)
+        aft_network[i,:,0] = np.linspace(x_root[i], x_tip, N_spanwise)
+        aft_network[i,:,1] = np.linspace(y_root[i], y_tip, N_spanwise)
+        aft_network[i,:,2] = np.linspace(z_root[i], z_tip, N_spanwise)
 
     # Add
     networks.append(aft_network)
-    network_names.append("aft")
+    network_names.append("upper_aft")
+    network_types.append(11)
 
-    return networks, network_names
+    # Set up bottom
+    bottom_aft_network = aft_network[:,::-1,:]
+    bottom_aft_network[:,:,2] = -bottom_aft_network[:,:,2]
+    networks.append(bottom_aft_network)
+    network_names.append("lower_aft")
+    network_types.append(11)
+
+    # Initialize wake network
+    wake_network = np.zeros((N_chordwise_aft, N_spanwise, 3))
+
+    # Get coordinate distributions
+    x_wake = np.linspace(c_root, 2*c_root, N_chordwise_aft)
+    y_wake = np.linspace(0.0, b_semi, N_spanwise)
+
+    # Set up wake
+    wake_network[:,:,0] = np.repeat(x_wake[:,np.newaxis], N_spanwise, axis=1)
+    wake_network[:,:,1] = np.repeat(y_wake[np.newaxis,:], N_spanwise, axis=0)
+
+    # Add wake
+    networks.append(wake_network)
+    network_names.append("wake")
+    network_types.append(18)
+
+    return networks, network_names, network_types
 
 
 def create_vtk(N_chordwise_fore, N_chordwise_aft, N_spanwise):
@@ -160,7 +192,7 @@ def compare(M, alpha, N_chordwise_fore, N_chordwise_aft, N_spanwise):
     # PAN AIR
 
     # Create networks
-    networks, network_names = create_networks(N_chordwise_fore, N_chordwise_aft, N_spanwise)
+    networks, network_names, network_types = create_networks(N_chordwise_fore, N_chordwise_aft, N_spanwise)
 
     # Set up PAN AIR case
     case = pnr.PanairWrapper("Love Delta Wing",
@@ -170,11 +202,11 @@ def compare(M, alpha, N_chordwise_fore, N_chordwise_aft, N_spanwise):
     case.set_aero_state(mach=M, alpha=alpha, beta=0.0)
 
     # Add networks
-    for network, name in zip(networks, network_names):
-        case.add_network(name, network)
+    for network, name, n_type in zip(networks, network_names, network_types):
+        case.add_network(name, network, network_type=n_type)
 
     # Set extra info
-    case.set_symmetry(True, True)
+    case.set_symmetry(True, False)
     case.set_reference_data(A_ref, b_semi, c_root)
 
     # Run PAN AIR
@@ -186,6 +218,7 @@ def compare(M, alpha, N_chordwise_fore, N_chordwise_aft, N_spanwise):
     C_F_panair[0] = FM["fx"]
     C_F_panair[1] = FM["fy"]
     C_F_panair[2] = FM["fz"]
+    print("PAN AIR Forces: ", C_F_panair)
 
     # MachLine
 

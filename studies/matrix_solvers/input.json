@@ -10,13 +10,15 @@
     "geometry": {
         "file": "studies/matrix_solvers/meshes/full_config_fine.stl",
         "spanwise_axis": "+y",
-        "mirror_about": "xz"
+        "mirror_about": "xz",
+        "singularity_order": "lower"
     },
     "solver": {
+        "formulation": "morino",
         "matrix_solver": "GMRES",
         "preconditioner": "none",
         "sort_system": true,
-        "write_A_and_b": true,
+        "write_A_and_b": false,
         "iterative_solver_output": "none"
     },
     "post_processing": {},

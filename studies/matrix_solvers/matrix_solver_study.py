@@ -78,9 +78,11 @@ def write_input_file(input_filename, mesh_root_name, v_inf, M, solver, refinemen
         "geometry" : {
             "file" : mesh_file,
             "spanwise_axis" : "+y",
-            "mirror_about" : mirror_plane
+            "mirror_about" : mirror_plane,
+            "singularity_order" : "lower"
         },
         "solver" : {
+            "formulation" : "morino",
             "matrix_solver" : solver,
             "preconditioner" : preconditioner,
             "sort_system" : sort_system,
@@ -109,8 +111,8 @@ def run_paces(mesh_root_name, v_inf, M, mirror_plane, vtk_mesh):
     #solver_options = ["BJAC", "BSSOR"]
     #solver_options = ["BSSOR"]
     #refinement_options = ["fine"]
-    refinement_options = ["coarse"]#, "medium", "fine"]
-    preconditioner_options = ["DIAG"]#, "none"]
+    refinement_options = ["coarse", "medium", "fine"]
+    preconditioner_options = ["DIAG", "none"]
     sort_system_options = [False, True]
     #sort_system_options = [True]
     N_avg = 5
@@ -200,11 +202,10 @@ if __name__=="__main__":
     case_root_name = "cone_10_deg_" # [coarse = 321, medium = 1241, fine = 4881]
     run_paces(case_root_name, [-1.0, 0.0, 0.0], 1.5, 'xy', True)
 
-#    # Run for diamond wing [coarse = 800, medium = 2152, fine = 7535]
-#    case_root_name = "diamond_5_deg_full_"
-#    run_paces(case_root_name, [1.0, 0.0, 0.0], 2.0, 'None', False)
-#
-#    # Run for full configuration [coarse = 600, medium = 2400, fine = 11000]
-#    case_root_name = "full_config_"
-#    run_paces(case_root_name, [1.0, 0.0, 0.0], 2.0, 'xz', False)
-#
+    # Run for diamond wing [coarse = 800, medium = 2152, fine = 7535]
+    case_root_name = "diamond_5_deg_full_"
+    run_paces(case_root_name, [1.0, 0.0, 0.0], 2.0, 'None', False)
+
+    # Run for full configuration [coarse = 600, medium = 2400, fine = 11000]
+    case_root_name = "full_config_"
+    run_paces(case_root_name, [1.0, 0.0, 0.0], 2.0, 'xz', False)
