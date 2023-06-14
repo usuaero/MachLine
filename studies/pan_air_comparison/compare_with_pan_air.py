@@ -2,6 +2,7 @@ import numpy as np
 import panairwrapper.panairwrapper as pnr
 
 from dev.helper_scripts.geometry_creator import _export_vtk
+from studies.case_running_functions import run_quad, write_input_file, cases
 
 # Geometry parameters (for Love's delta wing #11)
 t_max = 0.08
@@ -15,6 +16,8 @@ study_dir = "studies/pan_air_comparison/"
 mesh_file = study_dir + "meshes/delta_wing.vtk"
 body_file = study_dir + "results/delta_wing.vtk"
 report_file = study_dir + "reports/report.json"
+pan_air_data_file = study_dir + "panair_files/panair_data.csv"
+pan_air_output_file = study_dir + "panair_files/panair.out"
 
 
 def create_networks(N_chordwise_fore, N_chordwise_aft, N_spanwise):
@@ -83,7 +86,7 @@ def pan_air_pressures_to_csv():
     # Reads in the PAN AIR output data and writes the pressure distributions to a csv file
 
     # Read in output
-    with open(study_dir+"panair_files/panair.out", 'r') as panair_output:
+    with open(pan_air_output_file, 'r') as panair_output:
         lines = panair_output.readlines()
 
     # Initialize data storage
@@ -113,7 +116,7 @@ def pan_air_pressures_to_csv():
                 data.append(split_line)
 
     # Write out data
-    with open(study_dir+"panair_files/panair_data.csv", 'w') as csv_handle:
+    with open(pan_air_data_file, 'w') as csv_handle:
         print(header, file=csv_handle)
         for data_line in data:
             print(",".join(data_line), file=csv_handle)
@@ -205,6 +208,60 @@ def create_vtk(N_chordwise_fore, N_chordwise_aft, N_spanwise):
     _export_vtk(mesh_file, vertices, panels)
 
 
+def run_machline(M, alpha):
+    # Runs MachLine at the given Mach number and angle of attack
+
+    # Declare MachLine input
+    input_dict = {
+        "flow": {
+            "freestream_velocity": [np.cos(np.radians(alpha)), np.sin(np.radians(alpha)), 0.0],
+            "gamma" : 1.4,
+            "freestream_mach_number" : M
+        },
+        "geometry": {
+            "file": mesh_file,
+            "spanwise_axis" : "+y",
+            "mirror_about" : "xz",
+            "max_continuity_angle" : 1.0,
+            "wake_model": {
+                "wake_present" : True,
+                "append_wake" : False
+            },
+            "reference": {
+                "area": A_ref
+            }
+        },
+        "solver": {
+            "formulation": "morino",
+            "matrix_solver": "GMRES",
+            "run_checks": True
+        },
+        "post_processing" : {
+            "pressure_rules" : {
+                "second-order" : True,
+                "isentropic" : True,
+                "slender-body" : True,
+                "linear" : True
+            },
+            "pressure_for_forces" : "isentropic"
+        },
+        "output" : {
+            "verbose" : False,
+            "body_file" :  body_file,
+            "report_file": report_file
+        }
+    }
+
+    # Dump
+    input_file = study_dir + "delta_wing_input.json"
+    write_input_file(input_dict, input_file)
+
+    # Run
+    reports = run_quad(input_file, run=True)
+
+    return reports
+
+
 def compare(M, alpha, N_chordwise_fore, N_chordwise_aft, N_spanwise):
     # Runs the delta wing through both MachLine and PAN AIR to compare
 
@@ -247,13 +304,21 @@ def compare(M, alpha, N_chordwise_fore, N_chordwise_aft, N_spanwise):
     # Create vtk file
     create_vtk(N_chordwise_fore, N_chordwise_aft, N_spanwise)
 
+    # Run MachLine
+    reports = run_machline(M, alpha)
+    for report, case in zip(reports, cases):
+        try:
+            print(case, report["total_forces"])
+        except KeyError:
+            continue
+
 
 if __name__=="__main__":
 
     # Mesh parameters
-    grids = ['coarse']#, 'medium', 'fine']
-    Ncfs = [5, 10, 20]
-    Ncas = [10, 20, 40]
+    grids = ['coarse', 'medium', 'fine']
+    Ncfs = [3, 6, 12]
+    Ncas = [6, 12, 24]
     Nss = [10, 20, 40]
 
     # Angles of attack
@@ -262,5 +327,6 @@ if __name__=="__main__":
 
     # Loop
     for i, grid in enumerate(grids):
+        print(grid)
         for j, alpha in enumerate(alphas):
             compare(M, alpha, Ncfs[i], Ncas[i], Nss[i])
