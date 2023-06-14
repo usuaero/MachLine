@@ -3,7 +3,7 @@ import panairwrapper.panairwrapper as pnr
 
 from dev.helper_scripts.geometry_creator import _export_vtk
 
-# Geometry parameters (for a Love's delta wing #11)
+# Geometry parameters (for Love's delta wing #11)
 t_max = 0.08
 c_t_max = 0.18
 c_root = 0.23
@@ -22,7 +22,6 @@ def create_networks(N_chordwise_fore, N_chordwise_aft, N_spanwise):
 
     networks = []
     network_names = []
-    network_types = []
 
     # Initialize fore network
     fore_network = np.zeros((N_chordwise_fore, N_spanwise, 3))
@@ -45,15 +44,13 @@ def create_networks(N_chordwise_fore, N_chordwise_aft, N_spanwise):
 
     # Add
     networks.append(fore_network)
-    network_names.append("upper_fore")
-    network_types.append(11)
+    network_names.append("fore")
 
-    # Set up bottom
-    bottom_fore_network = fore_network[:,::-1,:]
-    bottom_fore_network[:,:,2] = -bottom_fore_network[:,:,2]
-    networks.append(bottom_fore_network)
-    network_names.append("lower_fore")
-    network_types.append(11)
+    ## Add bottom fore network
+    #bottom_fore_network = fore_network[::-1,:,:]
+    #bottom_fore_network[:,:,2] = -bottom_fore_network[:,:,2]
+    #networks.append(bottom_fore_network)
+    #network_names.append("bfr")
 
     # Initialize aft network
     aft_network = np.zeros((N_chordwise_aft, N_spanwise, 3))
@@ -71,33 +68,55 @@ def create_networks(N_chordwise_fore, N_chordwise_aft, N_spanwise):
 
     # Add
     networks.append(aft_network)
-    network_names.append("upper_aft")
-    network_types.append(11)
+    network_names.append("aft")
 
-    # Set up bottom
-    bottom_aft_network = aft_network[:,::-1,:]
-    bottom_aft_network[:,:,2] = -bottom_aft_network[:,:,2]
-    networks.append(bottom_aft_network)
-    network_names.append("lower_aft")
-    network_types.append(11)
+    ## Add bottom aft network
+    #bottom_aft_network = aft_network[::-1,:,:]
+    #bottom_aft_network[:,:,2] = -bottom_aft_network[:,:,2]
+    #networks.append(bottom_aft_network)
+    #network_names.append("baf")
 
-    # Initialize wake network
-    wake_network = np.zeros((N_chordwise_aft, N_spanwise, 3))
+    return networks, network_names
 
-    # Get coordinate distributions
-    x_wake = np.linspace(c_root, 2*c_root, N_chordwise_aft)
-    y_wake = np.linspace(0.0, b_semi, N_spanwise)
 
-    # Set up wake
-    wake_network[:,:,0] = np.repeat(x_wake[:,np.newaxis], N_spanwise, axis=1)
-    wake_network[:,:,1] = np.repeat(y_wake[np.newaxis,:], N_spanwise, axis=0)
+def pan_air_pressures_to_csv():
+    # Reads in the PAN AIR output data and writes the pressure distributions to a csv file
 
-    # Add wake
-    networks.append(wake_network)
-    network_names.append("wake")
-    network_types.append(18)
+    # Read in output
+    with open(study_dir+"panair_files/panair.out", 'r') as panair_output:
+        lines = panair_output.readlines()
 
-    return networks, network_names, network_types
+    # Initialize data storage
+    header = "jc,ip,x,y,z,wx,wy,wz,cp2ndu,cpisnu,lmachu,source,doublet"
+    data = []
+
+    # Get data
+    within_network = False
+    for line in lines:
+        
+        # Check for start of network
+        if "network id" in line and "source type" in line:
+            within_network = True
+            continue
+
+        # Check for end of network
+        if "force / moment data for network" in line:
+            within_network = False
+            continue
+
+        # If we're in a network, try to parse the data
+        if within_network:
+            split_line = line.split()
+            if len(split_line) < 13:
+                continue
+            if split_line[0] != "jc":
+                data.append(split_line)
+
+    # Write out data
+    with open(study_dir+"panair_files/panair_data.csv", 'w') as csv_handle:
+        print(header, file=csv_handle)
+        for data_line in data:
+            print(",".join(data_line), file=csv_handle)
 
 
 def create_vtk(N_chordwise_fore, N_chordwise_aft, N_spanwise):
@@ -192,7 +211,7 @@ def compare(M, alpha, N_chordwise_fore, N_chordwise_aft, N_spanwise):
     # PAN AIR
 
     # Create networks
-    networks, network_names, network_types = create_networks(N_chordwise_fore, N_chordwise_aft, N_spanwise)
+    networks, network_names = create_networks(N_chordwise_fore, N_chordwise_aft, N_spanwise)
 
     # Set up PAN AIR case
     case = pnr.PanairWrapper("Love Delta Wing",
@@ -202,11 +221,11 @@ def compare(M, alpha, N_chordwise_fore, N_chordwise_aft, N_spanwise):
     case.set_aero_state(mach=M, alpha=alpha, beta=0.0)
 
     # Add networks
-    for network, name, n_type in zip(networks, network_names, network_types):
-        case.add_network(name, network, network_type=n_type)
+    for network, name in zip(networks, network_names):
+        case.add_network(name, network, xy_indexing=True)
 
     # Set extra info
-    case.set_symmetry(True, False)
+    case.set_symmetry(True, True)
     case.set_reference_data(A_ref, b_semi, c_root)
 
     # Run PAN AIR
@@ -219,6 +238,9 @@ def compare(M, alpha, N_chordwise_fore, N_chordwise_aft, N_spanwise):
     C_F_panair[1] = FM["fy"]
     C_F_panair[2] = FM["fz"]
     print("PAN AIR Forces: ", C_F_panair)
+
+    # Extract data
+    pan_air_pressures_to_csv()
 
     # MachLine
 
