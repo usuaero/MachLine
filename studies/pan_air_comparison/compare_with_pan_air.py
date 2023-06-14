@@ -1,8 +1,12 @@
+import sys
 import numpy as np
+sys.path.insert(0, '../panairwrapper')
 import panairwrapper.panairwrapper as pnr
+import matplotlib.pyplot as plt
 
 from dev.helper_scripts.geometry_creator import _export_vtk
-from studies.case_running_functions import run_quad, write_input_file, cases
+from studies.case_running_functions import run_quad, write_input_file, cases, line_styles
+from studies.paraview_functions import extract_plane_slice, get_data_column_from_array, get_data_from_csv
 
 # Geometry parameters (for Love's delta wing #11)
 t_max = 0.08
@@ -13,6 +17,7 @@ A_ref = c_root*b_semi
 
 # Run parameters
 study_dir = "studies/pan_air_comparison/"
+plot_dir = study_dir + "plots/"
 mesh_file = study_dir + "meshes/delta_wing.vtk"
 body_file = study_dir + "results/delta_wing.vtk"
 report_file = study_dir + "reports/report.json"
@@ -312,11 +317,61 @@ def compare(M, alpha, N_chordwise_fore, N_chordwise_aft, N_spanwise):
         except KeyError:
             continue
 
+    # Plot pressures
+    plot_pressure_slices(M, alpha, reports)
+
+
+def plot_pressure_slices(M, alpha, reports):
+    # Plots pressure slices from MachLine and PAN AIR
+
+    # Get PAN AIR data
+    header_pa, data_pa = get_data_from_csv(pan_air_data_file, remove_csv=False)
+    x_pa = get_data_column_from_array(header_pa, data_pa, "x")
+    y_pa = get_data_column_from_array(header_pa, data_pa, "y")
+    C_P_pa = get_data_column_from_array(header_pa, data_pa, "cpisnu")
+
+    # Get unique y stations out of PAN AIR data
+    y_unique, ind_inv = np.unique(y_pa, return_inverse=True)
+    print(ind_inv)
+
+    # Loop through spanwise stations
+    for i, y in enumerate(y_unique):
+
+        percent_semi = int(round(y/b_semi, 2)*100)
+
+        # Get indices of the data for this station
+        ind = np.where(ind_inv == i)
+
+        # Plot PAN AIR data
+        plt.figure()
+        plt.plot(x_pa[ind]/c_root, C_P_pa[ind], 'kv', label='PAN AIR')
+
+        # Get data from MachLine and plot
+        for report, case, line_style in zip(reports, cases, line_styles):
+
+            # Get slice
+            result_file = report["input"]["output"]["body_file"]
+            headers_ml, data_ml = extract_plane_slice(result_file, [0.0, 1.0, 0.0], [0.0, y, 0.0], which_data='cell')
+            x_ml = get_data_column_from_array(headers_ml, data_ml, "centroid:0")
+            C_P_ml = get_data_column_from_array(headers_ml, data_ml, "C_p_ise")
+
+            # Plot
+            plt.plot(x_ml/c_root, C_P_ml, line_style, label=case)
+
+        # Format
+        plt.xlabel('$x/c_r$')
+        plt.ylabel('$C_P$')
+        plt.gca().invert_yaxis()
+        plt.legend()
+        plt.savefig(plot_dir + "pressure_{0}.pdf".format(percent_semi))
+        plt.savefig(plot_dir + "pressure_{0}.svg".format(percent_semi))
+        plt.close()
+
 
 if __name__=="__main__":
 
     # Mesh parameters
-    grids = ['coarse', 'medium', 'fine']
+    grids = ['coarse']#, 'medium', 'fine']
     Ncfs = [3, 6, 12]
     Ncas = [6, 12, 24]
     Nss = [10, 20, 40]
