@@ -37,7 +37,7 @@
     },
     "output": {
         "verbose": false,
-        "body_file": "studies/pan_air_comparison/results/delta_wing_medium.vtk",
+        "body_file": "studies/pan_air_comparison/results/delta_wing_coarse.vtk",
         "report_file": "studies/pan_air_comparison/reports/report.json"
     }
 }

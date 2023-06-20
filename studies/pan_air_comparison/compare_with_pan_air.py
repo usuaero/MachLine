@@ -52,13 +52,14 @@ def create_networks(N_chordwise_fore, N_chordwise_aft, N_spanwise):
 
     # Add
     networks.append(fore_network)
-    network_names.append("fore")
+    network_names.append("ufr")
 
-    ## Add bottom fore network
-    #bottom_fore_network = fore_network[::-1,:,:]
-    #bottom_fore_network[:,:,2] = -bottom_fore_network[:,:,2]
-    #networks.append(bottom_fore_network)
-    #network_names.append("bfr")
+    # Add bottom fore network
+    bottom_fore_network = np.copy(fore_network)
+    bottom_fore_network = bottom_fore_network[::-1,:,:]
+    bottom_fore_network[:,:,2] = -bottom_fore_network[:,:,2]
+    networks.append(bottom_fore_network)
+    network_names.append("bfr")
 
     # Initialize aft network
     aft_network = np.zeros((N_chordwise_aft, N_spanwise, 3))
@@ -76,13 +77,14 @@ def create_networks(N_chordwise_fore, N_chordwise_aft, N_spanwise):
 
     # Add
     networks.append(aft_network)
-    network_names.append("aft")
+    network_names.append("uaf")
 
-    ## Add bottom aft network
-    #bottom_aft_network = aft_network[::-1,:,:]
-    #bottom_aft_network[:,:,2] = -bottom_aft_network[:,:,2]
-    #networks.append(bottom_aft_network)
-    #network_names.append("baf")
+    # Add bottom aft network
+    bottom_aft_network = np.copy(aft_network)
+    bottom_aft_network = bottom_aft_network[::-1,:,:]
+    bottom_aft_network[:,:,2] = -bottom_aft_network[:,:,2]
+    networks.append(bottom_aft_network)
+    network_names.append("baf")
 
     return networks, network_names
 
@@ -287,7 +289,7 @@ def compare(M, alpha, N_chordwise_fore, N_chordwise_aft, N_spanwise, grid):
         case.add_network(name, network, xy_indexing=True)
 
     # Set extra info
-    case.set_symmetry(True, True)
+    case.set_symmetry(True, False)
     case.set_reference_data(A_ref, b_semi, c_root)
 
     # Run PAN AIR
@@ -380,7 +382,7 @@ def plot_pressure_slices(M, alpha, reports, grid):
 if __name__=="__main__":
 
     # Mesh parameters
-    grids = ['coarse', 'medium']#, 'fine']
+    grids = ['coarse']#, 'medium']#, 'fine']
     Ncfs = [3, 6, 12]
     Ncas = [6, 12, 24]
     Nss = [10, 20, 40]
