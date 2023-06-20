@@ -1,4 +1,5 @@
 import sys
+import time
 import numpy as np
 sys.path.insert(0, '../panairwrapper')
 import panairwrapper.panairwrapper as pnr
@@ -85,6 +86,14 @@ def create_networks(N_chordwise_fore, N_chordwise_aft, N_spanwise):
     bottom_aft_network[:,:,2] = -bottom_aft_network[:,:,2]
     networks.append(bottom_aft_network)
     network_names.append("baf")
+
+    # Add wake network
+    wake_network = np.zeros((2, N_spanwise, 3))
+    wake_network[0,:,0] = c_root
+    wake_network[1,:,0] = 2.0*c_root
+    wake_network[:,:,1] = np.linspace(0.0, y_tip, N_spanwise)[np.newaxis,:]
+    networks.append(wake_network)
+    network_names.append("wake")
 
     return networks, network_names
 
@@ -286,7 +295,10 @@ def compare(M, alpha, N_chordwise_fore, N_chordwise_aft, N_spanwise, grid):
 
     # Add networks
     for network, name in zip(networks, network_names):
-        case.add_network(name, network, xy_indexing=True)
+        if name=="wake":
+            case.add_network(name, network, xy_indexing=False, network_type=18)
+        else:
+            case.add_network(name, network, xy_indexing=True)
 
     # Set extra info
     case.set_symmetry(True, False)
@@ -313,14 +325,23 @@ def compare(M, alpha, N_chordwise_fore, N_chordwise_aft, N_spanwise, grid):
 
     # Run MachLine
     reports = run_machline(M, alpha, grid)
+    machline_forces = []
     for report, case in zip(reports, cases):
         try:
+            machline_forces.append(report["total_forces"])
             print(case, report["total_forces"])
         except KeyError:
+            machline_forces.append(None)
             continue
 
     # Plot pressures
     plot_pressure_slices(M, alpha, reports, grid)
+
+    Cx = np.array([C_F_panair[0]] + [x["Cx"] for x in machline_forces])
+    Cz = np.array([C_F_panair[2]] + [x["Cz"] for x in machline_forces])
+    t = np.array([result.get_runtime()] + [x["total_runtime"] for x in reports])
+
+    return Cx, Cz, t
 
 
 def plot_pressure_slices(M, alpha, reports, grid):
@@ -374,8 +395,8 @@ def plot_pressure_slices(M, alpha, reports, grid):
         plt.ylabel('$C_P$')
         plt.gca().invert_yaxis()
         plt.legend()
-        plt.savefig(plot_dir + "pressure_{0}_{1}.pdf".format(percent_semi, grid))
-        plt.savefig(plot_dir + "pressure_{0}_{1}.svg".format(percent_semi, grid))
+        plt.savefig(plot_dir + "pressure_at_alpha_{0}_percent_semispan_{1}_{2}.pdf".format(int(alpha), percent_semi, grid))
+        plt.savefig(plot_dir + "pressure_at_alpha_{0}_percent_semispan_{1}_{2}.svg".format(int(alpha), percent_semi, grid))
         plt.close()
 
 
@@ -387,12 +408,18 @@ if __name__=="__main__":
     Ncas = [6, 12, 24]
     Nss = [10, 20, 40]
 
-    # Angles of attack
+    # Flow options
     alphas = [0.0]
     M = 1.62
 
     # Loop
+    Cx = np.zeros((len(grids), len(alphas), 5))
+    Cz = np.zeros((len(grids), len(alphas), 5))
+    t = np.zeros((len(grids), len(alphas), 5))
     for i, grid in enumerate(grids):
         print(grid)
         for j, alpha in enumerate(alphas):
-            compare(M, alpha, Ncfs[i], Ncas[i], Nss[i], grid)
+            Cx[i,j,:], Cz[i,j,:], t[i,j,:] = compare(M, alpha, Ncfs[i], Ncas[i], Nss[i], grid)
+
+    # Plot force convergence
+    plt.figure()
