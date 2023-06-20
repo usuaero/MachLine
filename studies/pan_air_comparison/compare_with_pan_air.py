@@ -213,7 +213,7 @@ def create_vtk(N_chordwise_fore, N_chordwise_aft, N_spanwise):
     _export_vtk(mesh_file, vertices, panels)
 
 
-def run_machline(M, alpha):
+def run_machline(M, alpha, grid):
     # Runs MachLine at the given Mach number and angle of attack
 
     # Declare MachLine input
@@ -252,7 +252,7 @@ def run_machline(M, alpha):
         },
         "output" : {
             "verbose" : False,
-            "body_file" :  body_file,
+            "body_file" :  body_file.replace(".vtk", "_{0}.vtk".format(grid)),
             "report_file": report_file
         }
     }
@@ -267,7 +267,7 @@ def run_machline(M, alpha):
     return reports
 
 
-def compare(M, alpha, N_chordwise_fore, N_chordwise_aft, N_spanwise):
+def compare(M, alpha, N_chordwise_fore, N_chordwise_aft, N_spanwise, grid):
     # Runs the delta wing through both MachLine and PAN AIR to compare
 
     # PAN AIR
@@ -310,7 +310,7 @@ def compare(M, alpha, N_chordwise_fore, N_chordwise_aft, N_spanwise):
     create_vtk(N_chordwise_fore, N_chordwise_aft, N_spanwise)
 
     # Run MachLine
-    reports = run_machline(M, alpha)
+    reports = run_machline(M, alpha, grid)
     for report, case in zip(reports, cases):
         try:
             print(case, report["total_forces"])
@@ -318,10 +318,10 @@ def compare(M, alpha, N_chordwise_fore, N_chordwise_aft, N_spanwise):
             continue
 
     # Plot pressures
-    plot_pressure_slices(M, alpha, reports)
+    plot_pressure_slices(M, alpha, reports, grid)
 
 
-def plot_pressure_slices(M, alpha, reports):
+def plot_pressure_slices(M, alpha, reports, grid):
     # Plots pressure slices from MachLine and PAN AIR
 
     # Get PAN AIR data
@@ -332,7 +332,6 @@ def plot_pressure_slices(M, alpha, reports):
 
     # Get unique y stations out of PAN AIR data
     y_unique, ind_inv = np.unique(y_pa, return_inverse=True)
-    print(ind_inv)
 
     # Loop through spanwise stations
     for i, y in enumerate(y_unique):
@@ -344,7 +343,7 @@ def plot_pressure_slices(M, alpha, reports):
 
         # Plot PAN AIR data
         plt.figure()
-        plt.plot(x_pa[ind]/c_root, C_P_pa[ind], 'kv', label='PAN AIR')
+        plt.plot(x_pa[ind]/c_root, C_P_pa[ind], 'kv', label='PAN AIR', markersize=4)
 
         # Get data from MachLine and plot
         for report, case, line_style in zip(reports, cases, line_styles):
@@ -355,23 +354,33 @@ def plot_pressure_slices(M, alpha, reports):
             x_ml = get_data_column_from_array(headers_ml, data_ml, "centroid:0")
             C_P_ml = get_data_column_from_array(headers_ml, data_ml, "C_p_ise")
 
+            # Figure out where the leading edge is so we only plot one surface
+            i_le = len(x_ml)//2
+
+            # If we're not at the tip (where PAN AIR has triangular panels), average the MachLine data to be apples-to-apples with PAN AIR
+            if i < len(y_unique)-1:
+                x_ml_avg = 0.5*(x_ml[:i_le:2] + x_ml[1:i_le:2])
+                C_P_ml_avg = 0.5*(C_P_ml[:i_le:2] + C_P_ml[1:i_le:2])
+                plt.plot(x_ml_avg/c_root, C_P_ml_avg, line_style, label=case, linewidth=0.5)
+            else:
+                plt.plot(x_ml[:i_le]/c_root, C_P_ml[:i_le], line_style, label=case, linewidth=0.5)
+
             # Plot
-            plt.plot(x_ml/c_root, C_P_ml, line_style, label=case)
 
         # Format
         plt.xlabel('$x/c_r$')
         plt.ylabel('$C_P$')
         plt.gca().invert_yaxis()
         plt.legend()
-        plt.savefig(plot_dir + "pressure_{0}.pdf".format(percent_semi))
-        plt.savefig(plot_dir + "pressure_{0}.svg".format(percent_semi))
+        plt.savefig(plot_dir + "pressure_{0}_{1}.pdf".format(percent_semi, grid))
+        plt.savefig(plot_dir + "pressure_{0}_{1}.svg".format(percent_semi, grid))
         plt.close()
 
 
 if __name__=="__main__":
 
     # Mesh parameters
-    grids = ['coarse']#, 'medium', 'fine']
+    grids = ['coarse', 'medium']#, 'fine']
     Ncfs = [3, 6, 12]
     Ncas = [6, 12, 24]
     Nss = [10, 20, 40]
@@ -384,4 +393,4 @@ if __name__=="__main__":
     for i, grid in enumerate(grids):
         print(grid)
         for j, alpha in enumerate(alphas):
-            compare(M, alpha, Ncfs[i], Ncas[i], Nss[i])
+            compare(M, alpha, Ncfs[i], Ncas[i], Nss[i], grid)
