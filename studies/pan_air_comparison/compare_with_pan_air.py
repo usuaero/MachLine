@@ -230,7 +230,7 @@ def run_machline(M, alpha, grid):
     # Declare MachLine input
     input_dict = {
         "flow": {
-            "freestream_velocity": [np.cos(np.radians(alpha)), np.sin(np.radians(alpha)), 0.0],
+            "freestream_velocity": [np.cos(np.radians(alpha)), 0.0, np.sin(np.radians(alpha))],
             "gamma" : 1.4,
             "freestream_mach_number" : M
         },
@@ -377,18 +377,28 @@ def plot_pressure_slices(M, alpha, reports, grid):
             x_ml = get_data_column_from_array(headers_ml, data_ml, "centroid:0")
             C_P_ml = get_data_column_from_array(headers_ml, data_ml, "C_p_ise")
 
-            # Figure out where the leading edge is so we only plot one surface
-            i_le = len(x_ml)//2
+            if alpha==0.0:
 
-            # If we're not at the tip (where PAN AIR has triangular panels), average the MachLine data to be apples-to-apples with PAN AIR
-            if i < len(y_unique)-1:
-                x_ml_avg = 0.5*(x_ml[:i_le:2] + x_ml[1:i_le:2])
-                C_P_ml_avg = 0.5*(C_P_ml[:i_le:2] + C_P_ml[1:i_le:2])
-                plt.plot(x_ml_avg/c_root, C_P_ml_avg, line_style, label=case, linewidth=0.5)
+                # Figure out where the leading edge is so we only plot one surface
+                i_le = len(x_ml)//2
+
+                # If we're not at the tip (where PAN AIR has triangular panels), average the MachLine data to be apples-to-apples with PAN AIR
+                if i < len(y_unique)-1:
+                    x_ml_avg = 0.5*(x_ml[:i_le:2] + x_ml[1:i_le:2])
+                    C_P_ml_avg = 0.5*(C_P_ml[:i_le:2] + C_P_ml[1:i_le:2])
+                    plt.plot(x_ml_avg/c_root, C_P_ml_avg, line_style, label=case, linewidth=0.5)
+                else:
+                    plt.plot(x_ml[:i_le]/c_root, C_P_ml[:i_le], line_style, label=case, linewidth=0.5)
+
             else:
-                plt.plot(x_ml[:i_le]/c_root, C_P_ml[:i_le], line_style, label=case, linewidth=0.5)
 
-            # Plot
+                # If we're not at the tip (where PAN AIR has triangular panels), average the MachLine data to be apples-to-apples with PAN AIR
+                if i < len(y_unique)-1:
+                    x_ml_avg = 0.5*(x_ml[::2] + x_ml[1::2])
+                    C_P_ml_avg = 0.5*(C_P_ml[::2] + C_P_ml[1::2])
+                    plt.plot(x_ml_avg/c_root, C_P_ml_avg, line_style, label=case, linewidth=0.5)
+                else:
+                    plt.plot(x_ml/c_root, C_P_ml, line_style, label=case, linewidth=0.5)
 
         # Format
         plt.xlabel('$x/c_r$')
@@ -403,13 +413,13 @@ def plot_pressure_slices(M, alpha, reports, grid):
 if __name__=="__main__":
 
     # Mesh parameters
-    grids = ['coarse']#, 'medium']#, 'fine']
+    grids = ['coarse', 'medium', 'fine']
     Ncfs = [3, 6, 12]
     Ncas = [6, 12, 24]
     Nss = [10, 20, 40]
 
     # Flow options
-    alphas = [0.0]
+    alphas = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0]
     M = 1.62
 
     # Loop
@@ -421,5 +431,56 @@ if __name__=="__main__":
         for j, alpha in enumerate(alphas):
             Cx[i,j,:], Cz[i,j,:], t[i,j,:] = compare(M, alpha, Ncfs[i], Ncas[i], Nss[i], grid)
 
-    # Plot force convergence
+    # Plot axial force convergence
     plt.figure()
+    for i, grid in enumerate(grids):
+        if i==0:
+            plt.plot(alphas, Cx[i,:,0], 'v', markersize=8-i*3, label="PAN AIR", mfc='none', mec='k')
+        else:
+            plt.plot(alphas, Cx[i,:,0], 'v', markersize=8-i*3, mfc='none', mec='k')
+    plt.xlabel("$\\alpha$")
+    plt.ylabel("$C_x$")
+    plt.legend()
+    plt.savefig(plot_dir + "C_x_convergence.pdf")
+    plt.savefig(plot_dir + "C_x_convergence.svg")
+    plt.close()
+
+    # Plot normal force convergence
+    plt.figure()
+    for i, grid in enumerate(grids):
+        if i==0:
+            plt.plot(alphas, Cz[i,:,0], 'v', markersize=8-i*3, label="PAN AIR", mfc='none', mec='k')
+        else:
+            plt.plot(alphas, Cz[i,:,0], 'v', markersize=8-i*3, mfc='none', mec='k')
+    plt.xlabel("$\\alpha$")
+    plt.ylabel("$C_z$")
+    plt.legend()
+    plt.savefig(plot_dir + "C_z_convergence.pdf")
+    plt.savefig(plot_dir + "C_z_convergence.svg")
+    plt.close()
+
+    # Plot axial force comparison
+    plt.figure()
+    plt.plot(alphas, Cx[-1,:,0], 'kv', markersize=3, label="PAN AIR")
+    for i, case in enumerate(cases):
+        plt.plot(alphas, Cx[-1,:,i+1], line_styles[i], label=case)
+    plt.xlabel("$\\alpha$")
+    plt.ylabel("$C_x$")
+    plt.legend()
+    plt.savefig(plot_dir + "C_x_comparison.pdf")
+    plt.savefig(plot_dir + "C_x_comparison.svg")
+    plt.close()
+
+    # Plot normal force comparison
+    plt.figure()
+    plt.plot(alphas, Cz[-1,:,0], 'kv', markersize=3, label="PAN AIR")
+    for i, case in enumerate(cases):
+        plt.plot(alphas, Cz[-1,:,i+1], line_styles[i], label=case)
+    plt.xlabel("$\\alpha$")
+    plt.ylabel("$C_z$")
+    plt.legend()
+    plt.savefig(plot_dir + "C_z_comparison.pdf")
+    plt.savefig(plot_dir + "C_z_comparison.svg")
+    plt.close()
+
+    print(t)

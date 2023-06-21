@@ -1,9 +1,9 @@
 {
     "flow": {
         "freestream_velocity": [
-            1.0,
+            0.9961946980917455,
             0.0,
-            0.0
+            0.08715574274765817
         ],
         "gamma": 1.4,
         "freestream_mach_number": 1.62
@@ -37,7 +37,7 @@
     },
     "output": {
         "verbose": false,
-        "body_file": "studies/pan_air_comparison/results/delta_wing_coarse.vtk",
+        "body_file": "studies/pan_air_comparison/results/delta_wing_fine.vtk",
         "report_file": "studies/pan_air_comparison/reports/report.json"
     }
 }
