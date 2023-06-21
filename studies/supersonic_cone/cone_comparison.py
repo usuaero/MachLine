@@ -1,7 +1,4 @@
-import json
-import subprocess as sp
 import numpy as np
-import paraview.simple as pvs
 import matplotlib.pyplot as plt
 
 from studies.case_running_functions import run_quad, write_input_file, cases, line_styles
@@ -129,7 +126,7 @@ def get_analytic_data(filename):
 if __name__=="__main__":
 
     # Study parameters
-    grids = ["coarse", "medium", "fine"]
+    grids = ["coarse", "medium"]#, "fine"]
     #grids = ["fine"]
     Ms = [1.4, 1.5, 1.7, 2.0, 2.4, 2.8, 3.3, 4.0]
     half_angles = [2.5, 5, 10, 15]

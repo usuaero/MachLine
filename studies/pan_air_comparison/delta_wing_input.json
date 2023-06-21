@@ -33,11 +33,11 @@
             "slender-body": true,
             "linear": true
         },
-        "pressure_for_forces": "isentropic"
+        "pressure_for_forces": "second-order"
     },
     "output": {
         "verbose": false,
-        "body_file": "studies/pan_air_comparison/results/delta_wing_fine.vtk",
+        "body_file": "studies/pan_air_comparison/results/delta_wing_medium.vtk",
         "report_file": "studies/pan_air_comparison/reports/report.json"
     }
 }

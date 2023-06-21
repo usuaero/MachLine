@@ -259,7 +259,7 @@ def run_machline(M, alpha, grid):
                 "slender-body" : True,
                 "linear" : True
             },
-            "pressure_for_forces" : "isentropic"
+            "pressure_for_forces" : "second-order"
         },
         "output" : {
             "verbose" : False,
@@ -413,7 +413,7 @@ def plot_pressure_slices(M, alpha, reports, grid):
 if __name__=="__main__":
 
     # Mesh parameters
-    grids = ['coarse', 'medium', 'fine']
+    grids = ['coarse', 'medium']#, 'fine']
     Ncfs = [3, 6, 12]
     Ncas = [6, 12, 24]
     Nss = [10, 20, 40]
@@ -459,28 +459,48 @@ if __name__=="__main__":
     plt.savefig(plot_dir + "C_z_convergence.svg")
     plt.close()
 
-    # Plot axial force comparison
-    plt.figure()
-    plt.plot(alphas, Cx[-1,:,0], 'kv', markersize=3, label="PAN AIR")
-    for i, case in enumerate(cases):
-        plt.plot(alphas, Cx[-1,:,i+1], line_styles[i], label=case)
-    plt.xlabel("$\\alpha$")
-    plt.ylabel("$C_x$")
-    plt.legend()
-    plt.savefig(plot_dir + "C_x_comparison.pdf")
-    plt.savefig(plot_dir + "C_x_comparison.svg")
-    plt.close()
+    for i, grid in enumerate(grids):
 
-    # Plot normal force comparison
+        # Plot axial force comparison
+        plt.figure()
+        plt.plot(alphas, Cx[i,:,0], 'kv', markersize=3, label="PAN AIR")
+        for j, case in enumerate(cases):
+            plt.plot(alphas, Cx[i,:,j+1], line_styles[j], label=case, linewidth=0.5)
+        plt.xlabel("$\\alpha$")
+        plt.ylabel("$C_x$")
+        plt.legend()
+        plt.ylim((np.min(Cx[i,:,0])-0.1, np.max(Cx[i,:,0])+0.1))
+        plt.savefig(plot_dir + "C_x_comparison_{0}.pdf".format(grid))
+        plt.savefig(plot_dir + "C_x_comparison_{0}.svg".format(grid))
+        plt.close()
+
+        # Plot normal force comparison
+        plt.figure()
+        plt.plot(alphas, Cz[i,:,0], 'kv', markersize=3, label="PAN AIR")
+        for j, case in enumerate(cases):
+            plt.plot(alphas, Cz[i,:,j+1], line_styles[j], label=case, linewidth=0.5)
+        plt.xlabel("$\\alpha$")
+        plt.ylabel("$C_z$")
+        plt.legend()
+        plt.ylim((np.min(Cz[i,:,0])-0.1, np.max(Cz[i,:,0])+0.1))
+        plt.savefig(plot_dir + "C_z_comparison_{0}.pdf".format(grid))
+        plt.savefig(plot_dir + "C_z_comparison_{0}.svg".format(grid))
+        plt.close()
+
+    # Calculate average run times over angles of attack
+    t_avg = np.average(t, axis=1)
+    t_std = np.std(t, axis=1)
+
+    # Plot run times
     plt.figure()
-    plt.plot(alphas, Cz[-1,:,0], 'kv', markersize=3, label="PAN AIR")
-    for i, case in enumerate(cases):
-        plt.plot(alphas, Cz[-1,:,i+1], line_styles[i], label=case)
-    plt.xlabel("$\\alpha$")
-    plt.ylabel("$C_z$")
+    plt.plot(grids, t_avg[:,0], 'kv', markersize=3, label="PAN AIR")
+    for j, case in enumerate(cases):
+        plt.plot(grids, t_avg[:,j+1], line_styles[j], label=case, linewidth=0.5)
+    plt.xlabel("Mesh Refinement")
+    plt.ylabel("Total Runtime $[s]$")
     plt.legend()
-    plt.savefig(plot_dir + "C_z_comparison.pdf")
-    plt.savefig(plot_dir + "C_z_comparison.svg")
+    plt.savefig(plot_dir + "time_comparison.pdf")
+    plt.savefig(plot_dir + "time_comparison.svg")
     plt.close()
 
     print(t)
