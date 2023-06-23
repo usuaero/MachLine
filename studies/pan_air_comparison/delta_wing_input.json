@@ -9,7 +9,7 @@
         "freestream_mach_number": 1.62
     },
     "geometry": {
-        "file": "studies/pan_air_comparison/meshes/delta_wing.vtk",
+        "file": "studies/pan_air_comparison/meshes/delta_wing_fine_right_split.vtk",
         "spanwise_axis": "+y",
         "mirror_about": "xz",
         "max_continuity_angle": 1.0,
@@ -37,7 +37,7 @@
     },
     "output": {
         "verbose": false,
-        "body_file": "studies/pan_air_comparison/results/delta_wing_medium.vtk",
-        "report_file": "studies/pan_air_comparison/reports/report.json"
+        "body_file": "studies/pan_air_comparison/results/delta_wing_fine_right_split_fine_5_aoa.vtk",
+        "report_file": "studies/pan_air_comparison/reports/delta_wing_fine_right_split_fine_5_aoa.json"
     }
 }

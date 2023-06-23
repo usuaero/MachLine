@@ -113,12 +113,14 @@ contains
         character(len=:),allocatable :: mesh_file
         logical :: found
 
+        ! Get mesh filename
+        call json_get(settings, 'file', mesh_file)
+        mesh_file = trim(mesh_file)
+
         ! Get singularity settings
         call this%parse_singularity_settings(settings)
 
         ! Load mesh from file
-        call json_get(settings, 'file', mesh_file)
-        mesh_file = trim(mesh_file)
         call this%load_mesh_file(mesh_file)
 
         ! Determine mirroring
@@ -721,6 +723,7 @@ contains
         end if
 
         ! Determine surface convexity at each vertex
+        !$OMP parallel do schedule(static)
         do i=1,this%N_verts
             this%vertices(i)%convex = this%is_convex_at_vertex(i)
         end do

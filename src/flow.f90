@@ -26,7 +26,7 @@ module flow_mod
         logical :: supersonic, incompressible
         real,dimension(3,3) :: A_g_to_c, A_c_to_s, A_g_to_s ! Coordinate transformation matrices
         real :: a_ise, b_ise, c_ise ! Constant parameters for isentropic pressure coefficient calculations
-        real :: C_P_vac ! Vacuum pressure coefficient for this flow
+        real :: C_P_vac, C_P_stag ! Vacuum and stagnation pressure coefficients for this flow
 
         contains
 
@@ -46,6 +46,7 @@ module flow_mod
             procedure :: correct_C_P_PG => flow_correct_C_P_PG
             procedure :: correct_C_P_KT => flow_correct_C_P_KT
             procedure :: correct_C_P_L => flow_correct_C_P_L
+            procedure :: restrict_pressure => flow_restrict_pressure
             procedure :: get_C_P => flow_get_C_P
 
     end type flow
@@ -120,13 +121,28 @@ contains
         call this%calc_metric_matrices()
         call this%calc_transforms(spanwise_axis)
 
-        ! Parameters for calculating isentropic pressure coefficients
-        this%a_ise = 2./(this%gamma*this%M_inf**2)
-        this%b_ise = 0.5*(this%gamma-1.)*this%M_inf**2
-        this%c_ise = this%gamma/(this%gamma-1.)
+        if (.not. this%incompressible) then
+
+            ! Parameters for calculating isentropic pressure coefficients
+            this%a_ise = 2./(this%gamma*this%M_inf**2)
+            this%b_ise = 0.5*(this%gamma-1.)*this%M_inf**2
+            this%c_ise = this%gamma/(this%gamma-1.)
         
-        ! Vacuum pressure coefficient
-        this%C_P_vac = -this%a_ise
+            ! Vacuum pressure coefficient
+            this%C_P_vac = -this%a_ise
+
+            ! Stagnation pressure coefficient
+            this%C_P_stag = this%a_ise*((1. + this%b_ise)**this%c_ise - 1.)
+
+        else
+
+            ! Vacuum pressure coefficient (non-physical) (but then again, so are incompressible flows)
+            this%C_P_vac = -huge(this%C_P_vac)
+
+            ! Stagnation pressure coefficient
+            this%C_P_stag = 1.
+
+        end if
 
     end subroutine flow_init
 
@@ -361,7 +377,9 @@ contains
         C_P_sln = this%get_C_P_sln(v)
         v_pert_c = this%get_v_pert_c(v)
 
+        ! Calculate
         C_P_2nd = C_P_sln - (1.-this%M_inf**2)*v_pert_c(1)**2*this%U_inv**2
+        call this%restrict_pressure(C_P_2nd)
         
     end function flow_get_C_P_2nd
 
@@ -384,6 +402,7 @@ contains
         v_pert_c = this%get_v_pert_c(v)
 
         C_P_sln = C_P_lin - (v_pert_c(2)**2 + v_pert_c(3)**2)*this%U_inv**2
+        call this%restrict_pressure(C_P_sln)
         
     end function flow_get_C_P_sln
 
@@ -404,6 +423,7 @@ contains
         v_pert_c = this%get_v_pert_c(v)
 
         C_P_lin = -2.*v_pert_c(1)*this%U_inv
+        call this%restrict_pressure(C_P_lin)
         
     end function flow_get_C_P_lin
 
@@ -486,6 +506,23 @@ contains
         C_P_L = C_P_inc / (sM2 + (x * C_P_inc))
 
     end function flow_correct_C_P_L
+
+
+    subroutine flow_restrict_pressure(this, C_P)
+        ! Restricts the given pressure coefficient to the range [C_P_vac, C_P_stag]
+
+        implicit none
+        
+        class(flow), intent(in) :: this
+        real, intent(inout) :: C_P
+        
+        if (C_P > this%C_P_stag) then
+            C_P = this%C_P_stag
+        else if (C_P < this%C_P_vac) then
+            C_P = this%C_P_vac
+        end if
+        
+    end subroutine flow_restrict_pressure
 
 
     function flow_get_C_P(this, v, rule, M_corr) result(C_P)

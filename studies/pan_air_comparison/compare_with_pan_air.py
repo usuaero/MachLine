@@ -6,7 +6,7 @@ import panairwrapper.panairwrapper as pnr
 import matplotlib.pyplot as plt
 
 from dev.helper_scripts.geometry_creator import _export_vtk
-from studies.case_running_functions import run_quad, write_input_file, cases, line_styles
+from studies.case_running_functions import run_quad, write_input_file, cases, line_styles, get_order_of_convergence
 from studies.paraview_functions import extract_plane_slice, get_data_column_from_array, get_data_from_csv
 
 # Geometry parameters (for Love's delta wing #11)
@@ -19,9 +19,6 @@ A_ref = c_root*b_semi
 # Run parameters
 study_dir = "studies/pan_air_comparison/"
 plot_dir = study_dir + "plots/"
-mesh_file = study_dir + "meshes/delta_wing.vtk"
-body_file = study_dir + "results/delta_wing.vtk"
-report_file = study_dir + "reports/report.json"
 pan_air_data_file = study_dir + "panair_files/panair_data.csv"
 pan_air_output_file = study_dir + "panair_files/panair.out"
 
@@ -138,7 +135,7 @@ def pan_air_pressures_to_csv():
             print(",".join(data_line), file=csv_handle)
 
 
-def create_vtk(N_chordwise_fore, N_chordwise_aft, N_spanwise):
+def create_vtk(N_chordwise_fore, N_chordwise_aft, N_spanwise, grid_label, split_dir="right"):
     # Creates delta wing mesh
 
     # Determine total number of vertices
@@ -198,20 +195,40 @@ def create_vtk(N_chordwise_fore, N_chordwise_aft, N_spanwise):
             # Check we're not at the end
             if j != N_around_chord-1:
 
-                # Create first panel
-                panels.append([i_root_start+j, i_tip_start+j, i_root_start+j+1])
+                if split_dir=="right": # The actual name of split_dir is arbitrary; I just had to name it something to distinguish
 
-                # Create second panel
-                panels.append([i_root_start+j+1, i_tip_start+j, i_tip_start+j+1])
+                    # Create first panel
+                    panels.append([i_root_start+j, i_tip_start+j, i_root_start+j+1])
+
+                    # Create second panel
+                    panels.append([i_root_start+j+1, i_tip_start+j, i_tip_start+j+1])
+
+                else:
+
+                    # Create first panel
+                    panels.append([i_root_start+j, i_tip_start+j, i_tip_start+j+1])
+
+                    # Create second panel
+                    panels.append([i_root_start+j+1, i_root_start+j, i_tip_start+j+1])
 
             # If we are at the end, loop back around
             else:
 
-                # Create first panel
-                panels.append([i_root_start+j, i_tip_start+j, i_root_start])
+                if split_dir=="right":
 
-                # Create second panel
-                panels.append([i_root_start, i_tip_start+j, i_tip_start])
+                    # Create first panel
+                    panels.append([i_root_start+j, i_tip_start+j, i_root_start])
+
+                    # Create second panel
+                    panels.append([i_root_start, i_tip_start+j, i_tip_start])
+
+                else:
+
+                    # Create first panel
+                    panels.append([i_root_start+j, i_tip_start+j, i_tip_start])
+
+                    # Create second panel
+                    panels.append([i_root_start, i_root_start+j, i_tip_start])
 
     # Create final section at tip
     i_start = N_around_chord*(N_spanwise-2)
@@ -221,13 +238,19 @@ def create_vtk(N_chordwise_fore, N_chordwise_aft, N_spanwise):
     panels = np.array(panels)
 
     # Save
+    mesh_file = study_dir + "meshes/delta_wing_{0}_{1}_split.vtk".format(grid_label, split_dir)
     _export_vtk(mesh_file, vertices, panels)
 
+    return mesh_file
 
-def run_machline(M, alpha, grid):
+
+def run_machline(M, alpha, grid, mesh_file):
     # Runs MachLine at the given Mach number and angle of attack
 
     # Declare MachLine input
+    case_name = mesh_file.replace(study_dir + "meshes/", "").replace(".vtk", "")
+    body_file = study_dir + "results/" + case_name + "_{0}_{1}_aoa.vtk".format(grid, int(alpha))
+    report_file = study_dir + "reports/" + case_name + "_{0}_{1}_aoa.json".format(grid, int(alpha))
     input_dict = {
         "flow": {
             "freestream_velocity": [np.cos(np.radians(alpha)), 0.0, np.sin(np.radians(alpha))],
@@ -263,7 +286,7 @@ def run_machline(M, alpha, grid):
         },
         "output" : {
             "verbose" : False,
-            "body_file" :  body_file.replace(".vtk", "_{0}.vtk".format(grid)),
+            "body_file" :  body_file,
             "report_file": report_file
         }
     }
@@ -278,7 +301,7 @@ def run_machline(M, alpha, grid):
     return reports
 
 
-def compare(M, alpha, N_chordwise_fore, N_chordwise_aft, N_spanwise, grid):
+def compare(M, alpha, N_chordwise_fore, N_chordwise_aft, N_spanwise, grid, split_dir="right"):
     # Runs the delta wing through both MachLine and PAN AIR to compare
 
     # PAN AIR
@@ -321,10 +344,10 @@ def compare(M, alpha, N_chordwise_fore, N_chordwise_aft, N_spanwise, grid):
     # MachLine
 
     # Create vtk file
-    create_vtk(N_chordwise_fore, N_chordwise_aft, N_spanwise)
+    mesh_file = create_vtk(N_chordwise_fore, N_chordwise_aft, N_spanwise, grid, split_dir=split_dir)
 
     # Run MachLine
-    reports = run_machline(M, alpha, grid)
+    reports = run_machline(M, alpha, grid, mesh_file)
     machline_forces = []
     for report, case in zip(reports, cases):
         try:
@@ -335,16 +358,17 @@ def compare(M, alpha, N_chordwise_fore, N_chordwise_aft, N_spanwise, grid):
             continue
 
     # Plot pressures
-    plot_pressure_slices(M, alpha, reports, grid)
+    plot_pressure_slices(M, alpha, reports, grid, split_dir=split_dir)
 
     Cx = np.array([C_F_panair[0]] + [x["Cx"] for x in machline_forces])
     Cz = np.array([C_F_panair[2]] + [x["Cz"] for x in machline_forces])
     t = np.array([result.get_runtime()] + [x["total_runtime"] for x in reports])
+    l_avg = reports[0]["mesh_info"]["average_characteristic_length"]
 
-    return Cx, Cz, t
+    return Cx, Cz, t, l_avg
 
 
-def plot_pressure_slices(M, alpha, reports, grid):
+def plot_pressure_slices(M, alpha, reports, grid, split_dir="right"):
     # Plots pressure slices from MachLine and PAN AIR
 
     # Get PAN AIR data
@@ -405,102 +429,169 @@ def plot_pressure_slices(M, alpha, reports, grid):
         plt.ylabel('$C_P$')
         plt.gca().invert_yaxis()
         plt.legend()
-        plt.savefig(plot_dir + "pressure_at_alpha_{0}_percent_semispan_{1}_{2}.pdf".format(int(alpha), percent_semi, grid))
-        plt.savefig(plot_dir + "pressure_at_alpha_{0}_percent_semispan_{1}_{2}.svg".format(int(alpha), percent_semi, grid))
+        plt.savefig(plot_dir + "pressure_at_alpha_{0}_percent_semispan_{1}_{2}_{3}_split.pdf".format(int(alpha), percent_semi, grid, split_dir))
+        plt.savefig(plot_dir + "pressure_at_alpha_{0}_percent_semispan_{1}_{2}_{3}_split.svg".format(int(alpha), percent_semi, grid, split_dir))
         plt.close()
 
 
 if __name__=="__main__":
 
     # Mesh parameters
-    grids = ['coarse', 'medium']#, 'fine']
+    grids = ['coarse', 'medium', 'fine']
     Ncfs = [3, 6, 12]
     Ncas = [6, 12, 24]
     Nss = [10, 20, 40]
+    #split_dirs = ["left", "right"]
+    split_dirs = ["right"] # Verified on 6/22/23 that right is the best option here, as would be expected
 
     # Flow options
     alphas = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0]
     M = 1.62
 
     # Loop
-    Cx = np.zeros((len(grids), len(alphas), 5))
-    Cz = np.zeros((len(grids), len(alphas), 5))
-    t = np.zeros((len(grids), len(alphas), 5))
-    for i, grid in enumerate(grids):
-        print(grid)
-        for j, alpha in enumerate(alphas):
-            Cx[i,j,:], Cz[i,j,:], t[i,j,:] = compare(M, alpha, Ncfs[i], Ncas[i], Nss[i], grid)
+    for split_dir in split_dirs:
 
-    # Plot axial force convergence
-    plt.figure()
-    for i, grid in enumerate(grids):
-        if i==0:
-            plt.plot(alphas, Cx[i,:,0], 'v', markersize=8-i*3, label="PAN AIR", mfc='none', mec='k')
-        else:
-            plt.plot(alphas, Cx[i,:,0], 'v', markersize=8-i*3, mfc='none', mec='k')
-    plt.xlabel("$\\alpha$")
-    plt.ylabel("$C_x$")
-    plt.legend()
-    plt.savefig(plot_dir + "C_x_convergence.pdf")
-    plt.savefig(plot_dir + "C_x_convergence.svg")
-    plt.close()
+        # Initialize storage
+        Cx = np.zeros((len(grids), len(alphas), 5))
+        Cz = np.zeros((len(grids), len(alphas), 5))
+        t = np.zeros((len(grids), len(alphas), 5))
+        l_avg = np.zeros(len(grids))
 
-    # Plot normal force convergence
-    plt.figure()
-    for i, grid in enumerate(grids):
-        if i==0:
-            plt.plot(alphas, Cz[i,:,0], 'v', markersize=8-i*3, label="PAN AIR", mfc='none', mec='k')
-        else:
-            plt.plot(alphas, Cz[i,:,0], 'v', markersize=8-i*3, mfc='none', mec='k')
-    plt.xlabel("$\\alpha$")
-    plt.ylabel("$C_z$")
-    plt.legend()
-    plt.savefig(plot_dir + "C_z_convergence.pdf")
-    plt.savefig(plot_dir + "C_z_convergence.svg")
-    plt.close()
+        for i, grid in enumerate(grids):
+            for j, alpha in enumerate(alphas):
+                Cx[i,j,:], Cz[i,j,:], t[i,j,:], l_avg[i] = compare(M, alpha, Ncfs[i], Ncas[i], Nss[i], grid, split_dir=split_dir)
 
-    for i, grid in enumerate(grids):
-
-        # Plot axial force comparison
+        # Plot axial force convergence
         plt.figure()
-        plt.plot(alphas, Cx[i,:,0], 'kv', markersize=3, label="PAN AIR")
-        for j, case in enumerate(cases):
-            plt.plot(alphas, Cx[i,:,j+1], line_styles[j], label=case, linewidth=0.5)
+        for i, grid in enumerate(grids):
+            if i==0:
+                plt.plot(alphas, Cx[i,:,0], 'v', markersize=8-i*3, label="PAN AIR", mfc='none', mec='k')
+            else:
+                plt.plot(alphas, Cx[i,:,0], 'v', markersize=8-i*3, mfc='none', mec='k')
         plt.xlabel("$\\alpha$")
         plt.ylabel("$C_x$")
         plt.legend()
-        plt.ylim((np.min(Cx[i,:,0])-0.1, np.max(Cx[i,:,0])+0.1))
-        plt.savefig(plot_dir + "C_x_comparison_{0}.pdf".format(grid))
-        plt.savefig(plot_dir + "C_x_comparison_{0}.svg".format(grid))
+        plt.savefig(plot_dir + "C_x_convergence_{0}_split.pdf".format(split_dir))
+        plt.savefig(plot_dir + "C_x_convergence_{0}_split.svg".format(split_dir))
         plt.close()
 
-        # Plot normal force comparison
+        # Plot normal force convergence
         plt.figure()
-        plt.plot(alphas, Cz[i,:,0], 'kv', markersize=3, label="PAN AIR")
-        for j, case in enumerate(cases):
-            plt.plot(alphas, Cz[i,:,j+1], line_styles[j], label=case, linewidth=0.5)
+        for i, grid in enumerate(grids):
+            if i==0:
+                plt.plot(alphas, Cz[i,:,0], 'v', markersize=8-i*3, label="PAN AIR", mfc='none', mec='k')
+            else:
+                plt.plot(alphas, Cz[i,:,0], 'v', markersize=8-i*3, mfc='none', mec='k')
         plt.xlabel("$\\alpha$")
         plt.ylabel("$C_z$")
         plt.legend()
-        plt.ylim((np.min(Cz[i,:,0])-0.1, np.max(Cz[i,:,0])+0.1))
-        plt.savefig(plot_dir + "C_z_comparison_{0}.pdf".format(grid))
-        plt.savefig(plot_dir + "C_z_comparison_{0}.svg".format(grid))
+        plt.savefig(plot_dir + "C_z_convergence_{0}_split.pdf".format(split_dir))
+        plt.savefig(plot_dir + "C_z_convergence_{0}_split.svg".format(split_dir))
         plt.close()
 
-    # Calculate average run times over angles of attack
-    t_avg = np.average(t, axis=1)
-    t_std = np.std(t, axis=1)
+        for i, grid in enumerate(grids):
 
-    # Plot run times
-    plt.figure()
-    plt.plot(grids, t_avg[:,0], 'kv', markersize=3, label="PAN AIR")
-    for j, case in enumerate(cases):
-        plt.plot(grids, t_avg[:,j+1], line_styles[j], label=case, linewidth=0.5)
-    plt.xlabel("Mesh Refinement")
-    plt.ylabel("Total Runtime $[s]$")
-    plt.legend()
-    plt.savefig(plot_dir + "time_comparison.pdf")
-    plt.savefig(plot_dir + "time_comparison.svg")
-    plt.close()
+            # Plot axial force comparison
+            plt.figure()
+            plt.plot(alphas, Cx[i,:,0], 'kv', markersize=3, label="PAN AIR")
+            for j, case in enumerate(cases):
+                plt.plot(alphas, Cx[i,:,j+1], line_styles[j], label=case, linewidth=0.5)
+            plt.xlabel("$\\alpha$")
+            plt.ylabel("$C_x$")
+            plt.legend()
+            plt.ylim((np.min(Cx[i,:,0])-0.1, np.max(Cx[i,:,0])+0.1))
+            plt.savefig(plot_dir + "C_x_comparison_{0}_{1}.pdf".format(grid, split_dir))
+            plt.savefig(plot_dir + "C_x_comparison_{0}_{1}.svg".format(grid, split_dir))
+            plt.close()
 
-    print(t)
+            # Plot normal force comparison
+            plt.figure()
+            plt.plot(alphas, Cz[i,:,0], 'kv', markersize=3, label="PAN AIR")
+            for j, case in enumerate(cases):
+                plt.plot(alphas, Cz[i,:,j+1], line_styles[j], label=case, linewidth=0.5)
+            plt.xlabel("$\\alpha$")
+            plt.ylabel("$C_z$")
+            plt.legend()
+            plt.ylim((np.min(Cz[i,:,0])-0.1, np.max(Cz[i,:,0])+0.1))
+            plt.savefig(plot_dir + "C_z_comparison_{0}_{1}.pdf".format(grid, split_dir))
+            plt.savefig(plot_dir + "C_z_comparison_{0}_{1}.svg".format(grid, split_dir))
+            plt.close()
+
+        # Calculate average run times over angles of attack
+        t_avg = np.average(t, axis=1)
+        t_std = np.std(t, axis=1)
+
+        # Plot run times
+        plt.figure()
+        plt.plot(grids, t_avg[:,0], 'kv', markersize=3, label="PAN AIR")
+        for j, case in enumerate(cases):
+            plt.plot(grids, t_avg[:,j+1], line_styles[j], label=case, linewidth=0.5)
+        plt.xlabel("Mesh Refinement")
+        plt.ylabel("Total Runtime $[s]$")
+        plt.yscale("log")
+        plt.legend()
+        plt.savefig(plot_dir + "time_comparison_{0}.pdf".format(split_dir))
+        plt.savefig(plot_dir + "time_comparison_{0}.svg".format(split_dir))
+        plt.close()
+
+        # Calculate orders of convergence
+        order_PA = np.zeros((2,len(alphas)))
+        order_ML = np.zeros((2,len(alphas)))
+        order_MH = np.zeros((2,len(alphas)))
+        order_SL = np.zeros((2,len(alphas)))
+        order_SH = np.zeros((2,len(alphas)))
+        for i, alpha in enumerate(alphas):
+
+            # Get PAN AIR orders of convergence
+            order_PA[0,i] = get_order_of_convergence(l_avg*np.sqrt(2), Cx[:,i,0], truth_from_results=True)
+            order_PA[1,i] = get_order_of_convergence(l_avg*np.sqrt(2), Cz[:,i,0], truth_from_results=True)
+
+            # Get MachLine orders of convergence
+            order_ML[0,i] = get_order_of_convergence(l_avg, Cx[:,i,1], truth_from_results=True)
+            order_ML[1,i] = get_order_of_convergence(l_avg, Cz[:,i,1], truth_from_results=True)
+
+            order_MH[0,i] = get_order_of_convergence(l_avg, Cx[:,i,2], truth_from_results=True)
+            order_MH[1,i] = get_order_of_convergence(l_avg, Cz[:,i,2], truth_from_results=True)
+
+            order_SL[0,i] = get_order_of_convergence(l_avg, Cx[:,i,3], truth_from_results=True)
+            order_SL[1,i] = get_order_of_convergence(l_avg, Cz[:,i,3], truth_from_results=True)
+
+            order_SH[0,i] = get_order_of_convergence(l_avg, Cx[:,i,4], truth_from_results=True)
+            order_SH[1,i] = get_order_of_convergence(l_avg, Cz[:,i,4], truth_from_results=True)
+
+        # Plot
+        plt.figure()
+        plt.plot(alphas, order_PA[0,:], 'kv', label="PAN AIR")
+        plt.plot(alphas, order_ML[0,:], line_styles[0], label="ML")
+        plt.plot(alphas, order_MH[0,:], line_styles[1], label="MH")
+        plt.plot(alphas, order_SL[0,:], line_styles[2], label="SL")
+        plt.plot(alphas, order_SH[0,:], line_styles[3], label="SH")
+        plt.xlabel("$\\alpha$")
+        plt.ylabel("Order of Convergence in $C_x$")
+        plt.legend()
+        plt.savefig(plot_dir + "Cx_convergence_order_{0}_split.pdf".format(split_dir))
+        plt.savefig(plot_dir + "Cx_convergence_order_{0}_split.svg".format(split_dir))
+        plt.close()
+
+        plt.figure()
+        plt.plot(alphas, order_PA[1,:], 'kv', label="PAN AIR")
+        plt.plot(alphas, order_ML[1,:], line_styles[0], label="ML")
+        plt.plot(alphas, order_MH[1,:], line_styles[1], label="MH")
+        plt.plot(alphas, order_SL[1,:], line_styles[2], label="SL")
+        plt.plot(alphas, order_SH[1,:], line_styles[3], label="SH")
+        plt.xlabel("$\\alpha$")
+        plt.ylabel("Order of Convergence in $C_z$")
+        plt.savefig(plot_dir + "Cz_convergence_order_{0}_split.pdf".format(split_dir))
+        plt.savefig(plot_dir + "Cz_convergence_order_{0}_split.svg".format(split_dir))
+        plt.close()
+
+        # Print out average orders of convergence
+        print()
+        print("Orders of Convergence")
+        print("Case                   Cx                    Cz")
+        print("-----------------------------------------------")
+        print("PAN AIR", str(round(np.average(order_PA[0,:]), 3))+"+/-"+str(round(np.std(order_PA[0,:]), 3)), str(round(np.average(order_PA[1,:]), 3))+"+/-"+str(round(np.std(order_PA[1,:]), 3)))
+        print("ML", str(round(np.average(order_ML[0,:]), 3))+"+/-"+str(round(np.std(order_ML[0,:]), 3)), str(round(np.average(order_ML[1,:]), 3))+"+/-"+str(round(np.std(order_ML[1,:]), 3)))
+        print("MH", str(round(np.average(order_MH[0,:]), 3))+"+/-"+str(round(np.std(order_MH[0,:]), 3)), str(round(np.average(order_MH[1,:]), 3))+"+/-"+str(round(np.std(order_MH[1,:]), 3)))
+        print("SL", str(round(np.average(order_SL[0,:]), 3))+"+/-"+str(round(np.std(order_SL[0,:]), 3)), str(round(np.average(order_SL[1,:]), 3))+"+/-"+str(round(np.std(order_SL[1,:]), 3)))
+        print("SH", str(round(np.average(order_SH[0,:]), 3))+"+/-"+str(round(np.std(order_SH[0,:]), 3)), str(round(np.average(order_SH[1,:]), 3))+"+/-"+str(round(np.std(order_SH[1,:]), 3)))
