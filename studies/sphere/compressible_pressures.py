@@ -73,8 +73,9 @@ if __name__=="__main__":
     v_anl = [v_04, v_05]
 
     # Loop
+    t = np.zeros((len(Ms), len(densities), len(phis), len(thetas), 4))
     for k, M in enumerate(Ms):
-        for density in densities:
+        for l, density in enumerate(densities):
 
             for i, phi in enumerate(phis):
                 for j, theta in enumerate(thetas):
@@ -114,22 +115,32 @@ if __name__=="__main__":
                     write_input_file(input_dict, input_filename)
                     reports = run_quad(input_filename, run=RERUN_MACHLINE)
 
-                    # Loop through cases
-                    plt.figure()
-                    for report, case in zip(reports, cases):
+                    # Get runtimes
+                    for m in range(4):
+                        t[k,l,i,j,m] = reports[m]["total_runtime"]
 
-                        # Get pressures and velocities
-                        result_file = report["input"]["output"]["body_file"]
-                        locs, C_P = extract_pressures(result_file)
-                        _, V = extract_velocity_magnitudes(result_file)
+                    ## Loop through cases
+                    #plt.figure()
+                    #for report, case in zip(reports, cases):
 
-                        # Figure out thetas
-                        theta_space = np.arccos(np.einsum('ij,j->i', locs, V_inf))
-                        plt.plot(np.degrees(theta_space[np.where(theta_space <= 0.5*np.pi)]), V[np.where(theta_space <= 0.5*np.pi)], 'k.', markersize=1, label='MachLine')
-                        plt.plot(np.degrees(theta_anl[k]), v_anl[k], 'k-', label='Tamada')
-                        plt.xlabel('$\\theta [^\circ]$')
-                        plt.ylabel('$|\mathbf{u}|$')
-                        if case=='MH':
-                            plt.legend()
-                        plt.savefig(plot_dir + "M_{0}_{1}_{2}_{3}_{4}.pdf".format(M, case, round(np.degrees(phi)), round(np.degrees(theta)), density))
-                        plt.close()
+                    #    # Get pressures and velocities
+                    #    result_file = report["input"]["output"]["body_file"]
+                    #    locs, C_P = extract_pressures(result_file)
+                    #    _, V = extract_velocity_magnitudes(result_file)
+
+                    #    # Figure out thetas
+                    #    theta_space = np.arccos(np.einsum('ij,j->i', locs, V_inf))
+                    #    plt.plot(np.degrees(theta_space[np.where(theta_space <= 0.5*np.pi)]), V[np.where(theta_space <= 0.5*np.pi)], 'k.', markersize=1, label='MachLine')
+                    #    plt.plot(np.degrees(theta_anl[k]), v_anl[k], 'k-', label='Tamada')
+                    #    plt.xlabel('$\\theta [^\circ]$')
+                    #    plt.ylabel('$|\mathbf{u}|$')
+                    #    if case=='MH':
+                    #        plt.legend()
+                    #    plt.savefig(plot_dir + "M_{0}_{1}_{2}_{3}_{4}.pdf".format(M, case, round(np.degrees(phi)), round(np.degrees(theta)), density))
+                    #    plt.close()
+
+    # Analyze timing
+    t_avg = np.average(np.average(np.average(t, axis=0), axis=1), axis=1)
+    for i, density in enumerate(densities):
+        for j, case in enumerate(cases):
+            print(density, case, t_avg[i,j])

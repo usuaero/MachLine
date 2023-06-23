@@ -9,7 +9,7 @@ from paraview_functions import get_data_from_csv, get_data_column_from_array, ex
 from case_running_functions import write_input_file, run_quad, cases, quad_labels
 
 
-RERUN_MACHLINE = True
+RERUN_MACHLINE = False
 study_dir = "studies/subsonic_onera_m6_wing/"
 
 
@@ -86,7 +86,12 @@ def run_wing_quad_comparison(AoA, mach_num, correction, grid):
     # Run
     reports = run_quad(input_file, run = RERUN_MACHLINE)
 
-    return case_name
+    # Get times
+    t = []
+    for report in reports:
+        t.append(report["total_runtime"])
+
+    return case_name, t
 
 
 def get_min_and_max_SV_from_A_mat():
@@ -105,10 +110,10 @@ def get_min_and_max_SV_from_A_mat():
 def run_cases(AoA, mach_num, grid):
 
     # Run With and without prandtl-glauert correction
-    case_name_pg = run_wing_quad_comparison(AoA, mach_num, True, grid)
-    case_name_direct = run_wing_quad_comparison(AoA, mach_num, False, grid)
-    S_max, S_min = get_min_and_max_SV_from_A_mat()
-    cond = np.sqrt(S_max/S_min)
+    case_name_pg, _ = run_wing_quad_comparison(AoA, mach_num, True, grid)
+    case_name_direct, t_direct = run_wing_quad_comparison(AoA, mach_num, False, grid)
+    #S_max, S_min = get_min_and_max_SV_from_A_mat()
+    #cond = np.sqrt(S_max/S_min)
 
     # Define Plot dir 
     plot_dir = study_dir + "plots/"
@@ -120,90 +125,90 @@ def run_cases(AoA, mach_num, grid):
     y_loc = [0.239,0.526,0.778,0.957,1.077,1.136,1.184]
     semispan = [20,44,65,80,90,95,99]
 
-    # Loop Through Slices
-    for i, y in enumerate(y_loc):
+    ## Loop Through Slices
+    #for i, y in enumerate(y_loc):
 
-        # Define Slice Values
-        slice_normal = [0,1,0]
-        slice_origin = [0,y,0]
-        
-        # Retrieve Experimental Data
-        x_exp = get_data_column_from_array(column_headers,cell_data,"x/l_{0}".format(i+1))
-        Cp_exp = get_data_column_from_array(column_headers,cell_data,"Cp_{0}".format(i+1))
+    #    # Define Slice Values
+    #    slice_normal = [0,1,0]
+    #    slice_origin = [0,y,0]
+    #    
+    #    # Retrieve Experimental Data
+    #    x_exp = get_data_column_from_array(column_headers,cell_data,"x/l_{0}".format(i+1))
+    #    Cp_exp = get_data_column_from_array(column_headers,cell_data,"Cp_{0}".format(i+1))
 
-        # Loop Through Formulations
-        for j, (case, label) in enumerate(zip(cases, quad_labels)):
-            
-            # Pull Machline Data at slice
-            data_dir_pg = study_dir + "results/" + case_name_pg + label + ".vtk"
-            data_dir_direct = study_dir + "results/" + case_name_direct + label + ".vtk"
+    #    # Loop Through Formulations
+    #    for j, (case, label) in enumerate(zip(cases, quad_labels)):
+    #        
+    #        # Pull Machline Data at slice
+    #        data_dir_pg = study_dir + "results/" + case_name_pg + label + ".vtk"
+    #        data_dir_direct = study_dir + "results/" + case_name_direct + label + ".vtk"
 
-            # Switch between filtering and not
-            for filter, which in zip([True, False], ['point', 'cell']):
+    #        # Switch between filtering and not
+    #        for filter, which in zip([True, False], ['point', 'cell']):
 
-                # Get slice
-                headers_pg, slice_data_pg = extract_plane_slice(data_dir_pg, slice_normal, slice_origin, filter=filter, which_data=which)
-                headers_direct, slice_data_direct = extract_plane_slice(data_dir_direct, slice_normal, slice_origin, filter=filter, which_data=which)
+    #            # Get slice
+    #            headers_pg, slice_data_pg = extract_plane_slice(data_dir_pg, slice_normal, slice_origin, filter=filter, which_data=which)
+    #            headers_direct, slice_data_direct = extract_plane_slice(data_dir_direct, slice_normal, slice_origin, filter=filter, which_data=which)
 
-                # Get data we want to plot
-                if filter:
-                    x_mach_pg = get_data_column_from_array(headers_pg,slice_data_pg,"Points:0")
-                    x_mach_direct = get_data_column_from_array(headers_direct,slice_data_direct,"Points:0")
-                else:
-                    x_mach_pg = get_data_column_from_array(headers_pg,slice_data_pg,"centroid:0")
-                    x_mach_direct = get_data_column_from_array(headers_direct,slice_data_direct,"centroid:0")
-                Cp_pg = get_data_column_from_array(headers_pg,slice_data_pg, "C_p_PG")
-                Cp_ise_direct = get_data_column_from_array(headers_direct,slice_data_direct, "C_p_ise")
+    #            # Get data we want to plot
+    #            if filter:
+    #                x_mach_pg = get_data_column_from_array(headers_pg,slice_data_pg,"Points:0")
+    #                x_mach_direct = get_data_column_from_array(headers_direct,slice_data_direct,"Points:0")
+    #            else:
+    #                x_mach_pg = get_data_column_from_array(headers_pg,slice_data_pg,"centroid:0")
+    #                x_mach_direct = get_data_column_from_array(headers_direct,slice_data_direct,"centroid:0")
+    #            Cp_pg = get_data_column_from_array(headers_pg,slice_data_pg, "C_p_PG")
+    #            Cp_ise_direct = get_data_column_from_array(headers_direct,slice_data_direct, "C_p_ise")
 
-                # Modify machline x-axis
-                x_mach_pg = [(x - min(x_mach_pg)) for x in x_mach_pg]
-                x_mach_pg = [x/max(x_mach_pg) for x in x_mach_pg]
-            
-                x_mach_direct = [(x - min(x_mach_direct)) for x in x_mach_direct]
-                x_mach_direct = [x/max(x_mach_direct) for x in x_mach_direct]
+    #            # Modify machline x-axis
+    #            x_mach_pg = [(x - min(x_mach_pg)) for x in x_mach_pg]
+    #            x_mach_pg = [x/max(x_mach_pg) for x in x_mach_pg]
+    #        
+    #            x_mach_direct = [(x - min(x_mach_direct)) for x in x_mach_direct]
+    #            x_mach_direct = [x/max(x_mach_direct) for x in x_mach_direct]
 
-                # Differentiate between upper and lower surface
-                half_pg = round(len(x_mach_pg)/2)
-                half_direct = round(len(x_mach_direct)/2)
+    #            # Differentiate between upper and lower surface
+    #            half_pg = round(len(x_mach_pg)/2)
+    #            half_direct = round(len(x_mach_direct)/2)
 
-                # Plot Experimental data
-                plt.figure()
-                plt.plot(x_exp, Cp_exp, 'ko', label='Experiment', markersize=3)
+    #            # Plot Experimental data
+    #            plt.figure()
+    #            plt.plot(x_exp, Cp_exp, 'ko', label='Experiment', markersize=3)
 
-                # Plot Machline Direct Data
-                plt.plot(x_mach_direct[:half_direct],Cp_ise_direct[:half_direct], 'k-', linewidth=0.5, label='Direct')
-                plt.plot(x_mach_direct[half_direct:],Cp_ise_direct[half_direct:], 'k-', linewidth=0.5)
+    #            # Plot Machline Direct Data
+    #            plt.plot(x_mach_direct[:half_direct],Cp_ise_direct[:half_direct], 'k-', linewidth=0.5, label='Direct')
+    #            plt.plot(x_mach_direct[half_direct:],Cp_ise_direct[half_direct:], 'k-', linewidth=0.5)
 
-                # Plot Machline Prandtl Glauert Correction Data
-                plt.plot(x_mach_pg[:half_pg],Cp_pg[:half_pg], 'k--', linewidth=0.5, label='P-G')
-                plt.plot(x_mach_pg[half_pg:],Cp_pg[half_pg:], 'k--', linewidth=0.5)
+    #            # Plot Machline Prandtl Glauert Correction Data
+    #            plt.plot(x_mach_pg[:half_pg],Cp_pg[:half_pg], 'k--', linewidth=0.5, label='P-G')
+    #            plt.plot(x_mach_pg[half_pg:],Cp_pg[half_pg:], 'k--', linewidth=0.5)
 
-                # Define Case Name
-                case_name = case_name_pg[:-3]
+    #            # Define Case Name
+    #            case_name = case_name_pg[:-3]
 
-                # Plot
-                plt.xlabel('$x/c$')
-                plt.ylabel('$C_P$')
-                plt.gca().invert_yaxis()
-                plt.ylim(top=np.nanmin(Cp_exp).item()-0.5, bottom=np.nanmax(Cp_exp).item()+0.5)
-                if j==1:
-                    plt.legend(fontsize=6, title_fontsize=6)
+    #            # Plot
+    #            plt.xlabel('$x/c$')
+    #            plt.ylabel('$C_P$')
+    #            plt.gca().invert_yaxis()
+    #            plt.ylim(top=np.nanmin(Cp_exp).item()-0.5, bottom=np.nanmax(Cp_exp).item()+0.5)
+    #            if j==1:
+    #                plt.legend(fontsize=6, title_fontsize=6)
 
-                # Save
-                if not os.path.exists(study_dir + "plots/filtered/"):
-                    os.makedirs(study_dir + "plots/filtered/")
-                if not os.path.exists(study_dir + "plots/unfiltered/"):
-                    os.makedirs(study_dir + "plots/unfiltered/")
-                if filter:
-                    plt.savefig(plot_dir+"filtered/"+case_name+"_"+case+"_filtered_{0}.pdf".format(semispan[i]))
-                    plt.savefig(plot_dir+"filtered/"+case_name+"_"+case+"_filtered_{0}.svg".format(semispan[i]))
-                else:
-                    plt.savefig(plot_dir+"unfiltered/"+case_name+"_"+case+"_{0}.pdf".format(semispan[i]))
-                    plt.savefig(plot_dir+"unfiltered/"+case_name+"_"+case+"_{0}.svg".format(semispan[i]))
-                plt.close()
+    #            # Save
+    #            if not os.path.exists(study_dir + "plots/filtered/"):
+    #                os.makedirs(study_dir + "plots/filtered/")
+    #            if not os.path.exists(study_dir + "plots/unfiltered/"):
+    #                os.makedirs(study_dir + "plots/unfiltered/")
+    #            if filter:
+    #                plt.savefig(plot_dir+"filtered/"+case_name+"_"+case+"_filtered_{0}.pdf".format(semispan[i]))
+    #                plt.savefig(plot_dir+"filtered/"+case_name+"_"+case+"_filtered_{0}.svg".format(semispan[i]))
+    #            else:
+    #                plt.savefig(plot_dir+"unfiltered/"+case_name+"_"+case+"_{0}.pdf".format(semispan[i]))
+    #                plt.savefig(plot_dir+"unfiltered/"+case_name+"_"+case+"_{0}.svg".format(semispan[i]))
+    #            plt.close()
 
-    return S_max, S_min, cond
-
+    ##return S_max, S_min, cond
+    return t_direct
 
 
 if __name__ == "__main__":
@@ -217,7 +222,15 @@ if __name__ == "__main__":
     # Run Machline for all Mach Numbers and associated AoA
     print()
     print("Grid   M   alpha   S_max    S_min   cond")
-    for grid in grids:
+    t = np.zeros((len(grids), len(mach_nums), 4))
+    for j, grid in enumerate(grids):
         for i in range(len(mach_nums)):
-            S_max, S_min, cond = run_cases(AoA_nums[i], mach_nums[i], grid)
-            print(grid, mach_nums[i], AoA_nums[i], S_max, S_min, cond)
+            #S_max, S_min, cond = run_cases(AoA_nums[i], mach_nums[i], grid)
+            #print(grid, mach_nums[i], AoA_nums[i], S_max, S_min, cond)
+            t[j,i,:] = run_cases(AoA_nums[i], mach_nums[i], grid)
+
+    # Print timing
+    t_avg = np.average(t, axis=1)
+    for i, density in enumerate(grids):
+        for j, case in enumerate(cases):
+            print(density, case, t_avg[i,j])
