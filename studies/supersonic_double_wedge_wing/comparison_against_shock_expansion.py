@@ -5,7 +5,7 @@ from studies.case_running_functions import run_quad, write_input_file, cases, li
 from studies.paraview_functions import extract_all_data, get_data_column_from_array, extract_plane_slice
 
 
-RERUN_MACHLINE = False
+RERUN_MACHLINE = True
 study_dir = "studies/supersonic_double_wedge_wing/"
 plot_dir = study_dir + "plots/shock_expansion/"
 MCA = 1.0
