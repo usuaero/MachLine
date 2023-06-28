@@ -1,20 +1,24 @@
 {
     "flow": {
         "freestream_velocity": [
-            0.2500000000000001,
-            0.4330127018922194,
-            0.8660254037844386
-        ]
+            -1.0,
+            0.0,
+            0.0
+        ],
+        "freestream_mach_number": 0.0
     },
     "geometry": {
         "file": "studies/sphere/meshes/sphere_medium.stl",
-        "spanwise_axis": "+y",
-        "force_sigma_match": false
+        "spanwise_axis": "+y"
     },
     "solver": {},
     "post_processing": {},
     "output": {
         "body_file": "studies/sphere/results/sphere_medium.vtk",
-        "report_file": "studies/sphere/reports/sphere_medium.json"
+        "report_file": "studies/sphere/reports/sphere_medium.json",
+        "offbody_points": {
+            "points_file": "studies/sphere/sphere_surface_slice_points.csv",
+            "output_file": "studies/sphere/results/sphere_offbody_points_1e+00_medium.csv"
+        }
     }
 }

@@ -19,7 +19,7 @@ module panel_mod
         real :: H111, H211, H121 ! Source integrals
         real :: hH113, H213, H123, H313, H223, H133 ! Doublet integrals; we use hH(1,1,3) because it can be reliably calculated, unlike H(1,1,3)
         real,dimension(:),allocatable :: F111, F211, F121 ! Necessary line integrals
-        real :: H115, H215, H125, H225, H315, H135, H415, H145, H325, H235 ! Doublet velocity integrals. Yeah, there are a lot...
+        real :: h3H115, H215, H125, H225, hH315, hH135, H415, H145, H325, H235, H113_3h2H115 ! Doublet velocity integrals. Yeah, there are a lot...
         real,dimension(:),allocatable :: F113, F123, F213, F133, F313 ! Necessary for doublet velocity integrals
 
     end type integrals
@@ -147,6 +147,7 @@ module panel_mod
 
             ! Velocity integrals
             procedure :: calc_subsonic_velocity_integrals => panel_calc_subsonic_velocity_integrals
+            procedure :: calc_supersonic_subinc_velocity_integrals => panel_calc_supersonic_subinc_velocity_integrals
 
             ! All integrals
             procedure :: calc_integrals => panel_calc_integrals
@@ -158,6 +159,7 @@ module panel_mod
             ! Velocities
             procedure :: allocate_velocity_influences => panel_allocate_velocity_influences
             procedure :: calc_velocity_influences => panel_calc_velocity_influences
+            procedure :: calc_velocities => panel_calc_velocities
 
             ! Quantities for source and doublet distributions
             procedure :: get_source_strengths => panel_get_source_strengths
@@ -2767,8 +2769,7 @@ contains
         type(integrals),intent(inout) :: int
 
         ! Get additional F integrals
-        int%F113 = (int%F111 &
-                    - geom%v_eta*this%calc_subsonic_EMNK(geom, 2, 1, 1) &
+        int%F113 = (- geom%v_eta*this%calc_subsonic_EMNK(geom, 2, 1, 1) &
                     + geom%v_xi*this%calc_subsonic_EMNK(geom, 1, 2, 1)) / geom%g2 ! Johnson (D.61)
         int%F123 = geom%v_eta*geom%a*int%F113 - geom%v_xi*this%calc_subsonic_EMNK(geom, 1, 1, 1) ! Johnson (D.66)
         int%F133 = 2.*geom%a*geom%v_eta*int%F123 - (geom%a*geom%a + geom%v_xi*geom%v_xi*geom%h2)*int%F113 &
@@ -2776,11 +2777,11 @@ contains
 
         ! Get additional H integrals
         ! Johnson (D.42)
-        int%H115 = (int%hH113/geom%h + sum(geom%a*int%F113)) / (3.*geom%h2)
+        int%h3H115 = (int%hH113 + geom%h * sum(geom%a*int%F113))/3
 
         ! Johnson (D.46)
         int%H125 = -sum(geom%v_eta*int%F113)/3.
-        int%H135 = (int%hH113/geom%h - sum(geom%v_eta*int%F123))/3.
+        int%hH135 = (int%hH113 - geom%h*sum(geom%v_eta*int%F123))/3.
         int%H145 = (2.*int%H123 - sum(geom%v_eta*int%F133))/3.
 
         ! Johnson (D.47)
@@ -2789,10 +2790,28 @@ contains
         int%H235 = -sum(geom%v_xi*int%F133)/3.
 
         ! Johnson (D.48)
-        int%H315 = -int%H135 - geom%h2*int%H115 + int%hH113/geom%h
+        int%hH315 = -int%hH135 - int%h3H115 + int%hH113
+        int%H325 = - int%H145 - geom%h2*int%H125 + int%H123
+        int%H415 = - int%H235 - geom%h2*int%H225 + int%H223
+        int%H113_3h2H115 = -sum(geom%a*int%F113)
+
 
     end subroutine panel_calc_subsonic_velocity_integrals
 
+    subroutine panel_calc_supersonic_subinc_velocity_integrals(this, geom, freestream, mirror_panel, int)
+        ! Calculates the additional necessary integrals to determine the velocity influence of a panel in subsonic flow.
+
+        implicit none
+
+        class(panel),intent(in) :: this
+        type(eval_point_geom),intent(in) :: geom
+        type(flow),intent(in) :: freestream
+        logical,intent(in) :: mirror_panel
+        type(integrals),intent(inout) :: int
+
+
+
+    end subroutine panel_calc_supersonic_subinc_velocity_integrals
 
     function panel_calc_integrals(this, geom, influence_type, freestream, mirror_panel, dod_info) result(int)
         ! Calculates the H and F integrals necessary for the given influence
@@ -2982,38 +3001,44 @@ contains
     end subroutine panel_calc_potentials
 
 
-    subroutine panel_allocate_velocity_influences(this, v_s, v_d)
+    subroutine panel_allocate_velocity_influences(this, v_s_sigma_space, v_d_mu_space, v_s_S_space, v_d_M_space)
         ! Allocates the necessary influence arrays
 
         implicit none
 
         class(panel),intent(in) :: this
-        real,dimension(:,:),allocatable,intent(out) :: v_s, v_d
+        real,dimension(:,:),allocatable,intent(out) :: v_s_sigma_space, v_d_mu_space
+        real,dimension(:,:),allocatable,intent(out) :: v_s_S_space, v_d_M_space
 
         ! Source
         if (this%order == 2) then
-            allocate(v_s(3,3), source=0.)
+            allocate(v_s_sigma_space(3,3), source=0.)
         else
-            allocate(v_s(3,1), source=0.)
+            allocate(v_s_sigma_space(3,1), source=0.)
         end if
+        allocate(v_s_S_space(3,this%S_dim), source=0.)
 
         ! Doublet
         if (this%order == 2) then
 
             ! Check if this panel belongs to the wake
             if (this%in_wake) then
-                allocate(v_d(3,12), source=0.)
+                allocate(v_d_mu_space(3,12), source=0.)
+                allocate(v_d_M_space(3,2*this%M_dim), source=0.)
             else
-                allocate(v_d(3,6), source=0.)
+                allocate(v_d_mu_space(3,6), source=0.)
+                allocate(v_d_M_space(3,this%M_dim), source=0.)
             end if
 
         else
 
             ! Check if this panel belongs to the wake
             if (this%in_wake) then
-                allocate(v_d(3,6), source=0.)
+                allocate(v_d_mu_space(3,6), source=0.)
+                allocate(v_d_M_space(3,2*this%M_dim), source=0.)
             else
-                allocate(v_d(3,3), source=0.)
+                allocate(v_d_mu_space(3,3), source=0.)
+                allocate(v_d_M_space(3,this%M_dim), source=0.)
             end if
 
         end if
@@ -3021,7 +3046,7 @@ contains
     end subroutine panel_allocate_velocity_influences
 
 
-    subroutine panel_calc_velocity_influences(this, P, freestream, dod_info, mirror_panel, v_s, v_d)
+    subroutine panel_calc_velocity_influences(this, P, freestream, dod_info, mirror_panel, v_s_S_space, v_d_M_space)
         ! Calculates the source- and doublet-induced potentials at the given point P
 
         implicit none
@@ -3031,12 +3056,16 @@ contains
         type(flow),intent(in) :: freestream
         type(dod),intent(in) :: dod_info
         logical,intent(in) :: mirror_panel
-        real,dimension(:,:),allocatable,intent(out) :: v_s, v_d
+        real,dimension(:,:),allocatable,intent(out) :: v_s_S_space, v_d_M_space
 
         type(eval_point_geom) :: geom
         type(integrals) :: int
+        real,dimension(:,:),allocatable :: v_s_sigma_space, v_d_mu_space
+        real :: x2, y2, dvx, dvy
+        integer :: i
 
-        call this%allocate_velocity_influences(v_s, v_d)
+        call this%allocate_velocity_influences(v_s_sigma_space, v_d_mu_space, v_s_S_space, v_d_M_space)
+    
 
         ! Check DoD
         if (dod_info%in_dod .and. this%A > 0.) then
@@ -3058,64 +3087,192 @@ contains
             ! Source velocity
             if (this%has_sources) then
 
-                ! Constant influence
-                v_s(1,1) = int%H213
-                v_s(2,1) = int%H123
-                v_s(3,1) = -int%hH113
+                ! Constant influence (Johnson Eq. (D.28))
+                v_s_sigma_space(1,1) = int%H213
+                v_s_sigma_space(2,1) = int%H123
+                v_s_sigma_space(3,1) = -int%hH113
 
                 ! Linear influences
                 if (this%order == 2) then
 
                     ! x-component
-                    v_s(1,2) = int%H213*geom%P_ls(1) + int%H313
-                    v_s(1,3) = int%H213*geom%P_ls(2) + int%H223
+                    v_s_sigma_space(1,2) = int%H213*geom%P_ls(1) + int%H313
+                    v_s_sigma_space(1,3) = int%H213*geom%P_ls(2) + int%H223
 
                     ! y-component
-                    v_s(2,2) = int%H123*geom%P_ls(1) + int%H223
-                    v_s(2,3) = int%H123*geom%P_ls(2) + int%H133
+                    v_s_sigma_space(2,2) = int%H123*geom%P_ls(1) + int%H223
+                    v_s_sigma_space(2,3) = int%H123*geom%P_ls(2) + int%H133
 
                     ! z-component
-                    v_s(3,2) = -int%hH113*geom%P_ls(1) - geom%h*int%H213
-                    v_s(3,3) = -int%hH113*geom%P_ls(2) - geom%h*int%H123
+                    v_s_sigma_space(3,2) = -int%hH113*geom%P_ls(1) - geom%h*int%H213
+                    v_s_sigma_space(3,3) = -int%hH113*geom%P_ls(2) - geom%h*int%H123
 
                     ! Convert to vertex influences
                     if (mirror_panel) then
-                        v_s = matmul(v_s, this%T_sigma_mir)
+                        v_s_S_space = matmul(v_s_sigma_space, this%T_sigma_mir)
                     else
-                        v_s = matmul(v_s, this%T_sigma)
+                        v_s_S_space = matmul(v_s_sigma_space, this%T_sigma)
                     end if
+                else
+                    v_s_S_space = v_s_sigma_space
 
                 end if
             
                 ! Add area Jacobian and kappa factor
                 if (mirror_panel) then
-                    v_s = v_s*freestream%K_inv*this%J_mir
+                    v_s_S_space = -v_s_S_space*freestream%K_inv*this%J_mir
                 else
-                    v_s = v_s*freestream%K_inv*this%J
+                    v_s_S_space = -v_s_S_space*freestream%K_inv*this%J
                 end if
                 
             end if
 
-            ! Doublet potential
+            ! Doublet potential (Johnson Eq. (D.33))
+
+            v_d_mu_space(1,1) = 3*geom%h*int%H215
+            v_d_mu_space(1,2) = 3*(int%H215*geom%P_ls(1)*geom%h + int%hH315)
+            v_d_mu_space(1,3) = 3*geom%h*(int%H215*geom%P_ls(2) + int%H225)
+
+            v_d_mu_space(2,1) = 3*geom%h*int%H125
+            v_d_mu_space(2,2) = 3*geom%h*(int%H125*geom%P_ls(1) + int%H225)
+            v_d_mu_space(2,3) = 3*(int%H125*geom%P_ls(2)*geom%h + int%hH135)
+
+            v_d_mu_space(3,1) = int%H113_3h2H115
+            v_d_mu_space(3,2) = int%H113_3h2H115*geom%P_ls(1) + int%H213 - 3*geom%h2*int%H215
+            v_d_mu_space(3,3) = int%H113_3h2H115*geom%P_ls(2) + int%H123 - 3*geom%h2*int%H125
+            
+            ! PAN AIR TESTING
+            !v_d_mu_space(1,1) = 0.0
+            !v_d_mu_space(1,2) = -int%hh113
+            !v_d_mu_space(1,3) = 0.0
+            
+            !v_d_mu_space(2,1) = 0.0
+            !v_d_mu_space(2,2) = 0.0
+            !v_d_mu_space(2,3) = -int%hh113
+
+            !v_d_mu_space(3,1) = 0.0
+            !v_d_mu_space(3,2) = -sum(geom%v_xi*int%F111)
+            !v_d_mu_space(3,3) = -sum(geom%v_eta*int%F111)
+
+            !x2 = 0.5*geom%P_ls(1)
+            !y2 = 0.5*geom%P_ls(2)
+
+            !do i = 1,3
+                !v_d_mu_space(i,2) = v_d_mu_space(i,2) + geom%P_ls(1)*v_d_mu_space(i,1)
+                !v_d_mu_space(i,3) = v_d_mu_space(i,3) + geom%P_ls(2)*v_d_mu_space(i,1)
+            !end do
+
 
             if (this%order == 2) then
 
                 ! Add quadratic terms
+                v_d_mu_space(1,4) = 3*(0.5*int%H215*(geom%P_ls(1)**2)*geom%h + int%hH315*geom%P_ls(1) + 0.5*int%H415*geom%h)
+                v_d_mu_space(1,5) = 3*(int%H215*geom%h*geom%P_ls(1)*geom%P_ls(2) + int%hH315*geom%P_ls(2) + &
+                           int%H225*geom%h*geom%P_ls(1) + int%H325*geom%h)
+                v_d_mu_space(1,6) = 3*(0.5*int%H215*(geom%P_ls(2)**2)*geom%h + int%H225*geom%h*geom%P_ls(2) + 0.5*int%H235*geom%h)
 
-                ! Convert to vertex influences (Davis Eq. (4.41))
+                v_d_mu_space(2,4) = 3*(0.5*int%H125*(geom%P_ls(1)**2)*geom%h + int%H225*geom%h*geom%P_ls(1) + 0.5*int%H325*geom%h)
+                v_d_mu_space(2,5) = 3*(int%H125*geom%h*geom%P_ls(1)*geom%P_ls(2) + int%hH135*geom%P_ls(1) + &
+                           int%H225*geom%h*geom%P_ls(2) + int%H235*geom%h)
+                v_d_mu_space(2,6) = 3*(0.5*int%H125*(geom%P_ls(2)**2)*geom%h + int%hH135*geom%P_ls(2) + 0.5*int%H145*geom%h)
 
-                ! Wake bottom influence is opposite the top influence
+                v_d_mu_space(3,4) = 0.5*(geom%P_ls(1)**2)*int%H113_3h2H115 + geom%P_ls(1)*(int%H213 - 3*geom%h2*int%H215) + &
+                           0.5*(int%H313 - 3*geom%h*int%hH315)
+                v_d_mu_space(3,5) = geom%P_ls(1)*geom%P_ls(2)*(int%H113_3h2H115) + geom%P_ls(2)*(int%H213 - 3*geom%h2*int%H215) + &
+                           geom%P_ls(1)*(int%H123 - 3*geom%h2*int%H125) + int%H223 - 3*geom%h2*int%H225
+                v_d_mu_space(3,6) = 0.5*(geom%P_ls(2)**2)*int%H113_3h2H115 + geom%P_ls(2)*(int%H123 - 3*geom%h2*int%H125) + &
+                           0.5*(int%H133 - 3*geom%h*int%hH135)
 
+                !PAN AIR TESTING
+                !v_d_mu_space(1,4) = -2*geom%h*sum(geom%v_xi*int%F111)
+                !v_d_mu_space(1,5) = -geom%h*sum(geom%v_eta*int%F111)
+                !v_d_mu_space(1,6) = 0.0
+
+
+                !v_d_mu_space(2,4) = 0.0
+                !v_d_mu_space(2,5) = -geom%h*sum(geom%v_xi*int%F111)
+                !v_d_mu_space(2,6) = -2.0*geom%h*sum(geom%v_eta*int%F111)
+
+                !v_d_mu_space(3,4) = -2.0*(geom%h*int%hh113 - sum(geom%v_eta*int%F121))
+                !v_d_mu_space(3,5) = -2.0*sum(geom%v_xi*int%F121)
+                !v_d_mu_space(3,6) = -2.0*(sum(geom%v_eta*int%F121) + (-sum(geom%a*int%F111) + geom%h*int%hH113))
+
+                !do i = 1,3
+                    !dvx = v_d_mu_space(i,2) - x2 * v_d_mu_space(i,1)
+                    !v_d_mu_space(i,4) = 0.5*v_d_mu_space(i,4) + geom%P_ls(1)*dvx
+                    !dvy = v_d_mu_space(i,3) - y2 * v_d_mu_space(i,1)
+                    !v_d_mu_space(i,6) = 0.5*v_d_mu_space(i,6) + geom%P_ls(2)*dvy
+                    !v_d_mu_space(i,5) = v_d_mu_space(i,5) + geom%P_ls(1)*dvy + geom%P_ls(2)*dvx
+
+                !end do
+
+            end if 
+            
+            ! Convert to strength influences (Davis Eq. (4.41))
+            if (mirror_panel) then
+                v_d_M_space(:,1:this%M_dim) = freestream%K_inv*matmul(v_d_mu_space, this%T_mu_mir)
             else
-
-                ! Convert to vertex influences (Davis Eq. (4.41))
-
-                ! Wake bottom influence is opposite the top influence
-
+                v_d_M_space(:,1:this%M_dim) = freestream%K_inv*matmul(v_d_mu_space, this%T_mu)
             end if
+
+            ! Wake bottom influence is opposite the top influence
+            if (this%in_wake) then
+                v_d_M_space(:,this%M_dim+1:this%M_dim*2) = -v_d_M_space(:,1:this%M_dim)
+            end if
+
+            ! Transfer to global coordinates
+            if (mirror_panel) then
+                v_s_S_space = matmul(transpose(this%A_g_to_ls_mir), v_s_S_space)
+                v_d_M_space = matmul(transpose(this%A_g_to_ls_mir), v_d_M_space)
+            else
+                v_s_S_space = matmul(transpose(this%A_g_to_ls), v_s_S_space)
+                v_d_M_space = matmul(transpose(this%A_g_to_ls), v_d_M_space)
+            end if
+
+        end if
+
+        !!!!!!!! THIS IS BAD !!!!!! REMOVE AS SOON AS POSSIBLE !!!!!!!!
+        if(freestream%supersonic) then
+            v_s_S_space = 0.0
+            v_d_M_space = 0.0
         end if
     
     end subroutine panel_calc_velocity_influences
+
+
+    subroutine panel_calc_velocities(this, P, freestream, dod_info, mirror_panel, sigma, mu, &
+                                     N_body_panels, N_body_verts, asym_flow, v_s, v_d)
+        ! Calculates the potentials induced at the given point
+
+        implicit none
+        
+        class(panel),intent(in) :: this
+        real,dimension(3),intent(in) :: P
+        type(flow),intent(in) :: freestream
+        type(dod),intent(in) :: dod_info
+        logical,intent(in) :: mirror_panel, asym_flow
+        real,dimension(:),allocatable,intent(in) :: sigma, mu
+        integer,intent(in) :: N_body_panels, N_body_verts
+        real,dimension(3),intent(out) :: v_d, v_s
+
+        real,dimension(:,:),allocatable :: source_inf, doublet_inf
+        real,dimension(this%M_dim) :: doublet_strengths
+        real,dimension(this%S_dim) :: source_strengths
+
+
+        ! Get influences
+        call this%calc_velocity_influences(P, freestream, dod_info, mirror_panel, source_inf, doublet_inf)
+
+        ! Get strengths
+        source_strengths = this%get_source_strengths(sigma, mirror_panel, N_body_panels, asym_flow)
+        doublet_strengths = this%get_doublet_strengths(mu, mirror_panel, N_body_verts, asym_flow)
+
+        ! Apply strengths to calculate potentials
+        v_s = matmul(source_inf,source_strengths)
+        v_d = matmul(doublet_inf,doublet_strengths)
+
+
+    end subroutine panel_calc_velocities
 
 
     function panel_get_source_strengths(this, sigma, mirror, N_body_panels, asym_flow) result(sigma_strengths)
