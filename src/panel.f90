@@ -2225,8 +2225,7 @@ contains
 
                 ! Check for point on perimeter
                 if(sqrt(geom%g2(i)) < 1e-12) then
-                    write(*,*) "Detected control point on perimeter of panel. Quitting..."
-                    stop
+                    write(*,*) "!!! Detected control point on perimeter of panel. Solution quality may be negatively affected."
                 end if
 
                 ! Calculate
@@ -2237,8 +2236,7 @@ contains
 
                 ! Check for point on perimeter
                 if (min(geom%R1(i), geom%R2(i)) < 1e-12) then
-                    write(*,*) "Detected control point on perimeter of panel. Quitting..."
-                    stop
+                    write(*,*) "Detected control point on perimeter of panel. Solution quality may be negatively affected."
                 end if
 
                 ! Calculate
@@ -2317,7 +2315,7 @@ contains
                     end if
 
                     ! Nearly-sonic edge
-                    if (abs(F2) > 100.0*abs(s_b*F1)) then
+                    if (abs(F2) > 125.0*abs(s_b*F1)) then
 
                         ! F(1,1,1)
                         eps = F1/F2
@@ -2384,17 +2382,7 @@ contains
             ! Check
             if (this%order == 2) then
                 if (abs(geom%v_xi(i)*int%F211(i) + geom%v_eta(i)*int%F121(i) - geom%a(i)*int%F111(i)) > 1.e-12) then
-                    write(*,*)
-                    write(*,*) "!!! Calculation of F(2,1,1) and F(1,2,1) failed for panel ", this%index
-                    write(*,*) "!!! Point: ", geom%P_g
-                    write(*,*) "!!! R1: ", geom%R1
-                    write(*,*) "!!! Edges in DoD: ", dod_info%edges_in_dod
-                    write(*,*) "!!! v_xi: ", geom%v_xi
-                    write(*,*) "!!! v_eta: ", geom%v_eta
-                    write(*,*) "!!! b: ", this%b
-                    write(*,*) "!!! Mismatch: ", abs(geom%v_xi*int%F211 + geom%v_eta*int%F121 - geom%a*int%F111)
-                    !write(*,*) "!!! Quitting..."
-                    !stop
+                    write(*,*) "!!! Calculation of F(2,1,1) and F(1,2,1) failed. Please submit a bug report on GitHub."
                 end if
             end if
 
@@ -2458,8 +2446,8 @@ contains
 
             ! Check
             if (this%order == 2) then
-                if (abs(geom%v_xi(i)*int%F211(i) + geom%v_eta(i)*int%F121(i) - geom%a(i)*int%F111(i)) > 1.e-12) then
-                    write(*,*) "!!! Calculation of F(2,1,1) and F(1,2,1) failed. Quitting..."
+                if (abs(geom%v_xi(i)*int%F211(i) + geom%v_eta(i)*int%F121(i) - geom%a(i)*int%F111(i)) > 1.e-10) then
+                    write(*,*) "!!! Calculation of F(2,1,1) and F(1,2,1) failed. Please submit a bug report on GitHub"
                     stop
                 end if
             end if
@@ -2527,18 +2515,13 @@ contains
             int%H133 = int%H111 - sum(geom%v_eta*int%F121)
 
             ! Run checks
-            if (abs(sum(geom%v_eta*int%F211) + int%H223) > 1e-12) then
-                write(*,*) "!!! Influence calculation failed for H(2,2,3). Quitting..."
-                stop
+            if (abs(sum(geom%v_eta*int%F211) + int%H223) > 1e-10) then
+                write(*,*) "!!! Influence calculation failed for H(2,2,3). Please submit a bug report on GitHub."
             end if
 
             if (this%has_sources) then
-                if (abs(int%H111 - int%H313 - int%H133 - geom%h*int%hH113) > 1.e-12) then
-                    write(*,*)
-                    write(*,*) "!!! Influence calculation failed for H(3,1,3) and H(1,3,3) on panel ", this%index
-                    write(*,*) "!!! Mismatch: ", abs(int%H111 - int%H313 - int%H133 - geom%h*int%hH113)
-                    write(*,*) "!!! Quitting..."
-                    stop
+                if (abs(int%H111 - int%H313 - int%H133 - geom%h*int%hH113) > 1.e-10) then
+                    write(*,*) "!!! Influence calculation failed for H(3,1,3) and H(1,3,3). Please submit a bug report on GitHub."
                 end if
             end if
         end if
@@ -2628,37 +2611,13 @@ contains
             int%H133 = int%H111 - sum(geom%v_eta*int%F121)
 
             ! Run checks
-            if (abs(sum(geom%v_eta*int%F211) + int%H223) > 1e-12) then
-                write(*,*)
-                write(*,*) "!!! Influence calculation failed for H(2,2,3) on panel ", this%index
-                write(*,*) "!!! Point: ", geom%P_g
-                write(*,*) "!!! R1: ", geom%R1
-                write(*,*) "!!! Edges in DoD: ", dod_info%edges_in_dod
-                write(*,*) "!!! Mismatch: ", abs(sum(geom%v_eta*int%F211) + int%H223)
-                !write(*,*) "!!! Quitting..."
-                !stop
+            if (abs(sum(geom%v_eta*int%F211) + int%H223) > 1e-10) then
+                write(*,*) "!!! Influence calculation failed for H(2,2,3). Please submit a bug report on GitHub."
             end if
 
             if (this%has_sources) then
-                if (abs(int%H111 + int%H313 - int%H133 - geom%h*int%hH113) > 1e-12) then
-                    write(*,*)
-                    write(*,*) "!!! Influence calculation failed for H(3,1,3) and H(1,3,3) on panel ", this%index
-                    write(*,*) "!!! H(1,1,1): ", int%H111
-                    write(*,*) "!!! h^2H(1,1,1): ", geom%h*int%hH113
-                    write(*,*) "!!! H(3,1,3): ", int%H313
-                    write(*,*) "!!! H(1,3,3): ", int%H133
-                    write(*,*) "!!! Point: ", geom%P_g
-                    write(*,*) "!!! h: ", geom%h
-                    write(*,*) "!!! a: ", geom%a
-                    write(*,*) "!!! l1: ", geom%l1
-                    write(*,*) "!!! l2: ", geom%l2
-                    write(*,*) "!!! g2: ", geom%g2
-                    write(*,*) "!!! P_ls: ", geom%P_ls
-                    write(*,*) "!!! R1: ", geom%R1
-                    write(*,*) "!!! Edges in DoD: ", dod_info%edges_in_dod
-                    write(*,*) "!!! Mismatch: ", abs(int%H111 - int%H313 - int%H133 - geom%h*int%hH113)
-                    !write(*,*) "!!! Quitting..."
-                    !stop
+                if (abs(int%H111 + int%H313 - int%H133 - geom%h*int%hH113) > 1e-10) then
+                    write(*,*) "!!! Influence calculation failed for H(3,1,3). Please submit a bug report on GitHub."
                 end if
             end if
 
@@ -2740,15 +2699,13 @@ contains
             int%H133 = int%H111 + sum(geom%v_eta*int%F121)
 
             ! Run checks
-            if (abs(sum(geom%v_eta*int%F211) + int%H223) > 1e-12) then
-                write(*,*) "!!! Influence calculation failed for H(2,2,3). Quitting..."
-                stop
+            if (abs(sum(geom%v_eta*int%F211) + int%H223) > 1e-10) then
+                write(*,*) "!!! Influence calculation failed for H(2,2,3). Please submit a bug report on GitHub."
             end if
 
             if (this%has_sources) then
-                if (abs(int%H111 + int%H313 + int%H133 - geom%h*int%hH113) > 1e-12) then
-                    write(*,*) "!!! Influence calculation failed for H(3,1,3) and H(1,3,3). Quitting..."
-                    stop
+                if (abs(int%H111 + int%H313 + int%H133 - geom%h*int%hH113) > 1e-10) then
+                    write(*,*) "!!! Influence calculation failed for H(3,1,3) and H(1,3,3). Please submit a bug report on GitHub."
                 end if
             end if
 

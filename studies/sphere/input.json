@@ -10,9 +10,14 @@
     "geometry": {
         "file": "studies/sphere/meshes/sphere_medium.stl",
         "spanwise_axis": "+y"
+        "spanwise_axis": "+y"
     },
     "solver": {},
-    "post_processing": {},
+    "post_processing": {
+        "pressure_rules": {
+            "isentropic": true
+        }
+    },
     "output": {
         "body_file": "studies/sphere/results/sphere_medium.vtk",
         "report_file": "studies/sphere/reports/sphere_medium.json",

@@ -1,14 +1,11 @@
-import json
-import subprocess as sp
 import numpy as np
-import paraview.simple as pvs
 import matplotlib.pyplot as plt
 
 from studies.case_running_functions import run_quad, write_input_file, cases, line_styles
 from studies.paraview_functions import extract_all_data, get_data_column_from_array
 
 
-RERUN_MACHLINE = True
+RERUN_MACHLINE = False
 study_dir = "studies/supersonic_cone/"
 plot_dir = study_dir + "plots/"
 
@@ -67,7 +64,6 @@ def run_comparison(M, grid, half_angle):
     # Run
     reports = run_quad(input_file, run=RERUN_MACHLINE)
 
-
     # Extract data
     C_p_2nd_avg = np.zeros(4)
     C_p_2nd_std = np.zeros(4)
@@ -77,11 +73,13 @@ def run_comparison(M, grid, half_angle):
     C_p_lin_std = np.zeros(4)
     C_p_sln_avg = np.zeros(4)
     C_p_sln_std = np.zeros(4)
+    t = np.zeros(4)
     for i, report in enumerate(reports):
     
         try:
 
             # Get data
+            t[i] = report["total_runtime"]
             headers, data = extract_all_data(report["input"]["output"]["body_file"], which_data='cell')
             C_p_2nd = get_data_column_from_array(headers, data, 'C_p_2nd')
             C_p_ise = get_data_column_from_array(headers, data, 'C_p_ise')
@@ -100,6 +98,7 @@ def run_comparison(M, grid, half_angle):
             C_p_lin_std[i] = np.std(C_p_lin).item()
             
         except:
+            t[i] = np.nan
             C_p_2nd_avg[i] = np.nan
             C_p_2nd_std[i] = np.nan
             C_p_ise_avg[i] = np.nan
@@ -109,7 +108,7 @@ def run_comparison(M, grid, half_angle):
             C_p_lin_avg[i] = np.nan
             C_p_lin_std[i] = np.nan
 
-    return C_p_2nd_avg, C_p_2nd_std, C_p_ise_avg, C_p_ise_std, C_p_sln_avg, C_p_sln_std, C_p_lin_avg, C_p_lin_std
+    return C_p_2nd_avg, C_p_2nd_std, C_p_ise_avg, C_p_ise_std, C_p_sln_avg, C_p_sln_std, C_p_lin_avg, C_p_lin_std, t
 
 
 def get_analytic_data(filename):
@@ -148,6 +147,7 @@ if __name__=="__main__":
     Ms_anl, thetas_anl, Cps_anl = get_analytic_data(study_dir + "Cone Data Zero AoA.csv")
 
     # Run cases
+    t = np.zeros((len(grids), len(Ms), len(half_angles), 4))
     for i, grid in enumerate(grids):
         for k, half_angle in enumerate(half_angles):
 
@@ -163,8 +163,9 @@ if __name__=="__main__":
                     C_p_ise_std[i,j,k,:] = np.nan
                     C_p_sln_std[i,j,k,:] = np.nan
                     C_p_lin_std[i,j,k,:] = np.nan
+                    t[i,j,k,:] = np.nan
                 else:
-                    C_p_2nd_avg[i,j,k], C_p_2nd_std[i,j,k], C_p_ise_avg[i,j,k], C_p_ise_std[i,j,k], C_p_sln_avg[i,j,k], C_p_sln_std[i,j,k], C_p_lin_avg[i,j,k], C_p_lin_std[i,j,k] = run_comparison(M, grid, half_angle)
+                    C_p_2nd_avg[i,j,k], C_p_2nd_std[i,j,k], C_p_ise_avg[i,j,k], C_p_ise_std[i,j,k], C_p_sln_avg[i,j,k], C_p_sln_std[i,j,k], C_p_lin_avg[i,j,k], C_p_lin_std[i,j,k], t[i,j,k,:] = run_comparison(M, grid, half_angle)
 
             # Loop through case plots
             for j, (case, line_style) in enumerate(zip(cases, line_styles)):
@@ -188,6 +189,13 @@ if __name__=="__main__":
                 plt.savefig(plot_dir + "C_p_over_M_{0}_deg_{1}_{2}.pdf".format(half_angle, case, grid))
                 plt.savefig(plot_dir + "C_p_over_M_{0}_deg_{1}_{2}.svg".format(half_angle, case, grid))
                 plt.close()
+
+    # Print timing
+    t_avg = np.nanmean(t, axis=1)
+    for i, grid in enumerate(grids):
+        for j, half_angle in enumerate(half_angles):
+            for k, case in enumerate(cases):
+                print(grid, half_angle, case, t_avg[i,j,k])
 
     ## Determine max standard deviation
     #std_max_ise = np.nanmax(np.nanmax(np.nanmax(C_p_ise_s_dev))).item()

@@ -33,14 +33,15 @@ def write_altered_input_file(original_filename, input_dict, order, formulation):
 
     # Update outputs
     for key, value in input_dict["output"].items():
-        if "vtk" in value:
-            copy_dict["output"][key] = value.replace(".vtk", "_QUAD_{0}-order_{1}.vtk".format(order, formulation))
-        elif "json" in value:
-            copy_dict["output"][key] = value.replace(".json", "_QUAD_{0}-order_{1}.json".format(order, formulation))
-        elif key == "offbody_points":
-            for key2, value2 in input_dict["output"]["offbody_points"].items():
-                if key2 == "output_file":
-                    copy_dict["output"][key][key2] = value2.replace(".csv", "_QUAD_{0}-order_{1}.csv".format(order,formulation))
+        if isinstance(value, str):
+            if "vtk" in value:
+                copy_dict["output"][key] = value.replace(".vtk", "_QUAD_{0}-order_{1}.vtk".format(order, formulation))
+            elif "json" in value:
+                copy_dict["output"][key] = value.replace(".json", "_QUAD_{0}-order_{1}.json".format(order, formulation))
+            elif key == "offbody_points":
+                for key2, value2 in input_dict["output"]["offbody_points"].items():
+                    if key2 == "output_file":
+                        copy_dict["output"][key][key2] = value2.replace(".csv", "_QUAD_{0}-order_{1}.csv".format(order,formulation))
     
     # Write file
     new_filename = original_filename.replace(".json", "_QUAD_{0}-order_{1}.json".format(order, formulation))

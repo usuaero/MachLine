@@ -1,0 +1,43 @@
+{
+    "flow": {
+        "freestream_velocity": [
+            0.9961946980917455,
+            0.0,
+            0.08715574274765817
+        ],
+        "gamma": 1.4,
+        "freestream_mach_number": 1.62
+    },
+    "geometry": {
+        "file": "studies/pan_air_comparison/meshes/delta_wing_fine_right_split.vtk",
+        "spanwise_axis": "+y",
+        "mirror_about": "xz",
+        "max_continuity_angle": 1.0,
+        "wake_model": {
+            "wake_present": true,
+            "append_wake": false
+        },
+        "reference": {
+            "area": 0.05324500000000001
+        }
+    },
+    "solver": {
+        "formulation": "morino",
+        "matrix_solver": "GMRES",
+        "run_checks": true
+    },
+    "post_processing": {
+        "pressure_rules": {
+            "second-order": true,
+            "isentropic": true,
+            "slender-body": true,
+            "linear": true
+        },
+        "pressure_for_forces": "second-order"
+    },
+    "output": {
+        "verbose": false,
+        "body_file": "studies/pan_air_comparison/results/delta_wing_fine_right_split_fine_5_aoa.vtk",
+        "report_file": "studies/pan_air_comparison/reports/delta_wing_fine_right_split_fine_5_aoa.json"
+    }
+}

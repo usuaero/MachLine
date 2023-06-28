@@ -5,7 +5,7 @@ from studies.case_running_functions import run_quad, write_input_file, cases, li
 from studies.paraview_functions import extract_all_data, get_data_column_from_array, extract_plane_slice
 
 
-RERUN_MACHLINE = False
+RERUN_MACHLINE = True
 study_dir = "studies/supersonic_double_wedge_wing/"
 plot_dir = study_dir + "plots/shock_expansion/"
 MCA = 1.0
@@ -236,13 +236,24 @@ if __name__=="__main__":
     se_data = se_data.reshape((len(Ms), len(alphas), 4))
 
     # Loop through cases
+    t = np.zeros((len(grids), len(Ms), len(alphas), 4))
     for i, grid in enumerate(grids):
         for j, M in enumerate(Ms):
             reports = []
             for k, alpha in enumerate(alphas):
 
                 # Run MachLine
-                reports.append(run_machline(M, alpha, grid))
+                these_reports = run_machline(M, alpha, grid)
+                reports.append(these_reports)
+
+                for l, report in enumerate(these_reports):
+                    t[i,j,k,l] = report["total_runtime"]
 
             # Plot
             plot_comparison(M, alphas, grid, se_data[j,:,:], reports)
+
+    # Print out timing
+    t_avg = np.average(np.average(t, axis=1), axis=1)
+    for i, grid in enumerate(grids):
+        for j, case in enumerate(cases):
+            print(grid, case, t_avg[i,j])
