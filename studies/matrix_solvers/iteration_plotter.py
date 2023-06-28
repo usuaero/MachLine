@@ -51,9 +51,9 @@ if __name__=="__main__":
     # Options
     case_names = ["cone_10_deg_", "diamond_5_deg_full_", "full_config_"]
     iterative_solver_options = ["BJAC", "BSSOR", "GMRES"]
-    direct_solver_options = ["QRUP", "FQRUP"]
+    direct_solver_options = ["QRUP", "FQRUP", "LU"]
     l_styles = ['-', '--', '-.']
-    direct_styles = ['ks', 'kv']
+    direct_styles = ['ks', 'ko', 'kv']
     refinement_options = ["coarse", "medium", "fine"]
     colors = ['black', 'dimgray', 'silver']
     preconditioner_options = ["DIAG", "none"]
@@ -116,12 +116,13 @@ if __name__=="__main__":
                     # Get direct solver results
                     for i, solver in enumerate(direct_solver_options):
                         runtime, residual = get_overall_info(case_name, solver, refinement, preconditioner, sort_system)
-                        plt.plot(runtime, residual, direct_styles[i], label=solver)
+                        plt.plot(runtime, residual, direct_styles[i], label=solver, markersize=3)
 
                     plt.xlabel('Time $[s]$')
                     plt.ylabel('Norm of Residual')
+                    plt.xscale('log')
                     plt.yscale('log')
-                    plt.gca().set_ylim(top=10.0, bottom=1.0e-14)
+                    plt.gca().set_ylim(top=10.0, bottom=1.0e-16)
                     if sort_system and preconditioner == "DIAG":
                         plt.legend()
                     plt.savefig(plot_dir+"{0}{1}_{2}_{3}_accuracy_over_time.pdf".format(case_name, "sorted" if sort_system else "unsorted", preconditioner, refinement))
