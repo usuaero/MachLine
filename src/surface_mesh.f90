@@ -92,6 +92,7 @@ module surface_mesh_mod
 
             ! Post-processing
             procedure :: get_induced_potentials_at_point => surface_mesh_get_induced_potentials_at_point
+            procedure :: get_induced_velocities_at_point => surface_mesh_get_induced_velocities_at_point
             procedure :: output_results => surface_mesh_output_results
             procedure :: write_body => surface_mesh_write_body
             procedure :: write_body_mirror => surface_mesh_write_body_mirror
@@ -2177,6 +2178,116 @@ contains
         end do
         
     end subroutine surface_mesh_get_induced_potentials_at_point
+
+
+    subroutine surface_mesh_get_induced_velocities_at_point(this, point, freestream, v_d, v_s)
+        ! Calculates the source- and doublet-induced potentials at the given point
+
+        implicit none
+        
+        class(surface_mesh),intent(in) :: this
+        real,dimension(3),intent(in) :: point
+        type(flow),intent(in) :: freestream
+        real,dimension(3),intent(out) :: v_d, v_s
+
+        integer :: j, k
+        real,dimension(3) :: v_d_panel, v_s_panel
+        type(dod),dimension(:),allocatable :: dod_info
+        type(dod),dimension(:,:),allocatable :: wake_dod_info
+
+        ! Calculate domain of dependence
+        call this%calc_point_dod(point, freestream, dod_info, wake_dod_info)
+
+        ! Loop through panels
+        v_d = (/0.,0.,0./)
+        v_s = (/0.,0.,0./)
+
+        do k=1,this%N_panels
+
+            ! Check DoD
+            if (dod_info(k)%in_dod) then
+            
+                ! Calculate influence
+                call this%panels(k)%calc_velocities(point, freestream, dod_info(k), .false., &
+                                                    this%sigma, this%mu, this%N_panels, this%N_verts, &
+                                                    this%asym_flow, v_s_panel, v_d_panel)
+                ! Because computers don't like adding zero a bunch
+                if (this%panels(k)%has_sources) v_s = v_s + v_s_panel
+                v_d = v_d + v_d_panel
+
+            end if
+
+            ! Calculate mirrored influences
+            if (this%mirrored) then
+
+                if (dod_info(k+this%N_panels)%in_dod) then
+
+                    if (this%asym_flow) then
+
+                        ! Get influence of mirrored panel
+                        call this%panels(k)%calc_velocities(point, freestream, dod_info(k+this%N_panels), .true., &
+                                                            this%sigma, this%mu, this%N_panels, this%N_verts, &
+                                                            this%asym_flow, v_s_panel, v_d_panel)
+                        if (this%panels(k)%has_sources) v_s = v_s + v_s_panel
+                        v_d = v_d + v_d_panel
+
+                    else
+
+                        ! Get influence of panel on mirrored point
+                        call this%panels(k)%calc_velocities(mirror_across_plane(point, this%mirror_plane), freestream, &
+                                                            dod_info(k+this%N_panels), .false., &
+                                                            this%sigma, this%mu, this%N_panels, this%N_verts, &
+                                                            this%asym_flow, v_s_panel, v_d_panel)
+                        if (this%panels(k)%has_sources) v_s = v_s + v_s_panel
+                        v_d = v_d + v_d_panel
+
+                    end if
+
+                end if
+
+            end if
+
+        end do
+
+        ! Loop through wake panels
+        do j=1,this%wake%N_strips
+            do k=1,this%wake%strips(j)%N_panels
+
+                ! Check DoD
+                if (wake_dod_info(k,j)%in_dod) then
+                
+                    ! Calculate influence
+                    call this%wake%strips(j)%panels(k)%calc_velocities(point, freestream, wake_dod_info(k,j), .false., &
+                                                             this%sigma, this%mu, this%N_panels, this%N_verts, &
+                                                             this%asym_flow, v_s_panel, v_d_panel)
+                    
+                    v_d = v_d + v_d_panel
+                    if (this%wake%strips(j)%panels(k)%has_sources) v_s = v_s + v_s_panel
+
+                end if
+
+                ! Calculate mirrored influences
+                if (this%mirrored .and. .not. this%asym_flow) then
+
+                    if (wake_dod_info(k+this%wake%N_max_strip_panels,j)%in_dod) then
+
+                        ! Get influence of mirrored panel
+                        call this%wake%strips(j)%panels(k)%calc_velocities(point, freestream, &
+                                                                 wake_dod_info(k+this%wake%N_max_strip_panels,j), .true., &
+                                                                 this%sigma, this%mu, this%N_panels, this%N_verts, &
+                                                                 this%asym_flow, v_s_panel, v_d_panel)
+                        
+                        if (this%wake%strips(j)%panels(k)%has_sources) v_s = v_s + v_s_panel
+                        v_d = v_d + v_d_panel
+
+                    end if
+
+                end if
+
+            end do
+        end do
+    end subroutine surface_mesh_get_induced_velocities_at_point
+
 
 
     subroutine surface_mesh_output_results(this, body_file, wake_file, control_point_file, mirrored_body_file)
