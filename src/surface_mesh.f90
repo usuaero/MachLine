@@ -189,7 +189,7 @@ contains
         end select
 
         ! Store cosine of max continuity angle
-        call json_xtnsn_get(settings, 'max_continuity_angle', discont_angle, default_value=45.)
+        call json_xtnsn_get(settings, 'max_continuity_angle', discont_angle, default_value=5.)
         this%C_max_cont_angle = cos(pi*discont_angle/180.)
 
         ! Get how sigma distributions should be calculated
