@@ -126,8 +126,8 @@ contains
         allocate(this%vertices(this%N_verts))
 
         ! Initialize starting vertices in wake strip
-        call this%vertices(1)%init(start_1, 1, 1)
-        call this%vertices(2)%init(start_2, 2, 1)
+        call this%vertices(1)%init(start_1, 1)
+        call this%vertices(2)%init(start_2, 2)
 
         ! Set parents
         this%vertices(1)%top_parent = this%i_top_parent_1
@@ -154,7 +154,7 @@ contains
             end if
 
             ! Initialize vertices
-            call this%vertices(i)%init(loc, i, 1)
+            call this%vertices(i)%init(loc, i)
 
             ! Set parents
             if (modulo(i, 2) == 0) then

@@ -20,7 +20,7 @@ module surface_mesh_mod
 
     type, extends(mesh) :: surface_mesh
 
-        integer :: N_cp, N_edges, N_true_verts ! as in, not midpoints
+        integer :: N_cp, N_edges ! as in, not midpoints
         integer :: N_subinc, N_supinc
         type(edge),allocatable,dimension(:) :: edges
         type(wake_mesh) :: wake
@@ -247,9 +247,6 @@ contains
             
         end select
         if (verbose) write(*,*) "Done."
-
-        ! Store some mesh parameters
-        this%N_true_verts = this%N_verts
 
         ! Display mesh info
         if (verbose) write(*,'(a, i7, a, i7, a)') "     Surface mesh has ", this%N_verts, " vertices and ", &
@@ -1016,47 +1013,32 @@ contains
                     ! Loop through segments of the mesh surrounding the vertex divided by the wake edges
                     ! We only need to do this for true vertices, as midpoints have only two neighboring panels and one wake-shedding edge
                     allocate(mirrored_is_unique(N_boba+1), source=.true.)
-                    if (this%vertices(i_jango)%vert_type == 1) then
-                        allocate(i_panels_between_all(20,N_boba+1), source=0) ! I'm hoping we don't ever have more than 20 panels here
-                        i_start_panel = this%edges(i_start_edge(1))%panels(1)
-                        do i=1,N_boba+1
+                    allocate(i_panels_between_all(20,N_boba+1), source=0) ! I'm hoping we don't ever have more than 20 panels here
+                    i_start_panel = this%edges(i_start_edge(1))%panels(1)
+                    do i=1,N_boba+1
 
-                            ! Figure out segment of panels
-                            call this%find_next_wake_edge(i_start_edge(i), i_jango, i_start_panel, i_end_edge(i), i_panels_between)
+                        ! Figure out segment of panels
+                        call this%find_next_wake_edge(i_start_edge(i), i_jango, i_start_panel, i_end_edge(i), i_panels_between)
 
-                            ! Store panels
-                            i_panels_between_all(1:size(i_panels_between),i) = i_panels_between
+                        ! Store panels
+                        i_panels_between_all(1:size(i_panels_between),i) = i_panels_between
 
-                            ! Check if the mirrored vertex for this segment will be unique
-                            if (this%edges(i_start_edge(i))%on_mirror_plane .and. .not. this%edges(i_start_edge(i))%sheds_wake) then
-                                mirrored_is_unique(i) = .false.
-                            end if
-                            if (this%edges(i_end_edge(i))%on_mirror_plane .and. .not. this%edges(i_end_edge(i))%sheds_wake) then
-                                mirrored_is_unique(i) = .false.
-                            end if
+                        ! Check if the mirrored vertex for this segment will be unique
+                        if (this%edges(i_start_edge(i))%on_mirror_plane .and. .not. this%edges(i_start_edge(i))%sheds_wake) then
+                            mirrored_is_unique(i) = .false.
+                        end if
+                        if (this%edges(i_end_edge(i))%on_mirror_plane .and. .not. this%edges(i_end_edge(i))%sheds_wake) then
+                            mirrored_is_unique(i) = .false.
+                        end if
 
-                            ! Move on to the next edge
-                            if (i <= N_boba) i_start_edge(i+1) = i_end_edge(i)
+                        ! Move on to the next edge
+                        if (i <= N_boba) i_start_edge(i+1) = i_end_edge(i)
 
-                            ! The start panel will be across the ending edge from the last panel
-                            i_start_panel = this%edges(i_end_edge(i))%get_opposing_panel(i_panels_between(size(i_panels_between)))
+                        ! The start panel will be across the ending edge from the last panel
+                        i_start_panel = this%edges(i_end_edge(i))%get_opposing_panel(i_panels_between(size(i_panels_between)))
 
-                        end do
-                        deallocate(i_panels_between)
-
-                    ! Midpoints
-                    else
-                        
-                        ! Set panels
-                        allocate(i_panels_between_all(1,2))
-                        i_panels_between_all(1,1) = this%edges(i_edge)%panels(1)
-                        i_panels_between_all(1,2) = this%edges(i_edge)%panels(2)
-
-                        ! Set edges
-                        i_start_edge(2) = i_edge
-                        i_end_edge(2) = i_edge
-
-                    end if
+                    end do
+                    deallocate(i_panels_between)
 
                     ! Set whether Jango has a unique mirror
                     this%vertices(i_jango)%mirrored_is_unique = mirrored_is_unique(1)
@@ -1214,14 +1196,11 @@ contains
         logical :: found_edge
 
         ! Basic initialization
-        call this%vertices(i_boba)%init(this%vertices(i_jango)%loc, i_boba, this%vertices(i_jango)%vert_type)
+        call this%vertices(i_boba)%init(this%vertices(i_jango)%loc, i_boba)
         this%vertices(i_boba)%clone = .true.
 
         ! Copy information which is the same
         call this%vertices(i_jango)%copy_to(this%vertices(i_boba))
-
-        ! If this is a true vertex (not a midpoint), add to the count
-        if (this%vertices(i_jango)%vert_type == 1) this%N_true_verts = this%N_true_verts + 1
 
         ! Mirroring properties
         this%vertices(i_boba)%mirrored_is_unique = mirrored_is_unique
@@ -1826,62 +1805,59 @@ contains
         logical :: found_first, tp_found
 
         ! Get the two edges defining the split for this vertex
-        if (this%vertices(i_vert)%vert_type == 1) then
-            found_first = .false.
-            i_edge_2 = 0
-            do j=1,this%vertices(i_vert)%adjacent_edges%len()
+        found_first = .false.
+        i_edge_2 = 0
+        do j=1,this%vertices(i_vert)%adjacent_edges%len()
 
-                ! Get index
-                call this%vertices(i_vert)%adjacent_edges%get(j, i_edge)
+            ! Get index
+            call this%vertices(i_vert)%adjacent_edges%get(j, i_edge)
 
-                ! Make sure it's a wake-shedding edge (we don't need to check other edges)
-                if (this%edges(i_edge)%sheds_wake) then
+            ! Make sure it's a wake-shedding edge (we don't need to check other edges)
+            if (this%edges(i_edge)%sheds_wake) then
 
-                    ! See if only one of this edge's panels belongs to the panels not across a wake edge for this vertex
-                    panel1 = this%edges(i_edge)%panels(1)
-                    panel2 = this%edges(i_edge)%panels(2)
-                    if ((this%vertices(i_vert)%panels_not_across_wake_edge%is_in(panel1) &
-                         .and. .not. this%vertices(i_vert)%panels_not_across_wake_edge%is_in(panel2)) .or. &
-                        (this%vertices(i_vert)%panels_not_across_wake_edge%is_in(panel2) &
-                         .and. .not. this%vertices(i_vert)%panels_not_across_wake_edge%is_in(panel1))) then
+                ! See if only one of this edge's panels belongs to the panels not across a wake edge for this vertex
+                panel1 = this%edges(i_edge)%panels(1)
+                panel2 = this%edges(i_edge)%panels(2)
+                if ((this%vertices(i_vert)%panels_not_across_wake_edge%is_in(panel1) &
+                     .and. .not. this%vertices(i_vert)%panels_not_across_wake_edge%is_in(panel2)) .or. &
+                    (this%vertices(i_vert)%panels_not_across_wake_edge%is_in(panel2) &
+                     .and. .not. this%vertices(i_vert)%panels_not_across_wake_edge%is_in(panel1))) then
 
-                        ! Store
-                        if (found_first) then
-                            i_edge_2 = i_edge
-                        else
-                            i_edge_1 = i_edge
-                            found_first = .true.
-                        end if
+                    ! Store
+                    if (found_first) then
+                        i_edge_2 = i_edge
+                    else
+                        i_edge_1 = i_edge
+                        found_first = .true.
                     end if
-
                 end if
 
-            end do
-
-            ! Get average tangent vector for the edge
-            ! If we've found both, then we can use both
-            if (i_edge_2 /= 0) then
-
-                ! First edge
-                t1 = this%vertices(i_vert)%loc - &
-                        this%vertices(this%edges(i_edge_1)%get_opposite_endpoint(i_vert, this%vertices))%loc
-                t1 = t1/norm2(t1)
-
-                ! Second edge
-                t2 = this%vertices(this%edges(i_edge_2)%get_opposite_endpoint(i_vert, this%vertices))%loc - &
-                        this%vertices(i_vert)%loc
-                t2 = t2/norm2(t2)
-
-                ! Get average
-                t_avg = t1 + t2
-                t_avg = t_avg/norm2(t_avg)
-
-            ! If we've only found one, then the other edge must be mirrored
-            else
-                t_avg = 0.
-                t_avg(this%mirror_plane) = 1.
             end if
 
+        end do
+
+        ! Get average tangent vector for the edge
+        ! If we've found both, then we can use both
+        if (i_edge_2 /= 0) then
+
+            ! First edge
+            t1 = this%vertices(i_vert)%loc - &
+                    this%vertices(this%edges(i_edge_1)%get_opposite_endpoint(i_vert, this%vertices))%loc
+            t1 = t1/norm2(t1)
+
+            ! Second edge
+            t2 = this%vertices(this%edges(i_edge_2)%get_opposite_endpoint(i_vert, this%vertices))%loc - &
+                    this%vertices(i_vert)%loc
+            t2 = t2/norm2(t2)
+
+            ! Get average
+            t_avg = t1 + t2
+            t_avg = t_avg/norm2(t_avg)
+
+        ! If we've only found one, then the other edge must be mirrored
+        else
+            t_avg = 0.
+            t_avg(this%mirror_plane) = 1.
         end if
 
         ! Get the vector which is perpendicular to t_avg that also lies inside one of the panels not across a wake edge

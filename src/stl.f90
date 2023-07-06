@@ -225,7 +225,7 @@ contains
 
                 ! Initialize
                 j = new_ind(i)
-                call vertices(j)%init(vertex_locs(:,i), j, 1)
+                call vertices(j)%init(vertex_locs(:,i), j)
 
             end if
 

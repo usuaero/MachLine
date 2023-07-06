@@ -1701,17 +1701,13 @@ contains
         ! Loop through vertices
         do i=1,this%N
 
-            ! It's a vertex, so check the vertex locations
-            if (new_vertex%vert_type == 1) then
+            ! Check the vertex locations
+            if (dist(this%get_vertex_loc(i), new_vertex%loc) < 1e-12) then
 
-                if (dist(this%get_vertex_loc(i), new_vertex%loc) < 1e-12) then
+                ! Update pointer
+                this%vertices(i)%ptr => new_vertex
 
-                    ! Update pointer
-                    this%vertices(i)%ptr => new_vertex
-
-                    return
-
-                end if
+                return
 
             end if
 
