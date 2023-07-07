@@ -138,7 +138,7 @@ contains
     end function mesh_get_verts_in_dod_of_point
 
 
-    function mesh_get_panel_dod_info_for_point(this, point, freestream, verts_in_dod, mirror_panels) result(dod_info)
+    function mesh_get_panel_dod_info_for_point(this, point, freestream, mirror_panels) result(dod_info)
         ! Returns an array describing how the panels in the mesh fall wrt the DoD of the given point
 
         implicit none
@@ -146,7 +146,6 @@ contains
         class(mesh),intent(in) :: this
         real,dimension(3),intent(in) :: point
         type(flow),intent(in) :: freestream
-        logical,dimension(:),allocatable,intent(in) :: verts_in_dod
         logical,intent(in) :: mirror_panels
 
         type(dod),dimension(this%N_panels) :: dod_info
@@ -155,7 +154,7 @@ contains
 
         ! Loop through panels
         do i=1,this%N_panels
-            dod_info(i) = this%panels(i)%check_dod(point, freestream, verts_in_dod, mirror_panels, this%mirror_plane)
+            dod_info(i) = this%panels(i)%check_dod(point, freestream, mirror_panels)
         end do
         
     end function mesh_get_panel_dod_info_for_point

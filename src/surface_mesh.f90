@@ -735,7 +735,7 @@ contains
         !$OMP parallel do schedule(static)
         do i=1,this%N_panels
             call this%panels(i)%set_distribution(this%initial_panel_order, this%panels, &
-                                                 this%vertices, this%mirrored, this%mirror_plane)
+                                                 this%vertices, this%mirrored)
         end do
         
         if (verbose) write(*,*) "Done."
@@ -1492,13 +1492,13 @@ contains
             call this%vertices(i_vert)%panels%get(i, i_panel)
 
             ! Check for original panel
-            if (this%panels(i_panel)%line_passes_through(start, dir, .false., 0, s_star)) then
+            if (this%panels(i_panel)%line_passes_through(start, dir, .false., s_star)) then
                 if (s_star <= 1. .and. s_star >= 0.) N_crosses = N_crosses + 1
             end if
 
             ! Check for mirrored panel
             if (this%vertices(i_vert)%on_mirror_plane) then
-                if (this%panels(i_panel)%line_passes_through(start, dir, .true., this%mirror_plane, s_star)) then
+                if (this%panels(i_panel)%line_passes_through(start, dir, .true., s_star)) then
                     if (s_star <= 1. .and. s_star >= 0.) N_crosses = N_crosses + 1
                 end if
             end if
@@ -1743,7 +1743,7 @@ contains
                     call this%vertices(i)%panels%get(j, i_panel)
 
                     ! Check if it's above the original panel
-                    if (this%panels(i_panel)%point_above(this%cp(i)%loc, .false., 0)) then
+                    if (this%panels(i_panel)%point_above(this%cp(i)%loc, .false.)) then
                         !write(*,*) "    It's above panel ", i_panel
                         !write(*,*) "        ", this%panels(i_panel)%n_g
                         n_avg = n_avg + this%panels(i_panel)%get_weighted_normal_at_corner(this%vertices(i)%loc)
@@ -1884,7 +1884,7 @@ contains
                 if (.not. norm2(tp) > 1.e-12) cycle vertex_loop
 
                 ! If it's still inside the panel, we've found our vector
-                if (this%panels(i_panel)%projection_inside(tp + this%vertices(i_vert)%loc, .false., 0)) then
+                if (this%panels(i_panel)%projection_inside(tp + this%vertices(i_vert)%loc, .false.)) then
                     tp_found = .true.
                     exit tp_loop
                 end if
@@ -1901,7 +1901,7 @@ contains
             if (.not. norm2(tp) > 1.e-12) cycle tp_loop
 
             ! If it's still inside the panel, we've found our vector
-            if (this%panels(i_panel)%projection_inside(tp + this%vertices(i_vert)%loc, .false., 0)) then
+            if (this%panels(i_panel)%projection_inside(tp + this%vertices(i_vert)%loc, .false.)) then
                 tp_found = .true.
                 exit tp_loop
             end if
@@ -1985,7 +1985,6 @@ contains
         type(dod),dimension(:),allocatable,intent(out) :: dod_info
         type(dod),dimension(:,:),allocatable :: wake_dod_info
 
-        logical,dimension(:),allocatable :: verts_in_dod, wake_verts_in_dod
         integer :: j, stat, N_verts, N_panels, N_strip_verts, N_strip_panels
 
         ! Figure out how many verts and panels we're going to consider
@@ -2008,17 +2007,9 @@ contains
 
         ! Allocate
 
-        ! Whether mesh vertices are in the DoD
-        allocate(verts_in_dod(N_verts), source=.false., stat=stat)
-        call check_allocation(stat, "vertex domain of dependence storage")
-
         ! DoD info for panels
         allocate(dod_info(N_panels), stat=stat)
         call check_allocation(stat, "domain of dependence storage")
-
-        ! Whether wake vertices are in the DoD
-        allocate(wake_verts_in_dod(N_strip_verts), stat=stat)
-        call check_allocation(stat, "wake vertex domain of dependence storage")
 
         ! DoD info for wake panels
         allocate(wake_dod_info(N_strip_panels,this%wake%N_strips), stat=stat)
@@ -2027,45 +2018,25 @@ contains
         ! If the freestream is supersonic, calculate domain of dependence info
         if (freestream%supersonic) then
 
-            ! Get DoD for original vertices
-            verts_in_dod(1:this%N_verts) = this%get_verts_in_dod_of_point(point, freestream, .false.)
-
-            ! Get DoD for mirrored vertices
-            if (this%mirrored) then
-                verts_in_dod(this%N_verts+1:) = this%get_verts_in_dod_of_point(point, freestream, .true.)
-            end if
-
             ! Get info for original panels
-            dod_info(1:this%N_panels) = this%get_panel_dod_info_for_point(point, freestream, verts_in_dod, .false.)
+            dod_info(1:this%N_panels) = this%get_panel_dod_info_for_point(point, freestream, .false.)
 
             ! Get info for mirrored panels
             if (this%mirrored) then
-                dod_info(this%N_panels+1:) = this%get_panel_dod_info_for_point(point, freestream, verts_in_dod, .true.)
+                dod_info(this%N_panels+1:) = this%get_panel_dod_info_for_point(point, freestream, .true.)
             end if
-
-            deallocate(verts_in_dod)
 
             ! Loop through wake strips
             do j=1,this%wake%N_strips
 
-                ! Get DoD for original vertices
-                wake_verts_in_dod(1:this%wake%strips(j)%N_verts) = &
-                    this%wake%strips(j)%get_verts_in_dod_of_point(point, freestream, .false.)
-
-                ! Get DoD for mirrored vertices
-                if (this%wake%strips(j)%mirrored) then
-                    wake_verts_in_dod(this%wake%strips(j)%N_verts+1:) = &
-                        this%wake%strips(j)%get_verts_in_dod_of_point(point, freestream, .true.)
-                end if 
-
                 ! Get info for original panels
                 wake_dod_info(1:this%wake%strips(j)%N_panels,j) = &
-                    this%wake%strips(j)%get_panel_dod_info_for_point(point, freestream, wake_verts_in_dod, .false.)
+                    this%wake%strips(j)%get_panel_dod_info_for_point(point, freestream, .false.)
 
                 ! Get info for mirrored panels
                 if (this%wake%strips(j)%mirrored) then
                     wake_dod_info(this%wake%strips(j)%N_panels+1:,j) = &
-                        this%wake%strips(j)%get_panel_dod_info_for_point(point, freestream, wake_verts_in_dod, .true.)
+                        this%wake%strips(j)%get_panel_dod_info_for_point(point, freestream, .true.)
                 end if
             end do
 

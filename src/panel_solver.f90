@@ -483,10 +483,8 @@ contains
         class(panel_solver),intent(inout) :: this
         type(surface_mesh),intent(inout) :: body
 
-        integer :: i, j, k, stat, N_panels, N_verts, N_strip_panels, N_strip_verts
+        integer :: i, j, k, stat, N_panels, N_strip_panels
         real,dimension(3) :: vert_loc, mirrored_vert_loc
-        logical,dimension(:),allocatable :: verts_in_dod
-        logical,dimension(:,:),allocatable :: wake_verts_in_dod
 
         if (this%freestream%supersonic .and. verbose) write(*,'(a)',advance='no') "     Calculating domains of dependence..."
 
@@ -494,18 +492,13 @@ contains
         if (body%mirrored) then
             if (body%asym_flow) then
                 N_strip_panels = body%wake%N_max_strip_panels
-                N_strip_verts = body%wake%N_max_strip_verts
             else
                 N_strip_panels = 2*body%wake%N_max_strip_panels
-                N_strip_verts = 2*body%wake%N_max_strip_verts
             end if
             N_panels = 2*body%N_panels
-            N_verts = 2*body%N_verts
         else
             N_panels = body%N_panels
-            N_verts = body%N_verts
             N_strip_panels = body%wake%N_max_strip_panels
-            N_strip_verts = body%wake%N_max_strip_verts
         end if
 
         ! Allocate
@@ -514,63 +507,28 @@ contains
         allocate(this%dod_info(N_panels, this%N_unknown), stat=stat)
         call check_allocation(stat, "domain of dependence storage")
 
-        ! Whether vertices are in the DoD of the original control point
-        allocate(verts_in_dod(N_verts), stat=stat)
-        call check_allocation(stat, "vertex domain of dependence storage")
-
         ! DoD info for panels
         allocate(this%wake_dod_info(N_strip_panels, body%wake%N_strips, this%N_unknown), stat=stat)
         call check_allocation(stat, "wake domain of dependence storage")
-
-        ! Whether vertices are in the DoD of the original control point
-        allocate(wake_verts_in_dod(N_strip_verts, body%wake%N_strips), stat=stat)
-        call check_allocation(stat, "vertex domain of dependence storage")
 
         ! If the freestream is subsonic, these don't need to be checked
         if (this%freestream%supersonic) then
 
             ! Loop through control points
-            !$OMP parallel do private(i, k, vert_loc, mirrored_vert_loc, verts_in_dod, wake_verts_in_dod)
+            !$OMP parallel do private(i, k, vert_loc, mirrored_vert_loc)
             do j=1,body%N_cp
-
-                ! Get whether body vertices are in the DoD of this control point
-                verts_in_dod(1:body%N_verts) = body%get_verts_in_dod_of_point(body%cp(j)%loc, this%freestream, .false.)
-
-                if (body%mirrored) then
-
-                    ! Get whether mirrored vertices are in the DoD of this control point
-                    verts_in_dod(body%N_verts+1:) = body%get_verts_in_dod_of_point(body%cp(j)%loc, this%freestream, .true.)
-
-                end if
-
-                ! Loop through wake strips
-                do i=1,body%wake%N_strips
-
-                    ! Get whether wake vertices are in the DoD of this control point
-                    wake_verts_in_dod(1:body%wake%strips(i)%N_verts,i) = &
-                        body%wake%strips(i)%get_verts_in_dod_of_point(body%cp(j)%loc, this%freestream, .false.)
-
-                    if (body%mirrored .and. .not. body%asym_flow) then
-
-                        ! Get whether mirrored vertices are in the DoD of this control point
-                        wake_verts_in_dod(body%wake%strips(i)%N_verts+1:,i) = &
-                            body%wake%strips(i)%get_verts_in_dod_of_point(body%cp(j)%loc, this%freestream, .true.)
-
-                    end if
-                end do
 
                 ! Loop through body panels
                 do i=1,body%N_panels
 
                     ! Check DoD for original panel
-                    this%dod_info(i,j) = body%panels(i)%check_dod(body%cp(j)%loc, this%freestream, verts_in_dod)
+                    this%dod_info(i,j) = body%panels(i)%check_dod(body%cp(j)%loc, this%freestream)
 
                     if (body%mirrored) then
 
                         ! Check DoD for mirrored panel
                         this%dod_info(i+body%N_panels,j) = body%panels(i)%check_dod(body%cp(j)%loc, this%freestream, &
-                                                                                    verts_in_dod, &
-                                                                                    .true., body%mirror_plane)
+                                                                                    .true.)
                     end if
                 end do
 
@@ -579,16 +537,14 @@ contains
                     do k=1,body%wake%strips(i)%N_panels
 
                         ! Check DoD for panel
-                        this%wake_dod_info(k,i,j) = body%wake%strips(i)%panels(k)%check_dod(body%cp(j)%loc, this%freestream, &
-                                                                                                  wake_verts_in_dod(:,i))
+                        this%wake_dod_info(k,i,j) = body%wake%strips(i)%panels(k)%check_dod(body%cp(j)%loc, this%freestream)
 
                         if (body%mirrored .and. .not. body%asym_flow) then
 
                             ! Check DoD for mirrored panel
                             this%wake_dod_info(k+body%wake%N_max_strip_panels,i,j) = &
                                 body%wake%strips(i)%panels(k)%check_dod(body%cp(j)%loc, this%freestream, &
-                                                                        wake_verts_in_dod(:,i), &
-                                                                        .true., body%mirror_plane)
+                                                                        .true.)
 
                         end if
                     end do
@@ -612,7 +568,7 @@ contains
 
         real,dimension(:),allocatable :: x
         real,dimension(3) :: loc
-        integer :: i, j, k, i_neighbor, i_cp, i_vert, i_panel, i_vert_for_panel, i2, i3, i_panel_abutting, i_opp_edge
+        integer :: i, j, i_neighbor, i_cp, i_vert, i_panel, i_vert_for_panel, i2, i3, i_panel_abutting, i_opp_edge
         integer,dimension(:),allocatable :: P_inv_1, P_inv_2
         integer(8) :: start_count, end_count
         real(16) :: count_rate
@@ -1668,7 +1624,7 @@ contains
         real :: C_P_avg
 
         C_P_avg = body%panels(i_panel)%get_avg_pressure_coef(body%mu, body%sigma, mirrored, body%N_panels, body%N_verts, &
-                                                             body%asym_flow, this%freestream, this%inner_flow, body%mirror_plane, &
+                                                             body%asym_flow, this%freestream, this%inner_flow, &
                                                              rule, M_corr=this%M_inf_corr)
         
     end function panel_solver_calc_avg_pressure_on_panel
@@ -2001,7 +1957,7 @@ contains
         real,dimension(3) :: C_M
 
         C_M = body%panels(i_panel)%get_moment_about_centroid(body%mu, body%sigma, mirrored, body%N_panels, body%N_verts, &
-                                                             body%asym_flow, this%freestream, this%inner_flow, body%mirror_plane, &
+                                                             body%asym_flow, this%freestream, this%inner_flow, &
                                                              rule, M_corr=this%M_inf_corr)
         
     end function panel_solver_calc_moment_about_centroid_of_panel
