@@ -2895,7 +2895,7 @@ contains
     end function panel_calc_integrals
 
 
-    subroutine panel_calc_potential_influences(this, P, freestream, dod_info, mirror_panel, phi_s_S_space, phi_d_M_space)
+    subroutine panel_calc_potential_influences(this, P, freestream, mirror_panel, phi_s_S_space, phi_d_M_space)
         ! Calculates the source- and doublet-induced potentials at the given point P
 
         implicit none
@@ -2903,10 +2903,10 @@ contains
         class(panel),intent(in) :: this
         real,dimension(3),intent(in) :: P
         type(flow),intent(in) :: freestream
-        type(dod),intent(inout) :: dod_info
         logical,intent(in) :: mirror_panel
         real,dimension(:),allocatable,intent(out) :: phi_s_S_space, phi_d_M_space
 
+        type(dod) :: dod_info
         type(eval_point_geom) :: geom
         type(integrals) :: int
         real,dimension(:),allocatable :: phi_s_sigma_space, phi_d_mu_space
@@ -3003,7 +3003,7 @@ contains
     end subroutine panel_calc_potential_influences
 
 
-    subroutine panel_calc_potentials(this, P, freestream, dod_info, mirror_panel, sigma, mu, &
+    subroutine panel_calc_potentials(this, P, freestream, mirror_panel, sigma, mu, &
                                      N_body_panels, N_body_verts, asym_flow, phi_s, phi_d)
         ! Calculates the potentials induced at the given point
 
@@ -3012,7 +3012,6 @@ contains
         class(panel),intent(in) :: this
         real,dimension(3),intent(in) :: P
         type(flow),intent(in) :: freestream
-        type(dod),intent(inout) :: dod_info
         logical,intent(in) :: mirror_panel, asym_flow
         real,dimension(:),allocatable,intent(in) :: sigma, mu
         integer,intent(in) :: N_body_panels, N_body_verts
@@ -3023,7 +3022,7 @@ contains
         real,dimension(this%S_dim) :: source_strengths
 
         ! Get influences
-        call this%calc_potential_influences(P, freestream, dod_info, mirror_panel, source_inf, doublet_inf)
+        call this%calc_potential_influences(P, freestream, mirror_panel, source_inf, doublet_inf)
 
         ! Get strengths
         source_strengths = this%get_source_strengths(sigma, mirror_panel, N_body_panels, asym_flow)
@@ -3081,7 +3080,7 @@ contains
     end subroutine panel_allocate_velocity_influences
 
 
-    subroutine panel_calc_velocity_influences(this, P, freestream, dod_info, mirror_panel, v_s_S_space, v_d_M_space)
+    subroutine panel_calc_velocity_influences(this, P, freestream, mirror_panel, v_s_S_space, v_d_M_space)
         ! Calculates the source- and doublet-induced potentials at the given point P
 
         implicit none
@@ -3089,10 +3088,10 @@ contains
         class(panel),intent(in) :: this
         real,dimension(3),intent(in) :: P
         type(flow),intent(in) :: freestream
-        type(dod),intent(in) :: dod_info
         logical,intent(in) :: mirror_panel
         real,dimension(:,:),allocatable,intent(out) :: v_s_S_space, v_d_M_space
 
+        type(dod) :: dod_info
         type(eval_point_geom) :: geom
         type(integrals) :: int
         real,dimension(:,:),allocatable :: v_s_sigma_space, v_d_mu_space
@@ -3108,6 +3107,7 @@ contains
         else
     
             ! Check DoD
+            dod_info = this%check_dod(P, freestream, mirror_panel)
             if (dod_info%in_dod .and. this%A > 0.) then
 
                 ! Calculate geometric parameters
@@ -3253,9 +3253,9 @@ contains
 
                 ! Convert to strength influences (Davis Eq. (4.41))
                 if (mirror_panel) then
-                    v_d_M_space(:,1:this%M_dim) = freestream%K_inv*matmul(v_d_mu_space, this%T_mu_mir)
+                    v_d_M_space(:,1:this%M_dim) = freestream%K_inv*matmul(v_d_mu_space(:,1:this%mu_dim), this%T_mu_mir)
                 else
-                    v_d_M_space(:,1:this%M_dim) = freestream%K_inv*matmul(v_d_mu_space, this%T_mu)
+                    v_d_M_space(:,1:this%M_dim) = freestream%K_inv*matmul(v_d_mu_space(:,1:this%mu_dim), this%T_mu)
                 end if
 
                 ! Wake bottom influence is opposite the top influence
@@ -3278,7 +3278,7 @@ contains
     end subroutine panel_calc_velocity_influences
 
 
-    subroutine panel_calc_velocities(this, P, freestream, dod_info, mirror_panel, sigma, mu, &
+    subroutine panel_calc_velocities(this, P, freestream, mirror_panel, sigma, mu, &
                                      N_body_panels, N_body_verts, asym_flow, v_s, v_d)
         ! Calculates the potentials induced at the given point
 
@@ -3287,7 +3287,6 @@ contains
         class(panel),intent(in) :: this
         real,dimension(3),intent(in) :: P
         type(flow),intent(in) :: freestream
-        type(dod),intent(in) :: dod_info
         logical,intent(in) :: mirror_panel, asym_flow
         real,dimension(:),allocatable,intent(in) :: sigma, mu
         integer,intent(in) :: N_body_panels, N_body_verts
@@ -3298,7 +3297,7 @@ contains
         real,dimension(this%S_dim) :: source_strengths
 
         ! Get influences
-        call this%calc_velocity_influences(P, freestream, dod_info, mirror_panel, source_inf, doublet_inf)
+        call this%calc_velocity_influences(P, freestream, mirror_panel, source_inf, doublet_inf)
 
         ! Get strengths
         source_strengths = this%get_source_strengths(sigma, mirror_panel, N_body_panels, asym_flow)

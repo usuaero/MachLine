@@ -2057,54 +2057,39 @@ contains
 
         integer :: j, k
         real :: phi_d_panel, phi_s_panel
-        type(dod),dimension(:),allocatable :: dod_info
-        type(dod),dimension(:,:),allocatable :: wake_dod_info
-
-        ! Calculate domain of dependence
-        call this%calc_point_dod(point, freestream, dod_info, wake_dod_info)
 
         ! Loop through panels
         phi_s = 0.
         phi_d = 0.
         do k=1,this%N_panels
-
-            ! Check DoD
-            if (dod_info(k)%in_dod) then
             
-                ! Calculate influence
-                call this%panels(k)%calc_potentials(point, freestream, dod_info(k), .false., &
-                                                    this%sigma, this%mu, this%N_panels, this%N_verts, &
-                                                    this%asym_flow, phi_s_panel, phi_d_panel)
-                phi_s = phi_s + phi_s_panel
-                phi_d = phi_d + phi_d_panel
-
-            end if
+            ! Calculate influence
+            call this%panels(k)%calc_potentials(point, freestream, .false., &
+                                                this%sigma, this%mu, this%N_panels, this%N_verts, &
+                                                this%asym_flow, phi_s_panel, phi_d_panel)
+            phi_s = phi_s + phi_s_panel
+            phi_d = phi_d + phi_d_panel
 
             ! Calculate mirrored influences
             if (this%mirrored) then
 
-                if (dod_info(k+this%N_panels)%in_dod) then
+                if (this%asym_flow) then
 
-                    if (this%asym_flow) then
+                    ! Get influence of mirrored panel
+                    call this%panels(k)%calc_potentials(point, freestream, .true., &
+                                                        this%sigma, this%mu, this%N_panels, this%N_verts, &
+                                                        this%asym_flow, phi_s_panel, phi_d_panel)
+                    phi_s = phi_s + phi_s_panel
+                    phi_d = phi_d + phi_d_panel
 
-                        ! Get influence of mirrored panel
-                        call this%panels(k)%calc_potentials(point, freestream, dod_info(k+this%N_panels), .true., &
-                                                            this%sigma, this%mu, this%N_panels, this%N_verts, &
-                                                            this%asym_flow, phi_s_panel, phi_d_panel)
-                        phi_s = phi_s + phi_s_panel
-                        phi_d = phi_d + phi_d_panel
+                else
 
-                    else
-
-                        ! Get influence of panel on mirrored point
-                        call this%panels(k)%calc_potentials(mirror_across_plane(point, this%mirror_plane), freestream, &
-                                                            dod_info(k+this%N_panels), .false., &
-                                                            this%sigma, this%mu, this%N_panels, this%N_verts, &
-                                                            this%asym_flow, phi_s_panel, phi_d_panel)
-                        phi_s = phi_s + phi_s_panel
-                        phi_d = phi_d + phi_d_panel
-
-                    end if
+                    ! Get influence of panel on mirrored point
+                    call this%panels(k)%calc_potentials(mirror_across_plane(point, this%mirror_plane), freestream, .false., &
+                                                        this%sigma, this%mu, this%N_panels, this%N_verts, &
+                                                        this%asym_flow, phi_s_panel, phi_d_panel)
+                    phi_s = phi_s + phi_s_panel
+                    phi_d = phi_d + phi_d_panel
 
                 end if
 
@@ -2116,32 +2101,22 @@ contains
         do j=1,this%wake%N_strips
             do k=1,this%wake%strips(j)%N_panels
 
-                ! Check DoD
-                if (wake_dod_info(k,j)%in_dod) then
-                
-                    ! Calculate influence
-                    call this%wake%strips(j)%panels(k)%calc_potentials(point, freestream, wake_dod_info(k,j), .false., &
-                                                             this%sigma, this%mu, this%N_panels, this%N_verts, &
-                                                             this%asym_flow, phi_s_panel, phi_d_panel)
-                    phi_s = phi_s + phi_s_panel
-                    phi_d = phi_d + phi_d_panel
-
-                end if
+                ! Calculate influence
+                call this%wake%strips(j)%panels(k)%calc_potentials(point, freestream, .false., &
+                                                         this%sigma, this%mu, this%N_panels, this%N_verts, &
+                                                         this%asym_flow, phi_s_panel, phi_d_panel)
+                phi_s = phi_s + phi_s_panel
+                phi_d = phi_d + phi_d_panel
 
                 ! Calculate mirrored influences
                 if (this%mirrored .and. .not. this%asym_flow) then
 
-                    if (wake_dod_info(k+this%wake%N_max_strip_panels,j)%in_dod) then
-
                         ! Get influence of mirrored panel
-                        call this%wake%strips(j)%panels(k)%calc_potentials(point, freestream, &
-                                                                 wake_dod_info(k+this%wake%N_max_strip_panels,j), .true., &
+                        call this%wake%strips(j)%panels(k)%calc_potentials(point, freestream, .true., &
                                                                  this%sigma, this%mu, this%N_panels, this%N_verts, &
                                                                  this%asym_flow, phi_s_panel, phi_d_panel)
                         phi_s = phi_s + phi_s_panel
                         phi_d = phi_d + phi_d_panel
-
-                    end if
 
                 end if
 
@@ -2163,11 +2138,6 @@ contains
 
         integer :: j, k
         real,dimension(3) :: v_d_panel, v_s_panel
-        type(dod),dimension(:),allocatable :: dod_info
-        type(dod),dimension(:,:),allocatable :: wake_dod_info
-
-        ! Calculate domain of dependence
-        call this%calc_point_dod(point, freestream, dod_info, wake_dod_info)
 
         ! Loop through panels
         v_d = (/0.,0.,0./)
@@ -2175,44 +2145,34 @@ contains
 
         do k=1,this%N_panels
 
-            ! Check DoD
-            if (dod_info(k)%in_dod) then
-            
-                ! Calculate influence
-                call this%panels(k)%calc_velocities(point, freestream, dod_info(k), .false., &
-                                                    this%sigma, this%mu, this%N_panels, this%N_verts, &
-                                                    this%asym_flow, v_s_panel, v_d_panel)
-                ! Because computers don't like adding zero a bunch
-                if (this%panels(k)%has_sources) v_s = v_s + v_s_panel
-                v_d = v_d + v_d_panel
-
-            end if
+            ! Calculate influence
+            call this%panels(k)%calc_velocities(point, freestream, .false., &
+                                                this%sigma, this%mu, this%N_panels, this%N_verts, &
+                                                this%asym_flow, v_s_panel, v_d_panel)
+            ! Because computers don't like adding zero a bunch
+            if (this%panels(k)%has_sources) v_s = v_s + v_s_panel
+            v_d = v_d + v_d_panel
 
             ! Calculate mirrored influences
             if (this%mirrored) then
 
-                if (dod_info(k+this%N_panels)%in_dod) then
+                if (this%asym_flow) then
 
-                    if (this%asym_flow) then
+                    ! Get influence of mirrored panel
+                    call this%panels(k)%calc_velocities(point, freestream, .true., &
+                                                        this%sigma, this%mu, this%N_panels, this%N_verts, &
+                                                        this%asym_flow, v_s_panel, v_d_panel)
+                    if (this%panels(k)%has_sources) v_s = v_s + v_s_panel
+                    v_d = v_d + v_d_panel
 
-                        ! Get influence of mirrored panel
-                        call this%panels(k)%calc_velocities(point, freestream, dod_info(k+this%N_panels), .true., &
-                                                            this%sigma, this%mu, this%N_panels, this%N_verts, &
-                                                            this%asym_flow, v_s_panel, v_d_panel)
-                        if (this%panels(k)%has_sources) v_s = v_s + v_s_panel
-                        v_d = v_d + v_d_panel
+                else
 
-                    else
-
-                        ! Get influence of panel on mirrored point
-                        call this%panels(k)%calc_velocities(mirror_across_plane(point, this%mirror_plane), freestream, &
-                                                            dod_info(k+this%N_panels), .false., &
-                                                            this%sigma, this%mu, this%N_panels, this%N_verts, &
-                                                            this%asym_flow, v_s_panel, v_d_panel)
-                        if (this%panels(k)%has_sources) v_s = v_s + v_s_panel
-                        v_d = v_d + v_d_panel
-
-                    end if
+                    ! Get influence of panel on mirrored point
+                    call this%panels(k)%calc_velocities(mirror_across_plane(point, this%mirror_plane), freestream, &
+                                                        .false., this%sigma, this%mu, this%N_panels, this%N_verts, &
+                                                        this%asym_flow, v_s_panel, v_d_panel)
+                    if (this%panels(k)%has_sources) v_s = v_s + v_s_panel
+                    v_d = v_d + v_d_panel
 
                 end if
 
@@ -2223,35 +2183,25 @@ contains
         ! Loop through wake panels
         do j=1,this%wake%N_strips
             do k=1,this%wake%strips(j)%N_panels
-
-                ! Check DoD
-                if (wake_dod_info(k,j)%in_dod) then
                 
-                    ! Calculate influence
-                    call this%wake%strips(j)%panels(k)%calc_velocities(point, freestream, wake_dod_info(k,j), .false., &
-                                                             this%sigma, this%mu, this%N_panels, this%N_verts, &
-                                                             this%asym_flow, v_s_panel, v_d_panel)
-                    
-                    v_d = v_d + v_d_panel
-                    if (this%wake%strips(j)%panels(k)%has_sources) v_s = v_s + v_s_panel
-
-                end if
+                ! Calculate influence
+                call this%wake%strips(j)%panels(k)%calc_velocities(point, freestream, .false., &
+                                                         this%sigma, this%mu, this%N_panels, this%N_verts, &
+                                                         this%asym_flow, v_s_panel, v_d_panel)
+                
+                v_d = v_d + v_d_panel
+                if (this%wake%strips(j)%panels(k)%has_sources) v_s = v_s + v_s_panel
 
                 ! Calculate mirrored influences
                 if (this%mirrored .and. .not. this%asym_flow) then
 
-                    if (wake_dod_info(k+this%wake%N_max_strip_panels,j)%in_dod) then
-
-                        ! Get influence of mirrored panel
-                        call this%wake%strips(j)%panels(k)%calc_velocities(point, freestream, &
-                                                                 wake_dod_info(k+this%wake%N_max_strip_panels,j), .true., &
-                                                                 this%sigma, this%mu, this%N_panels, this%N_verts, &
-                                                                 this%asym_flow, v_s_panel, v_d_panel)
-                        
-                        if (this%wake%strips(j)%panels(k)%has_sources) v_s = v_s + v_s_panel
-                        v_d = v_d + v_d_panel
-
-                    end if
+                    ! Get influence of mirrored panel
+                    call this%wake%strips(j)%panels(k)%calc_velocities(point, freestream, .true., &
+                                                             this%sigma, this%mu, this%N_panels, this%N_verts, &
+                                                             this%asym_flow, v_s_panel, v_d_panel)
+                    
+                    if (this%wake%strips(j)%panels(k)%has_sources) v_s = v_s + v_s_panel
+                    v_d = v_d + v_d_panel
 
                 end if
 

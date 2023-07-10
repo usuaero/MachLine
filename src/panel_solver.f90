@@ -119,7 +119,7 @@ contains
         end if
 
         ! Calculate domains of dependence
-        call this%calc_domains_of_dependence(body)
+        !call this%calc_domains_of_dependence(body)
 
         ! Set up permutation for linear system
         call this%set_permutation(body)
@@ -1096,31 +1096,21 @@ contains
                 do j=1,body%N_panels
 
                     ! Influence of existing panel on control point
-                    if (this%dod_info(j,i)%in_dod) then
+                    call body%panels(j)%calc_potential_influences(body%cp(i)%loc, this%freestream, &
+                                                                  .false., source_inf, doublet_inf)
 
-                        ! Calculate influence
-                        call body%panels(j)%calc_potential_influences(body%cp(i)%loc, this%freestream, this%dod_info(j,i), &
-                                                                      .false., source_inf, doublet_inf)
-
-                        ! Add influence
-                        call this%update_system_row(body, body%cp(i), A_i, I_known_i, j, source_inf, doublet_inf, .false.)
-
-                    end if
+                    ! Add influence
+                    call this%update_system_row(body, body%cp(i), A_i, I_known_i, j, source_inf, doublet_inf, .false.)
 
                     if (body%mirrored) then
 
                         ! Calculate influence of mirrored panel on control point
-                        if (this%dod_info(j+body%N_panels,i)%in_dod) then
+                        call body%panels(j)%calc_potential_influences(body%cp(i)%loc, this%freestream, &
+                                                                      .true., source_inf, doublet_inf)
 
-                            ! Calculate influence
-                            call body%panels(j)%calc_potential_influences(body%cp(i)%loc, this%freestream, &
-                                                                          this%dod_info(j+body%N_panels,i), &
-                                                                          .true., source_inf, doublet_inf)
-
-                            ! Add influence
-                            call this%update_system_row(body, body%cp(i), A_i, I_known_i, j, &
+                        ! Add influence
+                        call this%update_system_row(body, body%cp(i), A_i, I_known_i, j, &
                                                         source_inf, doublet_inf, body%asym_flow)
-                        end if
 
                     end if
 
@@ -1140,9 +1130,6 @@ contains
             !$OMP end critical
 
         end do
-
-        ! Clean up memory
-        deallocate(this%dod_info)
 
         if (verbose) write(*,*) "Done."
     
@@ -1187,7 +1174,6 @@ contains
 
                         ! Caclulate influence of existing panel on control point
                         call body%wake%strips(j)%panels(l)%calc_potential_influences(body%cp(i)%loc, this%freestream, &
-                                                                                     this%wake_dod_info(l,j,i), &
                                                                                      .false., source_inf, doublet_inf)
 
                         ! Add influence
@@ -1201,7 +1187,6 @@ contains
 
                             ! Calculate influence of mirrored panel on control point
                             call body%wake%strips(j)%panels(l)%calc_potential_influences(body%cp(i)%loc, this%freestream, &
-                                                                     this%wake_dod_info(l+body%wake%N_max_strip_panels,j,i), & ! No, this is not the DoD for this computation; yes, it is equivalent
                                                                      .true., source_inf, doublet_inf)
 
                             ! Add influence
@@ -1222,9 +1207,6 @@ contains
             !$OMP end critical
 
         end do
-
-        ! Clean up memory
-        deallocate(this%wake_dod_info)
 
         if (verbose) write(*,*) "Done."
 

@@ -3,17 +3,17 @@ import numpy as np
 if __name__=="__main__":
 
     # Limits
-    x_max = 6.0
-    x_min = 0.0
-    y_max = 2.0
+    x_max = 5.0
+    x_min = -1.0
+    y_max = 0.0
     y_min = 0.0
-    z_max = 0.0
-    z_min = 0.0
+    z_max = 1.0
+    z_min = -1.0
 
     # Number of points to distribute
-    Nx = 300
-    Ny = 100
-    Nz = 1
+    Nx = 20
+    Ny = 1
+    Nz = 20
 
     # Distributions in each direction
     x = np.linspace(x_min, x_max, Nx)
@@ -27,7 +27,7 @@ if __name__=="__main__":
     Z = Z.flatten()
 
     # write to file
-    filename = "dev/pod_sample_points.csv"
+    filename = "test/input_files/root_xz_sample_points.csv"
     with open(filename, 'w') as points_file:
 
         # Header
