@@ -1392,7 +1392,7 @@ contains
         logical :: is_convex
 
         integer :: i, i_neighbor, j, j_neighbor
-        real :: s, h, theta
+        real :: s, h
         logical :: first
 
         ! Initialize
@@ -1415,7 +1415,7 @@ contains
                 ! Check height above this panel
                 h = inner(this%panels(i_neighbor)%n_g, this%vertices(j_neighbor)%loc-this%panels(i_neighbor)%centr)
 
-                ! If it's in the plane of the panel, we can't say anything, and don't want to improperly initialize s
+                ! If it's in the plane of the panel, we can't say anything
                 if (abs(h) > 1.e-10) then
 
                     ! Check sign of height
@@ -1437,7 +1437,7 @@ contains
                     ! Check height above the mirrored panel
                     h = inner(this%panels(i_neighbor)%n_g_mir, this%vertices(j_neighbor)%loc-this%panels(i_neighbor)%centr_mir)
 
-                    ! If it's in the plane of the panel, we can't say anything, and don't want to improperly initialize s
+                    ! If it's in the plane of the panel, we can't say anything
                     if (abs(h) > 1.e-10) then
 
                         ! Check sign of height
@@ -1481,7 +1481,7 @@ contains
 
         ! As the starting point for the ray-casting algorithm, we'll pick a point above the first neighboring panel
         call this%vertices(i_vert)%panels%get(1, i_panel)
-        start = this%panels(i_panel)%get_characteristic_length()*this%panels(i_panel)%n_g
+        start = this%panels(i_panel)%get_characteristic_length()*this%panels(i_panel)%n_g + this%panels(i_panel)%centr
         dir = cp_loc - start
 
         ! Loop through neighboring panels, counting the number of times the line passes through
@@ -1770,10 +1770,9 @@ contains
 
         end do
 
-        ! Calculate mirrored control points, if necessary
+        ! Initialize mirrored control points, if necessary
         if (this%asym_flow) then
 
-            ! Calculate mirrors
             !$OMP parallel do schedule(static)
             do i=1,this%N_cp/2
 
@@ -1881,10 +1880,10 @@ contains
                 tp = tp - t_avg*inner(t_avg, tp)
 
                 ! Check tp isn't perfectly aligned with t_avg
-                if (.not. norm2(tp) > 1.e-12) cycle vertex_loop
+                if (norm2(tp) < 1.e-12) cycle vertex_loop
 
                 ! If it's still inside the panel, we've found our vector
-                if (this%panels(i_panel)%projection_inside(tp + this%vertices(i_vert)%loc, .false., 0)) then
+                if (this%panels(i_panel)%projection_inside(0.1*tp + this%vertices(i_vert)%loc, .false., 0)) then
                     tp_found = .true.
                     exit tp_loop
                 end if
@@ -1898,10 +1897,10 @@ contains
             tp = tp - t_avg*inner(t_avg, tp)
 
             ! Check tp isn't perfectly aligned with t_avg
-            if (.not. norm2(tp) > 1.e-12) cycle tp_loop
+            if (norm2(tp) < 1.e-12) cycle tp_loop
 
             ! If it's still inside the panel, we've found our vector
-            if (this%panels(i_panel)%projection_inside(tp + this%vertices(i_vert)%loc, .false., 0)) then
+            if (this%panels(i_panel)%projection_inside(0.1*tp + this%vertices(i_vert)%loc, .false., 0)) then
                 tp_found = .true.
                 exit tp_loop
             end if
@@ -2419,9 +2418,9 @@ contains
             ! Surface potential values
             call body_vtk%write_point_scalars(this%mu(1:this%N_verts), "mu")
             call body_vtk%write_point_scalars(this%Phi_u(1:this%N_verts), "Phi_u")
-            call body_vtk%write_point_scalars(convex, "convex")
 
         end if
+        call body_vtk%write_point_scalars(convex, "convex")
 
         ! Finalize
         call body_vtk%finish()
@@ -2515,9 +2514,9 @@ contains
             ! Surface potentials
             call body_vtk%write_point_scalars(this%mu(this%N_verts+1:this%N_verts*2), "mu")
             call body_vtk%write_point_scalars(this%Phi_u(this%N_verts+1:this%N_verts*2), "Phi_u")
-            call body_vtk%write_point_scalars(convex, "convex")
 
         end if
+        call body_vtk%write_point_scalars(convex, "convex")
 
         call body_vtk%finish()
 
