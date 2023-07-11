@@ -2562,7 +2562,7 @@ contains
 
                     ! Mach wedge
                     if (geom%R1(i) == 0. .and. geom%R2(i) == 0.) then
-                        int%hH113 = int%hH113 - pi*sign(1., geom%h*geom%v_xi(i))
+                        int%hH113 = int%hH113 + pi*sign(1., geom%h*geom%v_xi(i))
                     else
 
                         ! Calculate F factors for supersonic edge
@@ -2578,7 +2578,7 @@ contains
                         end if
 
                         ! Calculate hH113
-                        int%hH113 = int%hH113 - atan2(geom%h*geom%a(i)*F1, geom%R1(i)*geom%R2(i) + geom%h2*F2)
+                        int%hH113 = int%hH113 + atan2(geom%h*geom%a(i)*F1, geom%R1(i)*geom%R2(i) + geom%h2*F2)
 
                     end if
 
@@ -2587,24 +2587,24 @@ contains
         end do
 
         ! Calculate H(1,1,1)
-        int%H111 = -geom%h*int%hH113 + sum(geom%a*int%F111)
+        int%H111 = geom%h*int%hH113 + sum(geom%a*int%F111)
 
         ! Calculate H(2,1,3) and H(1,2,3)
-        int%H213 = sum(geom%v_xi*int%F111)
-        int%H123 = -sum(geom%v_eta*int%F111)
+        int%H213 = -sum(geom%v_xi*int%F111)
+        int%H123 = sum(geom%v_eta*int%F111)
 
         if (this%order == 2) then
 
             ! Calculate higher-order source integrals
             if (this%has_sources) then
-                int%H211 = 0.5*(-geom%h2*int%H213 + sum(geom%a*int%F211))
-                int%H121 = 0.5*(-geom%h2*int%H123 + sum(geom%a*int%F121))
+                int%H211 = 0.5*(geom%h2*int%H213 + sum(geom%a*int%F211))
+                int%H121 = 0.5*(geom%h2*int%H123 + sum(geom%a*int%F121))
             end if
 
             ! Calculate higher-order doublet integrals
-            int%H313 = -int%H111 + sum(geom%v_xi*int%F211)
-            int%H223 = sum(geom%v_xi*int%F121)
-            int%H133 = int%H111 - sum(geom%v_eta*int%F121)
+            int%H313 = int%H111 - sum(geom%v_xi*int%F211)
+            int%H223 = -sum(geom%v_xi*int%F121)
+            int%H133 = -int%H111 + sum(geom%v_eta*int%F121)
 
             ! Run checks
             if (abs(sum(geom%v_eta*int%F211) + int%H223) > 1e-10) then
@@ -2612,7 +2612,7 @@ contains
             end if
 
             if (this%has_sources) then
-                if (abs(int%H111 + int%H313 - int%H133 - geom%h*int%hH113) > 1e-10) then
+                if (abs(int%H111 - int%H313 + int%H133 + geom%h*int%hH113) > 1e-10) then
                     write(*,*) "!!! Influence calculation failed for H(3,1,3). Please submit a bug report on GitHub."
                 end if
             end if
@@ -2907,9 +2907,9 @@ contains
 
             ! Convert to strength influences (Davis Eq. (4.41))
             if (mirror_panel) then
-                phi_d_M_space(1:this%M_dim) = freestream%K_inv*matmul(phi_d_mu_space, this%T_mu_mir)
+                phi_d_M_space(1:this%M_dim) = freestream%s*freestream%K_inv*matmul(phi_d_mu_space, this%T_mu_mir)
             else
-                phi_d_M_space(1:this%M_dim) = freestream%K_inv*matmul(phi_d_mu_space, this%T_mu)
+                phi_d_M_space(1:this%M_dim) = freestream%s*freestream%K_inv*matmul(phi_d_mu_space, this%T_mu)
             end if
 
             ! Wake bottom influence is opposite the top influence
@@ -2937,7 +2937,7 @@ contains
         real,intent(out) :: phi_d, phi_s
 
         real,dimension(:),allocatable :: source_inf, doublet_inf
-        real,dimension(this%M_dim) :: doublet_strengths
+        real,dimension(:),allocatable :: doublet_strengths
         real,dimension(this%S_dim) :: source_strengths
 
         ! Get influences
@@ -3019,175 +3019,178 @@ contains
 
         call this%allocate_velocity_influences(v_s_sigma_space, v_d_mu_space, v_s_S_space, v_d_M_space)
     
-
-        ! Check DoD
-        if (dod_info%in_dod .and. this%A > 0.) then
-
-            ! Calculate geometric parameters
-            if (freestream%supersonic) then
-                if ((mirror_panel .and. this%r_mir < 0.) .or. (.not. mirror_panel .and. this%r < 0.)) then
-                    geom = this%calc_supersonic_supinc_geom(P, freestream, mirror_panel, dod_info)
-                else
-                    geom = this%calc_supersonic_subinc_geom(P, freestream, mirror_panel, dod_info)
-                end if
-            else
-                geom = this%calc_subsonic_geom(P, freestream, mirror_panel)
-            end if
-
-            ! Get integrals
-            int = this%calc_integrals(geom, 'velocity', freestream, mirror_panel, dod_info)
-
-            ! Source velocity
-            if (this%has_sources) then
-
-                ! Constant influence (Johnson Eq. (D.28))
-                v_s_sigma_space(1,1) = int%H213
-                v_s_sigma_space(2,1) = int%H123
-                v_s_sigma_space(3,1) = -int%hH113
-
-                ! Linear influences
-                if (this%order == 2) then
-
-                    ! x-component
-                    v_s_sigma_space(1,2) = int%H213*geom%P_ls(1) + int%H313
-                    v_s_sigma_space(1,3) = int%H213*geom%P_ls(2) + int%H223
-
-                    ! y-component
-                    v_s_sigma_space(2,2) = int%H123*geom%P_ls(1) + int%H223
-                    v_s_sigma_space(2,3) = int%H123*geom%P_ls(2) + int%H133
-
-                    ! z-component
-                    v_s_sigma_space(3,2) = -int%hH113*geom%P_ls(1) - geom%h*int%H213
-                    v_s_sigma_space(3,3) = -int%hH113*geom%P_ls(2) - geom%h*int%H123
-
-                    ! Convert to vertex influences
-                    if (mirror_panel) then
-                        v_s_S_space = matmul(v_s_sigma_space, this%T_sigma_mir)
-                    else
-                        v_s_S_space = matmul(v_s_sigma_space, this%T_sigma)
-                    end if
-                else
-                    v_s_S_space = v_s_sigma_space
-
-                end if
-            
-                ! Add area Jacobian and kappa factor
-                if (mirror_panel) then
-                    v_s_S_space = -v_s_S_space*freestream%K_inv*this%J_mir
-                else
-                    v_s_S_space = -v_s_S_space*freestream%K_inv*this%J
-                end if
-                
-            end if
-
-            ! Doublet potential (Johnson Eq. (D.33))
-
-            v_d_mu_space(1,1) = 3*geom%h*int%H215
-            v_d_mu_space(1,2) = 3*(int%H215*geom%P_ls(1)*geom%h + int%hH315)
-            v_d_mu_space(1,3) = 3*geom%h*(int%H215*geom%P_ls(2) + int%H225)
-
-            v_d_mu_space(2,1) = 3*geom%h*int%H125
-            v_d_mu_space(2,2) = 3*geom%h*(int%H125*geom%P_ls(1) + int%H225)
-            v_d_mu_space(2,3) = 3*(int%H125*geom%P_ls(2)*geom%h + int%hH135)
-
-            v_d_mu_space(3,1) = int%H113_3h2H115
-            v_d_mu_space(3,2) = int%H113_3h2H115*geom%P_ls(1) + int%H213 - 3*geom%h2*int%H215
-            v_d_mu_space(3,3) = int%H113_3h2H115*geom%P_ls(2) + int%H123 - 3*geom%h2*int%H125
-            
-            ! PAN AIR TESTING
-            !v_d_mu_space(1,1) = 0.0
-            !v_d_mu_space(1,2) = -int%hh113
-            !v_d_mu_space(1,3) = 0.0
-            
-            !v_d_mu_space(2,1) = 0.0
-            !v_d_mu_space(2,2) = 0.0
-            !v_d_mu_space(2,3) = -int%hh113
-
-            !v_d_mu_space(3,1) = 0.0
-            !v_d_mu_space(3,2) = -sum(geom%v_xi*int%F111)
-            !v_d_mu_space(3,3) = -sum(geom%v_eta*int%F111)
-
-            !x2 = 0.5*geom%P_ls(1)
-            !y2 = 0.5*geom%P_ls(2)
-
-            !do i = 1,3
-                !v_d_mu_space(i,2) = v_d_mu_space(i,2) + geom%P_ls(1)*v_d_mu_space(i,1)
-                !v_d_mu_space(i,3) = v_d_mu_space(i,3) + geom%P_ls(2)*v_d_mu_space(i,1)
-            !end do
-
-
-            if (this%order == 2) then
-
-                ! Add quadratic terms
-                v_d_mu_space(1,4) = 3*(0.5*int%H215*(geom%P_ls(1)**2)*geom%h + int%hH315*geom%P_ls(1) + 0.5*int%H415*geom%h)
-                v_d_mu_space(1,5) = 3*(int%H215*geom%h*geom%P_ls(1)*geom%P_ls(2) + int%hH315*geom%P_ls(2) + &
-                           int%H225*geom%h*geom%P_ls(1) + int%H325*geom%h)
-                v_d_mu_space(1,6) = 3*(0.5*int%H215*(geom%P_ls(2)**2)*geom%h + int%H225*geom%h*geom%P_ls(2) + 0.5*int%H235*geom%h)
-
-                v_d_mu_space(2,4) = 3*(0.5*int%H125*(geom%P_ls(1)**2)*geom%h + int%H225*geom%h*geom%P_ls(1) + 0.5*int%H325*geom%h)
-                v_d_mu_space(2,5) = 3*(int%H125*geom%h*geom%P_ls(1)*geom%P_ls(2) + int%hH135*geom%P_ls(1) + &
-                           int%H225*geom%h*geom%P_ls(2) + int%H235*geom%h)
-                v_d_mu_space(2,6) = 3*(0.5*int%H125*(geom%P_ls(2)**2)*geom%h + int%hH135*geom%P_ls(2) + 0.5*int%H145*geom%h)
-
-                v_d_mu_space(3,4) = 0.5*(geom%P_ls(1)**2)*int%H113_3h2H115 + geom%P_ls(1)*(int%H213 - 3*geom%h2*int%H215) + &
-                           0.5*(int%H313 - 3*geom%h*int%hH315)
-                v_d_mu_space(3,5) = geom%P_ls(1)*geom%P_ls(2)*(int%H113_3h2H115) + geom%P_ls(2)*(int%H213 - 3*geom%h2*int%H215) + &
-                           geom%P_ls(1)*(int%H123 - 3*geom%h2*int%H125) + int%H223 - 3*geom%h2*int%H225
-                v_d_mu_space(3,6) = 0.5*(geom%P_ls(2)**2)*int%H113_3h2H115 + geom%P_ls(2)*(int%H123 - 3*geom%h2*int%H125) + &
-                           0.5*(int%H133 - 3*geom%h*int%hH135)
-
-                !PAN AIR TESTING
-                !v_d_mu_space(1,4) = -2*geom%h*sum(geom%v_xi*int%F111)
-                !v_d_mu_space(1,5) = -geom%h*sum(geom%v_eta*int%F111)
-                !v_d_mu_space(1,6) = 0.0
-
-
-                !v_d_mu_space(2,4) = 0.0
-                !v_d_mu_space(2,5) = -geom%h*sum(geom%v_xi*int%F111)
-                !v_d_mu_space(2,6) = -2.0*geom%h*sum(geom%v_eta*int%F111)
-
-                !v_d_mu_space(3,4) = -2.0*(geom%h*int%hh113 - sum(geom%v_eta*int%F121))
-                !v_d_mu_space(3,5) = -2.0*sum(geom%v_xi*int%F121)
-                !v_d_mu_space(3,6) = -2.0*(sum(geom%v_eta*int%F121) + (-sum(geom%a*int%F111) + geom%h*int%hH113))
-
-                !do i = 1,3
-                    !dvx = v_d_mu_space(i,2) - x2 * v_d_mu_space(i,1)
-                    !v_d_mu_space(i,4) = 0.5*v_d_mu_space(i,4) + geom%P_ls(1)*dvx
-                    !dvy = v_d_mu_space(i,3) - y2 * v_d_mu_space(i,1)
-                    !v_d_mu_space(i,6) = 0.5*v_d_mu_space(i,6) + geom%P_ls(2)*dvy
-                    !v_d_mu_space(i,5) = v_d_mu_space(i,5) + geom%P_ls(1)*dvy + geom%P_ls(2)*dvx
-
-                !end do
-
-            end if 
-            
-            ! Convert to strength influences (Davis Eq. (4.41))
-            if (mirror_panel) then
-                v_d_M_space(:,1:this%M_dim) = freestream%K_inv*matmul(v_d_mu_space, this%T_mu_mir)
-            else
-                v_d_M_space(:,1:this%M_dim) = freestream%K_inv*matmul(v_d_mu_space, this%T_mu)
-            end if
-
-            ! Wake bottom influence is opposite the top influence
-            if (this%in_wake) then
-                v_d_M_space(:,this%M_dim+1:this%M_dim*2) = -v_d_M_space(:,1:this%M_dim)
-            end if
-
-            ! Transfer to global coordinates
-            if (mirror_panel) then
-                v_s_S_space = matmul(transpose(this%A_g_to_ls_mir), v_s_S_space)
-                v_d_M_space = matmul(transpose(this%A_g_to_ls_mir), v_d_M_space)
-            else
-                v_s_S_space = matmul(transpose(this%A_g_to_ls), v_s_S_space)
-                v_d_M_space = matmul(transpose(this%A_g_to_ls), v_d_M_space)
-            end if
-
-        end if
-
         !!!!!!!! THIS IS BAD !!!!!! REMOVE AS SOON AS POSSIBLE !!!!!!!!
         if(freestream%supersonic) then
-            v_s_S_space = 0.0
-            v_d_M_space = 0.0
+            v_s_S_space = 0.
+            v_d_M_space = 0.
+        else
+
+            ! Check DoD
+            if (dod_info%in_dod .and. this%A > 0.) then
+
+                ! Calculate geometric parameters
+                if (freestream%supersonic) then
+                    if ((mirror_panel .and. this%r_mir < 0.) .or. (.not. mirror_panel .and. this%r < 0.)) then
+                        geom = this%calc_supersonic_supinc_geom(P, freestream, mirror_panel, dod_info)
+                    else
+                        geom = this%calc_supersonic_subinc_geom(P, freestream, mirror_panel, dod_info)
+                    end if
+                else
+                    geom = this%calc_subsonic_geom(P, freestream, mirror_panel)
+                end if
+
+                ! Get integrals
+                int = this%calc_integrals(geom, 'velocity', freestream, mirror_panel, dod_info)
+
+                ! Source velocity
+                if (this%has_sources) then
+
+                    ! Constant influence (Johnson Eq. (D.28))
+                    v_s_sigma_space(1,1) = int%H213
+                    v_s_sigma_space(2,1) = int%H123
+                    v_s_sigma_space(3,1) = -int%hH113
+
+                    ! Linear influences
+                    if (this%order == 2) then
+
+                        ! x-component
+                        v_s_sigma_space(1,2) = int%H213*geom%P_ls(1) + int%H313
+                        v_s_sigma_space(1,3) = int%H213*geom%P_ls(2) + int%H223
+
+                        ! y-component
+                        v_s_sigma_space(2,2) = int%H123*geom%P_ls(1) + int%H223
+                        v_s_sigma_space(2,3) = int%H123*geom%P_ls(2) + int%H133
+
+                        ! z-component
+                        v_s_sigma_space(3,2) = -int%hH113*geom%P_ls(1) - geom%h*int%H213
+                        v_s_sigma_space(3,3) = -int%hH113*geom%P_ls(2) - geom%h*int%H123
+
+                        ! Convert to vertex influences
+                        if (mirror_panel) then
+                            v_s_S_space = matmul(v_s_sigma_space, this%T_sigma_mir)
+                        else
+                            v_s_S_space = matmul(v_s_sigma_space, this%T_sigma)
+                        end if
+                    else
+                        v_s_S_space = v_s_sigma_space
+
+                    end if
+                
+                    ! Add area Jacobian and kappa factor
+                    if (mirror_panel) then
+                        v_s_S_space = -v_s_S_space*freestream%K_inv*this%J_mir
+                    else
+                        v_s_S_space = -v_s_S_space*freestream%K_inv*this%J
+                    end if
+
+                end if
+
+                ! Doublet potential (Johnson Eq. (D.33))
+
+                v_d_mu_space(1,1) = 3*geom%h*int%H215
+                v_d_mu_space(1,2) = 3*(int%H215*geom%P_ls(1)*geom%h + int%hH315)
+                v_d_mu_space(1,3) = 3*geom%h*(int%H215*geom%P_ls(2) + int%H225)
+
+                v_d_mu_space(2,1) = 3*geom%h*int%H125
+                v_d_mu_space(2,2) = 3*geom%h*(int%H125*geom%P_ls(1) + int%H225)
+                v_d_mu_space(2,3) = 3*(int%H125*geom%P_ls(2)*geom%h + int%hH135)
+
+                v_d_mu_space(3,1) = int%H113_3h2H115
+                v_d_mu_space(3,2) = int%H113_3h2H115*geom%P_ls(1) + int%H213 - 3*geom%h2*int%H215
+                v_d_mu_space(3,3) = int%H113_3h2H115*geom%P_ls(2) + int%H123 - 3*geom%h2*int%H125
+
+                ! PAN AIR TESTING
+                !v_d_mu_space(1,1) = 0.0
+                !v_d_mu_space(1,2) = -int%hh113
+                !v_d_mu_space(1,3) = 0.0
+
+                !v_d_mu_space(2,1) = 0.0
+                !v_d_mu_space(2,2) = 0.0
+                !v_d_mu_space(2,3) = -int%hh113
+
+                !v_d_mu_space(3,1) = 0.0
+                !v_d_mu_space(3,2) = -sum(geom%v_xi*int%F111)
+                !v_d_mu_space(3,3) = -sum(geom%v_eta*int%F111)
+
+                !x2 = 0.5*geom%P_ls(1)
+                !y2 = 0.5*geom%P_ls(2)
+
+                !do i = 1,3
+                    !v_d_mu_space(i,2) = v_d_mu_space(i,2) + geom%P_ls(1)*v_d_mu_space(i,1)
+                    !v_d_mu_space(i,3) = v_d_mu_space(i,3) + geom%P_ls(2)*v_d_mu_space(i,1)
+                !end do
+
+
+                if (this%order == 2) then
+
+                    ! Add quadratic terms
+                    v_d_mu_space(1,4) = 3*(0.5*int%H215*(geom%P_ls(1)**2)*geom%h + int%hH315*geom%P_ls(1) + 0.5*int%H415*geom%h)
+                    v_d_mu_space(1,5) = 3*(int%H215*geom%h*geom%P_ls(1)*geom%P_ls(2) + int%hH315*geom%P_ls(2) + &
+                               int%H225*geom%h*geom%P_ls(1) + int%H325*geom%h)
+                    v_d_mu_space(1,6) = 3*(0.5*int%H215*(geom%P_ls(2)**2)*geom%h + int%H225*geom%h*geom%P_ls(2) + &
+                                        0.5*int%H235*geom%h)
+
+                    v_d_mu_space(2,4) = 3*(0.5*int%H125*(geom%P_ls(1)**2)*geom%h + int%H225*geom%h*geom%P_ls(1) + &
+                                        0.5*int%H325*geom%h)
+                    v_d_mu_space(2,5) = 3*(int%H125*geom%h*geom%P_ls(1)*geom%P_ls(2) + int%hH135*geom%P_ls(1) + &
+                               int%H225*geom%h*geom%P_ls(2) + int%H235*geom%h)
+                    v_d_mu_space(2,6) = 3*(0.5*int%H125*(geom%P_ls(2)**2)*geom%h + int%hH135*geom%P_ls(2) + 0.5*int%H145*geom%h)
+
+                    v_d_mu_space(3,4) = 0.5*(geom%P_ls(1)**2)*int%H113_3h2H115 + geom%P_ls(1)*(int%H213 - 3*geom%h2*int%H215) + &
+                               0.5*(int%H313 - 3*geom%h*int%hH315)
+                    v_d_mu_space(3,5) = geom%P_ls(1)*geom%P_ls(2)*(int%H113_3h2H115) + &
+                                geom%P_ls(2)*(int%H213 - 3*geom%h2*int%H215) + &
+                               geom%P_ls(1)*(int%H123 - 3*geom%h2*int%H125) + int%H223 - 3*geom%h2*int%H225
+                    v_d_mu_space(3,6) = 0.5*(geom%P_ls(2)**2)*int%H113_3h2H115 + geom%P_ls(2)*(int%H123 - 3*geom%h2*int%H125) + &
+                               0.5*(int%H133 - 3*geom%h*int%hH135)
+
+                    !PAN AIR TESTING
+                    !v_d_mu_space(1,4) = -2*geom%h*sum(geom%v_xi*int%F111)
+                    !v_d_mu_space(1,5) = -geom%h*sum(geom%v_eta*int%F111)
+                    !v_d_mu_space(1,6) = 0.0
+
+
+                    !v_d_mu_space(2,4) = 0.0
+                    !v_d_mu_space(2,5) = -geom%h*sum(geom%v_xi*int%F111)
+                    !v_d_mu_space(2,6) = -2.0*geom%h*sum(geom%v_eta*int%F111)
+
+                    !v_d_mu_space(3,4) = -2.0*(geom%h*int%hh113 - sum(geom%v_eta*int%F121))
+                    !v_d_mu_space(3,5) = -2.0*sum(geom%v_xi*int%F121)
+                    !v_d_mu_space(3,6) = -2.0*(sum(geom%v_eta*int%F121) + (-sum(geom%a*int%F111) + geom%h*int%hH113))
+
+                    !do i = 1,3
+                        !dvx = v_d_mu_space(i,2) - x2 * v_d_mu_space(i,1)
+                        !v_d_mu_space(i,4) = 0.5*v_d_mu_space(i,4) + geom%P_ls(1)*dvx
+                        !dvy = v_d_mu_space(i,3) - y2 * v_d_mu_space(i,1)
+                        !v_d_mu_space(i,6) = 0.5*v_d_mu_space(i,6) + geom%P_ls(2)*dvy
+                        !v_d_mu_space(i,5) = v_d_mu_space(i,5) + geom%P_ls(1)*dvy + geom%P_ls(2)*dvx
+
+                    !end do
+
+                end if 
+
+                ! Convert to strength influences (Davis Eq. (4.41))
+                if (mirror_panel) then
+                    v_d_M_space(:,1:this%M_dim) = freestream%K_inv*matmul(v_d_mu_space, this%T_mu_mir)
+                else
+                    v_d_M_space(:,1:this%M_dim) = freestream%K_inv*matmul(v_d_mu_space, this%T_mu)
+                end if
+
+                ! Wake bottom influence is opposite the top influence
+                if (this%in_wake) then
+                    v_d_M_space(:,this%M_dim+1:this%M_dim*2) = -v_d_M_space(:,1:this%M_dim)
+                end if
+
+                ! Transfer to global coordinates
+                if (mirror_panel) then
+                    v_s_S_space = matmul(transpose(this%A_g_to_ls_mir), v_s_S_space)
+                    v_d_M_space = matmul(transpose(this%A_g_to_ls_mir), v_d_M_space)
+                else
+                    v_s_S_space = matmul(transpose(this%A_g_to_ls), v_s_S_space)
+                    v_d_M_space = matmul(transpose(this%A_g_to_ls), v_d_M_space)
+                end if
+
+            end if
         end if
     
     end subroutine panel_calc_velocity_influences
@@ -3209,7 +3212,7 @@ contains
         real,dimension(3),intent(out) :: v_d, v_s
 
         real,dimension(:,:),allocatable :: source_inf, doublet_inf
-        real,dimension(this%M_dim) :: doublet_strengths
+        real,dimension(:),allocatable :: doublet_strengths
         real,dimension(this%S_dim) :: source_strengths
 
 
@@ -3221,9 +3224,8 @@ contains
         doublet_strengths = this%get_doublet_strengths(mu, mirror_panel, N_body_verts, asym_flow)
 
         ! Apply strengths to calculate potentials
-        v_s = matmul(source_inf,source_strengths)
-        v_d = matmul(doublet_inf,doublet_strengths)
-
+        v_s = matmul(source_inf, source_strengths)
+        v_d = matmul(doublet_inf, doublet_strengths)
 
     end subroutine panel_calc_velocities
 
@@ -3322,9 +3324,9 @@ contains
         integer,intent(in) :: N_body_verts
         logical,intent(in) :: asym_flow
 
-        real,dimension(this%M_dim) :: mu_strengths
+        real,dimension(:),allocatable :: mu_strengths
 
-        integer :: shift, i
+        integer :: shift, i, i_top, i_bot
 
         ! Determine shift
         if (mirror) then
@@ -3333,10 +3335,21 @@ contains
             shift = 0
         end if
 
+        ! Allocate
+        if (this%in_wake) then
+            allocate(mu_strengths(this%M_dim*2))
+        else
+            allocate(mu_strengths(this%M_dim))
+        end if
+
         ! Get doublet strengths based on parents
         if (this%in_wake) then
             do i=1,this%N
-                mu_strengths(i) = mu(this%vertices(i)%ptr%top_parent + shift) - mu(this%vertices(i)%ptr%bot_parent + shift)
+                i_top = this%vertices(i)%ptr%top_parent + shift
+                i_bot = this%vertices(i)%ptr%bot_parent + shift
+                if (i_top > size(mu)) i_top = i_top - size(mu)
+                if (i_bot > size(mu)) i_bot = i_bot - size(mu)
+                mu_strengths(i) = mu(i_top) - mu(i_bot)
             end do
 
         ! Get doublet strengths at vertices
