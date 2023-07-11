@@ -11,7 +11,6 @@ module wake_strip_mod
 
         integer :: i_top_parent_1, i_top_parent_2, i_bot_parent_1, i_bot_parent_2
         integer :: i_top_parent, i_bot_parent
-        integer :: i_top_parent_mid, i_bot_parent_mid
         logical :: on_mirror_plane
 
         contains
