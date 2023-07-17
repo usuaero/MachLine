@@ -136,14 +136,15 @@ module panel_mod
             procedure :: calc_subsonic_EMNK => panel_calc_subsonic_EMNK
 
             ! Edge integrals
-            procedure :: calc_subsonic_edge_integrals => panel_calc_subsonic_edge_integrals
-            procedure :: calc_supersonic_subinc_edge_integrals => panel_calc_supersonic_subinc_edge_integrals
-            procedure :: calc_supersonic_supinc_edge_integrals => panel_calc_supersonic_supinc_edge_integrals
+            procedure :: calc_basic_F_integrals_subsonic => panel_calc_basic_F_integrals_subsonic
+            procedure :: calc_basic_F_integrals_supersonic_subinc => panel_calc_basic_F_integrals_supersonic_subinc
+            procedure :: calc_basic_F_integrals_supersonic_supinc => panel_calc_basic_F_integrals_supersonic_supinc
 
             ! Panel integrals
-            procedure :: calc_subsonic_panel_integrals => panel_calc_subsonic_panel_integrals
-            procedure :: calc_supersonic_subinc_panel_integrals => panel_calc_supersonic_subinc_panel_integrals
-            procedure :: calc_supersonic_supinc_panel_integrals => panel_calc_supersonic_supinc_panel_integrals
+            procedure :: calc_hH113_subsonic => panel_calc_hH113_subsonic
+            procedure :: calc_hH113_supersonic_subinc => panel_calc_hH113_supersonic_subinc
+            procedure :: calc_hH113_supersonic_supinc => panel_calc_hH113_supersonic_supinc
+            procedure :: calc_H_recursions => panel_calc_H_recursions
 
             ! Velocity integrals
             procedure :: calc_subsonic_velocity_integrals => panel_calc_subsonic_velocity_integrals
@@ -216,6 +217,7 @@ contains
         this%abutting_panels = 0
         this%i_top_parent = 0
         this%i_bot_parent = 0
+        this%N_discont_edges = 0
         if (present(in_wake)) then
             this%in_wake = in_wake
             this%has_sources = .not. in_wake
@@ -2198,7 +2200,7 @@ contains
     end function panel_calc_subsonic_EMNK
 
 
-    subroutine panel_calc_subsonic_edge_integrals(this, geom, freestream, mirror_panel, int)
+    subroutine panel_calc_basic_F_integrals_subsonic(this, geom, freestream, mirror_panel, int)
         ! Calculates the F integrals necessary for determining the influence of a triangular panel in subsonic flow.
         ! This is a pared-down version of the algorithm presented by Johnson (1980) Appendix D.3.
 
@@ -2221,7 +2223,7 @@ contains
 
                 ! Check for point on perimeter
                 if(sqrt(geom%g2(i)) < 1e-12) then
-                    write(*,*) "!!! Detected control point on perimeter of panel. Solution quality may be negatively affected."
+                    write(*,*) "!!! Detected control point colinear with panel edge. Solution quality may be negatively affected."
                 end if
 
                 ! Calculate
@@ -2232,7 +2234,7 @@ contains
 
                 ! Check for point on perimeter
                 if (min(geom%R1(i), geom%R2(i)) < 1e-12) then
-                    write(*,*) "Detected control point on perimeter of panel. Solution quality may be negatively affected."
+                    write(*,*) "!!! Detected control point on perimeter of panel. Solution quality may be negatively affected."
                 end if
 
                 ! Calculate
@@ -2251,10 +2253,10 @@ contains
 
         end if
 
-    end subroutine panel_calc_subsonic_edge_integrals
+    end subroutine panel_calc_basic_F_integrals_subsonic
 
 
-    subroutine panel_calc_supersonic_subinc_edge_integrals(this, geom, dod_info, freestream, mirror_panel, int)
+    subroutine panel_calc_basic_F_integrals_supersonic_subinc(this, geom, dod_info, freestream, mirror_panel, int)
         ! Calculates the F integrals necessary to determine the influence of a subinclined triangular panel in supersonic flow.
         ! Taken from Ehlers et al. (1979) Appendix E.
 
@@ -2384,10 +2386,10 @@ contains
 
         end do
 
-    end subroutine panel_calc_supersonic_subinc_edge_integrals
+    end subroutine panel_calc_basic_F_integrals_supersonic_subinc
 
 
-    subroutine panel_calc_supersonic_supinc_edge_integrals(this, geom, dod_info, freestream, mirror_panel, int)
+    subroutine panel_calc_basic_F_integrals_supersonic_supinc(this, geom, dod_info, freestream, mirror_panel, int)
         ! Calculates the F integrals necessary to determine the influence of a superinclined triangular panel in supersonic flow.
         ! Taken from Epton and Magnus, but mostly the PAN AIR source code
 
@@ -2450,11 +2452,11 @@ contains
 
         end do
 
-    end subroutine panel_calc_supersonic_supinc_edge_integrals
+    end subroutine panel_calc_basic_F_integrals_supersonic_supinc
 
 
-    subroutine panel_calc_subsonic_panel_integrals(this, geom, freestream, mirror_panel, int)
-        ! Calculates the necessary H integrals to determine the influence of a panel in subsonic flow.
+    subroutine panel_calc_hH113_subsonic(this, geom, freestream, mirror_panel, int)
+        ! Calculates hH(1,1,3) for a panel in subsonic flow.
         ! Taken from Johnson (1980) Appendix D.3. with alterations made based on PAN AIR.
 
         implicit none
@@ -2490,43 +2492,11 @@ contains
         ! Apply sign factor (Johnson Eq. (D.42)
         int%hH113 = sign(int%hH113, geom%h)
 
-        ! Calculate H(1,1,1)
-        int%H111 = -geom%h*int%hH113 + sum(geom%a*int%F111)
-
-        ! Calculate H(2,1,3) and H(1,2,3)
-        int%H213 = -sum(geom%v_xi*int%F111)
-        int%H123 = -sum(geom%v_eta*int%F111)
-
-        if (this%order == 2) then
-
-            ! Calculate higher-order source integrals
-            if (this%has_sources) then
-                int%H211 = 0.5*(-geom%h2*int%H213 + sum(geom%a*int%F211))
-                int%H121 = 0.5*(-geom%h2*int%H123 + sum(geom%a*int%F121))
-            end if
-
-            ! Calculate higher-order doublet integrals
-            int%H313 = sum(geom%v_eta*int%F121) - geom%h*int%hH113
-            int%H223 = -sum(geom%v_xi*int%F121)
-            int%H133 = int%H111 - sum(geom%v_eta*int%F121)
-
-            ! Run checks
-            if (abs(sum(geom%v_eta*int%F211) + int%H223) > 1e-10) then
-                write(*,*) "!!! Influence calculation failed for H(2,2,3). Please submit a bug report on GitHub."
-            end if
-
-            if (this%has_sources) then
-                if (abs(int%H111 - int%H313 - int%H133 - geom%h*int%hH113) > 1.e-10) then
-                    write(*,*) "!!! Influence calculation failed for H(3,1,3) and H(1,3,3). Please submit a bug report on GitHub."
-                end if
-            end if
-        end if
-
-    end subroutine panel_calc_subsonic_panel_integrals
+    end subroutine panel_calc_hH113_subsonic
 
 
-    subroutine panel_calc_supersonic_subinc_panel_integrals(this, geom, dod_info, freestream, mirror_panel, int)
-        ! Calculates the necessary H integrals to determine the influence of a subinclined panel in supersonic flow.
+    subroutine panel_calc_hH113_supersonic_subinc(this, geom, dod_info, freestream, mirror_panel, int)
+        ! Calculates hH(1,1,3) for a subinclined panel in supersonic flow.
         ! Taken from Ehlers et al. (1979) Appendix E.
 
         implicit none
@@ -2586,44 +2556,11 @@ contains
             end if
         end do
 
-        ! Calculate H(1,1,1)
-        int%H111 = geom%h*int%hH113 + sum(geom%a*int%F111)
-
-        ! Calculate H(2,1,3) and H(1,2,3)
-        int%H213 = -sum(geom%v_xi*int%F111)
-        int%H123 = sum(geom%v_eta*int%F111)
-
-        if (this%order == 2) then
-
-            ! Calculate higher-order source integrals
-            if (this%has_sources) then
-                int%H211 = 0.5*(geom%h2*int%H213 + sum(geom%a*int%F211))
-                int%H121 = 0.5*(geom%h2*int%H123 + sum(geom%a*int%F121))
-            end if
-
-            ! Calculate higher-order doublet integrals
-            int%H313 = int%H111 - sum(geom%v_xi*int%F211)
-            int%H223 = -sum(geom%v_xi*int%F121)
-            int%H133 = -int%H111 + sum(geom%v_eta*int%F121)
-
-            ! Run checks
-            if (abs(sum(geom%v_eta*int%F211) + int%H223) > 1e-10) then
-                write(*,*) "!!! Influence calculation failed for H(2,2,3). Please submit a bug report on GitHub."
-            end if
-
-            if (this%has_sources) then
-                if (abs(int%H111 - int%H313 + int%H133 + geom%h*int%hH113) > 1e-10) then
-                    write(*,*) "!!! Influence calculation failed for H(3,1,3). Please submit a bug report on GitHub."
-                end if
-            end if
-
-        end if
-
-    end subroutine panel_calc_supersonic_subinc_panel_integrals
+    end subroutine panel_calc_hH113_supersonic_subinc
 
 
-    subroutine panel_calc_supersonic_supinc_panel_integrals(this, geom, dod_info, freestream, mirror_panel, int)
-        ! Calculates the necessary H integrals to determine the influence of a superinclined panel in supersonic flow.
+    subroutine panel_calc_hH113_supersonic_supinc(this, geom, dod_info, freestream, mirror_panel, int)
+        ! Calculates hH(1,1,3) for a superinclined panel in supersonic flow.
         ! Taken from Epton and Magnus, but mostly the PAN AIR source code
 
         implicit none
@@ -2674,40 +2611,7 @@ contains
             end if
         end do
 
-        ! Calculate H(1,1,1)
-        int%H111 = geom%h*int%hH113 - sum(geom%a*int%F111)
-
-        ! Calculate H(2,1,3) and H(1,2,3)
-        int%H213 = sum(geom%v_xi*int%F111)
-        int%H123 = sum(geom%v_eta*int%F111)
-
-        if (this%order == 2) then
-
-            ! Calculate higher-order source integrals
-            if (this%has_sources) then
-                int%H211 = 0.5*(geom%h2*int%H213 - sum(geom%a*int%F211))
-                int%H121 = 0.5*(geom%h2*int%H123 - sum(geom%a*int%F121))
-            end if
-
-            ! Calculate higher-order doublet integrals
-            int%H313 = int%H111 + sum(geom%v_xi*int%F211)
-            int%H223 = sum(geom%v_xi*int%F121)
-            int%H133 = int%H111 + sum(geom%v_eta*int%F121)
-
-            ! Run checks
-            if (abs(sum(geom%v_eta*int%F211) + int%H223) > 1e-10) then
-                write(*,*) "!!! Influence calculation failed for H(2,2,3). Please submit a bug report on GitHub."
-            end if
-
-            if (this%has_sources) then
-                if (abs(int%H111 + int%H313 + int%H133 - geom%h*int%hH113) > 1e-10) then
-                    write(*,*) "!!! Influence calculation failed for H(3,1,3) and H(1,3,3). Please submit a bug report on GitHub."
-                end if
-            end if
-
-        end if
-
-    end subroutine panel_calc_supersonic_supinc_panel_integrals
+    end subroutine panel_calc_hH113_supersonic_supinc
 
 
     subroutine panel_calc_subsonic_velocity_integrals(this, geom, freestream, mirror_panel, int)
@@ -2748,8 +2652,8 @@ contains
         int%H415 = - int%H235 - geom%h2*int%H225 + int%H223
         int%H113_3h2H115 = -sum(geom%a*int%F113)
 
-
     end subroutine panel_calc_subsonic_velocity_integrals
+
 
     subroutine panel_calc_supersonic_subinc_velocity_integrals(this, geom, freestream, mirror_panel, int)
         ! Calculates the additional necessary integrals to determine the velocity influence of a panel in subsonic flow.
@@ -2765,6 +2669,68 @@ contains
 
 
     end subroutine panel_calc_supersonic_subinc_velocity_integrals
+
+
+    subroutine panel_calc_H_recursions(this, geom, influence_type, freestream, mirror_panel, int)
+        ! Calculates the remaining necessary H integrals using the unified recursion relations
+
+        implicit none
+        
+        class(panel),intent(in) :: this
+        type(eval_point_geom),intent(in) :: geom
+        character(len=*),intent(in) :: influence_type
+        type(flow),intent(in) :: freestream
+        logical,intent(in) :: mirror_panel
+        type(integrals),intent(inout) :: int
+
+        integer :: s, r
+
+        ! Set parameters
+        s = freestream%s
+        if (mirror_panel) then
+            r = this%r_mir
+        else
+            r = this%r
+        end if
+
+        ! Lower-order potential integrals
+        int%H111 = sum(geom%a*int%F111) - r*s*geom%h*int%hH113
+        int%H213 = -r*sum(geom%v_xi*int%F111)
+        int%H123 = -s*sum(geom%v_eta*int%F111)
+
+        ! Higher-order potential integrals
+        if (this%order == 2) then
+
+            ! For sources
+            if (this%has_sources) then
+                int%H211 = 0.5*(-r*s*geom%h2*int%H213 + sum(geom%a*int%F211))
+                int%H121 = 0.5*(-r*s*geom%h2*int%H123 + sum(geom%a*int%F121))
+            end if
+
+            ! For doublets
+            int%H313 = r*(int%H111 - sum(geom%v_xi*int%F211))
+            int%H223 = -r*sum(geom%v_xi*int%F121)
+            int%H133 = s*(int%H111 - sum(geom%v_eta*int%F121))
+
+            ! Run checks
+            if (abs(-s*sum(geom%v_eta*int%F211) - int%H223) > 1e-10) then
+                write(*,*) "!!! Calculation failed for H(2,2,3). Please submit a bug report on GitHub."
+            end if
+
+            if (this%has_sources) then
+                if (abs(int%H111 - r*int%H313 - s*int%H133 - r*s*geom%h*int%hH113) > 1e-10) then
+                    write(*,*) "!!! Calculation failed for H(3,1,3) and H(1,3,3). Please submit a bug report on GitHub."
+                end if
+            end if
+
+        end if
+
+        ! Velocity integrals
+        if (influence_type == 'velocity') then
+        end if
+        
+    end subroutine panel_calc_H_recursions
+
 
     function panel_calc_integrals(this, geom, influence_type, freestream, mirror_panel, dod_info) result(int)
         ! Calculates the H and F integrals necessary for the given influence
@@ -2791,16 +2757,19 @@ contains
         ! These are needed for both velocity and potential calculations
         if (freestream%supersonic) then
             if ((mirror_panel .and. this%r_mir < 0.) .or. (.not. mirror_panel .and. this%r < 0.)) then
-                call this%calc_supersonic_supinc_edge_integrals(geom, dod_info, freestream, mirror_panel, int)
-                call this%calc_supersonic_supinc_panel_integrals(geom, dod_info, freestream, mirror_panel, int)
+                call this%calc_basic_F_integrals_supersonic_supinc(geom, dod_info, freestream, mirror_panel, int)
+                call this%calc_hH113_supersonic_supinc(geom, dod_info, freestream, mirror_panel, int)
             else
-                call this%calc_supersonic_subinc_edge_integrals(geom, dod_info, freestream, mirror_panel, int)
-                call this%calc_supersonic_subinc_panel_integrals(geom, dod_info, freestream, mirror_panel, int)
+                call this%calc_basic_F_integrals_supersonic_subinc(geom, dod_info, freestream, mirror_panel, int)
+                call this%calc_hH113_supersonic_subinc(geom, dod_info, freestream, mirror_panel, int)
             end if
         else
-            call this%calc_subsonic_edge_integrals(geom, freestream, mirror_panel, int)
-            call this%calc_subsonic_panel_integrals(geom, freestream, mirror_panel, int)
+            call this%calc_basic_F_integrals_subsonic(geom, freestream, mirror_panel, int)
+            call this%calc_hH113_subsonic(geom, freestream, mirror_panel, int)
         end if
+
+        ! Run H recursions
+        call this%calc_H_recursions(geom, influence_type, freestream, mirror_panel, int)
 
         ! Get velocity integrals
         if (influence_type == 'velocity') then
