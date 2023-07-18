@@ -140,11 +140,15 @@ module panel_mod
             procedure :: calc_basic_F_integrals_supersonic_subinc => panel_calc_basic_F_integrals_supersonic_subinc
             procedure :: calc_basic_F_integrals_supersonic_supinc => panel_calc_basic_F_integrals_supersonic_supinc
 
-            ! Panel integrals
+            ! hH(1,1,3)
             procedure :: calc_hH113_subsonic => panel_calc_hH113_subsonic
             procedure :: calc_hH113_supersonic_subinc => panel_calc_hH113_supersonic_subinc
             procedure :: calc_hH113_supersonic_supinc => panel_calc_hH113_supersonic_supinc
-            procedure :: calc_H_recursions => panel_calc_H_recursions
+
+            ! Integral recursions
+            procedure :: calc_remaining_integrals => panel_calc_remaining_integrals
+            procedure :: calc_F_recursions_for_velocity => panel_calc_F_recursions_for_velocity
+            procedure :: calc_H_recursions_for_velocity => panel_calc_H_recursions_for_velocity
 
             ! Velocity integrals
             procedure :: calc_subsonic_velocity_integrals => panel_calc_subsonic_velocity_integrals
@@ -2671,8 +2675,8 @@ contains
     end subroutine panel_calc_supersonic_subinc_velocity_integrals
 
 
-    subroutine panel_calc_H_recursions(this, geom, influence_type, freestream, mirror_panel, int)
-        ! Calculates the remaining necessary H integrals using the unified recursion relations
+    subroutine panel_calc_remaining_integrals(this, geom, influence_type, freestream, mirror_panel, int)
+        ! Calculates the remaining necessary H and F integrals using the unified recursion relations
 
         implicit none
         
@@ -2727,9 +2731,59 @@ contains
 
         ! Velocity integrals
         if (influence_type == 'velocity') then
+            call this%calc_F_recursions_for_velocity(geom, freestream, mirror_panel, int)
+            call this%calc_H_recursions_for_velocity(geom, freestream, mirror_panel, int)
         end if
         
-    end subroutine panel_calc_H_recursions
+    end subroutine panel_calc_remaining_integrals
+
+
+    subroutine panel_calc_F_recursions_for_velocity(this, geom, freestream, mirror_panel, int)
+        ! Calculates the remaining necessary F integrals for velocity influences using the unified recursion relations
+
+        implicit none
+        
+        class(panel),intent(in) :: this
+        type(eval_point_geom),intent(in) :: geom
+        type(flow),intent(in) :: freestream
+        logical,intent(in) :: mirror_panel
+        type(integrals),intent(inout) :: int
+
+        integer :: s, r
+
+        ! Set parameters
+        s = freestream%s
+        if (mirror_panel) then
+            r = this%r_mir
+        else
+            r = this%r
+        end if
+        
+    end subroutine panel_calc_F_recursions_for_velocity
+
+
+    subroutine panel_calc_H_recursions_for_velocity(this, geom, freestream, mirror_panel, int)
+        ! Calculates the remaining necessary H integrals for velocity influences using the unified recursion relations
+
+        implicit none
+        
+        class(panel),intent(in) :: this
+        type(eval_point_geom),intent(in) :: geom
+        type(flow),intent(in) :: freestream
+        logical,intent(in) :: mirror_panel
+        type(integrals),intent(inout) :: int
+
+        integer :: s, r
+
+        ! Set parameters
+        s = freestream%s
+        if (mirror_panel) then
+            r = this%r_mir
+        else
+            r = this%r
+        end if
+        
+    end subroutine panel_calc_H_recursions_for_velocity
 
 
     function panel_calc_integrals(this, geom, influence_type, freestream, mirror_panel, dod_info) result(int)
@@ -2769,16 +2823,7 @@ contains
         end if
 
         ! Run H recursions
-        call this%calc_H_recursions(geom, influence_type, freestream, mirror_panel, int)
-
-        ! Get velocity integrals
-        if (influence_type == 'velocity') then
-
-            if (freestream%supersonic) then
-            else
-                call this%calc_subsonic_velocity_integrals(geom, freestream, mirror_panel, int)
-            end if
-        end if
+        call this%calc_remaining_integrals(geom, influence_type, freestream, mirror_panel, int)
 
     end function panel_calc_integrals
 

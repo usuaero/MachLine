@@ -19,7 +19,8 @@ def run_comparison(M, grid, half_angle):
     # Storage locations
     case_name = "M_{0}_{1}_deg_{2}".format(M, int(half_angle), grid)
     #mesh_file = study_dir + "meshes/cone_{0}_deg_{1}_improved_full.vtk".format(int(half_angle), grid)
-    mesh_file = study_dir + "meshes/cone_{0}_deg_{1}.vtk".format(int(half_angle), grid)
+    mesh_file = study_dir + "meshes/cone_{0}_deg_{1}_improved.vtk".format(int(half_angle), grid)
+    #mesh_file = study_dir + "meshes/cone_{0}_deg_{1}.vtk".format(int(half_angle), grid)
     body_file = study_dir + "results/"+case_name+".vtk"
     report_file = study_dir + "reports/"+case_name+".json"
 

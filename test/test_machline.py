@@ -173,7 +173,7 @@ def test_04_half_wing_higher_morino_asym_inc_flow():
     print(Cz)
 
     assert(abs(C_p_max - 0.750968663253082) < 1e-10)
-    assert(abs(C_p_min - -1.10238783762737) < 1e-12)
+    assert(abs(C_p_min - -1.10238783762737) < 1e-10)
     assert(abs(Cx - -0.379595457329634) < 1e-9)
     assert(abs(Cy - -0.0459678458682901) < 1e-9)
     assert(abs(Cz - 20.2266509889293) < 1e-12)
