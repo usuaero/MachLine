@@ -7,6 +7,7 @@ import os
 import json
 import shutil
 import subprocess as sp
+import numpy as np
 
 
 class MachLineError(Exception):
@@ -577,3 +578,92 @@ def test_19_supersonic_full_wing_morino_qrup():
     assert(abs(Cx - 0.0718540012154408) < 1e-12)
     assert(abs(Cy) < 1e-11)
     assert(abs(Cz - 0.429236847680447) < 1e-12)
+
+
+def test_20_half_wing_lower_morino_asym_inc_flow_off_body():
+    # Tests the half wing case with the morino formulation returns consistent off-body results
+
+    # Load original input
+    with open("test/input_files/half_wing_input.json", 'r') as input_handle:
+        input_dict = json.load(input_handle)
+
+    # Remove old output file
+    output_file = "test/results/half_wing_inc_offbody_points.csv"
+    try:
+        os.remove(output_file)
+    except FileNotFoundError:
+        pass
+
+    # Alter input
+    input_dict["solver"]["formulation"] = "morino"
+    input_dict["output"] = {
+                                "offbody_points" : {
+                                    "points_file" : "test/input_files/root_xz_sample_points.csv",
+                                    "output_file" : output_file
+                                },
+                                "report_file" : "test/results/report.json"
+                            }
+
+    # Write altered input
+    altered_input_file = "test/input_files/altered_half_wing_input.json"
+    with open(altered_input_file, 'w') as altered_input_handle:
+        json.dump(input_dict, altered_input_handle, indent=4)
+
+    # Run MachLine
+    _ = run_machline("test/input_files/altered_half_wing_input.json", remove_input=True, remove_results=False)
+
+    # Load results
+    correct_file = "test/input_files/half_wing_inc_offbody_points_correct.csv"
+    results = np.genfromtxt(output_file, skip_header=1, delimiter=',')
+    standard = np.genfromtxt(correct_file, skip_header=1, delimiter=',')
+
+    # Check
+    assert(np.all(np.abs(results - standard) < 1.0e-12))
+
+    # Remove results
+    shutil.rmtree("test/results")
+
+
+def test_21_half_wing_lower_morino_asym_supersonic_flow_off_body():
+    # Tests the half wing case with the morino formulation returns consistent off-body results in supersonic flow
+
+    # Load original input
+    with open("test/input_files/supersonic_half_wing_input.json", 'r') as input_handle:
+        input_dict = json.load(input_handle)
+
+    # Remove old output file
+    output_file = "test/results/half_wing_supersonic_offbody_points.csv"
+    try:
+        os.remove(output_file)
+    except FileNotFoundError:
+        pass
+
+    # Alter input
+    input_dict["flow"]["freestream_velocity"] = [100.0, 5.0, 5.0]
+    input_dict["solver"]["formulation"] = "morino"
+    input_dict["output"] = {
+                                "offbody_points" : {
+                                    "points_file" : "test/input_files/root_xz_sample_points.csv",
+                                    "output_file" : output_file
+                                },
+                                "report_file" : "test/results/report.json"
+                            }
+
+    # Write altered input
+    altered_input_file = "test/input_files/altered_supersonic_half_wing_input.json"
+    with open(altered_input_file, 'w') as altered_input_handle:
+        json.dump(input_dict, altered_input_handle, indent=4)
+
+    # Run MachLine
+    _ = run_machline(altered_input_file, remove_input=True, remove_results=False)
+
+    # Load results
+    correct_file = "test/input_files/half_wing_supersonic_offbody_points_correct.csv"
+    results = np.genfromtxt(output_file, skip_header=1, delimiter=',')
+    standard = np.genfromtxt(correct_file, skip_header=1, delimiter=',')
+
+    # Check
+    assert(np.all(np.abs(results[:,:8]-standard[:,:8]) < 1.0e-12))
+
+    # Remove results
+    shutil.rmtree("test/results")

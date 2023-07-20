@@ -2706,6 +2706,7 @@ contains
             end if
 
             ! For doublets
+            !int%H313 = sum(geom%v_eta*int%F121) - geom%h*int%hH113
             int%H313 = int%r*(int%H111 - sum(geom%v_xi*int%F211))
             int%H223 = -int%r*sum(geom%v_xi*int%F121)
             int%H133 = int%s*(int%H111 - sum(geom%v_eta*int%F121))
@@ -2743,6 +2744,18 @@ contains
         logical,intent(in) :: mirror_panel
         type(integrals),intent(inout) :: int
 
+        ! THESE ARE ONLY SUBSONIC RIGHT NOW!!!!!
+        ! F(1,1,3) from Johnson (D.61)
+        int%F113 = (- geom%v_eta*this%calc_subsonic_EMNK(geom, 2, 1, 1) &
+                    + geom%v_xi*this%calc_subsonic_EMNK(geom, 1, 2, 1)) / geom%g2
+
+        ! F(1,2,3) from Johnson (D.66)
+        int%F123 = geom%v_eta*geom%a*int%F113 - geom%v_xi*this%calc_subsonic_EMNK(geom, 1, 1, 1)
+
+        ! F(1,3,3) from Johnson (D.67)
+        int%F133 = 2.*geom%a*geom%v_eta*int%F123 - (geom%a*geom%a + geom%v_xi*geom%v_xi*geom%h2)*int%F113 &
+                   + geom%v_xi*geom%v_xi*int%F111
+
     end subroutine panel_calc_F_recursions_for_velocity
 
 
@@ -2756,6 +2769,26 @@ contains
         type(flow),intent(in) :: freestream
         logical,intent(in) :: mirror_panel
         type(integrals),intent(inout) :: int
+
+        ! THESE ARE ONLY SUBSONIC RIGHT NOW!!!!
+        ! Johnson (D.42)
+        int%h3H115 = (int%hH113 + geom%h * sum(geom%a*int%F113))/3
+
+        ! Johnson (D.46)
+        int%H125 = -sum(geom%v_eta*int%F113)/3.
+        int%hH135 = (int%hH113 - geom%h*sum(geom%v_eta*int%F123))/3.
+        int%H145 = (2.*int%H123 - sum(geom%v_eta*int%F133))/3.
+
+        ! Johnson (D.47)
+        int%H215 = -sum(geom%v_xi*int%F113)/3.
+        int%H225 = -sum(geom%v_xi*int%F123)/3.
+        int%H235 = -sum(geom%v_xi*int%F133)/3.
+
+        ! Johnson (D.48)
+        int%hH315 = -int%hH135 - int%h3H115 + int%hH113
+        int%H325 = - int%H145 - geom%h2*int%H125 + int%H123
+        int%H415 = - int%H235 - geom%h2*int%H225 + int%H223
+        int%H113_3h2H115 = -sum(geom%a*int%F113)
 
     end subroutine panel_calc_H_recursions_for_velocity
 
@@ -2949,6 +2982,8 @@ contains
             ! Source potential
             if (this%has_sources) then
                 phi_s_S_space = this%assemble_phi_s_S_space(int, geom, freestream, mirror_panel)
+            else
+                allocate(phi_s_S_space(this%S_dim), source=0.)
             end if
 
             ! Doublet potential
@@ -3038,8 +3073,8 @@ contains
             v_s_sigma_space(2,3) = int%s*(int%H123*geom%P_ls(2) + int%H133)
 
             ! z-component
-            v_s_sigma_space(3,2) = -int%rs*(int%hH113*geom%P_ls(1) - geom%h*int%H213)
-            v_s_sigma_space(3,3) = -int%rs*(int%hH113*geom%P_ls(2) - geom%h*int%H123)
+            v_s_sigma_space(3,2) = -int%rs*(int%hH113*geom%P_ls(1) + geom%h*int%H213)
+            v_s_sigma_space(3,3) = -int%rs*(int%hH113*geom%P_ls(2) + geom%h*int%H123)
 
             ! Convert to vertex influences
             if (mirror_panel) then
@@ -3057,6 +3092,13 @@ contains
             v_s_S_space = -v_s_S_space*freestream%K_inv*this%J_mir
         else
             v_s_S_space = -v_s_S_space*freestream%K_inv*this%J
+        end if
+
+        ! Transform to global coordinates
+        if (mirror_panel) then
+            v_s_S_space = matmul(transpose(this%A_g_to_ls_mir), v_s_S_space)
+        else
+            v_s_S_space = matmul(transpose(this%A_g_to_ls), v_s_S_space)
         end if
         
     end function panel_assemble_v_s_S_space
@@ -3178,6 +3220,13 @@ contains
         if (this%in_wake) then
             v_d_M_space(:,this%M_dim+1:this%M_dim*2) = -v_d_M_space(:,1:this%M_dim)
         end if
+
+        ! Transform to global coordinates
+        if (mirror_panel) then
+            v_d_M_space = matmul(transpose(this%A_g_to_ls_mir), v_d_M_space)
+        else
+            v_d_M_space = matmul(transpose(this%A_g_to_ls), v_d_M_space)
+        end if
         
     end function panel_assemble_v_d_M_space
 
@@ -3196,9 +3245,6 @@ contains
 
         type(eval_point_geom) :: geom
         type(integrals) :: int
-        real,dimension(:,:),allocatable :: v_s_sigma_space, v_d_mu_space
-        real :: x2, y2, dvx, dvy
-        integer :: i
 
         ! Check DoD
         if (dod_info%in_dod .and. this%A > 0.) then
@@ -3220,19 +3266,12 @@ contains
             ! Source velocity
             if (this%has_sources) then
                 v_s_S_space = this%assemble_v_s_S_space(int, geom, freestream, mirror_panel)
-            end if
-
-            !Doublet velocity
-            v_d_M_space = this%assemble_v_d_M_space(int, geom, freestream, mirror_panel)
-
-            ! Transfer to global coordinates
-            if (mirror_panel) then
-                v_s_S_space = matmul(transpose(this%A_g_to_ls_mir), v_s_S_space)
-                v_d_M_space = matmul(transpose(this%A_g_to_ls_mir), v_d_M_space)
             else
-                v_s_S_space = matmul(transpose(this%A_g_to_ls), v_s_S_space)
-                v_d_M_space = matmul(transpose(this%A_g_to_ls), v_d_M_space)
+                allocate(v_s_S_space(3,this%S_dim), source=0.)
             end if
+
+            ! Doublet velocity
+            v_d_M_space = this%assemble_v_d_M_space(int, geom, freestream, mirror_panel)
 
         else
 
@@ -3267,7 +3306,6 @@ contains
         real,dimension(:,:),allocatable :: source_inf, doublet_inf
         real,dimension(:),allocatable :: doublet_strengths
         real,dimension(this%S_dim) :: source_strengths
-
 
         ! Get influences
         call this%calc_velocity_influences(P, freestream, dod_info, mirror_panel, source_inf, doublet_inf)

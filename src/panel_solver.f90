@@ -2244,7 +2244,7 @@ contains
         real,dimension(:),allocatable :: phi_s, phi_d
         real,dimension(:,:),allocatable :: v_s, v_d
 
-        if (verbose) write(*,'(a)',advance='no') "    Calculating potentials at off-body points "
+        if (verbose) write(*,'(a)',advance='no') "    Calculating flow properties at off-body points "
 
         ! Get number of points from file
         N_points = 0
@@ -2323,19 +2323,19 @@ contains
         open(newunit=unit, file=points_output_file)
 
         ! Write header
-        write(unit,*) 'x,y,z,phi_inf,phi_d,phi_s,phi,Phi,v_d_x,v_d_y,v_d_z,v_s_x,v_s_y,v_s_z,v_x,v_y,v_z,V_x,V_y,V_z'
+        write(unit,*) 'x,y,z,phi_inf,phi_d,phi_s,phi,Phi,v_inf_x,v_inf_y,v_inf_z,v_d_x,v_d_y,v_d_z,v_s_x,v_s_y,v_s_z,&
+                       v_x,v_y,v_z,V_x,V_y,V_z'
 
         ! Write potentials out to file
         do i=1,N_points
 
-            ! Calculate freestream potential
+            ! Get freestream properties
             phi_inf = this%freestream%U*inner(points(:,i), this%freestream%c_hat_g)
-            ! Calculate freestream velocity
             v_inf = this%freestream%v_inf
 
             ! Write to file
             write(unit,100) points(1,i), points(2,i), points(3,i), phi_inf, phi_d(i), phi_s(i), phi_d(i) + phi_s(i), &
-                            phi_inf + phi_d(i) + phi_s(i), v_d(1,i), v_d(2,i), v_d(3,i), &
+                            phi_inf + phi_d(i) + phi_s(i), v_inf(1), v_inf(2), v_inf(3), v_d(1,i), v_d(2,i), v_d(3,i), &
                             v_s(1,i), v_s(2,i), v_s(3,i), v_d(1,i) + v_s(1,i), v_d(2,i) + v_s(2,i), v_d(3,i) + v_s(3,i), &
                             v_inf(1) + v_d(1,i) + v_s(1,i), v_inf(2) + v_d(2,i) + v_s(2,i), v_inf(3) + v_d(3,i) + v_s(3,i)
 

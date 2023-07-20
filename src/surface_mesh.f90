@@ -2210,6 +2210,7 @@ contains
                 call this%panels(k)%calc_velocities(point, freestream, dod_info(k), .false., &
                                                     this%sigma, this%mu, this%N_panels, this%N_verts, &
                                                     this%asym_flow, v_s_panel, v_d_panel)
+
                 ! Because computers don't like adding zero a bunch
                 if (this%panels(k)%has_sources) v_s = v_s + v_s_panel
                 v_d = v_d + v_d_panel
