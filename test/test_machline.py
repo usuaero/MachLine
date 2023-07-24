@@ -1,7 +1,13 @@
+# Regression tests for MachLine
+# Please number each test using the format already in place
+# KEEP THE TESTS IN ORDER!
+
+
 import os
 import json
 import shutil
 import subprocess as sp
+import numpy as np
 
 
 class MachLineError(Exception):
@@ -62,7 +68,7 @@ def run_machline(input_file, remove_input=False, remove_results=True):
         return C_p_max, C_p_min, Cx, Cy, Cz
 
 
-def test_half_wing_lower_source_free_asym_inc_flow():
+def test_01_half_wing_lower_source_free_asym_inc_flow():
     # Tests the half wing case with the source-free formulation returns the consistent result
 
     C_p_max, C_p_min, Cx, Cy, Cz = run_machline("test/input_files/half_wing_input.json")
@@ -77,9 +83,10 @@ def test_half_wing_lower_source_free_asym_inc_flow():
     assert(abs(C_p_min - -1.28122767724128) < 1e-9)
     assert(abs(Cx - -0.394147360647448) < 1e-9)
     assert(abs(Cy - -0.0469272618384146) < 1e-9)
-    assert(abs(Cz - 20.6524632022337) < 1e-8)
+    assert(abs(Cz - 20.6524631977163) < 1e-12)
 
-def test_half_wing_higher_source_free_asym_inc_flow():
+
+def test_02_half_wing_higher_source_free_asym_inc_flow():
     # Tests the half wing case with the source-free formulation returns the consistent result
 
     # Load original input
@@ -103,15 +110,14 @@ def test_half_wing_higher_source_free_asym_inc_flow():
     print(Cy)
     print(Cz)
 
-    assert(abs(C_p_max - 0.759429071432116) < 1e-8)
-    assert(abs(C_p_min - -155.125711937598) < 1e-7)
-    assert(abs(Cx - -0.107656384077204) < 1e-9)
-    assert(abs(Cy - -0.421878422196982) < 1e-9)
-    assert(abs(Cz - 20.4512953985374) < 1e-8)
+    assert(abs(C_p_max - 0.749393430277945) < 1e-12)
+    assert(abs(C_p_min - -1.1156939646846) < 1e-12)
+    assert(abs(Cx - -0.3769033917615) < 1e-9)
+    assert(abs(Cy - -0.0448030638527709) < 1e-9)
+    assert(abs(Cz - 20.1961409335859) < 1e-12)
 
 
-
-def test_half_wing_lower_morino_asym_inc_flow():
+def test_03_half_wing_lower_morino_asym_inc_flow():
     # Tests the half wing case with the source-free formulation returns the consistent result
 
     # Load original input
@@ -139,9 +145,10 @@ def test_half_wing_lower_morino_asym_inc_flow():
     assert(abs(C_p_min - -1.28120652757854) < 1e-9)
     assert(abs(Cx - -0.394142487065741) < 1e-9)
     assert(abs(Cy - -0.0469266124998036) < 1e-9)
-    assert(abs(Cz - 20.6521815139865) < 1e-8)
+    assert(abs(Cz - 20.6521815154214) < 1e-12)
 
-def test_half_wing_higher_morino_asym_inc_flow():
+
+def test_04_half_wing_higher_morino_asym_inc_flow():
     # Tests the half wing case with the source-free formulation returns the consistent result
 
     # Load original input
@@ -166,13 +173,14 @@ def test_half_wing_higher_morino_asym_inc_flow():
     print(Cy)
     print(Cz)
 
-    assert(abs(C_p_max - 0.739610252852068) < 1e-10)
-    assert(abs(C_p_min - -120.318007114615) < 1e-7)
-    assert(abs(Cx - -0.308572214096) < 1e-9)
-    assert(abs(Cy - -0.355218903373769) < 1e-9)
-    assert(abs(Cz - 20.1176108749057) < 1e-8)
+    assert(abs(C_p_max - 0.750968663253082) < 1e-10)
+    assert(abs(C_p_min - -1.10238783762737) < 1e-10)
+    assert(abs(Cx - -0.379595457329634) < 1e-9)
+    assert(abs(Cy - -0.0459678458682901) < 1e-9)
+    assert(abs(Cz - 20.2266509889293) < 1e-12)
 
-def test_half_wing_lower_morino_zero_aoa_zero_beta_inc():
+
+def test_05_half_wing_lower_morino_zero_aoa_zero_beta_inc():
     # Tests the half wing case at zero angle of attack with the Morino formulation
 
     # Load original input
@@ -204,7 +212,7 @@ def test_half_wing_lower_morino_zero_aoa_zero_beta_inc():
     assert(abs(Cz - 3.22319026937329e-12) < 1e-12)
 
 
-def test_half_wing_higher_morino_zero_aoa_zero_beta_inc():
+def test_06_half_wing_higher_morino_zero_aoa_zero_beta_inc():
     # Tests the half wing case at zero angle of attack with the Morino formulation
 
     # Load original input
@@ -230,15 +238,14 @@ def test_half_wing_higher_morino_zero_aoa_zero_beta_inc():
     print(Cy)
     print(Cz)
 
-    assert(abs(C_p_max - 0.191053241766016) < 1e-12)
-    assert(abs(C_p_min - -1.89777720546072) < 1e-12)
-    assert(abs(Cx - 0.15621037334946) < 1e-12)
+    assert(abs(C_p_max - 0.217923409759566) < 1e-12)
+    assert(abs(C_p_min - -0.432426859568809) < 1e-12)
+    assert(abs(Cx - 0.308691949491238) < 1e-12)
     assert(abs(Cy) < 1e-12)
-    assert(abs(Cz - 3.52272374682175e-11) < 1e-12)
+    assert(abs(Cz) < 1e-11)
 
 
-
-def test_sphere_morino_inc_iterative():
+def test_07_sphere_morino_inc_iterative():
     # Tests the sphere case with the Morino formulation using an iterative matrix solver
 
     # Load original input
@@ -263,14 +270,14 @@ def test_sphere_morino_inc_iterative():
     print(Cy)
     print(Cz)
 
-    assert(abs(C_p_max - 0.991141909317106) < 1e-5)
-    assert(abs(C_p_min - -1.23783156034762) < 1e-5)
+    assert(abs(C_p_max - 0.99114275830853) < 1e-12)
+    assert(abs(C_p_min - -1.23782791839695) < 1e-12)
     assert(abs(Cx) < 2e-5)
     assert(abs(Cy) < 2e-5)
     assert(abs(Cz) < 2e-5)
 
 
-def test_sphere_morino_inc():
+def test_08_sphere_morino_inc():
     # Tests the sphere case with the Morino formulation returns the consistent result
 
     C_p_max, C_p_min, Cx, Cy, Cz = run_machline("test/input_files/sphere_input.json")
@@ -288,7 +295,7 @@ def test_sphere_morino_inc():
     assert(abs(Cz) < 1e-4)
 
 
-def test_full_half_wing_compare_lower_morino_zero_beta_inc():
+def test_09_full_half_wing_compare_lower_morino_zero_beta_inc():
     # Tests the full wing and half wing with the Morino formulation return identical results
 
     # Set full wing input
@@ -328,7 +335,8 @@ def test_full_half_wing_compare_lower_morino_zero_beta_inc():
     assert(abs(Cy_full-Cy_half)<1e-3)
     assert(abs(Cz_full-Cz_half)<2e-2)
 
-def test_full_half_wing_compare_higher_morino_zero_beta_inc():
+
+def test_10_full_half_wing_compare_higher_morino_zero_beta_inc():
     # Tests the full wing and half wing with the Morino formulation return identical results
 
     # Set full wing input
@@ -370,7 +378,8 @@ def test_full_half_wing_compare_higher_morino_zero_beta_inc():
     assert(abs(Cy_full-Cy_half)<1e-3)
     assert(abs(Cz_full-Cz_half)<2e-2)
 
-def test_subsonic_comp_pressure_corrections():
+
+def test_11_subsonic_comp_pressure_corrections():
 
     # Tests the half wing case with the source-free formulation returns the consistent result
 
@@ -381,15 +390,15 @@ def test_subsonic_comp_pressure_corrections():
     print(Cx)
     print(Cy)
     print(Cz)
-# Sometimes fails
+
     assert(abs(C_p_max - 0.817385304260662) < 1e-9)
     assert(abs(C_p_min - -1.09394053248534) < 1e-9)
     assert(abs(Cx - -0.508981218975681) < 1e-9)
     assert(abs(Cy - 0.0102074574010827) < 1e-9)
-    assert(abs(Cz - 26.2860762101) < 1e-8)
+    assert(abs(Cz - 26.2860762052636) < 1e-8)
 
 
-def test_supersonic_half_wing_morino_zero_aoa_zero_beta():
+def test_12_supersonic_half_wing_morino_zero_aoa_zero_beta():
 
     C_p_max, C_p_min, Cx, Cy, Cz = run_machline("test/input_files/supersonic_half_wing_input.json")
 
@@ -406,7 +415,7 @@ def test_supersonic_half_wing_morino_zero_aoa_zero_beta():
     assert(abs(Cz) < 1e-12)
 
 
-def test_supersonic_half_wing_lower_source_free_zero_aoa_zero_beta():
+def test_13_supersonic_half_wing_lower_source_free_zero_aoa_zero_beta():
 
     with open("test/input_files/supersonic_half_wing_input.json", 'r') as input_handle:
         input_dict = json.load(input_handle)
@@ -431,7 +440,7 @@ def test_supersonic_half_wing_lower_source_free_zero_aoa_zero_beta():
     assert(abs(Cz) < 1e-12)
 
 
-def test_supersonic_half_wing_lower_morino_allow_wake_asym_flow():
+def test_14_supersonic_half_wing_lower_morino_allow_wake_asym_flow():
 
     with open("test/input_files/supersonic_half_wing_input.json", 'r') as input_handle:
         input_dict = json.load(input_handle)
@@ -456,7 +465,8 @@ def test_supersonic_half_wing_lower_morino_allow_wake_asym_flow():
     assert(abs(Cy - 0.000852303050093563) < 1.e-12)
     assert(abs(Cz - 0.892593299837566) < 1e-9)
 
-def test_supersonic_half_wing_higher_source_free_zero_aoa_zero_beta():
+
+def test_15_supersonic_half_wing_higher_source_free_zero_aoa_zero_beta():
 
     with open("test/input_files/supersonic_half_wing_input.json", 'r') as input_handle:
         input_dict = json.load(input_handle)
@@ -475,14 +485,14 @@ def test_supersonic_half_wing_higher_source_free_zero_aoa_zero_beta():
     print(Cy)
     print(Cz)
 
-    assert(abs(C_p_max - 0.119047782747311) < 1e-12)
-    assert(abs(C_p_min - -0.211056770427799) < 1e-12)
-    assert(abs(Cx - 0.142195282294109) < 1e-12)
-    assert(abs(Cy) < 1.e-12)
-    assert(abs(Cz) < 1e-8)
+    assert(abs(C_p_max - 0.119055399649912) < 1e-12)
+    assert(abs(C_p_min - -0.112090098429673) < 1e-12)
+    assert(abs(Cx - 0.142437748460037) < 1e-12)
+    assert(abs(Cy) < 1.0e-12)
+    assert(abs(Cz) < 1.0e-10)
 
 
-def test_supersonic_half_wing_higher_morino_allow_wake_asym_flow():
+def test_16_supersonic_half_wing_higher_morino_allow_wake_asym_flow():
 
     with open("test/input_files/supersonic_half_wing_input.json", 'r') as input_handle:
         input_dict = json.load(input_handle)
@@ -502,13 +512,14 @@ def test_supersonic_half_wing_higher_morino_allow_wake_asym_flow():
     print(Cy)
     print(Cz)
 
-    assert(abs(C_p_max - 0.214854505096503) < 1e-12)
-    assert(abs(C_p_min - -0.353127068458461) < 1e-12)
-    assert(abs(Cx - 0.145345870030809) < 1e-12)
-    assert(abs(Cy - 0.000990813724559071) < 1.e-12)
-    assert(abs(Cz - 0.876502661786116) < 1e-9)
+    assert(abs(C_p_max - 0.195559054627881) < 1e-12)
+    assert(abs(C_p_min - -0.291045728014071) < 1e-12)
+    assert(abs(Cx - 0.142750535947053) < 1e-12)
+    assert(abs(Cy - 0.000816008709771361) < 1.e-12)
+    assert(abs(Cz - 0.88869372122009) < 1e-9)
 
-def test_supersonic_half_wing_source_free_allow_wake_sym_flow():
+
+def test_17_supersonic_half_wing_source_free_allow_wake_sym_flow():
 
     with open("test/input_files/supersonic_half_wing_input.json", 'r') as input_handle:
         input_dict = json.load(input_handle)
@@ -535,7 +546,7 @@ def test_supersonic_half_wing_source_free_allow_wake_sym_flow():
     assert(abs(Cz - 0.893492282700425) < 1e-10)
 
 
-def test_fuselage_subsonic_compressible_iterative():
+def test_18_fuselage_subsonic_compressible_iterative():
 
     C_p_max, C_p_min, Cx, Cy, Cz = run_machline("test/input_files/fuselage_input.json")
 
@@ -552,7 +563,7 @@ def test_fuselage_subsonic_compressible_iterative():
     assert(abs(Cz) < 2.1e-3)
 
 
-def test_supersonic_full_wing_morino_qrup():
+def test_19_supersonic_full_wing_morino_qrup():
 
     C_p_max, C_p_min, Cx, Cy, Cz = run_machline("test/input_files/supersonic_full_wing_input.json")
 
@@ -567,3 +578,92 @@ def test_supersonic_full_wing_morino_qrup():
     assert(abs(Cx - 0.0718540012154408) < 1e-12)
     assert(abs(Cy) < 1e-11)
     assert(abs(Cz - 0.429236847680447) < 1e-12)
+
+
+def test_20_half_wing_lower_morino_asym_inc_flow_off_body():
+    # Tests the half wing case with the morino formulation returns consistent off-body results
+
+    # Load original input
+    with open("test/input_files/half_wing_input.json", 'r') as input_handle:
+        input_dict = json.load(input_handle)
+
+    # Remove old output file
+    output_file = "test/results/half_wing_inc_offbody_points.csv"
+    try:
+        os.remove(output_file)
+    except FileNotFoundError:
+        pass
+
+    # Alter input
+    input_dict["solver"]["formulation"] = "morino"
+    input_dict["output"] = {
+                                "offbody_points" : {
+                                    "points_file" : "test/input_files/root_xz_sample_points.csv",
+                                    "output_file" : output_file
+                                },
+                                "report_file" : "test/results/report.json"
+                            }
+
+    # Write altered input
+    altered_input_file = "test/input_files/altered_half_wing_input.json"
+    with open(altered_input_file, 'w') as altered_input_handle:
+        json.dump(input_dict, altered_input_handle, indent=4)
+
+    # Run MachLine
+    _ = run_machline("test/input_files/altered_half_wing_input.json", remove_input=True, remove_results=False)
+
+    # Load results
+    correct_file = "test/input_files/half_wing_inc_offbody_points_correct.csv"
+    results = np.genfromtxt(output_file, skip_header=1, delimiter=',')
+    standard = np.genfromtxt(correct_file, skip_header=1, delimiter=',')
+
+    # Check
+    assert(np.all(np.abs(results - standard) < 1.0e-12))
+
+    # Remove results
+    shutil.rmtree("test/results")
+
+
+def test_21_half_wing_lower_morino_asym_supersonic_flow_off_body():
+    # Tests the half wing case with the morino formulation returns consistent off-body results in supersonic flow
+
+    # Load original input
+    with open("test/input_files/supersonic_half_wing_input.json", 'r') as input_handle:
+        input_dict = json.load(input_handle)
+
+    # Remove old output file
+    output_file = "test/results/half_wing_supersonic_offbody_points.csv"
+    try:
+        os.remove(output_file)
+    except FileNotFoundError:
+        pass
+
+    # Alter input
+    input_dict["flow"]["freestream_velocity"] = [100.0, 5.0, 5.0]
+    input_dict["solver"]["formulation"] = "morino"
+    input_dict["output"] = {
+                                "offbody_points" : {
+                                    "points_file" : "test/input_files/root_xz_sample_points.csv",
+                                    "output_file" : output_file
+                                },
+                                "report_file" : "test/results/report.json"
+                            }
+
+    # Write altered input
+    altered_input_file = "test/input_files/altered_supersonic_half_wing_input.json"
+    with open(altered_input_file, 'w') as altered_input_handle:
+        json.dump(input_dict, altered_input_handle, indent=4)
+
+    # Run MachLine
+    _ = run_machline(altered_input_file, remove_input=True, remove_results=False)
+
+    # Load results
+    correct_file = "test/input_files/half_wing_supersonic_offbody_points_correct.csv"
+    results = np.genfromtxt(output_file, skip_header=1, delimiter=',')
+    standard = np.genfromtxt(correct_file, skip_header=1, delimiter=',')
+
+    # Check
+    assert(np.all(np.abs(results[:,:8]-standard[:,:8]) < 1.0e-12))
+
+    # Remove results
+    shutil.rmtree("test/results")

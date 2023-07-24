@@ -11,9 +11,8 @@ module base_geom_mod
     type vertex
         ! A vertex in 3-space
 
-        integer :: vert_type ! Whether this is a 1) true vertex or 2) vertex representing an edge midpoint
         real,dimension(3) :: loc ! Location
-        real,dimension(3) :: n_g, n_g_mir ! Normal vector associated with this control point
+        real,dimension(3) :: n_g, n_g_mir ! Normal vector associated with this vertex
         real :: l_avg ! Average of the edge lengths adjacent to this vertex
         real :: l_min ! Minimum of the edge lengths adjacent to this vertex
         type(list) :: adjacent_vertices ! List of indices for the vertices which share an edge with this vertex
@@ -119,19 +118,18 @@ module base_geom_mod
 contains
 
 
-    subroutine vertex_init(this, loc, index, vert_type)
+    subroutine vertex_init(this, loc, index)
         ! Initializes a vertex
 
         implicit none
 
         class(vertex),intent(inout) :: this
         real,dimension(3),intent(in) :: loc
-        integer,intent(in) :: index, vert_type
+        integer,intent(in) :: index
 
         ! Store info
         this%loc = loc
         this%index = index
-        this%vert_type = vert_type
 
         ! Intitialize some data
         this%top_parent = 0
@@ -254,11 +252,6 @@ contains
                     ! Update counter
                     N_wake_edges_on_mirror_plane = N_wake_edges_on_mirror_plane + 1
 
-                    ! If this is a midpoint, then its clone will be unique and it doesn't need any clone
-                    if (this%vert_type == 2) then
-                        this%mirrored_is_unique = .true.
-                    end if
-
                 end if
 
             end if
@@ -267,26 +260,16 @@ contains
         ! Set number of needed clones for vertices which have at least one wake edge
         if (this%N_wake_edges > 0) then
 
-            ! For regular vertices, this depends on how many wake edges it has
-            if (this%vert_type == 1) then
+            ! This depends on how many wake edges it has
+            ! If the vertex is on the mirror plane, then how many clones is dependent upon how many wake edges are on the mirror plane
+            if (this%on_mirror_plane) then
+                this%N_needed_clones = this%N_wake_edges - N_wake_edges_on_mirror_plane
 
-                ! If the vertex is on the mirror plane, then how many clones is dependent upon how many wake edges are on the mirror plane
-                if (this%on_mirror_plane) then
-                    this%N_needed_clones = this%N_wake_edges - N_wake_edges_on_mirror_plane
-
-                ! If the vertex is not on the mirror plane, then we need one fewer clones than edges
-                else
-                    this%N_needed_clones = this%N_wake_edges - 1
-                end if
-            
-            ! For midpoints, we will need 1 clone iff it's off the mirror plane
+            ! If the vertex is not on the mirror plane, then we need one fewer clones than edges
             else
-                if (this%on_mirror_plane) then
-                    this%N_needed_clones = 0
-                else
-                    this%N_needed_clones = 1
-                end if
+                this%N_needed_clones = this%N_wake_edges - 1
             end if
+            
         end if
         
     end subroutine vertex_set_needed_clones
