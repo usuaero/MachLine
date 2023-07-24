@@ -20,7 +20,7 @@ module panel_mod
         real :: H111, H211, H121 ! Source integrals
         real :: hH113, H213, H123, H313, H223, H133 ! Doublet integrals; we use hH(1,1,3) because it can be reliably calculated, unlike H(1,1,3)
         real,dimension(:),allocatable :: F111, F211, F121 ! Necessary line integrals
-        real :: h3H115, H215, H125, H225, hH315, hH135, H415, H145, H325, H235, H113_3h2H115 ! Doublet velocity integrals. Yeah, there are a lot...
+        real :: h3H115, H215, H125, H225, hH315, hH135, H415, H145, H325, H235, H113_3rsh2H115 ! Doublet velocity integrals. Yeah, there are a lot...
         real,dimension(:),allocatable :: F113, F123, F213, F133, F313 ! Necessary for doublet velocity integrals
 
     end type integrals
@@ -134,7 +134,7 @@ module panel_mod
             procedure :: calc_supersonic_supinc_geom => panel_calc_supersonic_supinc_geom
             
             ! Endpoint integrals
-            procedure :: calc_subsonic_EMNK => panel_calc_subsonic_EMNK
+            procedure :: EMNK => panel_EMNK
 
             ! Edge integrals
             procedure :: calc_basic_F_integrals_subsonic => panel_calc_basic_F_integrals_subsonic
@@ -2176,8 +2176,8 @@ contains
     end function panel_calc_supersonic_supinc_geom
 
 
-    function panel_calc_subsonic_EMNK(this, geom, M, N, K) result(E)
-        ! Calculates E(M,N,K) using Johnson (D.58)
+    function panel_EMNK(this, geom, M, N, K) result(E)
+        ! Calculates E(M,N,K)
 
         implicit none
         
@@ -2205,7 +2205,7 @@ contains
 
         end do
         
-    end function panel_calc_subsonic_EMNK
+    end function panel_EMNK
 
 
     subroutine panel_calc_basic_F_integrals_subsonic(this, geom, freestream, mirror_panel, int)
@@ -2634,9 +2634,9 @@ contains
         type(integrals),intent(inout) :: int
 
         ! Get additional F integrals
-        int%F113 = (- geom%v_eta*this%calc_subsonic_EMNK(geom, 2, 1, 1) &
-                    + geom%v_xi*this%calc_subsonic_EMNK(geom, 1, 2, 1)) / geom%g2 ! Johnson (D.61)
-        int%F123 = geom%v_eta*geom%a*int%F113 - geom%v_xi*this%calc_subsonic_EMNK(geom, 1, 1, 1) ! Johnson (D.66)
+        int%F113 = (- geom%v_eta*this%EMNK(geom, 2, 1, 1) &
+                    + geom%v_xi*this%EMNK(geom, 1, 2, 1)) / geom%g2 ! Johnson (D.61)
+        int%F123 = geom%v_eta*geom%a*int%F113 - geom%v_xi*this%EMNK(geom, 1, 1, 1) ! Johnson (D.66)
         int%F133 = 2.*geom%a*geom%v_eta*int%F123 - (geom%a*geom%a + geom%v_xi*geom%v_xi*geom%h2)*int%F113 &
                    + geom%v_xi*geom%v_xi*int%F111 ! Johnson (D.67)
 
@@ -2658,7 +2658,7 @@ contains
         int%hH315 = -int%hH135 - int%h3H115 + int%hH113
         int%H325 = - int%H145 - geom%h2*int%H125 + int%H123
         int%H415 = - int%H235 - geom%h2*int%H225 + int%H223
-        int%H113_3h2H115 = -sum(geom%a*int%F113)
+        int%H113_3rsh2H115 = -sum(geom%a*int%F113)
 
     end subroutine panel_calc_subsonic_velocity_integrals
 
@@ -2746,11 +2746,11 @@ contains
 
         ! THESE ARE ONLY SUBSONIC RIGHT NOW!!!!!
         ! F(1,1,3) from Johnson (D.61)
-        int%F113 = (- geom%v_eta*this%calc_subsonic_EMNK(geom, 2, 1, 1) &
-                    + geom%v_xi*this%calc_subsonic_EMNK(geom, 1, 2, 1)) / geom%g2
+        int%F113 = (- geom%v_eta*this%EMNK(geom, 2, 1, 1) &
+                    + geom%v_xi*this%EMNK(geom, 1, 2, 1)) / geom%g2
 
         ! F(1,2,3) from Johnson (D.66)
-        int%F123 = geom%v_eta*geom%a*int%F113 - geom%v_xi*this%calc_subsonic_EMNK(geom, 1, 1, 1)
+        int%F123 = geom%v_eta*geom%a*int%F113 - geom%v_xi*this%EMNK(geom, 1, 1, 1)
 
         ! F(1,3,3) from Johnson (D.67)
         int%F133 = 2.*geom%a*geom%v_eta*int%F123 - (geom%a*geom%a + geom%v_xi*geom%v_xi*geom%h2)*int%F113 &
@@ -2775,20 +2775,20 @@ contains
         int%h3H115 = (int%hH113 + geom%h * sum(geom%a*int%F113))/3
 
         ! Johnson (D.46)
-        int%H125 = -sum(geom%v_eta*int%F113)/3.
-        int%hH135 = (int%hH113 - geom%h*sum(geom%v_eta*int%F123))/3.
-        int%H145 = (2.*int%H123 - sum(geom%v_eta*int%F133))/3.
+        int%H125 = -int%s*sum(geom%v_eta*int%F113)/3.
+        int%hH135 = int%s*(int%hH113 - geom%h*sum(geom%v_eta*int%F123))/3.
+        int%H145 = int%s*(2.*int%H123 - sum(geom%v_eta*int%F133))/3.
 
         ! Johnson (D.47)
-        int%H215 = -sum(geom%v_xi*int%F113)/3.
-        int%H225 = -sum(geom%v_xi*int%F123)/3.
-        int%H235 = -sum(geom%v_xi*int%F133)/3.
+        int%H215 = -int%r*sum(geom%v_xi*int%F113)/3.
+        int%H225 = -int%r*sum(geom%v_xi*int%F123)/3.
+        int%H235 = -int%r*sum(geom%v_xi*int%F133)/3.
 
         ! Johnson (D.48)
-        int%hH315 = -int%hH135 - int%h3H115 + int%hH113
-        int%H325 = - int%H145 - geom%h2*int%H125 + int%H123
-        int%H415 = - int%H235 - geom%h2*int%H225 + int%H223
-        int%H113_3h2H115 = -sum(geom%a*int%F113)
+        int%hH315 = -int%rs*int%hH135 - int%s*int%h3H115 + int%r*int%hH113
+        int%H325 = - int%rs*int%H145 - int%s*geom%h2*int%H125 + int%r*int%H123
+        int%H415 = - int%rs*int%H235 - int%s*geom%h2*int%H215 + int%r*int%H223
+        int%H113_3rsh2H115 = -sum(geom%a*int%F113)
 
     end subroutine panel_calc_H_recursions_for_velocity
 
@@ -3136,9 +3136,9 @@ contains
         v_d_mu_space(2,2) = 3.*int%s*geom%h*(int%H125*geom%P_ls(1) + int%H225)
         v_d_mu_space(2,3) = 3.*int%s*(int%H125*geom%P_ls(2)*geom%h + int%hH135)
 
-        v_d_mu_space(3,1) = int%H113_3h2H115
-        v_d_mu_space(3,2) = int%H113_3h2H115*geom%P_ls(1) + int%H213 - 3.*int%rs*geom%h2*int%H215
-        v_d_mu_space(3,3) = int%H113_3h2H115*geom%P_ls(2) + int%H123 - 3.*int%rs*geom%h2*int%H125
+        v_d_mu_space(3,1) = int%H113_3rsh2H115
+        v_d_mu_space(3,2) = int%H113_3rsh2H115*geom%P_ls(1) + int%H213 - 3.*int%rs*geom%h2*int%H215
+        v_d_mu_space(3,3) = int%H113_3rsh2H115*geom%P_ls(2) + int%H123 - 3.*int%rs*geom%h2*int%H125
 
         ! PAN AIR TESTING
         !v_d_mu_space(1,1) = 0.0
@@ -3176,12 +3176,12 @@ contains
                                 + int%H225*geom%h*geom%P_ls(2) + int%H235*geom%h)
             v_d_mu_space(2,6) = 3.*int%s*(0.5*int%H125*(geom%P_ls(2)**2)*geom%h + int%hH135*geom%P_ls(2) + 0.5*int%H145*geom%h)
 
-            v_d_mu_space(3,4) = 0.5*(geom%P_ls(1)**2)*int%H113_3h2H115 + geom%P_ls(1)*(int%H213 - 3.*int%rs*geom%h2*int%H215) &
+            v_d_mu_space(3,4) = 0.5*(geom%P_ls(1)**2)*int%H113_3rsh2H115 + geom%P_ls(1)*(int%H213 - 3.*int%rs*geom%h2*int%H215) &
                                 + 0.5*(int%H313 - 3.*int%rs*geom%h*int%hH315)
-            v_d_mu_space(3,5) = geom%P_ls(1)*geom%P_ls(2)*(int%H113_3h2H115) &
+            v_d_mu_space(3,5) = geom%P_ls(1)*geom%P_ls(2)*(int%H113_3rsh2H115) &
                                 + geom%P_ls(2)*(int%H213 - 3.*int%rs*geom%h2*int%H215) &
                                 + geom%P_ls(1)*(int%H123 - 3.*int%rs*geom%h2*int%H125) + int%H223 - 3.*int%rs*geom%h2*int%H225
-            v_d_mu_space(3,6) = 0.5*(geom%P_ls(2)**2)*int%H113_3h2H115 + geom%P_ls(2)*(int%H123 - 3.*int%rs*geom%h2*int%H125) &
+            v_d_mu_space(3,6) = 0.5*(geom%P_ls(2)**2)*int%H113_3rsh2H115 + geom%P_ls(2)*(int%H123 - 3.*int%rs*geom%h2*int%H125) &
                                 + 0.5*(int%H133 - 3.*int%rs*geom%h*int%hH135)
 
             !PAN AIR TESTING
