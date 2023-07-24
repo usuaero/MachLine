@@ -8,17 +8,17 @@
         "freestream_mach_number": 0.0
     },
     "geometry": {
-        "file": "studies/sphere/meshes/sphere_medium.stl",
+        "file": "studies/sphere/meshes/sphere_ultra_coarse.stl",
         "spanwise_axis": "+y"
     },
     "solver": {},
     "post_processing": {},
     "output": {
-        "body_file": "studies/sphere/results/sphere_medium.vtk",
-        "report_file": "studies/sphere/reports/sphere_medium.json",
+        "body_file": "studies/sphere/results/sphere_ultra_coarse.vtk",
+        "report_file": "studies/sphere/reports/sphere_ultra_coarse.json",
         "offbody_points": {
             "points_file": "studies/sphere/sphere_surface_slice_points.csv",
-            "output_file": "studies/sphere/results/sphere_offbody_points_1e-02_medium.csv"
+            "output_file": "studies/sphere/results/sphere_offbody_points_1e-03_ultra_coarse.csv"
         }
     }
 }

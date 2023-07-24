@@ -1,0 +1,27 @@
+{
+    "flow": {
+        "freestream_velocity": [
+            -1.0,
+            0.0,
+            0.0
+        ],
+        "freestream_mach_number": 0.0
+    },
+    "geometry": {
+        "file": "studies/sphere/meshes/sphere_ultra_coarse.stl",
+        "spanwise_axis": "+y",
+        "singularity_order": "higher"
+    },
+    "solver": {
+        "formulation": "morino"
+    },
+    "post_processing": {},
+    "output": {
+        "body_file": "studies/sphere/results/sphere_ultra_coarse_QUAD_higher-order_morino.vtk",
+        "report_file": "studies/sphere/reports/sphere_ultra_coarse_QUAD_higher-order_morino.json",
+        "offbody_points": {
+            "points_file": "studies/sphere/sphere_surface_slice_points.csv",
+            "output_file": "studies/sphere/results/sphere_offbody_points_1e-03_ultra_coarse.csv"
+        }
+    }
+}
