@@ -1,0 +1,31 @@
+{
+    "flow": {
+        "freestream_velocity" : [ 100.0, 0.0, 0.0 ],
+        "freestream_mach_number" : 1.6
+    },
+    "geometry": {
+        "file": "dev/meshes/diamond_5_deg_full_fine.stl",
+        "wake_model" : {
+            "wake_present" : true,
+            "append_wake" : true,
+            "trefftz_distance" : 20.0
+        }
+    },
+    "solver": {
+        "formulation" : "morino",
+        "matrix_solver" : "GMRES",
+        "write_A_and_b" : false
+    },
+    "post_processing" : {
+    },
+    "output": {
+        "body_file" :          "dev/results/diamond_5_deg_full.vtk",
+        "wake_file" :          "dev/results/diamond_5_deg_full_wake.vtk",
+        "control_point_file" : "dev/results/diamond_5_deg_full_control_points.vtk",
+        "report_file" :        "dev/results/report.json",
+        "offbody_points" : {
+            "points_file" : "dev/input_files/diamond_5_deg_sample_points.csv",
+            "output_file" : "dev/results/diamond_5_deg_full_sample_points.csv"
+        }
+    }
+}

@@ -1,0 +1,25 @@
+{
+    "flow": {
+        "freestream_velocity": [
+            -1.0,
+            0.0,
+            0.0
+        ],
+        "freestream_mach_number": 1.2
+    },
+    "geometry": {
+        "file": "studies/supersonic_cone_velocities/meshes/cone_5_deg_fine_improved.vtk",
+        "spanwise_axis": "+z",
+        "mirror_about": "xy"
+    },
+    "solver": {},
+    "post_processing": {},
+    "output": {
+        "body_file": "studies/supersonic_cone_velocities/results/cone_5_deg_fine.vtk",
+        "report_file": "studies/supersonic_cone_velocities/reports/cone_5_deg_fine.json",
+        "offbody_points": {
+            "points_file": "studies/supersonic_cone_velocities/cone_5_deg_20_deg_ray_angle_points.csv",
+            "output_file": "studies/supersonic_cone_velocities/results/cone_5_deg_fine_20_deg_ray_angle_points.csv"
+        }
+    }
+}

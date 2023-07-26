@@ -2081,7 +2081,7 @@ contains
         class(surface_mesh),intent(in) :: this
         real,dimension(3),intent(in) :: point
         type(flow),intent(in) :: freestream
-        real,intent(out) :: phi_d, phi_s
+        real,intent(inout) :: phi_d, phi_s
 
         integer :: j, k
         real :: phi_d_panel, phi_s_panel
@@ -2238,6 +2238,9 @@ contains
                                                             dod_info(k+this%N_panels), .false., &
                                                             this%sigma, this%mu, this%N_panels, this%N_verts, &
                                                             this%asym_flow, v_s_panel, v_d_panel)
+
+                        v_d_panel = mirror_across_plane(v_d_panel, this%mirror_plane)
+                        v_s_panel = mirror_across_plane(v_s_panel, this%mirror_plane)
                         if (this%panels(k)%has_sources) v_s = v_s + v_s_panel
                         v_d = v_d + v_d_panel
 
@@ -2277,6 +2280,8 @@ contains
                                                                  this%sigma, this%mu, this%N_panels, this%N_verts, &
                                                                  this%asym_flow, v_s_panel, v_d_panel)
                         
+                        v_d_panel = mirror_across_plane(v_d_panel, this%mirror_plane)
+                        v_s_panel = mirror_across_plane(v_s_panel, this%mirror_plane)
                         if (this%wake%strips(j)%panels(k)%has_sources) v_s = v_s + v_s_panel
                         v_d = v_d + v_d_panel
 

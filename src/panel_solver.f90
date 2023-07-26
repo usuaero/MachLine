@@ -2317,9 +2317,9 @@ contains
         call delete_file(points_output_file)
 
         ! Open output file
-        100 format(e20.12, ',', e20.12, ',', e20.12, ',', e20.12, ',', e20.12, ',', e20.12, ',', e20.12, ',', e20.12, &
-                   ',', e20.12, ',', e20.12, ',', e20.12, ',', e20.12, ',', e20.12, ',', e20.12, ',', e20.12, ',', &
-                   e20.12, ',', e20.12, ',', e20.12, ',', e20.12, ',', e20.12, ',', e20.12, ',', e20.12, ',', e20.12)
+        100 format(e20.10, ', ', e20.10, ', ', e20.10, ', ', e20.10, ', ', e20.10, ', ', e20.10, ', ', e20.10, ', ', e20.10, &
+                   ', ', e20.10, ', ', e20.10, ', ', e20.10, ', ', e20.10, ', ', e20.10, ', ', e20.10, ', ', e20.10, ', ', &
+                   e20.10, ', ', e20.10, ', ', e20.10, ', ', e20.10, ', ', e20.10, ', ', e20.10, ', ', e20.10, ', ', e20.10)
         open(newunit=unit, file=points_output_file)
 
         ! Write header
@@ -2334,10 +2334,17 @@ contains
             v_inf = this%freestream%v_inf
 
             ! Write to file
-            write(unit,100) points(1,i), points(2,i), points(3,i), phi_inf, phi_d(i), phi_s(i), phi_d(i) + phi_s(i), &
-                            phi_inf + phi_d(i) + phi_s(i), v_inf(1), v_inf(2), v_inf(3), v_d(1,i), v_d(2,i), v_d(3,i), &
-                            v_s(1,i), v_s(2,i), v_s(3,i), v_d(1,i) + v_s(1,i), v_d(2,i) + v_s(2,i), v_d(3,i) + v_s(3,i), &
-                            v_inf(1) + v_d(1,i) + v_s(1,i), v_inf(2) + v_d(2,i) + v_s(2,i), v_inf(3) + v_d(3,i) + v_s(3,i)
+            write(unit," (e20.13, a, e20.13, a, e20.13, a, e20.13, a, e20.13, a, e20.13, a, e20.13, a, e20.13, &
+                        a, e20.13, a, e20.13, a, e20.13, a, e20.13, a, e20.13, a, e20.13, a, e20.13, a, &
+                        e20.13, a, e20.13, a, e20.13, a, e20.13, a, e20.13, a, e20.13, a, e20.13, a, e20.13, a)", advance="no") &
+                            points(1,i),',', points(2,i),',', points(3,i),',', &
+                            phi_inf,',', phi_d(i),',', phi_s(i),',', phi_d(i) + phi_s(i),',', &
+                            phi_inf + phi_d(i) + phi_s(i),',', v_inf(1),',', &
+                            v_inf(2),',', v_inf(3),',', v_d(1,i),',', v_d(2,i),',', v_d(3,i),',', &
+                            v_s(1,i),',', v_s(2,i),',', v_s(3,i),',', &
+                            v_d(1,i) + v_s(1,i),',', v_d(2,i) + v_s(2,i),',', v_d(3,i) + v_s(3,i),',', &
+                            v_inf(1) + v_d(1,i) + v_s(1,i),',',&
+                            v_inf(2) + v_d(2,i) + v_s(2,i),',', v_inf(3) + v_d(3,i) + v_s(3,i), achar(10)
 
         end do
 

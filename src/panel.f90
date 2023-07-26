@@ -2176,7 +2176,7 @@ contains
     end function panel_calc_supersonic_supinc_geom
 
 
-    function panel_EMNK(this, geom, M, N, K) result(E)
+    function panel_EMNK(this, geom, M, N, K, mirror_panel) result(E)
         ! Calculates E(M,N,K)
 
         implicit none
@@ -2184,6 +2184,7 @@ contains
         class(panel),intent(in) :: this
         type(eval_point_geom),intent(in) :: geom
         integer,intent(in) :: M, N, K
+        logical,intent(in) :: mirror_panel
 
         real,dimension(this%N) :: E
 
@@ -2199,8 +2200,26 @@ contains
             i_next = mod(i, this%N)+1
 
             ! Calculate E(M,N,K)
-            E1 = geom%d_ls(1,i)**(M-1) * geom%d_ls(2,i)**(N-1) / geom%R1(i)**K
-            E2 = geom%d_ls(1,i_next)**(M-1) * geom%d_ls(2,i_next)**(N-1) / geom%R2(i)**K
+            if (geom%R1(i) == 0.) then
+                E1 = 0.0
+            else 
+                if (mirror_panel) then
+                    E1 = geom%d_ls(1,i_next)**(M-1) * geom%d_ls(2,i_next)**(N-1) / geom%R1(i)**K
+                else
+                    E1 = geom%d_ls(1,i)**(M-1) * geom%d_ls(2,i)**(N-1) / geom%R1(i)**K
+                end if
+            end if
+            
+            if (geom%R2(i) == 0.) then
+                E2 = 0.0
+            else 
+                if (mirror_panel) then
+                    E2 = geom%d_ls(1,i)**(M-1) * geom%d_ls(2,i)**(N-1) / geom%R2(i)**K
+                else
+                    E2 = geom%d_ls(1,i_next)**(M-1) * geom%d_ls(2,i_next)**(N-1) / geom%R2(i)**K
+                end if
+            end if
+
             E(i) = E2 - E1
 
         end do
@@ -2253,13 +2272,11 @@ contains
         end do
 
         ! Calculate F(1,2,1) and F(2,1,1)
-        if (this%order == 2) then
 
-            ! Calculate (these formulas come from PAN AIR and are equivalent to Johnson, but simplified)
-            int%F121 = geom%a*geom%v_eta*int%F111 + geom%v_xi*geom%dR
-            int%F211 = geom%a*geom%v_xi*int%F111 - geom%v_eta*geom%dR
+        ! Calculate (these formulas come from PAN AIR and are equivalent to Johnson, but simplified)
+        int%F121 = geom%a*geom%v_eta*int%F111 + geom%v_xi*geom%dR
+        int%F211 = geom%a*geom%v_xi*int%F111 - geom%v_eta*geom%dR
 
-        end if
 
     end subroutine panel_calc_basic_F_integrals_subsonic
 
@@ -2304,10 +2321,8 @@ contains
                     int%F111(i) = pi/s_b
 
                     ! Higher-order
-                    if (this%order == 2) then
-                        int%F121(i) = -geom%a(i)*geom%v_eta(i)*int%F111(i)/b
-                        int%F211(i) = geom%a(i)*geom%v_xi(i)*int%F111(i)/b
-                    end if
+                    int%F121(i) = -geom%a(i)*geom%v_eta(i)*int%F111(i)/b
+                    int%F211(i) = geom%a(i)*geom%v_xi(i)*int%F111(i)/b
 
                 else
 
@@ -2330,21 +2345,19 @@ contains
                         int%F111(i) = -eps + b*series
 
                         ! Higher-order
-                        if (this%order == 2) then
-                            if (mirror_panel) then
-                                int%F121(i) = (-geom%v_xi(i)*geom%dR(i)*geom%R1(i)*geom%R2(i) &
-                                               + geom%l2(i)*geom%R1(i)*(this%vertices_ls_mir(2,i_next) - geom%P_ls(2)) &
-                                               - geom%l1(i)*geom%R2(i)*(this%vertices_ls_mir(2,i) - geom%P_ls(2)) &
-                                              ) / (geom%g2(i)*F2) - geom%a(i)*geom%v_eta(i)*series
-                            else
-                                int%F121(i) = (-geom%v_xi(i)*geom%dR(i)*geom%R1(i)*geom%R2(i) &
-                                               + geom%l2(i)*geom%R1(i)*(this%vertices_ls(2,i) - geom%P_ls(2)) &
-                                               - geom%l1(i)*geom%R2(i)*(this%vertices_ls(2,i_next) - geom%P_ls(2)) &
-                                              ) / (geom%g2(i)*F2) - geom%a(i)*geom%v_eta(i)*series
-                            end if
-                            int%F211(i) = -geom%v_eta(i)*geom%dR(i) + geom%a(i)*geom%v_xi(i)*int%F111(i) - &
-                                          2.*geom%v_xi(i)*geom%v_eta(i)*int%F121(i)
+                        if (mirror_panel) then
+                            int%F121(i) = (-geom%v_xi(i)*geom%dR(i)*geom%R1(i)*geom%R2(i) &
+                                           + geom%l2(i)*geom%R1(i)*(this%vertices_ls_mir(2,i_next) - geom%P_ls(2)) &
+                                           - geom%l1(i)*geom%R2(i)*(this%vertices_ls_mir(2,i) - geom%P_ls(2)) &
+                                          ) / (geom%g2(i)*F2) - geom%a(i)*geom%v_eta(i)*series
+                        else
+                            int%F121(i) = (-geom%v_xi(i)*geom%dR(i)*geom%R1(i)*geom%R2(i) &
+                                           + geom%l2(i)*geom%R1(i)*(this%vertices_ls(2,i) - geom%P_ls(2)) &
+                                           - geom%l1(i)*geom%R2(i)*(this%vertices_ls(2,i_next) - geom%P_ls(2)) &
+                                          ) / (geom%g2(i)*F2) - geom%a(i)*geom%v_eta(i)*series
                         end if
+                        int%F211(i) = -geom%v_eta(i)*geom%dR(i) + geom%a(i)*geom%v_xi(i)*int%F111(i) - &
+                                      2.*geom%v_xi(i)*geom%v_eta(i)*int%F121(i)
 
                     ! Supersonic edge
                     else if (b > 0.) then
@@ -2353,12 +2366,10 @@ contains
                         int%F111(i) = -atan2(s_b*F1, F2) / s_b
 
                         ! Higher-order
-                        if (this%order == 2) then
-                            int%F121(i) = -(geom%v_xi(i)*geom%dR(i) + geom%a(i)*geom%v_eta(i)*int%F111(i)) / b
-                            int%F211(i) = -geom%v_eta(i)*geom%dR(i) + geom%a(i)*geom%v_xi(i)*int%F111(i) - &
-                                          2.*geom%v_xi(i)*geom%v_eta(i)*int%F121(i)
+                        int%F121(i) = -(geom%v_xi(i)*geom%dR(i) + geom%a(i)*geom%v_eta(i)*int%F111(i)) / b
+                        int%F211(i) = -geom%v_eta(i)*geom%dR(i) + geom%a(i)*geom%v_xi(i)*int%F111(i) - &
+                                        2.*geom%v_xi(i)*geom%v_eta(i)*int%F121(i)
                             !int%F211(i) = (geom%a(i)*int%F111(i) - geom%v_eta(i)*int%F121(i)) / geom%v_xi(i) ! alternative
-                        end if
 
                     ! Subsonic edge
                     else
@@ -2373,17 +2384,14 @@ contains
                         end if
 
                         ! Higher-order
-                        if (this%order == 2) then
-                            int%F121(i) = -(geom%v_xi(i)*geom%dR(i) + geom%a(i)*geom%v_eta(i)*int%F111(i)) / b
-                            int%F211(i) = -geom%v_eta(i)*geom%dR(i) + geom%a(i)*geom%v_xi(i)*int%F111(i) - &
+                        int%F121(i) = -(geom%v_xi(i)*geom%dR(i) + geom%a(i)*geom%v_eta(i)*int%F111(i)) / b
+                        int%F211(i) = -geom%v_eta(i)*geom%dR(i) + geom%a(i)*geom%v_xi(i)*int%F111(i) - &
                                           2.*geom%v_xi(i)*geom%v_eta(i)*int%F121(i)
                             !int%F211(i) = (geom%a(i)*int%F111(i) - geom%v_eta(i)*int%F121(i)) / geom%v_xi(i) ! alternative unstable in this case
                         end if
                     end if
 
                 end if
-
-            end if
 
             ! Check
             if (this%order == 2) then
@@ -2426,10 +2434,8 @@ contains
                     int%F111(i) = -pi
 
                     ! Higher-order
-                    if (this%order == 2) then
-                        int%F211(i) = geom%a(i)*geom%v_xi(i)*int%F111(i)
-                        int%F121(i) = geom%a(i)*geom%v_eta(i)*int%F111(i)
-                    end if
+                    int%F211(i) = geom%a(i)*geom%v_xi(i)*int%F111(i)
+                    int%F121(i) = geom%a(i)*geom%v_eta(i)*int%F111(i)
 
                 else
 
@@ -2441,10 +2447,8 @@ contains
                     int%F111(i) = atan2(F1, F2)
 
                     ! Higher-order
-                    if (this%order == 2) then
-                        int%F211(i) = geom%a(i)*geom%v_xi(i)*int%F111(i) - geom%v_eta(i)*geom%dR(i)
-                        int%F121(i) = geom%a(i)*geom%v_eta(i)*int%F111(i) + geom%v_xi(i)*geom%dR(i)
-                    end if
+                    int%F211(i) = geom%a(i)*geom%v_xi(i)*int%F111(i) - geom%v_eta(i)*geom%dR(i)
+                    int%F121(i) = geom%a(i)*geom%v_eta(i)*int%F111(i) + geom%v_xi(i)*geom%dR(i)
 
                 end if
 
@@ -2634,9 +2638,9 @@ contains
         type(integrals),intent(inout) :: int
 
         ! Get additional F integrals
-        int%F113 = (- geom%v_eta*this%EMNK(geom, 2, 1, 1) &
-                    + geom%v_xi*this%EMNK(geom, 1, 2, 1)) / geom%g2 ! Johnson (D.61)
-        int%F123 = geom%v_eta*geom%a*int%F113 - geom%v_xi*this%EMNK(geom, 1, 1, 1) ! Johnson (D.66)
+        int%F113 = (- geom%v_eta*this%EMNK(geom, 2, 1, 1, mirror_panel) &
+                    + geom%v_xi*this%EMNK(geom, 1, 2, 1, mirror_panel)) / geom%g2 ! Johnson (D.61)
+        int%F123 = geom%v_eta*geom%a*int%F113 - geom%v_xi*this%EMNK(geom, 1, 1, 1, mirror_panel) ! Johnson (D.66)
         int%F133 = 2.*geom%a*geom%v_eta*int%F123 - (geom%a*geom%a + geom%v_xi*geom%v_xi*geom%h2)*int%F113 &
                    + geom%v_xi*geom%v_xi*int%F111 ! Johnson (D.67)
 
@@ -2679,7 +2683,7 @@ contains
     end subroutine panel_calc_supersonic_subinc_velocity_integrals
 
 
-    subroutine panel_calc_remaining_integrals(this, geom, influence_type, freestream, mirror_panel, int)
+    subroutine panel_calc_remaining_integrals(this, geom, influence_type, freestream, mirror_panel, int, dod_info)
         ! Calculates the remaining necessary H and F integrals using the unified recursion relations
 
         implicit none
@@ -2690,6 +2694,7 @@ contains
         type(flow),intent(in) :: freestream
         logical,intent(in) :: mirror_panel
         type(integrals),intent(inout) :: int
+        type(dod),intent(in) :: dod_info
 
         ! Lower-order potential integrals
         int%H111 = sum(geom%a*int%F111) - int%rs*geom%h*int%hH113
@@ -2726,14 +2731,14 @@ contains
 
         ! Velocity integrals
         if (influence_type == 'velocity') then
-            call this%calc_F_recursions_for_velocity(geom, freestream, mirror_panel, int)
+            call this%calc_F_recursions_for_velocity(geom, freestream, mirror_panel, int, dod_info)
             call this%calc_H_recursions_for_velocity(geom, freestream, mirror_panel, int)
         end if
         
     end subroutine panel_calc_remaining_integrals
 
 
-    subroutine panel_calc_F_recursions_for_velocity(this, geom, freestream, mirror_panel, int)
+    subroutine panel_calc_F_recursions_for_velocity(this, geom, freestream, mirror_panel, int, dod_info)
         ! Calculates the remaining necessary F integrals for velocity influences using the unified recursion relations
 
         implicit none
@@ -2743,19 +2748,39 @@ contains
         type(flow),intent(in) :: freestream
         logical,intent(in) :: mirror_panel
         type(integrals),intent(inout) :: int
+        type(dod),intent(in) :: dod_info
 
-        ! THESE ARE ONLY SUBSONIC RIGHT NOW!!!!!
-        ! F(1,1,3) from Johnson (D.61)
-        int%F113 = (- geom%v_eta*this%EMNK(geom, 2, 1, 1) &
-                    + geom%v_xi*this%EMNK(geom, 1, 2, 1)) / geom%g2
+        allocate(int%F113(3), source=0.)
+        allocate(int%F123(3), source=0.)
+        allocate(int%F133(3), source=0.)
 
-        ! F(1,2,3) from Johnson (D.66)
-        int%F123 = geom%v_eta*geom%a*int%F113 - geom%v_xi*this%EMNK(geom, 1, 1, 1)
+        
+        where(dod_info%edges_in_dod)
+            ! F(1,1,3) from Johnson (D.61) and Velocity Influences (69)
+            int%F113 = (- int%s*geom%v_eta*this%EMNK(geom, 2, 1, 1, mirror_panel) &
+                        + int%r*geom%v_xi*this%EMNK(geom, 1, 2, 1, mirror_panel)) / geom%g2
 
-        ! F(1,3,3) from Johnson (D.67)
-        int%F133 = 2.*geom%a*geom%v_eta*int%F123 - (geom%a*geom%a + geom%v_xi*geom%v_xi*geom%h2)*int%F113 &
-                   + geom%v_xi*geom%v_xi*int%F111
+            ! F(1,2,3) from Johnson (D.66)
+            !int%F123 = geom%v_eta*geom%a*int%F113 - geom%v_xi*this%EMNK(geom, 1, 1, 1)
 
+            ! F(1,2,3) from Velocity Influences (72)
+            int%F123 = ( - int%r*(geom%v_xi**2)*int%F121 + int%r*geom%v_xi*this%EMNK(geom, 1, 3, 1, mirror_panel) &
+                        - int%s*geom%v_eta*this%EMNK(geom, 2, 2, 1, mirror_panel) + int%s*geom%v_eta*geom%v_xi*int%F211) / geom%g2
+
+            ! F(1,3,3) from Johnson (D.67)
+            !int%F133 = 2.*geom%a*geom%v_eta*int%F123 - (geom%a*geom%a + geom%v_xi*geom%v_xi*geom%h2)*int%F113 &
+            !           + geom%v_xi*geom%v_xi*int%F111
+
+            ! F(1,3,3) from velocity Influences (71)
+            int%F133 = (int%r*geom%v_eta*geom%a*int%F123 + geom%v_xi**2*int%F111 &
+                        - geom%v_xi*this%EMNK(geom, 1, 2, 1, mirror_panel)) / (int%s*geom%v_xi**2 + int%r*geom%v_eta**2)
+        elsewhere
+            
+            int%F113 = 0.
+            int%F123 = 0.
+            int%F133 = 0.
+
+        end where
     end subroutine panel_calc_F_recursions_for_velocity
 
 
@@ -2772,7 +2797,7 @@ contains
 
         ! THESE ARE ONLY SUBSONIC RIGHT NOW!!!!
         ! Johnson (D.42)
-        int%h3H115 = (int%hH113 + geom%h * sum(geom%a*int%F113))/3
+        int%h3H115 = int%rs*(int%hH113 + geom%h * sum(geom%a*int%F113))/3
 
         ! Johnson (D.46)
         int%H125 = -int%s*sum(geom%v_eta*int%F113)/3.
@@ -2809,10 +2834,8 @@ contains
 
         ! Allocate space for edge integrals
         allocate(int%F111(this%N), source=0.)
-        if (this%order == 2) then
-            allocate(int%F121(this%N), source=0.)
-            allocate(int%F211(this%N), source=0.)
-        end if
+        allocate(int%F121(this%N), source=0.)
+        allocate(int%F211(this%N), source=0.)
 
         ! Store parameters
         if (mirror_panel) then
@@ -2839,7 +2862,7 @@ contains
         end if
 
         ! Run H recursions
-        call this%calc_remaining_integrals(geom, influence_type, freestream, mirror_panel, int)
+        call this%calc_remaining_integrals(geom, influence_type, freestream, mirror_panel, int, dod_info)
 
     end function panel_calc_integrals
 
@@ -2897,7 +2920,6 @@ contains
 
     function panel_assemble_phi_d_M_space(this, int, geom, freestream, mirror_panel) result(phi_d_M_space)
         ! Assembles the vector of doublet-induced potential influences expressed in strength space
-
         implicit none
         
         class(panel),intent(in) :: this
@@ -2941,7 +2963,7 @@ contains
 
         ! Wake bottom influence is opposite the top influence
         if (this%in_wake) then
-            phi_d_M_space(this%M_dim+1:this%M_dim*2) = -phi_d_M_space(1:this%M_dim)
+            phi_d_M_space(this%M_dim+1:) = -phi_d_M_space(1:this%M_dim)
         end if
         
     end function panel_assemble_phi_d_M_space
@@ -3032,8 +3054,12 @@ contains
 
         ! Apply strengths to calculate potentials
         phi_s = sum(source_inf*source_strengths)
-        phi_d = sum(doublet_inf*doublet_strengths)
-
+        if (this%in_wake) then
+            phi_d = sum((doublet_inf(1:this%M_dim) + doublet_inf(this%M_dim+1:))*doublet_strengths)
+        else
+            phi_d = sum(doublet_inf*doublet_strengths)
+        end if
+        
     end subroutine panel_calc_potentials
 
 
@@ -3208,12 +3234,12 @@ contains
             !end do
 
         end if 
-
+            
         ! Convert to strength influences (Davis Eq. (4.41))
         if (mirror_panel) then
-            v_d_M_space(:,1:this%M_dim) = freestream%K_inv*matmul(v_d_mu_space, this%T_mu_mir)
+            v_d_M_space(:,1:this%M_dim) = int%s*freestream%K_inv*matmul(v_d_mu_space, this%T_mu_mir)
         else
-            v_d_M_space(:,1:this%M_dim) = freestream%K_inv*matmul(v_d_mu_space, this%T_mu)
+            v_d_M_space(:,1:this%M_dim) = int%s*freestream%K_inv*matmul(v_d_mu_space, this%T_mu)
         end if
 
         ! Wake bottom influence is opposite the top influence
@@ -3316,7 +3342,12 @@ contains
 
         ! Apply strengths to calculate potentials
         v_s = matmul(source_inf, source_strengths)
-        v_d = matmul(doublet_inf, doublet_strengths)
+
+        if (this%in_wake) then
+            v_d = matmul((doublet_inf(:,1:this%M_dim)+doublet_inf(:,this%M_dim+1:)), doublet_strengths)
+        else
+            v_d = matmul(doublet_inf, doublet_strengths)
+        end if
 
     end subroutine panel_calc_velocities
 
@@ -3427,11 +3458,7 @@ contains
         end if
 
         ! Allocate
-        if (this%in_wake) then
-            allocate(mu_strengths(this%M_dim*2))
-        else
-            allocate(mu_strengths(this%M_dim))
-        end if
+        allocate(mu_strengths(this%M_dim))
 
         ! Get doublet strengths based on parents
         if (this%in_wake) then
