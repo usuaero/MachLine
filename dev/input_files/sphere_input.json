@@ -1,7 +1,7 @@
 {
     "flow" : {
-        "freestream_velocity" : [1.0, 0.0, 0.0],
-        "freestream_mach_number" : 0.0
+        "freestream_velocity" : [1.0, 1.0, 0.0],
+        "freestream_mach_number" : 0.5
     },
     "geometry" : {
         "file" : "dev/meshes/sphere.vtk",
@@ -15,8 +15,9 @@
         }
     },
     "solver" : {
-        "formulation" : "neumann-doublet-only",
-        "matrix_solver" : "GMRES"
+        "formulation" : "neumann-doublet-only-offset",
+        "matrix_solver" : "GMRES",
+        "block_size" : 500
     },
     "post_processing" : {
         "pressure_rules" : {

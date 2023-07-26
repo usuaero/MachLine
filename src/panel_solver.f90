@@ -117,7 +117,7 @@ contains
         ! Initialize based on formulation
         if (this%morino .or. this%formulation == 'source-free') then
             call this%init_dirichlet(solver_settings, body)
-        else if (this%formulation == 'neumann-doublet-only') then
+        else if (this%formulation == 'neumann-doublet-only-ls' .or. this%formulation == 'neumann-doublet-only-offset') then
             call this%init_neumann(solver_settings, body)
         else
             write(*,*) "!!! '", this%formulation, "' is not a valid formulation. Quitting..."
@@ -170,9 +170,8 @@ contains
         this%solver_iterations = -1
 
         ! Special settings for the Neumann formulation
-        if (this%formulation == "neumann-doublet-only") then
+        if (this%formulation == "neumann-doublet-only-ls") then
             this%sort_system = .false.
-            this%matrix_solver = 'GMRES'
             this%use_sort = .false.
         else
             this%use_sort = .true.
@@ -327,13 +326,9 @@ contains
         end if
 
         ! Calculate target inner flow
-        if (this%formulation == 'neumann-doublet-only') then
-            this%inner_flow = 0.
-        else
-            this%inner_flow = this%freestream%c_hat_g
-            if (this%formulation == 'source-free') then
-                this%inner_flow = this%inner_flow - matmul(this%freestream%B_mat_g_inv, this%freestream%c_hat_g)
-            end if
+        this%inner_flow = this%freestream%c_hat_g
+        if (this%formulation == 'source-free') then
+            this%inner_flow = this%inner_flow - matmul(this%freestream%B_mat_g_inv, this%freestream%c_hat_g)
         end if
 
         if (verbose) write(*,'(a, i6, a)') "Done. Placed", body%N_cp, " control points."
@@ -351,14 +346,22 @@ contains
         type(surface_mesh),intent(inout) :: body
 
         ! Place control points
-        if (verbose) write(*,'(a)',advance='no') "     Placing control points at panel centroids..."
-        call body%place_centroid_control_points(body%asym_flow)
+        if (this%formulation == "neumann-doublet-only-ls") then
+            if (verbose) write(*,'(a)',advance='no') "     Placing control points at panel centroids..."
+            call body%place_centroid_control_points(body%asym_flow, .true.)
+        else
+            if (verbose) write(*,'(a)',advance='no') "     Placing control points offset from vertices on surface..."
+            call body%place_centroid_vertex_avg_control_points(body%asym_flow, .false.)
+        end if
 
         ! Sources
         call this%set_panel_sources(body)
 
         ! Determine unknowns
         call this%determine_neumann_unknowns(body)
+
+        ! Set inner flow
+        this%inner_flow = this%freestream%c_hat_g
 
         if (verbose) write(*,'(a, i6, a)') "Done. Placed", body%N_cp, " control points."
         
@@ -516,11 +519,18 @@ contains
             ! Interior control points
             case (1)
 
-                if (this%morino) then
+                select case (this%formulation)
+
+                case ('morino')
                     call body%cp(i)%set_bc(1)
-                else
+
+                case ('source-free')
                     call body%cp(i)%set_bc(2)
-                end if
+
+                case ('neumann-doublet-only-ls')
+                    call body%cp(i)%set_bc(1) ! Arbitrary constant to make [AIC] full column rank
+                    
+                end select
 
             ! Exterior control points
             case (2)
@@ -1230,6 +1240,7 @@ contains
                         ! Calculate influence
                         call body%panels(j)%calc_velocity_influences(body%cp(i)%loc, this%freestream, this%dod_info(j,i), &
                                                                       .false., v_s, v_d)
+                        source_inf = matmul(body%cp(i)%n_g, v_s)
                         doublet_inf = matmul(body%cp(i)%n_g, v_d)
 
                         ! Add influence
@@ -1246,6 +1257,7 @@ contains
                             call body%panels(j)%calc_velocity_influences(body%cp(i)%loc, this%freestream, &
                                                                           this%dod_info(j+body%N_panels,i), &
                                                                           .true., v_s, v_d)
+                            source_inf = matmul(body%cp(i)%n_g, v_s)
                             doublet_inf = matmul(body%cp(i)%n_g, v_d)
 
                             ! Add influence
@@ -1477,6 +1489,8 @@ contains
                     solver_stat = 2
                     return
                 end if
+            end do
+            do i=1,this%N_unknown
                 if (all(this%A(:,this%P(i)) == 0.)) then
                     write(*,*) "!!! Vertex ", i, " exerts no influence."
                     solver_stat = 2
@@ -1490,6 +1504,8 @@ contains
                     solver_stat = 2
                     return
                 end if
+            end do
+            do i=1,this%N_unknown
                 if (all(this%A(:,i) == 0.)) then
                     write(*,*) "!!! Vertex ", i, " exerts no influence."
                     solver_stat = 2
@@ -1554,6 +1570,11 @@ contains
 
         ! Set b vector
         this%b = this%BC - this%I_known
+        !if (this%formulation == 'neumann-doublet-only-ls' .or. this%formulation == 'neumann-doublet-only-offset') then
+        !    this%A(body%N_cp,:) = 0.
+        !    this%A(body%N_cp,body%N_cp) = 1.
+        !    this%b(body%N_cp) = 1.
+        !end if
 
         ! Run checks
         if (run_checks) call this%check_system(solver_stat, body)
@@ -1571,7 +1592,7 @@ contains
 
         ! Diagonal preconditioning
         case ('DIAG')
-            if (this%formulation == 'neumann-doublet-only') then
+            if (this%formulation == 'neumann-doublet-only-ls') then
                 call system_clock(start_count, count_rate)
                 call diagonal_preconditioner(this%N_unknown, matmul(transpose(this%A), this%A), &
                                              matmul(transpose(this%A), this%b), A_p, b_p)
@@ -1584,7 +1605,7 @@ contains
 
         ! No preconditioning
         case default
-            if (this%formulation == 'neumann-doublet-only') then
+            if (this%formulation == 'neumann-doublet-only-ls') then
                 call system_clock(start_count, count_rate)
                 allocate(A_p, source=matmul(transpose(this%A), this%A), stat=stat)
                 call check_allocation(stat, "solver copy of AIC matrix")

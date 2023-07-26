@@ -16,9 +16,14 @@
         }
     },
     "solver" : {
-        "formulation" : "neumann-doublet-only",
-        "matrix_solver" : "GMRES",
-        "write_A_and_b" : false
+        "formulation" : "neumann-doublet-only-ls",
+        "matrix_solver" : "LU",
+        "relaxation" : 0.2,
+        "block_size" : 200,
+        "max_iterations" : 1127,
+        "write_A_and_b" : true,
+        "run_checks" : true,
+        "iterative_solver_output" : "solver_prog.txt"
     },
     "output": {
         "body_file" :          "dev/results/diamond_5_deg_full.vtk",

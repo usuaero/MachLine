@@ -11,7 +11,7 @@ from case_running_functions import *
 from off_body_points_creator import *
 from paraview_functions import get_data_from_csv, get_data_column_from_array
 
-RERUN_MACHLINE = True
+RERUN_MACHLINE = False
 
 study_dir = 'studies/supersonic_cone_velocities/'
 
@@ -108,6 +108,31 @@ def plot_velocities(grids, ray_angles, cone_angle):
         plt.legend(title="Ray Angle", fontsize=6, title_fontsize=6)
         
         plt.savefig(plot_dir+"supersonic_cone_{0}_deg_velocities_{1}_mir.pdf".format(cone_angle, case))
+
+        plt.close()
+
+        plt.figure()
+        for i, (ray_angle, style) in enumerate(zip(ray_angles, line_styles_local)):
+            for j, grid in enumerate(grids):
+                filename = result_dir + "cone_{0}_deg_{1}_{2}_deg_ray_angle_points{3}.csv".format(cone_angle, grid, ray_angle, quad_label)
+
+                headers, data = get_data_from_csv(filename, False)
+                x = get_data_column_from_array(headers,data,"x")
+                x = x/max(x)
+                V_x = get_data_column_from_array(headers,data,"V_x")
+                V_y = get_data_column_from_array(headers,data,"V_y")
+                V_z = get_data_column_from_array(headers,data,"V_z")
+
+                if j == 2:
+                    plt.plot(x, V_y, style, label='{0} deg'.format(ray_angle), color=line_colors[j], linewidth=1)
+                else:
+                    plt.plot(x, V_y, style, color=line_colors[j], linewidth=1)
+
+        plt.xlabel('$x/l$')
+        plt.ylabel('$v$')
+        plt.legend(title="Ray Angle", fontsize=6, title_fontsize=6)
+        
+        plt.savefig(plot_dir+"supersonic_cone_{0}_deg_v_y_{1}_mir.pdf".format(cone_angle, case))
 
         plt.close()
 

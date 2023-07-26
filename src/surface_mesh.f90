@@ -90,6 +90,7 @@ module surface_mesh_mod
             procedure :: place_interior_control_points => surface_mesh_place_interior_control_points
             procedure :: get_clone_control_point_dir => surface_mesh_get_clone_control_point_dir
             procedure :: place_centroid_control_points => surface_mesh_place_centroid_control_points
+            procedure :: place_centroid_vertex_avg_control_points => surface_mesh_place_centroid_vertex_avg_control_points
 
             ! Post-processing
             procedure :: get_induced_potentials_at_point => surface_mesh_get_induced_potentials_at_point
@@ -1974,7 +1975,7 @@ contains
     end function surface_mesh_get_clone_control_point_dir
 
 
-    subroutine surface_mesh_place_centroid_control_points(this, add_strength_matching)
+    subroutine surface_mesh_place_centroid_control_points(this, add_strength_matching, add_one_inside)
         ! Places control points on the surface of the mesh at panel centroids
         ! add_strength_matching sets whether extra control points should be placed at vertices on the mirror plane
         ! for the purpose of doublet strength matching
@@ -1982,7 +1983,7 @@ contains
         implicit none
         
         class(surface_mesh),intent(inout) :: this
-        logical,intent(in) :: add_strength_matching
+        logical,intent(in) :: add_strength_matching, add_one_inside
 
         integer :: i, N_strength_matching
 
@@ -1992,6 +1993,7 @@ contains
         else
             this%N_cp = this%N_panels
         end if
+        if (add_one_inside) this%N_cp = this%N_cp + 1
 
         ! Count number of needed strength-matching points
         if (add_strength_matching) then
@@ -2014,7 +2016,7 @@ contains
         do i=1,this%N_panels
             
             ! Initialize control point
-            call this%cp(i)%init(this%panels(i)%centr, 3, 2, i)
+            call this%cp(i)%init(this%panels(i)%centr + 1.e-8*this%panels(i)%n_g, 3, 2, i)
 
         end do
 
@@ -2044,7 +2046,102 @@ contains
             end do
         end if
 
+        ! Add point inside
+        if (add_one_inside) then
+            call this%cp(this%N_cp)%init(this%panels(1)%centr - 0.1*this%panels(1)%n_g*this%panels(1)%get_characteristic_length(), &
+                         1, 2, 1)
+        end if
+
     end subroutine surface_mesh_place_centroid_control_points
+
+
+    subroutine surface_mesh_place_centroid_vertex_avg_control_points(this, add_strength_matching, add_one_inside)
+        ! Places control points on the surface of the mesh at panel centroids
+        ! add_strength_matching sets whether extra control points should be placed at vertices on the mirror plane
+        ! for the purpose of doublet strength matching
+
+        implicit none
+        
+        class(surface_mesh),intent(inout) :: this
+        logical,intent(in) :: add_strength_matching, add_one_inside
+
+        integer :: i, N_strength_matching, i_panel
+        real,dimension(3) :: loc
+
+        ! Specify number of control points
+        if (this%asym_flow) then
+            this%N_cp = this%N_verts*2
+        else
+            this%N_cp = this%N_verts
+        end if
+        if (add_one_inside) this%N_cp = this%N_cp + 1
+
+        ! Count number of needed strength-matching points
+        if (add_strength_matching) then
+
+            ! Count up vertices that will need strength matching
+            N_strength_matching = 0
+            do i=1,this%N_verts
+                if (this%vertices(i)%on_mirror_plane .and. .not. this%vertices(i)%mirrored_is_unique) then
+                    N_strength_matching = N_strength_matching + 1
+                end if
+            end do
+            this%N_cp = this%N_cp + N_strength_matching
+        end if
+
+        ! Allocate memory
+        allocate(this%cp(this%N_cp))
+
+        ! Loop through panels
+        !$OMP parallel do schedule(static) private(i_panel, loc)
+        do i=1,this%N_verts
+
+            ! Get neighboring panel
+            call this%vertices(i)%panels_not_across_wake_edge%get(1, i_panel)
+
+            ! Determine location
+            loc = 0.5*(this%panels(i_panel)%centr + this%vertices(i)%loc)
+            loc = loc + this%panels(i_panel)%n_g*1.e-8
+            !loc = this%panels(i_panel)%centr
+            
+            ! Initialize control point
+            call this%cp(i)%init(loc, 3, 2, i_panel)
+
+        end do
+
+        ! Initialize mirrored control points, if necessary
+        if (this%asym_flow) then
+
+            !$OMP parallel do schedule(static)
+            do i=1,this%N_panels
+
+                ! Initialize
+                call this%cp(i+this%N_panels)%init(mirror_across_plane(this%cp(i)%loc, this%mirror_plane), &
+                                                   this%cp(i)%cp_type, this%cp(i)%tied_to_type, this%cp(i)%tied_to_index)
+
+                ! Specify that this is a mirror
+                this%cp(i+this%N_panels)%is_mirror = .true.
+
+            end do
+
+        end if
+
+        ! Add in strength matching
+        if (add_strength_matching) then
+            do i=1,this%N_verts
+                if (this%vertices(i)%on_mirror_plane .and. .not. this%vertices(i)%mirrored_is_unique) then
+                    call this%cp(this%N_cp-N_strength_matching+i)%init((/0., 0., 0./), 3, 1, i)
+                end if
+            end do
+        end if
+
+        ! Add point inside
+        if (add_one_inside) then
+            call this%cp(this%N_cp)%init(this%panels(1)%centr - 0.1*this%panels(1)%n_g*this%panels(1)%get_characteristic_length(), &
+                         1, 2, 1)
+        end if
+
+    end subroutine surface_mesh_place_centroid_vertex_avg_control_points
 
 
     subroutine surface_mesh_calc_point_dod(this, point, freestream, dod_info, wake_dod_info)
