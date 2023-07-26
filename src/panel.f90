@@ -151,10 +151,6 @@ module panel_mod
             procedure :: calc_F_recursions_for_velocity => panel_calc_F_recursions_for_velocity
             procedure :: calc_H_recursions_for_velocity => panel_calc_H_recursions_for_velocity
 
-            ! Velocity integrals
-            procedure :: calc_subsonic_velocity_integrals => panel_calc_subsonic_velocity_integrals
-            procedure :: calc_supersonic_subinc_velocity_integrals => panel_calc_supersonic_subinc_velocity_integrals
-
             ! All integrals
             procedure :: calc_integrals => panel_calc_integrals
 
@@ -2625,64 +2621,7 @@ contains
 
     end subroutine panel_calc_hH113_supersonic_supinc
 
-
-    subroutine panel_calc_subsonic_velocity_integrals(this, geom, freestream, mirror_panel, int)
-        ! Calculates the additional necessary integrals to determine the velocity influence of a panel in subsonic flow.
-
-        implicit none
-
-        class(panel),intent(in) :: this
-        type(eval_point_geom),intent(in) :: geom
-        type(flow),intent(in) :: freestream
-        logical,intent(in) :: mirror_panel
-        type(integrals),intent(inout) :: int
-
-        ! Get additional F integrals
-        int%F113 = (- geom%v_eta*this%EMNK(geom, 2, 1, 1, mirror_panel) &
-                    + geom%v_xi*this%EMNK(geom, 1, 2, 1, mirror_panel)) / geom%g2 ! Johnson (D.61)
-        int%F123 = geom%v_eta*geom%a*int%F113 - geom%v_xi*this%EMNK(geom, 1, 1, 1, mirror_panel) ! Johnson (D.66)
-        int%F133 = 2.*geom%a*geom%v_eta*int%F123 - (geom%a*geom%a + geom%v_xi*geom%v_xi*geom%h2)*int%F113 &
-                   + geom%v_xi*geom%v_xi*int%F111 ! Johnson (D.67)
-
-        ! Get additional H integrals
-        ! Johnson (D.42)
-        int%h3H115 = (int%hH113 + geom%h * sum(geom%a*int%F113))/3
-
-        ! Johnson (D.46)
-        int%H125 = -sum(geom%v_eta*int%F113)/3.
-        int%hH135 = (int%hH113 - geom%h*sum(geom%v_eta*int%F123))/3.
-        int%H145 = (2.*int%H123 - sum(geom%v_eta*int%F133))/3.
-
-        ! Johnson (D.47)
-        int%H215 = -sum(geom%v_xi*int%F113)/3.
-        int%H225 = -sum(geom%v_xi*int%F123)/3.
-        int%H235 = -sum(geom%v_xi*int%F133)/3.
-
-        ! Johnson (D.48)
-        int%hH315 = -int%hH135 - int%h3H115 + int%hH113
-        int%H325 = - int%H145 - geom%h2*int%H125 + int%H123
-        int%H415 = - int%H235 - geom%h2*int%H225 + int%H223
-        int%H113_3rsh2H115 = -sum(geom%a*int%F113)
-
-    end subroutine panel_calc_subsonic_velocity_integrals
-
-
-    subroutine panel_calc_supersonic_subinc_velocity_integrals(this, geom, freestream, mirror_panel, int)
-        ! Calculates the additional necessary integrals to determine the velocity influence of a panel in subsonic flow.
-
-        implicit none
-
-        class(panel),intent(in) :: this
-        type(eval_point_geom),intent(in) :: geom
-        type(flow),intent(in) :: freestream
-        logical,intent(in) :: mirror_panel
-        type(integrals),intent(inout) :: int
-
-
-
-    end subroutine panel_calc_supersonic_subinc_velocity_integrals
-
-
+    
     subroutine panel_calc_remaining_integrals(this, geom, influence_type, freestream, mirror_panel, int, dod_info)
         ! Calculates the remaining necessary H and F integrals using the unified recursion relations
 

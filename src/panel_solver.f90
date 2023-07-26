@@ -117,7 +117,7 @@ contains
         ! Initialize based on formulation
         if (this%morino .or. this%formulation == 'source-free') then
             call this%init_dirichlet(solver_settings, body)
-        else if (this%formulation == 'neumann_doublet_only') then
+        else if (this%formulation == 'neumann-doublet-only') then
             call this%init_neumann(solver_settings, body)
         else
             write(*,*) "!!! '", this%formulation, "' is not a valid formulation. Quitting..."
@@ -170,7 +170,7 @@ contains
         this%solver_iterations = -1
 
         ! Special settings for the Neumann formulation
-        if (this%formulation == "neumann_doublet_only") then
+        if (this%formulation == "neumann-doublet-only") then
             this%sort_system = .false.
             this%matrix_solver = 'GMRES'
             this%use_sort = .false.
@@ -327,9 +327,13 @@ contains
         end if
 
         ! Calculate target inner flow
-        this%inner_flow = this%freestream%c_hat_g
-        if (this%formulation == 'source-free') then
-            this%inner_flow = this%inner_flow - matmul(this%freestream%B_mat_g_inv, this%freestream%c_hat_g)
+        if (this%formulation == 'neumann-doublet-only') then
+            this%inner_flow = 0.
+        else
+            this%inner_flow = this%freestream%c_hat_g
+            if (this%formulation == 'source-free') then
+                this%inner_flow = this%inner_flow - matmul(this%freestream%B_mat_g_inv, this%freestream%c_hat_g)
+            end if
         end if
 
         if (verbose) write(*,'(a, i6, a)') "Done. Placed", body%N_cp, " control points."
@@ -1567,7 +1571,7 @@ contains
 
         ! Diagonal preconditioning
         case ('DIAG')
-            if (this%formulation == 'neumann_doublet_only') then
+            if (this%formulation == 'neumann-doublet-only') then
                 call system_clock(start_count, count_rate)
                 call diagonal_preconditioner(this%N_unknown, matmul(transpose(this%A), this%A), &
                                              matmul(transpose(this%A), this%b), A_p, b_p)
@@ -1580,7 +1584,7 @@ contains
 
         ! No preconditioning
         case default
-            if (this%formulation == 'neumann_doublet_only') then
+            if (this%formulation == 'neumann-doublet-only') then
                 call system_clock(start_count, count_rate)
                 allocate(A_p, source=matmul(transpose(this%A), this%A), stat=stat)
                 call check_allocation(stat, "solver copy of AIC matrix")

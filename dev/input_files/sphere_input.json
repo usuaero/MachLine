@@ -15,7 +15,7 @@
         }
     },
     "solver" : {
-        "formulation" : "neumann_doublet_only",
+        "formulation" : "neumann-doublet-only",
         "matrix_solver" : "GMRES"
     },
     "post_processing" : {
