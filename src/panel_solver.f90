@@ -19,7 +19,7 @@ module panel_solver_mod
         real :: M_inf_corr 
         character(len=:),allocatable :: formulation, pressure_for_forces, matrix_solver, preconditioner, iteration_file
         logical :: incompressible_rule, isentropic_rule, second_order_rule, slender_rule, linear_rule
-        logical :: morino, write_A_and_b, sort_system
+        logical :: morino, write_A_and_b, sort_system, use_sort
         logical :: compressible_correction, prandtl_glauert, karman_tsien, laitone
         type(dod),dimension(:,:),allocatable :: dod_info
         type(dod),dimension(:,:,:),allocatable :: wake_dod_info
@@ -42,11 +42,17 @@ module panel_solver_mod
             procedure :: parse_solver_settings => panel_solver_parse_solver_settings
             procedure :: parse_processing_settings => panel_solver_parse_processing_settings
 
-            ! Setup
+            ! Dirichlet setup
             procedure :: init_dirichlet => panel_solver_init_dirichlet
-            procedure :: set_panel_sources => panel_solver_set_panel_sources
             procedure :: determine_dirichlet_unknowns => panel_solver_determine_dirichlet_unknowns
-            procedure :: init_dirichlet_boundary_conditions => panel_solver_init_dirichlet_boundary_conditions
+
+            ! Neumann setup
+            procedure :: init_neumann => panel_solver_init_neumann
+            procedure :: determine_neumann_unknowns => panel_solver_determine_neumann_unknowns
+
+            ! Both
+            procedure :: set_panel_sources => panel_solver_set_panel_sources
+            procedure :: init_control_point_boundary_conditions => panel_solver_init_control_point_boundary_conditions
             procedure :: calc_domains_of_dependence => panel_solver_calc_domains_of_dependence
             procedure :: set_permutation => panel_solver_set_permutation
 
@@ -111,7 +117,15 @@ contains
         ! Initialize based on formulation
         if (this%morino .or. this%formulation == 'source-free') then
             call this%init_dirichlet(solver_settings, body)
+        else if (this%formulation == 'neumann_doublet_only') then
+            call this%init_neumann(solver_settings, body)
+        else
+            write(*,*) "!!! '", this%formulation, "' is not a valid formulation. Quitting..."
+            stop
         end if
+
+        ! Set boundary conditions
+        call this%init_control_point_boundary_conditions(body)
         
         ! Write out control point geometry
         if (control_point_file /= 'none') then
@@ -137,10 +151,6 @@ contains
         
         ! Get formulation
         call json_xtnsn_get(solver_settings, 'formulation', this%formulation, 'morino')        
-        if (this%formulation /= 'morino' .and. this%formulation /= 'source-free') then
-            write(*,*) "!!! ", this%formulation, " is not a recognized boundary condition formulation. Quitting..."
-            stop
-        end if
         this%morino = this%formulation == 'morino'
 
         ! Get matrix solver settings
@@ -158,6 +168,15 @@ contains
         call json_xtnsn_get(solver_settings, 'iterative_solver_output', this%iteration_file, 'none')
         call json_xtnsn_get(solver_settings, 'sort_system', this%sort_system, this%freestream%supersonic)
         this%solver_iterations = -1
+
+        ! Special settings for the Neumann formulation
+        if (this%formulation == "neumann_doublet_only") then
+            this%sort_system = .false.
+            this%matrix_solver = 'GMRES'
+            this%use_sort = .false.
+        else
+            this%use_sort = .true.
+        end if
 
         ! Whether to write the linear system to file
         call json_xtnsn_get(solver_settings, 'write_A_and_b', this%write_A_and_b, .false.)
@@ -295,9 +314,7 @@ contains
         end if
 
         ! Place control points inside the body
-        if (this%morino .or. this%formulation == 'source-free') then
-            call body%place_interior_control_points(offset, offset_type, this%freestream)
-        end if
+        call body%place_interior_control_points(offset, offset_type, this%freestream)
 
         ! Set needed sources
         call this%set_panel_sources(body)
@@ -309,9 +326,6 @@ contains
             stop
         end if
 
-        ! Set boundary conditions
-        call this%init_dirichlet_boundary_conditions(body)
-
         ! Calculate target inner flow
         this%inner_flow = this%freestream%c_hat_g
         if (this%formulation == 'source-free') then
@@ -321,6 +335,30 @@ contains
         if (verbose) write(*,'(a, i6, a)') "Done. Placed", body%N_cp, " control points."
     
     end subroutine panel_solver_init_dirichlet
+
+
+    subroutine panel_solver_init_neumann(this, solver_settings, body)
+        ! Initializes things for a Neumann formulation run
+
+        implicit none
+        
+        class(panel_solver),intent(inout) :: this
+        type(json_value),intent(in) :: solver_settings
+        type(surface_mesh),intent(inout) :: body
+
+        ! Place control points
+        if (verbose) write(*,'(a)',advance='no') "     Placing control points at panel centroids..."
+        call body%place_centroid_control_points(body%asym_flow)
+
+        ! Sources
+        call this%set_panel_sources(body)
+
+        ! Determine unknowns
+        call this%determine_neumann_unknowns(body)
+
+        if (verbose) write(*,'(a, i6, a)') "Done. Placed", body%N_cp, " control points."
+        
+    end subroutine panel_solver_init_neumann
 
 
     subroutine panel_solver_set_panel_sources(this, body)
@@ -409,7 +447,43 @@ contains
     end subroutine panel_solver_determine_dirichlet_unknowns
 
 
-    subroutine panel_solver_init_dirichlet_boundary_conditions(this, body)
+    subroutine panel_solver_determine_neumann_unknowns(this, body)
+        ! Determines the number and type of unknown parameters to be solved for
+
+        implicit none
+        
+        class(panel_solver),intent(inout) :: this
+        type(surface_mesh),intent(in) :: body
+
+        integer :: i, j
+
+        ! Determine number of source strengths
+        if (body%asym_flow) then
+            this%N_sigma = body%N_panels*2
+        else
+            this%N_sigma = body%N_panels
+        end if
+
+        ! The number of doublet unknowns is equal to the number of mesh vertices
+        ! In the case of an asymmetric flow over a mirrored mesh, this must be doubled
+        if (body%asym_flow) then
+            this%N_d_unknown = body%N_verts*2
+        else
+            this%N_d_unknown = body%N_verts
+        end if
+
+        ! The number of source unknowns is simply the number of superinclined panels
+        ! Not yet implemented
+        allocate(this%sigma_known(this%N_sigma), source=.true.)
+        this%N_s_unknown = 0
+
+        ! Total number of unknowns
+        this%N_unknown = this%N_d_unknown + this%N_s_unknown
+        
+    end subroutine panel_solver_determine_neumann_unknowns
+
+
+    subroutine panel_solver_init_control_point_boundary_conditions(this, body)
         ! Sets up the desired boundary conditions on the control points
 
         implicit none
@@ -472,7 +546,7 @@ contains
 
         end do
         
-    end subroutine panel_solver_init_dirichlet_boundary_conditions
+    end subroutine panel_solver_init_control_point_boundary_conditions
 
 
     subroutine panel_solver_calc_domains_of_dependence(this, body)
@@ -511,7 +585,7 @@ contains
         ! Allocate
 
         ! DoD info for panels
-        allocate(this%dod_info(N_panels, this%N_unknown), stat=stat)
+        allocate(this%dod_info(N_panels, body%N_cp), stat=stat)
         call check_allocation(stat, "domain of dependence storage")
 
         ! Whether vertices are in the DoD of the original control point
@@ -519,7 +593,7 @@ contains
         call check_allocation(stat, "vertex domain of dependence storage")
 
         ! DoD info for panels
-        allocate(this%wake_dod_info(N_strip_panels, body%wake%N_strips, this%N_unknown), stat=stat)
+        allocate(this%wake_dod_info(N_strip_panels, body%wake%N_strips, body%N_cp), stat=stat)
         call check_allocation(stat, "wake domain of dependence storage")
 
         ! Whether vertices are in the DoD of the original control point
@@ -816,8 +890,8 @@ contains
             call insertion_arg_sort(x, P_inv_2)
 
             ! Get overall permuation
-            allocate(this%P(this%N_unknown))
-            do i=1,this%N_unknown
+            allocate(this%P(body%N_cp))
+            do i=1,body%N_cp
                 this%P(P_inv_1(P_inv_2(i))) = i
             end do
 
@@ -884,15 +958,15 @@ contains
         solver_stat = 0
 
         ! Allocate known influence storage
-        allocate(this%I_known(this%N_unknown), source=0., stat=stat)
+        allocate(this%I_known(body%N_cp), source=0., stat=stat)
         call check_allocation(stat, "known influence vector")
 
         ! Allocate AIC matrix
-        allocate(this%A(this%N_unknown, this%N_unknown), source=0., stat=stat)
+        allocate(this%A(body%N_cp, this%N_unknown), source=0., stat=stat)
         call check_allocation(stat, "AIC matrix")
 
         ! Allocate b vector
-        allocate(this%b(this%N_unknown), source=0., stat=stat)
+        allocate(this%b(body%N_cp), source=0., stat=stat)
         call check_allocation(stat, "b vector")
 
         ! Calculate source strengths
@@ -939,31 +1013,41 @@ contains
         class(panel_solver), intent(inout) :: this
         type(surface_mesh), intent(in) :: body
 
-        integer :: i
+        integer :: i, ind
         real,dimension(3) :: x
 
         ! Allocate
-        allocate(this%BC(this%N_unknown))
+        allocate(this%BC(body%N_cp))
 
         ! Vector for source-free target potential calculation
         x = matmul(this%freestream%B_mat_g_inv, this%freestream%c_hat_g)
 
         ! Loop through control points
         do i=1,body%N_cp
+
+            ! Get index
+            if (this%use_sort) then
+                ind = this%P(i)
+            else
+                ind = i
+            end if
             
             ! Check boundary condition type
             select case (body%cp(i)%bc)
 
             ! Source-free formulation
             case (2)
-                this%BC(this%P(i)) = -inner(x, body%cp(i)%loc)
+                this%BC(ind) = -inner(x, body%cp(i)%loc)
+
+            ! Neumann (velocity)
+            case (3)
+                this%BC(ind) = -inner(this%freestream%c_hat_g, body%cp(i)%n_g)
 
             ! All other cases
             ! 1: For Morino, desired BC is zero inner potential
-            ! 3: Velocity BC not yet implemented
             ! 4: For strength-matching, desired BC is zero difference between strengths
             case default
-                this%BC(this%P(i)) = 0.
+                this%BC(ind) = 0.
 
             end select
         end do
@@ -1029,7 +1113,7 @@ contains
         integer :: k, index
 
         ! Add source influence depending on boundary condition
-        if (cp%bc == 1 .or. cp%bc == 3) then
+        if (cp%bc == 1) then
 
             ! Loop through influencing panels
             do k=1,body%panels(i_panel)%S_dim
@@ -1109,13 +1193,14 @@ contains
 
         integer :: i, j
         real,dimension(:),allocatable :: source_inf, doublet_inf
+        real,dimension(:,:),allocatable :: v_s, v_d
         real,dimension(this%N_unknown) :: A_i
         real :: I_known_i
 
         if (verbose) write(*,'(a)',advance='no') "     Calculating body influences..."
 
         ! Calculate source and doublet influences from body on each control point
-        !$OMP parallel do private(j, source_inf, doublet_inf, A_i, I_known_i) schedule(dynamic)
+        !$OMP parallel do private(j, source_inf, doublet_inf, v_s, v_d, A_i, I_known_i) schedule(dynamic)
         do i=1,body%N_cp
 
             ! Initialize
@@ -1132,7 +1217,41 @@ contains
 
             case (3) ! Calculate velocity influences
 
-                ! TODO: Do this
+                ! Loop through panels
+                do j=1,body%N_panels
+
+                    ! Influence of existing panel on control point
+                    if (this%dod_info(j,i)%in_dod) then
+
+                        ! Calculate influence
+                        call body%panels(j)%calc_velocity_influences(body%cp(i)%loc, this%freestream, this%dod_info(j,i), &
+                                                                      .false., v_s, v_d)
+                        doublet_inf = matmul(body%cp(i)%n_g, v_d)
+
+                        ! Add influence
+                        call this%update_system_row(body, body%cp(i), A_i, I_known_i, j, source_inf, doublet_inf, .false.)
+
+                    end if
+
+                    if (body%mirrored) then
+
+                        ! Calculate influence of mirrored panel on control point
+                        if (this%dod_info(j+body%N_panels,i)%in_dod) then
+
+                            ! Calculate influence
+                            call body%panels(j)%calc_velocity_influences(body%cp(i)%loc, this%freestream, &
+                                                                          this%dod_info(j+body%N_panels,i), &
+                                                                          .true., v_s, v_d)
+                            doublet_inf = matmul(body%cp(i)%n_g, v_d)
+
+                            ! Add influence
+                            call this%update_system_row(body, body%cp(i), A_i, I_known_i, j, &
+                                                        source_inf, doublet_inf, body%asym_flow)
+                        end if
+
+                    end if
+
+                end do
 
             case default ! Calculate potential influences
 
@@ -1175,11 +1294,14 @@ contains
             ! Update system
             !$OMP critical
 
-            ! Update A matrix
-            this%A(this%P(i),:) = A_i
-
-            ! Update I_known
-            this%I_known(this%P(i)) = I_known_i
+            ! Update A matrix and I_known
+            if (this%use_sort) then
+                this%A(this%P(i),:) = A_i
+                this%I_known(this%P(i)) = I_known_i
+            else
+                this%A(i,:) = A_i
+                this%I_known(i) = I_known_i
+            end if
 
             !$OMP end critical
 
@@ -1204,6 +1326,7 @@ contains
         integer :: i, j, k, l
         real,dimension(:),allocatable ::  doublet_inf, source_inf
         real,dimension(this%N_unknown) :: A_i
+        real,dimension(:,:),allocatable :: v_s, v_d
 
         ! Calculate influence of wake
         if (verbose) write(*,'(a)',advance='no') "     Calculating wake influences..."
@@ -1219,6 +1342,44 @@ contains
                 cycle
 
             case (3) ! Calculate velocity influences
+
+                ! Initialize
+                A_i = 0.
+
+                ! Get doublet influence from wake strips
+                do j=1,body%wake%N_strips
+                    do l=1,body%wake%strips(j)%N_panels
+
+                        ! Caclulate influence of existing panel on control point
+                        call body%wake%strips(j)%panels(l)%calc_velocity_influences(body%cp(i)%loc, this%freestream, &
+                                                                                     this%wake_dod_info(l,j,i), &
+                                                                                     .false., v_s, v_d)
+                        doublet_inf = matmul(body%cp(i)%n_g, v_d)
+
+                        ! Add influence
+                        do k=1,size(body%wake%strips(j)%panels(l)%i_vert_d)
+                            A_i(this%P(body%wake%strips(j)%panels(l)%i_vert_d(k))) = &
+                                A_i(this%P(body%wake%strips(j)%panels(l)%i_vert_d(k))) + doublet_inf(k)
+                        end do
+
+                        ! Get influence of mirrored panel
+                        if (body%wake%strips(j)%mirrored) then
+
+                            ! Calculate influence of mirrored panel on control point
+                            call body%wake%strips(j)%panels(l)%calc_velocity_influences(body%cp(i)%loc, this%freestream, &
+                                                                     this%wake_dod_info(l+body%wake%N_max_strip_panels,j,i), & ! No, this is not the DoD for this computation; yes, it is equivalent
+                                                                     .true., v_s, v_d)
+                            doublet_inf = matmul(body%cp(i)%n_g, v_d)
+
+                            ! Add influence
+                            do k=1,size(body%wake%strips(j)%panels(l)%i_vert_d)
+                                A_i(this%P(body%wake%strips(j)%panels(l)%i_vert_d(k))) = &
+                                            A_i(this%P(body%wake%strips(j)%panels(l)%i_vert_d(k))) + doublet_inf(k)
+                            end do
+
+                        end if
+                    end do
+                end do
 
             case default ! Calculate potential influences
 
@@ -1262,7 +1423,11 @@ contains
 
             ! Update row of A
             !$OMP critical
-            this%A(this%P(i),:) = this%A(this%P(i),:) + A_i
+            if (this%use_sort) then
+                this%A(this%P(i),:) = this%A(this%P(i),:) + A_i
+            else
+                this%A(i,:) = this%A(i,:) + A_i
+            end if
             !$OMP end critical
 
         end do
@@ -1275,13 +1440,14 @@ contains
     end subroutine panel_solver_calc_wake_influences
 
 
-    subroutine panel_solver_check_system(this, solver_stat)
+    subroutine panel_solver_check_system(this, solver_stat, body)
         ! Checks the validity of the linear system
 
         implicit none
         
         class(panel_solver),intent(in) :: this
         integer,intent(inout) :: solver_stat
+        type(surface_mesh),intent(in) :: body
 
         integer :: i
 
@@ -1300,30 +1466,46 @@ contains
         end if
 
         ! Check for uninfluenced/ing points
-        do i=1,this%N_unknown
-            if (all(this%A(this%P(i),:) == 0.)) then
-                write(*,*) "!!! Control point ", i, " is not influenced."
-                solver_stat = 2
-                return
-            end if
-            if (all(this%A(:,this%P(i)) == 0.)) then
-                write(*,*) "!!! Vertex ", i, " exerts no influence."
-                solver_stat = 2
-                return
-            end if
-        end do
+        if (this%use_sort) then
+            do i=1,body%N_cp
+                if (all(this%A(this%P(i),:) == 0.)) then
+                    write(*,*) "!!! Control point ", i, " is not influenced."
+                    solver_stat = 2
+                    return
+                end if
+                if (all(this%A(:,this%P(i)) == 0.)) then
+                    write(*,*) "!!! Vertex ", i, " exerts no influence."
+                    solver_stat = 2
+                    return
+                end if
+            end do
+        else
+            do i=1,body%N_cp
+                if (all(this%A(i,:) == 0.)) then
+                    write(*,*) "!!! Control point ", i, " is not influenced."
+                    solver_stat = 2
+                    return
+                end if
+                if (all(this%A(:,i) == 0.)) then
+                    write(*,*) "!!! Vertex ", i, " exerts no influence."
+                    solver_stat = 2
+                    return
+                end if
+            end do
+        end if
 
         if (verbose) write(*,*) "Done."
 
     end subroutine panel_solver_check_system
 
 
-    subroutine panel_solver_write_system(this)
+    subroutine panel_solver_write_system(this, body)
         ! Writes the linear system to file
 
         implicit none
         
         class(panel_solver),intent(in) :: this
+        type(surface_mesh),intent(in) :: body
 
         integer :: i, j, unit
 
@@ -1331,7 +1513,7 @@ contains
 
         ! A
         open(newunit=unit, file="A_mat.txt")
-        do i=1,this%N_unknown
+        do i=1,body%N_cp
             do j=1,this%N_unknown
                 write(unit,'(e20.12)',advance='no') this%A(i,j)
             end do
@@ -1341,7 +1523,7 @@ contains
 
         ! b
         open(newunit=unit, file="b_vec.txt")
-        do i=1,this%N_unknown
+        do i=1,body%N_cp
             write(unit,*) this%b(i)
         end do
         close(unit)
@@ -1370,13 +1552,13 @@ contains
         this%b = this%BC - this%I_known
 
         ! Run checks
-        if (run_checks) call this%check_system(solver_stat)
+        if (run_checks) call this%check_system(solver_stat, body)
 
         ! Calculate lower bandwidth
         if (this%sort_system) this%B_l_system = get_lower_bandwidth(this%N_unknown, this%A)
 
         ! Write to file
-        if (this%write_A_and_b) call this%write_system()
+        if (this%write_A_and_b) call this%write_system(body)
 
         if (verbose) write(*,'(a, a, a)',advance='no') "     Solving linear system (method: ", this%matrix_solver, ")..."
 
@@ -1385,18 +1567,34 @@ contains
 
         ! Diagonal preconditioning
         case ('DIAG')
-            call system_clock(start_count, count_rate)
-            call diagonal_preconditioner(this%N_unknown, this%A, this%b, A_p, b_p)
-            call system_clock(end_count)
+            if (this%formulation == 'neumann_doublet_only') then
+                call system_clock(start_count, count_rate)
+                call diagonal_preconditioner(this%N_unknown, matmul(transpose(this%A), this%A), &
+                                             matmul(transpose(this%A), this%b), A_p, b_p)
+                call system_clock(end_count)
+            else
+                call system_clock(start_count, count_rate)
+                call diagonal_preconditioner(this%N_unknown, this%A, this%b, A_p, b_p)
+                call system_clock(end_count)
+            end if
 
         ! No preconditioning
         case default
-            call system_clock(start_count, count_rate)
-            allocate(A_p, source=this%A, stat=stat)
-            call check_allocation(stat, "solver copy of AIC matrix")
-            allocate(b_p, source=this%b, stat=stat)
-            call check_allocation(stat, "solver copy of b vector")
-            call system_clock(end_count)
+            if (this%formulation == 'neumann_doublet_only') then
+                call system_clock(start_count, count_rate)
+                allocate(A_p, source=matmul(transpose(this%A), this%A), stat=stat)
+                call check_allocation(stat, "solver copy of AIC matrix")
+                allocate(b_p, source=matmul(transpose(this%A), this%b), stat=stat)
+                call check_allocation(stat, "solver copy of b vector")
+                call system_clock(end_count)
+            else
+                call system_clock(start_count, count_rate)
+                allocate(A_p, source=this%A, stat=stat)
+                call check_allocation(stat, "solver copy of AIC matrix")
+                allocate(b_p, source=this%b, stat=stat)
+                call check_allocation(stat, "solver copy of b vector")
+                call system_clock(end_count)
+            end if
 
         end select
 
@@ -1480,7 +1678,6 @@ contains
         deallocate(b_p)
 
         ! Get residual vector
-        allocate(body%R_cp(this%N_unknown))
         body%R_cp = matmul(this%A, x) - this%b
         deallocate(this%A)
         deallocate(this%b)

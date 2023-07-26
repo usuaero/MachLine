@@ -101,7 +101,7 @@ module base_geom_mod
 
         real,dimension(3) :: loc
         integer :: cp_type ! 1 = internal, 2 = external, 3 = surface
-        integer :: bc ! 1 = zero perturbation potential (for Morino), 2 = source-free internal potential, 3 = zero normal mass flux, 4 = strength-matching (for mirroring)
+        integer :: bc=0 ! Boundary condition: 0 = not initialized, 1 = zero perturbation potential (for Morino), 2 = source-free internal potential, 3 = zero normal velocity, 4 = strength-matching (for mirroring)
         real,dimension(3) :: n_g ! Normal vector associated with bc = 3
         logical :: is_mirror ! Whether this control point belongs to the mirrored half of the mesh
         integer :: tied_to_type ! 1 = this control point is associated with a vertex, 2 = panel
