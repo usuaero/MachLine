@@ -663,7 +663,7 @@ def test_21_half_wing_lower_morino_asym_supersonic_flow_off_body():
     standard = np.genfromtxt(correct_file, skip_header=1, delimiter=',')
 
     # Check
-    assert(np.all(np.abs(results[:,:8]-standard[:,:8]) < 1.0e-12))
+    assert(np.all(np.abs(results-standard) < 1.0e-12))
 
     # Remove results
     shutil.rmtree("test/results")
