@@ -7,6 +7,19 @@ module base_geom_mod
 
     implicit none
 
+    integer,parameter :: INTERNAL = 1
+    integer,parameter :: EXTERNAL = 2
+    integer,parameter :: SURFACE = 3
+
+    integer,parameter :: ZERO_POTENTIAL = 1
+    integer,parameter :: SF_POTENTIAL = 2
+    integer,parameter :: ZERO_NORMAL_MF = 3
+    integer,parameter :: STRENGTH_MATCHING = 4 
+    integer,parameter :: ZERO_NORMAL_VEL = 5
+
+    integer,parameter :: TT_VERTEX = 1
+    integer,parameter :: TT_PANEL = 2
+
 
     type vertex
         ! A vertex in 3-space
@@ -540,9 +553,10 @@ contains
         this%bc = bc
 
         ! Get normal (if needed)
-        if (this%bc == 3) then
+        if (this%bc == ZERO_NORMAL_MF .or. this%bc == ZERO_NORMAL_VEL) then
             if (.not. present(n)) then
-                write(*,*) "!!! Associated normal vector is required for enforcing a zero-mass-flux boundary condition."
+                write(*,*) "!!! Associated normal vector is required for enforcing a zero-normal-mass-flux&
+                            or velocity boundary condition."
                 stop
             else
                 this%n_g = n

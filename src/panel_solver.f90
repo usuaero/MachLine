@@ -14,12 +14,17 @@ module panel_solver_mod
     implicit none
 
 
+    character(len=6),parameter :: D_MORINO = "morino"
+    character(len=11),parameter :: D_SOURCE_FREE = "source-free"
+    character(len=33),parameter :: N_MF_D_LS = "neumann-doublet-only-mass-flux-ls"
+
+
     type panel_solver
 
         real :: M_inf_corr 
         character(len=:),allocatable :: formulation, pressure_for_forces, matrix_solver, preconditioner, iteration_file
         logical :: incompressible_rule, isentropic_rule, second_order_rule, slender_rule, linear_rule
-        logical :: morino, write_A_and_b, sort_system, use_sort
+        logical :: write_A_and_b, sort_system, use_sort
         logical :: compressible_correction, prandtl_glauert, karman_tsien, laitone
         type(dod),dimension(:,:),allocatable :: dod_info
         type(dod),dimension(:,:,:),allocatable :: wake_dod_info
@@ -115,9 +120,9 @@ contains
         call this%parse_processing_settings(processing_settings)
 
         ! Initialize based on formulation
-        if (this%morino .or. this%formulation == 'source-free') then
+        if (this%formulation == D_MORINO .or. this%formulation == D_SOURCE_FREE) then
             call this%init_dirichlet(solver_settings, body)
-        else if (this%formulation == 'neumann-doublet-only-ls' .or. this%formulation == 'neumann-doublet-only-offset') then
+        else if (this%formulation == N_MF_D_LS) then
             call this%init_neumann(solver_settings, body)
         else
             write(*,*) "!!! '", this%formulation, "' is not a valid formulation. Quitting..."
@@ -151,7 +156,6 @@ contains
         
         ! Get formulation
         call json_xtnsn_get(solver_settings, 'formulation', this%formulation, 'morino')        
-        this%morino = this%formulation == 'morino'
 
         ! Get matrix solver settings
         if (this%freestream%supersonic) then
@@ -170,7 +174,7 @@ contains
         this%solver_iterations = -1
 
         ! Special settings for the Neumann formulation
-        if (this%formulation == "neumann-doublet-only-ls") then
+        if (this%formulation == N_MF_D_LS) then
             this%sort_system = .false.
             this%use_sort = .false.
         else
@@ -327,7 +331,7 @@ contains
 
         ! Calculate target inner flow
         this%inner_flow = this%freestream%c_hat_g
-        if (this%formulation == 'source-free') then
+        if (this%formulation == D_SOURCE_FREE) then
             this%inner_flow = this%inner_flow - matmul(this%freestream%B_mat_g_inv, this%freestream%c_hat_g)
         end if
 
@@ -346,12 +350,9 @@ contains
         type(surface_mesh),intent(inout) :: body
 
         ! Place control points
-        if (this%formulation == "neumann-doublet-only-ls") then
+        if (this%formulation == N_MF_D_LS) then
             if (verbose) write(*,'(a)',advance='no') "     Placing control points at panel centroids..."
-            call body%place_centroid_control_points(body%asym_flow, .true.)
-        else
-            if (verbose) write(*,'(a)',advance='no') "     Placing control points offset from vertices on surface..."
-            call body%place_centroid_vertex_avg_control_points(body%asym_flow, .false.)
+            call body%place_centroid_control_points(body%asym_flow, .false.)
         end if
 
         ! Sources
@@ -380,7 +381,7 @@ contains
 
         ! Loop through panels
         do i=1,body%N_panels
-            body%panels(i)%has_sources = (this%formulation == 'morino') .or. (body%panels(i)%r < 0.)
+            body%panels(i)%has_sources = (this%formulation == D_MORINO) .or. (body%panels(i)%r < 0.)
         end do
         
     end subroutine panel_solver_set_panel_sources
@@ -504,11 +505,14 @@ contains
         !$OMP parallel do
         do i=1,body%N_cp
 
+            ! If we already know this is a strength-matching control point, move on
+            if (body%cp(i)%bc == STRENGTH_MATCHING) cycle
+
             ! Check if we need to enforce strength matching
             if (body%cp(i)%is_mirror) then
-                if (body%cp(i)%tied_to_type == 1) then
+                if (body%cp(i)%tied_to_type == TT_VERTEX) then
                     if (.not. body%vertices(body%cp(i)%tied_to_index)%mirrored_is_unique) then
-                        call body%cp(i)%set_bc(4)
+                        call body%cp(i)%set_bc(STRENGTH_MATCHING)
                         cycle
                     end if
                 end if
@@ -517,42 +521,42 @@ contains
             select case (body%cp(i)%cp_type)
 
             ! Interior control points
-            case (1)
+            case (INTERNAL)
 
                 select case (this%formulation)
 
-                case ('morino')
-                    call body%cp(i)%set_bc(1)
+                case (D_MORINO)
+                    call body%cp(i)%set_bc(ZERO_POTENTIAL)
 
-                case ('source-free')
-                    call body%cp(i)%set_bc(2)
+                case (D_SOURCE_FREE)
+                    call body%cp(i)%set_bc(SF_POTENTIAL)
 
-                case ('neumann-doublet-only-ls')
-                    call body%cp(i)%set_bc(1) ! Arbitrary constant to make [AIC] full column rank
+                case (N_MF_D_LS)
+                    call body%cp(i)%set_bc(ZERO_POTENTIAL) ! Arbitrary constant to make [AIC] full column rank
                     
                 end select
 
             ! Exterior control points
-            case (2)
+            case (EXTERNAL)
 
                 write(*,*) "!!! MachLine cannot handle exterior control points. Quitting..."
                 stop
 
             ! Surface control points
-            case (3)
+            case (SURFACE)
 
                 ! Need to get correct normal vector
-                if (body%cp(i)%tied_to_type ==1 ) then
+                if (body%cp(i)%tied_to_type == TT_VERTEX) then
                     if (body%cp(i)%is_mirror) then
-                        call body%cp(i)%set_bc(3, body%vertices(body%cp(i)%tied_to_index)%n_g_mir)
+                        call body%cp(i)%set_bc(ZERO_NORMAL_MF, body%vertices(body%cp(i)%tied_to_index)%n_g_mir)
                     else
-                        call body%cp(i)%set_bc(3, body%vertices(body%cp(i)%tied_to_index)%n_g)
+                        call body%cp(i)%set_bc(ZERO_NORMAL_MF, body%vertices(body%cp(i)%tied_to_index)%n_g)
                     end if
                 else
                     if (body%cp(i)%is_mirror) then
-                        call body%cp(i)%set_bc(3, body%panels(body%cp(i)%tied_to_index)%n_g_mir)
+                        call body%cp(i)%set_bc(ZERO_NORMAL_MF, body%panels(body%cp(i)%tied_to_index)%n_g_mir)
                     else
-                        call body%cp(i)%set_bc(3, body%panels(body%cp(i)%tied_to_index)%n_g)
+                        call body%cp(i)%set_bc(ZERO_NORMAL_MF, body%panels(body%cp(i)%tied_to_index)%n_g)
                     end if
                 end if
             
@@ -1050,11 +1054,11 @@ contains
             select case (body%cp(i)%bc)
 
             ! Source-free formulation
-            case (2)
+            case (SF_POTENTIAL)
                 this%BC(ind) = -inner(x, body%cp(i)%loc)
 
-            ! Neumann (velocity)
-            case (3)
+            ! Neumann (mass-flux)
+            case (ZERO_NORMAL_MF)
                 this%BC(ind) = -inner(this%freestream%c_hat_g, body%cp(i)%n_g)
 
             ! All other cases
@@ -1084,7 +1088,7 @@ contains
         call check_allocation(stat, "source strength array")
 
         ! Set source strengths
-        if (this%morino) then
+        if (this%formulation == D_MORINO) then
 
             if (verbose) write(*,'(a)',advance='no') "     Calculating source strengths..."
 
@@ -1126,8 +1130,8 @@ contains
 
         integer :: k, index
 
-        ! Add source influence depending on boundary condition
-        if (cp%bc == 1) then
+        ! Add source influence depending whether the panel has sources
+        if (cp%bc == ZERO_POTENTIAL) then
 
             ! Loop through influencing panels
             do k=1,body%panels(i_panel)%S_dim
@@ -1224,12 +1228,12 @@ contains
             ! Determine the type of boundary condition on this control point
             select case (body%cp(i)%bc)
 
-            case (4) ! Strength matching
+            case (STRENGTH_MATCHING) ! Strength matching
 
                 A_i(this%P(i)) = 1.
                 A_i(this%P(i-body%N_cp/2)) = -1.
 
-            case (3) ! Calculate velocity influences
+            case (ZERO_NORMAL_MF) ! Calculate normal mass flux influences
 
                 ! Loop through panels
                 do j=1,body%N_panels
@@ -1240,8 +1244,8 @@ contains
                         ! Calculate influence
                         call body%panels(j)%calc_velocity_influences(body%cp(i)%loc, this%freestream, this%dod_info(j,i), &
                                                                       .false., v_s, v_d)
-                        source_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g,v_s))
-                        doublet_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g,v_d))
+                        source_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_s))
+                        doublet_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_d))
 
                         ! Add influence
                         call this%update_system_row(body, body%cp(i), A_i, I_known_i, j, source_inf, doublet_inf, .false.)
@@ -1257,8 +1261,8 @@ contains
                             call body%panels(j)%calc_velocity_influences(body%cp(i)%loc, this%freestream, &
                                                                           this%dod_info(j+body%N_panels,i), &
                                                                           .true., v_s, v_d)
-                            source_inf = matmul(body%cp(i)%n_g, v_s)
-                            doublet_inf = matmul(body%cp(i)%n_g, v_d)
+                            source_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_s))
+                            doublet_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_d))
 
                             ! Add influence
                             call this%update_system_row(body, body%cp(i), A_i, I_known_i, j, &
@@ -1348,16 +1352,16 @@ contains
         if (verbose) write(*,'(a)',advance='no') "     Calculating wake influences..."
 
         ! Loop through control points
-        !$OMP parallel do private(j, k, l, source_inf, doublet_inf, A_i) schedule(dynamic)
+        !$OMP parallel do private(j, k, l, source_inf, doublet_inf, v_d, v_s, A_i) schedule(dynamic)
         do i=1,body%N_cp
 
             ! Check boundary condition
             select case (body%cp(i)%bc)
 
-            case (4) ! Strength matching
+            case (STRENGTH_MATCHING) ! Strength matching
                 cycle
 
-            case (3) ! Calculate velocity influences
+            case (ZERO_NORMAL_MF) ! Calculate normal mass flux influences
 
                 ! Initialize
                 A_i = 0.
@@ -1370,7 +1374,7 @@ contains
                         call body%wake%strips(j)%panels(l)%calc_velocity_influences(body%cp(i)%loc, this%freestream, &
                                                                                      this%wake_dod_info(l,j,i), &
                                                                                      .false., v_s, v_d)
-                        doublet_inf = matmul(body%cp(i)%n_g, v_d)
+                        doublet_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_d))
 
                         ! Add influence
                         do k=1,size(body%wake%strips(j)%panels(l)%i_vert_d)
@@ -1385,7 +1389,7 @@ contains
                             call body%wake%strips(j)%panels(l)%calc_velocity_influences(body%cp(i)%loc, this%freestream, &
                                                                      this%wake_dod_info(l+body%wake%N_max_strip_panels,j,i), & ! No, this is not the DoD for this computation; yes, it is equivalent
                                                                      .true., v_s, v_d)
-                            doublet_inf = matmul(body%cp(i)%n_g, v_d)
+                            doublet_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_d))
 
                             ! Add influence
                             do k=1,size(body%wake%strips(j)%panels(l)%i_vert_d)
@@ -1570,11 +1574,6 @@ contains
 
         ! Set b vector
         this%b = this%BC - this%I_known
-        if (this%formulation == 'neumann-doublet-only-offset') then
-            this%A(body%N_cp,:) = 0.
-            this%A(body%N_cp,body%N_cp) = 1.
-            this%b(body%N_cp) = 1.
-        end if
 
         ! Run checks
         if (run_checks) call this%check_system(solver_stat, body)
@@ -1592,7 +1591,7 @@ contains
 
         ! Diagonal preconditioning
         case ('DIAG')
-            if (this%formulation == 'neumann-doublet-only-ls') then
+            if (this%formulation == N_MF_D_LS) then
                 call system_clock(start_count, count_rate)
                 call diagonal_preconditioner(this%N_unknown, matmul(transpose(this%A), this%A), &
                                              matmul(transpose(this%A), this%b), A_p, b_p)
@@ -1605,7 +1604,7 @@ contains
 
         ! No preconditioning
         case default
-            if (this%formulation == 'neumann-doublet-only-ls') then
+            if (this%formulation == N_MF_D_LS) then
                 call system_clock(start_count, count_rate)
                 allocate(A_p, source=matmul(transpose(this%A), this%A), stat=stat)
                 call check_allocation(stat, "solver copy of AIC matrix")
@@ -2539,14 +2538,11 @@ contains
         call delete_file(points_output_file)
 
         ! Open output file
-        100 format(e20.10, ', ', e20.10, ', ', e20.10, ', ', e20.10, ', ', e20.10, ', ', e20.10, ', ', e20.10, ', ', e20.10, &
-                   ', ', e20.10, ', ', e20.10, ', ', e20.10, ', ', e20.10, ', ', e20.10, ', ', e20.10, ', ', e20.10, ', ', &
-                   e20.10, ', ', e20.10, ', ', e20.10, ', ', e20.10, ', ', e20.10, ', ', e20.10, ', ', e20.10, ', ', e20.10)
         open(newunit=unit, file=points_output_file)
 
         ! Write header
         write(unit,*) 'x,y,z,phi_inf,phi_d,phi_s,phi,Phi,v_inf_x,v_inf_y,v_inf_z,v_d_x,v_d_y,v_d_z,v_s_x,v_s_y,v_s_z,&
-                       v_x,v_y,v_z,V_x,V_y,V_z'
+                       v_x,v_y,v_z,V_x,V_y,V_z,V'
 
         ! Write potentials out to file
         do i=1,N_points
@@ -2558,7 +2554,8 @@ contains
             ! Write to file
             write(unit," (e20.13, a, e20.13, a, e20.13, a, e20.13, a, e20.13, a, e20.13, a, e20.13, a, e20.13, &
                         a, e20.13, a, e20.13, a, e20.13, a, e20.13, a, e20.13, a, e20.13, a, e20.13, a, &
-                        e20.13, a, e20.13, a, e20.13, a, e20.13, a, e20.13, a, e20.13, a, e20.13, a, e20.13, a)", advance="no") &
+                        e20.13, a, e20.13, a, e20.13, a, e20.13, a, e20.13, a, e20.13, a, e20.13, a, e20.13, a,&
+                        e20.13, a)", advance="no") &
                             points(1,i),',', points(2,i),',', points(3,i),',', &
                             phi_inf,',', phi_d(i),',', phi_s(i),',', phi_d(i) + phi_s(i),',', &
                             phi_inf + phi_d(i) + phi_s(i),',', v_inf(1),',', &
@@ -2566,7 +2563,8 @@ contains
                             v_s(1,i),',', v_s(2,i),',', v_s(3,i),',', &
                             v_d(1,i) + v_s(1,i),',', v_d(2,i) + v_s(2,i),',', v_d(3,i) + v_s(3,i),',', &
                             v_inf(1) + v_d(1,i) + v_s(1,i),',',&
-                            v_inf(2) + v_d(2,i) + v_s(2,i),',', v_inf(3) + v_d(3,i) + v_s(3,i), achar(10)
+                            v_inf(2) + v_d(2,i) + v_s(2,i),',', v_inf(3) + v_d(3,i) + v_s(3,i), ',', &
+                            norm2(v_inf + v_d(:,i) + v_s(:,i)), achar(10)
 
         end do
 

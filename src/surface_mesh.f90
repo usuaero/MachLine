@@ -1729,7 +1729,7 @@ contains
             end select
             
             ! Initialize control point
-            call this%cp(i)%init(this%vertices(i)%loc + this_offset*dir, 1, 1, i)
+            call this%cp(i)%init(this%vertices(i)%loc + this_offset*dir, INTERNAL, TT_VERTEX, i)
 
             ! Check if the control point is outside the mesh
             get_back_in_loop: do while (this%control_point_outside_mesh(this%cp(i)%loc, i))
@@ -2016,7 +2016,7 @@ contains
         do i=1,this%N_panels
             
             ! Initialize control point
-            call this%cp(i)%init(this%panels(i)%centr, 3, 2, i)
+            call this%cp(i)%init(this%panels(i)%centr, SURFACE, TT_PANEL, i)
 
         end do
 
@@ -2041,15 +2041,16 @@ contains
         if (add_strength_matching) then
             do i=1,this%N_verts
                 if (this%vertices(i)%on_mirror_plane .and. .not. this%vertices(i)%mirrored_is_unique) then
-                    call this%cp(this%N_cp-N_strength_matching+i)%init((/0., 0., 0./), 3, 1, i)
+                    call this%cp(this%N_cp-N_strength_matching+i)%init((/0., 0., 0./), SURFACE, TT_VERTEX, i)
+                    call this%cp(this%N_cp-N_strength_matching+i)%set_bc(STRENGTH_MATCHING)
                 end if
             end do
         end if
 
         ! Add point inside
         if (add_one_inside) then
-            call this%cp(this%N_cp)%init(this%panels(1)%centr-0.1*this%panels(1)%n_g*this%panels(1)%get_characteristic_length(), &
-                         1, 2, 1)
+            call this%cp(this%N_cp)%init(this%panels(1)%centr-1.e-8*this%panels(1)%n_g*this%panels(1)%get_characteristic_length(), &
+                         INTERNAL, TT_PANEL, 1)
         end if
 
     end subroutine surface_mesh_place_centroid_control_points
@@ -2101,11 +2102,9 @@ contains
 
             ! Determine location
             loc = 0.5*(this%panels(i_panel)%centr + this%vertices(i)%loc)
-            loc = loc - this%panels(i_panel)%n_g*1.e-6
-            !loc = this%panels(i_panel)%centr
             
             ! Initialize control point
-            call this%cp(i)%init(loc, 3, 2, i_panel)
+            call this%cp(i)%init(loc, SURFACE, TT_PANEL, i_panel)
 
         end do
 
@@ -2130,15 +2129,17 @@ contains
         if (add_strength_matching) then
             do i=1,this%N_verts
                 if (this%vertices(i)%on_mirror_plane .and. .not. this%vertices(i)%mirrored_is_unique) then
-                    call this%cp(this%N_cp-N_strength_matching+i)%init((/0., 0., 0./), 3, 1, i)
+                    call this%cp(this%N_cp-N_strength_matching+i)%init((/0., 0., 0./), SURFACE, TT_VERTEX, i)
+                    call this%cp(this%N_cp-N_strength_matching+i)%set_bc(STRENGTH_MATCHING)
                 end if
             end do
         end if
 
         ! Add point inside
         if (add_one_inside) then
-            call this%cp(this%N_cp)%init(this%panels(1)%centr - 0.1*this%panels(1)%n_g*this%panels(1)%get_characteristic_length(), &
-                         1, 2, 1)
+            call this%cp(this%N_cp)%init(this%panels(1)%centr &
+                         - 1.e-8*this%panels(1)%n_g*this%panels(1)%get_characteristic_length(), &
+                         INTERNAL, TT_PANEL, 1)
         end if
 
     end subroutine surface_mesh_place_centroid_vertex_avg_control_points

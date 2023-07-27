@@ -9,6 +9,8 @@ import shutil
 import subprocess as sp
 import numpy as np
 
+UPDATE_OFFBODY_RESULTS = False
+
 
 class MachLineError(Exception):
     pass
@@ -617,6 +619,10 @@ def test_20_half_wing_lower_morino_asym_inc_flow_off_body():
     results = np.genfromtxt(output_file, skip_header=1, delimiter=',')
     standard = np.genfromtxt(correct_file, skip_header=1, delimiter=',')
 
+    # Update
+    if UPDATE_OFFBODY_RESULTS:
+        shutil.copyfile(output_file, correct_file)
+
     # Check
     assert(np.all(np.abs(results - standard) < 1.0e-12))
 
@@ -661,6 +667,10 @@ def test_21_half_wing_lower_morino_asym_supersonic_flow_off_body():
     correct_file = "test/input_files/half_wing_supersonic_offbody_points_correct.csv"
     results = np.genfromtxt(output_file, skip_header=1, delimiter=',')
     standard = np.genfromtxt(correct_file, skip_header=1, delimiter=',')
+
+    # Update
+    if UPDATE_OFFBODY_RESULTS:
+        shutil.copyfile(output_file, correct_file)
 
     # Check
     assert(np.all(np.abs(results-standard) < 1.0e-12))
