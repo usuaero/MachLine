@@ -2016,7 +2016,7 @@ contains
         do i=1,this%N_panels
             
             ! Initialize control point
-            call this%cp(i)%init(this%panels(i)%centr + 1.e-8*this%panels(i)%n_g, 3, 2, i)
+            call this%cp(i)%init(this%panels(i)%centr, 3, 2, i)
 
         end do
 
@@ -2048,7 +2048,7 @@ contains
 
         ! Add point inside
         if (add_one_inside) then
-            call this%cp(this%N_cp)%init(this%panels(1)%centr - 0.1*this%panels(1)%n_g*this%panels(1)%get_characteristic_length(), &
+            call this%cp(this%N_cp)%init(this%panels(1)%centr-0.1*this%panels(1)%n_g*this%panels(1)%get_characteristic_length(), &
                          1, 2, 1)
         end if
 
@@ -2101,7 +2101,7 @@ contains
 
             ! Determine location
             loc = 0.5*(this%panels(i_panel)%centr + this%vertices(i)%loc)
-            loc = loc + this%panels(i_panel)%n_g*1.e-8
+            loc = loc - this%panels(i_panel)%n_g*1.e-6
             !loc = this%panels(i_panel)%centr
             
             ! Initialize control point

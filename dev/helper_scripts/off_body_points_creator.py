@@ -1,7 +1,7 @@
 import numpy as np
 import csv
 
-def point_block(x_min=-0.25,x_max=1.5,y_min=-1.8,y_max=-1.8,z_min=-0.25,z_max=0.25,Nx=200,Ny=1,Nz=100):
+def point_block(x_min=0.25,x_max=0.25,y_min=-2.5,y_max=2.5,z_min=-0.5,z_max=0.5,Nx=1,Ny=400,Nz=100):
     # Create point block
     #x_min = -1.0
     #x_max = 3.0
@@ -73,5 +73,5 @@ def write_points(filename,points):
 if __name__ =="__main__":
     points = point_block()
 
-    write_points("studies/input_files/diamond_5_deg_sample_points.csv",points)
+    write_points("dev/input_files/diamond_5_deg_sample_points.csv",points)
 

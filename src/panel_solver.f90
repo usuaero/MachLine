@@ -361,7 +361,7 @@ contains
         call this%determine_neumann_unknowns(body)
 
         ! Set inner flow
-        this%inner_flow = this%freestream%c_hat_g
+        this%inner_flow = this%freestream%c_hat_g - matmul(this%freestream%B_mat_g_inv, this%freestream%c_hat_g)
 
         if (verbose) write(*,'(a, i6, a)') "Done. Placed", body%N_cp, " control points."
         
@@ -1240,8 +1240,8 @@ contains
                         ! Calculate influence
                         call body%panels(j)%calc_velocity_influences(body%cp(i)%loc, this%freestream, this%dod_info(j,i), &
                                                                       .false., v_s, v_d)
-                        source_inf = matmul(body%cp(i)%n_g, v_s)
-                        doublet_inf = matmul(body%cp(i)%n_g, v_d)
+                        source_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g,v_s))
+                        doublet_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g,v_d))
 
                         ! Add influence
                         call this%update_system_row(body, body%cp(i), A_i, I_known_i, j, source_inf, doublet_inf, .false.)
@@ -1570,11 +1570,11 @@ contains
 
         ! Set b vector
         this%b = this%BC - this%I_known
-        !if (this%formulation == 'neumann-doublet-only-ls' .or. this%formulation == 'neumann-doublet-only-offset') then
-        !    this%A(body%N_cp,:) = 0.
-        !    this%A(body%N_cp,body%N_cp) = 1.
-        !    this%b(body%N_cp) = 1.
-        !end if
+        if (this%formulation == 'neumann-doublet-only-offset') then
+            this%A(body%N_cp,:) = 0.
+            this%A(body%N_cp,body%N_cp) = 1.
+            this%b(body%N_cp) = 1.
+        end if
 
         ! Run checks
         if (run_checks) call this%check_system(solver_stat, body)

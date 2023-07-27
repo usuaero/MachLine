@@ -4,15 +4,16 @@
         "freestream_mach_number" : 1.6
     },
     "geometry": {
-        "file": "dev/meshes/diamond_5_deg_full_fine.stl",
+        "file": "dev/meshes/diamond_5_deg_full_medium.stl",
+        "singularity_order": "lower",
         "wake_model" : {
             "wake_present" : true,
-            "append_wake" : true,
+            "append_wake" : false,
             "trefftz_distance" : 20.0
         }
     },
     "solver": {
-        "formulation" : "morino",
+        "formulation" : "neumann-doublet-only-ls",
         "matrix_solver" : "GMRES",
         "write_A_and_b" : false
     },
