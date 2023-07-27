@@ -14,9 +14,10 @@ module panel_solver_mod
     implicit none
 
 
-    character(len=6),parameter :: D_MORINO = "morino"
-    character(len=11),parameter :: D_SOURCE_FREE = "source-free"
-    character(len=33),parameter :: N_MF_D_LS = "neumann-doublet-only-mass-flux-ls"
+    character(len=*),parameter :: D_MORINO = "morino"
+    character(len=*),parameter :: D_SOURCE_FREE = "source-free"
+    character(len=*),parameter :: N_MF_D_LS = "neumann-doublet-only-mass-flux-ls"
+    character(len=*),parameter :: N_MF_D = "neumann-doublet-only-mass-flux"
 
 
     type panel_solver
@@ -122,7 +123,7 @@ contains
         ! Initialize based on formulation
         if (this%formulation == D_MORINO .or. this%formulation == D_SOURCE_FREE) then
             call this%init_dirichlet(solver_settings, body)
-        else if (this%formulation == N_MF_D_LS) then
+        else if (this%formulation == N_MF_D_LS .or. this%formulation == N_MF_D) then
             call this%init_neumann(solver_settings, body)
         else
             write(*,*) "!!! '", this%formulation, "' is not a valid formulation. Quitting..."
@@ -346,13 +347,28 @@ contains
         implicit none
         
         class(panel_solver),intent(inout) :: this
-        type(json_value),intent(in) :: solver_settings
+        type(json_value),pointer,intent(in) :: solver_settings
         type(surface_mesh),intent(inout) :: body
+
+        real :: offset
+        character(len=:),allocatable :: offset_type
+
+        ! Get offset
+        call json_xtnsn_get(solver_settings, 'control_point_offset', offset, 1.e-7)
+        call json_xtnsn_get(solver_settings, 'control_point_offset_type', offset_type, 'direct')
+        if (offset <= 0.) then
+            write(*,*) "!!! Control point offset must be greater than 0. Defaulting to 1e-7."
+            offset = 1.e-7
+        end if
 
         ! Place control points
         if (this%formulation == N_MF_D_LS) then
             if (verbose) write(*,'(a)',advance='no') "     Placing control points at panel centroids..."
             call body%place_centroid_control_points(body%asym_flow, .false.)
+        else if (this%formulation == N_MF_D) then
+            if (verbose) write(*,'(a)',advance='no') "     Placing control points near vertices..."
+            call body%place_interior_control_points(offset, offset_type, this%freestream)
+            !call body%place_centroid_vertex_avg_control_points(body%asym_flow, .false.)
         end if
 
         ! Sources
@@ -531,8 +547,8 @@ contains
                 case (D_SOURCE_FREE)
                     call body%cp(i)%set_bc(SF_POTENTIAL)
 
-                case (N_MF_D_LS)
-                    call body%cp(i)%set_bc(ZERO_POTENTIAL) ! Arbitrary constant to make [AIC] full column rank
+                case (N_MF_D)
+                    call body%cp(i)%set_bc(ZERO_NORMAL_MF, body%vertices(body%cp(i)%tied_to_index)%n_g)
                     
                 end select
 
@@ -1477,13 +1493,13 @@ contains
         if (any(isnan(this%A))) then
             write(*,*) "!!! Invalid value detected in A matrix."
             solver_stat = 1
-            return
         end if
         if (any(isnan(this%b))) then
             write(*,*) "!!! Invalid value detected in b vector."
             solver_stat = 1
-            return
         end if
+
+        if (solver_stat /= 0) return
 
         ! Check for uninfluenced/ing points
         if (this%use_sort) then
@@ -1491,14 +1507,12 @@ contains
                 if (all(this%A(this%P(i),:) == 0.)) then
                     write(*,*) "!!! Control point ", i, " is not influenced."
                     solver_stat = 2
-                    return
                 end if
             end do
             do i=1,this%N_unknown
                 if (all(this%A(:,this%P(i)) == 0.)) then
                     write(*,*) "!!! Vertex ", i, " exerts no influence."
                     solver_stat = 2
-                    return
                 end if
             end do
         else
@@ -1506,14 +1520,12 @@ contains
                 if (all(this%A(i,:) == 0.)) then
                     write(*,*) "!!! Control point ", i, " is not influenced."
                     solver_stat = 2
-                    return
                 end if
             end do
             do i=1,this%N_unknown
                 if (all(this%A(:,i) == 0.)) then
                     write(*,*) "!!! Vertex ", i, " exerts no influence."
                     solver_stat = 2
-                    return
                 end if
             end do
         end if
@@ -2554,7 +2566,7 @@ contains
             ! Write to file
             write(unit," (e20.13, a, e20.13, a, e20.13, a, e20.13, a, e20.13, a, e20.13, a, e20.13, a, e20.13, &
                         a, e20.13, a, e20.13, a, e20.13, a, e20.13, a, e20.13, a, e20.13, a, e20.13, a, &
-                        e20.13, a, e20.13, a, e20.13, a, e20.13, a, e20.13, a, e20.13, a, e20.13, a, e20.13, a,&
+                        e20.13, a, e20.13, a, e20.13, a, e20.13, a, e20.13, a, e20.13, a, e20.13, a, e20.13, a, &
                         e20.13, a)", advance="no") &
                             points(1,i),',', points(2,i),',', points(3,i),',', &
                             phi_inf,',', phi_d(i),',', phi_s(i),',', phi_d(i) + phi_s(i),',', &

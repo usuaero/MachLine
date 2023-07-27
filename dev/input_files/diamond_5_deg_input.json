@@ -5,17 +5,18 @@
     },
     "geometry": {
         "file": "dev/meshes/diamond_5_deg_full_medium.stl",
-        "singularity_order": "higher",
+        "singularity_order": "lower",
         "wake_model" : {
             "wake_present" : true,
-            "append_wake" : true,
-            "trefftz_distance" : 20.0
+            "append_wake" : false
         }
     },
     "solver": {
-        "formulation" : "neumann-doublet-only-mass-flux-ls",
+        "formulation" : "neumann-doublet-only-mass-flux",
+        "control_point_offset" : 1.0e-2,
         "matrix_solver" : "GMRES",
-        "write_A_and_b" : false
+        "run_checks" : true,
+        "write_A_and_b" : true
     },
     "post_processing" : {
     },

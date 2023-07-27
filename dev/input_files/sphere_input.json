@@ -1,7 +1,7 @@
 {
     "flow" : {
-        "freestream_velocity" : [1.0, 1.0, 0.0],
-        "freestream_mach_number" : 0.5
+        "freestream_velocity" : [1.0, 0.0, 0.0],
+        "freestream_mach_number" : 0.0
     },
     "geometry" : {
         "file" : "dev/meshes/sphere.vtk",
@@ -9,13 +9,13 @@
             "wake_present" : false
         },
         "singularity_order" : "lower",
-        "force_sigma_match" : true,
         "reference" : {
             "area" : 0.7853981
         }
     },
     "solver" : {
-        "formulation" : "neumann-doublet-only-offset",
+        "formulation" : "neumann-doublet-only-mass-flux",
+        "control_point_offset" : 1.0e-7,
         "matrix_solver" : "GMRES",
         "block_size" : 500
     },
@@ -27,7 +27,7 @@
     "output" : {
         "body_file" :          "dev/results/sphere.vtk",
         "control_point_file" : "dev/results/sphere_control_points.vtk",
-        "ffbody_points" : {
+        "offbody_points" : {
             "points_file" : "dev/input_files/sphere_offbody_points.csv",
             "output_file" : "dev/results/sphere_offbody_points.csv"
         }

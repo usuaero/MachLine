@@ -3,17 +3,17 @@ import numpy as np
 if __name__=="__main__":
 
     # Limits
-    x_max = 6.0
-    x_min = 0.0
-    y_max = 2.0
-    y_min = 0.0
-    z_max = 0.0
-    z_min = 0.0
+    x_max = 2.1
+    x_min = -0.1
+    y_max = 0.01
+    y_min = 0.01
+    z_max = 1.1
+    z_min = -1.1
 
     # Number of points to distribute
-    Nx = 300
-    Ny = 100
-    Nz = 1
+    Nx = 100
+    Ny = 1
+    Nz = 100
 
     # Distributions in each direction
     x = np.linspace(x_min, x_max, Nx)
@@ -27,7 +27,7 @@ if __name__=="__main__":
     Z = Z.flatten()
 
     # write to file
-    filename = "dev/pod_sample_points.csv"
+    filename = "dev/input_files/sphere_offbody_points.csv"
     with open(filename, 'w') as points_file:
 
         # Header

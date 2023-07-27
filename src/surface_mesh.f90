@@ -2101,7 +2101,7 @@ contains
             call this%vertices(i)%panels_not_across_wake_edge%get(1, i_panel)
 
             ! Determine location
-            loc = 0.5*(this%panels(i_panel)%centr + this%vertices(i)%loc)
+            loc = 0.5*this%panels(i_panel)%centr + 0.5*this%vertices(i)%loc
             
             ! Initialize control point
             call this%cp(i)%init(loc, SURFACE, TT_PANEL, i_panel)
