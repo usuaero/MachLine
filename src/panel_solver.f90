@@ -26,7 +26,7 @@ module panel_solver_mod
         real :: M_inf_corr 
         character(len=:),allocatable :: formulation, pressure_for_forces, matrix_solver, preconditioner, iteration_file
         logical :: incompressible_rule, isentropic_rule, second_order_rule, slender_rule, linear_rule
-        logical :: write_A_and_b, sort_system, use_sort_for_cp, overdetermined_ls, underdetermined_ls
+        logical :: write_A_and_b, sort_system, use_sort_for_cp, overdetermined_ls, underdetermined_ls, dirichlet
         logical :: compressible_correction, prandtl_glauert, karman_tsien, laitone
         type(dod),dimension(:,:),allocatable :: dod_info
         type(dod),dimension(:,:,:),allocatable :: wake_dod_info
@@ -123,8 +123,10 @@ contains
 
         ! Initialize based on formulation
         if (this%formulation == D_MORINO .or. this%formulation == D_SOURCE_FREE) then
+            this%dirichlet = .true.
             call this%init_dirichlet(solver_settings, body)
         else if (this%formulation == N_MF_D_LS .or. this%formulation == N_MF_D .or. this%formulation == N_MF_DS_LS) then
+            this%dirichlet = .false.
             call this%init_neumann(solver_settings, body)
         else
             write(*,*) "!!! '", this%formulation, "' is not a valid formulation. Quitting..."
@@ -375,13 +377,16 @@ contains
         if (this%formulation == N_MF_D_LS) then
             if (verbose) write(*,'(a)',advance='no') "     Placing control points at panel centroids..."
             call body%place_centroid_control_points(body%asym_flow, .false., 0.)
+
         else if (this%formulation == N_MF_D) then
             if (verbose) write(*,'(a)',advance='no') "     Placing control points near vertices..."
-            call body%place_interior_control_points(offset, offset_type, this%freestream)
-            !call body%place_centroid_vertex_avg_control_points(body%asym_flow, .false.)
+            !call body%place_interior_control_points(offset, offset_type, this%freestream)
+            call body%place_centroid_vertex_avg_control_points(body%asym_flow, .false.)
+
         else if (this%formulation == N_MF_DS_LS) then
             if (verbose) write(*,'(a)',advance='no') "     Placing control points at panel centroids..."
             call body%place_centroid_control_points(body%asym_flow, .false., offset)
+
         end if
 
         ! Sources
@@ -389,9 +394,6 @@ contains
 
         ! Determine unknowns
         call this%determine_neumann_unknowns(body)
-
-        ! Set inner flow
-        this%inner_flow = this%freestream%c_hat_g - matmul(this%freestream%B_mat_g_inv, this%freestream%c_hat_g)
 
         if (verbose) write(*,'(a, i6, a)') "Done. Placed", body%N_cp, " control points."
         
@@ -1610,7 +1612,7 @@ contains
         type(surface_mesh),intent(inout) :: body
         integer,intent(inout) :: solver_stat
 
-        real,dimension(:,:),allocatable :: A_p
+        real,dimension(:,:),allocatable :: A_p, A_T
         real,dimension(:),allocatable :: b_p, x, x_temp
         integer :: stat, i, N
         integer(8) :: start_count, end_count
@@ -1646,7 +1648,9 @@ contains
             ! Underdetermined least-squares
             else if (this%underdetermined_ls) then
                 call system_clock(start_count, count_rate)
-                call diagonal_preconditioner(body%N_cp, matmul(this%A, transpose(this%A)), this%b, A_p, b_p)
+                !call diagonal_preconditioner(body%N_cp, matmul(this%A, transpose(this%A)), this%b, A_p, b_p)
+                A_T = transpose(this%A)
+                call diagonal_preconditioner(body%N_cp, parallel_matmul(this%A, A_T), this%b, A_p, b_p)
                 call system_clock(end_count)
 
             ! Standard
@@ -1828,8 +1832,8 @@ contains
         class(panel_solver),intent(inout) :: this
         type(surface_mesh),intent(inout) :: body
 
-        integer :: i, stat, j
-        real,dimension(3) :: v_jump, cent
+        integer :: i, stat
+        real,dimension(3) :: v_inner, v_d, v_s, P
 
         if (verbose) write(*,'(a)',advance='no') "     Calculating surface velocities..."
 
@@ -1840,20 +1844,45 @@ contains
         end if
 
         ! Allocate cell velocity storage
+        allocate(body%V_cells_inner(3,this%N_cells), stat=stat)
+        call check_allocation(stat, "inner velocity vectors")
         allocate(body%V_cells(3,this%N_cells), stat=stat)
         call check_allocation(stat, "surface velocity vectors")
 
         ! Get the surface velocity on each existing panel
-        !$OMP parallel do private(v_jump, j, cent) schedule(static)
+        !$OMP parallel do private(v_d, v_s, P) schedule(static)
         do i=1,body%N_panels
+
+            ! Get inner flow
+            if (this%dirichlet) then
+                body%V_cells_inner(:,i) = this%inner_flow*this%freestream%U
+            else
+                P = body%panels(i)%centr - 1.e-10*body%panels(i)%n_g
+                call body%get_induced_velocities_at_point(P, this%freestream, v_d, v_s)
+                body%V_cells_inner(:,i) = this%freestream%v_inf + this%freestream%U*(v_d + v_s)
+            end if
+
+            ! Get surface velocity on each panel
             body%V_cells(:,i) = body%panels(i)%get_velocity(body%mu, body%sigma, .false., body%N_panels, &
-                                                            body%N_verts, body%asym_flow, this%freestream, this%inner_flow)
+                                                            body%N_verts, body%asym_flow, this%freestream, &
+                                                            body%V_cells_inner(:,i)/this%freestream%U)
 
             ! Get surface velocity on each mirrored panel
             if (body%asym_flow) then
+
+                ! Get inner flow
+                if (this%dirichlet) then
+                    body%V_cells_inner(:,i+body%N_panels) = this%inner_flow*this%freestream%U
+                else
+                    P = mirror_across_plane(P, body%mirror_plane)
+                    call body%get_induced_velocities_at_point(P, this%freestream, v_d, v_s)
+                    body%V_cells_inner(:,i+body%N_panels) = this%freestream%v_inf + this%freestream%U*(v_d + v_s)
+                end if
+
+                ! Get mirrored surface velocity
                 body%V_cells(:,i+body%N_panels) = body%panels(i)%get_velocity(body%mu, body%sigma, .true., body%N_panels, &
-                                                                              body%N_verts, body%asym_flow, this%freestream, &
-                                                                              this%inner_flow)
+                                                                            body%N_verts, body%asym_flow, this%freestream, &
+                                                                            body%V_cells_inner(:,i+body%N_panels)/this%freestream%U)
 
             end if
         end do
@@ -1968,9 +1997,17 @@ contains
 
         real :: C_P_avg
 
-        C_P_avg = body%panels(i_panel)%get_avg_pressure_coef(body%mu, body%sigma, mirrored, body%N_panels, body%N_verts, &
-                                                             body%asym_flow, this%freestream, this%inner_flow, body%mirror_plane, &
-                                                             rule, M_corr=this%M_inf_corr)
+        if (mirrored) then
+            C_P_avg = body%panels(i_panel)%get_avg_pressure_coef(body%mu, body%sigma, mirrored, body%N_panels, body%N_verts, &
+                                                                 body%asym_flow, this%freestream, &
+                                                                 body%V_cells_inner(:,i_panel+body%N_panels)/this%freestream%U, &
+                                                                 body%mirror_plane, rule, M_corr=this%M_inf_corr)
+        else
+            C_P_avg = body%panels(i_panel)%get_avg_pressure_coef(body%mu, body%sigma, mirrored, body%N_panels, body%N_verts, &
+                                                                 body%asym_flow, this%freestream, &
+                                                                 body%V_cells_inner(:,i_panel)/this%freestream%U, &
+                                                                 body%mirror_plane, rule, M_corr=this%M_inf_corr)
+        end if
         
     end function panel_solver_calc_avg_pressure_on_panel
 

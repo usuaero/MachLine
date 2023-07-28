@@ -4,7 +4,7 @@
         "freestream_mach_number" : 0.0
     },
     "geometry" : {
-        "file" : "dev/meshes/regular_sphere.vtk",
+        "file" : "dev/meshes/sphere.vtk",
         "wake_model" : {
             "wake_present" : false
         },
@@ -17,8 +17,8 @@
         "formulation" : "neumann-doublet-source-mass-flux-ls",
         "control_point_offset" : 1.0e-7,
         "matrix_solver" : "GMRES",
-        "write_A_and_b" : true,
-        "iterative_solver_output" : "iterative_solver_prog.csv"
+        "write_A_and_b" : false,
+        "terative_solver_output" : "iterative_solver_prog.csv"
     },
     "post_processing" : {
         "pressure_rules" : {
@@ -31,6 +31,7 @@
         "offbody_points" : {
             "points_file" : "dev/input_files/sphere_offbody_points.csv",
             "output_file" : "dev/results/sphere_offbody_points.csv"
-        }
+        },
+        "report_file" : "dev/results/sphere_report.json"
     }
 }

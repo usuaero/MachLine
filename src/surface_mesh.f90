@@ -33,7 +33,7 @@ module surface_mesh_mod
         real,dimension(:),allocatable :: Phi_u ! Total potential on outer surface
         real,dimension(:),allocatable :: C_p_pg, C_p_lai, C_p_kt ! Corrected surface pressure coefficients
         real,dimension(:),allocatable :: C_p_inc, C_p_ise, C_p_2nd, C_p_sln, C_p_lin ! Surface pressure coefficients
-        real,dimension(:,:),allocatable :: V_cells, V_verts_avg, V_verts_std, dC_f ! Surface velocities and pressure forces
+        real,dimension(:,:),allocatable :: V_cells, V_cells_inner, dC_f ! Surface velocities and pressure forces
         real :: control_point_offset
         logical :: asym_flow ! Whether the flow is asymmetric about the mirror plane
         logical :: found_wake_edges
@@ -2104,7 +2104,8 @@ contains
             call this%vertices(i)%panels_not_across_wake_edge%get(1, i_panel)
 
             ! Determine location
-            loc = 0.5*this%panels(i_panel)%centr + 0.5*this%vertices(i)%loc
+            !loc = 0.5*this%panels(i_panel)%centr + 0.5*this%vertices(i)%loc
+            loc = this%panels(i_panel)%centr + 1.e-7*this%panels(i_panel)%n_g
             
             ! Initialize control point
             call this%cp(i)%init(loc, SURFACE, TT_PANEL, i_panel)
@@ -2594,6 +2595,7 @@ contains
 
             ! Cell velocities and sources
             call body_vtk%write_cell_vectors(this%V_cells(:,1:N_cells), "v")
+            call body_vtk%write_cell_vectors(this%V_cells_inner(:,1:N_cells), "v_inner")
             call body_vtk%write_cell_vectors(this%dC_f(:,1:N_cells), "dC_f")
 
             ! Surface potential values
@@ -2690,6 +2692,7 @@ contains
 
             ! Other
             call body_vtk%write_cell_vectors(this%V_cells(:,N_cells+1:N_cells*2), "v")
+            call body_vtk%write_cell_vectors(this%V_cells_inner(:,N_cells+1:N_cells*2), "v_inner")
             call body_vtk%write_cell_vectors(this%dC_f(:,N_cells+1:N_cells*2), "dC_f")
 
             ! Surface potentials

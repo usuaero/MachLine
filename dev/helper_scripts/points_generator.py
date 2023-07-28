@@ -3,12 +3,12 @@ import numpy as np
 if __name__=="__main__":
 
     # Limits
-    x_max = 2.1
-    x_min = -1.1
+    x_max = 1.1
+    x_min = -0.1
     y_max = 0.01
     y_min = 0.01
-    z_max = 1.1
-    z_min = -1.1
+    z_max = 0.2
+    z_min = -0.2
 
     # Number of points to distribute
     Nx = 150
@@ -27,7 +27,7 @@ if __name__=="__main__":
     Z = Z.flatten()
 
     # write to file
-    filename = "dev/input_files/sphere_offbody_points.csv"
+    filename = "dev/input_files/diamond_5_deg_sample_points.csv"
     with open(filename, 'w') as points_file:
 
         # Header
