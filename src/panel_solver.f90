@@ -59,7 +59,12 @@ module panel_solver_mod
 
             ! Both
             procedure :: set_panel_sources => panel_solver_set_panel_sources
+
+            ! Control points
+            procedure :: init_cp_neumann_condition => panel_solver_init_cp_neumann_condition
             procedure :: init_control_point_boundary_conditions => panel_solver_init_control_point_boundary_conditions
+
+            ! Misc setup
             procedure :: calc_domains_of_dependence => panel_solver_calc_domains_of_dependence
             procedure :: set_permutation => panel_solver_set_permutation
 
@@ -330,7 +335,7 @@ contains
         end if
 
         ! Place control points inside the body
-        call body%place_interior_control_points(offset, offset_type, this%freestream)
+        call body%place_cp_vertex_based_internal(offset, offset_type, this%freestream)
 
         ! Set needed sources
         call this%set_panel_sources(body)
@@ -380,7 +385,7 @@ contains
 
         else if (this%formulation == N_MF_D) then
             if (verbose) write(*,'(a)',advance='no') "     Placing control points near vertices..."
-            !call body%place_interior_control_points(offset, offset_type, this%freestream)
+            !call body%place_cp_vertex_based_internal(offset, offset_type, this%freestream)
             call body%place_centroid_vertex_avg_control_points(body%asym_flow, .false.)
 
         else if (this%formulation == N_MF_DS_LS) then
@@ -547,6 +552,37 @@ contains
     end subroutine panel_solver_determine_neumann_unknowns
 
 
+    subroutine panel_solver_init_cp_neumann_condition(this, cp, bc_type, body)
+        ! Initializes the necessary Neumann condition at the given control point
+        ! Handles selecting the proper normal vector for you
+
+        implicit none
+        
+        class(panel_solver),intent(in) :: this
+        type(control_point),intent(inout) :: cp
+        integer,intent(in) :: bc_type
+        type(surface_mesh),intent(inout) :: body
+
+        ! Get vertex normal
+        if (cp%tied_to_type == TT_VERTEX) then
+            if (cp%is_mirror) then
+                call cp%set_bc(bc_type, body%vertices(cp%tied_to_index)%n_g_mir)
+            else
+                call cp%set_bc(bc_type, body%vertices(cp%tied_to_index)%n_g)
+            end if
+
+        ! Get panel normal
+        else
+            if (cp%is_mirror) then
+                call cp%set_bc(bc_type, body%panels(cp%tied_to_index)%n_g_mir)
+            else
+                call cp%set_bc(bc_type, body%panels(cp%tied_to_index)%n_g)
+            end if
+        end if
+        
+    end subroutine panel_solver_init_cp_neumann_condition
+
+
     subroutine panel_solver_init_control_point_boundary_conditions(this, body)
         ! Sets up the desired boundary conditions on the control points
 
@@ -564,54 +600,26 @@ contains
             ! If we already know this is a strength-matching control point, move on
             if (body%cp(i)%bc == STRENGTH_MATCHING) cycle
 
-            ! Check if we need to enforce strength matching
-            if (body%cp(i)%is_mirror) then
-                if (body%cp(i)%tied_to_type == TT_VERTEX) then
-                    if (.not. body%vertices(body%cp(i)%tied_to_index)%mirrored_is_unique) then
-                        call body%cp(i)%set_bc(STRENGTH_MATCHING)
-                        cycle
-                    end if
+            ! Mirrored control points that are tied to a vertex on the mirror plane whose mirror is not unique are used for strength matching
+            if (body%cp(i)%is_mirror .and. body%cp(i)%tied_to_type == TT_VERTEX) then
+                if (.not. body%vertices(body%cp(i)%tied_to_index)%mirrored_is_unique) then
+
+                    call body%cp(i)%set_bc(STRENGTH_MATCHING)
+                    cycle ! That's all we need to do
+
                 end if
             end if
 
-            select case (body%cp(i)%cp_type)
+            select case (this%formulation)
 
-            ! Interior control points
-            case (INTERNAL)
+            case (D_MORINO)
+                call body%cp(i)%set_bc(ZERO_POTENTIAL)
 
-                select case (this%formulation)
+            case (D_SOURCE_FREE)
+                call body%cp(i)%set_bc(SF_POTENTIAL)
 
-                case (D_MORINO)
-                    call body%cp(i)%set_bc(ZERO_POTENTIAL)
-
-                case (D_SOURCE_FREE)
-                    call body%cp(i)%set_bc(SF_POTENTIAL)
-
-                case (N_MF_D)
-                    call body%cp(i)%set_bc(ZERO_NORMAL_MF, body%vertices(body%cp(i)%tied_to_index)%n_g)
-                    
-                end select
-
-            ! Exterior control points
-            case (EXTERNAL)
-
-            ! Surface control points
-            case (SURFACE)
-
-                ! Need to get correct normal vector
-                if (body%cp(i)%tied_to_type == TT_VERTEX) then
-                    if (body%cp(i)%is_mirror) then
-                        call body%cp(i)%set_bc(ZERO_NORMAL_MF, body%vertices(body%cp(i)%tied_to_index)%n_g_mir)
-                    else
-                        call body%cp(i)%set_bc(ZERO_NORMAL_MF, body%vertices(body%cp(i)%tied_to_index)%n_g)
-                    end if
-                else
-                    if (body%cp(i)%is_mirror) then
-                        call body%cp(i)%set_bc(ZERO_NORMAL_MF, body%panels(body%cp(i)%tied_to_index)%n_g_mir)
-                    else
-                        call body%cp(i)%set_bc(ZERO_NORMAL_MF, body%panels(body%cp(i)%tied_to_index)%n_g)
-                    end if
-                end if
+            case default
+                call this%init_cp_neumann_condition(body%cp(i), ZERO_NORMAL_MF, body)
             
             end select
 
@@ -1620,6 +1628,13 @@ contains
 
         ! Set b vector
         this%b = this%BC - this%I_known
+
+        !! Force arbitrary doublet constant
+        !if (this%formulation == N_MF_DS_LS) then
+        !    this%A(body%N_cp,:) = 0.
+        !    this%A(body%N_cp,this%N_d_unknown) = 1.
+        !    this%b(body%N_cp) = 0.
+        !end if
 
         ! Run checks
         if (run_checks) call this%check_system(solver_stat, body)

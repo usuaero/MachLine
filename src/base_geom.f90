@@ -16,6 +16,7 @@ module base_geom_mod
     integer,parameter :: ZERO_NORMAL_MF = 3
     integer,parameter :: STRENGTH_MATCHING = 4 
     integer,parameter :: ZERO_NORMAL_VEL = 5
+    integer,parameter :: ZERO_X_VEL = 6
 
     integer,parameter :: TT_VERTEX = 1
     integer,parameter :: TT_PANEL = 2

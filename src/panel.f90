@@ -3105,27 +3105,6 @@ contains
         v_d_mu_space(3,2) = int%H113_3rsh2H115*geom%P_ls(1) + int%H213 - 3.*int%rs*geom%h2*int%H215
         v_d_mu_space(3,3) = int%H113_3rsh2H115*geom%P_ls(2) + int%H123 - 3.*int%rs*geom%h2*int%H125
 
-        ! PAN AIR TESTING
-        !v_d_mu_space(1,1) = 0.0
-        !v_d_mu_space(1,2) = -int%hh113
-        !v_d_mu_space(1,3) = 0.0
-
-        !v_d_mu_space(2,1) = 0.0
-        !v_d_mu_space(2,2) = 0.0
-        !v_d_mu_space(2,3) = -int%hh113
-
-        !v_d_mu_space(3,1) = 0.0
-        !v_d_mu_space(3,2) = -sum(geom%v_xi*int%F111)
-        !v_d_mu_space(3,3) = -sum(geom%v_eta*int%F111)
-
-        !x2 = 0.5*geom%P_ls(1)
-        !y2 = 0.5*geom%P_ls(2)
-
-        !do i = 1,3
-            !v_d_mu_space(i,2) = v_d_mu_space(i,2) + geom%P_ls(1)*v_d_mu_space(i,1)
-            !v_d_mu_space(i,3) = v_d_mu_space(i,3) + geom%P_ls(2)*v_d_mu_space(i,1)
-        !end do
-
         if (this%order == 2) then
 
             ! Quadratic terms
@@ -3148,29 +3127,6 @@ contains
                                 + geom%P_ls(1)*(int%H123 - 3.*int%rs*geom%h2*int%H125) + int%H223 - 3.*int%rs*geom%h2*int%H225
             v_d_mu_space(3,6) = 0.5*(geom%P_ls(2)**2)*int%H113_3rsh2H115 + geom%P_ls(2)*(int%H123 - 3.*int%rs*geom%h2*int%H125) &
                                 + 0.5*(int%H133 - 3.*int%rs*geom%h*int%hH135)
-
-            !PAN AIR TESTING
-            !v_d_mu_space(1,4) = -2*geom%h*sum(geom%v_xi*int%F111)
-            !v_d_mu_space(1,5) = -geom%h*sum(geom%v_eta*int%F111)
-            !v_d_mu_space(1,6) = 0.0
-
-
-            !v_d_mu_space(2,4) = 0.0
-            !v_d_mu_space(2,5) = -geom%h*sum(geom%v_xi*int%F111)
-            !v_d_mu_space(2,6) = -2.0*geom%h*sum(geom%v_eta*int%F111)
-
-            !v_d_mu_space(3,4) = -2.0*(geom%h*int%hh113 - sum(geom%v_eta*int%F121))
-            !v_d_mu_space(3,5) = -2.0*sum(geom%v_xi*int%F121)
-            !v_d_mu_space(3,6) = -2.0*(sum(geom%v_eta*int%F121) + (-sum(geom%a*int%F111) + geom%h*int%hH113))
-
-            !do i = 1,3
-                !dvx = v_d_mu_space(i,2) - x2 * v_d_mu_space(i,1)
-                !v_d_mu_space(i,4) = 0.5*v_d_mu_space(i,4) + geom%P_ls(1)*dvx
-                !dvy = v_d_mu_space(i,3) - y2 * v_d_mu_space(i,1)
-                !v_d_mu_space(i,6) = 0.5*v_d_mu_space(i,6) + geom%P_ls(2)*dvy
-                !v_d_mu_space(i,5) = v_d_mu_space(i,5) + geom%P_ls(1)*dvy + geom%P_ls(2)*dvx
-
-            !end do
 
         end if 
             

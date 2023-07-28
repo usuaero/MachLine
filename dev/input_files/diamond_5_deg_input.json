@@ -13,6 +13,7 @@
     },
     "solver": {
         "formulation" : "neumann-doublet-source-mass-flux-ls",
+        "ormulation" : "morino",
         "control_point_offset" : 1.0e-7,
         "matrix_solver" : "GMRES",
         "run_checks" : true,
