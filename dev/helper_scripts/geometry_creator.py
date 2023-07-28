@@ -782,15 +782,15 @@ def generate_spindle(filename, N_ax, N_theta, l, r_of_x, r_l_ratio=None, cosine_
 
 if __name__=="__main__":
 
-    # Cone
-    angles = [2.5, 5.0, 10.0, 15.0]
-    N_transverses = [30, 60, 120]
-    N_thetas = [8, 16, 32, 48]
-    grids = ["coarse", "medium", "fine"]
-    for i, (angle, N_theta) in enumerate(zip(angles, N_thetas)):
-        h = 1.0/np.tan(np.radians(angle))
-        for N_transverse, tr_grid in zip(N_transverses, grids):
-            generate_full_cone('studies/supersonic_cone/meshes/cone_{0}_deg_{1}_improved_full.vtk'.format(int(angle), tr_grid), h, 1.0, N_transverse, N_theta)
+    ## Cone
+    #angles = [2.5, 5.0, 10.0, 15.0]
+    #N_transverses = [30, 60, 120]
+    #N_thetas = [8, 16, 32, 48]
+    #grids = ["coarse", "medium", "fine"]
+    #for i, (angle, N_theta) in enumerate(zip(angles, N_thetas)):
+    #    h = 1.0/np.tan(np.radians(angle))
+    #    for N_transverse, tr_grid in zip(N_transverses, grids):
+    #        generate_full_cone('studies/supersonic_cone/meshes/cone_{0}_deg_{1}_improved_full.vtk'.format(int(angle), tr_grid), h, 1.0, N_transverse, N_theta)
             #generate_regular_right_cone('studies/supersonic_cone/meshes/cone_{0}_deg_{1}_improved.vtk'.format(int(angle), tr_grid), h, 1.0, N_transverse, N_theta, close_base=False, equal_aspect=False)
     #h = 1.0/np.tan(np.radians(10.0))
     #generate_regular_right_cone('studies/supersonic_cone/meshes/cone_10_deg_medium_medium.vtk', h, 1.0, 40, 30, close_base=False, equal_aspect=False)

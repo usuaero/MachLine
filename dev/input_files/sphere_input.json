@@ -4,7 +4,7 @@
         "freestream_mach_number" : 0.0
     },
     "geometry" : {
-        "file" : "dev/meshes/sphere.vtk",
+        "file" : "dev/meshes/regular_sphere.vtk",
         "wake_model" : {
             "wake_present" : false
         },
@@ -14,10 +14,11 @@
         }
     },
     "solver" : {
-        "formulation" : "neumann-doublet-only-mass-flux",
+        "formulation" : "neumann-doublet-source-mass-flux-ls",
         "control_point_offset" : 1.0e-7,
         "matrix_solver" : "GMRES",
-        "block_size" : 500
+        "write_A_and_b" : true,
+        "iterative_solver_output" : "iterative_solver_prog.csv"
     },
     "post_processing" : {
         "pressure_rules" : {

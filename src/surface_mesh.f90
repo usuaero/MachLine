@@ -1975,15 +1975,18 @@ contains
     end function surface_mesh_get_clone_control_point_dir
 
 
-    subroutine surface_mesh_place_centroid_control_points(this, add_strength_matching, add_one_inside)
+    subroutine surface_mesh_place_centroid_control_points(this, add_strength_matching, add_one_inside, offset)
         ! Places control points on the surface of the mesh at panel centroids
         ! add_strength_matching sets whether extra control points should be placed at vertices on the mirror plane
         ! for the purpose of doublet strength matching
+        ! add_one_inside will place an extra control point just under the first panel
+        ! offset will specify whether the control points are to be placed a distance (offset) above the panel centroid
 
         implicit none
         
         class(surface_mesh),intent(inout) :: this
         logical,intent(in) :: add_strength_matching, add_one_inside
+        real,intent(in) :: offset
 
         integer :: i, N_strength_matching
 
@@ -2016,7 +2019,7 @@ contains
         do i=1,this%N_panels
             
             ! Initialize control point
-            call this%cp(i)%init(this%panels(i)%centr, SURFACE, TT_PANEL, i)
+            call this%cp(i)%init(this%panels(i)%centr + this%panels(i)%n_g*offset, SURFACE, TT_PANEL, i)
 
         end do
 

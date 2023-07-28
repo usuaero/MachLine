@@ -18,6 +18,7 @@ module panel_solver_mod
     character(len=*),parameter :: D_SOURCE_FREE = "source-free"
     character(len=*),parameter :: N_MF_D_LS = "neumann-doublet-only-mass-flux-ls"
     character(len=*),parameter :: N_MF_D = "neumann-doublet-only-mass-flux"
+    character(len=*),parameter :: N_MF_DS_LS = "neumann-doublet-source-mass-flux-ls"
 
 
     type panel_solver
@@ -25,7 +26,7 @@ module panel_solver_mod
         real :: M_inf_corr 
         character(len=:),allocatable :: formulation, pressure_for_forces, matrix_solver, preconditioner, iteration_file
         logical :: incompressible_rule, isentropic_rule, second_order_rule, slender_rule, linear_rule
-        logical :: write_A_and_b, sort_system, use_sort
+        logical :: write_A_and_b, sort_system, use_sort_for_cp, overdetermined_ls, underdetermined_ls
         logical :: compressible_correction, prandtl_glauert, karman_tsien, laitone
         type(dod),dimension(:,:),allocatable :: dod_info
         type(dod),dimension(:,:,:),allocatable :: wake_dod_info
@@ -123,7 +124,7 @@ contains
         ! Initialize based on formulation
         if (this%formulation == D_MORINO .or. this%formulation == D_SOURCE_FREE) then
             call this%init_dirichlet(solver_settings, body)
-        else if (this%formulation == N_MF_D_LS .or. this%formulation == N_MF_D) then
+        else if (this%formulation == N_MF_D_LS .or. this%formulation == N_MF_D .or. this%formulation == N_MF_DS_LS) then
             call this%init_neumann(solver_settings, body)
         else
             write(*,*) "!!! '", this%formulation, "' is not a valid formulation. Quitting..."
@@ -177,9 +178,18 @@ contains
         ! Special settings for the Neumann formulation
         if (this%formulation == N_MF_D_LS) then
             this%sort_system = .false.
-            this%use_sort = .false.
+            this%use_sort_for_cp = .false.
+            this%overdetermined_ls = .true.
+            this%underdetermined_ls = .false.
+        else if (this%formulation == N_MF_DS_LS) then
+            this%sort_system = .false.
+            this%use_sort_for_cp = .false.
+            this%underdetermined_ls = .true.
+            this%overdetermined_ls = .false.
         else
-            this%use_sort = .true.
+            this%use_sort_for_cp = .true.
+            this%overdetermined_ls = .false.
+            this%underdetermined_ls = .false.
         end if
 
         ! Whether to write the linear system to file
@@ -364,11 +374,14 @@ contains
         ! Place control points
         if (this%formulation == N_MF_D_LS) then
             if (verbose) write(*,'(a)',advance='no') "     Placing control points at panel centroids..."
-            call body%place_centroid_control_points(body%asym_flow, .false.)
+            call body%place_centroid_control_points(body%asym_flow, .false., 0.)
         else if (this%formulation == N_MF_D) then
             if (verbose) write(*,'(a)',advance='no') "     Placing control points near vertices..."
             call body%place_interior_control_points(offset, offset_type, this%freestream)
             !call body%place_centroid_vertex_avg_control_points(body%asym_flow, .false.)
+        else if (this%formulation == N_MF_DS_LS) then
+            if (verbose) write(*,'(a)',advance='no') "     Placing control points at panel centroids..."
+            call body%place_centroid_control_points(body%asym_flow, .false., offset)
         end if
 
         ! Sources
@@ -396,9 +409,15 @@ contains
         integer :: i
 
         ! Loop through panels
-        do i=1,body%N_panels
-            body%panels(i)%has_sources = (this%formulation == D_MORINO) .or. (body%panels(i)%r < 0.)
-        end do
+        if (this%formulation == D_MORINO .or. this%formulation == N_MF_DS_LS) then
+            do i=1,body%N_panels
+                body%panels(i)%has_sources = .true.
+            end do
+        else
+            do i=1,body%N_panels
+                body%panels(i)%has_sources = body%panels(i)%r < 0.
+            end do
+        end if
         
     end subroutine panel_solver_set_panel_sources
 
@@ -496,10 +515,29 @@ contains
             this%N_d_unknown = body%N_verts
         end if
 
-        ! The number of source unknowns is simply the number of superinclined panels
-        ! Not yet implemented
-        allocate(this%sigma_known(this%N_sigma), source=.true.)
-        this%N_s_unknown = 0
+        if (this%formulation == N_MF_DS_LS) then
+
+            ! All sources are unknown here
+            allocate(this%sigma_known(this%N_sigma), source=.false.)
+            this%N_s_unknown = this%N_sigma
+
+            ! Allocate vectors mapping unknown sigmas into the (unpermuted) linear system and back
+            allocate(this%i_sigma_in_sys(this%N_sigma))
+            allocate(this%i_sys_sigma_in_body(this%N_s_unknown))
+
+            ! Create mapping
+            do i=1,this%N_sigma
+                this%i_sigma_in_sys(i) = i + this%N_d_unknown
+                this%i_sys_sigma_in_body(i) = i
+            end do
+
+        else
+
+            ! The number of source unknowns is simply the number of superinclined panels
+            ! Not yet implemented
+            allocate(this%sigma_known(this%N_sigma), source=.true.)
+            this%N_s_unknown = 0
+        end if
 
         ! Total number of unknowns
         this%N_unknown = this%N_d_unknown + this%N_s_unknown
@@ -554,9 +592,6 @@ contains
 
             ! Exterior control points
             case (EXTERNAL)
-
-                write(*,*) "!!! MachLine cannot handle exterior control points. Quitting..."
-                stop
 
             ! Surface control points
             case (SURFACE)
@@ -720,7 +755,7 @@ contains
 
         real,dimension(:),allocatable :: x
         real,dimension(3) :: loc
-        integer :: i, j, k, i_neighbor, i_cp, i_vert, i_panel, i_vert_for_panel, i2, i3, i_panel_abutting, i_opp_edge
+        integer :: i, j, k, i_neighbor, i_cp, i_vert, i_panel, i_vert_for_panel, i2, i3, i_panel_abutting, i_opp_edge, source_start
         integer,dimension(:),allocatable :: P_inv_1, P_inv_2
         integer(8) :: start_count, end_count
         real(16) :: count_rate
@@ -942,22 +977,19 @@ contains
 
             ! Copy vertex ordering
             this%P(1:body%N_verts) = body%vertex_ordering
+            source_start = body%N_verts
+
+            ! For a mirrored, asymmetric condition, copy the vertex ordering again
+            if (body%asym_flow) then
+                this%P(body%N_verts+1:2*body%N_verts) = body%vertex_ordering + body%N_verts
+                source_start = 2*body%N_verts
+            end if
 
             ! Copy identity for unknown sources
-            do i=1,body%N_supinc
-                this%P(body%N_verts+i) = body%N_verts + i
+            do i=1,this%N_s_unknown
+                this%P(source_start + i) = source_start + i
             end do
 
-            if (body%asym_flow) then
-
-                ! For a mirrored, asymmetric condition, copy the vertex ordering again
-                this%P(body%N_verts+body%N_supinc+1:2*body%N_verts+body%N_supinc) = body%vertex_ordering + body%N_verts
-
-                ! Copy identity for unknown sources
-                do i=1,body%N_supinc
-                    this%P(2*body%N_verts+body%N_supinc+i) = 2*body%N_verts+body%N_supinc + i
-                end do
-            end if
             call system_clock(end_count)
 
         end if
@@ -1060,7 +1092,7 @@ contains
         do i=1,body%N_cp
 
             ! Get index
-            if (this%use_sort) then
+            if (this%use_sort_for_cp) then
                 ind = this%P(i)
             else
                 ind = i
@@ -1147,7 +1179,7 @@ contains
         integer :: k, index
 
         ! Add source influence depending whether the panel has sources
-        if (cp%bc == ZERO_POTENTIAL) then
+        if (body%panels(i_panel)%has_sources) then
 
             ! Loop through influencing panels
             do k=1,body%panels(i_panel)%S_dim
@@ -1331,7 +1363,7 @@ contains
             !$OMP critical
 
             ! Update A matrix and I_known
-            if (this%use_sort) then
+            if (this%use_sort_for_cp) then
                 this%A(this%P(i),:) = A_i
                 this%I_known(this%P(i)) = I_known_i
             else
@@ -1459,7 +1491,7 @@ contains
 
             ! Update row of A
             !$OMP critical
-            if (this%use_sort) then
+            if (this%use_sort_for_cp) then
                 this%A(this%P(i),:) = this%A(this%P(i),:) + A_i
             else
                 this%A(i,:) = this%A(i,:) + A_i
@@ -1502,7 +1534,7 @@ contains
         if (solver_stat /= 0) return
 
         ! Check for uninfluenced/ing points
-        if (this%use_sort) then
+        if (this%use_sort_for_cp) then
             do i=1,body%N_cp
                 if (all(this%A(this%P(i),:) == 0.)) then
                     write(*,*) "!!! Control point ", i, " is not influenced."
@@ -1579,8 +1611,8 @@ contains
         integer,intent(inout) :: solver_stat
 
         real,dimension(:,:),allocatable :: A_p
-        real,dimension(:),allocatable :: b_p, x
-        integer :: stat, i
+        real,dimension(:),allocatable :: b_p, x, x_temp
+        integer :: stat, i, N
         integer(8) :: start_count, end_count
         real(16) :: count_rate
 
@@ -1603,11 +1635,21 @@ contains
 
         ! Diagonal preconditioning
         case ('DIAG')
-            if (this%formulation == N_MF_D_LS) then
+
+            ! Overdetermined least-squares
+            if (this%overdetermined_ls) then
                 call system_clock(start_count, count_rate)
                 call diagonal_preconditioner(this%N_unknown, matmul(transpose(this%A), this%A), &
                                              matmul(transpose(this%A), this%b), A_p, b_p)
                 call system_clock(end_count)
+
+            ! Underdetermined least-squares
+            else if (this%underdetermined_ls) then
+                call system_clock(start_count, count_rate)
+                call diagonal_preconditioner(body%N_cp, matmul(this%A, transpose(this%A)), this%b, A_p, b_p)
+                call system_clock(end_count)
+
+            ! Standard
             else
                 call system_clock(start_count, count_rate)
                 call diagonal_preconditioner(this%N_unknown, this%A, this%b, A_p, b_p)
@@ -1616,13 +1658,26 @@ contains
 
         ! No preconditioning
         case default
-            if (this%formulation == N_MF_D_LS) then
+
+            ! Overdetermined least-squares
+            if (this%overdetermined_ls) then
                 call system_clock(start_count, count_rate)
                 allocate(A_p, source=matmul(transpose(this%A), this%A), stat=stat)
                 call check_allocation(stat, "solver copy of AIC matrix")
                 allocate(b_p, source=matmul(transpose(this%A), this%b), stat=stat)
                 call check_allocation(stat, "solver copy of b vector")
                 call system_clock(end_count)
+
+            ! Underdetermined least-squares
+            else if (this%underdetermined_ls) then
+                call system_clock(start_count, count_rate)
+                allocate(A_p, source=matmul(this%A, transpose(this%A)), stat=stat)
+                call check_allocation(stat, "solver copy of AIC matrix")
+                allocate(b_p, source=this%b, stat=stat)
+                call check_allocation(stat, "solver copy of b vector")
+                call system_clock(end_count)
+
+            ! Standard
             else
                 call system_clock(start_count, count_rate)
                 allocate(A_p, source=this%A, stat=stat)
@@ -1634,12 +1689,19 @@ contains
 
         end select
 
+        ! Determine size of system to be solved
+        if (this%underdetermined_ls) then
+            N = body%N_cp
+        else
+            N = this%N_unknown
+        end if
+
         ! Calculate how much time preconditioning took
         this%prec_time = real(end_count-start_count)/count_rate
 
         ! Check block size
         if (this%block_size <= 0) then
-            this%block_size = this%N_unknown / 5
+            this%block_size = N / 5
         end if
 
         ! Solve
@@ -1648,51 +1710,51 @@ contains
         ! LU decomposition
         case ('LU')
             call system_clock(start_count, count_rate)
-            call lu_solve(this%N_unknown, A_p, b_p, x)
+            call lu_solve(N, A_p, b_p, x)
             call system_clock(end_count)
 
         ! QR via Givens rotations for upper-pentagonal
         case ('QRUP')
             call system_clock(start_count, count_rate)
-            call QR_givens_solve_UP(this%N_unknown, A_p, b_p, x)
+            call QR_givens_solve_UP(N, A_p, b_p, x)
             call system_clock(end_count)
 
         ! QR via fast Givens rotations for upper-pentagonal
         case ('FQRUP')
             call system_clock(start_count, count_rate)
-            call QR_fast_givens_solve_upper_pentagonal(this%N_unknown, A_p, b_p, x)
+            call QR_fast_givens_solve_upper_pentagonal(N, A_p, b_p, x)
             call system_clock(end_count)
 
         ! GMRES
         case ('GMRES')
             call system_clock(start_count, count_rate)
-            call GMRES(this%N_unknown, A_p, b_p, this%tol, this%max_iterations, this%iteration_file, this%solver_iterations, x)
+            call GMRES(N, A_p, b_p, this%tol, this%max_iterations, this%iteration_file, this%solver_iterations, x)
             call system_clock(end_count)
 
         ! Restarted GMRES
         case ('RGMRES')
             call system_clock(start_count, count_rate)
-            call restarted_GMRES(this%N_unknown, A_p, b_p, this%tol, this%max_iterations, this%restart_iterations, &
+            call restarted_GMRES(N, A_p, b_p, this%tol, this%max_iterations, this%restart_iterations, &
                                  this%iteration_file, this%solver_iterations, x)
             call system_clock(end_count)
 
         ! Purcell's method
         case ('PURC')
             call system_clock(start_count, count_rate)
-            call purcell_solve(this%N_unknown, A_p, b_p, x)
+            call purcell_solve(N, A_p, b_p, x)
             call system_clock(end_count)
 
         ! Block symmetric successive over-relaxation
         case ('BSSOR')
             call system_clock(start_count, count_rate)
-            call block_ssor_solve(this%N_unknown, A_p, b_p, this%block_size, this%tol, this%rel, &
+            call block_ssor_solve(N, A_p, b_p, this%block_size, this%tol, this%rel, &
                                   this%max_iterations, this%iteration_file, this%solver_iterations, x)
             call system_clock(end_count)
         
         ! Block Jacobi
         case ('BJAC')
             call system_clock(start_count, count_rate)
-            call block_jacobi_solve(this%N_unknown, A_p, b_p, this%block_size, this%tol, this%rel, &
+            call block_jacobi_solve(N, A_p, b_p, this%block_size, this%tol, this%rel, &
                                     this%max_iterations, this%iteration_file, this%solver_iterations, x)
             call system_clock(end_count)
 
@@ -1700,7 +1762,7 @@ contains
         case default
             write(*,*) "!!! ", this%matrix_solver, " is not a valid solver option. Defaulting to GMRES."
             call system_clock(start_count, count_rate)
-            call GMRES(this%N_unknown, A_p, b_p, this%tol, this%max_iterations, this%iteration_file, this%solver_iterations, x)
+            call GMRES(N, A_p, b_p, this%tol, this%max_iterations, this%iteration_file, this%solver_iterations, x)
             call system_clock(end_count)
 
         end select
@@ -1712,6 +1774,12 @@ contains
         ! Clean up memory
         deallocate(A_p)
         deallocate(b_p)
+
+        ! Parse out underdetermined solution
+        if (this%underdetermined_ls) then
+            x_temp = matmul(transpose(this%A), x)
+            call move_alloc(x_temp, x)
+        end if
 
         ! Get residual vector
         body%R_cp = matmul(this%A, x) - this%b

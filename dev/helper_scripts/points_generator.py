@@ -4,14 +4,14 @@ if __name__=="__main__":
 
     # Limits
     x_max = 2.1
-    x_min = -0.1
+    x_min = -1.1
     y_max = 0.01
     y_min = 0.01
     z_max = 1.1
     z_min = -1.1
 
     # Number of points to distribute
-    Nx = 100
+    Nx = 150
     Ny = 1
     Nz = 100
 
