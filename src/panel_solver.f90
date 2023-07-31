@@ -337,7 +337,7 @@ contains
         end if
 
         ! Place control points inside the body
-        call body%place_cp_vertex_based_internal(offset, offset_type, this%freestream)
+        call body%place_internal_vertex_control_points(offset, offset_type, this%freestream)
 
         ! Set needed sources
         call this%set_panel_sources(body)
@@ -383,20 +383,21 @@ contains
         ! Place control points
         if (this%formulation == N_MF_D_LS) then
             if (verbose) write(*,'(a)',advance='no') "     Placing control points at panel centroids..."
-            call body%place_centroid_control_points(body%asym_flow, .false., 0.)
+            call body%place_centroid_control_points(.false., 0.)
 
         else if (this%formulation == N_V_D_LS) then
             if (verbose) write(*,'(a)',advance='no') "     Placing control points above panel centroids..."
-            call body%place_centroid_control_points(body%asym_flow, .false., offset)
+            call body%place_centroid_control_points(.false., offset)
 
         else if (this%formulation == N_MF_D) then
-            if (verbose) write(*,'(a)',advance='no') "     Placing control points near vertices..."
-            !call body%place_cp_vertex_based_internal(offset, offset_type, this%freestream)
-            call body%place_centroid_vertex_avg_control_points(body%asym_flow, .false.)
+            if (verbose) write(*,'(a)',advance='no') "     Placing control points above select panel centroids..."
+            call body%place_sparse_centroid_control_points(0.)
+            !call body%place_internal_vertex_control_points(offset, offset_type, this%freestream)
+            !call body%place_centroid_vertex_avg_control_points(.false.)
 
         else if (this%formulation == N_MF_DS_LS) then
             if (verbose) write(*,'(a)',advance='no') "     Placing control points above panel centroids..."
-            call body%place_centroid_control_points(body%asym_flow, .false., offset)
+            call body%place_centroid_control_points(.false., offset)
 
         end if
 

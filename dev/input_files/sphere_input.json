@@ -14,9 +14,9 @@
         }
     },
     "solver" : {
-        "formulation" : "neumann-doublet-only-velocity-ls",
+        "formulation" : "neumann-doublet-only-mass-flux",
         "control_point_offset" : 1.0e-7,
-        "matrix_solver" : "BJAC",
+        "matrix_solver" : "GMRES",
         "relaxation" : 1.0,
         "write_A_and_b" : true,
         "run_checks" : true,
@@ -30,7 +30,7 @@
     "output" : {
         "body_file" :          "dev/results/sphere.vtk",
         "control_point_file" : "dev/results/sphere_control_points.vtk",
-        "offbody_points" : {
+        "ffbody_points" : {
             "points_file" : "dev/input_files/sphere_offbody_points.csv",
             "output_file" : "dev/results/sphere_offbody_points.csv"
         },
