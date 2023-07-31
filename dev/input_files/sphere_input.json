@@ -14,11 +14,13 @@
         }
     },
     "solver" : {
-        "formulation" : "neumann-doublet-source-mass-flux-ls",
+        "formulation" : "neumann-doublet-only-velocity-ls",
         "control_point_offset" : 1.0e-7,
-        "matrix_solver" : "GMRES",
-        "write_A_and_b" : false,
-        "terative_solver_output" : "iterative_solver_prog.csv"
+        "matrix_solver" : "BJAC",
+        "relaxation" : 1.0,
+        "write_A_and_b" : true,
+        "run_checks" : true,
+        "iterative_solver_output" : "iterative_solver_prog.csv"
     },
     "post_processing" : {
         "pressure_rules" : {

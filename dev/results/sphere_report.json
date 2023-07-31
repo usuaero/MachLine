@@ -1,0 +1,87 @@
+{
+    "info" : {
+        "generated_by" : "MachLine (c) 2023 USU Aerolab",
+        "executed" : "Mon Jul 31 13:15:49 2023"
+    },
+    "mesh_info" : {
+        "N_body_panels" : 7200,
+        "N_body_vertices" : 3602,
+        "N_wake_panels" : 0,
+        "average_characteristic_length" : 4.02764861523927E-002,
+        "max_flow_turning_angle" : 9.00000000000000E+001
+    },
+    "solver_results" : {
+        "solver_status_code" : 0,
+        "system_dimension" : 3602,
+        "timing" : {
+            "system_sorting" : 2.89300000000000E-006,
+            "preconditioner" : 3.96149840240000E+001,
+            "matrix_solver" : 1.77884862020000E+001
+        },
+        "iterations" : 982,
+        "residual" : {
+            "max" : 1.09265350174329E-002,
+            "norm" : 5.12377363141016E-001
+        }
+    },
+    "pressure_calculations" : {
+        "incompressible_rule" : {
+            "max" : 9.95686123183701E-001,
+            "min" : -1.24100269881079E+000
+        }
+    },
+    "total_forces" : {
+        "Cx" : 2.62564428428019E-012,
+        "Cy" : 8.36899156014443E-015,
+        "Cz" : 6.53692362934241E-015
+    },
+    "total_moments" : {
+        "CMx" : 2.97218732671736E-018,
+        "CMy" : -5.53865998009244E-015,
+        "CMz" : 6.86215780108367E-015
+    },
+    "input" : {
+        "flow" : {
+            "freestream_velocity" : [
+                    1.00000000000000E+000,
+                    0.00000000000000E+000,
+                    0.00000000000000E+000
+                ],
+            "freestream_mach_number" : 0.00000000000000E+000
+        },
+        "geometry" : {
+            "file" : "dev/meshes/sphere.vtk",
+            "wake_model" : {
+                "wake_present" : false
+            },
+            "singularity_order" : "lower",
+            "reference" : {
+                "area" : 7.85398100000000E-001
+            }
+        },
+        "solver" : {
+            "formulation" : "neumann-doublet-only-velocity-ls",
+            "control_point_offset" : 1.00000000000000E-007,
+            "matrix_solver" : "BJAC",
+            "relaxation" : 1.00000000000000E+000,
+            "write_A_and_b" : true,
+            "run_checks" : true,
+            "iterative_solver_output" : "iterative_solver_prog.csv"
+        },
+        "post_processing" : {
+            "pressure_rules" : {
+                "incompressible" : true
+            }
+        },
+        "output" : {
+            "body_file" : "dev/results/sphere.vtk",
+            "control_point_file" : "dev/results/sphere_control_points.vtk",
+            "offbody_points" : {
+                "points_file" : "dev/input_files/sphere_offbody_points.csv",
+                "output_file" : "dev/results/sphere_offbody_points.csv"
+            },
+            "report_file" : "dev/results/sphere_report.json"
+        }
+    },
+    "total_runtime" : 1.48800000000000E+002
+}

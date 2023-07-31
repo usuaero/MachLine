@@ -12,9 +12,9 @@
         }
     },
     "solver": {
-        "formulation" : "neumann-doublet-source-mass-flux-ls",
+        "formulation" : "neumann-doublet-only-mass-flux-ls",
         "ormulation" : "morino",
-        "control_point_offset" : 1.0e-7,
+        "control_point_offset" : 1.0e-10,
         "matrix_solver" : "GMRES",
         "run_checks" : true,
         "write_A_and_b" : false
