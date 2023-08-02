@@ -87,13 +87,16 @@ module surface_mesh_mod
             ! Control point locations
             procedure :: get_cp_locs_vertex_based_interior => surface_mesh_get_cp_locs_vertex_based_interior
             procedure :: get_cp_locs_centroid_based => surface_mesh_get_cp_locs_centroid_based
-
-            ! Control points
-            procedure :: control_point_outside_mesh => surface_mesh_control_point_outside_mesh
-            procedure :: place_cp_vertex_based_internal => surface_mesh_place_cp_vertex_based_internal
             procedure :: get_clone_control_point_dir => surface_mesh_get_clone_control_point_dir
+
+            ! Control point placement
+            procedure :: place_internal_vertex_control_points => surface_mesh_place_internal_vertex_control_points
             procedure :: place_centroid_control_points => surface_mesh_place_centroid_control_points
+            procedure :: place_sparse_centroid_control_points => surface_mesh_place_sparse_centroid_control_points
             procedure :: place_centroid_vertex_avg_control_points => surface_mesh_place_centroid_vertex_avg_control_points
+
+            ! Control point checks
+            procedure :: control_point_outside_mesh => surface_mesh_control_point_outside_mesh
 
             ! Post-processing
             procedure :: get_induced_potentials_at_point => surface_mesh_get_induced_potentials_at_point
@@ -1811,7 +1814,7 @@ contains
     end function surface_mesh_control_point_outside_mesh
 
 
-    subroutine surface_mesh_place_cp_vertex_based_internal(this, offset, offset_type, freestream)
+    subroutine surface_mesh_place_internal_vertex_control_points(this, offset, offset_type, freestream)
 
         implicit none
 
@@ -1859,12 +1862,11 @@ contains
 
         end if
 
-    end subroutine surface_mesh_place_cp_vertex_based_internal
+    end subroutine surface_mesh_place_internal_vertex_control_points
 
 
-    subroutine surface_mesh_place_centroid_control_points(this, add_strength_matching, add_one_inside, offset)
+    subroutine surface_mesh_place_centroid_control_points(this, add_one_inside, offset)
         ! Places control points on the surface of the mesh at panel centroids
-        ! add_strength_matching sets whether extra control points should be placed at vertices on the mirror plane
         ! for the purpose of doublet strength matching
         ! add_one_inside will place an extra control point just under the first panel
         ! offset will specify whether the control points are to be placed a distance (offset) above the panel centroid
@@ -1872,7 +1874,7 @@ contains
         implicit none
         
         class(surface_mesh),intent(inout) :: this
-        logical,intent(in) :: add_strength_matching, add_one_inside
+        logical,intent(in) :: add_one_inside
         real,intent(in) :: offset
 
         integer :: i, N_strength_matching
@@ -1887,7 +1889,7 @@ contains
         if (add_one_inside) this%N_cp = this%N_cp + 1
 
         ! Count number of needed strength-matching points
-        if (add_strength_matching) then
+        if (this%asym_flow) then
 
             ! Count up vertices that will need strength matching
             N_strength_matching = 0
@@ -1934,7 +1936,7 @@ contains
         end if
 
         ! Add in strength matching
-        if (add_strength_matching) then
+        if (this%asym_flow) then
             do i=1,this%N_verts
                 if (this%vertices(i)%on_mirror_plane .and. .not. this%vertices(i)%mirrored_is_unique) then
                     call this%cp(this%N_cp-N_strength_matching+i)%init((/0., 0., 0./), SURFACE, TT_VERTEX, i)
@@ -1952,15 +1954,123 @@ contains
     end subroutine surface_mesh_place_centroid_control_points
 
 
-    subroutine surface_mesh_place_centroid_vertex_avg_control_points(this, add_strength_matching, add_one_inside)
+    subroutine surface_mesh_place_sparse_centroid_control_points(this, offset)
         ! Places control points on the surface of the mesh at panel centroids
-        ! add_strength_matching sets whether extra control points should be placed at vertices on the mirror plane
+        ! Will remove control points in a (hopefully) regular fashion to make as many control points as vertices
+        ! for the purpose of doublet strength matching
+        ! offset will specify whether the control points are to be placed a distance (offset) above the panel centroid
+
+        implicit none
+        
+        class(surface_mesh),intent(inout) :: this
+        real,intent(in) :: offset
+
+        integer :: i, N_strength_matching, N_orig_cp, i_cp, N_initialized
+        logical :: use_this_one
+        real,dimension(:,:),allocatable :: cp_locs
+
+        ! Specify number of control points we will start out with before sparsifying
+        if (this%asym_flow) then
+            N_orig_cp = this%N_panels*2
+        else
+            N_orig_cp = this%N_panels
+        end if
+
+        ! Count number of needed strength-matching points
+        if (this%asym_flow) then
+
+            ! Count up vertices that will need strength matching
+            N_strength_matching = 0
+            do i=1,this%N_verts
+                if (this%vertices(i)%on_mirror_plane .and. .not. this%vertices(i)%mirrored_is_unique) then
+                    N_strength_matching = N_strength_matching + 1
+                end if
+            end do
+            N_orig_cp = N_orig_cp + N_strength_matching
+        end if
+
+        ! Get centroid-based locations
+        cp_locs = this%get_cp_locs_centroid_based(offset)
+
+        ! Decide how many control points we actually need
+        if (this%asym_flow) then
+            this%N_cp = this%N_verts*2
+        else
+            this%N_cp = this%N_verts
+        end if
+
+        ! Allocate memory
+        allocate(this%cp(this%N_cp))
+
+        ! Initialize control points selectively
+        i_cp = 1
+        do i=1,this%N_panels
+
+            ! Check if we actually want this control point
+            use_this_one = .false.
+            if (this%asym_flow) then
+            else
+                if ((mod(i, 2) == 0) .or. (this%N_cp - i_cp == this%N_panels - i)) then
+                    use_this_one = .true.
+                end if
+            end if
+
+            ! If we want it, get it
+            if (use_this_one) then
+
+                ! Initialize
+                if (offset == 0.) then
+                    call this%cp(i_cp)%init(cp_locs(:,i), SURFACE, TT_PANEL, i)
+                else if (offset > 0.) then
+                    call this%cp(i_cp)%init(cp_locs(:,i), EXTERNAL, TT_PANEL, i)
+                else
+                    call this%cp(i_cp)%init(cp_locs(:,i), INTERNAL, TT_PANEL, i)
+                end if
+
+                ! Update index
+                i_cp = i_cp + 1
+
+            end if
+
+        end do
+
+        ! Initialize mirrored control points, if necessary
+        if (this%asym_flow) then
+
+            do i=1,this%N_panels
+
+                ! Initialize
+                call this%cp(i+this%N_panels)%init(mirror_across_plane(this%cp(i)%loc, this%mirror_plane), &
+                                                   this%cp(i)%cp_type, this%cp(i)%tied_to_type, this%cp(i)%tied_to_index)
+
+                ! Specify that this is a mirror
+                this%cp(i+this%N_panels)%is_mirror = .true.
+
+            end do
+
+        end if
+
+        ! Add in strength matching
+        if (this%asym_flow) then
+            do i=1,this%N_verts
+                if (this%vertices(i)%on_mirror_plane .and. .not. this%vertices(i)%mirrored_is_unique) then
+                    call this%cp(this%N_cp-N_strength_matching+i)%init((/0., 0., 0./), SURFACE, TT_VERTEX, i)
+                    call this%cp(this%N_cp-N_strength_matching+i)%set_bc(STRENGTH_MATCHING)
+                end if
+            end do
+        end if
+
+    end subroutine surface_mesh_place_sparse_centroid_control_points
+
+
+    subroutine surface_mesh_place_centroid_vertex_avg_control_points(this, add_one_inside)
+        ! Places control points on the surface of the mesh at panel centroids
         ! for the purpose of doublet strength matching
 
         implicit none
         
         class(surface_mesh),intent(inout) :: this
-        logical,intent(in) :: add_strength_matching, add_one_inside
+        logical,intent(in) :: add_one_inside
 
         integer :: i, N_strength_matching, i_panel
         real,dimension(3) :: loc
@@ -1974,7 +2084,7 @@ contains
         if (add_one_inside) this%N_cp = this%N_cp + 1
 
         ! Count number of needed strength-matching points
-        if (add_strength_matching) then
+        if (this%asym_flow) then
 
             ! Count up vertices that will need strength matching
             N_strength_matching = 0
@@ -2023,7 +2133,7 @@ contains
         end if
 
         ! Add in strength matching
-        if (add_strength_matching) then
+        if (this%asym_flow) then
             do i=1,this%N_verts
                 if (this%vertices(i)%on_mirror_plane .and. .not. this%vertices(i)%mirrored_is_unique) then
                     call this%cp(this%N_cp-N_strength_matching+i)%init((/0., 0., 0./), SURFACE, TT_VERTEX, i)

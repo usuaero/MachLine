@@ -17,6 +17,7 @@ module panel_solver_mod
     character(len=*),parameter :: D_MORINO = "morino"
     character(len=*),parameter :: D_SOURCE_FREE = "source-free"
     character(len=*),parameter :: N_MF_D_LS = "neumann-doublet-only-mass-flux-ls"
+    character(len=*),parameter :: N_V_D_LS = "neumann-doublet-only-velocity-ls"
     character(len=*),parameter :: N_MF_D = "neumann-doublet-only-mass-flux"
     character(len=*),parameter :: N_MF_DS_LS = "neumann-doublet-source-mass-flux-ls"
     character(len=*),parameter :: N_MF_D_IF = "neumann-mass-flux-inner-flow"
@@ -131,8 +132,8 @@ contains
         if (this%formulation == D_MORINO .or. this%formulation == D_SOURCE_FREE) then
             this%dirichlet = .true.
             call this%init_dirichlet(solver_settings, body)
-        else if (this%formulation == N_MF_D_LS .or. this%formulation == N_MF_D &
-                 .or. this%formulation == N_MF_DS_LS .or. this%formulation == N_MF_D_IF) then
+        else if (this%formulation == N_MF_D_LS .or. this%formulation == N_MF_D .or. this%formulation == N_MF_DS_LS &
+                 .or. this%formulation == N_V_D_LS .or. this%formulation == N_MF_D_IF) then
             this%dirichlet = .false.
             call this%init_neumann(solver_settings, body)
         else
@@ -185,7 +186,7 @@ contains
         this%solver_iterations = -1
 
         ! Special settings for the Neumann formulation
-        if (this%formulation == N_MF_D_LS) then
+        if (this%formulation == N_MF_D_LS .or. this%formulation == N_V_D_LS) then
             this%sort_system = .false.
             this%use_sort_for_cp = .false.
             this%overdetermined_ls = .true.
@@ -337,7 +338,7 @@ contains
         end if
 
         ! Place control points inside the body
-        call body%place_cp_vertex_based_internal(offset, offset_type, this%freestream)
+        call body%place_internal_vertex_control_points(offset, offset_type, this%freestream)
 
         ! Set needed sources
         call this%set_panel_sources(body)
@@ -383,16 +384,21 @@ contains
         ! Place control points
         if (this%formulation == N_MF_D_LS) then
             if (verbose) write(*,'(a)',advance='no') "     Placing control points at panel centroids..."
-            call body%place_centroid_control_points(body%asym_flow, .false., 1e-7)
+            call body%place_centroid_control_points(.false., 0.)
+
+        else if (this%formulation == N_V_D_LS) then
+            if (verbose) write(*,'(a)',advance='no') "     Placing control points above panel centroids..."
+            call body%place_centroid_control_points(.false., offset)
 
         else if (this%formulation == N_MF_D) then
-            if (verbose) write(*,'(a)',advance='no') "     Placing control points near vertices..."
-            !call body%place_cp_vertex_based_internal(offset, offset_type, this%freestream)
-            call body%place_centroid_vertex_avg_control_points(body%asym_flow, .false.)
+            if (verbose) write(*,'(a)',advance='no') "     Placing control points above select panel centroids..."
+            call body%place_sparse_centroid_control_points(0.)
+            !call body%place_internal_vertex_control_points(offset, offset_type, this%freestream)
+            !call body%place_centroid_vertex_avg_control_points(.false.)
 
         else if (this%formulation == N_MF_DS_LS) then
-            if (verbose) write(*,'(a)',advance='no') "     Placing control points at panel centroids..."
-            call body%place_centroid_control_points(body%asym_flow, .false., offset)
+            if (verbose) write(*,'(a)',advance='no') "     Placing control points above panel centroids..."
+            call body%place_centroid_control_points(.false., offset)
 
         else if (this%formulation == N_MF_D_IF) then
             if (verbose) write(*,'(a a a ES10.4 a)',advance='no') "     Placing control points control points using a ", &
@@ -626,6 +632,8 @@ contains
 
             case (N_MF_D_IF)
                 call this%init_cp_neumann_condition(body%cp(i), MF_INNER_FLOW, body)
+            case (N_V_D_LS)
+                call this%init_cp_neumann_condition(body%cp(i), ZERO_NORMAL_VEL, body)
 
             case default
                 call this%init_cp_neumann_condition(body%cp(i), ZERO_NORMAL_MF, body)
@@ -1124,13 +1132,17 @@ contains
             case (SF_POTENTIAL)
                 this%BC(ind) = -inner(x, body%cp(i)%loc)
 
-            ! Neumann (mass-flux)
+            ! Neumann (mass flux)
             case (ZERO_NORMAL_MF)
                 this%BC(ind) = -inner(body%cp(i)%n_g,this%freestream%c_hat_g)
 
             ! Neumann (mass-flux-inner-flow)
             case (MF_INNER_FLOW)
                 this%BC(ind) = -inner(x, body%cp(i)%loc)
+
+            ! Neumann (velocity)
+            case (ZERO_NORMAL_VEL)
+                this%BC(ind) = -inner(this%freestream%c_hat_g, body%cp(i)%n_g)
 
             ! All other cases
             ! 1: For Morino, desired BC is zero inner potential
@@ -1345,8 +1357,8 @@ contains
 
                 end do
 
-            case (MF_INNER_FLOW) ! Calculate inner mass flux influences
-                
+            case (ZERO_NORMAL_VEL) ! Calculate normal velocity influences
+
                 ! Loop through panels
                 do j=1,body%N_panels
 
@@ -1356,9 +1368,8 @@ contains
                         ! Calculate influence
                         call body%panels(j)%calc_velocity_influences(body%cp(i)%loc, this%freestream, this%dod_info(j,i), &
                                                                       .false., v_s, v_d)
-
-                        doublet_inf = matmul(body%cp(i)%loc, v_d)
-                        source_inf = 0.
+                        source_inf = matmul(body%cp(i)%n_g, v_s)
+                        doublet_inf = matmul(body%cp(i)%n_g, v_d)
 
                         ! Add influence
                         call this%update_system_row(body, body%cp(i), A_i, I_known_i, j, source_inf, doublet_inf, .false.)
@@ -1374,8 +1385,8 @@ contains
                             call body%panels(j)%calc_velocity_influences(body%cp(i)%loc, this%freestream, &
                                                                           this%dod_info(j+body%N_panels,i), &
                                                                           .true., v_s, v_d)
-                            doublet_inf = matmul(body%cp(i)%loc, v_d)
-                            source_inf = 0.
+                            source_inf = matmul(body%cp(i)%n_g, v_s)
+                            doublet_inf = matmul(body%cp(i)%n_g, v_d)
 
                             ! Add influence
                             call this%update_system_row(body, body%cp(i), A_i, I_known_i, j, &
@@ -1514,7 +1525,7 @@ contains
                     end do
                 end do
 
-            case (MF_INNER_FLOW) ! Calculate inner flow mass flux influences
+            case (ZERO_NORMAL_VEL) ! Calculate velocity flux influences
 
                 ! Initialize
                 A_i = 0.
@@ -1527,8 +1538,7 @@ contains
                         call body%wake%strips(j)%panels(l)%calc_velocity_influences(body%cp(i)%loc, this%freestream, &
                                                                                      this%wake_dod_info(l,j,i), &
                                                                                      .false., v_s, v_d)
-                        !doublet_inf = inner(body%cp(i)%n_g, v_d)
-                        doublet_inf = matmul(body%cp(i)%loc, v_d)
+                        doublet_inf = matmul(body%cp(i)%n_g, v_d)
 
                         ! Add influence
                         do k=1,size(body%wake%strips(j)%panels(l)%i_vert_d)
@@ -1543,8 +1553,7 @@ contains
                             call body%wake%strips(j)%panels(l)%calc_velocity_influences(body%cp(i)%loc, this%freestream, &
                                                                      this%wake_dod_info(l+body%wake%N_max_strip_panels,j,i), & ! No, this is not the DoD for this computation; yes, it is equivalent
                                                                      .true., v_s, v_d)
-                            !doublet_inf = inner(body%cp(i)%n_g, v_d)
-                            doublet_inf = matmul(body%cp(i)%loc, v_d)
+                            doublet_inf = matmul(body%cp(i)%n_g, v_d)
 
                             ! Add influence
                             do k=1,size(body%wake%strips(j)%panels(l)%i_vert_d)
@@ -1555,7 +1564,6 @@ contains
                         end if
                     end do
                 end do
-
 
             case default ! Calculate potential influences
 
