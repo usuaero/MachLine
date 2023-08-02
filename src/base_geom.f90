@@ -17,6 +17,7 @@ module base_geom_mod
     integer,parameter :: STRENGTH_MATCHING = 4 
     integer,parameter :: ZERO_NORMAL_VEL = 5
     integer,parameter :: ZERO_X_VEL = 6
+    integer,parameter :: MF_INNER_FLOW = 7
 
     integer,parameter :: TT_VERTEX = 1
     integer,parameter :: TT_PANEL = 2
@@ -554,9 +555,9 @@ contains
         this%bc = bc
 
         ! Get normal (if needed)
-        if (this%bc == ZERO_NORMAL_MF .or. this%bc == ZERO_NORMAL_VEL) then
+        if (this%bc == ZERO_NORMAL_MF .or. this%bc == ZERO_NORMAL_VEL .or. this%bc == MF_INNER_FLOW) then
             if (.not. present(n)) then
-                write(*,*) "!!! Associated normal vector is required for enforcing a zero-normal-mass-flux&
+                write(*,*) "!!! Associated normal vector is required for enforcing a zero-normal-mass-flux &
                             or velocity boundary condition."
                 stop
             else

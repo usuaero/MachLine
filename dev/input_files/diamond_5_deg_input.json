@@ -1,7 +1,7 @@
 {
     "flow": {
-        "freestream_velocity" : [ 100.0, 0.0, 0.0 ],
-        "freestream_mach_number" : 1.6
+        "freestream_velocity" : [ 100.0, 10.0, 0.0 ],
+        "freestream_mach_number" : 1.62
     },
     "geometry": {
         "file": "dev/meshes/diamond_5_deg_full_medium.stl",
@@ -12,12 +12,12 @@
         }
     },
     "solver": {
-        "formulation" : "neumann-doublet-source-mass-flux-ls",
+        "formulation" : "neumann-mass-flux-inner-flow",
         "ormulation" : "morino",
-        "control_point_offset" : 1.0e-7,
+        "control_point_offset" : 1.0e-2,
         "matrix_solver" : "GMRES",
         "run_checks" : true,
-        "write_A_and_b" : false
+        "write_A_and_b" : true
     },
     "post_processing" : {
     },

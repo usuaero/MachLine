@@ -817,3 +817,4 @@ if __name__=="__main__":
     #    return 0.2*x*(1.0-x)
     #generate_spindle('studies/supersonic_spindle/meshes/ehlers_spindle_ultra_coarse.vtk', 10, 10, 1.0, r_of_x, cosine_cluster=True)
     #generate_random_spindle("studies/supersonic_spindle/meshes/random_spindle_100.vtk", 100, 1.0, r_of_x)
+    pass

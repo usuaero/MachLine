@@ -19,6 +19,7 @@ module panel_solver_mod
     character(len=*),parameter :: N_MF_D_LS = "neumann-doublet-only-mass-flux-ls"
     character(len=*),parameter :: N_MF_D = "neumann-doublet-only-mass-flux"
     character(len=*),parameter :: N_MF_DS_LS = "neumann-doublet-source-mass-flux-ls"
+    character(len=*),parameter :: N_MF_D_IF = "neumann-mass-flux-inner-flow"
 
 
     type panel_solver
@@ -130,7 +131,8 @@ contains
         if (this%formulation == D_MORINO .or. this%formulation == D_SOURCE_FREE) then
             this%dirichlet = .true.
             call this%init_dirichlet(solver_settings, body)
-        else if (this%formulation == N_MF_D_LS .or. this%formulation == N_MF_D .or. this%formulation == N_MF_DS_LS) then
+        else if (this%formulation == N_MF_D_LS .or. this%formulation == N_MF_D &
+                 .or. this%formulation == N_MF_DS_LS .or. this%formulation == N_MF_D_IF) then
             this%dirichlet = .false.
             call this%init_neumann(solver_settings, body)
         else
@@ -381,7 +383,7 @@ contains
         ! Place control points
         if (this%formulation == N_MF_D_LS) then
             if (verbose) write(*,'(a)',advance='no') "     Placing control points at panel centroids..."
-            call body%place_centroid_control_points(body%asym_flow, .false., 0.)
+            call body%place_centroid_control_points(body%asym_flow, .false., 1e-7)
 
         else if (this%formulation == N_MF_D) then
             if (verbose) write(*,'(a)',advance='no') "     Placing control points near vertices..."
@@ -392,6 +394,10 @@ contains
             if (verbose) write(*,'(a)',advance='no') "     Placing control points at panel centroids..."
             call body%place_centroid_control_points(body%asym_flow, .false., offset)
 
+        else if (this%formulation == N_MF_D_IF) then
+            if (verbose) write(*,'(a a a ES10.4 a)',advance='no') "     Placing control points control points using a ", &
+                                offset_type," offset ratio of ", offset, "..."
+            call body%place_cp_vertex_based_internal(offset, offset_type, this%freestream)
         end if
 
         ! Sources
@@ -617,6 +623,9 @@ contains
 
             case (D_SOURCE_FREE)
                 call body%cp(i)%set_bc(SF_POTENTIAL)
+
+            case (N_MF_D_IF)
+                call this%init_cp_neumann_condition(body%cp(i), MF_INNER_FLOW, body)
 
             case default
                 call this%init_cp_neumann_condition(body%cp(i), ZERO_NORMAL_MF, body)
@@ -1117,7 +1126,11 @@ contains
 
             ! Neumann (mass-flux)
             case (ZERO_NORMAL_MF)
-                this%BC(ind) = -inner(this%freestream%c_hat_g, body%cp(i)%n_g)
+                this%BC(ind) = -inner(body%cp(i)%n_g,this%freestream%c_hat_g)
+
+            ! Neumann (mass-flux-inner-flow)
+            case (MF_INNER_FLOW)
+                this%BC(ind) = -inner(x, body%cp(i)%loc)
 
             ! All other cases
             ! 1: For Morino, desired BC is zero inner potential
@@ -1302,9 +1315,10 @@ contains
                         ! Calculate influence
                         call body%panels(j)%calc_velocity_influences(body%cp(i)%loc, this%freestream, this%dod_info(j,i), &
                                                                       .false., v_s, v_d)
-                        source_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_s))
+                        source_inf = matmul(body%cp(i)%n_g, v_s)
                         doublet_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_d))
-
+                        source_inf = 0.0
+                        
                         ! Add influence
                         call this%update_system_row(body, body%cp(i), A_i, I_known_i, j, source_inf, doublet_inf, .false.)
 
@@ -1321,6 +1335,47 @@ contains
                                                                           .true., v_s, v_d)
                             source_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_s))
                             doublet_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_d))
+
+                            ! Add influence
+                            call this%update_system_row(body, body%cp(i), A_i, I_known_i, j, &
+                                                        source_inf, doublet_inf, body%asym_flow)
+                        end if
+
+                    end if
+
+                end do
+
+            case (MF_INNER_FLOW) ! Calculate inner mass flux influences
+                
+                ! Loop through panels
+                do j=1,body%N_panels
+
+                    ! Influence of existing panel on control point
+                    if (this%dod_info(j,i)%in_dod) then
+
+                        ! Calculate influence
+                        call body%panels(j)%calc_velocity_influences(body%cp(i)%loc, this%freestream, this%dod_info(j,i), &
+                                                                      .false., v_s, v_d)
+
+                        doublet_inf = matmul(body%cp(i)%loc, v_d)
+                        source_inf = 0.
+
+                        ! Add influence
+                        call this%update_system_row(body, body%cp(i), A_i, I_known_i, j, source_inf, doublet_inf, .false.)
+
+                    end if
+
+                    if (body%mirrored) then
+
+                        ! Calculate influence of mirrored panel on control point
+                        if (this%dod_info(j+body%N_panels,i)%in_dod) then
+
+                            ! Calculate influence
+                            call body%panels(j)%calc_velocity_influences(body%cp(i)%loc, this%freestream, &
+                                                                          this%dod_info(j+body%N_panels,i), &
+                                                                          .true., v_s, v_d)
+                            doublet_inf = matmul(body%cp(i)%loc, v_d)
+                            source_inf = 0.
 
                             ! Add influence
                             call this%update_system_row(body, body%cp(i), A_i, I_known_i, j, &
@@ -1458,6 +1513,49 @@ contains
                         end if
                     end do
                 end do
+
+            case (MF_INNER_FLOW) ! Calculate inner flow mass flux influences
+
+                ! Initialize
+                A_i = 0.
+
+                ! Get doublet influence from wake strips
+                do j=1,body%wake%N_strips
+                    do l=1,body%wake%strips(j)%N_panels
+
+                        ! Caclulate influence of existing panel on control point
+                        call body%wake%strips(j)%panels(l)%calc_velocity_influences(body%cp(i)%loc, this%freestream, &
+                                                                                     this%wake_dod_info(l,j,i), &
+                                                                                     .false., v_s, v_d)
+                        !doublet_inf = inner(body%cp(i)%n_g, v_d)
+                        doublet_inf = matmul(body%cp(i)%loc, v_d)
+
+                        ! Add influence
+                        do k=1,size(body%wake%strips(j)%panels(l)%i_vert_d)
+                            A_i(this%P(body%wake%strips(j)%panels(l)%i_vert_d(k))) = &
+                                A_i(this%P(body%wake%strips(j)%panels(l)%i_vert_d(k))) + doublet_inf(k)
+                        end do
+
+                        ! Get influence of mirrored panel
+                        if (body%wake%strips(j)%mirrored) then
+
+                            ! Calculate influence of mirrored panel on control point
+                            call body%wake%strips(j)%panels(l)%calc_velocity_influences(body%cp(i)%loc, this%freestream, &
+                                                                     this%wake_dod_info(l+body%wake%N_max_strip_panels,j,i), & ! No, this is not the DoD for this computation; yes, it is equivalent
+                                                                     .true., v_s, v_d)
+                            !doublet_inf = inner(body%cp(i)%n_g, v_d)
+                            doublet_inf = matmul(body%cp(i)%loc, v_d)
+
+                            ! Add influence
+                            do k=1,size(body%wake%strips(j)%panels(l)%i_vert_d)
+                                A_i(this%P(body%wake%strips(j)%panels(l)%i_vert_d(k))) = &
+                                            A_i(this%P(body%wake%strips(j)%panels(l)%i_vert_d(k))) + doublet_inf(k)
+                            end do
+
+                        end if
+                    end do
+                end do
+
 
             case default ! Calculate potential influences
 

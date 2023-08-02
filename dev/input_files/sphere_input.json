@@ -14,8 +14,8 @@
         }
     },
     "solver" : {
-        "formulation" : "neumann-doublet-source-mass-flux-ls",
-        "control_point_offset" : 1.0e-7,
+        "formulation" : "neumann-mass-flux-inner-flow",
+        "control_point_offset" : 1.0e-5,
         "matrix_solver" : "GMRES",
         "write_A_and_b" : false,
         "terative_solver_output" : "iterative_solver_prog.csv"
