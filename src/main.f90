@@ -74,7 +74,7 @@ program main
         write(*,*) "        /          ____"
         write(*,*) "       /          /   /"
         write(*,*) "      /     MachLine (c) 2023 USU Aerolab"
-        write(*,*) "     /          /   /    v3.1"
+        write(*,*) "     /          /   /    v4.0"
         write(*,*) "    / _________/___/_______________"
         write(*,*) "   ( (__________________________"
         write(*,*) "    \          \   \"
