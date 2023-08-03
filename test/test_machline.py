@@ -127,7 +127,7 @@ def test_03_half_wing_lower_morino_asym_inc_flow():
         input_dict = json.load(input_handle)
 
     # Alter input
-    input_dict["solver"]["formulation"] = "morino"
+    input_dict["solver"]["formulation"] = "dirichlet-morino"
 
     # Write altered input
     altered_input_file = "test/input_files/altered_half_wing_input.json"
@@ -158,7 +158,7 @@ def test_04_half_wing_higher_morino_asym_inc_flow():
         input_dict = json.load(input_handle)
 
     # Alter input
-    input_dict["solver"]["formulation"] = "morino"
+    input_dict["solver"]["formulation"] = "dirichlet-morino"
     input_dict["geometry"]["singularity_order"] = "higher"
 
     # Write altered input
@@ -191,7 +191,7 @@ def test_05_half_wing_lower_morino_zero_aoa_zero_beta_inc():
 
     # Alter input
     input_dict["flow"]["freestream_velocity"] = [100.0, 0.0, 0.0]
-    input_dict["solver"]["formulation"] = "morino"
+    input_dict["solver"]["formulation"] = "dirichlet-morino"
 
     # Write altered input
     altered_input_file = "test/input_files/altered_half_wing_input.json"
@@ -223,7 +223,7 @@ def test_06_half_wing_higher_morino_zero_aoa_zero_beta_inc():
 
     # Alter input
     input_dict["flow"]["freestream_velocity"] = [100.0, 0.0, 0.0]
-    input_dict["solver"]["formulation"] = "morino"
+    input_dict["solver"]["formulation"] = "dirichlet-morino"
     input_dict["geometry"]["singularity_order"] = "higher"
 
     # Write altered input
@@ -302,7 +302,7 @@ def test_09_sphere_least_squares_inc():
     with open("test/input_files/sphere_input.json", 'r') as input_handle:
         input_dict = json.load(input_handle)
 
-    input_dict["solver"]["formulation"] = 'neumann-doublet-only-mass-flux-ls'
+    input_dict["solver"]["formulation"] = 'neumann-mass-flux'
 
     with open("test/input_files/altered_sphere_input.json", 'w') as input_handle:
         input_dict = json.dump(input_dict, input_handle, indent=4)
@@ -330,7 +330,7 @@ def test_10_full_half_wing_compare_lower_morino_zero_beta_inc():
         input_dict = json.load(full_wing_input_handle)
 
     input_dict["flow"]["freestream_velocity"] = [100.0, 0.0, 10.0]
-    input_dict["solver"]["formulation"] = 'morino'
+    input_dict["solver"]["formulation"] = 'dirichlet-morino'
 
     with open("test/input_files/altered_full_wing_input.json", 'w') as full_wing_input_handle:
         input_dict = json.dump(input_dict, full_wing_input_handle, indent=4)
@@ -343,7 +343,7 @@ def test_10_full_half_wing_compare_lower_morino_zero_beta_inc():
         input_dict = json.load(half_wing_input_handle)
 
     input_dict["flow"]["freestream_velocity"] = [100.0, 0.0, 10.0]
-    input_dict["solver"]["formulation"] = 'morino'
+    input_dict["solver"]["formulation"] = 'dirichlet-morino'
 
     with open("test/input_files/altered_half_wing_input.json", 'w') as half_wing_input_handle:
         input_dict = json.dump(input_dict, half_wing_input_handle, indent=4)
@@ -371,7 +371,7 @@ def test_11_full_half_wing_compare_higher_morino_zero_beta_inc():
         input_dict = json.load(full_wing_input_handle)
 
     input_dict["flow"]["freestream_velocity"] = [100.0, 0.0, 10.0]
-    input_dict["solver"]["formulation"] = 'morino'
+    input_dict["solver"]["formulation"] = 'dirichlet-morino'
     input_dict["geometry"]["singularity_order"] = "higher"
 
     with open("test/input_files/altered_full_wing_input.json", 'w') as full_wing_input_handle:
@@ -385,7 +385,7 @@ def test_11_full_half_wing_compare_higher_morino_zero_beta_inc():
         input_dict = json.load(half_wing_input_handle)
 
     input_dict["flow"]["freestream_velocity"] = [100.0, 0.0, 10.0]
-    input_dict["solver"]["formulation"] = 'morino'
+    input_dict["solver"]["formulation"] = 'dirichlet-morino'
     input_dict["geometry"]["singularity_order"] = "higher"
 
     with open("test/input_files/altered_half_wing_input.json", 'w') as half_wing_input_handle:
@@ -447,7 +447,7 @@ def test_14_supersonic_half_wing_lower_source_free_zero_aoa_zero_beta():
     with open("test/input_files/supersonic_half_wing_input.json", 'r') as input_handle:
         input_dict = json.load(input_handle)
 
-    input_dict["solver"]["formulation"] = 'source-free'
+    input_dict["solver"]["formulation"] = 'dirichlet-source-free'
 
     with open("test/input_files/altered_supersonic_input.json", 'w') as input_handle:
         input_dict = json.dump(input_dict, input_handle, indent=4)
@@ -498,7 +498,7 @@ def test_16_supersonic_half_wing_higher_source_free_zero_aoa_zero_beta():
     with open("test/input_files/supersonic_half_wing_input.json", 'r') as input_handle:
         input_dict = json.load(input_handle)
 
-    input_dict["solver"]["formulation"] = 'source-free'
+    input_dict["solver"]["formulation"] = 'dirichlet-source-free'
     input_dict["geometry"]["singularity_order"] = "higher"
 
     with open("test/input_files/altered_supersonic_input.json", 'w') as input_handle:
@@ -553,7 +553,7 @@ def test_18_supersonic_half_wing_source_free_allow_wake_sym_flow():
 
     input_dict["flow"]["freestream_velocity"] = [100.0, 0.0, 5.0]
     input_dict["geometry"]["wake_model"]["append_wake"] = True
-    input_dict["solver"]["formulation"] = "source-free"
+    input_dict["solver"]["formulation"] = "dirichlet-source-free"
 
     with open("test/input_files/altered_supersonic_input.json", 'w') as input_handle:
         input_dict = json.dump(input_dict, input_handle, indent=4)
@@ -612,7 +612,7 @@ def test_21_supersonic_full_wing_least_squares():
     with open("test/input_files/supersonic_full_wing_input.json", 'r') as input_handle:
         input_dict = json.load(input_handle)
 
-    input_dict["solver"]["formulation"] = "neumann-doublet-only-mass-flux-ls"
+    input_dict["solver"]["formulation"] = "neumann-mass-flux"
     input_dict["solver"]["matrix_solver"] = "GMRES"
 
     with open("test/input_files/altered_supersonic_input.json", 'w') as input_handle:
@@ -633,7 +633,6 @@ def test_21_supersonic_full_wing_least_squares():
     assert(abs(Cz - 0.431906841113295) < 1e-9)
     
 
-
 #def test_22_half_wing_lower_morino_asym_inc_flow_off_body():
 #    # Tests the half wing case with the morino formulation returns consistent off-body results
 #
@@ -649,7 +648,7 @@ def test_21_supersonic_full_wing_least_squares():
 #        pass
 #
 #    # Alter input
-#    input_dict["solver"]["formulation"] = "morino"
+#    input_dict["solver"]["formulation"] = "dirichlet-morino"
 #    input_dict["output"] = {
 #                                "offbody_points" : {
 #                                    "points_file" : "test/input_files/root_xz_sample_points.csv",
@@ -698,7 +697,7 @@ def test_21_supersonic_full_wing_least_squares():
 #
 #    # Alter input
 #    input_dict["flow"]["freestream_velocity"] = [100.0, 5.0, 5.0]
-#    input_dict["solver"]["formulation"] = "morino"
+#    input_dict["solver"]["formulation"] = "dirichlet-morino"
 #    input_dict["output"] = {
 #                                "offbody_points" : {
 #                                    "points_file" : "test/input_files/root_xz_sample_points.csv",

@@ -12,9 +12,9 @@
         }
     },
     "solver": {
-        "formulation" : "neumann-mass-flux-inner-flow",
+        "formulation" : "neumann-doublet-only-velocity-ls",
         "ormulation" : "morino",
-        "control_point_offset" : 1.0e-2,
+        "control_point_offset" : 1.0e-7,
         "matrix_solver" : "GMRES",
         "run_checks" : true,
         "write_A_and_b" : true

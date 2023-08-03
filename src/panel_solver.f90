@@ -14,13 +14,16 @@ module panel_solver_mod
     implicit none
 
 
-    character(len=*),parameter :: D_MORINO = "morino"
-    character(len=*),parameter :: D_SOURCE_FREE = "source-free"
-    character(len=*),parameter :: N_MF_D_LS = "neumann-doublet-only-mass-flux-ls"
-    character(len=*),parameter :: N_V_D_LS = "neumann-doublet-only-velocity-ls"
-    character(len=*),parameter :: N_MF_D = "neumann-doublet-only-mass-flux"
+    ! Actual
+    character(len=*),parameter :: D_MORINO = "dirichlet-morino"
+    character(len=*),parameter :: D_SOURCE_FREE = "dirichlet-source-free"
+    character(len=*),parameter :: N_MF_D_LS = "neumann-mass-flux"
+    character(len=*),parameter :: N_V_D_LS = "neumann-velocity"
+
+    ! Experimental
     character(len=*),parameter :: N_MF_DS_LS = "neumann-doublet-source-mass-flux-ls"
     character(len=*),parameter :: N_MF_D_IF = "neumann-mass-flux-inner-flow"
+    character(len=*),parameter :: N_MF_D = "neumann-doublet-only-mass-flux"
 
 
     type panel_solver
@@ -167,7 +170,7 @@ contains
         type(json_value),pointer, intent(in) :: solver_settings
         
         ! Get formulation
-        call json_xtnsn_get(solver_settings, 'formulation', this%formulation, 'morino')        
+        call json_xtnsn_get(solver_settings, 'formulation', this%formulation, 'dirichlet-morino')        
 
         ! Get matrix solver settings
         if (this%freestream%supersonic) then
