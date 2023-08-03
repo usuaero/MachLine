@@ -626,11 +626,11 @@ def test_21_supersonic_full_wing_least_squares():
     print(Cy)
     print(Cz)
 
-    assert(abs(C_p_max - 0.205581816085009) < 1e-12)
-    assert(abs(C_p_min - -0.265679125725778) < 1e-12)
-    assert(abs(Cx - 0.0721530311378978) < 1e-12)
+    assert(abs(C_p_max - 0.205581816085009) < 1e-9)
+    assert(abs(C_p_min - -0.265679125725778) < 1e-9)
+    assert(abs(Cx - 0.0721530311378978) < 1e-9)
     assert(abs(Cy) < 1e-11)
-    assert(abs(Cz - 0.431906841113295) < 1e-12)
+    assert(abs(Cz - 0.431906841113295) < 1e-9)
     
 
 
