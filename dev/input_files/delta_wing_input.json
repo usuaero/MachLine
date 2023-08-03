@@ -4,7 +4,7 @@
         "freestream_mach_number" : 1.62
     },
     "geometry": {
-        "file": "dev/meshes/tapered_thin_trailing_edge_wing.vtk",
+        "file": "dev/meshes/delta_wing_clustered_mesh_medium.vtk",
         "singularity_order" : "lower",
         "wake_model" : {
             "wake_present" : true,
