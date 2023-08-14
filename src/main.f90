@@ -13,6 +13,7 @@ program main
     character(len=:),allocatable :: body_file, wake_file, control_point_file, points_file, points_output_file
     character(len=:),allocatable :: mirrored_body_file
     character(len=:),allocatable :: report_file, spanwise_axis
+    character(len=:),allocatable :: formulation
 
     type(json_file) :: input_json
     type(json_value),pointer :: flow_settings, &
@@ -109,7 +110,7 @@ program main
         write(*,*)
         write(*,*) "Initializing based on flow properties"
     end if
-    
+
     ! Get result files
     call json_xtnsn_get(output_settings, 'body_file', body_file, 'none')
     call json_xtnsn_get(output_settings, 'wake_file', wake_file, 'none')
@@ -118,8 +119,12 @@ program main
     call json_xtnsn_get(output_settings, 'offbody_points.points_file', points_file, 'none')
     call json_xtnsn_get(output_settings, 'offbody_points.output_file', points_output_file, 'none')
 
+    !!!!!!!!!!!!!!!!!!!!!! WAKE_DEV !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    ! Get formulation type                                                  !
+    call json_xtnsn_get(solver_settings, 'formulation', formulation, 'none')!
+    !!!!!!!!!!!!!!!!!!!!!!! END_WAKE_DEV !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! Perform flow-dependent initialization on the surface mesh
-    call body_mesh%init_with_flow(freestream_flow, body_file, wake_file)
+    call body_mesh%init_with_flow(freestream_flow, body_file, wake_file, formulation)
 
     ! Initialize panel solver
     call linear_solver%init(solver_settings, processing_settings, body_mesh, freestream_flow, control_point_file)

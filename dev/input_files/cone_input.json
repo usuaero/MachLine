@@ -16,7 +16,7 @@
         }
     },
     "solver" : {
-        "formulation" : "source-free",
+        "formulation" : "neumann-mass-flux",
         "matrix_solver" : "GMRES"
     },
     "post_processing" : {

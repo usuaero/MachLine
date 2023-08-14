@@ -4,16 +4,18 @@
         "freestream_mach_number" : 1.62
     },
     "geometry": {
-        "file": "dev/meshes/delta_wing_clustered_mesh_medium.vtk",
+        "file": "dev/meshes/delta_wing_clustered_mesh_coarse.vtk",
         "singularity_order" : "lower",
         "wake_model" : {
             "wake_present" : true,
-            "append_wake" : false,
-            "trefftz_distance" : 20.0
+            "append_wake" : true,
+            "trefftz_distance" : 20.0,
+            "wake_type": "filaments"
+
         }
     },
     "solver": {
-        "formulation" : "neumann-mass-flux-inner-flow",
+        "formulation" : "neumann-mass-flux",
         "ormulation" : "morino",
         "matrix_solver" : "GMRES",
         "write_A_and_b" : true

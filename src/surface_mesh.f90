@@ -12,6 +12,7 @@ module surface_mesh_mod
     use flow_mod
     use math_mod
     use wake_mesh_mod
+    use filament_wake_mesh_mod
     use sort_mod
     use helpers_mod
 
@@ -24,6 +25,7 @@ module surface_mesh_mod
         integer :: N_subinc, N_supinc
         type(edge),allocatable,dimension(:) :: edges
         type(wake_mesh) :: wake
+        type(filament_wake_mesh) :: filament_wake !!!!!!!!!!!!!!!!!! could change nomenclature !!!!!!!!!!!!!!!!
         real :: C_wake_shedding_angle, trefftz_distance, C_min_panel_angle, C_max_cont_angle
         real,dimension(:),allocatable :: CG
         integer :: N_wake_panels_streamwise
@@ -42,6 +44,8 @@ module surface_mesh_mod
         integer,dimension(:),allocatable :: vertex_ordering
         integer :: initial_panel_order ! Distribution order for the panels (initially)
         character(len=:),allocatable :: singularity_order
+        character(len=:),allocatable :: wake_type 
+
 
         contains
 
@@ -81,6 +85,9 @@ module surface_mesh_mod
 
             ! Wake stuff
             procedure :: init_wake => surface_mesh_init_wake
+            !!!!!!!!!!!!!!!!!!!!! Wake_Dev !!!!!!!!!!!!!!!!!!!!
+            procedure :: wake_has_filaments => surface_mesh_wake_has_filaments
+            !!!!!!!!!!!!!!!!!!!!! END_Wake_Dev !!!!!!!!!!!!!!!!!!!!
             procedure :: update_supersonic_trefftz_distance => surface_mesh_update_supersonic_trefftz_distance
             procedure :: update_subsonic_trefftz_distance => surface_mesh_update_subsonic_trefftz_distance
 
@@ -306,6 +313,7 @@ contains
         ! Check if the user wants a wake
         call json_xtnsn_get(settings, 'wake_model.wake_present', this%wake_present, .true.)
         call json_xtnsn_get(settings, 'wake_model.append_wake', this%append_wake, this%wake_present)
+        call json_xtnsn_get(settings, 'wake_model.wake_type', this%wake_type, "panels")
 
         ! Check that we're not trying to append a wake which is not present
         if (.not. this%wake_present .and. this%append_wake) then
@@ -680,13 +688,13 @@ contains
     end function surface_mesh_get_avg_characteristic_panel_length
 
 
-    subroutine surface_mesh_init_with_flow(this, freestream, body_file, wake_file)
-
+    subroutine surface_mesh_init_with_flow(this, freestream, body_file, wake_file, formulation)
         implicit none
 
         class(surface_mesh),intent(inout) :: this
         type(flow),intent(in) :: freestream
         character(len=:),allocatable,intent(in) :: body_file, wake_file
+        character(len=:),allocatable,intent(in) :: formulation
 
         integer :: i
 
@@ -734,8 +742,8 @@ contains
             this%vertices(i)%convex = this%is_convex_at_vertex(i)
         end do
 
-        ! Initialize wake
-        call this%init_wake(freestream, wake_file)
+        ! Initialize wake !!!!!!!!!!!!!!!!!!!!!!!!!!!! make changes here
+        call this%init_wake(freestream, wake_file, formulation)
 
         ! Set up panel distributions
         if (verbose) write(*,"(a)",advance='no') "     Setting up panel singularity distributions..."
@@ -1274,7 +1282,25 @@ contains
     end subroutine surface_mesh_init_vertex_clone
 
 
-    subroutine surface_mesh_init_wake(this, freestream, wake_file)
+    function surface_mesh_wake_has_filaments(this, formulation) result(has)
+        ! Returns true or false based on user wake type input.
+        implicit none
+
+        class(surface_mesh),intent(in) :: this
+        character(len=:),allocatable,intent(in) :: formulation
+        logical :: has 
+        if (this%wake_type == "filaments" .and. formulation == "neumann-mass-flux" &
+         .and. this%wake_present .and. this%append_wake  &
+         .or. this%wake_type == "filaments" .and. formulation == "neumann-velocity" & 
+         .and. this%wake_present .and. this%append_wake)  then
+            has = .true. 
+        else
+            has = .false.
+        end if 
+    end function surface_mesh_wake_has_filaments
+
+
+    subroutine surface_mesh_init_wake(this, freestream, wake_file, formulation)
         ! Handles wake initialization
 
         implicit none
@@ -1282,8 +1308,17 @@ contains
         class(surface_mesh),intent(inout) :: this
         type(flow),intent(in) :: freestream
         character(len=:),allocatable,intent(in) :: wake_file
+        character(len=:),allocatable,intent(in) :: formulation
 
         logical :: dummy
+
+        write(*,*) 
+        write(*,*) "Wake Type:", this%wake_type
+        write(*,*) 
+
+        write(*,*) 
+        write(*,*) "Formulation:", formulation
+        write(*,*) 
 
         if (this%append_wake .and. this%found_wake_edges) then
 
@@ -1301,11 +1336,31 @@ contains
                 end if
             end if
 
-            ! Initialize wake
-            call this%wake%init(this%edges, this%vertices, freestream, this%asym_flow, this%mirror_plane, &
-                                this%N_wake_panels_streamwise, this%trefftz_distance, this%mirrored, this%initial_panel_order, &
-                                this%N_panels)
-        
+            ! Initialize wake  
+            if (this%wake_type == "panels") then 
+                call this%wake%init(this%edges, this%vertices, freestream, this%asym_flow, this%mirror_plane, & ! wake is referring to wake_mesh type in the wake_mesh mod.
+                                    this%N_wake_panels_streamwise, this%trefftz_distance, this%mirrored, this%initial_panel_order, &
+                                    this%N_panels)
+            !!!!!!!!!!!!!!!!!!!!!!! Wake_DEV !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            else if (this%wake_has_filaments(formulation))  then                                                                           !
+                write(*,*)                                                                                                            !
+                write(*,*) "WARNING: FILAMENT WAKE NOT YET FUNCTIONAL. FOR THIS REASON, INITIALIZING PANEL WAKE"                      !
+                write(*,*)                                                                                                            !
+                call this%wake%init(this%edges, this%vertices, freestream, this%asym_flow, this%mirror_plane, &                       !
+                                    this%N_wake_panels_streamwise, this%trefftz_distance, this%mirrored, this%initial_panel_order, &  !
+                                    this%N_panels)                                                                                    !
+                ! NEED TO CALL this%filament_wake%init if (this%wake_has_filaments(formulation))                                           !                                     
+            else                                                                                                                      !
+                write(*,*)                                                                                                            !
+                write(*,*) "wake_type needs to be panels or filaments, and if wake_type", &                                           !
+                            "is filaments, formulation has to be neumann-mass-flux or neumann-velocity"                               !
+                write(*,*)                                                                                                            !
+                call this%wake%init(this%edges, this%vertices, freestream, this%asym_flow, this%mirror_plane, &                       !
+                                    this%N_wake_panels_streamwise, this%trefftz_distance, this%mirrored, this%initial_panel_order, &  !
+                                    this%N_panels)                                                                                    !
+            end if                                                                                                                    !
+            !!!!!!!!!!!!!!!!!!!!!!! END_WAKE_DEV !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
             ! Export wake geometry
             if (wake_file /= 'none') then
                 call this%wake%write_strips(wake_file, dummy)
@@ -2431,7 +2486,7 @@ contains
 
         end do
 
-        ! Loop through wake panels
+        ! Loop through wake panels !!!!!!!!!!!!!!!!!!!!!! include if statement to instead solve filament influence if there are wake filaments
         do j=1,this%wake%N_strips
             do k=1,this%wake%strips(j)%N_panels
 
