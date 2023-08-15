@@ -3153,7 +3153,7 @@ contains
 
 
     subroutine panel_calc_velocity_influences(this, P, freestream, dod_info, mirror_panel, v_s_S_space, v_d_M_space)
-        ! Calculates the source- and doublet-induced potentials at the given point P
+        ! Calculates the source- and doublet-induced velocity influences at the given point P
 
         implicit none
 
@@ -3211,7 +3211,7 @@ contains
 
     subroutine panel_calc_velocities(this, P, freestream, dod_info, mirror_panel, sigma, mu, &
                                      N_body_panels, N_body_verts, asym_flow, v_s, v_d)
-        ! Calculates the potentials induced at the given point
+        ! Calculates the velocity induced at the given point
 
         implicit none
         
