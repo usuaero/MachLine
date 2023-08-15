@@ -735,8 +735,8 @@ if __name__ == '__main__':
     mirror_xy = True # Mirrors body across xy plane
 
     # Initialize number of nodes in chord and spanwize directions
-    cw_nodes = 20 # Number of nodes along the upper surface ### Mesh density study using 25, 50, and 100 nodes
-    sw_nodes = 35 # Number of nodes along the semispan ### Mesh density study using 25, 50, and 100 nodes
+    cw_nodes = 40 # Number of nodes along the upper surface ### Mesh density study using 25, 50, and 100 nodes
+    sw_nodes = 40 # Number of nodes along the semispan ### Mesh density study using 25, 50, and 100 nodes
     cluster_cw = True
     cluster_sw = False
 
