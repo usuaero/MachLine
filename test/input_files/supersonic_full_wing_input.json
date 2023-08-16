@@ -7,10 +7,6 @@
     "geometry": {
         "file": "test/meshes/diamond_full_wing.stl",
         "spanwise_axis" : "+y",
-        "singularity_order" : {
-            "source" : 0,
-            "doublet" : 1
-        },
         "wake_model" : {
             "trefftz_distance" : 20.0
         },

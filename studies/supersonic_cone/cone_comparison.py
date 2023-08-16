@@ -5,7 +5,7 @@ from studies.case_running_functions import run_quad, write_input_file, cases, li
 from studies.paraview_functions import extract_all_data, get_data_column_from_array
 
 
-RERUN_MACHLINE = False
+RERUN_MACHLINE = True
 study_dir = "studies/supersonic_cone/"
 plot_dir = study_dir + "plots/"
 
@@ -18,7 +18,9 @@ def run_comparison(M, grid, half_angle):
 
     # Storage locations
     case_name = "M_{0}_{1}_deg_{2}".format(M, int(half_angle), grid)
+    #mesh_file = study_dir + "meshes/cone_{0}_deg_{1}_improved_full.vtk".format(int(half_angle), grid)
     mesh_file = study_dir + "meshes/cone_{0}_deg_{1}_improved.vtk".format(int(half_angle), grid)
+    #mesh_file = study_dir + "meshes/cone_{0}_deg_{1}.vtk".format(int(half_angle), grid)
     body_file = study_dir + "results/"+case_name+".vtk"
     report_file = study_dir + "reports/"+case_name+".json"
 
@@ -33,6 +35,7 @@ def run_comparison(M, grid, half_angle):
             "file": mesh_file,
             "spanwise_axis" : "+z",
             "mirror_about" : "xy",
+            "max_continuity_angle" : 45.0,
             "wake_model": {
                 "append_wake" : False,
             },
@@ -209,19 +212,38 @@ if __name__=="__main__":
     #print("    Linear: ", std_max_lin)
     #print("    Slender-body: ", std_max_sln)
 
+    # Plot convergence
+    for k, half_angle in enumerate(half_angles):
+        for j, M in enumerate(Ms):
+
+            # Calculate error
+            err = np.abs((C_p_ise_avg[:-1,j,k,:] - C_p_ise_avg[-1,j,k,:])/C_p_ise_avg[-1,j,k,:])
+
+            plt.figure()
+            for i, case in enumerate(cases):
+                print(err[:,i])
+                plt.plot(t[:-1,j,k,i], err[:,i], line_styles[i], label=case)
+            plt.xlabel("Run Time $[s]$")
+            plt.ylabel("Fractional Error in $C_{P_{ise}}$")
+            plt.xscale('log')
+            plt.yscale('log')
+            plt.savefig(plot_dir + "accuracy_vs_time_{0}_M_{1}.pdf".format(int(half_angle), M))
+            plt.savefig(plot_dir + "accuracy_vs_time_{0}_M_{1}.svg".format(int(half_angle), M))
+            plt.close()
+
     ## Plot convergence
     #plt.figure()
     #for k, half_angle in enumerate(half_angles):
     #    if k==1:
-    #        plt.plot(Ms, C_p_ise_avg[0,:,k], mfc='w', marker='o', ls='', mec='k', markersize=10, label='Coarse')
-    #        plt.plot(Ms, C_p_ise_avg[1,:,k], mfc='w', marker='o', ls='', mec='k', markersize=7, label='Medium')
-    #        plt.plot(Ms, C_p_ise_avg[2,:,k], mfc='w', marker='o', ls='', mec='k', markersize=4, label='Fine')
+    #        plt.plot(Ms, C_p_ise_avg[0,:,k], mfc='none', marker='o', ls='', mec='k', markersize=10, label='Coarse')
+    #        plt.plot(Ms, C_p_ise_avg[1,:,k], mfc='none', marker='o', ls='', mec='k', markersize=7, label='Medium')
+    #        plt.plot(Ms, C_p_ise_avg[2,:,k], mfc='none', marker='o', ls='', mec='k', markersize=4, label='Fine')
     #    else:
-    #        plt.plot(Ms, C_p_ise_avg[0,:,k], mfc='w', marker='o', ls='', mec='k', markersize=10)
-    #        plt.plot(Ms, C_p_ise_avg[1,:,k], mfc='w', marker='o', ls='', mec='k', markersize=7)
-    #        plt.plot(Ms, C_p_ise_avg[2,:,k], mfc='w', marker='o', ls='', mec='k', markersize=4)
+    #        plt.plot(Ms, C_p_ise_avg[0,:,k], mfc='none', marker='o', ls='', mec='k', markersize=10)
+    #        plt.plot(Ms, C_p_ise_avg[1,:,k], mfc='none', marker='o', ls='', mec='k', markersize=7)
+    #        plt.plot(Ms, C_p_ise_avg[2,:,k], mfc='none', marker='o', ls='', mec='k', markersize=4)
     #plt.xlabel("$M_\infty$")
-    #plt.ylabel("$C_p$")
+    #plt.ylabel("$C_P$")
     #plt.ylim(bottom=0.0)
     #plt.legend(fontsize=6, title_fontsize=6)
     #plt.savefig("studies/supersonic_cone_flow_study/plots/C_p_ise_convergence.pdf")
@@ -229,15 +251,15 @@ if __name__=="__main__":
     #plt.figure()
     #for k, half_angle in enumerate(half_angles):
     #    if k==1:
-    #        plt.plot(Ms, C_p_2nd_avg[0,:,k], mfc='w', marker='o', ls='', mec='k', markersize=10, label='Coarse')
-    #        plt.plot(Ms, C_p_2nd_avg[1,:,k], mfc='w', marker='o', ls='', mec='k', markersize=5, label='Medium')
-    #        plt.plot(Ms, C_p_2nd_avg[2,:,k], mfc='w', marker='o', ls='', mec='k', markersize=3, label='Fine')
+    #        plt.plot(Ms, C_p_2nd_avg[0,:,k], mfc='none', marker='o', ls='', mec='k', markersize=10, label='Coarse')
+    #        plt.plot(Ms, C_p_2nd_avg[1,:,k], mfc='none', marker='o', ls='', mec='k', markersize=5, label='Medium')
+    #        plt.plot(Ms, C_p_2nd_avg[2,:,k], mfc='none', marker='o', ls='', mec='k', markersize=3, label='Fine')
     #    else:
-    #        plt.plot(Ms, C_p_2nd_avg[0,:,k], mfc='w', marker='o', ls='', mec='k', markersize=10)
-    #        plt.plot(Ms, C_p_2nd_avg[1,:,k], mfc='w', marker='o', ls='', mec='k', markersize=5)
-    #        plt.plot(Ms, C_p_2nd_avg[2,:,k], mfc='w', marker='o', ls='', mec='k', markersize=3)
+    #        plt.plot(Ms, C_p_2nd_avg[0,:,k], mfc='none', marker='o', ls='', mec='k', markersize=10)
+    #        plt.plot(Ms, C_p_2nd_avg[1,:,k], mfc='none', marker='o', ls='', mec='k', markersize=5)
+    #        plt.plot(Ms, C_p_2nd_avg[2,:,k], mfc='none', marker='o', ls='', mec='k', markersize=3)
     #plt.xlabel("$M_\infty$")
-    #plt.ylabel("$C_p$")
+    #plt.ylabel("$C_P$")
     #plt.ylim(bottom=0.0)
     #plt.legend(fontsize=6, title_fontsize=6)
     #plt.savefig("studies/supersonic_cone_flow_study/plots/C_p_2nd_convergence.pdf")
@@ -245,15 +267,15 @@ if __name__=="__main__":
     #plt.figure()
     #for k, half_angle in enumerate(half_angles):
     #    if k==1:
-    #        plt.plot(Ms, C_p_sln_avg[0,:,k], mfc='w', marker='o', ls='', mec='k', markersize=10, label='Coarse')
-    #        plt.plot(Ms, C_p_sln_avg[1,:,k], mfc='w', marker='o', ls='', mec='k', markersize=5, label='Medium')
-    #        plt.plot(Ms, C_p_sln_avg[2,:,k], mfc='w', marker='o', ls='', mec='k', markersize=3, label='Fine')
+    #        plt.plot(Ms, C_p_sln_avg[0,:,k], mfc='none', marker='o', ls='', mec='k', markersize=10, label='Coarse')
+    #        plt.plot(Ms, C_p_sln_avg[1,:,k], mfc='none', marker='o', ls='', mec='k', markersize=5, label='Medium')
+    #        plt.plot(Ms, C_p_sln_avg[2,:,k], mfc='none', marker='o', ls='', mec='k', markersize=3, label='Fine')
     #    else:
-    #        plt.plot(Ms, C_p_sln_avg[0,:,k], mfc='w', marker='o', ls='', mec='k', markersize=10)
-    #        plt.plot(Ms, C_p_sln_avg[1,:,k], mfc='w', marker='o', ls='', mec='k', markersize=5)
-    #        plt.plot(Ms, C_p_sln_avg[2,:,k], mfc='w', marker='o', ls='', mec='k', markersize=3)
+    #        plt.plot(Ms, C_p_sln_avg[0,:,k], mfc='none', marker='o', ls='', mec='k', markersize=10)
+    #        plt.plot(Ms, C_p_sln_avg[1,:,k], mfc='none', marker='o', ls='', mec='k', markersize=5)
+    #        plt.plot(Ms, C_p_sln_avg[2,:,k], mfc='none', marker='o', ls='', mec='k', markersize=3)
     #plt.xlabel("$M_\infty$")
-    #plt.ylabel("$C_p$")
+    #plt.ylabel("$C_P$")
     #plt.ylim(bottom=0.0)
     #plt.legend(fontsize=6, title_fontsize=6)
     #plt.savefig("studies/supersonic_cone_flow_study/plots/C_p_sln_convergence.pdf")
@@ -261,15 +283,15 @@ if __name__=="__main__":
     #plt.figure()
     #for k, half_angle in enumerate(half_angles):
     #    if k==1:
-    #        plt.plot(Ms, C_p_lin_avg[0,:,k], mfc='w', marker='o', ls='', mec='k', markersize=10, label='Coarse')
-    #        plt.plot(Ms, C_p_lin_avg[1,:,k], mfc='w', marker='o', ls='', mec='k', markersize=5, label='Medium')
-    #        plt.plot(Ms, C_p_lin_avg[2,:,k], mfc='w', marker='o', ls='', mec='k', markersize=3, label='Fine')
+    #        plt.plot(Ms, C_p_lin_avg[0,:,k], mfc='none', marker='o', ls='', mec='k', markersize=10, label='Coarse')
+    #        plt.plot(Ms, C_p_lin_avg[1,:,k], mfc='none', marker='o', ls='', mec='k', markersize=5, label='Medium')
+    #        plt.plot(Ms, C_p_lin_avg[2,:,k], mfc='none', marker='o', ls='', mec='k', markersize=3, label='Fine')
     #    else:
-    #        plt.plot(Ms, C_p_lin_avg[0,:,k], mfc='w', marker='o', ls='', mec='k', markersize=10)
-    #        plt.plot(Ms, C_p_lin_avg[1,:,k], mfc='w', marker='o', ls='', mec='k', markersize=5)
-    #        plt.plot(Ms, C_p_lin_avg[2,:,k], mfc='w', marker='o', ls='', mec='k', markersize=3)
+    #        plt.plot(Ms, C_p_lin_avg[0,:,k], mfc='none', marker='o', ls='', mec='k', markersize=10)
+    #        plt.plot(Ms, C_p_lin_avg[1,:,k], mfc='none', marker='o', ls='', mec='k', markersize=5)
+    #        plt.plot(Ms, C_p_lin_avg[2,:,k], mfc='none', marker='o', ls='', mec='k', markersize=3)
     #plt.xlabel("$M_\infty$")
-    #plt.ylabel("$C_p$")
+    #plt.ylabel("$C_P$")
     #plt.ylim(bottom=0.0)
     #plt.legend(fontsize=6, title_fontsize=6)
     #plt.savefig("studies/supersonic_cone_flow_study/plots/C_p_lin_convergence.pdf")

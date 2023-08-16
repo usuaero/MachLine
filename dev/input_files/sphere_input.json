@@ -8,15 +8,19 @@
         "wake_model" : {
             "wake_present" : false
         },
-        "singularity_order" : "higher",
-        "force_sigma_match" : true,
+        "singularity_order" : "lower",
         "reference" : {
             "area" : 0.7853981
         }
     },
     "solver" : {
-        "formulation" : "morino",
-        "matrix_solver" : "GMRES"
+        "formulation" : "dirichlet-source-free",
+        "control_point_offset" : 1.0e-7,
+        "matrix_solver" : "GMRES",
+        "relaxation" : 1.0,
+        "write_A_and_b" : true,
+        "run_checks" : true,
+        "iterative_solver_output" : "iterative_solver_prog.csv"
     },
     "post_processing" : {
         "pressure_rules" : {
@@ -29,6 +33,7 @@
         "offbody_points" : {
             "points_file" : "dev/input_files/sphere_offbody_points.csv",
             "output_file" : "dev/results/sphere_offbody_points.csv"
-        }
+        },
+        "report_file" : "dev/results/sphere_report.json"
     }
 }

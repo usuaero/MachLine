@@ -19,7 +19,7 @@
         }
     },
     "solver": {
-        "formulation": "morino",
+        "formulation": "dirichlet-morino",
         "control_point_offset": 1.1e-05
     },
     "post_processing": {

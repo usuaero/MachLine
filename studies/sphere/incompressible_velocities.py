@@ -246,18 +246,18 @@ if __name__ == "__main__":
     grids = ["ultra_coarse","very_coarse","coarse","medium"]
 
     points, thetas = create_points(radius, offset, NPoints)
-    #for i, grid in enumerate(grids):
-        #run(grid,offset)
-        #V_exact,V_MachLine = get_data(thetas, radius, offset,grid)
-        #plot_velocities(thetas, V_exact,V_MachLine,offset,grid)
-        #plot_error(thetas,V_exact, V_MachLine,offset,grid)
-        #plot_error(thetas,V_exact,V_MachLine,offset,grid,type="Absolute")
+    for i, grid in enumerate(grids):
+        run(grid,offset)
+        V_exact,V_MachLine = get_data(thetas, radius, offset,grid)
+        plot_velocities(thetas, V_exact,V_MachLine,offset,grid)
+        plot_error(thetas,V_exact, V_MachLine,offset,grid)
+        plot_error(thetas,V_exact,V_MachLine,offset,grid,type="Absolute")
 
-    offsets = [1e-3,1e-2,1e-1,1e0]
-    for i,grid in enumerate(grids):
-        for j, offset in enumerate(offsets):
-            points, thetas = create_points(radius,offset,NPoints)
-            run(grid,offset)
-        plot_error_vs_offset(thetas,radius,offsets,grid)
+    #offsets = [1e-3,1e-2,1e-1,1e0]
+    #for i,grid in enumerate(grids):
+    #    for j, offset in enumerate(offsets):
+    #        points, thetas = create_points(radius,offset,NPoints)
+    #        run(grid,offset)
+    #    plot_error_vs_offset(thetas,radius,offsets,grid)
  
     #grid_convergence(offset,radius,grids)

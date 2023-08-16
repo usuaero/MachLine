@@ -13,6 +13,7 @@ PRESSURE_FOR_FORCES = 'isentropic'
 study_dir = "studies/supersonic_love_delta_wing/"
 results_dir = study_dir + "results/"
 reports_dir = study_dir + "reports/"
+plot_dir = study_dir + "plots/"
 M = 1.62
 semispan_locs = [22.5, 64.1]
 b_mid = (0.463/2/.230)
@@ -152,27 +153,75 @@ def plot_force_convergence_over_alpha(alpha_list):
         # Plot convergence against experimental data
 
         # CD convergence plot
+        err = np.abs((CD[i,:-1,:] - CD[i,-1,:])/CD[i,-1,:])
         plt.figure()
-        for j, mesh_density in enumerate(mesh_densities):
-            plt.plot(alpha_list, CD[i,j,:], 'o', label=mesh_density.replace("_", " ").title(), markersize=10-2*j, mec='k', mfc='none')
-        if case=="MH":
-            plt.legend()
+        for j, mesh_density in enumerate(mesh_densities[:-1]):
+            plt.plot(alpha_list, err[j,:], 'o', label=mesh_density.replace("_", " ").title(), markersize=10-3*j, mec='k', mfc='none')
+        #for j, mesh_density in enumerate(mesh_densities):
+        #    plt.plot(alpha_list, CD[i,j,:], 'o', label=mesh_density.replace("_", " ").title(), markersize=10-2*j, mec='k', mfc='none')
+        #if case=="MH":
+        #    plt.legend()
         plt.xlabel('$\\alpha\,[^\circ]$')
-        plt.ylabel('$C_D$')
+        plt.ylabel('Fractional Error in $C_D$')
+        plt.yscale('log')
+        plt.ylim(bottom=1e-5, top=1e-2)
         plot_loc = study_dir + 'plots/delta_wing_CD_convergence{0}'.format(quad_label)
         plt.savefig(plot_loc + ".pdf")
         plt.savefig(plot_loc + ".svg")
         plt.close()
 
         # CL convergence plot
+        err = np.abs((CL[i,:-1,:] - CL[i,-1,:])/CL[i,-1,:])
+        ind = np.where(np.array(alpha_list) != 0.0)
         plt.figure()
-        for j, mesh_density in enumerate(mesh_densities):
-            plt.plot(alpha_list, CL[i,j,:], 'o', label=mesh_density.replace("_", " ").title(), markersize=10-2*j, mec='k', mfc='none')
-        if case=="MH":
-            plt.legend()
+        for j, mesh_density in enumerate(mesh_densities[:-1]):
+            plt.plot(np.array(alpha_list)[ind], err[j,ind].flatten(), 'o', label=mesh_density.replace("_", " ").title(), markersize=10-3*j, mec='k', mfc='none')
+        #for j, mesh_density in enumerate(mesh_densities):
+        #    plt.plot(alpha_list, CL[i,j,:], 'o', label=mesh_density.replace("_", " ").title(), markersize=10-2*j, mec='k', mfc='none')
+        #if case=="MH":
+        #    plt.legend()
         plt.xlabel('$\\alpha\,[^\circ]$')
-        plt.ylabel('$C_L$')
+        plt.ylabel('Fractional Error in $C_L$')
+        plt.yscale('log')
+        plt.ylim(bottom=2e-4, top=1e-1)
         plot_loc = study_dir + 'plots/delta_wing_CL_convergence{0}'.format(quad_label)
+        plt.savefig(plot_loc + ".pdf")
+        plt.savefig(plot_loc + ".svg")
+        plt.close()
+
+        # Cx convergence plot
+        err = np.abs((Cx[i,:-1,:] - Cx[i,-1,:])/Cx[i,-1,:])
+        plt.figure()
+        for j, mesh_density in enumerate(mesh_densities[:-1]):
+            plt.plot(alpha_list, err[j,:], 'o', label=mesh_density.replace("_", " ").title(), markersize=10-3*j, mec='k', mfc='none')
+        #for j, mesh_density in enumerate(mesh_densities):
+        #    plt.plot(alpha_list, CD[i,j,:], 'o', label=mesh_density.replace("_", " ").title(), markersize=10-2*j, mec='k', mfc='none')
+        #if case=="MH":
+        #    plt.legend()
+        plt.xlabel('$\\alpha\,[^\circ]$')
+        plt.ylabel('Fractional Error in $C_x$')
+        plt.yscale('log')
+        plt.ylim(bottom=1e-5, top=1e-1)
+        plot_loc = study_dir + 'plots/delta_wing_Cx_convergence{0}'.format(quad_label)
+        plt.savefig(plot_loc + ".pdf")
+        plt.savefig(plot_loc + ".svg")
+        plt.close()
+
+        # Cy convergence plot
+        err = np.abs((Cy[i,:-1,:] - Cy[i,-1,:])/Cy[i,-1,:])
+        ind = np.where(np.array(alpha_list) != 0.0)
+        plt.figure()
+        for j, mesh_density in enumerate(mesh_densities[:-1]):
+            plt.plot(np.array(alpha_list)[ind], err[j,ind].flatten(), 'o', label=mesh_density.replace("_", " ").title(), markersize=10-3*j, mec='k', mfc='none')
+        #for j, mesh_density in enumerate(mesh_densities):
+        #    plt.plot(alpha_list, CL[i,j,:], 'o', label=mesh_density.replace("_", " ").title(), markersize=10-2*j, mec='k', mfc='none')
+        #if case=="MH":
+        #    plt.legend()
+        plt.xlabel('$\\alpha\,[^\circ]$')
+        plt.ylabel('Fractional Error in $C_y$')
+        plt.yscale('log')
+        plt.ylim(bottom=2e-4, top=1e-1)
+        plot_loc = study_dir + 'plots/delta_wing_Cy_convergence{0}'.format(quad_label)
         plt.savefig(plot_loc + ".pdf")
         plt.savefig(plot_loc + ".svg")
         plt.close()
@@ -219,7 +268,7 @@ def plot_force_convergence_over_alpha(alpha_list):
         for k, alpha in enumerate(alpha_list):
             if alpha==0.0:
                 continue
-            slopes.append(get_order_of_convergence(l_avg, CL[i,:,k], truth_from_results=True))
+            slopes.append(get_order_of_convergence(l_avg[1:], CL[i,1:,k], truth_from_results=True))
             alpha_to_plot.append(alpha)
         print("{0}: {1} +/- {2}".format(case, round(np.average(slopes), 4), round(np.std(slopes), 4)))
         plt.plot(alpha_to_plot, slopes, line_styles[i], label=case)
@@ -237,7 +286,7 @@ def plot_force_convergence_over_alpha(alpha_list):
     for i, case in enumerate(cases):
         slopes = []
         for k, alpha in enumerate(alpha_list):
-            slopes.append(get_order_of_convergence(l_avg, CD[i,:,k], truth_from_results=True))
+            slopes.append(get_order_of_convergence(l_avg[1:], CD[i,1:,k], truth_from_results=True))
         print("{0}: {1} +/- {2}".format(case, round(np.average(slopes), 4), round(np.std(slopes), 4)))
         plt.plot(alpha_list, slopes, line_styles[i], label=case)
     plt.xlabel('$\\alpha$')
@@ -254,7 +303,7 @@ def plot_force_convergence_over_alpha(alpha_list):
     for i, case in enumerate(cases):
         slopes = []
         for k, alpha in enumerate(alpha_list):
-            slopes.append(get_order_of_convergence(l_avg, Cx[i,:,k], truth_from_results=True))
+            slopes.append(get_order_of_convergence(l_avg[1:], Cx[i,1:,k], truth_from_results=True))
         print("{0}: {1} +/- {2}".format(case, round(np.average(slopes), 4), round(np.std(slopes), 4)))
         plt.plot(alpha_list, slopes, line_styles[i], label=case)
     plt.xlabel('$\\alpha$')
@@ -274,7 +323,7 @@ def plot_force_convergence_over_alpha(alpha_list):
         for k, alpha in enumerate(alpha_list):
             if alpha==0.0:
                 continue
-            slopes.append(get_order_of_convergence(l_avg, Cy[i,:,k], truth_from_results=True))
+            slopes.append(get_order_of_convergence(l_avg[1:], Cy[i,1:,k], truth_from_results=True))
             alpha_to_plot.append(alpha)
         print("{0}: {1} +/- {2}".format(case, round(np.average(slopes), 4), round(np.std(slopes), 4)))
         plt.plot(alpha_to_plot, slopes, line_styles[i], label=case)
@@ -284,6 +333,80 @@ def plot_force_convergence_over_alpha(alpha_list):
     plt.savefig(study_dir + "plots/Cy_convergence_over_alpha.pdf")
     plt.savefig(study_dir + "plots/Cy_convergence_over_alpha.svg")
     plt.close()
+
+
+def plot_time_accuracy_comp(alpha_list):
+
+    # Initialize storage
+    Cx = np.zeros((len(cases), len(mesh_densities), len(alpha_list)))
+    Cy = np.zeros((len(cases), len(mesh_densities), len(alpha_list)))
+    t = np.zeros((len(cases), len(mesh_densities), len(alpha_list)))
+    l_avg = np.zeros(len(mesh_densities))
+
+    # Iterate over cases
+    for i, (case, quad_label) in enumerate(zip(cases, quad_labels)):
+
+        # Iterate over mesh densities
+        for j, mesh_density in enumerate(mesh_densities):
+
+            # Iterate over alpha
+            for k, alpha in enumerate(alpha_list):
+
+                # Get report
+                report_loc = reports_dir + 'delta_wing_{0}_{1}{2}.json'.format(alpha, mesh_density, quad_label)
+                with open(report_loc, 'r') as results_handle:
+                    report = json.load(results_handle) 
+
+                # Store force data
+                force_coefs = report['total_forces']
+                Cx[i,j,k] = force_coefs['Cx']
+                Cy[i,j,k] = force_coefs['Cy']
+
+                # Store average characteristic length
+                l_avg[j] = report["mesh_info"]["average_characteristic_length"]
+
+                # Store time
+                t[i,j,k] = report["total_runtime"]
+
+    # Calculate error
+    err_Cx = np.abs((Cx[:,:-1,:] - Cx[:,-1,:])/Cx[:,-1,:])
+    err_Cy = np.abs((Cy[:,:-1,:] - Cy[:,-1,:])/Cy[:,-1,:])
+
+    for k, alpha in enumerate(alpha_list):
+
+        # Plot Cx
+        plt.figure()
+        for i, (case, quad_label) in enumerate(zip(cases, quad_labels)):
+            plt.plot(t[i,:-1,k], err_Cx[i,:,k], line_styles[i], label=case)
+        plt.xscale('log')
+        plt.yscale('log')
+        if alpha == 0.0:
+            plt.legend()
+        plt.xlabel("Computation Time $[s]$")
+        plt.ylabel("Fractional Error in $C_x$")
+        plt.savefig(plot_dir + "Cx_accuracy_vs_time_aoa_{0}.pdf".format(int(alpha)))
+        plt.savefig(plot_dir + "Cx_accuracy_vs_time_aoa_{0}.svg".format(int(alpha)))
+        plt.close()
+
+        # Plot Cy
+        plt.figure()
+        for i, (case, quad_label) in enumerate(zip(cases, quad_labels)):
+            if alpha != 0.0:
+                plt.plot(t[i,:-1,k], err_Cy[i,:,k], line_styles[i], label=case)
+            else:
+                plt.plot(t[i,:,k], abs(Cy[i,:,k]), line_styles[i], label=case)
+        plt.xscale('log')
+        plt.yscale('log')
+        if alpha == 0.0:
+            plt.legend()
+        plt.xlabel("Computation Time $[s]$")
+        if alpha != 0.0:
+            plt.ylabel("Fractional Error in $C_z$")
+        else:
+            plt.ylabel("Absolute Error in $C_z$")
+        plt.savefig(plot_dir + "Cy_accuracy_vs_time_aoa_{0}.pdf".format(int(alpha)))
+        plt.savefig(plot_dir + "Cy_accuracy_vs_time_aoa_{0}.svg".format(int(alpha)))
+        plt.close()
 
 
 def run_pressure_distribution_comparison(mesh_density):
@@ -305,11 +428,14 @@ def run_force_comparison():
     angles_of_attack = [-6., -5., -4., -3., -2., -1., 0., 1., 2., 3., 4., 5.]
 
     # Run MachLine
-    for mesh_density in mesh_densities:
-        run_machline_cases(angles_of_attack, M, mesh_density)
+    #for mesh_density in mesh_densities:
+    #    run_machline_cases(angles_of_attack, M, mesh_density)
 
     # Plot
     plot_force_convergence_over_alpha(angles_of_attack)
+
+    # Plot time/accuracy comparison
+    plot_time_accuracy_comp(angles_of_attack)
 
 
 def run_machline_cases(angles_of_attack, M, mesh_density):

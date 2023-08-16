@@ -214,4 +214,47 @@ function rot_z(v, theta) result(v_rot)
 
 end function rot_z
 
+
+function parallel_matmul(A, B) result(C)
+  ! Multiplies A by B (both 2-dimensional arrays) in parallel
+
+  implicit none
+  
+  real,dimension(:,:),allocatable,intent(in) :: A, B
+  
+  real,dimension(:,:),allocatable :: C
+
+  integer,dimension(:),allocatable :: A_shape, B_shape
+  integer :: i, j
+
+  ! Check shape
+  A_shape = shape(A)
+  B_shape = shape(B)
+  if (size(A_shape) /= 2) then
+    write(*,*) "!!! Function 'parallel_matmul' cannot be used with a non-2-dimensional array. A is not 2D."
+    stop
+  end if
+  if (size(B_shape) /= 2) then
+    write(*,*) "!!! Function 'parallel_matmul' cannot be used with a non-2-dimensional array. B is not 2D."
+    stop
+  end if
+  if (A_shape(2) /= B_shape(1)) then
+    write(*,*) "!!! Dimension mismatch in 'parallel_matmul'. A is ", A_shape(1), 'x', A_shape(2), " while B is", &
+                B_shape(1), 'x', B_shape(2), "."
+    stop
+  end if
+
+  ! Allocate C
+  allocate(C(A_shape(1), B_shape(2)), source=0.)
+
+  ! Multiply
+  !$OMP parallel do private(j)
+  do i=1,A_shape(1)
+    do j=1,B_shape(2)
+      C(i,j) = sum(A(i,:)*B(:,j))
+    end do
+  end do
+  
+end function parallel_matmul
+
 end module math_mod

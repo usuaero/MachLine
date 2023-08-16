@@ -1,0 +1,87 @@
+{
+    "info" : {
+        "generated_by" : "MachLine (c) 2023 USU Aerolab",
+        "executed" : "Tue Aug 15 13:12:54 2023"
+    },
+    "mesh_info" : {
+        "N_body_panels" : 7200,
+        "N_body_vertices" : 3602,
+        "N_wake_panels" : 0,
+        "average_characteristic_length" : 4.02764861523927E-002,
+        "max_flow_turning_angle" : 9.00000000000000E+001
+    },
+    "solver_results" : {
+        "solver_status_code" : 0,
+        "system_dimension" : 3602,
+        "timing" : {
+            "system_sorting" : 5.10000000000000E-006,
+            "preconditioner" : 5.71155000000000E-002,
+            "matrix_solver" : 1.11266000000000E-001
+        },
+        "iterations" : 8,
+        "residual" : {
+            "max" : 1.35447209004269E-014,
+            "norm" : 2.28294129093153E-013
+        }
+    },
+    "pressure_calculations" : {
+        "incompressible_rule" : {
+            "max" : 9.97152799685060E-001,
+            "min" : -1.23885067806186E+000
+        }
+    },
+    "total_forces" : {
+        "Cx" : 8.10903721775161E-011,
+        "Cy" : 1.39711703744295E-015,
+        "Cz" : -7.42929916934797E-016
+    },
+    "total_moments" : {
+        "CMx" : -1.32357490992298E-014,
+        "CMy" : 9.93923018686977E-016,
+        "CMz" : 9.38136422929184E-016
+    },
+    "input" : {
+        "flow" : {
+            "freestream_velocity" : [
+                    1.00000000000000E+000,
+                    0.00000000000000E+000,
+                    0.00000000000000E+000
+                ],
+            "freestream_mach_number" : 0.00000000000000E+000
+        },
+        "geometry" : {
+            "file" : "dev/meshes/sphere.vtk",
+            "wake_model" : {
+                "wake_present" : false
+            },
+            "singularity_order" : "lower",
+            "reference" : {
+                "area" : 7.85398100000000E-001
+            }
+        },
+        "solver" : {
+            "formulation" : "dirichlet-source-free",
+            "control_point_offset" : 1.00000000000000E-007,
+            "matrix_solver" : "GMRES",
+            "relaxation" : 1.00000000000000E+000,
+            "write_A_and_b" : true,
+            "run_checks" : true,
+            "iterative_solver_output" : "iterative_solver_prog.csv"
+        },
+        "post_processing" : {
+            "pressure_rules" : {
+                "incompressible" : true
+            }
+        },
+        "output" : {
+            "body_file" : "dev/results/sphere.vtk",
+            "control_point_file" : "dev/results/sphere_control_points.vtk",
+            "offbody_points" : {
+                "points_file" : "dev/input_files/sphere_offbody_points.csv",
+                "output_file" : "dev/results/sphere_offbody_points.csv"
+            },
+            "report_file" : "dev/results/sphere_report.json"
+        }
+    },
+    "total_runtime" : 1.22610000000000E+002
+}

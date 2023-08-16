@@ -12,6 +12,7 @@
         "file": "studies/supersonic_cone/meshes/cone_15_deg_fine_improved.vtk",
         "spanwise_axis": "+z",
         "mirror_about": "xy",
+        "max_continuity_angle": 45.0,
         "wake_model": {
             "append_wake": false
         },

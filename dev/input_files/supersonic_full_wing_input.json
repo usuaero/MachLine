@@ -1,13 +1,13 @@
 {
     "flow": {
-        "freestream_velocity": [100.0, 0.0, 5.0],
+        "freestream_velocity": [100.0, 0.0, 0.0],
         "gamma" : 1.4,
         "freestream_mach_number" : 1.5
     },
     "geometry": {
         "file": "dev/meshes/diamond_5_deg_full_medium.stl",
         "spanwise_axis" : "+y",
-        "singularity_order" : "higher",
+        "singularity_order" : "lower",
         "max_continuity_angle" : 1.0,
         "wake_model" : {
             "wake_present" : true,
@@ -16,9 +16,14 @@
         }
     },
     "solver" : {
-        "formulation" : "morino",
-        "matrix_solver" : "GMRES",
-        "write_A_and_b" : false
+        "formulation" : "neumann-doublet-only-ls",
+        "matrix_solver" : "LU",
+        "relaxation" : 0.2,
+        "block_size" : 200,
+        "max_iterations" : 1127,
+        "write_A_and_b" : true,
+        "run_checks" : true,
+        "iterative_solver_output" : "solver_prog.txt"
     },
     "output": {
         "body_file" :          "dev/results/diamond_5_deg_full.vtk",

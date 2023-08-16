@@ -6,7 +6,7 @@
         "file" : "test/meshes/commercial_fuselage.vtk"
     },
     "solver" : {
-        "formulation" : "morino",
+        "formulation" : "dirichlet-morino",
         "control_point_offset" : 1.0e-5,
         "matrix_solver" : "BJAC",
         "tolerance" : 1.0e-14

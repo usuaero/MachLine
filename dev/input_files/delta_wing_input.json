@@ -1,19 +1,22 @@
 {
     "flow": {
-        "freestream_velocity" : [ 100.0, 10.0, 0.0 ],
+        "freestream_velocity" : [ 100.0, 0.0, 0.0 ],
         "freestream_mach_number" : 1.62
     },
     "geometry": {
-        "file": "dev/meshes/delta_wing_medium.vtk",
+        "file": "dev/meshes/delta_wing_clustered_mesh_fine.vtk",
+        "singularity_order" : "lower",
         "wake_model" : {
             "wake_present" : true,
-            "append_wake" : true,
+            "append_wake" : false,
             "trefftz_distance" : 20.0
         }
     },
     "solver": {
+        "formulation" : "neumann-mass-flux",
+        "ormulation" : "morino",
         "matrix_solver" : "GMRES",
-        "write_A_and_b" : true
+        "write_A_and_b" : false
     },
     "post_processing" : {
     },
@@ -22,9 +25,9 @@
         "wake_file" :          "dev/results/delta_wing_wake.vtk",
         "control_point_file" : "dev/results/delta_wing_control_points.vtk",
         "report_file" :        "dev/results/report.json",
-        "offbody_points" : {
-            "points_file" : "dev/delta_wing_trailing_edge_sample_points.csv",
-            "output_file" : "dev/results/delta_wing_trailing_edge_sample_points.csv"
+        "ffbody_points" : {
+            "points_file" : "dev/input_files/delta_wing_slice_sample_points.csv",
+            "output_file" : "dev/results/delta_wing_slice_sample_points.csv"
         }
     }
 }

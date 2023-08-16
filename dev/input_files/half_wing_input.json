@@ -14,8 +14,7 @@
         }
     },
     "solver": {
-        "formulation": "morino",
-        "control_point_offset": 1.1e-05
+        "formulation": "morino"
     },
     "post_processing" : {
         "pressure_rules": {

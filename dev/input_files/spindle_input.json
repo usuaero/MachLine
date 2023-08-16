@@ -1,7 +1,7 @@
 {
     "flow": {
         "freestream_velocity": [
-            694.4475790151479,
+            100.0,
             0.0,
             0.0
         ],
@@ -17,8 +17,8 @@
         }
     },
     "solver": {
-        "formulation" : "source-free",
-        "matrix_solver" : "FQRUP"
+        "formulation" : "neumann-mass-flux-inner-flow",
+        "matrix_solver" : "GMRES"
     },
     "post_processing": {
     },

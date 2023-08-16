@@ -725,18 +725,18 @@ def mesh_creator(filename, x_cr=.5, x_ct=.5, tc=.08, b_2c=1, R_T=0.0, LE_sweep=4
 if __name__ == '__main__':
 
     # Define necessary portions of wing geometry
-    x_cr = 0.5 # nondimensional location of max thickness at root
-    x_ct = 0.5 # nondimensional location of max thickness at tip
-    tc = 0.08  # nondimensional max thickness
+    x_cr = 0.1 # nondimensional location of max thickness at root
+    x_ct = 0.1 # nondimensional location of max thickness at tip
+    tc = 0.03  # nondimensional max thickness
     b_2c = 1 # semispan nondimensionalized by root chord
     R_T = 0 # taper ratio c_t/c_R
     LE_sweep = 45 # leading edge sweep angle in degrees
-    node_ratio = .5 # User input ratio of nodes to be placed forward of the max thickness location
-    mirror_xy = False # Mirrors body across xy plane
+    node_ratio = 0.1 # User input ratio of nodes to be placed forward of the max thickness location
+    mirror_xy = True # Mirrors body across xy plane
 
     # Initialize number of nodes in chord and spanwize directions
-    cw_nodes = 20 # Number of nodes along the upper surface ### Mesh density study using 25, 50, and 100 nodes
-    sw_nodes = 20 # Number of nodes along the semispan ### Mesh density study using 25, 50, and 100 nodes
+    cw_nodes = 40 # Number of nodes along the upper surface ### Mesh density study using 25, 50, and 100 nodes
+    sw_nodes = 40 # Number of nodes along the semispan ### Mesh density study using 25, 50, and 100 nodes
     cluster_cw = True
     cluster_sw = False
 
@@ -809,7 +809,7 @@ if __name__ == '__main__':
     elif 'dev' in os.getcwd():
         os.chdir('../')
 
-    filename= 'studies/supersonic_variable_taper_ratio/meshes/delta_wing_test.vtk'
+    filename= 'dev/meshes/tapered_thin_trailing_edge_wing.vtk'
     # filename= 'studies/delta_wing/meshes/tapered_wing_test.vtk'
 
 

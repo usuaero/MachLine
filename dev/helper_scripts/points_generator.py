@@ -3,17 +3,17 @@ import numpy as np
 if __name__=="__main__":
 
     # Limits
-    x_max = 5.0
-    x_min = -1.0
-    y_max = 0.0
-    y_min = 0.0
-    z_max = 1.0
-    z_min = -1.0
+    x_max = 1.1
+    x_min = -0.1
+    y_max = 0.01
+    y_min = 0.01
+    z_max = 0.2
+    z_min = -0.2
 
     # Number of points to distribute
-    Nx = 20
+    Nx = 150
     Ny = 1
-    Nz = 20
+    Nz = 100
 
     # Distributions in each direction
     x = np.linspace(x_min, x_max, Nx)
@@ -27,7 +27,7 @@ if __name__=="__main__":
     Z = Z.flatten()
 
     # write to file
-    filename = "test/input_files/root_xz_sample_points.csv"
+    filename = "dev/input_files/diamond_5_deg_sample_points.csv"
     with open(filename, 'w') as points_file:
 
         # Header

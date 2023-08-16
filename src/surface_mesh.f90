@@ -33,7 +33,7 @@ module surface_mesh_mod
         real,dimension(:),allocatable :: Phi_u ! Total potential on outer surface
         real,dimension(:),allocatable :: C_p_pg, C_p_lai, C_p_kt ! Corrected surface pressure coefficients
         real,dimension(:),allocatable :: C_p_inc, C_p_ise, C_p_2nd, C_p_sln, C_p_lin ! Surface pressure coefficients
-        real,dimension(:,:),allocatable :: V_cells, V_verts_avg, V_verts_std, dC_f ! Surface velocities and pressure forces
+        real,dimension(:,:),allocatable :: V_cells, V_cells_inner, dC_f ! Surface velocities and pressure forces
         real :: control_point_offset
         logical :: asym_flow ! Whether the flow is asymmetric about the mirror plane
         logical :: found_wake_edges
@@ -71,6 +71,7 @@ module surface_mesh_mod
 
             ! Domains of dependence
             procedure :: calc_point_dod => surface_mesh_calc_point_dod
+            procedure :: is_convex_at_vertex => surface_mesh_is_convex_at_vertex
 
             ! Helpers
             procedure :: find_vertices_on_mirror => surface_mesh_find_vertices_on_mirror
@@ -83,12 +84,19 @@ module surface_mesh_mod
             procedure :: update_supersonic_trefftz_distance => surface_mesh_update_supersonic_trefftz_distance
             procedure :: update_subsonic_trefftz_distance => surface_mesh_update_subsonic_trefftz_distance
 
-            ! Control points
-            procedure :: is_convex_at_vertex => surface_mesh_is_convex_at_vertex
-            procedure :: control_point_outside_mesh => surface_mesh_control_point_outside_mesh
-            procedure :: get_minimum_angle_vectors => surface_mesh_get_minimum_angle_vectors
-            procedure :: place_interior_control_points => surface_mesh_place_interior_control_points
+            ! Control point locations
+            procedure :: get_cp_locs_vertex_based_interior => surface_mesh_get_cp_locs_vertex_based_interior
+            procedure :: get_cp_locs_centroid_based => surface_mesh_get_cp_locs_centroid_based
             procedure :: get_clone_control_point_dir => surface_mesh_get_clone_control_point_dir
+
+            ! Control point placement
+            procedure :: place_internal_vertex_control_points => surface_mesh_place_internal_vertex_control_points
+            procedure :: place_centroid_control_points => surface_mesh_place_centroid_control_points
+            procedure :: place_sparse_centroid_control_points => surface_mesh_place_sparse_centroid_control_points
+            procedure :: place_centroid_vertex_avg_control_points => surface_mesh_place_centroid_vertex_avg_control_points
+
+            ! Control point checks
+            procedure :: control_point_outside_mesh => surface_mesh_control_point_outside_mesh
 
             ! Post-processing
             procedure :: get_induced_potentials_at_point => surface_mesh_get_induced_potentials_at_point
@@ -1392,7 +1400,7 @@ contains
         logical :: is_convex
 
         integer :: i, i_neighbor, j, j_neighbor
-        real :: s, h, theta
+        real :: s, h
         logical :: first
 
         ! Initialize
@@ -1415,7 +1423,7 @@ contains
                 ! Check height above this panel
                 h = inner(this%panels(i_neighbor)%n_g, this%vertices(j_neighbor)%loc-this%panels(i_neighbor)%centr)
 
-                ! If it's in the plane of the panel, we can't say anything, and don't want to improperly initialize s
+                ! If it's in the plane of the panel, we can't say anything
                 if (abs(h) > 1.e-10) then
 
                     ! Check sign of height
@@ -1437,7 +1445,7 @@ contains
                     ! Check height above the mirrored panel
                     h = inner(this%panels(i_neighbor)%n_g_mir, this%vertices(j_neighbor)%loc-this%panels(i_neighbor)%centr_mir)
 
-                    ! If it's in the plane of the panel, we can't say anything, and don't want to improperly initialize s
+                    ! If it's in the plane of the panel, we can't say anything
                     if (abs(h) > 1.e-10) then
 
                         ! Check sign of height
@@ -1460,54 +1468,6 @@ contains
         end do
         
     end function surface_mesh_is_convex_at_vertex
-
-
-    function surface_mesh_control_point_outside_mesh(this, cp_loc, i_vert) result(outside)
-        ! Checks whether the given control point (tied to vertex i_vert) is outside the mesh
-        ! Note this will only check panels (and their mirrors) touching the vertex
-        ! Uses the ray-casting algorithm
-
-        implicit none
-        
-        class(surface_mesh),intent(in) :: this
-        real,dimension(3),intent(in) :: cp_loc
-        integer,intent(in) :: i_vert
-
-        logical :: outside
-
-        real,dimension(3) :: start, dir
-        real :: s_star
-        integer :: N_crosses, i, i_panel
-
-        ! As the starting point for the ray-casting algorithm, we'll pick a point above the first neighboring panel
-        call this%vertices(i_vert)%panels%get(1, i_panel)
-        start = this%panels(i_panel)%get_characteristic_length()*this%panels(i_panel)%n_g
-        dir = cp_loc - start
-
-        ! Loop through neighboring panels, counting the number of times the line passes through
-        N_crosses = 0
-        do i=1,this%vertices(i_vert)%panels%len()
-
-            ! Get panel index
-            call this%vertices(i_vert)%panels%get(i, i_panel)
-
-            ! Check for original panel
-            if (this%panels(i_panel)%line_passes_through(start, dir, .false., s_star)) then
-                if (s_star <= 1. .and. s_star >= 0.) N_crosses = N_crosses + 1
-            end if
-
-            ! Check for mirrored panel
-            if (this%vertices(i_vert)%on_mirror_plane) then
-                if (this%panels(i_panel)%line_passes_through(start, dir, .true., s_star)) then
-                    if (s_star <= 1. .and. s_star >= 0.) N_crosses = N_crosses + 1
-                end if
-            end if
-        end do
-
-        ! The point is outside if there was an even number of crossings
-        outside = mod(N_crosses, 2) == 0
-        
-    end function surface_mesh_control_point_outside_mesh
 
 
     subroutine surface_mesh_get_minimum_angle_vectors(this, i_vert, vec1, vec2)
@@ -1672,125 +1632,6 @@ contains
     end subroutine surface_mesh_get_minimum_angle_vectors
 
 
-    subroutine surface_mesh_place_interior_control_points(this, offset, offset_type, freestream)
-
-        implicit none
-
-        class(surface_mesh),intent(inout) :: this
-        real,intent(in) :: offset
-        character(len=:),allocatable,intent(in) :: offset_type
-        type(flow),intent(in) :: freestream
-
-        integer :: i, j, i_panel
-        real,dimension(3) :: dir, new_dir, n_avg, disp
-        real :: this_offset
-        logical :: surrounded
-
-        ! Specify number of control points
-        if (this%asym_flow) then
-            this%N_cp = this%N_verts*2
-        else
-            this%N_cp = this%N_verts
-        end if
-        this%N_cp = this%N_cp + this%N_supinc
-
-        ! Allocate memory
-        allocate(this%cp(this%N_cp))
-
-        ! Loop through vertices
-        !$OMP parallel do private(j, i_panel, dir, surrounded, new_dir, n_avg, this_offset, disp) &
-        !$OMP & schedule(dynamic) shared(this, offset, freestream, offset_type)
-        do i=1,this%N_verts
-
-            ! If the vertex is a clone, it needs to be shifted off the normal slightly so that it is unique from its counterpart
-            if (this%vertices(i)%clone) then
-
-                dir = this%get_clone_control_point_dir(i)
-
-            ! If it has no clone, then placement simply follows the average normal vector
-            else
-
-                ! Set direction simply off of the average normal vector
-                dir = -this%vertices(i)%n_g
-
-            end if
-
-            ! Determine offset
-            select case (offset_type)
-
-            case ('local')
-                this_offset = offset*this%vertices(i)%l_avg
-
-            case default ! Direct
-                this_offset = offset
-
-            end select
-            
-            ! Initialize control point
-            call this%cp(i)%init(this%vertices(i)%loc + this_offset*dir, 1, 1, i)
-
-            ! Check if the control point is outside the mesh
-            get_back_in_loop: do while (this%control_point_outside_mesh(this%cp(i)%loc, i))
-                !write(*,*)
-                !write(*,*) "!!! Control point ", i, " is outside the mesh."
-                !write(*,*) "!!! Location: ", this%cp(i)%loc
-
-                ! Loop through neighboring panels to find ones the control point is outside
-                n_avg = 0.
-                do j=1,this%vertices(i)%panels%len()
-                    
-                    ! Get panel index
-                    call this%vertices(i)%panels%get(j, i_panel)
-
-                    ! Check if it's above the original panel
-                    if (this%panels(i_panel)%point_above(this%cp(i)%loc, .false.)) then
-                        !write(*,*) "    It's above panel ", i_panel
-                        !write(*,*) "        ", this%panels(i_panel)%n_g
-                        n_avg = n_avg + this%panels(i_panel)%get_weighted_normal_at_corner(this%vertices(i)%loc)
-                    end if
-
-                end do
-
-                ! A control point on the mirror plane should stay there
-                if (this%vertices(i)%on_mirror_plane) n_avg(this%mirror_plane) = 0.
-
-                ! If there were no panels this control point was above, then exit
-                if (norm2(n_avg) < 1.e-16) exit get_back_in_loop
-
-                ! Reflect (partially, length-preserving) across plane defined by n_avg
-                n_avg = n_avg/norm2(n_avg)
-                !write(*,*) "!!! Reflecting across the plane defined by ", n_avg
-                disp = this%cp(i)%loc - this%vertices(i)%loc
-                new_dir = disp - 1.1*n_avg*inner(disp, n_avg)
-                new_dir = new_dir/norm2(new_dir)
-                this%cp(i)%loc = this%vertices(i)%loc + this_offset*new_dir
-                !write(*,*) "!!! New location: ", this%cp(i)%loc
-
-            end do get_back_in_loop
-
-        end do
-
-        ! Calculate mirrored control points, if necessary
-        if (this%asym_flow) then
-
-            ! Calculate mirrors
-            !$OMP parallel do schedule(static)
-            do i=1,this%N_cp/2
-
-                ! Initialize
-                call this%cp(i+this%N_cp/2)%init(mirror_across_plane(this%cp(i)%loc, this%mirror_plane), &
-                                                 this%cp(i)%cp_type, this%cp(i)%tied_to_type, this%cp(i)%tied_to_index)
-
-                ! Specify that this is a mirror
-                this%cp(i+this%N_cp/2)%is_mirror = .true.
-
-            end do
-
-        end if
-
-    end subroutine surface_mesh_place_interior_control_points
-
-
     function surface_mesh_get_clone_control_point_dir(this, i_vert) result(dir)
         ! Calculates the offset direction for the control point associated with the cloned vertex
 
@@ -1881,10 +1722,10 @@ contains
                 tp = tp - t_avg*inner(t_avg, tp)
 
                 ! Check tp isn't perfectly aligned with t_avg
-                if (.not. norm2(tp) > 1.e-12) cycle vertex_loop
+                if (norm2(tp) < 1.e-12) cycle vertex_loop
 
                 ! If it's still inside the panel, we've found our vector
-                if (this%panels(i_panel)%projection_inside(tp + this%vertices(i_vert)%loc, .false.)) then
+                if (this%panels(i_panel)%projection_inside(0.1*tp + this%vertices(i_vert)%loc, .false.)) then
                     tp_found = .true.
                     exit tp_loop
                 end if
@@ -1898,10 +1739,10 @@ contains
             tp = tp - t_avg*inner(t_avg, tp)
 
             ! Check tp isn't perfectly aligned with t_avg
-            if (.not. norm2(tp) > 1.e-12) cycle tp_loop
+            if (norm2(tp) < 1.e-12) cycle tp_loop
 
             ! If it's still inside the panel, we've found our vector
-            if (this%panels(i_panel)%projection_inside(tp + this%vertices(i_vert)%loc, .false.)) then
+            if (this%panels(i_panel)%projection_inside(0.1*tp + this%vertices(i_vert)%loc, .false.)) then
                 tp_found = .true.
                 exit tp_loop
             end if
@@ -1974,6 +1815,504 @@ contains
     end function surface_mesh_get_clone_control_point_dir
 
 
+    function surface_mesh_get_cp_locs_vertex_based_interior(this, offset, offset_type, freestream) result(cp_locs)
+        ! Returns the locations of interior vertex-based control points
+        ! Takes vertex clones into account
+
+        implicit none
+        
+        class(surface_mesh),intent(in) :: this
+        real,intent(in) :: offset
+        character(len=:),allocatable,intent(in) :: offset_type
+        type(flow),intent(in) :: freestream
+        real,dimension(:,:),allocatable :: cp_locs
+
+        integer :: i, j, i_panel
+        real,dimension(3) :: dir, new_dir, n_avg, disp
+        real :: this_offset
+
+        ! Allocate memory
+        allocate(cp_locs(3,this%N_verts))
+
+        ! Loop through vertices
+        !$OMP parallel do private(j, i_panel, dir, new_dir, n_avg, this_offset, disp) &
+        !$OMP & schedule(dynamic) shared(this, offset, freestream, offset_type)
+        do i=1,this%N_verts
+
+            ! If the vertex is a clone, it needs to be shifted off the normal slightly so that it is unique from its counterpart
+            if (this%vertices(i)%clone) then
+
+                dir = this%get_clone_control_point_dir(i)
+
+            ! If it has no clone, then placement simply follows the average normal vector
+            else
+
+                ! Set direction simply off of the average normal vector
+                dir = -this%vertices(i)%n_g
+
+            end if
+
+            ! Determine offset
+            select case (offset_type)
+
+            case ('local')
+                this_offset = offset*this%vertices(i)%l_avg
+
+            case default ! Direct
+                this_offset = offset
+
+            end select
+            
+            ! Initialize control point
+            cp_locs(:,i) = this%vertices(i)%loc + this_offset*dir
+
+            ! Check if the control point is outside the mesh
+            get_back_in_loop: do while (this%control_point_outside_mesh(cp_locs(:,i), i))
+
+                ! Loop through neighboring panels to find ones the control point is outside
+                n_avg = 0.
+                do j=1,this%vertices(i)%panels%len()
+                    
+                    ! Get panel index
+                    call this%vertices(i)%panels%get(j, i_panel)
+
+                    ! Check if it's above the original panel
+                    if (this%panels(i_panel)%point_above(cp_locs(:,i), .false.)) then
+                        n_avg = n_avg + this%panels(i_panel)%get_weighted_normal_at_corner(this%vertices(i)%loc)
+                    end if
+
+                end do
+
+                ! A control point on the mirror plane should stay there
+                if (this%vertices(i)%on_mirror_plane) n_avg(this%mirror_plane) = 0.
+
+                ! If there were no panels this control point was above, then exit
+                if (norm2(n_avg) < 1.e-16) exit get_back_in_loop
+
+                ! Reflect (partially, length-preserving) across plane defined by n_avg
+                n_avg = n_avg/norm2(n_avg)
+                disp = cp_locs(:,i)- this%vertices(i)%loc
+                new_dir = disp - 1.1*n_avg*inner(disp, n_avg)
+                new_dir = new_dir/norm2(new_dir)
+                cp_locs(:,i)= this%vertices(i)%loc + this_offset*new_dir
+
+            end do get_back_in_loop
+
+        end do
+    
+    end function surface_mesh_get_cp_locs_vertex_based_interior
+
+
+    function surface_mesh_get_cp_locs_centroid_based(this, offset) result(cp_locs)
+        ! Places control points relative to each panel centroid
+        ! offset is in the normal direction. A positive offset will place control points outside the mesh, and vice versa.
+
+        implicit none
+        
+        class(surface_mesh),intent(in) :: this
+        real,intent(in) :: offset
+
+        real,dimension(:,:),allocatable :: cp_locs
+
+        integer :: i
+
+        ! Allocate
+        allocate(cp_locs(3,this%N_panels))
+
+        ! Loop through panels
+        do i=1,this%N_panels
+            cp_locs(:,i) = this%panels(i)%centr + this%panels(i)%n_g*offset
+        end do
+        
+    end function surface_mesh_get_cp_locs_centroid_based
+
+
+    function surface_mesh_control_point_outside_mesh(this, cp_loc, i_vert) result(outside)
+        ! Checks whether the given control point (tied to vertex i_vert) is outside the mesh
+        ! Note this will only check panels (and their mirrors) touching the vertex
+        ! Uses the ray-casting algorithm
+
+        implicit none
+        
+        class(surface_mesh),intent(in) :: this
+        real,dimension(3),intent(in) :: cp_loc
+        integer,intent(in) :: i_vert
+
+        logical :: outside
+
+        real,dimension(3) :: start, dir
+        real :: s_star
+        integer :: N_crosses, i, i_panel
+
+        ! As the starting point for the ray-casting algorithm, we'll pick a point above the first neighboring panel
+        call this%vertices(i_vert)%panels%get(1, i_panel)
+        start = this%panels(i_panel)%get_characteristic_length()*this%panels(i_panel)%n_g + this%panels(i_panel)%centr
+        dir = cp_loc - start
+
+        ! Loop through neighboring panels, counting the number of times the line passes through
+        N_crosses = 0
+        do i=1,this%vertices(i_vert)%panels%len()
+
+            ! Get panel index
+            call this%vertices(i_vert)%panels%get(i, i_panel)
+
+            ! Check for original panel
+            if (this%panels(i_panel)%line_passes_through(start, dir, .false., s_star)) then
+                if (s_star <= 1. .and. s_star >= 0.) N_crosses = N_crosses + 1
+            end if
+
+            ! Check for mirrored panel
+            if (this%vertices(i_vert)%on_mirror_plane) then
+                if (this%panels(i_panel)%line_passes_through(start, dir, .true., s_star)) then
+                    if (s_star <= 1. .and. s_star >= 0.) N_crosses = N_crosses + 1
+                end if
+            end if
+        end do
+
+        ! The point is outside if there was an even number of crossings
+        outside = mod(N_crosses, 2) == 0
+        
+    end function surface_mesh_control_point_outside_mesh
+
+
+    subroutine surface_mesh_place_internal_vertex_control_points(this, offset, offset_type, freestream)
+
+        implicit none
+
+        class(surface_mesh),intent(inout) :: this
+        real,intent(in) :: offset
+        character(len=:),allocatable,intent(in) :: offset_type
+        type(flow),intent(in) :: freestream
+
+        integer :: i
+        real,dimension(:,:),allocatable :: cp_locs
+
+        ! Specify number of control points
+        if (this%asym_flow) then
+            this%N_cp = this%N_verts*2
+        else
+            this%N_cp = this%N_verts
+        end if
+        this%N_cp = this%N_cp
+
+        ! Allocate memory
+        allocate(this%cp(this%N_cp))
+
+        ! Get control point locations
+        cp_locs = this%get_cp_locs_vertex_based_interior(offset, offset_type, freestream)
+
+        ! Initialize control points
+        do i=1,this%N_verts
+            call this%cp(i)%init(cp_locs(:,i), INTERNAL, TT_VERTEX, i)
+        end do
+
+        ! Initialize mirrored control points, if necessary
+        if (this%asym_flow) then
+
+            !$OMP parallel do schedule(static)
+            do i=1,this%N_cp/2
+
+                ! Initialize
+                call this%cp(i+this%N_cp/2)%init(mirror_across_plane(this%cp(i)%loc, this%mirror_plane), &
+                                                 this%cp(i)%cp_type, this%cp(i)%tied_to_type, this%cp(i)%tied_to_index)
+
+                ! Specify that this is a mirror
+                this%cp(i+this%N_cp/2)%is_mirror = .true.
+
+            end do
+
+        end if
+
+    end subroutine surface_mesh_place_internal_vertex_control_points
+
+
+    subroutine surface_mesh_place_centroid_control_points(this, add_one_inside, offset)
+        ! Places control points on the surface of the mesh at panel centroids
+        ! for the purpose of doublet strength matching
+        ! add_one_inside will place an extra control point just under the first panel
+        ! offset will specify whether the control points are to be placed a distance (offset) above the panel centroid
+
+        implicit none
+        
+        class(surface_mesh),intent(inout) :: this
+        logical,intent(in) :: add_one_inside
+        real,intent(in) :: offset
+
+        integer :: i, N_strength_matching
+        real,dimension(:,:),allocatable :: cp_locs
+
+        ! Specify number of control points
+        if (this%asym_flow) then
+            this%N_cp = this%N_panels*2
+        else
+            this%N_cp = this%N_panels
+        end if
+        if (add_one_inside) this%N_cp = this%N_cp + 1
+
+        ! Count number of needed strength-matching points
+        if (this%asym_flow) then
+
+            ! Count up vertices that will need strength matching
+            N_strength_matching = 0
+            do i=1,this%N_verts
+                if (this%vertices(i)%on_mirror_plane .and. .not. this%vertices(i)%mirrored_is_unique) then
+                    N_strength_matching = N_strength_matching + 1
+                end if
+            end do
+            this%N_cp = this%N_cp + N_strength_matching
+        end if
+
+        ! Get centroid-based locations
+        cp_locs = this%get_cp_locs_centroid_based(offset)
+
+        ! Allocate memory
+        allocate(this%cp(this%N_cp))
+
+        ! Initialize control points
+        do i=1,this%N_panels
+            if (offset == 0.) then
+                call this%cp(i)%init(cp_locs(:,i), SURFACE, TT_PANEL, i)
+            else if (offset > 0.) then
+                call this%cp(i)%init(cp_locs(:,i), EXTERNAL, TT_PANEL, i)
+            else
+                call this%cp(i)%init(cp_locs(:,i), INTERNAL, TT_PANEL, i)
+            end if
+        end do
+
+        ! Initialize mirrored control points, if necessary
+        if (this%asym_flow) then
+
+            !$OMP parallel do schedule(static)
+            do i=1,this%N_panels
+
+                ! Initialize
+                call this%cp(i+this%N_panels)%init(mirror_across_plane(this%cp(i)%loc, this%mirror_plane), &
+                                                   this%cp(i)%cp_type, this%cp(i)%tied_to_type, this%cp(i)%tied_to_index)
+
+                ! Specify that this is a mirror
+                this%cp(i+this%N_panels)%is_mirror = .true.
+
+            end do
+
+        end if
+
+        ! Add in strength matching
+        if (this%asym_flow) then
+            do i=1,this%N_verts
+                if (this%vertices(i)%on_mirror_plane .and. .not. this%vertices(i)%mirrored_is_unique) then
+                    call this%cp(this%N_cp-N_strength_matching+i)%init((/0., 0., 0./), SURFACE, TT_VERTEX, i)
+                    call this%cp(this%N_cp-N_strength_matching+i)%set_bc(STRENGTH_MATCHING)
+                end if
+            end do
+        end if
+
+        ! Add point inside
+        if (add_one_inside) then
+            call this%cp(this%N_cp)%init(this%panels(1)%centr-1.e-8*this%panels(1)%n_g*this%panels(1)%get_characteristic_length(), &
+                         INTERNAL, TT_PANEL, 1)
+        end if
+
+    end subroutine surface_mesh_place_centroid_control_points
+
+
+    subroutine surface_mesh_place_sparse_centroid_control_points(this, offset)
+        ! Places control points on the surface of the mesh at panel centroids
+        ! Will remove control points in a (hopefully) regular fashion to make as many control points as vertices
+        ! for the purpose of doublet strength matching
+        ! offset will specify whether the control points are to be placed a distance (offset) above the panel centroid
+
+        implicit none
+        
+        class(surface_mesh),intent(inout) :: this
+        real,intent(in) :: offset
+
+        integer :: i, N_strength_matching, N_orig_cp, i_cp, N_initialized
+        logical :: use_this_one
+        real,dimension(:,:),allocatable :: cp_locs
+
+        ! Specify number of control points we will start out with before sparsifying
+        if (this%asym_flow) then
+            N_orig_cp = this%N_panels*2
+        else
+            N_orig_cp = this%N_panels
+        end if
+
+        ! Count number of needed strength-matching points
+        if (this%asym_flow) then
+
+            ! Count up vertices that will need strength matching
+            N_strength_matching = 0
+            do i=1,this%N_verts
+                if (this%vertices(i)%on_mirror_plane .and. .not. this%vertices(i)%mirrored_is_unique) then
+                    N_strength_matching = N_strength_matching + 1
+                end if
+            end do
+            N_orig_cp = N_orig_cp + N_strength_matching
+        end if
+
+        ! Get centroid-based locations
+        cp_locs = this%get_cp_locs_centroid_based(offset)
+
+        ! Decide how many control points we actually need
+        if (this%asym_flow) then
+            this%N_cp = this%N_verts*2
+        else
+            this%N_cp = this%N_verts
+        end if
+
+        ! Allocate memory
+        allocate(this%cp(this%N_cp))
+
+        ! Initialize control points selectively
+        i_cp = 1
+        do i=1,this%N_panels
+
+            ! Check if we actually want this control point
+            use_this_one = .false.
+            if (this%asym_flow) then
+            else
+                if ((mod(i, 2) == 0) .or. (this%N_cp - i_cp == this%N_panels - i)) then
+                    use_this_one = .true.
+                end if
+            end if
+
+            ! If we want it, get it
+            if (use_this_one) then
+
+                ! Initialize
+                if (offset == 0.) then
+                    call this%cp(i_cp)%init(cp_locs(:,i), SURFACE, TT_PANEL, i)
+                else if (offset > 0.) then
+                    call this%cp(i_cp)%init(cp_locs(:,i), EXTERNAL, TT_PANEL, i)
+                else
+                    call this%cp(i_cp)%init(cp_locs(:,i), INTERNAL, TT_PANEL, i)
+                end if
+
+                ! Update index
+                i_cp = i_cp + 1
+
+            end if
+
+        end do
+
+        ! Initialize mirrored control points, if necessary
+        if (this%asym_flow) then
+
+            do i=1,this%N_panels
+
+                ! Initialize
+                call this%cp(i+this%N_panels)%init(mirror_across_plane(this%cp(i)%loc, this%mirror_plane), &
+                                                   this%cp(i)%cp_type, this%cp(i)%tied_to_type, this%cp(i)%tied_to_index)
+
+                ! Specify that this is a mirror
+                this%cp(i+this%N_panels)%is_mirror = .true.
+
+            end do
+
+        end if
+
+        ! Add in strength matching
+        if (this%asym_flow) then
+            do i=1,this%N_verts
+                if (this%vertices(i)%on_mirror_plane .and. .not. this%vertices(i)%mirrored_is_unique) then
+                    call this%cp(this%N_cp-N_strength_matching+i)%init((/0., 0., 0./), SURFACE, TT_VERTEX, i)
+                    call this%cp(this%N_cp-N_strength_matching+i)%set_bc(STRENGTH_MATCHING)
+                end if
+            end do
+        end if
+
+    end subroutine surface_mesh_place_sparse_centroid_control_points
+
+
+    subroutine surface_mesh_place_centroid_vertex_avg_control_points(this, add_one_inside)
+        ! Places control points on the surface of the mesh at panel centroids
+        ! for the purpose of doublet strength matching
+
+        implicit none
+        
+        class(surface_mesh),intent(inout) :: this
+        logical,intent(in) :: add_one_inside
+
+        integer :: i, N_strength_matching, i_panel
+        real,dimension(3) :: loc
+
+        ! Specify number of control points
+        if (this%asym_flow) then
+            this%N_cp = this%N_verts*2
+        else
+            this%N_cp = this%N_verts
+        end if
+        if (add_one_inside) this%N_cp = this%N_cp + 1
+
+        ! Count number of needed strength-matching points
+        if (this%asym_flow) then
+
+            ! Count up vertices that will need strength matching
+            N_strength_matching = 0
+            do i=1,this%N_verts
+                if (this%vertices(i)%on_mirror_plane .and. .not. this%vertices(i)%mirrored_is_unique) then
+                    N_strength_matching = N_strength_matching + 1
+                end if
+            end do
+            this%N_cp = this%N_cp + N_strength_matching
+        end if
+
+        ! Allocate memory
+        allocate(this%cp(this%N_cp))
+
+        ! Loop through panels
+        !$OMP parallel do schedule(static) private(i_panel, loc)
+        do i=1,this%N_verts
+
+            ! Get neighboring panel
+            call this%vertices(i)%panels_not_across_wake_edge%get(1, i_panel)
+
+            ! Determine location
+            !loc = 0.5*this%panels(i_panel)%centr + 0.5*this%vertices(i)%loc
+            loc = this%panels(i_panel)%centr + 1.e-7*this%panels(i_panel)%n_g
+            
+            ! Initialize control point
+            call this%cp(i)%init(loc, SURFACE, TT_PANEL, i_panel)
+
+        end do
+
+        ! Initialize mirrored control points, if necessary
+        if (this%asym_flow) then
+
+            !$OMP parallel do schedule(static)
+            do i=1,this%N_panels
+
+                ! Initialize
+                call this%cp(i+this%N_panels)%init(mirror_across_plane(this%cp(i)%loc, this%mirror_plane), &
+                                                   this%cp(i)%cp_type, this%cp(i)%tied_to_type, this%cp(i)%tied_to_index)
+
+                ! Specify that this is a mirror
+                this%cp(i+this%N_panels)%is_mirror = .true.
+
+            end do
+
+        end if
+
+        ! Add in strength matching
+        if (this%asym_flow) then
+            do i=1,this%N_verts
+                if (this%vertices(i)%on_mirror_plane .and. .not. this%vertices(i)%mirrored_is_unique) then
+                    call this%cp(this%N_cp-N_strength_matching+i)%init((/0., 0., 0./), SURFACE, TT_VERTEX, i)
+                    call this%cp(this%N_cp-N_strength_matching+i)%set_bc(STRENGTH_MATCHING)
+                end if
+            end do
+        end if
+
+        ! Add point inside
+        if (add_one_inside) then
+            call this%cp(this%N_cp)%init(this%panels(1)%centr &
+                         - 1.e-8*this%panels(1)%n_g*this%panels(1)%get_characteristic_length(), &
+                         INTERNAL, TT_PANEL, 1)
+        end if
+
+    end subroutine surface_mesh_place_centroid_vertex_avg_control_points
+
+
     subroutine surface_mesh_calc_point_dod(this, point, freestream, dod_info, wake_dod_info)
         ! Calculates the domain of dependence for the point
 
@@ -1985,6 +2324,7 @@ contains
         type(dod),dimension(:),allocatable,intent(out) :: dod_info
         type(dod),dimension(:,:),allocatable :: wake_dod_info
 
+        logical,dimension(:),allocatable :: verts_in_dod, wake_verts_in_dod
         integer :: j, stat, N_verts, N_panels, N_strip_verts, N_strip_panels
 
         ! Figure out how many verts and panels we're going to consider
@@ -2006,6 +2346,10 @@ contains
         end if
 
         ! Allocate
+
+        ! Whether mesh vertices are in the DoD
+        allocate(verts_in_dod(N_verts), source=.false., stat=stat)
+        call check_allocation(stat, "vertex domain of dependence storage")
 
         ! DoD info for panels
         allocate(dod_info(N_panels), stat=stat)
@@ -2053,7 +2397,7 @@ contains
         class(surface_mesh),intent(in) :: this
         real,dimension(3),intent(in) :: point
         type(flow),intent(in) :: freestream
-        real,intent(out) :: phi_d, phi_s
+        real,intent(inout) :: phi_d, phi_s
 
         integer :: j, k
         real :: phi_d_panel, phi_s_panel
@@ -2171,6 +2515,9 @@ contains
                     call this%panels(k)%calc_velocities(mirror_across_plane(point, this%mirror_plane), freestream, &
                                                         .false., this%sigma, this%mu, this%N_panels, this%N_verts, &
                                                         this%asym_flow, v_s_panel, v_d_panel)
+
+                    v_d_panel = mirror_across_plane(v_d_panel, this%mirror_plane)
+                    v_s_panel = mirror_across_plane(v_s_panel, this%mirror_plane)
                     if (this%panels(k)%has_sources) v_s = v_s + v_s_panel
                     v_d = v_d + v_d_panel
 
@@ -2195,11 +2542,12 @@ contains
                 ! Calculate mirrored influences
                 if (this%mirrored .and. .not. this%asym_flow) then
 
-                    ! Get influence of mirrored panel
-                    call this%wake%strips(j)%panels(k)%calc_velocities(point, freestream, .true., &
+                    call this%wake%strips(j)%panels(k)%calc_velocities(point, freestream, .false., &
                                                              this%sigma, this%mu, this%N_panels, this%N_verts, &
                                                              this%asym_flow, v_s_panel, v_d_panel)
                     
+                    v_d_panel = mirror_across_plane(v_d_panel, this%mirror_plane)
+                    v_s_panel = mirror_across_plane(v_s_panel, this%mirror_plane)
                     if (this%wake%strips(j)%panels(k)%has_sources) v_s = v_s + v_s_panel
                     v_d = v_d + v_d_panel
 
@@ -2207,8 +2555,8 @@ contains
 
             end do
         end do
-    end subroutine surface_mesh_get_induced_velocities_at_point
 
+    end subroutine surface_mesh_get_induced_velocities_at_point
 
 
     subroutine surface_mesh_output_results(this, body_file, wake_file, control_point_file, mirrored_body_file)
@@ -2335,14 +2683,15 @@ contains
 
             ! Cell velocities and sources
             call body_vtk%write_cell_vectors(this%V_cells(:,1:N_cells), "v")
+            call body_vtk%write_cell_vectors(this%V_cells_inner(:,1:N_cells), "v_inner")
             call body_vtk%write_cell_vectors(this%dC_f(:,1:N_cells), "dC_f")
 
             ! Surface potential values
             call body_vtk%write_point_scalars(this%mu(1:this%N_verts), "mu")
             call body_vtk%write_point_scalars(this%Phi_u(1:this%N_verts), "Phi_u")
-            call body_vtk%write_point_scalars(convex, "convex")
 
         end if
+        call body_vtk%write_point_scalars(convex, "convex")
 
         ! Finalize
         call body_vtk%finish()
@@ -2431,14 +2780,15 @@ contains
 
             ! Other
             call body_vtk%write_cell_vectors(this%V_cells(:,N_cells+1:N_cells*2), "v")
+            call body_vtk%write_cell_vectors(this%V_cells_inner(:,N_cells+1:N_cells*2), "v_inner")
             call body_vtk%write_cell_vectors(this%dC_f(:,N_cells+1:N_cells*2), "dC_f")
 
             ! Surface potentials
             call body_vtk%write_point_scalars(this%mu(this%N_verts+1:this%N_verts*2), "mu")
             call body_vtk%write_point_scalars(this%Phi_u(this%N_verts+1:this%N_verts*2), "Phi_u")
-            call body_vtk%write_point_scalars(convex, "convex")
 
         end if
+        call body_vtk%write_point_scalars(convex, "convex")
 
         call body_vtk%finish()
 

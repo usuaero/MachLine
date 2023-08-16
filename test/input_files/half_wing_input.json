@@ -19,7 +19,7 @@
         }
     },
     "solver": {
-        "formulation": "source-free",
+        "formulation": "dirichlet-source-free",
         "control_point_offset": 1.1e-05
     },
     "post_processing" : {
