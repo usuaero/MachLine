@@ -3093,17 +3093,29 @@ contains
         end if
 
         ! Linear terms
-        v_d_mu_space(1,1) = 3.*int%r*geom%h*int%H215
-        v_d_mu_space(1,2) = 3.*int%r*(int%H215*geom%P_ls(1)*geom%h + int%hH315)
-        v_d_mu_space(1,3) = 3.*int%r*geom%h*(int%H215*geom%P_ls(2) + int%H225)
+        !v_d_mu_space(1,1) = 3.*int%r*geom%h*int%H215
+        !v_d_mu_space(1,2) = 3.*int%r*(int%H215*geom%P_ls(1)*geom%h + int%hH315)
+        !v_d_mu_space(1,3) = 3.*int%r*geom%h*(int%H215*geom%P_ls(2) + int%H225)
 
-        v_d_mu_space(2,1) = 3.*int%s*geom%h*int%H125
-        v_d_mu_space(2,2) = 3.*int%s*geom%h*(int%H125*geom%P_ls(1) + int%H225)
-        v_d_mu_space(2,3) = 3.*int%s*(int%H125*geom%P_ls(2)*geom%h + int%hH135)
+        !v_d_mu_space(2,1) = 3.*int%s*geom%h*int%H125
+        !v_d_mu_space(2,2) = 3.*int%s*geom%h*(int%H125*geom%P_ls(1) + int%H225)
+        !v_d_mu_space(2,3) = 3.*int%s*(int%H125*geom%P_ls(2)*geom%h + int%hH135)
 
-        v_d_mu_space(3,1) = int%H113_3rsh2H115
-        v_d_mu_space(3,2) = int%H113_3rsh2H115*geom%P_ls(1) + int%H213 - 3.*int%rs*geom%h2*int%H215
-        v_d_mu_space(3,3) = int%H113_3rsh2H115*geom%P_ls(2) + int%H123 - 3.*int%rs*geom%h2*int%H125
+        !v_d_mu_space(3,1) = int%H113_3rsh2H115
+        !v_d_mu_space(3,2) = int%H113_3rsh2H115*geom%P_ls(1) + int%H213 - 3.*int%rs*geom%h2*int%H215
+        !v_d_mu_space(3,3) = int%H113_3rsh2H115*geom%P_ls(2) + int%H123 - 3.*int%rs*geom%h2*int%H125
+
+        v_d_mu_space(1,1) = 0
+        v_d_mu_space(1,2) = int%hH113
+        v_d_mu_space(1,3) = 0
+
+        v_d_mu_space(2,1) = 0
+        v_d_mu_space(2,2) = 0
+        v_d_mu_space(2,3) = int%hH113
+
+        v_d_mu_space(3,1) = 0
+        v_d_mu_space(3,2) = int%H213
+        v_d_mu_space(3,3) = int%H123
 
         if (this%order == 2) then
 
@@ -3153,7 +3165,7 @@ contains
 
 
     subroutine panel_calc_velocity_influences(this, P, freestream, dod_info, mirror_panel, v_s_S_space, v_d_M_space)
-        ! Calculates the source- and doublet-induced potentials at the given point P
+        ! Calculates the source- and doublet-induced velocity influences at the given point P
 
         implicit none
 
@@ -3211,7 +3223,7 @@ contains
 
     subroutine panel_calc_velocities(this, P, freestream, dod_info, mirror_panel, sigma, mu, &
                                      N_body_panels, N_body_verts, asym_flow, v_s, v_d)
-        ! Calculates the potentials induced at the given point
+        ! Calculates the velocity induced at the given point
 
         implicit none
         
