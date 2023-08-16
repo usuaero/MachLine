@@ -694,16 +694,25 @@ contains
         ! DoD info for panels
         allocate(this%wake_dod_info(N_strip_panels, body%wake%N_strips, body%N_cp), stat=stat)
         call check_allocation(stat, "wake domain of dependence storage")
+        
+     !!!!DoD infro for filaments (maybe)
+     !!!!allocate(this%filament_wake_dod_info(N_filament_filament_segments,body%filament_wake%N_filaments, body%N_cp), stat=stat)
+     !!!!call check_allocation(stat, "wake domain of dependence storage")
 
         ! Whether vertices are in the DoD of the original control point
         allocate(wake_verts_in_dod(N_strip_verts, body%wake%N_strips), stat=stat)
         call check_allocation(stat, "vertex domain of dependence storage")
 
+      !!!! Whether vertices are in the DoD of the original control point (maybe)
+   !!!! allocate(filament_wake_verts_in_dod(N_filament_verts, body%filament_wake%N_filaments), stat=stat)
+   !!!! call check_allocation(stat, "vertex domain of dependence storage")
+         
+
         ! If the freestream is subsonic, these don't need to be checked
         if (this%freestream%supersonic) then
 
             ! Loop through control points
-            !$OMP parallel do private(i, k, vert_loc, mirrored_vert_loc, verts_in_dod, wake_verts_in_dod)
+            !$OMP parallel do private(i, k, vert_loc, mirrored_vert_loc, verts_in_dod, wake_verts_in_dod) !!!! change to filament_wake_verts_in_dod
             do j=1,body%N_cp
 
                 ! Get whether body vertices are in the DoD of this control point
@@ -722,6 +731,10 @@ contains
                     ! Get whether wake vertices are in the DoD of this control point
                     wake_verts_in_dod(1:body%wake%strips(i)%N_verts,i) = &
                         body%wake%strips(i)%get_verts_in_dod_of_point(body%cp(j)%loc, this%freestream, .false.)
+
+                 !!!! Get whether wake vertices are in the DoD of this control point
+              !!!!  filament_wake_verts_in_dod(1:body%filament_wake%filaments(i)%N_verts,i) = &
+                !!!!    body%filament_wake%filaments(i)%get_verts_in_dod_of_point(body%cp(j)%loc, this%freestream, .false.)
 
                     if (body%mirrored .and. .not. body%asym_flow) then
 
@@ -1527,23 +1540,29 @@ contains
             case (STRENGTH_MATCHING) ! Strength matching
                 cycle
 
-            case (ZERO_NORMAL_MF) ! Calculate normal mass flux influences
+            case (ZERO_NORMAL_MF) ! Calculate normal mass flux influences !!!! add our stuff with logic to choose filaments or panels
 
                 ! Initialize
                 A_i = 0.
 
                 ! Get doublet influence from wake strips
                 do j=1,body%wake%N_strips
+            !!!!do j=1, body%filament_wake%N_filaments
                     do l=1,body%wake%strips(j)%N_panels
-
+                !!!!do l=1, body%filament_wake%filaments(j)%N_filament_segments
                         ! Caclulate influence of existing panel on control point
                         call body%wake%strips(j)%panels(l)%calc_velocity_influences(body%cp(i)%loc, this%freestream, &
-                                                                                     this%wake_dod_info(l,j,i), &
-                                                                                     .false., v_s, v_d)
-                        doublet_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_d))
+                                                                                     this%wake_dod_info(l,j,i), & ! wake_dod_info(l,j,i) will also be used this way for filament_wake_dod_info because it needs to loop through control points, filaments and filament segments 
+                                                                                     .false., v_s, v_d) ! v_s and v_d are outputs of this subroutine callout
+
+                     !!!!call body%filament_wake%filaments(j)%filament_segments(l)%calc_velocity_influences(body%cp(i)%loc, this%freestream, &
+                                                                                                    !!!!this%filament_wake_dod_info(l,j,i), &
+                                                                                                    !!!!.false., v_s, v_d)
+
+                        doublet_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_d)) !!!! won't need to change B_matrix
 
                         ! Add influence
-                        do k=1,size(body%wake%strips(j)%panels(l)%i_vert_d)
+                        do k=1,size(body%wake%strips(j)%panels(l)%i_vert_d) !!!! what is i_vert_d?
                             A_i(this%P(body%wake%strips(j)%panels(l)%i_vert_d(k))) = &
                                 A_i(this%P(body%wake%strips(j)%panels(l)%i_vert_d(k))) + doublet_inf(k)
                         end do
@@ -1607,7 +1626,7 @@ contains
                     end do
                 end do
 
-            case (ZERO_NORMAL_VEL) ! Calculate velocity flux influences
+            case (ZERO_NORMAL_VEL) ! Calculate velocity flux influences !!!! add our stuff
 
                 ! Initialize
                 A_i = 0.

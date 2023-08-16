@@ -1723,7 +1723,7 @@ contains
     end subroutine panel_point_to_new_vertex
 
 
-    function panel_check_dod(this, eval_point, freestream, verts_in_dod, mirror_panel, mirror_plane) result(dod_info)
+    function panel_check_dod(this, eval_point, freestream, verts_in_dod, mirror_panel, mirror_plane) result(dod_info) !!!!!!!!! make filament version !!!!!!!!!!!
         ! Determines how (if) this panel lies within the domain of dependence of the evaluation point
 
         implicit none
@@ -3069,7 +3069,7 @@ contains
     end function panel_assemble_v_s_S_space
 
 
-    function panel_assemble_v_d_M_space(this, int, geom, freestream, mirror_panel) result(v_d_M_space)
+    function panel_assemble_v_d_M_space(this, int, geom, freestream, mirror_panel) result(v_d_M_space) !!!! need to create this space for wakes
         ! Assembles the doublet-induced velocity influence coefficient matrix from the previously-calculated influence integrals
 
         implicit none
@@ -3211,7 +3211,7 @@ contains
 
     subroutine panel_calc_velocities(this, P, freestream, dod_info, mirror_panel, sigma, mu, &
                                      N_body_panels, N_body_verts, asym_flow, v_s, v_d)
-        ! Calculates the potentials induced at the given point
+        ! Calculates the velocities induced at the given point
 
         implicit none
         
