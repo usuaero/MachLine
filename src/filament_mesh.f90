@@ -34,7 +34,7 @@ module filament_wake_mesh_mod
         integer :: N_min_segments = 0 !!!! min == 1
         integer :: N_max_segments = 0 !!!! maybe set a max number of segments to limit computing time (will have to be verified experimentally)
 
-        integer :: N_filaments !!!! here or in filaments?
+        integer :: N_filaments !!!! shold we define this here or in filament?
         integer :: N_filaments_min
         integer :: N_filaments_max
 
