@@ -12,8 +12,9 @@ module filament_wake_mesh_mod
     use filament_segment_mod
     !!!! use filament_mod
     use mesh_mod
+    !!!! call correct mods
 
-    !!!! models wake_mesh
+    !!!! mirrors wake_mesh
 
 !****************************************
 !*    filament_segment => panel         *
