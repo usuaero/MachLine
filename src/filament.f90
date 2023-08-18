@@ -25,12 +25,6 @@ module filament_mod
         !     procedure :: init_panel => wake_strip_init_panel !!!!
 
     end type filament 
-            procedure :: init => wake_filament_seg_init !!!! create better naming conventions
-            procedure :: init_vertices => wake_filament_seg_init_vertices !!!!
-            procedure :: init_panels => wake_strip_init_panels !!!!
-            procedure :: init_panel => wake_strip_init_panel !!!!
-
-    end type wake_filament 
     
 contains
 
@@ -43,8 +37,6 @@ contains
 
         !!!! do we need to change any of these?
         class(filament),intent(inout) :: this
-        !!!! do we need to change any of these? vv
-        class(wake_strip),intent(inout) :: this
         type(flow),intent(in) :: freestream
         type(edge),intent(in) :: starting_edge
         logical,intent(in) :: mirror_start
