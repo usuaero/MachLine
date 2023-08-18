@@ -10,32 +10,32 @@ module filament_mod
 
     implicit none
 
-    type, extends(mesh) :: wake_filament
+    type filament 
 
         integer :: i_top_parent_1, i_top_parent_2, i_bot_parent_1, i_bot_parent_2
         integer :: i_top_parent, i_bot_parent
         logical :: on_mirror_plane
 
-        contains
+        ! contains
+        !     procedure :: init => filament_init !!!! added this. May take it off if we don't init the wake_filament here. 
+        !     procedure :: seg_init => filament_seg_init !!!! how to differentiate between segment and mesh
+        !     procedure :: init_vertices => filament_seg_init_vertices !!!!                                                !!!! comment out all type bound procedure statements until they are used or MachLine won't compile. -SA
+        !     procedure :: init_panels => wake_strip_init_panels !!!!
+        !     procedure :: init_panel => wake_strip_init_panel !!!!
 
-            procedure :: init => wake_filament_seg_init !!!! how to differentiate between segment and mesh
-            procedure :: init_vertices => wake_filament_seg_init_vertices !!!!
-            procedure :: init_panels => wake_strip_init_panels !!!!
-            procedure :: init_panel => wake_strip_init_panel !!!!
-
-    end type wake_filament 
+    end type filament 
     
 contains
 
 
-    subroutine wake_filament_init(this, freestream, starting_edge, mirror_start, mirror_plane, &    !!!! N_filaments, N_segments, freestream_plane?, normals?
+    subroutine filament_init(this, freestream, starting_edge, mirror_start, mirror_plane, &    !!!! N_filaments, N_segments, freestream_plane?, normals?
                                 N_panels_streamwise, trefftz_dist, body_verts, wake_mirrored, initial_panel_order, N_body_panels) 
         !initializes wake filament based on the provided info
 
         implicit none
 
         !!!! do we need to change any of these?
-        class(wake_strip),intent(inout) :: this
+        class(filament),intent(inout) :: this
         type(flow),intent(in) :: freestream
         type(edge),intent(in) :: starting_edge
         logical,intent(in) :: mirror_start
@@ -52,6 +52,6 @@ contains
     end subroutine
 
 
-    subroutine wake_
+    ! subroutine wake_ !!!! I commented this out so it would compile. Just trying to make sure I've edited the make file correctly. -Spencer
 
 end module filament_mod

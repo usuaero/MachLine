@@ -22,9 +22,9 @@ module filament_wake_mesh_mod
 !****************************************
     implicit none
 
-    logical ::
+    ! logical ::  !!!! commenting out so it will compile. Need to put a variable here.  
   
-    implicit none
+    ! implicit none !!!! commenting out so it will compile 
 !!!! flip definitions of filiment mesh
     !type, extends(mesh) ::  filament_mesh   !!!!(does the filament extend mesh or is it something new)
     type :: filament_wake_mesh
@@ -40,19 +40,23 @@ module filament_wake_mesh_mod
 
         contains
 
-            procedure :: init => wake_filament_mesh_init
-            procedure :: init_filaments => wake_filament_mesh_init_filaments
-            procedure :: write_filaments => wake_filament_mesh_write_filaments
+            ! procedure :: init => wake_filament_mesh_init 
+            ! procedure :: init_filaments => wake_filament_mesh_init_filaments             !!!! comment out all type bound procedure statements until they are used or MachLine won't compile. -SA
+            ! procedure :: write_filaments => wake_filament_mesh_write_filaments
 
     end type filament_wake_mesh
 
 
 contains
 
-    subroutine wake_mesh_init(this, body_edges, body_verts, freestream, asym_flow, mirror_plane, N_panels_streamwise, &
-                                trefftz_dist, body_mirrored, initial_panel_order, N_body_panels) !!!!!! what else does it need
-    ! Initializes the wake mesh
+            !!!! I am commenting wake_mesh_init out because if we don't declare the variables, it won't compile
+    ! subroutine wake_mesh_init(this, body_edges, body_verts, freestream, asym_flow, mirror_plane, N_panels_streamwise, &
+    !                             trefftz_dist, body_mirrored, initial_panel_order, N_body_panels) !!!!!! what else does it need
+    
+    !                                 ! Initializes the wake mesh
 
-    !!!!.......continue
+    ! !!!!.......continue
+    
+    ! end subroutine wake_mesh_init !!!! I put this in here so it would compile - SA 
 
 end module filament_wake_mesh_mod

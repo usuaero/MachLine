@@ -4,17 +4,17 @@ module filament_segment_mod
     use helpers_mod
     use mesh_mod 
     use wake_strip_mod 
-    use...
-    use...
+    ! use...
+    ! use...
 
 !!!! should model panel module
 
     implicit none
 
-    type :: filament
+    type :: filament_segment !!!! changed to filament_segment type
 
-    integer ::
+    integer :: filament !!!! can change later. Just needed to put something so it would compile 
     
-    end type filament 
+    end type filament_segment !!!! changed to filament_segment type 
 
 end module filament_segment_mod
