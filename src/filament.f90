@@ -5,8 +5,9 @@ module filament_mod
     use math_mod
     use flow_mod
     use linalg_mod
+    !!!! call correct mods
 
-    !!!! models wake_strip
+    !!!! mirrors wake_strip
 
     implicit none
 
@@ -18,7 +19,7 @@ module filament_mod
 
         contains
 
-            procedure :: init => wake_filament_seg_init !!!! how to differentiate between segment and mesh
+            procedure :: init => wake_filament_seg_init !!!! create better naming conventions
             procedure :: init_vertices => wake_filament_seg_init_vertices !!!!
             procedure :: init_panels => wake_strip_init_panels !!!!
             procedure :: init_panel => wake_strip_init_panel !!!!
@@ -34,7 +35,7 @@ contains
 
         implicit none
 
-        !!!! do we need to change any of these?
+        !!!! do we need to change any of these? vv
         class(wake_strip),intent(inout) :: this
         type(flow),intent(in) :: freestream
         type(edge),intent(in) :: starting_edge
@@ -47,7 +48,7 @@ contains
         real,dimension(3) :: start_1, start_2
         integer :: N_body_verts, i
 
-        !!!!mirror stuff, do we need to change? (46 - 100)
+        !!!!mirror stuff, do we need to change? ( line (46 - 100) in wake_strip)
 
     end subroutine
 
