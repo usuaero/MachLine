@@ -16,6 +16,7 @@ module filament_mod
         integer :: i_top_parent_1, i_top_parent_2, i_bot_parent_1, i_bot_parent_2
         integer :: i_top_parent, i_bot_parent
         logical :: on_mirror_plane
+        integer :: N_segments = 0
 
         ! contains
         !     procedure :: init => filament_init !!!! added this. May take it off if we don't init the wake_filament here. 
