@@ -33,8 +33,6 @@ module panel_solver_mod
         logical :: incompressible_rule, isentropic_rule, second_order_rule, slender_rule, linear_rule
         logical :: write_A_and_b, sort_system, use_sort_for_cp, overdetermined_ls, underdetermined_ls, dirichlet
         logical :: compressible_correction, prandtl_glauert, karman_tsien, laitone
-        type(dod),dimension(:,:),allocatable :: dod_info
-        type(dod),dimension(:,:,:),allocatable :: wake_dod_info
         type(flow) :: freestream
         real :: norm_res, max_res, tol, rel
         real :: sort_time, prec_time, solver_time
@@ -70,7 +68,6 @@ module panel_solver_mod
             procedure :: init_control_point_boundary_conditions => panel_solver_init_control_point_boundary_conditions
 
             ! Misc setup
-            procedure :: calc_domains_of_dependence => panel_solver_calc_domains_of_dependence
             procedure :: set_permutation => panel_solver_set_permutation
 
             ! Solve
@@ -151,9 +148,6 @@ contains
         if (control_point_file /= 'none') then
             call body%write_control_points(control_point_file, solved=.false.)
         end if
-
-        ! Calculate domains of dependence
-        call this%calc_domains_of_dependence(body)
 
         ! Set up permutation for linear system
         call this%set_permutation(body)
@@ -646,146 +640,6 @@ contains
         end do
         
     end subroutine panel_solver_init_control_point_boundary_conditions
-
-
-    subroutine panel_solver_calc_domains_of_dependence(this, body)
-        ! Determines the domains of dependence for each control point based on the freestream condition
-
-        implicit none
-
-        class(panel_solver),intent(inout) :: this
-        type(surface_mesh),intent(inout) :: body
-
-        integer :: i, j, k, stat, N_panels, N_verts, N_strip_panels, N_strip_verts
-        real,dimension(3) :: vert_loc, mirrored_vert_loc
-        logical,dimension(:),allocatable :: verts_in_dod
-        logical,dimension(:,:),allocatable :: wake_verts_in_dod
-
-        if (this%freestream%supersonic .and. verbose) write(*,'(a)',advance='no') "     Calculating domains of dependence..."
-
-        ! Figure out how many verts/panels we're going to consider
-        if (body%mirrored) then
-            if (body%asym_flow) then
-                N_strip_panels = body%wake%N_max_strip_panels
-                N_strip_verts = body%wake%N_max_strip_verts
-            else
-                N_strip_panels = 2*body%wake%N_max_strip_panels
-                N_strip_verts = 2*body%wake%N_max_strip_verts
-            end if
-            N_panels = 2*body%N_panels
-            N_verts = 2*body%N_verts
-        else
-            N_panels = body%N_panels
-            N_verts = body%N_verts
-            N_strip_panels = body%wake%N_max_strip_panels
-            N_strip_verts = body%wake%N_max_strip_verts
-        end if
-
-        ! Allocate
-
-        ! DoD info for panels
-        allocate(this%dod_info(N_panels, body%N_cp), stat=stat)
-        call check_allocation(stat, "domain of dependence storage")
-
-        ! Whether vertices are in the DoD of the original control point
-        allocate(verts_in_dod(N_verts), stat=stat)
-        call check_allocation(stat, "vertex domain of dependence storage")
-
-        ! DoD info for panels
-        allocate(this%wake_dod_info(N_strip_panels, body%wake%N_strips, body%N_cp), stat=stat)
-        call check_allocation(stat, "wake domain of dependence storage")
-        
-     !!!!DoD infro for filaments (maybe)
-     !!!!allocate(this%filament_wake_dod_info(N_filament_filament_segments,body%filament_wake%N_filaments, body%N_cp), stat=stat)
-     !!!!call check_allocation(stat, "wake domain of dependence storage")
-
-        ! Whether vertices are in the DoD of the original control point
-        allocate(wake_verts_in_dod(N_strip_verts, body%wake%N_strips), stat=stat)
-        call check_allocation(stat, "vertex domain of dependence storage")
-
-      !!!! Whether vertices are in the DoD of the original control point (maybe)
-   !!!! allocate(filament_wake_verts_in_dod(N_filament_verts, body%filament_wake%N_filaments), stat=stat)
-   !!!! call check_allocation(stat, "vertex domain of dependence storage")
-         
-
-        ! If the freestream is subsonic, these don't need to be checked
-        if (this%freestream%supersonic) then
-
-            ! Loop through control points
-            !$OMP parallel do private(i, k, vert_loc, mirrored_vert_loc, verts_in_dod, wake_verts_in_dod) !!!! change to filament_wake_verts_in_dod
-            do j=1,body%N_cp
-
-                ! Get whether body vertices are in the DoD of this control point
-                verts_in_dod(1:body%N_verts) = body%get_verts_in_dod_of_point(body%cp(j)%loc, this%freestream, .false.)
-
-                if (body%mirrored) then
-
-                    ! Get whether mirrored vertices are in the DoD of this control point
-                    verts_in_dod(body%N_verts+1:) = body%get_verts_in_dod_of_point(body%cp(j)%loc, this%freestream, .true.)
-
-                end if
-
-                ! Loop through wake strips
-                do i=1,body%wake%N_strips
-
-                    ! Get whether wake vertices are in the DoD of this control point
-                    wake_verts_in_dod(1:body%wake%strips(i)%N_verts,i) = &
-                        body%wake%strips(i)%get_verts_in_dod_of_point(body%cp(j)%loc, this%freestream, .false.)
-
-                 !!!! Get whether wake vertices are in the DoD of this control point
-              !!!!  filament_wake_verts_in_dod(1:body%filament_wake%filaments(i)%N_verts,i) = &
-                !!!!    body%filament_wake%filaments(i)%get_verts_in_dod_of_point(body%cp(j)%loc, this%freestream, .false.)
-
-                    if (body%mirrored .and. .not. body%asym_flow) then
-
-                        ! Get whether mirrored vertices are in the DoD of this control point
-                        wake_verts_in_dod(body%wake%strips(i)%N_verts+1:,i) = &
-                            body%wake%strips(i)%get_verts_in_dod_of_point(body%cp(j)%loc, this%freestream, .true.)
-
-                    end if
-                end do
-
-                ! Loop through body panels
-                do i=1,body%N_panels
-
-                    ! Check DoD for original panel
-                    this%dod_info(i,j) = body%panels(i)%check_dod(body%cp(j)%loc, this%freestream, verts_in_dod)
-
-                    if (body%mirrored) then
-
-                        ! Check DoD for mirrored panel
-                        this%dod_info(i+body%N_panels,j) = body%panels(i)%check_dod(body%cp(j)%loc, this%freestream, &
-                                                                                    verts_in_dod, &
-                                                                                    .true., body%mirror_plane)
-                    end if
-                end do
-
-                ! Loop through wake strip panels
-                do i=1,body%wake%N_strips
-                    do k=1,body%wake%strips(i)%N_panels
-
-                        ! Check DoD for panel
-                        this%wake_dod_info(k,i,j) = body%wake%strips(i)%panels(k)%check_dod(body%cp(j)%loc, this%freestream, &
-                                                                                                  wake_verts_in_dod(:,i))
-
-                        if (body%mirrored .and. .not. body%asym_flow) then
-
-                            ! Check DoD for mirrored panel
-                            this%wake_dod_info(k+body%wake%N_max_strip_panels,i,j) = &
-                                body%wake%strips(i)%panels(k)%check_dod(body%cp(j)%loc, this%freestream, &
-                                                                        wake_verts_in_dod(:,i), &
-                                                                        .true., body%mirror_plane)
-
-                        end if
-                    end do
-                end do
-
-            end do
-
-            if (verbose) write(*,*) "Done."
-        end if
-    
-    end subroutine panel_solver_calc_domains_of_dependence
 
 
     subroutine panel_solver_set_permutation(this, body)
@@ -1338,35 +1192,22 @@ contains
                 do j=1,body%N_panels
 
                     ! Influence of existing panel on control point
-                    if (this%dod_info(j,i)%in_dod) then
-
-                        ! Calculate influence
-                        call body%panels(j)%calc_velocity_influences(body%cp(i)%loc, this%freestream, this%dod_info(j,i), &
-                                                                      .false., v_s, v_d)
-                        source_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_s))
-                        doublet_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_d))
-                        
-                        ! Add influence
-                        call this%update_system_row(body, body%cp(i), A_i, I_known_i, j, source_inf, doublet_inf, .false.)
-
-                    end if
-
+                    call body%panels(j)%calc_velocity_influences(body%cp(i)%loc, this%freestream, .false., v_s, v_d)
+                    source_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_s))
+                    doublet_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_d))
+                    
+                    ! Add influence
+                    call this%update_system_row(body, body%cp(i), A_i, I_known_i, j, source_inf, doublet_inf, .false.)
+ 
                     if (body%mirrored) then
 
                         ! Calculate influence of mirrored panel on control point
-                        if (this%dod_info(j+body%N_panels,i)%in_dod) then
+                        call body%panels(j)%calc_velocity_influences(body%cp(i)%loc, this%freestream, .true., v_s, v_d)
+                        source_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_s))
+                        doublet_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_d))
 
-                            ! Calculate influence
-                            call body%panels(j)%calc_velocity_influences(body%cp(i)%loc, this%freestream, &
-                                                                          this%dod_info(j+body%N_panels,i), &
-                                                                          .true., v_s, v_d)
-                            source_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_s))
-                            doublet_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_d))
-
-                            ! Add influence
-                            call this%update_system_row(body, body%cp(i), A_i, I_known_i, j, &
-                                                        source_inf, doublet_inf, body%asym_flow)
-                        end if
+                        ! Add influence
+                        call this%update_system_row(body, body%cp(i), A_i, I_known_i, j, source_inf, doublet_inf, body%asym_flow)
 
                     end if
 
@@ -1377,36 +1218,23 @@ contains
                 ! Loop through panels
                 do j=1,body%N_panels
 
-                    ! Influence of existing panel on control point
-                    if (this%dod_info(j,i)%in_dod) then
-
-                        ! Calculate influence
-                        call body%panels(j)%calc_velocity_influences(body%cp(i)%loc, this%freestream, this%dod_info(j,i), &
-                                                                      .false., v_s, v_d)
-                        source_inf = matmul(body%cp(i)%loc, v_s)
-                        doublet_inf = matmul(body%cp(i)%loc, v_d)
-                        
-                        ! Add influence
-                        call this%update_system_row(body, body%cp(i), A_i, I_known_i, j, source_inf, doublet_inf, .false.)
-
-                    end if
+                    ! Calculate influence of existing panel on control point
+                    call body%panels(j)%calc_velocity_influences(body%cp(i)%loc, this%freestream, .false., v_s, v_d)
+                    source_inf = matmul(body%cp(i)%loc, v_s)
+                    doublet_inf = matmul(body%cp(i)%loc, v_d)
+                    
+                    ! Add influence
+                    call this%update_system_row(body, body%cp(i), A_i, I_known_i, j, source_inf, doublet_inf, .false.)
 
                     if (body%mirrored) then
 
                         ! Calculate influence of mirrored panel on control point
-                        if (this%dod_info(j+body%N_panels,i)%in_dod) then
+                        call body%panels(j)%calc_velocity_influences(body%cp(i)%loc, this%freestream, .true., v_s, v_d)
+                        source_inf = matmul(body%cp(i)%loc, v_s)
+                        doublet_inf = matmul(body%cp(i)%loc, v_d)
 
-                            ! Calculate influence
-                            call body%panels(j)%calc_velocity_influences(body%cp(i)%loc, this%freestream, &
-                                                                          this%dod_info(j+body%N_panels,i), &
-                                                                          .true., v_s, v_d)
-                            source_inf = matmul(body%cp(i)%loc, v_s)
-                            doublet_inf = matmul(body%cp(i)%loc, v_d)
-
-                            ! Add influence
-                            call this%update_system_row(body, body%cp(i), A_i, I_known_i, j, &
-                                                        source_inf, doublet_inf, body%asym_flow)
-                        end if
+                        ! Add influence
+                        call this%update_system_row(body, body%cp(i), A_i, I_known_i, j, source_inf, doublet_inf, body%asym_flow)
 
                     end if
 
@@ -1418,35 +1246,22 @@ contains
                 do j=1,body%N_panels
 
                     ! Influence of existing panel on control point
-                    if (this%dod_info(j,i)%in_dod) then
+                    call body%panels(j)%calc_velocity_influences(body%cp(i)%loc, this%freestream, .false., v_s, v_d)
+                    source_inf = matmul(body%cp(i)%n_g, v_s)
+                    doublet_inf = matmul(body%cp(i)%n_g, v_d)
 
-                        ! Calculate influence
-                        call body%panels(j)%calc_velocity_influences(body%cp(i)%loc, this%freestream, this%dod_info(j,i), &
-                                                                      .false., v_s, v_d)
-                        source_inf = matmul(body%cp(i)%n_g, v_s)
-                        doublet_inf = matmul(body%cp(i)%n_g, v_d)
-
-                        ! Add influence
-                        call this%update_system_row(body, body%cp(i), A_i, I_known_i, j, source_inf, doublet_inf, .false.)
-
-                    end if
+                    ! Add influence
+                    call this%update_system_row(body, body%cp(i), A_i, I_known_i, j, source_inf, doublet_inf, .false.)
 
                     if (body%mirrored) then
 
                         ! Calculate influence of mirrored panel on control point
-                        if (this%dod_info(j+body%N_panels,i)%in_dod) then
+                        call body%panels(j)%calc_velocity_influences(body%cp(i)%loc, this%freestream, .true., v_s, v_d)
+                        source_inf = matmul(body%cp(i)%n_g, v_s)
+                        doublet_inf = matmul(body%cp(i)%n_g, v_d)
 
-                            ! Calculate influence
-                            call body%panels(j)%calc_velocity_influences(body%cp(i)%loc, this%freestream, &
-                                                                          this%dod_info(j+body%N_panels,i), &
-                                                                          .true., v_s, v_d)
-                            source_inf = matmul(body%cp(i)%n_g, v_s)
-                            doublet_inf = matmul(body%cp(i)%n_g, v_d)
-
-                            ! Add influence
-                            call this%update_system_row(body, body%cp(i), A_i, I_known_i, j, &
-                                                        source_inf, doublet_inf, body%asym_flow)
-                        end if
+                        ! Add influence
+                        call this%update_system_row(body, body%cp(i), A_i, I_known_i, j, source_inf, doublet_inf, body%asym_flow)
 
                     end if
 
@@ -1458,31 +1273,20 @@ contains
                 do j=1,body%N_panels
 
                     ! Influence of existing panel on control point
-                    if (this%dod_info(j,i)%in_dod) then
+                    call body%panels(j)%calc_potential_influences(body%cp(i)%loc, this%freestream, &
+                                                                  .false., source_inf, doublet_inf)
 
-                        ! Calculate influence
-                        call body%panels(j)%calc_potential_influences(body%cp(i)%loc, this%freestream, this%dod_info(j,i), &
-                                                                      .false., source_inf, doublet_inf)
-
-                        ! Add influence
-                        call this%update_system_row(body, body%cp(i), A_i, I_known_i, j, source_inf, doublet_inf, .false.)
-
-                    end if
+                    ! Add influence
+                    call this%update_system_row(body, body%cp(i), A_i, I_known_i, j, source_inf, doublet_inf, .false.)
 
                     if (body%mirrored) then
 
                         ! Calculate influence of mirrored panel on control point
-                        if (this%dod_info(j+body%N_panels,i)%in_dod) then
+                        call body%panels(j)%calc_potential_influences(body%cp(i)%loc, this%freestream, &
+                                                                      .true., source_inf, doublet_inf)
 
-                            ! Calculate influence
-                            call body%panels(j)%calc_potential_influences(body%cp(i)%loc, this%freestream, &
-                                                                          this%dod_info(j+body%N_panels,i), &
-                                                                          .true., source_inf, doublet_inf)
-
-                            ! Add influence
-                            call this%update_system_row(body, body%cp(i), A_i, I_known_i, j, &
-                                                        source_inf, doublet_inf, body%asym_flow)
-                        end if
+                        ! Add influence
+                        call this%update_system_row(body, body%cp(i), A_i, I_known_i, j, source_inf, doublet_inf, body%asym_flow)
 
                     end if
 
@@ -1505,9 +1309,6 @@ contains
             !$OMP end critical
 
         end do
-
-        ! Clean up memory
-        deallocate(this%dod_info)
 
         if (verbose) write(*,*) "Done."
     
@@ -1552,14 +1353,8 @@ contains
                 !!!!do l=1, body%filament_wake%filaments(j)%N_filament_segments
                         ! Caclulate influence of existing panel on control point
                         call body%wake%strips(j)%panels(l)%calc_velocity_influences(body%cp(i)%loc, this%freestream, &
-                                                                                     this%wake_dod_info(l,j,i), & ! wake_dod_info(l,j,i) will also be used this way for filament_wake_dod_info because it needs to loop through control points, filaments and filament segments 
-                                                                                     .false., v_s, v_d) ! v_s and v_d are outputs of this subroutine callout
-
-                     !!!!call body%filament_wake%filaments(j)%filament_segments(l)%calc_velocity_influences(body%cp(i)%loc, this%freestream, &
-                                                                                                    !!!!this%filament_wake_dod_info(l,j,i), &
-                                                                                                    !!!!.false., v_s, v_d)
-
-                        doublet_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_d)) !!!! won't need to change B_matrix
+                                                                                     .false., v_s, v_d)
+                        doublet_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_d))
 
                         ! Add influence
                         do k=1,size(body%wake%strips(j)%panels(l)%i_vert_d) !!!! what is i_vert_d?
@@ -1572,7 +1367,6 @@ contains
 
                             ! Calculate influence of mirrored panel on control point
                             call body%wake%strips(j)%panels(l)%calc_velocity_influences(body%cp(i)%loc, this%freestream, &
-                                                                     this%wake_dod_info(l+body%wake%N_max_strip_panels,j,i), & ! No, this is not the DoD for this computation; yes, it is equivalent
                                                                      .true., v_s, v_d)
                             doublet_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_d))
 
@@ -1597,7 +1391,6 @@ contains
 
                         ! Caclulate influence of existing panel on control point
                         call body%wake%strips(j)%panels(l)%calc_velocity_influences(body%cp(i)%loc, this%freestream, &
-                                                                                     this%wake_dod_info(l,j,i), &
                                                                                      .false., v_s, v_d)
                         doublet_inf = matmul(body%cp(i)%loc, v_d)
 
@@ -1612,7 +1405,6 @@ contains
 
                             ! Calculate influence of mirrored panel on control point
                             call body%wake%strips(j)%panels(l)%calc_velocity_influences(body%cp(i)%loc, this%freestream, &
-                                                                     this%wake_dod_info(l+body%wake%N_max_strip_panels,j,i), & ! No, this is not the DoD for this computation; yes, it is equivalent
                                                                      .true., v_s, v_d)
                             doublet_inf = matmul(body%cp(i)%loc, v_d)
 
@@ -1637,7 +1429,6 @@ contains
 
                         ! Caclulate influence of existing panel on control point
                         call body%wake%strips(j)%panels(l)%calc_velocity_influences(body%cp(i)%loc, this%freestream, &
-                                                                                     this%wake_dod_info(l,j,i), &
                                                                                      .false., v_s, v_d)
                         doublet_inf = matmul(body%cp(i)%n_g, v_d)
 
@@ -1652,7 +1443,6 @@ contains
 
                             ! Calculate influence of mirrored panel on control point
                             call body%wake%strips(j)%panels(l)%calc_velocity_influences(body%cp(i)%loc, this%freestream, &
-                                                                     this%wake_dod_info(l+body%wake%N_max_strip_panels,j,i), & ! No, this is not the DoD for this computation; yes, it is equivalent
                                                                      .true., v_s, v_d)
                             doublet_inf = matmul(body%cp(i)%n_g, v_d)
 
@@ -1677,7 +1467,6 @@ contains
 
                         ! Caclulate influence of existing panel on control point
                         call body%wake%strips(j)%panels(l)%calc_potential_influences(body%cp(i)%loc, this%freestream, &
-                                                                                     this%wake_dod_info(l,j,i), &
                                                                                      .false., source_inf, doublet_inf)
 
                         ! Add influence
@@ -1691,7 +1480,6 @@ contains
 
                             ! Calculate influence of mirrored panel on control point
                             call body%wake%strips(j)%panels(l)%calc_potential_influences(body%cp(i)%loc, this%freestream, &
-                                                                     this%wake_dod_info(l+body%wake%N_max_strip_panels,j,i), & ! No, this is not the DoD for this computation; yes, it is equivalent
                                                                      .true., source_inf, doublet_inf)
 
                             ! Add influence
@@ -1716,9 +1504,6 @@ contains
             !$OMP end critical
 
         end do
-
-        ! Clean up memory
-        deallocate(this%wake_dod_info)
 
         if (verbose) write(*,*) "Done."
 
@@ -2223,12 +2008,12 @@ contains
             C_P_avg = body%panels(i_panel)%get_avg_pressure_coef(body%mu, body%sigma, mirrored, body%N_panels, body%N_verts, &
                                                                  body%asym_flow, this%freestream, &
                                                                  body%V_cells_inner(:,i_panel+body%N_panels)/this%freestream%U, &
-                                                                 body%mirror_plane, rule, M_corr=this%M_inf_corr)
+                                                                 rule, M_corr=this%M_inf_corr)
         else
             C_P_avg = body%panels(i_panel)%get_avg_pressure_coef(body%mu, body%sigma, mirrored, body%N_panels, body%N_verts, &
                                                                  body%asym_flow, this%freestream, &
                                                                  body%V_cells_inner(:,i_panel)/this%freestream%U, &
-                                                                 body%mirror_plane, rule, M_corr=this%M_inf_corr)
+                                                                 rule, M_corr=this%M_inf_corr)
         end if
         
     end function panel_solver_calc_avg_pressure_on_panel
@@ -2561,7 +2346,7 @@ contains
         real,dimension(3) :: C_M
 
         C_M = body%panels(i_panel)%get_moment_about_centroid(body%mu, body%sigma, mirrored, body%N_panels, body%N_verts, &
-                                                             body%asym_flow, this%freestream, this%inner_flow, body%mirror_plane, &
+                                                             body%asym_flow, this%freestream, this%inner_flow, &
                                                              rule, M_corr=this%M_inf_corr)
         
     end function panel_solver_calc_moment_about_centroid_of_panel

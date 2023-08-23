@@ -36,6 +36,7 @@ module flow_mod
             procedure :: B_g_inner => flow_B_g_inner
             procedure :: C_g_inner => flow_C_g_inner
             procedure :: point_in_dod => flow_point_in_dod
+            procedure :: get_min_dist_to_dod_edge => flow_get_min_dist_to_dod_edge
             procedure :: get_C_P_inc => flow_get_C_P_inc
             procedure :: get_C_P_ise => flow_get_C_P_ise
             procedure :: get_v_pert_c => flow_get_v_pert_c
@@ -308,6 +309,39 @@ contains
         end if
         
     end function flow_point_in_dod
+
+
+    function flow_get_min_dist_to_dod_edge(this, P, Q) result(d)
+        ! Calculates the minimum distance from the point Q to the edge of the domain of dependence of point P
+        ! Assumes Q is outside D_P, and Q and P are expressed in the global frame
+
+        implicit none
+        
+        class(flow),intent(in) :: this
+        real,dimension(3) :: P, Q
+
+        real :: d
+        
+        real :: x0, y0, d2, disp2
+        real,dimension(3) :: disp
+
+        ! Get displacement
+        disp = Q - P
+        disp2 = sum(disp**2)
+
+        ! Calculate coordinates of Q in new coordinate system (E&M Eq. (J.3.23) and (J.3.25))
+        x0 = inner(disp, this%c_hat_g)
+        y0 = sqrt(disp2 - x0**2)
+
+        ! Get distance squared (E&M Eq. (J.3.26))
+        if (y0 < this%B*x0) then
+            d2 = disp2
+        else
+            d2 = (x0 + this%B*y0)**2/(1. + this%B**2)
+        end if
+        d = sqrt(d2)
+        
+    end function flow_get_min_dist_to_dod_edge
 
 
     function flow_get_C_P_inc(this, v) result(C_P_inc)

@@ -44,6 +44,7 @@ module panel_mod
         real,dimension(3) :: n_g, nu_g ! Normal and conormal vectors
         real,dimension(3) :: n_g_mir, nu_g_mir ! Mirrored normal and conormal vectors
         real,dimension(3) :: centr, centr_mir ! Centroid
+        real :: radius ! Maximum distance from the centroid to the panel perimeter
         real,dimension(3,3) :: A_g_to_ls, A_ls_to_g ! Coordinate transformation matrices
         real,dimension(3,3) :: A_g_to_ls_mir, A_ls_to_g_mir
         real,dimension(:,:),allocatable :: vertices_ls, vertices_ls_mir ! Location of the vertices described in local scaled coords
@@ -67,6 +68,7 @@ module panel_mod
         logical,dimension(:),allocatable :: edge_is_discontinuous
         logical :: has_sources ! Whether this panel has a source distribution
         integer :: mu_dim, M_dim, sigma_dim, S_dim ! Dimensions of doublet and source parameter and strength spaces
+        integer :: mirror_plane = 0
 
         contains
 
@@ -76,6 +78,7 @@ module panel_mod
             procedure :: calc_normal => panel_calc_normal
             procedure :: calc_area => panel_calc_area
             procedure :: calc_centroid => panel_calc_centroid
+            procedure :: calc_radius => panel_calc_radius
             procedure :: calc_g_edge_vectors => panel_calc_g_edge_vectors
             procedure :: get_characteristic_length => panel_get_characteristic_length
 
@@ -123,6 +126,7 @@ module panel_mod
             procedure :: point_to_new_vertex => panel_point_to_new_vertex
 
             ! Domain of dependence checking
+            procedure :: entirely_inside_outside_dod => panel_entirely_inside_outside_dod
             procedure :: check_dod => panel_check_dod
 
             ! Influence calculations
@@ -256,6 +260,9 @@ contains
         ! Calculate centroid
         call this%calc_centroid()
 
+        ! Calculate radius
+        call this%calc_radius()
+
         ! Calculate ledge vectors
         call this%calc_g_edge_vectors()
 
@@ -317,6 +324,7 @@ contains
         implicit none
 
         class(panel),intent(inout) :: this
+
         real,dimension(3) :: sum
         integer :: i
 
@@ -330,6 +338,24 @@ contains
         this%centr = sum/this%N
 
     end subroutine panel_calc_centroid
+
+
+    subroutine panel_calc_radius(this)
+        ! Calculates the "radius" of the panel, which is the maximum distance from the centroid to the perimeter
+
+        implicit none
+        
+        class(panel), intent(inout) :: this
+
+        integer :: i
+
+        ! Loop through vertices to find the furthest
+        this%radius = 0.
+        do i=1,this%N
+            this%radius = max(this%radius, norm2(this%get_vertex_loc(i) - this%centr))
+        end do
+        
+    end subroutine panel_calc_radius
 
 
     subroutine panel_calc_g_edge_vectors(this)
@@ -535,7 +561,7 @@ contains
     end subroutine panel_calc_ls_edge_vectors
 
 
-    subroutine panel_set_distribution(this, order, body_panels, body_verts, mirror_needed, mirror_plane)
+    subroutine panel_set_distribution(this, order, body_panels, body_verts, mirror_needed)
         ! Sets up the singularity distribution for this panel
 
         implicit none
@@ -545,7 +571,6 @@ contains
         type(panel),dimension(:),allocatable,intent(in) :: body_panels
         type(vertex),dimension(:),allocatable,intent(in) :: body_verts
         logical,intent(in) :: mirror_needed
-        integer,intent(in) :: mirror_plane
 
         ! Store order, while forcing wake panels to be lower-order
         if (this%in_wake) then
@@ -573,18 +598,18 @@ contains
 
         ! Set up doublet distribution
         call this%set_doublet_verts(body_panels, size(body_verts))
-        call this%calc_M_mu_transform(body_verts, .false., mirror_plane)
+        call this%calc_M_mu_transform(body_verts, .false.)
 
         ! Set up source distribution
         if (this%has_sources) then
             call this%set_source_panels()
-            call this%calc_S_sigma_transform(body_panels, .false., mirror_plane)
+            call this%calc_S_sigma_transform(body_panels, .false.)
         end if
 
         ! Set up transformations for mirrored panels
         if (mirror_needed) then
-            call this%calc_M_mu_transform(body_verts, .true., mirror_plane)
-            if (this%has_sources) call this%calc_S_sigma_transform(body_panels, .true., mirror_plane)
+            call this%calc_M_mu_transform(body_verts, .true.)
+            if (this%has_sources) call this%calc_S_sigma_transform(body_panels, .true.)
         end if
 
         ! Calculate quadratic pressure integrals
@@ -687,7 +712,7 @@ contains
     end subroutine panel_set_source_panels
 
 
-    subroutine panel_calc_M_mu_transform(this, body_verts, calc_mirror, mirror_plane)
+    subroutine panel_calc_M_mu_transform(this, body_verts, calc_mirror)
         ! Calculates the transformation from M space to mu space
         ! calc_mirror tells whether the transformation for this panel or its mirror needs to be calculated
 
@@ -696,7 +721,6 @@ contains
         class(panel),intent(inout) :: this
         type(vertex),dimension(:),allocatable,intent(in) :: body_verts
         logical,intent(in) :: calc_mirror
-        integer,intent(in) :: mirror_plane
 
         real,dimension(:,:),allocatable :: S_mu, S_mu_inv, M_mat, E_mat, EE_inv, T_mu
         real,dimension(:),allocatable :: M_row
@@ -795,12 +819,12 @@ contains
                         if (this%i_vert_d(j) > N_body_verts) then
                             P_g = body_verts(this%i_vert_d(j) - N_body_verts)%loc
                         else
-                            P_g = mirror_across_plane(body_verts(this%i_vert_d(j))%loc, mirror_plane)
+                            P_g = mirror_across_plane(body_verts(this%i_vert_d(j))%loc, this%mirror_plane)
                         end if
                         P_ls = matmul(this%A_g_to_ls_mir, P_g - this%centr_mir)
                     else
                         if (this%i_vert_d(j) > N_body_verts) then
-                            P_g = mirror_across_plane(body_verts(this%i_vert_d(j) - N_body_verts)%loc, mirror_plane)
+                            P_g = mirror_across_plane(body_verts(this%i_vert_d(j) - N_body_verts)%loc, this%mirror_plane)
                         else
                             P_g = body_verts(this%i_vert_d(j))%loc
                         end if
@@ -846,7 +870,7 @@ contains
     end subroutine panel_calc_M_mu_transform
 
 
-    subroutine panel_calc_S_sigma_transform(this, body_panels, calc_mirror, mirror_plane)
+    subroutine panel_calc_S_sigma_transform(this, body_panels, calc_mirror)
         ! Calculates the transformation from S space to sigma space
         ! calc_mirror tells whether the transformation for this panel or its mirror needs to be calculated
 
@@ -855,7 +879,6 @@ contains
         class(panel), intent(inout) :: this
         type(panel),dimension(:),allocatable,intent(in) :: body_panels
         logical,intent(in) :: calc_mirror
-        integer,intent(in) :: mirror_plane
 
         real,dimension(:,:),allocatable :: S_sigma, SS_inv, A_mat, SA_inv, T_sigma
         integer :: i
@@ -883,7 +906,7 @@ contains
                     P_ls = matmul(this%A_g_to_ls_mir, P_g - this%centr_mir)
                 else
                     if (this%i_panel_s(i) > size(body_panels)) then
-                        P_g = mirror_across_plane(body_panels(this%i_panel_s(i)-size(body_panels))%centr, mirror_plane)
+                        P_g = mirror_across_plane(body_panels(this%i_panel_s(i)-size(body_panels))%centr, this%mirror_plane)
                     else
                         P_g = body_panels(this%i_panel_s(i))%centr
                     end if
@@ -973,6 +996,9 @@ contains
 
         integer :: i
 
+        ! Store mirror plane
+        this%mirror_plane = mirror_plane
+
         ! Calculate mirrored normal vector
         this%n_g_mir = mirror_across_plane(this%n_g, mirror_plane)
 
@@ -980,7 +1006,7 @@ contains
         this%centr_mir = mirror_across_plane(this%centr, mirror_plane)
 
         ! Calculate mirrored g to ls transform
-        call this%calc_mirrored_g_to_ls_transform(freestream, mirror_plane)
+        call this%calc_mirrored_g_to_ls_transform(freestream)
 
         ! Calculate mirrored edge vectors
         ! Global
@@ -995,13 +1021,12 @@ contains
     end subroutine panel_init_mirror
 
 
-    subroutine panel_calc_mirrored_g_to_ls_transform(this, freestream, mirror_plane)
+    subroutine panel_calc_mirrored_g_to_ls_transform(this, freestream)
 
         implicit none
 
         class(panel),intent(inout) :: this
         type(flow),intent(in) :: freestream
-        integer,intent(in) :: mirror_plane
 
         real,dimension(3) :: u0, v0
         real :: x, y
@@ -1009,7 +1034,7 @@ contains
 
         ! Get in-panel basis vectors
         if (abs(abs(inner(this%n_g_mir, freestream%c_hat_g)) - 1.) < 1e-12) then ! Check the freestream isn't aligned with the normal vector
-            v0 = mirror_across_plane(this%get_vertex_loc(2) - this%get_vertex_loc(1), mirror_plane)
+            v0 = mirror_across_plane(this%get_vertex_loc(2) - this%get_vertex_loc(1), this%mirror_plane)
         else
             v0 = cross(this%n_g_mir, freestream%c_hat_g)
         end if
@@ -1054,7 +1079,7 @@ contains
         allocate(this%vertices_ls_mir(2,this%N))
         do i=1,this%N
             this%vertices_ls_mir(:,i) = matmul(this%A_g_to_ls_mir(1:2,:), &
-                                               mirror_across_plane(this%get_vertex_loc(i), mirror_plane)-this%centr_mir)
+                                               mirror_across_plane(this%get_vertex_loc(i), this%mirror_plane)-this%centr_mir)
         end do
     
     end subroutine panel_calc_mirrored_g_to_ls_transform
@@ -1348,7 +1373,7 @@ contains
     end function panel_check_abutting_mirror_plane
 
 
-    function panel_projection_inside(this, point, mirror_panel, mirror_plane) result(inside)
+    function panel_projection_inside(this, point, mirror_panel) result(inside)
         ! Checks whether the given point, when projected into the plane of the panel, is inside the panel
 
         implicit none
@@ -1356,7 +1381,6 @@ contains
         class(panel),intent(in) :: this
         real,dimension(3),intent(in) :: point
         logical,intent(in),optional :: mirror_panel
-        integer,intent(in),optional :: mirror_plane
 
         logical :: inside
 
@@ -1377,7 +1401,7 @@ contains
 
             ! Shift origin to the edge and get inner product
             if (mirrored) then
-                d = point - mirror_across_plane(this%get_vertex_loc(i), mirror_plane)
+                d = point - mirror_across_plane(this%get_vertex_loc(i), this%mirror_plane)
                 x = inner(d, this%n_hat_g_mir(:,i))
             else
                 d = point - this%get_vertex_loc(i)
@@ -1395,7 +1419,7 @@ contains
     end function panel_projection_inside
 
 
-    function panel_point_outside(this, point, mirror_panel, mirror_plane) result(outside)
+    function panel_point_outside(this, point, mirror_panel) result(outside)
         ! Tells whether the given point is above the panel and its projection is inside the surface of the panel
 
         implicit none
@@ -1403,7 +1427,6 @@ contains
         class(panel),intent(in) :: this
         real,dimension(3),intent(in) :: point
         logical,intent(in) :: mirror_panel
-        integer,intent(in) :: mirror_plane
 
         logical :: outside
 
@@ -1422,13 +1445,13 @@ contains
 
         ! Otherwise, it's dependent upon whether the projection is inside the panel surface
         else
-            outside = this%projection_inside(point, mirror_panel, mirror_plane)
+            outside = this%projection_inside(point, mirror_panel)
         end if
         
     end function panel_point_outside
 
 
-    function panel_point_above(this, point, mirror_panel, mirror_plane) result(above)
+    function panel_point_above(this, point, mirror_panel) result(above)
         ! Tells whether the given point is above the panel
 
         implicit none
@@ -1436,7 +1459,6 @@ contains
         class(panel),intent(in) :: this
         real,dimension(3),intent(in) :: point
         logical,intent(in) :: mirror_panel
-        integer,intent(in) :: mirror_plane
 
         logical :: above
 
@@ -1459,7 +1481,7 @@ contains
     end function panel_point_above
 
 
-    function panel_line_passes_through(this, a, b, mirror_panel, mirror_plane, s_star) result(passes_through)
+    function panel_line_passes_through(this, a, b, mirror_panel, s_star) result(passes_through)
         ! Determines whether the line given by r(s) = a + s*b passes through the panel
 
         implicit none
@@ -1467,7 +1489,6 @@ contains
         class(panel),intent(in) :: this
         real,dimension(3),intent(in) :: a, b
         logical,intent(in) :: mirror_panel
-        integer,intent(in) :: mirror_plane
         real,intent(out) :: s_star
 
         logical :: passes_through
@@ -1499,7 +1520,7 @@ contains
         loc = a + s_star*b
 
         ! Check whether the intersection point is inside the panel
-        passes_through = this%projection_inside(loc, mirror_panel, mirror_plane)
+        passes_through = this%projection_inside(loc, mirror_panel)
         
     end function panel_line_passes_through
 
@@ -1628,7 +1649,7 @@ contains
 
         integer :: i_panel_opp
     
-        integer :: i, j, ind, i_vert_for_panel
+        integer :: i, ind, i_vert_for_panel
 
         ! Return zero if we can't find it
         i_panel_opp = 0
@@ -1723,7 +1744,65 @@ contains
     end subroutine panel_point_to_new_vertex
 
 
-    function panel_check_dod(this, eval_point, freestream, verts_in_dod, mirror_panel, mirror_plane) result(dod_info) !!!!!!!!! make filament version !!!!!!!!!!!
+    function panel_entirely_inside_outside_dod(this, eval_point, freestream, mirror_panel) result(inside_or_outside)
+        ! Checks whether the panel is necessarily entirely inside or outside the DoD of the evaluation point
+        ! inside_or_outside will be
+        ! 1 = necessarily entirely inside
+        ! -1 = necessarily entirely outside
+        ! 0 = neither
+
+        implicit none
+        
+        class(panel),intent(in) :: this
+        real,dimension(3),intent(in) :: eval_point
+        type(flow),intent(in) :: freestream
+        logical,intent(in),optional :: mirror_panel
+
+        integer :: inside_or_outside
+
+        logical :: centroid_outside
+        real :: d
+
+        if (freestream%supersonic) then
+
+            ! Check first whether the centroid is outside
+            if (mirror_panel) then
+                centroid_outside = .not. freestream%point_in_dod(this%centr_mir, eval_point)
+            else
+                centroid_outside = .not. freestream%point_in_dod(this%centr, eval_point)
+            end if
+        
+            ! Get minimum distance to the edge of the dod
+            if (mirror_panel) then
+                d = freestream%get_min_dist_to_dod_edge(eval_point, this%centr_mir)
+            else
+                d = freestream%get_min_dist_to_dod_edge(eval_point, this%centr)
+            end if
+
+            if (d > this%radius) then
+
+                ! If the centroid is outside the DoD and the minimum distance to the DoD edge is greater than the panel radius, then the panel must be entirely outside (E&M Eq. (J.3.4))
+                if (centroid_outside) then
+                    inside_or_outside = -1
+
+                ! If the centroid is inside the DoD and the minimum distance to the DoD edge is greater than the panel radius, then the panel must be entirely inside (E&M Eq. (J.3.27))
+                else
+                    inside_or_outside = 1
+                end if
+
+            else
+                inside_or_outside = 0
+            end if
+
+        ! Will always be entirely inside for subsonic flow
+        else
+            inside_or_outside = 1
+        end if
+        
+    end function panel_entirely_inside_outside_dod
+
+
+    function panel_check_dod(this, eval_point, freestream, mirror_panel) result(dod_info)
         ! Determines how (if) this panel lies within the domain of dependence of the evaluation point
 
         implicit none
@@ -1731,15 +1810,13 @@ contains
         class(panel),intent(in) :: this
         real,dimension(3),intent(in) :: eval_point
         type(flow),intent(in) :: freestream
-        logical,dimension(:),intent(in) :: verts_in_dod
         logical,intent(in),optional :: mirror_panel
-        integer,intent(in),optional :: mirror_plane
 
         type(dod) :: dod_info
 
         real,dimension(3) :: d, a, b, R_star, Q_end
         real,dimension(3,this%N) :: d_from_vert
-        integer :: i, i_next
+        integer :: i, i_next, inside_outside
         real :: x, s_star
         logical :: mirrored, in_panel
         logical,dimension(3) :: these_verts_in_dod
@@ -1752,15 +1829,28 @@ contains
             mirrored = .false.
         end if
 
-        ! First check the flow is supersonic
-        if (freestream%supersonic) then
+        ! Check panel entirely inside or outside the DoD
+        inside_outside = this%entirely_inside_outside_dod(eval_point, freestream, mirrored)
+
+        if (inside_outside == 1) then
+            dod_info%in_dod = .true.
+            dod_info%edges_in_dod = .true.
+
+        else if (inside_outside == -1) then
+            dod_info%in_dod = .false.
+            dod_info%edges_in_dod = .false.
+
+        ! Neither guaranteed, so we go further
+        else
 
             ! Read in vertex information
             do i=1,this%N
                 if (mirrored) then
-                    these_verts_in_dod(i) = verts_in_dod(this%get_vertex_index(i)+size(verts_in_dod)/2)
+                    these_verts_in_dod(i) = freestream%point_in_dod( &
+                                                                    mirror_across_plane(this%get_vertex_loc(i), this%mirror_plane),&
+                                                                    eval_point)
                 else
-                    these_verts_in_dod(i) = verts_in_dod(this%get_vertex_index(i))
+                    these_verts_in_dod(i) = freestream%point_in_dod(this%get_vertex_loc(i), eval_point)
                 end if
             end do
 
@@ -1775,7 +1865,7 @@ contains
                 ! Get displacements from vertices
                 do i=1,this%N
                     if (mirrored) then
-                        d_from_vert(:,i) = eval_point - mirror_across_plane(this%get_vertex_loc(i), mirror_plane)
+                        d_from_vert(:,i) = eval_point - mirror_across_plane(this%get_vertex_loc(i), this%mirror_plane)
                     else
                         d_from_vert(:,i) = eval_point - this%get_vertex_loc(i)
                     end if
@@ -1816,8 +1906,8 @@ contains
 
                                 ! Get end vertex and vector describing edge
                                 if (mirrored) then
-                                    Q_end = mirror_across_plane(this%get_vertex_loc(i_next), mirror_plane)
-                                    d = Q_end - mirror_across_plane(this%get_vertex_loc(i), mirror_plane)
+                                    Q_end = mirror_across_plane(this%get_vertex_loc(i_next), this%mirror_plane)
+                                    d = Q_end - mirror_across_plane(this%get_vertex_loc(i), this%mirror_plane)
                                 else
                                     Q_end = this%get_vertex_loc(i_next)
                                     d = Q_end - this%get_vertex_loc(i)
@@ -1861,11 +1951,7 @@ contains
                         R_star = eval_point + freestream%c_hat_g*s_star
 
                         ! See if the projected point is in the panel
-                        if (mirrored) then
-                            in_panel = this%projection_inside(R_star, mirror_panel, mirror_plane)
-                        else
-                            in_panel = this%projection_inside(R_star)
-                        end if
+                        in_panel = this%projection_inside(R_star, mirrored)
 
                         ! Store information
                         dod_info%in_dod = in_panel
@@ -1882,13 +1968,6 @@ contains
                     dod_info%in_dod = .false.
                 end if
             end if
-
-        else
-
-            ! Subsonic flow. DoD is everywhere. Life is easy.
-            ! This shouldn't be necessary, but I'll keep it here for now.
-            dod_info%in_dod = .true.
-            dod_info%edges_in_dod = .true.
 
         end if
     
@@ -2757,6 +2836,7 @@ contains
     end subroutine panel_calc_H_recursions_for_velocity
 
 
+
     function panel_calc_integrals(this, geom, influence_type, freestream, mirror_panel, dod_info) result(int)
         ! Calculates the H and F integrals necessary for the given influence
 
@@ -2767,9 +2847,9 @@ contains
         character(len=*),intent(in) :: influence_type
         type(flow),intent(in) :: freestream
         logical,intent(in) :: mirror_panel
-        type(dod),intent(in) :: dod_info
 
         type(integrals) :: int
+        type(dod),intent(in) :: dod_info
 
         ! Allocate space for edge integrals
         allocate(int%F111(this%N), source=0.)
@@ -2908,7 +2988,7 @@ contains
     end function panel_assemble_phi_d_M_space
 
 
-    subroutine panel_calc_potential_influences(this, P, freestream, dod_info, mirror_panel, phi_s_S_space, phi_d_M_space)
+    subroutine panel_calc_potential_influences(this, P, freestream, mirror_panel, phi_s_S_space, phi_d_M_space)
         ! Calculates the source- and doublet-induced potentials at the given point P
 
         implicit none
@@ -2916,14 +2996,15 @@ contains
         class(panel),intent(in) :: this
         real,dimension(3),intent(in) :: P
         type(flow),intent(in) :: freestream
-        type(dod),intent(in) :: dod_info
         logical,intent(in) :: mirror_panel
         real,dimension(:),allocatable,intent(out) :: phi_s_S_space, phi_d_M_space
 
+        type(dod) :: dod_info
         type(eval_point_geom) :: geom
         type(integrals) :: int
 
         ! Check DoD
+        dod_info = this%check_dod(P, freestream, mirror_panel)
         if (dod_info%in_dod .and. this%A > 0.) then
 
             ! Calculate geometric parameters
@@ -2965,7 +3046,7 @@ contains
     end subroutine panel_calc_potential_influences
 
 
-    subroutine panel_calc_potentials(this, P, freestream, dod_info, mirror_panel, sigma, mu, &
+    subroutine panel_calc_potentials(this, P, freestream, mirror_panel, sigma, mu, &
                                      N_body_panels, N_body_verts, asym_flow, phi_s, phi_d)
         ! Calculates the potentials induced at the given point
 
@@ -2974,7 +3055,6 @@ contains
         class(panel),intent(in) :: this
         real,dimension(3),intent(in) :: P
         type(flow),intent(in) :: freestream
-        type(dod),intent(in) :: dod_info
         logical,intent(in) :: mirror_panel, asym_flow
         real,dimension(:),allocatable,intent(in) :: sigma, mu
         integer,intent(in) :: N_body_panels, N_body_verts
@@ -2985,7 +3065,7 @@ contains
         real,dimension(this%S_dim) :: source_strengths
 
         ! Get influences
-        call this%calc_potential_influences(P, freestream, dod_info, mirror_panel, source_inf, doublet_inf)
+        call this%calc_potential_influences(P, freestream, mirror_panel, source_inf, doublet_inf)
 
         ! Get strengths
         source_strengths = this%get_source_strengths(sigma, mirror_panel, N_body_panels, asym_flow)
@@ -3093,17 +3173,29 @@ contains
         end if
 
         ! Linear terms
-        v_d_mu_space(1,1) = 3.*int%r*geom%h*int%H215
-        v_d_mu_space(1,2) = 3.*int%r*(int%H215*geom%P_ls(1)*geom%h + int%hH315)
-        v_d_mu_space(1,3) = 3.*int%r*geom%h*(int%H215*geom%P_ls(2) + int%H225)
+        !v_d_mu_space(1,1) = 3.*int%r*geom%h*int%H215
+        !v_d_mu_space(1,2) = 3.*int%r*(int%H215*geom%P_ls(1)*geom%h + int%hH315)
+        !v_d_mu_space(1,3) = 3.*int%r*geom%h*(int%H215*geom%P_ls(2) + int%H225)
 
-        v_d_mu_space(2,1) = 3.*int%s*geom%h*int%H125
-        v_d_mu_space(2,2) = 3.*int%s*geom%h*(int%H125*geom%P_ls(1) + int%H225)
-        v_d_mu_space(2,3) = 3.*int%s*(int%H125*geom%P_ls(2)*geom%h + int%hH135)
+        !v_d_mu_space(2,1) = 3.*int%s*geom%h*int%H125
+        !v_d_mu_space(2,2) = 3.*int%s*geom%h*(int%H125*geom%P_ls(1) + int%H225)
+        !v_d_mu_space(2,3) = 3.*int%s*(int%H125*geom%P_ls(2)*geom%h + int%hH135)
 
-        v_d_mu_space(3,1) = int%H113_3rsh2H115
-        v_d_mu_space(3,2) = int%H113_3rsh2H115*geom%P_ls(1) + int%H213 - 3.*int%rs*geom%h2*int%H215
-        v_d_mu_space(3,3) = int%H113_3rsh2H115*geom%P_ls(2) + int%H123 - 3.*int%rs*geom%h2*int%H125
+        !v_d_mu_space(3,1) = int%H113_3rsh2H115
+        !v_d_mu_space(3,2) = int%H113_3rsh2H115*geom%P_ls(1) + int%H213 - 3.*int%rs*geom%h2*int%H215
+        !v_d_mu_space(3,3) = int%H113_3rsh2H115*geom%P_ls(2) + int%H123 - 3.*int%rs*geom%h2*int%H125
+
+        v_d_mu_space(1,1) = 0
+        v_d_mu_space(1,2) = int%hH113
+        v_d_mu_space(1,3) = 0
+
+        v_d_mu_space(2,1) = 0
+        v_d_mu_space(2,2) = 0
+        v_d_mu_space(2,3) = int%hH113
+
+        v_d_mu_space(3,1) = 0
+        v_d_mu_space(3,2) = int%H213
+        v_d_mu_space(3,3) = int%H123
 
         if (this%order == 2) then
 
@@ -3152,7 +3244,7 @@ contains
     end function panel_assemble_v_d_M_space
 
 
-    subroutine panel_calc_velocity_influences(this, P, freestream, dod_info, mirror_panel, v_s_S_space, v_d_M_space)
+    subroutine panel_calc_velocity_influences(this, P, freestream, mirror_panel, v_s_S_space, v_d_M_space)
         ! Calculates the source- and doublet-induced potentials at the given point P
 
         implicit none
@@ -3160,14 +3252,18 @@ contains
         class(panel),intent(in) :: this
         real,dimension(3),intent(in) :: P
         type(flow),intent(in) :: freestream
-        type(dod),intent(in) :: dod_info
         logical,intent(in) :: mirror_panel
         real,dimension(:,:),allocatable,intent(out) :: v_s_S_space, v_d_M_space
 
+        type(dod) :: dod_info
         type(eval_point_geom) :: geom
         type(integrals) :: int
-
+        real,dimension(:,:),allocatable :: v_s_sigma_space, v_d_mu_space
+        real :: x2, y2, dvx, dvy
+        integer :: i
+    
         ! Check DoD
+        dod_info = this%check_dod(P, freestream, mirror_panel)
         if (dod_info%in_dod .and. this%A > 0.) then
 
             ! Calculate geometric parameters
@@ -3209,16 +3305,15 @@ contains
     end subroutine panel_calc_velocity_influences
 
 
-    subroutine panel_calc_velocities(this, P, freestream, dod_info, mirror_panel, sigma, mu, &
+    subroutine panel_calc_velocities(this, P, freestream, mirror_panel, sigma, mu, &
                                      N_body_panels, N_body_verts, asym_flow, v_s, v_d)
-        ! Calculates the velocities induced at the given point
+        ! Calculates the velocity induced at the given point
 
         implicit none
         
         class(panel),intent(in) :: this
         real,dimension(3),intent(in) :: P
         type(flow),intent(in) :: freestream
-        type(dod),intent(in) :: dod_info
         logical,intent(in) :: mirror_panel, asym_flow
         real,dimension(:),allocatable,intent(in) :: sigma, mu
         integer,intent(in) :: N_body_panels, N_body_verts
@@ -3229,7 +3324,7 @@ contains
         real,dimension(this%S_dim) :: source_strengths
 
         ! Get influences
-        call this%calc_velocity_influences(P, freestream, dod_info, mirror_panel, source_inf, doublet_inf)
+        call this%calc_velocity_influences(P, freestream, mirror_panel, source_inf, doublet_inf)
 
         ! Get strengths
         source_strengths = this%get_source_strengths(sigma, mirror_panel, N_body_panels, asym_flow)
@@ -3527,7 +3622,7 @@ contains
 
 
     function panel_get_quadratic_pressure_params(this, mu, sigma, mirrored, N_body_panels, N_body_verts, asym_flow, &
-                                         freestream, inner_flow, mirror_plane, rule, M_corr) result(C_P_params)
+                                         freestream, inner_flow, rule, M_corr) result(C_P_params)
         ! Calculates the average pressure coefficient on the panel
 
         implicit none
@@ -3538,7 +3633,6 @@ contains
         integer,intent(in) :: N_body_panels, N_body_verts
         type(flow),intent(in) :: freestream
         real,dimension(3),intent(in) :: inner_flow
-        integer,intent(in) :: mirror_plane
         character(len=*),intent(in) :: rule
         real,intent(in),optional :: M_corr
 
@@ -3570,7 +3664,7 @@ contains
             ! Get point
             i_next = modulo(i, 3) + 1
             p = 0.5*(this%get_vertex_loc(i) + this%get_vertex_loc(i_next))
-            if (mirrored) p = mirror_across_plane(p, mirror_plane)
+            if (mirrored) p = mirror_across_plane(p, this%mirror_plane)
 
             ! Get velocity
             v = this%get_velocity(mu, sigma, mirrored, N_body_panels, N_body_verts, asym_flow, &
@@ -3596,7 +3690,7 @@ contains
 
 
     function panel_get_avg_pressure_coef(this, mu, sigma, mirrored, N_body_panels, N_body_verts, asym_flow, &
-                                         freestream, inner_flow, mirror_plane, rule, M_corr) result(C_P_avg)
+                                         freestream, inner_flow, rule, M_corr) result(C_P_avg)
         ! Calculates the average pressure coefficient on the panel
 
         implicit none
@@ -3607,7 +3701,6 @@ contains
         integer,intent(in) :: N_body_panels, N_body_verts
         type(flow),intent(in) :: freestream
         real,dimension(3),intent(in) :: inner_flow
-        integer,intent(in) :: mirror_plane
         character(len=*),intent(in) :: rule
         real,intent(in),optional :: M_corr
 
@@ -3636,10 +3729,10 @@ contains
             ! Get pressure distribution parameters
             if (present(M_corr)) then
                 C_P_params = this%get_quadratic_pressure_params(mu, sigma, mirrored, N_body_panels, N_body_verts, asym_flow, &
-                                                                freestream, inner_flow, mirror_plane, rule, M_corr)
+                                                                freestream, inner_flow, rule, M_corr)
             else
                 C_P_params = this%get_quadratic_pressure_params(mu, sigma, mirrored, N_body_panels, N_body_verts, asym_flow, &
-                                                                freestream, inner_flow, mirror_plane, rule)
+                                                                freestream, inner_flow, rule)
             end if
 
             ! Integrate
@@ -3669,7 +3762,7 @@ contains
 
 
     function panel_get_moment_about_centroid(this, mu, sigma, mirrored, N_body_panels, N_body_verts, asym_flow, &
-                                                   freestream, inner_flow, mirror_plane, rule, M_corr) result(C_M)
+                                                   freestream, inner_flow, rule, M_corr) result(C_M)
         ! Calculates the moment coefficient (units of length) about the panel centroid
 
         implicit none
@@ -3680,7 +3773,6 @@ contains
         integer,intent(in) :: N_body_panels, N_body_verts
         type(flow),intent(in) :: freestream
         real,dimension(3),intent(in) :: inner_flow
-        integer,intent(in) :: mirror_plane
         character(len=*),intent(in) :: rule
         real,intent(in),optional :: M_corr
 
@@ -3699,10 +3791,10 @@ contains
             ! Get pressure distribution parameters
             if (present(M_corr)) then
                 C_P_params = this%get_quadratic_pressure_params(mu, sigma, mirrored, N_body_panels, N_body_verts, asym_flow, &
-                                                                freestream, inner_flow, mirror_plane, rule, M_corr)
+                                                                freestream, inner_flow, rule, M_corr)
             else
                 C_P_params = this%get_quadratic_pressure_params(mu, sigma, mirrored, N_body_panels, N_body_verts, asym_flow, &
-                                                                freestream, inner_flow, mirror_plane, rule)
+                                                                freestream, inner_flow, rule)
             end if
 
             ! Integrate

@@ -96,7 +96,7 @@ contains
         ! Initialize other panel properties
         do i=1,this%N_panels
             call this%panels(i)%init_with_flow(freestream, this%mirrored, mirror_plane)
-            call this%panels(i)%set_distribution(1, this%panels, this%vertices, this%mirrored, mirror_plane) ! With the current formulation, wake panels are always linear
+            call this%panels(i)%set_distribution(1, this%panels, this%vertices, this%mirrored) ! With the current formulation, wake panels are always linear
         end do
 
     end subroutine wake_strip_init

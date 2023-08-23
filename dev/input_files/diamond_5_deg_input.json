@@ -12,7 +12,7 @@
         }
     },
     "solver": {
-        "formulation" : "neumann-doublet-only-velocity-ls",
+        "formulation" : "neumann-mass-flux",
         "ormulation" : "morino",
         "control_point_offset" : 1.0e-7,
         "matrix_solver" : "GMRES",

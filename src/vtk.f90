@@ -260,7 +260,7 @@ contains
         real,dimension(:),intent(in) :: data
         character(len=*),intent(in) :: label
 
-        integer :: N_cells, i, j, N, N_cycle
+        integer :: N_cells, i, N, N_cycle
 
         ! Figure out size of dataset
         N_cells = size(data)
@@ -553,7 +553,7 @@ contains
 
         character(len=200) :: dummy_read, line
         real,dimension(:,:),allocatable :: vertex_locs
-        integer :: i, N, i1, i2, i3, N_duplicates, unit, ind, N_words
+        integer :: i, N, N_duplicates, unit, ind, N_words
         integer,dimension(:),allocatable :: new_ind, vertex_inds
 
         ! Open file

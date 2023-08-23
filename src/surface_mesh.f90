@@ -751,7 +751,7 @@ contains
         !$OMP parallel do schedule(static)
         do i=1,this%N_panels
             call this%panels(i)%set_distribution(this%initial_panel_order, this%panels, &
-                                                 this%vertices, this%mirrored, this%mirror_plane)
+                                                 this%vertices, this%mirrored)
         end do
         
         if (verbose) write(*,*) "Done."
@@ -1525,6 +1525,168 @@ contains
     end function surface_mesh_is_convex_at_vertex
 
 
+    subroutine surface_mesh_get_minimum_angle_vectors(this, i_vert, vec1, vec2)
+        ! Finds the two vectors attached to the given vertex which together form the minimum *interior* angle for the surface at the given vertex
+        ! We're looking for the two vectors whose inner product is a maximum
+
+        implicit none
+        
+        class(surface_mesh),intent(in) :: this
+        integer,intent(in) :: i_vert
+        real,dimension(3),intent(out) :: vec1, vec2
+
+        integer :: N_possible, i, j, i_adj, j_adj, k, k_panel
+        real :: max_inner, x
+        real,dimension(3) :: poss_vec1, poss_vec2
+        logical :: in_same_plane
+
+        ! Initialize
+        max_inner = -1.
+
+        ! Loop through adjacent vertices
+        do i=1,this%vertices(i_vert)%adjacent_vertices%len()
+
+            ! First possible vector is that pointing to this adjacent vertex
+            call this%vertices(i_vert)%adjacent_vertices%get(i, i_adj)
+            poss_vec1 = this%vertices(i_adj)%loc - this%vertices(i_vert)%loc
+            poss_vec1 = poss_vec1/norm2(poss_vec1)
+
+            ! Check mirror of this vertex
+            if (this%vertices(i_vert)%on_mirror_plane .and. .not. this%vertices(i_adj)%on_mirror_plane) then
+
+                poss_vec2 = mirror_across_plane(poss_vec1, this%mirror_plane)
+                poss_vec2 = poss_vec2/norm2(poss_vec2)
+
+                ! Get inner product
+                x = inner(poss_vec1, poss_vec2)
+
+                ! Check
+                if (x > max_inner) then
+
+                    ! Check both do not belong to the same surface
+                    in_same_plane = .false.
+                    adj_panel_loop1: do k=1,this%vertices(i_vert)%panels%len()
+                        
+                        ! Get panel index
+                        call this%vertices(i_vert)%panels%get(k, k_panel)
+
+                        ! Check inner products
+                        in_same_plane = (abs(inner(this%panels(k_panel)%n_g, poss_vec1)) < 1.e-10) .and. &
+                                        (abs(inner(this%panels(k_panel)%n_g, poss_vec2)) < 1.e-10)
+
+                        ! Check inner products with mirror
+                        if (this%vertices(i_vert)%on_mirror_plane) then
+                            in_same_plane = (abs(inner(this%panels(k_panel)%n_g_mir, poss_vec1)) < 1.e-10) .and. &
+                                            (abs(inner(this%panels(k_panel)%n_g_mir, poss_vec2)) < 1.e-10)
+                        end if
+
+                        if (in_same_plane) exit adj_panel_loop1
+
+                    end do adj_panel_loop1
+
+                    ! If they're not in the same plane, the update the maximum
+                    if (.not. in_same_plane) then
+                        vec1 = poss_vec1
+                        vec2 = poss_vec2
+                        max_inner = x
+                    end if
+
+                end if
+
+            end if
+
+            ! Loop through other adjacent vertices
+            other_adj_loop: do j=i+1,this%vertices(i_vert)%adjacent_vertices%len()
+
+                ! Get other direction
+                call this%vertices(i_vert)%adjacent_vertices%get(j, j_adj)
+                poss_vec2 = this%vertices(j_adj)%loc - this%vertices(i_vert)%loc
+                poss_vec2 = poss_vec2/norm2(poss_vec2)
+
+                ! Get inner product
+                x = inner(poss_vec1, poss_vec2)
+
+                ! Check 
+                if (x > max_inner) then
+
+                    ! Check both do not belong to the same surface
+                    in_same_plane = .false.
+                    adj_panel_loop2: do k=1,this%vertices(i_vert)%panels%len()
+                        
+                        ! Get panel index
+                        call this%vertices(i_vert)%panels%get(k, k_panel)
+
+                        ! Check inner products
+                        in_same_plane = (abs(inner(this%panels(k_panel)%n_g, poss_vec1)) < 1.e-10) .and. &
+                                        (abs(inner(this%panels(k_panel)%n_g, poss_vec2)) < 1.e-10)
+
+                        ! Check inner products with mirror
+                        if (this%vertices(i_vert)%on_mirror_plane) then
+                            in_same_plane = (abs(inner(this%panels(k_panel)%n_g_mir, poss_vec1)) < 1.e-10) .and. &
+                                            (abs(inner(this%panels(k_panel)%n_g_mir, poss_vec2)) < 1.e-10)
+                        end if
+
+                        if (in_same_plane) exit adj_panel_loop2
+
+                    end do adj_panel_loop2
+
+                    ! If they're not in the same plane, the update the maximum
+                    if (.not. in_same_plane) then
+                        vec1 = poss_vec1
+                        vec2 = poss_vec2
+                        max_inner = x
+                    end if
+                end if
+
+                ! Check mirror
+                if (this%vertices(i_vert)%on_mirror_plane .and. .not. this%vertices(j_adj)%on_mirror_plane) then
+
+                    ! Mirror
+                    poss_vec2 = mirror_across_plane(poss_vec2, this%mirror_plane)
+
+                    ! Get inner product
+                    x = inner(poss_vec1, poss_vec2)
+
+                    ! Check 
+                    if (x > max_inner) then
+
+                        ! Check both do not belong to the same surface
+                        in_same_plane = .false.
+                        adj_panel_loop3: do k=1,this%vertices(i_vert)%panels%len()
+
+                            ! Get panel index
+                            call this%vertices(i_vert)%panels%get(k, k_panel)
+
+                            ! Check inner products
+                            in_same_plane = (abs(inner(this%panels(k_panel)%n_g, poss_vec1)) < 1.e-10) .and. &
+                                            (abs(inner(this%panels(k_panel)%n_g, poss_vec2)) < 1.e-10)
+
+                            ! Check inner products with mirror
+                            if (this%vertices(i_vert)%on_mirror_plane) then
+                                in_same_plane = (abs(inner(this%panels(k_panel)%n_g_mir, poss_vec1)) < 1.e-10) .and. &
+                                                (abs(inner(this%panels(k_panel)%n_g_mir, poss_vec2)) < 1.e-10)
+                            end if
+
+                            if (in_same_plane) exit adj_panel_loop3
+
+                        end do adj_panel_loop3
+
+                        ! If they're not in the same plane, the update the maximum
+                        if (.not. in_same_plane) then
+                            vec1 = poss_vec1
+                            vec2 = poss_vec2
+                            max_inner = x
+                        end if
+                    end if
+                end if
+            
+            end do other_adj_loop
+
+        end do
+
+    end subroutine surface_mesh_get_minimum_angle_vectors
+
+
     function surface_mesh_get_clone_control_point_dir(this, i_vert) result(dir)
         ! Calculates the offset direction for the control point associated with the cloned vertex
 
@@ -1618,7 +1780,7 @@ contains
                 if (norm2(tp) < 1.e-12) cycle vertex_loop
 
                 ! If it's still inside the panel, we've found our vector
-                if (this%panels(i_panel)%projection_inside(0.1*tp + this%vertices(i_vert)%loc, .false., 0)) then
+                if (this%panels(i_panel)%projection_inside(0.1*tp + this%vertices(i_vert)%loc, .false.)) then
                     tp_found = .true.
                     exit tp_loop
                 end if
@@ -1635,7 +1797,7 @@ contains
             if (norm2(tp) < 1.e-12) cycle tp_loop
 
             ! If it's still inside the panel, we've found our vector
-            if (this%panels(i_panel)%projection_inside(0.1*tp + this%vertices(i_vert)%loc, .false., 0)) then
+            if (this%panels(i_panel)%projection_inside(0.1*tp + this%vertices(i_vert)%loc, .false.)) then
                 tp_found = .true.
                 exit tp_loop
             end if
@@ -1718,7 +1880,6 @@ contains
         real,intent(in) :: offset
         character(len=:),allocatable,intent(in) :: offset_type
         type(flow),intent(in) :: freestream
-
         real,dimension(:,:),allocatable :: cp_locs
 
         integer :: i, j, i_panel
@@ -1771,7 +1932,7 @@ contains
                     call this%vertices(i)%panels%get(j, i_panel)
 
                     ! Check if it's above the original panel
-                    if (this%panels(i_panel)%point_above(cp_locs(:,i), .false., 0)) then
+                    if (this%panels(i_panel)%point_above(cp_locs(:,i), .false.)) then
                         n_avg = n_avg + this%panels(i_panel)%get_weighted_normal_at_corner(this%vertices(i)%loc)
                     end if
 
@@ -1851,13 +2012,13 @@ contains
             call this%vertices(i_vert)%panels%get(i, i_panel)
 
             ! Check for original panel
-            if (this%panels(i_panel)%line_passes_through(start, dir, .false., 0, s_star)) then
+            if (this%panels(i_panel)%line_passes_through(start, dir, .false., s_star)) then
                 if (s_star <= 1. .and. s_star >= 0.) N_crosses = N_crosses + 1
             end if
 
             ! Check for mirrored panel
             if (this%vertices(i_vert)%on_mirror_plane) then
-                if (this%panels(i_panel)%line_passes_through(start, dir, .true., this%mirror_plane, s_star)) then
+                if (this%panels(i_panel)%line_passes_through(start, dir, .true., s_star)) then
                     if (s_star <= 1. .and. s_star >= 0.) N_crosses = N_crosses + 1
                 end if
             end if
@@ -2249,10 +2410,6 @@ contains
         allocate(dod_info(N_panels), stat=stat)
         call check_allocation(stat, "domain of dependence storage")
 
-        ! Whether wake vertices are in the DoD
-        allocate(wake_verts_in_dod(N_strip_verts), stat=stat)
-        call check_allocation(stat, "wake vertex domain of dependence storage")
-
         ! DoD info for wake panels
         allocate(wake_dod_info(N_strip_panels,this%wake%N_strips), stat=stat)
         call check_allocation(stat, "wake domain of dependence storage")
@@ -2260,45 +2417,25 @@ contains
         ! If the freestream is supersonic, calculate domain of dependence info
         if (freestream%supersonic) then
 
-            ! Get DoD for original vertices
-            verts_in_dod(1:this%N_verts) = this%get_verts_in_dod_of_point(point, freestream, .false.)
-
-            ! Get DoD for mirrored vertices
-            if (this%mirrored) then
-                verts_in_dod(this%N_verts+1:) = this%get_verts_in_dod_of_point(point, freestream, .true.)
-            end if
-
             ! Get info for original panels
-            dod_info(1:this%N_panels) = this%get_panel_dod_info_for_point(point, freestream, verts_in_dod, .false.)
+            dod_info(1:this%N_panels) = this%get_panel_dod_info_for_point(point, freestream, .false.)
 
             ! Get info for mirrored panels
             if (this%mirrored) then
-                dod_info(this%N_panels+1:) = this%get_panel_dod_info_for_point(point, freestream, verts_in_dod, .true.)
+                dod_info(this%N_panels+1:) = this%get_panel_dod_info_for_point(point, freestream, .true.)
             end if
-
-            deallocate(verts_in_dod)
 
             ! Loop through wake strips
             do j=1,this%wake%N_strips
 
-                ! Get DoD for original vertices
-                wake_verts_in_dod(1:this%wake%strips(j)%N_verts) = &
-                    this%wake%strips(j)%get_verts_in_dod_of_point(point, freestream, .false.)
-
-                ! Get DoD for mirrored vertices
-                if (this%wake%strips(j)%mirrored) then
-                    wake_verts_in_dod(this%wake%strips(j)%N_verts+1:) = &
-                        this%wake%strips(j)%get_verts_in_dod_of_point(point, freestream, .true.)
-                end if 
-
                 ! Get info for original panels
                 wake_dod_info(1:this%wake%strips(j)%N_panels,j) = &
-                    this%wake%strips(j)%get_panel_dod_info_for_point(point, freestream, wake_verts_in_dod, .false.)
+                    this%wake%strips(j)%get_panel_dod_info_for_point(point, freestream, .false.)
 
                 ! Get info for mirrored panels
                 if (this%wake%strips(j)%mirrored) then
                     wake_dod_info(this%wake%strips(j)%N_panels+1:,j) = &
-                        this%wake%strips(j)%get_panel_dod_info_for_point(point, freestream, wake_verts_in_dod, .true.)
+                        this%wake%strips(j)%get_panel_dod_info_for_point(point, freestream, .true.)
                 end if
             end do
 
@@ -2319,54 +2456,39 @@ contains
 
         integer :: j, k
         real :: phi_d_panel, phi_s_panel
-        type(dod),dimension(:),allocatable :: dod_info
-        type(dod),dimension(:,:),allocatable :: wake_dod_info
-
-        ! Calculate domain of dependence
-        call this%calc_point_dod(point, freestream, dod_info, wake_dod_info)
 
         ! Loop through panels
         phi_s = 0.
         phi_d = 0.
         do k=1,this%N_panels
-
-            ! Check DoD
-            if (dod_info(k)%in_dod) then
             
-                ! Calculate influence
-                call this%panels(k)%calc_potentials(point, freestream, dod_info(k), .false., &
-                                                    this%sigma, this%mu, this%N_panels, this%N_verts, &
-                                                    this%asym_flow, phi_s_panel, phi_d_panel)
-                phi_s = phi_s + phi_s_panel
-                phi_d = phi_d + phi_d_panel
-
-            end if
+            ! Calculate influence
+            call this%panels(k)%calc_potentials(point, freestream, .false., &
+                                                this%sigma, this%mu, this%N_panels, this%N_verts, &
+                                                this%asym_flow, phi_s_panel, phi_d_panel)
+            phi_s = phi_s + phi_s_panel
+            phi_d = phi_d + phi_d_panel
 
             ! Calculate mirrored influences
             if (this%mirrored) then
 
-                if (dod_info(k+this%N_panels)%in_dod) then
+                if (this%asym_flow) then
 
-                    if (this%asym_flow) then
+                    ! Get influence of mirrored panel
+                    call this%panels(k)%calc_potentials(point, freestream, .true., &
+                                                        this%sigma, this%mu, this%N_panels, this%N_verts, &
+                                                        this%asym_flow, phi_s_panel, phi_d_panel)
+                    phi_s = phi_s + phi_s_panel
+                    phi_d = phi_d + phi_d_panel
 
-                        ! Get influence of mirrored panel
-                        call this%panels(k)%calc_potentials(point, freestream, dod_info(k+this%N_panels), .true., &
-                                                            this%sigma, this%mu, this%N_panels, this%N_verts, &
-                                                            this%asym_flow, phi_s_panel, phi_d_panel)
-                        phi_s = phi_s + phi_s_panel
-                        phi_d = phi_d + phi_d_panel
+                else
 
-                    else
-
-                        ! Get influence of panel on mirrored point
-                        call this%panels(k)%calc_potentials(mirror_across_plane(point, this%mirror_plane), freestream, &
-                                                            dod_info(k+this%N_panels), .false., &
-                                                            this%sigma, this%mu, this%N_panels, this%N_verts, &
-                                                            this%asym_flow, phi_s_panel, phi_d_panel)
-                        phi_s = phi_s + phi_s_panel
-                        phi_d = phi_d + phi_d_panel
-
-                    end if
+                    ! Get influence of panel on mirrored point
+                    call this%panels(k)%calc_potentials(mirror_across_plane(point, this%mirror_plane), freestream, .false., &
+                                                        this%sigma, this%mu, this%N_panels, this%N_verts, &
+                                                        this%asym_flow, phi_s_panel, phi_d_panel)
+                    phi_s = phi_s + phi_s_panel
+                    phi_d = phi_d + phi_d_panel
 
                 end if
 
@@ -2378,32 +2500,22 @@ contains
         do j=1,this%wake%N_strips
             do k=1,this%wake%strips(j)%N_panels
 
-                ! Check DoD
-                if (wake_dod_info(k,j)%in_dod) then
-                
-                    ! Calculate influence
-                    call this%wake%strips(j)%panels(k)%calc_potentials(point, freestream, wake_dod_info(k,j), .false., &
-                                                             this%sigma, this%mu, this%N_panels, this%N_verts, &
-                                                             this%asym_flow, phi_s_panel, phi_d_panel)
-                    phi_s = phi_s + phi_s_panel
-                    phi_d = phi_d + phi_d_panel
-
-                end if
+                ! Calculate influence
+                call this%wake%strips(j)%panels(k)%calc_potentials(point, freestream, .false., &
+                                                         this%sigma, this%mu, this%N_panels, this%N_verts, &
+                                                         this%asym_flow, phi_s_panel, phi_d_panel)
+                phi_s = phi_s + phi_s_panel
+                phi_d = phi_d + phi_d_panel
 
                 ! Calculate mirrored influences
                 if (this%mirrored .and. .not. this%asym_flow) then
 
-                    if (wake_dod_info(k+this%wake%N_max_strip_panels,j)%in_dod) then
-
                         ! Get influence of mirrored panel
-                        call this%wake%strips(j)%panels(k)%calc_potentials(point, freestream, &
-                                                                 wake_dod_info(k+this%wake%N_max_strip_panels,j), .true., &
+                        call this%wake%strips(j)%panels(k)%calc_potentials(point, freestream, .true., &
                                                                  this%sigma, this%mu, this%N_panels, this%N_verts, &
                                                                  this%asym_flow, phi_s_panel, phi_d_panel)
                         phi_s = phi_s + phi_s_panel
                         phi_d = phi_d + phi_d_panel
-
-                    end if
 
                 end if
 
@@ -2425,11 +2537,6 @@ contains
 
         integer :: j, k
         real,dimension(3) :: v_d_panel, v_s_panel
-        type(dod),dimension(:),allocatable :: dod_info
-        type(dod),dimension(:,:),allocatable :: wake_dod_info
-
-        ! Calculate domain of dependence
-        call this%calc_point_dod(point, freestream, dod_info, wake_dod_info)
 
         ! Loop through panels
         v_d = (/0.,0.,0./)
@@ -2437,48 +2544,37 @@ contains
 
         do k=1,this%N_panels
 
-            ! Check DoD
-            if (dod_info(k)%in_dod) then
-            
-                ! Calculate influence
-                call this%panels(k)%calc_velocities(point, freestream, dod_info(k), .false., &
-                                                    this%sigma, this%mu, this%N_panels, this%N_verts, &
-                                                    this%asym_flow, v_s_panel, v_d_panel)
-
-                ! Because computers don't like adding zero a bunch
-                if (this%panels(k)%has_sources) v_s = v_s + v_s_panel
-                v_d = v_d + v_d_panel
-
-            end if
+            ! Calculate influence
+            call this%panels(k)%calc_velocities(point, freestream, .false., &
+                                                this%sigma, this%mu, this%N_panels, this%N_verts, &
+                                                this%asym_flow, v_s_panel, v_d_panel)
+            ! Because computers don't like adding zero a bunch
+            if (this%panels(k)%has_sources) v_s = v_s + v_s_panel
+            v_d = v_d + v_d_panel
 
             ! Calculate mirrored influences
             if (this%mirrored) then
 
-                if (dod_info(k+this%N_panels)%in_dod) then
+                if (this%asym_flow) then
 
-                    if (this%asym_flow) then
+                    ! Get influence of mirrored panel
+                    call this%panels(k)%calc_velocities(point, freestream, .true., &
+                                                        this%sigma, this%mu, this%N_panels, this%N_verts, &
+                                                        this%asym_flow, v_s_panel, v_d_panel)
+                    if (this%panels(k)%has_sources) v_s = v_s + v_s_panel
+                    v_d = v_d + v_d_panel
 
-                        ! Get influence of mirrored panel
-                        call this%panels(k)%calc_velocities(point, freestream, dod_info(k+this%N_panels), .true., &
-                                                            this%sigma, this%mu, this%N_panels, this%N_verts, &
-                                                            this%asym_flow, v_s_panel, v_d_panel)
-                        if (this%panels(k)%has_sources) v_s = v_s + v_s_panel
-                        v_d = v_d + v_d_panel
+                else
 
-                    else
+                    ! Get influence of panel on mirrored point
+                    call this%panels(k)%calc_velocities(mirror_across_plane(point, this%mirror_plane), freestream, &
+                                                        .false., this%sigma, this%mu, this%N_panels, this%N_verts, &
+                                                        this%asym_flow, v_s_panel, v_d_panel)
 
-                        ! Get influence of panel on mirrored point
-                        call this%panels(k)%calc_velocities(mirror_across_plane(point, this%mirror_plane), freestream, &
-                                                            dod_info(k+this%N_panels), .false., &
-                                                            this%sigma, this%mu, this%N_panels, this%N_verts, &
-                                                            this%asym_flow, v_s_panel, v_d_panel)
-
-                        v_d_panel = mirror_across_plane(v_d_panel, this%mirror_plane)
-                        v_s_panel = mirror_across_plane(v_s_panel, this%mirror_plane)
-                        if (this%panels(k)%has_sources) v_s = v_s + v_s_panel
-                        v_d = v_d + v_d_panel
-
-                    end if
+                    v_d_panel = mirror_across_plane(v_d_panel, this%mirror_plane)
+                    v_s_panel = mirror_across_plane(v_s_panel, this%mirror_plane)
+                    if (this%panels(k)%has_sources) v_s = v_s + v_s_panel
+                    v_d = v_d + v_d_panel
 
                 end if
 
@@ -2489,44 +2585,33 @@ contains
         ! Loop through wake panels !!!!!!!!!!!!!!!!!!!!!! include if statement to instead solve filament influence if there are wake filaments
         do j=1,this%wake%N_strips
             do k=1,this%wake%strips(j)%N_panels
-
-                ! Check DoD
-                if (wake_dod_info(k,j)%in_dod) then
                 
-                    ! Calculate influence
-                    call this%wake%strips(j)%panels(k)%calc_velocities(point, freestream, wake_dod_info(k,j), .false., &
-                                                             this%sigma, this%mu, this%N_panels, this%N_verts, &
-                                                             this%asym_flow, v_s_panel, v_d_panel)
-                    
-                    v_d = v_d + v_d_panel
-                    if (this%wake%strips(j)%panels(k)%has_sources) v_s = v_s + v_s_panel
-
-                end if
+                ! Calculate influence
+                call this%wake%strips(j)%panels(k)%calc_velocities(point, freestream, .false., &
+                                                         this%sigma, this%mu, this%N_panels, this%N_verts, &
+                                                         this%asym_flow, v_s_panel, v_d_panel)
+                
+                v_d = v_d + v_d_panel
+                if (this%wake%strips(j)%panels(k)%has_sources) v_s = v_s + v_s_panel
 
                 ! Calculate mirrored influences
                 if (this%mirrored .and. .not. this%asym_flow) then
 
-                    if (wake_dod_info(k+this%wake%N_max_strip_panels,j)%in_dod) then
-
-                        ! Get influence of mirrored panel
-                        call this%wake%strips(j)%panels(k)%calc_velocities(point, freestream, &
-                                                                 wake_dod_info(k+this%wake%N_max_strip_panels,j), .true., &
-                                                                 this%sigma, this%mu, this%N_panels, this%N_verts, &
-                                                                 this%asym_flow, v_s_panel, v_d_panel)
-                        
-                        v_d_panel = mirror_across_plane(v_d_panel, this%mirror_plane)
-                        v_s_panel = mirror_across_plane(v_s_panel, this%mirror_plane)
-                        if (this%wake%strips(j)%panels(k)%has_sources) v_s = v_s + v_s_panel
-                        v_d = v_d + v_d_panel
-
-                    end if
+                    call this%wake%strips(j)%panels(k)%calc_velocities(point, freestream, .false., &
+                                                             this%sigma, this%mu, this%N_panels, this%N_verts, &
+                                                             this%asym_flow, v_s_panel, v_d_panel)
+                    
+                    v_d_panel = mirror_across_plane(v_d_panel, this%mirror_plane)
+                    v_s_panel = mirror_across_plane(v_s_panel, this%mirror_plane)
+                    if (this%wake%strips(j)%panels(k)%has_sources) v_s = v_s + v_s_panel
+                    v_d = v_d + v_d_panel
 
                 end if
 
             end do
         end do
-    end subroutine surface_mesh_get_induced_velocities_at_point
 
+    end subroutine surface_mesh_get_induced_velocities_at_point
 
 
     subroutine surface_mesh_output_results(this, body_file, wake_file, control_point_file, mirrored_body_file)
