@@ -12,7 +12,7 @@ module surface_mesh_mod
     use flow_mod
     use math_mod
     use wake_mesh_mod
-    use filament_wake_mesh_mod
+    use filament_mesh_mod
     use sort_mod
     use helpers_mod
 

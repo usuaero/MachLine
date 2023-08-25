@@ -6,6 +6,7 @@ module filament_mod
     use flow_mod
     use linalg_mod
     use mesh_mod
+    use filament_segment_mod
     !!!! call correct mods
 
     !!!! mirrors wake_strip
@@ -22,7 +23,7 @@ module filament_mod
 
         contains
             procedure :: init => filament_init !!!! added this. May take it off if we don't init the wake_filament here. 
-            procedure :: init_segment => filament_init_segment !!!! how to differentiate between segment and mesh
+            ! procedure :: init_segment => filament_init_segment !!!! how to differentiate between segment and mesh
             procedure :: init_vertices => filament_init_vertices  !!!! comment out all type bound procedure statements until they are used or MachLine won't compile. -SA
             procedure :: init_segments => filament_init_segments 
         !     procedure :: init_panel => wake_strip_init_panel !!!!
@@ -48,7 +49,7 @@ contains
         type(vertex),dimension(:),allocatable,intent(in) :: body_verts
         logical,intent(in) :: wake_mirrored
 
-        real,dimension(3) :: start_1, start_2
+        real,dimension(3) :: start_1, start_2, start_c
         integer :: N_body_verts, i
 
         !!!!mirror stuff, do we need to change? ( line (46 - 100) in wake_strip)
@@ -74,9 +75,9 @@ contains
             this%i_bot_parent_1 = starting_edge%bot_verts(2) + N_body_verts
             this%i_bot_parent_2 = starting_edge%bot_verts(1) + N_body_verts
 
-            ! Get parent segments
-            this%i_top_parent = starting_edge%segments(1) + N_body_panels
-            this%i_top_parent = starting_edge%segments(2) + N_body_panels
+            ! Get parent panels
+            this%i_top_parent = starting_edge%panels(1) + N_body_panels
+            this%i_top_parent = starting_edge%panels(2) + N_body_panels
 
         else
 
@@ -91,9 +92,9 @@ contains
             this%i_bot_parent_1 = starting_edge%bot_verts(1)
             this%i_bot_parent_2 = starting_edge%bot_verts(2)
 
-            ! Get parent segments
-            this%i_top_parent = starting_edge%segments(1)
-            this%i_top_parent = starting_edge%segments(2)
+            ! Get parent panels
+            this%i_top_parent = starting_edge%panels(1)
+            this%i_top_parent = starting_edge%panels(2)
 
         end if
 
@@ -104,10 +105,10 @@ contains
         call this%init_segments(N_segments_streamwise)
 
         ! Initialize other panel properties
-        do i=1,this%N_segments
-            call this%segments(i)%init_with_flow(freestream, this%mirrored, mirror_plane)
-            call this%segments(i)%set_distribution(1, this%segments, this%vertices, this%mirrored) ! With the current formulation, wake segments are always linear
-        end do
+        ! do i=1,this%N_segments
+        !     call this%segments(i)%init_with_flow(freestream, this%mirrored, mirror_plane)
+        !     call this%segments(i)%set_distribution(1, this%segments, this%vertices, this%mirrored) ! With the current formulation, wake segments are always linear
+        ! end do
 
     end subroutine
 
@@ -182,7 +183,7 @@ contains
 
         implicit none
 
-        class(wake_strip),intent(inout) :: this
+        class(filament),intent(inout) :: this
         integer,intent(in) :: N_segments_streamwise
 
         real :: d1, d2
@@ -195,7 +196,7 @@ contains
         ! Create segments
         i1 = 1
         i2 = 2
-        do i=1,this%N_segments
+        ! do i=1,this%N_segments
             !!!! commented this out until init_segment is completed. need more info -JH
             ! ! Initialize
             ! advance = 0
@@ -223,20 +224,20 @@ contains
             ! if (advance == 1) then
 
             !     ! Initialize
-            !     call this%init_panel(i, i1, i1+2, i2, skipped_panels)
+            !     call this%init_segment(i, i1, i1+2, i2, skipped_panels)
                 
             !     ! Increment index
             !     i1 = i1 + 2
             ! else
                 
             !     ! Initialize
-            !     call this%init_panel(i, i1, i2+2, i2, skipped_panels)
+            !     call this%init_segment(i, i1, i2+2, i2, skipped_panels)
 
             !     ! Increment index
             !     i2 = i2 + 2
             ! end if
 
-        end do
+        ! end do
 
     end subroutine filament_init_segments
 
@@ -245,10 +246,11 @@ contains
 
         implicit none
         
-        class(filament),intent(inout) :: filament
-        integer,intent(in) :: i_segment, i1, i2, i3
+        class(filament),intent(inout) :: this
+        integer,intent(in) :: i_segment, i1, i2
     
-        call this%segmetns(i_segment)%init(this%vertices(i1), this%vertices(i2), i_segment)
+        ! call this%segments(i_segment)%init(this%vertices(i1), this%vertices(i2), i_segment)
 
     end subroutine filament_init_segment
+
 end module filament_mod

@@ -1,4 +1,4 @@
-module filament_wake_mesh_mod  
+module filament_mesh_mod  
     use json_mod
     use json_xtnsn_mod
     use linked_list_mod
@@ -10,7 +10,7 @@ module filament_wake_mesh_mod
     use vtk_mod
     use wake_strip_mod
     use filament_segment_mod
-    !!!! use filament_mod
+    use filament_mod
     use mesh_mod
     !!!! call correct mods
 
@@ -41,7 +41,7 @@ module filament_wake_mesh_mod
         contains
 
             procedure :: init => filament_mesh_init 
-            procedure :: init_filaments => filament_mesh_init_filaments             !!!! comment out all type bound procedure statements until they are used or MachLine won't compile. -SA
+            procedure :: init_filaments => filament_mesh_init_filaments            
             ! procedure :: write_filaments => wake_filament_mesh_write_filaments
 
     end type filament_mesh
@@ -49,14 +49,13 @@ module filament_wake_mesh_mod
 
 contains
 
-            !!!! I am commenting wake_mesh_init out because if we don't declare the variables, it won't compile
     subroutine filament_mesh_init(this, body_edges, body_verts, freestream, asym_flow, mirror_plane, N_panels_streamwise, &
-                                 trefftz_dist, body_mirrored, initial_panel_order, N_body_panels) !!!!!! what else does it need
+                                 trefftz_dist, body_mirrored, initial_panel_order, N_body_panels) 
     
     ! Initializes the wake mesh
         implicit none
 
-        class(filament_wake_mesh),intent(inout),target :: this
+        class(filament_mesh),intent(inout) :: this
         type(edge),allocatable,dimension(:),intent(in) :: body_edges
         type(vertex),allocatable,dimension(:),intent(inout) :: body_verts
         type(flow),intent(in) :: freestream
@@ -147,6 +146,8 @@ contains
         ! ! Find out the maximum number of vertices and panels between the filaments and totals
         ! this%N_verts = 0
         ! this%N_segments = 0
+
+
         do i=1,this%N_filaments
 
         !     ! Find maxima
@@ -156,6 +157,6 @@ contains
         !     ! Sum totals
         !     this%N_verts = this%N_verts + this%filaments(i)%N_verts
             this%N_segments = this%N_segments + this%filaments(i)%N_segments
-        ! end do
-
-end module filament_wake_mesh_mod
+        end do
+    end subroutine filament_mesh_init_filaments
+end module filament_mesh_mod
