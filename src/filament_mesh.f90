@@ -49,7 +49,7 @@ module filament_mesh_mod
 
 contains
 
-    subroutine filament_mesh_init(this, body_edges, body_verts, freestream, asym_flow, mirror_plane, N_panels_streamwise, &
+    subroutine filament_mesh_init(this, body_edges, body_verts, freestream, asym_flow, mirror_plane, N_segments_streamwise, &
                                  trefftz_dist, body_mirrored, initial_panel_order, N_body_panels) 
     
     ! Initializes the wake mesh
@@ -60,7 +60,7 @@ contains
         type(vertex),allocatable,dimension(:),intent(inout) :: body_verts
         type(flow),intent(in) :: freestream
         logical,intent(in) :: asym_flow
-        integer,intent(in) :: mirror_plane, N_panels_streamwise, initial_panel_order, N_body_panels
+        integer,intent(in) :: mirror_plane, N_segments_streamwise, initial_panel_order, N_body_panels
         real,intent(in) :: trefftz_dist
         logical,intent(in) :: body_mirrored
 
@@ -71,7 +71,7 @@ contains
         this%mirror_plane = mirror_plane
 
         ! Initialize filaments
-        call this%init_filaments(body_edges, body_verts, freestream, asym_flow, mirror_plane, N_panels_streamwise, &
+        call this%init_filaments(body_edges, body_verts, freestream, asym_flow, mirror_plane, N_segments_streamwise, &
                                 trefftz_dist, initial_panel_order, N_body_panels)
 
         if (verbose) write(*,'(a i7 a i7 a i7 a)') "Done. Created ", this%N_verts, " wake vertices and ", &
@@ -81,7 +81,7 @@ contains
     
     end subroutine filament_mesh_init 
 
-    subroutine filament_mesh_init_filaments(body_edges, body_verts, freestream, asym_flow, mirror_plane, N_panels_streamwise, &
+    subroutine filament_mesh_init_filaments(body_edges, body_verts, freestream, asym_flow, mirror_plane, N_segments_streamwise, &
         trefftz_dist, initial_panel_order, N_body_panels)
         ! creates the filaments for the wake
 
@@ -92,7 +92,7 @@ contains
         type(vertex),allocatable,dimension(:),intent(inout) :: body_verts
         type(flow),intent(in) :: freestream
         logical,intent(in) :: asym_flow
-        integer,intent(in) :: mirror_plane, N_panels_streamwise, initial_panel_order, N_body_panels
+        integer,intent(in) :: mirror_plane, N_segments_streamwise, initial_panel_order, N_body_panels
         real,intent(in) :: trefftz_dist
 
         integer :: i, i_filament, i_start_edge
@@ -130,14 +130,14 @@ contains
             ! Initialize strip
             i_filament = i_filament + 1
             call this%filaments(i_filament)%init(freestream, body_edges(i_start_edge), .false., mirror_plane, &
-                                           N_panels_streamwise, trefftz_dist, body_verts, this%mirrored, &
+                                           N_segments_streamwise, trefftz_dist, body_verts, this%mirrored, &
                                            initial_panel_order, N_body_panels)
 
             ! Check if we need to create a mirror strip
             if (asym_flow .and. .not. body_edges(i_start_edge)%on_mirror_plane) then
                 i_filament = i_filament + 1
                 call this%filaments(i_filament)%init(freestream, body_edges(i_start_edge), .true., mirror_plane, &
-                                               N_panels_streamwise, trefftz_dist, body_verts, this%mirrored, &
+                                               N_segments_streamwise, trefftz_dist, body_verts, this%mirrored, &
                                                initial_panel_order, N_body_panels)
             end if
         end do
