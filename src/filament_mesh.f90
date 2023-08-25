@@ -36,6 +36,7 @@ module filament_wake_mesh_mod
         integer :: N_filaments 
         integer :: N_max_strip_verts = 0
         integer :: N_max_strip_panels = 0
+        integer :: N_segments
 
         contains
 
@@ -75,7 +76,7 @@ contains
                                 trefftz_dist, initial_panel_order, N_body_panels)
 
         if (verbose) write(*,'(a i7 a i7 a i7 a)') "Done. Created ", this%N_verts, " wake vertices and ", &
-                                                this%N_panels, " wake panels distributed between ", &
+                                                this%N_segments, " wake panels distributed between ", &
                                                 this%N_filaments, " filaments."
     
     
@@ -145,16 +146,16 @@ contains
         !!!! this was in the wake mesh but I haven't found where it is used.  leaving it in so that if we need it we can change it -JH
         ! ! Find out the maximum number of vertices and panels between the filaments and totals
         ! this%N_verts = 0
-        ! this%N_panels = 0
-        ! do i=1,this%N_filaments
+        ! this%N_segments = 0
+        do i=1,this%N_filaments
 
         !     ! Find maxima
-        !     this%N_max_strip_panels = max(this%N_max_strip_panels, this%filaments(i)%N_panels)
+        !     this%N_max_strip_panels = max(this%N_max_strip_panels, this%filaments(i)%N_segments)
         !     this%N_max_strip_verts = max(this%N_max_strip_verts, this%filaments(i)%N_verts)
 
         !     ! Sum totals
         !     this%N_verts = this%N_verts + this%filaments(i)%N_verts
-        !     this%N_panels = this%N_panels + this%filaments(i)%N_panels
+            this%N_segments = this%N_segments + this%filaments(i)%N_segments
         ! end do
 
 end module filament_wake_mesh_mod
