@@ -23,7 +23,7 @@ module filament_mod
 
         contains
             procedure :: init => filament_init !!!! added this. May take it off if we don't init the wake_filament here. 
-            ! procedure :: init_segment => filament_init_segment !!!! how to differentiate between segment and mesh
+            procedure :: init_segment => filament_init_segment !!!! how to differentiate between segment and mesh
             procedure :: init_vertices => filament_init_vertices  !!!! comment out all type bound procedure statements until they are used or MachLine won't compile. -SA
             procedure :: init_segments => filament_init_segments 
         !     procedure :: init_panel => wake_strip_init_panel !!!!
@@ -172,57 +172,22 @@ contains
         integer,intent(in) :: N_segments_streamwise
 
         real :: d1, d2
-        integer :: i, j, i1, i2, advance, N_skipped
+        integer :: i, i1, i2, advance, N_skipped
 
         ! Determine number of segments
         this%N_segments = N_segments_streamwise*2
         allocate(this%segments(this%N_segments))
-
-        ! Create segments
         i1 = 1
         i2 = 2
-        ! do i=1,this%N_segments
-            !!!! commented this out until init_segment is completed. need more info -JH
-            ! ! Initialize
-            ! advance = 0
+        do i=1,this%N_segments
 
-            ! ! See if one is at the end
-            ! if (i1 == this%N_verts - 1) then
-            !     advance = 2
-            ! else if (i2 == this%N_verts) then
-            !     advance = 1
-            ! else
-
-            !     ! Check lengths of hypotenuses
-            !     d1 = dist(this%vertices(i1+2)%loc, this%vertices(i2)%loc)
-            !     d2 = dist(this%vertices(i1)%loc, this%vertices(i2+2)%loc)
-
-            !     ! Pick which one
-            !     if (d1 < d2) then
-            !         advance = 1
-            !     else
-            !         advance = 2
-            !     end if
-            ! end if
-
-            ! ! Advance
-            ! if (advance == 1) then
-
-            !     ! Initialize
-            !     call this%init_segment(i, i1, i1+2, i2, skipped_panels)
-                
-            !     ! Increment index
-            !     i1 = i1 + 2
-            ! else
-                
-            !     ! Initialize
-            !     call this%init_segment(i, i1, i2+2, i2, skipped_panels)
-
-            !     ! Increment index
-            !     i2 = i2 + 2
-            ! end if
-
-        ! end do
+            ! initialize
+            this%init_segment(i,i1,i2)
+            ! increment index
+            i1 = i1 + 1
+            i2 = i2 + 1
+            
+        end do
 
     end subroutine filament_init_segments
 
@@ -234,7 +199,7 @@ contains
         class(filament),intent(inout) :: this
         integer,intent(in) :: i_segment, i1, i2
     
-        ! call this%segments(i_segment)%init(this%vertices(i1), this%vertices(i2), i_segment)
+        call this%segments(i_segment)%init(this%vertices(i1), this%vertices(i2), i_segment)
 
     end subroutine filament_init_segment
 
