@@ -23,7 +23,7 @@ module filament_mod
 
         contains
             procedure :: init => filament_init !!!! added this. May take it off if we don't init the wake_filament here. 
-            ! procedure :: init_segment => filament_init_segment !!!! how to differentiate between segment and mesh
+            procedure :: init_segment => filament_init_segment !!!! how to differentiate between segment and mesh
             procedure :: init_vertices => filament_init_vertices  !!!! comment out all type bound procedure statements until they are used or MachLine won't compile. -SA
             procedure :: init_segments => filament_init_segments 
         !     procedure :: init_panel => wake_strip_init_panel !!!!
@@ -84,7 +84,7 @@ contains
             ! Get starting location
             start_1 = body_verts(starting_edge%top_verts(1))%loc
             start_2 = body_verts(starting_edge%top_verts(2))%loc
-            start_c = start_1 + start_2 / 2
+            start_c = (start_1 + start_2) / 2
 
             ! Get parent vertices
             this%i_top_parent_1 = starting_edge%top_verts(1)
@@ -99,12 +99,16 @@ contains
         end if
 
         ! Initialize vertices
-        call this%init_vertices(freestream, N_segments_streamwise, trefftz_dist, start_1, start_2, body_verts)
+        call this%init_vertices(freestream, N_segments_streamwise, trefftz_dist, start_c, body_verts)
 
         ! Intialize segments
         call this%init_segments(N_segments_streamwise)
 
-        ! Initialize other panel properties
+
+        ! initalize properties
+        ! for panels this is init with flow and set distribution
+
+        ! Initialize other segment properties
         ! do i=1,this%N_segments
         !     call this%segments(i)%init_with_flow(freestream, this%mirrored, mirror_plane)
         !     call this%segments(i)%set_distribution(1, this%segments, this%vertices, this%mirrored) ! With the current formulation, wake segments are always linear
@@ -113,7 +117,7 @@ contains
     end subroutine
 
     subroutine filament_init_vertices(this, freestream, N_segments_streamwise, trefftz_dist, &
-                start_1, start_2, body_verts)
+                start_c, body_verts)
         ! Initializes this wake strip's vertices based on the provided info
 
         implicit none
@@ -122,7 +126,7 @@ contains
         type(flow),intent(in) :: freestream
         integer,intent(in) :: N_segments_streamwise
         real,intent(in) :: trefftz_dist
-        real,dimension(3),intent(in) :: start_1, start_2
+        real,dimension(3),intent(in) :: start_c
         type(vertex),dimension(:),allocatable,intent(in) :: body_verts
 
         real,dimension(3) :: loc
@@ -135,44 +139,25 @@ contains
         allocate(this%vertices(this%N_verts))
 
         ! Initialize starting vertex in wake filament
-        call this%vertices(1)%init(start_1, 1)
+        call this%vertices(1)%init(start_c, 1)
         
 
-        ! Set parents
-        this%vertices(1)%top_parent = this%i_top_parent_1
-        this%vertices(1)%bot_parent = this%i_bot_parent_1
-        this%vertices(2)%top_parent = this%i_top_parent_2
-        this%vertices(2)%bot_parent = this%i_bot_parent_2
-
         ! Calculate distances to Trefftz plane
-        d1 = trefftz_dist - inner(start_1, freestream%c_hat_g)
-        d2 = trefftz_dist - inner(start_2, freestream%c_hat_g)
+        d1 = trefftz_dist - inner(start_c, freestream%c_hat_g)
+        
 
         ! Calculate spacing between vertices
-        sep_1 = d1 / N_segments_streamwise
-        sep_2 = d2 / N_segments_streamwise
+        sep = d1 / N_segments_streamwise
+        
 
         ! Loop through following vertices
         do i=2,this%N_verts
 
-            ! Calculate location of vertices
-            if (modulo(i, 2) == 0) then
-                loc = start_2 + sep_2*(i-1)/2*freestream%c_hat_g
-            else
-                loc = start_1 + sep_1*i/2*freestream%c_hat_g
-            end if
-
-            ! Initialize vertices
+            ! Calculate location of vertex
+            loc = start_c + sep_1*i/2*freestream%c_hat_g
+           
+            ! Initialize vertex
             call this%vertices(i)%init(loc, i)
-
-            ! Set parents
-            if (modulo(i, 2) == 0) then
-                this%vertices(i)%top_parent = this%i_top_parent_2
-                this%vertices(i)%bot_parent = this%i_bot_parent_2
-            else
-                this%vertices(i)%top_parent = this%i_top_parent_1
-                this%vertices(i)%bot_parent = this%i_bot_parent_1
-            end if
 
         end do
 
@@ -187,57 +172,22 @@ contains
         integer,intent(in) :: N_segments_streamwise
 
         real :: d1, d2
-        integer :: i, j, i1, i2, advance, N_skipped
+        integer :: i, i1, i2, advance, N_skipped
 
         ! Determine number of segments
         this%N_segments = N_segments_streamwise*2
         allocate(this%segments(this%N_segments))
-
-        ! Create segments
         i1 = 1
         i2 = 2
-        ! do i=1,this%N_segments
-            !!!! commented this out until init_segment is completed. need more info -JH
-            ! ! Initialize
-            ! advance = 0
+        do i=1,this%N_segments
 
-            ! ! See if one is at the end
-            ! if (i1 == this%N_verts - 1) then
-            !     advance = 2
-            ! else if (i2 == this%N_verts) then
-            !     advance = 1
-            ! else
-
-            !     ! Check lengths of hypotenuses
-            !     d1 = dist(this%vertices(i1+2)%loc, this%vertices(i2)%loc)
-            !     d2 = dist(this%vertices(i1)%loc, this%vertices(i2+2)%loc)
-
-            !     ! Pick which one
-            !     if (d1 < d2) then
-            !         advance = 1
-            !     else
-            !         advance = 2
-            !     end if
-            ! end if
-
-            ! ! Advance
-            ! if (advance == 1) then
-
-            !     ! Initialize
-            !     call this%init_segment(i, i1, i1+2, i2, skipped_panels)
-                
-            !     ! Increment index
-            !     i1 = i1 + 2
-            ! else
-                
-            !     ! Initialize
-            !     call this%init_segment(i, i1, i2+2, i2, skipped_panels)
-
-            !     ! Increment index
-            !     i2 = i2 + 2
-            ! end if
-
-        ! end do
+            ! initialize
+            this%init_segment(i,i1,i2)
+            ! increment index
+            i1 = i1 + 1
+            i2 = i2 + 1
+            
+        end do
 
     end subroutine filament_init_segments
 
@@ -249,7 +199,7 @@ contains
         class(filament),intent(inout) :: this
         integer,intent(in) :: i_segment, i1, i2
     
-        ! call this%segments(i_segment)%init(this%vertices(i1), this%vertices(i2), i_segment)
+        call this%segments(i_segment)%init(this%vertices(i1), this%vertices(i2), i_segment)
 
     end subroutine filament_init_segment
 
