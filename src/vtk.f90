@@ -212,6 +212,15 @@ contains
     
     end subroutine vtk_out_write_vertices
 
+    !!!!!!!!!!!!!!!!!!!!! WAKE DEV !!!!!!!!!!!!!!!!!!!!!!!!
+    !subroutine write_filament_segments(this, N_verts, N_filaments, N_segments)
+    !   ...
+    !end subroutine write_filament_segments
+
+    !subroutine write_filaments
+    !    ...
+    !end subroutine write_filaments
+    !!!!!!!!!!!!!!!!!!!!!!!! WAKE DEV !!!!!!!!!!!!!!!!!!!!!!!!!!!
 
     subroutine vtk_out_write_point_header(this, N_points)
         ! Checks whether the point data header has been written and writes it if necessary

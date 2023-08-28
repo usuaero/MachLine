@@ -159,4 +159,84 @@ contains
             this%N_segments = this%N_segments + this%filaments(i)%N_segments
         end do
     end subroutine filament_mesh_init_filaments
+
+    !!!! need to change mu to circulation
+    subroutine filament_mesh_write_filaments(this, wake_file_exported, mu)
+        ! Writes the wake filaments out to file
+
+        implicit none
+        
+        class(wake_mesh),intent(in) :: this
+        character(len=:),allocatable,intent(in) :: wake_file
+        logical,intent(out) :: exported
+        real,dimension(:),allocatable,intent(in),optional :: mu
+
+        type(vtk_out) :: wake_vtk  !!!! new name?
+        integer :: i, j, k, N_verts, N_panels, shift, N_segments, N_filaments
+        real,dimension(:),allocatable :: parent_mu !!!!mu_on_wake    !!!!what should this be named??
+        real,dimension(:,:),allocatable :: verts
+
+        ! Clear old file
+        call delete_file(wake_file)
+
+        if (this%N_filaments > 0) then
+
+            ! Get total number of verticies and segments?  
+            N_verts = 0
+            N_segments = 0
+            do i=1,this%N_filaments
+                N_verts = N_verts + this%filaments(i)%N_verts
+                N_panels = N_panels + this%filaments(i)%N_segments
+            end do
+
+            ! Get all vertices
+            allocate(verts(3,N_verts))
+            i = 0
+            do k=1,this%N_filaments
+                do j=1,this%filaments(k)%N_verts
+                    i = i + 1
+                    verts(:,i) = this%filaments(k)%vertices(j)%loc
+                end do
+            end do
+
+            ! Initialize and write out vertices
+            call wake_vtk%begin(wake_file)
+            call wake_vtk%write_points(verts)
+
+            ! Write out segments
+            shift = 0
+            do k=1,this%N_filaments
+                call wake_vtk%write_segments(this%filaments(k)%segments, mirror=.false., &
+                                           vertex_index_shift=shift, N_total_segmants=N_segments)
+                shift = shift + this%strips(k)%N_verts
+            end do
+            
+            !!!! how to change this???
+            if (present(circ)) then
+!
+                ! Calculate doublet strengths
+                allocate(circ_filament(N_filaments))
+                i = 0
+                do k=1,this%N_filaments
+                    do j=1,this%filaments(k)%N_filaments
+                        i = i + 1
+                        !!!!circ_filament(i) = mu(this%strips(k)%vertices(j)%top_parent) - mu(this%strips(k)%vertices(j)%bot_parent)!!!!!
+                    end do !!!!where else do i need to chang mu to circ??
+                end do
+!
+                ! Write doublet strengths
+                call wake_vtk%write_point_scalars(mu_on_wake, "mu")
+            end if
+
+             Finish up
+            call wake_vtk%finish()
+            exported = .true.
+
+        else
+            exported = .false.
+        end if
+
+    end subroutine filament_mesh_write_filaments
+
+
 end module filament_mesh_mod
