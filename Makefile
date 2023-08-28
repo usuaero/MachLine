@@ -13,7 +13,7 @@ COMMON_FILES = helpers.f90 linked_list.f90 math.f90 linalg.f90 json.f90 json_xtn
 COMMON_PATHS = $(addprefix $(COM_DIR)/, $(COMMON_FILES))
 
 # List source files (ordered based on dependency)
-SRC_FILES = flow.f90 base_geom.f90 panel.f90 mesh.f90 filament_segment.f90 stl.f90 vtk.f90 tri.f90 wake_strip.f90 filament.f90 wake_mesh.f90 filament_mesh.f90 surface_mesh.f90 panel_solver.f90
+SRC_FILES = flow.f90 base_geom.f90 panel.f90 mesh.f90 filament_segment.f90 filament.f90 filament_mesh.f90 stl.f90 vtk.f90 tri.f90 wake_strip.f90 wake_mesh.f90 surface_mesh.f90 panel_solver.f90
 SRC_PATHS = $(addprefix $(SRC_DIR)/, $(SRC_FILES))
 
 # Main
