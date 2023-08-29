@@ -130,7 +130,7 @@ contains
         type(vertex),dimension(:),allocatable,intent(in) :: body_verts
 
         real,dimension(3) :: loc
-        real :: d1, d2, sep_1, sep_2
+        real :: d1, sep
         integer :: i, N_body_verts
 
         ! Allocate memory
@@ -154,7 +154,7 @@ contains
         do i=2,this%N_verts
 
             ! Calculate location of vertex
-            loc = start_c + sep_1*i/2*freestream%c_hat_g
+            loc = start_c + sep*i/2*freestream%c_hat_g
            
             ! Initialize vertex
             call this%vertices(i)%init(loc, i)
@@ -175,14 +175,14 @@ contains
         integer :: i, i1, i2, advance, N_skipped
 
         ! Determine number of segments
-        this%N_segments = N_segments_streamwise*2
+        this%N_segments = N_segments_streamwise
         allocate(this%segments(this%N_segments))
         i1 = 1
         i2 = 2
         do i=1,this%N_segments
 
             ! initialize
-            this%init_segment(i,i1,i2)
+            call this%init_segment(i,i1,i2)
             ! increment index
             i1 = i1 + 1
             i2 = i2 + 1

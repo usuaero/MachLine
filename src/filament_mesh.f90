@@ -75,7 +75,7 @@ contains
                                 trefftz_dist, initial_panel_order, N_body_panels)
 
         if (verbose) write(*,'(a i7 a i7 a i7 a)') "Done. Created ", this%N_verts, " wake vertices and ", &
-                                                this%N_segments, " wake panels distributed between ", &
+                                                this%N_segments, " wake segments distributed between ", &
                                                 this%N_filaments, " filaments."
     
     
@@ -166,7 +166,7 @@ contains
 
         implicit none
         
-        class(wake_mesh),intent(in) :: this
+        class(filament_mesh),intent(in) :: this
         character(len=:),allocatable,intent(in) :: wake_file
         logical,intent(out) :: exported
         real,dimension(:),allocatable,intent(in),optional :: mu
