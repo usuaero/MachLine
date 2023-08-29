@@ -42,7 +42,7 @@ module filament_mesh_mod
 
             procedure :: init => filament_mesh_init 
             procedure :: init_filaments => filament_mesh_init_filaments            
-            ! procedure :: write_filaments => wake_filament_mesh_write_filaments
+            procedure :: write_filaments => wake_filament_mesh_write_filaments
 
     end type filament_mesh
 
@@ -172,8 +172,9 @@ contains
         real,dimension(:),allocatable,intent(in),optional :: mu
 
         type(vtk_out) :: wake_vtk  !!!! new name?
-        integer :: i, j, k, N_verts, N_panels, shift, N_segments, N_filaments
-        real,dimension(:),allocatable :: parent_mu !!!!mu_on_wake    !!!!what should this be named??
+        integer :: i, j, k, l, m, n, N_verts, N_panels, shift, N_segments, N_filaments
+        real,dimension(:),allocatable :: parent_mu !!!!mu_on_wake ?   
+        !real,dimension(:),allocatable :: circ_filament !!!!
         real,dimension(:,:),allocatable :: verts
 
         ! Clear old file
@@ -186,11 +187,11 @@ contains
             N_segments = 0
             do i=1,this%N_filaments
                 N_verts = N_verts + this%filaments(i)%N_verts
-                N_panels = N_panels + this%filaments(i)%N_segments
+                N_segmants = N_segments + this%filaments(i)%N_segments
             end do
 
             ! Get all vertices
-            allocate(verts(3,N_verts))
+            allocate(verts(2,N_verts)) !!!! 2 verts instead of 3
             i = 0
             do k=1,this%N_filaments
                 do j=1,this%filaments(k)%N_verts
@@ -203,6 +204,11 @@ contains
             call wake_vtk%begin(wake_file)
             call wake_vtk%write_points(verts)
 
+            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            call wake_vtk%write_filament_segments(segments)
+            call wake_vtk%write_filaments(filaments)
+            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
             ! Write out segments
             shift = 0
             do k=1,this%N_filaments
@@ -210,22 +216,36 @@ contains
                                            vertex_index_shift=shift, N_total_segmants=N_segments)
                 shift = shift + this%strips(k)%N_verts
             end do
-            
-            !!!! how to change this???
-            if (present(circ)) then
+            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            !if (present(mu)) then
 !
-                ! Calculate doublet strengths
-                allocate(circ_filament(N_filaments))
-                i = 0
-                do k=1,this%N_filaments
-                    do j=1,this%filaments(k)%N_filaments
-                        i = i + 1
-                        !!!!circ_filament(i) = mu(this%strips(k)%vertices(j)%top_parent) - mu(this%strips(k)%vertices(j)%bot_parent)!!!!!
-                    end do !!!!where else do i need to chang mu to circ??
-                end do
+            !    ! Calculate doublet strengths
+            !    allocate(mu_on_wake(N_verts))
+            !    i = 0
+            !    do k=1,this%N_strips
+            !        do j=1,this%strips(k)%N_verts
+            !            i = i + 1
+            !            mu_on_wake(i) = mu(this%strips(k)%vertices(j)%top_parent) - mu(this%strips(k)%vertices(j)%bot_parent)
+            !        end do
+            !    end do
+!
+            !    ! Write doublet strengths
+            !    !call wake_vtk%write_point_scalars(mu_on_wake, "mu") !!!! do we need this???
+!
+            !    ! Calculate filament circulation strength
+            !    allocate(circ_filament(N_filaments)) 
+            !    l = 0
+            !    do m=1,this%N_filaments
+            !        !do n=1,this%filaments(m)%N_verts !!!! dose this need to loop through verticies ???
+            !            l = l + 1
+            !            circ_filament(i) = mu_on_wake(n + 1) - mu_on_wake(n)
+            !        !end do 
+            !    end do
 !
                 ! Write doublet strengths
-                call wake_vtk%write_point_scalars(mu_on_wake, "mu")
+                call wake_vtk%write_point_scalars(circ_filament, "Circulation")
+
+                
             end if
 
              Finish up

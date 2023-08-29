@@ -22,6 +22,10 @@ module vtk_mod
             generic :: write_points => vtk_out_write_points_vertices, vtk_out_write_points_array
             procedure :: write_panels => vtk_out_write_panels
             procedure :: write_vertices => vtk_out_write_vertices
+
+            !procedure :: write_filament_segments => vtk_write_filament_segments
+            !procedure :: write_filaments => vtk_write_filaments
+
             generic :: write_point_scalars => write_point_scalars_real, write_point_scalars_integer
             procedure :: write_point_scalars_real => vtk_out_write_point_scalars_real
             procedure :: write_point_scalars_integer => vtk_out_write_point_scalars_integer
