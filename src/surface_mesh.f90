@@ -76,8 +76,9 @@ module surface_mesh_mod
             ! Helpers
             procedure :: find_vertices_on_mirror => surface_mesh_find_vertices_on_mirror
 
-            ! Getters
-            procedure :: get_avg_characteristic_panel_length => surface_mesh_get_avg_characteristic_panel_length
+            ! Diagnostic info
+            procedure :: get_panel_characteristic_length_info => surface_mesh_get_panel_characteristic_length_info
+            procedure :: get_panel_aspect_ratio_info => surface_mesh_get_panel_aspect_ratio_info
 
             ! Wake stuff
             procedure :: init_wake => surface_mesh_init_wake
@@ -659,25 +660,64 @@ contains
     end subroutine surface_mesh_calc_vertex_geometry
 
 
-    function surface_mesh_get_avg_characteristic_panel_length(this) result(l_avg)
-        ! Returns the average characteristic length of the panels
+    function surface_mesh_get_panel_characteristic_length_info(this) result(info)
+        ! Returns the min, average, and max characteristic length of the panels
 
         implicit none
         
         class(surface_mesh),intent(in) :: this
 
-        real :: l_avg
+        real,dimension(3) :: info
+
+        real :: l_avg, l_max, l_min, l_i
 
         integer :: i
 
         ! Loop through panels
         l_avg = 0.
+        l_max = 0.
+        l_min = this%panels(1)%get_characteristic_length()
         do i=1,this%N_panels
-            l_avg = l_avg + this%panels(i)%get_characteristic_length()
+            l_i = this%panels(i)%get_characteristic_length()
+            l_avg = l_avg + l_i
+            l_max = max(l_max, l_i)
+            l_min = min(l_min, l_i)
         end do
         l_avg = l_avg/this%N_panels
+
+        info = (/l_min, l_avg, l_max/)
         
-    end function surface_mesh_get_avg_characteristic_panel_length
+    end function surface_mesh_get_panel_characteristic_length_info
+
+
+    function surface_mesh_get_panel_aspect_ratio_info(this) result(info)
+        ! Returns the min, average, and max characteristic length of the panels
+
+        implicit none
+        
+        class(surface_mesh),intent(in) :: this
+
+        real,dimension(3) :: info
+
+        real :: AR_avg, AR_max, AR_min, AR_i
+
+        integer :: i
+
+        ! Loop through panels
+        AR_avg = 0.
+        AR_max = 0.
+        AR_min = this%panels(1)%get_aspect_ratio()
+        do i=1,this%N_panels
+            AR_i = this%panels(i)%get_aspect_ratio()
+            AR_avg = AR_avg + AR_i
+            AR_max = max(AR_max, AR_i)
+            AR_min = min(AR_min, AR_i)
+        end do
+        AR_avg = AR_avg/this%N_panels
+
+        info = (/AR_min, AR_avg, AR_max/)
+        
+    end function surface_mesh_get_panel_aspect_ratio_info
 
 
     subroutine surface_mesh_init_with_flow(this, freestream, body_file, wake_file)
@@ -2613,7 +2653,7 @@ contains
 
         type(vtk_out) :: body_vtk
         integer :: i, N_cells
-        real,dimension(:),allocatable :: panel_inclinations, orders, N_discont_edges, convex
+        real,dimension(:),allocatable :: panel_inclinations, orders, N_discont_edges, convex, l_char, AR
         real,dimension(:,:),allocatable :: cents
 
         ! Clear old file
@@ -2627,13 +2667,18 @@ contains
         allocate(orders(this%N_panels))
         allocate(N_discont_edges(this%N_panels))
         allocate(cents(3,this%N_panels))
-        allocate(convex(this%N_verts), source=0.)
+        allocate(l_char(this%N_panels))
+        allocate(AR(this%N_panels))
         do i=1,this%N_panels
             panel_inclinations(i) = this%panels(i)%r
             orders(i) = this%panels(i)%order
             N_discont_edges(i) = this%panels(i)%N_discont_edges
             cents(:,i) = this%panels(i)%centr
+            l_char(i) = this%panels(i)%get_characteristic_length()
+            AR(i) = this%panels(i)%get_aspect_ratio()
         end do
+
+        allocate(convex(this%N_verts), source=0.)
         do i=1,this%N_verts
             if (this%vertices(i)%convex) convex(i) = 1.
         end do
@@ -2646,6 +2691,8 @@ contains
         call body_vtk%write_cell_scalars(panel_inclinations, "inclination")
         call body_vtk%write_cell_scalars(orders, "distribution_order")
         call body_vtk%write_cell_scalars(N_discont_edges, "N_discontinuous_edges")
+        call body_vtk%write_cell_scalars(l_char, "characteristic_length")
+        call body_vtk%write_cell_scalars(AR, "aspect_ratio")
         call body_vtk%write_cell_vectors(cents, "centroid")
 
         if (solved) then

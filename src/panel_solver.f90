@@ -2430,15 +2430,23 @@ contains
 
         type(json_value),pointer :: p_parent, p_child
         real :: max_flow_turning_angle
+        real,dimension(3) :: l_char_info, AR_info
 
         ! Write mesh info
+        l_char_info = body%get_panel_characteristic_length_info()
+        AR_info = body%get_panel_aspect_ratio_info()
         call json_value_create(p_parent)
         call to_object(p_parent, 'mesh_info')
         call json_value_add(p_json, p_parent)
         call json_value_add(p_parent, 'N_body_panels', body%N_panels)
         call json_value_add(p_parent, 'N_body_vertices', body%N_verts)
         call json_value_add(p_parent, 'N_wake_panels', body%wake%N_panels)
-        call json_value_add(p_parent, 'average_characteristic_length', body%get_avg_characteristic_panel_length())
+        call json_value_add(p_parent, 'average_characteristic_length', l_char_info(2))
+        call json_value_add(p_parent, 'min_characteristic_length', l_char_info(1))
+        call json_value_add(p_parent, 'max_characteristic_length', l_char_info(3))
+        call json_value_add(p_parent, 'average_aspect_ratio', AR_info(2))
+        call json_value_add(p_parent, 'min_aspect_ratio', AR_info(1))
+        call json_value_add(p_parent, 'max_aspect_ratio', AR_info(3))
         max_flow_turning_angle = acos(body%C_min_panel_angle)*180./pi
         call json_value_add(p_parent, 'max_flow_turning_angle', max_flow_turning_angle)
 

@@ -80,7 +80,10 @@ module panel_mod
             procedure :: calc_centroid => panel_calc_centroid
             procedure :: calc_radius => panel_calc_radius
             procedure :: calc_g_edge_vectors => panel_calc_g_edge_vectors
+
+            ! Mesh diagnostics
             procedure :: get_characteristic_length => panel_get_characteristic_length
+            procedure :: get_aspect_ratio => panel_get_aspect_ratio
 
             ! Flow-dependent initialization procedures
             procedure :: init_with_flow => panel_init_with_flow
@@ -401,6 +404,32 @@ contains
         l = sqrt(this%A)
         
     end function panel_get_characteristic_length
+
+
+    function panel_get_aspect_ratio(this) result(AR)
+        ! Returns the aspect ratio of the panel, defined as sqrt(3)/2 * l_max**2 / A where l_max is the maximum edge length
+        ! This definition will return 1 for an equilateral triangle
+
+        implicit none
+        
+        class(panel),intent(in) :: this
+
+        real :: AR
+
+        real :: l_max
+        integer :: i, i_next
+
+        ! Get maximum edge length
+        l_max = norm2(this%get_vertex_loc(2) - this%get_vertex_loc(1))
+        do i=2,this%N
+            i_next = modulo(i, this%N) + 1
+            l_max = max(l_max, norm2(this%get_vertex_loc(i_next) - this%get_vertex_loc(i)))
+        end do
+
+        ! Calculate aspect ratio
+        AR = 0.5*dsqrt(3.d0)*l_max*l_max/this%A
+        
+    end function panel_get_aspect_ratio
 
 
     subroutine panel_init_with_flow(this, freestream, mirrored, mirror_plane)
