@@ -79,6 +79,7 @@ module surface_mesh_mod
             ! Diagnostic info
             procedure :: get_panel_characteristic_length_info => surface_mesh_get_panel_characteristic_length_info
             procedure :: get_panel_aspect_ratio_info => surface_mesh_get_panel_aspect_ratio_info
+            procedure :: get_max_panel_growth_rate => surface_mesh_get_max_panel_growth_rate
 
             ! Wake stuff
             procedure :: init_wake => surface_mesh_init_wake
@@ -718,6 +719,44 @@ contains
         info = (/AR_min, AR_avg, AR_max/)
         
     end function surface_mesh_get_panel_aspect_ratio_info
+
+
+    function surface_mesh_get_max_panel_growth_rate(this) result(R_max)
+        ! Determines the largest change (ratio) in panel area between neighboring panels.
+
+        implicit none
+        
+        class(surface_mesh),intent(in) :: this
+
+        real :: R_max, R
+        
+        integer :: i, j, j_neighbor
+
+        ! Loop through panels
+        R_max = 1.d0
+        do i=1,this%N_panels
+
+            ! Loop through neighbors
+            do j=1,this%panels(i)%N
+                j_neighbor = this%panels(i)%abutting_panels(j)
+
+                ! Make sure neighbor is part of the original mesh (checking mirrors is pointless here)
+                if (j_neighbor > 0 .and. j_neighbor <= this%N_panels) then
+
+                    ! Get ratio
+                    R = this%panels(i)%A/this%panels(j_neighbor)%A
+
+                    ! Make sure we're getting the rate of growth
+                    if (R < 1.d0) R = 1.d0 / R
+
+                    ! Check max
+                    R_max = max(R, R_max)
+
+                end if
+            end do
+        end do
+        
+    end function surface_mesh_get_max_panel_growth_rate
 
 
     subroutine surface_mesh_init_with_flow(this, freestream, body_file, wake_file)

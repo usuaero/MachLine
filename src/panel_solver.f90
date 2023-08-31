@@ -2447,6 +2447,7 @@ contains
         call json_value_add(p_parent, 'average_aspect_ratio', AR_info(2))
         call json_value_add(p_parent, 'min_aspect_ratio', AR_info(1))
         call json_value_add(p_parent, 'max_aspect_ratio', AR_info(3))
+        call json_value_add(p_parent, 'max_panel_growth_rate', body%get_max_panel_growth_rate())
         max_flow_turning_angle = acos(body%C_min_panel_angle)*180./pi
         call json_value_add(p_parent, 'max_flow_turning_angle', max_flow_turning_angle)
 
