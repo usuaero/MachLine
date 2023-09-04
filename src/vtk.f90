@@ -23,7 +23,7 @@ module vtk_mod
             procedure :: write_panels => vtk_out_write_panels
             procedure :: write_vertices => vtk_out_write_vertices
 
-            !procedure :: write_filament_segments => vtk_write_filament_segments
+            procedure :: write_filament_segments => vtk_write_filament_segments
             !procedure :: write_filaments => vtk_write_filaments
 
             generic :: write_point_scalars => write_point_scalars_real, write_point_scalars_integer
@@ -217,13 +217,44 @@ contains
     end subroutine vtk_out_write_vertices
 
     !!!!!!!!!!!!!!!!!!!!! WAKE DEV !!!!!!!!!!!!!!!!!!!!!!!!
-    !subroutine write_filament_segments(this, N_verts, N_filaments, N_segments)
-    !   ...
-    !end subroutine write_filament_segments
+    subroutine vtk_write_filament_segments(this, segments, mirror, vertex_index_shift, N_total_segments)
+      
+        ! Determine panel info size
+        if (present(N_total_segments)) then
+            N_segments = N_total_segments
+        else
+            N_segments = size(segment)
+        end if
 
-    !subroutine write_filaments
-    !    ...
-    !end subroutine write_filaments
+        ! Write polygon header
+        if (.not. this%panels_already_started) then
+            this%panels_already_started = .true.
+            write(this%unit,'(a i20 i20)') "POLYGONS", N_segments, N_segments*2
+        end if
+        
+        ! Write out panels
+        do i=1,size(N_segments)
+
+            ! Number of vertices
+            write(this%unit,'(i1) ',advance='no') 3
+
+            ! Indices of each vertex; remember VTK files use 0-based indexing
+            if (mirror) then
+                do j=segments(i)%N,1,-1
+                    write(this%unit,'(i20) ',advance='no') segments(i)%get_vertex_index(j) - 1 + shift
+                end do
+            else
+                do j=1,segments(i)%N
+                    write(this%unit,'(i20) ',advance='no') segments(i)%get_vertex_index(j) - 1 + shift
+                end do
+            end if
+            
+            ! Move to next line
+            write(this%unit,*)
+
+        end do
+    end subroutine vtk_write_filament_segments
+
     !!!!!!!!!!!!!!!!!!!!!!!! WAKE DEV !!!!!!!!!!!!!!!!!!!!!!!!!!!
 
     subroutine vtk_out_write_point_header(this, N_points)

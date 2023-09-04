@@ -154,8 +154,8 @@ contains
         !     this%N_max_strip_panels = max(this%N_max_strip_panels, this%filaments(i)%N_segments)
         !     this%N_max_strip_verts = max(this%N_max_strip_verts, this%filaments(i)%N_verts)
 
-        !     ! Sum totals
-        !     this%N_verts = this%N_verts + this%filaments(i)%N_verts
+            ! Sum totals
+            this%N_verts = this%N_verts + this%filaments(i)%N_verts
             this%N_segments = this%N_segments + this%filaments(i)%N_segments
         end do
     end subroutine filament_mesh_init_filaments
@@ -172,7 +172,7 @@ contains
         real,dimension(:),allocatable,intent(in),optional :: mu
 
         type(vtk_out) :: wake_vtk  !!!! new name?
-        integer :: i, j, k, l, m, n, N_verts, N_panels, shift, N_segments, N_filaments
+        integer :: i, j, k, l, m, n, shift
         real,dimension(:),allocatable :: parent_mu !!!!mu_on_wake ?   
         !real,dimension(:),allocatable :: circ_filament !!!!
         real,dimension(:,:),allocatable :: verts
@@ -181,17 +181,9 @@ contains
         call delete_file(wake_file)
 
         if (this%N_filaments > 0) then
-
-            ! Get total number of verticies and segments?  
-            N_verts = 0
-            N_segments = 0
-            do i=1,this%N_filaments
-                N_verts = N_verts + this%filaments(i)%N_verts
-                N_segmants = N_segments + this%filaments(i)%N_segments
-            end do
-
+        
             ! Get all vertices
-            allocate(verts(2,N_verts)) !!!! 2 verts instead of 3
+            allocate(verts(2,this%N_verts)) !!!! 2 verts instead of 3
             i = 0
             do k=1,this%N_filaments
                 do j=1,this%filaments(k)%N_verts
@@ -206,7 +198,6 @@ contains
 
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             call wake_vtk%write_filament_segments(segments)
-            call wake_vtk%write_filaments(filaments)
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
             ! Write out segments
