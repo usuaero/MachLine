@@ -12,7 +12,7 @@ module vtk_mod
 
         character(len=:),allocatable :: filename
         integer :: unit
-        logical :: cell_data_begun, point_data_begun, cells_subdivided, panels_already_started
+        logical :: cell_data_begun, point_data_begun, cells_subdivided, panels_already_started, filaments_already_started !!!! do we need this???
 
         contains
 
