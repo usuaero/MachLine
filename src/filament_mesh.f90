@@ -181,7 +181,6 @@ contains
         call delete_file(wake_file)
 
         if (this%N_filaments > 0) then
-            
             ! Get total number of vertices and segments
             N_verts = 0
             N_segments = 0
@@ -191,32 +190,18 @@ contains
             end do
 
             ! Get all vertices
-            allocate(verts(3,N_verts))
+            allocate(verts(3,this%N_verts)) !!!! 2 verts instead of 3
             i = 0
             do k=1,this%N_filaments
                 do j=1,this%filaments(k)%N_verts
                     i = i + 1
-                    verts(:,i) = this%filaments(k)%vertices(j)%loc
-                end do
-            end do
-
-            ! Get all vertices
-            allocate(verts(2,this%N_verts)) !!!! 2 verts instead of 3
-            i = 0
-            do k=1,this%N_filaments
-                do j=1,this%filaments(k)%N_verts
-                    i = i + 1
-                    verts(:,i) = this%filaments(k)%vertices(j)%loc
+                    verts(:,i) = this%filaments(k)%vertices(j)%loc 
                 end do
             end do
 
             ! Initialize and write out vertices
             call wake_vtk%begin(wake_file)
             call wake_vtk%write_points(verts)
-
-            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            ! call wake_vtk%write_filament_segments(segments) !!!! removed for testing -jjh
-            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
             ! Write out segments
             shift = 0

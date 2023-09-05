@@ -32,6 +32,7 @@
     },
     "output": {
         "body_file": "studies/supersonic_double_wedge_wing/results/M_5.0_aoa_5.0_5_deg_ultra_fine_MCA_45.0.vtk",
+        
         "report_file": "studies/supersonic_double_wedge_wing/reports/M_5.0_aoa_5.0_5_deg_ultra_fine_MCA_45.0.json"
     }
 }

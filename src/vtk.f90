@@ -228,6 +228,14 @@ contains
         integer,intent(in),optional :: vertex_index_shift, N_total_segments
 
         integer :: i, j, N_segments, shift
+
+        ! Check for shift
+        if (present(vertex_index_shift)) then
+            shift = vertex_index_shift
+        else
+            shift = 0
+        end if
+
         ! Determine panel info size
         if (present(N_total_segments)) then
             N_segments = N_total_segments
@@ -238,14 +246,14 @@ contains
         ! Write polygon header
         if (.not. this%filaments_already_started) then
             this%filaments_already_started = .true.
-            write(this%unit,'(a i20 i20)') "POLYGONS", N_segments, N_segments*2
+            write(this%unit,'(a i20 i20)') "LINES", N_segments, N_segments*3
         end if
         
         ! Write out panels
         do i=1,size(segments)
 
             ! Number of vertices
-            write(this%unit,'(i1) ',advance='no') 3
+            write(this%unit,'(i1) ',advance='no') 2
 
             ! Indices of each vertex; remember VTK files use 0-based indexing
             if (mirror) then

@@ -1,0 +1,34 @@
+{
+    "flow": {
+        "freestream_velocity" : [ 100.0, 20.0, 0.0 ],
+        "freestream_mach_number" : 1.62
+    },
+    "geometry": {
+        "file": "dev/meshes/delta_wing_coarse.vtk",
+        "singularity_order" : "lower",
+        "wake_model" : {
+            "wake_present" : true,
+            "append_wake" : true,
+            "trefftz_distance" : 20.0,
+            "wake_type": "filaments"
+
+        }
+    },
+    "solver": {
+        "formulation" : "neumann-mass-flux",
+        "matrix_solver" : "GMRES",
+        "write_A_and_b" : false
+    },
+    "post_processing" : {
+    },
+    "output": {
+        "body_file" :          "dev/results/wake/delta_wing.vtk",
+        "wake_file" :          "dev/results/wake/delta_wing_wake.vtk",
+        "control_point_file" : "dev/results/wake/delta_wing_control_points.vtk",
+        "report_file" :        "dev/results/wake/report.json",
+        "ffbody_points" : {
+            "points_file" : "dev/input_files/delta_wing_slice_sample_points.csv",
+            "output_file" : "dev/results/delta_wing_slice_sample_points.csv"
+        }
+    }
+}
