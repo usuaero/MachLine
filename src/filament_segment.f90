@@ -11,9 +11,14 @@ module filament_segment_mod
 
         type(vertex_pointer), dimension(:),allocatable :: verticies 
         integer :: index ! index of this filament in the filament mesh array
+        integer :: N = 2 ! number of verticies
 
         contains
+            ! initilizers 
             procedure :: init => filament_segment_init
+
+            ! Getters
+            procedure :: get_vertex_index => filament_segment_get_vertex_index
 
     end type filament_segment !!!! changed to filament_segment type 
 
@@ -39,6 +44,16 @@ contains
         ! still need to calculated derived geometry (based on what is needed in solver)
     end subroutine filament_segment_init
 
+    function filament_segment_get_vertex_index(this, i) result(index)
 
+        implicit none
+
+        class(filament_segment),intent(in) :: this
+        integer,intent(in) :: i
+        integer :: index
+
+        index = this%vertices(i)%ptr%index
+
+    end function filament_segment_get_vertex_index
 
 end module filament_segment_mod
