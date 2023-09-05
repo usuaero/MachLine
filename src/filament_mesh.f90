@@ -197,13 +197,13 @@ contains
             call wake_vtk%write_points(verts)
 
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            call wake_vtk%write_filament_segments(segments)
+            ! call wake_vtk%write_filament_segments(segments) !!!! removed for testing -jjh
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
             ! Write out segments
             shift = 0
             do k=1,this%N_filaments
-                call wake_vtk%write_segments(this%filaments(k)%segments, mirror=.false., &
+                call wake_vtk%write_filament_segments(this%filaments(k)%segments, mirror=.false., &
                                            vertex_index_shift=shift, N_total_segmants=N_segments)
                 shift = shift + this%strips(k)%N_verts
             end do
@@ -234,7 +234,7 @@ contains
             !    end do
 !
                 ! Write doublet strengths
-                call wake_vtk%write_point_scalars(circ_filament, "Circulation")
+                ! call wake_vtk%write_point_scalars(circ_filament, "Circulation") !!!! removed for to compile -jjh
 
                 
             end if

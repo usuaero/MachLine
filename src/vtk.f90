@@ -24,7 +24,6 @@ module vtk_mod
             procedure :: write_vertices => vtk_out_write_vertices
 
             procedure :: write_filament_segments => vtk_write_filament_segments
-            !procedure :: write_filaments => vtk_write_filaments
 
             generic :: write_point_scalars => write_point_scalars_real, write_point_scalars_integer
             procedure :: write_point_scalars_real => vtk_out_write_point_scalars_real
@@ -219,16 +218,25 @@ contains
     !!!!!!!!!!!!!!!!!!!!! WAKE DEV !!!!!!!!!!!!!!!!!!!!!!!!
     subroutine vtk_write_filament_segments(this, segments, mirror, vertex_index_shift, N_total_segments)
       
+        implicit none
+
+        class(vtk_out),intent(in) :: this
+        type(filament_segment),dimension(:),intent(in) :: segments
+        logical,intent(in) :: mirror
+        integer,intent(in),optional :: vertex_index_shift, N_total_segments
+
+        integer :: i, j, N_segments, shift
+        integer, intent(in) :: N_total_segmants
         ! Determine panel info size
         if (present(N_total_segments)) then
             N_segments = N_total_segments
         else
-            N_segments = size(segment)
+            N_segments = size(segments)
         end if
 
         ! Write polygon header
-        if (.not. this%panels_already_started) then
-            this%panels_already_started = .true.
+        if (.not. this%filaments_already_started) then
+            this%filaments_already_started = .true.
             write(this%unit,'(a i20 i20)') "POLYGONS", N_segments, N_segments*2
         end if
         
