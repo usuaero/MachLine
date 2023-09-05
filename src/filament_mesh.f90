@@ -33,7 +33,7 @@ module filament_mesh_mod
         integer :: N_min_segments = 0 !!!! min == 1
         integer :: N_max_segments = 0 !!!! maybe set a max number of segments to limit computing time (will have to be verified experimentally)
 
-        integer :: N_filaments 
+        integer :: N_filaments = 0
         integer :: N_max_strip_verts = 0
         integer :: N_max_strip_panels = 0
         integer :: N_segments
@@ -42,8 +42,8 @@ module filament_mesh_mod
 
             procedure :: init => filament_mesh_init 
             procedure :: init_filaments => filament_mesh_init_filaments            
-            procedure :: write_filaments => wake_filament_mesh_write_filaments
-
+            procedure :: write_filaments => filament_mesh_write_filaments
+            
     end type filament_mesh
 
 
@@ -81,8 +81,8 @@ contains
     
     end subroutine filament_mesh_init 
 
-    subroutine filament_mesh_init_filaments(body_edges, body_verts, freestream, asym_flow, mirror_plane, N_segments_streamwise, &
-        trefftz_dist, initial_panel_order, N_body_panels)
+    subroutine filament_mesh_init_filaments(this,body_edges, body_verts, freestream, asym_flow, mirror_plane,&
+         N_segments_streamwise, trefftz_dist, initial_panel_order, N_body_panels)
         ! creates the filaments for the wake
 
         implicit none
@@ -161,7 +161,7 @@ contains
     end subroutine filament_mesh_init_filaments
 
     !!!! need to change mu to circulation
-    subroutine filament_mesh_write_filaments(this, wake_file, mu)
+    subroutine filament_mesh_write_filaments(this, wake_file, exported, mu)
         ! Writes the wake filaments out to file
 
         implicit none
@@ -172,7 +172,7 @@ contains
         real,dimension(:),allocatable,intent(in),optional :: mu
 
         type(vtk_out) :: wake_vtk  !!!! new name?
-        integer :: i, j, k, l, m, n, shift
+        integer :: i, j, k, l, m, n, shift, N_verts, N_segments
         real,dimension(:),allocatable :: parent_mu !!!!mu_on_wake ?   
         !real,dimension(:),allocatable :: circ_filament !!!!
         real,dimension(:,:),allocatable :: verts
@@ -181,7 +181,25 @@ contains
         call delete_file(wake_file)
 
         if (this%N_filaments > 0) then
-        
+            
+            ! Get total number of vertices and segments
+            N_verts = 0
+            N_segments = 0
+            do i=1,this%N_filaments
+                N_verts = N_verts + this%filaments(i)%N_verts
+                N_segments = N_segments + this%filaments(i)%N_segments
+            end do
+
+            ! Get all vertices
+            allocate(verts(3,N_verts))
+            i = 0
+            do k=1,this%N_filaments
+                do j=1,this%filaments(k)%N_verts
+                    i = i + 1
+                    verts(:,i) = this%filaments(k)%vertices(j)%loc
+                end do
+            end do
+
             ! Get all vertices
             allocate(verts(2,this%N_verts)) !!!! 2 verts instead of 3
             i = 0
@@ -204,7 +222,7 @@ contains
             shift = 0
             do k=1,this%N_filaments
                 call wake_vtk%write_filament_segments(this%filaments(k)%segments, mirror=.false., &
-                                           vertex_index_shift=shift, N_total_segmants=N_segments)
+                                           vertex_index_shift=shift, N_total_segments=N_segments)
                 shift = shift + this%filaments(k)%N_verts
             end do
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -212,10 +230,10 @@ contains
             !    ! Calculate doublet strengths
             !    allocate(mu_on_wake(N_verts))
             !    i = 0
-            !    do k=1,this%N_strips
-            !        do j=1,this%strips(k)%N_verts
+            !    do k=1,this%N_filaments
+            !        do j=1,this%filaments(k)%N_verts
             !            i = i + 1
-            !            mu_on_wake(i) = mu(this%strips(k)%vertices(j)%top_parent) - mu(this%strips(k)%vertices(j)%bot_parent)
+            !            mu_on_wake(i) = mu(this%filaments(k)%vertices(j)%top_parent) - mu(this%filaments(k)%vertices(j)%bot_parent)
             !        end do
             !    end do
 
