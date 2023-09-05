@@ -74,6 +74,7 @@ contains
         this%cell_data_begun = .false.
         this%point_data_begun = .false.
         this%panels_already_started = .false.
+        this%filaments_already_started = .false.
     
     end subroutine vtk_out_begin
 
@@ -221,13 +222,12 @@ contains
       
         implicit none
 
-        class(vtk_out),intent(in) :: this
+        class(vtk_out),intent(inout) :: this
         type(filament_segment),dimension(:),intent(in) :: segments
         logical,intent(in) :: mirror
         integer,intent(in),optional :: vertex_index_shift, N_total_segments
 
         integer :: i, j, N_segments, shift
-        integer, intent(in) :: N_total_segmants
         ! Determine panel info size
         if (present(N_total_segments)) then
             N_segments = N_total_segments
@@ -242,7 +242,7 @@ contains
         end if
         
         ! Write out panels
-        do i=1,size(N_segments)
+        do i=1,size(segments)
 
             ! Number of vertices
             write(this%unit,'(i1) ',advance='no') 3

@@ -9,9 +9,9 @@ module filament_segment_mod
 
     type :: filament_segment !!!! changed to filament_segment type
 
-        type(vertex_pointer), dimension(:),allocatable :: verticies 
+        type(vertex_pointer), dimension(:),allocatable :: vertices 
         integer :: index ! index of this filament in the filament mesh array
-        integer :: N = 2 ! number of verticies
+        integer :: N = 2 ! number of vertices
 
         contains
             ! initilizers 
@@ -32,11 +32,11 @@ contains
         integer, intent(in) :: index
 
         ! allocate vertex array
-        allocate(this%verticies(2))
+        allocate(this%vertices(2))
 
         ! assign pointers
-        this%verticies(1)%ptr => v1
-        this%verticies(2)%ptr => v2
+        this%vertices(1)%ptr => v1
+        this%vertices(2)%ptr => v2
 
         ! store index
         this%index = index

@@ -161,7 +161,7 @@ contains
     end subroutine filament_mesh_init_filaments
 
     !!!! need to change mu to circulation
-    subroutine filament_mesh_write_filaments(this, wake_file_exported, mu)
+    subroutine filament_mesh_write_filaments(this, wake_file, mu)
         ! Writes the wake filaments out to file
 
         implicit none
@@ -205,11 +205,10 @@ contains
             do k=1,this%N_filaments
                 call wake_vtk%write_filament_segments(this%filaments(k)%segments, mirror=.false., &
                                            vertex_index_shift=shift, N_total_segmants=N_segments)
-                shift = shift + this%strips(k)%N_verts
+                shift = shift + this%filaments(k)%N_verts
             end do
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            !if (present(mu)) then
-!
+            if (present(mu)) then
             !    ! Calculate doublet strengths
             !    allocate(mu_on_wake(N_verts))
             !    i = 0
@@ -219,10 +218,10 @@ contains
             !            mu_on_wake(i) = mu(this%strips(k)%vertices(j)%top_parent) - mu(this%strips(k)%vertices(j)%bot_parent)
             !        end do
             !    end do
-!
+
             !    ! Write doublet strengths
             !    !call wake_vtk%write_point_scalars(mu_on_wake, "mu") !!!! do we need this???
-!
+
             !    ! Calculate filament circulation strength
             !    allocate(circ_filament(N_filaments)) 
             !    l = 0
@@ -232,14 +231,14 @@ contains
             !            circ_filament(i) = mu_on_wake(n + 1) - mu_on_wake(n)
             !        !end do 
             !    end do
-!
+
                 ! Write doublet strengths
                 ! call wake_vtk%write_point_scalars(circ_filament, "Circulation") !!!! removed for to compile -jjh
 
                 
             end if
 
-             Finish up
+            !  Finish up
             call wake_vtk%finish()
             exported = .true.
 
