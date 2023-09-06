@@ -3,6 +3,7 @@ module vtk_mod
 
     use helpers_mod
     use panel_mod
+    use filament_segment_mod
     use base_geom_mod
     use stl_mod
 
@@ -12,7 +13,7 @@ module vtk_mod
 
         character(len=:),allocatable :: filename
         integer :: unit
-        logical :: cell_data_begun, point_data_begun, cells_subdivided, panels_already_started
+        logical :: cell_data_begun, point_data_begun, cells_subdivided, panels_already_started, filaments_already_started !!!! do we need this???
 
         contains
 
@@ -22,6 +23,9 @@ module vtk_mod
             generic :: write_points => vtk_out_write_points_vertices, vtk_out_write_points_array
             procedure :: write_panels => vtk_out_write_panels
             procedure :: write_vertices => vtk_out_write_vertices
+
+            procedure :: write_filament_segments => vtk_write_filament_segments
+
             generic :: write_point_scalars => write_point_scalars_real, write_point_scalars_integer
             procedure :: write_point_scalars_real => vtk_out_write_point_scalars_real
             procedure :: write_point_scalars_integer => vtk_out_write_point_scalars_integer
@@ -70,6 +74,7 @@ contains
         this%cell_data_begun = .false.
         this%point_data_begun = .false.
         this%panels_already_started = .false.
+        this%filaments_already_started = .false.
     
     end subroutine vtk_out_begin
 
@@ -212,6 +217,62 @@ contains
     
     end subroutine vtk_out_write_vertices
 
+    !!!!!!!!!!!!!!!!!!!!! WAKE DEV !!!!!!!!!!!!!!!!!!!!!!!!
+    subroutine vtk_write_filament_segments(this, segments, mirror, vertex_index_shift, N_total_segments)
+      
+        implicit none
+
+        class(vtk_out),intent(inout) :: this
+        type(filament_segment),dimension(:),intent(in) :: segments
+        logical,intent(in) :: mirror
+        integer,intent(in),optional :: vertex_index_shift, N_total_segments
+
+        integer :: i, j, N_segments, shift
+
+        ! Check for shift
+        if (present(vertex_index_shift)) then
+            shift = vertex_index_shift
+        else
+            shift = 0
+        end if
+
+        ! Determine panel info size
+        if (present(N_total_segments)) then
+            N_segments = N_total_segments
+        else
+            N_segments = size(segments)
+        end if
+
+        ! Write polygon header
+        if (.not. this%filaments_already_started) then
+            this%filaments_already_started = .true.
+            write(this%unit,'(a i20 i20)') "LINES", N_segments, N_segments*3
+        end if
+        
+        ! Write out panels
+        do i=1,size(segments)
+
+            ! Number of vertices
+            write(this%unit,'(i1) ',advance='no') 2
+
+            ! Indices of each vertex; remember VTK files use 0-based indexing
+            if (mirror) then
+                do j=segments(i)%N,1,-1
+                    write(this%unit,'(i20) ',advance='no') segments(i)%get_vertex_index(j) - 1 + shift
+                end do
+            else
+                do j=1,segments(i)%N
+                    write(this%unit,'(i20) ',advance='no') segments(i)%get_vertex_index(j) - 1 + shift
+                end do
+            end if
+            
+            ! Move to next line
+            write(this%unit,*)
+
+        end do
+    end subroutine vtk_write_filament_segments
+
+    !!!!!!!!!!!!!!!!!!!!!!!! WAKE DEV !!!!!!!!!!!!!!!!!!!!!!!!!!!
 
     subroutine vtk_out_write_point_header(this, N_points)
         ! Checks whether the point data header has been written and writes it if necessary

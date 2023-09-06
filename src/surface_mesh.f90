@@ -25,7 +25,8 @@ module surface_mesh_mod
         integer :: N_subinc, N_supinc
         type(edge),allocatable,dimension(:) :: edges
         type(wake_mesh) :: wake
-        type(filament_wake_mesh) :: filament_wake !!!!!!!!!!!!!!!!!! could change nomenclature !!!!!!!!!!!!!!!!
+        type(filament_mesh) :: filament_wake
+        ! type(filament_wake_mesh) :: filament_wake !!!!!!!!!!!!!!!!!! could change nomenclature !!!!!!!!!!!!!!!!
         real :: C_wake_shedding_angle, trefftz_distance, C_min_panel_angle, C_max_cont_angle
         real,dimension(:),allocatable :: CG
         integer :: N_wake_panels_streamwise
@@ -1311,7 +1312,7 @@ contains
         character(len=:),allocatable,intent(in) :: formulation
 
         logical :: dummy
-
+        !!!! update this to include if verbose
         write(*,*) 
         write(*,*) "Wake Type:", this%wake_type
         write(*,*) 
@@ -1319,7 +1320,7 @@ contains
         write(*,*) 
         write(*,*) "Formulation:", formulation
         write(*,*) 
-
+        !!!!
         if (this%append_wake .and. this%found_wake_edges) then
 
             ! Update default Trefftz distance
@@ -1344,9 +1345,9 @@ contains
             !!!!!!!!!!!!!!!!!!!!!!! Wake_DEV !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             else if (this%wake_has_filaments(formulation))  then                                                                           !
                 write(*,*)                                                                                                            !
-                write(*,*) "WARNING: FILAMENT WAKE NOT YET FUNCTIONAL. FOR THIS REASON, INITIALIZING PANEL WAKE"                      !
+                write(*,*) "WARNING: FILAMENT WAKE NOT YET FUNCTIONAL."                      !
                 write(*,*)                                                                                                            !
-                call this%wake%init(this%edges, this%vertices, freestream, this%asym_flow, this%mirror_plane, &                       !
+                call this%filament_wake%init(this%edges, this%vertices, freestream, this%asym_flow, this%mirror_plane, &                       !
                                     this%N_wake_panels_streamwise, this%trefftz_distance, this%mirrored, this%initial_panel_order, &  !
                                     this%N_panels)                                                                                    !
                 ! NEED TO CALL this%filament_wake%init if (this%wake_has_filaments(formulation))                                           !                                     
@@ -1363,9 +1364,12 @@ contains
 
             ! Export wake geometry
             if (wake_file /= 'none') then
-                call this%wake%write_strips(wake_file, dummy)
+                if (this%wake_has_filaments(formulation)) then
+                    call this%filament_wake%write_filaments(wake_file, dummy)
+                else
+                    call this%wake%write_strips(wake_file, dummy)
+                end if
             end if
-
         else
             
             ! Set parameters to let later code know the wake is not being modeled
@@ -2636,9 +2640,13 @@ contains
             if (verbose) write(*,'(a30 a)') "    Mirrored surface: ", mirrored_body_file
         end if
         
-        ! Write out data for wake
+        ! Write out data for wake !!!! NEED TO UPDATE TO HAVE BETTER LOGIC
         if (wake_file /= 'none') then
-            call this%wake%write_strips(wake_file, wake_exported, this%mu)
+            if (this%wake_type == "filaments") then
+                call this%filament_wake%write_filaments(wake_file, wake_exported, this%mu)
+            else
+                call this%wake%write_strips(wake_file, wake_exported, this%mu)
+            end if
 
             if (wake_exported) then
                 if (verbose) write(*,'(a30 a)') "    Wake: ", wake_file

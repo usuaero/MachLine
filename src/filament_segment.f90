@@ -1,16 +1,7 @@
 module filament_segment_mod
-    use panel_mod
     use base_geom_mod
     use helpers_mod
     use mesh_mod 
-    use wake_strip_mod 
-
-    ! use...
-    ! use...
-
-    !!!! call correct mods
-    !!!! need i_vert_d maybe (is covered in panel, and will likely work there too.)
-
 
 !!!! mirrors panel module
 
@@ -28,8 +19,13 @@ module filament_segment_mod
 
     type :: filament_segment !!!! changed to filament_segment type
 
-        type(vertex_pointer), dimension(:),allocatable :: verticies 
-        integer :: index ! index of this filament in the filament mesh array
+            type(vertex_pointer), dimension(:),allocatable :: vertices 
+            integer :: index ! index of this filament in the filament mesh array
+        integer :: N = 2 ! number of vertices
+
+        contains
+            ! initilizers 
+            procedure :: init => filament_segment_init
         integer :: N = 2 ! Number of sides/vertices 
 
         contains
@@ -37,10 +33,12 @@ module filament_segment_mod
             procedure :: calc_velocity_influences => filament_segment_calc_velocity_influences
             procedure :: check_dod => filament_check_dod
             procedure :: calc_integrals => filament_segment_calc_integrals
-            
+            ! Getters
+            procedure :: get_vertex_index => filament_segment_get_vertex_index
 
     end type filament_segment 
-    
+
+            
 
     type filament_dod
     ! container for whether a filament lies in a point's domain of dependence
@@ -53,16 +51,15 @@ module filament_segment_mod
 
 contains
 
-
     subroutine filament_segment_init(this,v1,v2,index)
         implicit none
 
-        class(filamenet_segment), intent(inout) :: this
+        class(filament_segment), intent(inout) :: this
         type(vertex),intent(inout),target :: v1, v2
         integer, intent(in) :: index
 
         ! allocate vertex array
-        allocate(this%verticies(2))
+        allocate(this%vertices(2))
 
         ! assign pointers
         this%vertices(1)%ptr => v1
@@ -72,8 +69,17 @@ contains
         this%index = index
 
         ! still need to calculated derived geometry (based on what is needed in solver)
-        !!!! we need a mirrored boolean, 
-    end subroutine filamenet_segment_init
+    end subroutine filament_segment_init
+
+    function filament_segment_get_vertex_index(this, i) result(index)
+
+        implicit none
+
+        class(filament_segment),intent(in) :: this
+        integer,intent(in) :: i
+        integer :: index
+        index = this%vertices(i)%ptr%index
+    end function filament_segment_get_vertex_index
 
 
     subroutine filament_segment_calc_velocity_influences(this, F, freestream, mirror_filament, v_d_M_space)
@@ -159,6 +165,25 @@ contains
         end if
         
         
+
+    end function filament_segment_check_dod
+
+
+    function filament_segment_calc_integrals(this, geom, influence_type, freestream, mirror_filament, dod_info) result(int)
+        ! Calculates the integrals necessary for the given influence
+        
+        class(filamenet_segment),intent(in) :: this 
+        type(eval_point_geom),intent(in) :: geom
+        character(len=*),intent(in) :: influence_type
+        type(flow), intent(in) :: freestream
+        logical,intent(in) :: mirror_filament
+
+        type(integrals) :: int
+        type(filament_dod),intent(in) :: dod_info
+
+    end function filament_segment_calc_integrals 
+
+
 
     end function filament_segment_check_dod
 

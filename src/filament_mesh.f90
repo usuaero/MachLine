@@ -33,7 +33,7 @@ module filament_mesh_mod
         integer :: N_min_segments = 0 !!!! min == 1
         integer :: N_max_segments = 0 !!!! maybe set a max number of segments to limit computing time (will have to be verified experimentally)
 
-        integer :: N_filaments 
+        integer :: N_filaments = 0
         integer :: N_max_strip_verts = 0
         integer :: N_max_strip_panels = 0
         integer :: N_segments
@@ -42,8 +42,8 @@ module filament_mesh_mod
 
             procedure :: init => filament_mesh_init 
             procedure :: init_filaments => filament_mesh_init_filaments            
-            ! procedure :: write_filaments => wake_filament_mesh_write_filaments
-
+            procedure :: write_filaments => filament_mesh_write_filaments
+            
     end type filament_mesh
 
 
@@ -75,14 +75,14 @@ contains
                                 trefftz_dist, initial_panel_order, N_body_panels)
 
         if (verbose) write(*,'(a i7 a i7 a i7 a)') "Done. Created ", this%N_verts, " wake vertices and ", &
-                                                this%N_segments, " wake panels distributed between ", &
+                                                this%N_segments, " wake segments distributed between ", &
                                                 this%N_filaments, " filaments."
     
     
     end subroutine filament_mesh_init 
 
-    subroutine filament_mesh_init_filaments(body_edges, body_verts, freestream, asym_flow, mirror_plane, N_segments_streamwise, &
-        trefftz_dist, initial_panel_order, N_body_panels)
+    subroutine filament_mesh_init_filaments(this,body_edges, body_verts, freestream, asym_flow, mirror_plane,&
+         N_segments_streamwise, trefftz_dist, initial_panel_order, N_body_panels)
         ! creates the filaments for the wake
 
         implicit none
@@ -154,9 +154,102 @@ contains
         !     this%N_max_strip_panels = max(this%N_max_strip_panels, this%filaments(i)%N_segments)
         !     this%N_max_strip_verts = max(this%N_max_strip_verts, this%filaments(i)%N_verts)
 
-        !     ! Sum totals
-        !     this%N_verts = this%N_verts + this%filaments(i)%N_verts
+            ! Sum totals
+            this%N_verts = this%N_verts + this%filaments(i)%N_verts
             this%N_segments = this%N_segments + this%filaments(i)%N_segments
         end do
     end subroutine filament_mesh_init_filaments
+
+    !!!! need to change mu to circulation
+    subroutine filament_mesh_write_filaments(this, wake_file, exported, mu)
+        ! Writes the wake filaments out to file
+
+        implicit none
+        
+        class(filament_mesh),intent(in) :: this
+        character(len=:),allocatable,intent(in) :: wake_file
+        logical,intent(out) :: exported
+        real,dimension(:),allocatable,intent(in),optional :: mu
+
+        type(vtk_out) :: wake_vtk  !!!! new name?
+        integer :: i, j, k, l, m, n, shift, N_verts, N_segments
+        real,dimension(:),allocatable :: parent_mu !!!!mu_on_wake ?   
+        !real,dimension(:),allocatable :: circ_filament !!!!
+        real,dimension(:,:),allocatable :: verts
+
+        ! Clear old file
+        call delete_file(wake_file)
+
+        if (this%N_filaments > 0) then
+            ! Get total number of vertices and segments
+            N_verts = 0
+            N_segments = 0
+            do i=1,this%N_filaments
+                N_verts = N_verts + this%filaments(i)%N_verts
+                N_segments = N_segments + this%filaments(i)%N_segments
+            end do
+
+            ! Get all vertices
+            allocate(verts(3,this%N_verts)) !!!! 2 verts instead of 3
+            i = 0
+            do k=1,this%N_filaments
+                do j=1,this%filaments(k)%N_verts
+                    i = i + 1
+                    verts(:,i) = this%filaments(k)%vertices(j)%loc 
+                end do
+            end do
+
+            ! Initialize and write out vertices
+            call wake_vtk%begin(wake_file)
+            call wake_vtk%write_points(verts)
+
+            ! Write out segments
+            shift = 0
+            do k=1,this%N_filaments
+                call wake_vtk%write_filament_segments(this%filaments(k)%segments, mirror=.false., &
+                                           vertex_index_shift=shift, N_total_segments=N_segments)
+                shift = shift + this%filaments(k)%N_verts
+            end do
+            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            if (present(mu)) then
+            !    ! Calculate doublet strengths
+            !    allocate(mu_on_wake(N_verts))
+            !    i = 0
+            !    do k=1,this%N_filaments
+            !        do j=1,this%filaments(k)%N_verts
+            !            i = i + 1
+            !            mu_on_wake(i) = mu(this%filaments(k)%vertices(j)%top_parent) - mu(this%filaments(k)%vertices(j)%bot_parent)
+            !        end do
+            !    end do
+
+            !    ! Write doublet strengths
+            !    !call wake_vtk%write_point_scalars(mu_on_wake, "mu") !!!! do we need this???
+
+            !    ! Calculate filament circulation strength
+            !    allocate(circ_filament(N_filaments)) 
+            !    l = 0
+            !    do m=1,this%N_filaments
+            !        !do n=1,this%filaments(m)%N_verts !!!! dose this need to loop through verticies ???
+            !            l = l + 1
+            !            circ_filament(i) = mu_on_wake(n + 1) - mu_on_wake(n)
+            !        !end do 
+            !    end do
+
+                ! Write doublet strengths
+                ! call wake_vtk%write_point_scalars(circ_filament, "Circulation") !!!! removed for to compile -jjh
+
+                
+            end if
+
+            !  Finish up
+            call wake_vtk%finish()
+            exported = .true.
+
+        else
+            exported = .false.
+        end if
+
+    end subroutine filament_mesh_write_filaments
+
+
 end module filament_mesh_mod
