@@ -3,6 +3,7 @@ module mesh_mod
 
     use base_geom_mod
     use panel_mod
+    ! use filament_segment_mod !!!! likely need this - SA 
     use flow_mod
 
     implicit none
@@ -10,8 +11,10 @@ module mesh_mod
     type mesh
 
         integer :: N_verts, N_panels = 0
+        integer :: N_segments
         type(vertex),allocatable,dimension(:) :: vertices
         type(panel),allocatable,dimension(:) :: panels
+        ! type(filament_segment),allocatable,dimension(:) :: filament_segments !!!!
         logical :: mirrored = .false. ! Whether the mesh is to be mirrored about any planes
         integer :: mirror_plane ! Index of the plane across which the mesh is mirrored (1: yz, 2: xz, 3: xy); this is the index of the normal to that plane
 

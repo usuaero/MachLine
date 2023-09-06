@@ -135,7 +135,7 @@ program main
     end if
 
     ! Run solver
-    call linear_solver%solve(body_mesh, solver_stat)
+    call linear_solver%solve(body_mesh, solver_stat, formulation)
 
     ! Update report
     call linear_solver%update_report(report_json, body_mesh, solver_stat)
