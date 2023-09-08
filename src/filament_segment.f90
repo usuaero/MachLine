@@ -48,6 +48,9 @@ module filament_segment_mod
             procedure :: calc_influence_integrals => filament_segment_calc_influence_integrals 
             procedure :: get_vertex_loc => filament_segment_get_vertex_loc
 
+            ! DOD stuff
+            procedure :: check_dod => filament_segment_check_dod
+            procedure :: entirely_inside_outside_dod => filamenet_segment_entirely_inside_outside_dod
     end type filament_segment 
 
 
@@ -193,6 +196,20 @@ contains
         
 
     end function filament_segment_check_dod
+
+            
+    function filamenet_segment_entirely_inside_outside_dod(this, eval_point)
+        ! checks 
+
+        implicit none
+
+        class(filamenet_segment), intent(in) :: this
+        real, dimension(3), intent(in) :: eval_point
+
+        
+
+    end function filamenet_segment_entirely_inside_outside_dod
+         
 
 
     function filament_segment_calc_integrals(this, geom, influence_type, freestream, mirror_filament, dod_info) result(int)
