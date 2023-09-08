@@ -636,7 +636,7 @@ contains
         ! Wake panel (always linear)
         if (this%in_wake) then
 
-            ! Allocate space
+            ! Allocate space  !!!! do we need to allocate an i_vert_d space fo filament stuff?
             allocate(this%i_vert_d(this%M_dim*2))
 
             ! Get top and bottom vertices on panel

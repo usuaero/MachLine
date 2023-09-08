@@ -897,7 +897,7 @@ contains
     end subroutine panel_solver_set_permutation
 
 
-    subroutine panel_solver_solve(this, body, solver_stat)
+    subroutine panel_solver_solve(this, body, solver_stat, formulation) !!!! changed so formulation is in solve
         ! Calls the relevant subroutine to solve the case based on the selected formulation
         ! We are solving the equation
         !
@@ -914,6 +914,7 @@ contains
         class(panel_solver),intent(inout) :: this
         type(surface_mesh),intent(inout) :: body
         integer,intent(out) :: solver_stat
+        character(len=:),allocatable,intent(in) :: formulation !!!! changed to get wake influence working 
 
         integer :: stat
 
@@ -939,7 +940,7 @@ contains
         call this%calc_body_influences(body)
 
         ! Calculate wake influences
-        if (body%wake%N_panels > 0) call this%calc_wake_influences(body)
+        if (body%wake%N_panels > 0) call this%calc_wake_influences(body, formulation) !!!! formulation part is a change
 
         ! Assemble boundary condition vector
         call this%assemble_BC_vector(body)
@@ -1315,14 +1316,14 @@ contains
     end subroutine panel_solver_calc_body_influences
 
 
-    subroutine panel_solver_calc_wake_influences(this, body)
+    subroutine panel_solver_calc_wake_influences(this, body, formulation)
         ! Calculates the influence of the wake on the control points
 
         implicit none
 
         class(panel_solver),intent(inout) :: this
         type(surface_mesh),intent(inout) :: body
-
+        character(len=:),allocatable,intent(in) :: formulation
         integer :: i, j, k, l
         real,dimension(:),allocatable ::  doublet_inf, source_inf
         real,dimension(this%N_unknown) :: A_i
@@ -1342,44 +1343,79 @@ contains
                 cycle
 
             case (ZERO_NORMAL_MF) ! Calculate normal mass flux influences !!!! add our stuff with logic to choose filaments or panels
+                if (body%wake_has_filaments(formulation)) then !!!! start wake_dev, might need to adjust cases instead of doing an if statement like this - SA
+                    ! Initialize
+                    A_i = 0.
 
-                ! Initialize
-                A_i = 0.
+                    ! Get doublet influence from wake filaments 
+                    do j=1,body%filament_wake%N_filaments 
+                        do l=1,body%filament_wake%filaments(j)%N_segments
+                            ! Caclulate influence of existing panel on control point
+                            call body%filament_wake%filaments(j)%filament_segments(l)%calc_velocity_influences(& 
+                                                                body%cp(i)%loc, this%freestream,.false., v_s, v_d) !!!! probably change the calc_velocity_influences function so that it does not calc v_s
+                            doublet_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_d)) !!!! I think this is right even for filament stuff - SA
 
-                ! Get doublet influence from wake strips
-                do j=1,body%wake%N_strips
-            !!!!do j=1, body%filament_wake%N_filaments
-                    do l=1,body%wake%strips(j)%N_panels
-                !!!!do l=1, body%filament_wake%filaments(j)%N_filament_segments
-                        ! Caclulate influence of existing panel on control point
-                        call body%wake%strips(j)%panels(l)%calc_velocity_influences(body%cp(i)%loc, this%freestream, &
-                                                                                     .false., v_s, v_d)
-                        doublet_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_d))
+                            ! Add influence
+                            do k=1,size(body%filament_wake%filaments(j)%filament_segments(l)%i_vert_d) !!!! will need to change i_vert_d. Look at panel_set_doublet_verts for where that's set
+                                A_i(this%P(body%filament_wake%filaments(j)%filament_segments(l)%i_vert_d(k))) = &
+                                    A_i(this%P(body%filament_wake%filaments(j)%filament_segments(l)%i_vert_d(k))) + doublet_inf(k)
+                            end do
 
-                        ! Add influence
-                        do k=1,size(body%wake%strips(j)%panels(l)%i_vert_d) !!!! what is i_vert_d?
-                            A_i(this%P(body%wake%strips(j)%panels(l)%i_vert_d(k))) = &
-                                A_i(this%P(body%wake%strips(j)%panels(l)%i_vert_d(k))) + doublet_inf(k)
+                            ! Get influence of mirrored panel
+                            if (body%filament_wake%filaments(j)%mirrored) then
+
+                                ! Calculate influence of mirrored panel on control point
+                                call body%filament_wake%filaments(j)%filament_segments(l)%calc_velocity_influences(& 
+                                                                     body%cp(i)%loc, this%freestream,.true., v_s, v_d)
+                                doublet_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_d))
+
+                                ! Add influence
+                                do k=1,size(body%filament_wake%filaments(j)%filament_segments(l)%i_vert_d) !!!! will need to change i_vert_d. Look at panel_set_doublet_verts for where that's set
+                                    A_i(this%P(body%filament_wake%filaments(j)%filament_segments(l)%i_vert_d(k))) = &
+                                              A_i(this%P(body%filament_wake%filaments(j)%filament_segments(l)%i_vert_d(k))) &
+                                               + doublet_inf(k)
+                                end do
+
+                            end if
                         end do
+                    end do
+                else 
+                    !!!! if it isn't a filament wake, then do panel wake solver stuff. - SA
+                    ! Initialize
+                    A_i = 0.
 
-                        ! Get influence of mirrored panel
-                        if (body%wake%strips(j)%mirrored) then
-
-                            ! Calculate influence of mirrored panel on control point
+                    ! Get doublet influence from wake strips
+                    do j=1,body%wake%N_strips
+                        do l=1,body%wake%strips(j)%N_panels
+                            ! Caclulate influence of existing panel on control point
                             call body%wake%strips(j)%panels(l)%calc_velocity_influences(body%cp(i)%loc, this%freestream, &
-                                                                     .true., v_s, v_d)
+                                                                                        .false., v_s, v_d)
                             doublet_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_d))
 
                             ! Add influence
-                            do k=1,size(body%wake%strips(j)%panels(l)%i_vert_d)
+                            do k=1,size(body%wake%strips(j)%panels(l)%i_vert_d) !!!! what is i_vert_d?
                                 A_i(this%P(body%wake%strips(j)%panels(l)%i_vert_d(k))) = &
-                                            A_i(this%P(body%wake%strips(j)%panels(l)%i_vert_d(k))) + doublet_inf(k)
+                                    A_i(this%P(body%wake%strips(j)%panels(l)%i_vert_d(k))) + doublet_inf(k)
                             end do
 
-                        end if
-                    end do
-                end do
+                            ! Get influence of mirrored panel
+                            if (body%wake%strips(j)%mirrored) then
 
+                                ! Calculate influence of mirrored panel on control point
+                                call body%wake%strips(j)%panels(l)%calc_velocity_influences(body%cp(i)%loc, this%freestream, &
+                                                                        .true., v_s, v_d)
+                                doublet_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_d))
+
+                                ! Add influence
+                                do k=1,size(body%wake%strips(j)%panels(l)%i_vert_d)
+                                    A_i(this%P(body%wake%strips(j)%panels(l)%i_vert_d(k))) = &
+                                                A_i(this%P(body%wake%strips(j)%panels(l)%i_vert_d(k))) + doublet_inf(k)
+                                end do
+
+                            end if
+                        end do
+                    end do
+                end if 
             case (MF_INNER_FLOW) ! Calculate inner flow wake influences
 
                 ! Initialize
@@ -1417,7 +1453,7 @@ contains
                         end if
                     end do
                 end do
-
+                
             case (ZERO_NORMAL_VEL) ! Calculate velocity flux influences !!!! add our stuff
 
                 ! Initialize
