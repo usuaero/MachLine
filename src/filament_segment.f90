@@ -19,6 +19,7 @@ module filament_segment_mod
 
             ! Getters
             procedure :: get_vertex_index => filament_segment_get_vertex_index
+            procedure :: get_vertex_loc => filament_segment_get_vertex_loc
 
     end type filament_segment !!!! changed to filament_segment type 
 
@@ -43,6 +44,17 @@ contains
 
         ! still need to calculated derived geometry (based on what is needed in solver)
     end subroutine filament_segment_init
+
+    function filament_segment_get_vertex_loc(this, i) result(loc)
+
+        implicit none
+        class(filament_segment), intent(in) :: this
+        integer,intent(in) :: i
+        real,dimension(3) :: loc
+
+        loc = this%vertices(i)%ptr%loc
+
+    end function filament_segment_get_vertex_loc
 
     function filament_segment_get_vertex_index(this, i) result(index)
 
