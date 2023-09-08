@@ -46,6 +46,7 @@ module filament_segment_mod
             procedure :: calc_velocity_influences => filament_segment_calc_velocity_influences
             procedure :: assemble_v_d_M_space => filament_segment_assemble_v_d_M_space 
             procedure :: calc_influence_integrals => filament_segment_calc_influence_integrals 
+            procedure :: get_vertex_loc => filament_segment_get_vertex_loc
 
     end type filament_segment 
 
@@ -78,6 +79,16 @@ contains
         ! still need to calculated derived geometry (based on what is needed in solver)
     end subroutine filament_segment_init
 
+    function filament_segment_get_vertex_loc(this, i) result(loc)
+
+        implicit none
+        class(filament_segment), intent(in) :: this
+        integer,intent(in) :: i
+        real,dimension(3) :: loc
+
+        loc = this%vertices(i)%ptr%loc
+
+    end function filament_segment_get_vertex_loc
 
     function filament_segment_get_vertex_index(this, i) result(index)
         ! gets a vertex index
