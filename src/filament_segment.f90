@@ -305,67 +305,40 @@ contains
         real,dimension(:,:),allocatable :: v_d_mu_space
 
         ! Allocate space
-        allocate(v_d_mu_space(3,this%mu_dim), source=0.)
-        if (this%in_wake) then
-            allocate(v_d_M_space(3,2*this%M_dim), source=0.)
-        else
-            allocate(v_d_M_space(3,this%M_dim), source=0.)
-        end if
+        allocate(v_d_M_space(3,4), source=0.)
 
-        v_d_mu_space(1,1) = 0
-        v_d_mu_space(1,2) = int%hH113
-        v_d_mu_space(1,3) = 0
+        v_d_M_space(1,1) = int%u
+        v_d_M_space(1,2) = int%u
+        v_d_M_space(1,3) = int%u
+        v_d_M_space(1,4) = int%u
 
-        v_d_mu_space(2,1) = 0
-        v_d_mu_space(2,2) = 0
-        v_d_mu_space(2,3) = int%hH113
+        v_d_M_space(1,1) = int%v
+        v_d_M_space(1,2) = int%v
+        v_d_M_space(1,3) = int%v
+        v_d_M_space(1,4) = int%v
 
-        v_d_mu_space(3,1) = 0
-        v_d_mu_space(3,2) = int%H213
-        v_d_mu_space(3,3) = int%H123
-
-        if (this%order == 2) then
-
-            ! Quadratic terms
-            v_d_mu_space(1,4) = 3.*int%r*(0.5*int%H215*(geom%P_ls(1)**2)*geom%h + int%hH315*geom%P_ls(1) + 0.5*int%H415*geom%h)
-            v_d_mu_space(1,5) = 3.*int%r*(int%H215*geom%h*geom%P_ls(1)*geom%P_ls(2) + int%hH315*geom%P_ls(2) &
-                                + int%H225*geom%h*geom%P_ls(1) + int%H325*geom%h)
-            v_d_mu_space(1,6) = 3.*int%r*(0.5*int%H215*(geom%P_ls(2)**2)*geom%h + int%H225*geom%h*geom%P_ls(2) &
-                                + 0.5*int%H235*geom%h)
-
-            v_d_mu_space(2,4) = 3.*int%s*(0.5*int%H125*(geom%P_ls(1)**2)*geom%h + int%H225*geom%h*geom%P_ls(1) &
-                                + 0.5*int%H325*geom%h)
-            v_d_mu_space(2,5) = 3.*int%s*(int%H125*geom%h*geom%P_ls(1)*geom%P_ls(2) + int%hH135*geom%P_ls(1) &
-                                + int%H225*geom%h*geom%P_ls(2) + int%H235*geom%h)
-            v_d_mu_space(2,6) = 3.*int%s*(0.5*int%H125*(geom%P_ls(2)**2)*geom%h + int%hH135*geom%P_ls(2) + 0.5*int%H145*geom%h)
-
-            v_d_mu_space(3,4) = 0.5*(geom%P_ls(1)**2)*int%H113_3rsh2H115 + geom%P_ls(1)*(int%H213 - 3.*int%rs*geom%h2*int%H215) &
-                                + 0.5*(int%H313 - 3.*int%rs*geom%h*int%hH315)
-            v_d_mu_space(3,5) = geom%P_ls(1)*geom%P_ls(2)*(int%H113_3rsh2H115) &
-                                + geom%P_ls(2)*(int%H213 - 3.*int%rs*geom%h2*int%H215) &
-                                + geom%P_ls(1)*(int%H123 - 3.*int%rs*geom%h2*int%H125) + int%H223 - 3.*int%rs*geom%h2*int%H225
-            v_d_mu_space(3,6) = 0.5*(geom%P_ls(2)**2)*int%H113_3rsh2H115 + geom%P_ls(2)*(int%H123 - 3.*int%rs*geom%h2*int%H125) &
-                                + 0.5*(int%H133 - 3.*int%rs*geom%h*int%hH135)
-
-        end if 
+        v_d_M_space(1,1) = int%w
+        v_d_M_space(1,2) = int%w
+        v_d_M_space(1,3) = int%w
+        v_d_M_space(1,4) = int%w
             
-        ! Convert to strength influences (Davis Eq. (4.41))
-        if (mirror_panel) then
-            v_d_M_space(:,1:this%M_dim) = int%s*freestream%K_inv*matmul(v_d_mu_space, this%T_mu_mir)
-        else
-            v_d_M_space(:,1:this%M_dim) = int%s*freestream%K_inv*matmul(v_d_mu_space, this%T_mu)
-        end if
+        ! Convert to strength influences (Davis Eq. (4.41)) !!!! not sure if we need this - SA 
+        ! if (mirror_filament) then
+        !     v_d_M_space(:,1:this%M_dim) = int%s*freestream%K_inv*matmul(v_d_mu_space, this%T_mu_mir)
+        ! else
+        !     v_d_M_space(:,1:this%M_dim) = int%s*freestream%K_inv*matmul(v_d_mu_space, this%T_mu)
+        ! end if
 
-        ! Wake bottom influence is opposite the top influence
-        if (this%in_wake) then
-            v_d_M_space(:,this%M_dim+1:this%M_dim*2) = -v_d_M_space(:,1:this%M_dim)
-        end if
+        ! ! Wake bottom influence is opposite the top influence
+        ! if (this%in_wake) then
+        !     v_d_M_space(:,this%M_dim+1:this%M_dim*2) = -v_d_M_space(:,1:this%M_dim)
+        ! end if
 
         ! Transform to global coordinates
-        if (mirror_panel) then
-            v_d_M_space = matmul(transpose(this%A_g_to_ls_mir), v_d_M_space)
+        if (mirror_filament) then
+            v_d_M_space = matmul(transpose(this%A_g_to_ls_mir), v_d_M_space) !!!! need to go from compressible to global
         else
-            v_d_M_space = matmul(transpose(this%A_g_to_ls), v_d_M_space)
+            v_d_M_space = matmul(transpose(this%A_g_to_ls), v_d_M_space) !!!! need to go from compressible to global
         end if
         
     end function filament_segment_assemble_v_d_M_space
