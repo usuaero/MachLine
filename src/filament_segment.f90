@@ -106,7 +106,7 @@ contains
     end function filament_segment_get_vertex_index
 
 
-    subroutine filament_segment_calc_velocity_influences(this, F, freestream, mirror_filament, v_d_M_space)
+    subroutine filament_segment_calc_velocity_influences(this, freestream, mirror_filament, v_d_M_space)
         ! calculates the velocity influence of a vortex filament 
         
         implicit none 
@@ -250,21 +250,115 @@ contains
         type(filament_segment_integrals),intent(inout) :: int
         real :: unrel_v_numer_one, unrel_v_numer_two
         real :: unrel_v_denom_one, unrel_v_denom_two
+        real :: unrel_w_numer_one, unrel_w_numer_two
+        real :: unrel_w_denom_one, unrel_w_denom_two
+        real :: xf, xi, yf, yi, zf, zi
+        real :: xo, yo, zo 
+        real,dimension(3) :: loc_1, loc_2
 
-        call this%get_vertex_location() !!!! put in appropriate input and get 
+        loc_1 = this%get_vertex_loc(1) !!!! put in appropriate input and get 
+        loc_2 = this%get_vertex_loc(2) !!!! put in appropriate input and get 
+
+        xf = loc_2(1)
+        xi = loc_1(1)
         
+        yf = loc_2(2)
+        yi = loc_1(2)
+
+        zf = loc_2(3)
+        zi = loc_1(3)
+
+        xo = geom(1)
+        yo = geom(2)
+        zo = geom(3)
+
         ! write out the integrals here based on the different dod stuff. 
+        unrel_v_numer_one = (zo-zf)*(xo-xf)
+        unrel_v_denom_one = ((yo-yf)**2+(zo-zf)**2)*(((xo-xf)**2+bsq*((yo-yf)**2+(zo-zf)**2))**(1/2))
+        unrel_v_numer_two = (zo-zi)*(xo-xi)
+        unrel_v_denom_two = ((yo-yi)**2+(zo-zi)**2)*(((xo-xi)**2+bsq*((yo-yi)**2+(zo-zi)**2))**(1/2))
+        
+        unrel_w_numer_one = (yo-yf)*(xo-xf)
+        unrel_w_denom_one = ((yo-yf)**2+(zo-zf)**2)*(((xo-xf)**2+bsq*((yo-yf)**2+(zo-zf)**2))**(1/2))
+        unrel_w_numer_two = (yo-yi)*(xo-xi)
+        unrel_w_denom_two = ((yo-yi)**2+(zo-zi)**2)*(((xo-xi)**2+bsq*((yo-yi)**2+(zo-zi)**2))**(1/2))
+
 
        !if (this%relaxed) !!!! put in logic like this later when we employ relaxation. -SA  
         if (dod_info%both_in_dod) then 
             int%u = 0
-            int%v = (1/(2*pi*k))*((((zo-zf)*(xo-xf))/(()()))) !!!! declare all of these variables and stuff - SA
-        
+            int%v = (1/(2*pi*k))*((unrel_v_numer_one/unrel_v_denom_one)-(unrel_v_numer_two/unrel_v_denom_two)) !!!! declare all of these variables and stuff - SA
+            int%w = (-1/(2*pi*k))*((unrel_w_numer_one/unrel_w_denom_one)-(unrel_w_numer_two/unrel_w_denom_two)) !!!! declare all of these variables and stuff - SA
+        else if (dod_info%first_in_dod) then 
+            int%u = 0
+            int%v = (-1/(2*pi*k))*((unrel_v_numer_two/unrel_v_denom_two)) !!!! declare all of these variables and stuff - SA
+            int%w = (1/(2*pi*k))*((unrel_w_numer_two/unrel_w_denom_two)) !!!! declare all of these variables and stuff - SA
+        else if (dod_info%neither_in_dod) then
+            int%u = 0
+            int%v = 0
+            int%w = 0
+        else 
+            int%u = 0
+            int%v = 0
+            int%w = 0
         end if 
     
     end subroutine filament_segment_calc_influence_integrals
 
 
+    function filament_segment_assemble_v_d_M_space(this, int, geom, freestream, mirror_panel) result(v_d_M_space) !!!! need to create this space for wakes
+        ! Assembles the doublet-induced velocity influence coefficient matrix from the previously-calculated influence integrals
+
+        implicit none
+
+        class(filamenet_segment),intent(in) :: this
+        type(filament_segment_integrals),intent(in) :: int
+        type(eval_point_geom),intent(in) :: geom
+        type(flow),intent(in) :: freestream
+        logical,intent(in) :: mirror_filament
+
+        real,dimension(:,:),allocatable :: v_d_M_space
+
+        real,dimension(:,:),allocatable :: v_d_mu_space
+
+        ! Allocate space
+        allocate(v_d_M_space(3,4), source=0.)
+
+        v_d_M_space(1,1) = int%u
+        v_d_M_space(1,2) = int%u
+        v_d_M_space(1,3) = int%u
+        v_d_M_space(1,4) = int%u
+
+        v_d_M_space(1,1) = int%v
+        v_d_M_space(1,2) = int%v
+        v_d_M_space(1,3) = int%v
+        v_d_M_space(1,4) = int%v
+
+        v_d_M_space(1,1) = int%w
+        v_d_M_space(1,2) = int%w
+        v_d_M_space(1,3) = int%w
+        v_d_M_space(1,4) = int%w
+            
+        ! Convert to strength influences (Davis Eq. (4.41)) !!!! not sure if we need this - SA 
+        ! if (mirror_filament) then
+        !     v_d_M_space(:,1:this%M_dim) = int%s*freestream%K_inv*matmul(v_d_mu_space, this%T_mu_mir)
+        ! else
+        !     v_d_M_space(:,1:this%M_dim) = int%s*freestream%K_inv*matmul(v_d_mu_space, this%T_mu)
+        ! end if
+
+        ! ! Wake bottom influence is opposite the top influence
+        ! if (this%in_wake) then
+        !     v_d_M_space(:,this%M_dim+1:this%M_dim*2) = -v_d_M_space(:,1:this%M_dim)
+        ! end if
+
+        ! Transform to global coordinates
+        if (mirror_filament) then
+            v_d_M_space = matmul(transpose(this%A_g_to_ls_mir), v_d_M_space) !!!! need to go from compressible to global
+        else
+            v_d_M_space = matmul(transpose(this%A_g_to_ls), v_d_M_space) !!!! need to go from compressible to global
+        end if
+        
+    end function filament_segment_assemble_v_d_M_space
 
 
 end module filament_segment_mod
