@@ -110,10 +110,10 @@ contains
     end function filament_segment_get_vertex_index
 
 
-    subroutine filament_segment_calc_g_to_c_transform(this, freestream)
-        ! Calculates the necessary transformations to move from global to compressible coordinates (Eq. (E.0.1) in Epton and Magnus)
+    ! subroutine filament_segment_calc_g_to_c_transform(this, freestream)
+    !     ! Calculates the necessary transformations to move from global to compressible coordinates (Eq. (E.0.1) in Epton and Magnus)
         
-    end subroutine filament_segment_calc_g_to_c_transform
+    ! end subroutine filament_segment_calc_g_to_c_transform
 
 
     subroutine filament_segment_calc_velocity_influences(this,eval_point, freestream, mirror_filament, v_d_M_space)
@@ -136,9 +136,9 @@ contains
         dod_info = this%check_dod(F, freestream, mirror_filament)
     
         ! Get integrals 
-        int = this%calc_integrals(eval_point, 'velocity', freestream, mirror_filament, dod_info)
+        int = this%calc_integrals(eval_point, freestream, mirror_filament, dod_info)
         v_d_M_space =  this%assemble_v_d_M_space(int, geom, freestream, mirror_filament)
-        end if 
+        
         
     end subroutine filament_segment_calc_velocity_influences
 
@@ -175,25 +175,26 @@ contains
                 dod_info%both_in_dod = .true.
             else if (point1_inside .or. point2_inside) then
                 dod_info%first_in_dod = .true.
+                dod_info%both_in_dod = .false.
             else
                 dod_info%both_in_dod = .false.
+                dod_info%first_in_dod = .false.
             end if
         ! Will always be entirely inside for subsonic flow 
         else
             dod_info%both_in_dod = .true.
         end if
-    end do 
         
 
     end function filament_segment_check_dod
          
 
-    function filament_segment_calc_integrals(this, eval_point, influence_type, freestream, mirror_filament, dod_info) result(int)
+    function filament_segment_calc_integrals(this, eval_point, freestream, mirror_filament, dod_info) result(int)
         ! Calculates the integrals necessary for the given influence
         
         implicit none 
         
-        class(filamenet_segment),intent(in) :: this 
+        class(filament_segment),intent(in) :: this 
         real,dimension(3),intent(in) :: eval_point
         ! character(len=*),intent(in) :: influence_type !!!! don't think this will apply - SA 
         type(flow), intent(in) :: freestream
@@ -220,7 +221,7 @@ contains
 
         class(filament_segment),intent(in) :: this
         real,dimension(3),intent(in) :: eval_point
-        type(dod),intent(in) :: dod_info
+        type(filament_dod),intent(in) :: dod_info
         type(flow),intent(in) :: freestream 
         logical,intent(in) :: mirror_filament
         type(filament_segment_integrals),intent(inout) :: int
@@ -229,7 +230,8 @@ contains
         real :: unrel_w_numer_one, unrel_w_numer_two
         real :: unrel_w_denom_one, unrel_w_denom_two
         real :: xf, xi, yf, yi, zf, zi
-        real :: xo, yo, zo 
+        real :: xo, yo, zo
+        real :: bsq  
         real,dimension(3) :: loc_1, loc_2
         integer :: k 
 
@@ -258,6 +260,8 @@ contains
         else 
             k = 1
         end if 
+
+        bsq = k*freestream%B**2
 
         ! write out the integrals here based on the different dod stuff. 
         unrel_v_numer_one = (zo-zf)*(xo-xf)
@@ -290,12 +294,12 @@ contains
     end subroutine filament_segment_calc_influence_integrals
 
 
-    function filament_segment_assemble_v_d_M_space(this, int, geom, freestream, mirror_panel) result(v_d_M_space) !!!! need to create this space for wakes
+    function filament_segment_assemble_v_d_M_space(this, int, geom, freestream, mirror_filament) result(v_d_M_space) !!!! need to create this space for wakes
         ! Assembles the doublet-induced velocity influence coefficient matrix from the previously-calculated influence integrals
 
         implicit none
 
-        class(filamenet_segment),intent(in) :: this
+        class(filament_segment),intent(in) :: this
         type(filament_segment_integrals),intent(in) :: int
         type(eval_point_geom),intent(in) :: geom
         type(flow),intent(in) :: freestream
@@ -336,11 +340,11 @@ contains
         ! end if
 
         ! Transform to global coordinates
-        if (mirror_filament) then
-            v_d_M_space = matmul(transpose(freestream%A_g_to_c_mir), v_d_M_space) !!!! need to go from compressible to global
-        else
-            v_d_M_space = matmul(transpose(freestream%A_g_to_c), v_d_M_space) !!!! need to go from compressible to global
-        end if
+        ! if (mirror_filament) then
+        !     v_d_M_space = matmul(transpose(freestream%A_g_to_c_mir), v_d_M_space) !!!! need to go from compressible to global
+        ! else
+        v_d_M_space = matmul(transpose(freestream%A_g_to_c), v_d_M_space) !!!! need to go from compressible to global
+        ! end if
         
     end function filament_segment_assemble_v_d_M_space
 
