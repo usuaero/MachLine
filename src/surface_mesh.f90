@@ -743,7 +743,7 @@ contains
             this%vertices(i)%convex = this%is_convex_at_vertex(i)
         end do
 
-        ! Initialize wake !!!!!!!!!!!!!!!!!!!!!!!!!!!! make changes here
+        ! Initialize wake !!!! 
         call this%init_wake(freestream, wake_file, formulation)
 
         ! Set up panel distributions
@@ -2386,6 +2386,7 @@ contains
         logical,dimension(:),allocatable :: verts_in_dod, wake_verts_in_dod
         integer :: j, stat, N_verts, N_panels, N_strip_verts, N_strip_panels
 
+        !!!! lots of wake stuff here
         ! Figure out how many verts and panels we're going to consider
         if (this%mirrored) then
             if (this%asym_flow) then
@@ -2400,6 +2401,7 @@ contains
         else
             N_verts = this%N_verts
             N_panels = this%N_panels
+            
             N_strip_verts = this%wake%N_max_strip_verts
             N_strip_panels = this%wake%N_max_strip_panels
         end if
@@ -2413,9 +2415,9 @@ contains
         ! DoD info for panels
         allocate(dod_info(N_panels), stat=stat)
         call check_allocation(stat, "domain of dependence storage")
-
+        
         ! DoD info for wake panels
-        allocate(wake_dod_info(N_strip_panels,this%wake%N_strips), stat=stat)
+        allocate(wake_dod_info(N_strip_panels,this%wake%N_strips), stat=stat) !!!!need to update this
         call check_allocation(stat, "wake domain of dependence storage")
 
         ! If the freestream is supersonic, calculate domain of dependence info
@@ -2428,7 +2430,7 @@ contains
             if (this%mirrored) then
                 dod_info(this%N_panels+1:) = this%get_panel_dod_info_for_point(point, freestream, .true.)
             end if
-
+            !!!! will need to do some logic here, it might make sense to just set wake = filament wake if we have a filament wake -jjh
             ! Loop through wake strips
             do j=1,this%wake%N_strips
 

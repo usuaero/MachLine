@@ -49,6 +49,8 @@ module filament_segment_mod
             procedure :: calc_influence_integrals => filament_segment_calc_influence_integrals 
             procedure :: get_vertex_loc => filament_segment_get_vertex_loc
 
+            ! DOD stuff
+            procedure :: check_dod => filament_segment_check_dod
     end type filament_segment 
 
 
@@ -156,7 +158,7 @@ contains
         real,dimension(3),intent(in) :: eval_point
         type(flow),intent(in) :: freestream 
         logical,intent(in),optional :: mirror_filament 
-
+        integer:: inside_or_outside
         type(filament_dod) :: dod_info
 
         integer :: i, i_next, inside_outside
@@ -168,43 +170,29 @@ contains
             mirrored = .false.
         end if  
 
-        ! check if the filament segment is entirely inside or ouside the DoD
-        inside_outside = this%entirely_inside_outside_dod(eval_point, freestream, mirrored) !!!! make this function
 
-        if (inside_outside == 1) then
-            dod_info%in_dod = .true.
-            dod_info%edges_in_dod = .true.
-
-        else if (inside_outside == -1) then
-            dod_info%in_dod = .false.
-            dod_info%edges_in_dod = .false.
-
-        ! Neither guaranteed, so we go further
-        else
+        if (freestream%supersonic) then
             
-            ! Read in vertex information
-            do i=1,this%N
-                if (mirrored) then
-                    these_verts_in_dod(i) = freestream%point_in_dod( &
-                                                                    mirror_across_plane(this%get_vertex_loc(i), this%mirror_plane),&
-                                                                    eval_point)
-                else
-                     these_verts_in_dod(i) = freestream%point_in_dod(this%get_vertex_loc(i), eval_point)
-                end if
-            end do
-        
-                   ! If all the vertices are in, then the panel is totally in and we can be done
-            if (all(these_verts_in_dod)) then
-                dod_info%in_dod = .true.
-                dod_info%edges_in_dod = .true.
-                
-            end if 
-        end if !!!! use Josh's stuff here - SA 
+            ! check if vertices are in DOD
+            point1_inside = freestream%point_in_dod(this%vertices(1),eval_point)
+            point2_inside = freestream%point_in_dod(this%vertices(2),eval_point)
+            
+            if (point1_inside .and. point2_inside) then
+                dod_info%both_in_dod = .true.
+            else if (point1_inside .or. point2_inside) then
+                dod_info%first_in_dod = .true.
+            else
+                dod_info%both_in_dod = .false.
+            end if
+        ! Will always be entirely inside for subsonic flow 
+        else
+            dod_info%both_in_dod = .true.
+        end if
     end do 
         
 
     end function filament_segment_check_dod
-
+         
 
     function filament_segment_calc_integrals(this, geom, influence_type, freestream, mirror_filament, dod_info) result(int)
         ! Calculates the integrals necessary for the given influence
