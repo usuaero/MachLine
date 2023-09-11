@@ -1353,7 +1353,7 @@ contains
                             ! Caclulate influence of existing panel on control point
                             !!!! we could call the vertex location here, or in calc_influence_integrals in the filament_segment thing
                             call body%filament_wake%filaments(j)%filament_segments(l)%calc_velocity_influences(& 
-                                                                body%cp(i)%loc, this%freestream,.false., v_s, v_d) !!!! probably change the calc_velocity_influences function so that it does not calc v_s
+                                                                body%cp(i)%loc, this%freestream,.false., v_d) !!!! probably change the calc_velocity_influences function so that it does not calc v_s
                             doublet_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_d)) !!!! I think this is right even for filament stuff - SA
 
                             ! Add influence
@@ -1367,7 +1367,7 @@ contains
 
                                 ! Calculate influence of mirrored panel on control point
                                 call body%filament_wake%filaments(j)%filament_segments(l)%calc_velocity_influences(& 
-                                                                     body%cp(i)%loc, this%freestream,.true., v_s, v_d)
+                                                                     body%cp(i)%loc, this%freestream,.true., v_d)
                                 doublet_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_d))
 
                                 ! Add influence

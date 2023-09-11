@@ -116,36 +116,30 @@ contains
     end subroutine filament_segment_calc_g_to_c_transform
 
 
-    subroutine filament_segment_calc_velocity_influences(this, freestream, mirror_filament, v_d_M_space)
+    subroutine filament_segment_calc_velocity_influences(this,eval_point, freestream, mirror_filament, v_d_M_space)
         ! calculates the velocity influence of a vortex filament 
         
         implicit none 
 
         class(filament_segment),intent(in) :: this
-        real,dimension(3),intent(in) :: F !!!! not sure what P is in panel_calc_velocity_influences
+        real,dimension(3),intent(in) :: eval_point !!!! not sure what P is in panel_calc_velocity_influences
         type(flow),intent(in) :: freestream
         logical,intent(in) :: mirror_filament
         real, dimension(:,:),allocatable,intent(out) :: v_d_M_space
 
-        type(filament_dod) :: dod_info !!!! might need to make a filament_dod type in this mod (filament_segment_mod)
-        type(eval_point_geom) :: geom !!!! go to base_geom and make this type? Or come up with another way. 
+        type(filament_dod) :: dod_info !!!! might need to make a filament_dod type in this mod (filament_segment_mod) 
         type(filament_segment_integrals) :: int 
         real,dimension(:,:),allocatable :: v_d_mu_space
         real :: x2, y2 !!!! not sure if this is needed
         integer :: i
         
         dod_info = this%check_dod(F, freestream, mirror_filament)
-        if(dod_info%in_dod) then 
-            if(freestream%supersonic) then 
-                geom = this%calc_supersonic_geom(F, freestream, mirror_filament, dod_info)
-            else
-                geom = this%calc_subsonic_geom(F, freestream, mirror_filament)    
-            end if 
-             ! Get integrals 
-            int = this%calc_integrals(geom, 'velocity', freestream, mirror_filament, dod_info)
-            v_d_M_space =  this%assemble_v_d_M_space(int, geom, freestream, mirror_filament)
+    
+        ! Get integrals 
+        int = this%calc_integrals(eval_point, 'velocity', freestream, mirror_filament, dod_info)
+        v_d_M_space =  this%assemble_v_d_M_space(int, geom, freestream, mirror_filament)
         end if 
-
+        
     end subroutine filament_segment_calc_velocity_influences
 
 
@@ -194,13 +188,13 @@ contains
     end function filament_segment_check_dod
          
 
-    function filament_segment_calc_integrals(this, geom, influence_type, freestream, mirror_filament, dod_info) result(int)
+    function filament_segment_calc_integrals(this, eval_point, influence_type, freestream, mirror_filament, dod_info) result(int)
         ! Calculates the integrals necessary for the given influence
         
         implicit none 
         
         class(filamenet_segment),intent(in) :: this 
-        type(eval_point_geom),intent(in) :: geom
+        real,dimension(3),intent(in) :: eval_point
         ! character(len=*),intent(in) :: influence_type !!!! don't think this will apply - SA 
         type(flow), intent(in) :: freestream
         logical,intent(in) :: mirror_filament
@@ -212,20 +206,20 @@ contains
         int%rs = int%r*int%s 
 
         ! Calculate necessary integrals based on the flow condition
-        call this%calc_influence_integrals(geom, dod_info, freestream, mirror_filament, int) !!!! I think the int input in this subroutine call is what will output from this function
+        call this%calc_influence_integrals(eval_point, dod_info, freestream, mirror_filament, int) !!!! I think the int input in this subroutine call is what will output from this function
         !!!! should dod_info carry whether the dod is supersonic or subsonic? -SA 
 
  
     end function filament_segment_calc_integrals 
 
 
-    subroutine filament_segment_calc_influence_integrals(this, geom, dod_info, freestream, mirror_filament, int)
+    subroutine filament_segment_calc_influence_integrals(this, eval_point, dod_info, freestream, mirror_filament, int)
         ! calculates the supersonic and subsonic vortex filament influence integrals
 
         implicit none 
 
         class(filament_segment),intent(in) :: this
-        type(eval_point_geom),intent(in) :: geom 
+        real,dimension(3),intent(in) :: eval_point
         type(dod),intent(in) :: dod_info
         type(flow),intent(in) :: freestream 
         logical,intent(in) :: mirror_filament
@@ -254,9 +248,9 @@ contains
         zf = loc_2(3)
         zi = loc_1(3)
 
-        xo = geom(1)
-        yo = geom(2)
-        zo = geom(3)
+        xo = eval_point(1)
+        yo = eval_point(2)
+        zo = eval_point(3)
 
         !define k
         if (freestream%supersonic) then 
