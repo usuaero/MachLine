@@ -175,7 +175,7 @@ contains
             end if
         ! Will always be entirely inside for subsonic flow 
         else
-            inside_or_outside = 1
+            dod_info%both_in_dod = .true.
         end if
     end do 
         
