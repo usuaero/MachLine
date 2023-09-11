@@ -198,14 +198,36 @@ contains
     end function filament_segment_check_dod
 
             
-    function filamenet_segment_entirely_inside_outside_dod(this, eval_point)
-        ! checks 
+    function filamenet_segment_entirely_inside_outside_dod(this, eval_point,freestream) result(inside_or_outside)
+        ! checks if the segment is entirely inside, outside or split in the DOD of an evaluation point
+        ! 1 = entirely inside
+        ! -1 = entirely outside
+        ! 0 = split
 
         implicit none
 
         class(filamenet_segment), intent(in) :: this
+        type(flow),intent(in) :: freestream
         real, dimension(3), intent(in) :: eval_point
+        integer:: inside_or_outside
 
+        if (freestream%supersonic) then
+            
+            ! check if first point is in DOD
+            point1_inside = freestream%point_in_dod(this%vertices(1),eval_point)
+            point2_inside = freestream%point_in_dod(this%vertices(2),eval_point)
+            
+            if (point1_inside .and. point2_inside) then
+                inside_or_outside = 1
+            else if (point1_inside .or. point2_inside) then
+                inside_or_outside = 0
+            else
+                inside_or_outside = -1
+            end if
+        ! Will always be entirely inside for subsonic flow 
+        else
+            inside_or_outside = 1
+        end if
         
 
     end function filamenet_segment_entirely_inside_outside_dod
