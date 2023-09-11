@@ -4,7 +4,7 @@
         "freestream_mach_number" : 1.62
     },
     "geometry": {
-        "file": "dev/meshes/delta_wing_clustered_mesh_medium.vtk",
+        "file": "dev/meshes/Rough_mesh_53_30_Delta_Wing.tri",
         "singularity_order" : "lower",
         "wake_model" : {
             "wake_present" : true,
@@ -13,10 +13,9 @@
         }
     },
     "solver": {
-        "formulation" : "neumann-mass-flux-inner-flow",
-        "ormulation" : "morino",
+        "formulation" : "neumann-mass-flux",
         "matrix_solver" : "GMRES",
-        "write_A_and_b" : true
+        "write_A_and_b" : false
     },
     "post_processing" : {
     },

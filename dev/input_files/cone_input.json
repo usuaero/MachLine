@@ -5,9 +5,8 @@
         "freestream_mach_number" : 2.0
     },
     "geometry" : {
-        "file" : "dev/meshes/half_cone_coarse.vtk",
-        "mirror_about" : "xy",
-        "singularity_order" : "higher",
+        "file" : "dev/meshes/cone_10_deg_medium_improved_full.vtk",
+        "singularity_order" : "lower",
         "wake_model" : {
             "wake_present" : false
         },
@@ -16,7 +15,7 @@
         }
     },
     "solver" : {
-        "formulation" : "source-free",
+        "formulation" : "neumann-mass-flux",
         "matrix_solver" : "GMRES"
     },
     "post_processing" : {

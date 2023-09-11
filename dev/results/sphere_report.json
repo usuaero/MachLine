@@ -1,44 +1,44 @@
 {
     "info" : {
         "generated_by" : "MachLine (c) 2023 USU Aerolab",
-        "executed" : "Mon Jul 31 16:10:25 2023"
+        "executed" : "Wed Aug 23 10:35:01 2023"
     },
     "mesh_info" : {
-        "N_body_panels" : 7200,
-        "N_body_vertices" : 3602,
+        "N_body_panels" : 440,
+        "N_body_vertices" : 222,
         "N_wake_panels" : 0,
-        "average_characteristic_length" : 4.02764861523927E-002,
+        "average_characteristic_length" : 1.63927165256750E-001,
         "max_flow_turning_angle" : 9.00000000000000E+001
     },
     "solver_results" : {
         "solver_status_code" : 0,
-        "system_dimension" : 3602,
+        "system_dimension" : 222,
         "timing" : {
-            "system_sorting" : 2.80300000000000E-006,
-            "preconditioner" : 4.59286080000000E-002,
-            "matrix_solver" : 1.10870406590000E+001
+            "system_sorting" : 2.30000000000000E-006,
+            "preconditioner" : 4.35350000000000E-003,
+            "matrix_solver" : 1.41090000000000E-003
         },
-        "iterations" : 999,
+        "iterations" : 50,
         "residual" : {
-            "max" : 3.23096089866887E-001,
-            "norm" : 3.47143213236318E+000
+            "max" : 3.90869917840843E-002,
+            "norm" : 4.74767205964982E-001
         }
     },
     "pressure_calculations" : {
         "incompressible_rule" : {
-            "max" : 9.97528892284006E-001,
-            "min" : -1.60571305698348E+000
+            "max" : 9.33674331975440E-001,
+            "min" : -1.21107725533643E+000
         }
     },
     "total_forces" : {
-        "Cx" : -9.37002705449934E-003,
-        "Cy" : 9.09228017579242E-003,
-        "Cz" : -5.28409847092257E-003
+        "Cx" : 1.06888512238665E-012,
+        "Cy" : 3.48425376042215E-016,
+        "Cz" : 5.72196190053479E-017
     },
     "total_moments" : {
-        "CMx" : -7.77724986158920E-005,
-        "CMy" : 4.16434588488510E-003,
-        "CMz" : 7.20467955586356E-003
+        "CMx" : -1.27868093717509E-017,
+        "CMy" : -3.42770516831292E-016,
+        "CMz" : 4.62086965913322E-016
     },
     "input" : {
         "flow" : {
@@ -50,7 +50,7 @@
             "freestream_mach_number" : 0.00000000000000E+000
         },
         "geometry" : {
-            "file" : "dev/meshes/sphere.vtk",
+            "file" : "dev/meshes/small_sphere.stl",
             "wake_model" : {
                 "wake_present" : false
             },
@@ -60,13 +60,10 @@
             }
         },
         "solver" : {
-            "formulation" : "neumann-doublet-only-mass-flux",
-            "control_point_offset" : 1.00000000000000E-007,
+            "formulation" : "neumann-mass-flux",
             "matrix_solver" : "GMRES",
-            "relaxation" : 1.00000000000000E+000,
             "write_A_and_b" : true,
-            "run_checks" : true,
-            "iterative_solver_output" : "iterative_solver_prog.csv"
+            "run_checks" : true
         },
         "post_processing" : {
             "pressure_rules" : {
@@ -83,5 +80,5 @@
             "report_file" : "dev/results/sphere_report.json"
         }
     },
-    "total_runtime" : 4.24100000000000E+001
+    "total_runtime" : 2.50000000000000E-001
 }
