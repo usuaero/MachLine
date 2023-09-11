@@ -8,7 +8,6 @@ module filament_mesh_mod
     use math_mod
     use flow_mod
     use vtk_mod
-    use wake_strip_mod
     use filament_segment_mod
     use filament_mod
     use mesh_mod

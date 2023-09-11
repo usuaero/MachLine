@@ -23,8 +23,8 @@ module filament_segment_mod
     type filament_dod
     ! container for whether a filament lies in a point's domain of dependence
     
-        logical :: first_in_dod = .true. !!!! the nomenclature can certainly change here
-        logical,dimension(2) :: both_in_dod = .true. !!!! the nomenclature can certainly change here
+        logical :: first_in_dod = .false. !!!! the nomenclature can certainly change here
+        logical :: both_in_dod = .false. !!!! the nomenclature can certainly change here
 
     end type filament_dod
 
@@ -133,11 +133,11 @@ contains
         real :: x2, y2 !!!! not sure if this is needed
         integer :: i
         
-        dod_info = this%check_dod(F, freestream, mirror_filament)
+        dod_info = this%check_dod(eval_point, freestream, mirror_filament)
     
         ! Get integrals 
         int = this%calc_integrals(eval_point, freestream, mirror_filament, dod_info)
-        v_d_M_space =  this%assemble_v_d_M_space(int, geom, freestream, mirror_filament)
+        v_d_M_space =  this%assemble_v_d_M_space(int, freestream, mirror_filament)
         
         
     end subroutine filament_segment_calc_velocity_influences
@@ -152,11 +152,9 @@ contains
         real,dimension(3),intent(in) :: eval_point
         type(flow),intent(in) :: freestream 
         logical,intent(in),optional :: mirror_filament 
-        integer:: inside_or_outside
         type(filament_dod) :: dod_info
 
-        integer :: i, i_next, inside_outside
-        logical :: mirrored, in_filament
+        logical :: mirrored, point1_inside,point2_inside
 
         if (present(mirror_filament)) then
             mirrored = mirror_filament
@@ -168,8 +166,8 @@ contains
         if (freestream%supersonic) then
             
             ! check if vertices are in DOD
-            point1_inside = freestream%point_in_dod(this%vertices(1),eval_point)
-            point2_inside = freestream%point_in_dod(this%vertices(2),eval_point)
+            point1_inside = freestream%point_in_dod(this%get_vertex_loc(1),eval_point)
+            point2_inside = freestream%point_in_dod(this%get_vertex_loc(2),eval_point)
             
             if (point1_inside .and. point2_inside) then
                 dod_info%both_in_dod = .true.
@@ -294,14 +292,13 @@ contains
     end subroutine filament_segment_calc_influence_integrals
 
 
-    function filament_segment_assemble_v_d_M_space(this, int, geom, freestream, mirror_filament) result(v_d_M_space) !!!! need to create this space for wakes
+    function filament_segment_assemble_v_d_M_space(this, int, freestream, mirror_filament) result(v_d_M_space) !!!! need to create this space for wakes
         ! Assembles the doublet-induced velocity influence coefficient matrix from the previously-calculated influence integrals
 
         implicit none
 
         class(filament_segment),intent(in) :: this
         type(filament_segment_integrals),intent(in) :: int
-        type(eval_point_geom),intent(in) :: geom
         type(flow),intent(in) :: freestream
         logical,intent(in) :: mirror_filament
 

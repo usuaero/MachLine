@@ -11,7 +11,6 @@ module mesh_mod
     type mesh
 
         integer :: N_verts, N_panels = 0
-        integer :: N_segments
         type(vertex),allocatable,dimension(:) :: vertices
         type(panel),allocatable,dimension(:) :: panels
         ! type(filament_segment),allocatable,dimension(:) :: filament_segments !!!!

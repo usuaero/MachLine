@@ -1352,14 +1352,14 @@ contains
                         do l=1,body%filament_wake%filaments(j)%N_segments
                             ! Caclulate influence of existing panel on control point
                             !!!! we could call the vertex location here, or in calc_influence_integrals in the filament_segment thing
-                            call body%filament_wake%filaments(j)%filament_segments(l)%calc_velocity_influences(& 
+                            call body%filament_wake%filaments(j)%segments(l)%calc_velocity_influences(& 
                                                                 body%cp(i)%loc, this%freestream,.false., v_d) !!!! probably change the calc_velocity_influences function so that it does not calc v_s
                             doublet_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_d)) !!!! I think this is right even for filament stuff - SA
 
                             ! Add influence
-                            do k=1,size(body%filament_wake%filaments(j)%filament_segments(l)%i_vert_d) !!!! will need to change i_vert_d. Look at panel_set_doublet_verts for where that's set
-                                A_i(this%P(body%filament_wake%filaments(j)%filament_segments(l)%i_vert_d(k))) = &
-                                    A_i(this%P(body%filament_wake%filaments(j)%filament_segments(l)%i_vert_d(k))) + doublet_inf(k)
+                            do k=1,size(body%filament_wake%filaments(j)%segments(l)%i_vert_d) !!!! will need to change i_vert_d. Look at panel_set_doublet_verts for where that's set
+                                A_i(this%P(body%filament_wake%filaments(j)%segments(l)%i_vert_d(k))) = &
+                                    A_i(this%P(body%filament_wake%filaments(j)%segments(l)%i_vert_d(k))) + doublet_inf(k)
                             end do
 
                             ! Get influence of mirrored panel
