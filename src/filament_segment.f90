@@ -40,7 +40,6 @@ module filament_segment_mod
 
         contains
             procedure :: init => filament_segment_init 
-            procedure :: check_dod => filament_check_dod
             procedure :: calc_integrals => filament_segment_calc_integrals
             ! Getters
             procedure :: get_vertex_index => filament_segment_get_vertex_index
