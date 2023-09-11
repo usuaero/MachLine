@@ -24,7 +24,6 @@ module filament_segment_mod
     
         logical :: first_in_dod = .true. !!!! the nomenclature can certainly change here
         logical,dimension(2) :: both_in_dod = .true. !!!! the nomenclature can certainly change here
-        logical,dimension(2) :: neither_in_dod = .true. !!!! the nomenclature can certainly change here
 
     end type filament_dod
 
@@ -34,7 +33,9 @@ module filament_segment_mod
         type(vertex_pointer), dimension(:),allocatable :: vertices 
         integer :: index ! index of this filament in the filament mesh array
         integer :: N = 2 ! number of vertices
-        integer :: 
+        real,dimension(3,3) :: A_g_to_c, A_c_to_g ! Coordinate transformation matrices
+        real,dimension(3,3) :: A_g_to_c_mir, A_c_to_g_mir
+
 
         contains
             procedure :: init => filament_segment_init 
@@ -79,6 +80,10 @@ contains
         ! still need to calculated derived geometry (based on what is needed in solver)
     end subroutine filament_segment_init
 
+
+    ! likely need filament_segment_init_with_flow?
+
+
     function filament_segment_get_vertex_loc(this, i) result(loc)
 
         implicit none
@@ -101,6 +106,12 @@ contains
         index = this%vertices(i)%ptr%index
 
     end function filament_segment_get_vertex_index
+
+
+    subroutine filament_segment_calc_g_to_c_transform(this, freestream)
+        ! Calculates the necessary transformations to move from global to compressible coordinates (Eq. (E.0.1) in Epton and Magnus)
+        
+    end subroutine filament_segment_calc_g_to_c_transform
 
 
     subroutine filament_segment_calc_velocity_influences(this, freestream, mirror_filament, v_d_M_space)
@@ -238,10 +249,14 @@ contains
         real :: xf, xi, yf, yi, zf, zi
         real :: xo, yo, zo 
         real,dimension(3) :: loc_1, loc_2
+        integer :: k 
 
         loc_1 = this%get_vertex_loc(1) !!!! put in appropriate input and get 
         loc_2 = this%get_vertex_loc(2) !!!! put in appropriate input and get 
 
+        loc_1 = matmul((freestream%A_g_to_c), loc_1)
+        loc_2 = matmul((freestream%A_g_to_c), loc_2)
+        
         xf = loc_2(1)
         xi = loc_1(1)
         
@@ -254,6 +269,13 @@ contains
         xo = geom(1)
         yo = geom(2)
         zo = geom(3)
+
+        !define k
+        if (freestream%supersonic) then 
+            k = -1 !!!! I think this is right. Re-verify with Miranda
+        else 
+            k = 1
+        end if 
 
         ! write out the integrals here based on the different dod stuff. 
         unrel_v_numer_one = (zo-zf)*(xo-xf)
@@ -276,14 +298,11 @@ contains
             int%u = 0
             int%v = (-1/(2*pi*k))*((unrel_v_numer_two/unrel_v_denom_two)) !!!! declare all of these variables and stuff - SA
             int%w = (1/(2*pi*k))*((unrel_w_numer_two/unrel_w_denom_two)) !!!! declare all of these variables and stuff - SA
-        else if (dod_info%neither_in_dod) then
-            int%u = 0
-            int%v = 0
-            int%w = 0
         else 
             int%u = 0
             int%v = 0
             int%w = 0
+
         end if 
     
     end subroutine filament_segment_calc_influence_integrals
@@ -312,15 +331,15 @@ contains
         v_d_M_space(1,3) = int%u
         v_d_M_space(1,4) = int%u
 
-        v_d_M_space(1,1) = int%v
-        v_d_M_space(1,2) = int%v
-        v_d_M_space(1,3) = int%v
-        v_d_M_space(1,4) = int%v
+        v_d_M_space(2,1) = int%v
+        v_d_M_space(2,2) = int%v
+        v_d_M_space(2,3) = int%v
+        v_d_M_space(2,4) = int%v
 
-        v_d_M_space(1,1) = int%w
-        v_d_M_space(1,2) = int%w
-        v_d_M_space(1,3) = int%w
-        v_d_M_space(1,4) = int%w
+        v_d_M_space(3,1) = int%w
+        v_d_M_space(3,2) = int%w
+        v_d_M_space(3,3) = int%w
+        v_d_M_space(3,4) = int%w
             
         ! Convert to strength influences (Davis Eq. (4.41)) !!!! not sure if we need this - SA 
         ! if (mirror_filament) then
@@ -336,9 +355,9 @@ contains
 
         ! Transform to global coordinates
         if (mirror_filament) then
-            v_d_M_space = matmul(transpose(this%A_g_to_ls_mir), v_d_M_space) !!!! need to go from compressible to global
+            v_d_M_space = matmul(transpose(freestream%A_g_to_c_mir), v_d_M_space) !!!! need to go from compressible to global
         else
-            v_d_M_space = matmul(transpose(this%A_g_to_ls), v_d_M_space) !!!! need to go from compressible to global
+            v_d_M_space = matmul(transpose(freestream%A_g_to_c), v_d_M_space) !!!! need to go from compressible to global
         end if
         
     end function filament_segment_assemble_v_d_M_space
