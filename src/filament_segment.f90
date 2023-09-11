@@ -1,5 +1,6 @@
 module filament_segment_mod
     use base_geom_mod
+    use flow_mod 
     use helpers_mod
     use mesh_mod 
     use math_mod 
