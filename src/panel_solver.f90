@@ -1357,23 +1357,23 @@ contains
                             doublet_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_d)) !!!! I think this is right even for filament stuff - SA
 
                             ! Add influence
-                            do k=1,size(body%filament_wake%filaments(j)%segments(l)%i_vert_d) !!!! will need to change i_vert_d. Look at panel_set_doublet_verts for where that's set
-                                A_i(this%P(body%filament_wake%filaments(j)%segments(l)%i_vert_d(k))) = &
-                                    A_i(this%P(body%filament_wake%filaments(j)%segments(l)%i_vert_d(k))) + doublet_inf(k)
+                            do k=1,size(body%filament_wake%filaments(j)%segments(l)%parents) !!!! will need to change i_vert_d. Look at panel_set_doublet_verts for where that's set
+                                A_i(this%P(body%filament_wake%filaments(j)%segments(l)%parents(k))) = &
+                                    A_i(this%P(body%filament_wake%filaments(j)%segments(l)%parents(k))) + doublet_inf(k)
                             end do
 
                             ! Get influence of mirrored panel
                             if (body%filament_wake%filaments(j)%mirrored) then
 
                                 ! Calculate influence of mirrored panel on control point
-                                call body%filament_wake%filaments(j)%filament_segments(l)%calc_velocity_influences(& 
+                                call body%filament_wake%filaments(j)%segments(l)%calc_velocity_influences(& 
                                                                      body%cp(i)%loc, this%freestream,.true., v_d)
                                 doublet_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_d))
 
                                 ! Add influence
-                                do k=1,size(body%filament_wake%filaments(j)%filament_segments(l)%i_vert_d) !!!! will need to change i_vert_d. Look at panel_set_doublet_verts for where that's set
-                                    A_i(this%P(body%filament_wake%filaments(j)%filament_segments(l)%i_vert_d(k))) = &
-                                              A_i(this%P(body%filament_wake%filaments(j)%filament_segments(l)%i_vert_d(k))) &
+                                do k=1,size(body%filament_wake%filaments(j)%segments(l)%parents) !!!! will need to change i_vert_d. Look at panel_set_doublet_verts for where that's set
+                                    A_i(this%P(body%filament_wake%filaments(j)%segments(l)%parents(k))) = &
+                                              A_i(this%P(body%filament_wake%filaments(j)%segments(l)%parents(k))) &
                                                + doublet_inf(k)
                                 end do
 

@@ -198,8 +198,12 @@ contains
         
         class(filament),intent(inout) :: this
         integer,intent(in) :: i_segment, i1, i2
+        integer, dimension(4) :: parents
+
+        parents = [this%i_top_parent_1,this%i_top_parent_2,this%i_bot_parent_1, this%i_bot_parent_2]
     
-        call this%segments(i_segment)%init(this%vertices(i1), this%vertices(i2), i_segment)
+    
+        call this%segments(i_segment)%init(this%vertices(i1), this%vertices(i2), i_segment,parents)
 
     end subroutine filament_init_segment
 

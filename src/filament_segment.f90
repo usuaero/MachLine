@@ -36,6 +36,8 @@ module filament_segment_mod
         integer :: N = 2 ! number of vertices
         real,dimension(3,3) :: A_g_to_c, A_c_to_g ! Coordinate transformation matrices
         real,dimension(3,3) :: A_g_to_c_mir, A_c_to_g_mir
+        integer, dimension(4) :: parents
+
 
 
         contains
@@ -57,7 +59,7 @@ module filament_segment_mod
 contains
 
 
-    subroutine filament_segment_init(this,v1,v2,index)
+    subroutine filament_segment_init(this,v1,v2,index,input_parents)
         ! initializes important filament segment parameters 
 
         implicit none
@@ -65,6 +67,7 @@ contains
         class(filament_segment), intent(inout) :: this
         type(vertex),intent(inout),target :: v1, v2
         integer, intent(in) :: index
+        integer,dimension(4),intent(in) :: input_parents
 
         ! set number of sides 
         this%N = 2
@@ -75,6 +78,9 @@ contains
         ! assign pointers
         this%vertices(1)%ptr => v1
         this%vertices(2)%ptr => v2
+        
+        !store parent vertex indicies
+        this%parents = input_parents
 
         ! store index
         this%index = index
