@@ -36,7 +36,7 @@ module filament_segment_mod
         integer :: N = 2 ! number of vertices
         real,dimension(3,3) :: A_g_to_c, A_c_to_g ! Coordinate transformation matrices
         real,dimension(3,3) :: A_g_to_c_mir, A_c_to_g_mir
-        integer, dimension(4) :: parents
+        integer, dimension(4) :: parents ! stores index for parent vertices.  Order is top1 bot1 top2 bot2
         integer :: M_dim
 
 
@@ -142,7 +142,7 @@ contains
         integer :: i
         
         dod_info = this%check_dod(eval_point, freestream, mirror_filament)
-    
+        
         ! Get integrals 
         int = this%calc_integrals(eval_point, freestream, mirror_filament, dod_info)
         v_d_M_space =  this%assemble_v_d_M_space(int, freestream, mirror_filament)
@@ -361,7 +361,6 @@ contains
         class(filament_segment),intent(in) :: this
         real,dimension(:),allocatable,intent(in) :: mu
         logical,intent(in) :: mirror
-        integer,intent(in) :: N_body_verts
         logical,intent(in) :: asym_flow
 
         real,dimension(:),allocatable :: mu_strengths
@@ -376,16 +375,20 @@ contains
         end if
 
         ! Allocate
-        allocate(mu_strengths(this%M_dim)) !!!! should M_dim be 3 or 2? -SA
+        allocate(mu_strengths(this%N)) !!!! should M_dim be 3 or 2? -SA I just switched it to N -JJH
 
         ! Get doublet strengths based on parents
         
         do i=1,this%N
-            i_top = this%vertices(i)%ptr%top_parent + shift
-            i_bot = this%vertices(i)%ptr%bot_parent + shift
-            if (i_top > size(mu)) i_top = i_top - size(mu)
-            if (i_bot > size(mu)) i_bot = i_bot - size(mu)
-            mu_strengths(i) = mu(i_top) - mu(i_bot)
+            i_top1 = this%parents(1) + shift
+            i_bot1 = this%parents(2) + shift
+            i_top2 = this%parents(3) + shift
+            i_bot2 = this%parents(4) + shift
+            if (i_top1 > size(mu)) i_top1 = i_top1 - size(mu)
+            if (i_bot1 > size(mu)) i_bot1 = i_bot1 - size(mu)
+            if (i_top1 > size(mu)) i_top1 = i_top1 - size(mu)
+            if (i_bot1 > size(mu)) i_bot1 = i_bot1 - size(mu)
+            mu_strengths(i) = mu(i_top1) - mu(i_bot1) - mu(i_top2) - mu(i_bot2)
         end do
     
     end function filament_segment_get_doublet_strengths
@@ -405,15 +408,15 @@ contains
         integer,intent(in) :: N_body_panels, N_body_verts
         real,dimension(3),intent(out) :: v_d, v_s
 
-        real,dimension(:,:),allocatable :: source_inf, doublet_inf
+        real,dimension(:,:),allocatable :: doublet_inf
         real,dimension(:),allocatable :: doublet_strengths
-        real,dimension(this%S_dim) :: source_strengths
+    
 
         ! Get influences
         call this%calc_velocity_influences(P, freestream, mirror_filament, doublet_inf)
 
         ! Get strengths
-        doublet_strengths = this%get_doublet_strengths(mu, mirror_panel, N_body_verts, asym_flow)
+        doublet_strengths = this%get_doublet_strengths(mu, mirror_filament, asym_flow)
 
         ! Apply strengths to calculate potentials
         v_s = matmul(source_inf, source_strengths)

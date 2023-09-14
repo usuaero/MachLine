@@ -172,8 +172,7 @@ contains
 
         type(vtk_out) :: wake_vtk  !!!! new name?
         integer :: i, j, k, l, m, n, shift, N_verts, N_segments
-        real,dimension(:),allocatable :: parent_mu !!!!mu_on_wake ?   
-        !real,dimension(:),allocatable :: circ_filament !!!!
+        real,dimension(:),allocatable :: parent_mu, gamma_on_wake    
         real,dimension(:,:),allocatable :: verts
 
         ! Clear old file
@@ -211,32 +210,18 @@ contains
             end do
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             if (present(mu)) then
-            !    ! Calculate doublet strengths
-            !    allocate(mu_on_wake(N_verts))
-            !    i = 0
-            !    do k=1,this%N_filaments
-            !        do j=1,this%filaments(k)%N_verts
-            !            i = i + 1
-            !            mu_on_wake(i) = mu(this%filaments(k)%vertices(j)%top_parent) - mu(this%filaments(k)%vertices(j)%bot_parent)
-            !        end do
-            !    end do
+               ! Calculate doublet strengths
+               allocate(gamma_on_wake(N_verts*N_filaments))
+               i = 0
+               do k=1,this%N_filaments
+                   do j=1,this%filaments(k)%N_verts
+                       i = i + 1
+                       gamma_on_wake(i) = (mu(this%filaments(k)%parents(1))-mu(this%filaments(k)%parents(2))) - (mu(this%filaments(k)%parents(3))-mu(this%filaments(k)%parents(4)))
+                   end do
+               end do
 
-            !    ! Write doublet strengths
-            !    !call wake_vtk%write_point_scalars(mu_on_wake, "mu") !!!! do we need this???
-
-            !    ! Calculate filament circulation strength
-            !    allocate(circ_filament(N_filaments)) 
-            !    l = 0
-            !    do m=1,this%N_filaments
-            !        !do n=1,this%filaments(m)%N_verts !!!! dose this need to loop through verticies ???
-            !            l = l + 1
-            !            circ_filament(i) = mu_on_wake(n + 1) - mu_on_wake(n)
-            !        !end do 
-            !    end do
-
-                ! Write doublet strengths
-                ! call wake_vtk%write_point_scalars(circ_filament, "Circulation") !!!! removed for to compile -jjh
-
+               ! Write doublet strengths
+               call wake_vtk%write_point_scalars(gamma_on_wake, "Gamma") 
                 
             end if
 
