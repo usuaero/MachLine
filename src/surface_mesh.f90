@@ -2595,7 +2595,7 @@ contains
                     
                     ! Calculate influence
                     call this%filament_wake%filaments(j)%segments(k)%calc_velocities(point, freestream, .false., &
-                                                            this%sigma, this%mu, this%N_panels, this%N_verts, &
+                                                            this%sigma, this%mu, &
                                                             this%asym_flow, v_d_segment)
                     
                     v_d = v_d + v_d_segment
@@ -2604,7 +2604,7 @@ contains
                     if (this%mirrored .and. .not. this%asym_flow) then
 
                         call this%filament_wake%filaments(j)%segments(k)%calc_velocities(point, freestream, .false., &
-                                                                this%sigma, this%mu, this%N_panels, this%N_verts, &
+                                                                this%sigma, this%mu, &
                                                                 this%asym_flow, v_d_segment)
                         
                         v_d_segment = mirror_across_plane(v_d_segment, this%mirror_plane)

@@ -353,7 +353,7 @@ contains
         
     end function filament_segment_assemble_v_d_M_space
 
-    function filament_segment_get_doublet_strengths(this, mu, mirror, N_body_verts, asym_flow) result(mu_strengths)
+    function filament_segment_get_doublet_strengths(this, mu, mirror, asym_flow) result(mu_strengths)
         ! Returns the relevant doublet strengths for this panel
 
         implicit none
@@ -365,7 +365,7 @@ contains
 
         real,dimension(:),allocatable :: mu_strengths
 
-        integer :: shift, i, i_top, i_bot
+        integer :: shift, i, i_top1, i_bot1, i_top2, i_bot2
 
         ! Determine shift
         if (mirror) then
@@ -394,8 +394,7 @@ contains
     end function filament_segment_get_doublet_strengths
 
 
-    subroutine filament_segment_calc_velocities(this, P, freestream, mirror_panel, sigma, mu, &
-                N_body_panels, N_body_verts, asym_flow, v_s, v_d)
+    subroutine filament_segment_calc_velocities(this, P, freestream, mirror_filament, sigma, mu, asym_flow, v_d)
         ! Calculates the velocity induced at the given point
 
         implicit none
@@ -403,10 +402,9 @@ contains
         class(filament_segment),intent(in) :: this
         real,dimension(3),intent(in) :: P
         type(flow),intent(in) :: freestream
-        logical,intent(in) :: mirror_panel, asym_flow
+        logical,intent(in) :: mirror_filament, asym_flow
         real,dimension(:),allocatable,intent(in) :: sigma, mu
-        integer,intent(in) :: N_body_panels, N_body_verts
-        real,dimension(3),intent(out) :: v_d, v_s
+        real,dimension(3),intent(out) :: v_d
 
         real,dimension(:,:),allocatable :: doublet_inf
         real,dimension(:),allocatable :: doublet_strengths
@@ -419,13 +417,13 @@ contains
         doublet_strengths = this%get_doublet_strengths(mu, mirror_filament, asym_flow)
 
         ! Apply strengths to calculate potentials
-        v_s = matmul(source_inf, source_strengths)
+        ! v_s = matmul(source_inf, source_strengths) !!!! commenting out since we don't have sources
 
-        if (this%in_wake) then
+        ! if (this%in_wake) then !!!! commetning out since we are always in wake here
         v_d = matmul((doublet_inf(:,1:this%M_dim)+doublet_inf(:,this%M_dim+1:)), doublet_strengths)
-        else
-        v_d = matmul(doublet_inf, doublet_strengths)
-        end if
+        ! else
+        ! v_d = matmul(doublet_inf, doublet_strengths)
+        ! end if
 
     end subroutine filament_segment_calc_velocities
 end module filament_segment_mod

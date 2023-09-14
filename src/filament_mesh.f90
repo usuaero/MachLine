@@ -211,12 +211,13 @@ contains
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             if (present(mu)) then
                ! Calculate doublet strengths
-               allocate(gamma_on_wake(N_verts*N_filaments))
+               allocate(gamma_on_wake(N_verts))
                i = 0
                do k=1,this%N_filaments
                    do j=1,this%filaments(k)%N_verts
                        i = i + 1
-                       gamma_on_wake(i) = (mu(this%filaments(k)%parents(1))-mu(this%filaments(k)%parents(2))) - (mu(this%filaments(k)%parents(3))-mu(this%filaments(k)%parents(4)))
+                       gamma_on_wake(i) = (mu(this%filaments(k)%i_top_parent_1)-mu(this%filaments(k)%i_bot_parent_1)) &
+                       - (mu(this%filaments(k)%i_top_parent_2)-mu(this%filaments(k)%i_bot_parent_2))
                    end do
                end do
 
