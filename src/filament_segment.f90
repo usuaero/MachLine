@@ -37,6 +37,7 @@ module filament_segment_mod
         real,dimension(3,3) :: A_g_to_c, A_c_to_g ! Coordinate transformation matrices
         real,dimension(3,3) :: A_g_to_c_mir, A_c_to_g_mir
         integer, dimension(4) :: parents
+        integer :: M_dim
 
 
 
@@ -50,7 +51,8 @@ module filament_segment_mod
             procedure :: assemble_v_d_M_space => filament_segment_assemble_v_d_M_space 
             procedure :: calc_influence_integrals => filament_segment_calc_influence_integrals 
             procedure :: get_vertex_loc => filament_segment_get_vertex_loc
-
+            procedure :: get_doublet_strengths => filament_segment_get_doublet_strengths
+            procedure :: calc_velocities => filament_segment_calc_velocities
             ! DOD stuff
             procedure :: check_dod => filament_segment_check_dod
     end type filament_segment 
@@ -351,5 +353,76 @@ contains
         
     end function filament_segment_assemble_v_d_M_space
 
+    function filament_segment_get_doublet_strengths(this, mu, mirror, N_body_verts, asym_flow) result(mu_strengths)
+        ! Returns the relevant doublet strengths for this panel
 
+        implicit none
+        
+        class(filament_segment),intent(in) :: this
+        real,dimension(:),allocatable,intent(in) :: mu
+        logical,intent(in) :: mirror
+        integer,intent(in) :: N_body_verts
+        logical,intent(in) :: asym_flow
+
+        real,dimension(:),allocatable :: mu_strengths
+
+        integer :: shift, i, i_top, i_bot
+
+        ! Determine shift
+        if (mirror) then
+            shift = size(mu)/2
+        else
+            shift = 0
+        end if
+
+        ! Allocate
+        allocate(mu_strengths(this%M_dim)) !!!! should M_dim be 3 or 2? -SA
+
+        ! Get doublet strengths based on parents
+        
+        do i=1,this%N
+            i_top = this%vertices(i)%ptr%top_parent + shift
+            i_bot = this%vertices(i)%ptr%bot_parent + shift
+            if (i_top > size(mu)) i_top = i_top - size(mu)
+            if (i_bot > size(mu)) i_bot = i_bot - size(mu)
+            mu_strengths(i) = mu(i_top) - mu(i_bot)
+        end do
+    
+    end function filament_segment_get_doublet_strengths
+
+
+    subroutine filament_segment_calc_velocities(this, P, freestream, mirror_panel, sigma, mu, &
+                N_body_panels, N_body_verts, asym_flow, v_s, v_d)
+        ! Calculates the velocity induced at the given point
+
+        implicit none
+
+        class(filament_segment),intent(in) :: this
+        real,dimension(3),intent(in) :: P
+        type(flow),intent(in) :: freestream
+        logical,intent(in) :: mirror_panel, asym_flow
+        real,dimension(:),allocatable,intent(in) :: sigma, mu
+        integer,intent(in) :: N_body_panels, N_body_verts
+        real,dimension(3),intent(out) :: v_d, v_s
+
+        real,dimension(:,:),allocatable :: source_inf, doublet_inf
+        real,dimension(:),allocatable :: doublet_strengths
+        real,dimension(this%S_dim) :: source_strengths
+
+        ! Get influences
+        call this%calc_velocity_influences(P, freestream, mirror_filament, doublet_inf)
+
+        ! Get strengths
+        doublet_strengths = this%get_doublet_strengths(mu, mirror_panel, N_body_verts, asym_flow)
+
+        ! Apply strengths to calculate potentials
+        v_s = matmul(source_inf, source_strengths)
+
+        if (this%in_wake) then
+        v_d = matmul((doublet_inf(:,1:this%M_dim)+doublet_inf(:,this%M_dim+1:)), doublet_strengths)
+        else
+        v_d = matmul(doublet_inf, doublet_strengths)
+        end if
+
+    end subroutine filament_segment_calc_velocities
 end module filament_segment_mod

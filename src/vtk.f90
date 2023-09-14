@@ -249,7 +249,7 @@ contains
             write(this%unit,'(a i20 i20)') "LINES", N_segments, N_segments*3
         end if
         
-        ! Write out panels
+        ! Write out segments
         do i=1,size(segments)
 
             ! Number of vertices

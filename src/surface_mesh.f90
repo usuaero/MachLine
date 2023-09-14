@@ -2542,12 +2542,12 @@ contains
         real,dimension(3),intent(out) :: v_d, v_s
 
         integer :: j, k
-        real,dimension(3) :: v_d_panel, v_s_panel
+        real,dimension(3) :: v_d_panel, v_s_panel, v_d_segment
 
         ! Loop through panels
         v_d = (/0.,0.,0./)
         v_s = (/0.,0.,0./)
-
+        
         do k=1,this%N_panels
 
             ! Calculate influence
@@ -2587,36 +2587,64 @@ contains
             end if
 
         end do
-
+        !!!! Need something here -jjh
         ! Loop through wake panels !!!!!!!!!!!!!!!!!!!!!! include if statement to instead solve filament influence if there are wake filaments
-        do j=1,this%wake%N_strips
-            do k=1,this%wake%strips(j)%N_panels
-                
-                ! Calculate influence
-                call this%wake%strips(j)%panels(k)%calc_velocities(point, freestream, .false., &
-                                                         this%sigma, this%mu, this%N_panels, this%N_verts, &
-                                                         this%asym_flow, v_s_panel, v_d_panel)
-                
-                v_d = v_d + v_d_panel
-                if (this%wake%strips(j)%panels(k)%has_sources) v_s = v_s + v_s_panel
-
-                ! Calculate mirrored influences
-                if (this%mirrored .and. .not. this%asym_flow) then
-
-                    call this%wake%strips(j)%panels(k)%calc_velocities(point, freestream, .false., &
-                                                             this%sigma, this%mu, this%N_panels, this%N_verts, &
-                                                             this%asym_flow, v_s_panel, v_d_panel)
+        if (this%wake_type == "filaments") then 
+            do j=1,this%filament_wake%N_filaments
+                do k=1,this%filament_wake%filaments(j)%N_segments
                     
-                    v_d_panel = mirror_across_plane(v_d_panel, this%mirror_plane)
-                    v_s_panel = mirror_across_plane(v_s_panel, this%mirror_plane)
-                    if (this%wake%strips(j)%panels(k)%has_sources) v_s = v_s + v_s_panel
-                    v_d = v_d + v_d_panel
+                    ! Calculate influence
+                    call this%filament_wake%filaments(j)%segments(k)%calc_velocities(point, freestream, .false., &
+                                                            this%sigma, this%mu, this%N_panels, this%N_verts, &
+                                                            this%asym_flow, v_d_segment)
+                    
+                    v_d = v_d + v_d_segment
 
-                end if
+                    ! Calculate mirrored influences
+                    if (this%mirrored .and. .not. this%asym_flow) then
 
+                        call this%filament_wake%filaments(j)%segments(k)%calc_velocities(point, freestream, .false., &
+                                                                this%sigma, this%mu, this%N_panels, this%N_verts, &
+                                                                this%asym_flow, v_d_segment)
+                        
+                        v_d_segment = mirror_across_plane(v_d_segment, this%mirror_plane)
+                        v_d = v_d + v_d_segment
+
+                    end if
+
+                end do
+    
             end do
-        end do
+        else
+            do j=1,this%wake%N_strips
+                do k=1,this%wake%strips(j)%N_panels
+                    
+                    ! Calculate influence
+                    call this%wake%strips(j)%panels(k)%calc_velocities(point, freestream, .false., &
+                                                            this%sigma, this%mu, this%N_panels, this%N_verts, &
+                                                            this%asym_flow, v_s_panel, v_d_panel)
+                    
+                    v_d = v_d + v_d_panel
+                    if (this%wake%strips(j)%panels(k)%has_sources) v_s = v_s + v_s_panel
 
+                    ! Calculate mirrored influences
+                    if (this%mirrored .and. .not. this%asym_flow) then
+
+                        call this%wake%strips(j)%panels(k)%calc_velocities(point, freestream, .false., &
+                                                                this%sigma, this%mu, this%N_panels, this%N_verts, &
+                                                                this%asym_flow, v_s_panel, v_d_panel)
+                        
+                        v_d_panel = mirror_across_plane(v_d_panel, this%mirror_plane)
+                        v_s_panel = mirror_across_plane(v_s_panel, this%mirror_plane)
+                        if (this%wake%strips(j)%panels(k)%has_sources) v_s = v_s + v_s_panel
+                        v_d = v_d + v_d_panel
+
+                    end if
+
+                end do
+    
+            end do
+        end if
     end subroutine surface_mesh_get_induced_velocities_at_point
 
 
