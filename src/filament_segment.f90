@@ -262,9 +262,9 @@ contains
 
         !define k
         if (freestream%supersonic) then 
-            k = -1 !!!! I think this is right. Re-verify with Miranda
+            k = 1 !!!! I think this is right. Re-verify with Miranda
         else 
-            k = 1
+            k = 2 
         end if 
 
         bsq = k*freestream%B**2
@@ -345,7 +345,7 @@ contains
         ! end if
 
         ! Transform to global coordinates
-        ! if (mirror_filament) then
+        ! if (mirror_filament) then !!!! need to get mirroring going 
         !     v_d_M_space = matmul(transpose(freestream%A_g_to_c_mir), v_d_M_space) !!!! need to go from compressible to global
         ! else
         v_d_M_space = matmul(transpose(freestream%A_g_to_c), v_d_M_space) !!!! need to go from compressible to global
