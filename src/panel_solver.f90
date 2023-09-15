@@ -940,7 +940,7 @@ contains
         call this%calc_body_influences(body)
 
         ! Calculate wake influences
-        if (body%wake%N_panels > 0) call this%calc_wake_influences(body, formulation) !!!! formulation part is a change
+        if (body%wake%N_panels > 0 .or. body%filament_wake%N_filaments > 0) call this%calc_wake_influences(body, formulation) !!!! formulation part is a change
 
         ! Assemble boundary condition vector
         call this%assemble_BC_vector(body)
@@ -2476,6 +2476,7 @@ contains
         call json_value_add(p_parent, 'N_body_panels', body%N_panels)
         call json_value_add(p_parent, 'N_body_vertices', body%N_verts)
         call json_value_add(p_parent, 'N_wake_panels', body%wake%N_panels)
+        call json_value_add(p_parent, "N_wake_filaments", body%filament_wake%N_filaments)
         call json_value_add(p_parent, 'average_characteristic_length', body%get_avg_characteristic_panel_length())
         max_flow_turning_angle = acos(body%C_min_panel_angle)*180./pi
         call json_value_add(p_parent, 'max_flow_turning_angle', max_flow_turning_angle)

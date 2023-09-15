@@ -2545,12 +2545,12 @@ contains
         real,dimension(3),intent(out) :: v_d, v_s
 
         integer :: j, k
-        real,dimension(3) :: v_d_panel, v_s_panel
+        real,dimension(3) :: v_d_panel, v_s_panel, v_d_segment
 
         ! Loop through panels
         v_d = (/0.,0.,0./)
         v_s = (/0.,0.,0./)
-
+        
         do k=1,this%N_panels
 
             ! Calculate influence
@@ -2590,7 +2590,7 @@ contains
             end if
 
         end do
-
+        !!!! Need something here -jjh
         ! Loop through wake panels !!!!!!!!!!!!!!!!!!!!!! include if statement to instead solve filament influence if there are wake filaments
         if (this%wake_type == "panels") then !!!! make sure they can't pick the wrong formulation for what they're doing. 
 
