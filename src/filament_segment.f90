@@ -147,7 +147,6 @@ contains
         int = this%calc_integrals(eval_point, freestream, mirror_filament, dod_info)
         v_d_M_space =  this%assemble_v_d_M_space(int, freestream, mirror_filament)
         
-        
     end subroutine filament_segment_calc_velocity_influences
 
 
@@ -191,7 +190,6 @@ contains
             dod_info%both_in_dod = .true.
         end if
         
-
     end function filament_segment_check_dod
          
 
@@ -244,7 +242,7 @@ contains
         loc_1 = this%get_vertex_loc(1) !!!! put in appropriate input and get 
         loc_2 = this%get_vertex_loc(2) !!!! put in appropriate input and get 
 
-        loc_1 = matmul((freestream%A_g_to_c), loc_1)
+        loc_1 = matmul((freestream%A_g_to_c), loc_1) !!!! Did we do this right? 
         loc_2 = matmul((freestream%A_g_to_c), loc_2)
         
         xf = loc_2(1)
@@ -353,6 +351,7 @@ contains
         
     end function filament_segment_assemble_v_d_M_space
 
+
     function filament_segment_get_doublet_strengths(this, mu, mirror, asym_flow) result(mu_strengths)
         ! Returns the relevant doublet strengths for this panel
 
@@ -388,7 +387,7 @@ contains
             if (i_bot1 > size(mu)) i_bot1 = i_bot1 - size(mu)
             if (i_top1 > size(mu)) i_top1 = i_top1 - size(mu)
             if (i_bot1 > size(mu)) i_bot1 = i_bot1 - size(mu)
-            mu_strengths(i) = mu(i_top1) - mu(i_bot1) - mu(i_top2) - mu(i_bot2)
+            mu_strengths(i) = (mu(i_top1) - mu(i_bot1)) - (mu(i_top2) - mu(i_bot2))
         end do
     
     end function filament_segment_get_doublet_strengths
@@ -420,10 +419,12 @@ contains
         ! v_s = matmul(source_inf, source_strengths) !!!! commenting out since we don't have sources
 
         ! if (this%in_wake) then !!!! commetning out since we are always in wake here
-        v_d = matmul((doublet_inf(:,1:this%M_dim)+doublet_inf(:,this%M_dim+1:)), doublet_strengths)
+        ! v_d = matmul((doublet_inf(:,1:this%M_dim)+doublet_inf(:,this%M_dim+1:)), doublet_strengths)
         ! else
-        ! v_d = matmul(doublet_inf, doublet_strengths)
+        v_d = matmul(doublet_inf, doublet_strengths)
         ! end if
 
     end subroutine filament_segment_calc_velocities
+
+
 end module filament_segment_mod
