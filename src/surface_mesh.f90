@@ -46,6 +46,7 @@ module surface_mesh_mod
         integer :: initial_panel_order ! Distribution order for the panels (initially)
         character(len=:),allocatable :: singularity_order
         character(len=:),allocatable :: wake_type 
+        character(len=:),allocatable :: formulation !!!! could we use this instead, go to surface_mesh_parse_wake_settings to see  
 
 
         contains
@@ -1345,7 +1346,7 @@ contains
             !!!!!!!!!!!!!!!!!!!!!!! Wake_DEV !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             else if (this%wake_has_filaments(formulation))  then                                                                           !
                 write(*,*)                                                                                                            !
-                write(*,*) "WARNING: FILAMENT WAKE NOT YET FUNCTIONAL."                      !
+                ! write(*,*) "WARNING: FILAMENT WAKE NOT YET FUNCTIONAL."     !!!! pretty much functional now                 !
                 write(*,*)                                                                                                            !
                 call this%filament_wake%init(this%edges, this%vertices, freestream, this%asym_flow, this%mirror_plane, &                       !
                                     this%N_wake_panels_streamwise, this%trefftz_distance, this%mirrored, this%initial_panel_order, &  !
@@ -1354,7 +1355,9 @@ contains
             else                                                                                                                      !
                 write(*,*)                                                                                                            !
                 write(*,*) "wake_type needs to be panels or filaments, and if wake_type", &                                           !
-                            "is filaments, formulation has to be neumann-mass-flux or neumann-velocity"                               !
+                            "is filaments", & 
+                            "formulation has to be neumann-mass-flux or neumann-velocity.", &
+                            "Running a panel wake by default"                               !
                 write(*,*)                                                                                                            !
                 call this%wake%init(this%edges, this%vertices, freestream, this%asym_flow, this%mirror_plane, &                       !
                                     this%N_wake_panels_streamwise, this%trefftz_distance, this%mirrored, this%initial_panel_order, &  !
@@ -2531,7 +2534,7 @@ contains
     end subroutine surface_mesh_get_induced_potentials_at_point
 
 
-    subroutine surface_mesh_get_induced_velocities_at_point(this, point, freestream, v_d, v_s)
+    subroutine surface_mesh_get_induced_velocities_at_point(this, point,  freestream, v_d, v_s)
         ! Calculates the source- and doublet-induced potentials at the given point
 
         implicit none
@@ -2589,33 +2592,65 @@ contains
         end do
 
         ! Loop through wake panels !!!!!!!!!!!!!!!!!!!!!! include if statement to instead solve filament influence if there are wake filaments
-        do j=1,this%wake%N_strips
-            do k=1,this%wake%strips(j)%N_panels
-                
-                ! Calculate influence
-                call this%wake%strips(j)%panels(k)%calc_velocities(point, freestream, .false., &
-                                                         this%sigma, this%mu, this%N_panels, this%N_verts, &
-                                                         this%asym_flow, v_s_panel, v_d_panel)
-                
-                v_d = v_d + v_d_panel
-                if (this%wake%strips(j)%panels(k)%has_sources) v_s = v_s + v_s_panel
+        if (this%wake_type == "panels") then !!!! make sure they can't pick the wrong formulation for what they're doing. 
 
-                ! Calculate mirrored influences
-                if (this%mirrored .and. .not. this%asym_flow) then
-
-                    call this%wake%strips(j)%panels(k)%calc_velocities(point, freestream, .false., &
-                                                             this%sigma, this%mu, this%N_panels, this%N_verts, &
-                                                             this%asym_flow, v_s_panel, v_d_panel)
+            do j=1,this%wake%N_strips
+                do k=1,this%wake%strips(j)%N_panels
                     
-                    v_d_panel = mirror_across_plane(v_d_panel, this%mirror_plane)
-                    v_s_panel = mirror_across_plane(v_s_panel, this%mirror_plane)
-                    if (this%wake%strips(j)%panels(k)%has_sources) v_s = v_s + v_s_panel
+                    ! Calculate influence
+                    call this%wake%strips(j)%panels(k)%calc_velocities(point, freestream, .false., &
+                                                            this%sigma, this%mu, this%N_panels, this%N_verts, &
+                                                            this%asym_flow, v_s_panel, v_d_panel)
+                    
                     v_d = v_d + v_d_panel
+                    if (this%wake%strips(j)%panels(k)%has_sources) v_s = v_s + v_s_panel
 
-                end if
+                    ! Calculate mirrored influences
+                    if (this%mirrored .and. .not. this%asym_flow) then
 
+                        call this%wake%strips(j)%panels(k)%calc_velocities(point, freestream, .false., &
+                                                                this%sigma, this%mu, this%N_panels, this%N_verts, &
+                                                                this%asym_flow, v_s_panel, v_d_panel)
+                        
+                        v_d_panel = mirror_across_plane(v_d_panel, this%mirror_plane)
+                        v_s_panel = mirror_across_plane(v_s_panel, this%mirror_plane)
+                        if (this%wake%strips(j)%panels(k)%has_sources) v_s = v_s + v_s_panel
+                        v_d = v_d + v_d_panel
+
+                    end if
+
+                end do
+        
             end do
-        end do
+
+        else
+
+            do j=1,this%filament_wake%N_filaments
+                do k=1,this%filament_wake%filaments(j)%N_segments
+                    
+                    ! Calculate influence
+                    call this%filament_wake%filaments(j)%segments(k)%calc_velocities(point, freestream,  &
+                                                    .false., this%sigma, this%mu, this%N_segments, & 
+                                                    this%N_verts, this%asym_flow,v_d_segment)
+                    
+                    v_d = v_d + v_d_segment  !!!! may need to check syntax here
+
+                    ! Calculate mirrored influences
+                    if (this%mirrored .and. .not. this%asym_flow) then
+
+                        call this%filament_wake%filaments(j)%segments(k)%calc_velocities(point, freestream, & 
+                                                        .false., this%sigma, this%mu, this%N_segments, & 
+                                                        this%N_verts, this%asym_flow,v_d_segment)
+                        
+                        v_d_panel = mirror_across_plane(v_d_panel, this%mirror_plane)
+                        v_d = v_d + v_d_segment
+
+                    end if
+
+                end do
+        
+            end do
+        end if 
 
     end subroutine surface_mesh_get_induced_velocities_at_point
 

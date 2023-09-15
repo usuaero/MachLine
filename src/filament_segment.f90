@@ -50,7 +50,7 @@ module filament_segment_mod
             procedure :: assemble_v_d_M_space => filament_segment_assemble_v_d_M_space 
             procedure :: calc_influence_integrals => filament_segment_calc_influence_integrals 
             procedure :: get_vertex_loc => filament_segment_get_vertex_loc
-
+            procedure :: calc_velocities => filament_segment_calc_velocities 
             ! DOD stuff
             procedure :: check_dod => filament_segment_check_dod
     end type filament_segment 
@@ -128,7 +128,7 @@ contains
         implicit none 
 
         class(filament_segment),intent(in) :: this
-        real,dimension(3),intent(in) :: eval_point !!!! not sure what P is in panel_calc_velocity_influences
+        real,dimension(3),intent(in) :: eval_point 
         type(flow),intent(in) :: freestream
         logical,intent(in) :: mirror_filament
         real, dimension(:,:),allocatable,intent(out) :: v_d_M_space
@@ -350,6 +350,38 @@ contains
         ! end if
         
     end function filament_segment_assemble_v_d_M_space
+
+
+    subroutine filament_segment_calc_velocities(this, eval_point, freestream, mirror_filament, & 
+                                        sigma, mu, N_body_panels, N_body_verts, asym_flow,v_d)
+        ! Calculates the velocity induced at the given point
+
+        implicit none
+
+        class(filament_segment),intent(in) :: this
+        real,dimension(3),intent(in) :: eval_point 
+        type(flow),intent(in) :: freestream
+        logical,intent(in) :: mirror_filament, asym_flow
+        real,dimension(:),allocatable,intent(in) :: sigma, mu
+        integer,intent(in) :: N_body_panels, N_body_verts
+        real,dimension(3),intent(out) :: v_d
+
+        real,dimension(:,:),allocatable :: doublet_inf
+        real,dimension(:),allocatable :: doublet_strengths
+
+        ! Get influences
+        call this%calc_velocity_influences(eval_point, freestream, mirror_filament, doublet_inf)
+
+        ! Get strengths
+        doublet_strengths = this%get_doublet_strengths(mu, mirror_panel, N_body_verts, asym_flow) !!!! change based on what Josh needs. 
+
+        ! if (this%in_wake) then
+        ! v_d = matmul((doublet_inf(:,1:this%M_dim)+doublet_inf(:,this%M_dim+1:)), doublet_strengths)
+        ! else
+        v_d = matmul(doublet_inf, doublet_strengths) !!!! may need to adjust this. Not sure. 
+        ! end if
+
+    end subroutine filament_segment_calc_velocities
 
 
 end module filament_segment_mod
