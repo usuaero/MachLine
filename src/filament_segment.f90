@@ -258,14 +258,14 @@ contains
         yo = eval_point(2)
         zo = eval_point(3)
 
+        bsq = 1 - (freestream%M_inf**2)
         !define k
-        if (freestream%supersonic) then 
+        if (freestream%supersonic) then
             k = 1 !!!! I think this is right. Re-verify with Miranda
         else 
             k = 2 
         end if 
 
-        bsq = k*freestream%B**2
 
         ! write out the integrals here based on the different dod stuff. 
         unrel_v_numer_one = (zo-zf)*(xo-xf)
