@@ -154,7 +154,7 @@ contains
         do i=2,this%N_verts
 
             ! Calculate location of vertex
-            loc = start_c + sep*i/2*freestream%c_hat_g
+            loc = start_c + sep*(i-1)*freestream%c_hat_g
            
             ! Initialize vertex
             call this%vertices(i)%init(loc, i)

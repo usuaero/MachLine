@@ -1,15 +1,15 @@
 {
     "flow": {
-        "freestream_velocity" : [ 100.0, 10.0, 0.0 ],
-        "freestream_mach_number" : 0.5
+        "freestream_velocity" : [ 100.0, 0.0, 20.0 ],
+        "freestream_mach_number" : 0
     },
     "geometry": {
-        "file": "dev/meshes/delta_wing_clustered_mesh_coarse.vtk",
+        "file" : "dev/meshes/naca_0010_AR_10_full_coarse.stl",
         "singularity_order" : "lower",
         "wake_model" : {
             "wake_present" : true,
             "append_wake" : true,
-            "trefftz_distance" : 20.0,
+            "trefftz_distance" : 50.0,
             "wake_type": "filaments"
 
         }
@@ -22,10 +22,10 @@
     "post_processing" : {
     },
     "output": {
-        "body_file" :          "dev/results/wake/delta_wing_sub_fil.vtk",
-        "wake_file" :          "dev/results/wake/delta_wing_wake_sub_fil.vtk",
-        "control_point_file" : "dev/results/wake/delta_wing_control_points.vtk",
-        "report_file" :        "dev/results/wake/report_sub_fil.json",
+        "body_file" :          "dev/results/wake/naca_wing_sub_fil.vtk",
+        "wake_file" :          "dev/results/wake/naca_wing_sub_fil_wake.vtk",
+        "control_point_file" : "dev/results/wake/naca_wing_control_points.vtk",
+        "report_file" :        "dev/results/wake/naca_wing_report.json",
         "ffbody_points" : {
             "points_file" : "dev/input_files/delta_wing_slice_sample_points.csv",
             "output_file" : "dev/results/delta_wing_slice_sample_points.csv"
