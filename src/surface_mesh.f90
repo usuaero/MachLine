@@ -2590,7 +2590,7 @@ contains
             end if
 
         end do
-        !!!! Need something here -jjh
+        
         ! Loop through wake panels !!!!!!!!!!!!!!!!!!!!!! include if statement to instead solve filament influence if there are wake filaments
         if (this%wake_type == "panels") then !!!! make sure they can't pick the wrong formulation for what they're doing. 
 

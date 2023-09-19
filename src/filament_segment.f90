@@ -260,11 +260,12 @@ contains
 
         bsq = 1 - (freestream%M_inf**2)
         !define k
-        if (freestream%supersonic) then
-            k = 1 !!!! I think this is right. Re-verify with Miranda
-        else 
-            k = 2 
-        end if 
+        ! if (freestream%supersonic) then
+        !     k = 1 !!!! I think this is right. Re-verify with Miranda
+        ! else 
+        !     k = 2 
+        ! end if 
+
 
 
         ! write out the integrals here based on the different dod stuff. 
@@ -282,12 +283,12 @@ contains
        !if (this%relaxed) !!!! put in logic like this later when we employ relaxation. -SA  
         if (dod_info%both_in_dod) then 
             int%u = 0
-            int%v = (1/(2*pi*k))*((unrel_v_numer_one/unrel_v_denom_one)-(unrel_v_numer_two/unrel_v_denom_two)) !!!! declare all of these variables and stuff - SA
-            int%w = (-1/(2*pi*k))*((unrel_w_numer_one/unrel_w_denom_one)-(unrel_w_numer_two/unrel_w_denom_two)) !!!! declare all of these variables and stuff - SA
+            int%v = (freestream%k_inv)*((unrel_v_numer_one/unrel_v_denom_one)-(unrel_v_numer_two/unrel_v_denom_two)) !!!! declare all of these variables and stuff - SA
+            int%w = (-freestream%k_inv)*((unrel_w_numer_one/unrel_w_denom_one)-(unrel_w_numer_two/unrel_w_denom_two)) !!!! declare all of these variables and stuff - SA
         else if (dod_info%first_in_dod) then 
             int%u = 0
-            int%v = (-1/(2*pi*k))*((unrel_v_numer_two/unrel_v_denom_two)) !!!! declare all of these variables and stuff - SA
-            int%w = (1/(2*pi*k))*((unrel_w_numer_two/unrel_w_denom_two)) !!!! declare all of these variables and stuff - SA
+            int%v = (-freestream%k_inv)*((unrel_v_numer_two/unrel_v_denom_two)) !!!! declare all of these variables and stuff - SA
+            int%w = (freestream%k_inv)*((unrel_w_numer_two/unrel_w_denom_two)) !!!! declare all of these variables and stuff - SA
         else 
             int%u = 0
             int%v = 0
@@ -316,18 +317,18 @@ contains
         allocate(v_d_M_space(3,4), source=0.)
 
         v_d_M_space(1,1) = int%u
-        v_d_M_space(1,2) = int%u
-        v_d_M_space(1,3) = int%u
+        v_d_M_space(1,2) = -int%u
+        v_d_M_space(1,3) = -int%u
         v_d_M_space(1,4) = int%u
 
         v_d_M_space(2,1) = int%v
-        v_d_M_space(2,2) = int%v
-        v_d_M_space(2,3) = int%v
+        v_d_M_space(2,2) = -int%v
+        v_d_M_space(2,3) = -int%v
         v_d_M_space(2,4) = int%v
 
         v_d_M_space(3,1) = int%w
-        v_d_M_space(3,2) = int%w
-        v_d_M_space(3,3) = int%w
+        v_d_M_space(3,2) = -int%w
+        v_d_M_space(3,3) = -int%w
         v_d_M_space(3,4) = int%w
             
         ! Convert to strength influences (Davis Eq. (4.41)) !!!! not sure if we need this - SA 
@@ -387,7 +388,7 @@ contains
             if (i_bot1 > size(mu)) i_bot1 = i_bot1 - size(mu)
             if (i_top2 > size(mu)) i_top2 = i_top2 - size(mu)
             if (i_bot2 > size(mu)) i_bot2 = i_bot2 - size(mu)
-            mu_strengths = [mu(i_top2),-mu(i_bot2),-mu(i_top1),mu(i_bot1)]
+            mu_strengths = [mu(i_top2),mu(i_bot2),mu(i_top1),mu(i_bot1)]
             ! mu_strengths(i) = (mu(i_top1) - mu(i_bot1)) - (mu(i_top2) - mu(i_bot2))
         end do
     
