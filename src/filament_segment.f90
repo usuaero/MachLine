@@ -270,14 +270,14 @@ contains
 
         ! write out the integrals here based on the different dod stuff. 
         unrel_v_numer_one = (zo-zf)*(xo-xf)
-        unrel_v_denom_one = ((yo-yf)**2+(zo-zf)**2)*(((xo-xf)**2+bsq*((yo-yf)**2+(zo-zf)**2))**(0.5))
+        unrel_v_denom_one = ((yo-yf)**2+(zo-zf)**2)*((xo-xf)**2+bsq*((yo-yf)**2+(zo-zf)**2))**0.5
         unrel_v_numer_two = (zo-zi)*(xo-xi)
-        unrel_v_denom_two = ((yo-yi)**2+(zo-zi)**2)*(((xo-xi)**2+bsq*((yo-yi)**2+(zo-zi)**2))**(0.5))
-        
+        unrel_v_denom_two = ((yo-yi)**2+(zo-zi)**2)*((xo-xi)**2+bsq*((yo-yi)**2+(zo-zi)**2))**0.5
+
         unrel_w_numer_one = (yo-yf)*(xo-xf)
-        unrel_w_denom_one = ((yo-yf)**2+(zo-zf)**2)*(((xo-xf)**2+bsq*((yo-yf)**2+(zo-zf)**2))**(0.5))
+        unrel_w_denom_one = ((yo-yf)**2+(zo-zf)**2)*((xo-xf)**2+bsq*((yo-yf)**2+(zo-zf)**2))**0.5
         unrel_w_numer_two = (yo-yi)*(xo-xi)
-        unrel_w_denom_two = ((yo-yi)**2+(zo-zi)**2)*(((xo-xi)**2+bsq*((yo-yi)**2+(zo-zi)**2))**(0.5))
+        unrel_w_denom_two = ((yo-yi)**2+(zo-zi)**2)*((xo-xi)**2+bsq*((yo-yi)**2+(zo-zi)**2))**0.5
 
 
        !if (this%relaxed) !!!! put in logic like this later when we employ relaxation. -SA  
