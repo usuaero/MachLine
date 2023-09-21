@@ -236,14 +236,15 @@ contains
         real :: xf, xi, yf, yi, zf, zi
         real :: xo, yo, zo
         real :: bsq  
-        real,dimension(3) :: loc_1, loc_2
+        real,dimension(3) :: loc_1, loc_2,r
         integer :: k 
 
         loc_1 = this%get_vertex_loc(1) !!!! put in appropriate input and get 
         loc_2 = this%get_vertex_loc(2) !!!! put in appropriate input and get 
 
-        loc_1 = matmul((freestream%A_g_to_c), loc_1) !!!! Did we do this right? 
-        loc_2 = matmul((freestream%A_g_to_c), loc_2)
+        loc_1 = matmul(freestream%A_g_to_c, loc_1) !!!! Did we do this right? 
+        loc_2 = matmul(freestream%A_g_to_c, loc_2)
+        r = matmul(freestream%A_g_to_c, eval_point)
         
         xf = loc_2(1)
         xi = loc_1(1)
@@ -254,9 +255,10 @@ contains
         zf = loc_2(3)
         zi = loc_1(3)
 
-        xo = eval_point(1)
-        yo = eval_point(2)
-        zo = eval_point(3)
+
+        xo = r(1)
+        yo = r(2)
+        zo = r(3)
 
         bsq = 1 - (freestream%M_inf**2)
         !define k
@@ -295,8 +297,8 @@ contains
             int%w = 0
 
         end if 
-    
-    end subroutine filament_segment_calc_influence_integrals
+
+            end subroutine filament_segment_calc_influence_integrals
 
 
     function filament_segment_assemble_v_d_M_space(this, int, freestream, mirror_filament) result(v_d_M_space) !!!! need to create this space for wakes

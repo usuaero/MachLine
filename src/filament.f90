@@ -84,7 +84,7 @@ contains
             ! Get starting location
             start_1 = body_verts(starting_edge%top_verts(1))%loc
             start_2 = body_verts(starting_edge%top_verts(2))%loc
-            start_c = (start_1 + start_2) / 2
+            start_c = (start_1 + start_2) * 0.5
 
             ! Get parent vertices
             this%i_top_parent_1 = starting_edge%top_verts(1)

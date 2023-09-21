@@ -7,7 +7,7 @@
         "file": "dev/meshes/delta_wing_clustered_mesh_coarse.vtk",
         "singularity_order" : "lower",
         "wake_model" : {
-            "wake_present" : true,
+            "wake_present" : false,
             "append_wake" : true,
             "trefftz_distance" : 20.0,
             "wake_type": "filaments"
