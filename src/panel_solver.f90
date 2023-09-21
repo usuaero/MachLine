@@ -1533,7 +1533,7 @@ contains
 
             ! Update row of A
             !$OMP critical
-            if (this%use_sort_for_cp) then
+            if (this%use_sort_for_cp) then !!!! is this the same in filaments as it is in panels? 
                 this%A(this%P(i),:) = this%A(this%P(i),:) + A_i
             else
                 this%A(i,:) = this%A(i,:) + A_i
