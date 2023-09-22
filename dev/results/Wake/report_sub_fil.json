@@ -1,45 +1,45 @@
 {
     "info" : {
         "generated_by" : "MachLine (c) 2023 USU Aerolab",
-        "executed" : "Wed Sep 20 15:00:11 2023"
+        "executed" : "Thu Sep 21 20:41:44 2023"
     },
     "mesh_info" : {
         "N_body_panels" : 3184,
-        "N_body_vertices" : 1594,
+        "N_body_vertices" : 1649,
         "N_wake_panels" : 0,
-        "N_wake_filaments" : 0,
+        "N_wake_filaments" : 56,
         "average_characteristic_length" : 2.50390010013252E-002,
         "max_flow_turning_angle" : 1.74414571517583E+002
     },
     "solver_results" : {
         "solver_status_code" : 0,
-        "system_dimension" : 1594,
+        "system_dimension" : 1649,
         "timing" : {
-            "system_sorting" : 7.90000000000000E-006,
-            "preconditioner" : 4.50671040000000E+000,
-            "matrix_solver" : 2.60938410000000E+000
+            "system_sorting" : 8.80000000000000E-006,
+            "preconditioner" : 4.59348240000000E+000,
+            "matrix_solver" : 3.07564940000000E+000
         },
-        "iterations" : 913,
+        "iterations" : 999,
         "residual" : {
-            "max" : 2.73942349871765E-001,
-            "norm" : 2.45322804520240E+000
+            "max" : 2.06287432101581E-001,
+            "norm" : 1.81896798216144E+000
         }
     },
     "pressure_calculations" : {
         "isentropic_rule" : {
-            "max" : 9.83950387318596E-001,
-            "min" : -1.97266644331982E+000
+            "max" : 1.02657811533065E+000,
+            "min" : -2.74123726646759E+000
         }
     },
     "total_forces" : {
-        "Cx" : -5.44646839311718E-003,
-        "Cy" : -2.48379391436744E-003,
-        "Cz" : -6.44393279356322E-015
+        "Cx" : -9.74443304468728E-003,
+        "Cy" : 2.35525871979396E-001,
+        "Cz" : 1.98816717436491E-014
     },
     "total_moments" : {
-        "CMx" : 3.18890421881213E-014,
-        "CMy" : 9.03761708347236E-015,
-        "CMz" : -7.24773831465702E-002
+        "CMx" : -4.87284502028243E-014,
+        "CMy" : -1.59946603623404E-014,
+        "CMz" : 1.08016300042792E-001
     },
     "input" : {
         "flow" : {
@@ -48,13 +48,14 @@
                     1.00000000000000E+001,
                     0.00000000000000E+000
                 ],
-            "freestream_mach_number" : 2.50000000000000E-001
+            "freestream_mach_number" : 6.00000000000000E-001
         },
         "geometry" : {
             "file" : "dev/meshes/delta_wing_clustered_mesh_coarse.vtk",
             "singularity_order" : "lower",
+            "spanwise_axis" : "-z",
             "wake_model" : {
-                "wake_present" : false,
+                "wake_present" : true,
                 "append_wake" : true,
                 "trefftz_distance" : 2.00000000000000E+001,
                 "wake_type" : "filaments"
@@ -78,5 +79,5 @@
             }
         }
     },
-    "total_runtime" : 1.90620000000000E+001
+    "total_runtime" : 2.05150000000000E+001
 }

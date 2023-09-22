@@ -105,6 +105,7 @@ contains
 
     end function filament_segment_get_vertex_loc
 
+
     function filament_segment_get_vertex_index(this, i) result(index)
         ! gets a vertex index
 
@@ -255,7 +256,6 @@ contains
         zf = loc_2(3)
         zi = loc_1(3)
 
-
         xo = r(1)
         yo = r(2)
         zo = r(3)
@@ -298,7 +298,7 @@ contains
 
         end if 
 
-            end subroutine filament_segment_calc_influence_integrals
+    end subroutine filament_segment_calc_influence_integrals
 
 
     function filament_segment_assemble_v_d_M_space(this, int, freestream, mirror_filament) result(v_d_M_space) !!!! need to create this space for wakes

@@ -1,11 +1,12 @@
 {
     "flow": {
         "freestream_velocity" : [ 100.0, 10.0, 0.0 ],
-        "freestream_mach_number" : 0.25
+        "freestream_mach_number" : 0.6
     },
     "geometry": {
         "file": "dev/meshes/delta_wing_clustered_mesh_coarse.vtk",
         "singularity_order" : "lower",
+        "spanwise_axis" : "-z",
         "wake_model" : {
             "wake_present" : true,
             "append_wake" : true,

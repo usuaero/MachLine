@@ -6,6 +6,7 @@
     "geometry": {
         "file": "dev/meshes/delta_wing_clustered_mesh_coarse.vtk",
         "singularity_order" : "lower",
+        "spanwise_axis" : "-z",
         "wake_model" : {
             "wake_present" : true,
             "append_wake" : true,
