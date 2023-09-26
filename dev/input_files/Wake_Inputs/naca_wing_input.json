@@ -6,13 +6,14 @@
     "geometry": {
         "file" : "dev/meshes/wake/naca_0010_AR_10_full_medium.stl",
         "singularity_order" : "lower",
+        "spanwise_axis" : "+y",
         "reference" : {
             "area" : 10.0
         },
         "wake_model" : {
             "wake_present" : true,
             "append_wake" : true,
-            "trefftz_distance" : 1.0,
+            "trefftz_distance" : 20.0,
             "wake_type": "filaments",
             "N_panels" : 1
             

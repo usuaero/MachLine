@@ -1,0 +1,30 @@
+{
+    "flow": {
+        "freestream_velocity": [
+            0.9902680687415704,
+            0.0,
+            -0.13917310096006544
+        ]
+    },
+    "geometry": {
+        "file": "studies/incompressible_knight_wing/meshes/knight_wing_coarse.stl",
+        "spanwise_axis": "+y",
+        "mirror_about": "xz",
+        "wake_model": {},
+        "reference": {
+            "area": 4.0
+        }
+    },
+    "solver": {
+        "formulation": "morino"
+    },
+    "post_processing": {
+        "pressure_rules": {
+            "incompressible": true
+        }
+    },
+    "output": {
+        "body_file": "studies/incompressible_knight_wing/results/aoa_-8.0_coarse.vtk",
+        "report_file": "studies/incompressible_knight_wing/reports/aoa_-8.0_coarse.json"
+    }
+}
