@@ -1324,6 +1324,7 @@ contains
         !!!!
         if (this%append_wake .and. this%found_wake_edges) then
 
+
             ! Update default Trefftz distance
             if (this%trefftz_distance < 0.) then
 
@@ -1381,6 +1382,7 @@ contains
             this%wake%N_strips = 0
 
         end if
+
     
     end subroutine surface_mesh_init_wake
 
@@ -1425,7 +1427,7 @@ contains
     end subroutine surface_mesh_update_supersonic_trefftz_distance
 
 
-    subroutine surface_mesh_update_subsonic_trefftz_distance(this, freestream)
+    subroutine surface_mesh_update_subsonic_trefftz_distance(this, freestream) 
         ! Determines the appropriate Trefftz distance based on the mesh geometry
 
         implicit none
@@ -1447,7 +1449,7 @@ contains
 
         ! Calculate Trefftz distance
         this%trefftz_distance = 20.*abs(front-back)
-    
+
     end subroutine surface_mesh_update_subsonic_trefftz_distance
 
 
