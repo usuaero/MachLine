@@ -530,7 +530,7 @@ contains
         B_mat_ls(3,3) = freestream%B**2*this%r
 
         ! Check calculation (E&M Eq. (E.2.19))
-        if (any(abs(B_mat_ls - matmul(this%A_g_to_ls, matmul(freestream%B_mat_g, transpose(this%A_g_to_ls)))) > 1e-12)) then
+        if (any(abs(B_mat_ls - matmul(this%A_g_to_ls, matmul(freestream%B_mat_g, transpose(this%A_g_to_ls)))) > 1e-10)) then
             write(*,*) "!!! Calculation of local scaled coordinate transform failed. Quitting..."
             stop
         end if

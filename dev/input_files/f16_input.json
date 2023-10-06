@@ -1,6 +1,7 @@
 {
     "flow": {
-        "freestream_velocity": [100.0, 0.0, 0.0]
+        "freestream_velocity": [100.0, 0.0, 0.0],
+        "freestream_mach_number" : 1.5
     },
     "geometry": {
         "file": "dev/meshes/F-16.stl",
@@ -13,8 +14,7 @@
         }
     },
     "solver": {
-        "formulation": "morino",
-        "control_point_offset": 1.1e-05
+        "formulation": "dirichlet-morino"
     },
     "post_processing" : {
     },

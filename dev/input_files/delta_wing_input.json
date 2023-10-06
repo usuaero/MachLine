@@ -1,11 +1,10 @@
 {
     "flow": {
         "freestream_velocity" : [ 100.0, 0.0, 0.0 ],
-        "freestream_mach_number" : 1.62
+        "freestream_mach_number" : 1.616
     },
     "geometry": {
-        "file": "dev/meshes/delta_wing_clustered_mesh_fine.vtk",
-        "singularity_order" : "lower",
+        "file": "dev/meshes/delta_wing_clustered_mesh_coarse.vtk",
         "wake_model" : {
             "wake_present" : true,
             "append_wake" : false,
@@ -13,10 +12,12 @@
         }
     },
     "solver": {
-        "formulation" : "neumann-mass-flux",
-        "ormulation" : "morino",
+        "formulation" : "neumann-velocity",
         "matrix_solver" : "GMRES",
-        "write_A_and_b" : false
+        "write_A_and_b" : false,
+        "run_checks" : true,
+        "iterative_solver_output" : "iterations.csv",
+        "max_iterations" : 4000
     },
     "post_processing" : {
     },
