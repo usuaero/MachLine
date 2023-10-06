@@ -46,10 +46,12 @@ def add_wing(**kwargs):
 
     # set chordwise number of panels
     if "chord_panel_count" in kwargs:
-        vsp.SetParmVal( wid, "Tess_W", "Shape", 25)
+        chord_panel_count = kwargs["chord_panel_count"]
+        vsp.SetParmVal( wid, "Tess_W", "Shape", chord_panel_count)
     # set spanwise number of panels
     if "span_panel_count" in kwargs:
-        vsp.SetParmVal( wid, "SectTess_U", "XSec_1", 25)
+        span_panel_count = kwargs["span_panel_count"]
+        vsp.SetParmVal( wid, "SectTess_U", "XSec_1", span_panel_count)
 
 
     ## default settings
