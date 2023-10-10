@@ -4,7 +4,7 @@ import openvsp as vsp
 
 def add_wing(**kwargs):
     '''This function accepts the arguments required to generate a wing.  Currently this function can accept:
-    span, sweep, root_chord, tip_chord, x_loc, y_loc, z_loc, span_panel_count, chord_panel_count
+    span, sweep, root_chord, tip_chord, x_loc, y_loc, z_loc, span_panel_count, chord_panel_count, airfoilType
     '''
     
     ## Create a new OpenVSP wing
@@ -53,7 +53,16 @@ def add_wing(**kwargs):
         span_panel_count = kwargs["span_panel_count"]
         vsp.SetParmVal( wid, "SectTess_U", "XSec_1", span_panel_count)
 
+    # set airfoil type
+    if "airfoilType" in kwargs:
+        airfoilType = kwargs["airfoilType"]
+        airfoilType = 10
+        xsec_surf = vsp.GetXSecSurf( wid, 0 )
+        vsp.ChangeXSecShape( xsec_surf, 0, airfoilType )
+        xsec_surf1 = vsp.GetXSecSurf( wid, 1 )
+        vsp.ChangeXSecShape( xsec_surf1, 1, airfoilType )
 
+        
     ## default settings
     # set inner cap to none
     vsp.SetParmVal( wid, "CapUMinOption", "EndCap", 0)
