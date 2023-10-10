@@ -1328,6 +1328,7 @@ contains
         real,dimension(:),allocatable ::  doublet_inf, source_inf
         real,dimension(this%N_unknown) :: A_i
         real,dimension(:,:),allocatable :: v_s, v_d
+        real :: s_star !!!! might remove
 
         ! Calculate influence of wake
         if (verbose) write(*,'(a)',advance='no') "     Calculating wake influences..."
@@ -1346,37 +1347,61 @@ contains
                 if (body%wake_has_filaments(formulation)) then !!!! start wake_dev, might need to adjust cases instead of doing an if statement like this - SA
                     ! Initialize
                     A_i = 0.
-
+                
                     ! Get doublet influence from wake filaments 
                     do j=1,body%filament_wake%N_filaments 
                         do l=1,body%filament_wake%filaments(j)%N_segments
-                            ! Caclulate influence of existing panel on control point
-                            !!!! we could call the vertex location here, or in calc_influence_integrals in the filament_segment thing
-                            call body%filament_wake%filaments(j)%segments(l)%calc_velocity_influences(& 
-                                                                body%cp(i)%loc, this%freestream,.false., v_d) !!!! probably change the calc_velocity_influences function so that it does not calc v_s
-                            doublet_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_d)) !!!! I think this is right even for filament stuff - SA
-
+                            ! check if the filament passes through the panel of the control point
+                            if (body%panels(i)%filament_passes_through(body%filament_wake%filaments(j)&
+                                %segments(l)%vertices(1)%ptr%loc, &
+                                body%filament_wake%filaments(j)%segments(l)%vertices(2)%ptr%loc, &
+                                .false., s_star))  then ! vertices list might be called vertex
+                                doublet_inf = (/0.0, 0.0, 0.0, 0.0/) !!!! is this actually a scalar? 
+                                write(*,*) "index:", body%cp(i)%tied_to_index, "loc", &
+                                 body%filament_wake%filaments(j)%i_top_parent, &
+                                "loc", body%filament_wake%filaments(j)%i_bot_parent
+                            else
+                                call body%filament_wake%filaments(j)%segments(l)%calc_velocity_influences(& 
+                                body%cp(i)%loc, this%freestream,.false., v_d) 
+                                doublet_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_d))
+                            end if
+                
+                            ! call body%filament_wake%filaments(j)%segments(l)%calc_velocity_influences(& 
+                            !                                     body%cp(i)%loc, this%freestream,.false., v_d) 
+                            ! doublet_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_d)) 
+                
                             ! Add influence
                             do k=1,size(body%filament_wake%filaments(j)%segments(l)%parents) !!!! will need to change i_vert_d. Look at panel_set_doublet_verts for where that's set
                                 A_i(this%P(body%filament_wake%filaments(j)%segments(l)%parents(k))) = &
                                     A_i(this%P(body%filament_wake%filaments(j)%segments(l)%parents(k))) + doublet_inf(k)
                             end do
-
+                
                             ! Get influence of mirrored panel
                             if (body%filament_wake%filaments(j)%mirrored) then
-
+                                    ! check if the filament passes through the panel of the control point
+                                if (body%panels(i)%filament_passes_through(body%filament_wake%filaments(j)&
+                                    %segments(l)%vertices(1)%ptr%loc, &
+                                    body%filament_wake%filaments(j)%segments(l)%vertices(2)%ptr%loc, &
+                                    .true., s_star)) then ! vertices list might be called vertex
+                                    doublet_inf = (/0.0, 0.0, 0.0, 0.0/) !!!! is this actually a scalar? 
+                                else
+                                    ! Calculate influence of mirrored panel on control point
+                                    call body%filament_wake%filaments(j)%segments(l)%calc_velocity_influences(& 
+                                    body%cp(i)%loc, this%freestream,.false., v_d) 
+                                    doublet_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_d))      
+                                end if
                                 ! Calculate influence of mirrored panel on control point
-                                call body%filament_wake%filaments(j)%segments(l)%calc_velocity_influences(& 
-                                                                     body%cp(i)%loc, this%freestream,.true., v_d)
-                                doublet_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_d))
-
+                                ! call body%filament_wake%filaments(j)%segments(l)%calc_velocity_influences(& 
+                                !                                      body%cp(i)%loc, this%freestream,.true., v_d)
+                                ! doublet_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_d))
+                
                                 ! Add influence
                                 do k=1,size(body%filament_wake%filaments(j)%segments(l)%parents) !!!! will need to change i_vert_d. Look at panel_set_doublet_verts for where that's set
                                     A_i(this%P(body%filament_wake%filaments(j)%segments(l)%parents(k))) = &
                                               A_i(this%P(body%filament_wake%filaments(j)%segments(l)%parents(k))) &
                                                + doublet_inf(k)
                                 end do
-
+                
                             end if
                         end do
                     end do
