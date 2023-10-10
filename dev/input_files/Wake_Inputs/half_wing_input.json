@@ -1,0 +1,38 @@
+{
+    "flow": {
+        "freestream_velocity" : [ 100.0, 10.0, -10.0 ],
+        "freestream_mach_number" : 0.0
+    },
+    "geometry": {
+        "file": "dev/meshes/half_wing_right.vtk",
+        "mirror_about": "xz",
+        "reference": {
+            "area": 1.0
+        },
+        "wake_model" : {
+            "wake_present" : true,
+            "append_wake" : true,
+            "trefftz_distance" : 20.0,
+            "wake_type": "panels",
+            "N_panels" : 1
+        }
+    },
+    "solver": {
+        "formulation" : "neumann-mass-flux",
+        "matrix_solver" : "GMRES",
+        "write_A_and_b" : false
+    },
+    "post_processing" : {
+        "pressure_rules": {
+            "incompressible": true
+        }
+    },
+    "output": {
+        "body_file" : "dev/results/wake/half_wing_right.vtk",
+        "wake_file" : "dev/results/wake/half_wing_wake.vtk",
+        "control_point_file" : "dev/results/wake/half_wing_right_control_points.vtk",
+        "mirrored_body_file" : "dev/results/wake/half_wing_left.vtk",
+        "mirrored_control_point_file" : "dev/results/wake/half_wing_left_control_points.vtk",
+        "report_file" : "dev/results/wake/report.json"
+    }
+}

@@ -114,7 +114,7 @@ contains
 
         end do
 
-        ! Allocate strip storage
+        ! Allocate filament storage
         allocate(this%filaments(this%N_filaments))
     
         ! Initialize filaments
@@ -126,13 +126,13 @@ contains
             i = i + 1
             call wake_shedding_edges%get(i, i_start_edge)
 
-            ! Initialize strip
+            ! Initialize filament
             i_filament = i_filament + 1
             call this%filaments(i_filament)%init(freestream, body_edges(i_start_edge), .false., mirror_plane, &
                                            N_segments_streamwise, trefftz_dist, body_verts, this%mirrored, &
                                            initial_panel_order, N_body_panels)
 
-            ! Check if we need to create a mirror strip
+            ! Check if we need to create a mirror filament
             if (asym_flow .and. .not. body_edges(i_start_edge)%on_mirror_plane) then
                 i_filament = i_filament + 1
                 call this%filaments(i_filament)%init(freestream, body_edges(i_start_edge), .true., mirror_plane, &

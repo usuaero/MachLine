@@ -118,9 +118,11 @@ module panel_mod
             procedure :: touches_vertex => panel_touches_vertex
             procedure :: check_abutting_mirror_plane => panel_check_abutting_mirror_plane
             procedure :: projection_inside => panel_projection_inside
+            procedure :: filament_projection_inside => panel_filament_projection_inside
             procedure :: point_outside => panel_point_outside
             procedure :: point_above => panel_point_above
             procedure :: line_passes_through => panel_line_passes_through
+            procedure :: filament_passes_through => panel_filament_passes_through
 
             ! Update information
             procedure :: point_to_new_vertex => panel_point_to_new_vertex
@@ -1419,6 +1421,52 @@ contains
     end function panel_projection_inside
 
 
+    function panel_filament_projection_inside(this, point, mirror_panel) result(inside)
+        ! Checks whether the given point, when projected into the plane of the panel, is inside the panel
+
+        implicit none
+        
+        class(panel),intent(in) :: this
+        real,dimension(3),intent(in) :: point
+        logical,intent(in),optional :: mirror_panel
+
+        logical :: inside
+
+        real,dimension(3) :: d
+        integer :: i
+        real :: x
+        logical :: mirrored
+
+        if (present(mirror_panel)) then
+            mirrored = mirror_panel
+        else
+            mirrored = .false.
+        end if
+
+        ! Loop through edges
+        inside = .true.
+        do i=1,this%N
+
+            ! Shift origin to the edge and get inner product
+            if (mirrored) then
+                d = point - mirror_across_plane(this%get_vertex_loc(i), this%mirror_plane)
+                x = inner(d, this%n_hat_g_mir(:,i))
+            else
+                d = point - this%get_vertex_loc(i)
+                x = inner(d, this%n_hat_g(:,i))
+            end if
+
+            ! Check
+            if (x >= 1.e-16) then
+                inside = .false.
+                return
+            end if
+
+        end do
+        
+    end function panel_filament_projection_inside
+
+
     function panel_point_outside(this, point, mirror_panel) result(outside)
         ! Tells whether the given point is above the panel and its projection is inside the surface of the panel
 
@@ -1523,6 +1571,69 @@ contains
         passes_through = this%projection_inside(loc, mirror_panel)
         
     end function panel_line_passes_through
+
+
+    function panel_filament_passes_through(this, a, c, mirror_panel, s_star) result(filament_passes_through) !!!! use to disregard filaments that pass too close to eval or control points -SA
+        ! Determines whether the line defined by two points a and c passes through the panel
+    
+        implicit none
+        
+        class(panel), intent(in) :: this
+        real, dimension(3), intent(in) :: a, c ! a and c are the start and end points of the filament
+        logical, intent(in) :: mirror_panel
+        real, intent(out) :: s_star
+    
+        logical :: filament_passes_through
+    
+        real, dimension(3) :: b
+        real :: d
+        real :: error
+        real ::  magnitude_a, magnitude_c, magnitude_loc !!!! this could be right or wrong 
+        real, dimension(3) :: loc
+    
+        ! Calculate the direction vector 'b' from points 'a' and 'c'
+        b = c - a
+
+        ! calculate the lengths out to a and c 
+        magnitude_a = abs(((a(1))**2+(a(2))**2+(a(3))**2)**0.5)
+        magnitude_c = abs(((c(1))**2+(c(2))**2+(c(3))**2)**0.5)
+
+        ! define an error range for the logic 
+        error = 1.e-16
+    
+        ! Get denominator
+        if (mirror_panel) then
+            d = inner(b, this%n_g_mir)
+        else
+            d = inner(b, this%n_g)
+        end if
+    
+        ! Check whether the line is parallel to the panel
+        if (abs(d) < 1.e-16) then
+            filament_passes_through = .false.
+            return
+        end if
+    
+        ! Get s otherwise
+        if (mirror_panel) then
+            s_star = inner(this%centr_mir - a, this%n_g_mir) / d
+        else
+            s_star = inner(this%centr - a, this%n_g) / d
+        end if
+        ! write(*,*) "s_star:", s_star
+
+        ! Calculate intersection point
+        loc = a + s_star * b
+
+        if ((0.0+error <= s_star .and. s_star <= 1.0-error) & 
+        .or. (0.0 - error >= s_star .and. s_star >= -1.0 + error)) then
+            filament_passes_through = this%filament_projection_inside(loc, mirror_panel)
+        else 
+            filament_passes_through = .false. 
+        end if 
+
+        
+    end function panel_filament_passes_through
 
 
     function panel_get_corner_angle(this, vert_loc) result(angle)

@@ -94,7 +94,7 @@ contains
 
             ! Get parent panels
             this%i_top_parent = starting_edge%panels(1)
-            this%i_top_parent = starting_edge%panels(2)
+            this%i_bot_parent = starting_edge%panels(2)
 
         end if
 

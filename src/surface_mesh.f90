@@ -1324,6 +1324,7 @@ contains
         !!!!
         if (this%append_wake .and. this%found_wake_edges) then
 
+
             ! Update default Trefftz distance
             if (this%trefftz_distance < 0.) then
 
@@ -1381,6 +1382,7 @@ contains
             this%wake%N_strips = 0
 
         end if
+
     
     end subroutine surface_mesh_init_wake
 
@@ -1425,7 +1427,7 @@ contains
     end subroutine surface_mesh_update_supersonic_trefftz_distance
 
 
-    subroutine surface_mesh_update_subsonic_trefftz_distance(this, freestream)
+    subroutine surface_mesh_update_subsonic_trefftz_distance(this, freestream) 
         ! Determines the appropriate Trefftz distance based on the mesh geometry
 
         implicit none
@@ -1447,7 +1449,7 @@ contains
 
         ! Calculate Trefftz distance
         this%trefftz_distance = 20.*abs(front-back)
-    
+
     end subroutine surface_mesh_update_subsonic_trefftz_distance
 
 
@@ -2100,20 +2102,20 @@ contains
         logical,intent(in) :: add_one_inside
         real,intent(in) :: offset
 
-        integer :: i, N_strength_matching
+        integer :: i, N_strength_matching,counter
         real,dimension(:,:),allocatable :: cp_locs
 
         ! Specify number of control points
         if (this%asym_flow) then
             this%N_cp = this%N_panels*2
+            
         else
             this%N_cp = this%N_panels
         end if
         if (add_one_inside) this%N_cp = this%N_cp + 1
 
         ! Count number of needed strength-matching points
-        if (this%asym_flow) then
-
+        if (this%asym_flow) then  
             ! Count up vertices that will need strength matching
             N_strength_matching = 0
             do i=1,this%N_verts
@@ -2140,7 +2142,7 @@ contains
                 call this%cp(i)%init(cp_locs(:,i), INTERNAL, TT_PANEL, i)
             end if
         end do
-
+        
         ! Initialize mirrored control points, if necessary
         if (this%asym_flow) then
 
@@ -2159,11 +2161,13 @@ contains
         end if
 
         ! Add in strength matching
+        counter = 1
         if (this%asym_flow) then
             do i=1,this%N_verts
                 if (this%vertices(i)%on_mirror_plane .and. .not. this%vertices(i)%mirrored_is_unique) then
-                    call this%cp(this%N_cp-N_strength_matching+i)%init((/0., 0., 0./), SURFACE, TT_VERTEX, i)
-                    call this%cp(this%N_cp-N_strength_matching+i)%set_bc(STRENGTH_MATCHING)
+                    call this%cp(this%N_cp-N_strength_matching+counter)%init((/0., 0., 0./), SURFACE, TT_VERTEX, i)
+                    call this%cp(this%N_cp-N_strength_matching+counter)%set_bc(STRENGTH_MATCHING)
+                    counter = counter + 1
                 end if
             end do
         end if

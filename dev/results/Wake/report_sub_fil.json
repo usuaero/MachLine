@@ -1,7 +1,7 @@
 {
     "info" : {
         "generated_by" : "MachLine (c) 2023 USU Aerolab",
-        "executed" : "Thu Sep 21 20:41:44 2023"
+        "executed" : "Mon Oct  9 21:03:26 2023"
     },
     "mesh_info" : {
         "N_body_panels" : 3184,
@@ -15,31 +15,31 @@
         "solver_status_code" : 0,
         "system_dimension" : 1649,
         "timing" : {
-            "system_sorting" : 8.80000000000000E-006,
-            "preconditioner" : 4.59348240000000E+000,
-            "matrix_solver" : 3.07564940000000E+000
+            "system_sorting" : 1.02000000000000E-005,
+            "preconditioner" : 4.74297470000000E+000,
+            "matrix_solver" : 2.99589500000000E+000
         },
-        "iterations" : 999,
+        "iterations" : 956,
         "residual" : {
-            "max" : 2.06287432101581E-001,
-            "norm" : 1.81896798216144E+000
+            "max" : 1.97943814792877E-001,
+            "norm" : 1.77450775840273E+000
         }
     },
     "pressure_calculations" : {
         "isentropic_rule" : {
-            "max" : 1.02657811533065E+000,
-            "min" : -2.74123726646759E+000
+            "max" : 8.73292652017302E-001,
+            "min" : -2.84555572313525E+000
         }
     },
     "total_forces" : {
-        "Cx" : -9.74443304468728E-003,
-        "Cy" : 2.35525871979396E-001,
-        "Cz" : 1.98816717436491E-014
+        "Cx" : -1.02698764459923E-002,
+        "Cy" : 2.33592293933214E-001,
+        "Cz" : -5.97735209948903E-015
     },
     "total_moments" : {
-        "CMx" : -4.87284502028243E-014,
-        "CMy" : -1.59946603623404E-014,
-        "CMz" : 1.08016300042792E-001
+        "CMx" : 1.77405968604730E-014,
+        "CMy" : 1.00217215609326E-014,
+        "CMz" : 1.08690255044606E-001
     },
     "input" : {
         "flow" : {
@@ -48,7 +48,7 @@
                     1.00000000000000E+001,
                     0.00000000000000E+000
                 ],
-            "freestream_mach_number" : 6.00000000000000E-001
+            "freestream_mach_number" : 2.50000000000000E-001
         },
         "geometry" : {
             "file" : "dev/meshes/delta_wing_clustered_mesh_coarse.vtk",
@@ -79,5 +79,5 @@
             }
         }
     },
-    "total_runtime" : 2.05150000000000E+001
+    "total_runtime" : 2.24690000000000E+001
 }
