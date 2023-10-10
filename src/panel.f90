@@ -1625,7 +1625,8 @@ contains
         ! Calculate intersection point
         loc = a + s_star * b
 
-        if (0.0+error <= s_star .and. s_star <= 1.0-error) then
+        if ((0.0+error <= s_star .and. s_star <= 1.0-error) & 
+        .or. (0.0 - error >= s_star .and. s_star >= -1.0 + error)) then
             filament_passes_through = this%filament_projection_inside(loc, mirror_panel)
         else 
             filament_passes_through = .false. 
