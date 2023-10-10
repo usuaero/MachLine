@@ -4,7 +4,7 @@ import openvsp as vsp
 
 def add_wing(**kwargs):
     '''This function accepts the arguments required to generate a wing.  Currently this function can accept:
-    span, sweep, root_chord, tip_chord, x_loc, y_loc, z_loc, span_panel_count, chord_panel_count, airfoilType
+    span, sweep, root_chord, tip_chord, x_loc, y_loc, z_loc, span_panel_count, chord_panel_count, airfoilType,ThickLoc
     '''
     
     ## Create a new OpenVSP wing
@@ -56,13 +56,22 @@ def add_wing(**kwargs):
     # set airfoil type
     if "airfoilType" in kwargs:
         airfoilType = kwargs["airfoilType"]
-        airfoilType = 10
         xsec_surf = vsp.GetXSecSurf( wid, 0 )
         vsp.ChangeXSecShape( xsec_surf, 0, airfoilType )
         xsec_surf1 = vsp.GetXSecSurf( wid, 1 )
         vsp.ChangeXSecShape( xsec_surf1, 1, airfoilType )
 
-        
+        if airfoilType == 10:
+            if "ThickLoc" in kwargs:
+                thickLoc = kwargs["ThickLoc"]
+                xsec_id1 = vsp.GetXSec(xsec_surf,0)
+                thickLoc1 = vsp.GetXSecParm(xsec_id1,"ThickLoc")
+                vsp.SetParmVal( thickLoc1, thickLoc)
+                xsec_id2 = vsp.GetXSec(xsec_surf,1)
+                thickLoc2 = vsp.GetXSecParm(xsec_id2,"ThickLoc")
+                vsp.SetParmVal( thickLoc2, thickLoc)
+            
+
     ## default settings
     # set inner cap to none
     vsp.SetParmVal( wid, "CapUMinOption", "EndCap", 0)
@@ -79,8 +88,8 @@ def add_wing(**kwargs):
 def gen_multi_wing_geom(x_loc,y_loc,z_loc):
     '''This function generates a pair of wings with the main wing at the origin and the second wing at the points given in the input.
     This function returns the area of the wings for use in MachLine'''
-    mainID = add_wing(span=10,sweep=0,root_chord=1,tip_chord=1)
-    upperID = add_wing(span=10,sweep=0,root_chord=1,tip_chord=1,x_loc=x_loc,y_loc=y_loc,z_loc=z_loc)
+    mainID = add_wing(span=10,sweep=30,root_chord=4,tip_chord=1,airfoilType=10,ThickLoc=0.25,chord_panel_count=30,span_panel_count=40)
+    upperID = add_wing(span=10,sweep=30,root_chord=4,tip_chord=1,x_loc=x_loc,y_loc=y_loc,z_loc=z_loc,airfoilType=10,ThickLoc=0.25,chord_panel_count=30,span_panel_count=40)
 
     # vsp.WriteVSPFile("my_aircraft.vsp3")
     # Export the OpenVSP file
@@ -94,6 +103,8 @@ def gen_multi_wing_geom(x_loc,y_loc,z_loc):
     file_name+=".stl"
     vsp.ExportFile(file_name,1,2,0,0)
     return area_t
+
+
 
 if __name__ == "__main__":
     
