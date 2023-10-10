@@ -147,9 +147,9 @@ contains
 
             ! Calculate location of vertices
             if (modulo(i, 2) == 0) then
-                loc = start_2 + sep_2*(i-1)/2*freestream%c_hat_g
+                loc = start_2 + sep_2*(i-2)/2*freestream%c_hat_g
             else
-                loc = start_1 + sep_1*i/2*freestream%c_hat_g
+                loc = start_1 + sep_1*(i-1)/2*freestream%c_hat_g
             end if
 
             ! Initialize vertices
