@@ -1,0 +1,37 @@
+{
+    "flow": {
+        "freestream_velocity": [
+            -0.9902680687415704,
+            0.0,
+            -0.13917310096006544
+        ]
+    },
+    "geometry": {
+        "file": "studies/filament_studies/incompressible_knight_wing/meshes/knight_wing_both_medium.vtk",
+        "spanwise_axis": "+y",
+        "wake_model": {
+            "wake_present" : true,
+            "append_wake" : true,
+            "trefftz_distance" : 20.0,
+            "wake_type": "filaments"    
+        },
+        "reference": {
+            "area": 4.0
+        }
+    },
+    "solver": {
+        "formulation" : "neumann-mass-flux",
+        "matrix_solver" : "GMRES",
+        "write_A_and_b" : false
+    },
+    "post_processing": {
+        "pressure_rules": {
+            "incompressible": true
+        }
+    },
+    "output": {
+        "body_file": "studies/filament_studies/incompressible_knight_wing/results/body_filament.vtk",
+        "wake_file": "studies/filament_studies/incompressible_knight_wing/results/wake_filament.vtk",
+        "report_file": "studies/filament_studies/incompressible_knight_wing/reports/filament.json"
+    }
+}

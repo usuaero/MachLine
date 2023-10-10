@@ -1,7 +1,7 @@
 {
     "flow": {
         "freestream_velocity" : [ 100.0, 10.0, 0.0 ],
-        "freestream_mach_number" : 0.6
+        "freestream_mach_number" : 0.25
     },
     "geometry": {
         "file": "dev/meshes/delta_wing_clustered_mesh_coarse.vtk",

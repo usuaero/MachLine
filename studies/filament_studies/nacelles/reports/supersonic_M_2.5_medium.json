@@ -1,0 +1,85 @@
+{
+    "info" : {
+        "generated_by" : "MachLine (c) 2023 USU Aerolab",
+        "executed" : "Tue Sep 26 16:18:20 2023"
+    },
+    "mesh_info" : {
+        "N_body_panels" : 2880,
+        "N_body_vertices" : 1476,
+        "N_wake_panels" : 0,
+        "N_wake_filaments" : 36,
+        "average_characteristic_length" : 3.01025527269700E-002,
+        "max_flow_turning_angle" : 1.76201148678995E+002
+    },
+    "solver_results" : {
+        "solver_status_code" : 0,
+        "system_dimension" : 1476,
+        "timing" : {
+            "system_sorting" : 1.36000000000000E-005,
+            "preconditioner" : 3.51854250000000E+000,
+            "matrix_solver" : 1.98831010000000E+000
+        },
+        "iterations" : 795,
+        "residual" : {
+            "max" : 6.69204777187269E-002,
+            "norm" : 5.65945449466192E-001
+        }
+    },
+    "pressure_calculations" : {
+        "isentropic_rule" : {
+            "max" : 1.64260306254911E-001,
+            "min" : -2.54682073006389E+000
+        }
+    },
+    "total_forces" : {
+        "Cx" : 4.13482817766342E-004,
+        "Cy" : -1.31271539862213E-014,
+        "Cz" : -3.33252623596397E-014
+    },
+    "total_moments" : {
+        "CMx" : 1.90061704157224E-004,
+        "CMy" : 2.30742883669175E-014,
+        "CMz" : -1.91719741211155E-014
+    },
+    "input" : {
+        "flow" : {
+            "freestream_velocity" : [
+                    1.00000000000000E+000,
+                    0.00000000000000E+000,
+                    0.00000000000000E+000
+                ],
+            "gamma" : 1.40000000000000E+000,
+            "freestream_mach_number" : 5.00000000000000E-001
+        },
+        "geometry" : {
+            "file" : "studies/filament_studies/nacelles/meshes/supersonic_medium.stl",
+            "spanwise_axis" : "+y",
+            "max_continuity_angle" : 5.00000000000000E+000,
+            "wake_model" : {
+                "wake_present" : true,
+                "append_wake" : true,
+                "trefftz_distance" : 2.00000000000000E+001,
+                "wake_type" : "filaments"
+            },
+            "reference" : {
+            }
+        },
+        "solver" : {
+            "formulation" : "neumann-mass-flux",
+            "matrix_solver" : "GMRES",
+            "write_A_and_b" : false
+        },
+        "post_processing" : {
+            "pressure_rules" : {
+                "isentropic" : true
+            }
+        },
+        "output" : {
+            "body_file" : "studies/filament_studies/nacelles/results/supersonic_M_2.5_medium.vtk",
+            "control_point_file" : "studies/filament_studies/nacelles/results/supersonic_M_2.5_medium_control_points.vtk",
+            "wake_file" : "studies/filament_studies/nacelles/results/supersonic_M_2.5_medium_wake.vtk",
+            "report_file" : "studies/filament_studies/nacelles/reports/supersonic_M_2.5_medium.json"
+        }
+    },
+    "total_runtime" : 1.54530000000000E+001
+}

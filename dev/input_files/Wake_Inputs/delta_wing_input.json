@@ -13,7 +13,6 @@
             "trefftz_distance" : 20.0,
             "wake_type": "filaments",
             "N_panels" : 1
-
         }
     },
     "solver": {

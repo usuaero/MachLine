@@ -82,21 +82,22 @@ def add_wing(**kwargs):
 
     # Generate the geometry
     vsp.Update()
-    return wid
+    area = vsp.GetParmVal(wid,"Area","XSec_1")
+    return wid, area
     
     
 def gen_multi_wing_geom(x_loc,y_loc,z_loc):
     '''This function generates a pair of wings with the main wing at the origin and the second wing at the points given in the input.
     This function returns the area of the wings for use in MachLine'''
-    mainID = add_wing(span=10,sweep=30,root_chord=4,tip_chord=1,airfoilType=10,ThickLoc=0.25,chord_panel_count=30,span_panel_count=40)
-    upperID = add_wing(span=10,sweep=30,root_chord=4,tip_chord=1,x_loc=x_loc,y_loc=y_loc,z_loc=z_loc,airfoilType=10,ThickLoc=0.25,chord_panel_count=30,span_panel_count=40)
+    mainID,area_main = add_wing(span=10,sweep=30,root_chord=4,tip_chord=1,airfoilType=10,ThickLoc=0.25,chord_panel_count=30,span_panel_count=40)
+    upperID,area_upper = add_wing(span=10,sweep=30,root_chord=4,tip_chord=1,x_loc=x_loc,y_loc=y_loc,z_loc=z_loc,airfoilType=10,ThickLoc=0.25,chord_panel_count=30,span_panel_count=40)
 
     # vsp.WriteVSPFile("my_aircraft.vsp3")
     # Export the OpenVSP file
     vsp.WriteVSPFile("my_aircraft.vsp3")
     
-    area_main = vsp.GetParmVal(mainID,"Area","XSec_1")
-    area_upper = vsp.GetParmVal(upperID,"Area","XSec_1")
+    # area_main = vsp.GetParmVal(mainID,"Area","XSec_1")
+    # area_upper = vsp.GetParmVal(upperID,"Area","XSec_1")
     area_t = area_main + area_upper
     # Save the geometry to a file (STL format)
     file_name = "multi_lifting_surface_{0}_{1}_{2}_".format(x_loc,y_loc,z_loc)

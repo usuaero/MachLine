@@ -1,22 +1,29 @@
 {
     "flow": {
         "freestream_velocity": [
-            0.9902680687415704,
+            -0.9902680687415704,
             0.0,
             -0.13917310096006544
         ]
     },
     "geometry": {
-        "file": "studies/incompressible_knight_wing/meshes/knight_wing_coarse.stl",
+        "file": "studies/filament_studies/incompressible_knight_wing/meshes/knight_wing_medium.vtk",
         "spanwise_axis": "+y",
         "mirror_about": "xz",
-        "wake_model": {},
+        "wake_model": {
+            "wake_present" : true,
+            "append_wake" : true,
+            "trefftz_distance" : 20.0,
+            "wake_type": "panels"    
+    },
         "reference": {
             "area": 4.0
         }
     },
     "solver": {
-        "formulation": "morino"
+        "formulation" : "neumann-mass-flux",
+        "matrix_solver" : "GMRES",
+        "write_A_and_b" : false
     },
     "post_processing": {
         "pressure_rules": {
@@ -24,7 +31,8 @@
         }
     },
     "output": {
-        "body_file": "studies/incompressible_knight_wing/results/aoa_-8.0_coarse.vtk",
-        "report_file": "studies/incompressible_knight_wing/reports/aoa_-8.0_coarse.json"
+        "body_file": "studies/filament_studies/incompressible_knight_wing/results/aoa_-8.0_coarse.vtk",
+        "wake_file": "studies/filament_studies/incompressible_knight_wing/results/aoa_-8.0_coarse_wake.vtk",
+        "report_file": "studies/filament_studies/incompressible_knight_wing/reports/aoa_-8.0_coarse.json"
     }
 }

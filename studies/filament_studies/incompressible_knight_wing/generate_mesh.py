@@ -1,7 +1,11 @@
 import numpy as np
 import machupX as mx
 import matplotlib.pyplot as plt
-
+import os 
+import sys
+path = os.getcwd()
+sys.path.insert(0,path+"\dev")
+from helper_scripts.stl_to_vtk import *
 
 
 def gen_knight_wing_mesh(N_spanwise, N_chordwise, N_round, filename):
@@ -44,17 +48,6 @@ def gen_knight_wing_mesh(N_spanwise, N_chordwise, N_round, filename):
     scene.add_aircraft("wing", wing_input, state={"velocity" : V})
     scene.export_stl(filename=filename, section_resolution=N_chordwise)
 
-def convert_stl_to_vtk(stl_file):
-    a = vtk.vtkSTLReader()
-    a.SetFileName(stl_file)
-    a.Update()
-    a = a.GetOutput()
-
-    new_file = stl_file.replace('.stl', '.vtk')
-    b = vtk.vtkPolyDataWriter()
-    b.SetFileName(new_file)
-    b.SetInputData(a)
-    b.Update()
 
 if __name__ == "__main__":
 
@@ -65,8 +58,6 @@ if __name__ == "__main__":
 
     for i, density in enumerate(densities):
 
-        stl_file = "studies/incompressible_knight_wing/meshes/knight_wing_both_{0}.stl".format(density)
+        stl_file = "studies/incompressible_knight_wing/meshes/knight_wing_{0}.stl".format(density)
         gen_knight_wing_mesh(N_spanwises[i], N_chordwises[i], N_rounds[i], stl_file)
         convert_stl_to_vtk(stl_file)
-
-

@@ -1,0 +1,39 @@
+{
+    "flow": {
+        "freestream_velocity": [
+            1.0,
+            0.0,
+            0.0
+        ],
+        "gamma": 1.4,
+        "freestream_mach_number": 0.5
+    },
+    "geometry": {
+        "file": "studies/filament_studies/nacelles/meshes/supersonic_medium.stl",
+        "spanwise_axis": "+y",
+        "max_continuity_angle": 5.0,
+        "wake_model": {
+            "wake_present" : true,
+            "append_wake" : true,
+            "trefftz_distance" : 20.0,
+            "wake_type": "filaments"    
+        },
+        "reference": {}
+    },
+    "solver": {
+        "formulation" : "neumann-mass-flux",
+        "matrix_solver" : "GMRES",
+        "write_A_and_b" : false
+    },
+    "post_processing": {
+        "pressure_rules": {
+            "isentropic": true
+        }
+    },
+    "output": {
+        "body_file": "studies/filament_studies/nacelles/results/supersonic_M_2.5_medium.vtk",
+        "control_point_file": "studies/filament_studies/nacelles/results/supersonic_M_2.5_medium_control_points.vtk",
+        "wake_file" : "studies/filament_studies/nacelles/results/supersonic_M_2.5_medium_wake.vtk",
+        "report_file": "studies/filament_studies/nacelles/reports/supersonic_M_2.5_medium.json"
+    }
+}

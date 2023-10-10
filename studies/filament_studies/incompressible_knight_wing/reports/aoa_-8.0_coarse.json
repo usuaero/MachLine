@@ -1,0 +1,83 @@
+{
+    "info" : {
+        "generated_by" : "MachLine (c) 2023 USU Aerolab",
+        "executed" : "Tue Sep 26 20:39:33 2023"
+    },
+    "mesh_info" : {
+        "N_body_panels" : 2704,
+        "N_body_vertices" : 1403,
+        "N_wake_panels" : 60,
+        "N_wake_filaments" : 0,
+        "average_characteristic_length" : 1.85366480728233E-002,
+        "max_flow_turning_angle" : 1.63583760641484E+002
+    },
+    "solver_results" : {
+        "solver_status_code" : 0,
+        "system_dimension" : 1403,
+        "timing" : {
+            "system_sorting" : 7.40000000000000E-006,
+            "preconditioner" : 2.97702070000000E+000,
+            "matrix_solver" : 1.75949230000000E+000
+        },
+        "iterations" : 791,
+        "residual" : {
+            "max" : 7.09969315355419E-001,
+            "norm" : 2.24150429712731E+000
+        }
+    },
+    "pressure_calculations" : {
+        "incompressible_rule" : {
+            "max" : 9.99444668408132E-001,
+            "min" : -5.62731140308411E+002
+        }
+    },
+    "total_forces" : {
+        "Cx" : 2.41076651746737E-002,
+        "Cy" : 0.00000000000000E+000,
+        "Cz" : -3.07129986729706E-001
+    },
+    "total_moments" : {
+        "CMx" : 0.00000000000000E+000,
+        "CMy" : -3.90548526645234E-002,
+        "CMz" : 0.00000000000000E+000
+    },
+    "input" : {
+        "flow" : {
+            "freestream_velocity" : [
+                    -9.90268068741570E-001,
+                    0.00000000000000E+000,
+                    -1.39173100960065E-001
+                ]
+        },
+        "geometry" : {
+            "file" : "studies/filament_studies/incompressible_knight_wing/meshes/knight_wing_medium.vtk",
+            "spanwise_axis" : "+y",
+            "mirror_about" : "xz",
+            "wake_model" : {
+                "wake_present" : true,
+                "append_wake" : true,
+                "trefftz_distance" : 2.00000000000000E+001,
+                "wake_type" : "panels"
+            },
+            "reference" : {
+                "area" : 4.00000000000000E+000
+            }
+        },
+        "solver" : {
+            "formulation" : "neumann-mass-flux",
+            "matrix_solver" : "GMRES",
+            "write_A_and_b" : false
+        },
+        "post_processing" : {
+            "pressure_rules" : {
+                "incompressible" : true
+            }
+        },
+        "output" : {
+            "body_file" : "studies/filament_studies/incompressible_knight_wing/results/aoa_-8.0_coarse.vtk",
+            "wake_file" : "studies/filament_studies/incompressible_knight_wing/results/aoa_-8.0_coarse_wake.vtk",
+            "report_file" : "studies/filament_studies/incompressible_knight_wing/reports/aoa_-8.0_coarse.json"
+        }
+    },
+    "total_runtime" : 2.24680000000000E+001
+}
