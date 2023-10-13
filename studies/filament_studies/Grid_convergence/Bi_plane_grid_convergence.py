@@ -10,15 +10,16 @@ import generate_meshes
 RERUN_MACHLINE = True
 
 
-def run_machline_for_grid(chord_count,span_count,study_directory,index):
+def run_machline_for_grid(chord_count,span_count,study_directory,index, wake_type, freestream_mach):
     
     # default values
     alpha = 5
     #generate geometry
-    area = generate_meshes.gen_grid_convergence_geom(chord_count,span_count,study_directory,index)
+    area = generate_meshes.gen_bi_plane_grid_convergence_geom(chord_count,span_count,study_directory,index)
     # Storage locations
     
-    mesh_file = study_directory+"/meshes/grid_convergence_"+str(index)+".stl"
+    ## change name for new studies
+    mesh_file = study_directory+"/meshes/bi_plane_grid_convergence_"+str(index)+".stl" ## changed name after meshes
     results_file = study_directory+"/results/"+str(index)+".vtk"
     wake_file = study_directory+"/results/"+str(index)+"_wake.vtk"
     report_file = study_directory+"/reports/"+str(index)+".json"
@@ -27,7 +28,7 @@ def run_machline_for_grid(chord_count,span_count,study_directory,index):
     input_dict = {
         "flow": {
             "freestream_velocity": [np.cos(np.radians(alpha)), 0.0, np.sin(np.radians(alpha))],
-            "freestream_mach_number" : 1.7
+            "freestream_mach_number" : freestream_mach
             
         },
         "geometry": {
@@ -40,7 +41,7 @@ def run_machline_for_grid(chord_count,span_count,study_directory,index):
                 "wake_present" : True,
                 "append_wake" : True,
                 "trefftz_distance": 60,
-                "wake_type": "panels"
+                "wake_type": wake_type
             }
         },
     
@@ -62,7 +63,7 @@ def run_machline_for_grid(chord_count,span_count,study_directory,index):
         }
     }
     # Dump
-    input_file = "studies/filament_studies/aft_surfaces/input.json"
+    input_file = study_directory + "\input.json" ## change this 
     write_input_file(input_dict, input_file)
 
     # Run machline
@@ -150,34 +151,38 @@ if __name__=="__main__":
     # set parameters
     chords = np.linspace(5,80,num_cases)
     spans = np.linspace(5,80,num_cases)
+    wake_type = ["panels", "filaments"]
+    freestream_mach = [0.25, 1.7]
+
     # Run cases
-    for i in range(num_cases):
-        chord = int(chords[i])
-        span = int(spans[i])
-        N_sys[i], l_avg[i], C_F[i], C_M[i] = run_machline_for_grid(chord,span,study_dir,i)
+    for i in range(len(freestream_mach)):
+        for j in range(len(wake_type)):
+            for k in range(num_cases):
+                chord = int(chords[k])
+                span = int(spans[k])
+                index = i*len(wake_type)*num_cases + j*num_cases + k
+                N_sys[k], l_avg[k], C_F[k], C_M[k] = run_machline_for_grid(chord,span,study_dir,index, wake_type, freestream_mach)
+            for p in range(num_cases):
+                C_x[p] = C_F[p][0]
+                C_y[p] = C_F[p][1]
+                C_z[p] = C_F[p][2]
+                C_mx[p] = C_M[p][0]
+                C_my[p] = C_M[p][1]
+                C_mz[p] = C_M[p][2]
+            output_file = study_dir
+            output_file += "/grid_convergence_" + str(wake_type[j]) + "_" + str(freestream_mach[i]) + ".txt"
+            with open(output_file, "w") as file:
+                # Write the lists to the file
+                file.write("num_span,num_chord,C_x,C_y,C_z,C_mx,C_my,C_mz\n")
+                for q in range(num_cases):
+                    file.write(f"{spans[q]},{chords[q]},{C_x[q]},{C_y[q]},{C_z[q]},{C_mx[q]},{C_my[q]},{C_mz[q]}\n")
 
-
-    # get data
-    for i in range(num_cases):
-        C_x[i] = C_F[i][0]
-        C_y[i] = C_F[i][1]
-        C_z[i] = C_F[i][2]
-        C_mx[i] = C_M[i][0]
-        C_my[i] = C_M[i][1]
-        C_mz[i] = C_M[i][2]
-    output_file = study_dir
-    output_file += "/grid_convergence.txt"
-    with open(output_file, "w") as file:
-        # Write the lists to the file
-        file.write("num_span,num_chord,C_x,C_y,C_z,C_mx,C_my,C_mz\n")
-        for i in range(num_cases):
-            file.write(f"{spans[i]},{chords[i]},{C_x[i]},{C_y[i]},{C_z[i]},{C_mx[i]},{C_my[i]},{C_mz[i]}\n")
     
     end = time.time()
-    seconds = end-start
-    hours =  seconds // 3600
-    seconds %= 3600
-    minutes = seconds // 60
-    seconds %= 60
-    print(f"Study has complete after {hours}:{minutes}:{seconds}")
+    elapsed = end-start
+    hours =  elapsed // 3600
+    elapsed %= 3600
+    minutes = elapsed // 60
+    elapsed %= 60
+    print(f"Study has complete after {hours}:{minutes}:{elapsed}")
     print(f"Data has been written to {output_file}")
