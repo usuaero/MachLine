@@ -1,4 +1,5 @@
 import os
+import time
 import numpy as np
 import matplotlib.pyplot as plt
 import json
@@ -9,15 +10,18 @@ import generate_meshes
 RERUN_MACHLINE = True
 
 
-def run_machline_for_loc(x_dist,y_dist_z_dist):
+def run_machline_for_loc(x_dist,y_dist,z_dist,index):
+    study_directory = "studies/filament_studies/aft_surfaces"
     # default values
     alpha = 5
+    #generate geometry
+    area = generate_meshes.gen_multi_wing_geom(x_dist,y_dist,z_dist,study_directory,index)
     # Storage locations
-    case_name = "{0}_{1}_{2}".format(x_dist,y_dist_z_dist)
-    mesh_file = "studies/filament_studies/aft_surfaces/meshes/multi_lifting_surface_"+case_name+".stl"
-    results_file = "studies/filament_studies/aft_surfaces/results/"+case_name+".vtk"
-    wake_file = "studies/filament_studies/aft_surfaces/results/"+case_name+"_wake.vtk"
-    report_file = "studies/filament_studies/aft_surfaces/reports/"+case_name+".json"
+    
+    mesh_file = study_directory+"/meshes/multi_lifting_surface_"+str(index)+".stl"
+    results_file = study_directory+"/results/"+str(index)+".vtk"
+    wake_file = study_directory+"/results/"+str(index)+"_wake.vtk"
+    report_file = study_directory+"/reports/"+str(index)+".json"
 
     # create input file
     input_dict = {
@@ -30,19 +34,19 @@ def run_machline_for_loc(x_dist,y_dist_z_dist):
             "file": mesh_file,
             "spanwise_axis" : "+y",
             "reference" : {
-                "area" : 50.0
+                "area" : area
             },
             "wake_model" : {
                 "wake_present" : True,
                 "append_wake" : True,
-                "trefftz_distance": trefftz,
-                "wake_type": "panel"
+                "trefftz_distance": 60,
+                "wake_type": "panels"
             }
         },
     
         "solver": {
-        "ormulation" : "neumann-mass-flux",
-        "formulation" : "dirichlet-morino",
+        "formulation" : "neumann-mass-flux",
+        "ormulation" : "dirichlet-morino",
         "matrix_solver" : "GMRES",
         "write_A_and_b" : False
         },
@@ -61,20 +65,25 @@ def run_machline_for_loc(x_dist,y_dist_z_dist):
     input_file = "studies/filament_studies/aft_surfaces/input.json"
     write_input_file(input_dict, input_file)
 
-    # Run quad
+    # Run machline
     report = run_machline(input_file, run=RERUN_MACHLINE)
 
     # Pull out forces
     C_F = np.zeros(3)
+    C_M = np.zeros(3)
     C_F[0] = report["total_forces"]["Cx"]
     C_F[1] = report["total_forces"]["Cy"]
     C_F[2] = report["total_forces"]["Cz"]
+    C_M[0] = report["total_moments"]["CMx"]
+    C_M[1] = report["total_moments"]["CMy"]
+    C_M[2] = report["total_moments"]["CMz"]
+
 
     # Get system dimension and average characteristic length
     N_sys = report["solver_results"]["system_dimension"]
     l_avg = report["mesh_info"]["average_characteristic_length"]
 
-    return N_sys, l_avg, C_F
+    return N_sys, l_avg, C_F, C_M
 
     
 
@@ -82,7 +91,7 @@ def run_machline_for_loc(x_dist,y_dist_z_dist):
 
 def get_json(file_path):
     # import json file from file path
-    json_string = open(file_path).read()
+    json_string = open(file_path).write()
 
     # save to vals dictionary
     input_dict = json.loads(json_string)
@@ -124,18 +133,27 @@ def run_machline(input_filename, delete_input=True, run=True):
 
 if __name__=="__main__":
     # declare varaibles and inputs
-    num_cases = 30
+    start = time.time()
+    num_cases = 2
     N_sys = list(range(num_cases))
     l_avg =list(range(num_cases))
     C_F = list(range(num_cases))
     C_x = list(range(num_cases))
     C_y = list(range(num_cases))
     C_z = list(range(num_cases))
+    C_M = list(range(num_cases))
+    C_mx = list(range(num_cases))
+    C_my = list(range(num_cases))
+    C_mz = list(range(num_cases))
 
+    # set parameters
+    x_dist = 15
+    y_dist = 0
+    z_dists = np.linspace(0,30,num_cases)
     # Run cases
-    trefftz_distances = np.linspace(1,500,num_cases)
     for i in range(num_cases):
-        N_sys[i], l_avg[i], C_F[i] = run_machline_for_z_dist(trefftz_distances[i])
+        z_dist = z_dists[i]
+        N_sys[i], l_avg[i], C_F[i], C_M[i] = run_machline_for_loc(x_dist,y_dist,z_dist,i)
 
 
     # get data
@@ -143,15 +161,22 @@ if __name__=="__main__":
         C_x[i] = C_F[i][0]
         C_y[i] = C_F[i][1]
         C_z[i] = C_F[i][2]
-        
-    #  plot
-    plt.figure()
-    plt.plot(trefftz_distances,C_x, label="C_x")
-    plt.plot(trefftz_distances,C_y,label="C_y")
-    plt.plot(trefftz_distances,C_z,label="C_z")
+        C_mx[i] = C_M[i][0]
+        C_my[i] = C_M[i][1]
+        C_mz[i] = C_M[i][2]
+    output_file = study_dir    
+    output_file += "/imp_test_data.txt"
+    with open(output_file, "w") as file:
+        file.write("z_dist,C_x,C_y,C_z,C_mx,C_my,C_mz\n")
+        # Write the lists to the file
+        for i in range(num_cases):
+            file.write(f"{z_dit},{C_x[i]},{C_y[i]},{C_z[i]},{C_mx[i]},{C_my[i]},{C_mz[i]}\n")
     
-    plt.xlabel("Trefftz Distance")
-    plt.ylabel("$C_F$")
-    plt.legend()
-    plt.show()
-
+    print(f"Data has been written to {output_file}")
+    end = time.time()
+    elapsed = end-start
+    hours =  elapsed // 3600
+    seconds %= 3600
+    minutes = seconds // 60
+    seconds %= 60
+    print(f"Study has complete after {hours}:{minutes}:{seconds}")

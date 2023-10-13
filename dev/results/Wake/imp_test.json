@@ -19,7 +19,6 @@
             "preconditioner" : 1.98000000000000E-005,
             "matrix_solver" : 1.73000000000000E-005
         },
-        "iterations" : 14,
         "residual" : {
             "max" : 4.51230307273315E-005,
             "norm" : 9.51247292095836E-005
@@ -45,10 +44,10 @@
         "flow" : {
             "freestream_velocity" : [
                     1.00000000000000E+002,
-                    1.00000000000000E+001,
+                    0.00000000000000E+000,
                     0.00000000000000E+000
                 ],
-            "freestream_mach_number" : 2.50000000000000E-001
+            "freestream_mach_number" : 2.50000000000000E+000
         },
         "geometry" : {
             "file" : "dev/meshes/wake/imp_test.stl",
@@ -64,7 +63,7 @@
         },
         "solver" : {
             "formulation" : "neumann-mass-flux",
-            "matrix_solver" : "GMRES",
+            "matrix_solver" : "LU",
             "write_A_and_b" : false
         },
         "post_processing" : {
