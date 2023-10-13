@@ -1339,7 +1339,7 @@ contains
         if (verbose) write(*,'(a)',advance='no') "     Calculating wake influences..."
 
         ! Loop through control points
-        !$OMP parallel do private(j, k, l, source_inf, doublet_inf, v_d, v_s, A_i)&
+        !$OMP parallel do private(j, k, l, source_inf, doublet_inf, v_d, v_s, A_i, s_star)&
         !$OMP & private(passes_through,downstream,d_from_te,x) schedule(dynamic)
         do i=1,body%N_cp
 
