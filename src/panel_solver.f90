@@ -897,7 +897,7 @@ contains
     end subroutine panel_solver_set_permutation
 
 
-    subroutine panel_solver_solve(this, body, solver_stat, formulation) !!!! changed so formulation is in solve
+    subroutine panel_solver_solve(this, body, solver_stat, formulation,freestream) !!!! changed so formulation is in solve
         ! Calls the relevant subroutine to solve the case based on the selected formulation
         ! We are solving the equation
         !
@@ -913,6 +913,7 @@ contains
 
         class(panel_solver),intent(inout) :: this
         type(surface_mesh),intent(inout) :: body
+        type(flow),intent(inout)::freestream
         integer,intent(out) :: solver_stat
         character(len=:),allocatable,intent(in) :: formulation !!!! changed to get wake influence working 
 
@@ -940,7 +941,8 @@ contains
         call this%calc_body_influences(body)
 
         ! Calculate wake influences
-        if (body%wake%N_panels > 0 .or. body%filament_wake%N_filaments > 0) call this%calc_wake_influences(body, formulation) !!!! formulation part is a change
+        if (body%wake%N_panels > 0 .or. body%filament_wake%N_filaments > 0)&
+        call this%calc_wake_influences(body, formulation,freestream) !!!! formulation part is a change
 
         ! Assemble boundary condition vector
         call this%assemble_BC_vector(body)
@@ -1316,25 +1318,29 @@ contains
     end subroutine panel_solver_calc_body_influences
 
 
-    subroutine panel_solver_calc_wake_influences(this, body, formulation)
+    subroutine panel_solver_calc_wake_influences(this, body, formulation,freestream)
         ! Calculates the influence of the wake on the control points
 
         implicit none
-
+        
         class(panel_solver),intent(inout) :: this
         type(surface_mesh),intent(inout) :: body
+        type(flow),intent(inout)::freestream
         character(len=:),allocatable,intent(in) :: formulation
         integer :: i, j, k, l
         real,dimension(:),allocatable ::  doublet_inf, source_inf
         real,dimension(this%N_unknown) :: A_i
         real,dimension(:,:),allocatable :: v_s, v_d
-        real :: s_star !!!! might remove
+        real :: s_star,x !!!! might remove
+        real,dimension(3) :: d_from_te
+        logical :: downstream,passes_through
 
         ! Calculate influence of wake
         if (verbose) write(*,'(a)',advance='no') "     Calculating wake influences..."
 
         ! Loop through control points
-        !$OMP parallel do private(j, k, l, source_inf, doublet_inf, v_d, v_s, A_i) schedule(dynamic)
+        !$OMP parallel do private(j, k, l, source_inf, doublet_inf, v_d, v_s, A_i)&
+        !$OMP & private(passes_through,downstream,d_from_te,x) schedule(dynamic)
         do i=1,body%N_cp
 
             ! Check boundary condition
@@ -1346,26 +1352,41 @@ contains
             case (ZERO_NORMAL_MF) ! Calculate normal mass flux influences !!!! add our stuff with logic to choose filaments or panels
                 if (body%wake_has_filaments(formulation)) then !!!! start wake_dev, might need to adjust cases instead of doing an if statement like this - SA
                     ! Initialize
+                    
                     A_i = 0.
                 
                     ! Get doublet influence from wake filaments 
                     do j=1,body%filament_wake%N_filaments 
                         do l=1,body%filament_wake%filaments(j)%N_segments
+                            
                             ! check if the filament passes through the panel of the control point
-                            if (body%panels(i)%filament_passes_through(body%filament_wake%filaments(j)&
-                                %segments(l)%vertices(1)%ptr%loc, &
-                                body%filament_wake%filaments(j)%segments(l)%vertices(2)%ptr%loc, &
-                                .false., s_star))  then ! vertices list might be called vertex
+                            !! first check if it is downstream
+                            d_from_te = body%cp(i)%loc - body%filament_wake%filaments(j)%segments(l)&
+                                                                                %vertices(1)%ptr%loc
+                            x = inner(d_from_te, freestream%c_hat_g)    
+                            downstream = x > 0.     
+                            ! write(*,*) "c_hat_g",freestream%c_hat_g                                         
+                            ! write(*,*) "d_from_te",d_from_te
+                            ! write(*,*) "X",X
+                            ! write(*,*) "DS?",downstream
+                            !! now check if the filament passes through 
+                            passes_through = body%panels(i)%filament_passes_through(body%filament_wake%filaments(j)&
+                            %segments(l)%vertices(1)%ptr%loc, &
+                            body%filament_wake%filaments(j)%segments(l)%vertices(2)%ptr%loc, &
+                            .false., s_star)
+                            if (passes_through.and.downstream)  then ! vertices list might be called vertex
                                 doublet_inf = (/0.0, 0.0, 0.0, 0.0/) !!!! is this actually a scalar? 
-                                write(*,*) "index:", body%cp(i)%tied_to_index, "loc", &
-                                 body%filament_wake%filaments(j)%i_top_parent, &
-                                "loc", body%filament_wake%filaments(j)%i_bot_parent
+                                write(*,*) "Panel:", body%cp(i)%tied_to_index-1,"ignores filament segment", &
+                                ((j-1)*body%filament_wake%filaments(j)%N_segments)+&
+                                body%filament_wake%filaments(j)%segments(l)%index-1, "due to impingement"
                             else
                                 call body%filament_wake%filaments(j)%segments(l)%calc_velocity_influences(& 
                                 body%cp(i)%loc, this%freestream,.false., v_d) 
                                 doublet_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_d))
                             end if
-                
+
+                            !write(*,*) "doublet_inf", doublet_inf
+                            !write(*,*) ""
                             ! call body%filament_wake%filaments(j)%segments(l)%calc_velocity_influences(& 
                             !                                     body%cp(i)%loc, this%freestream,.false., v_d) 
                             ! doublet_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_d)) 
