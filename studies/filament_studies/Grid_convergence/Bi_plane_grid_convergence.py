@@ -176,6 +176,7 @@ if __name__=="__main__":
                 file.write("num_span,num_chord,C_x,C_y,C_z,C_mx,C_my,C_mz\n")
                 for q in range(num_cases):
                     file.write(f"{spans[q]},{chords[q]},{C_x[q]},{C_y[q]},{C_z[q]},{C_mx[q]},{C_my[q]},{C_mz[q]}\n")
+            file.close()
 
     
     end = time.time()
