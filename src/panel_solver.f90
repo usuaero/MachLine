@@ -167,8 +167,10 @@ contains
         call json_xtnsn_get(solver_settings, 'formulation', this%formulation, 'dirichlet-morino')        
 
         ! Get matrix solver settings
-        if (this%freestream%supersonic) then
-            call json_xtnsn_get(solver_settings, 'matrix_solver', this%matrix_solver, 'GMRES')
+        if (this%formulation == N_MF_D_LS) then
+            call json_xtnsn_get(solver_settings, 'matrix_solver', this%matrix_solver, 'HHLS')
+            if (this%matrix_solver /= 'HHLS' .and. verbose) write(*,*) "!!! The HHLS solver is recommended for use &
+                with the neumann-mass-flux formulation."
         else
             call json_xtnsn_get(solver_settings, 'matrix_solver', this%matrix_solver, 'GMRES')
         end if
@@ -1730,10 +1732,19 @@ contains
 
             ! Overdetermined least-squares
             if (this%overdetermined_ls) then
-                call system_clock(start_count, count_rate)
-                call diagonal_preconditioner(this%N_unknown, matmul(transpose(this%A), this%A), &
-                                             matmul(transpose(this%A), this%b), A_p, b_p)
-                call system_clock(end_count)
+                if (this%matrix_solver == 'HHLS') then
+                    call system_clock(start_count, count_rate)
+                    allocate(A_p, source=this%A, stat=stat)
+                    call check_allocation(stat, "solver copy of AIC matrix")
+                    allocate(b_p, source=this%b, stat=stat)
+                    call check_allocation(stat, "solver copy of b vector")
+                    call system_clock(end_count)
+                else
+                    call system_clock(start_count, count_rate)
+                    call diagonal_preconditioner(this%N_unknown, matmul(transpose(this%A), this%A), &
+                                                 matmul(transpose(this%A), this%b), A_p, b_p)
+                    call system_clock(end_count)
+                end if
 
             ! Underdetermined least-squares
             else if (this%underdetermined_ls) then
@@ -1755,12 +1766,21 @@ contains
 
             ! Overdetermined least-squares
             if (this%overdetermined_ls) then
-                call system_clock(start_count, count_rate)
-                allocate(A_p, source=matmul(transpose(this%A), this%A), stat=stat)
-                call check_allocation(stat, "solver copy of AIC matrix")
-                allocate(b_p, source=matmul(transpose(this%A), this%b), stat=stat)
-                call check_allocation(stat, "solver copy of b vector")
-                call system_clock(end_count)
+                if (this%matrix_solver == 'HHLS') then
+                    call system_clock(start_count, count_rate)
+                    allocate(A_p, source=this%A, stat=stat)
+                    call check_allocation(stat, "solver copy of AIC matrix")
+                    allocate(b_p, source=this%b, stat=stat)
+                    call check_allocation(stat, "solver copy of b vector")
+                    call system_clock(end_count)
+                else
+                    call system_clock(start_count, count_rate)
+                    allocate(A_p, source=matmul(transpose(this%A), this%A), stat=stat)
+                    call check_allocation(stat, "solver copy of AIC matrix")
+                    allocate(b_p, source=matmul(transpose(this%A), this%b), stat=stat)
+                    call check_allocation(stat, "solver copy of b vector")
+                    call system_clock(end_count)
+                end if
 
             ! Underdetermined least-squares
             else if (this%underdetermined_ls) then
@@ -1850,6 +1870,12 @@ contains
             call system_clock(start_count, count_rate)
             call block_jacobi_solve(N, A_p, b_p, this%block_size, this%tol, this%rel, &
                                     this%max_iterations, this%iteration_file, this%solver_iterations, x)
+            call system_clock(end_count)
+        
+        ! Household least-squares
+        case ('HHLS')
+            call system_clock(start_count, count_rate)
+            call householder_ls_solve(body%N_cp, N, A_p, b_p, x)
             call system_clock(end_count)
 
         ! Improper specification
