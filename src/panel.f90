@@ -436,6 +436,12 @@ contains
         ! Calculate panel inclination indicator (E&M Eq. (E.3.16b))
         this%r = int(sign(1., x)) ! r = -1 -> superinclined, r = 1 -> subinclined
 
+        ! Check for Mach-inclined panels
+        if (this%r == -1) then
+            write(*,*) "!!! Panel", this%index, "is superinclined, which is not allowed. Quitting..."
+            stop
+        end if
+
         ! Other inclination parameters
         rs = int(this%r*freestream%s)
 
@@ -1035,7 +1041,7 @@ contains
 
         ! Check determinant
         x = det3(this%A_g_to_ls_mir)
-        if (abs(x-freestream%B**2) >= 1e-12) then
+        if (abs(x-freestream%B**2) >= 1e-10) then
             write(*,*) "!!! Calculation of mirrored local scaled coordinate transform failed. Quitting..."
             stop
         end if
