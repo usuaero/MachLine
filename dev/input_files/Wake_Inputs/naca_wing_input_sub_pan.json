@@ -1,7 +1,7 @@
 {
     "flow": {
         "freestream_velocity" : [ 100.0, 0.0, 20.0 ],
-        "freestream_mach_number" : 0
+        "freestream_mach_number" : 0.25
     },
     "geometry": {
         "file" : "dev/meshes/naca_0010_AR_10_full_coarse.stl",
@@ -9,7 +9,7 @@
         "wake_model" : {
             "wake_present" : true,
             "append_wake" : true,
-            "trefftz_distance" : 50.0,
+            "trefftz_distance" : 60.0,
             "wake_type":"panels"
 
         }

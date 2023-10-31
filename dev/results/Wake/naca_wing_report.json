@@ -1,67 +1,63 @@
 {
     "info" : {
         "generated_by" : "MachLine (c) 2023 USU Aerolab",
-        "executed" : "Thu Sep 21 12:52:40 2023"
+        "executed" : "Thu Oct 26 13:31:51 2023"
     },
     "mesh_info" : {
-        "N_body_panels" : 3952,
-        "N_body_vertices" : 2015,
-        "N_wake_panels" : 0,
-        "N_wake_filaments" : 38,
-        "average_characteristic_length" : 5.59343202997886E-002,
-        "max_flow_turning_angle" : 1.66761760024937E+002
+        "N_body_panels" : 1152,
+        "N_body_vertices" : 595,
+        "N_wake_panels" : 36,
+        "N_wake_filaments" : 0,
+        "average_characteristic_length" : 9.56897642167652E-002,
+        "max_flow_turning_angle" : 1.66894097833384E+002
     },
     "solver_results" : {
         "solver_status_code" : 0,
-        "system_dimension" : 2015,
+        "system_dimension" : 595,
         "timing" : {
-            "system_sorting" : 7.50000000000000E-006,
-            "preconditioner" : 8.78393120000000E+000,
-            "matrix_solver" : 4.55556360000000E+000
+            "system_sorting" : 7.70000000000000E-006,
+            "preconditioner" : 1.62747700000000E-001,
+            "matrix_solver" : 2.65910400000000E-001
         },
-        "iterations" : 999,
+        "iterations" : 594,
         "residual" : {
-            "max" : 1.35418149443340E-001,
-            "norm" : 1.34957695414785E+000
+            "max" : 2.63907678139219E-001,
+            "norm" : 1.74434085107103E+000
         }
     },
     "pressure_calculations" : {
-        "incompressible_rule" : {
-            "max" : 9.98464639082088E-001,
-            "min" : -9.72655995532336E+000
+        "isentropic_rule" : {
+            "max" : 9.86020932046335E-001,
+            "min" : -1.18794599915929E+001
         }
     },
     "total_forces" : {
-        "Cx" : -3.54706280075071E-002,
-        "Cy" : 7.58230589947807E-011,
-        "Cz" : 4.14495049031622E-001
+        "Cx" : -8.41370314647590E-001,
+        "Cy" : -4.46877669417478E-013,
+        "Cz" : 5.93876451188922E+000
     },
     "total_moments" : {
-        "CMx" : -1.38546425412277E-007,
-        "CMy" : -1.01480225750778E+000,
-        "CMz" : 5.45526105661696E-009
+        "CMx" : -1.55758835930291E-009,
+        "CMy" : -1.17927367657100E+000,
+        "CMz" : -8.86510141500079E-010
     },
     "input" : {
         "flow" : {
             "freestream_velocity" : [
                     1.00000000000000E+002,
                     0.00000000000000E+000,
-                    1.00000000000000E+001
+                    2.00000000000000E+001
                 ],
-            "freestream_mach_number" : 0
+            "freestream_mach_number" : 2.50000000000000E-001
         },
         "geometry" : {
-            "file" : "dev/meshes/wake/naca_0010_AR_10_full_medium.stl",
+            "file" : "dev/meshes/naca_0010_AR_10_full_coarse.stl",
             "singularity_order" : "lower",
-            "reference" : {
-                "area" : 1.00000000000000E+001
-            },
             "wake_model" : {
                 "wake_present" : true,
                 "append_wake" : true,
-                "trefftz_distance" : 1.00000000000000E+000,
-                "wake_type" : "filaments",
-                "N_panels" : 1
+                "trefftz_distance" : 6.00000000000000E+001,
+                "wake_type" : "panels"
             }
         },
         "solver" : {
@@ -72,8 +68,8 @@
         "post_processing" : {
         },
         "output" : {
-            "body_file" : "dev/results/wake/naca_wing.vtk",
-            "wake_file" : "dev/results/wake/naca_wing_wake.vtk",
+            "body_file" : "dev/results/wake/naca_wing_sub_pan.vtk",
+            "wake_file" : "dev/results/wake/naca_wing_sub_pan_wake.vtk",
             "control_point_file" : "dev/results/wake/naca_wing_control_points.vtk",
             "report_file" : "dev/results/wake/naca_wing_report.json",
             "ffbody_points" : {
@@ -82,5 +78,5 @@
             }
         }
     },
-    "total_runtime" : 3.23900000000000E+001
+    "total_runtime" : 2.31200000000000E+000
 }

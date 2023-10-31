@@ -6,8 +6,8 @@
     "mesh_info" : {
         "N_body_panels" : 3184,
         "N_body_vertices" : 1649,
-        "N_wake_panels" : 0,
-        "N_wake_filaments" : 56,
+        "N_wake_panels" : 112,
+        "N_wake_filaments" : 0,
         "average_characteristic_length" : 2.50390010013252E-002,
         "max_flow_turning_angle" : 1.74414571517583E+002
     },
@@ -19,7 +19,7 @@
             "preconditioner" : 8.19720840000000E+000,
             "matrix_solver" : 9.30337830000000E+000
         },
-        "iterations" : 956,
+        "iterations" : 952,
         "residual" : {
             "max" : 1.97943814792911E-001,
             "norm" : 1.77450775840273E+000
@@ -57,12 +57,13 @@
             "wake_model" : {
                 "wake_present" : true,
                 "append_wake" : true,
-                "trefftz_distance" : 2.00000000000000E+001,
-                "wake_type" : "filaments"
+                "trefftz_distance" : 6.00000000000000E+001,
+                "wake_type" : "panels"
             }
         },
         "solver" : {
             "formulation" : "neumann-mass-flux",
+            "ormulation" : "Dirichlet-morino",
             "matrix_solver" : "GMRES",
             "write_A_and_b" : false
         },

@@ -1,7 +1,7 @@
 {
     "flow": {
-        "freestream_velocity" : [ 100.0, 10.0, 0.0 ],
-        "freestream_mach_number" : 0.25
+        "freestream_velocity" : [ 100.0, 0.0, 0.0 ],
+        "freestream_mach_number" : 2.5
     },
     "geometry": {
         "file": "dev/meshes/wake/imp_test.stl",
@@ -17,7 +17,7 @@
     },
     "solver": {
         "formulation" : "neumann-mass-flux",
-        "matrix_solver" : "GMRES",
+        "matrix_solver" : "LU",
         "write_A_and_b" : false
     },
     "post_processing" : {
