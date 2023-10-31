@@ -1,7 +1,7 @@
 {
     "info" : {
         "generated_by" : "MachLine (c) 2023 USU Aerolab",
-        "executed" : "Mon Oct  9 21:03:26 2023"
+        "executed" : "Tue Oct 10 11:28:15 2023"
     },
     "mesh_info" : {
         "N_body_panels" : 3184,
@@ -15,31 +15,31 @@
         "solver_status_code" : 0,
         "system_dimension" : 1649,
         "timing" : {
-            "system_sorting" : 1.02000000000000E-005,
-            "preconditioner" : 4.74297470000000E+000,
-            "matrix_solver" : 2.99589500000000E+000
+            "system_sorting" : 2.30000000000000E-005,
+            "preconditioner" : 8.19720840000000E+000,
+            "matrix_solver" : 9.30337830000000E+000
         },
         "iterations" : 956,
         "residual" : {
-            "max" : 1.97943814792877E-001,
+            "max" : 1.97943814792911E-001,
             "norm" : 1.77450775840273E+000
         }
     },
     "pressure_calculations" : {
         "isentropic_rule" : {
-            "max" : 8.73292652017302E-001,
-            "min" : -2.84555572313525E+000
+            "max" : 8.73292652017191E-001,
+            "min" : -2.84555572311290E+000
         }
     },
     "total_forces" : {
-        "Cx" : -1.02698764459923E-002,
-        "Cy" : 2.33592293933214E-001,
-        "Cz" : -5.97735209948903E-015
+        "Cx" : -1.02698764459828E-002,
+        "Cy" : 2.33592293933071E-001,
+        "Cz" : 5.53917041256893E-015
     },
     "total_moments" : {
-        "CMx" : 1.77405968604730E-014,
-        "CMy" : 1.00217215609326E-014,
-        "CMz" : 1.08690255044606E-001
+        "CMx" : -2.31009872689314E-014,
+        "CMy" : -6.51472733249306E-015,
+        "CMz" : 1.08690255044537E-001
     },
     "input" : {
         "flow" : {
@@ -79,5 +79,5 @@
             }
         }
     },
-    "total_runtime" : 2.24690000000000E+001
+    "total_runtime" : 4.60780000000000E+001
 }
