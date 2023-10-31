@@ -94,11 +94,13 @@ module surface_mesh_mod
             procedure :: update_subsonic_trefftz_distance => surface_mesh_update_subsonic_trefftz_distance
 
             ! Control point locations
+            procedure :: get_cp_locs_vertex_based => surface_mesh_get_cp_locs_vertex_based
             procedure :: get_cp_locs_vertex_based_interior => surface_mesh_get_cp_locs_vertex_based_interior
             procedure :: get_cp_locs_centroid_based => surface_mesh_get_cp_locs_centroid_based
             procedure :: get_clone_control_point_dir => surface_mesh_get_clone_control_point_dir
 
             ! Control point placement
+            procedure :: place_vertex_control_points => surface_mesh_place_vertex_control_points
             procedure :: place_internal_vertex_control_points => surface_mesh_place_internal_vertex_control_points
             procedure :: place_centroid_control_points => surface_mesh_place_centroid_control_points
             procedure :: place_sparse_centroid_control_points => surface_mesh_place_sparse_centroid_control_points
@@ -653,6 +655,9 @@ contains
 
             ! Normalize and store
             this%vertices(i)%n_g = n_avg/norm2(n_avg)
+
+            write(*,*) "loc",this%vertices(i)%loc
+            write(*,*) "n_g",this%vertices(i)%n_g
 
             ! Calculate mirrored normal for mirrored vertex
             if (this%mirrored) then
@@ -1291,10 +1296,9 @@ contains
         class(surface_mesh),intent(in) :: this
         character(len=:),allocatable,intent(in) :: formulation
         logical :: has 
-        if (this%wake_type == "filaments" .and. formulation == "neumann-mass-flux" &
-         .and. this%wake_present .and. this%append_wake  &
-         .or. this%wake_type == "filaments" .and. formulation == "neumann-velocity" & 
-         .and. this%wake_present .and. this%append_wake)  then
+        if (this%wake_type == "filaments" .and. (formulation == "neumann-mass-flux" &
+         .or. formulation == "neumann-velocity" .or. formulation == "neumann-mass-flux-VCP") &
+         .and. this%wake_present .and. this%append_wake )  then
             has = .true. 
         else
             has = .false.
@@ -1878,6 +1882,21 @@ contains
     
     end function surface_mesh_get_clone_control_point_dir
 
+    function surface_mesh_get_cp_locs_vertex_based(this,freestream) result(cp_locs)
+        ! Returns the locations of coincident vertex-based control points
+        implicit none
+        class(surface_mesh),intent(in) :: this
+        type(flow),intent(in) :: freestream
+        real,dimension(:,:),allocatable :: cp_locs
+        integer :: i
+        
+        ! Allocate memory
+        allocate(cp_locs(3,this%N_verts))
+
+        do i=1,this%N_verts
+            cp_locs(:,i) = this%vertices(i)%loc
+        end do
+    end function surface_mesh_get_cp_locs_vertex_based
 
     function surface_mesh_get_cp_locs_vertex_based_interior(this, offset, offset_type, freestream) result(cp_locs)
         ! Returns the locations of interior vertex-based control points
@@ -2038,6 +2057,53 @@ contains
         
     end function surface_mesh_control_point_outside_mesh
 
+    subroutine surface_mesh_place_vertex_control_points(this, freestream)
+
+        implicit none
+
+        class(surface_mesh),intent(inout) :: this
+        type(flow),intent(in) :: freestream
+
+        integer :: i
+        real,dimension(:,:),allocatable :: cp_locs
+
+        ! Specify number of control points
+        if (this%asym_flow) then
+            this%N_cp = this%N_verts*2
+        else
+            this%N_cp = this%N_verts
+        end if
+        this%N_cp = this%N_cp
+
+        ! Allocate memory
+        allocate(this%cp(this%N_cp))
+
+        ! Get control point locations
+        cp_locs = this%get_cp_locs_vertex_based(freestream)
+
+        ! Initialize control points
+        do i=1,this%N_verts
+            call this%cp(i)%init(cp_locs(:,i), 4, TT_VERTEX, i)
+        end do
+
+        ! Initialize mirrored control points, if necessary
+        if (this%asym_flow) then
+
+            !$OMP parallel do schedule(static)
+            do i=1,this%N_cp/2
+
+                ! Initialize
+                call this%cp(i+this%N_cp/2)%init(mirror_across_plane(this%cp(i)%loc, this%mirror_plane), &
+                                                 this%cp(i)%cp_type, this%cp(i)%tied_to_type, this%cp(i)%tied_to_index)
+
+                ! Specify that this is a mirror
+                this%cp(i+this%N_cp/2)%is_mirror = .true.
+
+            end do
+
+        end if
+
+    end subroutine surface_mesh_place_vertex_control_points
 
     subroutine surface_mesh_place_internal_vertex_control_points(this, offset, offset_type, freestream)
 
