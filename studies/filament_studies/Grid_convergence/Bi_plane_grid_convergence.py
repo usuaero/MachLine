@@ -19,7 +19,7 @@ def run_machline_for_grid(chord_count,span_count,study_directory,index, wake_typ
     # Storage locations
     
     ## change name for new studies
-    mesh_file = study_directory+"/meshes/bi_plane_grid_convergence_"+str(index)+".stl" ## changed name after meshes
+    mesh_file = study_directory+"/meshes/bi_plane_grid_convergence_"+str(index)+".stl" # changed name after meshes         
     results_file = study_directory+"/results/"+str(index)+".vtk"
     wake_file = study_directory+"/results/"+str(index)+"_wake.vtk"
     report_file = study_directory+"/reports/"+str(index)+".json"
@@ -135,7 +135,7 @@ def run_machline(input_filename, delete_input=True, run=True):
 if __name__=="__main__":
     # declare varaibles and inputs
     start = time.time()
-    num_cases = 20
+    num_cases = 2
     study_dir = "studies/filament_studies/Grid_convergence"
     N_sys = list(range(num_cases))
     l_avg =list(range(num_cases))
@@ -149,19 +149,21 @@ if __name__=="__main__":
     C_mz = list(range(num_cases))
 
     # set parameters
-    chords = np.linspace(5,80,num_cases)
-    spans = np.linspace(5,80,num_cases)
-    wake_type = ["panels", "filaments"]
-    freestream_mach = [0.25, 1.7]
+    chords = np.linspace(5,20,num_cases)
+    spans = np.linspace(5,20,num_cases)
+    wake_types = ["panels"]
+    formulations = ["neumann_mass_flux"] #### change this just for writing to the file purposes. 
+    ormulations = ["dirichlet-morino"] #### change this just for writing to the file purposes.
+    freestream_machs = [0.25]
 
     # Run cases
-    for i in range(len(freestream_mach)):
-        for j in range(len(wake_type)):
+    for i in range(len(freestream_machs)):
+        for j in range(len(wake_types)):
             for k in range(num_cases):
                 chord = int(chords[k])
                 span = int(spans[k])
-                index = i*len(wake_type)*num_cases + j*num_cases + k
-                N_sys[k], l_avg[k], C_F[k], C_M[k] = run_machline_for_grid(chord,span,study_dir,index, wake_type, freestream_mach)
+                index = i*len(wake_types)*num_cases + j*num_cases + k
+                N_sys[k], l_avg[k], C_F[k], C_M[k] = run_machline_for_grid(chord,span,study_dir,index, wake_types[j], freestream_machs[i])
             for p in range(num_cases):
                 C_x[p] = C_F[p][0]
                 C_y[p] = C_F[p][1]
@@ -170,13 +172,13 @@ if __name__=="__main__":
                 C_my[p] = C_M[p][1]
                 C_mz[p] = C_M[p][2]
             output_file = study_dir
-            output_file += "/grid_convergence_" + str(wake_type[j]) + "_" + str(freestream_mach[i]) + ".txt"
+            output_file += "/grid_convergence_" + str(formulations[j]) + "_" + str(freestream_machs[i]) + ".txt"
             with open(output_file, "w") as file:
                 # Write the lists to the file
                 file.write("num_span,num_chord,C_x,C_y,C_z,C_mx,C_my,C_mz\n")
                 for q in range(num_cases):
                     file.write(f"{spans[q]},{chords[q]},{C_x[q]},{C_y[q]},{C_z[q]},{C_mx[q]},{C_my[q]},{C_mz[q]}\n")
-
+            file.close()
     
     end = time.time()
     elapsed = end-start

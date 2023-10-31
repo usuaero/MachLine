@@ -1,7 +1,7 @@
 {
     "info" : {
         "generated_by" : "MachLine (c) 2023 USU Aerolab",
-        "executed" : "Mon Oct  9 21:02:22 2023"
+        "executed" : "Thu Oct 26 14:10:11 2023"
     },
     "mesh_info" : {
         "N_body_panels" : 3184,
@@ -15,31 +15,31 @@
         "solver_status_code" : 0,
         "system_dimension" : 1649,
         "timing" : {
-            "system_sorting" : 8.90000000000000E-006,
-            "preconditioner" : 4.75982810000000E+000,
-            "matrix_solver" : 3.01749080000000E+000
+            "system_sorting" : 8.40000000000000E-006,
+            "preconditioner" : 5.75621190000000E+000,
+            "matrix_solver" : 3.48944500000000E+000
         },
         "iterations" : 952,
         "residual" : {
-            "max" : 1.97070052555844E-001,
-            "norm" : 1.75636393401959E+000
+            "max" : 1.97061628508425E-001,
+            "norm" : 1.75619422204212E+000
         }
     },
     "pressure_calculations" : {
         "isentropic_rule" : {
-            "max" : 1.00327976037536E+000,
-            "min" : -2.74021170074970E+000
+            "max" : 1.00315395044432E+000,
+            "min" : -2.74017936412510E+000
         }
     },
     "total_forces" : {
-        "Cx" : -8.90487869285718E-003,
-        "Cy" : 2.30395322053172E-001,
-        "Cz" : 8.21503014069617E-015
+        "Cx" : -8.90659803305060E-003,
+        "Cy" : 2.30424084121751E-001,
+        "Cz" : -6.64577664869552E-015
     },
     "total_moments" : {
-        "CMx" : -5.04823233996726E-014,
-        "CMy" : -1.80449036111694E-014,
-        "CMz" : 1.06423316194102E-001
+        "CMx" : 4.48691105971177E-014,
+        "CMy" : 6.21854320424428E-015,
+        "CMz" : 1.06453063232113E-001
     },
     "input" : {
         "flow" : {
@@ -57,7 +57,7 @@
             "wake_model" : {
                 "wake_present" : true,
                 "append_wake" : true,
-                "trefftz_distance" : 2.00000000000000E+001,
+                "trefftz_distance" : 6.00000000000000E+001,
                 "wake_type" : "panels"
             }
         },
@@ -79,5 +79,5 @@
             }
         }
     },
-    "total_runtime" : 1.99380000000000E+001
+    "total_runtime" : 2.40150000000000E+001
 }
