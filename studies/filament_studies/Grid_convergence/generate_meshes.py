@@ -91,8 +91,8 @@ def add_wing(**kwargs):
 def gen_multi_wing_geom(x_loc,y_loc,z_loc,study_directory,index):
     '''This function generates a pair of wings with the main wing at the origin and the second wing at the points given in the input.
     This function returns the area of the wings for use in MachLine'''
-    mainID = add_wing(span=10,sweep=30,root_chord=4,tip_chord=1,airfoilType=10,ThickLoc=0.25,chord_panel_count=30,span_panel_count=30)
-    upperID = add_wing(span=10,sweep=30,root_chord=4,tip_chord=1,x_loc=x_loc,y_loc=y_loc,z_loc=z_loc,airfoilType=10,ThickLoc=0.25,chord_panel_count=30,span_panel_count=30)
+    mainID = add_wing(span=10,sweep=30,root_chord=4,tip_chord=1,airfoilType=10,ThickLoc=0.25,chord_panel_count=25,span_panel_count=25)
+    upperID = add_wing(span=10,sweep=30,root_chord=4,tip_chord=1,x_loc=x_loc,y_loc=y_loc,z_loc=z_loc,airfoilType=10,ThickLoc=0.25,chord_panel_count=25,span_panel_count=25)
 
     # vsp.WriteVSPFile("my_aircraft.vsp3")
     # Export the OpenVSP file

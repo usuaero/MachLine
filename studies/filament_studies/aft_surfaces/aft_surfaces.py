@@ -10,8 +10,8 @@ import generate_meshes
 RERUN_MACHLINE = True
 
 
-def run_machline_for_loc(x_dist,y_dist,z_dist,index):
-    study_directory = "studies/filament_studies/aft_surfaces"
+def run_machline_for_loc(x_dist,y_dist,z_dist,index,wake_type,freestream_mach,study_directory):
+    
     # default values
     alpha = 5
     #generate geometry
@@ -27,7 +27,7 @@ def run_machline_for_loc(x_dist,y_dist,z_dist,index):
     input_dict = {
         "flow": {
             "freestream_velocity": [np.cos(np.radians(alpha)), 0.0, np.sin(np.radians(alpha))],
-            "freestream_mach_number" : 0.25
+            "freestream_mach_number" : freestream_mach
             
         },
         "geometry": {
@@ -40,7 +40,7 @@ def run_machline_for_loc(x_dist,y_dist,z_dist,index):
                 "wake_present" : True,
                 "append_wake" : True,
                 "trefftz_distance": 60,
-                "wake_type": "panels"
+                "wake_type": wake_type
             }
         },
     
@@ -133,8 +133,9 @@ def run_machline(input_filename, delete_input=True, run=True):
 
 if __name__=="__main__":
     # declare varaibles and inputs
+    study_directory = "studies/filament_studies/aft_surfaces"
     start = time.time()
-    num_cases = 2
+    num_cases = 30
     N_sys = list(range(num_cases))
     l_avg =list(range(num_cases))
     C_F = list(range(num_cases))
@@ -147,36 +148,92 @@ if __name__=="__main__":
     C_mz = list(range(num_cases))
 
     # set parameters
-    x_dist = 15
+    x_dist = 1.5
     y_dist = 0
     z_dists = np.linspace(0,30,num_cases)
+    wake_types = ["panels", "filaments"]
+    freestream_machs = [0.25, 1.7]
     # Run cases
-    for i in range(num_cases):
-        z_dist = z_dists[i]
-        N_sys[i], l_avg[i], C_F[i], C_M[i] = run_machline_for_loc(x_dist,y_dist,z_dist,i)
 
-
-    # get data
-    for i in range(num_cases):
-        C_x[i] = C_F[i][0]
-        C_y[i] = C_F[i][1]
-        C_z[i] = C_F[i][2]
-        C_mx[i] = C_M[i][0]
-        C_my[i] = C_M[i][1]
-        C_mz[i] = C_M[i][2]
-    output_file = study_dir    
-    output_file += "/imp_test_data.txt"
-    with open(output_file, "w") as file:
-        file.write("z_dist,C_x,C_y,C_z,C_mx,C_my,C_mz\n")
-        # Write the lists to the file
-        for i in range(num_cases):
-            file.write(f"{z_dit},{C_x[i]},{C_y[i]},{C_z[i]},{C_mx[i]},{C_my[i]},{C_mz[i]}\n")
     
-    print(f"Data has been written to {output_file}")
-    end = time.time()
-    elapsed = end-start
-    hours =  elapsed // 3600
-    seconds %= 3600
-    minutes = seconds // 60
-    seconds %= 60
-    print(f"Study has complete after {hours}:{minutes}:{seconds}")
+        
+# Run cases
+    try:
+        for i in range(len(freestream_machs)):
+            for j in range(len(wake_types)):
+                for k in range(num_cases):
+                    z_dist = z_dists[k]
+                    wake_type = wake_types[j]
+                    freestream_mach = freestream_machs[i]
+                    index = i*len(wake_type)*num_cases + j*num_cases + k
+                    N_sys[k], l_avg[k], C_F[k], C_M[k] = run_machline_for_loc(x_dist,y_dist,z_dist,index,wake_type,freestream_mach,study_directory)
+                for p in range(num_cases):
+                    C_x[p] = C_F[p][0]
+                    C_y[p] = C_F[p][1]
+                    C_z[p] = C_F[p][2]
+                    C_mx[p] = C_M[p][0]
+                    C_my[p] = C_M[p][1]
+                    C_mz[p] = C_M[p][2]
+                output_file = study_directory
+                output_file += "/imp_test_" + str(wake_type[j]) + "_" + str(freestream_mach[i]) + ".txt"
+                with open(output_file, "w") as file:
+                    # Write the lists to the file
+                    file.write("z_dist,C_x,C_y,C_z,C_mx,C_my,C_mz\n")
+                    for q in range(num_cases):
+                        file.write(f"{z_dist[q]},{C_x[q]},{C_y[q]},{C_z[q]},{C_mx[q]},{C_my[q]},{C_mz[q]}\n")
+                    file.close()
+
+    except KeyboardInterrupt:
+        end = time.time()
+        seconds = end-start
+        hours =  seconds // 3600
+        seconds %= 3600
+        minutes = seconds // 60
+        seconds %= 60
+        error_filename = study_directory+"/Keyboard_exception_output.txt"
+        print(f"Code has stopped due to keyboard interrupt at {hours}:{minutes}:{seconds}, data has been written to {error_filename}.")
+        for p in range(len(C_F)):
+                    C_x[p] = C_F[p][0]
+                    C_y[p] = C_F[p][1]
+                    C_z[p] = C_F[p][2]
+                    C_mx[p] = C_M[p][0]
+                    C_my[p] = C_M[p][1]
+                    C_mz[p] = C_M[p][2]
+        with open(error_filename, "w") as file:
+            # Write the lists to the file
+            file.write("z_dist,C_x,C_y,C_z,C_mx,C_my,C_mz\n")
+            for q in range(len(C_x)):
+                file.write(f"{z_dist[q]},{C_x[q]},{C_y[q]},{C_z[q]},{C_mx[q]},{C_my[q]},{C_mz[q]}\n")
+            file.close()
+    except Exception as e:
+        end = time.time()
+        seconds = end-start
+        hours =  seconds // 3600
+        seconds %= 3600
+        minutes = seconds // 60
+        seconds %= 60
+        error_filename = study_directory + "/Keyboard_exception_output.txt"
+        print(f"Code has stopped due to exception: {e} at {hours}:{minutes}:{seconds}")
+        for p in range(len(C_F)):
+                    C_x[p] = C_F[p][0]
+                    C_y[p] = C_F[p][1]
+                    C_z[p] = C_F[p][2]
+                    C_mx[p] = C_M[p][0]
+                    C_my[p] = C_M[p][1]
+                    C_mz[p] = C_M[p][2]
+        with open(error_filename, "w") as file:
+            # Write the lists to the file
+            file.write("z_dist,C_x,C_y,C_z,C_mx,C_my,C_mz\n")
+            for q in range(len(C_x)):
+                file.write(f"{z_dist[q]},{C_x[q]},{C_y[q]},{C_z[q]},{C_mx[q]},{C_my[q]},{C_mz[q]}\n")
+            file.close()
+        print(f"Data has been written to {error_filename}.")
+    else:     
+        end = time.time()
+        seconds = end-start
+        hours =  seconds // 3600
+        seconds %= 3600
+        minutes = seconds // 60
+        seconds %= 60
+        print(f"Study has complete after {int(hours)}:{int(minutes)}:{int(seconds)}")
+        print(f"Data has been written to {output_file}")

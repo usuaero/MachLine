@@ -21,6 +21,7 @@ module panel_solver_mod
     character(len=*),parameter :: N_V_D_LS = "neumann-velocity"
 
     ! Experimental
+    character(len=*),parameter :: N_MF_D_VCP = "neumann-mass-flux-VCP" !!!! wake version
     character(len=*),parameter :: N_MF_DS_LS = "neumann-doublet-source-mass-flux-ls"
     character(len=*),parameter :: N_MF_D_IF = "neumann-mass-flux-inner-flow"
     character(len=*),parameter :: N_MF_D = "neumann-doublet-only-mass-flux"
@@ -133,7 +134,7 @@ contains
             this%dirichlet = .true.
             call this%init_dirichlet(solver_settings, body)
         else if (this%formulation == N_MF_D_LS .or. this%formulation == N_MF_D .or. this%formulation == N_MF_DS_LS &
-                 .or. this%formulation == N_V_D_LS .or. this%formulation == N_MF_D_IF) then
+                 .or. this%formulation == N_V_D_LS .or. this%formulation == N_MF_D_IF .or. this%formulation == N_MF_D_VCP) then
             this%dirichlet = .false.
             call this%init_neumann(solver_settings, body)
         else
@@ -167,8 +168,10 @@ contains
         call json_xtnsn_get(solver_settings, 'formulation', this%formulation, 'dirichlet-morino')        
 
         ! Get matrix solver settings
-        if (this%freestream%supersonic) then
-            call json_xtnsn_get(solver_settings, 'matrix_solver', this%matrix_solver, 'GMRES')
+        if (this%formulation == N_MF_D_LS) then
+            call json_xtnsn_get(solver_settings, 'matrix_solver', this%matrix_solver, 'HHLS')
+            if (this%matrix_solver /= 'HHLS' .and. verbose) write(*,*) "!!! The HHLS solver is recommended for use &
+                with the neumann-mass-flux formulation."
         else
             call json_xtnsn_get(solver_settings, 'matrix_solver', this%matrix_solver, 'GMRES')
         end if
@@ -193,7 +196,7 @@ contains
             this%use_sort_for_cp = .false.
             this%underdetermined_ls = .true.
             this%overdetermined_ls = .false.
-        else
+        else !!!! we want our version to be else I think -JJH
             this%use_sort_for_cp = .true.
             this%overdetermined_ls = .false.
             this%underdetermined_ls = .false.
@@ -377,7 +380,7 @@ contains
             write(*,*) "!!! Control point offset must be greater than 0. Defaulting to 1e-7."
             offset = 1.e-7
         end if
-
+        !!!! this should probably be a case at some point
         ! Place control points
         if (this%formulation == N_MF_D_LS) then
             if (verbose) write(*,'(a)',advance='no') "     Placing control points at panel centroids..."
@@ -401,6 +404,10 @@ contains
             if (verbose) write(*,'(a a a ES10.4 a)',advance='no') "     Placing control points control points using a ", &
                                 offset_type," offset ratio of ", offset, "..."
             call body%place_internal_vertex_control_points(offset, offset_type, this%freestream)
+        else if (this%formulation == N_MF_D_VCP) then
+            if (verbose) write(*,'(a ES10.4 a)',advance='no') "     Placing control points using a direct offset of 0 ..."
+            offset_type = "direct" !!!! check this with cory -jjh
+            call body%place_vertex_control_points(this%freestream)        
         end if
 
         ! Sources
@@ -632,7 +639,7 @@ contains
             case (N_V_D_LS)
                 call this%init_cp_neumann_condition(body%cp(i), ZERO_NORMAL_VEL, body)
 
-            case default
+            case default !!!! this one is ours
                 call this%init_cp_neumann_condition(body%cp(i), ZERO_NORMAL_MF, body)
             
             end select
@@ -1352,7 +1359,7 @@ contains
             case (ZERO_NORMAL_MF) ! Calculate normal mass flux influences !!!! add our stuff with logic to choose filaments or panels
                 if (body%wake_has_filaments(formulation)) then !!!! start wake_dev, might need to adjust cases instead of doing an if statement like this - SA
                     ! Initialize
-                    
+                    !!!! need to see if we need to ignore a vertex here -jjh
                     A_i = 0.
                 
                     ! Get doublet influence from wake filaments 
@@ -1369,12 +1376,13 @@ contains
                             ! write(*,*) "d_from_te",d_from_te
                             ! write(*,*) "X",X
                             ! write(*,*) "DS?",downstream
+
                             !! now check if the filament passes through 
                             passes_through = body%panels(i)%filament_passes_through(body%filament_wake%filaments(j)&
                             %segments(l)%vertices(1)%ptr%loc, &
                             body%filament_wake%filaments(j)%segments(l)%vertices(2)%ptr%loc, &
                             .false., s_star)
-                            if (passes_through.and.downstream)  then ! vertices list might be called vertex
+                            if (passes_through.and.downstream .and. body%cp(i)%tied_to_type==2)  then !!!! tied to type=2 means the cp is on a panel
                                 doublet_inf = (/0.0, 0.0, 0.0, 0.0/) !!!! is this actually a scalar? 
                                 write(*,*) "Panel:", body%cp(i)%tied_to_index-1,"ignores filament segment", &
                                 ((j-1)*body%filament_wake%filaments(j)%N_segments)+&
@@ -1730,10 +1738,19 @@ contains
 
             ! Overdetermined least-squares
             if (this%overdetermined_ls) then
-                call system_clock(start_count, count_rate)
-                call diagonal_preconditioner(this%N_unknown, matmul(transpose(this%A), this%A), &
-                                             matmul(transpose(this%A), this%b), A_p, b_p)
-                call system_clock(end_count)
+                if (this%matrix_solver == 'HHLS') then
+                    call system_clock(start_count, count_rate)
+                    allocate(A_p, source=this%A, stat=stat)
+                    call check_allocation(stat, "solver copy of AIC matrix")
+                    allocate(b_p, source=this%b, stat=stat)
+                    call check_allocation(stat, "solver copy of b vector")
+                    call system_clock(end_count)
+                else
+                    call system_clock(start_count, count_rate)
+                    call diagonal_preconditioner(this%N_unknown, matmul(transpose(this%A), this%A), &
+                                                 matmul(transpose(this%A), this%b), A_p, b_p)
+                    call system_clock(end_count)
+                end if
 
             ! Underdetermined least-squares
             else if (this%underdetermined_ls) then
@@ -1755,12 +1772,21 @@ contains
 
             ! Overdetermined least-squares
             if (this%overdetermined_ls) then
-                call system_clock(start_count, count_rate)
-                allocate(A_p, source=matmul(transpose(this%A), this%A), stat=stat)
-                call check_allocation(stat, "solver copy of AIC matrix")
-                allocate(b_p, source=matmul(transpose(this%A), this%b), stat=stat)
-                call check_allocation(stat, "solver copy of b vector")
-                call system_clock(end_count)
+                if (this%matrix_solver == 'HHLS') then
+                    call system_clock(start_count, count_rate)
+                    allocate(A_p, source=this%A, stat=stat)
+                    call check_allocation(stat, "solver copy of AIC matrix")
+                    allocate(b_p, source=this%b, stat=stat)
+                    call check_allocation(stat, "solver copy of b vector")
+                    call system_clock(end_count)
+                else
+                    call system_clock(start_count, count_rate)
+                    allocate(A_p, source=matmul(transpose(this%A), this%A), stat=stat)
+                    call check_allocation(stat, "solver copy of AIC matrix")
+                    allocate(b_p, source=matmul(transpose(this%A), this%b), stat=stat)
+                    call check_allocation(stat, "solver copy of b vector")
+                    call system_clock(end_count)
+                end if
 
             ! Underdetermined least-squares
             else if (this%underdetermined_ls) then
@@ -1850,6 +1876,12 @@ contains
             call system_clock(start_count, count_rate)
             call block_jacobi_solve(N, A_p, b_p, this%block_size, this%tol, this%rel, &
                                     this%max_iterations, this%iteration_file, this%solver_iterations, x)
+            call system_clock(end_count)
+        
+        ! Household least-squares
+        case ('HHLS')
+            call system_clock(start_count, count_rate)
+            call householder_ls_solve(body%N_cp, N, A_p, b_p, x)
             call system_clock(end_count)
 
         ! Improper specification

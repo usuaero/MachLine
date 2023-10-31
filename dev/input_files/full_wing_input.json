@@ -1,10 +1,8 @@
 {
     "flow": {
-        "freestream_velocity": [450.0, 0.0,-10.0],
+        "freestream_velocity": [450.0, 0.0, 0.0],
         "gamma": 1.4,
         "freestream_mach_number": 0.0
-        
-        
     },
     "geometry": {
         "file": "dev/meshes/full_wing.vtk",
@@ -18,8 +16,8 @@
         }
     },
     "solver": {
-        "formulation": "source-free",
-        "control_point_offset": 1.1e-05
+        "formulation": "neumann-mass-flux",
+        "matrix_solver" : "GMRES"
     },
     "post_processing": {
         "pressure_for_forces": "prandtl-glauert",
