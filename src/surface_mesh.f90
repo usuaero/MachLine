@@ -656,8 +656,8 @@ contains
             ! Normalize and store
             this%vertices(i)%n_g = n_avg/norm2(n_avg)
 
-            write(*,*) "loc",this%vertices(i)%loc
-            write(*,*) "n_g",this%vertices(i)%n_g
+            ! write(*,*) "loc",this%vertices(i)%loc
+            ! write(*,*) "n_g",this%vertices(i)%n_g
 
             ! Calculate mirrored normal for mirrored vertex
             if (this%mirrored) then
@@ -1882,6 +1882,7 @@ contains
     
     end function surface_mesh_get_clone_control_point_dir
 
+
     function surface_mesh_get_cp_locs_vertex_based(this,freestream) result(cp_locs)
         ! Returns the locations of coincident vertex-based control points
         implicit none
@@ -1894,9 +1895,11 @@ contains
         allocate(cp_locs(3,this%N_verts))
 
         do i=1,this%N_verts
-            cp_locs(:,i) = this%vertices(i)%loc
+            cp_locs(:,i) = this%vertices(i)%loc + this%vertices(i)%n_g * 1e-7
         end do
+
     end function surface_mesh_get_cp_locs_vertex_based
+
 
     function surface_mesh_get_cp_locs_vertex_based_interior(this, offset, offset_type, freestream) result(cp_locs)
         ! Returns the locations of interior vertex-based control points
@@ -2073,7 +2076,6 @@ contains
         else
             this%N_cp = this%N_verts
         end if
-        this%N_cp = this%N_cp
 
         ! Allocate memory
         allocate(this%cp(this%N_cp))
@@ -2083,7 +2085,7 @@ contains
 
         ! Initialize control points
         do i=1,this%N_verts
-            call this%cp(i)%init(cp_locs(:,i), 4, TT_VERTEX, i)
+            call this%cp(i)%init(cp_locs(:,i), SURFACE, TT_VERTEX, i)
         end do
 
         ! Initialize mirrored control points, if necessary
@@ -2104,6 +2106,7 @@ contains
         end if
 
     end subroutine surface_mesh_place_vertex_control_points
+
 
     subroutine surface_mesh_place_internal_vertex_control_points(this, offset, offset_type, freestream)
 

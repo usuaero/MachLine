@@ -1609,7 +1609,7 @@ contains
         end if
     
         ! Check whether the line is parallel to the panel
-        if (abs(d) < 1.e-16) then
+        if (abs(d) < error) then
             filament_passes_through = .false.
             return
         end if
@@ -2436,10 +2436,13 @@ contains
 
                 ! Check for point on perimeter
                 if(sqrt(geom%g2(i)) < 1e-12) then
+                    ! write(*,*) geom%g2(i), geom%R1(i),geom%l1(i),geom%R2(i), geom%l2(i)
+                    
                     write(*,*) "!!! Detected control point colinear with panel edge. Solution quality may be negatively affected."
                 end if
 
                 ! Calculate
+                
                 int%F111(i) = log( ( (geom%R1(i) - geom%l1(i)) * (geom%R2(i) + geom%l2(i)) ) / geom%g2(i) )
 
             ! Above or below edge; this is a unified form of Johnson Eq. (D.60)

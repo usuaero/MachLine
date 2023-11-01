@@ -196,7 +196,12 @@ contains
             this%use_sort_for_cp = .false.
             this%underdetermined_ls = .true.
             this%overdetermined_ls = .false.
-        else !!!! we want our version to be else I think -JJH
+        else if (this%formulation == N_MF_D_VCP) then
+            this%sort_system = .false.
+            this%use_sort_for_cp = .false.
+            this%overdetermined_ls = .false.
+            this%underdetermined_ls = .false.
+        else 
             this%use_sort_for_cp = .true.
             this%overdetermined_ls = .false.
             this%underdetermined_ls = .false.
@@ -405,8 +410,8 @@ contains
                                 offset_type," offset ratio of ", offset, "..."
             call body%place_internal_vertex_control_points(offset, offset_type, this%freestream)
         else if (this%formulation == N_MF_D_VCP) then
-            if (verbose) write(*,'(a ES10.4 a)',advance='no') "     Placing control points using a direct offset of 0 ..."
-            offset_type = "direct" !!!! check this with cory -jjh
+            if (verbose) write(*,'(a ES10.4 a)',advance='no') "     Placing control points using a direct offset of 1e-7 ..."
+            ! offset_type = "direct" !!!! check this with cory -jjh
             call body%place_vertex_control_points(this%freestream)        
         end if
 
@@ -638,7 +643,8 @@ contains
                 call this%init_cp_neumann_condition(body%cp(i), MF_INNER_FLOW, body)
             case (N_V_D_LS)
                 call this%init_cp_neumann_condition(body%cp(i), ZERO_NORMAL_VEL, body)
-
+            case (N_MF_D_VCP)
+                call this%init_cp_neumann_condition(body%cp(i), ZERO_NORMAL_MF, body)
             case default !!!! this one is ours
                 call this%init_cp_neumann_condition(body%cp(i), ZERO_NORMAL_MF, body)
             
@@ -1015,7 +1021,6 @@ contains
             ! Neumann (mass flux)
             case (ZERO_NORMAL_MF)
                 this%BC(ind) = -inner(body%cp(i)%n_g,this%freestream%c_hat_g)
-
             ! Neumann (mass-flux-inner-flow)
             case (MF_INNER_FLOW)
                 this%BC(ind) = -inner(x, body%cp(i)%loc)
@@ -1197,10 +1202,8 @@ contains
                 A_i(this%P(i-body%N_cp/2)) = -1.
 
             case (ZERO_NORMAL_MF) ! Calculate normal mass flux influences
-
                 ! Loop through panels
                 do j=1,body%N_panels
-
                     ! Influence of existing panel on control point
                     call body%panels(j)%calc_velocity_influences(body%cp(i)%loc, this%freestream, .false., v_s, v_d)
                     source_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_s))

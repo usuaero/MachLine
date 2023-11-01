@@ -1,7 +1,7 @@
 {
     "flow": {
         "freestream_velocity" : [ 100.0, 10.0, 0.0 ],
-        "freestream_mach_number" : 0.25
+        "freestream_mach_number" : 1.6
     },
     "geometry": {
         "file": "dev/meshes/delta_wing_clustered_mesh_coarse.vtk",
@@ -11,18 +11,24 @@
             "wake_present" : true,
             "append_wake" : true,
             "trefftz_distance" : 20.0,
-            "wake_type": "filaments",
+            "wake_type": "panels",
             "N_panels" : 1
         }
     },
     "solver": {
-        "formulation" : "neumann-mass-flux",
-        "matrix_solver" : "GMRES",
-        "write_A_and_b" : false
+        "run_checks" : true,
+        "iterative_solver_output" : "dev/results/wake/delta_wing_iterative_output.txt",
+        "ormulation" : "dirichlet-morino",
+        "formulation": "neumann-mass-flux-VCP",
+        "matrix_solver" : "HHLS",
+        "xmatrix_solver" : "GMRES",
+        "ymatrix_solver" : "LU",
+        "write_A_and_b" : true
     },
     "post_processing" : {
     },
     "output": {
+        "verbose" : true, 
         "body_file" :          "dev/results/wake/delta_wing.vtk",
         "wake_file" :          "dev/results/wake/delta_wing_wake.vtk",
         "control_point_file" : "dev/results/wake/delta_wing_control_points.vtk",
