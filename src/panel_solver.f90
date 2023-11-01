@@ -1727,6 +1727,12 @@ contains
 
         ! Calculate lower bandwidth
         if (this%sort_system) this%B_l_system = get_lower_bandwidth(this%N_unknown, this%A)
+        
+        !!!! scale by area
+        ! do i = 1,body%N_panels
+        !     this%A(i,:) = this%A(i,:) * body%panels(i)%A
+        !     this%b(i) = this%b(i) * body%panels(i)%A
+        ! end do
 
         ! Write to file
         if (this%write_A_and_b) call this%write_system(body)
@@ -1985,6 +1991,7 @@ contains
                 P = body%panels(i)%centr - 1.e-10*body%panels(i)%n_g
                 call body%get_induced_velocities_at_point(P, this%freestream, v_d, v_s)
                 body%V_cells_inner(:,i) = this%freestream%v_inf + this%freestream%U*(v_d + v_s)
+                ! body%V_cells_inner(:,i) = 0
             end if
 
             ! Get surface velocity on each panel
