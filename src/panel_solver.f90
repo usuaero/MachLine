@@ -573,7 +573,7 @@ contains
     end subroutine panel_solver_determine_neumann_unknowns
 
 
-    subroutine panel_solver_init_cp_neumann_condition(this, cp, bc_type, body)
+    subroutine panel_solver_init_cp_neumann_condition(this, cp, freestream, bc_type, body)
         ! Initializes the necessary Neumann condition at the given control point
         ! Handles selecting the proper normal vector for you
 
@@ -581,15 +581,42 @@ contains
         
         class(panel_solver),intent(in) :: this
         type(control_point),intent(inout) :: cp
+        type(flow),intent(inout) :: freestream !!!! changed here 
         integer,intent(in) :: bc_type
         type(surface_mesh),intent(inout) :: body
+        real, dimension(3) :: average_edge, wake_normal
+        integer :: i, i_edge
+
+        ! wake_normal = cross(freestream%c_hat_g, body%vertices(cp%tied_to_index)%edge) !!!! changed here 
 
         ! Get vertex normal
-        if (cp%tied_to_type == TT_VERTEX) then
+        if (cp%tied_to_type == TT_VERTEX .and. cp%cp_type == SURFACE) then 
+            do i=1,body%vertices(cp%tied_to_index)%adjacent_edges%len()
+                ! Check if it's a wake-shedding edge
+                call body%vertices(cp%tied_to_index)%adjacent_edges%get(i, i_edge)
+                if (body%edges(i_edge)%sheds_wake) then
+                    !!!! make the average vector here, and then do the cross product
+                    body%vertices(cp%tied_to_index)%adjacent_edges%loc(2)
+                    
+                end if
+            end do 
+        else if (cp%tied_to_type == TT_VERTEX) then
             if (cp%is_mirror) then
-                call cp%set_bc(bc_type, body%vertices(cp%tied_to_index)%n_g_mir)
+                if (body%vertices(cp%tied_to_index)%N_wake_edges <= 0) then
+                    call cp%set_bc(bc_type, body%vertices(cp%tied_to_index)%n_g_mir)
+                    ! i_panel_abutting = body%edges(i_opp_edge)%panels(2)
+                else
+                    call cp%set_bc(bc_type, wake_normal) !!!! add new normal here
+                end if
+
             else
-                call cp%set_bc(bc_type, body%vertices(cp%tied_to_index)%n_g)
+
+                if (vert%N_wake_edges <= 0) then
+                    call cp%set_bc(bc_type, body%vertices(cp%tied_to_index)%n_g) 
+                else
+                    call cp%set_bc(bc_type, wake_normal) !!!! add new normal here
+                end if
+
             end if
 
         ! Get panel normal
@@ -604,13 +631,14 @@ contains
     end subroutine panel_solver_init_cp_neumann_condition
 
 
-    subroutine panel_solver_init_control_point_boundary_conditions(this, body)
+    subroutine panel_solver_init_control_point_boundary_conditions(this, body, freestream)
         ! Sets up the desired boundary conditions on the control points
 
         implicit none
         
         class(panel_solver), intent(inout) :: this
         type(surface_mesh), intent(inout) :: body
+        type(flow), intent(inout) :: freestream
 
         integer :: i
     
@@ -640,13 +668,13 @@ contains
                 call body%cp(i)%set_bc(SF_POTENTIAL)
 
             case (N_MF_D_IF)
-                call this%init_cp_neumann_condition(body%cp(i), MF_INNER_FLOW, body)
+                call this%init_cp_neumann_condition(body%cp(i), freestream, MF_INNER_FLOW, body)
             case (N_V_D_LS)
-                call this%init_cp_neumann_condition(body%cp(i), ZERO_NORMAL_VEL, body)
+                call this%init_cp_neumann_condition(body%cp(i), freestream, ZERO_NORMAL_VEL, body)
             case (N_MF_D_VCP)
-                call this%init_cp_neumann_condition(body%cp(i), ZERO_NORMAL_MF, body)
+                call this%init_cp_neumann_condition(body%cp(i), freestream, ZERO_NORMAL_MF, body)
             case default !!!! this one is ours
-                call this%init_cp_neumann_condition(body%cp(i), ZERO_NORMAL_MF, body)
+                call this%init_cp_neumann_condition(body%cp(i), freestream, ZERO_NORMAL_MF, body)
             
             end select
 

@@ -327,7 +327,8 @@ contains
         ! Store settings for wake models
         if (this%wake_present) then
             call json_xtnsn_get(settings, 'wake_model.wake_shedding_angle', wake_shedding_angle, 90.) ! Maximum allowable angle between panel normals without having separation
-            this%C_wake_shedding_angle = cos(wake_shedding_angle*pi/180.)
+            this%C_wake_shedding_angle = cos(wake_shedding_angle*pi/180.) !!!! possible thing we could use to define new normal vector
+            
 
             if (this%append_wake) then
                 call json_xtnsn_get(settings, 'wake_model.trefftz_distance', this%trefftz_distance, -1.) ! Distance from origin to wake termination
@@ -654,7 +655,7 @@ contains
             end if
 
             ! Normalize and store
-            this%vertices(i)%n_g = n_avg/norm2(n_avg)
+            this%vertices(i)%n_g = n_avg/norm2(n_avg)  !!!! look at characterize edges and 
 
             ! write(*,*) "loc",this%vertices(i)%loc
             ! write(*,*) "n_g",this%vertices(i)%n_g
@@ -721,7 +722,7 @@ contains
         ! I don't know why this would be, except in the case of leading-edge vortex separation. But Davis doesn't
         ! model leading-edge vortices. Wake-shedding trailing edges are still discontinuous in supersonic flow. Supersonic
         ! leading edges should have continuous doublet strength.
-        call this%characterize_edges(freestream)
+        call this%characterize_edges(freestream) !!!! not an option!
 
         if (this%wake_present) then
 
@@ -905,12 +906,12 @@ contains
             ! Check the angle between the panels
             if (C_angle < this%C_wake_shedding_angle) then
 
-                ! Check angle of panel normal with freestream
+                ! Check angle of panel normal with freestream !!!! this 
                 if (inner(this%panels(i)%n_g, freestream%V_inf) > 0.0 .or. inner(second_normal, freestream%V_inf) > 0.0) then
                     
                     ! Get vertex indices (simplifies later code)
-                    i_vert_1 = this%edges(k)%top_verts(1)
-                    i_vert_2 = this%edges(k)%top_verts(2)
+                    i_vert_1 = this%edges(k)%top_verts(1) !!!!
+                    i_vert_2 = this%edges(k)%top_verts(2) !!!!
                     
                     ! Calculate tangent in global coords (all we care about is the sign, so we don't need to normalize this)
                     t_hat_g = this%vertices(i_vert_2)%loc - this%vertices(i_vert_1)%loc
@@ -923,8 +924,8 @@ contains
                         
                         ! Having passed the previous three checks, we've found a wake-shedding edge
                         this%found_wake_edges = .true.
-                        this%edges(k)%sheds_wake = .true.
-                        this%edges(k)%discontinuous = .true.
+                        this%edges(k)%sheds_wake = .true. !!!! make sheds 
+                        this%edges(k)%discontinuous = .true. 
 
                         ! Update number of wake-shedding edges
                         !$OMP critical
@@ -1348,15 +1349,10 @@ contains
                 call this%wake%init(this%edges, this%vertices, freestream, this%asym_flow, this%mirror_plane, & ! wake is referring to wake_mesh type in the wake_mesh mod.
                                     this%N_wake_panels_streamwise, this%trefftz_distance, this%mirrored, this%initial_panel_order, &
                                     this%N_panels)
-            !!!!!!!!!!!!!!!!!!!!!!! Wake_DEV !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             else if (this%wake_has_filaments(formulation))  then                                                                           !
-                write(*,*)                                                                                                            !
-                ! write(*,*) "WARNING: FILAMENT WAKE NOT YET FUNCTIONAL."     !!!! pretty much functional now                 !
-                write(*,*)                                                                                                            !
                 call this%filament_wake%init(this%edges, this%vertices, freestream, this%asym_flow, this%mirror_plane, &                       !
                                     this%N_wake_panels_streamwise, this%trefftz_distance, this%mirrored, this%initial_panel_order, &  !
                                     this%N_panels)                                                                                    !
-                ! NEED TO CALL this%filament_wake%init if (this%wake_has_filaments(formulation))                                           !                                     
             else                                                                                                                      !
                 write(*,*)                                                                                                            !
                 write(*,*) "wake_type needs to be panels or filaments, and if wake_type", &                                           !
@@ -1368,7 +1364,6 @@ contains
                                     this%N_wake_panels_streamwise, this%trefftz_distance, this%mirrored, this%initial_panel_order, &  !
                                     this%N_panels)                                                                                    !
             end if                                                                                                                    !
-            !!!!!!!!!!!!!!!!!!!!!!! END_WAKE_DEV !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
             ! Export wake geometry
             if (wake_file /= 'none') then
@@ -2059,6 +2054,7 @@ contains
         outside = mod(N_crosses, 2) == 0
         
     end function surface_mesh_control_point_outside_mesh
+
 
     subroutine surface_mesh_place_vertex_control_points(this, freestream)
 

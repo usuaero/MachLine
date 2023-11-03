@@ -34,7 +34,7 @@ module base_geom_mod
         type(list) :: adjacent_edges ! List of indices for the edges which touch this vertex
         type(list) :: panels ! List of indices for the panels which connect to this vertex
         type(list) :: panels_not_across_wake_edge ! List of indices for the panels which connect to this vertex not across a wake-shedding edge
-        integer :: N_wake_edges ! Number of wake edges this vertex belongs to
+        integer :: N_wake_edges ! Number of wake edges this vertex belongs to !!!!!
         integer :: index ! Index of this vertex in the mesh
         integer :: top_parent, bot_parent ! Indices of the top and bottom vertices this vertex's strength is determined by (for a wake vertex)
         logical :: on_mirror_plane ! Whether this vertex lies in the mirroring plane
