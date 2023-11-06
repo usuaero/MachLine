@@ -10,13 +10,14 @@
         "wake_model" : {
             "wake_present" : true,
             "append_wake" : true,
-            "trefftz_distance" : 20.0,
-            "wake_type": "filaments"
+            "trefftz_distance" : 60.0,
+            "wake_type": "panels"
 
         }
     },
     "solver": {
         "formulation" : "neumann-mass-flux",
+        "ormulation" : "Dirichlet-morino", 
         "matrix_solver" : "GMRES",
         "write_A_and_b" : false
     },

@@ -196,7 +196,12 @@ contains
             this%use_sort_for_cp = .false.
             this%underdetermined_ls = .true.
             this%overdetermined_ls = .false.
-        else !!!! we want our version to be else I think -JJH
+        else if (this%formulation == N_MF_D_VCP) then
+            this%sort_system = .false.
+            this%use_sort_for_cp = .false.
+            this%overdetermined_ls = .false.
+            this%underdetermined_ls = .false.
+        else 
             this%use_sort_for_cp = .true.
             this%overdetermined_ls = .false.
             this%underdetermined_ls = .false.
@@ -405,8 +410,8 @@ contains
                                 offset_type," offset ratio of ", offset, "..."
             call body%place_internal_vertex_control_points(offset, offset_type, this%freestream)
         else if (this%formulation == N_MF_D_VCP) then
-            if (verbose) write(*,'(a ES10.4 a)',advance='no') "     Placing control points using a direct offset of 0 ..."
-            offset_type = "direct" !!!! check this with cory -jjh
+            if (verbose) write(*,'(a ES10.4 a)',advance='no') "     Placing control points using a direct offset of 1e-7 ..."
+            ! offset_type = "direct" !!!! check this with cory -jjh
             call body%place_vertex_control_points(this%freestream)        
         end if
 
@@ -568,7 +573,7 @@ contains
     end subroutine panel_solver_determine_neumann_unknowns
 
 
-    subroutine panel_solver_init_cp_neumann_condition(this, cp, bc_type, body)
+    subroutine panel_solver_init_cp_neumann_condition(this, cp, freestream, bc_type, body)
         ! Initializes the necessary Neumann condition at the given control point
         ! Handles selecting the proper normal vector for you
 
@@ -576,15 +581,42 @@ contains
         
         class(panel_solver),intent(in) :: this
         type(control_point),intent(inout) :: cp
+        type(flow),intent(inout) :: freestream !!!! changed here 
         integer,intent(in) :: bc_type
         type(surface_mesh),intent(inout) :: body
+        real, dimension(3) :: average_edge, wake_normal
+        integer :: i, i_edge
+
+        ! wake_normal = cross(freestream%c_hat_g, body%vertices(cp%tied_to_index)%edge) !!!! changed here 
 
         ! Get vertex normal
-        if (cp%tied_to_type == TT_VERTEX) then
+        if (cp%tied_to_type == TT_VERTEX .and. cp%cp_type == SURFACE) then 
+            do i=1,body%vertices(cp%tied_to_index)%adjacent_edges%len()
+                ! Check if it's a wake-shedding edge
+                call body%vertices(cp%tied_to_index)%adjacent_edges%get(i, i_edge)
+                if (body%edges(i_edge)%sheds_wake) then
+                    !!!! make the average vector here, and then do the cross product
+                    body%vertices(cp%tied_to_index)%adjacent_edges%loc(2)
+                    
+                end if
+            end do 
+        else if (cp%tied_to_type == TT_VERTEX) then
             if (cp%is_mirror) then
-                call cp%set_bc(bc_type, body%vertices(cp%tied_to_index)%n_g_mir)
+                if (body%vertices(cp%tied_to_index)%N_wake_edges <= 0) then
+                    call cp%set_bc(bc_type, body%vertices(cp%tied_to_index)%n_g_mir)
+                    ! i_panel_abutting = body%edges(i_opp_edge)%panels(2)
+                else
+                    call cp%set_bc(bc_type, wake_normal) !!!! add new normal here
+                end if
+
             else
-                call cp%set_bc(bc_type, body%vertices(cp%tied_to_index)%n_g)
+
+                if (vert%N_wake_edges <= 0) then
+                    call cp%set_bc(bc_type, body%vertices(cp%tied_to_index)%n_g) 
+                else
+                    call cp%set_bc(bc_type, wake_normal) !!!! add new normal here
+                end if
+
             end if
 
         ! Get panel normal
@@ -599,13 +631,14 @@ contains
     end subroutine panel_solver_init_cp_neumann_condition
 
 
-    subroutine panel_solver_init_control_point_boundary_conditions(this, body)
+    subroutine panel_solver_init_control_point_boundary_conditions(this, body, freestream)
         ! Sets up the desired boundary conditions on the control points
 
         implicit none
         
         class(panel_solver), intent(inout) :: this
         type(surface_mesh), intent(inout) :: body
+        type(flow), intent(inout) :: freestream
 
         integer :: i
     
@@ -635,12 +668,13 @@ contains
                 call body%cp(i)%set_bc(SF_POTENTIAL)
 
             case (N_MF_D_IF)
-                call this%init_cp_neumann_condition(body%cp(i), MF_INNER_FLOW, body)
+                call this%init_cp_neumann_condition(body%cp(i), freestream, MF_INNER_FLOW, body)
             case (N_V_D_LS)
-                call this%init_cp_neumann_condition(body%cp(i), ZERO_NORMAL_VEL, body)
-
+                call this%init_cp_neumann_condition(body%cp(i), freestream, ZERO_NORMAL_VEL, body)
+            case (N_MF_D_VCP)
+                call this%init_cp_neumann_condition(body%cp(i), freestream, ZERO_NORMAL_MF, body)
             case default !!!! this one is ours
-                call this%init_cp_neumann_condition(body%cp(i), ZERO_NORMAL_MF, body)
+                call this%init_cp_neumann_condition(body%cp(i), freestream, ZERO_NORMAL_MF, body)
             
             end select
 
@@ -1015,7 +1049,6 @@ contains
             ! Neumann (mass flux)
             case (ZERO_NORMAL_MF)
                 this%BC(ind) = -inner(body%cp(i)%n_g,this%freestream%c_hat_g)
-
             ! Neumann (mass-flux-inner-flow)
             case (MF_INNER_FLOW)
                 this%BC(ind) = -inner(x, body%cp(i)%loc)
@@ -1197,10 +1230,8 @@ contains
                 A_i(this%P(i-body%N_cp/2)) = -1.
 
             case (ZERO_NORMAL_MF) ! Calculate normal mass flux influences
-
                 ! Loop through panels
                 do j=1,body%N_panels
-
                     ! Influence of existing panel on control point
                     call body%panels(j)%calc_velocity_influences(body%cp(i)%loc, this%freestream, .false., v_s, v_d)
                     source_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_s))
@@ -1724,6 +1755,12 @@ contains
 
         ! Calculate lower bandwidth
         if (this%sort_system) this%B_l_system = get_lower_bandwidth(this%N_unknown, this%A)
+        
+        !!!! scale by area
+        ! do i = 1,body%N_panels
+        !     this%A(i,:) = this%A(i,:) * body%panels(i)%A
+        !     this%b(i) = this%b(i) * body%panels(i)%A
+        ! end do
 
         ! Write to file
         if (this%write_A_and_b) call this%write_system(body)
@@ -1982,6 +2019,7 @@ contains
                 P = body%panels(i)%centr - 1.e-10*body%panels(i)%n_g
                 call body%get_induced_velocities_at_point(P, this%freestream, v_d, v_s)
                 body%V_cells_inner(:,i) = this%freestream%v_inf + this%freestream%U*(v_d + v_s)
+                ! body%V_cells_inner(:,i) = 0
             end if
 
             ! Get surface velocity on each panel

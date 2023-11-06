@@ -4,16 +4,16 @@
         "executed" : "Tue Oct 17 17:04:08 2023"
     },
     "mesh_info" : {
-        "N_body_panels" : 21008,
-        "N_body_vertices" : 10647,
-        "N_wake_panels" : 284,
+        "N_body_panels" : 16160,
+        "N_body_vertices" : 8258,
+        "N_wake_panels" : 352,
         "N_wake_filaments" : 0,
-        "average_characteristic_length" : 6.62417408407852E-002,
-        "max_flow_turning_angle" : 1.72084793116098E+002
+        "average_characteristic_length" : 1.06258447251216E-001,
+        "max_flow_turning_angle" : 1.72084793166138E+002
     },
     "solver_results" : {
         "solver_status_code" : 0,
-        "system_dimension" : 10647,
+        "system_dimension" : 8258,
         "timing" : {
             "system_sorting" : 1.03033500000000E-001,
             "preconditioner" : 3.30494100000000E-001,
@@ -49,7 +49,7 @@
                     0.00000000000000E+000,
                     8.71557427476582E-002
                 ],
-            "freestream_mach_number" : 1.70000000000000E+000
+            "freestream_mach_number" : 2.50000000000000E-001
         },
         "geometry" : {
             "file" : "studies/filament_studies/Grid_convergence/meshes/Grid_convergence_17.stl",

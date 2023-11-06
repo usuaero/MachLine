@@ -1,13 +1,13 @@
 {
     "info" : {
         "generated_by" : "MachLine (c) 2023 USU Aerolab",
-        "executed" : "Thu Oct 12 10:49:54 2023"
+        "executed" : "Tue Oct 10 11:28:15 2023"
     },
     "mesh_info" : {
         "N_body_panels" : 3184,
         "N_body_vertices" : 1649,
-        "N_wake_panels" : 0,
-        "N_wake_filaments" : 56,
+        "N_wake_panels" : 112,
+        "N_wake_filaments" : 0,
         "average_characteristic_length" : 2.50390010013252E-002,
         "max_flow_turning_angle" : 1.74414571517583E+002
     },
@@ -15,31 +15,31 @@
         "solver_status_code" : 0,
         "system_dimension" : 1649,
         "timing" : {
-            "system_sorting" : 7.60000000000000E-006,
-            "preconditioner" : 4.62119620000000E+000,
-            "matrix_solver" : 2.97081960000000E+000
+            "system_sorting" : 2.30000000000000E-005,
+            "preconditioner" : 8.19720840000000E+000,
+            "matrix_solver" : 9.30337830000000E+000
         },
-        "iterations" : 956,
+        "iterations" : 952,
         "residual" : {
-            "max" : 1.97943814792877E-001,
+            "max" : 1.97943814792911E-001,
             "norm" : 1.77450775840273E+000
         }
     },
     "pressure_calculations" : {
         "isentropic_rule" : {
-            "max" : 8.73292652017302E-001,
-            "min" : -2.84555572313525E+000
+            "max" : 8.73292652017191E-001,
+            "min" : -2.84555572311290E+000
         }
     },
     "total_forces" : {
-        "Cx" : -1.02698764459923E-002,
-        "Cy" : 2.33592293933214E-001,
-        "Cz" : -5.97648473775104E-015
+        "Cx" : -1.02698764459828E-002,
+        "Cy" : 2.33592293933071E-001,
+        "Cz" : 5.53917041256893E-015
     },
     "total_moments" : {
-        "CMx" : 1.77557756908878E-014,
-        "CMy" : 1.00212878800636E-014,
-        "CMz" : 1.08690255044606E-001
+        "CMx" : -2.31009872689314E-014,
+        "CMy" : -6.51472733249306E-015,
+        "CMz" : 1.08690255044537E-001
     },
     "input" : {
         "flow" : {
@@ -57,12 +57,13 @@
             "wake_model" : {
                 "wake_present" : true,
                 "append_wake" : true,
-                "trefftz_distance" : 2.00000000000000E+001,
-                "wake_type" : "filaments"
+                "trefftz_distance" : 6.00000000000000E+001,
+                "wake_type" : "panels"
             }
         },
         "solver" : {
             "formulation" : "neumann-mass-flux",
+            "ormulation" : "Dirichlet-morino",
             "matrix_solver" : "GMRES",
             "write_A_and_b" : false
         },
@@ -79,5 +80,5 @@
             }
         }
     },
-    "total_runtime" : 1.94380000000000E+001
+    "total_runtime" : 4.60780000000000E+001
 }

@@ -13,7 +13,7 @@
     },
     "solver_results" : {
         "solver_status_code" : 0,
-        "system_dimension" : 17,
+        "system_dimension" : 7,
         "timing" : {
             "system_sorting" : 1.08700000000000E-004,
             "preconditioner" : 5.10000000000000E-006,
@@ -48,10 +48,10 @@
                     0.00000000000000E+000,
                     0.00000000000000E+000
                 ],
-            "freestream_mach_number" : 2.50000000000000E+000
+            "freestream_mach_number" : 2.50000000000000E-001
         },
         "geometry" : {
-            "file" : "dev/meshes/wake/imp_test.stl",
+            "file" : "dev/meshes/wake/testOctaMesh.stl",
             "singularity_order" : "lower",
             "spanwise_axis" : "-z",
             "wake_model" : {

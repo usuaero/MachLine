@@ -19,7 +19,8 @@
             "preconditioner" : 8.67115486000000E+001,
             "matrix_solver" : 1.77072649000000E+001
         },
-        "iterations" : 999,
+        "iterations" : 348,
+        "system_lower_bandwidth" : 146,
         "residual" : {
             "max" : 2.59096664168686E-001,
             "norm" : 3.57577480043700E+000
@@ -70,8 +71,8 @@
             }
         },
         "solver" : {
-            "formulation" : "neumann-mass-flux",
-            "ormulation" : "dirichlet-morino",
+            "ormulation" : "neumann-mass-flux",
+            "formulation" : "dirichlet-morino",
             "matrix_solver" : "GMRES",
             "write_A_and_b" : false
         },

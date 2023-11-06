@@ -4,22 +4,22 @@
         "executed" : "Fri Oct 13 00:34:59 2023"
     },
     "mesh_info" : {
-        "N_body_panels" : 1216,
-        "N_body_vertices" : 654,
-        "N_wake_panels" : 88,
+        "N_body_panels" : 2272,
+        "N_body_vertices" : 1202,
+        "N_wake_panels" : 128,
         "N_wake_filaments" : 0,
-        "average_characteristic_length" : 3.72332636109880E-001,
-        "max_flow_turning_angle" : 1.72084793118106E+002
+        "average_characteristic_length" : 2.76739660889108E-001,
+        "max_flow_turning_angle" : 1.72084793125229E+002
     },
     "solver_results" : {
         "solver_status_code" : 0,
-        "system_dimension" : 654,
+        "system_dimension" : 1202,
         "timing" : {
             "system_sorting" : 8.50000000000000E-006,
             "preconditioner" : 2.40034900000000E-001,
             "matrix_solver" : 3.50370900000000E-001
         },
-        "iterations" : 653,
+        "iterations" : 426,
         "residual" : {
             "max" : 1.87799036313257E-001,
             "norm" : 1.48691449359057E+000
@@ -48,10 +48,7 @@
                     0.00000000000000E+000,
                     8.71557427476582E-002
                 ],
-            "freestream_mach_number" : [
-                    2.50000000000000E-001,
-                    1.70000000000000E+000
-                ]
+            "freestream_mach_number" : 2.50000000000000E-001
         },
         "geometry" : {
             "file" : "studies/filament_studies/Grid_convergence/meshes/bi_plane_grid_convergence_2.stl",
@@ -63,15 +60,12 @@
                 "wake_present" : true,
                 "append_wake" : true,
                 "trefftz_distance" : 60,
-                "wake_type" : [
-                        "panels",
-                        "filaments"
-                    ]
+                "wake_type" : "panels"
             }
         },
         "solver" : {
-            "formulation" : "neumann-mass-flux",
-            "ormulation" : "dirichlet-morino",
+            "ormulation" : "neumann-mass-flux",
+            "formulation" : "dirichlet-morino",
             "matrix_solver" : "GMRES",
             "write_A_and_b" : false
         },

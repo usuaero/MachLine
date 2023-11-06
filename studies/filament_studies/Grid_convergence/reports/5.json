@@ -4,22 +4,23 @@
         "executed" : "Fri Oct 13 00:35:33 2023"
     },
     "mesh_info" : {
-        "N_body_panels" : 4768,
-        "N_body_vertices" : 2478,
-        "N_wake_panels" : 184,
+        "N_body_panels" : 160,
+        "N_body_vertices" : 98,
+        "N_wake_panels" : 32,
         "N_wake_filaments" : 0,
-        "average_characteristic_length" : 1.93010179412977E-001,
-        "max_flow_turning_angle" : 1.72084793148116E+002
+        "average_characteristic_length" : 9.86867766371216E-001,
+        "max_flow_turning_angle" : 1.72084793107807E+002
     },
     "solver_results" : {
         "solver_status_code" : 0,
-        "system_dimension" : 2478,
+        "system_dimension" : 98,
         "timing" : {
             "system_sorting" : 8.50000000000000E-006,
             "preconditioner" : 1.60136250000000E+001,
             "matrix_solver" : 6.86311980000000E+000
         },
-        "iterations" : 999,
+        "iterations" : 65,
+        "system_lower_bandwidth" : 44,
         "residual" : {
             "max" : 2.30164814005671E-001,
             "norm" : 2.74047539030404E+000
@@ -48,10 +49,7 @@
                     0.00000000000000E+000,
                     8.71557427476582E-002
                 ],
-            "freestream_mach_number" : [
-                    2.50000000000000E-001,
-                    1.70000000000000E+000
-                ]
+            "freestream_mach_number" : 1.70000000000000E+000
         },
         "geometry" : {
             "file" : "studies/filament_studies/Grid_convergence/meshes/bi_plane_grid_convergence_5.stl",
@@ -63,15 +61,12 @@
                 "wake_present" : true,
                 "append_wake" : true,
                 "trefftz_distance" : 60,
-                "wake_type" : [
-                        "panels",
-                        "filaments"
-                    ]
+                "wake_type" : "panels"
             }
         },
         "solver" : {
-            "formulation" : "neumann-mass-flux",
-            "ormulation" : "dirichlet-morino",
+            "ormulation" : "neumann-mass-flux",
+            "formulation" : "dirichlet-morino",
             "matrix_solver" : "GMRES",
             "write_A_and_b" : false
         },

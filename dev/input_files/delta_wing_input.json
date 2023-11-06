@@ -11,7 +11,7 @@
             "wake_present" : true,
             "append_wake" : true,
             "trefftz_distance" : 20.0,
-            "wake_type": "filaments"
+            "wake_type": "panels"
 
         }
     },
