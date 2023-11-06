@@ -1,45 +1,45 @@
 {
     "info" : {
         "generated_by" : "MachLine (c) 2023 USU Aerolab",
-        "executed" : "Tue Oct 10 23:51:39 2023"
+        "executed" : "Sun Oct 15 19:50:00 2023"
     },
     "mesh_info" : {
         "N_body_panels" : 7904,
         "N_body_vertices" : 4070,
         "N_wake_panels" : 232,
         "N_wake_filaments" : 0,
-        "average_characteristic_length" : 1.50607415253928E-001,
-        "max_flow_turning_angle" : 1.72084793151422E+002
+        "average_characteristic_length" : 1.50607415253998E-001,
+        "max_flow_turning_angle" : 1.72084793111393E+002
     },
     "solver_results" : {
         "solver_status_code" : 0,
         "system_dimension" : 4070,
         "timing" : {
-            "system_sorting" : 1.28000000000000E-005,
-            "preconditioner" : 7.63765847000000E+001,
-            "matrix_solver" : 1.62013469000000E+001
+            "system_sorting" : 1.60000000000000E-005,
+            "preconditioner" : 8.18541366000000E+001,
+            "matrix_solver" : 1.72723709000000E+001
         },
         "iterations" : 999,
         "residual" : {
-            "max" : 2.69773455975371E-001,
-            "norm" : 3.42020335954801E+000
+            "max" : 2.79442725673812E-001,
+            "norm" : 3.22382609402589E+000
         }
     },
     "pressure_calculations" : {
         "isentropic_rule" : {
-            "max" : 9.48544183172950E-001,
-            "min" : -1.64552796839627E+000
+            "max" : 1.01560352099637E+000,
+            "min" : -2.90285474409546E+000
         }
     },
     "total_forces" : {
-        "Cx" : -4.42555636127084E-003,
-        "Cy" : -5.49136303566820E-010,
-        "Cz" : 1.25258160736705E-001
+        "Cx" : 7.94726177610192E-003,
+        "Cy" : -1.02828296438853E-009,
+        "Cz" : -7.09080377770069E-003
     },
     "total_moments" : {
-        "CMx" : 3.47990956278064E-006,
-        "CMy" : 1.73655639247994E+001,
-        "CMz" : -3.19754366394582E-007
+        "CMx" : -1.93980246129871E-006,
+        "CMy" : 3.05239623551983E+001,
+        "CMz" : -6.14253631249837E-007
     },
     "input" : {
         "flow" : {
@@ -80,5 +80,5 @@
             "report_file" : "studies/filament_studies/aft_surfaces/reports/0.json"
         }
     },
-    "total_runtime" : 1.68406000000000E+002
+    "total_runtime" : 1.93735000000000E+002
 }

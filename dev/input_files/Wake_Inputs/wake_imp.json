@@ -11,14 +11,16 @@
             "wake_present" : true,
             "append_wake" : true,
             "trefftz_distance" : 20.0,
-            "wake_type": "filaments",
+            "wake_type": "panels",
             "N_panels" : 1
         }
     },
     "solver": {
-        "formulation" : "neumann-mass-flux",
+        "formulation" : "neumann-mass-flux-VCP",
+        "yformulation" : "neumann-mass-flux",
+        "xformulation" : "dirichlet-morino",
         "matrix_solver" : "LU",
-        "write_A_and_b" : false
+        "write_A_and_b" : true
     },
     "post_processing" : {
     },

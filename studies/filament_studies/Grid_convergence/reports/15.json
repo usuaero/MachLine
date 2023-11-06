@@ -1,45 +1,45 @@
 {
     "info" : {
         "generated_by" : "MachLine (c) 2023 USU Aerolab",
-        "executed" : "Wed Oct 11 13:29:10 2023"
+        "executed" : "Fri Oct 13 04:56:45 2023"
     },
     "mesh_info" : {
-        "N_body_panels" : 16624,
-        "N_body_vertices" : 8439,
-        "N_wake_panels" : 252,
+        "N_body_panels" : 33248,
+        "N_body_vertices" : 16878,
+        "N_wake_panels" : 504,
         "N_wake_filaments" : 0,
-        "average_characteristic_length" : 7.44053735368602E-002,
-        "max_flow_turning_angle" : 1.72084793115053E+002
+        "average_characteristic_length" : 7.44053735368382E-002,
+        "max_flow_turning_angle" : 1.72084793197534E+002
     },
     "solver_results" : {
         "solver_status_code" : 0,
-        "system_dimension" : 8439,
+        "system_dimension" : 16878,
         "timing" : {
-            "system_sorting" : 2.32000000000000E-005,
-            "preconditioner" : 7.08919834400000E+002,
-            "matrix_solver" : 6.66776878000000E+001
+            "system_sorting" : 1.88000000000000E-005,
+            "preconditioner" : 6.08657710800000E+003,
+            "matrix_solver" : 2.48579746800000E+002
         },
         "iterations" : 999,
         "residual" : {
-            "max" : 2.35614567986788E-001,
-            "norm" : 1.54720966085219E+000
+            "max" : 3.26648607270700E-001,
+            "norm" : 6.72659265093854E+000
         }
     },
     "pressure_calculations" : {
-        "isentropic_rule" : {
-            "max" : 4.44062136989424E-001,
-            "min" : -4.94315373208107E-001
+        "incompressible_rule" : {
+            "max" : 9.43767100254841E-001,
+            "min" : -3.81155747970691E+000
         }
     },
     "total_forces" : {
-        "Cx" : 7.72591144676774E-002,
-        "Cy" : -3.56982101007338E-010,
-        "Cz" : 4.46013508914343E-001
+        "Cx" : -5.78346451882314E-003,
+        "Cy" : -2.36973393751916E-010,
+        "Cz" : 1.16891152452937E-001
     },
     "total_moments" : {
-        "CMx" : -6.57999114721082E-007,
-        "CMy" : -4.13907688481319E+001,
-        "CMz" : -3.88439222151038E-007
+        "CMx" : -1.21542968122240E-008,
+        "CMy" : 7.25750790065030E+000,
+        "CMz" : -1.99390554521872E-007
     },
     "input" : {
         "flow" : {
@@ -48,19 +48,25 @@
                     0.00000000000000E+000,
                     8.71557427476582E-002
                 ],
-            "freestream_mach_number" : 1.70000000000000E+000
+            "freestream_mach_number" : [
+                    2.50000000000000E-001,
+                    1.70000000000000E+000
+                ]
         },
         "geometry" : {
-            "file" : "studies/filament_studies/Grid_convergence/meshes/grid_convergence_15.stl",
+            "file" : "studies/filament_studies/Grid_convergence/meshes/bi_plane_grid_convergence_15.stl",
             "spanwise_axis" : "+y",
             "reference" : {
-                "area" : 2.50000000000000E+001
+                "area" : 5.00000000000000E+001
             },
             "wake_model" : {
                 "wake_present" : true,
                 "append_wake" : true,
                 "trefftz_distance" : 60,
-                "wake_type" : "panels"
+                "wake_type" : [
+                        "panels",
+                        "filaments"
+                    ]
             }
         },
         "solver" : {
@@ -80,5 +86,5 @@
             "report_file" : "studies/filament_studies/Grid_convergence/reports/15.json"
         }
     },
-    "total_runtime" : 8.94766000000000E+002
+    "total_runtime" : 7.95596900000000E+003
 }

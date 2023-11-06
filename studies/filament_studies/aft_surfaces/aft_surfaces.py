@@ -175,12 +175,12 @@ if __name__=="__main__":
                     C_my[p] = C_M[p][1]
                     C_mz[p] = C_M[p][2]
                 output_file = study_directory
-                output_file += "/imp_test_" + str(wake_type[j]) + "_" + str(freestream_mach[i]) + ".txt"
+                output_file += "/imp_test_" + str(wake_type) + "_" + str(freestream_mach) + ".txt"
                 with open(output_file, "w") as file:
                     # Write the lists to the file
                     file.write("z_dist,C_x,C_y,C_z,C_mx,C_my,C_mz\n")
                     for q in range(num_cases):
-                        file.write(f"{z_dist[q]},{C_x[q]},{C_y[q]},{C_z[q]},{C_mx[q]},{C_my[q]},{C_mz[q]}\n")
+                        file.write(f"{z_dists[q]},{C_x[q]},{C_y[q]},{C_z[q]},{C_mx[q]},{C_my[q]},{C_mz[q]}\n")
                     file.close()
 
     except KeyboardInterrupt:
@@ -192,18 +192,21 @@ if __name__=="__main__":
         seconds %= 60
         error_filename = study_directory+"/Keyboard_exception_output.txt"
         print(f"Code has stopped due to keyboard interrupt at {hours}:{minutes}:{seconds}, data has been written to {error_filename}.")
-        for p in range(len(C_F)):
-                    C_x[p] = C_F[p][0]
-                    C_y[p] = C_F[p][1]
-                    C_z[p] = C_F[p][2]
-                    C_mx[p] = C_M[p][0]
-                    C_my[p] = C_M[p][1]
-                    C_mz[p] = C_M[p][2]
+        for p in range(num_cases):
+            try:
+                C_x[p] = C_F[p][0]
+                C_y[p] = C_F[p][1]
+                C_z[p] = C_F[p][2]
+                C_mx[p] = C_M[p][0]
+                C_my[p] = C_M[p][1]
+                C_mz[p] = C_M[p][2]
+            except:
+                break
         with open(error_filename, "w") as file:
             # Write the lists to the file
             file.write("z_dist,C_x,C_y,C_z,C_mx,C_my,C_mz\n")
             for q in range(len(C_x)):
-                file.write(f"{z_dist[q]},{C_x[q]},{C_y[q]},{C_z[q]},{C_mx[q]},{C_my[q]},{C_mz[q]}\n")
+                file.write(f"{z_dists[q]},{C_x[q]},{C_y[q]},{C_z[q]},{C_mx[q]},{C_my[q]},{C_mz[q]}\n")
             file.close()
     except Exception as e:
         end = time.time()
@@ -212,7 +215,7 @@ if __name__=="__main__":
         seconds %= 3600
         minutes = seconds // 60
         seconds %= 60
-        error_filename = study_directory + "/Keyboard_exception_output.txt"
+        error_filename = study_directory + "/exception_output.txt"
         print(f"Code has stopped due to exception: {e} at {hours}:{minutes}:{seconds}")
         for p in range(len(C_F)):
                     C_x[p] = C_F[p][0]
@@ -225,15 +228,15 @@ if __name__=="__main__":
             # Write the lists to the file
             file.write("z_dist,C_x,C_y,C_z,C_mx,C_my,C_mz\n")
             for q in range(len(C_x)):
-                file.write(f"{z_dist[q]},{C_x[q]},{C_y[q]},{C_z[q]},{C_mx[q]},{C_my[q]},{C_mz[q]}\n")
+                file.write(f"{z_dists[q]},{C_x[q]},{C_y[q]},{C_z[q]},{C_mx[q]},{C_my[q]},{C_mz[q]}\n")
             file.close()
         print(f"Data has been written to {error_filename}.")
-    else:     
-        end = time.time()
-        seconds = end-start
-        hours =  seconds // 3600
-        seconds %= 3600
-        minutes = seconds // 60
-        seconds %= 60
-        print(f"Study has complete after {int(hours)}:{int(minutes)}:{int(seconds)}")
-        print(f"Data has been written to {output_file}")
+         
+    end = time.time()
+    seconds = end-start
+    hours =  seconds // 3600
+    seconds %= 3600
+    minutes = seconds // 60
+    seconds %= 60
+    print(f"Study has complete after {int(hours)}:{int(minutes)}:{int(seconds)}")
+    print(f"Data has been written to {output_file}")

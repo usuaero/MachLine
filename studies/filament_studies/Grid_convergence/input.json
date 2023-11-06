@@ -5,13 +5,11 @@
             0.0,
             0.08715574274765817
         ],
-        "freestream_mach_number": [
-            0.25,
-            1.7
-        ]
+        "freestream_mach_number": 1.7
+            
     },
     "geometry": {
-        "file": "studies/filament_studies/Grid_convergence/meshes/bi_plane_grid_convergence_7.stl",
+        "file": "studies/filament_studies/Grid_convergence/meshes/Grid_convergence_17.stl",
         "spanwise_axis": "+y",
         "reference": {
             "area": 50.0
@@ -20,15 +18,12 @@
             "wake_present": true,
             "append_wake": true,
             "trefftz_distance": 60,
-            "wake_type": [
-                "panels",
-                "filaments"
-            ]
+            "wake_type": "panels"
         }
     },
     "solver": {
-        "formulation": "neumann-mass-flux",
-        "ormulation": "dirichlet-morino",
+        "ormulation": "neumann-mass-flux",
+        "formulation": "dirichlet-morino",
         "matrix_solver": "GMRES",
         "write_A_and_b": false
     },
@@ -38,8 +33,8 @@
         }
     },
     "output": {
-        "body_file": "studies/filament_studies/Grid_convergence/results/7.vtk",
-        "wake_file": "studies/filament_studies/Grid_convergence/results/7_wake.vtk",
-        "report_file": "studies/filament_studies/Grid_convergence/reports/7.json"
+        "body_file": "studies/filament_studies/Grid_convergence/results/17.vtk",
+        "wake_file": "studies/filament_studies/Grid_convergence/results/17_wake.vtk",
+        "report_file": "studies/filament_studies/Grid_convergence/reports/17.json"
     }
 }

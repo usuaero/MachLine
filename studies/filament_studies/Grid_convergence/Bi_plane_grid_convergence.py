@@ -17,7 +17,7 @@ def run_machline_for_grid(chord_count,span_count,study_directory,index, wake_typ
     #generate geometry
     area = generate_meshes.gen_bi_plane_grid_convergence_geom(chord_count,span_count,study_directory,index)
     # Storage locations
-    
+    return 0, 0, 0, 0
     ## change name for new studies
     mesh_file = study_directory+"/meshes/bi_plane_grid_convergence_"+str(index)+".stl" ## changed name after meshes
     results_file = study_directory+"/results/"+str(index)+".vtk"
@@ -151,17 +151,23 @@ if __name__=="__main__":
     # set parameters
     chords = np.linspace(5,80,num_cases)
     spans = np.linspace(5,80,num_cases)
-    wake_type = ["panels", "filaments"]
-    freestream_mach = [0.25, 1.7]
-
+    wake_types = ["panels", "filaments"]
+    freestream_machs = [0.25, 1.7]
+    # print header
+    print("Key:\ni,num_chord,num_span,mach,wake_type")
     # Run cases
-    for i in range(len(freestream_mach)):
-        for j in range(len(wake_type)):
+    for i in range(len(freestream_machs)):
+        for j in range(len(wake_types)):
             for k in range(num_cases):
                 chord = int(chords[k])
                 span = int(spans[k])
-                index = i*len(wake_type)*num_cases + j*num_cases + k
+                freestream_mach = freestream_machs[i]
+                wake_type = wake_types[j]
+                index = i*len(wake_types)*num_cases + j*num_cases + k
+                print(index,",",chord,",",span,",",freestream_mach,",",wake_type)
+
                 N_sys[k], l_avg[k], C_F[k], C_M[k] = run_machline_for_grid(chord,span,study_dir,index, wake_type, freestream_mach)
+            continue
             for p in range(num_cases):
                 C_x[p] = C_F[p][0]
                 C_y[p] = C_F[p][1]
@@ -185,5 +191,5 @@ if __name__=="__main__":
     elapsed %= 3600
     minutes = elapsed // 60
     elapsed %= 60
-    print(f"Study has complete after {hours}:{minutes}:{elapsed}")
+    print(f"Study has complete after {int(hours)}:{int(minutes)}:{int(elapsed)}")
     print(f"Data has been written to {output_file}")
