@@ -11,17 +11,17 @@
             "wake_present" : true,
             "append_wake" : true,
             "trefftz_distance" : 20.0,
-            "wake_type": "panels",
+            "wake_type": "filaments",
             "N_panels" : 1
         }
     },
     "solver": {
         "run_checks" : true,
         "iterative_solver_output" : "dev/results/wake/delta_wing_iterative_output.txt",
-        "ormulation" : "dirichlet-morino",
+        "xformulation" : "dirichlet-morino",
         "formulation": "neumann-mass-flux-VCP",
-        "matrix_solver" : "HHLS",
-        "xmatrix_solver" : "GMRES",
+        "xmatrix_solver" : "HHLS",
+        "matrix_solver" : "GMRES",
         "ymatrix_solver" : "LU",
         "write_A_and_b" : true
     },

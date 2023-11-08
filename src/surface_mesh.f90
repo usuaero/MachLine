@@ -655,7 +655,7 @@ contains
             end if
 
             ! Normalize and store
-            this%vertices(i)%n_g = n_avg/norm2(n_avg)  !!!! look at characterize edges and 
+            this%vertices(i)%n_g = n_avg/norm2(n_avg)  !!!! Vertex normal calculated here -jjh 
 
             ! write(*,*) "loc",this%vertices(i)%loc
             ! write(*,*) "n_g",this%vertices(i)%n_g
@@ -1890,7 +1890,7 @@ contains
         allocate(cp_locs(3,this%N_verts))
 
         do i=1,this%N_verts
-            cp_locs(:,i) = this%vertices(i)%loc + this%vertices(i)%n_g * 1e-7
+            cp_locs(:,i) = this%vertices(i)%loc + this%vertices(i)%n_g * 1e-5
         end do
 
     end function surface_mesh_get_cp_locs_vertex_based
@@ -2974,7 +2974,7 @@ contains
         logical,intent(in) :: solved
 
         type(vtk_out) :: cp_vtk
-        real,dimension(3,this%N_cp) :: cp_locs
+        real,dimension(3,this%N_cp) :: cp_locs,cp_norms
         integer,dimension(this%N_cp) :: cp_bcs
         integer :: i
 
@@ -2982,6 +2982,7 @@ contains
         do i=1,this%N_cp
             cp_locs(:,i) = this%cp(i)%loc
             cp_bcs(i) = this%cp(i)%bc
+            cp_norms(:,i) = this%cp(i)%n_g
         end do
 
         ! Clear old file
@@ -2992,6 +2993,7 @@ contains
         call cp_vtk%write_points(cp_locs)
         call cp_vtk%write_vertices(this%N_cp)
         call cp_vtk%write_point_scalars(cp_bcs, "BC_type")
+        call cp_vtk%write_point_vectors(cp_norms, "Normal_Vector")
         
         ! Results
         if (solved) then

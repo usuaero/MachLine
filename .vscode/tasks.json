@@ -1,0 +1,13 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "make",
+            "command": "make debug-serial",
+            "type": "shell",
+            "options": {
+                "cwd": "${workspaceRoot}"
+            }
+        }
+    ]
+}
