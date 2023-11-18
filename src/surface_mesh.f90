@@ -1878,11 +1878,12 @@ contains
     end function surface_mesh_get_clone_control_point_dir
 
 
-    function surface_mesh_get_cp_locs_vertex_based(this,freestream) result(cp_locs)
+    function surface_mesh_get_cp_locs_vertex_based(this,offset, freestream) result(cp_locs)
         ! Returns the locations of coincident vertex-based control points
         implicit none
         class(surface_mesh),intent(in) :: this
         type(flow),intent(in) :: freestream
+        real,intent(in) :: offset
         real,dimension(:,:),allocatable :: cp_locs
         integer :: i
         
@@ -1890,7 +1891,7 @@ contains
         allocate(cp_locs(3,this%N_verts))
 
         do i=1,this%N_verts
-            cp_locs(:,i) = this%vertices(i)%loc + this%vertices(i)%n_g * 1e-5
+            cp_locs(:,i) = this%vertices(i)%loc + this%vertices(i)%n_g * offset !!!! Offset
         end do
 
     end function surface_mesh_get_cp_locs_vertex_based
@@ -2056,12 +2057,13 @@ contains
     end function surface_mesh_control_point_outside_mesh
 
 
-    subroutine surface_mesh_place_vertex_control_points(this, freestream)
+    subroutine surface_mesh_place_vertex_control_points(this, offset, freestream)
 
         implicit none
 
         class(surface_mesh),intent(inout) :: this
         type(flow),intent(in) :: freestream
+        real,intent(in) :: offset
 
         integer :: i
         real,dimension(:,:),allocatable :: cp_locs
@@ -2077,7 +2079,7 @@ contains
         allocate(this%cp(this%N_cp))
 
         ! Get control point locations
-        cp_locs = this%get_cp_locs_vertex_based(freestream)
+        cp_locs = this%get_cp_locs_vertex_based(offset, freestream)
 
         ! Initialize control points
         do i=1,this%N_verts
@@ -2087,7 +2089,7 @@ contains
         ! Initialize mirrored control points, if necessary
         if (this%asym_flow) then
 
-            !$OMP parallel do schedule(static)
+            
             do i=1,this%N_cp/2
 
                 ! Initialize
@@ -2211,7 +2213,7 @@ contains
         ! Initialize mirrored control points, if necessary
         if (this%asym_flow) then
 
-            !$OMP parallel do schedule(static)
+            
             do i=1,this%N_panels
 
                 ! Initialize

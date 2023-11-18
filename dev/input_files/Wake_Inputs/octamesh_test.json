@@ -1,14 +1,16 @@
 {
     "flow": {
-        "freestream_velocity" : [ 1.0, 0.0, 0.0 ],
+        "freestream_velocity" : [ 100.0, 0.0, 0.0 ],
         "freestream_mach_number" : 0.293864405086 
     },
     "geometry": {
-        "file": "C:/Users/Josh/Documents/AeroLab_Projects/MachLine/dev/meshes/Wake/testOctaMesh.stl",
+        "file": "C:/Users/Josh/Documents/AeroLab_Projects/MachLine/dev/meshes/Wake/testOctaMeshA1.stl",
         "singularity_order" : "lower",
         "spanwise_axis" : "+y",
         "reference" : {
-            "area" : 75.39075
+            "xarea_use_this_for_the_testOctaMesh.stl" : 75.39075,
+            "xarea" : 75.39075,
+            "area" : 1
         },
         "wake_model" : {
             "wake_present" : false,
@@ -22,8 +24,8 @@
         "formulation" : "neumann-mass-flux-VCP",
         "yformulation" : "neumann-mass-flux",
         "xformulation" : "dirichlet-morino",
-        "xmatrix_solver" : "HHLS",
-        "matrix_solver" : "GMRES",
+        "matrix_solver" : "HHLS",
+        "xmatrix_solver" : "GMRES",
         "ymatrix_solver" : "LU",
         "write_A_and_b" : true
     },
