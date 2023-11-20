@@ -410,9 +410,8 @@ contains
                                 offset_type," offset ratio of ", offset, "..."
             call body%place_internal_vertex_control_points(offset, offset_type, this%freestream)
         else if (this%formulation == N_MF_D_VCP) then
-            if (verbose) write(*,'(a ES10.4 a)',advance='no') "     Placing control points using a direct offset of 1e-7 ..."
-            ! offset_type = "direct" !!!! check this with cory -jjh
-            call body%place_vertex_control_points(this%freestream)        
+            if (verbose) write(*,'(a ES10.4 a)',advance='no') "     Placing control points using a direct offset of ",offset,"..."
+            call body%place_vertex_control_points(offset, this%freestream)        
         end if
 
         ! Sources
@@ -711,7 +710,7 @@ contains
                 call this%init_cp_neumann_condition(body%cp(i), freestream, MF_INNER_FLOW, body)
             case (N_V_D_LS)
                 call this%init_cp_neumann_condition(body%cp(i), freestream, ZERO_NORMAL_VEL, body)
-            case (N_MF_D_VCP)
+            case (N_MF_D_VCP) !!!! this is ours
                 call this%init_cp_neumann_condition(body%cp(i), freestream, ZERO_NORMAL_MF, body)
             case default 
                 call this%init_cp_neumann_condition(body%cp(i), freestream, ZERO_NORMAL_MF, body)
@@ -1256,7 +1255,7 @@ contains
         ! Calculate source and doublet influences from body on each control point
         !$OMP parallel do private(j, source_inf, doublet_inf, v_s, v_d, A_i, I_known_i) schedule(dynamic)
         do i=1,body%N_cp
-
+            
             ! Initialize
             A_i = 0.
             I_known_i = 0.
@@ -1271,12 +1270,12 @@ contains
 
             case (ZERO_NORMAL_MF) ! Calculate normal mass flux influences
                 ! Loop through panels
-                do j=1,body%N_panels
+                                do j=1,body%N_panels
                     ! Influence of existing panel on control point
                     call body%panels(j)%calc_velocity_influences(body%cp(i)%loc, this%freestream, .false., v_s, v_d)
                     source_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_s))
                     doublet_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_d))
-                    
+                                        
                     ! Add influence
                     call this%update_system_row(body, body%cp(i), A_i, I_known_i, j, source_inf, doublet_inf, .false.)
  
@@ -1796,8 +1795,8 @@ contains
         ! Calculate lower bandwidth
         if (this%sort_system) this%B_l_system = get_lower_bandwidth(this%N_unknown, this%A)
         
-        !!!! scale by area
-        ! do i = 1,body%N_panels
+        !!!! scale by area 
+                ! do i = 1,body%N_panels
         !     this%A(i,:) = this%A(i,:) * body%panels(i)%A
         !     this%b(i) = this%b(i) * body%panels(i)%A
         ! end do
