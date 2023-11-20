@@ -28,7 +28,7 @@ if __name__=="__main__":
             }
         },
         "solver": {
-            "formulation": "source-free",
+            "formulation": "dirichlet-source-free",
             "control_point_offset": 1.1e-08,
             "control_point_offset_type" : 'direct'
         },
@@ -90,4 +90,29 @@ if __name__=="__main__":
     plt.xscale('log')
     #plt.yscale('log')
     plt.legend()
+    plt.show()
+
+    # Plot y and z coefficients
+    plt.figure()
+    for j, (case, line_style) in enumerate(zip(cases, line_styles)):
+        if case == 'ML':
+            plt.plot(offsets, np.abs(Cy[j]), 'k-')# line_style, label=case)
+            plt.plot(offsets, np.abs(Cz[j]), 'k-')# line_style)
+    plt.xlabel('$k_1$')
+    plt.ylabel('Off-Axis Force Coefficients')
+    plt.xscale('log')
+    plt.yscale('log')
+    #plt.legend()
+    plt.show()
+
+    # Plot x coefficient
+    plt.figure()
+    for j, (case, line_style) in enumerate(zip(cases, line_styles)):
+        if case == 'ML':
+            plt.plot(offsets, np.abs(Cx[j]), 'k-')# line_style, label=case)
+    plt.xlabel('$k_1$')
+    plt.ylabel('Axial Force Coefficient')
+    plt.xscale('log')
+    #plt.yscale('log')
+    #plt.legend()
     plt.show()

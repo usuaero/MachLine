@@ -109,7 +109,7 @@ def run_quad_parallel(input_filename, delete_input=True, run=True):
         input_dict = json.load(input_handle)
 
     # Options
-    formulations = ["morino", "source-free"]
+    formulations = ["dirichlet-morino", "dirichlet-source-free"]
     orders = ["lower", "higher"]
 
     # Get inputs and run
@@ -139,7 +139,7 @@ def run_quad(input_filename, delete_input=True, run=True):
         input_dict = json.load(input_handle)
 
     # Options
-    formulations = ["morino", "source-free"]
+    formulations = ["dirichlet-morino", "dirichlet-source-free"]
     orders = ["lower", "higher"]
 
     # Get inputs and run

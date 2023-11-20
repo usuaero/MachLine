@@ -92,7 +92,7 @@ def plot_pressure_slices(pressure_rule, angles_of_attack, mesh_density):
                 plt.xlabel("$\\frac{x}{c_r}$")
                 plt.ylabel("$C_P$")
                 plt.gca().invert_yaxis()
-                if case=='MH':
+                if case=='ML' and alpha < 2.1:
                     plt.legend()
 
                 # Save figure
@@ -233,8 +233,8 @@ def plot_force_convergence_over_alpha(alpha_list):
         plt.plot(alpha_list, CD[i,-1,:], 'ko', label="MachLine", markersize=3)
         plt.plot(CD_exp[:,0], CD_exp[:,1], 'ks', label='Experiment', markersize=3)
         plt.plot(CPanel_CD[:,0], CPanel_CD[:,1], 'kv', label='CPanel', markersize=3)
-        if case=="MH":
-            plt.legend()
+        #if case=="ML":
+            #plt.legend()
         plt.xlabel('$\\alpha\,[^\circ]$')
         plt.ylabel('$C_D$')
         plt.ylim(bottom=0.0)
@@ -248,7 +248,7 @@ def plot_force_convergence_over_alpha(alpha_list):
         plt.plot(alpha_list, CL[i,-1,:], 'ko', label="MachLine", markersize=3)
         plt.plot(CL_exp[:,0], CL_exp[:,1], 'ks', label='Experiment', markersize=3)
         plt.plot(CPanel_CL[:,0], CPanel_CL[:,1], 'kv', label='CPanel', markersize=3)
-        if case=="MH":
+        if case=="ML":
             plt.legend()
         plt.xlabel('$\\alpha\,[^\circ]$')
         plt.ylabel('$C_L$')
@@ -498,4 +498,5 @@ if __name__=="__main__":
     # Run comparisons
     #for mesh_density in mesh_densities:
     #    run_pressure_distribution_comparison(mesh_density)
+    #run_pressure_distribution_comparison("ultra_fine")
     run_force_comparison()

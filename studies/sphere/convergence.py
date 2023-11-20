@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from studies.case_running_functions import run_quad, get_order_of_convergence, cases, line_styles, write_input_file
 
 
-RERUN_MACHLINE = False
+RERUN_MACHLINE = True
 study_dir = "studies/sphere/"
 
 
@@ -167,4 +167,22 @@ if __name__=="__main__":
         else:
             plt.savefig(study_dir + "plots/convergence.pdf")
             plt.savefig(study_dir + "plots/convergence.svg")
+        plt.close()
+
+        # Plot
+        plt.figure()
+        for i in range(len(psis)):
+            for j in range(len(thetas)):
+                plt.plot(l_avg, C_F_norms[l,i,j,:,0], 'k-')# line_style, label=case)
+        plt.xscale('log')
+        plt.yscale('log')
+        plt.xlabel('$l_{avg}$')
+        plt.ylabel('$\lVert C_F \\rVert$')
+        #plt.legend()
+        if option:
+            plt.savefig(study_dir + "plots/sphere_ML_convergence_sigma_matched.pdf")
+            plt.savefig(study_dir + "plots/sphere_ML_convergence_sigma_matched.svg")
+        else:
+            plt.savefig(study_dir + "plots/sphere_ML_convergence.pdf")
+            plt.savefig(study_dir + "plots/sphere_ML_convergence.svg")
         plt.close()

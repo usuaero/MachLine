@@ -195,3 +195,53 @@ if __name__=="__main__":
                     slopes.append(get_order_of_convergence(l_avg, C_F[:,j,k,i,l,2], truth_from_results=True))
 
             print("{0}: {1} +/- {2}".format(case, round(np.average(slopes), 4), round(np.std(slopes), 4)))
+
+    # Morino-lower only plots
+
+    # Plot C_x errors
+    plt.figure()
+    for j, M in enumerate(Ms):
+        for k, alpha in enumerate(alphas):
+
+            # Plot
+            print()
+            print("C_x")
+            print("M={0}, alpha={1}".format(M, alpha))
+            plt.plot(l_avg[:-1], err[:,j,k,0,0,0], 'k-')
+
+            # Get convergence
+            print("Order for case ML: {0}".format(get_order_of_convergence(l_avg, C_F[:,j,k,0,0,0], truth_from_results=True)))
+
+    # Format
+    plt.xlabel('$l_{avg}$')
+    plt.ylabel('Fractional Error in $C_x$')
+    plt.xscale('log')
+    plt.yscale('log')
+    plt.savefig(plot_dir+"collected_err_C_x_ML.pdf".format(M, alpha))
+    plt.savefig(plot_dir+"collected_err_C_x_ML.svg".format(M, alpha))
+    plt.close()
+
+    # Plot C_z errors
+    plt.figure()
+    for j, M in enumerate(Ms):
+        for k, alpha in enumerate(alphas):
+            if k==0:
+                continue
+
+            # Plot
+            print()
+            print("C_z")
+            print("M={0}, alpha={1}".format(M, alpha))
+            plt.plot(l_avg[:-1], err[:,j,k,0,0,2], 'k-')
+
+            # Get convergence
+            print("Order for case ML: {0}".format(get_order_of_convergence(l_avg, C_F[:,j,k,0,0,2], truth_from_results=True)))
+
+    # Format
+    plt.xlabel('$l_{avg}$')
+    plt.ylabel('Fractional Error in $C_z$')
+    plt.xscale('log')
+    plt.yscale('log')
+    plt.savefig(plot_dir+"collected_err_C_z_ML.pdf".format(M, alpha))
+    plt.savefig(plot_dir+"collected_err_C_z_ML.svg".format(M, alpha))
+    plt.close()

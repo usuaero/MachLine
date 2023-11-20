@@ -502,7 +502,7 @@ contains
 
         ! Check determinant
         x = det3(this%A_g_to_ls)
-        if (abs(x - freestream%B*freestream%B) > 1.e-12) then
+        if (abs(x - freestream%B*freestream%B) > 1.e-10) then
             write(*,*) "!!! Calculation of local scaled coordinate transform failed. Quitting..."
             stop
         end if

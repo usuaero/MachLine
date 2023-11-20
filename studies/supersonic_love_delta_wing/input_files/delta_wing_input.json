@@ -1,8 +1,8 @@
 {
     "flow": {
         "freestream_velocity": [
-            0.9961946980917455,
-            0.08715574274765817,
+            0.9824503977255097,
+            0.18652403600873463,
             0.0
         ],
         "gamma": 1.4,
@@ -35,9 +35,9 @@
         "pressure_for_forces": "isentropic"
     },
     "output": {
-        "body_file": "studies/supersonic_love_delta_wing/results/delta_wing_5.0_deg_ultra_fine.vtk",
-        "control_point_file": "studies/supersonic_love_delta_wing/results/delta_wing_5.0_deg_ultra_fine_control_points.vtk",
-        "wake_file": "studies/supersonic_love_delta_wing/results/delta_wing_5.0_deg_ultra_fine_wake.vtk",
-        "report_file": "studies/supersonic_love_delta_wing/reports/delta_wing_5.0_ultra_fine.json"
+        "body_file": "studies/supersonic_love_delta_wing/results/delta_wing_10.75_deg_ultra_fine.vtk",
+        "control_point_file": "studies/supersonic_love_delta_wing/results/delta_wing_10.75_deg_ultra_fine_control_points.vtk",
+        "wake_file": "studies/supersonic_love_delta_wing/results/delta_wing_10.75_deg_ultra_fine_wake.vtk",
+        "report_file": "studies/supersonic_love_delta_wing/reports/delta_wing_10.75_ultra_fine.json"
     }
 }

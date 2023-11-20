@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from studies.case_running_functions import run_quad, write_input_file, cases, line_styles
 
 
-RERUN_MACHLINE = True
+RERUN_MACHLINE = False
 
 
 if __name__=="__main__":
@@ -73,6 +73,22 @@ if __name__=="__main__":
         #plt.plot(offsets, np.abs(Cz[i,:]), line_styles[i])
     plt.xlabel('$k_1$')
     plt.ylabel('$C_F$')
+    plt.xscale('log')
+    plt.yscale('log')
+    #plt.legend()
+    plt.show()
+    print(Cy)
+
+    # Plot
+    plt.figure()
+    for i, case in enumerate(cases):
+        if case == "ML":
+            plt.plot(offsets, np.sqrt(Cx[i,:]**2 + Cy[i,:]**2 + Cz[i,:]**2), 'k-')
+        #plt.plot(offsets, np.abs(Cx[i,:]), line_styles[i], label=case)
+        #plt.plot(offsets, np.abs(Cy[i,:]), line_styles[i])
+        #plt.plot(offsets, np.abs(Cz[i,:]), line_styles[i])
+    plt.xlabel('$k_1$')
+    plt.ylabel('$||C_F||$')
     plt.xscale('log')
     plt.yscale('log')
     #plt.legend()

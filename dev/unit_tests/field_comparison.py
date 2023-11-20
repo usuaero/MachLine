@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from panel import Panel
+from panel import SupersonicSubinclinedPanel
 from singularities import Source, Doublet
 
 
@@ -8,11 +8,13 @@ def compare_on_box(verts, lims, N, filename):
     # Compares the panel and point calculations over the specified box
 
     # Initialize panel
-    p = Panel(verts, 1.0, 1.0)
+    p = SupersonicSubinclinedPanel(verts)
+    p.set_doublet_strength([1.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+    p.set_source_strength([1.0, 0.0, 0.0])
 
     # Initialize equivalent point singularities
-    s = Source(np.array([p.c[0], p.c[1], 0.0]), p.A)
-    d = Doublet(np.array([p.c[0], p.c[1], 0.0]), p.A)
+    s = Source(np.array([0.0, 0.0, 0.0]), p.A)
+    d = Doublet(np.array([0.0, 0.0, 0.0]), p.A)
 
     # Declare grid coordinate vectors
     x = np.linspace(lims[0][0], lims[0][1], N[0])
@@ -39,8 +41,8 @@ def compare_on_box(verts, lims, N, filename):
         P = np.array([X[i], Y[i], Z[i]])
         phi_s_point[i] = s.calc_induced_potential(P)
         phi_d_point[i] = d.calc_induced_potential(P)
-        phi_s_panel[i] = p.calc_induced_source_potential(P)
-        phi_d_panel[i] = p.calc_induced_doublet_potential(P)
+        phi_s_panel[i] = p.calc_analytic_source_potential(P)
+        phi_d_panel[i] = p.calc_analytic_doublet_potential(P)
 
     # Write to file
     with open(filename, 'w') as file_handle:
@@ -58,6 +60,6 @@ def compare_on_box(verts, lims, N, filename):
 if __name__=="__main__":
 
     # Box comparison
-    verts = np.array([[0.0, 1.0, 2.0, 1.0],
-                      [0.0, -0.5, 0.0, 0.5]])
-    compare_on_box(verts, [[-1.0, 10.0], [-10.0, 10.0], [-10.0, 10.0]], [50, 100, 100], "dev/unit_tests/test.csv")
+    verts = np.array([[0.0, 1.0, 1.0, 0.0],
+                      [0.0, 0.0, 1.0, 1.0]])
+    compare_on_box(verts, [[-1.0, 5.0], [0.0, 6.0], [-5.0, 5.0]], [60, 60, 100], "dev/unit_tests/test.csv")
