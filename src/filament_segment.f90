@@ -261,14 +261,6 @@ contains
         zo = r(3)
 
         bsq = 1 - (freestream%M_inf**2)
-        !define k
-        ! if (freestream%supersonic) then
-        !     k = 1 !!!! I think this is right. Re-verify with Miranda
-        ! else 
-        !     k = 2 
-        ! end if 
-
-
 
         ! write out the integrals here based on the different dod stuff. 
         unrel_v_numer_one = (zo-zf)*(xo-xf)
@@ -281,8 +273,6 @@ contains
         unrel_w_numer_two = (yo-yi)*(xo-xi)
         unrel_w_denom_two = ((yo-yi)**2+(zo-zi)**2)*((xo-xi)**2+bsq*((yo-yi)**2+(zo-zi)**2))**0.5
 
-
-       !if (this%relaxed) !!!! put in logic like this later when we employ relaxation. -SA  
         if (dod_info%both_in_dod) then 
             int%u = 0
             int%v = (freestream%k_inv)*((unrel_v_numer_one/unrel_v_denom_one)-(unrel_v_numer_two/unrel_v_denom_two)) !!!! declare all of these variables and stuff - SA
@@ -303,7 +293,6 @@ contains
 
     function filament_segment_assemble_v_d_M_space(this, int, freestream, mirror_filament) result(v_d_M_space) !!!! need to create this space for wakes
         ! Assembles the doublet-induced velocity influence coefficient matrix from the previously-calculated influence integrals
-
         implicit none
 
         class(filament_segment),intent(in) :: this
@@ -333,17 +322,9 @@ contains
         v_d_M_space(3,3) = -int%w
         v_d_M_space(3,4) = int%w
             
-        ! Convert to strength influences (Davis Eq. (4.41)) !!!! not sure if we need this - SA 
-        ! if (mirror_filament) then
-        !     v_d_M_space(:,1:this%M_dim) = int%s*freestream%K_inv*matmul(v_d_mu_space, this%T_mu_mir)
-        ! else
-        !     v_d_M_space(:,1:this%M_dim) = int%s*freestream%K_inv*matmul(v_d_mu_space, this%T_mu)
-        ! end if
 
         ! ! Wake bottom influence is opposite the top influence
-        ! if (this%in_wake) then
-        !     v_d_M_space(:,this%M_dim+1:this%M_dim*2) = -v_d_M_space(:,1:this%M_dim)
-        ! end if
+        ! v_d_M_space(:,this%M_dim+1:this%M_dim*2) = -v_d_M_space(:,1:this%M_dim)
 
         ! Transform to global coordinates
         ! if (mirror_filament) then !!!! need to get mirroring going 

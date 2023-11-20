@@ -1,7 +1,7 @@
 {
     "info" : {
         "generated_by" : "MachLine (c) 2023 USU Aerolab",
-        "executed" : "Tue Nov  7 10:32:32 2023"
+        "executed" : "Wed Nov 15 20:26:47 2023"
     },
     "mesh_info" : {
         "N_body_panels" : 8,
@@ -15,9 +15,9 @@
         "solver_status_code" : 0,
         "system_dimension" : 6,
         "timing" : {
-            "system_sorting" : 4.00000000000000E-006,
-            "preconditioner" : 4.70000000000000E-006,
-            "matrix_solver" : 1.53000000000000E-005
+            "system_sorting" : 3.31000000000000E-005,
+            "preconditioner" : 1.69000000000000E-005,
+            "matrix_solver" : 3.24600000000000E-004
         },
         "iterations" : 5,
         "residual" : {
@@ -51,7 +51,7 @@
             "freestream_mach_number" : 2.93864405086000E-001
         },
         "geometry" : {
-            "file" : "C:/Users/Josh/Documents/AeroLab_Projects/MachLine/dev/meshes/Wake/testOctaMesh.stl",
+            "file" : "dev/meshes/Wake/testOctaMesh.stl",
             "singularity_order" : "lower",
             "spanwise_axis" : "+y",
             "reference" : {
@@ -77,15 +77,15 @@
         "post_processing" : {
         },
         "output" : {
-            "body_file" : "C:/Users/Josh/Documents/AeroLab_Projects/MachLine/dev/results/wake/OctaMesh.vtk",
-            "wake_file" : "C:/Users/Josh/Documents/AeroLab_Projects/MachLine/dev/results/wake/OctaMesh_wake.vtk",
-            "control_point_file" : "C:/Users/Josh/Documents/AeroLab_Projects/MachLine/dev/results/wake/OctaMesh_control_points.vtk",
-            "report_file" : "C:/Users/Josh/Documents/AeroLab_Projects/MachLine/dev/results/wake/OctaMesh.json",
+            "body_file" : "dev/results/wake/OctaMesh.vtk",
+            "wake_file" : "dev/results/wake/OctaMesh_wake.vtk",
+            "control_point_file" : "dev/results/wake/OctaMesh_control_points.vtk",
+            "report_file" : "dev/results/wake/OctaMesh.json",
             "ffbody_points" : {
                 "points_file" : "dev/input_files/delta_wing_slice_sample_points.csv",
                 "output_file" : "dev/results/delta_wing_slice_sample_points.csv"
             }
         }
     },
-    "total_runtime" : 9.40000000000000E-002
+    "total_runtime" : 1.87000000000000E-001
 }

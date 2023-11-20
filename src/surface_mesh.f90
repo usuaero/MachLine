@@ -87,9 +87,7 @@ module surface_mesh_mod
 
             ! Wake stuff
             procedure :: init_wake => surface_mesh_init_wake
-            !!!!!!!!!!!!!!!!!!!!! Wake_Dev !!!!!!!!!!!!!!!!!!!!
             procedure :: wake_has_filaments => surface_mesh_wake_has_filaments
-            !!!!!!!!!!!!!!!!!!!!! END_Wake_Dev !!!!!!!!!!!!!!!!!!!!
             procedure :: update_supersonic_trefftz_distance => surface_mesh_update_supersonic_trefftz_distance
             procedure :: update_subsonic_trefftz_distance => surface_mesh_update_subsonic_trefftz_distance
 
@@ -645,6 +643,7 @@ contains
                 call this%vertices(i)%panels%get(j, j_panel)
 
                 ! Update using weighted normal
+                
                 n_avg = n_avg + this%panels(j_panel)%get_weighted_normal_at_corner(this%vertices(i)%loc)
 
             end do

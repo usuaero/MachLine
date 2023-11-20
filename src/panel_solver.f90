@@ -631,7 +631,9 @@ contains
                     ! check to see if this should be an upper or lower normal vector
                     if (inner(n_g_new,body%vertices(cp%tied_to_index)%n_g) < 0) then
                         n_g_new = cross(average_edge,freestream%c_hat_g)
+                
                     end if
+
                     
                 
                 else 
@@ -643,6 +645,7 @@ contains
                 else
                     call cp%set_bc(bc_type, n_g_new)
                 end if
+                write(*,*) body%vertices(cp%tied_to_index)%n_g  !!!!!!!!!!!!!!!!!!!!!! write statement !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             else 
                 if (cp%is_mirror) then
                     call cp%set_bc(bc_type, body%vertices(cp%tied_to_index)%n_g_mir)
@@ -710,7 +713,7 @@ contains
                 call this%init_cp_neumann_condition(body%cp(i), freestream, ZERO_NORMAL_VEL, body)
             case (N_MF_D_VCP)
                 call this%init_cp_neumann_condition(body%cp(i), freestream, ZERO_NORMAL_MF, body)
-            case default !!!! this one is ours
+            case default 
                 call this%init_cp_neumann_condition(body%cp(i), freestream, ZERO_NORMAL_MF, body)
             
             end select
