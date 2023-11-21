@@ -27,7 +27,7 @@ module base_geom_mod
         ! A vertex in 3-space
 
         real,dimension(3) :: loc ! Location
-        real,dimension(3) :: n_g, n_g_mir ! Normal vector associated with this vertex
+        real,dimension(3) :: n_g, n_g_mir,n_g_wake ! Normal vector associated with this vertex
         real :: l_avg ! Average of the edge lengths adjacent to this vertex
         real :: l_min ! Minimum of the edge lengths adjacent to this vertex
         type(list) :: adjacent_vertices ! List of indices for the vertices which share an edge with this vertex

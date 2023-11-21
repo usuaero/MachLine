@@ -1,0 +1,38 @@
+{
+    "flow": {
+        "freestream_velocity": [
+            1.0,
+            0.0,
+            0.0
+        ],
+        "freestream_mach_number" : 0
+    },
+    "geometry": {
+        "file": "C:/Users/Josh/Documents/AeroLab_Projects/EURP/MachlineStudy/meshes/EURP_PitotProbeOpenVSP.stl",
+        "spanwise_axis": "+y",
+        "wake_model": {
+            "wake_present" : false,
+            "append_wake" : false,
+            "trefftz_distance" : 20.0,
+            "wake_type": "filaments"    
+    },
+        "reference": {
+            "area": 164.363
+        }
+    },
+    "solver": {
+        "formulation" : "dirichlet-morino",
+        "matrix_solver" : "GMRES",
+        "write_A_and_b" : false
+    },
+    "post_processing": {
+        "pressure_rules": {
+            "incompressible": true
+        }
+    },
+    "output": {
+        "body_file": "C:/Users/Josh/Documents/AeroLab_Projects/EURP/MachlineStudy/results/EURP_PitotProbeOpenVSP.vtk",
+        "wake_file": "C:/Users/Josh/Documents/AeroLab_Projects/EURP/MachlineStudy/results/EURP_PitotProbeOpenVSP.vtk",
+        "report_file": "C:/Users/Josh/Documents/AeroLab_Projects/EURP/MachlineStudy/reports/EURP_PitotProbeOpenVSP.vtk"
+    }
+}
