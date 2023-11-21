@@ -592,59 +592,73 @@ contains
         if (cp%tied_to_type == TT_VERTEX .and. cp%cp_type == SURFACE) then
             
             if (body%vertices(cp%tied_to_index)%N_wake_edges>0) then
-                num_edges = body%vertices(cp%tied_to_index)%adjacent_edges%len()
-                allocate(points(num_edges))
-                counter = 0
-                do i=1,num_edges
-                    ! Check if it's a wake-shedding edge
-                    call body%vertices(cp%tied_to_index)%adjacent_edges%get(i, i_edge)
-                    if (body%edges(i_edge)%sheds_wake) then
-                        !!!! make the average vector here, and then do the cross product
-                        ! get the index of the two points attacehd to the edge 
-                        vert1 = body%edges(i_edge)%top_verts(1)
-                        vert2 = body%edges(i_edge)%top_verts(2)
-                        ! pick which one isn't the current point
-                        if (vert1 == cp%tied_to_index) then
-                            counter = counter + 1
-                            points(counter) = vert2
-                        else
-                            counter = counter + 1
-                            points(counter) = vert1
-                        end if
-                    end if
-                end do
-                if (counter == 1) then
-                    ! only use the single wake sheading edge as the vector
-                    average_edge = body%vertices(points(1))%loc - body%vertices(cp%tied_to_index)%loc
-                    ! get the new normal vector
-                    n_g_new = cross(freestream%c_hat_g, average_edge)
-                    ! check to see if this should be an upper or lower normal vector
-                    if (inner(n_g_new,body%vertices(cp%tied_to_index)%n_g) < 0) then
-                        n_g_new = cross(average_edge,freestream%c_hat_g)
-                    end if
-                else if (counter == 2) then
-                    ! make a vector using the two points
-                    average_edge = body%vertices(points(1))%loc - body%vertices(points(2))%loc
-                    ! get the new normal vector
-                    n_g_new = cross(freestream%c_hat_g, average_edge)
-                    ! check to see if this should be an upper or lower normal vector
-                    if (inner(n_g_new,body%vertices(cp%tied_to_index)%n_g) < 0) then
-                        n_g_new = cross(average_edge,freestream%c_hat_g)
-                
-                    end if
-
+                ! num_edges = body%vertices(cp%tied_to_index)%adjacent_edges%len()
+                ! allocate(points(num_edges))
+                ! counter = 0
+                ! do i=1,num_edges
+                !     ! Check if it's a wake-shedding edge
+                !     call body%vertices(cp%tied_to_index)%adjacent_edges%get(i, i_edge)
+                !     if (body%edges(i_edge)%sheds_wake) then
+                !         !!!! make the average vector here, and then do the cross product
+                !         ! get the index of the two points attacehd to the edge 
+                !         vert1 = body%edges(i_edge)%top_verts(1)
+                !         vert2 = body%edges(i_edge)%top_verts(2)
+                !         ! pick which one isn't the current point
+                !         if (vert1 == cp%tied_to_index) then
+                !             counter = counter + 1
+                !             points(counter) = vert2
+                !         else
+                !             counter = counter + 1
+                !             points(counter) = vert1
+                !         end if
+                !     end if
+                ! end do
+                ! if (counter == 1) then
+                !     ! only use the single wake sheading edge as the vector
+                !     average_edge = body%vertices(points(1))%loc - body%vertices(cp%tied_to_index)%loc
+                !     ! get the new normal vector
+                !     n_g_new = cross(freestream%c_hat_g, average_edge)
+                !     ! check to see if this should be an upper or lower normal vector
+                !     if (inner(n_g_new,body%vertices(cp%tied_to_index)%n_g_wake) < 0) then
+                !         n_g_new = cross(average_edge,freestream%c_hat_g)
+                !     end if
+                ! else if (counter == 2) then
+                !     ! make a vector using the two points
+                !     average_edge = body%vertices(points(1))%loc - body%vertices(points(2))%loc
+                !     ! get the new normal vector
+                !     n_g_new = cross(freestream%c_hat_g, average_edge)
+                !     ! check to see if this should be an upper or lower normal vector
+                !     if (inner(n_g_new,body%vertices(cp%tied_to_index)%n_g_wake) < 0) then
+                !         n_g_new = cross(average_edge,freestream%c_hat_g)
+                !     end if
                     
                 
-                else 
-                    write(*,*) "!!!! ERROR wake contains a triple point. These are currently not allowed by this formulation"
-                end if
-                n_g_new = n_g_new / norm2(n_g_new)
+                ! else 
+                !     write(*,*) "!!!! ERROR wake contains a triple point. These are currently not allowed by this formulation"
+                ! end if
+                if (body%vertices(cp%tied_to_index)%N_wake_edges==1) then
+                    n_g_new = body%vertices(cp%tied_to_index)%n_g
+                else
+                    n_g_new = body%vertices(cp%tied_to_index)%n_g_wake - freestream%c_hat_g&
+                             * inner(freestream%c_hat_g,body%vertices(cp%tied_to_index)%n_g_wake)
+                end if 
+
+
+                n_g_new = n_g_new / norm2(n_g_new) 
+                
                 if (cp%is_mirror) then
                     call cp%set_bc(bc_type, n_g_new) !!!! this will need to be fixed the rest of the way before mirroring will work
                 else
                     call cp%set_bc(bc_type, n_g_new)
                 end if
-                write(*,*) body%vertices(cp%tied_to_index)%n_g  !!!!!!!!!!!!!!!!!!!!!! write statement !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                write(*,*)"vertex_loc",body%vertices(cp%tied_to_index)%loc
+                write(*,*)"N_wake_edges",body%vertices(cp%tied_to_index)%N_wake_edges
+                write(*,*)"n_g_new",n_g_new
+                write(*,*)"n_g_wake",body%vertices(cp%tied_to_index)%n_g_wake
+                write(*,*)"n_g",body%vertices(cp%tied_to_index)%n_g
+
+
+
             else 
                 if (cp%is_mirror) then
                     call cp%set_bc(bc_type, body%vertices(cp%tied_to_index)%n_g_mir)
@@ -1016,14 +1030,15 @@ contains
 
         ! Calculate source strengths
         call this%calc_source_strengths(body)
-
         ! Calculate body influences
         call this%calc_body_influences(body)
+        
+        write(*,*) "HERE I AM!!!!!!!!!!!!!!!!!!!!!"
 
         ! Calculate wake influences
         if (body%wake%N_panels > 0 .or. body%filament_wake%N_filaments > 0)&
         call this%calc_wake_influences(body, formulation,freestream) !!!! formulation part is a change
-
+        write(*,*) "ROCK YOU LIKE A HURRICANE"
         ! Assemble boundary condition vector
         call this%assemble_BC_vector(body)
 
@@ -1251,11 +1266,11 @@ contains
         real :: I_known_i
 
         if (verbose) write(*,'(a)',advance='no') "     Calculating body influences..."
-
+       
         ! Calculate source and doublet influences from body on each control point
         !$OMP parallel do private(j, source_inf, doublet_inf, v_s, v_d, A_i, I_known_i) schedule(dynamic)
         do i=1,body%N_cp
-            
+
             ! Initialize
             A_i = 0.
             I_known_i = 0.
@@ -1270,14 +1285,15 @@ contains
 
             case (ZERO_NORMAL_MF) ! Calculate normal mass flux influences
                 ! Loop through panels
-                                do j=1,body%N_panels
+                
+                do j=1,body%N_panels
                     ! Influence of existing panel on control point
                     call body%panels(j)%calc_velocity_influences(body%cp(i)%loc, this%freestream, .false., v_s, v_d)
                     source_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_s))
                     doublet_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_d))
-                                        
+                    
                     ! Add influence
-                    call this%update_system_row(body, body%cp(i), A_i, I_known_i, j, source_inf, doublet_inf, .false.)
+                    call this%update_system_row(body, body%cp(i), A_i, I_known_i, j, source_inf, doublet_inf, .false.)         
  
                     if (body%mirrored) then
 
@@ -1292,7 +1308,7 @@ contains
                     end if
 
                 end do
-
+                Write(*,*) body%cp(i)%n_g , body%cp(i)%loc
             case (MF_INNER_FLOW) ! Calculate inner flow influences
 
                 ! Loop through panels
@@ -1332,7 +1348,6 @@ contains
 
                     ! Add influence
                     call this%update_system_row(body, body%cp(i), A_i, I_known_i, j, source_inf, doublet_inf, .false.)
-
                     if (body%mirrored) then
 
                         ! Calculate influence of mirrored panel on control point
@@ -1385,11 +1400,10 @@ contains
                 this%A(i,:) = A_i
                 this%I_known(i) = I_known_i
             end if
-
+            
             !$OMP end critical
 
         end do
-
         if (verbose) write(*,*) "Done."
     
     end subroutine panel_solver_calc_body_influences

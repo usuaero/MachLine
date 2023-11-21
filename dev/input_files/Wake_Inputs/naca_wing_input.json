@@ -20,7 +20,7 @@
         }
     },
     "solver": {
-        "formulation" : "neumann-mass-flux",
+        "formulation" : "neumann-mass-flux-VCP",
         "matrix_solver" : "GMRES",
         "write_A_and_b" : false
     },

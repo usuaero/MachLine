@@ -729,7 +729,7 @@ contains
             call this%set_needed_vertex_clones()
 
             ! Clone necessary vertices
-            call this%clone_vertices()
+            call this%clone_vertices(formulation)
 
         end if
 
@@ -968,18 +968,20 @@ contains
     end subroutine surface_mesh_set_needed_vertex_clones
 
 
-    subroutine surface_mesh_clone_vertices(this)
+    subroutine surface_mesh_clone_vertices(this,formulation)
         ! Takes vertices which lie within wake-shedding edges and splits them into two vertices.
         ! Handles rearranging of necessary dependencies.
 
         implicit none
 
         class(surface_mesh),intent(inout) :: this
-
-        integer :: i, j, k, N_clones, i_jango, i_boba, N_boba, i_edge, i_start_panel
+        character(len=:),allocatable,intent(in) :: formulation
+        real(16),dimension(3) :: n_avg
+        integer :: i, j, k, N_clones, i_jango, i_boba, N_boba, i_edge, i_start_panel, jango_panel, boba_panel,N_panels
         integer,dimension(:),allocatable :: i_panels_between, i_rearrange_inv, i_start_edge, i_end_edge
         integer,dimension(:,:),allocatable :: i_panels_between_all
         logical,dimension(:),allocatable :: mirrored_is_unique
+
 
         ! Check whether any wake edges exist
         if (this%found_wake_edges) then
@@ -1094,6 +1096,47 @@ contains
                             call this%edges(i_end_edge(i+1))%point_bottom_to_new_vert(i_jango, i_boba)
                         end if
 
+                        if (formulation == "neumann-mass-flux-VCP") then
+                            !!!! I think we are going to add the new normal calculation here. 
+                            !!!! will probably look like 
+                            !!!! call this%verticies(i_jango)%calc_normal
+                            !!!! call this%verticies(i_boba)%calc_normal
+                            !!!! I am not sure what calc_normal will look like though
+                            
+                            ! Loop through neighboring panels and compute the average of their normal vectors for jango
+                            n_avg = 0
+                            N_panels = this%vertices(i_jango)%panels_not_across_wake_edge%len()
+                            ! Get panel index
+                            do j=1,N_panels
+
+                                ! Get panel index
+                                call this%vertices(i_jango)%panels_not_across_wake_edge%get(j, jango_panel)
+                
+                                ! Update using weighted normal
+                                n_avg = n_avg + this%panels(jango_panel)%get_weighted_normal_at_corner(&
+                                    this%vertices(i_jango)%loc)
+                
+                            end do
+
+                            ! Normalize and store
+                            this%vertices(i_jango)%n_g_wake = n_avg/norm2(n_avg)
+                            ! Loop through neighboring panels and compute the average of their normal vectors for boba
+                            n_avg = 0
+                            N_panels = this%vertices(i_boba)%panels_not_across_wake_edge%len()
+                            ! Get panel index
+                            do j=1,N_panels
+
+                                ! Get panel index
+                                call this%vertices(i_boba)%panels_not_across_wake_edge%get(j, boba_panel)
+                
+                                ! Update using weighted normal
+                                n_avg = n_avg + this%panels(boba_panel)%get_weighted_normal_at_corner(&
+                                this%vertices(i_boba)%loc)
+                
+                            end do
+                            ! Normalize and store
+                            this%vertices(i_boba)%n_g_wake = n_avg/norm2(n_avg)
+                        end if 
                     end do
 
                     ! Clean up memory for next iteration
@@ -1125,10 +1168,11 @@ contains
 
                     end if
                 end if
-
+                
             end do
 
             ! Get inverse mapping
+            write(*,*) this%N_verts,",", i_rearrange_inv,",", this%vertex_ordering
             call invert_permutation_vector(this%N_verts, i_rearrange_inv, this%vertex_ordering)
 
             if (verbose) write(*,'(a, i4, a, i7, a)') "Done. Cloned ", N_clones, " vertices. Mesh now has ", &
@@ -1878,7 +1922,7 @@ contains
 
 
     function surface_mesh_get_cp_locs_vertex_based(this,offset, freestream) result(cp_locs)
-        ! Returns the locations of coincident vertex-based control points
+        ! Returns the locations of coincident vertex-based control points !!!! only used for NM-VCP formulation
         implicit none
         class(surface_mesh),intent(in) :: this
         type(flow),intent(in) :: freestream
@@ -1890,7 +1934,11 @@ contains
         allocate(cp_locs(3,this%N_verts))
 
         do i=1,this%N_verts
-            cp_locs(:,i) = this%vertices(i)%loc + this%vertices(i)%n_g * offset !!!! Offset
+            if (this%vertices(i)%N_wake_edges > 1) then
+                cp_locs(:,i) = this%vertices(i)%loc + this%vertices(i)%n_g_wake * offset   
+            else  
+                cp_locs(:,i) = this%vertices(i)%loc + this%vertices(i)%n_g * offset !!!! Will probably need an if statement here to set ng to the new ng for the wake shedding edges
+            end if
         end do
 
     end function surface_mesh_get_cp_locs_vertex_based

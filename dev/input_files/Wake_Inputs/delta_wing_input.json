@@ -17,7 +17,7 @@
     },
     "solver": {
         "run_checks" : true,
-        "control_point_offset" : 1e-10,
+        "xcontrol_point_offset" : 1e-10,
         "iterative_solver_output" : "dev/results/wake/delta_wing_iterative_output.txt",
         "xformulation" : "dirichlet-morino",
         "formulation": "neumann-mass-flux-VCP",
