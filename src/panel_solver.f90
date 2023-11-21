@@ -1518,7 +1518,7 @@ contains
                             doublet_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_d))
 
                             ! Add influence
-                            do k=1,size(body%wake%strips(j)%panels(l)%i_vert_d) !!!! what is i_vert_d?
+                            do k=1,size(body%wake%strips(j)%panels(l)%i_vert_d) 
                                 A_i(this%P(body%wake%strips(j)%panels(l)%i_vert_d(k))) = &
                                     A_i(this%P(body%wake%strips(j)%panels(l)%i_vert_d(k))) + doublet_inf(k)
                             end do
