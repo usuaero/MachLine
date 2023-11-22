@@ -1,7 +1,7 @@
 {
     "flow": {
         "freestream_velocity" : [ 100.0, 0.0, 0.0 ],
-        "freestream_mach_number" : 0.25
+        "freestream_mach_number" : 1.3
     },
     "geometry": {
         "file": "dev/meshes/delta_wing_clustered_mesh_coarse.vtk",
@@ -22,9 +22,9 @@
         "xformulation" : "dirichlet-morino",
         "formulation": "neumann-mass-flux-VCP",
         "yformulation": "neumann-mass-flux",
-        "xmatrix_solver" : "HHLS",
-        "matrix_solver" : "GMRES",
-        "ymatrix_solver" : "LU",
+        "matrix_solver" : "HHLS",
+        "ymatrix_solver" : "GMRES",
+        "xmatrix_solver" : "LU",
         "write_A_and_b" : true
     },
     "post_processing" : {
