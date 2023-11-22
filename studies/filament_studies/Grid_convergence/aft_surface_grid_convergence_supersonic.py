@@ -135,7 +135,12 @@ def run_machline(input_filename, delete_input=True, run=True):
 if __name__=="__main__":
     # declare varaibles and inputs
     start = time.time()
-    num_cases = 2
+    num_cases = 8
+
+    N_panels = 25
+    for i in range(num_cases):
+        if i != 0.0:
+            N_panels = N_panels*i*2
 
     study_dir = "studies/filament_studies/Grid_convergence"
     N_sys = list(range(num_cases))
@@ -150,40 +155,40 @@ if __name__=="__main__":
     C_mz = list(range(num_cases))
 
     # set parameters
-    chords = np.linspace(5,80,num_cases)
-    spans = np.linspace(5,80,num_cases)
+    chords = np.sqrt(N_panels) # np.linspace(5,80,num_cases)
+    spans = np.sqrt(N_panels) # np.linspace(5,80,num_cases)
     wake_types = ["panels"]
-    freestream_machs = [0.25, 1.7]
+    freestream_machs = [1.7]
     # print header
     print("Key:\ni,num_chord,num_span,mach,wake_type")
     # Run cases
-    for i in range(len(freestream_machs)):
-        for j in range(len(wake_types)):
-            for k in range(num_cases):
-                chord = int(chords[k])
-                span = int(spans[k])
-                freestream_mach = freestream_machs[i]
-                wake_type = wake_types[j]
-                index = i*len(wake_types)*num_cases + j*num_cases + k
-                print(index,",",chord,",",span,",",freestream_mach,",",wake_type)
+    # for i in range(len(freestream_machs)):
+    #     for j in range(len(wake_types)):
+    for k in range(num_cases):
+        chord = int(chords[k])
+        span = int(spans[k])
+        freestream_mach = freestream_machs[i]
+        wake_type = wake_types[j]
+        index = i*len(wake_types)*num_cases + j*num_cases + k
+        print(index,",",chord,",",span,",",freestream_mach,",",wake_type)
 
-                N_sys[k], l_avg[k], C_F[k], C_M[k] = run_machline_for_grid(chord,span,study_dir,index, wake_type, freestream_mach)
-            # continue
-            for p in range(num_cases):
-                C_x[p] = C_F[p][0]
-                C_y[p] = C_F[p][1]
-                C_z[p] = C_F[p][2]
-                C_mx[p] = C_M[p][0]
-                C_my[p] = C_M[p][1]
-                C_mz[p] = C_M[p][2]
-            output_file = study_dir
-            output_file += "/grid_convergence_" + str(formulations[j]) + "_" + str(freestream_machs[i]) + ".txt"
-            with open(output_file, "w") as file:
-                # Write the lists to the file
-                file.write("num_span,num_chord,C_x,C_y,C_z,C_mx,C_my,C_mz\n")
-                for q in range(num_cases):
-                    file.write(f"{spans[q]},{chords[q]},{C_x[q]},{C_y[q]},{C_z[q]},{C_mx[q]},{C_my[q]},{C_mz[q]}\n")
-            file.close()
+        N_sys[k], l_avg[k], C_F[k], C_M[k] = run_machline_for_grid(chord,span,study_dir,index, wake_type, freestream_mach)
+    # continue
+    for p in range(num_cases):
+        C_x[p] = C_F[p][0]
+        C_y[p] = C_F[p][1]
+        C_z[p] = C_F[p][2]
+        C_mx[p] = C_M[p][0]
+        C_my[p] = C_M[p][1]
+        C_mz[p] = C_M[p][2]
+    output_file = study_dir
+    output_file += "/grid_convergence_" + "_" + str(freestream_machs[i]) + ".txt"
+    with open(output_file, "w") as file:
+        # Write the lists to the file
+        file.write("N_sys,N_panels,C_x,C_y,C_z,C_mx,C_my,C_mz\n")
+        for q in range(num_cases):
+            file.write(f"{N_sys[q]},{N_panels[q]},{C_x[q]},{C_y[q]},{C_z[q]},{C_mx[q]},{C_my[q]},{C_mz[q]}\n")
+    file.close()
     
     end = time.time()
     elapsed = end-start
