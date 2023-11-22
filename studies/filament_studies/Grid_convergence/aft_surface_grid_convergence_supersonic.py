@@ -15,11 +15,11 @@ def run_machline_for_grid(chord_count,span_count,study_directory,index, wake_typ
     # default values
     alpha = 5
     #generate geometry
-    area = generate_meshes.gen_bi_plane_grid_convergence_geom(chord_count,span_count,study_directory,index)
+    area = generate_meshes.gen_aft_surface_grid_convergence_geom(chord_count,span_count,study_directory,index)
     # Storage locations
     # return 0, 0, 0, 0
     ## change name for new studies
-    mesh_file = study_directory+"/meshes/bi_plane_grid_convergence_"+str(index)+".stl" # changed name after meshes         
+    mesh_file = study_directory+"/meshes/aft_surface_grid_convergence_"+str(index)+".stl" # changed name after meshes         
     results_file = study_directory+"/results/"+str(index)+".vtk"
     wake_file = study_directory+"/results/"+str(index)+"_wake.vtk"
     report_file = study_directory+"/reports/"+str(index)+".json"
@@ -137,11 +137,6 @@ if __name__=="__main__":
     start = time.time()
     num_cases = 8
 
-    N_panels = 25
-    for i in range(num_cases):
-        if i != 0.0:
-            N_panels = N_panels*i*2
-
     study_dir = "studies/filament_studies/Grid_convergence"
     N_sys = list(range(num_cases))
     l_avg =list(range(num_cases))
@@ -153,26 +148,26 @@ if __name__=="__main__":
     C_mx = list(range(num_cases))
     C_my = list(range(num_cases))
     C_mz = list(range(num_cases))
-
+    N_panels = list(range(num_cases))
     # set parameters
-    chords = np.sqrt(N_panels) # np.linspace(5,80,num_cases)
-    spans = np.sqrt(N_panels) # np.linspace(5,80,num_cases)
-    wake_types = ["panels"]
-    freestream_machs = [1.7]
+    freestream_mach = 2.5
+    wake_type = "panels"
+    
     # print header
     print("Key:\ni,num_chord,num_span,mach,wake_type")
     # Run cases
     # for i in range(len(freestream_machs)):
     #     for j in range(len(wake_types)):
-    for k in range(num_cases):
-        chord = int(chords[k])
-        span = int(spans[k])
-        freestream_mach = freestream_machs[i]
-        wake_type = wake_types[j]
-        index = i*len(wake_types)*num_cases + j*num_cases + k
-        print(index,",",chord,",",span,",",freestream_mach,",",wake_type)
 
-        N_sys[k], l_avg[k], C_F[k], C_M[k] = run_machline_for_grid(chord,span,study_dir,index, wake_type, freestream_mach)
+    N_panel = 25
+    for k in range(num_cases):
+        chord = int(np.sqrt(N_panels) )# np.linspace(5,80,num_cases)
+        span = int(np.sqrt(N_panels)) # np.linspace(5,80,num_cases)
+        
+        print(index,",",chord,",",span,",",freestream_mach,",",wake_type)
+        N_panels[k] = N_panel
+        N_sys[k], l_avg[k], C_F[k], C_M[k] = run_machline_for_grid(chord,span,study_dir,k, wake_type, freestream_mach)
+        N_panel *= 2
     # continue
     for p in range(num_cases):
         C_x[p] = C_F[p][0]
