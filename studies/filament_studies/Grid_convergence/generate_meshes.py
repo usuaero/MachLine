@@ -126,17 +126,17 @@ def gen_grid_convergence_geom(chord_count,span_count,study_directory,index):
 
 def gen_bi_plane_grid_convergence_geom(chord_count,span_count,study_directory,index):
     mainID = add_wing(span=10,sweep=30,root_chord=4,tip_chord=1,airfoilType=10,ThickLoc=0.25,chord_panel_count=chord_count,span_panel_count=span_count)
-    upperID = add_wing(x_loc = 2.75, z_loc = -2.5, span=10,sweep=30,root_chord=4,tip_chord=1,airfoilType=10,ThickLoc=0.25,chord_panel_count=chord_count,span_panel_count=span_count)
+    # upperID = add_wing(x_loc = 2.75, z_loc = -2.5, span=10,sweep=30,root_chord=4,tip_chord=1,airfoilType=10,ThickLoc=0.25,chord_panel_count=chord_count,span_panel_count=span_count)
 
     # Export the OpenVSP file
     vsp.WriteVSPFile("my_aircraft.vsp3")
     # get area
     main_area = vsp.GetParmVal(mainID,"Area","XSec_1")
     upper_area = vsp.GetParmVal(upperID,"Area","XSec_1") ##
-    area = main_area + upper_area ##
+    # area = main_area + upper_area ##
     # Save the geometry to a file (STL format)
     file_name = study_directory
-    file_name += "/meshes/bi_plane_grid_convergence_{0}".format(index) ## change the name after meshes
+    file_name += "/meshes/single_wing_grid_convergence_{0}".format(index) ## change the name after meshes
     file_name+=".stl"
     vsp.ExportFile(file_name,1,2,0,0)
     vsp.ClearVSPModel()

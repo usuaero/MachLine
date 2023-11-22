@@ -45,8 +45,8 @@ def run_machline_for_loc(x_dist,y_dist,z_dist,index,wake_type,freestream_mach,st
         },
     
         "solver": {
-        "formulation" : "neumann-mass-flux",
-        "ormulation" : "dirichlet-morino",
+        "ormulation" : "neumann-mass-flux",
+        "formulation" : "dirichlet-morino",
         "matrix_solver" : "GMRES",
         "write_A_and_b" : False
         },
@@ -151,7 +151,7 @@ if __name__=="__main__":
     x_dist = 1.5
     y_dist = 0
     z_dists = np.linspace(0,30,num_cases)
-    wake_types = ["panels", "filaments"]
+    wake_types = ["panels"]
     freestream_machs = [0.25, 1.7]
     # Run cases
 
