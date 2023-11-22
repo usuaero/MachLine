@@ -13,25 +13,45 @@ def add_wing(**kwargs):
     ## Set parameters for the wing
     if 'span' in kwargs:
         span = kwargs['span']
-        vsp.SetParmVal( wid, "Span", "XSec_1", span)
+    else:
+        span = 4
+    vsp.SetParmVal( wid, "Span", "XSec_1", span)
+
     if 'sweep' in kwargs:
         sweep = kwargs['sweep']
-        vsp.SetParmVal(wid,"Sweep","XSec_1", sweep)
+    else:
+        sweep = 0
+    vsp.SetParmVal(wid,"Sweep","XSec_1", sweep)
+
     if 'root_chord' in kwargs:
         root_chord = kwargs["root_chord"]
-        vsp.SetParmVal( wid, "Root_Chord", "XSec_1", root_chord)
+    else:
+        root_chord = 1
+    vsp.SetParmVal( wid, "Root_Chord", "XSec_1", root_chord)
+
     if 'tip_chord' in kwargs:
         tip_chord = kwargs['tip_chord']
-        vsp.SetParmVal( wid, "Tip_Chord", "XSec_1", tip_chord )
+    else:
+        tip_chord = 0
+    vsp.SetParmVal( wid, "Tip_Chord", "XSec_1", tip_chord )
+
     if 'x_loc' in kwargs:
         x_loc = kwargs['x_loc']
-        vsp.SetParmVal( wid, "X_Rel_Location", "XForm", x_loc )
+    else:
+        x_loc = 0
+    vsp.SetParmVal( wid, "X_Rel_Location", "XForm", x_loc )
+
     if 'y_loc' in kwargs:
         y_loc = kwargs['y_loc']
-        vsp.SetParmVal( wid, "Y_Rel_Location", "XForm", y_loc )  
+    else:
+        y_loc = 0
+    vsp.SetParmVal( wid, "Y_Rel_Location", "XForm", y_loc ) 
+
     if 'z_loc' in kwargs:
         z_loc = kwargs['z_loc']
-        vsp.SetParmVal( wid, "Z_Rel_Location", "XForm", z_loc )
+    else:
+        z_loc = 0
+    vsp.SetParmVal( wid, "Z_Rel_Location", "XForm", z_loc )
     # if 'area' in kwargs:
     #     area = kwargs['area']
     #     vsp.SetParmVal(wid,"Area",'XSec_1',area)
@@ -124,7 +144,7 @@ def add_wing(**kwargs):
     return wid, area
     
     
-def gen_multi_wing_geom(x_loc,y_loc,z_loc):
+def gen_multi_wing_geom(x_loc,y_loc,z_loc,wedge=,naca):
     '''This function generates a pair of wings with the main wing at the origin and the second wing at the points given in the input.
     This function returns the area of the wings for use in MachLine'''
     mainID,area_main = add_wing(span=10,sweep=30,root_chord=4,tip_chord=1,airfoilType=10,ThickLoc=0.25,chord_panel_count=30,span_panel_count=40)
@@ -143,6 +163,23 @@ def gen_multi_wing_geom(x_loc,y_loc,z_loc):
     vsp.ExportFile(file_name,1,2,0,0)
     return area_t
 
+def gen_naca_wing_geom(naca):
+    '''This function generates a NACA wing.
+    This function returns the area of the wings for use in MachLine'''
+    mainID,area_main = add_wing(span=10,sweep=30,root_chord=4,tip_chord=1,airfoilType=10,ThickLoc=0.25,chord_panel_count=30,span_panel_count=40)
+
+    # vsp.WriteVSPFile("my_aircraft.vsp3")
+    # Export the OpenVSP file
+    vsp.WriteVSPFile("my_aircraft.vsp3")
+    
+    # area_main = vsp.GetParmVal(mainID,"Area","XSec_1")
+    # area_upper = vsp.GetParmVal(upperID,"Area","XSec_1")
+    area_t = area_main 
+    # Save the geometry to a file (STL format)
+    file_name = "NACA_{0}_{1}_{2}_".format(x_loc,y_loc,z_loc)
+    file_name+=".stl"
+    vsp.ExportFile(file_name,1,2,0,0)
+    return area_t
 
 
 if __name__ == "__main__":
