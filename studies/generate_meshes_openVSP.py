@@ -62,6 +62,7 @@ def add_wing(**kwargs):
         vsp.ChangeXSecShape( xsec_surf1, 1, airfoilType )
 
         if airfoilType == 10:
+            # wedge airfoil
             if "ThickLoc" in kwargs:
                 thickLoc = kwargs["ThickLoc"]
                 xsec_id1 = vsp.GetXSec(xsec_surf,0)
@@ -70,6 +71,43 @@ def add_wing(**kwargs):
                 xsec_id2 = vsp.GetXSec(xsec_surf,1)
                 thickLoc2 = vsp.GetXSecParm(xsec_id2,"ThickLoc")
                 vsp.SetParmVal( thickLoc2, thickLoc)
+        elif airfoilType == 7:
+            # NACA 4 digit 
+            if "NACA4" in kwargs:
+                naca4 = kwargs["NACA4"]
+                # calculate naca parameters from input 4 digit id
+                toc = naca4%100
+                camber_loc = (naca4-toc)/100%10
+                camber = ((naca4-toc)/100-camber_loc)/10
+
+                toc /= 100
+                camber_loc /=100
+                camber /=10
+
+                # get section id for middle section
+                xsec_id1 = vsp.GetXSec(xsec_surf,0)
+                # get id for location of max camber and set param
+                thickLoc1 = vsp.GetXSecParm(xsec_id1,"CamberLoc")
+                vsp.SetParmVal( thickLoc1, camber_loc)
+                # get id for thickness ratio and set param
+                toc_id1 = vsp.GetXSecParm(xsec_id1,"ThickChord")
+                vsp.SetParmVal( toc_id1, toc)
+                # get id for camber amount and set param
+                camber_id1 = vsp.GetXSecParm(xsec_id1,"Camber")
+                vsp.SetParmVal( camber_id1, camber)
+                
+
+                # get section id for tip section
+                xsec_id2 = vsp.GetXSec(xsec_surf,1)
+                # get id for location of max camber and set param
+                thickLoc2 = vsp.GetXSecParm(xsec_id2,"CamberLoc")
+                vsp.SetParmVal( thickLoc2, camber_loc)
+                # get id for thickness ratio and set param
+                toc_id2 = vsp.GetXSecParm(xsec_id1,"ThickChord")
+                vsp.SetParmVal( toc_id2, toc)
+                # get id for camber amount and set param
+                camber_id2 = vsp.GetXSecParm(xsec_id1,"Camber")
+                vsp.SetParmVal( camber_id2, camber)
             
 
     ## default settings
@@ -110,5 +148,16 @@ def gen_multi_wing_geom(x_loc,y_loc,z_loc):
 if __name__ == "__main__":
     
     
-    area = gen_multi_wing_geom(0,0,5)
-    print("Area", area)
+    naca4 = 6510
+
+    toc = naca4%100
+    camber_loc = (naca4-toc)/100%10
+    camber = ((naca4-toc)/100-camber_loc)/10
+
+    toc /= 100
+    camber_loc /=100
+    camber /=10
+
+    print(toc)
+    print(camber_loc)
+    print(camber)
