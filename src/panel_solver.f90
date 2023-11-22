@@ -1844,6 +1844,7 @@ contains
 
             ! Underdetermined least-squares
             else if (this%underdetermined_ls) then
+                ! write(*,*) "hopefully not"
                 call system_clock(start_count, count_rate)
                 !call diagonal_preconditioner(body%N_cp, matmul(this%A, transpose(this%A)), this%b, A_p, b_p)
                 A_T = transpose(this%A)

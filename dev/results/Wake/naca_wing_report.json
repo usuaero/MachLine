@@ -1,7 +1,7 @@
 {
     "info" : {
         "generated_by" : "MachLine (c) 2023 USU Aerolab",
-        "executed" : "Tue Nov 14 20:36:15 2023"
+        "executed" : "Tue Nov 21 11:41:15 2023"
     },
     "mesh_info" : {
         "N_body_panels" : 3952,
@@ -15,38 +15,37 @@
         "solver_status_code" : 0,
         "system_dimension" : 2015,
         "timing" : {
-            "system_sorting" : 1.04000000000000E-005,
-            "preconditioner" : 1.21765000000000E-002,
-            "matrix_solver" : 4.91805850000000E+000
+            "system_sorting" : 5.50000000000000E-006,
+            "preconditioner" : 1.16006000000000E-002,
+            "matrix_solver" : 3.11151670000000E+000
         },
-        "iterations" : 999,
         "residual" : {
-            "max" : 1.40460254176458E+000,
-            "norm" : 1.14041689592863E+001
+            "max" : 2.81083801300099E-002,
+            "norm" : 1.52341564170501E-001
         }
     },
     "pressure_calculations" : {
         "incompressible_rule" : {
-            "max" : 7.88352023630067E-002,
-            "min" : -9.09670759176104E-002
+            "max" : 6.55876763401088E-001,
+            "min" : -4.15325965613041E-001
         }
     },
     "total_forces" : {
-        "Cx" : -5.14004133762301E-005,
-        "Cy" : -2.23896336262521E-006,
-        "Cz" : -8.52412942807472E-004
+        "Cx" : 4.90761333345040E-003,
+        "Cy" : -4.27825425521039E-014,
+        "Cz" : 1.29618424495884E-001
     },
     "total_moments" : {
-        "CMx" : -5.38753558261700E-003,
-        "CMy" : 8.26970637212889E-003,
-        "CMz" : 1.93820479829326E-005
+        "CMx" : 1.58979626385071E-012,
+        "CMy" : -3.46310851327995E-001,
+        "CMz" : -1.54488963159986E-012
     },
     "input" : {
         "flow" : {
             "freestream_velocity" : [
                     1.00000000000000E+002,
                     0.00000000000000E+000,
-                    1.00000000000000E+001
+                    5.00000000000000E+000
                 ],
             "freestream_mach_number" : 0
         },
@@ -67,7 +66,7 @@
         },
         "solver" : {
             "formulation" : "neumann-mass-flux-VCP",
-            "matrix_solver" : "GMRES",
+            "matrix_solver" : "HHLS",
             "write_A_and_b" : false
         },
         "post_processing" : {
@@ -83,5 +82,5 @@
             }
         }
     },
-    "total_runtime" : 2.07030000000000E+001
+    "total_runtime" : 1.96720000000000E+001
 }

@@ -977,7 +977,7 @@ contains
         class(surface_mesh),intent(inout) :: this
         character(len=:),allocatable,intent(in) :: formulation
         real(16),dimension(3) :: n_avg
-        integer :: i, j, k, N_clones, i_jango, i_boba, N_boba, i_edge, i_start_panel, jango_panel, boba_panel,N_panels
+        integer :: i, j, k, l, N_clones, i_jango, i_boba, N_boba, i_edge, i_start_panel, jango_panel, boba_panel,N_panels
         integer,dimension(:),allocatable :: i_panels_between, i_rearrange_inv, i_start_edge, i_end_edge
         integer,dimension(:,:),allocatable :: i_panels_between_all
         logical,dimension(:),allocatable :: mirrored_is_unique
@@ -1107,10 +1107,10 @@ contains
                             n_avg = 0
                             N_panels = this%vertices(i_jango)%panels_not_across_wake_edge%len()
                             ! Get panel index
-                            do j=1,N_panels
+                            do l=1,N_panels
 
                                 ! Get panel index
-                                call this%vertices(i_jango)%panels_not_across_wake_edge%get(j, jango_panel)
+                                call this%vertices(i_jango)%panels_not_across_wake_edge%get(l, jango_panel)
                 
                                 ! Update using weighted normal
                                 n_avg = n_avg + this%panels(jango_panel)%get_weighted_normal_at_corner(&
@@ -1124,10 +1124,10 @@ contains
                             n_avg = 0
                             N_panels = this%vertices(i_boba)%panels_not_across_wake_edge%len()
                             ! Get panel index
-                            do j=1,N_panels
+                            do l =1,N_panels
 
                                 ! Get panel index
-                                call this%vertices(i_boba)%panels_not_across_wake_edge%get(j, boba_panel)
+                                call this%vertices(i_boba)%panels_not_across_wake_edge%get(l, boba_panel)
                 
                                 ! Update using weighted normal
                                 n_avg = n_avg + this%panels(boba_panel)%get_weighted_normal_at_corner(&
@@ -1172,7 +1172,7 @@ contains
             end do
 
             ! Get inverse mapping
-            write(*,*) this%N_verts,",", i_rearrange_inv,",", this%vertex_ordering
+            ! write(*,*) this%N_verts,",", i_rearrange_inv,",", this%vertex_ordering
             call invert_permutation_vector(this%N_verts, i_rearrange_inv, this%vertex_ordering)
 
             if (verbose) write(*,'(a, i4, a, i7, a)') "Done. Cloned ", N_clones, " vertices. Mesh now has ", &
