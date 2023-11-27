@@ -1,0 +1,37 @@
+{
+    "flow": {
+        "freestream_velocity" : [ 100.0, 0.0, 0.0 ],
+        "freestream_mach_number" : 2.5
+    },
+    "geometry": {
+        "file": "dev/meshes/wake/imp_test.stl",
+        "singularity_order" : "lower",
+        "spanwise_axis" : "-z",
+        "wake_model" : {
+            "wake_present" : true,
+            "append_wake" : true,
+            "trefftz_distance" : 20.0,
+            "wake_type": "panels",
+            "N_panels" : 1
+        }
+    },
+    "solver": {
+        "formulation" : "neumann-mass-flux-VCP",
+        "yformulation" : "neumann-mass-flux",
+        "xformulation" : "dirichlet-morino",
+        "matrix_solver" : "LU",
+        "write_A_and_b" : true
+    },
+    "post_processing" : {
+    },
+    "output": {
+        "body_file" :          "dev/results/wake/imp_test.vtk",
+        "wake_file" :          "dev/results/wake/imp_test_wake.vtk",
+        "control_point_file" : "dev/results/wake/imp_test_control_points.vtk",
+        "report_file" :        "dev/results/wake/imp_test.json",
+        "ffbody_points" : {
+            "points_file" : "dev/input_files/delta_wing_slice_sample_points.csv",
+            "output_file" : "dev/results/delta_wing_slice_sample_points.csv"
+        }
+    }
+}

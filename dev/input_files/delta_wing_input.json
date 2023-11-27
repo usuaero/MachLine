@@ -1,19 +1,23 @@
 {
     "flow": {
-        "freestream_velocity" : [ 100.0, 0.0, 0.0 ],
-        "freestream_mach_number" : 1.62
+        "freestream_velocity" : [ 100.0, 10.0, 0.0 ],
+        "freestream_mach_number" : 0.6
     },
     "geometry": {
-        "file": "dev/meshes/Rough_mesh_53_30_Delta_Wing.tri",
+        "file": "dev/meshes/delta_wing_clustered_mesh_fine.vtk",
         "singularity_order" : "lower",
+        "spanwise_axis" : "-z",
         "wake_model" : {
             "wake_present" : true,
-            "append_wake" : false,
-            "trefftz_distance" : 20.0
+            "append_wake" : true,
+            "trefftz_distance" : 20.0,
+            "wake_type": "panels"
+
         }
     },
     "solver": {
-        "formulation" : "neumann-mass-flux",
+        "formulation" : "neumann-mass-flux-VCP",
+        "xformulation" : "morino",
         "matrix_solver" : "GMRES",
         "write_A_and_b" : false
     },

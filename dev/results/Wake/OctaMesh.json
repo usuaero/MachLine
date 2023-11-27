@@ -1,0 +1,92 @@
+{
+    "info" : {
+        "generated_by" : "MachLine (c) 2023 USU Aerolab",
+        "executed" : "Tue Nov 14 16:40:48 2023"
+    },
+    "mesh_info" : {
+        "N_body_panels" : 8,
+        "N_body_vertices" : 6,
+        "N_wake_panels" : 0,
+        "N_wake_filaments" : 0,
+        "average_characteristic_length" : 5.01350611545320E-001,
+        "max_flow_turning_angle" : 1.68107331513994E+002
+    },
+    "solver_results" : {
+        "solver_status_code" : 0,
+        "system_dimension" : 6,
+        "timing" : {
+            "system_sorting" : 4.60000000000000E-006,
+            "preconditioner" : 6.10000000000000E-006,
+            "matrix_solver" : 1.15000000000000E-005
+        },
+        "residual" : {
+            "max" : 2.75934655636731E-013,
+            "norm" : 3.90294575563517E-013
+        }
+    },
+    "pressure_calculations" : {
+        "isentropic_rule" : {
+            "max" : -2.17476574326769E-001,
+            "min" : -2.17476574334571E-001
+        }
+    },
+    "total_forces" : {
+        "Cx" : -8.01948785156270E-013,
+        "Cy" : 6.07153216591882E-017,
+        "Cz" : 0.00000000000000E+000
+    },
+    "total_moments" : {
+        "CMx" : 0.00000000000000E+000,
+        "CMy" : 3.46944695195361E-018,
+        "CMz" : 2.33320307518881E-016
+    },
+    "input" : {
+        "flow" : {
+            "freestream_velocity" : [
+                    1.00000000000000E+002,
+                    0.00000000000000E+000,
+                    0.00000000000000E+000
+                ],
+            "freestream_mach_number" : 2.93864405086000E-001
+        },
+        "geometry" : {
+            "file" : "C:/Users/Josh/Documents/AeroLab_Projects/MachLine/dev/meshes/Wake/testOctaMeshA1.stl",
+            "singularity_order" : "lower",
+            "spanwise_axis" : "+y",
+            "reference" : {
+                "xarea_use_this_for_the_testOctaMesh.stl" : 7.53907500000000E+001,
+                "xarea" : 7.53907500000000E+001,
+                "area" : 1
+            },
+            "wake_model" : {
+                "wake_present" : false,
+                "append_wake" : true,
+                "trefftz_distance" : 2.00000000000000E+001,
+                "wake_type" : "filaments",
+                "N_panels" : 1
+            }
+        },
+        "solver" : {
+            "formulation" : "neumann-mass-flux-VCP",
+            "yformulation" : "neumann-mass-flux",
+            "xformulation" : "dirichlet-morino",
+            "matrix_solver" : "HHLS",
+            "xmatrix_solver" : "GMRES",
+            "ymatrix_solver" : "LU",
+            "write_A_and_b" : true
+        },
+        "post_processing" : {
+        },
+        "output" : {
+            "body_file" : "dev/results/wake/OctaMesh.vtk",
+            "wake_file" : "dev/results/wake/OctaMesh_wake.vtk",
+            "control_point_file" : "dev/results/wake/OctaMesh_control_points.vtk",
+            "report_file" : "dev/results/wake/OctaMesh.json",
+            "ffbody_points" : {
+                "points_file" : "dev/input_files/delta_wing_slice_sample_points.csv",
+                "output_file" : "dev/results/delta_wing_slice_sample_points.csv"
+            }
+        }
+    },
+    "total_runtime" : 4.70000000000000E-002
+}

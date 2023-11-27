@@ -1,0 +1,84 @@
+{
+    "info" : {
+        "generated_by" : "MachLine (c) 2023 USU Aerolab",
+        "executed" : "Sun Oct 15 23:33:27 2023"
+    },
+    "mesh_info" : {
+        "N_body_panels" : 7904,
+        "N_body_vertices" : 4070,
+        "N_wake_panels" : 232,
+        "N_wake_filaments" : 0,
+        "average_characteristic_length" : 1.50607415253998E-001,
+        "max_flow_turning_angle" : 1.72084793111393E+002
+    },
+    "solver_results" : {
+        "solver_status_code" : 0,
+        "system_dimension" : 4070,
+        "timing" : {
+            "system_sorting" : 1.15000000000000E-005,
+            "preconditioner" : 7.45117367000000E+001,
+            "matrix_solver" : 1.68464625000000E+001
+        },
+        "iterations" : 999,
+        "residual" : {
+            "max" : 2.25705477860490E-001,
+            "norm" : 2.10708598713311E+000
+        }
+    },
+    "pressure_calculations" : {
+        "isentropic_rule" : {
+            "max" : 4.93361903378346E-001,
+            "min" : -4.94315373208107E-001
+        }
+    },
+    "total_forces" : {
+        "Cx" : 6.13135734314189E-002,
+        "Cy" : 6.87925712537308E-011,
+        "Cz" : 3.48004536166429E-001
+    },
+    "total_moments" : {
+        "CMx" : 9.48942173545852E-008,
+        "CMy" : -7.94732414207890E+001,
+        "CMz" : 6.32149801676899E-008
+    },
+    "input" : {
+        "flow" : {
+            "freestream_velocity" : [
+                    9.96194698091746E-001,
+                    0.00000000000000E+000,
+                    8.71557427476582E-002
+                ],
+            "freestream_mach_number" : 1.70000000000000E+000
+        },
+        "geometry" : {
+            "file" : "studies/filament_studies/aft_surfaces/meshes/multi_lifting_surface_195.stl",
+            "spanwise_axis" : "+y",
+            "reference" : {
+                "area" : 5.00000000000000E+001
+            },
+            "wake_model" : {
+                "wake_present" : true,
+                "append_wake" : true,
+                "trefftz_distance" : 60,
+                "wake_type" : "panels"
+            }
+        },
+        "solver" : {
+            "formulation" : "neumann-mass-flux",
+            "ormulation" : "dirichlet-morino",
+            "matrix_solver" : "GMRES",
+            "write_A_and_b" : false
+        },
+        "post_processing" : {
+            "pressure_rules" : {
+                "ncompressible" : true
+            }
+        },
+        "output" : {
+            "body_file" : "studies/filament_studies/aft_surfaces/results/195.vtk",
+            "wake_file" : "studies/filament_studies/aft_surfaces/results/195_wake.vtk",
+            "report_file" : "studies/filament_studies/aft_surfaces/reports/195.json"
+        }
+    },
+    "total_runtime" : 1.24141000000000E+002
+}

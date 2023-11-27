@@ -12,6 +12,7 @@ module surface_mesh_mod
     use flow_mod
     use math_mod
     use wake_mesh_mod
+    use filament_mesh_mod
     use sort_mod
     use helpers_mod
 
@@ -24,6 +25,8 @@ module surface_mesh_mod
         integer :: N_subinc, N_supinc
         type(edge),allocatable,dimension(:) :: edges
         type(wake_mesh) :: wake
+        type(filament_mesh) :: filament_wake
+        ! type(filament_wake_mesh) :: filament_wake !!!!!!!!!!!!!!!!!! could change nomenclature !!!!!!!!!!!!!!!!
         real :: C_wake_shedding_angle, trefftz_distance, C_min_panel_angle, C_max_cont_angle
         real,dimension(:),allocatable :: CG
         integer :: N_wake_panels_streamwise
@@ -42,6 +45,9 @@ module surface_mesh_mod
         integer,dimension(:),allocatable :: vertex_ordering
         integer :: initial_panel_order ! Distribution order for the panels (initially)
         character(len=:),allocatable :: singularity_order
+        character(len=:),allocatable :: wake_type 
+        character(len=:),allocatable :: formulation !!!! could we use this instead, go to surface_mesh_parse_wake_settings to see  
+
 
         contains
 
@@ -81,15 +87,18 @@ module surface_mesh_mod
 
             ! Wake stuff
             procedure :: init_wake => surface_mesh_init_wake
+            procedure :: wake_has_filaments => surface_mesh_wake_has_filaments
             procedure :: update_supersonic_trefftz_distance => surface_mesh_update_supersonic_trefftz_distance
             procedure :: update_subsonic_trefftz_distance => surface_mesh_update_subsonic_trefftz_distance
 
             ! Control point locations
+            procedure :: get_cp_locs_vertex_based => surface_mesh_get_cp_locs_vertex_based
             procedure :: get_cp_locs_vertex_based_interior => surface_mesh_get_cp_locs_vertex_based_interior
             procedure :: get_cp_locs_centroid_based => surface_mesh_get_cp_locs_centroid_based
             procedure :: get_clone_control_point_dir => surface_mesh_get_clone_control_point_dir
 
             ! Control point placement
+            procedure :: place_vertex_control_points => surface_mesh_place_vertex_control_points
             procedure :: place_internal_vertex_control_points => surface_mesh_place_internal_vertex_control_points
             procedure :: place_centroid_control_points => surface_mesh_place_centroid_control_points
             procedure :: place_sparse_centroid_control_points => surface_mesh_place_sparse_centroid_control_points
@@ -306,6 +315,7 @@ contains
         ! Check if the user wants a wake
         call json_xtnsn_get(settings, 'wake_model.wake_present', this%wake_present, .true.)
         call json_xtnsn_get(settings, 'wake_model.append_wake', this%append_wake, this%wake_present)
+        call json_xtnsn_get(settings, 'wake_model.wake_type', this%wake_type, "panels")
 
         ! Check that we're not trying to append a wake which is not present
         if (.not. this%wake_present .and. this%append_wake) then
@@ -315,7 +325,8 @@ contains
         ! Store settings for wake models
         if (this%wake_present) then
             call json_xtnsn_get(settings, 'wake_model.wake_shedding_angle', wake_shedding_angle, 90.) ! Maximum allowable angle between panel normals without having separation
-            this%C_wake_shedding_angle = cos(wake_shedding_angle*pi/180.)
+            this%C_wake_shedding_angle = cos(wake_shedding_angle*pi/180.) !!!! possible thing we could use to define new normal vector
+            
 
             if (this%append_wake) then
                 call json_xtnsn_get(settings, 'wake_model.trefftz_distance', this%trefftz_distance, -1.) ! Distance from origin to wake termination
@@ -632,6 +643,7 @@ contains
                 call this%vertices(i)%panels%get(j, j_panel)
 
                 ! Update using weighted normal
+                
                 n_avg = n_avg + this%panels(j_panel)%get_weighted_normal_at_corner(this%vertices(i)%loc)
 
             end do
@@ -642,7 +654,10 @@ contains
             end if
 
             ! Normalize and store
-            this%vertices(i)%n_g = n_avg/norm2(n_avg)
+            this%vertices(i)%n_g = n_avg/norm2(n_avg)  !!!! Vertex normal calculated here -jjh 
+
+            ! write(*,*) "loc",this%vertices(i)%loc
+            ! write(*,*) "n_g",this%vertices(i)%n_g
 
             ! Calculate mirrored normal for mirrored vertex
             if (this%mirrored) then
@@ -680,13 +695,13 @@ contains
     end function surface_mesh_get_avg_characteristic_panel_length
 
 
-    subroutine surface_mesh_init_with_flow(this, freestream, body_file, wake_file)
-
+    subroutine surface_mesh_init_with_flow(this, freestream, body_file, wake_file, formulation)
         implicit none
 
         class(surface_mesh),intent(inout) :: this
         type(flow),intent(in) :: freestream
         character(len=:),allocatable,intent(in) :: body_file, wake_file
+        character(len=:),allocatable,intent(in) :: formulation
 
         integer :: i
 
@@ -706,7 +721,7 @@ contains
         ! I don't know why this would be, except in the case of leading-edge vortex separation. But Davis doesn't
         ! model leading-edge vortices. Wake-shedding trailing edges are still discontinuous in supersonic flow. Supersonic
         ! leading edges should have continuous doublet strength.
-        call this%characterize_edges(freestream)
+        call this%characterize_edges(freestream) !!!! not an option!
 
         if (this%wake_present) then
 
@@ -714,7 +729,7 @@ contains
             call this%set_needed_vertex_clones()
 
             ! Clone necessary vertices
-            call this%clone_vertices()
+            call this%clone_vertices(formulation)
 
         end if
 
@@ -734,8 +749,8 @@ contains
             this%vertices(i)%convex = this%is_convex_at_vertex(i)
         end do
 
-        ! Initialize wake
-        call this%init_wake(freestream, wake_file)
+        ! Initialize wake !!!! 
+        call this%init_wake(freestream, wake_file, formulation)
 
         ! Set up panel distributions
         if (verbose) write(*,"(a)",advance='no') "     Setting up panel singularity distributions..."
@@ -743,7 +758,7 @@ contains
         !$OMP parallel do schedule(static)
         do i=1,this%N_panels
             call this%panels(i)%set_distribution(this%initial_panel_order, this%panels, &
-                                                 this%vertices, this%mirrored, this%mirror_plane)
+                                                 this%vertices, this%mirrored)
         end do
         
         if (verbose) write(*,*) "Done."
@@ -890,12 +905,12 @@ contains
             ! Check the angle between the panels
             if (C_angle < this%C_wake_shedding_angle) then
 
-                ! Check angle of panel normal with freestream
+                ! Check angle of panel normal with freestream !!!! this 
                 if (inner(this%panels(i)%n_g, freestream%V_inf) > 0.0 .or. inner(second_normal, freestream%V_inf) > 0.0) then
                     
                     ! Get vertex indices (simplifies later code)
-                    i_vert_1 = this%edges(k)%top_verts(1)
-                    i_vert_2 = this%edges(k)%top_verts(2)
+                    i_vert_1 = this%edges(k)%top_verts(1) !!!!
+                    i_vert_2 = this%edges(k)%top_verts(2) !!!!
                     
                     ! Calculate tangent in global coords (all we care about is the sign, so we don't need to normalize this)
                     t_hat_g = this%vertices(i_vert_2)%loc - this%vertices(i_vert_1)%loc
@@ -908,8 +923,8 @@ contains
                         
                         ! Having passed the previous three checks, we've found a wake-shedding edge
                         this%found_wake_edges = .true.
-                        this%edges(k)%sheds_wake = .true.
-                        this%edges(k)%discontinuous = .true.
+                        this%edges(k)%sheds_wake = .true. !!!! make sheds 
+                        this%edges(k)%discontinuous = .true. 
 
                         ! Update number of wake-shedding edges
                         !$OMP critical
@@ -953,18 +968,20 @@ contains
     end subroutine surface_mesh_set_needed_vertex_clones
 
 
-    subroutine surface_mesh_clone_vertices(this)
+    subroutine surface_mesh_clone_vertices(this,formulation)
         ! Takes vertices which lie within wake-shedding edges and splits them into two vertices.
         ! Handles rearranging of necessary dependencies.
 
         implicit none
 
         class(surface_mesh),intent(inout) :: this
-
-        integer :: i, j, k, N_clones, i_jango, i_boba, N_boba, i_edge, i_start_panel
+        character(len=:),allocatable,intent(in) :: formulation
+        real(16),dimension(3) :: n_avg
+        integer :: i, j, k, N_clones, i_jango, i_boba, N_boba, i_edge, i_start_panel, jango_panel, boba_panel,N_panels
         integer,dimension(:),allocatable :: i_panels_between, i_rearrange_inv, i_start_edge, i_end_edge
         integer,dimension(:,:),allocatable :: i_panels_between_all
         logical,dimension(:),allocatable :: mirrored_is_unique
+
 
         ! Check whether any wake edges exist
         if (this%found_wake_edges) then
@@ -1079,6 +1096,47 @@ contains
                             call this%edges(i_end_edge(i+1))%point_bottom_to_new_vert(i_jango, i_boba)
                         end if
 
+                        if (formulation == "neumann-mass-flux-VCP") then
+                            !!!! I think we are going to add the new normal calculation here. 
+                            !!!! will probably look like 
+                            !!!! call this%verticies(i_jango)%calc_normal
+                            !!!! call this%verticies(i_boba)%calc_normal
+                            !!!! I am not sure what calc_normal will look like though
+                            
+                            ! Loop through neighboring panels and compute the average of their normal vectors for jango
+                            n_avg = 0
+                            N_panels = this%vertices(i_jango)%panels_not_across_wake_edge%len()
+                            ! Get panel index
+                            do j=1,N_panels
+
+                                ! Get panel index
+                                call this%vertices(i_jango)%panels_not_across_wake_edge%get(j, jango_panel)
+                
+                                ! Update using weighted normal
+                                n_avg = n_avg + this%panels(jango_panel)%get_weighted_normal_at_corner(&
+                                    this%vertices(i_jango)%loc)
+                
+                            end do
+
+                            ! Normalize and store
+                            this%vertices(i_jango)%n_g_wake = n_avg/norm2(n_avg)
+                            ! Loop through neighboring panels and compute the average of their normal vectors for boba
+                            n_avg = 0
+                            N_panels = this%vertices(i_boba)%panels_not_across_wake_edge%len()
+                            ! Get panel index
+                            do j=1,N_panels
+
+                                ! Get panel index
+                                call this%vertices(i_boba)%panels_not_across_wake_edge%get(j, boba_panel)
+                
+                                ! Update using weighted normal
+                                n_avg = n_avg + this%panels(boba_panel)%get_weighted_normal_at_corner(&
+                                this%vertices(i_boba)%loc)
+                
+                            end do
+                            ! Normalize and store
+                            this%vertices(i_boba)%n_g_wake = n_avg/norm2(n_avg)
+                        end if 
                     end do
 
                     ! Clean up memory for next iteration
@@ -1110,10 +1168,11 @@ contains
 
                     end if
                 end if
-
+                
             end do
 
             ! Get inverse mapping
+            write(*,*) this%N_verts,",", i_rearrange_inv,",", this%vertex_ordering
             call invert_permutation_vector(this%N_verts, i_rearrange_inv, this%vertex_ordering)
 
             if (verbose) write(*,'(a, i4, a, i7, a)') "Done. Cloned ", N_clones, " vertices. Mesh now has ", &
@@ -1274,7 +1333,24 @@ contains
     end subroutine surface_mesh_init_vertex_clone
 
 
-    subroutine surface_mesh_init_wake(this, freestream, wake_file)
+    function surface_mesh_wake_has_filaments(this, formulation) result(has)
+        ! Returns true or false based on user wake type input.
+        implicit none
+
+        class(surface_mesh),intent(in) :: this
+        character(len=:),allocatable,intent(in) :: formulation
+        logical :: has 
+        if (this%wake_type == "filaments" .and. (formulation == "neumann-mass-flux" &
+         .or. formulation == "neumann-velocity" .or. formulation == "neumann-mass-flux-VCP") &
+         .and. this%wake_present .and. this%append_wake )  then
+            has = .true. 
+        else
+            has = .false.
+        end if 
+    end function surface_mesh_wake_has_filaments
+
+
+    subroutine surface_mesh_init_wake(this, freestream, wake_file, formulation)
         ! Handles wake initialization
 
         implicit none
@@ -1282,10 +1358,20 @@ contains
         class(surface_mesh),intent(inout) :: this
         type(flow),intent(in) :: freestream
         character(len=:),allocatable,intent(in) :: wake_file
+        character(len=:),allocatable,intent(in) :: formulation
 
         logical :: dummy
+        !!!! update this to include if verbose
+        write(*,*) 
+        write(*,*) "Wake Type:", this%wake_type
+        write(*,*) 
 
+        write(*,*) 
+        write(*,*) "Formulation:", formulation
+        write(*,*) 
+        !!!!
         if (this%append_wake .and. this%found_wake_edges) then
+
 
             ! Update default Trefftz distance
             if (this%trefftz_distance < 0.) then
@@ -1301,16 +1387,35 @@ contains
                 end if
             end if
 
-            ! Initialize wake
-            call this%wake%init(this%edges, this%vertices, freestream, this%asym_flow, this%mirror_plane, &
-                                this%N_wake_panels_streamwise, this%trefftz_distance, this%mirrored, this%initial_panel_order, &
-                                this%N_panels)
-        
+            ! Initialize wake  
+            if (this%wake_type == "panels") then 
+                call this%wake%init(this%edges, this%vertices, freestream, this%asym_flow, this%mirror_plane, & ! wake is referring to wake_mesh type in the wake_mesh mod.
+                                    this%N_wake_panels_streamwise, this%trefftz_distance, this%mirrored, this%initial_panel_order, &
+                                    this%N_panels)
+            else if (this%wake_has_filaments(formulation))  then                                                                           !
+                call this%filament_wake%init(this%edges, this%vertices, freestream, this%asym_flow, this%mirror_plane, &                       !
+                                    this%N_wake_panels_streamwise, this%trefftz_distance, this%mirrored, this%initial_panel_order, &  !
+                                    this%N_panels)                                                                                    !
+            else                                                                                                                      !
+                write(*,*)                                                                                                            !
+                write(*,*) "wake_type needs to be panels or filaments, and if wake_type", &                                           !
+                            "is filaments", & 
+                            "formulation has to be neumann-mass-flux or neumann-velocity.", &
+                            "Running a panel wake by default"                               !
+                write(*,*)                                                                                                            !
+                call this%wake%init(this%edges, this%vertices, freestream, this%asym_flow, this%mirror_plane, &                       !
+                                    this%N_wake_panels_streamwise, this%trefftz_distance, this%mirrored, this%initial_panel_order, &  !
+                                    this%N_panels)                                                                                    !
+            end if                                                                                                                    !
+
             ! Export wake geometry
             if (wake_file /= 'none') then
-                call this%wake%write_strips(wake_file, dummy)
+                if (this%wake_has_filaments(formulation)) then
+                    call this%filament_wake%write_filaments(wake_file, dummy)
+                else
+                    call this%wake%write_strips(wake_file, dummy)
+                end if
             end if
-
         else
             
             ! Set parameters to let later code know the wake is not being modeled
@@ -1319,6 +1424,7 @@ contains
             this%wake%N_strips = 0
 
         end if
+
     
     end subroutine surface_mesh_init_wake
 
@@ -1363,7 +1469,7 @@ contains
     end subroutine surface_mesh_update_supersonic_trefftz_distance
 
 
-    subroutine surface_mesh_update_subsonic_trefftz_distance(this, freestream)
+    subroutine surface_mesh_update_subsonic_trefftz_distance(this, freestream) 
         ! Determines the appropriate Trefftz distance based on the mesh geometry
 
         implicit none
@@ -1385,7 +1491,7 @@ contains
 
         ! Calculate Trefftz distance
         this%trefftz_distance = 20.*abs(front-back)
-    
+
     end subroutine surface_mesh_update_subsonic_trefftz_distance
 
 
@@ -1468,6 +1574,168 @@ contains
         end do
         
     end function surface_mesh_is_convex_at_vertex
+
+
+    subroutine surface_mesh_get_minimum_angle_vectors(this, i_vert, vec1, vec2)
+        ! Finds the two vectors attached to the given vertex which together form the minimum *interior* angle for the surface at the given vertex
+        ! We're looking for the two vectors whose inner product is a maximum
+
+        implicit none
+        
+        class(surface_mesh),intent(in) :: this
+        integer,intent(in) :: i_vert
+        real,dimension(3),intent(out) :: vec1, vec2
+
+        integer :: N_possible, i, j, i_adj, j_adj, k, k_panel
+        real :: max_inner, x
+        real,dimension(3) :: poss_vec1, poss_vec2
+        logical :: in_same_plane
+
+        ! Initialize
+        max_inner = -1.
+
+        ! Loop through adjacent vertices
+        do i=1,this%vertices(i_vert)%adjacent_vertices%len()
+
+            ! First possible vector is that pointing to this adjacent vertex
+            call this%vertices(i_vert)%adjacent_vertices%get(i, i_adj)
+            poss_vec1 = this%vertices(i_adj)%loc - this%vertices(i_vert)%loc
+            poss_vec1 = poss_vec1/norm2(poss_vec1)
+
+            ! Check mirror of this vertex
+            if (this%vertices(i_vert)%on_mirror_plane .and. .not. this%vertices(i_adj)%on_mirror_plane) then
+
+                poss_vec2 = mirror_across_plane(poss_vec1, this%mirror_plane)
+                poss_vec2 = poss_vec2/norm2(poss_vec2)
+
+                ! Get inner product
+                x = inner(poss_vec1, poss_vec2)
+
+                ! Check
+                if (x > max_inner) then
+
+                    ! Check both do not belong to the same surface
+                    in_same_plane = .false.
+                    adj_panel_loop1: do k=1,this%vertices(i_vert)%panels%len()
+                        
+                        ! Get panel index
+                        call this%vertices(i_vert)%panels%get(k, k_panel)
+
+                        ! Check inner products
+                        in_same_plane = (abs(inner(this%panels(k_panel)%n_g, poss_vec1)) < 1.e-10) .and. &
+                                        (abs(inner(this%panels(k_panel)%n_g, poss_vec2)) < 1.e-10)
+
+                        ! Check inner products with mirror
+                        if (this%vertices(i_vert)%on_mirror_plane) then
+                            in_same_plane = (abs(inner(this%panels(k_panel)%n_g_mir, poss_vec1)) < 1.e-10) .and. &
+                                            (abs(inner(this%panels(k_panel)%n_g_mir, poss_vec2)) < 1.e-10)
+                        end if
+
+                        if (in_same_plane) exit adj_panel_loop1
+
+                    end do adj_panel_loop1
+
+                    ! If they're not in the same plane, the update the maximum
+                    if (.not. in_same_plane) then
+                        vec1 = poss_vec1
+                        vec2 = poss_vec2
+                        max_inner = x
+                    end if
+
+                end if
+
+            end if
+
+            ! Loop through other adjacent vertices
+            other_adj_loop: do j=i+1,this%vertices(i_vert)%adjacent_vertices%len()
+
+                ! Get other direction
+                call this%vertices(i_vert)%adjacent_vertices%get(j, j_adj)
+                poss_vec2 = this%vertices(j_adj)%loc - this%vertices(i_vert)%loc
+                poss_vec2 = poss_vec2/norm2(poss_vec2)
+
+                ! Get inner product
+                x = inner(poss_vec1, poss_vec2)
+
+                ! Check 
+                if (x > max_inner) then
+
+                    ! Check both do not belong to the same surface
+                    in_same_plane = .false.
+                    adj_panel_loop2: do k=1,this%vertices(i_vert)%panels%len()
+                        
+                        ! Get panel index
+                        call this%vertices(i_vert)%panels%get(k, k_panel)
+
+                        ! Check inner products
+                        in_same_plane = (abs(inner(this%panels(k_panel)%n_g, poss_vec1)) < 1.e-10) .and. &
+                                        (abs(inner(this%panels(k_panel)%n_g, poss_vec2)) < 1.e-10)
+
+                        ! Check inner products with mirror
+                        if (this%vertices(i_vert)%on_mirror_plane) then
+                            in_same_plane = (abs(inner(this%panels(k_panel)%n_g_mir, poss_vec1)) < 1.e-10) .and. &
+                                            (abs(inner(this%panels(k_panel)%n_g_mir, poss_vec2)) < 1.e-10)
+                        end if
+
+                        if (in_same_plane) exit adj_panel_loop2
+
+                    end do adj_panel_loop2
+
+                    ! If they're not in the same plane, the update the maximum
+                    if (.not. in_same_plane) then
+                        vec1 = poss_vec1
+                        vec2 = poss_vec2
+                        max_inner = x
+                    end if
+                end if
+
+                ! Check mirror
+                if (this%vertices(i_vert)%on_mirror_plane .and. .not. this%vertices(j_adj)%on_mirror_plane) then
+
+                    ! Mirror
+                    poss_vec2 = mirror_across_plane(poss_vec2, this%mirror_plane)
+
+                    ! Get inner product
+                    x = inner(poss_vec1, poss_vec2)
+
+                    ! Check 
+                    if (x > max_inner) then
+
+                        ! Check both do not belong to the same surface
+                        in_same_plane = .false.
+                        adj_panel_loop3: do k=1,this%vertices(i_vert)%panels%len()
+
+                            ! Get panel index
+                            call this%vertices(i_vert)%panels%get(k, k_panel)
+
+                            ! Check inner products
+                            in_same_plane = (abs(inner(this%panels(k_panel)%n_g, poss_vec1)) < 1.e-10) .and. &
+                                            (abs(inner(this%panels(k_panel)%n_g, poss_vec2)) < 1.e-10)
+
+                            ! Check inner products with mirror
+                            if (this%vertices(i_vert)%on_mirror_plane) then
+                                in_same_plane = (abs(inner(this%panels(k_panel)%n_g_mir, poss_vec1)) < 1.e-10) .and. &
+                                                (abs(inner(this%panels(k_panel)%n_g_mir, poss_vec2)) < 1.e-10)
+                            end if
+
+                            if (in_same_plane) exit adj_panel_loop3
+
+                        end do adj_panel_loop3
+
+                        ! If they're not in the same plane, the update the maximum
+                        if (.not. in_same_plane) then
+                            vec1 = poss_vec1
+                            vec2 = poss_vec2
+                            max_inner = x
+                        end if
+                    end if
+                end if
+            
+            end do other_adj_loop
+
+        end do
+
+    end subroutine surface_mesh_get_minimum_angle_vectors
 
 
     function surface_mesh_get_clone_control_point_dir(this, i_vert) result(dir)
@@ -1563,7 +1831,7 @@ contains
                 if (norm2(tp) < 1.e-12) cycle vertex_loop
 
                 ! If it's still inside the panel, we've found our vector
-                if (this%panels(i_panel)%projection_inside(0.1*tp + this%vertices(i_vert)%loc, .false., 0)) then
+                if (this%panels(i_panel)%projection_inside(0.1*tp + this%vertices(i_vert)%loc, .false.)) then
                     tp_found = .true.
                     exit tp_loop
                 end if
@@ -1580,7 +1848,7 @@ contains
             if (norm2(tp) < 1.e-12) cycle tp_loop
 
             ! If it's still inside the panel, we've found our vector
-            if (this%panels(i_panel)%projection_inside(0.1*tp + this%vertices(i_vert)%loc, .false., 0)) then
+            if (this%panels(i_panel)%projection_inside(0.1*tp + this%vertices(i_vert)%loc, .false.)) then
                 tp_found = .true.
                 exit tp_loop
             end if
@@ -1653,6 +1921,29 @@ contains
     end function surface_mesh_get_clone_control_point_dir
 
 
+    function surface_mesh_get_cp_locs_vertex_based(this,offset, freestream) result(cp_locs)
+        ! Returns the locations of coincident vertex-based control points !!!! only used for NM-VCP formulation
+        implicit none
+        class(surface_mesh),intent(in) :: this
+        type(flow),intent(in) :: freestream
+        real,intent(in) :: offset
+        real,dimension(:,:),allocatable :: cp_locs
+        integer :: i
+        
+        ! Allocate memory
+        allocate(cp_locs(3,this%N_verts))
+
+        do i=1,this%N_verts
+            if (this%vertices(i)%N_wake_edges > 1) then
+                cp_locs(:,i) = this%vertices(i)%loc + this%vertices(i)%n_g_wake * offset   
+            else  
+                cp_locs(:,i) = this%vertices(i)%loc + this%vertices(i)%n_g * offset !!!! Will probably need an if statement here to set ng to the new ng for the wake shedding edges
+            end if
+        end do
+
+    end function surface_mesh_get_cp_locs_vertex_based
+
+
     function surface_mesh_get_cp_locs_vertex_based_interior(this, offset, offset_type, freestream) result(cp_locs)
         ! Returns the locations of interior vertex-based control points
         ! Takes vertex clones into account
@@ -1663,7 +1954,6 @@ contains
         real,intent(in) :: offset
         character(len=:),allocatable,intent(in) :: offset_type
         type(flow),intent(in) :: freestream
-
         real,dimension(:,:),allocatable :: cp_locs
 
         integer :: i, j, i_panel
@@ -1716,7 +2006,7 @@ contains
                     call this%vertices(i)%panels%get(j, i_panel)
 
                     ! Check if it's above the original panel
-                    if (this%panels(i_panel)%point_above(cp_locs(:,i), .false., 0)) then
+                    if (this%panels(i_panel)%point_above(cp_locs(:,i), .false.)) then
                         n_avg = n_avg + this%panels(i_panel)%get_weighted_normal_at_corner(this%vertices(i)%loc)
                     end if
 
@@ -1796,13 +2086,13 @@ contains
             call this%vertices(i_vert)%panels%get(i, i_panel)
 
             ! Check for original panel
-            if (this%panels(i_panel)%line_passes_through(start, dir, .false., 0, s_star)) then
+            if (this%panels(i_panel)%line_passes_through(start, dir, .false., s_star)) then
                 if (s_star <= 1. .and. s_star >= 0.) N_crosses = N_crosses + 1
             end if
 
             ! Check for mirrored panel
             if (this%vertices(i_vert)%on_mirror_plane) then
-                if (this%panels(i_panel)%line_passes_through(start, dir, .true., this%mirror_plane, s_star)) then
+                if (this%panels(i_panel)%line_passes_through(start, dir, .true., s_star)) then
                     if (s_star <= 1. .and. s_star >= 0.) N_crosses = N_crosses + 1
                 end if
             end if
@@ -1812,6 +2102,55 @@ contains
         outside = mod(N_crosses, 2) == 0
         
     end function surface_mesh_control_point_outside_mesh
+
+
+    subroutine surface_mesh_place_vertex_control_points(this, offset, freestream)
+
+        implicit none
+
+        class(surface_mesh),intent(inout) :: this
+        type(flow),intent(in) :: freestream
+        real,intent(in) :: offset
+
+        integer :: i
+        real,dimension(:,:),allocatable :: cp_locs
+
+        ! Specify number of control points
+        if (this%asym_flow) then
+            this%N_cp = this%N_verts*2
+        else
+            this%N_cp = this%N_verts
+        end if
+
+        ! Allocate memory
+        allocate(this%cp(this%N_cp))
+
+        ! Get control point locations
+        cp_locs = this%get_cp_locs_vertex_based(offset, freestream)
+
+        ! Initialize control points
+        do i=1,this%N_verts
+            call this%cp(i)%init(cp_locs(:,i), SURFACE, TT_VERTEX, i)
+        end do
+
+        ! Initialize mirrored control points, if necessary
+        if (this%asym_flow) then
+
+            
+            do i=1,this%N_cp/2
+
+                ! Initialize
+                call this%cp(i+this%N_cp/2)%init(mirror_across_plane(this%cp(i)%loc, this%mirror_plane), &
+                                                 this%cp(i)%cp_type, this%cp(i)%tied_to_type, this%cp(i)%tied_to_index)
+
+                ! Specify that this is a mirror
+                this%cp(i+this%N_cp/2)%is_mirror = .true.
+
+            end do
+
+        end if
+
+    end subroutine surface_mesh_place_vertex_control_points
 
 
     subroutine surface_mesh_place_internal_vertex_control_points(this, offset, offset_type, freestream)
@@ -1877,20 +2216,20 @@ contains
         logical,intent(in) :: add_one_inside
         real,intent(in) :: offset
 
-        integer :: i, N_strength_matching
+        integer :: i, N_strength_matching,counter
         real,dimension(:,:),allocatable :: cp_locs
 
         ! Specify number of control points
         if (this%asym_flow) then
             this%N_cp = this%N_panels*2
+            
         else
             this%N_cp = this%N_panels
         end if
         if (add_one_inside) this%N_cp = this%N_cp + 1
 
         ! Count number of needed strength-matching points
-        if (this%asym_flow) then
-
+        if (this%asym_flow) then  
             ! Count up vertices that will need strength matching
             N_strength_matching = 0
             do i=1,this%N_verts
@@ -1917,11 +2256,11 @@ contains
                 call this%cp(i)%init(cp_locs(:,i), INTERNAL, TT_PANEL, i)
             end if
         end do
-
+        
         ! Initialize mirrored control points, if necessary
         if (this%asym_flow) then
 
-            !$OMP parallel do schedule(static)
+            
             do i=1,this%N_panels
 
                 ! Initialize
@@ -1936,11 +2275,13 @@ contains
         end if
 
         ! Add in strength matching
+        counter = 1
         if (this%asym_flow) then
             do i=1,this%N_verts
                 if (this%vertices(i)%on_mirror_plane .and. .not. this%vertices(i)%mirrored_is_unique) then
-                    call this%cp(this%N_cp-N_strength_matching+i)%init((/0., 0., 0./), SURFACE, TT_VERTEX, i)
-                    call this%cp(this%N_cp-N_strength_matching+i)%set_bc(STRENGTH_MATCHING)
+                    call this%cp(this%N_cp-N_strength_matching+counter)%init((/0., 0., 0./), SURFACE, TT_VERTEX, i)
+                    call this%cp(this%N_cp-N_strength_matching+counter)%set_bc(STRENGTH_MATCHING)
+                    counter = counter + 1
                 end if
             end do
         end if
@@ -2166,6 +2507,7 @@ contains
         logical,dimension(:),allocatable :: verts_in_dod, wake_verts_in_dod
         integer :: j, stat, N_verts, N_panels, N_strip_verts, N_strip_panels
 
+        !!!! lots of wake stuff here
         ! Figure out how many verts and panels we're going to consider
         if (this%mirrored) then
             if (this%asym_flow) then
@@ -2180,6 +2522,7 @@ contains
         else
             N_verts = this%N_verts
             N_panels = this%N_panels
+            
             N_strip_verts = this%wake%N_max_strip_verts
             N_strip_panels = this%wake%N_max_strip_panels
         end if
@@ -2193,57 +2536,33 @@ contains
         ! DoD info for panels
         allocate(dod_info(N_panels), stat=stat)
         call check_allocation(stat, "domain of dependence storage")
-
-        ! Whether wake vertices are in the DoD
-        allocate(wake_verts_in_dod(N_strip_verts), stat=stat)
-        call check_allocation(stat, "wake vertex domain of dependence storage")
-
+        
         ! DoD info for wake panels
-        allocate(wake_dod_info(N_strip_panels,this%wake%N_strips), stat=stat)
+        allocate(wake_dod_info(N_strip_panels,this%wake%N_strips), stat=stat) !!!!need to update this
         call check_allocation(stat, "wake domain of dependence storage")
 
         ! If the freestream is supersonic, calculate domain of dependence info
         if (freestream%supersonic) then
 
-            ! Get DoD for original vertices
-            verts_in_dod(1:this%N_verts) = this%get_verts_in_dod_of_point(point, freestream, .false.)
-
-            ! Get DoD for mirrored vertices
-            if (this%mirrored) then
-                verts_in_dod(this%N_verts+1:) = this%get_verts_in_dod_of_point(point, freestream, .true.)
-            end if
-
             ! Get info for original panels
-            dod_info(1:this%N_panels) = this%get_panel_dod_info_for_point(point, freestream, verts_in_dod, .false.)
+            dod_info(1:this%N_panels) = this%get_panel_dod_info_for_point(point, freestream, .false.)
 
             ! Get info for mirrored panels
             if (this%mirrored) then
-                dod_info(this%N_panels+1:) = this%get_panel_dod_info_for_point(point, freestream, verts_in_dod, .true.)
+                dod_info(this%N_panels+1:) = this%get_panel_dod_info_for_point(point, freestream, .true.)
             end if
-
-            deallocate(verts_in_dod)
-
+            !!!! will need to do some logic here, it might make sense to just set wake = filament wake if we have a filament wake -jjh
             ! Loop through wake strips
             do j=1,this%wake%N_strips
 
-                ! Get DoD for original vertices
-                wake_verts_in_dod(1:this%wake%strips(j)%N_verts) = &
-                    this%wake%strips(j)%get_verts_in_dod_of_point(point, freestream, .false.)
-
-                ! Get DoD for mirrored vertices
-                if (this%wake%strips(j)%mirrored) then
-                    wake_verts_in_dod(this%wake%strips(j)%N_verts+1:) = &
-                        this%wake%strips(j)%get_verts_in_dod_of_point(point, freestream, .true.)
-                end if 
-
                 ! Get info for original panels
                 wake_dod_info(1:this%wake%strips(j)%N_panels,j) = &
-                    this%wake%strips(j)%get_panel_dod_info_for_point(point, freestream, wake_verts_in_dod, .false.)
+                    this%wake%strips(j)%get_panel_dod_info_for_point(point, freestream, .false.)
 
                 ! Get info for mirrored panels
                 if (this%wake%strips(j)%mirrored) then
                     wake_dod_info(this%wake%strips(j)%N_panels+1:,j) = &
-                        this%wake%strips(j)%get_panel_dod_info_for_point(point, freestream, wake_verts_in_dod, .true.)
+                        this%wake%strips(j)%get_panel_dod_info_for_point(point, freestream, .true.)
                 end if
             end do
 
@@ -2264,54 +2583,39 @@ contains
 
         integer :: j, k
         real :: phi_d_panel, phi_s_panel
-        type(dod),dimension(:),allocatable :: dod_info
-        type(dod),dimension(:,:),allocatable :: wake_dod_info
-
-        ! Calculate domain of dependence
-        call this%calc_point_dod(point, freestream, dod_info, wake_dod_info)
 
         ! Loop through panels
         phi_s = 0.
         phi_d = 0.
         do k=1,this%N_panels
-
-            ! Check DoD
-            if (dod_info(k)%in_dod) then
             
-                ! Calculate influence
-                call this%panels(k)%calc_potentials(point, freestream, dod_info(k), .false., &
-                                                    this%sigma, this%mu, this%N_panels, this%N_verts, &
-                                                    this%asym_flow, phi_s_panel, phi_d_panel)
-                phi_s = phi_s + phi_s_panel
-                phi_d = phi_d + phi_d_panel
-
-            end if
+            ! Calculate influence
+            call this%panels(k)%calc_potentials(point, freestream, .false., &
+                                                this%sigma, this%mu, this%N_panels, this%N_verts, &
+                                                this%asym_flow, phi_s_panel, phi_d_panel)
+            phi_s = phi_s + phi_s_panel
+            phi_d = phi_d + phi_d_panel
 
             ! Calculate mirrored influences
             if (this%mirrored) then
 
-                if (dod_info(k+this%N_panels)%in_dod) then
+                if (this%asym_flow) then
 
-                    if (this%asym_flow) then
+                    ! Get influence of mirrored panel
+                    call this%panels(k)%calc_potentials(point, freestream, .true., &
+                                                        this%sigma, this%mu, this%N_panels, this%N_verts, &
+                                                        this%asym_flow, phi_s_panel, phi_d_panel)
+                    phi_s = phi_s + phi_s_panel
+                    phi_d = phi_d + phi_d_panel
 
-                        ! Get influence of mirrored panel
-                        call this%panels(k)%calc_potentials(point, freestream, dod_info(k+this%N_panels), .true., &
-                                                            this%sigma, this%mu, this%N_panels, this%N_verts, &
-                                                            this%asym_flow, phi_s_panel, phi_d_panel)
-                        phi_s = phi_s + phi_s_panel
-                        phi_d = phi_d + phi_d_panel
+                else
 
-                    else
-
-                        ! Get influence of panel on mirrored point
-                        call this%panels(k)%calc_potentials(mirror_across_plane(point, this%mirror_plane), freestream, &
-                                                            dod_info(k+this%N_panels), .false., &
-                                                            this%sigma, this%mu, this%N_panels, this%N_verts, &
-                                                            this%asym_flow, phi_s_panel, phi_d_panel)
-                        phi_s = phi_s + phi_s_panel
-                        phi_d = phi_d + phi_d_panel
-
-                    end if
+                    ! Get influence of panel on mirrored point
+                    call this%panels(k)%calc_potentials(mirror_across_plane(point, this%mirror_plane), freestream, .false., &
+                                                        this%sigma, this%mu, this%N_panels, this%N_verts, &
+                                                        this%asym_flow, phi_s_panel, phi_d_panel)
+                    phi_s = phi_s + phi_s_panel
+                    phi_d = phi_d + phi_d_panel
 
                 end if
 
@@ -2323,32 +2627,22 @@ contains
         do j=1,this%wake%N_strips
             do k=1,this%wake%strips(j)%N_panels
 
-                ! Check DoD
-                if (wake_dod_info(k,j)%in_dod) then
-                
-                    ! Calculate influence
-                    call this%wake%strips(j)%panels(k)%calc_potentials(point, freestream, wake_dod_info(k,j), .false., &
-                                                             this%sigma, this%mu, this%N_panels, this%N_verts, &
-                                                             this%asym_flow, phi_s_panel, phi_d_panel)
-                    phi_s = phi_s + phi_s_panel
-                    phi_d = phi_d + phi_d_panel
-
-                end if
+                ! Calculate influence
+                call this%wake%strips(j)%panels(k)%calc_potentials(point, freestream, .false., &
+                                                         this%sigma, this%mu, this%N_panels, this%N_verts, &
+                                                         this%asym_flow, phi_s_panel, phi_d_panel)
+                phi_s = phi_s + phi_s_panel
+                phi_d = phi_d + phi_d_panel
 
                 ! Calculate mirrored influences
                 if (this%mirrored .and. .not. this%asym_flow) then
 
-                    if (wake_dod_info(k+this%wake%N_max_strip_panels,j)%in_dod) then
-
                         ! Get influence of mirrored panel
-                        call this%wake%strips(j)%panels(k)%calc_potentials(point, freestream, &
-                                                                 wake_dod_info(k+this%wake%N_max_strip_panels,j), .true., &
+                        call this%wake%strips(j)%panels(k)%calc_potentials(point, freestream, .true., &
                                                                  this%sigma, this%mu, this%N_panels, this%N_verts, &
                                                                  this%asym_flow, phi_s_panel, phi_d_panel)
                         phi_s = phi_s + phi_s_panel
                         phi_d = phi_d + phi_d_panel
-
-                    end if
 
                 end if
 
@@ -2358,7 +2652,7 @@ contains
     end subroutine surface_mesh_get_induced_potentials_at_point
 
 
-    subroutine surface_mesh_get_induced_velocities_at_point(this, point, freestream, v_d, v_s)
+    subroutine surface_mesh_get_induced_velocities_at_point(this, point,  freestream, v_d, v_s)
         ! Calculates the source- and doublet-induced potentials at the given point
 
         implicit none
@@ -2369,95 +2663,72 @@ contains
         real,dimension(3),intent(out) :: v_d, v_s
 
         integer :: j, k
-        real,dimension(3) :: v_d_panel, v_s_panel
-        type(dod),dimension(:),allocatable :: dod_info
-        type(dod),dimension(:,:),allocatable :: wake_dod_info
-
-        ! Calculate domain of dependence
-        call this%calc_point_dod(point, freestream, dod_info, wake_dod_info)
+        real,dimension(3) :: v_d_panel, v_s_panel, v_d_segment
 
         ! Loop through panels
         v_d = (/0.,0.,0./)
         v_s = (/0.,0.,0./)
-
+        
         do k=1,this%N_panels
 
-            ! Check DoD
-            if (dod_info(k)%in_dod) then
-            
-                ! Calculate influence
-                call this%panels(k)%calc_velocities(point, freestream, dod_info(k), .false., &
-                                                    this%sigma, this%mu, this%N_panels, this%N_verts, &
-                                                    this%asym_flow, v_s_panel, v_d_panel)
-
-                ! Because computers don't like adding zero a bunch
-                if (this%panels(k)%has_sources) v_s = v_s + v_s_panel
-                v_d = v_d + v_d_panel
-
-            end if
+            ! Calculate influence
+            call this%panels(k)%calc_velocities(point, freestream, .false., &
+                                                this%sigma, this%mu, this%N_panels, this%N_verts, &
+                                                this%asym_flow, v_s_panel, v_d_panel)
+            ! Because computers don't like adding zero a bunch
+            if (this%panels(k)%has_sources) v_s = v_s + v_s_panel
+            v_d = v_d + v_d_panel
 
             ! Calculate mirrored influences
             if (this%mirrored) then
 
-                if (dod_info(k+this%N_panels)%in_dod) then
+                if (this%asym_flow) then
 
-                    if (this%asym_flow) then
+                    ! Get influence of mirrored panel
+                    call this%panels(k)%calc_velocities(point, freestream, .true., &
+                                                        this%sigma, this%mu, this%N_panels, this%N_verts, &
+                                                        this%asym_flow, v_s_panel, v_d_panel)
+                    if (this%panels(k)%has_sources) v_s = v_s + v_s_panel
+                    v_d = v_d + v_d_panel
 
-                        ! Get influence of mirrored panel
-                        call this%panels(k)%calc_velocities(point, freestream, dod_info(k+this%N_panels), .true., &
-                                                            this%sigma, this%mu, this%N_panels, this%N_verts, &
-                                                            this%asym_flow, v_s_panel, v_d_panel)
-                        if (this%panels(k)%has_sources) v_s = v_s + v_s_panel
-                        v_d = v_d + v_d_panel
+                else
 
-                    else
+                    ! Get influence of panel on mirrored point
+                    call this%panels(k)%calc_velocities(mirror_across_plane(point, this%mirror_plane), freestream, &
+                                                        .false., this%sigma, this%mu, this%N_panels, this%N_verts, &
+                                                        this%asym_flow, v_s_panel, v_d_panel)
 
-                        ! Get influence of panel on mirrored point
-                        call this%panels(k)%calc_velocities(mirror_across_plane(point, this%mirror_plane), freestream, &
-                                                            dod_info(k+this%N_panels), .false., &
-                                                            this%sigma, this%mu, this%N_panels, this%N_verts, &
-                                                            this%asym_flow, v_s_panel, v_d_panel)
-
-                        v_d_panel = mirror_across_plane(v_d_panel, this%mirror_plane)
-                        v_s_panel = mirror_across_plane(v_s_panel, this%mirror_plane)
-                        if (this%panels(k)%has_sources) v_s = v_s + v_s_panel
-                        v_d = v_d + v_d_panel
-
-                    end if
+                    v_d_panel = mirror_across_plane(v_d_panel, this%mirror_plane)
+                    v_s_panel = mirror_across_plane(v_s_panel, this%mirror_plane)
+                    if (this%panels(k)%has_sources) v_s = v_s + v_s_panel
+                    v_d = v_d + v_d_panel
 
                 end if
 
             end if
 
         end do
+        
+        ! Loop through wake panels !!!!!!!!!!!!!!!!!!!!!! include if statement to instead solve filament influence if there are wake filaments
+        if (this%wake_type == "panels") then !!!! make sure they can't pick the wrong formulation for what they're doing. 
 
-        ! Loop through wake panels
-        do j=1,this%wake%N_strips
-            do k=1,this%wake%strips(j)%N_panels
-
-                ! Check DoD
-                if (wake_dod_info(k,j)%in_dod) then
-                
+            do j=1,this%wake%N_strips
+                do k=1,this%wake%strips(j)%N_panels
+                    
                     ! Calculate influence
-                    call this%wake%strips(j)%panels(k)%calc_velocities(point, freestream, wake_dod_info(k,j), .false., &
-                                                             this%sigma, this%mu, this%N_panels, this%N_verts, &
-                                                             this%asym_flow, v_s_panel, v_d_panel)
+                    call this%wake%strips(j)%panels(k)%calc_velocities(point, freestream, .false., &
+                                                            this%sigma, this%mu, this%N_panels, this%N_verts, &
+                                                            this%asym_flow, v_s_panel, v_d_panel)
                     
                     v_d = v_d + v_d_panel
                     if (this%wake%strips(j)%panels(k)%has_sources) v_s = v_s + v_s_panel
 
-                end if
+                    ! Calculate mirrored influences
+                    if (this%mirrored .and. .not. this%asym_flow) then
 
-                ! Calculate mirrored influences
-                if (this%mirrored .and. .not. this%asym_flow) then
-
-                    if (wake_dod_info(k+this%wake%N_max_strip_panels,j)%in_dod) then
-
-                        ! Get influence of mirrored panel
-                        call this%wake%strips(j)%panels(k)%calc_velocities(point, freestream, &
-                                                                 wake_dod_info(k+this%wake%N_max_strip_panels,j), .true., &
-                                                                 this%sigma, this%mu, this%N_panels, this%N_verts, &
-                                                                 this%asym_flow, v_s_panel, v_d_panel)
+                        call this%wake%strips(j)%panels(k)%calc_velocities(point, freestream, .false., &
+                                                                this%sigma, this%mu, this%N_panels, this%N_verts, &
+                                                                this%asym_flow, v_s_panel, v_d_panel)
                         
                         v_d_panel = mirror_across_plane(v_d_panel, this%mirror_plane)
                         v_s_panel = mirror_across_plane(v_s_panel, this%mirror_plane)
@@ -2466,12 +2737,40 @@ contains
 
                     end if
 
-                end if
-
+                end do
+        
             end do
-        end do
-    end subroutine surface_mesh_get_induced_velocities_at_point
 
+        else
+
+            do j=1,this%filament_wake%N_filaments
+                do k=1,this%filament_wake%filaments(j)%N_segments
+                    
+                    ! Calculate influence
+                    call this%filament_wake%filaments(j)%segments(k)%calc_velocities(point, freestream,  &
+                                                                            .false., this%sigma, this%mu, & 
+                                                                            this%asym_flow,v_d_segment)
+                    
+                    v_d = v_d + v_d_segment  !!!! may need to check syntax here
+
+                    ! Calculate mirrored influences
+                    if (this%mirrored .and. .not. this%asym_flow) then
+
+                        call this%filament_wake%filaments(j)%segments(k)%calc_velocities(point, freestream, & 
+                                                                                .false., this%sigma, this%mu, &
+                                                                                this%asym_flow,v_d_segment)
+                        
+                        v_d_panel = mirror_across_plane(v_d_panel, this%mirror_plane)
+                        v_d = v_d + v_d_segment
+
+                    end if
+
+                end do
+        
+            end do
+        end if 
+
+    end subroutine surface_mesh_get_induced_velocities_at_point
 
 
     subroutine surface_mesh_output_results(this, body_file, wake_file, control_point_file, mirrored_body_file)
@@ -2496,9 +2795,13 @@ contains
             if (verbose) write(*,'(a30 a)') "    Mirrored surface: ", mirrored_body_file
         end if
         
-        ! Write out data for wake
+        ! Write out data for wake !!!! NEED TO UPDATE TO HAVE BETTER LOGIC
         if (wake_file /= 'none') then
-            call this%wake%write_strips(wake_file, wake_exported, this%mu)
+            if (this%wake_type == "filaments") then
+                call this%filament_wake%write_filaments(wake_file, wake_exported, this%mu)
+            else
+                call this%wake%write_strips(wake_file, wake_exported, this%mu)
+            end if
 
             if (wake_exported) then
                 if (verbose) write(*,'(a30 a)') "    Wake: ", wake_file
@@ -2720,7 +3023,7 @@ contains
         logical,intent(in) :: solved
 
         type(vtk_out) :: cp_vtk
-        real,dimension(3,this%N_cp) :: cp_locs
+        real,dimension(3,this%N_cp) :: cp_locs,cp_norms
         integer,dimension(this%N_cp) :: cp_bcs
         integer :: i
 
@@ -2728,6 +3031,7 @@ contains
         do i=1,this%N_cp
             cp_locs(:,i) = this%cp(i)%loc
             cp_bcs(i) = this%cp(i)%bc
+            cp_norms(:,i) = this%cp(i)%n_g
         end do
 
         ! Clear old file
@@ -2738,6 +3042,7 @@ contains
         call cp_vtk%write_points(cp_locs)
         call cp_vtk%write_vertices(this%N_cp)
         call cp_vtk%write_point_scalars(cp_bcs, "BC_type")
+        call cp_vtk%write_point_vectors(cp_norms, "Normal_Vector")
         
         ! Results
         if (solved) then

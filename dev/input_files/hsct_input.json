@@ -12,7 +12,7 @@
         }
     },
     "solver": {
-        "formulation" : "morino"
+        "formulation" : "dirichlet-morino"
     },
     "post_processing" : {
         "pressure_rules" : {

@@ -1831,4 +1831,73 @@ subroutine diagonal_preconditioner(N, A, b, A_p, b_p)
 end subroutine diagonal_preconditioner
 
 
+subroutine householder_ls_solve(M, N, A, b, x)
+    ! Solves the overdetermined (potentially rank-defficient) LS problem Ax=b using Householder transformations
+
+    implicit none
+    
+    integer,intent(in) :: M, N
+    real,dimension(M,N),intent(inout) :: A
+    real,dimension(M),intent(inout) :: b
+    real,dimension(:),allocatable,intent(out) :: x
+
+    integer :: i, j, k
+    real,dimension(:),allocatable :: w, v
+    real :: alpha, beta, bTv, beta_w
+
+    ! ************************************************************************
+    ! ** Loop through columns performing Householder transformations *********
+    ! ************************************************************************
+    do i=1,N
+
+        ! Get Householder vector
+        v = A(i:,i)
+        alpha = norm2(v)
+        v(1) = v(1) + sign(alpha, v(1))
+
+        ! Calculate beta and w
+        beta = -2./(sum(v*v))
+        if (allocated(w)) deallocate(w)
+        allocate(w(N-i+1))
+        !$OMP parallel do schedule(static)
+        do j=1,N-i+1
+            w(j) = sum(A(i:,i+j-1) * v)
+        end do
+
+        ! Update R
+        !$OMP parallel do schedule(static) private(j, beta_w)
+        do k=i,N
+            beta_w = beta*w(k-i+1)
+            do j=i,M
+                A(j,k) = A(j,k) + beta_w*v(j-i+1)
+            end do
+        end do
+
+        ! Update y
+        bTv = sum(b(i:)*v)
+        b(i:) = b(i:) + beta*v*bTv
+
+    end do
+
+    ! ************************************************************************
+    ! ** Back-substitute *****************************************************
+    ! ************************************************************************
+    allocate(x(N), source=0.)
+
+    ! If R is rank-deficient, choose a value for x(N)
+    if (abs(A(N,N)) < 1.e-10) then
+        x(N) = 0.
+    else
+        x(N) = b(N) / A(N,N)
+    end if
+
+    ! Back substitution
+    do i=N-1,1,-1
+        x(i) = b(i) - sum(A(i,i+1:) * x(i+1:))
+        x(i) = x(i) / A(i,i)
+    end do
+    
+end subroutine householder_ls_solve
+
+
 end module linalg_mod

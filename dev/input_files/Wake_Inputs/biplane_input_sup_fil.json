@@ -1,0 +1,35 @@
+{
+    "flow": {
+        "freestream_velocity" : [ 100.0, 0.0, 5.0 ],
+        "freestream_mach_number" : 2.0
+    },
+    "geometry": {
+        "file": "dev/meshes/wake/swept_biplane_wedge.stl",
+        "singularity_order" : "lower",
+        "spanwise_axis" : "+y",
+        "wake_model" : {
+            "wake_present" : true,
+            "append_wake" : true,
+            "trefftz_distance" : 20.0,
+            "wake_type": "filaments"
+
+        }
+    },
+    "solver": {
+        "formulation" : "neumann-mass-flux",
+        "matrix_solver" : "GMRES",
+        "write_A_and_b" : false
+    },
+    "post_processing" : {
+    },
+    "output": {
+        "body_file" :          "dev/results/wake/swept_biplane_sup_fil.vtk",
+        "wake_file" :          "dev/results/wake/swept_biplane_sup_fil_wake.vtk",
+        "control_point_file" : "dev/results/wake/swept_biplane_control_points.vtk",
+        "report_file" :        "dev/results/wake/report.json",
+        "ffbody_points" : {
+            "points_file" : "dev/input_files/swept_biplane_slice_sample_points.csv",
+            "output_file" : "dev/results/swept_biplane_slice_sample_points.csv"
+        }
+    }
+}
