@@ -1,0 +1,23 @@
+{
+    "flow": {
+        "freestream_velocity": [
+            100.0,
+            0.0,
+            0.0
+        ]
+    },
+    "geometry": {
+        "file": "studies/adjoint_studies/finite_diff/meshes/octa_mesh.stl",
+        "reference": {
+            "area": 1.0
+        }
+    },
+    "solver": {
+        "formulation": "neumann-mass-flux-VCP"
+    },
+    "post_processing" : {
+    },
+    "output": {
+        "report_file": "studies/adjoint_studies/finite_diff/reports/octa_mesh_results.json"
+    }
+}
