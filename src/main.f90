@@ -107,9 +107,9 @@ program main
     call json_xtnsn_get(geom_settings, 'perturb_point', perturb_point, .false.)
     if (perturb_point) then
         ! get the step size and indices for which point and which component x y or z of that point to perturb
-        call json_xtnsn_get(geom_settings, "perturb_point.step", step)
-        call json_xtnsn_get(geom_settings, "pertub_point.point_index", point_index) ! index of the mesh point to be perturbed
-        call json_xtnsn_get(geom_settings, "pertub_point.component_index", component_index) ! 1 = x component, 2 = y component, 3 = z component
+        call json_xtnsn_get(geom_settings, "perturbation.step", step)
+        call json_xtnsn_get(geom_settings, "pertubation.point_index", point_index) ! index of the mesh point to be perturbed
+        call json_xtnsn_get(geom_settings, "pertubation.component_index", component_index) ! 1 = x component, 2 = y component, 3 = z component
         ! perturb the point
         body_mesh%vertices(point_index)%loc(component_index) = body_mesh%vertices(point_index)%loc(component_index) + step
     end if
