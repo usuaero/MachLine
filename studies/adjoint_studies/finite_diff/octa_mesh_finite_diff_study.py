@@ -13,7 +13,7 @@ import subprocess as sp
 RERUN_MACHLINE = True
 
 
-def run_machline_for_loc(point_index, component_index,study_directory):
+def run_machline_for_loc(point_index, component_index, step, study_directory):
     
     # default values
     
@@ -39,7 +39,7 @@ def run_machline_for_loc(point_index, component_index,study_directory):
                         },
             "perturb_point": True,
             "perturbation": {
-                "step": 0.00001,
+                "step": step,
                 "point_index": point_index,
                 "component_index": component_index 
                 },
@@ -130,18 +130,19 @@ if __name__=="__main__":
     # declare varaibles and inputs
     study_directory = "studies/adjoint_studies/finite_diff"
     start = time.time()
-    #num_cases = 30
-    #N_sys = list(range(num_cases))
-    #l_avg = list(range(num_cases))
-    C_F = list(range(num_cases))
-    C_x = list(range(num_cases))
-    C_y = list(range(num_cases))
-    C_z = list(range(num_cases))
-    #C_M = list(range(num_cases))
-    #C_mx = list(range(num_cases))
-    #C_my = list(range(num_cases))
-    #C_mz = list(range(num_cases))
 
+    step = 0.00001
+    num_points = 6
+    num_design_variables = num_points*3   
+    
+    C_F_step_up = np.zeros(3)
+    C_F_step_dn = np.zeros(3)
+    
+    dC_x = [None]*num_design_variables
+    dC_y = [None]*num_design_variables
+    dC_z = [None]*num_design_variables
+    
+   
     # set parameters
     
 
@@ -149,78 +150,33 @@ if __name__=="__main__":
         
 # Run cases
     try:
-        for i in range(8): # 8 points in the octa mesh
-            i += 1  # change to fortran 1 based indexing
-            for j in range(3):
-                j += 1  # change to fortran 1 based indexing 
-                
-                C_F[] = run_machline_for_loc(i,j,study_directory)
+        index = 0 
+        for i in range(num_points): 
+           
+            for j in range(3): # for x, y and z coordinate
             
-            
-            for p in range(num_cases):
-                C_x[p] = C_F[p][0]
-                C_y[p] = C_F[p][1]
-                C_z[p] = C_F[p][2]
-                #C_mx[p] = C_M[p][0]
-                #C_my[p] = C_M[p][1]
-                #C_mz[p] = C_M[p][2]
-            output_file = study_directory
-            output_file += "/imp_test_" + str(wake_type) + "_" + str(freestream_mach) + ".txt"
-            with open(output_file, "w") as file:
-                # Write the lists to the file
-                file.write("z_dist,C_x,C_y,C_z,C_mx,C_my,C_mz\n")
-                for q in range(num_cases):
-                    file.write(f"{z_dists[q]},{C_x[q]},{C_y[q]},{C_z[q]},{C_mx[q]},{C_my[q]},{C_mz[q]}\n")
-                file.close()
+                C_F_step_up = run_machline_for_loc(i+1, j+1, step, study_directory)
+        
+               
 
-    except KeyboardInterrupt:
-        end = time.time()
-        seconds = end-start
-        hours =  seconds // 3600
-        seconds %= 3600
-        minutes = seconds // 60
-        seconds %= 60
-        error_filename = study_directory+"/Keyboard_exception_output.txt"
-        print(f"Code has stopped due to keyboard interrupt at {hours}:{minutes}:{seconds}, data has been written to {error_filename}.")
-        for p in range(num_cases):
-            try:
-                C_x[p] = C_F[p][0]
-                C_y[p] = C_F[p][1]
-                C_z[p] = C_F[p][2]
-                C_mx[p] = C_M[p][0]
-                C_my[p] = C_M[p][1]
-                C_mz[p] = C_M[p][2]
-            except:
-                break
-        with open(error_filename, "w") as file:
+                C_F_step_dn = run_machline_for_loc(i+1, j+1, -step, study_directory)
+                   
+                dC_x[index] = (C_F_step_up[0] - C_F_step_dn[0])/(2*step)
+                dC_y[index] = (C_F_step_up[1] - C_F_step_dn[1])/(2*step)
+                dC_z[index] = (C_F_step_up[2] - C_F_step_dn[2])/(2*step)
+
+                index += 1
+
+        output_file = study_directory+ "/study_results/octa_mesh_gradient.txt"
+        with open(output_file, "w") as file:
             # Write the lists to the file
-            file.write("z_dist,C_x,C_y,C_z,C_mx,C_my,C_mz\n")
-            for q in range(len(C_x)):
-                file.write(f"{z_dists[q]},{C_x[q]},{C_y[q]},{C_z[q]},{C_mx[q]},{C_my[q]},{C_mz[q]}\n")
+            file.write("dC_x,dC_y,dC_z\n")
+            for q in range(num_design_variables):
+                file.write(f"{dC_x[q]},{dC_y[q]},{dC_z[q]}\n")
             file.close()
+
     except Exception as e:
-        end = time.time()
-        seconds = end-start
-        hours =  seconds // 3600
-        seconds %= 3600
-        minutes = seconds // 60
-        seconds %= 60
-        error_filename = study_directory + "/exception_output.txt"
-        print(f"Code has stopped due to exception: {e} at {hours}:{minutes}:{seconds}")
-        for p in range(len(C_F)):
-                    C_x[p] = C_F[p][0]
-                    C_y[p] = C_F[p][1]
-                    C_z[p] = C_F[p][2]
-                    C_mx[p] = C_M[p][0]
-                    C_my[p] = C_M[p][1]
-                    C_mz[p] = C_M[p][2]
-        with open(error_filename, "w") as file:
-            # Write the lists to the file
-            file.write("z_dist,C_x,C_y,C_z,C_mx,C_my,C_mz\n")
-            for q in range(len(C_x)):
-                file.write(f"{z_dists[q]},{C_x[q]},{C_y[q]},{C_z[q]},{C_mx[q]},{C_my[q]},{C_mz[q]}\n")
-            file.close()
-        print(f"Data has been written to {error_filename}.")
+        print(f"An error occurred: {e}")
          
     end = time.time()
     seconds = end-start
@@ -230,3 +186,5 @@ if __name__=="__main__":
     seconds %= 60
     print(f"Study has complete after {int(hours)}:{int(minutes)}:{int(seconds)}")
     print(f"Data has been written to {output_file}")
+
+    

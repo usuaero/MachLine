@@ -30,6 +30,12 @@ program main
     logical :: exists, found
     integer :: solver_stat
 
+    !!!!!! NH  !!!!!
+    real:: step
+    integer:: point_index, component_index
+    logical:: perturb_point
+    !!!!!!!!!!!
+
     ! Start timer
     call system_clock(start_count, count_rate)
 
