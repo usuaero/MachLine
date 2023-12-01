@@ -13,7 +13,7 @@
         },
         "perturb_point": true,
         "perturbation": {
-            "step": 1e-05,
+            "step": 1.0e-5,
             "point_index": 1,
             "component_index": 1
         }

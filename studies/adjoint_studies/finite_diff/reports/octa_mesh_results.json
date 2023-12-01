@@ -1,0 +1,74 @@
+{
+    "info" : {
+        "generated_by" : "MachLine (c) 2023 USU Aerolab",
+        "executed" : "Fri Dec  1 13:54:14 2023"
+    },
+    "mesh_info" : {
+        "N_body_panels" : 8,
+        "N_body_vertices" : 7,
+        "N_wake_panels" : 4,
+        "N_wake_filaments" : 0,
+        "average_characteristic_length" : 4.35311943383019E+000,
+        "max_flow_turning_angle" : 1.68107331514589E+002
+    },
+    "solver_results" : {
+        "solver_status_code" : 0,
+        "system_dimension" : 7,
+        "timing" : {
+            "system_sorting" : 3.00000000000000E-006,
+            "preconditioner" : 4.20000000000000E-006,
+            "matrix_solver" : 8.80000000000000E-006
+        },
+        "iterations" : 6,
+        "residual" : {
+            "max" : 1.18557600058469E-002,
+            "norm" : 1.22581795206529E-002
+        }
+    },
+    "pressure_calculations" : {
+        "incompressible_rule" : {
+            "max" : 5.47201304753565E-002,
+            "min" : -1.98934150406363E-001
+        }
+    },
+    "total_forces" : {
+        "Cx" : -1.85722430984775E+000,
+        "Cy" : 1.25630430084328E-003,
+        "Cz" : 3.96425110665199E-003
+    },
+    "total_moments" : {
+        "CMx" : 1.25590139057508E-003,
+        "CMy" : -8.97100061029699E-003,
+        "CMz" : -5.38696260981160E-001
+    },
+    "input" : {
+        "flow" : {
+            "freestream_velocity" : [
+                    1.00000000000000E+002,
+                    0.00000000000000E+000,
+                    0.00000000000000E+000
+                ]
+        },
+        "geometry" : {
+            "file" : "studies/adjoint_studies/finite_diff/meshes/octa_mesh.stl",
+            "reference" : {
+                "area" : 1.00000000000000E+000
+            },
+            "perturb_point" : true,
+            "perturbation" : {
+                "step" : -5.00000000000000E-004,
+                "point_index" : 6,
+                "component_index" : 3
+            }
+        },
+        "solver" : {
+            "formulation" : "neumann-mass-flux-VCP"
+        },
+        "post_processing" : {
+        },
+        "output" : {
+            "report_file" : "studies/adjoint_studies/finite_diff/reports/octa_mesh_results.json"
+        }
+    },
+    "total_runtime" : 3.10000000000000E-002
+}

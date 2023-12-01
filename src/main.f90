@@ -114,10 +114,12 @@ program main
     if (perturb_point) then
         ! get the step size and indices for which point and which component x y or z of that point to perturb
         call json_xtnsn_get(geom_settings, "perturbation.step", step)
-        call json_xtnsn_get(geom_settings, "pertubation.point_index", point_index) ! index of the mesh point to be perturbed
-        call json_xtnsn_get(geom_settings, "pertubation.component_index", component_index) ! 1 = x component, 2 = y component, 3 = z component
+        call json_xtnsn_get(geom_settings, "perturbation.point_index", point_index) ! index of the mesh point to be perturbed
+        call json_xtnsn_get(geom_settings, "perturbation.component_index", component_index) ! 1 = x component, 2 = y component, 3 = z component
         ! perturb the point
+        write(*,*) body_mesh%vertices(point_index)%loc(component_index)
         body_mesh%vertices(point_index)%loc(component_index) = body_mesh%vertices(point_index)%loc(component_index) + step
+        write(*,*) body_mesh%vertices(point_index)%loc(component_index)
     end if
     !!!!!!!!! END ADJOINT DEV !!!!!!!!!
 
@@ -129,7 +131,7 @@ program main
         write(*,*)
         write(*,*) "Initializing based on flow properties"
     end if
-
+    
     ! Get result files
     call json_xtnsn_get(output_settings, 'body_file', body_file, 'none')
     call json_xtnsn_get(output_settings, 'wake_file', wake_file, 'none')

@@ -131,7 +131,7 @@ if __name__=="__main__":
     study_directory = "studies/adjoint_studies/finite_diff"
     start = time.time()
 
-    step = 0.00001
+    step = 0.0005
     num_points = 6
     num_design_variables = num_points*3   
     
@@ -161,6 +161,8 @@ if __name__=="__main__":
 
                 C_F_step_dn = run_machline_for_loc(i+1, j+1, -step, study_directory)
                    
+                test1 = C_F_step_up[0]
+                test2 = C_F_step_dn[0]
                 dC_x[index] = (C_F_step_up[0] - C_F_step_dn[0])/(2*step)
                 dC_y[index] = (C_F_step_up[1] - C_F_step_dn[1])/(2*step)
                 dC_z[index] = (C_F_step_up[2] - C_F_step_dn[2])/(2*step)
