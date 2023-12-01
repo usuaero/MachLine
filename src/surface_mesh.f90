@@ -28,20 +28,20 @@ module surface_mesh_mod
         type(filament_mesh) :: filament_wake
         ! type(filament_wake_mesh) :: filament_wake !!!!!!!!!!!!!!!!!! could change nomenclature !!!!!!!!!!!!!!!!
         real :: C_wake_shedding_angle, trefftz_distance, C_min_panel_angle, C_max_cont_angle
-        real,dimension(:),allocatable :: CG
+        complex,dimension(:),allocatable :: CG
         integer :: N_wake_panels_streamwise
         logical :: wake_present, append_wake
         type(control_point),dimension(:),allocatable :: cp, cp_mir ! Control points
         real,dimension(:),allocatable :: R_cp ! System residuals at each control point
         real,dimension(:),allocatable :: Phi_u ! Total potential on outer surface
         real,dimension(:),allocatable :: C_p_pg, C_p_lai, C_p_kt ! Corrected surface pressure coefficients
-        real,dimension(:),allocatable :: C_p_inc, C_p_ise, C_p_2nd, C_p_sln, C_p_lin ! Surface pressure coefficients
-        real,dimension(:,:),allocatable :: V_cells, V_cells_inner, dC_f ! Surface velocities and pressure forces
+        complex,dimension(:),allocatable :: C_p_inc, C_p_ise, C_p_2nd, C_p_sln, C_p_lin ! Surface pressure coefficients
+        complex,dimension(:,:),allocatable :: V_cells, V_cells_inner, dC_f ! Surface velocities and pressure forces
         real :: control_point_offset
         logical :: asym_flow ! Whether the flow is asymmetric about the mirror plane
         logical :: found_wake_edges
-        real,dimension(:),allocatable :: mu, sigma ! Singularity strengths
-        real :: S_ref, l_ref ! Reference parameters
+        complex,dimension(:),allocatable :: mu, sigma ! Singularity strengths
+        complex :: S_ref, l_ref ! Reference parameters
         integer,dimension(:),allocatable :: vertex_ordering
         integer :: initial_panel_order ! Distribution order for the panels (initially)
         character(len=:),allocatable :: singularity_order
@@ -625,7 +625,7 @@ contains
         
         class(surface_mesh),intent(inout) :: this
 
-        real(16),dimension(3) :: n_avg
+        complex(16),dimension(3) :: n_avg
         integer :: i, j, j_panel, N_panels
 
         if (verbose) write(*,'(a)',advance='no') "     Calculating vertex geometric parameters..."
@@ -681,7 +681,7 @@ contains
         
         class(surface_mesh),intent(in) :: this
 
-        real :: l_avg
+        complex :: l_avg
 
         integer :: i
 
@@ -976,7 +976,7 @@ contains
 
         class(surface_mesh),intent(inout) :: this
         character(len=:),allocatable,intent(in) :: formulation
-        real(16),dimension(3) :: n_avg
+        complex(16),dimension(3) :: n_avg
         integer :: i, j, k, N_clones, i_jango, i_boba, N_boba, i_edge, i_start_panel, jango_panel, boba_panel,N_panels
         integer,dimension(:),allocatable :: i_panels_between, i_rearrange_inv, i_start_edge, i_end_edge
         integer,dimension(:,:),allocatable :: i_panels_between_all
@@ -1506,7 +1506,7 @@ contains
         logical :: is_convex
 
         integer :: i, i_neighbor, j, j_neighbor
-        real :: s, h
+        complex :: s, h
         logical :: first
 
         ! Initialize
@@ -1584,11 +1584,11 @@ contains
         
         class(surface_mesh),intent(in) :: this
         integer,intent(in) :: i_vert
-        real,dimension(3),intent(out) :: vec1, vec2
+        complex,dimension(3),intent(out) :: vec1, vec2
 
         integer :: N_possible, i, j, i_adj, j_adj, k, k_panel
-        real :: max_inner, x
-        real,dimension(3) :: poss_vec1, poss_vec2
+        complex :: max_inner, x
+        complex,dimension(3) :: poss_vec1, poss_vec2
         logical :: in_same_plane
 
         ! Initialize
@@ -1745,11 +1745,11 @@ contains
         
         class(surface_mesh),intent(in) :: this
         integer,intent(in) :: i_vert
-        real,dimension(3) :: dir
+        complex,dimension(3) :: dir
 
         integer :: j, k, i_panel, i_edge_1, i_edge_2, i_edge, panel1, panel2
-        real,dimension(3) :: t1, t2, t_avg, tp, n_avg
-        real :: C_min_panel_angle, offset_ratio, x
+        complex,dimension(3) :: t1, t2, t_avg, tp, n_avg
+        complex :: C_min_panel_angle, offset_ratio, x
         logical :: found_first, tp_found
 
         ! Get the two edges defining the split for this vertex
@@ -1926,8 +1926,8 @@ contains
         implicit none
         class(surface_mesh),intent(in) :: this
         type(flow),intent(in) :: freestream
-        real,intent(in) :: offset
-        real,dimension(:,:),allocatable :: cp_locs
+        complex,intent(in) :: offset
+        complex,dimension(:,:),allocatable :: cp_locs
         integer :: i
         
         ! Allocate memory
@@ -2110,10 +2110,10 @@ contains
 
         class(surface_mesh),intent(inout) :: this
         type(flow),intent(in) :: freestream
-        real,intent(in) :: offset
+        complex,intent(in) :: offset
 
         integer :: i
-        real,dimension(:,:),allocatable :: cp_locs
+        complex,dimension(:,:),allocatable :: cp_locs
 
         ! Specify number of control points
         if (this%asym_flow) then
@@ -2414,7 +2414,7 @@ contains
         logical,intent(in) :: add_one_inside
 
         integer :: i, N_strength_matching, i_panel
-        real,dimension(3) :: loc
+        complex,dimension(3) :: loc
 
         ! Specify number of control points
         if (this%asym_flow) then
@@ -2658,12 +2658,12 @@ contains
         implicit none
         
         class(surface_mesh),intent(in) :: this
-        real,dimension(3),intent(in) :: point
+        complex,dimension(3),intent(in) :: point
         type(flow),intent(in) :: freestream
-        real,dimension(3),intent(out) :: v_d, v_s
+        complex,dimension(3),intent(out) :: v_d, v_s
 
         integer :: j, k
-        real,dimension(3) :: v_d_panel, v_s_panel, v_d_segment
+        complex,dimension(3) :: v_d_panel, v_s_panel, v_d_segment
 
         ! Loop through panels
         v_d = (/0.,0.,0./)
@@ -2831,8 +2831,8 @@ contains
 
         type(vtk_out) :: body_vtk
         integer :: i, N_cells
-        real,dimension(:),allocatable :: panel_inclinations, orders, N_discont_edges, convex
-        real,dimension(:,:),allocatable :: cents
+        complex,dimension(:),allocatable :: panel_inclinations, orders, N_discont_edges, convex
+        complex,dimension(:,:),allocatable :: cents
 
         ! Clear old file
         call delete_file(body_file)
@@ -3023,7 +3023,7 @@ contains
         logical,intent(in) :: solved
 
         type(vtk_out) :: cp_vtk
-        real,dimension(3,this%N_cp) :: cp_locs,cp_norms
+        complex,dimension(3,this%N_cp) :: cp_locs,cp_norms
         integer,dimension(this%N_cp) :: cp_bcs
         integer :: i
 

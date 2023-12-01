@@ -118,7 +118,7 @@ contains
         implicit none
         
         class(mesh),intent(in) :: this
-        real,dimension(3),intent(in) :: point
+        complex,dimension(3),intent(in) :: point
         type(flow),intent(in) :: freestream
         logical,intent(in) :: mirror_points
 
@@ -146,7 +146,7 @@ contains
         implicit none
         
         class(mesh),intent(in) :: this
-        real,dimension(3),intent(in) :: point
+        complex,dimension(3),intent(in) :: point
         type(flow),intent(in) :: freestream
         logical,intent(in) :: mirror_panels
 
