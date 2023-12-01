@@ -27,17 +27,17 @@ module surface_mesh_mod
         type(wake_mesh) :: wake
         type(filament_mesh) :: filament_wake
         ! type(filament_wake_mesh) :: filament_wake !!!!!!!!!!!!!!!!!! could change nomenclature !!!!!!!!!!!!!!!!
-        real :: C_wake_shedding_angle, trefftz_distance, C_min_panel_angle, C_max_cont_angle
+        complex :: C_wake_shedding_angle, trefftz_distance, C_min_panel_angle, C_max_cont_angle
         complex,dimension(:),allocatable :: CG
         integer :: N_wake_panels_streamwise
         logical :: wake_present, append_wake
         type(control_point),dimension(:),allocatable :: cp, cp_mir ! Control points
         real,dimension(:),allocatable :: R_cp ! System residuals at each control point
-        real,dimension(:),allocatable :: Phi_u ! Total potential on outer surface
-        real,dimension(:),allocatable :: C_p_pg, C_p_lai, C_p_kt ! Corrected surface pressure coefficients
+        complex,dimension(:),allocatable :: Phi_u ! Total potential on outer surface
+        complex,dimension(:),allocatable :: C_p_pg, C_p_lai, C_p_kt ! Corrected surface pressure coefficients
         complex,dimension(:),allocatable :: C_p_inc, C_p_ise, C_p_2nd, C_p_sln, C_p_lin ! Surface pressure coefficients
         complex,dimension(:,:),allocatable :: V_cells, V_cells_inner, dC_f ! Surface velocities and pressure forces
-        real :: control_point_offset
+        complex :: control_point_offset
         logical :: asym_flow ! Whether the flow is asymmetric about the mirror plane
         logical :: found_wake_edges
         complex,dimension(:),allocatable :: mu, sigma ! Singularity strengths
@@ -175,7 +175,7 @@ contains
         class(surface_mesh), intent(inout) :: this
         type(json_value),pointer,intent(in) :: settings
 
-        real :: discont_angle
+        complex :: discont_angle
 
         ! Set singularity orders
         call json_xtnsn_get(settings, 'singularity_order', this%singularity_order, default_value='lower')
@@ -310,7 +310,7 @@ contains
         class(surface_mesh),intent(inout) :: this
         type(json_value),pointer,intent(in) :: settings
 
-        real :: wake_shedding_angle
+        complex :: wake_shedding_angle
 
         ! Check if the user wants a wake
         call json_xtnsn_get(settings, 'wake_model.wake_present', this%wake_present, .true.)
@@ -825,9 +825,9 @@ contains
         type(flow),intent(in) :: freestream
 
         integer :: i, j, k, i_vert_1, i_vert_2, N_wake_edges
-        real :: C_angle, C_min_angle
-        real,dimension(3) :: second_normal, cross_result
-        real,dimension(3) :: t_hat_g, d
+        complex :: C_angle, C_min_angle
+        complex,dimension(3) :: second_normal, cross_result
+        complex,dimension(3) :: t_hat_g, d
 
         if (verbose) write(*,'(a)',advance='no') "     Characterizing edges..."
 
@@ -1437,7 +1437,7 @@ contains
         class(surface_mesh),intent(inout) :: this
         type(flow),intent(in) :: freestream
 
-        real :: max_dist, distance
+        complex :: max_dist, distance
         integer :: i
 
         ! Loop through mesh vertices, looking for the most downstream
@@ -1477,7 +1477,7 @@ contains
         class(surface_mesh),intent(inout) :: this
         type(flow),intent(in) :: freestream
 
-        real :: back, front, x
+        complex :: back, front, x
         integer :: i
 
         ! Loop through vertices to calculate most downstream and upstream distances
@@ -1951,14 +1951,14 @@ contains
         implicit none
         
         class(surface_mesh),intent(in) :: this
-        real,intent(in) :: offset
+        complex,intent(in) :: offset
         character(len=:),allocatable,intent(in) :: offset_type
         type(flow),intent(in) :: freestream
-        real,dimension(:,:),allocatable :: cp_locs
+        complex,dimension(:,:),allocatable :: cp_locs
 
         integer :: i, j, i_panel
-        real,dimension(3) :: dir, new_dir, n_avg, disp
-        real :: this_offset
+        complex,dimension(3) :: dir, new_dir, n_avg, disp
+        complex :: this_offset
 
         ! Allocate memory
         allocate(cp_locs(3,this%N_verts))
@@ -2039,9 +2039,9 @@ contains
         implicit none
         
         class(surface_mesh),intent(in) :: this
-        real,intent(in) :: offset
+        complex,intent(in) :: offset
 
-        real,dimension(:,:),allocatable :: cp_locs
+        complex,dimension(:,:),allocatable :: cp_locs
 
         integer :: i
 
@@ -2064,13 +2064,13 @@ contains
         implicit none
         
         class(surface_mesh),intent(in) :: this
-        real,dimension(3),intent(in) :: cp_loc
+        complex,dimension(3),intent(in) :: cp_loc
         integer,intent(in) :: i_vert
 
         logical :: outside
 
-        real,dimension(3) :: start, dir
-        real :: s_star
+        complex,dimension(3) :: start, dir
+        complex :: s_star
         integer :: N_crosses, i, i_panel
 
         ! As the starting point for the ray-casting algorithm, we'll pick a point above the first neighboring panel
@@ -2158,12 +2158,12 @@ contains
         implicit none
 
         class(surface_mesh),intent(inout) :: this
-        real,intent(in) :: offset
+        complex,intent(in) :: offset
         character(len=:),allocatable,intent(in) :: offset_type
         type(flow),intent(in) :: freestream
 
         integer :: i
-        real,dimension(:,:),allocatable :: cp_locs
+        complex,dimension(:,:),allocatable :: cp_locs
 
         ! Specify number of control points
         if (this%asym_flow) then
@@ -2214,10 +2214,10 @@ contains
         
         class(surface_mesh),intent(inout) :: this
         logical,intent(in) :: add_one_inside
-        real,intent(in) :: offset
+        complex,intent(in) :: offset
 
         integer :: i, N_strength_matching,counter
-        real,dimension(:,:),allocatable :: cp_locs
+        complex,dimension(:,:),allocatable :: cp_locs
 
         ! Specify number of control points
         if (this%asym_flow) then
@@ -2304,11 +2304,11 @@ contains
         implicit none
         
         class(surface_mesh),intent(inout) :: this
-        real,intent(in) :: offset
+        complex,intent(in) :: offset
 
         integer :: i, N_strength_matching, N_orig_cp, i_cp, N_initialized
         logical :: use_this_one
-        real,dimension(:,:),allocatable :: cp_locs
+        complex,dimension(:,:),allocatable :: cp_locs
 
         ! Specify number of control points we will start out with before sparsifying
         if (this%asym_flow) then
@@ -2499,7 +2499,7 @@ contains
         implicit none
         
         class(surface_mesh),intent(in) :: this
-        real,dimension(3),intent(in) :: point
+        complex,dimension(3),intent(in) :: point
         type(flow),intent(in) :: freestream
         type(dod),dimension(:),allocatable,intent(out) :: dod_info
         type(dod),dimension(:,:),allocatable :: wake_dod_info
@@ -2577,12 +2577,12 @@ contains
         implicit none
         
         class(surface_mesh),intent(in) :: this
-        real,dimension(3),intent(in) :: point
+        complex,dimension(3),intent(in) :: point
         type(flow),intent(in) :: freestream
-        real,intent(inout) :: phi_d, phi_s
+        complex,intent(inout) :: phi_d, phi_s
 
         integer :: j, k
-        real :: phi_d_panel, phi_s_panel
+        complex :: phi_d_panel, phi_s_panel
 
         ! Loop through panels
         phi_s = 0.
@@ -2928,8 +2928,8 @@ contains
 
         type(vtk_out) :: body_vtk
         integer :: i, N_cells
-        real,dimension(:),allocatable :: panel_inclinations, orders, N_discont_edges, convex
-        real,dimension(:,:),allocatable :: cents
+        complex,dimension(:),allocatable :: panel_inclinations, orders, N_discont_edges, convex
+        complex,dimension(:,:),allocatable :: cents
 
         ! Clear old file
         call delete_file(mirrored_body_file)

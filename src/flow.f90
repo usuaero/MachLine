@@ -10,23 +10,23 @@ module flow_mod
     
     type flow
 
-        real,dimension(:),allocatable :: v_inf ! Freestream velocity
-        real :: M_inf ! Freestream Mach number
-        real :: gamma ! Ratio of specific heats
-        real :: U, U_inv ! Freestream velocity magnitude
-        real :: B ! Compressibility scale factor
-        real :: s ! Sign of 1-M^2; determines character of governing PDE (hyperbolic (s=-1) vs elliptic(s=1))
-        real :: c ! Freestream speed of sound
-        real :: mu, C_mu ! Mach angle
-        real :: K, K_inv ! Kappa factor
-        real,dimension(3) :: c_hat_g ! Compressibility axis (assumed in MachLine to be aligned with the freestream direction)
+        complex,dimension(:),allocatable :: v_inf ! Freestream velocity
+        complex :: M_inf ! Freestream Mach number
+        complex :: gamma ! Ratio of specific heats
+        complex :: U, U_inv ! Freestream velocity magnitude
+        complex :: B ! Compressibility scale factor
+        complex :: s ! Sign of 1-M^2; determines character of governing PDE (hyperbolic (s=-1) vs elliptic(s=1))
+        complex :: c ! Freestream speed of sound
+        complex :: mu, C_mu ! Mach angle
+        complex :: K, K_inv ! Kappa factor
+        complex,dimension(3) :: c_hat_g ! Compressibility axis (assumed in MachLine to be aligned with the freestream direction)
         logical,dimension(3) :: sym_about ! Whether the flow condition is symmetric about any plane
-        real,dimension(3,3) :: B_mat_g, B_mat_c, B_mat_g_inv ! Dual metric matrix
-        real,dimension(3,3) :: C_mat_g, C_mat_c ! Metric matrix
+        complex,dimension(3,3) :: B_mat_g, B_mat_c, B_mat_g_inv ! Dual metric matrix
+        complex,dimension(3,3) :: C_mat_g, C_mat_c ! Metric matrix
         logical :: supersonic, incompressible
-        real,dimension(3,3) :: A_g_to_c, A_c_to_s, A_g_to_s ! Coordinate transformation matrices
-        real :: a_ise, b_ise, c_ise ! Constant parameters for isentropic pressure coefficient calculations
-        real :: C_P_vac, C_P_stag ! Vacuum and stagnation pressure coefficients for this flow
+        complex,dimension(3,3) :: A_g_to_c, A_c_to_s, A_g_to_s ! Coordinate transformation matrices
+        complex :: a_ise, b_ise, c_ise ! Constant parameters for isentropic pressure coefficient calculations
+        complex :: C_P_vac, C_P_stag ! Vacuum and stagnation pressure coefficients for this flow
 
         contains
 
@@ -195,7 +195,7 @@ contains
         class(flow),intent(inout) :: this
         character(len=:),allocatable,intent(in) :: spanwise_axis
 
-        real,dimension(3) :: j_g, c_hat_c
+        complex,dimension(3) :: j_g, c_hat_c
 
         ! Set positive spanwise axis
         j_g = 0.
@@ -258,8 +258,8 @@ contains
         implicit none
 
         class(flow),intent(in) :: this
-        real,dimension(3),intent(in) :: a, b
-        real :: c
+        complex,dimension(3),intent(in) :: a, b
+        complex :: c
 
         c = inner(a, matmul(this%B_mat_g, b))
 
@@ -272,8 +272,8 @@ contains
         implicit none
 
         class(flow),intent(in) :: this
-        real,dimension(3),intent(in) :: a, b
-        real :: c
+        complex,dimension(3),intent(in) :: a, b
+        complex :: c
 
         c = inner(a, matmul(this%C_mat_g, b))
 
@@ -286,10 +286,10 @@ contains
         implicit none
 
         class(flow),intent(in) :: this
-        real,dimension(3),intent(in) :: Q, P
+        complex,dimension(3),intent(in) :: Q, P
         logical :: in_dod
 
-        real,dimension(3) :: d
+        complex,dimension(3) :: d
 
         in_dod = .false.
 
@@ -318,12 +318,12 @@ contains
         implicit none
         
         class(flow),intent(in) :: this
-        real,dimension(3) :: P, Q
+        complex,dimension(3) :: P, Q
 
-        real :: d
+        complex :: d
         
-        real :: x0, y0, d2, disp2
-        real,dimension(3) :: disp
+        complex :: x0, y0, d2, disp2
+        complex,dimension(3) :: disp
 
         ! Get displacement
         disp = Q - P
@@ -350,9 +350,9 @@ contains
         implicit none
         
         class(flow),intent(in) :: this
-        real,dimension(3),intent(in) :: v
+        complex,dimension(3),intent(in) :: v
 
-        real :: C_P_inc
+        complex :: C_P_inc
 
         C_P_inc = 1.-inner(v, v)*this%U_inv*this%U_inv
         
@@ -365,9 +365,9 @@ contains
         implicit none
         
         class(flow),intent(in) :: this
-        real,dimension(3),intent(in) :: v
+        complex,dimension(3),intent(in) :: v
 
-        real :: C_P_ise
+        complex :: C_P_ise
 
         ! Calculate
         C_P_ise = this%get_C_P_inc(v)
@@ -385,9 +385,9 @@ contains
         implicit none
         
         class(flow),intent(in) :: this
-        real,dimension(3),intent(in) :: v
+        complex,dimension(3),intent(in) :: v
 
-        real,dimension(3) :: v_pert_c
+        complex,dimension(3) :: v_pert_c
 
         v_pert_c = matmul(this%A_g_to_c, v - this%v_inf)
         
@@ -400,12 +400,12 @@ contains
         implicit none
         
         class(flow),intent(in) :: this
-        real,dimension(3),intent(in) :: v
+        complex,dimension(3),intent(in) :: v
 
-        real :: C_P_2nd
+        complex :: C_P_2nd
 
-        real :: C_P_sln
-        real,dimension(3) :: v_pert_c
+        complex :: C_P_sln
+        complex,dimension(3) :: v_pert_c
 
         ! Get prerequisites
         C_P_sln = this%get_C_P_sln(v)
@@ -424,12 +424,12 @@ contains
         implicit none
         
         class(flow),intent(in) :: this
-        real,dimension(3),intent(in) :: v
+        complex,dimension(3),intent(in) :: v
 
-        real :: C_P_sln
+        complex :: C_P_sln
 
-        real :: C_P_lin
-        real,dimension(3) :: v_pert_c
+        complex :: C_P_lin
+        complex,dimension(3) :: v_pert_c
 
         ! Get prerequisites
         C_P_lin = this%get_C_P_lin(v)
@@ -447,11 +447,11 @@ contains
         implicit none
         
         class(flow),intent(in) :: this
-        real,dimension(3),intent(in) :: v
+        complex,dimension(3),intent(in) :: v
 
-        real :: C_P_lin
+        complex :: C_P_lin
 
-        real,dimension(3) :: v_pert_c
+        complex,dimension(3) :: v_pert_c
 
         ! Get prerequisites
         v_pert_c = this%get_v_pert_c(v)
@@ -468,11 +468,11 @@ contains
         implicit none
         
         class(flow),intent(in) :: this
-        real,intent(in) :: M
+        complex,intent(in) :: M
 
-        real :: C_P_crit
+        complex :: C_P_crit
 
-        real :: x, n, d, M2
+        complex :: x, n, d, M2
 
         ! Modern Compressible Flow by John Anderson Eq. (9.55)
         M2 = M*M
@@ -490,9 +490,9 @@ contains
         implicit none
         
         class(flow),intent(in) :: this
-        real,intent(in) :: C_P_inc, M_corr
+        complex,intent(in) :: C_P_inc, M_corr
 
-        real :: C_P_PG
+        complex :: C_P_PG
 
         ! Modern Compressible Flow by John Anderson Eq. (9.36)
         C_P_PG = C_P_inc / sqrt(1. - M_corr*M_corr)
@@ -506,11 +506,11 @@ contains
         implicit none
         
         class(flow),intent(in) :: this
-        real,intent(in) :: C_P_inc, M_corr
+        complex,intent(in) :: C_P_inc, M_corr
 
-        real :: C_P_KT
+        complex :: C_P_KT
 
-        real :: x, M2, sM2
+        complex :: x, M2, sM2
             
         ! Modern Compressible Flow by John Anderson Eq. (9.40)
         M2 = M_corr*M_corr
@@ -527,11 +527,11 @@ contains
         implicit none
         
         class(flow),intent(in) :: this
-        real,intent(in) :: C_P_inc, M_corr
+        complex,intent(in) :: C_P_inc, M_corr
 
-        real :: C_P_L
+        complex :: C_P_L
 
-        real :: x, M2, sM2
+        complex :: x, M2, sM2
             
         ! Modern Compressible Flow by John Anderson Eq. (9.39)
         M2 = M_corr*M_corr
@@ -548,7 +548,7 @@ contains
         implicit none
         
         class(flow), intent(in) :: this
-        real, intent(inout) :: C_P
+        complex, intent(inout) :: C_P
         
         if (C_P > this%C_P_stag) then
             C_P = this%C_P_stag
@@ -566,11 +566,11 @@ contains
         implicit none
         
         class(flow),intent(in) :: this
-        real,dimension(3),intent(in) :: v
+        complex,dimension(3),intent(in) :: v
         character(len=*),intent(in),optional :: rule
-        real,intent(in),optional :: M_corr
+        complex,intent(in),optional :: M_corr
 
-        real :: C_P
+        complex :: C_P
         character(len=:),allocatable :: pressure_rule
 
         ! Get pressure rule

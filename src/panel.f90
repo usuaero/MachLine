@@ -17,11 +17,11 @@ module panel_mod
         ! Container type for the fundamental integrals used to calculate influence coefficients
 
         integer :: r, s, rs ! Parameters that will be most convenient to keep here (panel inclination and flow type indicators)
-        real :: H111, H211, H121 ! Source integrals
-        real :: hH113, H213, H123, H313, H223, H133 ! Doublet integrals; we use hH(1,1,3) because it can be reliably calculated, unlike H(1,1,3)
-        real,dimension(:),allocatable :: F111, F211, F121 ! Necessary line integrals
-        real :: h3H115, H215, H125, H225, hH315, hH135, H415, H145, H325, H235, H113_3rsh2H115 ! Doublet velocity integrals. Yeah, there are a lot...
-        real,dimension(:),allocatable :: F113, F123, F213, F133, F313 ! Necessary for doublet velocity integrals
+        complex :: H111, H211, H121 ! Source integrals
+        complex :: hH113, H213, H123, H313, H223, H133 ! Doublet integrals; we use hH(1,1,3) because it can be reliably calculated, unlike H(1,1,3)
+        complex,dimension(:),allocatable :: F111, F211, F121 ! Necessary line integrals
+        complex :: h3H115, H215, H125, H225, hH315, hH135, H415, H145, H325, H235, H113_3rsh2H115 ! Doublet velocity integrals. Yeah, there are a lot...
+        complex,dimension(:),allocatable :: F113, F123, F213, F133, F313 ! Necessary for doublet velocity integrals
 
     end type integrals
 
@@ -41,28 +41,28 @@ module panel_mod
         integer :: N = 3 ! Number of sides/vertices
         integer :: index ! Index of this panel in the mesh array
         type(vertex_pointer),dimension(:),allocatable :: vertices
-        real,dimension(3) :: n_g, nu_g ! Normal and conormal vectors
-        real,dimension(3) :: n_g_mir, nu_g_mir ! Mirrored normal and conormal vectors
-        real,dimension(3) :: centr, centr_mir ! Centroid
-        real :: radius ! Maximum distance from the centroid to the panel perimeter
-        real,dimension(3,3) :: A_g_to_ls, A_ls_to_g ! Coordinate transformation matrices
-        real,dimension(3,3) :: A_g_to_ls_mir, A_ls_to_g_mir
-        real,dimension(:,:),allocatable :: vertices_ls, vertices_ls_mir ! Location of the vertices described in local scaled coords
-        real,dimension(:,:),allocatable :: n_hat_g, n_hat_ls ! Edge unit outward normals
-        real,dimension(:,:),allocatable :: n_hat_g_mir, n_hat_ls_mir
-        real,dimension(:),allocatable :: b, sqrt_b ! Edge parameter
-        real,dimension(:),allocatable :: b_mir, sqrt_b_mir
-        real :: A ! Surface area (same for mirror, in global coordinates at least)
-        real,dimension(:,:),allocatable :: T_mu, T_sigma ! Matrix relating doublet/source strengths to doublet/source influence parameters
-        real,dimension(:,:),allocatable :: T_mu_mir, T_sigma_mir ! Same for mirrored panels
-        real,dimension(:,:),allocatable :: S_mu_inv, S_mu_inv_mir
-        real,dimension(:,:),allocatable :: C, C_mir ! Integrals for integrating a quadratic pressure distribution
+        complex,dimension(3) :: n_g, nu_g ! Normal and conormal vectors
+        complex,dimension(3) :: n_g_mir, nu_g_mir ! Mirrored normal and conormal vectors
+        complex,dimension(3) :: centr, centr_mir ! Centroid
+        complex :: radius ! Maximum distance from the centroid to the panel perimeter
+        complex,dimension(3,3) :: A_g_to_ls, A_ls_to_g ! Coordinate transformation matrices
+        complex,dimension(3,3) :: A_g_to_ls_mir, A_ls_to_g_mir
+        complex,dimension(:,:),allocatable :: vertices_ls, vertices_ls_mir ! Location of the vertices described in local scaled coords
+        complex,dimension(:,:),allocatable :: n_hat_g, n_hat_ls ! Edge unit outward normals
+        complex,dimension(:,:),allocatable :: n_hat_g_mir, n_hat_ls_mir
+        complex,dimension(:),allocatable :: b, sqrt_b ! Edge parameter
+        complex,dimension(:),allocatable :: b_mir, sqrt_b_mir
+        complex :: A ! Surface area (same for mirror, in global coordinates at least)
+        complex,dimension(:,:),allocatable :: T_mu, T_sigma ! Matrix relating doublet/source strengths to doublet/source influence parameters
+        complex,dimension(:,:),allocatable :: T_mu_mir, T_sigma_mir ! Same for mirrored panels
+        complex,dimension(:,:),allocatable :: S_mu_inv, S_mu_inv_mir
+        complex,dimension(:,:),allocatable :: C, C_mir ! Integrals for integrating a quadratic pressure distribution
         logical :: in_wake ! Whether this panel belongs to a wake mesh
         integer :: i_top_parent, i_bot_parent ! The parent panels for this panel, if it is in the wake
         integer,dimension(3) :: abutting_panels ! Indices of panels abutting this one
         integer,dimension(3) :: edges ! Indices of the edges of this panel
         integer :: r, r_mir ! Panel inclination indicator; r=-1 -> superinclined, r=1 -> subinclined
-        real :: J, J_mir ! Local scaled transformation Jacobian
+        complex :: J, J_mir ! Local scaled transformation Jacobian
         integer,dimension(:),allocatable :: i_vert_d, i_panel_s
         integer :: order, N_discont_edges
         logical,dimension(:),allocatable :: edge_is_discontinuous
@@ -277,7 +277,7 @@ contains
 
         class(panel),intent(inout) :: this
 
-        real,dimension(3) :: d1, d2
+        complex,dimension(3) :: d1, d2
 
         ! Get two edge vectors
         d1 = this%get_vertex_loc(2)-this%get_vertex_loc(1)
@@ -295,7 +295,7 @@ contains
         implicit none
 
         class(panel),intent(inout) :: this
-        real,dimension(3) :: d1, d2
+        complex,dimension(3) :: d1, d2
 
         ! 3-sided panel
         if (this%N == 3) then
@@ -327,7 +327,7 @@ contains
 
         class(panel),intent(inout) :: this
 
-        real,dimension(3) :: sum
+        complex,dimension(3) :: sum
         integer :: i
 
         ! Get average of corner points
@@ -366,7 +366,7 @@ contains
 
         class(panel),intent(inout) :: this
 
-        real,dimension(3) :: d_g, t_hat_g
+        complex,dimension(3) :: d_g, t_hat_g
         integer :: i, i_next
 
         ! Allocate memory
@@ -398,7 +398,7 @@ contains
         
         class(panel),intent(in) :: this
 
-        real :: l
+        complex :: l
 
         l = sqrt(this%A)
         
@@ -436,9 +436,9 @@ contains
         class(panel),intent(inout) :: this
         type(flow),intent(in) :: freestream
 
-        real,dimension(3) :: u0, v0
-        real,dimension(3,3) :: B_mat_ls
-        real :: x, y
+        complex,dimension(3) :: u0, v0
+        complex,dimension(3,3) :: B_mat_ls
+        complex :: x, y
         integer :: i, rs
 
         ! Get in-panel basis vectors
@@ -518,8 +518,8 @@ contains
         class(panel),intent(inout) :: this
         type(flow),intent(in) :: freestream
 
-        real,dimension(2) :: d_ls
-        real,dimension(:,:),allocatable :: t_hat_ls
+        complex,dimension(2) :: d_ls
+        complex,dimension(:,:),allocatable :: t_hat_ls
         integer :: i, i_next
 
         ! Allocate memory
@@ -724,10 +724,10 @@ contains
         type(vertex),dimension(:),allocatable,intent(in) :: body_verts
         logical,intent(in) :: calc_mirror
 
-        real,dimension(:,:),allocatable :: S_mu, S_mu_inv, M_mat, E_mat, EE_inv, T_mu
-        real,dimension(:),allocatable :: M_row
+        complex,dimension(:,:),allocatable :: S_mu, S_mu_inv, M_mat, E_mat, EE_inv, T_mu
+        complex,dimension(:),allocatable :: M_row
         integer :: i, j, N_body_verts
-        real,dimension(3) :: P_g, P_ls
+        complex,dimension(3) :: P_g, P_ls
 
         ! Get number of vertices
         N_body_verts = size(body_verts)
@@ -882,9 +882,9 @@ contains
         type(panel),dimension(:),allocatable,intent(in) :: body_panels
         logical,intent(in) :: calc_mirror
 
-        real,dimension(:,:),allocatable :: S_sigma, SS_inv, A_mat, SA_inv, T_sigma
+        complex,dimension(:,:),allocatable :: S_sigma, SS_inv, A_mat, SA_inv, T_sigma
         integer :: i
-        real,dimension(3) :: P_g, P_ls
+        complex,dimension(3) :: P_g, P_ls
 
         ! Linear (not needed for constant-strength source panels)
         if (this%order == 2) then
@@ -1030,8 +1030,8 @@ contains
         class(panel),intent(inout) :: this
         type(flow),intent(in) :: freestream
 
-        real,dimension(3) :: u0, v0
-        real :: x, y
+        complex,dimension(3) :: u0, v0
+        complex :: x, y
         integer :: i, rs
 
         ! Get in-panel basis vectors
@@ -1094,8 +1094,8 @@ contains
         class(panel),intent(inout) :: this
         type(flow),intent(in) :: freestream
 
-        real,dimension(2) :: d_ls
-        real,dimension(:,:),allocatable :: t_hat_ls_mir
+        complex,dimension(2) :: d_ls
+        complex,dimension(:,:),allocatable :: t_hat_ls_mir
         integer :: i, i_next
 
         ! Allocate memory
@@ -1144,8 +1144,8 @@ contains
         class(panel),intent(inout) :: this
 
         integer :: i, j, k, k_next
-        real,dimension(3) :: d_eta, d_xi
-        real,dimension(:,:,:,:),allocatable :: II
+        complex,dimension(3) :: d_eta, d_xi
+        complex,dimension(:,:,:,:),allocatable :: II
 
         integer :: Ni, Nj
 
@@ -1206,8 +1206,8 @@ contains
         class(panel),intent(inout) :: this
 
         integer :: i, j, k, k_next
-        real,dimension(3) :: d_eta, d_xi
-        real,dimension(:,:,:,:),allocatable :: II
+        complex,dimension(3) :: d_eta, d_xi
+        complex,dimension(:,:,:,:),allocatable :: II
 
         integer :: Ni, Nj
 
@@ -1266,7 +1266,7 @@ contains
 
         class(panel),intent(in) :: this
         integer,intent(in) :: i
-        real,dimension(3) :: loc
+        complex,dimension(3) :: loc
 
         loc = this%vertices(i)%ptr%loc
 
@@ -1381,14 +1381,14 @@ contains
         implicit none
         
         class(panel),intent(in) :: this
-        real,dimension(3),intent(in) :: point
+        complex,dimension(3),intent(in) :: point
         logical,intent(in),optional :: mirror_panel
 
         logical :: inside
 
-        real,dimension(3) :: d
+        complex,dimension(3) :: d
         integer :: i
-        real :: x
+        complex :: x
         logical :: mirrored
 
         if (present(mirror_panel)) then
@@ -1427,14 +1427,14 @@ contains
         implicit none
         
         class(panel),intent(in) :: this
-        real,dimension(3),intent(in) :: point
+        complex,dimension(3),intent(in) :: point
         logical,intent(in),optional :: mirror_panel
 
         logical :: inside
 
-        real,dimension(3) :: d
+        complex,dimension(3) :: d
         integer :: i
-        real :: x
+        complex :: x
         logical :: mirrored
 
         if (present(mirror_panel)) then
@@ -1473,12 +1473,12 @@ contains
         implicit none
         
         class(panel),intent(in) :: this
-        real,dimension(3),intent(in) :: point
+        complex,dimension(3),intent(in) :: point
         logical,intent(in) :: mirror_panel
 
         logical :: outside
 
-        real :: h
+        complex :: h
 
         ! Get height above panel
         if (mirror_panel) then
@@ -1505,12 +1505,12 @@ contains
         implicit none
         
         class(panel),intent(in) :: this
-        real,dimension(3),intent(in) :: point
+        complex,dimension(3),intent(in) :: point
         logical,intent(in) :: mirror_panel
 
         logical :: above
 
-        real :: h
+        complex :: h
 
         ! Get height above panel
         if (mirror_panel) then
@@ -1535,14 +1535,14 @@ contains
         implicit none
         
         class(panel),intent(in) :: this
-        real,dimension(3),intent(in) :: a, b
+        complex,dimension(3),intent(in) :: a, b
         logical,intent(in) :: mirror_panel
-        real,intent(out) :: s_star
+        complex,intent(out) :: s_star
 
         logical :: passes_through
 
-        real :: d
-        real,dimension(3) :: loc
+        complex :: d
+        complex,dimension(3) :: loc
 
         ! Get denominator
         if (mirror_panel) then
@@ -1579,17 +1579,17 @@ contains
         implicit none
         
         class(panel), intent(in) :: this
-        real, dimension(3), intent(in) :: a, c ! a and c are the start and end points of the filament
+        complex, dimension(3), intent(in) :: a, c ! a and c are the start and end points of the filament
         logical, intent(in) :: mirror_panel
-        real, intent(out) :: s_star
+        complex, intent(out) :: s_star
     
         logical :: filament_passes_through
     
-        real, dimension(3) :: b
-        real :: d
-        real :: error
-        real ::  magnitude_a, magnitude_c, magnitude_loc !!!! this could be right or wrong 
-        real, dimension(3) :: loc
+        complex, dimension(3) :: b
+        complex :: d
+        complex :: error
+        complex ::  magnitude_a, magnitude_c, magnitude_loc !!!! this could be right or wrong 
+        complex, dimension(3) :: loc
     
         ! Calculate the direction vector 'b' from points 'a' and 'c'
         b = c - a
@@ -1642,9 +1642,9 @@ contains
         implicit none
         
         class(panel),intent(in) :: this
-        real,dimension(3),intent(in) :: vert_loc
+        complex,dimension(3),intent(in) :: vert_loc
 
-        real(16) :: angle
+        complex(16) :: angle
 
         integer :: i, i_prev
 
@@ -1680,11 +1680,11 @@ contains
         implicit none
         
         class(panel),intent(in) :: this
-        real,dimension(3),intent(in) :: vert_loc
+        complex,dimension(3),intent(in) :: vert_loc
 
-        real(16),dimension(3) :: n_weighted
+        complex(16),dimension(3) :: n_weighted
 
-        real(16) :: W
+        complex(16) :: W
 
         ! Get angle
         W = this%get_corner_angle(vert_loc)
@@ -1701,10 +1701,10 @@ contains
         implicit none
         
         class(panel),intent(in) :: this
-        real,dimension(3),intent(in) :: v
+        complex,dimension(3),intent(in) :: v
         logical,intent(in) :: mirror_panel
 
-        real,dimension(3) :: v_proj
+        complex,dimension(3) :: v_proj
     
         ! Project
         if (mirror_panel) then
@@ -1814,10 +1814,10 @@ contains
         implicit none
         
         class(panel),intent(in) :: this
-        real,dimension(3),intent(in) :: P
+        complex,dimension(3),intent(in) :: P
         logical,intent(in) :: mirrored
 
-        real,dimension(3) :: P_ls
+        complex,dimension(3) :: P_ls
 
         if (mirrored) then
             P_ls = matmul(this%A_g_to_ls_mir, P-this%centr_mir)
@@ -1865,14 +1865,14 @@ contains
         implicit none
         
         class(panel),intent(in) :: this
-        real,dimension(3),intent(in) :: eval_point
+        complex,dimension(3),intent(in) :: eval_point
         type(flow),intent(in) :: freestream
         logical,intent(in),optional :: mirror_panel
 
         integer :: inside_or_outside
 
         logical :: centroid_outside
-        real :: d
+        complex :: d
 
         if (freestream%supersonic) then
 
@@ -1919,16 +1919,16 @@ contains
         implicit none
 
         class(panel),intent(in) :: this
-        real,dimension(3),intent(in) :: eval_point
+        complex,dimension(3),intent(in) :: eval_point
         type(flow),intent(in) :: freestream
         logical,intent(in),optional :: mirror_panel
 
         type(dod) :: dod_info
 
-        real,dimension(3) :: d, a, b, R_star, Q_end
-        real,dimension(3,this%N) :: d_from_vert
+        complex,dimension(3) :: d, a, b, R_star, Q_end
+        complex,dimension(3,this%N) :: d_from_vert
         integer :: i, i_next, inside_outside
-        real :: x, s_star
+        complex :: x, s_star
         logical :: mirrored, in_panel
         logical,dimension(3) :: these_verts_in_dod
         logical :: downstream
@@ -2091,7 +2091,7 @@ contains
         implicit none
         
         class(panel), intent(in) :: this
-        real,dimension(3),intent(in) :: eval_point
+        complex,dimension(3),intent(in) :: eval_point
         logical,intent(in) :: mirror_panel
 
         type(eval_point_geom) :: geom
@@ -2128,14 +2128,14 @@ contains
         implicit none
 
         class(panel),intent(in) :: this
-        real,dimension(3),intent(in) :: eval_point
+        complex,dimension(3),intent(in) :: eval_point
         type(flow),intent(in) :: freestream
         logical,intent(in) :: mirror_panel
 
         type(eval_point_geom) :: geom
 
         integer :: i, i_next
-        real,dimension(this%N) :: dummy
+        complex,dimension(this%N) :: dummy
 
         ! Initialize
         geom = this%calc_basic_geom(eval_point, mirror_panel)
@@ -2187,15 +2187,15 @@ contains
         implicit none
 
         class(panel),intent(in) :: this
-        real,dimension(3),intent(in) :: eval_point
+        complex,dimension(3),intent(in) :: eval_point
         type(flow),intent(in) :: freestream
         logical,intent(in) :: mirror_panel
         type(dod),intent(in) :: dod_info
         type(eval_point_geom) :: geom
 
-        real :: x
+        complex :: x
         integer :: i, i_next
-        real :: dummy
+        complex :: dummy
 
         ! Initialize
         geom = this%calc_basic_geom(eval_point, mirror_panel)
@@ -2281,15 +2281,15 @@ contains
         implicit none
 
         class(panel),intent(in) :: this
-        real,dimension(3),intent(in) :: eval_point
+        complex,dimension(3),intent(in) :: eval_point
         type(flow),intent(in) :: freestream
         logical,intent(in) :: mirror_panel
         type(dod),intent(in) :: dod_info
         type(eval_point_geom) :: geom
 
-        real :: x
+        complex :: x
         integer :: i, i_next
-        real :: dummy
+        complex :: dummy
 
         ! Initialize
         geom = this%calc_basic_geom(eval_point, mirror_panel)
@@ -2372,10 +2372,10 @@ contains
         integer,intent(in) :: M, N, K
         logical,intent(in) :: mirror_panel
 
-        real,dimension(this%N) :: E
+        complex,dimension(this%N) :: E
 
         integer :: i, i_next
-        real :: E1, E2
+        complex :: E1, E2
 
         ! Get displacements from vertices
 
@@ -2483,7 +2483,7 @@ contains
         logical,intent(in) :: mirror_panel
         type(integrals),intent(inout) :: int
 
-        real :: F1, F2, eps, eps2, series, b, s_b
+        complex :: F1, F2, eps, eps2, series, b, s_b
         integer :: i, i_next
 
         ! Loop through edges
@@ -2607,7 +2607,7 @@ contains
         logical,intent(in) :: mirror_panel
         type(integrals),intent(inout) :: int
 
-        real :: F1, F2
+        complex :: F1, F2
         integer :: i
 
         ! Loop through edges
@@ -2668,7 +2668,7 @@ contains
         logical,intent(in) :: mirror_panel
         type(integrals),intent(inout) :: int
 
-        real :: S, C, c1, c2, x
+        complex :: S, C, c1, c2, x
         integer :: i
 
         ! Calculate hH(1,1,3) (Johnson Eqs. (D.41) and (G.24))
@@ -2709,7 +2709,7 @@ contains
         logical,intent(in) :: mirror_panel
         type(integrals),intent(inout) :: int
 
-        real(16) :: F1, F2, b
+        complex(16) :: F1, F2, b
         integer :: i
 
         ! Calculate hH(1,1,3) (Ehlers Eq. (E18))
@@ -2773,7 +2773,7 @@ contains
         logical,intent(in) :: mirror_panel
         type(integrals),intent(inout) :: int
 
-        real :: t_dot, t_cross, X, Y
+        complex :: t_dot, t_cross, X, Y
         integer :: i, i_prev
 
         ! Calculate hH(1,1,3)
@@ -3011,9 +3011,9 @@ contains
         type(flow),intent(in) :: freestream
         logical,intent(in) :: mirror_panel
 
-        real,dimension(:),allocatable :: phi_s_S_space
+        complex,dimension(:),allocatable :: phi_s_S_space
 
-        real,dimension(:),allocatable :: phi_s_sigma_space
+        complex,dimension(:),allocatable :: phi_s_sigma_space
 
         ! Allocate space
         allocate(phi_s_sigma_space(this%sigma_dim), source=0.)
@@ -3061,9 +3061,9 @@ contains
         type(flow),intent(in) :: freestream
         logical,intent(in) :: mirror_panel
 
-        real,dimension(:),allocatable :: phi_d_M_space
+        complex,dimension(:),allocatable :: phi_d_M_space
 
-        real,dimension(:),allocatable :: phi_d_mu_space
+        complex,dimension(:),allocatable :: phi_d_mu_space
 
         ! Allocate space
         allocate(phi_d_mu_space(this%mu_dim), source=0.)
@@ -3108,10 +3108,10 @@ contains
         implicit none
 
         class(panel),intent(in) :: this
-        real,dimension(3),intent(in) :: P
+        complex,dimension(3),intent(in) :: P
         type(flow),intent(in) :: freestream
         logical,intent(in) :: mirror_panel
-        real,dimension(:),allocatable,intent(out) :: phi_s_S_space, phi_d_M_space
+        complex,dimension(:),allocatable,intent(out) :: phi_s_S_space, phi_d_M_space
 
         type(dod) :: dod_info
         type(eval_point_geom) :: geom
@@ -3167,16 +3167,16 @@ contains
         implicit none
         
         class(panel),intent(in) :: this
-        real,dimension(3),intent(in) :: P
+        complex,dimension(3),intent(in) :: P
         type(flow),intent(in) :: freestream
         logical,intent(in) :: mirror_panel, asym_flow
-        real,dimension(:),allocatable,intent(in) :: sigma, mu
+        complex,dimension(:),allocatable,intent(in) :: sigma, mu
         integer,intent(in) :: N_body_panels, N_body_verts
-        real,intent(out) :: phi_d, phi_s
+        complex,intent(out) :: phi_d, phi_s
 
-        real,dimension(:),allocatable :: source_inf, doublet_inf
-        real,dimension(:),allocatable :: doublet_strengths
-        real,dimension(this%S_dim) :: source_strengths
+        complex,dimension(:),allocatable :: source_inf, doublet_inf
+        complex,dimension(:),allocatable :: doublet_strengths
+        complex,dimension(this%S_dim) :: source_strengths
 
         ! Get influences
         call this%calc_potential_influences(P, freestream, mirror_panel, source_inf, doublet_inf)
@@ -3207,9 +3207,9 @@ contains
         type(flow),intent(in) :: freestream
         logical,intent(in) :: mirror_panel
 
-        real,dimension(:,:),allocatable :: v_s_S_space
+        complex,dimension(:,:),allocatable :: v_s_S_space
 
-        real,dimension(:,:),allocatable :: v_s_sigma_space
+        complex,dimension(:,:),allocatable :: v_s_sigma_space
 
         ! Allocate space
         allocate(v_s_sigma_space(3,this%sigma_dim), source=0.)
@@ -3274,9 +3274,9 @@ contains
         type(flow),intent(in) :: freestream
         logical,intent(in) :: mirror_panel
 
-        real,dimension(:,:),allocatable :: v_d_M_space
+        complex,dimension(:,:),allocatable :: v_d_M_space
 
-        real,dimension(:,:),allocatable :: v_d_mu_space
+        complex,dimension(:,:),allocatable :: v_d_mu_space
 
         ! Allocate space
         allocate(v_d_mu_space(3,this%mu_dim), source=0.)
@@ -3364,16 +3364,16 @@ contains
         implicit none
 
         class(panel),intent(in) :: this
-        real,dimension(3),intent(in) :: P
+        complex,dimension(3),intent(in) :: P
         type(flow),intent(in) :: freestream
         logical,intent(in) :: mirror_panel
-        real,dimension(:,:),allocatable,intent(out) :: v_s_S_space, v_d_M_space
+        complex,dimension(:,:),allocatable,intent(out) :: v_s_S_space, v_d_M_space
 
         type(dod) :: dod_info
         type(eval_point_geom) :: geom
         type(integrals) :: int
-        real,dimension(:,:),allocatable :: v_s_sigma_space, v_d_mu_space
-        real :: x2, y2, dvx, dvy
+        complex,dimension(:,:),allocatable :: v_s_sigma_space, v_d_mu_space
+        complex :: x2, y2, dvx, dvy
         integer :: i
     
         ! Check DoD
@@ -3426,16 +3426,16 @@ contains
         implicit none
         
         class(panel),intent(in) :: this
-        real,dimension(3),intent(in) :: P
+        complex,dimension(3),intent(in) :: P
         type(flow),intent(in) :: freestream
         logical,intent(in) :: mirror_panel, asym_flow
-        real,dimension(:),allocatable,intent(in) :: sigma, mu
+        complex,dimension(:),allocatable,intent(in) :: sigma, mu
         integer,intent(in) :: N_body_panels, N_body_verts
-        real,dimension(3),intent(out) :: v_d, v_s
+        complex,dimension(3),intent(out) :: v_d, v_s
 
-        real,dimension(:,:),allocatable :: source_inf, doublet_inf
-        real,dimension(:),allocatable :: doublet_strengths
-        real,dimension(this%S_dim) :: source_strengths
+        complex,dimension(:,:),allocatable :: source_inf, doublet_inf
+        complex,dimension(:),allocatable :: doublet_strengths
+        complex,dimension(this%S_dim) :: source_strengths
 
         ! Get influences
         call this%calc_velocity_influences(P, freestream, mirror_panel, source_inf, doublet_inf)
@@ -3462,12 +3462,12 @@ contains
         implicit none
         
         class(panel),intent(in) :: this
-        real,dimension(:),allocatable,intent(in) :: sigma
+        complex,dimension(:),allocatable,intent(in) :: sigma
         logical,intent(in) :: mirror
         integer,intent(in) :: N_body_panels
         logical,intent(in) :: asym_flow
 
-        real,dimension(this%S_dim) :: sigma_strengths
+        complex,dimension(this%S_dim) :: sigma_strengths
 
         integer :: i
 
@@ -3510,14 +3510,14 @@ contains
         implicit none
         
         class(panel),intent(in) :: this
-        real,dimension(:),allocatable,intent(in) :: sigma
+        complex,dimension(:),allocatable,intent(in) :: sigma
         logical,intent(in) :: mirror
         integer,intent(in) :: N_body_panels
         logical,intent(in) :: asym_flow
         
-        real,dimension(this%sigma_dim) :: sigma_params
+        complex,dimension(this%sigma_dim) :: sigma_params
 
-        real,dimension(this%S_dim) :: sigma_strengths
+        complex,dimension(this%S_dim) :: sigma_strengths
 
         ! Get strengths
         sigma_strengths = this%get_source_strengths(sigma, mirror, N_body_panels, asym_flow)
@@ -3545,12 +3545,12 @@ contains
         implicit none
         
         class(panel),intent(in) :: this
-        real,dimension(:),allocatable,intent(in) :: mu
+        complex,dimension(:),allocatable,intent(in) :: mu
         logical,intent(in) :: mirror
         integer,intent(in) :: N_body_verts
         logical,intent(in) :: asym_flow
 
-        real,dimension(:),allocatable :: mu_strengths
+        complex,dimension(:),allocatable :: mu_strengths
 
         integer :: shift, i, i_top, i_bot
 
@@ -3609,14 +3609,14 @@ contains
         implicit none
         
         class(panel),intent(in) :: this
-        real,dimension(:),allocatable,intent(in) :: mu
+        complex,dimension(:),allocatable,intent(in) :: mu
         logical,intent(in) :: mirror
         integer,intent(in) :: N_body_verts
         logical,intent(in) :: asym_flow
 
-        real,dimension(this%mu_dim) :: mu_params
+        complex,dimension(this%mu_dim) :: mu_params
 
-        real,dimension(this%M_dim) :: mu_verts
+        complex,dimension(this%M_dim) :: mu_verts
 
         ! Get doublet strengths at vertices
         mu_verts = this%get_doublet_strengths(mu, mirror, N_body_verts, asym_flow)
@@ -3638,17 +3638,17 @@ contains
         implicit none
 
         class(panel),intent(in) :: this
-        real,dimension(:),allocatable,intent(in) :: mu, sigma
+        complex,dimension(:),allocatable,intent(in) :: mu, sigma
         logical,intent(in) :: mirrored, asym_flow
         integer,intent(in) :: N_body_panels, N_body_verts
-        real,dimension(3),intent(in),optional :: point
+        complex,dimension(3),intent(in),optional :: point
 
-        real,dimension(3) :: dv
+        complex,dimension(3) :: dv
 
-        real,dimension(this%mu_dim) :: mu_params
-        real,dimension(this%sigma_dim) :: sigma_params
-        real,dimension(3) :: Q_ls, s_dir
-        real :: s
+        complex,dimension(this%mu_dim) :: mu_params
+        complex,dimension(this%sigma_dim) :: sigma_params
+        complex,dimension(3) :: Q_ls, s_dir
+        complex :: s
 
         ! Get point
         if (present(point)) then
@@ -3711,16 +3711,16 @@ contains
         implicit none
 
         class(panel),intent(in) :: this
-        real,dimension(:),allocatable,intent(in) :: mu, sigma
+        complex,dimension(:),allocatable,intent(in) :: mu, sigma
         logical,intent(in) :: mirrored, asym_flow
         integer,intent(in) :: N_body_panels, N_body_verts
         type(flow),intent(in) :: freestream
-        real,dimension(3),intent(in) :: inner_flow
-        real,dimension(3),intent(in),optional :: point
+        complex,dimension(3),intent(in) :: inner_flow
+        complex,dimension(3),intent(in),optional :: point
 
-        real,dimension(3) :: v
+        complex,dimension(3) :: v
 
-        real,dimension(3) :: dv
+        complex,dimension(3) :: dv
 
         ! Get velocity jump
         if (present(point)) then
@@ -3742,19 +3742,19 @@ contains
         implicit none
 
         class(panel),intent(in) :: this
-        real,dimension(:),allocatable,intent(in) :: mu, sigma
+        complex,dimension(:),allocatable,intent(in) :: mu, sigma
         logical,intent(in) :: mirrored, asym_flow
         integer,intent(in) :: N_body_panels, N_body_verts
         type(flow),intent(in) :: freestream
-        real,dimension(3),intent(in) :: inner_flow
+        complex,dimension(3),intent(in) :: inner_flow
         character(len=*),intent(in) :: rule
-        real,intent(in),optional :: M_corr
+        complex,intent(in),optional :: M_corr
 
-        real,dimension(6) :: C_P_params
+        complex,dimension(6) :: C_P_params
 
         integer :: i, i_next
-        real,dimension(3) :: v, p
-        real,dimension(6) :: C_P
+        complex,dimension(3) :: v, p
+        complex,dimension(6) :: C_P
 
         ! Get pressures at vertices
         do i=1,3
@@ -3810,18 +3810,18 @@ contains
         implicit none
 
         class(panel),intent(in) :: this
-        real,dimension(:),allocatable,intent(in) :: mu, sigma
+        complex,dimension(:),allocatable,intent(in) :: mu, sigma
         logical,intent(in) :: mirrored, asym_flow
         integer,intent(in) :: N_body_panels, N_body_verts
         type(flow),intent(in) :: freestream
-        real,dimension(3),intent(in) :: inner_flow
+        complex,dimension(3),intent(in) :: inner_flow
         character(len=*),intent(in) :: rule
-        real,intent(in),optional :: M_corr
+        complex,intent(in),optional :: M_corr
 
-        real :: C_P_avg
+        complex :: C_P_avg
 
-        real,dimension(3) :: v
-        real,dimension(6) :: C_P_params
+        complex,dimension(3) :: v
+        complex,dimension(6) :: C_P_params
 
         ! Constant pressure
         if (this%order == 1) then
@@ -3882,17 +3882,17 @@ contains
         implicit none
 
         class(panel),intent(in) :: this
-        real,dimension(:),allocatable,intent(in) :: mu, sigma
+        complex,dimension(:),allocatable,intent(in) :: mu, sigma
         logical,intent(in) :: mirrored, asym_flow
         integer,intent(in) :: N_body_panels, N_body_verts
         type(flow),intent(in) :: freestream
-        real,dimension(3),intent(in) :: inner_flow
+        complex,dimension(3),intent(in) :: inner_flow
         character(len=*),intent(in) :: rule
-        real,intent(in),optional :: M_corr
+        complex,intent(in),optional :: M_corr
 
-        real,dimension(3) :: C_M
+        complex,dimension(3) :: C_M
 
-        real,dimension(6) :: C_P_params
+        complex,dimension(6) :: C_P_params
 
         ! Constant pressure
         if (this%order == 1) then

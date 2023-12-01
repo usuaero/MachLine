@@ -29,7 +29,7 @@ module panel_solver_mod
 
     type panel_solver
 
-        real :: M_inf_corr 
+        complex :: M_inf_corr 
         character(len=:),allocatable :: formulation, pressure_for_forces, matrix_solver, preconditioner, iteration_file
         logical :: incompressible_rule, isentropic_rule, second_order_rule, slender_rule, linear_rule
         logical :: write_A_and_b, sort_system, use_sort_for_cp, overdetermined_ls, underdetermined_ls, dirichlet
@@ -37,9 +37,9 @@ module panel_solver_mod
         type(flow) :: freestream
         real :: norm_res, max_res, tol, rel
         real :: sort_time, prec_time, solver_time
-        real,dimension(3) :: C_F, C_M, inner_flow
-        real,dimension(:,:),allocatable :: A
-        real,dimension(:),allocatable :: b, I_known, BC
+        complex,dimension(3) :: C_F, C_M, inner_flow
+        complex,dimension(:,:),allocatable :: A
+        complex,dimension(:),allocatable :: b, I_known, BC
         integer,dimension(:),allocatable :: P
         integer :: N_cells, block_size, max_iterations, N_unknown, N_d_unknown, N_s_unknown, solver_iterations, N_sigma
         integer :: restart_iterations, B_l_system
@@ -321,7 +321,7 @@ contains
         type(json_value),pointer,intent(in) :: solver_settings
         type(surface_mesh),intent(inout) :: body
 
-        real :: offset
+        complex :: offset
         character(len=:),allocatable :: offset_type
 
         ! Get offset
@@ -375,7 +375,7 @@ contains
         type(json_value),pointer,intent(in) :: solver_settings
         type(surface_mesh),intent(inout) :: body
 
-        real :: offset
+        complex :: offset
         character(len=:),allocatable :: offset_type
 
         ! Get offset
@@ -583,7 +583,7 @@ contains
         type(flow),intent(inout) :: freestream !!!! changed here 
         integer,intent(in) :: bc_type
         type(surface_mesh),intent(inout) :: body
-        real, dimension(3) :: average_edge, n_g_new
+        complex, dimension(3) :: average_edge, n_g_new
         integer :: i, i_edge,vert1,vert2,counter,num_edges
         integer, dimension(:), allocatable :: points
 
@@ -744,8 +744,8 @@ contains
         class(panel_solver),intent(inout) :: this
         type(surface_mesh),intent(in) :: body
 
-        real,dimension(:),allocatable :: x
-        real,dimension(3) :: loc
+        complex,dimension(:),allocatable :: x
+        complex,dimension(3) :: loc
         integer :: i, j, k, i_neighbor, i_cp, i_vert, i_panel, i_vert_for_panel, i2, i3, i_panel_abutting, i_opp_edge, source_start
         integer,dimension(:),allocatable :: P_inv_1, P_inv_2
         integer(8) :: start_count, end_count
@@ -1075,7 +1075,7 @@ contains
         type(surface_mesh), intent(in) :: body
 
         integer :: i, ind
-        real,dimension(3) :: x
+        complex,dimension(3) :: x
 
         ! Allocate
         allocate(this%BC(body%N_cp))
@@ -1172,10 +1172,10 @@ contains
         class(panel_solver),intent(inout) :: this
         type(surface_mesh),intent(inout) :: body
         type(control_point),intent(in) :: cp
-        real,dimension(this%N_unknown),intent(inout) :: A_row
-        real,intent(inout) :: I_known_i
+        complex,dimension(this%N_unknown),intent(inout) :: A_row
+        complex,intent(inout) :: I_known_i
         integer,intent(in) :: i_panel
-        real,dimension(:),allocatable,intent(in) :: source_inf, doublet_inf
+        complex,dimension(:),allocatable,intent(in) :: source_inf, doublet_inf
         logical,intent(in) :: mirrored_panel
 
         integer :: k, index
@@ -1260,10 +1260,10 @@ contains
         type(surface_mesh),intent(inout) :: body
 
         integer :: i, j
-        real,dimension(:),allocatable :: source_inf, doublet_inf
-        real,dimension(:,:),allocatable :: v_s, v_d
-        real,dimension(this%N_unknown) :: A_i
-        real :: I_known_i
+        complex,dimension(:),allocatable :: source_inf, doublet_inf
+        complex,dimension(:,:),allocatable :: v_s, v_d
+        complex,dimension(this%N_unknown) :: A_i
+        complex :: I_known_i
 
         if (verbose) write(*,'(a)',advance='no') "     Calculating body influences..."
        
@@ -1419,11 +1419,11 @@ contains
         type(flow),intent(inout)::freestream
         character(len=:),allocatable,intent(in) :: formulation
         integer :: i, j, k, l
-        real,dimension(:),allocatable ::  doublet_inf, source_inf
-        real,dimension(this%N_unknown) :: A_i
-        real,dimension(:,:),allocatable :: v_s, v_d
-        real :: s_star,x !!!! might remove
-        real,dimension(3) :: d_from_te
+        complex,dimension(:),allocatable ::  doublet_inf, source_inf
+        complex,dimension(this%N_unknown) :: A_i
+        complex,dimension(:,:),allocatable :: v_s, v_d
+        complex :: s_star,x !!!! might remove
+        complex,dimension(3) :: d_from_te
         logical :: downstream,passes_through
 
         ! Calculate influence of wake
@@ -1787,8 +1787,8 @@ contains
         type(surface_mesh),intent(inout) :: body
         integer,intent(inout) :: solver_stat
 
-        real,dimension(:,:),allocatable :: A_p, A_T
-        real,dimension(:),allocatable :: b_p, x, x_temp
+        complex,dimension(:,:),allocatable :: A_p, A_T
+        complex,dimension(:),allocatable :: b_p, x, x_temp
         integer :: stat, i, N
         integer(8) :: start_count, end_count
         real(16) :: count_rate
@@ -2045,7 +2045,7 @@ contains
         type(surface_mesh),intent(inout) :: body
 
         integer :: i, stat
-        real,dimension(3) :: v_inner, v_d, v_s, P
+        complex,dimension(3) :: v_inner, v_d, v_s, P
 
         if (verbose) write(*,'(a)',advance='no') "     Calculating surface velocities..."
 
@@ -2114,7 +2114,7 @@ contains
         type(surface_mesh),intent(inout) :: body
 
         integer :: i, stat
-        real,dimension(3) :: loc_mir
+        complex,dimension(3) :: loc_mir
 
         if (verbose) write(*,'(a)',advance='no') "     Calculating outer surface potentials..."
 
@@ -2208,7 +2208,7 @@ contains
         logical,intent(in) :: mirrored
         character(len=*),intent(in) :: rule
 
-        real :: C_P_avg
+        complex :: C_P_avg
 
         if (mirrored) then
             C_P_avg = body%panels(i_panel)%get_avg_pressure_coef(body%mu, body%sigma, mirrored, body%N_panels, body%N_verts, &
@@ -2234,8 +2234,8 @@ contains
         type(surface_mesh),intent(inout) :: body
 
         integer :: i, stat
-        real,dimension(3) :: V_pert
-        real :: a, b, c, lin, sln
+        complex,dimension(3) :: V_pert
+        complex :: a, b, c, lin, sln
 
         if (verbose) write(*,'(a)',advance='no') "     Calculating surface pressures..."
 
@@ -2381,7 +2381,7 @@ contains
         class(panel_solver),intent(inout) :: this
         type(surface_mesh),intent(inout) :: body
         integer,dimension(1) :: min_loc
-        real :: C_p_crit, C_p_min, numerator, denominator, M_inf_selected
+        complex :: C_p_crit, C_p_min, numerator, denominator, M_inf_selected
 
         ! Locate minimum pressure location on body based on pressure for forces selection
         select case (this%pressure_for_forces)
@@ -2513,7 +2513,7 @@ contains
         
         class(panel_solver),intent(in) :: this
         type(surface_mesh),intent(inout) :: body
-        real,dimension(:),allocatable :: pressures
+        complex,dimension(:),allocatable :: pressures
         
         integer :: i, stat
 
@@ -2549,7 +2549,7 @@ contains
         logical,intent(in) :: mirrored
         character(len=*),intent(in) :: rule
 
-        real,dimension(3) :: C_M
+        complex,dimension(3) :: C_M
 
         C_M = body%panels(i_panel)%get_moment_about_centroid(body%mu, body%sigma, mirrored, body%N_panels, body%N_verts, &
                                                              body%asym_flow, this%freestream, this%inner_flow, &
@@ -2567,7 +2567,7 @@ contains
         type(surface_mesh),intent(inout) :: body
 
         integer i, stat
-        real,dimension(:,:),allocatable :: dC_m
+        complex,dimension(:,:),allocatable :: dC_m
 
         if (verbose) write(*,'(a)',advance='no') "     Calculating moments..."
 
@@ -2636,7 +2636,7 @@ contains
         integer,intent(in) :: solver_stat
 
         type(json_value),pointer :: p_parent, p_child
-        real :: max_flow_turning_angle
+        complex :: max_flow_turning_angle
 
         ! Write mesh info
         call json_value_create(p_parent)
@@ -2765,7 +2765,7 @@ contains
         class(panel_solver), intent(in) :: this
         type(json_value),pointer,intent(inout) :: p_parent
         character(len=*),intent(in) :: pressure_label
-        real,dimension(:),allocatable,intent(in) :: pressure_values
+        complex,dimension(:),allocatable,intent(in) :: pressure_values
 
         type(json_value),pointer :: p_child
 
@@ -2789,12 +2789,12 @@ contains
         type(surface_mesh),intent(in) :: body
 
         integer :: i, unit, N_points, stat
-        real :: phi_inf
-        real,dimension(3) :: v_inf
-        real,dimension(:,:),allocatable :: points
+        complex :: phi_inf
+        complex,dimension(3) :: v_inf
+        complex,dimension(:,:),allocatable :: points
         character(len=200) :: dummy_read
-        real,dimension(:),allocatable :: phi_s, phi_d
-        real,dimension(:,:),allocatable :: v_s, v_d
+        complex,dimension(:),allocatable :: phi_s, phi_d
+        complex,dimension(:,:),allocatable :: v_s, v_d
 
         if (verbose) write(*,'(a)',advance='no') "    Calculating flow properties at off-body points "
 
