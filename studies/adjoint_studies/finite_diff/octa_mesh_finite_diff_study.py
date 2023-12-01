@@ -131,7 +131,7 @@ if __name__=="__main__":
     study_directory = "studies/adjoint_studies/finite_diff"
     start = time.time()
 
-    step = 0.0005
+    step = 0.00000005
     num_points = 6
     num_design_variables = num_points*3   
     
