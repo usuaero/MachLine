@@ -131,7 +131,7 @@ if __name__=="__main__":
     study_directory = "studies/adjoint_studies/finite_diff"
     start = time.time()
 
-    step = 0.00000005
+    step = 0.0
     num_points = 6
     num_design_variables = num_points*3   
     
@@ -161,20 +161,30 @@ if __name__=="__main__":
 
                 C_F_step_dn = run_machline_for_loc(i+1, j+1, -step, study_directory)
                    
-                test1 = C_F_step_up[0]
-                test2 = C_F_step_dn[0]
-                dC_x[index] = (C_F_step_up[0] - C_F_step_dn[0])/(2*step)
-                dC_y[index] = (C_F_step_up[1] - C_F_step_dn[1])/(2*step)
-                dC_z[index] = (C_F_step_up[2] - C_F_step_dn[2])/(2*step)
+                dC_x[index] = (C_F_step_up[0])# - C_F_step_dn[0])/(2*step)
+                dC_y[index] = (C_F_step_up[1])# - C_F_step_dn[1])/(2*step)
+                dC_z[index] = (C_F_step_up[2])# - C_F_step_dn[2])/(2*step)
 
                 index += 1
 
         output_file = study_directory+ "/study_results/octa_mesh_gradient.txt"
         with open(output_file, "w") as file:
             # Write the lists to the file
-            file.write("dC_x,dC_y,dC_z\n")
-            for q in range(num_design_variables):
-                file.write(f"{dC_x[q]},{dC_y[q]},{dC_z[q]}\n")
+#            file.write("dC_x,dC_y,dC_z\n")
+#            for q in range(num_design_variables):
+#                file.write(f"{dC_x[q]},{dC_y[q]},{dC_z[q]}\n")
+#            file.close()
+
+            file.write("variable   dC_x               dC_y                 dC_z\n")
+            for q in range(num_points):
+                file.write(f"x{q+1}         ")
+                file.write(f"{dC_x[q]}, {dC_y[q]}, {dC_z[q]}\n")
+            for q in range(num_points):
+                file.write(f"y{q+1}         ")
+                file.write(f"{dC_x[q + num_points]}, {dC_y[q + num_points]}, {dC_z[q + num_points]}\n")
+            for q in range(num_points):
+                file.write(f"z{q+1}         ")
+                file.write(f"{dC_x[q + num_points*2]}, {dC_y[q + num_points*2]}, {dC_z[q + num_points*2]}\n")
             file.close()
 
     except Exception as e:

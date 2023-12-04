@@ -1,7 +1,7 @@
 {
     "info" : {
         "generated_by" : "MachLine (c) 2023 USU Aerolab",
-        "executed" : "Fri Dec  1 14:06:17 2023"
+        "executed" : "Mon Dec  4 15:14:11 2023"
     },
     "mesh_info" : {
         "N_body_panels" : 8,
@@ -15,31 +15,31 @@
         "solver_status_code" : 0,
         "system_dimension" : 7,
         "timing" : {
-            "system_sorting" : 2.00000000000000E-006,
-            "preconditioner" : 5.60000000000000E-006,
-            "matrix_solver" : 1.01000000000000E-005
+            "system_sorting" : 2.80000000000000E-006,
+            "preconditioner" : 5.50000000000000E-006,
+            "matrix_solver" : 1.03000000000000E-005
         },
         "iterations" : 6,
         "residual" : {
-            "max" : 2.02067444885997E-002,
-            "norm" : 2.06395815602621E-002
+            "max" : 2.02067497172471E-002,
+            "norm" : 2.06425153806443E-002
         }
     },
     "pressure_calculations" : {
         "incompressible_rule" : {
-            "max" : 5.13400254301022E-002,
-            "min" : -1.98237801817610E-001
+            "max" : 5.13332142106406E-002,
+            "min" : -1.98238156810624E-001
         }
     },
     "total_forces" : {
-        "Cx" : -1.82757113433585E+000,
-        "Cy" : 1.22080166390368E-003,
-        "Cz" : 1.53196490444896E-003
+        "Cx" : -1.82752029167415E+000,
+        "Cy" : 1.22074656109574E-003,
+        "Cz" : -9.70476742014892E-005
     },
     "total_moments" : {
-        "CMx" : 2.20983077765524E-005,
-        "CMy" : -4.08750554865422E-003,
-        "CMz" : -5.30201029690368E-001
+        "CMx" : 6.94690889098126E-005,
+        "CMy" : -1.00908939731070E-003,
+        "CMz" : -5.30200229988248E-001
     },
     "input" : {
         "flow" : {
@@ -56,7 +56,7 @@
             },
             "perturb_point" : true,
             "perturbation" : {
-                "step" : -5.00000000000000E-022,
+                "step" : -0.00000000000000E+000,
                 "point_index" : 6,
                 "component_index" : 3
             }
@@ -70,5 +70,5 @@
             "report_file" : "studies/adjoint_studies/finite_diff/reports/octa_mesh_results.json"
         }
     },
-    "total_runtime" : 1.60000000000000E-002
+    "total_runtime" : 3.20000000000000E-002
 }
