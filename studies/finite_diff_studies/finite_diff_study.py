@@ -65,7 +65,7 @@ def run_machline_for_loc(point_index, component_index, step, study_directory):
 }
        
     # Dump
-    input_file = "studies/adjoint_studies/finite_diff/input_files/finite_diff_input.json"
+    input_file = "studies/finite_diff_studies/input_files/finite_diff_input.json"
     write_input_file(input_dict, input_file)
 
     # Run machline
@@ -136,7 +136,7 @@ def run_machline(input_filename, delete_input=True, run=True):
 
 if __name__=="__main__":
     # declare varaibles and inputs
-    study_directory = "studies/adjoint_studies/finite_diff"
+    study_directory = "studies/finite_diff_studies"
     start = time.time()
 
     step = 0.0001
