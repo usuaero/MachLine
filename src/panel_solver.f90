@@ -1033,12 +1033,12 @@ contains
         ! Calculate body influences
         call this%calc_body_influences(body)
         
-        write(*,*) "HERE I AM!!!!!!!!!!!!!!!!!!!!!"
+        !write(*,*) "HERE I AM!!!!!!!!!!!!!!!!!!!!!"
 
         ! Calculate wake influences
         if (body%wake%N_panels > 0 .or. body%filament_wake%N_filaments > 0)&
         call this%calc_wake_influences(body, formulation,freestream) !!!! formulation part is a change
-        write(*,*) "ROCK YOU LIKE A HURRICANE"
+        !write(*,*) "ROCK YOU LIKE A HURRICANE"
         ! Assemble boundary condition vector
         call this%assemble_BC_vector(body)
 
@@ -1308,7 +1308,7 @@ contains
                     end if
 
                 end do
-                Write(*,*) body%cp(i)%n_g , body%cp(i)%loc
+                !Write(*,*) body%cp(i)%n_g , body%cp(i)%loc
             case (MF_INNER_FLOW) ! Calculate inner flow influences
 
                 ! Loop through panels

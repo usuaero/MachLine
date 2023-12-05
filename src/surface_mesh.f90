@@ -1172,7 +1172,7 @@ contains
             end do
 
             ! Get inverse mapping
-            write(*,*) this%N_verts,",", i_rearrange_inv,",", this%vertex_ordering
+            !write(*,*) this%N_verts,",", i_rearrange_inv,",", this%vertex_ordering
             call invert_permutation_vector(this%N_verts, i_rearrange_inv, this%vertex_ordering)
 
             if (verbose) write(*,'(a, i4, a, i7, a)') "Done. Cloned ", N_clones, " vertices. Mesh now has ", &

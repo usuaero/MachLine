@@ -117,9 +117,10 @@ program main
         call json_xtnsn_get(geom_settings, "perturbation.point_index", point_index) ! index of the mesh point to be perturbed
         call json_xtnsn_get(geom_settings, "perturbation.component_index", component_index) ! 1 = x component, 2 = y component, 3 = z component
         ! perturb the point
-        write(*,*) body_mesh%vertices(point_index)%loc(component_index)
+    write(*,*) "Perturbing Vertex", point_index, "component", component_index, "by", step
+    write(*,*) "Original Value:  ", body_mesh%vertices(point_index)%loc(component_index)
         body_mesh%vertices(point_index)%loc(component_index) = body_mesh%vertices(point_index)%loc(component_index) + step
-        write(*,*) body_mesh%vertices(point_index)%loc(component_index)
+        write(*,*) "Perturbed Value: ", body_mesh%vertices(point_index)%loc(component_index)
     end if
     !!!!!!!!! END ADJOINT DEV !!!!!!!!!
 

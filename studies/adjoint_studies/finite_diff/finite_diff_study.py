@@ -21,7 +21,9 @@ def run_machline_for_loc(point_index, component_index, step, study_directory):
     # Storage locations
     
     mesh_file = study_directory+"/meshes/octa_mesh.stl"
-    report_file = study_directory+"/reports/octa_mesh_results.json"
+    body_file = study_directory+"/reports/body_octa_mesh.vtk"
+    control_points_file = study_directory+"/reports/control_points_octa_mesh.vtk"
+    report_file = study_directory+"/reports/finite_diff_report.json"
 
     # create input file
     input_dict = {
@@ -37,6 +39,10 @@ def run_machline_for_loc(point_index, component_index, step, study_directory):
             "reference": {
                     "area": 1.0
                         },
+            "wake_model": {
+                "wake_present": False
+            },
+
             "perturb_point": True,
             "perturbation": {
                 "step": step,
@@ -52,12 +58,14 @@ def run_machline_for_loc(point_index, component_index, step, study_directory):
         "post_processing" : {
             },
             "output": {
+                "body_file": body_file,
+                "control_points_file": control_points_file,
                 "report_file": report_file
             }
 }
        
     # Dump
-    input_file = "studies/adjoint_studies/finite_diff/input_files/octa_mesh_finite_diff_input.json"
+    input_file = "studies/adjoint_studies/finite_diff/input_files/finite_diff_input.json"
     write_input_file(input_dict, input_file)
 
     # Run machline
@@ -131,7 +139,7 @@ if __name__=="__main__":
     study_directory = "studies/adjoint_studies/finite_diff"
     start = time.time()
 
-    step = 0.0
+    step = 0.0001
     num_points = 6
     num_design_variables = num_points*3   
     
@@ -154,20 +162,18 @@ if __name__=="__main__":
         for i in range(num_points): 
            
             for j in range(3): # for x, y and z coordinate
-            
+                
                 C_F_step_up = run_machline_for_loc(i+1, j+1, step, study_directory)
-        
-               
 
                 C_F_step_dn = run_machline_for_loc(i+1, j+1, -step, study_directory)
                    
-                dC_x[index] = (C_F_step_up[0])# - C_F_step_dn[0])/(2*step)
-                dC_y[index] = (C_F_step_up[1])# - C_F_step_dn[1])/(2*step)
-                dC_z[index] = (C_F_step_up[2])# - C_F_step_dn[2])/(2*step)
+                dC_x[index] = (C_F_step_up[0] - C_F_step_dn[0])/(2*step)
+                dC_y[index] = (C_F_step_up[1] - C_F_step_dn[1])/(2*step)
+                dC_z[index] = (C_F_step_up[2] - C_F_step_dn[2])/(2*step)
 
                 index += 1
 
-        output_file = study_directory+ "/study_results/octa_mesh_gradient.txt"
+        output_file = study_directory+ "/study_results/finite_diff_gradient.txt"
         with open(output_file, "w") as file:
             # Write the lists to the file
 #            file.write("dC_x,dC_y,dC_z\n")
