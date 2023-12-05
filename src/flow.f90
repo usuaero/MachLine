@@ -354,7 +354,7 @@ contains
 
         complex :: C_P_inc
 
-        C_P_inc = 1.-inner(v, v)*this%U_inv*this%U_inv
+        C_P_inc = 1.-c_inner(v, v)*this%U_inv*this%U_inv
         
     end function flow_get_C_P_inc
 
@@ -374,7 +374,8 @@ contains
         C_P_ise = this%a_ise*( (1. + this%b_ise*C_P_ise)**this%c_ise - 1.)
 
         ! Check for NaN
-        if (isnan(C_P_ise)) C_P_ise = this%C_P_vac
+        ! NH commented out the following for subsonic complex gradient 12/5/2023 
+        !if (isnan(C_P_ise)) C_P_ise = this%C_P_vac
         
     end function flow_get_C_P_ise
 
