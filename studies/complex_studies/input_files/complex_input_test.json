@@ -1,0 +1,33 @@
+{
+  "flow": {
+      "freestream_velocity": [
+          100.0,
+          0.0,
+          0.0
+      ]
+  },
+  "geometry": {
+      "file": "studies/finite_diff_studies/meshes/octa_mesh.stl",
+      "reference": {
+          "area": 1.0
+      },
+      "wake_model": {
+          "wake_present": false
+      },
+      "perturb_point": true,
+      "perturbation": {
+          "step": 0.0001,
+          "point_index": 1,
+          "component_index": 1
+      }
+  },
+  "solver": {
+      "formulation": "neumann-mass-flux-VCP"
+  },
+  "post_processing": {},
+  "output": {
+      "body_file": "studies/finite_diff_studies/reports/body_octa_mesh.vtk",
+      "control_points_file": "studies/finite_diff_studies/reports/control_points_octa_mesh.vtk",
+      "report_file": "studies/finite_diff_studies/reports/finite_diff_report.json"
+  }
+}
