@@ -27,6 +27,11 @@ module base_geom_mod
         ! A vertex in 3-space
 
         real,dimension(3) :: loc ! Location
+
+        !!!! ADJOINT DEV -NH 12/7/23 !!!!
+        real,dimension(:,:),allocatable :: d_loc ! contains 3 columns: dx/dX_beta, dy/dX_beta, dz/dX_Beta
+        !!!! END ADJOINT DEV !!!!
+
         real,dimension(3) :: n_g, n_g_mir,n_g_wake ! Normal vector associated with this vertex
         real :: l_avg ! Average of the edge lengths adjacent to this vertex
         real :: l_min ! Minimum of the edge lengths adjacent to this vertex
