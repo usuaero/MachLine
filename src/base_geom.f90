@@ -29,7 +29,7 @@ module base_geom_mod
         real,dimension(3) :: loc ! Location
 
         !!!! ADJOINT DEV -NH 12/7/23 !!!!
-        real,dimension(:,:),allocatable :: d_loc ! contains 3 columns: dx/dX_beta, dy/dX_beta, dz/dX_Beta
+        real,dimension(:,:),allocatable :: d_loc ! contains 3 columns: dx/dX_beta, dy/dX_beta, dz/dX_beta
         !!!! END ADJOINT DEV !!!!
 
         real,dimension(3) :: n_g, n_g_mir,n_g_wake ! Normal vector associated with this vertex
