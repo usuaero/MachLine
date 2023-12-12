@@ -5,11 +5,11 @@ program d_loc_complex
     
     implicit none
 
-    
-    
     complex :: step
-    complex,dimension(:,:),allocatable :: v, vertex_locs, d_loc_CX
+    complex,dimension(:,:),allocatable :: v, vertex_locs
     complex,dimension(:),allocatable :: X_beta, X_beta_CX
+
+    real,dimension(:,:),allocatable :: d_loc_CX
     integer :: i,j,k, N_verts, N_panels, vert
     type(vertex),dimension(:),allocatable :: vertices ! list of vertex types, this should be a mesh attribute
     !type(panel),dimension(:),allocatable :: panels    ! list of panels, this should be a mesh attribute
@@ -73,8 +73,9 @@ program d_loc_complex
 
     !!!!!!!!! Complex Step !!!!!!!!!
 
-    ! sensitivity to vertex 1, x1
-    step = (0.0, 1.0e-200)
+    ! sensitivity to vertex "vert"
+    vert = 6
+    step = (0.0, 1.0e-20)
     ! perturb x1 up
     allocate(X_beta_CX(N_verts*3))
     allocate(d_loc_CX(N_verts*3,3))
@@ -88,15 +89,17 @@ program d_loc_complex
         end do
         
         ! restore geometry
-        vertices(vert)%loc(k) = vertices(vert)%loc(k) - step
         
+        !write(*, '(ES14.8, 2x)') AIMAG(vertices(vert)%loc(k))
+        vertices(vert)%loc(k) = vertices(vert)%loc(k) - step
+        !write(*, '(ES14.8, 2x)') AIMAG(vertices(vert)%loc(k))
 
-        d_loc_CX(:,k) = (X_beta_CX)/(step)
+        d_loc_CX(:,k) = AIMAG((X_beta_CX)/AIMAG(step))
     end do 
 
     write(*,*) "vertex", vert, "d_loc_CX ="
     do i = 1, N_verts*3
-        write(*, '(3(f14.10, 2x))') AIMAG(d_loc_CX(i,1)), AIMAG(d_loc_CX(i,2)), AIMAG(d_loc_CX(i,3))
+        write(*, '(3(ES14.8, 2x))') d_loc_CX(i,1), d_loc_CX(i,2), d_loc_CX(i,3)
     end do 
 
     !!!!!!!!! End Complex-Step !!!!!!!!!
