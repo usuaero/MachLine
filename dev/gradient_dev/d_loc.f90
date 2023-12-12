@@ -10,10 +10,10 @@ program d_loc
     type(flow) :: freestream
     type(eval_point_geom) :: geom
     type(integrals) :: int
-    real,dimension(:,:),allocatable :: v
-    real,dimension(:),allocatable :: X_beta
-    integer :: i,j, N_verts, N_panels
-    real,dimension(:,:),allocatable :: vertex_locs
+    real :: step
+    real,dimension(:,:),allocatable :: v, vertex_locs, d_loc_FD
+    real,dimension(:),allocatable :: X_beta, X_beta_up, X_beta_dn
+    integer :: i,j,k, N_verts, N_panels, vert
     type(vertex),dimension(:),allocatable :: vertices ! list of vertex types, this should be a mesh attribute
     type(panel),dimension(:),allocatable :: panels    ! list of panels, this should be a mesh attribute
     character(len=:),allocatable :: spanwise_axis
@@ -64,7 +64,7 @@ program d_loc
     allocate(X_beta(N_verts*3))
     do i=1,3
         do j=1,N_verts
-            X_beta(j + (i-1)*N_verts) = vertex_locs(i,j)
+            X_beta(j + (i-1)*N_verts) = vertices(j)%loc(i)
         end do
     end do
 
@@ -98,15 +98,49 @@ program d_loc
         end do
     end do
 
-    write(*,*) "vertex 1 d_loc ="
+    vert = 2
+    write(*,*) "vertex ", vert, " d_loc ="
     do i = 1, N_verts*3
-        write(*, '(3(f10.6, 2x))') vertices(1)%d_loc(i,1), vertices(1)%d_loc(i,2), vertices(1)%d_loc(i,3)
+        write(*, '(3(f14.10, 2x))') vertices(vert)%d_loc(i,1), vertices(vert)%d_loc(i,2), vertices(vert)%d_loc(i,3)
     end do 
      !!!!!!!!!! End Adjoint Method !!!!!!!!!
 
 
     !!!!!!!!! Finite Difference !!!!!!!!!
     ! sensitivity to vertex 1, x1
+    step = 0.0001
+    ! perturb x1 up
+    allocate(X_beta_up(N_verts*3))
+    allocate(X_beta_dn(N_verts*3))
+    allocate(d_loc_FD(N_verts*3,3))
+    do k=1,3
+        vertices(vert)%loc(k) = vertices(vert)%loc(k) + step
+        ! get perturbation up
+        do i=1,3
+            do j=1,N_verts
+                X_beta_up(j + (i-1)*N_verts) = vertices(j)%loc(i)
+            end do
+        end do
+        
+        ! get perturbation down
+        vertices(vert)%loc(k) = vertices(vert)%loc(k) - 2.*step
+        do i=1,3
+            do j=1,N_verts
+                X_beta_dn(j + (i-1)*N_verts) = vertices(j)%loc(i)
+            end do
+        end do
+        
+        ! restore geometry
+        vertices(vert)%loc(k) = vertices(vert)%loc(k) + step
+        
+
+        d_loc_FD(:,k) = (X_beta_up - X_beta_dn)/(2.*step)
+    end do 
+
+    write(*,*) "vertex", vert, "d_loc_FD ="
+    do i = 1, N_verts*3
+        write(*, '(3(f14.10, 2x))') d_loc_FD(i,1), d_loc_FD(i,2), d_loc_FD(i,3)
+    end do 
 
     !!!!!!!!! End Finite Difference !!!!!!!!!
 
