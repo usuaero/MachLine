@@ -1,6 +1,6 @@
 ! Generic math subroutines
 module math_mod
-
+  use complexify
     implicit none
     real,parameter :: pi = 3.14159265358979323846264338327950288419716939937510 ! No, this is not at all excessive
     real,parameter :: pi2 = pi*0.5
@@ -8,6 +8,16 @@ module math_mod
     
 contains
 
+function c_huge() result(complex_huge)
+  implicit none
+
+  complex ::  complex_huge
+  real :: huge_real
+
+  huge_real = huge(0.0)
+  complex_huge = CMPLX(huge_real, 0.0)
+
+end function c_huge
 
 function isinf(x) result(is)
   ! Checks if x is infinite
@@ -76,6 +86,18 @@ function dist(a, b) result(c)
 
 end function dist
 
+function c_dist(a, b) result(c)
+  ! Calculates the complex distance between 2 points
+
+    implicit none
+
+    complex,dimension(3),intent(in) :: a, b
+    complex :: c
+
+    c = sqrt(c_inner(a,b))
+
+end function c_dist
+
 
 function cross(a, b) result(c)
   ! Calculates the cross-product of two 3-element vectors
@@ -113,7 +135,7 @@ function c_inner(a, b) result(c)
 
   c = a(1)*b(1)+a(2)*b(2)+a(3)*b(3)
 
-end function inner
+end function c_inner
 
 
 function inner2(a, b) result(c)

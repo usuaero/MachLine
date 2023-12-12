@@ -26,10 +26,10 @@ module base_geom_mod
     type vertex
         ! A vertex in 3-space
 
-        real,dimension(3) :: loc ! Location
-        real,dimension(3) :: n_g, n_g_mir,n_g_wake ! Normal vector associated with this vertex
-        real :: l_avg ! Average of the edge lengths adjacent to this vertex
-        real :: l_min ! Minimum of the edge lengths adjacent to this vertex
+        complex,dimension(3) :: loc ! Location
+        complex,dimension(3) :: n_g, n_g_mir,n_g_wake ! Normal vector associated with this vertex
+        complex :: l_avg ! Average of the edge lengths adjacent to this vertex
+        complex :: l_min ! Minimum of the edge lengths adjacent to this vertex
         type(list) :: adjacent_vertices ! List of indices for the vertices which share an edge with this vertex
         type(list) :: adjacent_edges ! List of indices for the edges which touch this vertex
         type(list) :: panels ! List of indices for the panels which connect to this vertex
@@ -139,7 +139,7 @@ contains
         implicit none
 
         class(vertex),intent(inout) :: this
-        real,dimension(3),intent(in) :: loc
+        complex,dimension(3),intent(in) :: loc
         integer,intent(in) :: index
 
         ! Store info
@@ -173,7 +173,7 @@ contains
 
         ! Loop through adjacent vertices
         this%l_avg = 0.
-        this%l_min = huge(this%l_min)
+        this%l_min = c_huge()
         N = 0
         do i=1,this%adjacent_vertices%len()
             
@@ -181,7 +181,7 @@ contains
             call this%adjacent_vertices%get(i, adj_ind)
 
             ! Calculate edge length
-            l_i = dist(this%loc, vertices(adj_ind)%loc)
+            l_i = c_dist(this%loc, vertices(adj_ind)%loc)
 
             ! Get minimum
             this%l_min = min(this%l_min, l_i)
@@ -489,7 +489,7 @@ contains
 
         integer :: i_opp_vert
     
-        if (dist(mesh_verts(i_vert)%loc, mesh_verts(this%top_verts(1))%loc) < 1.e-12) then
+        if (c_dist(mesh_verts(i_vert)%loc, mesh_verts(this%top_verts(1))%loc) < 1.e-12) then
             i_opp_vert = this%top_verts(2)
         else
             i_opp_vert = this%top_verts(1)
