@@ -12,7 +12,6 @@ module adjoint_mod
 
     type sparse_element
     
-
         real :: value             ! non-zero value of an element in a sparse matrix
         integer :: full_index     ! index of value in the full matrix
 
@@ -25,10 +24,12 @@ module adjoint_mod
         ! "sparse vector" has only the nonzero values, with their corresponding positions in the full_vector
 
         integer :: sparse_size,full_size    ! sparse_size is the number of non-zero numbers, full_size is full vector
-        type(sparse_element),dimension(:),allocatable :: element        ! non zero values in sparse vector
+        type(sparse_element),dimension(:),allocatable :: elements        ! non zero values in sparse vector
 
         contains
             procedure :: init => sparce_vector_init
+            procedure :: compress => sparce_vector_compress
+            precedure :: expand => sparse_vector_expand
             procedure :: get_value => sparce_vector_get_value
             procedure :: set_value => sparce_vector_set_value
             
@@ -51,10 +52,11 @@ module adjoint_mod
         integer :: size    ! number of design varibles, the length of X_beta
         ! we may never use X_beta
         real,dimension(:),allocatable :: X_beta  ! list of x y z values of all mesh points (design variables)
+        type(sparse_vector),dimension(:),allocatable :: d_xyz
     
 
         contains
-            procedure :: init => adjoint_init
+            procedure :: adjoint => adjoint_init
             procedure :: get_X_beta => adjoint_get_X_beta ! puts all x y z values of mesh points in a list
 
     end type adjoint
@@ -64,7 +66,9 @@ contains
 
 
     subroutine sparse_vector_init(this, full_size)
-        ! initializes a sparse_vector
+        ! initializes a sparse_vector type, to be used when creating a sparse vector of known length and values
+
+        implicit none
 
         class(sparse_vector),intent(inout) :: this
         integer :: full_size
@@ -72,6 +76,56 @@ contains
         this%full_size = full_size
 
     end subroutine sparse_vector_init
+        
+
+    subroutine sparse_vector_compress(this, full_vector, full_size)
+        ! takes a full vector that is sparse (has a lot of 0.0's) and compresses it to a sparse vector type
+
+        implicit none 
+
+        class(sparse_vector),intent(inout) :: this
+        integer,intent(in) :: full_size
+        real,dimension(:),intent(in) :: full_vector
+        integer :: i,count
+
+        
+        ! count how many nonzero elements there are
+        count = count(full_vector /= 0.0)
+        
+        ! now that we have the number of non zero numbers, we can allocate the space for the sparse_vector
+        this%sparse_size = count
+        this%full_size = full_size
+        allocate(this%elements(count))
+
+        ! populate the sparse_vector elements
+        do i=1,full_size
+            if (full_vector(i) /= 0.0) then
+                this%elements(i)%value = full_vector(i)
+                this%elements(i)%full_index = i
+            end if
+        end do
+        
+        ! to save memory, you can deallocate the original array after compressing it
+
+    end subroutine sparse_vector_compress
+
+    function sparse_vector_expand(this) result(full_vector)
+        ! takes a full vector that is sparse (has a lot of 0.0's) and compresses it to a sparse vector type
+
+        implicit none
+
+        class(sparse_vector),intent(inout) :: this
+        real,dimension(:),allocatable, intent(inout) :: full_vector
+        integer :: i
+
+        allocate(full_vector(this%full_size), source=0.)
+        
+        ! put nonzero values in their corresponding full_index location
+        do i=1,sparse_size
+            full_vector(this%elements(i)%full_index) = this%elements(i)%value
+        end do
+
+    end function sparse_vector_expand
 
 
     function sparse_vector_get_value(this, full_index) result(value)
@@ -80,7 +134,7 @@ contains
         implicit none
 
         class(sparse_vector),intent(inout) :: this
-        integer :: full_index
+        integer :: full_index, i
         real :: value = 0.0
 
         ! if the sparse vector element has the same full index as the given full index value is set to
@@ -93,6 +147,58 @@ contains
         end do
        
     end function sparse_vector_get_value
+
+
+    subroutine sparse_vector_set_value(this, full_index, value) 
+        ! given a full_vector index and a value, this adds or updates the corresponding value in the sparse vector
+
+        implicit none
+
+        class(sparse_vector),intent(inout) :: this
+        integer, intent(in):: full_index
+        real,intent(inout) :: value
+        
+        integer,intent(out):: i, shift_index
+        logical :: new_sparse_element_needed = .FALSE.
+
+        do i=1,sparse_size
+            if (this%elements(i)%full_index == full_index) then
+                this%elements(i)%value = value  
+                exit  
+            else if (this%elements(i)%full_index > full_index) then
+                new_sparse_element_needed = .TRUE.
+                shift_index = i
+                exit
+            end if
+        end do
+
+        if (new_sparse_element_needed) then
+            this.add_element(full_index,value, shift_index)
+        end if
+       
+    end subroutine sparse_vector_get_value
+
+
+    subroutine sparse_vector_add_element(this, full_index, value, shift_index)
+    ! adds a sparse element to the current sparse vector
+    
+    implicit none
+
+    class(sparse_vertex),intent(inout) :: this
+    integer, intent(in) :: full_index, shift_index
+    real, intent(in) :: value
+    
+    integer :: i,new_size
+
+    ! original information is preserved, but an extra space is allocated
+    new_size = this%sparse_size + 1
+    allocate(this%elements(new_size))
+
+    ! starting from the last index of the old array (sparse_size-1), shift the element up one index until.
+    !do this up to and including the given shift index
+    do i=this%sparse_size,shift_index-1,-1
+    
+    end subroutine sparse_vector_add_element
 
 
     subroutine adjoint_init(this, body)
