@@ -12,8 +12,9 @@ module adjoint_mod
 
     type sparse_element
     
-        real :: value             ! non-zero value of an element in a sparse matrix
+        real :: value   ! non-zero value of an element in a sparse matrix
         integer :: full_index     ! index of value in the full matrix
+        real,dimension(:),allocatable :: vector_values ! values is used for sparse 3 matrices             
 
     end type sparse_element
 
@@ -29,16 +30,14 @@ module adjoint_mod
         contains
             procedure :: init => sparce_vector_init
             procedure :: compress => sparce_vector_compress
-            precedure :: expand => sparse_vector_expand
+            procedure :: expand => sparse_vector_expand
             procedure :: get_value => sparce_vector_get_value
             procedure :: set_value => sparce_vector_set_value
             
-            ! these should maybe go in the math module
             procedure :: sparse_add => sparce_vector_sparse_add
             procedure :: sparse_subtract => sparce_vector_sparse_subtract
-            procedure :: sparse_inner => sparse_vector_sparse_inner
-            procedure :: sparse_cross => sparse_vector_sparse_cross
 
+            procedure :: add_element => sparse_vector_add_element
             procedure :: fill_vector => sparse_vector_fill_vector
 
 
@@ -48,11 +47,15 @@ module adjoint_mod
     type sparse_matrix
         ! used to save memory when we have matrices made of sparse vectors
 
-        integer :: sparse_dim,full_dim    ! sparse_size is the number of non-zero numbers, full_size is full vector
-        type(sparse_vector),dimension(:),allocatable :: columns       ! non zero values in sparse vector
+        integer :: sparse_num_cols,full_num_cols    ! sparse_num_cols is the number of columns with a nonzero element
+        type(sparse_elements),dimension(:),allocatable :: columns       ! non zero values in sparse vector
+        
 
         contains
-            procedure :: init => sparce_matrix_init
+            procedure :: init_3 => sparse_matrix_init_3
+
+            procedure :: sparse_inner => sparse_vector_sparse_inner
+            procedure :: sparse_cross => sparse_vector_sparse_cross
 
     end type sparse_matrix
 
@@ -190,31 +193,81 @@ contains
 
 
     subroutine sparse_vector_add_element(this, full_index, value, shift_index)
-    ! adds a sparse element to the current sparse vector
-    
-    implicit none
+        ! adds a sparse element to the current sparse vector
+        ! could be made more efficient by checking if the shift index is closer to the beginning or 
+        ! the end. if closer to the beginning, cshift, then pull back the first few elements until shift_index
+        
+        implicit none
 
-    class(sparse_vector),intent(inout) :: this
-    integer, intent(in) :: full_index, shift_index
-    real, intent(in) :: value
-    
-    integer :: i,new_size
+        class(sparse_vector),intent(inout) :: this
+        integer, intent(in) :: full_index, shift_index
+        real, intent(in) :: value
+        
+        integer :: i,new_size
 
-    ! original information is preserved, but an extra space is allocated
-    new_size = this%sparse_size + 1
-    allocate(this%elements(new_size))
+        new_size = this%sparse_size + 1
+        ! original information is preserved, but an extra space is allocated
+        allocate(this%elements(new_size))
 
-    ! starting from the last index of the old array (new_size-1), shift the element up one index.
-    !do this up to and including the given shift index
-    do i=this%sparse_size,shift_index,-1
-        this%elements(i+1)%value = this%elements(i)%value
-        this%elements(i+1)%full_index = this%elements(i)%full_index
-    end do
+        ! starting from the last index of the old array (new_size-1), shift the element up one index.
+        !do this up to and including the given shift index
+        do i=this%sparse_size,shift_index,-1
+            this%elements(i+1)%value = this%elements(i)%value
+            this%elements(i+1)%full_index = this%elements(i)%full_index
+        end do
 
-    this%elements(shift_index)%value = value
-    this%elements(shift_index)%full_index = full_index
+        this%elements(shift_index)%value = value
+        this%elements(shift_index)%full_index = full_index
 
     end subroutine sparse_vector_add_element
+
+
+    subroutine sparse_matrix_init_3(this, sparse_v1, sparse_v2, sparse_v3)
+        ! combines 3 sparse vectors into a sparse matrix
+        implicit none
+
+        class(sparse_matrix),intent(inout) :: this
+        type(sparse_vector),intent(in) :: sparse_v1,sparse_v2,sparse_v3
+        
+        integer :: i, column_count = 0
+
+        if (sparse_v1%full_size == sparse_v2%full_size == sparse_v3%full_size) then
+            
+            this%full_num_cols = sparse_v1%full_size
+        else
+            write(*,*) "!!! sparse_matrix_init_3 requires all sparse vector inputs to have same full_size. Quitting..."
+            stop
+        end if
+        
+        do i=1,this%full_num_cols
+            ! check to see if the given sparse vectors have a nonzero value at full index i 
+            ! if at least one sparse vector has a nonzero value at i, allocate a and populate 3 vector
+            if (sparse_v1%elements(i)%full_index == i .or. sparse_v2%elements(i)%full_index == i .or. sparse_v3%elements(i)%full_index) then           
+                column_count = column_count+1
+                
+                ! allocate space for one more element
+                allocate(this%elements(column_count))
+
+                ! associate this element with the full index i
+                this%elements(i)%full_index
+
+                ! allocate space for a 3 vector
+                allocate(this%elements(i)%vector_values(3))
+
+                ! populate the vector_values  NOTE: this could be a bit more memory efficient if the 0.0 vector_values were collapse
+                this%elements(i)%vector_values(1) = sparse_v1%elements(i)%value
+                this%elements(i)%vector_values(2) = sparse_v2%elements(i)%value
+                this%elements(i)%vector_values(3) = sparse_v3%elements(i)%value
+                
+            end if
+        end do
+    
+    end subroutine sparse_matrix_init_3
+
+
+
+
+
 
 
     subroutine adjoint_init(this, body)

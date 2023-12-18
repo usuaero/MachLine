@@ -128,4 +128,25 @@ contains
     end subroutine delete_file
 
     
+    function is_sparse_vector(vector, percentage) result(sparse)
+        ! returns true if the given vector has at least the given percentage of 0.0's
+
+        implicit none
+
+        real,dimension(:),intent(in) :: vector
+        real,intent(in) :: percentage 
+        logical,intent(out) :: sparse = .FALSE.
+        real :: nonzeros, vector_size
+
+        nonzeros = real(count(vector /= 0.0))
+        vector_size = real(size(vector))
+
+        ! if the number of zeros divided by size is >= than percentage, then sparse= true
+        if ((nonzeros/vector_size) >= percentage) then
+            sparse = .TRUE.
+        end if        
+
+    end function is_sparse_vector
+
 end module helpers_mod
+
