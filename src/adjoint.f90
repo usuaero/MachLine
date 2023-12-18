@@ -45,6 +45,16 @@ module adjoint_mod
     end type sparse_vector
 
 
+    type sparse_matrix
+        ! used to save memory when we have matrices made of sparse vectors
+
+        integer :: sparse_dim,full_dim    ! sparse_size is the number of non-zero numbers, full_size is full vector
+        type(sparse_vector),dimension(:),allocatable :: columns       ! non zero values in sparse vector
+
+        contains
+            procedure :: init => sparce_matrix_init
+
+    end type sparse_matrix
 
 
     type adjoint
@@ -184,7 +194,7 @@ contains
     
     implicit none
 
-    class(sparse_vertex),intent(inout) :: this
+    class(sparse_vector),intent(inout) :: this
     integer, intent(in) :: full_index, shift_index
     real, intent(in) :: value
     
@@ -194,10 +204,16 @@ contains
     new_size = this%sparse_size + 1
     allocate(this%elements(new_size))
 
-    ! starting from the last index of the old array (sparse_size-1), shift the element up one index until.
+    ! starting from the last index of the old array (new_size-1), shift the element up one index.
     !do this up to and including the given shift index
-    do i=this%sparse_size,shift_index-1,-1
-    
+    do i=this%sparse_size,shift_index,-1
+        this%elements(i+1)%value = this%elements(i)%value
+        this%elements(i+1)%full_index = this%elements(i)%full_index
+    end do
+
+    this%elements(shift_index)%value = value
+    this%elements(shift_index)%full_index = full_index
+
     end subroutine sparse_vector_add_element
 
 
