@@ -4,6 +4,7 @@ module base_geom_mod
     use linked_list_mod
     use math_mod
     use helpers_mod
+    use adjoint_mod
 
     implicit none
 
@@ -29,7 +30,7 @@ module base_geom_mod
         real,dimension(3) :: loc ! Location
 
         !!!! ADJOINT DEV -NH 12/7/23 !!!!
-        real,dimension(:,:),allocatable :: d_loc ! contains 3 columns: dx/dX_beta, dy/dX_beta, dz/dX_beta
+        type(sparse_vector),dimension(:),allocatable :: d_loc  ! sensitivy WRT a mesh point's x, y, and z components (full of 1's and 0's)
         !!!! END ADJOINT DEV !!!!
 
         real,dimension(3) :: n_g, n_g_mir,n_g_wake ! Normal vector associated with this vertex
@@ -175,7 +176,7 @@ contains
 
         integer :: i, adj_ind, N
         real :: l_i
-
+        
         ! Loop through adjacent vertices
         this%l_avg = 0.
         this%l_min = huge(this%l_min)
