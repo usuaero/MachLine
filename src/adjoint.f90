@@ -38,10 +38,10 @@ module adjoint_mod
             procedure :: init => sparce_vector_init
             procedure :: compress => sparce_vector_compress
             procedure :: expand => sparse_vector_expand
-            procedure :: get_value => sparce_vector_get_value
-            procedure :: set_value => sparce_vector_set_value
             procedure :: increase_size => sparse_vector_increase_size
             procedure :: add_element => sparse_vector_add_element
+            procedure :: get_value => sparce_vector_get_value
+            procedure :: set_value => sparce_vector_set_value
 
             procedure :: multiply_single_vector => sparse_vector_multiply_single_vector
             
@@ -63,7 +63,8 @@ module adjoint_mod
             
             contains
             procedure :: init => sparse_matrix_init
-            
+            procedure :: compress => sparse_matrix_compress
+            procedure :: expand => sparse_matrix_expand
             procedure :: increase_size => sparse_matrix_increase_size
             procedure :: add_element => sparse_matrix_add_element
             procedure :: get_values => sparse_matrix_get_values
@@ -76,8 +77,8 @@ module adjoint_mod
 
             procedure :: multiply_scalar => sparse_matrix_multiply_scalar
 
-            !procedure :: sparse_add => sparse_matrix_add
-            !procedure :: sparse_subtract => sparse_matrix_subtract
+            procedure :: sparse_add => sparse_matrix_sparse_add
+            procedure :: sparse_subtract => sparse_matrix_sparse_subtract
 
         
 
@@ -339,6 +340,38 @@ contains
     end subroutine sparse_matrix_init
 
 
+    function sparse_matrix_compress(this) result(result_matrix)
+        ! takes a full vector that is sparse (has a lot of 0.0's) and compresses it to a sparse vector type
+
+        implicit none 
+
+        class(sparse_matrix),dimension(:),intent(in) :: this
+        type(sparse_matrix),dimension(:),allocatable,intent(out) :: result_matrix
+        integer :: i,count
+
+        
+        ! count how many nonzero elements there are
+        ! count how many nonzero elements there are
+        count = count(abs(this%columns(:)%vector_values) > [1.0e-12, 1.0e-12, 1.0e-12])
+            
+        
+        ! now that we have the number of non zero numbers, we can allocate the space for the sparse_vector
+        this%sparse_size = count
+        this%full_size = full_size
+        allocate(this%elements(count))
+
+        ! populate the sparse_vector elements
+        do i=1,full_size
+            if (full_vector(i) /= 0.0) then
+                this%elements(i)%value = full_vector(i)
+                this%elements(i)%full_index = i
+            end if
+        end do
+        
+        ! to save memory, you can deallocate the original array after compressing it
+    end function sparse_matrix_compress
+
+
     subroutine sparse_matrix_set_values(this, full_index, values) 
         ! given a full_vector index and a value, this adds or updates the corresponding value in the sparse vector
 
@@ -579,6 +612,31 @@ contains
         end do
 
     end subroutine sparse_matrix_multiply_scalar
+
+
+    function sparse_matrix_sparse_add(matrix_a, matrix_b) result(result_matrix)
+        ! function to add two sparse matrices (adding sets of vectors) returns a sparse matrix
+        ! matrix_a + matrix b = result matrix
+
+        implicit none
+
+        type(sparse_matrix),dimension(:),intent(in) :: matrix_a
+        type(sparse_matrix),dimension(:),intent(in) :: matrix_b
+        type(sparse_matrix),dimension(:),allocatable,intent(out) :: result_matrix
+
+        integer :: i
+
+        ! allocate a full size result matrix
+        allocate(result_matrix%columns(matrix_a%full_num_cols))
+        
+        ! add matrix_a and matrix_b vector values
+        do i=1, matrix_a%full_num_cols
+            result_matrix%columns(i)%values = matrix_a%get_values(i) + matrix_b%get_values(i)
+        end do 
+        
+        ! collapse the result matrix
+
+    end function sparse_matrix_sparse_add
 
 
     subroutine adjoint_init(this, body)
