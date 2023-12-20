@@ -354,21 +354,21 @@ contains
         ! count how many nonzero elements there are
         count = count(abs(this%columns(:)%vector_values) > [1.0e-12, 1.0e-12, 1.0e-12])
             
-        
         ! now that we have the number of non zero numbers, we can allocate the space for the sparse_vector
-        this%sparse_size = count
-        this%full_size = full_size
-        allocate(this%elements(count))
+        result_matrix%sparse_num_cols = count
+        result_matrix%full_num_cols = this%full_num_cols
+        allocate(results_matrix%columns(count))
 
         ! populate the sparse_vector elements
-        do i=1,full_size
-            if (full_vector(i) /= 0.0) then
-                this%elements(i)%value = full_vector(i)
-                this%elements(i)%full_index = i
+        do i=1,this%full_num_cols
+            if (abs(this%columns(:)%vector_values) > [1.0e-12, 1.0e-12, 1.0e-12]) then
+                results_matrix%columns(i)%value_values = this%columns(i)%vector_values
+                result_matrix%columns(i)%full_index = i
             end if
         end do
         
         ! to save memory, you can deallocate the original array after compressing it
+        deallocate(this)
     end function sparse_matrix_compress
 
 
@@ -631,12 +631,39 @@ contains
         
         ! add matrix_a and matrix_b vector values
         do i=1, matrix_a%full_num_cols
-            result_matrix%columns(i)%values = matrix_a%get_values(i) + matrix_b%get_values(i)
+            result_matrix%columns(i)%vector_values = matrix_a%get_values(i) + matrix_b%get_values(i)
         end do 
         
         ! collapse the result matrix
+        result_matrix = result_matrix%compress()
 
     end function sparse_matrix_sparse_add
+
+
+    function sparse_matrix_sparse_subtract(matrix_a, matrix_b) result(result_matrix)
+        ! function to add two sparse matrices (adding sets of vectors) returns a sparse matrix
+        ! matrix_a - matrix b = result matrix
+
+        implicit none
+
+        type(sparse_matrix),dimension(:),intent(in) :: matrix_a
+        type(sparse_matrix),dimension(:),intent(in) :: matrix_b
+        type(sparse_matrix),dimension(:),allocatable,intent(out) :: result_matrix
+
+        integer :: i
+
+        ! allocate a full size result matrix
+        allocate(result_matrix%columns(matrix_a%full_num_cols))
+        
+        ! add matrix_a and matrix_b vector values
+        do i=1, matrix_a%full_num_cols
+            result_matrix%columns(i)%vector_values = matrix_a%get_values(i) - matrix_b%get_values(i)
+        end do 
+        
+        ! collapse the result matrix
+        result_matrix = result_matrix%compress()
+
+    end function sparse_matrix_sparse_subtract
 
 
     subroutine adjoint_init(this, body)
