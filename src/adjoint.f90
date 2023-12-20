@@ -1,12 +1,12 @@
 ! module for calculating the gradient of CF, CM with respect to mesh points via the adjoint method
 module adjoint_mod
 
-    use linked_list_mod
+    !use linked_list_mod
     use math_mod
     use helpers_mod
-    use base_geom_mod
-    use mesh_mod
-    use surface_mesh_mod
+    !use base_geom_mod
+    !use mesh_mod
+    !use surface_mesh_mod
 
     implicit none
 
