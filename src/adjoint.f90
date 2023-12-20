@@ -614,12 +614,13 @@ contains
     end subroutine sparse_matrix_multiply_scalar
 
 
-    function sparse_matrix_sparse_add(matrix_a, matrix_b) result(result_matrix)
-        ! function to add two sparse matrices (adding sets of vectors) returns a sparse matrix
-        ! matrix_a + matrix b = result matrix
+    subroutine sparse_matrix_sparse_add(this,matrix_a, matrix_b) 
+        ! subroutine to subtract two sparse matrices (adding sets of vectors) returns a sparse matrix
+        ! matrix_a + matrix b = this
 
         implicit none
 
+        class(sparse_matrix),dimension(:),intent(inout) :: this
         type(sparse_matrix),dimension(:),intent(in) :: matrix_a
         type(sparse_matrix),dimension(:),intent(in) :: matrix_b
         type(sparse_matrix),dimension(:),allocatable,intent(out) :: result_matrix
@@ -627,20 +628,20 @@ contains
         integer :: i
 
         ! allocate a full size result matrix
-        allocate(result_matrix%columns(matrix_a%full_num_cols))
+        allocate(this%columns(matrix_a%full_num_cols))
         
         ! add matrix_a and matrix_b vector values
         do i=1, matrix_a%full_num_cols
-            result_matrix%columns(i)%vector_values = matrix_a%get_values(i) + matrix_b%get_values(i)
+            this%columns(i)%vector_values = matrix_a%get_values(i) + matrix_b%get_values(i)
         end do 
         
         ! collapse the result matrix
-        result_matrix = result_matrix%compress()
+        this = this%compress()
 
-    end function sparse_matrix_sparse_add
+    end subroutine sparse_matrix_sparse_add
 
 
-    function sparse_matrix_sparse_subtract(matrix_a, matrix_b) result(result_matrix)
+    function sparse_matrix_sparse_subtract(this,matrix_a, matrix_b) 
         ! function to add two sparse matrices (adding sets of vectors) returns a sparse matrix
         ! matrix_a - matrix b = result matrix
 
