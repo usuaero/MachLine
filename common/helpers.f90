@@ -127,7 +127,26 @@ contains
     
     end subroutine delete_file
 
+
+    function count_nonzero_vector_values(vector) result(count)
+        ! counts the number of nonzero elements in a vector
+
+        implicit none
+
+        real,dimension(:),intent(in) :: vector
+
+        integer :: i, count
+
+        count = 0
+        do i=1,size(vector)
+            if (abs(vector(i)) > 1.0e-12 ) then
+                count = count + 1
+            end if
+        end do
+
+    end function count_nonzero_vector_values
     
+
     function is_sparse_vector(vector, percentage) result(sparse)
         ! returns true if the given vector has at least the given percentage of 0.0's
 
@@ -135,7 +154,7 @@ contains
 
         real,dimension(:),intent(in) :: vector
         real,intent(in) :: percentage 
-        logical,intent(out) :: sparse = .FALSE.
+        logical :: sparse 
         real :: nonzeros, vector_size
 
         nonzeros = real(count(vector /= 0.0))
@@ -144,6 +163,8 @@ contains
         ! if the number of zeros divided by size is >= than percentage, then sparse= true
         if ((nonzeros/vector_size) >= percentage) then
             sparse = .TRUE.
+        else
+            sparse = .False.
         end if        
 
     end function is_sparse_vector

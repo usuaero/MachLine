@@ -63,6 +63,7 @@ module adjoint_mod
             
             contains
             procedure :: init => sparse_matrix_init
+            procedure :: count_nonzero_elemnets => sparse_matrix_count_nonzero_elements
             procedure :: compress => sparse_matrix_compress
             procedure :: expand => sparse_matrix_expand
             procedure :: increase_size => sparse_matrix_increase_size
@@ -128,7 +129,7 @@ contains
 
         
         ! count how many nonzero elements there are
-        count = count(full_vector /= 0.0)
+        count = count_nonzero_vector_values(full_vector)
         
         ! now that we have the number of non zero numbers, we can allocate the space for the sparse_vector
         this%sparse_size = count
@@ -181,7 +182,7 @@ contains
         allocate(temp_vector(new_size))
 
         ! copy array info
-        temp_vector(1:(new_size-1)) = this(:)
+        temp_vector(1:new_size-1) = this
 
         ! move allocation of temporary array and overwrite this
         call move_alloc(temp_vector, this) 
@@ -273,30 +274,33 @@ contains
         end do
 
         if (new_sparse_element_needed) then
-            call this.add_element(full_index,value, shift_index)
+            call this%add_element(full_index,value, shift_index)
         end if
        
-    end subroutine sparse_vector_get_value
+    end subroutine sparse_vector_set_value
 
 
-    function sparse_vector_multiply_single_vector(this, vec) result(result_matrix)
+    function sparse_vector_multiply_single_vector(this, vec) result(values_matrix, full_indices)
         ! multiply a vector by each scalar in the sparse_vector
         ! returns a sparse_matrix
 
         implicit none
 
-        class(sparse_vector),intent(inout) :: this
+        class(sparse_vector),intent(in) :: this
         real,dimension(3), intent(in) :: vec
 
-        type(sparse_matrix),dimension(:),allocatable,intent(out) :: result_matrix
+        real,dimension(:,:),allocatable :: value_matrix
+        integer,dimension(:),allocatable :: full_indices
 
         ! allocate sparse_matrix elements
-        allocate(result_matrix%columns(this%sparse_size))
+        allocate(values_matrix(3,this%sparse_size))
+        allocate(full_indices(this%sparse_size))
 
         do i=1,this%sparse_size
-            result_matrix%columns(i)%vector_values = vec*this%elements(i)%value
+            values_matrix(:,i) = vec*this%elements(i)%value
+            full_indices(i) = this%elements(i)%full_index
         end do 
-
+        ! NOTE: needs to be converted into a sparse vector 
     end function sparse_vector_multiply_single_vector
 
 
@@ -340,6 +344,25 @@ contains
     end subroutine sparse_matrix_init
 
 
+    function count_nonzero_sparse_matrix_elements(this) result(count) 
+        ! counts the number of nonzero vectors (columns) in a matrix
+
+        implicit none
+
+        class(sparse_matrix),dimension(:),intent(in) :: this
+
+        integer :: i, count
+
+        count = 0
+        do i=1,this%sparse_num_cols
+            if (abs(this%columns(i)%vector_values) > (/1.0e-12, 1.0e-12, 1.0e-12/) ) then
+                count = count + 1
+            end if
+        end do
+
+    end function count_nonzero_sparse_matrix_elements
+
+
     function sparse_matrix_compress(this) result(result_matrix)
         ! takes a full vector that is sparse (has a lot of 0.0's) and compresses it to a sparse vector type
 
@@ -352,7 +375,7 @@ contains
         
         ! count how many nonzero elements there are
         ! count how many nonzero elements there are
-        count = count(abs(this%columns(:)%vector_values) > [1.0e-12, 1.0e-12, 1.0e-12])
+        count = this%count_nonzero_elemnets()
             
         ! now that we have the number of non zero numbers, we can allocate the space for the sparse_vector
         result_matrix%sparse_num_cols = count
