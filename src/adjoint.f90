@@ -136,7 +136,6 @@ contains
 
         ! count how many nonzero elements there are
         count = count_nonzero_vector_values(full_vector)
-        write(*,*) "count= ",count
         
         ! now that we have the number of non zero numbers, we can allocate the space for the sparse_vector
         this%sparse_size = count

@@ -90,7 +90,6 @@ program sparse_test
     write(*,*) ""
 
     ! return sparse_a to original size
-    write(*,*) size(vector_a)
     deallocate(sparse_a%elements)
     sparse_a%sparse_size = sparse_a%sparse_size -1
     call sparse_a%compress(vector_a)
