@@ -4,9 +4,7 @@ module adjoint_mod
     !use linked_list_mod
     use math_mod
     use helpers_mod
-    use base_geom_mod
-    use mesh_mod
-    use surface_mesh_mod
+    
 
     implicit none
 
@@ -174,18 +172,18 @@ contains
         implicit none
         class(sparse_vector),intent(inout) :: this
 
-        type(sparse_vector),dimension(:),allocatable :: temp_vector
+        type(sparse_vector) :: temp_vector
         integer :: new_size
 
-        new_size = size(this) + 1
+        new_size = size(this%elements) + 1
         ! allocate a temporary array
-        allocate(temp_vector(new_size))
+        allocate(temp_vector%elements(new_size))
 
         ! copy array info
         temp_vector%elements(1:new_size-1) = this%elements(:)
 
         ! move allocation of temporary array and overwrite this
-        call move_alloc(temp_vector, this) 
+        call move_alloc(temp_vector%elements, this%elements) 
         
         ! update the sparse number of columns
         this%sparse_size = this%sparse_size + 1
@@ -335,7 +333,7 @@ contains
             ! check to see if the given sparse vectors have a nonzero value at full index i 
             ! if at least one sparse vector has a nonzero value at i, allocate a and populate 3 vector
             if (sparse_v1%elements(i)%full_index == i .or. sparse_v2%elements(i)%full_index == i &
-                .or. sparse_v3%elements(i)%full_index) then           
+                .or. sparse_v3%elements(i)%full_index == i) then           
                 column_count = column_count+1
                 
                 ! allocate space for one more element
@@ -375,18 +373,18 @@ contains
 
     end function sparse_matrix_count_nonzero_matrix_elements
 
-
+    ! NOTE SURE IF/WHEN compress will be used!
     function sparse_matrix_compress(this) result(result_matrix)
-        ! takes a full vector that is sparse (has a lot of 0.0's) and compresses it to a sparse vector type
+        ! takes a full matrix that is sparse (has a lot of 0.0 vectors) and compresses it to a sparse matrix
 
         implicit none 
 
-        class(sparse_matrix),intent(in) :: this
+        class(sparse_matrix),intent(inout) :: this
         type(sparse_matrix) :: result_matrix
         integer :: i,count
 
-        
-        ! count how many nonzero elements there are
+        real,dimension(3) :: this_i
+
         ! count how many nonzero elements there are
         count = this%count_nonzero_matrix_elements()
             
@@ -397,9 +395,8 @@ contains
 
         ! populate the nonzero sparse_vector elements
         do i=1,this%full_num_cols
-            if (abs(this%columns(:)%vector_values(1)) > 1.0e-12 .and. &
-                abs(this%columns(:)%vector_values(2)) > 1.0e-12 .and. &
-                abs(this%columns(:)%vector_values(3)) > 1.0e-12) then
+            this_i = this%get_values(i)
+            if (any(abs(this_i) > 1.0e-12)) then
                 result_matrix%columns(i)%vector_values = this%columns(i)%vector_values
                 result_matrix%columns(i)%full_index = i
             end if
@@ -408,7 +405,7 @@ contains
         ! to save memory, maybe deallocate the original array after compressing it
 
     end function sparse_matrix_compress
-
+  
 
     subroutine sparse_matrix_set_values(this, full_index, values) 
         ! given a full_vector index and a value, this adds or updates the corresponding value in the sparse vector
@@ -506,7 +503,7 @@ contains
         type(sparse_matrix) :: temp_matrix
         integer :: new_size
 
-        new_size = size(this) + 1
+        new_size = size(this%columns) + 1
         ! allocate a temporary array
         allocate(temp_matrix%columns(new_size))
 
@@ -514,7 +511,7 @@ contains
         temp_matrix%columns(1:new_size-1) = this%columns(:)
 
         ! move allocation of temporary array and overwrite this
-        call move_alloc(temp_matrix, this)
+        call move_alloc(temp_matrix%columns, this%columns)
 
         ! update the sparse number of columns
         this%sparse_num_cols = this%sparse_num_cols + 1
@@ -604,9 +601,9 @@ contains
         implicit none
 
         class(sparse_matrix),intent(inout) :: this
-        real,intent(in) :: vec 
+        real,dimension(3),intent(in) :: vec 
 
-        type(sparse_vector),dimension(:),allocatable :: result_vector
+        type(sparse_vector) :: result_vector
         real :: temp_val
         real,dimension(3) :: temp_vec
 
@@ -621,9 +618,9 @@ contains
 
         ! go through each sparse column index
         do i=1,this%sparse_num_cols
-            ! do cross product
+            ! do dot product
             temp_vec = this%columns(i)%vector_values(:)
-            temp_val = dot(vec,temp_val)
+            temp_val = inner(vec,temp_vec)
 
             ! update results vector
             result_vector%elements(i)%value = temp_val
@@ -654,7 +651,7 @@ contains
 
 
     subroutine sparse_matrix_sparse_add(this, matrix_a) 
-        ! subroutine to add a sparse matrix from this
+        ! subroutine to add a sparse matrix to this
         ! this + matrix_a = this
 
         implicit none
@@ -663,6 +660,7 @@ contains
         type(sparse_matrix),intent(inout) :: matrix_a
 
         integer :: i
+        real,dimension(3) :: this_i, matrix_a_i, this_plus_a
 
         ! make sure the input matrix has the same full size as this
         if (this%full_num_cols /= matrix_a%full_num_cols) then
@@ -670,82 +668,113 @@ contains
             stop
         end if
         
-        ! add matrix_a to 'this'
+        ! loop through full index
         do i=1, matrix_a%full_num_cols
-            if (this%get_values(i) = (/0.0, 0.0, 0.0/) )
             
-            this%columns(i)%vector_values =  this%columns(i)%vector_values + matrix_a%get_values(i)
+            ! get vector values at full index i
+            this_i = this%get_values(i)
+            matrix_a_i = matrix_a%get_values(i)
+            
+            ! if this_i is populated and matrix_a_i is populated, add them
+            if (any(abs(this_i) > 1.0e-12) .and. any(abs(matrix_a_i) > 1.0e-12)) then
+                this_plus_a = this_i + matrix_a_i
+                call this%set_values(i,this_plus_a)
+            
+                ! if this_i is zeros and matrix_a_i is populated, set this_i equal to matrix_a_i
+            else if (any(abs(this_i) < 1.0e-12) .and. any(abs(matrix_a_i) > 1.0e-12)) then
+                call this%set_values(i, matrix_a_i)
+            
+                ! if both are zeros, do nothing
+            end if
+            
         end do 
         
-        
-
     end subroutine sparse_matrix_sparse_add
 
 
     subroutine sparse_matrix_sparse_subtract(this, matrix_a)
-        ! function to add two sparse matrices (adding sets of vectors) returns a sparse matrix
-        ! matrix_a - matrix b = result matrix
+        ! subroutine to subtract a sparse matrix from this
+        ! this - matrix_a = this
 
         implicit none
-        
-        class(sparse_matrix),intent(inout) :: this
 
+        class(sparse_matrix),intent(inout) :: this
         type(sparse_matrix),intent(inout) :: matrix_a
-        type(sparse_matrix),intent(inout) :: matrix_b
 
         integer :: i
+        real,dimension(3) :: this_i, matrix_a_i, this_minus_a, minus_a
 
-        ! allocate a full size result matrix
-        allocate(this%columns(matrix_a%full_num_cols))
+        ! make sure the input matrix has the same full size as this
+        if (this%full_num_cols /= matrix_a%full_num_cols) then
+            write(*,*) "Error!!! sparse_matrix_subtract requires input to have the same full_size. Quitting..."
+            stop
+        end if
         
-        ! add matrix_a and matrix_b vector values
+        ! loop through full index
         do i=1, matrix_a%full_num_cols
-            this(i)%vector_values = matrix_a%get_values(i) - matrix_b%get_values(i)
+            
+            ! get vector values at full index i
+            this_i = this%get_values(i)
+            matrix_a_i = matrix_a%get_values(i)
+            
+            ! if this_i is populated and matrix_a_i is populated, subtract them
+            if (any(abs(this_i) > 1.0e-12) .and. any(abs(matrix_a_i) > 1.0e-12)) then
+                this_minus_a = this_i - matrix_a_i
+                call this%set_values(i,this_minus_a)
+            
+                ! if this_i is zeros and matrix_a_i is populated, set this_i equal to minus matrix_a_i
+            else if (any(abs(this_i) < 1.0e-12) .and. any(abs(matrix_a_i) > 1.0e-12)) then
+                minus_a = -matrix_a_i
+                call this%set_values(i, minus_a)
+            
+                ! if both are zeros, do nothing
+            end if
+            
         end do 
-        
-        ! collapse the 'this' matrix after this
 
     end subroutine sparse_matrix_sparse_subtract
 
 
-    subroutine adjoint_init(this, body)
+    subroutine adjoint_init(this)
         ! initializes adjoint type
 
         implicit none
 
         class(adjoint),intent(inout) :: this
-        type(surface_mesh),intent(in) :: body
+        !type(surface_mesh),intent(in) :: body
 
         integer :: i, j
 
-        this%size = body%N_verts*3
+        !this%size = body%N_verts*3
 
-        call this%get_X_beta(body)
+        !call this%get_X_beta(body)
 
     end subroutine adjoint_init
 
 
-    subroutine adjoint_get_X_beta(this, body)
+    subroutine adjoint_get_X_beta(this)
         ! builds a vector of design variables
         
         implicit none
 
         class(adjoint),intent(inout) :: this
-        type(surface_mesh),intent(in) :: body
+        !type(surface_mesh),intent(in) :: body
     
         integer :: i, j
         
         ! build design variable vector X_beta
-        allocate(this%X_beta(this%size))
+        !allocate(this%X_beta(this%size))
 
-        ! place all x values in X_beta, followed by all y, then z values 
-        ! X_beta will look like this: x1, x2, x3, ...xn, y1, y2, y3, ...yn, z1, z2, z3, ...zn
-        do i=1,3 
-            do j=1,body%N_verts
-                this%X_beta(j + (i-1)*body%N_verts) = body%vertices(j)%loc(i)
-            end do
-        end do
-
+        
+        ! ! place all x values in X_beta, followed by all y, then z values 
+        ! ! X_beta will look like this: x1, x2, x3, ...xn, y1, y2, y3, ...yn, z1, z2, z3, ...zn
+        ! do i=1,3 
+        !     do j=1,body%N_verts
+        !         this%X_beta(j + (i-1)*body%N_verts) = body%vertices(j)%loc(i)
+        !     end do
+        ! end do
+        
+        
 
     end subroutine adjoint_get_X_beta
 
