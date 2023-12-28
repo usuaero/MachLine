@@ -9,7 +9,7 @@ program sparse_test
     type(sparse_matrix) :: sparse_matrix_a, sparse_matrix_b
     real,dimension(:),allocatable :: vector_a, expanded_a, residual
     integer :: i, full_size_a, add_index, add_shift_index
-    real :: add_value
+    real :: add_value, value
 
     write(*,*) ""
     write(*,*) ""
@@ -119,7 +119,35 @@ program sparse_test
     do i=1,sparse_a%sparse_size
         write(*,'(f14.10, 12x, I5, 12x, I5)') sparse_a%elements(i)%value, i, sparse_a%elements(i)%full_index
     end do
+    write(*,*) ""
+    write(*,*) ""
     
+
+    !!!!!!!!!! TEST GET_VALUE VECTOR  !!!!!!!!!!
+    write(*,*) "--------TEST GET_VALUE VECTOR---------"
+    write(*,*) ""
+    write(*,*) "Get value of full index 1", 
+    value = sparse_a%get_value(1)
+    write(*,*) "value = ", value
+    write(*,*) ""
+    
+    write(*,*) "Get value of full index 3", 
+    value = sparse_a%get_value(3)
+    write(*,*) "value = ", value
+    write(*,*) ""
+
+    write(*,*) "Get value of full index 9", 
+    value = sparse_a%get_value(9)
+    write(*,*) "value = ", value
+    write(*,*) ""
+    write(*,*) ""
+    
+
+    !!!!!!!!!! TEST SET_VALUE VECTOR  !!!!!!!!!!
+    write(*,*) "--------TEST SET_VALUE VECTOR---------"
+    write(*,*) ""
+
+
 
 
 
