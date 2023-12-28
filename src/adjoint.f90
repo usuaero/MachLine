@@ -324,89 +324,109 @@ contains
     end subroutine sparse_vector_set_value
 
 
-    subroutine sparse_vector_sparse_add(this, vector_a) 
-        ! subroutine to add a sparse vector to this
-        ! this + vector_a = this
+    function sparse_vector_sparse_add(this, vector_b) result (result_vector) 
+        ! function to add a sparse vector to this and return the result
+        ! result_vector = this + vector_b
 
         implicit none
 
         class(sparse_vector),intent(inout) :: this
-        type(sparse_vector),intent(inout) :: vector_a
+        type(sparse_vector),intent(inout) :: vector_b
 
+
+        type(sparse_vector) :: result_vector
         integer :: i
-        real :: this_i, vector_a_i, this_plus_a
+        real :: this_i, vector_b_i, this_plus_b
 
         ! make sure the input matrix has the same full size as this
-        if (this%full_size /= vector_a%full_size) then
+        if (this%full_size /= vector_b%full_size) then
             write(*,*) "Error!!! sparse_vector_add requires input to have the same full_size. Quitting..."
             stop
         end if
+        allocate(result_vector%elements(this%sparse_size))
+        result_vector%sparse_size = this%sparse_size
+        result_vector%full_size = this%full_size
+        result_vector%elements(:) = this%elements(:)
         
-        ! loop through full index
-        do i=1, vector_a%full_size
+        !loop through full index
+        do i=1, this%full_size
             
             ! get vector values at full index i
             this_i = this%get_value(i)
-            vector_a_i = vector_a%get_value(i)
+            vector_b_i = vector_b%get_value(i)
             
-            ! if this_i is populated and vector_a_i is populated, add them
-            if (abs(this_i) > 1.0e-12 .and. abs(vector_a_i) > 1.0e-12) then
-                this_plus_a = this_i + vector_a_i
-                call this%set_value(this_plus_a, i)
+            ! if this_i is populated and vector_b_i is populated, add them
+            if (abs(this_i) > 1.0e-12 .and. abs(vector_b_i) > 1.0e-12) then
+                this_plus_b = this_i + vector_b_i
+                call result_vector%set_value(this_plus_b, i)
             
-                ! if this_i is zeros and vector_a_i is populated, set this_i equal to vector_a_i
-            else if (abs(this_i) < 1.0e-12 .and. abs(vector_a_i) > 1.0e-12) then
-                call this%set_value(vector_a_i, i)
+            ! if this_i is zeros and vector_b_i is populated, set result_vector equal to vector_b_i
+            else if (abs(this_i) < 1.0e-12 .and. abs(vector_b_i) > 1.0e-12) then
+                call result_vector%set_value(vector_b_i, i)
+
+            ! if vector_b_i is zeros and this_i is populated, set result_vector equal to this_i
+            else if (abs(this_i) > 1.0e-12 .and. abs(vector_b_i) < 1.0e-12) then
+                call result_vector%set_value(this_i, i)
             
-                ! if both are zeros, do nothing
+            ! if both are zeros, do nothing
             end if
             
         end do 
         
-    end subroutine sparse_vector_sparse_add
+    end function sparse_vector_sparse_add
 
 
-    subroutine sparse_vector_sparse_subtract(this, vector_a)
-        ! subroutine to subtract a sparse vector from this
-        ! this - vector_a = this
+    function sparse_vector_sparse_subtract(this, vector_b) result (result_vector) 
+        ! function to subtract a sparse vector from this and return the result
+        ! result_vector = this - vector_b
 
         implicit none
 
         class(sparse_vector),intent(inout) :: this
-        type(sparse_vector),intent(inout) :: vector_a
+        type(sparse_vector),intent(inout) :: vector_b
 
+
+        type(sparse_vector) :: result_vector
         integer :: i
-        real :: this_i, vector_a_i, this_minus_a, minus_a
+        real :: this_i, vector_b_i, this_plus_b
 
-        ! make sure the input vector has the same full size as this
-        if (this%full_size /= vector_a%full_size) then
-            write(*,*) "Error!!! sparse_vector_subtract requires input to have the same full_size. Quitting..."
+        ! make sure the input matrix has the same full size as this
+        if (this%full_size /= vector_b%full_size) then
+            write(*,*) "Error!!! sparse_vector_add requires input to have the same full_size. Quitting..."
             stop
         end if
+        allocate(result_vector%elements(this%sparse_size))
+        result_vector%sparse_size = this%sparse_size
+        result_vector%full_size = this%full_size
+        result_vector%elements(:) = this%elements(:)
         
-        ! loop through full index
-        do i=1, vector_a%full_size
+        !loop through full index
+        do i=1, this%full_size
             
             ! get vector values at full index i
             this_i = this%get_value(i)
-            vector_a_i = vector_a%get_value(i)
+            vector_b_i = vector_b%get_value(i)
             
-            ! if this_i is populated and vector_a_i is populated, subtract them
-            if (abs(this_i) > 1.0e-12 .and. abs(vector_a_i) > 1.0e-12) then
-                this_minus_a = this_i - vector_a_i
-                call this%set_value(this_minus_a, i)
+            ! if this_i is populated and vector_b_i is populated, add them
+            if (abs(this_i) > 1.0e-12 .and. abs(vector_b_i) > 1.0e-12) then
+                this_plus_b = this_i - vector_b_i
+                call result_vector%set_value(this_plus_b, i)
             
-                ! if this_i is zeros and vector_a_i is populated, set this_i equal to minus vector_a_i
-            else if (abs(this_i) < 1.0e-12 .and. abs(vector_a_i) > 1.0e-12) then
-                minus_a = -vector_a_i
-                call this%set_value(minus_a, i)
+            ! if this_i is zeros and vector_b_i is populated, set result_vector equal to minus vector_b_i
+            else if (abs(this_i) < 1.0e-12 .and. abs(vector_b_i) > 1.0e-12) then
+                vector_b_i = -vector_b_i
+                call result_vector%set_value(vector_b_i, i)
+
+            ! if vector_b_i is zeros and this_i is populated, set result_vector equal to this_i
+            else if (abs(this_i) > 1.0e-12 .and. abs(vector_b_i) < 1.0e-12) then
+                call result_vector%set_value(this_i, i)
             
-                ! if both are zeros, do nothing
+            ! if both are zeros, do nothing
             end if
             
         end do 
-
-    end subroutine sparse_vector_sparse_subtract
+        
+    end function sparse_vector_sparse_subtract
 
 
     function sparse_vector_multiply_single_vector(this, vec) result(result_matrix)
