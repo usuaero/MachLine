@@ -350,18 +350,40 @@ program sparse_test
     
 
 
-    !!!!!!!!!! TEST SCALE BY EACH SPARSE ELEMENT   !!!!!!!!!!
-    write(*,*) "-------------TEST SCALE BY EACH SPARSE ELEMENT--------------"
+    !!!!!!!!!! TEST SCALE VEC BY EACH SPARSE ELEMENT   !!!!!!!!!!
+    write(*,*) "-------------TEST SCALE VEC BY EACH SPARSE ELEMENT--------------"
     write(*,*) ""
-    vec = (/1.0,2.0,3.0/)
-    write(*,'(A, 3(f14.5, 2x))') "new vector to be scaled: ", vec
+    vec = (/1.0,-2.0,3.0/)
+    write(*,'(A, 3(f10.5, 2x))') "new vector to be scaled: ", vec
     write(*,*) ""
     write(*,*) "unscaled vectors"
     do i=1,sparse_a%full_size
         write(*, '(3(f14.5, 2x))') vec
     end do
+    write(*,*) ""
     
-    allocate(scaled_vecs(3,11))
+    ! scale and write results
+    sparse_matrix_a = sparse_a%scale_vec_by_each_sparse_element(vec)
+    
+    write(*,*) "scale vec by each sparse element...."
+    write(*,*) ""
+    write(*,*) "resulting sparse_matrix:"
+    write(*,*) ""
+    write(*,*) "                   scaled vector                    sparse_index       &
+              full_index "
+    write(*,*) ""
+    do i=1,sparse_matrix_a%sparse_num_cols
+        write(*, '(3(f14.5, 2x), 12x, I5, 12x, I5)') sparse_matrix_a%columns(i)%vector_values, i, &
+        sparse_matrix_a%columns(i)%full_index  
+    end do
+    write(*,*) ""
+    
+    write(*,*) "scaled vectors"
+    write(*,*) ""
+    do i=1,sparse_matrix_a%full_num_cols
+        write(*, '(3(f14.5, 2x))') sparse_matrix_a%get_values(i)
+    end do
+    write(*,*) ""
 
     
     
