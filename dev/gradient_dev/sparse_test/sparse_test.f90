@@ -9,6 +9,8 @@ program sparse_test
     type(sparse_matrix) :: sparse_matrix_a, sparse_matrix_b
     real,dimension(:),allocatable :: vector_a, vector_b, vector_ab, expanded_a, expanded_ab, expanded_a_minus_b, &
     expanded_b_minus_a, vector_a_minus_b, vector_b_minus_a, residual
+    real,dimension(3) :: vec
+    real,dimension(:,:),allocatable :: scaled_vecs
     integer :: i, full_size_a, add_index, add_shift_index
     real :: add_value, value
 
@@ -346,6 +348,20 @@ program sparse_test
     write(*,*) ""
     write(*,*) ""
     
+
+
+    !!!!!!!!!! TEST SCALE BY EACH SPARSE ELEMENT   !!!!!!!!!!
+    write(*,*) "-------------TEST SCALE BY EACH SPARSE ELEMENT--------------"
+    write(*,*) ""
+    vec = (/1.0,2.0,3.0/)
+    write(*,'(A, 3(f14.5, 2x))') "new vector to be scaled: ", vec
+    write(*,*) ""
+    write(*,*) "unscaled vectors"
+    do i=1,sparse_a%full_size
+        write(*, '(3(f14.5, 2x))') vec
+    end do
+    
+    allocate(scaled_vecs(3,11))
 
     
     

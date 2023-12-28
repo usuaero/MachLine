@@ -47,7 +47,7 @@ module adjoint_mod
             procedure :: sparse_add => sparse_vector_sparse_add
             procedure :: sparse_subtract => sparse_vector_sparse_subtract
             
-            procedure :: multiply_single_vector => sparse_vector_multiply_single_vector
+            procedure :: scale_by_each_sparse_element => sparse_vector_scale_by_each_sparse_element
 
             !procedure :: fill_vector => sparse_vector_fill_vector
             
@@ -429,7 +429,7 @@ contains
     end function sparse_vector_sparse_subtract
 
 
-    function sparse_vector_multiply_single_vector(this, vec) result(result_matrix)
+    function sparse_vector_scale_by_each_sparse_element(this, vec) result(result_matrix)
         ! multiply a vector by each scalar in the sparse_vector
         ! returns a sparse_matrix
 
@@ -455,7 +455,7 @@ contains
         result_matrix%full_num_cols = this%full_size
         
         
-    end function sparse_vector_multiply_single_vector
+    end function sparse_vector_scale_by_each_sparse_element
 
 
     subroutine sparse_matrix_init(this, sparse_v1, sparse_v2, sparse_v3)
