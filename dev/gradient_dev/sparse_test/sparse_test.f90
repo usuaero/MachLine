@@ -20,6 +20,8 @@ program sparse_test
 
     !!!!!!!!!!!! INITIALIZE VECTOR !!!!!!!!!!!!!!
     write(*,*) "--------INITIALIZE A REGULAR VECTOR---------"
+    write(*,*) ""
+
     vector_a = (/ 1.0, 0.0, 11.0, 0.0, 87.0, -1.0, 0.0, 0.002121, 4.0, 0.0, 3.14 /)
     ! allocate(vector_a(100), source=0.0)
     ! do i= 1,9
@@ -33,10 +35,14 @@ program sparse_test
     write(*,*) ""
 
 
-    !!!!!!!!!! TEST COMPRESS VECTOR !!!!!!!!!!
-    write(*,*) "--------TEST COMPRESS VECTOR---------"
-    ! compress vector_a into sparse_a
-    call sparse_a%compress(vector_a)
+    !!!!!!!!!! TEST INIT SPARSE VECTOR !!!!!!!!!!
+    write(*,*) "--------TEST INIT SPARSE VECTOR---------"
+    write(*,*) ""
+    write(*,*) "initialize a sparse vector"
+    write(*,*) ""
+
+    ! initialize and compress vector_a into sparse_a
+    call sparse_a%init(vector_a)
     
     ! write results
     write(*,*) "sparse_a value    sparse_index      full_index"
@@ -87,12 +93,19 @@ program sparse_test
         write(*,'(f14.10, 12x, I5, 12x, I5)') sparse_a%elements(i)%value, i, sparse_a%elements(i)%full_index
     end do
     write(*,*) ""
+    write(*,*) "return to original size"
     write(*,*) ""
 
-    ! return sparse_a to original size
     deallocate(sparse_a%elements)
-    sparse_a%sparse_size = sparse_a%sparse_size -1
-    call sparse_a%compress(vector_a)
+    call sparse_a%init(vector_a)
+
+    ! write sparse_a again
+    write(*,*) "sparse_a value    sparse_index      full_index"
+    do i=1,sparse_a%sparse_size
+        write(*,'(f14.10, 12x, I5, 12x, I5)') sparse_a%elements(i)%value, i, sparse_a%elements(i)%full_index
+    end do
+    write(*,*) ""
+
 
     !!!!!!!!!! TEST ADD_ELEMENT VECTOR  !!!!!!!!!!
     write(*,*) "--------TEST ADD ELEMENT VECTOR---------"
@@ -121,22 +134,32 @@ program sparse_test
     end do
     write(*,*) ""
     write(*,*) ""
-    
+
 
     !!!!!!!!!! TEST GET_VALUE VECTOR  !!!!!!!!!!
     write(*,*) "--------TEST GET_VALUE VECTOR---------"
     write(*,*) ""
-    write(*,*) "Get value of full index 1", 
+    write(*,*) "Get value of full index 1" 
     value = sparse_a%get_value(1)
     write(*,*) "value = ", value
     write(*,*) ""
+
+    write(*,*) "Get value of full index 2" 
+    value = sparse_a%get_value(2)
+    write(*,*) "value = ", value
+    write(*,*) ""
     
-    write(*,*) "Get value of full index 3", 
+    write(*,*) "Get value of full index 3" 
     value = sparse_a%get_value(3)
     write(*,*) "value = ", value
     write(*,*) ""
 
-    write(*,*) "Get value of full index 9", 
+    write(*,*) "Get value of full index 8" 
+    value = sparse_a%get_value(8)
+    write(*,*) "value = ", value
+    write(*,*) ""
+
+    write(*,*) "Get value of full index 9 " 
     value = sparse_a%get_value(9)
     write(*,*) "value = ", value
     write(*,*) ""
@@ -147,6 +170,52 @@ program sparse_test
     write(*,*) "--------TEST SET_VALUE VECTOR---------"
     write(*,*) ""
 
+    write(*,*) "Set value of full index 2 to 3.14" 
+    call sparse_a%set_value(3.14, 2)
+    write(*,*) "Set value of full index 3 to -1.234" 
+    call sparse_a%set_value(-1.234, 3)
+    write(*,*) "Set value of full index 4 to 0.0" 
+    call sparse_a%set_value(0.0, 4)
+    write(*,*) "Set value of full index 6,7,8,9,10,11 to 0.0" 
+    call sparse_a%set_value(0.0, 6)
+    call sparse_a%set_value(0.0, 7)
+    call sparse_a%set_value(0.0, 8)
+    call sparse_a%set_value(0.0, 9)
+    call sparse_a%set_value(0.0, 10)
+    call sparse_a%set_value(0.0, 11)
+    write(*,*) ""
+    
+    write(*,*) "resulting vector:"
+    write(*,*) ""
+    write(*,*) "sparse_a value    sparse_index      full_index"
+    do i=1,sparse_a%sparse_size
+        write(*,'(f14.10, 12x, I5, 12x, I5)') sparse_a%elements(i)%value, i, sparse_a%elements(i)%full_index
+    end do
+    write(*,*) ""
+    write(*,*) ""
+
+
+    !!!!!!!!!! TEST COMPRESS SPARSE VECTOR  !!!!!!!!!!
+    write(*,*) "--------TEST COMPRESS SPARSE VECTOR---------"
+    write(*,*) ""
+    write(*,*) "compressing sparse vector:"
+    write(*,*) ""
+    
+    call sparse_a%compress()
+
+    write(*,*) "sparse_a value    sparse_index      full_index"
+    do i=1,sparse_a%sparse_size
+        write(*,'(f14.10, 12x, I5, 12x, I5)') sparse_a%elements(i)%value, i, sparse_a%elements(i)%full_index
+    end do
+    write(*,*) ""
+
+
+    
+
+
+
+    
+    
 
 
 

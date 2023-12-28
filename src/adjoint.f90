@@ -107,22 +107,9 @@ module adjoint_mod
 
 contains
 
-    ! NOTE maybe have the init subroutine do what the compress subroutine does.
-    subroutine sparse_vector_init(this, full_size)
-        ! initializes a sparse_vector type, to be used when creating a sparse vector of known length and values
-
-        implicit none
-
-        class(sparse_vector),intent(inout) :: this
-        integer :: full_size
-
-        this%full_size = full_size
-
-    end subroutine sparse_vector_init
-        
-
-    subroutine sparse_vector_compress(this, full_vector)
-        ! takes a full vector that is sparse (has a lot of 0.0's) and compresses it to a sparse vector type
+    
+    subroutine sparse_vector_init(this, full_vector)
+        ! takes a real full vector that is sparse (has a lot of 0.0's) and compresses it to a sparse vector type
 
         implicit none 
 
@@ -154,11 +141,55 @@ contains
         
         ! to save memory, you can deallocate the original array after compressing it
 
+    end subroutine sparse_vector_init
+        
+
+    subroutine sparse_vector_compress(this)
+        ! compresses 0's in a sparse vector type 
+        
+        implicit none 
+        
+        class(sparse_vector),intent(inout) :: this
+        
+        type(sparse_vector) :: temp_vector
+        integer :: i,count
+        integer, dimension(this%sparse_size) :: indices
+        
+        ! count how many nonzero elements there are
+        count = 0
+        do i=1, this%sparse_size
+            if (abs(this%elements(i)%value) > 1.0e-12) then
+                count = count + 1
+                indices(count) = i
+            end if
+        end do
+
+        ! check to see if its worth it to compress. 0.2 is arbitrary, adjust as necessary
+        if (real(count)/real(this%sparse_size) > 0.2) then
+             
+            ! now that we have the number of non zero elements, allocate temp array
+            temp_vector%sparse_size = count
+            allocate(temp_vector%elements(count))
+
+            ! store the nonzero sparse elemnets in a temp array
+            do i=1,count
+                temp_vector%elements(i) = this%elements(indices(i))
+            end do
+
+            ! move allocation of temporary array and overwrite 'this'
+            call move_alloc(temp_vector%elements, this%elements) 
+            
+            ! update the sparse number of columns
+            this%sparse_size = count
+        else
+
+        end if
+
     end subroutine sparse_vector_compress
 
     
     function sparse_vector_expand(this) result(full_vector)
-        ! takes a full vector that is sparse (has a lot of 0.0's) and compresses it to a sparse vector type
+        ! takes a sparse vector and expands it, returning a real full vector
 
         implicit none
 
@@ -265,8 +296,8 @@ contains
         implicit none
 
         class(sparse_vector),intent(inout) :: this
-        integer, intent(in):: full_index
-        real,intent(inout) :: value
+        integer :: full_index
+        real :: value
         
         integer :: i, shift_index
         logical :: new_sparse_element_needed
