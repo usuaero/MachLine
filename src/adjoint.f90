@@ -47,7 +47,7 @@ module adjoint_mod
             procedure :: sparse_add => sparse_vector_sparse_add
             procedure :: sparse_subtract => sparse_vector_sparse_subtract
             
-            procedure :: scale_vec_by_each_sparse_element => sparse_vector_scale_vec_by_each_sparse_element
+            procedure :: broadcast_element_times_vector => sparse_vector_broadcast_element_times_vector
 
             !procedure :: fill_vector => sparse_vector_fill_vector
             
@@ -63,7 +63,7 @@ module adjoint_mod
         
             
         contains
-            procedure :: init => sparse_matrix_init
+            procedure :: init_from_sparse_vectors => sparse_matrix_init_from_sparse_vectors
 
             procedure :: count_nonzero_matrix_elements => sparse_matrix_count_nonzero_matrix_elements
             procedure :: compress => sparse_matrix_compress
@@ -78,11 +78,11 @@ module adjoint_mod
             procedure :: sparse_add => sparse_matrix_sparse_add
             procedure :: sparse_subtract => sparse_matrix_sparse_subtract
 
-            procedure :: vec_cross_matrix => sparse_matrix_vec_cross_matrix
-            procedure :: matrix_cross_vec => sparse_matrix_matrix_cross_vec
+            procedure :: broadcast_vector_cross_element => sparse_matrix_broadcast_vector_cross_element
+            procedure :: broadcast_element_cross_vector => sparse_matrix_broadcast_element_cross_vector
 
-            procedure :: dot_vec_and_matrix => sparse_matrix_dot_vec_and_matrix
-            procedure :: multiply_scalar => sparse_matrix_multiply_scalar
+            procedure :: broadcast_vector_dot_element => sparse_matrix_broadcast_vector_dot_element
+            procedure :: broadcast_element_times_scalar => sparse_matrix_broadcast_element_times_scalar
 
 
         
@@ -429,7 +429,7 @@ contains
     end function sparse_vector_sparse_subtract
 
 
-    function sparse_vector_scale_vec_by_each_sparse_element(this, vec) result(result_matrix)
+    function sparse_vector_broadcast_element_times_vector(this, vec) result(result_matrix)
         ! multiply a vector by each scalar in the sparse_vector
         ! returns a sparse_matrix
 
@@ -455,10 +455,10 @@ contains
         result_matrix%full_num_cols = this%full_size
         
         
-    end function sparse_vector_scale_vec_by_each_sparse_element
+    end function sparse_vector_broadcast_element_times_vector
 
 
-    subroutine sparse_matrix_init(this, sparse_v1, sparse_v2, sparse_v3)
+    subroutine sparse_matrix_init_from_sparse_vectors(this, sparse_v1, sparse_v2, sparse_v3)
         ! combines 3 sparse vectors into a sparse matrix
         implicit none
 
@@ -472,7 +472,7 @@ contains
             
             this%full_num_cols = sparse_v1%full_size
         else
-            write(*,*) "!!! sparse_matrix_init requires all sparse vector inputs to have same full_size. Quitting..."
+            write(*,*) "!!! sparse_matrix_init_from_sparse_vectors requires all sparse vector inputs to have same full_size. Quitting..."
             stop
         end if
         
@@ -497,7 +497,7 @@ contains
             end if
         end do
     
-    end subroutine sparse_matrix_init
+    end subroutine sparse_matrix_init_from_sparse_vectors
 
 
     function sparse_matrix_count_nonzero_matrix_elements(this) result(count) 
@@ -752,7 +752,7 @@ contains
     end subroutine sparse_matrix_sparse_subtract
 
 
-    function sparse_matrix_vec_cross_matrix(this, vec) result(result_matrix)
+    function sparse_matrix_broadcast_vector_cross_element(this, vec) result(result_matrix)
         ! cross product of a 3-vector and a "list" of vectors (derivative of a vector)
         ! returns a "list" of 3-vectors ( a sparse matrix 3)
 
@@ -787,10 +787,10 @@ contains
         end do       
 
 
-    end function sparse_matrix_vec_cross_matrix
+    end function sparse_matrix_broadcast_vector_cross_element
 
 
-    function sparse_matrix_matrix_cross_vec(this, vec) result(result_matrix)
+    function sparse_matrix_broadcast_element_cross_vector(this, vec) result(result_matrix)
         ! cross product of a "list" of vectors (derivative of a vector) and a 3-vector
         ! returns a "list" of 3-vectors ( a sparse matrix 3)
 
@@ -823,10 +823,10 @@ contains
 
         end do       
 
-    end function sparse_matrix_matrix_cross_vec
+    end function sparse_matrix_broadcast_element_cross_vector
 
 
-    function sparse_matrix_dot_vec_and_matrix(this, vec) result(result_vector)
+    function sparse_matrix_broadcast_vector_dot_element(this, vec) result(result_vector)
         ! dot product of a 3-vector and a "list" of vectors (derivative of a vector)
         ! returns a sparse_vector
 
@@ -860,10 +860,10 @@ contains
 
         end do       
 
-    end function sparse_matrix_dot_vec_and_matrix
+    end function sparse_matrix_broadcast_vector_dot_element
 
 
-    subroutine sparse_matrix_multiply_scalar(this,scalar)
+    subroutine sparse_matrix_broadcast_element_times_scalar(this,scalar)
         ! multiplies a single scalar value by each of the sparse matrix elements
         ! (this could also be a function)
 
@@ -879,7 +879,7 @@ contains
             this%columns(i)%vector_values = this%columns(i)%vector_values * scalar
         end do
 
-    end subroutine sparse_matrix_multiply_scalar
+    end subroutine sparse_matrix_broadcast_element_times_scalar
 
 
     

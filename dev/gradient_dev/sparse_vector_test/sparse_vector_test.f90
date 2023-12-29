@@ -542,9 +542,9 @@ program sparse_test
     
 
 
-    !!!!!!!!!! TEST SCALE VEC BY EACH SPARSE ELEMENT   !!!!!!!!!!
+    !!!!!!!!!! TEST SCALE BROADCAST ELEMENT SCALED VECTOR   !!!!!!!!!!
 
-    write(*,*) "-------------TEST SCALE VEC BY EACH SPARSE ELEMENT--------------"
+    write(*,*) "-------------TEST BROADCAST ELEMENT SCALED VECTOR--------------"
     write(*,*) ""
     vec = (/1.0,-2.0,3.0/)
     write(*,'(A, 3(f10.5, 2x))') "new vector to be scaled: ", vec
@@ -556,7 +556,7 @@ program sparse_test
     write(*,*) ""
     
     ! scale and write results
-    sparse_matrix_a = sparse_a%scale_vec_by_each_sparse_element(vec)
+    sparse_matrix_a = sparse_a%broadcast_element_times_vector(vec)
     
     write(*,*) "scale vec by each sparse element...."
     write(*,*) ""
