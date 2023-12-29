@@ -11,14 +11,19 @@ program sparse_test
     expanded_b_minus_a, vector_a_minus_b, vector_b_minus_a, residual
     real,dimension(3) :: vec
     real,dimension(:,:),allocatable :: scaled_vecs
-    integer :: i, full_size_a, add_index, add_shift_index
+    integer :: i, full_size_a, add_index, add_shift_index, passed_tests, total_tests
     real :: add_value, value
+    logical :: test_failed
 
     write(*,*) ""
     write(*,*) ""
     write(*,*) "-----------------------------SPARSE TEST------------------------------"
     write(*,*) ""
     write(*,*) ""
+    test_failed = .false.
+    passed_tests = 0
+    total_tests = 0
+    
 
 
     !!!!!!!!!!!! INITIALIZE VECTOR !!!!!!!!!!!!!!
@@ -53,7 +58,81 @@ program sparse_test
         write(*,'(f14.10, 12x, I5, 12x, I5)') sparse_a%elements(i)%value, i, sparse_a%elements(i)%full_index
     end do
     write(*,*) ""
+
+    ! check if test failed
+    do i=1,sparse_a%full_size
+        if (abs(sparse_a%get_value(i) - vector_a(i)) > 1.0e-12) then
+            test_failed = .true.
+        end if
+    end do
+    if (test_failed) then
+        write(*,*) "init sparse vector FAILED"
+        total_tests = total_tests + 1
+    else
+        write(*,*) "init sparse vector PASSED"
+        passed_tests = passed_tests + 1
+        total_tests = total_tests + 1
+    end if
+    test_failed = .false.
+    write(*,*) "" 
+    write(*,*) "" 
+
+
+    !!!!!!!!!! TEST GET_VALUE VECTOR  !!!!!!!!!!
+    write(*,*) "-------------TEST GET_VALUE VECTOR--------------"
     write(*,*) ""
+    write(*,*) "Get value of full index 1" 
+    value = sparse_a%get_value(1)
+    if (abs(sparse_a%get_value(1)-vector_a(1)) > 1.0e-12) then
+        test_failed = .true.
+    end if 
+    write(*,*) "value = ", value
+    write(*,*) ""
+
+    write(*,*) "Get value of full index 2" 
+    value = sparse_a%get_value(2)
+    if (abs(sparse_a%get_value(2)-vector_a(2)) > 1.0e-12) then
+        test_failed = .true.
+    end if
+    write(*,*) "value = ", value
+    write(*,*) ""
+    
+    write(*,*) "Get value of full index 3" 
+    value = sparse_a%get_value(3)
+    if (abs(sparse_a%get_value(3)-vector_a(3)) > 1.0e-12) then
+        test_failed = .true.
+    end if
+    write(*,*) "value = ", value
+    write(*,*) ""
+
+    write(*,*) "Get value of full index 8" 
+    value = sparse_a%get_value(8)
+    if (abs(sparse_a%get_value(8)-vector_a(8)) > 1.0e-12) then
+        test_failed = .true.
+    end if
+    write(*,*) "value = ", value
+    write(*,*) ""
+
+    write(*,*) "Get value of full index 9 " 
+    value = sparse_a%get_value(9)
+    if (abs(sparse_a%get_value(9)-vector_a(9)) > 1.0e-12) then
+        test_failed = .true.
+    end if
+    write(*,*) "value = ", value
+    write(*,*) ""
+    
+    ! check if test failed
+    if (test_failed) then
+        write(*,*) "get value test  FAILED"
+        total_tests = total_tests + 1
+    else
+        write(*,*) "get value test PASSED"
+        passed_tests = passed_tests + 1
+        total_tests = total_tests + 1
+    end if
+    test_failed = .false.
+    write(*,*) "" 
+    write(*,*) "" 
 
 
     !!!!!!!!!! TEST EXPAND VECTOR  !!!!!!!!!!
@@ -68,7 +147,25 @@ program sparse_test
         write(*, '(2(f14.10, 2x))') expanded_a(i), residual(i)
     end do
     write(*,*) ""
+
+    ! check if test failed
+    do i=1,sparse_a%full_size
+        if (abs(residual(i)) > 1.0e-12) then
+            test_failed = .true.
+        end if
+    end do
+    if (test_failed) then
+        write(*,*) "expand sparse vector FAILED"
+        total_tests = total_tests + 1
+    else
+        write(*,*) "expand sparse vector PASSED"
+        passed_tests = passed_tests + 1
+        total_tests = total_tests + 1
+    end if
+    test_failed = .false.
+    write(*,*) "" 
     write(*,*) ""
+
 
     !!!!!!!!!! TEST INCREASE_SIZE VECTOR  !!!!!!!!!!
     write(*,*) "-------------TEST INCREASE SIZE VECTOR--------------"
@@ -95,6 +192,7 @@ program sparse_test
     do i=1,sparse_a%sparse_size
         write(*,'(f14.10, 12x, I5, 12x, I5)') sparse_a%elements(i)%value, i, sparse_a%elements(i)%full_index
     end do
+
     write(*,*) ""
     write(*,*) "return to original size"
     write(*,*) ""
@@ -107,6 +205,19 @@ program sparse_test
     do i=1,sparse_a%sparse_size
         write(*,'(f14.10, 12x, I5, 12x, I5)') sparse_a%elements(i)%value, i, sparse_a%elements(i)%full_index
     end do
+    write(*,*) ""
+    
+    ! result of test
+    if (test_failed) then
+        write(*,*) "increase size test FAILED"
+        total_tests = total_tests + 1
+    else
+        write(*,*) "increase size test PASSED"
+        passed_tests = passed_tests + 1
+        total_tests = total_tests + 1
+    end if
+    test_failed = .false.
+    write(*,*) "" 
     write(*,*) ""
 
 
@@ -136,38 +247,27 @@ program sparse_test
         write(*,'(f14.10, 12x, I5, 12x, I5)') sparse_a%elements(i)%value, i, sparse_a%elements(i)%full_index
     end do
     write(*,*) ""
+
+    ! check if test failed
+    vector_a(4) = 5.1
+    do i=1,sparse_a%full_size
+        if (abs(sparse_a%get_value(i) - vector_a(i)) > 1.0e-12)  then
+            test_failed = .true.
+        end if
+    end do
+    if (test_failed) then
+        write(*,*) "add element test  FAILED"
+        total_tests = total_tests + 1
+    else
+        write(*,*) "add element test PASSED"
+        passed_tests = passed_tests + 1
+        total_tests = total_tests + 1
+    end if
+    test_failed = .false.
+    write(*,*) "" 
     write(*,*) ""
 
 
-    !!!!!!!!!! TEST GET_VALUE VECTOR  !!!!!!!!!!
-    write(*,*) "-------------TEST GET_VALUE VECTOR--------------"
-    write(*,*) ""
-    write(*,*) "Get value of full index 1" 
-    value = sparse_a%get_value(1)
-    write(*,*) "value = ", value
-    write(*,*) ""
-
-    write(*,*) "Get value of full index 2" 
-    value = sparse_a%get_value(2)
-    write(*,*) "value = ", value
-    write(*,*) ""
-    
-    write(*,*) "Get value of full index 3" 
-    value = sparse_a%get_value(3)
-    write(*,*) "value = ", value
-    write(*,*) ""
-
-    write(*,*) "Get value of full index 8" 
-    value = sparse_a%get_value(8)
-    write(*,*) "value = ", value
-    write(*,*) ""
-
-    write(*,*) "Get value of full index 9 " 
-    value = sparse_a%get_value(9)
-    write(*,*) "value = ", value
-    write(*,*) ""
-    write(*,*) ""
-    
 
     !!!!!!!!!! TEST SET_VALUE VECTOR  !!!!!!!!!!
     write(*,*) "-------------TEST SET_VALUE VECTOR--------------"
@@ -195,7 +295,26 @@ program sparse_test
         write(*,'(f14.10, 12x, I5, 12x, I5)') sparse_a%elements(i)%value, i, sparse_a%elements(i)%full_index
     end do
     write(*,*) ""
+
+    ! check if test failed
+    vector_a = (/ 1.0, 3.14, -1.234, 0.0, 87.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 /)
+    do i=1,sparse_a%full_size
+        if (abs(sparse_a%get_value(i) - vector_a(i)) > 1.0e-12) then
+            test_failed = .true.
+        end if
+    end do
+    if (test_failed) then
+        write(*,*) "set value test  FAILED"
+        total_tests = total_tests + 1
+    else
+        write(*,*) "set value test PASSED"
+        passed_tests = passed_tests + 1
+        total_tests = total_tests + 1
+    end if
+    test_failed = .false.
+    write(*,*) "" 
     write(*,*) ""
+
 
 
     !!!!!!!!!! TEST COMPRESS SPARSE VECTOR  !!!!!!!!!!
@@ -205,11 +324,32 @@ program sparse_test
     write(*,*) ""
     
     call sparse_a%compress()
-
+    
     write(*,*) "sparse_a value    sparse_index      full_index"
     do i=1,sparse_a%sparse_size
         write(*,'(f14.10, 12x, I5, 12x, I5)') sparse_a%elements(i)%value, i, sparse_a%elements(i)%full_index
     end do
+    write(*,*) ""
+    
+     ! check if test failed
+    do i=1,3
+        if (abs(sparse_a%elements(i)%value - vector_a(i)) > 1.0e-12) then
+            test_failed = .true.
+        end if
+    end do
+    if ((sparse_a%sparse_size /= 4) .or. (sparse_a%elements(4)%full_index /= 5)) then
+        test_failed = .true.
+    end if
+    if (test_failed) then
+        write(*,*) "compress test FAILED"
+        total_tests = total_tests + 1
+    else
+        write(*,*) "compress test PASSED"
+        passed_tests = passed_tests + 1
+        total_tests = total_tests + 1
+    end if
+    test_failed = .false.
+    write(*,*) "" 
     write(*,*) ""
     deallocate(sparse_a%elements)
 
@@ -271,6 +411,23 @@ program sparse_test
         write(*, '(2(f14.10, 2x))') expanded_ab(i), residual(i)
     end do
     write(*,*) ""
+
+    ! check if test failed
+    do i=1,sparse_a%full_size
+        if (abs(residual(i)) > 1.0e-12) then
+            test_failed = .true.
+        end if
+    end do
+    if (test_failed) then
+        write(*,*) "add sparse vector FAILED"
+        total_tests = total_tests + 1
+    else
+        write(*,*) "add sparse vector PASSED"
+        passed_tests = passed_tests + 1
+        total_tests = total_tests + 1
+    end if
+    test_failed = .false.
+    write(*,*) ""
     write(*,*) ""
 
     !!!!!!!!!! TEST SUBTRACT SPARSE VECTORS  !!!!!!!!!!
@@ -288,7 +445,25 @@ program sparse_test
     do i=1,11
         write(*, '(3(f14.10, 2x))') vector_a(i), vector_b(i), vector_a_minus_b(i)
     end do
-    write(*,*) "" 
+    write(*,*) ""
+    
+    ! check if test failed
+    do i=1,sparse_a%full_size
+        if (abs(residual(i)) > 1.0e-12) then
+            test_failed = .true.
+        end if
+    end do
+    if (test_failed) then
+        write(*,*) "subtract sparse vector a - b FAILED"
+        total_tests = total_tests + 1
+    else
+        write(*,*) "subtract sparse vector a - b PASSED"
+        passed_tests = passed_tests + 1
+        total_tests = total_tests + 1
+    end if
+    test_failed = .false.
+    write(*,*) ""
+    write(*,*) ""
     
     
     ! subtract and display 
@@ -346,11 +521,29 @@ program sparse_test
         write(*, '(2(f14.10, 2x))') expanded_b_minus_a(i), residual(i)
     end do
     write(*,*) ""
+    
+    ! check if test failed
+    do i=1,sparse_a%full_size
+        if (abs(residual(i)) > 1.0e-12) then
+            test_failed = .true.
+        end if
+    end do
+    if (test_failed) then
+        write(*,*) "subtract sparse vector b - a FAILED"
+        total_tests = total_tests + 1
+    else
+        write(*,*) "subtract sparse vector b - a PASSED"
+        passed_tests = passed_tests + 1
+        total_tests = total_tests + 1
+    end if
+    test_failed = .false.
+    write(*,*) ""
     write(*,*) ""
     
 
 
     !!!!!!!!!! TEST SCALE VEC BY EACH SPARSE ELEMENT   !!!!!!!!!!
+
     write(*,*) "-------------TEST SCALE VEC BY EACH SPARSE ELEMENT--------------"
     write(*,*) ""
     vec = (/1.0,-2.0,3.0/)
@@ -385,21 +578,37 @@ program sparse_test
     end do
     write(*,*) ""
 
+    ! check if test failed
+    if (sparse_matrix_a%sparse_num_cols /= 5) then
+        test_failed = .true.
+    end if
+    do i=1, sparse_a%full_size
+        if (any(abs(sparse_matrix_a%get_values(i) - (vector_a(i)*vec)) > 1.0e-12)) then
+            test_failed = .true.
+        end if
+    end do   
     
+    if (test_failed) then
+        write(*,*) "scale a vector by each element test FAILED"
+        total_tests = total_tests + 1
+    else
+        write(*,*) "scale a vector by each element test PASSED"
+        passed_tests = passed_tests + 1
+        total_tests = total_tests + 1
+    end if
+    test_failed = .false.
+    write(*,*) ""
+    write(*,*) ""
+
+
+    !!!!!!!!!!!!!! SPARSE VECTOR TEST RESULTS!!!!!!!!!!!!!
+    write(*,*) "-------------SPARSE VECTOR TEST RESULTS--------------"
+    write(*,*) ""
+    write(*,*) total_tests - passed_tests, " tests FAILED"
+    write(*,*) ""
+    write(*,*) passed_tests, " out of ", total_tests, " tests PASSED"
+
     
-
-
-
-    
-
-
-    
-
-
-
-    
-    
-
 
 
 
