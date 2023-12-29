@@ -472,7 +472,8 @@ contains
             
             this%full_num_cols = sparse_v1%full_size
         else
-            write(*,*) "!!! sparse_matrix_init_from_sparse_vectors requires all sparse vector inputs to have same full_size. Quitting..."
+            write(*,*) "!!! sparse_matrix_init_from_sparse_vectors requires all sparse vector inputs &
+            to have same full_size. Quitting..."
             stop
         end if
         

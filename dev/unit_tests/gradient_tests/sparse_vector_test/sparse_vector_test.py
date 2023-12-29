@@ -1,5 +1,5 @@
 import subprocess as sp
-# this script tests sparse vector and sparse matrix operations in adjoint.f90
+# this script tests sparse vector operations in adjoint.f90
 
 if __name__=="__main__":
 
