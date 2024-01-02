@@ -218,6 +218,7 @@ contains
         integer :: new_size
 
         new_size = size(this%elements) + 1
+
         ! allocate a temporary array
         allocate(temp_vector%elements(new_size))
 
@@ -463,9 +464,10 @@ contains
         implicit none
 
         class(sparse_matrix),intent(inout) :: this
-        type(sparse_vector),intent(in) :: sparse_v1,sparse_v2,sparse_v3
+        type(sparse_vector),intent(inout) :: sparse_v1,sparse_v2,sparse_v3
         
-        integer :: i, column_count = 0
+        integer :: i, count
+        real,dimension(3) :: values
 
         ! check to see if the given sparse vectors are the same full size
         if (sparse_v1%full_size == sparse_v2%full_size .and. sparse_v1%full_size == sparse_v3%full_size) then
@@ -476,25 +478,33 @@ contains
             to have same full_size. Quitting..."
             stop
         end if
-        
+        count = 0
         do i=1,this%full_num_cols
             ! check to see if the given sparse vectors have a nonzero value at full index i 
             ! if at least one sparse vector has a nonzero value at i, allocate a and populate 3 vector
-            if (sparse_v1%elements(i)%full_index == i .or. sparse_v2%elements(i)%full_index == i &
-                .or. sparse_v3%elements(i)%full_index == i) then           
-                column_count = column_count+1
+            if (abs(sparse_v1%get_value(i)) > 1.0e-12 .or. abs(sparse_v2%get_value(i)) > 1.0e-12 &
+            .or. abs(sparse_v3%get_value(i)) > 1.0e-12) then           
+                count = count + 1
                 
-                ! allocate space for one more element
-                call this%increase_size()
+                ! update array of values (at least 1 will be nonzero)
+                values = (/sparse_v1%get_value(i), sparse_v2%get_value(i), sparse_v3%get_value(i) /)
+            
+                ! the first element needs to be initialized 
+                if (count == 1) then
+                    ! allocate the first sparse matrix element
+                    allocate(this%columns(1))
 
-                ! associate this element with the full index i
-                this%columns(i)%full_index = i
+                    ! populate the first sparse matrix element
+                    this%columns(1)%vector_values = values
+                    this%columns(1)%full_index = i
+                    this%sparse_num_cols = 1
 
-                ! populate the vector_values  NOTE: this could be a bit more memory efficient if the 0.0 vector_values were collapse
-                this%columns(i)%vector_values(1) = sparse_v1%elements(i)%value
-                this%columns(i)%vector_values(2) = sparse_v2%elements(i)%value
-                this%columns(i)%vector_values(3) = sparse_v3%elements(i)%value
-                
+                else
+                    ! add an element (a column)
+                    call this%add_element(values,i,count)
+
+                end if
+
             end if
         end do
     
@@ -512,14 +522,13 @@ contains
 
         count = 0
         do i=1,this%sparse_num_cols
-            if (abs(this%columns(i)%vector_values(1)) > 1.0e-12 .and. &
-                abs(this%columns(i)%vector_values(2)) > 1.0e-12 .and. &
-                abs(this%columns(i)%vector_values(3)) > 1.0e-12 ) then
+            if (any(abs(this%columns(i)%vector_values) > 1.0e-12)) then
                 count = count + 1
             end if
         end do
 
     end function sparse_matrix_count_nonzero_matrix_elements
+
 
     ! NOTE SURE IF/WHEN compress will be used!
     function sparse_matrix_compress(this) result(result_matrix)
@@ -555,7 +564,7 @@ contains
     end function sparse_matrix_compress
   
 
-    subroutine sparse_matrix_set_values(this, full_index, values) 
+    subroutine sparse_matrix_set_values(this, values, full_index) 
         ! given a full_vector index and a value, this adds or updates the corresponding value in the sparse vector
 
         implicit none
@@ -566,12 +575,18 @@ contains
         
         integer :: i
         integer :: shift_index
-        logical :: new_sparse_element_needed = .FALSE.
+        logical :: new_sparse_element_needed
+
+        ! initialize logical
+        new_sparse_element_needed = .FALSE.
 
         do i=1,this%sparse_num_cols
+            write(*,*) "iter = ", i
+            ! check to see the given full_index matches an existing sparse element full index
             if (this%columns(i)%full_index == full_index) then
                 this%columns(i)%vector_values(:) = values(:)  
                 exit  
+            ! check to see if the given full index is less than the current element's full index (we skipped it)
             else if (this%columns(i)%full_index > full_index) then
                 new_sparse_element_needed = .TRUE.
                 shift_index = i
@@ -611,7 +626,7 @@ contains
     end function sparse_matrix_get_values
 
 
-    subroutine sparse_matrix_add_element(this,values,  full_index, shift_index)
+    subroutine sparse_matrix_add_element(this, values,  full_index, shift_index)
         ! adds a sparse element to the current sparse matrix
         ! could be made more efficient by checking if the shift index is closer to the beginning or 
         ! the end. if closer to the beginning, cshift, then pull back the first few elements until shift_index
@@ -622,17 +637,15 @@ contains
         integer, intent(in) :: full_index, shift_index
         real,dimension(:),intent(in) :: values
         
-        integer :: i,new_size
-
-        new_size = this%sparse_num_cols + 1
-
+        integer :: i
+        
         ! original information is preserved, but an extra space is allocated
         call this%increase_size()
-
+        
         ! shift necessary elements up in the increased size matrix
         do i=this%sparse_num_cols,shift_index,-1
-            this%columns(i+1)%vector_values(:) = this%columns(i)%vector_values(:)
-            this%columns(i+1)%full_index = this%columns(i)%full_index
+            this%columns(i)%vector_values(:) = this%columns(i-1)%vector_values(:)
+            this%columns(i)%full_index = this%columns(i-1)%full_index
         end do
 
         ! place the new element in the correct spot
@@ -647,14 +660,15 @@ contains
 
         implicit none
         class(sparse_matrix),intent(inout) :: this
-
+        
         type(sparse_matrix) :: temp_matrix
         integer :: new_size
-
+        
         new_size = size(this%columns) + 1
+
         ! allocate a temporary array
         allocate(temp_matrix%columns(new_size))
-
+        
         ! copy array info
         temp_matrix%columns(1:new_size-1) = this%columns(:)
 
@@ -696,11 +710,11 @@ contains
             ! if this_i is populated and matrix_a_i is populated, add them
             if (any(abs(this_i) > 1.0e-12) .and. any(abs(matrix_a_i) > 1.0e-12)) then
                 this_plus_a = this_i + matrix_a_i
-                call this%set_values(i,this_plus_a)
+                call this%set_values(this_plus_a, i)
             
                 ! if this_i is zeros and matrix_a_i is populated, set this_i equal to matrix_a_i
             else if (any(abs(this_i) < 1.0e-12) .and. any(abs(matrix_a_i) > 1.0e-12)) then
-                call this%set_values(i, matrix_a_i)
+                call this%set_values( matrix_a_i, i)
             
                 ! if both are zeros, do nothing
             end if
@@ -738,12 +752,12 @@ contains
             ! if this_i is populated and matrix_a_i is populated, subtract them
             if (any(abs(this_i) > 1.0e-12) .and. any(abs(matrix_a_i) > 1.0e-12)) then
                 this_minus_a = this_i - matrix_a_i
-                call this%set_values(i,this_minus_a)
+                call this%set_values(this_minus_a, i)
             
                 ! if this_i is zeros and matrix_a_i is populated, set this_i equal to minus matrix_a_i
             else if (any(abs(this_i) < 1.0e-12) .and. any(abs(matrix_a_i) > 1.0e-12)) then
                 minus_a = -matrix_a_i
-                call this%set_values(i, minus_a)
+                call this%set_values( minus_a, i)
             
                 ! if both are zeros, do nothing
             end if
