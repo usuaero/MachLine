@@ -78,95 +78,6 @@ program sparse_vector_test
     write(*,*) "" 
 
 
-!!!!!!!!!! TEST GET_VALUE (SPARSE VECTOR)  !!!!!!!!!!
-    write(*,*) "-------------TEST GET_VALUE (SPARSE VECTOR)--------------"
-    write(*,*) ""
-    write(*,*) "Get value of full index 1" 
-    value = sparse_a%get_value(1)
-    if (abs(sparse_a%get_value(1)-vector_a(1)) < 1.0e-12) then
-        test_failed = .false.
-    end if 
-    write(*,*) "value = ", value
-    write(*,*) ""
-
-    write(*,*) "Get value of full index 2" 
-    value = sparse_a%get_value(2)
-    if (abs(sparse_a%get_value(2)-vector_a(2)) < 1.0e-12) then
-        test_failed = .false.
-    end if
-    write(*,*) "value = ", value
-    write(*,*) ""
-    
-    write(*,*) "Get value of full index 3" 
-    value = sparse_a%get_value(3)
-    if (abs(sparse_a%get_value(3)-vector_a(3)) < 1.0e-12) then
-        test_failed = .false.
-    end if
-    write(*,*) "value = ", value
-    write(*,*) ""
-
-    write(*,*) "Get value of full index 8" 
-    value = sparse_a%get_value(8)
-    if (abs(sparse_a%get_value(8)-vector_a(8)) < 1.0e-12) then
-        test_failed = .false.
-    end if
-    write(*,*) "value = ", value
-    write(*,*) ""
-
-    write(*,*) "Get value of full index 9 " 
-    value = sparse_a%get_value(9)
-    if (abs(sparse_a%get_value(9)-vector_a(9)) < 1.0e-12) then
-        test_failed = .false.
-    end if
-    write(*,*) "value = ", value
-    write(*,*) ""
-    
-    ! check if test failed
-    if (test_failed) then
-        write(*,*) "get value (sparse vector) test  FAILED"
-        total_tests = total_tests + 1
-    else
-        write(*,*) "get value (sparse vector) test PASSED"
-        passed_tests = passed_tests + 1
-        total_tests = total_tests + 1
-    end if
-    test_failed = .true.
-    write(*,*) "" 
-    write(*,*) "" 
-
-
-!!!!!!!!!! TEST EXPAND SPARSE VECTOR  !!!!!!!!!!
-    write(*,*) "-------------TEST EXPAND SPARSE VECTOR--------------"
-    ! expand sparse_a
-    expanded_a = sparse_a%expand()
-    residual = vector_a - expanded_a
-    
-    ! write results
-    write(*,*) "expanded_a          residual"
-    do i=1,sparse_a%full_size
-        write(*, '(2(f14.10, 2x))') expanded_a(i), residual(i)
-    end do
-    write(*,*) ""
-
-    ! check if test failed
-    do i=1,sparse_a%full_size
-        if (abs(residual(i)) < 1.0e-12) then
-            test_failed = .false.
-        end if
-    end do
-    if (test_failed) then
-        write(*,*) "expand sparse vector FAILED"
-        total_tests = total_tests + 1
-    else
-        write(*,*) "expand sparse vector PASSED"
-        passed_tests = passed_tests + 1
-        total_tests = total_tests + 1
-    end if
-    test_failed = .true.
-    write(*,*) "" 
-    write(*,*) ""
-
-
 !!!!!!!!!! TEST INCREASE_SIZE (SPARSE VECTOR)  !!!!!!!!!!
     write(*,*) "-------------TEST INCREASE_SIZE (SPARSE VECTOR)--------------"
     write(*,*) "sparse_size = ", sparse_a%sparse_size
@@ -274,6 +185,62 @@ program sparse_vector_test
     write(*,*) ""
 
 
+!!!!!!!!!! TEST GET_VALUE (SPARSE VECTOR)  !!!!!!!!!!
+    write(*,*) "-------------TEST GET_VALUE (SPARSE VECTOR)--------------"
+    write(*,*) ""
+    write(*,*) "Get value of full index 1" 
+    value = sparse_a%get_value(1)
+    if (abs(sparse_a%get_value(1)-vector_a(1)) < 1.0e-12) then
+        test_failed = .false.
+    end if 
+    write(*,*) "value = ", value
+    write(*,*) ""
+
+    write(*,*) "Get value of full index 2" 
+    value = sparse_a%get_value(2)
+    if (abs(sparse_a%get_value(2)-vector_a(2)) < 1.0e-12) then
+        test_failed = .false.
+    end if
+    write(*,*) "value = ", value
+    write(*,*) ""
+    
+    write(*,*) "Get value of full index 3" 
+    value = sparse_a%get_value(3)
+    if (abs(sparse_a%get_value(3)-vector_a(3)) < 1.0e-12) then
+        test_failed = .false.
+    end if
+    write(*,*) "value = ", value
+    write(*,*) ""
+
+    write(*,*) "Get value of full index 8" 
+    value = sparse_a%get_value(8)
+    if (abs(sparse_a%get_value(8)-vector_a(8)) < 1.0e-12) then
+        test_failed = .false.
+    end if
+    write(*,*) "value = ", value
+    write(*,*) ""
+
+    write(*,*) "Get value of full index 9 " 
+    value = sparse_a%get_value(9)
+    if (abs(sparse_a%get_value(9)-vector_a(9)) < 1.0e-12) then
+        test_failed = .false.
+    end if
+    write(*,*) "value = ", value
+    write(*,*) ""
+    
+    ! check if test failed
+    if (test_failed) then
+        write(*,*) "get value (sparse vector) test  FAILED"
+        total_tests = total_tests + 1
+    else
+        write(*,*) "get value (sparse vector) test PASSED"
+        passed_tests = passed_tests + 1
+        total_tests = total_tests + 1
+    end if
+    test_failed = .true.
+    write(*,*) "" 
+    write(*,*) ""
+
 
 !!!!!!!!!! TEST SET_VALUE (SPARSE VECTOR)  !!!!!!!!!!
     write(*,*) "-------------TEST SET_VALUE (SPARSE VECTOR)--------------"
@@ -357,11 +324,48 @@ program sparse_vector_test
     test_failed = .false.
     write(*,*) "" 
     write(*,*) ""
-    deallocate(sparse_a%elements)
+
+
+    !!!!!!!!!! TEST EXPAND SPARSE VECTOR  !!!!!!!!!!
+    write(*,*) "-------------TEST EXPAND SPARSE VECTOR--------------"
+    
+    ! expand sparse_a
+    vector_a = (/ 1.0, 3.14, -1.234, 0.0, 87.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 /)
+    expanded_a = sparse_a%expand()
+    residual = vector_a - expanded_a
+    
+    ! write results
+    write(*,*) "expanded_a          residual"
+    do i=1,sparse_a%full_size
+        write(*, '(2(f14.10, 2x))') expanded_a(i), residual(i)
+    end do
+    write(*,*) ""
+
+    ! check if test failed
+    do i=1,sparse_a%full_size
+        if (abs(residual(i)) < 1.0e-12) then
+            test_failed = .false.
+        end if
+    end do
+    if (test_failed) then
+        write(*,*) "expand sparse vector FAILED"
+        total_tests = total_tests + 1
+    else
+        write(*,*) "expand sparse vector PASSED"
+        passed_tests = passed_tests + 1
+        total_tests = total_tests + 1
+    end if
+    test_failed = .true.
+    write(*,*) "" 
+    write(*,*) ""
+
 
 
 !!!!!!!!!! TEST SPARSE ADD (VECTORS)  !!!!!!!!!!
     write(*,*) "-------------TEST SPARSE ADD (VECTORS)--------------"
+    write(*,*) ""
+    write(*,*) "deallocating sparse_a so it can be redefined"
+    deallocate(sparse_a%elements)
     write(*,*) ""
     write(*,*) "vectors to be added:"
     vector_a = (/ 1.0, 0.0, 11.0, 0.0, 87.0, 0.0, 0.0, 0.0, 4.0, 0.0, 3.14 /)
