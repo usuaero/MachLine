@@ -73,7 +73,7 @@ module adjoint_mod
             procedure :: set_values => sparse_matrix_set_values
 
             procedure :: compress => sparse_matrix_compress
-            !procedure :: expand => sparse_matrix_expand
+            procedure :: expand => sparse_matrix_expand
             
             procedure :: sparse_add => sparse_matrix_sparse_add
             procedure :: sparse_subtract => sparse_matrix_sparse_subtract
@@ -118,31 +118,35 @@ contains
 
         class(sparse_vector),intent(inout) :: this
         real,dimension(:),intent(inout) :: full_vector
-        integer :: full_size
-        integer :: i,count,sparse_iter
+        integer :: i,count,full_size, sparse_iter
+        integer,dimension(:),allocatable :: indices 
 
         ! get size of vector
         full_size = size(full_vector)
+        allocate(indices(full_size))
 
         ! count how many nonzero elements there are
-        count = count_nonzero_vector_values(full_vector)
+        count = 0
+        do i=1,full_size
+            if (abs(full_vector(i)) > 1.0e-12 ) then
+                count = count + 1
+                indices(count) = i
+            end if
+        end do
+        
         
         ! now that we have the number of non zero numbers, we can allocate the space for the sparse_vector
         this%sparse_size = count
         this%full_size = full_size
         allocate(this%elements(count))
 
-        sparse_iter = 0
         ! populate the sparse_vector elements
-        do i=1,full_size
-            if (abs(full_vector(i)) > 1.0e-12) then
-                sparse_iter = sparse_iter + 1
-                this%elements(sparse_iter)%value = full_vector(i)
-                this%elements(sparse_iter)%full_index = i
-            end if
+        do i=1,count
+            this%elements(i)%value = full_vector(indices(i))
+            this%elements(i)%full_index = indices(i)
         end do
         
-        ! to save memory, you can deallocate the original array after compressing it
+        ! to save memory, you can deallocate the original array after converting to a sparse vector
 
     end subroutine sparse_vector_init
 
@@ -284,8 +288,10 @@ contains
             end if
         end do
 
-        ! check to see if its worth it to compress. 0.2 is arbitrary, adjust as necessary
-        if (real(count)/real(this%sparse_size) > 0.2) then
+        ! check to see if its worth it to compress. 0.8 is arbitrary, adjust as necessary
+        ! 0.8 means only 80 percent of the sparse elements are actually nonzero. If count/sparse_size
+        ! is less than 0.8, it is worth it to compress, if its something like 0.95, don't bother
+        if (real(count)/real(this%sparse_size) < 0.8) then
              
             ! now that we have the number of non zero elements, allocate temp array
             temp_vector%sparse_size = count
@@ -724,6 +730,26 @@ contains
     end subroutine sparse_matrix_compress
 
 
+    function sparse_matrix_expand(this) result(full_matrix)
+        ! takes a sparse matrix and expands it, returning a real full matrix
+
+        implicit none
+
+        class(sparse_matrix),intent(inout) :: this
+
+        real,dimension(:,:),allocatable :: full_matrix
+        integer :: i
+
+        allocate(full_matrix(3,this%full_num_cols), source=0.)
+        
+        ! put nonzero values in their corresponding full_index location
+        do i=1,this%sparse_num_cols
+            full_matrix(:,this%columns(i)%full_index) = this%columns(i)%vector_values
+        end do
+
+    end function sparse_matrix_expand
+
+
     subroutine sparse_matrix_sparse_add(this, matrix_a) 
         ! subroutine to add a sparse matrix to this
         ! this + matrix_a = this
@@ -937,25 +963,6 @@ contains
         end do
 
     end subroutine sparse_matrix_broadcast_element_times_scalar
-
-
-    ! function sparse_matrix_count_nonzero_matrix_elements(this) result(count) 
-        !     ! counts the number of nonzero vectors (columns) in a matrix
-    
-        !     implicit none
-    
-        !     class(sparse_matrix),intent(in) :: this
-    
-        !     integer :: i, count
-    
-        !     count = 0
-        !     do i=1,this%sparse_num_cols
-        !         if (any(abs(this%columns(i)%vector_values) > 1.0e-12)) then
-        !             count = count + 1
-        !         end if
-        !     end do
-    
-        ! end function sparse_matrix_count_nonzero_matrix_elements
 
 
     subroutine adjoint_init(this)

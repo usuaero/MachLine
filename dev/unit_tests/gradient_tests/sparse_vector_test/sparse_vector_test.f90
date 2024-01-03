@@ -614,9 +614,9 @@ program sparse_vector_test
 !!!!!!!!!!!!!! SPARSE VECTOR TEST RESULTS!!!!!!!!!!!!!
     write(*,*) "-------------SPARSE VECTOR TEST RESULTS--------------"
     write(*,*) ""
-    write(*,*) total_tests - passed_tests, " tests FAILED"
+    write(*,'(I15,a14)') total_tests - passed_tests, " tests FAILED"
     write(*,*) ""
-    write(*,*) passed_tests, " out of ", total_tests, " tests PASSED"
+    write(*,'(I4,a9,I2,a14)') passed_tests, " out of ", total_tests, " tests PASSED"
 
     
 

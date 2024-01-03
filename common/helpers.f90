@@ -127,24 +127,24 @@ contains
     
     end subroutine delete_file
 
+!!! NOT USING ANYMORE -NATHAN
+    ! function count_nonzero_vector_values(vector) result(count)
+    !     ! counts the number of nonzero elements in a vector
 
-    function count_nonzero_vector_values(vector) result(count)
-        ! counts the number of nonzero elements in a vector
+    !     implicit none
 
-        implicit none
+    !     real,dimension(:),intent(in) :: vector
 
-        real,dimension(:),intent(in) :: vector
+    !     integer :: i, count
 
-        integer :: i, count
+    !     count = 0
+    !     do i=1,size(vector)
+    !         if (abs(vector(i)) > 1.0e-12 ) then
+    !             count = count + 1
+    !         end if
+    !     end do
 
-        count = 0
-        do i=1,size(vector)
-            if (abs(vector(i)) > 1.0e-12 ) then
-                count = count + 1
-            end if
-        end do
-
-    end function count_nonzero_vector_values
+    ! end function count_nonzero_vector_values
     
 
     function is_sparse_vector(vector, percentage) result(sparse)
