@@ -366,19 +366,19 @@ contains
             vector_b_i = vector_b%get_value(i)
             
             ! if this_i is populated and vector_b_i is populated, add them
-            if (abs(this_i) > 1.0e-12 .and. abs(vector_b_i) > 1.0e-12) then
+            if ((abs(this_i)) > 1.0e-12 .and. (abs(vector_b_i) > 1.0e-12)) then
                 this_plus_b = this_i + vector_b_i
                 call result_vector%set_value(this_plus_b, i)
             
             ! if this_i is zeros and vector_b_i is populated, set result_vector equal to vector_b_i
-            else if (abs(this_i) < 1.0e-12 .and. abs(vector_b_i) > 1.0e-12) then
+            else if ((abs(this_i)) < 1.0e-12 .and. (abs(vector_b_i) > 1.0e-12)) then
                 call result_vector%set_value(vector_b_i, i)
 
             ! if vector_b_i is zeros and this_i is populated, set result_vector equal to this_i
-            else if (abs(this_i) > 1.0e-12 .and. abs(vector_b_i) < 1.0e-12) then
+            else if ((abs(this_i) > 1.0e-12) .and. (abs(vector_b_i) < 1.0e-12)) then
                 call result_vector%set_value(this_i, i)
             
-            ! if both are zeros, do nothing
+            ! if both are zeros, do nothing(
             end if
             
         end do 
@@ -418,17 +418,17 @@ contains
             vector_b_i = vector_b%get_value(i)
             
             ! if this_i is populated and vector_b_i is populated, add them
-            if (abs(this_i) > 1.0e-12 .and. abs(vector_b_i) > 1.0e-12) then
+            if ((abs(this_i) > 1.0e-12) .and. (abs(vector_b_i) > 1.0e-12)) then
                 this_plus_b = this_i - vector_b_i
                 call result_vector%set_value(this_plus_b, i)
             
             ! if this_i is zeros and vector_b_i is populated, set result_vector equal to minus vector_b_i
-            else if (abs(this_i) < 1.0e-12 .and. abs(vector_b_i) > 1.0e-12) then
+            else if ((abs(this_i) < 1.0e-12) .and. (abs(vector_b_i) > 1.0e-12)) then
                 vector_b_i = -vector_b_i
                 call result_vector%set_value(vector_b_i, i)
 
             ! if vector_b_i is zeros and this_i is populated, set result_vector equal to this_i
-            else if (abs(this_i) > 1.0e-12 .and. abs(vector_b_i) < 1.0e-12) then
+            else if ((abs(this_i) > 1.0e-12) .and. (abs(vector_b_i) < 1.0e-12)) then
                 call result_vector%set_value(this_i, i)
             
             ! if both are zeros, do nothing
@@ -631,18 +631,21 @@ contains
 
         real,dimension(3) :: values 
 
+        values = (/1.0e-20, 1.0e-20, 1.0e-20/)
+
         ! if the sparse matrix element has the same full index as the given full index, 
-        ! returnthat element's value, if not, return the default zeros 
+        ! return that element's value, if not, return the default zeros 
         do i=1,this%sparse_num_cols
             if (this%columns(i)%full_index == full_index) then
                 values(:) = this%columns(i)%vector_values(:)
                 exit
-            else if (this%columns(i)%full_index > full_index) then
-                values(:) = (/0.0, 0.0, 0.0/)
-                exit
+            else
+            write(*,*) "get returned default 0.0"
+                
             end if  
         end do
-       
+        
+
     end function sparse_matrix_get_values
   
 
@@ -710,7 +713,7 @@ contains
         ! is less than 0.8, it is worth it to compress, if its something like 0.95, don't bother
         if (real(count)/real(this%sparse_num_cols) < 0.8) then
              
-            ! now that we have the number of ALL ZERO elements, allocate temp sparse matrix
+            ! now that we have the number of NON ZERO elements, allocate temp sparse matrix
             temp_matrix%sparse_num_cols = count
             allocate(temp_matrix%columns(count))
 
@@ -750,41 +753,59 @@ contains
     end function sparse_matrix_expand
 
 
-    subroutine sparse_matrix_sparse_add(this, matrix_a) 
+    subroutine sparse_matrix_sparse_add(this, sparse_input) 
         ! subroutine to add a sparse matrix to this
-        ! this + matrix_a = this
+        ! this + sparse_matrix = this
 
         implicit none
 
         class(sparse_matrix),intent(inout) :: this
-        type(sparse_matrix),intent(inout) :: matrix_a
+        type(sparse_matrix),intent(inout) :: sparse_input
 
         integer :: i
-        real,dimension(3) :: this_i, matrix_a_i, this_plus_a
+        real,dimension(3) :: this_i, sparse_input_i, added
 
         ! make sure the input matrix has the same full size as this
-        if (this%full_num_cols /= matrix_a%full_num_cols) then
+        if (this%full_num_cols /= sparse_input%full_num_cols) then
             write(*,*) "Error!!! sparse_matrix_add requires input to have the same full_size. Quitting..."
             stop
         end if
         
+        write(*,*) " sparse input get 10",sparse_input%get_values(10)
+        write(*,*) " sparse input get 11",sparse_input%get_values(11)
+       
         ! loop through full index
-        do i=1, matrix_a%full_num_cols
-            
+        do i=1, this%full_num_cols
+            write(*,*) ""
+            write(*,*) "loop i = " , i
             ! get vector values at full index i
-            this_i = this%get_values(i)
-            matrix_a_i = matrix_a%get_values(i)
             
-            ! if this_i is populated and matrix_a_i is populated, add them
-            if (any(abs(this_i) > 1.0e-12) .and. any(abs(matrix_a_i) > 1.0e-12)) then
-                this_plus_a = this_i + matrix_a_i
-                call this%set_values(this_plus_a, i)
+            sparse_input_i = sparse_input%get_values(i)
+            write(*,*) "sparse_input_i =" , sparse_input_i
             
-                ! if this_i is zeros and matrix_a_i is populated, set this_i equal to matrix_a_i
-            else if (any(abs(this_i) < 1.0e-12) .and. any(abs(matrix_a_i) > 1.0e-12)) then
-                call this%set_values( matrix_a_i, i)
+            ! if sparse_input_i is populated, add them
+            if (any(abs(sparse_input_i) > 1.0e-12)) then
+                
+                write(*,*) "if triggered, i = ", i
+                
+                this_i = this%get_values(i)
+                write(*,*) "this_i =" , this_i
+                
+                added = this_i + sparse_input_i
+                write(*,*) "added = " , added
+
+                call this%set_values(added, i)
+                write(*,*) "after value set, this_i =" , this%get_values(i)
+            
+            
+            !     ! if this_i is zeros and sparse_input_i is populated, set this_i equal to sparse_input_i
+            ! else if (all(abs(this_i) < 1.0e-12) .and. any(abs(sparse_input_i) > 1.0e-12)) then
+            !     call this%set_values(sparse_input_i, i)
+            !     write(*,*) "else if triggered, i = ", i
             
                 ! if both are zeros, do nothing
+            else
+                write(*,*) "do nothing"
             end if
             
         end do 
