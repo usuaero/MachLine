@@ -634,14 +634,11 @@ contains
         values = (/1.0e-20, 1.0e-20, 1.0e-20/)
 
         ! if the sparse matrix element has the same full index as the given full index, 
-        ! return that element's value, if not, return the default zeros 
+        ! return that element's value, if not, return the default zeros        
         do i=1,this%sparse_num_cols
             if (this%columns(i)%full_index == full_index) then
                 values(:) = this%columns(i)%vector_values(:)
-                exit
-            else
-            write(*,*) "get returned default 0.0"
-                
+                exit                
             end if  
         end do
         
@@ -755,57 +752,35 @@ contains
 
     subroutine sparse_matrix_sparse_add(this, sparse_input) 
         ! subroutine to add a sparse matrix to this
-        ! this + sparse_matrix = this
+        ! this + sparse_input = this
 
         implicit none
 
         class(sparse_matrix),intent(inout) :: this
-        type(sparse_matrix),intent(inout) :: sparse_input
+        type(sparse_matrix) :: sparse_input
 
         integer :: i
         real,dimension(3) :: this_i, sparse_input_i, added
-
         ! make sure the input matrix has the same full size as this
         if (this%full_num_cols /= sparse_input%full_num_cols) then
             write(*,*) "Error!!! sparse_matrix_add requires input to have the same full_size. Quitting..."
             stop
         end if
         
-        write(*,*) " sparse input get 10",sparse_input%get_values(10)
-        write(*,*) " sparse input get 11",sparse_input%get_values(11)
        
         ! loop through full index
         do i=1, this%full_num_cols
-            write(*,*) ""
-            write(*,*) "loop i = " , i
+    
             ! get vector values at full index i
-            
             sparse_input_i = sparse_input%get_values(i)
-            write(*,*) "sparse_input_i =" , sparse_input_i
-            
+        
             ! if sparse_input_i is populated, add them
             if (any(abs(sparse_input_i) > 1.0e-12)) then
-                
-                write(*,*) "if triggered, i = ", i
-                
+                                
                 this_i = this%get_values(i)
-                write(*,*) "this_i =" , this_i
-                
                 added = this_i + sparse_input_i
-                write(*,*) "added = " , added
-
                 call this%set_values(added, i)
-                write(*,*) "after value set, this_i =" , this%get_values(i)
-            
-            
-            !     ! if this_i is zeros and sparse_input_i is populated, set this_i equal to sparse_input_i
-            ! else if (all(abs(this_i) < 1.0e-12) .and. any(abs(sparse_input_i) > 1.0e-12)) then
-            !     call this%set_values(sparse_input_i, i)
-            !     write(*,*) "else if triggered, i = ", i
-            
-                ! if both are zeros, do nothing
-            else
-                write(*,*) "do nothing"
+
             end if
             
         end do 
@@ -813,42 +788,38 @@ contains
     end subroutine sparse_matrix_sparse_add
 
 
-    subroutine sparse_matrix_sparse_subtract(this, matrix_a)
+    subroutine sparse_matrix_sparse_subtract(this, sparse_input)
         ! subroutine to subtract a sparse matrix from this
-        ! this - matrix_a = this
+        ! this - sparse_input = this
 
         implicit none
 
         class(sparse_matrix),intent(inout) :: this
-        type(sparse_matrix),intent(inout) :: matrix_a
+        type(sparse_matrix) :: sparse_input
 
         integer :: i
-        real,dimension(3) :: this_i, matrix_a_i, this_minus_a, minus_a
+        real,dimension(3) :: this_i, sparse_input_i, subtracted
 
         ! make sure the input matrix has the same full size as this
-        if (this%full_num_cols /= matrix_a%full_num_cols) then
+        if (this%full_num_cols /= sparse_input%full_num_cols) then
             write(*,*) "Error!!! sparse_matrix_subtract requires input to have the same full_size. Quitting..."
             stop
         end if
         
+       
         ! loop through full index
-        do i=1, matrix_a%full_num_cols
-            
+        do i=1, this%full_num_cols
+    
             ! get vector values at full index i
-            this_i = this%get_values(i)
-            matrix_a_i = matrix_a%get_values(i)
-            
-            ! if this_i is populated and matrix_a_i is populated, subtract them
-            if (any(abs(this_i) > 1.0e-12) .and. any(abs(matrix_a_i) > 1.0e-12)) then
-                this_minus_a = this_i - matrix_a_i
-                call this%set_values(this_minus_a, i)
-            
-                ! if this_i is zeros and matrix_a_i is populated, set this_i equal to minus matrix_a_i
-            else if (any(abs(this_i) < 1.0e-12) .and. any(abs(matrix_a_i) > 1.0e-12)) then
-                minus_a = -matrix_a_i
-                call this%set_values( minus_a, i)
-            
-                ! if both are zeros, do nothing
+            sparse_input_i = sparse_input%get_values(i)
+        
+            ! if sparse_input_i is populated, subtract them
+            if (any(abs(sparse_input_i) > 1.0e-12)) then
+                                
+                this_i = this%get_values(i)
+                subtracted = this_i - sparse_input_i
+                call this%set_values(subtracted, i)
+                
             end if
             
         end do 

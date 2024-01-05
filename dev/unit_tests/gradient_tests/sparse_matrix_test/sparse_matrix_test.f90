@@ -8,8 +8,9 @@ program sparse_matrix_test
     type(sparse_vector) :: sparse_a, sparse_b, sparse_c 
     type(sparse_matrix) :: sparse_matrix_a, sparse_matrix_b
     real,dimension(:),allocatable :: vector_a, vector_b, vector_c
-    real,dimension(3) :: vec, values, add_values
-    real,dimension(:,:),allocatable :: scaled_vecs, full_matrix_a, full_matrix_b, expanded_matrix_b, residual
+    real,dimension(3) :: vec, values, add_values, check
+    real,dimension(:,:),allocatable :: scaled_vecs, full_matrix_a, full_matrix_b, expanded_matrix_a,&
+    expanded_matrix_b, residual
     integer :: i, passed_tests, total_tests, nonzeros, old_size, add_full_index, add_shift_index
     logical :: test_failed
 
@@ -456,47 +457,6 @@ program sparse_matrix_test
     write(*,*) "" 
     write(*,*) ""
     
-
-    !!!!!!!!!! TEST GET_VALUES  !!!!!!!!!!
-    write(*,*) "-------------TEST GET_VALUES again, matrix b--------------"
-    write(*,*) ""
-
-    ! write sparse matrix
-    write(*,*) ""
-    write(*,*) "         sparse_matrix b                          sparse_index      full_index"
-    do i=1,sparse_matrix_b%sparse_num_cols
-        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_b%columns(i)%vector_values(1), &
-        sparse_matrix_b%columns(i)%vector_values(2),sparse_matrix_b%columns(i)%vector_values(3), &
-        i, sparse_matrix_b%columns(i)%full_index
-    end do
-    write(*,*) ""
-
-    do i=1,11    
-        write(*,'(a,I3)') "Get element values of full index",i 
-        values = sparse_matrix_b%get_values(i)
-        if (any(abs(sparse_matrix_b%get_values(i)-full_matrix_b(:,i)) > 1.0e-12)) then
-            test_failed = .true.
-            exit
-        else 
-            test_failed = .false.
-        end if 
-        write(*,*) "values = ", values
-        write(*,*) ""
-    end do
-    
-    ! check if test failed
-    if (test_failed) then
-        write(*,*) "get element values test  FAILED"
-        total_tests = total_tests + 1
-    else
-        write(*,*) "get element values test PASSED"
-        passed_tests = passed_tests + 1
-        total_tests = total_tests + 1
-    end if
-    test_failed = .true.
-    write(*,*) "" 
-    write(*,*) ""
-
     
     
 !!!!!!!!!! TEST COMPRESS (SPARSE MATRIX)  !!!!!!!!!!
@@ -547,53 +507,7 @@ program sparse_matrix_test
     test_failed = .true.
     write(*,*) "" 
     write(*,*) ""
-    
 
- !!!!!!!!!! TEST GET_VALUES  !!!!!!!!!!
-    write(*,*) "-------------TEST GET_VALUES after compress, matrix b--------------"
-    write(*,*) ""
-
-    ! write sparse matrix
-    write(*,*) ""
-    write(*,*) "         sparse_matrix b                          sparse_index      full_index"
-    do i=1,sparse_matrix_b%sparse_num_cols
-        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_b%columns(i)%vector_values(1), &
-        sparse_matrix_b%columns(i)%vector_values(2),sparse_matrix_b%columns(i)%vector_values(3), &
-        i, sparse_matrix_b%columns(i)%full_index
-    end do
-    write(*,*) ""
-
-    do i=1,11    
-        write(*,'(a,I3)') "Get element values of full index",i 
-        values = sparse_matrix_b%get_values(i)
-        if (any(abs(sparse_matrix_b%get_values(i)-full_matrix_b(:,i)) > 1.0e-12)) then
-            test_failed = .true.
-            write(*,*) "failed b value= ", sparse_matrix_b%get_values(i)
-            write(*,*) "failed b value= ", sparse_matrix_b%get_values(i)
-            write(*,*) "failed b value= ", sparse_matrix_b%get_values(i)
-            write(*,*) "failed b value= ", sparse_matrix_b%get_values(i)
-            write(*,*) "failed b value= ", sparse_matrix_b%get_values(i)
-            exit
-        else 
-            test_failed = .false.
-        end if 
-        write(*,*) "values = ", values
-        write(*,*) ""
-    end do
-    
-    
-    ! check if test failed
-    if (test_failed) then
-        write(*,*) "get element values test  FAILED"
-        total_tests = total_tests + 1
-    else
-        write(*,*) "get element values test PASSED"
-        passed_tests = passed_tests + 1
-        total_tests = total_tests + 1
-    end if
-    test_failed = .true.
-    write(*,*) "" 
-    write(*,*) ""
    
     
     !!!!!!!!!! TEST EXPAND SPARSE MATRIX  !!!!!!!!!!
@@ -634,47 +548,6 @@ program sparse_matrix_test
     write(*,*) "" 
     write(*,*) ""
 
-!!!!!!!!!! TEST GET_VALUES  !!!!!!!!!!
-    write(*,*) "-------------TEST GET_VALUES after expand, matrix b--------------"
-    write(*,*) ""
-
-    ! write sparse matrix
-    write(*,*) ""
-    write(*,*) "         sparse_matrix b                          sparse_index      full_index"
-    do i=1,sparse_matrix_b%sparse_num_cols
-        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_b%columns(i)%vector_values(1), &
-        sparse_matrix_b%columns(i)%vector_values(2),sparse_matrix_b%columns(i)%vector_values(3), &
-        i, sparse_matrix_b%columns(i)%full_index
-    end do
-    write(*,*) ""
-
-    do i=1,11    
-        write(*,'(a,I3)') "Get element values of full index",i 
-        values = sparse_matrix_b%get_values(i)
-        if (any(abs(sparse_matrix_b%get_values(i)-full_matrix_b(:,i)) > 1.0e-12)) then
-            test_failed = .true.
-            exit
-        else 
-            test_failed = .false.
-        end if 
-        write(*,*) "values = ", values
-        write(*,*) ""
-    end do
-    
-    ! check if test failed
-    if (test_failed) then
-        write(*,*) "get element values test  FAILED"
-        total_tests = total_tests + 1
-    else
-        write(*,*) "get element values test PASSED"
-        passed_tests = passed_tests + 1
-        total_tests = total_tests + 1
-    end if
-    test_failed = .true.
-    write(*,*) "" 
-    write(*,*) ""
-
-
 
 
 
@@ -694,7 +567,7 @@ program sparse_matrix_test
     end do
     write(*,*) ""
 
-    ! write full matrix a
+    ! write full matrix b
     write(*,*) " full matrix b:"
     do i=1,11
         write(*, '(3(f12.5, 2x))') full_matrix_b(:,i)
@@ -743,12 +616,12 @@ program sparse_matrix_test
     
     ! add sparse matrix b to sparse matrix a
     write(*,*) ""
-    write(*,*) "adding sparse_b to sparse_a...."
+    write(*,*) "add:  sparse_matrix_a + sparse_matrix_b...."
     write(*,*) ""
-    write(*,*) "sparse b column 11 get before call:", sparse_matrix_b%get_values(11)
+
     call sparse_matrix_a%sparse_add(sparse_matrix_b)
 
-    write(*,*) "sparse b column 11 get after after call:", sparse_matrix_b%get_values(11)
+    !write(*,*) "sparse b column 11 get after after call:", sparse_matrix_b%get_values(11)
 
     write(*,*) "     new sparse_matrix a                          sparse_index      full_index"
     do i=1,sparse_matrix_a%sparse_num_cols
@@ -758,99 +631,285 @@ program sparse_matrix_test
     end do
     write(*,*) ""
 
-    !write(*,*) "sparse b column 6 values:", sparse_matrix_b%columns(6)%vector_values
-    write(*,*) "sparse b column 6 get :", sparse_matrix_b%get_values(6)
-    write(*,*) "sparse b column 11 get :", sparse_matrix_b%get_values(11)
+    ! expand sparse_a
+    expanded_matrix_a = sparse_matrix_a%expand()
+    residual = full_matrix_a - expanded_matrix_a
+    
+    ! write results
+    write(*,*) "residual =  new full matrix_a - new expanded_matrix_a"
+    write(*,*) ""
+    write(*,*) "           expanded_matrix_a                        residual"
+    do i=1,sparse_matrix_b%full_num_cols
+        write(*, '(3(f10.6, 2x),3x, 3(f10.6, 2x))') expanded_matrix_a(:,i), residual(:,i)
+    end do
+    write(*,*) ""
 
-    ! ! expand sparse_a
-    ! expanded_ab = sparse_ab%expand()
-    ! residual = vector_ab - expanded_ab
-    
-    ! ! write results
-    ! write(*,*) "residual = vector_ab - expanded_ab"
-    ! write(*,*) ""
-    ! write(*,*) "expanded_ab          residual"
-    ! do i=1,sparse_ab%full_size
-    !     write(*, '(2(f14.10, 2x))') expanded_ab(i), residual(i)
-    ! end do
-    ! write(*,*) ""
+    ! check if test failed
+    do i=1,sparse_matrix_a%full_num_cols
+        if (any(abs(residual(:,i)) > 1.0e-12)) then
+            test_failed = .true.
+            exit
+        else 
+            test_failed = .false.
+        end if
+    end do
+    if (test_failed) then
+        write(*,*) "sparse add (matrix) FAILED"
+        total_tests = total_tests + 1
+    else
+        write(*,*) "sparse add (matrix) PASSED"
+        passed_tests = passed_tests + 1
+        total_tests = total_tests + 1
+    end if
+    test_failed = .false.
+    write(*,*) ""
+    write(*,*) ""
 
-    ! ! check if test failed
-    ! do i=1,sparse_a%full_size
-    !     if (abs(residual(i)) > 1.0e-12) then
-    !         test_failed = .true.
-    !     end if
-    ! end do
-    ! if (test_failed) then
-    !     write(*,*) "sparse add (matrix) FAILED"
-    !     total_tests = total_tests + 1
-    ! else
-    !     write(*,*) "sparse add (matrix) PASSED"
-    !     passed_tests = passed_tests + 1
-    !     total_tests = total_tests + 1
-    ! end if
-    ! test_failed = .false.
-    ! write(*,*) ""
-    ! write(*,*) ""
+    
 
-! !!!!!!!!!! TEST SPARSE SUBTRACT (MATRIX, a - b and b - a)  !!!!!!!!!!
-!     write(*,*) "-------------TEST SPARSE SUBTRACT (MATRIX, a - b and b - a)--------------"
-!     write(*,*) ""
-!     write(*,*) "vectors to be subtracted:"
-!     vector_a = (/ 1.0, 0.0, 11.0, 0.0, 87.0, 0.0, 0.0, 0.0, 4.0, 0.0, 3.14 /)
-!     vector_b = (/ 1.0, 0.0, 1.0, 0.0, 1.0, 7.0, 0.0, 0.0, 1.0, 0.0, 1.0 /)
-!     vector_a_minus_b = (/ 0.0, 0.0, 10.0, 0.0, 86.0, -7.0, 0.0, 0.0, 3.0, 0.0, 2.14 /)
-!     vector_b_minus_a = (/ 0.0, 0.0, -10.0, 0.0, -86.0, 7.0, 0.0, 0.0, -3.0, 0.0, -2.14 /)
+!!!!!!!!!! TEST SPARSE SUBTRACT (MATRIX, a - b and b - a)  !!!!!!!!!!
+    write(*,*) "-------------TEST SPARSE SUBTRACT (MATRIX) (a - b) --------------"
+    write(*,*) ""
     
-!     ! write  full vectors
-!     write(*,*) ""
-!     write(*,*) " vector_a     -     vector_b   =   vector_a_minus_b"
-!     do i=1,11
-!         write(*, '(3(f14.10, 2x))') vector_a(i), vector_b(i), vector_a_minus_b(i)
-!     end do
-!     write(*,*) ""
-    
-!     ! check if test failed
-!     do i=1,sparse_a%full_size
-!         if (abs(residual(i)) > 1.0e-12) then
-!             test_failed = .true.
-!         end if
-!     end do
-!     if (test_failed) then
-!         write(*,*) "sparse subtract (matrix) a - b FAILED"
-!         total_tests = total_tests + 1
-!     else
-!         write(*,*) "sparse subtract (matrix) a - b PASSED"
-!         passed_tests = passed_tests + 1
-!         total_tests = total_tests + 1
-!     end if
-!     test_failed = .false.
-!     write(*,*) ""
-!     write(*,*) ""
-    
-    
-!     ! subtract and display 
-!     write(*,*) "subtracting sparse_a minus sparse_b...."
-!     write(*,*) ""
-!     sparse_a_minus_b = sparse_a%sparse_subtract(sparse_b)
-!     write(*,*) "sparse_a_minus_b value    sparse_index      full_index "
-!     do i=1,sparse_a_minus_b%sparse_size
-!         write(*,'(f14.10, 12x, I5, 12x, I5)') sparse_a_minus_b%elements(i)%value, i, sparse_a_minus_b%elements(i)%full_index
-!     end do
-!     write(*,*) ""
+    write(*,*) ""
+    write(*,*) "return sparse_matrix_a and full_matrix_a to original values (init from sparse vectors)"
+    write(*,*) ""
 
-!     ! expand 
-!     expanded_a_minus_b = sparse_a_minus_b%expand()
-!     residual = vector_a_minus_b - expanded_a_minus_b
+    ! reset values
+    deallocate(sparse_matrix_a%columns)
+
+    !write(*,*) "deallocation successful" 
+    call sparse_matrix_a%init_from_sparse_vectors(sparse_a, sparse_b, sparse_c)
+
+    ! update full_matrix_a
+    full_matrix_a = sparse_matrix_a%expand()
+
+    ! write full matrix a
+    write(*,*) " full matrix a:"
+    do i=1,11
+        write(*, '(3(f12.5, 2x))') full_matrix_a(:,i)
+    end do
+    write(*,*) ""
+
+    ! write full matrix b
+    write(*,*) " full matrix b:"
+    do i=1,11
+        write(*, '(3(f12.5, 2x))') full_matrix_b(:,i)
+    end do
+    write(*,*) ""
+
+    ! add full matrix b to full matrix c
+    write(*,*) "subtract: full matrix a - full matrix b"
+    write(*,*) ""
+    do i=1,11 
+        full_matrix_a(:,i) = full_matrix_a(:,i) - full_matrix_b(:,i)
+    end do 
+
+    ! display new full matrix a
+    write(*,*) " new full matrix a:"
+    do i=1,11
+        write(*, '(3(f12.5, 2x))') full_matrix_a(:,i)
+    end do
+    write(*,*) ""
+
+    ! add full matrix b to full matrix c
     
-!     ! write results
-!     write(*,*) "residual = vector_a_minus_b - expanded_a_minus_b"
-!     write(*,*) ""
-!     write(*,*) "expanded_a_minus_b          residual"
-!     do i=1,sparse_a_minus_b%full_size
-!         write(*, '(2(f14.10, 2x))') expanded_a_minus_b(i), residual(i)
-!     end do
-!     write(*,*) ""
+    write(*,*) ""
+    write(*,*) "display sparse matrices before subtracting"
+    write(*,*) ""
+
+    ! write sparse matrix a
+    write(*,*) ""
+    write(*,*) "         sparse_matrix a                          sparse_index      full_index"
+    do i=1,sparse_matrix_a%sparse_num_cols
+        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_a%columns(i)%vector_values(1), &
+        sparse_matrix_a%columns(i)%vector_values(2),sparse_matrix_a%columns(i)%vector_values(3), &
+        i, sparse_matrix_a%columns(i)%full_index
+    end do
+    write(*,*) ""
+
+    ! write sparse matrix b
+    write(*,*) ""
+    write(*,*) "         sparse_matrix b                          sparse_index      full_index"
+    do i=1,sparse_matrix_b%sparse_num_cols
+        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_b%columns(i)%vector_values(1), &
+        sparse_matrix_b%columns(i)%vector_values(2),sparse_matrix_b%columns(i)%vector_values(3), &
+        i, sparse_matrix_b%columns(i)%full_index
+    end do
+    write(*,*) ""
+
+    ! subrac: sparse matrix a - sparse matrix b
+    write(*,*) ""
+    write(*,*) "subtract sparse_matrix_a - sparse_matrix_b...."
+    write(*,*) ""
+
+    call sparse_matrix_a%sparse_subtract(sparse_matrix_b)
+
+    ! write new sparse a results
+    write(*,*) "     new sparse_matrix a                          sparse_index      full_index"
+    do i=1,sparse_matrix_a%sparse_num_cols
+        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_a%columns(i)%vector_values(1), &
+        sparse_matrix_a%columns(i)%vector_values(2),sparse_matrix_a%columns(i)%vector_values(3), &
+        i, sparse_matrix_a%columns(i)%full_index
+    end do
+    write(*,*) ""
+
+    ! expand sparse_a
+    expanded_matrix_a = sparse_matrix_a%expand()
+    residual = full_matrix_a - expanded_matrix_a
+    
+    ! write results
+    write(*,*) "residual =  new full matrix_a - new expanded_matrix_a"
+    write(*,*) ""
+    write(*,*) "           expanded_matrix_a                        residual"
+    do i=1,sparse_matrix_a%full_num_cols
+        write(*, '(3(f10.6, 2x),3x, 3(f10.6, 2x))') expanded_matrix_a(:,i), residual(:,i)
+    end do
+    write(*,*) ""
+
+    ! check if test failed
+    do i=1,sparse_matrix_a%full_num_cols
+        if (any(abs(residual(:,i)) > 1.0e-12)) then
+            test_failed = .true.
+            exit
+        else 
+            test_failed = .false.
+        end if
+    end do
+    if (test_failed) then
+        write(*,*) "sparse subtract (matrix) (a - b) FAILED"
+        total_tests = total_tests + 1
+    else
+        write(*,*) "sparse subtract (matrix) (a - b) PASSED"
+        passed_tests = passed_tests + 1
+        total_tests = total_tests + 1
+    end if
+    test_failed = .false.
+    write(*,*) ""
+    write(*,*) ""
+
+    write(*,*) "-------------TEST SPARSE SUBTRACT (MATRIX) (b - a) --------------"
+    write(*,*) ""
+    
+    write(*,*) ""
+    write(*,*) "return sparse_matrix_a and full_matrix_a to original values (init from sparse vectors)"
+    write(*,*) ""
+
+    ! reset values
+    deallocate(sparse_matrix_a%columns)
+
+    !write(*,*) "deallocation successful" 
+    call sparse_matrix_a%init_from_sparse_vectors(sparse_a, sparse_b, sparse_c)
+
+    ! update full_matrix_a
+    full_matrix_a = sparse_matrix_a%expand()
+
+    ! write full matrix b
+    write(*,*) " full matrix b:"
+    do i=1,11
+        write(*, '(3(f12.5, 2x))') full_matrix_b(:,i)
+    end do
+    write(*,*) ""
+
+    ! write full matrix a
+    write(*,*) " full matrix a:"
+    do i=1,11
+        write(*, '(3(f12.5, 2x))') full_matrix_a(:,i)
+    end do
+    write(*,*) ""
+
+    ! subtract: full matrix b - full matrix a
+    write(*,*) "subtract: full matrix b - full matrix a"
+    write(*,*) ""
+    do i=1,11 
+        full_matrix_b(:,i) = full_matrix_b(:,i) - full_matrix_a(:,i)
+    end do 
+
+    ! display new full matrix b
+    write(*,*) " new full matrix b:"
+    do i=1,11
+        write(*, '(3(f12.5, 2x))') full_matrix_b(:,i)
+    end do
+    write(*,*) ""
+
+    ! add full matrix b to full matrix c
+    
+    write(*,*) ""
+    write(*,*) "display sparse matrices before subtracting"
+    write(*,*) ""
+
+    ! write sparse matrix b
+    write(*,*) ""
+    write(*,*) "         sparse_matrix b                          sparse_index      full_index"
+    do i=1,sparse_matrix_b%sparse_num_cols
+        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_b%columns(i)%vector_values(1), &
+        sparse_matrix_b%columns(i)%vector_values(2),sparse_matrix_b%columns(i)%vector_values(3), &
+        i, sparse_matrix_b%columns(i)%full_index
+    end do
+    write(*,*) ""
+
+    ! write sparse matrix a
+    write(*,*) ""
+    write(*,*) "         sparse_matrix a                          sparse_index      full_index"
+    do i=1,sparse_matrix_a%sparse_num_cols
+        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_a%columns(i)%vector_values(1), &
+        sparse_matrix_a%columns(i)%vector_values(2),sparse_matrix_a%columns(i)%vector_values(3), &
+        i, sparse_matrix_a%columns(i)%full_index
+    end do
+    write(*,*) ""
+    
+    ! subrac: sparse matrix a - sparse matrix b
+    write(*,*) ""
+    write(*,*) "subtract sparse_matrix_a - sparse_matrix_b...."
+    write(*,*) ""
+
+    call sparse_matrix_a%sparse_subtract(sparse_matrix_b)
+
+    !write(*,*) "sparse b column 11 get after after call:", sparse_matrix_b%get_values(11)
+
+    write(*,*) "     new sparse_matrix a                          sparse_index      full_index"
+    do i=1,sparse_matrix_a%sparse_num_cols
+        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_a%columns(i)%vector_values(1), &
+        sparse_matrix_a%columns(i)%vector_values(2),sparse_matrix_a%columns(i)%vector_values(3), &
+        i, sparse_matrix_a%columns(i)%full_index
+    end do
+    write(*,*) ""
+
+    ! expand sparse_a
+    expanded_matrix_a = sparse_matrix_a%expand()
+    residual = full_matrix_a - expanded_matrix_a
+    
+    ! write results
+    write(*,*) "residual =  new full matrix_a - new expanded_matrix_a"
+    write(*,*) ""
+    write(*,*) "           expanded_matrix_a                        residual"
+    do i=1,sparse_matrix_b%full_num_cols
+        write(*, '(3(f10.6, 2x),3x, 3(f10.6, 2x))') expanded_matrix_a(:,i), residual(:,i)
+    end do
+    write(*,*) ""
+
+    ! check if test failed
+    do i=1,sparse_matrix_a%full_num_cols
+        if (any(abs(residual(:,i)) > 1.0e-12)) then
+            test_failed = .true.
+            exit
+        else 
+            test_failed = .false.
+        end if
+    end do
+    if (test_failed) then
+        write(*,*) "sparse subtract (matrix) (a - b) FAILED"
+        total_tests = total_tests + 1
+    else
+        write(*,*) "sparse subtract (matrix) (a - b) PASSED"
+        passed_tests = passed_tests + 1
+        total_tests = total_tests + 1
+    end if
+    test_failed = .false.
+    write(*,*) ""
+    write(*,*) ""
+
+
     
 !     ! write  full vectors
 !     write(*,*) "-------now do vector b minus vector a-------"
