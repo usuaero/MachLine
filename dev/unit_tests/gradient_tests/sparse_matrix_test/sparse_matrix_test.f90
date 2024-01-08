@@ -5,12 +5,15 @@ program sparse_matrix_test
     
     implicit none
 
-    type(sparse_vector) :: sparse_a, sparse_b, sparse_c 
-    type(sparse_matrix) :: sparse_matrix_a, sparse_matrix_b
-    real,dimension(:),allocatable :: vector_a, vector_b, vector_c
+    type(sparse_vector) :: sparse_a, sparse_b, sparse_c, sparse_vector_result 
+    type(sparse_matrix) :: sparse_matrix_a, sparse_matrix_b, sparse_matrix_result
+
+    real :: scalar
     real,dimension(3) :: vec, values, add_values, check
+    real,dimension(:),allocatable :: vector_a, vector_b, vector_c, vector_result, expanded_vector_result, &
+    residual_vector
     real,dimension(:,:),allocatable :: scaled_vecs, full_matrix_a, full_matrix_b, expanded_matrix_a,&
-    expanded_matrix_b, residual
+    expanded_matrix_b, residual, full_matrix_result, expanded_matrix_result
     integer :: i, passed_tests, total_tests, nonzeros, old_size, add_full_index, add_shift_index
     logical :: test_failed
 
@@ -106,12 +109,12 @@ program sparse_matrix_test
     write(*,*) ""
     
     ! check if test failed
-    if (any((full_matrix_a(:,2) /= sparse_matrix_a%columns(1)%vector_values)) &
-    .or. any((full_matrix_a(:,3) /= sparse_matrix_a%columns(2)%vector_values)) &
-    .or. any((full_matrix_a(:,5) /= sparse_matrix_a%columns(3)%vector_values)) &
-    .or. any((full_matrix_a(:,6) /= sparse_matrix_a%columns(4)%vector_values)) &
-    .or. any((full_matrix_a(:,8) /= sparse_matrix_a%columns(5)%vector_values)) &
-    .or. any((full_matrix_a(:,11) /= sparse_matrix_a%columns(6)%vector_values))) then    
+    if (any((full_matrix_a(:,2) - sparse_matrix_a%columns(1)%vector_values > 1.0e-12)) &
+    .or. any((full_matrix_a(:,3) - sparse_matrix_a%columns(2)%vector_values > 1.0e-12)) &
+    .or. any((full_matrix_a(:,5) - sparse_matrix_a%columns(3)%vector_values > 1.0e-12)) &
+    .or. any((full_matrix_a(:,6) - sparse_matrix_a%columns(4)%vector_values > 1.0e-12)) &
+    .or. any((full_matrix_a(:,8) - sparse_matrix_a%columns(5)%vector_values > 1.0e-12)) &
+    .or. any((full_matrix_a(:,11) - sparse_matrix_a%columns(6)%vector_values > 1.0e-12))) then    
     
         test_failed = .true.
     else 
@@ -832,7 +835,6 @@ program sparse_matrix_test
     end do
     write(*,*) ""
 
-    ! add full matrix b to full matrix c
     
     write(*,*) ""
     write(*,*) "display sparse matrices before subtracting"
@@ -858,33 +860,31 @@ program sparse_matrix_test
     end do
     write(*,*) ""
     
-    ! subrac: sparse matrix a - sparse matrix b
+    ! subrac: sparse matrix b - sparse matrix a
     write(*,*) ""
-    write(*,*) "subtract sparse_matrix_a - sparse_matrix_b...."
+    write(*,*) "subtract sparse_matrix_b - sparse_matrix_a...."
     write(*,*) ""
 
-    call sparse_matrix_a%sparse_subtract(sparse_matrix_b)
+    call sparse_matrix_b%sparse_subtract(sparse_matrix_a)
 
-    !write(*,*) "sparse b column 11 get after after call:", sparse_matrix_b%get_values(11)
-
-    write(*,*) "     new sparse_matrix a                          sparse_index      full_index"
-    do i=1,sparse_matrix_a%sparse_num_cols
-        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_a%columns(i)%vector_values(1), &
-        sparse_matrix_a%columns(i)%vector_values(2),sparse_matrix_a%columns(i)%vector_values(3), &
-        i, sparse_matrix_a%columns(i)%full_index
+    write(*,*) "     new sparse_matrix b                          sparse_index      full_index"
+    do i=1,sparse_matrix_b%sparse_num_cols
+        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_b%columns(i)%vector_values(1), &
+        sparse_matrix_b%columns(i)%vector_values(2),sparse_matrix_b%columns(i)%vector_values(3), &
+        i, sparse_matrix_b%columns(i)%full_index
     end do
     write(*,*) ""
 
-    ! expand sparse_a
-    expanded_matrix_a = sparse_matrix_a%expand()
-    residual = full_matrix_a - expanded_matrix_a
+    ! expand sparse_b
+    expanded_matrix_b = sparse_matrix_b%expand()
+    residual = full_matrix_b - expanded_matrix_b
     
     ! write results
-    write(*,*) "residual =  new full matrix_a - new expanded_matrix_a"
+    write(*,*) "residual =  new full matrix_b - new expanded_matrix_b"
     write(*,*) ""
-    write(*,*) "           expanded_matrix_a                        residual"
+    write(*,*) "           expanded_matrix_b                        residual"
     do i=1,sparse_matrix_b%full_num_cols
-        write(*, '(3(f10.6, 2x),3x, 3(f10.6, 2x))') expanded_matrix_a(:,i), residual(:,i)
+        write(*, '(3(f10.6, 2x),3x, 3(f10.6, 2x))') expanded_matrix_b(:,i), residual(:,i)
     end do
     write(*,*) ""
 
@@ -909,178 +909,347 @@ program sparse_matrix_test
     write(*,*) ""
     write(*,*) ""
 
-
-    
-!     ! write  full vectors
-!     write(*,*) "-------now do vector b minus vector a-------"
-!     write(*,*) ""
-!     write(*,*) " vector_b     -     vector_a   =   vector_b_minus_a"
-!     do i=1,11
-!         write(*, '(3(f14.10, 2x))') vector_b(i), vector_a(i), vector_b_minus_a(i)
-!     end do
-!     write(*,*) "" 
-    
-    
-!     ! subtract and display 
-!     write(*,*) "subtracting sparse_b minus sparse_a...."
-!     write(*,*) ""
-!     sparse_b_minus_a = sparse_b%sparse_subtract(sparse_a)
-!     write(*,*) "sparse_a_minus_b value    sparse_index      full_index "
-!     do i=1,sparse_b_minus_a%sparse_size
-!         write(*,'(f14.10, 12x, I5, 12x, I5)') sparse_b_minus_a%elements(i)%value, i, sparse_b_minus_a%elements(i)%full_index
-!     end do
-!     write(*,*) ""
-
-!     ! expand 
-!     expanded_b_minus_a = sparse_b_minus_a%expand()
-!     residual = vector_b_minus_a - expanded_b_minus_a
-    
-!     ! write results
-!     write(*,*) "residual = vector_b_minus_a - expanded_b_minus_a"
-!     write(*,*) ""
-!     write(*,*) "expanded_b_minus_a          residual"
-!     do i=1,sparse_b_minus_a%full_size
-!         write(*, '(2(f14.10, 2x))') expanded_b_minus_a(i), residual(i)
-!     end do
-!     write(*,*) ""
-    
-!     ! check if test failed
-!     do i=1,sparse_a%full_size
-!         if (abs(residual(i)) > 1.0e-12) then
-!             test_failed = .true.
-!         end if
-!     end do
-!     if (test_failed) then
-!         write(*,*) "sparse subtract (matrix) b - a FAILED"
-!         total_tests = total_tests + 1
-!     else
-!         write(*,*) "sparse subtract (matrix) b - a PASSED"
-!         passed_tests = passed_tests + 1
-!         total_tests = total_tests + 1
-!     end if
-!     test_failed = .false.
-!     write(*,*) ""
-!     write(*,*) ""
     
 
 
-! !!!!!!!!!! TEST BROADCAST VECTOR CROSS ELEMENT   !!!!!!!!!!
+!!!!!!!!!! TEST BROADCAST VECTOR-CROSS-ELEMENT   !!!!!!!!!!
 
-!     write(*,*) "-------------TEST BROADCAST VECTOR CROSS ELEMENT--------------"
-!     write(*,*) ""
-!     vec = (/1.0,-2.0,3.0/)
-!     write(*,'(A, 3(f10.5, 2x))') "new vector to be scaled: ", vec
-!     write(*,*) ""
-!     write(*,*) "unscaled vectors"
-!     do i=1,sparse_a%full_size
-!         write(*, '(3(f14.5, 2x))') vec
-!     end do
-!     write(*,*) ""
-    
-!     ! scale and write results
-!     sparse_matrix_a = sparse_a%broadcast_element_times_vector(vec)
-    
-!     write(*,*) "scale vec by each sparse element...."
-!     write(*,*) ""
-!     write(*,*) "resulting sparse_matrix:"
-!     write(*,*) ""
-!     write(*,*) "                   scaled vector                    sparse_index       &
-!               full_index "
-!     write(*,*) ""
-!     do i=1,sparse_matrix_a%sparse_num_cols
-!         write(*, '(3(f14.5, 2x), 12x, I5, 12x, I5)') sparse_matrix_a%columns(i)%vector_values, i, &
-!         sparse_matrix_a%columns(i)%full_index  
-!     end do
-!     write(*,*) ""
-    
-!     write(*,*) "scaled vectors"
-!     write(*,*) ""
-!     do i=1,sparse_matrix_a%full_num_cols
-!         write(*, '(3(f14.5, 2x))') sparse_matrix_a%get_values(i)
-!     end do
-!     write(*,*) ""
+    write(*,*) "-------------TEST BROADCAST VECTOR-CROSS-ELEMENT--------------"
+    write(*,*) ""
 
-!     ! check if test failed
-!     if (sparse_matrix_a%sparse_num_cols /= 5) then
-!         test_failed = .true.
-!     end if
-!     do i=1, sparse_a%full_size
-!         if (any(abs(sparse_matrix_a%get_values(i) - (vector_a(i)*vec)) > 1.0e-12)) then
-!             test_failed = .true.
-!         end if
-!     end do   
     
-!     if (test_failed) then
-!         write(*,*) "BROADCAST VECTOR CROSS ELEMENT FAILED"
-!         total_tests = total_tests + 1
-!     else
-!         write(*,*) "BROADCAST VECTOR CROSS ELEMENT PASSED"
-!         passed_tests = passed_tests + 1
-!         total_tests = total_tests + 1
-!     end if
-!     test_failed = .false.
-!     write(*,*) ""
-!     write(*,*) ""
+    ! write full matrix a
+    write(*,*) " full matrix a:"
+    do i=1,11
+        write(*, '(3(f12.5, 2x))') full_matrix_a(:,i)
+    end do
+    write(*,*) ""
 
 
-! !!!!!!!!!! TEST BROADCAST ELEMENT CROSS VECTOR  !!!!!!!!!!
-!     write(*,*) "-------------TEST BROADCAST ELEMENT CROSS VECTOR--------------"
-!     write(*,*) ""
+    vec = (/1.0,-2.0,3.0/)
+    write(*,'(A, 3(f10.5, 2x))') "vector: ", vec
+    write(*,*) ""
+
+    ! perform cross product manually
+    write(*,*) "broadcast vector-cross-element in full matrix"
+    write(*,*) ""
+    allocate(full_matrix_result(3,11))
+    do i=1,11
+        full_matrix_result(:,i) = cross(vec(:),full_matrix_a(:,i)) 
+    end do
+
+    ! write full matrix result
+    write(*,*) " full matrix result:"
+    do i=1,11
+        write(*, '(3(f12.5, 2x))') full_matrix_result(:,i)
+    end do
+    write(*,*) ""
+
+    
+    ! perform cross product
+    write(*,*) "broadcast vector crossed with each sparse element...."
+    
+    sparse_matrix_result = sparse_matrix_a%broadcast_vector_cross_element(vec)
+    
+    write(*,*) ""
+    write(*,*) "resulting sparse_matrix:"
+    write(*,*) ""
+    write(*,*) "     sparse_matrix_result                      sparse_index      full_index"
+    do i=1,sparse_matrix_result%sparse_num_cols
+        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_result%columns(i)%vector_values(1), &
+        sparse_matrix_result%columns(i)%vector_values(2),sparse_matrix_result%columns(i)%vector_values(3), &
+        i, sparse_matrix_result%columns(i)%full_index
+    end do
+    write(*,*) ""
+    
+    
+    ! expand sparse_b
+    expanded_matrix_result = sparse_matrix_result%expand()
+    residual = full_matrix_result - expanded_matrix_result
+    
+    ! write results
+    write(*,*) "residual =  full matrix_result - expanded_matrix_result"
+    write(*,*) ""
+    write(*,*) "           expanded_matrix_result                          residual"
+    do i=1,sparse_matrix_result%full_num_cols
+        write(*, '(3(f10.6, 2x),3x, 3(f10.6, 2x))') expanded_matrix_result(:,i), residual(:,i)
+    end do
+    write(*,*) ""
+
+    ! check if test failed
+    do i=1,sparse_matrix_result%full_num_cols
+        if (any(abs(residual(:,i)) > 1.0e-12)) then
+            test_failed = .true.
+            exit
+        else 
+            test_failed = .false.
+        end if
+    end do
+    if (test_failed) then
+        write(*,*) "broadcast vector-cross-element FAILED"
+        total_tests = total_tests + 1
+    else
+        write(*,*) "broadcast vector-cross-element PASSED"
+        passed_tests = passed_tests + 1
+        total_tests = total_tests + 1
+    end if
+    test_failed = .false.
+    write(*,*) ""
+    write(*,*) ""
+
+
+!!!!!!!!!! TEST BROADCAST ELEMENT-CROSS-VECTOR   !!!!!!!!!!
+
+    write(*,*) "-------------TEST BROADCAST ELEMENT-CROSS-VECTOR--------------"
+    write(*,*) ""
+
+    
+    ! write full matrix a
+    write(*,*) " full matrix a:"
+    do i=1,11
+        write(*, '(3(f12.5, 2x))') full_matrix_a(:,i)
+    end do
+    write(*,*) ""
+
+
+    vec = (/1.0,-2.0,3.0/)
+    write(*,'(A, 3(f10.5, 2x))') "vector: ", vec
+    write(*,*) ""
+
+    ! perform cross product manually
+    write(*,*) "broadcast element-cross-vector in full matrix"
+    write(*,*) ""
+    
+    do i=1,11
+        full_matrix_result(:,i) = cross(full_matrix_a(:,i), vec(:)) 
+    end do
+
+    ! write full matrix result
+    write(*,*) " full matrix result:"
+    do i=1,11
+        write(*, '(3(f12.5, 2x))') full_matrix_result(:,i)
+    end do
+    write(*,*) ""
+
+    
+    ! perform cross product
+    write(*,*) "broadcast each sparse element crossed with given vector...."
+    
+    sparse_matrix_result = sparse_matrix_a%broadcast_element_cross_vector(vec)
+    
+    write(*,*) ""
+    write(*,*) "resulting sparse_matrix:"
+    write(*,*) ""
+    write(*,*) "     sparse_matrix_result                      sparse_index      full_index"
+    do i=1,sparse_matrix_result%sparse_num_cols
+        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_result%columns(i)%vector_values(1), &
+        sparse_matrix_result%columns(i)%vector_values(2),sparse_matrix_result%columns(i)%vector_values(3), &
+        i, sparse_matrix_result%columns(i)%full_index
+    end do
+    write(*,*) ""
+    
+    
+    ! expand sparse_b
+    expanded_matrix_result = sparse_matrix_result%expand()
+    residual = full_matrix_result - expanded_matrix_result
+    
+    ! write results
+    write(*,*) "residual =  full matrix_result - expanded_matrix_result"
+    write(*,*) ""
+    write(*,*) "           expanded_matrix_result                          residual"
+    do i=1,sparse_matrix_result%full_num_cols
+        write(*, '(3(f12.6, 2x),3x, 3(f10.6, 2x))') expanded_matrix_result(:,i), residual(:,i)
+    end do
+    write(*,*) ""
+
+    ! check if test failed
+    do i=1,sparse_matrix_result%full_num_cols
+        if (any(abs(residual(:,i)) > 1.0e-12)) then
+            test_failed = .true.
+            exit
+        else 
+            test_failed = .false.
+        end if
+    end do
+    if (test_failed) then
+        write(*,*) "broadcast element-cross-vector FAILED"
+        total_tests = total_tests + 1
+    else
+        write(*,*) "broadcast element-cross-vector PASSED"
+        passed_tests = passed_tests + 1
+        total_tests = total_tests + 1
+    end if
+    test_failed = .false.
+    write(*,*) ""
+    write(*,*) ""
+
+
+!!!!!!!!!! TEST BROADCAST VECTOR DOT ELEMENT  !!!!!!!!!!
+    write(*,*) "-------------TEST BROADCAST VECTOR-DOT-ELEMENT--------------"
+    write(*,*) ""
+
+    ! write full matrix a
+    write(*,*) " full matrix a:"
+    do i=1,11
+        write(*, '(3(f12.5, 2x))') full_matrix_a(:,i)
+    end do
+    write(*,*) ""
+
+
+    vec = (/1.0,-2.0,3.0/)
+    write(*,'(A, 3(f10.5, 2x))') "vector: ", vec
+    write(*,*) ""
+
+    ! perform cross product manually
+    write(*,*) "broadcast vector-dot-element in full matrix"
+    write(*,*) ""
+    allocate(vector_result(11))
+    do i=1,11
+        vector_result(i) = inner(full_matrix_a(:,i), vec(:)) 
+    end do
+
+    ! write full matrix result
+    write(*,*) " resulting full VECTOR (broadcasting dot product results in an array of scalars):"
+    do i=1,11
+        write(*, '(f12.5)') vector_result(i)
+    end do
+    write(*,*) ""
+
+    
+    ! perform cross product
+    write(*,*) "broadcast vector dotted with each sparse element ...."
+    
+    sparse_vector_result = sparse_matrix_a%broadcast_vector_dot_element(vec)
+    
+    write(*,*) ""
+    write(*,*) "resulting sparse_vector:"
+    write(*,*) ""
+    write(*,*) "  sparse_vector_result          sparse_index      full_index"
+    do i=1,sparse_vector_result%sparse_size
+        write(*,'(f12.5, 18x, I5, 12x, I5)') sparse_vector_result%elements(i)%value, &
+        i, sparse_vector_result%elements(i)%full_index
+    end do
+    write(*,*) ""
+    
+    
+    ! expand sparse_b
+    expanded_vector_result = sparse_vector_result%expand()
+    allocate(residual_vector(sparse_vector_result%full_size))
+    residual_vector = vector_result - expanded_vector_result
+    
+    ! write results
+    write(*,*) "residual =  full vector_result - expanded_matrix_result"
+    write(*,*) ""
+    write(*,*) "expanded_vector_result         residual"
+    do i=1,sparse_vector_result%full_size
+        write(*, '(f12.6 ,18x, f10.6)') expanded_vector_result(i), residual_vector(i)
+    end do
+    write(*,*) ""
+
+    ! check if test failed
+    do i=1,sparse_vector_result%full_size
+        if (abs(residual_vector(i)) > 1.0e-12) then
+            test_failed = .true.
+            exit
+        else 
+            test_failed = .false.
+        end if
+    end do
+    if (test_failed) then
+        write(*,*) "broadcast vector-dot-element test FAILED"
+        total_tests = total_tests + 1
+    else
+        write(*,*) "broadcast vector-dot-element test PASSED"
+        passed_tests = passed_tests + 1
+        total_tests = total_tests + 1
+    end if
+    test_failed = .false.
+    write(*,*) "" 
+    write(*,*) ""
+
+
+!!!!!!!!!! TEST BROADCAST ELEMENT-TIMES-SCALAR  !!!!!!!!!!
+    write(*,*) "-------------TEST BROADCAST ELEMENT-TIMES-SCALAR--------------"
+    write(*,*) ""
    
 
-!     ! check if test failed
-
-!     if (test_failed) then
-!         write(*,*) "broadcast element cross vector test  FAILED"
-!         total_tests = total_tests + 1
-!     else
-!         write(*,*) "broadcast element cross vector test PASSED"
-!         passed_tests = passed_tests + 1
-!         total_tests = total_tests + 1
-!     end if
-!     test_failed = .false.
-!     write(*,*) "" 
-!     write(*,*) ""
+    ! write full matrix a
+    write(*,*) " full matrix a:"
+    do i=1,11
+        write(*, '(3(f12.5, 2x))') full_matrix_a(:,i)
+    end do
+    write(*,*) ""
 
 
-! !!!!!!!!!! TEST BROADCAST VECTOR DOT ELEMENT  !!!!!!!!!!
-!     write(*,*) "-------------TEST BROADCAST VECTOR DOT ELEMENT--------------"
-!     write(*,*) ""
-   
+    scalar = 7.812
+    write(*,*) "scalar: ", scalar
+    write(*,*) ""
 
-!     ! check if test failed
+    ! perform scalar multiplication manually
+    write(*,*) "broadcast scalar multiplication in full matrix"
+    write(*,*) ""
+    
+    do i=1,11
+        full_matrix_a(:,i) = full_matrix_a(:,i)*scalar 
+    end do
 
-!     if (test_failed) then
-!         write(*,*) "broadcast vector dot element test FAILED"
-!         total_tests = total_tests + 1
-!     else
-!         write(*,*) "broadcast vector dot element test PASSED"
-!         passed_tests = passed_tests + 1
-!         total_tests = total_tests + 1
-!     end if
-!     test_failed = .false.
-!     write(*,*) "" 
-!     write(*,*) ""
+    ! write full matrix a
+    write(*,*) " new full matrix a:"
+    do i=1,11
+        write(*, '(3(f12.5, 2x))') full_matrix_a(:,i)
+    end do
+    write(*,*) ""
+    
+    ! perform cross product
+    write(*,*) "broadcast each sparse element times scalar ...."
+    
+    call sparse_matrix_a%broadcast_element_times_scalar(scalar)
+    
+    write(*,*) ""
+    write(*,*) "resulting sparse_matrix:"
+    write(*,*) ""
+    write(*,*) "     sparse_matrix_a                      sparse_index      full_index"
+    do i=1,sparse_matrix_a%sparse_num_cols
+        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_a%columns(i)%vector_values(1), &
+        sparse_matrix_a%columns(i)%vector_values(2),sparse_matrix_a%columns(i)%vector_values(3), &
+        i, sparse_matrix_a%columns(i)%full_index
+    end do
+    write(*,*) ""
+    
+    
+    ! expand sparse_a
+    expanded_matrix_a = sparse_matrix_a%expand()
+    residual = full_matrix_a - expanded_matrix_a
+    
+    ! write results
+    write(*,*) "residual =  new full matrix_a - new expanded_matrix_a"
+    write(*,*) ""
+    write(*,*) "        new expanded_matrix_a                        residual"
+    do i=1,sparse_matrix_a%full_num_cols
+        write(*, '(3(f10.6, 2x),3x, 3(f10.6, 2x))') expanded_matrix_a(:,i), residual(:,i)
+    end do
+    write(*,*) ""
 
-
-!     !!!!!!!!!! TEST BROADCAST ELEMENT TIMES SCALAR  !!!!!!!!!!
-!     write(*,*) "-------------TEST BROADCAST ELEMENT TIMES SCALAR--------------"
-!     write(*,*) ""
-   
-
-!     ! check if test failed
-
-!     if (test_failed) then
-!         write(*,*) "broadcast element times scalar test FAILED"
-!         total_tests = total_tests + 1
-!     else
-!         write(*,*) "broadcast element times scalar test PASSED"
-!         passed_tests = passed_tests + 1
-!         total_tests = total_tests + 1
-!     end if
-!     test_failed = .false.
-!     write(*,*) "" 
-!     write(*,*) ""
+    ! check if test failed
+    do i=1,sparse_matrix_a%full_num_cols
+        if (any(abs(residual(:,i)) > 1.0e-12)) then
+            test_failed = .true.
+            exit
+        else 
+            test_failed = .false.
+        end if
+    end do
+    if (test_failed) then
+        write(*,*) "broadcast element-times-scalar test FAILED"
+        total_tests = total_tests + 1
+    else
+        write(*,*) "broadcast element-times-scalar test PASSED"
+        passed_tests = passed_tests + 1
+        total_tests = total_tests + 1
+    end if
+    test_failed = .false.
+    write(*,*) "" 
+    write(*,*) ""
 
 
 

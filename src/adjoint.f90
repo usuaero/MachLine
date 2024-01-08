@@ -219,15 +219,15 @@ contains
 
         real :: value 
 
+        
+        value = 1.0e-20
+              
         ! if the sparse vector element has the same full index as the given full index value is set to
         ! that element's value, if not, the value stays zero 
         do i=1,this%sparse_size
             if (this%elements(i)%full_index == full_index) then
                 value = this%elements(i)%value
-                exit
-            else if (this%elements(i)%full_index > full_index) then
-                value = 0.0
-                exit
+                exit                
             end if  
         end do
        
@@ -257,6 +257,13 @@ contains
             else if (this%elements(i)%full_index > full_index) then
                 new_sparse_element_needed = .TRUE.
                 shift_index = i
+                exit
+
+            ! if given full index is neither equal to, nor less than current full, and if we are on the
+            ! last sparse element, then add an element 
+            else if (i == this%sparse_size) then
+                new_sparse_element_needed = .TRUE.
+                shift_index = i + 1
                 exit
             end if
         end do
@@ -655,24 +662,34 @@ contains
         integer, intent(in):: full_index
         real,dimension(3),intent(inout) :: values
         
-        integer :: i
-        integer :: shift_index
+        integer :: i, shift_index
         logical :: new_sparse_element_needed
 
         ! initialize logical
         new_sparse_element_needed = .FALSE.
 
         do i=1,this%sparse_num_cols
+                
             ! check to see the given full_index matches an existing sparse element full index
             if (this%columns(i)%full_index == full_index) then
                 this%columns(i)%vector_values(:) = values(:)  
                 exit  
+                
             ! check to see if the given full index is less than the current element's full index (we skipped it)
             else if (this%columns(i)%full_index > full_index) then
                 new_sparse_element_needed = .TRUE.
                 shift_index = i
                 exit
+            
+            ! if given full index is neither equal to, nor less than current full, and if we are on the
+            ! last sparse column, then add an element 
+            else if (i == this%sparse_num_cols) then
+                new_sparse_element_needed = .TRUE.
+                shift_index = i + 1
+                exit
+
             end if
+            
         end do
 
         if (new_sparse_element_needed) then
