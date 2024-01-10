@@ -14,6 +14,7 @@ program sparse_vector_test
     integer :: i, full_size_a, add_index, add_shift_index, passed_tests, total_tests, old_size
     real :: add_value, value
     logical :: test_failed
+    character(len=100),dimension(20) :: failure_log
 
     write(*,*) ""
     write(*,*) ""
@@ -43,14 +44,14 @@ program sparse_vector_test
     write(*,*) ""
 
 
-!!!!!!!!!! TEST INIT SPARSE VECTOR !!!!!!!!!!
-    write(*,*) "-------------TEST INIT SPARSE VECTOR--------------"
+!!!!!!!!!! TEST INIT FROM FULL VECTOR SPARSE VECTOR !!!!!!!!!!
+    write(*,*) "-------------TEST INIT FROM FULL VECTOR SPARSE VECTOR--------------"
     write(*,*) ""
-    write(*,*) "initialize a sparse vector"
+    write(*,*) "initialize a sparse vector from full vector a"
     write(*,*) ""
 
     ! initialize and compress vector_a into sparse_a
-    call sparse_a%init(vector_a)
+    call sparse_a%init_from_full_vector(vector_a)
     
     ! write results
     write(*,*) "sparse_a value    sparse_index      full_index"
@@ -69,10 +70,11 @@ program sparse_vector_test
         end if
     end do
     if (test_failed) then
-        write(*,*) "init sparse vector FAILED"
         total_tests = total_tests + 1
+        failure_log(total_tests-passed_tests) = "init from full vector FAILED"
+        write(*,*) failure_log(total_tests-passed_tests)
     else
-        write(*,*) "init sparse vector PASSED"
+        write(*,*) "init from full vector PASSED"
         passed_tests = passed_tests + 1
         total_tests = total_tests + 1
     end if
@@ -120,7 +122,7 @@ program sparse_vector_test
     write(*,*) ""
 
     deallocate(sparse_a%elements)
-    call sparse_a%init(vector_a)
+    call sparse_a%init_from_full_vector(vector_a)
 
     ! write sparse_a again
     write(*,*) "sparse_a value    sparse_index      full_index"
@@ -131,8 +133,9 @@ program sparse_vector_test
     
     ! result of test
     if (test_failed) then
-        write(*,*) "increase size (sparse vector) test FAILED"
         total_tests = total_tests + 1
+        failure_log(total_tests-passed_tests) = "increase size (sparse vector) test FAILED"
+        write(*,*) failure_log(total_tests-passed_tests)
     else
         write(*,*) "increase size (sparse vector) test PASSED"
         passed_tests = passed_tests + 1
@@ -181,8 +184,9 @@ program sparse_vector_test
         end if
     end do
     if (test_failed) then
-        write(*,*) "add element (sparse vector) test  FAILED"
         total_tests = total_tests + 1
+        failure_log(total_tests-passed_tests) = "add element (sparse vector) test FAILED"
+        write(*,*) failure_log(total_tests-passed_tests)
     else
         write(*,*) "add element (sparse vector) test PASSED"
         passed_tests = passed_tests + 1
@@ -248,8 +252,9 @@ program sparse_vector_test
     
     ! check if test failed
     if (test_failed) then
-        write(*,*) "get value (sparse vector) test  FAILED"
         total_tests = total_tests + 1
+        failure_log(total_tests-passed_tests) = "get value (sparse vector) test FAILED"
+        write(*,*) failure_log(total_tests-passed_tests)
     else
         write(*,*) "get value (sparse vector) test PASSED"
         passed_tests = passed_tests + 1
@@ -298,8 +303,9 @@ program sparse_vector_test
         end if
     end do
     if (test_failed) then
-        write(*,*) "set value (sparse vector) test  FAILED"
         total_tests = total_tests + 1
+        failure_log(total_tests-passed_tests) = "set value (sparse vector) test FAILED"
+        write(*,*) failure_log(total_tests-passed_tests)
     else
         write(*,*) "set value (sparse vector) test PASSED"
         passed_tests = passed_tests + 1
@@ -338,8 +344,9 @@ program sparse_vector_test
         test_failed = .false.
     end if
     if (test_failed) then
-        write(*,*) "compress sparse vector test FAILED"
         total_tests = total_tests + 1
+        failure_log(total_tests-passed_tests) = "compress sparse vector test FAILED"
+        write(*,*) failure_log(total_tests-passed_tests)
     else
         write(*,*) "compress sparse vector test PASSED"
         passed_tests = passed_tests + 1
@@ -375,8 +382,9 @@ program sparse_vector_test
         end if
     end do
     if (test_failed) then
-        write(*,*) "expand sparse vector FAILED"
         total_tests = total_tests + 1
+        failure_log(total_tests-passed_tests) = "expand sparse vector FAILED"
+        write(*,*) failure_log(total_tests-passed_tests)
     else
         write(*,*) "expand sparse vector PASSED"
         passed_tests = passed_tests + 1
@@ -410,8 +418,8 @@ program sparse_vector_test
     ! compress vectors
     write(*,*) "compressing..."
     write(*,*) ""
-    call sparse_a%init(vector_a)
-    call sparse_b%init(vector_b) 
+    call sparse_a%init_from_full_vector(vector_a)
+    call sparse_b%init_from_full_vector(vector_b) 
     
     ! write compressed vectors
     write(*,*) "sparse_a value    sparse_index      full_index "
@@ -459,8 +467,9 @@ program sparse_vector_test
         end if
     end do
     if (test_failed) then
-        write(*,*) "sparse add (vectors) FAILED"
         total_tests = total_tests + 1
+        failure_log(total_tests-passed_tests) = "sparse add (vectors) FAILED"
+        write(*,*) failure_log(total_tests-passed_tests)
     else
         write(*,*) "sparse add (vectors) PASSED"
         passed_tests = passed_tests + 1
@@ -497,8 +506,9 @@ program sparse_vector_test
         end if
     end do
     if (test_failed) then
-        write(*,*) "sparse subtract (vector) a - b FAILED"
         total_tests = total_tests + 1
+        failure_log(total_tests-passed_tests) = "sparse subtract (vector) a - b FAILED"
+        write(*,*) failure_log(total_tests-passed_tests)
     else
         write(*,*) "sparse subtract (vector) a - b PASSED"
         passed_tests = passed_tests + 1
@@ -575,8 +585,9 @@ program sparse_vector_test
         end if
     end do
     if (test_failed) then
-        write(*,*) "sparse subtract (vector) b - a FAILED"
         total_tests = total_tests + 1
+        failure_log(total_tests-passed_tests) = "sparse subtract (vector) b - a FAILED"
+        write(*,*) failure_log(total_tests-passed_tests)
     else
         write(*,*) "sparse subtract (vector) b - a PASSED"
         passed_tests = passed_tests + 1
@@ -640,8 +651,9 @@ program sparse_vector_test
     end do   
     
     if (test_failed) then
-        write(*,*) "broadcast element times vector test FAILED"
         total_tests = total_tests + 1
+        failure_log(total_tests-passed_tests) = "broadcast element times vector test FAILED"
+        write(*,*) failure_log(total_tests-passed_tests)
     else
         write(*,*) "broadcast element times vector test PASSED"
         passed_tests = passed_tests + 1
@@ -659,6 +671,17 @@ program sparse_vector_test
     write(*,*) ""
     write(*,*) passed_tests, " out of ", total_tests, " tests PASSED"
 
+    if (passed_tests < total_tests)then
+        write(*,*) ""
+        write(*,*) "Failure Log:"
+        do i=1,total_tests-passed_tests
+            write(*,*) failure_log(i)
+        end do
+    end if
+
+    write(*,*) ""
+    write(*,*) "Program Complete"
+    write(*,*) ""
     
 
 

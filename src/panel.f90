@@ -70,6 +70,12 @@ module panel_mod
         integer :: mu_dim, M_dim, sigma_dim, S_dim ! Dimensions of doublet and source parameter and strength spaces
         integer :: mirror_plane = 0
 
+        !!!!!!!!! ADJOINT !!!!!!!!!
+        type(sparse_matrix) :: d_n_g, d_nu_g, d_centr
+        type(sparse_vector) :: d_radius
+
+
+
         contains
 
             ! Initialization procedures
@@ -184,6 +190,11 @@ module panel_mod
             procedure :: get_quadratic_pressure_params => panel_get_quadratic_pressure_params
             procedure :: get_avg_pressure_coef => panel_get_avg_pressure_coef
             procedure :: get_moment_about_centroid => panel_get_moment_about_centroid
+
+            ! adjoint
+            procedure :: init_adjoint => panel_init_adjoint
+            procedure :: calc_d_centr => panel_calc_d_centr
+
 
     end type panel
 
@@ -3941,6 +3952,44 @@ contains
         end if
         
     end function panel_get_moment_about_centroid
+
+
+    subroutine panel_init_adjoint(this,N_verts)
+    ! calculates the sensitivities associated with a panel
+    
+        implicit none
+
+        class(panel),intent(inout) :: this
+        integer, intent(in) :: N_verts
+
+        ! calc sensitivity of centroid WRT X(beta)
+        call this%calc_d_centr(N_verts)
+    
+    end subroutine panel_init_adjoint
+
+
+    subroutine panel_calc_d_centr(this, N_verts)
+    ! calcualtes the sensitivity of the panel centroid WRT X(beta)
+        
+        implicit none
+        
+        class(panel),intent(inout) :: this
+        integer, intent(in) :: N_verts
+
+        integer :: i
+
+        ! init d_centr attribute
+        call this%d_centr%init_from_sparse_matrix(this%vertices(1)%ptr%d_loc)
+
+        ! add panel vertex sensitivities 2 and 3
+        call this%d_centr%sparse_add(this%vertices(2)%ptr%d_loc)
+        call this%d_centr%sparse_add(this%vertices(3)%ptr%d_loc)
+
+        ! scale by 1/3
+        call this%d_centr%broadcast_element_times_scalar(1.0/3.0)
+
+
+    end subroutine panel_calc_d_centr
 
     
 end module panel_mod

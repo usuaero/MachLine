@@ -6,7 +6,7 @@ program sparse_matrix_test
     implicit none
 
     type(sparse_vector) :: sparse_a, sparse_b, sparse_c, sparse_vector_result 
-    type(sparse_matrix) :: sparse_matrix_a, sparse_matrix_b, sparse_matrix_result
+    type(sparse_matrix) :: sparse_matrix_a, sparse_matrix_b, sparse_matrix_result, sparse_matrix_a_copy
 
     real :: scalar
     real,dimension(3) :: vec, values, add_values, check
@@ -16,6 +16,7 @@ program sparse_matrix_test
     expanded_matrix_b, residual, full_matrix_result, expanded_matrix_result
     integer :: i, passed_tests, total_tests, nonzeros, old_size, add_full_index, add_shift_index
     logical :: test_failed
+    character(len=100),dimension(20) :: failure_log
 
     write(*,*) ""
     write(*,*) ""
@@ -54,9 +55,9 @@ program sparse_matrix_test
     write(*,*) ""
 
      ! initialize and compress vector_a into sparse_a
-    call sparse_a%init(vector_a)
-    call sparse_b%init(vector_b)
-    call sparse_c%init(vector_c)
+    call sparse_a%init_from_full_vector(vector_a)
+    call sparse_b%init_from_full_vector(vector_b)
+    call sparse_c%init_from_full_vector(vector_c)
     
     ! write sparse a
     write(*,*) "sparse_a                 sparse_index      full_index"
@@ -124,8 +125,9 @@ program sparse_matrix_test
 
 
     if (test_failed) then
-        write(*,*) "init from sparse vectors FAILED"
         total_tests = total_tests + 1
+        failure_log(total_tests-passed_tests) = "init from sparse vectors FAILED"
+        write(*,*) failure_log(total_tests-passed_tests)
     else
         write(*,*) "init from sparse vectors PASSED"
         passed_tests = passed_tests + 1
@@ -185,8 +187,9 @@ program sparse_matrix_test
 
 
     if (test_failed) then
-        write(*,*) "init from sparse vectors FAILED"
         total_tests = total_tests + 1
+        failure_log(total_tests-passed_tests) = "init from sparse vectors FAILED"
+        write(*,*) failure_log(total_tests-passed_tests)
     else
         write(*,*) "init from sparse vectors PASSED"
         passed_tests = passed_tests + 1
@@ -195,6 +198,63 @@ program sparse_matrix_test
     test_failed = .true.
     write(*,*) "" 
     write(*,*) "" 
+
+
+
+!!!!!!!!!! TEST INIT FROM SPARSE MATRIX !!!!!!!!!!
+    write(*,*) "-------------TEST INIT FROM SPARSE MATRIX--------------"
+    write(*,*) ""
+    
+    ! write sparse matrix
+    write(*,*) ""
+    write(*,*) "         sparse_matrix a                       sparse_index      full_index"
+    do i=1,sparse_matrix_a%sparse_num_cols
+        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_a%columns(i)%vector_values(1), &
+        sparse_matrix_a%columns(i)%vector_values(2),sparse_matrix_a%columns(i)%vector_values(3), &
+        i, sparse_matrix_a%columns(i)%full_index
+    end do
+    write(*,*) ""
+
+    ! init from sparse matrix
+    write(*,*) "init a new sparse matrix from sparse_matrix_a "
+    call sparse_matrix_a_copy%init_from_sparse_matrix(sparse_matrix_a)
+
+    ! write sparse matrix
+    write(*,*) ""
+    write(*,*) "         sparse_matrix a COPY                       sparse_index      full_index"
+    do i=1,sparse_matrix_a_copy%sparse_num_cols
+        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_a_copy%columns(i)%vector_values(1), &
+        sparse_matrix_a_copy%columns(i)%vector_values(2),sparse_matrix_a_copy%columns(i)%vector_values(3), &
+        i, sparse_matrix_a_copy%columns(i)%full_index
+    end do
+    write(*,*) ""
+    
+
+    ! check if test failed
+    do i = 1,sparse_matrix_a_copy%sparse_num_cols
+        
+        if ((any(sparse_matrix_a%columns(i)%vector_values /= sparse_matrix_a_copy%columns(i)%vector_values)) &
+        .or. (sparse_matrix_a%columns(i)%full_index /= sparse_matrix_a_copy%columns(i)%full_index)) then    
+
+            test_failed = .true.
+        else 
+            test_failed = .false.
+            
+        end if
+
+    end do
+    if (test_failed) then
+        total_tests = total_tests + 1
+        failure_log(total_tests-passed_tests) = "init from sparse matrix FAILED"
+        write(*,*) failure_log(total_tests-passed_tests)
+    else
+        write(*,*) "init from sparse matrix PASSED"
+        passed_tests = passed_tests + 1
+        total_tests = total_tests + 1
+    end if
+    test_failed = .true.
+    write(*,*) "" 
+    write(*,*) ""
     
 
 
@@ -263,8 +323,9 @@ program sparse_matrix_test
     
     ! result of test
     if (test_failed) then
-        write(*,*) "increase size (sparse matrix) test FAILED"
         total_tests = total_tests + 1
+        failure_log(total_tests-passed_tests) = "increase size (sparse matrix) test FAILED"
+        write(*,*) failure_log(total_tests-passed_tests)
     else
         write(*,*) "increase size (sparse matrix) test PASSED"
         passed_tests = passed_tests + 1
@@ -320,8 +381,9 @@ program sparse_matrix_test
         end if
     end do
     if (test_failed) then
-        write(*,*) "add element (sparse matrix) test  FAILED"
         total_tests = total_tests + 1
+        failure_log(total_tests-passed_tests) = "add element (sparse matrix) test FAILED"
+        write(*,*) failure_log(total_tests-passed_tests)
     else
         write(*,*) "add element (sparse matrix) test PASSED"
         passed_tests = passed_tests + 1
@@ -362,8 +424,9 @@ program sparse_matrix_test
     
     ! check if test failed
     if (test_failed) then
-        write(*,*) "get element values test  FAILED"
         total_tests = total_tests + 1
+        failure_log(total_tests-passed_tests) = "get element values test FAILED"
+        write(*,*) failure_log(total_tests-passed_tests)
     else
         write(*,*) "get element values test PASSED"
         passed_tests = passed_tests + 1
@@ -449,8 +512,9 @@ program sparse_matrix_test
         end if
     end do
     if (test_failed) then
-        write(*,*) "set values (sparse matrix) test  FAILED"
         total_tests = total_tests + 1
+        failure_log(total_tests-passed_tests) = "set values (sparse matrix) test FAILED"
+        write(*,*) failure_log(total_tests-passed_tests)
     else
         write(*,*) "set values (sparse matrix) test PASSED"
         passed_tests = passed_tests + 1
@@ -500,8 +564,9 @@ program sparse_matrix_test
 
 
     if (test_failed) then
-        write(*,*) "compress (sparse matrix) test FAILED"
         total_tests = total_tests + 1
+        failure_log(total_tests-passed_tests) = "compress (sparse matrix) test FAILED"
+        write(*,*) failure_log(total_tests-passed_tests)
     else
         write(*,*) "compress (sparse matrix) test PASSED"
         passed_tests = passed_tests + 1
@@ -540,8 +605,9 @@ program sparse_matrix_test
         end if
     end do
     if (test_failed) then
-        write(*,*) "expand sparse matrix FAILED"
         total_tests = total_tests + 1
+        failure_log(total_tests-passed_tests) = "expand sparse matrix FAILED"
+        write(*,*) failure_log(total_tests-passed_tests)
     else
         write(*,*) "expand sparse matrix PASSED"
         passed_tests = passed_tests + 1
@@ -657,8 +723,9 @@ program sparse_matrix_test
         end if
     end do
     if (test_failed) then
-        write(*,*) "sparse add (matrix) FAILED"
         total_tests = total_tests + 1
+        failure_log(total_tests-passed_tests) = "sparse add (matrix) FAILED"
+        write(*,*) failure_log(total_tests-passed_tests)
     else
         write(*,*) "sparse add (matrix) PASSED"
         passed_tests = passed_tests + 1
@@ -780,8 +847,9 @@ program sparse_matrix_test
         end if
     end do
     if (test_failed) then
-        write(*,*) "sparse subtract (matrix) (a - b) FAILED"
         total_tests = total_tests + 1
+        failure_log(total_tests-passed_tests) = "sparse subtract (matrix) (a - b) FAILED"
+        write(*,*) failure_log(total_tests-passed_tests)
     else
         write(*,*) "sparse subtract (matrix) (a - b) PASSED"
         passed_tests = passed_tests + 1
@@ -898,8 +966,9 @@ program sparse_matrix_test
         end if
     end do
     if (test_failed) then
-        write(*,*) "sparse subtract (matrix) (a - b) FAILED"
         total_tests = total_tests + 1
+        failure_log(total_tests-passed_tests) = "sparse subtract (matrix) (a - b) FAILED"
+        write(*,*) failure_log(total_tests-passed_tests)
     else
         write(*,*) "sparse subtract (matrix) (a - b) PASSED"
         passed_tests = passed_tests + 1
@@ -986,8 +1055,9 @@ program sparse_matrix_test
         end if
     end do
     if (test_failed) then
-        write(*,*) "broadcast vector-cross-element FAILED"
         total_tests = total_tests + 1
+        failure_log(total_tests-passed_tests) = "broadcast vector-cross-element FAILED"
+        write(*,*) failure_log(total_tests-passed_tests)
     else
         write(*,*) "broadcast vector-cross-element PASSED"
         passed_tests = passed_tests + 1
@@ -1072,8 +1142,9 @@ program sparse_matrix_test
         end if
     end do
     if (test_failed) then
-        write(*,*) "broadcast element-cross-vector FAILED"
         total_tests = total_tests + 1
+        failure_log(total_tests-passed_tests) = "broadcast element-cross-vector FAILED"
+        write(*,*) failure_log(total_tests-passed_tests)
     else
         write(*,*) "broadcast element-cross-vector PASSED"
         passed_tests = passed_tests + 1
@@ -1156,8 +1227,9 @@ program sparse_matrix_test
         end if
     end do
     if (test_failed) then
-        write(*,*) "broadcast vector-dot-element test FAILED"
         total_tests = total_tests + 1
+        failure_log(total_tests-passed_tests) = "broadcast vector-dot-element test FAILED"
+        write(*,*) failure_log(total_tests-passed_tests)
     else
         write(*,*) "broadcast vector-dot-element test PASSED"
         passed_tests = passed_tests + 1
@@ -1240,8 +1312,9 @@ program sparse_matrix_test
         end if
     end do
     if (test_failed) then
-        write(*,*) "broadcast element-times-scalar test FAILED"
         total_tests = total_tests + 1
+        failure_log(total_tests-passed_tests) = "broadcast element-times-scalar test FAILED"
+        write(*,*) failure_log(total_tests-passed_tests)
     else
         write(*,*) "broadcast element-times-scalar test PASSED"
         passed_tests = passed_tests + 1
@@ -1260,7 +1333,18 @@ program sparse_matrix_test
     write(*,'(I15,a14)') total_tests - passed_tests, " tests FAILED"
     write(*,*) ""
     write(*,'(I4,a9,I2,a14)') passed_tests, " out of ", total_tests, " tests PASSED"
-
+    
+    if (passed_tests < total_tests)then
+        write(*,*) ""
+        write(*,*) "Failure Log:"
+        do i=1,total_tests-passed_tests
+            write(*,*) failure_log(i)
+        end do
+    end if
+    
+    write(*,*) ""
+    write(*,*) "Program Complete"
+    write(*,*) ""
     
 
 

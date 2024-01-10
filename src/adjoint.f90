@@ -33,7 +33,8 @@ module adjoint_mod
         type(sparse_vector_element),dimension(:),allocatable :: elements        ! non zero values in sparse vector
 
         contains
-            procedure :: init => sparse_vector_init
+            procedure :: init => sparse_vector_init   
+            procedure :: init_from_full_vector => sparse_vector_init_from_full_vector
             
             procedure :: increase_size => sparse_vector_increase_size
             procedure :: add_element => sparse_vector_add_element
@@ -63,8 +64,10 @@ module adjoint_mod
         
             
         contains
+            procedure :: init => sparse_matrix_init 
             procedure :: init_from_sparse_vectors => sparse_matrix_init_from_sparse_vectors
             procedure :: init_from_full_matrix => sparse_matrix_init_from_full_matrix
+            procedure :: init_from_sparse_matrix => sparse_matrix_init_from_sparse_matrix
 
             procedure :: increase_size => sparse_matrix_increase_size
             procedure :: add_element => sparse_matrix_add_element
@@ -110,8 +113,28 @@ contains
 
 !!!!!!!!!!!!!!!!!!!!! SPARSE VECTOR TYPE BOUND PROCEDURES !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
+    subroutine sparse_vector_init(this,N)
+        ! initializes a sparse vector with one element full of zeros. if a derivative WRT X(beta), N = N_verts*3
+        
+        implicit none
 
-    subroutine sparse_vector_init(this, full_vector)
+        class(sparse_vector), intent(inout) :: this
+        integer,intent(in) :: N
+
+        ! specify number of design variables N (if WRT to X(beta), N = N_verts*3)
+        this%full_size = N
+
+        ! allocate and populate an initial sparse vector element
+        allocate(this%elements(1))
+        this%elements(1)%value = 0.0
+        this%elements(1)%full_index = 1
+        this%sparse_size = 1
+
+    end subroutine sparse_vector_init
+
+
+
+    subroutine sparse_vector_init_from_full_vector(this, full_vector)
         ! takes a real full vector that is sparse (has a lot of 0.0's) and compresses it to a sparse vector type
 
         implicit none 
@@ -148,7 +171,7 @@ contains
         
         ! to save memory, you can deallocate the original array after converting to a sparse vector
 
-    end subroutine sparse_vector_init
+    end subroutine sparse_vector_init_from_full_vector
 
 
     subroutine sparse_vector_increase_size(this)
@@ -480,6 +503,29 @@ contains
 
 !!!!!!!!!!!!!!!!!!! SPARSE MATRIX TYPE BOUND PROCEDURES !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
+    subroutine sparse_matrix_init(this,N)
+        ! initializes a sparse matrix with one element full of zeros. if a derivative WRT X(beta), N = N_verts*3
+        
+        implicit none
+
+        class(sparse_matrix), intent(inout) :: this
+        integer,intent(in) :: N
+
+        real,dimension(3) :: zeros
+
+        ! specify number of design variables N (if WRT to X(beta), N = N_verts*3)
+        this%full_num_cols = N
+
+        ! allocate and populate an initial sparse matrix element
+        allocate(this%columns(1))
+        zeros = (/0.0, 0.0, 0.0/)
+        this%columns(1)%vector_values = zeros
+        this%columns(1)%full_index = 1
+        this%sparse_num_cols = 1
+
+    end subroutine sparse_matrix_init
+
+
     subroutine sparse_matrix_init_from_sparse_vectors(this, sparse_v1, sparse_v2, sparse_v3)
         ! combines 3 sparse vectors into a sparse matrix
         implicit none
@@ -571,6 +617,33 @@ contains
 
     end subroutine sparse_matrix_init_from_full_matrix
 
+
+    subroutine sparse_matrix_init_from_sparse_matrix(this, sparse_input)
+    ! inits a sparse matrix as a copy of the input sparse matrix
+
+    implicit none
+
+    class(sparse_matrix),intent(inout) :: this
+    type(sparse_matrix) :: sparse_input
+
+    integer :: i
+
+    ! copy info over
+    this%sparse_num_cols = sparse_input%sparse_num_cols
+    this%full_num_cols = sparse_input%full_num_cols
+    
+    ! allocate the same number of sparse matrix elements
+    allocate(this%columns(sparse_input%sparse_num_cols))
+    
+    do i=1,this%sparse_num_cols
+        
+        ! copy each element
+        this%columns(i) = sparse_input%columns(i)
+
+    end do    
+
+    end subroutine sparse_matrix_init_from_sparse_matrix
+
     
     subroutine sparse_matrix_increase_size(this)
         ! increases the size of the sparse_matrix by 1 sparse element
@@ -660,7 +733,7 @@ contains
 
         class(sparse_matrix),intent(inout) :: this
         integer, intent(in):: full_index
-        real,dimension(3),intent(inout) :: values
+        real,dimension(3),intent(in) :: values
         
         integer :: i, shift_index
         logical :: new_sparse_element_needed

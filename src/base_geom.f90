@@ -28,11 +28,6 @@ module base_geom_mod
         ! A vertex in 3-space
 
         real,dimension(3) :: loc ! Location
-
-        !!!! ADJOINT DEV -NH 12/7/23 !!!!
-        type(sparse_vector),dimension(:),allocatable :: d_loc  ! sensitivy WRT a mesh point's x, y, and z components (full of 1's and 0's)
-        !!!! END ADJOINT DEV !!!!
-
         real,dimension(3) :: n_g, n_g_mir,n_g_wake ! Normal vector associated with this vertex
         real :: l_avg ! Average of the edge lengths adjacent to this vertex
         real :: l_min ! Minimum of the edge lengths adjacent to this vertex
@@ -49,6 +44,10 @@ module base_geom_mod
         logical :: convex ! Whether the mesh is convex at this vertex
         integer :: N_needed_clones
 
+        !!!! ADJOINT DEV !!!!
+        type(sparse_matrix) :: d_loc  ! sensitivy WRT a mesh point's x, y, and z components (full of 1's and 0's)
+        
+
         contains
 
             procedure :: init => vertex_init
@@ -63,6 +62,9 @@ module base_geom_mod
 
             ! Cloning
             procedure :: copy_to => vertex_copy_to
+
+            ! adjoint
+            procedure :: init_adjoint => vertex_init_adjoint
 
     end type vertex
 
@@ -162,6 +164,8 @@ contains
         this%N_needed_clones = 0
         this%on_mirror_plane = .false.
         this%N_wake_edges = 0
+
+
 
     end subroutine vertex_init
 
@@ -366,6 +370,32 @@ contains
     
         
     end subroutine vertex_copy_to
+
+
+    subroutine vertex_init_adjoint(this, N_verts)
+    ! if adjoint calculation is true, this will initialize the vertex associated components
+
+        implicit none 
+
+        class(vertex),intent(inout) :: this
+        integer,intent(in) :: N_verts
+
+        real,dimension(3) :: values1, values2, values3
+
+        ! values used to populate the sensitivity of a vertex WRT to X(beta)
+        values1 = (/1.0, 0.0, 0.0/)
+        values2 = (/0.0, 1.0, 0.0/)
+        values3 = (/0.0, 0.0, 1.0/)
+
+        ! init vertex attribute d_loc
+        call this%d_loc%init(N_verts*3)
+
+        ! populate sparse elements
+        call this%d_loc%set_values(values1, this%index)
+        call this%d_loc%set_values(values2, this%index + N_verts)
+        call this%d_loc%set_values(values3, this%index + 2*N_verts)
+    
+    end subroutine vertex_init_adjoint
 
 
     subroutine edge_init(this, i1, i2, top_panel, bottom_panel)

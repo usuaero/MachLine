@@ -107,6 +107,10 @@ module surface_mesh_mod
             ! Control point checks
             procedure :: control_point_outside_mesh => surface_mesh_control_point_outside_mesh
 
+            ! adjoint
+            procedure :: init_adjoint => surface_mesh_init_adjoint
+
+
             ! Post-processing
             procedure :: get_induced_potentials_at_point => surface_mesh_get_induced_potentials_at_point
             procedure :: get_induced_velocities_at_point => surface_mesh_get_induced_velocities_at_point
@@ -2650,6 +2654,33 @@ contains
         end do
         
     end subroutine surface_mesh_get_induced_potentials_at_point
+
+
+    subroutine surface_mesh_init_adjoint(this)
+        ! if adjoint calculation is true, this will initialize the vertex associated components
+    
+            implicit none 
+    
+            class(surface_mesh),intent(inout) :: this
+
+            integer :: i
+            
+            ! init vertex attribute d_loc
+            do i=1,this%N_verts
+                
+                ! init vertex sensitivities
+                call this%vertices(i)%init_adjoint(this%N_verts)
+                
+            end do
+
+            do i=1,this%N_panels
+
+                ! init panel sensitivities
+                call this%panels(i)%init_adjoint(this%N_verts)
+        
+            end do
+            
+        end subroutine surface_mesh_init_adjoint
 
 
     subroutine surface_mesh_get_induced_velocities_at_point(this, point,  freestream, v_d, v_s)
