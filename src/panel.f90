@@ -4079,6 +4079,8 @@ contains
             call t_cross_d_n_g%broadcast_vector_cross_element(t_hat_g)
             
             ! Calculate d_norm_d_g
+
+            !!!!!!!!!!! name it dummy and do operations on it!!!!!!!!!!!!!
             call d_norm_d_g%init_from_sparse_matrix(this%vertices(i_next)%ptr%d_loc)
             call d_norm_d_g%sparse_subtract(this%vertices(i)%ptr%d_loc)
 
