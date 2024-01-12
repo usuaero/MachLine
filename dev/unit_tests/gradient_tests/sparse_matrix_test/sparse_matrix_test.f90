@@ -103,8 +103,7 @@ program sparse_matrix_test
     write(*,*) ""
     write(*,*) "         sparse_matrix a                          sparse_index      full_index"
     do i=1,sparse_matrix_a%sparse_num_cols
-        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_a%columns(i)%vector_values(1), &
-        sparse_matrix_a%columns(i)%vector_values(2),sparse_matrix_a%columns(i)%vector_values(3), &
+        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_a%columns(i)%vector_values(:), &
         i, sparse_matrix_a%columns(i)%full_index
     end do
     write(*,*) ""
@@ -165,8 +164,7 @@ program sparse_matrix_test
     write(*,*) ""
     write(*,*) "         sparse_matrix a                          sparse_index      full_index"
     do i=1,sparse_matrix_a%sparse_num_cols
-        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_a%columns(i)%vector_values(1), &
-        sparse_matrix_a%columns(i)%vector_values(2),sparse_matrix_a%columns(i)%vector_values(3), &
+        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_a%columns(i)%vector_values(:), &
         i, sparse_matrix_a%columns(i)%full_index
     end do
     write(*,*) ""
@@ -209,8 +207,7 @@ program sparse_matrix_test
     write(*,*) ""
     write(*,*) "         sparse_matrix a                       sparse_index      full_index"
     do i=1,sparse_matrix_a%sparse_num_cols
-        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_a%columns(i)%vector_values(1), &
-        sparse_matrix_a%columns(i)%vector_values(2),sparse_matrix_a%columns(i)%vector_values(3), &
+        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_a%columns(i)%vector_values(:), &
         i, sparse_matrix_a%columns(i)%full_index
     end do
     write(*,*) ""
@@ -223,8 +220,7 @@ program sparse_matrix_test
     write(*,*) ""
     write(*,*) "         sparse_matrix a COPY                       sparse_index      full_index"
     do i=1,sparse_matrix_a_copy%sparse_num_cols
-        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_a_copy%columns(i)%vector_values(1), &
-        sparse_matrix_a_copy%columns(i)%vector_values(2),sparse_matrix_a_copy%columns(i)%vector_values(3), &
+        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_a_copy%columns(i)%vector_values(:), &
         i, sparse_matrix_a_copy%columns(i)%full_index
     end do
     write(*,*) ""
@@ -269,8 +265,7 @@ program sparse_matrix_test
     write(*,*) ""
     write(*,*) "         sparse_matrix a                          sparse_index      full_index"
     do i=1,sparse_matrix_a%sparse_num_cols
-        write(*,'(3(f12.5), 12x, I5, 12x, I10)') sparse_matrix_a%columns(i)%vector_values(1), &
-        sparse_matrix_a%columns(i)%vector_values(2),sparse_matrix_a%columns(i)%vector_values(3), &
+        write(*,'(3(f12.5), 12x, I5, 12x, I10)') sparse_matrix_a%columns(i)%vector_values(:), &
         i, sparse_matrix_a%columns(i)%full_index
     end do
     write(*,*) ""
@@ -288,8 +283,7 @@ program sparse_matrix_test
     write(*,*) ""
     write(*,*) "         sparse_matrix a                          sparse_index      full_index"
     do i=1,sparse_matrix_a%sparse_num_cols
-        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_a%columns(i)%vector_values(1), &
-        sparse_matrix_a%columns(i)%vector_values(2),sparse_matrix_a%columns(i)%vector_values(3), &
+        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_a%columns(i)%vector_values(:), &
         i, sparse_matrix_a%columns(i)%full_index
     end do
     write(*,*) ""
@@ -315,8 +309,7 @@ program sparse_matrix_test
     write(*,*) ""
     write(*,*) "         sparse_matrix a                          sparse_index      full_index"
     do i=1,sparse_matrix_a%sparse_num_cols
-        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_a%columns(i)%vector_values(1), &
-        sparse_matrix_a%columns(i)%vector_values(2),sparse_matrix_a%columns(i)%vector_values(3), &
+        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_a%columns(i)%vector_values(:), &
         i, sparse_matrix_a%columns(i)%full_index
     end do
     write(*,*) ""
@@ -344,8 +337,7 @@ program sparse_matrix_test
     write(*,*) ""
     write(*,*) "         sparse_matrix a                          sparse_index      full_index"
     do i=1,sparse_matrix_a%sparse_num_cols
-        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_a%columns(i)%vector_values(1), &
-        sparse_matrix_a%columns(i)%vector_values(2),sparse_matrix_a%columns(i)%vector_values(3), &
+        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_a%columns(i)%vector_values(:), &
         i, sparse_matrix_a%columns(i)%full_index
     end do
     write(*,*) ""
@@ -364,8 +356,7 @@ program sparse_matrix_test
     write(*,*) ""
     write(*,*) "         sparse_matrix a                          sparse_index      full_index"
     do i=1,sparse_matrix_a%sparse_num_cols
-        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_a%columns(i)%vector_values(1), &
-        sparse_matrix_a%columns(i)%vector_values(2),sparse_matrix_a%columns(i)%vector_values(3), &
+        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_a%columns(i)%vector_values(:), &
         i, sparse_matrix_a%columns(i)%full_index
     end do
     write(*,*) ""
@@ -403,8 +394,7 @@ program sparse_matrix_test
     write(*,*) ""
     write(*,*) "         sparse_matrix a                          sparse_index      full_index"
     do i=1,sparse_matrix_a%sparse_num_cols
-        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_a%columns(i)%vector_values(1), &
-        sparse_matrix_a%columns(i)%vector_values(2),sparse_matrix_a%columns(i)%vector_values(3), &
+        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_a%columns(i)%vector_values(:), &
         i, sparse_matrix_a%columns(i)%full_index
     end do
     write(*,*) ""
@@ -496,8 +486,7 @@ program sparse_matrix_test
     write(*,*) ""
     write(*,*) "         sparse_matrix b                          sparse_index      full_index"
     do i=1,sparse_matrix_b%sparse_num_cols
-        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_b%columns(i)%vector_values(1), &
-        sparse_matrix_b%columns(i)%vector_values(2),sparse_matrix_b%columns(i)%vector_values(3), &
+        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_b%columns(i)%vector_values(:), &
         i, sparse_matrix_b%columns(i)%full_index
     end do
     write(*,*) ""
@@ -538,8 +527,7 @@ program sparse_matrix_test
     write(*,*) ""
     write(*,*) "         sparse_matrix b                          sparse_index      full_index"
     do i=1,sparse_matrix_b%sparse_num_cols
-        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_b%columns(i)%vector_values(1), &
-        sparse_matrix_b%columns(i)%vector_values(2),sparse_matrix_b%columns(i)%vector_values(3), &
+        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_b%columns(i)%vector_values(:), &
         i, sparse_matrix_b%columns(i)%full_index
     end do
     write(*,*) ""
@@ -667,8 +655,7 @@ program sparse_matrix_test
     write(*,*) ""
     write(*,*) "         sparse_matrix a                          sparse_index      full_index"
     do i=1,sparse_matrix_a%sparse_num_cols
-        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_a%columns(i)%vector_values(1), &
-        sparse_matrix_a%columns(i)%vector_values(2),sparse_matrix_a%columns(i)%vector_values(3), &
+        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_a%columns(i)%vector_values(:), &
         i, sparse_matrix_a%columns(i)%full_index
     end do
     write(*,*) ""
@@ -677,8 +664,7 @@ program sparse_matrix_test
     write(*,*) ""
     write(*,*) "         sparse_matrix b                          sparse_index      full_index"
     do i=1,sparse_matrix_b%sparse_num_cols
-        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_b%columns(i)%vector_values(1), &
-        sparse_matrix_b%columns(i)%vector_values(2),sparse_matrix_b%columns(i)%vector_values(3), &
+        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_b%columns(i)%vector_values(:), &
         i, sparse_matrix_b%columns(i)%full_index
     end do
     write(*,*) ""
@@ -694,8 +680,7 @@ program sparse_matrix_test
 
     write(*,*) "     new sparse_matrix a                          sparse_index      full_index"
     do i=1,sparse_matrix_a%sparse_num_cols
-        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_a%columns(i)%vector_values(1), &
-        sparse_matrix_a%columns(i)%vector_values(2),sparse_matrix_a%columns(i)%vector_values(3), &
+        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_a%columns(i)%vector_values(:), &
         i, sparse_matrix_a%columns(i)%full_index
     end do
     write(*,*) ""
@@ -792,8 +777,7 @@ program sparse_matrix_test
     write(*,*) ""
     write(*,*) "         sparse_matrix a                          sparse_index      full_index"
     do i=1,sparse_matrix_a%sparse_num_cols
-        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_a%columns(i)%vector_values(1), &
-        sparse_matrix_a%columns(i)%vector_values(2),sparse_matrix_a%columns(i)%vector_values(3), &
+        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_a%columns(i)%vector_values(:), &
         i, sparse_matrix_a%columns(i)%full_index
     end do
     write(*,*) ""
@@ -802,8 +786,7 @@ program sparse_matrix_test
     write(*,*) ""
     write(*,*) "         sparse_matrix b                          sparse_index      full_index"
     do i=1,sparse_matrix_b%sparse_num_cols
-        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_b%columns(i)%vector_values(1), &
-        sparse_matrix_b%columns(i)%vector_values(2),sparse_matrix_b%columns(i)%vector_values(3), &
+        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_b%columns(i)%vector_values(:), &
         i, sparse_matrix_b%columns(i)%full_index
     end do
     write(*,*) ""
@@ -818,8 +801,7 @@ program sparse_matrix_test
     ! write new sparse a results
     write(*,*) "     new sparse_matrix a                          sparse_index      full_index"
     do i=1,sparse_matrix_a%sparse_num_cols
-        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_a%columns(i)%vector_values(1), &
-        sparse_matrix_a%columns(i)%vector_values(2),sparse_matrix_a%columns(i)%vector_values(3), &
+        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_a%columns(i)%vector_values(:), &
         i, sparse_matrix_a%columns(i)%full_index
     end do
     write(*,*) ""
@@ -912,8 +894,7 @@ program sparse_matrix_test
     write(*,*) ""
     write(*,*) "         sparse_matrix b                          sparse_index      full_index"
     do i=1,sparse_matrix_b%sparse_num_cols
-        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_b%columns(i)%vector_values(1), &
-        sparse_matrix_b%columns(i)%vector_values(2),sparse_matrix_b%columns(i)%vector_values(3), &
+        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_b%columns(i)%vector_values(:), &
         i, sparse_matrix_b%columns(i)%full_index
     end do
     write(*,*) ""
@@ -922,8 +903,7 @@ program sparse_matrix_test
     write(*,*) ""
     write(*,*) "         sparse_matrix a                          sparse_index      full_index"
     do i=1,sparse_matrix_a%sparse_num_cols
-        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_a%columns(i)%vector_values(1), &
-        sparse_matrix_a%columns(i)%vector_values(2),sparse_matrix_a%columns(i)%vector_values(3), &
+        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_a%columns(i)%vector_values(:), &
         i, sparse_matrix_a%columns(i)%full_index
     end do
     write(*,*) ""
@@ -937,8 +917,7 @@ program sparse_matrix_test
 
     write(*,*) "     new sparse_matrix b                          sparse_index      full_index"
     do i=1,sparse_matrix_b%sparse_num_cols
-        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_b%columns(i)%vector_values(1), &
-        sparse_matrix_b%columns(i)%vector_values(2),sparse_matrix_b%columns(i)%vector_values(3), &
+        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_b%columns(i)%vector_values(:), &
         i, sparse_matrix_b%columns(i)%full_index
     end do
     write(*,*) ""
@@ -1025,8 +1004,7 @@ program sparse_matrix_test
     write(*,*) ""
     write(*,*) "     sparse_matrix_result                      sparse_index      full_index"
     do i=1,sparse_matrix_result%sparse_num_cols
-        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_result%columns(i)%vector_values(1), &
-        sparse_matrix_result%columns(i)%vector_values(2),sparse_matrix_result%columns(i)%vector_values(3), &
+        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_result%columns(i)%vector_values(:), &
         i, sparse_matrix_result%columns(i)%full_index
     end do
     write(*,*) ""
@@ -1112,8 +1090,7 @@ program sparse_matrix_test
     write(*,*) ""
     write(*,*) "     sparse_matrix_result                      sparse_index      full_index"
     do i=1,sparse_matrix_result%sparse_num_cols
-        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_result%columns(i)%vector_values(1), &
-        sparse_matrix_result%columns(i)%vector_values(2),sparse_matrix_result%columns(i)%vector_values(3), &
+        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_result%columns(i)%vector_values(:), &
         i, sparse_matrix_result%columns(i)%full_index
     end do
     write(*,*) ""
@@ -1282,8 +1259,7 @@ program sparse_matrix_test
     write(*,*) ""
     write(*,*) "     sparse_matrix_a                      sparse_index      full_index"
     do i=1,sparse_matrix_a%sparse_num_cols
-        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_a%columns(i)%vector_values(1), &
-        sparse_matrix_a%columns(i)%vector_values(2),sparse_matrix_a%columns(i)%vector_values(3), &
+        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_a%columns(i)%vector_values(:), &
         i, sparse_matrix_a%columns(i)%full_index
     end do
     write(*,*) ""

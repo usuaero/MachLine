@@ -71,8 +71,9 @@ module panel_mod
         integer :: mirror_plane = 0
 
         !!!!!!!!! ADJOINT !!!!!!!!!
-        type(sparse_matrix) :: d_n_g, d_nu_g, d_centr
-        type(sparse_vector) :: d_radius
+        type(sparse_vector) :: d_A, d_radius
+        type(sparse_matrix) :: d_n_g, d_centr
+        type(sparse_matrix),dimension(3) :: d_n_hat_g
 
 
 
@@ -193,7 +194,9 @@ module panel_mod
 
             ! adjoint
             procedure :: init_adjoint => panel_init_adjoint
+            procedure :: calc_d_normal_and_d_area => panel_calc_d_normal_and_d_area
             procedure :: calc_d_centr => panel_calc_d_centr
+            procedure :: calc_d_g_edge_vectors => panel_calc_d_g_edge_vectors
 
 
     end type panel
@@ -3954,29 +3957,83 @@ contains
     end function panel_get_moment_about_centroid
 
 
-    subroutine panel_init_adjoint(this,N_verts)
-    ! calculates the sensitivities associated with a panel
+    subroutine panel_init_adjoint(this)
+        ! calculates the sensitivities associated with a panel
     
         implicit none
 
         class(panel),intent(inout) :: this
-        integer, intent(in) :: N_verts
 
+        ! calc sensitivity of panel normal vector WRT X(beta)
+        call this%calc_d_normal_and_d_area()
+        
         ! calc sensitivity of centroid WRT X(beta)
-        call this%calc_d_centr(N_verts)
+        call this%calc_d_centr()
+
     
     end subroutine panel_init_adjoint
 
 
-    subroutine panel_calc_d_centr(this, N_verts)
-    ! calcualtes the sensitivity of the panel centroid WRT X(beta)
+    subroutine panel_calc_d_normal_and_d_area(this)
+        ! calculates the partial derivative of the panel normal vector WRT X(beta)
+
+        implicit none
+
+        class(panel),intent(inout) :: this
+
+        real :: norm_term
+        real,dimension(3) :: d1, d2, d1_cross_d2
+        
+        type(sparse_vector) :: d_norm_term
+        type(sparse_matrix) :: d_d1, d_d2, d_d1_cross_d2, d1_cross_d_d2, x
+
+        
+        ! Get two edge vectors
+        d1 = this%get_vertex_loc(2)-this%get_vertex_loc(1)
+        d2 = this%get_vertex_loc(3)-this%get_vertex_loc(2)
+        
+        ! Find normal
+        d1_cross_d2 = cross(d1, d2)
+        norm_term = norm2(d1_cross_d2)
+
+        ! calc d_d1 and d_d2 
+        call d_d1%init_from_sparse_matrix(this%vertices(2)%ptr%d_loc)
+        call d_d1%sparse_subtract(this%vertices(1)%ptr%d_loc)
+        
+        call d_d2%init_from_sparse_matrix(this%vertices(3)%ptr%d_loc)
+        call d_d2%sparse_subtract(this%vertices(2)%ptr%d_loc)
+        
+        ! calc d_d1_cross_d2, d1_cross_d_d2 ( they are sparse matrices)
+        d_d1_cross_d2 = d_d1%broadcast_element_cross_vector(d2)
+        d1_cross_d_d2 = d_d2%broadcast_vector_cross_element(d1)
+
+        ! calculate d_norm_term
+        call d_d1_cross_d2%sparse_add(d1_cross_d_d2)
+        d_norm_term = d_d1_cross_d2%broadcast_vector_dot_element(d1_cross_d2)
+        call d_norm_term%broadcast_element_times_scalar(1.0/norm_term)
+
+        ! calculate d_A
+        call this%d_A%init_from_sparse_vector(d_norm_term)
+        call this%d_A%broadcast_element_times_scalar(0.5)
+
+        ! calculate d_n_g (NOTE: d_d1_cross_d2 at this point has had d1_cross_d_d2 added to it)
+        call this%d_n_g%init_from_sparse_matrix(d_d1_cross_d2)
+        call this%d_n_g%broadcast_element_times_scalar(norm_term)
+
+        x = d_norm_term%broadcast_element_times_vector(d1_cross_d2)
+
+        call this%d_n_g%sparse_subtract(x)
+        call this%d_n_g%broadcast_element_times_scalar(1.0/inner(d1_cross_d2,d1_cross_d2))
+
+    end subroutine panel_calc_d_normal_and_d_area
+
+
+    subroutine panel_calc_d_centr(this)
+        ! calcualtes the sensitivity of the panel centroid WRT X(beta)
         
         implicit none
         
         class(panel),intent(inout) :: this
-        integer, intent(in) :: N_verts
-
-        integer :: i
 
         ! init d_centr attribute
         call this%d_centr%init_from_sparse_matrix(this%vertices(1)%ptr%d_loc)
@@ -3991,5 +4048,51 @@ contains
 
     end subroutine panel_calc_d_centr
 
-    
+
+    subroutine panel_calc_d_g_edge_vectors(this)
+        ! calcualtes the sensitivity of the penel edge vectors WRT X(beta)
+
+        implicit none
+        class(panel),intent(inout) :: this
+
+        real,dimension(3) :: d_g, , norm_d_g, t_hat_g
+        integer :: i, i_next
+
+        type(sparse_vector) :: d_norm_term
+        type(sparse_matrix) :: t_cross_d_n_g, d_norm_d_g
+
+
+        ! Loop through edges
+        do i=1,this%N
+
+            i_next = mod(i, this%N)+1
+
+            ! Calculate edge vector based on index
+            d_g = this%get_vertex_loc(i_next)-this%get_vertex_loc(i)
+
+            ! Calculate tangent in global coords
+            norm_d_g = norm2(d_g)
+            t_hat_g = d_g/norm_d_g
+
+            ! calculate   (broadcast t_hat_g cross d_n_g)
+            call t_cross_d_n_g%init_from_sparse_matrix(this%d_n_g)
+            call t_cross_d_n_g%broadcast_vector_cross_element(t_hat_g)
+            
+            ! Calculate d_norm_d_g
+            call d_norm_d_g%init_from_sparse_matrix(this%vertices(i_next)%ptr%d_loc)
+            call d_norm_d_g%sparse_subtract(this%vertices(i)%ptr%d_loc)
+
+            call d_norm_d_g%broadcast_vector_dot_element(d_g)
+
+            this%n_hat_g(i)
+
+            deallocate(t_cross_d_n_g%columns)
+            deallocate(d_d_g%columns)
+
+        end do
+
+    end subroutine panel_calc_d_g_edge_vectors
+
+
+   
 end module panel_mod

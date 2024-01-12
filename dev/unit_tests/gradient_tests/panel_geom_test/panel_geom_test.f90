@@ -1,0 +1,489 @@
+program gradient_test
+
+    ! tests various intermediate sensitivities 
+    use adjoint_mod
+    use base_geom_mod
+    use panel_mod
+    use flow_mod
+    
+    implicit none
+
+    
+    type(flow) :: freestream
+    type(eval_point_geom) :: geom
+    type(integrals) :: int
+    real :: step
+    real,dimension(:,:),allocatable :: v, vertex_locs, d_loc_FD, d_centr_FD, d_n_g_FD, residuals
+    real,dimension(3) :: values1, values2, values3
+    real,dimension(:),allocatable :: X_beta, loc_up, loc_dn, centr_up, centr_dn, normal_up, normal_dn
+    integer :: i,j,k, N_verts, N_panels, vert, index
+    type(vertex),dimension(:),allocatable :: vertices ! list of vertex types, this should be a mesh attribute
+    type(panel),dimension(:),allocatable :: panels    ! list of panels, this should be a mesh attribute
+    character(len=:),allocatable :: spanwise_axis
+
+    ! test stuff
+    integer :: passed_tests, total_tests
+    logical :: test_failed
+    character(len=100),dimension(20) :: failure_log
+
+
+    test_failed = .true. ! assume test failed, if the test condition is met, test passed
+    ! NOTE: on the sparse vector test, I assume the test passes, if it fails a test condition, test fails
+    passed_tests = 0
+    total_tests = 0
+
+    
+    ! Initialize freestream
+    freestream%supersonic = .false.
+    freestream%v_inf = (/1., 0., 0./)
+    freestream%c_hat_g = (/1., 0., 0./) ! freestream direction vector
+    freestream%U = 1.                   ! freestream magnitude
+    freestream%U_inv = 1.
+    freestream%M_inf = 0.               ! incompressible, Mach = 0
+    freestream%B = 1.                   ! supersonic compressibility scaling factor
+    freestream%s = 1.                   ! flow type indicator (1 = subsonic)
+    freestream%K = 4.*pi                ! Kappa factor (4 pi) for subsonic, (2 pi) for supersonic
+    freestream%K_inv = 1./(4.*pi)       
+    spanwise_axis = 'y+'
+    call freestream%calc_metric_matrices()
+    call freestream%calc_transforms(spanwise_axis)
+
+
+    ! For this simple example, we don't need to collapse dublicates
+    N_verts = 6
+    N_panels = 8
+    
+    allocate(v(3,N_verts))
+    ! Initialize vertices
+    v(:,1) = (/ 0.0, 0.0,-0.2/)  ! top
+    v(:,2) = (/ 1.0, 0.0, 0.0/)  ! forward 
+    v(:,3) = (/ 0.0, 1.0, 0.0/)  ! right wingtip
+    v(:,4) = (/-1.0, 0.0, 0.0/)  ! aft
+    v(:,5) = (/ 0.0,-1.0, 0.0/)  ! left wingtip
+    v(:,6) = (/ 0.0, 0.0, 0.2/)  ! bottom
+    
+    ! put vertex_locs in a list
+    allocate(vertex_locs(3,N_verts))
+    do i =1, N_verts
+        vertex_locs(:,i) = v(:,i)
+    end do
+
+    ! populate vertices list
+    allocate(vertices(N_verts))
+    do i=1,N_verts
+        call vertices(i)%init(vertex_locs(:,i), i)
+    end do
+    
+    ! build design variable vector X_beta
+    allocate(X_beta(N_verts*3))
+    do i=1,3
+        do j=1,N_verts
+            X_beta(j + (i-1)*N_verts) = vertices(j)%loc(i)
+        end do
+    end do
+
+    ! initialize 8 panels
+    ! panel init calculates the following:
+    !   normal vector
+    !   area
+    !   centroid
+    !   radius
+    !   n_hat_g (g edge vectors)
+    allocate(panels(N_panels))
+    
+    call panels(1)%init(vertices(1), vertices(2), vertices(3), 1, .false.) !    top, right, forward
+    call panels(2)%init(vertices(1), vertices(3), vertices(4), 2, .false.) !    top, right,     aft 
+    call panels(3)%init(vertices(1), vertices(4), vertices(5), 3, .false.) !    top,  left,     aft
+    call panels(4)%init(vertices(1), vertices(5), vertices(2), 4, .false.) !    top,  left, forward
+
+    call panels(5)%init(vertices(6), vertices(2), vertices(3), 5, .false.) ! bottom, right, forward
+    call panels(6)%init(vertices(6), vertices(3), vertices(4), 6, .false.) ! bottom, right,     aft
+    call panels(7)%init(vertices(6), vertices(4), vertices(5), 7, .false.) ! bottom,  left,     aft
+    call panels(8)%init(vertices(6), vertices(5), vertices(2), 8, .false.) ! bottom,  left, forward
+
+    
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST d_loc !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    write(*,*) "---------------------------------- TEST d_loc -----------------------------------"
+    write(*,*) ""
+    
+    ! following sensitivities are with respect to a perturbation in x y and z of vertex 1
+    index = 1
+
+    !!!!!!!!! Finite Difference  d_loc !!!!!!!!!
+    write(*,*) ""
+    write(*,*) "CENTRAL DIFFERENCE d_loc"
+
+    ! sensitivity to vertex 1
+    step = 0.0001
+    
+    ! perturb x1 up
+    allocate(loc_up(N_verts*3))
+    allocate(loc_dn(N_verts*3))
+    allocate(d_loc_FD(3,N_verts*3))
+
+    ! for each x, y, z of centr 1 
+    do k=1,3
+
+        do i=1,3
+            do j=1,N_verts
+
+                ! perturb up the current design variable
+                vertices(j)%loc(i) = vertices(j)%loc(i) + step
+
+                ! put the x y or z component of the vertex of interest (index) in a list
+                loc_up(j + (i-1)*N_verts) = vertices(index)%loc(k)
+
+                ! perturb down the current design variable
+                vertices(j)%loc(i) = vertices(j)%loc(i) - 2.*step
+
+                ! put the x y or z component of the vertex of interest (index) in a list
+                loc_dn(j + (i-1)*N_verts) = vertices(index)%loc(k)
+                
+                ! central difference 
+                d_loc_FD(k,:) = (loc_up - loc_dn)/(2.*step)
+            
+                ! restore geometry
+                vertices(j)%loc(i) = vertices(j)%loc(i) + step
+            end do 
+        end do 
+    end do
+
+    ! write results
+    write(*,*) ""
+    write(*,*) "                d_loc_FD vertex 1"
+    write(*,*) "  d_loc_x           d_loc_y           d_loc_z "
+    do i = 1, N_verts*3
+        write(*, '(3(f14.10, 4x))') d_loc_FD(:,i)
+    end do 
+
+    !!!!!!!!!! ADJOINT d_loc!!!!!!!!!!!!!
+    write(*,*) ""
+    write(*,*) ""
+    write(*,*) "ADJOINT d_loc"
+    write(*,*) ""
+                
+    ! call vertex init (do it for all vertices because they will be used later)
+    do i =1,N_verts
+        call vertices(i)%init_adjoint(N_verts)
+    end do
+    
+    ! write sparse matrix
+    write(*,*) ""
+    write(*,*) "         d_loc point 1"
+    write(*,*) "  d_loc_x           d_loc_y           d_loc_z             sparse_index       full_index"
+    do i=1,vertices(index)%d_loc%sparse_num_cols
+        write(*,'(3(f14.10, 4x), 12x, I5, 12x, I5)') vertices(index)%d_loc%columns(i)%vector_values(:), &
+        i, vertices(index)%d_loc%columns(i)%full_index
+    end do
+    write(*,*) ""
+
+
+
+    allocate(residuals(3,N_verts*3))
+    
+    ! calculate residuals
+    do i =1, N_verts*3
+        residuals(:,i) = vertices(index)%d_loc%get_values(i) - d_loc_FD(:,i)
+    end do
+
+    
+    write(*,*) "         d_loc vertex 1 expanded "
+    write(*,*) "  d_loc_x           d_loc_y           d_loc_z                                 residuals"
+    do i = 1, N_verts*3
+        write(*, '(3(f14.10, 4x),3x, 3(f14.10, 4x))') vertices(index)%d_loc%get_values(i), residuals(:,i)
+    end do
+    write(*,*) ""
+
+
+    ! check if test failed
+    do i=1,N_verts*3
+        if (any(residuals(:,i) > 1.0e-12)) then
+            test_failed = .true.
+            exit
+        else 
+            test_failed = .false.
+        end if
+    end do
+    if (test_failed) then
+        total_tests = total_tests + 1
+        failure_log(total_tests-passed_tests) = "d_loc test FAILED"
+        write(*,*) failure_log(total_tests-passed_tests)
+    else
+        write(*,*) "d_loc test PASSED"
+        passed_tests = passed_tests + 1
+        total_tests = total_tests + 1
+        
+    end if
+    test_failed = .false.
+    write(*,*) "" 
+    write(*,*) ""
+
+
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST d_centr !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    write(*,*) "---------------------------------- TEST d_centr ----------------------------------"
+    write(*,*) ""
+
+    !!!!!!!!! Finite Difference  d_centr !!!!!!!!!
+    write(*,*) ""
+    write(*,*) "CENTRAL DIFFERENCE d_centr"
+
+    ! we want the sensitivity of the centroid of panel 1 WRT X(beta)
+    index = 1
+
+    ! sensitivity to vertex 1
+    step = 0.0001
+
+    ! perturb x1 up
+    allocate(centr_up(N_verts*3))
+    allocate(centr_dn(N_verts*3))
+    allocate(d_centr_FD(3,N_verts*3))
+
+    ! for each x, y, z of centr 1 
+    do k=1,3
+
+        do i=1,3
+            do j=1,N_verts
+                ! perturb up the current design variable
+                vertices(j)%loc(i) = vertices(j)%loc(i) + step
+
+                ! update panel centroid calculations
+                call panels(index)%calc_centroid()
+
+                ! put the x y or z component of the panel's perturbed centroid in a list
+                centr_up(j + (i-1)*N_verts) = panels(index)%centr(k)
+
+                ! perturb down the current design variable
+                vertices(j)%loc(i) = vertices(j)%loc(i) - 2.*step
+
+                ! update panel centroid calculations
+                call panels(index)%calc_centroid()
+                
+                ! put the x y or z component of the panel's perturbed centroid in a list
+                centr_dn(j + (i-1)*N_verts) = panels(index)%centr(k)
+                
+                ! central difference 
+                d_centr_FD(k,:) = (centr_up - centr_dn)/(2.*step)
+            
+                ! restore geometry
+                vertices(j)%loc(i) = vertices(j)%loc(i) + step
+
+            end do 
+        end do 
+    end do
+
+    ! write results
+    write(*,*) ""
+    write(*,*) "                d_centr_FD vertex 1"
+    write(*,*) "  d_centr_x         d_centr_y         d_centr_z "
+    do i = 1, N_verts*3
+        write(*, '(3(f14.10, 4x))') d_centr_FD(:,i)
+    end do 
+    
+    !!!!!!!!!! ADJOINT d_centr!!!!!!!!!!!!!
+    write(*,*) ""
+    write(*,*) ""
+    write(*,*) "ADJOINT d_centr"
+    write(*,*) ""
+  
+    ! calculate d_centr
+    
+    ! calculate d_centr (do it for all panels because they will be used later)
+    do i =1,N_panels
+        call panels(i)%calc_d_centr()
+    end do
+
+    ! write sparse matrix
+    write(*,*) ""
+    write(*,*) "         d_centr panel 1"
+    write(*,*) "  d_centr_x         d_centr_y         d_centr_z           sparse_index       full_index"
+    do i=1,panels(index)%d_centr%sparse_num_cols
+        write(*,'(3(f14.10, 4x), 12x, I5, 12x, I5)') panels(index)%d_centr%columns(i)%vector_values(:), &
+        i, panels(index)%d_centr%columns(i)%full_index
+    end do
+    write(*,*) ""
+
+   ! calculate residuals
+    do i =1, N_verts*3
+        residuals(:,i) = panels(index)%d_centr%get_values(i) - d_centr_FD(:,i)
+    end do
+    
+
+    write(*,*) "         d_centr panel 1 expanded "
+    write(*,*) "  d_centr_x         d_centr_y         d_centr_z                               residuals"
+    do i = 1, N_verts*3
+        write(*, '(3(f14.10, 4x),3x, 3(f14.10, 4x))') panels(index)%d_centr%get_values(i), residuals(:,i)
+    end do
+    write(*,*) ""
+
+
+    ! check if test failed
+    do i=1,N_verts*3
+        if (any(residuals(:,i) > 1.0e-12)) then
+            test_failed = .true.
+            exit
+        else 
+            test_failed = .false.
+        end if
+    end do
+    if (test_failed) then
+        total_tests = total_tests + 1
+        failure_log(total_tests-passed_tests) = "d_centr test FAILED"
+        write(*,*) failure_log(total_tests-passed_tests)
+    else
+        write(*,*) "d_centr test PASSED"
+        passed_tests = passed_tests + 1
+        total_tests = total_tests + 1
+    end if
+    test_failed = .false.
+    write(*,*) "" 
+    write(*,*) ""
+
+
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST d_n_g !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    write(*,*) "---------------------------------- TEST d_n_g ----------------------------------"
+    write(*,*) ""
+    
+    
+
+
+    !!!!!!!!! Finite Difference  d_n_g !!!!!!!!!
+    write(*,*) ""
+    write(*,*) "CENTRAL DIFFERENCE d_n_g"
+    ! we want the sensitivity of the centroid of panel 1 WRT X(beta)
+    index = 1
+
+    ! sensitivity to vertex 1
+    step = 0.0001
+
+    ! perturb x1 up
+    allocate(normal_up(N_verts*3))
+    allocate(normal_dn(N_verts*3))
+    allocate(d_n_g_FD(3,N_verts*3))
+
+    ! for each x, y, z of normal 1 
+    do k=1,3
+
+        do i=1,3
+            do j=1,N_verts
+                ! perturb up the current design variable
+                vertices(j)%loc(i) = vertices(j)%loc(i) + step
+
+                ! update panel normal calculations
+                call panels(index)%calc_normal()
+
+                ! put the x y or z component of the panel's perturbed normal in a list
+                normal_up(j + (i-1)*N_verts) = panels(index)%n_g(k)
+
+                ! perturb down the current design variable
+                vertices(j)%loc(i) = vertices(j)%loc(i) - 2.*step
+
+                ! update panel normal calculations
+                call panels(index)%calc_normal()
+                
+                ! put the x y or z component of the panel's perturbed normal in a list
+                normal_dn(j + (i-1)*N_verts) = panels(index)%n_g(k)
+                
+                ! central difference 
+                d_n_g_FD(k,:) = (normal_up - normal_dn)/(2.*step)
+            
+                ! restore geometry
+                vertices(j)%loc(i) = vertices(j)%loc(i) + step
+
+            end do 
+        end do 
+    end do
+
+    ! write results
+    write(*,*) ""
+    write(*,*) "                d_n_g_FD vertex 1"
+    write(*,*) "  d_n_g_x           d_n_g_y           d_centr_z "
+    do i = 1, N_verts*3
+        write(*, '(3(f14.10, 4x))') d_n_g_FD(:,i)
+    end do 
+
+
+    !!!!!!!!!! ADJOINT d_n_g!!!!!!!!!!!!!
+    write(*,*) "ADJOINT d_n_g"
+    write(*,*) ""
+            
+    ! calculate d_n_g (do it for all panels because they will be used later)
+    do i =1,N_panels
+        call panels(i)%calc_d_normal()
+    end do
+
+    ! write sparse matrix
+    write(*,*) ""
+    write(*,*) "         d_n_g panel 1"
+    write(*,*) "  d_n_g_x           d_n_g_y           d_n_g_z             sparse_index       full_index"
+    do i=1,panels(index)%d_n_g%sparse_num_cols
+        write(*,'(3(f14.10, 4x), 12x, I5, 12x, I5)') panels(index)%d_n_g%columns(i)%vector_values(:), &
+        i, panels(index)%d_n_g%columns(i)%full_index
+    end do
+    write(*,*) ""
+
+    ! calculate residuals
+    do i =1, N_verts*3
+        residuals(:,i) = panels(index)%d_n_g%get_values(i) - d_n_g_FD(:,i)
+    end do
+
+    write(*,*) "         d_n_g panel 1 expanded "
+    write(*,*) "  d_n_g_x           d_n_g_y           d_n_g_z                                residuals"
+    do i = 1, N_verts*3
+        write(*, '(3(f14.10, 4x),3x, 3(f14.10, 4x))') panels(index)%d_n_g%get_values(i), residuals(:,i)
+    end do
+    write(*,*) ""
+
+
+    ! check if test failed
+    do i=1,N_verts*3
+        if (any(residuals(:,i) > 1.0e-8)) then
+            test_failed = .true.
+            exit
+        else 
+            test_failed = .false.
+        end if
+    end do
+    if (test_failed) then
+        total_tests = total_tests + 1
+        failure_log(total_tests-passed_tests) = "d_n_g test FAILED"
+        write(*,*) failure_log(total_tests-passed_tests)
+    else
+        write(*,*) "d_n_g test PASSED"
+        passed_tests = passed_tests + 1
+        total_tests = total_tests + 1
+    end if
+    test_failed = .false.
+    write(*,*) "" 
+    write(*,*) ""
+
+
+
+
+
+
+
+    !!!!!!!!!!!!!! GRADIENT TEST RESULTS!!!!!!!!!!!!!
+    write(*,*) "-------------GRADIENT TEST RESULTS--------------"
+    write(*,*) ""
+    write(*,'(I15,a14)') total_tests - passed_tests, " tests FAILED"
+    write(*,*) ""
+    write(*,'(I4,a9,I2,a14)') passed_tests, " out of ", total_tests, " tests PASSED"
+    if (passed_tests < total_tests)then
+        write(*,*) ""
+        write(*,*) "Failure Log:"
+        do i=1,total_tests-passed_tests
+            write(*,*) failure_log(i)
+        end do
+    end if
+    
+    write(*,*) ""
+    write(*,*) "Program Complete"
+    write(*,*) ""
+
+
+
+
+
+end program gradient_test

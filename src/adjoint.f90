@@ -35,6 +35,7 @@ module adjoint_mod
         contains
             procedure :: init => sparse_vector_init   
             procedure :: init_from_full_vector => sparse_vector_init_from_full_vector
+            procedure :: init_from_sparse_vector => sparse_vector_init_from_sparse_vector
             
             procedure :: increase_size => sparse_vector_increase_size
             procedure :: add_element => sparse_vector_add_element
@@ -49,9 +50,7 @@ module adjoint_mod
             procedure :: sparse_subtract => sparse_vector_sparse_subtract
             
             procedure :: broadcast_element_times_vector => sparse_vector_broadcast_element_times_vector
-
-            !procedure :: fill_vector => sparse_vector_fill_vector
-            
+            procedure :: broadcast_element_times_scalar => sparse_vector_broadcast_element_times_scalar
             
     end type sparse_vector
             
@@ -172,6 +171,33 @@ contains
         ! to save memory, you can deallocate the original array after converting to a sparse vector
 
     end subroutine sparse_vector_init_from_full_vector
+
+
+    subroutine sparse_vector_init_from_sparse_vector(this, sparse_input)
+        ! inits a sparse vector as a copy of the input sparse vector
+
+        implicit none
+
+        class(sparse_vector),intent(inout) :: this
+        type(sparse_vector) :: sparse_input
+
+        integer :: i
+
+        ! copy info over
+        this%sparse_size = sparse_input%sparse_size
+        this%full_size = sparse_input%full_size
+        
+        ! allocate the same number of sparse vector elements
+        allocate(this%elements(sparse_input%sparse_size))
+        
+        do i=1,this%sparse_size
+            
+            ! copy each element
+            this%elements(i) = sparse_input%elements(i)
+
+        end do    
+
+    end subroutine sparse_vector_init_from_sparse_vector
 
 
     subroutine sparse_vector_increase_size(this)
@@ -498,6 +524,25 @@ contains
     end function sparse_vector_broadcast_element_times_vector 
 
 
+    subroutine sparse_vector_broadcast_element_times_scalar(this, scalar) 
+        ! multiply a scalar by each scalar in the sparse_vector
+
+        implicit none
+
+        class(sparse_vector),intent(inout) :: this
+        real,intent(in) :: scalar
+
+        integer :: i
+
+
+        ! perform scalar multiplication of vec by each sparse vector scalar
+        do i=1,this%sparse_size
+            this%elements(i)%value = scalar*this%elements(i)%value
+        end do 
+        
+    end subroutine sparse_vector_broadcast_element_times_scalar
+
+
 !!!!!!!!!!!!!!!!!!! END SPARSE VECTOR TYPE BOUND PROCEDURES !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     
 
@@ -619,28 +664,28 @@ contains
 
 
     subroutine sparse_matrix_init_from_sparse_matrix(this, sparse_input)
-    ! inits a sparse matrix as a copy of the input sparse matrix
+        ! inits a sparse matrix as a copy of the input sparse matrix
 
-    implicit none
+        implicit none
 
-    class(sparse_matrix),intent(inout) :: this
-    type(sparse_matrix) :: sparse_input
+        class(sparse_matrix),intent(inout) :: this
+        type(sparse_matrix) :: sparse_input
 
-    integer :: i
+        integer :: i
 
-    ! copy info over
-    this%sparse_num_cols = sparse_input%sparse_num_cols
-    this%full_num_cols = sparse_input%full_num_cols
-    
-    ! allocate the same number of sparse matrix elements
-    allocate(this%columns(sparse_input%sparse_num_cols))
-    
-    do i=1,this%sparse_num_cols
+        ! copy info over
+        this%sparse_num_cols = sparse_input%sparse_num_cols
+        this%full_num_cols = sparse_input%full_num_cols
         
-        ! copy each element
-        this%columns(i) = sparse_input%columns(i)
+        ! allocate the same number of sparse matrix elements
+        allocate(this%columns(sparse_input%sparse_num_cols))
+        
+        do i=1,this%sparse_num_cols
+            
+            ! copy each element
+            this%columns(i) = sparse_input%columns(i)
 
-    end do    
+        end do    
 
     end subroutine sparse_matrix_init_from_sparse_matrix
 

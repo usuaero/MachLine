@@ -2676,7 +2676,7 @@ contains
             do i=1,this%N_panels
 
                 ! init panel sensitivities
-                call this%panels(i)%init_adjoint(this%N_verts)
+                call this%panels(i)%init_adjoint()
         
             end do
             
