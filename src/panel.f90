@@ -196,7 +196,7 @@ module panel_mod
             procedure :: init_adjoint => panel_init_adjoint
             procedure :: calc_d_normal_and_d_area => panel_calc_d_normal_and_d_area
             procedure :: calc_d_centr => panel_calc_d_centr
-            procedure :: calc_d_g_edge_vectors => panel_calc_d_g_edge_vectors
+            procedure :: calc_d_n_hat_g => panel_calc_d_n_hat_g
 
 
     end type panel
@@ -4049,17 +4049,17 @@ contains
     end subroutine panel_calc_d_centr
 
 
-    subroutine panel_calc_d_g_edge_vectors(this)
+    subroutine panel_calc_d_n_hat_g(this)
         ! calcualtes the sensitivity of the penel edge vectors WRT X(beta)
 
         implicit none
         class(panel),intent(inout) :: this
 
-        real,dimension(3) :: d_g, , norm_d_g, t_hat_g
         integer :: i, i_next
-
-        type(sparse_vector) :: d_norm_term
-        type(sparse_matrix) :: t_cross_d_n_g, d_norm_d_g
+        real :: norm_d_g
+        real,dimension(3) :: d_g, t_hat_g
+        type(sparse_vector) :: d_norm_d_g
+        type(sparse_matrix) :: t_hat_g_cross_d_n_g, d_d_g, d_norm_d_g_times_d_g, d_t_hat_g, d_n_hat_g
 
 
         ! Loop through edges
@@ -4074,26 +4074,42 @@ contains
             norm_d_g = norm2(d_g)
             t_hat_g = d_g/norm_d_g
 
-            ! calculate   (broadcast t_hat_g cross d_n_g)
-            call t_cross_d_n_g%init_from_sparse_matrix(this%d_n_g)
-            call t_cross_d_n_g%broadcast_vector_cross_element(t_hat_g)
+            ! broadcast t_hat_g cross d_n_g
+            t_hat_g_cross_d_n_g = this%d_n_g%broadcast_vector_cross_element(t_hat_g)
             
-            ! Calculate d_norm_d_g
+            ! calculate d_d_g = derivative of the edge vector
+            call d_d_g%init_from_sparse_matrix(this%vertices(i_next)%ptr%d_loc)
+            call d_d_g%sparse_subtract(this%vertices(i)%ptr%d_loc)
+            
+            ! calculate d_norm_d_g = [(d_d_g dot d_g)/norm_d_g]
+            d_norm_d_g = d_d_g%broadcast_vector_dot_element(d_g)
+            call d_norm_d_g%broadcast_element_times_scalar(1.0/norm_d_g)
 
-            !!!!!!!!!!! name it dummy and do operations on it!!!!!!!!!!!!!
-            call d_norm_d_g%init_from_sparse_matrix(this%vertices(i_next)%ptr%d_loc)
-            call d_norm_d_g%sparse_subtract(this%vertices(i)%ptr%d_loc)
+            ! calculate d_norm_d_g_times_d_g = (d_norm_d_g times d_g)
+            d_norm_d_g_times_d_g = d_norm_d_g%broadcast_element_times_vector(d_g)
 
-            call d_norm_d_g%broadcast_vector_dot_element(d_g)
+            ! calculate d_t_hat_g = [(norm_d_g times d_d_g) - d_norm_d_g_times_d_g] / (d_g dot d_g)
+            call d_t_hat_g%init_from_sparse_matrix(d_d_g)
+            call d_t_hat_g%broadcast_element_times_scalar(norm_d_g)
+            call d_t_hat_g%sparse_subtract(d_norm_d_g_times_d_g)
+            call d_t_hat_g%broadcast_element_times_scalar(1.0/inner(d_g,d_g))
 
-            this%n_hat_g(i)
+            ! calculate d_n_hat_g
+            d_n_hat_g = d_t_hat_g%broadcast_element_cross_vector(this%n_g)
+            call d_n_hat_g%sparse_add(t_hat_g_cross_d_n_g) 
 
-            deallocate(t_cross_d_n_g%columns)
+            ! copy result to panel attribute 
+            call this%d_n_hat_g(i)%init_from_sparse_matrix(d_n_hat_g)
+
+            deallocate(t_hat_g_cross_d_n_g%columns)
             deallocate(d_d_g%columns)
+            deallocate(d_norm_d_g%elements)
+            deallocate(d_t_hat_g%columns)
+            deallocate(d_n_hat_g%columns)
 
         end do
 
-    end subroutine panel_calc_d_g_edge_vectors
+    end subroutine panel_calc_d_n_hat_g
 
 
    
