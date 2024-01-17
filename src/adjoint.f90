@@ -150,7 +150,7 @@ contains
         ! count how many nonzero elements there are
         count = 0
         do i=1,full_size
-            if (abs(full_vector(i)) > 1.0e-12 ) then
+            if (abs(full_vector(i)) > 1.0e-16 ) then
                 count = count + 1
                 indices(count) = i
             end if
@@ -269,7 +269,7 @@ contains
         real :: value 
 
         
-        value = 1.0e-20
+        value = 1.0e-16
               
         ! if the sparse vector element has the same full index as the given full index value is set to
         ! that element's value, if not, the value stays zero 
@@ -338,7 +338,7 @@ contains
         ! count how many nonzero elements there are
         count = 0
         do i=1, this%sparse_size
-            if (abs(this%elements(i)%value) > 1.0e-12) then
+            if (abs(this%elements(i)%value) > 1.0e-16) then
                 count = count + 1
                 indices(count) = i
             end if
@@ -422,16 +422,16 @@ contains
             vector_b_i = vector_b%get_value(i)
             
             ! if this_i is populated and vector_b_i is populated, add them
-            if ((abs(this_i)) > 1.0e-12 .and. (abs(vector_b_i) > 1.0e-12)) then
+            if ((abs(this_i)) > 1.0e-16 .and. (abs(vector_b_i) > 1.0e-16)) then
                 this_plus_b = this_i + vector_b_i
                 call result_vector%set_value(this_plus_b, i)
             
             ! if this_i is zeros and vector_b_i is populated, set result_vector equal to vector_b_i
-            else if ((abs(this_i)) < 1.0e-12 .and. (abs(vector_b_i) > 1.0e-12)) then
+            else if ((abs(this_i)) < 1.0e-16 .and. (abs(vector_b_i) > 1.0e-16)) then
                 call result_vector%set_value(vector_b_i, i)
 
             ! if vector_b_i is zeros and this_i is populated, set result_vector equal to this_i
-            else if ((abs(this_i) > 1.0e-12) .and. (abs(vector_b_i) < 1.0e-12)) then
+            else if ((abs(this_i) > 1.0e-16) .and. (abs(vector_b_i) < 1.0e-16)) then
                 call result_vector%set_value(this_i, i)
             
             ! if both are zeros, do nothing(
@@ -474,17 +474,17 @@ contains
             vector_b_i = vector_b%get_value(i)
             
             ! if this_i is populated and vector_b_i is populated, add them
-            if ((abs(this_i) > 1.0e-12) .and. (abs(vector_b_i) > 1.0e-12)) then
+            if ((abs(this_i) > 1.0e-16) .and. (abs(vector_b_i) > 1.0e-16)) then
                 this_plus_b = this_i - vector_b_i
                 call result_vector%set_value(this_plus_b, i)
             
             ! if this_i is zeros and vector_b_i is populated, set result_vector equal to minus vector_b_i
-            else if ((abs(this_i) < 1.0e-12) .and. (abs(vector_b_i) > 1.0e-12)) then
+            else if ((abs(this_i) < 1.0e-16) .and. (abs(vector_b_i) > 1.0e-16)) then
                 vector_b_i = -vector_b_i
                 call result_vector%set_value(vector_b_i, i)
 
             ! if vector_b_i is zeros and this_i is populated, set result_vector equal to this_i
-            else if ((abs(this_i) > 1.0e-12) .and. (abs(vector_b_i) < 1.0e-12)) then
+            else if ((abs(this_i) > 1.0e-16) .and. (abs(vector_b_i) < 1.0e-16)) then
                 call result_vector%set_value(this_i, i)
             
             ! if both are zeros, do nothing
@@ -594,8 +594,8 @@ contains
         do i=1,this%full_num_cols
             ! check to see if the given sparse vectors have a nonzero value at full index i 
             ! if at least one sparse vector has a nonzero value at i, allocate a and populate 3 vector
-            if (abs(sparse_v1%get_value(i)) > 1.0e-12 .or. abs(sparse_v2%get_value(i)) > 1.0e-12 &
-            .or. abs(sparse_v3%get_value(i)) > 1.0e-12) then           
+            if (abs(sparse_v1%get_value(i)) > 1.0e-16 .or. abs(sparse_v2%get_value(i)) > 1.0e-16 &
+            .or. abs(sparse_v3%get_value(i)) > 1.0e-16) then           
                 count = count + 1
                 
                 ! update array of values (at least 1 will be nonzero)
@@ -640,7 +640,7 @@ contains
         ! count how many nonzero elements there are
         count = 0
         do i=1,full_size
-            if (any(abs(full_matrix(:,i)) > 1.0e-12)) then
+            if (any(abs(full_matrix(:,i)) > 1.0e-16)) then
                 count = count + 1
                 indices(count) = i
             end if
@@ -756,7 +756,7 @@ contains
 
         real,dimension(3) :: values 
 
-        values = (/1.0e-20, 1.0e-20, 1.0e-20/)
+        values = (/1.0e-16, 1.0e-16, 1.0e-16/)
 
         ! if the sparse matrix element has the same full index as the given full index, 
         ! return that element's value, if not, return the default zeros        
@@ -833,7 +833,7 @@ contains
         ! count and store indices of NONZERO elements
         count = 0
         do i=1,this%sparse_num_cols
-            if (any(abs(this%columns(i)%vector_values) > 1.0e-12)) then
+            if (any(abs(this%columns(i)%vector_values) > 1.0e-16)) then
                 count = count + 1
                 indices(count) = i
             end if
@@ -910,7 +910,7 @@ contains
             sparse_input_i = sparse_input%get_values(i)
         
             ! if sparse_input_i is populated, add them
-            if (any(abs(sparse_input_i) > 1.0e-12)) then
+            if (any(abs(sparse_input_i) > 1.0e-16)) then
                                 
                 this_i = this%get_values(i)
                 added = this_i + sparse_input_i
@@ -949,7 +949,7 @@ contains
             sparse_input_i = sparse_input%get_values(i)
         
             ! if sparse_input_i is populated, subtract them
-            if (any(abs(sparse_input_i) > 1.0e-12)) then
+            if (any(abs(sparse_input_i) > 1.0e-16)) then
                                 
                 this_i = this%get_values(i)
                 subtracted = this_i - sparse_input_i

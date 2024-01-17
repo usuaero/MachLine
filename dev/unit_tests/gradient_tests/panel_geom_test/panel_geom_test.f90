@@ -31,6 +31,7 @@ program gradient_test
     integer :: passed_tests, total_tests
     logical :: test_failed
     character(len=100),dimension(20) :: failure_log
+    character(len=10) :: m_char
 
 
     test_failed = .true. ! assume test failed, if the test condition is met, test passed
@@ -429,6 +430,8 @@ program gradient_test
 
 
     !!!!!!!!!! ADJOINT d_n_g!!!!!!!!!!!!!
+    write(*,*) ""
+    write(*,*) ""
     write(*,*) "ADJOINT d_n_g"
     write(*,*) ""
             
@@ -547,6 +550,8 @@ program gradient_test
 
 
     !!!!!!!!!! ADJOINT d_area!!!!!!!!!!!!!
+    write(*,*) ""
+    write(*,*) ""
     write(*,*) "ADJOINT d_area"
     write(*,*) ""
             
@@ -623,7 +628,7 @@ program gradient_test
 
         !!!!!!!!! Finite Difference  d_n_hat_g (edge m) !!!!!!!!!
         write(*,*) ""
-        write(*,*) "CENTRAL DIFFERENCE d_n_hat_g (edge", trim(CHAR(m)), ")"
+        write(*,'(A, I1, A)') "CENTRAL DIFFERENCE d_n_hat_g (edge ", m, ")"
 
         ! we want the sensitivity of the outward normal edge vector of panel 1 edge 1 WRT X(beta)
         index = 1
@@ -674,7 +679,7 @@ program gradient_test
 
         ! write results
         write(*,*) ""
-        write(*,*) "          d_n_hat_g_FD panel 1 (edge", m, ")"
+        write(*,'(A, I1, A)') "          d_n_hat_g_FD panel 1 (edge ", m, ")"
         write(*,*) "  d_n_hat_g_x       d_n_hat_g_y        d_n_hat_g_z "
         do i = 1, N_verts*3
             write(*, '(3(f14.10, 4x))') d_n_hat_g_FD(:,i, m)
@@ -682,7 +687,9 @@ program gradient_test
 
 
         !!!!!!!!!! ADJOINT d_n_hat_g (edge m)!!!!!!!!!!!!!
-        write(*,*) "ADJOINT d_n_hat_g (edge", m, ")"
+        write(*,*) ""
+        write(*,*) ""
+        write(*,'(A, I1, A)') "ADJOINT d_n_hat_g (edge ", m, ")"
         write(*,*) ""
 
         ! only need to calc this once:
@@ -697,7 +704,7 @@ program gradient_test
 
         ! write sparse matrix
         write(*,*) ""
-        write(*,*) "          d_n_hat_g panel 1 (edge", m, ")"
+        write(*,'(A, I1, A)') "          d_n_hat_g panel 1 (edge ", m, ")"
         write(*,*) "  d_n_hat_g_x       d_n_hat_g_y       d_n_hat_g_z         sparse_index       full_index"
         do i=1,panels(index)%d_n_hat_g(m)%sparse_num_cols
             write(*,'(3(f14.10, 4x), 12x, I5, 12x, I5)') panels(index)%d_n_hat_g(m)%columns(i)%vector_values(:), &
@@ -710,7 +717,7 @@ program gradient_test
             residuals3(:,i) = panels(index)%d_n_hat_g(m)%get_values(i) - d_n_hat_g_FD(:,i,m)
         end do
 
-        write(*,*) "         d_n_hat_g panel 1 expanded "
+        write(*,'(A, I1, A)') "         d_n_hat_g panel 1 (edge ", m, ") expanded "
         write(*,*) "  d_n_hat_g_x       d_n_hat_g_y       d_n_hat_g_z                            residuals"
         do i = 1, N_verts*3
             write(*, '(3(f14.10, 4x),3x, 3(f14.10, 4x))') panels(index)%d_n_hat_g(m)%get_values(i), residuals3(:,i)
@@ -729,10 +736,11 @@ program gradient_test
         end do
         if (test_failed) then
             total_tests = total_tests + 1
-            failure_log(total_tests-passed_tests) = "d_n_hat_g (edge "// char(m) //") test FAILED"
+            write(m_char,'(I1)') m
+            failure_log(total_tests-passed_tests) = "d_n_hat_g (edge "// trim(m_char) // ") test FAILED"
             write(*,*) failure_log(total_tests-passed_tests)
         else
-            write(*,*) "d_n_hat_g (edge ",m,") test PASSED"
+            write(*,'(A, I1, A)') "d_n_hat_g (edge ",m,") test PASSED"
             passed_tests = passed_tests + 1
             total_tests = total_tests + 1
         end if
@@ -748,7 +756,7 @@ program gradient_test
 
 
     !!!!!!!!!!!!!! GRADIENT TEST RESULTS!!!!!!!!!!!!!
-    write(*,*) "-------------GRADIENT TEST RESULTS--------------"
+    write(*,*) "-------------PANEL GEOMETRY SENSITIVITIES TEST RESULTS--------------"
     write(*,*) ""
     write(*,'(I15,a14)') total_tests - passed_tests, " tests FAILED"
     write(*,*) ""
