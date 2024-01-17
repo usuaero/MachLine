@@ -71,7 +71,7 @@ module panel_mod
         integer :: mirror_plane = 0
 
         !!!!!!!!! ADJOINT !!!!!!!!!
-        type(sparse_vector) :: d_A, d_radius
+        type(sparse_vector) :: d_A !d_radius
         type(sparse_matrix) :: d_n_g, d_centr
         type(sparse_matrix),dimension(3) :: d_n_hat_g
 
@@ -4101,6 +4101,7 @@ contains
             ! copy result to panel attribute 
             call this%d_n_hat_g(i)%init_from_sparse_matrix(d_n_hat_g)
 
+            ! deallocate for the next iter
             deallocate(t_hat_g_cross_d_n_g%columns)
             deallocate(d_d_g%columns)
             deallocate(d_norm_d_g%elements)
