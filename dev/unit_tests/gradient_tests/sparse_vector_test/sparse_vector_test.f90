@@ -501,6 +501,9 @@ program sparse_vector_test
     ! compress vectors
     write(*,*) "compressing..."
     write(*,*) ""
+
+    deallocate(sparse_a%elements)
+    deallocate(sparse_b%elements)
     call sparse_a%init_from_full_vector(vector_a)
     call sparse_b%init_from_full_vector(vector_b)
 
@@ -562,8 +565,8 @@ program sparse_vector_test
     write(*,*) "" 
 
     ! reinitialize
-    deallocate(sparse_a%elements(:))
-    deallocate(sparse_b%elements(:))
+    deallocate(sparse_a%elements)
+    deallocate(sparse_b%elements)
     call sparse_a%init_from_full_vector(vector_a)
     call sparse_b%init_from_full_vector(vector_b)
 

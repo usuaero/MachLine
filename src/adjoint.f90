@@ -412,12 +412,12 @@ contains
         do i=1, this%full_size
     
             ! get vector values at full index i
-            sparse_input_i = sparse_input%get_value()
+            sparse_input_i = sparse_input%get_value(i)
         
             ! if sparse_input_i is populated, add them
             if (abs(sparse_input_i) > 1.0e-16) then
                                 
-                this_i = this%get_value()
+                this_i = this%get_value(i)
                 added = this_i + sparse_input_i
                 call this%set_value(added, i)
 
@@ -428,7 +428,7 @@ contains
     end subroutine sparse_vector_sparse_add
 
 
-    subroutine sparse_matrix_vector_subtract(this, sparse_input)
+    subroutine sparse_vector_sparse_subtract(this, sparse_input)
         ! subroutine to subtract a sparse vector from this
         ! this - sparse_input = this
 
@@ -451,14 +451,14 @@ contains
         do i=1, this%full_size
     
             ! get vector values at full index i
-            sparse_input_i = sparse_input%get_value()
+            sparse_input_i = sparse_input%get_value(i)
         
             ! if sparse_input_i is populated, subtract them
             if (abs(sparse_input_i) > 1.0e-16) then
                                 
-                this_i = this%get_value()
+                this_i = this%get_value(i)
                 subtracted = this_i - sparse_input_i
-                call this%set_values(subtracted, i)
+                call this%set_value(subtracted, i)
                 
             end if
             
