@@ -437,15 +437,16 @@ program sparse_vector_test
     write(*,*) "adding sparse_b to sparse_a...."
     write(*,*) ""
 
-    sparse_ab = sparse_a%sparse_add(sparse_b) !sparse_b%sparse_add(sparse_a)
-    write(*,*) "sparse_ab value    sparse_index      full_index "
+    call sparse_a%sparse_add(sparse_b) !sparse_b%sparse_add(sparse_a)
+
+    write(*,*) "new sparse_a value    sparse_index      full_index "
     do i=1,sparse_ab%sparse_size
-        write(*,'(f14.10, 12x, I5, 12x, I5)') sparse_ab%elements(i)%value, i, sparse_ab%elements(i)%full_index
+        write(*,'(f14.10, 12x, I5, 12x, I5)') sparse_a%elements(i)%value, i, sparse_a%elements(i)%full_index
     end do
     write(*,*) ""
 
     ! expand sparse_a
-    expanded_ab = sparse_ab%expand()
+    expanded_ab = sparse_a%expand()
     residual = vector_ab - expanded_ab
     
     ! write results
@@ -478,6 +479,7 @@ program sparse_vector_test
     test_failed = .false.
     write(*,*) ""
     write(*,*) ""
+    
 
 !!!!!!!!!! TEST SPARSE SUBTRACT (VECTORS) a-b and b-a  !!!!!!!!!!
     write(*,*) "-------------TEST SPARSE SUBTRACT (VECTORS) a-b and b-a--------------"
@@ -493,6 +495,37 @@ program sparse_vector_test
     write(*,*) " vector_a     -     vector_b   =   vector_a_minus_b"
     do i=1,11
         write(*, '(3(f14.10, 2x))') vector_a(i), vector_b(i), vector_a_minus_b(i)
+    end do
+    write(*,*) ""
+
+    ! compress vectors
+    write(*,*) "compressing..."
+    write(*,*) ""
+    call sparse_a%init_from_full_vector(vector_a)
+    call sparse_b%init_from_full_vector(vector_b)
+
+    ! subtract and display 
+    write(*,*) "subtracting sparse_a minus sparse_b...."
+    write(*,*) ""
+
+    call sparse_a%sparse_subtract(sparse_b)
+
+    write(*,*) "new sparse_a value    sparse_index      full_index "
+    do i=1,sparse_a%sparse_size
+        write(*,'(f14.10, 12x, I5, 12x, I5)') sparse_a%elements(i)%value, i, sparse_a%elements(i)%full_index
+    end do
+    write(*,*) ""
+
+    ! expand 
+    expanded_a_minus_b = sparse_a%expand()
+    residual = vector_a_minus_b - expanded_a_minus_b
+    
+    ! write results
+    write(*,*) "residual = vector_a_minus_b - expanded_a_minus_b"
+    write(*,*) ""
+    write(*,*) "expanded_a_minus_b          residual"
+    do i=1,sparse_a%full_size
+        write(*, '(2(f14.10, 2x))') expanded_a_minus_b(i), residual(i)
     end do
     write(*,*) ""
     
@@ -517,30 +550,7 @@ program sparse_vector_test
     test_failed = .true.
     write(*,*) ""
     write(*,*) ""
-    
-    
-    ! subtract and display 
-    write(*,*) "subtracting sparse_a minus sparse_b...."
-    write(*,*) ""
-    sparse_a_minus_b = sparse_a%sparse_subtract(sparse_b)
-    write(*,*) "sparse_a_minus_b value    sparse_index      full_index "
-    do i=1,sparse_a_minus_b%sparse_size
-        write(*,'(f14.10, 12x, I5, 12x, I5)') sparse_a_minus_b%elements(i)%value, i, sparse_a_minus_b%elements(i)%full_index
-    end do
-    write(*,*) ""
 
-    ! expand 
-    expanded_a_minus_b = sparse_a_minus_b%expand()
-    residual = vector_a_minus_b - expanded_a_minus_b
-    
-    ! write results
-    write(*,*) "residual = vector_a_minus_b - expanded_a_minus_b"
-    write(*,*) ""
-    write(*,*) "expanded_a_minus_b          residual"
-    do i=1,sparse_a_minus_b%full_size
-        write(*, '(2(f14.10, 2x))') expanded_a_minus_b(i), residual(i)
-    end do
-    write(*,*) ""
     
     ! write  full vectors
     write(*,*) "-------now do vector b minus vector a-------"
@@ -550,27 +560,34 @@ program sparse_vector_test
         write(*, '(3(f14.10, 2x))') vector_b(i), vector_a(i), vector_b_minus_a(i)
     end do
     write(*,*) "" 
-    
-    
+
+    ! reinitialize
+    deallocate(sparse_a%elements(:))
+    deallocate(sparse_b%elements(:))
+    call sparse_a%init_from_full_vector(vector_a)
+    call sparse_b%init_from_full_vector(vector_b)
+
     ! subtract and display 
     write(*,*) "subtracting sparse_b minus sparse_a...."
     write(*,*) ""
-    sparse_b_minus_a = sparse_b%sparse_subtract(sparse_a)
-    write(*,*) "sparse_a_minus_b value    sparse_index      full_index "
-    do i=1,sparse_b_minus_a%sparse_size
-        write(*,'(f14.10, 12x, I5, 12x, I5)') sparse_b_minus_a%elements(i)%value, i, sparse_b_minus_a%elements(i)%full_index
+
+    call sparse_b%sparse_subtract(sparse_a)
+
+    write(*,*) "new sparse_b value    sparse_index      full_index "
+    do i=1,sparse_b%sparse_size
+        write(*,'(f14.10, 12x, I5, 12x, I5)') sparse_b%elements(i)%value, i, sparse_b%elements(i)%full_index
     end do
     write(*,*) ""
 
     ! expand 
-    expanded_b_minus_a = sparse_b_minus_a%expand()
+    expanded_b_minus_a = sparse_b%expand()
     residual = vector_b_minus_a - expanded_b_minus_a
     
     ! write results
     write(*,*) "residual = vector_b_minus_a - expanded_b_minus_a"
     write(*,*) ""
     write(*,*) "expanded_b_minus_a          residual"
-    do i=1,sparse_b_minus_a%full_size
+    do i=1,sparse_b%full_size
         write(*, '(2(f14.10, 2x))') expanded_b_minus_a(i), residual(i)
     end do
     write(*,*) ""
