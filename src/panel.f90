@@ -73,8 +73,12 @@ module panel_mod
         !!!!!!!!! ADJOINT !!!!!!!!!
         type(sparse_vector) :: d_A !d_radius
         type(sparse_matrix) :: d_n_g, d_centr
-        type(sparse_matrix),dimension(3) :: d_n_hat_g
+        type(sparse_matrix),dimension(3) :: d_n_hat_g, d_d_g, d_t_hat_g, dt_cross_n, t_cross_dn
+        type(sparse_vector),dimension(3) :: d_norm_d_g
 
+        !!!Adjoint CHECKING
+        real,dimension(3,3) :: d_g, t_hat_g
+        real,dimension(3) :: norm_d_g
 
 
         contains
@@ -380,25 +384,44 @@ contains
 
         class(panel),intent(inout) :: this
 
-        real,dimension(3) :: d_g, t_hat_g
+        real,dimension(3) :: d_g
         integer :: i, i_next
 
         ! Allocate memory
         allocate(this%n_hat_g(3,this%N))
 
-        ! Loop through edges
+        ! ! Loop through edges
+        ! do i=1,this%N
+
+        !     i_next = mod(i, this%N)+1
+
+        !     ! Calculate edge vector based on index
+        !     d_g = this%get_vertex_loc(i_next)-this%get_vertex_loc(i)
+
+        !     ! Calculate tangent in global coords
+        !     t_hat_g = d_g/norm2(d_g)
+
+        !     ! Calculate edge outward normal
+        !     this%n_hat_g(:,i) = cross(t_hat_g, this%n_g)
+
+        ! end do
+
+        ! TESTING
         do i=1,this%N
 
             i_next = mod(i, this%N)+1
 
             ! Calculate edge vector based on index
-            d_g = this%get_vertex_loc(i_next)-this%get_vertex_loc(i)
+            this%d_g(:,i) = this%get_vertex_loc(i_next)-this%get_vertex_loc(i)
+
+            this%norm_d_g(i) = norm2(this%d_g(:,i))
 
             ! Calculate tangent in global coords
-            t_hat_g = d_g/norm2(d_g)
+            this%t_hat_g(:,i) = this%d_g(:,i)/this%norm_d_g(i)
 
             ! Calculate edge outward normal
-            this%n_hat_g(:,i) = cross(t_hat_g, this%n_g)
+            
+            this%n_hat_g(:,i) = cross(this%t_hat_g(:,i), this%n_g)
 
         end do
     
@@ -4055,7 +4078,7 @@ contains
         implicit none
         class(panel),intent(inout) :: this
 
-        integer :: i, i_next
+        integer :: i, i_next, j
         real :: norm_d_g
         real,dimension(3) :: d_g, t_hat_g
         type(sparse_vector) :: d_norm_d_g
@@ -4075,38 +4098,60 @@ contains
             t_hat_g = d_g/norm_d_g
 
             ! broadcast t_hat_g cross d_n_g
-            t_hat_g_cross_d_n_g = this%d_n_g%broadcast_vector_cross_element(t_hat_g)
+            this%t_cross_dn(i) = this%d_n_g%broadcast_vector_cross_element(t_hat_g)
             
             ! calculate d_d_g = derivative of the edge vector
-            call d_d_g%init_from_sparse_matrix(this%vertices(i_next)%ptr%d_loc)
-            call d_d_g%sparse_subtract(this%vertices(i)%ptr%d_loc)
+            call this%d_d_g(i)%init_from_sparse_matrix(this%vertices(i_next)%ptr%d_loc)
+            call this%d_d_g(i)%sparse_subtract(this%vertices(i)%ptr%d_loc)
             
+            
+
             ! calculate d_norm_d_g = [(d_d_g dot d_g)/norm_d_g]
-            d_norm_d_g = d_d_g%broadcast_vector_dot_element(d_g)
-            call d_norm_d_g%broadcast_element_times_scalar(1.0/norm_d_g)
+            this%d_norm_d_g(i) = this%d_d_g(i)%broadcast_vector_dot_element(d_g)
+            call this%d_norm_d_g(i)%broadcast_element_times_scalar(1.0/norm_d_g)
 
             ! calculate d_norm_d_g_times_d_g = (d_norm_d_g times d_g)
-            d_norm_d_g_times_d_g = d_norm_d_g%broadcast_element_times_vector(d_g)
+            d_norm_d_g_times_d_g = this%d_norm_d_g(i)%broadcast_element_times_vector(d_g)
 
-            ! calculate d_t_hat_g = [(norm_d_g times d_d_g) - d_norm_d_g_times_d_g] / (d_g dot d_g)
-            call d_t_hat_g%init_from_sparse_matrix(d_d_g)
-            call d_t_hat_g%broadcast_element_times_scalar(norm_d_g)
-            call d_t_hat_g%sparse_subtract(d_norm_d_g_times_d_g)
-            call d_t_hat_g%broadcast_element_times_scalar(1.0/inner(d_g,d_g))
+            call this%d_t_hat_g(i)%init_from_sparse_matrix(this%d_d_g(i))
+            call this%d_t_hat_g(i)%broadcast_element_times_scalar(norm_d_g)
+            call this%d_t_hat_g(i)%sparse_subtract(d_norm_d_g_times_d_g)
+            call this%d_t_hat_g(i)%broadcast_element_times_scalar(1.0/inner(d_g,d_g))
+
+            this%dt_cross_n(i) = this%d_t_hat_g(i)%broadcast_element_cross_vector(this%n_g)
 
             ! calculate d_n_hat_g
-            d_n_hat_g = d_t_hat_g%broadcast_element_cross_vector(this%n_g)
-            call d_n_hat_g%sparse_add(t_hat_g_cross_d_n_g) 
+            !this%d_n_hat_g(i) = this%d_t_hat_g(i)%broadcast_element_cross_vector(this%n_g)
+            !call this%d_n_hat_g(i)%sparse_add(this%t_cross_dn(i)) 
 
             ! copy result to panel attribute 
-            call this%d_n_hat_g(i)%init_from_sparse_matrix(d_n_hat_g)
+            !call this%d_n_hat_g(i)%init_from_sparse_matrix(d_n_hat_g)
+        
 
-            ! deallocate for the next iter
-            deallocate(t_hat_g_cross_d_n_g%columns)
-            deallocate(d_d_g%columns)
-            deallocate(d_norm_d_g%elements)
-            deallocate(d_t_hat_g%columns)
-            deallocate(d_n_hat_g%columns)
+
+            ! ! calculate d_norm_d_g_times_d_g = (d_norm_d_g times d_g)
+            ! d_norm_d_g_times_d_g = d_norm_d_g%broadcast_element_times_vector(d_g)
+
+            ! ! calculate d_t_hat_g = [(norm_d_g times d_d_g) - d_norm_d_g_times_d_g] / (d_g dot d_g)
+            ! call d_t_hat_g%init_from_sparse_matrix(d_d_g)
+            ! call d_t_hat_g%broadcast_element_times_scalar(norm_d_g)
+            ! call d_t_hat_g%sparse_subtract(d_norm_d_g_times_d_g)
+            ! call d_t_hat_g%broadcast_element_times_scalar(1.0/inner(d_g,d_g))
+
+            ! ! calculate d_n_hat_g
+            ! d_n_hat_g = d_t_hat_g%broadcast_element_cross_vector(this%n_g)
+            ! call d_n_hat_g%sparse_add(t_hat_g_cross_d_n_g) 
+
+            ! ! copy result to panel attribute 
+            ! call this%d_n_hat_g(i)%init_from_sparse_matrix(d_n_hat_g)
+
+            ! ! deallocate for the next iter
+            ! deallocate(t_hat_g_cross_d_n_g%columns)
+            ! deallocate(d_norm_d_g_times_d_g%columns)
+            ! deallocate(d_d_g%columns)
+            ! deallocate(d_norm_d_g%elements)
+            ! deallocate(d_t_hat_g%columns)
+            ! deallocate(d_n_hat_g%columns)
 
         end do
 
