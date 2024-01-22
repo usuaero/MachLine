@@ -623,706 +623,6 @@ program gradient_test
 
 
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST d_d_g !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    write(*,*) "---------------------------------- TEST d_d_g ----------------------------------"
-    write(*,*) ""
-    write(*,*) "the sensitivity of the edge vectors of panel 1 WRT each design variable"
-    write(*,*) ""
-    
-    ! allocate central difference variables
-    allocate(d_g_up(N_verts*3))
-    allocate(d_g_dn(N_verts*3))
-    allocate(d_d_g_FD(3,N_verts*3,3))
-
-    deallocate(panels(index)%n_hat_g)
-
-
-    ! do for each edge
-    do m=1,3
-
-        !!!!!!!!! Finite Difference  d_d_g (edge m) !!!!!!!!!
-        write(*,*) ""
-        write(*,*) "------------------------------------------------"
-        write(*,*) ""
-        write(*,'(A, I1, A)') "  CENTRAL DIFFERENCE d_d_g (edge ", m, ")"
-
-        ! we want the sensitivity of the edge vector of panel 1 edge 1 WRT X(beta)
-        index = 1
-
-        ! sensitivity to vertex 1
-        step = 0.0001
-
-        ! for each x, y, z of n_hat_g (edge m) 
-        do k=1,3
-            ! do for each design variable
-            do i=1,3
-                do j=1,N_verts
-                    ! perturb up the current design variable
-                    vertices(j)%loc(i) = vertices(j)%loc(i) + step
-
-                    ! update panel edge outward normal unit vector calculations
-
-                    call panels(index)%calc_g_edge_vectors()
-
-                    ! put the x y or z component of the panel's perturbed edge outward normal unit vector in a list
-                    d_g_up(j + (i-1)*N_verts) = panels(index)%d_g(k,m)
-
-                    ! perturb down the current design variable
-                    vertices(j)%loc(i) = vertices(j)%loc(i) - 2.*step
-
-                    ! panel_calc_g_edge_vectors allocates for n_hat_g each time, so deallocate old values
-                    deallocate(panels(index)%n_hat_g)
-
-                    ! update panel edge outward normal unit vector calculations
-                    call panels(index)%calc_g_edge_vectors()
-                    
-                    ! put the x y or z component of the panel's perturbed edge outward normal unit vector in a list
-                    d_g_dn(j + (i-1)*N_verts) = panels(index)%d_g(k,m)
-                
-                    ! restore geometry
-                    vertices(j)%loc(i) = vertices(j)%loc(i) + step
-                    
-                    ! panel_calc_g_edge_vectors allocates for n_hat_g each time, so deallocate old values
-                    deallocate(panels(index)%n_hat_g)
-
-                end do 
-            end do 
-
-            ! central difference 
-            d_d_g_FD(k,:,m) = (d_g_up - d_g_dn)/(2.*step)
-
-        end do
-
-        ! write results
-        write(*,*) ""
-        write(*,'(A, I1, A)') "          d_d_g_FD panel 1 (edge ", m, ")"
-        write(*,*) "  d_d_g_x           d_d_g_y            d_d_g_z "
-        do i = 1, N_verts*3
-            write(*, '(3(f14.10, 4x))') d_d_g_FD(:,i, m)
-        end do 
-
-
-        !!!!!!!!!! ADJOINT d_d_g (edge m)!!!!!!!!!!!!!
-        write(*,*) ""
-        write(*,*) "------------------------------------------------"
-        write(*,*) ""
-        write(*,'(A, I1, A)') "  ADJOINT d_d_g (edge ", m, ")"
-        write(*,*) ""
-
-        ! only need to calc this once:
-        if (m==1) then
-
-            ! calculate d_n_hat_g (do it for all panels because they will be used later)
-            do i =1,N_panels
-                call panels(i)%calc_d_n_hat_g()
-            end do
-
-        end if
-
-        ! write sparse matrix
-        write(*,*) ""
-        write(*,'(A, I1, A)') "          d_d_g panel 1 (edge ", m, ")"
-        write(*,*) "  d_d_g_x           d_d_g_y           d_d_g_z             sparse_index       full_index"
-        do i=1,panels(index)%d_d_g(m)%sparse_num_cols
-            write(*,'(3(f14.10, 4x), 12x, I5, 12x, I5)') panels(index)%d_d_g(m)%columns(i)%vector_values(:), &
-            i, panels(index)%d_d_g(m)%columns(i)%full_index
-        end do
-        write(*,*) ""
-
-        ! calculate residuals3
-        do i =1, N_verts*3
-            residuals3(:,i) = panels(index)%d_d_g(m)%get_values(i) - d_d_g_FD(:,i,m)
-        end do
-
-        write(*,'(A, I1, A)') "         d_d_g panel 1 (edge ", m, ") expanded "
-        write(*,*) "  d_d_g_x           d_d_g_y           d_d_g_z                            residuals"
-        do i = 1, N_verts*3
-            write(*, '(3(f14.10, 4x),3x, 3(f14.10, 4x))') panels(index)%d_d_g(m)%get_values(i), residuals3(:,i)
-        end do
-        write(*,*) ""
-
-
-        ! check if test failed
-        do i=1,N_verts*3
-            if (any(residuals3(:,i) > 1.0e-8)) then
-                test_failed = .true.
-                exit
-            else 
-                test_failed = .false.
-            end if
-        end do
-        if (test_failed) then
-            total_tests = total_tests + 1
-            write(m_char,'(I1)') m
-            failure_log(total_tests-passed_tests) = "d_d_g (edge "// trim(m_char) // ") test FAILED"
-            write(*,*) failure_log(total_tests-passed_tests)
-        else
-            write(*,'(A, I1, A)') "d_d_g (edge ",m,") test PASSED"
-            passed_tests = passed_tests + 1
-            total_tests = total_tests + 1
-        end if
-        test_failed = .false.
-        write(*,*) "" 
-        write(*,*) ""
-
-
-        !copy d_n_hat_g_adjoint data
-        call d_n_hat_g_adjoint(m)%init_from_sparse_matrix(panels(index)%d_n_hat_g(m))
-
-    ! end panel edge loop
-    end do
-
-    
-    
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST d_norm_d_g !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    write(*,*) "---------------------------------- TEST d_norm_d_g ----------------------------------"
-    write(*,*) ""
-    write(*,*) "the sensitivity of the edge vector normals of panel 1 WRT each design variable"
-    write(*,*) ""
-    
-    ! allocate central difference variables
-    allocate(norm_d_g_up(N_verts*3))
-    allocate(norm_d_g_dn(N_verts*3))
-    allocate(d_norm_d_g_FD(N_verts*3, 3))
-
-    !deallocate(panels(index)%n_hat_g)
-    
-
-
-    ! do for each edge
-    do m=1,3
-
-        !!!!!!!!! Finite Difference  d_norm_d_g (edge m) !!!!!!!!!
-        write(*,*) ""
-        write(*,*) "------------------------------------------------"
-        write(*,*) ""
-        write(*,'(A, I1, A)') "  CENTRAL DIFFERENCE d_norm_d_g (edge ", m, ")"
-
-        ! we want the sensitivity of the edge vector normals of panel 1 edge m WRT X(beta)
-        index = 1
-
-        ! sensitivity to vertex 1
-        step = 0.0001
-
-        ! for each x, y, z of n_hat_g (edge m) 
-        !do k=1,3
-            ! do for each design variable
-            do i=1,3
-                do j=1,N_verts
-                    ! perturb up the current design variable
-                    vertices(j)%loc(i) = vertices(j)%loc(i) + step
-
-                    ! update panel edge outward normal unit vector calculations
-
-                    call panels(index)%calc_g_edge_vectors()
-
-                    ! put the x y or z component of the panel's perturbed edge outward normal unit vector in a list
-                    norm_d_g_up(j + (i-1)*N_verts) = panels(index)%norm_d_g(m)
-
-                    ! perturb down the current design variable
-                    vertices(j)%loc(i) = vertices(j)%loc(i) - 2.*step
-
-                    ! panel_calc_g_edge_vectors allocates for n_hat_g each time, so deallocate old values
-                    deallocate(panels(index)%n_hat_g)
-
-                    ! update panel edge outward normal unit vector calculations
-                    call panels(index)%calc_g_edge_vectors()
-                    
-                    ! put the x y or z component of the panel's perturbed edge outward normal unit vector in a list
-                    norm_d_g_dn(j + (i-1)*N_verts) = panels(index)%norm_d_g(m)
-                
-                    ! restore geometry
-                    vertices(j)%loc(i) = vertices(j)%loc(i) + step
-                    
-                    ! panel_calc_g_edge_vectors allocates for n_hat_g each time, so deallocate old values
-                    deallocate(panels(index)%n_hat_g)
-
-                end do 
-            end do 
-
-            ! central difference 
-            d_norm_d_g_FD(:,m) = (norm_d_g_up - norm_d_g_dn)/(2.*step)
-
-        !end do
-
-        ! write results
-        write(*,*) ""
-        write(*,'(A, I1, A)') "          TEST d_norm_d_g_FD panel 1 (edge ", m, ")"
-        write(*,*) "  d_norm_d_g "
-        do i = 1, N_verts*3
-            write(*, '((f14.10, 4x))') d_norm_d_g_FD(i, m)
-        end do 
-
-
-        !!!!!!!!!! ADJOINT d_norm_d_g (edge m)!!!!!!!!!!!!!
-        write(*,*) ""
-        write(*,*) "------------------------------------------------"
-        write(*,*) ""
-        write(*,'(A, I1, A)') "  ADJOINT d_norm_d_g (edge ", m, ")"
-        write(*,*) ""
-
-        ! ! only need to calc this once:
-        ! if (m==1) then
-
-        !     ! calculate d_norm_d_g (do it for all panels because they will be used later)
-        !     do i =1,N_panels
-        !         call panels(i)%calc_d_n_hat_g()
-        !     end do
-
-        ! end if
-
-        ! write sparse matrix
-        write(*,*) ""
-        write(*,'(A, I1, A)') "         d_norm_d_g panel 1 (edge ", m, ")"
-        write(*,*) "  d_norm_d_g         sparse_index       full_index"
-        do i=1,panels(index)%d_norm_d_g(m)%sparse_size
-            write(*,'(f14.10, 12x, I5, 12x, I5)') panels(index)%d_norm_d_g(m)%elements(i)%value, &
-            i, panels(index)%d_norm_d_g(m)%elements(i)%full_index
-        end do
-        write(*,*) ""
-
-        ! calculate residuals
-        do i =1, N_verts*3
-            residuals(i) = panels(index)%d_norm_d_g(m)%get_value(i) - d_norm_d_g_FD(i,m)
-        end do
-
-        write(*,'(A, I1, A)') "         d_norm_d_g panel 1 (edge ", m, ") expanded "
-        write(*,*) "  d_norm_d_g                            residuals"
-        do i = 1, N_verts*3
-            write(*, '(3(f14.10, 4x),3x, 3(f14.10, 4x))') panels(index)%d_norm_d_g(m)%get_value(i), residuals(i)
-        end do
-        write(*,*) ""
-
-
-        ! check if test failed
-        do i=1,N_verts*3
-            if (residuals(i) > 1.0e-8) then
-                test_failed = .true.
-                exit
-            else 
-                test_failed = .false.
-            end if
-        end do
-        if (test_failed) then
-            total_tests = total_tests + 1
-            write(m_char,'(I1)') m
-            failure_log(total_tests-passed_tests) = "d_norm_d_g (edge "// trim(m_char) // ") test FAILED"
-            write(*,*) failure_log(total_tests-passed_tests)
-        else
-            write(*,'(A, I1, A)') "d_norm_d_g (edge ",m,") test PASSED"
-            passed_tests = passed_tests + 1
-            total_tests = total_tests + 1
-        end if
-        test_failed = .false.
-        write(*,*) "" 
-        write(*,*) ""
-
-    ! end panel edge loop
-    end do
-
-
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST d_t_hat_g !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    write(*,*) "---------------------------------- TEST d_t_hat_g ----------------------------------"
-    write(*,*) ""
-    write(*,*) "the sensitivity of the edge vectors of panel 1 WRT each design variable"
-    write(*,*) ""
-    
-    ! allocate central difference variables
-    allocate(t_hat_g_up(N_verts*3))
-    allocate(t_hat_g_dn(N_verts*3))
-    allocate(d_t_hat_g_FD(3,N_verts*3,3))
-
-    !deallocate(panels(index)%n_hat_g)
-
-
-    ! do for each edge
-    do m=1,3
-
-        !!!!!!!!! Finite Difference  d_t_hat_g (edge m) !!!!!!!!!
-        write(*,*) ""
-        write(*,*) "------------------------------------------------"
-        write(*,*) ""
-        write(*,'(A, I1, A)') "  CENTRAL DIFFERENCE d_t_hat_g (edge ", m, ")"
-
-        ! we want the sensitivity of the edge vector of panel 1 edge 1 WRT X(beta)
-        index = 1
-
-        ! sensitivity to vertex 1
-        step = 0.0001
-
-        ! for each x, y, z of n_hat_g (edge m) 
-        do k=1,3
-            ! do for each design variable
-            do i=1,3
-                do j=1,N_verts
-                    ! perturb up the current design variable
-                    vertices(j)%loc(i) = vertices(j)%loc(i) + step
-
-                    ! update panel edge outward normal unit vector calculations
-
-                    call panels(index)%calc_g_edge_vectors()
-
-                    ! put the x y or z component of the panel's perturbed edge outward normal unit vector in a list
-                    t_hat_g_up(j + (i-1)*N_verts) = panels(index)%t_hat_g(k,m)
-
-                    ! perturb down the current design variable
-                    vertices(j)%loc(i) = vertices(j)%loc(i) - 2.*step
-
-                    ! panel_calc_g_edge_vectors allocates for n_hat_g each time, so deallocate old values
-                    deallocate(panels(index)%n_hat_g)
-
-                    ! update panel edge outward normal unit vector calculations
-                    call panels(index)%calc_g_edge_vectors()
-                    
-                    ! put the x y or z component of the panel's perturbed edge outward normal unit vector in a list
-                    t_hat_g_dn(j + (i-1)*N_verts) = panels(index)%t_hat_g(k,m)
-                
-                    ! restore geometry
-                    vertices(j)%loc(i) = vertices(j)%loc(i) + step
-                    
-                    ! panel_calc_g_edge_vectors allocates for n_hat_g each time, so deallocate old values
-                    deallocate(panels(index)%n_hat_g)
-
-                end do 
-            end do 
-
-            ! central difference 
-            d_t_hat_g_FD(k,:,m) = (t_hat_g_up - t_hat_g_dn)/(2.*step)
-
-        end do
-
-        ! write results
-        write(*,*) ""
-        write(*,'(A, I1, A)') "          d_t_hat_g_FD panel 1 (edge ", m, ")"
-        write(*,*) "  d_t_hat_g_x           d_t_hat_g_y            d_t_hat_g_z "
-        do i = 1, N_verts*3
-            write(*, '(3(f14.10, 4x))') d_t_hat_g_FD(:,i, m)
-        end do 
-
-
-        !!!!!!!!!! ADJOINT d_n_hat_g (edge m)!!!!!!!!!!!!!
-        write(*,*) ""
-        write(*,*) "------------------------------------------------"
-        write(*,*) ""
-        write(*,'(A, I1, A)') "  ADJOINT d_t_hat_g (edge ", m, ")"
-        write(*,*) ""
-
-        ! ! only need to calc this once:
-        ! if (m==1) then
-
-        !     ! calculate d_n_hat_g (do it for all panels because they will be used later)
-        !     do i =1,N_panels
-        !         call panels(i)%calc_d_n_hat_g()
-        !     end do
-
-        ! end if
-
-        ! write sparse matrix
-        write(*,*) ""
-        write(*,'(A, I1, A)') "          d_t_hat_g panel 1 (edge ", m, ")"
-        write(*,*) "  d_t_hat_g_x           d_t_hat_g_y           d_t_hat_g_z             sparse_index       full_index"
-        do i=1,panels(index)%d_t_hat_g(m)%sparse_num_cols
-            write(*,'(3(f14.10, 4x), 12x, I5, 12x, I5)') panels(index)%d_t_hat_g(m)%columns(i)%vector_values(:), &
-            i, panels(index)%d_t_hat_g(m)%columns(i)%full_index
-        end do
-        write(*,*) ""
-
-        ! calculate residuals3
-        do i =1, N_verts*3
-            residuals3(:,i) = panels(index)%d_t_hat_g(m)%get_values(i) - d_t_hat_g_FD(:,i,m)
-        end do
-
-        write(*,'(A, I1, A)') "         d_t_hat_g panel 1 (edge ", m, ") expanded "
-        write(*,*) "  d_t_hat_g_x           d_t_hat_g_y           d_t_hat_g_z                            residuals"
-        do i = 1, N_verts*3
-            write(*, '(3(f14.10, 4x),3x, 3(f14.10, 4x))') panels(index)%d_t_hat_g(m)%get_values(i), residuals3(:,i)
-        end do
-        write(*,*) ""
-
-
-        ! check if test failed
-        do i=1,N_verts*3
-            if (any(residuals3(:,i) > 1.0e-8)) then
-                test_failed = .true.
-                exit
-            else 
-                test_failed = .false.
-            end if
-        end do
-        if (test_failed) then
-            total_tests = total_tests + 1
-            write(m_char,'(I1)') m
-            failure_log(total_tests-passed_tests) = "d_t_hat_g (edge "// trim(m_char) // ") test FAILED"
-            write(*,*) failure_log(total_tests-passed_tests)
-        else
-            write(*,'(A, I1, A)') "d_t_hat_g (edge ",m,") test PASSED"
-            passed_tests = passed_tests + 1
-            total_tests = total_tests + 1
-        end if
-        test_failed = .false.
-        write(*,*) "" 
-        write(*,*) ""
-
-    ! end panel edge loop
-    end do
-
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST dt_cross_n !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    write(*,*) "---------------------------------- TEST dt_cross_n ----------------------------------"
-    write(*,*) ""
-    write(*,*) "the sensitivity of the edge vectors of panel 1 WRT each design variable"
-    write(*,*) ""
-    
-    ! allocate central difference variables
-    
-    allocate(dt_cross_n_FD(3,N_verts*3,3))
-
-    !deallocate(panels(index)%n_hat_g)
-
-
-    ! do for each edge
-    do m=1,3
-
-        !!!!!!!!! Finite Difference  dt_cross_n (edge m) !!!!!!!!!
-        write(*,*) ""
-        write(*,*) "------------------------------------------------"
-        write(*,*) ""
-        write(*,'(A, I1, A)') "  CENTRAL DIFFERENCE dt_cross_n (edge ", m, ")"
-
-        ! we want the sensitivity of the edge vector of panel 1 edge 1 WRT X(beta)
-        index = 1
-
-        ! sensitivity to vertex 1
-        step = 0.0001
-
-        ! for each x, y, z of n_hat_g (edge m) 
-        do k=1,3
-            ! do for each design variable
-            do i=1,3
-                do j=1,N_verts
-                    ! perturb up the current design variable
-                    vertices(j)%loc(i) = vertices(j)%loc(i) + step
-
-                    ! update panel edge outward normal unit vector calculations
-
-                    call panels(index)%calc_g_edge_vectors()
-
-                    ! put the x y or z component of the panel's perturbed edge outward normal unit vector in a list
-                    t_hat_g_up(j + (i-1)*N_verts) = panels(index)%t_hat_g(k,m)
-
-                    ! perturb down the current design variable
-                    vertices(j)%loc(i) = vertices(j)%loc(i) - 2.*step
-
-                    ! panel_calc_g_edge_vectors allocates for n_hat_g each time, so deallocate old values
-                    deallocate(panels(index)%n_hat_g)
-
-                    ! update panel edge outward normal unit vector calculations
-                    call panels(index)%calc_g_edge_vectors()
-                    
-                    ! put the x y or z component of the panel's perturbed edge outward normal unit vector in a list
-                    t_hat_g_dn(j + (i-1)*N_verts) = panels(index)%t_hat_g(k,m)
-                
-                    ! restore geometry
-                    vertices(j)%loc(i) = vertices(j)%loc(i) + step
-                    
-                    ! panel_calc_g_edge_vectors allocates for n_hat_g each time, so deallocate old values
-                    deallocate(panels(index)%n_hat_g)
-
-                end do 
-            end do 
-
-            ! central difference 
-            dt_cross_n_FD(k,:,m) = (t_hat_g_up - t_hat_g_dn)/(2.*step)
-
-        end do
-        
-       
-
-        ! write results
-        write(*,*) ""
-        write(*,'(A, I1, A)') "          dt_cross_n_FD panel 1 (edge ", m, ")"
-        write(*,*) "  dt_cross_n_x           dt_cross_n_y            dt_cross_n_z "
-        do i = 1, N_verts*3
-            dt_cross_n_FD(:,i, m) = cross(dt_cross_n_FD(:,i, m), panels(index)%n_g)
-            write(*, '(3(f14.10, 4x))') dt_cross_n_FD(:,i, m)
-        end do 
-
-
-        !!!!!!!!!! ADJOINT d_n_hat_g (edge m)!!!!!!!!!!!!!
-        write(*,*) ""
-        write(*,*) "------------------------------------------------"
-        write(*,*) ""
-        write(*,'(A, I1, A)') "  ADJOINT dt_cross_n (edge ", m, ")"
-        write(*,*) ""
-
-        ! ! only need to calc this once:
-        ! if (m==1) then
-
-        !     ! calculate d_n_hat_g (do it for all panels because they will be used later)
-        !     do i =1,N_panels
-        !         call panels(i)%calc_d_n_hat_g()
-        !     end do
-
-        ! end if
-
-        ! write sparse matrix
-        write(*,*) ""
-        write(*,'(A, I1, A)') "          dt_cross_n panel 1 (edge ", m, ")"
-        write(*,*) "  dt_cross_n_x           dt_cross_n_y           dt_cross_n_z             sparse_index       full_index"
-        do i=1,panels(index)%dt_cross_n(m)%sparse_num_cols
-            write(*,'(3(f14.10, 4x), 12x, I5, 12x, I5)') panels(index)%dt_cross_n(m)%columns(i)%vector_values(:), &
-            i, panels(index)%dt_cross_n(m)%columns(i)%full_index
-        end do
-        write(*,*) ""
-
-        ! calculate residuals3
-        do i =1, N_verts*3
-            residuals3(:,i) = panels(index)%dt_cross_n(m)%get_values(i) - dt_cross_n_FD(:,i, m)
-        end do
-
-        write(*,'(A, I1, A)') "         dt_cross_n panel 1 (edge ", m, ") expanded "
-        write(*,*) "  dt_cross_n_x           dt_cross_n_y           dt_cross_n_z                            residuals"
-        do i = 1, N_verts*3
-            write(*, '(3(f14.10, 4x),3x, 3(f14.10, 4x))') panels(index)%dt_cross_n(m)%get_values(i), residuals3(:,i)
-        end do
-        write(*,*) ""
-
-
-        ! check if test failed
-        do i=1,N_verts*3
-            if (any(residuals3(:,i) > 1.0e-8)) then
-                test_failed = .true.
-                exit
-            else 
-                test_failed = .false.
-            end if
-        end do
-        if (test_failed) then
-            total_tests = total_tests + 1
-            write(m_char,'(I1)') m
-            failure_log(total_tests-passed_tests) = "dt_cross_n (edge "// trim(m_char) // ") test FAILED"
-            write(*,*) failure_log(total_tests-passed_tests)
-        else
-            write(*,'(A, I1, A)') "dt_cross_n (edge ",m,") test PASSED"
-            passed_tests = passed_tests + 1
-            total_tests = total_tests + 1
-        end if
-        test_failed = .false.
-        write(*,*) "" 
-        write(*,*) ""
-
-    ! end panel edge loop
-    end do
-
-
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST t_cross_dn !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    write(*,*) "---------------------------------- TEST t_cross_dn ----------------------------------"
-    write(*,*) ""
-    write(*,*) "the sensitivity of the edge vectors of panel 1 WRT each design variable"
-    write(*,*) ""
-    
-    ! allocate central difference variables
-    
-    allocate(t_cross_dn_FD(3,N_verts*3,3))
-    !deallocate(panels(index)%n_hat_g)
-
-
-    ! do for each edge
-    do m=1,3
-
-        !!!!!!!!! Finite Difference  t_cross_dn (edge m) !!!!!!!!!
-        write(*,*) ""
-        write(*,*) "------------------------------------------------"
-        write(*,*) ""
-        write(*,'(A, I1, A)') "  CENTRAL DIFFERENCE t_cross_dn (edge ", m, ")"
-
-        ! we want the sensitivity of the edge vector of panel 1 edge 1 WRT X(beta)
-        index = 1
-
-        ! sensitivity to vertex 1
-        step = 0.0001
-
-    
-        ! write results
-        write(*,*) ""
-        write(*,'(A, I1, A)') "          t_cross_dn_FD panel 1 (edge ", m, ")"
-        write(*,*) "  t_cross_dn_x           t_cross_dn_y            t_cross_dn_z "
-        do i = 1, N_verts*3
-            t_cross_dn_FD(:,i, m) = cross(panels(index)%t_hat_g(:,m), d_n_g_FD(:,i))
-            write(*, '(3(f14.10, 4x))') t_cross_dn_FD(:,i, m)
-        end do 
-
-
-        !!!!!!!!!! ADJOINT d_t_cross_dn (edge m)!!!!!!!!!!!!!
-        write(*,*) ""
-        write(*,*) "------------------------------------------------"
-        write(*,*) ""
-        write(*,'(A, I1, A)') "  ADJOINT t_cross_dn (edge ", m, ")"
-        write(*,*) ""
-
-        ! ! only need to calc this once:
-        ! if (m==1) then
-
-        !     ! calculate d_n_hat_g (do it for all panels because they will be used later)
-        !     do i =1,N_panels
-        !         call panels(i)%calc_d_n_hat_g()
-        !     end do
-
-        ! end if
-
-        ! write sparse matrix
-        write(*,*) ""
-        write(*,'(A, I1, A)') "          t_cross_dn panel 1 (edge ", m, ")"
-        write(*,*) "  t_cross_dn_x           t_cross_dn_y           t_cross_dn_z             sparse_index       full_index"
-        do i=1,panels(index)%dt_cross_n(m)%sparse_num_cols
-            write(*,'(3(f14.10, 4x), 12x, I5, 12x, I5)') panels(index)%t_cross_dn(m)%columns(i)%vector_values(:), &
-            i, panels(index)%t_cross_dn(m)%columns(i)%full_index
-        end do
-        write(*,*) ""
-
-        ! calculate residuals3
-        do i =1, N_verts*3
-            residuals3(:,i) = panels(index)%t_cross_dn(m)%get_values(i) - t_cross_dn_FD(:,i, m)
-        end do
-
-        write(*,'(A, I1, A)') "         t_cross_dn panel 1 (edge ", m, ") expanded "
-        write(*,*) "  t_cross_dn_x           t_cross_dn_y           t_cross_dn_z                            residuals"
-        do i = 1, N_verts*3
-            write(*, '(3(f14.10, 4x),3x, 3(f14.10, 4x))') panels(index)%t_cross_dn(m)%get_values(i), residuals3(:,i)
-        end do
-        write(*,*) ""
-
-
-        ! check if test failed
-        do i=1,N_verts*3
-            if (any(residuals3(:,i) > 1.0e-8)) then
-                test_failed = .true.
-                exit
-            else 
-                test_failed = .false.
-            end if
-        end do
-        if (test_failed) then
-            total_tests = total_tests + 1
-            write(m_char,'(I1)') m
-            failure_log(total_tests-passed_tests) = "t_cross_dn (edge "// trim(m_char) // ") test FAILED"
-            write(*,*) failure_log(total_tests-passed_tests)
-        else
-            write(*,'(A, I1, A)') "t_cross_dn (edge ",m,") test PASSED"
-            passed_tests = passed_tests + 1
-            total_tests = total_tests + 1
-        end if
-        test_failed = .false.
-        write(*,*) "" 
-        write(*,*) ""
-
-    ! end panel edge loop
-    end do
-
-
 
 !!!!!d!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST d_n_hat_g !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     write(*,*) "---------------------------------- TEST d_n_hat_g ----------------------------------"
@@ -1433,27 +733,43 @@ program gradient_test
         write(*,*) ""
 
 
+        ! Re init the body
+        deallocate(panels)
+        allocate(panels(N_panels))
+        call panels(1)%init(vertices(1), vertices(2), vertices(3), 1, .false.) !    top, right, forward
+        call panels(2)%init(vertices(1), vertices(3), vertices(4), 2, .false.) !    top, right,     aft 
+        call panels(3)%init(vertices(1), vertices(4), vertices(5), 3, .false.) !    top,  left,     aft
+        call panels(4)%init(vertices(1), vertices(5), vertices(2), 4, .false.) !    top,  left, forward
+
+        call panels(5)%init(vertices(6), vertices(2), vertices(3), 5, .false.) ! bottom, right, forward
+        call panels(6)%init(vertices(6), vertices(3), vertices(4), 6, .false.) ! bottom, right,     aft
+        call panels(7)%init(vertices(6), vertices(4), vertices(5), 7, .false.) ! bottom,  left,     aft
+        call panels(8)%init(vertices(6), vertices(5), vertices(2), 8, .false.) ! bottom,  left, forward
+        
+        
+        ! calculate d_n_hat_g 
+        call panels(index)%init_adjoint()
 
         
         ! write sparse matrix
         write(*,*) ""
         write(*,'(A, I1, A)') "          d_n_hat_g panel 1 (edge ", m, ")"
         write(*,*) "  d_n_hat_g_x           d_n_hat_g_y           d_n_hat_g_z             sparse_index       full_index"
-        do i=1,d_n_hat_g_adjoint(m)%sparse_num_cols
-            write(*,'(3(f14.10, 4x), 12x, I5, 12x, I5)') d_n_hat_g_adjoint(m)%columns(i)%vector_values(:), &
-            i, d_n_hat_g_adjoint(m)%columns(i)%full_index
+        do i=1,panels(index)%d_n_hat_g(m)%sparse_num_cols
+            write(*,'(3(f14.10, 4x), 12x, I5, 12x, I5)') panels(index)%d_n_hat_g(m)%columns(i)%vector_values(:), &
+            i, panels(index)%d_n_hat_g(m)%columns(i)%full_index
         end do
         write(*,*) ""
 
         ! calculate residuals3
         do i =1, N_verts*3
-            residuals3(:,i) = d_n_hat_g_adjoint(m)%get_values(i) - d_n_hat_g_FD(:,i,m)
+            residuals3(:,i) = panels(index)%d_n_hat_g(m)%get_values(i) - d_n_hat_g_FD(:,i,m)
         end do
 
         write(*,'(A, I1, A)') "         d_n_hat_g panel 1 (edge ", m, ") expanded "
         write(*,*) "  d_n_hat_g_x           d_n_hat_g_y           d_n_hat_g_z                            residuals"
         do i = 1, N_verts*3
-            write(*, '(3(f14.10, 4x),3x, 3(f14.10, 4x))') d_n_hat_g_adjoint(m)%get_values(i), residuals3(:,i)
+            write(*, '(3(f14.10, 4x),3x, 3(f14.10, 4x))') panels(index)%d_n_hat_g(m)%get_values(i), residuals3(:,i)
         end do
         write(*,*) ""
 
@@ -1487,153 +803,6 @@ program gradient_test
 
     
 
-! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST d_n_hat_g !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!     write(*,*) "---------------------------------- TEST d_n_hat_g ----------------------------------"
-!     write(*,*) ""
-!     write(*,*) "the sensitivity of the outward normal edge vectors of panel 1 WRT each design variable"
-!     write(*,*) ""
-    
-!     ! allocate central difference variables
-!     allocate(n_hat_g_up(N_verts*3))
-!     allocate(n_hat_g_dn(N_verts*3))
-!     allocate(d_n_hat_g_FD(3,N_verts*3,3))
-
-!     !deallocate(panels(index)%n_hat_g)
-
-
-!     ! do for each edge
-!     do m=1,3
-
-!         !!!!!!!!! Finite Difference  d_n_hat_g (edge m) !!!!!!!!!
-!         write(*,*) ""
-        ! write(*,*) "------------------------------------------------"
-        ! write(*,*) ""
-!         write(*,'(A, I1, A)') "  CENTRAL DIFFERENCE d_n_hat_g (edge ", m, ")"
-
-!         ! we want the sensitivity of the outward normal edge vector of panel 1 edge 1 WRT X(beta)
-!         index = 1
-
-!         ! sensitivity to vertex 1
-!         step = 0.0001
-
-!         ! for each x, y, z of n_hat_g (edge m) 
-!         do k=1,3
-!             ! do for each design variable
-!             do i=1,3
-!                 do j=1,N_verts
-!                     ! perturb up the current design variable
-!                     vertices(j)%loc(i) = vertices(j)%loc(i) + step
-
-!                     ! update panel edge outward normal unit vector calculations
-
-!                     call panels(index)%calc_g_edge_vectors()
-
-!                     ! put the x y or z component of the panel's perturbed edge outward normal unit vector in a list
-!                     n_hat_g_up(j + (i-1)*N_verts) = panels(index)%n_hat_g(k,m)
-
-!                     ! perturb down the current design variable
-!                     vertices(j)%loc(i) = vertices(j)%loc(i) - 2.*step
-
-!                     ! panel_calc_g_edge_vectors allocates for n_hat_g each time, so deallocate old values
-!                     deallocate(panels(index)%n_hat_g)
-
-!                     ! update panel edge outward normal unit vector calculations
-!                     call panels(index)%calc_g_edge_vectors()
-                    
-!                     ! put the x y or z component of the panel's perturbed edge outward normal unit vector in a list
-!                     n_hat_g_dn(j + (i-1)*N_verts) = panels(index)%n_hat_g(k,m)
-                
-!                     ! restore geometry
-!                     vertices(j)%loc(i) = vertices(j)%loc(i) + step
-                    
-!                     ! panel_calc_g_edge_vectors allocates for n_hat_g each time, so deallocate old values
-!                     deallocate(panels(index)%n_hat_g)
-
-!                 end do 
-!             end do 
-
-!             ! central difference 
-!             d_n_hat_g_FD(k,:,m) = (n_hat_g_up - n_hat_g_dn)/(2.*step)
-
-!         end do
-
-!         ! write results
-!         write(*,*) ""
-!         write(*,'(A, I1, A)') "          d_n_hat_g_FD panel 1 (edge ", m, ")"
-!         write(*,*) "  d_n_hat_g_x       d_n_hat_g_y        d_n_hat_g_z "
-!         do i = 1, N_verts*3
-!             write(*, '(3(f14.10, 4x))') d_n_hat_g_FD(:,i, m)
-!         end do 
-
-
-!         !!!!!!!!!! ADJOINT d_n_hat_g (edge m)!!!!!!!!!!!!!
-!         write(*,*) ""
-!         write(*,*) "------------------------------------------------"
-        ! write(*,*) ""
-!         write(*,'(A, I1, A)') "  ADJOINT d_n_hat_g (edge ", m, ")"
-!         write(*,*) ""
-
-!         ! ! only need to calc this once:
-!         ! if (m==1) then
-
-!         !     ! calculate d_n_hat_g (do it for all panels because they will be used later)
-!         !     do i =1,N_panels
-!         !         call panels(i)%calc_d_n_hat_g()
-!         !     end do
-
-!         ! end if
-
-!         ! write sparse matrix
-!         write(*,*) ""
-!         write(*,'(A, I1, A)') "          TESTING d_n_hat_g panel 1 (edge ", m, ")"
-!         write(*,*) "  d_n_hat_g_x       d_n_hat_g_y       d_n_hat_g_z         sparse_index       full_index"
-!         do i=1,panels(index)%d_n_hat_g(m)%sparse_num_cols
-!             write(*,'(3(f14.10, 4x), 12x, I5, 12x, I5)') panels(index)%d_n_hat_g(m)%columns(i)%vector_values(:), &
-!             i, panels(index)%d_n_hat_g(m)%columns(i)%full_index
-!         end do
-!         write(*,*) ""
-
-!         ! calculate residuals3
-!         do i =1, N_verts*3
-!             residuals3(:,i) = panels(index)%d_n_hat_g(m)%get_values(i) - d_n_hat_g_FD(:,i,m)
-!         end do
-
-!         write(*,'(A, I1, A)') "         d_n_hat_g panel 1 (edge ", m, ") expanded "
-!         write(*,*) "  d_n_hat_g_x       d_n_hat_g_y       d_n_hat_g_z                            residuals"
-!         do i = 1, N_verts*3
-!             write(*, '(3(f14.10, 4x),3x, 3(f14.10, 4x))') panels(index)%d_n_hat_g(m)%get_values(i), residuals3(:,i)
-!         end do
-!         write(*,*) ""
-
-
-!         ! check if test failed
-!         do i=1,N_verts*3
-!             if (any(residuals3(:,i) > 1.0e-8)) then
-!                 test_failed = .true.
-!                 exit
-!             else 
-!                 test_failed = .false.
-!             end if
-!         end do
-!         if (test_failed) then
-!             total_tests = total_tests + 1
-!             write(m_char,'(I1)') m
-!             failure_log(total_tests-passed_tests) = "d_n_hat_g (edge "// trim(m_char) // ") test FAILED"
-!             write(*,*) failure_log(total_tests-passed_tests)
-!         else
-!             write(*,'(A, I1, A)') "d_n_hat_g (edge ",m,") test PASSED"
-!             passed_tests = passed_tests + 1
-!             total_tests = total_tests + 1
-!         end if
-!         test_failed = .false.
-!         write(*,*) "" 
-!         write(*,*) ""
-
-!     ! end panel edge loop
-!     end do
-
-
-
 
 
     !!!!!!!!!!!!!! GRADIENT TEST RESULTS!!!!!!!!!!!!!
@@ -1659,7 +828,704 @@ program gradient_test
     write(*,*) "----------------------"
 
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST d_d_g !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!     write(*,*) "---------------------------------- TEST d_d_g ----------------------------------"
+!     write(*,*) ""
+!     write(*,*) "the sensitivity of the edge vectors of panel 1 WRT each design variable"
+!     write(*,*) ""
+    
+!     ! allocate central difference variables
+!     allocate(d_g_up(N_verts*3))
+!     allocate(d_g_dn(N_verts*3))
+!     allocate(d_d_g_FD(3,N_verts*3,3))
 
+!     deallocate(panels(index)%n_hat_g)
+
+
+!     ! do for each edge
+!     do m=1,3
+
+!         !!!!!!!!! Finite Difference  d_d_g (edge m) !!!!!!!!!
+!         write(*,*) ""
+!         write(*,*) "------------------------------------------------"
+!         write(*,*) ""
+!         write(*,'(A, I1, A)') "  CENTRAL DIFFERENCE d_d_g (edge ", m, ")"
+
+!         ! we want the sensitivity of the edge vector of panel 1 edge 1 WRT X(beta)
+!         index = 1
+
+!         ! sensitivity to vertex 1
+!         step = 0.0001
+
+!         ! for each x, y, z of n_hat_g (edge m) 
+!         do k=1,3
+!             ! do for each design variable
+!             do i=1,3
+!                 do j=1,N_verts
+!                     ! perturb up the current design variable
+!                     vertices(j)%loc(i) = vertices(j)%loc(i) + step
+
+!                     ! update panel edge outward normal unit vector calculations
+
+!                     call panels(index)%calc_g_edge_vectors()
+
+!                     ! put the x y or z component of the panel's perturbed edge outward normal unit vector in a list
+!                     d_g_up(j + (i-1)*N_verts) = panels(index)%d_g(k,m)
+
+!                     ! perturb down the current design variable
+!                     vertices(j)%loc(i) = vertices(j)%loc(i) - 2.*step
+
+!                     ! panel_calc_g_edge_vectors allocates for n_hat_g each time, so deallocate old values
+!                     deallocate(panels(index)%n_hat_g)
+
+!                     ! update panel edge outward normal unit vector calculations
+!                     call panels(index)%calc_g_edge_vectors()
+                    
+!                     ! put the x y or z component of the panel's perturbed edge outward normal unit vector in a list
+!                     d_g_dn(j + (i-1)*N_verts) = panels(index)%d_g(k,m)
+                
+!                     ! restore geometry
+!                     vertices(j)%loc(i) = vertices(j)%loc(i) + step
+                    
+!                     ! panel_calc_g_edge_vectors allocates for n_hat_g each time, so deallocate old values
+!                     deallocate(panels(index)%n_hat_g)
+
+!                 end do 
+!             end do 
+
+!             ! central difference 
+!             d_d_g_FD(k,:,m) = (d_g_up - d_g_dn)/(2.*step)
+
+!         end do
+
+!         ! write results
+!         write(*,*) ""
+!         write(*,'(A, I1, A)') "          d_d_g_FD panel 1 (edge ", m, ")"
+!         write(*,*) "  d_d_g_x           d_d_g_y            d_d_g_z "
+!         do i = 1, N_verts*3
+!             write(*, '(3(f14.10, 4x))') d_d_g_FD(:,i, m)
+!         end do 
+
+
+!         !!!!!!!!!! ADJOINT d_d_g (edge m)!!!!!!!!!!!!!
+!         write(*,*) ""
+!         write(*,*) "------------------------------------------------"
+!         write(*,*) ""
+!         write(*,'(A, I1, A)') "  ADJOINT d_d_g (edge ", m, ")"
+!         write(*,*) ""
+
+!         ! only need to calc this once:
+!         if (m==1) then
+
+!             ! calculate d_n_hat_g (do it for all panels because they will be used later)
+!             do i =1,N_panels
+!                 call panels(i)%calc_d_n_hat_g()
+!             end do
+
+!         end if
+
+!         ! write sparse matrix
+!         write(*,*) ""
+!         write(*,'(A, I1, A)') "          d_d_g panel 1 (edge ", m, ")"
+!         write(*,*) "  d_d_g_x           d_d_g_y           d_d_g_z             sparse_index       full_index"
+!         do i=1,panels(index)%d_d_g(m)%sparse_num_cols
+!             write(*,'(3(f14.10, 4x), 12x, I5, 12x, I5)') panels(index)%d_d_g(m)%columns(i)%vector_values(:), &
+!             i, panels(index)%d_d_g(m)%columns(i)%full_index
+!         end do
+!         write(*,*) ""
+
+!         ! calculate residuals3
+!         do i =1, N_verts*3
+!             residuals3(:,i) = panels(index)%d_d_g(m)%get_values(i) - d_d_g_FD(:,i,m)
+!         end do
+
+!         write(*,'(A, I1, A)') "         d_d_g panel 1 (edge ", m, ") expanded "
+!         write(*,*) "  d_d_g_x           d_d_g_y           d_d_g_z                            residuals"
+!         do i = 1, N_verts*3
+!             write(*, '(3(f14.10, 4x),3x, 3(f14.10, 4x))') panels(index)%d_d_g(m)%get_values(i), residuals3(:,i)
+!         end do
+!         write(*,*) ""
+
+
+!         ! check if test failed
+!         do i=1,N_verts*3
+!             if (any(residuals3(:,i) > 1.0e-8)) then
+!                 test_failed = .true.
+!                 exit
+!             else 
+!                 test_failed = .false.
+!             end if
+!         end do
+!         if (test_failed) then
+!             total_tests = total_tests + 1
+!             write(m_char,'(I1)') m
+!             failure_log(total_tests-passed_tests) = "d_d_g (edge "// trim(m_char) // ") test FAILED"
+!             write(*,*) failure_log(total_tests-passed_tests)
+!         else
+!             write(*,'(A, I1, A)') "d_d_g (edge ",m,") test PASSED"
+!             passed_tests = passed_tests + 1
+!             total_tests = total_tests + 1
+!         end if
+!         test_failed = .false.
+!         write(*,*) "" 
+!         write(*,*) ""
+
+
+!         !copy d_n_hat_g_adjoint data
+!         call d_n_hat_g_adjoint(m)%init_from_sparse_matrix(panels(index)%d_n_hat_g(m))
+
+!     ! end panel edge loop
+!     end do
+
+    
+    
+
+! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST d_norm_d_g !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!     write(*,*) "---------------------------------- TEST d_norm_d_g ----------------------------------"
+!     write(*,*) ""
+!     write(*,*) "the sensitivity of the edge vector normals of panel 1 WRT each design variable"
+!     write(*,*) ""
+    
+!     ! allocate central difference variables
+!     allocate(norm_d_g_up(N_verts*3))
+!     allocate(norm_d_g_dn(N_verts*3))
+!     allocate(d_norm_d_g_FD(N_verts*3, 3))
+
+!     !deallocate(panels(index)%n_hat_g)
+    
+
+
+!     ! do for each edge
+!     do m=1,3
+
+!         !!!!!!!!! Finite Difference  d_norm_d_g (edge m) !!!!!!!!!
+!         write(*,*) ""
+!         write(*,*) "------------------------------------------------"
+!         write(*,*) ""
+!         write(*,'(A, I1, A)') "  CENTRAL DIFFERENCE d_norm_d_g (edge ", m, ")"
+
+!         ! we want the sensitivity of the edge vector normals of panel 1 edge m WRT X(beta)
+!         index = 1
+
+!         ! sensitivity to vertex 1
+!         step = 0.0001
+
+!         ! for each x, y, z of n_hat_g (edge m) 
+!         !do k=1,3
+!             ! do for each design variable
+!             do i=1,3
+!                 do j=1,N_verts
+!                     ! perturb up the current design variable
+!                     vertices(j)%loc(i) = vertices(j)%loc(i) + step
+
+!                     ! update panel edge outward normal unit vector calculations
+
+!                     call panels(index)%calc_g_edge_vectors()
+
+!                     ! put the x y or z component of the panel's perturbed edge outward normal unit vector in a list
+!                     norm_d_g_up(j + (i-1)*N_verts) = panels(index)%norm_d_g(m)
+
+!                     ! perturb down the current design variable
+!                     vertices(j)%loc(i) = vertices(j)%loc(i) - 2.*step
+
+!                     ! panel_calc_g_edge_vectors allocates for n_hat_g each time, so deallocate old values
+!                     deallocate(panels(index)%n_hat_g)
+
+!                     ! update panel edge outward normal unit vector calculations
+!                     call panels(index)%calc_g_edge_vectors()
+                    
+!                     ! put the x y or z component of the panel's perturbed edge outward normal unit vector in a list
+!                     norm_d_g_dn(j + (i-1)*N_verts) = panels(index)%norm_d_g(m)
+                
+!                     ! restore geometry
+!                     vertices(j)%loc(i) = vertices(j)%loc(i) + step
+                    
+!                     ! panel_calc_g_edge_vectors allocates for n_hat_g each time, so deallocate old values
+!                     deallocate(panels(index)%n_hat_g)
+
+!                 end do 
+!             end do 
+
+!             ! central difference 
+!             d_norm_d_g_FD(:,m) = (norm_d_g_up - norm_d_g_dn)/(2.*step)
+
+!         !end do
+
+!         ! write results
+!         write(*,*) ""
+!         write(*,'(A, I1, A)') "          TEST d_norm_d_g_FD panel 1 (edge ", m, ")"
+!         write(*,*) "  d_norm_d_g "
+!         do i = 1, N_verts*3
+!             write(*, '((f14.10, 4x))') d_norm_d_g_FD(i, m)
+!         end do 
+
+
+!         !!!!!!!!!! ADJOINT d_norm_d_g (edge m)!!!!!!!!!!!!!
+!         write(*,*) ""
+!         write(*,*) "------------------------------------------------"
+!         write(*,*) ""
+!         write(*,'(A, I1, A)') "  ADJOINT d_norm_d_g (edge ", m, ")"
+!         write(*,*) ""
+
+!         ! ! only need to calc this once:
+!         ! if (m==1) then
+
+!         !     ! calculate d_norm_d_g (do it for all panels because they will be used later)
+!         !     do i =1,N_panels
+!         !         call panels(i)%calc_d_n_hat_g()
+!         !     end do
+
+!         ! end if
+
+!         ! write sparse matrix
+!         write(*,*) ""
+!         write(*,'(A, I1, A)') "         d_norm_d_g panel 1 (edge ", m, ")"
+!         write(*,*) "  d_norm_d_g         sparse_index       full_index"
+!         do i=1,panels(index)%d_norm_d_g(m)%sparse_size
+!             write(*,'(f14.10, 12x, I5, 12x, I5)') panels(index)%d_norm_d_g(m)%elements(i)%value, &
+!             i, panels(index)%d_norm_d_g(m)%elements(i)%full_index
+!         end do
+!         write(*,*) ""
+
+!         ! calculate residuals
+!         do i =1, N_verts*3
+!             residuals(i) = panels(index)%d_norm_d_g(m)%get_value(i) - d_norm_d_g_FD(i,m)
+!         end do
+
+!         write(*,'(A, I1, A)') "         d_norm_d_g panel 1 (edge ", m, ") expanded "
+!         write(*,*) "  d_norm_d_g                            residuals"
+!         do i = 1, N_verts*3
+!             write(*, '(3(f14.10, 4x),3x, 3(f14.10, 4x))') panels(index)%d_norm_d_g(m)%get_value(i), residuals(i)
+!         end do
+!         write(*,*) ""
+
+
+!         ! check if test failed
+!         do i=1,N_verts*3
+!             if (residuals(i) > 1.0e-8) then
+!                 test_failed = .true.
+!                 exit
+!             else 
+!                 test_failed = .false.
+!             end if
+!         end do
+!         if (test_failed) then
+!             total_tests = total_tests + 1
+!             write(m_char,'(I1)') m
+!             failure_log(total_tests-passed_tests) = "d_norm_d_g (edge "// trim(m_char) // ") test FAILED"
+!             write(*,*) failure_log(total_tests-passed_tests)
+!         else
+!             write(*,'(A, I1, A)') "d_norm_d_g (edge ",m,") test PASSED"
+!             passed_tests = passed_tests + 1
+!             total_tests = total_tests + 1
+!         end if
+!         test_failed = .false.
+!         write(*,*) "" 
+!         write(*,*) ""
+
+!     ! end panel edge loop
+!     end do
+
+
+
+! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST d_t_hat_g !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!     write(*,*) "---------------------------------- TEST d_t_hat_g ----------------------------------"
+!     write(*,*) ""
+!     write(*,*) "the sensitivity of the edge vectors of panel 1 WRT each design variable"
+!     write(*,*) ""
+    
+!     ! allocate central difference variables
+!     allocate(t_hat_g_up(N_verts*3))
+!     allocate(t_hat_g_dn(N_verts*3))
+!     allocate(d_t_hat_g_FD(3,N_verts*3,3))
+
+!     !deallocate(panels(index)%n_hat_g)
+
+
+!     ! do for each edge
+!     do m=1,3
+
+!         !!!!!!!!! Finite Difference  d_t_hat_g (edge m) !!!!!!!!!
+!         write(*,*) ""
+!         write(*,*) "------------------------------------------------"
+!         write(*,*) ""
+!         write(*,'(A, I1, A)') "  CENTRAL DIFFERENCE d_t_hat_g (edge ", m, ")"
+
+!         ! we want the sensitivity of the edge vector of panel 1 edge 1 WRT X(beta)
+!         index = 1
+
+!         ! sensitivity to vertex 1
+!         step = 0.0001
+
+!         ! for each x, y, z of n_hat_g (edge m) 
+!         do k=1,3
+!             ! do for each design variable
+!             do i=1,3
+!                 do j=1,N_verts
+!                     ! perturb up the current design variable
+!                     vertices(j)%loc(i) = vertices(j)%loc(i) + step
+
+!                     ! update panel edge outward normal unit vector calculations
+
+!                     call panels(index)%calc_g_edge_vectors()
+
+!                     ! put the x y or z component of the panel's perturbed edge outward normal unit vector in a list
+!                     t_hat_g_up(j + (i-1)*N_verts) = panels(index)%t_hat_g(k,m)
+
+!                     ! perturb down the current design variable
+!                     vertices(j)%loc(i) = vertices(j)%loc(i) - 2.*step
+
+!                     ! panel_calc_g_edge_vectors allocates for n_hat_g each time, so deallocate old values
+!                     deallocate(panels(index)%n_hat_g)
+
+!                     ! update panel edge outward normal unit vector calculations
+!                     call panels(index)%calc_g_edge_vectors()
+                    
+!                     ! put the x y or z component of the panel's perturbed edge outward normal unit vector in a list
+!                     t_hat_g_dn(j + (i-1)*N_verts) = panels(index)%t_hat_g(k,m)
+                
+!                     ! restore geometry
+!                     vertices(j)%loc(i) = vertices(j)%loc(i) + step
+                    
+!                     ! panel_calc_g_edge_vectors allocates for n_hat_g each time, so deallocate old values
+!                     deallocate(panels(index)%n_hat_g)
+
+!                 end do 
+!             end do 
+
+!             ! central difference 
+!             d_t_hat_g_FD(k,:,m) = (t_hat_g_up - t_hat_g_dn)/(2.*step)
+
+!         end do
+
+!         ! write results
+!         write(*,*) ""
+!         write(*,'(A, I1, A)') "          d_t_hat_g_FD panel 1 (edge ", m, ")"
+!         write(*,*) "  d_t_hat_g_x           d_t_hat_g_y            d_t_hat_g_z "
+!         do i = 1, N_verts*3
+!             write(*, '(3(f14.10, 4x))') d_t_hat_g_FD(:,i, m)
+!         end do 
+
+
+!         !!!!!!!!!! ADJOINT d_n_hat_g (edge m)!!!!!!!!!!!!!
+!         write(*,*) ""
+!         write(*,*) "------------------------------------------------"
+!         write(*,*) ""
+!         write(*,'(A, I1, A)') "  ADJOINT d_t_hat_g (edge ", m, ")"
+!         write(*,*) ""
+
+!         ! ! only need to calc this once:
+!         ! if (m==1) then
+
+!         !     ! calculate d_n_hat_g (do it for all panels because they will be used later)
+!         !     do i =1,N_panels
+!         !         call panels(i)%calc_d_n_hat_g()
+!         !     end do
+
+!         ! end if
+
+!         ! write sparse matrix
+!         write(*,*) ""
+!         write(*,'(A, I1, A)') "          d_t_hat_g panel 1 (edge ", m, ")"
+!         write(*,*) "  d_t_hat_g_x           d_t_hat_g_y           d_t_hat_g_z             sparse_index       full_index"
+!         do i=1,panels(index)%d_t_hat_g(m)%sparse_num_cols
+!             write(*,'(3(f14.10, 4x), 12x, I5, 12x, I5)') panels(index)%d_t_hat_g(m)%columns(i)%vector_values(:), &
+!             i, panels(index)%d_t_hat_g(m)%columns(i)%full_index
+!         end do
+!         write(*,*) ""
+
+!         ! calculate residuals3
+!         do i =1, N_verts*3
+!             residuals3(:,i) = panels(index)%d_t_hat_g(m)%get_values(i) - d_t_hat_g_FD(:,i,m)
+!         end do
+
+!         write(*,'(A, I1, A)') "         d_t_hat_g panel 1 (edge ", m, ") expanded "
+!         write(*,*) "  d_t_hat_g_x           d_t_hat_g_y           d_t_hat_g_z                            residuals"
+!         do i = 1, N_verts*3
+!             write(*, '(3(f14.10, 4x),3x, 3(f14.10, 4x))') panels(index)%d_t_hat_g(m)%get_values(i), residuals3(:,i)
+!         end do
+!         write(*,*) ""
+
+
+!         ! check if test failed
+!         do i=1,N_verts*3
+!             if (any(residuals3(:,i) > 1.0e-8)) then
+!                 test_failed = .true.
+!                 exit
+!             else 
+!                 test_failed = .false.
+!             end if
+!         end do
+!         if (test_failed) then
+!             total_tests = total_tests + 1
+!             write(m_char,'(I1)') m
+!             failure_log(total_tests-passed_tests) = "d_t_hat_g (edge "// trim(m_char) // ") test FAILED"
+!             write(*,*) failure_log(total_tests-passed_tests)
+!         else
+!             write(*,'(A, I1, A)') "d_t_hat_g (edge ",m,") test PASSED"
+!             passed_tests = passed_tests + 1
+!             total_tests = total_tests + 1
+!         end if
+!         test_failed = .false.
+!         write(*,*) "" 
+!         write(*,*) ""
+
+!     ! end panel edge loop
+!     end do
+
+
+! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST dt_cross_n !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!     write(*,*) "---------------------------------- TEST dt_cross_n ----------------------------------"
+!     write(*,*) ""
+!     write(*,*) "the sensitivity of the edge vectors of panel 1 WRT each design variable"
+!     write(*,*) ""
+    
+!     ! allocate central difference variables
+    
+!     allocate(dt_cross_n_FD(3,N_verts*3,3))
+
+!     !deallocate(panels(index)%n_hat_g)
+
+
+!     ! do for each edge
+!     do m=1,3
+
+!         !!!!!!!!! Finite Difference  dt_cross_n (edge m) !!!!!!!!!
+!         write(*,*) ""
+!         write(*,*) "------------------------------------------------"
+!         write(*,*) ""
+!         write(*,'(A, I1, A)') "  CENTRAL DIFFERENCE dt_cross_n (edge ", m, ")"
+
+!         ! we want the sensitivity of the edge vector of panel 1 edge 1 WRT X(beta)
+!         index = 1
+
+!         ! sensitivity to vertex 1
+!         step = 0.0001
+
+!         ! for each x, y, z of n_hat_g (edge m) 
+!         do k=1,3
+!             ! do for each design variable
+!             do i=1,3
+!                 do j=1,N_verts
+!                     ! perturb up the current design variable
+!                     vertices(j)%loc(i) = vertices(j)%loc(i) + step
+
+!                     ! update panel edge outward normal unit vector calculations
+
+!                     call panels(index)%calc_g_edge_vectors()
+
+!                     ! put the x y or z component of the panel's perturbed edge outward normal unit vector in a list
+!                     t_hat_g_up(j + (i-1)*N_verts) = panels(index)%t_hat_g(k,m)
+
+!                     ! perturb down the current design variable
+!                     vertices(j)%loc(i) = vertices(j)%loc(i) - 2.*step
+
+!                     ! panel_calc_g_edge_vectors allocates for n_hat_g each time, so deallocate old values
+!                     deallocate(panels(index)%n_hat_g)
+
+!                     ! update panel edge outward normal unit vector calculations
+!                     call panels(index)%calc_g_edge_vectors()
+                    
+!                     ! put the x y or z component of the panel's perturbed edge outward normal unit vector in a list
+!                     t_hat_g_dn(j + (i-1)*N_verts) = panels(index)%t_hat_g(k,m)
+                
+!                     ! restore geometry
+!                     vertices(j)%loc(i) = vertices(j)%loc(i) + step
+                    
+!                     ! panel_calc_g_edge_vectors allocates for n_hat_g each time, so deallocate old values
+!                     deallocate(panels(index)%n_hat_g)
+
+!                 end do 
+!             end do 
+
+!             ! central difference 
+!             dt_cross_n_FD(k,:,m) = (t_hat_g_up - t_hat_g_dn)/(2.*step)
+
+!         end do
+        
+       
+
+!         ! write results
+!         write(*,*) ""
+!         write(*,'(A, I1, A)') "          dt_cross_n_FD panel 1 (edge ", m, ")"
+!         write(*,*) "  dt_cross_n_x           dt_cross_n_y            dt_cross_n_z "
+!         do i = 1, N_verts*3
+!             dt_cross_n_FD(:,i, m) = cross(dt_cross_n_FD(:,i, m), panels(index)%n_g)
+!             write(*, '(3(f14.10, 4x))') dt_cross_n_FD(:,i, m)
+!         end do 
+
+
+!         !!!!!!!!!! ADJOINT d_n_hat_g (edge m)!!!!!!!!!!!!!
+!         write(*,*) ""
+!         write(*,*) "------------------------------------------------"
+!         write(*,*) ""
+!         write(*,'(A, I1, A)') "  ADJOINT dt_cross_n (edge ", m, ")"
+!         write(*,*) ""
+
+!         ! ! only need to calc this once:
+!         ! if (m==1) then
+
+!         !     ! calculate d_n_hat_g (do it for all panels because they will be used later)
+!         !     do i =1,N_panels
+!         !         call panels(i)%calc_d_n_hat_g()
+!         !     end do
+
+!         ! end if
+
+!         ! write sparse matrix
+!         write(*,*) ""
+!         write(*,'(A, I1, A)') "          dt_cross_n panel 1 (edge ", m, ")"
+!         write(*,*) "  dt_cross_n_x           dt_cross_n_y           dt_cross_n_z             sparse_index       full_index"
+!         do i=1,panels(index)%dt_cross_n(m)%sparse_num_cols
+!             write(*,'(3(f14.10, 4x), 12x, I5, 12x, I5)') panels(index)%dt_cross_n(m)%columns(i)%vector_values(:), &
+!             i, panels(index)%dt_cross_n(m)%columns(i)%full_index
+!         end do
+!         write(*,*) ""
+
+!         ! calculate residuals3
+!         do i =1, N_verts*3
+!             residuals3(:,i) = panels(index)%dt_cross_n(m)%get_values(i) - dt_cross_n_FD(:,i, m)
+!         end do
+
+!         write(*,'(A, I1, A)') "         dt_cross_n panel 1 (edge ", m, ") expanded "
+!         write(*,*) "  dt_cross_n_x           dt_cross_n_y           dt_cross_n_z                            residuals"
+!         do i = 1, N_verts*3
+!             write(*, '(3(f14.10, 4x),3x, 3(f14.10, 4x))') panels(index)%dt_cross_n(m)%get_values(i), residuals3(:,i)
+!         end do
+!         write(*,*) ""
+
+
+!         ! check if test failed
+!         do i=1,N_verts*3
+!             if (any(residuals3(:,i) > 1.0e-8)) then
+!                 test_failed = .true.
+!                 exit
+!             else 
+!                 test_failed = .false.
+!             end if
+!         end do
+!         if (test_failed) then
+!             total_tests = total_tests + 1
+!             write(m_char,'(I1)') m
+!             failure_log(total_tests-passed_tests) = "dt_cross_n (edge "// trim(m_char) // ") test FAILED"
+!             write(*,*) failure_log(total_tests-passed_tests)
+!         else
+!             write(*,'(A, I1, A)') "dt_cross_n (edge ",m,") test PASSED"
+!             passed_tests = passed_tests + 1
+!             total_tests = total_tests + 1
+!         end if
+!         test_failed = .false.
+!         write(*,*) "" 
+!         write(*,*) ""
+
+!     ! end panel edge loop
+!     end do
+
+
+
+! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST t_cross_dn !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!     write(*,*) "---------------------------------- TEST t_cross_dn ----------------------------------"
+!     write(*,*) ""
+!     write(*,*) "the sensitivity of the edge vectors of panel 1 WRT each design variable"
+!     write(*,*) ""
+    
+!     ! allocate central difference variables
+    
+!     allocate(t_cross_dn_FD(3,N_verts*3,3))
+!     !deallocate(panels(index)%n_hat_g)
+
+
+!     ! do for each edge
+!     do m=1,3
+
+!         !!!!!!!!! Finite Difference  t_cross_dn (edge m) !!!!!!!!!
+!         write(*,*) ""
+!         write(*,*) "------------------------------------------------"
+!         write(*,*) ""
+!         write(*,'(A, I1, A)') "  CENTRAL DIFFERENCE t_cross_dn (edge ", m, ")"
+
+!         ! we want the sensitivity of the edge vector of panel 1 edge 1 WRT X(beta)
+!         index = 1
+
+!         ! sensitivity to vertex 1
+!         step = 0.0001
+
+    
+!         ! write results
+!         write(*,*) ""
+!         write(*,'(A, I1, A)') "          t_cross_dn_FD panel 1 (edge ", m, ")"
+!         write(*,*) "  t_cross_dn_x           t_cross_dn_y            t_cross_dn_z "
+!         do i = 1, N_verts*3
+!             t_cross_dn_FD(:,i, m) = cross(panels(index)%t_hat_g(:,m), d_n_g_FD(:,i))
+!             write(*, '(3(f14.10, 4x))') t_cross_dn_FD(:,i, m)
+!         end do 
+
+
+!         !!!!!!!!!! ADJOINT d_t_cross_dn (edge m)!!!!!!!!!!!!!
+!         write(*,*) ""
+!         write(*,*) "------------------------------------------------"
+!         write(*,*) ""
+!         write(*,'(A, I1, A)') "  ADJOINT t_cross_dn (edge ", m, ")"
+!         write(*,*) ""
+
+!         ! ! only need to calc this once:
+!         ! if (m==1) then
+
+!         !     ! calculate d_n_hat_g (do it for all panels because they will be used later)
+!         !     do i =1,N_panels
+!         !         call panels(i)%calc_d_n_hat_g()
+!         !     end do
+
+!         ! end if
+
+!         ! write sparse matrix
+!         write(*,*) ""
+!         write(*,'(A, I1, A)') "          t_cross_dn panel 1 (edge ", m, ")"
+!         write(*,*) "  t_cross_dn_x           t_cross_dn_y           t_cross_dn_z             sparse_index       full_index"
+!         do i=1,panels(index)%dt_cross_n(m)%sparse_num_cols
+!             write(*,'(3(f14.10, 4x), 12x, I5, 12x, I5)') panels(index)%t_cross_dn(m)%columns(i)%vector_values(:), &
+!             i, panels(index)%t_cross_dn(m)%columns(i)%full_index
+!         end do
+!         write(*,*) ""
+
+!         ! calculate residuals3
+!         do i =1, N_verts*3
+!             residuals3(:,i) = panels(index)%t_cross_dn(m)%get_values(i) - t_cross_dn_FD(:,i, m)
+!         end do
+
+!         write(*,'(A, I1, A)') "         t_cross_dn panel 1 (edge ", m, ") expanded "
+!         write(*,*) "  t_cross_dn_x           t_cross_dn_y           t_cross_dn_z                            residuals"
+!         do i = 1, N_verts*3
+!             write(*, '(3(f14.10, 4x),3x, 3(f14.10, 4x))') panels(index)%t_cross_dn(m)%get_values(i), residuals3(:,i)
+!         end do
+!         write(*,*) ""
+
+
+!         ! check if test failed
+!         do i=1,N_verts*3
+!             if (any(residuals3(:,i) > 1.0e-8)) then
+!                 test_failed = .true.
+!                 exit
+!             else 
+!                 test_failed = .false.
+!             end if
+!         end do
+!         if (test_failed) then
+!             total_tests = total_tests + 1
+!             write(m_char,'(I1)') m
+!             failure_log(total_tests-passed_tests) = "t_cross_dn (edge "// trim(m_char) // ") test FAILED"
+!             write(*,*) failure_log(total_tests-passed_tests)
+!         else
+!             write(*,'(A, I1, A)') "t_cross_dn (edge ",m,") test PASSED"
+!             passed_tests = passed_tests + 1
+!             total_tests = total_tests + 1
+!         end if
+!         test_failed = .false.
+!         write(*,*) "" 
+!         write(*,*) ""
+
+!     ! end panel edge loop
+!     end do
 
 
 end program gradient_test
