@@ -86,6 +86,8 @@ module adjoint_mod
             procedure :: broadcast_vector_dot_element => sparse_matrix_broadcast_vector_dot_element
             procedure :: broadcast_element_times_scalar => sparse_matrix_broadcast_element_times_scalar
 
+            procedure :: broadcast_matmul_3x3_times_element => sparse_matrix_broadcast_matmul_3x3_times_element
+
 
         
 
@@ -1063,6 +1065,42 @@ contains
         end do
 
     end subroutine sparse_matrix_broadcast_element_times_scalar
+
+
+    function sparse_matrix_broadcast_matmul_3x3_times_element(this, matrix3) result(result_matrix)
+        ! matmul a 3x3 matrix with a "list" of vectors (sparse matrix)
+        ! returns a "list" of 3-vectors ( a sparse matrix )
+
+        implicit none
+
+        class(sparse_matrix),intent(inout) :: this
+        real,dimension(3,3),intent(in) :: matrix3 
+
+        type(sparse_matrix) :: result_matrix
+        real,dimension(3) :: temp_vec
+
+        integer :: i
+
+        ! set full and sparse column numbers/size
+        result_matrix%full_num_cols = this%full_num_cols
+        result_matrix%sparse_num_cols = this%sparse_num_cols
+
+        ! allocate result matrix elements
+        allocate(result_matrix%columns(size(this%columns)))
+
+        ! go through each sparse column index
+        do i=1,this%sparse_num_cols
+            ! do matmul
+            temp_vec = this%columns(i)%vector_values(:)
+            temp_vec = matmul(matrix3, temp_vec)
+
+            ! update the results matrix 
+            result_matrix%columns(i)%vector_values(:) = temp_vec(:)
+            result_matrix%columns(i)%full_index = this%columns(i)%full_index
+
+        end do       
+
+    end function sparse_matrix_broadcast_matmul_3x3_times_element
 
 
     subroutine adjoint_init(this)

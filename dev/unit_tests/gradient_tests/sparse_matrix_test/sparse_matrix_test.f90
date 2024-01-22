@@ -10,6 +10,7 @@ program sparse_matrix_test
 
     real :: scalar
     real,dimension(3) :: vec, values, add_values, check
+    real,dimension(3,3) :: matrix3
     real,dimension(:),allocatable :: vector_a, vector_b, vector_c, vector_result, expanded_vector_result, &
     residual_vector
     real,dimension(:,:),allocatable :: scaled_vecs, full_matrix_a, full_matrix_b, expanded_matrix_a,&
@@ -1298,6 +1299,114 @@ program sparse_matrix_test
     end if
     test_failed = .false.
     write(*,*) "" 
+    write(*,*) ""
+
+
+
+    !!!!!!!!!! TEST BROADCAST MATMUL 3x3 TIMES ELEMENT   !!!!!!!!!!
+
+    write(*,*) "-------------TEST BROADCAST MATMUL 3x3 TIMES ELEMENT--------------"
+    write(*,*) ""
+
+    ! reset values
+    deallocate(sparse_matrix_a%columns)
+
+    !write(*,*) "deallocation successful" 
+    call sparse_matrix_a%init_from_sparse_vectors(sparse_a, sparse_b, sparse_c)
+
+    ! update full_matrix_a
+    full_matrix_a = sparse_matrix_a%expand()
+
+    ! write full matrix a
+    write(*,*) " full matrix a:"
+    do i=1,11
+        write(*, '(3(f12.5, 2x))') full_matrix_a(:,i)
+    end do
+    write(*,*) ""
+    write(*,*) ""
+
+    write(*,*) "     sparse_matrix_a                      sparse_index      full_index"
+    do i=1,sparse_matrix_a%sparse_num_cols
+        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_a%columns(i)%vector_values(:), &
+        i, sparse_matrix_a%columns(i)%full_index
+    end do
+    write(*,*) ""
+
+
+    matrix3(:,1) = (/1.0, -2.0,  3.0/)
+    matrix3(:,2) = (/1.1,  1.1,  5.1/)
+    matrix3(:,3) = (/2.2, -2.0, -2.1/)
+    write(*,*) ""
+    write(*,*) "     3x3 matrix"
+    do i= 1,3
+        write(*,'(3(f10.5, 2x))') matrix3(1,:)
+    end do
+
+    ! perform matmul manually
+    write(*,*) "broadcast matmul[3x3 matrix, full_matrix element] "
+    write(*,*) ""
+    
+    do i=1,11
+        full_matrix_result(:,i) = matmul(matrix3,full_matrix_a(:,i)) 
+    end do
+
+    ! write full matrix result
+    write(*,*) " full matrix result:"
+    do i=1,11
+        write(*, '(3(f12.5, 2x))') full_matrix_result(:,i)
+    end do
+    write(*,*) ""
+
+    
+    ! perform matmul adjoint wise
+    write(*,*) "broadcast each matmul[3x3 matrix,  sparse matrix element]...."
+    
+    sparse_matrix_result = sparse_matrix_a%broadcast_matmul_3x3_times_element(matrix3)
+    
+    write(*,*) ""
+    write(*,*) "resulting sparse_matrix:"
+    write(*,*) ""
+    write(*,*) "     sparse_matrix_result                      sparse_index      full_index"
+    do i=1,sparse_matrix_result%sparse_num_cols
+        write(*,'(3(f12.5), 12x, I5, 12x, I5)') sparse_matrix_result%columns(i)%vector_values(:), &
+        i, sparse_matrix_result%columns(i)%full_index
+    end do
+    write(*,*) ""
+    
+    
+    ! expand sparse_b
+    expanded_matrix_result = sparse_matrix_result%expand()
+    residual = full_matrix_result - expanded_matrix_result
+    
+    ! write results
+    write(*,*) "residual =  full matrix_result - expanded_matrix_result"
+    write(*,*) ""
+    write(*,*) "           expanded_matrix_result                          residual"
+    do i=1,sparse_matrix_result%full_num_cols
+        write(*, '(3(f12.6, 2x),3x, 3(f10.6, 2x))') expanded_matrix_result(:,i), residual(:,i)
+    end do
+    write(*,*) ""
+
+    ! check if test failed
+    do i=1,sparse_matrix_result%full_num_cols
+        if (any(abs(residual(:,i)) > 1.0e-12)) then
+            test_failed = .true.
+            exit
+        else 
+            test_failed = .false.
+        end if
+    end do
+    if (test_failed) then
+        total_tests = total_tests + 1
+        failure_log(total_tests-passed_tests) = "broadcast matmul 3x3 times sparse matrix element FAILED"
+        write(*,*) failure_log(total_tests-passed_tests)
+    else
+        write(*,*) "broadcast matmul 3x3 times sparse matrix element PASSED"
+        passed_tests = passed_tests + 1
+        total_tests = total_tests + 1
+    end if
+    test_failed = .false.
+    write(*,*) ""
     write(*,*) ""
 
 

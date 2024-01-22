@@ -2656,12 +2656,13 @@ contains
     end subroutine surface_mesh_get_induced_potentials_at_point
 
 
-    subroutine surface_mesh_init_adjoint(this)
+    subroutine surface_mesh_init_adjoint(this, freestream)
         ! if adjoint calculation is true, this will initialize the vertex associated components
     
             implicit none 
     
             class(surface_mesh),intent(inout) :: this
+            type(flow),intent(in) :: freestream
 
             integer :: i
             
@@ -2676,7 +2677,7 @@ contains
             do i=1,this%N_panels
 
                 ! init panel sensitivities
-                call this%panels(i)%init_adjoint()
+                call this%panels(i)%init_adjoint(freestream)
         
             end do
             

@@ -3968,31 +3968,33 @@ contains
     end function panel_get_moment_about_centroid
 
 
-    subroutine panel_init_adjoint(this)
+    subroutine panel_init_adjoint(this, freestream)
         ! calculates the sensitivities associated with a panel
     
         implicit none
 
         class(panel),intent(inout) :: this
+        type(flow),intent(in) :: freestream
 
         ! calc sensitivities of derived geometry
         call this%calc_derived_geom_adjoint()
 
         ! sensitivities of flow dependent terms
-        call this%init_with_flow_adjoint()
+        call this%init_with_flow_adjoint(freestream)
     
     end subroutine panel_init_adjoint
 
 
-    subroutine panel_init_with_flow_adjoint(this)
+    subroutine panel_init_with_flow_adjoint(this, freestream)
         ! calculates the sensitivities associated with a panel and the flow
     
         implicit none
 
         class(panel),intent(inout) :: this
+        type(flow),intent(in) :: freestream
 
         ! calc sensitivity of A_g_to_ls WRT design variables X(beta) 
-        call this%calc_d_A_g_to_ls()
+        call this%calc_d_A_g_to_ls(freestream)
 
         
     
@@ -4187,22 +4189,21 @@ contains
     end subroutine panel_calc_d_n_hat_g
 
 
-    subroutine panel_calc_d_A_g_to_ls(this)
+    subroutine panel_calc_d_A_g_to_ls(this, freestream)
         ! calculates the sensitivities associated with a panel
     
         implicit none
 
         class(panel),intent(inout) :: this
-        class(panel),intent(inout) :: this
         type(flow),intent(in) :: freestream
 
         real,dimension(3) :: u0, v0, dum_v0, dum_u0
         real,dimension(3,3) :: B_mat_ls
-        real :: x, y, norm_v0
+        real :: x, y, norm_v0, norm_u0
         integer :: i, rs
 
         type(sparse_vector) :: d_norm_v0, d_norm_u0
-        type(sparse_matrix) :: dn_cross_c, a, d_v0, v0_cross_dn, d_dum_u0, b, 
+        type(sparse_matrix) :: dn_cross_c, a, d_v0, v0_cross_dn, d_dum_u0, b, d_u0
 
         ! Get in-panel basis vectors (from original A_g_to_ls calculation)
         if (abs(abs(inner(this%n_g, freestream%c_hat_g)) - 1.) < 1e-12) then ! Check the freestream isn't aligned with the normal vector
@@ -4210,7 +4211,7 @@ contains
             dum_v0 = this%get_vertex_loc(2)-this%get_vertex_loc(1)
             
             ! calculate d_n_g cross c_hat_g ( this is a special case)
-            dn_cross_c%init_from_sparse_matrix(this%vertices(2)%ptr%d_loc)
+            call dn_cross_c%init_from_sparse_matrix(this%vertices(2)%ptr%d_loc)
             call dn_cross_c%sparse_subtract(this%vertices(1)%ptr%d_loc)
         else
             ! from original A_g_to_ls calculation
@@ -4237,12 +4238,12 @@ contains
         call d_v0%init_from_sparse_matrix(dn_cross_c)
         call d_v0%broadcast_element_times_scalar(norm_v0)
         call d_v0%sparse_subtract(a)
-        call d_v0%broadcast_element_times_scalar(1.0/(dum_v0*dum_v0)) 
+        call d_v0%broadcast_element_times_scalar(1.0/(inner(dum_v0,dum_v0))) 
 
         ! from original A_g_to_ls calculation
         dum_u0 = cross(v0, this%n_g)
         norm_u0 = norm2(dum_u0)
-        u0 = v_cross_n/norm_u0
+        u0 = dum_u0/norm_u0
 
         !!!!!!!!!   CALC d_u0 !!!!!!!!!!
 
@@ -4256,18 +4257,19 @@ contains
         call d_norm_u0%broadcast_element_times_scalar(1.0/norm_u0)
 
         ! caluclate b = d_norm_u0 times dum_u0
-        b = d_norm_u0%broadcast_element_times_scalar(d_dum_u0)
+        b = d_norm_u0%broadcast_element_times_vector(dum_u0)
 
         ! calculate d_u0
-        d_u0 = d_dum_u0%broadcast_element_times_scalar(norm_u0)
+        call d_u0%init_from_sparse_matrix(d_dum_u0) 
+        call d_u0%broadcast_element_times_scalar(norm_u0)
         call d_u0%sparse_subtract(b)
-        call d_u0%broadcast_element_times_scalar(1.0/(dum_u0*dum_u0))
+        call d_u0%broadcast_element_times_scalar(1.0/(inner(dum_u0,dum_u0)))
         
 
         !!!!!!!! CALC d_x (x is a substitution term for readability in the original A_g_to_ls calculation)
 
         ! calc d_nu_g
-        
+
 
 
 
