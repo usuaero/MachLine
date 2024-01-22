@@ -1663,31 +1663,3 @@ program gradient_test
 
 
 end program gradient_test
-
-! subroutine re_init_panels()
-
-!     ! tests various intermediate sensitivities 
-!     use adjoint_mod
-!     use base_geom_mod
-!     use panel_mod
-!     use flow_mod
-    
-!     implicit none
-
-!     ! deallocate(panels(N_panels))
-
-!     ! do i=1,N_panels
-!     !     deallocate(panels(i)%vertices)
-!     ! end do
-    
-!     call panels(1)%init(vertices(1), vertices(2), vertices(3), 1, .false.) !    top, right, forward
-!     call panels(2)%init(vertices(1), vertices(3), vertices(4), 2, .false.) !    top, right,     aft 
-!     call panels(3)%init(vertices(1), vertices(4), vertices(5), 3, .false.) !    top,  left,     aft
-!     call panels(4)%init(vertices(1), vertices(5), vertices(2), 4, .false.) !    top,  left, forward
-
-!     call panels(5)%init(vertices(6), vertices(2), vertices(3), 5, .false.) ! bottom, right, forward
-!     call panels(6)%init(vertices(6), vertices(3), vertices(4), 6, .false.) ! bottom, right,     aft
-!     call panels(7)%init(vertices(6), vertices(4), vertices(5), 7, .false.) ! bottom,  left,     aft
-!     call panels(8)%init(vertices(6), vertices(5), vertices(2), 8, .false.) ! bottom,  left, forward
-
-! end subroutine re_init_panels
