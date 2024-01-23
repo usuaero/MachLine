@@ -8,7 +8,7 @@ program gradient_test
     
     implicit none
 
-    
+    type(json_file) :: input_json
     type(flow) :: freestream
     type(eval_point_geom) :: geom
     type(integrals) :: int
@@ -17,11 +17,12 @@ program gradient_test
 
     real,dimension(:),allocatable :: residuals, X_beta, loc_up, loc_dn, centr_up, centr_dn, normal_up, normal_dn, &
     area_up, area_dn, d_area_FD, d_g_up, d_g_dn, norm_d_g_up, norm_d_g_dn, t_hat_g_up, t_hat_g_dn, &
-    n_hat_g_up, n_hat_g_dn
+    n_hat_g_up, n_hat_g_dn, A_g_to_ls_up, A_g_to_ls_dn
 
     real,dimension(:,:),allocatable :: v, vertex_locs, d_loc_FD, d_centr_FD, d_n_g_FD, d_norm_d_g_FD, residuals3
 
-    real,dimension(:,:,:),allocatable :: d_d_g_FD, d_t_hat_g_FD, d_n_hat_g_FD, dt_cross_n_FD,t_cross_dn_FD
+    real,dimension(:,:,:),allocatable :: d_d_g_FD, d_t_hat_g_FD, d_n_hat_g_FD, dt_cross_n_FD,t_cross_dn_FD, &
+    d_A_g_to_ls_FD
 
     integer :: i,j,k,m, N_verts, N_panels, vert, index
     type(vertex),dimension(:),allocatable :: vertices ! list of vertex types, this should be a mesh attribute
@@ -802,6 +803,188 @@ program gradient_test
     end do
 
     
+
+
+
+
+!!!!!d!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST d_A_g_to_ls !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    write(*,*) "---------------------------------- TEST d_A_g_to_ls ----------------------------------"
+    write(*,*) ""
+    write(*,*) "the sensitivity of the edge vectors of panel 1 WRT each design variable"
+    write(*,*) ""
+    
+    ! allocate central difference variables
+    allocate(A_g_to_ls_up(N_verts*3))
+    allocate(A_g_to_ls_dn(N_verts*3))
+    allocate(d_A_g_to_ls_FD(3,N_verts*3,3))
+
+    
+
+
+    ! do for each row of A_g_to_ls
+    do m=1,1
+
+        !!!!!!!!! Finite Difference  d_A_g_to_ls (row m) !!!!!!!!!
+        write(*,*) ""
+        write(*,*) "------------------------------------------------"
+        write(*,*) ""
+        write(*,'(A, I1, A)') "  CENTRAL DIFFERENCE d_A_g_to_ls (row ", m, ")"
+
+        ! we want the sensitivity of the A_g_to_ls panel 1 row m WRT X(beta)
+        index = 1
+
+        ! sensitivity to vertex 1
+        step = 0.0001
+
+        ! for each x, y, z of A_g_to_ls (row m) 
+        do k=1,3
+            ! do for each design variable
+            do i=1,3
+                do j=1,N_verts
+                    ! perturb up the current design variable
+                    vertices(j)%loc(i) = vertices(j)%loc(i) + step
+                    
+                    ! update panel edge outward normal unit vector calculations
+                    deallocate(panels)
+                    allocate(panels(N_panels))
+                    call panels(1)%init(vertices(1), vertices(2), vertices(3), 1, .false.) !    top, right, forward
+                    call panels(2)%init(vertices(1), vertices(3), vertices(4), 2, .false.) !    top, right,     aft 
+                    call panels(3)%init(vertices(1), vertices(4), vertices(5), 3, .false.) !    top,  left,     aft
+                    call panels(4)%init(vertices(1), vertices(5), vertices(2), 4, .false.) !    top,  left, forward
+
+                    call panels(5)%init(vertices(6), vertices(2), vertices(3), 5, .false.) ! bottom, right, forward
+                    call panels(6)%init(vertices(6), vertices(3), vertices(4), 6, .false.) ! bottom, right,     aft
+                    call panels(7)%init(vertices(6), vertices(4), vertices(5), 7, .false.) ! bottom,  left,     aft
+                    call panels(8)%init(vertices(6), vertices(5), vertices(2), 8, .false.) ! bottom,  left, forward
+                    
+                    deallocate(panels(index)%n_hat_g)
+                    call panels(index)%calc_g_edge_vectors()
+                    call panels(index)%init_with_flow()
+
+                    ! put the x y or z component of the panel's perturbed edge outward normal unit vector in a list
+                    A_g_to_ls_up(j + (i-1)*N_verts) = panels(index)%A_g_to_ls(m,k)
+
+                    ! perturb down the current design variable
+                    vertices(j)%loc(i) = vertices(j)%loc(i) - 2.*step
+
+                
+                    ! update panel edge outward normal unit vector calculations
+                    deallocate(panels)
+                    allocate(panels(N_panels))
+                    call panels(1)%init(vertices(1), vertices(2), vertices(3), 1, .false.) !    top, right, forward
+                    call panels(2)%init(vertices(1), vertices(3), vertices(4), 2, .false.) !    top, right,     aft 
+                    call panels(3)%init(vertices(1), vertices(4), vertices(5), 3, .false.) !    top,  left,     aft
+                    call panels(4)%init(vertices(1), vertices(5), vertices(2), 4, .false.) !    top,  left, forward
+
+                    call panels(5)%init(vertices(6), vertices(2), vertices(3), 5, .false.) ! bottom, right, forward
+                    call panels(6)%init(vertices(6), vertices(3), vertices(4), 6, .false.) ! bottom, right,     aft
+                    call panels(7)%init(vertices(6), vertices(4), vertices(5), 7, .false.) ! bottom,  left,     aft
+                    call panels(8)%init(vertices(6), vertices(5), vertices(2), 8, .false.) ! bottom,  left, forward
+                    
+                    deallocate(panels(index)%n_hat_g)
+                    call panels(index)%calc_g_edge_vectors()
+                    call panels(index)%init_with_flow()
+                    
+                    ! put the x y or z component of the panel's perturbed edge outward normal unit vector in a list
+                    A_g_to_ls_dn(j + (i-1)*N_verts) = panels(index)%A_g_to_ls(m,k)
+                
+                    ! restore geometry
+                    vertices(j)%loc(i) = vertices(j)%loc(i) + step
+                    
+                    
+
+                end do 
+            end do 
+
+            ! central difference 
+            d_A_g_to_ls_FD(m,:,k) = (A_g_to_ls_up - A_g_to_ls_dn)/(2.*step)
+
+        end do
+
+        ! write results
+        write(*,*) ""
+        write(*,'(A, I1, A)') "          d_A_g_to_ls_FD panel 1 (row ", m, ")"
+        write(*,*) "  d_A_g_to_ls_x           d_A_g_to_ls_y            d_A_g_to_ls_z "
+        do i = 1, N_verts*3
+            write(*, '(3(f14.10, 4x))') d_n_hat_g_FD(m,i, :)
+        end do 
+
+
+        !!!!!!!!!! ADJOINT d_A_g_to_ls (edge m)!!!!!!!!!!!!!
+        write(*,*) ""
+        write(*,*) "------------------------------------------------"
+        write(*,*) ""
+        write(*,'(A, I1, A)') "  ADJOINT d_A_g_to_ls (row ", m, ")"
+        write(*,*) ""
+
+
+        ! Re init the body
+        deallocate(panels)
+        allocate(panels(N_panels))
+        call panels(1)%init(vertices(1), vertices(2), vertices(3), 1, .false.) !    top, right, forward
+        call panels(2)%init(vertices(1), vertices(3), vertices(4), 2, .false.) !    top, right,     aft 
+        call panels(3)%init(vertices(1), vertices(4), vertices(5), 3, .false.) !    top,  left,     aft
+        call panels(4)%init(vertices(1), vertices(5), vertices(2), 4, .false.) !    top,  left, forward
+
+        call panels(5)%init(vertices(6), vertices(2), vertices(3), 5, .false.) ! bottom, right, forward
+        call panels(6)%init(vertices(6), vertices(3), vertices(4), 6, .false.) ! bottom, right,     aft
+        call panels(7)%init(vertices(6), vertices(4), vertices(5), 7, .false.) ! bottom,  left,     aft
+        call panels(8)%init(vertices(6), vertices(5), vertices(2), 8, .false.) ! bottom,  left, forward
+        
+        
+        ! calculate d_n_hat_g 
+        call panels(index)%init_adjoint()
+
+        
+        ! write sparse matrix
+        write(*,*) ""
+        write(*,'(A, I1, A)') "          d_A_g_to_ls panel 1 (row ", m, ")"
+        write(*,*) "  d_A_g_to_ls_x           d_A_g_to_ls_y           d_A_g_to_ls_z             sparse_index       full_index"
+        do i=1,panels(index)%d_A_g_to_ls(m)%sparse_num_cols
+            write(*,'(3(f14.10, 4x), 12x, I5, 12x, I5)') panels(index)%d_A_g_to_ls(m)%columns(i)%vector_values(:), &
+            i, panels(index)%d_A_g_to_ls(m)%columns(i)%full_index
+        end do
+        write(*,*) ""
+
+        ! calculate residuals3
+        do i =1, N_verts*3
+            residuals3(:,i) = panels(index)%d_A_g_to_ls(m)%get_values(i) - d_n_hat_g_FD(m,i,:)
+        end do
+
+        write(*,'(A, I1, A)') "         d_A_g_to_ls panel 1 (row ", m, ") expanded "
+        write(*,*) "  d_A_g_to_ls_x           d_A_g_to_ls_y           d_A_g_to_ls_z                            residuals"
+        do i = 1, N_verts*3
+            write(*, '(3(f14.10, 4x),3x, 3(f14.10, 4x))') panels(index)%d_A_g_to_ls(m)%get_values(i), residuals3(:,i)
+        end do
+        write(*,*) ""
+
+
+        ! check if test failed
+        do i=1,N_verts*3
+            if (any(residuals3(:,i) > 1.0e-8)) then
+                test_failed = .true.
+                exit
+            else 
+                test_failed = .false.
+            end if
+        end do
+        if (test_failed) then
+            total_tests = total_tests + 1
+            write(m_char,'(I1)') m
+            failure_log(total_tests-passed_tests) = "d_A_g_to_ls (row "// trim(m_char) // ") test FAILED"
+            write(*,*) failure_log(total_tests-passed_tests)
+        else
+            write(*,'(A, I1, A)') "d_A_g_to_ls (row ",m,") test PASSED"
+            passed_tests = passed_tests + 1
+            total_tests = total_tests + 1
+        end if
+        test_failed = .false.
+        write(*,*) "" 
+        write(*,*) ""
+
+        
+    ! end panel edge loop
+    end do
 
 
 

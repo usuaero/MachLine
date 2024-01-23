@@ -4199,11 +4199,11 @@ contains
 
         real,dimension(3) :: u0, v0, dum_v0, dum_u0
         real,dimension(3,3) :: B_mat_ls
-        real :: x, y, norm_v0, norm_u0
+        real :: x, abs_x, y, norm_v0, norm_u0
         integer :: i, rs
 
-        type(sparse_vector) :: d_norm_v0, d_norm_u0
-        type(sparse_matrix) :: dn_cross_c, a, d_v0, v0_cross_dn, d_dum_u0, b, d_u0
+        type(sparse_vector) :: d_norm_v0, d_norm_u0, n_dot_d_nu, d_n_dot_nu, d_x, d_abs_x
+        type(sparse_matrix) :: dn_cross_c, a, d_v0, v0_cross_dn, d_dum_u0, b, d_u0, d_nu_g, c
 
         ! Get in-panel basis vectors (from original A_g_to_ls calculation)
         if (abs(abs(inner(this%n_g, freestream%c_hat_g)) - 1.) < 1e-12) then ! Check the freestream isn't aligned with the normal vector
@@ -4264,43 +4264,55 @@ contains
         call d_u0%broadcast_element_times_scalar(norm_u0)
         call d_u0%sparse_subtract(b)
         call d_u0%broadcast_element_times_scalar(1.0/(inner(dum_u0,dum_u0)))
+
         
+        ! Calculate compressible parameters (from original A_g_to_ls calculation)
+        !this%nu_g = matmul(freestream%B_mat_g, this%n_g) this is commented out because nu_g is alread stored as a panel attribute
+        x = inner(this%n_g, this%nu_g)
+        abs_x = abs(x)
 
         !!!!!!!! CALC d_x (x is a substitution term for readability in the original A_g_to_ls calculation)
 
-        ! calc d_nu_g
+        ! calc d_nu_g  
+        d_nu_g = this%d_n_g%broadcast_matmul_3x3_times_element(freestream%B_mat_g)
+        
+        ! calc n_g dot d_nu_g
+        n_dot_d_nu = d_nu_g%broadcast_vector_dot_element(this%n_g)
+
+        ! calc d_n_g dot nu_g
+        d_n_dot_nu = this%d_n_g%broadcast_vector_dot_element(this%nu_g)
+        
+        ! calc d_x
+        call d_x%init_from_sparse_vector(d_n_dot_nu)
+        call d_x%sparse_add(n_dot_d_nu)
+
+        ! calc c = d_abs_x times matmul(freestream%C_mat_g, u0)
+        call d_abs_x%init_from_sparse_vector(d_x)
+        call d_abs_x%broadcast_element_times_scalar(x/(2.0*abs_x*sqrt(abs_x)))
+        c = d_abs_x%broadcast_element_times_vector(matmul(freestream%C_mat_g, u0))
+
+
+        !!!!!!! CALC sensitivity of row 1 of A_g_to_ls
+
+        this%d_A_g_to_ls(1) = d_u0%broadcast_matmul_3x3_times_element(freestream%C_mat_g)
+        call this%d_A_g_to_ls(1)%sparse_subtract(c)
+        call this%d_A_g_to_ls(1)%broadcast_element_times_scalar(1.0/abs_x)
 
 
 
-
-        ! Calculate compressible parameters (from original A_g_to_ls calculation)
-        !this%nu_g = matmul(freestream%B_mat_g, this%n_g)
-        x = inner(this%n_g, this%nu_g)
-
-        ! Check for Mach-inclined panels
-        if (freestream%supersonic .and. abs(x) < 1.e-12) then
-            write(*,*) "!!! Panel", this%index, "is Mach-inclined, which is not allowed. Quitting..."
-            stop
-        end if
-
-        ! Calculate panel inclination indicator (E&M Eq. (E.3.16b))
+        ! Calculate panel inclination indicator (E&M Eq. (E.3.16b)) (from original A_g_to_ls calculation)
         this%r = int(sign(1., x)) ! r = -1 -> superinclined, r = 1 -> subinclined
-
+        
         ! Other inclination parameters
         rs = int(this%r*freestream%s)
-
+        
         ! Calculate transformation
-        y = 1./sqrt(abs(x))
-        this%A_g_to_ls(1,:) = y*matmul(freestream%C_mat_g, u0)
-        this%A_g_to_ls(2,:) = rs/freestream%B*matmul(freestream%C_mat_g, v0)
-        this%A_g_to_ls(3,:) = freestream%B*y*this%n_g
-
-        ! Check determinant
-        x = det3(this%A_g_to_ls)
-        if (abs(x - freestream%B*freestream%B) > 1.e-10) then
-            write(*,*) "!!! Calculation of local scaled coordinate transform failed. Quitting..."
-            stop
-        end if
+        y = 1./sqrt(abs_x)
+        
+        
+        ! this%d_A_g_to_ls(1,:) = y*matmul(freestream%C_mat_g, u0)
+        !this%d_A_g_to_ls(2) = rs/freestream%B*matmul(freestream%C_mat_g, v0)
+        !this%d_A_g_to_ls(3) = freestream%B*y*this%n_g
         
     
     end subroutine panel_calc_d_A_g_to_ls
