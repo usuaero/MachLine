@@ -749,7 +749,7 @@ program gradient_test
         
         
         ! calculate d_n_hat_g 
-        call panels(index)%init_adjoint()
+        call panels(index)%calc_derived_geom_adjoint()
 
         
         ! write sparse matrix
@@ -822,7 +822,7 @@ program gradient_test
 
 
     ! do for each row of A_g_to_ls
-    do m=1,1
+    do m=1,2
 
         !!!!!!!!! Finite Difference  d_A_g_to_ls (row m) !!!!!!!!!
         write(*,*) ""
@@ -834,7 +834,7 @@ program gradient_test
         index = 1
 
         ! sensitivity to vertex 1
-        step = 0.0001
+        step = 0.00001
 
         ! for each x, y, z of A_g_to_ls (row m) 
         do k=1,3
@@ -857,9 +857,7 @@ program gradient_test
                     call panels(7)%init(vertices(6), vertices(4), vertices(5), 7, .false.) ! bottom,  left,     aft
                     call panels(8)%init(vertices(6), vertices(5), vertices(2), 8, .false.) ! bottom,  left, forward
                     
-                    deallocate(panels(index)%n_hat_g)
-                    call panels(index)%calc_g_edge_vectors()
-                    call panels(index)%init_with_flow()
+                    call panels(index)%init_with_flow(freestream, .false., 0)
 
                     ! put the x y or z component of the panel's perturbed edge outward normal unit vector in a list
                     A_g_to_ls_up(j + (i-1)*N_verts) = panels(index)%A_g_to_ls(m,k)
@@ -881,9 +879,7 @@ program gradient_test
                     call panels(7)%init(vertices(6), vertices(4), vertices(5), 7, .false.) ! bottom,  left,     aft
                     call panels(8)%init(vertices(6), vertices(5), vertices(2), 8, .false.) ! bottom,  left, forward
                     
-                    deallocate(panels(index)%n_hat_g)
-                    call panels(index)%calc_g_edge_vectors()
-                    call panels(index)%init_with_flow()
+                    call panels(index)%init_with_flow(freestream, .false., 0)
                     
                     ! put the x y or z component of the panel's perturbed edge outward normal unit vector in a list
                     A_g_to_ls_dn(j + (i-1)*N_verts) = panels(index)%A_g_to_ls(m,k)
@@ -906,7 +902,7 @@ program gradient_test
         write(*,'(A, I1, A)') "          d_A_g_to_ls_FD panel 1 (row ", m, ")"
         write(*,*) "  d_A_g_to_ls_x           d_A_g_to_ls_y            d_A_g_to_ls_z "
         do i = 1, N_verts*3
-            write(*, '(3(f14.10, 4x))') d_n_hat_g_FD(m,i, :)
+            write(*, '(3(f14.10, 4x))') d_A_g_to_ls_FD(m,i, :)
         end do 
 
 
@@ -931,9 +927,10 @@ program gradient_test
         call panels(7)%init(vertices(6), vertices(4), vertices(5), 7, .false.) ! bottom,  left,     aft
         call panels(8)%init(vertices(6), vertices(5), vertices(2), 8, .false.) ! bottom,  left, forward
         
-        
-        ! calculate d_n_hat_g 
-        call panels(index)%init_adjoint()
+        call panels(1)%init_with_flow(freestream, .false., 0)
+
+        ! calculate d_A_g_to_ls 
+        call panels(index)%init_adjoint(freestream)
 
         
         ! write sparse matrix
@@ -948,7 +945,7 @@ program gradient_test
 
         ! calculate residuals3
         do i =1, N_verts*3
-            residuals3(:,i) = panels(index)%d_A_g_to_ls(m)%get_values(i) - d_n_hat_g_FD(m,i,:)
+            residuals3(:,i) = panels(index)%d_A_g_to_ls(m)%get_values(i) - d_A_g_to_ls_FD(m,i,:)
         end do
 
         write(*,'(A, I1, A)') "         d_A_g_to_ls panel 1 (row ", m, ") expanded "

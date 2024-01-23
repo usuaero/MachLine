@@ -4202,8 +4202,8 @@ contains
         real :: x, abs_x, y, norm_v0, norm_u0
         integer :: i, rs
 
-        type(sparse_vector) :: d_norm_v0, d_norm_u0, n_dot_d_nu, d_n_dot_nu, d_x, d_abs_x
-        type(sparse_matrix) :: dn_cross_c, a, d_v0, v0_cross_dn, d_dum_u0, b, d_u0, d_nu_g, c
+        type(sparse_vector) :: d_norm_v0, d_norm_u0, n_dot_d_nu, d_n_dot_nu, d_x, d_sqrt_abs_x
+        type(sparse_matrix) :: dn_cross_c, a, d_v0, v0_cross_dn, d_dum_u0, b, d_u0, d_nu_g, c, d
 
         ! Get in-panel basis vectors (from original A_g_to_ls calculation)
         if (abs(abs(inner(this%n_g, freestream%c_hat_g)) - 1.) < 1e-12) then ! Check the freestream isn't aligned with the normal vector
@@ -4286,15 +4286,16 @@ contains
         call d_x%init_from_sparse_vector(d_n_dot_nu)
         call d_x%sparse_add(n_dot_d_nu)
 
-        ! calc c = d_abs_x times matmul(freestream%C_mat_g, u0)
-        call d_abs_x%init_from_sparse_vector(d_x)
-        call d_abs_x%broadcast_element_times_scalar(x/(2.0*abs_x*sqrt(abs_x)))
-        c = d_abs_x%broadcast_element_times_vector(matmul(freestream%C_mat_g, u0))
+        ! calc c = d_sqrt_abs_x times matmul(freestream%C_mat_g, u0)
+        call d_sqrt_abs_x%init_from_sparse_vector(d_x)
+        call d_sqrt_abs_x%broadcast_element_times_scalar(x/(2.0*abs_x*sqrt(abs_x)))
+        c = d_sqrt_abs_x%broadcast_element_times_vector(matmul(freestream%C_mat_g, u0))
 
 
         !!!!!!! CALC sensitivity of row 1 of A_g_to_ls
 
         this%d_A_g_to_ls(1) = d_u0%broadcast_matmul_3x3_times_element(freestream%C_mat_g)
+        call this%d_A_g_to_ls(1)%broadcast_element_times_scalar(sqrt(abs_x))
         call this%d_A_g_to_ls(1)%sparse_subtract(c)
         call this%d_A_g_to_ls(1)%broadcast_element_times_scalar(1.0/abs_x)
 
@@ -4305,10 +4306,25 @@ contains
         
         ! Other inclination parameters
         rs = int(this%r*freestream%s)
+
+
+        !!!!!!! CALC sensitivity of row 2 of A_g_to_ls
+
+        this%d_A_g_to_ls(2) = d_v0%broadcast_matmul_3x3_times_element(freestream%C_mat_g)
+        call this%d_A_g_to_ls(2)%broadcast_element_times_scalar(rs/freestream%B)
+        
+        
+        !!!!!!! CALC sensitivity of row 3 of A_g_to_ls
+
+        ! calc d = d_ !!!!!!!!!!!!!! LEFT OFF HERE
+        call this%d_A_g_to_ls(3)%init_from_sparse_matrix(this%d_n_g)
+        call this%d_A_g_to_ls(3)%broadcast_element_times_scalar(sqrt(abs_x)*freestream%B)
+
+
         
         ! Calculate transformation
         y = 1./sqrt(abs_x)
-        
+
         
         ! this%d_A_g_to_ls(1,:) = y*matmul(freestream%C_mat_g, u0)
         !this%d_A_g_to_ls(2) = rs/freestream%B*matmul(freestream%C_mat_g, v0)
