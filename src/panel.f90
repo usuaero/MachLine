@@ -73,7 +73,10 @@ module panel_mod
         !!!!!!!!! ADJOINT !!!!!!!!!
         type(sparse_vector) :: d_A !d_radius
         type(sparse_matrix) :: d_n_g, d_centr
-        type(sparse_matrix),dimension(3) :: d_n_hat_g, d_A_g_to_ls
+        type(sparse_matrix),dimension(3) :: d_n_hat_g, d_A_g_to_ls, d_A_ls_to_g
+
+        type(sparse_vector),dimension(2) :: d_vertices_ls
+
         
 
         !!!Adjoint CHECKINg
@@ -208,6 +211,8 @@ module panel_mod
 
             ! adjoint flow dependent terms
             procedure :: calc_d_A_g_to_ls => panel_calc_d_A_g_to_ls
+            procedure :: calc_d_A_ls_to_g => panel_calc_d_A_ls_to_g
+            procedure :: calc_d_vertices_ls => panel_calc_d_vertices_ls
 
 
     end type panel
@@ -3985,22 +3990,6 @@ contains
     end subroutine panel_init_adjoint
 
 
-    subroutine panel_init_with_flow_adjoint(this, freestream)
-        ! calculates the sensitivities associated with a panel and the flow
-    
-        implicit none
-
-        class(panel),intent(inout) :: this
-        type(flow),intent(in) :: freestream
-
-        ! calc sensitivity of A_g_to_ls WRT design variables X(beta) 
-        call this%calc_d_A_g_to_ls(freestream)
-
-        
-    
-    end subroutine panel_init_with_flow_adjoint
-
-
     subroutine panel_calc_derived_geom_adjoint(this)
         ! calculates the sensitivities associated with a panel
     
@@ -4189,8 +4178,27 @@ contains
     end subroutine panel_calc_d_n_hat_g
 
 
+    subroutine panel_init_with_flow_adjoint(this, freestream)
+        ! calculates the sensitivities associated with a panel and the flow
+    
+        implicit none
+
+        class(panel),intent(inout) :: this
+        type(flow),intent(in) :: freestream
+
+        ! calc sensitivity of A_g_to_ls WRT design variables X(beta) 
+        call this%calc_d_A_g_to_ls(freestream)
+
+        ! calc sensitivity of A_ls_to_g WRT design variables
+        call this%calc_d_A_ls_to_g()
+        
+        call this%calc_d_vertices_ls()
+    
+    end subroutine panel_init_with_flow_adjoint
+
+
     subroutine panel_calc_d_A_g_to_ls(this, freestream)
-        ! calculates the sensitivities associated with a panel
+        ! calculates the partial derivative of the global to local scaled transformation matrix
     
         implicit none
 
@@ -4325,19 +4333,111 @@ contains
         call this%d_A_g_to_ls(3)%broadcast_element_times_scalar(sqrt(abs_x)*freestream%B)
         call this%d_A_g_to_ls(3)%sparse_subtract(d)
         call this%d_A_g_to_ls(3)%broadcast_element_times_scalar(1.0/abs_x)
-
-
-        
-        
-        
-        !this%d_A_g_to_ls(1,:) = y*matmul(freestream%C_mat_g, u0)
-        !this%d_A_g_to_ls(2) = rs/freestream%B*matmul(freestream%C_mat_g, v0)
-        !this%d_A_g_to_ls(3) = freestream%B*y*this%n_g
         
     
     end subroutine panel_calc_d_A_g_to_ls
     
 
+    subroutine panel_calc_d_A_ls_to_g(this)
+        ! calculates the partial derivative of the local scaled to global transformation matrix
+    
+        implicit none
+
+        class(panel),intent(inout) :: this
+
+        integer :: i,j
+
+        type(sparse_vector), dimension(3,3) :: dA_times_Ainv, d_A_inv
+        type(sparse_matrix), dimension(3) :: x
+
+        ! A     = A_g_to_ls      d_A     = d_A_g_to_ls
+        ! A_inv = A_ls_to_g      d_A_inv = d_A_ls_to_g
+
+        ! d_A_inv = -[A_inv][d_A][A_inv]
+
+        do i= 1,3
+
+            do j = 1,3
+                
+                ! calc dA_times_Ainv  = [d_A][A_inv]
+                dA_times_Ainv(i,j) = this%d_A_g_to_ls(i)%broadcast_vector_dot_element(this%A_ls_to_g(:,j))
+
+            end do
+
+        end do
+
+        ! convert dA_times_Ainv into a sparse_matrix dimension 3
+        do i = 1,3
+
+            call x(i)%init_from_sparse_vectors(dA_times_Ainv(1,i), dA_times_Ainv(2,i), dA_times_Ainv(3,i))
+            
+        end do
+
+        do i= 1,3
+
+            do j = 1,3
+
+                ! calc dA_inv  = -[A_inv][dA_times_Ainv]
+                d_A_inv(i,j) = x(j)%broadcast_vector_dot_element(-this%A_ls_to_g(i,:))
+
+            end do
+
+        end do
+
+        do i = 1,3
+
+            ! convert d_A_inv to sparse_matrix dimension 3 panel attribute
+            call this%d_A_ls_to_g(i)%init_from_sparse_vectors(d_A_inv(i,1), d_A_inv(i,2), d_A_inv(i,3))
+
+        end do
+
+    end subroutine panel_calc_d_A_ls_to_g
+
+
+    subroutine panel_calc_d_vertices_ls(this)
+        ! calculates the partial derivative of the panel's 3 vertices in local scaled coordinates
+    
+        implicit none
+
+        class(panel),intent(inout) :: this
+
+        integer :: i, j
+
+        type(sparse_vector), dimension(2) :: x
+        type(sparse_matrix) :: d_loc_minus_d_centr
+
+        
+        do i=1,this%N
+            
+            !  calc d_loc_minus_d_centr
+            call d_loc_minus_d_centr%init_from_sparse_matrix(this%vertices(i)%ptr%d_loc)
+            call d_loc_minus_d_centr%sparse_subtract(this%d_centr)
+
+            do j = 1,2
+
+                ! calc x = [A_g_to_ls][d_loc_minus_d_centr]
+                x(j)  = d_loc_minus_d_centr%broadcast_vector_dot_element(this%A_g_to_ls(j,:))
+
+                ! calculate d_vertices_ls (j)
+                this%d_vertices_ls(j) = this%d_A_g_to_ls(j)%broadcast_vector_dot_element(this%get_vertex_loc(i)-this%centr)
+                call this%d_vertices_ls(j)%sparse_subtract(x(j))
+
+            end do
+
+            deallocate(d_loc_minus_d_centr%columns)
+            deallocate(x(1)%elements,x(2)%elements )
+
+        end do
+
+
+
+        ! ! Transform vertex coords to ls
+        ! allocate(this%vertices_ls(2,this%N))
+        ! do i=1,this%N
+        !     this%vertices_ls(:,i) = matmul(this%A_g_to_ls(1:2,:), this%get_vertex_loc(i)-this%centr)
+        ! end do
+
+    end subroutine panel_calc_d_vertices_ls
 
    
 end module panel_mod
