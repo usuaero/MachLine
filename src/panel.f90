@@ -76,9 +76,9 @@ module panel_mod
         type(sparse_matrix),dimension(3) :: d_n_hat_g, d_A_g_to_ls
         
 
-        !!!Adjoint CHECKING
-        ! real,dimension(3,3) :: d_g, t_hat_g
-        ! real,dimension(3) :: norm_d_g
+        !!!Adjoint CHECKINg
+        ! real,dimension(3) :: v0, u0
+        ! type(sparse_matrix) :: d_v0, d_u0
 
 
         contains
@@ -4229,7 +4229,7 @@ contains
 
         ! calculate the sensitvity of the norm of dum_v0 WRT design variables
         d_norm_v0 = dn_cross_c%broadcast_vector_dot_element(dum_v0)
-        call d_norm_v0%broadcast_element_times_scalar(1.0/sqrt(norm_v0))
+        call d_norm_v0%broadcast_element_times_scalar(1.0/norm_v0)
 
         ! calculate a = d_norm_v0 cross dum_v0
         a = d_norm_v0%broadcast_element_times_vector(dum_v0)
@@ -4239,6 +4239,7 @@ contains
         call d_v0%broadcast_element_times_scalar(norm_v0)
         call d_v0%sparse_subtract(a)
         call d_v0%broadcast_element_times_scalar(1.0/(inner(dum_v0,dum_v0))) 
+        
 
         ! from original A_g_to_ls calculation
         dum_u0 = cross(v0, this%n_g)
@@ -4316,17 +4317,20 @@ contains
         
         !!!!!!! CALC sensitivity of row 3 of A_g_to_ls
 
-        ! calc d = d_ !!!!!!!!!!!!!! LEFT OFF HERE
+        ! calc d = d_sqrt_abs_x times B*n_g
+        d = d_sqrt_abs_x%broadcast_element_times_vector(freestream%B*this%n_g)
+
+        ! calc d_A_g_to_ls row 3
         call this%d_A_g_to_ls(3)%init_from_sparse_matrix(this%d_n_g)
         call this%d_A_g_to_ls(3)%broadcast_element_times_scalar(sqrt(abs_x)*freestream%B)
+        call this%d_A_g_to_ls(3)%sparse_subtract(d)
+        call this%d_A_g_to_ls(3)%broadcast_element_times_scalar(1.0/abs_x)
 
 
         
-        ! Calculate transformation
-        y = 1./sqrt(abs_x)
-
         
-        ! this%d_A_g_to_ls(1,:) = y*matmul(freestream%C_mat_g, u0)
+        
+        !this%d_A_g_to_ls(1,:) = y*matmul(freestream%C_mat_g, u0)
         !this%d_A_g_to_ls(2) = rs/freestream%B*matmul(freestream%C_mat_g, v0)
         !this%d_A_g_to_ls(3) = freestream%B*y*this%n_g
         
