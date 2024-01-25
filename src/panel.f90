@@ -75,7 +75,7 @@ module panel_mod
         type(sparse_matrix) :: d_n_g, d_centr
         type(sparse_matrix),dimension(3) :: d_n_hat_g, d_A_g_to_ls, d_A_ls_to_g
 
-        type(sparse_vector),dimension(2) :: d_vertices_ls
+        type(sparse_vector),dimension(2,3) :: d_vertices_ls, d_n_hat_ls
 
         
 
@@ -213,6 +213,7 @@ module panel_mod
             procedure :: calc_d_A_g_to_ls => panel_calc_d_A_g_to_ls
             procedure :: calc_d_A_ls_to_g => panel_calc_d_A_ls_to_g
             procedure :: calc_d_vertices_ls => panel_calc_d_vertices_ls
+            procedure :: calc_d_n_hat_ls => panel_calc_d_n_hat_ls
 
 
     end type panel
@@ -4192,7 +4193,11 @@ contains
         ! calc sensitivity of A_ls_to_g WRT design variables
         call this%calc_d_A_ls_to_g()
         
+        ! calc sensitivity of local scaled panel vertices
         call this%calc_d_vertices_ls()
+
+        ! calc sensitivities of local scaled n_hat (outward normal edge vectors)
+        call this%calc_d_n_hat_ls(freestream)
     
     end subroutine panel_init_with_flow_adjoint
 
@@ -4419,8 +4424,8 @@ contains
                 x(j)  = d_loc_minus_d_centr%broadcast_vector_dot_element(this%A_g_to_ls(j,:))
 
                 ! calculate d_vertices_ls (j)
-                this%d_vertices_ls(j) = this%d_A_g_to_ls(j)%broadcast_vector_dot_element(this%get_vertex_loc(i)-this%centr)
-                call this%d_vertices_ls(j)%sparse_subtract(x(j))
+                this%d_vertices_ls(j,i) = this%d_A_g_to_ls(j)%broadcast_vector_dot_element(this%get_vertex_loc(i)-this%centr)
+                call this%d_vertices_ls(j,i)%sparse_add(x(j))
 
             end do
 
@@ -4438,6 +4443,87 @@ contains
         ! end do
 
     end subroutine panel_calc_d_vertices_ls
+
+
+    subroutine panel_calc_d_n_hat_ls(this, freestream)
+
+        implicit none
+
+        class(panel),intent(inout) :: this
+        type(flow),intent(in) :: freestream
+
+        real,dimension(2) :: d_ls
+        real,dimension(:,:),allocatable :: t_hat_ls
+        integer :: i, i_next
+
+        type(sparse_vector),dimension(2) :: d_d_ls, d_norm_d_ls
+        type(sparse_vector),dimension(2,3) :: d_t_hat_ls
+
+
+        ! Loop through edges
+        do i=1,this%N
+
+            i_next = mod(i, this%N)+1
+
+            ! Calculate tangent in local scaled coords 
+            d_ls = this%vertices_ls(:,i_next) - this%vertices_ls(:,i)
+            t_hat_ls(:,i) = d_ls/norm2(d_ls)
+
+            do j=1,2
+
+                call d_d_ls(j,i)%init_from_sparse_vector(this%d_vertices_ls(j,i_next))
+                call d_d_ls(j,i)%sparse_subtract(this%d_vertices_ls(j,i)) 
+
+                d_norm_d_ls(j) =  
+                
+            end do
+
+            
+
+        end do
+
+
+
+
+        ! Allocate memory
+        allocate(t_hat_ls(2,this%N))
+        allocate(this%n_hat_ls(2,this%N))
+        allocate(this%b(this%N))
+        allocate(this%b_mir(this%N)) ! This needs to be initialized here because of some DoD checks. It will have no effect.
+        allocate(this%sqrt_b(this%N))
+
+        ! Loop through edges
+        do i=1,this%N
+
+            i_next = mod(i, this%N)+1
+
+            ! Calculate tangent in local scaled coords 
+            d_ls = this%vertices_ls(:,i_next) - this%vertices_ls(:,i)
+            t_hat_ls(:,i) = d_ls/norm2(d_ls)
+
+        end do
+
+        ! Calculate edge normal in local scaled coords E&M Eq. (J.6.45)
+        this%n_hat_ls(1,:) = t_hat_ls(2,:)
+        this%n_hat_ls(2,:) = -t_hat_ls(1,:)
+
+        ! Calculate edge parameter (Ehlers Eq. (E14))
+        ! This really only matters for subinclined, supersonic panels
+        ! But we set defaults for the other cases to make unified calcs work
+        if (freestream%supersonic) then
+            if (this%r > 0) then
+                this%b = (this%n_hat_ls(1,:) - this%n_hat_ls(2,:))*(this%n_hat_ls(1,:) + this%n_hat_ls(2,:))
+                this%sqrt_b = sqrt(abs(this%b))
+            else
+                this%b = 1.
+                this%sqrt_b = 1.
+            end if
+        else
+            this%b = -1.
+            this%sqrt_b = 1.
+        end if
+    
+    end subroutine panel_calc_d_n_hat_ls
 
    
 end module panel_mod

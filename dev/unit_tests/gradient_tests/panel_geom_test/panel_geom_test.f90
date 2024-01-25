@@ -17,14 +17,15 @@ program gradient_test
 
     real,dimension(:),allocatable :: residuals, X_beta, loc_up, loc_dn, centr_up, centr_dn, normal_up, normal_dn, &
     area_up, area_dn, d_area_FD, d_g_up, d_g_dn, norm_d_g_up, norm_d_g_dn, t_hat_g_up, t_hat_g_dn, &
-    n_hat_g_up, n_hat_g_dn, A_g_to_ls_up, A_g_to_ls_dn,  A_ls_to_g_up, A_ls_to_g_dn
+    n_hat_g_up, n_hat_g_dn, A_g_to_ls_up, A_g_to_ls_dn,  A_ls_to_g_up, A_ls_to_g_dn, vertices_ls_up, vertices_ls_dn, &
+    d_vertices_ls_FD
 
     real,dimension(:,:),allocatable :: v, vertex_locs, d_loc_FD, d_centr_FD, d_n_g_FD, d_norm_d_g_FD, residuals3 
 
     real,dimension(:,:,:),allocatable :: d_d_g_FD, d_t_hat_g_FD, d_n_hat_g_FD, dt_cross_n_FD,t_cross_dn_FD, &
     d_A_g_to_ls_FD, d_A_ls_to_g_FD
 
-    integer :: i,j,k,m, N_verts, N_panels, vert, index
+    integer :: i,j,k,m,n, N_verts, N_panels, vert, index
     type(vertex),dimension(:),allocatable :: vertices ! list of vertex types, this should be a mesh attribute
     type(panel),dimension(:),allocatable :: panels    ! list of panels, this should be a mesh attribute
     character(len=:),allocatable :: spanwise_axis
@@ -1156,6 +1157,227 @@ program gradient_test
 
         
     ! end panel edge loop
+    end do
+
+
+
+
+!!!!!d!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST d_vertices_ls !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    write(*,*) "---------------------------------- TEST d_vertices_ls ----------------------------------"
+    write(*,*) ""
+    write(*,*) "the sensitivity of the edge vectors of panel 1 WRT each design variable"
+    write(*,*) ""
+    
+    ! allocate central difference variables
+    allocate(vertices_ls_up(N_verts*3))
+    allocate(vertices_ls_dn(N_verts*3))
+    allocate(d_vertices_ls_FD(N_verts*3))
+
+    
+
+
+    ! do for vertex
+    do m=1,3
+
+        write(*,*) "---------------------------------- TEST d_vertices_ls VERTEX", m, "  ----------------------------------"
+        write(*,*) ""
+
+        ! do for xi and eta
+        do n = 1,2
+
+
+            !!!!!!!!! Finite Difference  d_vertices_ls (vertex m, coordinate n) !!!!!!!!!
+            write(*,*) ""
+            write(*,*) "------------------------------------------------"
+            write(*,*) ""
+            if (n==1) then
+                write(*,'(A, I1, A)') "  CENTRAL DIFFERENCE d_vertices_ls (vertex ", m, " xi coordinate)"
+            else 
+                write(*,'(A, I1, A)') "  CENTRAL DIFFERENCE d_vertices_ls (vertex ", m, " eta coordinate)"
+            end if
+            ! we want the sensitivity of the edge vector of panel 1 edge 1 WRT X(beta)
+            index = 1
+
+            ! sensitivity to vertex 1
+            step = 0.0001
+
+            ! ! for each x, y, z of n_hat_g (edge m) 
+            ! do k=1,3
+                ! do for each design variable
+                do i=1,3
+                    do j=1,N_verts
+                        ! perturb up the current design variable
+                        vertices(j)%loc(i) = vertices(j)%loc(i) + step
+                        
+                        ! update panel edge outward normal unit vector calculations
+                        deallocate(panels)
+                        allocate(panels(N_panels))
+                        call panels(1)%init(vertices(1), vertices(2), vertices(3), 1, .false.) !    top, right, forward
+                        call panels(2)%init(vertices(1), vertices(3), vertices(4), 2, .false.) !    top, right,     aft 
+                        call panels(3)%init(vertices(1), vertices(4), vertices(5), 3, .false.) !    top,  left,     aft
+                        call panels(4)%init(vertices(1), vertices(5), vertices(2), 4, .false.) !    top,  left, forward
+
+                        call panels(5)%init(vertices(6), vertices(2), vertices(3), 5, .false.) ! bottom, right, forward
+                        call panels(6)%init(vertices(6), vertices(3), vertices(4), 6, .false.) ! bottom, right,     aft
+                        call panels(7)%init(vertices(6), vertices(4), vertices(5), 7, .false.) ! bottom,  left,     aft
+                        call panels(8)%init(vertices(6), vertices(5), vertices(2), 8, .false.) ! bottom,  left, forward
+                        
+                        call panels(index)%init_with_flow(freestream, .false., 0)
+
+                        ! put the x y or z component of the panel's perturbed edge outward normal unit vector in a list
+                        vertices_ls_up(j + (i-1)*N_verts) = panels(index)%vertices_ls(n,m)
+
+                        ! perturb down the current design variable
+                        vertices(j)%loc(i) = vertices(j)%loc(i) - 2.*step
+
+                    
+                        ! update panel edge outward normal unit vector calculations
+                        deallocate(panels)
+                        allocate(panels(N_panels))
+                        call panels(1)%init(vertices(1), vertices(2), vertices(3), 1, .false.) !    top, right, forward
+                        call panels(2)%init(vertices(1), vertices(3), vertices(4), 2, .false.) !    top, right,     aft 
+                        call panels(3)%init(vertices(1), vertices(4), vertices(5), 3, .false.) !    top,  left,     aft
+                        call panels(4)%init(vertices(1), vertices(5), vertices(2), 4, .false.) !    top,  left, forward
+
+                        call panels(5)%init(vertices(6), vertices(2), vertices(3), 5, .false.) ! bottom, right, forward
+                        call panels(6)%init(vertices(6), vertices(3), vertices(4), 6, .false.) ! bottom, right,     aft
+                        call panels(7)%init(vertices(6), vertices(4), vertices(5), 7, .false.) ! bottom,  left,     aft
+                        call panels(8)%init(vertices(6), vertices(5), vertices(2), 8, .false.) ! bottom,  left, forward
+                        
+                        call panels(index)%init_with_flow(freestream, .false., 0)
+                        
+                        ! put the x y or z component of the panel's perturbed edge outward normal unit vector in a list
+                        vertices_ls_dn(j + (i-1)*N_verts) = panels(index)%vertices_ls(n,m)
+                    
+                        ! restore geometry
+                        vertices(j)%loc(i) = vertices(j)%loc(i) + step
+                        
+                        
+
+                    end do 
+                end do 
+
+                ! central difference 
+                d_vertices_ls_FD(:) = (vertices_ls_up - vertices_ls_dn)/(2.*step)
+
+            ! end do
+
+            ! write results
+            write(*,*) ""
+            if (n==1) then
+                write(*,'(A, I1, A)') "  d_vertices_ls_FD panel 1 (vertex ", m, " xi coordinate)"
+            else 
+                write(*,'(A, I1, A)') "  d_vertices_ls_FD panel 1 (vertex ", m, " eta coordinate)"
+            end if
+            do i = 1, N_verts*3
+                write(*, '(f14.10)') d_vertices_ls_FD(i)
+            end do 
+        
+
+
+            !!!!!!!!!! ADJOINT d_vertices_ls (edge m)!!!!!!!!!!!!!
+            write(*,*) ""
+            write(*,*) "------------------------------------------------"
+            write(*,*) ""
+            if (n==1) then
+                write(*,'(A, I1, A)') "  ADJOINT d_vertices_ls (vertex ", m, " xi coordinate)"
+            else 
+                write(*,'(A, I1, A)') "  ADJOINT d_vertices_ls (vertex ", m, " eta coordinate)"
+            end if
+            
+            write(*,*) ""
+
+
+            ! Re init the body
+            deallocate(panels)
+            allocate(panels(N_panels))
+            call panels(1)%init(vertices(1), vertices(2), vertices(3), 1, .false.) !    top, right, forward
+            call panels(2)%init(vertices(1), vertices(3), vertices(4), 2, .false.) !    top, right,     aft 
+            call panels(3)%init(vertices(1), vertices(4), vertices(5), 3, .false.) !    top,  left,     aft
+            call panels(4)%init(vertices(1), vertices(5), vertices(2), 4, .false.) !    top,  left, forward
+
+            call panels(5)%init(vertices(6), vertices(2), vertices(3), 5, .false.) ! bottom, right, forward
+            call panels(6)%init(vertices(6), vertices(3), vertices(4), 6, .false.) ! bottom, right,     aft
+            call panels(7)%init(vertices(6), vertices(4), vertices(5), 7, .false.) ! bottom,  left,     aft
+            call panels(8)%init(vertices(6), vertices(5), vertices(2), 8, .false.) ! bottom,  left, forward
+            
+            call panels(1)%init_with_flow(freestream, .false., 0)
+
+            ! calculate d_vertices_ls 
+            call panels(index)%init_adjoint(freestream)
+
+            
+            ! write sparse matrix
+            write(*,*) ""
+            if (n==1) then
+                write(*,'(A, I1, A)') "  d_vertices_ls panel 1 (vertex", m, " xi coordinate)"
+            else 
+                write(*,'(A, I1, A)') "  d_vertices_ls panel 1 (vertex ", m, " eta coordinate)"
+            end if
+            write(*,*) "  d_area                  sparse_index       full_index"
+            do i=1,panels(index)%d_vertices_ls(n,m)%sparse_size
+                write(*,'(f14.10, 20x, I5, 12x, I5)') panels(index)%d_vertices_ls(n,m)%elements(i)%value, &
+                i, panels(index)%d_vertices_ls(n,m)%elements(i)%full_index
+            end do
+            write(*,*) ""
+
+            ! calculate residuals3
+            do i =1, N_verts*3
+                residuals(i) = panels(index)%d_vertices_ls(n,m)%get_value(i) - d_vertices_ls_FD(i)
+            end do
+
+            if (n==1) then
+                write(*,'(A, I1, A)') "  d_vertices_ls panel 1 (vertex", m, " xi coordinate) expanded"
+            else 
+                write(*,'(A, I1, A)') "  d_vertices_ls panel 1 (vertex ", m, " eta coordinate) expanded"
+            end if
+            write(*,*) "  adjoint value         residuals"
+            do i = 1, N_verts*3
+                write(*, '(f14.10,3x, f14.10)') panels(index)%d_vertices_ls(n,m)%get_value(i), residuals(i)
+            end do
+            write(*,*) ""
+
+
+            ! check if test failed
+            do i=1,N_verts*3
+                if (residuals(i) > 1.0e-8) then
+                    test_failed = .true.
+                    exit
+                else 
+                    test_failed = .false.
+                end if
+            end do
+            if (test_failed) then
+                total_tests = total_tests + 1
+                write(m_char,'(I1)') m
+
+                if (n==1) then
+                    failure_log(total_tests-passed_tests) = "d_vertices_ls (vertex "// trim(m_char) // ", xi coordinate) &
+                    test FAILED"
+                else 
+                    failure_log(total_tests-passed_tests) = "d_vertices_ls (vertex "// trim(m_char) // " eta coordinate) &
+                    test FAILED"
+                end if
+
+                write(*,*) failure_log(total_tests-passed_tests)
+            else
+                if (n==1) then
+                    write(*,'(A, I1, A)') "d_vertices_ls (vertex ",m," xi coordinate) test PASSED"
+                else
+                    write(*,'(A, I1, A)') "d_vertices_ls (vertex ",m," eta coordinate) test PASSED" 
+                end if
+               
+                passed_tests = passed_tests + 1
+                total_tests = total_tests + 1
+            end if
+            test_failed = .false.
+            write(*,*) "" 
+            write(*,*) ""
+        
+        ! end "n" loop    
+        end do
+
+    ! end "m"" loop
     end do
 
 
