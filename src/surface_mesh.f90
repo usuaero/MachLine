@@ -2657,31 +2657,38 @@ contains
 
 
     subroutine surface_mesh_init_adjoint(this, freestream)
-        ! if adjoint calculation is true, this will initialize the vertex associated components
-    
-            implicit none 
-    
-            class(surface_mesh),intent(inout) :: this
-            type(flow),intent(in) :: freestream
+    ! if adjoint calculation is true, this will initialize the vertex associated components
 
-            integer :: i
-            
-            ! init vertex attribute d_loc
-            do i=1,this%N_verts
-                
-                ! init vertex sensitivities
-                call this%vertices(i)%init_adjoint(this%N_verts)
-                
-            end do
+        implicit none 
 
-            do i=1,this%N_panels
+        class(surface_mesh),intent(inout) :: this
+        type(flow),intent(in) :: freestream
 
-                ! init panel sensitivities
-                call this%panels(i)%init_adjoint(freestream)
+        integer :: i
         
-            end do
+        ! init vertex attribute d_loc
+        do i=1,this%N_verts
             
-        end subroutine surface_mesh_init_adjoint
+            ! init vertex sensitivities
+            call this%vertices(i)%init_adjoint(this%N_verts)
+            
+        end do
+
+        do i=1,this%N_panels
+
+            ! init panel sensitivities
+            call this%panels(i)%init_adjoint()
+
+        end do
+
+        do i=1,this%N_panels
+
+            ! init panel with flow sensitivities
+            call this%panels(i)%init_with_flow_adjoint(freestream)
+
+        end do
+        
+    end subroutine surface_mesh_init_adjoint
 
 
     subroutine surface_mesh_get_induced_velocities_at_point(this, point,  freestream, v_d, v_s)

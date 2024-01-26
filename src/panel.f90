@@ -3974,7 +3974,7 @@ contains
     end function panel_get_moment_about_centroid
 
 
-    subroutine panel_init_adjoint(this, freestream)
+    subroutine panel_init_adjoint(this)
         ! calculates the sensitivities associated with a panel
     
         implicit none
@@ -3985,8 +3985,6 @@ contains
         ! calc sensitivities of derived geometry
         call this%calc_derived_geom_adjoint()
 
-        ! sensitivities of flow dependent terms
-        call this%init_with_flow_adjoint(freestream)
     
     end subroutine panel_init_adjoint
 
@@ -4197,7 +4195,10 @@ contains
         call this%calc_d_vertices_ls()
 
         ! calc sensitivities of local scaled n_hat (outward normal edge vectors)
-        call this%calc_d_n_hat_ls(freestream)
+        call this%calc_d_n_hat_ls()
+
+        ! calc sensitivities of transformation matrix of strength space M to parameter space mu transformation
+        call this%calc_d_M_mu_transform()
     
     end subroutine panel_init_with_flow_adjoint
 
@@ -4445,83 +4446,71 @@ contains
     end subroutine panel_calc_d_vertices_ls
 
 
-    subroutine panel_calc_d_n_hat_ls(this, freestream)
+    subroutine panel_calc_d_n_hat_ls(this)
 
         implicit none
 
         class(panel),intent(inout) :: this
-        type(flow),intent(in) :: freestream
 
         real,dimension(2) :: d_ls
         real,dimension(:,:),allocatable :: t_hat_ls
-        integer :: i, i_next
+        integer :: i, i_next, j
 
-        type(sparse_vector),dimension(2) :: d_d_ls, d_norm_d_ls
-        type(sparse_vector),dimension(2,3) :: d_t_hat_ls
+        type(sparse_vector),dimension(3) :: d_norm
+        type(sparse_vector),dimension(2,3) :: d_d_ls, a, b, d_t_hat_ls
 
+        allocate(t_hat_ls(2,this%N))
 
         ! Loop through edges
         do i=1,this%N
 
             i_next = mod(i, this%N)+1
 
-            ! Calculate tangent in local scaled coords 
+            ! Calculate tangent in local scaled coords (from original calc_ls_edge_vectors) 
             d_ls = this%vertices_ls(:,i_next) - this%vertices_ls(:,i)
             t_hat_ls(:,i) = d_ls/norm2(d_ls)
 
-            do j=1,2
+            do j=1,2     ! j=1 => xi     j=1 => eta
 
+                ! calc d_d_ls = derivative of the distance between points in local scalsed coordinates
+                ! edge i (xi coordinate when j=1), (eta coordinate when j=2)
                 call d_d_ls(j,i)%init_from_sparse_vector(this%d_vertices_ls(j,i_next))
                 call d_d_ls(j,i)%sparse_subtract(this%d_vertices_ls(j,i)) 
-
-                d_norm_d_ls(j) =  
+                
+                ! a(:, i) is used in computing d_norm (i)
+                call a(j,i)%init_from_sparse_vector(d_d_ls(j,i))
+                call a(j,i)%broadcast_element_times_scalar(d_ls(j)/norm2(d_ls))
                 
             end do
 
+            ! d_norm is used for d_t_hat_g xi AND eta coordinates
+            call d_norm(i)%init_from_sparse_vector(a(1,i))
+            call d_norm(i)%sparse_add(a(2,i)) 
+
+            do j = 1,2   ! j=1 => xi     j=1 => eta
+
+                ! b(j) = d_norm(i) times d_ls(j)
+                call b(j,i)%init_from_sparse_vector(d_norm(i))
+                call b(j,i)%broadcast_element_times_scalar(d_ls(j))
+                
+                ! calc  d_t_hat_ls for edge i (xi coordinate when j=1), (eta coordinate when j=2)
+                call d_t_hat_ls(j,i)%init_from_sparse_vector(d_d_ls(j,i))
+                call d_t_hat_ls(j,i)%broadcast_element_times_scalar(norm2(d_ls))
+                call d_t_hat_ls(j,i)%sparse_subtract(b(j,i))
+                call d_t_hat_ls(j,i)%broadcast_element_times_scalar(1.0/(norm2(d_ls)*norm2(d_ls)))
+
+            end do
+
+            ! this%d_n_hat_ls (xi coordinate) = d_t_hat_g (eta coordinate )
+            call this%d_n_hat_ls(1,i)%init_from_sparse_vector(d_t_hat_ls(2,i))
+
+            ! this%d_n_hat_ls (eta coordinate) = -d_t_hat_g (xi coordinate ) NOTE the negative
+            call this%d_n_hat_ls(2,i)%init_from_sparse_vector(d_t_hat_ls(1,i))
+            call this%d_n_hat_ls(2,i)%broadcast_element_times_scalar(-1.)
             
 
         end do
 
-
-
-
-        ! Allocate memory
-        allocate(t_hat_ls(2,this%N))
-        allocate(this%n_hat_ls(2,this%N))
-        allocate(this%b(this%N))
-        allocate(this%b_mir(this%N)) ! This needs to be initialized here because of some DoD checks. It will have no effect.
-        allocate(this%sqrt_b(this%N))
-
-        ! Loop through edges
-        do i=1,this%N
-
-            i_next = mod(i, this%N)+1
-
-            ! Calculate tangent in local scaled coords 
-            d_ls = this%vertices_ls(:,i_next) - this%vertices_ls(:,i)
-            t_hat_ls(:,i) = d_ls/norm2(d_ls)
-
-        end do
-
-        ! Calculate edge normal in local scaled coords E&M Eq. (J.6.45)
-        this%n_hat_ls(1,:) = t_hat_ls(2,:)
-        this%n_hat_ls(2,:) = -t_hat_ls(1,:)
-
-        ! Calculate edge parameter (Ehlers Eq. (E14))
-        ! This really only matters for subinclined, supersonic panels
-        ! But we set defaults for the other cases to make unified calcs work
-        if (freestream%supersonic) then
-            if (this%r > 0) then
-                this%b = (this%n_hat_ls(1,:) - this%n_hat_ls(2,:))*(this%n_hat_ls(1,:) + this%n_hat_ls(2,:))
-                this%sqrt_b = sqrt(abs(this%b))
-            else
-                this%b = 1.
-                this%sqrt_b = 1.
-            end if
-        else
-            this%b = -1.
-            this%sqrt_b = 1.
-        end if
     
     end subroutine panel_calc_d_n_hat_ls
 
