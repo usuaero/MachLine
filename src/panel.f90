@@ -73,9 +73,10 @@ module panel_mod
         !!!!!!!!! ADJOINT !!!!!!!!!
         type(sparse_vector) :: d_A !d_radius
         type(sparse_matrix) :: d_n_g, d_centr
-        type(sparse_matrix),dimension(3) :: d_n_hat_g, d_A_g_to_ls, d_A_ls_to_g
+        type(sparse_matrix),dimension(3) :: d_n_hat_g, d_A_g_to_ls, d_A_ls_to_g, d_T_mu
 
         type(sparse_vector),dimension(2,3) :: d_vertices_ls, d_n_hat_ls
+        
 
         
 
@@ -202,18 +203,20 @@ module panel_mod
             ! adjoint panel geom
             procedure :: init_adjoint => panel_init_adjoint
             procedure :: calc_derived_geom_adjoint => panel_calc_derived_geom_adjoint
-            procedure :: init_with_flow_adjoint => panel_init_with_flow_adjoint
 
             ! adjoint derived geometry terms
             procedure :: calc_d_normal_and_d_area => panel_calc_d_normal_and_d_area
             procedure :: calc_d_centr => panel_calc_d_centr
             procedure :: calc_d_n_hat_g => panel_calc_d_n_hat_g
-
+            
             ! adjoint flow dependent terms
+            procedure :: init_with_flow_adjoint => panel_init_with_flow_adjoint
+
             procedure :: calc_d_A_g_to_ls => panel_calc_d_A_g_to_ls
             procedure :: calc_d_A_ls_to_g => panel_calc_d_A_ls_to_g
             procedure :: calc_d_vertices_ls => panel_calc_d_vertices_ls
             procedure :: calc_d_n_hat_ls => panel_calc_d_n_hat_ls
+            procedure :: calc_d_M_mu_transform => panel_calc_d_M_mu_transform
 
 
     end type panel
@@ -3980,11 +3983,9 @@ contains
         implicit none
 
         class(panel),intent(inout) :: this
-        type(flow),intent(in) :: freestream
 
         ! calc sensitivities of derived geometry
         call this%calc_derived_geom_adjoint()
-
     
     end subroutine panel_init_adjoint
 
@@ -4140,37 +4141,6 @@ contains
             deallocate(d_norm_d_g_times_d_g%columns)
             deallocate(d_t_hat_g%columns)
 
-            ! !!!!!!!!!!!!!!!!!!!! FOR TESTING 
-
-            ! ! broadcast t_hat_g cross d_n_g
-            ! this%t_cross_dn(i) = this%d_n_g%broadcast_vector_cross_element(t_hat_g)
-            
-            ! ! calculate d_d_g = derivative of the edge vector
-            ! call this%d_d_g(i)%init_from_sparse_matrix(this%vertices(i_next)%ptr%d_loc)
-            ! call this%d_d_g(i)%sparse_subtract(this%vertices(i)%ptr%d_loc)
-            
-            
-
-            ! ! calculate d_norm_d_g = [(d_d_g dot d_g)/norm_d_g]
-            ! this%d_norm_d_g(i) = this%d_d_g(i)%broadcast_vector_dot_element(d_g)
-            ! call this%d_norm_d_g(i)%broadcast_element_times_scalar(1.0/norm_d_g)
-
-            ! ! calculate d_norm_d_g_times_d_g = (d_norm_d_g times d_g)
-            ! d_norm_d_g_times_d_g = this%d_norm_d_g(i)%broadcast_element_times_vector(d_g)
-
-            ! call this%d_t_hat_g(i)%init_from_sparse_matrix(this%d_d_g(i))
-            ! call this%d_t_hat_g(i)%broadcast_element_times_scalar(norm_d_g)
-            ! call this%d_t_hat_g(i)%sparse_subtract(d_norm_d_g_times_d_g)
-            ! call this%d_t_hat_g(i)%broadcast_element_times_scalar(1.0/inner(d_g,d_g))
-
-            ! ! calculate d_n_hat_g
-            ! this%dt_cross_n(i) = this%d_t_hat_g(i)%broadcast_element_cross_vector(this%n_g)
-
-            ! call this%d_n_hat_g(i)%init_from_sparse_matrix(this%dt_cross_n(i))
-            ! call this%d_n_hat_g(i)%sparse_add(this%t_cross_dn(i)) 
-
-            ! ! copy result to panel attribute 
-            ! !call this%d_n_hat_g(i)%init_from_sparse_matrix(d_n_hat_g)
         end do
         
 
@@ -4187,7 +4157,7 @@ contains
 
         ! calc sensitivity of A_g_to_ls WRT design variables X(beta) 
         call this%calc_d_A_g_to_ls(freestream)
-
+        
         ! calc sensitivity of A_ls_to_g WRT design variables
         call this%calc_d_A_ls_to_g()
         
@@ -4198,7 +4168,7 @@ contains
         call this%calc_d_n_hat_ls()
 
         ! calc sensitivities of transformation matrix of strength space M to parameter space mu transformation
-        call this%calc_d_M_mu_transform()
+        !call this%calc_d_M_mu_transform()
     
     end subroutine panel_init_with_flow_adjoint
 
@@ -4362,17 +4332,15 @@ contains
         ! d_A_inv = -[A_inv][d_A][A_inv]
 
         do i= 1,3
-
             do j = 1,3
                 
                 ! calc dA_times_Ainv  = [d_A][A_inv]
                 dA_times_Ainv(i,j) = this%d_A_g_to_ls(i)%broadcast_vector_dot_element(this%A_ls_to_g(:,j))
 
             end do
-
         end do
-
-        ! convert dA_times_Ainv into a sparse_matrix dimension 3
+        
+        ! convert dA_times_Ainv into a sparse_matrix dimension 3 
         do i = 1,3
 
             call x(i)%init_from_sparse_vectors(dA_times_Ainv(1,i), dA_times_Ainv(2,i), dA_times_Ainv(3,i))
@@ -4380,14 +4348,12 @@ contains
         end do
 
         do i= 1,3
-
             do j = 1,3
 
                 ! calc dA_inv  = -[A_inv][dA_times_Ainv]
                 d_A_inv(i,j) = x(j)%broadcast_vector_dot_element(-this%A_ls_to_g(i,:))
 
             end do
-
         end do
 
         do i = 1,3
@@ -4513,6 +4479,75 @@ contains
 
     
     end subroutine panel_calc_d_n_hat_ls
+
+
+    subroutine panel_calc_d_M_mu_transform(this)
+
+        implicit none
+
+        class(panel),intent(inout) :: this
+
+        real,dimension(:,:),allocatable :: S_mu, S_mu_inv,  T_mu
+
+        integer :: i,j
+
+        type(sparse_vector) :: zeros
+        type(sparse_vector), dimension(3,3) ::  dS_times_Sinv, d_S_inv
+        type(sparse_matrix), dimension(3) :: d_S, x
+
+        ! make a sparse vector of zeros with the correct full size
+        call zeros%init(this%d_vertices_ls(1,1)%full_size)
+
+        ! build the d_S sparse_vector 3x3
+        do i = 1,3
+
+            call d_S(i)%init_from_sparse_vectors(zeros, this%d_vertices_ls(1,i), this%d_vertices_ls(2,i))
+
+        end do
+
+        !                Build the d_S_mu_inv sparse vector 3x3
+        !-------------------------------------------------------------------
+        !     S = S_mu                      d_S     = derivative of S_mu
+        !     S_inv = this%S_mu_inv      d_S_mu_inv = derivative of this%S_mu_inv
+
+        !     d_S_mu_inv = -[this%S_mu_inv][d_S_mu][this%S_mu_inv]
+        !-------------------------------------------------------------------
+
+        ! calc d_S_mu_inv
+        do i= 1,3
+            do j = 1,3
+                
+                ! calc dS_times_Sinv  = [d_S][S_inv]
+                dS_times_Sinv(i,j) = d_S(i)%broadcast_vector_dot_element(this%S_mu_inv(:,j))
+
+            end do
+        end do
+
+        ! convert dS_times_Sinv into a sparse_matrix dimension 3 
+        do i = 1,3
+
+            call x(i)%init_from_sparse_vectors(dS_times_Sinv(1,i), dS_times_Sinv(2,i), dS_times_Sinv(3,i))
+            
+        end do
+
+        do i= 1,3
+            do j = 1,3
+
+                ! calc dS_inv  = -[A_inv][dA_times_Ainv]
+                d_S_inv(i,j) = x(j)%broadcast_vector_dot_element(-this%S_mu_inv(i,:))
+
+            end do
+        end do
+
+        do i = 1,3
+
+            ! set d_T_mu equal to d_S_inv and convertit to a sparse_matrix dimension 3 panel attribute
+            call this%d_T_mu(i)%init_from_sparse_vectors(d_S_inv(i,1), d_S_inv(i,2), d_S_inv(i,3))
+
+        end do
+
+    
+    end subroutine panel_calc_d_M_mu_transform
 
    
 end module panel_mod

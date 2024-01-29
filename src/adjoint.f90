@@ -1029,9 +1029,8 @@ contains
         ! set full and sparse column numbers/size
         result_vector%full_size = this%full_num_cols
         result_vector%sparse_size = this%sparse_num_cols
-
         ! allocate result matrix elements
-        allocate(result_vector%elements(size(this%columns)))
+        allocate(result_vector%elements(result_vector%sparse_size))
 
         ! go through each sparse column index
         do i=1,this%sparse_num_cols
