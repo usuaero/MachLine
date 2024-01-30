@@ -4168,7 +4168,7 @@ contains
         call this%calc_d_n_hat_ls()
 
         ! calc sensitivities of transformation matrix of strength space M to parameter space mu transformation
-        !call this%calc_d_M_mu_transform()
+        call this%calc_d_M_mu_transform()
     
     end subroutine panel_init_with_flow_adjoint
 
@@ -4487,8 +4487,6 @@ contains
 
         class(panel),intent(inout) :: this
 
-        real,dimension(:,:),allocatable :: S_mu, S_mu_inv,  T_mu
-
         integer :: i,j
 
         type(sparse_vector) :: zeros
@@ -4504,7 +4502,7 @@ contains
             call d_S(i)%init_from_sparse_vectors(zeros, this%d_vertices_ls(1,i), this%d_vertices_ls(2,i))
 
         end do
-
+        write(*,*) "check after d_S"
         !                Build the d_S_mu_inv sparse vector 3x3
         !-------------------------------------------------------------------
         !     S = S_mu                      d_S     = derivative of S_mu
@@ -4516,20 +4514,20 @@ contains
         ! calc d_S_mu_inv
         do i= 1,3
             do j = 1,3
-                
+                write(*,*) "check before dS_times_Sinv", i, j
                 ! calc dS_times_Sinv  = [d_S][S_inv]
                 dS_times_Sinv(i,j) = d_S(i)%broadcast_vector_dot_element(this%S_mu_inv(:,j))
-
+                write(*,*) "check before dS_times_Sinv", i, j
             end do
         end do
-
+        write(*,*) "check after d_S_times_Sinv"
         ! convert dS_times_Sinv into a sparse_matrix dimension 3 
         do i = 1,3
 
             call x(i)%init_from_sparse_vectors(dS_times_Sinv(1,i), dS_times_Sinv(2,i), dS_times_Sinv(3,i))
             
         end do
-
+        write(*,*) "check after x"
         do i= 1,3
             do j = 1,3
 
@@ -4538,14 +4536,14 @@ contains
 
             end do
         end do
-
+        write(*,*) "check after d_S_inv"
         do i = 1,3
 
             ! set d_T_mu equal to d_S_inv and convertit to a sparse_matrix dimension 3 panel attribute
             call this%d_T_mu(i)%init_from_sparse_vectors(d_S_inv(i,1), d_S_inv(i,2), d_S_inv(i,3))
 
         end do
-
+        write(*,*) "check after d_T_mu"
     
     end subroutine panel_calc_d_M_mu_transform
 

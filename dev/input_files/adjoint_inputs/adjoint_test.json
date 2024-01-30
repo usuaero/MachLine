@@ -1,0 +1,44 @@
+{
+    "flow": {
+        "freestream_velocity" : [ 100.0, 0.0, 0.0 ],
+        "freestream_mach_number" : 0.293864405086 
+    },
+    "geometry": {
+        "file": "C:/Users/Josh/Documents/AeroLab_Projects/MachLine/dev/meshes/Wake/testOctaMeshA1.stl",
+        "singularity_order" : "lower",
+        "spanwise_axis" : "+y",
+        "reference" : {
+            "xarea_use_this_for_the_testOctaMesh.stl" : 75.39075,
+            "xarea" : 75.39075,
+            "area" : 1
+        },
+        "wake_model" : {
+            "wake_present" : true,
+            "append_wake" : true,
+            "trefftz_distance" : 20.0,
+            "wake_type": "filaments",
+            "N_panels" : 1
+        }
+    },
+    "solver": {
+        "formulation" : "neumann-mass-flux-VCP",
+        "yformulation" : "neumann-mass-flux",
+        "xformulation" : "dirichlet-morino",
+        "matrix_solver" : "HHLS",
+        "xmatrix_solver" : "GMRES",
+        "ymatrix_solver" : "LU",
+        "write_A_and_b" : true
+    },
+    "post_processing" : {
+    },
+    "output": {
+        "body_file" :          "dev/results/wake/OctaMesh.vtk",
+        "wake_file" :          "dev/results/wake/OctaMesh_wake.vtk",
+        "control_point_file" : "dev/results/wake/OctaMesh_control_points.vtk",
+        "report_file" :        "dev/results/wake/OctaMesh.json",
+        "ffbody_points" : {
+            "points_file" : "dev/input_files/delta_wing_slice_sample_points.csv",
+            "output_file" : "dev/results/delta_wing_slice_sample_points.csv"
+        }
+    }
+}

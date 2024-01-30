@@ -878,163 +878,163 @@ program gradient_test
 
 
 
-! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST d_T_mu !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!     write(*,*) "---------------------------------- TEST d_T_mu ----------------------------------"
-!     write(*,*) ""
-!     write(*,*) "the sensitivity of the global to ls transformation matrix for panel 1 WRT each design variable"
-!     write(*,*) ""
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST d_T_mu !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    write(*,*) "---------------------------------- TEST d_T_mu ----------------------------------"
+    write(*,*) ""
+    write(*,*) "the sensitivity of the global to ls transformation matrix for panel 1 WRT each design variable"
+    write(*,*) ""
     
-!     ! allocate central difference variables
-!     allocate(T_mu_up(N_verts*3))
-!     allocate(T_mu_dn(N_verts*3))
-!     allocate(d_T_mu_FD(3,N_verts*3,3))
+    ! allocate central difference variables
+    allocate(T_mu_up(N_verts*3))
+    allocate(T_mu_dn(N_verts*3))
+    allocate(d_T_mu_FD(3,N_verts*3,3))
 
     
 
 
-!     ! do for each row of T_mu
-!     do m=1,3
+    ! do for each row of T_mu
+    do m=1,3
 
-!         !!!!!!!!! Finite Difference  d_T_mu (row m) !!!!!!!!!
-!         write(*,*) ""
-!         write(*,*) "------------------------------------------------"
-!         write(*,*) ""
-!         write(*,'(A, I1, A)') "  CENTRAL DIFFERENCE d_T_mu (row ", m, ")"
+        !!!!!!!!! Finite Difference  d_T_mu (row m) !!!!!!!!!
+        write(*,*) ""
+        write(*,*) "------------------------------------------------"
+        write(*,*) ""
+        write(*,'(A, I1, A)') "  CENTRAL DIFFERENCE d_T_mu (row ", m, ")"
 
-!         ! we want the sensitivity of the T_mu panel 1 row m WRT X(beta)
-!         index = 1
+        ! we want the sensitivity of the T_mu panel 1 row m WRT X(beta)
+        index = 1
 
-!         ! sensitivity to vertex 1
-!         step = 0.00001
+        ! sensitivity to vertex 1
+        step = 0.00001
 
-!         ! for each x, y, z of A_ls_to_g (row m) 
-!         do k=1,3
-!             ! do for each design variable
-!             do i=1,3
-!                 do j=1,N_verts
-!                     ! perturb up the current design variable
-!                     vertices(j)%loc(i) = vertices(j)%loc(i) + step
+        ! for each x, y, z of A_ls_to_g (row m) 
+        do k=1,3
+            ! do for each design variable
+            do i=1,3
+                do j=1,N_verts
+                    ! perturb up the current design variable
+                    vertices(j)%loc(i) = vertices(j)%loc(i) + step
                     
-!                     ! update panel geometry and calcs
-!                     deallocate(panels)
-!                     allocate(panels(N_panels))
-!                     call panels(1)%init(vertices(1), vertices(2), vertices(3), 1, .false.) !    top, right, forward
-!                     call panels(2)%init(vertices(1), vertices(3), vertices(4), 2, .false.) !    top, right,     aft 
-!                     call panels(3)%init(vertices(1), vertices(4), vertices(5), 3, .false.) !    top,  left,     aft
-!                     call panels(4)%init(vertices(1), vertices(5), vertices(2), 4, .false.) !    top,  left, forward
+                    ! update panel geometry and calcs
+                    deallocate(panels)
+                    allocate(panels(N_panels))
+                    call panels(1)%init(vertices(1), vertices(2), vertices(3), 1, .false.) !    top, right, forward
+                    call panels(2)%init(vertices(1), vertices(3), vertices(4), 2, .false.) !    top, right,     aft 
+                    call panels(3)%init(vertices(1), vertices(4), vertices(5), 3, .false.) !    top,  left,     aft
+                    call panels(4)%init(vertices(1), vertices(5), vertices(2), 4, .false.) !    top,  left, forward
 
-!                     call panels(5)%init(vertices(6), vertices(2), vertices(3), 5, .false.) ! bottom, right, forward
-!                     call panels(6)%init(vertices(6), vertices(3), vertices(4), 6, .false.) ! bottom, right,     aft
-!                     call panels(7)%init(vertices(6), vertices(4), vertices(5), 7, .false.) ! bottom,  left,     aft
-!                     call panels(8)%init(vertices(6), vertices(5), vertices(2), 8, .false.) ! bottom,  left, forward
+                    call panels(5)%init(vertices(6), vertices(2), vertices(3), 5, .false.) ! bottom, right, forward
+                    call panels(6)%init(vertices(6), vertices(3), vertices(4), 6, .false.) ! bottom, right,     aft
+                    call panels(7)%init(vertices(6), vertices(4), vertices(5), 7, .false.) ! bottom,  left,     aft
+                    call panels(8)%init(vertices(6), vertices(5), vertices(2), 8, .false.) ! bottom,  left, forward
                     
-!                     call panels(index)%init_with_flow(freestream, .false., 0)
+                    call panels(index)%init_with_flow(freestream, .false., 0)
 
-!                     ! put the x y or z component of the panel's perturbed edge outward normal unit vector in a list
-!                     T_mu_up(j + (i-1)*N_verts) = panels(index)%A_ls_to_g(m,k)
+                    ! put the x y or z component of the panel's perturbed edge outward normal unit vector in a list
+                    T_mu_up(j + (i-1)*N_verts) = panels(index)%T_mu(m,k)
 
-!                     ! perturb down the current design variable
-!                     vertices(j)%loc(i) = vertices(j)%loc(i) - 2.*step
+                    ! perturb down the current design variable
+                    vertices(j)%loc(i) = vertices(j)%loc(i) - 2.*step
 
                 
-!                     ! update panel geometry and calcs
-!                     deallocate(panels)
-!                     allocate(panels(N_panels))
-!                     call panels(1)%init(vertices(1), vertices(2), vertices(3), 1, .false.) !    top, right, forward
-!                     call panels(2)%init(vertices(1), vertices(3), vertices(4), 2, .false.) !    top, right,     aft 
-!                     call panels(3)%init(vertices(1), vertices(4), vertices(5), 3, .false.) !    top,  left,     aft
-!                     call panels(4)%init(vertices(1), vertices(5), vertices(2), 4, .false.) !    top,  left, forward
+                    ! update panel geometry and calcs
+                    deallocate(panels)
+                    allocate(panels(N_panels))
+                    call panels(1)%init(vertices(1), vertices(2), vertices(3), 1, .false.) !    top, right, forward
+                    call panels(2)%init(vertices(1), vertices(3), vertices(4), 2, .false.) !    top, right,     aft 
+                    call panels(3)%init(vertices(1), vertices(4), vertices(5), 3, .false.) !    top,  left,     aft
+                    call panels(4)%init(vertices(1), vertices(5), vertices(2), 4, .false.) !    top,  left, forward
 
-!                     call panels(5)%init(vertices(6), vertices(2), vertices(3), 5, .false.) ! bottom, right, forward
-!                     call panels(6)%init(vertices(6), vertices(3), vertices(4), 6, .false.) ! bottom, right,     aft
-!                     call panels(7)%init(vertices(6), vertices(4), vertices(5), 7, .false.) ! bottom,  left,     aft
-!                     call panels(8)%init(vertices(6), vertices(5), vertices(2), 8, .false.) ! bottom,  left, forward
+                    call panels(5)%init(vertices(6), vertices(2), vertices(3), 5, .false.) ! bottom, right, forward
+                    call panels(6)%init(vertices(6), vertices(3), vertices(4), 6, .false.) ! bottom, right,     aft
+                    call panels(7)%init(vertices(6), vertices(4), vertices(5), 7, .false.) ! bottom,  left,     aft
+                    call panels(8)%init(vertices(6), vertices(5), vertices(2), 8, .false.) ! bottom,  left, forward
                     
-!                     call panels(index)%init_with_flow(freestream, .false., 0)
+                    call panels(index)%init_with_flow(freestream, .false., 0)
                     
-!                     ! put the x y or z component of the panel's perturbed edge outward normal unit vector in a list
-!                     T_mu_dn(j + (i-1)*N_verts) = panels(index)%A_ls_to_g(m,k)
+                    ! put the x y or z component of the panel's perturbed edge outward normal unit vector in a list
+                    T_mu_dn(j + (i-1)*N_verts) = panels(index)%T_mu(m,k)
                 
-!                     ! restore geometry
-!                     vertices(j)%loc(i) = vertices(j)%loc(i) + step
+                    ! restore geometry
+                    vertices(j)%loc(i) = vertices(j)%loc(i) + step
                     
                     
 
-!                 end do 
-!             end do 
+                end do 
+            end do 
 
-!             ! central difference 
-!             d_T_mu_FD(m,:,k) = (T_mu_up - T_mu_dn)/(2.*step)
+            ! central difference 
+            d_T_mu_FD(m,:,k) = (T_mu_up - T_mu_dn)/(2.*step)
 
-!         end do
+        end do
 
-!         ! write results
-!         write(*,*) ""
-!         write(*,'(A, I1, A)') "          d_T_mu_FD panel 1 (row ", m, ")"
-!         write(*,*) "  d_T_mu_x           d_T_mu_y            d_T_mu_z "
-!         do i = 1, N_verts*3
-!             write(*, '(3(f14.10, 4x))') d_A_ls_to_g_FD(m,i, :)
-!         end do 
+        ! write results
+        write(*,*) ""
+        write(*,'(A, I1, A)') "          d_T_mu_FD panel 1 (row ", m, ")"
+        write(*,*) "  d_T_mu_x           d_T_mu_y            d_T_mu_z "
+        do i = 1, N_verts*3
+            write(*, '(3(f14.10, 4x))') d_T_mu_FD(m,i, :)
+        end do 
 
 
-!         !!!!!!!!!! ADJOINT d_T_mu (edge m)!!!!!!!!!!!!!
-!         write(*,*) ""
-!         write(*,*) "------------------------------------------------"
-!         write(*,*) ""
-!         write(*,'(A, I1, A)') "  ADJOINT d_T_mu (row ", m, ")"
-!         write(*,*) ""
+        !!!!!!!!!! ADJOINT d_T_mu (edge m)!!!!!!!!!!!!!
+        write(*,*) ""
+        write(*,*) "------------------------------------------------"
+        write(*,*) ""
+        write(*,'(A, I1, A)') "  ADJOINT d_T_mu (row ", m, ")"
+        write(*,*) ""
 
 
         
-!         ! write sparse matrix
-!         write(*,*) ""
-!         write(*,'(A, I1, A)') "          d_T_mu panel 1 (row ", m, ")"
-!         write(*,*) "  d_T_mu_x           d_T_mu_y           d_T_mu_z             sparse_index       full_index"
-!         do i=1,adjoint_panels(index)%d_T_mu(m)%sparse_num_cols
-!             write(*,'(3(f14.10, 4x), 12x, I5, 12x, I5)') adjoint_panels(index)%d_T_mu(m)%columns(i)%vector_values(:), &
-!             i, adjoint_panels(index)%d_T_mu(m)%columns(i)%full_index
-!         end do
-!         write(*,*) ""
+        ! write sparse matrix
+        write(*,*) ""
+        write(*,'(A, I1, A)') "          d_T_mu panel 1 (row ", m, ")"
+        write(*,*) "  d_T_mu_x           d_T_mu_y           d_T_mu_z             sparse_index       full_index"
+        do i=1,adjoint_panels(index)%d_T_mu(m)%sparse_num_cols
+            write(*,'(3(f14.10, 4x), 12x, I5, 12x, I5)') adjoint_panels(index)%d_T_mu(m)%columns(i)%vector_values(:), &
+            i, adjoint_panels(index)%d_T_mu(m)%columns(i)%full_index
+        end do
+        write(*,*) ""
 
-!         ! calculate residuals3
-!         do i =1, N_verts*3
-!             residuals3(:,i) = adjoint_panels(index)%d_T_mu(m)%get_values(i) - d_T_mu_FD(m,i,:)
-!         end do
+        ! calculate residuals3
+        do i =1, N_verts*3
+            residuals3(:,i) = adjoint_panels(index)%d_T_mu(m)%get_values(i) - d_T_mu_FD(m,i,:)
+        end do
 
-!         write(*,'(A, I1, A)') "         d_T_mu panel 1 (row ", m, ") expanded "
-!         write(*,*) "  d_T_mu_x           d_T_mu_y           d_T_mu_z                            residuals"
-!         do i = 1, N_verts*3
-!             write(*, '(3(f14.10, 4x),3x, 3(f14.10, 4x))') adjoint_panels(index)%d_T_mu(m)%get_values(i), residuals3(:,i)
-!         end do
-!         write(*,*) ""
+        write(*,'(A, I1, A)') "         d_T_mu panel 1 (row ", m, ") expanded "
+        write(*,*) "  d_T_mu_x           d_T_mu_y           d_T_mu_z                            residuals"
+        do i = 1, N_verts*3
+            write(*, '(3(f14.10, 4x),3x, 3(f14.10, 4x))') adjoint_panels(index)%d_T_mu(m)%get_values(i), residuals3(:,i)
+        end do
+        write(*,*) ""
 
 
-!         ! check if test failed
-!         do i=1,N_verts*3
-!             if (any(residuals3(:,i) > 1.0e-8)) then
-!                 test_failed = .true.
-!                 exit
-!             else 
-!                 test_failed = .false.
-!             end if
-!         end do
-!         if (test_failed) then
-!             total_tests = total_tests + 1
-!             write(m_char,'(I1)') m
-!             failure_log(total_tests-passed_tests) = "d_T_mu (row "// trim(m_char) // ") test FAILED"
-!             write(*,*) failure_log(total_tests-passed_tests)
-!         else
-!             write(*,'(A, I1, A)') "d_T_mu (row ",m,") test PASSED"
-!             passed_tests = passed_tests + 1
-!             total_tests = total_tests + 1
-!         end if
-!         test_failed = .false.
-!         write(*,*) "" 
-!         write(*,*) ""
+        ! check if test failed
+        do i=1,N_verts*3
+            if (any(residuals3(:,i) > 1.0e-8)) then
+                test_failed = .true.
+                exit
+            else 
+                test_failed = .false.
+            end if
+        end do
+        if (test_failed) then
+            total_tests = total_tests + 1
+            write(m_char,'(I1)') m
+            failure_log(total_tests-passed_tests) = "d_T_mu (row "// trim(m_char) // ") test FAILED"
+            write(*,*) failure_log(total_tests-passed_tests)
+        else
+            write(*,'(A, I1, A)') "d_T_mu (row ",m,") test PASSED"
+            passed_tests = passed_tests + 1
+            total_tests = total_tests + 1
+        end if
+        test_failed = .false.
+        write(*,*) "" 
+        write(*,*) ""
 
         
-!     ! end panel edge loop
-!     end do
+    ! end panel edge loop
+    end do
 
 
     !!!!!!!!!!!!!! FLOW-DEPENDENT PANEL SENSITIVITIES RESULTS!!!!!!!!!!!!!
