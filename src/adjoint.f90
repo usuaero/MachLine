@@ -680,7 +680,7 @@ contains
         
         ! copy array info
         temp_matrix%columns(1:new_size-1) = this%columns(:)
-
+        
         ! move allocation of temporary array and overwrite this
         call move_alloc(temp_matrix%columns, this%columns)
 

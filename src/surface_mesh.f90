@@ -48,6 +48,8 @@ module surface_mesh_mod
         character(len=:),allocatable :: wake_type 
         character(len=:),allocatable :: formulation !!!! could we use this instead, go to surface_mesh_parse_wake_settings to see  
 
+        ! adjoint
+        logical :: calc_adjoint  ! whether or not adjoint sensitivities should be calculated
 
         contains
 
@@ -63,6 +65,7 @@ module surface_mesh_mod
             procedure :: parse_singularity_settings => surface_mesh_parse_singularity_settings
             procedure :: parse_mirror_settings => surface_mesh_parse_mirror_settings
             procedure :: parse_wake_settings => surface_mesh_parse_wake_settings
+            procedure :: parse_adjoint_settings => surface_mesh_parse_adjoint_settings
 
             ! Initialization based on flow properties
             procedure :: init_with_flow => surface_mesh_init_with_flow
@@ -151,6 +154,9 @@ contains
         ! Load wake settings
         call this%parse_wake_settings(settings)
 
+        ! Load adjoint settings
+        call this%parse_adjoint_settings(settings)
+
         ! Store references
         call json_xtnsn_get(settings, 'reference.area', this%S_ref, 1.)
         call json_xtnsn_get(settings, 'reference.length', this%l_ref, 1.)
@@ -167,6 +173,11 @@ contains
 
         ! Calculate vertex geometries
         call this%calc_vertex_geometry()
+
+        ! if calc_adjoint was specifiec, init the adjoint calculations
+        if (this%calc_adjoint) then
+            call this%init_adjoint()
+        end if
 
     end subroutine surface_mesh_init
 
@@ -235,7 +246,7 @@ contains
         character(len=:),allocatable,intent(in) :: mesh_file
 
         logical :: file_exists
-        integer :: loc
+        integer :: loc, i
         character(len=:),allocatable :: extension
 
         ! Check mesh file exists
@@ -255,14 +266,15 @@ contains
         select case (extension)
 
         case ('.vtk')
-            call load_surface_vtk(mesh_file, this%N_verts, this%N_panels, this%vertices, this%panels)
-            
+            call load_surface_vtk(mesh_file, this%calc_adjoint, this%N_verts, this%N_panels, this%vertices, this%panels)
+
         case (".stl")
-            call load_surface_stl(mesh_file, this%N_verts, this%N_panels, this%vertices, this%panels)
+            call load_surface_stl(mesh_file, this%calc_adjoint, this%N_verts, this%N_panels, this%vertices, this%panels)
 
         case ('.tri')
-            call load_surface_tri(mesh_file, this%N_verts, this%N_panels, this%vertices, this%panels)
+            call load_surface_tri(mesh_file, this%calc_adjoint, this%N_verts, this%N_panels, this%vertices, this%panels)
             
+        
         case default
             write(*,*) "MachLine cannot read ", extension, " type mesh files. Quitting..."
             stop
@@ -339,6 +351,21 @@ contains
         end if
         
     end subroutine surface_mesh_parse_wake_settings
+
+
+    subroutine surface_mesh_parse_adjoint_settings(this, settings)
+
+        implicit none
+        
+        class(surface_mesh),intent(inout) :: this
+        type(json_value),pointer,intent(in) :: settings
+
+
+        ! Check if the user wants a wake
+        call json_xtnsn_get(settings, 'adjoint_sensitivities.calc_adjoint', this%calc_adjoint, .false.)
+
+        
+    end subroutine surface_mesh_parse_adjoint_settings
 
 
     subroutine surface_mesh_find_vertices_on_mirror(this)
@@ -2656,13 +2683,12 @@ contains
     end subroutine surface_mesh_get_induced_potentials_at_point
 
 
-    subroutine surface_mesh_init_adjoint(this, freestream)
+    subroutine surface_mesh_init_adjoint(this)
     ! if adjoint calculation is true, this will initialize the vertex associated components
 
         implicit none 
 
         class(surface_mesh),intent(inout) :: this
-        type(flow),intent(in) :: freestream
 
         integer :: i
         
@@ -2681,12 +2707,6 @@ contains
 
         end do
 
-        do i=1,this%N_panels
-
-            ! init panel with flow sensitivities
-            call this%panels(i)%init_with_flow_adjoint(freestream)
-
-        end do
         
     end subroutine surface_mesh_init_adjoint
 

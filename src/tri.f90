@@ -10,13 +10,14 @@ module tri_mod
 contains
 
 
-    subroutine load_surface_tri(mesh_file, N_verts, N_panels, vertices, panels)
+    subroutine load_surface_tri(mesh_file, calc_adjoint, N_verts, N_panels, vertices, panels)
         ! Loads a surface mesh from a tri file. Only a body.
         ! Needs to be updated to automatically delete duplicate vertices.
 
         implicit none
 
         character(len=:),allocatable,intent(in) :: mesh_file
+        logical,intent(in) :: calc_adjoint
         integer,intent(out) :: N_verts, N_panels
         type(vertex),dimension(:),allocatable,intent(out) :: vertices
         type(panel),dimension(:),allocatable,intent(out) :: panels
@@ -94,6 +95,17 @@ contains
                 call panels(i)%init(vertices(new_ind(i1)), vertices(new_ind(i2)), vertices(new_ind(i3)), i)
 
             end do
+
+            ! if calc_adjoint, init panel adjoints
+            if (calc_adjoint) then
+
+                do i=1, N_panels
+                    
+                    call panels(i)%init_adjoint()
+
+                end do
+            
+            end if
 
         close(unit)
 

@@ -4080,7 +4080,6 @@ contains
         ! scale by 1/3
         call this%d_centr%broadcast_element_times_scalar(1.0/3.0)
 
-
     end subroutine panel_calc_d_centr
 
 

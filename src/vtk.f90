@@ -492,12 +492,13 @@ contains
     end subroutine vtk_out_finish
 
 
-    subroutine load_surface_vtk(mesh_file, N_verts, N_panels, vertices, panels)
+    subroutine load_surface_vtk(mesh_file, calc_adjoint, N_verts, N_panels, vertices, panels)
         ! Loads a surface mesh from a vtk file. Only a body.
 
         implicit none
 
         character(len=:),allocatable,intent(in) :: mesh_file
+        logical,intent(in) :: calc_adjoint
         integer,intent(out) :: N_verts, N_panels
         type(vertex),dimension(:),allocatable,intent(out) :: vertices
         type(panel),dimension(:),allocatable,intent(out) :: panels
@@ -516,10 +517,10 @@ contains
         select case (ver)
 
         case (3)
-            call load_surface_vtk_ver_3(mesh_file, N_verts, N_panels, vertices, panels)
+            call load_surface_vtk_ver_3(mesh_file, calc_adjoint, N_verts, N_panels, vertices, panels)
 
         case (5)
-            call load_surface_vtk_ver_5(mesh_file, N_verts, N_panels, vertices, panels)
+            call load_surface_vtk_ver_5(mesh_file, calc_adjoint, N_verts, N_panels, vertices, panels)
 
         case default
             write(*,*) "!!! VTK file version ", ver, " not recognized. Quitting..."
@@ -530,12 +531,13 @@ contains
     end subroutine load_surface_vtk
 
 
-    subroutine load_surface_vtk_ver_3(mesh_file, N_verts, N_panels, vertices, panels)
+    subroutine load_surface_vtk_ver_3(mesh_file, calc_adjoint, N_verts, N_panels, vertices, panels)
         ! Loads a surface mesh from a vtk file version 3. Only a body.
 
         implicit none
 
         character(len=:),allocatable,intent(in) :: mesh_file
+        logical,intent(in) :: calc_adjoint
         integer,intent(out) :: N_verts, N_panels
         type(vertex),dimension(:),allocatable,intent(out) :: vertices
         type(panel),dimension(:),allocatable,intent(out) :: panels
@@ -594,20 +596,28 @@ contains
 
                 ! Initialize; need +1 because VTK uses 0-based indexing
                 call panels(i)%init(vertices(new_ind(i1+1)), vertices(new_ind(i2+1)), vertices(new_ind(i3+1)), i)
-
+                
+                ! if calc_adjoint, init panel adjoints
+                ! if (calc_adjoint) then
+                !     call panels(i)%init_adjoint()
+                ! end if
+                
             end do
+
+           
 
         close(unit)
     
     end subroutine load_surface_vtk_ver_3
 
 
-    subroutine load_surface_vtk_ver_5(mesh_file, N_verts, N_panels, vertices, panels)
+    subroutine load_surface_vtk_ver_5(mesh_file, calc_adjoint, N_verts, N_panels, vertices, panels)
         ! Loads a surface mesh from a vtk file. Only a body.
 
         implicit none
 
         character(len=:),allocatable,intent(in) :: mesh_file
+        logical,intent(in) :: calc_adjoint
         integer,intent(out) :: N_verts, N_panels
         type(vertex),dimension(:),allocatable,intent(out) :: vertices
         type(panel),dimension(:),allocatable,intent(out) :: panels
@@ -647,6 +657,7 @@ contains
 
             ! Find duplicates
             call collapse_duplicate_vertices(vertex_locs, vertices, N_verts, N_duplicates, new_ind)
+
 
             ! Get to start of polygons
             read(unit,'(a)') line
@@ -694,6 +705,13 @@ contains
                                       vertices(new_ind(vertex_inds(3)+1)), &
                                       ind)
 
+                ! ! if calc_adjoint, init panel adjoints
+                ! if (calc_adjoint) then
+
+                !     call panels(ind)%init_adjoint()
+            
+                ! end if
+
                 ! Move on to second panel
                 if (N_words > 3) then
                     ind = ind + 1
@@ -704,6 +722,13 @@ contains
                                           vertices(new_ind(vertex_inds(6)+1)), &
                                           ind)
 
+                    ! ! if calc_adjoint, init panel adjoints
+                    ! if (calc_adjoint) then
+
+                    !     call panels(ind)%init_adjoint()
+                
+                    ! end if
+
                     ! Move on to third panel
                     if (N_words > 6) then
                         ind = ind + 1
@@ -713,6 +738,13 @@ contains
                                               vertices(new_ind(vertex_inds(8)+1)), &
                                               vertices(new_ind(vertex_inds(9)+1)), &
                                               ind)
+
+                        ! ! if calc_adjoint, init panel adjoints
+                        ! if (calc_adjoint) then
+
+                        !     call panels(ind)%init_adjoint()
+                    
+                        ! end if
                     end if
                 end if
 
