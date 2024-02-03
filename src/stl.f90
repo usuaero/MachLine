@@ -8,13 +8,12 @@ module stl_mod
     
 contains
 
-    subroutine load_surface_stl(mesh_file, calc_adjoint, N_verts, N_panels, vertices, panels)
+    subroutine load_surface_stl(mesh_file, N_verts, N_panels, vertices, panels)
         ! Loads a surface mesh from an stl file
 
         implicit none
 
         character(len=:),allocatable,intent(in) :: mesh_file
-        logical,intent(in) :: calc_adjoint
         integer,intent(out) :: N_verts, N_panels
         type(vertex),dimension(:),allocatable,intent(out) :: vertices
         type(panel),dimension(:),allocatable,intent(out) :: panels
@@ -114,17 +113,6 @@ contains
             call panels(i)%init(vertices(i1), vertices(i2), vertices(i3), i)
 
         end do
-
-        ! if calc_adjoint, init panel adjoints
-        if (calc_adjoint) then
-
-            do i=1, N_panels
-                
-                call panels(i)%init_adjoint()
-
-            end do
-        
-        end if
 
     end subroutine load_surface_stl
 
@@ -238,7 +226,6 @@ contains
                 ! Initialize
                 j = new_ind(i)
                 call vertices(j)%init(vertex_locs(:,i), j)
-                ! call vertices(j)%init_adjoint(N_verts)
 
             end if
 

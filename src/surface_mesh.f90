@@ -112,6 +112,8 @@ module surface_mesh_mod
 
             ! adjoint
             procedure :: init_adjoint => surface_mesh_init_adjoint
+            procedure :: calc_d_vertex_geometry => surface_mesh_calc_d_vertex_geometry
+            procedure :: init_with_flow_adjoint => surface_mesh_init_with_flow_adjoint
 
 
             ! Post-processing
@@ -266,13 +268,13 @@ contains
         select case (extension)
 
         case ('.vtk')
-            call load_surface_vtk(mesh_file, this%calc_adjoint, this%N_verts, this%N_panels, this%vertices, this%panels)
+            call load_surface_vtk(mesh_file, this%N_verts, this%N_panels, this%vertices, this%panels)
 
         case (".stl")
-            call load_surface_stl(mesh_file, this%calc_adjoint, this%N_verts, this%N_panels, this%vertices, this%panels)
+            call load_surface_stl(mesh_file, this%N_verts, this%N_panels, this%vertices, this%panels)
 
         case ('.tri')
-            call load_surface_tri(mesh_file, this%calc_adjoint, this%N_verts, this%N_panels, this%vertices, this%panels)
+            call load_surface_tri(mesh_file, this%N_verts, this%N_panels, this%vertices, this%panels)
             
         
         case default
@@ -791,6 +793,12 @@ contains
             call this%panels(i)%set_distribution(this%initial_panel_order, this%panels, &
                                                  this%vertices, this%mirrored)
         end do
+
+
+        ! adjoint init with flow
+        if (this%calc_adjoint) then
+            call this%init_with_flow_adjoint(freestream)
+        end if 
         
         if (verbose) write(*,*) "Done."
 
@@ -818,6 +826,7 @@ contains
         do i=1,this%N_panels
             call this%panels(i)%init_with_flow(freestream, this%mirrored, this%mirror_plane)
         end do
+
 
         ! Determine number of sub- and superinclined panels
         this%N_subinc = 0
@@ -1393,13 +1402,13 @@ contains
 
         logical :: dummy
         !!!! update this to include if verbose
-        write(*,*) 
-        write(*,*) "Wake Type:", this%wake_type
-        write(*,*) 
+        ! write(*,*) 
+        ! write(*,*) "Wake Type:", this%wake_type
+        ! write(*,*) 
 
-        write(*,*) 
-        write(*,*) "Formulation:", formulation
-        write(*,*) 
+        ! write(*,*) 
+        ! write(*,*) "Formulation:", formulation
+        ! write(*,*) 
         !!!!
         if (this%append_wake .and. this%found_wake_edges) then
 
@@ -2684,7 +2693,7 @@ contains
 
 
     subroutine surface_mesh_init_adjoint(this)
-    ! if adjoint calculation is true, this will initialize the vertex associated components
+    ! if adjoint calculation is true, this will calculate panel sensitivities
 
         implicit none 
 
@@ -2692,6 +2701,7 @@ contains
 
         integer :: i
         
+
         ! init vertex attribute d_loc
         do i=1,this%N_verts
             
@@ -2700,15 +2710,107 @@ contains
             
         end do
 
-        do i=1,this%N_panels
 
+        do i=1,this%N_panels
+            
             ! init panel sensitivities
             call this%panels(i)%init_adjoint()
+            
+        end do
+
+        ! calc  d_vertex_geometries
+        call this%calc_d_vertex_geometry()
+        
+        
+    end subroutine surface_mesh_init_adjoint
+
+
+    subroutine surface_mesh_calc_d_vertex_geometry(this)
+        ! if adjoint calculation is true, this will calculate vertex average normal vector sensitivities
+    
+        implicit none
+        
+        class(surface_mesh),intent(inout) :: this
+
+        real,dimension(3) :: n_avg
+        integer :: i, j, j_panel, N_panels
+
+        type(sparse_matrix) :: d_n_avg
+
+        ! Loop through vertices
+        do i=1,this%N_verts
+
+            ! Loop through neighboring panels and compute the average of their normal vectors
+            n_avg = 0
+            N_panels = this%vertices(i)%panels%len()
+            do j=1,N_panels
+                
+                ! Get panel index
+                call this%vertices(i)%panels%get(j, j_panel)
+
+                ! initialize d_n_avg on the first j iteration
+                if (j == 1) then
+                    d_n_avg = this%panels(j_panel)%calc_d_n_avg_j(this%vertices(i)%loc)
+                else
+                    ! if its not the first j iteration, add the d_n_avg_j
+                    call d_n_avg%sparse_add(this%panels(j_panel)%calc_d_n_avg_j(this%vertices(i)%loc))
+                end if
+
+
+                ! Update using weighted normal
+                
+                !n_avg = n_avg + this%panels(j_panel)%get_weighted_normal_at_corner(this%vertices(i)%loc)
+
+
+
+            end do
+
+            ! For vertices on the mirror plane, the component normal to the plane should be zeroed
+            if (this%vertices(i)%on_mirror_plane) then
+                n_avg(this%mirror_plane) = 0.
+            end if
+
+            ! Normalize and store
+            this%vertices(i)%n_g = n_avg/norm2(n_avg)  !!!! Vertex normal calculated here -jjh 
+
+            ! write(*,*) "loc",this%vertices(i)%loc
+            ! write(*,*) "n_g",this%vertices(i)%n_g
+
+            ! Calculate mirrored normal for mirrored vertex
+            if (this%mirrored) then
+                this%vertices(i)%n_g_mir = mirror_across_plane(this%vertices(i)%n_g, this%mirror_plane)
+            end if
+
+            ! Calculate average edge lengths
+            call this%vertices(i)%set_average_edge_length(this%vertices)
 
         end do
 
-        
-    end subroutine surface_mesh_init_adjoint
+        if (verbose) write(*,*) "Done."
+            
+            
+        end subroutine surface_mesh_calc_d_vertex_geometry
+
+
+    subroutine surface_mesh_init_with_flow_adjoint(this,freestream)
+        ! if adjoint calculation is true, this will calulate flow-dependent sensitivities
+    
+            implicit none 
+    
+            class(surface_mesh),intent(inout) :: this
+            type(flow),intent(in) :: freestream
+    
+    
+            integer :: i
+            do i=1,this%N_panels
+    
+                ! init panel sensitivities
+                call this%panels(i)%init_with_flow_adjoint(freestream)
+    
+            end do
+            
+        end subroutine surface_mesh_init_with_flow_adjoint
+    
 
 
     subroutine surface_mesh_get_induced_velocities_at_point(this, point,  freestream, v_d, v_s)

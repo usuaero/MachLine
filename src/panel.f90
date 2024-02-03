@@ -208,6 +208,9 @@ module panel_mod
             procedure :: calc_d_normal_and_d_area => panel_calc_d_normal_and_d_area
             procedure :: calc_d_centr => panel_calc_d_centr
             procedure :: calc_d_n_hat_g => panel_calc_d_n_hat_g
+
+            ! adjoint weighted normal
+            procedure :: get_d_weighted_normal_average => panel_get_d_weighted_normal_average
             
             ! adjoint flow dependent terms
             procedure :: init_with_flow_adjoint => panel_init_with_flow_adjoint
@@ -803,12 +806,15 @@ contains
         allocate(S_mu_inv(this%mu_dim, this%mu_dim))
         call matinv(this%mu_dim, S_mu, S_mu_inv)
 
+        ! CHANGE NEEDED FOR ADJOINT
+        allocate(this%S_mu_inv, source=S_mu_inv)
+        
         ! Store inverse of S_mu
         if (this%order == 2) then
             if (calc_mirror) then
                 allocate(this%S_mu_inv_mir, source=S_mu_inv)
-            else
-                allocate(this%S_mu_inv, source=S_mu_inv)
+            ! else
+            !     allocate(this%S_mu_inv, source=S_mu_inv)    ! this was moved up out of the if order==2 statement by adjoint
             end if
         end if
 
@@ -901,7 +907,7 @@ contains
         else
             allocate(this%T_mu(this%mu_dim, this%M_dim))
             this%T_mu = T_mu
-        end if
+        end if        
 
     end subroutine panel_calc_M_mu_transform
 
@@ -4146,6 +4152,28 @@ contains
     end subroutine panel_calc_d_n_hat_g
 
 
+    function panel_get_d_weighted_normal_average(this, vert_loc) result(d_n_avg_j)
+    ! calculates and returns the weighted normal average sensitivity
+        implicit none
+        
+        class(panel),intent(in) :: this
+        real,dimension(3),intent(in) :: vert_loc
+
+        real(16),dimension(3) :: n_weighted
+
+        real(16) :: W
+
+        ! Get angle
+        W = this%get_corner_angle(vert_loc)
+    
+        ! Apply weight
+        n_weighted = this%n_g*W
+
+        
+
+    end function panel_get_d_weighted_normal_average
+
+
     subroutine panel_init_with_flow_adjoint(this, freestream)
         ! calculates the sensitivities associated with a panel and the flow
     
@@ -4156,7 +4184,7 @@ contains
 
         ! calc sensitivity of A_g_to_ls WRT design variables X(beta) 
         call this%calc_d_A_g_to_ls(freestream)
-        
+
         ! calc sensitivity of A_ls_to_g WRT design variables
         call this%calc_d_A_ls_to_g()
         
@@ -4199,7 +4227,7 @@ contains
         else
             ! from original A_g_to_ls calculation
             dum_v0 = cross(this%n_g, freestream%c_hat_g)
-
+          
             ! calculate d_n_g cross c_hat_g
             dn_cross_c = this%d_n_g%broadcast_element_cross_vector(freestream%c_hat_g)
         end if
@@ -4207,80 +4235,80 @@ contains
         ! from original A_g_to_ls calculation
         norm_v0 = norm2(dum_v0)
         v0 = dum_v0/norm_v0
-
+    
         !!!!!!!! CALC d_v0 !!!!!!!!!!!
 
         ! calculate the sensitvity of the norm of dum_v0 WRT design variables
         d_norm_v0 = dn_cross_c%broadcast_vector_dot_element(dum_v0)
         call d_norm_v0%broadcast_element_times_scalar(1.0/norm_v0)
-
+        
         ! calculate a = d_norm_v0 cross dum_v0
         a = d_norm_v0%broadcast_element_times_vector(dum_v0)
-
+        
         ! calculate d_v0
         call d_v0%init_from_sparse_matrix(dn_cross_c)
         call d_v0%broadcast_element_times_scalar(norm_v0)
         call d_v0%sparse_subtract(a)
         call d_v0%broadcast_element_times_scalar(1.0/(inner(dum_v0,dum_v0))) 
         
-
+        
         ! from original A_g_to_ls calculation
         dum_u0 = cross(v0, this%n_g)
         norm_u0 = norm2(dum_u0)
         u0 = dum_u0/norm_u0
-
+        
         !!!!!!!!!   CALC d_u0 !!!!!!!!!!
-
+        
         ! calculate d_dum_u0 = (dv0 cross n) + (v0 cross dn)
         v0_cross_dn = this%d_n_g%broadcast_vector_cross_element(v0)
         d_dum_u0 = d_v0%broadcast_element_cross_vector(this%n_g)
         call d_dum_u0%sparse_add(v0_cross_dn)
-
+        
         ! calculate d_norm_u0
         d_norm_u0 = d_dum_u0%broadcast_vector_dot_element(dum_u0)
         call d_norm_u0%broadcast_element_times_scalar(1.0/norm_u0)
-
+        
         ! caluclate b = d_norm_u0 times dum_u0
         b = d_norm_u0%broadcast_element_times_vector(dum_u0)
-
+        
         ! calculate d_u0
         call d_u0%init_from_sparse_matrix(d_dum_u0) 
         call d_u0%broadcast_element_times_scalar(norm_u0)
         call d_u0%sparse_subtract(b)
         call d_u0%broadcast_element_times_scalar(1.0/(inner(dum_u0,dum_u0)))
-
         
         ! Calculate compressible parameters (from original A_g_to_ls calculation)
         !this%nu_g = matmul(freestream%B_mat_g, this%n_g) this is commented out because nu_g is alread stored as a panel attribute
         x = inner(this%n_g, this%nu_g)
         abs_x = abs(x)
-
+        
         !!!!!!!! CALC d_x (x is a substitution term for readability in the original A_g_to_ls calculation)
-
+        
         ! calc d_nu_g  
         d_nu_g = this%d_n_g%broadcast_matmul_3x3_times_element(freestream%B_mat_g)
         
         ! calc n_g dot d_nu_g
         n_dot_d_nu = d_nu_g%broadcast_vector_dot_element(this%n_g)
-
+        
         ! calc d_n_g dot nu_g
         d_n_dot_nu = this%d_n_g%broadcast_vector_dot_element(this%nu_g)
         
         ! calc d_x
         call d_x%init_from_sparse_vector(d_n_dot_nu)
         call d_x%sparse_add(n_dot_d_nu)
-
+        
         ! calc c = d_sqrt_abs_x times matmul(freestream%C_mat_g, u0)
         call d_sqrt_abs_x%init_from_sparse_vector(d_x)
         call d_sqrt_abs_x%broadcast_element_times_scalar(x/(2.0*abs_x*sqrt(abs_x)))
         c = d_sqrt_abs_x%broadcast_element_times_vector(matmul(freestream%C_mat_g, u0))
-
-
+        
+        
         !!!!!!! CALC sensitivity of row 1 of A_g_to_ls
-
+        
         this%d_A_g_to_ls(1) = d_u0%broadcast_matmul_3x3_times_element(freestream%C_mat_g)
         call this%d_A_g_to_ls(1)%broadcast_element_times_scalar(sqrt(abs_x))
         call this%d_A_g_to_ls(1)%sparse_subtract(c)
+        
         call this%d_A_g_to_ls(1)%broadcast_element_times_scalar(1.0/abs_x)
 
 
@@ -4309,7 +4337,6 @@ contains
         call this%d_A_g_to_ls(3)%sparse_subtract(d)
         call this%d_A_g_to_ls(3)%broadcast_element_times_scalar(1.0/abs_x)
         
-    
     end subroutine panel_calc_d_A_g_to_ls
     
 
@@ -4501,7 +4528,6 @@ contains
             call d_S(i)%init_from_sparse_vectors(zeros, this%d_vertices_ls(1,i), this%d_vertices_ls(2,i))
 
         end do
-        write(*,*) "check after d_S"
         !                Build the d_S_mu_inv sparse vector 3x3
         !-------------------------------------------------------------------
         !     S = S_mu                      d_S     = derivative of S_mu
@@ -4513,20 +4539,18 @@ contains
         ! calc d_S_mu_inv
         do i= 1,3
             do j = 1,3
-                write(*,*) "check before dS_times_Sinv", i, j
                 ! calc dS_times_Sinv  = [d_S][S_inv]
                 dS_times_Sinv(i,j) = d_S(i)%broadcast_vector_dot_element(this%S_mu_inv(:,j))
-                write(*,*) "check before dS_times_Sinv", i, j
             end do
         end do
-        write(*,*) "check after d_S_times_Sinv"
+
         ! convert dS_times_Sinv into a sparse_matrix dimension 3 
         do i = 1,3
 
             call x(i)%init_from_sparse_vectors(dS_times_Sinv(1,i), dS_times_Sinv(2,i), dS_times_Sinv(3,i))
             
         end do
-        write(*,*) "check after x"
+
         do i= 1,3
             do j = 1,3
 
@@ -4535,14 +4559,14 @@ contains
 
             end do
         end do
-        write(*,*) "check after d_S_inv"
+   
         do i = 1,3
 
-            ! set d_T_mu equal to d_S_inv and convertit to a sparse_matrix dimension 3 panel attribute
+            ! set d_T_mu equal to d_S_inv and convert it to a sparse_matrix dimension 3 panel attribute
             call this%d_T_mu(i)%init_from_sparse_vectors(d_S_inv(i,1), d_S_inv(i,2), d_S_inv(i,3))
 
         end do
-        write(*,*) "check after d_T_mu"
+       
     
     end subroutine panel_calc_d_M_mu_transform
 
