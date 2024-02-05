@@ -176,7 +176,7 @@ contains
         ! Calculate vertex geometries
         call this%calc_vertex_geometry()
 
-        ! if calc_adjoint was specifiec, init the adjoint calculations
+        ! if calc_adjoint was specified, init the adjoint calculations
         if (this%calc_adjoint) then
             call this%init_adjoint()
         end if
@@ -2733,60 +2733,66 @@ contains
         class(surface_mesh),intent(inout) :: this
 
         real,dimension(3) :: n_avg
+        real :: norm_n_avg
         integer :: i, j, j_panel, N_panels
 
-        type(sparse_matrix) :: d_n_avg
+        type(sparse_vector) :: d_norm_n_avg
+        type(sparse_matrix) :: sum_d_n_avg, d_n_avg, x
 
-        ! Loop through vertices
         do i=1,this%N_verts
 
             ! Loop through neighboring panels and compute the average of their normal vectors
-            n_avg = 0
+            n_avg = (/0., 0., 0./)
             N_panels = this%vertices(i)%panels%len()
+
+            call d_n_avg%init(this%N_verts*3)
+            call sum_d_n_avg%init(this%N_verts*3)
+
             do j=1,N_panels
                 
                 ! Get panel index
                 call this%vertices(i)%panels%get(j, j_panel)
 
-                ! initialize d_n_avg on the first j iteration
-                if (j == 1) then
-                    d_n_avg = this%panels(j_panel)%calc_d_weighted_normal(this%vertices(i)%loc)
-                else
-                    ! if its not the first j iteration, add the d_n_avg_j
-                    call d_n_avg%sparse_add(this%panels(j_panel)%calc_d_weighted_normal(this%vertices(i)%loc))
-                end if
-
-
                 ! Update using weighted normal
-                
-                !n_avg = n_avg + this%panels(j_panel)%get_weighted_normal_at_corner(this%vertices(i)%loc)
+                n_avg = n_avg + this%panels(j_panel)%get_weighted_normal_at_corner(this%vertices(i)%loc)
 
+                ! get d_n_avg 
+                d_n_avg = this%panels(j_panel)%calc_d_weighted_normal(this%vertices(i)%loc)
 
+                ! add the d_n_avg_j
+                call sum_d_n_avg%sparse_add(d_n_avg)
+            
+                deallocate(d_n_avg%columns)
 
             end do
-
-            ! For vertices on the mirror plane, the component normal to the plane should be zeroed
-            if (this%vertices(i)%on_mirror_plane) then
-                n_avg(this%mirror_plane) = 0.
-            end if
-
+            
+            ! calc norm of n_avg
+            norm_n_avg = norm2(n_avg)
+            
+            ! calc d_norm_n_avg
+            d_norm_n_avg = sum_d_n_avg%broadcast_vector_dot_element(n_avg)
+            call d_norm_n_avg%broadcast_element_times_scalar(1./norm_n_avg)
+            
+            
             ! Normalize and store
-            this%vertices(i)%n_g = n_avg/norm2(n_avg)  !!!! Vertex normal calculated here -jjh 
-
-            ! write(*,*) "loc",this%vertices(i)%loc
-            ! write(*,*) "n_g",this%vertices(i)%n_g
-
-            ! Calculate mirrored normal for mirrored vertex
-            if (this%mirrored) then
-                this%vertices(i)%n_g_mir = mirror_across_plane(this%vertices(i)%n_g, this%mirror_plane)
-            end if
-
+            call this%vertices(i)%d_n_g%init_from_sparse_matrix(sum_d_n_avg)
+            call this%vertices(i)%d_n_g%broadcast_element_times_scalar(norm_n_avg)
+            
+            x = d_norm_n_avg%broadcast_element_times_vector(n_avg)
+            
+            call this%vertices(i)%d_n_g%sparse_subtract(x)
+            call this%vertices(i)%d_n_g%broadcast_element_times_scalar(1./(inner(n_avg,n_avg)))
+            
+            
             ! Calculate average edge lengths
-            call this%vertices(i)%set_average_edge_length(this%vertices)
-
+            ! call this%vertices(i)%set_average_edge_length(this%vertices)
+            
+            ! deallocate stuff
+            deallocate(sum_d_n_avg%columns)
+            deallocate(x%columns)
+            deallocate(d_norm_n_avg%elements)
+            
         end do
-
-        if (verbose) write(*,*) "Done."
             
             
         end subroutine surface_mesh_calc_d_vertex_geometry

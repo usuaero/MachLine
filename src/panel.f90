@@ -211,6 +211,7 @@ module panel_mod
 
             ! adjoint weighted normal
             procedure :: calc_d_weighted_normal => panel_calc_d_weighted_normal
+            procedure :: calc_d_corner_angle => panel_calc_d_corner_angle
             
             ! adjoint flow dependent terms
             procedure :: init_with_flow_adjoint => panel_init_with_flow_adjoint
@@ -4152,51 +4153,30 @@ contains
     end subroutine panel_calc_d_n_hat_g
 
     
-    function panel_calc_d_weighted_normal(this, vert_loc) result(d_n_weigted_j)
+    function panel_calc_d_weighted_normal(this, vert_loc) result(d_n_weighted)
     ! calculates and returns the weighted normal sensitivity
         implicit none
         
         class(panel),intent(in) :: this
         real,dimension(3),intent(in) :: vert_loc
 
-        real(16),dimension(3) :: n_weighted
+        real,dimension(3) :: n_weighted
+        real :: W
 
-        real(16) :: W, angle
+        type(sparse_vector) :: d_W
+        type(sparse_matrix) :: a,d_n_weighted
 
-        integer :: i, i_prev
-
-        ! Get angle
+        ! Get weight (angle)
         W = this%get_corner_angle(vert_loc)
 
-        
+        ! get weight sensitivity (d_angle)
+        d_W = this%calc_d_corner_angle(vert_loc)
+        a = d_W%broadcast_element_times_vector(this%n_g)
 
-        ! Find the right corner
-        do i=1,this%N
-
-            ! Check vertex
-            if (dist(this%get_vertex_loc(i), vert_loc) < 1.e-12) then
-
-                ! Get previous edge index
-                if (i == 1) then
-                    i_prev = this%N
-                else
-                    i_prev = i-1
-                end if
-
-                ! Calculate angle
-                angle = acos(inner(-this%n_hat_g(:,i), this%n_hat_g(:,i_prev)))
-                return
-
-            end if
-        end do
-
-        ! This vertex doesn't belong, so it has no angle
-        angle = 0.
-    
-        ! Apply weight
-        n_weighted = this%n_g*W
-
-        
+        ! calc d_n_weighted
+        call d_n_weighted%init_from_sparse_matrix(this%d_n_g)
+        call d_n_weighted%broadcast_element_times_scalar(W)
+        call d_n_weighted%sparse_add(a)
 
     end function panel_calc_d_weighted_normal
 
@@ -4209,8 +4189,8 @@ contains
         class(panel),intent(in) :: this
         real,dimension(3),intent(in) :: vert_loc
 
-        real :: angle
-
+        real :: angle, x
+ 
         integer :: i, i_prev
 
         type(sparse_vector) :: d_angle, c
@@ -4230,19 +4210,20 @@ contains
                 end if
 
                 ! Calculate -d_n_hat_g(i) dot n_hat_g(i_prev)
-                call a%init_from_sparse_vectors(this%d_n_hat_g(1,i), this%d_n_hat_g(2,i),this%d_n_hat_g(3,i))
-                call a%broadcast_element_times_scalar(-1)
+                call a%init_from_sparse_matrix(this%d_n_hat_g(i))
+                call a%broadcast_element_times_scalar(-1.)
                 d_angle = a%broadcast_vector_dot_element(this%n_hat_g(:,i_prev))
 
                 ! Calculate -n_hat_g(i) dot d_n_hat_g(i_prev)
-                call b%init_from_sparse_vectors(this%d_n_hat_g(1,i_prev), this%d_n_hat_g(2,i_prev),this%d_n_hat_g(3,i_prev))
+                call b%init_from_sparse_matrix(this%d_n_hat_g(i_prev))
                 c = b%broadcast_vector_dot_element(-this%n_hat_g(:,i))
                 
                 ! add them
                 call d_angle%sparse_add(c)
 
                 ! Calculate angle
-                angle = acos(inner(-this%n_hat_g(:,i), this%n_hat_g(:,i_prev)))
+                x = inner(-this%n_hat_g(:,i), this%n_hat_g(:,i_prev))
+                angle = acos(x)
 
                 ! if angle equals 1 or -1, stuff will break
                 if (abs(angle)<1.0e-16) then
@@ -4251,7 +4232,7 @@ contains
                 end if
 
                 ! divide by partial of inverse cos
-                call d_angle%broadcast_element_times_scalar(1.0/(sqrt(1-angle*angle)))
+                call d_angle%broadcast_element_times_scalar(-1.0/sqrt(1-(x*x)))
                 
                 return
 
@@ -4259,7 +4240,7 @@ contains
         end do
 
         ! if we haven't returned, then angle is 0, so it has angle sensitivitiy is 0
-        call d_angle%init(this%N_verts*3)
+        call d_angle%init(this%d_n_g%full_num_cols)
 
     end function panel_calc_d_corner_angle
 
@@ -4340,7 +4321,6 @@ contains
         call d_v0%broadcast_element_times_scalar(norm_v0)
         call d_v0%sparse_subtract(a)
         call d_v0%broadcast_element_times_scalar(1.0/(inner(dum_v0,dum_v0))) 
-        
         
         ! from original A_g_to_ls calculation
         dum_u0 = cross(v0, this%n_g)
@@ -4588,6 +4568,8 @@ contains
 
             ! this%d_n_hat_ls (eta coordinate) = -d_t_hat_g (xi coordinate ) NOTE the negative
             call this%d_n_hat_ls(2,i)%init_from_sparse_vector(d_t_hat_ls(1,i))
+            
+            ! correct:
             call this%d_n_hat_ls(2,i)%broadcast_element_times_scalar(-1.)
             
 
