@@ -2750,10 +2750,10 @@ contains
 
                 ! initialize d_n_avg on the first j iteration
                 if (j == 1) then
-                    d_n_avg = this%panels(j_panel)%calc_d_n_avg_j(this%vertices(i)%loc)
+                    d_n_avg = this%panels(j_panel)%calc_d_weighted_normal(this%vertices(i)%loc)
                 else
                     ! if its not the first j iteration, add the d_n_avg_j
-                    call d_n_avg%sparse_add(this%panels(j_panel)%calc_d_n_avg_j(this%vertices(i)%loc))
+                    call d_n_avg%sparse_add(this%panels(j_panel)%calc_d_weighted_normal(this%vertices(i)%loc))
                 end if
 
 

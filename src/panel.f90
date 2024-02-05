@@ -210,7 +210,7 @@ module panel_mod
             procedure :: calc_d_n_hat_g => panel_calc_d_n_hat_g
 
             ! adjoint weighted normal
-            procedure :: get_d_weighted_normal_average => panel_get_d_weighted_normal_average
+            procedure :: calc_d_weighted_normal => panel_calc_d_weighted_normal
             
             ! adjoint flow dependent terms
             procedure :: init_with_flow_adjoint => panel_init_with_flow_adjoint
@@ -4151,9 +4151,9 @@ contains
 
     end subroutine panel_calc_d_n_hat_g
 
-
-    function panel_get_d_weighted_normal_average(this, vert_loc) result(d_n_avg_j)
-    ! calculates and returns the weighted normal average sensitivity
+    
+    function panel_calc_d_weighted_normal(this, vert_loc) result(d_n_weigted_j)
+    ! calculates and returns the weighted normal sensitivity
         implicit none
         
         class(panel),intent(in) :: this
@@ -4161,17 +4161,107 @@ contains
 
         real(16),dimension(3) :: n_weighted
 
-        real(16) :: W
+        real(16) :: W, angle
+
+        integer :: i, i_prev
 
         ! Get angle
         W = this%get_corner_angle(vert_loc)
+
+        
+
+        ! Find the right corner
+        do i=1,this%N
+
+            ! Check vertex
+            if (dist(this%get_vertex_loc(i), vert_loc) < 1.e-12) then
+
+                ! Get previous edge index
+                if (i == 1) then
+                    i_prev = this%N
+                else
+                    i_prev = i-1
+                end if
+
+                ! Calculate angle
+                angle = acos(inner(-this%n_hat_g(:,i), this%n_hat_g(:,i_prev)))
+                return
+
+            end if
+        end do
+
+        ! This vertex doesn't belong, so it has no angle
+        angle = 0.
     
         ! Apply weight
         n_weighted = this%n_g*W
 
         
 
-    end function panel_get_d_weighted_normal_average
+    end function panel_calc_d_weighted_normal
+
+
+    function panel_calc_d_corner_angle(this,vert_loc) result(d_angle)
+        ! Calculates the sensitivity of the angle of the corner at which the given vertex lies
+
+        implicit none
+        
+        class(panel),intent(in) :: this
+        real,dimension(3),intent(in) :: vert_loc
+
+        real :: angle
+
+        integer :: i, i_prev
+
+        type(sparse_vector) :: d_angle, c
+        type(sparse_matrix) :: a,b
+
+        ! Find the right corner
+        do i=1,this%N
+
+            ! Check vertex
+            if (dist(this%get_vertex_loc(i), vert_loc) < 1.e-12) then
+
+                ! Get previous edge index
+                if (i == 1) then
+                    i_prev = this%N
+                else
+                    i_prev = i-1
+                end if
+
+                ! Calculate -d_n_hat_g(i) dot n_hat_g(i_prev)
+                call a%init_from_sparse_vectors(this%d_n_hat_g(1,i), this%d_n_hat_g(2,i),this%d_n_hat_g(3,i))
+                call a%broadcast_element_times_scalar(-1)
+                d_angle = a%broadcast_vector_dot_element(this%n_hat_g(:,i_prev))
+
+                ! Calculate -n_hat_g(i) dot d_n_hat_g(i_prev)
+                call b%init_from_sparse_vectors(this%d_n_hat_g(1,i_prev), this%d_n_hat_g(2,i_prev),this%d_n_hat_g(3,i_prev))
+                c = b%broadcast_vector_dot_element(-this%n_hat_g(:,i))
+                
+                ! add them
+                call d_angle%sparse_add(c)
+
+                ! Calculate angle
+                angle = acos(inner(-this%n_hat_g(:,i), this%n_hat_g(:,i_prev)))
+
+                ! if angle equals 1 or -1, stuff will break
+                if (abs(angle)<1.0e-16) then
+                    write(*,*) "Something went wrong with the adjoint vertex normal calc (panel_calc_d_corner_angle)"
+                    stop
+                end if
+
+                ! divide by partial of inverse cos
+                call d_angle%broadcast_element_times_scalar(1.0/(sqrt(1-angle*angle)))
+                
+                return
+
+            end if
+        end do
+
+        ! if we haven't returned, then angle is 0, so it has angle sensitivitiy is 0
+        call d_angle%init(this%N_verts*3)
+
+    end function panel_calc_d_corner_angle
 
 
     subroutine panel_init_with_flow_adjoint(this, freestream)
