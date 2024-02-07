@@ -4818,7 +4818,7 @@ contains
         call z%sparse_subtract(this%d_centr)
 
         ! calc d_P_ls
-        d_P_ls  = z%broadcast_matmul_3x3_times_element(transpose(this%A_g_to_ls))
+        d_P_ls  = z%broadcast_matmul_3x3_times_element(this%A_g_to_ls)
         call d_P_ls%sparse_add(x)
         
     end function panel_calc_sensitivity_of_body_point_in_ls

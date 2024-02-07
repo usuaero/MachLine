@@ -87,6 +87,7 @@ module adjoint_mod
             procedure :: broadcast_element_times_scalar => sparse_matrix_broadcast_element_times_scalar
 
             procedure :: broadcast_matmul_3x3_times_element => sparse_matrix_broadcast_matmul_3x3_times_element
+            procedure :: broadcast_matmul_element_times_3x3 => sparse_matrix_broadcast_matmul_element_times_3x3
             procedure :: split_into_sparse_vectors => sparse_matrix_split_into_sparse_vectors
 
 
@@ -1107,6 +1108,43 @@ contains
 
     end function sparse_matrix_broadcast_matmul_3x3_times_element
 
+
+    function sparse_matrix_broadcast_matmul_element_times_3x3(this, matrix3) result(result_matrix)
+        ! matmul a  "list" of vectors (sparse matrix) with a 3x3 matrix
+        ! returns a "list" of 3-vectors ( a sparse matrix )
+
+        implicit none
+
+        class(sparse_matrix),intent(inout) :: this
+        real,dimension(3,3),intent(in) :: matrix3 
+
+        type(sparse_matrix) :: result_matrix
+        real,dimension(3) :: temp_vec
+
+        integer :: i
+
+        ! set full and sparse column numbers/size
+        result_matrix%full_num_cols = this%full_num_cols
+        result_matrix%sparse_num_cols = this%sparse_num_cols
+
+        ! allocate result matrix elements
+        allocate(result_matrix%columns(size(this%columns)))
+
+        ! go through each sparse column index
+        do i=1,this%sparse_num_cols
+            ! do matmul
+            temp_vec = this%columns(i)%vector_values(:)
+            ! temp_vec = matmul(matrix3,  temp_vec)
+            temp_vec = matmul(temp_vec,matrix3)
+
+            ! update the results matrix 
+            result_matrix%columns(i)%vector_values(:) = temp_vec(:)
+            result_matrix%columns(i)%full_index = this%columns(i)%full_index
+
+        end do       
+
+    end function sparse_matrix_broadcast_matmul_element_times_3x3
+
     function sparse_matrix_split_into_sparse_vectors(this) result(sparse_vecs)
     ! takes a sparse matrix and converts it to a sparse_vector dimension 3
 
@@ -1123,6 +1161,7 @@ contains
         do i=1,3
             call sparse_vecs(i)%init_from_full_vector(full_matrix(:,i))
         end do
+
     end function sparse_matrix_split_into_sparse_vectors
 
 

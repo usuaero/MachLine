@@ -42,7 +42,7 @@ program eval_point_cp
 
     !!!!!!!!!!!!!!!!!!!!! END STUFF FROM MAIN !!!!!!!!!!!!!!!!!!!!!!!!!
 
-    real,dimension(:),allocatable :: residuals, X_beta, P_g_up, P_g_dn, P_ls_up, P_ls_dn
+    real,dimension(:),allocatable :: residuals, X_beta, P_g_up, P_g_dn, P_ls_up, P_ls_dn, h_up, h_dn, d_h_FD
 
     real,dimension(:,:),allocatable :: v, residuals3 , d_P_g_FD, d_P_ls_FD
 
@@ -404,16 +404,25 @@ program eval_point_cp
                     call test_mesh%panels(m)%calc_derived_geom()
                 end do
 
+                ! update vertex normal
                 call test_mesh%calc_vertex_geometry()
+                
+                ! update with flow
+                deallocate(test_mesh%panels(index)%vertices_ls)
+                deallocate(test_mesh%panels(index)%n_hat_ls)
+                deallocate(test_mesh%panels(index)%b)
+                deallocate(test_mesh%panels(index)%b_mir)  
+                deallocate(test_mesh%panels(index)%sqrt_b)
+                call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
+                
+                ! recalculates cp locations
                 deallocate(test_solver%sigma_known)
                 deallocate(test_mesh%cp)
                 deallocate(test_solver%P)
-
-                ! recalculates cp locations
                 call test_solver%init(solver_settings, processing_settings, &
                 test_mesh, freestream_flow, control_point_file)
 
-                ! calc eval point geom of relation between cp1 and panel1 
+                ! update eval point geom of relation between cp1 and panel1 
                 test_geom = test_mesh%panels(index)%calc_basic_geom(test_mesh%cp(1)%loc,.false.)
      
                 !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
@@ -430,17 +439,26 @@ program eval_point_cp
                     deallocate(test_mesh%panels(m)%n_hat_g)
                     call test_mesh%panels(m)%calc_derived_geom()
                 end do
-
+                
+                ! update vertex normal
                 call test_mesh%calc_vertex_geometry()
+
+                ! update with flow
+                deallocate(test_mesh%panels(index)%vertices_ls)
+                deallocate(test_mesh%panels(index)%n_hat_ls)
+                deallocate(test_mesh%panels(index)%b)
+                deallocate(test_mesh%panels(index)%b_mir)  
+                deallocate(test_mesh%panels(index)%sqrt_b)
+                call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
+
+                ! recalculates cp locations
                 deallocate(test_solver%sigma_known)
                 deallocate(test_mesh%cp)
                 deallocate(test_solver%P) 
-
-                ! recalculates cp locations
                 call test_solver%init(solver_settings, processing_settings, &
                 test_mesh, freestream_flow, control_point_file)
 
-                ! calc eval point geom of relation between cp1 and panel1 
+                ! update eval point geom of relation between cp1 and panel1 
                 test_geom = test_mesh%panels(index)%calc_basic_geom(test_mesh%cp(1)%loc,.false.)
 
                 !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
@@ -494,11 +512,11 @@ program eval_point_cp
         !write sparse matrix
         write(*,*) ""
         if (k==1) then
-            write(*,'(A, I1, A)') "  adjoint eval point (panel 1, cp 1) d_P_ls xi coordinate"
+            write(*,'(A, I1, A)') "  adjoint eval point (panel 1, cp 1) d_P_ls xi coordinate (sparse)"
             write(*,*) ""
             write(*,*) "  d_P_ls_xi              sparse_index       full_index"
         else
-            write(*,'(A, I1, A)') "  adjoint eval point (panel 1, cp 1) d_P_ls eta coordinate"
+            write(*,'(A, I1, A)') "  adjoint eval point (panel 1, cp 1) d_P_ls eta coordinate (sparse)"
             write(*,*) ""
             write(*,*) "  d_P_ls_eta             sparse_index       full_index"
         end if 
@@ -566,6 +584,194 @@ program eval_point_cp
     ! k loop
     end do
 
+
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST eval point (panel 1, cp 1) d_h !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    write(*,*) "---------------------------------- TEST eval point (panel 1, cp 1) d_h ---&
+    --------------------------------"
+    write(*,*) ""
+    write(*,*) "the sensitivity of eval point (panel 1, cp 1) d_h WRT each design variable"
+    write(*,*) ""
+
+    
+    
+    
+    !!!!!!!!! CENTRAL DIFFERENCE eval point (panel 1, cp 1) d_h !!!!!!!!!
+    write(*,*) ""
+    write(*,*) "---------------------------------------------------------------------------------------------"
+    write(*,*) ""
+    
+    write(*,'(A, I1, A)') "  TEST eval point (panel 1, cp 1) d_h"
+   
+    
+    ! perturb x1 up
+    allocate(h_up(N_verts*3))
+    allocate(h_dn(N_verts*3))
+    allocate(d_h_FD(N_verts*3))
+
+    
+    
+    do i=1,3
+        do j=1,N_verts
+
+            ! perturb up the current design variable
+            test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
+
+            !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
+
+            ! update panel geometry and calc
+            do m =1,N_panels
+                deallocate(test_mesh%panels(m)%n_hat_g)
+                call test_mesh%panels(m)%calc_derived_geom()
+            end do
+
+            ! update vertex normal
+            call test_mesh%calc_vertex_geometry()
+            
+            ! update with flow
+            deallocate(test_mesh%panels(index)%vertices_ls)
+            deallocate(test_mesh%panels(index)%n_hat_ls)
+            deallocate(test_mesh%panels(index)%b)
+            deallocate(test_mesh%panels(index)%b_mir)  
+            deallocate(test_mesh%panels(index)%sqrt_b)
+            call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
+            
+            ! recalculates cp locations
+            deallocate(test_solver%sigma_known)
+            deallocate(test_mesh%cp)
+            deallocate(test_solver%P)
+            call test_solver%init(solver_settings, processing_settings, &
+            test_mesh, freestream_flow, control_point_file)
+
+            ! update eval point geom of relation between cp1 and panel1 
+            test_geom = test_mesh%panels(index)%calc_basic_geom(test_mesh%cp(1)%loc,.false.)
+    
+            !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
+            
+            ! put the x y or z component of the vertex of interest (index) in a list
+            h_up(j + (i-1)*N_verts) = test_geom%h
+
+            ! perturb down the current design variable
+            test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - 2.*step
+
+            !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
+            ! update panel geometry and calc
+            do m =1,N_panels
+                deallocate(test_mesh%panels(m)%n_hat_g)
+                call test_mesh%panels(m)%calc_derived_geom()
+            end do
+            
+            ! update vertex normal
+            call test_mesh%calc_vertex_geometry()
+
+            ! update with flow
+            deallocate(test_mesh%panels(index)%vertices_ls)
+            deallocate(test_mesh%panels(index)%n_hat_ls)
+            deallocate(test_mesh%panels(index)%b)
+            deallocate(test_mesh%panels(index)%b_mir)  
+            deallocate(test_mesh%panels(index)%sqrt_b)
+            call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
+
+            ! recalculates cp locations
+            deallocate(test_solver%sigma_known)
+            deallocate(test_mesh%cp)
+            deallocate(test_solver%P) 
+            call test_solver%init(solver_settings, processing_settings, &
+            test_mesh, freestream_flow, control_point_file)
+
+            ! update eval point geom of relation between cp1 and panel1 
+            test_geom = test_mesh%panels(index)%calc_basic_geom(test_mesh%cp(1)%loc,.false.)
+
+            !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
+
+            ! put the x y or z component of the vertex of interest (index) in a list
+            h_dn(j + (i-1)*N_verts) = test_geom%h
+            
+            ! restore geometry
+            test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
+        end do 
+    end do 
+    
+    ! central difference 
+    d_h_FD(:) = (h_up - h_dn)/(2.*step)
+            
+    
+
+    ! write results
+    write(*,*) ""
+    write(*,*) "--------------------------------------------------------------------------"
+    write(*,'(A, I1, A)') "  CENTRAL DIFFERENCE eval point (panel 1, cp 1) d_h"
+    write(*,*) "--------------------------------------------------------------------------"
+    write(*,*) ""
+    write(*,*) "  d_h"
+    
+
+    
+    do i = 1, N_verts*3
+        write(*, '(f14.10, 4x)') d_h_FD(i)
+    end do 
+    
+    !!!!!!!!!! ADJOINT eval point (panel 1, cp 1) d_h!!!!!!!!!!!!!
+    write(*,*) ""
+    write(*,*) "------------------------------------------------"
+   
+    write(*,'(A, I1, A)') "  ADJOINT  d_h"
+    write(*,*) "------------------------------------------------"
+    
+    
+    !write sparse matrix
+    write(*,*) ""
+    write(*,'(A, I1, A)') "  adjoint eval point (panel 1, cp 1) d_h (sparse)"
+    write(*,*) ""
+    write(*,*) "  d_h              sparse_index       full_index"
+
+    do i=1,adjoint_geom%d_h%sparse_size
+        write(*,'((f14.10, 4x), 12x, I5, 12x, I5)') adjoint_geom%d_h%elements(i)%value, &
+        i, adjoint_geom%d_h%elements(i)%full_index
+    end do
+    write(*,*) ""
+    write(*,*) ""
+
+
+    ! calculate residuals3
+    do i =1, N_verts*3
+        residuals(i) = adjoint_geom%d_h%get_value(i) - d_h_FD(i)
+    end do
+
+    write(*,'(A, I1, A)') "  adjoint eval point (panel 1, cp 1) d_h expanded"
+    write(*,*) ""
+    write(*,*) "  d_h                 residual"
+
+    do i = 1, N_verts*3
+        write(*, '((f14.10, 4x),3x, (f14.10, 4x))') adjoint_geom%d_h%get_value(i), residuals(i)
+    end do
+    write(*,*) ""
+    write(*,*) ""
+
+    ! check if test failed
+    do i=1,N_verts*3
+        if (abs(residuals(i)) > 1.0e-8) then
+            test_failed = .true.
+            exit
+        else 
+            test_failed = .false.
+        end if
+    end do
+    if (test_failed) then
+        total_tests = total_tests + 1
+        failure_log(total_tests-passed_tests) = "eval point (panel 1, cp 1) d_h test FAILED"
+        write(*,*) failure_log(total_tests-passed_tests)
+    else
+        write(*,*) "eval point (panel 1, cp 1) d_h test PASSED"
+        passed_tests = passed_tests + 1
+        total_tests = total_tests + 1
+        
+    end if
+    test_failed = .false.
+    write(*,*) "" 
+    write(*,*) ""
+    
+    
 
     !!!!!!!!!!!!!! EVAL_POINT_GEOM (CONTROL POINTS) SENSITIVITIES RESULTS!!!!!!!!!!!!!
     write(*,*) "-------------EVAL_POINT_GEOM (CONTROL POINTS) SENSITIVITIES TEST RESULTS--------------"
