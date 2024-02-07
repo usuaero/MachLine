@@ -199,7 +199,8 @@ module panel_mod
             procedure :: get_quadratic_pressure_params => panel_get_quadratic_pressure_params
             procedure :: get_avg_pressure_coef => panel_get_avg_pressure_coef
             procedure :: get_moment_about_centroid => panel_get_moment_about_centroid
-
+            
+            !!!!!!!! ADJOINT PROCEDURES !!!!!!!!
             ! adjoint panel geom
             procedure :: init_adjoint => panel_init_adjoint
             procedure :: calc_derived_geom_adjoint => panel_calc_derived_geom_adjoint
@@ -215,12 +216,20 @@ module panel_mod
             
             ! adjoint flow dependent terms
             procedure :: init_with_flow_adjoint => panel_init_with_flow_adjoint
-
             procedure :: calc_d_A_g_to_ls => panel_calc_d_A_g_to_ls
             procedure :: calc_d_A_ls_to_g => panel_calc_d_A_ls_to_g
             procedure :: calc_d_vertices_ls => panel_calc_d_vertices_ls
             procedure :: calc_d_n_hat_ls => panel_calc_d_n_hat_ls
             procedure :: calc_d_M_mu_transform => panel_calc_d_M_mu_transform
+
+            ! adjoint velocity influence terms
+            procedure :: calc_velocity_influences_adjoint => panel_calc_velocity_influences_adjoint
+            procedure :: calc_subsonic_geom_adjoint => panel_calc_subsonic_geom_adjoint
+            procedure :: calc_basic_geom_adjoint => panel_calc_basic_geom_adjoint
+            procedure :: calc_sensitivity_of_body_point_in_ls => panel_calc_sensitivity_of_body_point_in_ls
+
+
+            !!!!!!!! END ADJOINT PROCEDURES !!!!!!!!
 
 
     end type panel
@@ -3430,6 +3439,7 @@ contains
                 end if
             else
                 geom = this%calc_subsonic_geom(P, freestream, mirror_panel)
+
             end if
 
             ! Get integrals
@@ -4642,5 +4652,175 @@ contains
     
     end subroutine panel_calc_d_M_mu_transform
 
+
+    subroutine  panel_calc_velocity_influences_adjoint(this, cp, freestream, d_v_d_M_space)
+        ! calcuates velocity influence adjoint sensitivities
+
+        implicit none
+
+        class(panel),intent(inout) :: this
+        type(control_point), intent(in) :: cp
+        type(flow), intent(in) :: freestream
+        type(sparse_matrix),dimension(3),intent(out) :: d_v_d_M_space
+
+        type(dod) :: dod_info
+        logical :: mirror_panel
+        type(eval_point_geom) :: geom
+        type(integrals) :: d_int
+        ! real,dimension(:,:),allocatable :: v_s_sigma_space, v_d_mu_space
+        ! real :: x2, y2, dvx, dvy
+        integer :: i
+    
+        ! adjoint is not available for mirror panels right now
+        mirror_panel = .false.
+
+        ! Check DoD
+        dod_info = this%check_dod(cp%loc, freestream, mirror_panel) 
+
+        if (dod_info%in_dod .and. this%A > 0.) then
+
+            ! Calculate geometric parameters
+            if (freestream%supersonic) then
+                if ((mirror_panel .and. this%r_mir < 0.) .or. (.not. mirror_panel .and. this%r < 0.)) then
+                    !d_geom = this%calc_supersonic_supinc_geom_adjoint(P, freestream, mirror_panel, dod_info)
+                else
+                    !d_geom = this%calc_supersonic_subinc_geom_adjoint(P, freestream, mirror_panel, dod_info)
+                end if
+            else
+                geom = this%calc_subsonic_geom_adjoint(cp, freestream)
+            end if
+
+            ! Get integrals
+            !d_int = this%calc_integrals_adjoint(geom, 'velocity', freestream, mirror_panel, dod_info)
+
+            ! ignore d_v_s_S_space, maybe put in a zero sparse matrix
+            ! allocate(v_s_S_space(3,this%S_dim), source=0.)
+          
+
+            ! Doublet velocity
+            !d_v_d_M_space = this%assemble_v_d_M_space(int, geom, freestream, mirror_panel)
+
+        else
+
+            ! Allocate placeholders
+            ! allocate(v_s_S_space(3,this%S_dim), source=0.)
+            ! if (this%in_wake) then
+            !     allocate(v_d_M_space(3,2*this%M_dim), source=0.)
+            ! else
+            !     allocate(v_d_M_space(3,this%M_dim), source=0.)
+            ! end if
+
+        end if
+
+
+
+
+    end subroutine panel_calc_velocity_influences_adjoint
+
+
+    function panel_calc_subsonic_geom_adjoint(this, cp, freestream) result(geom)
+        ! Initializes geometry sensitivities common to the three panel types
+
+        implicit none
+        
+        class(panel), intent(in) :: this
+        type(control_point), intent(in) :: cp
+        type(flow), intent(in) :: freestream
+
+        type(eval_point_geom) :: geom
+
+        
+    
+    end function panel_calc_subsonic_geom_adjoint
+
+
+
+    function panel_calc_basic_geom_adjoint(this, cp, mirror_panel) result(geom)
+        ! Initializes geometry sensitivities common to the three panel types
+
+        implicit none
+        
+        class(panel), intent(inout) :: this
+        type(control_point),intent(inout) :: cp
+        logical,intent(in) :: mirror_panel
+
+        type(eval_point_geom) :: geom
+        type(sparse_matrix) :: d_P_transformed
+        type(sparse_vector),dimension(3) :: x
+
+        integer :: i
+
+        ! Initialize
+        call geom%init(cp%loc, this%get_local_coords_of_point(cp%loc, mirror_panel))
+        ! call geom%init_adjoint(cp%d_loc)
+        
+        call geom%d_P_g%init_from_sparse_matrix(cp%d_loc)
+
+        d_P_transformed = this%calc_sensitivity_of_body_point_in_ls(cp%loc, cp%d_loc)
+
+        ! split the sparse_matrix to sparse vectors(3)
+        x = d_P_transformed%split_into_sparse_vectors()
+
+        geom%d_P_ls = x(1:2)
+        geom%d_h = x(3)
+
+
+
+        ! ! Get edge normal vectors
+        ! if (mirror_panel) then
+        !     geom%v_xi = this%n_hat_ls_mir(1,:)
+        !     geom%v_eta = this%n_hat_ls_mir(2,:)
+        ! else
+        !     geom%v_xi = this%n_hat_ls(1,:)
+        !     geom%v_eta = this%n_hat_ls(2,:)
+        ! end if
+
+        ! ! Calculate vertex displacements
+        ! do i=1,this%N
+        !     if (mirror_panel) then
+        !         geom%d_ls(:,i) = this%vertices_ls_mir(:,i) - geom%P_ls
+        !     else
+        !         geom%d_ls(:,i) = this%vertices_ls(:,i) - geom%P_ls
+        !     end if
+        ! end do
+    
+    end function panel_calc_basic_geom_adjoint
+
+    
+    function panel_calc_sensitivity_of_body_point_in_ls(this, P, d_P) result(d_P_ls)
+        ! Calculates the coordinates of the given point in local-scaled coordinates
+
+        implicit none
+        
+        class(panel),intent(inout) :: this
+        real,dimension(3), intent(inout) :: P
+        type(sparse_matrix),intent(inout) :: d_P
+
+        integer :: i
+        type(sparse_vector),dimension(3) :: y
+        type(sparse_matrix) :: d_P_ls, x, z
+
+        
+        ! sparse dot product each row of d_A_g_to_ls with P-centroid
+        do i=1,3
+
+            y(i) = this%d_A_g_to_ls(i)%broadcast_vector_dot_element(P-this%centr)
+
+        end do
+
+        ! put y sparse vectors in a sparse_matrix
+        call x%init_from_sparse_vectors(y(1), y(2), y(3))
+        
+        ! init z
+        call z%init_from_sparse_matrix(d_P)
+        
+        ! subtract d_P - d_centr
+        call z%sparse_subtract(this%d_centr)
+
+        ! calc d_P_ls
+        d_P_ls  = z%broadcast_matmul_3x3_times_element(transpose(this%A_g_to_ls))
+        call d_P_ls%sparse_add(x)
+        
+    end function panel_calc_sensitivity_of_body_point_in_ls
    
 end module panel_mod

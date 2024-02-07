@@ -87,6 +87,7 @@ module adjoint_mod
             procedure :: broadcast_element_times_scalar => sparse_matrix_broadcast_element_times_scalar
 
             procedure :: broadcast_matmul_3x3_times_element => sparse_matrix_broadcast_matmul_3x3_times_element
+            procedure :: split_into_sparse_vectors => sparse_matrix_split_into_sparse_vectors
 
 
         
@@ -839,12 +840,13 @@ contains
     end subroutine sparse_matrix_compress
 
 
-    function sparse_matrix_expand(this) result(full_matrix)
+    function sparse_matrix_expand(this, N_by_3) result(full_matrix)
         ! takes a sparse matrix and expands it, returning a real full matrix
 
         implicit none
 
         class(sparse_matrix),intent(inout) :: this
+        logical,intent(in) :: N_by_3
 
         real,dimension(:,:),allocatable :: full_matrix
         integer :: i
@@ -856,6 +858,10 @@ contains
             full_matrix(:,this%columns(i)%full_index) = this%columns(i)%vector_values
         end do
 
+        ! if N rows by 3 column is the desired output (used in matrix split to vectors)
+        if (N_by_3) then
+            full_matrix = transpose(full_matrix)
+        end if 
     end function sparse_matrix_expand
 
 
@@ -1091,7 +1097,7 @@ contains
         do i=1,this%sparse_num_cols
             ! do matmul
             temp_vec = this%columns(i)%vector_values(:)
-            temp_vec = matmul(matrix3, temp_vec)
+            temp_vec = matmul(matrix3,  temp_vec)
 
             ! update the results matrix 
             result_matrix%columns(i)%vector_values(:) = temp_vec(:)
@@ -1100,6 +1106,24 @@ contains
         end do       
 
     end function sparse_matrix_broadcast_matmul_3x3_times_element
+
+    function sparse_matrix_split_into_sparse_vectors(this) result(sparse_vecs)
+    ! takes a sparse matrix and converts it to a sparse_vector dimension 3
+
+        implicit none
+
+        class(sparse_matrix),intent(inout) :: this
+
+        integer :: i
+        real,dimension(:,:), allocatable :: full_matrix
+        type(sparse_vector),dimension(3) :: sparse_vecs
+
+        full_matrix = this%expand(.true.)
+
+        do i=1,3
+            call sparse_vecs(i)%init_from_full_vector(full_matrix(:,i))
+        end do
+    end function sparse_matrix_split_into_sparse_vectors
 
 
     subroutine adjoint_init(this)

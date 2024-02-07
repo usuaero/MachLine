@@ -113,9 +113,20 @@ module base_geom_mod
         real,dimension(3) :: g2 ! Also
         real,dimension(3) :: v_xi, v_eta ! Edge in-plane normal vectors
 
+        ! adjoint attributes
+        type(sparse_matrix) :: d_P_g ! sensitivity of point position in global coordinates
+        type(sparse_vector),dimension(2) :: d_P_ls ! sensitivity of point in panel plane 
+        type(sparse_vector),dimension(2,3) :: d_d_ls ! sensitivities of local displacements from panel vertices
+        type(sparse_vector) :: d_h, d_h2 ! sensitivities of height above panel
+        type(sparse_matrix) :: d_a, d_l1, d_l2, d_R1, d_R2, d_R ! sensitivites of edge integration parameters
+        type(sparse_matrix) :: d_g2
+        type(sparse_matrix) :: d_v_xi, d_v_eta ! edge in plane normal vector sensitivites
+
         contains
 
             procedure :: init => eval_point_geom_init
+
+            procedure :: init_adjoint => eval_point_geom_init_adjoint
 
     end type eval_point_geom
 
@@ -129,10 +140,13 @@ module base_geom_mod
         logical :: is_mirror ! Whether this control point belongs to the mirrored half of the mesh
         integer :: tied_to_type ! 1 = this control point is associated with a vertex, 2 = panel
         integer :: tied_to_index ! Index of the mesh component this control point is tied to
+
+        type(sparse_matrix) :: d_loc
     
         contains
 
             procedure :: init => control_point_init
+            procedure :: init_adjoint => control_point_init_adjoint
             procedure :: set_bc => control_point_set_bc
     
     end type control_point
@@ -557,6 +571,34 @@ contains
     end subroutine eval_point_geom_init
 
 
+    subroutine eval_point_geom_init_adjoint(this, d_loc, d_loc_ls)
+        ! Initializes this control point adjoint sensitivities
+
+        implicit none
+        
+        class(eval_point_geom),intent(inout) :: this
+        type(sparse_matrix),intent(inout) :: d_loc, d_loc_ls
+
+
+        ! Store point sensitivity
+        ! call this%d_P_g%init_from_sparse_matrix(d_loc)
+
+        ! ! Transform to local scaled coordinates
+        ! this%P_ls = P_ls(1:2)
+        ! this%h = P_ls(3) ! Equivalent to E&M Eq. (J.7.41)
+        ! this%h2 = this%h**2
+
+        ! ! These are sometimes accessed when the DoD is not checked, so they need to be set to zero
+        ! this%R1 = 0.
+        ! this%R2 = 0.
+        ! this%a = 0.
+    
+
+        
+        
+    end subroutine eval_point_geom_init_adjoint
+
+
     subroutine control_point_init(this, loc, cp_type, tied_to_type, tied_to_index)
         ! Initializes this control point
 
@@ -576,6 +618,27 @@ contains
         this%is_mirror = .false.
         
     end subroutine control_point_init
+
+
+    subroutine control_point_init_adjoint(this, d_loc, d_vert_n_g, offset)
+        ! Initializes this control point
+
+        implicit none
+        
+        class(control_point),intent(inout) :: this
+        type(sparse_matrix), intent(inout) :: d_loc, d_vert_n_g
+        real, intent(in) :: offset
+        
+        ! multiply vertex normal sensitivity by offset
+        call d_vert_n_g%broadcast_element_times_scalar(offset)
+
+        ! bring in d_loc of vertex
+        call this%d_loc%init_from_sparse_matrix(d_loc)
+
+        ! subtract to get control point d_loc
+        call this%d_loc%sparse_add(d_vert_n_g)
+        
+    end subroutine control_point_init_adjoint
 
 
     subroutine control_point_set_bc(this, bc, n)

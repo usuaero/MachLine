@@ -1266,6 +1266,8 @@ contains
         real,dimension(this%N_unknown) :: A_i
         real :: I_known_i
 
+        type(sparse_matrix),dimension(3) ::  d_v_d
+
         if (verbose) write(*,'(a)',advance='no') "     Calculating body influences..."
        
         ! Calculate source and doublet influences from body on each control point
@@ -1289,7 +1291,13 @@ contains
                 
                 do j=1,body%N_panels
                     ! Influence of existing panel on control point
-                    call body%panels(j)%calc_velocity_influences(body%cp(i)%loc, this%freestream, .false., v_s, v_d)
+                    call body%panels(j)%calc_velocity_influences(body%cp(i)%loc, this%freestream,.false.,v_s, v_d)
+                    
+                    ! if calc_adjoint is specified, do adjoint calcs
+                    if (body%calc_adjoint) then
+                        call body%panels(j)%calc_velocity_influences_adjoint(body%cp(i), this%freestream, d_v_d)
+                    end if
+
                     source_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_s))
                     doublet_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_d))
                     
@@ -1326,7 +1334,7 @@ contains
                     if (body%mirrored) then
 
                         ! Calculate influence of mirrored panel on control point
-                        call body%panels(j)%calc_velocity_influences(body%cp(i)%loc, this%freestream, .true., v_s, v_d)
+                        call body%panels(j)%calc_velocity_influences(body%cp(i)%loc,this%freestream, .true.,v_s, v_d)
                         source_inf = matmul(body%cp(i)%loc, v_s)
                         doublet_inf = matmul(body%cp(i)%loc, v_d)
 
@@ -1581,7 +1589,7 @@ contains
 
                             ! Calculate influence of mirrored panel on control point
                             call body%wake%strips(j)%panels(l)%calc_velocity_influences(body%cp(i)%loc, this%freestream, &
-                                                                     .true., v_s, v_d)
+                                                                     .true.,  v_s, v_d)
                             doublet_inf = matmul(body%cp(i)%loc, v_d)
 
                             ! Add influence
@@ -1605,7 +1613,7 @@ contains
 
                         ! Caclulate influence of existing panel on control point
                         call body%wake%strips(j)%panels(l)%calc_velocity_influences(body%cp(i)%loc, this%freestream, &
-                                                                                     .false., v_s, v_d)
+                                                                                     .false.,  v_s, v_d)
                         doublet_inf = matmul(body%cp(i)%n_g, v_d)
 
                         ! Add influence
@@ -1619,7 +1627,7 @@ contains
 
                             ! Calculate influence of mirrored panel on control point
                             call body%wake%strips(j)%panels(l)%calc_velocity_influences(body%cp(i)%loc, this%freestream, &
-                                                                     .true., v_s, v_d)
+                                                                     .true.,  v_s, v_d)
                             doublet_inf = matmul(body%cp(i)%n_g, v_d)
 
                             ! Add influence

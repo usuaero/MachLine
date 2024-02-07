@@ -578,7 +578,7 @@ program sparse_matrix_test
     ! expand sparse_matrix_b
     allocate(expanded_matrix_b(3,sparse_matrix_b%full_num_cols))
     allocate(residual(3,sparse_matrix_b%full_num_cols))
-    expanded_matrix_b = sparse_matrix_b%expand()
+    expanded_matrix_b = sparse_matrix_b%expand(.false.)
     residual = full_matrix_b - expanded_matrix_b
     
     ! write results
@@ -620,7 +620,7 @@ program sparse_matrix_test
     ! update full_matrix_a by expanding the most recent sparse matrix a
     write(*,*) "update full matrix a to reflect changes made to sparse matrix a"
     write(*,*) ""
-    full_matrix_a = sparse_matrix_a%expand()
+    full_matrix_a = sparse_matrix_a%expand(.false.)
 
     ! write full matrix a
     write(*,*) " full matrix a:"
@@ -691,7 +691,7 @@ program sparse_matrix_test
     write(*,*) ""
 
     ! expand sparse_a
-    expanded_matrix_a = sparse_matrix_a%expand()
+    expanded_matrix_a = sparse_matrix_a%expand(.false.)
     residual = full_matrix_a - expanded_matrix_a
     
     ! write results
@@ -742,7 +742,7 @@ program sparse_matrix_test
     call sparse_matrix_a%init_from_sparse_vectors(sparse_a, sparse_b, sparse_c)
 
     ! update full_matrix_a
-    full_matrix_a = sparse_matrix_a%expand()
+    full_matrix_a = sparse_matrix_a%expand(.false.)
 
     ! write full matrix a
     write(*,*) " full matrix a:"
@@ -812,7 +812,7 @@ program sparse_matrix_test
     write(*,*) ""
 
     ! expand sparse_a
-    expanded_matrix_a = sparse_matrix_a%expand()
+    expanded_matrix_a = sparse_matrix_a%expand(.false.)
     residual = full_matrix_a - expanded_matrix_a
     
     ! write results
@@ -860,7 +860,7 @@ program sparse_matrix_test
     call sparse_matrix_a%init_from_sparse_vectors(sparse_a, sparse_b, sparse_c)
 
     ! update full_matrix_a
-    full_matrix_a = sparse_matrix_a%expand()
+    full_matrix_a = sparse_matrix_a%expand(.false.)
 
     ! write full matrix b
     write(*,*) " full matrix b:"
@@ -928,7 +928,7 @@ program sparse_matrix_test
     write(*,*) ""
 
     ! expand sparse_b
-    expanded_matrix_b = sparse_matrix_b%expand()
+    expanded_matrix_b = sparse_matrix_b%expand(.false.)
     residual = full_matrix_b - expanded_matrix_b
     
     ! write results
@@ -1016,7 +1016,7 @@ program sparse_matrix_test
     
     
     ! expand sparse_b
-    expanded_matrix_result = sparse_matrix_result%expand()
+    expanded_matrix_result = sparse_matrix_result%expand(.false.)
     residual = full_matrix_result - expanded_matrix_result
     
     ! write results
@@ -1102,7 +1102,7 @@ program sparse_matrix_test
     
     
     ! expand sparse_b
-    expanded_matrix_result = sparse_matrix_result%expand()
+    expanded_matrix_result = sparse_matrix_result%expand(.false.)
     residual = full_matrix_result - expanded_matrix_result
     
     ! write results
@@ -1186,7 +1186,7 @@ program sparse_matrix_test
     
     
     ! expand sparse_b
-    expanded_vector_result = sparse_vector_result%expand()
+    expanded_vector_result = sparse_vector_result%expand(.false.)
     allocate(residual_vector(sparse_vector_result%full_size))
     residual_vector = vector_result - expanded_vector_result
     
@@ -1271,7 +1271,7 @@ program sparse_matrix_test
     
     
     ! expand sparse_a
-    expanded_matrix_a = sparse_matrix_a%expand()
+    expanded_matrix_a = sparse_matrix_a%expand(.false.)
     residual = full_matrix_a - expanded_matrix_a
     
     ! write results
@@ -1319,7 +1319,7 @@ program sparse_matrix_test
     call sparse_matrix_a%init_from_sparse_vectors(sparse_a, sparse_b, sparse_c)
 
     ! update full_matrix_a
-    full_matrix_a = sparse_matrix_a%expand()
+    full_matrix_a = sparse_matrix_a%expand(.false.)
 
     ! write full matrix a
     write(*,*) " full matrix a:"
@@ -1379,7 +1379,7 @@ program sparse_matrix_test
     
     
     ! expand sparse_b
-    expanded_matrix_result = sparse_matrix_result%expand()
+    expanded_matrix_result = sparse_matrix_result%expand(.false.)
     residual = full_matrix_result - expanded_matrix_result
     
     ! write results

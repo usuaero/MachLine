@@ -15,7 +15,8 @@
     },
     "solver": {
         "formulation" : "neumann-mass-flux-VCP",
-        "matrix_solver" : "HHLS"
+        "matrix_solver" : "HHLS", 
+        "sort_system" : false
     },
     "post_processing" : {
     },
