@@ -4738,14 +4738,44 @@ contains
 
             ! Integration length on edge to start vertex
             geom%l1(i) = -geom%d_ls(1,i)*geom%v_eta(i) + geom%d_ls(2,i)*geom%v_xi(i)
-            call term1%init_from_sparse_vector(geom%d_ls(1,i))
-            call term1%
-            geom%d_l1(i)%init_from_sparse_vector(d_ls(1,i))
+            
+            call term1%init_from_sparse_vector(geom%d_d_ls(1,i))
+            call term1%broadcast_element_times_scalar(-geom%v_eta(i))
+
+            call term2%init_from_sparse_vector(geom%d_v_eta(i))
+            call term2%broadcast_element_times_scalar(-geom%d_ls(1,i))
+
+            call term3%init_from_sparse_vector(geom%d_d_ls(2,i))
+            call term3%broadcast_element_times_scalar(geom%v_xi(i))
+
+            call term4%init_from_sparse_vector(geom%d_v_xi(i))
+            call term4%broadcast_element_times_scalar(geom%d_ls(2,i))
+
+            call geom%d_l1(i)%init_from_sparse_vector(term1)
+            call geom%d_l1(i)%sparse_add(term2)
+            call geom%d_l1(i)%sparse_add(term3)
+            call geom%d_l1(i)%sparse_add(term4)
 
 
             ! Integration length on edge to start vertex
             geom%l2(i) = -geom%d_ls(1,i_next)*geom%v_eta(i) + geom%d_ls(2,i_next)*geom%v_xi(i)
-            geom%d_l2(i) = 
+            
+            call term1%init_from_sparse_vector(geom%d_d_ls(1,i))
+            call term1%broadcast_element_times_scalar(-geom%v_eta(i))
+
+            call term2%init_from_sparse_vector(geom%d_v_eta(i))
+            call term2%broadcast_element_times_scalar(-geom%d_ls(1,i))
+
+            call term3%init_from_sparse_vector(geom%d_d_ls(2,i))
+            call term3%broadcast_element_times_scalar(geom%v_xi(i))
+
+            call term4%init_from_sparse_vector(geom%d_v_xi(i))
+            call term4%broadcast_element_times_scalar(geom%d_ls(2,i))
+
+            call geom%d_l1(i)%init_from_sparse_vector(term1)
+            call geom%d_l1(i)%sparse_add(term2)
+            call geom%d_l1(i)%sparse_add(term3)
+            call geom%d_l1(i)%sparse_add(term4)
         end do
 
         ! Perpendicular distance in plane from evaluation point to edge
