@@ -4748,7 +4748,7 @@ contains
         type(sparse_matrix) :: d_P_transformed
         type(sparse_vector),dimension(3) :: x
 
-        integer :: i
+        integer :: i,j
 
         ! Initialize
         call geom%init(cp%loc, this%get_local_coords_of_point(cp%loc, mirror_panel))
@@ -4764,25 +4764,25 @@ contains
         geom%d_P_ls = x(1:2)
         geom%d_h = x(3)
 
+        geom%d_h2 = x(3)
+        call geom%d_h2%broadcast_element_times_scalar(2*geom%h)
 
+        ! MAY NOT NEED THESE BELOW 
+        ! These are sometimes accessed when the DoD is not checked, so they need to be set to zero
+        ! call geom%d_R1%init(geom%d_h%full_size)
+        ! call geom%d_R2%init(geom%d_h%full_size)
+        ! call geom%d_a%init(geom%d_h%full_size)
 
-        ! ! Get edge normal vectors
-        ! if (mirror_panel) then
-        !     geom%v_xi = this%n_hat_ls_mir(1,:)
-        !     geom%v_eta = this%n_hat_ls_mir(2,:)
-        ! else
-        !     geom%v_xi = this%n_hat_ls(1,:)
-        !     geom%v_eta = this%n_hat_ls(2,:)
-        ! end if
+        geom%d_v_xi = this%d_n_hat_ls(1,:)
+        geom%d_v_eta = this%d_n_hat_ls(2,:)
 
-        ! ! Calculate vertex displacements
-        ! do i=1,this%N
-        !     if (mirror_panel) then
-        !         geom%d_ls(:,i) = this%vertices_ls_mir(:,i) - geom%P_ls
-        !     else
-        !         geom%d_ls(:,i) = this%vertices_ls(:,i) - geom%P_ls
-        !     end if
-        ! end do
+        ! Calculate vertex displacements
+        do i=1,this%N
+            do j=1,2
+                geom%d_d_ls(j,i) = this%d_vertices_ls(j,i)
+                call geom%d_d_ls(j,i)%sparse_subtract(geom%d_P_ls(j))
+            end do
+        end do
     
     end function panel_calc_basic_geom_adjoint
 

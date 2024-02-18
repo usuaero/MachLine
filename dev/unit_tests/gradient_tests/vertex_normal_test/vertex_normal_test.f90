@@ -193,7 +193,7 @@ program vertex_normal_test
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST d_n_g !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     write(*,*) "---------------------------------- TEST vertex d_n_g -----------------------------------"
     write(*,*) ""
-    write(*,*) "the sensitivity of vertex 1 WRT each design variable"
+    write(*,*) "the sensitivity of the vertex 1 normal vector WRT each design variable"
     write(*,*) ""
 
     !!!!!!!!! Finite Difference  d_n_g !!!!!!!!!
@@ -262,12 +262,12 @@ program vertex_normal_test
     write(*,*) ""
     write(*,*) "------------------------------------------------"
     write(*,*) ""
-    write(*,*) "  ADJOINT d_n_g"
+    write(*,*) "  ADJOINT d_n_g vertex 1"
     write(*,*) ""
     
     !write sparse matrix
     write(*,*) ""
-    write(*,*) "         d_n_g point 1"
+    write(*,*) "         d_n_g vertex 1"
     write(*,*) "  d_n_g_x           d_n_g_y           d_n_g_z             sparse_index       full_index"
 
     do i=1,adjoint_mesh%vertices(index)%d_n_g%sparse_num_cols

@@ -117,7 +117,7 @@ contains
 !!!!!!!!!!!!!!!!!!!!! SPARSE VECTOR TYPE BOUND PROCEDURES !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
     subroutine sparse_vector_init(this,N)
-        ! initializes a sparse vector with one element full of zeros. if a derivative WRT X(beta), N = N_verts*3
+        ! initializes a sparse vector with one element =0. if a derivative WRT X(beta), N = N_verts*3
         
         implicit none
 
