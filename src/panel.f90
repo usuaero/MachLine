@@ -4726,10 +4726,40 @@ contains
         class(panel), intent(in) :: this
         type(control_point), intent(in) :: cp
         type(flow), intent(in) :: freestream
-
         type(eval_point_geom) :: geom
 
-        
+        integer :: i, i_next
+
+        ! Calculate edge quantities
+        do i=1,this%N
+
+            ! Get index of end vertex
+            i_next = mod(i, this%N) + 1
+
+            ! Integration length on edge to start vertex
+            geom%l1(i) = -geom%d_ls(1,i)*geom%v_eta(i) + geom%d_ls(2,i)*geom%v_xi(i)
+            call term1%init_from_sparse_vector(geom%d_ls(1,i))
+            call term1%
+            geom%d_l1(i)%init_from_sparse_vector(d_ls(1,i))
+
+
+            ! Integration length on edge to start vertex
+            geom%l2(i) = -geom%d_ls(1,i_next)*geom%v_eta(i) + geom%d_ls(2,i_next)*geom%v_xi(i)
+            geom%d_l2(i) = 
+        end do
+
+        ! Perpendicular distance in plane from evaluation point to edge
+        geom%a = geom%d_ls(1,:)*geom%v_xi + geom%d_ls(2,:)*geom%v_eta
+
+        ! Square of the perpendicular distance to edge
+        geom%g2 = geom%a*geom%a + geom%h2
+
+        ! Distance from evaluation point to end vertices
+        geom%R1 = sqrt(geom%d_ls(1,:)*geom%d_ls(1,:) + geom%d_ls(2,:)*geom%d_ls(2,:) + geom%h2)
+        geom%R2 = cshift(geom%R1, 1)
+
+        ! Difference in R
+        geom%dR = geom%R2 - geom%R1        
     
     end function panel_calc_subsonic_geom_adjoint
 
