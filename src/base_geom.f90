@@ -127,8 +127,6 @@ module base_geom_mod
 
             procedure :: init => eval_point_geom_init
 
-            procedure :: init_adjoint => eval_point_geom_init_adjoint
-
     end type eval_point_geom
 
 
@@ -570,34 +568,6 @@ contains
         this%a = 0.
     
     end subroutine eval_point_geom_init
-
-
-    subroutine eval_point_geom_init_adjoint(this, d_loc, d_loc_ls)
-        ! Initializes this control point adjoint sensitivities
-
-        implicit none
-        
-        class(eval_point_geom),intent(inout) :: this
-        type(sparse_matrix),intent(inout) :: d_loc, d_loc_ls
-
-
-        ! Store point sensitivity
-        ! call this%d_P_g%init_from_sparse_matrix(d_loc)
-
-        ! ! Transform to local scaled coordinates
-        ! this%P_ls = P_ls(1:2)
-        ! this%h = P_ls(3) ! Equivalent to E&M Eq. (J.7.41)
-        ! this%h2 = this%h**2
-
-        ! ! These are sometimes accessed when the DoD is not checked, so they need to be set to zero
-        ! this%R1 = 0.
-        ! this%R2 = 0.
-        ! this%a = 0.
-    
-
-        
-        
-    end subroutine eval_point_geom_init_adjoint
 
 
     subroutine control_point_init(this, loc, cp_type, tied_to_type, tied_to_index)

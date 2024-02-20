@@ -224,8 +224,8 @@ module panel_mod
 
             ! adjoint velocity influence terms
             procedure :: calc_velocity_influences_adjoint => panel_calc_velocity_influences_adjoint
-            procedure :: calc_subsonic_geom_adjoint => panel_calc_subsonic_geom_adjoint
             procedure :: calc_basic_geom_adjoint => panel_calc_basic_geom_adjoint
+            procedure :: calc_subsonic_geom_adjoint => panel_calc_subsonic_geom_adjoint
             procedure :: calc_sensitivity_of_body_point_in_ls => panel_calc_sensitivity_of_body_point_in_ls
 
 
@@ -4687,7 +4687,7 @@ contains
                     !d_geom = this%calc_supersonic_subinc_geom_adjoint(P, freestream, mirror_panel, dod_info)
                 end if
             else
-                geom = this%calc_subsonic_geom_adjoint(cp, freestream)
+                geom = this%calc_subsonic_geom_adjoint(cp,freestream)
             end if
 
             ! Get integrals
@@ -4718,82 +4718,6 @@ contains
     end subroutine panel_calc_velocity_influences_adjoint
 
 
-    function panel_calc_subsonic_geom_adjoint(this, cp, freestream) result(geom)
-        ! Initializes geometry sensitivities common to the three panel types
-
-        implicit none
-        
-        class(panel), intent(in) :: this
-        type(control_point), intent(in) :: cp
-        type(flow), intent(in) :: freestream
-        type(eval_point_geom) :: geom
-
-        integer :: i, i_next
-
-        ! Calculate edge quantities
-        do i=1,this%N
-
-            ! Get index of end vertex
-            i_next = mod(i, this%N) + 1
-
-            ! Integration length on edge to start vertex
-            geom%l1(i) = -geom%d_ls(1,i)*geom%v_eta(i) + geom%d_ls(2,i)*geom%v_xi(i)
-            
-            call term1%init_from_sparse_vector(geom%d_d_ls(1,i))
-            call term1%broadcast_element_times_scalar(-geom%v_eta(i))
-
-            call term2%init_from_sparse_vector(geom%d_v_eta(i))
-            call term2%broadcast_element_times_scalar(-geom%d_ls(1,i))
-
-            call term3%init_from_sparse_vector(geom%d_d_ls(2,i))
-            call term3%broadcast_element_times_scalar(geom%v_xi(i))
-
-            call term4%init_from_sparse_vector(geom%d_v_xi(i))
-            call term4%broadcast_element_times_scalar(geom%d_ls(2,i))
-
-            call geom%d_l1(i)%init_from_sparse_vector(term1)
-            call geom%d_l1(i)%sparse_add(term2)
-            call geom%d_l1(i)%sparse_add(term3)
-            call geom%d_l1(i)%sparse_add(term4)
-
-
-            ! Integration length on edge to start vertex
-            geom%l2(i) = -geom%d_ls(1,i_next)*geom%v_eta(i) + geom%d_ls(2,i_next)*geom%v_xi(i)
-            
-            call term1%init_from_sparse_vector(geom%d_d_ls(1,i))
-            call term1%broadcast_element_times_scalar(-geom%v_eta(i))
-
-            call term2%init_from_sparse_vector(geom%d_v_eta(i))
-            call term2%broadcast_element_times_scalar(-geom%d_ls(1,i))
-
-            call term3%init_from_sparse_vector(geom%d_d_ls(2,i))
-            call term3%broadcast_element_times_scalar(geom%v_xi(i))
-
-            call term4%init_from_sparse_vector(geom%d_v_xi(i))
-            call term4%broadcast_element_times_scalar(geom%d_ls(2,i))
-
-            call geom%d_l1(i)%init_from_sparse_vector(term1)
-            call geom%d_l1(i)%sparse_add(term2)
-            call geom%d_l1(i)%sparse_add(term3)
-            call geom%d_l1(i)%sparse_add(term4)
-        end do
-
-        ! Perpendicular distance in plane from evaluation point to edge
-        geom%a = geom%d_ls(1,:)*geom%v_xi + geom%d_ls(2,:)*geom%v_eta
-
-        ! Square of the perpendicular distance to edge
-        geom%g2 = geom%a*geom%a + geom%h2
-
-        ! Distance from evaluation point to end vertices
-        geom%R1 = sqrt(geom%d_ls(1,:)*geom%d_ls(1,:) + geom%d_ls(2,:)*geom%d_ls(2,:) + geom%h2)
-        geom%R2 = cshift(geom%R1, 1)
-
-        ! Difference in R
-        geom%dR = geom%R2 - geom%R1        
-    
-    end function panel_calc_subsonic_geom_adjoint
-
-
 
     function panel_calc_basic_geom_adjoint(this, cp, mirror_panel) result(geom)
         ! Initializes geometry sensitivities common to the three panel types
@@ -4812,6 +4736,7 @@ contains
 
         ! Initialize
         call geom%init(cp%loc, this%get_local_coords_of_point(cp%loc, mirror_panel))
+
         ! call geom%init_adjoint(cp%d_loc)
         
         call geom%d_P_g%init_from_sparse_matrix(cp%d_loc)
@@ -4845,6 +4770,92 @@ contains
         end do
     
     end function panel_calc_basic_geom_adjoint
+
+
+    function panel_calc_subsonic_geom_adjoint(this, cp, freestream) result(geom)
+        ! Initializes geometry sensitivities common to the three panel types
+
+        implicit none
+        
+        class(panel), intent(in) :: this
+        type(control_point), intent(in) :: cp
+        type(flow), intent(in) :: freestream
+
+        type(eval_point_geom), intent(out) :: geom
+
+        integer :: i, i_next
+
+        type(sparse_vector),dimension(4) :: dl1_terms, dl2_terms
+
+        geom = this%calc_basic_geom_adjoint(cp, .false.)
+
+        ! Calculate edge quantities
+        do i=1,this%N
+
+            ! Get index of end vertex
+            i_next = mod(i, this%N) + 1
+
+            ! Integration length on edge to start vertex
+            ! geom%l1(i) = -geom%d_ls(1,i)*geom%v_eta(i) + geom%d_ls(2,i)*geom%v_xi(i)
+            
+            call dl1_terms(1)%init_from_sparse_vector(geom%d_d_ls(1,i))
+            call dl1_terms(1)%broadcast_element_times_scalar(-geom%v_eta(i))
+
+            call dl1_terms(2)%init_from_sparse_vector(geom%d_v_eta(i))
+            call dl1_terms(2)%broadcast_element_times_scalar(-geom%d_ls(1,i))
+
+            call dl1_terms(3)%init_from_sparse_vector(geom%d_d_ls(2,i))
+            call dl1_terms(3)%broadcast_element_times_scalar(geom%v_xi(i))
+
+            call dl1_terms(4)%init_from_sparse_vector(geom%d_v_xi(i))
+            call dl1_terms(4)%broadcast_element_times_scalar(geom%d_ls(2,i))
+
+            call geom%d_l1(i)%init_from_sparse_vector(dl1_terms(1))
+            call geom%d_l1(i)%sparse_add(dl1_terms(2))
+            call geom%d_l1(i)%sparse_add(dl1_terms(3))
+            call geom%d_l1(i)%sparse_add(dl1_terms(4))
+
+
+            ! Integration length on edge to start vertex
+            ! geom%l2(i) = -geom%d_ls(1,i_next)*geom%v_eta(i) + geom%d_ls(2,i_next)*geom%v_xi(i)
+            
+            call dl2_terms(1)%init_from_sparse_vector(geom%d_d_ls(1,i_next))
+            call dl2_terms(1)%broadcast_element_times_scalar(-geom%v_eta(i))
+
+            call dl2_terms(2)%init_from_sparse_vector(geom%d_v_eta(i))
+            call dl2_terms(2)%broadcast_element_times_scalar(-geom%d_ls(1,i_next))
+
+            call dl2_terms(3)%init_from_sparse_vector(geom%d_d_ls(2,i_next))
+            call dl2_terms(3)%broadcast_element_times_scalar(geom%v_xi(i))
+
+            call dl2_terms(4)%init_from_sparse_vector(geom%d_v_xi(i))
+            call dl2_terms(4)%broadcast_element_times_scalar(geom%d_ls(2,i_next))
+
+            call geom%d_l1(i)%init_from_sparse_vector(dl2_terms(1))
+            call geom%d_l1(i)%sparse_add(dl2_terms(2))
+            call geom%d_l1(i)%sparse_add(dl2_terms(3))
+            call geom%d_l1(i)%sparse_add(dl2_terms(4))
+
+            deallocate(dl1_terms(1)%elements, dl2_terms(1)%elements,&
+                       dl1_terms(2)%elements, dl2_terms(2)%elements,&
+                       dl1_terms(3)%elements, dl2_terms(3)%elements,&
+                       dl1_terms(4)%elements, dl2_terms(4)%elements)
+        end do
+
+        ! Perpendicular distance in plane from evaluation point to edge
+        ! geom%a = geom%d_ls(1,:)*geom%v_xi + geom%d_ls(2,:)*geom%v_eta
+
+        ! ! Square of the perpendicular distance to edge
+        ! geom%g2 = geom%a*geom%a + geom%h2
+
+        ! ! Distance from evaluation point to end vertices
+        ! geom%R1 = sqrt(geom%d_ls(1,:)*geom%d_ls(1,:) + geom%d_ls(2,:)*geom%d_ls(2,:) + geom%h2)
+        ! geom%R2 = cshift(geom%R1, 1)
+
+        ! ! Difference in R
+        ! geom%dR = geom%R2 - geom%R1        
+    
+    end function panel_calc_subsonic_geom_adjoint
 
     
     function panel_calc_sensitivity_of_body_point_in_ls(this, P, d_P) result(d_P_ls)
