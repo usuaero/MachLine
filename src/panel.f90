@@ -4734,8 +4734,15 @@ contains
 
         integer :: i,j
 
+        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        !!!! geom init already been called in calc basic geom, find a way to use !!!!!!!!!!!!!!!
+        !!!! previously calculated values                                        !!!!!!!!!!!!!!!
+
         ! Initialize
         call geom%init(cp%loc, this%get_local_coords_of_point(cp%loc, mirror_panel))
+
+        !!!!!!!!!!!!!!!!!!!!!!! end duplicated work!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
         ! call geom%init_adjoint(cp%d_loc)
         
@@ -4758,6 +4765,23 @@ contains
         ! call geom%d_R2%init(geom%d_h%full_size)
         ! call geom%d_a%init(geom%d_h%full_size)
 
+
+        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        !!!!!!!!!! This work has already been done in original calc basic geom !!!!!!!!!
+        !   find a way to use already calculated values                   
+
+        ! calculate original v_xi and v_eta
+        geom%v_xi = this%n_hat_ls(1,:)
+        geom%v_eta = this%n_hat_ls(2,:)
+
+        ! Calculate orignal vertex displacements
+        do i=1,this%N
+            geom%d_ls(:,i) = this%vertices_ls(:,i) - geom%P_ls
+        end do
+        !!!!!!!!!!end duplicated work !!!!!!!!!!
+        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+        ! calculate/assign d_v_xi and d_v_eta values
         geom%d_v_xi = this%d_n_hat_ls(1,:)
         geom%d_v_eta = this%d_n_hat_ls(2,:)
 
@@ -4794,10 +4818,12 @@ contains
 
             ! Get index of end vertex
             i_next = mod(i, this%N) + 1
-
-            ! Integration length on edge to start vertex
-            ! geom%l1(i) = -geom%d_ls(1,i)*geom%v_eta(i) + geom%d_ls(2,i)*geom%v_xi(i)
             
+            !!!!!!! duplicate work !!!!!!!!!!!!!!!!!
+            ! take derivative of this (also calculate for future use): 
+            geom%l1(i) = -geom%d_ls(1,i)*geom%v_eta(i) + geom%d_ls(2,i)*geom%v_xi(i)
+            !!!!!!! end duplicate work !!!!!!!!!!!!!!!!!
+
             call dl1_terms(1)%init_from_sparse_vector(geom%d_d_ls(1,i))
             call dl1_terms(1)%broadcast_element_times_scalar(-geom%v_eta(i))
 
@@ -4815,10 +4841,11 @@ contains
             call geom%d_l1(i)%sparse_add(dl1_terms(3))
             call geom%d_l1(i)%sparse_add(dl1_terms(4))
 
+            !!!!!!! duplicate work !!!!!!!!!!!!!!!!!
+            ! take derivative of this (also calculate it for future use): 
+            geom%l2(i) = -geom%d_ls(1,i_next)*geom%v_eta(i) + geom%d_ls(2,i_next)*geom%v_xi(i)
+            !!!!!!! end duplicate work !!!!!!!!!!!!!!!!!
 
-            ! Integration length on edge to start vertex
-            ! geom%l2(i) = -geom%d_ls(1,i_next)*geom%v_eta(i) + geom%d_ls(2,i_next)*geom%v_xi(i)
-            
             call dl2_terms(1)%init_from_sparse_vector(geom%d_d_ls(1,i_next))
             call dl2_terms(1)%broadcast_element_times_scalar(-geom%v_eta(i))
 
@@ -4842,8 +4869,13 @@ contains
                        dl1_terms(4)%elements, dl2_terms(4)%elements)
         end do
 
+        !!!!!!! duplicate work !!!!!!!!!!!!!!!!!
+        ! take derivative of this (also calculate it for future use): 
         ! Perpendicular distance in plane from evaluation point to edge
-        ! geom%a = geom%d_ls(1,:)*geom%v_xi + geom%d_ls(2,:)*geom%v_eta
+        geom%a = geom%d_ls(1,:)*geom%v_xi + geom%d_ls(2,:)*geom%v_eta
+        
+        !!!!!!! end duplicate work !!!!!!!!!!!!!!!!!
+        call geom%d_a%init_from_sparse_vector(geom%d_d_ls(1,:))
 
         ! ! Square of the perpendicular distance to edge
         ! geom%g2 = geom%a*geom%a + geom%h2

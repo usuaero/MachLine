@@ -841,26 +841,26 @@ contains
     end subroutine sparse_matrix_compress
 
 
-    function sparse_matrix_expand(this, N_by_3) result(full_matrix)
+    function sparse_matrix_expand(this, tall) result(full_matrix)
         ! takes a sparse matrix and expands it, returning a real full matrix
 
         implicit none
 
         class(sparse_matrix),intent(inout) :: this
-        logical,intent(in) :: N_by_3
+        logical,intent(in) :: tall
 
         real,dimension(:,:),allocatable :: full_matrix
         integer :: i
 
         allocate(full_matrix(3,this%full_num_cols), source=0.)
         
-        ! put nonzero values in their corresponding full_index location
+        ! put nonzero values in their corresponding full_index location (column major)
         do i=1,this%sparse_num_cols
             full_matrix(:,this%columns(i)%full_index) = this%columns(i)%vector_values
         end do
 
-        ! if N rows by 3 column is the desired output (used in matrix split to vectors)
-        if (N_by_3) then
+        ! if tall is the desired output, make N rows by 3 column (used in matrix split to vectors)
+        if (tall) then
             full_matrix = transpose(full_matrix)
         end if 
     end function sparse_matrix_expand
@@ -1155,8 +1155,11 @@ contains
         integer :: i
         real,dimension(:,:), allocatable :: full_matrix
         type(sparse_vector),dimension(3) :: sparse_vecs
-
-        full_matrix = this%expand(.true.)
+        logical :: tall 
+        
+        ! tall means we want the matrix expanded as a Nx3 rather than 3xN
+        tall = .true.
+        full_matrix = this%expand(tall)
 
         do i=1,3
             call sparse_vecs(i)%init_from_full_vector(full_matrix(:,i))
