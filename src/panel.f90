@@ -4873,7 +4873,23 @@ contains
         ! take derivative of this (also calculate it for future use): 
         ! Perpendicular distance in plane from evaluation point to edge
         geom%a = geom%d_ls(1,:)*geom%v_xi + geom%d_ls(2,:)*geom%v_eta
-        
+
+        do i=1,3
+            call d_a_term1(i)%init_from_sparse_vector(geom%d_d_ls(1,i))
+            call d_a_term1(i)%broadcast_element_times_scalar(geom%v_xi(i))
+
+            call da_term2(i)%init_from_sparse_vector(geom%d_v_xi(i))
+            call da_term2(i)%broadcast_element_times_scalar(geom%d_ls(1,i))
+
+            call d_a_term3(i)%init_from_sparse_vector(geom%d_d_ls(1,i))
+            call d_a_term3(i)%broadcast_element_times_scalar(geom%v_xi(i))
+
+            call d_a_term4(i)%init_from_sparse_vector(geom%d_v_xi(i))
+            call d_a_term4(i)%broadcast_element_times_scalar(geom%d_ls(1,i))
+
+
+        end do
+
         !!!!!!! end duplicate work !!!!!!!!!!!!!!!!!
         call geom%d_a%init_from_sparse_vector(geom%d_d_ls(1,:))
 
