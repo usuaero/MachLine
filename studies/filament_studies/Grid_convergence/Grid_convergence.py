@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import json
 import subprocess as sp
-import generate_meshes
+import generate_meshes_openVSP as generate_meshes
 
 
 RERUN_MACHLINE = True

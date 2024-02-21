@@ -1,0 +1,16 @@
+...Comp Geom...
+3 Num Comps
+3 Total Num Meshes
+9760 Total Num Tris
+
+Theo_Area   Wet_Area   Theo_Vol    Wet_Vol  Name
+   12.525      6.262      4.161      2.130  EllipsoidGeom  
+  257.336    251.145    125.156    125.061  BORGeom        
+   11.983      5.993      3.809      1.950  EllipsoidGeom  
+-------------------------------------------------
+  281.843    263.400    133.126    129.141  Totals         
+
+Tag_Theo_Area   Tag_Wet_Area    Tag_Name
+       12.525          6.262    EllipsoidGeom_S_Surf0
+      257.336        251.145    BORGeom_S_Surf0
+       11.983          5.993    EllipsoidGeom_S_Surf0

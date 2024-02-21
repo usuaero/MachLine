@@ -1,0 +1,37 @@
+{
+    "sphere" : {
+        "radius[in]" : 1.0
+    },
+    "freestream" : {
+        "velocity[ft/s]" : 10.0,
+        "density[slugs/ft^3]" : 0.0023769,
+        "temperature[deg F]" : 59, 
+        "xalpha[deg]" : 5,
+        "xbeta[deg]" : 5
+    },
+    "triads" : {
+        "0": {
+            "pitch" : 45,
+            "roll" : 45,
+            "yaw" : 0
+        },
+        "1" : {
+            "pitch" : -45,
+            "roll" : -135,
+            "yaw" : 0
+        }
+        
+        
+    },
+    "settings":{
+        "machline": false,
+        "noise": true
+    },
+    "plot" : {
+        "spherical_pressure" : true,
+        "pressure_mapping" : false,
+        "CPvTheta": true,
+        "ports" : false,
+        "arrows" : false
+    }
+}

@@ -1,0 +1,37 @@
+{
+    "flow": {
+        "freestream_velocity": [
+            0.99452189536827333692269194498057,
+            0.0,
+            0.1045284632676534713998341548025
+        ],
+        "freestream_mach_number" : 2.0
+    },
+    "geometry": {
+        "file": "studies/Hypersonics/Meshes/delta_wing.tri",
+        "spanwise_axis": "+y",
+        "wake_model": {
+            "wake_present" : true,
+            "append_wake" : true,
+            "trefftz_distance" : 20.0    
+        },
+        "reference": {
+            "area": 241.154
+        }
+    },
+    "solver": {
+        "formulation" : "dirichlet-morino",
+        "matrix_solver" : "GMRES",
+        "write_A_and_b" : false
+    },
+    "post_processing": {
+        "pressure_rules": {
+            "incompressible": true
+        }
+    },
+    "output": {
+        "body_file": "studies/Hypersonics/results/body_results.vtk",
+        "wake_file": "studies/Hypersonics/results/wake_filament.vtk",
+        "report_file": "studies/Hypersonics/reports/filament.json"
+    }
+}

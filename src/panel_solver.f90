@@ -651,11 +651,6 @@ contains
                 else
                     call cp%set_bc(bc_type, n_g_new)
                 end if
-                write(*,*)"vertex_loc",body%vertices(cp%tied_to_index)%loc
-                write(*,*)"N_wake_edges",body%vertices(cp%tied_to_index)%N_wake_edges
-                write(*,*)"n_g_new",n_g_new
-                write(*,*)"n_g_wake",body%vertices(cp%tied_to_index)%n_g_wake
-                write(*,*)"n_g",body%vertices(cp%tied_to_index)%n_g
 
 
 
@@ -1033,12 +1028,10 @@ contains
         ! Calculate body influences
         call this%calc_body_influences(body)
         
-        write(*,*) "HERE I AM!!!!!!!!!!!!!!!!!!!!!"
 
         ! Calculate wake influences
         if (body%wake%N_panels > 0 .or. body%filament_wake%N_filaments > 0)&
         call this%calc_wake_influences(body, formulation,freestream) !!!! formulation part is a change
-        write(*,*) "ROCK YOU LIKE A HURRICANE"
         ! Assemble boundary condition vector
         call this%assemble_BC_vector(body)
 
@@ -1308,7 +1301,6 @@ contains
                     end if
 
                 end do
-                Write(*,*) body%cp(i)%n_g , body%cp(i)%loc
             case (MF_INNER_FLOW) ! Calculate inner flow influences
 
                 ! Loop through panels

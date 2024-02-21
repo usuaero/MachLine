@@ -1,0 +1,34 @@
+...Comp Geom...
+5 Num Comps
+12 Total Num Meshes
+47006 Total Num Tris
+
+Theo_Area   Wet_Area   Theo_Vol    Wet_Vol  Name
+    0.000      0.000      0.000  -nan(ind)  EllipsoidGeom  
+    0.000      0.000      0.000  -nan(ind)  EllipsoidGeom  
+    0.000      0.000      0.000  -nan(ind)  BORGeom        
+    0.000      0.000      0.000  -nan(ind)  MeshGeom       
+    0.000      0.000      0.000  -nan(ind)  MeshGeom       
+    0.000      0.000      0.000  -nan(ind)  MeshGeom       
+    0.000      0.000      0.000  -nan(ind)  MeshGeom       
+    0.000      0.000      0.000  -nan(ind)  MeshGeom       
+    0.000      0.000      0.000  -nan(ind)  MeshGeom       
+    0.000      0.000      0.000  -nan(ind)  MeshGeom       
+    0.000      0.000      0.000  -nan(ind)  MeshGeom       
+    0.000      0.000      0.000  -nan(ind)  MeshGeom       
+-------------------------------------------------
+    0.000      0.000      0.000      0.000  Totals         
+
+Tag_Theo_Area   Tag_Wet_Area    Tag_Name
+        0.000          0.000    EllipsoidGeom_S_Surf0
+        0.000          0.000    EllipsoidGeom_S_Surf0
+        0.000          0.000    BORGeom_S_Surf0
+        0.000          0.000    MeshGeom_S_Surf0
+        0.000          0.000    MeshGeom_S_Surf0
+        0.000          0.000    MeshGeom_S_Surf0
+        0.000          0.000    MeshGeom_S_Surf0
+        0.000          0.000    MeshGeom_S_Surf0
+        0.000          0.000    MeshGeom_S_Surf0
+        0.000          0.000    MeshGeom_S_Surf0
+        0.000          0.000    MeshGeom_S_Surf0
+        0.000          0.000    MeshGeom_S_Surf0

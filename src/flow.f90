@@ -375,6 +375,8 @@ contains
 
         ! Check for NaN
         if (isnan(C_P_ise)) C_P_ise = this%C_P_vac
+        !!!! adding check for less than vac pressure coef to see if that fixes aspect ratio problem
+        if (C_P_ise<this%C_P_vac) C_P_ise = this%C_P_vac
         
     end function flow_get_C_P_ise
 

@@ -1,0 +1,28 @@
+Name, Theo_Area, Wet_Area, Theo_Vol, Wet_Vol
+EllipsoidGeom,0.000000,0.000000,0.000000,-nan(ind)
+EllipsoidGeom,0.000000,0.000000,0.000000,-nan(ind)
+BORGeom,0.000000,0.000000,0.000000,-nan(ind)
+MeshGeom,0.000000,0.000000,0.000000,-nan(ind)
+MeshGeom,0.000000,0.000000,0.000000,-nan(ind)
+MeshGeom,0.000000,0.000000,0.000000,-nan(ind)
+MeshGeom,0.000000,0.000000,0.000000,-nan(ind)
+MeshGeom,0.000000,0.000000,0.000000,-nan(ind)
+MeshGeom,0.000000,0.000000,0.000000,-nan(ind)
+MeshGeom,0.000000,0.000000,0.000000,-nan(ind)
+MeshGeom,0.000000,0.000000,0.000000,-nan(ind)
+MeshGeom,0.000000,0.000000,0.000000,-nan(ind)
+Totals,0.000000,0.000000,0.000000,0.000000
+
+Tag_Name, Tag_Theo_Area, Tag_Wet_Area
+EllipsoidGeom_S_Surf0,0.000000,0.000000
+EllipsoidGeom_S_Surf0,0.000000,0.000000
+BORGeom_S_Surf0,0.000000,0.000000
+MeshGeom_S_Surf0,0.000000,0.000000
+MeshGeom_S_Surf0,0.000000,0.000000
+MeshGeom_S_Surf0,0.000000,0.000000
+MeshGeom_S_Surf0,0.000000,0.000000
+MeshGeom_S_Surf0,0.000000,0.000000
+MeshGeom_S_Surf0,0.000000,0.000000
+MeshGeom_S_Surf0,0.000000,0.000000
+MeshGeom_S_Surf0,0.000000,0.000000
+MeshGeom_S_Surf0,0.000000,0.000000
