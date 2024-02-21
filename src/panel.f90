@@ -4899,7 +4899,7 @@ contains
 
         end do
         
-+
+
         ! ! Square of the perpendicular distance to edge
         ! geom%g2 = geom%a*geom%a + geom%h2
 
