@@ -4809,7 +4809,7 @@ contains
 
         integer :: i, i_next
 
-        type(sparse_vector),dimension(4) :: dl1_terms, dl2_terms
+        type(sparse_vector),dimension(4) :: dl1_terms, dl2_terms, d_a_terms
 
         geom = this%calc_basic_geom_adjoint(cp, .false.)
 
@@ -4869,30 +4869,37 @@ contains
                        dl1_terms(4)%elements, dl2_terms(4)%elements)
         end do
 
+
         !!!!!!! duplicate work !!!!!!!!!!!!!!!!!
         ! take derivative of this (also calculate it for future use): 
         ! Perpendicular distance in plane from evaluation point to edge
         geom%a = geom%d_ls(1,:)*geom%v_xi + geom%d_ls(2,:)*geom%v_eta
 
+        !!!!!!! end duplicate work !!!!!!!!!!!!!!!!!
+        
         do i=1,3
-            call d_a_term1(i)%init_from_sparse_vector(geom%d_d_ls(1,i))
-            call d_a_term1(i)%broadcast_element_times_scalar(geom%v_xi(i))
+            call d_a_terms(1)%init_from_sparse_vector(geom%d_d_ls(1,i))
+            call d_a_terms(1)%broadcast_element_times_scalar(geom%v_xi(i))
 
-            call da_term2(i)%init_from_sparse_vector(geom%d_v_xi(i))
-            call da_term2(i)%broadcast_element_times_scalar(geom%d_ls(1,i))
+            call d_a_terms(2)%init_from_sparse_vector(geom%d_v_xi(i))
+            call d_a_terms(2)%broadcast_element_times_scalar(geom%d_ls(1,i))
 
-            call d_a_term3(i)%init_from_sparse_vector(geom%d_d_ls(1,i))
-            call d_a_term3(i)%broadcast_element_times_scalar(geom%v_xi(i))
+            call d_a_terms(3)%init_from_sparse_vector(geom%d_d_ls(2,i))
+            call d_a_terms(3)%broadcast_element_times_scalar(geom%v_eta(i))
 
-            call d_a_term4(i)%init_from_sparse_vector(geom%d_v_xi(i))
-            call d_a_term4(i)%broadcast_element_times_scalar(geom%d_ls(1,i))
+            call d_a_terms(4)%init_from_sparse_vector(geom%d_v_eta(i))
+            call d_a_terms(4)%broadcast_element_times_scalar(geom%d_ls(2,i))
 
+            call geom%d_a(i)%init_from_sparse_vector(d_a_terms(1))
+            call geom%d_a(i)%sparse_add(d_a_terms(2))
+            call geom%d_a(i)%sparse_add(d_a_terms(3))
+            call geom%d_a(i)%sparse_add(d_a_terms(4))
+
+            deallocate(d_a_terms(1)%elements, d_a_terms(2)%elements, d_a_terms(3)%elements, d_a_terms(4)%elements)
 
         end do
-
-        !!!!!!! end duplicate work !!!!!!!!!!!!!!!!!
-        call geom%d_a%init_from_sparse_vector(geom%d_d_ls(1,:))
-
+        
++
         ! ! Square of the perpendicular distance to edge
         ! geom%g2 = geom%a*geom%a + geom%h2
 
