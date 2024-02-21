@@ -4659,7 +4659,7 @@ contains
         implicit none
 
         class(panel),intent(inout) :: this
-        type(control_point), intent(in) :: cp
+        type(control_point), intent(inout) :: cp
         type(flow), intent(in) :: freestream
         type(sparse_matrix),dimension(3),intent(out) :: d_v_d_M_space
 
@@ -4777,11 +4777,11 @@ contains
 
         implicit none
         
-        class(panel), intent(in) :: this
-        type(control_point), intent(in) :: cp
+        class(panel), intent(inout) :: this
+        type(control_point), intent(inout) :: cp
         type(flow), intent(in) :: freestream
 
-        type(eval_point_geom), intent(out) :: geom
+        type(eval_point_geom) :: geom
 
         integer :: i, i_next
 
@@ -4831,10 +4831,10 @@ contains
             call dl2_terms(4)%init_from_sparse_vector(geom%d_v_xi(i))
             call dl2_terms(4)%broadcast_element_times_scalar(geom%d_ls(2,i_next))
 
-            call geom%d_l1(i)%init_from_sparse_vector(dl2_terms(1))
-            call geom%d_l1(i)%sparse_add(dl2_terms(2))
-            call geom%d_l1(i)%sparse_add(dl2_terms(3))
-            call geom%d_l1(i)%sparse_add(dl2_terms(4))
+            call geom%d_l2(i)%init_from_sparse_vector(dl2_terms(1))
+            call geom%d_l2(i)%sparse_add(dl2_terms(2))
+            call geom%d_l2(i)%sparse_add(dl2_terms(3))
+            call geom%d_l2(i)%sparse_add(dl2_terms(4))
 
             deallocate(dl1_terms(1)%elements, dl2_terms(1)%elements,&
                        dl1_terms(2)%elements, dl2_terms(2)%elements,&
