@@ -4809,11 +4809,14 @@ contains
 
         integer :: i, i_next
 
-        type(sparse_vector),dimension(4) :: dl1_terms, dl2_terms, d_a_terms
+        type(sparse_vector),dimension(4) :: d_l1_terms, d_l2_terms, d_a_terms
+        type(sparse_vector) ::  d_g2_term
+        type(sparse_vector),dimension(2) :: d_R1_terms
 
+        ! call basic geom adjoint
         geom = this%calc_basic_geom_adjoint(cp, .false.)
 
-        ! Calculate edge quantities
+        ! Calculate edge tangential distance sensitivities
         do i=1,this%N
 
             ! Get index of end vertex
@@ -4824,49 +4827,49 @@ contains
             geom%l1(i) = -geom%d_ls(1,i)*geom%v_eta(i) + geom%d_ls(2,i)*geom%v_xi(i)
             !!!!!!! end duplicate work !!!!!!!!!!!!!!!!!
 
-            call dl1_terms(1)%init_from_sparse_vector(geom%d_d_ls(1,i))
-            call dl1_terms(1)%broadcast_element_times_scalar(-geom%v_eta(i))
+            call d_l1_terms(1)%init_from_sparse_vector(geom%d_d_ls(1,i))
+            call d_l1_terms(1)%broadcast_element_times_scalar(-geom%v_eta(i))
 
-            call dl1_terms(2)%init_from_sparse_vector(geom%d_v_eta(i))
-            call dl1_terms(2)%broadcast_element_times_scalar(-geom%d_ls(1,i))
+            call d_l1_terms(2)%init_from_sparse_vector(geom%d_v_eta(i))
+            call d_l1_terms(2)%broadcast_element_times_scalar(-geom%d_ls(1,i))
 
-            call dl1_terms(3)%init_from_sparse_vector(geom%d_d_ls(2,i))
-            call dl1_terms(3)%broadcast_element_times_scalar(geom%v_xi(i))
+            call d_l1_terms(3)%init_from_sparse_vector(geom%d_d_ls(2,i))
+            call d_l1_terms(3)%broadcast_element_times_scalar(geom%v_xi(i))
 
-            call dl1_terms(4)%init_from_sparse_vector(geom%d_v_xi(i))
-            call dl1_terms(4)%broadcast_element_times_scalar(geom%d_ls(2,i))
+            call d_l1_terms(4)%init_from_sparse_vector(geom%d_v_xi(i))
+            call d_l1_terms(4)%broadcast_element_times_scalar(geom%d_ls(2,i))
 
-            call geom%d_l1(i)%init_from_sparse_vector(dl1_terms(1))
-            call geom%d_l1(i)%sparse_add(dl1_terms(2))
-            call geom%d_l1(i)%sparse_add(dl1_terms(3))
-            call geom%d_l1(i)%sparse_add(dl1_terms(4))
+            call geom%d_l1(i)%init_from_sparse_vector(d_l1_terms(1))
+            call geom%d_l1(i)%sparse_add(d_l1_terms(2))
+            call geom%d_l1(i)%sparse_add(d_l1_terms(3))
+            call geom%d_l1(i)%sparse_add(d_l1_terms(4))
 
             !!!!!!! duplicate work !!!!!!!!!!!!!!!!!
             ! take derivative of this (also calculate it for future use): 
             geom%l2(i) = -geom%d_ls(1,i_next)*geom%v_eta(i) + geom%d_ls(2,i_next)*geom%v_xi(i)
             !!!!!!! end duplicate work !!!!!!!!!!!!!!!!!
 
-            call dl2_terms(1)%init_from_sparse_vector(geom%d_d_ls(1,i_next))
-            call dl2_terms(1)%broadcast_element_times_scalar(-geom%v_eta(i))
+            call d_l2_terms(1)%init_from_sparse_vector(geom%d_d_ls(1,i_next))
+            call d_l2_terms(1)%broadcast_element_times_scalar(-geom%v_eta(i))
 
-            call dl2_terms(2)%init_from_sparse_vector(geom%d_v_eta(i))
-            call dl2_terms(2)%broadcast_element_times_scalar(-geom%d_ls(1,i_next))
+            call d_l2_terms(2)%init_from_sparse_vector(geom%d_v_eta(i))
+            call d_l2_terms(2)%broadcast_element_times_scalar(-geom%d_ls(1,i_next))
 
-            call dl2_terms(3)%init_from_sparse_vector(geom%d_d_ls(2,i_next))
-            call dl2_terms(3)%broadcast_element_times_scalar(geom%v_xi(i))
+            call d_l2_terms(3)%init_from_sparse_vector(geom%d_d_ls(2,i_next))
+            call d_l2_terms(3)%broadcast_element_times_scalar(geom%v_xi(i))
 
-            call dl2_terms(4)%init_from_sparse_vector(geom%d_v_xi(i))
-            call dl2_terms(4)%broadcast_element_times_scalar(geom%d_ls(2,i_next))
+            call d_l2_terms(4)%init_from_sparse_vector(geom%d_v_xi(i))
+            call d_l2_terms(4)%broadcast_element_times_scalar(geom%d_ls(2,i_next))
 
-            call geom%d_l2(i)%init_from_sparse_vector(dl2_terms(1))
-            call geom%d_l2(i)%sparse_add(dl2_terms(2))
-            call geom%d_l2(i)%sparse_add(dl2_terms(3))
-            call geom%d_l2(i)%sparse_add(dl2_terms(4))
+            call geom%d_l2(i)%init_from_sparse_vector(d_l2_terms(1))
+            call geom%d_l2(i)%sparse_add(d_l2_terms(2))
+            call geom%d_l2(i)%sparse_add(d_l2_terms(3))
+            call geom%d_l2(i)%sparse_add(d_l2_terms(4))
 
-            deallocate(dl1_terms(1)%elements, dl2_terms(1)%elements,&
-                       dl1_terms(2)%elements, dl2_terms(2)%elements,&
-                       dl1_terms(3)%elements, dl2_terms(3)%elements,&
-                       dl1_terms(4)%elements, dl2_terms(4)%elements)
+            deallocate(d_l1_terms(1)%elements, d_l2_terms(1)%elements,&
+                       d_l1_terms(2)%elements, d_l2_terms(2)%elements,&
+                       d_l1_terms(3)%elements, d_l2_terms(3)%elements,&
+                       d_l1_terms(4)%elements, d_l2_terms(4)%elements)
         end do
 
 
@@ -4877,6 +4880,8 @@ contains
 
         !!!!!!! end duplicate work !!!!!!!!!!!!!!!!!
         
+        ! calculate sensitivity of edge perpendicular in plane distance a
+        ! (from eval point to each edge of panel)
         do i=1,3
             call d_a_terms(1)%init_from_sparse_vector(geom%d_d_ls(1,i))
             call d_a_terms(1)%broadcast_element_times_scalar(geom%v_xi(i))
@@ -4900,15 +4905,66 @@ contains
         end do
         
 
-        ! ! Square of the perpendicular distance to edge
-        ! geom%g2 = geom%a*geom%a + geom%h2
+        !!!!!!! duplicate work !!!!!!!!!!!!!!!!!
+        ! take derivative of this (also calculate it for future use): 
+        ! Square of the perpendicular distance to edge
+        geom%g2 = geom%a*geom%a + geom%h2
 
-        ! ! Distance from evaluation point to end vertices
-        ! geom%R1 = sqrt(geom%d_ls(1,:)*geom%d_ls(1,:) + geom%d_ls(2,:)*geom%d_ls(2,:) + geom%h2)
-        ! geom%R2 = cshift(geom%R1, 1)
+        !!!!!!! end duplicate work !!!!!!!!!!!!!!!!!
 
-        ! ! Difference in R
-        ! geom%dR = geom%R2 - geom%R1        
+        ! calculate d_g2 values for each edge
+        ! (edge perpendicular distance from eval point to panel edges)
+        do i=1,3
+            call d_g2_term%init_from_sparse_vector(geom%d_a(i))
+            call d_g2_term%broadcast_element_times_scalar(2.*geom%a(i))
+
+            call geom%d_g2(i)%init_from_sparse_vector(geom%d_h2)
+            call geom%d_g2(i)%sparse_add(d_g2_term)
+
+            deallocate(d_g2_term%elements)
+        end do
+
+        !!!!!!! duplicate work !!!!!!!!!!!!!!!!!
+        ! take derivative of this (also calculate it for future use): 
+        ! Distance from evaluation point to end vertices
+        geom%R1 = sqrt(geom%d_ls(1,:)*geom%d_ls(1,:) + geom%d_ls(2,:)*geom%d_ls(2,:) + geom%h2)
+        geom%R2 = cshift(geom%R1, 1)
+        !!!!!!! end duplicate work !!!!!!!!!!!!!!!!!
+        
+        ! calculate d_R1 and d_R2
+        do i=1,3
+
+            ! Get index of end vertex
+            i_next = mod(i, this%N) + 1
+
+            call d_R1_terms(1)%init_from_sparse_vector(geom%d_d_ls(1,i))
+            call d_R1_terms(1)%broadcast_element_times_scalar(geom%d_ls(1,i))
+
+            call d_R1_terms(2)%init_from_sparse_vector(geom%d_d_ls(2,i))
+            call d_R1_terms(2)%broadcast_element_times_scalar(geom%d_ls(2,i))
+
+            call geom%d_R1(i)%init_from_sparse_vector(d_R1_terms(1))
+            call geom%d_R1(i)%sparse_add(d_R1_terms(2))
+            call geom%d_R1(i)%sparse_add(geom%d_h2)
+            call geom%d_R1(i)%broadcast_element_times_scalar(1./sqrt(geom%R1(i)))
+
+            call geom%d_R2(i_next)%init_from_sparse_vector(geom%d_R1(i))
+            
+            deallocate(d_R1_terms(1)%elements, d_R1_terms(2)%elements)
+        end do
+
+        !!!!!!! duplicate work !!!!!!!!!!!!!!!!!
+        ! take derivative of this (also calculate it for future use): 
+        ! Difference in R
+        geom%dR = geom%R2 - geom%R1     
+        !!!!!!! end duplicate work !!!!!!!!!!!!!!!!!
+
+        ! calculate d_dR
+        do i=1,3
+            call geom%d_dR(i)%init_from_sparse_vector(geom%d_R2(i))
+            call geom%d_dR(i)%sparse_add(geom%d_R1(i))
+        end do
+        
     
     end function panel_calc_subsonic_geom_adjoint
 

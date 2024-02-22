@@ -118,9 +118,8 @@ module base_geom_mod
         type(sparse_vector),dimension(2) :: d_P_ls ! sensitivity of point in panel plane 
         type(sparse_vector) :: d_h, d_h2 ! sensitivities of height above panel
         type(sparse_vector),dimension(2,3) :: d_d_ls ! sensitivities of local displacements from panel vertices
-        type(sparse_vector),dimension(3) :: d_a, d_l1, d_l2
-        type(sparse_matrix) :: d_R1, d_R2, d_R ! sensitivites of edge integration parameters
-        type(sparse_matrix) :: d_g2
+        type(sparse_vector),dimension(3) :: d_a, d_l1, d_l2, d_g2
+        type(sparse_vector),dimension(3) :: d_R1, d_R2, d_dR ! sensitivites of edge integration parameters
         type(sparse_vector),dimension(3) :: d_v_xi, d_v_eta ! edge in plane normal vector sensitivites
 
         contains
