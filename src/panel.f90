@@ -4757,7 +4757,7 @@ contains
         geom%d_h = x(3)
 
         geom%d_h2 = x(3)
-        call geom%d_h2%broadcast_element_times_scalar(2*geom%h)
+        call geom%d_h2%broadcast_element_times_scalar(2.*geom%h)
 
         ! MAY NOT NEED THESE BELOW 
         ! These are sometimes accessed when the DoD is not checked, so they need to be set to zero
@@ -4931,26 +4931,29 @@ contains
         geom%R2 = cshift(geom%R1, 1)
         !!!!!!! end duplicate work !!!!!!!!!!!!!!!!!
         
-        ! calculate d_R1 and d_R2
+        ! calculate d_R1
         do i=1,3
 
-            ! Get index of end vertex
-            i_next = mod(i, this%N) + 1
-
             call d_R1_terms(1)%init_from_sparse_vector(geom%d_d_ls(1,i))
-            call d_R1_terms(1)%broadcast_element_times_scalar(geom%d_ls(1,i))
+            call d_R1_terms(1)%broadcast_element_times_scalar(2.*geom%d_ls(1,i))
 
             call d_R1_terms(2)%init_from_sparse_vector(geom%d_d_ls(2,i))
-            call d_R1_terms(2)%broadcast_element_times_scalar(geom%d_ls(2,i))
+            call d_R1_terms(2)%broadcast_element_times_scalar(2.*geom%d_ls(2,i))
 
             call geom%d_R1(i)%init_from_sparse_vector(d_R1_terms(1))
             call geom%d_R1(i)%sparse_add(d_R1_terms(2))
             call geom%d_R1(i)%sparse_add(geom%d_h2)
-            call geom%d_R1(i)%broadcast_element_times_scalar(1./sqrt(geom%R1(i)))
-
-            call geom%d_R2(i_next)%init_from_sparse_vector(geom%d_R1(i))
+            call geom%d_R1(i)%broadcast_element_times_scalar(1./(2.*geom%R1(i)))
             
             deallocate(d_R1_terms(1)%elements, d_R1_terms(2)%elements)
+        end do
+
+        ! calc d_R2 terms
+        do i=1,3
+            ! Get index next
+            i_next = mod(i, this%N) + 1
+
+            call geom%d_R2(i)%init_from_sparse_vector(geom%d_R1(i_next))
         end do
 
         !!!!!!! duplicate work !!!!!!!!!!!!!!!!!
@@ -4962,7 +4965,7 @@ contains
         ! calculate d_dR
         do i=1,3
             call geom%d_dR(i)%init_from_sparse_vector(geom%d_R2(i))
-            call geom%d_dR(i)%sparse_add(geom%d_R1(i))
+            call geom%d_dR(i)%sparse_subtract(geom%d_R1(i))
         end do
         
     
