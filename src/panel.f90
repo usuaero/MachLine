@@ -23,6 +23,9 @@ module panel_mod
         real :: h3H115, H215, H125, H225, hH315, hH135, H415, H145, H325, H235, H113_3rsh2H115 ! Doublet velocity integrals. Yeah, there are a lot...
         real,dimension(:),allocatable :: F113, F123, F213, F133, F313 ! Necessary for doublet velocity integrals
 
+        !!!!!! Adjoint values
+        type(sparse_vector), dimension(3) :: d_F111
+
     end type integrals
 
 
@@ -227,6 +230,10 @@ module panel_mod
             procedure :: calc_basic_geom_adjoint => panel_calc_basic_geom_adjoint
             procedure :: calc_subsonic_geom_adjoint => panel_calc_subsonic_geom_adjoint
             procedure :: calc_sensitivity_of_body_point_in_ls => panel_calc_sensitivity_of_body_point_in_ls
+
+            ! adjoint integral calcs
+            procedure :: calc_integrals_adjoint => panel_calc_integrals_adjoint
+            
 
 
             !!!!!!!! END ADJOINT PROCEDURES !!!!!!!!
@@ -4691,7 +4698,7 @@ contains
             end if
 
             ! Get integrals
-            !d_int = this%calc_integrals_adjoint(geom, 'velocity', freestream, mirror_panel, dod_info)
+            d_int = this%calc_integrals_adjoint(geom, 'velocity', freestream, mirror_panel, dod_info)
 
             ! ignore d_v_s_S_space, maybe put in a zero sparse matrix
             ! allocate(v_s_S_space(3,this%S_dim), source=0.)
@@ -5007,5 +5014,148 @@ contains
         call d_P_ls%sparse_add(x)
         
     end function panel_calc_sensitivity_of_body_point_in_ls
+
+
+    subroutine panel_calc_integrals_adjoint(this,geom,int,freestream, mirror_panel, dod_info) 
+    ! Calculates the integral sensitivity terms
+
+        implicit none
+
+        
+        class(panel),intent(in) :: this
+        type(eval_point_geom),intent(in) :: geom
+        type(integrals),intent(in) :: int
+        type(flow),intent(in) :: freestream
+        logical,intent(in) :: mirror_panel
+
+        type(dod),intent(in) :: dod_info
+
+
+        ! Calculate necessary integrals based on the flow condition and panel type
+        ! These are needed for both velocity and potential calculations
+        if (freestream%supersonic) then
+            ! if (int%r < 0) then
+            !     call this%calc_basic_F_integrals_supersonic_supinc(geom, dod_info, freestream, mirror_panel, int)
+            !     call this%calc_hH113_supersonic_supinc(geom, dod_info, freestream, mirror_panel, int)
+            ! else
+            !     call this%calc_basic_F_integrals_supersonic_subinc(geom, dod_info, freestream, mirror_panel, int)
+            !     call this%calc_hH113_supersonic_subinc(geom, dod_info, freestream, mirror_panel, int)
+            ! end if
+        else
+            call this%calc_basic_F_integrals_subsonic_adjoint(geom, freestream, mirror_panel, int)
+            ! call this%calc_hH113_subsonic_adjoint(geom, freestream, mirror_panel, int)
+        end if
+
+        ! Run H recursions
+        ! call this%calc_remaining_integrals(geom, influence_type, freestream, mirror_panel, int, dod_info)
+
+
+    end subroutine panel_calc_integrals_adjoint
+
+
+    subroutine panel_calc_basic_F_integrals_subsonic_adjoint(geom, int, freestream, mirror_panel)
+    ! calcs the subsonic F integral sensitivities
+
+        implicit none
+        
+        class(panel),intent(in) :: this
+        type(eval_point_geom),intent(in) :: geom
+        type(integrals),intent(inout) :: int
+        type(flow),intent(in) :: freestream
+        logical,intent(in) :: mirror_panel
+
+        integer :: i
+        real :: L_1, L_2, L_1_abs, L_2_abs
+        type(sparse_vector) :: d_L_1, d_L_2, d_L1L2, d_L_1_abs, d_L_2_abs, d_F111
+
+        ! Loop through edges
+        do i=1,this%N
+
+            ! Calculate F(1,1,1)
+            ! Within edge (Johnson Eq. (D.60))
+            if (sign(1., geom%l1(i)) /= sign(1., geom%l2(i))) then
+
+                ! Check for point on perimeter
+                if(sqrt(geom%g2(i)) < 1e-12) then
+                    ! write(*,*) geom%g2(i), geom%R1(i),geom%l1(i),geom%R2(i), geom%l2(i)
+                    
+                    write(*,*) "!!! Detected control point colinear with panel edge. Solution quality may be negatively affected.&
+                    check calc_basic_F_integral_adjoint"
+                end if
+
+                L_1 = geom%R1(i) - geom%l1(i)
+                L_2 = geom%R2(i) + geom%l2(i)
+                
+                ! calc d_L1
+                call d_L_1%init_from_sparse_vector(geom%d_R1(i))
+                call d_L_1%sparse_subtract(geom%d_l1(i))
+                
+                ! calc d_L1
+                call d_L_2%init_from_sparse_vector(geom%d_R2(i))
+                call d_L_2%sparse_add(geom%d_l2(i))
+                
+                ! calc d_(L1*L2)
+                call d_L1L2%init_from_sparse_vector(d_L_1)
+                call d_L1L2%broadcast_element_times_scalar(L_2/L_1)
+                call d_L1L2%sparse_add(d_L_2)
+                call d_L1L2%broadcast_element_times_scalar(L_1)
+                
+                ! Calculate d_F111 case 1
+                write(*,*) "d_F111 is case 1"
+                call d_F111%init_from_sparse_vector(d_L1L2)
+                call d_F111%broadcast_element_times_scalar(geom%g2(i)/(L_1*L_2))
+                call d_F111%sparse_subtract(geom%d_g2(i))
+                call d_F111%broadcast_element_times_scalar(1./geom%g2(i))
+
+                call int%d_F111(i)%init_from_sparse_vector(d_F111)
+                deallocate(d_L_1%elements, d_L_2%elements, d_L1L2%elements, d_F111%elements)
+
+
+            ! Above or below edge; this is a unified form of Johnson Eq. (D.60)
+            else
+
+                ! Check for point on perimeter
+                if (min(geom%R1(i), geom%R2(i)) < 1e-12) then
+                    write(*,*) "!!! Detected control point on perimeter of panel. Solution quality may be negatively affected."
+                end if
+
+                L_1_abs = geom%R1(i) + abs(geom%l1(i))
+                L_2_abs = geom%R2(i) + abs(geom%l2(i))
+                
+                ! calc abs(d_L1)
+                call d_L_1_abs%init_from_sparse_vector(geom%d_R1(i))
+                
+                if (sign(1.,geom%l1(i)) == 1.) then
+                    call d_L_1_abs%sparse_add(geom%d_l1(i))
+                else
+                    call d_L_1_abs%spasre_subtract(geom%d_l1(i))
+                end if
+                
+                ! calc abs(d_L2)
+                call d_L_2_abs%init_from_sparse_vector(geom%d_R2(i))
+                
+                if (sign(1.,geom%l2(i)) == 1.) then
+                    call d_L_1_abs%sparse_add(geom%d_l2(i))
+                else
+                    call d_L_1_abs%spasre_subtract(geom%d_l2(i))
+                end if
+                
+                ! Calculate d_F111 case 2
+                write(*,*) "d_F111 is case 2"
+
+                call d_F111%init_from_sparse_vector(d_L_2_abs)
+                call d_F111%broadcast_element_times_scalar(L_1_abs/L_2_abs)
+                call d_F111%sparse_subtract(d_L_1_abs)
+                call d_F111%broadcast_element_times_scalar(sign(1., geom%l1(i))/ L_1_abs)
+
+                call int%d_F111(i)%init_from_sparse_vector(d_F111)
+                
+                deallocate(d_L_1_abs%elements, d_L_2_abs%elements, d_F111%elements)
+                
+            end if
+
+        end do
+
+    end subroutine
    
 end module panel_mod

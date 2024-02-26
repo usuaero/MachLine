@@ -51,7 +51,7 @@ module adjoint_mod
             
             procedure :: broadcast_element_times_vector => sparse_vector_broadcast_element_times_vector
             procedure :: broadcast_element_times_scalar => sparse_vector_broadcast_element_times_scalar
-            
+
     end type sparse_vector
             
             
