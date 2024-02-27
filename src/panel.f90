@@ -233,6 +233,7 @@ module panel_mod
 
             ! adjoint integral calcs
             procedure :: calc_integrals_adjoint => panel_calc_integrals_adjoint
+            procedure :: calc_basic_F_integrals_subsonic_adjoint => panel_calc_basic_F_integrals_subsonic_adjoint
             
 
 
@@ -4673,7 +4674,7 @@ contains
         type(dod) :: dod_info
         logical :: mirror_panel
         type(eval_point_geom) :: geom
-        type(integrals) :: d_int
+        type(integrals) :: int
         ! real,dimension(:,:),allocatable :: v_s_sigma_space, v_d_mu_space
         ! real :: x2, y2, dvx, dvy
         integer :: i
@@ -4697,8 +4698,12 @@ contains
                 geom = this%calc_subsonic_geom_adjoint(cp,freestream)
             end if
 
+            !!!!!!!!!! DUPLICATED WORK, figure out better passing of info
             ! Get integrals
-            d_int = this%calc_integrals_adjoint(geom, 'velocity', freestream, mirror_panel, dod_info)
+            int = this%calc_integrals(geom, 'velocity', freestream, mirror_panel, dod_info)
+            !!!!! end duplicated work !!!!!!!!!
+
+            call this%calc_integrals_adjoint(geom, int, freestream, mirror_panel, dod_info)
 
             ! ignore d_v_s_S_space, maybe put in a zero sparse matrix
             ! allocate(v_s_S_space(3,this%S_dim), source=0.)
@@ -5024,7 +5029,7 @@ contains
         
         class(panel),intent(in) :: this
         type(eval_point_geom),intent(in) :: geom
-        type(integrals),intent(in) :: int
+        type(integrals),intent(inout) :: int
         type(flow),intent(in) :: freestream
         logical,intent(in) :: mirror_panel
 
@@ -5042,7 +5047,7 @@ contains
             !     call this%calc_hH113_supersonic_subinc(geom, dod_info, freestream, mirror_panel, int)
             ! end if
         else
-            call this%calc_basic_F_integrals_subsonic_adjoint(geom, freestream, mirror_panel, int)
+            call this%calc_basic_F_integrals_subsonic_adjoint(geom, int, freestream, mirror_panel)
             ! call this%calc_hH113_subsonic_adjoint(geom, freestream, mirror_panel, int)
         end if
 
@@ -5053,7 +5058,7 @@ contains
     end subroutine panel_calc_integrals_adjoint
 
 
-    subroutine panel_calc_basic_F_integrals_subsonic_adjoint(geom, int, freestream, mirror_panel)
+    subroutine panel_calc_basic_F_integrals_subsonic_adjoint(this, geom, int, freestream, mirror_panel)
     ! calcs the subsonic F integral sensitivities
 
         implicit none
@@ -5128,7 +5133,7 @@ contains
                 if (sign(1.,geom%l1(i)) == 1.) then
                     call d_L_1_abs%sparse_add(geom%d_l1(i))
                 else
-                    call d_L_1_abs%spasre_subtract(geom%d_l1(i))
+                    call d_L_1_abs%sparse_subtract(geom%d_l1(i))
                 end if
                 
                 ! calc abs(d_L2)
@@ -5137,7 +5142,7 @@ contains
                 if (sign(1.,geom%l2(i)) == 1.) then
                     call d_L_1_abs%sparse_add(geom%d_l2(i))
                 else
-                    call d_L_1_abs%spasre_subtract(geom%d_l2(i))
+                    call d_L_1_abs%sparse_subtract(geom%d_l2(i))
                 end if
                 
                 ! Calculate d_F111 case 2

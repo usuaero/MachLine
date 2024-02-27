@@ -39,6 +39,7 @@ program calc_basic_F_integral
     type(eval_point_geom) :: test_geom, adjoint_geom
     type(dod) :: test_dod_info, adjoint_dod_info
     type(integrals) :: test_int, adjoint_int
+    type(sparse_matrix),dimension(3) :: d_v_d
     integer :: start_count, end_count, i_unit
     logical :: exists, found
 
@@ -181,13 +182,14 @@ program calc_basic_F_integral
     call adjoint_solver%init(adjoint_solver_settings, adjoint_processing_settings, adjoint_mesh, &
     adjoint_freestream_flow, adjoint_control_point_file)
 
-    ! calc CALC BASIC GEOM geom sensitivity of relation between cp1 and panel1 
+    !calc CALC BASIC F integral sensitivities cp1 and panel1 
     adjoint_geom = adjoint_mesh%panels(1)%calc_subsonic_geom_adjoint(adjoint_mesh%cp(1),&
                                                                 adjoint_freestream_flow)
     adjoint_dod_info = adjoint_mesh%panels(1)%check_dod(adjoint_mesh%cp(1)%loc, freestream_flow, .false.)
     adjoint_int = adjoint_mesh%panels(1)%calc_integrals(adjoint_geom, 'velocity', freestream_flow,.false., adjoint_dod_info)
-    call adjoint_mesh%panels(1)%calc_integrals_adjoint(adjoint_mesh%panels(1),adjoint_geom,adjoint_int,adjoint_freestream_flow&
+    call adjoint_mesh%panels(1)%calc_integrals_adjoint(adjoint_geom,adjoint_int,adjoint_freestream_flow&
     , .false., adjoint_dod_info)
+    ! call adjoint_mesh%panels(1)%calc_velocity_influences_adjoint(adjoint_mesh%cp(1), freestream_flow, d_v_d)
     !!!!!!!!!!!! END ADJOINT TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!
 
 
@@ -275,7 +277,7 @@ program calc_basic_F_integral
                 !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
                 
                 ! put the x y or z component of the vertex of interest (index) in a list
-                F111_up(j + (i-1)*N_verts) = test_geom%F111(p)
+                F111_up(j + (i-1)*N_verts) = test_int%F111(p)
 
                 ! perturb down the current design variable
                 test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - 2.*step
@@ -312,7 +314,7 @@ program calc_basic_F_integral
                 !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
 
                 ! put the x y or z component of the vertex of interest (index) in a list
-                F111_dn(j + (i-1)*N_verts) = test_geom%F111(p)
+                F111_dn(j + (i-1)*N_verts) = test_int%F111(p)
                 
                 ! restore geometry
                 test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
