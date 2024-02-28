@@ -5071,7 +5071,7 @@ contains
 
         integer :: i
         real :: L_1, L_2, L_1_abs, L_2_abs
-        type(sparse_vector) :: d_L_1, d_L_2, d_L1L2, d_L_1_abs, d_L_2_abs, d_F111
+        type(sparse_vector) :: d_L_1, d_L_2, d_L1L2, d_L_1_abs, d_L_2_abs, x, y, d_F111
 
         ! Loop through edges
         do i=1,this%N
@@ -5123,27 +5123,35 @@ contains
                 if (min(geom%R1(i), geom%R2(i)) < 1e-12) then
                     write(*,*) "!!! Detected control point on perimeter of panel. Solution quality may be negatively affected."
                 end if
+                
+                ! int%F111(i) = sign(1., geom%l1(i)) * log( (geom%R2(i) + abs(geom%l2(i))) / (geom%R1(i) + abs(geom%l1(i))) )
 
                 L_1_abs = geom%R1(i) + abs(geom%l1(i))
                 L_2_abs = geom%R2(i) + abs(geom%l2(i))
                 
                 ! calc abs(d_L1)
                 call d_L_1_abs%init_from_sparse_vector(geom%d_R1(i))
+                call x%init_from_sparse_vector(geom%d_l1(i))
+                call x%broadcast_element_times_scalar(geom%l1(i)/abs(geom%l1(i)))
+                call d_L_1_abs%sparse_add(x)
                 
-                if (sign(1.,geom%l1(i)) == 1.) then
-                    call d_L_1_abs%sparse_add(geom%d_l1(i))
-                else
-                    call d_L_1_abs%sparse_subtract(geom%d_l1(i))
-                end if
+                ! if (sign(1.,geom%l1(i)) > 1.e-12) then
+                !     call d_L_1_abs%sparse_add(geom%d_l1(i))
+                ! else
+                !     call d_L_1_abs%sparse_subtract(geom%d_l1(i))
+                ! end if
                 
                 ! calc abs(d_L2)
                 call d_L_2_abs%init_from_sparse_vector(geom%d_R2(i))
-                
-                if (sign(1.,geom%l2(i)) == 1.) then
-                    call d_L_1_abs%sparse_add(geom%d_l2(i))
-                else
-                    call d_L_1_abs%sparse_subtract(geom%d_l2(i))
-                end if
+                call y%init_from_sparse_vector(geom%d_l2(i))
+                call y%broadcast_element_times_scalar(geom%l2(i)/abs(geom%l2(i)))
+                call d_L_2_abs%sparse_add(y)
+
+                ! if (sign(1.,geom%l2(i)) > 1.e-12) then
+                !     call d_L_2_abs%sparse_add(geom%d_l2(i))
+                ! else
+                !     call d_L_2_abs%sparse_subtract(geom%d_l2(i))
+                ! end if
                 
                 ! Calculate d_F111 case 2
                 write(*,*) "d_F111 is case 2"
@@ -5155,7 +5163,8 @@ contains
 
                 call int%d_F111(i)%init_from_sparse_vector(d_F111)
                 
-                deallocate(d_L_1_abs%elements, d_L_2_abs%elements, d_F111%elements)
+                deallocate(d_L_1_abs%elements, d_L_2_abs%elements, d_F111%elements,&
+                            x%elements, y%elements)
                 
             end if
 

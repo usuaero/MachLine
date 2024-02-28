@@ -275,7 +275,6 @@ program calc_basic_F_integral
                 test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(1)%loc, freestream_flow, .false.)
                 test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,.false., test_dod_info)
                 !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
-                
                 ! put the x y or z component of the vertex of interest (index) in a list
                 F111_up(j + (i-1)*N_verts) = test_int%F111(p)
 
