@@ -25,6 +25,7 @@ module panel_mod
 
         !!!!!! Adjoint values
         type(sparse_vector), dimension(3) :: d_F111
+        type(sparse_vector) :: d_hH113
 
     end type integrals
 
@@ -234,7 +235,7 @@ module panel_mod
             ! adjoint integral calcs
             procedure :: calc_integrals_adjoint => panel_calc_integrals_adjoint
             procedure :: calc_basic_F_integrals_subsonic_adjoint => panel_calc_basic_F_integrals_subsonic_adjoint
-            
+            procedure :: calc_hH113_subsonic_adjoint => panel_calc_hH113_subsonic_adjoint
 
 
             !!!!!!!! END ADJOINT PROCEDURES !!!!!!!!
@@ -2744,12 +2745,16 @@ contains
             x = atan2(S, C)
 
             ! Sum
-            int%hH113 = int%hH113 + x
+            ! int%hH113 = int%hH113 + x
+            if (i == 1) then
+                int%hH113 = x
+                exit
+            end if
 
         end do
         
         ! Apply sign factor (Johnson Eq. (D.42)
-        int%hH113 = sign(int%hH113, geom%h)
+        ! int%hH113 = sign(int%hH113, geom%h)
 
     end subroutine panel_calc_hH113_subsonic
 
@@ -5048,7 +5053,7 @@ contains
             ! end if
         else
             call this%calc_basic_F_integrals_subsonic_adjoint(geom, int, freestream, mirror_panel)
-            ! call this%calc_hH113_subsonic_adjoint(geom, freestream, mirror_panel, int)
+            call this%calc_hH113_subsonic_adjoint(geom, int, freestream, mirror_panel)
         end if
 
         ! Run H recursions
@@ -5114,7 +5119,9 @@ contains
 
                 call int%d_F111(i)%init_from_sparse_vector(d_F111)
                 deallocate(d_L_1%elements, d_L_2%elements, d_L1L2%elements, d_F111%elements)
-
+                
+                write(*,*) "L_1", L_1
+                write(*,*) "L_2", L_2
 
             ! Above or below edge; this is a unified form of Johnson Eq. (D.60)
             else
@@ -5135,23 +5142,13 @@ contains
                 call x%broadcast_element_times_scalar(geom%l1(i)/abs(geom%l1(i)))
                 call d_L_1_abs%sparse_add(x)
                 
-                ! if (sign(1.,geom%l1(i)) > 1.e-12) then
-                !     call d_L_1_abs%sparse_add(geom%d_l1(i))
-                ! else
-                !     call d_L_1_abs%sparse_subtract(geom%d_l1(i))
-                ! end if
-                
                 ! calc abs(d_L2)
                 call d_L_2_abs%init_from_sparse_vector(geom%d_R2(i))
                 call y%init_from_sparse_vector(geom%d_l2(i))
                 call y%broadcast_element_times_scalar(geom%l2(i)/abs(geom%l2(i)))
                 call d_L_2_abs%sparse_add(y)
 
-                ! if (sign(1.,geom%l2(i)) > 1.e-12) then
-                !     call d_L_2_abs%sparse_add(geom%d_l2(i))
-                ! else
-                !     call d_L_2_abs%sparse_subtract(geom%d_l2(i))
-                ! end if
+                
                 
                 ! Calculate d_F111 case 2
                 write(*,*) "d_F111 is case 2"
@@ -5165,11 +5162,155 @@ contains
                 
                 deallocate(d_L_1_abs%elements, d_L_2_abs%elements, d_F111%elements,&
                             x%elements, y%elements)
+
+                write(*,*) "L_|1|", L_1_abs
+                write(*,*) "L_|2|", L_2_abs
+                
                 
             end if
 
         end do
 
-    end subroutine
+    end subroutine panel_calc_basic_F_integrals_subsonic_adjoint
+
+    subroutine panel_calc_hH113_subsonic_adjoint(this, geom, int, freestream, mirror_panel)
+        ! Calculates d_hH(1,1,3) for a panel in subsonic flow.
+        
+        implicit none
+
+        class(panel),intent(in) :: this
+        type(eval_point_geom),intent(in) :: geom
+        type(integrals),intent(inout) :: int
+        type(flow),intent(in) :: freestream
+        logical,intent(in) :: mirror_panel
+
+        integer :: i
+        real :: S, C, c1, c2
+
+        type(sparse_vector) :: d_c1, dc1_term2, dc1_term3, d_c2, dc2_term2, dc2_term3,&
+        d_S, dS_term2, dS_term3, dS_term4, dS_term5,&
+        d_C, dC_term2, dC_term3, dC_term4, dC_term5, &
+        d_x, dx_term2
+
+        ! Calculate hH(1,1,3) (Johnson Eqs. (D.41) and (G.24))
+        ! No check on the magnitude of h is necessary since we never divide by it
+
+        do i=1,this%N
+
+            !!!!!!!!!!!! Duplicated work (done in non-adjoint version)!!!!!!!!!!!!
+            ! Calculate intermediate quantities
+            c1 = geom%g2(i) + abs(geom%h)*geom%R1(i)
+            c2 = geom%g2(i) + abs(geom%h)*geom%R2(i)
+        
+            ! Calculate integral for edge
+            S = geom%a(i)*(geom%l2(i)*c1 - geom%l1(i)*c2)
+            C = c1*c2 + geom%a(i)**2*geom%l1(i)*geom%l2(i)
+
+            !!!!!!!!!!!!!!!!!! end duplicate work !!!!!!!!!!!!!!!!!!!!!
+            
+            ! calc d_c1
+            call d_c1%init_from_sparse_vector(geom%d_g2(i))
+
+            call dc1_term2%init_from_sparse_vector(geom%d_h)
+            call dc1_term2%broadcast_element_times_scalar(geom%R1(i)*geom%h/abs(geom%h))
+            
+            call dc1_term3%init_from_sparse_vector(geom%d_R1(i))
+            call dc1_term3%broadcast_element_times_scalar(abs(geom%h))
+
+            call d_c1%sparse_add(dc1_term2)
+            call d_c1%sparse_add(dc1_term3)
+
+            ! calc d_c2
+            call d_c2%init_from_sparse_vector(geom%d_g2(i))
+
+            call dc2_term2%init_from_sparse_vector(geom%d_h)
+            call dc2_term2%broadcast_element_times_scalar(geom%R2(i)*geom%h/abs(geom%h))
+            
+            call dc2_term3%init_from_sparse_vector(geom%d_R2(i))
+            call dc2_term3%broadcast_element_times_scalar(abs(geom%h))
+
+            call d_c2%sparse_add(dc2_term2)
+            call d_c2%sparse_add(dc2_term3)
+
+
+            ! calc d_S
+            call d_S%init_from_sparse_vector(geom%d_a(i))
+            call d_S%broadcast_element_times_scalar(geom%l2(i)*c1 - geom%l1(i)*c2)
+
+            call dS_term2%init_from_sparse_vector(geom%d_l2(i))
+            call dS_term2%broadcast_element_times_scalar(c1*geom%a(i))
+            
+            call dS_term3%init_from_sparse_vector(d_c1)
+            call dS_term3%broadcast_element_times_scalar(geom%l2(i)*geom%a(i))
+
+            call dS_term4%init_from_sparse_vector(geom%d_l1(i))
+            call dS_term4%broadcast_element_times_scalar(c2*geom%a(i))
+            
+            call dS_term5%init_from_sparse_vector(d_c2)
+            call dS_term5%broadcast_element_times_scalar(geom%l1(i)*geom%a(i))
+
+            call d_S%sparse_add(dS_term2)
+            call d_S%sparse_add(dS_term3)
+            call d_S%sparse_subtract(dS_term4)
+            call d_S%sparse_subtract(dS_term5)
+
+
+            ! calc d_C
+            call d_C%init_from_sparse_vector(d_c1)
+            call d_C%broadcast_element_times_scalar(c2)
+
+            call dC_term2%init_from_sparse_vector(d_c2)
+            call dC_term2%broadcast_element_times_scalar(c1)
+            
+            call dC_term3%init_from_sparse_vector(geom%d_a(i))
+            call dC_term3%broadcast_element_times_scalar(2.*geom%a(i)*geom%l1(i)*geom%l2(i))
+
+            call dC_term4%init_from_sparse_vector(geom%d_l1(i))
+            call dC_term4%broadcast_element_times_scalar(geom%a(i)**2*geom%l2(i))
+            
+            call dC_term5%init_from_sparse_vector(geom%d_l2(i))
+            call dC_term5%broadcast_element_times_scalar(geom%a(i)**2*geom%l1(i))
+
+            call d_C%sparse_add(dC_term2)
+            call d_C%sparse_add(dC_term3)
+            call d_C%sparse_add(dC_term4)
+            call d_C%sparse_add(dC_term5)
+            
+
+            ! calc d_x
+            call d_x%init_from_sparse_vector(d_S)
+            call d_x%broadcast_element_times_scalar(C/(S**2 + C**2))
+
+            call dx_term2%init_from_sparse_vector(d_C)
+            call dx_term2%broadcast_element_times_scalar(-S/(S**2 + C**2))
+
+            call d_x%sparse_add(dx_term2)
+
+            write(*,*)" S = ", S
+            write(*,*)" C = ", C
+            if (i == 1) then
+                call int%d_hH113%init_from_sparse_vector(d_x)
+                exit
+            end if
+            
+            ! sum
+            ! if (i == 1) then
+            !     call int%d_hH113%init_from_sparse_vector(d_x)
+            ! else
+            !     call int%d_hH113%sparse_add(d_x)
+            ! end if
+
+            deallocate(d_c1%elements, dc1_term2%elements, dc1_term3%elements, &
+            d_c2%elements, dc2_term2%elements, dc2_term3%elements,&
+            d_S%elements, dS_term2%elements, dS_term3%elements, dS_term4%elements, dS_term5%elements,&
+            d_C%elements, dC_term2%elements, dC_term3%elements, dC_term4%elements, dC_term5%elements, &
+            d_x%elements, dx_term2%elements)
+
+        end do
+        
+        ! Apply sign factor (Johnson Eq. (D.42)
+        ! call int%d_hH113%broadcast_element_times_scalar(sign(1., geom%h))
+
+    end subroutine panel_calc_hH113_subsonic_adjoint
    
 end module panel_mod
