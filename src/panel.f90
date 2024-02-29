@@ -25,7 +25,7 @@ module panel_mod
 
         !!!!!! Adjoint values
         type(sparse_vector), dimension(3) :: d_F111
-        type(sparse_vector) :: d_hH113
+        type(sparse_vector) :: d_hH113, d_H213, d_H123
 
     end type integrals
 
@@ -236,6 +236,7 @@ module panel_mod
             procedure :: calc_integrals_adjoint => panel_calc_integrals_adjoint
             procedure :: calc_basic_F_integrals_subsonic_adjoint => panel_calc_basic_F_integrals_subsonic_adjoint
             procedure :: calc_hH113_subsonic_adjoint => panel_calc_hH113_subsonic_adjoint
+            procedure :: calc_H_integrals_adjoint => panel_calc_H_integrals_adjoint
 
 
             !!!!!!!! END ADJOINT PROCEDURES !!!!!!!!
@@ -2745,16 +2746,18 @@ contains
             x = atan2(S, C)
 
             ! Sum
-            ! int%hH113 = int%hH113 + x
-            if (i == 1) then
-                int%hH113 = x
-                exit
-            end if
+            int%hH113 = int%hH113 + x
+
+            ! testing adjoint .....
+            ! if (i == 1) then
+            !     int%hH113 = x
+            !     exit
+            ! end if
 
         end do
         
         ! Apply sign factor (Johnson Eq. (D.42)
-        ! int%hH113 = sign(int%hH113, geom%h)
+        int%hH113 = sign(int%hH113, geom%h)
 
     end subroutine panel_calc_hH113_subsonic
 
@@ -5037,7 +5040,6 @@ contains
         type(integrals),intent(inout) :: int
         type(flow),intent(in) :: freestream
         logical,intent(in) :: mirror_panel
-
         type(dod),intent(in) :: dod_info
 
 
@@ -5052,27 +5054,27 @@ contains
             !     call this%calc_hH113_supersonic_subinc(geom, dod_info, freestream, mirror_panel, int)
             ! end if
         else
-            call this%calc_basic_F_integrals_subsonic_adjoint(geom, int, freestream, mirror_panel)
-            call this%calc_hH113_subsonic_adjoint(geom, int, freestream, mirror_panel)
+            call this%calc_basic_F_integrals_subsonic_adjoint(geom, freestream, mirror_panel, int)
+            call this%calc_hH113_subsonic_adjoint(geom, freestream, mirror_panel, int)
         end if
 
-        ! Run H recursions
-        ! call this%calc_remaining_integrals(geom, influence_type, freestream, mirror_panel, int, dod_info)
+        ! Run d_H recursions
+        call this%calc_H_integrals_adjoint(geom, freestream, mirror_panel, int, dod_info)
 
 
     end subroutine panel_calc_integrals_adjoint
 
 
-    subroutine panel_calc_basic_F_integrals_subsonic_adjoint(this, geom, int, freestream, mirror_panel)
+    subroutine panel_calc_basic_F_integrals_subsonic_adjoint(this, geom, freestream, mirror_panel, int)
     ! calcs the subsonic F integral sensitivities
 
         implicit none
         
         class(panel),intent(in) :: this
         type(eval_point_geom),intent(in) :: geom
-        type(integrals),intent(inout) :: int
         type(flow),intent(in) :: freestream
         logical,intent(in) :: mirror_panel
+        type(integrals),intent(inout) :: int
 
         integer :: i
         real :: L_1, L_2, L_1_abs, L_2_abs
@@ -5173,24 +5175,24 @@ contains
 
     end subroutine panel_calc_basic_F_integrals_subsonic_adjoint
 
-    subroutine panel_calc_hH113_subsonic_adjoint(this, geom, int, freestream, mirror_panel)
+    subroutine panel_calc_hH113_subsonic_adjoint(this, geom, freestream, mirror_panel, int)
         ! Calculates d_hH(1,1,3) for a panel in subsonic flow.
         
         implicit none
 
         class(panel),intent(in) :: this
         type(eval_point_geom),intent(in) :: geom
-        type(integrals),intent(inout) :: int
         type(flow),intent(in) :: freestream
         logical,intent(in) :: mirror_panel
+        type(integrals),intent(inout) :: int
 
         integer :: i
         real :: S, C, c1, c2
 
-        type(sparse_vector) :: d_c1, dc1_term2, dc1_term3, d_c2, dc2_term2, dc2_term3,&
-        d_S, dS_term2, dS_term3, dS_term4, dS_term5,&
-        d_C, dC_term2, dC_term3, dC_term4, dC_term5, &
-        d_x, dx_term2
+        type(sparse_vector) :: d_c1, d_c1_term2, d_c1_term3, d_c2, d_c2_term2, d_c2_term3,&
+        d_S, d_S_term2, d_S_term3, d_S_term4, d_S_term5,&
+        d_C, d_C_term2, d_C_term3, d_C_term4, d_C_term5, &
+        d_x, d_x_term2
 
         ! Calculate hH(1,1,3) (Johnson Eqs. (D.41) and (G.24))
         ! No check on the magnitude of h is necessary since we never divide by it
@@ -5211,106 +5213,179 @@ contains
             ! calc d_c1
             call d_c1%init_from_sparse_vector(geom%d_g2(i))
 
-            call dc1_term2%init_from_sparse_vector(geom%d_h)
-            call dc1_term2%broadcast_element_times_scalar(geom%R1(i)*geom%h/abs(geom%h))
+            call d_c1_term2%init_from_sparse_vector(geom%d_h)
+            call d_c1_term2%broadcast_element_times_scalar(geom%R1(i)*geom%h/abs(geom%h))
             
-            call dc1_term3%init_from_sparse_vector(geom%d_R1(i))
-            call dc1_term3%broadcast_element_times_scalar(abs(geom%h))
+            call d_c1_term3%init_from_sparse_vector(geom%d_R1(i))
+            call d_c1_term3%broadcast_element_times_scalar(abs(geom%h))
 
-            call d_c1%sparse_add(dc1_term2)
-            call d_c1%sparse_add(dc1_term3)
+            call d_c1%sparse_add(d_c1_term2)
+            call d_c1%sparse_add(d_c1_term3)
 
             ! calc d_c2
             call d_c2%init_from_sparse_vector(geom%d_g2(i))
 
-            call dc2_term2%init_from_sparse_vector(geom%d_h)
-            call dc2_term2%broadcast_element_times_scalar(geom%R2(i)*geom%h/abs(geom%h))
+            call d_c2_term2%init_from_sparse_vector(geom%d_h)
+            call d_c2_term2%broadcast_element_times_scalar(geom%R2(i)*geom%h/abs(geom%h))
             
-            call dc2_term3%init_from_sparse_vector(geom%d_R2(i))
-            call dc2_term3%broadcast_element_times_scalar(abs(geom%h))
+            call d_c2_term3%init_from_sparse_vector(geom%d_R2(i))
+            call d_c2_term3%broadcast_element_times_scalar(abs(geom%h))
 
-            call d_c2%sparse_add(dc2_term2)
-            call d_c2%sparse_add(dc2_term3)
+            call d_c2%sparse_add(d_c2_term2)
+            call d_c2%sparse_add(d_c2_term3)
 
 
             ! calc d_S
             call d_S%init_from_sparse_vector(geom%d_a(i))
             call d_S%broadcast_element_times_scalar(geom%l2(i)*c1 - geom%l1(i)*c2)
 
-            call dS_term2%init_from_sparse_vector(geom%d_l2(i))
-            call dS_term2%broadcast_element_times_scalar(c1*geom%a(i))
+            call d_S_term2%init_from_sparse_vector(geom%d_l2(i))
+            call d_S_term2%broadcast_element_times_scalar(c1*geom%a(i))
             
-            call dS_term3%init_from_sparse_vector(d_c1)
-            call dS_term3%broadcast_element_times_scalar(geom%l2(i)*geom%a(i))
+            call d_S_term3%init_from_sparse_vector(d_c1)
+            call d_S_term3%broadcast_element_times_scalar(geom%l2(i)*geom%a(i))
 
-            call dS_term4%init_from_sparse_vector(geom%d_l1(i))
-            call dS_term4%broadcast_element_times_scalar(c2*geom%a(i))
+            call d_S_term4%init_from_sparse_vector(geom%d_l1(i))
+            call d_S_term4%broadcast_element_times_scalar(c2*geom%a(i))
             
-            call dS_term5%init_from_sparse_vector(d_c2)
-            call dS_term5%broadcast_element_times_scalar(geom%l1(i)*geom%a(i))
+            call d_S_term5%init_from_sparse_vector(d_c2)
+            call d_S_term5%broadcast_element_times_scalar(geom%l1(i)*geom%a(i))
 
-            call d_S%sparse_add(dS_term2)
-            call d_S%sparse_add(dS_term3)
-            call d_S%sparse_subtract(dS_term4)
-            call d_S%sparse_subtract(dS_term5)
+            call d_S%sparse_add(d_S_term2)
+            call d_S%sparse_add(d_S_term3)
+            call d_S%sparse_subtract(d_S_term4)
+            call d_S%sparse_subtract(d_S_term5)
 
 
             ! calc d_C
             call d_C%init_from_sparse_vector(d_c1)
             call d_C%broadcast_element_times_scalar(c2)
 
-            call dC_term2%init_from_sparse_vector(d_c2)
-            call dC_term2%broadcast_element_times_scalar(c1)
+            call d_C_term2%init_from_sparse_vector(d_c2)
+            call d_C_term2%broadcast_element_times_scalar(c1)
             
-            call dC_term3%init_from_sparse_vector(geom%d_a(i))
-            call dC_term3%broadcast_element_times_scalar(2.*geom%a(i)*geom%l1(i)*geom%l2(i))
+            call d_C_term3%init_from_sparse_vector(geom%d_a(i))
+            call d_C_term3%broadcast_element_times_scalar(2.*geom%a(i)*geom%l1(i)*geom%l2(i))
 
-            call dC_term4%init_from_sparse_vector(geom%d_l1(i))
-            call dC_term4%broadcast_element_times_scalar(geom%a(i)**2*geom%l2(i))
+            call d_C_term4%init_from_sparse_vector(geom%d_l1(i))
+            call d_C_term4%broadcast_element_times_scalar(geom%a(i)**2*geom%l2(i))
             
-            call dC_term5%init_from_sparse_vector(geom%d_l2(i))
-            call dC_term5%broadcast_element_times_scalar(geom%a(i)**2*geom%l1(i))
+            call d_C_term5%init_from_sparse_vector(geom%d_l2(i))
+            call d_C_term5%broadcast_element_times_scalar(geom%a(i)**2*geom%l1(i))
 
-            call d_C%sparse_add(dC_term2)
-            call d_C%sparse_add(dC_term3)
-            call d_C%sparse_add(dC_term4)
-            call d_C%sparse_add(dC_term5)
+            call d_C%sparse_add(d_C_term2)
+            call d_C%sparse_add(d_C_term3)
+            call d_C%sparse_add(d_C_term4)
+            call d_C%sparse_add(d_C_term5)
             
 
             ! calc d_x
             call d_x%init_from_sparse_vector(d_S)
             call d_x%broadcast_element_times_scalar(C/(S**2 + C**2))
 
-            call dx_term2%init_from_sparse_vector(d_C)
-            call dx_term2%broadcast_element_times_scalar(-S/(S**2 + C**2))
+            call d_x_term2%init_from_sparse_vector(d_C)
+            call d_x_term2%broadcast_element_times_scalar(-S/(S**2 + C**2))
 
-            call d_x%sparse_add(dx_term2)
+            call d_x%sparse_add(d_x_term2)
 
-            write(*,*)" S = ", S
-            write(*,*)" C = ", C
-            if (i == 1) then
-                call int%d_hH113%init_from_sparse_vector(d_x)
-                exit
-            end if
-            
-            ! sum
+            ! Testing.....
+            ! write(*,*)" S = ", S
+            ! write(*,*)" C = ", C
             ! if (i == 1) then
             !     call int%d_hH113%init_from_sparse_vector(d_x)
-            ! else
-            !     call int%d_hH113%sparse_add(d_x)
+            !     exit
             ! end if
+            
+            ! sum
+            if (i == 1) then
+                call int%d_hH113%init_from_sparse_vector(d_x)
+            else
+                call int%d_hH113%sparse_add(d_x)
+            end if
 
-            deallocate(d_c1%elements, dc1_term2%elements, dc1_term3%elements, &
-            d_c2%elements, dc2_term2%elements, dc2_term3%elements,&
-            d_S%elements, dS_term2%elements, dS_term3%elements, dS_term4%elements, dS_term5%elements,&
-            d_C%elements, dC_term2%elements, dC_term3%elements, dC_term4%elements, dC_term5%elements, &
-            d_x%elements, dx_term2%elements)
+            deallocate(d_c1%elements, d_c1_term2%elements, d_c1_term3%elements, &
+            d_c2%elements, d_c2_term2%elements, d_c2_term3%elements,&
+            d_S%elements, d_S_term2%elements, d_S_term3%elements, d_S_term4%elements, d_S_term5%elements,&
+            d_C%elements, d_C_term2%elements, d_C_term3%elements, d_C_term4%elements, d_C_term5%elements, &
+            d_x%elements, d_x_term2%elements)
 
         end do
         
         ! Apply sign factor (Johnson Eq. (D.42)
-        ! call int%d_hH113%broadcast_element_times_scalar(sign(1., geom%h))
+        call int%d_hH113%broadcast_element_times_scalar(sign(1., geom%h))
 
     end subroutine panel_calc_hH113_subsonic_adjoint
-   
+
+
+    subroutine panel_calc_H_integrals_adjoint(this, geom, freestream, mirror_panel, int, dod_info)
+        ! calcs d_H111, d_H213, d_H123 for subsonic (and supersonic I think)
+    
+        implicit none
+
+        class(panel),intent(in) :: this
+        type(eval_point_geom),intent(in) :: geom
+        type(flow),intent(in) :: freestream
+        logical,intent(in) :: mirror_panel
+        type(integrals),intent(inout) :: int
+        type(dod),intent(in) :: dod_info
+
+        integer :: i
+        type(sparse_vector) :: d_H213i, d_H213i_term2, d_H123i, d_H123i_term2
+
+        ! Lower-order potential integrals
+        ! don't need H111, it is a source integral
+
+        ! calc d_H213   int%H213 = -int%r*sum(geom%v_xi*int%F111)
+        do i = 1,3
+
+            call d_H213i%init_from_sparse_vector(geom%d_v_xi(i))
+            call d_H213i%broadcast_element_times_scalar(int%F111(i))
+
+            call d_H213i_term2%init_from_sparse_vector(int%d_F111(i))
+            call d_H213i_term2%broadcast_element_times_scalar(geom%v_xi(i))
+
+            call d_H213i%sparse_add(d_H213i_term2)
+
+            ! sum
+            if (i == 1) then
+                call int%d_H213%init_from_sparse_vector(d_H213i)
+            else
+                call int%d_H213%sparse_add(d_H213i)
+            end if
+            
+            deallocate(d_H213i%elements, d_H213i_term2%elements)
+
+        end do 
+
+        call int%d_H213%broadcast_element_times_scalar(real(-int%r)) 
+
+
+        ! calc d_H123   int%H123 = -int%s*sum(geom%v_eta*int%F1123
+        do i = 1,3
+
+            call d_H123i%init_from_sparse_vector(geom%d_v_eta(i))
+            call d_H123i%broadcast_element_times_scalar(int%F111(i))
+
+            call d_H123i_term2%init_from_sparse_vector(int%d_F111(i))
+            call d_H123i_term2%broadcast_element_times_scalar(geom%v_eta(i))
+
+            call d_H123i%sparse_add(d_H123i_term2)
+
+            ! sum
+            if (i == 1) then
+                call int%d_H123%init_from_sparse_vector(d_H123i)
+            else
+                call int%d_H123%sparse_add(d_H123i)
+            end if
+
+            deallocate(d_H123i%elements, d_H123i_term2%elements)
+            
+        end do 
+
+        call int%d_H123%broadcast_element_times_scalar(real(-int%s)) 
+
+        
+
+
+    end subroutine panel_calc_H_integrals_adjoint
 end module panel_mod
