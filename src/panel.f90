@@ -77,7 +77,7 @@ module panel_mod
         !!!!!!!!! ADJOINT !!!!!!!!!
         type(sparse_vector) :: d_A !d_radius
         type(sparse_matrix) :: d_n_g, d_centr
-        type(sparse_matrix),dimension(3) :: d_n_hat_g, d_A_g_to_ls, d_A_ls_to_g, d_T_mu
+        type(sparse_matrix),dimension(3) :: d_n_hat_g, d_A_g_to_ls, d_A_ls_to_g, d_T_mu_rows
 
         type(sparse_vector),dimension(2,3) :: d_vertices_ls, d_n_hat_ls
         
@@ -231,13 +231,15 @@ module panel_mod
             procedure :: calc_basic_geom_adjoint => panel_calc_basic_geom_adjoint
             procedure :: calc_subsonic_geom_adjoint => panel_calc_subsonic_geom_adjoint
             procedure :: calc_sensitivity_of_body_point_in_ls => panel_calc_sensitivity_of_body_point_in_ls
-
+            
             ! adjoint integral calcs
             procedure :: calc_integrals_adjoint => panel_calc_integrals_adjoint
             procedure :: calc_basic_F_integrals_subsonic_adjoint => panel_calc_basic_F_integrals_subsonic_adjoint
             procedure :: calc_hH113_subsonic_adjoint => panel_calc_hH113_subsonic_adjoint
             procedure :: calc_H_integrals_adjoint => panel_calc_H_integrals_adjoint
-
+            
+            procedure :: assemble_v_d_M_space_adjoint => panel_assemble_v_d_M_space_adjoint
+            
 
             !!!!!!!! END ADJOINT PROCEDURES !!!!!!!!
 
@@ -4660,8 +4662,8 @@ contains
    
         do i = 1,3
 
-            ! set d_T_mu equal to d_S_inv and convert it to a sparse_matrix dimension 3 panel attribute
-            call this%d_T_mu(i)%init_from_sparse_vectors(d_S_inv(i,1), d_S_inv(i,2), d_S_inv(i,3))
+            ! set d_T_mu_rows equal to d_S_inv and convert it to a sparse_matrix dimension 3 panel attribute
+            call this%d_T_mu_rows(i)%init_from_sparse_vectors(d_S_inv(i,1), d_S_inv(i,2), d_S_inv(i,3))
 
         end do
        
@@ -5403,27 +5405,67 @@ contains
         type(flow),intent(in) :: freestream
         logical,intent(in) :: mirror_panel
 
-        type(sparse_vector),dimension(3,3) :: d_v_d_mu_space
-        type(sparse_vector),dimension(3,3) :: d_v_d_M_space
+        type(sparse_vector) :: zeros
+        type(sparse_matrix),dimension(3) :: d_v_d_mu_rows, d_v_d_M_rows, d_T_mu_cols, d_v_d_M_space
 
+        real,dimension(:,:),allocatable :: v_d_mu_space
+        real,dimension(:,:),allocatable :: v_d_M_space
 
-        call d_v_d_mu_space(1,1)%init(this%d_A%full_size)
-        call d_v_d_mu_space(1,2)%init_from_sparse_vector(int%hH113)
-        call d_v_d_mu_space(1,3)%init(this%d_A%full_size)
+        ! Allocate space
+        allocate(v_d_mu_space(3,this%mu_dim), source=0.)
+        if (this%in_wake) then
+            ! allocate(v_d_M_space(3,2*this%M_dim), source=0.)
+            write(*,*) "!!! Cannot calculate adjoint for Wake panels. Quitting..."
+            stop
+        else
+            allocate(v_d_M_space(3,this%M_dim), source=0.)
+        end if
 
-        call d_v_d_mu_space(2,1)%init(this%d_A%full_size)
-        call d_v_d_mu_space(2,2)%init(this%d_A%full_size)
-        call d_v_d_mu_space(2,3)%init_from_sparse_vector(int%hH113)
+        !!!! Duplicate work done in regular calc velocity influences !!!!
+        ! assemble v_d_mu space
+        v_d_mu_space(1,1) = 0
+        v_d_mu_space(1,2) = int%hH113
+        v_d_mu_space(1,3) = 0
 
-        call d_v_d_mu_space(3,1)%init(this%d_A%full_size)
-        call d_v_d_mu_space(3,2)%init_from_sparse_vector(int%H213)
-        call d_v_d_mu_space(3,3)%init_from_sparse_vector(int%H123)
+        v_d_mu_space(2,1) = 0
+        v_d_mu_space(2,2) = 0
+        v_d_mu_space(2,3) = int%hH113
+
+        v_d_mu_space(3,1) = 0
+        v_d_mu_space(3,2) = int%H213
+        v_d_mu_space(3,3) = int%H123
+        ! end duplicate work
+
+        ! assemble d_v_d_mu space
+        call zeros%init(int%d_hH113%full_size)
+
+        call d_v_d_mu_rows(1)%init_from_sparse_vectors(zeros, int%d_hH113, zeros)
+        call d_v_d_mu_rows(2)%init_from_sparse_vectors(zeros, zeros, int%d_hH113)
+        call d_v_d_mu_rows(3)%init_from_sparse_vectors(zeros, int%d_H213, int%d_H123)
 
         ! Convert to strength influences (Davis Eq. (4.41))
         if (mirror_panel) then
             !v_d_M_space(:,1:this%M_dim) = int%s*freestream%K_inv*matmul(v_d_mu_space, this%T_mu_mir)
+            write(*,*) "!!! Cannot calculate adjoint for mirrored mesh. Quitting..."
+            stop
         else
-            d_v_d_M_space(:,1:3) = int%s*freestream%K_inv*matmul(v_d_mu_space, this%T_mu)
+            ! v_d_M_space(:,1:this%M_dim) = int%s*freestream%K_inv*matmul(v_d_mu_space, this%T_mu)
+
+            ! matmul d_v_d_mu_rows times T_mu
+            do i=1,3
+                d_v_d_M_rows(i) = d_v_d_mu_rows(i)%broadcast_matmul_element_times_3x3(this%T_mu)
+            end do
+
+            ! d_v_d_M_rows = d_v_d_mu_rows%sparse_matrix_broadcast_matmul_3_row_times_3x3(this%T_mu)
+
+            ! transpose d_T_mu_rows into d_T_mu_cols
+            d_T_mu_cols = this%d_T_mu_rows%transpose_3()
+
+            ! matmul v_d_mu_space times d_T_mu_cols
+            dummy_rows = d_T_mu_cols%broadcast_matmul_3x3_times_3_col(v_d_mu_space)
+
+            
+
         end if
 
         ! Wake bottom influence is opposite the top influence
@@ -5434,6 +5476,8 @@ contains
         ! Transform to global coordinates
         if (mirror_panel) then
             ! v_d_M_space = matmul(transpose(this%A_g_to_ls_mir), v_d_M_space)
+            write(*,*) "!!! Cannot calculate adjoint for mirrored mesh. Quitting..."
+            stop
         else
             d_v_d_M_space = matmul(transpose(this%A_g_to_ls), v_d_M_space)
         end if

@@ -78,37 +78,41 @@ module adjoint_mod
             procedure :: expand => sparse_matrix_expand
             
             procedure :: sparse_add => sparse_matrix_sparse_add
+            
             procedure :: sparse_subtract => sparse_matrix_sparse_subtract
-
+            
+            
             procedure :: broadcast_vector_cross_element => sparse_matrix_broadcast_vector_cross_element
             procedure :: broadcast_element_cross_vector => sparse_matrix_broadcast_element_cross_vector
-
+            
             procedure :: broadcast_vector_dot_element => sparse_matrix_broadcast_vector_dot_element
             procedure :: broadcast_element_times_scalar => sparse_matrix_broadcast_element_times_scalar
-
+            
             procedure :: broadcast_matmul_3x3_times_element => sparse_matrix_broadcast_matmul_3x3_times_element
             procedure :: broadcast_matmul_element_times_3x3 => sparse_matrix_broadcast_matmul_element_times_3x3
+            
             procedure :: split_into_sparse_vectors => sparse_matrix_split_into_sparse_vectors
+            
+            
+            
+            
+            end type sparse_matrix
+            
+            
+            type sparse_3D
+            
+            integer :: sparse_num_cols,full_num_cols    ! sparse_num_cols is the number of columns with a nonzero element
+            type(sparse_matrix),dimension(:),allocatable :: rows 
+            
+            
+            contains
+                procedure :: sparse_add_3 => sparse_3D_sparse_add_3
+                procedure :: transpose_3=> sparse_3D_transpose_3
+                procedure :: broadcast_matmul_3row_times_3x3 => sparse_3D_broadcast_matmul_3row_times_3x3
+                procedure :: broadcast_matmul_3x3_times_3col => sparse_3D_broadcast_matmul_3x3_times_3col
+                
 
-
-        
-
-    end type sparse_matrix
-
-
-    type adjoint
-
-        integer :: size    ! number of design varibles, the length of X_beta
-        ! we may never use X_beta
-        real,dimension(:),allocatable :: X_beta  ! list of x y z values of all mesh points (design variables)
-        type(sparse_vector),dimension(:),allocatable :: d_xyz
-    
-
-        contains
-            procedure :: adjoint => adjoint_init
-            procedure :: get_X_beta => adjoint_get_X_beta ! puts all x y z values of mesh points in a list
-
-    end type adjoint
+    end type sparse_3D
 
 
 contains
@@ -905,6 +909,7 @@ contains
     end subroutine sparse_matrix_sparse_add
 
 
+
     subroutine sparse_matrix_sparse_subtract(this, sparse_input)
         ! subroutine to subtract a sparse matrix from this
         ! this - sparse_input = this
@@ -942,6 +947,28 @@ contains
         end do 
 
     end subroutine sparse_matrix_sparse_subtract
+
+
+    ! function sparse_matrix_transpose_3(this) result(transposed)
+    !     ! takes a sparse matrix and converts it to a sparse_vector dimension 3
+    
+    !     implicit none
+
+    !     class(sparse_matrix),dimension(3),intent(inout) :: this
+
+    !     integer :: i
+    !     type(sparse_vector),dimension(3) :: row1, row2, row3
+    !     type(sparse_matrix),dimension(3) :: transposed
+
+    !     row1 = this(1)%split_into_sparse_vectors()
+    !     row2 = this(2)%split_into_sparse_vectors()
+    !     row3 = this(3)%split_into_sparse_vectors()
+
+    !     do i=1,3
+    !         call transposed(i)%init_from_sparse_vectors(row1(i), row2(i), row3(i))
+    !     end do
+    
+    ! end function sparse_matrix_transpose_3
 
 
     function sparse_matrix_broadcast_vector_cross_element(this, vec) result(result_matrix)
@@ -1145,6 +1172,47 @@ contains
 
     end function sparse_matrix_broadcast_matmul_element_times_3x3
 
+
+    ! function sparse_matrix_broadcast_matmul_3row_times_3x3(this, matrix3) result(result_rows)
+    !     ! matmuls a sparse_matrix dim(3) (rows) by a 3x3 matrix
+
+    !     implicit none
+
+    !     class(sparse_matrix),dimension(3),intent(inout) :: this
+    !     real,dimension(3,3),intent(in) :: matrix3 
+
+    !     integer :: i
+    !     type(sparse_matrix), dimension(3) :: result_rows
+        
+    !     do i=1,3
+    !         result_rows(i) = this(i)%broadcast_matmul_element_times_3x3(matrix3)
+    !     end do
+
+    ! end function sparse_matrix_broadcast_matmul_3row_times_3x3
+
+
+    ! function sparse_matrix_broadcast_matmul_3x3_times_3col(this, matrix3) result(result_rows)
+    !     ! matmuls a 3x3 matrix times a sparse_matrix dim(3) columns
+
+    !     implicit none
+
+    !     class(sparse_matrix),intent(inout),dimension(3) :: this(:)
+    !     real,dimension(3,3),intent(in) :: matrix3 
+
+    !     integer :: i
+    !     type(sparse_matrix), dimension(3) :: result_cols, result_rows
+        
+    !     do i=1,3
+    !         result_cols(i) = this(i)%broadcast_matmul_3x3_times_element(matrix3)
+    !     end do
+
+    !     result_rows = result_cols%transpose_3()
+
+
+
+    ! end function sparse_matrix_broadcast_matmul_3x3_times_3col
+
+
     function sparse_matrix_split_into_sparse_vectors(this) result(sparse_vecs)
     ! takes a sparse matrix and converts it to a sparse_vector dimension 3
 
@@ -1166,6 +1234,23 @@ contains
         end do
 
     end function sparse_matrix_split_into_sparse_vectors
+
+
+    subroutine sparse_3D_sparse_add_3(this, sparse_matrix3)
+        ! matmuls a 3x3 matrix times a sparse_matrix dim(3) columns
+
+        implicit none
+
+        class(sparse_matrix),dimension(3),intent(inout) :: this
+        type(sparse_matrix),dimension(3), intent(in) :: sparse_matrix3 
+
+        integer :: i
+        
+        do i=1,3
+            call this(i)%sparse_add(sparse_matrix3(i))
+        end do
+
+    end subroutine sparse_3D_sparse_add_3
 
 
     subroutine adjoint_init(this)
