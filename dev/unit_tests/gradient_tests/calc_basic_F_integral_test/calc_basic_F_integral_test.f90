@@ -49,7 +49,7 @@ program calc_basic_F_integral
     real,dimension(:),allocatable :: residuals, F111_up, F111_dn, d_F111_FD
     real,dimension(:,:),allocatable ::  residuals3 
 
-    integer :: i,j,k,m,n,p, N_verts, N_panels, vert, index
+    integer :: i,j,k,m,n,p, N_verts, N_panels, vert, index, cp_ind
     real :: step
     type(vertex),dimension(:),allocatable :: vertices ! list of vertex types, this should be a mesh attribute
     type(panel),dimension(:),allocatable :: panels, adjoint_panels   ! list of panels, this should be a mesh attribute
@@ -67,6 +67,9 @@ program calc_basic_F_integral
     passed_tests = 0
     total_tests = 0
 
+    step = 0.00001
+    index = 1
+    cp_ind = 4
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !                             FROM MAIN
 
@@ -121,9 +124,9 @@ program calc_basic_F_integral
     call test_solver%init(solver_settings, processing_settings, test_mesh, freestream_flow, control_point_file)
 
     ! calc CALC BASIC GEOM geom of relation between cp1 and panel1 
-    test_geom = test_mesh%panels(1)%calc_subsonic_geom(test_mesh%cp(1)%loc,freestream_flow,.false.)
-    test_dod_info = test_mesh%panels(1)%check_dod(test_mesh%cp(1)%loc, freestream_flow, .false.)
-    test_int = test_mesh%panels(1)%calc_integrals(test_geom, 'velocity', freestream_flow,.false., test_dod_info)
+    test_geom = test_mesh%panels(index)%calc_subsonic_geom(test_mesh%cp(cp_ind)%loc,freestream_flow,.false.)
+    test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, .false.)
+    test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,.false., test_dod_info)
     !!!!!!!!!!!!!!!!!!!!! END TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
@@ -183,13 +186,13 @@ program calc_basic_F_integral
     adjoint_freestream_flow, adjoint_control_point_file)
 
     !calc CALC BASIC F integral sensitivities cp1 and panel1 
-    adjoint_geom = adjoint_mesh%panels(1)%calc_subsonic_geom_adjoint(adjoint_mesh%cp(1),&
+    adjoint_geom = adjoint_mesh%panels(index)%calc_subsonic_geom_adjoint(adjoint_mesh%cp(cp_ind),&
                                                                 adjoint_freestream_flow)
-    adjoint_dod_info = adjoint_mesh%panels(1)%check_dod(adjoint_mesh%cp(1)%loc, freestream_flow, .false.)
-    adjoint_int = adjoint_mesh%panels(1)%calc_integrals(adjoint_geom, 'velocity', freestream_flow,.false., adjoint_dod_info)
-    call adjoint_mesh%panels(1)%calc_integrals_adjoint(adjoint_geom,adjoint_int,adjoint_freestream_flow&
+    adjoint_dod_info = adjoint_mesh%panels(index)%check_dod(adjoint_mesh%cp(cp_ind)%loc, freestream_flow, .false.)
+    adjoint_int = adjoint_mesh%panels(index)%calc_integrals(adjoint_geom, 'velocity', freestream_flow,.false., adjoint_dod_info)
+    call adjoint_mesh%panels(index)%calc_integrals_adjoint(adjoint_geom,adjoint_int,adjoint_freestream_flow&
     , .false., adjoint_dod_info)
-    ! call adjoint_mesh%panels(1)%calc_velocity_influences_adjoint(adjoint_mesh%cp(1), freestream_flow, d_v_d)
+    ! call adjoint_mesh%panels(index)%calc_velocity_influences_adjoint(adjoint_mesh%cp(cp_ind), freestream_flow, d_v_d)
     !!!!!!!!!!!! END ADJOINT TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!
 
 
@@ -201,9 +204,7 @@ program calc_basic_F_integral
     
     allocate(residuals3(3,N_verts*3))
     allocate(residuals(N_verts*3))
-    
-    step = 0.00001
-    index = 1
+
     
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! CALC d_hH113 SENSITIVITIES TEST !!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -224,10 +225,10 @@ program calc_basic_F_integral
     
     do p=1,3
 
-        write(*,*) "---------------------------------- TEST CALC BASIC F INTEGRAL SENSITIVITY (panel 1, cp 1) d_F111 edge ", p," -&
-        --------------------------------"
+        write(*,'(A, I1,A,I1,A,I1,A)') "---------------------------------- TEST CALC BASIC F INTEGRAL SENSITIVITY &
+        (panel ",index,", cp ",cp_ind,") d_F111 edge ", p," ---------------------------------"
         write(*,*) ""
-        write(*,*) "the sensitivity of (panel 1, cp 1) F111 edge ", p, " WRT each design variable"
+        write(*,'(A,I1, A)') "the sensitivity of (panel 1, cp 1) F111 edge ", p, " WRT each design variable"
         write(*,*) ""
 
     
@@ -274,8 +275,8 @@ program calc_basic_F_integral
                 deallocate(test_int%F111)
                 deallocate(test_int%F121)
                 deallocate(test_int%F211)
-                test_geom = test_mesh%panels(index)%calc_subsonic_geom(test_mesh%cp(1)%loc,freestream_flow,.false.)
-                test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(1)%loc, freestream_flow, .false.)
+                test_geom = test_mesh%panels(index)%calc_subsonic_geom(test_mesh%cp(cp_ind)%loc,freestream_flow,.false.)
+                test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, .false.)
                 test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,.false., test_dod_info)
                 !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
                 ! put the x y or z component of the vertex of interest (index) in a list
@@ -314,8 +315,8 @@ program calc_basic_F_integral
                 deallocate(test_int%F111)
                 deallocate(test_int%F121)
                 deallocate(test_int%F211)
-                test_geom = test_mesh%panels(index)%calc_subsonic_geom(test_mesh%cp(1)%loc,freestream_flow,.false.)
-                test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(1)%loc, freestream_flow, .false.)
+                test_geom = test_mesh%panels(index)%calc_subsonic_geom(test_mesh%cp(cp_ind)%loc,freestream_flow,.false.)
+                test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, .false.)
                 test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,.false., test_dod_info)
                 !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
 
@@ -336,7 +337,8 @@ program calc_basic_F_integral
         write(*,*) ""
     
         write(*,*) "--------------------------------------------------------------------------"
-        write(*,'(A, I1)') "  CENTRAL DIFFERENCE CALC BASIC F INTEGRAL (panel 1, cp 1) d_F111 edge ",p
+        write(*,'(A, I1,A,I1,A,I1)') "  CENTRAL DIFFERENCE CALC BASIC F INTEGRAL &
+        (panel ",index,", cp ",cp_ind,") d_F111 edge ",p
         write(*,*) "--------------------------------------------------------------------------"
         write(*,*) ""
         write(*,*) "  d_F111"
@@ -354,7 +356,8 @@ program calc_basic_F_integral
         
         !write sparse matrix
         write(*,*) ""
-        write(*,'(A, I1, A)') "  adjoint CALC BASIC F INTEGRAL (panel 1, cp 1) d_F111 edge ",p,"  (sparse)"
+        write(*,'(A, I1,A,I1,A,I1,A)') "  adjoint CALC BASIC F INTEGRAL &
+        (panel ",index,", cp ",cp_ind,") d_F111 edge ",p,"  (sparse)"
         write(*,*) ""
         write(*,*) "  d_F111              sparse_index       full_index"
         
@@ -372,7 +375,8 @@ program calc_basic_F_integral
             residuals(i) = adjoint_int%d_F111(p)%get_value(i) - d_F111_FD(i)
         end do
 
-        write(*,'(A, I1, A)') "  adjoint CALC BASIC F INTEGRAL (panel 1, cp 1) d_F111 edge ",p,",  expanded"
+        write(*,'(A, I1,A,I1,A,I1,A)') "  adjoint CALC BASIC F INTEGRAL &
+        (panel ",index,", cp ",cp_ind,") d_F111 edge ",p,",  expanded"
         write(*,*) ""
         write(*,*) "  d_F111                 residual"
         
@@ -395,18 +399,18 @@ program calc_basic_F_integral
         if (test_failed) then
             total_tests = total_tests + 1
             if (p ==1) then
-                failure_log(total_tests-passed_tests) = "CALC BASIC F INTEGRAL (panel 1, cp 1) d_F111 edge &
+                failure_log(total_tests-passed_tests) = "CALC BASIC F INTEGRAL d_F111 edge &
                 1 test FAILED"
             elseif (p ==2) then
-                failure_log(total_tests-passed_tests) = "CALC BASIC F INTEGRAL (panel 1, cp 1) d_F111 edge &
+                failure_log(total_tests-passed_tests) = "CALC BASIC F INTEGRAL d_F111 edge &
                 2 test FAILED"
             else
-                failure_log(total_tests-passed_tests) = "CALC BASIC F INTEGRAL (panel 1, cp 1) d_F111 edge &
+                failure_log(total_tests-passed_tests) = "CALC BASIC F INTEGRAL d_F111 edge &
                 3 test FAILED"
             end if
             write(*,*) failure_log(total_tests-passed_tests)
         else
-            write(*,'(A,I1,A)') "CALC BASIC F INTEGRAL (panel 1, cp 1) d_F111 edge ",p," test PASSED"
+            write(*,'(A, I1,A,I1,A,I1,A)') "CALC BASIC F INTEGRAL (panel ",index,", cp ",cp_ind,") d_F111 edge ",p," test PASSED"
             passed_tests = passed_tests + 1
             total_tests = total_tests + 1
             

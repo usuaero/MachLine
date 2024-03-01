@@ -4718,7 +4718,7 @@ contains
           
 
             ! Doublet velocity
-            !d_v_d_M_space = this%assemble_v_d_M_space(int, geom, freestream, mirror_panel)
+            d_v_d_M_space = this%assemble_v_d_M_space_adjoint(int, geom, freestream, mirror_panel)
 
         else
 
@@ -5030,7 +5030,7 @@ contains
 
 
     subroutine panel_calc_integrals_adjoint(this,geom,int,freestream, mirror_panel, dod_info) 
-    ! Calculates the integral sensitivity terms
+        ! Calculates the integral sensitivity terms
 
         implicit none
 
@@ -5066,7 +5066,7 @@ contains
 
 
     subroutine panel_calc_basic_F_integrals_subsonic_adjoint(this, geom, freestream, mirror_panel, int)
-    ! calcs the subsonic F integral sensitivities
+        ! calcs the subsonic F integral sensitivities
 
         implicit none
         
@@ -5312,6 +5312,8 @@ contains
         end do
         
         ! Apply sign factor (Johnson Eq. (D.42)
+        write(*,*) "S = ", S 
+        write(*,*) "C = ", C 
         call int%d_hH113%broadcast_element_times_scalar(sign(1., geom%h))
 
     end subroutine panel_calc_hH113_subsonic_adjoint
@@ -5388,4 +5390,55 @@ contains
 
 
     end subroutine panel_calc_H_integrals_adjoint
+
+
+    function panel_assemble_v_d_M_space_adjoint(this,int, geom, freestream, mirror_panel) result(d_v_d_M_space)
+        ! returns d_v_d_M_space
+
+        implicit none
+
+        class(panel),intent(in) :: this
+        type(integrals),intent(in) :: int
+        type(eval_point_geom),intent(in) :: geom
+        type(flow),intent(in) :: freestream
+        logical,intent(in) :: mirror_panel
+
+        type(sparse_vector),dimension(3,3) :: d_v_d_mu_space
+        type(sparse_vector),dimension(3,3) :: d_v_d_M_space
+
+
+        call d_v_d_mu_space(1,1)%init(this%d_A%full_size)
+        call d_v_d_mu_space(1,2)%init_from_sparse_vector(int%hH113)
+        call d_v_d_mu_space(1,3)%init(this%d_A%full_size)
+
+        call d_v_d_mu_space(2,1)%init(this%d_A%full_size)
+        call d_v_d_mu_space(2,2)%init(this%d_A%full_size)
+        call d_v_d_mu_space(2,3)%init_from_sparse_vector(int%hH113)
+
+        call d_v_d_mu_space(3,1)%init(this%d_A%full_size)
+        call d_v_d_mu_space(3,2)%init_from_sparse_vector(int%H213)
+        call d_v_d_mu_space(3,3)%init_from_sparse_vector(int%H123)
+
+        ! Convert to strength influences (Davis Eq. (4.41))
+        if (mirror_panel) then
+            !v_d_M_space(:,1:this%M_dim) = int%s*freestream%K_inv*matmul(v_d_mu_space, this%T_mu_mir)
+        else
+            d_v_d_M_space(:,1:3) = int%s*freestream%K_inv*matmul(v_d_mu_space, this%T_mu)
+        end if
+
+        ! Wake bottom influence is opposite the top influence
+        ! if (this%in_wake) then
+        !     v_d_M_space(:,this%M_dim+1:this%M_dim*2) = -v_d_M_space(:,1:this%M_dim)
+        ! end if
+
+        ! Transform to global coordinates
+        if (mirror_panel) then
+            ! v_d_M_space = matmul(transpose(this%A_g_to_ls_mir), v_d_M_space)
+        else
+            d_v_d_M_space = matmul(transpose(this%A_g_to_ls), v_d_M_space)
+        end if
+
+
+    end function panel_assemble_v_d_M_space_adjoint
+
 end module panel_mod
