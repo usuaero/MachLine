@@ -5394,19 +5394,22 @@ contains
     end subroutine panel_calc_H_integrals_adjoint
 
 
-    function panel_assemble_v_d_M_space_adjoint(this,int, geom, freestream, mirror_panel) result(d_v_d_M_space)
+    function panel_assemble_v_d_M_space_adjoint(this, int, geom, freestream, mirror_panel) result(d_v_d_M_space)
         ! returns d_v_d_M_space
 
         implicit none
 
         class(panel),intent(in) :: this
-        type(integrals),intent(in) :: int
+        type(integrals),intent(inout) :: int
         type(eval_point_geom),intent(in) :: geom
         type(flow),intent(in) :: freestream
         logical,intent(in) :: mirror_panel
 
+        integer :: i
+
         type(sparse_vector) :: zeros
-        type(sparse_matrix),dimension(3) :: d_v_d_mu_rows, d_v_d_M_rows, d_T_mu_cols, d_v_d_M_space
+        type(sparse_matrix),dimension(3) :: d_v_d_mu_rows, d_v_d_M_rows, d_v_d_M_space
+        type(sparse_3D) :: d_T_mu_3D
 
         real,dimension(:,:),allocatable :: v_d_mu_space
         real,dimension(:,:),allocatable :: v_d_M_space
@@ -5458,11 +5461,12 @@ contains
 
             ! d_v_d_M_rows = d_v_d_mu_rows%sparse_matrix_broadcast_matmul_3_row_times_3x3(this%T_mu)
 
-            ! transpose d_T_mu_rows into d_T_mu_cols
-            d_T_mu_cols = this%d_T_mu_rows%transpose_3()
+            ! convert this%d_T_mu_rows (sparse_matrix dimension(3)) into a sparse_3D object
+            call d_T_mu_3D%init_from_sparse_matrices(this%d_T_mu_rows)
+            d_T_mu_3D = d_T_mu_3D%
 
             ! matmul v_d_mu_space times d_T_mu_cols
-            dummy_rows = d_T_mu_cols%broadcast_matmul_3x3_times_3_col(v_d_mu_space)
+            ! dummy_rows = d_T_mu_cols%broadcast_matmul_3x3_times_3_col(v_d_mu_space)
 
             
 
@@ -5479,7 +5483,7 @@ contains
             write(*,*) "!!! Cannot calculate adjoint for mirrored mesh. Quitting..."
             stop
         else
-            d_v_d_M_space = matmul(transpose(this%A_g_to_ls), v_d_M_space)
+            ! d_v_d_M_space = matmul(transpose(this%A_g_to_ls), v_d_M_space)
         end if
 
 

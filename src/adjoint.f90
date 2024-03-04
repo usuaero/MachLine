@@ -96,20 +96,21 @@ module adjoint_mod
             
             
             
-            end type sparse_matrix
+    end type sparse_matrix
             
             
-            type sparse_3D
+    type sparse_3D
             
-            integer :: sparse_num_cols,full_num_cols    ! sparse_num_cols is the number of columns with a nonzero element
-            type(sparse_matrix),dimension(:),allocatable :: rows 
+            integer :: num_rows    ! sparse_num_cols is the number of columns with a nonzero element
+            type(sparse_matrix),dimension(:), allocatable :: rows ! 1 row of a 3x3xN is a sparse_matrix 
             
             
             contains
+                procedure :: init_from_sparse_matrices => sparse_3D_init_from_sparse_matrices
                 procedure :: sparse_add_3 => sparse_3D_sparse_add_3
-                procedure :: transpose_3=> sparse_3D_transpose_3
+                procedure :: transpose_3 => sparse_3D_transpose_3
                 procedure :: broadcast_matmul_3row_times_3x3 => sparse_3D_broadcast_matmul_3row_times_3x3
-                procedure :: broadcast_matmul_3x3_times_3col => sparse_3D_broadcast_matmul_3x3_times_3col
+                procedure :: broadcast_matmul_3x3_times_3row => sparse_3D_broadcast_matmul_3x3_times_3row
                 
 
     end type sparse_3D
@@ -949,277 +950,219 @@ contains
     end subroutine sparse_matrix_sparse_subtract
 
 
-    ! function sparse_matrix_transpose_3(this) result(transposed)
-    !     ! takes a sparse matrix and converts it to a sparse_vector dimension 3
     
-    !     implicit none
-
-    !     class(sparse_matrix),dimension(3),intent(inout) :: this
-
-    !     integer :: i
-    !     type(sparse_vector),dimension(3) :: row1, row2, row3
-    !     type(sparse_matrix),dimension(3) :: transposed
-
-    !     row1 = this(1)%split_into_sparse_vectors()
-    !     row2 = this(2)%split_into_sparse_vectors()
-    !     row3 = this(3)%split_into_sparse_vectors()
-
-    !     do i=1,3
-    !         call transposed(i)%init_from_sparse_vectors(row1(i), row2(i), row3(i))
-    !     end do
     
-    ! end function sparse_matrix_transpose_3
-
-
     function sparse_matrix_broadcast_vector_cross_element(this, vec) result(result_matrix)
         ! cross product of a 3-vector and a "list" of vectors (derivative of a vector)
         ! returns a "list" of 3-vectors ( a sparse matrix 3)
-
+        
         implicit none
-
+        
         class(sparse_matrix),intent(inout) :: this
         real,dimension(3),intent(in) :: vec 
-
+        
         type(sparse_matrix) :: result_matrix
         real,dimension(3) :: temp_vec
-
+        
         integer :: i
 
         ! set full and sparse column numbers/size
         result_matrix%full_num_cols = this%full_num_cols
         result_matrix%sparse_num_cols = this%sparse_num_cols
-
+        
         ! allocate result matrix elements
         allocate(result_matrix%columns(size(this%columns)))
-
+        
         ! go through each sparse column index
         do i=1,this%sparse_num_cols
             ! do cross product
             temp_vec = this%columns(i)%vector_values(:)
             temp_vec = cross(vec,temp_vec)
-
+            
             ! update the results matrix
             result_matrix%columns(i)%vector_values(:) = temp_vec(:)
             result_matrix%columns(i)%full_index = this%columns(i)%full_index
-    
-
+            
+            
         end do       
-
-
+        
+        
     end function sparse_matrix_broadcast_vector_cross_element
-
-
+    
+    
     function sparse_matrix_broadcast_element_cross_vector(this, vec) result(result_matrix)
         ! cross product of a "list" of vectors (derivative of a vector) and a 3-vector
         ! returns a "list" of 3-vectors ( a sparse matrix 3)
-
+        
         implicit none
-
+        
         class(sparse_matrix),intent(inout) :: this
         real,dimension(3),intent(in) :: vec 
-
+        
         type(sparse_matrix) :: result_matrix
         real,dimension(3) :: temp_vec
-
+        
         integer :: i
-
+        
         ! set full and sparse column numbers/size
         result_matrix%full_num_cols = this%full_num_cols
         result_matrix%sparse_num_cols = this%sparse_num_cols
-
+        
         ! allocate result matrix elements
         allocate(result_matrix%columns(size(this%columns)))
-
+        
         ! go through each sparse column index
         do i=1,this%sparse_num_cols
             ! do cross product
             temp_vec = this%columns(i)%vector_values(:)
             temp_vec = cross(temp_vec, vec)
-
+            
             ! update the results matrix 
             result_matrix%columns(i)%vector_values(:) = temp_vec(:)
             result_matrix%columns(i)%full_index = this%columns(i)%full_index
-
+            
         end do       
-
+        
     end function sparse_matrix_broadcast_element_cross_vector
-
-
+    
+    
     function sparse_matrix_broadcast_vector_dot_element(this, vec) result(result_vector)
         ! dot product of a 3-vector and a "list" of vectors (derivative of a vector)
         ! returns a sparse_vector
-
+        
         implicit none
-
+        
         class(sparse_matrix),intent(inout) :: this
         real,dimension(3),intent(in) :: vec 
-
+        
         type(sparse_vector) :: result_vector
         real :: temp_val
         real,dimension(3) :: temp_vec
-
+        
         integer :: i
-
+        
         ! set full and sparse column numbers/size
         result_vector%full_size = this%full_num_cols
         result_vector%sparse_size = this%sparse_num_cols
         ! allocate result matrix elements
         allocate(result_vector%elements(result_vector%sparse_size))
-
+        
         ! go through each sparse column index
         do i=1,this%sparse_num_cols
             ! do dot product
             temp_vec = this%columns(i)%vector_values(:)
             temp_val = inner(vec,temp_vec)
-
+            
             ! update results vector
             result_vector%elements(i)%value = temp_val
             result_vector%elements(i)%full_index = this%columns(i)%full_index
-
+            
         end do       
-
+        
     end function sparse_matrix_broadcast_vector_dot_element
-
-
+    
+    
     subroutine sparse_matrix_broadcast_element_times_scalar(this,scalar)
         ! multiplies a single scalar value by each of the sparse matrix elements
         ! (this could also be a function)
-
+        
         implicit none
         class(sparse_matrix),intent(inout) :: this
         real,intent(in) :: scalar
-
+        
         integer :: i
-    
-
+        
+        
         ! mutiply the scalar
         do i=1,this%sparse_num_cols
             this%columns(i)%vector_values = this%columns(i)%vector_values * scalar
         end do
-
+        
     end subroutine sparse_matrix_broadcast_element_times_scalar
-
+    
 
     function sparse_matrix_broadcast_matmul_3x3_times_element(this, matrix3) result(result_matrix)
         ! matmul a 3x3 matrix with a "list" of vectors (sparse matrix)
         ! returns a "list" of 3-vectors ( a sparse matrix )
-
+        
         implicit none
-
+        
         class(sparse_matrix),intent(inout) :: this
         real,dimension(3,3),intent(in) :: matrix3 
-
+        
         type(sparse_matrix) :: result_matrix
         real,dimension(3) :: temp_vec
-
+        
         integer :: i
-
+        
         ! set full and sparse column numbers/size
         result_matrix%full_num_cols = this%full_num_cols
         result_matrix%sparse_num_cols = this%sparse_num_cols
-
+        
         ! allocate result matrix elements
         allocate(result_matrix%columns(size(this%columns)))
-
+        
         ! go through each sparse column index
         do i=1,this%sparse_num_cols
             ! do matmul
             temp_vec = this%columns(i)%vector_values(:)
             temp_vec = matmul(matrix3,  temp_vec)
-
+            
             ! update the results matrix 
             result_matrix%columns(i)%vector_values(:) = temp_vec(:)
             result_matrix%columns(i)%full_index = this%columns(i)%full_index
-
+            
         end do       
-
+        
     end function sparse_matrix_broadcast_matmul_3x3_times_element
-
-
+    
+    
     function sparse_matrix_broadcast_matmul_element_times_3x3(this, matrix3) result(result_matrix)
         ! matmul a  "list" of vectors (sparse matrix) with a 3x3 matrix
         ! returns a "list" of 3-vectors ( a sparse matrix )
-
+        
         implicit none
-
+        
         class(sparse_matrix),intent(inout) :: this
         real,dimension(3,3),intent(in) :: matrix3 
-
+        
         type(sparse_matrix) :: result_matrix
         real,dimension(3) :: temp_vec
-
+        
         integer :: i
-
+        
         ! set full and sparse column numbers/size
         result_matrix%full_num_cols = this%full_num_cols
         result_matrix%sparse_num_cols = this%sparse_num_cols
-
+        
         ! allocate result matrix elements
         allocate(result_matrix%columns(size(this%columns)))
-
+        
         ! go through each sparse column index
         do i=1,this%sparse_num_cols
             ! do matmul
             temp_vec = this%columns(i)%vector_values(:)
             ! temp_vec = matmul(matrix3,  temp_vec)
             temp_vec = matmul(temp_vec,matrix3)
-
+            
             ! update the results matrix 
             result_matrix%columns(i)%vector_values(:) = temp_vec(:)
             result_matrix%columns(i)%full_index = this%columns(i)%full_index
-
+            
         end do       
-
+        
     end function sparse_matrix_broadcast_matmul_element_times_3x3
-
-
-    ! function sparse_matrix_broadcast_matmul_3row_times_3x3(this, matrix3) result(result_rows)
-    !     ! matmuls a sparse_matrix dim(3) (rows) by a 3x3 matrix
-
-    !     implicit none
-
-    !     class(sparse_matrix),dimension(3),intent(inout) :: this
-    !     real,dimension(3,3),intent(in) :: matrix3 
-
-    !     integer :: i
-    !     type(sparse_matrix), dimension(3) :: result_rows
-        
-    !     do i=1,3
-    !         result_rows(i) = this(i)%broadcast_matmul_element_times_3x3(matrix3)
-    !     end do
-
-    ! end function sparse_matrix_broadcast_matmul_3row_times_3x3
-
-
-    ! function sparse_matrix_broadcast_matmul_3x3_times_3col(this, matrix3) result(result_rows)
-    !     ! matmuls a 3x3 matrix times a sparse_matrix dim(3) columns
-
-    !     implicit none
-
-    !     class(sparse_matrix),intent(inout),dimension(3) :: this(:)
-    !     real,dimension(3,3),intent(in) :: matrix3 
-
-    !     integer :: i
-    !     type(sparse_matrix), dimension(3) :: result_cols, result_rows
-        
-    !     do i=1,3
-    !         result_cols(i) = this(i)%broadcast_matmul_3x3_times_element(matrix3)
-    !     end do
-
-    !     result_rows = result_cols%transpose_3()
-
-
-
-    ! end function sparse_matrix_broadcast_matmul_3x3_times_3col
-
-
+    
+    
+    
+    
     function sparse_matrix_split_into_sparse_vectors(this) result(sparse_vecs)
-    ! takes a sparse matrix and converts it to a sparse_vector dimension 3
-
+        ! takes a sparse matrix and converts it to a sparse_vector dimension 3
+        
         implicit none
-
+        
         class(sparse_matrix),intent(inout) :: this
-
+        
         integer :: i
         real,dimension(:,:), allocatable :: full_matrix
         type(sparse_vector),dimension(3) :: sparse_vecs
@@ -1228,73 +1171,161 @@ contains
         ! tall means we want the matrix expanded as a Nx3 rather than 3xN
         tall = .true.
         full_matrix = this%expand(tall)
-
+        
         do i=1,3
             call sparse_vecs(i)%init_from_full_vector(full_matrix(:,i))
         end do
-
+        
     end function sparse_matrix_split_into_sparse_vectors
+    
+    
+    !!!!!!!!!!!!!!!!!!!!!!!!! START SPARSE 3D TYPE BOUND PROCEDURES  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    subroutine sparse_3D_init_from_sparse_matrices(this, sparse_matrices)
+        ! takes a sparse_matrix dimension(x) and makes a sparse 3D object
 
+        implicit none
+
+        class(sparse_3D), intent(inout) :: this
+        type(sparse_matrix), dimension(:), intent(in) :: sparse_matrices
+
+        integer :: i
+
+        this%num_rows = size(sparse_matrices)
+        allocate(this%rows(this%num_rows))
+
+        do i=1,this%num_rows
+            call this%rows(i)%init_from_sparse_matrix(sparse_matrices(i))
+        end do
+
+    end subroutine sparse_3D_init_from_sparse_matrices
 
     subroutine sparse_3D_sparse_add_3(this, sparse_matrix3)
         ! matmuls a 3x3 matrix times a sparse_matrix dim(3) columns
-
+        
         implicit none
-
-        class(sparse_matrix),dimension(3),intent(inout) :: this
+        
+        class(sparse_3D),intent(inout) :: this
         type(sparse_matrix),dimension(3), intent(in) :: sparse_matrix3 
-
+        
         integer :: i
         
         do i=1,3
-            call this(i)%sparse_add(sparse_matrix3(i))
+            call this%rows(i)%sparse_add(sparse_matrix3(i))
         end do
-
+        
     end subroutine sparse_3D_sparse_add_3
-
-
-    subroutine adjoint_init(this)
-        ! initializes adjoint type
-
-        implicit none
-
-        class(adjoint),intent(inout) :: this
-        !type(surface_mesh),intent(in) :: body
-
-        integer :: i, j
-
-        !this%size = body%N_verts*3
-
-        !call this%get_X_beta(body)
-
-    end subroutine adjoint_init
-
-
-    subroutine adjoint_get_X_beta(this)
-        ! builds a vector of design variables
-        
-        implicit none
-
-        class(adjoint),intent(inout) :: this
-        !type(surface_mesh),intent(in) :: body
     
-        integer :: i, j
+    
+    function sparse_3D_transpose_3(this) result(transposed)
+        ! takes a sparse matrix and converts it to a sparse_vector dimension 3
         
-        ! build design variable vector X_beta
-        !allocate(this%X_beta(this%size))
+        implicit none
+        
+        class(sparse_3D),intent(inout) :: this
+        
+        integer :: i
+        type(sparse_vector),dimension(3) :: row1, row2, row3
+        type(sparse_3D) :: transposed
+        
+        row1 = this%rows(1)%split_into_sparse_vectors()
+        row2 = this%rows(2)%split_into_sparse_vectors()
+        row3 = this%rows(3)%split_into_sparse_vectors()
+        
+        do i=1,3
+            call transposed%rows(i)%init_from_sparse_vectors(row1(i), row2(i), row3(i))
+        end do
+        
+    end function sparse_3D_transpose_3
+
+    
+    function sparse_3D_broadcast_matmul_3row_times_3x3(this, matrix3) result(result_rows)
+        ! matmuls a sparse_matrix dim(3) (rows) by a 3x3 matrix
+    
+        implicit none
+    
+        class(sparse_3D),intent(inout) :: this
+        real,dimension(3,3),intent(in) :: matrix3 
+    
+        integer :: i
+        type(sparse_3D):: result_rows
+
+        allocate(result_rows%rows(3))
+    
+        do i=1,3
+            result_rows%rows(i) = this%rows(i)%broadcast_matmul_element_times_3x3(matrix3)
+        end do
+    
+    end function sparse_3D_broadcast_matmul_3row_times_3x3
+    
+    
+    function sparse_3D_broadcast_matmul_3x3_times_3row(this, matrix3) result(result_rows)
+        ! matmuls a 3x3 matrix times a sparse_matrix dim(3) (rows)
+    
+        implicit none
+    
+        class(sparse_3D),intent(inout) :: this
+        real,dimension(3,3),intent(in) :: matrix3 
+    
+        integer :: i
+        type(sparse_3D) :: this_cols, result_rows
+
+        allocate(this_cols%rows(3))
+        allocate(result_rows%rows(3))
+
+        this_cols = this%transpose_3()
+    
+        do i=1,3                           
+            result_rows%rows(i) = this_cols%rows(i)%broadcast_matmul_3x3_times_element(matrix3)
+            ! cols%rows above sounds confusing, but it means this row is used like a column in the matrix multiplication
+        end do
+    
+    end function sparse_3D_broadcast_matmul_3x3_times_3row
+    
+    
+    
+    
+    ! subroutine adjoint_init(this)
+    !     ! initializes adjoint type
+    
+    !     implicit none
+    
+    !     class(adjoint),intent(inout) :: this
+    !     !type(surface_mesh),intent(in) :: body
+    
+    !     integer :: i, j
+    
+    !     !this%size = body%N_verts*3
+    
+    !     !call this%get_X_beta(body)
+    
+    ! end subroutine adjoint_init
+    
+    
+    ! subroutine adjoint_get_X_beta(this)
+    !     ! builds a vector of design variables
+    
+    !     implicit none
+    
+    !     class(adjoint),intent(inout) :: this
+    !     !type(surface_mesh),intent(in) :: body
+    
+    !     integer :: i, j
+    
+    !     ! build design variable vector X_beta
+    !     !allocate(this%X_beta(this%size))
 
         
-        ! ! place all x values in X_beta, followed by all y, then z values 
-        ! ! X_beta will look like this: x1, x2, x3, ...xn, y1, y2, y3, ...yn, z1, z2, z3, ...zn
-        ! do i=1,3 
-        !     do j=1,body%N_verts
-        !         this%X_beta(j + (i-1)*body%N_verts) = body%vertices(j)%loc(i)
-        !     end do
-        ! end do
+    !     ! ! place all x values in X_beta, followed by all y, then z values 
+    !     ! ! X_beta will look like this: x1, x2, x3, ...xn, y1, y2, y3, ...yn, z1, z2, z3, ...zn
+    !     ! do i=1,3 
+    !     !     do j=1,body%N_verts
+    !     !         this%X_beta(j + (i-1)*body%N_verts) = body%vertices(j)%loc(i)
+    !     !     end do
+    !     ! end do
         
         
 
-    end subroutine adjoint_get_X_beta
+    ! end subroutine adjoint_get_X_beta
 
 
 
