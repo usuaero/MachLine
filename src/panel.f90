@@ -5394,7 +5394,7 @@ contains
     end subroutine panel_calc_H_integrals_adjoint
 
 
-    function panel_assemble_v_d_M_space_adjoint(this, int, geom, freestream, mirror_panel) result(d_v_d_M_space)
+    function panel_assemble_v_d_M_space_adjoint(this, int, geom, freestream, mirror_panel) result(d_v_d_M_3D)
         ! returns d_v_d_M_space
 
         implicit none
