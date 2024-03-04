@@ -1199,18 +1199,18 @@ contains
 
     end subroutine sparse_3D_init_from_sparse_matrices
 
-    subroutine sparse_3D_sparse_add_3(this, sparse_matrix3)
-        ! matmuls a 3x3 matrix times a sparse_matrix dim(3) columns
+    subroutine sparse_3D_sparse_add_3(this, sparse_3D_3rows)
+        ! adds a sparse_matrix dimension 3
         
         implicit none
         
         class(sparse_3D),intent(inout) :: this
-        type(sparse_matrix),dimension(3), intent(in) :: sparse_matrix3 
+        type(sparse_3D), intent(in) :: sparse_3D_3rows 
         
         integer :: i
         
         do i=1,3
-            call this%rows(i)%sparse_add(sparse_matrix3(i))
+            call this%rows(i)%sparse_add(sparse_3D_3rows%rows(i))
         end do
         
     end subroutine sparse_3D_sparse_add_3

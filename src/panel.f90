@@ -5409,10 +5409,10 @@ contains
 
         type(sparse_vector) :: zeros
         type(sparse_matrix),dimension(3) :: d_v_d_mu_rows, d_v_d_M_rows, d_v_d_M_space
-        type(sparse_3D) :: d_T_mu_3D
+        type(sparse_3D) :: d_T_mu_3D, d_v_d_mu_3D, d_v_d_M_3D_ls, dummy_term, d_A_ls_to_g_3D, d_A_g_to_ls_3D,&
+        d_v_d_M_3D, dummy_term2
 
-        real,dimension(:,:),allocatable :: v_d_mu_space
-        real,dimension(:,:),allocatable :: v_d_M_space
+        real,dimension(:,:),allocatable :: v_d_mu_space, v_d_M_space
 
         ! Allocate space
         allocate(v_d_mu_space(3,this%mu_dim), source=0.)
@@ -5446,29 +5446,33 @@ contains
         call d_v_d_mu_rows(2)%init_from_sparse_vectors(zeros, zeros, int%d_hH113)
         call d_v_d_mu_rows(3)%init_from_sparse_vectors(zeros, int%d_H213, int%d_H123)
 
+        do i=1,3
+            call d_v_d_mu_rows(i)%broadcast_element_times_scalar(int%s*freestream%k_inv)
+        end do
+
         ! Convert to strength influences (Davis Eq. (4.41))
         if (mirror_panel) then
             !v_d_M_space(:,1:this%M_dim) = int%s*freestream%K_inv*matmul(v_d_mu_space, this%T_mu_mir)
             write(*,*) "!!! Cannot calculate adjoint for mirrored mesh. Quitting..."
             stop
         else
-            ! v_d_M_space(:,1:this%M_dim) = int%s*freestream%K_inv*matmul(v_d_mu_space, this%T_mu)
+            ! find derivative of this: 
+            v_d_M_space(:,1:this%M_dim) = int%s*freestream%K_inv*matmul(v_d_mu_space, this%T_mu)
+
+            ! convert d_v_d_mu_space to a sparse_3D
+            call d_v_d_mu_3D%init_from_sparse_matrices(d_v_d_mu_rows)
 
             ! matmul d_v_d_mu_rows times T_mu
-            do i=1,3
-                d_v_d_M_rows(i) = d_v_d_mu_rows(i)%broadcast_matmul_element_times_3x3(this%T_mu)
-            end do
-
-            ! d_v_d_M_rows = d_v_d_mu_rows%sparse_matrix_broadcast_matmul_3_row_times_3x3(this%T_mu)
+            d_v_d_M_3D_ls = d_v_d_mu_3D%broadcast_matmul_3row_times_3x3(this%T_mu)
 
             ! convert this%d_T_mu_rows (sparse_matrix dimension(3)) into a sparse_3D object
             call d_T_mu_3D%init_from_sparse_matrices(this%d_T_mu_rows)
-            d_T_mu_3D = d_T_mu_3D%
-
-            ! matmul v_d_mu_space times d_T_mu_cols
-            ! dummy_rows = d_T_mu_cols%broadcast_matmul_3x3_times_3_col(v_d_mu_space)
-
             
+            ! matmul v_d_mu_space times d_T_mu_3D
+            dummy_term = d_T_mu_3D%broadcast_matmul_3x3_times_3row(v_d_mu_space)
+
+            ! add terms
+            call d_v_d_M_3D_ls%sparse_add_3(dummy_term)
 
         end if
 
@@ -5477,13 +5481,27 @@ contains
         !     v_d_M_space(:,this%M_dim+1:this%M_dim*2) = -v_d_M_space(:,1:this%M_dim)
         ! end if
 
+
         ! Transform to global coordinates
         if (mirror_panel) then
             ! v_d_M_space = matmul(transpose(this%A_g_to_ls_mir), v_d_M_space)
             write(*,*) "!!! Cannot calculate adjoint for mirrored mesh. Quitting..."
             stop
         else
-            ! d_v_d_M_space = matmul(transpose(this%A_g_to_ls), v_d_M_space)
+            ! calc derivative of this: 
+            ! v_d_M_space = matmul(transpose(this%A_g_to_ls), v_d_M_space)
+
+            call d_A_g_to_ls_3D%init_from_sparse_matrices(this%d_A_g_to_ls)
+            d_A_ls_to_g_3D = d_A_g_to_ls_3D%transpose_3()
+            
+            d_v_d_M_3D = d_A_ls_to_g_3D%broadcast_matmul_3row_times_3x3(v_d_M_space)
+
+            dummy_term2 = d_v_d_M_3D_ls%broadcast_matmul_3x3_times_3row(transpose(this%A_g_to_ls))
+
+            ! add dummy term 2 to get d_v_d_M_3D (global coordinates)
+            call d_v_d_M_3D%sparse_add_3(dummy_term2)
+            
+
         end if
 
 
