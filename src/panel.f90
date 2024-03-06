@@ -5411,7 +5411,7 @@ contains
         type(sparse_vector) :: zeros
         type(sparse_matrix),dimension(3) :: d_v_d_mu_rows, d_v_d_M_rows, d_v_d_M_space
         type(sparse_3D) :: d_T_mu_3D, d_v_d_mu_3D, d_v_d_M_3D_ls, dummy_term, d_A_ls_to_g_3D, d_A_g_to_ls_3D,&
-        d_v_d_M_3D, dummy_term2
+        d_v_d_M_3D, dummy_term2, d_v_d_mu_3D_T
         type(sparse_vector),dimension(3,3) :: d_v_d_mu, d_v_d_M
 
         real,dimension(:,:),allocatable :: v_d_mu_space, v_d_M_space
@@ -5456,9 +5456,25 @@ contains
             write(*,*) "!!! Cannot calculate adjoint for mirrored mesh. Quitting..."
             stop
         else
-            ! find derivative of this: 
-            v_d_M_space(:,1:this%M_dim) = int%s*freestream%K_inv*matmul(v_d_mu_space, this%T_mu)
+            ! ! find derivative of this: 
+            ! v_d_M_space(:,1:this%M_dim) = int%s*freestream%K_inv*matmul(v_d_mu_space, this%T_mu)
             
+            ! ! convert d_v_d_mu_space to a sparse_3D
+            ! call d_v_d_mu_3D%init_from_sparse_matrices(d_v_d_mu_rows)
+            ! d_v_d_mu_3D_T = d_v_d_mu_3D%transpose_3()
+            
+            ! ! convert this%d_T_mu_rows (sparse_matrix dimension(3)) into a sparse_3D object
+            ! call d_T_mu_3D%init_from_sparse_matrices(this%d_T_mu_rows)
+            
+            ! ! matmul d_v_d_mu_rows times T_mu
+            ! d_v_d_M_3D_ls = d_v_d_mu_3D%broadcast_matmul_3x3_times_3row(transpose(this%T_mu))
+            
+            ! ! matmul v_d_mu_space times d_T_mu_3D
+            ! dummy_term = d_T_mu_3D%broadcast_matmul_3x3_times_3row(v_d_mu_space)
+            
+            ! ! add terms
+            ! call d_v_d_M_3D_ls%sparse_add_3(dummy_term)
+
             ! convert d_v_d_mu_space to a sparse_3D
             call d_v_d_mu_3D%init_from_sparse_matrices(d_v_d_mu_rows)
             
@@ -5471,14 +5487,12 @@ contains
             ! matmul v_d_mu_space times d_T_mu_3D
             dummy_term = d_T_mu_3D%broadcast_matmul_3x3_times_3row(v_d_mu_space)
             
-            ! Now multiply by s and 1/k!!!!!!!!!!!!
-            ! do i=1,3
-            !     call d_v_d_mu_rows(i)%broadcast_element_times_scalar(int%s*freestream%k_inv)
-            ! end do
-
             ! add terms
             call d_v_d_M_3D_ls%sparse_add_3(dummy_term)
             
+            do i=1,3
+                call d_v_d_M_3D_ls%rows(i)%broadcast_element_times_scalar(int%s*freestream%k_inv)
+            end do
             
             !!! testing
             d_v_d_M = d_v_d_M_3D_ls%convert_to_sparse_vector_3x3()
