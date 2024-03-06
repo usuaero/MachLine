@@ -111,6 +111,8 @@ module adjoint_mod
                 procedure :: transpose_3 => sparse_3D_transpose_3
                 procedure :: broadcast_matmul_3row_times_3x3 => sparse_3D_broadcast_matmul_3row_times_3x3
                 procedure :: broadcast_matmul_3x3_times_3row => sparse_3D_broadcast_matmul_3x3_times_3row
+
+                procedure :: convert_to_sparse_vector_3x3 => sparse_3D_convert_to_sparse_vector_3x3
                 
 
     end type sparse_3D
@@ -1227,6 +1229,8 @@ contains
         type(sparse_vector),dimension(3) :: row1, row2, row3
         type(sparse_3D) :: transposed
         
+        allocate(transposed%rows(3))
+        
         row1 = this%rows(1)%split_into_sparse_vectors()
         row2 = this%rows(2)%split_into_sparse_vectors()
         row3 = this%rows(3)%split_into_sparse_vectors()
@@ -1282,7 +1286,7 @@ contains
     end function sparse_3D_broadcast_matmul_3x3_times_3row
 
 
-    function sparse_3D_convert_to_sparse_vector_3x3(this), result(sparse_vec_3x3)
+    function sparse_3D_convert_to_sparse_vector_3x3(this) result(sparse_vec_3x3)
         ! converts a sparse 3D (3row) to a sparse vector 3x3
 
         implicit none
@@ -1291,8 +1295,10 @@ contains
     
         integer :: i
         type(sparse_vector),dimension(3,3) :: sparse_vec_3x3
-        
 
+        do i=1,3
+            sparse_vec_3x3(i,:) = this%rows(i)%split_into_sparse_vectors()
+        end do
 
     end function sparse_3D_convert_to_sparse_vector_3x3
     

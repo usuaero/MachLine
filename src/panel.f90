@@ -26,7 +26,7 @@ module panel_mod
         !!!!!! Adjoint values
         type(sparse_vector), dimension(3) :: d_F111
         type(sparse_vector) :: d_hH113, d_H213, d_H123
-        type(sparse_vector), dimension(3,3) :: d_v_d_M
+        !type(sparse_vector), dimension(3,3) :: d_v_d_M
 
     end type integrals
 
@@ -3412,17 +3412,17 @@ contains
             v_d_M_space(:,1:this%M_dim) = int%s*freestream%K_inv*matmul(v_d_mu_space, this%T_mu)
         end if
 
-        ! Wake bottom influence is opposite the top influence
-        if (this%in_wake) then
-            v_d_M_space(:,this%M_dim+1:this%M_dim*2) = -v_d_M_space(:,1:this%M_dim)
-        end if
+        ! ! Wake bottom influence is opposite the top influence
+        ! if (this%in_wake) then
+        !     v_d_M_space(:,this%M_dim+1:this%M_dim*2) = -v_d_M_space(:,1:this%M_dim)
+        ! end if
 
-        ! Transform to global coordinates
-        if (mirror_panel) then
-            v_d_M_space = matmul(transpose(this%A_g_to_ls_mir), v_d_M_space)
-        else
-            v_d_M_space = matmul(transpose(this%A_g_to_ls), v_d_M_space)
-        end if
+        ! ! Transform to global coordinates
+        ! if (mirror_panel) then
+        !     v_d_M_space = matmul(transpose(this%A_g_to_ls_mir), v_d_M_space)
+        ! else
+        !     v_d_M_space = matmul(transpose(this%A_g_to_ls), v_d_M_space)
+        ! end if
         
     end function panel_assemble_v_d_M_space
 
@@ -4680,7 +4680,7 @@ contains
         class(panel),intent(inout) :: this
         type(control_point), intent(inout) :: cp
         type(flow), intent(in) :: freestream
-        type(sparse_3D),intent(out) :: d_v_d_M_space
+        type(sparse_vector),dimension(3,3),intent(out) :: d_v_d_M_space
 
         type(dod) :: dod_info
         logical :: mirror_panel
@@ -5395,7 +5395,7 @@ contains
     end subroutine panel_calc_H_integrals_adjoint
 
 
-    function panel_assemble_v_d_M_space_adjoint(this, int, geom, freestream, mirror_panel) result(d_v_d_M_3D)
+    function panel_assemble_v_d_M_space_adjoint(this, int, geom, freestream, mirror_panel) result(d_v_d_M)
         ! returns d_v_d_M_space
 
         implicit none
@@ -5412,6 +5412,7 @@ contains
         type(sparse_matrix),dimension(3) :: d_v_d_mu_rows, d_v_d_M_rows, d_v_d_M_space
         type(sparse_3D) :: d_T_mu_3D, d_v_d_mu_3D, d_v_d_M_3D_ls, dummy_term, d_A_ls_to_g_3D, d_A_g_to_ls_3D,&
         d_v_d_M_3D, dummy_term2
+        type(sparse_vector),dimension(3,3) :: d_v_d_mu, d_v_d_M
 
         real,dimension(:,:),allocatable :: v_d_mu_space, v_d_M_space
 
@@ -5447,10 +5448,8 @@ contains
         call d_v_d_mu_rows(2)%init_from_sparse_vectors(zeros, zeros, int%d_hH113)
         call d_v_d_mu_rows(3)%init_from_sparse_vectors(zeros, int%d_H213, int%d_H123)
 
-        do i=1,3
-            call d_v_d_mu_rows(i)%broadcast_element_times_scalar(int%s*freestream%k_inv)
-        end do
-
+        
+        
         ! Convert to strength influences (Davis Eq. (4.41))
         if (mirror_panel) then
             !v_d_M_space(:,1:this%M_dim) = int%s*freestream%K_inv*matmul(v_d_mu_space, this%T_mu_mir)
@@ -5459,22 +5458,30 @@ contains
         else
             ! find derivative of this: 
             v_d_M_space(:,1:this%M_dim) = int%s*freestream%K_inv*matmul(v_d_mu_space, this%T_mu)
-
+            
             ! convert d_v_d_mu_space to a sparse_3D
             call d_v_d_mu_3D%init_from_sparse_matrices(d_v_d_mu_rows)
-
+            
             ! matmul d_v_d_mu_rows times T_mu
             d_v_d_M_3D_ls = d_v_d_mu_3D%broadcast_matmul_3row_times_3x3(this%T_mu)
-
+            
             ! convert this%d_T_mu_rows (sparse_matrix dimension(3)) into a sparse_3D object
             call d_T_mu_3D%init_from_sparse_matrices(this%d_T_mu_rows)
             
             ! matmul v_d_mu_space times d_T_mu_3D
             dummy_term = d_T_mu_3D%broadcast_matmul_3x3_times_3row(v_d_mu_space)
-
+            
             ! add terms
             call d_v_d_M_3D_ls%sparse_add_3(dummy_term)
-
+            
+            ! do i=1,3
+            !     call d_v_d_mu_rows(i)%broadcast_element_times_scalar(int%s*freestream%k_inv)
+            ! end do
+            
+            !!! testing
+            d_v_d_M = d_v_d_M_3D_ls%convert_to_sparse_vector_3x3()
+            !!!!
+            
         end if
 
         ! Wake bottom influence is opposite the top influence
@@ -5483,30 +5490,30 @@ contains
         ! end if
 
 
-        ! Transform to global coordinates
-        if (mirror_panel) then
-            ! v_d_M_space = matmul(transpose(this%A_g_to_ls_mir), v_d_M_space)
-            write(*,*) "!!! Cannot calculate adjoint for mirrored mesh. Quitting..."
-            stop
-        else
-            ! calc derivative of this: 
-            ! v_d_M_space = matmul(transpose(this%A_g_to_ls), v_d_M_space)
+        ! ! Transform to global coordinates
+        ! if (mirror_panel) then
+        !     ! v_d_M_space = matmul(transpose(this%A_g_to_ls_mir), v_d_M_space)
+        !     write(*,*) "!!! Cannot calculate adjoint for mirrored mesh. Quitting..."
+        !     stop
+        ! else
+        !     ! calc derivative of this: 
+        !     ! v_d_M_space = matmul(transpose(this%A_g_to_ls), v_d_M_space)
 
-            call d_A_g_to_ls_3D%init_from_sparse_matrices(this%d_A_g_to_ls)
-            d_A_ls_to_g_3D = d_A_g_to_ls_3D%transpose_3()
+        !     call d_A_g_to_ls_3D%init_from_sparse_matrices(this%d_A_g_to_ls)
+        !     d_A_ls_to_g_3D = d_A_g_to_ls_3D%transpose_3()
             
-            d_v_d_M_3D = d_A_ls_to_g_3D%broadcast_matmul_3row_times_3x3(v_d_M_space)
+        !     d_v_d_M_3D = d_A_ls_to_g_3D%broadcast_matmul_3row_times_3x3(v_d_M_space)
 
-            dummy_term2 = d_v_d_M_3D_ls%broadcast_matmul_3x3_times_3row(transpose(this%A_g_to_ls))
+        !     dummy_term2 = d_v_d_M_3D_ls%broadcast_matmul_3x3_times_3row(transpose(this%A_g_to_ls))
 
-            ! add dummy term 2 to get d_v_d_M_3D (global coordinates)
-            call d_v_d_M_3D%sparse_add_3(dummy_term2)
+        !     ! add dummy term 2 to get d_v_d_M_3D (global coordinates)
+        !     call d_v_d_M_3D%sparse_add_3(dummy_term2)
 
-            ! convert to a sparse_vector dimension(3,3)
-            int%d_v_d_M = d_v_d_M_3D%convert_to_sparse_vector_3x3()
+        !     ! convert to a sparse_vector dimension(3,3)
+        !     d_v_d_M = d_v_d_M_3D%convert_to_sparse_vector_3x3()
             
 
-        end if
+        ! end if
 
 
     end function panel_assemble_v_d_M_space_adjoint
