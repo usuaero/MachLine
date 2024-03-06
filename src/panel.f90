@@ -26,6 +26,7 @@ module panel_mod
         !!!!!! Adjoint values
         type(sparse_vector), dimension(3) :: d_F111
         type(sparse_vector) :: d_hH113, d_H213, d_H123
+        type(sparse_vector), dimension(3,3) :: d_v_d_M
 
     end type integrals
 
@@ -4679,7 +4680,7 @@ contains
         class(panel),intent(inout) :: this
         type(control_point), intent(inout) :: cp
         type(flow), intent(in) :: freestream
-        type(sparse_matrix),dimension(3),intent(out) :: d_v_d_M_space
+        type(sparse_3D),intent(out) :: d_v_d_M_space
 
         type(dod) :: dod_info
         logical :: mirror_panel
@@ -5500,6 +5501,9 @@ contains
 
             ! add dummy term 2 to get d_v_d_M_3D (global coordinates)
             call d_v_d_M_3D%sparse_add_3(dummy_term2)
+
+            ! convert to a sparse_vector dimension(3,3)
+            int%d_v_d_M = d_v_d_M_3D%convert_to_sparse_vector_3x3()
             
 
         end if

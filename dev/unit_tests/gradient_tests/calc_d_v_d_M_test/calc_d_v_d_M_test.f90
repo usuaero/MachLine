@@ -1,4 +1,4 @@
-program calc_d_hH113
+program d_v_d_M
     ! tests various intermediate sensitivities 
     use adjoint_mod
     use base_geom_mod
@@ -46,10 +46,11 @@ program calc_d_hH113
     !!!!!!!!!!!!!!!!!!!!! END STUFF FROM MAIN !!!!!!!!!!!!!!!!!!!!!!!!!
 
     !!!!!!!!!!!!!!!!!!!!!! TESTING STUFF  !!!!!!!!!!!!!!!!!!!!!!!!!!
-    real,dimension(:),allocatable :: residuals, hH113_up, hH113_dn, d_hH113_FD
+    real,dimension(:),allocatable :: residuals, v_d_M_up, v_d_M_dn, d_v_d_M_FD
     real,dimension(:,:),allocatable ::  residuals3 
 
     integer :: i,j,k,m,n,p, N_verts, N_panels, vert, index, cp_ind
+    real,dimension(3,3) :: v_d_M_space
     real :: step, error_allowed, cp_offset
     type(vertex),dimension(:),allocatable :: vertices ! list of vertex types, this should be a mesh attribute
     type(panel),dimension(:),allocatable :: panels, adjoint_panels   ! list of panels, this should be a mesh attribute
@@ -71,7 +72,6 @@ program calc_d_hH113
     step = 0.00001
     index = 1
     cp_ind = 1
-
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !                             FROM MAIN
 
@@ -124,7 +124,7 @@ program calc_d_hH113
 
     ! Initialize panel solver
     call test_solver%init(solver_settings, processing_settings, test_mesh, freestream_flow, control_point_file)
-
+    
     ! pull out the cp offset
     call json_xtnsn_get(solver_settings, 'control_point_offset', cp_offset, 1.e-7)
     
@@ -194,11 +194,8 @@ program calc_d_hH113
     adjoint_geom = adjoint_mesh%panels(index)%calc_subsonic_geom_adjoint(adjoint_mesh%cp(cp_ind),&
                                                                 adjoint_freestream_flow)
     adjoint_dod_info = adjoint_mesh%panels(index)%check_dod(adjoint_mesh%cp(cp_ind)%loc, freestream_flow, .false.)
-   
-    adjoint_int = adjoint_mesh%panels(index)%calc_integrals(adjoint_geom, 'velocity', freestream_flow,.false.,&
-     adjoint_dod_info)
-    
-     call adjoint_mesh%panels(index)%calc_integrals_adjoint(adjoint_geom,adjoint_int,adjoint_freestream_flow&
+    adjoint_int = adjoint_mesh%panels(index)%calc_integrals(adjoint_geom, 'velocity', freestream_flow,.false., adjoint_dod_info)
+    call adjoint_mesh%panels(index)%calc_integrals_adjoint(adjoint_geom,adjoint_int,adjoint_freestream_flow&
     , .false., adjoint_dod_info)
     ! call adjoint_mesh%panels(index)%calc_velocity_influences_adjoint(adjoint_mesh%cp(cp_ind), freestream_flow, d_v_d)
     !!!!!!!!!!!! END ADJOINT TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!
@@ -212,212 +209,235 @@ program calc_d_hH113
     
     allocate(residuals3(3,N_verts*3))
     allocate(residuals(N_verts*3))
+
     
 
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! CALC d_hH113 SENSITIVITIES TEST !!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! CALC d_v_d_M  SENSITIVITIES TEST !!!!!!!!!!!!!!!!!!!!!!!!!!!!
     write(*,*) ""
     write(*,*) ""
-    write(*,*) "------------------------------ CALC d_hH113 SENSITIVITIES TEST ---&
+    write(*,*) "------------------------------ CALC d_v_d_M  SENSITIVITIES TEST ---&
     ------------------------------"
     write(*,*) ""
     write(*,*) ""
     write(*,*) ""
 
 
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST CALC d_hH113 (panel 1, cp 1) !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST CALC d_v_d_M (panel 1, cp 1)  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! perturb x1 up
-    allocate(hH113_up(N_verts*3))
-    allocate(hH113_dn(N_verts*3))
-    allocate(d_hH113_FD(N_verts*3))
-
-    write(*,'(A,I1,A,I1,A)') "---------------------------------- TEST CALC d_hH113 SENSITIVITY &
-    (panel ",index,", cp ",cp_ind,") --------------------------------"
-    write(*,*) ""
-    write(*,'(A,I1,A,I1,A)') "the sensitivity of d_hH113 (panel ",index,", cp ",cp_ind,")&
-     WRT each design variable"
-    write(*,*) ""
-
-
-    !!!!!!!!! CENTRAL DIFFERENCE d_hH113(panel 1, cp 1) !!!!!!!!!
-    write(*,*) ""
-    write(*,*) "---------------------------------------------------------------------------------------------"
-    write(*,*) ""
-    
+    allocate(v_d_M_up(N_verts*3))
+    allocate(v_d_M_dn(N_verts*3))
+    allocate(d_v_d_M_FD(N_verts*3))
 
     
-    do i=1,3
-        do j=1,N_verts
+    ! row 1 (only has one nonzero value)
+    do k=1,1
 
-            ! perturb up the current design variable
-            test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
+        write(*,'(A, I1,A,I1,A,I1,A)') "---------------------------------- TEST CALC d_v_d_M SENSITIVITY &
+        (panel ",index,", cp ",cp_ind,") row 1, column ", k," ---------------------------------"
+        write(*,*) ""
+        write(*,'(A,I1, A)') "the sensitivity of v_d_M (panel 1, cp 1) row 1, column ", k, " WRT each design variable"
+        write(*,*) ""
 
-            !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
-
-            ! update panel geometry and calc
-            do m =1,N_panels
-                deallocate(test_mesh%panels(m)%n_hat_g)
-                call test_mesh%panels(m)%calc_derived_geom()
-            end do
-
-            ! update vertex normal
-            call test_mesh%calc_vertex_geometry()
-            
-            ! update with flow
-            deallocate(test_mesh%panels(index)%vertices_ls)
-            deallocate(test_mesh%panels(index)%n_hat_ls)
-            deallocate(test_mesh%panels(index)%b)
-            deallocate(test_mesh%panels(index)%b_mir)  
-            deallocate(test_mesh%panels(index)%sqrt_b)
-            call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
-            
-            ! recalculates cp locations
-            deallocate(test_solver%sigma_known)
-            deallocate(test_mesh%cp)
-            deallocate(test_solver%P)
-            call test_solver%init(solver_settings, processing_settings, &
-            test_mesh, freestream_flow, control_point_file)
-
-            ! update F111 cp1 and panel1 
-            deallocate(test_int%F111)
-            deallocate(test_int%F121)
-            deallocate(test_int%F211)
-            test_geom = test_mesh%panels(index)%calc_subsonic_geom(test_mesh%cp(cp_ind)%loc,freestream_flow,.false.)
-            test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, .false.)
-            test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,.false., test_dod_info)
-            !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
-            ! put the x y or z component of the vertex of interest (index) in a list
-            hH113_up(j + (i-1)*N_verts) = test_int%hH113
-
-            ! perturb down the current design variable
-            test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - 2.*step
-
-            !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
-            ! update panel geometry and calc
-            do m =1,N_panels
-                deallocate(test_mesh%panels(m)%n_hat_g)
-                call test_mesh%panels(m)%calc_derived_geom()
-            end do
-            
-            ! update vertex normal
-            call test_mesh%calc_vertex_geometry()
-
-            ! update with flow
-            deallocate(test_mesh%panels(index)%vertices_ls)
-            deallocate(test_mesh%panels(index)%n_hat_ls)
-            deallocate(test_mesh%panels(index)%b)
-            deallocate(test_mesh%panels(index)%b_mir)  
-            deallocate(test_mesh%panels(index)%sqrt_b)
-            call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
-
-            ! recalculates cp locations
-            deallocate(test_solver%sigma_known)
-            deallocate(test_mesh%cp)
-            deallocate(test_solver%P)
-            call test_solver%init(solver_settings, processing_settings, &
-            test_mesh, freestream_flow, control_point_file)
-
-
-            ! update F111 cp1 and panel1 
-            deallocate(test_int%F111)
-            deallocate(test_int%F121)
-            deallocate(test_int%F211)
-            test_geom = test_mesh%panels(index)%calc_subsonic_geom(test_mesh%cp(cp_ind)%loc,freestream_flow,.false.)
-            test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, .false.)
-            test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,.false., test_dod_info)
-            !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
-
-            ! put the x y or z component of the vertex of interest (index) in a list
-            hH113_dn(j + (i-1)*N_verts) = test_int%hH113
-            
-            ! restore geometry
-            test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
-        end do 
-    end do 
     
-    ! central difference 
-    d_hH113_FD = (hH113_up - hH113_dn)/(2.*step)
-            
-    
-
-    ! write results
-    write(*,*) ""
-
-    write(*,*) "--------------------------------------------------------------------------"
-    write(*,'(A,I1,A,I1,A)') "  CENTRAL DIFFERENCE CALC d_hH113 (panel ",index,", cp ",cp_ind,") "
-    write(*,*) "--------------------------------------------------------------------------"
-    write(*,*) ""
-    write(*,*) "  d_hH113"
-
-    do i = 1, N_verts*3
-        write(*, '(f14.10, 4x)') d_hH113_FD(i)
-    end do 
-    
-    !!!!!!!!!! ADJOINT CALC d_hH113 (panel 1, cp 1) !!!!!!!!!!!!!
-    write(*,*) ""
-    write(*,*) "------------------------------------------------"
-    write(*,*) "  ADJOINT  d_hH113"
-    write(*,*) "------------------------------------------------"
-    write(*,*) ""
-    
-    !write sparse matrix
-    write(*,*) ""
-    write(*,'(A,I1,A,I1,A)') "  adjoint CALC d_hH113 (panel ",index,", cp ",cp_ind,") (sparse)"
-    write(*,*) ""
-    write(*,*) "  d_hH113              sparse_index       full_index"
-    
-
-    do i=1,adjoint_int%d_hH113%sparse_size
-        write(*,'((f14.10, 4x), 12x, I5, 12x, I5)') adjoint_int%d_hH113%elements(i)%value, &
-        i, adjoint_int%d_hH113%elements(i)%full_index
-    end do
-    write(*,*) ""
-    write(*,*) ""
-
-
-    ! calculate residuals3
-    do i =1, N_verts*3
-        residuals(i) = adjoint_int%d_hH113%get_value(i) - d_hH113_FD(i)
-    end do
-
-    write(*,'(A, I1, A, I1, A)') "  adjoint CALC d_hH113 (panel ",index,", cp ",cp_ind,") expanded"
-    write(*,*) ""
-    write(*,*) "  d_hH113                 residual"
-    
-
-    do i = 1, N_verts*3
-        write(*, '((f14.10, 4x),3x, (f14.10, 4x))') adjoint_int%d_hH113%get_value(i), residuals(i)
-    end do
-    write(*,*) ""
-    write(*,*) ""
-
-    ! check if test failed
-    do i=1,N_verts*3
-        if (abs(residuals(i)) > error_allowed) then
-            test_failed = .true.
-            exit
-        else 
-            test_failed = .false.
-        end if
-    end do
-    if (test_failed) then
-        total_tests = total_tests + 1
-        failure_log(total_tests-passed_tests) = "d_hH113 test FAILED"
-        write(*,*) failure_log(total_tests-passed_tests)
-    else
-        write(*,'(A, I1,A,I1,A)') "d_hH113 (panel ",index,", cp ",cp_ind,") test PASSED"
-        passed_tests = passed_tests + 1
-        total_tests = total_tests + 1
+        !!!!!!!!! CENTRAL DIFFERENCE (panel 1, cp 1) d_v_d_M row 1, column ", k, !!!!!!!!!
+        write(*,*) ""
+        write(*,*) "---------------------------------------------------------------------------------------------"
+        write(*,*) ""
         
-    end if
-    test_failed = .false.
-    write(*,*) "" 
-    write(*,*) ""
+    
+        
+        do i=1,3
+            do j=1,N_verts
+
+                ! perturb up the current design variable
+                test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
+
+                !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
+
+                ! update panel geometry and calc
+                do m =1,N_panels
+                    deallocate(test_mesh%panels(m)%n_hat_g)
+                    call test_mesh%panels(m)%calc_derived_geom()
+                end do
+
+                ! update vertex normal
+                call test_mesh%calc_vertex_geometry()
+                
+                ! update with flow
+                deallocate(test_mesh%panels(index)%vertices_ls)
+                deallocate(test_mesh%panels(index)%n_hat_ls)
+                deallocate(test_mesh%panels(index)%b)
+                deallocate(test_mesh%panels(index)%b_mir)  
+                deallocate(test_mesh%panels(index)%sqrt_b)
+                call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
+                
+                ! recalculates cp locations
+                deallocate(test_solver%sigma_known)
+                deallocate(test_mesh%cp)
+                deallocate(test_solver%P)
+                call test_solver%init(solver_settings, processing_settings, &
+                test_mesh, freestream_flow, control_point_file)
+
+                ! update F111 cp1 and panel1 
+                deallocate(test_int%F111)
+                deallocate(test_int%F121)
+                deallocate(test_int%F211)
+                test_geom = test_mesh%panels(index)%calc_subsonic_geom(test_mesh%cp(cp_ind)%loc,freestream_flow,.false.)
+                test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, .false.)
+                test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,.false., test_dod_info)
+                !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
+
+                ! get the needed info
+                v_d_M_space = test_mesh%assemble_v_d_M_space(test_int, test_geom, freestream_flow, .false.)
+                v_d_M_up(j + (i-1)*N_verts) = v_d_M_space(1,k)
+
+                
+                ! perturb down the current design variable
+                test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - 2.*step
+
+                !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
+                ! update panel geometry and calc
+                do m =1,N_panels
+                    deallocate(test_mesh%panels(m)%n_hat_g)
+                    call test_mesh%panels(m)%calc_derived_geom()
+                end do
+                
+                ! update vertex normal
+                call test_mesh%calc_vertex_geometry()
+
+                ! update with flow
+                deallocate(test_mesh%panels(index)%vertices_ls)
+                deallocate(test_mesh%panels(index)%n_hat_ls)
+                deallocate(test_mesh%panels(index)%b)
+                deallocate(test_mesh%panels(index)%b_mir)  
+                deallocate(test_mesh%panels(index)%sqrt_b)
+                call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
+
+                ! recalculates cp locations
+                deallocate(test_solver%sigma_known)
+                deallocate(test_mesh%cp)
+                deallocate(test_solver%P)
+                call test_solver%init(solver_settings, processing_settings, &
+                test_mesh, freestream_flow, control_point_file)
 
 
+                ! update F111 cp1 and panel1 
+                deallocate(test_int%F111)
+                deallocate(test_int%F121)
+                deallocate(test_int%F211)
+                test_geom = test_mesh%panels(index)%calc_subsonic_geom(test_mesh%cp(cp_ind)%loc,freestream_flow,.false.)
+                test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, .false.)
+                test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,.false., test_dod_info)
+                !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
+
+                ! get the needed info
+                v_d_M_space = test_mesh%assemble_v_d_M_space(test_int, test_geom, freestream_flow, .false.)
+                v_d_M_up(j + (i-1)*N_verts) = v_d_M_space(1,k)
+
+                
+                ! restore geometry
+                test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
+            end do 
+        end do 
+        
+        ! central difference 
+        d_v_d_M_FD = (v_d_M_up - v_d_M_dn)/(2.*step)
+                
+        
+
+        ! write results
+        write(*,*) ""
+    
+        write(*,*) "--------------------------------------------------------------------------"
+        write(*,'(A, I1,A,I1,A,I1)') "  CENTRAL DIFFERENCE CALC d_v_d_M &
+        (panel ",index,", cp ",cp_ind,") row 1, column ",k
+        write(*,*) "--------------------------------------------------------------------------"
+        write(*,*) ""
+        write(*,*) "  d_v_d_M"
+    
+        do i = 1, N_verts*3
+            write(*, '(f14.10, 4x)') d_v_d_M_FD(i)
+        end do 
+        
+        !!!!!!!!!! ADJOINT CALC d_v_d_M (panel 1, cp 1) d_F111 !!!!!!!!!!!!!
+        write(*,*) ""
+        write(*,*) "------------------------------------------------"
+        write(*,'(A, I1)') "  ADJOINT  d_v_d_M row 1, column ",k
+        write(*,*) "------------------------------------------------"
+        write(*,*) ""
+        
+        !write sparse matrix
+        write(*,*) ""
+        write(*,'(A, I1,A,I1,A,I1,A)') "  adjoint CALC d_v_d_M &
+        (panel ",index,", cp ",cp_ind,") row 1, column ",k,"  (sparse)"
+        write(*,*) ""
+        write(*,*) "  d_v_d_M              sparse_index       full_index"
+        
+
+        do i=1,adjoint_int%d_v_d_M(1,k)%sparse_size
+            write(*,'((f14.10, 4x), 12x, I5, 12x, I5)') adjoint_int%d_v_d_M(1,k)%elements(i)%value, &
+            i, adjoint_int%d_v_d_M(1,k)%elements(i)%full_index
+        end do
+        write(*,*) ""
+        write(*,*) ""
 
 
-    !!!!!!!!!!!!!! CALC d_hH113 SENSITIVITIES RESULTS!!!!!!!!!!!!!
-    write(*,*) "-------------CALC d_hH113 SENSITIVITIES TEST RESULTS--------------"
+        ! calculate residuals3
+        do i =1, N_verts*3
+            residuals(i) = adjoint_int%d_v_d_M(1,k)%get_value(i) - d_v_d_M_FD(i)
+        end do
+
+        write(*,'(A, I1,A,I1,A,I1,A)') "  adjoint CALC d_v_d_M &
+        (panel ",index,", cp ",cp_ind,") row 1, column ",k,",  expanded"
+        write(*,*) ""
+        write(*,*) "  d_v_d_M                 residual"
+        
+
+        do i = 1, N_verts*3
+            write(*, '((f14.10, 4x),3x, (f14.10, 4x))') adjoint_int%d_v_d_M(1,k)%get_value(i), residuals(i)
+        end do
+        write(*,*) ""
+        write(*,*) ""
+
+        ! check if test failed
+        do i=1,N_verts*3
+            if (abs(residuals(i)) > error_allowed) then
+                test_failed = .true.
+                exit
+            else 
+                test_failed = .false.
+            end if
+        end do
+        if (test_failed) then
+            total_tests = total_tests + 1
+            if (k ==1) then
+                failure_log(total_tests-passed_tests) = "CALC d_v_d_M row 1, column 1 &
+                1 test FAILED"
+            elseif (k ==2) then
+                failure_log(total_tests-passed_tests) = "CALC d_v_d_M row 1, column 2 &
+                2 test FAILED"
+            else
+                failure_log(total_tests-passed_tests) = "CALC d_v_d_M row 1, column 3 &
+                3 test FAILED"
+            end if
+            write(*,*) failure_log(total_tests-passed_tests)
+        else
+            write(*,'(A, I1,A,I1,A,I1,A)') "CALC d_v_d_M (panel ",index,", cp ",cp_ind,") row 1, column ",k," test PASSED"
+            passed_tests = passed_tests + 1
+            total_tests = total_tests + 1
+            
+        end if
+        test_failed = .false.
+        write(*,*) "" 
+        write(*,*) ""
+    
+    
+    ! k loop (row 1)
+    end do
+
+
+    !!!!!!!!!!!!!! CALC d_v_d_M SENSITIVITIES RESULTS!!!!!!!!!!!!!
+    write(*,*) "-------------CALC d_v_d_M SENSITIVITIES TEST RESULTS--------------"
     write(*,*) ""
     write(*,'((A), ES10.2)') "allowed residual = ", error_allowed
     write(*,'((A), ES10.2)') "control point offset = ", cp_offset
@@ -442,4 +462,4 @@ program calc_d_hH113
     write(*,*) "Program Complete"
     write(*,*) "----------------------"
 
-end program calc_d_hH113
+end program calc_d_v_d_M_test

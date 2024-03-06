@@ -1266,7 +1266,7 @@ contains
         real,dimension(this%N_unknown) :: A_i
         real :: I_known_i
 
-        type(sparse_matrix),dimension(3) ::  d_v_d
+        type(sparse_vector), dimension(3,3) ::  d_v_d
 
         if (verbose) write(*,'(a)',advance='no') "     Calculating body influences..."
        

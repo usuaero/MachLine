@@ -1280,6 +1280,21 @@ contains
         end do
     
     end function sparse_3D_broadcast_matmul_3x3_times_3row
+
+
+    function sparse_3D_convert_to_sparse_vector_3x3(this), result(sparse_vec_3x3)
+        ! converts a sparse 3D (3row) to a sparse vector 3x3
+
+        implicit none
+
+        class(sparse_3D),intent(inout) :: this
+    
+        integer :: i
+        type(sparse_vector),dimension(3,3) :: sparse_vec_3x3
+        
+
+
+    end function sparse_3D_convert_to_sparse_vector_3x3
     
     
     

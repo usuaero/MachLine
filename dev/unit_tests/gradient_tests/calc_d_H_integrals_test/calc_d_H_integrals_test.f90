@@ -51,7 +51,7 @@ program calc_d_H_integrals
     real,dimension(:,:),allocatable ::  residuals3 
 
     integer :: i,j,k,m,n,p, N_verts, N_panels, vert, index, cp_ind
-    real :: step
+    real :: step, error_allowed, cp_offset
     type(vertex),dimension(:),allocatable :: vertices ! list of vertex types, this should be a mesh attribute
     type(panel),dimension(:),allocatable :: panels, adjoint_panels   ! list of panels, this should be a mesh attribute
 
@@ -68,9 +68,10 @@ program calc_d_H_integrals
     passed_tests = 0
     total_tests = 0
 
+    error_allowed = 1.0e-8 
     step = 0.00001
     index = 1
-    cp_ind = 4
+    cp_ind = 1
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !                             FROM MAIN
@@ -124,7 +125,10 @@ program calc_d_H_integrals
 
     ! Initialize panel solver
     call test_solver%init(solver_settings, processing_settings, test_mesh, freestream_flow, control_point_file)
-
+    
+    ! pull out the cp offset
+    call json_xtnsn_get(solver_settings, 'control_point_offset', cp_offset, 1.e-7)
+    
     ! calc CALC BASIC GEOM geom of relation between cp1 and panel1 
     test_geom = test_mesh%panels(index)%calc_subsonic_geom(test_mesh%cp(cp_ind)%loc,freestream_flow,.false.)
     test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, .false.)
@@ -388,7 +392,7 @@ program calc_d_H_integrals
 
     ! check if test failed
     do i=1,N_verts*3
-        if (abs(residuals(i)) > 1.0e-8) then
+        if (abs(residuals(i)) > error_allowed) then
             test_failed = .true.
             exit
         else 
@@ -581,7 +585,7 @@ program calc_d_H_integrals
 
     ! check if test failed
     do i=1,N_verts*3
-        if (abs(residuals(i)) > 1.0e-8) then
+        if (abs(residuals(i)) > error_allowed) then
             test_failed = .true.
             exit
         else 
@@ -608,6 +612,10 @@ program calc_d_H_integrals
     !!!!!!!!!!!!!! CALC H INTEGRAL SENSITIVITIES RESULTS!!!!!!!!!!!!!
     write(*,*) "-------------CALC H INTEGRAL SENSITIVITIES TEST RESULTS--------------"
     write(*,*) ""
+    write(*,'((A), ES10.2)') "allowed residual = ", error_allowed
+    write(*,'((A), ES10.2)') "control point offset = ", cp_offset
+    write(*,*) ""
+
     write(*,'(I15,a14)') total_tests - passed_tests, " tests FAILED"
     write(*,*) ""
     write(*,'(I4,a9,I2,a14)') passed_tests, " out of ", total_tests, " tests PASSED"
