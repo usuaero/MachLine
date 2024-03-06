@@ -5471,12 +5471,14 @@ contains
             ! matmul v_d_mu_space times d_T_mu_3D
             dummy_term = d_T_mu_3D%broadcast_matmul_3x3_times_3row(v_d_mu_space)
             
-            ! add terms
-            call d_v_d_M_3D_ls%sparse_add_3(dummy_term)
-            
+            ! Now multiply by s and 1/k!!!!!!!!!!!!
             ! do i=1,3
             !     call d_v_d_mu_rows(i)%broadcast_element_times_scalar(int%s*freestream%k_inv)
             ! end do
+
+            ! add terms
+            call d_v_d_M_3D_ls%sparse_add_3(dummy_term)
+            
             
             !!! testing
             d_v_d_M = d_v_d_M_3D_ls%convert_to_sparse_vector_3x3()
