@@ -5457,7 +5457,7 @@ contains
             stop
         else
             ! ! find derivative of this: 
-            ! v_d_M_space(:,1:this%M_dim) = int%s*freestream%K_inv*matmul(v_d_mu_space, this%T_mu)
+            v_d_M_space(:,1:this%M_dim) = int%s*freestream%K_inv*matmul(v_d_mu_space, this%T_mu)
             
             ! ! convert d_v_d_mu_space to a sparse_3D
             ! call d_v_d_mu_3D%init_from_sparse_matrices(d_v_d_mu_rows)

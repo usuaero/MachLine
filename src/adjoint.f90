@@ -1271,17 +1271,20 @@ contains
         real,dimension(3,3),intent(in) :: matrix3 
     
         integer :: i
-        type(sparse_3D) :: this_cols, result_rows
+        type(sparse_3D) :: this_cols, temp_cols, result_rows
 
         allocate(this_cols%rows(3))
+        allocate(temp_cols%rows(3))
         allocate(result_rows%rows(3))
 
         this_cols = this%transpose_3()
     
         do i=1,3                           
-            result_rows%rows(i) = this_cols%rows(i)%broadcast_matmul_3x3_times_element(matrix3)
+            temp_cols%rows(i) = this_cols%rows(i)%broadcast_matmul_3x3_times_element(matrix3)
             ! cols%rows above sounds confusing, but it means this row is used like a column in the matrix multiplication
         end do
+
+        result_rows = temp_cols%transpose_3()
     
     end function sparse_3D_broadcast_matmul_3x3_times_3row
 
