@@ -673,6 +673,12 @@ contains
                 call cp%set_bc(bc_type, body%vertices(cp%tied_to_index)%n_g_mir)
             else
                 call cp%set_bc(bc_type, body%vertices(cp%tied_to_index)%n_g)
+                
+                ! if adjoint
+                if (body%calc_adjoints) then
+                    call cp%set_bc_adjoint(body%vertices(cp%tied_to_index)%d_n_g)
+                end if
+
             end if
         else
             if (cp%is_mirror) then
@@ -1293,9 +1299,16 @@ contains
                     ! Influence of existing panel on control point
                     call body%panels(j)%calc_velocity_influences(body%cp(i)%loc, this%freestream,.false.,v_s, v_d)
                     
-                    ! if calc_adjoint is specified, do adjoint calcs
+                    ! ! if calc_adjoint is specified, do adjoint calcs
+                    ! if (body%calc_adjoint) then
+                    !     call body%panels(j)%calc_velocity_influences_adjoint(body%cp(i), this%freestream, d_v_d)
+                    !     doublet_inf_adjoint = body%panels(j)%calc_doublet_inf_adjoint(body%cp(i),this%freestream, d_v_d)
+                    ! end if
+
+                    ! if calc_adjoint is specified, do adjoint calcs METHOD 2
                     if (body%calc_adjoint) then
-                        call body%panels(j)%calc_velocity_influences_adjoint(body%cp(i), this%freestream, d_v_d)
+                        call body%panels(j)%calc_doublet_inf_adjoint2(body%cp(i),this%freestream,&
+                         inf_adjoint)
                     end if
 
                     source_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_s))

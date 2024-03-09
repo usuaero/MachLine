@@ -241,6 +241,10 @@ module panel_mod
             
             procedure :: assemble_v_d_M_space_adjoint => panel_assemble_v_d_M_space_adjoint
             
+            ! adjoint doublet influence terms
+            procedure :: calc_doublet_inf_adjoint => panel_calc_doublet_inf_adjoint
+            procedure :: calc_doublet_inf_adjoint2 => panel_calc_doublet_inf_adjoint2
+            
 
             !!!!!!!! END ADJOINT PROCEDURES !!!!!!!!
 
@@ -3354,57 +3358,56 @@ contains
         else
             allocate(v_d_M_space(3,this%M_dim), source=0.)
         end if
-
         ! Linear terms
         !v_d_mu_space(1,1) = 3.*int%r*geom%h*int%H215
         !v_d_mu_space(1,2) = 3.*int%r*(int%H215*geom%P_ls(1)*geom%h + int%hH315)
         !v_d_mu_space(1,3) = 3.*int%r*geom%h*(int%H215*geom%P_ls(2) + int%H225)
-
+        
         !v_d_mu_space(2,1) = 3.*int%s*geom%h*int%H125
         !v_d_mu_space(2,2) = 3.*int%s*geom%h*(int%H125*geom%P_ls(1) + int%H225)
         !v_d_mu_space(2,3) = 3.*int%s*(int%H125*geom%P_ls(2)*geom%h + int%hH135)
-
+        
         !v_d_mu_space(3,1) = int%H113_3rsh2H115
         !v_d_mu_space(3,2) = int%H113_3rsh2H115*geom%P_ls(1) + int%H213 - 3.*int%rs*geom%h2*int%H215
         !v_d_mu_space(3,3) = int%H113_3rsh2H115*geom%P_ls(2) + int%H123 - 3.*int%rs*geom%h2*int%H125
-
+        
         v_d_mu_space(1,1) = 0
         v_d_mu_space(1,2) = int%hH113
         v_d_mu_space(1,3) = 0
-
+        
         v_d_mu_space(2,1) = 0
         v_d_mu_space(2,2) = 0
         v_d_mu_space(2,3) = int%hH113
-
+        
         v_d_mu_space(3,1) = 0
         v_d_mu_space(3,2) = int%H213
         v_d_mu_space(3,3) = int%H123
-
+        
         if (this%order == 2) then
-
+            
             ! Quadratic terms
             v_d_mu_space(1,4) = 3.*int%r*(0.5*int%H215*(geom%P_ls(1)**2)*geom%h + int%hH315*geom%P_ls(1) + 0.5*int%H415*geom%h)
             v_d_mu_space(1,5) = 3.*int%r*(int%H215*geom%h*geom%P_ls(1)*geom%P_ls(2) + int%hH315*geom%P_ls(2) &
-                                + int%H225*geom%h*geom%P_ls(1) + int%H325*geom%h)
+            + int%H225*geom%h*geom%P_ls(1) + int%H325*geom%h)
             v_d_mu_space(1,6) = 3.*int%r*(0.5*int%H215*(geom%P_ls(2)**2)*geom%h + int%H225*geom%h*geom%P_ls(2) &
-                                + 0.5*int%H235*geom%h)
-
+            + 0.5*int%H235*geom%h)
+            
             v_d_mu_space(2,4) = 3.*int%s*(0.5*int%H125*(geom%P_ls(1)**2)*geom%h + int%H225*geom%h*geom%P_ls(1) &
-                                + 0.5*int%H325*geom%h)
+            + 0.5*int%H325*geom%h)
             v_d_mu_space(2,5) = 3.*int%s*(int%H125*geom%h*geom%P_ls(1)*geom%P_ls(2) + int%hH135*geom%P_ls(1) &
-                                + int%H225*geom%h*geom%P_ls(2) + int%H235*geom%h)
+            + int%H225*geom%h*geom%P_ls(2) + int%H235*geom%h)
             v_d_mu_space(2,6) = 3.*int%s*(0.5*int%H125*(geom%P_ls(2)**2)*geom%h + int%hH135*geom%P_ls(2) + 0.5*int%H145*geom%h)
-
+            
             v_d_mu_space(3,4) = 0.5*(geom%P_ls(1)**2)*int%H113_3rsh2H115 + geom%P_ls(1)*(int%H213 - 3.*int%rs*geom%h2*int%H215) &
                                 + 0.5*(int%H313 - 3.*int%rs*geom%h*int%hH315)
             v_d_mu_space(3,5) = geom%P_ls(1)*geom%P_ls(2)*(int%H113_3rsh2H115) &
-                                + geom%P_ls(2)*(int%H213 - 3.*int%rs*geom%h2*int%H215) &
-                                + geom%P_ls(1)*(int%H123 - 3.*int%rs*geom%h2*int%H125) + int%H223 - 3.*int%rs*geom%h2*int%H225
+            + geom%P_ls(2)*(int%H213 - 3.*int%rs*geom%h2*int%H215) &
+            + geom%P_ls(1)*(int%H123 - 3.*int%rs*geom%h2*int%H125) + int%H223 - 3.*int%rs*geom%h2*int%H225
             v_d_mu_space(3,6) = 0.5*(geom%P_ls(2)**2)*int%H113_3rsh2H115 + geom%P_ls(2)*(int%H123 - 3.*int%rs*geom%h2*int%H125) &
-                                + 0.5*(int%H133 - 3.*int%rs*geom%h*int%hH135)
-
-        end if 
+            + 0.5*(int%H133 - 3.*int%rs*geom%h*int%hH135)
             
+        end if 
+        
         ! Convert to strength influences (Davis Eq. (4.41))
         if (mirror_panel) then
             v_d_M_space(:,1:this%M_dim) = int%s*freestream%K_inv*matmul(v_d_mu_space, this%T_mu_mir)
@@ -3412,17 +3415,17 @@ contains
             v_d_M_space(:,1:this%M_dim) = int%s*freestream%K_inv*matmul(v_d_mu_space, this%T_mu)
         end if
 
-        ! ! Wake bottom influence is opposite the top influence
-        ! if (this%in_wake) then
-        !     v_d_M_space(:,this%M_dim+1:this%M_dim*2) = -v_d_M_space(:,1:this%M_dim)
-        ! end if
+        ! Wake bottom influence is opposite the top influence
+        if (this%in_wake) then
+            v_d_M_space(:,this%M_dim+1:this%M_dim*2) = -v_d_M_space(:,1:this%M_dim)
+        end if
 
-        ! ! Transform to global coordinates
-        ! if (mirror_panel) then
-        !     v_d_M_space = matmul(transpose(this%A_g_to_ls_mir), v_d_M_space)
-        ! else
-        !     v_d_M_space = matmul(transpose(this%A_g_to_ls), v_d_M_space)
-        ! end if
+        ! Transform to global coordinates
+        if (mirror_panel) then
+            v_d_M_space = matmul(transpose(this%A_g_to_ls_mir), v_d_M_space)
+        else
+            v_d_M_space = matmul(transpose(this%A_g_to_ls), v_d_M_space)
+        end if
         
     end function panel_assemble_v_d_M_space
 
@@ -5410,7 +5413,7 @@ contains
 
         type(sparse_vector) :: zeros
         type(sparse_matrix),dimension(3) :: d_v_d_mu_rows, d_v_d_M_rows, d_v_d_M_space
-        type(sparse_3D) :: d_T_mu_3D, d_v_d_mu_3D, d_v_d_M_3D_ls, dummy_term, d_A_ls_to_g_3D, d_A_g_to_ls_3D,&
+        type(sparse_3D) :: d_T_mu_3D, d_v_d_mu_3D, d_v_d_M_3D_ls, dummy_term, d_A_ls_to_g_3D,d_A_g_to_ls_3D,&
         d_v_d_M_3D, dummy_term2, d_v_d_mu_3D_T
         type(sparse_vector),dimension(3,3) :: d_v_d_mu, d_v_d_M
 
@@ -5458,22 +5461,6 @@ contains
         else
             ! ! find derivative of this: 
             v_d_M_space(:,1:this%M_dim) = int%s*freestream%K_inv*matmul(v_d_mu_space, this%T_mu)
-            
-            ! ! convert d_v_d_mu_space to a sparse_3D
-            ! call d_v_d_mu_3D%init_from_sparse_matrices(d_v_d_mu_rows)
-            ! d_v_d_mu_3D_T = d_v_d_mu_3D%transpose_3()
-            
-            ! ! convert this%d_T_mu_rows (sparse_matrix dimension(3)) into a sparse_3D object
-            ! call d_T_mu_3D%init_from_sparse_matrices(this%d_T_mu_rows)
-            
-            ! ! matmul d_v_d_mu_rows times T_mu
-            ! d_v_d_M_3D_ls = d_v_d_mu_3D%broadcast_matmul_3x3_times_3row(transpose(this%T_mu))
-            
-            ! ! matmul v_d_mu_space times d_T_mu_3D
-            ! dummy_term = d_T_mu_3D%broadcast_matmul_3x3_times_3row(v_d_mu_space)
-            
-            ! ! add terms
-            ! call d_v_d_M_3D_ls%sparse_add_3(dummy_term)
 
             ! convert d_v_d_mu_space to a sparse_3D
             call d_v_d_mu_3D%init_from_sparse_matrices(d_v_d_mu_rows)
@@ -5494,44 +5481,184 @@ contains
                 call d_v_d_M_3D_ls%rows(i)%broadcast_element_times_scalar(int%s*freestream%k_inv)
             end do
             
-            !!! testing
-            d_v_d_M = d_v_d_M_3D_ls%convert_to_sparse_vector_3x3()
-            !!!!
-            
         end if
 
+        !!!!!!!! not worrying about wakes RN !!!!!!!!!!!!!!
         ! Wake bottom influence is opposite the top influence
         ! if (this%in_wake) then
         !     v_d_M_space(:,this%M_dim+1:this%M_dim*2) = -v_d_M_space(:,1:this%M_dim)
         ! end if
 
 
-        ! ! Transform to global coordinates
-        ! if (mirror_panel) then
-        !     ! v_d_M_space = matmul(transpose(this%A_g_to_ls_mir), v_d_M_space)
-        !     write(*,*) "!!! Cannot calculate adjoint for mirrored mesh. Quitting..."
-        !     stop
-        ! else
-        !     ! calc derivative of this: 
-        !     ! v_d_M_space = matmul(transpose(this%A_g_to_ls), v_d_M_space)
+        ! Transform to global coordinates
+        if (mirror_panel) then
+            ! v_d_M_space = matmul(transpose(this%A_g_to_ls_mir), v_d_M_space)
+            write(*,*) "!!! Cannot calculate adjoint for mirrored mesh. Quitting..."
+            stop
+        else
+            ! calc derivative of this: 
+            ! v_d_M_space = matmul(transpose(this%A_g_to_ls), v_d_M_space)
 
-        !     call d_A_g_to_ls_3D%init_from_sparse_matrices(this%d_A_g_to_ls)
-        !     d_A_ls_to_g_3D = d_A_g_to_ls_3D%transpose_3()
+            call d_A_g_to_ls_3D%init_from_sparse_matrices(this%d_A_g_to_ls)
+            d_A_ls_to_g_3D = d_A_g_to_ls_3D%transpose_3()
             
-        !     d_v_d_M_3D = d_A_ls_to_g_3D%broadcast_matmul_3row_times_3x3(v_d_M_space)
+            d_v_d_M_3D = d_A_ls_to_g_3D%broadcast_matmul_3row_times_3x3(v_d_M_space)
 
-        !     dummy_term2 = d_v_d_M_3D_ls%broadcast_matmul_3x3_times_3row(transpose(this%A_g_to_ls))
+            dummy_term2 = d_v_d_M_3D_ls%broadcast_matmul_3x3_times_3row(transpose(this%A_g_to_ls))
 
-        !     ! add dummy term 2 to get d_v_d_M_3D (global coordinates)
-        !     call d_v_d_M_3D%sparse_add_3(dummy_term2)
+            ! add dummy term 2 to get d_v_d_M_3D (global coordinates)
+            call d_v_d_M_3D%sparse_add_3(dummy_term2)
 
-        !     ! convert to a sparse_vector dimension(3,3)
-        !     d_v_d_M = d_v_d_M_3D%convert_to_sparse_vector_3x3()
+            ! convert to a sparse_vector dimension(3,3)
+            d_v_d_M = d_v_d_M_3D%convert_to_sparse_vector_3x3()
             
 
-        ! end if
+        end if
 
 
     end function panel_assemble_v_d_M_space_adjoint
+
+
+    function panel_calc_doublet_inf_adjoint(cp,freestream, d_v_d_M) result(inf_adjoint)
+        ! calculates the sensitivity of the doublet influence terms for each point on panel.
+
+        implicit none
+
+        class(panel), intent(in) :: this
+        type(control_point), intent(inout) :: cp
+        type(flow), intent(in) :: freestream
+        type(sparse_vector),dimension(3,3),intent(in) :: d_v_d_M
+
+        type(sparse_vector), dimension(3) :: inf_adjoint 
+        type(sparse_matrix) :: 
+        type(sparse_3D) :: 
+
+        doublet_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_d))
+
+
+    end function panel_calc_doublet_inf_adjoint
+
+
+    subroutine calc_doublet_inf_adjoint2(this, cp, freestream, inf_adjoint)
+        ! a more efficient method to calculate velocity influence sensitivities
+        ! this method's final calculation costs 18N dot products vs 58N dot products. 
+        ! (N = 3*number of mesh vertices)
+
+        implicit none
+
+        class(panel),intent(inout) :: this
+        type(control_point), intent(inout) :: cp
+        type(flow), intent(in) :: freestream
+        type(sparse_vector),dimension(3),intent(out) :: inf_adjoint
+
+        integer :: i
+        real,dimension(:,:),allocatable :: v_d_mu_space
+        type(dod) :: dod_info
+        logical :: mirror_panel
+        type(eval_point_geom) :: geom
+        type(integrals) :: int
+        type(sparse_vector) :: zeros
+        type(sparse_matrix),dimension(3) :: d_v_d_mu_rows
+        type(sparse_vector),dimension(3) :: term2, term3, term4
+    
+        ! adjoint is not available for mirror panels right now
+        mirror_panel = .false.
+
+        ! Check DoD
+        dod_info = this%check_dod(cp%loc, freestream, mirror_panel) 
+
+        if (dod_info%in_dod .and. this%A > 0.) then
+
+            ! Calculate geometric parameters
+            if (freestream%supersonic) then
+                if ((mirror_panel .and. this%r_mir < 0.) .or. (.not. mirror_panel .and. this%r < 0.)) then
+                    !d_geom = this%calc_supersonic_supinc_geom_adjoint(P, freestream, mirror_panel, dod_info)
+                else
+                    !d_geom = this%calc_supersonic_subinc_geom_adjoint(P, freestream, mirror_panel, dod_info)
+                end if
+            else
+                geom = this%calc_subsonic_geom_adjoint(cp,freestream)
+            end if
+
+            !!!!!!!!!! DUPLICATED WORK, figure out better passing of info
+            ! Get integrals
+            int = this%calc_integrals(geom, 'velocity', freestream, mirror_panel, dod_info)
+            !!!!! end duplicated work !!!!!!!!!
+
+            call this%calc_integrals_adjoint(geom, int, freestream, mirror_panel, dod_info)
+
+
+            !!!!!!!!!! dont worry about wake !!!!!!!!!!!!!!
+            ! if (this%in_wake) then
+            !     !allocate(v_d_M_space(3,2*this%M_dim), source=0.)
+            !     write(*,*) "!!! Cannot calculate adjoint for Wake panels. Quitting..."
+            !     stop
+            ! else
+            !     allocate(v_d_M_space(3,this%M_dim), source=0.)
+            ! end if
+            
+            ! assemble v_d_mu space
+            allocate(v_d_mu_space(3,this%mu_dim), source=0.)
+            v_d_mu_space(1,1) = 0
+            v_d_mu_space(1,2) = int%hH113
+            v_d_mu_space(1,3) = 0
+
+            v_d_mu_space(2,1) = 0
+            v_d_mu_space(2,2) = 0
+            v_d_mu_space(2,3) = int%hH113
+
+            v_d_mu_space(3,1) = 0
+            v_d_mu_space(3,2) = int%H213
+            v_d_mu_space(3,3) = int%H123
+          
+            ! assemble d_v_d_mu space
+            call zeros%init(int%d_hH113%full_size)
+
+            call d_v_d_mu_rows(1)%init_from_sparse_vectors(zeros, int%d_hH113, zeros)
+            call d_v_d_mu_rows(2)%init_from_sparse_vectors(zeros, zeros, int%d_hH113)
+            call d_v_d_mu_rows(3)%init_from_sparse_vectors(zeros, int%d_H213, int%d_H123)
+
+            ! calc inf_adjoint term 1
+            inf_adjoint = cp%d_n_g%broadcast_matmul_element_times_3x3(matmul(
+            matmul(freestream%B_mat_g, transpose(this%A_g_to_ls)), matmul(v_d_mu_space,this%T_mu)))
+
+             ! calc inf_adjoint term 2
+
+             ! calc inf_adjoint term 3
+
+             ! calc inf_adjoint term 4
+
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        else
+            !!!!!!! not worrying about wakes right now !!!!!!!!!!
+            ! if (this%in_wake) then
+            !     allocate(v_d_M_space(3,2*this%M_dim), source=0.)
+            ! else
+            !     allocate(v_d_M_space(3,this%M_dim), source=0.)
+            ! end if
+
+            ! not in DoD, influence is zero, sensitivites are zeros
+            call inf_adjoint%init_from_sparse_vectors(zeros,zeros,zeros)
+
+        end if
+
+
+
+
+    end subroutine panel_calc_doublet_inf_adjoint2
 
 end module panel_mod

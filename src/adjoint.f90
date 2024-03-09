@@ -109,8 +109,12 @@ module adjoint_mod
                 procedure :: init_from_sparse_matrices => sparse_3D_init_from_sparse_matrices
                 procedure :: sparse_add_3 => sparse_3D_sparse_add_3
                 procedure :: transpose_3 => sparse_3D_transpose_3
+
                 procedure :: broadcast_matmul_3row_times_3x3 => sparse_3D_broadcast_matmul_3row_times_3x3
                 procedure :: broadcast_matmul_3x3_times_3row => sparse_3D_broadcast_matmul_3x3_times_3row
+
+                procedure :: broadcast_matmul_3row_times_3x1 => sparse_3D_broadcast_matmul_3row_times_3x1
+                procedure :: broadcast_matmul_1x3_times_3row => sparse_3D_broadcast_matmul_1x3_times_3row
 
                 procedure :: convert_to_sparse_vector_3x3 => sparse_3D_convert_to_sparse_vector_3x3
                 
@@ -1287,6 +1291,54 @@ contains
         result_rows = temp_cols%transpose_3()
     
     end function sparse_3D_broadcast_matmul_3x3_times_3row
+
+
+    function sparse_3D_broadcast_matmul_3row_times_3x1(this, vector3) result(sparse_mat)
+        ! matmuls a sparse_matrix dim(3) (rows) by a 3x1 matrix
+    
+        implicit none
+    
+        class(sparse_3D),intent(inout) :: this
+        real,dimension(3,3),intent(in) :: vector3 
+    
+        integer :: i
+        type(sparse_vector), dimension(3) :: temp
+        type(sparse_matrix):: sparse_mat
+    
+        do i=1,3
+            temp(i) = this%rows(i)%broadcast_vector_dot_element(vector3)
+        end do
+
+        call sparse_mat%init_from_sparse_vectors(temp(1), temp(2), temp(3))
+    
+    end function sparse_3D_broadcast_matmul_3row_times_3x1
+    
+    
+    function sparse_3D_broadcast_matmul_1x3_times_3row(this, vector3) result(sparse_mat)
+        ! matmuls a 1x3 matrix times a sparse_matrix dim(3) (rows)
+    
+        implicit none
+    
+        class(sparse_3D),intent(inout) :: this
+        real,dimension(3,3),intent(in) :: vector3 
+
+        integer :: i
+        type(sparse_3D) :: this_cols
+        type(sparse_vector), dimension(3) :: temp
+        type(sparse_matrix):: sparse_mat
+
+        allocate(this_cols%rows(3))
+
+        this_cols = this%transpose_3()
+    
+        do i=1,3                           
+            tmep(i) = this_cols%rows(i)%broadcast_vector_dot_element(vector3)
+            ! cols%rows above sounds confusing, but it means this row is used like a column in the matrix multiplication
+        end do
+
+        call sparse_mat%init_from_sparse_vectors(temp(1), temp(2), temp(3)) 
+    
+    end function sparse_3D_broadcast_matmul_1x3_times_3row
 
 
     function sparse_3D_convert_to_sparse_vector_3x3(this) result(sparse_vec_3x3)

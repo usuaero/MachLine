@@ -263,7 +263,12 @@ program calc_d_v_d_M_test
 
                 !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
 
-                ! update panel geometry and calc
+                ! update panel geometry and calcs
+                deallocate(test_mesh%panels(index)%vertices)
+                deallocate(test_mesh%panels(index)%n_hat_g)
+                deallocate(test_mesh%panels(index)%edge_is_discontinuous)
+                call test_mesh%panels(index)%init(test_mesh%vertices(1),test_mesh%vertices(2),test_mesh%vertices(3),index)
+
                 do m =1,N_panels
                     deallocate(test_mesh%panels(m)%n_hat_g)
                     call test_mesh%panels(m)%calc_derived_geom()
@@ -278,7 +283,13 @@ program calc_d_v_d_M_test
                 deallocate(test_mesh%panels(index)%b)
                 deallocate(test_mesh%panels(index)%b_mir)  
                 deallocate(test_mesh%panels(index)%sqrt_b)
+                deallocate(test_mesh%panels(index)%i_vert_d)
+                deallocate(test_mesh%panels(index)%S_mu_inv)
+                deallocate(test_mesh%panels(index)%T_mu)
+                deallocate(test_mesh%panels(index)%i_panel_s)
                 call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
+                call test_mesh%panels(index)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
+                    test_mesh%vertices,.false.)
                 
                 ! recalculates cp locations
                 deallocate(test_solver%sigma_known)
@@ -286,7 +297,7 @@ program calc_d_v_d_M_test
                 deallocate(test_solver%P)
                 call test_solver%init(solver_settings, processing_settings, &
                 test_mesh, freestream_flow, control_point_file)
-
+                
                 ! update F111 cp1 and panel1 
                 deallocate(test_int%F111)
                 deallocate(test_int%F121)
@@ -295,17 +306,22 @@ program calc_d_v_d_M_test
                 test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, .false.)
                 test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,.false., test_dod_info)
                 !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
-
+                
                 ! get the needed info
+                
                 v_d_M_space = test_mesh%panels(index)%assemble_v_d_M_space(test_int, test_geom, freestream_flow, .false.)
                 v_d_M_up(j + (i-1)*N_verts) = v_d_M_space(1,k)
-
+                
                 
                 ! perturb down the current design variable
                 test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - 2.*step
-
+                
                 !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
-                ! update panel geometry and calc
+                ! update panel geometry and calcs
+                deallocate(test_mesh%panels(index)%vertices)
+                deallocate(test_mesh%panels(index)%n_hat_g)
+                deallocate(test_mesh%panels(index)%edge_is_discontinuous)
+                call test_mesh%panels(index)%init(test_mesh%vertices(1),test_mesh%vertices(2),test_mesh%vertices(3),index)
                 do m =1,N_panels
                     deallocate(test_mesh%panels(m)%n_hat_g)
                     call test_mesh%panels(m)%calc_derived_geom()
@@ -313,15 +329,21 @@ program calc_d_v_d_M_test
                 
                 ! update vertex normal
                 call test_mesh%calc_vertex_geometry()
-
+                
                 ! update with flow
                 deallocate(test_mesh%panels(index)%vertices_ls)
                 deallocate(test_mesh%panels(index)%n_hat_ls)
                 deallocate(test_mesh%panels(index)%b)
                 deallocate(test_mesh%panels(index)%b_mir)  
                 deallocate(test_mesh%panels(index)%sqrt_b)
+                deallocate(test_mesh%panels(index)%i_vert_d)
+                deallocate(test_mesh%panels(index)%S_mu_inv)
+                deallocate(test_mesh%panels(index)%T_mu)
+                deallocate(test_mesh%panels(index)%i_panel_s)
                 call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
-
+                call test_mesh%panels(index)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
+                    test_mesh%vertices,.false.)
+                
                 ! recalculates cp locations
                 deallocate(test_solver%sigma_known)
                 deallocate(test_mesh%cp)
@@ -473,7 +495,12 @@ program calc_d_v_d_M_test
 
                 !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
 
-                ! update panel geometry and calc
+                ! update panel geometry and calcs
+                deallocate(test_mesh%panels(index)%vertices)
+                deallocate(test_mesh%panels(index)%n_hat_g)
+                deallocate(test_mesh%panels(index)%edge_is_discontinuous)
+                call test_mesh%panels(index)%init(test_mesh%vertices(1),test_mesh%vertices(2),test_mesh%vertices(3),index)
+
                 do m =1,N_panels
                     deallocate(test_mesh%panels(m)%n_hat_g)
                     call test_mesh%panels(m)%calc_derived_geom()
@@ -488,7 +515,13 @@ program calc_d_v_d_M_test
                 deallocate(test_mesh%panels(index)%b)
                 deallocate(test_mesh%panels(index)%b_mir)  
                 deallocate(test_mesh%panels(index)%sqrt_b)
+                deallocate(test_mesh%panels(index)%i_vert_d)
+                deallocate(test_mesh%panels(index)%S_mu_inv)
+                deallocate(test_mesh%panels(index)%T_mu)
+                deallocate(test_mesh%panels(index)%i_panel_s)
                 call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
+                call test_mesh%panels(index)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
+                    test_mesh%vertices,.false.)
                 
                 ! recalculates cp locations
                 deallocate(test_solver%sigma_known)
@@ -496,7 +529,7 @@ program calc_d_v_d_M_test
                 deallocate(test_solver%P)
                 call test_solver%init(solver_settings, processing_settings, &
                 test_mesh, freestream_flow, control_point_file)
-
+                
                 ! update F111 cp1 and panel1 
                 deallocate(test_int%F111)
                 deallocate(test_int%F121)
@@ -505,17 +538,22 @@ program calc_d_v_d_M_test
                 test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, .false.)
                 test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,.false., test_dod_info)
                 !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
-
+                
                 ! get the needed info
+                
                 v_d_M_space = test_mesh%panels(index)%assemble_v_d_M_space(test_int, test_geom, freestream_flow, .false.)
                 v_d_M_up(j + (i-1)*N_verts) = v_d_M_space(2,k)
-
+                
                 
                 ! perturb down the current design variable
                 test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - 2.*step
-
+                
                 !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
-                ! update panel geometry and calc
+                ! update panel geometry and calcs
+                deallocate(test_mesh%panels(index)%vertices)
+                deallocate(test_mesh%panels(index)%n_hat_g)
+                deallocate(test_mesh%panels(index)%edge_is_discontinuous)
+                call test_mesh%panels(index)%init(test_mesh%vertices(1),test_mesh%vertices(2),test_mesh%vertices(3),index)
                 do m =1,N_panels
                     deallocate(test_mesh%panels(m)%n_hat_g)
                     call test_mesh%panels(m)%calc_derived_geom()
@@ -523,15 +561,21 @@ program calc_d_v_d_M_test
                 
                 ! update vertex normal
                 call test_mesh%calc_vertex_geometry()
-
+                
                 ! update with flow
                 deallocate(test_mesh%panels(index)%vertices_ls)
                 deallocate(test_mesh%panels(index)%n_hat_ls)
                 deallocate(test_mesh%panels(index)%b)
                 deallocate(test_mesh%panels(index)%b_mir)  
                 deallocate(test_mesh%panels(index)%sqrt_b)
+                deallocate(test_mesh%panels(index)%i_vert_d)
+                deallocate(test_mesh%panels(index)%S_mu_inv)
+                deallocate(test_mesh%panels(index)%T_mu)
+                deallocate(test_mesh%panels(index)%i_panel_s)
                 call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
-
+                call test_mesh%panels(index)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
+                    test_mesh%vertices,.false.)
+                
                 ! recalculates cp locations
                 deallocate(test_solver%sigma_known)
                 deallocate(test_mesh%cp)
@@ -683,7 +727,12 @@ program calc_d_v_d_M_test
 
                 !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
 
-                ! update panel geometry and calc
+                ! update panel geometry and calcs
+                deallocate(test_mesh%panels(index)%vertices)
+                deallocate(test_mesh%panels(index)%n_hat_g)
+                deallocate(test_mesh%panels(index)%edge_is_discontinuous)
+                call test_mesh%panels(index)%init(test_mesh%vertices(1),test_mesh%vertices(2),test_mesh%vertices(3),index)
+
                 do m =1,N_panels
                     deallocate(test_mesh%panels(m)%n_hat_g)
                     call test_mesh%panels(m)%calc_derived_geom()
@@ -698,7 +747,13 @@ program calc_d_v_d_M_test
                 deallocate(test_mesh%panels(index)%b)
                 deallocate(test_mesh%panels(index)%b_mir)  
                 deallocate(test_mesh%panels(index)%sqrt_b)
+                deallocate(test_mesh%panels(index)%i_vert_d)
+                deallocate(test_mesh%panels(index)%S_mu_inv)
+                deallocate(test_mesh%panels(index)%T_mu)
+                deallocate(test_mesh%panels(index)%i_panel_s)
                 call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
+                call test_mesh%panels(index)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
+                    test_mesh%vertices,.false.)
                 
                 ! recalculates cp locations
                 deallocate(test_solver%sigma_known)
@@ -706,7 +761,7 @@ program calc_d_v_d_M_test
                 deallocate(test_solver%P)
                 call test_solver%init(solver_settings, processing_settings, &
                 test_mesh, freestream_flow, control_point_file)
-
+                
                 ! update F111 cp1 and panel1 
                 deallocate(test_int%F111)
                 deallocate(test_int%F121)
@@ -715,17 +770,22 @@ program calc_d_v_d_M_test
                 test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, .false.)
                 test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,.false., test_dod_info)
                 !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
-
+                
                 ! get the needed info
+                
                 v_d_M_space = test_mesh%panels(index)%assemble_v_d_M_space(test_int, test_geom, freestream_flow, .false.)
                 v_d_M_up(j + (i-1)*N_verts) = v_d_M_space(3,k)
-
+                
                 
                 ! perturb down the current design variable
                 test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - 2.*step
-
+                
                 !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
-                ! update panel geometry and calc
+                ! update panel geometry and calcs
+                deallocate(test_mesh%panels(index)%vertices)
+                deallocate(test_mesh%panels(index)%n_hat_g)
+                deallocate(test_mesh%panels(index)%edge_is_discontinuous)
+                call test_mesh%panels(index)%init(test_mesh%vertices(1),test_mesh%vertices(2),test_mesh%vertices(3),index)
                 do m =1,N_panels
                     deallocate(test_mesh%panels(m)%n_hat_g)
                     call test_mesh%panels(m)%calc_derived_geom()
@@ -733,15 +793,21 @@ program calc_d_v_d_M_test
                 
                 ! update vertex normal
                 call test_mesh%calc_vertex_geometry()
-
+                
                 ! update with flow
                 deallocate(test_mesh%panels(index)%vertices_ls)
                 deallocate(test_mesh%panels(index)%n_hat_ls)
                 deallocate(test_mesh%panels(index)%b)
                 deallocate(test_mesh%panels(index)%b_mir)  
                 deallocate(test_mesh%panels(index)%sqrt_b)
+                deallocate(test_mesh%panels(index)%i_vert_d)
+                deallocate(test_mesh%panels(index)%S_mu_inv)
+                deallocate(test_mesh%panels(index)%T_mu)
+                deallocate(test_mesh%panels(index)%i_panel_s)
                 call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
-
+                call test_mesh%panels(index)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
+                    test_mesh%vertices,.false.)
+                
                 ! recalculates cp locations
                 deallocate(test_solver%sigma_known)
                 deallocate(test_mesh%cp)

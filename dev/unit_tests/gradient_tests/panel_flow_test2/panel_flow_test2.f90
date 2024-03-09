@@ -990,21 +990,21 @@ program panel_flow2
         write(*,*) ""
         write(*,'(A, I1, A)') "          d_T_mu panel 1 (row ", m, ")"
         write(*,*) "  d_T_mu_x           d_T_mu_y           d_T_mu_z             sparse_index       full_index"
-        do i=1,adjoint_mesh%panels(index)%d_T_mu(m)%sparse_num_cols
-            write(*,'(3(f14.10, 4x), 12x, I5, 12x, I5)') adjoint_mesh%panels(index)%d_T_mu(m)%columns(i)%vector_values(:), &
-            i, adjoint_mesh%panels(index)%d_T_mu(m)%columns(i)%full_index
+        do i=1,adjoint_mesh%panels(index)%d_T_mu_rows(m)%sparse_num_cols
+            write(*,'(3(f14.10, 4x), 12x, I5, 12x, I5)') adjoint_mesh%panels(index)%d_T_mu_rows(m)%columns(i)%vector_values(:), &
+            i, adjoint_mesh%panels(index)%d_T_mu_rows(m)%columns(i)%full_index
         end do
         write(*,*) ""
 
         ! calculate residuals3
         do i =1, N_verts*3
-            residuals3(:,i) = adjoint_mesh%panels(index)%d_T_mu(m)%get_values(i) - d_T_mu_FD(m,i,:)
+            residuals3(:,i) = adjoint_mesh%panels(index)%d_T_mu_rows(m)%get_values(i) - d_T_mu_FD(m,i,:)
         end do
 
         write(*,'(A, I1, A)') "         d_T_mu panel 1 (row ", m, ") expanded "
         write(*,*) "  d_T_mu_x           d_T_mu_y           d_T_mu_z                            residuals"
         do i = 1, N_verts*3
-            write(*, '(3(f14.10, 4x),3x, 3(f14.10, 4x))') adjoint_mesh%panels(index)%d_T_mu(m)%get_values(i), residuals3(:,i)
+            write(*, '(3(f14.10, 4x),3x, 3(f14.10, 4x))') adjoint_mesh%panels(index)%d_T_mu_rows(m)%get_values(i), residuals3(:,i)
         end do
         write(*,*) ""
 

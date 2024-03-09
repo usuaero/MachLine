@@ -139,13 +139,14 @@ module base_geom_mod
         integer :: tied_to_type ! 1 = this control point is associated with a vertex, 2 = panel
         integer :: tied_to_index ! Index of the mesh component this control point is tied to
 
-        type(sparse_matrix) :: d_loc
+        type(sparse_matrix) :: d_loc, d_n_g
     
         contains
 
             procedure :: init => control_point_init
             procedure :: init_adjoint => control_point_init_adjoint
             procedure :: set_bc => control_point_set_bc
+            procedure :: set_bc_adjoint => control_point_set_bc_adjoint
     
     end type control_point
 
@@ -636,5 +637,17 @@ contains
         
     end subroutine control_point_set_bc
 
+    subroutine control_point_set_bc_adjoint(this, d_n_g)
+        ! Sets up the boundary condition on this control point
+
+        implicit none
+        
+        class(control_point),intent(inout) :: this
+        type(sparse_matrix) :: d_n_g
+
+        ! Store type
+        this%d_n_g = d_n_g
+
+    end subroutine control_point_set_bc_adjoint
     
 end module base_geom_mod
