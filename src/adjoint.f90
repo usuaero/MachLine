@@ -1299,7 +1299,7 @@ contains
         implicit none
     
         class(sparse_3D),intent(inout) :: this
-        real,dimension(3,3),intent(in) :: vector3 
+        real,dimension(3),intent(in) :: vector3 
     
         integer :: i
         type(sparse_vector), dimension(3) :: temp
@@ -1320,7 +1320,7 @@ contains
         implicit none
     
         class(sparse_3D),intent(inout) :: this
-        real,dimension(3,3),intent(in) :: vector3 
+        real,dimension(3),intent(in) :: vector3 
 
         integer :: i
         type(sparse_3D) :: this_cols
@@ -1332,7 +1332,7 @@ contains
         this_cols = this%transpose_3()
     
         do i=1,3                           
-            tmep(i) = this_cols%rows(i)%broadcast_vector_dot_element(vector3)
+            temp(i) = this_cols%rows(i)%broadcast_vector_dot_element(vector3)
             ! cols%rows above sounds confusing, but it means this row is used like a column in the matrix multiplication
         end do
 

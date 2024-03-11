@@ -646,7 +646,7 @@ contains
         type(sparse_matrix) :: d_n_g
 
         ! Store type
-        this%d_n_g = d_n_g
+        call this%d_n_g%init_from_sparse_matrix(d_n_g)
 
     end subroutine control_point_set_bc_adjoint
     

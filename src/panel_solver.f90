@@ -593,6 +593,7 @@ contains
         if (cp%tied_to_type == TT_VERTEX .and. cp%cp_type == SURFACE) then
             
             if (body%vertices(cp%tied_to_index)%N_wake_edges>0) then
+
                 ! num_edges = body%vertices(cp%tied_to_index)%adjacent_edges%len()
                 ! allocate(points(num_edges))
                 ! counter = 0
@@ -665,6 +666,12 @@ contains
                     call cp%set_bc(bc_type, body%vertices(cp%tied_to_index)%n_g_mir)
                 else
                     call cp%set_bc(bc_type, body%vertices(cp%tied_to_index)%n_g)
+                     
+                    ! if adjoint
+                    if (body%calc_adjoint) then
+                        call cp%set_bc_adjoint(body%vertices(cp%tied_to_index)%d_n_g)
+                    end if
+
                 end if
             end if
         else if (cp%tied_to_type == TT_VERTEX) then
@@ -673,14 +680,10 @@ contains
                 call cp%set_bc(bc_type, body%vertices(cp%tied_to_index)%n_g_mir)
             else
                 call cp%set_bc(bc_type, body%vertices(cp%tied_to_index)%n_g)
-                
-                ! if adjoint
-                if (body%calc_adjoints) then
-                    call cp%set_bc_adjoint(body%vertices(cp%tied_to_index)%d_n_g)
-                end if
 
             end if
         else
+            
             if (cp%is_mirror) then
                 call cp%set_bc(bc_type, body%panels(cp%tied_to_index)%n_g_mir)
             else
@@ -1273,6 +1276,7 @@ contains
         real :: I_known_i
 
         type(sparse_vector), dimension(3,3) ::  d_v_d
+        type(sparse_vector), dimension(3) :: inf_adjoint
 
         if (verbose) write(*,'(a)',advance='no') "     Calculating body influences..."
        
@@ -1299,17 +1303,20 @@ contains
                     ! Influence of existing panel on control point
                     call body%panels(j)%calc_velocity_influences(body%cp(i)%loc, this%freestream,.false.,v_s, v_d)
                     
-                    ! ! if calc_adjoint is specified, do adjoint calcs
+                    !!!!!!!!!!!! ADJOINT CALCS HAPPEN HERE !!!!!!!!!!!!!!!!!!!!
+
+                    ! ! if calc_adjoint is specified, do adjoint calcs (METHOD 1)
                     ! if (body%calc_adjoint) then
                     !     call body%panels(j)%calc_velocity_influences_adjoint(body%cp(i), this%freestream, d_v_d)
-                    !     doublet_inf_adjoint = body%panels(j)%calc_doublet_inf_adjoint(body%cp(i),this%freestream, d_v_d)
+                    !     inf_adjoint = body%panels(j)%calc_doublet_inf_adjoint(body%cp(i),this%freestream, d_v_d)
                     ! end if
 
-                    ! if calc_adjoint is specified, do adjoint calcs METHOD 2
+                    ! if calc_adjoint is specified, do adjoint calcs (METHOD 2)
                     if (body%calc_adjoint) then
-                        call body%panels(j)%calc_doublet_inf_adjoint2(body%cp(i),this%freestream,&
-                         inf_adjoint)
+                        inf_adjoint = body%panels(j)%calc_doublet_inf_adjoint2(body%cp(i),this%freestream)
                     end if
+
+                    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
                     source_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_s))
                     doublet_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_d))
