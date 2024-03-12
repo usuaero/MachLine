@@ -600,14 +600,17 @@ contains
         type(sparse_matrix), intent(inout) :: d_loc, d_vert_n_g
         real, intent(in) :: offset
         
+        type(sparse_matrix) :: d_vert_n_g_times_offset
+
         ! multiply vertex normal sensitivity by offset
-        call d_vert_n_g%broadcast_element_times_scalar(offset)
+        call d_vert_n_g_times_offset%init_from_sparse_matrix(d_vert_n_g)
+        call d_vert_n_g_times_offset%broadcast_element_times_scalar(offset)
 
         ! bring in d_loc of vertex
         call this%d_loc%init_from_sparse_matrix(d_loc)
 
         ! subtract to get control point d_loc
-        call this%d_loc%sparse_add(d_vert_n_g)
+        call this%d_loc%sparse_add(d_vert_n_g_times_offset)
         
     end subroutine control_point_init_adjoint
 

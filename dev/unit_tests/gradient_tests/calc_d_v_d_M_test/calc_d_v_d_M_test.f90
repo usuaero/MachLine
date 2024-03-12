@@ -52,7 +52,7 @@ program calc_d_v_d_M_test
     type(sparse_vector),dimension(3,3) :: d_v_d_M_adjoint
 
     integer :: i,j,k,m,n,p, N_verts, N_panels, vert, index, cp_ind
-    real,dimension(3,3) :: v_d_M_space
+    real,dimension(:,:), allocatable :: v_s, v_d
     real :: step, error_allowed, cp_offset
     type(vertex),dimension(:),allocatable :: vertices ! list of vertex types, this should be a mesh attribute
     type(panel),dimension(:),allocatable :: panels, adjoint_panels   ! list of panels, this should be a mesh attribute
@@ -260,21 +260,22 @@ program calc_d_v_d_M_test
 
                 ! perturb up the current design variable
                 test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
-
+                ! write(*,*) " perturb up"
+                
                 !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
-
+               
                 ! update panel geometry and calcs
                 deallocate(test_mesh%panels(index)%vertices)
                 deallocate(test_mesh%panels(index)%n_hat_g)
                 deallocate(test_mesh%panels(index)%edge_is_discontinuous)
                 call test_mesh%panels(index)%init(test_mesh%vertices(1),test_mesh%vertices(2),test_mesh%vertices(3),index)
-
+                
+                ! update vertex normal
                 do m =1,N_panels
                     deallocate(test_mesh%panels(m)%n_hat_g)
                     call test_mesh%panels(m)%calc_derived_geom()
                 end do
-
-                ! update vertex normal
+                
                 call test_mesh%calc_vertex_geometry()
                 
                 ! update with flow
@@ -289,7 +290,7 @@ program calc_d_v_d_M_test
                 deallocate(test_mesh%panels(index)%i_panel_s)
                 call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
                 call test_mesh%panels(index)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
-                    test_mesh%vertices,.false.)
+                test_mesh%vertices,.false.)
                 
                 ! recalculates cp locations
                 deallocate(test_solver%sigma_known)
@@ -298,22 +299,16 @@ program calc_d_v_d_M_test
                 call test_solver%init(solver_settings, processing_settings, &
                 test_mesh, freestream_flow, control_point_file)
                 
-                ! update F111 cp1 and panel1 
-                deallocate(test_int%F111)
-                deallocate(test_int%F121)
-                deallocate(test_int%F211)
-                test_geom = test_mesh%panels(index)%calc_subsonic_geom(test_mesh%cp(cp_ind)%loc,freestream_flow,.false.)
-                test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, .false.)
-                test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,.false., test_dod_info)
+                ! update v_d and doublet inf
+                call test_mesh%panels(index)%calc_velocity_influences(test_mesh%cp(cp_ind)%loc, freestream_flow,.false.,v_s, v_d)
                 !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
                 
                 ! get the needed info
-                
-                v_d_M_space = test_mesh%panels(index)%assemble_v_d_M_space(test_int, test_geom, freestream_flow, .false.)
-                v_d_M_up(j + (i-1)*N_verts) = v_d_M_space(1,k)
+                v_d_M_up(j + (i-1)*N_verts) = v_d(1,k)
                 
                 
                 ! perturb down the current design variable
+                ! write(*,*) " perturb down"
                 test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - 2.*step
                 
                 !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
@@ -350,24 +345,18 @@ program calc_d_v_d_M_test
                 deallocate(test_solver%P)
                 call test_solver%init(solver_settings, processing_settings, &
                 test_mesh, freestream_flow, control_point_file)
-
-
-                ! update F111 cp1 and panel1 
-                deallocate(test_int%F111)
-                deallocate(test_int%F121)
-                deallocate(test_int%F211)
-                test_geom = test_mesh%panels(index)%calc_subsonic_geom(test_mesh%cp(cp_ind)%loc,freestream_flow,.false.)
-                test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, .false.)
-                test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,.false., test_dod_info)
+               
+                ! update v_d and doublet inf
+                call test_mesh%panels(index)%calc_velocity_influences(test_mesh%cp(cp_ind)%loc, freestream_flow,.false.,v_s, v_d)
                 !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
-
+                
                 ! get the needed info
-                v_d_M_space = test_mesh%panels(index)%assemble_v_d_M_space(test_int, test_geom, freestream_flow, .false.)
-                v_d_M_dn(j + (i-1)*N_verts) = v_d_M_space(1,k)
+                v_d_M_dn(j + (i-1)*N_verts) = v_d(1,k)
 
                 
                 ! restore geometry
                 test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
+
             end do 
         end do 
         
@@ -490,23 +479,25 @@ program calc_d_v_d_M_test
         do i=1,3
             do j=1,N_verts
 
+                
                 ! perturb up the current design variable
                 test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
-
+                ! write(*,*) " perturb up"
+                
                 !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
-
+               
                 ! update panel geometry and calcs
                 deallocate(test_mesh%panels(index)%vertices)
                 deallocate(test_mesh%panels(index)%n_hat_g)
                 deallocate(test_mesh%panels(index)%edge_is_discontinuous)
                 call test_mesh%panels(index)%init(test_mesh%vertices(1),test_mesh%vertices(2),test_mesh%vertices(3),index)
-
+                
+                ! update vertex normal
                 do m =1,N_panels
                     deallocate(test_mesh%panels(m)%n_hat_g)
                     call test_mesh%panels(m)%calc_derived_geom()
                 end do
-
-                ! update vertex normal
+                
                 call test_mesh%calc_vertex_geometry()
                 
                 ! update with flow
@@ -521,7 +512,7 @@ program calc_d_v_d_M_test
                 deallocate(test_mesh%panels(index)%i_panel_s)
                 call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
                 call test_mesh%panels(index)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
-                    test_mesh%vertices,.false.)
+                test_mesh%vertices,.false.)
                 
                 ! recalculates cp locations
                 deallocate(test_solver%sigma_known)
@@ -530,22 +521,16 @@ program calc_d_v_d_M_test
                 call test_solver%init(solver_settings, processing_settings, &
                 test_mesh, freestream_flow, control_point_file)
                 
-                ! update F111 cp1 and panel1 
-                deallocate(test_int%F111)
-                deallocate(test_int%F121)
-                deallocate(test_int%F211)
-                test_geom = test_mesh%panels(index)%calc_subsonic_geom(test_mesh%cp(cp_ind)%loc,freestream_flow,.false.)
-                test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, .false.)
-                test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,.false., test_dod_info)
+                ! update v_d and doublet inf
+                call test_mesh%panels(index)%calc_velocity_influences(test_mesh%cp(cp_ind)%loc, freestream_flow,.false.,v_s, v_d)
                 !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
                 
                 ! get the needed info
-                
-                v_d_M_space = test_mesh%panels(index)%assemble_v_d_M_space(test_int, test_geom, freestream_flow, .false.)
-                v_d_M_up(j + (i-1)*N_verts) = v_d_M_space(2,k)
+                v_d_M_up(j + (i-1)*N_verts) = v_d(2,k)
                 
                 
                 ! perturb down the current design variable
+                ! write(*,*) " perturb down"
                 test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - 2.*step
                 
                 !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
@@ -582,24 +567,18 @@ program calc_d_v_d_M_test
                 deallocate(test_solver%P)
                 call test_solver%init(solver_settings, processing_settings, &
                 test_mesh, freestream_flow, control_point_file)
-
-
-                ! update F111 cp1 and panel1 
-                deallocate(test_int%F111)
-                deallocate(test_int%F121)
-                deallocate(test_int%F211)
-                test_geom = test_mesh%panels(index)%calc_subsonic_geom(test_mesh%cp(cp_ind)%loc,freestream_flow,.false.)
-                test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, .false.)
-                test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,.false., test_dod_info)
+               
+                ! update v_d and doublet inf
+                call test_mesh%panels(index)%calc_velocity_influences(test_mesh%cp(cp_ind)%loc, freestream_flow,.false.,v_s, v_d)
                 !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
-
+                
                 ! get the needed info
-                v_d_M_space = test_mesh%panels(index)%assemble_v_d_M_space(test_int, test_geom, freestream_flow, .false.)
-                v_d_M_dn(j + (i-1)*N_verts) = v_d_M_space(2,k)
+                v_d_M_dn(j + (i-1)*N_verts) = v_d(2,k)
 
                 
                 ! restore geometry
                 test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
+
             end do 
         end do 
         
@@ -722,23 +701,25 @@ program calc_d_v_d_M_test
         do i=1,3
             do j=1,N_verts
 
+                
                 ! perturb up the current design variable
                 test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
-
+                ! write(*,*) " perturb up"
+                
                 !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
-
+               
                 ! update panel geometry and calcs
                 deallocate(test_mesh%panels(index)%vertices)
                 deallocate(test_mesh%panels(index)%n_hat_g)
                 deallocate(test_mesh%panels(index)%edge_is_discontinuous)
                 call test_mesh%panels(index)%init(test_mesh%vertices(1),test_mesh%vertices(2),test_mesh%vertices(3),index)
-
+                
+                ! update vertex normal
                 do m =1,N_panels
                     deallocate(test_mesh%panels(m)%n_hat_g)
                     call test_mesh%panels(m)%calc_derived_geom()
                 end do
-
-                ! update vertex normal
+                
                 call test_mesh%calc_vertex_geometry()
                 
                 ! update with flow
@@ -753,7 +734,7 @@ program calc_d_v_d_M_test
                 deallocate(test_mesh%panels(index)%i_panel_s)
                 call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
                 call test_mesh%panels(index)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
-                    test_mesh%vertices,.false.)
+                test_mesh%vertices,.false.)
                 
                 ! recalculates cp locations
                 deallocate(test_solver%sigma_known)
@@ -762,22 +743,16 @@ program calc_d_v_d_M_test
                 call test_solver%init(solver_settings, processing_settings, &
                 test_mesh, freestream_flow, control_point_file)
                 
-                ! update F111 cp1 and panel1 
-                deallocate(test_int%F111)
-                deallocate(test_int%F121)
-                deallocate(test_int%F211)
-                test_geom = test_mesh%panels(index)%calc_subsonic_geom(test_mesh%cp(cp_ind)%loc,freestream_flow,.false.)
-                test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, .false.)
-                test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,.false., test_dod_info)
+                ! update v_d and doublet inf
+                call test_mesh%panels(index)%calc_velocity_influences(test_mesh%cp(cp_ind)%loc, freestream_flow,.false.,v_s, v_d)
                 !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
                 
                 ! get the needed info
-                
-                v_d_M_space = test_mesh%panels(index)%assemble_v_d_M_space(test_int, test_geom, freestream_flow, .false.)
-                v_d_M_up(j + (i-1)*N_verts) = v_d_M_space(3,k)
+                v_d_M_up(j + (i-1)*N_verts) = v_d(3,k)
                 
                 
                 ! perturb down the current design variable
+                ! write(*,*) " perturb down"
                 test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - 2.*step
                 
                 !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
@@ -814,24 +789,18 @@ program calc_d_v_d_M_test
                 deallocate(test_solver%P)
                 call test_solver%init(solver_settings, processing_settings, &
                 test_mesh, freestream_flow, control_point_file)
-
-
-                ! update F111 cp1 and panel1 
-                deallocate(test_int%F111)
-                deallocate(test_int%F121)
-                deallocate(test_int%F211)
-                test_geom = test_mesh%panels(index)%calc_subsonic_geom(test_mesh%cp(cp_ind)%loc,freestream_flow,.false.)
-                test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, .false.)
-                test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,.false., test_dod_info)
+               
+                ! update v_d and doublet inf
+                call test_mesh%panels(index)%calc_velocity_influences(test_mesh%cp(cp_ind)%loc, freestream_flow,.false.,v_s, v_d)
                 !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
-
+                
                 ! get the needed info
-                v_d_M_space = test_mesh%panels(index)%assemble_v_d_M_space(test_int, test_geom, freestream_flow, .false.)
-                v_d_M_dn(j + (i-1)*N_verts) = v_d_M_space(3,k)
+                v_d_M_dn(j + (i-1)*N_verts) = v_d(3,k)
 
                 
                 ! restore geometry
                 test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
+
             end do 
         end do 
         

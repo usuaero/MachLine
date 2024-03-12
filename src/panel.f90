@@ -4709,6 +4709,7 @@ contains
                 end if
             else
                 geom = this%calc_subsonic_geom_adjoint(cp,freestream)
+
             end if
 
             !!!!!!!!!! DUPLICATED WORK, figure out better passing of info
@@ -4720,7 +4721,6 @@ contains
 
             ! ignore d_v_s_S_space, maybe put in a zero sparse matrix
             ! allocate(v_s_S_space(3,this%S_dim), source=0.)
-          
 
             ! Doublet velocity
             d_v_d_M_space = this%assemble_v_d_M_space_adjoint(int, geom, freestream, mirror_panel)
@@ -5125,7 +5125,7 @@ contains
                 call d_L1L2%broadcast_element_times_scalar(L_1)
                 
                 ! Calculate d_F111 case 1
-                write(*,*) "d_F111 is case 1"
+                ! write(*,*) "d_F111 is case 1"
                 call d_F111%init_from_sparse_vector(d_L1L2)
                 call d_F111%broadcast_element_times_scalar(geom%g2(i)/(L_1*L_2))
                 call d_F111%sparse_subtract(geom%d_g2(i))
@@ -5134,8 +5134,8 @@ contains
                 call int%d_F111(i)%init_from_sparse_vector(d_F111)
                 deallocate(d_L_1%elements, d_L_2%elements, d_L1L2%elements, d_F111%elements)
                 
-                write(*,*) "L_1", L_1
-                write(*,*) "L_2", L_2
+                ! write(*,*) "L_1", L_1
+                ! write(*,*) "L_2", L_2
 
             ! Above or below edge; this is a unified form of Johnson Eq. (D.60)
             else
@@ -5165,7 +5165,7 @@ contains
                 
                 
                 ! Calculate d_F111 case 2
-                write(*,*) "d_F111 is case 2"
+                ! write(*,*) "d_F111 is case 2"
 
                 call d_F111%init_from_sparse_vector(d_L_2_abs)
                 call d_F111%broadcast_element_times_scalar(L_1_abs/L_2_abs)
@@ -5177,8 +5177,8 @@ contains
                 deallocate(d_L_1_abs%elements, d_L_2_abs%elements, d_F111%elements,&
                             x%elements, y%elements)
 
-                write(*,*) "L_|1|", L_1_abs
-                write(*,*) "L_|2|", L_2_abs
+                ! write(*,*) "L_|1|", L_1_abs
+                ! write(*,*) "L_|2|", L_2_abs
                 
                 
             end if
@@ -5324,8 +5324,8 @@ contains
         end do
         
         ! Apply sign factor (Johnson Eq. (D.42)
-        write(*,*) "S = ", S 
-        write(*,*) "C = ", C 
+        ! write(*,*) "S = ", S 
+        ! write(*,*) "C = ", C 
         call int%d_hH113%broadcast_element_times_scalar(sign(1., geom%h))
 
     end subroutine panel_calc_hH113_subsonic_adjoint
@@ -5553,6 +5553,7 @@ contains
         end do
 
         call d_v_d_M_3D%init_from_sparse_matrices(d_v_d_M_rows)
+
         
         term2 = d_v_d_M_3D%broadcast_matmul_1x3_times_3row(matmul(cp%n_g,freestream%B_mat_g))
 
@@ -5636,6 +5637,8 @@ contains
             v_d_mu_space(3,1) = 0
             v_d_mu_space(3,2) = int%H213
             v_d_mu_space(3,3) = int%H123
+
+            v_d_mu_space = int%s*freestream%K_inv*v_d_mu_space
           
             ! assemble d_v_d_mu space
             call zeros%init(int%d_hH113%full_size)
@@ -5643,6 +5646,10 @@ contains
             call d_v_d_mu_rows(1)%init_from_sparse_vectors(zeros, int%d_hH113, zeros)
             call d_v_d_mu_rows(2)%init_from_sparse_vectors(zeros, zeros, int%d_hH113)
             call d_v_d_mu_rows(3)%init_from_sparse_vectors(zeros, int%d_H213, int%d_H123)
+
+            do i=1,3
+                call d_v_d_mu_rows(i)%broadcast_element_times_scalar(int%s*freestream%K_inv)
+            end do
 
             ! calc inf_adjoint term 1
             dummy_inf_adjoint = cp%d_n_g%broadcast_matmul_element_times_3x3(matmul(&
@@ -5659,7 +5666,8 @@ contains
             ! calc inf_adjoint term 3
             call d_v_d_mu_3D%init_from_sparse_matrices(d_v_d_mu_rows)
             y = d_v_d_mu_3D%broadcast_matmul_3row_times_3x3(this%T_mu)
-            term3 = y%broadcast_matmul_1x3_times_3row(matmul(matmul(cp%n_g,freestream%B_mat_G),this%T_mu))
+            term3 = y%broadcast_matmul_1x3_times_3row(matmul(matmul(cp%n_g,freestream%B_mat_g),&
+                transpose(this%A_g_to_ls)))
 
             ! calc inf_adjoint term 4
             call d_T_mu_3D%init_from_sparse_matrices(this%d_T_mu_rows)

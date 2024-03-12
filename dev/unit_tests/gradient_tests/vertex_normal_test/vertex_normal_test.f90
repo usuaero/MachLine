@@ -47,7 +47,7 @@ program vertex_normal_test
 
     ! real,dimension(:,:,:),allocatable ::  d_n_g_FD
 
-    integer :: i,j,k,m,n, N_verts, N_panels, vert, index
+    integer :: i,j,k,m,n, N_verts, N_panels, vert, index, cp_ind
     real :: step
     type(vertex),dimension(:),allocatable :: vertices ! list of vertex types, this should be a mesh attribute
     type(panel),dimension(:),allocatable :: panels, adjoint_panels   ! list of panels, this should be a mesh attribute
@@ -146,24 +146,24 @@ program vertex_normal_test
     ! Initialize surface mesh
     call adjoint_mesh%init(adjoint_geom_settings)
 
-    ! ! Initialize flow
-    ! call json_xtnsn_get(adjoint_geom_settings, 'spanwise_axis', adjoint_spanwise_axis, '+y')
-    ! call adjoint_freestream_flow%init(adjoint_flow_settings, adjoint_spanwise_axis)
+    ! Initialize flow
+    call json_xtnsn_get(adjoint_geom_settings, 'spanwise_axis', adjoint_spanwise_axis, '+y')
+    call adjoint_freestream_flow%init(adjoint_flow_settings, adjoint_spanwise_axis)
     
-    ! ! Get result files
-    ! call json_xtnsn_get(adjoint_output_settings, 'body_file', adjoint_body_file, 'none')
-    ! call json_xtnsn_get(adjoint_output_settings, 'wake_file', adjoint_wake_file, 'none')
-    ! call json_xtnsn_get(adjoint_output_settings, 'control_point_file', adjoint_control_point_file, 'none')
-    ! call json_xtnsn_get(adjoint_output_settings, 'mirrored_body_file', adjoint_mirrored_body_file, 'none')
-    ! call json_xtnsn_get(adjoint_output_settings, 'offbody_points.points_file', adjoint_points_file, 'none')
-    ! call json_xtnsn_get(adjoint_output_settings, 'offbody_points.output_file', adjoint_points_output_file, 'none')
+    ! Get result files
+    call json_xtnsn_get(adjoint_output_settings, 'body_file', adjoint_body_file, 'none')
+    call json_xtnsn_get(adjoint_output_settings, 'wake_file', adjoint_wake_file, 'none')
+    call json_xtnsn_get(adjoint_output_settings, 'control_point_file', adjoint_control_point_file, 'none')
+    call json_xtnsn_get(adjoint_output_settings, 'mirrored_body_file', adjoint_mirrored_body_file, 'none')
+    call json_xtnsn_get(adjoint_output_settings, 'offbody_points.points_file', adjoint_points_file, 'none')
+    call json_xtnsn_get(adjoint_output_settings, 'offbody_points.output_file', adjoint_points_output_file, 'none')
 
-    ! ! Get formulation type                                                  !
-    ! call json_xtnsn_get(adjoint_solver_settings, 'formulation', adjoint_formulation, 'none')!
+    ! Get formulation type                                                  !
+    call json_xtnsn_get(adjoint_solver_settings, 'formulation', adjoint_formulation, 'none')!
 
-    ! ! Perform flow-dependent initialization on the surface mesh
-    ! call adjoint_mesh%init_with_flow(adjoint_freestream_flow, adjoint_body_file, adjoint_wake_file, adjoint_formulation)
-    !!!!!!!!!!!! END ADJOINT TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!
+    ! Perform flow-dependent initialization on the surface mesh
+    call adjoint_mesh%init_with_flow(adjoint_freestream_flow, adjoint_body_file, adjoint_wake_file, adjoint_formulation)
+    !!!!!!!!!!! END ADJOINT TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!
 
 
     
@@ -177,6 +177,7 @@ program vertex_normal_test
     
     step = 0.00001
     index = 1
+    cp_ind = 2
     
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! VERTEX NORMAL SENSITIVITIES TEST !!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -225,7 +226,7 @@ program vertex_normal_test
      
                 
                 ! put the x y or z component of the vertex of interest (index) in a list
-                n_g_up(j + (i-1)*N_verts) = test_mesh%vertices(index)%n_g(k)
+                n_g_up(j + (i-1)*N_verts) = test_mesh%vertices(cp_ind)%n_g(k)
 
                 ! perturb down the current design variable
                 test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - 2.*step
@@ -238,7 +239,7 @@ program vertex_normal_test
                 call test_mesh%calc_vertex_geometry()
                 
                 ! put the x y or z component of the vertex of interest (index) in a list
-                n_g_dn(j + (i-1)*N_verts) = test_mesh%vertices(index)%n_g(k)
+                n_g_dn(j + (i-1)*N_verts) = test_mesh%vertices(cp_ind)%n_g(k)
                 
                 ! restore geometry
                 test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
@@ -270,23 +271,23 @@ program vertex_normal_test
     write(*,*) "         d_n_g vertex 1"
     write(*,*) "  d_n_g_x           d_n_g_y           d_n_g_z             sparse_index       full_index"
 
-    do i=1,adjoint_mesh%vertices(index)%d_n_g%sparse_num_cols
-        write(*,'(3(f14.10, 4x), 12x, I5, 12x, I5)') adjoint_mesh%vertices(index)%d_n_g%columns(i)%vector_values, &
-        i, adjoint_mesh%vertices(index)%d_n_g%columns(i)%full_index
+    do i=1,adjoint_mesh%vertices(cp_ind)%d_n_g%sparse_num_cols
+        write(*,'(3(f14.10, 4x), 12x, I5, 12x, I5)') adjoint_mesh%vertices(cp_ind)%d_n_g%columns(i)%vector_values, &
+        i, adjoint_mesh%vertices(cp_ind)%d_n_g%columns(i)%full_index
     end do
     write(*,*) ""
 
 
     ! calculate residuals3
     do i =1, N_verts*3
-        residuals3(:,i) = adjoint_mesh%vertices(index)%d_n_g%get_values(i) - d_n_g_FD(:,i)
+        residuals3(:,i) = adjoint_mesh%vertices(cp_ind)%d_n_g%get_values(i) - d_n_g_FD(:,i)
     end do
 
     
     write(*,*) "         d_n_g vertex 1 expanded "
     write(*,*) "  d_n_g_x           d_n_g_y           d_n_g_z                                 residuals"
     do i = 1, N_verts*3
-        write(*, '(3(f14.10, 4x),3x, 3(f14.10, 4x))') adjoint_mesh%vertices(index)%d_n_g%get_values(i), residuals3(:,i)
+        write(*, '(3(f14.10, 4x),3x, 3(f14.10, 4x))') adjoint_mesh%vertices(cp_ind)%d_n_g%get_values(i), residuals3(:,i)
     end do
     write(*,*) ""
 

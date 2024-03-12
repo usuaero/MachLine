@@ -1,4 +1,4 @@
-program calc_inf_adjoint_test
+program calc_inf_adjoint_test2
     ! tests various intermediate sensitivities 
     use adjoint_mod
     use base_geom_mod
@@ -44,7 +44,7 @@ program calc_inf_adjoint_test
     logical :: exists, found
     real,dimension(:),allocatable :: doublet_inf
     real,dimension(:,:),allocatable :: v_s, v_d
-    type(sparse_vector),dimension(3) :: inf_adjoint
+    type(sparse_vector),dimension(3) :: inf_adjoint, inf_adjoint2
 
     !!!!!!!!!!!!!!!!!!!!! END STUFF FROM MAIN !!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -202,14 +202,14 @@ program calc_inf_adjoint_test
     ! , .false., adjoint_dod_info)
 
 
-    ! inf_adjoint = adjoint_mesh%panels(index)%calc_doublet_inf_adjoint2(adjoint_mesh%cp(cp_ind), &
-    ! adjoint_freestream_flow)
+    inf_adjoint2 = adjoint_mesh%panels(index)%calc_doublet_inf_adjoint2(adjoint_mesh%cp(cp_ind), &
+    adjoint_freestream_flow)
 
-    call adjoint_mesh%panels(index)%calc_velocity_influences_adjoint(adjoint_mesh%cp(cp_ind), &
-    adjoint_freestream_flow, d_v_d)
+    ! call adjoint_mesh%panels(index)%calc_velocity_influences_adjoint(adjoint_mesh%cp(cp_ind), &
+    ! adjoint_freestream_flow, d_v_d)
     
-    inf_adjoint = adjoint_mesh%panels(index)%calc_doublet_inf_adjoint(adjoint_mesh%cp(cp_ind),&
-    adjoint_freestream_flow, d_v_d)
+    ! inf_adjoint = adjoint_mesh%panels(index)%calc_doublet_inf_adjoint(adjoint_mesh%cp(cp_ind),&
+    ! adjoint_freestream_flow, d_v_d)
     
     !!!!!!!!!!!! END ADJOINT TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -239,13 +239,13 @@ program calc_inf_adjoint_test
     allocate(inf_dn(N_verts*3))
     allocate(d_inf_FD(N_verts*3))
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST CALC inf_adjoint (panel x, cp x) row 1 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST2 CALC inf_adjoint (panel x, cp x) row 1 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
     
     ! panel vertex 
     do k=1,3
 
-        write(*,'(A, I1,A,I1,A,I1,A)') "---------------------------------- TEST CALC inf_adjoint &
+        write(*,'(A, I1,A,I1,A,I1,A)') "---------------------------------- TEST2 CALC inf_adjoint &
         (sensitivity of the influence of panel ",index,", panel vertex ", k,", on cp ",cp_ind,") ------&
         ---------------------------"
         write(*,*) ""
@@ -374,11 +374,11 @@ program calc_inf_adjoint_test
         write(*,*) ""
     
         write(*,*) "--------------------------------------------------------------------------"
-        write(*,'(A, I1,A,I1,A,I1,A)') "  CENTRAL DIFFERENCE CALC inf_adjoint &
+        write(*,'(A, I1,A,I1,A,I1,A)') "  CENTRAL DIFFERENCE CALC inf_adjoint2 &
         (panel ",index,", panel vertex ",k,", cp,",cp_ind,")"
         write(*,*) "--------------------------------------------------------------------------"
         write(*,*) ""
-        write(*,*) "  inf_adjoint"
+        write(*,*) "  inf_adjoint2"
     
         do i = 1, N_verts*3
             write(*, '(f14.10, 4x)') d_inf_FD(i)
@@ -387,22 +387,22 @@ program calc_inf_adjoint_test
         !!!!!!!!!! ADJOINT CALC inf_adjoint (panel x, cp x) !!!!!!!!!!!!!
         write(*,*) ""
         write(*,*) "---------------------------------------------------------------------------"
-        write(*,'(A, I1,A,I1,A,I1,A)') "  ADJOINT  inf_adjoint, (panel ",index,", panel vertex ",k, &
+        write(*,'(A, I1,A,I1,A,I1,A)') "  ADJOINT  inf_adjoint2, (panel ",index,", panel vertex ",k, &
         ", cp,",cp_ind,")"
         write(*,*) "---------------------------------------------------------------------------"
         write(*,*) ""
         
         !write sparse matrix
         write(*,*) ""
-        write(*,'(A, I1,A,I1,A,I1,A)') "  adjoint CALC inf_adjoint &
+        write(*,'(A, I1,A,I1,A,I1,A)') "  adjoint CALC inf_adjoint2 &
         (panel ",index,", panel vertex ",k, ", cp,",cp_ind,")  sparse"
         write(*,*) ""
-        write(*,*) "  inf_adjoint              sparse_index       full_index"
+        write(*,*) "  inf_adjoint2              sparse_index       full_index"
         
 
-        do i=1,inf_adjoint(k)%sparse_size
-            write(*,'((f14.10, 4x), 12x, I5, 12x, I5)') inf_adjoint(k)%elements(i)%value, &
-            i, inf_adjoint(k)%elements(i)%full_index
+        do i=1,inf_adjoint2(k)%sparse_size
+            write(*,'((f14.10, 4x), 12x, I5, 12x, I5)') inf_adjoint2(k)%elements(i)%value, &
+            i, inf_adjoint2(k)%elements(i)%full_index
         end do
         write(*,*) ""
         write(*,*) ""
@@ -410,17 +410,17 @@ program calc_inf_adjoint_test
 
         ! calculate residuals3
         do i =1, N_verts*3
-            residuals(i) = inf_adjoint(k)%get_value(i) - d_inf_FD(i)
+            residuals(i) = inf_adjoint2(k)%get_value(i) - d_inf_FD(i)
         end do
 
-        write(*,'(A, I1,A,I1,A,I1,A)') "  adjoint CALC inf_adjoint &
+        write(*,'(A, I1,A,I1,A,I1,A)') "  adjoint CALC inf_adjoint2 &
         (panel ",index,", panel vertex ",k, ", cp,",cp_ind,"),  expanded"
         write(*,*) ""
-        write(*,*) "  inf_adjoint                 residual"
+        write(*,*) "  inf_adjoint2                 residual"
         
 
         do i = 1, N_verts*3
-            write(*, '((f14.10, 4x),3x, (f14.10, 4x))') inf_adjoint(k)%get_value(i), residuals(i)
+            write(*, '((f14.10, 4x),3x, (f14.10, 4x))') inf_adjoint2(k)%get_value(i), residuals(i)
         end do
         write(*,*) ""
         write(*,*) ""
@@ -437,18 +437,18 @@ program calc_inf_adjoint_test
         if (test_failed) then
             total_tests = total_tests + 1
             if (k ==1) then
-                failure_log(total_tests-passed_tests) = "CALC inf_adjoint panel vertex &
+                failure_log(total_tests-passed_tests) = "CALC inf_adjoint2 panel vertex &
                 1 test FAILED"
             elseif (k ==2) then
-                failure_log(total_tests-passed_tests) = "CALC inf_adjoint panel vertex &
+                failure_log(total_tests-passed_tests) = "CALC inf_adjoint2 panel vertex &
                 2 test FAILED"
             else
-                failure_log(total_tests-passed_tests) = "CALC inf_adjoint panel vertex &
+                failure_log(total_tests-passed_tests) = "CALC inf_adjoint2 panel vertex &
                 3 test FAILED"
             end if
             write(*,*) failure_log(total_tests-passed_tests)
         else
-            write(*,'(A, I1,A,I1,A,I1,A)') "CALC inf_adjoint (panel ",index,", panel vertex ",&
+            write(*,'(A, I1,A,I1,A,I1,A)') "CALC inf_adjoint2 (panel ",index,", panel vertex ",&
             k, ", cp,",cp_ind,"), test PASSED"
             passed_tests = passed_tests + 1
             total_tests = total_tests + 1
@@ -465,11 +465,11 @@ program calc_inf_adjoint_test
 
 
 
-    !!!!!!!!!!!!!! CALC inf_adjoint RESULTS!!!!!!!!!!!!!
-    write(*,*) "-------------CALC inf_adjoint TEST RESULTS--------------"
+    !!!!!!!!!!!!!! CALC inf_adjoint2 RESULTS!!!!!!!!!!!!!
+    write(*,*) "-------------CALC inf_adjoint2 TEST RESULTS--------------"
     write(*,*) ""
-    write(*,'((A), ES10.2)') "allowed residual = ", error_allowed
-    write(*,'((A), ES10.2)') "control point offset = ", cp_offset
+    write(*,'((A), ES10.1)') "allowed residual = ", error_allowed
+    write(*,'((A), ES10.1)') "control point offset = ", cp_offset
     write(*,*) ""
 
     write(*,'(I15,a14)') total_tests - passed_tests, " tests FAILED"
@@ -491,4 +491,4 @@ program calc_inf_adjoint_test
     write(*,*) "Program Complete"
     write(*,*) "----------------------"
 
-end program calc_inf_adjoint_test
+end program calc_inf_adjoint_test2

@@ -666,7 +666,7 @@ contains
                     call cp%set_bc(bc_type, body%vertices(cp%tied_to_index)%n_g_mir)
                 else
                     call cp%set_bc(bc_type, body%vertices(cp%tied_to_index)%n_g)
-                     
+                    
                     ! if adjoint
                     if (body%calc_adjoint) then
                         call cp%set_bc_adjoint(body%vertices(cp%tied_to_index)%d_n_g)
