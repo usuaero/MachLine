@@ -381,7 +381,7 @@ program calc_inf_adjoint_test2
         write(*,*) "  inf_adjoint2"
     
         do i = 1, N_verts*3
-            write(*, '(f14.10, 4x)') d_inf_FD(i)
+            write(*, '(f15.10, 4x)') d_inf_FD(i)
         end do 
         
         !!!!!!!!!! ADJOINT CALC inf_adjoint (panel x, cp x) !!!!!!!!!!!!!
