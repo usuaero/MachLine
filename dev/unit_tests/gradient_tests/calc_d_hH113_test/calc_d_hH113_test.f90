@@ -279,8 +279,6 @@ program calc_d_hH113
 
             ! update F111 cp1 and panel1 
             deallocate(test_int%F111)
-            deallocate(test_int%F121)
-            deallocate(test_int%F211)
             test_geom = test_mesh%panels(index)%calc_subsonic_geom(test_mesh%cp(cp_ind)%loc,freestream_flow,.false.)
             test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, .false.)
             test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,.false., test_dod_info)

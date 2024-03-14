@@ -263,10 +263,6 @@ program calc_cp_d_n_g_test
             !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
            
             ! ! update panel geometry and calcs
-            ! deallocate(test_mesh%panels(index)%vertices)
-            ! deallocate(test_mesh%panels(index)%n_hat_g)
-            ! deallocate(test_mesh%panels(index)%edge_is_discontinuous)
-            ! call test_mesh%panels(index)%init(test_mesh%vertices(1),test_mesh%vertices(2),test_mesh%vertices(3),index)
             
             ! update vertex normal
             do m =1,N_panels
@@ -311,10 +307,6 @@ program calc_cp_d_n_g_test
             
             !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
             ! ! update panel geometry and calcs
-            ! deallocate(test_mesh%panels(index)%vertices)
-            ! deallocate(test_mesh%panels(index)%n_hat_g)
-            ! deallocate(test_mesh%panels(index)%edge_is_discontinuous)
-            ! call test_mesh%panels(index)%init(test_mesh%vertices(1),test_mesh%vertices(2),test_mesh%vertices(3),index)
            
             do m =1,N_panels
                 deallocate(test_mesh%panels(m)%n_hat_g)

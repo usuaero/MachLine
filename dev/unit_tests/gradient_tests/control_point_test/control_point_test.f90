@@ -231,6 +231,7 @@ program control_point_sensitivities
                     call test_mesh%panels(m)%calc_derived_geom()
                 end do
                 call test_mesh%calc_vertex_geometry()
+                
                 deallocate(test_solver%sigma_known)
                 deallocate(test_mesh%cp)
                 deallocate(test_solver%P)

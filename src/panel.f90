@@ -3425,6 +3425,7 @@ contains
             v_d_M_space = matmul(transpose(this%A_g_to_ls_mir), v_d_M_space)
         else
             v_d_M_space = matmul(transpose(this%A_g_to_ls), v_d_M_space)
+            ! v_d_M_space = this%T_mu
         end if
         
     end function panel_assemble_v_d_M_space
@@ -5409,7 +5410,7 @@ contains
 
         implicit none
 
-        class(panel),intent(in) :: this
+        class(panel),intent(inout) :: this
         type(integrals),intent(inout) :: int
         type(eval_point_geom),intent(in) :: geom
         type(flow),intent(in) :: freestream
@@ -5516,6 +5517,9 @@ contains
 
             ! convert to a sparse_vector dimension(3,3)
             d_v_d_M = d_v_d_M_3D%convert_to_sparse_vector_3x3()
+
+            ! test 
+            ! d_v_d_M = d_T_mu_3D%convert_to_sparse_vector_3x3()
             
 
         end if
@@ -5650,6 +5654,33 @@ contains
             do i=1,3
                 call d_v_d_mu_rows(i)%broadcast_element_times_scalar(int%s*freestream%K_inv)
             end do
+
+            !!!!!!!!!!!!!!! Testing
+            write(*,*) "------------------------"
+            write(*,*) " cp n_g ", cp%n_g
+            write(*,*) "------------------------"
+            write(*,*) ""
+            write(*,*) "------------------------"
+            write(*,*) " B mat g  ", freestream%B_mat_g
+            write(*,*) "------------------------"
+
+            write(*,*) ""
+            write(*,*) "------------------------"
+            write(*,*) " transpose A_g_to ls  ", transpose(this%A_g_to_ls)
+            write(*,*) "------------------------"
+            write(*,*) ""
+            write(*,*) "------------------------"
+            write(*,*) " v_d_mu_space  ", v_d_mu_space
+            write(*,*) "------------------------"
+            write(*,*) ""
+            write(*,*) "------------------------"
+            write(*,*) " T_mu  ", this%T_mu
+            write(*,*) "------------------------"
+            write(*,*) ""
+
+            !!!!!!!!!!!!!!!!!!!!!!!
+
+
 
             ! calc inf_adjoint term 1
             dummy_inf_adjoint = cp%d_n_g%broadcast_matmul_element_times_3x3(matmul(&

@@ -73,7 +73,7 @@ program calc_inf_adjoint_test
     error_allowed = 1.0e-8 
     step = 0.00001
     index = 1
-    cp_ind = 1
+    cp_ind = 3
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !                             FROM MAIN
 

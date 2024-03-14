@@ -720,11 +720,16 @@ contains
         ! original information is preserved, but an extra space is allocated
         call this%increase_size()
         
-        ! shift necessary elements up in the increased size matrix
-        do i=this%sparse_num_cols,shift_index,-1
-            this%columns(i)%vector_values(:) = this%columns(i-1)%vector_values(:)
-            this%columns(i)%full_index = this%columns(i-1)%full_index
-        end do
+        ! shift elements, unless shift index is equal to the new sparse size
+        if (shift_index /= this%sparse_num_cols) then
+
+            ! shift necessary elements up in the increased size matrix
+            do i=this%sparse_num_cols,(shift_index+1),-1
+                this%columns(i)%vector_values(:) = this%columns(i-1)%vector_values(:)
+                this%columns(i)%full_index = this%columns(i-1)%full_index
+            end do
+
+        end if
 
         ! place the new element in the correct spot
         this%columns(shift_index)%vector_values(:) = values(:)
@@ -772,7 +777,7 @@ contains
 
         ! initialize logical
         new_sparse_element_needed = .FALSE.
-
+        
         do i=1,this%sparse_num_cols
                 
             ! check to see the given full_index matches an existing sparse element full index
@@ -780,7 +785,7 @@ contains
                 this%columns(i)%vector_values(:) = values(:)  
                 exit  
                 
-            ! check to see if the given full index is less than the current element's full index (we skipped it)
+                ! check to see if the given full index is less than the current element's full index (we skipped it)
             else if (this%columns(i)%full_index > full_index) then
                 new_sparse_element_needed = .TRUE.
                 shift_index = i
@@ -898,19 +903,15 @@ contains
        
         ! loop through full index
         do i=1, this%full_num_cols
-    
             ! get vector values at full index i
             sparse_input_i = sparse_input%get_values(i)
         
             ! if sparse_input_i is populated, add them
             if (any(abs(sparse_input_i) > 1.0e-16)) then
-                                
                 this_i = this%get_values(i)
                 added = this_i + sparse_input_i
                 call this%set_values(added, i)
-
             end if
-            
         end do 
         
     end subroutine sparse_matrix_sparse_add

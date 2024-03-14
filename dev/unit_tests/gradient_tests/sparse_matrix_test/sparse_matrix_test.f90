@@ -1186,7 +1186,7 @@ program sparse_matrix_test
     
     
     ! expand sparse_b
-    expanded_vector_result = sparse_vector_result%expand(.false.)
+    expanded_vector_result = sparse_vector_result%expand()
     allocate(residual_vector(sparse_vector_result%full_size))
     residual_vector = vector_result - expanded_vector_result
     
