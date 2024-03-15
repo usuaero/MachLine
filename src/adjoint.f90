@@ -257,16 +257,32 @@ contains
         ! increase the size of the array by 1
         call this%increase_size()
 
-        ! starting from the last index of the old array (new_size-1), shift the element up one index.
-        !do this up to and including the given shift index
-        do i=this%sparse_size,shift_index,-1
-            this%elements(i)%value = this%elements(i-1)%value
-            this%elements(i)%full_index = this%elements(i-1)%full_index
-        end do
+        ! shift elements, unless shift index is equal to the new sparse size
+        if (shift_index /= this%sparse_size) then
 
-        ! insert the new element into its proper position
+            ! shift necessary elements up in the increased size matrix
+            do i=this%sparse_size,(shift_index+1),-1
+                this%elements(i)%value = this%elements(i-1)%value
+                this%elements(i)%full_index = this%elements(i-1)%full_index
+            end do
+
+        end if
+
+        ! place the new element in the correct spot
         this%elements(shift_index)%value = value
         this%elements(shift_index)%full_index = full_index
+
+
+        ! ! starting from the last index of the old array (new_size-1), shift the element up one index.
+        ! !do this up to and including the given shift index
+        ! do i=this%sparse_size,shift_index,-1
+        !     this%elements(i)%value = this%elements(i-1)%value
+        !     this%elements(i)%full_index = this%elements(i-1)%full_index
+        ! end do
+
+        ! ! insert the new element into its proper position
+        ! this%elements(shift_index)%value = value
+        ! this%elements(shift_index)%full_index = full_index
 
            
 

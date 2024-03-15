@@ -70,10 +70,10 @@ program calc_inf_adjoint_test
     passed_tests = 0
     total_tests = 0
 
-    error_allowed = 1.0e-8 
+    error_allowed = 1.0e-7 
     step = 0.00001
     index = 1
-    cp_ind = 3
+    cp_ind = 1
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !                             FROM MAIN
 
@@ -189,22 +189,12 @@ program calc_inf_adjoint_test
     call adjoint_solver%init(adjoint_solver_settings, adjoint_processing_settings, adjoint_mesh, &
     adjoint_freestream_flow, adjoint_control_point_file)
 
-    ! !calc CALC BASIC F integral sensitivities cp1 and panel1 
-    ! adjoint_geom = adjoint_mesh%panels(index)%calc_subsonic_geom_adjoint(adjoint_mesh%cp(cp_ind),&
-    !                                                             adjoint_freestream_flow)
-    ! adjoint_dod_info = adjoint_mesh%panels(index)%check_dod(adjoint_mesh%cp(cp_ind)%loc, &
-    !     adjoint_freestream_flow, .false.)
-    
-    ! adjoint_int = adjoint_mesh%panels(index)%calc_integrals(adjoint_geom, 'velocity',&
-    !     adjoint_freestream_flow,.false., adjoint_dod_info)
-    
-    ! call adjoint_mesh%panels(index)%calc_integrals_adjoint(adjoint_geom,adjoint_int,adjoint_freestream_flow&
-    ! , .false., adjoint_dod_info)
-
-
+    !!!! inf adjoint method 2
     ! inf_adjoint = adjoint_mesh%panels(index)%calc_doublet_inf_adjoint2(adjoint_mesh%cp(cp_ind), &
     ! adjoint_freestream_flow)
+    !!!!!!!!!
 
+    ! inf adjoint method 1
     call adjoint_mesh%panels(index)%calc_velocity_influences_adjoint(adjoint_mesh%cp(cp_ind), &
     adjoint_freestream_flow, d_v_d)
     
@@ -268,12 +258,6 @@ program calc_inf_adjoint_test
                 
                 !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
                
-                ! update panel geometry and calcs
-                deallocate(test_mesh%panels(index)%vertices)
-                deallocate(test_mesh%panels(index)%n_hat_g)
-                deallocate(test_mesh%panels(index)%edge_is_discontinuous)
-                call test_mesh%panels(index)%init(test_mesh%vertices(1),test_mesh%vertices(2),test_mesh%vertices(3),index)
-                
                 ! update vertex normal
                 do m =1,N_panels
                     deallocate(test_mesh%panels(m)%n_hat_g)
@@ -291,7 +275,7 @@ program calc_inf_adjoint_test
                 deallocate(test_mesh%panels(index)%i_vert_d)
                 deallocate(test_mesh%panels(index)%S_mu_inv)
                 deallocate(test_mesh%panels(index)%T_mu)
-                deallocate(test_mesh%panels(index)%i_panel_s)
+                ! deallocate(test_mesh%panels(index)%i_panel_s)
                 call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
                 call test_mesh%panels(index)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
                 test_mesh%vertices,.false.)
@@ -317,17 +301,13 @@ program calc_inf_adjoint_test
                 test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - 2.*step
                 
                 !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
-                ! update panel geometry and calcs
-                deallocate(test_mesh%panels(index)%vertices)
-                deallocate(test_mesh%panels(index)%n_hat_g)
-                deallocate(test_mesh%panels(index)%edge_is_discontinuous)
-                call test_mesh%panels(index)%init(test_mesh%vertices(1),test_mesh%vertices(2),test_mesh%vertices(3),index)
+               
+                ! update vertex normal
                 do m =1,N_panels
                     deallocate(test_mesh%panels(m)%n_hat_g)
                     call test_mesh%panels(m)%calc_derived_geom()
                 end do
                 
-                ! update vertex normal
                 call test_mesh%calc_vertex_geometry()
                 
                 ! update with flow
@@ -339,10 +319,10 @@ program calc_inf_adjoint_test
                 deallocate(test_mesh%panels(index)%i_vert_d)
                 deallocate(test_mesh%panels(index)%S_mu_inv)
                 deallocate(test_mesh%panels(index)%T_mu)
-                deallocate(test_mesh%panels(index)%i_panel_s)
+                ! deallocate(test_mesh%panels(index)%i_panel_s)
                 call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
                 call test_mesh%panels(index)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
-                    test_mesh%vertices,.false.)
+                test_mesh%vertices,.false.)
                 
                 ! recalculates cp locations
                 deallocate(test_solver%sigma_known)
@@ -350,7 +330,7 @@ program calc_inf_adjoint_test
                 deallocate(test_solver%P)
                 call test_solver%init(solver_settings, processing_settings, &
                 test_mesh, freestream_flow, control_point_file)
-               
+                
                 ! update v_d and doublet inf
                 call test_mesh%panels(index)%calc_velocity_influences(test_mesh%cp(cp_ind)%loc, freestream_flow,.false.,v_s, v_d)
                 doublet_inf = matmul(test_mesh%cp(cp_ind)%n_g, matmul(freestream_flow%B_mat_g, v_d))

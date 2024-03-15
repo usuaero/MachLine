@@ -50,6 +50,7 @@ module surface_mesh_mod
 
         ! adjoint
         logical :: calc_adjoint  ! whether or not adjoint sensitivities should be calculated
+        integer :: N_adjoint ! number of adjoint design variables 
 
         contains
 
@@ -2716,8 +2717,8 @@ contains
             call this%vertices(i)%init_adjoint(this%N_verts)
             
         end do
-
-
+        
+        
         do i=1,this%N_panels
             
             ! init panel sensitivities
@@ -2725,6 +2726,9 @@ contains
             
         end do
 
+        ! value of adjoint design variables
+        this%N_adjoint = this%N_verts*3
+        
         ! calc  d_vertex_geometries
         call this%calc_d_vertex_geometry()
         
@@ -2751,21 +2755,21 @@ contains
             ! Loop through neighboring panels and compute the average of their normal vectors
             n_avg = (/0., 0., 0./)
             N_panels = this%vertices(i)%panels%len()
-
-            call d_n_avg%init(this%N_verts*3)
-            call sum_d_n_avg%init(this%N_verts*3)
-
+            
+            ! call d_n_avg%init(this%N_adjoint)  ! dont need this I think
+            call sum_d_n_avg%init(this%N_adjoint)
+            
             do j=1,N_panels
                 
                 ! Get panel index
                 call this%vertices(i)%panels%get(j, j_panel)
-
+                
                 ! Update using weighted normal
                 n_avg = n_avg + this%panels(j_panel)%get_weighted_normal_at_corner(this%vertices(i)%loc)
-
+                
                 ! get d_n_avg 
                 d_n_avg = this%panels(j_panel)%calc_d_weighted_normal(this%vertices(i)%loc)
-
+                
                 ! add the d_n_avg_j
                 call sum_d_n_avg%sparse_add(d_n_avg)
             
@@ -2791,7 +2795,7 @@ contains
             call this%vertices(i)%d_n_g%broadcast_element_times_scalar(1./(inner(n_avg,n_avg)))
             
             
-            ! Calculate average edge lengths
+            ! Calculate average edge lengths (not needed?)
             ! call this%vertices(i)%set_average_edge_length(this%vertices)
             
             ! deallocate stuff

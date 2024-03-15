@@ -262,7 +262,6 @@ program calc_d_v_d_M_test
                 test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
                 ! write(*,*) " perturb up"
                 !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
-                
                 do m =1,N_panels
                     deallocate(test_mesh%panels(m)%n_hat_g)
                     call test_mesh%panels(m)%calc_derived_geom()

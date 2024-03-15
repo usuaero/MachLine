@@ -46,6 +46,11 @@ module panel_solver_mod
         logical,dimension(:),allocatable :: sigma_known
         integer,dimension(:),allocatable :: i_sigma_in_sys, i_sys_sigma_in_body
 
+        !!!!!! ADJOINT variables !!!!!!
+        type(sparse_vector),dimension(:,:),allocatable :: d_A_matrix
+
+        !!!!! END ADJOINT variables !!!
+
         contains
 
             ! Initialization
@@ -103,6 +108,14 @@ module panel_solver_mod
             procedure :: update_report => panel_solver_update_report
             procedure :: add_pressure_to_report => panel_solver_add_pressure_to_report
             procedure :: export_off_body_points => panel_solver_export_off_body_points
+
+
+            !!!!!!!!! ADJOINT PROCEDURES !!!!!!!!!!
+
+            ! update adjoint system A matrix row
+            procedure :: update_adjoint_A_row => panel_solver_update_adjoint_A_row
+
+            !!!!!!!!! END ADJOINT !!!!!!!!!!!!
 
     end type panel_solver
 
@@ -1022,6 +1035,7 @@ contains
         character(len=:),allocatable,intent(in) :: formulation !!!! changed to get wake influence working 
 
         integer :: stat
+        type(sparse_vector) :: zeros
 
         ! Set default status
         solver_stat = 0
@@ -1033,6 +1047,13 @@ contains
         ! Allocate AIC matrix
         allocate(this%A(body%N_cp, this%N_unknown), source=0., stat=stat)
         call check_allocation(stat, "AIC matrix")
+        
+        ! if adjoint, allocate AIC sensitivity sensitivity
+        if (body%calc_adjoint) then
+            call zeros%init(body%N_adjoint)
+            allocate(this%d_A_matrix(body%N_cp, this%N_unknown), source=zeros, stat=stat)
+            call check_allocation(stat, "Adjoint AIC sensitivity matrix")
+        end if
 
         ! Allocate b vector
         allocate(this%b(body%N_cp), source=0., stat=stat)
@@ -1040,16 +1061,16 @@ contains
 
         ! Calculate source strengths
         call this%calc_source_strengths(body)
+        
         ! Calculate body influences
         call this%calc_body_influences(body)
         
-        !write(*,*) "HERE I AM!!!!!!!!!!!!!!!!!!!!!"
-
         ! Calculate wake influences
         if (body%wake%N_panels > 0 .or. body%filament_wake%N_filaments > 0)&
-        call this%calc_wake_influences(body, formulation,freestream) !!!! formulation part is a change
-        !write(*,*) "ROCK YOU LIKE A HURRICANE"
-        ! Assemble boundary condition vector
+            call this%calc_wake_influences(body, formulation,freestream) !!!! formulation part is a change
+            !write(*,*) "ROCK YOU LIKE A HURRICANE"
+            ! Assemble boundary condition vector
+
         call this%assemble_BC_vector(body)
 
         ! Solve the linear system
@@ -1277,6 +1298,7 @@ contains
 
         type(sparse_vector), dimension(3,3) ::  d_v_d
         type(sparse_vector), dimension(3) :: inf_adjoint
+        type(sparse_vector), dimension(this%N_unknown) :: d_AIC_row
 
         if (verbose) write(*,'(a)',advance='no') "     Calculating body influences..."
        
@@ -1314,6 +1336,7 @@ contains
                     ! if calc_adjoint is specified, do adjoint calcs (METHOD 2)
                     if (body%calc_adjoint) then
                         inf_adjoint = body%panels(j)%calc_doublet_inf_adjoint2(body%cp(i),this%freestream)
+                        call this%update_adjoint_A_row(body, body%cp(i), d_AIC_row, j, inf_adjoint, .false.)
                     end if
 
                     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -2933,6 +2956,95 @@ contains
         if (verbose) write(*,*) "Done."
 
     end subroutine panel_solver_export_off_body_points
+
+
+    subroutine panel_solver_update_adjoint_A_row(this, body, cp, d_AIC_row, i_panel, inf_adjoint, mirrored_panel)
+        ! places the doublet influences sensitivities (sparse vectors) in the appropriate place in the 
+        ! d_A matrix
+        
+        !subroutine panel_solver_update_system_row(this, body, cp, A_row, I_known_i, i_panel, source_inf, doublet_inf, mirrored_panel)
+        implicit none
+
+        class(panel_solver),intent(inout) :: this
+        type(surface_mesh),intent(inout) :: body
+        type(control_point),intent(in) :: cp
+        type(sparse_vector),dimension(this%N_unknown),intent(inout) :: d_AIC_row
+        integer,intent(in) :: i_panel
+        type(sparse_vector),dimension(3),intent(in) :: inf_adjoint
+        logical,intent(in) :: mirrored_panel
+
+        integer :: k, index
+
+        ! ! Add source influence depending whether the panel has sources
+        ! if (body%panels(i_panel)%has_sources) then
+
+        !     ! Loop through influencing panels
+        !     do k=1,body%panels(i_panel)%S_dim
+
+        !         ! Need to shift indices for mirrored panels
+        !         if (mirrored_panel) then
+
+        !             ! Check for dependence across mirror plane
+        !             if (body%panels(i_panel)%i_panel_s(k) > body%N_panels) then
+        !                 index = body%panels(i_panel)%i_panel_s(k) - body%N_panels
+        !             else
+        !                 index = body%panels(i_panel)%i_panel_s(k) + body%N_panels
+        !             end if
+
+        !         else
+        !             ! Check for dependence across mirror plane
+        !             if (body%panels(i_panel)%i_panel_s(k) > body%N_panels) then
+        !                 index = body%panels(i_panel)%i_panel_s(k) - body%N_panels
+        !             else
+        !                 index = body%panels(i_panel)%i_panel_s(k)
+        !             end if
+        !         end if
+
+        !         ! Add to known influences if sigma is known
+        !         if (this%sigma_known(index)) then
+        !             I_known_i = I_known_i + source_inf(k)*body%sigma(index)
+
+        !         ! Add to A matrix if not
+        !         else
+        !             A_row(this%P(this%i_sigma_in_sys(index))) = A_row(this%P(this%i_sigma_in_sys(index))) + source_inf(k)
+        !         end if
+
+        !     end do
+
+        ! end if
+
+        ! Add doublet influence sensitivities
+
+        ! Loop through influencing vertices
+        do k=1,body%panels(i_panel)%M_dim
+
+            ! Need to shift indices for mirrored panels
+            if (mirrored_panel) then
+                write(*,*) "!!! Cannot calculate adjoint for mirrored mesh. Quitting..."
+                stop
+                ! ! Check for dependence across mirror plane
+                ! if (body%panels(i_panel)%i_vert_d(k) > body%N_verts) then
+                !     index = body%panels(i_panel)%i_vert_d(k) - body%N_verts
+                ! else
+                !     index = body%panels(i_panel)%i_vert_d(k) + body%N_verts
+                ! end if
+
+            else
+
+                ! Check for dependence across mirror plane
+                if (body%panels(i_panel)%i_vert_d(k) > body%N_verts) then
+                    index = body%panels(i_panel)%i_vert_d(k) - body%N_verts
+                else
+                    index = body%panels(i_panel)%i_vert_d(k)
+                end if
+            end if
+
+            ! Update
+            call d_AIC_row(this%P(index))%sparse_add(inf_adjoint(k))
+
+        end do
+
+    end subroutine panel_solver_update_adjoint_A_row
 
 
 end module panel_solver_mod

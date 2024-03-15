@@ -76,6 +76,7 @@ module panel_mod
         integer :: mirror_plane = 0
 
         !!!!!!!!! ADJOINT !!!!!!!!!
+        integer :: adjoint_size
         type(sparse_vector) :: d_A !d_radius
         type(sparse_matrix) :: d_n_g, d_centr
         type(sparse_matrix),dimension(3) :: d_n_hat_g, d_A_g_to_ls, d_A_ls_to_g, d_T_mu_rows
@@ -3479,7 +3480,7 @@ contains
             v_d_M_space = this%assemble_v_d_M_space(int, geom, freestream, mirror_panel)
 
         else
-
+            write(*,*) " check else case"
             ! Allocate placeholders
             allocate(v_s_S_space(3,this%S_dim), source=0.)
             if (this%in_wake) then
@@ -4039,12 +4040,16 @@ contains
 
         ! calc sensitivity of panel normal vector WRT X(beta)
         call this%calc_d_normal_and_d_area()
+
+        ! set number of adjoint design variables for use in initializing zeros sparse vectors
+        this%adjoint_size = this%d_n_g%full_num_cols
         
         ! calc sensitivity of centroid WRT X(beta)
         call this%calc_d_centr()
 
         ! calc sensitivity of panel edge outward normal vectors WRT X(beta)
         call this%calc_d_n_hat_g()
+
     
     end subroutine panel_calc_derived_geom_adjoint
 
@@ -4273,7 +4278,7 @@ contains
         end do
 
         ! if we haven't returned, then angle is 0, so it has angle sensitivitiy is 0
-        call d_angle%init(this%d_n_g%full_num_cols)
+        call d_angle%init(this%adjoint_size)
 
     end function panel_calc_d_corner_angle
 
@@ -4625,7 +4630,7 @@ contains
         type(sparse_matrix), dimension(3) :: d_S, x
 
         ! make a sparse vector of zeros with the correct full size
-        call zeros%init(this%d_vertices_ls(1,1)%full_size)
+        call zeros%init(this%adjoint_size)
 
         ! build the d_S sparse_vector 3x3
         do i = 1,3
@@ -4735,7 +4740,7 @@ contains
             ! else
             !     allocate(v_d_M_space(3,this%M_dim), source=0.)
             ! end if
-            call zeros%init(this%d_centr%full_num_cols)
+            call zeros%init(this%adjoint_size)
             do i=1,3
                 do j=1,3
                     d_v_d_M_space(i,j) = zeros
@@ -5451,7 +5456,7 @@ contains
         ! end duplicate work
 
         ! assemble d_v_d_mu space
-        call zeros%init(int%d_hH113%full_size)
+        call zeros%init(this%adjoint_size)
 
         call d_v_d_mu_rows(1)%init_from_sparse_vectors(zeros, int%d_hH113, zeros)
         call d_v_d_mu_rows(2)%init_from_sparse_vectors(zeros, zeros, int%d_hH113)
@@ -5610,6 +5615,7 @@ contains
             else
                 geom = this%calc_subsonic_geom_adjoint(cp,freestream)
             end if
+            
 
             !!!!!!!!!! DUPLICATED WORK, figure out better passing of info
             ! Get integrals
@@ -5617,7 +5623,6 @@ contains
             !!!!! end duplicated work !!!!!!!!!
             
             call this%calc_integrals_adjoint(geom, int, freestream, mirror_panel, dod_info)
-            
 
             !!!!!!!!!! dont worry about wake !!!!!!!!!!!!!!
             ! if (this%in_wake) then
@@ -5645,7 +5650,7 @@ contains
             v_d_mu_space = int%s*freestream%K_inv*v_d_mu_space
           
             ! assemble d_v_d_mu space
-            call zeros%init(int%d_hH113%full_size)
+            call zeros%init(this%adjoint_size)
 
             call d_v_d_mu_rows(1)%init_from_sparse_vectors(zeros, int%d_hH113, zeros)
             call d_v_d_mu_rows(2)%init_from_sparse_vectors(zeros, zeros, int%d_hH113)
@@ -5655,38 +5660,10 @@ contains
                 call d_v_d_mu_rows(i)%broadcast_element_times_scalar(int%s*freestream%K_inv)
             end do
 
-            !!!!!!!!!!!!!!! Testing
-            write(*,*) "------------------------"
-            write(*,*) " cp n_g ", cp%n_g
-            write(*,*) "------------------------"
-            write(*,*) ""
-            write(*,*) "------------------------"
-            write(*,*) " B mat g  ", freestream%B_mat_g
-            write(*,*) "------------------------"
-
-            write(*,*) ""
-            write(*,*) "------------------------"
-            write(*,*) " transpose A_g_to ls  ", transpose(this%A_g_to_ls)
-            write(*,*) "------------------------"
-            write(*,*) ""
-            write(*,*) "------------------------"
-            write(*,*) " v_d_mu_space  ", v_d_mu_space
-            write(*,*) "------------------------"
-            write(*,*) ""
-            write(*,*) "------------------------"
-            write(*,*) " T_mu  ", this%T_mu
-            write(*,*) "------------------------"
-            write(*,*) ""
-
-            !!!!!!!!!!!!!!!!!!!!!!!
-
-
 
             ! calc inf_adjoint term 1
             dummy_inf_adjoint = cp%d_n_g%broadcast_matmul_element_times_3x3(matmul(&
             matmul(freestream%B_mat_g, transpose(this%A_g_to_ls)), matmul(v_d_mu_space,this%T_mu)))
-            
-            write(*,*) "check2"
             
             ! calc inf_adjoint term 2
             call d_A_g_to_ls_3D%init_from_sparse_matrices(this%d_A_g_to_ls)
