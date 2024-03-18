@@ -61,7 +61,7 @@ program d_A_matrix_test
     ! test stuff
     integer :: passed_tests, total_tests
     logical :: test_failed
-    character(len=100),dimension(20) :: failure_log
+    character(len=100),dimension(50) :: failure_log
     character(len=10) :: m_char
 
     !!!!!!!!!!!!!!!!!!! END TESTING STUFF !!!!!!!!!!!!!!!!!!!!!11
@@ -73,8 +73,8 @@ program d_A_matrix_test
 
     error_allowed = 1.0e-7
     step = 0.00001
-    ! index = 1
-    ! cp_ind = 1
+    index = 1
+    cp_ind = 1
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !                             FROM MAIN
@@ -200,14 +200,18 @@ program d_A_matrix_test
     call adjoint_solver%init(adjoint_solver_settings, adjoint_processing_settings, adjoint_mesh, &
     adjoint_freestream_flow, adjoint_control_point_file)
 
+    ! Allocate known influence storage (have to do it, but its not used. all zeros)
+    allocate(adjoint_solver%I_known(adjoint_mesh%N_cp), source=0., stat=stat)
+    call check_allocation(stat, "known influence vector")
+    
     ! allocate A_matrix
     allocate(adjoint_solver%A(adjoint_mesh%N_cp, adjoint_solver%N_unknown), source=0., stat=stat)
     call check_allocation(stat, "AIC matrix")
-
+    
     ! allocate d_A_matrix
     call zeros%init(adjoint_mesh%N_adjoint)
     allocate(adjoint_solver%d_A_matrix(adjoint_mesh%N_cp, adjoint_solver%N_unknown), source=zeros, stat=stat)
-
+    
     ! calc body influences adjoint
     call adjoint_solver%calc_body_influences(adjoint_mesh)
 
@@ -270,18 +274,20 @@ program d_A_matrix_test
                     call test_mesh%calc_vertex_geometry()
                     
                     ! update with flow
-                    deallocate(test_mesh%panels(index)%vertices_ls)
-                    deallocate(test_mesh%panels(index)%n_hat_ls)
-                    deallocate(test_mesh%panels(index)%b)
-                    deallocate(test_mesh%panels(index)%b_mir)  
-                    deallocate(test_mesh%panels(index)%sqrt_b)
-                    deallocate(test_mesh%panels(index)%i_vert_d)
-                    deallocate(test_mesh%panels(index)%S_mu_inv)
-                    deallocate(test_mesh%panels(index)%T_mu)
-                    ! deallocate(test_mesh%panels(index)%i_panel_s)
-                    call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
-                    call test_mesh%panels(index)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
-                    test_mesh%vertices,.false.)
+                    do m =1,N_panels
+                        deallocate(test_mesh%panels(m)%vertices_ls)
+                        deallocate(test_mesh%panels(m)%n_hat_ls)
+                        deallocate(test_mesh%panels(m)%b)
+                        deallocate(test_mesh%panels(m)%b_mir)  
+                        deallocate(test_mesh%panels(m)%sqrt_b)
+                        deallocate(test_mesh%panels(m)%i_vert_d)
+                        deallocate(test_mesh%panels(m)%S_mu_inv)
+                        deallocate(test_mesh%panels(m)%T_mu)
+                        ! deallocate(test_mesh%panels(m)%i_panel_s)
+                        call test_mesh%panels(m)%init_with_flow(freestream_flow, .false., 0)
+                        call test_mesh%panels(m)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
+                        test_mesh%vertices,.false.)
+                    end do
                     
                     ! recalculates cp locations
                     deallocate(test_solver%sigma_known)
@@ -326,18 +332,20 @@ program d_A_matrix_test
                     call test_mesh%calc_vertex_geometry()
                     
                     ! update with flow
-                    deallocate(test_mesh%panels(index)%vertices_ls)
-                    deallocate(test_mesh%panels(index)%n_hat_ls)
-                    deallocate(test_mesh%panels(index)%b)
-                    deallocate(test_mesh%panels(index)%b_mir)  
-                    deallocate(test_mesh%panels(index)%sqrt_b)
-                    deallocate(test_mesh%panels(index)%i_vert_d)
-                    deallocate(test_mesh%panels(index)%S_mu_inv)
-                    deallocate(test_mesh%panels(index)%T_mu)
-                    ! deallocate(test_mesh%panels(index)%i_panel_s)
-                    call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
-                    call test_mesh%panels(index)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
-                    test_mesh%vertices,.false.)
+                    do m =1,N_panels
+                        deallocate(test_mesh%panels(m)%vertices_ls)
+                        deallocate(test_mesh%panels(m)%n_hat_ls)
+                        deallocate(test_mesh%panels(m)%b)
+                        deallocate(test_mesh%panels(m)%b_mir)  
+                        deallocate(test_mesh%panels(m)%sqrt_b)
+                        deallocate(test_mesh%panels(m)%i_vert_d)
+                        deallocate(test_mesh%panels(m)%S_mu_inv)
+                        deallocate(test_mesh%panels(m)%T_mu)
+                        ! deallocate(test_mesh%panels(m)%i_panel_s)
+                        call test_mesh%panels(m)%init_with_flow(freestream_flow, .false., 0)
+                        call test_mesh%panels(m)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
+                        test_mesh%vertices,.false.)
+                    end do
                     
                     ! recalculates cp locations
                     deallocate(test_solver%sigma_known)
@@ -391,7 +399,8 @@ program d_A_matrix_test
             
 
             do i = 1, N_verts*3
-                write(*, '((f14.10, 4x),3x,(f14.10, 4x),3x, (f14.10, 4x))') inf_adjoint2(k)%get_value(i), d_A_FD(i), residuals(i)
+                write(*, '((f14.10, 4x),3x,(f14.10, 4x),3x, (f14.10, 4x))') &
+                adjoint_solver%d_A_matrix(row,col)%get_value(i), d_A_FD(i), residuals(i)
             end do
             write(*,*) ""
             write(*,*) ""

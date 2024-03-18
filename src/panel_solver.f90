@@ -1061,7 +1061,7 @@ contains
 
         ! Calculate source strengths
         call this%calc_source_strengths(body)
-        
+
         ! Calculate body influences
         call this%calc_body_influences(body)
         
@@ -1298,17 +1298,28 @@ contains
 
         type(sparse_vector), dimension(3,3) ::  d_v_d
         type(sparse_vector), dimension(3) :: inf_adjoint
+        type(sparse_vector) :: zeros
         type(sparse_vector), dimension(this%N_unknown) :: d_AIC_row
+
+        ! if adjoint, set up zero sparse vector for initialization
+        if (body%calc_adjoint) then
+            call zeros%init(body%N_adjoint)
+        end if
 
         if (verbose) write(*,'(a)',advance='no') "     Calculating body influences..."
        
         ! Calculate source and doublet influences from body on each control point
-        !$OMP parallel do private(j, source_inf, doublet_inf, v_s, v_d, A_i, I_known_i) schedule(dynamic)
+        !$OMP parallel do private(j, source_inf, doublet_inf, v_s, v_d, A_i, I_known_i, inf_adjoint,d_AIC_row) schedule(dynamic)
         do i=1,body%N_cp
 
             ! Initialize
             A_i = 0.
             I_known_i = 0.
+
+            ! if adjoint, set d_AIC_row elements to zero vectors
+            if (body%calc_adjoint) then
+                d_AIC_row = zeros
+            end if
 
             ! Determine the type of boundary condition on this control point
             select case (body%cp(i)%bc)
@@ -1451,6 +1462,11 @@ contains
             else
                 this%A(i,:) = A_i
                 this%I_known(i) = I_known_i
+
+                ! if adjoint, assemble d_A_matrix (sort shouldn't be used with formulation used by adjoints)
+                if (body%calc_adjoint) then
+                    this%d_A_matrix(i,:) = d_AIC_row
+                end if
             end if
             
             !$OMP end critical
