@@ -1339,16 +1339,18 @@ contains
                     !!!!!!!!!!!! ADJOINT CALCS HAPPEN HERE !!!!!!!!!!!!!!!!!!!!
 
                     ! ! if calc_adjoint is specified, do adjoint calcs (METHOD 1)
-                    ! if (body%calc_adjoint) then
-                    !     call body%panels(j)%calc_velocity_influences_adjoint(body%cp(i), this%freestream, d_v_d)
-                    !     inf_adjoint = body%panels(j)%calc_doublet_inf_adjoint(body%cp(i),this%freestream, d_v_d)
-                    ! end if
-
-                    ! if calc_adjoint is specified, do adjoint calcs (METHOD 2)
                     if (body%calc_adjoint) then
-                        inf_adjoint = body%panels(j)%calc_doublet_inf_adjoint2(body%cp(i),this%freestream)
+                        call body%panels(j)%calc_velocity_influences_adjoint(body%cp(i)%loc, body%cp(i)%d_loc, &
+                            this%freestream, d_v_d)
+                        inf_adjoint = body%panels(j)%calc_doublet_inf_adjoint(body%cp(i), this%freestream, d_v_d)
                         call this%update_adjoint_A_row(body, body%cp(i), d_AIC_row, j, inf_adjoint, .false.)
                     end if
+
+                    ! if calc_adjoint is specified, do adjoint calcs (METHOD 2)
+                    ! if (body%calc_adjoint) then
+                    !     inf_adjoint = body%panels(j)%calc_doublet_inf_adjoint2(body%cp(i),this%freestream)
+                    !     call this%update_adjoint_A_row(body, body%cp(i), d_AIC_row, j, inf_adjoint, .false.)
+                    ! end if
 
                     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 

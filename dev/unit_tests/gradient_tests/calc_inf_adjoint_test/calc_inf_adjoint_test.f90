@@ -195,8 +195,8 @@ program calc_inf_adjoint_test
     !!!!!!!!!
 
     ! inf adjoint method 1
-    call adjoint_mesh%panels(index)%calc_velocity_influences_adjoint(adjoint_mesh%cp(cp_ind), &
-    adjoint_freestream_flow, d_v_d)
+    call adjoint_mesh%panels(index)%calc_velocity_influences_adjoint(adjoint_mesh%cp(cp_ind)%loc, &
+    adjoint_mesh%cp(cp_ind)%d_loc, adjoint_freestream_flow, d_v_d)
     
     inf_adjoint = adjoint_mesh%panels(index)%calc_doublet_inf_adjoint(adjoint_mesh%cp(cp_ind),&
     adjoint_freestream_flow, d_v_d)
