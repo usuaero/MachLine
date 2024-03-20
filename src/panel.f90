@@ -4681,13 +4681,14 @@ contains
     end subroutine panel_calc_d_M_mu_transform
 
 
-    subroutine  panel_calc_velocity_influences_adjoint(this, cp, freestream, d_v_d_M_space)
+    subroutine  panel_calc_velocity_influences_adjoint(this, P, d_P, freestream, d_v_d_M_space)
         ! calcuates velocity influence adjoint sensitivities
 
         implicit none
 
         class(panel),intent(inout) :: this
-        type(control_point), intent(inout) :: cp
+        real,dimension(3), intent(inout) :: P
+        type(sparse_matrix), intent(inout) :: d_P 
         type(flow), intent(in) :: freestream
         type(sparse_vector),dimension(3,3),intent(out) :: d_v_d_M_space
 
@@ -4702,7 +4703,7 @@ contains
         mirror_panel = .false.
 
         ! Check DoD
-        dod_info = this%check_dod(cp%loc, freestream, mirror_panel) 
+        dod_info = this%check_dod(P, freestream, mirror_panel) 
 
         if (dod_info%in_dod .and. this%A > 0.) then
 
@@ -4714,7 +4715,7 @@ contains
                     !d_geom = this%calc_supersonic_subinc_geom_adjoint(P, freestream, mirror_panel, dod_info)
                 end if
             else
-                geom = this%calc_subsonic_geom_adjoint(cp,freestream)
+                geom = this%calc_subsonic_geom_adjoint(P, d_P, freestream)
 
             end if
 
@@ -4756,13 +4757,14 @@ contains
 
 
 
-    function panel_calc_basic_geom_adjoint(this, cp, mirror_panel) result(geom)
+    function panel_calc_basic_geom_adjoint(this, P, d_P, mirror_panel) result(geom)
         ! Initializes geometry sensitivities common to the three panel types
 
         implicit none
         
         class(panel), intent(inout) :: this
-        type(control_point),intent(inout) :: cp
+        real,dimension(3), intent(inout) :: P
+        type(sparse_matrix), intent(inout) :: d_P 
         logical,intent(in) :: mirror_panel
 
         type(eval_point_geom) :: geom
@@ -4776,16 +4778,16 @@ contains
         !!!! previously calculated values                                        !!!!!!!!!!!!!!!
 
         ! Initialize
-        call geom%init(cp%loc, this%get_local_coords_of_point(cp%loc, mirror_panel))
+        call geom%init(P, this%get_local_coords_of_point(P, mirror_panel))
 
         !!!!!!!!!!!!!!!!!!!!!!! end duplicated work!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-        ! call geom%init_adjoint(cp%d_loc)
+        ! call geom%init_adjoint(d_P)
         
-        call geom%d_P_g%init_from_sparse_matrix(cp%d_loc)
+        call geom%d_P_g%init_from_sparse_matrix(d_P)
 
-        d_P_transformed = this%calc_sensitivity_of_body_point_in_ls(cp%loc, cp%d_loc)
+        d_P_transformed = this%calc_sensitivity_of_body_point_in_ls(P, d_P)
 
         ! split the sparse_matrix to sparse vectors(3)
         x = d_P_transformed%split_into_sparse_vectors()
@@ -4833,13 +4835,14 @@ contains
     end function panel_calc_basic_geom_adjoint
 
 
-    function panel_calc_subsonic_geom_adjoint(this, cp, freestream) result(geom)
+    function panel_calc_subsonic_geom_adjoint(this, P, d_P, freestream) result(geom)
         ! Initializes geometry sensitivities common to the three panel types
 
         implicit none
         
         class(panel), intent(inout) :: this
-        type(control_point), intent(inout) :: cp
+        real,dimension(3), intent(inout) :: P
+        type(sparse_matrix), intent(inout) :: d_P 
         type(flow), intent(in) :: freestream
 
         type(eval_point_geom) :: geom
@@ -4851,7 +4854,7 @@ contains
         type(sparse_vector),dimension(2) :: d_R1_terms
 
         ! call basic geom adjoint
-        geom = this%calc_basic_geom_adjoint(cp, .false.)
+        geom = this%calc_basic_geom_adjoint(P, d_P, .false.)
 
         ! Calculate edge tangential distance sensitivities
         do i=1,this%N
@@ -5613,7 +5616,7 @@ contains
                     !d_geom = this%calc_supersonic_subinc_geom_adjoint(P, freestream, mirror_panel, dod_info)
                 end if
             else
-                geom = this%calc_subsonic_geom_adjoint(cp,freestream)
+                geom = this%calc_subsonic_geom_adjoint(cp%loc, cp%d_loc,freestream)
             end if
             
 
