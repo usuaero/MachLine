@@ -1,5 +1,5 @@
 import subprocess as sp
-# this script tests calc d_hH113 sensitivities in the adjoint gradient calculation, compares them to FD
+# this script tests calc d_B vector sensitivities in the adjoint gradient calculation, compares them to FD
 # to all design variables X(beta)
 
 if __name__=="__main__":
@@ -14,7 +14,7 @@ if __name__=="__main__":
             "src/wake_strip.f90", "src/wake_mesh.f90", "src/surface_mesh.f90", 
             "src/panel_solver.f90", 
             
-            "dev/unit_tests/gradient_tests/d_A_matrix_test/d_A_matrix_test.f90"])
+            "dev/unit_tests/gradient_tests/d_B_vector_test/d_B_vector_test.f90"])
 
     # Run
     sp.run(["a.exe"])
