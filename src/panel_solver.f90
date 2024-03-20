@@ -48,6 +48,7 @@ module panel_solver_mod
 
         !!!!!! ADJOINT variables !!!!!!
         type(sparse_vector),dimension(:,:),allocatable :: d_A_matrix
+        type(sparse_vector),dimension(:),allocatable :: d_b_vector
 
         !!!!! END ADJOINT variables !!!
 
@@ -114,7 +115,7 @@ module panel_solver_mod
 
             ! update adjoint system A matrix row
             procedure :: update_adjoint_A_row => panel_solver_update_adjoint_A_row
-
+            procedure :: assemble_adjoint_b_vector=>panel_solver_assemble_adjoint_b_vector
             !!!!!!!!! END ADJOINT !!!!!!!!!!!!
 
     end type panel_solver
@@ -1048,7 +1049,7 @@ contains
         allocate(this%A(body%N_cp, this%N_unknown), source=0., stat=stat)
         call check_allocation(stat, "AIC matrix")
         
-        ! if adjoint, allocate AIC sensitivity sensitivity
+        ! if adjoint, allocate AIC sensitivity matrix
         if (body%calc_adjoint) then
             call zeros%init(body%N_adjoint)
             allocate(this%d_A_matrix(body%N_cp, this%N_unknown), source=zeros, stat=stat)
@@ -1058,6 +1059,12 @@ contains
         ! Allocate b vector
         allocate(this%b(body%N_cp), source=0., stat=stat)
         call check_allocation(stat, "b vector")
+
+        ! if adjoint, allocate b sensitivity vector
+        if (body%calc_adjoint) then
+            allocate(this%d_b_vector(body%N_cp), source=zeros, stat=stat)
+            call check_allocation(stat, "Adjoint b sensitivity vector")
+        end if
 
         ! Calculate source strengths
         call this%calc_source_strengths(body)
@@ -1072,6 +1079,11 @@ contains
             ! Assemble boundary condition vector
 
         call this%assemble_BC_vector(body)
+
+        ! if adjoint, assemble b sensitivity vector
+        if (body%calc_adjoint) then
+            call this%assemble_adjoint_b_vector(body)
+        end if 
 
         ! Solve the linear system
         call this%solve_system(body, solver_stat)
@@ -3062,5 +3074,40 @@ contains
 
     end subroutine panel_solver_update_adjoint_A_row
 
+
+    subroutine panel_solver_assemble_adjoint_b_vector(this, body)
+        ! Sets up the {BC} sensitivity vector used in adjoint calculation.
+
+        implicit none
+        
+        class(panel_solver), intent(inout) :: this
+        type(surface_mesh), intent(inout) :: body
+
+        integer :: i, ind
+        real,dimension(3) :: x
+
+        
+
+
+        ! Loop through control points
+        do i=1,body%N_cp
+
+            ! Check boundary condition type
+            select case (body%cp(i)%bc)
+
+            ! Neumann (mass flux)
+            case (ZERO_NORMAL_MF)
+                this%d_b_vector(i) = body%cp(i)%d_n_g%broadcast_vector_dot_element(-this%freestream%c_hat_g)
+        
+            case default
+                write(*,*) "!!! '", body%cp(i)%bc, "' is not a valid boundary condition for &
+                adjoint calculation. Must use Neumann Zero Normal Mass Flux with control &
+                points at vertices. Quitting..."
+                stop
+
+            end select
+        end do
+
+    end subroutine panel_solver_assemble_adjoint_b_vector
 
 end module panel_solver_mod

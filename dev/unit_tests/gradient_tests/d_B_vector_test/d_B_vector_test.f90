@@ -1,4 +1,4 @@
-program d_B_vector_test
+program d_b_vector_test
 
     ! tests various intermediate sensitivities 
     use adjoint_mod
@@ -40,22 +40,17 @@ program d_B_vector_test
     type(eval_point_geom) :: test_geom, adjoint_geom
     type(dod) :: test_dod_info, adjoint_dod_info
     type(integrals) :: test_int, adjoint_int
-    type(sparse_vector),dimension(3,3) :: d_v_d
     integer :: start_count, end_count, i_unit
     logical :: exists, found
-    real,dimension(:),allocatable :: doublet_inf
-    real,dimension(:,:),allocatable :: v_s, v_d
-    type(sparse_vector),dimension(3) :: inf_adjoint, inf_adjoint2
     type(sparse_vector) :: zeros
 
     !!!!!!!!!!!!!!!!!!!!! END STUFF FROM MAIN !!!!!!!!!!!!!!!!!!!!!!!!!
 
     !!!!!!!!!!!!!!!!!!!!!! TESTING STUFF  !!!!!!!!!!!!!!!!!!!!!!!!!!
-    real,dimension(:),allocatable :: residuals, A_up, A_dn, d_A_FD
+    real,dimension(:),allocatable :: residuals, b_up, b_dn, d_b_FD
     real,dimension(:,:),allocatable ::  residuals3 
 
     integer :: i,j,k,m,n,p, N_verts, N_panels, vert, index, cp_ind, row,col, stat
-    real,dimension(3,3) :: v_d_M_space
     real :: step, error_allowed, cp_offset
     type(vertex),dimension(:),allocatable :: vertices ! list of vertex types, this should be a mesh attribute
     type(panel),dimension(:),allocatable :: panels, adjoint_panels   ! list of panels, this should be a mesh attribute
@@ -134,15 +129,18 @@ program d_B_vector_test
     call json_xtnsn_get(solver_settings, 'control_point_offset', cp_offset, 1.e-7)
     
     ! ! Allocate known influence storage
-    ! allocate(test_solver%I_known(test_mesh%N_cp), source=0., stat=stat)
-    ! call check_allocation(stat, "known influence vector")
+    allocate(test_solver%I_known(test_mesh%N_cp), source=0., stat=stat)
+    call check_allocation(stat, "known influence vector")
 
-    ! ! allocate A_matrix
-    ! allocate(test_solver%A(test_mesh%N_cp, test_solver%N_unknown), source=0., stat=stat)
-    ! call check_allocation(stat, "AIC matrix")
+    ! Allocate b vector
+    allocate(test_solver%b(test_mesh%N_cp), source=0., stat=stat)
+    call check_allocation(stat, "b vector")
 
-    ! ! Calculate body influences
-    ! call test_solver%calc_body_influences(test_mesh)
+    ! assemble BC vector
+    call test_solver%assemble_BC_vector(test_mesh)
+
+    ! Set b vector
+    test_solver%b = test_solver%BC - test_solver%I_known
     
     !!!!!!!!!!!!!!!!!!!!! END TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -201,21 +199,13 @@ program d_B_vector_test
     call adjoint_solver%init(adjoint_solver_settings, adjoint_processing_settings, adjoint_mesh, &
     adjoint_freestream_flow, adjoint_control_point_file)
 
-    ! ! Allocate known influence storage (have to do it, but its not used. all zeros)
-    ! allocate(adjoint_solver%I_known(adjoint_mesh%N_cp), source=0., stat=stat)
-    ! call check_allocation(stat, "known influence vector")
-    
-    ! ! allocate A_matrix
-    ! allocate(adjoint_solver%A(adjoint_mesh%N_cp, adjoint_solver%N_unknown), source=0., stat=stat)
-    ! call check_allocation(stat, "AIC matrix")
-    
-    ! ! allocate d_A_matrix
-    ! call zeros%init(adjoint_mesh%N_adjoint)
-    ! allocate(adjoint_solver%d_A_matrix(adjoint_mesh%N_cp, adjoint_solver%N_unknown), source=zeros, stat=stat)
-    
-    ! ! calc body influences adjoint
-    ! call adjoint_solver%calc_body_influences(adjoint_mesh)
+    ! allocate  d_b_vector
+    call zeros%init(adjoint_mesh%N_adjoint)
+    allocate(adjoint_solver%d_b_vector(adjoint_mesh%N_cp), source=zeros, stat=stat)
+    call check_allocation(stat, "Adjoint b sensitivity vector")
 
+    ! if adjoint, assemble b sensitivity vector
+    call adjoint_solver%assemble_adjoint_b_vector(adjoint_mesh)
 
     !!!!!!!!!!!! END ADJOINT TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -231,226 +221,233 @@ program d_B_vector_test
 
     
 
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! d_A_matrix TEST !!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! d_b_vector TEST !!!!!!!!!!!!!!!!!!!!!!!!!!!!
     write(*,*) ""
     write(*,*) ""
-    write(*,*) "------------------------------ d_A_matrix TEST ---&
+    write(*,*) "------------------------------ d_b_vector TEST ---&
     ------------------------------"
     write(*,*) ""
     write(*,*) ""
     write(*,*) ""
 
     ! allocate data holders
-    allocate(A_up(N_verts*3))
-    allocate(A_dn(N_verts*3))
-    allocate(d_A_FD(N_verts*3))
+    allocate(b_up(N_verts*3))
+    allocate(b_dn(N_verts*3))
+    allocate(d_b_FD(N_verts*3))
 
-    do row=1,adjoint_mesh%N_verts
         
-        !!!!!!!!! CENTRAL DIFFERENCE (panel 1, cp 1) d_v_d_M row 1, column ", k, !!!!!!!!!
-        write(*,*) ""
-        write(*,*) "--------------------------------------------------------------------------------------"
-        write(*,'(A,I1)') "                   d_A_matrix test Row ",row
-        write(*,*) "--------------------------------------------------------------------------------------"
-        write(*,*) ""
+    !!!!!!!!! CENTRAL DIFFERENCE (panel 1, cp 1) d_v_d_M row 1, column ", k, !!!!!!!!!
+    write(*,*) ""
+    write(*,*) "--------------------------------------------------------------------------------------"
+    write(*,*) "                   d_b_vector test "
+    write(*,*) "--------------------------------------------------------------------------------------"
+    write(*,*) ""
 
 
-        do col = 1,adjoint_mesh%N_verts
+    do k = 1,test_mesh%N_cp
+        
+        do i=1,3
+            do j=1,N_verts
+
+                ! perturb up the current design variable
+                test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
+                ! write(*,*) " perturb up"
+                
+                !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
             
-            do i=1,3
-                do j=1,N_verts
-
-                    ! perturb up the current design variable
-                    test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
-                    ! write(*,*) " perturb up"
-                    
-                    !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
+                ! update vertex normal
+                do m =1,N_panels
+                    deallocate(test_mesh%panels(m)%n_hat_g)
+                    call test_mesh%panels(m)%calc_derived_geom()
+                end do
                 
-                    ! update vertex normal
-                    do m =1,N_panels
-                        deallocate(test_mesh%panels(m)%n_hat_g)
-                        call test_mesh%panels(m)%calc_derived_geom()
-                    end do
-                    
-                    call test_mesh%calc_vertex_geometry()
-                    
-                    ! update with flow
-                    do m =1,N_panels
-                        deallocate(test_mesh%panels(m)%vertices_ls)
-                        deallocate(test_mesh%panels(m)%n_hat_ls)
-                        deallocate(test_mesh%panels(m)%b)
-                        deallocate(test_mesh%panels(m)%b_mir)  
-                        deallocate(test_mesh%panels(m)%sqrt_b)
-                        deallocate(test_mesh%panels(m)%i_vert_d)
-                        deallocate(test_mesh%panels(m)%S_mu_inv)
-                        deallocate(test_mesh%panels(m)%T_mu)
-                        ! deallocate(test_mesh%panels(m)%i_panel_s)
-                        call test_mesh%panels(m)%init_with_flow(freestream_flow, .false., 0)
-                        call test_mesh%panels(m)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
-                        test_mesh%vertices,.false.)
-                    end do
-                    
-                    ! recalculates cp locations
-                    deallocate(test_solver%sigma_known)
-                    deallocate(test_mesh%cp)
-                    deallocate(test_solver%P)
-                    call test_solver%init(solver_settings, processing_settings, &
-                    test_mesh, freestream_flow, control_point_file)
-                    
-                    ! deallocate stuff
-                    deallocate(test_solver%A)
-                    deallocate(test_solver%I_known)
-
-                    ! Allocate known influence storage
-                    allocate(test_solver%I_known(test_mesh%N_cp), source=0., stat=stat)
-                    call check_allocation(stat, "known influence vector")
-                    
-                    ! allocate A matrix
-                    allocate(test_solver%A(test_mesh%N_cp, test_solver%N_unknown), source=0., stat=stat)
-                    call check_allocation(stat, "AIC matrix")
-
-                    ! Calculate body influences
-                    call test_solver%calc_body_influences(test_mesh)
-
-                    !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
-                    
-                    ! get the needed info
-                    A_up(j + (i-1)*N_verts) = test_solver%A(row,col)
-                    
-                    
-                    ! perturb down the current design variable
-                    ! write(*,*) " perturb down"
-                    test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - 2.*step
-                    
-                    !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
+                call test_mesh%calc_vertex_geometry()
                 
-                    ! update vertex normal
-                    do m =1,N_panels
-                        deallocate(test_mesh%panels(m)%n_hat_g)
-                        call test_mesh%panels(m)%calc_derived_geom()
-                    end do
-                    
-                    call test_mesh%calc_vertex_geometry()
-                    
-                    ! update with flow
-                    do m =1,N_panels
-                        deallocate(test_mesh%panels(m)%vertices_ls)
-                        deallocate(test_mesh%panels(m)%n_hat_ls)
-                        deallocate(test_mesh%panels(m)%b)
-                        deallocate(test_mesh%panels(m)%b_mir)  
-                        deallocate(test_mesh%panels(m)%sqrt_b)
-                        deallocate(test_mesh%panels(m)%i_vert_d)
-                        deallocate(test_mesh%panels(m)%S_mu_inv)
-                        deallocate(test_mesh%panels(m)%T_mu)
-                        ! deallocate(test_mesh%panels(m)%i_panel_s)
-                        call test_mesh%panels(m)%init_with_flow(freestream_flow, .false., 0)
-                        call test_mesh%panels(m)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
-                        test_mesh%vertices,.false.)
-                    end do
-                    
-                    ! recalculates cp locations
-                    deallocate(test_solver%sigma_known)
-                    deallocate(test_mesh%cp)
-                    deallocate(test_solver%P)
-                    call test_solver%init(solver_settings, processing_settings, &
-                    test_mesh, freestream_flow, control_point_file)
-                    
-                    ! deallocate stuff
-                    deallocate(test_solver%A)
-                    deallocate(test_solver%I_known)
+                ! update with flow
+                do m =1,N_panels
+                    deallocate(test_mesh%panels(m)%vertices_ls)
+                    deallocate(test_mesh%panels(m)%n_hat_ls)
+                    deallocate(test_mesh%panels(m)%b)
+                    deallocate(test_mesh%panels(m)%b_mir)  
+                    deallocate(test_mesh%panels(m)%sqrt_b)
+                    deallocate(test_mesh%panels(m)%i_vert_d)
+                    deallocate(test_mesh%panels(m)%S_mu_inv)
+                    deallocate(test_mesh%panels(m)%T_mu)
+                    ! deallocate(test_mesh%panels(m)%i_panel_s)
+                    call test_mesh%panels(m)%init_with_flow(freestream_flow, .false., 0)
+                    call test_mesh%panels(m)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
+                    test_mesh%vertices,.false.)
+                end do
+                
+                ! recalculates cp locations
+                deallocate(test_solver%sigma_known)
+                deallocate(test_mesh%cp)
+                deallocate(test_solver%P)
+                call test_solver%init(solver_settings, processing_settings, &
+                test_mesh, freestream_flow, control_point_file)
+                
+                ! deallocate stuff
+                deallocate(test_solver%I_known)
+                deallocate(test_solver%BC)
+                deallocate(test_solver%b)
 
-                    ! Allocate known influence storage
-                    allocate(test_solver%I_known(test_mesh%N_cp), source=0., stat=stat)
-                    call check_allocation(stat, "known influence vector")
-                    
-                    ! allocate A matrix
-                    allocate(test_solver%A(test_mesh%N_cp, test_solver%N_unknown), source=0., stat=stat)
-                    call check_allocation(stat, "AIC matrix")
+                ! Allocate known influence storage
+                allocate(test_solver%I_known(test_mesh%N_cp), source=0., stat=stat)
+                call check_allocation(stat, "known influence vector")
+                ! ! Allocate known influence storage
 
-                    ! Calculate body influences
-                    call test_solver%calc_body_influences(test_mesh)
+                ! Allocate b vector
+                allocate(test_solver%b(test_mesh%N_cp), source=0., stat=stat)
+                call check_allocation(stat, "b vector")
 
-                    !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
-                    
-                    ! get the needed info
-                    A_dn(j + (i-1)*N_verts) = test_solver%A(row,col)
+                ! assemble BC vector
+                call test_solver%assemble_BC_vector(test_mesh)
 
-                    
-                    ! restore geometry
-                    test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
-                end do 
+                ! Set b vector
+                test_solver%b = test_solver%BC - test_solver%I_known
+                                
+                !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
+                
+                ! get the needed info
+                b_up(j + (i-1)*N_verts) = test_solver%b(k)
+                
+                
+                ! perturb down the current design variable
+                ! write(*,*) " perturb down"
+                test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - 2.*step
+                
+                !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
+            
+                ! update vertex normal
+                do m =1,N_panels
+                    deallocate(test_mesh%panels(m)%n_hat_g)
+                    call test_mesh%panels(m)%calc_derived_geom()
+                end do
+                
+                call test_mesh%calc_vertex_geometry()
+                
+                ! update with flow
+                do m =1,N_panels
+                    deallocate(test_mesh%panels(m)%vertices_ls)
+                    deallocate(test_mesh%panels(m)%n_hat_ls)
+                    deallocate(test_mesh%panels(m)%b)
+                    deallocate(test_mesh%panels(m)%b_mir)  
+                    deallocate(test_mesh%panels(m)%sqrt_b)
+                    deallocate(test_mesh%panels(m)%i_vert_d)
+                    deallocate(test_mesh%panels(m)%S_mu_inv)
+                    deallocate(test_mesh%panels(m)%T_mu)
+                    ! deallocate(test_mesh%panels(m)%i_panel_s)
+                    call test_mesh%panels(m)%init_with_flow(freestream_flow, .false., 0)
+                    call test_mesh%panels(m)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
+                    test_mesh%vertices,.false.)
+                end do
+                
+                ! recalculates cp locations
+                deallocate(test_solver%sigma_known)
+                deallocate(test_mesh%cp)
+                deallocate(test_solver%P)
+                call test_solver%init(solver_settings, processing_settings, &
+                test_mesh, freestream_flow, control_point_file)
+                
+                ! deallocate stuff
+                deallocate(test_solver%I_known)
+                deallocate(test_solver%BC)
+                deallocate(test_solver%b)
+
+                ! Allocate known influence storage
+                allocate(test_solver%I_known(test_mesh%N_cp), source=0., stat=stat)
+                call check_allocation(stat, "known influence vector")
+                ! ! Allocate known influence storage
+
+                ! Allocate b vector
+                allocate(test_solver%b(test_mesh%N_cp), source=0., stat=stat)
+                call check_allocation(stat, "b vector")
+
+                ! assemble BC vector
+                call test_solver%assemble_BC_vector(test_mesh)
+
+                ! Set b vector
+                test_solver%b = test_solver%BC - test_solver%I_known
+                                
+                !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
+                
+                ! get the needed info
+                b_dn(j + (i-1)*N_verts) = test_solver%b(k)
+
+                
+                ! restore geometry
+                test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
             end do 
-            
-            ! central difference 
-            d_A_FD = (A_up - A_dn)/(2.*step)
-                    
-            write(*,*) ""
-            
-            ! calculate residuals3
-            do i =1, N_verts*3
-                residuals(i) = adjoint_solver%d_A_matrix(row,col)%get_value(i) - d_A_FD(i)
-            end do
-            
-            ! write results
-            write(*,*) ""
-            write(*,'(A, I1,A,I1,A,I1,A,I1)') " d_A_matrix_test &
-            d_A (",row,", ",col, ") row = ",row," col = ",col
-            write(*,*) ""
-            write(*,*) "  d_A        d_A_FD         residual"
-            
-
-            do i = 1, N_verts*3
-                write(*, '((f14.10, 4x),3x,(f14.10, 4x),3x, (f14.10, 4x))') &
-                adjoint_solver%d_A_matrix(row,col)%get_value(i), d_A_FD(i), residuals(i)
-            end do
-            write(*,*) ""
-            write(*,*) ""
-
-            ! check if test failed
-            do i=1,N_verts*3
-                if (abs(residuals(i)) > error_allowed) then
-                    test_failed = .true.
-                    exit
-                else 
-                    test_failed = .false.
-                end if
-            end do
-            if (test_failed) then
-                total_tests = total_tests + 1
-                if (row ==1) then
-                    failure_log(total_tests-passed_tests) = "TEST FAILURE in d_A_matrix row 1"
-                elseif (row ==2) then
-                    failure_log(total_tests-passed_tests) = "TEST FAILURE in d_A_matrix row 2"
-                elseif (row ==3) then
-                    failure_log(total_tests-passed_tests) = "TEST FAILURE in d_A_matrix row 3"
-                elseif (row ==4) then
-                    failure_log(total_tests-passed_tests) = "TEST FAILURE in d_A_matrix row 4"
-                elseif (row ==5) then
-                    failure_log(total_tests-passed_tests) = "TEST FAILURE in d_A_matrix row 5"
-                else
-                    failure_log(total_tests-passed_tests) = "TEST FAILURE in d_A_matrix row 6"
-                end if
-                write(*,*) failure_log(total_tests-passed_tests)
-            else
-                write(*,'(A, I1,A,I1,A,I1,A)') " d_A matrix (",row,", ",col,") test PASSED"
-                passed_tests = passed_tests + 1
-                total_tests = total_tests + 1
+        end do 
+        
+        ! central difference 
+        d_b_FD = (b_up - b_dn)/(2.*step)
                 
-            end if
-            test_failed = .false.
-            write(*,*) "" 
-            write(*,*) ""
-
-        ! end col loop
+        write(*,*) ""
+        
+        ! calculate residuals3
+        do i =1, N_verts*3
+            residuals(i) = adjoint_solver%d_b_vector(k)%get_value(i) - d_b_FD(i)
         end do
-    ! end row loop
+        
+        ! write results
+        write(*,*) ""
+        write(*,'(A, I1,A)') " d_b_vector_test &
+        d_b (",k,") "
+        write(*,*) ""
+        write(*,*) "  d_b        d_b_FD         residual"
+        
+
+        do i = 1, N_verts*3
+            write(*, '((f14.10, 4x),3x,(f14.10, 4x),3x, (f14.10, 4x))') &
+            adjoint_solver%d_b_vector(k)%get_value(i), d_b_FD(i), residuals(i)
+        end do
+        write(*,*) ""
+        write(*,*) ""
+
+        ! check if test failed
+        do i=1,N_verts*3
+            if (abs(residuals(i)) > error_allowed) then
+                test_failed = .true.
+                exit
+            else 
+                test_failed = .false.
+            end if
+        end do
+        if (test_failed) then
+            total_tests = total_tests + 1
+            if (k ==1) then
+                failure_log(total_tests-passed_tests) = "TEST FAILURE in d_b_vector(1)"
+            elseif (k ==2) then
+                failure_log(total_tests-passed_tests) = "TEST FAILURE in d_b_vector(2)"
+            elseif (k ==3) then
+                failure_log(total_tests-passed_tests) = "TEST FAILURE in d_b_vector(3)"
+            elseif (k ==4) then
+                failure_log(total_tests-passed_tests) = "TEST FAILURE in d_b_vector(4)"
+            elseif (k ==5) then
+                failure_log(total_tests-passed_tests) = "TEST FAILURE in d_b_vector(5)"
+            else
+                failure_log(total_tests-passed_tests) = "TEST FAILURE in d_b_vector(6)"
+            end if
+            write(*,*) failure_log(total_tests-passed_tests)
+        else
+            write(*,'(A, I1,A,I1,A)') " d_b_vector(",k,") test PASSED"
+            passed_tests = passed_tests + 1
+            total_tests = total_tests + 1
+            
+        end if
+        test_failed = .false.
+        write(*,*) "" 
+        write(*,*) ""
+
+    ! end k loop
     end do
 
 
 
 
-    !!!!!!!!!!!!!! d_A_matrix TEST RESULTS!!!!!!!!!!!!!
-    write(*,*) "-------------d_A_matrix TEST RESULTS--------------"
+    !!!!!!!!!!!!!! d_b_vector TEST RESULTS!!!!!!!!!!!!!
+    write(*,*) "-------------d_b_vector TEST RESULTS--------------"
     write(*,*) ""
     write(*,'((A), ES10.1)') "allowed residual = ", error_allowed
     write(*,'((A), ES10.1)') "control point offset = ", cp_offset
@@ -476,4 +473,4 @@ program d_B_vector_test
     write(*,*) "----------------------"
 
 
-end program d_B_vector_test
+end program d_b_vector_test
