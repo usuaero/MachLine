@@ -110,13 +110,7 @@ module surface_mesh_mod
 
             ! Control point checks
             procedure :: control_point_outside_mesh => surface_mesh_control_point_outside_mesh
-
-            ! adjoint
-            procedure :: init_adjoint => surface_mesh_init_adjoint
-            procedure :: calc_d_vertex_geometry => surface_mesh_calc_d_vertex_geometry
-            procedure :: init_with_flow_adjoint => surface_mesh_init_with_flow_adjoint
-
-
+            
             ! Post-processing
             procedure :: get_induced_potentials_at_point => surface_mesh_get_induced_potentials_at_point
             procedure :: get_induced_velocities_at_point => surface_mesh_get_induced_velocities_at_point
@@ -124,7 +118,13 @@ module surface_mesh_mod
             procedure :: write_body => surface_mesh_write_body
             procedure :: write_body_mirror => surface_mesh_write_body_mirror
             procedure :: write_control_points => surface_mesh_write_control_points
-
+            
+            ! adjoint
+            procedure :: init_adjoint => surface_mesh_init_adjoint
+            procedure :: calc_d_vertex_geometry => surface_mesh_calc_d_vertex_geometry
+            procedure :: init_with_flow_adjoint => surface_mesh_init_with_flow_adjoint
+            procedure :: get_induced_velocities_at_point_adjoint => surface_mesh_get_induced_velocities_at_point_adjoint
+            
     end type surface_mesh
     
 
@@ -2700,136 +2700,6 @@ contains
     end subroutine surface_mesh_get_induced_potentials_at_point
 
 
-    subroutine surface_mesh_init_adjoint(this)
-    ! if adjoint calculation is true, this will calculate panel sensitivities
-
-        implicit none 
-
-        class(surface_mesh),intent(inout) :: this
-
-        integer :: i
-        
-
-        ! init vertex attribute d_loc
-        do i=1,this%N_verts
-            
-            ! init vertex sensitivities
-            call this%vertices(i)%init_adjoint(this%N_verts)
-            
-        end do
-        
-        
-        do i=1,this%N_panels
-            
-            ! init panel sensitivities
-            call this%panels(i)%init_adjoint()
-            
-        end do
-
-        ! value of adjoint design variables
-        this%N_adjoint = this%N_verts*3
-        
-        ! calc  d_vertex_geometries
-        call this%calc_d_vertex_geometry()
-        
-        
-    end subroutine surface_mesh_init_adjoint
-
-
-    subroutine surface_mesh_calc_d_vertex_geometry(this)
-        ! if adjoint calculation is true, this will calculate vertex average normal vector sensitivities
-    
-        implicit none
-        
-        class(surface_mesh),intent(inout) :: this
-
-        real,dimension(3) :: n_avg
-        real :: norm_n_avg
-        integer :: i, j, j_panel, N_panels
-
-        type(sparse_vector) :: d_norm_n_avg
-        type(sparse_matrix) :: sum_d_n_avg, d_n_avg, x
-
-        do i=1,this%N_verts
-
-            ! Loop through neighboring panels and compute the average of their normal vectors
-            n_avg = (/0., 0., 0./)
-            N_panels = this%vertices(i)%panels%len()
-            
-            ! call d_n_avg%init(this%N_adjoint)  ! dont need this I think
-            call sum_d_n_avg%init(this%N_adjoint)
-            
-            do j=1,N_panels
-                
-                ! Get panel index
-                call this%vertices(i)%panels%get(j, j_panel)
-                
-                ! Update using weighted normal
-                n_avg = n_avg + this%panels(j_panel)%get_weighted_normal_at_corner(this%vertices(i)%loc)
-                
-                ! get d_n_avg 
-                d_n_avg = this%panels(j_panel)%calc_d_weighted_normal(this%vertices(i)%loc)
-                
-                ! add the d_n_avg_j
-                call sum_d_n_avg%sparse_add(d_n_avg)
-            
-                deallocate(d_n_avg%columns)
-
-            end do
-            
-            ! calc norm of n_avg
-            norm_n_avg = norm2(n_avg)
-            
-            ! calc d_norm_n_avg
-            d_norm_n_avg = sum_d_n_avg%broadcast_vector_dot_element(n_avg)
-            call d_norm_n_avg%broadcast_element_times_scalar(1./norm_n_avg)
-            
-            
-            ! Normalize and store
-            call this%vertices(i)%d_n_g%init_from_sparse_matrix(sum_d_n_avg)
-            call this%vertices(i)%d_n_g%broadcast_element_times_scalar(norm_n_avg)
-            
-            x = d_norm_n_avg%broadcast_element_times_vector(n_avg)
-            
-            call this%vertices(i)%d_n_g%sparse_subtract(x)
-            call this%vertices(i)%d_n_g%broadcast_element_times_scalar(1./(inner(n_avg,n_avg)))
-            
-            
-            ! Calculate average edge lengths (not needed?)
-            ! call this%vertices(i)%set_average_edge_length(this%vertices)
-            
-            ! deallocate stuff
-            deallocate(sum_d_n_avg%columns)
-            deallocate(x%columns)
-            deallocate(d_norm_n_avg%elements)
-            
-        end do
-            
-            
-        end subroutine surface_mesh_calc_d_vertex_geometry
-
-
-    subroutine surface_mesh_init_with_flow_adjoint(this,freestream)
-        ! if adjoint calculation is true, this will calulate flow-dependent sensitivities
-    
-            implicit none 
-    
-            class(surface_mesh),intent(inout) :: this
-            type(flow),intent(in) :: freestream
-    
-    
-            integer :: i
-            do i=1,this%N_panels
-    
-                ! init panel sensitivities
-                call this%panels(i)%init_with_flow_adjoint(freestream)
-    
-            end do
-            
-        end subroutine surface_mesh_init_with_flow_adjoint
-    
-
-
     subroutine surface_mesh_get_induced_velocities_at_point(this, point,  freestream, v_d, v_s)
         ! Calculates the source- and doublet-induced potentials at the given point
 
@@ -3230,5 +3100,171 @@ contains
         call cp_vtk%finish()
         
     end subroutine surface_mesh_write_control_points
+
+
+    subroutine surface_mesh_init_adjoint(this)
+        ! if adjoint calculation is true, this will calculate panel sensitivities
+    
+        implicit none 
+
+        class(surface_mesh),intent(inout) :: this
+
+        integer :: i
+        
+
+        ! init vertex attribute d_loc
+        do i=1,this%N_verts
+            
+            ! init vertex sensitivities
+            call this%vertices(i)%init_adjoint(this%N_verts)
+            
+        end do
+        
+        
+        do i=1,this%N_panels
+            
+            ! init panel sensitivities
+            call this%panels(i)%init_adjoint()
+            
+        end do
+
+        ! value of adjoint design variables
+        this%N_adjoint = this%N_verts*3
+        
+        ! calc  d_vertex_geometries
+        call this%calc_d_vertex_geometry()
+        
+        
+    end subroutine surface_mesh_init_adjoint
+    
+    
+    subroutine surface_mesh_calc_d_vertex_geometry(this)
+        ! if adjoint calculation is true, this will calculate vertex average normal vector sensitivities
+    
+        implicit none
+        
+        class(surface_mesh),intent(inout) :: this
+
+        real,dimension(3) :: n_avg
+        real :: norm_n_avg
+        integer :: i, j, j_panel, N_panels
+
+        type(sparse_vector) :: d_norm_n_avg
+        type(sparse_matrix) :: sum_d_n_avg, d_n_avg, x
+
+        do i=1,this%N_verts
+
+            ! Loop through neighboring panels and compute the average of their normal vectors
+            n_avg = (/0., 0., 0./)
+            N_panels = this%vertices(i)%panels%len()
+            
+            ! call d_n_avg%init(this%N_adjoint)  ! dont need this I think
+            call sum_d_n_avg%init(this%N_adjoint)
+            
+            do j=1,N_panels
+                
+                ! Get panel index
+                call this%vertices(i)%panels%get(j, j_panel)
+                
+                ! Update using weighted normal
+                n_avg = n_avg + this%panels(j_panel)%get_weighted_normal_at_corner(this%vertices(i)%loc)
+                
+                ! get d_n_avg 
+                d_n_avg = this%panels(j_panel)%calc_d_weighted_normal(this%vertices(i)%loc)
+                
+                ! add the d_n_avg_j
+                call sum_d_n_avg%sparse_add(d_n_avg)
+            
+                deallocate(d_n_avg%columns)
+
+            end do
+            
+            ! calc norm of n_avg
+            norm_n_avg = norm2(n_avg)
+            
+            ! calc d_norm_n_avg
+            d_norm_n_avg = sum_d_n_avg%broadcast_vector_dot_element(n_avg)
+            call d_norm_n_avg%broadcast_element_times_scalar(1./norm_n_avg)
+            
+            
+            ! Normalize and store
+            call this%vertices(i)%d_n_g%init_from_sparse_matrix(sum_d_n_avg)
+            call this%vertices(i)%d_n_g%broadcast_element_times_scalar(norm_n_avg)
+            
+            x = d_norm_n_avg%broadcast_element_times_vector(n_avg)
+            
+            call this%vertices(i)%d_n_g%sparse_subtract(x)
+            call this%vertices(i)%d_n_g%broadcast_element_times_scalar(1./(inner(n_avg,n_avg)))
+            
+            
+            ! Calculate average edge lengths (not needed?)
+            ! call this%vertices(i)%set_average_edge_length(this%vertices)
+            
+            ! deallocate stuff
+            deallocate(sum_d_n_avg%columns)
+            deallocate(x%columns)
+            deallocate(d_norm_n_avg%elements)
+            
+        end do
+            
+            
+    end subroutine surface_mesh_calc_d_vertex_geometry
+
+    
+    subroutine surface_mesh_init_with_flow_adjoint(this,freestream)
+        ! if adjoint calculation is true, this will calulate flow-dependent sensitivities
+
+        implicit none 
+
+        class(surface_mesh),intent(inout) :: this
+        type(flow),intent(in) :: freestream
+
+
+        integer :: i
+        do i=1,this%N_panels
+
+            ! init panel sensitivities
+            call this%panels(i)%init_with_flow_adjoint(freestream)
+
+        end do
+        
+    end subroutine surface_mesh_init_with_flow_adjoint
+
+
+    subroutine surface_mesh_get_induced_velocities_at_point_adjoint(this, point,  freestream, v_d)
+        ! Calculates the doublet induced velocity sensitivities at the given point
+
+        implicit none
+        
+        class(surface_mesh),intent(in) :: this
+        real,dimension(3),intent(in) :: point
+        type(flow),intent(in) :: freestream
+        real,dimension(3),intent(out) :: v_d, v_s
+
+        integer :: j, k
+        real,dimension(3) :: v_d_panel, v_s_panel, v_d_segment
+
+        ! Loop through panels
+        v_d = (/0.,0.,0./)
+        v_s = (/0.,0.,0./)
+        
+        do k=1,this%N_panels
+
+            ! Calculate influence
+            call this%panels(k)%calc_velocities_adjoint(point, freestream, .false., &
+                                                this%sigma, this%mu, this%N_panels, this%N_verts, &
+                                                this%asym_flow, v_s_panel, v_d_panel)
+            
+            !!!! dont have sources in adjoint formulation
+            ! Because computers don't like adding zero a bunch
+            ! if (this%panels(k)%has_sources) v_s = v_s + v_s_panel
+            !!!!
+            
+            v_d = v_d + v_d_panel
+        end do
+        
+        
+
+    end subroutine surface_mesh_get_induced_velocities_at_point_adjoint
 
 end module surface_mesh_mod

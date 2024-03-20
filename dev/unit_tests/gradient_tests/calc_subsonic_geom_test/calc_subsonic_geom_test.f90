@@ -180,8 +180,8 @@ program calc_subsonic_geom_cp
     adjoint_freestream_flow, adjoint_control_point_file)
 
     ! calc CALC BASIC GEOM geom sensitivity of relation between cp1 and panel1 
-    adjoint_geom = adjoint_mesh%panels(1)%calc_subsonic_geom_adjoint(adjoint_mesh%cp(1),&
-                                                                adjoint_freestream_flow)
+    adjoint_geom = adjoint_mesh%panels(1)%calc_subsonic_geom_adjoint(adjoint_mesh%cp(1)%loc,&
+    adjoint_mesh%cp(1)%d_loc, adjoint_freestream_flow)
     !!!!!!!!!!!! END ADJOINT TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!
 
 

@@ -245,6 +245,9 @@ module panel_mod
             ! adjoint doublet influence terms
             procedure :: calc_doublet_inf_adjoint => panel_calc_doublet_inf_adjoint
             procedure :: calc_doublet_inf_adjoint2 => panel_calc_doublet_inf_adjoint2
+
+            ! adjoint cell velocity terms (is only used for surface velocities, doesnt affect C_F or C_M)
+            procedure :: calc_velocities_adjoint => panel_calc_velocities_adjoint
             
 
             !!!!!!!! END ADJOINT PROCEDURES !!!!!!!!
@@ -5714,5 +5717,45 @@ contains
 
 
     end function panel_calc_doublet_inf_adjoint2
+
+
+    subroutine panel_calc_velocities_adjoint(this, P, freestream, mirror_panel, sigma, mu, &
+        N_body_panels, N_body_verts, asym_flow, v_s, v_d)
+        ! Calculates the velocity induced at the given point
+
+        implicit none
+
+        class(panel),intent(in) :: this
+        real,dimension(3),intent(in) :: P
+        type(flow),intent(in) :: freestream
+        logical,intent(in) :: mirror_panel, asym_flow
+        real,dimension(:),allocatable,intent(in) :: sigma, mu
+        integer,intent(in) :: N_body_panels, N_body_verts
+        real,dimension(3),intent(out) :: v_d, v_s
+
+        real,dimension(:,:),allocatable :: source_inf, doublet_inf
+        real,dimension(:),allocatable :: doublet_strengths
+        real,dimension(this%S_dim) :: source_strengths
+
+        ! Get influences
+        call this%calc_velocity_influences(P, freestream, mirror_panel, source_inf, doublet_inf)
+
+        ! Get strengths
+        source_strengths = this%get_source_strengths(sigma, mirror_panel, N_body_panels, asym_flow)
+        doublet_strengths = this%get_doublet_strengths(mu, mirror_panel, N_body_verts, asym_flow)
+
+        ! Apply strengths to calculate potentials
+        v_s = matmul(source_inf, source_strengths)
+
+        if (this%in_wake) then
+        v_d = matmul((doublet_inf(:,1:this%M_dim)+doublet_inf(:,this%M_dim+1:)), doublet_strengths)
+        else
+        v_d = matmul(doublet_inf, doublet_strengths)
+        end if
+
+    end subroutine panel_calc_velocities_adjoint
+
+
+
 
 end module panel_mod

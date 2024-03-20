@@ -116,6 +116,9 @@ module panel_solver_mod
             ! update adjoint system A matrix row
             procedure :: update_adjoint_A_row => panel_solver_update_adjoint_A_row
             procedure :: assemble_adjoint_b_vector=>panel_solver_assemble_adjoint_b_vector
+            
+            procedure :: calc_cell_velocities_adjoint => panel_solver_calc_cell_velocities_adjoint
+
             !!!!!!!!! END ADJOINT !!!!!!!!!!!!
 
     end type panel_solver
@@ -3111,5 +3114,56 @@ contains
         end do
 
     end subroutine panel_solver_assemble_adjoint_b_vector
+
+
+    subroutine panel_solver_calc_cell_velocities_adjoint(this, body)
+        ! Calculates the surface velocities sensitivities on the mesh panels
+
+        implicit none
+
+        class(panel_solver),intent(inout) :: this
+        type(surface_mesh),intent(inout) :: body
+
+        integer :: i, stat
+        real,dimension(3) :: v_inner, v_d, v_s, P
+
+        if (verbose) write(*,'(a)',advance='no') "     Calculating surface velocity sensitivities..."
+
+        ! Determine number of surface cells
+        this%N_cells = body%N_panels
+        if (body%asym_flow) then
+            this%N_cells = this%N_cells*2
+        end if
+
+        ! Allocate cell velocity storage
+        allocate(body%V_cells_inner(3,this%N_cells), stat=stat)
+        call check_allocation(stat, "inner velocity vectors")
+        allocate(body%V_cells(3,this%N_cells), stat=stat)
+        call check_allocation(stat, "surface velocity vectors")
+
+        ! Get the surface velocity on each existing panel
+        !$OMP parallel do private(v_d, v_s, P) schedule(static)
+        do i=1,body%N_panels
+
+            ! Get inner flow
+            if (this%dirichlet) then
+                body%V_cells_inner(:,i) = this%inner_flow*this%freestream%U
+            else
+                P = body%panels(i)%centr - 1.e-10*body%panels(i)%n_g
+                call body%get_induced_velocities_at_point(P, this%freestream, v_d, v_s)
+                body%V_cells_inner(:,i) = this%freestream%v_inf + this%freestream%U*(v_d + v_s)
+                ! body%V_cells_inner(:,i) = 0
+            end if
+
+            !!!! worry about this later, do I need to get d_V_cells wrt mu?
+            ! ! Get surface velocity on each panel
+            ! body%V_cells(:,i) = body%panels(i)%get_velocity(body%mu, body%sigma, .false., body%N_panels, &
+            !                                                 body%N_verts, body%asym_flow, this%freestream, &
+            !                                                 body%V_cells_inner(:,i)/this%freestream%U)
+        end do
+
+        if (verbose) write(*,*) "Done."
+
+    end subroutine panel_solver_calc_cell_velocities_adjoint
 
 end module panel_solver_mod

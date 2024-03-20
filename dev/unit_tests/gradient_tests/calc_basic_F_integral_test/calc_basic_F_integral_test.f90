@@ -190,8 +190,8 @@ program calc_basic_F_integral
     adjoint_freestream_flow, adjoint_control_point_file)
 
     !calc CALC BASIC F integral sensitivities cp1 and panel1 
-    adjoint_geom = adjoint_mesh%panels(index)%calc_subsonic_geom_adjoint(adjoint_mesh%cp(cp_ind),&
-                                                                adjoint_freestream_flow)
+    adjoint_geom = adjoint_mesh%panels(index)%calc_subsonic_geom_adjoint(adjoint_mesh%cp(cp_ind)%loc,&
+        adjoint_mesh%cp(cp_ind)%d_loc, adjoint_freestream_flow)
     adjoint_dod_info = adjoint_mesh%panels(index)%check_dod(adjoint_mesh%cp(cp_ind)%loc, freestream_flow, .false.)
     adjoint_int = adjoint_mesh%panels(index)%calc_integrals(adjoint_geom, 'velocity', freestream_flow,.false., adjoint_dod_info)
     call adjoint_mesh%panels(index)%calc_integrals_adjoint(adjoint_geom,adjoint_int,adjoint_freestream_flow&

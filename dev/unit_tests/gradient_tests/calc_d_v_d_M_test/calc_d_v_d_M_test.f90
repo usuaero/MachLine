@@ -194,8 +194,8 @@ program calc_d_v_d_M_test
     adjoint_freestream_flow, adjoint_control_point_file)
 
     !calc CALC BASIC F integral sensitivities cp1 and panel1 
-    adjoint_geom = adjoint_mesh%panels(index)%calc_subsonic_geom_adjoint(adjoint_mesh%cp(cp_ind),&
-                                                                adjoint_freestream_flow)
+    adjoint_geom = adjoint_mesh%panels(index)%calc_subsonic_geom_adjoint(adjoint_mesh%cp(cp_ind)%loc,&
+        adjoint_mesh%cp(cp_ind)%d_loc, adjoint_freestream_flow)
     adjoint_dod_info = adjoint_mesh%panels(index)%check_dod(adjoint_mesh%cp(cp_ind)%loc, &
         adjoint_freestream_flow, .false.)
     
