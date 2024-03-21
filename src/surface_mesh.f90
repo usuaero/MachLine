@@ -51,6 +51,7 @@ module surface_mesh_mod
         ! adjoint
         logical :: calc_adjoint  ! whether or not adjoint sensitivities should be calculated
         integer :: N_adjoint ! number of adjoint design variables 
+        type(sparse_matrix),dimension(:),allocatable :: d_V_cells_inner
 
         contains
 
@@ -123,7 +124,7 @@ module surface_mesh_mod
             procedure :: init_adjoint => surface_mesh_init_adjoint
             procedure :: calc_d_vertex_geometry => surface_mesh_calc_d_vertex_geometry
             procedure :: init_with_flow_adjoint => surface_mesh_init_with_flow_adjoint
-            procedure :: get_induced_velocities_at_point_adjoint => surface_mesh_get_induced_velocities_at_point_adjoint
+            procedure :: get_d_v_inner_at_point_constant_mu => surface_mesh_get_d_v_inner_at_point_constant_mu
             
     end type surface_mesh
     
@@ -3231,40 +3232,44 @@ contains
     end subroutine surface_mesh_init_with_flow_adjoint
 
 
-    subroutine surface_mesh_get_induced_velocities_at_point_adjoint(this, point,  freestream, v_d)
+    function surface_mesh_get_d_v_inner_at_point_constant_mu(this, point, d_point, freestream) &
+                                                                                result(d_V_inner)
         ! Calculates the doublet induced velocity sensitivities at the given point
 
         implicit none
         
-        class(surface_mesh),intent(in) :: this
-        real,dimension(3),intent(in) :: point
+        class(surface_mesh),intent(inout) :: this
+        real,dimension(3),intent(inout) :: point
+        type(sparse_matrix),intent(inout) :: d_point
         type(flow),intent(in) :: freestream
-        real,dimension(3),intent(out) :: v_d, v_s
-
+        
+        
         integer :: j, k
-        real,dimension(3) :: v_d_panel, v_s_panel, v_d_segment
+        type(sparse_matrix) :: zeros
+        type(sparse_matrix) :: d_v_d_panel
+        type(sparse_matrix) :: d_V_inner
 
         ! Loop through panels
-        v_d = (/0.,0.,0./)
-        v_s = (/0.,0.,0./)
         
         do k=1,this%N_panels
 
             ! Calculate influence
-            call this%panels(k)%calc_velocities_adjoint(point, freestream, .false., &
-                                                this%sigma, this%mu, this%N_panels, this%N_verts, &
-                                                this%asym_flow, v_s_panel, v_d_panel)
+            call this%panels(k)%calc_d_v_d_constant_mu(point, d_point, freestream, .false., &
+                                                 this%mu, this%N_verts, &
+                                                this%asym_flow, d_v_d_panel)
             
             !!!! dont have sources in adjoint formulation
             ! Because computers don't like adding zero a bunch
             ! if (this%panels(k)%has_sources) v_s = v_s + v_s_panel
             !!!!
             
-            v_d = v_d + v_d_panel
+            call d_V_inner%sparse_add(d_v_d_panel)
         end do
+
+        call d_V_inner%broadcast_element_times_scalar(freestream%U)
         
         
 
-    end subroutine surface_mesh_get_induced_velocities_at_point_adjoint
+    end function surface_mesh_get_d_v_inner_at_point_constant_mu
 
 end module surface_mesh_mod

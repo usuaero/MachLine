@@ -107,6 +107,7 @@ module adjoint_mod
             
             contains
                 procedure :: init_from_sparse_matrices => sparse_3D_init_from_sparse_matrices
+                procedure :: init_3row_from_sparse_vector_3x3 => sparse_3D_init_3row_from_sparse_vector_3x3
                 procedure :: sparse_add_3 => sparse_3D_sparse_add_3
                 procedure :: transpose_3 => sparse_3D_transpose_3
 
@@ -116,7 +117,7 @@ module adjoint_mod
                 procedure :: broadcast_matmul_3row_times_3x1 => sparse_3D_broadcast_matmul_3row_times_3x1
                 procedure :: broadcast_matmul_1x3_times_3row => sparse_3D_broadcast_matmul_1x3_times_3row
 
-                procedure :: convert_to_sparse_vector_3x3 => sparse_3D_convert_to_sparse_vector_3x3
+                procedure :: convert_3row_to_sparse_vector_3x3 => sparse_3D_convert_3row_to_sparse_vector_3x3
                 
 
     end type sparse_3D
@@ -1222,6 +1223,29 @@ contains
 
     end subroutine sparse_3D_init_from_sparse_matrices
 
+
+    subroutine sparse_3D_init_3row_from_sparse_vector_3x3(this, sparse_3x3)
+        ! takes a sparse_vector 3x3 and converts it to a sparse_3D 3row
+
+        implicit none
+
+        class(sparse_3D), intent(inout) :: this
+        type(sparse_vector),dimension(3,3), intent(inout) :: sparse_3x3
+        
+        type(sparse_matrix), dimension(3) :: sparse_matrices
+
+        integer :: i
+
+        ! convert to 3 sparse matrices
+        do i=1,3
+            call sparse_matrices(i)%init_from_sparse_vectors(sparse_3x3(i,1), sparse_3x3(i,2), sparse_3x3(i,3))
+        end do
+
+        call this%init_from_sparse_matrices(sparse_matrices)
+
+    end subroutine sparse_3D_init_3row_from_sparse_vector_3x3
+
+
     subroutine sparse_3D_sparse_add_3(this, sparse_3D_3rows)
         ! adds a sparse_matrix dimension 3
         
@@ -1358,7 +1382,7 @@ contains
     end function sparse_3D_broadcast_matmul_1x3_times_3row
 
 
-    function sparse_3D_convert_to_sparse_vector_3x3(this) result(sparse_vec_3x3)
+    function sparse_3D_convert_3row_to_sparse_vector_3x3(this) result(sparse_vec_3x3)
         ! converts a sparse 3D (3row) to a sparse vector 3x3
 
         implicit none
@@ -1372,7 +1396,7 @@ contains
             sparse_vec_3x3(i,:) = this%rows(i)%split_into_sparse_vectors()
         end do
 
-    end function sparse_3D_convert_to_sparse_vector_3x3
+    end function sparse_3D_convert_3row_to_sparse_vector_3x3
     
     
     

@@ -246,8 +246,8 @@ module panel_mod
             procedure :: calc_doublet_inf_adjoint => panel_calc_doublet_inf_adjoint
             procedure :: calc_doublet_inf_adjoint2 => panel_calc_doublet_inf_adjoint2
 
-            ! adjoint cell velocity terms (is only used for surface velocities, doesnt affect C_F or C_M)
-            procedure :: calc_velocities_adjoint => panel_calc_velocities_adjoint
+            ! adjoint calc d_v_d holding mu strengths constant (this will be used to calc v_cells_inner)
+            procedure :: calc_d_v_d_constant_mu => panel_calc_d_v_d_constant_mu
             
 
             !!!!!!!! END ADJOINT PROCEDURES !!!!!!!!
@@ -5527,10 +5527,10 @@ contains
             call d_v_d_M_3D%sparse_add_3(dummy_term2)
 
             ! convert to a sparse_vector dimension(3,3)
-            d_v_d_M = d_v_d_M_3D%convert_to_sparse_vector_3x3()
+            d_v_d_M = d_v_d_M_3D%convert_3row_to_sparse_vector_3x3()
 
             ! test 
-            ! d_v_d_M = d_T_mu_3D%convert_to_sparse_vector_3x3()
+            ! d_v_d_M = d_T_mu_3D%convert_3row_to_sparse_vector_3x3()
             
 
         end if
@@ -5553,7 +5553,7 @@ contains
         integer :: i
         real, dimension(:,:),allocatable :: v_s, v_d_M
         type(sparse_matrix) :: dummy_inf_adjoint, term2
-        type(sparse_matrix),dimension(3) :: d_v_d_M_rows
+        ! type(sparse_matrix),dimension(3) :: d_v_d_M_rows
         type(sparse_3D) :: d_v_d_M_3D
 
         ! calc v_d_M space (again, it could be passed in somehow)
@@ -5562,13 +5562,15 @@ contains
         ! calculate the first term of the derivative
         dummy_inf_adjoint = cp%d_n_g%broadcast_matmul_element_times_3x3(matmul(freestream%B_mat_g, v_d_M))
 
-        ! convert d_v_d_M to a sparse_3D object
-        do i=1,3
-            call d_v_d_M_rows(i)%init_from_sparse_vectors(d_v_d_M(i,1), d_v_d_M(i,2), d_v_d_M(i,3))
-        end do
+        ! convert d_v_d_M to a sparse_3D 3row
+        call d_v_d_M_3D%init_3row_from_sparse_vector_3x3(d_v_d_M)
+        
+        ! ! convert d_v_d_M to a sparse_3D object
+        ! do i=1,3
+        !     call d_v_d_M_rows(i)%init_from_sparse_vectors(d_v_d_M(i,1), d_v_d_M(i,2), d_v_d_M(i,3))
+        ! end do
 
-        call d_v_d_M_3D%init_from_sparse_matrices(d_v_d_M_rows)
-
+        ! call d_v_d_M_3D%init_from_sparse_matrices(d_v_d_M_rows)
         
         term2 = d_v_d_M_3D%broadcast_matmul_1x3_times_3row(matmul(cp%n_g,freestream%B_mat_g))
 
@@ -5719,41 +5721,46 @@ contains
     end function panel_calc_doublet_inf_adjoint2
 
 
-    subroutine panel_calc_velocities_adjoint(this, P, freestream, mirror_panel, sigma, mu, &
-        N_body_panels, N_body_verts, asym_flow, v_s, v_d)
+    subroutine panel_calc_d_v_d_constant_mu(this, P, d_P, freestream, mirror_panel, mu, &
+        N_body_verts, asym_flow, d_v_d)
         ! Calculates the velocity induced at the given point
 
         implicit none
 
-        class(panel),intent(in) :: this
-        real,dimension(3),intent(in) :: P
+        class(panel),intent(inout) :: this
+        real,dimension(3),intent(inout) :: P
+        type(sparse_matrix),intent(inout) :: d_P
         type(flow),intent(in) :: freestream
         logical,intent(in) :: mirror_panel, asym_flow
-        real,dimension(:),allocatable,intent(in) :: sigma, mu
-        integer,intent(in) :: N_body_panels, N_body_verts
-        real,dimension(3),intent(out) :: v_d, v_s
+        real,dimension(:),allocatable,intent(in) :: mu
+        integer,intent(in) :: N_body_verts
+        type(sparse_matrix),intent(out) :: d_v_d
 
-        real,dimension(:,:),allocatable :: source_inf, doublet_inf
+        type(sparse_vector),dimension(3,3) :: d_v_d_M
+        type(sparse_3D) :: d_v_d_M_3D
+
         real,dimension(:),allocatable :: doublet_strengths
-        real,dimension(this%S_dim) :: source_strengths
 
         ! Get influences
-        call this%calc_velocity_influences(P, freestream, mirror_panel, source_inf, doublet_inf)
+        call this%calc_velocity_influences_adjoint(P, d_P, freestream, d_v_d_M)
+
+        ! convert sparse vector 3x3 to a sparse_3D 3row
+        call d_v_d_M_3D%init_3row_from_sparse_vector_3x3(d_v_d_M)
 
         ! Get strengths
-        source_strengths = this%get_source_strengths(sigma, mirror_panel, N_body_panels, asym_flow)
         doublet_strengths = this%get_doublet_strengths(mu, mirror_panel, N_body_verts, asym_flow)
 
-        ! Apply strengths to calculate potentials
-        v_s = matmul(source_inf, source_strengths)
 
         if (this%in_wake) then
-        v_d = matmul((doublet_inf(:,1:this%M_dim)+doublet_inf(:,this%M_dim+1:)), doublet_strengths)
+            ! v_d = matmul((d_v_d_M(:,1:this%M_dim)+d_v_d_M(:,this%M_dim+1:)), doublet_strengths)
+            write(*,*) "!!! Cannot calculate adjoint velocity sensitivites for wakes yet. Quitting..."
+            stop
         else
-        v_d = matmul(doublet_inf, doublet_strengths)
+            !v_d = matmul(d_v_d_M, doublet_strengths)
+            d_v_d = d_v_d_M_3D%broadcast_matmul_3row_times_3x1(doublet_strengths)
         end if
 
-    end subroutine panel_calc_velocities_adjoint
+    end subroutine panel_calc_d_v_d_constant_mu
 
 
 

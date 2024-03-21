@@ -117,7 +117,7 @@ module panel_solver_mod
             procedure :: update_adjoint_A_row => panel_solver_update_adjoint_A_row
             procedure :: assemble_adjoint_b_vector=>panel_solver_assemble_adjoint_b_vector
             
-            procedure :: calc_cell_velocities_adjoint => panel_solver_calc_cell_velocities_adjoint
+            procedure :: calc_d_V_cells_inner_adjoint => panel_solver_calc_d_V_cells_inner_adjoint
 
             !!!!!!!!! END ADJOINT !!!!!!!!!!!!
 
@@ -3116,7 +3116,7 @@ contains
     end subroutine panel_solver_assemble_adjoint_b_vector
 
 
-    subroutine panel_solver_calc_cell_velocities_adjoint(this, body)
+    subroutine panel_solver_calc_d_V_cells_inner_adjoint(this, body)
         ! Calculates the surface velocities sensitivities on the mesh panels
 
         implicit none
@@ -3125,45 +3125,39 @@ contains
         type(surface_mesh),intent(inout) :: body
 
         integer :: i, stat
-        real,dimension(3) :: v_inner, v_d, v_s, P
+        real,dimension(3) :: P
+        type(sparse_matrix) :: d_P, d_P_term2
 
-        if (verbose) write(*,'(a)',advance='no') "     Calculating surface velocity sensitivities..."
 
         ! Determine number of surface cells
         this%N_cells = body%N_panels
-        if (body%asym_flow) then
-            this%N_cells = this%N_cells*2
-        end if
+        ! if (body%asym_flow) then
+        !     this%N_cells = this%N_cells*2
+        ! end if
 
         ! Allocate cell velocity storage
-        allocate(body%V_cells_inner(3,this%N_cells), stat=stat)
-        call check_allocation(stat, "inner velocity vectors")
-        allocate(body%V_cells(3,this%N_cells), stat=stat)
-        call check_allocation(stat, "surface velocity vectors")
+        allocate(body%d_V_cells_inner(this%N_cells), stat=stat)
+        call check_allocation(stat, "inner velocity senstivitviy with constant mu")
 
         ! Get the surface velocity on each existing panel
-        !$OMP parallel do private(v_d, v_s, P) schedule(static)
+        !$OMP parallel do private(P, d_P, d_P_term2) schedule(static)
         do i=1,body%N_panels
 
-            ! Get inner flow
-            if (this%dirichlet) then
-                body%V_cells_inner(:,i) = this%inner_flow*this%freestream%U
-            else
-                P = body%panels(i)%centr - 1.e-10*body%panels(i)%n_g
-                call body%get_induced_velocities_at_point(P, this%freestream, v_d, v_s)
-                body%V_cells_inner(:,i) = this%freestream%v_inf + this%freestream%U*(v_d + v_s)
-                ! body%V_cells_inner(:,i) = 0
-            end if
+            P = body%panels(i)%centr - 1.e-10*body%panels(i)%n_g
 
-            !!!! worry about this later, do I need to get d_V_cells wrt mu?
-            ! ! Get surface velocity on each panel
-            ! body%V_cells(:,i) = body%panels(i)%get_velocity(body%mu, body%sigma, .false., body%N_panels, &
-            !                                                 body%N_verts, body%asym_flow, this%freestream, &
-            !                                                 body%V_cells_inner(:,i)/this%freestream%U)
+            ! calc d_P
+            call d_P%init_from_sparse_matrix(body%panels(i)%d_centr) 
+            call d_P_term2%init_from_sparse_matrix(body%panels(i)%d_n_g)
+            call d_P_term2%broadcast_element_times_scalar(-1.e-10)
+            call d_P%sparse_add(d_P_term2)
+
+            body%d_V_cells_inner(i) = body%get_d_v_inner_at_point_constant_mu(P, d_P, this%freestream)
+
+            ! deallocate stuff for next loop
+            deallocate(d_P%columns, d_P_term2%columns)
         end do
 
-        if (verbose) write(*,*) "Done."
 
-    end subroutine panel_solver_calc_cell_velocities_adjoint
+    end subroutine panel_solver_calc_d_V_cells_inner_adjoint
 
 end module panel_solver_mod
