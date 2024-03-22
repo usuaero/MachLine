@@ -1096,7 +1096,7 @@ contains
 
         ! Calculate velocities
         call this%calc_cell_velocities(body)
-        
+
         ! Calculate potentials
         call this%calc_surface_potentials(body)
 

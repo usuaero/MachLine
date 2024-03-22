@@ -3245,7 +3245,6 @@ contains
         
         
         integer :: j, k
-        type(sparse_matrix) :: zeros
         type(sparse_matrix) :: d_v_d_panel
         type(sparse_matrix) :: d_V_inner
 
