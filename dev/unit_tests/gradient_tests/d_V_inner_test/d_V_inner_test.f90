@@ -1,4 +1,4 @@
-program d_v_d_constant_mu_test
+program d_V_inner_test
 
     ! tests various intermediate sensitivities 
     use adjoint_mod
@@ -138,66 +138,35 @@ program d_v_d_constant_mu_test
     test_solver_stat = 0
 
     ! Allocate known influence storage
-    allocate(test_solver%I_known(body%N_cp), source=0., stat=stat)
-    write(*,*) "N_cp = ",body%N_cp
+    allocate(test_solver%I_known(test_mesh%N_cp), source=0., stat=stat)
+    write(*,*) "N_cp = ",test_mesh%N_cp
     write(*,*) "stat = ",stat
     call check_allocation(stat, "known influence vector")
 
     ! Allocate AIC matrix
-    allocate(test_solver%A(body%N_cp, test_solver%N_unknown), source=0., stat=stat)
+    allocate(test_solver%A(test_mesh%N_cp, test_solver%N_unknown), source=0., stat=stat)
     ! call check_allocation(stat, "AIC matrix")
-    
-    ! if adjoint, allocate AIC sensitivity matrix
-    if (body%calc_adjoint) then
-        call zeros%init(body%N_adjoint)
-        allocate(test_solver%d_A_matrix(body%N_cp, test_solver%N_unknown), source=zeros, stat=stat)
-        call check_allocation(stat, "Adjoint AIC sensitivity matrix")
-    end if
 
     ! Allocate b vector
-    allocate(test_solver%b(body%N_cp), source=0., stat=stat)
+    allocate(test_solver%b(test_mesh%N_cp), source=0., stat=stat)
     call check_allocation(stat, "b vector")
 
-    ! if adjoint, allocate b sensitivity vector
-    if (body%calc_adjoint) then
-        allocate(test_solver%d_b_vector(body%N_cp), source=zeros, stat=stat)
-        ! call check_allocation(stat, "Adjoint b sensitivity vector")
-    end if
-
     ! Calculate source strengths
-    call test_solver%calc_source_strengths(body)
+    call test_solver%calc_source_strengths(test_mesh)
 
     ! Calculate body influences
-    call test_solver%calc_body_influences(body)
-    
-    ! Calculate wake influences
-    if (body%wake%N_panels > 0 .or. body%filament_wake%N_filaments > 0)&
-        call test_solver%calc_wake_influences(body, formulation,freestream) !!!! formulation part is a change
-        !write(*,*) "ROCK YOU LIKE A HURRICANE"
-        ! Assemble boundary condition vector
+    call test_solver%calc_body_influences(test_mesh)
 
-    call test_solver%assemble_BC_vector(body)
-
-    ! if adjoint, assemble b sensitivity vector
-    if (body%calc_adjoint) then
-        call test_solver%assemble_adjoint_b_vector(body)
-    end if 
+    call test_solver%assemble_BC_vector(test_mesh)
 
     ! Solve the linear system
-    call test_solver%solve_system(body, solver_stat)
+    call test_solver%solve_system(test_mesh, test_solver_stat)
     
     ! Check for errors
-    if (solver_stat /= 0) return
+    if (test_solver_stat /= 0) return
 
     ! Calculate velocities
-    test_P = test_mesh%panels(index)%centr - 1.e-10*test_mesh%panels(index)%n_g
-    test_v_d = (/0.,0.,0./)
-    test_v_s = (/0.,0.,0./)
-    
-    ! Calculate influence
-    call test_mesh%panels(index)%calc_velocities(test_P, freestream_flow, .false., &
-    test_mesh%sigma, test_mesh%mu, test_mesh%N_panels, test_mesh%N_verts, &
-    test_mesh%asym_flow, test_v_s, test_v_d)
+    call test_solver%calc_cell_velocities(test_mesh)
     
     
     !!!!!!!!!!!!!!!!!!!!! END TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -256,22 +225,10 @@ program d_v_d_constant_mu_test
     ! Initialize panel solver
     call adjoint_solver%init(adjoint_solver_settings, adjoint_processing_settings, adjoint_mesh, &
     adjoint_freestream_flow, adjoint_control_point_file)
-    
+    write(*,*) "check for size mismatch"
     ! solve
     call adjoint_solver%solve(adjoint_mesh, adjoint_solver_stat, adjoint_formulation,adjoint_freestream_flow)
-
-    adjoint_P = adjoint_mesh%panels(index)%centr - 1.e-10*adjoint_mesh%panels(index)%n_g
     
-    ! calc d_P
-    call adjoint_d_P%init_from_sparse_matrix(adjoint_mesh%panels(index)%d_centr) 
-    call adjoint_d_P_term2%init_from_sparse_matrix(adjoint_mesh%panels(index)%d_n_g)
-    call adjoint_d_P_term2%broadcast_element_times_scalar(-1.e-10)
-    call adjoint_d_P%sparse_add(adjoint_d_P_term2)
-
-    ! Calc d_v_d_ constant mu
-    call adjoint_mesh%panels(index)%calc_d_v_d_constant_mu(adjoint_P, adjoint_d_P, &
-        adjoint_freestream_flow, .false., adjoint_mesh%mu, adjoint_mesh%N_verts, &
-        adjoint_mesh%asym_flow, adjoint_d_v_d_panel)
 
     
     !!!!!!!!!!!! END ADJOINT TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!
@@ -288,10 +245,10 @@ program d_v_d_constant_mu_test
 
     
 
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! d_v_d constant_mu TEST !!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! d_V_inner_test !!!!!!!!!!!!!!!!!!!!!!!!!!!!
     write(*,*) ""
     write(*,*) ""
-    write(*,*) "------------------------------ d_v_d constant_mu TEST ---&
+    write(*,*) "------------------------------ d_V_inner_test ---&
     ------------------------------"
     write(*,*) ""
     write(*,*) ""
@@ -306,136 +263,110 @@ program d_v_d_constant_mu_test
     !!!!!!!!! CENTRAL DIFFERENCE (panel 1, cp 1) d_v_d row 1, column ", k, !!!!!!!!!
     write(*,*) ""
     write(*,*) "--------------------------------------------------------------------------------------"
-    write(*,*) "                   d_v_d constant_mu TEST "
+    write(*,*) "                   d_V_inner_test "
     write(*,*) "--------------------------------------------------------------------------------------"
     write(*,*) ""
 
 
-        
-    do i=1,3
-        do j=1,N_verts
+    do k=1,test_mesh%N_panels   
+        do i=1,3
+            do j=1,N_verts
 
-            ! perturb up the current design variable
-            test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
-            ! write(*,*) " perturb up"
-            
-            !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
-        
-            ! update vertex normal
-            do m =1,N_panels
-                deallocate(test_mesh%panels(m)%n_hat_g)
-                call test_mesh%panels(m)%calc_derived_geom()
-            end do
-            
-            call test_mesh%calc_vertex_geometry()
-            
-            ! update with flow
-            do m =1,N_panels
-                deallocate(test_mesh%panels(m)%vertices_ls)
-                deallocate(test_mesh%panels(m)%n_hat_ls)
-                deallocate(test_mesh%panels(m)%b)
-                deallocate(test_mesh%panels(m)%b_mir)  
-                deallocate(test_mesh%panels(m)%sqrt_b)
-                deallocate(test_mesh%panels(m)%i_vert_d)
-                deallocate(test_mesh%panels(m)%S_mu_inv)
-                deallocate(test_mesh%panels(m)%T_mu)
-                ! deallocate(test_mesh%panels(m)%i_panel_s)
-                call test_mesh%panels(m)%init_with_flow(freestream_flow, .false., 0)
-                call test_mesh%panels(m)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
-                test_mesh%vertices,.false.)
-            end do
-            
-            ! recalculates cp locations
-            deallocate(test_solver%sigma_known)
-            deallocate(test_mesh%cp)
-            deallocate(test_solver%P)
-            call test_solver%init(solver_settings, processing_settings, &
-            test_mesh, freestream_flow, control_point_file)
-
-            ! ! deallocate solver stuff
-            ! deallocate(test_mesh%I_knowns)
-            
-            ! solve
-            write(*,*) "check before up solve"
-            write(*,*) "test_solver_stat before", test_solver_stat
-            call test_solver%solve(test_mesh, test_solver_stat, formulation,freestream_flow)
-            write(*,*) "test_solver_stat after", test_solver_stat
-            write(*,*) "check after up solve"
-            
-            test_P = test_mesh%panels(index)%centr - 1.e-10*test_mesh%panels(index)%n_g
+                ! perturb up the current design variable
+                test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
+                ! write(*,*) " perturb up"
                 
-            ! Calculate influence
-            call test_mesh%panels(index)%calc_velocities(test_P, freestream_flow, .false., &
-                test_mesh%sigma, test_mesh%mu, test_mesh%N_panels, test_mesh%N_verts, &
-                test_mesh%asym_flow, test_v_s, test_v_d)
-                            
-            !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
+                !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
             
-            ! get the needed info
-            v_d_up(:,j + (i-1)*N_verts) = test_v_d
-            
-            
-            ! perturb down the current design variable
-            ! write(*,*) " perturb down"
-            test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - 2.*step
-            
-            !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
-        
-            ! update vertex normal
-            do m =1,N_panels
-                deallocate(test_mesh%panels(m)%n_hat_g)
-                call test_mesh%panels(m)%calc_derived_geom()
-            end do
-            
-            call test_mesh%calc_vertex_geometry()
-            
-            ! update with flow
-            do m =1,N_panels
-                deallocate(test_mesh%panels(m)%vertices_ls)
-                deallocate(test_mesh%panels(m)%n_hat_ls)
-                deallocate(test_mesh%panels(m)%b)
-                deallocate(test_mesh%panels(m)%b_mir)  
-                deallocate(test_mesh%panels(m)%sqrt_b)
-                deallocate(test_mesh%panels(m)%i_vert_d)
-                deallocate(test_mesh%panels(m)%S_mu_inv)
-                deallocate(test_mesh%panels(m)%T_mu)
-                ! deallocate(test_mesh%panels(m)%i_panel_s)
-                call test_mesh%panels(m)%init_with_flow(freestream_flow, .false., 0)
-                call test_mesh%panels(m)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
-                test_mesh%vertices,.false.)
-            end do
-            
-            ! recalculates cp locations
-            deallocate(test_solver%sigma_known)
-            deallocate(test_mesh%cp)
-            deallocate(test_solver%P)
-            call test_solver%init(solver_settings, processing_settings, &
-            test_mesh, freestream_flow, control_point_file)
-            
-            ! solve
-            write(*,*) "check before down solve"
-            call test_solver%solve(test_mesh, test_solver_stat, formulation,freestream_flow)
-            write(*,*) "check after down solve"
-            
-            test_P = test_mesh%panels(index)%centr - 1.e-10*test_mesh%panels(index)%n_g
+                ! update vertex normal
+                do m =1,N_panels
+                    deallocate(test_mesh%panels(m)%n_hat_g)
+                    call test_mesh%panels(m)%calc_derived_geom()
+                end do
                 
-            ! Calculate influence
-            call test_mesh%panels(index)%calc_velocities(test_P, freestream_flow, .false., &
-                test_mesh%sigma, test_mesh%mu, test_mesh%N_panels, test_mesh%N_verts, &
-                test_mesh%asym_flow, test_v_s, test_v_d)
-                            
-            !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
-            
-            ! get the needed info
-            v_d_dn(:, j + (i-1)*N_verts) = test_v_d
+                call test_mesh%calc_vertex_geometry()
+                
+                ! update with flow
+                do m =1,N_panels
+                    deallocate(test_mesh%panels(m)%vertices_ls)
+                    deallocate(test_mesh%panels(m)%n_hat_ls)
+                    deallocate(test_mesh%panels(m)%b)
+                    deallocate(test_mesh%panels(m)%b_mir)  
+                    deallocate(test_mesh%panels(m)%sqrt_b)
+                    deallocate(test_mesh%panels(m)%i_vert_d)
+                    deallocate(test_mesh%panels(m)%S_mu_inv)
+                    deallocate(test_mesh%panels(m)%T_mu)
+                    ! deallocate(test_mesh%panels(m)%i_panel_s)
+                    call test_mesh%panels(m)%init_with_flow(freestream_flow, .false., 0)
+                    call test_mesh%panels(m)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
+                    test_mesh%vertices,.false.)
+                end do
+                
+                ! Check for errors
+                if (test_solver_stat /= 0) return
 
+                deallocate(test_mesh%V_cells_inner, test_mesh%V_cells)
+
+                ! Calculate velocities
+                call test_solver%calc_cell_velocities(test_mesh)
+                                
+                !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
+                
+                ! get the needed info
+                v_d_up(:,j + (i-1)*N_verts) = test_mesh%V_cells_inner(:,k)
+                
+                
+                ! perturb down the current design variable
+                ! write(*,*) " perturb down"
+                test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - 2.*step
+                
+                !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
+        
+                ! update vertex normal
+                do m =1,N_panels
+                    deallocate(test_mesh%panels(m)%n_hat_g)
+                    call test_mesh%panels(m)%calc_derived_geom()
+                end do
+                
+                call test_mesh%calc_vertex_geometry()
+                
+                ! update with flow
+                do m =1,N_panels
+                    deallocate(test_mesh%panels(m)%vertices_ls)
+                    deallocate(test_mesh%panels(m)%n_hat_ls)
+                    deallocate(test_mesh%panels(m)%b)
+                    deallocate(test_mesh%panels(m)%b_mir)  
+                    deallocate(test_mesh%panels(m)%sqrt_b)
+                    deallocate(test_mesh%panels(m)%i_vert_d)
+                    deallocate(test_mesh%panels(m)%S_mu_inv)
+                    deallocate(test_mesh%panels(m)%T_mu)
+                    ! deallocate(test_mesh%panels(m)%i_panel_s)
+                    call test_mesh%panels(m)%init_with_flow(freestream_flow, .false., 0)
+                    call test_mesh%panels(m)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
+                    test_mesh%vertices,.false.)
+                end do
+                
+                ! Check for errors
+                if (test_solver_stat /= 0) return
+
+                deallocate(test_mesh%V_cells_inner, test_mesh%V_cells)
+
+                ! Calculate velocities
+                call test_solver%calc_cell_velocities(test_mesh)
+                                
+                !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
+                
+                ! get the needed info
+                v_d_dn(:, j + (i-1)*N_verts) = test_mesh%V_cells_inner(:,k)
+
+                ! restore geometry
+                test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
             
-            ! restore geometry
-            test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
+            end do 
         end do 
-    end do 
-    
-    ! central difference 
+
+        
+        ! central difference 
     d_v_d_FD = (v_d_up - v_d_dn)/(2.*step)
             
     write(*,*) ""
@@ -443,31 +374,31 @@ program d_v_d_constant_mu_test
     
     ! write results
     write(*,*) ""
-    write(*,'(A,I1)') "                d_v_d_FD constant_mu TEST index = ",index
-    write(*,*) "  d_v_d_x           d_v_d_y           d_v_d_z "
+    write(*,'(A,I1)') "                d_V_inner_test index = ",index
+    write(*,*) "  d_V_inner_x           d_V_inner_y           d_V_inner_z "
     do i = 1, N_verts*3
         write(*, '(3(f14.10, 4x))') d_v_d_FD(:,i)
     end do 
     
     !write sparse matrix
     write(*,*) ""
-    write(*,'(A,I1)') "         d_v_d adjoint index ",index
-    write(*,*) "  d_v_d_x           d_v_d_y           d_v_d_z             sparse_index       full_index"
-    
-    do i=1,adjoint_d_v_d_panel%sparse_num_cols
-        write(*,'(3(f14.10, 4x), 12x, I5, 12x, I5)') adjoint_d_v_d_panel%columns(i)%vector_values, &
-        i, adjoint_d_v_d_panel%columns(i)%full_index
+    write(*,'(A,I1)') "                d_V_inner_test index = ",index
+    write(*,*) "  d_V_inner_x           d_V_inner_y           d_V_inner_z     sparse_index       full_index"
+    write(*,*) "sparse num cols", adjoint_mesh%d_V_cells_inner(k)%sparse_num_cols
+    do i=1,adjoint_mesh%d_V_cells_inner(k)%sparse_num_cols
+        write(*,'(3(f14.10, 4x), 12x, I5, 12x, I5)') adjoint_mesh%d_V_cells_inner(k)%columns(i)%vector_values, &
+        i, adjoint_mesh%d_V_cells_inner(k)%columns(i)%full_index
     end do
     write(*,*) ""
-
+    
     do i=1,N_verts*3
-        residuals3(:,i) = adjoint_d_v_d_panel%get_values(i) - d_v_d_FD(:,i)
+        residuals3(:,i) = adjoint_mesh%d_V_cells_inner(k)%get_values(i) - d_v_d_FD(:,i)
     end do
     
-    write(*,'(A,I1)') "         d_v_d index ",index
-    write(*,*) "  d_v_d_x           d_v_d_y           d_v_d_z                                 residuals"
+    write(*,'(A,I1)') "                d_V_inner_test index = ",index
+    write(*,*) "  d_V_inner_x           d_V_inner_y           d_V_inner_z                        residuals"
     do i = 1, N_verts*3
-        write(*, '(3(f14.10, 4x),3x, 3(f14.10, 4x))') adjoint_d_v_d_panel%get_values(i), residuals3(:,i)
+        write(*, '(3(f14.10, 4x),3x, 3(f14.10, 4x))') adjoint_mesh%d_V_cells_inner(k)%get_values(i), residuals3(:,i)
     end do
     write(*,*) ""
 
@@ -486,7 +417,7 @@ program d_v_d_constant_mu_test
         failure_log(total_tests-passed_tests) = "TEST FAILURE in d_v_d"
         write(*,*) failure_log(total_tests-passed_tests)
     else
-        write(*,'(A, I1,A)') " d_v_d index = (",index,") test PASSED"
+        write(*,'(A, I1,A)') " d_v_d index = (",k,") test PASSED"
         passed_tests = passed_tests + 1
         total_tests = total_tests + 1
         
@@ -494,14 +425,15 @@ program d_v_d_constant_mu_test
     test_failed = .false.
     write(*,*) "" 
     write(*,*) ""
-
-
-
-
-
-
-    !!!!!!!!!!!!!! d_v_d constant_mu TEST RESULTS!!!!!!!!!!!!!
-    write(*,*) "-------------d_v_d constant_mu TEST RESULTS--------------"
+    
+    
+end do
+    
+    
+    
+    
+    !!!!!!!!!!!!!! d_V_inner_test RESULTS!!!!!!!!!!!!!
+    write(*,*) "-------------d_V_inner_test RESULTS--------------"
     write(*,*) ""
     write(*,'((A), ES10.1)') "allowed residual = ", error_allowed
     write(*,'((A), ES10.1)') "control point offset = ", cp_offset
@@ -527,4 +459,4 @@ program d_v_d_constant_mu_test
     write(*,*) "----------------------"
 
 
-end program d_v_d_constant_mu_test
+end program d_V_inner_test

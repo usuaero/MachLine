@@ -3249,9 +3249,11 @@ contains
         type(sparse_matrix) :: d_V_inner
 
         ! Loop through panels
+
+        call d_V_inner%init(this%N_adjoint)
         
         do k=1,this%N_panels
-
+            
             ! Calculate influence
             call this%panels(k)%calc_d_v_d_constant_mu(point, d_point, freestream, .false., &
                                                  this%mu, this%N_verts, &

@@ -1046,11 +1046,13 @@ contains
 
         ! Allocate known influence storage
         allocate(this%I_known(body%N_cp), source=0., stat=stat)
+        write(*,*) "N_cp = ",body%N_cp
+        write(*,*) "stat = ",stat
         call check_allocation(stat, "known influence vector")
 
         ! Allocate AIC matrix
         allocate(this%A(body%N_cp, this%N_unknown), source=0., stat=stat)
-        call check_allocation(stat, "AIC matrix")
+        ! call check_allocation(stat, "AIC matrix")
         
         ! if adjoint, allocate AIC sensitivity matrix
         if (body%calc_adjoint) then
@@ -1066,7 +1068,7 @@ contains
         ! if adjoint, allocate b sensitivity vector
         if (body%calc_adjoint) then
             allocate(this%d_b_vector(body%N_cp), source=zeros, stat=stat)
-            call check_allocation(stat, "Adjoint b sensitivity vector")
+            ! call check_allocation(stat, "Adjoint b sensitivity vector")
         end if
 
         ! Calculate source strengths
@@ -1094,8 +1096,14 @@ contains
         ! Check for errors
         if (solver_stat /= 0) return
 
+        
         ! Calculate velocities
         call this%calc_cell_velocities(body)
+        
+        ! if adjoint, calc d_V_inner
+        if (body%calc_adjoint) then
+            call this%calc_d_V_cells_inner_adjoint(body)
+        end if 
 
         ! Calculate potentials
         call this%calc_surface_potentials(body)
@@ -1181,7 +1189,10 @@ contains
 
         ! Allocate source strength array
         allocate(body%sigma(this%N_sigma), source=0., stat=stat)
+
         call check_allocation(stat, "source strength array")
+        write(*,*) "N_cp = ",body%N_cp
+        write(*,*) "stat = ",stat
 
         ! Set source strengths
         if (this%formulation == D_MORINO) then
@@ -3152,7 +3163,8 @@ contains
             call d_P%sparse_add(d_P_term2)
 
             body%d_V_cells_inner(i) = body%get_d_v_inner_at_point_constant_mu(P, d_P, this%freestream)
-
+            write(*,*) "d_V_cells_inner size = ", body%d_V_cells_inner(i)%full_num_cols
+        
             ! deallocate stuff for next loop
             deallocate(d_P%columns, d_P_term2%columns)
         end do
