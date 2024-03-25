@@ -1,4 +1,4 @@
-program d_V_inner_test
+program calc_vel_inf_test
 
     ! tests various intermediate sensitivities 
     use adjoint_mod
@@ -46,9 +46,11 @@ program d_V_inner_test
     type(sparse_vector) :: zeros
 
     real,dimension(3) :: adjoint_P, test_P, test_v_d, test_v_s
+    real,dimension(:,:),allocatable :: test_v_d_inf, test_v_s_inf
     type(sparse_matrix) :: adjoint_d_P_term2
     type(sparse_matrix) :: adjoint_d_P
-    type(sparse_matrix) :: adjoint_d_v_d_panel
+    type(sparse_matrix),dimension(3) ::  adjoint_d_v_d_inf_row
+    type(sparse_vector),dimension(3,3) :: adjoint_d_v_d_M
 
     !!!!!!!!!!!!!!!!!!!!! END STUFF FROM MAIN !!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -134,39 +136,37 @@ program d_V_inner_test
     ! pull out the cp offset
     call json_xtnsn_get(solver_settings, 'control_point_offset', cp_offset, 1.e-7)
     
-    ! Set default status
-    test_solver_stat = 0
+    ! ! Set default status
+    ! test_solver_stat = 0
 
-    ! Allocate known influence storage
-    allocate(test_solver%I_known(test_mesh%N_cp), source=0., stat=stat)
-    write(*,*) "N_cp = ",test_mesh%N_cp
-    write(*,*) "stat = ",stat
-    call check_allocation(stat, "known influence vector")
+    ! ! Allocate known influence storage
+    ! allocate(test_solver%I_known(test_mesh%N_cp), source=0., stat=stat)
+    ! write(*,*) "N_cp = ",test_mesh%N_cp
+    ! write(*,*) "stat = ",stat
+    ! call check_allocation(stat, "known influence vector")
 
-    ! Allocate AIC matrix
-    allocate(test_solver%A(test_mesh%N_cp, test_solver%N_unknown), source=0., stat=stat)
-    ! call check_allocation(stat, "AIC matrix")
+    ! ! Allocate AIC matrix
+    ! allocate(test_solver%A(test_mesh%N_cp, test_solver%N_unknown), source=0., stat=stat)
+    ! ! call check_allocation(stat, "AIC matrix")
 
-    ! Allocate b vector
-    allocate(test_solver%b(test_mesh%N_cp), source=0., stat=stat)
-    call check_allocation(stat, "b vector")
+    ! ! Allocate b vector
+    ! allocate(test_solver%b(test_mesh%N_cp), source=0., stat=stat)
+    ! call check_allocation(stat, "b vector")
 
-    ! Calculate source strengths
-    call test_solver%calc_source_strengths(test_mesh)
+    ! ! Calculate source strengths
+    ! call test_solver%calc_source_strengths(test_mesh)
 
-    ! Calculate body influences
-    call test_solver%calc_body_influences(test_mesh)
+    ! ! Calculate body influences
+    ! call test_solver%calc_body_influences(test_mesh)
 
-    call test_solver%assemble_BC_vector(test_mesh)
+    ! call test_solver%assemble_BC_vector(test_mesh)
 
-    ! Solve the linear system
-    call test_solver%solve_system(test_mesh, test_solver_stat)
+    ! ! Solve the linear system
+    ! call test_solver%solve_system(test_mesh, test_solver_stat)
     
-    ! Check for errors
-    if (test_solver_stat /= 0) return
-
-    ! Calculate velocities
-    call test_solver%calc_cell_velocities(test_mesh)
+    test_P = test_mesh%panels(index)%centr - 1.e-10*test_mesh%panels(index)%n_g
+    
+    call test_mesh%panels(index)%calc_velocity_influences(test_P, freestream_flow, .false., test_v_s_inf, test_v_d_inf)
     
     
     !!!!!!!!!!!!!!!!!!!!! END TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -222,15 +222,28 @@ program d_V_inner_test
     ! Perform flow-dependent initialization on the surface mesh
     call adjoint_mesh%init_with_flow(adjoint_freestream_flow, adjoint_body_file, adjoint_wake_file, adjoint_formulation)
     
-    ! Initialize panel solver
-    call adjoint_solver%init(adjoint_solver_settings, adjoint_processing_settings, adjoint_mesh, &
-    adjoint_freestream_flow, adjoint_control_point_file)
-    write(*,*) "check for size mismatch"
-    ! solve
-    call adjoint_solver%solve(adjoint_mesh, adjoint_solver_stat, adjoint_formulation,adjoint_freestream_flow)
+    ! ! Initialize panel solver
+    ! call adjoint_solver%init(adjoint_solver_settings, adjoint_processing_settings, adjoint_mesh, &
+    ! adjoint_freestream_flow, adjoint_control_point_file)
+    ! write(*,*) "check for size mismatch"
+    ! ! solve
+    ! call adjoint_solver%solve(adjoint_mesh, adjoint_solver_stat, adjoint_formulation,adjoint_freestream_flow)
     
+    adjoint_P = adjoint_mesh%panels(index)%centr - 1.e-10*adjoint_mesh%panels(index)%n_g
 
-    
+    ! calc d_P
+    call adjoint_d_P%init_from_sparse_matrix(adjoint_mesh%panels(index)%d_centr) 
+    call adjoint_d_P_term2%init_from_sparse_matrix(adjoint_mesh%panels(index)%d_n_g)
+    call adjoint_d_P_term2%broadcast_element_times_scalar(-1.e-10)
+    call adjoint_d_P%sparse_add(adjoint_d_P_term2)
+
+    call adjoint_mesh%panels(index)%calc_velocity_influences_adjoint(adjoint_P, adjoint_d_P, &
+    adjoint_freestream_flow, adjoint_d_v_d_M)
+
+    do i = 1,3
+        call adjoint_d_v_d_inf_row(i)%init_from_sparse_vectors(adjoint_d_v_d_M(i,1), adjoint_d_v_d_M(i,2), &
+        adjoint_d_v_d_M(i,3))
+    end do
     !!!!!!!!!!!! END ADJOINT TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!
 
 
@@ -245,10 +258,10 @@ program d_V_inner_test
 
     
 
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! d_V_inner_test !!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! calc_vel_inf_test !!!!!!!!!!!!!!!!!!!!!!!!!!!!
     write(*,*) ""
     write(*,*) ""
-    write(*,*) "------------------------------ d_V_inner_test ---&
+    write(*,*) "------------------------------ calc_vel_inf_test ---&
     ------------------------------"
     write(*,*) ""
     write(*,*) ""
@@ -263,12 +276,12 @@ program d_V_inner_test
     !!!!!!!!! CENTRAL DIFFERENCE (panel 1, cp 1) d_v_d row 1, column ", k, !!!!!!!!!
     write(*,*) ""
     write(*,*) "--------------------------------------------------------------------------------------"
-    write(*,*) "                   d_V_inner_test "
+    write(*,*) "                   calc_vel_inf_test "
     write(*,*) "--------------------------------------------------------------------------------------"
     write(*,*) ""
 
 
-    do k=1,test_mesh%N_panels   
+    do k=1,3  
         do i=1,3
             do j=1,N_verts
 
@@ -301,19 +314,23 @@ program d_V_inner_test
                     call test_mesh%panels(m)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
                     test_mesh%vertices,.false.)
                 end do
+
+                ! recalculates cp locations
+                deallocate(test_solver%sigma_known)
+                deallocate(test_mesh%cp)
+                deallocate(test_solver%P)
+                call test_solver%init(solver_settings, processing_settings, &
+                test_mesh, freestream_flow, control_point_file)
                 
-                ! Check for errors
-                if (test_solver_stat /= 0) return
+                test_P = test_mesh%panels(index)%centr - 1.e-10*test_mesh%panels(index)%n_g
 
-                deallocate(test_mesh%V_cells_inner, test_mesh%V_cells)
-
-                ! Calculate velocities
-                call test_solver%calc_cell_velocities(test_mesh)
+                call test_mesh%panels(index)%calc_velocity_influences(test_P, freestream_flow, .false., &
+                test_v_s_inf, test_v_d_inf)
                                 
                 !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
                 
                 ! get the needed info
-                v_d_up(:,j + (i-1)*N_verts) = test_mesh%V_cells_inner(:,k)
+                v_d_up(:,j + (i-1)*N_verts) = test_v_d_inf(k,:)
                 
                 
                 ! perturb down the current design variable
@@ -345,37 +362,42 @@ program d_V_inner_test
                     call test_mesh%panels(m)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
                     test_mesh%vertices,.false.)
                 end do
+
+                ! recalculates cp locations
+                deallocate(test_solver%sigma_known)
+                deallocate(test_mesh%cp)
+                deallocate(test_solver%P)
+                call test_solver%init(solver_settings, processing_settings, &
+                test_mesh, freestream_flow, control_point_file)
                 
-                ! Check for errors
-                if (test_solver_stat /= 0) return
-
-                deallocate(test_mesh%V_cells_inner, test_mesh%V_cells)
-
-                ! Calculate velocities
-                call test_solver%calc_cell_velocities(test_mesh)
-                                
+                test_P = test_mesh%panels(index)%centr - 1.e-10*test_mesh%panels(index)%n_g
+                
+                call test_mesh%panels(index)%calc_velocity_influences(test_P, freestream_flow, .false., &
+                test_v_s_inf, test_v_d_inf)
+                
                 !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
                 
                 ! get the needed info
-                v_d_dn(:, j + (i-1)*N_verts) = test_mesh%V_cells_inner(:,k)
-
+                v_d_dn(:, j + (i-1)*N_verts) = test_v_d_inf(k,:)
+                
                 ! restore geometry
                 test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
-            
+                
             end do 
         end do 
-
+        
         
         ! central difference 
-    d_v_d_FD = (v_d_up - v_d_dn)/(2.*step)
-            
-    write(*,*) ""
-    
-    
-    ! write results
-    write(*,*) ""
-    write(*,'(A,I1)') "                d_V_inner_test index = ",index
-    write(*,*) "  d_V_inner_x           d_V_inner_y           d_V_inner_z "
+        d_v_d_FD = (v_d_up - v_d_dn)/(2.*step)
+        
+        write(*,*) ""
+        
+        
+        ! write results
+        write(*,*) "-----------------------------------------------------------------------------------------"
+        write(*,*) ""
+        write(*,'(A,I1,A,I1)') "                Central Diff d_v_d_inf panel ", index, " row = ",k
+    write(*,*) "  d_v_d_inf_x           d_v_d_inf_y           d_v_d_inf_z "
     do i = 1, N_verts*3
         write(*, '(3(f14.10, 4x))') d_v_d_FD(:,i)
     end do 
@@ -390,15 +412,17 @@ program d_V_inner_test
     !     i, adjoint_mesh%d_V_cells_inner(k)%columns(i)%full_index
     ! end do
     ! write(*,*) ""
+
+
     
     do i=1,N_verts*3
-        residuals3(:,i) = adjoint_mesh%d_V_cells_inner(k)%get_values(i) - d_v_d_FD(:,i)
+        residuals3(:,i) = adjoint_d_v_d_inf_row(k)%get_values(i) - d_v_d_FD(:,i)
     end do
     
-    write(*,'(A,I1)') "                d_V_inner_test index = ",index
-    write(*,*) "  d_V_inner_x           d_V_inner_y           d_V_inner_z                        residuals"
+    write(*,'(A,I1,A,I1)') "                adjoint d_v_d_inf panel ", index, " row = ",k
+    write(*,*) "  d_v_d_inf_x           d_v_d_inf_y           d_v_d_inf_z                        residuals"
     do i = 1, N_verts*3
-        write(*, '(3(f14.10, 4x),3x, 3(f14.10, 4x))') adjoint_mesh%d_V_cells_inner(k)%get_values(i), residuals3(:,i)
+        write(*, '(3(f14.10, 4x),3x, 3(f14.10, 4x))') adjoint_d_v_d_inf_row(k)%get_values(i), residuals3(:,i)
     end do
     write(*,*) ""
 
@@ -414,10 +438,10 @@ program d_V_inner_test
     if (test_failed) then
         total_tests = total_tests + 1
         
-        failure_log(total_tests-passed_tests) = "TEST FAILURE in d_v_d"
+        failure_log(total_tests-passed_tests) = "TEST FAILURE in calc_vel_inf_test"
         write(*,*) failure_log(total_tests-passed_tests)
     else
-        write(*,'(A, I1,A)') " d_v_d index = (",k,") test PASSED"
+        write(*,'(A,I1,A, I1)') " calc_vel_inf Panel ", index, " row ", k," TEST PASSED"
         passed_tests = passed_tests + 1
         total_tests = total_tests + 1
         
@@ -432,8 +456,8 @@ end do
     
     
     
-    !!!!!!!!!!!!!! d_V_inner_test RESULTS!!!!!!!!!!!!!
-    write(*,*) "-------------d_V_inner_test RESULTS--------------"
+    !!!!!!!!!!!!!! calc_vel_inf_test RESULTS!!!!!!!!!!!!!
+    write(*,*) "-------------calc_vel_inf_test RESULTS--------------"
     write(*,*) ""
     write(*,'((A), ES10.1)') "allowed residual = ", error_allowed
     write(*,'((A), ES10.1)') "control point offset = ", cp_offset
@@ -459,4 +483,4 @@ end do
     write(*,*) "----------------------"
 
 
-end program d_V_inner_test
+end program calc_vel_inf_test

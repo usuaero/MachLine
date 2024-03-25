@@ -5722,7 +5722,7 @@ contains
 
 
     subroutine panel_calc_d_v_d_constant_mu(this, P, d_P, freestream, mirror_panel, mu, &
-        N_body_verts, asym_flow, d_v_d)
+        N_body_verts, asym_flow, d_v_d_const_mu)
         ! Calculates the velocity induced at the given point
 
         implicit none
@@ -5734,7 +5734,7 @@ contains
         logical,intent(in) :: mirror_panel, asym_flow
         real,dimension(:),allocatable,intent(in) :: mu
         integer,intent(in) :: N_body_verts
-        type(sparse_matrix),intent(out) :: d_v_d
+        type(sparse_matrix),intent(out) :: d_v_d_const_mu
 
         type(sparse_vector),dimension(3,3) :: d_v_d_M
         type(sparse_3D) :: d_v_d_M_3D
@@ -5752,12 +5752,13 @@ contains
 
 
         if (this%in_wake) then
-            ! v_d = matmul((d_v_d_M(:,1:this%M_dim)+d_v_d_M(:,this%M_dim+1:)), doublet_strengths)
+            ! derivative of this: v_d = matmul((d_v_d_M(:,1:this%M_dim)+d_v_d_M(:,this%M_dim+1:)), doublet_strengths)
             write(*,*) "!!! Cannot calculate adjoint velocity sensitivites for wakes yet. Quitting..."
             stop
         else
-            !v_d = matmul(d_v_d_M, doublet_strengths)
-            d_v_d = d_v_d_M_3D%broadcast_matmul_3row_times_3x1(doublet_strengths)
+            ! derivative of this: v_d = matmul(d_v_d_M, doublet_strengths)
+            d_v_d_const_mu = d_v_d_M_3D%broadcast_matmul_3row_times_3x1(doublet_strengths)
+            
         end if
 
     end subroutine panel_calc_d_v_d_constant_mu
