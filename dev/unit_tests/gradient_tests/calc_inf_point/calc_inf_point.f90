@@ -140,7 +140,8 @@ program calc_inf_point
 
     test_P = test_mesh%panels(index)%centr - 1.e-10*test_mesh%panels(index)%n_g
     
-    call test_mesh%panels(index)%calc_velocity_influences(test_P, freestream_flow,.false.,v_s, v_d)
+    test_geom = test_mesh%panels(index)%calc_subsonic_geom(test_P, freestream_flow, .false.)
+    write(*,*) " geom a = ", test_geom%a
     !!!!!!!!!!!!!!!!!!!!! END TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
@@ -225,8 +226,8 @@ program calc_inf_point
     adjoint_geom = adjoint_mesh%panels(index)%calc_subsonic_geom_adjoint(adjoint_P,&
     adjoint_d_P, adjoint_freestream_flow)
 
-    call adjoint_geom_dl1%init_from_sparse_vectors(adjoint_geom%d_R2(1), adjoint_geom%d_R2(2),adjoint_geom%d_R2(3))
-    
+    call adjoint_geom_dl1%init_from_sparse_vectors(adjoint_geom%d_g2(1), adjoint_geom%d_g2(2),adjoint_geom%d_g2(3))
+    write(*,*) " adjoint geom a = ", adjoint_geom%a
     
     !!!!!!!!!!!! END ADJOINT TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -314,7 +315,7 @@ program calc_inf_point
                 !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
                 
                 ! get the needed info
-                inf_up(:,j + (i-1)*N_verts) = test_geom%R2
+                inf_up(:,j + (i-1)*N_verts) = test_geom%a*test_geom%a
                 
                 
                 ! perturb down the current design variable
@@ -357,7 +358,7 @@ program calc_inf_point
                 !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
                 
                 ! get the needed info
-                inf_dn(:,j + (i-1)*N_verts) = test_geom%R2
+                inf_dn(:,j + (i-1)*N_verts) = test_geom%a*test_geom%a
 
                 
                 ! restore geometry

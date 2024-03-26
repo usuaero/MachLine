@@ -329,10 +329,13 @@ contains
         
         ! initialize logical
         new_sparse_element_needed = .FALSE.
+        write(*,*) " this sparse size =", this%sparse_size
 
         ! check to see if a new sparse element is needed or if it can be updated
         do i=1,this%sparse_size
+            write(*,*) " this elements i full index = ", this%elements(i)%full_index
             if (this%elements(i)%full_index == full_index) then
+                write(*,*) "value = ", value
                 this%elements(i)%value = value  
                 exit  
             else if (this%elements(i)%full_index > full_index) then
@@ -445,12 +448,15 @@ contains
     
             ! get vector values at full index i
             sparse_input_i = sparse_input%get_value(i)
-        
+            write(*,*) "sparse input i  =  ", sparse_input_i
+            
             ! if sparse_input_i is populated, add them
             if (abs(sparse_input_i) > 1.0e-16) then
-                                
+                
                 this_i = this%get_value(i)
                 added = this_i + sparse_input_i
+                write(*,*) "added  =  ", added
+                write(*,*) " i = ", i
                 call this%set_value(added, i)
 
             end if

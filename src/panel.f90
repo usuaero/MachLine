@@ -4958,12 +4958,18 @@ contains
         ! calculate d_g2 values for each edge
         ! (edge perpendicular distance from eval point to panel edges)
         do i=1,3
+            write(*,'(A,I1,A,f14.10)') "adjoint calcs d_a(", i, ") = ", geom%d_a(i)%get_value(1)
             call d_g2_term%init_from_sparse_vector(geom%d_a(i))
+            write(*,'(A,I1,A,f14.10)') "adjoint calcs 2a(", i, ") = ", 2.*geom%a(i)
             call d_g2_term%broadcast_element_times_scalar(2.*geom%a(i))
-
+            write(*,'(A,I1,A,f14.10)') "adjoint calcs d_a2(", i, ") = ", d_g2_term%get_value(1)
+            
+            write(*,'(A,I1,A,f14.10)') "adjoint calcs d_h2(", i, ") = ", geom%d_h2%get_value(1)
             call geom%d_g2(i)%init_from_sparse_vector(geom%d_h2)
+            write(*,'(A,I1,A,f14.10)') "adjoint calcs d_g2 before add term(", i, ") = ", geom%d_g2(i)%get_value(1)
             call geom%d_g2(i)%sparse_add(d_g2_term)
-
+            write(*,'(A,I1,A,f14.10)') "adjoint calcs d_g2 after add term(", i, ") = ", geom%d_g2(i)%get_value(1)
+            stop
             deallocate(d_g2_term%elements)
         end do
 
