@@ -3267,7 +3267,7 @@ contains
             call d_V_inner%sparse_add(d_v_d_panel)
         end do
 
-        call d_V_inner%broadcast_element_times_scalar(freestream%U)
+        ! call d_V_inner%broadcast_element_times_scalar(freestream%U)
         
         
 

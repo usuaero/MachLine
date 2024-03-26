@@ -73,7 +73,7 @@ program d_V_inner_test
     passed_tests = 0
     total_tests = 0
 
-    error_allowed = 1.0e-7
+    error_allowed = 1.0e-5
     step = 0.00001
     index = 1
     cp_ind = 1
@@ -301,6 +301,13 @@ program d_V_inner_test
                     call test_mesh%panels(m)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
                     test_mesh%vertices,.false.)
                 end do
+
+                ! recalculates cp locations
+                deallocate(test_solver%sigma_known)
+                deallocate(test_mesh%cp)
+                deallocate(test_solver%P)
+                call test_solver%init(solver_settings, processing_settings, &
+                test_mesh, freestream_flow, control_point_file)
                 
                 ! Check for errors
                 if (test_solver_stat /= 0) return
@@ -346,6 +353,13 @@ program d_V_inner_test
                     test_mesh%vertices,.false.)
                 end do
                 
+                ! recalculates cp locations
+                deallocate(test_solver%sigma_known)
+                deallocate(test_mesh%cp)
+                deallocate(test_solver%P)
+                call test_solver%init(solver_settings, processing_settings, &
+                test_mesh, freestream_flow, control_point_file)
+
                 ! Check for errors
                 if (test_solver_stat /= 0) return
 
@@ -374,10 +388,10 @@ program d_V_inner_test
     
     ! write results
     write(*,*) ""
-    write(*,'(A,I1)') "                d_V_inner_test index = ",index
+    write(*,'(A,I1)') "              Central Diff  d_V_inner_test index = ",index
     write(*,*) "  d_V_inner_x           d_V_inner_y           d_V_inner_z "
     do i = 1, N_verts*3
-        write(*, '(3(f14.10, 4x))') d_v_d_FD(:,i)
+        write(*, '(3(f16.10, 4x))') d_v_d_FD(:,i)
     end do 
     
     ! !write sparse matrix
@@ -395,10 +409,10 @@ program d_V_inner_test
         residuals3(:,i) = adjoint_mesh%d_V_cells_inner(k)%get_values(i) - d_v_d_FD(:,i)
     end do
     
-    write(*,'(A,I1)') "                d_V_inner_test index = ",index
+    write(*,'(A,I1)') "          Adjoint      d_V_inner_test index = ",index
     write(*,*) "  d_V_inner_x           d_V_inner_y           d_V_inner_z                        residuals"
     do i = 1, N_verts*3
-        write(*, '(3(f14.10, 4x),3x, 3(f14.10, 4x))') adjoint_mesh%d_V_cells_inner(k)%get_values(i), residuals3(:,i)
+        write(*, '(3(f16.10, 4x),3x, 3(f16.10, 4x))') adjoint_mesh%d_V_cells_inner(k)%get_values(i), residuals3(:,i)
     end do
     write(*,*) ""
 

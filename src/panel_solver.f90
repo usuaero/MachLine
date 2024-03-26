@@ -3163,8 +3163,7 @@ contains
             call d_P%sparse_add(d_P_term2)
 
             body%d_V_cells_inner(i) = body%get_d_v_inner_at_point_constant_mu(P, d_P, this%freestream)
-            write(*,*) "d_V_cells_inner size = ", body%d_V_cells_inner(i)%full_num_cols
-        
+            call body%d_V_cells_inner(i)%broadcast_element_times_scalar(this%freestream%U)
             ! deallocate stuff for next loop
             deallocate(d_P%columns, d_P_term2%columns)
         end do

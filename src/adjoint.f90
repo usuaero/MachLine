@@ -172,18 +172,28 @@ contains
             end if
         end do
         
-        
-        ! now that we have the number of non zero numbers, we can allocate the space for the sparse_vector
-        this%sparse_size = count
-        this%full_size = full_size
-        allocate(this%elements(count))
+        if (count == 0) then
+            ! make an empty element
+            this%sparse_size = 1
+            this%full_size = full_size
+            allocate(this%elements(1))
 
-        ! populate the sparse_vector elements
-        do i=1,count
-            this%elements(i)%value = full_vector(indices(i))
-            this%elements(i)%full_index = indices(i)
-        end do
+            this%elements(1)%value = 0.
+            this%elements(1)%full_index = 1
+            
+        else
+            ! now that we have the number of non zero numbers, we can allocate the space for the sparse_vector
+            this%sparse_size = count
+            this%full_size = full_size
+            allocate(this%elements(count))
+
+            ! populate the sparse_vector elements
+            do i=1,count
+                this%elements(i)%value = full_vector(indices(i))
+                this%elements(i)%full_index = indices(i)
+            end do
         
+        end if
         ! to save memory, you can deallocate the original array after converting to a sparse vector
 
     end subroutine sparse_vector_init_from_full_vector
@@ -329,13 +339,10 @@ contains
         
         ! initialize logical
         new_sparse_element_needed = .FALSE.
-        write(*,*) " this sparse size =", this%sparse_size
 
         ! check to see if a new sparse element is needed or if it can be updated
         do i=1,this%sparse_size
-            write(*,*) " this elements i full index = ", this%elements(i)%full_index
             if (this%elements(i)%full_index == full_index) then
-                write(*,*) "value = ", value
                 this%elements(i)%value = value  
                 exit  
             else if (this%elements(i)%full_index > full_index) then
@@ -443,22 +450,20 @@ contains
             stop
         end if
 
+        
         ! loop through full index
         do i=1, this%full_size
-    
+            
             ! get vector values at full index i
             sparse_input_i = sparse_input%get_value(i)
-            write(*,*) "sparse input i  =  ", sparse_input_i
             
             ! if sparse_input_i is populated, add them
             if (abs(sparse_input_i) > 1.0e-16) then
                 
                 this_i = this%get_value(i)
                 added = this_i + sparse_input_i
-                write(*,*) "added  =  ", added
-                write(*,*) " i = ", i
                 call this%set_value(added, i)
-
+                
             end if
             
         end do 
@@ -655,19 +660,30 @@ contains
                 indices(count) = i
             end if
         end do
-        
-        ! now that we have the number of non zero numbers, we can allocate the space for the sparse_vector
-        this%sparse_num_cols = count
-        this%full_num_cols = full_size
-        allocate(this%columns(count))
 
-        ! populate the sparse_vector elements
-        do i=1,count
-            ! populate sparse columns with the nonzero full matrix columns
-            this%columns(i)%vector_values = full_matrix(:,indices(i))
-            this%columns(i)%full_index = indices(i)
-        end do
+        if (count == 0) then
+            ! if count is zero, set a zero element
+            this%sparse_num_cols = 1
+            this%full_num_cols = full_size
+            allocate(this%columns(1))
+            this%columns(1)%vector_values = (/0., 0., 0./)
+            this%columns(1)%full_index = 1
+
+        else
         
+            ! now that we have the number of non zero numbers, we can allocate the space for the sparse_vector
+            this%sparse_num_cols = count
+            this%full_num_cols = full_size
+            allocate(this%columns(count))
+
+            ! populate the sparse_vector elements
+            do i=1,count
+                ! populate sparse columns with the nonzero full matrix columns
+                this%columns(i)%vector_values = full_matrix(:,indices(i))
+                this%columns(i)%full_index = indices(i)
+            end do
+        
+        end if
         ! to save memory, you can deallocate the original array after compressing it
 
     end subroutine sparse_matrix_init_from_full_matrix

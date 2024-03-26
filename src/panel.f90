@@ -248,7 +248,8 @@ module panel_mod
 
             ! adjoint calc d_v_d holding mu strengths constant (this will be used to calc v_cells_inner)
             procedure :: calc_d_v_d_constant_mu => panel_calc_d_v_d_constant_mu
-            
+            procedure :: get_velocity_adjoint => panel_get_velocity_adjoint
+            procedure :: get_velocity_jump_adjoint => panel_get_velocity_jump_adjoint
 
             !!!!!!!! END ADJOINT PROCEDURES !!!!!!!!
 
@@ -4958,18 +4959,11 @@ contains
         ! calculate d_g2 values for each edge
         ! (edge perpendicular distance from eval point to panel edges)
         do i=1,3
-            write(*,'(A,I1,A,f14.10)') "adjoint calcs d_a(", i, ") = ", geom%d_a(i)%get_value(1)
             call d_g2_term%init_from_sparse_vector(geom%d_a(i))
-            write(*,'(A,I1,A,f14.10)') "adjoint calcs 2a(", i, ") = ", 2.*geom%a(i)
             call d_g2_term%broadcast_element_times_scalar(2.*geom%a(i))
-            write(*,'(A,I1,A,f14.10)') "adjoint calcs d_a2(", i, ") = ", d_g2_term%get_value(1)
             
-            write(*,'(A,I1,A,f14.10)') "adjoint calcs d_h2(", i, ") = ", geom%d_h2%get_value(1)
             call geom%d_g2(i)%init_from_sparse_vector(geom%d_h2)
-            write(*,'(A,I1,A,f14.10)') "adjoint calcs d_g2 before add term(", i, ") = ", geom%d_g2(i)%get_value(1)
             call geom%d_g2(i)%sparse_add(d_g2_term)
-            write(*,'(A,I1,A,f14.10)') "adjoint calcs d_g2 after add term(", i, ") = ", geom%d_g2(i)%get_value(1)
-            stop
             deallocate(d_g2_term%elements)
         end do
 
@@ -5770,6 +5764,108 @@ contains
     end subroutine panel_calc_d_v_d_constant_mu
 
 
+
+    function panel_get_velocity_adjoint(this, mu, sigma, mirrored, N_body_panels, N_body_verts, asym_flow, &
+        freestream, inner_flow, point) result(v)
+    ! Calculates the velocity on the outside of this panel in global coordinates at the given location
+    ! If a location is not given, this will default to the centroid
+
+        implicit none
+
+        class(panel),intent(in) :: this
+        real,dimension(:),allocatable,intent(in) :: mu, sigma
+        logical,intent(in) :: mirrored, asym_flow
+        integer,intent(in) :: N_body_panels, N_body_verts
+        type(flow),intent(in) :: freestream
+        real,dimension(3),intent(in) :: inner_flow
+        real,dimension(3),intent(in),optional :: point
+
+        real,dimension(3) :: v
+
+        real,dimension(3) :: dv
+
+        ! Get velocity jump
+        if (present(point)) then
+        dv = this%get_velocity_jump_adjoint(mu, sigma, mirrored, N_body_panels, N_body_verts, asym_flow, point)
+        else
+        dv = this%get_velocity_jump_adjoint(mu, sigma, mirrored, N_body_panels, N_body_verts, asym_flow)
+        end if
+
+        ! Get total velocity
+        v = freestream%U*(inner_flow + dv)
+
+    end function panel_get_velocity_adjoint
+
+    function panel_get_velocity_jump_adjoint(this, mu, sigma, mirrored, N_body_panels, N_body_verts, asym_flow, point) result(dv)
+        ! Calculates the jump in perturbation velocity across this panel in global coordinates at the given location
+        ! If a location is not given, this will default to the centroid
+
+        implicit none
+
+        class(panel),intent(in) :: this
+        real,dimension(:),allocatable,intent(in) :: mu, sigma
+        logical,intent(in) :: mirrored, asym_flow
+        integer,intent(in) :: N_body_panels, N_body_verts
+        real,dimension(3),intent(in),optional :: point
+
+        real,dimension(3) :: dv
+
+        real,dimension(this%mu_dim) :: mu_params
+        real,dimension(this%sigma_dim) :: sigma_params
+        real,dimension(3) :: Q_ls, s_dir
+        real :: s
+
+        ! Get point
+        if (present(point)) then
+            Q_ls = this%get_local_coords_of_point(point, mirrored)
+        else
+            Q_ls = 0.
+        end if
+
+        ! Calculate doublet parameters (derivatives)
+        mu_params = this%get_doublet_parameters(mu, mirrored, N_body_verts, asym_flow)
+
+        ! Calculate tangential velocity jump in panel coordinates E&M Eq. (N.1.11b)
+        if (this%order == 2) then
+            dv(1) = mu_params(2) + mu_params(4)*Q_ls(1) + mu_params(5)*Q_ls(2)
+            dv(2) = mu_params(3) + mu_params(5)*Q_ls(1) + mu_params(6)*Q_ls(2)
+        else
+            dv(1) = mu_params(2)
+            dv(2) = mu_params(3)
+        end if
+        dv(3) = 0.
+
+        ! Transform to global coordinates
+        if (mirrored) then
+            dv = matmul(transpose(this%A_g_to_ls_mir), dv)
+        else
+            dv = matmul(transpose(this%A_g_to_ls), dv)
+        end if
+
+        ! Add source component
+        if (this%has_sources) then
+
+            ! Get source direction
+            if (mirrored) then
+                s_dir = this%n_g_mir/inner(this%nu_g_mir, this%n_g_mir)
+            else
+                s_dir = this%n_g/inner(this%nu_g, this%n_g)
+            end if
+
+            ! Source strength
+            sigma_params = this%get_source_parameters(sigma, mirrored, N_body_panels, asym_flow)
+            if (this%sigma_dim > 1) then
+                s = sigma_params(1) + sigma_params(2)*Q_ls(1) + sigma_params(3)*Q_ls(2)
+            else
+                s = sigma_params(1)
+            end if
+
+            ! Add normal velocity jump in global coords E&M Eq. (N.1.11b)
+            dv = dv + s*s_dir
+
+        end if
+
+    end function panel_get_velocity_jump_adjoint
 
 
 end module panel_mod
