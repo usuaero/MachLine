@@ -250,6 +250,7 @@ module panel_mod
             procedure :: calc_d_v_d_constant_mu => panel_calc_d_v_d_constant_mu
             procedure :: get_velocity_adjoint => panel_get_velocity_adjoint
             procedure :: get_velocity_jump_adjoint => panel_get_velocity_jump_adjoint
+            procedure :: get_doublet_parameters_adjoint => panel_get_doublet_parameters_adjoint
 
             !!!!!!!! END ADJOINT PROCEDURES !!!!!!!!
 
@@ -5765,107 +5766,123 @@ contains
 
 
 
-    function panel_get_velocity_adjoint(this, mu, sigma, mirrored, N_body_panels, N_body_verts, asym_flow, &
-        freestream, inner_flow, point) result(v)
-    ! Calculates the velocity on the outside of this panel in global coordinates at the given location
-    ! If a location is not given, this will default to the centroid
+    function panel_get_velocity_adjoint(this, mu, mirrored, N_body_panels, N_body_verts, asym_flow, &
+        freestream, d_inner_flow) result(d_V_cell)
+        ! Calculates the adjoint velocity on the outside of this panel in global coordinates at the centroid
 
         implicit none
 
         class(panel),intent(in) :: this
-        real,dimension(:),allocatable,intent(in) :: mu, sigma
+        real,dimension(:),allocatable,intent(in) :: mu
         logical,intent(in) :: mirrored, asym_flow
         integer,intent(in) :: N_body_panels, N_body_verts
         type(flow),intent(in) :: freestream
-        real,dimension(3),intent(in) :: inner_flow
-        real,dimension(3),intent(in),optional :: point
+        type(sparse_matrix),intent(in) :: d_inner_flow
 
-        real,dimension(3) :: v
+        ! real,dimension(3) :: v
 
-        real,dimension(3) :: dv
+        ! real,dimension(3) :: dv
+        type(sparse_matrix) :: d_dv, d_V_Cell
 
-        ! Get velocity jump
-        if (present(point)) then
-        dv = this%get_velocity_jump_adjoint(mu, sigma, mirrored, N_body_panels, N_body_verts, asym_flow, point)
-        else
-        dv = this%get_velocity_jump_adjoint(mu, sigma, mirrored, N_body_panels, N_body_verts, asym_flow)
-        end if
+        ! Get d velocity jump
+        d_dv = this%get_velocity_jump_adjoint(mu, mirrored, N_body_panels, N_body_verts, asym_flow)
+        
 
         ! Get total velocity
-        v = freestream%U*(inner_flow + dv)
+        ! v = freestream%U*(inner_flow + dv)
+        call d_V_cell%init_from_sparse_matrix(d_dv)
+        call d_V_cell%broadcast_element_times_scalar(freestream%U)
+        call d_V_cell%sparse_add(d_inner_flow)
 
     end function panel_get_velocity_adjoint
 
-    function panel_get_velocity_jump_adjoint(this, mu, sigma, mirrored, N_body_panels, N_body_verts, asym_flow, point) result(dv)
-        ! Calculates the jump in perturbation velocity across this panel in global coordinates at the given location
-        ! If a location is not given, this will default to the centroid
+    function panel_get_velocity_jump_adjoint(this, mu, mirrored, N_body_panels, N_body_verts, asym_flow) result(d_dv)
+        ! Calculates the adjoint jump in perturbation velocity across this panel in global coordinates at
+        ! the centroid
 
         implicit none
 
         class(panel),intent(in) :: this
-        real,dimension(:),allocatable,intent(in) :: mu, sigma
+        real,dimension(:),allocatable,intent(in) :: mu
         logical,intent(in) :: mirrored, asym_flow
         integer,intent(in) :: N_body_panels, N_body_verts
-        real,dimension(3),intent(in),optional :: point
 
-        real,dimension(3) :: dv
+        real,dimension(3) :: dv_ls, dv
+        type(sparse_vector) :: zeros
+        type(sparse_vector), dimension(3) :: d_mu_params_vecs
+        type(sparse_3D) :: d_A_g_to_ls_3D, d_A_g_to_ls_3D_T
+        type(sparse_matrix) :: d_dv_ls, d_dv_term, d_dv
 
         real,dimension(this%mu_dim) :: mu_params
-        real,dimension(this%sigma_dim) :: sigma_params
-        real,dimension(3) :: Q_ls, s_dir
-        real :: s
+        type(sparse_matrix) :: d_mu_params
 
-        ! Get point
-        if (present(point)) then
-            Q_ls = this%get_local_coords_of_point(point, mirrored)
-        else
-            Q_ls = 0.
-        end if
 
         ! Calculate doublet parameters (derivatives)
         mu_params = this%get_doublet_parameters(mu, mirrored, N_body_verts, asym_flow)
+                
+        dv_ls(1) = mu_params(2)
+        dv_ls(2) = mu_params(3)
+        dv_ls(3) = 0.
+        
+        !!! adjoint 
+        d_mu_params = this%get_doublet_parameters_adjoint(mu, mirrored, N_body_verts, asym_flow)
+        d_mu_params_vecs = d_mu_params%split_into_sparse_vectors()
+        call zeros%init(this%adjoint_size)
 
-        ! Calculate tangential velocity jump in panel coordinates E&M Eq. (N.1.11b)
-        if (this%order == 2) then
-            dv(1) = mu_params(2) + mu_params(4)*Q_ls(1) + mu_params(5)*Q_ls(2)
-            dv(2) = mu_params(3) + mu_params(5)*Q_ls(1) + mu_params(6)*Q_ls(2)
-        else
-            dv(1) = mu_params(2)
-            dv(2) = mu_params(3)
-        end if
-        dv(3) = 0.
+        call d_dv_ls%init_from_sparse_vectors(d_mu_params_vecs(2), d_mu_params_vecs(3), zeros)
+
+        !!!
 
         ! Transform to global coordinates
         if (mirrored) then
-            dv = matmul(transpose(this%A_g_to_ls_mir), dv)
+            ! dv = matmul(transpose(this%A_g_to_ls_mir), dv)
+            write(*,*) "!!! Cannot calculate adjoint velocity jump for mirrored mesh yet. Quitting..."
+            stop
         else
-            dv = matmul(transpose(this%A_g_to_ls), dv)
-        end if
+            ! dv = matmul(transpose(this%A_g_to_ls), dv_ls)
+            call d_A_g_to_ls_3D%init_from_sparse_matrices(this%d_A_g_to_ls)
+            d_A_g_to_ls_3D_T = d_A_g_to_ls_3D%transpose_3()
+            d_dv_term = d_A_g_to_ls_3D_T%broadcast_matmul_3row_times_3x1(dv_ls)
 
-        ! Add source component
-        if (this%has_sources) then
-
-            ! Get source direction
-            if (mirrored) then
-                s_dir = this%n_g_mir/inner(this%nu_g_mir, this%n_g_mir)
-            else
-                s_dir = this%n_g/inner(this%nu_g, this%n_g)
-            end if
-
-            ! Source strength
-            sigma_params = this%get_source_parameters(sigma, mirrored, N_body_panels, asym_flow)
-            if (this%sigma_dim > 1) then
-                s = sigma_params(1) + sigma_params(2)*Q_ls(1) + sigma_params(3)*Q_ls(2)
-            else
-                s = sigma_params(1)
-            end if
-
-            ! Add normal velocity jump in global coords E&M Eq. (N.1.11b)
-            dv = dv + s*s_dir
+            d_dv = d_dv_ls%broadcast_matmul_3x3_times_element(transpose(this%A_g_to_ls))
+            call d_dv%sparse_add(d_dv_term)
 
         end if
 
     end function panel_get_velocity_jump_adjoint
+
+    function panel_get_doublet_parameters_adjoint(this, mu, mirror, N_body_verts, asym_flow) result(d_mu_params)
+        ! Returns a vector describing the distribution of doublet strength across the panel surface
+
+        implicit none
+        
+        class(panel),intent(in) :: this
+        real,dimension(:),allocatable,intent(in) :: mu
+        logical,intent(in) :: mirror
+        integer,intent(in) :: N_body_verts
+        logical,intent(in) :: asym_flow
+
+        real,dimension(this%mu_dim) :: mu_params
+        type(sparse_3D) :: d_T_mu_3D
+        type(sparse_matrix) :: d_mu_params
+
+        real,dimension(3) :: mu_verts
+
+        ! Get doublet strengths at vertices
+        mu_verts = this%get_doublet_strengths(mu, mirror, N_body_verts, asym_flow)
+
+        ! Calculate doublet parameters
+        if (mirror) then
+            ! mu_params = matmul(this%T_mu_mir, mu_verts)
+            write(*,*) "!!! Cannot calculate adjoint doublet parameters for mirrored mesh yet. Quitting..."
+            stop
+        else
+            ! mu_params = matmul(this%T_mu, mu_verts)
+            call d_T_mu_3D%init_from_sparse_matrices(this%d_T_mu_rows)
+            d_mu_params = d_T_mu_3D%broadcast_matmul_3row_times_3x1(mu_verts)
+        end if
+        
+    end function panel_get_doublet_parameters_adjoint
 
 
 end module panel_mod

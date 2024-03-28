@@ -117,7 +117,7 @@ module panel_solver_mod
             procedure :: update_adjoint_A_row => panel_solver_update_adjoint_A_row
             procedure :: assemble_adjoint_b_vector=>panel_solver_assemble_adjoint_b_vector
             
-            procedure :: calc_d_V_cells_inner_adjoint => panel_solver_calc_d_V_cells_inner_adjoint
+            procedure :: calc_cell_velocities_adjoint => panel_solver_calc_cell_velocities_adjoint
 
             !!!!!!!!! END ADJOINT !!!!!!!!!!!!
 
@@ -1102,7 +1102,7 @@ contains
         
         ! if adjoint, calc d_V_inner
         if (body%calc_adjoint) then
-            call this%calc_d_V_cells_inner_adjoint(body)
+            call this%calc_cell_velocities_adjoint(body)
         end if 
 
         ! Calculate potentials
@@ -3127,7 +3127,7 @@ contains
     end subroutine panel_solver_assemble_adjoint_b_vector
 
 
-    subroutine panel_solver_calc_d_V_cells_inner_adjoint(this, body)
+    subroutine panel_solver_calc_cell_velocities_adjoint(this, body)
         ! Calculates the surface velocities sensitivities on the mesh panels
 
         implicit none
@@ -3150,6 +3150,9 @@ contains
         allocate(body%d_V_cells_inner(this%N_cells), stat=stat)
         call check_allocation(stat, "inner velocity senstivitviy with constant mu")
 
+        allocate(body%d_V_cells(this%N_cells), stat=stat)
+        call check_allocation(stat, "velocity senstivitviy with constant mu")
+
         ! Get the surface velocity on each existing panel
         !$OMP parallel do private(P, d_P, d_P_term2) schedule(static)
         do i=1,body%N_panels
@@ -3164,11 +3167,21 @@ contains
 
             body%d_V_cells_inner(i) = body%get_d_v_inner_at_point_constant_mu(P, d_P, this%freestream)
             call body%d_V_cells_inner(i)%broadcast_element_times_scalar(this%freestream%U)
+
+            ! ! Get surface velocity on each panel
+            ! body%V_cells(:,i) = body%panels(i)%get_velocity(body%mu, body%sigma, .false., body%N_panels, &
+            !                                                 body%N_verts, body%asym_flow, this%freestream, &
+            !                                                 body%V_cells_inner(:,i)/this%freestream%U)
+
+            body%d_V_cells(i) = body%panels(i)%get_velocity_adjoint(body%mu,.false., body%N_panels, &
+                                                            body%N_verts, body%asym_flow, &
+                                                            this%freestream, body%d_V_cells_inner(i))
+
             ! deallocate stuff for next loop
             deallocate(d_P%columns, d_P_term2%columns)
         end do
 
 
-    end subroutine panel_solver_calc_d_V_cells_inner_adjoint
+    end subroutine panel_solver_calc_cell_velocities_adjoint
 
 end module panel_solver_mod

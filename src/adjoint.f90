@@ -1225,7 +1225,7 @@ contains
     end function sparse_matrix_split_into_sparse_vectors
     
     
-    !!!!!!!!!!!!!!!!!!!!!!!!! START SPARSE 3D TYPE BOUND PROCEDURES  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!! START SPARSE 3D TYPE BOUND PROCEDURES  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     subroutine sparse_3D_init_from_sparse_matrices(this, sparse_matrices)
         ! takes a sparse_matrix dimension(x) and makes a sparse 3D object
 
