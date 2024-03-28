@@ -5,6 +5,7 @@ module flow_mod
     use math_mod
     use linalg_mod
     use helpers_mod
+    use adjoint_mod
 
     implicit none
     
@@ -589,6 +590,7 @@ contains
 
         case ("incompressible")
             C_P = this%get_C_P_inc(v)
+            if ()
 
         case ("isentropic")
             C_P = this%get_C_P_ise(v)
