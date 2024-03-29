@@ -247,10 +247,10 @@ module panel_mod
             procedure :: calc_doublet_inf_adjoint2 => panel_calc_doublet_inf_adjoint2
 
             ! adjoint calc d_v_d holding mu strengths constant (this will be used to calc v_cells_inner)
-            procedure :: calc_d_v_d_constant_mu => panel_calc_d_v_d_constant_mu
-            procedure :: get_velocity_adjoint => panel_get_velocity_adjoint
-            procedure :: get_velocity_jump_adjoint => panel_get_velocity_jump_adjoint
-            procedure :: get_doublet_parameters_adjoint => panel_get_doublet_parameters_adjoint
+            procedure :: calc_d_v_d_wrt_vars => panel_calc_d_v_d_wrt_vars
+            procedure :: get_d_velocity_wrt_vars => panel_get_d_velocity_wrt_vars
+            procedure :: get_d_velocity_jump_wrt_vars => panel_get_d_velocity_jump_wrt_vars
+            procedure :: get_d_doublet_parameters_wrt_vars => panel_get_d_doublet_parameters_wrt_vars
 
             ! adjoint pressure calcs
             procedure :: get_avg_pressure_coef_adjoint => panel_get_avg_pressure_coef_adjoint
@@ -5725,8 +5725,8 @@ contains
     end function panel_calc_doublet_inf_adjoint2
 
 
-    subroutine panel_calc_d_v_d_constant_mu(this, P, d_P, freestream, mirror_panel, mu, &
-        N_body_verts, asym_flow, d_v_d_const_mu)
+    subroutine panel_calc_d_v_d_wrt_vars(this, P, d_P, freestream, mirror_panel, mu, &
+        N_body_verts, asym_flow, d_v_d_wrt_vars)
         ! Calculates the velocity induced at the given point
 
         implicit none
@@ -5738,7 +5738,7 @@ contains
         logical,intent(in) :: mirror_panel, asym_flow
         real,dimension(:),allocatable,intent(in) :: mu
         integer,intent(in) :: N_body_verts
-        type(sparse_matrix),intent(out) :: d_v_d_const_mu
+        type(sparse_matrix),intent(out) :: d_v_d_wrt_mu
 
         type(sparse_vector),dimension(3,3) :: d_v_d_M
         type(sparse_3D) :: d_v_d_M_3D
@@ -5761,15 +5761,15 @@ contains
             stop
         else
             ! derivative of this: v_d = matmul(d_v_d_M, doublet_strengths)
-            d_v_d_const_mu = d_v_d_M_3D%broadcast_matmul_3row_times_3x1(doublet_strengths)
+            d_v_d_wrt_vars = d_v_d_M_3D%broadcast_matmul_3row_times_3x1(doublet_strengths)
             
         end if
 
-    end subroutine panel_calc_d_v_d_constant_mu
+    end subroutine panel_calc_d_v_d_wrt_vars
 
 
 
-    function panel_get_velocity_adjoint(this, mu, mirrored, N_body_panels, N_body_verts, asym_flow, &
+    function get_d_velocity_wrt_vars(this, mu, mirrored, N_body_panels, N_body_verts, asym_flow, &
         freestream, d_inner_flow) result(d_V)
         ! Calculates the adjoint velocity on the outside of this panel in global coordinates at the centroid
 
@@ -5788,7 +5788,7 @@ contains
         type(sparse_matrix) :: d_dv, d_V
 
         ! Get d velocity jump
-        d_dv = this%get_velocity_jump_adjoint(mu, mirrored, N_body_panels, N_body_verts, asym_flow)
+        d_dv = this%get_d_velocity_jump_wrt_vars(mu, mirrored, N_body_panels, N_body_verts, asym_flow)
         
 
         ! Get total velocity
@@ -5797,9 +5797,9 @@ contains
         call d_V%sparse_add(d_dv)
         call d_V%broadcast_element_times_scalar(freestream%U)
 
-    end function panel_get_velocity_adjoint
+    end function get_d_velocity_wrt_vars
 
-    function panel_get_velocity_jump_adjoint(this, mu, mirrored, N_body_panels, N_body_verts, asym_flow) result(d_dv)
+    function panel_get_d_velocity_jump_wrt_vars(this, mu, mirrored, N_body_panels, N_body_verts, asym_flow) result(d_dv)
         ! Calculates the adjoint jump in perturbation velocity across this panel in global coordinates at
         ! the centroid
 
@@ -5852,9 +5852,10 @@ contains
 
         end if
 
-    end function panel_get_velocity_jump_adjoint
+    end function panel_get_d_velocity_jump_wrt_vars
 
-    function panel_get_doublet_parameters_adjoint(this, mu, mirror, N_body_verts, asym_flow) result(d_mu_params)
+
+    function panel_get_d_doublet_parameters_wrt_vars(this, mu, mirror, N_body_verts, asym_flow) result(d_mu_params)
         ! Returns a vector describing the distribution of doublet strength across the panel surface
 
         implicit none
@@ -5885,7 +5886,7 @@ contains
             d_mu_params = d_T_mu_3D%broadcast_matmul_3row_times_3x1(mu_verts)
         end if
         
-    end function panel_get_doublet_parameters_adjoint
+    end function panel_get_d_doublet_parameters_wrt_vars
 
 
     function panel_get_avg_pressure_coef_adjoint(this, mu, sigma, mirrored, N_body_panels, N_body_verts, asym_flow, &
@@ -5915,7 +5916,7 @@ contains
         v = this%get_velocity(mu, sigma, mirrored, N_body_panels, N_body_verts, asym_flow, &
         freestream, inner_flow)
 
-        d_v = this%get_velocity_adjoint(mu, mirrored, N_body_panels, N_body_verts, asym_flow, freestream, d_inner_flow)
+        d_v = this%get_d_velocity_wrt_vars(mu, mirrored, N_body_panels, N_body_verts, asym_flow, freestream, d_inner_flow)
 
         ! Get pressure
         if (present(M_corr)) then

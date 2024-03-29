@@ -426,13 +426,13 @@ program d_CF_wrt_vars_test
     ! write(*,*) ""
     
     do i=1,N_verts*3
-        residuals3(:,i) = adjoint_solver%d_C_F_wrt_variables%get_values(i) - d_CF_FD(:,i)
+        residuals3(:,i) = adjoint_solver%d_C_F_wrt_vars%get_values(i) - d_CF_FD(:,i)
     end do
     
     write(*,'(A)') "          Adjoint      d_CF_wrt_vars  "
     write(*,*) "  d_CF_x           d_CF_y           d_CF_z                        residuals"
     do i = 1, N_verts*3
-        write(*, '(3(f16.10, 4x),3x, 3(f16.10, 4x))') adjoint_solver%d_C_F_wrt_variables%get_values(i),&
+        write(*, '(3(f16.10, 4x),3x, 3(f16.10, 4x))') adjoint_solver%d_C_F_wrt_vars%get_values(i),&
                                                                                  residuals3(:,i)
     end do
     write(*,*) ""

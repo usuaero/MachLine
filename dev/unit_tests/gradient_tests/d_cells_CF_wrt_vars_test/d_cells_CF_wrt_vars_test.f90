@@ -427,14 +427,14 @@ program d_cells_CF_wrt_vars_test
         ! write(*,*) ""
         
         do i=1,N_verts*3
-            residuals3(:,i) = adjoint_mesh%d_cell_forces_wrt_variables(k)%get_values(i) - d_cells_CF_FD(:,i)
+            residuals3(:,i) = adjoint_mesh%d_cell_forces_wrt_vars(k)%get_values(i) - d_cells_CF_FD(:,i)
         end do
         
         write(*,'(A,I1)') "          Adjoint      d_cells_CF_wrt_vars cell ",k
         write(*,*) "  d_cells_CF_x           d_cells_CF_y           d_cells_CF_z                        residuals"
         do i = 1, N_verts*3
             write(*, '(3(f16.10, 4x),3x, 3(f16.10, 4x))') &
-            adjoint_mesh%d_cell_forces_wrt_variables(k)%get_values(i), residuals3(:,i)
+            adjoint_mesh%d_cell_forces_wrt_vars(k)%get_values(i), residuals3(:,i)
         end do
         write(*,*) ""
 

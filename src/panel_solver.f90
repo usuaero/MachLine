@@ -49,7 +49,7 @@ module panel_solver_mod
         !!!!!! ADJOINT variables !!!!!!
         type(sparse_vector),dimension(:,:),allocatable :: d_A_matrix
         type(sparse_vector),dimension(:),allocatable :: d_b_vector
-        type(sparse_matrix) :: d_C_F_wrt_variables
+        type(sparse_matrix) :: d_C_F_wrt_vars
 
         !!!!! END ADJOINT variables !!!
 
@@ -124,8 +124,8 @@ module panel_solver_mod
 
             ! calc forces
             procedure :: calc_forces_adjoint => panel_solver_calc_forces_adjoint
-            procedure :: calc_d_forces_wrt_design_variables => panel_solver_calc_d_forces_wrt_design_variables
-            ! procedure :: calc_d_forces_wrt_mu => panel_solver_calc_d_forces_wrt_mu
+            procedure :: calc_d_forces_wrt_vars => panel_solver_calc_d_forces_wrt_vars
+            procedure :: calc_d_forces_wrt_mu => panel_solver_calc_d_forces_wrt_mu
 
             !!!!!!!!! END ADJOINT !!!!!!!!!!!!
 
@@ -3154,7 +3154,7 @@ contains
 
         integer :: i, stat
         real,dimension(3) :: P
-        type(sparse_matrix) :: d_P, d_P_term2, d_inner_flow
+        type(sparse_matrix) :: d_P, d_P_term2, d_inner_flow_wrt_vars, d_inner_flow_wrt_mu
 
 
         ! Determine number of surface cells
@@ -3164,11 +3164,18 @@ contains
         ! end if
 
         ! Allocate cell velocity storage
-        allocate(body%d_V_cells_inner(this%N_cells), stat=stat)
-        call check_allocation(stat, "inner velocity senstivitviy with constant mu")
+        allocate(body%d_V_cells_inner_wrt_vars(this%N_cells), stat=stat)
+        call check_allocation(stat, "inner velocity senstivitviy wrt design variables")
 
-        allocate(body%d_V_cells(this%N_cells), stat=stat)
-        call check_allocation(stat, "velocity senstivitviy with constant mu")
+        allocate(body%d_V_cells_wrt_vars(this%N_cells), stat=stat)
+        call check_allocation(stat, "velocity senstivitviy wrt design variables")
+
+        ! Allocate cell velocity storage
+        allocate(body%d_V_cells_inner_wrt_mu(this%N_cells), stat=stat)
+        call check_allocation(stat, "inner velocity senstivitviy wrt mu")
+
+        allocate(body%d_V_cells_wrt_mu(this%N_cells), stat=stat)
+        call check_allocation(stat, "velocity senstivitviy wrt mu")
 
         ! Get the surface velocity on each existing panel
         !$OMP parallel do private(P, d_P, d_P_term2) schedule(static)
@@ -3182,22 +3189,38 @@ contains
             call d_P_term2%broadcast_element_times_scalar(-1.e-10)
             call d_P%sparse_add(d_P_term2)
 
-            body%d_V_cells_inner(i) = body%get_d_v_inner_at_point_constant_mu(P, d_P, this%freestream)
-            call body%d_V_cells_inner(i)%broadcast_element_times_scalar(this%freestream%U)
 
-            ! ! Get surface velocity on each panel
-            ! body%V_cells(:,i) = body%panels(i)%get_velocity(body%mu, body%sigma, .false., body%N_panels, &
-            !                                                 body%N_verts, body%asym_flow, this%freestream, &
-            !                                                 body%V_cells_inner(:,i)/this%freestream%U)
-            call d_inner_flow%init_from_sparse_matrix(body%d_V_cells_inner(i))
-            call d_inner_flow%broadcast_element_times_scalar(1./this%freestream%U)
+            !!!!!!!!!!!!!!!!!! sensitivity terms with respect to design variables(vars)!!!!!!!!!!!!!!
+            body%d_V_cells_inner_wrt_vars(i) = body%get_d_v_inner_at_point_wrt_vars(P, d_P, this%freestream)
+    
+            call d_inner_flow_wrt_vars%init_from_sparse_matrix(body%d_V_cells_inner_wrt_vars(i))
+            call d_inner_flow_wrt_vars%broadcast_element_times_scalar(1./this%freestream%U)
 
-            body%d_V_cells(i) = body%panels(i)%get_velocity_adjoint(body%mu,.false., body%N_panels, &
+            body%d_V_cells_wrt_vars(i) = body%panels(i)%get_d_velocity_wrt_vars(body%mu,.false., body%N_panels, &
                                                             body%N_verts, body%asym_flow, &
-                                                            this%freestream, d_inner_flow)
+                                                            this%freestream, d_inner_flow_wrt_vars)
 
             ! deallocate stuff for next loop
-            deallocate(d_P%columns, d_P_term2%columns, d_inner_flow%columns)
+            deallocate(d_P%columns, d_P_term2%columns, d_inner_flow_wrt_vars%columns)
+            !!!!!!!!!!!!!!! end wrt vars !!!!!!!!!!!!!!!!!!!!!!!
+
+
+
+            !!!!!!!!!!!!!!!!!!!!!!! sensitivity terms with respect to mu !!!!!!!!!!!!!!!!!!!!
+            body%d_V_cells_inner_wrt_mu(i) = body%get_d_v_inner_at_point_wrt_mu(P, this%freestream)
+
+    
+            call d_inner_flow_wrt_mu%init_from_sparse_matrix(body%d_V_cells_inner_wrt_mu(i))
+            call d_inner_flow_wrt_mu%broadcast_element_times_scalar(1./this%freestream%U)
+
+            body%d_V_cells_wrt_mu(i) = body%panels(i)%get_d_velocity_wrt_mu(body%mu,.false., body%N_panels, &
+                                                            body%N_verts, body%asym_flow, &
+                                                            this%freestream, d_inner_flow_wrt_mu)
+
+            ! deallocate stuff for next loop
+            deallocate(d_inner_flow_wrt_mu%columns)
+            !!!!!!!!!! end wrt mu !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
         end do
 
 
@@ -3221,7 +3244,7 @@ contains
             write(*,*) "!!! Cannot calculate adjoint avg pressure on panel for mirrored mesh yet. Quitting..."
             stop
         else
-            call d_inner_flow%init_from_sparse_matrix(body%d_V_cells_inner(i_panel))
+            call d_inner_flow%init_from_sparse_matrix(body%d_V_cells_inner_wrt_vars(i_panel))
             call d_inner_flow%broadcast_element_times_scalar(1./this%freestream%U)
 
             d_C_P_avg = body%panels(i_panel)%get_avg_pressure_coef_adjoint(body%mu, body%sigma,mirrored, body%N_panels,&
@@ -3250,7 +3273,8 @@ contains
         select case (this%pressure_for_forces)
 
         case ('incompressible')
-            call this%calc_d_forces_wrt_design_variables(body, body%C_p_inc, body%d_C_p_inc)
+            call this%calc_d_forces_wrt_vars(body, body%C_p_inc, body%d_C_p_inc)
+            call this%calc_d_forces_wrt_mu(body, body%C_p_inc, body%d_C_p_inc_wrt_mu)
 
         ! case ('isentropic')
         !     call this%calc_forces_with_pressure(body, body%C_p_ise)
@@ -3276,15 +3300,15 @@ contains
         end select
 
         ! init d_C_F_wrt_variables
-        call this%d_C_F_wrt_variables%init(body%N_adjoint)
+        call this%d_C_F_wrt_vars%init(body%N_adjoint)
         
         ! Sum discrete force sensitivities
         do i = 1,body%N_panels
-            call this%d_C_F_wrt_variables%sparse_add(body%d_cell_forces_wrt_variables(i))
+            call this%d_C_F_wrt_vars%sparse_add(body%d_cell_forces_wrt_vars(i))
         end do
 
         ! divide by S_ref
-        call this%d_C_F_wrt_variables%broadcast_element_times_scalar(1./body%S_ref)
+        call this%d_C_F_wrt_vars%broadcast_element_times_scalar(1./body%S_ref)
 
 
         ! Add contributions from mirrored half
@@ -3305,7 +3329,7 @@ contains
     end subroutine panel_solver_calc_forces_adjoint
 
 
-    subroutine panel_solver_calc_d_forces_wrt_design_variables(this, body, pressures, d_pressures_wrt_vars)
+    subroutine panel_solver_calc_d_forces_wrt_vars(this, body, pressures, d_pressures_wrt_vars)
         ! Calculates the force sensitivities with respect to the design variables
         
         implicit none
@@ -3320,14 +3344,14 @@ contains
         integer :: i, stat
 
         ! Allocate force storage
-        allocate(body%d_cell_forces_wrt_variables(this%N_cells), stat=stat)
+        allocate(body%d_cell_forces_wrt_vars(this%N_cells), stat=stat)
         call check_allocation(stat, "adjoint cell forces wrt design variables")
 
         ! Calculate total forces
         !$OMP parallel do schedule(static)
         do i=1,body%N_panels
             ! this is the first term
-            body%d_cell_forces_wrt_variables(i) = d_pressures_wrt_vars(i)%broadcast_element_times_vector&
+            body%d_cell_forces_wrt_vars(i) = d_pressures_wrt_vars(i)%broadcast_element_times_vector&
                                                                 (-body%panels(i)%A*body%panels(i)%n_g)
             ! calc the second term to be added
             term2 = body%panels(i)%d_A%broadcast_element_times_vector(-pressures(i)*body%panels(i)%n_g)
@@ -3337,8 +3361,8 @@ contains
             call term3%broadcast_element_times_scalar(-pressures(i)*body%panels(i)%A)
 
             ! add terms to first term
-            call body%d_cell_forces_wrt_variables(i)%sparse_add(term2)
-            call body%d_cell_forces_wrt_variables(i)%sparse_add(term3)
+            call body%d_cell_forces_wrt_vars(i)%sparse_add(term2)
+            call body%d_cell_forces_wrt_vars(i)%sparse_add(term3)
 
             ! Mirror (havent done mirroring for adjoints yet)
             if (body%asym_flow) then
@@ -3351,6 +3375,41 @@ contains
 
         end do
     
-    end subroutine panel_solver_calc_d_forces_wrt_design_variables
+    end subroutine panel_solver_calc_d_forces_wrt_vars
+
+
+    subroutine panel_solver_calc_d_forces_wrt_mu(this, body, pressures, d_pressures_wrt_mu)
+        ! Calculates the force sensitivities with respect to the mu
+        
+        implicit none
+        
+        class(panel_solver),intent(in) :: this
+        type(surface_mesh),intent(inout) :: body
+        real,dimension(:),allocatable :: pressures
+        type(sparse_vector),dimension(:),allocatable,intent(inout) :: d_pressures_wrt_mu
+        
+        integer :: i, stat
+
+        ! Allocate force storage
+        allocate(body%d_cell_forces_wrt_mu(this%N_cells), stat=stat)
+        call check_allocation(stat, "adjoint cell forces wrt doublet strengths")
+
+        ! Calculate total forces
+        !$OMP parallel do schedule(static)
+        do i=1,body%N_panels
+            ! this is the first term
+            body%d_cell_forces_wrt_mu(i) = d_pressures_wrt_mu(i)%broadcast_element_times_vector&
+                                                                (-body%panels(i)%A*body%panels(i)%n_g)
+
+            ! Mirror (havent done mirroring for adjoints yet)
+            if (body%asym_flow) then
+                ! body%dC_f(:,i+body%N_panels) = -pressures(i+body%N_panels)*body%panels(i)%A*body%panels(i)%n_g_mir
+                write(*,*) "!!! Cannot calculate adjoint d_dC_f wrt to mu for mirrored mesh yet. Quitting..."
+                stop
+            end if
+
+        end do
+    
+    end subroutine panel_solver_calc_d_forces_wrt_mu
 
 end module panel_solver_mod
