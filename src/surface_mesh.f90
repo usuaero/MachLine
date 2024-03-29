@@ -53,6 +53,7 @@ module surface_mesh_mod
         integer :: N_adjoint ! number of adjoint design variables 
         type(sparse_matrix),dimension(:),allocatable :: d_V_cells_inner, d_V_cells
         type(sparse_vector),dimension(:),allocatable :: d_C_p_inc
+        type(sparse_matrix),dimension(:),allocatable :: d_cell_forces_wrt_variables
 
         contains
 

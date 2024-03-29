@@ -49,6 +49,7 @@ module panel_solver_mod
         !!!!!! ADJOINT variables !!!!!!
         type(sparse_vector),dimension(:,:),allocatable :: d_A_matrix
         type(sparse_vector),dimension(:),allocatable :: d_b_vector
+        type(sparse_matrix) :: d_C_F_wrt_variables
 
         !!!!! END ADJOINT variables !!!
 
@@ -123,6 +124,9 @@ module panel_solver_mod
 
             ! calc forces
             procedure :: calc_forces_adjoint => panel_solver_calc_forces_adjoint
+            procedure :: calc_d_forces_wrt_design_variables => panel_solver_calc_d_forces_wrt_design_variables
+            ! procedure :: calc_d_forces_wrt_mu => panel_solver_calc_d_forces_wrt_mu
+
             !!!!!!!!! END ADJOINT !!!!!!!!!!!!
 
     end type panel_solver
@@ -1050,8 +1054,6 @@ contains
 
         ! Allocate known influence storage
         allocate(this%I_known(body%N_cp), source=0., stat=stat)
-        write(*,*) "N_cp = ",body%N_cp
-        write(*,*) "stat = ",stat
         call check_allocation(stat, "known influence vector")
 
         ! Allocate AIC matrix
@@ -1200,8 +1202,6 @@ contains
         allocate(body%sigma(this%N_sigma), source=0., stat=stat)
 
         call check_allocation(stat, "source strength array")
-        write(*,*) "N_cp = ",body%N_cp
-        write(*,*) "stat = ",stat
 
         ! Set source strengths
         if (this%formulation == D_MORINO) then
@@ -3240,55 +3240,117 @@ contains
         
         class(panel_solver),intent(inout) :: this
         type(surface_mesh),intent(inout) :: body
+
+        integer :: i
         
-        if (verbose) write(*,'(a, a, a)',advance='no') "     Calculating forces using the ", & 
-                                                       this%pressure_for_forces, " pressure rule..."
+        if (verbose) write(*,'(a, a, a)',advance='no') "     Calculating adjoint force sensitivities*&
+                                            using the ", this%pressure_for_forces, " pressure rule..."
 
         ! Calculate forces
         select case (this%pressure_for_forces)
 
         case ('incompressible')
-            call this%calc_forces_with_pressure(body, body%C_p_inc)
+            call this%calc_d_forces_wrt_design_variables(body, body%C_p_inc, body%d_C_p_inc)
 
-        case ('isentropic')
-            call this%calc_forces_with_pressure(body, body%C_p_ise)
+        ! case ('isentropic')
+        !     call this%calc_forces_with_pressure(body, body%C_p_ise)
 
-        case ('second-order')
-            call this%calc_forces_with_pressure(body, body%C_p_2nd)
+        ! case ('second-order')
+        !     call this%calc_forces_with_pressure(body, body%C_p_2nd)
 
-        case ('slender-body')
-            call this%calc_forces_with_pressure(body, body%C_p_sln)
+        ! case ('slender-body')
+        !     call this%calc_forces_with_pressure(body, body%C_p_sln)
 
-        case ('linear')
-            call this%calc_forces_with_pressure(body, body%C_p_lin)
+        ! case ('linear')
+        !     call this%calc_forces_with_pressure(body, body%C_p_lin)
 
-        case ('prandtl-glauert')
-            call this%calc_forces_with_pressure(body, body%C_p_pg)
+        ! case ('prandtl-glauert')
+        !     call this%calc_forces_with_pressure(body, body%C_p_pg)
 
-        case ('karman-tsien')
-            call this%calc_forces_with_pressure(body, body%C_p_kt)
+        ! case ('karman-tsien')
+        !     call this%calc_forces_with_pressure(body, body%C_p_kt)
 
-        case ('laitone')
-            call this%calc_forces_with_pressure(body, body%C_p_lai)
+        ! case ('laitone')
+        !     call this%calc_forces_with_pressure(body, body%C_p_lai)
 
         end select
 
-        ! Sum discrete forces
-        this%C_F(:) = sum(body%dC_f, dim=2)/body%S_ref
+        ! init d_C_F_wrt_variables
+        call this%d_C_F_wrt_variables%init(body%N_adjoint)
+        
+        ! Sum discrete force sensitivities
+        do i = 1,body%N_panels
+            call this%d_C_F_wrt_variables%sparse_add(body%d_cell_forces_wrt_variables(i))
+        end do
+
+        ! divide by S_ref
+        call this%d_C_F_wrt_variables%broadcast_element_times_scalar(1./body%S_ref)
+
 
         ! Add contributions from mirrored half
         if (body%mirrored .and. .not. body%asym_flow) then
-            this%C_F = 2.*this%C_F
-            this%C_F(body%mirror_plane) = 0. ! We know this
+            ! this%C_F = 2.*this%C_F
+            ! this%C_F(body%mirror_plane) = 0. ! We know this
+            write(*,*) "!!! Cannot calculate adjoint d_C_F for mirrored mesh yet. Quitting..."
+            stop
         end if
 
-        if (verbose) then
-            write(*,*) "Done."
-            write(*,*) "        Cx:", this%C_F(1)
-            write(*,*) "        Cy:", this%C_F(2)
-            write(*,*) "        Cz:", this%C_F(3)
-        end if
+        ! if (verbose) then
+        !     write(*,*) "Done."
+        !     write(*,*) "        Cx:", this%C_F(1)
+        !     write(*,*) "        Cy:", this%C_F(2)
+        !     write(*,*) "        Cz:", this%C_F(3)
+        ! end if
     
     end subroutine panel_solver_calc_forces_adjoint
+
+
+    subroutine panel_solver_calc_d_forces_wrt_design_variables(this, body, pressures, d_pressures_wrt_vars)
+        ! Calculates the force sensitivities with respect to the design variables
+        
+        implicit none
+        
+        class(panel_solver),intent(in) :: this
+        type(surface_mesh),intent(inout) :: body
+        real,dimension(:),allocatable :: pressures
+        type(sparse_vector),dimension(:),allocatable,intent(inout) :: d_pressures_wrt_vars
+
+        type(sparse_matrix) :: term2, term3
+        
+        integer :: i, stat
+
+        ! Allocate force storage
+        allocate(body%d_cell_forces_wrt_variables(this%N_cells), stat=stat)
+        call check_allocation(stat, "adjoint cell forces wrt design variables")
+
+        ! Calculate total forces
+        !$OMP parallel do schedule(static)
+        do i=1,body%N_panels
+            ! this is the first term
+            body%d_cell_forces_wrt_variables(i) = d_pressures_wrt_vars(i)%broadcast_element_times_vector&
+                                                                (-body%panels(i)%A*body%panels(i)%n_g)
+            ! calc the second term to be added
+            term2 = body%panels(i)%d_A%broadcast_element_times_vector(-pressures(i)*body%panels(i)%n_g)
+
+            ! calc the third term to be added
+            call term3%init_from_sparse_matrix(body%panels(i)%d_n_g)
+            call term3%broadcast_element_times_scalar(-pressures(i)*body%panels(i)%A)
+
+            ! add terms to first term
+            call body%d_cell_forces_wrt_variables(i)%sparse_add(term2)
+            call body%d_cell_forces_wrt_variables(i)%sparse_add(term3)
+
+            ! Mirror (havent done mirroring for adjoints yet)
+            if (body%asym_flow) then
+                ! body%dC_f(:,i+body%N_panels) = -pressures(i+body%N_panels)*body%panels(i)%A*body%panels(i)%n_g_mir
+                write(*,*) "!!! Cannot calculate adjoint d_dC_f wrt to design variables for mirrored mesh yet. Quitting..."
+                stop
+            end if
+
+            deallocate(term2%columns,term3%columns)
+
+        end do
+    
+    end subroutine panel_solver_calc_d_forces_wrt_design_variables
 
 end module panel_solver_mod
