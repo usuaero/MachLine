@@ -52,6 +52,7 @@ module surface_mesh_mod
         logical :: calc_adjoint  ! whether or not adjoint sensitivities should be calculated
         integer :: N_adjoint ! number of adjoint design variables 
         type(sparse_matrix),dimension(:),allocatable :: d_V_cells_inner, d_V_cells
+        type(sparse_vector),dimension(:),allocatable :: d_C_p_inc
 
         contains
 

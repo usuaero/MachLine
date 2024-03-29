@@ -252,6 +252,9 @@ module panel_mod
             procedure :: get_velocity_jump_adjoint => panel_get_velocity_jump_adjoint
             procedure :: get_doublet_parameters_adjoint => panel_get_doublet_parameters_adjoint
 
+            ! adjoint pressure calcs
+            procedure :: get_avg_pressure_coef_adjoint => panel_get_avg_pressure_coef_adjoint
+
             !!!!!!!! END ADJOINT PROCEDURES !!!!!!!!
 
 
@@ -5767,7 +5770,7 @@ contains
 
 
     function panel_get_velocity_adjoint(this, mu, mirrored, N_body_panels, N_body_verts, asym_flow, &
-        freestream, d_inner_flow) result(d_V_cell)
+        freestream, d_inner_flow) result(d_V)
         ! Calculates the adjoint velocity on the outside of this panel in global coordinates at the centroid
 
         implicit none
@@ -5782,7 +5785,7 @@ contains
         ! real,dimension(3) :: v
 
         ! real,dimension(3) :: dv
-        type(sparse_matrix) :: d_dv, d_V_Cell
+        type(sparse_matrix) :: d_dv, d_V
 
         ! Get d velocity jump
         d_dv = this%get_velocity_jump_adjoint(mu, mirrored, N_body_panels, N_body_verts, asym_flow)
@@ -5790,9 +5793,9 @@ contains
 
         ! Get total velocity
         ! v = freestream%U*(inner_flow + dv)
-        call d_V_cell%init_from_sparse_matrix(d_dv)
-        call d_V_cell%broadcast_element_times_scalar(freestream%U)
-        call d_V_cell%sparse_add(d_inner_flow)
+        call d_V%init_from_sparse_matrix(d_inner_flow)
+        call d_V%sparse_add(d_dv)
+        call d_V%broadcast_element_times_scalar(freestream%U)
 
     end function panel_get_velocity_adjoint
 
@@ -5884,5 +5887,43 @@ contains
         
     end function panel_get_doublet_parameters_adjoint
 
+
+    function panel_get_avg_pressure_coef_adjoint(this, mu, sigma, mirrored, N_body_panels, N_body_verts, asym_flow, &
+        freestream, inner_flow, d_inner_flow, rule, M_corr) result(d_C_P_avg)
+        ! Calculates the average pressure coefficient on the panel
+
+        implicit none
+
+        class(panel),intent(in) :: this
+        real,dimension(:),allocatable,intent(in) :: mu, sigma
+        logical,intent(in) :: mirrored, asym_flow
+        integer,intent(in) :: N_body_panels, N_body_verts
+        type(flow),intent(in) :: freestream
+        real,dimension(3),intent(in) :: inner_flow
+        type(sparse_matrix) :: d_inner_flow
+        character(len=*),intent(in) :: rule
+        real,intent(in),optional :: M_corr
+
+        real :: C_P_avg
+
+        real,dimension(3) :: v
+        type(sparse_matrix) :: d_V
+        type(sparse_vector) :: d_C_P_avg
+
+
+        ! Get velocity at centroid
+        v = this%get_velocity(mu, sigma, mirrored, N_body_panels, N_body_verts, asym_flow, &
+        freestream, inner_flow)
+
+        d_v = this%get_velocity_adjoint(mu, mirrored, N_body_panels, N_body_verts, asym_flow, freestream, d_inner_flow)
+
+        ! Get pressure
+        if (present(M_corr)) then
+            d_C_P_avg = freestream%get_C_P_adjoint(v, d_v, rule=rule, M_corr=M_corr)
+        else
+            d_C_P_avg = freestream%get_C_P_adjoint(v, d_v, rule=rule)
+        end if
+
+    end function panel_get_avg_pressure_coef_adjoint
 
 end module panel_mod

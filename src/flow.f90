@@ -51,6 +51,11 @@ module flow_mod
             procedure :: restrict_pressure => flow_restrict_pressure
             procedure :: get_C_P => flow_get_C_P
 
+            !!! adjoint procedures !!!!
+            procedure :: get_C_P_adjoint => flow_get_C_P_adjoint
+            procedure :: get_d_C_P_inc => flow_get_d_C_P_inc
+            !!! end adjoint procedures !!!
+
     end type flow
 
 
@@ -590,7 +595,6 @@ contains
 
         case ("incompressible")
             C_P = this%get_C_P_inc(v)
-            if ()
 
         case ("isentropic")
             C_P = this%get_C_P_ise(v)
@@ -619,6 +623,83 @@ contains
         end select
         
     end function flow_get_C_P
+
+
+    function flow_get_C_P_adjoint(this, v, d_v, rule, M_corr) result(d_C_P)
+        ! Calculates the pressure coefficient for the given velocity using the given rule
+        ! Rule defaults to the incompressible or isentropic rule, based on the freestream Mach number
+
+        implicit none
+        
+        class(flow),intent(in) :: this
+        real,dimension(3),intent(in) :: v
+        type(sparse_matrix),intent(inout) :: d_v
+        character(len=*),intent(in),optional :: rule
+        real,intent(in),optional :: M_corr
+
+        type(sparse_vector) :: d_C_P
+        character(len=:),allocatable :: pressure_rule
+
+        ! Get pressure rule
+        if (present(rule)) then
+            pressure_rule = rule
+        else
+            if (this%M_inf == 0.) then
+                pressure_rule = "incompressible"
+            else
+                pressure_rule = "isentropic"
+            end if
+        end if
+
+        ! Calculate
+        select case (pressure_rule)
+
+        case ("incompressible")
+            d_C_P = this%get_d_C_P_inc(v, d_v)
+
+        ! case ("isentropic")
+        !     C_P = this%get_C_P_ise(v)
+
+        ! case ("second-order")
+        !     C_P = this%get_C_P_2nd(v)
+
+        ! case ("slender-body")
+        !     C_P = this%get_C_P_sln(v)
+
+        ! case ("linear")
+        !     C_P = this%get_C_P_lin(v)
+
+        ! case ("prandtl-glauert")
+        !     C_P = this%get_C_P_inc(v)
+        !     C_P = this%correct_C_P_PG(C_P, M_corr)
+
+        ! case ("karman-tsien")
+        !     C_P = this%get_C_P_inc(v)
+        !     C_P = this%correct_C_P_KT(C_P, M_corr)
+
+        ! case ("laitone")
+        !     C_P = this%get_C_P_inc(v)
+        !     C_P = this%correct_C_P_L(C_P, M_corr)
+
+        end select
+        
+    end function flow_get_C_P_adjoint
+
+    function flow_get_d_C_P_inc(this, v, d_v) result(d_C_P_inc)
+        ! Calculates the incompressible pressure coefficient for the given velocity
+
+        implicit none
+        
+        class(flow),intent(in) :: this
+        real,dimension(3),intent(in) :: v
+        type(sparse_matrix),intent(inout) :: d_v
+
+        type(sparse_vector) :: d_C_P_inc
+
+        d_C_P_inc = d_v%broadcast_vector_dot_element(v)
+        call d_C_P_inc%broadcast_element_times_scalar(-2.*this%U_inv*this%U_inv)
+        
+    end function flow_get_d_C_P_inc
 
 
 end module flow_mod

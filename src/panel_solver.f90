@@ -119,6 +119,10 @@ module panel_solver_mod
             
             procedure :: calc_cell_velocities_adjoint => panel_solver_calc_cell_velocities_adjoint
 
+            procedure :: calc_avg_pressure_on_panel_adjoint => panel_solver_calc_avg_pressure_on_panel_adjoint
+
+            ! calc forces
+            procedure :: calc_forces_adjoint => panel_solver_calc_forces_adjoint
             !!!!!!!!! END ADJOINT !!!!!!!!!!!!
 
     end type panel_solver
@@ -1113,6 +1117,11 @@ contains
 
         ! Calculate forces
         call this%calc_forces(body)
+
+        ! if adjoint, calc d_C_F
+        if (body%calc_adjoint) then
+            call this%calc_forces_adjoint(body)
+        end if
 
         ! Calculate moments
         call this%calc_moments(body)
@@ -2253,6 +2262,10 @@ contains
         if (this%incompressible_rule) then
             allocate(body%C_p_inc(this%N_cells), stat=stat)
             call check_allocation(stat, "incompressible surface pressures")
+            if (body%calc_adjoint) then
+                allocate(body%d_C_P_inc(this%N_cells), stat=stat)
+                call check_allocation(stat, "adjoint incompressible pressures")
+            end if
         end if
         
         if (this%isentropic_rule) then
@@ -2347,6 +2360,10 @@ contains
                 body%C_p_inc(i) = this%calc_avg_pressure_on_panel(i, body, .false., "incompressible")
                 if (body%asym_flow) then
                     body%C_p_inc(i+body%N_panels) = this%calc_avg_pressure_on_panel(i, body, .true., "incompressible")
+                end if
+
+                if (body%calc_adjoint) then
+                    body%d_C_p_inc(i) = this%calc_avg_pressure_on_panel_adjoint(i,body,.false.,"incompressible") 
                 end if
             end if
         
@@ -3137,7 +3154,7 @@ contains
 
         integer :: i, stat
         real,dimension(3) :: P
-        type(sparse_matrix) :: d_P, d_P_term2
+        type(sparse_matrix) :: d_P, d_P_term2, d_inner_flow
 
 
         ! Determine number of surface cells
@@ -3172,16 +3189,106 @@ contains
             ! body%V_cells(:,i) = body%panels(i)%get_velocity(body%mu, body%sigma, .false., body%N_panels, &
             !                                                 body%N_verts, body%asym_flow, this%freestream, &
             !                                                 body%V_cells_inner(:,i)/this%freestream%U)
+            call d_inner_flow%init_from_sparse_matrix(body%d_V_cells_inner(i))
+            call d_inner_flow%broadcast_element_times_scalar(1./this%freestream%U)
 
             body%d_V_cells(i) = body%panels(i)%get_velocity_adjoint(body%mu,.false., body%N_panels, &
                                                             body%N_verts, body%asym_flow, &
-                                                            this%freestream, body%d_V_cells_inner(i))
+                                                            this%freestream, d_inner_flow)
 
             ! deallocate stuff for next loop
-            deallocate(d_P%columns, d_P_term2%columns)
+            deallocate(d_P%columns, d_P_term2%columns, d_inner_flow%columns)
         end do
 
 
     end subroutine panel_solver_calc_cell_velocities_adjoint
+
+    function panel_solver_calc_avg_pressure_on_panel_adjoint(this, i_panel, body, mirrored, rule) result(d_C_P_avg)
+        ! Calls the panel function with the needed variables to get the average pressure coefficient on that panel
+
+        implicit none
+        
+        class(panel_solver),intent(in) :: this
+        integer,intent(in) :: i_panel
+        type(surface_mesh),intent(in) :: body
+        logical,intent(in) :: mirrored
+        character(len=*),intent(in) :: rule
+
+        type(sparse_matrix) :: d_inner_flow
+        type(sparse_vector) :: d_C_P_avg
+
+        if (mirrored) then
+            write(*,*) "!!! Cannot calculate adjoint avg pressure on panel for mirrored mesh yet. Quitting..."
+            stop
+        else
+            call d_inner_flow%init_from_sparse_matrix(body%d_V_cells_inner(i_panel))
+            call d_inner_flow%broadcast_element_times_scalar(1./this%freestream%U)
+
+            d_C_P_avg = body%panels(i_panel)%get_avg_pressure_coef_adjoint(body%mu, body%sigma,mirrored, body%N_panels,&
+                                                body%N_verts, body%asym_flow, this%freestream, &
+                                                body%V_cells_inner(:,i_panel)/this%freestream%U,&
+                                                d_inner_flow, rule, M_corr=this%M_inf_corr)
+        end if
+        
+    end function panel_solver_calc_avg_pressure_on_panel_adjoint
+
+
+    subroutine panel_solver_calc_forces_adjoint(this, body)
+        ! Calculates the forces
+        
+        implicit none
+        
+        class(panel_solver),intent(inout) :: this
+        type(surface_mesh),intent(inout) :: body
+        
+        if (verbose) write(*,'(a, a, a)',advance='no') "     Calculating forces using the ", & 
+                                                       this%pressure_for_forces, " pressure rule..."
+
+        ! Calculate forces
+        select case (this%pressure_for_forces)
+
+        case ('incompressible')
+            call this%calc_forces_with_pressure(body, body%C_p_inc)
+
+        case ('isentropic')
+            call this%calc_forces_with_pressure(body, body%C_p_ise)
+
+        case ('second-order')
+            call this%calc_forces_with_pressure(body, body%C_p_2nd)
+
+        case ('slender-body')
+            call this%calc_forces_with_pressure(body, body%C_p_sln)
+
+        case ('linear')
+            call this%calc_forces_with_pressure(body, body%C_p_lin)
+
+        case ('prandtl-glauert')
+            call this%calc_forces_with_pressure(body, body%C_p_pg)
+
+        case ('karman-tsien')
+            call this%calc_forces_with_pressure(body, body%C_p_kt)
+
+        case ('laitone')
+            call this%calc_forces_with_pressure(body, body%C_p_lai)
+
+        end select
+
+        ! Sum discrete forces
+        this%C_F(:) = sum(body%dC_f, dim=2)/body%S_ref
+
+        ! Add contributions from mirrored half
+        if (body%mirrored .and. .not. body%asym_flow) then
+            this%C_F = 2.*this%C_F
+            this%C_F(body%mirror_plane) = 0. ! We know this
+        end if
+
+        if (verbose) then
+            write(*,*) "Done."
+            write(*,*) "        Cx:", this%C_F(1)
+            write(*,*) "        Cy:", this%C_F(2)
+            write(*,*) "        Cz:", this%C_F(3)
+        end if
+    
+    end subroutine panel_solver_calc_forces_adjoint
 
 end module panel_solver_mod
