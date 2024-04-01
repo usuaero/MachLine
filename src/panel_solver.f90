@@ -1059,22 +1059,27 @@ contains
         ! Allocate AIC matrix
         allocate(this%A(body%N_cp, this%N_unknown), source=0., stat=stat)
         ! call check_allocation(stat, "AIC matrix")
-        
-        ! if adjoint, allocate AIC sensitivity matrix
-        if (body%calc_adjoint) then
-            call zeros%init(body%N_adjoint)
-            allocate(this%d_A_matrix(body%N_cp, this%N_unknown), source=zeros, stat=stat)
-            call check_allocation(stat, "Adjoint AIC sensitivity matrix")
-        end if
 
         ! Allocate b vector
         allocate(this%b(body%N_cp), source=0., stat=stat)
         call check_allocation(stat, "b vector")
 
-        ! if adjoint, allocate b sensitivity vector
+        ! if adjoint
         if (body%calc_adjoint) then
+            ! init empty sparse vector
+            call zeros%init(body%adjoint_size)
+
+            ! allocate AIC sensitivity matrix
+            allocate(this%d_A_matrix(body%N_cp, this%N_unknown), source=zeros, stat=stat)
+            call check_allocation(stat, "Adjoint AIC sensitivity matrix")
+
+            ! allocate b vector 
             allocate(this%d_b_vector(body%N_cp), source=zeros, stat=stat)
             ! call check_allocation(stat, "Adjoint b sensitivity vector")
+
+            ! assemble b sensitivity vector
+            call this%assemble_adjoint_b_vector(body)
+    
         end if
 
         ! Calculate source strengths
@@ -1090,11 +1095,6 @@ contains
             ! Assemble boundary condition vector
 
         call this%assemble_BC_vector(body)
-
-        ! if adjoint, assemble b sensitivity vector
-        if (body%calc_adjoint) then
-            call this%assemble_adjoint_b_vector(body)
-        end if 
 
         ! Solve the linear system
         call this%solve_system(body, solver_stat)
@@ -1338,7 +1338,7 @@ contains
 
         ! if adjoint, set up zero sparse vector for initialization
         if (body%calc_adjoint) then
-            call zeros%init(body%N_adjoint)
+            call zeros%init(body%adjoint_size)
         end if
 
         if (verbose) write(*,'(a)',advance='no') "     Calculating body influences..."
@@ -1374,18 +1374,18 @@ contains
                     !!!!!!!!!!!! ADJOINT CALCS HAPPEN HERE !!!!!!!!!!!!!!!!!!!!
 
                     ! ! if calc_adjoint is specified, do adjoint calcs (METHOD 1)
-                    if (body%calc_adjoint) then
-                        call body%panels(j)%calc_velocity_influences_adjoint(body%cp(i)%loc, body%cp(i)%d_loc, &
-                            this%freestream, d_v_d)
-                        inf_adjoint = body%panels(j)%calc_doublet_inf_adjoint(body%cp(i), this%freestream, d_v_d)
-                        call this%update_adjoint_A_row(body, body%cp(i), d_AIC_row, j, inf_adjoint, .false.)
-                    end if
-
-                    ! if calc_adjoint is specified, do adjoint calcs (METHOD 2)
                     ! if (body%calc_adjoint) then
-                    !     inf_adjoint = body%panels(j)%calc_doublet_inf_adjoint2(body%cp(i),this%freestream)
+                    !     call body%panels(j)%calc_velocity_influences_adjoint(body%cp(i)%loc, body%cp(i)%d_loc, &
+                    !         this%freestream, d_v_d)
+                    !     inf_adjoint = body%panels(j)%calc_doublet_inf_adjoint(body%cp(i), this%freestream, d_v_d)
                     !     call this%update_adjoint_A_row(body, body%cp(i), d_AIC_row, j, inf_adjoint, .false.)
                     ! end if
+
+                    ! if calc_adjoint is specified, do adjoint calcs (METHOD 2)
+                    if (body%calc_adjoint) then
+                        inf_adjoint = body%panels(j)%calc_doublet_inf_adjoint2(body%cp(i),this%freestream)
+                        call this%update_adjoint_A_row(body, body%cp(i), d_AIC_row, j, inf_adjoint, .false.)
+                    end if
 
                     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -3300,7 +3300,7 @@ contains
         end select
 
         ! init d_C_F_wrt_variables
-        call this%d_C_F_wrt_vars%init(body%N_adjoint)
+        call this%d_C_F_wrt_vars%init(body%adjoint_size)
         
         ! Sum discrete force sensitivities
         do i = 1,body%N_panels

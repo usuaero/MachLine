@@ -50,11 +50,11 @@ module surface_mesh_mod
 
         ! adjoint
         logical :: calc_adjoint  ! whether or not adjoint sensitivities should be calculated
-        integer :: N_adjoint ! number of adjoint design variables 
+        integer :: adjoint_size ! number of adjoint design variables 
         type(sparse_matrix),dimension(:),allocatable :: d_V_cells_inner_wrt_vars, d_V_cells_wrt_vars
         type(sparse_matrix),dimension(:),allocatable :: d_V_cells_inner_wrt_mu, d_V_cells_wrt_mu
         type(sparse_vector),dimension(:),allocatable :: d_C_p_inc, d_C_p_inc_wrt_mu
-        type(sparse_matrix),dimension(:),allocatable :: d_cell_forces_wrt_var, d_cell_forces_wrt_mu
+        type(sparse_matrix),dimension(:),allocatable :: d_cell_forces_wrt_vars, d_cell_forces_wrt_mu
 
         contains
 
@@ -3134,7 +3134,7 @@ contains
         end do
 
         ! value of adjoint design variables
-        this%N_adjoint = this%N_verts*3
+        this%adjoint_size = this%N_verts*3
         
         ! calc  d_vertex_geometries
         call this%calc_d_vertex_geometry()
@@ -3163,8 +3163,8 @@ contains
             n_avg = (/0., 0., 0./)
             N_panels = this%vertices(i)%panels%len()
             
-            ! call d_n_avg%init(this%N_adjoint)  ! dont need this I think
-            call sum_d_n_avg%init(this%N_adjoint)
+            ! call d_n_avg%init(this%adjoint_size)  ! dont need this I think
+            call sum_d_n_avg%init(this%adjoint_size)
             
             do j=1,N_panels
                 
@@ -3249,26 +3249,26 @@ contains
         
         
         integer :: j, k
-        type(sparse_matrix) :: d_v_d_panel
+        type(sparse_matrix) :: d_v_d_panel_wrt_vars
         type(sparse_matrix) :: d_V_inner_wrt_vars
 
         ! Loop through panels
 
-        call d_V_inner_wrt_vars%init(this%N_adjoint)
+        call d_V_inner_wrt_vars%init(this%adjoint_size)
         
         do k=1,this%N_panels
             
             ! Calculate influence
             call this%panels(k)%calc_d_v_d_wrt_vars(point, d_point, freestream, .false., &
                                                  this%mu, this%N_verts, &
-                                                this%asym_flow, d_v_d_panel)
+                                                this%asym_flow, d_v_d_panel_wrt_vars)
             
             !!!! dont have sources in adjoint formulation
             ! Because computers don't like adding zero a bunch
             ! if (this%panels(k)%has_sources) v_s = v_s + v_s_panel
             !!!!
             
-            call d_V_inner_wrt_vars%sparse_add(d_v_d_panel)
+            call d_V_inner_wrt_vars%sparse_add(d_v_d_panel_wrt_vars)
         end do
 
         call d_V_inner_wrt_vars%broadcast_element_times_scalar(freestream%U)
@@ -3290,22 +3290,36 @@ contains
         type(flow),intent(in) :: freestream
 
 
-        integer :: j, k
-        real,dimension(3) :: v_s_i, v_d_i
-        type(sparse_matrix) :: d_V_inner_wrt_mu
+        integer :: i, j, k
+        real,dimension(:,:),allocatable :: v_s_panel, v_d_panel
+        type(sparse_matrix) :: d_mu_wrt_mu, d_v_d_panel_wrt_mu, d_V_inner_wrt_mu
+        type(sparse_vector), dimension(3) :: d_mu_vecs
 
         ! Loop through panels
 
-        call d_V_inner_wrt_mu%init(this%N_adjoint)
+        call d_V_inner_wrt_mu%init(this%adjoint_size)
 
         do i=1,this%N_panels
 
             ! Calculate influence
-            call this%panels(i)%calc_velocity_influences(point, freestream, .false., v_s_i, v_d_i)
+            call this%panels(i)%calc_velocity_influences(point, freestream, .false., v_s_panel, v_d_panel)
 
+            ! populate the sparse d_mu wrt mu vectors for the 3 points of the panel
+            do j=1,3
+                call d_mu_vecs(j)%init(this%adjoint_size/3)
+                call d_mu_vecs(j)%set_value(1.0, this%panels(i)%i_vert_d(j))
+            end do
             
+            ! combine into a sparse_matrix
+            call d_mu_wrt_mu%init_from_sparse_vectors(d_mu_vecs(1), d_mu_vecs(2), d_mu_vecs(3))
 
-            call d_V_inner_wrt_mu%sparse_add(d_v_d_panel)
+            ! matmul v_d_i and d_mu_wrt_mu for this panel
+            d_v_d_panel_wrt_mu = d_mu_wrt_mu%broadcast_matmul_3x3_times_element(v_d_panel)            
+
+            call d_V_inner_wrt_mu%sparse_add(d_v_d_panel_wrt_mu)
+
+            deallocate(d_mu_vecs(1)%elements, d_mu_vecs(2)%elements, d_mu_vecs(3)%elements, &
+                d_mu_wrt_mu%columns, d_v_d_panel_wrt_mu%columns)
         end do
 
         call d_V_inner_wrt_mu%broadcast_element_times_scalar(freestream%U)
