@@ -411,13 +411,13 @@ program d_C_P_inc_test
         ! write(*,*) ""
         
         do i=1,N_verts*3
-            residuals(i) = adjoint_mesh%d_C_P_inc(k)%get_value(i) - d_C_P_inc_FD(i)
+            residuals(i) = adjoint_mesh%d_C_P_inc_wrt_vars(k)%get_value(i) - d_C_P_inc_FD(i)
         end do
         
         write(*,'(A,I1)') "         d_C_P_inc TEST index = ",k
         write(*,*) "  d_C_P_inc FD         d_C_P_inc adjoint             residual"
         do i = 1, N_verts*3
-            write(*, '(f16.10, 3x, f16.10, 3x, f16.10)') adjoint_mesh%d_C_P_inc(k)%get_value(i), &
+            write(*, '(f16.10, 3x, f16.10, 3x, f16.10)') adjoint_mesh%d_C_P_inc_wrt_vars(k)%get_value(i), &
             d_C_P_inc_FD(i), residuals(i)
         end do
         write(*,*) ""

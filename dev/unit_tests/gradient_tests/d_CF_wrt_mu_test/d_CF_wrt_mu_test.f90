@@ -1,4 +1,4 @@
-program d_V_inner_wrt_mu_test
+program d_CF_wrt_mu_test
 
     ! tests various intermediate sensitivities 
     use adjoint_mod
@@ -50,13 +50,11 @@ program d_V_inner_wrt_mu_test
     type(sparse_matrix) :: adjoint_d_P
     type(sparse_matrix) :: adjoint_d_v_d_panel
 
-    real,dimension(:),allocatable :: fixed_v_d, fixed_v_s
-
     !!!!!!!!!!!!!!!!!!!!! END STUFF FROM MAIN !!!!!!!!!!!!!!!!!!!!!!!!!
 
     !!!!!!!!!!!!!!!!!!!!!! TESTING STUFF  !!!!!!!!!!!!!!!!!!!!!!!!!!
     real,dimension(:),allocatable :: residuals
-    real,dimension(:,:),allocatable ::  residuals3, v_inner_wrt_mu_up, v_inner_wrt_mu_dn, d_v_inner_wrt_mu_FD
+    real,dimension(:,:),allocatable ::  residuals3, CF_wrt_mu_up, CF_wrt_mu_dn, d_CF_wrt_mu_FD
 
     integer :: i,j,k,m,n,p, N_verts, N_panels, vert, index, cp_ind, row,col, stat
     real :: step, error_allowed, cp_offset
@@ -75,7 +73,8 @@ program d_V_inner_wrt_mu_test
     passed_tests = 0
     total_tests = 0
 
-    error_allowed = 1.0e-5
+    error_allowed = 1.0e-6
+    
     step = 0.00001
     index = 1
     cp_ind = 1
@@ -141,8 +140,6 @@ program d_V_inner_wrt_mu_test
 
     ! Allocate known influence storage
     allocate(test_solver%I_known(test_mesh%N_cp), source=0., stat=stat)
-    write(*,*) "N_cp = ",test_mesh%N_cp
-    write(*,*) "stat = ",stat
     call check_allocation(stat, "known influence vector")
 
     ! Allocate AIC matrix
@@ -169,14 +166,14 @@ program d_V_inner_wrt_mu_test
 
     ! Calculate velocities
     call test_solver%calc_cell_velocities(test_mesh)
+
+    ! Calculate velocities
+    call test_solver%calc_pressures(test_mesh)
+
+    call test_solver%calc_forces(test_mesh)
     
     
     !!!!!!!!!!!!!!!!!!!!! END TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-
-    
-
-    
     
     
     
@@ -234,8 +231,6 @@ program d_V_inner_wrt_mu_test
     adjoint_freestream_flow, adjoint_control_point_file)
     ! solve
     call adjoint_solver%solve(adjoint_mesh, adjoint_solver_stat, adjoint_formulation,adjoint_freestream_flow)
-    write(*,*) "check solve successful"
-    
     
 
     
@@ -248,136 +243,165 @@ program d_V_inner_wrt_mu_test
     N_panels = test_mesh%N_panels
     
     
-    allocate(residuals3(3,N_verts))
-    allocate(residuals(N_verts))
+    allocate(residuals3(3,N_verts*3))
+    allocate(residuals(N_verts*3))
 
     
 
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! d_V_inner_wrt_mu_test !!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! d_CF_wrt_mu_test !!!!!!!!!!!!!!!!!!!!!!!!!!!!
     write(*,*) ""
     write(*,*) ""
-    write(*,*) "------------------------------ d_V_inner_wrt_mu_test ---&
+    write(*,*) "------------------------------ d_CF_wrt_mu_test ---&
     ------------------------------"
     write(*,*) ""
     write(*,*) ""
     write(*,*) ""
 
     ! allocate data holders
-    allocate(v_inner_wrt_mu_up(3,N_verts))
-    allocate(v_inner_wrt_mu_dn(3,N_verts))
-    allocate(d_v_inner_wrt_mu_FD(3,N_verts))
+    allocate(CF_wrt_mu_up(3,N_verts))
+    allocate(CF_wrt_mu_dn(3,N_verts))
+    allocate(d_CF_wrt_mu_FD(3,N_verts))
 
         
-    !!!!!!!!! CENTRAL DIFFERENCE (panel 1, cp 1) d_v_d row 1, column ", k, !!!!!!!!!
+    !!!!!!!!! CENTRAL DIFFERENCE (panel 1, cp 1) d_CF_wrt_mu_test column ", k, !!!!!!!!!
     write(*,*) ""
     write(*,*) "--------------------------------------------------------------------------------------"
-    write(*,*) "                  d_V_inner_wrt_mu_test "
+    write(*,*) "                   d_CF_wrt_mu_test "
     write(*,*) "--------------------------------------------------------------------------------------"
     write(*,*) ""
 
 
-    do k=1,test_mesh%N_panels   
-        do i=1,test_mesh%N_verts  !!!!!!!!!! THIS IS DIFFERENT FOR wrt mu
+    do i=1,test_mesh%N_verts  !!!!!!!!!! THIS IS DIFFERENT because its wrt mu
 
-            ! perturb up the current mu
-            test_mesh%mu(i) = test_mesh%mu(i) + step
-            ! write(*,*) " perturb up"
-            
-            !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
-            ! deallocate stuff
-            deallocate(test_mesh%V_cells_inner)
-            deallocate(test_mesh%V_cells)
+        ! perturb up the current mu
+        test_mesh%mu(i) = test_mesh%mu(i) + step
+        ! write(*,*) " perturb up"
         
-            ! Calculate velocities
-            call test_solver%calc_cell_velocities(test_mesh)
-                            
-            !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
-            
-            ! get the needed info
-            v_inner_wrt_mu_up(:,i) = test_mesh%V_cells_inner(:,k)
-            
-            
-            ! perturb down the current design variable
-            ! write(*,*) " perturb down"
-            test_mesh%mu(i) = test_mesh%mu(i) - 2.*step
+        !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
+        ! deallocate stuff
+        deallocate(test_mesh%V_cells_inner)
+        deallocate(test_mesh%V_cells)
     
-            !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
-            ! deallocate stuff
-            deallocate(test_mesh%V_cells_inner)
-            deallocate(test_mesh%V_cells)
+        ! Calculate velocities
+        call test_solver%calc_cell_velocities(test_mesh)
         
-            ! Calculate velocities
-            call test_solver%calc_cell_velocities(test_mesh)
-                            
-            !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
-            
-            ! get the needed info
-            v_inner_wrt_mu_dn(:,i) = test_mesh%V_cells_inner(:,k)
+        deallocate(test_mesh%C_P_inc)
 
-            ! restore geometry
-            test_mesh%mu(i) = test_mesh%mu(i) + step
-            
-        end do 
+        ! Calculate velocities
+        call test_solver%calc_pressures(test_mesh)
 
-        
-        d_v_inner_wrt_mu_FD = (v_inner_wrt_mu_up - v_inner_wrt_mu_dn)/(2.*step)
-                
-        write(*,*) ""
-        
-        
-        ! write results
-        write(*,*) ""
-        write(*,'(A,I1)') "              Central Diff  d_V_inner_wrt_mu cell ",k
-        write(*,*) "  d_V_inner_x           d_V_inner_y           d_V_inner_z "
-        do i = 1, N_verts
-            write(*, '(3(f16.10, 4x))') d_v_inner_wrt_mu_FD(:,i)
-        end do 
-        
-        
-        do i=1,N_verts
-            residuals3(:,i) = adjoint_mesh%d_V_cells_inner_wrt_mu(k)%get_values(i) - d_v_inner_wrt_mu_FD(:,i)
-        end do
-        
-        write(*,'(A,I1)') "          Adjoint      d_V_inner_wrt_mu cell ",k
-        write(*,*) "  d_V_inner_x           d_V_inner_y           d_V_inner_z                        residuals"
-        do i = 1, N_verts
-            write(*, '(3(f16.10, 4x),3x, 3(f16.10, 4x))') adjoint_mesh%d_V_cells_inner_wrt_mu(k)%get_values(i),&
-             residuals3(:,i)
-        end do
-        write(*,*) ""
+        deallocate(test_mesh%dC_f)
 
-        ! check if test failed
-        do i=1,N_verts
-            if (any(abs(residuals3(:,i)) > error_allowed)) then
-                test_failed = .true.
-                exit
-            else 
-                test_failed = .false.
-            end if
-        end do
-        if (test_failed) then
-            total_tests = total_tests + 1
-            
-            failure_log(total_tests-passed_tests) = "d_V_inner_wrt_mu TEST FAILURE"
-            write(*,*) failure_log(total_tests-passed_tests)
-        else
-            write(*,'(A, I1,A)') " d_V_inner_wrt_mu cell (",k,") test PASSED"
-            passed_tests = passed_tests + 1
-            total_tests = total_tests + 1
-            
-        end if
-        test_failed = .false.
-        write(*,*) "" 
-        write(*,*) ""
+        call test_solver%calc_forces(test_mesh)
+                    
+        !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
         
+        ! get the needed info
+        CF_wrt_mu_up(:, i) = test_solver%C_F(:)
+        
+        
+        ! perturb down the current design variable
+        ! write(*,*) " perturb down"
+        test_mesh%mu(i) = test_mesh%mu(i) - 2.*step
+
+        !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
+        ! deallocate stuff
+        deallocate(test_mesh%V_cells_inner)
+        deallocate(test_mesh%V_cells)
+    
+        ! Calculate velocities
+        call test_solver%calc_cell_velocities(test_mesh)
+        
+        deallocate(test_mesh%C_P_inc)
+
+        ! Calculate velocities
+        call test_solver%calc_pressures(test_mesh)
+
+        deallocate(test_mesh%dC_f)
+
+        call test_solver%calc_forces(test_mesh)
+                    
+                        
+        !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
+        
+        ! get the needed info
+        CF_wrt_mu_dn(:, i) = test_solver%C_F(:)
+
+        ! restore geometry
+        test_mesh%mu(i) = test_mesh%mu(i) + step
         
     end do
+
+        
+        ! central difference 
+    d_CF_wrt_mu_FD = (CF_wrt_mu_up - CF_wrt_mu_dn)/(2.*step)
+            
+    write(*,*) ""
+    
+    
+    ! write results
+    write(*,*) ""
+    write(*,'(A)') "              Central Diff  d_CF_wrt_mu_test "
+    write(*,*) "  d_CF_wrt_mu_x           d_CF_wrt_mu_y           d_CF_wrt_mu_z "
+    do i = 1, N_verts
+        write(*, '(3(f16.10, 4x))') d_CF_wrt_mu_FD(:,i)
+    end do 
+    
+    ! !write sparse matrix
+    ! write(*,*) ""
+    ! write(*,'(A,I1)') "                d_V_inner_test index = ",index
+    ! write(*,*) "  d_V_inner_x           d_V_inner_y           d_V_inner_z     sparse_index       full_index"
+    ! write(*,*) "sparse num cols", adjoint_mesh%d_V_cells_inner(k)%sparse_num_cols
+    ! do i=1,adjoint_mesh%d_V_cells_inner(k)%sparse_num_cols
+    !     write(*,'(3(f14.10, 4x), 12x, I5, 12x, I5)') adjoint_mesh%d_V_cells_inner(k)%columns(i)%vector_values, &
+    !     i, adjoint_mesh%d_V_cells_inner(k)%columns(i)%full_index
+    ! end do
+    ! write(*,*) ""
+    
+    do i=1,N_verts
+        residuals3(:,i) = adjoint_solver%d_C_F_wrt_mu%get_values(i) - d_CF_wrt_mu_FD(:,i)
+    end do
+    
+    write(*,'(A)') "          Adjoint      d_CF_wrt_mu  "
+    write(*,*) "  d_CF_mu_x           d_CF_mu_y           d_CF_mu_z                        residuals"
+    do i = 1, N_verts
+        write(*, '(3(f16.10, 4x),3x, 3(f16.10, 4x))') adjoint_solver%d_C_F_wrt_mu%get_values(i),&
+                                                                                 residuals3(:,i)
+    end do
+    write(*,*) ""
+
+    ! check if test failed
+    do i=1,N_verts
+        if (any(abs(residuals3(:,i)) > error_allowed)) then
+            test_failed = .true.
+            exit
+        else 
+            test_failed = .false.
+        end if
+    end do
+    if (test_failed) then
+        total_tests = total_tests + 1
+        
+        failure_log(total_tests-passed_tests) = "d_CF_wrt_mu TEST FAILED"
+        write(*,*) failure_log(total_tests-passed_tests)
+    else
+        write(*,'(A)') " d_CF_wrt_mu TEST PASSED"
+        passed_tests = passed_tests + 1
+        total_tests = total_tests + 1
+        
+    end if
+    test_failed = .false.
+    write(*,*) "" 
+    write(*,*) ""
+    
+    
+
     
     
     
     
-    !!!!!!!!!!!!!! d_V_inner_wrt_mu_test RESULTS!!!!!!!!!!!!!
-    write(*,*) "-------------d_V_inner_wrt_mu_test RESULTS--------------"
+    !!!!!!!!!!!!!! d_CF_wrt_mu_test RESULTS!!!!!!!!!!!!!
+    write(*,*) "-------------d_CF_wrt_mu_test RESULTS--------------"
     write(*,*) ""
     write(*,'((A), ES10.1)') "allowed residual = ", error_allowed
     write(*,'((A), ES10.1)') "control point offset = ", cp_offset
@@ -403,4 +427,4 @@ program d_V_inner_wrt_mu_test
     write(*,*) "----------------------"
 
 
-end program d_V_inner_wrt_mu_test
+end program d_CF_wrt_mu_test

@@ -49,7 +49,7 @@ module panel_solver_mod
         !!!!!! ADJOINT variables !!!!!!
         type(sparse_vector),dimension(:,:),allocatable :: d_A_matrix
         type(sparse_vector),dimension(:),allocatable :: d_b_vector
-        type(sparse_matrix) :: d_C_F_wrt_vars
+        type(sparse_matrix) :: d_C_F_wrt_vars, d_C_F_wrt_mu
 
         !!!!! END ADJOINT variables !!!
 
@@ -120,12 +120,16 @@ module panel_solver_mod
             
             procedure :: calc_cell_velocities_adjoint => panel_solver_calc_cell_velocities_adjoint
 
-            procedure :: calc_avg_pressure_on_panel_adjoint => panel_solver_calc_avg_pressure_on_panel_adjoint
+            procedure :: calc_d_avg_pressure_on_panel_wrt_vars => panel_solver_calc_d_avg_pressure_on_panel_wrt_vars
+            procedure :: calc_d_avg_pressure_on_panel_wrt_mu => panel_solver_calc_d_avg_pressure_on_panel_wrt_mu
 
             ! calc forces
             procedure :: calc_forces_adjoint => panel_solver_calc_forces_adjoint
             procedure :: calc_d_forces_wrt_vars => panel_solver_calc_d_forces_wrt_vars
             procedure :: calc_d_forces_wrt_mu => panel_solver_calc_d_forces_wrt_mu
+
+            ! solve for adjoint v^T terms
+            procedure :: solve_for_adjoint_v_terms => panel_solver_solve_for_adjoint_v_terms
 
             !!!!!!!!! END ADJOINT !!!!!!!!!!!!
 
@@ -1119,14 +1123,19 @@ contains
 
         ! Calculate forces
         call this%calc_forces(body)
-
-        ! if adjoint, calc d_C_F
-        if (body%calc_adjoint) then
-            call this%calc_forces_adjoint(body)
-        end if
-
+        
         ! Calculate moments
         call this%calc_moments(body)
+        
+        ! if adjoint finish sensitivity calcs
+        if (body%calc_adjoint) then
+            ! if adjoint, calc d_C_F
+            call this%calc_forces_adjoint(body)
+            ! call this%calc_moments_adjoint(body)
+
+            ! ! if adjoint, solve for v^T terms, then calc total derivatives (sensitivities)
+            ! call this%solve_for_adjoint_v_terms(body)
+        end if
 
     end subroutine panel_solver_solve
 
@@ -2263,8 +2272,10 @@ contains
             allocate(body%C_p_inc(this%N_cells), stat=stat)
             call check_allocation(stat, "incompressible surface pressures")
             if (body%calc_adjoint) then
-                allocate(body%d_C_P_inc(this%N_cells), stat=stat)
-                call check_allocation(stat, "adjoint incompressible pressures")
+                allocate(body%d_C_P_inc_wrt_vars(this%N_cells), stat=stat)
+                call check_allocation(stat, "adjoint incompressible pressures (wrt vars)")
+                allocate(body%d_C_P_inc_wrt_mu(this%N_cells), stat=stat)
+                call check_allocation(stat, "adjoint incompressible pressures (wrt mu)")
             end if
         end if
         
@@ -2363,7 +2374,8 @@ contains
                 end if
 
                 if (body%calc_adjoint) then
-                    body%d_C_p_inc(i) = this%calc_avg_pressure_on_panel_adjoint(i,body,.false.,"incompressible") 
+                    body%d_C_p_inc_wrt_vars(i) = this%calc_d_avg_pressure_on_panel_wrt_vars(i,body,.false.,"incompressible") 
+                    body%d_C_p_inc_wrt_mu(i) = this%calc_d_avg_pressure_on_panel_wrt_mu(i,body,.false.,"incompressible") 
                 end if
             end if
         
@@ -3226,7 +3238,9 @@ contains
 
     end subroutine panel_solver_calc_cell_velocities_adjoint
 
-    function panel_solver_calc_avg_pressure_on_panel_adjoint(this, i_panel, body, mirrored, rule) result(d_C_P_avg)
+
+    function panel_solver_calc_d_avg_pressure_on_panel_wrt_vars(this, i_panel, body, mirrored, rule) &
+                                                        result(d_C_P_avg_wrt_vars)
         ! Calls the panel function with the needed variables to get the average pressure coefficient on that panel
 
         implicit none
@@ -3237,23 +3251,57 @@ contains
         logical,intent(in) :: mirrored
         character(len=*),intent(in) :: rule
 
-        type(sparse_matrix) :: d_inner_flow
-        type(sparse_vector) :: d_C_P_avg
+        type(sparse_matrix) :: d_inner_flow_wrt_vars
+        type(sparse_vector) :: d_C_P_avg_wrt_vars
 
         if (mirrored) then
             write(*,*) "!!! Cannot calculate adjoint avg pressure on panel for mirrored mesh yet. Quitting..."
             stop
         else
-            call d_inner_flow%init_from_sparse_matrix(body%d_V_cells_inner_wrt_vars(i_panel))
-            call d_inner_flow%broadcast_element_times_scalar(1./this%freestream%U)
+            ! sensitivity of C_P_avg with respect to vars (points)
+            call d_inner_flow_wrt_vars%init_from_sparse_matrix(body%d_V_cells_inner_wrt_vars(i_panel))
+            call d_inner_flow_wrt_vars%broadcast_element_times_scalar(1./this%freestream%U)
 
-            d_C_P_avg = body%panels(i_panel)%get_avg_pressure_coef_adjoint(body%mu, body%sigma,mirrored, body%N_panels,&
+            d_C_P_avg_wrt_vars = body%panels(i_panel)%get_d_avg_pressure_coef_wrt_vars(body%mu, body%sigma,mirrored, body%N_panels,&
                                                 body%N_verts, body%asym_flow, this%freestream, &
                                                 body%V_cells_inner(:,i_panel)/this%freestream%U,&
-                                                d_inner_flow, rule, M_corr=this%M_inf_corr)
+                                                d_inner_flow_wrt_vars, rule, M_corr=this%M_inf_corr)
         end if
         
-    end function panel_solver_calc_avg_pressure_on_panel_adjoint
+    end function panel_solver_calc_d_avg_pressure_on_panel_wrt_vars
+
+
+    function panel_solver_calc_d_avg_pressure_on_panel_wrt_mu(this, i_panel, body, mirrored, rule) &
+                                                            result(d_C_P_avg_wrt_mu)
+        ! Calls the panel function with the needed variables to get the average pressure coefficient on that panel
+
+        implicit none
+        
+        class(panel_solver),intent(in) :: this
+        integer,intent(in) :: i_panel
+        type(surface_mesh),intent(in) :: body
+        logical,intent(in) :: mirrored
+        character(len=*),intent(in) :: rule
+
+        type(sparse_matrix) :: d_inner_flow_wrt_mu
+        type(sparse_vector) :: d_C_P_avg_wrt_mu
+
+        if (mirrored) then
+            write(*,*) "!!! Cannot calculate adjoint avg pressure on panel for mirrored mesh yet. Quitting..."
+            stop
+        else
+
+            ! sensitivity of C_P_avg with respect to mu
+            call d_inner_flow_wrt_mu%init_from_sparse_matrix(body%d_V_cells_inner_wrt_mu(i_panel))
+            call d_inner_flow_wrt_mu%broadcast_element_times_scalar(1./this%freestream%U)
+
+            d_C_P_avg_wrt_mu = body%panels(i_panel)%get_d_avg_pressure_coef_wrt_mu(body%mu, body%sigma,mirrored, body%N_panels,&
+                                                body%N_verts, body%asym_flow, this%freestream, &
+                                                body%V_cells_inner(:,i_panel)/this%freestream%U,&
+                                                d_inner_flow_wrt_mu, rule, M_corr=this%M_inf_corr)
+        end if
+        
+    end function panel_solver_calc_d_avg_pressure_on_panel_wrt_mu
 
 
     subroutine panel_solver_calc_forces_adjoint(this, body)
@@ -3273,8 +3321,8 @@ contains
         select case (this%pressure_for_forces)
 
         case ('incompressible')
-            call this%calc_d_forces_wrt_vars(body, body%C_p_inc, body%d_C_p_inc)
-            ! call this%calc_d_forces_wrt_mu(body, body%C_p_inc, body%d_C_p_inc_wrt_mu)
+            call this%calc_d_forces_wrt_vars(body, body%C_p_inc, body%d_C_p_inc_wrt_vars)
+            call this%calc_d_forces_wrt_mu(body, body%C_p_inc, body%d_C_p_inc_wrt_mu)
 
         ! case ('isentropic')
         !     call this%calc_forces_with_pressure(body, body%C_p_ise)
@@ -3299,6 +3347,7 @@ contains
 
         end select
 
+        !!!!!!!!!!!!!!!!!!!!!!!!!!! begin wrt vars !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         ! init d_C_F_wrt_variables
         call this%d_C_F_wrt_vars%init(body%adjoint_size)
         
@@ -3309,6 +3358,22 @@ contains
 
         ! divide by S_ref
         call this%d_C_F_wrt_vars%broadcast_element_times_scalar(1./body%S_ref)
+        !!!!!!!!!!!!!!!!!!!!!!!!!! end wrt vars !!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+
+        !!!!!!!!!!!!!!!!!!!!!!!!!!! begin wrt mu !!!!!!!!!!!!!!!!!!!!!!!!!!!
+        ! init d_C_F_wrt_mu
+        call this%d_C_F_wrt_mu%init(body%N_verts)
+        
+        ! Sum discrete force sensitivities
+        do i = 1,body%N_panels
+            call this%d_C_F_wrt_mu%sparse_add(body%d_cell_forces_wrt_mu(i))
+        end do
+
+        ! divide by S_ref
+        call this%d_C_F_wrt_mu%broadcast_element_times_scalar(1./body%S_ref)
+        !!!!!!!!!!!!!!!!!!!!!!!!!! end wrt mu !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
 
 
         ! Add contributions from mirrored half
@@ -3391,8 +3456,8 @@ contains
         integer :: i, stat
 
         ! Allocate force storage
-        allocate(body%d_cell_forces_wrt_mu(this%N_cells), stat=stat)
-        call check_allocation(stat, "adjoint cell forces wrt doublet strengths")
+        allocate(body%d_cell_forces_wrt_mu(body%N_panels), stat=stat)
+        call check_allocation(stat, "adjoint cell forces wrt doublet strengths (mu)")
 
         ! Calculate total forces
         !$OMP parallel do schedule(static)
@@ -3411,5 +3476,14 @@ contains
         end do
     
     end subroutine panel_solver_calc_d_forces_wrt_mu
+
+
+    subroutine panel_solver_solve_for_adjoint_v_terms(this,body)
+        implicit none
+        class(panel_solver),intent(in) :: this
+        type(surface_mesh),intent(inout) :: body
+
+        
+    end subroutine panel_solver_solve_for_adjoint_v_terms
 
 end module panel_solver_mod

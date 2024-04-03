@@ -274,7 +274,7 @@ program d_V_cells_wrt_mu_test
     write(*,*) ""
 
 
-    do k=1,test_mesh%N_verts   
+    do k=1,test_mesh%N_panels   
         do i=1,test_mesh%N_verts  !!!!!!!!!! THIS IS DIFFERENT FOR wrt mu
 
             ! perturb up the current mu
