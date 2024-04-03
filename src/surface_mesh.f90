@@ -3297,25 +3297,24 @@ contains
 
         ! Loop through panels
 
-        call d_V_inner_wrt_mu%init(this%adjoint_size)
+        call d_V_inner_wrt_mu%init(this%N_verts)
 
         do i=1,this%N_panels
-
             ! Calculate influence
             call this%panels(i)%calc_velocity_influences(point, freestream, .false., v_s_panel, v_d_panel)
-
+            
             ! populate the sparse d_mu wrt mu vectors for the 3 points of the panel
             do j=1,3
-                call d_mu_vecs(j)%init(this%adjoint_size/3)
+                call d_mu_vecs(j)%init(this%N_verts)
                 call d_mu_vecs(j)%set_value(1.0, this%panels(i)%i_vert_d(j))
             end do
             
             ! combine into a sparse_matrix
             call d_mu_wrt_mu%init_from_sparse_vectors(d_mu_vecs(1), d_mu_vecs(2), d_mu_vecs(3))
-
+            
             ! matmul v_d_i and d_mu_wrt_mu for this panel
             d_v_d_panel_wrt_mu = d_mu_wrt_mu%broadcast_matmul_3x3_times_element(v_d_panel)            
-
+            
             call d_V_inner_wrt_mu%sparse_add(d_v_d_panel_wrt_mu)
 
             deallocate(d_mu_vecs(1)%elements, d_mu_vecs(2)%elements, d_mu_vecs(3)%elements, &

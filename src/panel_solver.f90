@@ -3204,25 +3204,25 @@ contains
             deallocate(d_P%columns, d_P_term2%columns, d_inner_flow_wrt_vars%columns)
             !!!!!!!!!!!!!!! end wrt vars !!!!!!!!!!!!!!!!!!!!!!!
 
-
-
             !!!!!!!!!!!!!!!!!!!!!!! sensitivity terms with respect to mu !!!!!!!!!!!!!!!!!!!!
-            body%d_V_cells_inner_wrt_mu(i) = body%get_d_v_inner_at_point_wrt_mu(P, this%freestream)
 
-    
+            body%d_V_cells_inner_wrt_mu(i) = body%get_d_v_inner_at_point_wrt_mu(P, this%freestream)
+            
+            
             call d_inner_flow_wrt_mu%init_from_sparse_matrix(body%d_V_cells_inner_wrt_mu(i))
             call d_inner_flow_wrt_mu%broadcast_element_times_scalar(1./this%freestream%U)
-
+            
             body%d_V_cells_wrt_mu(i) = body%panels(i)%get_d_velocity_wrt_mu(body%mu,.false., body%N_panels, &
-                                                            body%N_verts, body%asym_flow, &
-                                                            this%freestream, d_inner_flow_wrt_mu)
-
+            body%N_verts, body%asym_flow, &
+            this%freestream, d_inner_flow_wrt_mu)
+            
             ! deallocate stuff for next loop
             deallocate(d_inner_flow_wrt_mu%columns)
             !!!!!!!!!! end wrt mu !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            
 
         end do
-
+            
 
     end subroutine panel_solver_calc_cell_velocities_adjoint
 
@@ -3274,7 +3274,7 @@ contains
 
         case ('incompressible')
             call this%calc_d_forces_wrt_vars(body, body%C_p_inc, body%d_C_p_inc)
-            call this%calc_d_forces_wrt_mu(body, body%C_p_inc, body%d_C_p_inc_wrt_mu)
+            ! call this%calc_d_forces_wrt_mu(body, body%C_p_inc, body%d_C_p_inc_wrt_mu)
 
         ! case ('isentropic')
         !     call this%calc_forces_with_pressure(body, body%C_p_ise)

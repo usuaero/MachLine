@@ -76,7 +76,7 @@ module panel_mod
         integer :: mirror_plane = 0
 
         !!!!!!!!! ADJOINT !!!!!!!!!
-        integer :: adjoint_size
+        integer :: adjoint_size, N_body_verts
         type(sparse_vector) :: d_A !d_radius
         type(sparse_matrix) :: d_n_g, d_centr
         type(sparse_matrix),dimension(3) :: d_n_hat_g, d_A_g_to_ls, d_A_ls_to_g, d_T_mu_rows
@@ -4052,6 +4052,7 @@ contains
 
         ! set number of adjoint design variables for use in initializing zeros sparse vectors
         this%adjoint_size = this%d_n_g%full_num_cols
+        this%N_body_verts = this%adjoint_size/3
         
         ! calc sensitivity of centroid WRT X(beta)
         call this%calc_d_centr()
@@ -5947,15 +5948,15 @@ contains
         ! real,dimension(3) :: dv
         type(sparse_matrix) :: d_dv, d_V
 
-        ! ! Get d velocity jump
-        ! d_dv = this%get_d_velocity_jump_wrt_mu(mu, mirrored, N_body_panels, N_body_verts, asym_flow)
+        ! Get d velocity jump
+        d_dv = this%get_d_velocity_jump_wrt_mu(mu, mirrored, N_body_panels, N_body_verts, asym_flow)
         
 
-        ! ! Get total velocity
-        ! ! v = freestream%U*(inner_flow + dv)
-        ! call d_V%init_from_sparse_matrix(d_inner_flow)
-        ! call d_V%sparse_add(d_dv)
-        ! call d_V%broadcast_element_times_scalar(freestream%U)
+        ! Get total velocity
+        ! v = freestream%U*(inner_flow + dv)
+        call d_V%init_from_sparse_matrix(d_inner_flow)
+        call d_V%sparse_add(d_dv)
+        call d_V%broadcast_element_times_scalar(freestream%U)
 
     end function panel_get_d_velocity_wrt_mu
 
@@ -5970,47 +5971,40 @@ contains
         logical,intent(in) :: mirrored, asym_flow
         integer,intent(in) :: N_body_panels, N_body_verts
 
+        integer :: j
         real,dimension(3) :: dv_ls, dv
         type(sparse_vector) :: zeros
-        type(sparse_vector), dimension(3) :: d_mu_params_vecs
-        type(sparse_3D) :: d_A_g_to_ls_3D, d_A_g_to_ls_3D_T
-        type(sparse_matrix) :: d_dv_ls, d_dv_term, d_dv
-
-        real,dimension(this%mu_dim) :: mu_params
-        type(sparse_matrix) :: d_mu_params
+        type(sparse_vector), dimension(3) :: d_mu_vecs, d_mu_params_vecs
+        type(sparse_matrix) :: d_mu_wrt_mu, d_mu_params, d_dv_ls, d_dv
 
 
-        ! ! Calculate doublet parameters (derivatives)
-        ! mu_params = this%get_doublet_parameters(mu, mirrored, N_body_verts, asym_flow)
-                
-        ! dv_ls(1) = mu_params(2)
-        ! dv_ls(2) = mu_params(3)
-        ! dv_ls(3) = 0.
-        
-        ! !!! adjoint 
-        ! d_mu_params = this%get_d_doublet_parameters_wrt_vars(mu, mirrored, N_body_verts, asym_flow)
-        ! d_mu_params_vecs = d_mu_params%split_into_sparse_vectors()
-        ! call zeros%init(this%adjoint_size)
 
-        ! call d_dv_ls%init_from_sparse_vectors(d_mu_params_vecs(2), d_mu_params_vecs(3), zeros)
+        ! populate the sparse d_mu wrt mu vectors for the 3 points of the panel
+        do j=1,3
+            call d_mu_vecs(j)%init(N_body_verts)
+            call d_mu_vecs(j)%set_value(1.0, this%i_vert_d(j))
+        end do
 
-        ! !!!
+        ! combine into a sparse_matrix
+        call d_mu_wrt_mu%init_from_sparse_vectors(d_mu_vecs(1), d_mu_vecs(2), d_mu_vecs(3))        
 
-        ! ! Transform to global coordinates
-        ! if (mirrored) then
-        !     ! dv = matmul(transpose(this%A_g_to_ls_mir), dv)
-        !     write(*,*) "!!! Cannot calculate adjoint velocity jump for mirrored mesh yet. Quitting..."
-        !     stop
-        ! else
-        !     ! dv = matmul(transpose(this%A_g_to_ls), dv_ls)
-        !     call d_A_g_to_ls_3D%init_from_sparse_matrices(this%d_A_g_to_ls)
-        !     d_A_g_to_ls_3D_T = d_A_g_to_ls_3D%transpose_3()
-        !     d_dv_term = d_A_g_to_ls_3D_T%broadcast_matmul_3row_times_3x1(dv_ls)
+        d_mu_params = d_mu_wrt_mu%broadcast_matmul_3x3_times_element(this%T_mu)
+        d_mu_params_vecs = d_mu_params%split_into_sparse_vectors()
+        call zeros%init(N_body_verts)
 
-        !     d_dv = d_dv_ls%broadcast_matmul_3x3_times_element(transpose(this%A_g_to_ls))
-        !     call d_dv%sparse_add(d_dv_term)
+        call d_dv_ls%init_from_sparse_vectors(d_mu_params_vecs(2), d_mu_params_vecs(3), zeros)
 
-        ! end if
+        !!!
+
+        ! Transform to global coordinates
+        if (mirrored) then
+            ! dv = matmul(transpose(this%A_g_to_ls_mir), dv)
+            write(*,*) "!!! Cannot calculate adjoint velocity jump wrt mu for mirrored mesh yet. Quitting..."
+            stop
+        else
+            d_dv = d_dv_ls%broadcast_matmul_3x3_times_element(transpose(this%A_g_to_ls))
+
+        end if
 
     end function panel_get_d_velocity_jump_wrt_mu
 
