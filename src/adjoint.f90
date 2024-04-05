@@ -122,6 +122,19 @@ module adjoint_mod
 
     end type sparse_3D
 
+    ! type sparse_tensor
+            
+    !         integer :: num_rows    ! 
+    !         integer :: num_cols
+    !         type(sparse_vector),dimension(:,:), allocatable :: tensor ! 
+            
+    !         contains
+    !             procedure :: init_from_sparse_vector_array => sparse_tensor_init_from_sparse_vector_array
+    !             procedure :: slice => sparse_tensor_slice
+                
+
+    ! end type sparse_tensor
+
 
 contains
 
@@ -1419,9 +1432,39 @@ contains
         end do
 
     end function sparse_3D_convert_3row_to_sparse_vector_3x3
+
+    !!!!!!!!!!!!!!!!!!!!! END SPARSE 3D TYPE BOUND PROCEDURES !!!!!!!!!!!!!!!!!!!!!!!
     
     
     
+    
+    !!!!!!!!!!!!!!!!!!!!! START SPARSE 3D TYPE BOUND PROCEDURES !!!!!!!!!!!!!!!!!!!!!!!
+    ! subroutine sparse_tensor_init_from_sparse_vector_array(this,tensor)
+    !     ! converts a sparse_vec(:,:) to a sparse_tensor
+    !     implicit none
+
+    !     class(sparse_tensor), intent(inout) :: this
+    !     type(sparse_vector),dimension(:,:),allocatable, intent(inout) :: tensor
+        
+    !     type(sparse_matrix), dimension(3) :: sparse_matrices
+
+    !     integer :: i
+
+    !     ! convert to 3 sparse matrices
+    !     do i=1,3
+    !         call sparse_matrices(i)%init_from_sparse_vectors(sparse_3x3(i,1), sparse_3x3(i,2), sparse_3x3(i,3))
+    !     end do
+
+    !     call this%init_from_sparse_matrices(sparse_matrices)
+        
+
+
+
+    ! end subroutine sparse_tensor_init_from_sparse_vector_array
+    
+    
+    
+    !!!!!!!!!!!!!!!!!!!!! END  SPARSE 3D TYPE BOUND PROCEDURES !!!!!!!!!!!!!!!!!!!!!!!
     
     ! subroutine adjoint_init(this)
     !     ! initializes adjoint type

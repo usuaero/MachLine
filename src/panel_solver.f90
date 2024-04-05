@@ -50,6 +50,7 @@ module panel_solver_mod
         type(sparse_vector),dimension(:,:),allocatable :: d_A_matrix
         type(sparse_vector),dimension(:),allocatable :: d_b_vector
         type(sparse_matrix) :: d_C_F_wrt_vars, d_C_F_wrt_mu
+        real,dimension(:),allocatable :: CFx_sensitivities, CFy_sensitivities, CFz_sensitivities
 
         !!!!! END ADJOINT variables !!!
 
@@ -129,7 +130,10 @@ module panel_solver_mod
             procedure :: calc_d_forces_wrt_mu => panel_solver_calc_d_forces_wrt_mu
 
             ! solve for adjoint v^T terms
-            procedure :: solve_for_adjoint_v_terms => panel_solver_solve_for_adjoint_v_terms
+            procedure :: solve_for_adjoint_vT_terms => panel_solver_solve_for_adjoint_vT_terms
+
+            ! solve for total derivative (sensitivities) this is the end goal
+            procedure :: calc_total_derivative => panel_solver_calc_total_derivative
 
             !!!!!!!!! END ADJOINT !!!!!!!!!!!!
 
@@ -1052,6 +1056,7 @@ contains
 
         integer :: stat
         type(sparse_vector) :: zeros
+        real,dimension(:,:),allocatable :: vT_terms
 
         ! Set default status
         solver_stat = 0
@@ -1134,7 +1139,10 @@ contains
             ! call this%calc_moments_adjoint(body)
 
             ! ! if adjoint, solve for v^T terms, then calc total derivatives (sensitivities)
-            ! call this%solve_for_adjoint_v_terms(body)
+            vT_terms = this%solve_for_adjoint_vT_terms(body)
+
+            ! calc the total derivative. this is the end game!
+            call this%calc_total_derivative(body, vT_terms)
         end if
 
     end subroutine panel_solver_solve
@@ -3478,12 +3486,120 @@ contains
     end subroutine panel_solver_calc_d_forces_wrt_mu
 
 
-    subroutine panel_solver_solve_for_adjoint_v_terms(this,body)
+    function panel_solver_solve_for_adjoint_vT_terms(this,body) result(vT_forces)
         implicit none
-        class(panel_solver),intent(in) :: this
+        class(panel_solver),intent(inout) :: this
         type(surface_mesh),intent(inout) :: body
+        ! integer,intent(inout) :: solver_stat
+
+        real,dimension(:,:),allocatable :: A_p
+        real,dimension(:),allocatable :: b_p, x
+        integer :: stat, i, N
+        integer(8) :: start_count, end_count
+        real(16) :: count_rate
+
+        real,dimension(:,:),allocatable :: d_forces_wrt_mu, vT_forces, d_moments_wrt_mu
+
+        !!!!!!!!!!!!!!!!!!!!!!!!!!!! Forces v^T terms !!!!!!!!!!!!!!!!!!!!!!!!!!!
+        ! expand sparse matrix to a full matrix N by 3
+        d_forces_wrt_mu = this%d_C_F_wrt_mu%expand(.true.)
+
+
+        do i=1,3
+            call system_clock(start_count, count_rate)
+            allocate(A_p, source=this%A, stat=stat)
+            call check_allocation(stat, "solver copy of AIC matrix")
+            
+            allocate(b_p, source=d_forces_wrt_mu(:,i), stat=stat)
+            call check_allocation(stat, "solver copy of  d_forces_wrt_mu(:,i)")
+            call system_clock(end_count)
+
+            N = this%N_unknown
+
+            call system_clock(start_count, count_rate)
+            call GMRES(N, A_p, b_p, this%tol, this%max_iterations, this%iteration_file, this%solver_iterations, x)
+            call system_clock(end_count)
+
+            ! store forces v^T term
+            vT_forces(:,i) = x
+
+    
+        end do
+        !!!!!!!!!!!!!!!!!!!!!!!!!!!! end Forces v^T terms !!!!!!!!!!!!!!!!!!!!!!!!!!!
+        
+
+    end function panel_solver_solve_for_adjoint_vT_terms
+
+
+    subroutine panel_solver_calc_total_derivative(this,body, vT_forces)
+        ! this is the end game. calc total force and moment sensitivities
+        implicit none
+
+        class(panel_solver),intent(inout) :: this
+        type(surface_mesh),intent(inout) :: body
+        real,dimension(:,:),allocatable,intent(inout) :: vT_forces
+
+        real,dimension(:,:),allocatable :: d_AIC_i, d_CF_wrt_vars, adjoint_CF
+        real,dimension(:),allocatable :: f_i, d_b_i, vT_n 
+        integer :: i,j,k,N 
+
+        N = body%N_verts
+        
+        allocate(d_AIC_i(N,N))
+        allocate(d_b_i(N))
+        allocate(f_i(N))
+        allocate(vT_n(N))
+        allocate(adjoint_CF(3*N,3))
+
+        ! expand d_C_F_wrt_vars into a full matrix. tall = true (N by 3)
+        d_CF_wrt_vars = this%d_C_F_wrt_vars%expand(.true.)
 
         
-    end subroutine panel_solver_solve_for_adjoint_v_terms
+        ! for CF_x, CF_y, and CF_z
+        do n=1,3
+
+            ! for each design variable
+            do i=1,3*N
+
+                ! k = N columns
+                do k=1,N 
+
+                    ! populate i^th slice of d_b_vector
+                    d_b_i(k) = this%d_b_vector(k)%get_value(i)
+
+                    ! j = N rows
+                    do j=1,N
+                        ! populate i^th slice of the d_A tensor
+                        d_AIC_i(j,k) = this%d_A_matrix(j,k)%get_value(i)
+
+                    end do
+
+                end do
+                
+                ! for each design variable, multiply d_A_matrix i^th slice by mu
+                f_i = matmul(d_AIC_i, body%mu)
+                
+                ! add d_b_vector i^th slice
+                f_i = f_i + d_b_i
+
+
+                adjoint_CF(i,n) = dot_product(vT_forces(:,n),f_i) + d_CF_wrt_vars(i,n)
+
+            end do
+
+        end do
+
+        this%CFx_sensitivities = adjoint_CF(:,1)
+        this%CFy_sensitivities = adjoint_CF(:,2)
+        this%CFz_sensitivities = adjoint_CF(:,3)
+
+    
+
+    end subroutine panel_solver_calc_total_derivative
+
+
+    
+
+
 
 end module panel_solver_mod
