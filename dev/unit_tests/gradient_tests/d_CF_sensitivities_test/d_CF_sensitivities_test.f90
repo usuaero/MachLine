@@ -131,7 +131,6 @@ program d_CF_sensitivities_test
 
     ! Initialize panel solver
     call test_solver%init(solver_settings, processing_settings, test_mesh, freestream_flow, control_point_file)
-    
     call test_solver%solve(test_mesh, test_solver_stat, formulation,freestream_flow)
     
     
@@ -147,14 +146,14 @@ program d_CF_sensitivities_test
     
     adjoint_input = "dev\input_files\adjoint_inputs\adjoint_test.json"
     adjoint_input = trim(adjoint_input)
-
+    
     ! Check it exists
     inquire(file=adjoint_input, exist=exists)
     if (.not. exists) then
         write(*,*) "!!! The file ", adjoint_input, " does not exist. Quitting..."
         stop
     end if
-
+    
     ! Load settings from input file
     call adjoint_input_json%load_file(filename=adjoint_input)
     call json_check()
@@ -167,7 +166,7 @@ program d_CF_sensitivities_test
     ! Initialize surface mesh
     call adjoint_mesh%init(adjoint_geom_settings)
     !call adjoint_mesh%init_adjoint()
-
+    
     ! Initialize flow
     call json_xtnsn_get(adjoint_geom_settings, 'spanwise_axis', adjoint_spanwise_axis, '+y')
     call adjoint_freestream_flow%init(adjoint_flow_settings, adjoint_spanwise_axis)
@@ -194,7 +193,7 @@ program d_CF_sensitivities_test
     ! solve
     call adjoint_solver%solve(adjoint_mesh, adjoint_solver_stat, adjoint_formulation,adjoint_freestream_flow)
     
-
+    
     
     !!!!!!!!!!!! END ADJOINT TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -232,159 +231,157 @@ program d_CF_sensitivities_test
     write(*,*) "--------------------------------------------------------------------------------------"
     write(*,*) ""
 
-    ! for CFx, CFy, and CFz
-    do k =1,3
-        do i=1,3
-            do j=1,N_verts
+    
+    do i=1,3
+        do j=1,N_verts
 
-                ! perturb up the current design variable
-                test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
-                ! write(*,*) " perturb up"
-                
-                !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
+            ! perturb up the current design variable
+            test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
+            ! write(*,*) " perturb up"
             
-                ! update vertex normal
-                do m =1,N_panels
-                    deallocate(test_mesh%panels(m)%n_hat_g)
-                    call test_mesh%panels(m)%calc_derived_geom()
-                end do
-                
-                call test_mesh%calc_vertex_geometry()
-                
-                ! update with flow
-                do m =1,N_panels
-                    deallocate(test_mesh%panels(m)%vertices_ls)
-                    deallocate(test_mesh%panels(m)%n_hat_ls)
-                    deallocate(test_mesh%panels(m)%b)
-                    deallocate(test_mesh%panels(m)%b_mir)  
-                    deallocate(test_mesh%panels(m)%sqrt_b)
-                    deallocate(test_mesh%panels(m)%i_vert_d)
-                    deallocate(test_mesh%panels(m)%S_mu_inv)
-                    deallocate(test_mesh%panels(m)%T_mu)
-                    ! deallocate(test_mesh%panels(m)%i_panel_s)
-                    call test_mesh%panels(m)%init_with_flow(freestream_flow, .false., 0)
-                    call test_mesh%panels(m)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
-                    test_mesh%vertices,.false.)
-                end do
-
-                ! recalculates cp locations
-                deallocate(test_solver%sigma_known)
-                deallocate(test_mesh%cp)
-                deallocate(test_solver%P)
-                call test_solver%init(solver_settings, processing_settings, &
-                test_mesh, freestream_flow, control_point_file)
-                
-                ! Check for errors
-                if (test_solver_stat /= 0) return
-
-                deallocate(test_mesh%V_cells_inner, test_mesh%V_cells)
-
-
-                call test_solver%solve(test_mesh, test_solver_stat, formulation,freestream_flow)
-                                
-                !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
-                
-                ! get the needed info
-                CF_up(:,j + (i-1)*N_verts) = test_solver%C_F(:)
-                
-                
-                ! perturb down the current design variable
-                ! write(*,*) " perturb down"
-                test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - 2.*step
-                
-                !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
-            
-                ! update vertex normal
-                do m =1,N_panels
-                    deallocate(test_mesh%panels(m)%n_hat_g)
-                    call test_mesh%panels(m)%calc_derived_geom()
-                end do
-                
-                call test_mesh%calc_vertex_geometry()
-                
-                ! update with flow
-                do m =1,N_panels
-                    deallocate(test_mesh%panels(m)%vertices_ls)
-                    deallocate(test_mesh%panels(m)%n_hat_ls)
-                    deallocate(test_mesh%panels(m)%b)
-                    deallocate(test_mesh%panels(m)%b_mir)  
-                    deallocate(test_mesh%panels(m)%sqrt_b)
-                    deallocate(test_mesh%panels(m)%i_vert_d)
-                    deallocate(test_mesh%panels(m)%S_mu_inv)
-                    deallocate(test_mesh%panels(m)%T_mu)
-                    ! deallocate(test_mesh%panels(m)%i_panel_s)
-                    call test_mesh%panels(m)%init_with_flow(freestream_flow, .false., 0)
-                    call test_mesh%panels(m)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
-                    test_mesh%vertices,.false.)
-                end do
-
-                ! recalculates cp locations
-                deallocate(test_solver%sigma_known)
-                deallocate(test_mesh%cp)
-                deallocate(test_solver%P)
-                call test_solver%init(solver_settings, processing_settings, &
-                test_mesh, freestream_flow, control_point_file)
-                
-                ! Check for errors
-                if (test_solver_stat /= 0) return
-
-                deallocate(test_mesh%V_cells_inner, test_mesh%V_cells)
-                
-
-                call test_solver%solve(test_mesh, test_solver_stat, formulation,freestream_flow)
-                                
-                !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
-                
-                ! get the needed info
-                CF_dn(:, j + (i-1)*N_verts) = test_solver%C_F(:)
-
-                ! restore geometry
-                test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
-            
-            end do 
-        end do 
-
-            
-            ! central difference 
-        d_CF_FD = (CF_up - CF_dn)/(2.*step)
-                
-        write(*,*) ""
+            !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
         
+            ! update vertex normal
+            do m =1,N_panels
+                deallocate(test_mesh%panels(m)%n_hat_g)
+                call test_mesh%panels(m)%calc_derived_geom()
+            end do
+            
+            call test_mesh%calc_vertex_geometry()
+            
+            ! update with flow
+            do m =1,N_panels
+                deallocate(test_mesh%panels(m)%vertices_ls)
+                deallocate(test_mesh%panels(m)%n_hat_ls)
+                deallocate(test_mesh%panels(m)%b)
+                deallocate(test_mesh%panels(m)%b_mir)  
+                deallocate(test_mesh%panels(m)%sqrt_b)
+                deallocate(test_mesh%panels(m)%i_vert_d)
+                deallocate(test_mesh%panels(m)%S_mu_inv)
+                deallocate(test_mesh%panels(m)%T_mu)
+                ! deallocate(test_mesh%panels(m)%i_panel_s)
+                call test_mesh%panels(m)%init_with_flow(freestream_flow, .false., 0)
+                call test_mesh%panels(m)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
+                test_mesh%vertices,.false.)
+            end do
+
+            ! recalculates cp locations
+            deallocate(test_solver%sigma_known)
+            deallocate(test_mesh%cp)
+            deallocate(test_solver%P)
+            call test_solver%init(solver_settings, processing_settings, &
+            test_mesh, freestream_flow, control_point_file)
+            
+            ! Check for errors
+            if (test_solver_stat /= 0) return
+
+            deallocate(test_solver%I_known, test_solver%BC)
+            deallocate(test_mesh%sigma, test_mesh%mu)
+            deallocate(test_mesh%Phi_u)
+            deallocate(test_mesh%C_p_inc, test_mesh%dC_f)
+            deallocate(test_mesh%V_cells_inner, test_mesh%V_cells)
+            
+            call test_solver%solve(test_mesh, test_solver_stat, formulation,freestream_flow)
+            
+            !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
+            
+            ! get the needed info
+            CF_up(:,j + (i-1)*N_verts) = test_solver%C_F(:)
+            
+            
+            ! perturb down the current design variable
+            ! write(*,*) " perturb down"
+            test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - 2.*step
+            
+            !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
+        
+            ! update vertex normal
+            do m =1,N_panels
+                deallocate(test_mesh%panels(m)%n_hat_g)
+                call test_mesh%panels(m)%calc_derived_geom()
+            end do
+            
+            call test_mesh%calc_vertex_geometry()
+            
+            ! update with flow
+            do m =1,N_panels
+                deallocate(test_mesh%panels(m)%vertices_ls)
+                deallocate(test_mesh%panels(m)%n_hat_ls)
+                deallocate(test_mesh%panels(m)%b)
+                deallocate(test_mesh%panels(m)%b_mir)  
+                deallocate(test_mesh%panels(m)%sqrt_b)
+                deallocate(test_mesh%panels(m)%i_vert_d)
+                deallocate(test_mesh%panels(m)%S_mu_inv)
+                deallocate(test_mesh%panels(m)%T_mu)
+                ! deallocate(test_mesh%panels(m)%i_panel_s)
+                call test_mesh%panels(m)%init_with_flow(freestream_flow, .false., 0)
+                call test_mesh%panels(m)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
+                test_mesh%vertices,.false.)
+            end do
+
+            ! recalculates cp locations
+            deallocate(test_solver%sigma_known)
+            deallocate(test_mesh%cp)
+            deallocate(test_solver%P)
+            call test_solver%init(solver_settings, processing_settings, &
+            test_mesh, freestream_flow, control_point_file)
+            
+            ! Check for errors
+            if (test_solver_stat /= 0) return
+
+            deallocate(test_solver%I_known, test_solver%BC)
+            deallocate(test_mesh%sigma, test_mesh%mu)
+            deallocate(test_mesh%Phi_u)
+            deallocate(test_mesh%C_p_inc, test_mesh%dC_f)
+            deallocate(test_mesh%V_cells_inner, test_mesh%V_cells)
+
+            call test_solver%solve(test_mesh, test_solver_stat, formulation,freestream_flow)
+                            
+            !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
+            
+            ! get the needed info
+            CF_dn(:, j + (i-1)*N_verts) = test_solver%C_F(:)
+
+            ! restore geometry
+            test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
+        
+        end do 
+    end do 
+
+        
+        ! central difference 
+    d_CF_FD = (CF_up - CF_dn)/(2.*step)
+            
+    write(*,*) ""
+        
+    ! for CFx, CFy, and CFz
+    do k=1,3
+
+        do i=1,N_verts*3
+            residuals(i) = adjoint_solver%CF_sensitivities(i,k) - d_CF_FD(k,i)
+        end do
         
         ! write results
         write(*,*) ""
-        write(*,'(A)') "              Central Diff  d_CF_wrt_vars_test "
-        write(*,*) "  d_CF_wrt_x           d_CF_wrt_y           d_CF_wrt_z "
+        if (k ==1)then
+            write(*,'(A)') "                   d_CFx TEST "
+            write(*,*) "  d_CFx_FD            d_CFx Adjoint              residual "
+        elseif (k==2) then
+            write(*,'(A)') "                   d_CFy TEST "
+            write(*,*) "  d_CFy_FD            d_CFy Adjoint              residual "
+        else
+            write(*,'(A)') "                   d_CFz TEST "
+            write(*,*) "  d_CFz_FD            d_CFz Adjoint              residual "
+        end if 
+
         do i = 1, N_verts*3
-            write(*, '(3(f16.10, 4x))') d_CF_FD(:,i)
+            write(*, '(3(f30.10, 4x))') d_CF_FD(k,i), adjoint_solver%CF_sensitivities(i,k), residuals(i)
         end do 
         
-        ! !write sparse matrix
-        ! write(*,*) ""
-        ! write(*,'(A,I1)') "                d_V_inner_test index = ",index
-        ! write(*,*) "  d_V_inner_x           d_V_inner_y           d_V_inner_z     sparse_index       full_index"
-        ! write(*,*) "sparse num cols", adjoint_mesh%d_V_cells_inner(k)%sparse_num_cols
-        ! do i=1,adjoint_mesh%d_V_cells_inner(k)%sparse_num_cols
-        !     write(*,'(3(f14.10, 4x), 12x, I5, 12x, I5)') adjoint_mesh%d_V_cells_inner(k)%columns(i)%vector_values, &
-        !     i, adjoint_mesh%d_V_cells_inner(k)%columns(i)%full_index
-        ! end do
-        ! write(*,*) ""
-        
-        do i=1,N_verts*3
-            residuals3(:,i) = adjoint_solver%d_C_F_wrt_vars%get_values(i) - d_CF_FD(:,i)
-        end do
-        
-        write(*,'(A)') "          Adjoint      d_CF_wrt_vars  "
-        write(*,*) "  d_CF_x           d_CF_y           d_CF_z                        residuals"
-        do i = 1, N_verts*3
-            write(*, '(3(f16.10, 4x),3x, 3(f16.10, 4x))') adjoint_solver%d_C_F_wrt_vars%get_values(i),&
-                                                                                    residuals3(:,i)
-        end do
-        write(*,*) ""
 
         ! check if test failed
         do i=1,N_verts*3
-            if (any(abs(residuals3(:,i)) > error_allowed)) then
+            if (abs(residuals(i)) > error_allowed) then
                 test_failed = .true.
                 exit
             else 
@@ -393,25 +390,25 @@ program d_CF_sensitivities_test
         end do
         if (test_failed) then
             total_tests = total_tests + 1
-            if (k = 1) then
-                failure_log(total_tests-passed_tests) = "d_CFx_sensitivities TEST FAILED"
+            if (k == 1) then
+                failure_log(total_tests-passed_tests) = "d_CF_sensitivities (x) TEST FAILED"
                 write(*,*) failure_log(total_tests-passed_tests)
             elseif (k ==2) then 
-                failure_log(total_tests-passed_tests) = "d_CFy_sensitivities TEST FAILED"
+                failure_log(total_tests-passed_tests) = "d_CF_sensitivities (y) TEST FAILED"
                 write(*,*) failure_log(total_tests-passed_tests)
             else
-                failure_log(total_tests-passed_tests) = "d_CFz_sensitivities TEST FAILED"
+                failure_log(total_tests-passed_tests) = "d_CF_sensitivities (z) TEST FAILED"
                 write(*,*) failure_log(total_tests-passed_tests)
             end if
 
         else
 
-            if (k = 1) then
-                write(*,'(A)') " d_CFx_sensitivities TEST PASSED"
+            if (k == 1) then
+                write(*,'(A)') " d_CF_sensitivities (x) TEST PASSED"
             elseif (k ==2) then 
-                write(*,'(A)') " d_CFy_sensitivities TEST PASSED"
+                write(*,'(A)') " d_CF_sensitivities (y) TEST PASSED"
             else
-                write(*,'(A)') " d_CFz_sensitivities TEST PASSED"
+                write(*,'(A)') " d_CF_sensitivities (z) TEST PASSED"
             end if
             passed_tests = passed_tests + 1
             total_tests = total_tests + 1

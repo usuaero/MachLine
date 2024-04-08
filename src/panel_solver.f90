@@ -50,7 +50,8 @@ module panel_solver_mod
         type(sparse_vector),dimension(:,:),allocatable :: d_A_matrix
         type(sparse_vector),dimension(:),allocatable :: d_b_vector
         type(sparse_matrix) :: d_C_F_wrt_vars, d_C_F_wrt_mu
-        real,dimension(:),allocatable :: CFx_sensitivities, CFy_sensitivities, CFz_sensitivities
+        ! real,dimension(:),allocatable :: CFx_sensitivities, CFy_sensitivities, CFz_sensitivities
+        real,dimension(:,:),allocatable :: CF_sensitivities
 
         !!!!! END ADJOINT variables !!!
 
@@ -1067,7 +1068,7 @@ contains
 
         ! Allocate AIC matrix
         allocate(this%A(body%N_cp, this%N_unknown), source=0., stat=stat)
-        ! call check_allocation(stat, "AIC matrix")
+        call check_allocation(stat, "AIC matrix")
 
         ! Allocate b vector
         allocate(this%b(body%N_cp), source=0., stat=stat)
@@ -1131,7 +1132,6 @@ contains
         
         ! Calculate moments
         call this%calc_moments(body)
-        
         ! if adjoint finish sensitivity calcs
         if (body%calc_adjoint) then
             ! if adjoint, calc d_C_F
@@ -1140,7 +1140,7 @@ contains
 
             ! ! if adjoint, solve for v^T terms, then calc total derivatives (sensitivities)
             vT_terms = this%solve_for_adjoint_vT_terms(body)
-
+            
             ! calc the total derivative. this is the end game!
             call this%calc_total_derivative(body, vT_terms)
         end if
@@ -2121,7 +2121,13 @@ contains
 
         ! Get residual vector
         body%R_cp = matmul(this%A, x) - this%b
-        deallocate(this%A)
+        
+        if (body%calc_adjoint) then
+            ! don't deallocate
+        else
+            deallocate(this%A)
+        end if 
+
         deallocate(this%b)
 
         ! Calculate residual parameters
@@ -3492,37 +3498,51 @@ contains
         type(surface_mesh),intent(inout) :: body
         ! integer,intent(inout) :: solver_stat
 
-        real,dimension(:,:),allocatable :: A_p
+        real,dimension(:,:),allocatable :: A_copy
         real,dimension(:),allocatable :: b_p, x
-        integer :: stat, i, N
+        integer :: stat, i, j, N
         integer(8) :: start_count, end_count
         real(16) :: count_rate
 
         real,dimension(:,:),allocatable :: d_forces_wrt_mu, vT_forces, d_moments_wrt_mu
 
         !!!!!!!!!!!!!!!!!!!!!!!!!!!! Forces v^T terms !!!!!!!!!!!!!!!!!!!!!!!!!!!
+        
         ! expand sparse matrix to a full matrix N by 3
         d_forces_wrt_mu = this%d_C_F_wrt_mu%expand(.true.)
 
-
+        N = this%N_unknown
+        
+        write(*,*) " d_force x wrt mu"
+        do i=1,N
+            write(*,*) d_forces_wrt_mu(i,1)
+        end do
+        
+        ! allocate vT_forces (N by 3)
+        allocate(vT_forces(N,3))
+        
+        
         do i=1,3
-            call system_clock(start_count, count_rate)
-            allocate(A_p, source=this%A, stat=stat)
-            call check_allocation(stat, "solver copy of AIC matrix")
             
             allocate(b_p, source=d_forces_wrt_mu(:,i), stat=stat)
             call check_allocation(stat, "solver copy of  d_forces_wrt_mu(:,i)")
-            call system_clock(end_count)
 
-            N = this%N_unknown
-
+            
+            
             call system_clock(start_count, count_rate)
-            call GMRES(N, A_p, b_p, this%tol, this%max_iterations, this%iteration_file, this%solver_iterations, x)
+            call GMRES(N, this%A, b_p, this%tol, this%max_iterations, this%iteration_file, this%solver_iterations, x)
             call system_clock(end_count)
 
+            write(*,*) " x"
+            do j=1,N
+                write(*,*) x(j)
+            end do
+            
             ! store forces v^T term
             vT_forces(:,i) = x
 
+            deallocate(b_p, x)
+            
     
         end do
         !!!!!!!!!!!!!!!!!!!!!!!!!!!! end Forces v^T terms !!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -3541,7 +3561,7 @@ contains
 
         real,dimension(:,:),allocatable :: d_AIC_i, d_CF_wrt_vars, adjoint_CF
         real,dimension(:),allocatable :: f_i, d_b_i, vT_n 
-        integer :: i,j,k,N 
+        integer :: i,j,k,m, N 
 
         N = body%N_verts
         
@@ -3549,15 +3569,24 @@ contains
         allocate(d_b_i(N))
         allocate(f_i(N))
         allocate(vT_n(N))
-        allocate(adjoint_CF(3*N,3))
+        allocate(this%CF_sensitivities(3*N,3))
 
         ! expand d_C_F_wrt_vars into a full matrix. tall = true (N by 3)
         d_CF_wrt_vars = this%d_C_F_wrt_vars%expand(.true.)
 
+        ! write(*,*) "dCF_WRT_VARS" 
+
+        write(*,*) " d_AIC matrix i"
+        do i=1,N
+            write(*,*) this%A(i,:)
+        end do
         
         ! for CF_x, CF_y, and CF_z
-        do n=1,3
-
+        do m=1,3
+            
+            do i=1,N
+                write(*,*) vT_forces(i,m)
+            end do
             ! for each design variable
             do i=1,3*N
 
@@ -3575,23 +3604,23 @@ contains
                     end do
 
                 end do
-                
                 ! for each design variable, multiply d_A_matrix i^th slice by mu
+                
                 f_i = matmul(d_AIC_i, body%mu)
                 
                 ! add d_b_vector i^th slice
                 f_i = f_i + d_b_i
-
-
-                adjoint_CF(i,n) = dot_product(vT_forces(:,n),f_i) + d_CF_wrt_vars(i,n)
+                
+                
+                this%CF_sensitivities(i,m) = dot_product(vT_forces(:,m),f_i) + d_CF_wrt_vars(i,m)
 
             end do
 
         end do
 
-        this%CFx_sensitivities = adjoint_CF(:,1)
-        this%CFy_sensitivities = adjoint_CF(:,2)
-        this%CFz_sensitivities = adjoint_CF(:,3)
+        ! this%CFx_sensitivities = adjoint_CF(:,1)
+        ! this%CFy_sensitivities = adjoint_CF(:,2)
+        ! this%CFz_sensitivities = adjoint_CF(:,3)
 
     
 
