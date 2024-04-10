@@ -75,7 +75,7 @@ program d_CF_sensitivities_test
 
     error_allowed = 1.0e-6
     
-    step = 0.00001
+    step = 0.000001
     index = 1
     cp_ind = 1
 
@@ -212,7 +212,7 @@ program d_CF_sensitivities_test
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! d_CF_wrt_vars_test !!!!!!!!!!!!!!!!!!!!!!!!!!!!
     write(*,*) ""
     write(*,*) ""
-    write(*,*) "------------------------------ d_CF_wrt_vars_test ---&
+    write(*,*) "------------------------------ d_CF_sensitivities_test ---&
     ------------------------------"
     write(*,*) ""
     write(*,*) ""
@@ -227,7 +227,7 @@ program d_CF_sensitivities_test
     !!!!!!!!! CENTRAL DIFFERENCE (panel 1, cp 1) d_CF_wrt_vars_test column ", k, !!!!!!!!!
     write(*,*) ""
     write(*,*) "--------------------------------------------------------------------------------------"
-    write(*,*) "                   d_CF_wrt_vars_test "
+    write(*,*) "                   d_CF_sensitivities_test "
     write(*,*) "--------------------------------------------------------------------------------------"
     write(*,*) ""
 
@@ -280,6 +280,7 @@ program d_CF_sensitivities_test
             deallocate(test_mesh%Phi_u)
             deallocate(test_mesh%C_p_inc, test_mesh%dC_f)
             deallocate(test_mesh%V_cells_inner, test_mesh%V_cells)
+            ! deallocate(test_solver%A, test_solver%b)
             
             call test_solver%solve(test_mesh, test_solver_stat, formulation,freestream_flow)
             
@@ -334,6 +335,7 @@ program d_CF_sensitivities_test
             deallocate(test_mesh%Phi_u)
             deallocate(test_mesh%C_p_inc, test_mesh%dC_f)
             deallocate(test_mesh%V_cells_inner, test_mesh%V_cells)
+            ! deallocate(test_solver%A, test_solver%b)
 
             call test_solver%solve(test_mesh, test_solver_stat, formulation,freestream_flow)
                             
@@ -364,18 +366,18 @@ program d_CF_sensitivities_test
         ! write results
         write(*,*) ""
         if (k ==1)then
-            write(*,'(A)') "                   d_CFx TEST "
-            write(*,*) "  d_CFx_FD            d_CFx Adjoint              residual "
+            write(*,'(A)') "                              d_CFx TEST "
+            write(*,*) "       d_CFx_FD                d_CFx Adjoint             residual "
         elseif (k==2) then
-            write(*,'(A)') "                   d_CFy TEST "
-            write(*,*) "  d_CFy_FD            d_CFy Adjoint              residual "
+            write(*,'(A)') "                              d_CFy TEST "
+            write(*,*) "       d_CFy_FD                d_CFy Adjoint             residual "
         else
-            write(*,'(A)') "                   d_CFz TEST "
-            write(*,*) "  d_CFz_FD            d_CFz Adjoint              residual "
+            write(*,'(A)') "                              d_CFz TEST "
+            write(*,*) "       d_CFz_FD                d_CFz Adjoint             residual "
         end if 
 
         do i = 1, N_verts*3
-            write(*, '(3(f30.10, 4x))') d_CF_FD(k,i), adjoint_solver%CF_sensitivities(i,k), residuals(i)
+            write(*, '(3(f20.10, 4x))') d_CF_FD(k,i), adjoint_solver%CF_sensitivities(i,k), residuals(i)
         end do 
         
 

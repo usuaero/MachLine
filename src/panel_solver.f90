@@ -3499,10 +3499,10 @@ contains
         ! integer,intent(inout) :: solver_stat
 
         real,dimension(:,:),allocatable :: A_p
-        real,dimension(:),allocatable :: b_p, x, check
+        real,dimension(:),allocatable :: b_p, x, check, R_cp
         integer :: stat, i, j, N
         integer(8) :: start_count, end_count
-        real(16) :: count_rate
+        real(16) :: count_rate, norm_res, max_res
 
         real,dimension(:,:),allocatable :: d_forces_wrt_mu, vT_forces, d_moments_wrt_mu
 
@@ -3558,12 +3558,35 @@ contains
                 write(*,*) check(j)
             end do
 
+            ! Get residual vector
+            R_cp = matmul(transpose(this%A), x) - d_forces_wrt_mu(:,i)
+            
+
+            ! Calculate residual parameters
+            max_res = maxval(abs(R_cp))
+            norm_res = sqrt(sum(R_cp*R_cp))
+            
+            write(*,*) "        Maximum residual:", max_res
+            write(*,*) "        Norm of residual:", norm_res
+            
+
+            ! Check
+            if (isnan(norm_res)) then
+                write(*,*) "!!! Linear system failed to produce a valid solution."
+            
+                return
+            end if
+
+
             
             ! store forces v^T term
             vT_forces(:,i) = x
 
             deallocate(b_p, x)
-            
+            write(*,*) " vT forces ", i
+            do j=1,N
+                write(*,*) vT_forces(j,i)
+            end do
     
         end do
         !!!!!!!!!!!!!!!!!!!!!!!!!!!! end Forces v^T terms !!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -3581,15 +3604,13 @@ contains
         real,dimension(:,:),allocatable,intent(inout) :: vT_forces
 
         real,dimension(:,:),allocatable :: d_AIC_i, d_CF_wrt_vars, adjoint_CF
-        real,dimension(:),allocatable :: f_i, d_b_i, vT_n 
+        real,dimension(:),allocatable :: f_i, d_b_i, vT_n , d_AIC_times_mu
         integer :: i,j,k,m, N ,p
 
         N = body%N_verts
         
         allocate(d_AIC_i(N,N))
         allocate(d_b_i(N))
-        allocate(f_i(N))
-        allocate(vT_n(N))
         allocate(this%CF_sensitivities(3*N,3))
 
         ! expand d_C_F_wrt_vars into a full matrix. tall = true (N by 3)
@@ -3623,21 +3644,21 @@ contains
                 end do
                 ! for each design variable, multiply d_A_matrix i^th slice by mu
                 
-                f_i = matmul(-d_AIC_i, body%mu)
-                
+                d_AIC_times_mu = matmul(d_AIC_i, body%mu)
+
                 ! add d_b_vector i^th slice
-                f_i = f_i + d_b_i
+                f_i = -d_AIC_times_mu + d_b_i
                 ! write(*,*) " vTf   i m",   dot_product(vT_forces(:,m),f_i)
                 ! write(*,*) " d_CF_wrt_vars   i m",   d_CF_wrt_vars(i,m)
                 
                 
+                ! this%CF_sensitivities(i,m) = d_CF_wrt_vars(i,m) ! dot_product(vT_forces(:,m),f_i) + d_CF_wrt_vars(i,m)
+                ! this%CF_sensitivities(i,m) = dot_product(vT_forces(:,m),f_i) !+ d_CF_wrt_vars(i,m)
                 this%CF_sensitivities(i,m) = dot_product(vT_forces(:,m),f_i) + d_CF_wrt_vars(i,m)
                 
-            end do
-            write(*,*) "d_CF_wrt_vars m"
-            do p=1,3*N
-                write(*,*) d_CF_wrt_vars(p,m)
-            end do
+            end do ! end i loop
+
+            
 
         end do
 

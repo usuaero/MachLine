@@ -200,7 +200,7 @@ program d_b_vector_test
     adjoint_freestream_flow, adjoint_control_point_file)
 
     ! allocate  d_b_vector
-    call zeros%init(adjoint_mesh%N_adjoint)
+    call zeros%init(adjoint_mesh%adjoint_size)
     allocate(adjoint_solver%d_b_vector(adjoint_mesh%N_cp), source=zeros, stat=stat)
     call check_allocation(stat, "Adjoint b sensitivity vector")
 

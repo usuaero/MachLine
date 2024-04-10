@@ -209,7 +209,7 @@ program d_A_matrix_test
     call check_allocation(stat, "AIC matrix")
     
     ! allocate d_A_matrix
-    call zeros%init(adjoint_mesh%N_adjoint)
+    call zeros%init(adjoint_mesh%adjoint_size)
     allocate(adjoint_solver%d_A_matrix(adjoint_mesh%N_cp, adjoint_solver%N_unknown), source=zeros, stat=stat)
     
     ! calc body influences adjoint
