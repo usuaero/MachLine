@@ -3520,7 +3520,7 @@ contains
         
         ! allocate vT_forces (N by 3)
         allocate(vT_forces(N,3))
-        A_p = this%A
+        A_p = transpose(this%A)
         write(*,*) " "
         write(*,*) " Transpose AIC matrix "
         do i=1,N
