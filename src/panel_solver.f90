@@ -3498,8 +3498,8 @@ contains
         type(surface_mesh),intent(inout) :: body
         ! integer,intent(inout) :: solver_stat
 
-        real,dimension(:,:),allocatable :: A_copy
-        real,dimension(:),allocatable :: b_p, x
+        real,dimension(:,:),allocatable :: A_p
+        real,dimension(:),allocatable :: b_p, x, check
         integer :: stat, i, j, N
         integer(8) :: start_count, end_count
         real(16) :: count_rate
@@ -3520,23 +3520,44 @@ contains
         
         ! allocate vT_forces (N by 3)
         allocate(vT_forces(N,3))
-        
+        A_p = this%A
+        write(*,*) " "
+        write(*,*) " Transpose AIC matrix "
+        do i=1,N
+            write(*,*) A_p(i,:)
+        end do
         
         do i=1,3
             
             allocate(b_p, source=d_forces_wrt_mu(:,i), stat=stat)
             call check_allocation(stat, "solver copy of  d_forces_wrt_mu(:,i)")
 
-            
+            write(*,*) "b_p"
+            do j=1,N
+                write(*,*) b_p(j)
+            end do
             
             call system_clock(start_count, count_rate)
-            call GMRES(N, this%A, b_p, this%tol, this%max_iterations, this%iteration_file, this%solver_iterations, x)
+            ! this%solver_iterations = -1
+            call GMRES(N, A_p, b_p, this%tol, this%max_iterations, this%iteration_file, &
+            this%solver_iterations, x)
+            ! call lu_solve(N, A_p, b_p, x)
+            ! call householder_ls_solve(body%N_cp, N, A_p, b_p, x)
             call system_clock(end_count)
+
 
             write(*,*) " x"
             do j=1,N
                 write(*,*) x(j)
             end do
+
+            check = matmul(A_p,x)
+            write(*,*) " "
+            write(*,*) " check x matmul A_p"
+            do j=1,N
+                write(*,*) check(j)
+            end do
+
             
             ! store forces v^T term
             vT_forces(:,i) = x
@@ -3561,7 +3582,7 @@ contains
 
         real,dimension(:,:),allocatable :: d_AIC_i, d_CF_wrt_vars, adjoint_CF
         real,dimension(:),allocatable :: f_i, d_b_i, vT_n 
-        integer :: i,j,k,m, N 
+        integer :: i,j,k,m, N ,p
 
         N = body%N_verts
         
@@ -3576,14 +3597,10 @@ contains
 
         ! write(*,*) "dCF_WRT_VARS" 
 
-        write(*,*) " d_AIC matrix i"
-        do i=1,N
-            write(*,*) this%A(i,:)
-        end do
         
         ! for CF_x, CF_y, and CF_z
         do m=1,3
-            
+            write(*,*) " vT forces m"
             do i=1,N
                 write(*,*) vT_forces(i,m)
             end do
@@ -3606,14 +3623,20 @@ contains
                 end do
                 ! for each design variable, multiply d_A_matrix i^th slice by mu
                 
-                f_i = matmul(d_AIC_i, body%mu)
+                f_i = matmul(-d_AIC_i, body%mu)
                 
                 ! add d_b_vector i^th slice
                 f_i = f_i + d_b_i
+                ! write(*,*) " vTf   i m",   dot_product(vT_forces(:,m),f_i)
+                ! write(*,*) " d_CF_wrt_vars   i m",   d_CF_wrt_vars(i,m)
                 
                 
                 this%CF_sensitivities(i,m) = dot_product(vT_forces(:,m),f_i) + d_CF_wrt_vars(i,m)
-
+                
+            end do
+            write(*,*) "d_CF_wrt_vars m"
+            do p=1,3*N
+                write(*,*) d_CF_wrt_vars(p,m)
             end do
 
         end do
