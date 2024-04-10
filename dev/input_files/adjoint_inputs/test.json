@@ -3,7 +3,8 @@
         "freestream_velocity" : [ 100.0, 0.0, 0.0 ]
     },
     "geometry": {
-        "file": "dev/meshes/adjoint/adjoint_octa_mesh.stl",
+        "afile": "dev/meshes/adjoint/adjoint_octa_mesh.stl",
+        "file": "C:/Users/nathan/git-repos/MachLine/dev/meshes/delta_wing_medium.vtk",
         "singularity_order" : "lower",
 
         "wake_model" : {

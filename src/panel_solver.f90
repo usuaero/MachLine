@@ -1057,7 +1057,9 @@ contains
 
         integer :: stat
         type(sparse_vector) :: zeros
-        real,dimension(:,:),allocatable :: vT_terms
+        real,dimension(:,:),allocatable :: vT_terms, adjoint_solver_time
+        integer(8) :: start_count, end_count
+        real(16) :: count_rate
 
         ! Set default status
         solver_stat = 0
@@ -1138,11 +1140,18 @@ contains
             call this%calc_forces_adjoint(body)
             ! call this%calc_moments_adjoint(body)
 
+            call system_clock(start_count, count_rate)
+
             ! ! if adjoint, solve for v^T terms, then calc total derivatives (sensitivities)
             vT_terms = this%solve_for_adjoint_vT_terms(body)
             
             ! calc the total derivative. this is the end game!
             call this%calc_total_derivative(body, vT_terms)
+
+            call system_clock(end_count)
+
+            adjoint_solver_time = real(end_count-start_count)/count_rate
+            write(*,'(A, f10.5, A)') "adjoint solver time = ", adjoint_solver_time, " seconds"
         end if
 
     end subroutine panel_solver_solve
@@ -3499,7 +3508,7 @@ contains
         ! integer,intent(inout) :: solver_stat
 
         real,dimension(:,:),allocatable :: A_p
-        real,dimension(:),allocatable :: b_p, x, check, R_cp
+        real,dimension(:),allocatable :: b_p, x, R_cp
         integer :: stat, i, j, N
         integer(8) :: start_count, end_count
         real(16) :: count_rate, norm_res, max_res
@@ -3520,7 +3529,8 @@ contains
         
         ! allocate vT_forces (N by 3)
         allocate(vT_forces(N,3))
-        A_p = transpose(this%A)
+        allocate(A_p, source=transpose(this%A), stat=stat)
+        call check_allocation(stat, "solver copy of  A transpose")
         write(*,*) " "
         write(*,*) " Transpose AIC matrix "
         do i=1,N
@@ -3551,16 +3561,13 @@ contains
                 write(*,*) x(j)
             end do
 
-            check = matmul(A_p,x)
-            write(*,*) " "
-            write(*,*) " check x matmul A_p"
-            do j=1,N
-                write(*,*) check(j)
-            end do
-
             ! Get residual vector
             R_cp = matmul(transpose(this%A), x) - d_forces_wrt_mu(:,i)
-            
+            write(*,*) " "
+            write(*,*) " residual"
+            do j=1,N
+                write(*,*) R_cp(j)
+            end do
 
             ! Calculate residual parameters
             max_res = maxval(abs(R_cp))
@@ -3644,10 +3651,10 @@ contains
                 end do
                 ! for each design variable, multiply d_A_matrix i^th slice by mu
                 
-                d_AIC_times_mu = matmul(d_AIC_i, body%mu)
+                d_AIC_times_mu = matmul(-d_AIC_i, body%mu)
 
                 ! add d_b_vector i^th slice
-                f_i = -d_AIC_times_mu + d_b_i
+                f_i = d_AIC_times_mu + d_b_i
                 ! write(*,*) " vTf   i m",   dot_product(vT_forces(:,m),f_i)
                 ! write(*,*) " d_CF_wrt_vars   i m",   d_CF_wrt_vars(i,m)
                 
