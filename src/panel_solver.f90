@@ -3195,6 +3195,7 @@ contains
         real,dimension(3) :: P
         type(sparse_matrix) :: d_P, d_P_term2, d_inner_flow_wrt_vars, d_inner_flow_wrt_mu
 
+        write(*,*) " check after allocations ", i
 
         ! Determine number of surface cells
         this%N_cells = body%N_panels
@@ -3215,9 +3216,10 @@ contains
 
         allocate(body%d_V_cells_wrt_mu(this%N_cells), stat=stat)
         call check_allocation(stat, "velocity senstivitviy wrt mu")
+        
 
         ! Get the surface velocity on each existing panel
-        !$OMP parallel do private(P, d_P, d_P_term2) schedule(static)
+        ! $OMP parallel do private(P, d_P, d_P_term2, d_inner_flow_wrt_vars, d_inner_flow_wrt_mu) schedule(static)
         do i=1,body%N_panels
 
             P = body%panels(i)%centr - 1.e-10*body%panels(i)%n_g
@@ -3242,7 +3244,6 @@ contains
             ! deallocate stuff for next loop
             deallocate(d_P%columns, d_P_term2%columns, d_inner_flow_wrt_vars%columns)
             !!!!!!!!!!!!!!! end wrt vars !!!!!!!!!!!!!!!!!!!!!!!
-
             !!!!!!!!!!!!!!!!!!!!!!! sensitivity terms with respect to mu !!!!!!!!!!!!!!!!!!!!
 
             body%d_V_cells_inner_wrt_mu(i) = body%get_d_v_inner_at_point_wrt_mu(P, this%freestream)

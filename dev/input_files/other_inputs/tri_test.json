@@ -1,0 +1,28 @@
+{
+    "flow": {
+        "freestream_velocity": [100.0, 0.0, 15.0]
+    },
+    "geometry": {
+        "file": "dev/meshes/HSCT.vtk",
+        "mirror_about" : "xz",
+        "spanwise_axis" : "+y",
+        "wake_model": {
+        },
+        "reference": {
+            "area": 1.0
+        }
+    },
+    "solver": {
+        "formulation": "morinos",
+        "control_point_offset": 1.1e-05
+    },
+    "post_processing" : {
+        "pressure_rules" : {
+        }
+    },
+    "output": {
+        "body_file" : "dev/results/HSCT.vtk",
+        "wake_file" : "dev/results/HSCT_wake.vtk",
+        "control_point_file" : "dev/results/HSCT_control_points.vtk"
+    }
+}

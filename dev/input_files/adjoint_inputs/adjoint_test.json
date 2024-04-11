@@ -4,7 +4,8 @@
     },
     "geometry": {
         "afile": "dev/meshes/adjoint/adjoint_octa_mesh.stl",
-        "file": "C:/Users/nathan/git-repos/MachLine/dev/meshes/delta_wing_medium.vtk",
+        "bfile": "dev/meshes/delta_wing_medium.vtk",
+        "file" : "dev/meshes/adjoint/pod_coarse.stl",
         "singularity_order" : "lower",
 
         "wake_model" : {

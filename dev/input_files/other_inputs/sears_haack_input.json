@@ -1,0 +1,29 @@
+{
+    "flow": {
+        "freestream_velocity": [
+            694.4475790151479,
+            0.0,
+            0.0
+        ],
+        "gamma": 1.4,
+        "freestream_mach_number": 2
+    },
+    "geometry": {
+        "file": "dev/meshes/sears_haack_9800.tri",
+        "spanwise_axis": "+y",
+        "singularity_order" : "higher",
+        "wake_model": {
+            "wake_present": false
+        }
+    },
+    "solver": {
+        "formulation" : "morino",
+        "matrix_solver" : "FQRUP"
+    },
+    "post_processing": {
+    },
+    "output": {
+        "body_file": "dev/results/sears_haack_9800.vtk",
+        "control_point_file": "dev/results/sears_haack_9800_data_mach_2_control_points.vtk"
+    }
+}

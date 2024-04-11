@@ -1,0 +1,40 @@
+{
+    "flow": {
+        "freestream_velocity": [ 238.24174740085218, 0.0, 4.491283079324619 ],
+        "gamma": 1.4,
+        "freestream_mach_number": 0.0
+    },
+    "geometry": {
+        "file": "dev/meshes/m6_onera.tri",
+        "mirror_about": "xz",
+        "wake_model": {
+            "wake_present" : true
+        },
+        "reference": {
+            "area": 1.0
+        }
+    },
+    "solver": {
+        "formulation": "morino",
+        "control_point_offset": -1.1e-05
+    },
+    "post_processing": {
+        "pressure_for_forces": "prandtl-glauert",
+        "pressure_rules": {
+            "incompressible": true,
+            "isentropic": false,
+            "second-order": false
+        },
+        "subsonic_pressure_correction": {
+            "correction_mach_number": 0.7003,
+            "prandtl-glauert": true,
+            "karman-tsien": true,
+            "laitone": true
+        }
+    },
+    "output": {
+        "body_file":          "dev/results/M6_onera.vtk",
+        "wake_file":          "dev/results/M6_onera_wake.vtk",
+        "control_point_file": "dev/results/M6_onera_control_points.vtk"
+    }
+}

@@ -1,0 +1,25 @@
+{
+    "flow": {
+        "freestream_velocity": [100.0, 0.0, 0.0]
+    },
+    "geometry": {
+        "file": "dev/meshes/F-16.stl",
+        "spanwise_axis" : "+y",
+        "wake_model": {
+            "wake_present" : false
+        },
+        "reference": {
+            "area": 1.0
+        }
+    },
+    "solver": {
+        "formulation": "morino",
+        "control_point_offset": 1.1e-05
+    },
+    "post_processing" : {
+    },
+    "output": {
+        "body_file" : "dev/results/F_16.vtk",
+        "wake_file" : "dev/results/F_16_wake.vtk"
+    }
+}
