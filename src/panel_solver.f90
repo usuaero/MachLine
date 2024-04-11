@@ -1067,53 +1067,54 @@ contains
         ! Allocate known influence storage
         allocate(this%I_known(body%N_cp), source=0., stat=stat)
         call check_allocation(stat, "known influence vector")
-
+        
         ! Allocate AIC matrix
         allocate(this%A(body%N_cp, this%N_unknown), source=0., stat=stat)
         call check_allocation(stat, "AIC matrix")
-
+        
         ! Allocate b vector
         allocate(this%b(body%N_cp), source=0., stat=stat)
         call check_allocation(stat, "b vector")
-
+        
         ! if adjoint
         if (body%calc_adjoint) then
             ! init empty sparse vector
             call zeros%init(body%adjoint_size)
-
+            
             ! allocate AIC sensitivity matrix
             allocate(this%d_A_matrix(body%N_cp, this%N_unknown), source=zeros, stat=stat)
             call check_allocation(stat, "Adjoint AIC sensitivity matrix")
-
+            
             ! allocate b vector 
             allocate(this%d_b_vector(body%N_cp), source=zeros, stat=stat)
             ! call check_allocation(stat, "Adjoint b sensitivity vector")
-
+            
             ! assemble b sensitivity vector
             call this%assemble_adjoint_b_vector(body)
-    
+            
+            write(*,*) "d_A and d_b allocated"
         end if
 
         ! Calculate source strengths
         call this%calc_source_strengths(body)
-
+        
         ! Calculate body influences
         call this%calc_body_influences(body)
         
         ! Calculate wake influences
         if (body%wake%N_panels > 0 .or. body%filament_wake%N_filaments > 0)&
-            call this%calc_wake_influences(body, formulation,freestream) !!!! formulation part is a change
-            !write(*,*) "ROCK YOU LIKE A HURRICANE"
-            ! Assemble boundary condition vector
-
+        call this%calc_wake_influences(body, formulation,freestream) !!!! formulation part is a change
+        !write(*,*) "ROCK YOU LIKE A HURRICANE"
+        ! Assemble boundary condition vector
+        
         call this%assemble_BC_vector(body)
-
+        
         ! Solve the linear system
         call this%solve_system(body, solver_stat)
         
         ! Check for errors
         if (solver_stat /= 0) return
-
+        
         
         ! Calculate velocities
         call this%calc_cell_velocities(body)
@@ -1121,8 +1122,9 @@ contains
         ! if adjoint, calc d_V_inner
         if (body%calc_adjoint) then
             call this%calc_cell_velocities_adjoint(body)
+            write(*,*) "adjoint cell velocities finished"
         end if 
-
+        
         ! Calculate potentials
         call this%calc_surface_potentials(body)
 
@@ -1409,7 +1411,9 @@ contains
 
                     ! if calc_adjoint is specified, do adjoint calcs (METHOD 2)
                     if (body%calc_adjoint) then
+                        write(*,*) "working on an adjoint doublet inf"
                         inf_adjoint = body%panels(j)%calc_doublet_inf_adjoint2(body%cp(i),this%freestream)
+                        write(*,*) "inf_adjoint calculated"
                         call this%update_adjoint_A_row(body, body%cp(i), d_AIC_row, j, inf_adjoint, .false.)
                     end if
 
@@ -3522,30 +3526,30 @@ contains
 
         N = this%N_unknown
         
-        write(*,*) " d_force x wrt mu"
-        do i=1,N
-            write(*,*) d_forces_wrt_mu(i,1)
-        end do
+        ! write(*,*) " d_force x wrt mu"
+        ! do i=1,N
+        !     write(*,*) d_forces_wrt_mu(i,1)
+        ! end do
         
         ! allocate vT_forces (N by 3)
         allocate(vT_forces(N,3))
         allocate(A_p, source=transpose(this%A), stat=stat)
         call check_allocation(stat, "solver copy of  A transpose")
-        write(*,*) " "
-        write(*,*) " Transpose AIC matrix "
-        do i=1,N
-            write(*,*) A_p(i,:)
-        end do
+        ! write(*,*) " "
+        ! write(*,*) " Transpose AIC matrix "
+        ! do i=1,N
+        !     write(*,*) A_p(i,:)
+        ! end do
         
         do i=1,3
             
             allocate(b_p, source=d_forces_wrt_mu(:,i), stat=stat)
             call check_allocation(stat, "solver copy of  d_forces_wrt_mu(:,i)")
 
-            write(*,*) "b_p"
-            do j=1,N
-                write(*,*) b_p(j)
-            end do
+            ! write(*,*) "b_p"
+            ! do j=1,N
+            !     write(*,*) b_p(j)
+            ! end do
             
             call system_clock(start_count, count_rate)
             ! this%solver_iterations = -1
@@ -3556,33 +3560,33 @@ contains
             call system_clock(end_count)
 
 
-            write(*,*) " x"
-            do j=1,N
-                write(*,*) x(j)
-            end do
+            ! write(*,*) " x"
+            ! do j=1,N
+            !     write(*,*) x(j)
+            ! end do
 
             ! Get residual vector
             R_cp = matmul(transpose(this%A), x) - d_forces_wrt_mu(:,i)
-            write(*,*) " "
-            write(*,*) " residual"
-            do j=1,N
-                write(*,*) R_cp(j)
-            end do
+            ! write(*,*) " "
+            ! write(*,*) " residual"
+            ! do j=1,N
+            !     write(*,*) R_cp(j)
+            ! end do
 
             ! Calculate residual parameters
             max_res = maxval(abs(R_cp))
             norm_res = sqrt(sum(R_cp*R_cp))
             
-            write(*,*) "        Maximum residual:", max_res
-            write(*,*) "        Norm of residual:", norm_res
+            ! write(*,*) "        Maximum residual:", max_res
+            ! write(*,*) "        Norm of residual:", norm_res
             
 
-            ! Check
-            if (isnan(norm_res)) then
-                write(*,*) "!!! Linear system failed to produce a valid solution."
+            ! ! Check
+            ! if (isnan(norm_res)) then
+            !     write(*,*) "!!! Linear system failed to produce a valid solution."
             
-                return
-            end if
+            !     return
+            ! end if
 
 
             
@@ -3590,10 +3594,10 @@ contains
             vT_forces(:,i) = x
 
             deallocate(b_p, x)
-            write(*,*) " vT forces ", i
-            do j=1,N
-                write(*,*) vT_forces(j,i)
-            end do
+            ! write(*,*) " vT forces ", i
+            ! do j=1,N
+            !     write(*,*) vT_forces(j,i)
+            ! end do
     
         end do
         !!!!!!!!!!!!!!!!!!!!!!!!!!!! end Forces v^T terms !!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -3628,10 +3632,10 @@ contains
         
         ! for CF_x, CF_y, and CF_z
         do m=1,3
-            write(*,*) " vT forces m"
-            do i=1,N
-                write(*,*) vT_forces(i,m)
-            end do
+            ! write(*,*) " vT forces m"
+            ! do i=1,N
+            !     write(*,*) vT_forces(i,m)
+            ! end do
             ! for each design variable
             do i=1,3*N
 
