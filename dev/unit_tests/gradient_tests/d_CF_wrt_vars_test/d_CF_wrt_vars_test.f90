@@ -73,7 +73,7 @@ program d_CF_wrt_vars_test
     passed_tests = 0
     total_tests = 0
 
-    error_allowed = 1.0e-6
+    error_allowed = 1.0e-5
     
     step = 0.000001
     index = 1

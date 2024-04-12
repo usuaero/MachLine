@@ -185,32 +185,31 @@ program calc_d_v_d_M_test
     ! Get formulation type                                                  !
     call json_xtnsn_get(adjoint_solver_settings, 'formulation', adjoint_formulation, 'none')!
     !!!!!!!!!!!!!!!!!!!!!!! END_WAKE_DEV !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
+    
     ! Perform flow-dependent initialization on the surface mesh
     call adjoint_mesh%init_with_flow(adjoint_freestream_flow, adjoint_body_file, adjoint_wake_file, adjoint_formulation)
-
+    
     ! Initialize panel solver
     call adjoint_solver%init(adjoint_solver_settings, adjoint_processing_settings, adjoint_mesh, &
     adjoint_freestream_flow, adjoint_control_point_file)
-
+    
     !calc CALC BASIC F integral sensitivities cp1 and panel1 
     adjoint_geom = adjoint_mesh%panels(index)%calc_subsonic_geom_adjoint(adjoint_mesh%cp(cp_ind)%loc,&
-        adjoint_mesh%cp(cp_ind)%d_loc, adjoint_freestream_flow)
+    adjoint_mesh%cp(cp_ind)%d_loc, adjoint_freestream_flow)
     adjoint_dod_info = adjoint_mesh%panels(index)%check_dod(adjoint_mesh%cp(cp_ind)%loc, &
-        adjoint_freestream_flow, .false.)
+    adjoint_freestream_flow, .false.)
     
     adjoint_int = adjoint_mesh%panels(index)%calc_integrals(adjoint_geom, 'velocity',&
-        adjoint_freestream_flow,.false., adjoint_dod_info)
+    adjoint_freestream_flow,.false., adjoint_dod_info)
     
     call adjoint_mesh%panels(index)%calc_integrals_adjoint(adjoint_geom,adjoint_int,adjoint_freestream_flow&
-        , .false., adjoint_dod_info)
+    , .false., adjoint_dod_info)
     
     d_v_d_M_adjoint = adjoint_mesh%panels(index)%assemble_v_d_M_space_adjoint(adjoint_int, adjoint_geom, &
-        adjoint_freestream_flow, .false.)
+    adjoint_freestream_flow, .false.)
     
     !!!!!!!!!!!! END ADJOINT TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!
 
-    
     
     N_verts = test_mesh%N_verts
     N_panels = test_mesh%N_panels
@@ -241,10 +240,10 @@ program calc_d_v_d_M_test
     ! row 1 (only has one nonzero value)
     do k=1,3
 
-        write(*,'(A, I1,A,I1,A,I1,A)') "---------------------------------- TEST CALC d_v_d_M SENSITIVITY &
+        write(*,'(A, I3,A,I3,A,I3,A)') "---------------------------------- TEST CALC d_v_d_M SENSITIVITY &
         (panel ",index,", cp ",cp_ind,") row 1, column ", k," ---------------------------------"
         write(*,*) ""
-        write(*,'(A,I1, A)') "the sensitivity of v_d_M (panel 1, cp 1) row 1, column ", k, " WRT each design variable"
+        write(*,'(A,I3, A)') "the sensitivity of v_d_M (panel 1, cp 1) row 1, column ", k, " WRT each design variable"
         write(*,*) ""
 
     
@@ -367,7 +366,7 @@ program calc_d_v_d_M_test
         write(*,*) ""
     
         write(*,*) "--------------------------------------------------------------------------"
-        write(*,'(A, I1,A,I1,A,I1)') "  CENTRAL DIFFERENCE CALC d_v_d_M &
+        write(*,'(A, I3,A,I3,A,I3)') "  CENTRAL DIFFERENCE CALC d_v_d_M &
         (panel ",index,", cp ",cp_ind,") row 1, column ",k
         write(*,*) "--------------------------------------------------------------------------"
         write(*,*) ""
@@ -380,13 +379,13 @@ program calc_d_v_d_M_test
         !!!!!!!!!! ADJOINT CALC d_v_d_M (panel 1, cp 1) d_F111 !!!!!!!!!!!!!
         write(*,*) ""
         write(*,*) "------------------------------------------------"
-        write(*,'(A, I1)') "  ADJOINT  d_v_d_M row 1, column ",k
+        write(*,'(A, I3)') "  ADJOINT  d_v_d_M row 1, column ",k
         write(*,*) "------------------------------------------------"
         write(*,*) ""
         
         !write sparse matrix
         write(*,*) ""
-        write(*,'(A, I1,A,I1,A,I1,A)') "  adjoint CALC d_v_d_M &
+        write(*,'(A, I3,A,I3,A,I3,A)') "  adjoint CALC d_v_d_M &
         (panel ",index,", cp ",cp_ind,") row 1, column ",k,"  (sparse)"
         write(*,*) ""
         write(*,*) "  d_v_d_M              sparse_index       full_index"
@@ -405,7 +404,7 @@ program calc_d_v_d_M_test
             residuals(i) = d_v_d_M_adjoint(1,k)%get_value(i) - d_v_d_M_FD(i)
         end do
 
-        write(*,'(A, I1,A,I1,A,I1,A)') "  adjoint CALC d_v_d_M &
+        write(*,'(A, I3,A,I3,A,I3,A)') "  adjoint CALC d_v_d_M &
         (panel ",index,", cp ",cp_ind,") row 1, column ",k,",  expanded"
         write(*,*) ""
         write(*,*) "  d_v_d_M                 residual"
@@ -440,7 +439,7 @@ program calc_d_v_d_M_test
             end if
             write(*,*) failure_log(total_tests-passed_tests)
         else
-            write(*,'(A, I1,A,I1,A,I1,A)') "CALC d_v_d_M (panel ",index,", cp ",cp_ind,") row 1, column ",k," test PASSED"
+            write(*,'(A, I3,A,I3,A,I3,A)') "CALC d_v_d_M (panel ",index,", cp ",cp_ind,") row 1, column ",k," test PASSED"
             passed_tests = passed_tests + 1
             total_tests = total_tests + 1
             
@@ -460,10 +459,10 @@ program calc_d_v_d_M_test
     ! row 2 (only has one nonzero value)
     do k=1,3
 
-        write(*,'(A, I1,A,I1,A,I1,A)') "---------------------------------- TEST CALC d_v_d_M SENSITIVITY &
+        write(*,'(A, I3,A,I3,A,I3,A)') "---------------------------------- TEST CALC d_v_d_M SENSITIVITY &
         (panel ",index,", cp ",cp_ind,") row 2, column ", k," ---------------------------------"
         write(*,*) ""
-        write(*,'(A,I1, A)') "the sensitivity of v_d_M (panel 1, cp 1) row 2, column ", k, " WRT each design variable"
+        write(*,'(A,I3, A)') "the sensitivity of v_d_M (panel 1, cp 1) row 2, column ", k, " WRT each design variable"
         write(*,*) ""
 
     
@@ -589,7 +588,7 @@ program calc_d_v_d_M_test
         write(*,*) ""
     
         write(*,*) "--------------------------------------------------------------------------"
-        write(*,'(A, I1,A,I1,A,I1)') "  CENTRAL DIFFERENCE CALC d_v_d_M &
+        write(*,'(A, I3,A,I3,A,I3)') "  CENTRAL DIFFERENCE CALC d_v_d_M &
         (panel ",index,", cp ",cp_ind,") row 2, column ",k
         write(*,*) "--------------------------------------------------------------------------"
         write(*,*) ""
@@ -602,13 +601,13 @@ program calc_d_v_d_M_test
         !!!!!!!!!! ADJOINT CALC d_v_d_M (panel 1, cp 1) d_F111 !!!!!!!!!!!!!
         write(*,*) ""
         write(*,*) "------------------------------------------------"
-        write(*,'(A, I1)') "  ADJOINT  d_v_d_M row 2, column ",k
+        write(*,'(A, I3)') "  ADJOINT  d_v_d_M row 2, column ",k
         write(*,*) "------------------------------------------------"
         write(*,*) ""
         
         !write sparse matrix
         write(*,*) ""
-        write(*,'(A, I1,A,I1,A,I1,A)') "  adjoint CALC d_v_d_M &
+        write(*,'(A, I3,A,I3,A,I3,A)') "  adjoint CALC d_v_d_M &
         (panel ",index,", cp ",cp_ind,") row 2, column ",k,"  (sparse)"
         write(*,*) ""
         write(*,*) "  d_v_d_M              sparse_index       full_index"
@@ -627,7 +626,7 @@ program calc_d_v_d_M_test
             residuals(i) = d_v_d_M_adjoint(2,k)%get_value(i) - d_v_d_M_FD(i)
         end do
 
-        write(*,'(A, I1,A,I1,A,I1,A)') "  adjoint CALC d_v_d_M &
+        write(*,'(A, I3,A,I3,A,I3,A)') "  adjoint CALC d_v_d_M &
         (panel ",index,", cp ",cp_ind,") row 2, column ",k,",  expanded"
         write(*,*) ""
         write(*,*) "  d_v_d_M                 residual"
@@ -662,7 +661,7 @@ program calc_d_v_d_M_test
             end if
             write(*,*) failure_log(total_tests-passed_tests)
         else
-            write(*,'(A, I1,A,I1,A,I1,A)') "CALC d_v_d_M (panel ",index,", cp ",cp_ind,") row 2, column ",k," test PASSED"
+            write(*,'(A, I3,A,I3,A,I3,A)') "CALC d_v_d_M (panel ",index,", cp ",cp_ind,") row 2, column ",k," test PASSED"
             passed_tests = passed_tests + 1
             total_tests = total_tests + 1
             
@@ -682,10 +681,10 @@ program calc_d_v_d_M_test
     ! row 3 (only has two nonzero values)
     do k=1,3
 
-        write(*,'(A, I1,A,I1,A,I1,A)') "---------------------------------- TEST CALC d_v_d_M SENSITIVITY &
+        write(*,'(A, I3,A,I3,A,I3,A)') "---------------------------------- TEST CALC d_v_d_M SENSITIVITY &
         (panel ",index,", cp ",cp_ind,") row 3, column ", k," ---------------------------------"
         write(*,*) ""
-        write(*,'(A,I1, A)') "the sensitivity of v_d_M (panel 1, cp 1) row 3, column ", k, " WRT each design variable"
+        write(*,'(A,I3, A)') "the sensitivity of v_d_M (panel 1, cp 1) row 3, column ", k, " WRT each design variable"
         write(*,*) ""
 
     
@@ -812,7 +811,7 @@ program calc_d_v_d_M_test
         write(*,*) ""
     
         write(*,*) "--------------------------------------------------------------------------"
-        write(*,'(A, I1,A,I1,A,I1)') "  CENTRAL DIFFERENCE CALC d_v_d_M &
+        write(*,'(A, I3,A,I3,A,I3)') "  CENTRAL DIFFERENCE CALC d_v_d_M &
         (panel ",index,", cp ",cp_ind,") row 3, column ",k
         write(*,*) "--------------------------------------------------------------------------"
         write(*,*) ""
@@ -825,13 +824,13 @@ program calc_d_v_d_M_test
         !!!!!!!!!! ADJOINT CALC d_v_d_M (panel 1, cp 1) d_F111 !!!!!!!!!!!!!
         write(*,*) ""
         write(*,*) "------------------------------------------------"
-        write(*,'(A, I1)') "  ADJOINT  d_v_d_M row 3, column ",k
+        write(*,'(A, I3)') "  ADJOINT  d_v_d_M row 3, column ",k
         write(*,*) "------------------------------------------------"
         write(*,*) ""
         
         !write sparse matrix
         write(*,*) ""
-        write(*,'(A, I1,A,I1,A,I1,A)') "  adjoint CALC d_v_d_M &
+        write(*,'(A, I3,A,I3,A,I3,A)') "  adjoint CALC d_v_d_M &
         (panel ",index,", cp ",cp_ind,") row 3, column ",k,"  (sparse)"
         write(*,*) ""
         write(*,*) "  d_v_d_M              sparse_index       full_index"
@@ -850,7 +849,7 @@ program calc_d_v_d_M_test
             residuals(i) = d_v_d_M_adjoint(3,k)%get_value(i) - d_v_d_M_FD(i)
         end do
 
-        write(*,'(A, I1,A,I1,A,I1,A)') "  adjoint CALC d_v_d_M &
+        write(*,'(A, I3,A,I3,A,I3,A)') "  adjoint CALC d_v_d_M &
         (panel ",index,", cp ",cp_ind,") row 3, column ",k,",  expanded"
         write(*,*) ""
         write(*,*) "  d_v_d_M                 residual"
@@ -885,7 +884,7 @@ program calc_d_v_d_M_test
             end if
             write(*,*) failure_log(total_tests-passed_tests)
         else
-            write(*,'(A, I1,A,I1,A,I1,A)') "CALC d_v_d_M (panel ",index,", cp ",cp_ind,") row 3, column ",k," test PASSED"
+            write(*,'(A, I3,A,I3,A,I3,A)') "CALC d_v_d_M (panel ",index,", cp ",cp_ind,") row 3, column ",k," test PASSED"
             passed_tests = passed_tests + 1
             total_tests = total_tests + 1
             
@@ -906,7 +905,7 @@ program calc_d_v_d_M_test
     write(*,'((A), ES10.2)') "control point offset = ", cp_offset
     write(*,*) ""
 
-    write(*,'(I15,a14)') total_tests - passed_tests, " tests FAILED"
+    write(*,'(I3,a14)') total_tests - passed_tests, " tests FAILED"
     write(*,*) ""
     write(*,'(I4,a9,I2,a14)') passed_tests, " out of ", total_tests, " tests PASSED"
     if (passed_tests < total_tests)then

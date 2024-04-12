@@ -5476,7 +5476,6 @@ contains
         call d_v_d_mu_rows(3)%init_from_sparse_vectors(zeros, int%d_H213, int%d_H123)
 
         
-        
         ! Convert to strength influences (Davis Eq. (4.41))
         if (mirror_panel) then
             !v_d_M_space(:,1:this%M_dim) = int%s*freestream%K_inv*matmul(v_d_mu_space, this%T_mu_mir)
@@ -5485,7 +5484,7 @@ contains
         else
             ! ! find derivative of this: 
             v_d_M_space(:,1:this%M_dim) = int%s*freestream%K_inv*matmul(v_d_mu_space, this%T_mu)
-
+            
             ! convert d_v_d_mu_space to a sparse_3D
             call d_v_d_mu_3D%init_from_sparse_matrices(d_v_d_mu_rows)
             
@@ -5506,7 +5505,7 @@ contains
             end do
             
         end if
-
+        
         !!!!!!!! not worrying about wakes RN !!!!!!!!!!!!!!
         ! Wake bottom influence is opposite the top influence
         ! if (this%in_wake) then

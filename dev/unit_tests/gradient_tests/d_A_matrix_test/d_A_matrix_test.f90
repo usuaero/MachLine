@@ -53,7 +53,7 @@ program d_A_matrix_test
     real,dimension(:),allocatable :: residuals, A_up, A_dn, d_A_FD
     real,dimension(:,:),allocatable ::  residuals3 
 
-    integer :: i,j,k,m,n,p, N_verts, N_panels, vert, index, cp_ind, row,col, stat
+    integer :: i,j,k,m,n,p,z, N_verts, N_panels, vert, index, cp_ind, row,col, stat
     real,dimension(3,3) :: v_d_M_space
     real :: step, error_allowed, cp_offset
     type(vertex),dimension(:),allocatable :: vertices ! list of vertex types, this should be a mesh attribute
@@ -63,6 +63,7 @@ program d_A_matrix_test
     logical :: test_failed
     character(len=100),dimension(50) :: failure_log
     character(len=10) :: m_char
+    real,dimension(:,:),allocatable :: maxRs
 
     !!!!!!!!!!!!!!!!!!! END TESTING STUFF !!!!!!!!!!!!!!!!!!!!!11
 
@@ -224,7 +225,7 @@ program d_A_matrix_test
     N_verts = test_mesh%N_verts
     N_panels = test_mesh%N_panels
     
-    
+    allocate(maxRs(N_verts*3,3))
     allocate(residuals3(3,N_verts*3))
     allocate(residuals(N_verts*3))
 
@@ -249,7 +250,7 @@ program d_A_matrix_test
         !!!!!!!!! CENTRAL DIFFERENCE (panel 1, cp 1) d_v_d_M row 1, column ", k, !!!!!!!!!
         write(*,*) ""
         write(*,*) "--------------------------------------------------------------------------------------"
-        write(*,'(A,I1)') "                   d_A_matrix test Row ",row
+        write(*,'(A,I4)') "                   d_A_matrix test Row ",row
         write(*,*) "--------------------------------------------------------------------------------------"
         write(*,*) ""
 
@@ -392,16 +393,31 @@ program d_A_matrix_test
             
             ! write results
             write(*,*) ""
-            write(*,'(A, I1,A,I1,A,I1,A,I1)') " d_A_matrix_test &
+            write(*,'(A, I4,A,I4,A,I4,A,I4)') " d_A_matrix_test &
             d_A (",row,", ",col, ") row = ",row," col = ",col
             write(*,*) ""
-            write(*,*) "  d_A        d_A_FD         residual"
-            
+            write(*,'(A,f16.10)') "Max Residual = ", maxval(abs(residuals))
+            if (maxval(abs(residuals))>error_allowed) then
+                write(*,*) "  d_A        d_A_FD         residual"
+                do i = 1, N_verts*3
+                    if (abs(residuals(i))>error_allowed) then
+                        write(*, '((f14.10, 4x),3x,(f14.10, 4x),3x, (f14.10, 4x))') &
+                        adjoint_solver%d_A_matrix(row,col)%get_value(i), d_A_FD(i), residuals(i)
+                        maxRs(total_tests+1-passed_tests, 1)= adjoint_solver%d_A_matrix(row,col)%get_value(i)
+                        maxRs(total_tests+1-passed_tests, 2)= d_A_FD(i)
+                        maxRs(total_tests+1-passed_tests, 3)= residuals(i)
+                    end if
+                end do
+            end if
 
-            do i = 1, N_verts*3
-                write(*, '((f14.10, 4x),3x,(f14.10, 4x),3x, (f14.10, 4x))') &
-                adjoint_solver%d_A_matrix(row,col)%get_value(i), d_A_FD(i), residuals(i)
-            end do
+
+
+
+            ! write(*,*) "  d_A        d_A_FD         residual"
+            ! do i = 1, N_verts*3
+            !     write(*, '((f14.10, 4x),3x,(f14.10, 4x),3x, (f14.10, 4x))') &
+            !     adjoint_solver%d_A_matrix(row,col)%get_value(i), d_A_FD(i), residuals(i)
+            ! end do
             write(*,*) ""
             write(*,*) ""
 
@@ -416,6 +432,7 @@ program d_A_matrix_test
             end do
             if (test_failed) then
                 total_tests = total_tests + 1
+                
                 if (row ==1) then
                     failure_log(total_tests-passed_tests) = "TEST FAILURE in d_A_matrix row 1"
                 elseif (row ==2) then
@@ -431,7 +448,7 @@ program d_A_matrix_test
                 end if
                 write(*,*) failure_log(total_tests-passed_tests)
             else
-                write(*,'(A, I1,A,I1,A,I1,A)') " d_A matrix (",row,", ",col,") test PASSED"
+                write(*,'(A, I4,A,I4,A,I4,A)') " d_A matrix (",row,", ",col,") test PASSED"
                 passed_tests = passed_tests + 1
                 total_tests = total_tests + 1
                 
@@ -454,8 +471,13 @@ program d_A_matrix_test
     write(*,'((A), ES10.1)') "allowed residual = ", error_allowed
     write(*,'((A), ES10.1)') "control point offset = ", cp_offset
     write(*,*) ""
+    write(*,*) "Max Residuals: "
+    do z=1,(total_tests-passed_tests)
+        write(*,*) maxRs(z,:)
+    end do
+    write(*,*) ""
 
-    write(*,'(I15,a14)') total_tests - passed_tests, " tests FAILED"
+    write(*,'(I45,a14)') total_tests - passed_tests, " tests FAILED"
     write(*,*) ""
     write(*,'(I4,a9,I2,a14)') passed_tests, " out of ", total_tests, " tests PASSED"
     if (passed_tests < total_tests)then

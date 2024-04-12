@@ -1,11 +1,11 @@
 {
     "flow": {
-        "freestream_velocity" : [ 100.0, 0.0, 0.0 ]
+        "freestream_velocity" : [ 100.0, 10.0, 10.0 ]
     },
     "geometry": {
-        "afile": "dev/meshes/adjoint/adjoint_octa_mesh.stl",
-        "bfile": "dev/meshes/delta_wing_medium.vtk",
-        "file" : "dev/meshes/adjoint/pod_coarse.stl",
+        "file": "dev/meshes/adjoint/adjoint_octa_mesh.stl",
+        "xfile" : "dev/meshes/adjoint/wedge_wing_coarse.stl",
+        "bfile" : "dev/meshes/adjoint/pod_coarse.stl",
         "singularity_order" : "lower",
 
         "wake_model" : {

@@ -394,25 +394,16 @@ program d_V_inner_test
         write(*, '(3(f16.10, 4x))') d_v_d_FD(:,i)
     end do 
     
-    ! !write sparse matrix
-    ! write(*,*) ""
-    ! write(*,'(A,I1)') "                d_V_inner_test index = ",index
-    ! write(*,*) "  d_V_inner_x           d_V_inner_y           d_V_inner_z     sparse_index       full_index"
-    ! write(*,*) "sparse num cols", adjoint_mesh%d_V_cells_inner(k)%sparse_num_cols
-    ! do i=1,adjoint_mesh%d_V_cells_inner(k)%sparse_num_cols
-    !     write(*,'(3(f14.10, 4x), 12x, I5, 12x, I5)') adjoint_mesh%d_V_cells_inner(k)%columns(i)%vector_values, &
-    !     i, adjoint_mesh%d_V_cells_inner(k)%columns(i)%full_index
-    ! end do
-    ! write(*,*) ""
+
     
     do i=1,N_verts*3
-        residuals3(:,i) = adjoint_mesh%d_V_cells_inner(k)%get_values(i) - d_v_d_FD(:,i)
+        residuals3(:,i) = adjoint_mesh%d_V_cells_inner_wrt_vars(k)%get_values(i) - d_v_d_FD(:,i)
     end do
     
     write(*,'(A,I1)') "          Adjoint      d_V_inner_test index = ",index
     write(*,*) "  d_V_inner_x           d_V_inner_y           d_V_inner_z                        residuals"
     do i = 1, N_verts*3
-        write(*, '(3(f16.10, 4x),3x, 3(f16.10, 4x))') adjoint_mesh%d_V_cells_inner(k)%get_values(i), residuals3(:,i)
+        write(*, '(3(f16.10, 4x),3x, 3(f16.10, 4x))') adjoint_mesh%d_V_cells_inner_wrt_vars(k)%get_values(i), residuals3(:,i)
     end do
     write(*,*) ""
 

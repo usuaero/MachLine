@@ -68,7 +68,7 @@ program d_b_vector_test
     total_tests = 0
 
     error_allowed = 1.0e-7
-    step = 0.00001
+    step = 0.000001
     index = 1
     cp_ind = 1
 
@@ -392,14 +392,14 @@ program d_b_vector_test
         
         ! write results
         write(*,*) ""
-        write(*,'(A, I1,A)') " d_b_vector_test &
+        write(*,'(A, I4,A)') " d_b_vector_test &
         d_b (",k,") "
         write(*,*) ""
         write(*,*) "  d_b        d_b_FD         residual"
         
 
         do i = 1, N_verts*3
-            write(*, '((f14.10, 4x),3x,(f14.10, 4x),3x, (f14.10, 4x))') &
+            write(*, '((f25.10, 4x),3x,(f25.10, 4x),3x, (f25.10, 4x))') &
             adjoint_solver%d_b_vector(k)%get_value(i), d_b_FD(i), residuals(i)
         end do
         write(*,*) ""
@@ -431,7 +431,7 @@ program d_b_vector_test
             end if
             write(*,*) failure_log(total_tests-passed_tests)
         else
-            write(*,'(A, I1,A,I1,A)') " d_b_vector(",k,") test PASSED"
+            write(*,'(A, I4,A,I4,A)') " d_b_vector(",k,") test PASSED"
             passed_tests = passed_tests + 1
             total_tests = total_tests + 1
             
@@ -453,7 +453,7 @@ program d_b_vector_test
     write(*,'((A), ES10.1)') "control point offset = ", cp_offset
     write(*,*) ""
 
-    write(*,'(I15,a14)') total_tests - passed_tests, " tests FAILED"
+    write(*,'(I45,a14)') total_tests - passed_tests, " tests FAILED"
     write(*,*) ""
     write(*,'(I4,a9,I2,a14)') passed_tests, " out of ", total_tests, " tests PASSED"
     if (passed_tests < total_tests)then

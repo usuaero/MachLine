@@ -75,7 +75,7 @@ program d_CF_sensitivities_test
 
     error_allowed = 1.0e-6
     
-    step = 0.000001
+    step = 0.00001
     index = 1
     cp_ind = 1
 
@@ -192,8 +192,8 @@ program d_CF_sensitivities_test
     call adjoint_solver%init(adjoint_solver_settings, adjoint_processing_settings, adjoint_mesh, &
     adjoint_freestream_flow, adjoint_control_point_file)
     
-    write(*,*) "stopped"
-    stop
+    ! write(*,*) "stopped"
+    ! stop
     ! solve
     call adjoint_solver%solve(adjoint_mesh, adjoint_solver_stat, adjoint_formulation,adjoint_freestream_flow)
    
@@ -235,8 +235,8 @@ program d_CF_sensitivities_test
     write(*,*) ""
 
     
-    do i=1,1
-        do j=1,20
+    do i=1,3
+        do j=1,N_verts
 
             ! perturb up the current design variable
             test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
@@ -362,7 +362,7 @@ program d_CF_sensitivities_test
     ! for CFx, CFy, and CFz
     do k=1,3
 
-        do i=1,20
+        do i=1,N_verts*3
             residuals(i) = adjoint_solver%CF_sensitivities(i,k) - d_CF_FD(k,i)
         end do
         
@@ -379,13 +379,13 @@ program d_CF_sensitivities_test
             write(*,*) "       d_CFz_FD                d_CFz Adjoint             residual "
         end if 
 
-        do i = 1, 20
+        do i = 1, N_verts*3
             write(*, '(3(f20.10, 4x))') d_CF_FD(k,i), adjoint_solver%CF_sensitivities(i,k), residuals(i)
         end do 
         
 
         ! check if test failed
-        do i=1,20
+        do i=1,N_verts*3
             if (abs(residuals(i)) > error_allowed) then
                 test_failed = .true.
                 exit
@@ -435,7 +435,7 @@ program d_CF_sensitivities_test
     write(*,*) "-------------d_CF_sensitivities_test RESULTS--------------"
     write(*,*) ""
     write(*,'((A), ES10.1)') "allowed residual = ", error_allowed
-    write(*,'((A), ES10.1)') "control point offset = ", cp_offset
+    ! write(*,'((A), ES10.1)') "control point offset = ", cp_offset
     write(*,*) ""
 
     write(*,'(I15,a14)') total_tests - passed_tests, " tests FAILED"

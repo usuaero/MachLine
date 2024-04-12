@@ -625,7 +625,6 @@ contains
             if (abs(sparse_v1%get_value(i)) > 1.0e-16 .or. abs(sparse_v2%get_value(i)) > 1.0e-16 &
             .or. abs(sparse_v3%get_value(i)) > 1.0e-16) then           
                 count = count + 1
-                
                 ! update array of values (at least 1 will be nonzero)
                 values = (/sparse_v1%get_value(i), sparse_v2%get_value(i), sparse_v3%get_value(i) /)
             
@@ -633,20 +632,30 @@ contains
                 if (count == 1) then
                     ! allocate the first sparse matrix element
                     allocate(this%columns(1))
-
+                    
                     ! populate the first sparse matrix element
                     this%columns(1)%vector_values = values
                     this%columns(1)%full_index = i
                     this%sparse_num_cols = 1
-
+                    
                 else
                     ! add an element (a column)
                     call this%add_element(values,i,count)
-
+                    
                 end if
-
+                
             end if
         end do
+        
+        ! if no elements had nonzero elements, make a sparse column element of zeros
+        if (count == 0) then
+            allocate(this%columns(1))
+
+            ! populate the first sparse matrix element
+            this%columns(1)%vector_values = (/0.0,0.0,0.0/)
+            this%columns(1)%full_index = 1
+            this%sparse_num_cols = 1
+        end if
     
     end subroutine sparse_matrix_init_from_sparse_vectors
 
@@ -717,10 +726,9 @@ contains
         this%full_num_cols = sparse_input%full_num_cols
         
         ! allocate the same number of sparse matrix elements
-        allocate(this%columns(sparse_input%sparse_num_cols))
+        allocate(this%columns(this%sparse_num_cols))
         
         do i=1,this%sparse_num_cols
-            
             ! copy each element
             this%columns(i) = sparse_input%columns(i)
 

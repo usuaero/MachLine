@@ -1057,9 +1057,9 @@ contains
 
         integer :: stat
         type(sparse_vector) :: zeros
-        real,dimension(:,:),allocatable :: vT_terms, adjoint_solver_time
+        real,dimension(:,:),allocatable :: vT_terms
         integer(8) :: start_count, end_count
-        real(16) :: count_rate
+        real(16) :: count_rate, adjoint_solver_time
 
         ! Set default status
         solver_stat = 0
@@ -1368,9 +1368,13 @@ contains
         if (body%calc_adjoint) then
             call zeros%init(body%adjoint_size)
         end if
+        
+        if (body%calc_adjoint) then
+            if (verbose) write(*,'(a)',advance='no') "     Calculating body influences and adjoint body influences..."
+        else 
+            if (verbose) write(*,'(a)',advance='no') "     Calculating body influences..."
+        end if
 
-        if (verbose) write(*,'(a)',advance='no') "     Calculating body influences..."
-       
         ! Calculate source and doublet influences from body on each control point
         !$OMP parallel do private(j, source_inf, doublet_inf, v_s, v_d, A_i, I_known_i, inf_adjoint,d_AIC_row) schedule(dynamic)
         do i=1,body%N_cp
@@ -1411,9 +1415,8 @@ contains
 
                     ! if calc_adjoint is specified, do adjoint calcs (METHOD 2)
                     if (body%calc_adjoint) then
-                        write(*,*) "working on an adjoint doublet inf"
+                    
                         inf_adjoint = body%panels(j)%calc_doublet_inf_adjoint2(body%cp(i),this%freestream)
-                        write(*,*) "inf_adjoint calculated"
                         call this%update_adjoint_A_row(body, body%cp(i), d_AIC_row, j, inf_adjoint, .false.)
                     end if
 
@@ -1535,7 +1538,6 @@ contains
                     this%d_A_matrix(i,:) = d_AIC_row
                 end if
             end if
-            
             !$OMP end critical
 
         end do
@@ -2607,6 +2609,8 @@ contains
         class(panel_solver),intent(inout) :: this
         type(surface_mesh),intent(inout) :: body
         
+        integer :: i
+        
         if (verbose) write(*,'(a, a, a)',advance='no') "     Calculating forces using the ", & 
                                                        this%pressure_for_forces, " pressure rule..."
 
@@ -2653,6 +2657,7 @@ contains
             write(*,*) "        Cx:", this%C_F(1)
             write(*,*) "        Cy:", this%C_F(2)
             write(*,*) "        Cz:", this%C_F(3)
+
         end if
     
     end subroutine panel_solver_calc_forces
@@ -3195,57 +3200,56 @@ contains
         real,dimension(3) :: P
         type(sparse_matrix) :: d_P, d_P_term2, d_inner_flow_wrt_vars, d_inner_flow_wrt_mu
 
-        write(*,*) " check after allocations ", i
-
+        
         ! Determine number of surface cells
         this%N_cells = body%N_panels
         ! if (body%asym_flow) then
         !     this%N_cells = this%N_cells*2
         ! end if
-
+        
         ! Allocate cell velocity storage
         allocate(body%d_V_cells_inner_wrt_vars(this%N_cells), stat=stat)
         call check_allocation(stat, "inner velocity senstivitviy wrt design variables")
-
+        
         allocate(body%d_V_cells_wrt_vars(this%N_cells), stat=stat)
         call check_allocation(stat, "velocity senstivitviy wrt design variables")
-
+        
         ! Allocate cell velocity storage
         allocate(body%d_V_cells_inner_wrt_mu(this%N_cells), stat=stat)
         call check_allocation(stat, "inner velocity senstivitviy wrt mu")
-
+        
         allocate(body%d_V_cells_wrt_mu(this%N_cells), stat=stat)
         call check_allocation(stat, "velocity senstivitviy wrt mu")
         
-
+        
         ! Get the surface velocity on each existing panel
-        ! $OMP parallel do private(P, d_P, d_P_term2, d_inner_flow_wrt_vars, d_inner_flow_wrt_mu) schedule(static)
+        !$OMP parallel do private(P, d_P, d_P_term2, d_inner_flow_wrt_vars, d_inner_flow_wrt_mu) schedule(static)
         do i=1,body%N_panels
-
+            
             P = body%panels(i)%centr - 1.e-10*body%panels(i)%n_g
-
+            
             ! calc d_P
             call d_P%init_from_sparse_matrix(body%panels(i)%d_centr) 
             call d_P_term2%init_from_sparse_matrix(body%panels(i)%d_n_g)
             call d_P_term2%broadcast_element_times_scalar(-1.e-10)
             call d_P%sparse_add(d_P_term2)
-
-
+            
+            
             !!!!!!!!!!!!!!!!!! sensitivity terms with respect to design variables(vars)!!!!!!!!!!!!!!
             body%d_V_cells_inner_wrt_vars(i) = body%get_d_v_inner_at_point_wrt_vars(P, d_P, this%freestream)
-    
+            
             call d_inner_flow_wrt_vars%init_from_sparse_matrix(body%d_V_cells_inner_wrt_vars(i))
             call d_inner_flow_wrt_vars%broadcast_element_times_scalar(1./this%freestream%U)
-
+            
             body%d_V_cells_wrt_vars(i) = body%panels(i)%get_d_velocity_wrt_vars(body%mu,.false., body%N_panels, &
-                                                            body%N_verts, body%asym_flow, &
-                                                            this%freestream, d_inner_flow_wrt_vars)
-
+            body%N_verts, body%asym_flow, &
+            this%freestream, d_inner_flow_wrt_vars)
+            
             ! deallocate stuff for next loop
             deallocate(d_P%columns, d_P_term2%columns, d_inner_flow_wrt_vars%columns)
             !!!!!!!!!!!!!!! end wrt vars !!!!!!!!!!!!!!!!!!!!!!!
             !!!!!!!!!!!!!!!!!!!!!!! sensitivity terms with respect to mu !!!!!!!!!!!!!!!!!!!!
-
+            
             body%d_V_cells_inner_wrt_mu(i) = body%get_d_v_inner_at_point_wrt_mu(P, this%freestream)
             
             
@@ -3260,7 +3264,8 @@ contains
             deallocate(d_inner_flow_wrt_mu%columns)
             !!!!!!!!!! end wrt mu !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             
-
+           
+            
         end do
             
 
@@ -3342,7 +3347,7 @@ contains
 
         integer :: i
         
-        if (verbose) write(*,'(a, a, a)',advance='no') "     Calculating adjoint force sensitivities*&
+        if (verbose) write(*,'(a, a, a)',advance='no') "     Calculating adjoint force sensitivities &
                                             using the ", this%pressure_for_forces, " pressure rule..."
 
         ! Calculate forces
@@ -3412,12 +3417,7 @@ contains
             stop
         end if
 
-        ! if (verbose) then
-        !     write(*,*) "Done."
-        !     write(*,*) "        Cx:", this%C_F(1)
-        !     write(*,*) "        Cy:", this%C_F(2)
-        !     write(*,*) "        Cz:", this%C_F(3)
-        ! end if
+       
     
     end subroutine panel_solver_calc_forces_adjoint
 
@@ -3441,7 +3441,7 @@ contains
         call check_allocation(stat, "adjoint cell forces wrt design variables")
 
         ! Calculate total forces
-        !$OMP parallel do schedule(static)
+        !!$OMP parallel do schedule(static)
         do i=1,body%N_panels
             ! this is the first term
             body%d_cell_forces_wrt_vars(i) = d_pressures_wrt_vars(i)%broadcast_element_times_vector&
@@ -3488,7 +3488,7 @@ contains
         call check_allocation(stat, "adjoint cell forces wrt doublet strengths (mu)")
 
         ! Calculate total forces
-        !$OMP parallel do schedule(static)
+        ! $OMP parallel do schedule(static)
         do i=1,body%N_panels
             ! this is the first term
             body%d_cell_forces_wrt_mu(i) = d_pressures_wrt_mu(i)%broadcast_element_times_vector&
@@ -3526,79 +3526,47 @@ contains
         d_forces_wrt_mu = this%d_C_F_wrt_mu%expand(.true.)
 
         N = this%N_unknown
-        
-        ! write(*,*) " d_force x wrt mu"
-        ! do i=1,N
-        !     write(*,*) d_forces_wrt_mu(i,1)
-        ! end do
-        
+
         ! allocate vT_forces (N by 3)
         allocate(vT_forces(N,3))
         allocate(A_p, source=transpose(this%A), stat=stat)
         call check_allocation(stat, "solver copy of  A transpose")
-        ! write(*,*) " "
-        ! write(*,*) " Transpose AIC matrix "
-        ! do i=1,N
-        !     write(*,*) A_p(i,:)
-        ! end do
+
+        write(*,*) ""
+        write(*,*) "        Solving  [A]^T v = g  for d_Cx, d_Cy, d_Cz"
         
         do i=1,3
             
             allocate(b_p, source=d_forces_wrt_mu(:,i), stat=stat)
             call check_allocation(stat, "solver copy of  d_forces_wrt_mu(:,i)")
 
-            ! write(*,*) "b_p"
-            ! do j=1,N
-            !     write(*,*) b_p(j)
-            ! end do
-            
             call system_clock(start_count, count_rate)
-            ! this%solver_iterations = -1
             call GMRES(N, A_p, b_p, this%tol, this%max_iterations, this%iteration_file, &
             this%solver_iterations, x)
             ! call lu_solve(N, A_p, b_p, x)
             ! call householder_ls_solve(body%N_cp, N, A_p, b_p, x)
             call system_clock(end_count)
 
-
-            ! write(*,*) " x"
-            ! do j=1,N
-            !     write(*,*) x(j)
-            ! end do
-
             ! Get residual vector
             R_cp = matmul(transpose(this%A), x) - d_forces_wrt_mu(:,i)
-            ! write(*,*) " "
-            ! write(*,*) " residual"
-            ! do j=1,N
-            !     write(*,*) R_cp(j)
-            ! end do
-
+            
             ! Calculate residual parameters
             max_res = maxval(abs(R_cp))
             norm_res = sqrt(sum(R_cp*R_cp))
             
-            ! write(*,*) "        Maximum residual:", max_res
-            ! write(*,*) "        Norm of residual:", norm_res
-            
+            write(*,*) "        Maximum residual:", max_res
+            write(*,*) "        Norm of residual:", norm_res
+        
+            ! Check
+            if (isnan(norm_res)) then
+                write(*,*) "!!! Linear system failed to solve [A]^T v = g ."
+                return
+            end if
 
-            ! ! Check
-            ! if (isnan(norm_res)) then
-            !     write(*,*) "!!! Linear system failed to produce a valid solution."
-            
-            !     return
-            ! end if
-
-
-            
             ! store forces v^T term
             vT_forces(:,i) = x
 
             deallocate(b_p, x)
-            ! write(*,*) " vT forces ", i
-            ! do j=1,N
-            !     write(*,*) vT_forces(j,i)
-            ! end do
     
         end do
         !!!!!!!!!!!!!!!!!!!!!!!!!!!! end Forces v^T terms !!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -3674,9 +3642,13 @@ contains
 
         end do
 
-        ! this%CFx_sensitivities = adjoint_CF(:,1)
-        ! this%CFy_sensitivities = adjoint_CF(:,2)
-        ! this%CFz_sensitivities = adjoint_CF(:,3)
+        if (verbose) then
+            write(*,*) ""
+            write(*,*) "       d_Cx:                   d_Cy:                   d_Cz:"
+            do i=1,body%adjoint_size
+                write(*, '(3(f20.10, 4x))') this%CF_sensitivities(i,:)
+            end do
+        end if
 
     
 
