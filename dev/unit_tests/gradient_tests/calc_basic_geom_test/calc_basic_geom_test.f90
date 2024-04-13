@@ -37,7 +37,7 @@ program calc_basic_geom_cp
     type(flow) :: freestream_flow, adjoint_freestream_flow
     type(panel_solver) :: test_solver, adjoint_solver
     type(eval_point_geom) :: test_geom, adjoint_geom
-    integer :: start_count, end_count, i_unit
+    integer :: i_unit
     logical :: exists, found
 
     !!!!!!!!!!!!!!!!!!!!! END STUFF FROM MAIN !!!!!!!!!!!!!!!!!!!!!!!!!
@@ -58,6 +58,9 @@ program calc_basic_geom_cp
     character(len=100),dimension(500) :: failure_log
     character(len=10) :: m_char
     real,dimension(:,:),allocatable :: maxRs
+    integer(8) :: start_count, end_count
+    real(16) :: count_rate, time
+
 
 
 
@@ -123,8 +126,7 @@ program calc_basic_geom_cp
     test_geom = test_mesh%panels(1)%calc_basic_geom(test_mesh%cp(1)%loc,.false.)
     !!!!!!!!!!!!!!!!!!!!! END TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-
-
+    call system_clock(start_count, count_rate)
 
     
 
@@ -216,8 +218,8 @@ program calc_basic_geom_cp
     allocate(d_ls_dn(N_verts*3))
     allocate(d_d_ls_FD(N_verts*3))
 
-    error_allowed = 1.0e-8
-    step = 0.00001
+    error_allowed = 1.0e-7
+    step = 0.000001
     index = 1
     cp_ind = 1
     allocate(maxRs(500,3))
@@ -225,17 +227,18 @@ program calc_basic_geom_cp
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! CALC BASIC GEOM (CONTROL POINTS) SENSITIVITIES TEST !!!!!!!!!!!!!!!!!!!!!!!!!!!!
     write(*,*) ""
     write(*,*) ""
-    write(*,*) "------------------------------ CALC BASIC GEOM (CONTROL POINTS) SENSITIVITIES TEST ---&
-    ------------------------------"
+    write(*,*) "-----------------------------------------------------------------------------------"
+    write(*,*) "                CALC BASIC GEOM (CONTROL POINTS) SENSITIVITIES TEST "
+    write(*,*) "-----------------------------------------------------------------------------------"
     write(*,*) ""
     write(*,*) ""
     write(*,*) ""
 
 
-    do y=1,1!N_panels ! loop through panels
+    do y=1,N_panels ! loop through panels
         index = y
 
-        do z= 1,1!N_verts ! loop through control points
+        do z= 1,N_verts ! loop through control points
             cp_ind  = z
 
             ! update adjoint calcs
@@ -339,17 +342,19 @@ program calc_basic_geom_cp
                 residuals(i) = adjoint_geom%d_h%get_value(i) - d_h_FD(i)
             end do
 
-            write(*,*) ""
-            write(*,'(A, I1, A, I1)') "  CALC d_h panel ",index, " cp ", cp_ind
-            write(*,*) ""
+            ! write(*,*) ""
+            ! write(*,*) "------------------------------------------------------------------"
+            ! write(*,*) "------------------------------------------------------------------"
+            ! write(*,'(A, I4, A, I4)') "   d_h panel ",index, " cp ", cp_ind
+            ! write(*,*) ""
 
-            write(*,'(A,f16.10)') "Max Residual = ", maxval(abs(residuals))
+            ! write(*,'(A,f16.10)') "        Max Residual = ", maxval(abs(residuals))
             if (maxval(abs(residuals))>error_allowed) then
-                write(*,*) "  Failed values :"
-                write(*,*) "d_h FD             adjoint d_h             residual"
+                write(*,*) "          Failed values :"
+                write(*,*) "          d_h FD             adjoint d_h             residual"
                 do i = 1, N_verts*3
                     if (abs(residuals(i))>error_allowed) then
-                        write(*, '((f14.10, 4x),3x, (f14.10, 4x),3x, (f14.10, 4x))') &
+                        write(*, '(8x,(f14.10, 4x),3x, (f14.10, 4x),3x, (f14.10, 4x))') &
                         d_h_FD(i), adjoint_geom%d_h%get_value(i), residuals(i)
                     end if
                 end do
@@ -378,14 +383,15 @@ program calc_basic_geom_cp
                 failure_log(total_tests-passed_tests) = "CALC d_h test FAILED"
                 write(*,*) failure_log(total_tests-passed_tests)
             else
-                write(*,*) "CALC d_h test PASSED"
+                ! write(*,*) "        CALC d_h test PASSED"
+                ! write(*,*) "" 
+                ! write(*,*) ""
                 passed_tests = passed_tests + 1
                 total_tests = total_tests + 1
                 
             end if
             test_failed = .false.
-            write(*,*) "" 
-            write(*,*) ""
+
 
             
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST CALC   d_h2 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -396,16 +402,18 @@ program calc_basic_geom_cp
                 residuals(i) = adjoint_geom%d_h2%get_value(i) - d_h2_FD(i)
             end do
 
-            write(*,*) ""
-            write(*,'(A, I1, A, I1)') "  CALC d_h2 panel ",index, " cp ", cp_ind
-            write(*,*) ""
-            write(*,'(A,f16.10)') "Max Residual = ", maxval(abs(residuals))
+            ! write(*,*) ""
+            ! write(*,*) "------------------------------------------------------------------"
+            ! write(*,*) "------------------------------------------------------------------"
+            ! write(*,'(A, I4, A, I4)') "   d_h2 panel ",index, " cp ", cp_ind
+            ! write(*,*) ""
+            ! write(*,'(A,f16.10)') "        Max Residual = ", maxval(abs(residuals))
             if (maxval(abs(residuals))>error_allowed) then
-                write(*,*) "  Failed values :"
-                write(*,*) "d_h2 FD             adjoint d_h2             residual"
+                write(*,*) "          Failed values :"
+                write(*,*) "          d_h2 FD             adjoint d_h2             residual"
                 do i = 1, N_verts*3
                     if (abs(residuals(i))>error_allowed) then
-                        write(*, '((f14.10, 4x),3x, (f14.10, 4x),3x, (f14.10, 4x))') &
+                        write(*, '(8x,(f14.10, 4x),3x, (f14.10, 4x),3x, (f14.10, 4x))') &
                         d_h2_FD(i), adjoint_geom%d_h2%get_value(i), residuals(i)
                     end if
                 end do
@@ -436,20 +444,20 @@ program calc_basic_geom_cp
                 failure_log(total_tests-passed_tests) = "CALC d_h2 test FAILED"
                 write(*,*) failure_log(total_tests-passed_tests)
             else
-                write(*,*) "CALC d_h2 test PASSED"
+                ! write(*,*) "        CALC d_h2 test PASSED"
+                ! write(*,*) "" 
+                ! write(*,*) ""
                 passed_tests = passed_tests + 1
                 total_tests = total_tests + 1
                 
             end if
             test_failed = .false.
-            write(*,*) "" 
-            write(*,*) ""
 
 
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST CALC BASIC GEOM  d_P_g !!!!!!!!!!!!!!!!!!!!!!!
             ! for each panel vertex
             do k = 1,3
-
+                
                 ! do for each design variable
                 do i=1,3
                     do j=1,N_verts
@@ -481,9 +489,7 @@ program calc_basic_geom_cp
                         
                         ! put the x y or z component of the vertex of interest (index) in a list
                         P_g_up(j + (i-1)*N_verts) = test_geom%P_g(k)
-                        v_xi_up(j + (i-1)*N_verts) = test_geom%v_xi(k)
-                        v_eta_up(j + (i-1)*N_verts) = test_geom%v_eta(k)
-
+                        
                         ! perturb down the current design variable
                         test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - 2.*step
 
@@ -510,8 +516,7 @@ program calc_basic_geom_cp
 
                         ! put the x y or z component of the vertex of interest (index) in a list
                         P_g_dn(j + (i-1)*N_verts) = test_geom%P_g(k)
-                        v_xi_dn(j + (i-1)*N_verts) = test_geom%v_xi(k)
-                        v_eta_dn(j + (i-1)*N_verts) = test_geom%v_eta(k)
+                       
                         
                         ! restore geometry
                         test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
@@ -520,13 +525,10 @@ program calc_basic_geom_cp
                 
                 ! central difference 
                 d_P_g_FD(k,:) = (P_g_up - P_g_dn)/(2.*step)
-                d_v_xi_FD(:) = (v_xi_up - v_xi_dn)/(2.*step)
-                d_v_eta_FD(:) = (v_eta_up - v_eta_dn)/(2.*step)
+                
                     
             end do ! end k loop
 
-
-        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST CALC BASIC GEOM  d_P_g !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
             ! calculate residuals3
@@ -534,26 +536,23 @@ program calc_basic_geom_cp
                 residuals3(:,i) = adjoint_geom%d_P_g%get_values(i) - d_P_g_FD(:,i)
             end do
 
-            
-            write(*,*) "         CALC BASIC GEOM  d_P_g adjoint expanded "
-            do i = 1, N_verts*3
-                write(*, '(3(f14.10, 4x),3x, 3(f14.10, 4x))') adjoint_geom%d_P_g%get_values(i), residuals3(:,i)
-            end do
-            write(*,*) ""
 
-            write(*,*) ""
-            write(*,'(A,I1,A,I1,A,I1)') "  CALC d_P_g panel ",index," vertex ",k," cp ",cp_ind
-            write(*,*) ""
-            write(*,'(A,f16.10)') "Max Residual = ", maxval(abs(residuals3))
+            ! write(*,*) ""
+            ! write(*,*) "------------------------------------------------------------------"
+            ! write(*,*) "------------------------------------------------------------------"
+            ! write(*,'(A,I4,A,I4,A,I4)') "   d_P_g panel ",index," vertex ",&
+            ! k," cp ",cp_ind
+            ! write(*,*) ""
+            ! write(*,'(A,f16.10)') "        Max Residual = ", maxval(abs(residuals3))
             if (abs(maxval(residuals3))>error_allowed) then
-                write(*,*) "  Failed values :"
+                write(*,*) "          Failed values :"
                 do i = 1, N_verts*3
                     if (any(abs(residuals3(:,i))>error_allowed)) then
-                        write(*,*) " Central Difference    d_P_g      x, y, and z"
-                        write(*, '(3(f14.10, 4x))') d_P_g_FD(:,i)
-                        write(*,*) "    adjoint       d_P_g       x, y, and z                  &
+                        write(*,*) "         Central Difference    d_P_g      x, y, and z"
+                        write(*, '(8x,3(f14.10, 4x))') d_P_g_FD(:,i)
+                        write(*,*) "        adjoint       d_P_g       x, y, and z                  &
                            residuals"
-                        write(*, '(3(f14.10, 4x),3x, 3(f14.10, 4x))') adjoint_geom%d_P_g%get_values(i), residuals3(:,i)
+                        write(*, '(8x,3(f14.10, 4x),3x, 3(f14.10, 4x))') adjoint_geom%d_P_g%get_values(i), residuals3(:,i)
                     end if
                 end do
             end if
@@ -579,79 +578,98 @@ program calc_basic_geom_cp
                 end if
                 write(*,*) failure_log(total_tests-passed_tests)
             else
-                write(*,*) "CALC d_P_g test PASSED"
+                ! write(*,*) "        CALC d_P_g test PASSED"
+                ! write(*,*) "" 
+                ! write(*,*) ""
                 passed_tests = passed_tests + 1
                 total_tests = total_tests + 1
                 
             end if
             test_failed = .false.
-            write(*,*) "" 
-            write(*,*) ""
+
+
+        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST CALC BASIC GEOM  d_v_xi, d_v_eta !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!    
 
             ! for each panel vertex
             do k = 1,3
-
-                ! do for each design variable
                 do i=1,3
                     do j=1,N_verts
-
+        
                         ! perturb up the current design variable
                         test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
-
+        
                         !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
-
+        
                         ! update panel geometry and calc
                         do m =1,N_panels
                             deallocate(test_mesh%panels(m)%n_hat_g)
                             call test_mesh%panels(m)%calc_derived_geom()
                         end do
-
+        
+                        ! update vertex normal
                         call test_mesh%calc_vertex_geometry()
+        
+                        ! update with flow
+                        deallocate(test_mesh%panels(index)%vertices_ls)
+                        deallocate(test_mesh%panels(index)%n_hat_ls)
+                        deallocate(test_mesh%panels(index)%b)
+                        deallocate(test_mesh%panels(index)%b_mir)  
+                        deallocate(test_mesh%panels(index)%sqrt_b)
+                        call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
+        
+                        ! recalculates cp locations
                         deallocate(test_solver%sigma_known)
                         deallocate(test_mesh%cp)
                         deallocate(test_solver%P)
-
-                        ! recalculates cp locations
                         call test_solver%init(solver_settings, processing_settings, &
                         test_mesh, freestream_flow, control_point_file)
-
-                        ! calc CALC BASIC GEOM geom of relation between cp1 and panel1 
-                        test_geom = test_mesh%panels(index)%calc_basic_geom(test_mesh%cp(cp_ind)%loc,.false.)
-            
+        
+                        ! update CALC BASIC GEOM geom of relation between cp1 and panel1 
+                        test_geom = test_mesh%panels(index)%calc_basic_geom(test_mesh%cp(1)%loc,.false.)
+        
                         !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
-                        
+        
                         ! put the x y or z component of the vertex of interest (index) in a list
                         v_xi_up(j + (i-1)*N_verts) = test_geom%v_xi(k)
                         v_eta_up(j + (i-1)*N_verts) = test_geom%v_eta(k)
-
+        
                         ! perturb down the current design variable
                         test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - 2.*step
-
+        
                         !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
                         ! update panel geometry and calc
                         do m =1,N_panels
                             deallocate(test_mesh%panels(m)%n_hat_g)
                             call test_mesh%panels(m)%calc_derived_geom()
                         end do
-
+        
+                        ! update vertex normal
                         call test_mesh%calc_vertex_geometry()
+        
+                        ! update with flow
+                        deallocate(test_mesh%panels(index)%vertices_ls)
+                        deallocate(test_mesh%panels(index)%n_hat_ls)
+                        deallocate(test_mesh%panels(index)%b)
+                        deallocate(test_mesh%panels(index)%b_mir)  
+                        deallocate(test_mesh%panels(index)%sqrt_b)
+                        call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
+        
+                        ! recalculates cp locations
                         deallocate(test_solver%sigma_known)
                         deallocate(test_mesh%cp)
                         deallocate(test_solver%P) 
-
-                        ! recalculates cp locations
                         call test_solver%init(solver_settings, processing_settings, &
                         test_mesh, freestream_flow, control_point_file)
-
-                        ! calc CALC BASIC GEOM geom of relation between cp1 and panel1 
-                        test_geom = test_mesh%panels(index)%calc_basic_geom(test_mesh%cp(cp_ind)%loc,.false.)
-
+        
+                        ! update CALC BASIC GEOM geom of relation between cp1 and panel1 
+                        test_geom = test_mesh%panels(index)%calc_basic_geom(test_mesh%cp(1)%loc,.false.)
+        
                         !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
-
+        
                         ! put the x y or z component of the vertex of interest (index) in a list
                         v_xi_dn(j + (i-1)*N_verts) = test_geom%v_xi(k)
                         v_eta_dn(j + (i-1)*N_verts) = test_geom%v_eta(k)
-                        
+        
                         ! restore geometry
                         test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
                     end do 
@@ -672,20 +690,23 @@ program calc_basic_geom_cp
                 end do
                 
                 
-                write(*,*) ""
-                write(*,'(A,I1,A,I1,A,I1)') "  CALC d_v_xi panel ",index," vertex ",k," cp ",cp_ind
-                write(*,*) ""
-                write(*,'(A,f16.10)') "Max Residual = ", maxval(abs(residuals))
+                ! write(*,*) ""
+                ! write(*,*) "------------------------------------------------------------------"
+                ! write(*,*) "------------------------------------------------------------------"
+                ! write(*,'(A,I4,A,I4,A,I4)') "   d_v_xi panel ",index,&
+                ! " vertex ",k," cp ",cp_ind
+                ! write(*,*) ""
+                ! write(*,'(A,f16.10)') "        Max Residual = ", maxval(abs(residuals))
                 if (maxval(abs(residuals))>error_allowed) then
-                write(*,*) "  Failed values :"
-                do i = 1, N_verts*3
-                    if (abs(residuals(i))>error_allowed) then
-                        write(*, '((f14.10, 4x),3x, (f14.10, 4x),3x, (f14.10, 4x))')&
-                        d_v_xi_FD(i), adjoint_geom%d_v_xi(k)%get_value(i), residuals(i)
-                    end if
-                end do
+                    write(*,*) "          Failed values :"
+                    write(*,*) "          d_v_xi_FD            adjoint d_v_xi              residuals"
+                    do i = 1, N_verts*3
+                        if (abs(residuals(i))>error_allowed) then
+                            write(*, '(8x,(f14.10, 4x),3x, (f14.10, 4x),3x, (f14.10, 4x))')&
+                            d_v_xi_FD(i), adjoint_geom%d_v_xi(k)%get_value(i), residuals(i)
+                        end if
+                    end do
                 end if
-
 
                 ! check if test failed
                 do i=1,N_verts*3
@@ -707,14 +728,15 @@ program calc_basic_geom_cp
                         end if
                         write(*,*) failure_log(total_tests-passed_tests)
                     else
-                        write(*,*) "CALC d_v_xi test PASSED"
+                        ! write(*,*) "        CALC d_v_xi test PASSED"
+                        ! write(*,*) "" 
+                        ! write(*,*) ""
                         passed_tests = passed_tests + 1
                         total_tests = total_tests + 1
                         
                     end if
                 test_failed = .false.
-                write(*,*) "" 
-                write(*,*) ""
+    
 
                 
 
@@ -727,15 +749,19 @@ program calc_basic_geom_cp
                 end do
             
                 
-                write(*,*) ""
-                write(*,'(A,I1,A,I1,A,I1)') "  CALC d_v_eta panel ",index," vertex ",k," cp ",cp_ind
-                write(*,*) ""
-                write(*,'(A,f16.10)') "Max Residual = ", maxval(abs(residuals))
+                ! write(*,*) ""
+                ! write(*,*) "------------------------------------------------------------------"
+                ! write(*,*) "------------------------------------------------------------------"
+                ! write(*,'(A,I4,A,I4,A,I4)') "   d_v_eta panel ",index,&
+                ! " vertex ",k," cp ",cp_ind
+                ! write(*,*) ""
+                ! write(*,'(A,f16.10)') "        Max Residual = ", maxval(abs(residuals))
                 if (maxval(abs(residuals))>error_allowed) then
-                    write(*,*) "  Failed values :"
+                    write(*,*) "          Failed values :"
+                    write(*,*) "          d_v_eta_FD            adjoint d_v_eta              residuals"
                     do i = 1, N_verts*3
                         if (abs(residuals(i))>error_allowed) then
-                            write(*, '((f14.10, 4x),3x, (f14.10, 4x),3x, (f14.10, 4x))')&
+                            write(*, '(8x,(f14.10, 4x),3x, (f14.10, 4x),3x, (f14.10, 4x))')&
                             d_v_eta_FD(i), adjoint_geom%d_v_eta(k)%get_value(i), residuals(i)
                         end if
                     end do
@@ -762,14 +788,15 @@ program calc_basic_geom_cp
                         end if
                         write(*,*) failure_log(total_tests-passed_tests)
                     else
-                    write(*,*) "CALC d_v_eta test PASSED"
-                    passed_tests = passed_tests + 1
-                    total_tests = total_tests + 1
+                        ! write(*,*) "        CALC d_v_eta test PASSED"
+                        ! write(*,*) "" 
+                        ! write(*,*) ""
+                        passed_tests = passed_tests + 1
+                        total_tests = total_tests + 1
                     
                 end if
                 test_failed = .false.
-                write(*,*) "" 
-                write(*,*) ""
+        
                 
             end do ! end k loop
             
@@ -779,19 +806,7 @@ program calc_basic_geom_cp
 
             ! for each xi and eta 
             do k=1,2
-
-                !!!!!!!!! CENTRAL DIFFERENCE CALC BASIC GEOM  d_P_ls !!!!!!!!!
-                write(*,*) ""
-                write(*,*) "---------------------------------------------------------------------------------------------"
-                write(*,*) ""
-
-                if (k==1) then
-                    write(*,'(A, I1, A)') "  TEST CALC BASIC GEOM  d_P_ls xi coordinate"
-                else
-                    write(*,'(A, I1, A)') "  TEST CALC BASIC GEOM  d_P_ls eta coordinate"
-                end if 
-            
-                
+               
                 do i=1,3
                     do j=1,N_verts
 
@@ -881,26 +896,32 @@ program calc_basic_geom_cp
                     residuals(i) = adjoint_geom%d_P_ls(k)%get_value(i) - d_P_ls_FD(k,i)
                 end do
                 
-                write(*,*) ""
-                ! write results
-                write(*,*) ""
-                if (k==1) then
-                    write(*,'(A, I1, A, I1)') "  CALC d_P_ls xi coord panel ",index, " cp ", cp_ind
-                else
-                    write(*,'(A, I1, A, I1)') "  CALC d_P_ls eta coord panel ",index, " cp ", cp_ind
-                end if 
-                write(*,*) ""
-                write(*,'(A,f16.10)') "Max Residual = ", maxval(abs(residuals))
+                ! write(*,*) ""
+                ! ! write results
+                ! write(*,*) ""
+                ! if (k==1) then
+                !     write(*,*) "------------------------------------------------------------------"
+                !     write(*,*) "------------------------------------------------------------------"
+                !     write(*,'(A,I4,A,I4)') "   d_P_ls xi coord panel ",index,&
+                !      " cp ", cp_ind
+                ! else
+                !     write(*,*) "------------------------------------------------------------------"
+                !     write(*,*) "------------------------------------------------------------------"
+                !     write(*,'(A,I4,A,I4)') "   d_P_ls eta coord panel ",index,&
+                !      " cp ", cp_ind
+                ! end if 
+                ! write(*,*) ""
+                ! write(*,'(A,f16.10)') "        Max Residual = ", maxval(abs(residuals))
                 if (maxval(abs(residuals))>error_allowed) then
-                    write(*,*) "  Failed values :"
+                    write(*,*) "          Failed values :"
                     if (k==1) then
-                        write(*,*) "d_P_ls xi  FD         adjoint d_P_ls xi            residual"
+                        write(*,*) "        d_P_ls xi  FD         adjoint d_P_ls xi            residual"
                     else
-                        write(*,*) "d_P_ls eta  FD        adjoint d_P_ls eta             residual"
+                        write(*,*) "        d_P_ls eta  FD        adjoint d_P_ls eta             residual"
                     end if 
                     do i = 1, N_verts*3
                         if (abs(residuals(i))>error_allowed) then
-                            write(*, '((f14.10, 4x),3x, (f14.10, 4x),3x, (f14.10, 4x))') &
+                            write(*, '(8x,(f14.10, 4x),3x, (f14.10, 4x),3x, (f14.10, 4x))') &
                             d_P_ls_FD(k,i), adjoint_geom%d_P_ls(k)%get_value(i), residuals(i)
                         end if
                     end do
@@ -924,48 +945,31 @@ program calc_basic_geom_cp
                     end if
                     write(*,*) failure_log(total_tests-passed_tests)
                 else
-                    if (k==1) then
-                        write(*,*) "calc d_P_ls xi coordinate test PASSED"
-                    else
-                        write(*,*) "calc d_P_ls xi coordinate test PASSED"
-                    end if
+                    ! if (k==1) then
+                    !     write(*,*) "        calc d_P_ls xi coordinate test PASSED"
+                    ! else
+                    !     write(*,*) "        calc d_P_ls xi coordinate test PASSED"
+                    ! end if
+                    ! write(*,*) "" 
+                    ! write(*,*) ""
                     passed_tests = passed_tests + 1
                     total_tests = total_tests + 1
                     
                 end if
                 test_failed = .false.
-                write(*,*) "" 
-                write(*,*) ""
+                
             
             ! k loop
             end do
 
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST CALC BASIC GEOM  d_d_ls !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             
-            
+            ! for each panel side
             do p=1,3
-
-                write(*,*) "---------------------------------- TEST CALC BASIC GEOM  d_d_ls vertex ", p," -&
-                --------------------------------"
-                write(*,*) ""
-                write(*,*) "the sensitivity of CALC BASIC GEOM  d_d_ls vertex ", p, " WRT each design variable"
-                write(*,*) ""
 
                 ! for each xi and eta 
                 do k=1,2
 
-                    !!!!!!!!! CENTRAL DIFFERENCE CALC BASIC GEOM  d_d_ls !!!!!!!!!
-                    write(*,*) ""
-                    write(*,*) "---------------------------------------------------------------------------------------------"
-                    write(*,*) ""
-
-                    if (k==1) then
-                        write(*,'(A, I1, A)') "  TEST CALC BASIC GEOM  d_d_ls vert ",p, ", xi coordinate"
-                    else
-                        write(*,'(A, I1, A)') "  TEST CALC BASIC GEOM  d_d_ls vert ",p, ", eta coordinate"
-                    end if 
-                
-                    
                     do i=1,3
                         do j=1,N_verts
 
@@ -1049,86 +1053,41 @@ program calc_basic_geom_cp
                     
                     ! central difference 
                     d_d_ls_FD = (d_ls_up - d_ls_dn)/(2.*step)
-                            
-                    
-
-                    ! write results
-                    write(*,*) ""
-                    if (k==1) then
-                        write(*,*) "--------------------------------------------------------------------------"
-                        write(*,'(A, I1, A)') "  CENTRAL DIFFERENCE CALC BASIC GEOM  d_d_ls vert ",p,", xi coordinate"
-                        write(*,*) "--------------------------------------------------------------------------"
-                        write(*,*) ""
-                        write(*,*) "  d_d_ls_xi"
-                    else
-                        write(*,*) "--------------------------------------------------------------------------"
-                        write(*,'(A, I1, A)') "  CENTRAL DIFFERENCE CALC BASIC GEOM  d_d_ls vert ",p,", eta coordinate"
-                        write(*,*) "--------------------------------------------------------------------------"
-                        write(*,*) ""
-                        write(*,*) "  d_d_ls_eta"
-                    end if 
-
-                    
-                    ! do i = 1, N_verts*3
-                    !     write(*, '(f14.10, 4x)') d_d_ls_FD(i)
-                    ! end do 
-                    
-                    !!!!!!!!!! ADJOINT CALC BASIC GEOM  d_d_ls!!!!!!!!!!!!!
-                    write(*,*) ""
-                    write(*,*) "------------------------------------------------"
-                    if (k==1) then
-                        write(*,'(A, I1, A)') "  ADJOINT  d_d_ls vert ",p,", xi coordinate"
-                    write(*,*) "------------------------------------------------"
-                    else
-                        write(*,'(A, I1, A)') "  ADJOINT  d_d_ls vert ",p,", eta coordinate"
-                    write(*,*) "------------------------------------------------"
-                    end if 
-                    write(*,*) ""
-                    
-                    !write sparse matrix
-                    write(*,*) ""
-                    if (k==1) then
-                        write(*,'(A, I1, A)') "  adjoint CALC BASIC GEOM  d_d_ls vert ",p,", xi coordinate (sparse)"
-                        write(*,*) ""
-                        write(*,*) "  d_d_ls_xi              sparse_index       full_index"
-                    else
-                        write(*,'(A, I1, A)') "  adjoint CALC BASIC GEOM  d_d_ls vert ",p,", eta coordinate (sparse)"
-                        write(*,*) ""
-                        write(*,*) "  d_d_ls_eta             sparse_index       full_index"
-                    end if 
-
-                    ! do i=1,adjoint_geom%d_d_ls(k,p)%sparse_size
-                    !     write(*,'((f14.10, 4x), 12x, I5, 12x, I5)') adjoint_geom%d_d_ls(k,p)%elements(i)%value, &
-                    !     i, adjoint_geom%d_d_ls(k,p)%elements(i)%full_index
-                    ! end do
-                    ! write(*,*) ""
-                    ! write(*,*) ""
 
 
                     ! calculate residuals3
                     do i =1, N_verts*3
                         residuals(i) = adjoint_geom%d_d_ls(k,p)%get_value(i) - d_d_ls_FD(i)
                     end do
-
-                    if (k==1) then
-                        write(*,'(A, I1, A)') "  adjoint CALC BASIC GEOM  d_d_ls vert ",p,", xi coordinate expanded"
-                        write(*,*) ""
-                        write(*,*) "  d_d_ls_xi                 residual"
-                    else
-                        write(*,'(A, I1, A)') "  adjoint CALC BASIC GEOM  d_d_ls vert ",p,", eta coordinate expanded"
-                        write(*,*) ""
-                        write(*,*) "  d_d_ls_eta                residual"
+                       
+                    ! if (k==1) then
+                    !     write(*,*) "------------------------------------------------------------------"
+                    !     write(*,*) "------------------------------------------------------------------"
+                    !     write(*,'(A,I3,A,I3,A,I3)') "   d_d_ls panel ", y, ", vert ",p,&
+                    !     ", xi coordinate, cp=",z 
+                    ! else
+                    !     write(*,*) "------------------------------------------------------------------"
+                    !     write(*,*) "------------------------------------------------------------------"
+                    !     write(*,'(A,I3,A,I3,A,I3)') "   d_d_ls panel ", y, ", vert ",p,&
+                    !     ", eta coordinate, cp=",z 
+                    ! end if 
+                
+                    ! write(*,*) ""
+                    ! write(*,'(A,f16.10)') "        Max Residual = ", maxval(abs(residuals))
+                    if (maxval(abs(residuals))>error_allowed) then
+                        write(*,*) "          Failed values :"
+                        write(*,*) "          d_d_ls_FD            adjoint d_d_ls              residuals"
+                        do i = 1, N_verts*3
+                            if (abs(residuals(i))>error_allowed) then
+                                write(*, '(8x,(f14.10, 4x),3x, (f14.10, 4x),3x, (f14.10, 4x))')&
+                                d_d_ls_FD(i), adjoint_geom%d_d_ls(k,p)%get_value(i), residuals(i)
+                            end if
+                        end do
                     end if
-
-                    ! do i = 1, N_verts*3
-                    !     write(*, '((f14.10, 4x),3x, (f14.10, 4x))') adjoint_geom%d_d_ls(k,p)%get_value(i), residuals(i)
-                    ! end do
-                    ! write(*,*) ""
-                    ! write(*,*) ""
 
                     ! check if test failed
                     do i=1,N_verts*3
-                        if (abs(residuals(i)) > 1.0e-8) then
+                        if (abs(residuals(i)) > error_allowed) then
                             test_failed = .true.
                             exit
                         else 
@@ -1138,37 +1097,43 @@ program calc_basic_geom_cp
                     if (test_failed) then
                         total_tests = total_tests + 1
                         if (k==1 .and. p ==1) then
-                            failure_log(total_tests-passed_tests) = "CALC BASIC GEOM  d_d_ls vert 1, &
+                            failure_log(total_tests-passed_tests) = "calc d_d_ls vert 1, &
                             xi coordinate test FAILED"
                         elseif (k==2 .and. p ==1) then
-                            failure_log(total_tests-passed_tests) = "CALC BASIC GEOM  d_d_ls vert 1, &
+                            failure_log(total_tests-passed_tests) = "calc d_d_ls vert 1, &
                             eta coordinate test FAILED"
                         elseif (k==1 .and. p ==2) then
-                            failure_log(total_tests-passed_tests) = "CALC BASIC GEOM  d_d_ls vert 2, &
+                            failure_log(total_tests-passed_tests) = "calc d_d_ls vert 2, &
                             xi coordinate test FAILED"
                         elseif (k==2 .and. p ==2) then
-                            failure_log(total_tests-passed_tests) = "CALC BASIC GEOM  d_d_ls vert 2, &
+                            failure_log(total_tests-passed_tests) = "calc d_d_ls vert 2, &
                             eta coordinate test FAILED"
                         elseif (k==1 .and. p ==3) then
-                            failure_log(total_tests-passed_tests) = "CALC BASIC GEOM  d_d_ls vert 3, &
+                            failure_log(total_tests-passed_tests) = "calc d_d_ls vert 3, &
                             xi coordinate test FAILED"
+                        elseif (k==2 .and. p ==3) then
+                            failure_log(total_tests-passed_tests) = "calc d_d_ls vert 3, &
+                            eta coordinate test FAILED"
                         else
-                            failure_log(total_tests-passed_tests) = "CALC BASIC GEOM  d_d_ls FAILED"
+                            failure_log(total_tests-passed_tests) = "calc d_d_ls FAILED"
                         end if
                         write(*,*) failure_log(total_tests-passed_tests)
                     else
-                        if (k==1) then
-                            write(*,'(A,I1,A)') "CALC BASIC GEOM  d_d_ls vert ",p,", xi coordinate test PASSED"
-                        else
-                            write(*,'(A,I1,A)') "CALC BASIC GEOM  d_d_ls vert ",p,", eta coordinate test PASSED"
-                        end if
+                        ! if (k==1) then
+                        !     write(*,'(A,I3,A,I3,A,I3,A)') "        calc d_d_ls panel ", y, ", vert ",p,&
+                        !     ", xi coordinate, cp=",z, " test PASSED"
+                        ! else
+                        !     write(*,'(A,I3,A,I3,A,I3,A)') "        calc d_d_ls panel ", y, ", vert ",p,&
+                        !     ", eta coordinate, cp=",z, " test PASSED"
+                        ! end if
+                        ! write(*,*) "" 
+                        ! write(*,*) ""
                         passed_tests = passed_tests + 1
                         total_tests = total_tests + 1
                         
                     end if
                     test_failed = .false.
-                    write(*,*) "" 
-                    write(*,*) ""
+                    
                 
                 end do
             ! k loop
@@ -1179,11 +1144,16 @@ program calc_basic_geom_cp
     end do !y loop (panels)
 
     !!!!!!!!!!!!!! CALC_BASIC_GEOM (CONTROL POINTS) SENSITIVITIES RESULTS!!!!!!!!!!!!!
-    write(*,*) "-------------CALC_BASIC_GEOM (CONTROL POINTS) SENSITIVITIES TEST RESULTS--------------"
+    write(*,*) "------------------------------------------------------------------------------"
+    write(*,*) "     CALC_BASIC_GEOM (CONTROL POINTS) SENSITIVITIES TEST RESULTS "
+    write(*,*) "------------------------------------------------------------------------------"
     write(*,*) ""
-    write(*,'(I15,a14)') total_tests - passed_tests, " tests FAILED"
+    write(*,'((A), ES10.1)') "allowed residual = ", error_allowed
     write(*,*) ""
-    write(*,'(I4,a9,I4,a14)') passed_tests, " out of ", total_tests, " tests PASSED"
+
+    write(*,'(I35,a14)') total_tests - passed_tests, " tests FAILED"
+    write(*,*) ""
+    write(*,'(I15,a9,I15,a14)') passed_tests, " out of ", total_tests, " tests PASSED"
     if (passed_tests < total_tests)then
         write(*,*) ""
         write(*,*) "----------------------"
@@ -1195,6 +1165,9 @@ program calc_basic_geom_cp
     end if
     
     write(*,*) ""
+    call system_clock(end_count)
+    time = real(end_count - start_count)/(count_rate*60.0)
+    write(*,'(A,f12.10, A)') " Total test time = ", time, " minutes"
     write(*,*) ""
     write(*,*) "----------------------"
     write(*,*) "Program Complete"
