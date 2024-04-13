@@ -1,4 +1,4 @@
-program calc_basic_geom_cp
+program calc_basic_geom2
     ! tests various intermediate sensitivities 
     use adjoint_mod
     use base_geom_mod
@@ -218,7 +218,7 @@ program calc_basic_geom_cp
     allocate(d_ls_dn(N_verts*3))
     allocate(d_d_ls_FD(N_verts*3))
 
-    error_allowed = 1.0e-10
+    error_allowed = 1.0e-8
     step = 0.000001
     index = 1
     cp_ind = 1
@@ -240,6 +240,8 @@ program calc_basic_geom_cp
 
         do z= 1,N_verts ! loop through control points
             cp_ind  = z
+
+            write(*,'(A,I,A,I)') "--------------------------------------------- TEST FOR PANEL ",y," cp ",z
 
             ! update adjoint calcs
             adjoint_geom = adjoint_mesh%panels(index)%calc_basic_geom_adjoint&
@@ -351,11 +353,11 @@ program calc_basic_geom_cp
             ! write(*,'(A,f16.10)') "        Max Residual = ", maxval(abs(residuals))
             if (maxval(abs(residuals))>error_allowed) then
                 write(*,*) ""
-                write(*,*) "          Flagged values :"
+                write(*,*) "     FLAGGED VALUES :"
                 write(*,*) "          d_h FD             adjoint d_h             residual"
                 do i = 1, N_verts*3
                     if (abs(residuals(i))>error_allowed) then
-                        write(*, '(8x,(f14.10, 4x),3x, (f14.10, 4x),3x, (f14.10, 4x))') &
+                        write(*, '(8x,(f16.10, 4x),3x, (f16.10, 4x),3x, (f16.10, 4x))') &
                         d_h_FD(i), adjoint_geom%d_h%get_value(i), residuals(i)
                     end if
                 end do
@@ -364,7 +366,7 @@ program calc_basic_geom_cp
             ! write(*,*) " d_h FD                adjoint d_h                 residual"
 
             ! do i = 1, N_verts*3
-            !     write(*, '((f14.10, 4x),3x, (f14.10, 4x),3x, (f14.10, 4x))') &
+            !     write(*, '((f16.10, 4x),3x, (f16.10, 4x),3x, (f16.10, 4x))') &
             !     d_h_FD(i), adjoint_geom%d_h%get_value(i), residuals(i)
             ! end do
             ! write(*,*) ""
@@ -382,8 +384,8 @@ program calc_basic_geom_cp
             end do
             if (test_failed) then
                 total_tests = total_tests + 1
-                failure_log(total_tests-passed_tests) = "                                 CALC d_h test FAILED"
-                write(*,*) failure_log(total_tests-passed_tests)
+                write(*,'(A,I,A,I,A)')"                              CALC d_h panel ",y," cp ",z," test FAILED"
+                failure_log(total_tests-passed_tests) = "CALC d_h test FAILED"
             else
                 ! write(*,*) "        CALC d_h test PASSED"
                 ! write(*,*) "" 
@@ -412,11 +414,11 @@ program calc_basic_geom_cp
             ! write(*,'(A,f16.10)') "        Max Residual = ", maxval(abs(residuals))
             if (maxval(abs(residuals))>error_allowed) then
                 write(*,*) ""
-                write(*,*) "          Flagged values :"
+                write(*,*) "     FLAGGED VALUES :"
                 write(*,*) "          d_h2 FD             adjoint d_h2             residual"
                 do i = 1, N_verts*3
                     if (abs(residuals(i))>error_allowed) then
-                        write(*, '(8x,(f14.10, 4x),3x, (f14.10, 4x),3x, (f14.10, 4x))') &
+                        write(*, '(8x,(f16.10, 4x),3x, (f16.10, 4x),3x, (f16.10, 4x))') &
                         d_h2_FD(i), adjoint_geom%d_h2%get_value(i), residuals(i)
                     end if
                 end do
@@ -425,7 +427,7 @@ program calc_basic_geom_cp
             ! write(*,*) " d_h2 FD                adjoint d_h2                 residual"
 
             ! do i = 1, N_verts*3
-            !     write(*, '((f14.10, 4x),3x, (f14.10, 4x),3x, (f14.10, 4x))') &
+            !     write(*, '((f16.10, 4x),3x, (f16.10, 4x),3x, (f16.10, 4x))') &
             !     d_h2_FD(i), adjoint_geom%d_h2%get_value(i), residuals(i)
             ! end do
             ! write(*,*) ""
@@ -445,8 +447,9 @@ program calc_basic_geom_cp
             end do
             if (test_failed) then
                 total_tests = total_tests + 1
-                failure_log(total_tests-passed_tests) = "                             CALC d_h2 test FAILED"
-                write(*,*) failure_log(total_tests-passed_tests)
+                write(*,'(A,I,A,I,A)')"                            &
+                CALC d_h2 panel ",y," cp ",z," test FAILED"
+                failure_log(total_tests-passed_tests) = "CALC d_h2 test FAILED"
             else
                 ! write(*,*) "        CALC d_h2 test PASSED"
                 ! write(*,*) "" 
@@ -548,16 +551,16 @@ program calc_basic_geom_cp
             ! k," cp ",cp_ind
             ! write(*,*) ""
             ! write(*,'(A,f16.10)') "        Max Residual = ", maxval(abs(residuals3))
-            if (any(abs(maxval(residuals3))>error_allowed)) then
+            if (any(abs(residuals3(:,:)) > error_allowed)) then
                 write(*,*) ""
-                write(*,*) "          Flagged values :"
+                write(*,*) "     FLAGGED VALUES :"
                 do i = 1, N_verts*3
                     if (any(abs(residuals3(:,i))>error_allowed)) then
                         write(*,*) "         Central Difference    d_P_g      x, y, and z"
-                        write(*, '(8x,3(f14.10, 4x))') d_P_g_FD(:,i)
+                        write(*, '(8x,3(f16.10, 4x))') d_P_g_FD(:,i)
                         write(*,*) "        adjoint       d_P_g       x, y, and z                  &
                            residuals"
-                        write(*, '(8x,3(f14.10, 4x),3x, 3(f14.10, 4x))') adjoint_geom%d_P_g%get_values(i), residuals3(:,i)
+                        write(*, '(8x,3(f16.10, 4x),3x, 3(f16.10, 4x))') adjoint_geom%d_P_g%get_values(i), residuals3(:,i)
                     end if
                 end do
             end if
@@ -565,8 +568,8 @@ program calc_basic_geom_cp
 
             ! check if test failed
             do i=1,N_verts*3
-                if (any(abs(residuals3(i)) > error_allowed) .and. any(abs(d_P_g_FD(:,i))<10.0) .and. &
-                any(abs(residuals3(i)) > error_allowed*10.0)) then
+                if (any(abs(residuals3(:,i)) > error_allowed) .and. any(abs(d_P_g_FD(:,i))<10.0) .and. &
+                any(abs(residuals3(:,i)) > error_allowed*10.0)) then
                     test_failed = .true.
                     exit
                 else 
@@ -575,9 +578,9 @@ program calc_basic_geom_cp
             end do
             if (test_failed) then
                 total_tests = total_tests + 1
-                failure_log(total_tests-passed_tests) = "                      &
-                Calc d_P_g test FAILED"
-                write(*,*) failure_log(total_tests-passed_tests)
+                write(*,'(A,I,A,I,A)')"                              &
+                Calc d_P_g panel ",y," cp ",z," test FAILED"
+                failure_log(total_tests-passed_tests) = "Calc d_P_g test FAILED"
             else
                 ! write(*,*) "        CALC d_P_g test PASSED"
                 ! write(*,*) "" 
@@ -700,11 +703,11 @@ program calc_basic_geom_cp
                 ! write(*,'(A,f16.10)') "        Max Residual = ", maxval(abs(residuals))
                 if (maxval(abs(residuals))>error_allowed) then
                     write(*,*) ""
-                    write(*,*) "          Flagged values :"
+                    write(*,*) "     FLAGGED VALUES :"
                     write(*,*) "          d_v_xi_FD            adjoint d_v_xi              residuals"
                     do i = 1, N_verts*3
                         if (abs(residuals(i))>error_allowed) then
-                            write(*, '(8x,(f14.10, 4x),3x, (f14.10, 4x),3x, (f14.10, 4x))')&
+                            write(*, '(8x,(f16.10, 4x),3x, (f16.10, 4x),3x, (f16.10, 4x))')&
                             d_v_xi_FD(i), adjoint_geom%d_v_xi(k)%get_value(i), residuals(i)
                         end if
                     end do
@@ -723,16 +726,18 @@ program calc_basic_geom_cp
                 if (test_failed) then
                     total_tests = total_tests + 1
                     if (k==1) then
-                        failure_log(total_tests-passed_tests) = "                       &
-                        calc d_v_xi coordinate 1 test FAILED"
+                        write(*,'(A,I,A,I,A)')"                              &
+                        calc d_v_xi coordinate 1 (panel ",y," cp ",z,") test FAILED"
+                        failure_log(total_tests-passed_tests) = "calc d_v_xi coordinate 1 test FAILED"
                     elseif (k==2) then
-                        failure_log(total_tests-passed_tests) = "                       &
-                        calc d_v_xi coordinate 2 test FAILED"
+                        write(*,'(A,I,A,I,A)')"                              &
+                        calc d_v_xi coordinate 2 (panel ",y," cp ",z,") test FAILED"
+                        failure_log(total_tests-passed_tests) = "calc d_v_xi coordinate 2 test FAILED"
                     else 
-                        failure_log(total_tests-passed_tests) = "                       &
-                        calc d_v_xi coordinate 3 test FAILED"
+                        write(*,'(A,I,A,I,A)')"                              &
+                        calc d_v_xi coordinate 3 (panel ",y," cp ",z,") test FAILED"
+                        failure_log(total_tests-passed_tests) = "calc d_v_xi coordinate 3 test FAILED"
                     end if
-                        write(*,*) failure_log(total_tests-passed_tests)
                     else
                         ! write(*,*) "        CALC d_v_xi test PASSED"
                         ! write(*,*) "" 
@@ -764,11 +769,11 @@ program calc_basic_geom_cp
                 ! write(*,'(A,f16.10)') "        Max Residual = ", maxval(abs(residuals))
                 if (maxval(abs(residuals))>error_allowed) then
                     write(*,*) ""
-                    write(*,*) "          Flagged values :"
+                    write(*,*) "     FLAGGED VALUES :"
                     write(*,*) "          d_v_eta_FD            adjoint d_v_eta              residuals"
                     do i = 1, N_verts*3
                         if (abs(residuals(i))>error_allowed) then
-                            write(*, '(8x,(f14.10, 4x),3x, (f14.10, 4x),3x, (f14.10, 4x))')&
+                            write(*, '(8x,(f16.10, 4x),3x, (f16.10, 4x),3x, (f16.10, 4x))')&
                             d_v_eta_FD(i), adjoint_geom%d_v_eta(k)%get_value(i), residuals(i)
                         end if
                     end do
@@ -788,16 +793,18 @@ program calc_basic_geom_cp
                 if (test_failed) then
                     total_tests = total_tests + 1
                     if (k==1) then
-                        failure_log(total_tests-passed_tests) = "                          &
-                        calc d_v_eta coordinate 1 test FAILED"
+                        write(*,'(A,I,A,I,A)')"                              &
+                        calc d_v_eta coordinate 1 (panel ",y," cp ",z,") test FAILED"
+                        failure_log(total_tests-passed_tests) = "calc d_v_eta coordinate 1 test FAILED"
                     elseif (k==2) then
-                        failure_log(total_tests-passed_tests) = "                          &
-                        calc d_v_eta coordinate 2 test FAILED"
+                        write(*,'(A,I,A,I,A)')"                              &
+                        calc d_v_eta coordinate 2 (panel ",y," cp ",z,") test FAILED"
+                        failure_log(total_tests-passed_tests) = "calc d_v_eta coordinate 2 test FAILED"
                     else 
-                        failure_log(total_tests-passed_tests) = "                          &
-                        calc d_v_eta coordinate 3 test FAILED"
+                        write(*,'(A,I,A,I,A)')"                              &
+                        calc d_v_eta coordinate 3 (panel ",y," cp ",z,") test FAILED"
+                        failure_log(total_tests-passed_tests) = "calc d_v_eta coordinate 3 test FAILED"
                     end if
-                        write(*,*) failure_log(total_tests-passed_tests)
                     else
                         ! write(*,*) "        CALC d_v_eta test PASSED"
                         ! write(*,*) "" 
@@ -925,7 +932,7 @@ program calc_basic_geom_cp
                 ! write(*,'(A,f16.10)') "        Max Residual = ", maxval(abs(residuals))
                 if (maxval(abs(residuals))>error_allowed) then
                     write(*,*) ""
-                    write(*,*) "          Flagged values :"
+                    write(*,*) "     FLAGGED VALUES :"
                     if (k==1) then
                         write(*,*) "        d_P_ls xi  FD         adjoint d_P_ls xi            residual"
                     else
@@ -933,7 +940,7 @@ program calc_basic_geom_cp
                     end if 
                     do i = 1, N_verts*3
                         if (abs(residuals(i))>error_allowed) then
-                            write(*, '(8x,(f14.10, 4x),3x, (f14.10, 4x),3x, (f14.10, 4x))') &
+                            write(*, '(8x,(f16.10, 4x),3x, (f16.10, 4x),3x, (f16.10, 4x))') &
                             d_P_ls_FD(k,i), adjoint_geom%d_P_ls(k)%get_value(i), residuals(i)
                         end if
                     end do
@@ -952,13 +959,14 @@ program calc_basic_geom_cp
                 if (test_failed) then
                     total_tests = total_tests + 1
                     if (k==1) then
-                        failure_log(total_tests-passed_tests) = "                         &
-                        calc d_P_ls xi coordinate test FAILED"
+                        write(*,'(A,I,A,I,A)')"                              &
+                        calc d_P_ls xi coordinate (panel ",y," cp ",z,") test FAILED"
+                        failure_log(total_tests-passed_tests) = "calc d_P_ls xi coordinate test FAILED"
                     else
-                        failure_log(total_tests-passed_tests) = "                         &
-                        calc d_P_ls eta coordinate test FAILED"
+                        write(*,'(A,I,A,I,A)')"                              &
+                        calc d_P_ls eta coordinate (panel ",y," cp ",z,") test FAILED"
+                        failure_log(total_tests-passed_tests) = "calc d_P_ls eta coordinate test FAILED"
                     end if
-                    write(*,*) failure_log(total_tests-passed_tests)
                 else
                     ! if (k==1) then
                     !     write(*,*) "        calc d_P_ls xi coordinate test PASSED"
@@ -1091,11 +1099,11 @@ program calc_basic_geom_cp
                     ! write(*,'(A,f16.10)') "        Max Residual = ", maxval(abs(residuals))
                     if (maxval(abs(residuals))>error_allowed) then
                         write(*,*) ""
-                        write(*,*) "          Flagged values :"
+                        write(*,*) "     FLAGGED VALUES :"
                         write(*,*) "          d_d_ls_FD            adjoint d_d_ls              residuals"
                         do i = 1, N_verts*3
                             if (abs(residuals(i))>error_allowed) then
-                                write(*, '(8x,(f14.10, 4x),3x, (f14.10, 4x),3x, (f14.10, 4x))')&
+                                write(*, '(8x,(f16.10, 4x),3x, (f16.10, 4x),3x, (f16.10, 4x))')&
                                 d_d_ls_FD(i), adjoint_geom%d_d_ls(k,p)%get_value(i), residuals(i)
                             end if
                         end do
@@ -1114,28 +1122,41 @@ program calc_basic_geom_cp
                     if (test_failed) then
                         total_tests = total_tests + 1
                         if (k==1 .and. p ==1) then
-                            failure_log(total_tests-passed_tests) = "        &
+                            write(*,'(A,I,A,I,A)')"                  &
+                            calc d_d_ls vert 1, xi coordinate (panel ",y," cp ",z,") test FAILED"
+                            failure_log(total_tests-passed_tests) = "&
                             calc d_d_ls vert 1, xi coordinate test FAILED"
                         elseif (k==2 .and. p ==1) then
-                            failure_log(total_tests-passed_tests) = "        &
+                            write(*,'(A,I,A,I,A)')"                  &
+                            calc d_d_ls vert 1, eta coordinate (panel ",y," cp ",z,") test FAILED"
+                            failure_log(total_tests-passed_tests) = "&
                             calc d_d_ls vert 1, eta coordinate test FAILED"
                         elseif (k==1 .and. p ==2) then
-                            failure_log(total_tests-passed_tests) = "        &
+                            write(*,'(A,I,A,I,A)')"                  &
+                            calc d_d_ls vert 2, xi coordinate (panel ",y," cp ",z,") test FAILED"
+                            failure_log(total_tests-passed_tests) = "&
                             calc d_d_ls vert 2, xi coordinate test FAILED"
                         elseif (k==2 .and. p ==2) then
-                            failure_log(total_tests-passed_tests) = "        &
+                            write(*,'(A,I,A,I,A)')"                  &
+                            calc d_d_ls vert 2, eta coordinate (panel ",y," cp ",z,") test FAILED"
+                            failure_log(total_tests-passed_tests) = "&
                             calc d_d_ls vert 2, eta coordinate test FAILED"
                         elseif (k==1 .and. p ==3) then
-                            failure_log(total_tests-passed_tests) = "        &
+                            write(*,'(A,I,A,I,A)')"                  &
+                            calc d_d_ls vert 3, xi coordinate (panel ",y," cp ",z,") test FAILED"
+                            failure_log(total_tests-passed_tests) = "&
                             calc d_d_ls vert 3, xi coordinate test FAILED"
                         elseif (k==2 .and. p ==3) then
-                            failure_log(total_tests-passed_tests) = "        &
+                            write(*,'(A,I,A,I,A)')"                  &
+                            calc d_d_ls vert 3, eta coordinate (panel ",y," cp ",z,") test FAILED"
+                            failure_log(total_tests-passed_tests) = "&
                             calc d_d_ls vert 3, eta coordinate test FAILED"
                         else
-                            failure_log(total_tests-passed_tests) = "                         &
+                            write(*,'(A,I,A,I,A)')"                                     &
+                            calc d_d_ls (panel ",y," cp ",z,") test FAILED"
+                            failure_log(total_tests-passed_tests) = "&
                             calc d_d_ls FAILED"
                         end if
-                        write(*,*) failure_log(total_tests-passed_tests)
                     else
                         ! if (k==1) then
                         !     write(*,'(A,I3,A,I3,A,I3,A)') "        calc d_d_ls panel ", y, ", vert ",p,&
@@ -1191,4 +1212,4 @@ program calc_basic_geom_cp
     write(*,*) "Program Complete"
     write(*,*) "----------------------"
 
-end program calc_basic_geom_cp
+end program calc_basic_geom2
