@@ -29,7 +29,7 @@ program panel_geom2
                                 
     type(surface_mesh) :: test_mesh, adjoint_mesh
     type(flow) :: freestream_flow
-    integer :: start_count, end_count, i_unit
+    integer :: i_unit
     logical :: exists, found
 
     !!!!!!!!!!!!!!!!!!!!! END STUFF FROM MAIN !!!!!!!!!!!!!!!!!!!!!!!!!
@@ -49,7 +49,7 @@ program panel_geom2
     ! test stuff
     integer :: passed_tests, total_tests
     logical :: test_failed
-    character(len=100),dimension(20) :: failure_log
+    character(len=100),dimension(500) :: failure_log
     character(len=10) :: m_char
     integer(8) :: start_count, end_count
     real(16) :: count_rate, time
@@ -123,7 +123,6 @@ program panel_geom2
     call adjoint_mesh%init(adjoint_geom_settings)
 
     !!!!!!!!!!!! END ADJOINT TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!
-    index = 1
 
     N_verts = test_mesh%N_verts
     N_panels = test_mesh%N_panels
@@ -148,8 +147,8 @@ program panel_geom2
     allocate(residuals3(3,N_verts*3))
     allocate(residuals(N_verts*3))
 
-    error_allowed = 1.0e-7
-    step = 0.00001
+    error_allowed = 1.0e-9
+    step = 0.000001
     index = 1
     vert_ind = 1
     
@@ -163,7 +162,7 @@ program panel_geom2
     
     do z= 1,N_verts ! loop through vertices
         vert_ind = z
-        write(*,'(A,I)') "---------------------------------------------MESH VERTEX TEST ", z
+        write(*,'(A,I5)') "MESH VERTEX TEST ", z
         
         
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST d_loc !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -203,16 +202,16 @@ program panel_geom2
         end do
 
         
-        if (any(abs(maxval(residuals3(:,:)))>error_allowed)) then
+        if (abs(maxval(residuals3(:,:)))>error_allowed) then
             write(*,*) ""
             write(*,*) "     FLAGGED VALUES :"
             do i = 1, N_verts*3
                 if (any(abs(residuals3(:,i))>error_allowed)) then
                     write(*,*) "         Central Difference    d_loc_g      x, y, and z"
-                    write(*, '(8x,3(f14.10, 4x))') d_loc_FD(:,i)
+                    write(*, '(8x,3(f25.10, 4x))') d_loc_FD(:,i)
                     write(*,*) "        adjoint       d_loc_g       x, y, and z                  &
                        residuals"
-                    write(*, '(8x,3(f14.10, 4x),3x, 3(f14.10, 4x))') &
+                    write(*, '(8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') &
                     adjoint_mesh%vertices(vert_ind)%d_loc%get_values(i), residuals3(:,i)
                 end if
             end do
@@ -221,13 +220,29 @@ program panel_geom2
 
         ! check if test failed
         do i=1,N_verts*3
-            if (any(abs(residuals3(:,i)) > error_allowed) .and. any(abs(d_loc_FD(:,i))<10.0) .and. &
-            any(abs(residuals3(:,i)) > error_allowed*10.0)) then
-                test_failed = .true.
-                exit
+            if (any(abs(residuals3(:,i)) > error_allowed)) then 
+                do j = 1,3
+                    if (abs(d_loc_FD(j,i))>100.0 .and. &
+                            abs(residuals3(j,i)) > error_allowed*100.0) then
+                        test_failed = .true.
+                        exit
+                    elseif (abs(d_loc_FD(j,i))>10.0 .and. &
+                            abs(residuals3(j,i)) > error_allowed*10.0) then
+                        test_failed = .true.
+                        exit
+                    end if
+                    
+                end do
             else 
                 test_failed = .false.
             end if
+            ! if (any(abs(residuals3(:,i)) > error_allowed) .and. any(abs(d_loc_FD(:,i))<10.0) .and. &
+            ! any(abs(residuals3(:,i)) > error_allowed*10.0)) then
+            !     test_failed = .true.
+            !     exit
+            ! else 
+            !     test_failed = .false.
+            ! end if
         end do
         if (test_failed) then
             total_tests = total_tests + 1
@@ -247,9 +262,9 @@ program panel_geom2
 
     
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!    FOR EACH PANEL       !!!!!!!!!!!!!!!!!!!!!
-    do y = N_panels
+    do y = 1,N_panels
         index = y
-        write(*,'(A,I)') "--------------------------------------------- PANEL TEST ", y
+        write(*,'(A,I5)') "PANEL TEST ", y
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST d_normal and d_centr !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -311,19 +326,19 @@ program panel_geom2
         ! calculate residuals3
         do i =1, N_verts*3
             residuals3(:,i) = adjoint_mesh%panels(index)%d_n_g%get_values(i) - d_n_g_FD(:,i)
-        endcentr
+        end do
 
         
-        if (any(abs(maxval(residuals3(:,:)))>error_allowed)) then
+        if (abs(maxval(residuals3(:,:)))>error_allowed) then
             write(*,*) ""
             write(*,*) "     FLAGGED VALUES :"
             do i = 1, N_verts*3
                 if (any(abs(residuals3(:,i))>error_allowed)) then
                     write(*,*) "         Central Difference    d_n_g      x, y, and z"
-                    write(*, '(8x,3(f14.10, 4x))') d_n_g_FD(:,i)
+                    write(*, '(8x,3(f25.10, 4x))') d_n_g_FD(:,i)
                     write(*,*) "        adjoint       d_n_g      x, y, and z                  &
                     residuals"
-                    write(*, '(8x,3(f14.10, 4x),3x, 3(f14.10, 4x))') &
+                    write(*, '(8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') &
                     adjoint_mesh%panels(index)%d_n_g%get_values(i), residuals3(:,i)
                 end if
             end do
@@ -332,10 +347,25 @@ program panel_geom2
 
         ! check if test failed
         do i=1,N_verts*3
-            if (any(abs(residuals3(:,i)) > error_allowed) .and. any(abs(d_n_g_FD(:,i)hat_)<10.0) .and. &
-            any(abs(residuals3(:,i)) > error_allowed*10.0)) then
-                test_failed = .true.
-                exit
+            ! if (any(abs(residuals3(:,i)) > error_allowed) .and. any(abs(d_n_g_FD(:,i))<10.0) .and. &
+            ! any(abs(residuals3(:,i)) > error_allowed*10.0)) then
+            !     test_failed = .true.
+            !     exit
+            ! else 
+            !     test_failed = .false.
+            ! end if
+            if (any(abs(residuals3(:,i)) > error_allowed)) then 
+                do j = 1,3
+                    if (abs(d_n_g_FD(j,i))>100.0 .and. &
+                            abs(residuals3(j,i)) > error_allowed*100.0) then
+                        test_failed = .true.
+                        exit
+                    elseif (abs(d_n_g_FD(j,i))>10.0 .and. &
+                            abs(residuals3(j,i)) > error_allowed*10.0) then
+                        test_failed = .true.
+                        exit
+                    end if
+                end do
             else 
                 test_failed = .false.
             end if
@@ -360,19 +390,19 @@ program panel_geom2
         ! calculate residuals3
         do i =1, N_verts*3
             residuals3(:,i) = adjoint_mesh%panels(index)%d_centr%get_values(i) - d_centr_FD(:,i)
-        endcentr
+        end do
 
         
-        if (any(abs(maxval(residuals3(:,:)))>error_allowed)) then
+        if (abs(maxval(residuals3(:,:)))>error_allowed) then
             write(*,*) ""
             write(*,*) "     FLAGGED VALUES :"
             do i = 1, N_verts*3
                 if (any(abs(residuals3(:,i))>error_allowed)) then
                     write(*,*) "         Central Difference    d_centr     x, y, and z"
-                    write(*, '(8x,3(f14.10, 4x))') d_centr_FD(:,i)
+                    write(*, '(8x,3(f25.10, 4x))') d_centr_FD(:,i)
                     write(*,*) "        adjoint       d_centr      x, y, and z                  &
                     residuals"
-                    write(*, '(8x,3(f14.10, 4x),3x, 3(f14.10, 4x))') &
+                    write(*, '(8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') &
                     adjoint_mesh%panels(index)%d_centr%get_values(i), residuals3(:,i)
                 end if
             end do
@@ -381,10 +411,25 @@ program panel_geom2
 
         ! check if test failed
         do i=1,N_verts*3
-            if (any(abs(residuals3(:,i)) > error_allowed) .and. any(abs(d_centr_FD(:,i))<10.0) .and. &
-            any(abs(residuals3(:,i)) > error_allowed*10.0)) then
-                test_failed = .true.
-                exit
+            ! if (any(abs(residuals3(:,i)) > error_allowed) .and. any(abs(d_centr_FD(:,i))<10.0) .and. &
+            ! any(abs(residuals3(:,i)) > error_allowed*10.0)) then
+            !     test_failed = .true.
+            !     exit
+            ! else 
+            !     test_failed = .false.
+            ! end if
+            if (any(abs(residuals3(:,i)) > error_allowed)) then 
+                do j = 1,3
+                    if (abs(d_centr_FD(j,i))>100.0 .and. &
+                            abs(residuals3(j,i)) > error_allowed*100.0) then
+                        test_failed = .true.
+                        exit
+                    elseif (abs(d_centr_FD(j,i))>10.0 .and. &
+                            abs(residuals3(j,i)) > error_allowed*10.0) then
+                        test_failed = .true.
+                        exit
+                    end if
+                end do
             else 
                 test_failed = .false.
             end if
@@ -448,13 +493,13 @@ program panel_geom2
             residuals(i) = adjoint_mesh%panels(index)%d_A%get_value(i) - d_area_FD(i)
         end do
         
-        if (maxval(abs(residuals))>error_allowed) then
+        if (abs(maxval(residuals))>error_allowed) then
             write(*,*) ""
             write(*,*) "     FLAGGED VALUES :"
             write(*,*) "          d_area FD             adjoint d_area             residual"
             do i = 1, N_verts*3
                 if (abs(residuals(i))>error_allowed) then
-                    write(*, '(8x,(f16.10, 4x),3x, (f16.10, 4x),3x, (f16.10, 4x))') &
+                    write(*, '(8x,(f25.10, 4x),3x, (f25.10, 4x),3x, (f25.10, 4x))') &
                     d_area_FD(i), adjoint_mesh%panels(index)%d_A%get_value(i), residuals(i)
                 end if
             end do
@@ -463,17 +508,31 @@ program panel_geom2
         
         ! check if test failed
         do i=1,N_verts*3
-            if (abs(residuals(i)) > error_allowed .and. abs(d_area_FD(i))<10.0 .and. &
-            abs(residuals(i)) > error_allowed*10.0) then
-                test_failed = .true.
-                exit
+            if (abs(residuals(i)) > error_allowed) then 
+                if (abs(d_area_FD(i))>100.0 .and. &
+                        abs(residuals(i)) > error_allowed*100.0) then
+                    test_failed = .true.
+                    exit
+                elseif (abs(d_area_FD(i))>10.0 .and. &
+                        abs(residuals(i)) > error_allowed*10.0) then
+                    test_failed = .true.
+                    exit
+                end if
             else 
                 test_failed = .false.
             end if
+            
+            ! if (abs(residuals(i)) > error_allowed .and. abs(d_area_FD(i))<10.0 .and. &
+            ! abs(residuals(i)) > error_allowed*10.0) then
+            !     test_failed = .true.
+            !     exit
+            ! else 
+            !     test_failed = .false.
+            ! end if
         end do
         if (test_failed) then
             total_tests = total_tests + 1
-            write(*,'(A,I,A)')"                              d_area panel ",y," test FAILED"
+            write(*,'(A,I5,A)')"                              d_area panel ",y," test FAILED"
             failure_log(total_tests-passed_tests) = "d_area test FAILED"
         else
             ! write(*,*) "        d_area test PASSED"
@@ -540,16 +599,16 @@ program panel_geom2
             end do
 
 
-            if (any(abs(maxval(residuals3(:,:)))>error_allowed)) then
+            if (abs(maxval(residuals3(:,:)))>error_allowed) then
                 write(*,*) ""
                 write(*,*) "     FLAGGED VALUES :"
                 do i = 1, N_verts*3
                     if (any(abs(residuals3(:,i))>error_allowed)) then
-                        write(*,'(A,I,A)') "         Central Difference    d_n_hat_g edge ",m,"      x, y, and z"
-                        write(*, '(8x,3(f14.10, 4x))') d_n_hat_g_FD(:,i,m)
-                        write(*,'(A,I,A)') "        adjoint       d_n_hat_g edge ",m,"      x, y, and z                  &
+                        write(*,'(A,I5,A)') "         Central Difference    d_n_hat_g edge ",m,"      x, y, and z"
+                        write(*, '(8x,3(f25.10, 4x))') d_n_hat_g_FD(:,i,m)
+                        write(*,'(A,I5,A)') "        adjoint       d_n_hat_g edge ",m,"      x, y, and z                  &
                         residuals"
-                        write(*, '(8x,3(f14.10, 4x),3x, 3(f14.10, 4x))') &
+                        write(*, '(8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') &
                         adjoint_mesh%panels(index)%d_n_hat_g(m)%get_values(i), residuals3(:,i)
                     end if
                 end do
@@ -558,17 +617,25 @@ program panel_geom2
     
             ! check if test failed
             do i=1,N_verts*3
-                if (any(abs(residuals3(:,i)) > error_allowed) .and. any(abs(d_n_hat_g_FD(:,i,m))<10.0) .and. &
-                any(abs(residuals3(:,i)) > error_allowed*10.0)) then
-                    test_failed = .true.
-                    exit
+                if (any(abs(residuals3(:,i)) > error_allowed)) then 
+                    do j = 1,3
+                        if (abs(d_n_hat_g_FD(j,i,m))>100.0 .and. &
+                                abs(residuals3(j,i)) > error_allowed*100.0) then
+                            test_failed = .true.
+                            exit
+                        elseif (abs(d_n_hat_g_FD(j,i,m))>10.0 .and. &
+                                abs(residuals3(j,i)) > error_allowed*10.0) then
+                            test_failed = .true.
+                            exit
+                        end if
+                    end do
                 else 
                     test_failed = .false.
                 end if
             end do
             if (test_failed) then
                 total_tests = total_tests + 1
-                write(*,'(A,I,A,I,A)')"                              d_n_hat_g panel ",y," edge ",m," test FAILED"
+                write(*,'(A,I5,A,I5,A)')"                              d_n_hat_g panel ",y," edge ",m," test FAILED"
                 failure_log(total_tests-passed_tests) = "d_n_hat_g test FAILED"
             else
                 ! write(*,*) "        CALC d_n_hat_g test PASSED"
@@ -586,7 +653,7 @@ program panel_geom2
         ! end panel edge loop
         end do
 
-
+    end do ! end panel loop
 
     !!!!!!!!!!!!!! PANEL GEOMETRY  RESULTS!!!!!!!!!!!!!
         write(*,*) "------------------------------------------------------------------------------"
@@ -612,7 +679,7 @@ program panel_geom2
         write(*,*) ""
         call system_clock(end_count)
         time = real(end_count - start_count)/(count_rate*60.0)
-        write(*,'(A,f12.10, A)') " Total test time = ", time, " minutes"
+        write(*,'(A,f25.10, A)') " Total test time = ", time, " minutes"
         write(*,*) ""
         write(*,*) "----------------------"
         write(*,*) "Program Complete"

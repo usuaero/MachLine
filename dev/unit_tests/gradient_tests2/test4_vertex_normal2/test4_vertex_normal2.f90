@@ -177,7 +177,7 @@ program vertex_normal_test2
     
     do z = 1,N_verts ! for each control point
 
-        write(*,'(A,I)') "--------------------------------------------- MESH VERTEX TEST ", z
+        write(*,'(A,I)') "MESH VERTEX TEST ", z
 
         ! for each x, y, z of centr 1 
         do k=1,3
@@ -229,7 +229,7 @@ program vertex_normal_test2
         end do
 
 
-        if (any(abs(maxval(residuals3(:,:)))>error_allowed)) then
+        if (abs(maxval(residuals3(:,:)))>error_allowed) then
             write(*,*) ""
             write(*,*) "     FLAGGED VALUES :"
             do i = 1, N_verts*3

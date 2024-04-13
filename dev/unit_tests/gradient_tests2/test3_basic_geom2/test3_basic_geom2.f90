@@ -241,7 +241,7 @@ program calc_basic_geom2
         do z= 1,N_verts ! loop through control points
             cp_ind  = z
 
-            write(*,'(A,I,A,I)') "--------------------------------------------- TEST FOR PANEL ",y," cp ",z
+            write(*,'(A,I,A,I)') "TEST FOR PANEL ",y," cp ",z
 
             ! update adjoint calcs
             adjoint_geom = adjoint_mesh%panels(index)%calc_basic_geom_adjoint&
@@ -351,7 +351,7 @@ program calc_basic_geom2
             ! write(*,*) ""
 
             ! write(*,'(A,f16.10)') "        Max Residual = ", maxval(abs(residuals))
-            if (maxval(abs(residuals))>error_allowed) then
+            if (abs(maxval(residuals))>error_allowed) then
                 write(*,*) ""
                 write(*,*) "     FLAGGED VALUES :"
                 write(*,*) "          d_h FD             adjoint d_h             residual"
@@ -412,7 +412,7 @@ program calc_basic_geom2
             ! write(*,'(A, I4, A, I4)') "   d_h2 panel ",index, " cp ", cp_ind
             ! write(*,*) ""
             ! write(*,'(A,f16.10)') "        Max Residual = ", maxval(abs(residuals))
-            if (maxval(abs(residuals))>error_allowed) then
+            if (abs(maxval(residuals))>error_allowed) then
                 write(*,*) ""
                 write(*,*) "     FLAGGED VALUES :"
                 write(*,*) "          d_h2 FD             adjoint d_h2             residual"
@@ -551,7 +551,7 @@ program calc_basic_geom2
             ! k," cp ",cp_ind
             ! write(*,*) ""
             ! write(*,'(A,f16.10)') "        Max Residual = ", maxval(abs(residuals3))
-            if (any(abs(residuals3(:,:)) > error_allowed)) then
+            if (abs(maxval(residuals3(:,:)))>error_allowed) then
                 write(*,*) ""
                 write(*,*) "     FLAGGED VALUES :"
                 do i = 1, N_verts*3
@@ -701,7 +701,7 @@ program calc_basic_geom2
                 ! " vertex ",k," cp ",cp_ind
                 ! write(*,*) ""
                 ! write(*,'(A,f16.10)') "        Max Residual = ", maxval(abs(residuals))
-                if (maxval(abs(residuals))>error_allowed) then
+                if (abs(maxval(residuals))>error_allowed) then
                     write(*,*) ""
                     write(*,*) "     FLAGGED VALUES :"
                     write(*,*) "          d_v_xi_FD            adjoint d_v_xi              residuals"
@@ -767,7 +767,7 @@ program calc_basic_geom2
                 ! " vertex ",k," cp ",cp_ind
                 ! write(*,*) ""
                 ! write(*,'(A,f16.10)') "        Max Residual = ", maxval(abs(residuals))
-                if (maxval(abs(residuals))>error_allowed) then
+                if (abs(maxval(residuals))>error_allowed) then
                     write(*,*) ""
                     write(*,*) "     FLAGGED VALUES :"
                     write(*,*) "          d_v_eta_FD            adjoint d_v_eta              residuals"
@@ -930,7 +930,7 @@ program calc_basic_geom2
                 ! end if 
                 ! write(*,*) ""
                 ! write(*,'(A,f16.10)') "        Max Residual = ", maxval(abs(residuals))
-                if (maxval(abs(residuals))>error_allowed) then
+                if (abs(maxval(residuals))>error_allowed) then
                     write(*,*) ""
                     write(*,*) "     FLAGGED VALUES :"
                     if (k==1) then
@@ -1097,7 +1097,7 @@ program calc_basic_geom2
                 
                     ! write(*,*) ""
                     ! write(*,'(A,f16.10)') "        Max Residual = ", maxval(abs(residuals))
-                    if (maxval(abs(residuals))>error_allowed) then
+                    if (abs(maxval(residuals))>error_allowed) then
                         write(*,*) ""
                         write(*,*) "     FLAGGED VALUES :"
                         write(*,*) "          d_d_ls_FD            adjoint d_d_ls              residuals"
