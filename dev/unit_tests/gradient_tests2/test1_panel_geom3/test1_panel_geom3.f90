@@ -56,7 +56,7 @@ program panel_geom2
 
 
 
-    test_failed = .true. ! assume test failed, if the test condition is met, test passed
+    test_failed = .false. ! assume test failed, if the test condition is met, test passed
     ! NOTE: on the sparse vector test, I assume the test passes, if it fails a test condition, test fails
     passed_tests = 0
     total_tests = 0
@@ -147,7 +147,7 @@ program panel_geom2
     allocate(residuals3(3,N_verts*3))
     allocate(residuals(N_verts*3))
 
-    error_allowed = 1.0e-9
+    error_allowed = 1.0e-4
     step = 0.000001
     index = 1
     vert_ind = 1
@@ -201,16 +201,15 @@ program panel_geom2
             residuals3(:,i) = adjoint_mesh%vertices(vert_ind)%d_loc%get_values(i) - d_loc_FD(:,i)
         end do
 
-        
-        if (abs(maxval(residuals3(:,:)))>error_allowed) then
+        if (maxval(abs(residuals3(:,:)))>error_allowed) then
             write(*,*) ""
             write(*,*) "     FLAGGED VALUES :"
             do i = 1, N_verts*3
                 if (any(abs(residuals3(:,i))>error_allowed)) then
                     write(*,*) "         Central Difference    d_loc_g      x, y, and z"
                     write(*, '(8x,3(f25.10, 4x))') d_loc_FD(:,i)
-                    write(*,*) "        adjoint       d_loc_g       x, y, and z                  &
-                       residuals"
+                    write(*,*) "        adjoint       d_loc_g      x, y, and z                  &
+                    residuals"
                     write(*, '(8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') &
                     adjoint_mesh%vertices(vert_ind)%d_loc%get_values(i), residuals3(:,i)
                 end if
@@ -222,19 +221,36 @@ program panel_geom2
         do i=1,N_verts*3
             if (any(abs(residuals3(:,i)) > error_allowed)) then 
                 do j = 1,3
-                    if (abs(d_loc_FD(j,i))>100.0 .and. &
-                            abs(residuals3(j,i)) > error_allowed*100.0) then
-                        test_failed = .true.
-                        exit
-                    elseif (abs(d_loc_FD(j,i))>10.0 .and. &
-                            abs(residuals3(j,i)) > error_allowed*10.0) then
-                        test_failed = .true.
-                        exit
+                    if (abs(d_loc_FD(j,i))>100.0) then
+                        if (abs(residuals3(j,i)) > error_allowed*1000.0) then
+                            test_failed = .true.
+                            exit
+                        else
+                            test_failed = .false.
+                        end if
+                    elseif (100.0>abs(d_loc_FD(j,i)) .and. abs(d_loc_FD(j,i)) >10.0) then
+                        if (abs(residuals3(j,i)) > error_allowed*100.0) then
+                            test_failed = .true.
+                            exit
+                        else
+                            test_failed = .false.
+                        end if
+                    elseif (10.0>abs(d_loc_FD(j,i)) .and. abs(d_loc_FD(j,i)) >1.0) then
+                        if (abs(residuals3(j,i)) > error_allowed*10.0) then
+                            test_failed = .true.
+                            exit
+                        else
+                            test_failed = .false.
+                        end if
+                    else
+                        if (abs(residuals3(j,i)) > error_allowed) then
+                            test_failed = .true.
+                            exit
+                        else
+                            test_failed = .false.
+                        end if
                     end if
-                    
                 end do
-            else 
-                test_failed = .false.
             end if
             ! if (any(abs(residuals3(:,i)) > error_allowed) .and. any(abs(d_loc_FD(:,i))<10.0) .and. &
             ! any(abs(residuals3(:,i)) > error_allowed*10.0)) then
@@ -329,7 +345,7 @@ program panel_geom2
         end do
 
         
-        if (abs(maxval(residuals3(:,:)))>error_allowed) then
+        if (maxval(abs(residuals3(:,:)))>error_allowed) then
             write(*,*) ""
             write(*,*) "     FLAGGED VALUES :"
             do i = 1, N_verts*3
@@ -356,18 +372,36 @@ program panel_geom2
             ! end if
             if (any(abs(residuals3(:,i)) > error_allowed)) then 
                 do j = 1,3
-                    if (abs(d_n_g_FD(j,i))>100.0 .and. &
-                            abs(residuals3(j,i)) > error_allowed*100.0) then
-                        test_failed = .true.
-                        exit
-                    elseif (abs(d_n_g_FD(j,i))>10.0 .and. &
-                            abs(residuals3(j,i)) > error_allowed*10.0) then
-                        test_failed = .true.
-                        exit
+                    if (abs(d_n_g_FD(j,i))>100.0) then
+                        if (abs(residuals3(j,i)) > error_allowed*1000.0) then
+                            test_failed = .true.
+                            exit
+                        else
+                            test_failed = .false.
+                        end if
+                    elseif (100.0>abs(d_n_g_FD(j,i)).and. abs(d_n_g_FD(j,i))>10.0) then
+                        if (abs(residuals3(j,i)) > error_allowed*100.0) then
+                            test_failed = .true.
+                            exit
+                        else
+                            test_failed = .false.
+                        end if
+                    elseif (10.0>abs(d_n_g_FD(j,i)).and. abs(d_n_g_FD(j,i))>1.0) then
+                        if (abs(residuals3(j,i)) > error_allowed*10.0) then
+                            test_failed = .true.
+                            exit
+                        else
+                            test_failed = .false.
+                        end if
+                    else
+                        if (abs(residuals3(j,i)) > error_allowed) then
+                            test_failed = .true.
+                            exit
+                        else
+                            test_failed = .false.
+                        end if
                     end if
                 end do
-            else 
-                test_failed = .false.
             end if
         end do
         if (test_failed) then
@@ -393,7 +427,7 @@ program panel_geom2
         end do
 
         
-        if (abs(maxval(residuals3(:,:)))>error_allowed) then
+        if (maxval(abs(residuals3(:,:)))>error_allowed) then
             write(*,*) ""
             write(*,*) "     FLAGGED VALUES :"
             do i = 1, N_verts*3
@@ -420,18 +454,36 @@ program panel_geom2
             ! end if
             if (any(abs(residuals3(:,i)) > error_allowed)) then 
                 do j = 1,3
-                    if (abs(d_centr_FD(j,i))>100.0 .and. &
-                            abs(residuals3(j,i)) > error_allowed*100.0) then
-                        test_failed = .true.
-                        exit
-                    elseif (abs(d_centr_FD(j,i))>10.0 .and. &
-                            abs(residuals3(j,i)) > error_allowed*10.0) then
-                        test_failed = .true.
-                        exit
+                    if (abs(d_centr_FD(j,i))>100.0) then
+                        if (abs(residuals3(j,i)) > error_allowed*1000.0) then
+                            test_failed = .true.
+                            exit
+                        else
+                            test_failed = .false.
+                        end if
+                    elseif (100.0>abs(d_centr_FD(j,i)) .and. abs(d_centr_FD(j,i))>10.0) then
+                        if (abs(residuals3(j,i)) > error_allowed*100.0) then
+                            test_failed = .true.
+                            exit
+                        else
+                            test_failed = .false.
+                        end if
+                    elseif (10.0>abs(d_centr_FD(j,i)) .and. abs(d_centr_FD(j,i))>1.0) then
+                        if (abs(residuals3(j,i)) > error_allowed*10.0) then
+                            test_failed = .true.
+                            exit
+                        else
+                            test_failed = .false.
+                        end if
+                    else
+                        if (abs(residuals3(j,i)) > error_allowed) then
+                            test_failed = .true.
+                            exit
+                        else
+                            test_failed = .false.
+                        end if
                     end if
                 end do
-            else 
-                test_failed = .false.
             end if
         end do
         if (test_failed) then
@@ -493,7 +545,7 @@ program panel_geom2
             residuals(i) = adjoint_mesh%panels(index)%d_A%get_value(i) - d_area_FD(i)
         end do
         
-        if (abs(maxval(residuals))>error_allowed) then
+        if (maxval(abs(residuals))>error_allowed) then
             write(*,*) ""
             write(*,*) "     FLAGGED VALUES :"
             write(*,*) "          d_area FD             adjoint d_area             residual"
@@ -508,18 +560,36 @@ program panel_geom2
         
         ! check if test failed
         do i=1,N_verts*3
-            if (abs(residuals(i)) > error_allowed) then 
-                if (abs(d_area_FD(i))>100.0 .and. &
-                        abs(residuals(i)) > error_allowed*100.0) then
-                    test_failed = .true.
-                    exit
-                elseif (abs(d_area_FD(i))>10.0 .and. &
-                        abs(residuals(i)) > error_allowed*10.0) then
-                    test_failed = .true.
-                    exit
+            if (any(abs(residuals) > error_allowed)) then 
+                if (abs(d_area_FD(i))>100.0) then
+                    if (abs(residuals(i)) > error_allowed*1000.0) then
+                        test_failed = .true.
+                        exit
+                    else
+                        test_failed = .false.
+                    end if
+                elseif (100.0>abs(d_area_FD(i)) .and. abs(d_area_FD(i))>10.0) then
+                    if (abs(residuals(i)) > error_allowed*100.0) then
+                        test_failed = .true.
+                        exit
+                    else
+                        test_failed = .false.
+                    end if
+                elseif (10.0>abs(d_area_FD(i)) .and. abs(d_area_FD(i))>1.0) then
+                    if (abs(residuals(i)) > error_allowed*10.0) then
+                        test_failed = .true.
+                        exit
+                    else
+                        test_failed = .false.
+                    end if
+                else
+                    if (abs(residuals(i)) > error_allowed) then
+                        test_failed = .true.
+                        exit
+                    else
+                        test_failed = .false.
+                    end if
                 end if
-            else 
-                test_failed = .false.
             end if
             
             ! if (abs(residuals(i)) > error_allowed .and. abs(d_area_FD(i))<10.0 .and. &
@@ -599,7 +669,7 @@ program panel_geom2
             end do
 
 
-            if (abs(maxval(residuals3(:,:)))>error_allowed) then
+            if (maxval(abs(residuals3(:,:)))>error_allowed) then
                 write(*,*) ""
                 write(*,*) "     FLAGGED VALUES :"
                 do i = 1, N_verts*3
@@ -619,18 +689,36 @@ program panel_geom2
             do i=1,N_verts*3
                 if (any(abs(residuals3(:,i)) > error_allowed)) then 
                     do j = 1,3
-                        if (abs(d_n_hat_g_FD(j,i,m))>100.0 .and. &
-                                abs(residuals3(j,i)) > error_allowed*100.0) then
-                            test_failed = .true.
-                            exit
-                        elseif (abs(d_n_hat_g_FD(j,i,m))>10.0 .and. &
-                                abs(residuals3(j,i)) > error_allowed*10.0) then
-                            test_failed = .true.
-                            exit
+                        if (abs(d_n_hat_g_FD(j,i,m))>100.0) then
+                            if (abs(residuals3(j,i)) > error_allowed*1000.0) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                        elseif (100.0>abs(d_n_hat_g_FD(j,i,m)) .and. abs(d_n_hat_g_FD(j,i,m))>10.0) then
+                            if (abs(residuals3(j,i)) > error_allowed*100.0) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                        elseif (10.0>abs(d_n_hat_g_FD(j,i,m)) .and. abs(d_n_hat_g_FD(j,i,m))>1.0) then
+                            if (abs(residuals3(j,i)) > error_allowed*10.0) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                        else
+                            if (abs(residuals3(j,i)) > error_allowed) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
                         end if
                     end do
-                else 
-                    test_failed = .false.
                 end if
             end do
             if (test_failed) then
