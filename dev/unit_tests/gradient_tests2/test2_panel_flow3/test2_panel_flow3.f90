@@ -36,21 +36,25 @@ program panel_flow2
     type(surface_mesh) :: test_mesh, adjoint_mesh
     type(flow) :: freestream_flow, adjoint_freestream_flow
     ! type(panel_solver) :: linear_solver, adjoint_linear_solver
-    integer :: start_count, end_count, i_unit
+    integer :: i_unit
     logical :: exists, found
 
     !!!!!!!!!!!!!!!!!!!!! END STUFF FROM MAIN !!!!!!!!!!!!!!!!!!!!!!!!!
 
-    real,dimension(:),allocatable :: residuals, X_beta, A_g_to_ls_up, A_g_to_ls_dn,  A_ls_to_g_up, &
-    A_ls_to_g_dn, vertices_ls_up, vertices_ls_dn, d_vertices_ls_FD, n_hat_ls_up, n_hat_ls_dn, &
-    d_n_hat_ls_FD, T_mu_up, T_mu_dn
+    real,dimension(:),allocatable :: residuals, X_beta
 
-    real,dimension(:,:),allocatable :: v, vertex_locs, residuals3 
+    real,dimension(:,:),allocatable :: v, vertex_locs, residuals3, residuals2,&
+    A_g_to_ls_up, A_g_to_ls_dn, d_A_g_to_ls_FD,&
+    A_ls_to_g_up, A_ls_to_g_dn, d_A_ls_to_g_FD,&
+    vertices_ls_up, vertices_ls_dn, d_vertices_ls_FD,&
+    n_hat_ls_up, n_hat_ls_dn, d_n_hat_ls_FD, &
+    T_mu_up, T_mu_dn, d_T_mu_FD
 
-    real,dimension(:,:,:),allocatable ::  d_A_g_to_ls_FD, d_A_ls_to_g_FD, d_T_mu_FD
+    ! real,dimension(:,:,:),allocatable ::  d_A_g_to_ls_FD, d_A_ls_to_g_FD, d_T_mu_FD,&
+    ! d_vertices_ls_FD
 
-    integer :: i,j,k,m,n, N_verts, N_panels, vert, index
-    real :: step
+    integer :: i,j,k,m,n,y, N_verts, N_panels, vert, index
+    real :: step, error_allowed
     type(vertex),dimension(:),allocatable :: vertices ! list of vertex types, this should be a mesh attribute
     type(panel),dimension(:),allocatable :: panels, adjoint_panels   ! list of panels, this should be a mesh attribute
 
@@ -59,11 +63,12 @@ program panel_flow2
     logical :: test_failed
     character(len=100),dimension(20) :: failure_log
     character(len=10) :: m_char
+    integer(8) :: start_count, end_count
+    real(16) :: count_rate, time
 
 
 
-    test_failed = .true. ! assume test failed, if the test condition is met, test passed
-    ! NOTE: on the sparse vector test, I assume the test passes, if it fails a test condition, test fails
+    test_failed = .false. 
     passed_tests = 0
     total_tests = 0
 
@@ -180,737 +185,67 @@ program panel_flow2
     
     
     allocate(residuals3(3,N_verts*3))
+    allocate(residuals2(2,N_verts*3))
     allocate(residuals(N_verts*3))
+    allocate(A_g_to_ls_up(N_verts*3,3))
+    allocate(A_g_to_ls_dn(N_verts*3,3))
+    allocate(d_A_g_to_ls_FD(N_verts*3,3))
+    allocate(A_ls_to_g_up(N_verts*3,3))
+    allocate(A_ls_to_g_dn(N_verts*3,3))
+    allocate(d_A_ls_to_g_FD(N_verts*3,3))
+    allocate(vertices_ls_up(N_verts*3,2))
+    allocate(vertices_ls_dn(N_verts*3,2))
+    allocate(d_vertices_ls_FD(N_verts*3,2))
+    allocate(n_hat_ls_up(N_verts*3,2))
+    allocate(n_hat_ls_dn(N_verts*3,2))
+    allocate(d_n_hat_ls_FD(N_verts*3,2))
+    allocate(T_mu_up(N_verts*3,3))
+    allocate(T_mu_dn(N_verts*3,3))
+    allocate(d_T_mu_FD(N_verts*3,3))
     
-    step = 0.00001
+    error_allowed = 1.0e-7
+    step = 0.000001
     index = 1
     
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! FLOW-DEPENDENT PANEL SENSITIVITIES TEST !!!!!!!!!!!!!!!!!!!!!!!!!!!!
     write(*,*) ""
-    write(*,*) ""
-    write(*,*) "------------------------------ FLOW-DEPENDENT PANEL SENSITIVITIES TEST ---------------------------------"
-    write(*,*) ""
+    write(*,*) "-----------------------------------------------------------------------"
+    write(*,*) "                FLOW-DEPENDENT PANEL SENSITIVITIES TEST "
+    write(*,*) "-----------------------------------------------------------------------"
     write(*,*) ""
     write(*,*) ""
 
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST d_A_g_to_ls !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    write(*,*) "-------------------------------- TEST d_A_g_to_ls -------------------------------"
-    write(*,*) ""
-    write(*,*) "the sensitivity of the global to ls transformation matrix of panel 1 WRT each design variable"
-    write(*,*) ""
-    
-    ! allocate central difference variables
-    allocate(A_g_to_ls_up(N_verts*3))
-    allocate(A_g_to_ls_dn(N_verts*3))
-    allocate(d_A_g_to_ls_FD(3,N_verts*3,3))
-    
-    
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!    FOR EACH PANEL       !!!!!!!!!!!!!!!!!!!!!
+    do y = 1,N_panels
+        index = y
+        write(*,'(A,I5)') "PANEL FLOW TEST, panel = ", y
 
-    
-    ! do for each row of A_g_to_ls
-    do m=1,3
+
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST d_A_g_to_ls and d_A_ls_to_g  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!       
         
-        !!!!!!!!! Finite Difference  d_A_g_to_ls (row m) !!!!!!!!!
-        write(*,*) ""
-        write(*,*) "------------------------------------------------"
-        write(*,*) ""
-        write(*,'(A, I1, A)') "  CENTRAL DIFFERENCE d_A_g_to_ls (row ", m, ")"
-    
-        
-        ! for each x, y, z of A_g_to_ls (row m) 
-        do k=1,3
-            ! do for each design variable
-            do i=1,3
-                do j=1,N_verts
-                    ! perturb up the current design variable
-                    test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
-                    
-                    ! update panel geometry and calcs
-                    deallocate(test_mesh%panels(index)%n_hat_g)
-                    call test_mesh%panels(index)%calc_derived_geom()
-                    
-                    deallocate(test_mesh%panels(index)%vertices_ls)
-                    deallocate(test_mesh%panels(index)%n_hat_ls)
-                    deallocate(test_mesh%panels(index)%b)
-                    deallocate(test_mesh%panels(index)%b_mir)  
-                    deallocate(test_mesh%panels(index)%sqrt_b)
-                    call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
-                    
-                    ! put the x y or z component of the panel's perturbed edge outward normal unit vector in a list
-                    A_g_to_ls_up(j + (i-1)*N_verts) = test_mesh%panels(index)%A_g_to_ls(m,k)
-                    
-                    ! perturb down the current design variable
-                    test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - 2.*step
-                    
-                    
-                    ! update panel geometry and calcs
-                    deallocate(test_mesh%panels(index)%n_hat_g)
-                    call test_mesh%panels(index)%calc_derived_geom()
-                    
-                    deallocate(test_mesh%panels(index)%vertices_ls)
-                    deallocate(test_mesh%panels(index)%n_hat_ls)
-                    deallocate(test_mesh%panels(index)%b)
-                    deallocate(test_mesh%panels(index)%b_mir)  
-                    deallocate(test_mesh%panels(index)%sqrt_b)
-                    call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
-                    
-                    ! put the x y or z component of the panel's perturbed edge outward normal unit vector in a list
-                    A_g_to_ls_dn(j + (i-1)*N_verts) = test_mesh%panels(index)%A_g_to_ls(m,k)
-                    
-                    ! restore geometry
-                    test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
-                    
-                    
-                    
-                end do 
-            end do 
+        ! do for each row of A_g_to_ls or A_ls_to_G
+        do m=1,3
             
-            ! central difference 
-            d_A_g_to_ls_FD(m,:,k) = (A_g_to_ls_up - A_g_to_ls_dn)/(2.*step)
-
-        end do
-
-        ! write results
-        write(*,*) ""
-        write(*,'(A, I1, A)') "          d_A_g_to_ls_FD panel 1 (row ", m, ")"
-        write(*,*) "  d_A_g_to_ls_x           d_A_g_to_ls_y            d_A_g_to_ls_z "
-        do i = 1, N_verts*3
-            write(*, '(3(f14.10, 4x))') d_A_g_to_ls_FD(m,i, :)
-        end do 
-
-        
-        !!!!!!!!!! ADJOINT d_A_g_to_ls (edge m)!!!!!!!!!!!!!
-        write(*,*) ""
-        write(*,*) "------------------------------------------------"
-        write(*,*) ""
-        write(*,'(A, I1, A)') "  ADJOINT d_A_g_to_ls (row ", m, ")"
-        write(*,*) ""
-           
-        
-        ! write sparse matrix
-        write(*,*) ""
-        write(*,'(A, I1, A)') "          d_A_g_to_ls panel 1 (row ", m, ")"
-        write(*,*) "  d_A_g_to_ls_x           d_A_g_to_ls_y           d_A_g_to_ls_z             sparse_index       full_index"
-        do i=1,adjoint_mesh%panels(index)%d_A_g_to_ls(m)%sparse_num_cols
-            write(*,'(3(f14.10, 4x), 12x, I5, 12x, I5)') adjoint_mesh%panels(index)%d_A_g_to_ls(m)%columns(i)%vector_values(:), &
-            i, adjoint_mesh%panels(index)%d_A_g_to_ls(m)%columns(i)%full_index
-        end do
-        write(*,*) ""
-
-        ! calculate residuals3
-        do i =1, N_verts*3
-            residuals3(:,i) = adjoint_mesh%panels(index)%d_A_g_to_ls(m)%get_values(i) - d_A_g_to_ls_FD(m,i,:)
-        end do
-        
-        write(*,'(A, I1, A)') "         d_A_g_to_ls panel 1 (row ", m, ") expanded "
-        write(*,*) "  d_A_g_to_ls_x           d_A_g_to_ls_y           d_A_g_to_ls_z                            residuals"
-        do i = 1, N_verts*3
-            write(*, '(3(f14.10, 4x),3x, 3(f14.10, 4x))') adjoint_mesh%panels(index)%d_A_g_to_ls(m)%get_values(i), residuals3(:,i)
-        end do
-        write(*,*) ""
-
-
-        ! check if test failed
-        do i=1,N_verts*3
-            if (any(abs(residuals3(:,i)) > 1.0e-8)) then
-                test_failed = .true.
-                exit
-            else 
-                test_failed = .false.
-            end if
-        end do
-        if (test_failed) then
-            total_tests = total_tests + 1
-            write(m_char,'(I1)') m
-            failure_log(total_tests-passed_tests) = "d_A_g_to_ls (row "// trim(m_char) // ") test FAILED"
-            write(*,*) failure_log(total_tests-passed_tests)
-        else
-            write(*,'(A, I1, A)') "d_A_g_to_ls (row ",m,") test PASSED"
-            passed_tests = passed_tests + 1
-            total_tests = total_tests + 1
-        end if
-        test_failed = .false.
-        write(*,*) "" 
-        write(*,*) ""
-
-        
-    ! end panel edge loop
-    end do
-
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST d_A_ls_to_g !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    write(*,*) "---------------------------------- TEST d_A_ls_to_g ----------------------------------"
-    write(*,*) ""
-    write(*,*) "the sensitivity of the global to ls transformation matrix for panel 1 WRT each design variable"
-    write(*,*) ""
-    
-    ! allocate central difference variables
-    allocate(A_ls_to_g_up(N_verts*3))
-    allocate(A_ls_to_g_dn(N_verts*3))
-    allocate(d_A_ls_to_g_FD(3,N_verts*3,3))
-
-    
-
-
-    ! do for each row of A_ls_to_g
-    do m=1,3
-
-        !!!!!!!!! Finite Difference  d_A_ls_to_g (row m) !!!!!!!!!
-        write(*,*) ""
-        write(*,*) "------------------------------------------------"
-        write(*,*) ""
-        write(*,'(A, I1, A)') "  CENTRAL DIFFERENCE d_A_ls_to_g (row ", m, ")"
-
-
-        ! for each x, y, z of A_ls_to_g (row m) 
-        do k=1,3
-            ! do for each design variable
-            do i=1,3
-                do j=1,N_verts
-                    ! perturb up the current design variable
-                    test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
-                    
-                    ! update panel geometry and calcs
-                    deallocate(test_mesh%panels(index)%n_hat_g)
-                    call test_mesh%panels(index)%calc_derived_geom()
-                    
-                    deallocate(test_mesh%panels(index)%vertices_ls)
-                    deallocate(test_mesh%panels(index)%n_hat_ls)
-                    deallocate(test_mesh%panels(index)%b)
-                    deallocate(test_mesh%panels(index)%b_mir)  
-                    deallocate(test_mesh%panels(index)%sqrt_b)
-                    call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
-                    
-
-                    ! put the x y or z component of the panel's perturbed edge outward normal unit vector in a list
-                    A_ls_to_g_up(j + (i-1)*N_verts) = test_mesh%panels(index)%A_ls_to_g(m,k)
-
-                    ! perturb down the current design variable
-                    test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - 2.*step
-
-                
-                    ! update panel geometry and calcs
-                    deallocate(test_mesh%panels(index)%n_hat_g)
-                    call test_mesh%panels(index)%calc_derived_geom()
-                    
-                    deallocate(test_mesh%panels(index)%vertices_ls)
-                    deallocate(test_mesh%panels(index)%n_hat_ls)
-                    deallocate(test_mesh%panels(index)%b)
-                    deallocate(test_mesh%panels(index)%b_mir)  
-                    deallocate(test_mesh%panels(index)%sqrt_b)
-                    call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
-                    
-                    
-                    ! put the x y or z component of the panel's perturbed edge outward normal unit vector in a list
-                    A_ls_to_g_dn(j + (i-1)*N_verts) = test_mesh%panels(index)%A_ls_to_g(m,k)
-                
-                    ! restore geometry
-                    test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
-                    
-                    
-
-                end do 
-            end do 
-
-            ! central difference 
-            d_A_ls_to_g_FD(m,:,k) = (A_ls_to_g_up - A_ls_to_g_dn)/(2.*step)
-
-        end do
-
-        ! write results
-        write(*,*) ""
-        write(*,'(A, I1, A)') "          d_A_ls_to_g_FD panel 1 (row ", m, ")"
-        write(*,*) "  d_A_ls_to_g_x           d_A_ls_to_g_y            d_A_ls_to_g_z "
-        do i = 1, N_verts*3
-            write(*, '(3(f14.10, 4x))') d_A_ls_to_g_FD(m,i, :)
-        end do 
-
-
-        !!!!!!!!!! ADJOINT d_A_ls_to_g (edge m)!!!!!!!!!!!!!
-        write(*,*) ""
-        write(*,*) "------------------------------------------------"
-        write(*,*) ""
-        write(*,'(A, I1, A)') "  ADJOINT d_A_ls_to_g (row ", m, ")"
-        write(*,*) ""
-
-
-        
-        ! write sparse matrix
-        write(*,*) ""
-        write(*,'(A, I1, A)') "          d_A_ls_to_g panel 1 (row ", m, ")"
-        write(*,*) "  d_A_ls_to_g_x           d_A_ls_to_g_y           d_A_ls_to_g_z             sparse_index       full_index"
-        do i=1,adjoint_mesh%panels(index)%d_A_ls_to_g(m)%sparse_num_cols
-            write(*,'(3(f14.10, 4x), 12x, I5, 12x, I5)') adjoint_mesh%panels(index)%d_A_ls_to_g(m)%columns(i)%vector_values(:), &
-            i, adjoint_mesh%panels(index)%d_A_ls_to_g(m)%columns(i)%full_index
-        end do
-        write(*,*) ""
-
-        ! calculate residuals3
-        do i =1, N_verts*3
-            residuals3(:,i) = adjoint_mesh%panels(index)%d_A_ls_to_g(m)%get_values(i) - d_A_ls_to_g_FD(m,i,:)
-        end do
-
-        write(*,'(A, I1, A)') "         d_A_ls_to_g panel 1 (row ", m, ") expanded "
-        write(*,*) "  d_A_ls_to_g_x           d_A_ls_to_g_y           d_A_ls_to_g_z                            residuals"
-        do i = 1, N_verts*3
-            write(*, '(3(f14.10, 4x),3x, 3(f14.10, 4x))') adjoint_mesh%panels(index)%d_A_ls_to_g(m)%get_values(i), residuals3(:,i)
-        end do
-        write(*,*) ""
-
-
-        ! check if test failed
-        do i=1,N_verts*3
-            if (any(abs(residuals3(:,i)) > 1.0e-8)) then
-                test_failed = .true.
-                exit
-            else 
-                test_failed = .false.
-            end if
-        end do
-        if (test_failed) then
-            total_tests = total_tests + 1
-            write(m_char,'(I1)') m
-            failure_log(total_tests-passed_tests) = "d_A_ls_to_g (row "// trim(m_char) // ") test FAILED"
-            write(*,*) failure_log(total_tests-passed_tests)
-        else
-            write(*,'(A, I1, A)') "d_A_ls_to_g (row ",m,") test PASSED"
-            passed_tests = passed_tests + 1
-            total_tests = total_tests + 1
-        end if
-        test_failed = .false.
-        write(*,*) "" 
-        write(*,*) ""
-
-        
-    ! end panel edge loop
-    end do
-
-
-
-
-!!!!!d!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST d_vertices_ls !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    write(*,*) "---------------------------------- TEST d_vertices_ls ----------------------------------"
-    write(*,*) ""
-    write(*,*) "the sensitivity of the panel 1 vertices in local scaled coordinates WRT each design variable"
-    write(*,*) ""
-    
-    ! allocate central difference variables
-    allocate(vertices_ls_up(N_verts*3))
-    allocate(vertices_ls_dn(N_verts*3))
-    allocate(d_vertices_ls_FD(N_verts*3))
-
-    
-
-
-    ! do for vertex
-    do m=1,3
-
-        write(*,*) "---------------------------------- TEST d_vertices_ls VERTEX", m, "  ----------------------------------"
-        write(*,*) ""
-
-        ! do for xi and eta
-        do n = 1,2
-
-
-            !!!!!!!!! Finite Difference  d_vertices_ls (vertex m, coordinate n) !!!!!!!!!
-            write(*,*) ""
-            write(*,*) "---------------------------------------------------------------------------------------------"
-            write(*,*) ""
-            if (n==1) then
-                write(*,'(A, I1, A)') "  CENTRAL DIFFERENCE d_vertices_ls (vertex ", m, " xi coordinate)"
-            else 
-                write(*,'(A, I1, A)') "  CENTRAL DIFFERENCE d_vertices_ls (vertex ", m, " eta coordinate)"
-            end if
-            
-
-            ! ! for each x, y, z of n_hat_g (edge m) 
+            ! for each x, y, z of A_g_to_ls (row m) 
             ! do k=1,3
-                ! do for each design variable
-                do i=1,3
-                    do j=1,N_verts
-                        ! perturb up the current design variable
-                        test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
-                        
-                        ! update panel geometry and calcs
-                        deallocate(test_mesh%panels(index)%n_hat_g)
-                        call test_mesh%panels(index)%calc_derived_geom()
-                        
-                        deallocate(test_mesh%panels(index)%vertices_ls)
-                        deallocate(test_mesh%panels(index)%n_hat_ls)
-                        deallocate(test_mesh%panels(index)%b)
-                        deallocate(test_mesh%panels(index)%b_mir)  
-                        deallocate(test_mesh%panels(index)%sqrt_b)
-                        call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
-                        
-                        ! put the x y or z component of the panel's perturbed edge outward normal unit vector in a list
-                        vertices_ls_up(j + (i-1)*N_verts) = test_mesh%panels(index)%vertices_ls(n,m)
-
-                        ! perturb down the current design variable
-                        test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - 2.*step
-
-                    
-                        ! update panel geometry and calcs
-                        deallocate(test_mesh%panels(index)%n_hat_g)
-                        call test_mesh%panels(index)%calc_derived_geom()
-                        
-                        deallocate(test_mesh%panels(index)%vertices_ls)
-                        deallocate(test_mesh%panels(index)%n_hat_ls)
-                        deallocate(test_mesh%panels(index)%b)
-                        deallocate(test_mesh%panels(index)%b_mir)  
-                        deallocate(test_mesh%panels(index)%sqrt_b)
-                        call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
-                        
-                        
-                        ! put the x y or z component of the panel's perturbed edge outward normal unit vector in a list
-                        vertices_ls_dn(j + (i-1)*N_verts) = test_mesh%panels(index)%vertices_ls(n,m)
-                    
-                        ! restore geometry
-                        test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
-                        
-                        
-
-                    end do 
-                end do 
-
-                ! central difference 
-                d_vertices_ls_FD(:) = (vertices_ls_up - vertices_ls_dn)/(2.*step)
-
-            ! end do
-
-            ! write results
-            write(*,*) ""
-            if (n==1) then
-                write(*,'(A, I1, A)') "  d_vertices_ls_FD panel 1 (vertex ", m, " xi coordinate)"
-            else 
-                write(*,'(A, I1, A)') "  d_vertices_ls_FD panel 1 (vertex ", m, " eta coordinate)"
-            end if
-            do i = 1, N_verts*3
-                write(*, '(f14.10)') d_vertices_ls_FD(i)
-            end do 
-        
-
-
-            !!!!!!!!!! ADJOINT d_vertices_ls (edge m)!!!!!!!!!!!!!
-            write(*,*) ""
-            write(*,*) "------------------------------------------------"
-            write(*,*) ""
-            if (n==1) then
-                write(*,'(A, I1, A)') "  ADJOINT d_vertices_ls (vertex ", m, " xi coordinate)"
-            else 
-                write(*,'(A, I1, A)') "  ADJOINT d_vertices_ls (vertex ", m, " eta coordinate)"
-            end if
-            
-            write(*,*) ""
-
-            
-            ! write sparse matrix
-            write(*,*) ""
-            if (n==1) then
-                write(*,'(A, I1, A)') "  d_vertices_ls panel 1 (vertex", m, " xi coordinate)"
-            else 
-                write(*,'(A, I1, A)') "  d_vertices_ls panel 1 (vertex ", m, " eta coordinate)"
-            end if
-            write(*,*) "  sparse value                  sparse_index       full_index"
-            do i=1,adjoint_mesh%panels(index)%d_vertices_ls(n,m)%sparse_size
-                write(*,'(f14.10, 20x, I5, 12x, I5)') adjoint_mesh%panels(index)%d_vertices_ls(n,m)%elements(i)%value, &
-                i, adjoint_mesh%panels(index)%d_vertices_ls(n,m)%elements(i)%full_index
-            end do
-            write(*,*) ""
-
-            ! calculate residuals3
-            do i =1, N_verts*3
-                residuals(i) = adjoint_mesh%panels(index)%d_vertices_ls(n,m)%get_value(i) - d_vertices_ls_FD(i)
-            end do
-
-            if (n==1) then
-                write(*,'(A, I1, A)') "  d_vertices_ls panel 1 (vertex", m, " xi coordinate) expanded"
-            else 
-                write(*,'(A, I1, A)') "  d_vertices_ls panel 1 (vertex ", m, " eta coordinate) expanded"
-            end if
-            write(*,*) "  adjoint value         residuals"
-            do i = 1, N_verts*3
-                write(*, '(f14.10,3x, f14.10)') adjoint_mesh%panels(index)%d_vertices_ls(n,m)%get_value(i), residuals(i)
-            end do
-            write(*,*) ""
-
-
-            ! check if test failed
-            do i=1,N_verts*3
-                if (abs(residuals(i)) > 1.0e-8) then
-                    test_failed = .true.
-                    exit
-                else 
-                    test_failed = .false.
-                end if
-            end do
-            if (test_failed) then
-                total_tests = total_tests + 1
-                write(m_char,'(I1)') m
-
-                if (n==1) then
-                    failure_log(total_tests-passed_tests) = "d_vertices_ls (vertex "// trim(m_char) // ", xi coordinate) &
-                    test FAILED"
-                else 
-                    failure_log(total_tests-passed_tests) = "d_vertices_ls (vertex "// trim(m_char) // " eta coordinate) &
-                    test FAILED"
-                end if
-
-                write(*,*) failure_log(total_tests-passed_tests)
-            else
-                if (n==1) then
-                    write(*,'(A, I1, A)') "d_vertices_ls (vertex ",m," xi coordinate) test PASSED"
-                else
-                    write(*,'(A, I1, A)') "d_vertices_ls (vertex ",m," eta coordinate) test PASSED" 
-                end if
-               
-                passed_tests = passed_tests + 1
-                total_tests = total_tests + 1
-            end if
-            test_failed = .false.
-            write(*,*) "" 
-            write(*,*) ""
-        
-        ! end "n" loop    
-        end do
-
-    ! end "m"" loop
-    end do
-
-
-
-
-
-!!!!!d!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST d_n_hat_ls !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    write(*,*) "---------------------------------- TEST d_n_hat_ls ----------------------------------"
-    write(*,*) ""
-    write(*,*) "the sensitivity of the edge vectors (ls) of panel 1 WRT each design variable"
-    write(*,*) ""
-    
-    ! allocate central difference variables
-    allocate(n_hat_ls_up(N_verts*3))
-    allocate(n_hat_ls_dn(N_verts*3))
-    allocate(d_n_hat_ls_FD(N_verts*3))
-
-    
-
-
-    ! do for vertex
-    do m=1,3
-
-        write(*,*) "---------------------------------- TEST d_n_hat_ls edge", m, "  ----------------------------------"
-        write(*,*) ""
-
-        ! do for xi and eta
-        do n = 1,2
-
-
-            !!!!!!!!! Finite Difference  d_n_hat_ls (edge m, coordinate n) !!!!!!!!!
-            write(*,*) ""
-            write(*,*) "---------------------------------------------------------------------------------------------"
-            write(*,*) ""
-            if (n==1) then
-                write(*,'(A, I1, A)') "  CENTRAL DIFFERENCE d_n_hat_ls (edge ", m, " xi coordinate)"
-            else 
-                write(*,'(A, I1, A)') "  CENTRAL DIFFERENCE d_n_hat_ls (edge ", m, " eta coordinate)"
-            end if
-           
-
-            ! ! for each x, y, z of n_hat_ls (edge m) 
-            ! do k=1,3
-                ! do for each design variable
-                do i=1,3
-                    do j=1,N_verts
-                        ! perturb up the current design variable
-                        test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
-                        
-                        ! update panel geometry and calcs
-                        deallocate(test_mesh%panels(index)%n_hat_g)
-                        call test_mesh%panels(index)%calc_derived_geom()
-                        
-                        deallocate(test_mesh%panels(index)%vertices_ls)
-                        deallocate(test_mesh%panels(index)%n_hat_ls)
-                        deallocate(test_mesh%panels(index)%b)
-                        deallocate(test_mesh%panels(index)%b_mir)  
-                        deallocate(test_mesh%panels(index)%sqrt_b)
-                        call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
-                    
-
-                        ! put the x y or z component of the panel's perturbed edge outward normal unit vector in a list
-                        n_hat_ls_up(j + (i-1)*N_verts) = test_mesh%panels(index)%n_hat_ls(n,m)
-
-                        ! perturb down the current design variable
-                        test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - 2.*step
-
-                    
-                        ! update panel geometry and calcs
-                        deallocate(test_mesh%panels(index)%n_hat_g)
-                        call test_mesh%panels(index)%calc_derived_geom()
-                        
-                        deallocate(test_mesh%panels(index)%vertices_ls)
-                        deallocate(test_mesh%panels(index)%n_hat_ls)
-                        deallocate(test_mesh%panels(index)%b)
-                        deallocate(test_mesh%panels(index)%b_mir)  
-                        deallocate(test_mesh%panels(index)%sqrt_b)
-                        call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
-                    
-                        
-                        ! put the x y or z component of the panel's perturbed edge outward normal unit vector in a list
-                        n_hat_ls_dn(j + (i-1)*N_verts) = test_mesh%panels(index)%n_hat_ls(n,m)
-                    
-                        ! restore geometry
-                        test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
-                        
-                        
-
-                    end do 
-                end do 
-
-                ! central difference 
-                d_n_hat_ls_FD(:) = (n_hat_ls_up - n_hat_ls_dn)/(2.*step)
-
-            ! end do
-
-            ! write results
-            write(*,*) ""
-            if (n==1) then
-                write(*,'(A, I1, A)') "  d_n_hat_ls_FD panel 1 (edge ", m, " xi coordinate)"
-            else 
-                write(*,'(A, I1, A)') "  d_n_hat_ls_FD panel 1 (edge ", m, " eta coordinate)"
-            end if
-            do i = 1, N_verts*3
-                write(*, '(f14.10)') d_n_hat_ls_FD(i)
-            end do 
-        
-
-
-            !!!!!!!!!! ADJOINT d_n_hat_ls (edge m)!!!!!!!!!!!!!
-            write(*,*) ""
-            write(*,*) "------------------------------------------------"
-            write(*,*) ""
-            if (n==1) then
-                write(*,'(A, I1, A)') "  ADJOINT d_n_hat_ls (edge ", m, " xi coordinate)"
-            else 
-                write(*,'(A, I1, A)') "  ADJOINT d_n_hat_ls (edge ", m, " eta coordinate)"
-            end if
-            
-            write(*,*) ""
-
-            
-            ! write sparse matrix
-            write(*,*) ""
-            if (n==1) then
-                write(*,'(A, I1, A)') "  d_n_hat_ls panel 1 (edge", m, " xi coordinate)"
-            else 
-                write(*,'(A, I1, A)') "  d_n_hat_ls panel 1 (edge ", m, " eta coordinate)"
-            end if
-            write(*,*) "  sparse value              sparse_index       full_index"
-            do i=1,adjoint_mesh%panels(index)%d_n_hat_ls(n,m)%sparse_size
-                write(*,'(f14.10, 20x, I5, 12x, I5)') adjoint_mesh%panels(index)%d_n_hat_ls(n,m)%elements(i)%value, &
-                i, adjoint_mesh%panels(index)%d_n_hat_ls(n,m)%elements(i)%full_index
-            end do
-            write(*,*) ""
-
-            ! calculate residuals3
-            do i =1, N_verts*3
-                residuals(i) = adjoint_mesh%panels(index)%d_n_hat_ls(n,m)%get_value(i) - d_n_hat_ls_FD(i)
-            end do
-
-            if (n==1) then
-                write(*,'(A, I1, A)') "  d_n_hat_ls panel 1 (edge", m, " xi coordinate) expanded"
-            else 
-                write(*,'(A, I1, A)') "  d_n_hat_ls panel 1 (edge ", m, " eta coordinate) expanded"
-            end if
-            write(*,*) "  adjoint value         residuals"
-            do i = 1, N_verts*3
-                write(*, '(f14.10,3x, f14.10)') adjoint_mesh%panels(index)%d_n_hat_ls(n,m)%get_value(i), residuals(i)
-            end do
-            write(*,*) ""
-
-
-            ! check if test failed
-            do i=1,N_verts*3
-                if (abs(residuals(i)) > 1.0e-8) then
-                    test_failed = .true.
-                    exit
-                else 
-                    test_failed = .false.
-                end if
-            end do
-            if (test_failed) then
-                total_tests = total_tests + 1
-                write(m_char,'(I1)') m
-
-                if (n==1) then
-                    failure_log(total_tests-passed_tests) = "d_n_hat_ls (edge "// trim(m_char) // ", xi coordinate) &
-                    test FAILED"
-                else 
-                    failure_log(total_tests-passed_tests) = "d_n_hat_ls (edge "// trim(m_char) // " eta coordinate) &
-                    test FAILED"
-                end if
-
-                write(*,*) failure_log(total_tests-passed_tests)
-            else
-                if (n==1) then
-                    write(*,'(A, I1, A)') "d_n_hat_ls (edge ",m," xi coordinate) test PASSED"
-                else
-                    write(*,'(A, I1, A)') "d_n_hat_ls (edge ",m," eta coordinate) test PASSED" 
-                end if
-               
-                passed_tests = passed_tests + 1
-                total_tests = total_tests + 1
-            end if
-            test_failed = .false.
-            write(*,*) "" 
-            write(*,*) ""
-        
-        ! end "n" loop    
-        end do
-
-    ! end "m"" loopn_hat
-    end do
-
-
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST d_T_mu !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    write(*,*) "---------------------------------- TEST d_T_mu ----------------------------------"
-    write(*,*) ""
-    write(*,*) "the sensitivity of the global to ls transformation matrix for panel 1 WRT each design variable"
-    write(*,*) ""
-    
-    ! allocate central difference variables
-    allocate(T_mu_up(N_verts*3))
-    allocate(T_mu_dn(N_verts*3))
-    allocate(d_T_mu_FD(3,N_verts*3,3))
-
-    
-
-
-    ! do for each row of T_mu
-    do m=1,3
-
-        !!!!!!!!! Finite Difference  d_T_mu (row m) !!!!!!!!!
-        write(*,*) ""
-        write(*,*) "------------------------------------------------"
-        write(*,*) ""
-        write(*,'(A, I1, A)') "  CENTRAL DIFFERENCE d_T_mu (row ", m, ")"
-
-
-        ! for each x, y, z of A_ls_to_g (row m) 
-        do k=1,3
             ! do for each design variable
             do i=1,3
                 do j=1,N_verts
                     ! perturb up the current design variable
                     test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
                     
-                    ! update panel geometry and calcs
-                    deallocate(test_mesh%panels(index)%vertices)
-                    deallocate(test_mesh%panels(index)%n_hat_g)
-                    deallocate(test_mesh%panels(index)%edge_is_discontinuous)
-                    call test_mesh%panels(index)%init(test_mesh%vertices(1),test_mesh%vertices(2),test_mesh%vertices(3),index)
-         
+                    !!!!!!!!!!!!  update !!!!!!!!!!!!!!
+                    ! update panel geometry and calc
+                    do n =1,N_panels
+                        deallocate(test_mesh%panels(n)%n_hat_g)
+                        call test_mesh%panels(n)%calc_derived_geom()
+                    end do
+
+                    ! update vertex normal
+                    call test_mesh%calc_vertex_geometry()
+
                     deallocate(test_mesh%panels(index)%vertices_ls)
                     deallocate(test_mesh%panels(index)%n_hat_ls)
                     deallocate(test_mesh%panels(index)%b)
@@ -923,19 +258,31 @@ program panel_flow2
                     call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
                     call test_mesh%panels(index)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
                     test_mesh%vertices,.false.)
+                    !!!!!!!!!!!! end update !!!!!!!!!!!!!!
                     
+                    ! get desired info
+                    A_g_to_ls_up(j + (i-1)*N_verts,:) = test_mesh%panels(index)%A_g_to_ls(m,:)
+                    A_ls_to_g_up(j + (i-1)*N_verts,:) = test_mesh%panels(index)%A_ls_to_g(m,:)
 
-                    ! put the x y or z component of the panel's perturbed edge outward normal unit vector in a list
-                    T_mu_up(j + (i-1)*N_verts) = test_mesh%panels(index)%S_mu_inv(m,k)
+                    vertices_ls_up(j + (i-1)*N_verts,:) = test_mesh%panels(index)%vertices_ls(:,m)
+                    n_hat_ls_up(j + (i-1)*N_verts,:) = test_mesh%panels(index)%n_hat_ls(:,m)
 
+                    T_mu_up(j + (i-1)*N_verts,:) = test_mesh%panels(index)%S_mu_inv(m,:)
+                    
                     ! perturb down the current design variable
                     test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - 2.*step
+                    
+                    
+                    !!!!!!!!!!!!  update !!!!!!!!!!!!!!
 
-                    ! update panel geometry and calcs
-                    deallocate(test_mesh%panels(index)%vertices)
-                    deallocate(test_mesh%panels(index)%n_hat_g)
-                    deallocate(test_mesh%panels(index)%edge_is_discontinuous)
-                    call test_mesh%panels(index)%init(test_mesh%vertices(1),test_mesh%vertices(2),test_mesh%vertices(3),index)
+                    ! update panel geometry and calc
+                    do n =1,N_panels
+                        deallocate(test_mesh%panels(n)%n_hat_g)
+                        call test_mesh%panels(n)%calc_derived_geom()
+                    end do
+
+                    ! update vertex normal
+                    call test_mesh%calc_vertex_geometry()
                     
                     deallocate(test_mesh%panels(index)%vertices_ls)
                     deallocate(test_mesh%panels(index)%n_hat_ls)
@@ -949,100 +296,431 @@ program panel_flow2
                     call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
                     call test_mesh%panels(index)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
                     test_mesh%vertices,.false.)
+                    !!!!!!!!!!!!  end update !!!!!!!!!!!!!!
                     
+                    ! get desired info
+                    A_g_to_ls_dn(j + (i-1)*N_verts,:) = test_mesh%panels(index)%A_g_to_ls(m,:)
+                    A_ls_to_g_dn(j + (i-1)*N_verts,:) = test_mesh%panels(index)%A_ls_to_g(m,:)
+
+                    vertices_ls_dn( j + (i-1)*N_verts,:) = test_mesh%panels(index)%vertices_ls(:,m)
+                    n_hat_ls_dn(j + (i-1)*N_verts,:) = test_mesh%panels(index)%n_hat_ls(:,m)
+
+                    T_mu_dn(j + (i-1)*N_verts,:) = test_mesh%panels(index)%S_mu_inv(m,:)
                     
-                    
-                    ! put the x y or z component of the panel's perturbed edge outward normal unit vector in a list
-                    T_mu_dn(j + (i-1)*N_verts) = test_mesh%panels(index)%S_mu_inv(m,k)
-                
                     ! restore geometry
                     test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
                     
                     
-
                 end do 
             end do 
-
+            
             ! central difference 
-            d_T_mu_FD(m,:,k) = (T_mu_up - T_mu_dn)/(2.*step)
+            d_A_g_to_ls_FD(:,:) = (A_g_to_ls_up(:,:) - A_g_to_ls_dn(:,:))/(2.*step)
+            d_A_ls_to_g_FD(:,:) = (A_ls_to_g_up(:,:) - A_ls_to_g_dn(:,:))/(2.*step)
 
-        end do
+            d_vertices_ls_FD(:,:) = (vertices_ls_up(:,:) - vertices_ls_dn(:,:))/(2.*step)
+            d_n_hat_ls_FD(:,:) = (n_hat_ls_up(:,:) - n_hat_ls_dn(:,:))/(2.*step)
 
-        ! write results
-        write(*,*) ""
-        write(*,'(A, I1, A)') "          d_T_mu_FD panel 1 (row ", m, ")"
-        write(*,*) "  d_T_mu_x           d_T_mu_y            d_T_mu_z "
-        do i = 1, N_verts*3
-            write(*, '(3(f14.10, 4x))') d_T_mu_FD(m,i, :)
-        end do 
-
-
-        !!!!!!!!!! ADJOINT d_T_mu (edge m)!!!!!!!!!!!!!
-        write(*,*) ""
-        write(*,*) "------------------------------------------------"
-        write(*,*) ""
-        write(*,'(A, I1, A)') "  ADJOINT d_T_mu (row ", m, ")"
-        write(*,*) ""
-
-
-        
-        ! write sparse matrix
-        write(*,*) ""
-        write(*,'(A, I1, A)') "          d_T_mu panel 1 (row ", m, ")"
-        write(*,*) "  d_T_mu_x           d_T_mu_y           d_T_mu_z             sparse_index       full_index"
-        do i=1,adjoint_mesh%panels(index)%d_T_mu_rows(m)%sparse_num_cols
-            write(*,'(3(f14.10, 4x), 12x, I5, 12x, I5)') adjoint_mesh%panels(index)%d_T_mu_rows(m)%columns(i)%vector_values(:), &
-            i, adjoint_mesh%panels(index)%d_T_mu_rows(m)%columns(i)%full_index
-        end do
-        write(*,*) ""
-
-        ! calculate residuals3
-        do i =1, N_verts*3
-            residuals3(:,i) = adjoint_mesh%panels(index)%d_T_mu_rows(m)%get_values(i) - d_T_mu_FD(m,i,:)
-        end do
-
-        write(*,'(A, I1, A)') "         d_T_mu panel 1 (row ", m, ") expanded "
-        write(*,*) "  d_T_mu_x           d_T_mu_y           d_T_mu_z                            residuals"
-        do i = 1, N_verts*3
-            write(*, '(3(f14.10, 4x),3x, 3(f14.10, 4x))') adjoint_mesh%panels(index)%d_T_mu_rows(m)%get_values(i), residuals3(:,i)
-        end do
-        write(*,*) ""
-
-
-        ! check if test failed
-        do i=1,N_verts*3
-            if (any(abs(residuals3(:,i)) > 1.0e-7)) then
-                test_failed = .true.
-                exit
-            else 
-                test_failed = .false.
+            d_T_mu_FD(:,:) = (T_mu_up(:,:) - T_mu_dn(:,:))/(2.*step)
+            
+            ! end do !k
+            
+        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST d_A_g_to_ls  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!       
+            
+            ! calculate residuals3
+            do i =1, N_verts*3
+                residuals3(:,i) = adjoint_mesh%panels(index)%d_A_g_to_ls(m)%get_values(i) - d_A_g_to_ls_FD(i,:)
+            end do
+            
+            if (maxval(abs(residuals3(:,:)))>error_allowed) then
+                write(*,*) ""
+                write(*,*) "     FLAGGED VALUES :"
+                do i = 1, N_verts*3
+                    if (any(abs(residuals3(:,i))>error_allowed)) then
+                        write(*,'(A,I5,A)') "         Central Difference    d_A_g_to_ls row ",m,"      x, y, and z"
+                        write(*, '(8x,3(f25.10, 4x))') d_A_g_to_ls_FD(i,:)
+                        write(*,'(A,I5,A)') "        adjoint       d_A_g_to_ls row ",m,"      x, y, and z                  &
+                        residuals"
+                        write(*, '(8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') &
+                        adjoint_mesh%panels(index)%d_A_g_to_ls(m)%get_values(i), residuals3(:,i)
+                    end if
+                end do
             end if
+            
+            
+            ! check if test failed
+            do i=1,N_verts*3
+                if (any(abs(residuals3(:,i)) > error_allowed)) then 
+                    do j = 1,3
+                        if (abs(d_A_g_to_ls_FD(i,j))>100.0) then
+                            if (abs(residuals3(j,i)) > error_allowed*1000.0) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                            elseif (100.0>abs(d_A_g_to_ls_FD(i,j)) .and. abs(d_A_g_to_ls_FD(i,j))>10.0) then
+                            if (abs(residuals3(j,i)) > error_allowed*100.0) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                        elseif (10.0>abs(d_A_g_to_ls_FD(i,j)) .and. abs(d_A_g_to_ls_FD(i,j))>1.0) then
+                            if (abs(residuals3(j,i)) > error_allowed*10.0) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                        else
+                            if (abs(residuals3(j,i)) > error_allowed) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                        end if
+                    end do
+                end if
+            end do
+            if (test_failed) then
+                total_tests = total_tests + 1
+                write(*,'(A,I5,A,I5,A)')"                d_A_g_to_ls panel ",y," row ",m," test FAILED"
+                failure_log(total_tests-passed_tests) = "d_A_g_to_ls test FAILED"
+            else
+                ! write(*,*) "        CALC d_A_g_to_ls test PASSED"
+                ! write(*,*) "" 
+                ! write(*,*) ""
+                passed_tests = passed_tests + 1
+                total_tests = total_tests + 1
+                
+            end if
+            test_failed = .false.
+            
+            
+        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST d_A_ls_to_g  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!       
+            
+            ! calculate residuals3
+            do i =1, N_verts*3
+                residuals3(:,i) = adjoint_mesh%panels(index)%d_A_ls_to_g(m)%get_values(i) - d_A_ls_to_g_FD(i,:)
+            end do
+
+            if (maxval(abs(residuals3(:,:)))>error_allowed) then
+                write(*,*) ""
+                write(*,*) "     FLAGGED VALUES :"
+                do i = 1, N_verts*3
+                    if (any(abs(residuals3(:,i))>error_allowed)) then
+                        write(*,'(A,I5,A)') "         Central Difference    d_A_ls_to_g row ",m,"      x, y, and z"
+                        write(*, '(8x,3(f25.10, 4x))') d_A_ls_to_g_FD(i,:)
+                        write(*,'(A,I5,A)') "        adjoint       d_A_ls_to_g row ",m,"      x, y, and z                  &
+                        residuals"
+                        write(*, '(8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') &
+                        adjoint_mesh%panels(index)%d_A_ls_to_g(m)%get_values(i), residuals3(:,i)
+                    end if
+                end do
+            end if
+            
+            
+            ! check if test failed
+            do i=1,N_verts*3
+                if (any(abs(residuals3(:,i)) > error_allowed)) then 
+                    do j = 1,3
+                        if (abs(d_A_ls_to_g_FD(i,j))>100.0) then
+                            if (abs(residuals3(j,i)) > error_allowed*1000.0) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                            elseif (100.0>abs(d_A_ls_to_g_FD(i,j)) .and. abs(d_A_ls_to_g_FD(i,j))>10.0) then
+                            if (abs(residuals3(j,i)) > error_allowed*100.0) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                        elseif (10.0>abs(d_A_ls_to_g_FD(i,j)) .and. abs(d_A_ls_to_g_FD(i,j))>1.0) then
+                            if (abs(residuals3(j,i)) > error_allowed*10.0) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                        else
+                            if (abs(residuals3(j,i)) > error_allowed) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                        end if
+                    end do
+                end if
+            end do
+            if (test_failed) then
+                total_tests = total_tests + 1
+                write(*,'(A,I5,A,I5,A)')"                d_A_ls_to_g panel ",y," row ",m," test FAILED"
+                failure_log(total_tests-passed_tests) = "d_A_ls_to_g test FAILED"
+            else
+                ! write(*,*) "        CALC d_A_ls_to_g test PASSED"
+                ! write(*,*) "" 
+                ! write(*,*) ""
+                passed_tests = passed_tests + 1
+                total_tests = total_tests + 1
+                
+            end if
+            test_failed = .false.
+
+        ! end do ! m
+
+
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST d_vertices_ls !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+            ! calculate residuals2
+            do i =1, N_verts*3
+                residuals2(:,i) = (/adjoint_mesh%panels(index)%d_vertices_ls(1,m)%get_value(i),&
+                adjoint_mesh%panels(index)%d_vertices_ls(2,m)%get_value(i)/)- d_vertices_ls_FD(i,:)
+            end do
+
+            if (maxval(abs(residuals2(:,:)))>error_allowed) then
+                write(*,*) ""
+                write(*,*) "     FLAGGED VALUES :"
+                do i = 1, N_verts*3
+                    if (any(abs(residuals2(:,i))>error_allowed)) then
+                        write(*,'(A,I5,A)') "         Central Difference    d_vertices_ls vert ",m,"      x, y, and z"
+                        write(*, '(8x,2(f25.10, 4x))') d_vertices_ls_FD(i,:)
+                        write(*,'(A,I5,A)') "        adjoint       d_vertices_ls vert ",m,"      x, y, and z                  &
+                        residuals"
+                        write(*, '(8x,2(f25.10, 4x),3x, 2(f25.10, 4x))') &
+                        adjoint_mesh%panels(index)%d_vertices_ls(1,m)%get_value(i),&
+                        adjoint_mesh%panels(index)%d_vertices_ls(1,m)%get_value(i), residuals2(:,i)
+                    end if
+                end do
+            end if
+            
+            
+            ! check if test failed
+            do i=1,N_verts*3
+                if (any(abs(residuals2(:,i)) > error_allowed)) then 
+                    do j = 1,2
+                        if (abs(d_A_ls_to_g_FD(i,j))>100.0) then
+                            if (abs(residuals2(j,i)) > error_allowed*1000.0) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                            elseif (100.0>abs(d_vertices_ls_FD(i,j)) .and. abs(d_vertices_ls_FD(i,j))>10.0) then
+                            if (abs(residuals2(j,i)) > error_allowed*100.0) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                        elseif (10.0>abs(d_vertices_ls_FD(i,j)) .and. abs(d_vertices_ls_FD(i,j))>1.0) then
+                            if (abs(residuals2(j,i)) > error_allowed*10.0) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                        else
+                            if (abs(residuals2(j,i)) > error_allowed) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                        end if
+                    end do
+                end if
+            end do
+            if (test_failed) then
+                total_tests = total_tests + 1
+                write(*,'(A,I5,A,I5,A)')"                d_vertices_ls panel ",y," vert ",m," test FAILED"
+                failure_log(total_tests-passed_tests) = "d_vertices_ls test FAILED"
+            else
+                ! write(*,*) "        CALC d_vertices_ls test PASSED"
+                ! write(*,*) "" 
+                ! write(*,*) ""
+                passed_tests = passed_tests + 1
+                total_tests = total_tests + 1
+                
+            end if
+            test_failed = .false.
+            
+
+        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST d_n_hat_ls !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            
+            
+            ! calculate residuals2
+            do i =1, N_verts*3
+                residuals2(:,i) = (/adjoint_mesh%panels(index)%d_n_hat_ls(1,m)%get_value(i),&
+                adjoint_mesh%panels(index)%d_n_hat_ls(2,m)%get_value(i)/) - d_n_hat_ls_FD(i,:)
+            end do
+
+            if (maxval(abs(residuals2(:,:)))>error_allowed) then
+                write(*,*) ""
+                write(*,*) "     FLAGGED VALUES :"
+                do i = 1, N_verts*3
+                    if (any(abs(residuals2(:,i))>error_allowed)) then
+                        write(*,'(A,I5,A)') "         Central Difference    d_n_hat_ls edge ",m,"      x, y, and z"
+                        write(*, '(8x,2(f25.10, 4x))') d_n_hat_ls_FD(i,:)
+                        write(*,'(A,I5,A)') "        adjoint       d_n_hat_ls edge ",m,"      x, y, and z                  &
+                        residuals"
+                        write(*, '(8x,2(f25.10, 4x),3x, 2(f25.10, 4x))') &
+                        adjoint_mesh%panels(index)%d_n_hat_ls(1,m)%get_value(i),&
+                        adjoint_mesh%panels(index)%d_n_hat_ls(2,m)%get_value(i), residuals2(:,i)
+                    end if
+                end do
+            end if
+            
+            
+            ! check if test failed
+            do i=1,N_verts*3
+                if (any(abs(residuals2(:,i)) > error_allowed)) then 
+                    do j = 1,2
+                        if (abs(d_n_hat_ls_FD(i,j))>100.0) then
+                            if (abs(residuals2(j,i)) > error_allowed*1000.0) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                            elseif (100.0>abs(d_n_hat_ls_FD(i,j)) .and. abs(d_n_hat_ls_FD(i,j))>10.0) then
+                                if (abs(residuals2(j,i)) > error_allowed*100.0) then
+                                    test_failed = .true.
+                                    exit
+                                else
+                                    test_failed = .false.
+                                end if
+                        elseif (10.0>abs(d_n_hat_ls_FD(i,j)) .and. abs(d_n_hat_ls_FD(i,j))>1.0) then
+                            if (abs(residuals2(j,i)) > error_allowed*10.0) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                        else
+                            if (abs(residuals2(j,i)) > error_allowed) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                        end if
+                    end do
+                end if
+            end do
+            if (test_failed) then
+                total_tests = total_tests + 1
+                write(*,'(A,I5,A,I5,A)')"                d_n_hat_ls panel ",y," edge ",m," test FAILED"
+                failure_log(total_tests-passed_tests) = "d_n_hat_ls test FAILED"
+            else
+                ! write(*,*) "        CALC d_n_hat_ls test PASSED"
+                ! write(*,*) "" 
+                ! write(*,*) ""
+                passed_tests = passed_tests + 1
+                total_tests = total_tests + 1
+                
+            end if
+            test_failed = .false.
+            
+            
+            
+        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST d_n_hat_ls !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+
+            ! calculate residuals3
+            do i =1, N_verts*3
+                residuals3(:,i) = adjoint_mesh%panels(index)%d_T_mu_rows(m)%get_values(i) - d_T_mu_FD(i,:)
+            end do
+
+            if (maxval(abs(residuals3(:,:)))>error_allowed) then
+                write(*,*) ""
+                write(*,*) "     FLAGGED VALUES :"
+                do i = 1, N_verts*3
+                    if (any(abs(residuals3(:,i))>error_allowed)) then
+                        write(*,'(A,I5,A)') "         Central Difference    d_T_mu row ",m,"      x, y, and z"
+                        write(*, '(8x,3(f25.10, 4x))') d_T_mu_FD(i,:)
+                        write(*,'(A,I5,A)') "        adjoint       d_T_mu row ",m,"      x, y, and z                  &
+                        residuals"
+                        write(*, '(8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') &
+                        adjoint_mesh%panels(index)%d_T_mu_rows(m)%get_values(i), residuals3(:,i)
+                    end if
+                end do
+            end if
+            
+            
+            ! check if test failed
+            do i=1,N_verts*3
+                if (any(abs(residuals3(:,i)) > error_allowed)) then 
+                    do j = 1,3
+                        if (abs(d_T_mu_FD(i,j))>100.0) then
+                            if (abs(residuals3(j,i)) > error_allowed*1000.0) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                            elseif (100.0>abs(d_T_mu_FD(i,j)) .and. abs(d_T_mu_FD(i,j))>10.0) then
+                            if (abs(residuals3(j,i)) > error_allowed*100.0) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                        elseif (10.0>abs(d_T_mu_FD(i,j)) .and. abs(d_T_mu_FD(i,j))>1.0) then
+                            if (abs(residuals3(j,i)) > error_allowed*10.0) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                        else
+                            if (abs(residuals3(j,i)) > error_allowed) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                        end if
+                    end do
+                end if
+            end do
+            if (test_failed) then
+                total_tests = total_tests + 1
+                write(*,'(A,I5,A,I5,A)')"                d_T_mu panel ",y," row ",m," test FAILED"
+                failure_log(total_tests-passed_tests) = "d_T_mu test FAILED"
+            else
+                ! write(*,*) "        CALC d_n_hat_ls test PASSED"
+                ! write(*,*) "" 
+                ! write(*,*) ""
+                passed_tests = passed_tests + 1
+                total_tests = total_tests + 1
+                
+            end if
+            test_failed = .false.
+
+
+        ! end m loop
         end do
-        if (test_failed) then
-            total_tests = total_tests + 1
-            write(m_char,'(I1)') m
-            failure_log(total_tests-passed_tests) = "d_T_mu (row "// trim(m_char) // ") test FAILED"
-            write(*,*) failure_log(total_tests-passed_tests)
-        else
-            write(*,'(A, I1, A)') "d_T_mu (row ",m,") test PASSED"
-            passed_tests = passed_tests + 1
-            total_tests = total_tests + 1
-        end if
-        test_failed = .false.
-        write(*,*) "" 
-        write(*,*) ""
 
-        
-    ! end panel edge loop
-    end do
+    end do ! y panel
 
 
-    !!!!!!!!!!!!!! FLOW-DEPENDENT PANEL SENSITIVITIES RESULTS!!!!!!!!!!!!!
-    write(*,*) "-------------FLOW-DEPENDENT PANEL SENSITIVITIES TEST RESULTS--------------"
+    !!!!!!!!!!!!!! PANEL GEOMETRY  RESULTS!!!!!!!!!!!!!
+    write(*,*) "------------------------------------------------------------------------------"
+    write(*,*) "     FLOW DEPENDENT PANEL GEOMETRY TEST RESULTS "
+    write(*,*) "------------------------------------------------------------------------------"
     write(*,*) ""
-    write(*,'(I15,a14)') total_tests - passed_tests, " tests FAILED"
+    write(*,'((A), ES10.1)') "allowed residual = ", error_allowed
     write(*,*) ""
-    write(*,'(I4,a9,I2,a14)') passed_tests, " out of ", total_tests, " tests PASSED"
+
+    write(*,'(I35,a14)') total_tests - passed_tests, " tests FAILED"
+    write(*,*) ""
+    write(*,'(I15,a9,I15,a14)') passed_tests, " out of ", total_tests, " tests PASSED"
     if (passed_tests < total_tests)then
         write(*,*) ""
         write(*,*) "----------------------"
@@ -1054,9 +732,13 @@ program panel_flow2
     end if
     
     write(*,*) ""
+    call system_clock(end_count)
+    time = real(end_count - start_count)/(count_rate*60.0)
+    write(*,'(A,f25.10, A)') " Total test time = ", time, " minutes"
     write(*,*) ""
     write(*,*) "----------------------"
     write(*,*) "Program Complete"
     write(*,*) "----------------------"
+
 
 end program panel_flow2

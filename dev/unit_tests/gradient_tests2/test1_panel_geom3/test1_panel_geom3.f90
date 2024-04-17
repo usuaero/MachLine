@@ -56,8 +56,7 @@ program panel_geom2
 
 
 
-    test_failed = .false. ! assume test failed, if the test condition is met, test passed
-    ! NOTE: on the sparse vector test, I assume the test passes, if it fails a test condition, test fails
+    test_failed = .false. 
     passed_tests = 0
     total_tests = 0
 
