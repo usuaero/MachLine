@@ -3541,10 +3541,10 @@ contains
             call check_allocation(stat, "solver copy of  d_forces_wrt_mu(:,i)")
 
             call system_clock(start_count, count_rate)
-            call GMRES(N, A_p, b_p, this%tol, this%max_iterations, this%iteration_file, &
-            this%solver_iterations, x)
+            ! call GMRES(N, A_p, b_p, this%tol, this%max_iterations, this%iteration_file, &
+            ! this%solver_iterations, x)
             ! call lu_solve(N, A_p, b_p, x)
-            ! call householder_ls_solve(body%N_cp, N, A_p, b_p, x)
+            call householder_ls_solve(body%N_cp, N, A_p, b_p, x)
             call system_clock(end_count)
 
             ! Get residual vector
