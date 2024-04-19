@@ -187,23 +187,23 @@ program panel_flow2
     allocate(residuals3(3,N_verts*3))
     allocate(residuals2(2,N_verts*3))
     allocate(residuals(N_verts*3))
-    allocate(A_g_to_ls_up(N_verts*3,3))
-    allocate(A_g_to_ls_dn(N_verts*3,3))
-    allocate(d_A_g_to_ls_FD(N_verts*3,3))
-    allocate(A_ls_to_g_up(N_verts*3,3))
-    allocate(A_ls_to_g_dn(N_verts*3,3))
-    allocate(d_A_ls_to_g_FD(N_verts*3,3))
-    allocate(vertices_ls_up(N_verts*3,2))
-    allocate(vertices_ls_dn(N_verts*3,2))
-    allocate(d_vertices_ls_FD(N_verts*3,2))
-    allocate(n_hat_ls_up(N_verts*3,2))
-    allocate(n_hat_ls_dn(N_verts*3,2))
-    allocate(d_n_hat_ls_FD(N_verts*3,2))
-    allocate(T_mu_up(N_verts*3,3))
-    allocate(T_mu_dn(N_verts*3,3))
-    allocate(d_T_mu_FD(N_verts*3,3))
+    allocate(A_g_to_ls_up(3,N_verts*3))
+    allocate(A_g_to_ls_dn(3,N_verts*3))
+    allocate(d_A_g_to_ls_FD(3,N_verts*3))
+    allocate(A_ls_to_g_up(3,N_verts*3))
+    allocate(A_ls_to_g_dn(3,N_verts*3))
+    allocate(d_A_ls_to_g_FD(3,N_verts*3))
+    allocate(vertices_ls_up(2,N_verts*3))
+    allocate(vertices_ls_dn(2,N_verts*3))
+    allocate(d_vertices_ls_FD(2,N_verts*3))
+    allocate(n_hat_ls_up(2,N_verts*3))
+    allocate(n_hat_ls_dn(2,N_verts*3))
+    allocate(d_n_hat_ls_FD(2,N_verts*3))
+    allocate(T_mu_up(3,N_verts*3))
+    allocate(T_mu_dn(3,N_verts*3))
+    allocate(d_T_mu_FD(3,N_verts*3))
     
-    error_allowed = 1.0e-7
+    error_allowed = 1.0e-9
     step = 0.000001
     index = 1
     
@@ -261,13 +261,13 @@ program panel_flow2
                     !!!!!!!!!!!! end update !!!!!!!!!!!!!!
                     
                     ! get desired info
-                    A_g_to_ls_up(j + (i-1)*N_verts,:) = test_mesh%panels(index)%A_g_to_ls(m,:)
-                    A_ls_to_g_up(j + (i-1)*N_verts,:) = test_mesh%panels(index)%A_ls_to_g(m,:)
+                    A_g_to_ls_up(:,j + (i-1)*N_verts) = test_mesh%panels(index)%A_g_to_ls(m,:)
+                    A_ls_to_g_up(:,j + (i-1)*N_verts) = test_mesh%panels(index)%A_ls_to_g(m,:)
 
-                    vertices_ls_up(j + (i-1)*N_verts,:) = test_mesh%panels(index)%vertices_ls(:,m)
-                    n_hat_ls_up(j + (i-1)*N_verts,:) = test_mesh%panels(index)%n_hat_ls(:,m)
+                    vertices_ls_up(:,j + (i-1)*N_verts) = test_mesh%panels(index)%vertices_ls(:,m)
+                    n_hat_ls_up(:,j + (i-1)*N_verts) = test_mesh%panels(index)%n_hat_ls(:,m)
 
-                    T_mu_up(j + (i-1)*N_verts,:) = test_mesh%panels(index)%S_mu_inv(m,:)
+                    T_mu_up(:,j + (i-1)*N_verts) = test_mesh%panels(index)%S_mu_inv(m,:)
                     
                     ! perturb down the current design variable
                     test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - 2.*step
@@ -299,13 +299,13 @@ program panel_flow2
                     !!!!!!!!!!!!  end update !!!!!!!!!!!!!!
                     
                     ! get desired info
-                    A_g_to_ls_dn(j + (i-1)*N_verts,:) = test_mesh%panels(index)%A_g_to_ls(m,:)
-                    A_ls_to_g_dn(j + (i-1)*N_verts,:) = test_mesh%panels(index)%A_ls_to_g(m,:)
+                    A_g_to_ls_dn(:,j + (i-1)*N_verts) = test_mesh%panels(index)%A_g_to_ls(m,:)
+                    A_ls_to_g_dn(:,j + (i-1)*N_verts) = test_mesh%panels(index)%A_ls_to_g(m,:)
 
-                    vertices_ls_dn( j + (i-1)*N_verts,:) = test_mesh%panels(index)%vertices_ls(:,m)
-                    n_hat_ls_dn(j + (i-1)*N_verts,:) = test_mesh%panels(index)%n_hat_ls(:,m)
+                    vertices_ls_dn( :,j + (i-1)*N_verts) = test_mesh%panels(index)%vertices_ls(:,m)
+                    n_hat_ls_dn(:,j + (i-1)*N_verts) = test_mesh%panels(index)%n_hat_ls(:,m)
 
-                    T_mu_dn(j + (i-1)*N_verts,:) = test_mesh%panels(index)%S_mu_inv(m,:)
+                    T_mu_dn(:,j + (i-1)*N_verts) = test_mesh%panels(index)%S_mu_inv(m,:)
                     
                     ! restore geometry
                     test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
@@ -329,7 +329,7 @@ program panel_flow2
             
             ! calculate residuals3
             do i =1, N_verts*3
-                residuals3(:,i) = adjoint_mesh%panels(index)%d_A_g_to_ls(m)%get_values(i) - d_A_g_to_ls_FD(i,:)
+                residuals3(:,i) = adjoint_mesh%panels(index)%d_A_g_to_ls(m)%get_values(i) - d_A_g_to_ls_FD(:,i)
             end do
 
             if (maxval(abs(residuals3(:,:)))>error_allowed) then
@@ -340,7 +340,7 @@ program panel_flow2
                         write(*,*) ""
                         write(*,'(A,I5,A)') "           d_A_g_to_ls row ",m,"              & 
                                               residuals"
-                        write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_A_g_to_ls_FD(i,:)
+                        write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_A_g_to_ls_FD(:,i)
                     
                         write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",   &
                         adjoint_mesh%panels(index)%d_A_g_to_ls(m)%get_values(i), residuals3(:,i)
@@ -354,21 +354,28 @@ program panel_flow2
             do i=1,N_verts*3
                 if (any(abs(residuals3(:,i)) > error_allowed)) then 
                     do j = 1,3
-                        if (abs(d_A_g_to_ls_FD(i,j))>100.0) then
+                        if (abs(d_A_g_to_ls_FD(j,i))>1000.0) then
+                            if (abs(residuals3(j,i)) > error_allowed*10000.0) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                        elseif (1000.0>abs(d_A_g_to_ls_FD(j,i)) .and. abs(d_A_g_to_ls_FD(j,i))>100.0) then
                             if (abs(residuals3(j,i)) > error_allowed*1000.0) then
                                 test_failed = .true.
                                 exit
                             else
                                 test_failed = .false.
                             end if
-                            elseif (100.0>abs(d_A_g_to_ls_FD(i,j)) .and. abs(d_A_g_to_ls_FD(i,j))>10.0) then
+                        elseif (100.0>abs(d_A_g_to_ls_FD(j,i)) .and. abs(d_A_g_to_ls_FD(j,i))>10.0) then
                             if (abs(residuals3(j,i)) > error_allowed*100.0) then
                                 test_failed = .true.
                                 exit
                             else
                                 test_failed = .false.
                             end if
-                        elseif (10.0>abs(d_A_g_to_ls_FD(i,j)) .and. abs(d_A_g_to_ls_FD(i,j))>1.0) then
+                        elseif (10.0>abs(d_A_g_to_ls_FD(j,i)) .and. abs(d_A_g_to_ls_FD(j,i))>1.0) then
                             if (abs(residuals3(j,i)) > error_allowed*10.0) then
                                 test_failed = .true.
                                 exit
@@ -406,7 +413,7 @@ program panel_flow2
             
             ! calculate residuals3
             do i =1, N_verts*3
-                residuals3(:,i) = adjoint_mesh%panels(index)%d_A_ls_to_g(m)%get_values(i) - d_A_ls_to_g_FD(i,:)
+                residuals3(:,i) = adjoint_mesh%panels(index)%d_A_ls_to_g(m)%get_values(i) - d_A_ls_to_g_FD(:,i)
             end do
 
             if (maxval(abs(residuals3(:,:)))>error_allowed) then
@@ -417,7 +424,7 @@ program panel_flow2
                         write(*,*) ""
                         write(*,'(A,I5,A)') "            d_A_ls_to_g row  ",m,"              & 
                                               residuals"
-                        write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_A_ls_to_g_FD(i,:)
+                        write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_A_ls_to_g_FD(:,i)
                     
                         write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",  &
                         adjoint_mesh%panels(index)%d_A_ls_to_g(m)%get_values(i), residuals3(:,i)
@@ -431,21 +438,28 @@ program panel_flow2
             do i=1,N_verts*3
                 if (any(abs(residuals3(:,i)) > error_allowed)) then 
                     do j = 1,3
-                        if (abs(d_A_ls_to_g_FD(i,j))>100.0) then
+                        if (abs(d_A_ls_to_g_FD(j,i))>1000.0) then
+                            if (abs(residuals3(j,i)) > error_allowed*10000.0) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                        elseif (1000.0>abs(d_A_ls_to_g_FD(j,i)) .and. abs(d_A_ls_to_g_FD(j,i))>100.0) then
                             if (abs(residuals3(j,i)) > error_allowed*1000.0) then
                                 test_failed = .true.
                                 exit
                             else
                                 test_failed = .false.
                             end if
-                            elseif (100.0>abs(d_A_ls_to_g_FD(i,j)) .and. abs(d_A_ls_to_g_FD(i,j))>10.0) then
+                        elseif (100.0>abs(d_A_ls_to_g_FD(j,i)) .and. abs(d_A_ls_to_g_FD(j,i))>10.0) then
                             if (abs(residuals3(j,i)) > error_allowed*100.0) then
                                 test_failed = .true.
                                 exit
                             else
                                 test_failed = .false.
                             end if
-                        elseif (10.0>abs(d_A_ls_to_g_FD(i,j)) .and. abs(d_A_ls_to_g_FD(i,j))>1.0) then
+                        elseif (10.0>abs(d_A_ls_to_g_FD(j,i)) .and. abs(d_A_ls_to_g_FD(j,i))>1.0) then
                             if (abs(residuals3(j,i)) > error_allowed*10.0) then
                                 test_failed = .true.
                                 exit
@@ -486,7 +500,7 @@ program panel_flow2
             ! calculate residuals2
             do i =1, N_verts*3
                 residuals2(:,i) = (/adjoint_mesh%panels(index)%d_vertices_ls(1,m)%get_value(i),&
-                adjoint_mesh%panels(index)%d_vertices_ls(2,m)%get_value(i)/)- d_vertices_ls_FD(i,:)
+                adjoint_mesh%panels(index)%d_vertices_ls(2,m)%get_value(i)/)- d_vertices_ls_FD(:,i)
             end do
 
             if (maxval(abs(residuals2(:,:)))>error_allowed) then
@@ -497,7 +511,7 @@ program panel_flow2
                         write(*,*) ""
                         write(*,'(A,I5,A)') "            d_vertices_ls vert ",m,"              & 
                                               residuals"
-                        write(*, '(A25,8x,2(f25.10, 4x))') "    Central Difference", d_vertices_ls_FD(i,:)
+                        write(*, '(A25,8x,2(f25.10, 4x))') "    Central Difference", d_vertices_ls_FD(:,i)
                     
                         write(*, '(A25,8x,2(f25.10, 4x),3x, 2(f25.10, 4x))') "          adjoint",  &
                         adjoint_mesh%panels(index)%d_vertices_ls(1,m)%get_value(i),&
@@ -512,21 +526,28 @@ program panel_flow2
             do i=1,N_verts*3
                 if (any(abs(residuals2(:,i)) > error_allowed)) then 
                     do j = 1,2
-                        if (abs(d_A_ls_to_g_FD(i,j))>100.0) then
+                        if (abs(d_A_ls_to_g_FD(j,i))>1000.0) then
+                            if (abs(residuals2(j,i)) > error_allowed*10000.0) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                        elseif (1000.0>abs(d_vertices_ls_FD(j,i)) .and. abs(d_vertices_ls_FD(j,i))>100.0) then
                             if (abs(residuals2(j,i)) > error_allowed*1000.0) then
                                 test_failed = .true.
                                 exit
                             else
                                 test_failed = .false.
                             end if
-                            elseif (100.0>abs(d_vertices_ls_FD(i,j)) .and. abs(d_vertices_ls_FD(i,j))>10.0) then
+                        elseif (100.0>abs(d_vertices_ls_FD(j,i)) .and. abs(d_vertices_ls_FD(j,i))>10.0) then
                             if (abs(residuals2(j,i)) > error_allowed*100.0) then
                                 test_failed = .true.
                                 exit
                             else
                                 test_failed = .false.
                             end if
-                        elseif (10.0>abs(d_vertices_ls_FD(i,j)) .and. abs(d_vertices_ls_FD(i,j))>1.0) then
+                        elseif (10.0>abs(d_vertices_ls_FD(j,i)) .and. abs(d_vertices_ls_FD(j,i))>1.0) then
                             if (abs(residuals2(j,i)) > error_allowed*10.0) then
                                 test_failed = .true.
                                 exit
@@ -566,7 +587,7 @@ program panel_flow2
             ! calculate residuals2
             do i =1, N_verts*3
                 residuals2(:,i) = (/adjoint_mesh%panels(index)%d_n_hat_ls(1,m)%get_value(i),&
-                adjoint_mesh%panels(index)%d_n_hat_ls(2,m)%get_value(i)/) - d_n_hat_ls_FD(i,:)
+                adjoint_mesh%panels(index)%d_n_hat_ls(2,m)%get_value(i)/) - d_n_hat_ls_FD(:,i)
             end do
 
             if (maxval(abs(residuals2(:,:)))>error_allowed) then
@@ -577,7 +598,7 @@ program panel_flow2
                         write(*,*) ""
                         write(*,'(A,I5,A)') "            d_n_hat_ls edge ",m,"              & 
                                               residuals"
-                        write(*, '(A25,8x,2(f25.10, 4x))') "    Central Difference", d_n_hat_ls_FD(i,:)
+                        write(*, '(A25,8x,2(f25.10, 4x))') "    Central Difference", d_n_hat_ls_FD(:,i)
                     
                         write(*, '(A25,8x,2(f25.10, 4x),3x, 2(f25.10, 4x))') "          adjoint",  &
                         adjoint_mesh%panels(index)%d_n_hat_ls(1,m)%get_value(i),&
@@ -591,21 +612,28 @@ program panel_flow2
             do i=1,N_verts*3
                 if (any(abs(residuals2(:,i)) > error_allowed)) then 
                     do j = 1,2
-                        if (abs(d_n_hat_ls_FD(i,j))>100.0) then
+                        if (abs(d_n_hat_ls_FD(j,i))>1000.0) then
+                            if (abs(residuals2(j,i)) > error_allowed*10000.0) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                        elseif (1000.0>abs(d_n_hat_ls_FD(j,i)) .and. abs(d_n_hat_ls_FD(j,i))>100.0) then
                             if (abs(residuals2(j,i)) > error_allowed*1000.0) then
                                 test_failed = .true.
                                 exit
                             else
                                 test_failed = .false.
                             end if
-                            elseif (100.0>abs(d_n_hat_ls_FD(i,j)) .and. abs(d_n_hat_ls_FD(i,j))>10.0) then
-                                if (abs(residuals2(j,i)) > error_allowed*100.0) then
-                                    test_failed = .true.
-                                    exit
-                                else
-                                    test_failed = .false.
-                                end if
-                        elseif (10.0>abs(d_n_hat_ls_FD(i,j)) .and. abs(d_n_hat_ls_FD(i,j))>1.0) then
+                        elseif (100.0>abs(d_n_hat_ls_FD(j,i)) .and. abs(d_n_hat_ls_FD(j,i))>10.0) then
+                            if (abs(residuals2(j,i)) > error_allowed*100.0) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                        elseif (10.0>abs(d_n_hat_ls_FD(j,i)) .and. abs(d_n_hat_ls_FD(j,i))>1.0) then
                             if (abs(residuals2(j,i)) > error_allowed*10.0) then
                                 test_failed = .true.
                                 exit
@@ -645,7 +673,7 @@ program panel_flow2
 
             ! calculate residuals3
             do i =1, N_verts*3
-                residuals3(:,i) = adjoint_mesh%panels(index)%d_T_mu_rows(m)%get_values(i) - d_T_mu_FD(i,:)
+                residuals3(:,i) = adjoint_mesh%panels(index)%d_T_mu_rows(m)%get_values(i) - d_T_mu_FD(:,i)
             end do
 
             if (maxval(abs(residuals3(:,:)))>error_allowed) then
@@ -656,7 +684,7 @@ program panel_flow2
                         write(*,*) ""
                         write(*,'(A,I5,A)') "            d_T_mu row ",m,"              & 
                                               residuals"
-                        write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_T_mu_FD(i,:)
+                        write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_T_mu_FD(:,i)
                     
                         write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",   &
                         adjoint_mesh%panels(index)%d_T_mu_rows(m)%get_values(i), residuals3(:,i)
@@ -669,21 +697,28 @@ program panel_flow2
             do i=1,N_verts*3
                 if (any(abs(residuals3(:,i)) > error_allowed)) then 
                     do j = 1,3
-                        if (abs(d_T_mu_FD(i,j))>100.0) then
+                        if (abs(d_T_mu_FD(j,i))>1000.0) then
+                            if (abs(residuals3(j,i)) > error_allowed*10000.0) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                        elseif (1000.0>abs(d_T_mu_FD(j,i)) .and. abs(d_T_mu_FD(j,i))>100.0) then
                             if (abs(residuals3(j,i)) > error_allowed*1000.0) then
                                 test_failed = .true.
                                 exit
                             else
                                 test_failed = .false.
                             end if
-                            elseif (100.0>abs(d_T_mu_FD(i,j)) .and. abs(d_T_mu_FD(i,j))>10.0) then
+                        elseif (100.0>abs(d_T_mu_FD(j,i)) .and. abs(d_T_mu_FD(j,i))>10.0) then
                             if (abs(residuals3(j,i)) > error_allowed*100.0) then
                                 test_failed = .true.
                                 exit
                             else
                                 test_failed = .false.
                             end if
-                        elseif (10.0>abs(d_T_mu_FD(i,j)) .and. abs(d_T_mu_FD(i,j))>1.0) then
+                        elseif (10.0>abs(d_T_mu_FD(j,i)) .and. abs(d_T_mu_FD(j,i))>1.0) then
                             if (abs(residuals3(j,i)) > error_allowed*10.0) then
                                 test_failed = .true.
                                 exit

@@ -146,7 +146,7 @@ program panel_geom2
     allocate(residuals3(3,N_verts*3))
     allocate(residuals(N_verts*3))
 
-    error_allowed = 1.0e-4
+    error_allowed = 1.0e-9
     step = 0.000001
     index = 1
     vert_ind = 1
@@ -560,7 +560,14 @@ program panel_geom2
         ! check if test failed
         do i=1,N_verts*3
             if (any(abs(residuals) > error_allowed)) then 
-                if (abs(d_area_FD(i))>100.0) then
+                if (abs(d_area_FD(i))>1000.0) then
+                    if (abs(residuals(i)) > error_allowed*10000.0) then
+                        test_failed = .true.
+                        exit
+                    else
+                        test_failed = .false.
+                    end if
+                elseif (1000.0>abs(d_area_FD(i)) .and. abs(d_area_FD(i))>100.0) then
                     if (abs(residuals(i)) > error_allowed*1000.0) then
                         test_failed = .true.
                         exit
@@ -688,7 +695,14 @@ program panel_geom2
             do i=1,N_verts*3
                 if (any(abs(residuals3(:,i)) > error_allowed)) then 
                     do j = 1,3
-                        if (abs(d_n_hat_g_FD(j,i,m))>100.0) then
+                        if (abs(d_n_hat_g_FD(j,i,m))>1000.0) then
+                            if (abs(residuals3(j,i)) > error_allowed*10000.0) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                        elseif (1000.0>abs(d_n_hat_g_FD(j,i,m)) .and. abs(d_n_hat_g_FD(j,i,m))>100.0) then
                             if (abs(residuals3(j,i)) > error_allowed*1000.0) then
                                 test_failed = .true.
                                 exit

@@ -3529,6 +3529,7 @@ contains
 
         ! allocate vT_forces (N by 3)
         allocate(vT_forces(N,3))
+
         
         write(*,*) ""
         write(*,*) "        Solving  [A]^T v = g  for d_Cx, d_Cy, d_Cz"
@@ -3565,7 +3566,8 @@ contains
             ! store forces v^T term
             vT_forces(:,i) = x
 
-            deallocate(A_p,b_p, x)
+            deallocate(b_p, x)
+            deallocate(A_p)
     
         end do
         !!!!!!!!!!!!!!!!!!!!!!!!!!!! end Forces v^T terms !!!!!!!!!!!!!!!!!!!!!!!!!!!

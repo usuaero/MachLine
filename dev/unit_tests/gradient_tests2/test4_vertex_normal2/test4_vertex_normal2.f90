@@ -62,7 +62,7 @@ program vertex_normal_test2
 
 
 
-    test_failed = .true. ! assume test failed, if the test condition is met, test passed
+    test_failed = .false. ! assume test failed, if the test condition is met, test passed
     ! NOTE: on the sparse vector test, I assume the test passes, if it fails a test condition, test fails
     passed_tests = 0
     total_tests = 0
@@ -177,7 +177,7 @@ program vertex_normal_test2
     
     do z = 1,N_verts ! for each control point
 
-        write(*,'(A,I)') "MESH VERTEX TEST ", z
+        write(*,'(A,I5)') "MESH VERTEX TEST ", z
 
         ! for each x, y, z of centr 1 
         do k=1,3
@@ -228,38 +228,72 @@ program vertex_normal_test2
             residuals3(:,i) = adjoint_mesh%vertices(cp_ind)%d_n_g%get_values(i) - d_n_g_FD(:,i)
         end do
 
-
-        if (abs(maxval(residuals3(:,:)))>error_allowed) then
+        if (maxval(abs(residuals3(:,:)))>error_allowed) then
             write(*,*) ""
             write(*,*) "     FLAGGED VALUES :"
             do i = 1, N_verts*3
                 if (any(abs(residuals3(:,i))>error_allowed)) then
-                    write(*,*) "         Central Difference    d_n_g      x, y, and z"
-                    write(*, '(8x,3(f16.10, 4x))') d_n_g_FD(:,i)
-                    write(*,*) "        adjoint       d_n_g       x, y, and z                  &
-                       residuals"
-                    write(*, '(8x,3(f16.10, 4x),3x, 3(f16.10, 4x))') &
+                    write(*,*) ""
+                    write(*,*) "           d_n_g              & 
+                                          residuals"
+                    write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_n_g_FD(:,i)
+                
+                    write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",   &
                     adjoint_mesh%vertices(cp_ind)%d_n_g%get_values(i), residuals3(:,i)
                 end if
             end do
         end if
 
-
+        
+        
         ! check if test failed
         do i=1,N_verts*3
-            if (any(abs(residuals3(:,i)) > error_allowed) .and. any(abs(d_n_g_FD(:,i))<10.0) .and. &
-            any(abs(residuals3(:,i)) > error_allowed*10.0)) then
-                test_failed = .true.
-                exit
-            else 
-                test_failed = .false.
+            if (any(abs(residuals3(:,i)) > error_allowed)) then 
+                do j = 1,3
+                    if (abs(d_n_g_FD(j,i))>1000.0) then
+                        if (abs(residuals3(j,i)) > error_allowed*10000.0) then
+                            test_failed = .true.
+                            exit
+                        else
+                            test_failed = .false.
+                        end if
+                    elseif (1000.0>abs(d_n_g_FD(j,i)) .and. abs(d_n_g_FD(j,i))>100.0) then
+                        if (abs(residuals3(j,i)) > error_allowed*1000.0) then
+                            test_failed = .true.
+                            exit
+                        else
+                            test_failed = .false.
+                        end if
+                    elseif (100.0>abs(d_n_g_FD(j,i)) .and. abs(d_n_g_FD(j,i))>10.0) then
+                        if (abs(residuals3(j,i)) > error_allowed*100.0) then
+                            test_failed = .true.
+                            exit
+                        else
+                            test_failed = .false.
+                        end if
+                    elseif (10.0>abs(d_n_g_FD(j,i)) .and. abs(d_n_g_FD(j,i))>1.0) then
+                        if (abs(residuals3(j,i)) > error_allowed*10.0) then
+                            test_failed = .true.
+                            exit
+                        else
+                            test_failed = .false.
+                        end if
+                    else
+                        if (abs(residuals3(j,i)) > error_allowed) then
+                            test_failed = .true.
+                            exit
+                        else
+                            test_failed = .false.
+                        end if
+                    end if
+                end do
             end if
         end do
         if (test_failed) then
             total_tests = total_tests + 1
-            write(*,'(A,I,A)')"                              d_n_g vertex ",z," test FAILED"
+            write(*,'(A,I5,A,I5,A)')"                                               &
+                               d_n_g vertex ",z," test FAILED"
             failure_log(total_tests-passed_tests) = "d_n_g test FAILED"
-            write(*,*) failure_log(total_tests-passed_tests)
         else
             ! write(*,*) "        CALC d_n_g test PASSED"
             ! write(*,*) "" 
@@ -269,6 +303,7 @@ program vertex_normal_test2
             
         end if
         test_failed = .false.
+
 
     end do ! z control points
 
