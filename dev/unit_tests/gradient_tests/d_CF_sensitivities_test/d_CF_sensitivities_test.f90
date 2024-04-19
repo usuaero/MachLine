@@ -75,7 +75,7 @@ program d_CF_sensitivities_test
 
     error_allowed = 1.0e-6
     
-    step = 0.00001
+    step = 0.000001
     index = 1
     cp_ind = 1
 

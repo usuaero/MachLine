@@ -61,7 +61,7 @@ program panel_flow2
     ! test stuff
     integer :: passed_tests, total_tests
     logical :: test_failed
-    character(len=100),dimension(20) :: failure_log
+    character(len=100),dimension(100) :: failure_log
     character(len=10) :: m_char
     integer(8) :: start_count, end_count
     real(16) :: count_rate, time
@@ -125,7 +125,7 @@ program panel_flow2
     !!!!!!!!!!!!!!!!!!!!! END TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
-
+    call system_clock(start_count, count_rate)
 
     
 
@@ -331,21 +331,23 @@ program panel_flow2
             do i =1, N_verts*3
                 residuals3(:,i) = adjoint_mesh%panels(index)%d_A_g_to_ls(m)%get_values(i) - d_A_g_to_ls_FD(i,:)
             end do
-            
+
             if (maxval(abs(residuals3(:,:)))>error_allowed) then
                 write(*,*) ""
                 write(*,*) "     FLAGGED VALUES :"
                 do i = 1, N_verts*3
                     if (any(abs(residuals3(:,i))>error_allowed)) then
-                        write(*,'(A,I5,A)') "         Central Difference    d_A_g_to_ls row ",m,"      x, y, and z"
-                        write(*, '(8x,3(f25.10, 4x))') d_A_g_to_ls_FD(i,:)
-                        write(*,'(A,I5,A)') "        adjoint       d_A_g_to_ls row ",m,"      x, y, and z                  &
-                        residuals"
-                        write(*, '(8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') &
+                        write(*,*) ""
+                        write(*,'(A,I5,A)') "           d_A_g_to_ls row ",m,"              & 
+                                              residuals"
+                        write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_A_g_to_ls_FD(i,:)
+                    
+                        write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",   &
                         adjoint_mesh%panels(index)%d_A_g_to_ls(m)%get_values(i), residuals3(:,i)
                     end if
                 end do
             end if
+
             
             
             ! check if test failed
@@ -386,7 +388,8 @@ program panel_flow2
             end do
             if (test_failed) then
                 total_tests = total_tests + 1
-                write(*,'(A,I5,A,I5,A)')"                d_A_g_to_ls panel ",y," row ",m," test FAILED"
+                write(*,'(A,I5,A,I5,A)')"                                               &
+                                   d_A_g_to_ls panel ",y," row ",m," test FAILED"
                 failure_log(total_tests-passed_tests) = "d_A_g_to_ls test FAILED"
             else
                 ! write(*,*) "        CALC d_A_g_to_ls test PASSED"
@@ -411,16 +414,18 @@ program panel_flow2
                 write(*,*) "     FLAGGED VALUES :"
                 do i = 1, N_verts*3
                     if (any(abs(residuals3(:,i))>error_allowed)) then
-                        write(*,'(A,I5,A)') "         Central Difference    d_A_ls_to_g row ",m,"      x, y, and z"
-                        write(*, '(8x,3(f25.10, 4x))') d_A_ls_to_g_FD(i,:)
-                        write(*,'(A,I5,A)') "        adjoint       d_A_ls_to_g row ",m,"      x, y, and z                  &
-                        residuals"
-                        write(*, '(8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') &
+                        write(*,*) ""
+                        write(*,'(A,I5,A)') "            d_A_ls_to_g row  ",m,"              & 
+                                              residuals"
+                        write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_A_ls_to_g_FD(i,:)
+                    
+                        write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",  &
                         adjoint_mesh%panels(index)%d_A_ls_to_g(m)%get_values(i), residuals3(:,i)
                     end if
                 end do
             end if
-            
+
+           
             
             ! check if test failed
             do i=1,N_verts*3
@@ -460,7 +465,8 @@ program panel_flow2
             end do
             if (test_failed) then
                 total_tests = total_tests + 1
-                write(*,'(A,I5,A,I5,A)')"                d_A_ls_to_g panel ",y," row ",m," test FAILED"
+                write(*,'(A,I5,A,I5,A)')"                                               &
+                                   d_A_ls_to_g panel ",y," row ",m," test FAILED"
                 failure_log(total_tests-passed_tests) = "d_A_ls_to_g test FAILED"
             else
                 ! write(*,*) "        CALC d_A_ls_to_g test PASSED"
@@ -488,16 +494,18 @@ program panel_flow2
                 write(*,*) "     FLAGGED VALUES :"
                 do i = 1, N_verts*3
                     if (any(abs(residuals2(:,i))>error_allowed)) then
-                        write(*,'(A,I5,A)') "         Central Difference    d_vertices_ls vert ",m,"      x, y, and z"
-                        write(*, '(8x,2(f25.10, 4x))') d_vertices_ls_FD(i,:)
-                        write(*,'(A,I5,A)') "        adjoint       d_vertices_ls vert ",m,"      x, y, and z                  &
-                        residuals"
-                        write(*, '(8x,2(f25.10, 4x),3x, 2(f25.10, 4x))') &
+                        write(*,*) ""
+                        write(*,'(A,I5,A)') "            d_vertices_ls vert ",m,"              & 
+                                              residuals"
+                        write(*, '(A25,8x,2(f25.10, 4x))') "    Central Difference", d_vertices_ls_FD(i,:)
+                    
+                        write(*, '(A25,8x,2(f25.10, 4x),3x, 2(f25.10, 4x))') "          adjoint",  &
                         adjoint_mesh%panels(index)%d_vertices_ls(1,m)%get_value(i),&
                         adjoint_mesh%panels(index)%d_vertices_ls(1,m)%get_value(i), residuals2(:,i)
                     end if
                 end do
             end if
+            
             
             
             ! check if test failed
@@ -538,7 +546,8 @@ program panel_flow2
             end do
             if (test_failed) then
                 total_tests = total_tests + 1
-                write(*,'(A,I5,A,I5,A)')"                d_vertices_ls panel ",y," vert ",m," test FAILED"
+                write(*,'(A,I5,A,I5,A)')"                                          &
+                                        d_vertices_ls panel ",y," vert ",m," test FAILED"
                 failure_log(total_tests-passed_tests) = "d_vertices_ls test FAILED"
             else
                 ! write(*,*) "        CALC d_vertices_ls test PASSED"
@@ -565,11 +574,12 @@ program panel_flow2
                 write(*,*) "     FLAGGED VALUES :"
                 do i = 1, N_verts*3
                     if (any(abs(residuals2(:,i))>error_allowed)) then
-                        write(*,'(A,I5,A)') "         Central Difference    d_n_hat_ls edge ",m,"      x, y, and z"
-                        write(*, '(8x,2(f25.10, 4x))') d_n_hat_ls_FD(i,:)
-                        write(*,'(A,I5,A)') "        adjoint       d_n_hat_ls edge ",m,"      x, y, and z                  &
-                        residuals"
-                        write(*, '(8x,2(f25.10, 4x),3x, 2(f25.10, 4x))') &
+                        write(*,*) ""
+                        write(*,'(A,I5,A)') "            d_n_hat_ls edge ",m,"              & 
+                                              residuals"
+                        write(*, '(A25,8x,2(f25.10, 4x))') "    Central Difference", d_n_hat_ls_FD(i,:)
+                    
+                        write(*, '(A25,8x,2(f25.10, 4x),3x, 2(f25.10, 4x))') "          adjoint",  &
                         adjoint_mesh%panels(index)%d_n_hat_ls(1,m)%get_value(i),&
                         adjoint_mesh%panels(index)%d_n_hat_ls(2,m)%get_value(i), residuals2(:,i)
                     end if
@@ -615,7 +625,8 @@ program panel_flow2
             end do
             if (test_failed) then
                 total_tests = total_tests + 1
-                write(*,'(A,I5,A,I5,A)')"                d_n_hat_ls panel ",y," edge ",m," test FAILED"
+                write(*,'(A,I5,A,I5,A)')"                                             &
+                                     d_n_hat_ls panel ",y," edge ",m," test FAILED"
                 failure_log(total_tests-passed_tests) = "d_n_hat_ls test FAILED"
             else
                 ! write(*,*) "        CALC d_n_hat_ls test PASSED"
@@ -629,7 +640,7 @@ program panel_flow2
             
             
             
-        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST d_n_hat_ls !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST d_T_mu !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
             ! calculate residuals3
@@ -642,11 +653,12 @@ program panel_flow2
                 write(*,*) "     FLAGGED VALUES :"
                 do i = 1, N_verts*3
                     if (any(abs(residuals3(:,i))>error_allowed)) then
-                        write(*,'(A,I5,A)') "         Central Difference    d_T_mu row ",m,"      x, y, and z"
-                        write(*, '(8x,3(f25.10, 4x))') d_T_mu_FD(i,:)
-                        write(*,'(A,I5,A)') "        adjoint       d_T_mu row ",m,"      x, y, and z                  &
-                        residuals"
-                        write(*, '(8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') &
+                        write(*,*) ""
+                        write(*,'(A,I5,A)') "            d_T_mu row ",m,"              & 
+                                              residuals"
+                        write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_T_mu_FD(i,:)
+                    
+                        write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",   &
                         adjoint_mesh%panels(index)%d_T_mu_rows(m)%get_values(i), residuals3(:,i)
                     end if
                 end do
@@ -691,7 +703,8 @@ program panel_flow2
             end do
             if (test_failed) then
                 total_tests = total_tests + 1
-                write(*,'(A,I5,A,I5,A)')"                d_T_mu panel ",y," row ",m," test FAILED"
+                write(*,'(A,I5,A,I5,A)')"                                             &
+                                     d_T_mu panel ",y," row ",m," test FAILED"
                 failure_log(total_tests-passed_tests) = "d_T_mu test FAILED"
             else
                 ! write(*,*) "        CALC d_n_hat_ls test PASSED"

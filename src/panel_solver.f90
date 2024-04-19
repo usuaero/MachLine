@@ -3529,14 +3529,13 @@ contains
 
         ! allocate vT_forces (N by 3)
         allocate(vT_forces(N,3))
-        allocate(A_p, source=transpose(this%A), stat=stat)
-        call check_allocation(stat, "solver copy of  A transpose")
-
+        
         write(*,*) ""
         write(*,*) "        Solving  [A]^T v = g  for d_Cx, d_Cy, d_Cz"
         
         do i=1,3
-            
+            allocate(A_p, source=transpose(this%A), stat=stat)
+            call check_allocation(stat, "solver copy of  A transpose")
             allocate(b_p, source=d_forces_wrt_mu(:,i), stat=stat)
             call check_allocation(stat, "solver copy of  d_forces_wrt_mu(:,i)")
 
@@ -3566,7 +3565,7 @@ contains
             ! store forces v^T term
             vT_forces(:,i) = x
 
-            deallocate(b_p, x)
+            deallocate(A_p,b_p, x)
     
         end do
         !!!!!!!!!!!!!!!!!!!!!!!!!!!! end Forces v^T terms !!!!!!!!!!!!!!!!!!!!!!!!!!!
