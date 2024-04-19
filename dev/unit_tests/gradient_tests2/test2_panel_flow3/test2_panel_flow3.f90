@@ -61,7 +61,7 @@ program panel_flow2
     ! test stuff
     integer :: passed_tests, total_tests
     logical :: test_failed
-    character(len=100),dimension(20) :: failure_log
+    character(len=100),dimension(100) :: failure_log
     character(len=10) :: m_char
     integer(8) :: start_count, end_count
     real(16) :: count_rate, time
