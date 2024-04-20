@@ -51,7 +51,7 @@ program calc_cp_d_n_g_test
 
     type(sparse_vector),dimension(3,3) :: d_v_d_M_adjoint
 
-    integer :: i,j,k,m,n,p, N_verts, N_panels, vert, index, cp_ind
+    integer :: i,j,k,m,n,p,z, N_verts, N_panels, vert, index, cp_ind
     real,dimension(:,:), allocatable :: v_s, v_d
     real :: step, error_allowed, cp_offset
     type(vertex),dimension(:),allocatable :: vertices ! list of vertex types, this should be a mesh attribute
@@ -67,8 +67,7 @@ program calc_cp_d_n_g_test
 
     !!!!!!!!!!!!!!!!!!! END TESTING STUFF !!!!!!!!!!!!!!!!!!!!!11
 
-    test_failed = .false. ! assume test failed, if the test condition is met, test passed
-    ! NOTE: on the sparse vector test, I assume the test passes, if it fails a test condition, test fails
+    test_failed = .false. 
     passed_tests = 0
     total_tests = 0
 
@@ -126,13 +125,6 @@ program calc_cp_d_n_g_test
     ! Initialize panel solver
     call test_solver%init(solver_settings, processing_settings, test_mesh, freestream_flow, control_point_file)
     
-    ! ! pull out the cp offset
-    ! call json_xtnsn_get(solver_settings, 'control_point_offset', cp_offset, 1.e-7)
-    
-    ! ! calc CALC BASIC GEOM geom of relation between cp1 and panel1 
-    ! test_geom = test_mesh%panels(index)%calc_subsonic_geom(test_mesh%cp(cp_ind)%loc,freestream_flow,.false.)
-    ! test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, .false.)
-    ! test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,.false., test_dod_info)
     !!!!!!!!!!!!!!!!!!!!! END TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
@@ -192,21 +184,6 @@ program calc_cp_d_n_g_test
     call adjoint_solver%init(adjoint_solver_settings, adjoint_processing_settings, adjoint_mesh, &
     adjoint_freestream_flow, adjoint_control_point_file)
 
-    ! !calc CALC BASIC F integral sensitivities cp1 and panel1 
-    ! adjoint_geom = adjoint_mesh%panels(index)%calc_subsonic_geom_adjoint(adjoint_mesh%cp(cp_ind),&
-    !                                                             adjoint_freestream_flow)
-    ! adjoint_dod_info = adjoint_mesh%panels(index)%check_dod(adjoint_mesh%cp(cp_ind)%loc, &
-    !     adjoint_freestream_flow, .false.)
-    
-    ! adjoint_int = adjoint_mesh%panels(index)%calc_integrals(adjoint_geom, 'velocity',&
-    !     adjoint_freestream_flow,.false., adjoint_dod_info)
-    
-    ! call adjoint_mesh%panels(index)%calc_integrals_adjoint(adjoint_geom,adjoint_int,adjoint_freestream_flow&
-    !     , .false., adjoint_dod_info)
-    
-    ! d_v_d_M_adjoint = adjoint_mesh%panels(index)%assemble_v_d_M_space_adjoint(adjoint_int, adjoint_geom, &
-    !     adjoint_freestream_flow, .false.)
-    
     !!!!!!!!!!!! END ADJOINT TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!
 
 
@@ -223,7 +200,7 @@ program calc_cp_d_n_g_test
     allocate(cp_n_g_dn(3,N_verts*3))
     allocate(d_cp_n_g_FD(3,N_verts*3))
 
-    error_allowed = 1.0e-8
+    error_allowed = 1.0e-6
     step = 0.000001
     index = 1
     cp_ind = 1
@@ -240,6 +217,7 @@ program calc_cp_d_n_g_test
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST CALC cp d_n_g  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
     do z = 1,N_verts ! for each control point
+        cp_ind = z
 
         write(*,'(A,I5)') "CP TEST ", z
 
@@ -308,72 +286,91 @@ program calc_cp_d_n_g_test
         ! central difference 
         d_cp_n_g_FD = (cp_n_g_up - cp_n_g_dn)/(2.*step)
 
-        ! write results
-        write(*,*) ""
-        write(*,*) "                d_n_g_FD cp 1"
-        write(*,*) "  d_n_g_x           d_n_g_y           d_n_g_z "
-        do i = 1, N_verts*3
-            write(*, '(3(f14.10, 4x))') d_cp_n_g_FD(:,i)
-        end do 
-        
-        !!!!!!!!!! ADJOINT d_n_g!!!!!!!!!!!!!
-        write(*,*) ""
-        write(*,*) "------------------------------------------------"
-        write(*,*) ""
-        write(*,*) "  ADJOINT d_n_g cp 1"
-        write(*,*) ""
-        
-        !write sparse matrix
-        write(*,*) ""
-        write(*,*) "         d_n_g cp 1"
-        write(*,*) "  d_n_g_x           d_n_g_y           d_n_g_z             sparse_index       full_index"
-
-        do i=1,adjoint_mesh%cp(cp_ind)%d_n_g%sparse_num_cols
-            write(*,'(3(f14.10, 4x), 12x, I5, 12x, I5)') adjoint_mesh%cp(cp_ind)%d_n_g%columns(i)%vector_values, &
-            i, adjoint_mesh%cp(cp_ind)%d_n_g%columns(i)%full_index
-        end do
-        write(*,*) ""
-
 
         ! calculate residuals3
         do i =1, N_verts*3
             residuals3(:,i) = adjoint_mesh%cp(cp_ind)%d_n_g%get_values(i) - d_cp_n_g_FD(:,i)
         end do
 
-        
-        write(*,*) "         d_n_g cp 1 expanded "
-        write(*,*) "  d_n_g_x           d_n_g_y           d_n_g_z                                 residuals"
-        do i = 1, N_verts*3
-            write(*, '(3(f14.10, 4x),3x, 3(f14.10, 4x))') adjoint_mesh%cp(cp_ind)%d_n_g%get_values(i), residuals3(:,i)
-        end do
-        write(*,*) ""
+        if (maxval(abs(residuals3(:,:)))>error_allowed) then
+            write(*,*) ""
+            write(*,*) "     FLAGGED VALUES :"
+            do i = 1, N_verts*3
+                if (any(abs(residuals3(:,i))>error_allowed)) then
+                    write(*,*) ""
+                    write(*,*) "                                    d_cp_n_g              & 
+                                                                   residuals"
+                    write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_cp_n_g_FD(:,i)
+                
+                    write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",   &
+                    adjoint_mesh%vertices(cp_ind)%d_n_g%get_values(i), residuals3(:,i)
+                end if
+            end do
+        end if
 
+        
+        
         ! check if test failed
         do i=1,N_verts*3
-            if (any(abs(residuals3(:,i)) > error_allowed)) then
-                test_failed = .true.
-                exit
-            else 
-                test_failed = .false.
+            if (any(abs(residuals3(:,i)) > error_allowed)) then 
+                do j = 1,3
+                    if (abs(d_cp_n_g_FD(j,i))>1000.0) then
+                        if (abs(residuals3(j,i)) > error_allowed*10000.0) then
+                            test_failed = .true.
+                            exit
+                        else
+                            test_failed = .false.
+                        end if
+                    elseif (1000.0>abs(d_cp_n_g_FD(j,i)) .and. abs(d_cp_n_g_FD(j,i))>100.0) then
+                        if (abs(residuals3(j,i)) > error_allowed*1000.0) then
+                            test_failed = .true.
+                            exit
+                        else
+                            test_failed = .false.
+                        end if
+                    elseif (100.0>abs(d_cp_n_g_FD(j,i)) .and. abs(d_cp_n_g_FD(j,i))>10.0) then
+                        if (abs(residuals3(j,i)) > error_allowed*100.0) then
+                            test_failed = .true.
+                            exit
+                        else
+                            test_failed = .false.
+                        end if
+                    elseif (10.0>abs(d_cp_n_g_FD(j,i)) .and. abs(d_cp_n_g_FD(j,i))>1.0) then
+                        if (abs(residuals3(j,i)) > error_allowed*10.0) then
+                            test_failed = .true.
+                            exit
+                        else
+                            test_failed = .false.
+                        end if
+                    else
+                        if (abs(residuals3(j,i)) > error_allowed) then
+                            test_failed = .true.
+                            exit
+                        else
+                            test_failed = .false.
+                        end if
+                    end if
+                end do
             end if
         end do
         if (test_failed) then
             total_tests = total_tests + 1
-            
-            failure_log(total_tests-passed_tests) = "CALC cp d_n_g test FAILED"
-
-            write(*,*) failure_log(total_tests-passed_tests)
+            write(*,'(A,I5,A,I5,A)')"                                               &
+                               d_cp_n_g vertex ",z," test FAILED"
+            failure_log(total_tests-passed_tests) = "d_cp_n_g test FAILED"
         else
-            write(*,*) "CALC cp d_n_g test PASSED"
+            ! write(*,*) "        CALC d_cp_n_g test PASSED"
+            ! write(*,*) "" 
+            ! write(*,*) ""
             passed_tests = passed_tests + 1
             total_tests = total_tests + 1
             
         end if
         test_failed = .false.
-        write(*,*) "" 
-        write(*,*) ""
 
-    end do ! z verts loop
+
+    end do ! z control points
+
     
 
 

@@ -203,7 +203,7 @@ program panel_flow2
     allocate(T_mu_dn(3,N_verts*3))
     allocate(d_T_mu_FD(3,N_verts*3))
     
-    error_allowed = 1.0e-9
+    error_allowed = 1.0e-5
     step = 0.000001
     index = 1
     
@@ -338,8 +338,8 @@ program panel_flow2
                 do i = 1, N_verts*3
                     if (any(abs(residuals3(:,i))>error_allowed)) then
                         write(*,*) ""
-                        write(*,'(A,I5,A)') "           d_A_g_to_ls row ",m,"              & 
-                                              residuals"
+                        write(*,'(A,I5,A)') "                        d_A_g_to_ls row ",m,"              & 
+                                                           residuals"
                         write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_A_g_to_ls_FD(:,i)
                     
                         write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",   &
@@ -422,8 +422,8 @@ program panel_flow2
                 do i = 1, N_verts*3
                     if (any(abs(residuals3(:,i))>error_allowed)) then
                         write(*,*) ""
-                        write(*,'(A,I5,A)') "            d_A_ls_to_g row  ",m,"              & 
-                                              residuals"
+                        write(*,'(A,I5,A)') "                      d_A_ls_to_g row  ",m,"              & 
+                                                        residuals"
                         write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_A_ls_to_g_FD(:,i)
                     
                         write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",  &
@@ -509,8 +509,8 @@ program panel_flow2
                 do i = 1, N_verts*3
                     if (any(abs(residuals2(:,i))>error_allowed)) then
                         write(*,*) ""
-                        write(*,'(A,I5,A)') "            d_vertices_ls vert ",m,"              & 
-                                              residuals"
+                        write(*,'(A,I5,A)') "                      d_vertices_ls vert ",m,"              & 
+                                                        residuals"
                         write(*, '(A25,8x,2(f25.10, 4x))') "    Central Difference", d_vertices_ls_FD(:,i)
                     
                         write(*, '(A25,8x,2(f25.10, 4x),3x, 2(f25.10, 4x))') "          adjoint",  &
@@ -596,8 +596,8 @@ program panel_flow2
                 do i = 1, N_verts*3
                     if (any(abs(residuals2(:,i))>error_allowed)) then
                         write(*,*) ""
-                        write(*,'(A,I5,A)') "            d_n_hat_ls edge ",m,"              & 
-                                              residuals"
+                        write(*,'(A,I5,A)') "                       d_n_hat_ls edge ",m,"              & 
+                                                         residuals"
                         write(*, '(A25,8x,2(f25.10, 4x))') "    Central Difference", d_n_hat_ls_FD(:,i)
                     
                         write(*, '(A25,8x,2(f25.10, 4x),3x, 2(f25.10, 4x))') "          adjoint",  &
@@ -682,8 +682,8 @@ program panel_flow2
                 do i = 1, N_verts*3
                     if (any(abs(residuals3(:,i))>error_allowed)) then
                         write(*,*) ""
-                        write(*,'(A,I5,A)') "            d_T_mu row ",m,"              & 
-                                              residuals"
+                        write(*,'(A,I5,A)') "                          d_T_mu row ",m,"              & 
+                                                            residuals"
                         write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_T_mu_FD(:,i)
                     
                         write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",   &

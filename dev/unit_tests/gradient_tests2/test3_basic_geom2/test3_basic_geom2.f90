@@ -66,8 +66,7 @@ program calc_basic_geom2
 
 
 
-    test_failed = .false. ! assume test failed, if the test condition is met, test passed
-    ! NOTE: on the sparse vector test, I assume the test passes, if it fails a test condition, test fails
+    test_failed = .false. 
     passed_tests = 0
     total_tests = 0
 
@@ -221,7 +220,7 @@ program calc_basic_geom2
     allocate(d_ls_dn(2,N_verts*3))
     allocate(d_d_ls_FD(2,N_verts*3))
 
-    error_allowed = 1.0e-6
+    error_allowed = 1.0e-9
     step = 0.000001
     index = 1
     cp_ind = 1
@@ -533,8 +532,8 @@ program calc_basic_geom2
                 do i = 1, N_verts*3
                     if (any(abs(residuals3(:,i))>error_allowed)) then
                         write(*,*) ""
-                        write(*,'(A,I5,A)') "           d_P_g panel point ", k,"              & 
-                                              residuals"
+                        write(*,'(A,I5,A)') "                         d_P_g panel point ", k,"       & 
+                                                            residuals"
                         write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_P_g_FD(:,i)
                     
                         write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",   &
@@ -622,8 +621,8 @@ program calc_basic_geom2
                 do i = 1, N_verts*3
                     if (any(abs(residuals3(:,i))>error_allowed)) then
                         write(*,*) ""
-                        write(*,'(A)') "           d_v_xi for each panel vertex   &
-                                                        residuals"
+                        write(*,'(A)') "                                                            d_v_xi for each panel vertex   &
+                                                                                                         residuals"
                         write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_v_xi_FD(:,i)
                     
                         write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",   &
@@ -714,8 +713,8 @@ program calc_basic_geom2
                 do i = 1, N_verts*3
                     if (any(abs(residuals3(:,i))>error_allowed)) then
                         write(*,*) ""
-                        write(*,'(A)') "           d_v_eta for each panel vertex   &
-                                                        residuals"
+                        write(*,'(A)') "                                                  d_v_eta for each panel vertex   &
+                                                                                               residuals"
                         write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_v_eta_FD(:,i)
                     
                         write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",   &
@@ -803,8 +802,8 @@ program calc_basic_geom2
                 do i = 1, N_verts*3
                     if (any(abs(residuals2(:,i))>error_allowed)) then
                         write(*,*) ""
-                        write(*,'(A)') "           d_P_ls for each panel vertex   &
-                                                        residuals"
+                        write(*,'(A)') "                                      d_P_ls for each panel vertex   &
+                                                                                   residuals"
                         write(*, '(A25,8x,2(f25.10, 4x))') "    Central Difference", d_P_ls_FD(:,i)
                     
                         write(*, '(A25,8x,2(f25.10, 4x),3x, 2(f25.10, 4x))') "          adjoint",   &
@@ -919,7 +918,7 @@ program calc_basic_geom2
                         !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
                         
                         ! get desired info
-                        d_ls_up(j + (i-1)*N_verts,:) = test_geom%d_ls(:,p)
+                        d_ls_up(:,j + (i-1)*N_verts) = test_geom%d_ls(:,p)
 
                         ! perturb down the current design variable
                         test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - 2.*step
@@ -955,7 +954,7 @@ program calc_basic_geom2
                         !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
 
                         ! get desired info
-                        d_ls_dn(j + (i-1)*N_verts,:) = test_geom%d_ls(:,p)
+                        d_ls_dn(:,j + (i-1)*N_verts) = test_geom%d_ls(:,p)
                         
                         ! restore geometry
                         test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
@@ -978,8 +977,8 @@ program calc_basic_geom2
                     do i = 1, N_verts*3
                         if (any(abs(residuals2(:,i))>error_allowed)) then
                             write(*,*) ""
-                            write(*,'(A,I5,A)') "           d_d_ls panel edge ",p,"   &
-                                                            residuals"
+                            write(*,'(A,I5,A)') "                       d_d_ls panel edge ",p,"   &
+                                                                        residuals"
                             write(*, '(A25,8x,2(f25.10, 4x))') "    Central Difference", d_d_ls_FD(:,i)
                         
                             write(*, '(A25,8x,2(f25.10, 4x),3x, 2(f25.10, 4x))') "          adjoint",   &
