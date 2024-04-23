@@ -37,7 +37,7 @@ program control_point_sensitivities
     type(surface_mesh) :: test_mesh, adjoint_mesh
     type(flow) :: freestream_flow, adjoint_freestream_flow
     type(panel_solver) :: test_solver, adjoint_solver
-    integer :: start_count, end_count, i_unit
+    integer :: i_unit
     logical :: exists, found
 
     !!!!!!!!!!!!!!!!!!!!! END STUFF FROM MAIN !!!!!!!!!!!!!!!!!!!!!!!!!
@@ -189,7 +189,7 @@ program control_point_sensitivities
     allocate(loc_dn(3,N_verts*3))
     allocate(d_loc_FD(3,N_verts*3))
 
-    error_allowed = 1.0e-6
+    error_allowed = 1.0e-9
     step = 0.000001
     index = 1
     cp_ind = 1
@@ -259,7 +259,7 @@ program control_point_sensitivities
         end do 
         
         ! central difference 
-        d_loc_FD(:,:) = (loc_up(:,:) - loc_dn(:,:3,))/(2.*step)
+        d_loc_FD(:,:) = (loc_up(:,:) - loc_dn(:,:))/(2.*step)
 
 
         ! calculate residuals3
@@ -290,28 +290,28 @@ program control_point_sensitivities
         do i=1,N_verts*3
             if (any(abs(residuals3(:,i)) > error_allowed)) then 
                 do j = 1,3
-                    if (abs(d_loc_g_FD(j,i))>1000.0) then
+                    if (abs(d_loc_FD(j,i))>1000.0) then
                         if (abs(residuals3(j,i)) > error_allowed*10000.0) then
                             test_failed = .true.
                             exit
                         else
                             test_failed = .false.
                         end if
-                    elseif (1000.0>abs(d_loc_g_FD(j,i)) .and. abs(d_loc_g_FD(j,i))>100.0) then
+                    elseif (1000.0>abs(d_loc_FD(j,i)) .and. abs(d_loc_FD(j,i))>100.0) then
                         if (abs(residuals3(j,i)) > error_allowed*1000.0) then
                             test_failed = .true.
                             exit
                         else
                             test_failed = .false.
                         end if
-                    elseif (100.0>abs(d_loc_g_FD(j,i)) .and. abs(d_loc_g_FD(j,i))>10.0) then
+                    elseif (100.0>abs(d_loc_FD(j,i)) .and. abs(d_loc_FD(j,i))>10.0) then
                         if (abs(residuals3(j,i)) > error_allowed*100.0) then
                             test_failed = .true.
                             exit
                         else
                             test_failed = .false.
                         end if
-                    elseif (10.0>abs(d_loc_g_FD(j,i)) .and. abs(d_loc_g_FD(j,i))>1.0) then
+                    elseif (10.0>abs(d_loc_FD(j,i)) .and. abs(d_loc_FD(j,i))>1.0) then
                         if (abs(residuals3(j,i)) > error_allowed*10.0) then
                             test_failed = .true.
                             exit

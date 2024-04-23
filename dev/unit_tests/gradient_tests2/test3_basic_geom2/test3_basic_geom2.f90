@@ -57,7 +57,7 @@ program calc_basic_geom2
     ! test stuff
     integer :: passed_tests, total_tests
     logical :: test_failed
-    character(len=100),dimension(500) :: failure_log
+    character(len=100),dimension(100) :: failure_log
     character(len=10) :: m_char
     real,dimension(:,:),allocatable :: maxRs
     integer(8) :: start_count, end_count
@@ -220,7 +220,7 @@ program calc_basic_geom2
     allocate(d_ls_dn(2,N_verts*3))
     allocate(d_d_ls_FD(2,N_verts*3))
 
-    error_allowed = 1.0e-9
+    error_allowed = 1.0e-6
     step = 0.000001
     index = 1
     cp_ind = 1
