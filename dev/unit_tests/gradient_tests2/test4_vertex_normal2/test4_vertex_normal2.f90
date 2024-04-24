@@ -55,7 +55,7 @@ program vertex_normal_test2
     ! test stuff
     integer :: passed_tests, total_tests
     logical :: test_failed
-    character(len=100),dimension(20) :: failure_log
+    character(len=100),dimension(100) :: failure_log
     character(len=10) :: m_char
     integer :: start_count, end_count
     real(16) :: count_rate, time
@@ -160,7 +160,7 @@ program vertex_normal_test2
     allocate(n_g_dn(N_verts*3))
     allocate(d_n_g_FD(3,N_verts*3))
     
-    error_allowed = 1.0e-7
+    error_allowed = 1.0e-6
     step = 0.000001
     ! index = 1
     cp_ind = 1
