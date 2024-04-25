@@ -216,7 +216,7 @@ program calc_subsonic_geom_cp
     allocate(d_dR_FD(3,N_verts*3))
 
 
-    error_allowed = 1.0e-6
+    error_allowed = 1.0e-8
     step = 0.000001
     index = 1
     cp_ind = 1
@@ -979,12 +979,12 @@ program calc_subsonic_geom_cp
 
 
 
-            deallocate (adjoint_geom)
+            ! deallocate (adjoint_geom)
     
     
-        ! y loop
+        ! z loop
         end do
-    ! z loop
+    ! y loop
     end do
 
 
@@ -1012,7 +1012,7 @@ program calc_subsonic_geom_cp
     write(*,*) ""
     call system_clock(end_count)
     time = real(end_count - start_count)/(count_rate*60.0)
-    write(*,'(A,f12.10, A)') " Total test time = ", time, " minutes"
+    write(*,'(A,f16.10, A)') " Total test time = ", time, " minutes"
     write(*,*) ""
     write(*,*) "----------------------"
     write(*,*) "Program Complete"
