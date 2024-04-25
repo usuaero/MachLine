@@ -46,9 +46,9 @@ program test10
     !!!!!!!!!!!!!!!!!!!!! END STUFF FROM MAIN !!!!!!!!!!!!!!!!!!!!!!!!!
 
     !!!!!!!!!!!!!!!!!!!!!! TESTING STUFF  !!!!!!!!!!!!!!!!!!!!!!!!!!
-    real,dimension(:),allocatable :: residuals, hH113_up, hH113_dn, d_hH113_FD, &
-    H213_up, H213_dn, d_H213_FD, H123_up, H123_dn, d_H123_FD
-    real,dimension(:,:),allocatable ::  residuals3 
+    real,dimension(:),allocatable :: residuals
+    real,dimension(:,:),allocatable ::  residuals3,v_d_M1_up, v_d_M1_up, d_v_d_M1_FD,&
+    v_d_M2_up, v_d_M2_up, d_v_d_M2_FD, v_d_M3_up, v_d_M3_up, d_v_d_M3_FD,
 
     integer :: i,j,k,m,n,y,z, N_verts, N_panels, vert, index, cp_ind
     real :: step,error_allowed
@@ -131,8 +131,8 @@ program test10
     test_geom = test_mesh%panels(index)%calc_subsonic_geom(test_mesh%cp(cp_ind)%loc,freestream_flow,.false.)
     test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, .false.)
     test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,.false., test_dod_info)
+    v_d = test_mesh%panels(index)%assemble_v_d_M_space(test_int, test_geom, freestream_flow, .false.)
     !!!!!!!!!!!!!!!!!!!!! END TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
 
 
     call system_clock(start_count, count_rate)
@@ -202,9 +202,16 @@ program test10
     allocate(residuals3(3,N_verts*3))
     allocate(residuals(N_verts*3))
 
-    allocate(v_d_M_up(N_verts*3))
-    allocate(v_d_M_dn(N_verts*3))
-    allocate(d_v_d_M_FD(N_verts*3))
+    allocate(v_d_M1_up(3,N_verts*3))
+    allocate(v_d_M1_dn(3,N_verts*3))
+    allocate(d_v_d_M1_FD(3,N_verts*3))
+    allocate(v_d_M2_up(3,N_verts*3))
+    allocate(v_d_M2_dn(3,N_verts*3))
+    allocate(d_v_d_M2_FD(3,N_verts*3))
+    allocate(v_d_M3_up(3,N_verts*3))
+    allocate(v_d_M3_dn(3,N_verts*3))
+    allocate(d_v_d_M3_FD(3,N_verts*3))
+
 
     
 
@@ -360,9 +367,10 @@ program test10
             d_v_d_M1_FD(:,:) = (v_d_M1_up(:,:) - v_d_M1_dn(:,:))/(2.*step)
             d_v_d_M2_FD(:,:) = (v_d_M2_up(:,:) - v_d_M2_dn(:,:))/(2.*step)
             d_v_d_M3_FD(:,:) = (v_d_M3_up(:,:) - v_d_M3_dn(:,:))/(2.*step)
-                    
             
-    
+            
+            
+        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! ROW 1 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     
             ! calculate residuals3
             do i =1, N_verts*3
@@ -452,13 +460,13 @@ program test10
 
 
 
-
+        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! ROW 2 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
             ! calculate residuals3
             do i =1, N_verts*3
-                residuals3(:,i) = (/d_v_d_M_adjoint(1,1)%get_value(i),&
-                                    d_v_d_M_adjoint(1,2)%get_value(i),&
-                                    d_v_d_M_adjoint(1,3)%get_value(i)/)- d_v_d_M1_FD(:,i)
+                residuals3(:,i) = (/d_v_d_M_adjoint(2,1)%get_value(i),&
+                                    d_v_d_M_adjoint(2,2)%get_value(i),&
+                                    d_v_d_M_adjoint(2,3)%get_value(i)/)- d_v_d_M2_FD(:,i)
             end do
 
             
@@ -468,14 +476,14 @@ program test10
                 do i = 1, N_verts*3
                     if (any(abs(residuals3(:,i))>error_allowed)) then
                         write(*,*) ""
-                        write(*,*) "                                       d_v_d_M row 1             & 
+                        write(*,*) "                                       d_v_d_M row 2             & 
                                                                         residuals"
-                        write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_v_d_M1_FD(:,i)
+                        write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_v_d_M2_FD(:,i)
                     
                         write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",   &
-                                    d_v_d_M_adjoint(1,1)%get_value(i),&
-                                    d_v_d_M_adjoint(1,2)%get_value(i),&
-                                    d_v_d_M_adjoint(1,3)%get_value(i), residuals3(:,i)
+                                    d_v_d_M_adjoint(2,1)%get_value(i),&
+                                    d_v_d_M_adjoint(2,2)%get_value(i),&
+                                    d_v_d_M_adjoint(2,3)%get_value(i), residuals3(:,i)
                     end if
                 end do
             end if
@@ -486,28 +494,28 @@ program test10
             do i=1,N_verts*3
                 if (any(abs(residuals3(:,i)) > error_allowed)) then 
                     do j = 1,3
-                        if (abs(d_v_d_M1_FD(j,i))>1000.0) then
+                        if (abs(d_v_d_M2_FD(j,i))>1000.0) then
                             if (abs(residuals3(j,i)) > error_allowed*10000.0) then
                                 test_failed = .true.
                                 exit
                             else
                                 test_failed = .false.
                             end if
-                        elseif (1000.0>abs(d_v_d_M1_FD(j,i)) .and. abs(d_v_d_M1_FD(j,i))>100.0) then
+                        elseif (1000.0>abs(d_v_d_M2_FD(j,i)) .and. abs(d_v_d_M2_FD(j,i))>100.0) then
                             if (abs(residuals3(j,i)) > error_allowed*1000.0) then
                                 test_failed = .true.
                                 exit
                             else
                                 test_failed = .false.
                             end if
-                        elseif (100.0>abs(d_v_d_M1_FD(j,i)) .and. abs(d_v_d_M1_FD(j,i))>10.0) then
+                        elseif (100.0>abs(d_v_d_M2_FD(j,i)) .and. abs(d_v_d_M2_FD(j,i))>10.0) then
                             if (abs(residuals3(j,i)) > error_allowed*100.0) then
                                 test_failed = .true.
                                 exit
                             else
                                 test_failed = .false.
                             end if
-                        elseif (10.0>abs(d_v_d_M1_FD(j,i)) .and. abs(d_v_d_M1_FD(j,i))>1.0) then
+                        elseif (10.0>abs(d_v_d_M2_FD(j,i)) .and. abs(d_v_d_M2_FD(j,i))>1.0) then
                             if (abs(residuals3(j,i)) > error_allowed*10.0) then
                                 test_failed = .true.
                                 exit
@@ -528,10 +536,99 @@ program test10
             if (test_failed) then
                 total_tests = total_tests + 1
                 write(*,'(A,I5,A,I5,A)')"                                               &
-                d_v_d_M panel ",y," cp ",z," row 1 test FAILED"
-                failure_log(total_tests-passed_tests) = "d_v_d_M row 1 test FAILED"
+                d_v_d_M panel ",y," cp ",z," row 2 test FAILED"
+                failure_log(total_tests-passed_tests) = "d_v_d_M row 2 test FAILED"
             else
-                ! write(*,*) "        d_v_d_M row 1 test PASSED"
+                ! write(*,*) "        d_v_d_M row 2 test PASSED"
+                ! write(*,*) "" 
+                ! write(*,*) ""
+                passed_tests = passed_tests + 1
+                total_tests = total_tests + 1
+                
+            end if
+            test_failed = .false.
+
+
+        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! ROW 3 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+            ! calculate residuals3
+            do i =1, N_verts*3
+                residuals3(:,i) = (/d_v_d_M_adjoint(3,1)%get_value(i),&
+                                    d_v_d_M_adjoint(3,2)%get_value(i),&
+                                    d_v_d_M_adjoint(3,3)%get_value(i)/)- d_v_d_M3_FD(:,i)
+            end do
+
+            
+            if (maxval(abs(residuals3(:,:)))>error_allowed) then
+                write(*,*) ""
+                write(*,*) "     FLAGGED VALUES :"
+                do i = 1, N_verts*3
+                    if (any(abs(residuals3(:,i))>error_allowed)) then
+                        write(*,*) ""
+                        write(*,*) "                                       d_v_d_M row 3             & 
+                                                                        residuals"
+                        write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_v_d_M3_FD(:,i)
+                    
+                        write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",   &
+                                    d_v_d_M_adjoint(3,1)%get_value(i),&
+                                    d_v_d_M_adjoint(3,2)%get_value(i),&
+                                    d_v_d_M_adjoint(3,3)%get_value(i), residuals3(:,i)
+                    end if
+                end do
+            end if
+
+            
+            
+            ! check if test failed
+            do i=1,N_verts*3
+                if (any(abs(residuals3(:,i)) > error_allowed)) then 
+                    do j = 1,3
+                        if (abs(d_v_d_M3_FD(j,i))>1000.0) then
+                            if (abs(residuals3(j,i)) > error_allowed*10000.0) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                        elseif (1000.0>abs(d_v_d_M3_FD(j,i)) .and. abs(d_v_d_M3_FD(j,i))>100.0) then
+                            if (abs(residuals3(j,i)) > error_allowed*1000.0) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                        elseif (100.0>abs(d_v_d_M3_FD(j,i)) .and. abs(d_v_d_M3_FD(j,i))>10.0) then
+                            if (abs(residuals3(j,i)) > error_allowed*100.0) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                        elseif (10.0>abs(d_v_d_M3_FD(j,i)) .and. abs(d_v_d_M3_FD(j,i))>1.0) then
+                            if (abs(residuals3(j,i)) > error_allowed*10.0) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                        else
+                            if (abs(residuals3(j,i)) > error_allowed) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                        end if
+                    end do
+                end if
+            end do
+            if (test_failed) then
+                total_tests = total_tests + 1
+                write(*,'(A,I5,A,I5,A)')"                                               &
+                d_v_d_M panel ",y," cp ",z," row 3 test FAILED"
+                failure_log(total_tests-passed_tests) = "d_v_d_M row 3 test FAILED"
+            else
+                ! write(*,*) "        d_v_d_M row 3 test PASSED"
                 ! write(*,*) "" 
                 ! write(*,*) ""
                 passed_tests = passed_tests + 1
@@ -542,25 +639,30 @@ program test10
 
 
 
+            deallocate(adjoint_geom)
+            deallocate(adjoint_dod_info)
+            deallocate(adjoint_int )
+            deallocate(d_v_d_M_adjoint)
 
 
-        ! y loop
+        ! z loop
         end do
 
-    ! z loop
+    ! y loop
     end do
 
 
     !!!!!!!!!!!!!!  RESULTS!!!!!!!!!!!!!
-    write(*,*) "------------- d_v_d_M TEST RESULTS--------------"
+    write(*,*) "------------------------------------------------------------------------------"
+    write(*,*) "                     d_v_d_M TEST RESULTS "
+    write(*,*) "------------------------------------------------------------------------------"
     write(*,*) ""
-    write(*,'((A), ES10.2)') "allowed residual = ", error_allowed
-    write(*,'((A), ES10.2)') "control point offset = ", cp_offset
+    write(*,'((A), ES10.1)') "allowed residual = ", error_allowed
     write(*,*) ""
 
-    write(*,'(I15,a14)') total_tests - passed_tests, " tests FAILED"
+    write(*,'(I35,a14)') total_tests - passed_tests, " tests FAILED"
     write(*,*) ""
-    write(*,'(I4,a9,I2,a14)') passed_tests, " out of ", total_tests, " tests PASSED"
+    write(*,'(I15,a9,I15,a14)') passed_tests, " out of ", total_tests, " tests PASSED"
     if (passed_tests < total_tests)then
         write(*,*) ""
         write(*,*) "----------------------"
@@ -572,6 +674,9 @@ program test10
     end if
     
     write(*,*) ""
+    call system_clock(end_count)
+    time = real(end_count - start_count)/(count_rate*60.0)
+    write(*,'(A,f16.10, A)') " Total test time = ", time, " minutes"
     write(*,*) ""
     write(*,*) "----------------------"
     write(*,*) "Program Complete"

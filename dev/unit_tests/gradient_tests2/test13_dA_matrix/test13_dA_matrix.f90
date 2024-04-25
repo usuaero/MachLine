@@ -1,4 +1,4 @@
-program calc_basic_F_integral
+program test13
     ! tests various intermediate sensitivities 
     use adjoint_mod
     use base_geom_mod
@@ -47,13 +47,13 @@ program calc_basic_F_integral
 
     !!!!!!!!!!!!!!!!!!!!!! TESTING STUFF  !!!!!!!!!!!!!!!!!!!!!!!!!!
     real,dimension(:),allocatable :: residuals
-    real,dimension(:,:),allocatable ::  residuals3 , F111_up, F111_dn, d_F111_FD
+    real,dimension(:,:),allocatable ::  residuals3, A_up, A_dn, d_A_FD
 
-    integer :: i,j,k,m,n,y,z, N_verts, N_panels, vert, index, cp_ind
+    integer :: i,j,k,m,n,y,z, row,col,N_verts, N_panels, vert, index, cp_ind
     real :: step,error_allowed
     type(vertex),dimension(:),allocatable :: vertices ! list of vertex types, this should be a mesh attribute
     type(panel),dimension(:),allocatable :: panels, adjoint_panels   ! list of panels, this should be a mesh attribute
-
+    
     ! test stuff
     integer :: passed_tests, total_tests
     logical :: test_failed
@@ -61,22 +61,22 @@ program calc_basic_F_integral
     character(len=10) :: m_char
     integer(8) :: start_count, end_count
     real(16) :: count_rate, time
-
+    
     !!!!!!!!!!!!!!!!!!! END TESTING STUFF !!!!!!!!!!!!!!!!!!!!!11
-
+    
     test_failed = .false. 
     passed_tests = 0
     total_tests = 0
-
+    
     index = 1
     cp_ind = 1
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !                             FROM MAIN
-
+    
     !!!!!!!!!!!!!!! TEST INPUT (calc_adjoint = false) !!!!!!!!!!!!!!!!!!!!!!!
     ! Set up run
     call json_initialize()
-
+    
     test_input = "dev\input_files\adjoint_inputs\test.json"
     test_input = trim(test_input)
 
@@ -86,7 +86,7 @@ program calc_basic_F_integral
         write(*,*) "!!! The file ", test_input, " does not exist. Quitting..."
         stop
     end if
-
+    
     ! Load settings from input file
     call input_json%load_file(filename=test_input)
     call json_check()
@@ -95,11 +95,11 @@ program calc_basic_F_integral
     call input_json%get('solver', solver_settings, found)
     call input_json%get('post_processing', processing_settings, found)
     call input_json%get('output', output_settings, found)
-
+    
     ! Initialize surface mesh
     call test_mesh%init(geom_settings)
-
-
+    
+    
     ! Initialize flow
     call json_xtnsn_get(geom_settings, 'spanwise_axis', spanwise_axis, '+y')
     call freestream_flow%init(flow_settings, spanwise_axis)
@@ -111,46 +111,44 @@ program calc_basic_F_integral
     call json_xtnsn_get(output_settings, 'mirrored_body_file', mirrored_body_file, 'none')
     call json_xtnsn_get(output_settings, 'offbody_points.points_file', points_file, 'none')
     call json_xtnsn_get(output_settings, 'offbody_points.output_file', points_output_file, 'none')
-
+    
     !!!!!!!!!!!!!!!!!!!!!! WAKE_DEV !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! Get formulation type                                                  !
     call json_xtnsn_get(solver_settings, 'formulation', formulation, 'none')!
     !!!!!!!!!!!!!!!!!!!!!!! END_WAKE_DEV !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
+    
     ! Perform flow-dependent initialization on the surface mesh
     call test_mesh%init_with_flow(freestream_flow, body_file, wake_file, formulation)
-
+    
     ! Initialize panel solver
     call test_solver%init(solver_settings, processing_settings, test_mesh, freestream_flow, control_point_file)
     
     ! pull out the cp offset
     call json_xtnsn_get(solver_settings, 'control_point_offset', cp_offset, 1.e-7)
     
-    ! calc CALC BASIC GEOM geom of relation between cp1 and panel1 
-    test_geom = test_mesh%panels(index)%calc_subsonic_geom(test_mesh%cp(cp_ind)%loc,freestream_flow,.false.)
-    test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, .false.)
-    test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,.false., test_dod_info)
+    call test_mesh%panels(index)%calc_velocity_influences(test_mesh%cp(cp_ind)%loc, freestream_flow,.false.,v_s, v_d)
+    doublet_inf = matmul(test_mesh%cp(cp_ind)%n_g, matmul(freestream_flow%B_mat_g, v_d))
     !!!!!!!!!!!!!!!!!!!!! END TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
+  
 
 
     call system_clock(start_count, count_rate)
-    
+
 
     !!!!!!!!!!!!!!!!!!!!!!ADJOINT TEST MESH !!!!!!!!!!!!!!!!!!!!!
     ! Set up run
     call json_initialize()
-
+    
     adjoint_input = "dev\input_files\adjoint_inputs\adjoint_test.json"
     adjoint_input = trim(adjoint_input)
-
+    
     ! Check it exists
     inquire(file=adjoint_input, exist=exists)
     if (.not. exists) then
         write(*,*) "!!! The file ", adjoint_input, " does not exist. Quitting..."
         stop
     end if
-
+    
     ! Load settings from input file
     call adjoint_input_json%load_file(filename=adjoint_input)
     call json_check()
@@ -159,11 +157,12 @@ program calc_basic_F_integral
     call adjoint_input_json%get('solver', adjoint_solver_settings, found)
     call adjoint_input_json%get('post_processing', adjoint_processing_settings, found)
     call adjoint_input_json%get('output', adjoint_output_settings, found)
-
+    
     ! Initialize surface mesh
     call adjoint_mesh%init(adjoint_geom_settings)
+    
     !call adjoint_mesh%init_adjoint()
-
+    
     ! Initialize flow
     call json_xtnsn_get(adjoint_geom_settings, 'spanwise_axis', adjoint_spanwise_axis, '+y')
     call adjoint_freestream_flow%init(adjoint_flow_settings, adjoint_spanwise_axis)
@@ -175,24 +174,21 @@ program calc_basic_F_integral
     call json_xtnsn_get(adjoint_output_settings, 'mirrored_body_file', adjoint_mirrored_body_file, 'none')
     call json_xtnsn_get(adjoint_output_settings, 'offbody_points.points_file', adjoint_points_file, 'none')
     call json_xtnsn_get(adjoint_output_settings, 'offbody_points.output_file', adjoint_points_output_file, 'none')
-
+    
     !!!!!!!!!!!!!!!!!!!!!! WAKE_DEV !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! Get formulation type                                                  !
     call json_xtnsn_get(adjoint_solver_settings, 'formulation', adjoint_formulation, 'none')!
     !!!!!!!!!!!!!!!!!!!!!!! END_WAKE_DEV !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
+    
     ! Perform flow-dependent initialization on the surface mesh
     call adjoint_mesh%init_with_flow(adjoint_freestream_flow, adjoint_body_file, adjoint_wake_file, adjoint_formulation)
-
+    
     ! Initialize panel solver
     call adjoint_solver%init(adjoint_solver_settings, adjoint_processing_settings, adjoint_mesh, &
     adjoint_freestream_flow, adjoint_control_point_file)
-
     
-    !!!!!!!!!!!! END ADJOINT TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!
-
-
-    
+      
+    !!!!!!!!!!!! END ADJOINT TEST MESH !!!!!!!!!!!!!!!!!!!!!!!
     
     N_verts = test_mesh%N_verts
     N_panels = test_mesh%N_panels
@@ -201,10 +197,9 @@ program calc_basic_F_integral
     allocate(residuals3(3,N_verts*3))
     allocate(residuals(N_verts*3))
 
-    allocate(F111_up(3,N_verts*3))
-    allocate(F111_dn(3,N_verts*3))
-    allocate(d_F111_FD(3,N_verts*3))
-
+    allocate(A_up(N_verts*3))
+    allocate(A_dn(N_verts*3))
+    allocate(d_A_FD(N_verts*3))
     
 
     error_allowed = 1.0e-6
@@ -215,7 +210,7 @@ program calc_basic_F_integral
 
     write(*,*) ""
     write(*,*) "------------------------------------------------------------------------"
-    write(*,*) "                    F Integrals SENSITIVITIES TEST                    "
+    write(*,*) "                           dA MATRIX TEST                    "
     write(*,*) "------------------------------------------------------------------------"
     write(*,*) ""
     write(*,*) ""
@@ -223,46 +218,50 @@ program calc_basic_F_integral
 
     
     
-    do y =1,N_panels
-        index = y
+    do row=1,adjoint_mesh%N_verts
         
-        do z = 1,N_verts
-            cp_ind = z
-            
-            write(*,'(A,I5,A,I5)') "F integral test Panel ",y," cp ",z
+        !!!!!!!!! CENTRAL DIFFERENCE (panel 1, cp 1) d_v_d_M row 1, column ", k, !!!!!!!!!
+        write(*,*) ""
+        write(*,*) "--------------------------------------------------------------------------------------"
+        write(*,'(A,I4)') "                   d_A_matrix test Row ",row
+        write(*,*) "--------------------------------------------------------------------------------------"
+        write(*,*) ""
 
-            !calc CALC BASIC F integral sensitivities cp1 and panel1 
-            adjoint_geom = adjoint_mesh%panels(index)%calc_subsonic_geom_adjoint(adjoint_mesh%cp(cp_ind)%loc,&
-                adjoint_mesh%cp(cp_ind)%d_loc, adjoint_freestream_flow)
-            adjoint_dod_info = adjoint_mesh%panels(index)%check_dod(adjoint_mesh%cp(cp_ind)%loc, freestream_flow, .false.)
-            adjoint_int = adjoint_mesh%panels(index)%calc_integrals(adjoint_geom, 'velocity', freestream_flow,.false., adjoint_dod_info)
-            call adjoint_mesh%panels(index)%calc_integrals_adjoint(adjoint_geom,adjoint_int,adjoint_freestream_flow&
-            , .false., adjoint_dod_info)
+
+        do col = 1,adjoint_mesh%N_verts
             
             do i=1,3
                 do j=1,N_verts
 
                     ! perturb up the current design variable
                     test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
-
+                    ! write(*,*) " perturb up"
+                    
                     !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
-
-                    ! update panel geometry and calc
+                
+                    ! update vertex normal
                     do m =1,N_panels
                         deallocate(test_mesh%panels(m)%n_hat_g)
                         call test_mesh%panels(m)%calc_derived_geom()
                     end do
-
-                    ! update vertex normal
+                    
                     call test_mesh%calc_vertex_geometry()
                     
                     ! update with flow
-                    deallocate(test_mesh%panels(index)%vertices_ls)
-                    deallocate(test_mesh%panels(index)%n_hat_ls)
-                    deallocate(test_mesh%panels(index)%b)
-                    deallocate(test_mesh%panels(index)%b_mir)  
-                    deallocate(test_mesh%panels(index)%sqrt_b)
-                    call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
+                    do m =1,N_panels
+                        deallocate(test_mesh%panels(m)%vertices_ls)
+                        deallocate(test_mesh%panels(m)%n_hat_ls)
+                        deallocate(test_mesh%panels(m)%b)
+                        deallocate(test_mesh%panels(m)%b_mir)  
+                        deallocate(test_mesh%panels(m)%sqrt_b)
+                        deallocate(test_mesh%panels(m)%i_vert_d)
+                        deallocate(test_mesh%panels(m)%S_mu_inv)
+                        deallocate(test_mesh%panels(m)%T_mu)
+                        ! deallocate(test_mesh%panels(m)%i_panel_s)
+                        call test_mesh%panels(m)%init_with_flow(freestream_flow, .false., 0)
+                        call test_mesh%panels(m)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
+                        test_mesh%vertices,.false.)
+                    end do
                     
                     ! recalculates cp locations
                     deallocate(test_solver%sigma_known)
@@ -270,59 +269,85 @@ program calc_basic_F_integral
                     deallocate(test_solver%P)
                     call test_solver%init(solver_settings, processing_settings, &
                     test_mesh, freestream_flow, control_point_file)
+                    
+                    ! deallocate stuff
+                    deallocate(test_solver%A)
+                    deallocate(test_solver%I_known)
 
-                    ! update F111 cp1 and panel1 
-                    deallocate(test_int%F111)
-                    deallocate(test_int%F121)
-                    deallocate(test_int%F211)
-                    test_geom = test_mesh%panels(index)%calc_subsonic_geom(test_mesh%cp(cp_ind)%loc,freestream_flow,.false.)
-                    test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, .false.)
-                    test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,.false., test_dod_info)
+                    ! Allocate known influence storage
+                    allocate(test_solver%I_known(test_mesh%N_cp), source=0., stat=stat)
+                    call check_allocation(stat, "known influence vector")
+                    
+                    ! allocate A matrix
+                    allocate(test_solver%A(test_mesh%N_cp, test_solver%N_unknown), source=0., stat=stat)
+                    call check_allocation(stat, "AIC matrix")
+
+                    ! Calculate body influences
+                    call test_solver%calc_body_influences(test_mesh)
+
                     !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
                     
-                    ! get desired info
-                    F111_up(:,j + (i-1)*N_verts) = test_int%F111(:)
-
+                    ! get the needed info
+                    A_up(j + (i-1)*N_verts) = test_solver%A(row,col)
+                    
+                    
                     ! perturb down the current design variable
+                    ! write(*,*) " perturb down"
                     test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - 2.*step
-
+                    
                     !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
-                    ! update panel geometry and calc
+                
+                    ! update vertex normal
                     do m =1,N_panels
                         deallocate(test_mesh%panels(m)%n_hat_g)
                         call test_mesh%panels(m)%calc_derived_geom()
                     end do
                     
-                    ! update vertex normal
                     call test_mesh%calc_vertex_geometry()
-
+                    
                     ! update with flow
-                    deallocate(test_mesh%panels(index)%vertices_ls)
-                    deallocate(test_mesh%panels(index)%n_hat_ls)
-                    deallocate(test_mesh%panels(index)%b)
-                    deallocate(test_mesh%panels(index)%b_mir)  
-                    deallocate(test_mesh%panels(index)%sqrt_b)
-                    call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
-
+                    do m =1,N_panels
+                        deallocate(test_mesh%panels(m)%vertices_ls)
+                        deallocate(test_mesh%panels(m)%n_hat_ls)
+                        deallocate(test_mesh%panels(m)%b)
+                        deallocate(test_mesh%panels(m)%b_mir)  
+                        deallocate(test_mesh%panels(m)%sqrt_b)
+                        deallocate(test_mesh%panels(m)%i_vert_d)
+                        deallocate(test_mesh%panels(m)%S_mu_inv)
+                        deallocate(test_mesh%panels(m)%T_mu)
+                        ! deallocate(test_mesh%panels(m)%i_panel_s)
+                        call test_mesh%panels(m)%init_with_flow(freestream_flow, .false., 0)
+                        call test_mesh%panels(m)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
+                        test_mesh%vertices,.false.)
+                    end do
+                    
                     ! recalculates cp locations
                     deallocate(test_solver%sigma_known)
                     deallocate(test_mesh%cp)
                     deallocate(test_solver%P)
                     call test_solver%init(solver_settings, processing_settings, &
                     test_mesh, freestream_flow, control_point_file)
+                    
+                    ! deallocate stuff
+                    deallocate(test_solver%A)
+                    deallocate(test_solver%I_known)
 
+                    ! Allocate known influence storage
+                    allocate(test_solver%I_known(test_mesh%N_cp), source=0., stat=stat)
+                    call check_allocation(stat, "known influence vector")
+                    
+                    ! allocate A matrix
+                    allocate(test_solver%A(test_mesh%N_cp, test_solver%N_unknown), source=0., stat=stat)
+                    call check_allocation(stat, "AIC matrix")
 
-                    ! update F111 cp1 and panel1 
-                    deallocate(test_int%F111)
-                    deallocate(test_int%F121)
-                    deallocate(test_int%F211)
-                    test_geom = test_mesh%panels(index)%calc_subsonic_geom(test_mesh%cp(cp_ind)%loc,freestream_flow,.false.)
-                    test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, .false.)
-                    test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,.false., test_dod_info)
+                    ! Calculate body influences
+                    call test_solver%calc_body_influences(test_mesh)
+
                     !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
+                    
+                    ! get the needed info
+                    A_dn(j + (i-1)*N_verts) = test_solver%A(row,col)
 
-                    ! put the x y or z component of the vertex of interest (index) in a list
-                    F111_dn(:,j + (i-1)*N_verts) = test_int%F111(:)
                     
                     ! restore geometry
                     test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
@@ -330,89 +355,80 @@ program calc_basic_F_integral
             end do 
             
             ! central difference 
-            d_F111_FD = (F111_up - F111_dn)/(2.*step)
+            d_A_FD = (A_up - A_dn)/(2.*step)
+                    
+            write(*,*) ""
             
-        
-             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!  d_F111 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        
-
             ! calculate residuals3
             do i =1, N_verts*3
-                residuals3(:,i) = (/adjoint_int%d_F111(1)%get_value(i),&
-                                    adjoint_int%d_F111(2)%get_value(i),&
-                                    adjoint_int%d_F111(3)%get_value(i)/) - d_F111_FD(:,i)
+                residuals(i) = adjoint_solver%d_A_matrix(row,col)%get_value(i) - d_A_FD(i)
             end do
 
-            if (maxval(abs(residuals3(:,:)))>error_allowed) then
+
+            
+            if (maxval(abs(residuals))>error_allowed) then
                 write(*,*) ""
                 write(*,*) "     FLAGGED VALUES :"
+                write(*,'(A,I5,A,I5,A)') "        d_A row ",row," col ",col,"  FD             adjoint d_A             residual"
                 do i = 1, N_verts*3
-                    if (any(abs(residuals3(:,i))>error_allowed)) then
-                        write(*,*) ""
-                        write(*,*) "                                     d_F111 edges             & 
-                                                                   residuals"
-                        write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_F111_FD(:,i)
-                    
-                        write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",   &
-                        adjoint_int%d_F111(1)%get_value(i),&
-                        adjoint_int%d_F111(2)%get_value(i),&
-                        adjoint_int%d_F111(3)%get_value(i), residuals3(:,i)
+                    if (abs(residuals(i))>error_allowed) then
+                        write(*, '(8x,(f25.10, 4x),3x, (f25.10, 4x),3x, (f25.10, 4x))') &
+                        d_A_FD(i), adjoint_solver%d_A_matrix(row,col)%get_value(i), residuals(i)
                     end if
                 end do
             end if
-    
             
             
             ! check if test failed
             do i=1,N_verts*3
-                if (any(abs(residuals3(:,i)) > error_allowed)) then 
-                    do j = 1,3
-                        if (abs(d_F111_FD(j,i))>1000.0) then
-                            if (abs(residuals3(j,i)) > error_allowed*10000.0) then
-                                test_failed = .true.
-                                exit
-                            else
-                                test_failed = .false.
-                            end if
-                        elseif (1000.0>abs(d_F111_FD(j,i)) .and. abs(d_F111_FD(j,i))>100.0) then
-                            if (abs(residuals3(j,i)) > error_allowed*1000.0) then
-                                test_failed = .true.
-                                exit
-                            else
-                                test_failed = .false.
-                            end if
-                        elseif (100.0>abs(d_F111_FD(j,i)) .and. abs(d_F111_FD(j,i))>10.0) then
-                            if (abs(residuals3(j,i)) > error_allowed*100.0) then
-                                test_failed = .true.
-                                exit
-                            else
-                                test_failed = .false.
-                            end if
-                        elseif (10.0>abs(d_F111_FD(j,i)) .and. abs(d_F111_FD(j,i))>1.0) then
-                            if (abs(residuals3(j,i)) > error_allowed*10.0) then
-                                test_failed = .true.
-                                exit
-                            else
-                                test_failed = .false.
-                            end if
+                if (any(abs(residuals) > error_allowed)) then 
+                    if (abs(d_A_FD(i))>1000.0) then
+                        if (abs(residuals(i)) > error_allowed*10000.0) then
+                            test_failed = .true.
+                            exit
                         else
-                            if (abs(residuals3(j,i)) > error_allowed) then
-                                test_failed = .true.
-                                exit
-                            else
-                                test_failed = .false.
-                            end if
+                            test_failed = .false.
                         end if
-                    end do
+                    elseif (1000.0>abs(d_A_FD(i)) .and. abs(d_A_FD(i))>100.0) then
+                        if (abs(residuals(i)) > error_allowed*1000.0) then
+                            test_failed = .true.
+                            exit
+                        else
+                            test_failed = .false.
+                        end if
+                    elseif (100.0>abs(d_A_FD(i)) .and. abs(d_A_FD(i))>10.0) then
+                        if (abs(residuals(i)) > error_allowed*100.0) then
+                            test_failed = .true.
+                            exit
+                        else
+                            test_failed = .false.
+                        end if
+                    elseif (10.0>abs(d_A_FD(i)) .and. abs(d_A_FD(i))>1.0) then
+                        if (abs(residuals(i)) > error_allowed*10.0) then
+                            test_failed = .true.
+                            exit
+                        else
+                            test_failed = .false.
+                        end if
+                    else
+                        if (abs(residuals(i)) > error_allowed) then
+                            test_failed = .true.
+                            exit
+                        else
+                            test_failed = .false.
+                        end if
+                    end if
                 end if
+                
+            
             end do
             if (test_failed) then
                 total_tests = total_tests + 1
-                write(*,'(A,I5,A,I5,A)')"                                               &
-                                d_F111 edges panel ",y," cp ",z," test FAILED"
-                failure_log(total_tests-passed_tests) = "d_F111 test FAILED"
+                write(*,'(A,I5,A,I5,A)')"                                     &
+                                            d_A row ",row," col ",col," test FAILED"
+                failure_log(total_tests-passed_tests) = "d_A test FAILED"
             else
-                ! write(*,*) "        CALC d_F111 test PASSED"
+                ! write(*,*) "        d_A test PASSED"
                 ! write(*,*) "" 
                 ! write(*,*) ""
                 passed_tests = passed_tests + 1
@@ -422,17 +438,16 @@ program calc_basic_F_integral
             test_failed = .false.
 
 
-
-        ! z loop
+        ! col loop
         end do
 
-    ! y loop
+    ! row loop
     end do
 
 
-    !!!!!!!!!!!!!! CALC_BASIC_F_INTEGRAL SENSITIVITIES RESULTS!!!!!!!!!!!!!
+    !!!!!!!!!!!!!!  RESULTS!!!!!!!!!!!!!
     write(*,*) "------------------------------------------------------------------------------"
-    write(*,*) "     F INTEGRALS TEST RESULTS "
+    write(*,*) "                          dA MATRIX TEST RESULTS "
     write(*,*) "------------------------------------------------------------------------------"
     write(*,*) ""
     write(*,'((A), ES10.1)') "allowed residual = ", error_allowed
@@ -460,4 +475,4 @@ program calc_basic_F_integral
     write(*,*) "Program Complete"
     write(*,*) "----------------------"
 
-end program calc_basic_F_integral
+end program test13

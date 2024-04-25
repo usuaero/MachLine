@@ -600,23 +600,24 @@ program calc_H_integrals
 
 
 
-        ! y loop
+        ! z loop
         end do
 
-    ! z loop
+    ! y loop
     end do
 
 
     !!!!!!!!!!!!!!  RESULTS!!!!!!!!!!!!!
-    write(*,*) "------------- H INTEGRAL SENSITIVITIES TEST RESULTS--------------"
+    write(*,*) "------------------------------------------------------------------------------"
+    write(*,*) "      H INTEGRAL SENSITIVITIES TEST RESULTS "
+    write(*,*) "------------------------------------------------------------------------------"
     write(*,*) ""
-    write(*,'((A), ES10.2)') "allowed residual = ", error_allowed
-    write(*,'((A), ES10.2)') "control point offset = ", cp_offset
+    write(*,'((A), ES10.1)') "allowed residual = ", error_allowed
     write(*,*) ""
 
-    write(*,'(I15,a14)') total_tests - passed_tests, " tests FAILED"
+    write(*,'(I35,a14)') total_tests - passed_tests, " tests FAILED"
     write(*,*) ""
-    write(*,'(I4,a9,I2,a14)') passed_tests, " out of ", total_tests, " tests PASSED"
+    write(*,'(I15,a9,I15,a14)') passed_tests, " out of ", total_tests, " tests PASSED"
     if (passed_tests < total_tests)then
         write(*,*) ""
         write(*,*) "----------------------"
@@ -628,6 +629,9 @@ program calc_H_integrals
     end if
     
     write(*,*) ""
+    call system_clock(end_count)
+    time = real(end_count - start_count)/(count_rate*60.0)
+    write(*,'(A,f16.10, A)') " Total test time = ", time, " minutes"
     write(*,*) ""
     write(*,*) "----------------------"
     write(*,*) "Program Complete"
