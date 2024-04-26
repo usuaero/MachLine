@@ -241,12 +241,19 @@ program calc_H_integrals
             !calc H integrals adjoint
             adjoint_geom = adjoint_mesh%panels(index)%calc_subsonic_geom_adjoint(adjoint_mesh%cp(cp_ind)%loc,&
                 adjoint_mesh%cp(cp_ind)%d_loc, adjoint_freestream_flow)
+<<<<<<< HEAD
            
                 adjoint_dod_info = adjoint_mesh%panels(index)%check_dod(adjoint_mesh%cp(cp_ind)%loc, freestream_flow, .false.)
             
             adjoint_int = adjoint_mesh%panels(index)%calc_integrals&
                 (adjoint_geom, 'velocity', freestream_flow,.false., adjoint_dod_info)
             
+=======
+            adjoint_dod_info = adjoint_mesh%panels(index)%check_dod(adjoint_mesh%cp(cp_ind)%loc, freestream_flow, .false.)
+            
+            adjoint_int = adjoint_mesh%panels(index)%calc_integrals&
+            (adjoint_geom, 'velocity', freestream_flow,.false., adjoint_dod_info)
+>>>>>>> 67956b1bd1faee90021c4cf24b5b9f5c2c404b5f
             call adjoint_mesh%panels(index)%calc_integrals_adjoint(adjoint_geom,adjoint_int,adjoint_freestream_flow&
             , .false., adjoint_dod_info)
             
@@ -286,7 +293,8 @@ program calc_H_integrals
                     deallocate(test_int%F111)
                     test_geom = test_mesh%panels(index)%calc_subsonic_geom(test_mesh%cp(cp_ind)%loc,freestream_flow,.false.)
                     test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, .false.)
-                    test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,.false., test_dod_info)
+                    test_int = test_mesh%panels(index)%calc_integrals&
+                    (test_geom, 'velocity', freestream_flow,.false., test_dod_info)
                     !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
                     
                     ! get desired info
@@ -329,7 +337,8 @@ program calc_H_integrals
                     deallocate(test_int%F211)
                     test_geom = test_mesh%panels(index)%calc_subsonic_geom(test_mesh%cp(cp_ind)%loc,freestream_flow,.false.)
                     test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, .false.)
-                    test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,.false., test_dod_info)
+                    test_int = test_mesh%panels(index)%calc_integrals&
+                    (test_geom, 'velocity', freestream_flow,.false., test_dod_info)
                     !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
 
                     ! get desired info
