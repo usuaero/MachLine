@@ -51,7 +51,7 @@ program calc_H_integrals
     real,dimension(:,:),allocatable ::  residuals3 
 
     integer :: i,j,k,m,n,y,z, N_verts, N_panels, vert, index, cp_ind
-    real :: step,error_allowed
+    real :: step,error_allowed, cp_offset
     type(vertex),dimension(:),allocatable :: vertices ! list of vertex types, this should be a mesh attribute
     type(panel),dimension(:),allocatable :: panels, adjoint_panels   ! list of panels, this should be a mesh attribute
 
@@ -214,7 +214,7 @@ program calc_H_integrals
 
     
 
-    error_allowed = 1.0e-6
+    error_allowed = 1.0e-7
     step = 0.000001
     index = 1
     cp_ind = 1
@@ -241,8 +241,12 @@ program calc_H_integrals
             !calc H integrals adjoint
             adjoint_geom = adjoint_mesh%panels(index)%calc_subsonic_geom_adjoint(adjoint_mesh%cp(cp_ind)%loc,&
                 adjoint_mesh%cp(cp_ind)%d_loc, adjoint_freestream_flow)
-            adjoint_dod_info = adjoint_mesh%panels(index)%check_dod(adjoint_mesh%cp(cp_ind)%loc, freestream_flow, .false.)
-            adjoint_int = adjoint_mesh%panels(index)%calc_integrals(adjoint_geom, 'velocity', freestream_flow,.false., adjoint_dod_info)
+           
+                adjoint_dod_info = adjoint_mesh%panels(index)%check_dod(adjoint_mesh%cp(cp_ind)%loc, freestream_flow, .false.)
+            
+            adjoint_int = adjoint_mesh%panels(index)%calc_integrals&
+                (adjoint_geom, 'velocity', freestream_flow,.false., adjoint_dod_info)
+            
             call adjoint_mesh%panels(index)%calc_integrals_adjoint(adjoint_geom,adjoint_int,adjoint_freestream_flow&
             , .false., adjoint_dod_info)
             
@@ -288,7 +292,7 @@ program calc_H_integrals
                     ! get desired info
                     hH113_up(j + (i-1)*N_verts) = test_int%hH113
                     H213_up(j + (i-1)*N_verts) = test_int%H213
-                    H123_up(j + (i-1)*N_verts) = test_int%hH123
+                    H123_up(j + (i-1)*N_verts) = test_int%H123
 
                     ! perturb down the current design variable
                     test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - 2.*step
@@ -349,7 +353,7 @@ program calc_H_integrals
 
             ! calculate residuals
             do i =1, N_verts*3
-                residuals(i) = adjoint_int%d_hH113(1)%get_value(i) - d_hH113_FD(i)
+                residuals(i) = adjoint_int%d_hH113%get_value(i) - d_hH113_FD(i)
             end do
 
             if (maxval(abs(residuals(:)))>error_allowed) then
@@ -358,12 +362,12 @@ program calc_H_integrals
                 do i = 1, N_verts*3
                     if (abs(residuals(i))>error_allowed) then
                         write(*,*) ""
-                        write(*,*) "                                  d_hH113            & 
-                                                             residuals"
+                        write(*,*) "                                                d_hH113        &
+                                    |             residuals"
                         write(*, '(A25,8x,(f25.10, 4x))') "    Central Difference", d_hH113_FD(i)
                     
                         write(*, '(A25,8x,(f25.10, 4x),3x, (f25.10, 4x))') "          adjoint",   &
-                        adjoint_int%d_hH113(1)%get_value(i), residuals3(:,i)
+                        adjoint_int%d_hH113%get_value(i), residuals(i)
                     end if
                 end do
             end if
@@ -434,7 +438,7 @@ program calc_H_integrals
 
             ! calculate residuals
             do i =1, N_verts*3
-                residuals(i) = adjoint_int%d_H213(1)%get_value(i) - d_H213_FD(i)
+                residuals(i) = adjoint_int%d_H213%get_value(i) - d_H213_FD(i)
             end do
 
             if (maxval(abs(residuals(:)))>error_allowed) then
@@ -443,12 +447,12 @@ program calc_H_integrals
                 do i = 1, N_verts*3
                     if (abs(residuals(i))>error_allowed) then
                         write(*,*) ""
-                        write(*,*) "                                  d_H213            & 
-                                                             residuals"
+                        write(*,*) "                                             d_H213         & 
+                        |             residuals"
                         write(*, '(A25,8x,(f25.10, 4x))') "    Central Difference", d_H213_FD(i)
                     
                         write(*, '(A25,8x,(f25.10, 4x),3x, (f25.10, 4x))') "          adjoint",   &
-                        adjoint_int%d_H213(1)%get_value(i), residuals3(:,i)
+                        adjoint_int%d_H213%get_value(i), residuals(i)
                     end if
                 end do
             end if
@@ -520,7 +524,7 @@ program calc_H_integrals
 
             ! calculate residuals
             do i =1, N_verts*3
-                residuals(i) = adjoint_int%d_H123(1)%get_value(i) - d_H123_FD(i)
+                residuals(i) = adjoint_int%d_H123%get_value(i) - d_H123_FD(i)
             end do
 
             if (maxval(abs(residuals(:)))>error_allowed) then
@@ -529,12 +533,12 @@ program calc_H_integrals
                 do i = 1, N_verts*3
                     if (abs(residuals(i))>error_allowed) then
                         write(*,*) ""
-                        write(*,*) "                                  d_H123            & 
-                                                             residuals"
+                        write(*,*) "                                            d_H123            & 
+                        |             residuals"
                         write(*, '(A25,8x,(f25.10, 4x))') "    Central Difference", d_H123_FD(i)
                     
                         write(*, '(A25,8x,(f25.10, 4x),3x, (f25.10, 4x))') "          adjoint",   &
-                        adjoint_int%d_H123(1)%get_value(i), residuals3(:,i)
+                        adjoint_int%d_H123%get_value(i), residuals(i)
                     end if
                 end do
             end if

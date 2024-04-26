@@ -47,11 +47,14 @@ program test10
 
     !!!!!!!!!!!!!!!!!!!!!! TESTING STUFF  !!!!!!!!!!!!!!!!!!!!!!!!!!
     real,dimension(:),allocatable :: residuals
-    real,dimension(:,:),allocatable ::  residuals3,v_d_M1_up, v_d_M1_up, d_v_d_M1_FD,&
-    v_d_M2_up, v_d_M2_up, d_v_d_M2_FD, v_d_M3_up, v_d_M3_up, d_v_d_M3_FD,
+    real,dimension(:,:),allocatable ::  residuals3, v_d_M1_up, v_d_M1_dn, d_v_d_M1_FD,&
+    v_d_M2_up, v_d_M2_dn, d_v_d_M2_FD, v_d_M3_up, v_d_M3_dn, d_v_d_M3_FD
+
+    type(sparse_vector),dimension(3,3) :: d_v_d_M_adjoint
+    real,dimension(:,:), allocatable :: v_s, v_d
 
     integer :: i,j,k,m,n,y,z, N_verts, N_panels, vert, index, cp_ind
-    real :: step,error_allowed
+    real :: step,error_allowed, cp_offset
     type(vertex),dimension(:),allocatable :: vertices ! list of vertex types, this should be a mesh attribute
     type(panel),dimension(:),allocatable :: panels, adjoint_panels   ! list of panels, this should be a mesh attribute
 
@@ -303,9 +306,9 @@ program test10
                     !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
                     
                     ! get the needed info
-                    v_d_M1_up(:,j + (i-1)*N_verts) = v_d(1,:)
-                    v_d_M2_up(:,j + (i-1)*N_verts) = v_d(2,:)
-                    v_d_M3_up(:,j + (i-1)*N_verts) = v_d(3,:)
+                    v_d_M1_up(:, j + (i-1)*N_verts) = v_d(1,:)
+                    v_d_M2_up(:, j + (i-1)*N_verts) = v_d(2,:)
+                    v_d_M3_up(:, j + (i-1)*N_verts) = v_d(3,:)
                     
                     
                     ! perturb down the current design variable
@@ -352,9 +355,9 @@ program test10
                     !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
                     
                     ! get the needed info
-                    v_d_M1_dn(:,j + (i-1)*N_verts) = v_d(1,:)
-                    v_d_M2_dn(:,j + (i-1)*N_verts) = v_d(2,:)
-                    v_d_M3_dn(:,j + (i-1)*N_verts) = v_d(3,:)
+                    v_d_M1_dn(:, j + (i-1)*N_verts) = v_d(1,:)
+                    v_d_M2_dn(:, j + (i-1)*N_verts) = v_d(2,:)
+                    v_d_M3_dn(:, j + (i-1)*N_verts) = v_d(3,:)
     
                     
                     ! restore geometry
@@ -639,10 +642,6 @@ program test10
 
 
 
-            deallocate(adjoint_geom)
-            deallocate(adjoint_dod_info)
-            deallocate(adjoint_int )
-            deallocate(d_v_d_M_adjoint)
 
 
         ! z loop

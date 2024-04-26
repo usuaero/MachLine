@@ -42,6 +42,9 @@ program test11
     type(sparse_matrix),dimension(3) :: d_v_d
     integer :: i_unit
     logical :: exists, found
+    real,dimension(:),allocatable :: doublet_inf
+    real,dimension(:,:),allocatable :: v_s, v_d
+    type(sparse_vector),dimension(3) :: inf_adjoint, inf_adjoint2
 
     !!!!!!!!!!!!!!!!!!!!! END STUFF FROM MAIN !!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -50,7 +53,7 @@ program test11
     real,dimension(:,:),allocatable ::  residuals3, inf_up, inf_dn, d_inf_FD
 
     integer :: i,j,k,m,n,y,z, N_verts, N_panels, vert, index, cp_ind
-    real :: step,error_allowed
+    real :: step,error_allowed, cp_offset
     type(vertex),dimension(:),allocatable :: vertices ! list of vertex types, this should be a mesh attribute
     type(panel),dimension(:),allocatable :: panels, adjoint_panels   ! list of panels, this should be a mesh attribute
     
@@ -202,7 +205,7 @@ program test11
     allocate(d_inf_FD(3,N_verts*3))
     
 
-    error_allowed = 1.0e-6
+    error_allowed = 1.0e-7
     step = 0.000001
     index = 1
     cp_ind = 1
@@ -278,7 +281,7 @@ program test11
                     !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
                     
                     ! get the needed info
-                    inf_up(:,j + (i-1)*N_verts) = doublet_inf(:)
+                    inf_up(:, j + (i-1)*N_verts) = doublet_inf(:)
                     
                     
                     ! perturb down the current design variable
@@ -323,7 +326,7 @@ program test11
                     !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
                     
                     ! get the needed info
-                    inf_dn(:,j + (i-1)*N_verts) = doublet_inf(:)
+                    inf_dn(:, j + (i-1)*N_verts) = doublet_inf(:)
 
                     
                     ! restore geometry
@@ -336,7 +339,7 @@ program test11
 
             ! calculate residuals3
             do i =1, N_verts*3
-                residuals3(i) = (/inf_adjoint2(1)%get_value(i),&
+                residuals3(:,i) = (/inf_adjoint2(1)%get_value(i),&
                                   inf_adjoint2(2)%get_value(i),&
                                   inf_adjoint2(3)%get_value(i)/) - d_inf_FD(:,i)
             end do
@@ -420,9 +423,6 @@ program test11
                 
             end if
             test_failed = .false.
-
-
-            deallocate(inf_adjoint2)
 
 
         ! z loop
