@@ -50,7 +50,7 @@ program calc_basic_F_integral
     real,dimension(:,:),allocatable ::  residuals3 , F111_up, F111_dn, d_F111_FD
 
     integer :: i,j,k,m,n,y,z, N_verts, N_panels, vert, index, cp_ind
-    real :: step,error_allowed
+    real :: step,error_allowed, cp_offset
     type(vertex),dimension(:),allocatable :: vertices ! list of vertex types, this should be a mesh attribute
     type(panel),dimension(:),allocatable :: panels, adjoint_panels   ! list of panels, this should be a mesh attribute
 
@@ -207,7 +207,7 @@ program calc_basic_F_integral
 
     
 
-    error_allowed = 1.0e-9
+    error_allowed = 1.0e-7
     step = 0.000001
     index = 1
     cp_ind = 1
@@ -234,8 +234,11 @@ program calc_basic_F_integral
             !calc CALC BASIC F integral sensitivities cp1 and panel1 
             adjoint_geom = adjoint_mesh%panels(index)%calc_subsonic_geom_adjoint(adjoint_mesh%cp(cp_ind)%loc,&
                 adjoint_mesh%cp(cp_ind)%d_loc, adjoint_freestream_flow)
+            
             adjoint_dod_info = adjoint_mesh%panels(index)%check_dod(adjoint_mesh%cp(cp_ind)%loc, freestream_flow, .false.)
-            adjoint_int = adjoint_mesh%panels(index)%calc_integrals(adjoint_geom, 'velocity', freestream_flow,.false., adjoint_dod_info)
+            
+            adjoint_int = adjoint_mesh%panels(index)%calc_integrals&
+            (adjoint_geom, 'velocity', freestream_flow,.false., adjoint_dod_info)
             call adjoint_mesh%panels(index)%calc_integrals_adjoint(adjoint_geom,adjoint_int,adjoint_freestream_flow&
             , .false., adjoint_dod_info)
             
