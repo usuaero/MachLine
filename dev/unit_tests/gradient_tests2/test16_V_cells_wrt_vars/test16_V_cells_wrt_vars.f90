@@ -1,4 +1,4 @@
-program test14
+program test16
     ! tests various intermediate sensitivities 
     use adjoint_mod
     use base_geom_mod
@@ -131,8 +131,6 @@ program test14
 
     ! Allocate known influence storage
     allocate(test_solver%I_known(test_mesh%N_cp), source=0., stat=stat)
-    write(*,*) "N_cp = ",test_mesh%N_cp
-    write(*,*) "stat = ",stat
     call check_allocation(stat, "known influence vector")
 
     ! Allocate AIC matrix
@@ -216,7 +214,6 @@ program test14
     ! Initialize panel solver
     call adjoint_solver%init(adjoint_solver_settings, adjoint_processing_settings, adjoint_mesh, &
     adjoint_freestream_flow, adjoint_control_point_file)
-    write(*,*) "check for size mismatch"
     ! solve
     call adjoint_solver%solve(adjoint_mesh, adjoint_solver_stat, adjoint_formulation,adjoint_freestream_flow)
     
@@ -258,7 +255,7 @@ program test14
         
         write(*,*) ""
         write(*,*) "--------------------------------------------------------------------------------------"
-        write(*,*) "                           d_V_cells_wrt_vars test "
+        write(*,'(A,I5)') "                           d_V_cells_wrt_mu test ",z
         write(*,*) "--------------------------------------------------------------------------------------"
         write(*,*) ""
 
@@ -493,4 +490,4 @@ program test14
     write(*,*) "Program Complete"
     write(*,*) "----------------------"
 
-end program test14
+end program test16
