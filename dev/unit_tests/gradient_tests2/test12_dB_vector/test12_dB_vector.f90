@@ -42,15 +42,16 @@ program test12
     type(sparse_matrix),dimension(3) :: d_v_d
     integer :: i_unit
     logical :: exists, found
+    type(sparse_vector) :: zeros
 
     !!!!!!!!!!!!!!!!!!!!! END STUFF FROM MAIN !!!!!!!!!!!!!!!!!!!!!!!!!
 
     !!!!!!!!!!!!!!!!!!!!!! TESTING STUFF  !!!!!!!!!!!!!!!!!!!!!!!!!!
-    real,dimension(:),allocatable :: residuals
-    real,dimension(:,:),allocatable ::  residuals3, inf_up, inf_dn, d_inf_FD
+    real,dimension(:),allocatable :: residuals, b_up, b_dn, d_b_FD
+    real,dimension(:,:),allocatable ::  residuals3
 
-    integer :: i,j,k,m,n,y,z, N_verts, N_panels, vert, index, cp_ind
-    real :: step,error_allowed
+    integer :: i,j,k,m,n,y,z, N_verts, N_panels, vert, index, cp_ind, stat
+    real :: step,error_allowed, cp_offset
     type(vertex),dimension(:),allocatable :: vertices ! list of vertex types, this should be a mesh attribute
     type(panel),dimension(:),allocatable :: panels, adjoint_panels   ! list of panels, this should be a mesh attribute
     
@@ -70,34 +71,7 @@ program test12
     
     index = 1
     cp_ind = 1
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    !                             FROM MAIN
-    
-    !!!!!!!!!!!!!!!!!!!!!! TESTING STUFF  !!!!!!!!!!!!!!!!!!!!!!!!!!
-    real,dimension(:),allocatable :: residuals, b_up, b_dn, d_b_FD
-    real,dimension(:,:),allocatable ::  residuals3 
 
-    integer :: i,j,k,m,n,p, N_verts, N_panels, vert, index, cp_ind, row,col, stat
-    real :: step, error_allowed, cp_offset
-    type(vertex),dimension(:),allocatable :: vertices ! list of vertex types, this should be a mesh attribute
-    type(panel),dimension(:),allocatable :: panels, adjoint_panels   ! list of panels, this should be a mesh attribute
-    ! test stuff
-    integer :: passed_tests, total_tests
-    logical :: test_failed
-    character(len=100),dimension(50) :: failure_log
-    character(len=10) :: m_char
-
-    !!!!!!!!!!!!!!!!!!! END TESTING STUFF !!!!!!!!!!!!!!!!!!!!!11
-
-    test_failed = .true. ! assume test failed, if the test condition is met, test passed
-    ! NOTE: on the sparse vector test, I assume the test passes, if it fails a test condition, test fails
-    passed_tests = 0
-    total_tests = 0
-
-    error_allowed = 1.0e-7
-    step = 0.000001
-    index = 1
-    cp_ind = 1
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !                             FROM MAIN
@@ -518,7 +492,7 @@ program test12
     write(*,*) ""
     call system_clock(end_count)
     time = real(end_count - start_count)/(count_rate*60.0)
-    write(*,'(A,f16.10, A)') " Total test time = ", time, " minutes"
+    write(*,'(A,f16.4, A)') " Total test time = ", time, " minutes"
     write(*,*) ""
     write(*,*) "----------------------"
     write(*,*) "Program Complete"
