@@ -4,15 +4,11 @@
     },
     "geometry": {
         "afile" : "dev/meshes/adjoint/adjoint_octa_mesh.stl",
-        "file" : "dev/meshes/adjoint/wedge_wing_coarse.stl",
+        "bfile" : "dev/meshes/adjoint/wedge_wing_coarse.stl",
         "cfile" : "dev/meshes/adjoint/sphere_coarse.stl",
-<<<<<<< HEAD
         "dfile" : "dev/meshes/other_meshes/small_sphere.stl",
-=======
-        "file" : "dev/meshes/other_meshes/small_sphere.stl",
->>>>>>> 67956b1bd1faee90021c4cf24b5b9f5c2c404b5f
         "efile" : "dev/meshes/other_meshes/diamond_5_deg_full_coarse.stl",
-        "gfile" : "dev/meshes/other_meshes/naca_0010_AR_10_full_coarse.stl",
+        "file" : "dev/meshes/other_meshes/naca_0010_AR_10_full_coarse.stl",
         "singularity_order" : "lower",
 
         "wake_model" : {

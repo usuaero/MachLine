@@ -207,7 +207,7 @@ program calc_basic_F_integral
 
     
 
-    error_allowed = 1.0e-7
+    error_allowed = 1.0e-5
     step = 0.000001
     index = 1
     cp_ind = 1

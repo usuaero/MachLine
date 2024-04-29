@@ -53,10 +53,15 @@ module flow_mod
 
             !!! adjoint procedures !!!!
             procedure :: get_d_C_P_wrt_vars => flow_get_d_C_P_wrt_vars
-            procedure :: get_d_C_P_inc_wrt_vars=> flow_get_d_C_P_inc_wrt_vars
-
             procedure :: get_d_C_P_wrt_mu => flow_get_d_C_P_wrt_mu
+
+            ! incompressible
+            procedure :: get_d_C_P_inc_wrt_vars=> flow_get_d_C_P_inc_wrt_vars
             procedure :: get_d_C_P_inc_wrt_mu=> flow_get_d_C_P_inc_wrt_mu
+            
+            ! isentropic
+            procedure :: get_d_C_P_ise_wrt_vars=> flow_get_d_C_P_ise_wrt_vars
+            procedure :: get_d_C_P_ise_wrt_mu=> flow_get_d_C_P_ise_wrt_mu
             !!! end adjoint procedures !!!
 
     end type flow
@@ -659,9 +664,9 @@ contains
 
         case ("incompressible")
             d_C_P_wrt_vars = this%get_d_C_P_inc_wrt_vars(v, d_v)
-
-        ! case ("isentropic")
-        !     C_P = this%get_C_P_ise(v)
+            
+        case ("isentropic")
+            d_C_P_wrt_vars = this%get_d_C_P_ise_wrt_vars(v, d_v)
 
         ! case ("second-order")
         !     C_P = this%get_C_P_2nd(v)
@@ -721,8 +726,9 @@ contains
         case ("incompressible")
             d_C_P_wrt_mu = this%get_d_C_P_inc_wrt_mu(v, d_v)
 
-        ! case ("isentropic")
-        !     C_P = this%get_C_P_ise(v)
+        case ("isentropic")
+            d_C_P_wrt_mu = this%get_d_C_P_ise_wrt_mu(v, d_v)
+            
 
         ! case ("second-order")
         !     C_P = this%get_C_P_2nd(v)
@@ -750,8 +756,9 @@ contains
     end function flow_get_d_C_P_wrt_mu
 
 
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  incompressible  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     function flow_get_d_C_P_inc_wrt_vars(this, v, d_v) result(d_C_P_inc_wrt_vars)
-        ! Calculates the incompressible pressure coefficient for the given velocity
+        ! Calculates the sensitivity of isentropic pressure coef wrt vars
 
         implicit none
         
@@ -768,7 +775,7 @@ contains
 
 
     function flow_get_d_C_P_inc_wrt_mu(this, v, d_v) result(d_C_P_inc_wrt_mu)
-        ! Calculates the incompressible pressure coefficient for the given velocity
+        ! Calculates the sensitivity of isentropic pressure coef wrt mu
 
         implicit none
         
@@ -782,6 +789,67 @@ contains
         call d_C_P_inc_wrt_mu%broadcast_element_times_scalar(-2.*this%U_inv*this%U_inv)
         
     end function flow_get_d_C_P_inc_wrt_mu
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  end incompressible  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
+
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  isentropic !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    function flow_get_d_C_P_ise_wrt_vars(this, v, d_v) result(d_C_P_ise_wrt_vars)
+        ! Calculates the sensitivity of isentropic pressure coef wrt vars
+        
+        implicit none
+        
+        class(flow),intent(in) :: this
+        real,dimension(3),intent(in) :: v
+        type(sparse_matrix),intent(inout) :: d_v
+        
+        integer :: i
+        real,dimension(:),allocatable :: check
+        real :: CP_inc
+        type(sparse_vector) :: d_C_P_ise_wrt_vars, d_C_P_inc_wrt_vars
+
+        CP_inc = this%get_C_P_inc(v)
+        d_C_P_ise_wrt_vars = this%get_d_C_P_inc_wrt_vars(v, d_v)
+        
+        call d_C_P_ise_wrt_vars%broadcast_element_times_scalar &
+        (this%b_ise*this%c_ise*(1. + this%b_ise*CP_inc)**(this%c_ise -1.))
+
+        ! Check for NaN
+        check = d_C_P_ise_wrt_vars%expand()
+        do i=1,d_C_P_ise_wrt_vars%full_size
+            if (isnan(check(i)))  d_C_P_ise_wrt_vars%elements(i)%value = 0.0
+        end do
+
+    end function flow_get_d_C_P_ise_wrt_vars
+
+    
+    function flow_get_d_C_P_ise_wrt_mu(this, v, d_v) result(d_C_P_ise_wrt_mu)
+        ! Calculates the sensitivity of isentropic pressure coef wrt mu
+        
+        implicit none
+        
+        class(flow),intent(in) :: this
+        real,dimension(3),intent(in) :: v
+        type(sparse_matrix),intent(inout) :: d_v
+        
+        integer :: i
+        real,dimension(:),allocatable :: check
+        real :: CP_inc
+        type(sparse_vector) :: d_C_P_ise_wrt_mu, d_C_P_inc_wrt_mu
+
+        CP_inc = this%get_C_P_inc(v)
+        d_C_P_ise_wrt_mu = this%get_d_C_P_inc_wrt_mu(v, d_v)
+        
+        call d_C_P_ise_wrt_mu%broadcast_element_times_scalar &
+        (this%b_ise*this%c_ise*(1. + this%b_ise*CP_inc)**(this%c_ise -1.))
+
+        ! Check for NaN
+        check = d_C_P_ise_wrt_mu%expand()
+        do i=1,d_C_P_ise_wrt_mu%full_size
+            if (isnan(check(i)))  d_C_P_ise_wrt_mu%elements(i)%value = 0.0
+        end do
+        
+    end function flow_get_d_C_P_ise_wrt_mu
+    
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!! end isentropic !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 end module flow_mod

@@ -1307,7 +1307,7 @@ contains
     
     
     function sparse_3D_transpose_3(this) result(transposed)
-        ! takes a sparse matrix and converts it to a sparse_vector dimension 3
+        ! takes a sparse 3d and transposes it
         
         implicit none
         

@@ -4306,7 +4306,7 @@ contains
         call this%calc_d_A_g_to_ls(freestream)
 
         ! calc sensitivity of A_ls_to_g WRT design variables
-        call this%calc_d_A_ls_to_g()
+        call this%calc_d_A_ls_to_g(freestream)
         
         ! calc sensitivity of local scaled panel vertices
         call this%calc_d_vertices_ls()
@@ -4459,55 +4459,79 @@ contains
     end subroutine panel_calc_d_A_g_to_ls
     
 
-    subroutine panel_calc_d_A_ls_to_g(this)
+    subroutine panel_calc_d_A_ls_to_g(this, freestream)
         ! calculates the partial derivative of the local scaled to global transformation matrix
     
         implicit none
 
         class(panel),intent(inout) :: this
+        type(flow),intent(in) :: freestream
 
         integer :: i,j
 
-        type(sparse_vector), dimension(3,3) :: dA_times_Ainv, d_A_inv
+        type(sparse_vector), dimension(3,3) :: dA_times_Ainv, d_A_inv, rows, rows_transpose
         type(sparse_matrix), dimension(3) :: x
 
-        ! A     = A_g_to_ls      d_A     = d_A_g_to_ls
-        ! A_inv = A_ls_to_g      d_A_inv = d_A_ls_to_g
 
-        ! d_A_inv = -[A_inv][d_A][A_inv]
-
-        do i= 1,3
-            do j = 1,3
-                
-                ! calc dA_times_Ainv  = [d_A][A_inv]
-                dA_times_Ainv(i,j) = this%d_A_g_to_ls(i)%broadcast_vector_dot_element(this%A_ls_to_g(:,j))
-
-            end do
-        end do
-        
-        ! convert dA_times_Ainv into a sparse_matrix dimension 3 
-        do i = 1,3
-
-            call x(i)%init_from_sparse_vectors(dA_times_Ainv(1,i), dA_times_Ainv(2,i), dA_times_Ainv(3,i))
+        ! if M_inf ==0,  d_A_ls_to_g is just the transpose of d_A_g_to_ls
+        if (freestream%M_inf == 0.) then
             
-        end do
+            ! split d_A_g_to_ls sparse matrices into sparse vectors
+            do i = 1,3
+                rows(i,:) = this%d_A_g_to_ls(i)%split_into_sparse_vectors() 
+                
+            end do
 
-        do i= 1,3
-            do j = 1,3
+            ! transpose
+            rows_transpose = transpose(rows)
+            
+            ! populate d_A_ls_to_g
+            do i= 1,3
+                call this%d_A_ls_to_g(i)%init_from_sparse_vectors&
+                (rows_transpose(i,1), rows_transpose(i,2), rows_transpose(i,3))
+            end do
 
-                ! calc dA_inv  = -[A_inv][dA_times_Ainv]
-                d_A_inv(i,j) = x(j)%broadcast_vector_dot_element(-this%A_ls_to_g(i,:))
+        else
+            ! else, if M_inf \= 0, use this cool identity to get the inverse of d_A_g_to_ls
+            ! d_A_inv = -[A_inv][d_A][A_inv]
+
+            ! where 
+            ! A     = A_g_to_ls      d_A     = d_A_g_to_ls
+            ! A_inv = A_ls_to_g      d_A_inv = d_A_ls_to_g
+
+            do i= 1,3
+                do j = 1,3
+                    
+                    ! calc dA_times_Ainv  = [d_A][A_inv]
+                    dA_times_Ainv(i,j) = this%d_A_g_to_ls(i)%broadcast_vector_dot_element(this%A_ls_to_g(:,j))
+
+                end do
+            end do
+            
+            ! convert dA_times_Ainv into a sparse_matrix dimension 3 
+            do i = 1,3
+
+                call x(i)%init_from_sparse_vectors(dA_times_Ainv(1,i), dA_times_Ainv(2,i), dA_times_Ainv(3,i))
+                
+            end do
+
+            do i= 1,3
+                do j = 1,3
+
+                    ! calc dA_inv  = -[A_inv][dA_times_Ainv]
+                    d_A_inv(i,j) = x(j)%broadcast_vector_dot_element(-this%A_ls_to_g(i,:))
+
+                end do
+            end do
+
+            do i = 1,3
+
+                ! convert d_A_inv to sparse_matrix dimension 3 panel attribute
+                call this%d_A_ls_to_g(i)%init_from_sparse_vectors(d_A_inv(i,1), d_A_inv(i,2), d_A_inv(i,3))
 
             end do
-        end do
 
-        do i = 1,3
-
-            ! convert d_A_inv to sparse_matrix dimension 3 panel attribute
-            call this%d_A_ls_to_g(i)%init_from_sparse_vectors(d_A_inv(i,1), d_A_inv(i,2), d_A_inv(i,3))
-
-        end do
-
+        end if
     end subroutine panel_calc_d_A_ls_to_g
 
 
