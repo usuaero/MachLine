@@ -42,15 +42,20 @@ program test13
     type(sparse_matrix),dimension(3) :: d_v_d
     integer :: i_unit
     logical :: exists, found
+    real,dimension(:),allocatable :: doublet_inf
+    real,dimension(:,:),allocatable :: v_s, v_d
+    type(sparse_vector),dimension(3) :: inf_adjoint, inf_adjoint2
+    type(sparse_vector) :: zeros
+
 
     !!!!!!!!!!!!!!!!!!!!! END STUFF FROM MAIN !!!!!!!!!!!!!!!!!!!!!!!!!
 
     !!!!!!!!!!!!!!!!!!!!!! TESTING STUFF  !!!!!!!!!!!!!!!!!!!!!!!!!!
-    real,dimension(:),allocatable :: residuals
-    real,dimension(:,:),allocatable ::  residuals3, A_up, A_dn, d_A_FD
+    real,dimension(:),allocatable :: residuals, A_up, A_dn, d_A_FD
+    real,dimension(:,:),allocatable ::  residuals3
 
-    integer :: i,j,k,m,n,y,z, row,col,N_verts, N_panels, vert, index, cp_ind
-    real :: step,error_allowed
+    integer :: i,j,k,m,n,y,z, row,col,N_verts, N_panels, vert, index, cp_ind, stat
+    real :: step,error_allowed, cp_offset
     type(vertex),dimension(:),allocatable :: vertices ! list of vertex types, this should be a mesh attribute
     type(panel),dimension(:),allocatable :: panels, adjoint_panels   ! list of panels, this should be a mesh attribute
     
@@ -76,7 +81,7 @@ program test13
     !!!!!!!!!!!!!!! TEST INPUT (calc_adjoint = false) !!!!!!!!!!!!!!!!!!!!!!!
     ! Set up run
     call json_initialize()
-    
+
     test_input = "dev\input_files\adjoint_inputs\test.json"
     test_input = trim(test_input)
 
@@ -86,7 +91,7 @@ program test13
         write(*,*) "!!! The file ", test_input, " does not exist. Quitting..."
         stop
     end if
-    
+
     ! Load settings from input file
     call input_json%load_file(filename=test_input)
     call json_check()
@@ -95,11 +100,11 @@ program test13
     call input_json%get('solver', solver_settings, found)
     call input_json%get('post_processing', processing_settings, found)
     call input_json%get('output', output_settings, found)
-    
+
     ! Initialize surface mesh
     call test_mesh%init(geom_settings)
-    
-    
+
+
     ! Initialize flow
     call json_xtnsn_get(geom_settings, 'spanwise_axis', spanwise_axis, '+y')
     call freestream_flow%init(flow_settings, spanwise_axis)
@@ -111,23 +116,32 @@ program test13
     call json_xtnsn_get(output_settings, 'mirrored_body_file', mirrored_body_file, 'none')
     call json_xtnsn_get(output_settings, 'offbody_points.points_file', points_file, 'none')
     call json_xtnsn_get(output_settings, 'offbody_points.output_file', points_output_file, 'none')
-    
+
     !!!!!!!!!!!!!!!!!!!!!! WAKE_DEV !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! Get formulation type                                                  !
     call json_xtnsn_get(solver_settings, 'formulation', formulation, 'none')!
     !!!!!!!!!!!!!!!!!!!!!!! END_WAKE_DEV !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    
+
     ! Perform flow-dependent initialization on the surface mesh
     call test_mesh%init_with_flow(freestream_flow, body_file, wake_file, formulation)
-    
+
     ! Initialize panel solver
     call test_solver%init(solver_settings, processing_settings, test_mesh, freestream_flow, control_point_file)
     
     ! pull out the cp offset
     call json_xtnsn_get(solver_settings, 'control_point_offset', cp_offset, 1.e-7)
     
-    call test_mesh%panels(index)%calc_velocity_influences(test_mesh%cp(cp_ind)%loc, freestream_flow,.false.,v_s, v_d)
-    doublet_inf = matmul(test_mesh%cp(cp_ind)%n_g, matmul(freestream_flow%B_mat_g, v_d))
+    ! Allocate known influence storage
+    allocate(test_solver%I_known(test_mesh%N_cp), source=0., stat=stat)
+    call check_allocation(stat, "known influence vector")
+
+    ! allocate A_matrix
+    allocate(test_solver%A(test_mesh%N_cp, test_solver%N_unknown), source=0., stat=stat)
+    call check_allocation(stat, "AIC matrix")
+
+    ! Calculate body influences
+    call test_solver%calc_body_influences(test_mesh)
+    
     !!!!!!!!!!!!!!!!!!!!! END TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!!!!!
   
 
@@ -202,7 +216,7 @@ program test13
     allocate(d_A_FD(N_verts*3))
     
 
-    error_allowed = 1.0e-6
+    error_allowed = 1.0e-9
     step = 0.000001
     index = 1
     cp_ind = 1
