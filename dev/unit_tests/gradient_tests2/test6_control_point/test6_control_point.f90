@@ -189,7 +189,7 @@ program control_point_sensitivities
     allocate(loc_dn(3,N_verts*3))
     allocate(d_loc_FD(3,N_verts*3))
 
-    error_allowed = 1.0e-6
+    error_allowed = 1.0e-9
     step = 0.000001
     index = 1
     cp_ind = 1
