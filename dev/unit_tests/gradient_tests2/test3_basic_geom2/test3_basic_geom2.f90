@@ -220,7 +220,7 @@ program calc_basic_geom2
     allocate(d_ls_dn(2,N_verts*3))
     allocate(d_d_ls_FD(2,N_verts*3))
 
-    error_allowed = 1.0e-6
+    error_allowed = 1.0e-8
     step = 0.000001
     index = 1
     cp_ind = 1

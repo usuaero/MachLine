@@ -47,7 +47,7 @@ program test23
 
     !!!!!!!!!!!!!!!!!!!!!! TESTING STUFF  !!!!!!!!!!!!!!!!!!!!!!!!!!
     real,dimension(:),allocatable :: residuals
-    real,dimension(:,:),allocatable ::  residuals3, CF_wrt_mu_up, CF_wrt_mu_dn, d_CF_wrt_mu_FD
+    real,dimension(:,:),allocatable ::  residuals3, cells_CF_wrt_mu_up, cells_CF_wrt_mu_dn,d_cells_CF_wrt_mu_FD
 
     integer :: i,j,k,m,n,y,z,N_verts, N_panels, vert, index, cp_ind
     real :: step,error_allowed
@@ -218,6 +218,7 @@ program test23
     ! Initialize panel solver
     call adjoint_solver%init(adjoint_solver_settings, adjoint_processing_settings, adjoint_mesh, &
     adjoint_freestream_flow, adjoint_control_point_file)
+    write(*,*) "check for size mismatch"
     ! solve
     call adjoint_solver%solve(adjoint_mesh, adjoint_solver_stat, adjoint_formulation,adjoint_freestream_flow)
     
@@ -234,9 +235,9 @@ program test23
     allocate(residuals(N_verts*3))
 
     ! allocate data holders
-    allocate(CF_wrt_mu_up(3,N_verts))
-    allocate(CF_wrt_mu_dn(3,N_verts))
-    allocate(d_CF_wrt_mu_FD(3,N_verts))
+    allocate(cells_CF_wrt_mu_up(3,N_verts*3))
+    allocate(cells_CF_wrt_mu_dn(3,N_verts*3))
+    allocate(d_cells_CF_wrt_mu_FD(3,N_verts*3))
     
 
     error_allowed = 1.0e-6
@@ -247,168 +248,181 @@ program test23
 
     write(*,*) ""
     write(*,*) "------------------------------------------------------------------------"
-    write(*,*) "                           d_CF_wrt_mu TEST                    "
+    write(*,*) "                           d_cells_CF_wrt_mu TEST                    "
     write(*,*) "------------------------------------------------------------------------"
     write(*,*) ""
     write(*,*) ""
 
 
     
-
-    do i=1,test_mesh%N_verts  !!!!!!!!!! THIS IS DIFFERENT because its wrt mu
-
-        ! perturb up the current mu
-        test_mesh%mu(i) = test_mesh%mu(i) + step
-        ! write(*,*) " perturb up"
-        
-        !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
-        ! deallocate stuff
-        deallocate(test_mesh%V_cells_inner)
-        deallocate(test_mesh%V_cells)
     
-        ! Calculate velocities
-        call test_solver%calc_cell_velocities(test_mesh)
-        
-        deallocate(test_mesh%C_P_inc)
-
-        ! Calculate velocities
-        call test_solver%calc_pressures(test_mesh)
-
-        deallocate(test_mesh%dC_f)
-
-        call test_solver%calc_forces(test_mesh)
-                    
-        !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
-        
-        ! get the needed info
-        CF_wrt_mu_up(:, i) = test_solver%C_F(:)
+    do z=1,N_panels
         
         
-        ! perturb down the current design variable
-        ! write(*,*) " perturb down"
-        test_mesh%mu(i) = test_mesh%mu(i) - 2.*step
-
-        !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
-        ! deallocate stuff
-        deallocate(test_mesh%V_cells_inner)
-        deallocate(test_mesh%V_cells)
-    
-        ! Calculate velocities
-        call test_solver%calc_cell_velocities(test_mesh)
-        
-        deallocate(test_mesh%C_P_inc)
-
-        ! Calculate velocities
-        call test_solver%calc_pressures(test_mesh)
-
-        deallocate(test_mesh%dC_f)
-
-        call test_solver%calc_forces(test_mesh)
-                    
-                        
-        !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
-        
-        ! get the needed info
-        CF_wrt_mu_dn(:, i) = test_solver%C_F(:)
-
-        ! restore geometry
-        test_mesh%mu(i) = test_mesh%mu(i) + step
-        
-    end do
-
-        
-        ! central difference 
-    d_CF_wrt_mu_FD = (CF_wrt_mu_up - CF_wrt_mu_dn)/(2.*step)
-            
-    
-    do i=1,N_verts
-        residuals3(:,i) = adjoint_solver%d_C_F_wrt_mu%get_values(i) - d_CF_wrt_mu_FD(:,i)
-    end do
-
-
-    if (maxval(abs(residuals3(:,:)))>error_allowed) then
         write(*,*) ""
-        write(*,*) "     FLAGGED VALUES :"
-        do i = 1, N_verts
-            if (any(abs(residuals3(:,i))>error_allowed)) then
-                write(*,*) ""
-                write(*,'(A,I5,A)') "                                       d_CF_wrt_mu &
-                    ",z,"                                             residuals"
-                write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_CF_wrt_mu_FD(:,i)
-            
-                write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",   &
-                adjoint_solver%d_C_F_wrt_mu%get_values(i), residuals3(:,i)
-            end if
-        end do
-    end if
+        write(*,*) "--------------------------------------------------------------------------------------"
+        write(*,'(A,I5)') "                           d_cells_CF_wrt_mu test ",z
+        write(*,*) "--------------------------------------------------------------------------------------"
+        write(*,*) ""
 
+
+        do i=1,test_mesh%N_verts  !!!!!!!!!! THIS IS DIFFERENT because its wrt mu
+
+            ! perturb up the current mu
+            test_mesh%mu(i) = test_mesh%mu(i) + step
+            ! write(*,*) " perturb up"
+            
+            !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
+            ! deallocate stuff
+            deallocate(test_mesh%V_cells_inner)
+            deallocate(test_mesh%V_cells)
+        
+            ! Calculate velocities
+            call test_solver%calc_cell_velocities(test_mesh)
+            
+            deallocate(test_mesh%C_P_inc)
+
+            ! Calculate velocities
+            call test_solver%calc_pressures(test_mesh)
+
+            deallocate(test_mesh%dC_f)
+
+            call test_solver%calc_forces(test_mesh)
+                        
+            !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
+            
+            ! get the needed info
+            cells_CF_wrt_mu_up(:, i) = test_mesh%dC_F(:,z)
+            
+            
+            ! perturb down the current design variable
+            ! write(*,*) " perturb down"
+            test_mesh%mu(i) = test_mesh%mu(i) - 2.*step
     
-    
-    ! check if test failed
-    do i=1,N_verts
-        if (any(abs(residuals3(:,i)) > error_allowed)) then 
-            do j = 1,3
-                if (abs(d_CF_wrt_mu_FD(j,i))>1000.0) then
-                    if (abs(residuals3(j,i)) > error_allowed*10000.0) then
-                        test_failed = .true.
-                        exit
-                    else
-                        test_failed = .false.
-                    end if
-                elseif (1000.0>abs(d_CF_wrt_mu_FD(j,i)) .and. abs(d_CF_wrt_mu_FD(j,i))>100.0) then
-                    if (abs(residuals3(j,i)) > error_allowed*1000.0) then
-                        test_failed = .true.
-                        exit
-                    else
-                        test_failed = .false.
-                    end if
-                elseif (100.0>abs(d_CF_wrt_mu_FD(j,i)) .and. abs(d_CF_wrt_mu_FD(j,i))>10.0) then
-                    if (abs(residuals3(j,i)) > error_allowed*100.0) then
-                        test_failed = .true.
-                        exit
-                    else
-                        test_failed = .false.
-                    end if
-                elseif (10.0>abs(d_CF_wrt_mu_FD(j,i)) .and. abs(d_CF_wrt_mu_FD(j,i))>1.0) then
-                    if (abs(residuals3(j,i)) > error_allowed*10.0) then
-                        test_failed = .true.
-                        exit
-                    else
-                        test_failed = .false.
-                    end if
-                else
-                    if (abs(residuals3(j,i)) > error_allowed) then
-                        test_failed = .true.
-                        exit
-                    else
-                        test_failed = .false.
-                    end if
+            !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
+            ! deallocate stuff
+            deallocate(test_mesh%V_cells_inner)
+            deallocate(test_mesh%V_cells)
+        
+            ! Calculate velocities
+            call test_solver%calc_cell_velocities(test_mesh)
+            
+            deallocate(test_mesh%C_P_inc)
+
+            ! Calculate velocities
+            call test_solver%calc_pressures(test_mesh)
+
+            deallocate(test_mesh%dC_f)
+
+            call test_solver%calc_forces(test_mesh)
+                        
+                            
+            !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
+            
+            ! get the needed info
+            cells_CF_wrt_mu_dn(:, i) = test_mesh%dC_F(:,z)
+
+            ! restore geometry
+            test_mesh%mu(i) = test_mesh%mu(i) + step
+            
+        end do
+
+            
+            ! central difference 
+        d_cells_CF_wrt_mu_FD = (cells_CF_wrt_mu_up - cells_CF_wrt_mu_dn)/(2.*step)
+        
+        
+        
+        do i=1,N_verts
+            residuals3(:,i) = adjoint_mesh%d_cell_forces_wrt_mu(z)%get_values(i) - d_cells_CF_wrt_mu_FD(:,i)
+        end do
+
+
+        if (maxval(abs(residuals3(:,:)))>error_allowed) then
+            write(*,*) ""
+            write(*,*) "     FLAGGED VALUES :"
+            do i = 1, N_verts
+                if (any(abs(residuals3(:,i))>error_allowed)) then
+                    write(*,*) ""
+                    write(*,'(A,I5,A)') "                                       d_cells_CF_wrt_mu &
+                     ",z,"                                             residuals"
+                    write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_cells_CF_wrt_mu_FD(:,i)
+                
+                    write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",   &
+                    adjoint_mesh%d_cell_forces_wrt_mu(z)%get_values(i), residuals3(:,i)
                 end if
             end do
         end if
+
+        
+        
+        ! check if test failed
+        do i=1,N_verts
+            if (any(abs(residuals3(:,i)) > error_allowed)) then 
+                do j = 1,3
+                    if (abs(d_cells_CF_wrt_mu_FD(j,i))>1000.0) then
+                        if (abs(residuals3(j,i)) > error_allowed*10000.0) then
+                            test_failed = .true.
+                            exit
+                        else
+                            test_failed = .false.
+                        end if
+                    elseif (1000.0>abs(d_cells_CF_wrt_mu_FD(j,i)) .and. abs(d_cells_CF_wrt_mu_FD(j,i))>100.0) then
+                        if (abs(residuals3(j,i)) > error_allowed*1000.0) then
+                            test_failed = .true.
+                            exit
+                        else
+                            test_failed = .false.
+                        end if
+                    elseif (100.0>abs(d_cells_CF_wrt_mu_FD(j,i)) .and. abs(d_cells_CF_wrt_mu_FD(j,i))>10.0) then
+                        if (abs(residuals3(j,i)) > error_allowed*100.0) then
+                            test_failed = .true.
+                            exit
+                        else
+                            test_failed = .false.
+                        end if
+                    elseif (10.0>abs(d_cells_CF_wrt_mu_FD(j,i)) .and. abs(d_cells_CF_wrt_mu_FD(j,i))>1.0) then
+                        if (abs(residuals3(j,i)) > error_allowed*10.0) then
+                            test_failed = .true.
+                            exit
+                        else
+                            test_failed = .false.
+                        end if
+                    else
+                        if (abs(residuals3(j,i)) > error_allowed) then
+                            test_failed = .true.
+                            exit
+                        else
+                            test_failed = .false.
+                        end if
+                    end if
+                end do
+            end if
+        end do
+        if (test_failed) then
+            total_tests = total_tests + 1
+            write(*,'(A,I5,A)')"                                               &
+            d_cells_CF_wrt_mu  ",z," test FAILED"
+            failure_log(total_tests-passed_tests) = "d_cells_CF_wrt_mu test FAILED"
+        else
+            ! write(*,*) "        d_cells_CF_wrt_mu test PASSED"
+            ! write(*,*) "" 
+            ! write(*,*) ""
+            passed_tests = passed_tests + 1
+            total_tests = total_tests + 1
+            
+        end if
+        test_failed = .false.
+
+        
+
+    ! z loop
     end do
-    if (test_failed) then
-        total_tests = total_tests + 1
-        write(*,'(A,I5,A)')"                                               &
-        d_CF_wrt_mu  ",z," test FAILED"
-        failure_log(total_tests-passed_tests) = "d_CF_wrt_mu test FAILED"
-    else
-        ! write(*,*) "        d_CF_wrt_mu test PASSED"
-        ! write(*,*) "" 
-        ! write(*,*) ""
-        passed_tests = passed_tests + 1
-        total_tests = total_tests + 1
-        
-    end if
-    test_failed = .false.
-
-        
-
 
 
     !!!!!!!!!!!!!!  RESULTS!!!!!!!!!!!!!
     write(*,*) "------------------------------------------------------------------------------"
-    write(*,*) "                          d_CF_wrt_mu TEST RESULTS "
+    write(*,*) "                          d_cells_CF_wrt_mu TEST RESULTS "
     write(*,*) "------------------------------------------------------------------------------"
     write(*,*) ""
     write(*,'((A), ES10.1)') "allowed residual = ", error_allowed

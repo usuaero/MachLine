@@ -1,4 +1,4 @@
-program test13
+program test22
     ! tests various intermediate sensitivities 
     use adjoint_mod
     use base_geom_mod
@@ -42,20 +42,15 @@ program test13
     type(sparse_matrix),dimension(3) :: d_v_d
     integer :: i_unit
     logical :: exists, found
-    real,dimension(:),allocatable :: doublet_inf
-    real,dimension(:,:),allocatable :: v_s, v_d
-    type(sparse_vector),dimension(3) :: inf_adjoint, inf_adjoint2
-    type(sparse_vector) :: zeros
-
 
     !!!!!!!!!!!!!!!!!!!!! END STUFF FROM MAIN !!!!!!!!!!!!!!!!!!!!!!!!!
 
     !!!!!!!!!!!!!!!!!!!!!! TESTING STUFF  !!!!!!!!!!!!!!!!!!!!!!!!!!
-    real,dimension(:),allocatable :: residuals, A_up, A_dn, d_A_FD
-    real,dimension(:,:),allocatable ::  residuals3
+    real,dimension(:),allocatable :: residuals
+    real,dimension(:,:),allocatable ::  residuals3, cells_CF_up, cells_CF_dn, d_cells_CF_FD
 
-    integer :: i,j,k,m,n,y,z, row,col,N_verts, N_panels, vert, index, cp_ind, stat
-    real :: step,error_allowed, cp_offset
+    integer :: i,j,k,m,n,y,z,N_verts, N_panels, vert, index, cp_ind
+    real :: step,error_allowed
     type(vertex),dimension(:),allocatable :: vertices ! list of vertex types, this should be a mesh attribute
     type(panel),dimension(:),allocatable :: panels, adjoint_panels   ! list of panels, this should be a mesh attribute
     
@@ -131,20 +126,45 @@ program test13
     ! pull out the cp offset
     call json_xtnsn_get(solver_settings, 'control_point_offset', cp_offset, 1.e-7)
     
+    ! Set default status
+    test_solver_stat = 0
+
     ! Allocate known influence storage
     allocate(test_solver%I_known(test_mesh%N_cp), source=0., stat=stat)
     call check_allocation(stat, "known influence vector")
 
-    ! allocate A_matrix
+    ! Allocate AIC matrix
     allocate(test_solver%A(test_mesh%N_cp, test_solver%N_unknown), source=0., stat=stat)
-    call check_allocation(stat, "AIC matrix")
+    ! call check_allocation(stat, "AIC matrix")
+
+    ! Allocate b vector
+    allocate(test_solver%b(test_mesh%N_cp), source=0., stat=stat)
+    call check_allocation(stat, "b vector")
+
+    ! Calculate source strengths
+    call test_solver%calc_source_strengths(test_mesh)
 
     ! Calculate body influences
     call test_solver%calc_body_influences(test_mesh)
+
+    call test_solver%assemble_BC_vector(test_mesh)
+
+    ! Solve the linear system
+    call test_solver%solve_system(test_mesh, test_solver_stat)
+    
+    ! Check for errors
+    if (test_solver_stat /= 0) return
+
+    ! Calculate velocities
+    call test_solver%calc_cell_velocities(test_mesh)
+
+    ! Calculate velocities
+    call test_solver%calc_pressures(test_mesh)
+
+    call test_solver%calc_forces(test_mesh)
+    
     
     !!!!!!!!!!!!!!!!!!!!! END TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  
-
 
     call system_clock(start_count, count_rate)
 
@@ -155,14 +175,14 @@ program test13
     
     adjoint_input = "dev\input_files\adjoint_inputs\adjoint_test.json"
     adjoint_input = trim(adjoint_input)
-    
+
     ! Check it exists
     inquire(file=adjoint_input, exist=exists)
     if (.not. exists) then
         write(*,*) "!!! The file ", adjoint_input, " does not exist. Quitting..."
         stop
     end if
-    
+
     ! Load settings from input file
     call adjoint_input_json%load_file(filename=adjoint_input)
     call json_check()
@@ -174,9 +194,8 @@ program test13
     
     ! Initialize surface mesh
     call adjoint_mesh%init(adjoint_geom_settings)
-    
     !call adjoint_mesh%init_adjoint()
-    
+
     ! Initialize flow
     call json_xtnsn_get(adjoint_geom_settings, 'spanwise_axis', adjoint_spanwise_axis, '+y')
     call adjoint_freestream_flow%init(adjoint_flow_settings, adjoint_spanwise_axis)
@@ -200,24 +219,14 @@ program test13
     ! Initialize panel solver
     call adjoint_solver%init(adjoint_solver_settings, adjoint_processing_settings, adjoint_mesh, &
     adjoint_freestream_flow, adjoint_control_point_file)
+    write(*,*) "check for size mismatch"
+    ! solve
+    call adjoint_solver%solve(adjoint_mesh, adjoint_solver_stat, adjoint_formulation,adjoint_freestream_flow)
+    
 
-    ! Allocate known influence storage (have to do it, but its not used. all zeros)
-    allocate(adjoint_solver%I_known(adjoint_mesh%N_cp), source=0., stat=stat)
-    call check_allocation(stat, "known influence vector")
     
-    ! allocate A_matrix
-    allocate(adjoint_solver%A(adjoint_mesh%N_cp, adjoint_solver%N_unknown), source=0., stat=stat)
-    call check_allocation(stat, "AIC matrix")
-    
-    ! allocate d_A_matrix
-    call zeros%init(adjoint_mesh%adjoint_size)
-    allocate(adjoint_solver%d_A_matrix(adjoint_mesh%N_cp, adjoint_solver%N_unknown), source=zeros, stat=stat)
-    
-    ! calc body influences adjoint
-    call adjoint_solver%calc_body_influences(adjoint_mesh)
-    
-      
-    !!!!!!!!!!!! END ADJOINT TEST MESH !!!!!!!!!!!!!!!!!!!!!!!
+    !!!!!!!!!!!! END ADJOINT TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!
+
     
     N_verts = test_mesh%N_verts
     N_panels = test_mesh%N_panels
@@ -226,12 +235,14 @@ program test13
     allocate(residuals3(3,N_verts*3))
     allocate(residuals(N_verts*3))
 
-    allocate(A_up(N_verts*3))
-    allocate(A_dn(N_verts*3))
-    allocate(d_A_FD(N_verts*3))
+    ! allocate data holders
+    allocate(cells_CF_up(3,N_verts*3))
+    allocate(cells_CF_dn(3,N_verts*3))
+    allocate(d_cells_CF_FD(3,N_verts*3))
+
     
 
-    error_allowed = 1.0e-5
+    error_allowed = 1.0e-6
     step = 0.000001
     index = 1
     cp_ind = 1
@@ -239,7 +250,7 @@ program test13
 
     write(*,*) ""
     write(*,*) "------------------------------------------------------------------------"
-    write(*,*) "                           dA MATRIX TEST                    "
+    write(*,*) "                           d_cells_CF_wrt_vars TEST                    "
     write(*,*) "------------------------------------------------------------------------"
     write(*,*) ""
     write(*,*) ""
@@ -247,237 +258,240 @@ program test13
 
     
     
-    do row=1,adjoint_mesh%N_verts
-    
+    do z =1,adjoint_mesh%N_verts
 
+        write(*,*) ""
+        write(*,*) "--------------------------------------------------------------------------------------"
+        write(*,'(A,I5)') "                           d_cells_CF_wrt_vars test ",z
+        write(*,*) "--------------------------------------------------------------------------------------"
+        write(*,*) ""
+        
+        
+        do i=1,3
+            do j=1,N_verts
 
-        do col = 1,adjoint_mesh%N_verts
-
-
-            write(*,*) ""
-            write(*,*) "--------------------------------------------------------------------------------------"
-            write(*,'(A,I4,A,I4)') "                   d_A_matrix test Row ",row," col ",col
-            write(*,*) "--------------------------------------------------------------------------------------"
-            write(*,*) ""
+                ! perturb up the current design variable
+                test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
+                ! write(*,*) " perturb up"
+                
+                !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
             
-            do i=1,3
-                do j=1,N_verts
-
-                    ! perturb up the current design variable
-                    test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
-                    ! write(*,*) " perturb up"
-                    
-                    !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
+                ! update vertex normal
+                do m =1,N_panels
+                    deallocate(test_mesh%panels(m)%n_hat_g)
+                    call test_mesh%panels(m)%calc_derived_geom()
+                end do
                 
-                    ! update vertex normal
-                    do m =1,N_panels
-                        deallocate(test_mesh%panels(m)%n_hat_g)
-                        call test_mesh%panels(m)%calc_derived_geom()
-                    end do
-                    
-                    call test_mesh%calc_vertex_geometry()
-                    
-                    ! update with flow
-                    do m =1,N_panels
-                        deallocate(test_mesh%panels(m)%vertices_ls)
-                        deallocate(test_mesh%panels(m)%n_hat_ls)
-                        deallocate(test_mesh%panels(m)%b)
-                        deallocate(test_mesh%panels(m)%b_mir)  
-                        deallocate(test_mesh%panels(m)%sqrt_b)
-                        deallocate(test_mesh%panels(m)%i_vert_d)
-                        deallocate(test_mesh%panels(m)%S_mu_inv)
-                        deallocate(test_mesh%panels(m)%T_mu)
-                        ! deallocate(test_mesh%panels(m)%i_panel_s)
-                        call test_mesh%panels(m)%init_with_flow(freestream_flow, .false., 0)
-                        call test_mesh%panels(m)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
-                        test_mesh%vertices,.false.)
-                    end do
-                    
-                    ! recalculates cp locations
-                    deallocate(test_solver%sigma_known)
-                    deallocate(test_mesh%cp)
-                    deallocate(test_solver%P)
-                    call test_solver%init(solver_settings, processing_settings, &
-                    test_mesh, freestream_flow, control_point_file)
-                    
-                    ! deallocate stuff
-                    deallocate(test_solver%A)
-                    deallocate(test_solver%I_known)
-
-                    ! Allocate known influence storage
-                    allocate(test_solver%I_known(test_mesh%N_cp), source=0., stat=stat)
-                    call check_allocation(stat, "known influence vector")
-                    
-                    ! allocate A matrix
-                    allocate(test_solver%A(test_mesh%N_cp, test_solver%N_unknown), source=0., stat=stat)
-                    call check_allocation(stat, "AIC matrix")
-
-                    ! Calculate body influences
-                    call test_solver%calc_body_influences(test_mesh)
-
-                    !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
-                    
-                    ! get the needed info
-                    A_up(j + (i-1)*N_verts) = test_solver%A(row,col)
-                    
-                    
-                    ! perturb down the current design variable
-                    ! write(*,*) " perturb down"
-                    test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - 2.*step
-                    
-                    !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
+                call test_mesh%calc_vertex_geometry()
                 
-                    ! update vertex normal
-                    do m =1,N_panels
-                        deallocate(test_mesh%panels(m)%n_hat_g)
-                        call test_mesh%panels(m)%calc_derived_geom()
-                    end do
-                    
-                    call test_mesh%calc_vertex_geometry()
-                    
-                    ! update with flow
-                    do m =1,N_panels
-                        deallocate(test_mesh%panels(m)%vertices_ls)
-                        deallocate(test_mesh%panels(m)%n_hat_ls)
-                        deallocate(test_mesh%panels(m)%b)
-                        deallocate(test_mesh%panels(m)%b_mir)  
-                        deallocate(test_mesh%panels(m)%sqrt_b)
-                        deallocate(test_mesh%panels(m)%i_vert_d)
-                        deallocate(test_mesh%panels(m)%S_mu_inv)
-                        deallocate(test_mesh%panels(m)%T_mu)
-                        ! deallocate(test_mesh%panels(m)%i_panel_s)
-                        call test_mesh%panels(m)%init_with_flow(freestream_flow, .false., 0)
-                        call test_mesh%panels(m)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
-                        test_mesh%vertices,.false.)
-                    end do
-                    
-                    ! recalculates cp locations
-                    deallocate(test_solver%sigma_known)
-                    deallocate(test_mesh%cp)
-                    deallocate(test_solver%P)
-                    call test_solver%init(solver_settings, processing_settings, &
-                    test_mesh, freestream_flow, control_point_file)
-                    
-                    ! deallocate stuff
-                    deallocate(test_solver%A)
-                    deallocate(test_solver%I_known)
+                ! update with flow
+                do m =1,N_panels
+                    deallocate(test_mesh%panels(m)%vertices_ls)
+                    deallocate(test_mesh%panels(m)%n_hat_ls)
+                    deallocate(test_mesh%panels(m)%b)
+                    deallocate(test_mesh%panels(m)%b_mir)  
+                    deallocate(test_mesh%panels(m)%sqrt_b)
+                    deallocate(test_mesh%panels(m)%i_vert_d)
+                    deallocate(test_mesh%panels(m)%S_mu_inv)
+                    deallocate(test_mesh%panels(m)%T_mu)
+                    ! deallocate(test_mesh%panels(m)%i_panel_s)
+                    call test_mesh%panels(m)%init_with_flow(freestream_flow, .false., 0)
+                    call test_mesh%panels(m)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
+                    test_mesh%vertices,.false.)
+                end do
 
-                    ! Allocate known influence storage
-                    allocate(test_solver%I_known(test_mesh%N_cp), source=0., stat=stat)
-                    call check_allocation(stat, "known influence vector")
-                    
-                    ! allocate A matrix
-                    allocate(test_solver%A(test_mesh%N_cp, test_solver%N_unknown), source=0., stat=stat)
-                    call check_allocation(stat, "AIC matrix")
+                ! recalculates cp locations
+                deallocate(test_solver%sigma_known)
+                deallocate(test_mesh%cp)
+                deallocate(test_solver%P)
+                call test_solver%init(solver_settings, processing_settings, &
+                test_mesh, freestream_flow, control_point_file)
+                
+                ! Check for errors
+                if (test_solver_stat /= 0) return
 
-                    ! Calculate body influences
-                    call test_solver%calc_body_influences(test_mesh)
+                deallocate(test_mesh%V_cells_inner, test_mesh%V_cells)
 
-                    !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
-                    
-                    ! get the needed info
-                    A_dn(j + (i-1)*N_verts) = test_solver%A(row,col)
+                ! Calculate velocities
+                call test_solver%calc_cell_velocities(test_mesh)
 
-                    
-                    ! restore geometry
-                    test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
-                end do 
+                deallocate(test_mesh%C_P_inc)
+
+                ! Calculate velocities
+                call test_solver%calc_pressures(test_mesh)
+
+                deallocate(test_mesh%dC_f)
+
+                call test_solver%calc_forces(test_mesh)
+                                
+                !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
+                
+                ! get the needed info
+                cells_CF_up(:,j + (i-1)*N_verts) = test_mesh%dC_F(:,z)
+                
+                
+                ! perturb down the current design variable
+                ! write(*,*) " perturb down"
+                test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - 2.*step
+                
+                !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
+        
+                ! update vertex normal
+                do m =1,N_panels
+                    deallocate(test_mesh%panels(m)%n_hat_g)
+                    call test_mesh%panels(m)%calc_derived_geom()
+                end do
+                
+                call test_mesh%calc_vertex_geometry()
+                
+                ! update with flow
+                do m =1,N_panels
+                    deallocate(test_mesh%panels(m)%vertices_ls)
+                    deallocate(test_mesh%panels(m)%n_hat_ls)
+                    deallocate(test_mesh%panels(m)%b)
+                    deallocate(test_mesh%panels(m)%b_mir)  
+                    deallocate(test_mesh%panels(m)%sqrt_b)
+                    deallocate(test_mesh%panels(m)%i_vert_d)
+                    deallocate(test_mesh%panels(m)%S_mu_inv)
+                    deallocate(test_mesh%panels(m)%T_mu)
+                    ! deallocate(test_mesh%panels(m)%i_panel_s)
+                    call test_mesh%panels(m)%init_with_flow(freestream_flow, .false., 0)
+                    call test_mesh%panels(m)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
+                    test_mesh%vertices,.false.)
+                end do
+                
+                ! recalculates cp locations
+                deallocate(test_solver%sigma_known)
+                deallocate(test_mesh%cp)
+                deallocate(test_solver%P)
+                call test_solver%init(solver_settings, processing_settings, &
+                test_mesh, freestream_flow, control_point_file)
+
+                ! Check for errors
+                if (test_solver_stat /= 0) return
+
+                deallocate(test_mesh%V_cells_inner, test_mesh%V_cells)
+
+                ! Calculate velocities
+                call test_solver%calc_cell_velocities(test_mesh)
+
+                deallocate(test_mesh%C_P_inc)
+
+                ! Calculate velocities
+                call test_solver%calc_pressures(test_mesh)
+
+                deallocate(test_mesh%dC_f)
+
+                call test_solver%calc_forces(test_mesh)
+                                
+                !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
+                
+                ! get the needed info
+                cells_CF_dn(:, j + (i-1)*N_verts) = test_mesh%dC_F(:,z)
+
+                ! restore geometry
+                test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
+            
             end do 
+        end do 
+
             
             ! central difference 
-            d_A_FD = (A_up - A_dn)/(2.*step)
-                    
+        d_cells_CF_FD = (cells_CF_up - cells_CF_dn)/(2.*step)
+                
+        
+        do i=1,N_verts*3
+            residuals3(:,i) = adjoint_mesh%d_cell_forces_wrt_vars(z)%get_values(i) - d_cells_CF_FD(:,i)
+        end do
+            
+
+        if (maxval(abs(residuals3(:,:)))>error_allowed) then
             write(*,*) ""
-            
-            ! calculate residuals3
-            do i =1, N_verts*3
-                residuals(i) = adjoint_solver%d_A_matrix(row,col)%get_value(i) - d_A_FD(i)
+            write(*,*) "     FLAGGED VALUES :"
+            do i = 1, N_verts*3
+                if (any(abs(residuals3(:,i))>error_allowed)) then
+                    write(*,*) ""
+                    write(*,'(A,I5,A)') "                                       d_cells_CF_wrt_vars &
+                     ",z,"                                             residuals"
+                    write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_cells_CF_FD(:,i)
+                
+                    write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",   &
+                    adjoint_mesh%d_cell_forces_wrt_vars(z)%get_values(i), residuals3(:,i)
+                end if
             end do
+        end if
 
-
-            
-            if (maxval(abs(residuals))>error_allowed) then
-                write(*,*) ""
-                write(*,*) "     FLAGGED VALUES :"
-                write(*,'(A,I5,A,I5,A)') "        d_A row ",row," col ",col,"  FD             adjoint d_A             residual"
-                do i = 1, N_verts*3
-                    if (abs(residuals(i))>error_allowed) then
-                        write(*, '(8x,(f25.10, 4x),3x, (f25.10, 4x),3x, (f25.10, 4x))') &
-                        d_A_FD(i), adjoint_solver%d_A_matrix(row,col)%get_value(i), residuals(i)
-                    end if
-                end do
-            end if
-            
-            
-            ! check if test failed
-            do i=1,N_verts*3
-                if (any(abs(residuals) > error_allowed)) then 
-                    if (abs(d_A_FD(i))>1000.0) then
-                        if (abs(residuals(i)) > error_allowed*10000.0) then
+        
+        
+        ! check if test failed
+        do i=1,N_verts*3
+            if (any(abs(residuals3(:,i)) > error_allowed)) then 
+                do j = 1,3
+                    if (abs(d_cells_CF_FD(j,i))>1000.0) then
+                        if (abs(residuals3(j,i)) > error_allowed*10000.0) then
                             test_failed = .true.
                             exit
                         else
                             test_failed = .false.
                         end if
-                    elseif (1000.0>abs(d_A_FD(i)) .and. abs(d_A_FD(i))>100.0) then
-                        if (abs(residuals(i)) > error_allowed*1000.0) then
+                    elseif (1000.0>abs(d_cells_CF_FD(j,i)) .and. abs(d_cells_CF_FD(j,i))>100.0) then
+                        if (abs(residuals3(j,i)) > error_allowed*1000.0) then
                             test_failed = .true.
                             exit
                         else
                             test_failed = .false.
                         end if
-                    elseif (100.0>abs(d_A_FD(i)) .and. abs(d_A_FD(i))>10.0) then
-                        if (abs(residuals(i)) > error_allowed*100.0) then
+                    elseif (100.0>abs(d_cells_CF_FD(j,i)) .and. abs(d_cells_CF_FD(j,i))>10.0) then
+                        if (abs(residuals3(j,i)) > error_allowed*100.0) then
                             test_failed = .true.
                             exit
                         else
                             test_failed = .false.
                         end if
-                    elseif (10.0>abs(d_A_FD(i)) .and. abs(d_A_FD(i))>1.0) then
-                        if (abs(residuals(i)) > error_allowed*10.0) then
+                    elseif (10.0>abs(d_cells_CF_FD(j,i)) .and. abs(d_cells_CF_FD(j,i))>1.0) then
+                        if (abs(residuals3(j,i)) > error_allowed*10.0) then
                             test_failed = .true.
                             exit
                         else
                             test_failed = .false.
                         end if
                     else
-                        if (abs(residuals(i)) > error_allowed) then
+                        if (abs(residuals3(j,i)) > error_allowed) then
                             test_failed = .true.
                             exit
                         else
                             test_failed = .false.
                         end if
                     end if
-                end if
-                
-            
-            end do
-            if (test_failed) then
-                total_tests = total_tests + 1
-                write(*,'(A,I5,A,I5,A)')"                                     &
-                                            d_A row ",row," col ",col," test FAILED"
-                failure_log(total_tests-passed_tests) = "d_A test FAILED"
-            else
-                ! write(*,*) "        d_A test PASSED"
-                ! write(*,*) "" 
-                ! write(*,*) ""
-                passed_tests = passed_tests + 1
-                total_tests = total_tests + 1
-                
+                end do
             end if
-            test_failed = .false.
-
-
-        ! col loop
         end do
+        if (test_failed) then
+            total_tests = total_tests + 1
+            write(*,'(A,I5,A)')"                                               &
+            d_cells_CF_wrt_vars  ",z," test FAILED"
+            failure_log(total_tests-passed_tests) = "d_cells_CF_wrt_vars test FAILED"
+        else
+            ! write(*,*) "        d_cells_CF_wrt_vars test PASSED"
+            ! write(*,*) "" 
+            ! write(*,*) ""
+            passed_tests = passed_tests + 1
+            total_tests = total_tests + 1
+            
+        end if
+        test_failed = .false.
 
-    ! row loop
+
+        
+        
+
+    ! z loop
     end do
 
 
     !!!!!!!!!!!!!!  RESULTS!!!!!!!!!!!!!
     write(*,*) "------------------------------------------------------------------------------"
-    write(*,*) "                          dA MATRIX TEST RESULTS "
+    write(*,*) "                          d_cells_CF_wrt_vars TEST RESULTS "
     write(*,*) "------------------------------------------------------------------------------"
     write(*,*) ""
     write(*,'((A), ES10.1)') "allowed residual = ", error_allowed
@@ -505,4 +519,4 @@ program test13
     write(*,*) "Program Complete"
     write(*,*) "----------------------"
 
-end program test13
+end program test22
