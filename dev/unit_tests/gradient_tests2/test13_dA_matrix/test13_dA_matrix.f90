@@ -231,7 +231,7 @@ program test13
     allocate(d_A_FD(N_verts*3))
     
 
-    error_allowed = 1.0e-5
+    error_allowed = 1.0e-8
     step = 0.000001
     index = 1
     cp_ind = 1
