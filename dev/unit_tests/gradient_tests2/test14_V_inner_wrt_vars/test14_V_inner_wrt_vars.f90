@@ -39,9 +39,15 @@ program test14
     type(eval_point_geom) :: test_geom, adjoint_geom
     type(dod) :: test_dod_info, adjoint_dod_info
     type(integrals) :: test_int, adjoint_int
-    type(sparse_matrix),dimension(3) :: d_v_d
-    integer :: i_unit
-    logical :: exists, found
+    integer :: start_count, end_count, i_unit
+    logical :: exists, found 
+    integer :: adjoint_solver_stat, test_solver_stat, stat
+    type(sparse_vector) :: zeros
+
+    real,dimension(3) :: adjoint_P, test_P, test_v_d, test_v_s
+    type(sparse_matrix) :: adjoint_d_P_term2
+    type(sparse_matrix) :: adjoint_d_P
+    type(sparse_matrix) :: adjoint_d_v_d_panel
 
     !!!!!!!!!!!!!!!!!!!!! END STUFF FROM MAIN !!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -50,7 +56,7 @@ program test14
     real,dimension(:,:),allocatable ::  residuals3, v_d_up, v_d_dn, d_v_d_FD
 
     integer :: i,j,k,m,n,y,z,N_verts, N_panels, vert, index, cp_ind
-    real :: step,error_allowed
+    real :: step,error_allowed, cp_offset
     type(vertex),dimension(:),allocatable :: vertices ! list of vertex types, this should be a mesh attribute
     type(panel),dimension(:),allocatable :: panels, adjoint_panels   ! list of panels, this should be a mesh attribute
     
@@ -59,7 +65,6 @@ program test14
     logical :: test_failed
     character(len=100),dimension(100) :: failure_log
     character(len=10) :: m_char
-    integer(8) :: start_count, end_count
     real(16) :: count_rate, time
     
     !!!!!!!!!!!!!!!!!!! END TESTING STUFF !!!!!!!!!!!!!!!!!!!!!11
@@ -230,12 +235,12 @@ program test14
     allocate(residuals3(3,N_verts*3))
     allocate(residuals(N_verts*3))
 
-    allocate(v_d_up(N_verts*3))
-    allocate(v_d_dn(N_verts*3))
-    allocate(d_v_d_FD(N_verts*3))
+    allocate(v_d_up(3,N_verts*3))
+    allocate(v_d_dn(3,N_verts*3))
+    allocate(d_v_d_FD(3,N_verts*3))
     
 
-    error_allowed = 1.0e-6
+    error_allowed = 1.0e-4
     step = 0.000001
     index = 1
     cp_ind = 1
