@@ -43,6 +43,16 @@ program test19
     integer :: i_unit
     logical :: exists, found
 
+    integer :: adjoint_solver_stat, test_solver_stat, stat
+    type(sparse_vector) :: zeros
+
+    real,dimension(3) :: adjoint_P, test_P, test_v_d, test_v_s
+    type(sparse_matrix) :: adjoint_d_P_term2
+    type(sparse_matrix) :: adjoint_d_P
+    type(sparse_matrix) :: adjoint_d_v_d_panel
+
+    real,dimension(:),allocatable :: fixed_v_d, fixed_v_s
+
     !!!!!!!!!!!!!!!!!!!!! END STUFF FROM MAIN !!!!!!!!!!!!!!!!!!!!!!!!!
 
     !!!!!!!!!!!!!!!!!!!!!! TESTING STUFF  !!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -50,7 +60,7 @@ program test19
     real,dimension(:,:),allocatable ::  residuals3
 
     integer :: i,j,k,m,n,y,z,N_verts, N_panels, vert, index, cp_ind
-    real :: step,error_allowed
+    real :: step,error_allowed, cp_offset
     type(vertex),dimension(:),allocatable :: vertices ! list of vertex types, this should be a mesh attribute
     type(panel),dimension(:),allocatable :: panels, adjoint_panels   ! list of panels, this should be a mesh attribute
     
@@ -232,8 +242,8 @@ program test19
     N_panels = test_mesh%N_panels
     
     
-    allocate(residuals3(3,N_verts*3))
-    allocate(residuals(N_verts*3))
+    allocate(residuals3(3,N_verts))
+    allocate(residuals(N_verts))
 
     ! allocate data holders
     allocate(C_P_inc_wrt_mu_up(N_verts))
@@ -241,7 +251,7 @@ program test19
     allocate(d_C_P_inc_wrt_mu_FD(N_verts))
     
 
-    error_allowed = 1.0e-6
+    error_allowed = 1.0e-9
     step = 0.000001
     index = 1
     cp_ind = 1
@@ -333,11 +343,13 @@ program test19
         if (maxval(abs(residuals))>error_allowed) then
             write(*,*) ""
             write(*,*) "     FLAGGED VALUES :"
-            write(*,'(A,I5,A)') "        d_C_P_inc_wrt_mu ",z,"   FD            d_C_P_inc_wrt_mu adjoint        residuals             residual"
             do i = 1, N_verts
                 if (abs(residuals(i))>error_allowed) then
+                    write(*,'(A,I5,A)') "        d_C_P_inc_wrt_mu ",z,"   FD            &
+                    d_C_P_inc_wrt_mu adjoint        residuals             residual"
                     write(*, '(8x,(f25.10, 4x),3x, (f25.10, 4x),3x, (f25.10, 4x))') &
-                    d_C_P_inc_wrt_mu_FD(i), adjoint_mesh%d_C_P_inc_wrt_mu(z)%get_value(i), residuals(i)
+                    d_C_P_inc_wrt_mu_FD(i), adjoint_mesh%d_C_P_inc_wrt_mu(z)%get_value(i), &
+                    residuals(i)
                 end if
             end do
         end if

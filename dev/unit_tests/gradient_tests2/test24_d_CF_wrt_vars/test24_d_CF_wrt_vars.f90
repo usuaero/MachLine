@@ -42,6 +42,13 @@ program test24
     type(sparse_matrix),dimension(3) :: d_v_d
     integer :: i_unit
     logical :: exists, found
+    integer :: adjoint_solver_stat, test_solver_stat,stat
+    type(sparse_vector) :: zeros
+
+    real,dimension(3) :: adjoint_P, test_P, test_v_d, test_v_s
+    type(sparse_matrix) :: adjoint_d_P_term2
+    type(sparse_matrix) :: adjoint_d_P
+    type(sparse_matrix) :: adjoint_d_v_d_panel
 
     !!!!!!!!!!!!!!!!!!!!! END STUFF FROM MAIN !!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -50,7 +57,7 @@ program test24
     real,dimension(:,:),allocatable ::  residuals3, CF_up, CF_dn, d_CF_FD
 
     integer :: i,j,k,m,n,y,z,N_verts, N_panels, vert, index, cp_ind
-    real :: step,error_allowed
+    real :: step,error_allowed,cp_offset
     type(vertex),dimension(:),allocatable :: vertices ! list of vertex types, this should be a mesh attribute
     type(panel),dimension(:),allocatable :: panels, adjoint_panels   ! list of panels, this should be a mesh attribute
     
@@ -241,7 +248,7 @@ program test24
 
     
 
-    error_allowed = 1.0e-6
+    error_allowed = 1.0e-9
     step = 0.000001
     index = 1
     cp_ind = 1
@@ -457,8 +464,8 @@ program test24
     end do
     if (test_failed) then
         total_tests = total_tests + 1
-        write(*,'(A,I5,A)')"                                               &
-        d_CF_wrt_vars  ",z," test FAILED"
+        write(*,'(A)')"                                               &
+        d_CF_wrt_vars  test FAILED"
         failure_log(total_tests-passed_tests) = "d_CF_wrt_vars test FAILED"
     else
         ! write(*,*) "        d_CF_wrt_vars test PASSED"

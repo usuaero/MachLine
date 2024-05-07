@@ -42,15 +42,22 @@ program test18
     type(sparse_matrix),dimension(3) :: d_v_d
     integer :: i_unit
     logical :: exists, found
+    integer :: adjoint_solver_stat, test_solver_stat, stat
+    type(sparse_vector) :: zeros
+
+    real,dimension(3) :: adjoint_P, test_P, test_v_d, test_v_s
+    type(sparse_matrix) :: adjoint_d_P_term2
+    type(sparse_matrix) :: adjoint_d_P
+    type(sparse_matrix) :: adjoint_d_v_d_panel
 
     !!!!!!!!!!!!!!!!!!!!! END STUFF FROM MAIN !!!!!!!!!!!!!!!!!!!!!!!!!
 
     !!!!!!!!!!!!!!!!!!!!!! TESTING STUFF  !!!!!!!!!!!!!!!!!!!!!!!!!!
-    real,dimension(:),allocatable :: residuals
-    real,dimension(:,:),allocatable ::  residuals3, V_cells_up, V_cells_dn, d_V_cells_FD
+    real,dimension(:),allocatable :: residuals, C_P_inc_up, C_P_inc_dn, d_C_P_inc_FD
+    real,dimension(:,:),allocatable ::  residuals3
 
     integer :: i,j,k,m,n,y,z,N_verts, N_panels, vert, index, cp_ind
-    real :: step,error_allowed
+    real :: step,error_allowed, cp_offset
     type(vertex),dimension(:),allocatable :: vertices ! list of vertex types, this should be a mesh attribute
     type(panel),dimension(:),allocatable :: panels, adjoint_panels   ! list of panels, this should be a mesh attribute
     
@@ -242,7 +249,7 @@ program test18
 
     
 
-    error_allowed = 1.0e-6
+    error_allowed = 1.0e-8
     step = 0.000001
     index = 1
     cp_ind = 1
@@ -400,7 +407,8 @@ program test18
         if (maxval(abs(residuals))>error_allowed) then
             write(*,*) ""
             write(*,*) "     FLAGGED VALUES :"
-            write(*,'(A,I5,A)') "        d_C_P_inc_wrt_vars ",z,"   FD            d_C_P_inc_wrt_vars adjoint        residuals             residual"
+            write(*,'(A,I5,A)') "        d_C_P_inc_wrt_vars ",z,"   FD            &
+            d_C_P_inc_wrt_vars adjoint        residuals             residual"
             do i = 1, N_verts*3
                 if (abs(residuals(i))>error_allowed) then
                     write(*, '(8x,(f25.10, 4x),3x, (f25.10, 4x),3x, (f25.10, 4x))') &

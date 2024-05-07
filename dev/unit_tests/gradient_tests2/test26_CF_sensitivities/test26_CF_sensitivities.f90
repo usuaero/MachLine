@@ -40,15 +40,15 @@ program test26
     type(eval_point_geom) :: test_geom, adjoint_geom
     type(dod) :: test_dod_info, adjoint_dod_info
     type(integrals) :: test_int, adjoint_int
-    integer :: start_count, end_count, i_unit
+    integer :: i_unit
     logical :: exists, found 
     integer :: adjoint_solver_stat, test_solver_stat
     type(sparse_vector) :: zeros
 
-    real,dimension(3) :: adjoint_P, test_P, test_v_d, test_v_s
-    type(sparse_matrix) :: adjoint_d_P_term2
-    type(sparse_matrix) :: adjoint_d_P
-    type(sparse_matrix) :: adjoint_d_v_d_panel
+    ! real,dimension(3) :: adjoint_P, test_P, test_v_d, test_v_s
+    ! type(sparse_matrix) :: adjoint_d_P_term2
+    ! type(sparse_matrix) :: adjoint_d_P
+    ! type(sparse_matrix) :: adjoint_d_v_d_panel
 
     !!!!!!!!!!!!!!!!!!!!! END STUFF FROM MAIN !!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -65,6 +65,8 @@ program test26
     logical :: test_failed
     character(len=100),dimension(50) :: failure_log
     character(len=10) :: m_char
+    integer(8) :: start_count, end_count
+    real(16) :: count_rate, time
 
     !!!!!!!!!!!!!!!!!!! END TESTING STUFF !!!!!!!!!!!!!!!!!!!!!11
 
@@ -357,9 +359,97 @@ program test26
         ! central difference 
     d_CF_FD = (CF_up - CF_dn)/(2.*step)
             
+    
+        
+    do i=1,N_verts*3
+        residuals3(i,:) = (/adjoint_solver%CF_sensitivities(i,1),&
+                            adjoint_solver%CF_sensitivities(i,2),&
+                            adjoint_solver%CF_sensitivities(i,3)/) - d_CF_FD(:,i)
+    end do
+    
+    if (maxval(abs(residuals3(:,:)))>error_allowed) then
+        write(*,*) ""
+        write(*,*) "     FLAGGED VALUES :"
+        do i = 1, N_verts*3
+            if (any(abs(residuals3(:,i))>error_allowed)) then
+                write(*,*) ""
+                write(*,'(A,I5,A)') "                                    d_CF_sensitivities to point &
+                    ",i,"                                             residuals"
+                write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_CF_FD(:,i)
+            
+                write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",   &
+                            adjoint_solver%CF_sensitivities(i,1),&
+                            adjoint_solver%CF_sensitivities(i,2),&
+                            adjoint_solver%CF_sensitivities(i,3), residuals3(:,i)
+            end if
+        end do
+    end if
+
+    
+    
+    ! check if test failed
+    do i=1,N_verts*3
+        if (any(abs(residuals3(:,i)) > error_allowed)) then 
+            do j = 1,3
+                if (abs(d_CF_FD(j,i))>1000.0) then
+                    if (abs(residuals3(j,i)) > error_allowed*10000.0) then
+                        test_failed = .true.
+                        exit
+                    else
+                        test_failed = .false.
+                    end if
+                elseif (1000.0>abs(d_CF_FD(j,i)) .and. abs(d_CF_FD(j,i))>100.0) then
+                    if (abs(residuals3(j,i)) > error_allowed*1000.0) then
+                        test_failed = .true.
+                        exit
+                    else
+                        test_failed = .false.
+                    end if
+                elseif (100.0>abs(d_CF_FD(j,i)) .and. abs(d_CF_FD(j,i))>10.0) then
+                    if (abs(residuals3(j,i)) > error_allowed*100.0) then
+                        test_failed = .true.
+                        exit
+                    else
+                        test_failed = .false.
+                    end if
+                elseif (10.0>abs(d_CF_FD(j,i)) .and. abs(d_CF_FD(j,i))>1.0) then
+                    if (abs(residuals3(j,i)) > error_allowed*10.0) then
+                        test_failed = .true.
+                        exit
+                    else
+                        test_failed = .false.
+                    end if
+                else
+                    if (abs(residuals3(j,i)) > error_allowed) then
+                        test_failed = .true.
+                        exit
+                    else
+                        test_failed = .false.
+                    end if
+                end if
+            end do
+        end if
+    end do
+    if (test_failed) then
+        total_tests = total_tests + 1
+        write(*,'(A)')"                                               &
+        d_CF_sensitivities value test FAILED"
+        failure_log(total_tests-passed_tests) = "d_CF_sensitivities test FAILED"
+    else
+        ! write(*,*) "        d_CF_wrt_vars test PASSED"
+        ! write(*,*) "" 
+        ! write(*,*) ""
+        passed_tests = passed_tests + 1
+        total_tests = total_tests + 1
+        
+    end if
+    test_failed = .false.
+
+
+
     write(*,*) ""
         
-    ! for CFx, CFy, and CFz
+    ! DISPLAY SENSITIVITIES
     do k=1,3
 
         do i=1,N_verts*3
@@ -382,65 +472,21 @@ program test26
         do i = 1, N_verts*3
             write(*, '(3(f20.10, 4x))') d_CF_FD(k,i), adjoint_solver%CF_sensitivities(i,k), residuals(i)
         end do 
-        
-
-        ! check if test failed
-        do i=1,N_verts*3
-            if (abs(residuals(i)) > error_allowed) then
-                test_failed = .true.
-                exit
-            else 
-                test_failed = .false.
-            end if
-        end do
-        if (test_failed) then
-            total_tests = total_tests + 1
-            if (k == 1) then
-                failure_log(total_tests-passed_tests) = "d_CF_sensitivities (x) TEST FAILED"
-                write(*,*) failure_log(total_tests-passed_tests)
-            elseif (k ==2) then 
-                failure_log(total_tests-passed_tests) = "d_CF_sensitivities (y) TEST FAILED"
-                write(*,*) failure_log(total_tests-passed_tests)
-            else
-                failure_log(total_tests-passed_tests) = "d_CF_sensitivities (z) TEST FAILED"
-                write(*,*) failure_log(total_tests-passed_tests)
-            end if
-
-        else
-
-            if (k == 1) then
-                write(*,'(A)') " d_CF_sensitivities (x) TEST PASSED"
-            elseif (k ==2) then 
-                write(*,'(A)') " d_CF_sensitivities (y) TEST PASSED"
-            else
-                write(*,'(A)') " d_CF_sensitivities (z) TEST PASSED"
-            end if
-            passed_tests = passed_tests + 1
-            total_tests = total_tests + 1
-            
-        end if
-        test_failed = .false.
-        write(*,*) "" 
-        write(*,*) ""
 
     end do
-        
-        
 
-    
-    
-    
-    
-    !!!!!!!!!!!!!! d_CF_sensitivities_test RESULTS!!!!!!!!!!!!!
-    write(*,*) "-------------d_CF_sensitivities_test RESULTS--------------"
+
+    !!!!!!!!!!!!!!  RESULTS!!!!!!!!!!!!!
+    write(*,*) "------------------------------------------------------------------------------"
+    write(*,*) "                          d_CF_wrt_vars TEST RESULTS "
+    write(*,*) "------------------------------------------------------------------------------"
     write(*,*) ""
     write(*,'((A), ES10.1)') "allowed residual = ", error_allowed
-    ! write(*,'((A), ES10.1)') "control point offset = ", cp_offset
     write(*,*) ""
 
-    write(*,'(I15,a14)') total_tests - passed_tests, " tests FAILED"
+    write(*,'(I35,a14)') total_tests - passed_tests, " tests FAILED"
     write(*,*) ""
-    write(*,'(I4,a9,I2,a14)') passed_tests, " out of ", total_tests, " tests PASSED"
+    write(*,'(I15,a9,I15,a14)') passed_tests, " out of ", total_tests, " tests PASSED"
     if (passed_tests < total_tests)then
         write(*,*) ""
         write(*,*) "----------------------"

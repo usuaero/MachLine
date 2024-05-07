@@ -421,7 +421,7 @@ program calc_basic_geom2
             end do
             if (test_failed) then
                 total_tests = total_tests + 1
-                write(*,'(A,I5,A,I5)')"                                     &
+                write(*,'(A,I5,A,I5,A)')"                                     &
                                             d_h panel ",y,", cp ",z," test FAILED"
                 failure_log(total_tests-passed_tests) = "d_h test FAILED"
             else
@@ -503,7 +503,7 @@ program calc_basic_geom2
             end do
             if (test_failed) then
                 total_tests = total_tests + 1
-                write(*,'(A,I5,A,I5)')"                                     &
+                write(*,'(A,I5,A,I5,A)')"                                     &
                                             d_h2 panel ",y,", cp ",z," test FAILED"
                 failure_log(total_tests-passed_tests) = "d_h2 test FAILED"
             else

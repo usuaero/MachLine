@@ -240,7 +240,7 @@ program test14
     allocate(d_v_d_FD(3,N_verts*3))
     
 
-    error_allowed = 1.0e-4
+    error_allowed = 1.0e-8
     step = 0.000001
     index = 1
     cp_ind = 1

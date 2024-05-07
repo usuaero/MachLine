@@ -40,7 +40,7 @@ program test22
     type(dod) :: test_dod_info, adjoint_dod_info
     type(integrals) :: test_int, adjoint_int
     type(sparse_matrix),dimension(3) :: d_v_d
-    integer :: i_unit
+    integer :: i_unit, stat
     logical :: exists, found
 
     !!!!!!!!!!!!!!!!!!!!! END STUFF FROM MAIN !!!!!!!!!!!!!!!!!!!!!!!!!
@@ -50,7 +50,7 @@ program test22
     real,dimension(:,:),allocatable ::  residuals3, cells_CF_up, cells_CF_dn, d_cells_CF_FD
 
     integer :: i,j,k,m,n,y,z,N_verts, N_panels, vert, index, cp_ind
-    real :: step,error_allowed
+    real :: step,error_allowed, cp_offset
     type(vertex),dimension(:),allocatable :: vertices ! list of vertex types, this should be a mesh attribute
     type(panel),dimension(:),allocatable :: panels, adjoint_panels   ! list of panels, this should be a mesh attribute
     
@@ -61,6 +61,14 @@ program test22
     character(len=10) :: m_char
     integer(8) :: start_count, end_count
     real(16) :: count_rate, time
+
+    integer :: adjoint_solver_stat, test_solver_stat
+    type(sparse_vector) :: zeros
+
+    real,dimension(3) :: adjoint_P, test_P, test_v_d, test_v_s
+    type(sparse_matrix) :: adjoint_d_P_term2
+    type(sparse_matrix) :: adjoint_d_P
+    type(sparse_matrix) :: adjoint_d_v_d_panel
     
     !!!!!!!!!!!!!!!!!!! END TESTING STUFF !!!!!!!!!!!!!!!!!!!!!11
     
@@ -242,7 +250,7 @@ program test22
 
     
 
-    error_allowed = 1.0e-6
+    error_allowed = 1.0e-9
     step = 0.000001
     index = 1
     cp_ind = 1

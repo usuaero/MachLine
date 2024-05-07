@@ -238,8 +238,8 @@ program test15
     N_panels = test_mesh%N_panels
     
     
-    allocate(residuals3(3,N_verts*3))
-    allocate(residuals(N_verts*3))
+    allocate(residuals3(3,N_verts))
+    allocate(residuals(N_verts))
 
     allocate(v_inner_wrt_mu_up(3,N_verts))
     allocate(v_inner_wrt_mu_dn(3,N_verts))
@@ -323,7 +323,7 @@ program test15
             residuals3(:,i) = adjoint_mesh%d_V_cells_inner_wrt_mu(z)%get_values(i) - d_v_inner_wrt_mu_FD(:,i)
         end do
 
-        if (maxval(abs(residuals3(:,:)))>error_allowed) then
+        if (maxval(abs(residuals3))>error_allowed) then
             write(*,*) ""
             write(*,*) "     FLAGGED VALUES :"
             do i = 1, N_verts

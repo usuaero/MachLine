@@ -42,6 +42,15 @@ program test17
     type(sparse_matrix),dimension(3) :: d_v_d
     integer :: i_unit
     logical :: exists, found
+    integer :: adjoint_solver_stat, test_solver_stat, stat
+    type(sparse_vector) :: zeros
+
+    real,dimension(3) :: adjoint_P, test_P, test_v_d, test_v_s
+    type(sparse_matrix) :: adjoint_d_P_term2
+    type(sparse_matrix) :: adjoint_d_P
+    type(sparse_matrix) :: adjoint_d_v_d_panel
+
+    real,dimension(:),allocatable :: fixed_v_d, fixed_v_s
 
     !!!!!!!!!!!!!!!!!!!!! END STUFF FROM MAIN !!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -50,7 +59,7 @@ program test17
     real,dimension(:,:),allocatable ::  residuals3, V_cells_wrt_mu_up, V_cells_wrt_mu_dn, d_V_cells_wrt_mu_FD
 
     integer :: i,j,k,m,n,y,z,N_verts, N_panels, vert, index, cp_ind
-    real :: step,error_allowed
+    real :: step,error_allowed, cp_offset
     type(vertex),dimension(:),allocatable :: vertices ! list of vertex types, this should be a mesh attribute
     type(panel),dimension(:),allocatable :: panels, adjoint_panels   ! list of panels, this should be a mesh attribute
     
@@ -226,15 +235,15 @@ program test17
     N_panels = test_mesh%N_panels
     
     
-    allocate(residuals3(3,N_verts*3))
-    allocate(residuals(N_verts*3))
+    allocate(residuals3(3,N_verts))
+    allocate(residuals(N_verts))
 
-    allocate(V_cells_wrt_mu_up(3,N_verts*3))
-    allocate(V_cells_wrt_mu_dn(3,N_verts*3))
-    allocate(d_V_cells_wrt_mu_FD(3,N_verts*3))
+    allocate(V_cells_wrt_mu_up(3,N_verts))
+    allocate(V_cells_wrt_mu_dn(3,N_verts))
+    allocate(d_V_cells_wrt_mu_FD(3,N_verts))
     
 
-    error_allowed = 1.0e-6
+    error_allowed = 1.0e-8
     step = 0.000001
     index = 1
     cp_ind = 1

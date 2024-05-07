@@ -41,6 +41,7 @@ program test16
     type(integrals) :: test_int, adjoint_int
     type(sparse_matrix),dimension(3) :: d_v_d
     integer :: i_unit
+    integer :: adjoint_solver_stat, test_solver_stat, stat
     logical :: exists, found
 
     !!!!!!!!!!!!!!!!!!!!! END STUFF FROM MAIN !!!!!!!!!!!!!!!!!!!!!!!!!
@@ -50,7 +51,7 @@ program test16
     real,dimension(:,:),allocatable ::  residuals3, V_cells_up, V_cells_dn, d_V_cells_FD
 
     integer :: i,j,k,m,n,y,z,N_verts, N_panels, vert, index, cp_ind
-    real :: step,error_allowed
+    real :: step,error_allowed, cp_offset
     type(vertex),dimension(:),allocatable :: vertices ! list of vertex types, this should be a mesh attribute
     type(panel),dimension(:),allocatable :: panels, adjoint_panels   ! list of panels, this should be a mesh attribute
     
@@ -234,7 +235,7 @@ program test16
     allocate(d_V_cells_FD(3,N_verts*3))
     
 
-    error_allowed = 1.0e-6
+    error_allowed = 1.0e-8
     step = 0.000001
     index = 1
     cp_ind = 1
