@@ -288,6 +288,7 @@ program test26
             ! deallocate(test_solver%A, test_solver%b)
             
             call test_solver%solve(test_mesh, test_solver_stat, formulation,freestream_flow)
+            write(*,*) "success1"
             
             !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
             
@@ -300,7 +301,6 @@ program test26
             test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - 2.*step
             
             !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
-        
             ! update vertex normal
             do m =1,N_panels
                 deallocate(test_mesh%panels(m)%n_hat_g)
@@ -341,9 +341,9 @@ program test26
             deallocate(test_mesh%C_p_inc, test_mesh%dC_f)
             deallocate(test_mesh%V_cells_inner, test_mesh%V_cells)
             ! deallocate(test_solver%A, test_solver%b)
-
+            
             call test_solver%solve(test_mesh, test_solver_stat, formulation,freestream_flow)
-                            
+            write(*,*) "success2"
             !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
             
             ! get the needed info
@@ -362,7 +362,7 @@ program test26
     
         
     do i=1,N_verts*3
-        residuals3(i,:) = (/adjoint_solver%CF_sensitivities(i,1),&
+        residuals3(:,i) = (/adjoint_solver%CF_sensitivities(i,1),&
                             adjoint_solver%CF_sensitivities(i,2),&
                             adjoint_solver%CF_sensitivities(i,3)/) - d_CF_FD(:,i)
     end do
