@@ -225,13 +225,17 @@ module panel_mod
             procedure :: calc_d_A_g_to_ls => panel_calc_d_A_g_to_ls
             procedure :: calc_d_A_ls_to_g => panel_calc_d_A_ls_to_g
             procedure :: calc_d_vertices_ls => panel_calc_d_vertices_ls
-            procedure :: calc_d_n_hat_ls => panel_calc_d_n_hat_ls
+            procedure :: calc_ls_edge_vectors_adjoint => panel_calc_ls_edge_vectors_adjoint
             procedure :: calc_d_M_mu_transform => panel_calc_d_M_mu_transform
 
             ! adjoint velocity influence terms
             procedure :: calc_velocity_influences_adjoint => panel_calc_velocity_influences_adjoint
             procedure :: calc_basic_geom_adjoint => panel_calc_basic_geom_adjoint
+
             procedure :: calc_subsonic_geom_adjoint => panel_calc_subsonic_geom_adjoint
+            
+            procedure :: calc_supersonic_subinc_geom_adjoint => panel_calc_supersonic_subinc_geom_adjoint
+            
             procedure :: calc_sensitivity_of_body_point_in_ls => panel_calc_sensitivity_of_body_point_in_ls
             
             ! adjoint integral calcs
@@ -2164,6 +2168,7 @@ contains
     end function panel_check_dod
 
 
+
     function panel_calc_basic_geom(this, eval_point, mirror_panel) result(geom)
         ! Initializes geometry common to the three panel types
 
@@ -2291,6 +2296,7 @@ contains
                 ! Edge integration lengths
                 geom%l1(i) = geom%v_eta(i)*geom%d_ls(1,i) + geom%v_xi(i)*geom%d_ls(2,i)
                 geom%l2(i) = geom%v_eta(i)*geom%d_ls(1,i_next) + geom%v_xi(i)*geom%d_ls(2,i_next)
+                
 
                 ! Perpendicular in-plane distance
                 geom%a(i) = geom%v_xi(i)*geom%d_ls(1,i) + geom%v_eta(i)*geom%d_ls(2,i)
@@ -4312,7 +4318,7 @@ contains
         call this%calc_d_vertices_ls()
 
         ! calc sensitivities of local scaled n_hat (outward normal edge vectors)
-        call this%calc_d_n_hat_ls()
+        call this%calc_ls_edge_vectors_adjoint(freestream)
 
         ! calc sensitivities of transformation matrix of strength space M to parameter space mu transformation
         call this%calc_d_M_mu_transform()
@@ -4581,11 +4587,12 @@ contains
     end subroutine panel_calc_d_vertices_ls
 
 
-    subroutine panel_calc_d_n_hat_ls(this)
+    subroutine panel_calc_ls_edge_vectors_adjoint(this, freestream)
 
         implicit none
 
         class(panel),intent(inout) :: this
+        type(flow), intent(in) :: flow
 
         real,dimension(2) :: d_ls
         real,dimension(:,:),allocatable :: t_hat_ls
@@ -4648,8 +4655,24 @@ contains
 
         end do
 
+        ! Calculate edge parameter (Ehlers Eq. (E14))
+        ! This really only matters for subinclined, supersonic panels
+        ! But we set defaults for the other cases to make unified calcs work
+        if (freestream%supersonic) then
+            if (this%r > 0) then
+                this%b = (this%n_hat_ls(1,:) - this%n_hat_ls(2,:))*(this%n_hat_ls(1,:) + this%n_hat_ls(2,:))
+                this%sqrt_b = sqrt(abs(this%b))
+            else
+                this%b = 1.
+                this%sqrt_b = 1.
+            end if
+        else
+            this%b = -1.
+            this%sqrt_b = 1.
+        end if
+
     
-    end subroutine panel_calc_d_n_hat_ls
+    end subroutine panel_calc_ls_edge_vectors_adjoint
 
 
     subroutine panel_calc_d_M_mu_transform(this)
@@ -5044,6 +5067,260 @@ contains
         
     
     end function panel_calc_subsonic_geom_adjoint
+
+
+    function panel_calc_supersonic_subinc_geom_adjoint(this, eval_point, freestream, mirror_panel, dod_info) result(geom)
+        ! Calculates the geometric parameters necessary for calculating the influence of the panel at the given evaluation point
+
+        implicit none
+
+        class(panel),intent(in) :: this
+        real,dimension(3),intent(in) :: eval_point
+        type(flow),intent(in) :: freestream
+        logical,intent(in) :: mirror_panel
+        type(dod),intent(in) :: dod_info
+        type(eval_point_geom) :: geom
+
+        real :: x
+        integer :: i, i_next
+        type(sparse_vector),dimension(4) :: d_l1_terms, d_l2_terms, d_a_terms
+        type(sparse_vector) ::  d_g2_term
+        type(sparse_vector),dimension(2) :: d_R1_terms
+
+        real :: dummy
+
+        ! Initialize
+        geom = this%calc_basic_geom(eval_point, mirror_panel)
+
+        ! Loop through edges
+        do i=1,this%N
+
+            ! Check DoD
+            if (dod_info%edges_in_dod(i)) then
+
+                ! Get index of end vertex
+                i_next = mod(i, this%N)+1
+
+                ! Edge integration lengths (this line duplicate work?)
+                geom%l1(i) = geom%v_eta(i)*geom%d_ls(1,i) + geom%v_xi(i)*geom%d_ls(2,i)
+
+                ! calculate product rule terms
+                call d_l1_terms(1)%init_from_sparse_vector(geom%d_v_eta(i))
+                call d_l1_terms(1)%broadcast_element_times_scalar(geom%d_ls(1,i))
+                
+                call d_l1_terms(2)%init_from_sparse_vector(geom%d_d_ls(1,i))
+                call d_l1_terms(2)%broadcast_element_times_scalar(geom%v_eta(i))
+
+                call d_l1_terms(3)%init_from_sparse_vector(geom%d_v_xi(i))
+                call d_l1_terms(3)%broadcast_element_times_scalar(geom%d_ls(2,i))
+                
+                call d_l1_terms(4)%init_from_sparse_vector(geom%d_d_ls(2,i))
+                call d_l1_terms(4)%broadcast_element_times_scalar(geom%v_xi(i))
+
+                ! add the terms
+                call geom%d_l1(i)%init_from_sparse_vector(d_l1_terms(1))
+                call geom%d_l1(i)%sparse_add(d_l1_terms(2))
+                call geom%d_l1(i)%sparse_add(d_l1_terms(3))
+                call geom%d_l1(i)%sparse_add(d_l1_terms(4))
+                
+
+                ! calculate edge lengths (this line duplicate work?)
+                geom%l2(i) = geom%v_eta(i)*geom%d_ls(1,i_next) + geom%v_xi(i)*geom%d_ls(2,i_next)
+                
+                ! calculate product rule terms
+                call d_l2_terms(1)%init_from_sparse_vector(geom%d_v_eta(i))
+                call d_l2_terms(1)%broadcast_element_times_scalar(geom%d_ls(1,i_next))
+                
+                call d_l2_terms(2)%init_from_sparse_vector(geom%d_d_ls(1,i_next))
+                call d_l2_terms(2)%broadcast_element_times_scalar(geom%v_eta(i))
+
+                call d_l2_terms(3)%init_from_sparse_vector(geom%d_v_xi(i))
+                call d_l2_terms(3)%broadcast_element_times_scalar(geom%d_ls(2,i_next))
+                
+                call d_l2_terms(4)%init_from_sparse_vector(geom%d_d_ls(2,i_next))
+                call d_l2_terms(4)%broadcast_element_times_scalar(geom%v_xi(i))
+                
+                ! add terms
+                call geom%d_l2(i)%init_from_sparse_vector(d_l2_terms(1))
+                call geom%d_l2(i)%sparse_add(d_l2_terms(2))
+                call geom%d_l2(i)%sparse_add(d_l2_terms(3))
+                call geom%d_l2(i)%sparse_add(d_l2_terms(4))
+                
+                ! deallocate junk
+                deallocate(d_l1_terms(1)%elements, d_l2_terms(1)%elements,&
+                        d_l1_terms(2)%elements, d_l2_terms(2)%elements,&
+                        d_l1_terms(3)%elements, d_l2_terms(3)%elements,&
+                        d_l1_terms(4)%elements, d_l2_terms(4)%elements)
+
+                
+                ! Perpendicular in-plane distance (this line duplicate work?)
+                geom%a(i) = geom%v_xi(i)*geom%d_ls(1,i) + geom%v_eta(i)*geom%d_ls(2,i)
+
+                ! calculate product rule terms
+                call d_a_terms(1)%init_from_sparse_vector(geom%d_d_ls(1,i))
+                call d_a_terms(1)%broadcast_element_times_scalar(geom%v_xi(i))
+
+                call d_a_terms(2)%init_from_sparse_vector(geom%d_v_xi(i))
+                call d_a_terms(2)%broadcast_element_times_scalar(geom%d_ls(1,i))
+
+                call d_a_terms(3)%init_from_sparse_vector(geom%d_d_ls(2,i))
+                call d_a_terms(3)%broadcast_element_times_scalar(geom%v_eta(i))
+
+                call d_a_terms(4)%init_from_sparse_vector(geom%d_v_eta(i))
+                call d_a_terms(4)%broadcast_element_times_scalar(geom%d_ls(2,i))
+
+                ! add terms
+                call geom%d_a(i)%init_from_sparse_vector(d_a_terms(1))
+                call geom%d_a(i)%sparse_add(d_a_terms(2))
+                call geom%d_a(i)%sparse_add(d_a_terms(3))
+                call geom%d_a(i)%sparse_add(d_a_terms(4))
+
+                ! deallocate junk
+                deallocate(d_a_terms(1)%elements, d_a_terms(2)%elements, &
+                            d_a_terms(3)%elements, d_a_terms(4)%elements)
+
+
+                ! Perpendicular hyperbolic distance
+                if (mirror_panel) then
+                    geom%g2(i) = geom%a(i)**2 - this%b_mir(i)*geom%h2
+                else
+                    ! calculate d_g2 values for each edge
+                    ! (edge perpendicular distance from eval point to panel edges)
+                    geom%g2(i) = geom%a(i)**2 - this%b(i)*geom%h2
+                    
+                    ! take derivative
+                    do i=1,3
+                        call d_g2_term%init_from_sparse_vector(geom%d_a(i))
+                        call d_g2_term%broadcast_element_times_scalar(2.*geom%a(i))
+                        
+                        call geom%d_g2(i)%init_from_sparse_vector(geom%d_h2)
+                        call geom%d_g2(i)%broadcast_element_times_scalar(-this%b(i))
+                        call geom%d_g2(i)%sparse_add(d_g2_term)
+                        deallocate(d_g2_term%elements)
+                    end do
+                end if
+
+                ! Hyperbolic radius to first vertex
+                x = geom%d_ls(1,i)*geom%d_ls(1,i) - geom%d_ls(2,i)*geom%d_ls(2,i) - geom%h2
+                if (x > 0. .and. geom%d_ls(1,i) < 0.) then
+                    geom%R1(i) = sqrt(x)
+                else
+                    geom%l1(i) = -sqrt(abs(geom%g2(i)))
+                    geom%R1(i) = 0.
+                end if
+
+                ! Hyperbolic radius to second vertex
+                x = geom%d_ls(1,i_next)*geom%d_ls(1,i_next) - geom%d_ls(2,i_next)*geom%d_ls(2,i_next) - geom%h2
+                if (x > 0. .and. geom%d_ls(1,i_next) < 0.) then
+                    geom%R2(i) = sqrt(x)
+                else
+                    geom%l2(i) = sqrt(abs(geom%g2(i)))
+                    geom%R2(i) = 0.
+                end if
+
+                ! Swap directions for mirror
+                if (mirror_panel) then
+
+                    ! Swap l1 and l2
+                    ! The check is necessary because we set the sign of l1 and l2 in the case of R=0 based on which end each came from
+                    dummy = geom%l1(i)
+                    if (geom%R2(i) == 0.) then
+                        geom%l1(i) = -geom%l2(i)
+                    else
+                        geom%l1(i) = geom%l2(i)
+                    end if
+                    if (geom%R1(i) == 0) then
+                        geom%l2(i) = -dummy
+                    else
+                        geom%l2(i) = dummy
+                    end if
+
+                    ! Swap R1 and R2
+                    dummy = geom%R1(i)
+                    geom%R1(i) = geom%R2(i)
+                    geom%R2(i) = dummy
+
+                end if
+
+            end if
+
+        end do
+
+        ! Difference in R
+        geom%dR = geom%R2 - geom%R1
+
+
+
+
+        
+
+        !!!!!!! duplicate work !!!!!!!!!!!!!!!!!
+        ! take derivative of this (also calculate it for future use): 
+        ! Square of the perpendicular distance to edge
+        geom%g2 = geom%a*geom%a + geom%h2
+
+        !!!!!!! end duplicate work !!!!!!!!!!!!!!!!!
+
+        ! calculate d_g2 values for each edge
+        ! (edge perpendicular distance from eval point to panel edges)
+        do i=1,3
+            call d_g2_term%init_from_sparse_vector(geom%d_a(i))
+            call d_g2_term%broadcast_element_times_scalar(2.*geom%a(i))
+            
+            call geom%d_g2(i)%init_from_sparse_vector(geom%d_h2)
+            call geom%d_g2(i)%sparse_add(d_g2_term)
+            deallocate(d_g2_term%elements)
+        end do
+
+        !!!!!!! duplicate work !!!!!!!!!!!!!!!!!
+        ! take derivative of this (also calculate it for future use): 
+        ! Distance from evaluation point to end vertices
+        geom%R1 = sqrt(geom%d_ls(1,:)*geom%d_ls(1,:) + geom%d_ls(2,:)*geom%d_ls(2,:) + geom%h2)
+        geom%R2 = cshift(geom%R1, 1)
+        !!!!!!! end duplicate work !!!!!!!!!!!!!!!!!
+        
+        ! calculate d_R1
+        do i=1,3
+
+            call d_R1_terms(1)%init_from_sparse_vector(geom%d_d_ls(1,i))
+            call d_R1_terms(1)%broadcast_element_times_scalar(2.*geom%d_ls(1,i))
+
+            call d_R1_terms(2)%init_from_sparse_vector(geom%d_d_ls(2,i))
+            call d_R1_terms(2)%broadcast_element_times_scalar(2.*geom%d_ls(2,i))
+
+            call geom%d_R1(i)%init_from_sparse_vector(d_R1_terms(1))
+            call geom%d_R1(i)%sparse_add(d_R1_terms(2))
+            call geom%d_R1(i)%sparse_add(geom%d_h2)
+            call geom%d_R1(i)%broadcast_element_times_scalar(1./(2.*geom%R1(i)))
+            
+            deallocate(d_R1_terms(1)%elements, d_R1_terms(2)%elements)
+        end do
+
+        ! calc d_R2 terms
+        do i=1,3
+            ! Get index next
+            i_next = mod(i, this%N) + 1
+
+            call geom%d_R2(i)%init_from_sparse_vector(geom%d_R1(i_next))
+        end do
+
+        !!!!!!! duplicate work !!!!!!!!!!!!!!!!!
+        ! take derivative of this (also calculate it for future use): 
+        ! Difference in R
+        geom%dR = geom%R2 - geom%R1     
+        !!!!!!! end duplicate work !!!!!!!!!!!!!!!!!
+
+        ! calculate d_dR
+        do i=1,3
+            call geom%d_dR(i)%init_from_sparse_vector(geom%d_R2(i))
+            call geom%d_dR(i)%sparse_subtract(geom%d_R1(i))
+        end do
+
+
+
+        
+
+    end function panel_calc_supersonic_subinc_geom_adjoint
 
     
     function panel_calc_sensitivity_of_body_point_in_ls(this, P, d_P) result(d_P_ls)
@@ -6070,7 +6347,6 @@ contains
         end if
 
     end function panel_get_d_avg_pressure_coef_wrt_mu
-
 
 
 end module panel_mod

@@ -345,8 +345,8 @@ program test19
             write(*,*) "     FLAGGED VALUES :"
             do i = 1, N_verts
                 if (abs(residuals(i))>error_allowed) then
-                    write(*,'(A,I5,A)') "        d_C_P_inc_wrt_mu ",z,"   FD            &
-                    d_C_P_inc_wrt_mu adjoint        residuals             residual"
+                    write(*,'(A,I5,A)') "                d_C_P_inc_wrt_mu ",z,"   FD            &
+                    d_C_P_inc_wrt_mu adjoint                               residual"
                     write(*, '(8x,(f25.10, 4x),3x, (f25.10, 4x),3x, (f25.10, 4x))') &
                     d_C_P_inc_wrt_mu_FD(i), adjoint_mesh%d_C_P_inc_wrt_mu(z)%get_value(i), &
                     residuals(i)

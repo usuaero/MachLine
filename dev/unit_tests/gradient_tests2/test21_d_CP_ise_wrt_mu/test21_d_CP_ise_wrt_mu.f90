@@ -1,4 +1,4 @@
-program test19
+program test21
     ! tests various intermediate sensitivities 
     use adjoint_mod
     use base_geom_mod
@@ -43,14 +43,24 @@ program test19
     integer :: i_unit
     logical :: exists, found
 
+    integer :: adjoint_solver_stat, test_solver_stat, stat
+    type(sparse_vector) :: zeros
+
+    real,dimension(3) :: adjoint_P, test_P, test_v_d, test_v_s
+    type(sparse_matrix) :: adjoint_d_P_term2
+    type(sparse_matrix) :: adjoint_d_P
+    type(sparse_matrix) :: adjoint_d_v_d_panel
+
+    real,dimension(:),allocatable :: fixed_v_d, fixed_v_s
+
     !!!!!!!!!!!!!!!!!!!!! END STUFF FROM MAIN !!!!!!!!!!!!!!!!!!!!!!!!!
 
     !!!!!!!!!!!!!!!!!!!!!! TESTING STUFF  !!!!!!!!!!!!!!!!!!!!!!!!!!
-    real,dimension(:),allocatable :: residuals,C_P_inc_wrt_mu_up, C_P_inc_wrt_mu_dn, d_C_P_inc_wrt_mu_FD
+    real,dimension(:),allocatable :: residuals,C_P_ise_wrt_mu_up, C_P_ise_wrt_mu_dn, d_C_P_ise_wrt_mu_FD
     real,dimension(:,:),allocatable ::  residuals3
 
     integer :: i,j,k,m,n,y,z,N_verts, N_panels, vert, index, cp_ind
-    real :: step,error_allowed
+    real :: step,error_allowed, cp_offset
     type(vertex),dimension(:),allocatable :: vertices ! list of vertex types, this should be a mesh attribute
     type(panel),dimension(:),allocatable :: panels, adjoint_panels   ! list of panels, this should be a mesh attribute
     
@@ -77,7 +87,7 @@ program test19
     ! Set up run
     call json_initialize()
 
-    test_input = "dev\input_files\adjoint_inputs\test.json"
+    test_input = "dev\input_files\adjoint_inputs\test_ise.json"
     test_input = trim(test_input)
 
     ! Check it exists
@@ -172,7 +182,7 @@ program test19
     ! Set up run
     call json_initialize()
     
-    adjoint_input = "dev\input_files\adjoint_inputs\adjoint_test.json"
+    adjoint_input = "dev\input_files\adjoint_inputs\adjoint_test_ise.json"
     adjoint_input = trim(adjoint_input)
 
     ! Check it exists
@@ -232,16 +242,16 @@ program test19
     N_panels = test_mesh%N_panels
     
     
-    allocate(residuals3(3,N_verts*3))
-    allocate(residuals(N_verts*3))
+    allocate(residuals3(3,N_verts))
+    allocate(residuals(N_verts))
 
     ! allocate data holders
-    allocate(C_P_inc_wrt_mu_up(N_verts))
-    allocate(C_P_inc_wrt_mu_dn(N_verts))
-    allocate(d_C_P_inc_wrt_mu_FD(N_verts))
+    allocate(C_P_ise_wrt_mu_up(N_verts))
+    allocate(C_P_ise_wrt_mu_dn(N_verts))
+    allocate(d_C_P_ise_wrt_mu_FD(N_verts))
     
 
-    error_allowed = 1.0e-6
+    error_allowed = 1.0e-9
     step = 0.000001
     index = 1
     cp_ind = 1
@@ -249,7 +259,7 @@ program test19
 
     write(*,*) ""
     write(*,*) "------------------------------------------------------------------------"
-    write(*,*) "                           d_CP_inc_wrt_mu TEST                    "
+    write(*,*) "                           d_CP_ise_wrt_mu TEST                    "
     write(*,*) "------------------------------------------------------------------------"
     write(*,*) ""
     write(*,*) ""
@@ -262,7 +272,7 @@ program test19
         
         write(*,*) ""
         write(*,*) "--------------------------------------------------------------------------------------"
-        write(*,'(A,I5)') "                           d_CP_inc_wrt_mu test ",z
+        write(*,'(A,I5)') "                           d_CP_ise_wrt_mu test ",z
         write(*,*) "--------------------------------------------------------------------------------------"
         write(*,*) ""
 
@@ -281,7 +291,7 @@ program test19
             ! Calculate velocities
             call test_solver%calc_cell_velocities(test_mesh)
             
-            deallocate(test_mesh%C_P_inc)
+            deallocate(test_mesh%C_P_ise)
 
             ! Calculate velocities
             call test_solver%calc_pressures(test_mesh)
@@ -289,7 +299,7 @@ program test19
             !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
             
             ! get the needed info
-            C_P_inc_wrt_mu_up(i) = test_mesh%C_P_inc(z)
+            C_P_ise_wrt_mu_up(i) = test_mesh%C_P_ise(z)
             
             
             ! perturb down the current design variable
@@ -304,7 +314,7 @@ program test19
             ! Calculate velocities
             call test_solver%calc_cell_velocities(test_mesh)
             
-            deallocate(test_mesh%C_P_inc)
+            deallocate(test_mesh%C_P_ise)
 
             ! Calculate velocities
             call test_solver%calc_pressures(test_mesh)
@@ -313,7 +323,7 @@ program test19
             !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
             
             ! get the needed info
-            C_P_inc_wrt_mu_dn(i) = test_mesh%C_P_inc(z)
+            C_P_ise_wrt_mu_dn(i) = test_mesh%C_P_ise(z)
 
             ! restore geometry
             test_mesh%mu(i) = test_mesh%mu(i) + step
@@ -321,23 +331,25 @@ program test19
         end do 
 
         
-        d_C_P_inc_wrt_mu_FD = (C_P_inc_wrt_mu_up - C_P_inc_wrt_mu_dn)/(2.*step)
+        d_C_P_ise_wrt_mu_FD = (C_P_ise_wrt_mu_up - C_P_ise_wrt_mu_dn)/(2.*step)
                 
         
         
         do i=1,N_verts
-            residuals(i) = adjoint_mesh%d_C_P_inc_wrt_mu(z)%get_value(i) - d_C_P_inc_wrt_mu_FD(i)
+            residuals(i) = adjoint_mesh%d_C_P_ise_wrt_mu(z)%get_value(i) - d_C_P_ise_wrt_mu_FD(i)
         end do
 
 
         if (maxval(abs(residuals))>error_allowed) then
             write(*,*) ""
             write(*,*) "     FLAGGED VALUES :"
-            write(*,'(A,I5,A)') "        d_C_P_inc_wrt_mu ",z,"   FD            d_C_P_inc_wrt_mu adjoint        residuals             residual"
             do i = 1, N_verts
                 if (abs(residuals(i))>error_allowed) then
+                    write(*,'(A,I5,A)') "        d_C_P_ise_wrt_mu ",z,"   FD            &
+                    d_C_P_ise_wrt_mu adjoint                               residual"
                     write(*, '(8x,(f25.10, 4x),3x, (f25.10, 4x),3x, (f25.10, 4x))') &
-                    d_C_P_inc_wrt_mu_FD(i), adjoint_mesh%d_C_P_inc_wrt_mu(z)%get_value(i), residuals(i)
+                    d_C_P_ise_wrt_mu_FD(i), adjoint_mesh%d_C_P_ise_wrt_mu(z)%get_value(i), &
+                    residuals(i)
                 end if
             end do
         end if
@@ -346,28 +358,28 @@ program test19
         ! check if test failed
         do i=1,N_verts
             if (any(abs(residuals) > error_allowed)) then 
-                if (abs(d_C_P_inc_wrt_mu_FD(i))>1000.0) then
+                if (abs(d_C_P_ise_wrt_mu_FD(i))>1000.0) then
                     if (abs(residuals(i)) > error_allowed*10000.0) then
                         test_failed = .true.
                         exit
                     else
                         test_failed = .false.
                     end if
-                elseif (1000.0>abs(d_C_P_inc_wrt_mu_FD(i)) .and. abs(d_C_P_inc_wrt_mu_FD(i))>100.0) then
+                elseif (1000.0>abs(d_C_P_ise_wrt_mu_FD(i)) .and. abs(d_C_P_ise_wrt_mu_FD(i))>100.0) then
                     if (abs(residuals(i)) > error_allowed*1000.0) then
                         test_failed = .true.
                         exit
                     else
                         test_failed = .false.
                     end if
-                elseif (100.0>abs(d_C_P_inc_wrt_mu_FD(i)) .and. abs(d_C_P_inc_wrt_mu_FD(i))>10.0) then
+                elseif (100.0>abs(d_C_P_ise_wrt_mu_FD(i)) .and. abs(d_C_P_ise_wrt_mu_FD(i))>10.0) then
                     if (abs(residuals(i)) > error_allowed*100.0) then
                         test_failed = .true.
                         exit
                     else
                         test_failed = .false.
                     end if
-                elseif (10.0>abs(d_C_P_inc_wrt_mu_FD(i)) .and. abs(d_C_P_inc_wrt_mu_FD(i))>1.0) then
+                elseif (10.0>abs(d_C_P_ise_wrt_mu_FD(i)) .and. abs(d_C_P_ise_wrt_mu_FD(i))>1.0) then
                     if (abs(residuals(i)) > error_allowed*10.0) then
                         test_failed = .true.
                         exit
@@ -389,10 +401,10 @@ program test19
         if (test_failed) then
             total_tests = total_tests + 1
             write(*,'(A,I5,A)')"                                     &
-            d_C_P_inc_wrt_mu ",z," test FAILED"
-            failure_log(total_tests-passed_tests) = "d_C_P_inc_wrt_mu test FAILED"
+            d_C_P_ise_wrt_mu ",z," test FAILED"
+            failure_log(total_tests-passed_tests) = "d_C_P_ise_wrt_mu test FAILED"
         else
-            ! write(*,*) "        d_C_P_inc_wrt_mu test PASSED"
+            ! write(*,*) "        d_C_P_ise_wrt_mu test PASSED"
             ! write(*,*) "" 
             ! write(*,*) ""
             passed_tests = passed_tests + 1
@@ -409,7 +421,7 @@ program test19
 
     !!!!!!!!!!!!!!  RESULTS!!!!!!!!!!!!!
     write(*,*) "------------------------------------------------------------------------------"
-    write(*,*) "                          d_CP_inc_wrt_mu TEST RESULTS "
+    write(*,*) "                          d_CP_ise_wrt_mu TEST RESULTS "
     write(*,*) "------------------------------------------------------------------------------"
     write(*,*) ""
     write(*,'((A), ES10.1)') "allowed residual = ", error_allowed
@@ -437,4 +449,4 @@ program test19
     write(*,*) "Program Complete"
     write(*,*) "----------------------"
 
-end program test19
+end program test21

@@ -2140,6 +2140,9 @@ contains
         if (body%calc_adjoint) then
             ! don't deallocate
         else
+            ! do i = 1,N 
+            !     write(*,*) this%A(i,:)
+            ! end do
             deallocate(this%A)
         end if 
 
@@ -2153,6 +2156,11 @@ contains
             write(*,*) "        Norm of residual:", this%norm_res
             if (this%sort_system) write(*,*) "        Lower bandwidth of A matrix:", this%B_l_system
         end if
+        
+        !!! TESTING !!! 
+        write(*,*) "        Maximum residual:", this%max_res
+        write(*,*) "        Norm of residual:", this%norm_res
+        !!!!!!!
 
         ! Check
         if (isnan(this%norm_res)) then
@@ -2301,9 +2309,9 @@ contains
             allocate(body%C_p_inc(this%N_cells), stat=stat)
             call check_allocation(stat, "incompressible surface pressures")
             if (body%calc_adjoint) then
-                allocate(body%d_C_P_inc_wrt_vars(this%N_cells), stat=stat)
+                allocate(body%d_C_p_inc_wrt_vars(this%N_cells), stat=stat)
                 call check_allocation(stat, "adjoint incompressible pressures (wrt vars)")
-                allocate(body%d_C_P_inc_wrt_mu(this%N_cells), stat=stat)
+                allocate(body%d_C_p_inc_wrt_mu(this%N_cells), stat=stat)
                 call check_allocation(stat, "adjoint incompressible pressures (wrt mu)")
             end if
         end if
@@ -2311,6 +2319,12 @@ contains
         if (this%isentropic_rule) then
             allocate(body%C_p_ise(this%N_cells), stat=stat)
             call check_allocation(stat, "isentropic surface pressures")
+            if (body%calc_adjoint) then
+                allocate(body%d_C_p_ise_wrt_vars(this%N_cells), stat=stat)
+                call check_allocation(stat, "adjoint isentropic pressures (wrt vars)")
+                allocate(body%d_C_p_ise_wrt_mu(this%N_cells), stat=stat)
+                call check_allocation(stat, "adjoint isentropic pressures (wrt mu)")
+            end if
         end if
         
         if (this%second_order_rule) then
@@ -2413,6 +2427,11 @@ contains
                 body%C_p_ise(i) = this%calc_avg_pressure_on_panel(i, body, .false., "isentropic")
                 if (body%asym_flow) then
                     body%C_p_ise(i+body%N_panels) = this%calc_avg_pressure_on_panel(i, body, .true., "isentropic")
+                end if
+
+                if (body%calc_adjoint) then
+                    body%d_C_p_ise_wrt_vars(i) = this%calc_d_avg_pressure_on_panel_wrt_vars(i,body,.false.,"isentropic") 
+                    body%d_C_p_ise_wrt_mu(i) = this%calc_d_avg_pressure_on_panel_wrt_mu(i,body,.false.,"isentropic") 
                 end if
             end if
 
@@ -3357,8 +3376,9 @@ contains
             call this%calc_d_forces_wrt_vars(body, body%C_p_inc, body%d_C_p_inc_wrt_vars)
             call this%calc_d_forces_wrt_mu(body, body%C_p_inc, body%d_C_p_inc_wrt_mu)
 
-        ! case ('isentropic')
-        !     call this%calc_forces_with_pressure(body, body%C_p_ise)
+        case ('isentropic')
+            call this%calc_d_forces_wrt_vars(body, body%C_p_ise, body%d_C_p_ise_wrt_vars)
+            call this%calc_d_forces_wrt_mu(body, body%C_p_ise, body%d_C_p_ise_wrt_mu)
 
         ! case ('second-order')
         !     call this%calc_forces_with_pressure(body, body%C_p_2nd)
