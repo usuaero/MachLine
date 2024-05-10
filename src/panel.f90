@@ -544,6 +544,15 @@ contains
         ! Calculate panel inclination indicator (E&M Eq. (E.3.16b))
         this%r = int(sign(1., x)) ! r = -1 -> superinclined, r = 1 -> subinclined
 
+        ! Check for Mach-inclined panels
+        if (this%r == -1) then
+            write(*,*) "!!! Panel", this%index, "is superinclined, which is not allowed. Quitting..."
+            stop
+        end if
+
+        ! Calculate panel inclination indicator (E&M Eq. (E.3.16b))
+        this%r = int(sign(1., x)) ! r = -1 -> superinclined, r = 1 -> subinclined
+
         ! Other inclination parameters
         rs = int(this%r*freestream%s)
 
