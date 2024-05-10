@@ -4592,7 +4592,7 @@ contains
         implicit none
 
         class(panel),intent(inout) :: this
-        type(flow), intent(in) :: flow
+        type(flow), intent(in) :: freestream
 
         real,dimension(2) :: d_ls
         real,dimension(:,:),allocatable :: t_hat_ls
@@ -5182,28 +5182,48 @@ contains
 
                 ! Perpendicular hyperbolic distance
                 if (mirror_panel) then
-                    geom%g2(i) = geom%a(i)**2 - this%b_mir(i)*geom%h2
+                    !geom%g2(i) = geom%a(i)**2 - this%b_mir(i)*geom%h2
+                    write(*,*) "!!! Cannot calculate adjoint for mirrored mesh. Quitting..."
+                    stop
                 else
                     ! calculate d_g2 values for each edge
                     ! (edge perpendicular distance from eval point to panel edges)
                     geom%g2(i) = geom%a(i)**2 - this%b(i)*geom%h2
                     
                     ! take derivative
-                    do i=1,3
-                        call d_g2_term%init_from_sparse_vector(geom%d_a(i))
-                        call d_g2_term%broadcast_element_times_scalar(2.*geom%a(i))
-                        
-                        call geom%d_g2(i)%init_from_sparse_vector(geom%d_h2)
-                        call geom%d_g2(i)%broadcast_element_times_scalar(-this%b(i))
-                        call geom%d_g2(i)%sparse_add(d_g2_term)
-                        deallocate(d_g2_term%elements)
-                    end do
+                    call d_g2_term%init_from_sparse_vector(geom%d_a(i))
+                    call d_g2_term%broadcast_element_times_scalar(2.*geom%a(i))
+                    
+                    call geom%d_g2(i)%init_from_sparse_vector(geom%d_h2)
+                    call geom%d_g2(i)%broadcast_element_times_scalar(-this%b(i))
+                    call geom%d_g2(i)%sparse_add(d_g2_term)
+                    
+                    deallocate(d_g2_term%elements)
+        
                 end if
 
                 ! Hyperbolic radius to first vertex
                 x = geom%d_ls(1,i)*geom%d_ls(1,i) - geom%d_ls(2,i)*geom%d_ls(2,i) - geom%h2
+
+                ! take derivative
+                call d_x_term%init_from_sparse_vector(geom%d_d_ls(1,i))
+                call d_x_term%broadcast_element_times_scalar(2*geom%d_ls(1,i))
+
+                call d_x%init_from_sparse_vector(geom%d_d_ls(2,i))
+                call d_x%broadcast_element_times_scalar(-2*geom%d_ls(2,i))
+
+                call d_x%sparse_add(d_x_term)
+                call d_x%sparse_subtract(geom%d_h2)
+
+                ! combine terms
+
+                
                 if (x > 0. .and. geom%d_ls(1,i) < 0.) then
                     geom%R1(i) = sqrt(x)
+
+                    call geom%d_R1(i)%init_from_sparse_vector(d_x)
+                    call geom%d_R1(i)%broadcast_element_times_scalar(1./(2.*sqrt(x)))
+
                 else
                     geom%l1(i) = -sqrt(abs(geom%g2(i)))
                     geom%R1(i) = 0.
@@ -5220,26 +5240,27 @@ contains
 
                 ! Swap directions for mirror
                 if (mirror_panel) then
-
                     ! Swap l1 and l2
-                    ! The check is necessary because we set the sign of l1 and l2 in the case of R=0 based on which end each came from
-                    dummy = geom%l1(i)
-                    if (geom%R2(i) == 0.) then
-                        geom%l1(i) = -geom%l2(i)
-                    else
-                        geom%l1(i) = geom%l2(i)
-                    end if
-                    if (geom%R1(i) == 0) then
-                        geom%l2(i) = -dummy
-                    else
-                        geom%l2(i) = dummy
-                    end if
-
-                    ! Swap R1 and R2
-                    dummy = geom%R1(i)
-                    geom%R1(i) = geom%R2(i)
-                    geom%R2(i) = dummy
-
+                    ! ! The check is necessary because we set the sign of l1 and l2 in the case of R=0 based on which end each came from
+                    ! dummy = geom%l1(i)
+                    ! if (geom%R2(i) == 0.) then
+                    !     geom%l1(i) = -geom%l2(i)
+                    ! else
+                    !     geom%l1(i) = geom%l2(i)
+                    ! end if
+                    ! if (geom%R1(i) == 0) then
+                    !     geom%l2(i) = -dummy
+                    ! else
+                    !     geom%l2(i) = dummy
+                    ! end if
+                    
+                    ! ! Swap R1 and R2
+                    ! dummy = geom%R1(i)
+                    ! geom%R1(i) = geom%R2(i)
+                    ! geom%R2(i) = dummy
+                    write(*,*) "!!! Cannot calculate adjoint for mirrored mesh. Quitting..."
+                    stop
+                    
                 end if
 
             end if
