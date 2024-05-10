@@ -5084,7 +5084,7 @@ contains
         real :: x
         integer :: i, i_next
         type(sparse_vector),dimension(4) :: d_l1_terms, d_l2_terms, d_a_terms
-        type(sparse_vector) ::  d_g2_term
+        type(sparse_vector) ::  d_g2_term, d_x, d_x_term
         type(sparse_vector),dimension(2) :: d_R1_terms
 
         real :: dummy
