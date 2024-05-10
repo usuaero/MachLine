@@ -2378,7 +2378,7 @@ contains
 
         ! Initialize
         geom = this%calc_basic_geom(eval_point, mirror_panel)
-
+        write(*,*) " doing super inclined shiz"
         ! Loop through edges
         do i=1,this%N
 
@@ -4768,9 +4768,9 @@ contains
             ! Calculate geometric parameters
             if (freestream%supersonic) then
                 if ((mirror_panel .and. this%r_mir < 0.) .or. (.not. mirror_panel .and. this%r < 0.)) then
-                    !d_geom = this%calc_supersonic_supinc_geom_adjoint(P, freestream, mirror_panel, dod_info)
+                    !geom = this%calc_supersonic_supinc_geom_adjoint(P, freestream, mirror_panel, dod_info)
                 else
-                    !d_geom = this%calc_supersonic_subinc_geom_adjoint(P, freestream, mirror_panel, dod_info)
+                    geom = this%calc_supersonic_subinc_geom_adjoint(P, d_P, freestream, mirror_panel, dod_info)
                 end if
             else
                 geom = this%calc_subsonic_geom_adjoint(P, d_P, freestream)
@@ -5069,28 +5069,30 @@ contains
     end function panel_calc_subsonic_geom_adjoint
 
 
-    function panel_calc_supersonic_subinc_geom_adjoint(this, eval_point, freestream, mirror_panel, dod_info) result(geom)
-        ! Calculates the geometric parameters necessary for calculating the influence of the panel at the given evaluation point
+    function panel_calc_supersonic_subinc_geom_adjoint(this, P, d_P, freestream, mirror_panel, dod_info) result(geom)
+        ! Initializes geometry sensitivities common to the three panel types
 
         implicit none
-
-        class(panel),intent(in) :: this
-        real,dimension(3),intent(in) :: eval_point
-        type(flow),intent(in) :: freestream
-        logical,intent(in) :: mirror_panel
+        
+        class(panel), intent(inout) :: this
+        real,dimension(3), intent(inout) :: P
+        type(sparse_matrix), intent(inout) :: d_P
+        type(flow), intent(in) :: freestream
+        logical,intent(in) :: mirror_panel 
         type(dod),intent(in) :: dod_info
+
         type(eval_point_geom) :: geom
 
         real :: x
         integer :: i, i_next
         type(sparse_vector),dimension(4) :: d_l1_terms, d_l2_terms, d_a_terms
         type(sparse_vector) ::  d_g2_term, d_x, d_x_term
-        type(sparse_vector),dimension(2) :: d_R1_terms
+        ! type(sparse_vector),dimension(2) :: d_R1_terms
 
         real :: dummy
 
-        ! Initialize
-        geom = this%calc_basic_geom(eval_point, mirror_panel)
+        ! call basic geom adjoint
+        geom = this%calc_basic_geom_adjoint(P, d_P, .false.)
 
         ! Loop through edges
         do i=1,this%N
@@ -5204,7 +5206,7 @@ contains
 
                 ! Hyperbolic radius to first vertex
                 x = geom%d_ls(1,i)*geom%d_ls(1,i) - geom%d_ls(2,i)*geom%d_ls(2,i) - geom%h2
-
+                
                 ! take derivative
                 call d_x_term%init_from_sparse_vector(geom%d_d_ls(1,i))
                 call d_x_term%broadcast_element_times_scalar(2*geom%d_ls(1,i))
@@ -5212,31 +5214,83 @@ contains
                 call d_x%init_from_sparse_vector(geom%d_d_ls(2,i))
                 call d_x%broadcast_element_times_scalar(-2*geom%d_ls(2,i))
 
+                ! combine terms
                 call d_x%sparse_add(d_x_term)
                 call d_x%sparse_subtract(geom%d_h2)
 
-                ! combine terms
-
-                
+                ! Hyperbolic radius to first vertex
                 if (x > 0. .and. geom%d_ls(1,i) < 0.) then
                     geom%R1(i) = sqrt(x)
-
+                    
                     call geom%d_R1(i)%init_from_sparse_vector(d_x)
                     call geom%d_R1(i)%broadcast_element_times_scalar(1./(2.*sqrt(x)))
-
+                    
                 else
+                    ! re-define l1(i)
                     geom%l1(i) = -sqrt(abs(geom%g2(i)))
+                    
+                    ! deallocate d_l1 for the re-definition
+                    deallocate(geom%d_l1(i)%elements)
+                    
+                    ! take derivative
+                    call geom%d_l1(i)%init_from_sparse_vector(geom%d_g2(i))
+                    call geom%d_l1(i)%broadcast_element_times_scalar(geom%g2(i)/&
+                    (-2.*sqrt(abs(geom%g2(i)))*abs(geom%g2(i))))
+                    
+                    ! R1 is zero
                     geom%R1(i) = 0.
+                    
+                    ! init zeros
+                    call geom%d_R1(i)%init(this%adjoint_size)
+                    
                 end if
-
+                
+                ! deallocate d_x stuff so we can use it for the radius to the second vertex 
+                deallocate(d_x%elements, d_x_term%elements)
+                
                 ! Hyperbolic radius to second vertex
                 x = geom%d_ls(1,i_next)*geom%d_ls(1,i_next) - geom%d_ls(2,i_next)*geom%d_ls(2,i_next) - geom%h2
+                
+                ! take derivative
+                call d_x_term%init_from_sparse_vector(geom%d_d_ls(1,i_next))
+                call d_x_term%broadcast_element_times_scalar(2*geom%d_ls(1,i_next))
+                
+                call d_x%init_from_sparse_vector(geom%d_d_ls(2,i_next))
+                call d_x%broadcast_element_times_scalar(-2*geom%d_ls(2,i_next))
+                
+                ! combine terms
+                call d_x%sparse_add(d_x_term)
+                call d_x%sparse_subtract(geom%d_h2)
+                
+                ! check condition
                 if (x > 0. .and. geom%d_ls(1,i_next) < 0.) then
                     geom%R2(i) = sqrt(x)
+                    
+                    ! derivative
+                    call geom%d_R2(i)%init_from_sparse_vector(d_x)
+                    call geom%d_R2(i)%broadcast_element_times_scalar(1./(2.*sqrt(x)))
+                    
                 else
+                    ! re-define l2(i)
                     geom%l2(i) = sqrt(abs(geom%g2(i)))
+                    
+                    ! deallocate d_l2 for the re-definition
+                    deallocate(geom%d_l2(i)%elements)
+                    
+                    ! take derivative
+                    call geom%d_l2(i)%init_from_sparse_vector(geom%d_g2(i))
+                    call geom%d_l2(i)%broadcast_element_times_scalar(geom%g2(i)/&
+                    (2.*sqrt(abs(geom%g2(i)))*abs(geom%g2(i))))
+                    
+                    ! R1 is zero
                     geom%R2(i) = 0.
+                    
+                    ! init zeros
+                    call geom%d_R2(i)%init(this%adjoint_size)
                 end if
+                
+                ! deallocate d_x stuff 
+                deallocate(d_x%elements, d_x_term%elements)
 
                 ! Swap directions for mirror
                 if (mirror_panel) then
@@ -5267,79 +5321,14 @@ contains
 
         end do
 
-        ! Difference in R
+        ! Difference in R  (this line duplicate work?)
         geom%dR = geom%R2 - geom%R1
-
-
-
-
-        
-
-        !!!!!!! duplicate work !!!!!!!!!!!!!!!!!
-        ! take derivative of this (also calculate it for future use): 
-        ! Square of the perpendicular distance to edge
-        geom%g2 = geom%a*geom%a + geom%h2
-
-        !!!!!!! end duplicate work !!!!!!!!!!!!!!!!!
-
-        ! calculate d_g2 values for each edge
-        ! (edge perpendicular distance from eval point to panel edges)
-        do i=1,3
-            call d_g2_term%init_from_sparse_vector(geom%d_a(i))
-            call d_g2_term%broadcast_element_times_scalar(2.*geom%a(i))
-            
-            call geom%d_g2(i)%init_from_sparse_vector(geom%d_h2)
-            call geom%d_g2(i)%sparse_add(d_g2_term)
-            deallocate(d_g2_term%elements)
-        end do
-
-        !!!!!!! duplicate work !!!!!!!!!!!!!!!!!
-        ! take derivative of this (also calculate it for future use): 
-        ! Distance from evaluation point to end vertices
-        geom%R1 = sqrt(geom%d_ls(1,:)*geom%d_ls(1,:) + geom%d_ls(2,:)*geom%d_ls(2,:) + geom%h2)
-        geom%R2 = cshift(geom%R1, 1)
-        !!!!!!! end duplicate work !!!!!!!!!!!!!!!!!
-        
-        ! calculate d_R1
-        do i=1,3
-
-            call d_R1_terms(1)%init_from_sparse_vector(geom%d_d_ls(1,i))
-            call d_R1_terms(1)%broadcast_element_times_scalar(2.*geom%d_ls(1,i))
-
-            call d_R1_terms(2)%init_from_sparse_vector(geom%d_d_ls(2,i))
-            call d_R1_terms(2)%broadcast_element_times_scalar(2.*geom%d_ls(2,i))
-
-            call geom%d_R1(i)%init_from_sparse_vector(d_R1_terms(1))
-            call geom%d_R1(i)%sparse_add(d_R1_terms(2))
-            call geom%d_R1(i)%sparse_add(geom%d_h2)
-            call geom%d_R1(i)%broadcast_element_times_scalar(1./(2.*geom%R1(i)))
-            
-            deallocate(d_R1_terms(1)%elements, d_R1_terms(2)%elements)
-        end do
-
-        ! calc d_R2 terms
-        do i=1,3
-            ! Get index next
-            i_next = mod(i, this%N) + 1
-
-            call geom%d_R2(i)%init_from_sparse_vector(geom%d_R1(i_next))
-        end do
-
-        !!!!!!! duplicate work !!!!!!!!!!!!!!!!!
-        ! take derivative of this (also calculate it for future use): 
-        ! Difference in R
-        geom%dR = geom%R2 - geom%R1     
-        !!!!!!! end duplicate work !!!!!!!!!!!!!!!!!
 
         ! calculate d_dR
         do i=1,3
             call geom%d_dR(i)%init_from_sparse_vector(geom%d_R2(i))
             call geom%d_dR(i)%sparse_subtract(geom%d_R1(i))
         end do
-
-
-
-        
 
     end function panel_calc_supersonic_subinc_geom_adjoint
 
@@ -5946,7 +5935,7 @@ contains
                 if ((mirror_panel .and. this%r_mir < 0.) .or. (.not. mirror_panel .and. this%r < 0.)) then
                     !d_geom = this%calc_supersonic_supinc_geom_adjoint(P, freestream, mirror_panel, dod_info)
                 else
-                    !d_geom = this%calc_supersonic_subinc_geom_adjoint(P, freestream, mirror_panel, dod_info)
+                    geom = this%calc_supersonic_subinc_geom_adjoint(cp%loc, cp%d_loc, freestream, mirror_panel, dod_info)
                 end if
             else
                 geom = this%calc_subsonic_geom_adjoint(cp%loc, cp%d_loc,freestream)
