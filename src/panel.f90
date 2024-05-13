@@ -82,6 +82,7 @@ module panel_mod
         type(sparse_matrix),dimension(3) :: d_n_hat_g, d_A_g_to_ls, d_A_ls_to_g, d_T_mu_rows
 
         type(sparse_vector),dimension(2,3) :: d_vertices_ls, d_n_hat_ls
+        type(sparse_vector),dimension(3) :: d_b, d_sqrt_b
         
 
         
@@ -4606,7 +4607,8 @@ contains
         real,dimension(2) :: d_ls
         real,dimension(:,:),allocatable :: t_hat_ls
         integer :: i, i_next, j
-
+        
+        type(sparse_vector) :: d_b_term
         type(sparse_vector),dimension(3) :: d_norm
         type(sparse_vector),dimension(2,3) :: d_d_ls, a, b, d_t_hat_ls
 
@@ -4671,13 +4673,52 @@ contains
             if (this%r > 0) then
                 this%b = (this%n_hat_ls(1,:) - this%n_hat_ls(2,:))*(this%n_hat_ls(1,:) + this%n_hat_ls(2,:))
                 this%sqrt_b = sqrt(abs(this%b))
+                
+                ! take derivatives
+                do i=1,3
+
+                    ! this%b derivatives
+                    call d_b_term%init_from_sparse_vector(this%d_n_hat_ls(1,i))
+                    call d_b_term%sparse_subtract(this%d_n_hat_ls(2,i))
+                    call d_b_term%broadcast_element_times_scalar(this%n_hat_ls(1,i) + this%n_hat_ls(2,i))
+
+                    call this%d_b(i)%init_from_sparse_vector(this%d_n_hat_ls(1,i))
+                    call this%d_b(i)%sparse_add(this%d_n_hat_ls(2,i))
+                    call this%d_b(i)%broadcast_element_times_scalar(this%n_hat_ls(1,i) - this%n_hat_ls(2,i))
+
+                    ! combine terms
+                    call this%d_b(i)%sparse_add(d_b_term)
+
+
+                    ! sqrt |b| derivative
+                    call this%d_sqrt_b(i)%init_from_sparse_vector(this%d_b(i))
+                    call this%d_sqrt_b(i)%broadcast_element_times_scalar(this%b(i)/&
+                                                            (2.*sqrt(abs(this%b(i)))*abs(this%b(i))))
+
+                    ! deallocate
+                    deallocate(d_b_term%elements)
+                end do
             else
                 this%b = 1.
                 this%sqrt_b = 1.
+
+                ! calc trivial derivatives
+                do i=1,3
+                    call this%d_b(i)%init(this%adjoint_size)
+                    call this%d_sqrt_b(i)%init(this%adjoint_size)
+                end do
+
             end if
         else
             this%b = -1.
             this%sqrt_b = 1.
+
+            ! calc trivial derivatives
+            do i=1,3
+                call this%d_b(i)%init(this%adjoint_size)
+                call this%d_sqrt_b(i)%init(this%adjoint_size)
+            end do
+
         end if
 
     
@@ -5095,7 +5136,7 @@ contains
         real :: x
         integer :: i, i_next
         type(sparse_vector),dimension(4) :: d_l1_terms, d_l2_terms, d_a_terms
-        type(sparse_vector) ::  d_g2_term, d_x, d_x_term
+        type(sparse_vector) ::  d_g2_term, d_g2_term2, d_x, d_x_term
         ! type(sparse_vector),dimension(2) :: d_R1_terms
 
         real :: dummy
@@ -5202,14 +5243,19 @@ contains
                     geom%g2(i) = geom%a(i)**2 - this%b(i)*geom%h2
                     
                     ! take derivative
-                    call d_g2_term%init_from_sparse_vector(geom%d_a(i))
-                    call d_g2_term%broadcast_element_times_scalar(2.*geom%a(i))
+                    call d_g2_term%init_from_sparse_vector(this%d_b(i))
+                    call d_g2_term%broadcast_element_times_scalar(geom%h2)
+
+                    call d_g2_term2%init_from_sparse_vector(geom%d_h2)
+                    call d_g2_term2%broadcast_element_times_scalar(this%b(i))
+                    call d_g2_term2%sparse_add(d_g2_term)
+
+                    ! combine terms
+                    call geom%d_g2(i)%init_from_sparse_vector(geom%d_a(i))
+                    call geom%d_g2(i)%broadcast_element_times_scalar(2.*geom%a(i))
+                    call geom%d_g2(i)%sparse_subtract(d_g2_term2)
                     
-                    call geom%d_g2(i)%init_from_sparse_vector(geom%d_h2)
-                    call geom%d_g2(i)%broadcast_element_times_scalar(-this%b(i))
-                    call geom%d_g2(i)%sparse_add(d_g2_term)
-                    
-                    deallocate(d_g2_term%elements)
+                    deallocate(d_g2_term%elements, d_g2_term2%elements)
         
                 end if
 
