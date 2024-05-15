@@ -194,8 +194,6 @@ program test26
     call adjoint_solver%init(adjoint_solver_settings, adjoint_processing_settings, adjoint_mesh, &
     adjoint_freestream_flow, adjoint_control_point_file)
     
-    ! write(*,*) "stopped"
-    ! stop
     ! solve
     call adjoint_solver%solve(adjoint_mesh, adjoint_solver_stat, adjoint_formulation,adjoint_freestream_flow)
    
@@ -288,6 +286,8 @@ program test26
             deallocate(test_mesh%Phi_u)
             deallocate(test_mesh%C_p_inc, test_mesh%dC_f)
             deallocate(test_mesh%V_cells_inner, test_mesh%V_cells)
+    
+
             ! deallocate(test_solver%A, test_solver%b)
             
             call test_solver%solve(test_mesh, test_solver_stat, formulation,freestream_flow)
