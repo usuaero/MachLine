@@ -10,7 +10,7 @@ program main
     implicit none
 
     character(100) :: input_file
-    character(len=:),allocatable :: body_file, wake_file, control_point_file, points_file, points_output_file
+    character(len=:),allocatable :: body_file, wake_file, adjoint_file, control_point_file, points_file, points_output_file
     character(len=:),allocatable :: mirrored_body_file
     character(len=:),allocatable :: report_file, spanwise_axis
     character(len=:),allocatable :: formulation
@@ -136,6 +136,7 @@ program main
     ! Get result files
     call json_xtnsn_get(output_settings, 'body_file', body_file, 'none')
     call json_xtnsn_get(output_settings, 'wake_file', wake_file, 'none')
+    call json_xtnsn_get(output_settings, 'adjoint_file', adjoint_file, 'none')
     call json_xtnsn_get(output_settings, 'control_point_file', control_point_file, 'none')
     call json_xtnsn_get(output_settings, 'mirrored_body_file', mirrored_body_file, 'none')
     call json_xtnsn_get(output_settings, 'offbody_points.points_file', points_file, 'none')
@@ -147,7 +148,7 @@ program main
     !!!!!!!!!!!!!!!!!!!!!!! END_WAKE_DEV !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! Perform flow-dependent initialization on the surface mesh
     call body_mesh%init_with_flow(freestream_flow, body_file, wake_file, formulation)
-
+    
     ! Initialize panel solver
     call linear_solver%init(solver_settings, processing_settings, body_mesh, freestream_flow, control_point_file)
 
@@ -177,8 +178,17 @@ program main
             write(*,*) "Writing results to file"
         end if
 
-        ! Output mesh results
-        call body_mesh%output_results(body_file, wake_file, control_point_file, mirrored_body_file)
+        
+        ! if calculating adjoints, write to file
+        if (body_mesh%calc_adjoint) then
+
+            call body_mesh%output_results(body_file, wake_file, control_point_file, mirrored_body_file,&
+                                                CF_sensitivities = linear_solver%CF_sensitivities)
+        else
+            ! otherwise, output mesh results
+            call body_mesh%output_results(body_file, wake_file, control_point_file, mirrored_body_file)
+
+        end if
 
         ! Output slice
         if (points_file /= 'none' .and. points_output_file /= 'none') then

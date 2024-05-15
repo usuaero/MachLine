@@ -2928,6 +2928,7 @@ contains
             call json_value_add(p_parent, 'CMz', this%C_M(3))
             nullify(p_parent)
 
+
         end if
 
     end subroutine panel_solver_update_report
@@ -3674,7 +3675,7 @@ contains
     
 
     end subroutine panel_solver_calc_total_derivative
-
+    
 
     
 

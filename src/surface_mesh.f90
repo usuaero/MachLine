@@ -130,6 +130,8 @@ module surface_mesh_mod
             procedure :: init_with_flow_adjoint => surface_mesh_init_with_flow_adjoint
             procedure :: get_d_v_inner_at_point_wrt_vars => surface_mesh_get_d_v_inner_at_point_wrt_vars
             procedure :: get_d_v_inner_at_point_wrt_mu => surface_mesh_get_d_v_inner_at_point_wrt_mu
+
+            ! procedure :: write_adjoint => surface_mesh_write_adjoint
             
     end type surface_mesh
     
@@ -2827,19 +2829,25 @@ contains
     end subroutine surface_mesh_get_induced_velocities_at_point
 
 
-    subroutine surface_mesh_output_results(this, body_file, wake_file, control_point_file, mirrored_body_file)
+    subroutine surface_mesh_output_results(this, body_file, wake_file, control_point_file, mirrored_body_file,&
+        CF_sensitivities)
 
         implicit none
 
         class(surface_mesh),intent(inout) :: this
         character(len=:),allocatable,intent(in) :: body_file, wake_file, control_point_file
         character(len=:),allocatable,intent(in) :: mirrored_body_file
+        real,dimension(:,:),allocatable, intent(in), optional :: CF_sensitivities
 
         logical :: wake_exported
 
         ! Write out data for body
         if (body_file /= 'none') then
-            call this%write_body(body_file, solved=.true.)
+            if (this%calc_adjoint) then
+                call this%write_body(body_file, solved=.true., sensitivities = CF_sensitivities)
+            else
+                call this%write_body(body_file, solved=.true.)
+            end if
             if (verbose) write(*,'(a30 a)') "    Surface: ", body_file
         end if
 
@@ -2874,7 +2882,7 @@ contains
     end subroutine surface_mesh_output_results
 
 
-    subroutine surface_mesh_write_body(this, body_file, solved)
+    subroutine surface_mesh_write_body(this, body_file, solved, sensitivities)
         ! Writes the body and results (if solved) out to file
 
         implicit none
@@ -2882,18 +2890,21 @@ contains
         class(surface_mesh),intent(in) :: this
         character(len=:),allocatable,intent(in) :: body_file
         logical,intent(in) :: solved
+        real,dimension(:,:),allocatable, intent(in), optional :: sensitivities
 
         type(vtk_out) :: body_vtk
-        integer :: i, N_cells
+        integer :: i, j, N_verts, N_cells
         real,dimension(:),allocatable :: panel_inclinations, orders, N_discont_edges, convex
         real,dimension(:,:),allocatable :: cents
-
+        real,dimension(:,:),allocatable :: vertex_normals, d_CF_x, d_CF_y, d_CF_z
+        
         ! Clear old file
         call delete_file(body_file)
-
-        ! Determine number of cells to export
+        
+        ! Determine number of cells and verts to export
         N_cells = this%N_panels
-
+        N_verts = this%N_verts
+        
         ! Get panel inclinations, centroids, and distribution orders
         allocate(panel_inclinations(this%N_panels))
         allocate(orders(this%N_panels))
@@ -2962,7 +2973,42 @@ contains
             call body_vtk%write_point_scalars(this%mu(1:this%N_verts), "mu")
             call body_vtk%write_point_scalars(this%Phi_u(1:this%N_verts), "Phi_u")
 
-        end if
+            
+            ! if calculating adjoint, write adjoint stuff
+            if (this%calc_adjoint) then
+            ! Get vertex normals
+                allocate(vertex_normals(3,N_verts))
+                
+                do i=1,N_verts
+                    vertex_normals(:,i) = this%vertices(i)%n_g
+                end do
+
+                ! organize sensitivitiy values
+                allocate(d_CF_x(3,N_verts))
+                allocate(d_CF_y(3,N_verts))
+                allocate(d_CF_z(3,N_verts))
+                
+                ! reshape arrays
+                do i=1,3
+                    do j=1,N_verts
+                        
+                        d_CF_x(i,j) = sensitivities(j + (i-1)*N_verts,1)
+                        d_CF_y(i,j) = sensitivities(j + (i-1)*N_verts,2)
+                        d_CF_z(i,j) = sensitivities(j + (i-1)*N_verts,3)
+                        
+                    end do
+                end do
+
+                ! Write geometry
+                call body_vtk%write_point_vectors(vertex_normals, "vertex_outward_normal_vectors")
+                call body_vtk%write_point_vectors(d_CF_x, "CF_x_sensitivity_vectors")
+                call body_vtk%write_point_vectors(d_CF_y, "CF_y_sensitivity_vectors")
+                call body_vtk%write_point_vectors(d_CF_z, "CF_z_sensitivity_vectors")
+                
+            end if ! end adjoint if statement
+
+        end if ! end solved if statement
+        
         call body_vtk%write_point_scalars(convex, "convex")
 
         ! Finalize
@@ -3062,6 +3108,7 @@ contains
         end if
         call body_vtk%write_point_scalars(convex, "convex")
 
+
         call body_vtk%finish()
 
     end subroutine surface_mesh_write_body_mirror
@@ -3102,6 +3149,7 @@ contains
         if (solved) then
             call cp_vtk%write_point_scalars(this%R_cp, "residual")
         end if
+        
 
         call cp_vtk%finish()
         
@@ -3325,5 +3373,67 @@ contains
         call d_V_inner_wrt_mu%broadcast_element_times_scalar(freestream%U)
 
     end function surface_mesh_get_d_v_inner_at_point_wrt_mu
+    
+
+    ! subroutine surface_mesh_write_adjoint(this, adjoint_file, sensitivities)
+
+    !     implicit none
+
+    !     class(surface_mesh),intent(inout) :: this
+    !     character(len=:),allocatable,intent(in) :: adjoint_file
+    !     real,dimension(:,:),allocatable,intent(in) :: sensitivities
+
+    !     type(vtk_out) :: adjoint_vtk
+    !     integer :: i, j, N_verts
+    !     real,dimension(:,:),allocatable :: vertex_normals, d_CF_x, d_CF_y, d_CF_z
+
+    !     ! Clear old file
+    !     call delete_file(adjoint_file)
+
+    !     ! Determine number of mesh points to export
+    !     N_verts = this%N_verts
+
+
+    !     ! Get vertex normals
+    !     allocate(vertex_normals(3,N_verts))
+
+    !     do i=1,N_verts
+    !         vertex_normals(:,i) = this%vertices(i)%n_g
+    !     end do
+
+    !     ! organize sensitivitiy values
+    !     allocate(d_CF_x(3,N_verts))
+    !     allocate(d_CF_y(3,N_verts))
+    !     allocate(d_CF_z(3,N_verts))
+
+    !     ! reshape arrays
+    !     do i=1,3
+    !         do j=1,N_verts
+
+    !             d_CF_x(i,j) = sensitivities(j + (i-1)*N_verts,1)
+    !             d_CF_y(i,j) = sensitivities(j + (i-1)*N_verts,2)
+    !             d_CF_z(i,j) = sensitivities(j + (i-1)*N_verts,3)
+
+    !         end do
+    !     end do
+
+    !     ! Write geometry
+    !     call adjoint_vtk%begin(adjoint_file)
+    !     call adjoint_vtk%write_point_vectors(vertex_normals, "vertex_outward_normal_vectors")
+    !     call adjoint_vtk%write_point_vectors(d_CF_x, "CF_x_sensitivity_vectors")
+    !     call adjoint_vtk%write_point_vectors(d_CF_y, "CF_y_sensitivity_vectors")
+    !     call adjoint_vtk%write_point_vectors(d_CF_z, "CF_z_sensitivity_vectors")
+
+
+    !     ! Finalize
+    !     call adjoint_vtk%finish()
+
+
+
+    ! end subroutine surface_mesh_write_adjoint
+    
+    
+    
+
 
 end module surface_mesh_mod
