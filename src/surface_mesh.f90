@@ -2830,21 +2830,23 @@ contains
 
 
     subroutine surface_mesh_output_results(this, body_file, wake_file, control_point_file, mirrored_body_file,&
-        CF_sensitivities)
+        CF_sensitivities, freestream_vector)
 
         implicit none
 
         class(surface_mesh),intent(inout) :: this
         character(len=:),allocatable,intent(in) :: body_file, wake_file, control_point_file
         character(len=:),allocatable,intent(in) :: mirrored_body_file
-        real,dimension(:,:),allocatable, intent(in), optional :: CF_sensitivities
+        real,dimension(:,:),allocatable,intent(in),optional :: CF_sensitivities
+        real,dimension(3),intent(in),optional :: freestream_vector
 
         logical :: wake_exported
 
         ! Write out data for body
         if (body_file /= 'none') then
             if (this%calc_adjoint) then
-                call this%write_body(body_file, solved=.true., sensitivities = CF_sensitivities)
+                call this%write_body(body_file, solved=.true., sensitivities = CF_sensitivities,&
+                                                    freestream_vec = freestream_vector)
             else
                 call this%write_body(body_file, solved=.true.)
             end if
@@ -2882,7 +2884,7 @@ contains
     end subroutine surface_mesh_output_results
 
 
-    subroutine surface_mesh_write_body(this, body_file, solved, sensitivities)
+    subroutine surface_mesh_write_body(this, body_file, solved, sensitivities, freestream_vec)
         ! Writes the body and results (if solved) out to file
 
         implicit none
@@ -2891,12 +2893,13 @@ contains
         character(len=:),allocatable,intent(in) :: body_file
         logical,intent(in) :: solved
         real,dimension(:,:),allocatable, intent(in), optional :: sensitivities
+        real,dimension(3), intent(in), optional :: freestream_vec
 
         type(vtk_out) :: body_vtk
         integer :: i, j, N_verts, N_cells
         real,dimension(:),allocatable :: panel_inclinations, orders, N_discont_edges, convex
         real,dimension(:,:),allocatable :: cents
-        real,dimension(:,:),allocatable :: vertex_normals, d_CF_x, d_CF_y, d_CF_z
+        real,dimension(:,:),allocatable :: vertex_normals, d_CF_x, d_CF_y, d_CF_z, freestream_vector
         
         ! Clear old file
         call delete_file(body_file)
@@ -2987,9 +2990,12 @@ contains
                 allocate(d_CF_x(3,N_verts))
                 allocate(d_CF_y(3,N_verts))
                 allocate(d_CF_z(3,N_verts))
+                allocate(freestream_vector(3,1))
+
                 
                 ! reshape arrays
                 do i=1,3
+                    freestream_vector(i,:) = freestream_vec(i)
                     do j=1,N_verts
                         
                         d_CF_x(i,j) = sensitivities(j + (i-1)*N_verts,1)
@@ -3000,6 +3006,7 @@ contains
                 end do
 
                 ! Write geometry
+                ! call body_vtk%write_point_vectors(freestream_vector, "freestream")
                 call body_vtk%write_point_vectors(vertex_normals, "vertex_outward_normal_vectors")
                 call body_vtk%write_point_vectors(d_CF_x, "CF_x_sensitivity_vectors")
                 call body_vtk%write_point_vectors(d_CF_y, "CF_y_sensitivity_vectors")

@@ -21,7 +21,7 @@
     "solver": {
         "formulation" : "neumann-mass-flux-VCP",
         "control_point_offset" : 1.0e-3, 
-        "matrix_solver" : "HHLS", 
+        "matrix_solver" : "GMRES", 
         "sort_system" : false
     },
     "post_processing" : {
