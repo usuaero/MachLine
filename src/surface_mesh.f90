@@ -3015,7 +3015,7 @@ contains
             end if ! end adjoint if statement
 
         end if ! end solved if statement
-        
+
         call body_vtk%write_point_scalars(convex, "convex")
 
         ! Finalize

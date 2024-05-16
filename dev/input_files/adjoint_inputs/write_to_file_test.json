@@ -1,12 +1,12 @@
 {
     "flow": {
-        "freestream_velocity" : [ 100.0, 10.0, 10.0 ]
+        "freestream_velocity" : [ 1.0, 0.0, 0.0 ]
     },
     "geometry": {
-        "file" : "dev/meshes/adjoint/adjoint_octa_mesh.stl",
+        "afile" : "dev/meshes/adjoint/adjoint_octa_mesh.stl",
         "bfile" : "dev/meshes/adjoint/wedge_wing_coarse.stl",
         "cfile" : "dev/meshes/adjoint/sphere_coarse2.stl",
-        "dfile" : "dev/meshes/other_meshes/small_sphere.stl",
+        "file" : "dev/meshes/other_meshes/small_sphere.stl",
         "efile" : "dev/meshes/other_meshes/diamond_5_deg_full_coarse.stl",
         "gfile" : "dev/meshes/other_meshes/naca_0010_AR_10_full_coarse.stl",
         "singularity_order" : "lower",
@@ -29,7 +29,13 @@
 
     "output": {
         "verbose" : true,
-        "body_file" : "dev/results/adjoint/octa_mesh_body_results.vtk"
+        "abody_file" : "dev/results/adjoint/octa_mesh_results.vtk",
+        "bbody_file" : "dev/results/adjoint/wedge_wing_coarse_results.vtk",
+        "cbody_file" : "dev/results/adjoint/sphere_coarse2_results.vtk",
+        "body_file" : "dev/results/adjoint/small_sphere_results.vtk",
+        "ebody_file" : "dev/results/adjoint/diamond_5_deg_full_coarse_results.vtk",
+        "fbody_file" : "dev/results/adjoint/naca_0010_AR_10_full_coarse_results.vtk"
+
         }
     
 }

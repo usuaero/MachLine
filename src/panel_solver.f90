@@ -1121,8 +1121,9 @@ contains
         
         ! if adjoint, calc d_V_inner
         if (body%calc_adjoint) then
+            write(*,'(a)',advance='no') "     Calculating adjoint cell velocities..."
             call this%calc_cell_velocities_adjoint(body)
-            write(*,*) "adjoint cell velocities finished"
+            write(*,*) "Done"
         end if 
         
         ! Calculate potentials
@@ -1136,6 +1137,7 @@ contains
         
         ! Calculate moments
         call this%calc_moments(body)
+        
         ! if adjoint finish sensitivity calcs
         if (body%calc_adjoint) then
             ! if adjoint, calc d_C_F

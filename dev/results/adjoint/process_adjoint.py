@@ -4,6 +4,8 @@ import vtk
 def read_vtk(vtk_filename):
     reader = vtk.vtkPolyDataReader()
     reader.SetFileName(vtk_filename)
+    reader.ReadAllVectorsOn()
+    reader.ReadAllScalarsOn()
     reader.Update()
 
     data = reader.GetOutput()
@@ -12,13 +14,10 @@ def read_vtk(vtk_filename):
     cfy = data.GetPointData().GetVectors('CF_y_sensitivity_vectors')
     cfz = data.GetPointData().GetVectors('CF_z_sensitivity_vectors')
     normals = data.GetPointData().GetVectors('vertex_outward_normal_vectors')
-    # freestream = data.GetPointData().GetScalars('freestream')
+    # freestream = data.GetPointData().GetVectors('freestream')
     
-    # print("Freestream vector:", freestream)
-    # if freestream:
-    #     freestream_vector = freestream.GetTuple(0)
-    # else:
-    #     print("freestream vector not found in vtk")
+    
+    # freestream_vector = freestream.GetTuple(0)
     freestream_vector = [100,0,10.0,10.0]
     num_points = data.GetNumberOfPoints()
     cfx_vectors = np.array([cfx.GetTuple3(i) for i in range(num_points)])
@@ -29,42 +28,43 @@ def read_vtk(vtk_filename):
     
     return num_points, cfx_vectors, cfy_vectors, cfz_vectors, point_normals, freestream_vector, reader
 
+def create_float_array(name, data):
+    array = vtk.vtkFloatArray()
+    array.SetName(name)
+    array.SetNumberOfComponents(1)
+    array.SetNumberOfTuples(len(data))
+    for i in range(len(data)):
+        array.SetValue(i,data[i])
+        
+    return array
+
 
 def update_vtk(vtk_filename, CL_adjoint, CD_adjoint, CS_adjoint, reader):
-    
-    data = reader.GetOutput()
+    reader = vtk.vtkPolyDataReader()
+    reader.SetFileName(vtk_filename)
+    reader.Update()
+    polydata = reader.GetOutput()
 
-    # write in CL sensitivity data
-    CL_data = vtk.vtkDoubleArray()
-    CL_data.SetNumberOfComponents(1)
-    CL_data.SetName("CL_norm_sensitivities")
-    for value in CL_adjoint:
-        CL_data.InsertNextValue(value)
-    data.GetPointData().AddArray(CL_data)
+    CL_array = create_float_array("CL_adjoint", CL_adjoint)
+    CD_array = create_float_array("CD_adjoint", CD_adjoint)
+    CS_array = create_float_array("CS_adjoint", CS_adjoint)
 
-    # write in CD sensitivity data
-    CD_data = vtk.vtkDoubleArray()
-    CD_data.SetNumberOfComponents(1)
-    CD_data.SetName("CD_norm_sensitivities")
-    for value in CD_adjoint:
-        CD_data.InsertNextValue(value)
-    data.GetPointData().AddArray(CD_data)
-
-    # write in CS sensitivity data
-    CS_data = vtk.vtkDoubleArray()
-    CS_data.SetNumberOfComponents(1)
-    CS_data.SetName("CS_norm_sensitivities")
-    for value in CS_adjoint:
-        CS_data.InsertNextValue(value)
-    data.GetPointData().AddArray(CS_data)
+    polydata.GetPointData().AddArray(CL_array)
+    polydata.GetPointData().AddArray(CD_array)
+    polydata.GetPointData().AddArray(CS_array)
 
     writer = vtk.vtkPolyDataWriter()
     writer.SetFileName(vtk_filename)
-    writer.SetInputData(data)
+    writer.SetInputData(polydata)
     writer.Write()
     
 if __name__ == "__main__":
-    vtk_filename = 'dev/results/adjoint/octa_mesh_body_results.vtk'
+    # vtk_filename = 'dev/results/adjoint/octa_mesh_results.vtk'
+    # vtk_filename = "dev/results/adjoint/wedge_wing_coarse_results.vtk"
+    # vtk_filename = "dev/results/adjoint/sphere_coarse2_results.vtk"
+    # vtk_filename = "dev/results/adjoint/small_sphere_results.vtk"
+    # vtk_filename = "dev/results/adjoint/diamond_5_deg_full_coarse_results.vtk"
+    vtk_filename = "dev/results/adjoint/naca_0010_AR_10_full_coarse_results.vtk"
 
     num_points, cfx_vectors, cfy_vectors, cfz_vectors, point_normals, freestream_vector, reader = read_vtk(vtk_filename)
     u = freestream_vector[0]

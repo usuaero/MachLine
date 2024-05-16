@@ -73,6 +73,7 @@ program main
     call json_xtnsn_get(solver_settings, 'run_checks', run_checks, .false.)
     call json_xtnsn_get(output_settings, 'verbose', verbose, .true.)
 
+
     ! Welcome message
     if (verbose) then
         write(*,*) "           /"
@@ -201,6 +202,11 @@ program main
     ! Figure out how long this took
     call system_clock(end_count)
     runtime = real(end_count - start_count)/count_rate
+    
+    if (body_mesh%calc_adjoint) then
+        write(*,'(A,f16.12,A)') "Total Runtime (with adjoints calculated)= ", runtime, " seconds"
+    end if
+
     call json_value_add(report_json, "total_runtime", runtime)
 
     ! Write report
