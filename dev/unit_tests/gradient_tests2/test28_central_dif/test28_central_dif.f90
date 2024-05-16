@@ -11,15 +11,14 @@ program test28
     use json_xtnsn_mod
     ! use panel_solver_mod
     use helpers_mod
+    use vtk_mod
     
     implicit none
 
     !!!!!!!!!!!!!!!!!!! STUFF FROM MAIN !!!!!!!!!!!!!!!!!!!!!!!!
     character(100) :: test_input, adjoint_input
     character(len=:),allocatable :: body_file, wake_file, control_point_file, points_file, &
-    mirrored_body_file, points_output_file,&
-    adjoint_body_file, adjoint_wake_file, adjoint_control_point_file, adjoint_points_file, &
-    adjoint_mirrored_body_file, adjoint_points_output_file
+    mirrored_body_file, points_output_file
     character(len=:),allocatable :: report_file, spanwise_axis, adjoint_spanwise_axis
     character(len=:),allocatable :: formulation, adjoint_formulation
 
@@ -68,6 +67,12 @@ program test28
     integer(8) :: start_count, end_count
     real(16) :: count_rate, time
 
+    type(vtk_out) :: body_vtk
+    integer ::  N_cells
+    real,dimension(:),allocatable :: panel_inclinations, orders, N_discont_edges, convex
+    real,dimension(:,:),allocatable :: cents
+    real,dimension(:,:),allocatable :: vertex_normals, d_CF_x, d_CF_y, d_CF_z, freestream_vector
+
     !!!!!!!!!!!!!!!!!!! END TESTING STUFF !!!!!!!!!!!!!!!!!!!!!11
 
     test_failed = .true. ! assume test failed, if the test condition is met, test passed
@@ -88,7 +93,7 @@ program test28
     ! Set up run
     call json_initialize()
 
-    test_input = "dev\input_files\adjoint_inputs\test.json"
+    test_input = "dev/input_files/adjoint_inputs/central_difference_test.json"
     test_input = trim(test_input)
 
     ! Check it exists
@@ -134,6 +139,83 @@ program test28
     ! Initialize panel solver
     call test_solver%init(solver_settings, processing_settings, test_mesh, freestream_flow, control_point_file)
     call test_solver%solve(test_mesh, test_solver_stat, formulation,freestream_flow)
+
+
+    !!!!!!! write to vtk !!!!!!!!!!!!!!!!!!!
+    
+    call delete_file(body_file)
+        
+    ! Determine number of cells and verts to export
+    N_cells = test_mesh%N_panels
+    N_verts = test_mesh%N_verts
+    
+    ! Get panel inclinations, centroids, and distribution orders
+    allocate(panel_inclinations(test_mesh%N_panels))
+    allocate(orders(test_mesh%N_panels))
+    allocate(N_discont_edges(test_mesh%N_panels))
+    allocate(cents(3,test_mesh%N_panels))
+    allocate(convex(test_mesh%N_verts), source=0.)
+    do i=1,test_mesh%N_panels
+        panel_inclinations(i) = test_mesh%panels(i)%r
+        orders(i) = test_mesh%panels(i)%order
+        N_discont_edges(i) = test_mesh%panels(i)%N_discont_edges
+        cents(:,i) = test_mesh%panels(i)%centr
+    end do
+    do i=1,test_mesh%N_verts
+        if (test_mesh%vertices(i)%convex) convex(i) = 1.
+    end do
+
+    ! Write geometry
+    call body_vtk%begin(body_file)
+    call body_vtk%write_points(test_mesh%vertices)
+    call body_vtk%write_panels(test_mesh%panels, mirror=.false.)
+    call body_vtk%write_cell_normals(test_mesh%panels)
+    call body_vtk%write_cell_scalars(panel_inclinations, "inclination")
+    call body_vtk%write_cell_scalars(orders, "distribution_order")
+    call body_vtk%write_cell_scalars(N_discont_edges, "N_discontinuous_edges")
+    call body_vtk%write_cell_vectors(cents, "centroid")
+
+
+    ! Pressures
+    if (allocated(test_mesh%C_p_inc)) then
+        call body_vtk%write_cell_scalars(test_mesh%C_p_inc(1:N_cells), "C_p_inc")
+    end if
+    if (allocated(test_mesh%C_p_ise)) then
+        call body_vtk%write_cell_scalars(test_mesh%C_p_ise(1:N_cells), "C_p_ise")
+    end if
+    if (allocated(test_mesh%C_p_2nd)) then
+        call body_vtk%write_cell_scalars(test_mesh%C_p_2nd(1:N_cells), "C_p_2nd")
+    end if
+    if (allocated(test_mesh%C_p_lin)) then
+        call body_vtk%write_cell_scalars(test_mesh%C_p_lin(1:N_cells), "C_p_lin")
+    end if
+    if (allocated(test_mesh%C_p_sln)) then
+        call body_vtk%write_cell_scalars(test_mesh%C_p_sln(1:N_cells), "C_p_sln")
+    end if
+
+    ! Corrected pressures
+    if (allocated(test_mesh%C_p_pg)) then
+        call body_vtk%write_cell_scalars(test_mesh%C_p_pg(1:N_cells), "C_p_PG")
+    end if
+    if (allocated(test_mesh%C_p_kt)) then
+        call body_vtk%write_cell_scalars(test_mesh%C_p_kt(1:N_cells), "C_p_KT")
+    end if
+    if (allocated(test_mesh%C_p_lai)) then
+        call body_vtk%write_cell_scalars(test_mesh%C_p_lai(1:N_cells), "C_p_L")
+    end if
+
+    ! Source strengths
+    call body_vtk%write_cell_scalars(test_mesh%sigma(1:test_mesh%N_panels), "sigma")
+
+    ! Cell velocities and sources
+    call body_vtk%write_cell_vectors(test_mesh%V_cells(:,1:N_cells), "v")
+    call body_vtk%write_cell_vectors(test_mesh%V_cells_inner(:,1:N_cells), "v_inner")
+    call body_vtk%write_cell_vectors(test_mesh%dC_f(:,1:N_cells), "dC_f")
+
+    ! Surface potential values
+    call body_vtk%write_point_scalars(test_mesh%mu(1:test_mesh%N_verts), "mu")
+    call body_vtk%write_point_scalars(test_mesh%Phi_u(1:test_mesh%N_verts), "Phi_u")
+        
     
     
     !!!!!!!!!!!!!!!!!!!!! END TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -318,6 +400,46 @@ program test28
     end do 
 
 
+    !!!!!!!!!!!1 write sensitivities to vtk !!!!!!!!!!!1
+    allocate(vertex_normals(3,N_verts))
+            
+    do i=1,N_verts
+        vertex_normals(:,i) = test_mesh%vertices(i)%n_g
+    end do
+
+    ! organize sensitivitiy values
+    allocate(d_CF_x(3,N_verts))
+    allocate(d_CF_y(3,N_verts))
+    allocate(d_CF_z(3,N_verts))
+    allocate(freestream_vector(3,1))
+
+    
+    ! reshape arrays
+    do i=1,3
+        freestream_vector(i,:) = freestream_flow%v_inf(i)
+        do j=1,N_verts
+            
+            d_CF_x(i,j) = d_CF_FD(1, j + (i-1)*N_verts)
+            d_CF_y(i,j) = d_CF_FD(2, j + (i-1)*N_verts)
+            d_CF_z(i,j) = d_CF_FD(3, j + (i-1)*N_verts)
+            
+        end do
+    end do
+
+    ! Write geometry
+    ! call body_vtk%write_point_vectors(freestream_vector, "freestream")
+    call body_vtk%write_point_vectors(vertex_normals, "vertex_outward_normal_vectors")
+    call body_vtk%write_point_vectors(d_CF_x, "CF_x_sensitivity_vectors")
+    call body_vtk%write_point_vectors(d_CF_y, "CF_y_sensitivity_vectors")
+    call body_vtk%write_point_vectors(d_CF_z, "CF_z_sensitivity_vectors")
+
+    call body_vtk%write_point_scalars(convex, "convex")
+
+    ! Finalize
+    call body_vtk%finish()
+
+    !!!!! end writing to vtk
+    
 
     !!!!!!!!!!!!!!  RESULTS!!!!!!!!!!!!!
     write(*,*) "------------------------------------------------------------------------------"
