@@ -3,7 +3,7 @@
         "freestream_velocity" : [ 1.0, 0.0, 0.0 ]
     },
     "geometry": {
-        "file"  : "dev/meshes/adjoint/adjoint_octa_mesh.stl",
+        "file" : "dev/meshes/adjoint/adjoint_octa_mesh.stl",
         "bfile" : "dev/meshes/adjoint/wedge_wing_coarse.stl",
         "cfile" : "dev/meshes/adjoint/sphere_coarse2.stl",
         "dfile" : "dev/meshes/other_meshes/small_sphere.stl",
@@ -28,7 +28,14 @@
     },
 
     "output": {
-        "verbose" : true
+        "verbose" : true,
+        "body_file" : "dev/results/adjoint/central_diff_octa_mesh_results.vtk",
+        "bbody_file" : "dev/results/adjoint/central_diff_wedge_wing_coarse_results.vtk",
+        "cbody_file" : "dev/results/adjoint/central_diff_sphere_coarse2_results.vtk",
+        "dbody_file" : "dev/results/adjoint/central_diff_small_sphere_results.vtk",
+        "ebody_file" : "dev/results/adjoint/central_diff_diamond_5_deg_full_coarse_results.vtk",
+        "fbody_file" : "dev/results/adjoint/central_diff_naca_0010_AR_10_full_coarse_results.vtk"
+
         }
     
 }
