@@ -392,7 +392,7 @@ program test28
     ! write results
     write(*,*) ""
     write(*,'(A)') "              CF sensitiviites Central Difference "
-    write(*,*) "       d_CFx_FD                d_CFx_FD             d_CFx_FD "
+    write(*,*) "       d_CFx_FD                d_CFy_FD             d_CFz_FD "
     
 
     do i = 1, N_verts*3
