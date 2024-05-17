@@ -1,6 +1,6 @@
 {
     "flow": {
-        "freestream_velocity" : [ 1.0, 0.0, 0.0 ]
+        "freestream_velocity" : [ 1.0, 0.0, 0.10 ]
     },
     "geometry": {
         "afile"  : "dev/meshes/adjoint/adjoint_octa_mesh.stl",
@@ -9,7 +9,8 @@
         "dfile" : "dev/meshes/other_meshes/small_sphere.stl",
         "efile" : "dev/meshes/other_meshes/diamond_5_deg_full_coarse.stl",
         "gfile" : "dev/meshes/other_meshes/naca_0010_AR_10_full_coarse.stl",
-        "file" : "dev/meshes/adjoint/a320_fine.stl",
+        "file" : "dev/meshes/adjoint/naca_2412_wing.stl",
+        "ifile" : "dev/meshes/adjoint/a320_fine.stl",
         "singularity_order" : "lower",
 
         "wake_model" : {
@@ -22,7 +23,7 @@
     "solver": {
         "formulation" : "neumann-mass-flux-VCP",
         "control_point_offset" : 1.0e-7, 
-        "matrix_solver" : "GMRES", 
+        "matrix_solver" : "HHLS", 
         "sort_system" : false
     },
     "post_processing" : {
@@ -36,7 +37,8 @@
         "dbody_file" : "dev/results/adjoint/small_sphere.vtk",
         "ebody_file" : "dev/results/adjoint/diamond_5_deg_full_coarse.vtk",
         "gbody_file" : "dev/results/adjoint/naca_0010_AR_10_full_coarse.vtk",
-        "hbody_file" : "dev/results/adjoint/a320.vtk"
+        "body_file" : "dev/results/adjoint/naca_2412_wing.vtk",
+        "ibody_file" : "dev/results/adjoint/a320.vtk"
         }
     
 }
