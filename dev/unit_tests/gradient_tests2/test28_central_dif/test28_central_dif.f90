@@ -82,7 +82,7 @@ program test28
 
     error_allowed = 1.0e-2
     
-    step = 0.001
+    step = 0.01
     index = 1
     cp_ind = 1
 

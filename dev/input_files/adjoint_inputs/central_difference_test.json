@@ -34,7 +34,7 @@
         "bbody_file" : "dev/results/adjoint/central_diff_wedge_wing_coarse.vtk",
         "cbody_file" : "dev/results/adjoint/central_diff_sphere_coarse2.vtk",
         "xbody_file" : "dev/results/adjoint/central_diff_small_sphere.vtk",
-        "body_file" : "dev/results/adjoint/central_diff_step_3_small_sphere.vtk",
+        "body_file" : "dev/results/adjoint/central_diff_step_2_small_sphere.vtk",
         "ebody_file" : "dev/results/adjoint/central_diff_diamond_5_deg_full_coarse.vtk",
         "gbody_file" : "dev/results/adjoint/central_diff_naca_0010_AR_10_full_coarse.vtk",
         "hbody_file" : "dev/results/adjoint/central_diff_a320.vtk"
