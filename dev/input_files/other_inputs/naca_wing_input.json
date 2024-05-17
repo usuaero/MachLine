@@ -12,7 +12,7 @@
         
     },
     "solver": {
-        "formulation": "neumann-velocity",
+        "formulation": "neumann-mass-flux-VCP",
         "matrix_solvr" : "GMRES"
     },
     "output": {
