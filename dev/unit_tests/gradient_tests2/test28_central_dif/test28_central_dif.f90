@@ -429,9 +429,9 @@ program test28
     ! Write geometry
     ! call body_vtk%write_point_vectors(freestream_vector, "freestream")
     call body_vtk%write_point_vectors(vertex_normals, "vertex_outward_normal_vectors")
-    call body_vtk%write_point_vectors(d_CF_x, "CF_x_sensitivity_vectors")
-    call body_vtk%write_point_vectors(d_CF_y, "CF_y_sensitivity_vectors")
-    call body_vtk%write_point_vectors(d_CF_z, "CF_z_sensitivity_vectors")
+    call body_vtk%write_point_vectors(d_CF_x, "CFx_sensitivities_central_diff")
+    call body_vtk%write_point_vectors(d_CF_y, "CFy_sensitivities_central_diff")
+    call body_vtk%write_point_vectors(d_CF_z, "CFz_sensitivities_central_diff")
 
     call body_vtk%write_point_scalars(convex, "convex")
 
