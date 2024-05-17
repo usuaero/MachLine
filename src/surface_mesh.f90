@@ -3008,9 +3008,9 @@ contains
                 ! Write geometry
                 ! call body_vtk%write_point_vectors(freestream_vector, "freestream")
                 call body_vtk%write_point_vectors(vertex_normals, "vertex_outward_normal_vectors")
-                call body_vtk%write_point_vectors(d_CF_x, "CF_x_sensitivity_vectors")
-                call body_vtk%write_point_vectors(d_CF_y, "CF_y_sensitivity_vectors")
-                call body_vtk%write_point_vectors(d_CF_z, "CF_z_sensitivity_vectors")
+                call body_vtk%write_point_vectors(d_CF_x, "CFx_sensitivity_adjoint")
+                call body_vtk%write_point_vectors(d_CF_y, "CFy_sensitivity_adjoint")
+                call body_vtk%write_point_vectors(d_CF_z, "CFz_sensitivity_adjoint")
                 
             end if ! end adjoint if statement
 
