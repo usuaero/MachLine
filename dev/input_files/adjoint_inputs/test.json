@@ -37,7 +37,7 @@
         "dbody_file" : "dev/results/adjoint/small_sphere.vtk",
         "ebody_file" : "dev/results/adjoint/diamond_5_deg_full_coarse.vtk",
         "gbody_file" : "dev/results/adjoint/naca_0010_AR_10_full_coarse.vtk",
-        "body_file" : "dev/results/adjoint/naca_2412_wing.vtk",
+        "hbody_file" : "dev/results/adjoint/naca_2412_wing.vtk",
         "ibody_file" : "dev/results/adjoint/a320.vtk"
         }
     
