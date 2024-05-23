@@ -22,7 +22,7 @@
         }
     },
     "solver": {
-        "formulation": "morino",
+        "formulation": "dirichlet_morino",
         "matrix_solver": "GMRES",
         "run_checks": true
     },
