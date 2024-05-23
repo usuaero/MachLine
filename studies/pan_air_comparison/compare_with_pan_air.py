@@ -271,7 +271,7 @@ def run_machline(M, alpha, grid, mesh_file):
             }
         },
         "solver": {
-            "formulation": "morino",
+            "formulation": "dirichlet-morino",
             "matrix_solver": "GMRES",
             "run_checks": True
         },
