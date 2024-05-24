@@ -35,7 +35,7 @@
         "bbody_file" : "dev/results/adjoint/adjoint_wedge_wing_coarse.vtk",
         "cbody_file" : "dev/results/adjoint/adjoint_sphere_coarse2.vtk",
         "dbody_file" : "dev/results/adjoint/adjoint_small_sphere.vtk",
-        "body_file" : "dev/results/adjoint/adjoint_diamond_aoa.vtk",
+        "body_file" : "dev/results/adjoint/adjoint_diamond_5_deg_full_coarse.vtk",
         "gbody_file" : "dev/results/adjoint/adjoint_naca_0010_AR_10_full_coarse.vtk",
         "hbody_file" : "dev/results/adjoint/adjoint_naca_2412_wing.vtk",
         "ibody_file" : "dev/results/adjoint/adjoint_a320.vtk"

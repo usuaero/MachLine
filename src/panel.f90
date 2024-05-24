@@ -242,6 +242,7 @@ module panel_mod
             ! adjoint integral calcs
             procedure :: calc_integrals_adjoint => panel_calc_integrals_adjoint
             procedure :: calc_basic_F_integrals_subsonic_adjoint => panel_calc_basic_F_integrals_subsonic_adjoint
+            procedure :: calc_basic_F_integrals_supersonic_subinc_adjoint => panel_calc_basic_F_integrals_supersonic_subinc_adjoint
             procedure :: calc_hH113_subsonic_adjoint => panel_calc_hH113_subsonic_adjoint
             procedure :: calc_H_integrals_adjoint => panel_calc_H_integrals_adjoint
             
@@ -5571,6 +5572,133 @@ contains
         end do
 
     end subroutine panel_calc_basic_F_integrals_subsonic_adjoint
+
+
+    subroutine panel_calc_basic_F_integrals_supersonic_subinc_adjoint(this, geom, dod_info, freestream, mirror_panel, int)
+        ! Calculates the partials of the F integrals necessary to determine the influence of a subinclined 
+        ! triangular panel in supersonic flow.
+
+        implicit none
+
+        class(panel),intent(in) :: this
+        type(eval_point_geom),intent(in) :: geom
+        type(dod),intent(in) :: dod_info
+        type(flow),intent(in) :: freestream
+        logical,intent(in) :: mirror_panel
+        type(integrals),intent(inout) :: int
+
+        real :: F1, F2, eps, eps2, series, b, s_b
+        integer :: i, i_next
+
+        ! Loop through edges
+        do i=1,this%N
+
+            ! Check DoD
+            if (dod_info%edges_in_dod(i)) then
+
+                i_next = mod(i, this%N) + 1
+
+                ! Get b and its square root; doing this removes a lot of mirror checks later
+                if (mirror_panel) then
+                    ! b = this%b_mir(i)
+                    ! s_b = this%sqrt_b_mir(i)
+                    write(*,*) "!!! Cannot calculate adjoint for mirrored mesh. Quitting..."
+                    stop
+                else
+                    b = this%b(i)
+                    s_b = this%sqrt_b(i)
+                end if
+
+                ! Mach wedge
+                if (geom%R1(i) == 0. .and. geom%R2(i) == 0) then
+
+                    ! F(1,1,1)
+                    int%F111(i) = pi/s_b
+
+                    ! Higher-order
+                    int%F121(i) = -geom%a(i)*geom%v_eta(i)*int%F111(i)/b
+                    int%F211(i) = geom%a(i)*geom%v_xi(i)*int%F111(i)/b
+
+                else
+
+                    ! Calculate F factors
+                    if (b > 0.) then
+                        F1 = (geom%l1(i)*geom%R2(i) - geom%l2(i)*geom%R1(i)) / geom%g2(i)
+                        F2 = (b*geom%R1(i)*geom%R2(i) + geom%l1(i)*geom%l2(i)) / geom%g2(i)
+                    else
+                        F1 = (geom%R2(i) - geom%R1(i))*(geom%R2(i) + geom%R1(i)) / (geom%l1(i)*geom%R2(i) + geom%l2(i)*geom%R1(i))
+                        F2 = (geom%g2(i) - geom%l1(i)**2 - geom%l2(i)**2) / (b*geom%R1(i)*geom%R2(i) - geom%l1(i)*geom%l2(i))
+                    end if
+
+                    ! Nearly-sonic edge
+                    if (abs(F2) > 125.0*abs(s_b*F1)) then
+
+                        ! F(1,1,1)
+                        eps = F1/F2
+                        eps2 = eps*eps
+                        series = eps*eps2*(1./3. - b*eps2/5. + (b*eps2)*(b*eps2)/7.)
+                        int%F111(i) = -eps + b*series
+
+                        ! Higher-order
+                        if (mirror_panel) then
+                            int%F121(i) = (-geom%v_xi(i)*geom%dR(i)*geom%R1(i)*geom%R2(i) &
+                                           + geom%l2(i)*geom%R1(i)*(this%vertices_ls_mir(2,i_next) - geom%P_ls(2)) &
+                                           - geom%l1(i)*geom%R2(i)*(this%vertices_ls_mir(2,i) - geom%P_ls(2)) &
+                                          ) / (geom%g2(i)*F2) - geom%a(i)*geom%v_eta(i)*series
+                        else
+                            int%F121(i) = (-geom%v_xi(i)*geom%dR(i)*geom%R1(i)*geom%R2(i) &
+                                           + geom%l2(i)*geom%R1(i)*(this%vertices_ls(2,i) - geom%P_ls(2)) &
+                                           - geom%l1(i)*geom%R2(i)*(this%vertices_ls(2,i_next) - geom%P_ls(2)) &
+                                          ) / (geom%g2(i)*F2) - geom%a(i)*geom%v_eta(i)*series
+                        end if
+                        int%F211(i) = -geom%v_eta(i)*geom%dR(i) + geom%a(i)*geom%v_xi(i)*int%F111(i) - &
+                                      2.*geom%v_xi(i)*geom%v_eta(i)*int%F121(i)
+
+                    ! Supersonic edge
+                    else if (b > 0.) then
+
+                        ! F(1,1,1)
+                        int%F111(i) = -atan2(s_b*F1, F2) / s_b
+
+                        ! Higher-order
+                        int%F121(i) = -(geom%v_xi(i)*geom%dR(i) + geom%a(i)*geom%v_eta(i)*int%F111(i)) / b
+                        int%F211(i) = -geom%v_eta(i)*geom%dR(i) + geom%a(i)*geom%v_xi(i)*int%F111(i) - &
+                                        2.*geom%v_xi(i)*geom%v_eta(i)*int%F121(i)
+                            !int%F211(i) = (geom%a(i)*int%F111(i) - geom%v_eta(i)*int%F121(i)) / geom%v_xi(i) ! alternative
+
+                    ! Subsonic edge
+                    else
+                        
+                        ! F(1,1,1)
+                        F1 = s_b*geom%R1(i) + abs(geom%l1(i))
+                        F2 = s_b*geom%R2(i) + abs(geom%l2(i))
+                        if (F1 /= 0. .and. F2 /= 0.) then
+                            int%F111(i) = -sign(1., geom%v_eta(i))*log(F1/F2)/s_b
+                        else
+                            if (verbose) write(*,*) "!!! Detected evaluation point on perimeter of panel. Solution may be affected."
+                        end if
+
+                        ! Higher-order
+                        int%F121(i) = -(geom%v_xi(i)*geom%dR(i) + geom%a(i)*geom%v_eta(i)*int%F111(i)) / b
+                        int%F211(i) = -geom%v_eta(i)*geom%dR(i) + geom%a(i)*geom%v_xi(i)*int%F111(i) - &
+                                          2.*geom%v_xi(i)*geom%v_eta(i)*int%F121(i)
+                            !int%F211(i) = (geom%a(i)*int%F111(i) - geom%v_eta(i)*int%F121(i)) / geom%v_xi(i) ! alternative unstable in this case
+                        end if
+                    end if
+
+                end if
+
+            ! Check
+            if (this%order == 2) then
+                if (abs(geom%v_xi(i)*int%F211(i) + geom%v_eta(i)*int%F121(i) - geom%a(i)*int%F111(i)) > 1.e-12) then
+                    write(*,*) "!!! Calculation of F(2,1,1) and F(1,2,1) failed. Please submit a bug report on GitHub."
+                end if
+            end if
+
+        end do
+
+    end subroutine panel_calc_basic_F_integrals_supersonic_subinc_adjoint
+
 
     subroutine panel_calc_hH113_subsonic_adjoint(this, geom, freestream, mirror_panel, int)
         ! Calculates d_hH(1,1,3) for a panel in subsonic flow.
