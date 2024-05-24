@@ -7,9 +7,9 @@
         "bfile" : "dev/meshes/adjoint/wedge_wing_coarse.stl",
         "cfile" : "dev/meshes/adjoint/sphere_coarse2.stl",
         "dfile" : "dev/meshes/other_meshes/small_sphere.stl",
-        "efile" : "dev/meshes/other_meshes/diamond_5_deg_full_coarse.stl",
+        "file" : "dev/meshes/other_meshes/diamond_5_deg_full_coarse.stl",
         "gfile" : "dev/meshes/other_meshes/naca_0010_AR_10_full_coarse.stl",
-        "file" : "dev/meshes/adjoint/naca_2412_wing.stl",
+        "hfile" : "dev/meshes/adjoint/naca_2412_wing.stl",
         "ifile" : "dev/meshes/adjoint/a320_fine.stl",
         "singularity_order" : "lower",
 
@@ -35,9 +35,9 @@
         "bbody_file" : "dev/results/adjoint/adjoint_wedge_wing_coarse.vtk",
         "cbody_file" : "dev/results/adjoint/adjoint_sphere_coarse2.vtk",
         "dbody_file" : "dev/results/adjoint/adjoint_small_sphere.vtk",
-        "ebody_file" : "dev/results/adjoint/adjoint_diamond_5_deg_full_coarse.vtk",
+        "body_file" : "dev/results/adjoint/adjoint_diamond_5_deg_full_coarse.vtk",
         "gbody_file" : "dev/results/adjoint/adjoint_naca_0010_AR_10_full_coarse.vtk",
-        "body_file" : "dev/results/adjoint/adjoint_naca_2412_wing.vtk",
+        "hbody_file" : "dev/results/adjoint/adjoint_naca_2412_wing.vtk",
         "ibody_file" : "dev/results/adjoint/adjoint_a320.vtk"
 
         }

@@ -3270,6 +3270,7 @@ contains
             ! deallocate stuff for next loop
             deallocate(d_P%columns, d_P_term2%columns, d_inner_flow_wrt_vars%columns)
             !!!!!!!!!!!!!!! end wrt vars !!!!!!!!!!!!!!!!!!!!!!!
+
             !!!!!!!!!!!!!!!!!!!!!!! sensitivity terms with respect to mu !!!!!!!!!!!!!!!!!!!!
             
             body%d_V_cells_inner_wrt_mu(i) = body%get_d_v_inner_at_point_wrt_mu(P, this%freestream)
@@ -3464,7 +3465,7 @@ contains
         call check_allocation(stat, "adjoint cell forces wrt design variables")
 
         ! Calculate total forces
-        !!$OMP parallel do schedule(static)
+        !$OMP parallel do private(term2, term3) schedule(static)
         do i=1,body%N_panels
             ! this is the first term
             body%d_cell_forces_wrt_vars(i) = d_pressures_wrt_vars(i)%broadcast_element_times_vector&
@@ -3511,7 +3512,7 @@ contains
         call check_allocation(stat, "adjoint cell forces wrt doublet strengths (mu)")
 
         ! Calculate total forces
-        ! $OMP parallel do schedule(static)
+        !$OMP parallel do schedule(static)
         do i=1,body%N_panels
             ! this is the first term
             body%d_cell_forces_wrt_mu(i) = d_pressures_wrt_mu(i)%broadcast_element_times_vector&

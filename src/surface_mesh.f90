@@ -3282,6 +3282,8 @@ contains
 
 
         integer :: i
+
+        !$OMP parallel do schedule(static)
         do i=1,this%N_panels
 
             ! init panel sensitivities
@@ -3311,6 +3313,8 @@ contains
         ! Loop through panels
 
         call d_V_inner_wrt_vars%init(this%adjoint_size)
+
+        !$OMP parallel do private(k) schedule(static)
         
         do k=1,this%N_panels
             
@@ -3355,6 +3359,9 @@ contains
 
         call d_V_inner_wrt_mu%init(this%N_verts)
 
+
+        !$OMP parallel do private(d_mu_vecs, d_mu_wrt_mu, d_v_d_panel_wrt_mu) &
+        !$OMP schedule(static) shared(d_V_inner_wrt_mu) 
         do i=1,this%N_panels
             ! Calculate influence
             call this%panels(i)%calc_velocity_influences(point, freestream, .false., v_s_panel, v_d_panel)
