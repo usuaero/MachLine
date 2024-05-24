@@ -5615,16 +5615,59 @@ contains
                     ! F(1,1,1)
                     int%F111(i) = pi/s_b
 
-                    ! Higher-order
-                    int%F121(i) = -geom%a(i)*geom%v_eta(i)*int%F111(i)/b
-                    int%F211(i) = geom%a(i)*geom%v_xi(i)*int%F111(i)/b
+                    call int%d_F111(i)%init_from_sparse_vector(this%d_sqrt_b(i))
+                    call int%d_F111(i)%broadcast_element_times_scalar(-pi/(s_b*s_b))
+
+                    ! Higher-order (unused in formulation adjoints uses)
+                    ! int%F121(i) = -geom%a(i)*geom%v_eta(i)*int%F111(i)/b
+                    ! int%F211(i) = geom%a(i)*geom%v_xi(i)*int%F111(i)/b
 
                 else
 
                     ! Calculate F factors
                     if (b > 0.) then
                         F1 = (geom%l1(i)*geom%R2(i) - geom%l2(i)*geom%R1(i)) / geom%g2(i)
+                        
+                        ! calculate low d high F1
+                        call low_d_hi%init_from_sparse_vector(geom%d_l1(i))
+                        call low_d_hi%broadcast_element_times_scalar(geom%R2(i))
+                        
+                        call low_d_hi2%init_from_sparse_vector(geom%d_R2(i))
+                        call low_d_hi2%broadcast_element_times_scalar(geom%l1(i))
+                        
+                        call low_d_hi%sparse_add(low_d_hi2)
+                        
+                        call low_d_hi3%init_from_sparse_vector(geom%d_l2(i))
+                        call low_d_hi3%broadcast_element_times_scalar(geom%R1(i))
+                        
+                        call low_d_hi4%init_from_sparse_vector(geom%d_R1(i))
+                        call low_d_hi4%broadcast_element_times_scalar(geom%l2(i))
+                        
+                        call low_d_hi3%sparse_add(low_d_hi4)
+                        
+                        call low_d_hi%sparse_subtract(low_d_hi3)
+                        
+                        call low_d_hi%broadcast_element_times_scalar(geom%g2(i))
+                        
+                        ! calculate high d low F1
+                        call hi_d_low%init_from_sparse_vector(geom%d_g2(i))
+                        call hi_d_low%broadcast_element_times_scalar(geom%l1(i)*geom%R2(i) - geom%l2(i)*geom%R1(i))
+                        
+                        ! calc d_F1
+                        call d_F1%init_from_sparse_vector(low_d_hi)
+                        call d_F1%sparse_subtract(hi_d_low)
+                        call d_F1%broadcast_element_times_scalar(geom%g2(i)*geom%g2(i))
+
+                        ! deallocate high d low and low d hi terms for use in d_F2
+                        deallocate(low_d_hi%elements, low_d_hi2%elements, low_d_hi3%elements, low_d_hi4%elements,&
+                                    hi_d_low%elements)
+
                         F2 = (b*geom%R1(i)*geom%R2(i) + geom%l1(i)*geom%l2(i)) / geom%g2(i)
+
+                        ! terms to take derivative of F2
+
+
+                        ! calc d_F1
                     else
                         F1 = (geom%R2(i) - geom%R1(i))*(geom%R2(i) + geom%R1(i)) / (geom%l1(i)*geom%R2(i) + geom%l2(i)*geom%R1(i))
                         F2 = (geom%g2(i) - geom%l1(i)**2 - geom%l2(i)**2) / (b*geom%R1(i)*geom%R2(i) - geom%l1(i)*geom%l2(i))
