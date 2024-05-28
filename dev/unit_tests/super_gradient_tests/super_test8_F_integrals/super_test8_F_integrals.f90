@@ -56,7 +56,7 @@ program super8
 
     ! test stuff
     integer :: passed_tests, total_tests
-    logical :: test_failed
+    logical :: test_failed, mirror_panel
     character(len=100),dimension(100) :: failure_log
     character(len=10) :: m_char
     integer(8) :: start_count, end_count
@@ -205,7 +205,7 @@ program super8
     allocate(F111_dn(3,N_verts*3))
     allocate(d_F111_FD(3,N_verts*3))
 
-    
+    mirror_panel = .false.
 
     error_allowed = 1.0e-6
     step = 0.000001
@@ -232,8 +232,8 @@ program super8
             write(*,'(A,I5,A,I5)') "F integral test Panel ",y," cp ",z
 
 
-            dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, mirror_panel)
-            if (dod_info%in_dod .and. test_mesh%panels(index)%A > 0.) then
+            test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, mirror_panel)
+            if (test_dod_info%in_dod .and. test_mesh%panels(index)%A > 0.) then
 
                 ! panel is in domain of dependence of point    
                 write(*,'(A,I5,A,I5)') "Supersonic Subinc Geom test Panel ",y," cp ",z
@@ -249,7 +249,7 @@ program super8
                         ! supersonic subinclined
                         adjoint_geom = adjoint_mesh%panels(index)%calc_supersonic_subinc_geom_adjoint(&
                                                     adjoint_mesh%cp(cp_ind)%loc,adjoint_mesh%cp(cp_ind)%d_loc,&
-                                                     adjoint_freestream_flow, mirror_panel, dod_info)
+                                                     adjoint_freestream_flow, mirror_panel, test_dod_info)
                     end if
                 else
                     !geom = this%calc_subsonic_geom(P, freestream, mirror_panel)
@@ -257,13 +257,13 @@ program super8
                 
                 end if ! end supersonic if statement
 
-                ! Get integrals
-                adjoint_int = adjoint_mesh%panels(index)%calc_integrals(adjoint_geom, 'velocity', &
-                                            adjoint_freestream_flow, mirror_panel, dod_info)
+                ! ! Get integrals
+                ! adjoint_int = adjoint_mesh%panels(index)%calc_integrals(adjoint_geom, 'velocity', &
+                !                             adjoint_freestream_flow, mirror_panel, dod_info)
 
                 ! integral adjoint
-                call adjoint_mesh%panels(index)%call this%calc_basic_F_integrals_supersonic_subinc_adjoint(&
-                            adjoint_geom, dod_info, adjoint_freestream_flow, mirror_panel, adjoint_int)
+                call adjoint_mesh%panels(index)%calc_basic_F_integrals_supersonic_subinc_adjoint(&
+                            adjoint_geom, test_dod_info, adjoint_freestream_flow, mirror_panel, adjoint_int)
                 
                 do i=1,3
                     do j=1,N_verts
@@ -302,8 +302,9 @@ program super8
                         deallocate(test_int%F121)
                         deallocate(test_int%F211)
                         test_geom = test_mesh%panels(index)%calc_supersonic_subinc_geom(&
-                                                test_mesh%cp(cp_ind)%loc,freestream_flow,mirror_panel,dod_info)
-                        test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,.false., test_dod_info)
+                                                test_mesh%cp(cp_ind)%loc,freestream_flow,mirror_panel,test_dod_info)
+                        test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,&
+                                                .false., test_dod_info)
                         !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
                         
                         ! get desired info
@@ -343,8 +344,9 @@ program super8
                         deallocate(test_int%F121)
                         deallocate(test_int%F211)
                         test_geom = test_mesh%panels(index)%calc_supersonic_subinc_geom(&
-                                                test_mesh%cp(cp_ind)%loc,freestream_flow,mirror_panel,dod_info)
-                        test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,.false., test_dod_info)
+                                                test_mesh%cp(cp_ind)%loc,freestream_flow,mirror_panel,test_dod_info)
+                        test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,&
+                                                .false., test_dod_info)
                         !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
 
                         ! put the x y or z component of the vertex of interest (index) in a list

@@ -5443,13 +5443,15 @@ contains
         ! Calculate necessary integrals based on the flow condition and panel type
         ! These are needed for both velocity and potential calculations
         if (freestream%supersonic) then
-            ! if (int%r < 0) then
-            !     call this%calc_basic_F_integrals_supersonic_supinc(geom, dod_info, freestream, mirror_panel, int)
-            !     call this%calc_hH113_supersonic_supinc(geom, dod_info, freestream, mirror_panel, int)
-            ! else
-            !     call this%calc_basic_F_integrals_supersonic_subinc(geom, dod_info, freestream, mirror_panel, int)
-            !     call this%calc_hH113_supersonic_subinc(geom, dod_info, freestream, mirror_panel, int)
-            ! end if
+            if (int%r < 0) then
+                ! call this%calc_basic_F_integrals_supersonic_supinc(geom, dod_info, freestream, mirror_panel, int)
+                ! call this%calc_hH113_supersonic_supinc(geom, dod_info, freestream, mirror_panel, int)
+                write(*,*) "can't do supersonic supinc, quitting..."
+                stop
+            else
+                call this%calc_basic_F_integrals_supersonic_subinc(geom, dod_info, freestream, mirror_panel, int)
+                call this%calc_hH113_supersonic_subinc(geom, dod_info, freestream, mirror_panel, int)
+            end if
         else
             call this%calc_basic_F_integrals_subsonic_adjoint(geom, freestream, mirror_panel, int)
             call this%calc_hH113_subsonic_adjoint(geom, freestream, mirror_panel, int)
@@ -5589,6 +5591,13 @@ contains
 
         real :: F1, F2, eps, eps2, series, b, s_b
         integer :: i, i_next
+        type(sparse_vector) :: d_F1, d_F1_term1, d_F1_term2, &
+        d_F2, d_F2_term1, d_F2_term2, &
+        low_d_hi, low_d_hi2, low_d_hi3, low_d_hi4, low_d_hi5, &
+        hi_d_low, hi_d_low2, hi_d_low3, hi_d_low4, hi_d_low5, &
+        d_eps, d_eps_term2, &
+        d_F111_term1, d_F111_term2, d_F111_term3, d_F111_term4, &
+        d_atan_1, d_atan_2, d_atan_3
 
         ! Loop through edges
         do i=1,this%N
@@ -5621,11 +5630,14 @@ contains
                     ! Higher-order (unused in formulation adjoints uses)
                     ! int%F121(i) = -geom%a(i)*geom%v_eta(i)*int%F111(i)/b
                     ! int%F211(i) = geom%a(i)*geom%v_xi(i)*int%F111(i)/b
-
+                    write(*,*) "check check R1 and R2 = 0"
                 else
-
+                    
                     ! Calculate F factors
                     if (b > 0.) then
+                        
+                        write(*,*) "check b>0"
+                        !!!!!!!!! F1 !!!!!!!!!!!!!!
                         F1 = (geom%l1(i)*geom%R2(i) - geom%l2(i)*geom%R1(i)) / geom%g2(i)
                         
                         ! calculate low d high F1
@@ -5656,87 +5668,343 @@ contains
                         ! calc d_F1
                         call d_F1%init_from_sparse_vector(low_d_hi)
                         call d_F1%sparse_subtract(hi_d_low)
-                        call d_F1%broadcast_element_times_scalar(geom%g2(i)*geom%g2(i))
-
+                        call d_F1%broadcast_element_times_scalar(1./(geom%g2(i)*geom%g2(i)))
+                        
                         ! deallocate high d low and low d hi terms for use in d_F2
                         deallocate(low_d_hi%elements, low_d_hi2%elements, low_d_hi3%elements, low_d_hi4%elements,&
-                                    hi_d_low%elements)
-
+                        hi_d_low%elements)
+                        
+                        
+                        !!!!!!!!! F2 !!!!!!!!!!!!!!
                         F2 = (b*geom%R1(i)*geom%R2(i) + geom%l1(i)*geom%l2(i)) / geom%g2(i)
-
-                        ! terms to take derivative of F2
-
-
-                        ! calc d_F1
+                        
+                        ! calculate low d high F2
+                        call low_d_hi%init_from_sparse_vector(this%d_b(i))
+                        call low_d_hi%broadcast_element_times_scalar(geom%R1(i)*geom%R2(i))
+                        
+                        call low_d_hi2%init_from_sparse_vector(geom%d_R1(i))
+                        call low_d_hi2%broadcast_element_times_scalar(b*geom%R2(i))
+                        
+                        call low_d_hi3%init_from_sparse_vector(geom%d_R2(i))
+                        call low_d_hi3%broadcast_element_times_scalar(b*geom%R1(i))
+                        
+                        call low_d_hi%sparse_add(low_d_hi2)
+                        call low_d_hi%sparse_add(low_d_hi3)
+                        
+                        call low_d_hi4%init_from_sparse_vector(geom%d_l1(i))
+                        call low_d_hi4%broadcast_element_times_scalar(geom%l1(i))
+                        
+                        call low_d_hi5%init_from_sparse_vector(geom%d_l2(i))
+                        call low_d_hi5%broadcast_element_times_scalar(geom%l1(i))
+                        
+                        call low_d_hi4%sparse_add(low_d_hi5)
+                        
+                        call low_d_hi%sparse_add(low_d_hi4)
+                        
+                        call low_d_hi%broadcast_element_times_scalar(geom%g2(i))
+                        
+                        ! calculate high d low F2
+                        call hi_d_low%init_from_sparse_vector(geom%d_g2(i))
+                        call hi_d_low%broadcast_element_times_scalar(geom%l1(i)*geom%R2(i) - geom%l2(i)*geom%R1(i))
+                        
+                        ! calc d_F2
+                        call d_F2%init_from_sparse_vector(low_d_hi)
+                        call d_F2%sparse_subtract(hi_d_low)
+                        call d_F2%broadcast_element_times_scalar(1./(geom%g2(i)*geom%g2(i)))
+                        
+                        ! deallocate high d low and low d hi terms for use in next loop
+                        deallocate(low_d_hi%elements, low_d_hi2%elements, low_d_hi3%elements, low_d_hi4%elements, &
+                        low_d_hi5%elements, hi_d_low%elements)
+                        
                     else
+                        
+                        write(*,*) "check b>0 false"
+                        !!!!!!!! d_F1 if b > 0. is false !!!!!!!!!!
                         F1 = (geom%R2(i) - geom%R1(i))*(geom%R2(i) + geom%R1(i)) / (geom%l1(i)*geom%R2(i) + geom%l2(i)*geom%R1(i))
+                        
+                        ! quotient rule low_d_hi F1
+                        call low_d_hi%init_from_sparse_vector(geom%d_R2(i))
+                        call low_d_hi%sparse_subtract(geom%d_R1(i))
+                        call low_d_hi%broadcast_element_times_scalar(geom%R2(i) + geom%R1(i))
+                        
+                        call low_d_hi2%init_from_sparse_vector(geom%d_R2(i))
+                        call low_d_hi2%sparse_add(geom%d_R1(i))
+                        call low_d_hi2%broadcast_element_times_scalar(geom%R2(i) - geom%R1(i))
+                        
+                        call low_d_hi%sparse_add(low_d_hi2)
+                        call low_d_hi%broadcast_element_times_scalar(geom%l1(i)*geom%R2(i) + geom%l2(i)*geom%R1(i))
+                        
+                        ! quotient rule hi_d_low F1
+                        call hi_d_low%init_from_sparse_vector(geom%d_l1(i))
+                        call hi_d_low%broadcast_element_times_scalar(geom%R2(i))
+                        
+                        call hi_d_low2%init_from_sparse_vector(geom%d_R2(i))
+                        call hi_d_low2%broadcast_element_times_scalar(geom%l1(i))
+                        
+                        call hi_d_low3%init_from_sparse_vector(geom%d_l2(i))
+                        call hi_d_low3%broadcast_element_times_scalar(geom%R1(i))
+                        
+                        call hi_d_low4%init_from_sparse_vector(geom%d_R1(i))
+                        call hi_d_low4%broadcast_element_times_scalar(geom%l2(i))
+                        
+                        call hi_d_low%sparse_add(hi_d_low2)
+                        call hi_d_low%sparse_add(hi_d_low3)
+                        call hi_d_low%sparse_add(hi_d_low4)
+                        
+                        call hi_d_low%broadcast_element_times_scalar((geom%R2(i) - geom%R1(i))*(geom%R2(i) + geom%R1(i)))
+                        
+                        ! calc d_F1
+                        call d_F1%init_from_sparse_vector(low_d_hi)
+                        call d_F1%sparse_subtract(hi_d_low)
+                        call d_F1%broadcast_element_times_scalar(1./(geom%l1(i)*geom%R2(i) + geom%l2(i)*geom%R1(i))**2)
+                        
+                        ! deallocate high d low and low d hi terms for use in d_F2
+                        deallocate(low_d_hi%elements, low_d_hi2%elements, hi_d_low%elements, hi_d_low2%elements,&
+                        hi_d_low3%elements, hi_d_low4%elements)
+                        
+                        !!!!!!!!!! end d_F1 if b > 0 is false !!!!!!!!!!
+                        
+                        
+                        !!!!!!!! d_F2 if b > 0. is false !!!!!!!!!!
                         F2 = (geom%g2(i) - geom%l1(i)**2 - geom%l2(i)**2) / (b*geom%R1(i)*geom%R2(i) - geom%l1(i)*geom%l2(i))
+                        
+                        ! quotient rule low_d_hi F2
+                        call low_d_hi%init_from_sparse_vector(geom%d_g2(i))
+                        
+                        call low_d_hi2%init_from_sparse_vector(geom%d_l1(i))
+                        call low_d_hi2%broadcast_element_times_scalar(2.*geom%l1(i))
+                        
+                        call low_d_hi3%init_from_sparse_vector(geom%d_l2(i))
+                        call low_d_hi3%broadcast_element_times_scalar(2.*geom%l2(i))
+                        
+                        call low_d_hi%sparse_subtract(low_d_hi2)
+                        call low_d_hi%sparse_subtract(low_d_hi3)
+                        
+                        call low_d_hi%broadcast_element_times_scalar(this%b(i)*geom%R1(i)*geom%R2(i) - geom%l1(i)*geom%l2(i))
+                        
+                        ! quotient rule hi_d_low F1
+                        call hi_d_low%init_from_sparse_vector(this%d_b(i))
+                        call hi_d_low%broadcast_element_times_scalar(geom%R1(i)*geom%R2(i))
+                        
+                        call hi_d_low2%init_from_sparse_vector(geom%d_R1(i))
+                        call hi_d_low2%broadcast_element_times_scalar(this%b(i)*geom%R2(i))
+                        
+                        call hi_d_low3%init_from_sparse_vector(geom%d_R2(i))
+                        call hi_d_low3%broadcast_element_times_scalar(this%b(i)*geom%R1(i))
+                        
+                        call hi_d_low4%init_from_sparse_vector(geom%d_l1(i))
+                        call hi_d_low4%broadcast_element_times_scalar(geom%l2(i))
+                        
+                        call hi_d_low5%init_from_sparse_vector(geom%d_l2(i))
+                        call hi_d_low5%broadcast_element_times_scalar(geom%l1(i))
+                        
+                        call hi_d_low%sparse_add(hi_d_low2)
+                        call hi_d_low%sparse_add(hi_d_low3)
+                        call hi_d_low%sparse_subtract(hi_d_low4)
+                        call hi_d_low%sparse_subtract(hi_d_low5)
+                        
+                        call hi_d_low%broadcast_element_times_scalar(geom%g2(i) - geom%l1(i)*geom%l1(i) - geom%l2(i)*geom%l2(i))
+                        
+                        ! calc d_F2
+                        call d_F2%init_from_sparse_vector(low_d_hi)
+                        call d_F2%sparse_subtract(hi_d_low)
+                        call d_F2%broadcast_element_times_scalar(1./(this%b(i)*geom%R1(i)*geom%R2(i) - geom%l1(i)*geom%l2(i))**2)
+                        
+                        ! deallocate high d low and low d hi terms for use in d_F2
+                        deallocate(low_d_hi%elements, low_d_hi2%elements, low_d_hi3%elements, hi_d_low%elements, &
+                        hi_d_low2%elements, hi_d_low3%elements, hi_d_low4%elements, hi_d_low5%elements)
+                        
+                        
+                        !!!!!!!! end d_F2 if b > 0. is false !!!!!!!!!!
                     end if
-
+                    
                     ! Nearly-sonic edge
                     if (abs(F2) > 125.0*abs(s_b*F1)) then
-
+                        write(*,*) "nearly sonic? how can it be nearly sonic?"
+                        
                         ! F(1,1,1)
                         eps = F1/F2
                         eps2 = eps*eps
                         series = eps*eps2*(1./3. - b*eps2/5. + (b*eps2)*(b*eps2)/7.)
                         int%F111(i) = -eps + b*series
+                        
+                        ! calc d_eps
+                        call d_eps%init_from_sparse_vector(d_F1)
+                        call d_eps%broadcast_element_times_scalar(F1)
+                        
+                        call d_eps_term2%init_from_sparse_vector(d_F2)
+                        call d_eps_term2%broadcast_element_times_scalar(F2)
+                        
+                        call d_eps%sparse_subtract(d_eps_term2)
+                        call d_eps%broadcast_element_times_scalar(1./(F2*F2))
+                        
+                        ! calc F111(i) of nearly sonic edge
+                        call d_F111_term1%init_from_sparse_vector(this%d_b(i))
+                        call d_F111_term1%broadcast_element_times_scalar(series)
+                        
+                        call d_F111_term2%init_from_sparse_vector(d_eps)
+                        call d_F111_term2%broadcast_element_times_scalar(3.*this%b(i)*eps2*&
+                        (1./3. - b*eps2/5. + (b*eps2)*(b*eps2)/7.))
 
-                        ! Higher-order
-                        if (mirror_panel) then
-                            int%F121(i) = (-geom%v_xi(i)*geom%dR(i)*geom%R1(i)*geom%R2(i) &
-                                           + geom%l2(i)*geom%R1(i)*(this%vertices_ls_mir(2,i_next) - geom%P_ls(2)) &
-                                           - geom%l1(i)*geom%R2(i)*(this%vertices_ls_mir(2,i) - geom%P_ls(2)) &
-                                          ) / (geom%g2(i)*F2) - geom%a(i)*geom%v_eta(i)*series
-                        else
-                            int%F121(i) = (-geom%v_xi(i)*geom%dR(i)*geom%R1(i)*geom%R2(i) &
-                                           + geom%l2(i)*geom%R1(i)*(this%vertices_ls(2,i) - geom%P_ls(2)) &
-                                           - geom%l1(i)*geom%R2(i)*(this%vertices_ls(2,i_next) - geom%P_ls(2)) &
-                                          ) / (geom%g2(i)*F2) - geom%a(i)*geom%v_eta(i)*series
-                        end if
-                        int%F211(i) = -geom%v_eta(i)*geom%dR(i) + geom%a(i)*geom%v_xi(i)*int%F111(i) - &
-                                      2.*geom%v_xi(i)*geom%v_eta(i)*int%F121(i)
-
-                    ! Supersonic edge
+                        call d_F111_term3%init_from_sparse_vector(this%d_b(i))
+                        call d_F111_term3%broadcast_element_times_scalar((2.*this%b(i)*eps2/7.) - (1./5.*eps))
+                        
+                        call d_F111_term4%init_from_sparse_vector(d_eps)
+                        call d_F111_term4%broadcast_element_times_scalar((4.*this%b(i)*this%b(i)*eps/7.)-(3.*this%b(i)/5.))
+                        
+                        ! combine terms 3 and 4
+                        call d_F111_term3%sparse_add(d_F111_term4)
+                        call d_F111_term3%broadcast_element_times_scalar(this%b(i)*eps2*eps2*eps)
+                        
+                        ! calc d_F111(i)
+                        call int%d_F111(i)%init_from_sparse_vector(d_F111_term1)
+                        call int%d_F111(i)%sparse_add(d_F111_term2)
+                        call int%d_F111(i)%sparse_add(d_F111_term3)
+                        call int%d_F111(i)%sparse_subtract(d_eps)
+                        
+                        deallocate(d_eps%elements, d_eps_term2%elements, d_F111_term1%elements, d_F111_term2%elements, &
+                        d_F111_term3%elements, d_F111_term4%elements)
+                        
+                        ! ! Higher-order
+                        ! if (mirror_panel) then
+                        !     int%F121(i) = (-geom%v_xi(i)*geom%dR(i)*geom%R1(i)*geom%R2(i) &
+                        !                    + geom%l2(i)*geom%R1(i)*(this%vertices_ls_mir(2,i_next) - geom%P_ls(2)) &
+                        !                    - geom%l1(i)*geom%R2(i)*(this%vertices_ls_mir(2,i) - geom%P_ls(2)) &
+                        !                   ) / (geom%g2(i)*F2) - geom%a(i)*geom%v_eta(i)*series
+                        ! else
+                        !     int%F121(i) = (-geom%v_xi(i)*geom%dR(i)*geom%R1(i)*geom%R2(i) &
+                        !                    + geom%l2(i)*geom%R1(i)*(this%vertices_ls(2,i) - geom%P_ls(2)) &
+                        !                    - geom%l1(i)*geom%R2(i)*(this%vertices_ls(2,i_next) - geom%P_ls(2)) &
+                        !                   ) / (geom%g2(i)*F2) - geom%a(i)*geom%v_eta(i)*series
+                        ! end if
+                        ! int%F211(i) = -geom%v_eta(i)*geom%dR(i) + geom%a(i)*geom%v_xi(i)*int%F111(i) - &
+                        !               2.*geom%v_xi(i)*geom%v_eta(i)*int%F121(i)
+                        
+                        !deallocate d_F1, d_F2
+                        deallocate(d_F1%elements, d_F2%elements)
+                        
+                        ! Supersonic edge
                     else if (b > 0.) then
-
+                        write(*,*) "supersonic edge"
+                        
                         ! F(1,1,1)
                         int%F111(i) = -atan2(s_b*F1, F2) / s_b
-
-                        ! Higher-order
-                        int%F121(i) = -(geom%v_xi(i)*geom%dR(i) + geom%a(i)*geom%v_eta(i)*int%F111(i)) / b
-                        int%F211(i) = -geom%v_eta(i)*geom%dR(i) + geom%a(i)*geom%v_xi(i)*int%F111(i) - &
-                                        2.*geom%v_xi(i)*geom%v_eta(i)*int%F121(i)
-                            !int%F211(i) = (geom%a(i)*int%F111(i) - geom%v_eta(i)*int%F121(i)) / geom%v_xi(i) ! alternative
+                        
+                        !!!!!!!!! calc d_F111(i) for subsonic edge !!!!!!!!!!!
+                        call d_atan_1%init_from_sparse_vector(this%d_sqrt_b(i))
+                        call d_atan_1%broadcast_element_times_scalar(F1)
+                        
+                        call d_atan_2%init_from_sparse_vector(d_F1)
+                        call d_atan_2%broadcast_element_times_scalar(this%sqrt_b(i))
+                        
+                        ! combine d_atan terms 1 and 2 into 1
+                        call d_atan_1%sparse_add(d_atan_2)
+                        call d_atan_1%broadcast_element_times_scalar(F2/(abs(this%b(i))*F1*F1 + F2*F2))
+                        
+                        call d_atan_3%init_from_sparse_vector(d_F2)
+                        call d_atan_3%broadcast_element_times_scalar(this%sqrt_b(i)*F1/(abs(this%b(i))*F1*F1 + F2*F2))
+                        
+                        ! combine d_atan terms 1 and 3 into 1
+                        call d_atan_1%sparse_subtract(d_atan_3)
+                        call d_atan_1%broadcast_element_times_scalar(1./this%sqrt_b(i))
+                        
+                        call int%d_F111(i)%init_from_sparse_vector(this%d_b(i))
+                        call int%d_F111(i)%broadcast_element_times_scalar(this%b(i)*atan2(s_b*F1, F2)/&
+                        (2.*(abs(this%b(i))**(5./2.))))
+                        call int%d_F111(i)%sparse_subtract(d_atan_1)
+                        
+                        ! ! Higher-order
+                        ! int%F121(i) = -(geom%v_xi(i)*geom%dR(i) + geom%a(i)*geom%v_eta(i)*int%F111(i)) / b
+                        ! int%F211(i) = -geom%v_eta(i)*geom%dR(i) + geom%a(i)*geom%v_xi(i)*int%F111(i) - &
+                        !                 2.*geom%v_xi(i)*geom%v_eta(i)*int%F121(i)
+                        !     !int%F211(i) = (geom%a(i)*int%F111(i) - geom%v_eta(i)*int%F121(i)) / geom%v_xi(i) ! alternative
+                        
+                        deallocate(d_F1%elements, d_F2%elements)
 
                     ! Subsonic edge
                     else
+                        write(*,*) "subsonic edge"
                         
                         ! F(1,1,1)
                         F1 = s_b*geom%R1(i) + abs(geom%l1(i))
+                        
+                        ! d_F1 subsonic case
+                        call d_F1%init_from_sparse_vector(this%d_sqrt_b(i))
+                        write(*,*) "subsonic edge progress"
+                        call d_F1%broadcast_element_times_scalar(geom%R1(i))
+                        
+                        call d_F1_term1%init_from_sparse_vector(geom%d_R1(i))
+                        call d_F1_term1%broadcast_element_times_scalar(this%sqrt_b(i))
+                        
+                        call d_F1_term2%init_from_sparse_vector(geom%d_l1(i))
+                        call d_F1_term2%broadcast_element_times_scalar(geom%l1(i)/abs(geom%l1(i)))
+                        
+                        call d_F1%sparse_add(d_F1_term1)
+                        call d_F1%sparse_add(d_F1_term2)
+                        
+                        ! d_F2 subsonic case
                         F2 = s_b*geom%R2(i) + abs(geom%l2(i))
+                        
+                        call d_F2%init_from_sparse_vector(this%d_sqrt_b(i))
+                        call d_F2%broadcast_element_times_scalar(geom%R2(i))
+                        
+                        call d_F2_term1%init_from_sparse_vector(geom%d_R2(i))
+                        call d_F2_term1%broadcast_element_times_scalar(this%sqrt_b(i))
+                        
+                        call d_F2_term2%init_from_sparse_vector(geom%d_l2(i))
+                        call d_F2_term2%broadcast_element_times_scalar(geom%l2(i)/abs(geom%l2(i)))
+                        
+                        call d_F2%sparse_add(d_F2_term1)
+                        call d_F2%sparse_add(d_F2_term2)
+                        
+                        deallocate(d_F1_term1%elements, d_F1_term2%elements, d_F2_term1%elements, d_F2_term2%elements)
+                        
+                        ! calc derivative of F1/F2
+                        call d_eps%init_from_sparse_vector(d_F1)
+                        call d_eps%broadcast_element_times_scalar(F1)
+                        
+                        call d_eps_term2%init_from_sparse_vector(d_F2)
+                        call d_eps_term2%broadcast_element_times_scalar(F2)
+                        
+                        call d_eps%sparse_subtract(d_eps_term2)
+                        call d_eps%broadcast_element_times_scalar(1./(F2*F2))
+                        
+                        
                         if (F1 /= 0. .and. F2 /= 0.) then
                             int%F111(i) = -sign(1., geom%v_eta(i))*log(F1/F2)/s_b
+                            
+                            !!!!!!!!! d_F111(i) subsonic !!!!!!!!!!
+                            call low_d_hi%init_from_sparse_vector(d_eps)
+                            call low_d_hi%broadcast_element_times_scalar(this%sqrt_b(i)*F2/F1)
+                            
+                            call hi_d_low%init_from_sparse_vector(this%d_sqrt_b(i))
+                            call hi_d_low%broadcast_element_times_scalar(log(F1/F2))
+                            
+                            call int%d_F111(i)%init_from_sparse_vector(low_d_hi)
+                            call int%d_F111(i)%sparse_subtract(hi_d_low)
+                            call int%d_F111(i)%broadcast_element_times_scalar(-sign(1., geom%v_eta(i))/abs(s_b))
                         else
                             if (verbose) write(*,*) "!!! Detected evaluation point on perimeter of panel. Solution may be affected."
                         end if
-
-                        ! Higher-order
-                        int%F121(i) = -(geom%v_xi(i)*geom%dR(i) + geom%a(i)*geom%v_eta(i)*int%F111(i)) / b
-                        int%F211(i) = -geom%v_eta(i)*geom%dR(i) + geom%a(i)*geom%v_xi(i)*int%F111(i) - &
-                                          2.*geom%v_xi(i)*geom%v_eta(i)*int%F121(i)
-                            !int%F211(i) = (geom%a(i)*int%F111(i) - geom%v_eta(i)*int%F121(i)) / geom%v_xi(i) ! alternative unstable in this case
-                        end if
+                        
+                        ! ! Higher-order
+                        ! int%F121(i) = -(geom%v_xi(i)*geom%dR(i) + geom%a(i)*geom%v_eta(i)*int%F111(i)) / b
+                        ! int%F211(i) = -geom%v_eta(i)*geom%dR(i) + geom%a(i)*geom%v_xi(i)*int%F111(i) - &
+                        !                   2.*geom%v_xi(i)*geom%v_eta(i)*int%F121(i)
+                        !     !int%F211(i) = (geom%a(i)*int%F111(i) - geom%v_eta(i)*int%F121(i)) / geom%v_xi(i) ! alternative unstable in this case
+                    end if
                     end if
 
+                    write(*,*) "subsonic edge ended"
+
                 end if
 
-            ! Check
-            if (this%order == 2) then
-                if (abs(geom%v_xi(i)*int%F211(i) + geom%v_eta(i)*int%F121(i) - geom%a(i)*int%F111(i)) > 1.e-12) then
-                    write(*,*) "!!! Calculation of F(2,1,1) and F(1,2,1) failed. Please submit a bug report on GitHub."
-                end if
-            end if
+            ! ! Check
+            ! if (this%order == 2) then
+            !     if (abs(geom%v_xi(i)*int%F211(i) + geom%v_eta(i)*int%F121(i) - geom%a(i)*int%F111(i)) > 1.e-12) then
+            !         write(*,*) "!!! Calculation of F(2,1,1) and F(1,2,1) failed. Please submit a bug report on GitHub."
+            !     end if
+            ! end if
 
         end do
 
