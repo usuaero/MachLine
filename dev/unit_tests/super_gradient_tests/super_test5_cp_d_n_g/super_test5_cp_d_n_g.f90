@@ -200,7 +200,7 @@ program calc_cp_d_n_g_test
     allocate(cp_n_g_dn(3,N_verts*3))
     allocate(d_cp_n_g_FD(3,N_verts*3))
 
-    error_allowed = 1.0e-6
+    error_allowed = 1.0e-8
     step = 0.000001
     index = 1
     cp_ind = 1
