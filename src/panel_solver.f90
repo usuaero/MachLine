@@ -1378,7 +1378,7 @@ contains
         end if
 
         ! Calculate source and doublet influences from body on each control point
-        !$OMP parallel do private(j, source_inf, doublet_inf, v_s, v_d, A_i, I_known_i, inf_adjoint,d_AIC_row) schedule(dynamic)
+        ! $OMP parallel do private(j, source_inf, doublet_inf, v_s, v_d, A_i, I_known_i, inf_adjoint,d_AIC_row) schedule(dynamic)
         do i=1,body%N_cp
 
             ! Initialize
@@ -1417,7 +1417,6 @@ contains
 
                     ! if calc_adjoint is specified, do adjoint calcs (METHOD 2)
                     if (body%calc_adjoint) then
-                    
                         inf_adjoint = body%panels(j)%calc_doublet_inf_adjoint2(body%cp(i),this%freestream)
                         call this%update_adjoint_A_row(body, body%cp(i), d_AIC_row, j, inf_adjoint, .false.)
                     end if

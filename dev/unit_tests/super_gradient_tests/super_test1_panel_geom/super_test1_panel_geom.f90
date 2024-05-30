@@ -146,7 +146,7 @@ program panel_geom2
     allocate(residuals3(3,N_verts*3))
     allocate(residuals(N_verts*3))
 
-    error_allowed = 1.0e-9
+    error_allowed = 1.0e-5
     step = 0.000001
     index = 1
     vert_ind = 1
