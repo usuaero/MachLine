@@ -5819,7 +5819,7 @@ contains
                         !!!!!!!! end d_F2 if b > 0. is false !!!!!!!!!!
                     end if
                     
-                    ! Nearly-sonic edge
+                    ! Nearly-sonic edge 
                     if (abs(F2) > 125.0*abs(s_b*F1)) then
                         write(*,*) "nearly sonic? how can it be nearly sonic?"
                         
