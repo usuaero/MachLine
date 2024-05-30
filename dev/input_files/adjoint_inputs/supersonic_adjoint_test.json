@@ -4,8 +4,8 @@
         "freestream_mach_number" : 1.4
     },
     "geometry": {
-        "file" : "dev/meshes/adjoint/adjoint_octa_mesh.stl",
-        "bfile" : "dev/meshes/adjoint/wedge_wing_coarse.stl",
+        "afile" : "dev/meshes/adjoint/adjoint_octa_mesh.stl",
+        "file" : "dev/meshes/adjoint/wedge_wing_coarse.stl",
         "cfile" : "dev/meshes/adjoint/sphere_coarse2.stl",
         "dfile" : "dev/meshes/other_meshes/small_sphere.stl",
         "efile" : "dev/meshes/other_meshes/diamond_5_deg_full_coarse.stl",

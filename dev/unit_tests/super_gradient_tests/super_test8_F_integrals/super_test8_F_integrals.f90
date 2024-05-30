@@ -229,7 +229,7 @@ program super8
         do z = 1,N_verts
             cp_ind = z
             
-            write(*,'(A,I5,A,I5)') "F integral test Panel ",y," cp ",z
+            ! write(*,'(A,I5,A,I5)') "F integral test Panel ",y," cp ",z
 
 
             test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, mirror_panel)
@@ -257,14 +257,13 @@ program super8
                 
                 end if ! end supersonic if statement
 
-                ! ! Get integrals
-                ! adjoint_int = adjoint_mesh%panels(index)%calc_integrals(adjoint_geom, 'velocity', &
-                !                             adjoint_freestream_flow, mirror_panel, dod_info)
+                ! Get integrals
+                adjoint_int = adjoint_mesh%panels(index)%calc_integrals(adjoint_geom, 'velocity', &
+                                            adjoint_freestream_flow, mirror_panel, test_dod_info)
 
-                ! integral adjoint
-                call adjoint_mesh%panels(index)%calc_basic_F_integrals_supersonic_subinc_adjoint(&
-                            adjoint_geom, test_dod_info, adjoint_freestream_flow, mirror_panel, adjoint_int)
-                
+                ! ! integral adjoint
+                call adjoint_mesh%panels(index)%calc_integrals_adjoint(&
+                            adjoint_geom, adjoint_int, adjoint_freestream_flow, mirror_panel, test_dod_info)
                 do i=1,3
                     do j=1,N_verts
 
@@ -377,14 +376,14 @@ program super8
                     do i = 1, N_verts*3
                         if (any(abs(residuals3(:,i))>error_allowed)) then
                             write(*,*) ""
-                            write(*,*) "                                     d_F111 edges             & 
-                                                                    residuals"
+                            write(*,*) "                  ------------d_F111 edges---------------     "
                             write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_F111_FD(:,i)
                         
-                            write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",   &
+                            write(*, '(A25,8x,3(f25.10, 4x))') "          adjoint",   &
                             adjoint_int%d_F111(1)%get_value(i),&
                             adjoint_int%d_F111(2)%get_value(i),&
-                            adjoint_int%d_F111(3)%get_value(i), residuals3(:,i)
+                            adjoint_int%d_F111(3)%get_value(i)
+                            write(*, '(A25,8x,3(f25.10, 4x))') "             residuals", residuals3(:,i)
                         end if
                     end do
                 end if
