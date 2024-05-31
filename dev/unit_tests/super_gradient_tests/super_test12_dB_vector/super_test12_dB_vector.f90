@@ -1,4 +1,4 @@
-program test16
+program super12
     ! tests various intermediate sensitivities 
     use adjoint_mod
     use base_geom_mod
@@ -41,16 +41,16 @@ program test16
     type(integrals) :: test_int, adjoint_int
     type(sparse_matrix),dimension(3) :: d_v_d
     integer :: i_unit
-    integer :: adjoint_solver_stat, test_solver_stat, stat
     logical :: exists, found
+    type(sparse_vector) :: zeros
 
     !!!!!!!!!!!!!!!!!!!!! END STUFF FROM MAIN !!!!!!!!!!!!!!!!!!!!!!!!!
 
     !!!!!!!!!!!!!!!!!!!!!! TESTING STUFF  !!!!!!!!!!!!!!!!!!!!!!!!!!
-    real,dimension(:),allocatable :: residuals
-    real,dimension(:,:),allocatable ::  residuals3, V_cells_up, V_cells_dn, d_V_cells_FD
+    real,dimension(:),allocatable :: residuals, b_up, b_dn, d_b_FD
+    real,dimension(:,:),allocatable ::  residuals3
 
-    integer :: i,j,k,m,n,y,z,N_verts, N_panels, vert, index, cp_ind
+    integer :: i,j,k,m,n,y,z, N_verts, N_panels, vert, index, cp_ind, stat
     real :: step,error_allowed, cp_offset
     type(vertex),dimension(:),allocatable :: vertices ! list of vertex types, this should be a mesh attribute
     type(panel),dimension(:),allocatable :: panels, adjoint_panels   ! list of panels, this should be a mesh attribute
@@ -71,14 +71,16 @@ program test16
     
     index = 1
     cp_ind = 1
+
+
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !                             FROM MAIN
-    
+
     !!!!!!!!!!!!!!! TEST INPUT (calc_adjoint = false) !!!!!!!!!!!!!!!!!!!!!!!
     ! Set up run
     call json_initialize()
 
-    test_input = "dev\input_files\adjoint_inputs\test.json"
+    test_input = "dev\input_files\adjoint_inputs\supersoinc_test.json"
     test_input = trim(test_input)
 
     ! Check it exists
@@ -127,49 +129,31 @@ program test16
     ! pull out the cp offset
     call json_xtnsn_get(solver_settings, 'control_point_offset', cp_offset, 1.e-7)
     
-    ! Set default status
-    test_solver_stat = 0
-
-    ! Allocate known influence storage
+    ! ! Allocate known influence storage
     allocate(test_solver%I_known(test_mesh%N_cp), source=0., stat=stat)
     call check_allocation(stat, "known influence vector")
-
-    ! Allocate AIC matrix
-    allocate(test_solver%A(test_mesh%N_cp, test_solver%N_unknown), source=0., stat=stat)
-    ! call check_allocation(stat, "AIC matrix")
 
     ! Allocate b vector
     allocate(test_solver%b(test_mesh%N_cp), source=0., stat=stat)
     call check_allocation(stat, "b vector")
 
-    ! Calculate source strengths
-    call test_solver%calc_source_strengths(test_mesh)
-
-    ! Calculate body influences
-    call test_solver%calc_body_influences(test_mesh)
-
+    ! assemble BC vector
     call test_solver%assemble_BC_vector(test_mesh)
 
-    ! Solve the linear system
-    call test_solver%solve_system(test_mesh, test_solver_stat)
-    
-    ! Check for errors
-    if (test_solver_stat /= 0) return
-
-    ! Calculate velocities
-    call test_solver%calc_cell_velocities(test_mesh)
-    
+    ! Set b vector
+    test_solver%b = test_solver%BC - test_solver%I_known
     
     !!!!!!!!!!!!!!!!!!!!! END TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-    call system_clock(start_count, count_rate)
 
+    call system_clock(start_count, count_rate)
+    
 
     !!!!!!!!!!!!!!!!!!!!!!ADJOINT TEST MESH !!!!!!!!!!!!!!!!!!!!!
     ! Set up run
     call json_initialize()
-    
-    adjoint_input = "dev\input_files\adjoint_inputs\adjoint_test.json"
+
+    adjoint_input = "dev\input_files\adjoint_inputs\supersonic_adjoint_test.json"
     adjoint_input = trim(adjoint_input)
 
     ! Check it exists
@@ -187,7 +171,7 @@ program test16
     call adjoint_input_json%get('solver', adjoint_solver_settings, found)
     call adjoint_input_json%get('post_processing', adjoint_processing_settings, found)
     call adjoint_input_json%get('output', adjoint_output_settings, found)
-    
+
     ! Initialize surface mesh
     call adjoint_mesh%init(adjoint_geom_settings)
     !call adjoint_mesh%init_adjoint()
@@ -203,26 +187,30 @@ program test16
     call json_xtnsn_get(adjoint_output_settings, 'mirrored_body_file', adjoint_mirrored_body_file, 'none')
     call json_xtnsn_get(adjoint_output_settings, 'offbody_points.points_file', adjoint_points_file, 'none')
     call json_xtnsn_get(adjoint_output_settings, 'offbody_points.output_file', adjoint_points_output_file, 'none')
-    
+
     !!!!!!!!!!!!!!!!!!!!!! WAKE_DEV !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! Get formulation type                                                  !
     call json_xtnsn_get(adjoint_solver_settings, 'formulation', adjoint_formulation, 'none')!
     !!!!!!!!!!!!!!!!!!!!!!! END_WAKE_DEV !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    
+
     ! Perform flow-dependent initialization on the surface mesh
     call adjoint_mesh%init_with_flow(adjoint_freestream_flow, adjoint_body_file, adjoint_wake_file, adjoint_formulation)
-    
+
     ! Initialize panel solver
     call adjoint_solver%init(adjoint_solver_settings, adjoint_processing_settings, adjoint_mesh, &
     adjoint_freestream_flow, adjoint_control_point_file)
-    ! solve
-    call adjoint_solver%solve(adjoint_mesh, adjoint_solver_stat, adjoint_formulation,adjoint_freestream_flow)
-    
 
-    
+    ! allocate  d_b_vector
+    call zeros%init(adjoint_mesh%adjoint_size)
+    allocate(adjoint_solver%d_b_vector(adjoint_mesh%N_cp), source=zeros, stat=stat)
+    call check_allocation(stat, "Adjoint b sensitivity vector")
+
+    ! if adjoint, assemble b sensitivity vector
+    call adjoint_solver%assemble_adjoint_b_vector(adjoint_mesh)
+
     !!!!!!!!!!!! END ADJOINT TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!
 
-    
+
     N_verts = test_mesh%N_verts
     N_panels = test_mesh%N_panels
     
@@ -230,12 +218,12 @@ program test16
     allocate(residuals3(3,N_verts*3))
     allocate(residuals(N_verts*3))
 
-    allocate(V_cells_up(3,N_verts*3))
-    allocate(V_cells_dn(3,N_verts*3))
-    allocate(d_V_cells_FD(3,N_verts*3))
+    allocate(b_up(N_verts*3))
+    allocate(b_dn(N_verts*3))
+    allocate(d_b_FD(N_verts*3))
     
 
-    error_allowed = 1.0e-8
+    error_allowed = 1.0e-9
     step = 0.000001
     index = 1
     cp_ind = 1
@@ -243,7 +231,7 @@ program test16
 
     write(*,*) ""
     write(*,*) "------------------------------------------------------------------------"
-    write(*,*) "                           d_V_cells_wrt_vars TEST                    "
+    write(*,*) "                       Supersonic d_b vector TEST                    "
     write(*,*) "------------------------------------------------------------------------"
     write(*,*) ""
     write(*,*) ""
@@ -251,16 +239,12 @@ program test16
 
     
     
-    do z =1,adjoint_mesh%N_verts
         
+    do z = 1,test_mesh%N_cp
+        cp_ind = z
         
-        write(*,*) ""
-        write(*,*) "--------------------------------------------------------------------------------------"
-        write(*,'(A,I5)') "                           d_V_cells_wrt_mu test ",z
-        write(*,*) "--------------------------------------------------------------------------------------"
-        write(*,*) ""
-
-
+        write(*,'(A,I5)') "d_b vector test: BC at CP ",z
+            
         do i=1,3
             do j=1,N_verts
 
@@ -293,7 +277,7 @@ program test16
                     call test_mesh%panels(m)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
                     test_mesh%vertices,.false.)
                 end do
-
+                
                 ! recalculates cp locations
                 deallocate(test_solver%sigma_known)
                 deallocate(test_mesh%cp)
@@ -301,18 +285,30 @@ program test16
                 call test_solver%init(solver_settings, processing_settings, &
                 test_mesh, freestream_flow, control_point_file)
                 
-                ! Check for errors
-                if (test_solver_stat /= 0) return
+                ! deallocate stuff
+                deallocate(test_solver%I_known)
+                deallocate(test_solver%BC)
+                deallocate(test_solver%b)
 
-                deallocate(test_mesh%V_cells_inner, test_mesh%V_cells)
+                ! Allocate known influence storage
+                allocate(test_solver%I_known(test_mesh%N_cp), source=0., stat=stat)
+                call check_allocation(stat, "known influence vector")
+                ! ! Allocate known influence storage
 
-                ! Calculate velocities
-                call test_solver%calc_cell_velocities(test_mesh)
+                ! Allocate b vector
+                allocate(test_solver%b(test_mesh%N_cp), source=0., stat=stat)
+                call check_allocation(stat, "b vector")
+
+                ! assemble BC vector
+                call test_solver%assemble_BC_vector(test_mesh)
+
+                ! Set b vector
+                test_solver%b = test_solver%BC - test_solver%I_known
                                 
                 !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
                 
                 ! get the needed info
-                V_cells_up(:,j + (i-1)*N_verts) = test_mesh%V_cells(:,z)
+                b_up(j + (i-1)*N_verts) = test_solver%b(z)
                 
                 
                 ! perturb down the current design variable
@@ -320,7 +316,7 @@ program test16
                 test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - 2.*step
                 
                 !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
-        
+            
                 ! update vertex normal
                 do m =1,N_panels
                     deallocate(test_mesh%panels(m)%n_hat_g)
@@ -351,102 +347,113 @@ program test16
                 deallocate(test_solver%P)
                 call test_solver%init(solver_settings, processing_settings, &
                 test_mesh, freestream_flow, control_point_file)
+                
+                ! deallocate stuff
+                deallocate(test_solver%I_known)
+                deallocate(test_solver%BC)
+                deallocate(test_solver%b)
 
-                ! Check for errors
-                if (test_solver_stat /= 0) return
+                ! Allocate known influence storage
+                allocate(test_solver%I_known(test_mesh%N_cp), source=0., stat=stat)
+                call check_allocation(stat, "known influence vector")
+                ! ! Allocate known influence storage
 
-                deallocate(test_mesh%V_cells_inner, test_mesh%V_cells)
+                ! Allocate b vector
+                allocate(test_solver%b(test_mesh%N_cp), source=0., stat=stat)
+                call check_allocation(stat, "b vector")
 
-                ! Calculate velocities
-                call test_solver%calc_cell_velocities(test_mesh)
+                ! assemble BC vector
+                call test_solver%assemble_BC_vector(test_mesh)
+
+                ! Set b vector
+                test_solver%b = test_solver%BC - test_solver%I_known
                                 
                 !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
                 
                 ! get the needed info
-                V_cells_dn(:, j + (i-1)*N_verts) = test_mesh%V_cells(:,z)
+                b_dn(j + (i-1)*N_verts) = test_solver%b(z)
 
+                
                 ! restore geometry
                 test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
-            
             end do 
         end do 
-
         
         ! central difference 
-        d_V_cells_FD = (V_cells_up - V_cells_dn)/(2.*step)
-     
-        do i=1,N_verts*3
-            residuals3(:,i) = adjoint_mesh%d_V_cells_wrt_vars(z)%get_values(i) - d_V_cells_FD(:,i)
+        d_b_FD = (b_up - b_dn)/(2.*step)
+                
+        write(*,*) ""
+        
+        ! calculate residuals3
+        do i =1, N_verts*3
+            residuals(i) = adjoint_solver%d_b_vector(z)%get_value(i) - d_b_FD(i)
         end do
 
-        if (maxval(abs(residuals3(:,:)))>error_allowed) then
+
+        
+        if (maxval(abs(residuals))>error_allowed) then
             write(*,*) ""
             write(*,*) "     FLAGGED VALUES :"
+            write(*,'(A,I5,A)') "        d_b ",z,"   FD             adjoint d_b             residual"
             do i = 1, N_verts*3
-                if (any(abs(residuals3(:,i))>error_allowed)) then
-                    write(*,*) ""
-                    write(*,'(A,I5,A)') "                                       d_V_cells_wrt_vars &
-                     ",z,"                                             residuals"
-                    write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_V_cells_FD(:,i)
-                
-                    write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",   &
-                    adjoint_mesh%d_V_cells_wrt_vars(z)%get_values(i), residuals3(:,i)
+                if (abs(residuals(i))>error_allowed) then
+                    write(*, '(8x,(f25.10, 4x),3x, (f25.10, 4x),3x, (f25.10, 4x))') &
+                    d_b_FD(i), adjoint_solver%d_b_vector(z)%get_value(i), residuals(i)
                 end if
             end do
         end if
-
         
         
         ! check if test failed
         do i=1,N_verts*3
-            if (any(abs(residuals3(:,i)) > error_allowed)) then 
-                do j = 1,3
-                    if (abs(d_V_cells_FD(j,i))>1000.0) then
-                        if (abs(residuals3(j,i)) > error_allowed*10000.0) then
-                            test_failed = .true.
-                            exit
-                        else
-                            test_failed = .false.
-                        end if
-                    elseif (1000.0>abs(d_V_cells_FD(j,i)) .and. abs(d_V_cells_FD(j,i))>100.0) then
-                        if (abs(residuals3(j,i)) > error_allowed*1000.0) then
-                            test_failed = .true.
-                            exit
-                        else
-                            test_failed = .false.
-                        end if
-                    elseif (100.0>abs(d_V_cells_FD(j,i)) .and. abs(d_V_cells_FD(j,i))>10.0) then
-                        if (abs(residuals3(j,i)) > error_allowed*100.0) then
-                            test_failed = .true.
-                            exit
-                        else
-                            test_failed = .false.
-                        end if
-                    elseif (10.0>abs(d_V_cells_FD(j,i)) .and. abs(d_V_cells_FD(j,i))>1.0) then
-                        if (abs(residuals3(j,i)) > error_allowed*10.0) then
-                            test_failed = .true.
-                            exit
-                        else
-                            test_failed = .false.
-                        end if
+            if (any(abs(residuals) > error_allowed)) then 
+                if (abs(d_b_FD(i))>1000.0) then
+                    if (abs(residuals(i)) > error_allowed*10000.0) then
+                        test_failed = .true.
+                        exit
                     else
-                        if (abs(residuals3(j,i)) > error_allowed) then
-                            test_failed = .true.
-                            exit
-                        else
-                            test_failed = .false.
-                        end if
+                        test_failed = .false.
                     end if
-                end do
+                elseif (1000.0>abs(d_b_FD(i)) .and. abs(d_b_FD(i))>100.0) then
+                    if (abs(residuals(i)) > error_allowed*1000.0) then
+                        test_failed = .true.
+                        exit
+                    else
+                        test_failed = .false.
+                    end if
+                elseif (100.0>abs(d_b_FD(i)) .and. abs(d_b_FD(i))>10.0) then
+                    if (abs(residuals(i)) > error_allowed*100.0) then
+                        test_failed = .true.
+                        exit
+                    else
+                        test_failed = .false.
+                    end if
+                elseif (10.0>abs(d_b_FD(i)) .and. abs(d_b_FD(i))>1.0) then
+                    if (abs(residuals(i)) > error_allowed*10.0) then
+                        test_failed = .true.
+                        exit
+                    else
+                        test_failed = .false.
+                    end if
+                else
+                    if (abs(residuals(i)) > error_allowed) then
+                        test_failed = .true.
+                        exit
+                    else
+                        test_failed = .false.
+                    end if
+                end if
             end if
+            
+        
         end do
         if (test_failed) then
             total_tests = total_tests + 1
-            write(*,'(A,I5,A)')"                                               &
-            d_V_cells_wrt_vars  ",z," test FAILED"
-            failure_log(total_tests-passed_tests) = "d_V_cells_wrt_vars test FAILED"
+            write(*,'(A,I5,A)')"                                     &
+                                        d_b ",z," test FAILED"
+            failure_log(total_tests-passed_tests) = "d_b test FAILED"
         else
-            ! write(*,*) "        d_V_cells_wrt_vars test PASSED"
+            ! write(*,*) "        d_b test PASSED"
             ! write(*,*) "" 
             ! write(*,*) ""
             passed_tests = passed_tests + 1
@@ -455,15 +462,15 @@ program test16
         end if
         test_failed = .false.
 
-        
 
     ! z loop
     end do
 
 
+
     !!!!!!!!!!!!!!  RESULTS!!!!!!!!!!!!!
     write(*,*) "------------------------------------------------------------------------------"
-    write(*,*) "                          d_V_cells_wrt_vars TEST RESULTS "
+    write(*,*) "                   Supersonic d_b VECTOR TEST RESULTS "
     write(*,*) "------------------------------------------------------------------------------"
     write(*,*) ""
     write(*,'((A), ES10.1)') "allowed residual = ", error_allowed
@@ -485,10 +492,10 @@ program test16
     write(*,*) ""
     call system_clock(end_count)
     time = real(end_count - start_count)/(count_rate*60.0)
-    write(*,'(A,f16.10, A)') " Total test time = ", time, " minutes"
+    write(*,'(A,f16.4, A)') " Total test time = ", time, " minutes"
     write(*,*) ""
     write(*,*) "----------------------"
     write(*,*) "Program Complete"
     write(*,*) "----------------------"
 
-end program test16
+end program super12

@@ -1,4 +1,4 @@
-program super8
+program super10
     ! tests various intermediate sensitivities 
     use adjoint_mod
     use base_geom_mod
@@ -47,7 +47,11 @@ program super8
 
     !!!!!!!!!!!!!!!!!!!!!! TESTING STUFF  !!!!!!!!!!!!!!!!!!!!!!!!!!
     real,dimension(:),allocatable :: residuals
-    real,dimension(:,:),allocatable ::  residuals3 , F111_up, F111_dn, d_F111_FD
+    real,dimension(:,:),allocatable ::  residuals3, v_d_M1_up, v_d_M1_dn, d_v_d_M1_FD,&
+    v_d_M2_up, v_d_M2_dn, d_v_d_M2_FD, v_d_M3_up, v_d_M3_dn, d_v_d_M3_FD
+
+    type(sparse_vector),dimension(3,3) :: d_v_d_M_adjoint
+    real,dimension(:,:), allocatable :: v_s, v_d
 
     integer :: i,j,k,m,n,y,z, N_verts, N_panels, vert, index, cp_ind
     real :: step,error_allowed, cp_offset
@@ -130,8 +134,8 @@ program super8
     test_geom = test_mesh%panels(index)%calc_subsonic_geom(test_mesh%cp(cp_ind)%loc,freestream_flow,.false.)
     test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, .false.)
     test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,.false., test_dod_info)
+    v_d = test_mesh%panels(index)%assemble_v_d_M_space(test_int, test_geom, freestream_flow, .false.)
     !!!!!!!!!!!!!!!!!!!!! END TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
 
 
     call system_clock(start_count, count_rate)
@@ -201,13 +205,20 @@ program super8
     allocate(residuals3(3,N_verts*3))
     allocate(residuals(N_verts*3))
 
-    allocate(F111_up(3,N_verts*3))
-    allocate(F111_dn(3,N_verts*3))
-    allocate(d_F111_FD(3,N_verts*3))
+    allocate(v_d_M1_up(3,N_verts*3))
+    allocate(v_d_M1_dn(3,N_verts*3))
+    allocate(d_v_d_M1_FD(3,N_verts*3))
+    allocate(v_d_M2_up(3,N_verts*3))
+    allocate(v_d_M2_dn(3,N_verts*3))
+    allocate(d_v_d_M2_FD(3,N_verts*3))
+    allocate(v_d_M3_up(3,N_verts*3))
+    allocate(v_d_M3_dn(3,N_verts*3))
+    allocate(d_v_d_M3_FD(3,N_verts*3))
+
 
     mirror_panel = .false.
 
-    error_allowed = 1.0e-6
+    error_allowed = 1.0e-7
     step = 0.000001
     index = 1
     cp_ind = 1
@@ -215,7 +226,7 @@ program super8
 
     write(*,*) ""
     write(*,*) "------------------------------------------------------------------------"
-    write(*,*) "               SUPERSONIC F Integrals SENSITIVITIES TEST                    "
+    write(*,*) "                     Supersonic d_v_d_M TEST                    "
     write(*,*) "------------------------------------------------------------------------"
     write(*,*) ""
     write(*,*) ""
@@ -229,14 +240,11 @@ program super8
         do z = 1,N_verts
             cp_ind = z
             
-            ! write(*,'(A,I5,A,I5)') "F integral test Panel ",y," cp ",z
-
-
             test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, mirror_panel)
             if (test_dod_info%in_dod .and. test_mesh%panels(index)%A > 0.) then
 
                 ! panel is in domain of dependence of point    
-                write(*,'(A,I5,A,I5)') "Supersonic Subinc F integrals test: Panel ",y," cp ",z
+                write(*,'(A,I5,A,I5)') "Supersonic d_v_d_m space test Panel ",y," cp ",z
 
                 ! Calculate geometric parameters
                 if (freestream_flow%supersonic) then
@@ -249,7 +257,7 @@ program super8
                         ! supersonic subinclined
                         adjoint_geom = adjoint_mesh%panels(index)%calc_supersonic_subinc_geom_adjoint(&
                                                     adjoint_mesh%cp(cp_ind)%loc,adjoint_mesh%cp(cp_ind)%d_loc,&
-                                                     adjoint_freestream_flow, mirror_panel, test_dod_info)
+                                                    adjoint_freestream_flow, mirror_panel, test_dod_info)
                     end if
                 else
                     !geom = this%calc_subsonic_geom(P, freestream, mirror_panel)
@@ -264,20 +272,21 @@ program super8
                 ! ! integral adjoint
                 call adjoint_mesh%panels(index)%calc_integrals_adjoint(&
                             adjoint_geom, adjoint_int, adjoint_freestream_flow, mirror_panel, test_dod_info)
+            
+
+                
                 do i=1,3
                     do j=1,N_verts
-
+        
                         ! perturb up the current design variable
                         test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
-
+                        ! write(*,*) " perturb up"
                         !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
-
-                        ! update panel geometry and calc
                         do m =1,N_panels
                             deallocate(test_mesh%panels(m)%n_hat_g)
                             call test_mesh%panels(m)%calc_derived_geom()
                         end do
-
+                        
                         ! update vertex normal
                         call test_mesh%calc_vertex_geometry()
                         
@@ -287,7 +296,13 @@ program super8
                         deallocate(test_mesh%panels(index)%b)
                         deallocate(test_mesh%panels(index)%b_mir)  
                         deallocate(test_mesh%panels(index)%sqrt_b)
+                        deallocate(test_mesh%panels(index)%i_vert_d)
+                        deallocate(test_mesh%panels(index)%S_mu_inv)
+                        deallocate(test_mesh%panels(index)%T_mu)
+                        ! deallocate(test_mesh%panels(index)%i_panel_s)
                         call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
+                        call test_mesh%panels(index)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
+                            test_mesh%vertices,.false.)
                         
                         ! recalculates cp locations
                         deallocate(test_solver%sigma_known)
@@ -295,25 +310,26 @@ program super8
                         deallocate(test_solver%P)
                         call test_solver%init(solver_settings, processing_settings, &
                         test_mesh, freestream_flow, control_point_file)
-
-                        ! update F111 cp1 and panel1 
+                        
+                        ! update v_d and doublet inf
+                        ! call test_mesh%panels(index)%calc_velocity_influences(test_mesh%cp(cp_ind)%loc, freestream_flow,.false.,v_s, v_d)
                         deallocate(test_int%F111)
-                        deallocate(test_int%F121)
-                        deallocate(test_int%F211)
-                        test_geom = test_mesh%panels(index)%calc_supersonic_subinc_geom(&
-                                                test_mesh%cp(cp_ind)%loc,freestream_flow,mirror_panel,test_dod_info)
-                        test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,&
-                                                .false., test_dod_info)
+                        test_geom = test_mesh%panels(index)%calc_supersonic_subinc_geom(test_mesh%cp(cp_ind)%loc,freestream_flow,mirror_panel)
+                        test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,mirror_panel, test_dod_info)
+                        v_d = test_mesh%panels(index)%assemble_v_d_M_space(test_int, test_geom, freestream_flow, mirror_panel)
                         !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
                         
-                        ! get desired info
-                        F111_up(:,j + (i-1)*N_verts) = test_int%F111(:)
-
+                        ! get the needed info
+                        v_d_M1_up(:, j + (i-1)*N_verts) = v_d(1,:)
+                        v_d_M2_up(:, j + (i-1)*N_verts) = v_d(2,:)
+                        v_d_M3_up(:, j + (i-1)*N_verts) = v_d(3,:)
+                        
+                        
                         ! perturb down the current design variable
                         test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - 2.*step
-
+                        
                         !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
-                        ! update panel geometry and calc
+                        
                         do m =1,N_panels
                             deallocate(test_mesh%panels(m)%n_hat_g)
                             call test_mesh%panels(m)%calc_derived_geom()
@@ -321,101 +337,111 @@ program super8
                         
                         ! update vertex normal
                         call test_mesh%calc_vertex_geometry()
-
+                        
                         ! update with flow
                         deallocate(test_mesh%panels(index)%vertices_ls)
                         deallocate(test_mesh%panels(index)%n_hat_ls)
                         deallocate(test_mesh%panels(index)%b)
                         deallocate(test_mesh%panels(index)%b_mir)  
                         deallocate(test_mesh%panels(index)%sqrt_b)
+                        deallocate(test_mesh%panels(index)%i_vert_d)
+                        deallocate(test_mesh%panels(index)%S_mu_inv)
+                        deallocate(test_mesh%panels(index)%T_mu)
+                        ! deallocate(test_mesh%panels(index)%i_panel_s)
                         call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
-
+                        call test_mesh%panels(index)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
+                            test_mesh%vertices,.false.)
+                        
                         ! recalculates cp locations
                         deallocate(test_solver%sigma_known)
                         deallocate(test_mesh%cp)
                         deallocate(test_solver%P)
                         call test_solver%init(solver_settings, processing_settings, &
                         test_mesh, freestream_flow, control_point_file)
-
-
-                        ! update F111 cp1 and panel1 
+                        
+                        ! update v_d and doublet inf
+                        ! call test_mesh%panels(index)%calc_velocity_influences(test_mesh%cp(cp_ind)%loc, freestream_flow,.false.,v_s, v_d)
                         deallocate(test_int%F111)
-                        deallocate(test_int%F121)
-                        deallocate(test_int%F211)
-                        test_geom = test_mesh%panels(index)%calc_supersonic_subinc_geom(&
-                                                test_mesh%cp(cp_ind)%loc,freestream_flow,mirror_panel,test_dod_info)
-                        test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,&
-                                                .false., test_dod_info)
+                        test_geom = test_mesh%panels(index)%calc_supersonic_subinc_geom(test_mesh%cp(cp_ind)%loc,freestream_flow,mirror_panel)
+                        test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,mirror_panel, test_dod_info)
+                        v_d = test_mesh%panels(index)%assemble_v_d_M_space(test_int, test_geom, freestream_flow, mirror_panel)
                         !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
-
-                        ! put the x y or z component of the vertex of interest (index) in a list
-                        F111_dn(:,j + (i-1)*N_verts) = test_int%F111(:)
+                        
+                        ! get the needed info
+                        v_d_M1_dn(:, j + (i-1)*N_verts) = v_d(1,:)
+                        v_d_M2_dn(:, j + (i-1)*N_verts) = v_d(2,:)
+                        v_d_M3_dn(:, j + (i-1)*N_verts) = v_d(3,:)
+        
                         
                         ! restore geometry
                         test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
+        
                     end do 
                 end do 
                 
                 ! central difference 
-                d_F111_FD = (F111_up - F111_dn)/(2.*step)
+                d_v_d_M1_FD(:,:) = (v_d_M1_up(:,:) - v_d_M1_dn(:,:))/(2.*step)
+                d_v_d_M2_FD(:,:) = (v_d_M2_up(:,:) - v_d_M2_dn(:,:))/(2.*step)
+                d_v_d_M3_FD(:,:) = (v_d_M3_up(:,:) - v_d_M3_dn(:,:))/(2.*step)
                 
-            
-                !!!!!!!!!!!!!!!!!!!!!!!!!!!!!  d_F111 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            
-
+                
+                
+             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! ROW 1 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        
                 ! calculate residuals3
                 do i =1, N_verts*3
-                    residuals3(:,i) = (/adjoint_int%d_F111(1)%get_value(i),&
-                                        adjoint_int%d_F111(2)%get_value(i),&
-                                        adjoint_int%d_F111(3)%get_value(i)/) - d_F111_FD(:,i)
+                    residuals3(:,i) = (/d_v_d_M_adjoint(1,1)%get_value(i),&
+                                        d_v_d_M_adjoint(1,2)%get_value(i),&
+                                        d_v_d_M_adjoint(1,3)%get_value(i)/)- d_v_d_M1_FD(:,i)
                 end do
 
+                
                 if (maxval(abs(residuals3(:,:)))>error_allowed) then
                     write(*,*) ""
                     write(*,*) "     FLAGGED VALUES :"
                     do i = 1, N_verts*3
                         if (any(abs(residuals3(:,i))>error_allowed)) then
                             write(*,*) ""
-                            write(*,*) "                  ------------d_F111 edges---------------     "
-                            write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_F111_FD(:,i)
+                            write(*,*) "                                       d_v_d_M row 1 "
+                            write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_v_d_M1_FD(:,i)
                         
-                            write(*, '(A25,8x,3(f25.10, 4x))') "          adjoint",   &
-                            adjoint_int%d_F111(1)%get_value(i),&
-                            adjoint_int%d_F111(2)%get_value(i),&
-                            adjoint_int%d_F111(3)%get_value(i)
-                            write(*, '(A25,8x,3(f25.10, 4x))') "             residuals", residuals3(:,i)
+                            write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",   &
+                                        d_v_d_M_adjoint(1,1)%get_value(i),&
+                                        d_v_d_M_adjoint(1,2)%get_value(i),&
+                                        d_v_d_M_adjoint(1,3)%get_value(i)
+                            write(*, '(A25,8x,3(f25.10, 4x))') "            residuals",residuals3(:,i)
                         end if
                     end do
                 end if
-        
+
                 
                 
                 ! check if test failed
                 do i=1,N_verts*3
                     if (any(abs(residuals3(:,i)) > error_allowed)) then 
                         do j = 1,3
-                            if (abs(d_F111_FD(j,i))>1000.0) then
+                            if (abs(d_v_d_M1_FD(j,i))>1000.0) then
                                 if (abs(residuals3(j,i)) > error_allowed*10000.0) then
                                     test_failed = .true.
                                     exit
                                 else
                                     test_failed = .false.
                                 end if
-                            elseif (1000.0>abs(d_F111_FD(j,i)) .and. abs(d_F111_FD(j,i))>100.0) then
+                            elseif (1000.0>abs(d_v_d_M1_FD(j,i)) .and. abs(d_v_d_M1_FD(j,i))>100.0) then
                                 if (abs(residuals3(j,i)) > error_allowed*1000.0) then
                                     test_failed = .true.
                                     exit
                                 else
                                     test_failed = .false.
                                 end if
-                            elseif (100.0>abs(d_F111_FD(j,i)) .and. abs(d_F111_FD(j,i))>10.0) then
+                            elseif (100.0>abs(d_v_d_M1_FD(j,i)) .and. abs(d_v_d_M1_FD(j,i))>10.0) then
                                 if (abs(residuals3(j,i)) > error_allowed*100.0) then
                                     test_failed = .true.
                                     exit
                                 else
                                     test_failed = .false.
                                 end if
-                            elseif (10.0>abs(d_F111_FD(j,i)) .and. abs(d_F111_FD(j,i))>1.0) then
+                            elseif (10.0>abs(d_v_d_M1_FD(j,i)) .and. abs(d_v_d_M1_FD(j,i))>1.0) then
                                 if (abs(residuals3(j,i)) > error_allowed*10.0) then
                                     test_failed = .true.
                                     exit
@@ -436,10 +462,10 @@ program super8
                 if (test_failed) then
                     total_tests = total_tests + 1
                     write(*,'(A,I5,A,I5,A)')"                                               &
-                                    d_F111 edges panel ",y," cp ",z," test FAILED"
-                    failure_log(total_tests-passed_tests) = "d_F111 test FAILED"
+                    d_v_d_M panel ",y," cp ",z," row 1 test FAILED"
+                    failure_log(total_tests-passed_tests) = "d_v_d_M row 1 test FAILED"
                 else
-                    ! write(*,*) "        CALC d_F111 test PASSED"
+                    ! write(*,*) "        d_v_d_M row 1 test PASSED"
                     ! write(*,*) "" 
                     ! write(*,*) ""
                     passed_tests = passed_tests + 1
@@ -448,10 +474,190 @@ program super8
                 end if
                 test_failed = .false.
 
-                   
+
+
+             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! ROW 2 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+                ! calculate residuals3
+                do i =1, N_verts*3
+                    residuals3(:,i) = (/d_v_d_M_adjoint(2,1)%get_value(i),&
+                                        d_v_d_M_adjoint(2,2)%get_value(i),&
+                                        d_v_d_M_adjoint(2,3)%get_value(i)/)- d_v_d_M2_FD(:,i)
+                end do
+
+                
+                if (maxval(abs(residuals3(:,:)))>error_allowed) then
+                    write(*,*) ""
+                    write(*,*) "     FLAGGED VALUES :"
+                    do i = 1, N_verts*3
+                        if (any(abs(residuals3(:,i))>error_allowed)) then
+                            write(*,*) ""
+                            write(*,*) "                                       d_v_d_M row 2 "
+                            write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_v_d_M2_FD(:,i)
+                        
+                            write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",   &
+                                        d_v_d_M_adjoint(2,1)%get_value(i),&
+                                        d_v_d_M_adjoint(2,2)%get_value(i),&
+                                        d_v_d_M_adjoint(2,3)%get_value(i)
+                            write(*, '(A25,8x,3(f25.10, 4x))') "            residuals",residuals3(:,i)
+                        end if
+                    end do
+                end if
+
+                
+                
+                ! check if test failed
+                do i=1,N_verts*3
+                    if (any(abs(residuals3(:,i)) > error_allowed)) then 
+                        do j = 1,3
+                            if (abs(d_v_d_M2_FD(j,i))>1000.0) then
+                                if (abs(residuals3(j,i)) > error_allowed*10000.0) then
+                                    test_failed = .true.
+                                    exit
+                                else
+                                    test_failed = .false.
+                                end if
+                            elseif (1000.0>abs(d_v_d_M2_FD(j,i)) .and. abs(d_v_d_M2_FD(j,i))>100.0) then
+                                if (abs(residuals3(j,i)) > error_allowed*1000.0) then
+                                    test_failed = .true.
+                                    exit
+                                else
+                                    test_failed = .false.
+                                end if
+                            elseif (100.0>abs(d_v_d_M2_FD(j,i)) .and. abs(d_v_d_M2_FD(j,i))>10.0) then
+                                if (abs(residuals3(j,i)) > error_allowed*100.0) then
+                                    test_failed = .true.
+                                    exit
+                                else
+                                    test_failed = .false.
+                                end if
+                            elseif (10.0>abs(d_v_d_M2_FD(j,i)) .and. abs(d_v_d_M2_FD(j,i))>1.0) then
+                                if (abs(residuals3(j,i)) > error_allowed*10.0) then
+                                    test_failed = .true.
+                                    exit
+                                else
+                                    test_failed = .false.
+                                end if
+                            else
+                                if (abs(residuals3(j,i)) > error_allowed) then
+                                    test_failed = .true.
+                                    exit
+                                else
+                                    test_failed = .false.
+                                end if
+                            end if
+                        end do
+                    end if
+                end do
+                if (test_failed) then
+                    total_tests = total_tests + 1
+                    write(*,'(A,I5,A,I5,A)')"                                               &
+                    d_v_d_M panel ",y," cp ",z," row 2 test FAILED"
+                    failure_log(total_tests-passed_tests) = "d_v_d_M row 2 test FAILED"
+                else
+                    ! write(*,*) "        d_v_d_M row 2 test PASSED"
+                    ! write(*,*) "" 
+                    ! write(*,*) ""
+                    passed_tests = passed_tests + 1
+                    total_tests = total_tests + 1
+                    
+                end if
+                test_failed = .false.
+
+
+             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! ROW 3 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+                ! calculate residuals3
+                do i =1, N_verts*3
+                    residuals3(:,i) = (/d_v_d_M_adjoint(3,1)%get_value(i),&
+                                        d_v_d_M_adjoint(3,2)%get_value(i),&
+                                        d_v_d_M_adjoint(3,3)%get_value(i)/)- d_v_d_M3_FD(:,i)
+                end do
+
+                
+                if (maxval(abs(residuals3(:,:)))>error_allowed) then
+                    write(*,*) ""
+                    write(*,*) "     FLAGGED VALUES :"
+                    do i = 1, N_verts*3
+                        if (any(abs(residuals3(:,i))>error_allowed)) then
+                            write(*,*) ""
+                            write(*,*) "                                       d_v_d_M row 3  "
+                            write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_v_d_M3_FD(:,i)
+                        
+                            write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",   &
+                                        d_v_d_M_adjoint(3,1)%get_value(i),&
+                                        d_v_d_M_adjoint(3,2)%get_value(i),&
+                                        d_v_d_M_adjoint(3,3)%get_value(i)
+                            write(*, '(A25,8x,3(f25.10, 4x))') "            residuals",residuals3(:,i)
+                        end if
+                    end do
+                end if
+
+                
+                
+                ! check if test failed
+                do i=1,N_verts*3
+                    if (any(abs(residuals3(:,i)) > error_allowed)) then 
+                        do j = 1,3
+                            if (abs(d_v_d_M3_FD(j,i))>1000.0) then
+                                if (abs(residuals3(j,i)) > error_allowed*10000.0) then
+                                    test_failed = .true.
+                                    exit
+                                else
+                                    test_failed = .false.
+                                end if
+                            elseif (1000.0>abs(d_v_d_M3_FD(j,i)) .and. abs(d_v_d_M3_FD(j,i))>100.0) then
+                                if (abs(residuals3(j,i)) > error_allowed*1000.0) then
+                                    test_failed = .true.
+                                    exit
+                                else
+                                    test_failed = .false.
+                                end if
+                            elseif (100.0>abs(d_v_d_M3_FD(j,i)) .and. abs(d_v_d_M3_FD(j,i))>10.0) then
+                                if (abs(residuals3(j,i)) > error_allowed*100.0) then
+                                    test_failed = .true.
+                                    exit
+                                else
+                                    test_failed = .false.
+                                end if
+                            elseif (10.0>abs(d_v_d_M3_FD(j,i)) .and. abs(d_v_d_M3_FD(j,i))>1.0) then
+                                if (abs(residuals3(j,i)) > error_allowed*10.0) then
+                                    test_failed = .true.
+                                    exit
+                                else
+                                    test_failed = .false.
+                                end if
+                            else
+                                if (abs(residuals3(j,i)) > error_allowed) then
+                                    test_failed = .true.
+                                    exit
+                                else
+                                    test_failed = .false.
+                                end if
+                            end if
+                        end do
+                    end if
+                end do
+                if (test_failed) then
+                    total_tests = total_tests + 1
+                    write(*,'(A,I5,A,I5,A)')"                                               &
+                    d_v_d_M panel ",y," cp ",z," row 3 test FAILED"
+                    failure_log(total_tests-passed_tests) = "d_v_d_M row 3 test FAILED"
+                else
+                    ! write(*,*) "        d_v_d_M row 3 test PASSED"
+                    ! write(*,*) "" 
+                    ! write(*,*) ""
+                    passed_tests = passed_tests + 1
+                    total_tests = total_tests + 1
+                    
+                end if
+                test_failed = .false.
+
+
             else ! end check dod if statement    
                 write(*,'(A,I5,A,I5)') "Panel ",y," not in dod of cp ",z
             end if
+
 
         ! z loop
         end do
@@ -460,9 +666,9 @@ program super8
     end do
 
 
-    !!!!!!!!!!!!!! CALC_BASIC_F_INTEGRAL SENSITIVITIES RESULTS!!!!!!!!!!!!!
+    !!!!!!!!!!!!!!  RESULTS!!!!!!!!!!!!!
     write(*,*) "------------------------------------------------------------------------------"
-    write(*,*) "                    SUPERSONIC F INTEGRALS TEST RESULTS "
+    write(*,*) "                     Supersonic d_v_d_M TEST RESULTS "
     write(*,*) "------------------------------------------------------------------------------"
     write(*,*) ""
     write(*,'((A), ES10.1)') "allowed residual = ", error_allowed
@@ -490,4 +696,4 @@ program super8
     write(*,*) "Program Complete"
     write(*,*) "----------------------"
 
-end program super8
+end program super10

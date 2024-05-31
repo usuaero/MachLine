@@ -1,4 +1,4 @@
-program test17
+program super17
     ! tests various intermediate sensitivities 
     use adjoint_mod
     use base_geom_mod
@@ -327,8 +327,7 @@ program test17
             do i = 1, N_verts
                 if (any(abs(residuals3(:,i))>error_allowed)) then
                     write(*,*) ""
-                    write(*,'(A,I5,A)') "                                       d_V_cells_wrt_mu &
-                     ",z,"                                             residuals"
+                    write(*,'(A,I5,A)') "                  d_V_cells_wrt_mu "
                     write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_v_cells_wrt_mu_FD(:,i)
                 
                     write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",   &
@@ -405,7 +404,7 @@ program test17
 
     !!!!!!!!!!!!!!  RESULTS!!!!!!!!!!!!!
     write(*,*) "------------------------------------------------------------------------------"
-    write(*,*) "                          d_V_cells_wrt_mu TEST RESULTS "
+    write(*,*) "                    Supersonic d_V_cells_wrt_mu TEST RESULTS "
     write(*,*) "------------------------------------------------------------------------------"
     write(*,*) ""
     write(*,'((A), ES10.1)') "allowed residual = ", error_allowed
@@ -433,4 +432,4 @@ program test17
     write(*,*) "Program Complete"
     write(*,*) "----------------------"
 
-end program test17
+end program super17

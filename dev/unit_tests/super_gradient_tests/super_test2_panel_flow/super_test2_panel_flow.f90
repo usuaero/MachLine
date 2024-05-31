@@ -760,7 +760,7 @@ program panel_flow2
 
     !!!!!!!!!!!!!! PANEL GEOMETRY  RESULTS!!!!!!!!!!!!!
     write(*,*) "------------------------------------------------------------------------------"
-    write(*,*) "     FLOW DEPENDENT PANEL GEOMETRY TEST RESULTS "
+    write(*,*) "                 FLOW DEPENDENT PANEL GEOMETRY TEST RESULTS "
     write(*,*) "------------------------------------------------------------------------------"
     write(*,*) ""
     write(*,'((A), ES10.1)') "allowed residual = ", error_allowed

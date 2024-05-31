@@ -197,7 +197,7 @@ program control_point_sensitivities
 
     write(*,*) ""
     write(*,*) "------------------------------------------------------------------------"
-    write(*,*) "                   SUPERSONIC CONTROL POINT SENSITIVITIES TEST                    "
+    write(*,*) "               SUPERSONIC CONTROL POINT SENSITIVITIES TEST                    "
     write(*,*) "------------------------------------------------------------------------"
     write(*,*) ""
     write(*,*) ""
@@ -351,7 +351,7 @@ end do ! z control points
 
 !!!!!!!!!!!!!!   SENSITIVITIES RESULTS!!!!!!!!!!!!!
     write(*,*) "------------------------------------------------------------------------------"
-    write(*,*) "     SUPERSONIC CONTROL POINT SENSITIVITIES TEST RESULTS "
+    write(*,*) "            SUPERSONIC CONTROL POINT SENSITIVITIES TEST RESULTS "
     write(*,*) "------------------------------------------------------------------------------"
     write(*,*) ""
     write(*,'((A), ES10.1)') "allowed residual = ", error_allowed

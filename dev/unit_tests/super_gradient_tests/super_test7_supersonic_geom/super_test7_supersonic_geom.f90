@@ -227,7 +227,7 @@ program super_test_7
 
     write(*,*) ""
     write(*,*) "------------------------------------------------------------------------"
-    write(*,*) "              SUPERSONIC SUBINC GEOMETRY SENSITIVITIES TEST                    "
+    write(*,*) "               SUPERSONIC SUBINC GEOMETRY SENSITIVITIES TEST                    "
     write(*,*) "------------------------------------------------------------------------"
     write(*,*) ""
     write(*,*) ""
@@ -1020,7 +1020,7 @@ program super_test_7
 
 !!!!!!!!!!!!!! SENSITIVITIES RESULTS!!!!!!!!!!!!!
     write(*,*) "------------------------------------------------------------------------------"
-    write(*,*) "     SUPERSONIC SUBINC GEOM SENSITIVITIES TEST RESULTS "
+    write(*,*) "             SUPERSONIC SUBINC GEOM SENSITIVITIES TEST RESULTS "
     write(*,*) "------------------------------------------------------------------------------"
     write(*,*) ""
     write(*,'((A), ES10.1)') "allowed residual = ", error_allowed

@@ -1,0 +1,33 @@
+{
+    "flow": {
+        "freestream_velocity" : [ 100.0, 0.0, 10.0 ],
+        "freestream_mach_number" : 0.8
+    },
+    "geometry": {
+        "file"  : "dev/meshes/adjoint/KEVIN_fine.stl",
+        "singularity_order" : "lower",
+
+        "wake_model" : {
+            "wake_present" : true
+        },
+        "adjoint_sensitivities" : {
+            "calc_adjoint" : false
+        }
+    },
+    "solver": {
+        "formulation" : "dirichlet-source-free",
+        "sort_system" : false
+    },
+    "post_processing" : {
+        "pressure_rules": {
+            "incompressible": false,
+            "isentropic": true
+        }
+    },
+    "output": {
+        "verbose" : true,
+        "body_file" : "dev/results/adjoint/kevin.vtk",
+        "wake_file" : "dev/results/adjoint/kevin_wake.vtk"
+        }
+    
+}

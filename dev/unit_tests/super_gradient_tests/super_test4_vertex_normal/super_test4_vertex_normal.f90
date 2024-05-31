@@ -169,7 +169,7 @@ program vertex_normal_test2
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! VERTEX NORMAL SENSITIVITIES TEST !!!!!!!!!!!!!!!!!!!!!!!!!!!!
     write(*,*) ""
     write(*,*) "------------------------------------------------------------------------"
-    write(*,*) "                    SUPERSONIC VERTEX NORMAL SENSITIVITIES TEST                    "
+    write(*,*) "               SUPERSONIC VERTEX NORMAL SENSITIVITIES TEST                    "
     write(*,*) "------------------------------------------------------------------------"
     write(*,*) ""
     write(*,*) ""
@@ -310,7 +310,7 @@ program vertex_normal_test2
 
     !!!!!!!!!!!!!! Vertex normal  SENSITIVITIES RESULTS!!!!!!!!!!!!!
     write(*,*) "------------------------------------------------------------------------------"
-    write(*,*) "    SUPERSONICS VERTEX NORMAL SENSITIVITIES TEST RESULTS "
+    write(*,*) "            SUPERSONICS VERTEX NORMAL SENSITIVITIES TEST RESULTS "
     write(*,*) "------------------------------------------------------------------------------"
     write(*,*) ""
     write(*,'((A), ES10.1)') "allowed residual = ", error_allowed

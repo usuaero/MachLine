@@ -208,7 +208,7 @@ program calc_cp_d_n_g_test
 
     write(*,*) ""
     write(*,*) "------------------------------------------------------------------------"
-    write(*,*) "                    SUPERSONIC CP NORMAL SENSITIVITIES TEST                    "
+    write(*,*) "                 SUPERSONIC CP NORMAL SENSITIVITIES TEST                    "
     write(*,*) "------------------------------------------------------------------------"
     write(*,*) ""
     write(*,*) ""

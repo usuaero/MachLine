@@ -154,7 +154,7 @@ program panel_geom2
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! PANEL GEOMETRY TEST !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     write(*,*) ""
     write(*,*) "--------------------------------------------------------------------------"
-    write(*,*) "                        PANEL GEOMETRY TEST "
+    write(*,*) "                           PANEL GEOMETRY TEST "
     write(*,*) "--------------------------------------------------------------------------"
     write(*,*) ""
     write(*,*) ""
@@ -758,7 +758,7 @@ program panel_geom2
 
     !!!!!!!!!!!!!! PANEL GEOMETRY  RESULTS!!!!!!!!!!!!!
         write(*,*) "------------------------------------------------------------------------------"
-        write(*,*) "     PANEL GEOMETRY TEST RESULTS "
+        write(*,*) "                    Supersonic PANEL GEOMETRY TEST RESULTS "
         write(*,*) "------------------------------------------------------------------------------"
         write(*,*) ""
         write(*,'((A), ES10.1)') "allowed residual = ", error_allowed

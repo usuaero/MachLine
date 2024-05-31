@@ -230,7 +230,7 @@ program calc_basic_geom2
     write(*,*) ""
     write(*,*) ""
     write(*,*) "-----------------------------------------------------------------------------------"
-    write(*,*) "                SUPERSONIC CALC BASIC GEOM (CONTROL POINTS) SENSITIVITIES TEST "
+    write(*,*) "           SUPERSONIC CALC BASIC GEOM (CONTROL POINTS) SENSITIVITIES TEST "
     write(*,*) "-----------------------------------------------------------------------------------"
     write(*,*) ""
     write(*,*) ""
@@ -1082,7 +1082,7 @@ program calc_basic_geom2
 
     !!!!!!!!!!!!!! CALC_BASIC_GEOM (CONTROL POINTS) SENSITIVITIES RESULTS!!!!!!!!!!!!!
     write(*,*) "------------------------------------------------------------------------------"
-    write(*,*) "     SUPERSONIC CALC_BASIC_GEOM (CONTROL POINTS) SENSITIVITIES TEST RESULTS "
+    write(*,*) "   SUPERSONIC CALC_BASIC_GEOM (CONTROL POINTS) SENSITIVITIES TEST RESULTS "
     write(*,*) "------------------------------------------------------------------------------"
     write(*,*) ""
     write(*,'((A), ES10.1)') "allowed residual = ", error_allowed
