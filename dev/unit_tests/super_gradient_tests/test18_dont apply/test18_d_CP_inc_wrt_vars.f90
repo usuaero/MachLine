@@ -1,4 +1,4 @@
-program test22
+program test18
     ! tests various intermediate sensitivities 
     use adjoint_mod
     use base_geom_mod
@@ -40,14 +40,21 @@ program test22
     type(dod) :: test_dod_info, adjoint_dod_info
     type(integrals) :: test_int, adjoint_int
     type(sparse_matrix),dimension(3) :: d_v_d
-    integer :: i_unit, stat
+    integer :: i_unit
     logical :: exists, found
+    integer :: adjoint_solver_stat, test_solver_stat, stat
+    type(sparse_vector) :: zeros
+
+    real,dimension(3) :: adjoint_P, test_P, test_v_d, test_v_s
+    type(sparse_matrix) :: adjoint_d_P_term2
+    type(sparse_matrix) :: adjoint_d_P
+    type(sparse_matrix) :: adjoint_d_v_d_panel
 
     !!!!!!!!!!!!!!!!!!!!! END STUFF FROM MAIN !!!!!!!!!!!!!!!!!!!!!!!!!
 
     !!!!!!!!!!!!!!!!!!!!!! TESTING STUFF  !!!!!!!!!!!!!!!!!!!!!!!!!!
-    real,dimension(:),allocatable :: residuals
-    real,dimension(:,:),allocatable ::  residuals3, cells_CF_up, cells_CF_dn, d_cells_CF_FD
+    real,dimension(:),allocatable :: residuals, C_P_inc_up, C_P_inc_dn, d_C_P_inc_FD
+    real,dimension(:,:),allocatable ::  residuals3
 
     integer :: i,j,k,m,n,y,z,N_verts, N_panels, vert, index, cp_ind
     real :: step,error_allowed, cp_offset
@@ -61,14 +68,6 @@ program test22
     character(len=10) :: m_char
     integer(8) :: start_count, end_count
     real(16) :: count_rate, time
-
-    integer :: adjoint_solver_stat, test_solver_stat
-    type(sparse_vector) :: zeros
-
-    real,dimension(3) :: adjoint_P, test_P, test_v_d, test_v_s
-    type(sparse_matrix) :: adjoint_d_P_term2
-    type(sparse_matrix) :: adjoint_d_P
-    type(sparse_matrix) :: adjoint_d_v_d_panel
     
     !!!!!!!!!!!!!!!!!!! END TESTING STUFF !!!!!!!!!!!!!!!!!!!!!11
     
@@ -85,7 +84,7 @@ program test22
     ! Set up run
     call json_initialize()
 
-    test_input = "dev\input_files\adjoint_inputs\test.json"
+    test_input = "dev\input_files\adjoint_inputs\supersonic_test.json"
     test_input = trim(test_input)
 
     ! Check it exists
@@ -139,6 +138,8 @@ program test22
 
     ! Allocate known influence storage
     allocate(test_solver%I_known(test_mesh%N_cp), source=0., stat=stat)
+    write(*,*) "N_cp = ",test_mesh%N_cp
+    write(*,*) "stat = ",stat
     call check_allocation(stat, "known influence vector")
 
     ! Allocate AIC matrix
@@ -166,10 +167,8 @@ program test22
     ! Calculate velocities
     call test_solver%calc_cell_velocities(test_mesh)
 
-    ! Calculate velocities
+    ! Calculate pressures
     call test_solver%calc_pressures(test_mesh)
-
-    call test_solver%calc_forces(test_mesh)
     
     
     !!!!!!!!!!!!!!!!!!!!! END TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -181,7 +180,7 @@ program test22
     ! Set up run
     call json_initialize()
     
-    adjoint_input = "dev\input_files\adjoint_inputs\adjoint_test.json"
+    adjoint_input = "dev\input_files\adjoint_inputs\supersonic_adjoint_test.json"
     adjoint_input = trim(adjoint_input)
 
     ! Check it exists
@@ -227,7 +226,7 @@ program test22
     ! Initialize panel solver
     call adjoint_solver%init(adjoint_solver_settings, adjoint_processing_settings, adjoint_mesh, &
     adjoint_freestream_flow, adjoint_control_point_file)
-    write(*,*) "check for size mismatch"
+    
     ! solve
     call adjoint_solver%solve(adjoint_mesh, adjoint_solver_stat, adjoint_formulation,adjoint_freestream_flow)
     
@@ -244,13 +243,13 @@ program test22
     allocate(residuals(N_verts*3))
 
     ! allocate data holders
-    allocate(cells_CF_up(3,N_verts*3))
-    allocate(cells_CF_dn(3,N_verts*3))
-    allocate(d_cells_CF_FD(3,N_verts*3))
+    allocate(C_P_inc_up(N_verts*3))
+    allocate(C_P_inc_dn(N_verts*3))
+    allocate(d_C_P_inc_FD(N_verts*3))
 
     
 
-    error_allowed = 1.0e-9
+    error_allowed = 1.0e-1
     step = 0.000001
     index = 1
     cp_ind = 1
@@ -258,7 +257,7 @@ program test22
 
     write(*,*) ""
     write(*,*) "------------------------------------------------------------------------"
-    write(*,*) "                           d_cells_CF_wrt_vars TEST                    "
+    write(*,*) "                           d_CP_inc_wrt_vars TEST                    "
     write(*,*) "------------------------------------------------------------------------"
     write(*,*) ""
     write(*,*) ""
@@ -270,7 +269,7 @@ program test22
 
         write(*,*) ""
         write(*,*) "--------------------------------------------------------------------------------------"
-        write(*,'(A,I5)') "                           d_cells_CF_wrt_vars test ",z
+        write(*,'(A,I5)') "                           d_CP_inc_wrt_vars test ",z
         write(*,*) "--------------------------------------------------------------------------------------"
         write(*,*) ""
         
@@ -327,15 +326,11 @@ program test22
 
                 ! Calculate velocities
                 call test_solver%calc_pressures(test_mesh)
-
-                deallocate(test_mesh%dC_f)
-
-                call test_solver%calc_forces(test_mesh)
                                 
                 !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
                 
                 ! get the needed info
-                cells_CF_up(:,j + (i-1)*N_verts) = test_mesh%dC_F(:,z)
+                C_P_inc_up(j + (i-1)*N_verts) = test_mesh%C_P_inc(z)
                 
                 
                 ! perturb down the current design variable
@@ -387,15 +382,11 @@ program test22
 
                 ! Calculate velocities
                 call test_solver%calc_pressures(test_mesh)
-
-                deallocate(test_mesh%dC_f)
-
-                call test_solver%calc_forces(test_mesh)
                                 
                 !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
                 
                 ! get the needed info
-                cells_CF_dn(:, j + (i-1)*N_verts) = test_mesh%dC_F(:,z)
+                C_P_inc_dn(j + (i-1)*N_verts) = test_mesh%C_P_inc(z)
 
                 ! restore geometry
                 test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
@@ -403,84 +394,80 @@ program test22
             end do 
         end do 
 
-            
-            ! central difference 
-        d_cells_CF_FD = (cells_CF_up - cells_CF_dn)/(2.*step)
+        
+        ! central difference 
+        d_C_P_inc_FD = (C_P_inc_up - C_P_inc_dn)/(2.*step)
                 
         
+        
         do i=1,N_verts*3
-            residuals3(:,i) = adjoint_mesh%d_cell_forces_wrt_vars(z)%get_values(i) - d_cells_CF_FD(:,i)
+            residuals(i) = adjoint_mesh%d_C_P_inc_wrt_vars(z)%get_value(i) - d_C_P_inc_FD(i)
         end do
-            
-
-        if (maxval(abs(residuals3(:,:)))>error_allowed) then
+     
+        if (maxval(abs(residuals))>error_allowed) then
             write(*,*) ""
             write(*,*) "     FLAGGED VALUES :"
+            write(*,'(A,I5,A)') "        d_C_P_inc_wrt_vars ",z,"   FD            &
+            d_C_P_inc_wrt_vars adjoint        residuals             residual"
             do i = 1, N_verts*3
-                if (any(abs(residuals3(:,i))>error_allowed)) then
-                    write(*,*) ""
-                    write(*,'(A,I5,A)') "                                       d_cells_CF_wrt_vars &
-                     ",z,"                                             residuals"
-                    write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_cells_CF_FD(:,i)
-                
-                    write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",   &
-                    adjoint_mesh%d_cell_forces_wrt_vars(z)%get_values(i), residuals3(:,i)
+                if (abs(residuals(i))>error_allowed) then
+                    write(*, '(8x,(f25.10, 4x),3x, (f25.10, 4x),3x, (f25.10, 4x))') &
+                    d_C_P_inc_FD(i), adjoint_mesh%d_C_P_inc_wrt_vars(z)%get_value(i), residuals(i)
                 end if
             end do
         end if
-
         
         
         ! check if test failed
         do i=1,N_verts*3
-            if (any(abs(residuals3(:,i)) > error_allowed)) then 
-                do j = 1,3
-                    if (abs(d_cells_CF_FD(j,i))>1000.0) then
-                        if (abs(residuals3(j,i)) > error_allowed*10000.0) then
-                            test_failed = .true.
-                            exit
-                        else
-                            test_failed = .false.
-                        end if
-                    elseif (1000.0>abs(d_cells_CF_FD(j,i)) .and. abs(d_cells_CF_FD(j,i))>100.0) then
-                        if (abs(residuals3(j,i)) > error_allowed*1000.0) then
-                            test_failed = .true.
-                            exit
-                        else
-                            test_failed = .false.
-                        end if
-                    elseif (100.0>abs(d_cells_CF_FD(j,i)) .and. abs(d_cells_CF_FD(j,i))>10.0) then
-                        if (abs(residuals3(j,i)) > error_allowed*100.0) then
-                            test_failed = .true.
-                            exit
-                        else
-                            test_failed = .false.
-                        end if
-                    elseif (10.0>abs(d_cells_CF_FD(j,i)) .and. abs(d_cells_CF_FD(j,i))>1.0) then
-                        if (abs(residuals3(j,i)) > error_allowed*10.0) then
-                            test_failed = .true.
-                            exit
-                        else
-                            test_failed = .false.
-                        end if
+            if (any(abs(residuals) > error_allowed)) then 
+                if (abs(d_C_P_inc_FD(i))>1000.0) then
+                    if (abs(residuals(i)) > error_allowed*10000.0) then
+                        test_failed = .true.
+                        exit
                     else
-                        if (abs(residuals3(j,i)) > error_allowed) then
-                            test_failed = .true.
-                            exit
-                        else
-                            test_failed = .false.
-                        end if
+                        test_failed = .false.
                     end if
-                end do
+                elseif (1000.0>abs(d_C_P_inc_FD(i)) .and. abs(d_C_P_inc_FD(i))>100.0) then
+                    if (abs(residuals(i)) > error_allowed*1000.0) then
+                        test_failed = .true.
+                        exit
+                    else
+                        test_failed = .false.
+                    end if
+                elseif (100.0>abs(d_C_P_inc_FD(i)) .and. abs(d_C_P_inc_FD(i))>10.0) then
+                    if (abs(residuals(i)) > error_allowed*100.0) then
+                        test_failed = .true.
+                        exit
+                    else
+                        test_failed = .false.
+                    end if
+                elseif (10.0>abs(d_C_P_inc_FD(i)) .and. abs(d_C_P_inc_FD(i))>1.0) then
+                    if (abs(residuals(i)) > error_allowed*10.0) then
+                        test_failed = .true.
+                        exit
+                    else
+                        test_failed = .false.
+                    end if
+                else
+                    if (abs(residuals(i)) > error_allowed) then
+                        test_failed = .true.
+                        exit
+                    else
+                        test_failed = .false.
+                    end if
+                end if
             end if
+            
+        
         end do
         if (test_failed) then
             total_tests = total_tests + 1
-            write(*,'(A,I5,A)')"                                               &
-            d_cells_CF_wrt_vars  ",z," test FAILED"
-            failure_log(total_tests-passed_tests) = "d_cells_CF_wrt_vars test FAILED"
+            write(*,'(A,I5,A)')"                                     &
+            d_C_P_inc_wrt_vars ",z," test FAILED"
+            failure_log(total_tests-passed_tests) = "d_C_P_inc_wrt_vars test FAILED"
         else
-            ! write(*,*) "        d_cells_CF_wrt_vars test PASSED"
+            ! write(*,*) "        d_C_P_inc_wrt_vars test PASSED"
             ! write(*,*) "" 
             ! write(*,*) ""
             passed_tests = passed_tests + 1
@@ -488,7 +475,6 @@ program test22
             
         end if
         test_failed = .false.
-
 
         
         
@@ -499,7 +485,7 @@ program test22
 
     !!!!!!!!!!!!!!  RESULTS!!!!!!!!!!!!!
     write(*,*) "------------------------------------------------------------------------------"
-    write(*,*) "                          d_cells_CF_wrt_vars TEST RESULTS "
+    write(*,*) "                          d_CP_inc_wrt_vars TEST RESULTS "
     write(*,*) "------------------------------------------------------------------------------"
     write(*,*) ""
     write(*,'((A), ES10.1)') "allowed residual = ", error_allowed
@@ -527,4 +513,4 @@ program test22
     write(*,*) "Program Complete"
     write(*,*) "----------------------"
 
-end program test22
+end program test18

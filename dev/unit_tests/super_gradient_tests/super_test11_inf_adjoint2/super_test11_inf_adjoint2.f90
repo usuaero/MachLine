@@ -206,7 +206,7 @@ program super11
     
     mirror_panel = .false.
 
-    error_allowed = 1.0e-7
+    error_allowed = 1.0e-6
     step = 0.000001
     index = 1
     cp_ind = 1

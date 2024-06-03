@@ -1,4 +1,4 @@
-program test20
+program super20
     ! tests various intermediate sensitivities 
     use adjoint_mod
     use base_geom_mod
@@ -84,7 +84,7 @@ program test20
     ! Set up run
     call json_initialize()
 
-    test_input = "dev\input_files\adjoint_inputs\test_ise.json"
+    test_input = "dev\input_files\adjoint_inputs\supersonic_test.json"
     test_input = trim(test_input)
 
     ! Check it exists
@@ -180,7 +180,7 @@ program test20
     ! Set up run
     call json_initialize()
     
-    adjoint_input = "dev\input_files\adjoint_inputs\adjoint_test_ise.json"
+    adjoint_input = "dev\input_files\adjoint_inputs\supersonic_adjoint_test.json"
     adjoint_input = trim(adjoint_input)
 
     ! Check it exists
@@ -257,7 +257,7 @@ program test20
 
     write(*,*) ""
     write(*,*) "------------------------------------------------------------------------"
-    write(*,*) "                           d_CP_ise_wrt_vars TEST                    "
+    write(*,*) "                 Supersonic d_CP_ise_wrt_vars TEST                    "
     write(*,*) "------------------------------------------------------------------------"
     write(*,*) ""
     write(*,*) ""
@@ -269,7 +269,7 @@ program test20
 
         write(*,*) ""
         write(*,*) "--------------------------------------------------------------------------------------"
-        write(*,'(A,I5)') "                           d_CP_ise_wrt_vars test ",z
+        write(*,'(A,I5)') "               Supersonic d_CP_ise_wrt_vars test ",z
         write(*,*) "--------------------------------------------------------------------------------------"
         write(*,*) ""
         
@@ -404,18 +404,27 @@ program test20
             residuals(i) = adjoint_mesh%d_C_P_ise_wrt_vars(z)%get_value(i) - d_C_P_ise_FD(i)
         end do
      
-        if (maxval(abs(residuals))>error_allowed) then
-            write(*,*) ""
-            write(*,*) "     FLAGGED VALUES :"
-            write(*,'(A,I5,A)') "        d_C_P_ise_wrt_vars ",z,"   FD            &
-            d_C_P_ise_wrt_vars adjoint        residuals             residual"
-            do i = 1, N_verts*3
-                if (abs(residuals(i))>error_allowed) then
-                    write(*, '(8x,(f25.10, 4x),3x, (f25.10, 4x),3x, (f25.10, 4x))') &
-                    d_C_P_ise_FD(i), adjoint_mesh%d_C_P_ise_wrt_vars(z)%get_value(i), residuals(i)
-                end if
-            end do
-        end if
+        ! if (maxval(abs(residuals))>error_allowed) then
+        !     write(*,*) ""
+        !     write(*,*) "     FLAGGED VALUES :"
+        !     write(*,'(A,I5,A)') "        d_C_P_ise_wrt_vars ",z,"   FD            &
+        !     d_C_P_ise_wrt_vars adjoint        residuals             residual"
+        !     do i = 1, N_verts*3
+        !         if (abs(residuals(i))>error_allowed) then
+        !             write(*, '(8x,(f25.10, 4x),3x, (f25.10, 4x),3x, (f25.10, 4x))') &
+        !             d_C_P_ise_FD(i), adjoint_mesh%d_C_P_ise_wrt_vars(z)%get_value(i), residuals(i)
+        !         end if
+        !     end do
+        ! end if
+
+        write(*,*) ""
+        write(*,*) "      VALUES :"
+        write(*,'(A,I5,A)') "        d_C_P_ise_wrt_vars ",z,"   FD            &
+        d_C_P_ise_wrt_vars adjoint        residuals             residual"
+        do i = 1, N_verts*3
+                write(*, '(8x,(f25.10, 4x),3x, (f25.10, 4x),3x, (f25.10, 4x))') &
+                d_C_P_ise_FD(i), adjoint_mesh%d_C_P_ise_wrt_vars(z)%get_value(i), residuals(i)
+        end do
         
         
         ! check if test failed
@@ -485,7 +494,7 @@ program test20
 
     !!!!!!!!!!!!!!  RESULTS!!!!!!!!!!!!!
     write(*,*) "------------------------------------------------------------------------------"
-    write(*,*) "                          d_CP_ise_wrt_vars TEST RESULTS "
+    write(*,*) "                  Supersonic d_CP_ise_wrt_vars TEST RESULTS "
     write(*,*) "------------------------------------------------------------------------------"
     write(*,*) ""
     write(*,'((A), ES10.1)') "allowed residual = ", error_allowed
@@ -514,4 +523,4 @@ program test20
     write(*,*) "----------------------"
 
 
-end program test20
+end program super20

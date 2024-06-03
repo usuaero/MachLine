@@ -815,8 +815,9 @@ contains
 
         ! Check for NaN
         check = d_C_P_ise_wrt_vars%expand()
+
         do i=1,d_C_P_ise_wrt_vars%full_size
-            if (isnan(check(i)))  d_C_P_ise_wrt_vars%elements(i)%value = 0.0
+            if (isnan(check(i)))  call d_C_P_ise_wrt_vars%set_value(0.0, i)
         end do
 
     end function flow_get_d_C_P_ise_wrt_vars
@@ -845,7 +846,7 @@ contains
         ! Check for NaN
         check = d_C_P_ise_wrt_mu%expand()
         do i=1,d_C_P_ise_wrt_mu%full_size
-            if (isnan(check(i)))  d_C_P_ise_wrt_mu%elements(i)%value = 0.0
+            if (isnan(check(i)))  call d_C_P_ise_wrt_mu%set_value(0.0, i)
         end do
         
     end function flow_get_d_C_P_ise_wrt_mu

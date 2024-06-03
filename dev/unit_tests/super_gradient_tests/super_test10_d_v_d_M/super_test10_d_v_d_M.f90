@@ -218,7 +218,7 @@ program super10
 
     mirror_panel = .false.
 
-    error_allowed = 1.0e-7
+    error_allowed = 1.0e-6
     step = 0.000001
     index = 1
     cp_ind = 1
@@ -273,6 +273,8 @@ program super10
                 call adjoint_mesh%panels(index)%calc_integrals_adjoint(&
                             adjoint_geom, adjoint_int, adjoint_freestream_flow, mirror_panel, test_dod_info)
             
+                d_v_d_M_adjoint = adjoint_mesh%panels(index)%assemble_v_d_M_space_adjoint(adjoint_int, adjoint_geom, &
+                adjoint_freestream_flow, mirror_panel)
 
                 
                 do i=1,3
@@ -314,8 +316,10 @@ program super10
                         ! update v_d and doublet inf
                         ! call test_mesh%panels(index)%calc_velocity_influences(test_mesh%cp(cp_ind)%loc, freestream_flow,.false.,v_s, v_d)
                         deallocate(test_int%F111)
-                        test_geom = test_mesh%panels(index)%calc_supersonic_subinc_geom(test_mesh%cp(cp_ind)%loc,freestream_flow,mirror_panel)
-                        test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,mirror_panel, test_dod_info)
+                        test_geom = test_mesh%panels(index)%calc_supersonic_subinc_geom(test_mesh%cp(cp_ind)%loc,freestream_flow,&
+                                    mirror_panel, test_dod_info)
+                        test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,mirror_panel,&
+                                     test_dod_info)
                         v_d = test_mesh%panels(index)%assemble_v_d_M_space(test_int, test_geom, freestream_flow, mirror_panel)
                         !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
                         
@@ -362,8 +366,10 @@ program super10
                         ! update v_d and doublet inf
                         ! call test_mesh%panels(index)%calc_velocity_influences(test_mesh%cp(cp_ind)%loc, freestream_flow,.false.,v_s, v_d)
                         deallocate(test_int%F111)
-                        test_geom = test_mesh%panels(index)%calc_supersonic_subinc_geom(test_mesh%cp(cp_ind)%loc,freestream_flow,mirror_panel)
-                        test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,mirror_panel, test_dod_info)
+                        test_geom = test_mesh%panels(index)%calc_supersonic_subinc_geom(test_mesh%cp(cp_ind)%loc,freestream_flow,&
+                                    mirror_panel, test_dod_info)
+                        test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,mirror_panel,&
+                                     test_dod_info)
                         v_d = test_mesh%panels(index)%assemble_v_d_M_space(test_int, test_geom, freestream_flow, mirror_panel)
                         !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
                         

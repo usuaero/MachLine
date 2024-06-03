@@ -2141,8 +2141,14 @@ contains
         if (body%calc_adjoint) then
             ! don't deallocate
         else
+            ! write(*,*) " A matrix"
             ! do i = 1,N 
             !     write(*,*) this%A(i,:)
+            ! end do
+            
+            ! write(*,*) " b vector"
+            ! do i = 1,N 
+            !     write(*,*) this%b(i)
             ! end do
             deallocate(this%A)
         end if 
@@ -3316,11 +3322,10 @@ contains
             ! sensitivity of C_P_avg with respect to vars (points)
             call d_inner_flow_wrt_vars%init_from_sparse_matrix(body%d_V_cells_inner_wrt_vars(i_panel))
             call d_inner_flow_wrt_vars%broadcast_element_times_scalar(1./this%freestream%U)
-
             d_C_P_avg_wrt_vars = body%panels(i_panel)%get_d_avg_pressure_coef_wrt_vars(body%mu, body%sigma,mirrored, body%N_panels,&
-                                                body%N_verts, body%asym_flow, this%freestream, &
-                                                body%V_cells_inner(:,i_panel)/this%freestream%U,&
-                                                d_inner_flow_wrt_vars, rule, M_corr=this%M_inf_corr)
+            body%N_verts, body%asym_flow, this%freestream, &
+            body%V_cells_inner(:,i_panel)/this%freestream%U,&
+            d_inner_flow_wrt_vars, rule, M_corr=this%M_inf_corr)
         end if
         
     end function panel_solver_calc_d_avg_pressure_on_panel_wrt_vars
@@ -3564,11 +3569,16 @@ contains
             call check_allocation(stat, "solver copy of  d_forces_wrt_mu(:,i)")
 
             call system_clock(start_count, count_rate)
-            ! call GMRES(N, A_p, b_p, this%tol, this%max_iterations, this%iteration_file, &
-            ! this%solver_iterations, x)
+            call GMRES(N, A_p, b_p, this%tol, this%max_iterations, this%iteration_file, &
+            this%solver_iterations, x)
             ! call lu_solve(N, A_p, b_p, x)
-            call householder_ls_solve(body%N_cp, N, A_p, b_p, x)
+            ! call householder_ls_solve(body%N_cp, N, A_p, b_p, x)
             call system_clock(end_count)
+
+            ! write(*,*) " x vector"
+            ! do j = 1,N 
+            !     write(*,*) x(j)
+            ! end do
 
             ! Get residual vector
             R_cp = matmul(transpose(this%A), x) - d_forces_wrt_mu(:,i)
@@ -3576,15 +3586,28 @@ contains
             ! Calculate residual parameters
             max_res = maxval(abs(R_cp))
             norm_res = sqrt(sum(R_cp*R_cp))
+
+            
             
             write(*,*) "        Maximum residual:", max_res
             write(*,*) "        Norm of residual:", norm_res
         
+            ! write(*,*) " A^T matrix"
+            ! do j = 1,N 
+            !     write(*,*) this%A(:,j)
+            ! end do
+            
+            ! write(*,*) " g vector"
+            ! do j = 1,N 
+            !     write(*,*) d_forces_wrt_mu(j,i)
+            ! end do
+
             ! Check
             if (isnan(norm_res)) then
                 write(*,*) "!!! Linear system failed to solve [A]^T v = g ."
-                return
+                ! return
             end if
+
 
             ! store forces v^T term
             vT_forces(:,i) = x

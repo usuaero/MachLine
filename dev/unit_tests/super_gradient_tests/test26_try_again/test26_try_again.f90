@@ -88,7 +88,7 @@ program test26
     ! Set up run
     call json_initialize()
 
-    test_input = "dev\input_files\adjoint_inputs\test.json"
+    test_input = "dev\input_files\adjoint_inputs\supersonic_test.json"
     test_input = trim(test_input)
 
     ! Check it exists
@@ -133,7 +133,7 @@ program test26
 
     ! Initialize panel solver
     call test_solver%init(solver_settings, processing_settings, test_mesh, freestream_flow, control_point_file)
-    call test_solver%solve(test_mesh, test_solver_stat, formulation,freestream_flow)
+    call test_solver%solve(test_mesh, test_solver_stat, formulation, freestream_flow)
     
     
     !!!!!!!!!!!!!!!!!!!!! END TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -146,7 +146,7 @@ program test26
     ! Set up run
     call json_initialize()
     
-    adjoint_input = "dev\input_files\adjoint_inputs\adjoint_test.json"
+    adjoint_input = "dev\input_files\adjoint_inputs\supersonic_adjoint_test.json"
     adjoint_input = trim(adjoint_input)
     
     ! Check it exists
@@ -217,8 +217,9 @@ program test26
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! d_CF_wrt_vars_test !!!!!!!!!!!!!!!!!!!!!!!!!!!!
     write(*,*) ""
     write(*,*) ""
-    write(*,*) "------------------------------ d_CF_sensitivities_test ---&
-    ------------------------------"
+    write(*,*) "----------------------------------------------------------------------" 
+    write(*,*) "                 Supersonic d_CF_sensitivities_test"
+    write(*,*) "----------------------------------------------------------------------"
     write(*,*) ""
     write(*,*) ""
     write(*,*) ""
@@ -286,7 +287,7 @@ program test26
             deallocate(test_solver%I_known, test_solver%BC)
             deallocate(test_mesh%sigma, test_mesh%mu)
             deallocate(test_mesh%Phi_u)
-            deallocate(test_mesh%C_p_inc, test_mesh%dC_f)
+            deallocate(test_mesh%C_p_ise, test_mesh%dC_f)
             deallocate(test_mesh%V_cells_inner, test_mesh%V_cells)
             ! deallocate(test_solver%A, test_solver%b)
             
@@ -342,7 +343,7 @@ program test26
             deallocate(test_solver%I_known, test_solver%BC)
             deallocate(test_mesh%sigma, test_mesh%mu)
             deallocate(test_mesh%Phi_u)
-            deallocate(test_mesh%C_p_inc, test_mesh%dC_f)
+            deallocate(test_mesh%C_p_ise, test_mesh%dC_f)
             deallocate(test_mesh%V_cells_inner, test_mesh%V_cells)
             ! deallocate(test_solver%A, test_solver%b)
             

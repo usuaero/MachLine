@@ -80,7 +80,7 @@ program super12
     ! Set up run
     call json_initialize()
 
-    test_input = "dev\input_files\adjoint_inputs\supersoinc_test.json"
+    test_input = "dev\input_files\adjoint_inputs\supersonic_test.json"
     test_input = trim(test_input)
 
     ! Check it exists

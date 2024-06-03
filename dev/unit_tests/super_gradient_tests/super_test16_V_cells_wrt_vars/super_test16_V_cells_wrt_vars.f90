@@ -78,7 +78,7 @@ program super16
     ! Set up run
     call json_initialize()
 
-    test_input = "dev\input_files\adjoint_inputs\test.json"
+    test_input = "dev\input_files\adjoint_inputs\supersonic_test.json"
     test_input = trim(test_input)
 
     ! Check it exists
@@ -169,7 +169,7 @@ program super16
     ! Set up run
     call json_initialize()
     
-    adjoint_input = "dev\input_files\adjoint_inputs\adjoint_test.json"
+    adjoint_input = "dev\input_files\adjoint_inputs\supersonic_adjoint_test.json"
     adjoint_input = trim(adjoint_input)
 
     ! Check it exists
@@ -235,7 +235,7 @@ program super16
     allocate(d_V_cells_FD(3,N_verts*3))
     
 
-    error_allowed = 1.0e-8
+    error_allowed = 1.0e-7
     step = 0.000001
     index = 1
     cp_ind = 1

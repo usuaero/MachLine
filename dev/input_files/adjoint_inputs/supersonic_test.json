@@ -1,7 +1,7 @@
 {
     "flow": {
-        "freestream_velocity" : [ 100.0, 10.0, 10.0 ],
-        "freestream_mach_number" : 1.4
+        "freestream_velocity" : [ 100.0, 0.0, 10.0 ],
+        "freestream_mach_number" : 1.01
     },
     "geometry": {
         "afile"  : "dev/meshes/adjoint/adjoint_octa_mesh.stl",
@@ -24,7 +24,7 @@
     "solver": {
         "formulation" : "neumann-mass-flux-VCP",
         "control_point_offset" : 1.0e-3, 
-        "matrix_solver" : "HHLS", 
+        "matrix_solver" : "GMRES", 
         "sort_system" : false
     },
     "post_processing" : {

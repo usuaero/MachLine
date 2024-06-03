@@ -1,4 +1,4 @@
-program test21
+program super21
     ! tests various intermediate sensitivities 
     use adjoint_mod
     use base_geom_mod
@@ -87,7 +87,7 @@ program test21
     ! Set up run
     call json_initialize()
 
-    test_input = "dev\input_files\adjoint_inputs\test_ise.json"
+    test_input = "dev\input_files\adjoint_inputs\supersonic_test.json"
     test_input = trim(test_input)
 
     ! Check it exists
@@ -182,7 +182,7 @@ program test21
     ! Set up run
     call json_initialize()
     
-    adjoint_input = "dev\input_files\adjoint_inputs\adjoint_test_ise.json"
+    adjoint_input = "dev\input_files\adjoint_inputs\supersonic_adjoint_test.json"
     adjoint_input = trim(adjoint_input)
 
     ! Check it exists
@@ -259,7 +259,7 @@ program test21
 
     write(*,*) ""
     write(*,*) "------------------------------------------------------------------------"
-    write(*,*) "                           d_CP_ise_wrt_mu TEST                    "
+    write(*,*) "                 Supersonic d_CP_ise_wrt_mu TEST                    "
     write(*,*) "------------------------------------------------------------------------"
     write(*,*) ""
     write(*,*) ""
@@ -272,7 +272,7 @@ program test21
         
         write(*,*) ""
         write(*,*) "--------------------------------------------------------------------------------------"
-        write(*,'(A,I5)') "                           d_CP_ise_wrt_mu test ",z
+        write(*,'(A,I5)') "                  Supersonic d_CP_ise_wrt_mu test ",z
         write(*,*) "--------------------------------------------------------------------------------------"
         write(*,*) ""
 
@@ -340,19 +340,29 @@ program test21
         end do
 
 
-        if (maxval(abs(residuals))>error_allowed) then
-            write(*,*) ""
-            write(*,*) "     FLAGGED VALUES :"
-            do i = 1, N_verts
-                if (abs(residuals(i))>error_allowed) then
-                    write(*,'(A,I5,A)') "        d_C_P_ise_wrt_mu ",z,"   FD            &
-                    d_C_P_ise_wrt_mu adjoint                               residual"
-                    write(*, '(8x,(f25.10, 4x),3x, (f25.10, 4x),3x, (f25.10, 4x))') &
-                    d_C_P_ise_wrt_mu_FD(i), adjoint_mesh%d_C_P_ise_wrt_mu(z)%get_value(i), &
-                    residuals(i)
-                end if
-            end do
-        end if
+        ! if (maxval(abs(residuals))>error_allowed) then
+        !     write(*,*) ""
+        !     write(*,*) "     FLAGGED VALUES :"
+        !     write(*,'(A,I5,A)') "        d_C_P_ise_wrt_mu ",z,"   FD            &
+        !     d_C_P_ise_wrt_mu adjoint                               residual"
+        !     do i = 1, N_verts
+        !         if (abs(residuals(i))>error_allowed) then
+        !             write(*, '(8x,(f25.10, 4x),3x, (f25.10, 4x),3x, (f25.10, 4x))') &
+        !             d_C_P_ise_wrt_mu_FD(i), adjoint_mesh%d_C_P_ise_wrt_mu(z)%get_value(i), &
+        !             residuals(i)
+        !         end if
+        !     end do
+        ! end if
+
+        write(*,*) ""
+        write(*,*) "      VALUES :"
+        write(*,'(A,I5,A)') "        d_C_P_ise_wrt_mu ",z,"   FD            &
+        d_C_P_ise_wrt_mu adjoint                               residual"
+        do i = 1, N_verts
+        write(*, '(8x,(f25.10, 4x),3x, (f25.10, 4x),3x, (f25.10, 4x))') &
+                d_C_P_ise_wrt_mu_FD(i), adjoint_mesh%d_C_P_ise_wrt_mu(z)%get_value(i), &
+                residuals(i)
+        end do
         
         
         ! check if test failed
@@ -421,7 +431,7 @@ program test21
 
     !!!!!!!!!!!!!!  RESULTS!!!!!!!!!!!!!
     write(*,*) "------------------------------------------------------------------------------"
-    write(*,*) "                          d_CP_ise_wrt_mu TEST RESULTS "
+    write(*,*) "                  Supersonic d_CP_ise_wrt_mu TEST RESULTS "
     write(*,*) "------------------------------------------------------------------------------"
     write(*,*) ""
     write(*,'((A), ES10.1)') "allowed residual = ", error_allowed
@@ -449,4 +459,4 @@ program test21
     write(*,*) "Program Complete"
     write(*,*) "----------------------"
 
-end program test21
+end program super21

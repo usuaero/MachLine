@@ -7273,7 +7273,9 @@ contains
         
         ! adjoint is not available for mirror panels right now
         mirror_panel = .false.
-
+        
+        call zeros%init(this%adjoint_size)
+        
         ! Check DoD
         dod_info = this%check_dod(cp%loc, freestream, mirror_panel) 
 
@@ -7323,7 +7325,6 @@ contains
             v_d_mu_space = int%s*freestream%K_inv*v_d_mu_space
             
             ! assemble d_v_d_mu space
-            call zeros%init(this%adjoint_size)
             
             call d_v_d_mu_rows(1)%init_from_sparse_vectors(zeros, int%d_hH113, zeros)
             call d_v_d_mu_rows(2)%init_from_sparse_vectors(zeros, zeros, int%d_hH113)
@@ -7650,21 +7651,20 @@ contains
         real,dimension(3) :: v
         type(sparse_matrix) :: d_V
         type(sparse_vector) :: d_C_P_avg_wrt_vars
-
-
+        
         ! Get velocity at centroid
         v = this%get_velocity(mu, sigma, mirrored, N_body_panels, N_body_verts, asym_flow, &
         freestream, inner_flow)
-
+        
         d_v = this%get_d_velocity_wrt_vars(mu, mirrored, N_body_panels, N_body_verts, asym_flow, freestream, d_inner_flow)
-
+        
         ! Get pressure
         if (present(M_corr)) then
             d_C_P_avg_wrt_vars = freestream%get_d_C_P_wrt_vars(v, d_v, rule=rule, M_corr=M_corr)
         else
             d_C_P_avg_wrt_vars = freestream%get_d_C_P_wrt_vars(v, d_v, rule=rule)
         end if
-
+        
     end function panel_get_d_avg_pressure_coef_wrt_vars
 
 

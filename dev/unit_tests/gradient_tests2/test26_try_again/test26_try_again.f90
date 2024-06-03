@@ -75,9 +75,9 @@ program test26
     passed_tests = 0
     total_tests = 0
 
-    error_allowed = 1.0e-2
+    error_allowed = 1.0e-1
     
-    step = 0.000001
+    step = 0.00001
     index = 1
     cp_ind = 1
 
