@@ -112,7 +112,7 @@
     character(len=1),parameter :: backslash         = achar(92)  
     integer,parameter :: N_spaces_in_tab = 4
        
-    character(len=*),parameter :: real_fmt  = '(ES30.14E3)'      !format for real numbers
+    character(len=*),parameter :: real_fmt  = '(ES30.14E3)'      !format for real numbers  !!!! This format is the issue with 1.e-10
     character(len=*),parameter :: int_fmt   = '(I10)'           !format for integers
 
     ! The types of data:
@@ -2225,9 +2225,9 @@
     integer :: ierr
 
     if (.not. exception_thrown) then
-
-        read(str,fmt=real_fmt,iostat=ierr) rval    !string to double
-
+        
+        read(str,fmt=*,iostat=ierr) rval    !string to double  !!!! BUG HERE This line does not accuratly switch values with e
+        
         if (ierr/=0) then    !if there was an error
             rval = 0.0
             call throw_exception('Error in string_to_double:'//&
