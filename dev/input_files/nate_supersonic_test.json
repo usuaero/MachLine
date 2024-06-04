@@ -1,23 +1,20 @@
 {
     "flow": {
-        "freestream_velocity" : [ 100.0, 10.0, 0.0 ],
-        "freestream_mach_number" : 1.4
-
+        "freestream_velocity" : [ 1.0, 0.0, 0.10 ], 
+        "freestream_mach_number" : 1.1
     },
     "geometry": {
-        "file" : "dev/meshes/diamond_5_deg_full_coarse.stl",
+        "file" : "dev/meshes/super_wing_medium.stl",
         "singularity_order" : "lower",
 
         "wake_model" : {
             "wake_present" : false
-        },
-        "adjoint_sensitivities" : {
-            "calc_adjoint" : false
         }
+        
     },
     "solver": {
         "formulation" : "neumann-mass-flux-VCP",
-        "xcontrol_point_offset" : 1.0e-7, 
+        "xcontrol_point_offset" : 1.0e-3, 
         "matrix_solver" : "HHLS", 
         "sort_system" : false
     },
@@ -27,8 +24,11 @@
             "isentropic": true
         }
     },
+
     "output": {
-        "verbose" : true
+        "verbose" : true,
+        "ibody_file" : "dev/results/adjoint/super_wing_medium.vtk"
+
         }
     
 }
