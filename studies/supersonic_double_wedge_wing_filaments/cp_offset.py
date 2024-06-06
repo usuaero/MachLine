@@ -36,7 +36,7 @@ def run_machline_for_cp_offset(cp_offset,study_directory,alpha=5, wake_present=F
             },
             "wake_model" : {
                 "wake_present" : wake_present,
-                "append_wake" : False,
+                "append_wake" : True,
                 "trefftz_distance" : 20,
                 "wake_type": wake_type,
                 "N_panels" : 1
@@ -137,8 +137,8 @@ if __name__=="__main__":
     wake_present = True
     wake_type = "panel"
     # formulation = "neumann-mass-flux"
-    formulation = "neumann-mass-flux-VCP"
-    # formulation = "dirichlet-morino"
+    # formulation = "neumann-mass-flux-VCP"
+    formulation = "dirichlet-morino"
 
 
 

@@ -98,7 +98,7 @@ module surface_mesh_mod
             procedure :: get_clone_control_point_dir => surface_mesh_get_clone_control_point_dir
 
             ! Control point placement
-            procedure :: place_vertex_control_points => surface_mesh_place_vertex_control_points
+            procedure :: place_vertex_control_points => surface_mesh_place_vertex_control_points !!!! VCP
             procedure :: place_internal_vertex_control_points => surface_mesh_place_internal_vertex_control_points
             procedure :: place_centroid_control_points => surface_mesh_place_centroid_control_points
             procedure :: place_sparse_centroid_control_points => surface_mesh_place_sparse_centroid_control_points
@@ -1119,7 +1119,7 @@ contains
                             end do
 
                             ! Normalize and store
-                            this%vertices(i_jango)%n_g_wake = n_avg/norm2(n_avg)
+                            this%vertices(i_jango)%n_g_wake = n_avg/norm2(n_avg) !!!! this is where the normal vectors are caclulated
                             ! Loop through neighboring panels and compute the average of their normal vectors for boba
                             n_avg = 0
                             N_panels = this%vertices(i_boba)%panels_not_across_wake_edge%len()
@@ -1922,7 +1922,7 @@ contains
 
 
     function surface_mesh_get_cp_locs_vertex_based(this,offset, freestream) result(cp_locs)
-        ! Returns the locations of coincident vertex-based control points !!!! only used for NM-VCP formulation
+        ! Returns the locations of coincident vertex-based control points !!!! only used for NMF-VCP formulation
         implicit none
         class(surface_mesh),intent(in) :: this
         type(flow),intent(in) :: freestream
@@ -1930,15 +1930,24 @@ contains
         real,dimension(:,:),allocatable :: cp_locs
         integer :: i
         
+        real, dimension(3) :: dir
+
         ! Allocate memory
         allocate(cp_locs(3,this%N_verts))
 
+        !!!! this can be paralellized
         do i=1,this%N_verts
+
+            ! if the cp is on a wake shedding edge, then the cp is placed on the wake shedding edge with the normal vector of the wake
             if (this%vertices(i)%N_wake_edges > 1) then
-                cp_locs(:,i) = this%vertices(i)%loc + this%vertices(i)%n_g_wake * offset   
+                dir = this%vertices(i)%n_g_wake    !!!! wake shedding edge will be outside the mesh
             else  
-                cp_locs(:,i) = this%vertices(i)%loc + this%vertices(i)%n_g * offset !!!! Will probably need an if statement here to set ng to the new ng for the wake shedding edges
+                dir = -this%vertices(i)%n_g  !!!! inside the mesh
             end if
+
+            cp_locs(:,i) = this%vertices(i)%loc + dir * offset
+
+            ! set location
         end do
 
     end function surface_mesh_get_cp_locs_vertex_based
@@ -2104,7 +2113,7 @@ contains
     end function surface_mesh_control_point_outside_mesh
 
 
-    subroutine surface_mesh_place_vertex_control_points(this, offset, freestream)
+    subroutine surface_mesh_place_vertex_control_points(this, offset, offset_type, freestream)
 
         implicit none
 
