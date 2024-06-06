@@ -165,7 +165,9 @@ contains
         type(json_value),pointer, intent(in) :: solver_settings
         
         ! Get formulation
-        call json_xtnsn_get(solver_settings, 'formulation', this%formulation, 'dirichlet-morino')        
+        call json_xtnsn_get(solver_settings, 'formulation', this%formulation, 'dirichlet-morino')   
+        
+        
 
         ! Get matrix solver settings
         if (this%formulation == N_MF_D_LS) then
@@ -323,10 +325,11 @@ contains
 
         real :: offset
         character(len=:),allocatable :: offset_type
-
+        
         ! Get offset
         call json_xtnsn_get(solver_settings, 'control_point_offset', offset, 1.e-7)
         call json_xtnsn_get(solver_settings, 'control_point_offset_type', offset_type, 'direct')
+
         if (offset <= 0.) then
             write(*,*) "!!! Control point offset must be greater than 0. Defaulting to 1e-7."
             offset = 1.e-7
@@ -381,6 +384,8 @@ contains
         ! Get offset
         call json_xtnsn_get(solver_settings, 'control_point_offset', offset, 1.e-7)
         call json_xtnsn_get(solver_settings, 'control_point_offset_type', offset_type, 'direct')
+
+
         if (offset <= 0.) then
             write(*,*) "!!! Control point offset must be greater than 0. Defaulting to 1e-7."
             offset = 1.e-7
@@ -410,8 +415,10 @@ contains
                                 offset_type," offset ratio of ", offset, "..."
             call body%place_internal_vertex_control_points(offset, offset_type, this%freestream)
         else if (this%formulation == N_MF_D_VCP) then
-            if (verbose) write(*,'(a ES10.4 a)',advance='no') "     Placing control points using a direct offset of ",offset,"..."
-            call body%place_vertex_control_points(offset, this%freestream)        
+            if (verbose) write(*,'(a a a ES10.4 a)',advance='no') "     Placing control points control points using a ", &
+            offset_type," offset ratio of ", offset, "..."            
+            ! call body%place_vertex_control_points(offset, this%freestream)
+            call body%place_internal_vertex_control_points(offset, offset_type, this%freestream)        
         end if
 
         ! Sources

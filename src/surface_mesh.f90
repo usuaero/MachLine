@@ -2176,6 +2176,7 @@ contains
         ! Allocate memory
         allocate(this%cp(this%N_cp))
 
+
         ! Get control point locations
         cp_locs = this%get_cp_locs_vertex_based_interior(offset, offset_type, freestream)
 
