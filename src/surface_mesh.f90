@@ -185,11 +185,6 @@ contains
         ! Calculate vertex geometries
         call this%calc_vertex_geometry()
 
-        ! if calc_adjoint was specified, init the adjoint calculations
-        if (this%calc_adjoint) then
-            call this%init_adjoint()
-        end if
-
     end subroutine surface_mesh_init
 
 
@@ -790,6 +785,11 @@ contains
         do i=1,this%N_verts
             this%vertices(i)%convex = this%is_convex_at_vertex(i)
         end do
+
+        ! if calc_adjoint was specified, init the adjoint calculations (after clones have been made)
+        if (this%calc_adjoint) then
+            call this%init_adjoint()
+        end if
 
         ! Initialize wake !!!! 
         call this%init_wake(freestream, wake_file, formulation)
