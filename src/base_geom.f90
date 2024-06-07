@@ -385,15 +385,19 @@ contains
     end subroutine vertex_copy_to
 
 
-    subroutine vertex_init_adjoint(this, N_verts)
+    subroutine vertex_init_adjoint(this, N_verts, wake_vertex)
     ! if adjoint calculation is true, this will initialize the vertex associated components
 
         implicit none 
 
         class(vertex),intent(inout) :: this
         integer,intent(in) :: N_verts
+        logical,intent(in),optional :: wake_vertex
 
         real,dimension(3) :: values1, values2, values3
+
+        ! if wake_vertex is not passed in, it is false
+        if (.not. present(wake_present)) wake_present == .false.
 
         ! values used to populate the sensitivity of a vertex WRT to X(beta)
         values1 = (/1.0, 0.0, 0.0/)
@@ -403,10 +407,19 @@ contains
         ! init vertex attribute d_loc
         call this%d_loc%init(N_verts*3)
 
-        ! populate sparse elements
-        call this%d_loc%set_values(values1, this%index)
-        call this%d_loc%set_values(values2, this%index + N_verts)
-        call this%d_loc%set_values(values3, this%index + 2*N_verts)
+        ! if wake vertex, use this%top_parent instead of this%index
+        if (wake_vertex)then
+            ! populate sparse elements
+            call this%d_loc%set_values(values1, this%top_parent)
+            call this%d_loc%set_values(values2, this%top_parent + N_verts)
+            call this%d_loc%set_values(values3, this%top_parent + 2*N_verts)
+        else
+            ! populate sparse elements
+            call this%d_loc%set_values(values1, this%index)
+            call this%d_loc%set_values(values2, this%index + N_verts)
+            call this%d_loc%set_values(values3, this%index + 2*N_verts)
+
+        end if
     
     end subroutine vertex_init_adjoint
 

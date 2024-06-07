@@ -26,7 +26,8 @@ contains
 
 
     subroutine wake_strip_init(this, freestream, starting_edge, mirror_start, mirror_plane, &
-                               N_panels_streamwise, trefftz_dist, body_verts, wake_mirrored, initial_panel_order, N_body_panels)
+                               N_panels_streamwise, trefftz_dist, body_verts, wake_mirrored, &
+                               initial_panel_order, N_body_panels, calc_adjoint)
         ! Initializes this wake strip based on the provided info
 
         implicit none
@@ -39,6 +40,7 @@ contains
         real,intent(in) :: trefftz_dist
         type(vertex),dimension(:),allocatable,intent(in) :: body_verts
         logical,intent(in) :: wake_mirrored
+        logical,intent(in),optional :: calc_adjoint
 
         real,dimension(3) :: start_1, start_2
         integer :: N_body_verts, i
@@ -75,6 +77,9 @@ contains
             start_1 = body_verts(starting_edge%top_verts(1))%loc
             start_2 = body_verts(starting_edge%top_verts(2))%loc
 
+            ! d_start_1 = body_verts(starting_edge%top_verts(1))%d_loc
+            ! d_start_2 = body_verts(starting_edge%top_verts(2))%d_loc
+
             ! Get parent vertices
             this%i_top_parent_1 = starting_edge%top_verts(1)
             this%i_top_parent_2 = starting_edge%top_verts(2)
@@ -88,7 +93,7 @@ contains
         end if
 
         ! Initialize vertices
-        call this%init_vertices(freestream, N_panels_streamwise, trefftz_dist, start_1, start_2, body_verts)
+        call this%init_vertices(freestream, N_panels_streamwise, trefftz_dist, start_1, start_2, body_verts, calc_adjoint)
 
         ! Intialize panels
         call this%init_panels(N_panels_streamwise)
@@ -103,7 +108,7 @@ contains
 
 
     subroutine wake_strip_init_vertices(this, freestream, N_panels_streamwise, trefftz_dist, &
-                                        start_1, start_2, body_verts)
+                                        start_1, start_2, body_verts, calc_adjoint)
         ! Initializes this wake strip's vertices based on the provided info
 
         implicit none
@@ -114,10 +119,13 @@ contains
         real,intent(in) :: trefftz_dist
         real,dimension(3),intent(in) :: start_1, start_2
         type(vertex),dimension(:),allocatable,intent(in) :: body_verts
+        logical,intent(in),optional :: calc_adjoint
 
         real,dimension(3) :: loc
         real :: d1, d2, sep_1, sep_2
         integer :: i, N_body_verts
+
+        if (.not. present(calc_adjoint)) calc_adjoint == .false.
 
         ! Allocate memory
         this%N_verts = N_panels_streamwise*2 + 2
@@ -133,6 +141,11 @@ contains
         this%vertices(1)%bot_parent = this%i_bot_parent_1
         this%vertices(2)%top_parent = this%i_top_parent_2
         this%vertices(2)%bot_parent = this%i_bot_parent_2
+
+        if (calc_adjoint) then
+            call this%vertices(1)%init_adjoint(size(body_verts), wake_vertex = .true.)
+            call this%vertices(2)%init_adjoint(size(body_verts), wake_vertex = .true.)
+        end if
 
         ! Calculate distances to Trefftz plane
         d1 = trefftz_dist - inner(start_1, freestream%c_hat_g)

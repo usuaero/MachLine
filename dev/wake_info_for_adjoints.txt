@@ -1,0 +1,9 @@
+main
+    -no adjoint versions needed
+
+mesh
+    -check "mesh_allocate_new_vertices", may need to init some adjoint versions has_zero_area
+
+surface_mesh
+    
+    -init_wake 

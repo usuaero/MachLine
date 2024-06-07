@@ -29,6 +29,10 @@ module wake_mesh_mod
             procedure :: init_strips => wake_mesh_init_strips
             procedure :: write_strips => wake_mesh_write_strips
 
+            !!!!!!!!! Adjoint Procedures !!!!!!!!!!!
+            procedure :: init_adjoint => wake_mesh_init_adjoint
+            procedure :: init_strips_adjoint => wake_mesh_init_strips_adjoint
+
     end type wake_mesh
 
 
@@ -68,7 +72,7 @@ contains
 
 
     subroutine wake_mesh_init_strips(this, body_edges, body_verts, freestream, asym_flow, mirror_plane, &
-                              N_panels_streamwise, trefftz_dist, initial_panel_order, N_body_panels)
+                              N_panels_streamwise, trefftz_dist, initial_panel_order, N_body_panels, calc_adjoint)
         ! Creates the strips for this wake
 
         implicit none
@@ -80,9 +84,14 @@ contains
         logical,intent(in) :: asym_flow
         integer,intent(in) :: mirror_plane, N_panels_streamwise, initial_panel_order, N_body_panels
         real,intent(in) :: trefftz_dist
+        logical,intent(in),optional :: calc_adjoint
 
         integer :: i, i_strip, i_start_edge
         type(list) :: wake_shedding_edges
+
+        ! check to see if calc_adjoint was an input
+        if (.not. present(calc_adjoint)) calc_adjoint == .false.
+
 
         ! Loop through edges to find which ones shed a wake and how many there are
         this%N_strips = 0
@@ -220,6 +229,40 @@ contains
         end if
         
     end subroutine wake_mesh_write_strips
+
+
+
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Adjoint Procedures !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    subroutine wake_mesh_init_adjoint(this, body_edges, body_verts, freestream, asym_flow, mirror_plane, N_panels_streamwise, &
+        trefftz_dist, body_mirrored, initial_panel_order, N_body_panels)
+        ! Initializes the wake mesh
+
+        implicit none
+
+        class(wake_mesh),intent(inout),target :: this
+        type(edge),allocatable,dimension(:),intent(in) :: body_edges
+        type(vertex),allocatable,dimension(:),intent(inout) :: body_verts
+        type(flow),intent(in) :: freestream
+        logical,intent(in) :: asym_flow
+        integer,intent(in) :: mirror_plane, N_panels_streamwise, initial_panel_order, N_body_panels
+        real,intent(in) :: trefftz_dist
+        logical,intent(in) :: body_mirrored
+
+        if (verbose) write(*,'(a ES10.4 a)',advance='no') "     Initializing wake with a Trefftz distance of ", trefftz_dist, "..."
+
+        ! Set whether the wake will be mirrored
+        this%mirrored = body_mirrored .and. .not. asym_flow
+        this%mirror_plane = mirror_plane
+
+        ! Initialize strips
+        call this%init_strips_adjoint(body_edges, body_verts, freestream, asym_flow, mirror_plane, N_panels_streamwise, &
+                trefftz_dist, initial_panel_order, N_body_panels)
+
+        if (verbose) write(*,'(a i7 a i7 a i7 a)') "Done. Created ", this%N_verts, " wake vertices and ", &
+                                this%N_panels, " wake panels distributed between ", &
+                                this%N_strips, " strips."
+
+    end subroutine wake_mesh_init_adjoint
 
 
 end module wake_mesh_mod
