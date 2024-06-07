@@ -392,12 +392,12 @@ contains
 
         class(vertex),intent(inout) :: this
         integer,intent(in) :: N_verts
-        logical,intent(in),optional :: wake_vertex
+        logical,optional :: wake_vertex
 
         real,dimension(3) :: values1, values2, values3
 
         ! if wake_vertex is not passed in, it is false
-        if (.not. present(wake_present)) wake_present == .false.
+        if (.not. present(wake_vertex)) wake_vertex = .false.
 
         ! values used to populate the sensitivity of a vertex WRT to X(beta)
         values1 = (/1.0, 0.0, 0.0/)

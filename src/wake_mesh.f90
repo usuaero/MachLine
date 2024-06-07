@@ -31,7 +31,7 @@ module wake_mesh_mod
 
             !!!!!!!!! Adjoint Procedures !!!!!!!!!!!
             procedure :: init_adjoint => wake_mesh_init_adjoint
-            procedure :: init_strips_adjoint => wake_mesh_init_strips_adjoint
+            ! procedure :: init_strips_adjoint => wake_mesh_init_strips_adjoint
 
     end type wake_mesh
 
@@ -84,13 +84,13 @@ contains
         logical,intent(in) :: asym_flow
         integer,intent(in) :: mirror_plane, N_panels_streamwise, initial_panel_order, N_body_panels
         real,intent(in) :: trefftz_dist
-        logical,intent(in),optional :: calc_adjoint
+        logical,optional :: calc_adjoint
 
         integer :: i, i_strip, i_start_edge
         type(list) :: wake_shedding_edges
 
         ! check to see if calc_adjoint was an input
-        if (.not. present(calc_adjoint)) calc_adjoint == .false.
+        if (.not. present(calc_adjoint)) calc_adjoint = .false.
 
 
         ! Loop through edges to find which ones shed a wake and how many there are
@@ -255,8 +255,8 @@ contains
         this%mirror_plane = mirror_plane
 
         ! Initialize strips
-        call this%init_strips_adjoint(body_edges, body_verts, freestream, asym_flow, mirror_plane, N_panels_streamwise, &
-                trefftz_dist, initial_panel_order, N_body_panels)
+        ! call this%init_strips_adjoint(body_edges, body_verts, freestream, asym_flow, mirror_plane, N_panels_streamwise, &
+                ! trefftz_dist, initial_panel_order, N_body_panels)
 
         if (verbose) write(*,'(a i7 a i7 a i7 a)') "Done. Created ", this%N_verts, " wake vertices and ", &
                                 this%N_panels, " wake panels distributed between ", &

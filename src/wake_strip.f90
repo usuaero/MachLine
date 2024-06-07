@@ -119,13 +119,13 @@ contains
         real,intent(in) :: trefftz_dist
         real,dimension(3),intent(in) :: start_1, start_2
         type(vertex),dimension(:),allocatable,intent(in) :: body_verts
-        logical,intent(in),optional :: calc_adjoint
+        logical,optional :: calc_adjoint
 
         real,dimension(3) :: loc
         real :: d1, d2, sep_1, sep_2
         integer :: i, N_body_verts
 
-        if (.not. present(calc_adjoint)) calc_adjoint == .false.
+        if (.not. present(calc_adjoint)) calc_adjoint = .false.
 
         ! Allocate memory
         this%N_verts = N_panels_streamwise*2 + 2
