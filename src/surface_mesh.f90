@@ -57,6 +57,9 @@ module surface_mesh_mod
         type(sparse_vector),dimension(:),allocatable :: d_C_p_ise_wrt_vars, d_C_p_ise_wrt_mu
         type(sparse_matrix),dimension(:),allocatable :: d_cell_forces_wrt_vars, d_cell_forces_wrt_mu
 
+        ! adjont wake
+        type(sparse_vector) :: d_trefftz_distance
+
         contains
 
             ! Basic initialization
@@ -124,7 +127,7 @@ module surface_mesh_mod
             procedure :: write_body_mirror => surface_mesh_write_body_mirror
             procedure :: write_control_points => surface_mesh_write_control_points
             
-            ! adjoint
+            !!!!!!!!!!!!!!!!!!!!!!!!!! adjoint procedures !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             procedure :: init_adjoint => surface_mesh_init_adjoint
             procedure :: calc_d_vertex_geometry => surface_mesh_calc_d_vertex_geometry
             procedure :: init_with_flow_adjoint => surface_mesh_init_with_flow_adjoint
@@ -132,6 +135,12 @@ module surface_mesh_mod
             procedure :: get_d_v_inner_at_point_wrt_mu => surface_mesh_get_d_v_inner_at_point_wrt_mu
 
             ! procedure :: write_adjoint => surface_mesh_write_adjoint
+
+            ! wake adjoint procedures
+            procedure :: init_wake_adjoint => surface_mesh_init_wake_adjoint
+            procedure :: update_supersonic_trefftz_distance_adjoint => surface_mesh_update_supersonic_trefftz_distance_adjoint
+            procedure :: update_subsonic_trefftz_distance_adjoint => surface_mesh_update_subsonic_trefftz_distance_adjoint
+            
             
     end type surface_mesh
     
@@ -372,7 +381,7 @@ contains
         type(json_value),pointer,intent(in) :: settings
 
 
-        ! Check if the user wants a wake
+        ! Check if the user wants to calculate adjoint
         call json_xtnsn_get(settings, 'adjoint_sensitivities.calc_adjoint', this%calc_adjoint, .false.)
 
         
@@ -792,7 +801,11 @@ contains
         end do
 
         ! Initialize wake !!!! 
-        call this%init_wake(freestream, wake_file, formulation)
+        if (this%calc_adjoint)then
+            call this%init_wake_adjoint(freestream, wake_file, formulation)
+        else
+            call this%init_wake(freestream, wake_file, formulation)
+        end if
 
         ! Set up panel distributions
         if (verbose) write(*,"(a)",advance='no') "     Setting up panel singularity distributions..."
@@ -3445,9 +3458,197 @@ contains
 
 
     ! end subroutine surface_mesh_write_adjoint
+
     
-    
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Wake adjoint procedures !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     
 
+    subroutine surface_mesh_init_wake_adjoint(this, freestream, wake_file, formulation)
+        ! Handles wake initialization with adjoint calculation
 
+        implicit none
+
+        class(surface_mesh),intent(inout) :: this
+        type(flow),intent(in) :: freestream
+        character(len=:),allocatable,intent(in) :: wake_file
+        character(len=:),allocatable,intent(in) :: formulation
+
+        logical :: dummy
+        !!!! update this to include if verbose
+        ! write(*,*) 
+        ! write(*,*) "Wake Type:", this%wake_type
+        ! write(*,*) 
+
+        ! write(*,*) 
+        ! write(*,*) "Formulation:", formulation
+        ! write(*,*) 
+        !!!!
+        if (this%append_wake .and. this%found_wake_edges) then
+
+
+            ! Update default Trefftz distance
+            if (this%trefftz_distance < 0.) then
+
+                ! Supersonic
+                if (freestream%supersonic) then
+                    call this%update_supersonic_trefftz_distance_adjoint(freestream)
+
+                ! Subsonic
+                else
+                    call this%update_subsonic_trefftz_distance_adjoint(freestream)
+
+                end if
+            end if
+
+            ! Initialize wake  
+            if (this%wake_type == "panels") then 
+                call this%wake%init_adjoint(this%edges, this%vertices, freestream, this%asym_flow, this%mirror_plane, & ! wake is referring to wake_mesh type in the wake_mesh mod.
+                                    this%N_wake_panels_streamwise, this%trefftz_distance, this%mirrored, this%initial_panel_order, &
+                                    this%N_panels)
+
+            else if (this%wake_has_filaments(formulation))  then                                                                           !
+                ! call this%filament_wake%init(this%edges, this%vertices, freestream, this%asym_flow, this%mirror_plane, &                       !
+                !                     this%N_wake_panels_streamwise, this%trefftz_distance, this%mirrored, this%initial_panel_order, &  !
+                !                     this%N_panels)       
+                write(*,*) "Can't calc adjonts with filament wakes yet. Defaulting to Panel Wakes..." 
+                call this%wake%init_adjoint(this%edges, this%vertices, freestream, this%asym_flow, this%mirror_plane, &                       !
+                                    this%N_wake_panels_streamwise, this%trefftz_distance, this%mirrored, this%initial_panel_order, &  !
+                                    this%N_panels) 
+
+            else                                                                                                                      !
+                write(*,*)                                                                                                            !
+                write(*,*) "wake_type needs to be panels or filaments, and if wake_type", &                                           !
+                            "is filaments", & 
+                            "formulation has to be neumann-mass-flux or neumann-velocity.", &
+                            "Running a panel wake by default"                               !
+                write(*,*)                                                                                                            !
+                call this%wake%init_adjoint(this%edges, this%vertices, freestream, this%asym_flow, this%mirror_plane, &                       !
+                                    this%N_wake_panels_streamwise, this%trefftz_distance, this%mirrored, this%initial_panel_order, &  !
+                                    this%N_panels)   
+                                                                                                                     !
+            end if                                                                                                                    !
+
+            ! Export wake geometry
+            if (wake_file /= 'none') then
+                if (this%wake_has_filaments(formulation)) then
+                    call this%filament_wake%write_filaments(wake_file, dummy)
+                else
+                    call this%wake%write_strips(wake_file, dummy)
+                end if
+            end if
+        else
+            
+            ! Set parameters to let later code know the wake is not being modeled
+            this%wake%N_panels = 0
+            this%wake%N_verts = 0
+            this%wake%N_strips = 0
+
+        end if
+
+    
+    end subroutine surface_mesh_init_wake_adjoint
+
+
+    subroutine surface_mesh_update_supersonic_trefftz_distance_adjoint(this, freestream)
+        ! Determines the appropriate Trefftz distance (and its derivative for adjoints) based on the mesh geometry
+
+        implicit none
+
+        class(surface_mesh),intent(inout) :: this
+        type(flow),intent(in) :: freestream
+
+        real :: max_dist, distance
+        integer :: i, max_index
+        type(sparse_matrix) :: d_loc
+
+        ! Loop through mesh vertices, looking for the most downstream
+        max_dist = 0.
+        do i=1,this%N_verts
+
+            ! Calculate distance
+            distance = inner(this%vertices(i)%loc, freestream%c_hat_g)
+
+            ! Check maximum
+            max_dist = max(distance, max_dist)
+
+            if (max_dist == distance)then
+                max_index = i
+            end if
+
+            ! Check for mirror
+            if (this%asym_flow) then
+
+                ! Calculate distance
+                distance = inner(mirror_across_plane(this%vertices(i)%loc, this%mirror_plane), freestream%c_hat_g)
+
+                ! Check maximum
+                max_dist = max(distance, max_dist)
+
+            end if
+
+        end do
+
+        ! Set Trefftz distance
+        this%trefftz_distance = max_dist
+
+        ! derivative
+        this%d_trefftz_distance = this%vertices(max_index)%d_loc%broadcast_vector_dot_element(freestream%c_hat_g)
+
+    end subroutine surface_mesh_update_supersonic_trefftz_distance_adjoint
+
+
+    subroutine surface_mesh_update_subsonic_trefftz_distance_adjoint(this, freestream) 
+        ! Determines the appropriate Trefftz distance ( and its derivative for adjoints) based on the mesh geometry
+
+        implicit none
+
+        class(surface_mesh),intent(inout) :: this
+        type(flow),intent(in) :: freestream
+
+        real :: back, front, x
+        integer :: i, front_index, back_index
+        type(sparse_vector) :: d_front, d_back
+
+        ! Loop through vertices to calculate most downstream and upstream distances
+        front = inner(freestream%c_hat_g, this%vertices(1)%loc)
+        back = front
+
+        ! init front and back indices
+        front_index = 1
+        back_index = 1
+
+        do i=2,this%N_verts
+            x = inner(freestream%c_hat_g, this%vertices(i)%loc)
+            front = min(front, x)
+
+            ! update the most forward point index
+            if (front == x)then
+                front_index = i
+            end if
+            
+            back = max(back, x)
+            
+            ! update the most aft point index
+            if (back == x)then
+                back_index = i
+            end if
+        end do
+
+        ! Calculate Trefftz distance
+        this%trefftz_distance = 20.*abs(front-back)
+
+        ! calc derivatives of front and back terms
+        d_front = this%vertices(front_index)%d_loc%broadcast_vector_dot_element(freestream%c_hat_g)
+        d_back = this%vertices(back_index)%d_loc%broadcast_vector_dot_element(freestream%c_hat_g)
+
+        ! assemble derivative
+        call this%d_trefftz_distance%init_from_sparse_vector(d_front)
+        call this%d_trefftz_distance%sparse_subtract(d_back)
+        call this%d_trefftz_distance%broadcast_element_times_scalar(20.*(front-back)/abs(front-back))
+        
+
+    end subroutine surface_mesh_update_subsonic_trefftz_distance_adjoint
+    
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! end Wake adjoint procedures !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    
 end module surface_mesh_mod

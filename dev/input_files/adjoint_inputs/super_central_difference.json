@@ -1,6 +1,7 @@
 {
     "flow": {
-        "freestream_velocity" : [ 1.0, 0.0, 0.0 ]
+        "freestream_velocity" : [ 1.0, 0.0, 0.1 ],
+        "freestream_mach_number" : 1.1
     },
     "geometry": {
         "afile" : "dev/meshes/adjoint/adjoint_octa_mesh.stl",
@@ -27,7 +28,10 @@
         "sort_system" : false
     },
     "post_processing" : {
-        
+        "pressure_rules": {
+            "incompressible": false,
+            "isentropic": true
+        }
     },
 
     "output": {
@@ -40,7 +44,7 @@
         "ebody_file" : "dev/results/adjoint/central_diff_diamond_5_deg_full_coarse.vtk",
         "gbody_file" : "dev/results/adjoint/central_diff_naca_0010_AR_10_full_coarse.vtk",
         "hbody_file" : "dev/results/adjoint/central_diff_naca_2412_wing.vtk",
-        "ibody_file" : "dev/results/adjoint/central_diff_super_wing_medium.vtk"
+        "body_file" : "dev/results/adjoint/central_diff_super_wing_medium.vtk"
         }
     
 }

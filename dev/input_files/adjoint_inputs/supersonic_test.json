@@ -11,7 +11,7 @@
         "efile" : "dev/meshes/other_meshes/diamond_5_deg_full_coarse.stl",
         "gfile" : "dev/meshes/other_meshes/naca_0010_AR_10_full_coarse.stl",
         "hfile" : "dev/meshes/other_meshes/test_random_spindle.vtk",
-        "file" : "dev/meshes/other_meshes/delta_wing_coarse.vtk",
+        "file" : "dev/meshes/adjoint/super_wing_medium.stl",
         "singularity_order" : "lower",
 
         "wake_model" : {
@@ -24,7 +24,7 @@
     "solver": {
         "formulation" : "neumann-mass-flux-VCP",
         "control_point_offset" : 1.0e-3, 
-        "matrix_solver" : "GMRES", 
+        "matrix_solver" : "HHLS", 
         "sort_system" : false
     },
     "post_processing" : {

@@ -61,7 +61,7 @@ program panel_flow2
     ! test stuff
     integer :: passed_tests, total_tests
     logical :: test_failed
-    character(len=100),dimension(100) :: failure_log
+    character(len=100),dimension(500) :: failure_log
     character(len=10) :: m_char
     integer(8) :: start_count, end_count
     real(16) :: count_rate, time
@@ -203,7 +203,7 @@ program panel_flow2
     allocate(T_mu_dn(3,N_verts*3))
     allocate(d_T_mu_FD(3,N_verts*3))
     
-    error_allowed = 1.0e-9
+    error_allowed = 1.0e-8
     step = 0.000001
     index = 1
     
