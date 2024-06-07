@@ -210,6 +210,7 @@ module panel_mod
             !!!!!!!! ADJOINT PROCEDURES !!!!!!!!
             ! adjoint panel geom
             procedure :: init_adjoint => panel_init_adjoint
+            procedure :: get_vertex_d_loc => panel_get_vertex_d_loc
             procedure :: calc_derived_geom_adjoint => panel_calc_derived_geom_adjoint
 
             ! adjoint derived geometry terms
@@ -4069,6 +4070,19 @@ contains
         call this%calc_derived_geom_adjoint()
     
     end subroutine panel_init_adjoint
+
+
+    function panel_get_vertex_d_loc(this, i) result(d_loc)
+
+        implicit none
+
+        class(panel),intent(in) :: this
+        integer,intent(in) :: i
+        type(sparse_matrix) :: d_loc
+
+        call d_loc%init_from_sparse_matrix(this%vertices(i)%ptr%d_loc)
+
+    end function panel_get_vertex_d_loc
 
 
     subroutine panel_calc_derived_geom_adjoint(this)
