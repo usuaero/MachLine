@@ -597,7 +597,6 @@ contains
         ! wake_normal = cross(freestream%c_hat_g, body%vertices(cp%tied_to_index)%edge) !!!! changed here 
         ! Get vertex normal
         if (cp%tied_to_type == TT_VERTEX .and. cp%cp_type == SURFACE) then
-            
             if (body%vertices(cp%tied_to_index)%N_wake_edges>0) then
                 ! num_edges = body%vertices(cp%tied_to_index)%adjacent_edges%len()
                 ! allocate(points(num_edges))
@@ -644,10 +643,19 @@ contains
                 !     write(*,*) "!!!! ERROR wake contains a triple point. These are currently not allowed by this formulation"
                 ! end if
                 if (body%vertices(cp%tied_to_index)%N_wake_edges==1) then
+                    ! if a vertex is the endpoint of a wake sheading edge then use the vertex normal vector
                     n_g_new = body%vertices(cp%tied_to_index)%n_g
                 else
+                    ! if a vertex is part of a wake sheading edge use the wake's normal vector
                     n_g_new = body%vertices(cp%tied_to_index)%n_g_wake - freestream%c_hat_g&
                              * inner(freestream%c_hat_g,body%vertices(cp%tied_to_index)%n_g_wake)
+                    if (body%vertices(cp%tied_to_index)%n_g_wake(2)>0) then
+                        n_g_new = (/0,1,0/)
+                    else
+                        n_g_new = (/0,-1,0/)
+                    end if
+
+                    ! n_g_new = body%vertices(cp%tied_to_index)%n_g_wake
                 end if 
 
 

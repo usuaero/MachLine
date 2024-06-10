@@ -10,7 +10,7 @@ import time
 RERUN_MACHLINE = True
 
 
-def run_machline_for_cp_offset(cp_offset,study_directory,alpha=5, wake_present=False, wake_type="panel", formulation="neumann-mass-flux-VCP", mach=2.0):
+def run_machline_for_cp_offset(cp_offset,study_directory,alpha=0, wake_present=False, wake_type="panel", formulation="neumann-mass-flux-VCP", mach=2.0):
     
     print("Running MachLine for cp_offset = {0}".format(cp_offset))
     # Storage locations
@@ -32,7 +32,7 @@ def run_machline_for_cp_offset(cp_offset,study_directory,alpha=5, wake_present=F
             "file": mesh_file,
             "spanwise_axis" : "+z",
             "reference" : {
-                "area" : 4
+                "area" : 4.0
             },
             "wake_model" : {
                 "wake_present" : wake_present,
@@ -46,11 +46,10 @@ def run_machline_for_cp_offset(cp_offset,study_directory,alpha=5, wake_present=F
         "solver": {
             "run_checks": True,
             "formulation" : formulation,
-            "yformulation": "neumann-mass-flux-VCP",
-            "xformulation" : "dirichlet-morino",
             "control_point_offset": cp_offset,
             "matrix_solver" : "HHLS",
-            "write_A_and_b" : False
+            "xmatrix_solver" : "GMRES",
+            "write_A_and_b" : True
         },
         "post_processing" : {
             "pressure_rules" : {
@@ -133,12 +132,13 @@ if __name__=="__main__":
     # declare varaibles and inputs
     tStart = time.time()
     num_cases = 10
-    mach = 2.0
+    mach = 2
     wake_present = True
     wake_type = "panel"
-    # formulation = "neumann-mass-flux"
+    # wake_type = "filaments"
+    formulation = "neumann-mass-flux"
     # formulation = "neumann-mass-flux-VCP"
-    formulation = "dirichlet-morino"
+    # formulation = "dirichlet-morino"
 
 
 
@@ -152,7 +152,7 @@ if __name__=="__main__":
 
     # Run cases
     # cp_offsets = np.linspace(1e-12,1e-3,num_cases)
-    cp_offsets = np.logspace(-12,-3,num_cases)
+    cp_offsets = np.logspace(-6,-3,num_cases)
     for i in range(num_cases):
         N_sys[i], l_avg[i], C_F[i] = run_machline_for_cp_offset(cp_offsets[i],study_directory, mach=mach, wake_present=wake_present, wake_type=wake_type, formulation=formulation)
 
@@ -176,7 +176,8 @@ if __name__=="__main__":
     plt.legend()
 
     # set axis limits
-    plt.ylim(-0.001,0.035)
+    # plt.ylim(-0.001,0.035)    # Mach 2
+    plt.ylim(-0.001,0.08)    # Mach 0.5 
     
 
     # get figure file name

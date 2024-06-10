@@ -1104,7 +1104,7 @@ contains
                             !!!! I am not sure what calc_normal will look like though
                             
                             ! Loop through neighboring panels and compute the average of their normal vectors for jango
-                            n_avg = 0
+                            n_avg = (/0,0,0/)
                             N_panels = this%vertices(i_jango)%panels_not_across_wake_edge%len()
                             ! Get panel index
                             do l=1,N_panels
@@ -1939,7 +1939,7 @@ contains
         do i=1,this%N_verts
 
             ! if the cp is on a wake shedding edge, then the cp is placed on the wake shedding edge with the normal vector of the wake
-            if (this%vertices(i)%N_wake_edges > 1) then
+            if (this%vertices(i)%N_wake_edges >= 1) then
                 dir = this%vertices(i)%n_g_wake    !!!! wake shedding edge will be outside the mesh
             else  
                 dir = -this%vertices(i)%n_g  !!!! inside the mesh
@@ -2120,6 +2120,8 @@ contains
         class(surface_mesh),intent(inout) :: this
         type(flow),intent(in) :: freestream
         real,intent(in) :: offset
+        character(len=:),allocatable,intent(in) :: offset_type
+
 
         integer :: i
         real,dimension(:,:),allocatable :: cp_locs
