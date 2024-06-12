@@ -394,21 +394,26 @@ contains
         integer,intent(in) :: N_verts
         logical,optional :: wake_vertex
 
+        logical :: wake_vert
         real,dimension(3) :: values1, values2, values3
 
         ! if wake_vertex is not passed in, it is false
-        if (.not. present(wake_vertex)) wake_vertex = .false.
+        if (.not. present(wake_vertex))then
+            wake_vert = .false.
+        else
+            write(*,*) "passed in wake vert true"
+            wake_vert = .true.
+        end if
 
         ! values used to populate the sensitivity of a vertex WRT to X(beta)
         values1 = (/1.0, 0.0, 0.0/)
         values2 = (/0.0, 1.0, 0.0/)
         values3 = (/0.0, 0.0, 1.0/)
-
         ! init vertex attribute d_loc
         call this%d_loc%init(N_verts*3)
 
         ! if wake vertex, use this%top_parent instead of this%index
-        if (wake_vertex)then
+        if (wake_vert)then
             ! populate sparse elements
             call this%d_loc%set_values(values1, this%top_parent)
             call this%d_loc%set_values(values2, this%top_parent + N_verts)

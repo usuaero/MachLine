@@ -54,29 +54,29 @@ program dirichlet_test1
     integer(8) :: start_count, end_count
     real(16) :: count_rate, time
 
-
-
+    
+    
     test_failed = .false. 
     passed_tests = 0
     total_tests = 0
-
+    
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !                             FROM MAIN
-
+    
     !!!!!!!!!!!!!!! TEST INPUT (calc_adjoint = false) !!!!!!!!!!!!!!!!!!!!!!!
     ! Set up run
     call json_initialize()
-
+    
     test_input = "dev\input_files\adjoint_inputs\dirichlet_test.json"
     test_input = trim(test_input)
-
+    
     ! Check it exists
     inquire(file=test_input, exist=exists)
     if (.not. exists) then
         write(*,*) "!!! The file ", test_input, " does not exist. Quitting..."
         stop
     end if
-
+    
     ! Load settings from input file
     call input_json%load_file(filename=test_input)
     call json_check()
@@ -85,31 +85,30 @@ program dirichlet_test1
     call input_json%get('solver', solver_settings, found)
     ! call input_json%get('post_processing', processing_settings, found)
     ! call input_json%get('output', output_settings, found)
-
+    
     ! Initialize surface mesh
     call test_mesh%init(geom_settings)
-
-    !!!!!!!!!!!!!!!!!!!!! END TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-
-    call system_clock(start_count, count_rate)
-
     
-
+    !!!!!!!!!!!!!!!!!!!!! END TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    
+    
+    call system_clock(start_count, count_rate)
+    
+    
     !!!!!!!!!!!!!!!!!!!!!!ADJOINT TEST MESH !!!!!!!!!!!!!!!!!!!!!
     ! Set up run
     call json_initialize()
-
+    
     adjoint_input = "dev\input_files\adjoint_inputs\dirichlet_adjoint_test.json"
     adjoint_input = trim(adjoint_input)
-
+    
     ! Check it exists
     inquire(file=adjoint_input, exist=exists)
     if (.not. exists) then
         write(*,*) "!!! The file ", adjoint_input, " does not exist. Quitting..."
         stop
     end if
-
+    
     ! Load settings from input file
     call input_json%load_file(filename=adjoint_input)
     call json_check()
@@ -118,7 +117,7 @@ program dirichlet_test1
     call input_json%get('solver', adjoint_solver_settings, found)
     ! call input_json%get('post_processing', processing_settings, found)
     ! call input_json%get('output', output_settings, found)
-
+    
     call adjoint_mesh%init(adjoint_geom_settings)
 
     !!!!!!!!!!!! END ADJOINT TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!
@@ -151,6 +150,7 @@ program dirichlet_test1
     index = 1
     vert_ind = 1
     
+
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! PANEL GEOMETRY TEST !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     write(*,*) ""
     write(*,*) "--------------------------------------------------------------------------"
