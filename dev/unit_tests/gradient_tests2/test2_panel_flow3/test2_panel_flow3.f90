@@ -105,7 +105,7 @@ program panel_flow2
     ! Initialize flow
     call json_xtnsn_get(geom_settings, 'spanwise_axis', spanwise_axis, '+y')
     call freestream_flow%init(flow_settings, spanwise_axis)
-    
+    write(*,*) "freestream inititiation"
     ! Get result files
     call json_xtnsn_get(output_settings, 'body_file', body_file, 'none')
     call json_xtnsn_get(output_settings, 'wake_file', wake_file, 'none')
@@ -242,10 +242,6 @@ program panel_flow2
                         deallocate(test_mesh%panels(n)%n_hat_g)
                         call test_mesh%panels(n)%calc_derived_geom()
                     end do
-                    write(*,*) "panel n_g = ", test_mesh%panels(i)%n_g
-                    write(*,*) "panel area = ", test_mesh%panels(i)%a
-                    write(*,*) "panel centroid = ", test_mesh%panels(i)%centr
-                    write(*,*) "panel n_hat_g = ", test_mesh%panels(i)%n_hat_g(:,1)
 
                     ! update vertex normal
                     call test_mesh%calc_vertex_geometry()
@@ -314,7 +310,6 @@ program panel_flow2
                     ! restore geometry
                     test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
                     
-                    stop
                 end do 
             end do 
             
@@ -336,27 +331,11 @@ program panel_flow2
                 residuals3(:,i) = adjoint_mesh%panels(index)%d_A_g_to_ls(m)%get_values(i) - d_A_g_to_ls_FD(:,i)
             end do
 
-            ! if (maxval(abs(residuals3(:,:)))>error_allowed) then
-            !     write(*,*) ""
-            !     write(*,*) "     FLAGGED VALUES :"
-            !     do i = 1, N_verts*3
-            !         if (any(abs(residuals3(:,i))>error_allowed)) then
-            !             write(*,*) ""
-            !             write(*,'(A,I5,A)') "                        d_A_g_to_ls row ",m,"              & 
-            !                                                residuals"
-            !             write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_A_g_to_ls_FD(:,i)
-                    
-            !             write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",   &
-            !             adjoint_mesh%panels(index)%d_A_g_to_ls(m)%get_values(i), residuals3(:,i)
-            !         end if
-            !     end do
-            ! end if
-
-            ! if (maxval(abs(residuals3(:,:)))>error_allowed) then
+            if (maxval(abs(residuals3(:,:)))>error_allowed) then
                 write(*,*) ""
-                write(*,*) "     A_g_to_ls VALUES :"
+                write(*,*) "     FLAGGED VALUES :"
                 do i = 1, N_verts*3
-                    ! if (any(abs(residuals3(:,i))>error_allowed)) then
+                    if (any(abs(residuals3(:,i))>error_allowed)) then
                         write(*,*) ""
                         write(*,'(A,I5,A)') "                        d_A_g_to_ls row ",m,"              & 
                                                            residuals"
@@ -364,9 +343,25 @@ program panel_flow2
                     
                         write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",   &
                         adjoint_mesh%panels(index)%d_A_g_to_ls(m)%get_values(i), residuals3(:,i)
-                    ! end if
+                    end if
                 end do
-            ! end if
+            end if
+
+            ! ! if (maxval(abs(residuals3(:,:)))>error_allowed) then
+            !     write(*,*) ""
+            !     write(*,*) "     A_g_to_ls VALUES :"
+            !     do i = 1, N_verts*3
+            !         ! if (any(abs(residuals3(:,i))>error_allowed)) then
+            !             write(*,*) ""
+            !             write(*,'(A,I5,A)') "                        d_A_g_to_ls row ",m,"              & 
+            !                                                residuals"
+            !             write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_A_g_to_ls_FD(:,i)
+                    
+            !             write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",   &
+            !             adjoint_mesh%panels(index)%d_A_g_to_ls(m)%get_values(i), residuals3(:,i)
+            !         ! end if
+            !     end do
+            ! ! end if
             
             
             ! check if test failed

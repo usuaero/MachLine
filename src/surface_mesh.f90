@@ -200,7 +200,6 @@ contains
         ! if calc_adjoint was specified, init the adjoint calculations
         if (this%calc_adjoint) then
             call this%init_adjoint()
-            write(*,*) "check after init adjoint"
         end if
 
     end subroutine surface_mesh_init
@@ -3207,13 +3206,10 @@ contains
         
 
         ! init vertex attribute d_loc
-        write(*,*) "check before vertices init adjoint"
-        write(*,*) "N_verts =", this%N_verts
         do i=1,this%N_verts
             ! init vertex sensitivities
             call this%vertices(i)%init_adjoint(this%N_verts)
         end do
-        write(*,*) "check after vertices init adjoint"
         
         
         do i=1,this%N_panels

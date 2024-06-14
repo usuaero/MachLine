@@ -105,7 +105,7 @@ program dirichlet_test2
     ! Initialize flow
     call json_xtnsn_get(geom_settings, 'spanwise_axis', spanwise_axis, '+y')
     call freestream_flow%init(flow_settings, spanwise_axis)
-    
+    write(*,*) "freestream inititiation"
     ! Get result files
     call json_xtnsn_get(output_settings, 'body_file', body_file, 'none')
     call json_xtnsn_get(output_settings, 'wake_file', wake_file, 'none')
@@ -242,11 +242,7 @@ program dirichlet_test2
                         deallocate(test_mesh%panels(n)%n_hat_g)
                         call test_mesh%panels(n)%calc_derived_geom()
                     end do
-                    write(*,*) "panel n_g = ", test_mesh%panels(i)%n_g
-                    write(*,*) "panel area = ", test_mesh%panels(i)%a
-                    write(*,*) "panel centroid = ", test_mesh%panels(i)%centr
-                    write(*,*) "panel n_hat_g = ", test_mesh%panels(i)%n_hat_g(:,1)
-
+                    
                     ! update vertex normal
                     call test_mesh%calc_vertex_geometry()
 
@@ -314,7 +310,6 @@ program dirichlet_test2
                     ! restore geometry
                     test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
                     
-                    stop
                 end do 
             end do 
             
