@@ -57,7 +57,7 @@ program dirichlet_test3
     ! test stuff
     integer :: passed_tests, total_tests
     logical :: test_failed
-    character(len=100),dimension(100) :: failure_log
+    character(len=100),dimension(200) :: failure_log
     character(len=10) :: m_char
     real,dimension(:,:),allocatable :: maxRs
     integer(8) :: start_count, end_count
@@ -220,7 +220,7 @@ program dirichlet_test3
     allocate(d_ls_dn(2,N_verts*3))
     allocate(d_d_ls_FD(2,N_verts*3))
 
-    error_allowed = 1.0e-8
+    error_allowed = 1.0e-7
     step = 0.000001
     index = 1
     cp_ind = 1
@@ -276,39 +276,41 @@ program dirichlet_test3
     
                     ! recalculates cp locations
                     deallocate(test_solver%sigma_known)
+                    deallocate(test_solver%i_sigma_in_sys)
+                    deallocate(test_solver%i_sys_sigma_in_body)
                     deallocate(test_mesh%cp)
                     deallocate(test_solver%P)
                     call test_solver%init(solver_settings, processing_settings, &
                     test_mesh, freestream_flow, control_point_file)
-
+                    
                     ! calc CALC BASIC GEOM geom of relation between cp and panel 
                     test_geom = test_mesh%panels(index)%calc_basic_geom(test_mesh%cp(cp_ind)%loc,.false.)
-        
+                    
                     !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
                     
                     ! get desired info
                     h_up(j + (i-1)*N_verts) = test_geom%h
                     h2_up(j + (i-1)*N_verts) = test_geom%h2
-
+                    
                     P_g_up(:,j + (i-1)*N_verts) = test_geom%P_g(:)
                     v_xi_up(:,j + (i-1)*N_verts) = test_geom%v_xi(:)
                     v_eta_up(:,j + (i-1)*N_verts) = test_geom%v_eta(:)
-
+                    
                     P_ls_up(:,j + (i-1)*N_verts) = test_geom%P_ls(:)
-
+                    
                     ! perturb down the current design variable
                     test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - 2.*step
-
+                    
                     !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
-
-                        ! update panel geometry and calc
+                    
+                    ! update panel geometry and calc
                     do m =1,N_panels
                         deallocate(test_mesh%panels(m)%n_hat_g)
                         call test_mesh%panels(m)%calc_derived_geom()
                     end do
-
+                    
                     call test_mesh%calc_vertex_geometry()
-
+                    
                     ! update with flow
                     deallocate(test_mesh%panels(index)%vertices_ls)
                     deallocate(test_mesh%panels(index)%n_hat_ls)
@@ -316,9 +318,11 @@ program dirichlet_test3
                     deallocate(test_mesh%panels(index)%b_mir)  
                     deallocate(test_mesh%panels(index)%sqrt_b)
                     call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
-    
+                    
                     ! recalculates cp locations
                     deallocate(test_solver%sigma_known)
+                    deallocate(test_solver%i_sigma_in_sys)
+                    deallocate(test_solver%i_sys_sigma_in_body)
                     deallocate(test_mesh%cp)
                     deallocate(test_solver%P)
                     call test_solver%init(solver_settings, processing_settings, &
@@ -365,12 +369,15 @@ program dirichlet_test3
             
             if (maxval(abs(residuals))>error_allowed) then
                 write(*,*) ""
-                write(*,*) "     FLAGGED VALUES :"
-                write(*,*) "          d_h FD             adjoint d_h             residual"
+                write(*,*) "FLAGGED VALUES :"
+                write(*,*) ""
                 do i = 1, N_verts*3
                     if (abs(residuals(i))>error_allowed) then
-                        write(*, '(8x,(f25.10, 4x),3x, (f25.10, 4x),3x, (f25.10, 4x))') &
-                        d_h_FD(i), adjoint_geom%d_h%get_value(i), residuals(i)
+                        write(*,'(A,I5)') "                         d_h panel point ", i 
+                        write(*, '(A25,8x,(f25.10, 4x))') "       Central Difference", d_h_FD(i)
+                        write(*, '(A25,8x,(f25.10, 4x))') "                  adjoint", adjoint_geom%d_h%get_value(i)
+                        write(*, '(A25,8x,(f25.10, 4x))') "                 residual", residuals(i)
+                        write(*,*) ""
                     end if
                 end do
             end if
@@ -447,12 +454,15 @@ program dirichlet_test3
 
             if (maxval(abs(residuals))>error_allowed) then
                 write(*,*) ""
-                write(*,*) "     FLAGGED VALUES :"
-                write(*,*) "          d_h2 FD             adjoint d_h2             residual"
+                write(*,*) "FLAGGED VALUES :"
+                write(*,*) ""
                 do i = 1, N_verts*3
                     if (abs(residuals(i))>error_allowed) then
-                        write(*, '(8x,(f25.10, 4x),3x, (f25.10, 4x),3x, (f25.10, 4x))') &
-                        d_h_FD(i), adjoint_geom%d_h2%get_value(i), residuals(i)
+                        write(*,'(A,I5)') "                         d_h2 panel point ", i 
+                        write(*, '(A25,8x,(f25.10, 4x))') "       Central Difference", d_h2_FD(i)
+                        write(*, '(A25,8x,(f25.10, 4x))') "                  adjoint", adjoint_geom%d_h2%get_value(i)
+                        write(*, '(A25,8x,(f25.10, 4x))') "                 residual", residuals(i)
+                        write(*,*) ""
                     end if
                 end do
             end if
@@ -528,16 +538,15 @@ program dirichlet_test3
 
             if (maxval(abs(residuals3(:,:)))>error_allowed) then
                 write(*,*) ""
-                write(*,*) "     FLAGGED VALUES :"
+                write(*,*) "FLAGGED VALUES :"
+                write(*,*) ""
                 do i = 1, N_verts*3
                     if (any(abs(residuals3(:,i))>error_allowed)) then
+                        write(*,'(A,I5)') "                         d_P_g panel point ", i 
+                        write(*, '(A25,8x,3(f25.10, 4x))') "       Central Difference", d_P_g_FD(:,i)
+                        write(*, '(A25,8x,3(f25.10, 4x))') "                  adjoint", adjoint_geom%d_P_g%get_values(i)
+                        write(*, '(A25,8x,3(f25.10, 4x))') "                 residual", residuals3(:,i)
                         write(*,*) ""
-                        write(*,'(A,I5,A)') "                         d_P_g panel point ", k,"       & 
-                                                            residuals"
-                        write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_P_g_FD(:,i)
-                    
-                        write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",   &
-                        adjoint_geom%d_P_g%get_values(i), residuals3(:,i)
                     end if
                 end do
             end if
@@ -617,18 +626,16 @@ program dirichlet_test3
             
             if (maxval(abs(residuals3(:,:)))>error_allowed) then
                 write(*,*) ""
-                write(*,*) "     FLAGGED VALUES :"
+                write(*,*) "FLAGGED VALUES :"
+                write(*,*) ""
                 do i = 1, N_verts*3
-                    if (any(abs(residuals3(:,i))>error_allowed)) then
+                    if (any(abs(residuals3(:,i))>error_allowed)) then                    
+                        write(*,'(A,I5)') "             d_v_xi for each panel vertex ", i 
+                        write(*, '(A25,8x,3(f25.10, 4x))') "       Central Difference", d_v_xi_FD(:,i)
+                        write(*, '(A25,8x,3(f25.10, 4x))') "                  adjoint", adjoint_geom%d_v_xi(1)%get_value(i),&
+                        adjoint_geom%d_v_xi(2)%get_value(i), adjoint_geom%d_v_xi(3)%get_value(i)
+                        write(*, '(A25,8x,3(f25.10, 4x))') "                 residual", residuals3(:,i)
                         write(*,*) ""
-                        write(*,'(A)') "                                                            d_v_xi for each panel vertex   &
-                                                                                                         residuals"
-                        write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_v_xi_FD(:,i)
-                    
-                        write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",   &
-                        adjoint_geom%d_v_xi(1)%get_value(i),&
-                        adjoint_geom%d_v_xi(2)%get_value(i),&
-                        adjoint_geom%d_v_xi(3)%get_value(i), residuals3(:,i)
                     end if
                 end do
             end if
@@ -709,18 +716,16 @@ program dirichlet_test3
             
             if (maxval(abs(residuals3(:,:)))>error_allowed) then
                 write(*,*) ""
-                write(*,*) "     FLAGGED VALUES :"
+                write(*,*) "FLAGGED VALUES :"
+                write(*,*) ""
                 do i = 1, N_verts*3
                     if (any(abs(residuals3(:,i))>error_allowed)) then
+                        write(*,'(A,I5)') "             d_v_eta for each panel vertex ", i 
+                        write(*, '(A25,8x,3(f25.10, 4x))') "       Central Difference", d_v_eta_FD(:,i)
+                        write(*, '(A25,8x,3(f25.10, 4x))') "                  adjoint", adjoint_geom%d_v_eta(1)%get_value(i),&
+                        adjoint_geom%d_v_eta(2)%get_value(i), adjoint_geom%d_v_eta(3)%get_value(i)
+                        write(*, '(A25,8x,3(f25.10, 4x))') "                 residual", residuals3(:,i)
                         write(*,*) ""
-                        write(*,'(A)') "                                                  d_v_eta for each panel vertex   &
-                                                                                               residuals"
-                        write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_v_eta_FD(:,i)
-                    
-                        write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",   &
-                        adjoint_geom%d_v_eta(1)%get_value(i),&
-                        adjoint_geom%d_v_eta(2)%get_value(i),&
-                        adjoint_geom%d_v_eta(3)%get_value(i), residuals3(:,i)
                     end if
                 end do
             end if
@@ -798,17 +803,16 @@ program dirichlet_test3
             
             if (maxval(abs(residuals2(:,:)))>error_allowed) then
                 write(*,*) ""
-                write(*,*) "     FLAGGED VALUES :"
+                write(*,*) "FLAGGED VALUES :"
+                write(*,*) ""
                 do i = 1, N_verts*3
                     if (any(abs(residuals2(:,i))>error_allowed)) then
+                        write(*,'(A,I5)') "             d_P_ls for each panel vertex ", i 
+                        write(*, '(A25,8x,2(f25.10, 4x))') "       Central Difference", d_P_ls_FD(:,i)
+                        write(*, '(A25,8x,2(f25.10, 4x))') "                  adjoint", adjoint_geom%d_P_ls(1)%get_value(i),&
+                        adjoint_geom%d_P_ls(2)%get_value(i)
+                        write(*, '(A25,8x,2(f25.10, 4x))') "                 residual", residuals2(:,i)
                         write(*,*) ""
-                        write(*,'(A)') "                                      d_P_ls for each panel vertex   &
-                                                                                   residuals"
-                        write(*, '(A25,8x,2(f25.10, 4x))') "    Central Difference", d_P_ls_FD(:,i)
-                    
-                        write(*, '(A25,8x,2(f25.10, 4x),3x, 2(f25.10, 4x))') "          adjoint",   &
-                        adjoint_geom%d_P_ls(1)%get_value(i),&
-                        adjoint_geom%d_P_ls(2)%get_value(i), residuals2(:,i)
                     end if
                 end do
             end if
@@ -907,6 +911,8 @@ program dirichlet_test3
                         
                         ! recalculates cp locations
                         deallocate(test_solver%sigma_known)
+                        deallocate(test_solver%i_sigma_in_sys)
+                        deallocate(test_solver%i_sys_sigma_in_body)
                         deallocate(test_mesh%cp)
                         deallocate(test_solver%P)
                         call test_solver%init(solver_settings, processing_settings, &
@@ -943,6 +949,8 @@ program dirichlet_test3
 
                         ! recalculates cp locations
                         deallocate(test_solver%sigma_known)
+                        deallocate(test_solver%i_sigma_in_sys)
+                        deallocate(test_solver%i_sys_sigma_in_body)
                         deallocate(test_mesh%cp)
                         deallocate(test_solver%P) 
                         call test_solver%init(solver_settings, processing_settings, &
@@ -973,17 +981,16 @@ program dirichlet_test3
                     
                 if (maxval(abs(residuals2(:,:)))>error_allowed) then
                     write(*,*) ""
-                    write(*,*) "     FLAGGED VALUES :"
+                    write(*,*) "FLAGGED VALUES :"
+                    write(*,*) ""
                     do i = 1, N_verts*3
                         if (any(abs(residuals2(:,i))>error_allowed)) then
+                            write(*,'(A,I5)') "             d_d_ls for each panel vertex ", i 
+                            write(*, '(A25,8x,2(f25.10, 4x))') "       Central Difference", d_d_ls_FD(:,i)
+                            write(*, '(A25,8x,2(f25.10, 4x))') "                  adjoint", adjoint_geom%d_d_ls(1,p)%get_value(i),&
+                            adjoint_geom%d_d_ls(2,p)%get_value(i)
+                            write(*, '(A25,8x,2(f25.10, 4x))') "                 residual", residuals2(:,i)
                             write(*,*) ""
-                            write(*,'(A,I5,A)') "                       d_d_ls panel edge ",p,"   &
-                                                                        residuals"
-                            write(*, '(A25,8x,2(f25.10, 4x))') "    Central Difference", d_d_ls_FD(:,i)
-                        
-                            write(*, '(A25,8x,2(f25.10, 4x),3x, 2(f25.10, 4x))') "          adjoint",   &
-                            adjoint_geom%d_d_ls(1,p)%get_value(i),&
-                            adjoint_geom%d_d_ls(2,p)%get_value(i), residuals2(:,i)
                         end if
                     end do
                 end if

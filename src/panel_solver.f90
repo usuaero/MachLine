@@ -375,7 +375,7 @@ contains
                     " offset ratio of ", offset, "..."
             end if
         end if
-
+        
         ! Place control points inside the body
         call body%place_internal_vertex_control_points(offset, offset_type, this%freestream)
 
@@ -582,7 +582,6 @@ contains
             ! All sources are unknown here
             allocate(this%sigma_known(this%N_sigma), source=.false.)
             this%N_s_unknown = this%N_sigma
-
             ! Allocate vectors mapping unknown sigmas into the (unpermuted) linear system and back
             allocate(this%i_sigma_in_sys(this%N_sigma))
             allocate(this%i_sys_sigma_in_body(this%N_s_unknown))
