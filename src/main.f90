@@ -147,6 +147,7 @@ program main
     ! Get formulation type                                                  !
     call json_xtnsn_get(solver_settings, 'formulation', formulation, 'none')!
     !!!!!!!!!!!!!!!!!!!!!!! END_WAKE_DEV !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    
     ! Perform flow-dependent initialization on the surface mesh
     call body_mesh%init_with_flow(freestream_flow, body_file, wake_file, formulation)
     
