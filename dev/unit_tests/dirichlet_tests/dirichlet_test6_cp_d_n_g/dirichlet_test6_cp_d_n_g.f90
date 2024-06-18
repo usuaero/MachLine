@@ -1,4 +1,4 @@
-program dirichlet_test5
+program dirichlet_test6
     ! tests various intermediate sensitivities 
     use adjoint_mod
     use base_geom_mod
@@ -241,6 +241,8 @@ program dirichlet_test5
                 
                 ! recalculates cp locations
                 deallocate(test_solver%sigma_known)
+                deallocate(test_solver%i_sigma_in_sys)
+                deallocate(test_solver%i_sys_sigma_in_body)
                 deallocate(test_mesh%cp)
                 deallocate(test_solver%P)
                 call test_solver%init(solver_settings, processing_settings, &
@@ -268,6 +270,8 @@ program dirichlet_test5
                 
                 ! recalculates cp locations
                 deallocate(test_solver%sigma_known)
+                deallocate(test_solver%i_sigma_in_sys)
+                deallocate(test_solver%i_sys_sigma_in_body)
                 deallocate(test_mesh%cp)
                 deallocate(test_solver%P)
                 call test_solver%init(solver_settings, processing_settings, &
@@ -277,6 +281,7 @@ program dirichlet_test5
                 
                 ! get the needed info
                 cp_n_g_dn(:,j + (i-1)*N_verts) = test_mesh%cp(cp_ind)%n_g
+                
                 
                 ! restore geometry
                 test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
@@ -292,21 +297,19 @@ program dirichlet_test5
             residuals3(:,i) = adjoint_mesh%cp(cp_ind)%d_n_g%get_values(i) - d_cp_n_g_FD(:,i)
         end do
 
-        if (maxval(abs(residuals3(:,:)))>error_allowed) then
+        ! if (maxval(abs(residuals3(:,:)))>error_allowed) then
             write(*,*) ""
             write(*,*) "     FLAGGED VALUES :"
             do i = 1, N_verts*3
-                if (any(abs(residuals3(:,i))>error_allowed)) then
+                ! if (any(abs(residuals3(:,i))>error_allowed)) then
                     write(*,*) ""
-                    write(*,*) "                                    d_cp_n_g              & 
-                                                                   residuals"
+                    write(*,*) "                                    d_cp_n_g "
                     write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_cp_n_g_FD(:,i)
-                
-                    write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",   &
-                    adjoint_mesh%vertices(cp_ind)%d_n_g%get_values(i), residuals3(:,i)
-                end if
+                    write(*, '(A25,8x,3(f25.10, 4x))') "               adjoint", adjoint_mesh%vertices(cp_ind)%d_n_g%get_values(i)
+                    write(*, '(A25,8x,3(f25.10, 4x))') "             residuals", residuals3(:,i)
+                ! end if
             end do
-        end if
+        ! end if
 
         
         
@@ -408,4 +411,4 @@ program dirichlet_test5
     write(*,*) "----------------------"
 
 
-end program dirichlet_test5
+end program dirichlet_test6

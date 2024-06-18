@@ -1,4 +1,4 @@
-program dirichlet_test6
+program dirichlet_test5
 
     ! tests various intermediate sensitivities 
     use adjoint_mod
@@ -58,6 +58,8 @@ program dirichlet_test6
     character(len=10) :: m_char
     integer(8) :: start_count, end_count
     real(16) :: count_rate, time
+    
+    
 
     !!!!!!!!!!!!!!!!!!! END TESTING STUFF !!!!!!!!!!!!!!!!!!!!!11
 
@@ -113,17 +115,15 @@ program dirichlet_test6
 
     ! Perform flow-dependent initialization on the surface mesh
     call test_mesh%init_with_flow(freestream_flow, body_file, wake_file, formulation)
-
+    
     ! Initialize panel solver
     call test_solver%init(solver_settings, processing_settings, test_mesh, freestream_flow, control_point_file)
-
+    
     !!!!!!!!!!!!!!!!!!!!! END TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
 
     call system_clock(start_count, count_rate)
     
 
-    
 
     !!!!!!!!!!!!!!!!!!!!!!ADJOINT TEST MESH !!!!!!!!!!!!!!!!!!!!!
     ! Set up run
@@ -223,6 +223,8 @@ program dirichlet_test6
                 call test_mesh%calc_vertex_geometry()
                 
                 deallocate(test_solver%sigma_known)
+                deallocate(test_solver%i_sigma_in_sys)
+                deallocate(test_solver%i_sys_sigma_in_body)
                 deallocate(test_mesh%cp)
                 deallocate(test_solver%P)
                 call test_solver%init(solver_settings, processing_settings, &
@@ -242,8 +244,12 @@ program dirichlet_test6
                     deallocate(test_mesh%panels(m)%n_hat_g)
                     call test_mesh%panels(m)%calc_derived_geom()
                 end do
+
                 call test_mesh%calc_vertex_geometry()
+
                 deallocate(test_solver%sigma_known)
+                deallocate(test_solver%i_sigma_in_sys)
+                deallocate(test_solver%i_sys_sigma_in_body)
                 deallocate(test_mesh%cp)
                 deallocate(test_solver%P)    
                 call test_solver%init(solver_settings, processing_settings, &
@@ -268,21 +274,21 @@ program dirichlet_test6
         end do
 
         
-        if (maxval(abs(residuals3(:,:)))>error_allowed) then
+        ! if (maxval(abs(residuals3(:,:)))>error_allowed) then
             write(*,*) ""
-            write(*,*) "     FLAGGED VALUES :"
+            ! write(*,*) "     FLAGGED VALUES :"
             do i = 1, N_verts*3
-                if (any(abs(residuals3(:,i))>error_allowed)) then
+                ! if (any(abs(residuals3(:,i))>error_allowed)) then
                     write(*,*) ""
-                    write(*,*) "                                       d_loc_g              & 
-                                                                    residuals"
+                    write(*,*) "                    d_loc_g "
                     write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_loc_FD(:,i)
                 
-                    write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",   &
-                    adjoint_mesh%cp(cp_ind)%d_loc%get_values(i), residuals3(:,i)
-                end if
+                    write(*, '(A25,8x,3(f25.10, 4x))') "               adjoint",   &
+                    adjoint_mesh%cp(cp_ind)%d_loc%get_values(i)
+                    write(*, '(A25,8x,3(f25.10, 4x))') "             residuals", residuals3(:,i)
+                ! end if
             end do
-        end if
+        ! end if
 
         
         
@@ -379,4 +385,4 @@ end do ! z control points
     write(*,*) "Program Complete"
     write(*,*) "----------------------"
 
-end program dirichlet_test6
+end program dirichlet_test5

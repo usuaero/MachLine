@@ -2259,19 +2259,22 @@ contains
         else
             cp_locs = this%get_cp_locs_vertex_based_interior(offset, offset_type, freestream)
         end if 
+
+        
         
         ! Initialize control points
         do i=1,this%N_verts
             call this%cp(i)%init(cp_locs(:,i), INTERNAL, TT_VERTEX, i)
         end do
 
-         ! if adjoint_calc is specified, init cp adjoint (will break if mirrored)
+         ! if adjoint_calc is specified, populate the d_loc cp attribute
         if (this%calc_adjoint) then
             do i=1,this%N_verts
-                call this%cp(i)%init_adjoint(this%vertices(i)%d_loc, this%vertices(i)%d_n_g, offset)
+                call this%cp(i)%d_loc%init_from_sparse_matrix(d_cp_locs%rows(i))
+                deallocate(d_cp_locs%rows(i)%columns)
             end do
         end if
-
+        
         ! Initialize mirrored control points, if necessary
         if (this%asym_flow) then
 

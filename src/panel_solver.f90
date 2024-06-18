@@ -375,7 +375,6 @@ contains
                     " offset ratio of ", offset, "..."
             end if
         end if
-        
         ! Place control points inside the body
         call body%place_internal_vertex_control_points(offset, offset_type, this%freestream)
 
@@ -1503,6 +1502,24 @@ contains
                     ! Influence of existing panel on control point
                     call body%panels(j)%calc_potential_influences(body%cp(i)%loc, this%freestream, &
                                                                   .false., source_inf, doublet_inf)
+
+                    !!!!!!!!!!!! ADJOINT CALCS HAPPEN HERE !!!!!!!!!!!!!!!!!!!!
+
+                    ! ! if calc_adjoint is specified, do adjoint calcs (METHOD 1)
+                    ! if (body%calc_adjoint) then
+                    !     call body%panels(j)%calc_velocity_influences_adjoint(body%cp(i)%loc, body%cp(i)%d_loc, &
+                    !         this%freestream, d_v_d)
+                    !     inf_adjoint = body%panels(j)%calc_doublet_inf_adjoint(body%cp(i), this%freestream, d_v_d)
+                    !     call this%update_adjoint_A_row(body, body%cp(i), d_AIC_row, j, inf_adjoint, .false.)
+                    ! end if
+
+                    ! if calc_adjoint is specified, do adjoint calcs (METHOD 2)
+                    if (body%calc_adjoint) then
+                        inf_adjoint = body%panels(j)%calc_adjoint_potential_influences(body%cp(i),this%freestream, .false.)
+                        call this%update_adjoint_A_row(body, body%cp(i), d_AIC_row, j, inf_adjoint, .false.)
+                    end if
+                                            
+                    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
                     ! Add influence
                     call this%update_system_row(body, body%cp(i), A_i, I_known_i, j, source_inf, doublet_inf, .false.)

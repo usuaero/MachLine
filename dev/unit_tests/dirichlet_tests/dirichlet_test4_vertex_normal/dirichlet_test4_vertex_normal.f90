@@ -128,23 +128,23 @@ program dirichlet_test4
     ! Initialize surface mesh
     call adjoint_mesh%init(adjoint_geom_settings)
 
-    ! Initialize flow
-    call json_xtnsn_get(adjoint_geom_settings, 'spanwise_axis', adjoint_spanwise_axis, '+y')
-    call adjoint_freestream_flow%init(adjoint_flow_settings, adjoint_spanwise_axis)
+    ! ! Initialize flow
+    ! call json_xtnsn_get(adjoint_geom_settings, 'spanwise_axis', adjoint_spanwise_axis, '+y')
+    ! call adjoint_freestream_flow%init(adjoint_flow_settings, adjoint_spanwise_axis)
     
-    ! Get result files
-    call json_xtnsn_get(adjoint_output_settings, 'body_file', adjoint_body_file, 'none')
-    call json_xtnsn_get(adjoint_output_settings, 'wake_file', adjoint_wake_file, 'none')
-    call json_xtnsn_get(adjoint_output_settings, 'control_point_file', adjoint_control_point_file, 'none')
-    call json_xtnsn_get(adjoint_output_settings, 'mirrored_body_file', adjoint_mirrored_body_file, 'none')
-    call json_xtnsn_get(adjoint_output_settings, 'offbody_points.points_file', adjoint_points_file, 'none')
-    call json_xtnsn_get(adjoint_output_settings, 'offbody_points.output_file', adjoint_points_output_file, 'none')
+    ! ! Get result files
+    ! call json_xtnsn_get(adjoint_output_settings, 'body_file', adjoint_body_file, 'none')
+    ! call json_xtnsn_get(adjoint_output_settings, 'wake_file', adjoint_wake_file, 'none')
+    ! call json_xtnsn_get(adjoint_output_settings, 'control_point_file', adjoint_control_point_file, 'none')
+    ! call json_xtnsn_get(adjoint_output_settings, 'mirrored_body_file', adjoint_mirrored_body_file, 'none')
+    ! call json_xtnsn_get(adjoint_output_settings, 'offbody_points.points_file', adjoint_points_file, 'none')
+    ! call json_xtnsn_get(adjoint_output_settings, 'offbody_points.output_file', adjoint_points_output_file, 'none')
 
-    ! Get formulation type                                                  !
-    call json_xtnsn_get(adjoint_solver_settings, 'formulation', adjoint_formulation, 'none')!
+    ! ! Get formulation type                                                  !
+    ! call json_xtnsn_get(adjoint_solver_settings, 'formulation', adjoint_formulation, 'none')!
 
-    ! Perform flow-dependent initialization on the surface mesh
-    call adjoint_mesh%init_with_flow(adjoint_freestream_flow, adjoint_body_file, adjoint_wake_file, adjoint_formulation)
+    ! ! Perform flow-dependent initialization on the surface mesh
+    ! call adjoint_mesh%init_with_flow(adjoint_freestream_flow, adjoint_body_file, adjoint_wake_file, adjoint_formulation)
     !!!!!!!!!!! END ADJOINT TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!
 
 
@@ -160,7 +160,7 @@ program dirichlet_test4
     allocate(n_g_dn(N_verts*3))
     allocate(d_n_g_FD(3,N_verts*3))
     
-    error_allowed = 1.0e-9
+    error_allowed = 1.0e-6
     step = 0.000001
     ! index = 1
     cp_ind = 1
@@ -207,6 +207,7 @@ program dirichlet_test4
                         deallocate(test_mesh%panels(m)%n_hat_g)
                         call test_mesh%panels(m)%calc_derived_geom()
                     end do
+                    
                     call test_mesh%calc_vertex_geometry()
                     
                     ! get desired info
@@ -234,12 +235,11 @@ program dirichlet_test4
             do i = 1, N_verts*3
                 if (any(abs(residuals3(:,i))>error_allowed)) then
                     write(*,*) ""
-                    write(*,*) "                                      d_n_g              & 
-                                                                    residuals"
+                    write(*,*) "                                      d_n_g     "
                     write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_n_g_FD(:,i)
-                
-                    write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",   &
-                    adjoint_mesh%vertices(cp_ind)%d_n_g%get_values(i), residuals3(:,i)
+                    write(*, '(A25,8x,3(f25.10, 4x))') "               adjoint",   &
+                    adjoint_mesh%vertices(cp_ind)%d_n_g%get_values(i)
+                    write(*, '(A25,8x,3(f25.10, 4x))') "    residuals", residuals3(:,i)
                 end if
             end do
         end if

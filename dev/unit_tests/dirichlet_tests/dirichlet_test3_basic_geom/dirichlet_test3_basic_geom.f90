@@ -220,7 +220,7 @@ program dirichlet_test3
     allocate(d_ls_dn(2,N_verts*3))
     allocate(d_d_ls_FD(2,N_verts*3))
 
-    error_allowed = 1.0e-7
+    error_allowed = 1.0e-9
     step = 0.000001
     index = 1
     cp_ind = 1
@@ -272,7 +272,13 @@ program dirichlet_test3
                     deallocate(test_mesh%panels(index)%b)
                     deallocate(test_mesh%panels(index)%b_mir)  
                     deallocate(test_mesh%panels(index)%sqrt_b)
+                    deallocate(test_mesh%panels(index)%i_vert_d)
+                    deallocate(test_mesh%panels(index)%S_mu_inv)
+                    deallocate(test_mesh%panels(index)%T_mu)
+                    ! deallocate(test_mesh%panels(index)%i_panel_s)
                     call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
+                    call test_mesh%panels(index)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
+                    test_mesh%vertices,.false.)
     
                     ! recalculates cp locations
                     deallocate(test_solver%sigma_known)
@@ -317,7 +323,13 @@ program dirichlet_test3
                     deallocate(test_mesh%panels(index)%b)
                     deallocate(test_mesh%panels(index)%b_mir)  
                     deallocate(test_mesh%panels(index)%sqrt_b)
+                    deallocate(test_mesh%panels(index)%i_vert_d)
+                    deallocate(test_mesh%panels(index)%S_mu_inv)
+                    deallocate(test_mesh%panels(index)%T_mu)
+                    ! deallocate(test_mesh%panels(index)%i_panel_s)
                     call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
+                    call test_mesh%panels(index)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
+                    test_mesh%vertices,.false.)
                     
                     ! recalculates cp locations
                     deallocate(test_solver%sigma_known)
@@ -345,6 +357,7 @@ program dirichlet_test3
                     
                     ! restore geometry
                     test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
+                
                 end do 
             end do 
             
@@ -443,7 +456,7 @@ program dirichlet_test3
     
 
 
-            
+        
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  d_h2 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
@@ -907,7 +920,13 @@ program dirichlet_test3
                         deallocate(test_mesh%panels(index)%b)
                         deallocate(test_mesh%panels(index)%b_mir)  
                         deallocate(test_mesh%panels(index)%sqrt_b)
+                        deallocate(test_mesh%panels(index)%i_vert_d)
+                        deallocate(test_mesh%panels(index)%S_mu_inv)
+                        deallocate(test_mesh%panels(index)%T_mu)
+                        ! deallocate(test_mesh%panels(index)%i_panel_s)
                         call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
+                        call test_mesh%panels(index)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
+                        test_mesh%vertices,.false.)
                         
                         ! recalculates cp locations
                         deallocate(test_solver%sigma_known)
@@ -945,7 +964,13 @@ program dirichlet_test3
                         deallocate(test_mesh%panels(index)%b)
                         deallocate(test_mesh%panels(index)%b_mir)  
                         deallocate(test_mesh%panels(index)%sqrt_b)
+                        deallocate(test_mesh%panels(index)%i_vert_d)
+                        deallocate(test_mesh%panels(index)%S_mu_inv)
+                        deallocate(test_mesh%panels(index)%T_mu)
+                        ! deallocate(test_mesh%panels(index)%i_panel_s)
                         call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
+                        call test_mesh%panels(index)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
+                        test_mesh%vertices,.false.)
 
                         ! recalculates cp locations
                         deallocate(test_solver%sigma_known)
@@ -966,6 +991,7 @@ program dirichlet_test3
                         
                         ! restore geometry
                         test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
+                        
                     end do 
                 end do 
                 

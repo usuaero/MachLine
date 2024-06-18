@@ -14,7 +14,7 @@ if __name__=="__main__":
             "src/wake_strip.f90", "src/wake_mesh.f90", "src/surface_mesh.f90", 
             "src/panel_solver.f90", 
             
-            "dev/unit_tests/dirichlet_gradient_tests/dirichlet_test8_F_integrals/dirichlet_test8_F_integrals.f90"])
+            "dev/unit_tests/dirichlet_tests/dirichlet_test8_F_integrals/dirichlet_test8_F_integrals.f90"])
 
     # Run
     sp.run(["a.exe"])

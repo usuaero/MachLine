@@ -75,7 +75,7 @@ program dirichlet_test7
     ! Set up run
     call json_initialize()
 
-    test_input = "dev\input_files\adjoint_inputs\test.json"
+    test_input = "dev\input_files\adjoint_inputs\dirichlet_test.json"
     test_input = trim(test_input)
 
     ! Check it exists
@@ -136,7 +136,7 @@ program dirichlet_test7
     ! Set up run
     call json_initialize()
 
-    adjoint_input = "dev\input_files\adjoint_inputs\adjoint_test.json"
+    adjoint_input = "dev\input_files\adjoint_inputs\dirichlet_adjoint_test.json"
     adjoint_input = trim(adjoint_input)
 
     ! Check it exists
@@ -274,6 +274,8 @@ program dirichlet_test7
                     
                     ! recalculates cp locations
                     deallocate(test_solver%sigma_known)
+                    deallocate(test_solver%i_sigma_in_sys)
+                    deallocate(test_solver%i_sys_sigma_in_body)
                     deallocate(test_mesh%cp)
                     deallocate(test_solver%P)
                     call test_solver%init(solver_settings, processing_settings, &
@@ -316,6 +318,8 @@ program dirichlet_test7
                     
                     ! recalculates cp locations
                     deallocate(test_solver%sigma_known)
+                    deallocate(test_solver%i_sigma_in_sys)
+                    deallocate(test_solver%i_sys_sigma_in_body)
                     deallocate(test_mesh%cp)
                     deallocate(test_solver%P) 
                     call test_solver%init(solver_settings, processing_settings, &
@@ -366,14 +370,13 @@ program dirichlet_test7
                 do i = 1, N_verts*3
                     if (any(abs(residuals3(:,i))>error_allowed)) then
                         write(*,*) ""
-                        write(*,*) "                                  d_l1   values           & 
-                                                                   residuals"
+                        write(*,*) "                    d_l1   values  "
                         write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_l1_FD(:,i)
-                    
-                        write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",   &
+                        write(*, '(A25,8x,3(f25.10, 4x))') "               adjoint",   &
                         adjoint_geom%d_l1(1)%get_value(i),&
                         adjoint_geom%d_l1(2)%get_value(i),&
-                        adjoint_geom%d_l1(3)%get_value(i), residuals3(:,i)
+                        adjoint_geom%d_l1(3)%get_value(i)
+                        write(*, '(A25,8x,3(f25.10, 4x))') "             residuals", residuals3(:,i)
                     end if
                 end do
             end if
