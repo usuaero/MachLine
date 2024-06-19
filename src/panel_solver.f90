@@ -199,8 +199,8 @@ contains
             this%underdetermined_ls = .true.
             this%overdetermined_ls = .false.
         else if (this%formulation == N_MF_D_VCP) then
-            this%sort_system = .false.
-            this%use_sort_for_cp = .false.
+            ! this%sort_system = .true.
+            ! this%use_sort_for_cp = .false.
             this%overdetermined_ls = .false.
             this%underdetermined_ls = .false.
         else 
@@ -647,15 +647,18 @@ contains
                     n_g_new = body%vertices(cp%tied_to_index)%n_g
                 else
                     ! if a vertex is part of a wake sheading edge use the wake's normal vector
-                    n_g_new = body%vertices(cp%tied_to_index)%n_g_wake - freestream%c_hat_g&
-                             * inner(freestream%c_hat_g,body%vertices(cp%tied_to_index)%n_g_wake)
-                    if (body%vertices(cp%tied_to_index)%n_g_wake(2)>0) then
-                        n_g_new = (/0,1,0/)
-                    else
-                        n_g_new = (/0,-1,0/)
-                    end if
-
+                    ! n_g_new = body%vertices(cp%tied_to_index)%n_g_wake - freestream%c_hat_g&
+                    !          * inner(freestream%c_hat_g,body%vertices(cp%tied_to_index)%n_g_wake)
+                    ! n_g_new = freestream%c_hat_g&
+                    !           * inner(freestream%c_hat_g,body%vertices(cp%tied_to_index)%n_g)
                     ! n_g_new = body%vertices(cp%tied_to_index)%n_g_wake
+                    ! if (body%vertices(cp%tied_to_index)%n_g_wake(2)>0) then
+                    !     n_g_new = (/0,1,0/)
+                    ! else
+                    !     n_g_new = (/0,-1,0/)
+                    ! end if
+
+                    n_g_new = body%vertices(cp%tied_to_index)%n_g_wake
                 end if 
 
 

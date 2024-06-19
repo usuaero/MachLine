@@ -1939,12 +1939,25 @@ contains
         do i=1,this%N_verts
 
             ! if the cp is on a wake shedding edge, then the cp is placed on the wake shedding edge with the normal vector of the wake
-            if (this%vertices(i)%N_wake_edges >= 1) then
+            if (this%vertices(i)%N_wake_edges > 1) then
+                ! dir = this%vertices(i)%n_g
                 dir = this%vertices(i)%n_g_wake    !!!! wake shedding edge will be outside the mesh
+                ! if (this%vertices(i)%n_g_wake(2)>0) then
+                !     dir = (/1.,0.01,0./)
+                ! else
+                !     dir = (/1.,-0.01,0./)
+                ! end if
+                ! if (this%vertices(i)%clone) then
+                !     dir = this%get_clone_control_point_dir(i)
+                ! else
+                !     dir = -this%vertices(i)%n_g  !!!! inside the mesh
+                ! end if
+                ! dir = dir/norm2(dir)
+                ! dir = (/1,0,0/)
             else  
                 dir = -this%vertices(i)%n_g  !!!! inside the mesh
+                ! dir = (/1.,0.,0./)
             end if
-
             cp_locs(:,i) = this%vertices(i)%loc + dir * offset
 
             ! set location

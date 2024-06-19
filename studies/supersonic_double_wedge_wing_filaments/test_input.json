@@ -1,0 +1,47 @@
+{
+    "flow": {
+        "freestream_velocity": [
+            1.0,
+            0.0,
+            0.0
+        ],
+        "freestream_mach_number": 2.0
+    },
+    "geometry": {
+        "file": "studies/supersonic_double_wedge_wing_filaments/meshes/delta_wing_clustered_mesh_coarse.vtk",
+        "spanwise_axis": "+z",
+        "reference": {
+            "area": 4.0
+        },
+        "wake_model": {
+            "wake_present": true,
+            "append_wake": true,
+            "trefftz_distance": 20,
+            "wake_type": "panel",
+            "N_panels": 1
+        }
+    },
+    "solver": {
+        "run_checks": true,
+        "formulation": "neumann-mass-flux-VCP",
+        "control_point_offset": 1.0e-7,
+        "matrix_solver": "HHLS",
+        "zmatrix_solver": "LU",
+        "ymatrix_solver": "GMRES",
+        "xmatrix_solver": "QRUP",
+        "preconditioner": "NONE",
+        "write_A_and_b": true,
+        "sort_system" : true
+    },
+    "post_processing": {
+        "pressure_rules": {
+            "incompressible": true
+        }
+    },
+    "output": {
+        "body_file": "studies/supersonic_double_wedge_wing_filaments/results/cp_offset_test.vtk",
+        "wake_file": "studies/supersonic_double_wedge_wing_filaments/results/cp_offset_test_wake.vtk",
+        "report_file": "studies/supersonic_double_wedge_wing_filaments/reports/cp_offset_test.json",
+        "control_point_file": "studies/supersonic_double_wedge_wing_filaments/results/cp_offset_test_control_points.vtk"
+    }
+}

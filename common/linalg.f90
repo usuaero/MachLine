@@ -920,8 +920,15 @@ subroutine QR_givens_solve_UP(N, A, b, x)
 
     end do
   end do
+  !!!! adding the handling of last row here
+  ! If R is rank-deficient, choose a value for x(N)
+  if (abs(A(N,N)) < 1.e-10) then
+      x(N) = 0.
+  else
+      x(N) = b(N) / A(N,N)
+  end if
 
-  ! Back substitution
+  ! Back substitution 
   call upper_triangular_back_sub(N, A, b, x)
   
 end subroutine QR_givens_solve_UP
@@ -1812,8 +1819,9 @@ subroutine diagonal_preconditioner(N, A, b, A_p, b_p)
 
     ! Get preconditioning matrix
     do i=1,N
-        A_ii_inv = 1./A(i,i)
+        A_ii_inv(i) = 1./A(i,i)
     end do
+
 
     ! Allocate
     allocate(A_p(N,N))
@@ -1884,13 +1892,14 @@ subroutine householder_ls_solve(M, N, A, b, x)
     ! ************************************************************************
     allocate(x(N), source=0.)
 
+    write(*,*) "before", x(N)
     ! If R is rank-deficient, choose a value for x(N)
     if (abs(A(N,N)) < 1.e-10) then
         x(N) = 0.
     else
         x(N) = b(N) / A(N,N)
     end if
-
+    write(*,*) "after", x(N)
     ! Back substitution
     do i=N-1,1,-1
         x(i) = b(i) - sum(A(i,i+1:) * x(i+1:))
