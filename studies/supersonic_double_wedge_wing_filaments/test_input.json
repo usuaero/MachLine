@@ -1,8 +1,8 @@
 {
     "flow": {
         "freestream_velocity": [
-            1.0,
-            0.0,
+            0.9961946980917455,
+            0.08715574274765817,
             0.0
         ],
         "freestream_mach_number": 2.0
@@ -42,6 +42,10 @@
         "body_file": "studies/supersonic_double_wedge_wing_filaments/results/cp_offset_test.vtk",
         "wake_file": "studies/supersonic_double_wedge_wing_filaments/results/cp_offset_test_wake.vtk",
         "report_file": "studies/supersonic_double_wedge_wing_filaments/reports/cp_offset_test.json",
-        "control_point_file": "studies/supersonic_double_wedge_wing_filaments/results/cp_offset_test_control_points.vtk"
+        "control_point_file": "studies/supersonic_double_wedge_wing_filaments/results/cp_offset_test_control_points.vtk",
+        "offbody_points": {
+            "points_file": "studies/supersonic_double_wedge_wing_filaments/grid_points.csv",
+            "output_file": "studies/supersonic_double_wedge_wing_filaments/results/grid_points.csv"
+        }
     }
 }

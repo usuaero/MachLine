@@ -135,14 +135,14 @@ def run_machline(input_filename, delete_input=True, run=True):
 if __name__=="__main__":
     # declare varaibles and inputs
     tStart = time.time()
-    alpha = 0
+    alpha = 5
     num_cases = 10
     mach = 2.0
     wake_present = True
     wake_type = "panel"
     # wake_type = "filaments"
-    # formulation = "neumann-mass-flux"
-    formulation = "neumann-mass-flux-VCP"
+    formulation = "neumann-mass-flux"
+    # formulation = "neumann-mass-flux-VCP"
     # formulation = "dirichlet-morino"
 
 
