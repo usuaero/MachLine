@@ -251,7 +251,7 @@ program test16
 
     
     
-    do z =1,adjoint_mesh%N_verts
+    do z =1,N_panels
         
         
         write(*,*) ""

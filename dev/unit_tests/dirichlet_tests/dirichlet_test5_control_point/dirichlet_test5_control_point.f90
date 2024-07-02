@@ -274,11 +274,11 @@ program dirichlet_test5
         end do
 
         
-        ! if (maxval(abs(residuals3(:,:)))>error_allowed) then
+        if (maxval(abs(residuals3(:,:)))>error_allowed) then
             write(*,*) ""
-            ! write(*,*) "     FLAGGED VALUES :"
+            write(*,*) "     FLAGGED VALUES :"
             do i = 1, N_verts*3
-                ! if (any(abs(residuals3(:,i))>error_allowed)) then
+                if (any(abs(residuals3(:,i))>error_allowed)) then
                     write(*,*) ""
                     write(*,*) "                    d_loc_g "
                     write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_loc_FD(:,i)
@@ -286,9 +286,9 @@ program dirichlet_test5
                     write(*, '(A25,8x,3(f25.10, 4x))') "               adjoint",   &
                     adjoint_mesh%cp(cp_ind)%d_loc%get_values(i)
                     write(*, '(A25,8x,3(f25.10, 4x))') "             residuals", residuals3(:,i)
-                ! end if
+                end if
             end do
-        ! end if
+        end if
 
         
         
@@ -348,6 +348,8 @@ program dirichlet_test5
             total_tests = total_tests + 1
             
         end if
+
+        ! reset test failed for the next z loop
         test_failed = .false.
 
 

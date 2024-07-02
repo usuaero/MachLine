@@ -3,9 +3,9 @@
         "freestream_velocity" : [ 1.0, 0.0, 0.0 ]
     },
     "geometry": {
-        "file" : "dev/meshes/adjoint/adjoint_octa_mesh.stl",
+        "afile" : "dev/meshes/adjoint/adjoint_octa_mesh.stl",
         "bfile" : "dev/meshes/adjoint/wedge_wing_coarse.stl",
-        "cfile" : "dev/meshes/adjoint/sphere_coarse2.stl",
+        "file" : "dev/meshes/adjoint/sphere_coarse2.stl",
         "dfile" : "dev/meshes/other_meshes/small_sphere.stl",
         "efile" : "dev/meshes/other_meshes/diamond_5_deg_full_coarse.stl",
         "gfile" : "dev/meshes/other_meshes/naca_0010_AR_10_full_coarse.stl",
@@ -22,9 +22,9 @@
     },
     "solver": {
         "formulation" : "dirichlet-source-free",
-        "xcontrol_point_offset" : 1.0e-3, 
-        "matrix_solver" : "HHLS", 
-        "sort_system" : false
+        "control_point_offset" : 1.0e-2, 
+        "matrix_solver" : "GMRES", 
+        "xsort_system" : false
     },
     "post_processing" : {
     },

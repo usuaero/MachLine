@@ -133,7 +133,7 @@ program dirichlet_test10
     ! calc CALC BASIC GEOM geom of relation between cp1 and panel1 
     test_geom = test_mesh%panels(index)%calc_subsonic_geom(test_mesh%cp(cp_ind)%loc,freestream_flow,.false.)
     test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, .false.)
-    test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,.false., test_dod_info)
+    test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'potential', freestream_flow,.false., test_dod_info)
     v_d = test_mesh%panels(index)%assemble_v_d_M_space(test_int, test_geom, freestream_flow, .false.)
     !!!!!!!!!!!!!!!!!!!!! END TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -249,7 +249,7 @@ program dirichlet_test10
             adjoint_dod_info = adjoint_mesh%panels(index)%check_dod(adjoint_mesh%cp(cp_ind)%loc, &
             adjoint_freestream_flow, .false.)
             
-            adjoint_int = adjoint_mesh%panels(index)%calc_integrals(adjoint_geom, 'velocity',&
+            adjoint_int = adjoint_mesh%panels(index)%calc_integrals(adjoint_geom, 'potential',&
             adjoint_freestream_flow,.false., adjoint_dod_info)
             
             call adjoint_mesh%panels(index)%calc_integrals_adjoint(adjoint_geom,adjoint_int,adjoint_freestream_flow&
@@ -291,6 +291,8 @@ program dirichlet_test10
                     
                     ! recalculates cp locations
                     deallocate(test_solver%sigma_known)
+                    deallocate(test_solver%i_sigma_in_sys)
+                    deallocate(test_solver%i_sys_sigma_in_body)
                     deallocate(test_mesh%cp)
                     deallocate(test_solver%P)
                     call test_solver%init(solver_settings, processing_settings, &
@@ -301,7 +303,7 @@ program dirichlet_test10
                     deallocate(test_int%F111)
                     test_geom = test_mesh%panels(index)%calc_subsonic_geom(test_mesh%cp(cp_ind)%loc,freestream_flow,.false.)
                     test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, .false.)
-                    test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,.false., test_dod_info)
+                    test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'potential', freestream_flow,.false., test_dod_info)
                     v_d = test_mesh%panels(index)%assemble_v_d_M_space(test_int, test_geom, freestream_flow, .false.)
                     !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
                     
@@ -340,6 +342,8 @@ program dirichlet_test10
                     
                     ! recalculates cp locations
                     deallocate(test_solver%sigma_known)
+                    deallocate(test_solver%i_sigma_in_sys)
+                    deallocate(test_solver%i_sys_sigma_in_body)
                     deallocate(test_mesh%cp)
                     deallocate(test_solver%P)
                     call test_solver%init(solver_settings, processing_settings, &
@@ -350,7 +354,7 @@ program dirichlet_test10
                     deallocate(test_int%F111)
                     test_geom = test_mesh%panels(index)%calc_subsonic_geom(test_mesh%cp(cp_ind)%loc,freestream_flow,.false.)
                     test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, .false.)
-                    test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,.false., test_dod_info)
+                    test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'potential', freestream_flow,.false., test_dod_info)
                     v_d = test_mesh%panels(index)%assemble_v_d_M_space(test_int, test_geom, freestream_flow, .false.)
                     !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
                     
@@ -638,6 +642,8 @@ program dirichlet_test10
                 total_tests = total_tests + 1
                 
             end if
+
+            ! reset test failed for the next z loop
             test_failed = .false.
 
 

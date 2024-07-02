@@ -280,6 +280,8 @@ program dirichlet_test12
                 
                 ! recalculates cp locations
                 deallocate(test_solver%sigma_known)
+                deallocate(test_solver%i_sigma_in_sys)
+                deallocate(test_solver%i_sys_sigma_in_body)
                 deallocate(test_mesh%cp)
                 deallocate(test_solver%P)
                 call test_solver%init(solver_settings, processing_settings, &
@@ -343,6 +345,8 @@ program dirichlet_test12
                 
                 ! recalculates cp locations
                 deallocate(test_solver%sigma_known)
+                deallocate(test_solver%i_sigma_in_sys)
+                deallocate(test_solver%i_sys_sigma_in_body)
                 deallocate(test_mesh%cp)
                 deallocate(test_solver%P)
                 call test_solver%init(solver_settings, processing_settings, &
@@ -460,6 +464,7 @@ program dirichlet_test12
             total_tests = total_tests + 1
             
         end if
+        ! reset test failed for the next z loop
         test_failed = .false.
 
 

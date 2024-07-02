@@ -160,7 +160,7 @@ program dirichlet_test4
     allocate(n_g_dn(N_verts*3))
     allocate(d_n_g_FD(3,N_verts*3))
     
-    error_allowed = 1.0e-6
+    error_allowed = 1.0e-9
     step = 0.000001
     ! index = 1
     cp_ind = 1
@@ -302,6 +302,8 @@ program dirichlet_test4
             total_tests = total_tests + 1
             
         end if
+
+        ! reset test failed for the next z loop
         test_failed = .false.
 
 

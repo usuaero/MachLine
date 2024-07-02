@@ -746,6 +746,8 @@ program dirichlet_test1
                 total_tests = total_tests + 1
                 
             end if
+
+            ! reset test failed for the next loop
             test_failed = .false.
 
             

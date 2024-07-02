@@ -2562,7 +2562,7 @@ contains
                 int%F111(i) = sign(1., geom%l1(i)) * log( (geom%R2(i) + abs(geom%l2(i))) / (geom%R1(i) + abs(geom%l1(i))) )
 
             end if
-
+            
         end do
 
         ! Calculate F(1,2,1) and F(2,1,1)
@@ -2978,7 +2978,8 @@ contains
 
         end if
 
-        !!! Nate turned calc recursions off because the resulting terms aren't used 
+
+        !!! Nate turned calc recursions (below this comment) off because the resulting terms aren't used 
         !!!!in any of the current formulations
         
         ! ! Velocity integrals
@@ -4863,7 +4864,7 @@ contains
             int = this%calc_integrals(geom, 'velocity', freestream, mirror_panel, dod_info)
             !!!!! end duplicated work !!!!!!!!!
 
-            call this%calc_integrals_adjoint(geom, int, freestream, mirror_panel, dod_info)
+            call this%calc_integrals_adjoint(geom, 'velocity', int, freestream, mirror_panel, dod_info)
 
             ! ignore d_v_s_S_space, maybe put in a zero sparse matrix
             ! allocate(v_s_S_space(3,this%S_dim), source=0.)
@@ -5456,7 +5457,7 @@ contains
     end function panel_calc_sensitivity_of_body_point_in_ls
 
 
-    subroutine panel_calc_integrals_adjoint(this,geom,int,freestream, mirror_panel, dod_info) 
+    subroutine panel_calc_integrals_adjoint(this,geom,influence_type,int,freestream, mirror_panel, dod_info) 
         ! Calculates the integral sensitivity terms
 
         implicit none
@@ -5464,6 +5465,7 @@ contains
         
         class(panel),intent(in) :: this
         type(eval_point_geom),intent(in) :: geom
+        character(len=*),intent(in) :: influence_type
         type(integrals),intent(inout) :: int
         type(flow),intent(in) :: freestream
         logical,intent(in) :: mirror_panel
@@ -5536,12 +5538,13 @@ contains
                 call d_L_2%init_from_sparse_vector(geom%d_R2(i))
                 call d_L_2%sparse_add(geom%d_l2(i))
                 
-                ! calc d_(L1*L2)
+                ! calc d_(L1*L2)  (more efficient version)
                 call d_L1L2%init_from_sparse_vector(d_L_1)
                 call d_L1L2%broadcast_element_times_scalar(L_2/L_1)
                 call d_L1L2%sparse_add(d_L_2)
                 call d_L1L2%broadcast_element_times_scalar(L_1)
                 
+
                 ! Calculate d_F111 case 1
                 ! write(*,*) "d_F111 is case 1"
                 call d_F111%init_from_sparse_vector(d_L1L2)
@@ -7314,7 +7317,7 @@ contains
             int = this%calc_integrals(geom, 'velocity', freestream, mirror_panel, dod_info)
             !!!!! end duplicated work !!!!!!!!!
             
-            call this%calc_integrals_adjoint(geom, int, freestream, mirror_panel, dod_info)
+            call this%calc_integrals_adjoint(geom, 'velocity', int, freestream, mirror_panel, dod_info)
             
             !!!!!!!!!! dont worry about wake !!!!!!!!!!!!!!
             ! if (this%in_wake) then
@@ -7726,23 +7729,29 @@ contains
     
     !!!!!!!!!!!!!!!!!!!!!!!! Dirichlet procedures !!!!!!!!!!!!!!!!!!!!!!!!!!
     
-    function panel_calc_adjoint_potential_influences(this, P, freestream, mirror_panel, doublet_inf)
+    function panel_calc_adjoint_potential_influences(this, cp, freestream, mirror_panel) result(inf_adjoint)
         ! Calculates the adjoint doublet-induced potential influences at the given point P
 
         implicit none
 
-        class(panel),intent(in) :: this
-        real,dimension(3),intent(in) :: P
-        type(flow),intent(in) :: freestream
+        class(panel),intent(inout) :: this
+        type(control_point), intent(inout) :: cp
+        type(flow), intent(in) :: freestream
         logical,intent(in) :: mirror_panel
-        real,dimension(:),allocatable :: doublet_inf
 
         type(dod) :: dod_info
         type(eval_point_geom) :: geom
         type(integrals) :: int
 
+        real,dimension(:),allocatable :: phi_s_S_space, phi_d_mu_space, phi_d_M_space
+
+        type(sparse_vector) :: zeros, term1, term2, term3
+        type(sparse_vector),dimension(3) :: d_phi_d_mu_space, d_phi_d_M_space, inf_adjoint
+        type(sparse_matrix) :: sparse_matrix1, inf_adjoint_matrix, inf_adjoint_term1
+        type(sparse_3D) :: d_T_mu_3D
+
         ! Check DoD
-        dod_info = this%check_dod(P, freestream, mirror_panel)
+        dod_info = this%check_dod(cp%loc, freestream, mirror_panel)
         if (dod_info%in_dod .and. this%A > 0.) then
 
             ! Calculate geometric parameters
@@ -7750,82 +7759,37 @@ contains
                 if ((mirror_panel .and. this%r_mir < 0.) .or. (.not. mirror_panel .and. this%r < 0.)) then
                     ! geom = this%calc_supersonic_supinc_geom(P, freestream, mirror_panel, dod_info)
                 else
-                    geom = this%calc_supersonic_subinc_geom_adjoint(P, d_P, freestream, mirror_panel, dod_info)
+                    geom = this%calc_supersonic_subinc_geom_adjoint(cp%loc, cp%d_loc, freestream, mirror_panel, dod_info)
                 end if
             else
-                geom = this%calc_subsonic_geom_adjoint(P, d_P, freestream, mirror_panel)
+                geom = this%calc_subsonic_geom_adjoint(cp%loc, cp%d_loc, freestream)
             end if
 
             ! Get integrals
             int = this%calc_integrals(geom, 'potential', freestream, mirror_panel, dod_info)
 
-            ! Source potential
+            ! get adjoint integrals
+            call this%calc_integrals_adjoint(geom, 'potential', int, freestream, mirror_panel, dod_info)
+
+            ! Source potential (adjont formulations don't use sources, so these are zero)
             if (this%has_sources) then
-                phi_s_S_space = this%assemble_phi_s_S_space(int, geom, freestream, mirror_panel)
+                !phi_s_S_space = this%assemble_phi_s_S_space(int, geom, freestream, mirror_panel)
+                write(*,*) "adjoint formulations shouldn't include sources, quitting..."
+                stop
             else
                 allocate(phi_s_S_space(this%S_dim), source=0.)
             end if
 
-            ! Doublet potential
-            phi_d_M_space = this%assemble_phi_d_M_space(int, geom, freestream, mirror_panel)
+            ! assemble doublet potential space 
 
-        else
+            ! create a zero sparse object
+            call zeros%init(this%adjoint_size)
 
-            ! Allocate placeholders
-            allocate(phi_s_S_space(this%S_dim), source=0.)
-            if (this%in_wake) then
-                allocate(phi_d_M_space(this%M_dim*2), source=0.)
-            else
-                allocate(phi_d_M_space(this%M_dim), source=0.)
-            end if
+            !!!!!!!!!!!!!!!!!!!!!! this may be duplicate work but we need the values again
+                                                ! find a way to leverage previous work? !!!!!!!!
+            ! Johnson Eq. (D.30)
+            ! Equivalent to Ehlers Eq. (5.17))
 
-        end if
-
-
-
-
-
-
-
-        ! adjoint is not available for mirror panels right now
-        mirror_panel = .false.
-        
-        call zeros%init(this%adjoint_size)
-        
-        ! Check DoD
-        dod_info = this%check_dod(cp%loc, freestream, mirror_panel) 
-
-        if (dod_info%in_dod .and. this%A > 0.) then
-
-            ! Calculate geometric parameters
-            if (freestream%supersonic) then
-                if ((mirror_panel .and. this%r_mir < 0.) .or. (.not. mirror_panel .and. this%r < 0.)) then
-                    !d_geom = this%calc_supersonic_supinc_geom_adjoint(P, freestream, mirror_panel, dod_info)
-                else
-                    geom = this%calc_supersonic_subinc_geom_adjoint(cp%loc, cp%d_loc, freestream, mirror_panel, dod_info)
-                end if
-            else
-                geom = this%calc_subsonic_geom_adjoint(cp%loc, cp%d_loc,freestream)
-            end if
-            
-            !!!!!!!!!! DUPLICATED WORK, figure out better passing of info
-            ! Get integrals
-            int = this%calc_integrals(geom, 'potential', freestream, mirror_panel, dod_info)
-            !!!!! end duplicated work !!!!!!!!!
-            
-            call this%calc_integrals_adjoint(geom, int, freestream, mirror_panel, dod_info)
-            
-            !!!!!!!!!! dont worry about wake !!!!!!!!!!!!!!
-            ! if (this%in_wake) then
-            !     !allocate(v_d_M_space(3,2*this%M_dim), source=0.)
-            !     write(*,*) "!!! Cannot calculate adjoint for Wake panels. Quitting..."
-            !     stop
-            ! else
-            !     allocate(v_d_M_space(3,this%M_dim), source=0.)
-            ! end if
-            
-            ! assemble phi_d_mu space
-            ! Allocate space
             allocate(phi_d_mu_space(this%mu_dim), source=0.)
             if (this%in_wake) then
                 allocate(phi_d_M_space(this%M_dim*2), source=0.)
@@ -7833,159 +7797,110 @@ contains
                 allocate(phi_d_M_space(this%M_dim), source=0.)
             end if
 
-            ! Johnson Eq. (D.30)
-            ! Equivalent to Ehlers Eq. (5.17))
+
             phi_d_mu_space(1) = int%hH113
             phi_d_mu_space(2) = int%hH113*geom%P_ls(1) + geom%h*int%H213
             phi_d_mu_space(3) = int%hH113*geom%P_ls(2) + geom%h*int%H123
 
-            ! Add quadratic terms
-            if (this%order == 2) then
-                phi_d_mu_space(4) = 0.5*int%hH113*geom%P_ls(1)**2 + geom%h*(geom%P_ls(1)*int%H213 + 0.5*int%H313)
-                phi_d_mu_space(5) = int%hH113*geom%P_ls(1)*geom%P_ls(2) &
-                                    + geom%h*(geom%P_ls(2)*int%H213 + geom%P_ls(1)*int%H123 + int%H223)
-                phi_d_mu_space(6) = 0.5*int%hH113*geom%P_ls(2)**2 + geom%h*(geom%P_ls(2)*int%H123 + 0.5*int%H133)
-            end if
+            ! Add quadratic terms here
+                ! psych! adjoint not supported for higher order formulations
 
             ! Convert to strength influences (Davis Eq. (4.41))
             if (mirror_panel) then
-                phi_d_M_space(1:this%M_dim) = int%s*freestream%K_inv*matmul(phi_d_mu_space, this%T_mu_mir)
+                !phi_d_M_space(1:this%M_dim) = int%s*freestream%K_inv*matmul(phi_d_mu_space, this%T_mu_mir)
+                write(*,*) "mirroring not yet supported for calc_adjoint_potential_influences, quitting..."
+                stop
             else
                 phi_d_M_space(1:this%M_dim) = int%s*freestream%K_inv*matmul(phi_d_mu_space, this%T_mu)
             end if
 
             ! Wake bottom influence is opposite the top influence
             if (this%in_wake) then
-                phi_d_M_space(this%M_dim+1:) = -phi_d_M_space(1:this%M_dim)
+                !phi_d_M_space(this%M_dim+1:) = -phi_d_M_space(1:this%M_dim)
+                write(*,*) "wakes not yet supported for calc_adjoint_potential_influences, quitting..."
+                stop
             end if
 
+            !!!!!!!!!!!!!!!!!!!!!!!!!!!!! end duplicate work !!!!!!!!!!!!!!!!!!!!!
 
 
+            ! assemble adjoint d_phi_d_mu space
 
-            allocate(v_d_mu_space(3,this%mu_dim), source=0.)
-            v_d_mu_space(1,1) = 0
-            v_d_mu_space(1,2) = int%hH113
-            v_d_mu_space(1,3) = 0
+            ! create sparse vectors 
+            call d_phi_d_mu_space(1)%init_from_sparse_vector(int%d_hH113)
             
-            v_d_mu_space(2,1) = 0
-            v_d_mu_space(2,2) = 0
-            v_d_mu_space(2,3) = int%hH113
-            
-            v_d_mu_space(3,1) = 0
-            v_d_mu_space(3,2) = int%H213
-            v_d_mu_space(3,3) = int%H123
-            
-            v_d_mu_space = int%s*freestream%K_inv*v_d_mu_space
-            
-            ! assemble d_v_d_mu space
-            
-            call d_v_d_mu_rows(1)%init_from_sparse_vectors(zeros, int%d_hH113, zeros)
-            call d_v_d_mu_rows(2)%init_from_sparse_vectors(zeros, zeros, int%d_hH113)
-            call d_v_d_mu_rows(3)%init_from_sparse_vectors(zeros, int%d_H213, int%d_H123)
-            
-            do i=1,3
-                call d_v_d_mu_rows(i)%broadcast_element_times_scalar(int%s*freestream%K_inv)
-            end do
-            
-            
-            ! calc inf_adjoint term 1
-            dummy_inf_adjoint = cp%d_n_g%broadcast_matmul_element_times_3x3(matmul(&
-            matmul(freestream%B_mat_g, transpose(this%A_g_to_ls)), matmul(v_d_mu_space,this%T_mu)))
-            
-            ! calc inf_adjoint term 2
-            call d_A_g_to_ls_3D%init_from_sparse_matrices(this%d_A_g_to_ls)
-            d_A_g_to_ls_3D_T = d_A_g_to_ls_3D%transpose_3()
-            x = d_A_g_to_ls_3D_T%broadcast_matmul_3row_times_3x3(matmul(v_d_mu_space, this%T_mu))
-            term2 = x%broadcast_matmul_1x3_times_3row(matmul(cp%n_g,freestream%B_mat_g))
+            ! calc d_phi_d_mu_space(2)
+            call d_phi_d_mu_space(2)%init_from_sparse_vector(int%d_hH113)
+            call d_phi_d_mu_space(2)%broadcast_element_times_scalar(geom%P_ls(1))
 
-            ! calc inf_adjoint term 3
-            call d_v_d_mu_3D%init_from_sparse_matrices(d_v_d_mu_rows)
-            y = d_v_d_mu_3D%broadcast_matmul_3row_times_3x3(this%T_mu)
-            term3 = y%broadcast_matmul_1x3_times_3row(matmul(matmul(cp%n_g,freestream%B_mat_g),&
-                transpose(this%A_g_to_ls)))
+            call term1%init_from_sparse_vector(geom%d_P_ls(1))
+            call term1%broadcast_element_times_scalar(int%hH113)
 
-            ! calc inf_adjoint term 4
+            call term2%init_from_sparse_vector(geom%d_h)
+            call term2%broadcast_element_times_scalar(int%H213)
+
+            call term3%init_from_sparse_vector(int%d_H213)
+            call term3%broadcast_element_times_scalar(geom%h)
+
+            call d_phi_d_mu_space(2)%sparse_add(term1)
+            call d_phi_d_mu_space(2)%sparse_add(term2)
+            call d_phi_d_mu_space(2)%sparse_add(term3)
+
+            deallocate(term1%elements, term2%elements, term3%elements)
+
+            ! calc d_phi_d_mu_space(3)
+            call d_phi_d_mu_space(3)%init_from_sparse_vector(int%d_hH113)
+            call d_phi_d_mu_space(3)%broadcast_element_times_scalar(geom%P_ls(2))
+
+            call term1%init_from_sparse_vector(geom%d_P_ls(2))
+            call term1%broadcast_element_times_scalar(int%hH113)
+
+            call term2%init_from_sparse_vector(geom%d_h)
+            call term2%broadcast_element_times_scalar(int%H123)
+
+            call term3%init_from_sparse_vector(int%d_H123)
+            call term3%broadcast_element_times_scalar(geom%h)
+
+            call d_phi_d_mu_space(3)%sparse_add(term1)
+            call d_phi_d_mu_space(3)%sparse_add(term2)
+            call d_phi_d_mu_space(3)%sparse_add(term3)
+
+            deallocate(term1%elements, term2%elements, term3%elements)
+            
+            call sparse_matrix1%init_from_sparse_vectors(d_phi_d_mu_space(1), d_phi_d_mu_space(2), d_phi_d_mu_space(3))
+            inf_adjoint_term1 = sparse_matrix1%broadcast_matmul_element_times_3x3(this%T_mu)
+
             call d_T_mu_3D%init_from_sparse_matrices(this%d_T_mu_rows)
-            term4 = d_T_mu_3D%broadcast_matmul_1x3_times_3row(matmul(matmul(cp%n_g,freestream%B_mat_g),&
-                matmul(transpose(this%A_g_to_ls),v_d_mu_space)))
+            inf_adjoint_matrix = d_T_mu_3D%broadcast_matmul_1x3_times_3row(phi_d_mu_space)
+
+            call inf_adjoint_matrix%sparse_add(inf_adjoint_term1)
+            call inf_adjoint_matrix%broadcast_element_times_scalar(int%s*freestream%K_inv)
+
+            inf_adjoint = inf_adjoint_matrix%split_into_sparse_vectors()
+
             
-            
-            ! add terms together
-            call dummy_inf_adjoint%sparse_add(term2)
-            call dummy_inf_adjoint%sparse_add(term3)
-            call dummy_inf_adjoint%sparse_add(term4)
 
-            ! split into sparse vector 3
-            inf_adjoint = dummy_inf_adjoint%split_into_sparse_vectors()
-    
+        else ! (if panel not in dod or has a negative/zero area)
 
-        else
-            !!!!!!! not worrying about wakes right now !!!!!!!!!!
-            ! if (this%in_wake) then
-            !     allocate(v_d_M_space(3,2*this%M_dim), source=0.)
-            ! else
-            !     allocate(v_d_M_space(3,this%M_dim), source=0.)
-            ! end if
+            ! Allocate placeholders (adjoint formulations don't use sources, but we need to pass the zeros along)
+            allocate(phi_s_S_space(this%S_dim), source=0.)
 
-            ! not in DoD, influence is zero, sensitivites are zeros
+            ! do wake stuff
+            if (this%in_wake) then
+                !allocate(phi_d_M_space(this%M_dim*2), source=0.)
+                write(*,*) "wakes not yet supported for calc_adjoint_potential_influences, quitting..."
+                stop
+            else
+                allocate(phi_d_M_space(this%M_dim), source=0.)
+            end if
+
+            ! not in DoD, influence is zero, influence sensitivites are zeros
             inf_adjoint(1) = zeros
             inf_adjoint(2) = zeros
             inf_adjoint(3) = zeros
 
         end if
 
-
-
-        
-
-        ! Check DoD
-        dod_info = this%check_dod(P, freestream, mirror_panel) 
-
-        if (dod_info%in_dod .and. this%A > 0.) then
-
-            ! Calculate geometric parameters
-            if (freestream%supersonic) then
-                if ((mirror_panel .and. this%r_mir < 0.) .or. (.not. mirror_panel .and. this%r < 0.)) then
-                    !geom = this%calc_supersonic_supinc_geom_adjoint(P, freestream, mirror_panel, dod_info)
-                else
-                    geom = this%calc_supersonic_subinc_geom_adjoint(P, d_P, freestream, mirror_panel, dod_info)
-                end if
-            else
-                geom = this%calc_subsonic_geom_adjoint(P, d_P, freestream)
-
-            end if
-
-            !!!!!!!!!! DUPLICATED WORK, figure out better passing of info
-            ! Get integrals
-            int = this%calc_integrals(geom, 'velocity', freestream, mirror_panel, dod_info)
-            !!!!! end duplicated work !!!!!!!!!
-
-            call this%calc_integrals_adjoint(geom, int, freestream, mirror_panel, dod_info)
-
-            ! ignore d_v_s_S_space, maybe put in a zero sparse matrix
-            ! allocate(v_s_S_space(3,this%S_dim), source=0.)
-
-            ! Doublet velocity
-            d_v_d_M_space = this%assemble_v_d_M_space_adjoint(int, geom, freestream, mirror_panel)
-
-        else
-
-            ! Allocate placeholders
-            ! allocate(v_s_S_space(3,this%S_dim), source=0.)
-            ! if (this%in_wake) then
-            !     allocate(v_d_M_space(3,2*this%M_dim), source=0.)
-            ! else
-            !     allocate(v_d_M_space(3,this%M_dim), source=0.)
-            ! end if
-            call zeros%init(this%adjoint_size)
-            do i=1,3
-                do j=1,3
-                    d_v_d_M_space(i,j) = zeros
-                end do
-            end do
-
-        end if
-    
     end function panel_calc_adjoint_potential_influences
 
 end module panel_mod

@@ -2139,6 +2139,7 @@ contains
         real :: s_star
         integer :: N_crosses, i, i_panel
 
+
         ! As the starting point for the ray-casting algorithm, we'll pick a point above the first neighboring panel
         call this%vertices(i_vert)%panels%get(1, i_panel)
         start = this%panels(i_panel)%get_characteristic_length()*this%panels(i_panel)%n_g + this%panels(i_panel)%centr
@@ -2166,6 +2167,10 @@ contains
 
         ! The point is outside if there was an even number of crossings
         outside = mod(N_crosses, 2) == 0
+
+        ! if (outside) then
+        !     write(*,*) "!!!!!!!!!!!!!!!!!!!!  vertex outside of loop !!!!!!!!!!!!!!!!!!!!!!!!!!!"
+        ! end if
         
     end function surface_mesh_control_point_outside_mesh
 

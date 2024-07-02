@@ -1,4 +1,4 @@
-program test14
+program dirichlet_test22
     ! tests various intermediate sensitivities 
     use adjoint_mod
     use base_geom_mod
@@ -39,21 +39,15 @@ program test14
     type(eval_point_geom) :: test_geom, adjoint_geom
     type(dod) :: test_dod_info, adjoint_dod_info
     type(integrals) :: test_int, adjoint_int
-    integer :: start_count, end_count, i_unit
-    logical :: exists, found 
-    integer :: adjoint_solver_stat, test_solver_stat, stat
-    type(sparse_vector) :: zeros
-
-    real,dimension(3) :: adjoint_P, test_P, test_v_d, test_v_s
-    type(sparse_matrix) :: adjoint_d_P_term2
-    type(sparse_matrix) :: adjoint_d_P
-    type(sparse_matrix) :: adjoint_d_v_d_panel
+    type(sparse_matrix),dimension(3) :: d_v_d
+    integer :: i_unit, stat
+    logical :: exists, found
 
     !!!!!!!!!!!!!!!!!!!!! END STUFF FROM MAIN !!!!!!!!!!!!!!!!!!!!!!!!!
 
     !!!!!!!!!!!!!!!!!!!!!! TESTING STUFF  !!!!!!!!!!!!!!!!!!!!!!!!!!
     real,dimension(:),allocatable :: residuals
-    real,dimension(:,:),allocatable ::  residuals3, v_d_up, v_d_dn, d_v_d_FD
+    real,dimension(:,:),allocatable ::  residuals3, cells_CF_up, cells_CF_dn, d_cells_CF_FD
 
     integer :: i,j,k,m,n,y,z,N_verts, N_panels, vert, index, cp_ind
     real :: step,error_allowed, cp_offset
@@ -65,7 +59,16 @@ program test14
     logical :: test_failed
     character(len=100),dimension(100) :: failure_log
     character(len=10) :: m_char
+    integer(8) :: start_count, end_count
     real(16) :: count_rate, time
+
+    integer :: adjoint_solver_stat, test_solver_stat
+    type(sparse_vector) :: zeros
+
+    real,dimension(3) :: adjoint_P, test_P, test_v_d, test_v_s
+    type(sparse_matrix) :: adjoint_d_P_term2
+    type(sparse_matrix) :: adjoint_d_P
+    type(sparse_matrix) :: adjoint_d_v_d_panel
     
     !!!!!!!!!!!!!!!!!!! END TESTING STUFF !!!!!!!!!!!!!!!!!!!!!11
     
@@ -82,7 +85,7 @@ program test14
     ! Set up run
     call json_initialize()
 
-    test_input = "dev\input_files\adjoint_inputs\test.json"
+    test_input = "dev\input_files\adjoint_inputs\dirichlet_test.json"
     test_input = trim(test_input)
 
     ! Check it exists
@@ -136,8 +139,6 @@ program test14
 
     ! Allocate known influence storage
     allocate(test_solver%I_known(test_mesh%N_cp), source=0., stat=stat)
-    write(*,*) "N_cp = ",test_mesh%N_cp
-    write(*,*) "stat = ",stat
     call check_allocation(stat, "known influence vector")
 
     ! Allocate AIC matrix
@@ -164,10 +165,14 @@ program test14
 
     ! Calculate velocities
     call test_solver%calc_cell_velocities(test_mesh)
+
+    ! Calculate velocities
+    call test_solver%calc_pressures(test_mesh)
+
+    call test_solver%calc_forces(test_mesh)
     
     
     !!!!!!!!!!!!!!!!!!!!! END TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
 
     call system_clock(start_count, count_rate)
 
@@ -176,7 +181,7 @@ program test14
     ! Set up run
     call json_initialize()
     
-    adjoint_input = "dev\input_files\adjoint_inputs\adjoint_test.json"
+    adjoint_input = "dev\input_files\adjoint_inputs\dirichlet_adjoint_test.json"
     adjoint_input = trim(adjoint_input)
 
     ! Check it exists
@@ -225,6 +230,8 @@ program test14
     ! solve
     call adjoint_solver%solve(adjoint_mesh, adjoint_solver_stat, adjoint_formulation,adjoint_freestream_flow)
     
+
+    
     !!!!!!!!!!!! END ADJOINT TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!
 
     
@@ -235,12 +242,14 @@ program test14
     allocate(residuals3(3,N_verts*3))
     allocate(residuals(N_verts*3))
 
-    allocate(v_d_up(3,N_verts*3))
-    allocate(v_d_dn(3,N_verts*3))
-    allocate(d_v_d_FD(3,N_verts*3))
+    ! allocate data holders
+    allocate(cells_CF_up(3,N_verts*3))
+    allocate(cells_CF_dn(3,N_verts*3))
+    allocate(d_cells_CF_FD(3,N_verts*3))
+
     
 
-    error_allowed = 1.0e-8
+    error_allowed = 1.0e-9
     step = 0.000001
     index = 1
     cp_ind = 1
@@ -248,7 +257,7 @@ program test14
 
     write(*,*) ""
     write(*,*) "------------------------------------------------------------------------"
-    write(*,*) "                           d_V_inner_wrt_vars TEST                    "
+    write(*,*) "                      dirichlet d_cells_CF_wrt_vars TEST                    "
     write(*,*) "------------------------------------------------------------------------"
     write(*,*) ""
     write(*,*) ""
@@ -257,15 +266,14 @@ program test14
     
     
     do z =1,N_panels
-        
-        
+
         write(*,*) ""
         write(*,*) "--------------------------------------------------------------------------------------"
-        write(*,'(A,I5)') "                           d_V_inner_wrt_vars test ",z
+        write(*,'(A,I5)') "                      dirichlet d_cells_CF_wrt_vars test ",z
         write(*,*) "--------------------------------------------------------------------------------------"
         write(*,*) ""
-
-
+        
+        
         do i=1,3
             do j=1,N_verts
 
@@ -301,6 +309,8 @@ program test14
 
                 ! recalculates cp locations
                 deallocate(test_solver%sigma_known)
+                deallocate(test_solver%i_sigma_in_sys)
+                deallocate(test_solver%i_sys_sigma_in_body)
                 deallocate(test_mesh%cp)
                 deallocate(test_solver%P)
                 call test_solver%init(solver_settings, processing_settings, &
@@ -313,11 +323,20 @@ program test14
 
                 ! Calculate velocities
                 call test_solver%calc_cell_velocities(test_mesh)
+
+                deallocate(test_mesh%C_P_inc)
+
+                ! Calculate velocities
+                call test_solver%calc_pressures(test_mesh)
+
+                deallocate(test_mesh%dC_f)
+
+                call test_solver%calc_forces(test_mesh)
                                 
                 !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
                 
                 ! get the needed info
-                v_d_up(:,j + (i-1)*N_verts) = test_mesh%V_cells_inner(:,z)
+                cells_CF_up(:,j + (i-1)*N_verts) = test_mesh%dC_F(:,z)
                 
                 
                 ! perturb down the current design variable
@@ -352,6 +371,8 @@ program test14
                 
                 ! recalculates cp locations
                 deallocate(test_solver%sigma_known)
+                deallocate(test_solver%i_sigma_in_sys)
+                deallocate(test_solver%i_sys_sigma_in_body)
                 deallocate(test_mesh%cp)
                 deallocate(test_solver%P)
                 call test_solver%init(solver_settings, processing_settings, &
@@ -364,11 +385,20 @@ program test14
 
                 ! Calculate velocities
                 call test_solver%calc_cell_velocities(test_mesh)
+
+                deallocate(test_mesh%C_P_inc)
+
+                ! Calculate velocities
+                call test_solver%calc_pressures(test_mesh)
+
+                deallocate(test_mesh%dC_f)
+
+                call test_solver%calc_forces(test_mesh)
                                 
                 !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
                 
                 ! get the needed info
-                v_d_dn(:, j + (i-1)*N_verts) = test_mesh%V_cells_inner(:,z)
+                cells_CF_dn(:, j + (i-1)*N_verts) = test_mesh%dC_F(:,z)
 
                 ! restore geometry
                 test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
@@ -376,13 +406,15 @@ program test14
             end do 
         end do 
 
+            
+            ! central difference 
+        d_cells_CF_FD = (cells_CF_up - cells_CF_dn)/(2.*step)
+                
         
-        ! central difference 
-        d_v_d_FD = (v_d_up - v_d_dn)/(2.*step)
-    
         do i=1,N_verts*3
-            residuals3(:,i) = adjoint_mesh%d_V_cells_inner_wrt_vars(z)%get_values(i) - d_v_d_FD(:,i)
+            residuals3(:,i) = adjoint_mesh%d_cell_forces_wrt_vars(z)%get_values(i) - d_cells_CF_FD(:,i)
         end do
+            
 
         if (maxval(abs(residuals3(:,:)))>error_allowed) then
             write(*,*) ""
@@ -390,12 +422,12 @@ program test14
             do i = 1, N_verts*3
                 if (any(abs(residuals3(:,i))>error_allowed)) then
                     write(*,*) ""
-                    write(*,'(A,I5,A)') "                                       d_V_inner_wrt_vars &
+                    write(*,'(A,I5,A)') "                                       d_cells_CF_wrt_vars &
                      ",z,"                                             residuals"
-                    write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_v_d_FD(:,i)
+                    write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_cells_CF_FD(:,i)
                 
                     write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",   &
-                    adjoint_mesh%d_V_cells_inner_wrt_vars(z)%get_values(i), residuals3(:,i)
+                    adjoint_mesh%d_cell_forces_wrt_vars(z)%get_values(i), residuals3(:,i)
                 end if
             end do
         end if
@@ -406,28 +438,28 @@ program test14
         do i=1,N_verts*3
             if (any(abs(residuals3(:,i)) > error_allowed)) then 
                 do j = 1,3
-                    if (abs(d_v_d_FD(j,i))>1000.0) then
+                    if (abs(d_cells_CF_FD(j,i))>1000.0) then
                         if (abs(residuals3(j,i)) > error_allowed*10000.0) then
                             test_failed = .true.
                             exit
                         else
                             test_failed = .false.
                         end if
-                    elseif (1000.0>abs(d_v_d_FD(j,i)) .and. abs(d_v_d_FD(j,i))>100.0) then
+                    elseif (1000.0>abs(d_cells_CF_FD(j,i)) .and. abs(d_cells_CF_FD(j,i))>100.0) then
                         if (abs(residuals3(j,i)) > error_allowed*1000.0) then
                             test_failed = .true.
                             exit
                         else
                             test_failed = .false.
                         end if
-                    elseif (100.0>abs(d_v_d_FD(j,i)) .and. abs(d_v_d_FD(j,i))>10.0) then
+                    elseif (100.0>abs(d_cells_CF_FD(j,i)) .and. abs(d_cells_CF_FD(j,i))>10.0) then
                         if (abs(residuals3(j,i)) > error_allowed*100.0) then
                             test_failed = .true.
                             exit
                         else
                             test_failed = .false.
                         end if
-                    elseif (10.0>abs(d_v_d_FD(j,i)) .and. abs(d_v_d_FD(j,i))>1.0) then
+                    elseif (10.0>abs(d_cells_CF_FD(j,i)) .and. abs(d_cells_CF_FD(j,i))>1.0) then
                         if (abs(residuals3(j,i)) > error_allowed*10.0) then
                             test_failed = .true.
                             exit
@@ -448,18 +480,22 @@ program test14
         if (test_failed) then
             total_tests = total_tests + 1
             write(*,'(A,I5,A)')"                                               &
-            d_V_inner_wrt_vars  ",z," test FAILED"
-            failure_log(total_tests-passed_tests) = "d_V_inner_wrt_vars test FAILED"
+            d_cells_CF_wrt_vars  ",z," test FAILED"
+            failure_log(total_tests-passed_tests) = "d_cells_CF_wrt_vars test FAILED"
         else
-            ! write(*,*) "        d_V_inner_wrt_vars test PASSED"
+            ! write(*,*) "        d_cells_CF_wrt_vars test PASSED"
             ! write(*,*) "" 
             ! write(*,*) ""
             passed_tests = passed_tests + 1
             total_tests = total_tests + 1
             
         end if
+
+        ! reset test failed for the next z loop
         test_failed = .false.
 
+
+        
         
 
     ! z loop
@@ -468,7 +504,7 @@ program test14
 
     !!!!!!!!!!!!!!  RESULTS!!!!!!!!!!!!!
     write(*,*) "------------------------------------------------------------------------------"
-    write(*,*) "                          d_V_inner_wrt_vars TEST RESULTS "
+    write(*,*) "                    dirichlet d_cells_CF_wrt_vars TEST RESULTS "
     write(*,*) "------------------------------------------------------------------------------"
     write(*,*) ""
     write(*,'((A), ES10.1)') "allowed residual = ", error_allowed
@@ -496,4 +532,4 @@ program test14
     write(*,*) "Program Complete"
     write(*,*) "----------------------"
 
-end program test14
+end program dirichlet_test22

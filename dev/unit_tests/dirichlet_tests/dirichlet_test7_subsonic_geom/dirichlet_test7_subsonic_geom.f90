@@ -57,7 +57,7 @@ program dirichlet_test7
     ! test stuff
     integer :: passed_tests, total_tests
     logical :: test_failed
-    character(len=100),dimension(100) :: failure_log
+    character(len=100),dimension(200) :: failure_log
     character(len=10) :: m_char
     integer(8) :: start_count, end_count
     real(16) :: count_rate, time
@@ -978,6 +978,8 @@ program dirichlet_test7
                 total_tests = total_tests + 1
                 
             end if
+
+            ! reset test failed for the next loop
             test_failed = .false.
 
 

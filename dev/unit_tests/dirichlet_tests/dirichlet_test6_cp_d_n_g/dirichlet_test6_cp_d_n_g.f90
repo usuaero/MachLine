@@ -369,6 +369,8 @@ program dirichlet_test6
             total_tests = total_tests + 1
             
         end if
+
+        ! reset test failed for the next z loop
         test_failed = .false.
 
 

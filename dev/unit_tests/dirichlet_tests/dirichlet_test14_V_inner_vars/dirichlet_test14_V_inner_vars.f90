@@ -1,4 +1,4 @@
-program test14
+program dirichlet_test14
     ! tests various intermediate sensitivities 
     use adjoint_mod
     use base_geom_mod
@@ -82,7 +82,7 @@ program test14
     ! Set up run
     call json_initialize()
 
-    test_input = "dev\input_files\adjoint_inputs\test.json"
+    test_input = "dev\input_files\adjoint_inputs\dirichlet_test.json"
     test_input = trim(test_input)
 
     ! Check it exists
@@ -176,7 +176,7 @@ program test14
     ! Set up run
     call json_initialize()
     
-    adjoint_input = "dev\input_files\adjoint_inputs\adjoint_test.json"
+    adjoint_input = "dev\input_files\adjoint_inputs\dirichlet_adjoint_test.json"
     adjoint_input = trim(adjoint_input)
 
     ! Check it exists
@@ -240,7 +240,7 @@ program test14
     allocate(d_v_d_FD(3,N_verts*3))
     
 
-    error_allowed = 1.0e-8
+    error_allowed = 1.0e-9
     step = 0.000001
     index = 1
     cp_ind = 1
@@ -248,7 +248,7 @@ program test14
 
     write(*,*) ""
     write(*,*) "------------------------------------------------------------------------"
-    write(*,*) "                           d_V_inner_wrt_vars TEST                    "
+    write(*,*) "                          dirichlet d_V_inner_wrt_vars TEST                    "
     write(*,*) "------------------------------------------------------------------------"
     write(*,*) ""
     write(*,*) ""
@@ -261,7 +261,7 @@ program test14
         
         write(*,*) ""
         write(*,*) "--------------------------------------------------------------------------------------"
-        write(*,'(A,I5)') "                           d_V_inner_wrt_vars test ",z
+        write(*,'(A,I5)') "                       dirichlet d_V_inner_wrt_vars test ",z
         write(*,*) "--------------------------------------------------------------------------------------"
         write(*,*) ""
 
@@ -301,6 +301,8 @@ program test14
 
                 ! recalculates cp locations
                 deallocate(test_solver%sigma_known)
+                deallocate(test_solver%i_sigma_in_sys)
+                deallocate(test_solver%i_sys_sigma_in_body)
                 deallocate(test_mesh%cp)
                 deallocate(test_solver%P)
                 call test_solver%init(solver_settings, processing_settings, &
@@ -352,6 +354,8 @@ program test14
                 
                 ! recalculates cp locations
                 deallocate(test_solver%sigma_known)
+                deallocate(test_solver%i_sigma_in_sys)
+                deallocate(test_solver%i_sys_sigma_in_body)
                 deallocate(test_mesh%cp)
                 deallocate(test_solver%P)
                 call test_solver%init(solver_settings, processing_settings, &
@@ -458,6 +462,8 @@ program test14
             total_tests = total_tests + 1
             
         end if
+
+        ! reset test failed for the next z loop
         test_failed = .false.
 
         
@@ -468,7 +474,7 @@ program test14
 
     !!!!!!!!!!!!!!  RESULTS!!!!!!!!!!!!!
     write(*,*) "------------------------------------------------------------------------------"
-    write(*,*) "                          d_V_inner_wrt_vars TEST RESULTS "
+    write(*,*) "                      dirichlet d_V_inner_wrt_vars TEST RESULTS "
     write(*,*) "------------------------------------------------------------------------------"
     write(*,*) ""
     write(*,'((A), ES10.1)') "allowed residual = ", error_allowed
@@ -496,4 +502,4 @@ program test14
     write(*,*) "Program Complete"
     write(*,*) "----------------------"
 
-end program test14
+end program dirichlet_test14

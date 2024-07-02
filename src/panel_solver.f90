@@ -358,6 +358,7 @@ contains
         real :: offset
         character(len=:),allocatable :: offset_type
 
+
         ! Get offset
         call json_xtnsn_get(solver_settings, 'control_point_offset', offset, 1.e-7)
         call json_xtnsn_get(solver_settings, 'control_point_offset_type', offset_type, 'direct')
@@ -1495,7 +1496,6 @@ contains
                 end do
 
             case default ! Calculate potential influences
-
                 ! Loop through panels
                 do j=1,body%N_panels
 
@@ -1504,14 +1504,6 @@ contains
                                                                   .false., source_inf, doublet_inf)
 
                     !!!!!!!!!!!! ADJOINT CALCS HAPPEN HERE !!!!!!!!!!!!!!!!!!!!
-
-                    ! ! if calc_adjoint is specified, do adjoint calcs (METHOD 1)
-                    ! if (body%calc_adjoint) then
-                    !     call body%panels(j)%calc_velocity_influences_adjoint(body%cp(i)%loc, body%cp(i)%d_loc, &
-                    !         this%freestream, d_v_d)
-                    !     inf_adjoint = body%panels(j)%calc_doublet_inf_adjoint(body%cp(i), this%freestream, d_v_d)
-                    !     call this%update_adjoint_A_row(body, body%cp(i), d_AIC_row, j, inf_adjoint, .false.)
-                    ! end if
 
                     ! if calc_adjoint is specified, do adjoint calcs (METHOD 2)
                     if (body%calc_adjoint) then
@@ -1546,11 +1538,17 @@ contains
             if (this%use_sort_for_cp) then
                 this%A(this%P(i),:) = A_i
                 this%I_known(this%P(i)) = I_known_i
+
+                ! if adjoint, assemble d_A_matrix (sort used for Dirichlet adjoint)
+                if (body%calc_adjoint) then
+                    this%d_A_matrix(this%P(i),:) = d_AIC_row
+                end if
+                
             else
                 this%A(i,:) = A_i
                 this%I_known(i) = I_known_i
 
-                ! if adjoint, assemble d_A_matrix (sort shouldn't be used with formulation used by adjoints)
+                ! if adjoint, assemble d_A_matrix (sort not used for Neumann adjoint)
                 if (body%calc_adjoint) then
                     this%d_A_matrix(i,:) = d_AIC_row
                 end if
@@ -3161,8 +3159,10 @@ contains
 
         ! end if
 
-        ! Add doublet influence sensitivities
 
+        
+
+        ! Add doublet influence sensitivities
         ! Loop through influencing vertices
         do k=1,body%panels(i_panel)%M_dim
 
@@ -3206,19 +3206,38 @@ contains
         integer :: i, ind
         real,dimension(3) :: x
 
+
+        ! Vector for source-free target potential calculation
+        x = matmul(this%freestream%B_mat_g_inv, this%freestream%c_hat_g)
         
 
+        !!!!!! NOTE:  in the non-adjoint assemble_BC_vector subroutine, we are calculating this%BC, 
+        !            but here we calculate this%d_b instead of this%d_BC because 
+        !            this%b = this%BC - this%I_known    and in the adjoint formulations I_known is all zeros 
+        !!!!!!!
 
         ! Loop through control points
         do i=1,body%N_cp
+
+            if (this%use_sort_for_cp) then
+                ind = this%P(i)
+            else
+                ind = i
+            end if
 
             ! Check boundary condition type
             select case (body%cp(i)%bc)
 
             ! Neumann (mass flux)
             case (ZERO_NORMAL_MF)
-                this%d_b_vector(i) = body%cp(i)%d_n_g%broadcast_vector_dot_element(-this%freestream%c_hat_g)
-        
+                this%d_b_vector(ind) = body%cp(i)%d_n_g%broadcast_vector_dot_element(this%freestream%c_hat_g)
+                call this%d_b_vector(i)%broadcast_element_times_scalar(-1.)
+            ! Source-free formulation
+            case (SF_POTENTIAL)
+                !this%BC(ind) = -inner(x, body%cp(i)%loc)
+                this%d_b_vector(ind) = body%cp(i)%d_loc%broadcast_vector_dot_element(x)
+                call this%d_b_vector(i)%broadcast_element_times_scalar(-1.)
+
             case default
                 write(*,*) "!!! '", body%cp(i)%bc, "' is not a valid boundary condition for &
                 adjoint calculation. Must use Neumann Zero Normal Mass Flux with control &
@@ -3241,7 +3260,7 @@ contains
 
         integer :: i, stat
         real,dimension(3) :: P
-        type(sparse_matrix) :: d_P, d_P_term2, d_inner_flow_wrt_vars, d_inner_flow_wrt_mu
+        type(sparse_matrix) :: d_P, d_P_term2, zeros_vars, zeros_mu, d_inner_flow_wrt_vars, d_inner_flow_wrt_mu
 
         
         ! Determine number of surface cells
@@ -3252,63 +3271,112 @@ contains
         
         ! Allocate cell velocity storage
         allocate(body%d_V_cells_inner_wrt_vars(this%N_cells), stat=stat)
-        call check_allocation(stat, "inner velocity senstivitviy wrt design variables")
+        call check_allocation(stat, "inner velocity senstivitviy wrt design variables") 
+
+        allocate(body%d_V_cells_inner_wrt_mu(this%N_cells), stat=stat)
+        call check_allocation(stat, "inner velocity senstivitviy wrt mu")
         
         allocate(body%d_V_cells_wrt_vars(this%N_cells), stat=stat)
         call check_allocation(stat, "velocity senstivitviy wrt design variables")
         
-        ! Allocate cell velocity storage
-        allocate(body%d_V_cells_inner_wrt_mu(this%N_cells), stat=stat)
-        call check_allocation(stat, "inner velocity senstivitviy wrt mu")
-        
         allocate(body%d_V_cells_wrt_mu(this%N_cells), stat=stat)
         call check_allocation(stat, "velocity senstivitviy wrt mu")
         
-        
+
+        ! Allocate inner cell velocity storage for Neumann
+        if (this%dirichlet) then
+
+            ! d_inner_flow_wrt_vars and d_inner_flow_wrt_mu are both zeros
+            call zeros_vars%init(body%adjoint_size)
+            call zeros_mu%init(size(body%mu))
+
+        end if
+
+
         ! Get the surface velocity on each existing panel
         !$OMP parallel do private(P, d_P, d_P_term2, d_inner_flow_wrt_vars, d_inner_flow_wrt_mu) schedule(static)
         do i=1,body%N_panels
             
-            P = body%panels(i)%centr - 1.e-10*body%panels(i)%n_g
-            
-            ! calc d_P
-            call d_P%init_from_sparse_matrix(body%panels(i)%d_centr) 
-            call d_P_term2%init_from_sparse_matrix(body%panels(i)%d_n_g)
-            call d_P_term2%broadcast_element_times_scalar(-1.e-10)
-            call d_P%sparse_add(d_P_term2)
-            
-            
-            !!!!!!!!!!!!!!!!!! sensitivity terms with respect to design variables(vars)!!!!!!!!!!!!!!
-            body%d_V_cells_inner_wrt_vars(i) = body%get_d_v_inner_at_point_wrt_vars(P, d_P, this%freestream)
-            
-            call d_inner_flow_wrt_vars%init_from_sparse_matrix(body%d_V_cells_inner_wrt_vars(i))
-            call d_inner_flow_wrt_vars%broadcast_element_times_scalar(1./this%freestream%U)
-            
-            body%d_V_cells_wrt_vars(i) = body%panels(i)%get_d_velocity_wrt_vars(body%mu,.false., body%N_panels, &
-            body%N_verts, body%asym_flow, &
-            this%freestream, d_inner_flow_wrt_vars)
-            
-            ! deallocate stuff for next loop
-            deallocate(d_P%columns, d_P_term2%columns, d_inner_flow_wrt_vars%columns)
-            !!!!!!!!!!!!!!! end wrt vars !!!!!!!!!!!!!!!!!!!!!!!
 
-            !!!!!!!!!!!!!!!!!!!!!!! sensitivity terms with respect to mu !!!!!!!!!!!!!!!!!!!!
-            
-            body%d_V_cells_inner_wrt_mu(i) = body%get_d_v_inner_at_point_wrt_mu(P, this%freestream)
-            
-            
-            call d_inner_flow_wrt_mu%init_from_sparse_matrix(body%d_V_cells_inner_wrt_mu(i))
-            call d_inner_flow_wrt_mu%broadcast_element_times_scalar(1./this%freestream%U)
-            
-            body%d_V_cells_wrt_mu(i) = body%panels(i)%get_d_velocity_wrt_mu(body%mu,.false., body%N_panels, &
-            body%N_verts, body%asym_flow, &
-            this%freestream, d_inner_flow_wrt_mu)
-            
-            ! deallocate stuff for next loop
-            deallocate(d_inner_flow_wrt_mu%columns)
-            !!!!!!!!!! end wrt mu !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            
-           
+            ! Get inner flow
+            if (this%dirichlet) then
+                !body%V_cells_inner(:,i) = this%inner_flow*this%freestream%U
+
+                !!! dont need to do store this info because the inner flow is the same everywhere in dirichlet
+                ! call body%d_V_cells_inner_wrt_vars(i)%init_from_sparse_matrix(this%d_inner_flow_wrt_vars)
+                ! call body%d_V_cells_inner_wrt_vars(i)%broadcast_element_times_scalar(this%freestream%U)
+
+                ! call body%d_V_cells_inner_wrt_mu(i)%init_from_sparse_matrix(this%d_inner_flow_wrt_mu)
+                ! call body%d_V_cells_inner_wrt_mu(i)%broadcast_element_times_scalar(this%freestream%U)
+                
+                ! future subroutines access the panel_solver%d_V_cells_inner_wrt_vars/mu attributes, so populate them
+                call body%d_V_cells_inner_wrt_vars(i)%init(body%adjoint_size)
+                call body%d_V_cells_inner_wrt_mu(i)%init(size(body%mu))
+
+                !!!!!!!!!!!!!!!!!! d_V_cells with respect to design variables(vars)   !!!!!!!!!!!!
+                body%d_V_cells_wrt_vars(i) = body%panels(i)%get_d_velocity_wrt_vars(body%mu,.false., body%N_panels, &
+                                                                        body%N_verts, body%asym_flow, &
+                                                                        this%freestream, zeros_vars)
+
+                !!!!!!!!!!!!!!! end d_V_cells wrt vars !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                
+
+                !!!!!!!!!!!!!!!!!! d_V_cells with respect to mu   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                body%d_V_cells_wrt_mu(i) = body%panels(i)%get_d_velocity_wrt_mu(body%mu,.false., body%N_panels, &
+                body%N_verts, body%asym_flow, &
+                this%freestream, zeros_mu)
+
+                !!!!!!!!!!!!!!!!!   end d_V_cells with respect to mu  !!!!!!!!!!!!!!!!!!!!!!!!!!
+
+                
+
+            else
+                P = body%panels(i)%centr - 1.e-10*body%panels(i)%n_g
+                
+                ! calc d_P
+                call d_P%init_from_sparse_matrix(body%panels(i)%d_centr) 
+                call d_P_term2%init_from_sparse_matrix(body%panels(i)%d_n_g)
+                call d_P_term2%broadcast_element_times_scalar(-1.e-10)
+                call d_P%sparse_add(d_P_term2)
+                
+
+                !!!!!!!!!!!!!!!!!! d_V_inner with respect to design variables(vars)   !!!!!!!!!!!!!!!!!!!!!!
+                body%d_V_cells_inner_wrt_vars(i) = body%get_d_v_inner_at_point_wrt_vars(P, d_P, this%freestream)
+                
+                call d_inner_flow_wrt_vars%init_from_sparse_matrix(body%d_V_cells_inner_wrt_vars(i))
+                call d_inner_flow_wrt_vars%broadcast_element_times_scalar(1./this%freestream%U)
+                !!!!!!!!!!!!!!! end d_V_inner with respect to design variables(vars) !!!!!!!!!!!!!!!!!!!!!!!
+                
+
+
+                !!!!!!!!!!!!!!!!!! d_V_inner with respect to mu !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                body%d_V_cells_inner_wrt_mu(i) = body%get_d_v_inner_at_point_wrt_mu(P, this%freestream)
+                
+                call d_inner_flow_wrt_mu%init_from_sparse_matrix(body%d_V_cells_inner_wrt_mu(i))
+                call d_inner_flow_wrt_mu%broadcast_element_times_scalar(1./this%freestream%U)
+                !!!!!!!!!!!!!!!!!! end d_V_inner with respect to design mu !!!!!!!!!!!!!!!!!!!!!!
+
+
+                !!!!!!!!!!!!!!!!!! d_V_cells with respect to design variables(vars)   !!!!!!!!!!!!
+                body%d_V_cells_wrt_vars(i) = body%panels(i)%get_d_velocity_wrt_vars(body%mu,.false., body%N_panels, &
+                                                                        body%N_verts, body%asym_flow, &
+                                                                        this%freestream, d_inner_flow_wrt_vars)
+                
+                ! deallocate stuff for next loop
+                deallocate(d_P%columns, d_P_term2%columns, d_inner_flow_wrt_vars%columns)
+                !!!!!!!!!!!!!!! end d_V_cells wrt vars !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!       
+
+
+
+                !!!!!!!!!!!!!!!!!! d_V_cells with respect to mu   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                body%d_V_cells_wrt_mu(i) = body%panels(i)%get_d_velocity_wrt_mu(body%mu,.false., body%N_panels, &
+                body%N_verts, body%asym_flow, &
+                this%freestream, d_inner_flow_wrt_mu)
+                
+                ! deallocate stuff for next loop
+                deallocate(d_inner_flow_wrt_mu%columns)
+                !!!!!!!!!!!!!!!!!   end d_V_cells with respect to mu  !!!!!!!!!!!!!!!!!!!!!!!!!!
+            end if
             
         end do
             
@@ -3338,10 +3406,11 @@ contains
             ! sensitivity of C_P_avg with respect to vars (points)
             call d_inner_flow_wrt_vars%init_from_sparse_matrix(body%d_V_cells_inner_wrt_vars(i_panel))
             call d_inner_flow_wrt_vars%broadcast_element_times_scalar(1./this%freestream%U)
+            
             d_C_P_avg_wrt_vars = body%panels(i_panel)%get_d_avg_pressure_coef_wrt_vars(body%mu, body%sigma,mirrored, body%N_panels,&
-            body%N_verts, body%asym_flow, this%freestream, &
-            body%V_cells_inner(:,i_panel)/this%freestream%U,&
-            d_inner_flow_wrt_vars, rule, M_corr=this%M_inf_corr)
+                body%N_verts, body%asym_flow, this%freestream, &
+                body%V_cells_inner(:,i_panel)/this%freestream%U,&
+                d_inner_flow_wrt_vars, rule, M_corr=this%M_inf_corr)
         end if
         
     end function panel_solver_calc_d_avg_pressure_on_panel_wrt_vars

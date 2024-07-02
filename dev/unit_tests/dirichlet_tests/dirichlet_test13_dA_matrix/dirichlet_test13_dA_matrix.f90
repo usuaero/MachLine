@@ -62,7 +62,7 @@ program dirichlet_test13
     ! test stuff
     integer :: passed_tests, total_tests
     logical :: test_failed
-    character(len=100),dimension(100) :: failure_log
+    character(len=100),dimension(1000) :: failure_log
     character(len=10) :: m_char
     integer(8) :: start_count, end_count
     real(16) :: count_rate, time
@@ -216,7 +216,7 @@ program dirichlet_test13
     ! calc body influences adjoint
     call adjoint_solver%calc_body_influences(adjoint_mesh)
     
-      
+    
     !!!!!!!!!!!! END ADJOINT TEST MESH !!!!!!!!!!!!!!!!!!!!!!!
     
     N_verts = test_mesh%N_verts
@@ -295,6 +295,8 @@ program dirichlet_test13
                     
                     ! recalculates cp locations
                     deallocate(test_solver%sigma_known)
+                    deallocate(test_solver%i_sigma_in_sys)
+                    deallocate(test_solver%i_sys_sigma_in_body)
                     deallocate(test_mesh%cp)
                     deallocate(test_solver%P)
                     call test_solver%init(solver_settings, processing_settings, &
@@ -353,6 +355,8 @@ program dirichlet_test13
                     
                     ! recalculates cp locations
                     deallocate(test_solver%sigma_known)
+                    deallocate(test_solver%i_sigma_in_sys)
+                    deallocate(test_solver%i_sys_sigma_in_body)
                     deallocate(test_mesh%cp)
                     deallocate(test_solver%P)
                     call test_solver%init(solver_settings, processing_settings, &
@@ -381,6 +385,7 @@ program dirichlet_test13
                     
                     ! restore geometry
                     test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
+
                 end do 
             end do 
             
@@ -465,9 +470,10 @@ program dirichlet_test13
                 total_tests = total_tests + 1
                 
             end if
+            ! reset test failed for the next loop
             test_failed = .false.
 
-
+           
         ! col loop
         end do
 

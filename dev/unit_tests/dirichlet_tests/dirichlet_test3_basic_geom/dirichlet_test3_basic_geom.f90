@@ -57,7 +57,7 @@ program dirichlet_test3
     ! test stuff
     integer :: passed_tests, total_tests
     logical :: test_failed
-    character(len=100),dimension(200) :: failure_log
+    character(len=100),dimension(400) :: failure_log
     character(len=10) :: m_char
     real,dimension(:,:),allocatable :: maxRs
     integer(8) :: start_count, end_count
@@ -386,7 +386,8 @@ program dirichlet_test3
                 write(*,*) ""
                 do i = 1, N_verts*3
                     if (abs(residuals(i))>error_allowed) then
-                        write(*,'(A,I5)') "                         d_h panel point ", i 
+                        ! note, printing the index i should have a better description for what it is
+                        write(*,'(A,I5)') "                         d_h panel ", i 
                         write(*, '(A25,8x,(f25.10, 4x))') "       Central Difference", d_h_FD(i)
                         write(*, '(A25,8x,(f25.10, 4x))') "                  adjoint", adjoint_geom%d_h%get_value(i)
                         write(*, '(A25,8x,(f25.10, 4x))') "                 residual", residuals(i)
@@ -1103,6 +1104,8 @@ program dirichlet_test3
                     total_tests = total_tests + 1
                     
                 end if
+
+                ! reset test failed for the next loop
                 test_failed = .false.
                 
             
