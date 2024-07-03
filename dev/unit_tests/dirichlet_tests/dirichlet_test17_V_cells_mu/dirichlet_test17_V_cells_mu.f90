@@ -243,7 +243,7 @@ program dirichlet_test17
     allocate(d_V_cells_wrt_mu_FD(3,N_verts))
     
 
-    error_allowed = 1.0e-8
+    error_allowed = 1.0e-9
     step = 0.000001
     index = 1
     cp_ind = 1

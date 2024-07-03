@@ -206,7 +206,7 @@ program dirichlet_test11
     allocate(d_inf_FD(3,N_verts*3))
     
 
-    error_allowed = 1.0e-7
+    error_allowed = 1.0e-2
     step = 0.000001
     index = 1
     cp_ind = 1

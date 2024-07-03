@@ -3510,7 +3510,10 @@ contains
 
     
         ! Loop through vertices
-        !$OMP parallel do private(j, i_panel, dir, new_dir, n_avg, this_offset, disp) &
+        !$OMP parallel do private(j, i_panel, dir, new_dir, n_avg, disp, new_dir_final, d_new_dir_term2, &
+        !$OMP this_offset, norm_of_n_avg, norm_of_new_dir, d_norm_of_n_avg, d_norm_of_new_dir, &
+        !$OMP d_new_dir_term3, d_dir, sum_d_n_avg, d_n_avg, d_n_avg_final, hi_d_low, d_disp, &
+        !$OMP d_new_dir, d_new_dir_term1, d_new_dir_final) &
         !$OMP & schedule(dynamic) shared(this, offset, freestream, offset_type)
         do i=1,this%N_verts
 
@@ -3671,6 +3674,7 @@ contains
                 disp = cp_locs(:,i)- this%vertices(i)%loc
                 
                 ! derivative of disp
+                
                 call d_disp%init_from_sparse_matrix(d_cp_locs%rows(i))
                 call d_disp%sparse_subtract(this%vertices(i)%d_loc)
                 
@@ -3708,6 +3712,7 @@ contains
                 call d_new_dir_final%broadcast_element_times_scalar(1./(inner(new_dir,new_dir)))
                 
                 ! deallocate stuff
+                deallocate(d_n_avg_final%columns, d_disp%columns)
                 deallocate(d_new_dir%columns, hi_d_low%columns, d_norm_of_new_dir%elements)
                 !!!! end adjoint Normalized new_dir_final !!!
                 

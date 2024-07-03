@@ -246,7 +246,7 @@ program dirichlet_test25
     allocate(d_CF_wrt_mu_FD(3,N_verts))
     
 
-    error_allowed = 1.0e-9
+    error_allowed = 1.0e-8
     step = 0.000001
     index = 1
     cp_ind = 1

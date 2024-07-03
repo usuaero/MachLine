@@ -1,5 +1,5 @@
 import subprocess as sp
-# this script tests calc basic F integral sensitivities in the adjoint gradient calculation, compares them to FD
+# this script tests calc basic geom eval points (where the points are control points) sensitivities in the adjoint gradient calculation, compares them to FD
 # to all design variables X(beta)
 
 if __name__=="__main__":
@@ -14,7 +14,7 @@ if __name__=="__main__":
             "src/wake_strip.f90", "src/wake_mesh.f90", "src/surface_mesh.f90", 
             "src/panel_solver.f90", 
             
-            "dev/unit_tests/gradient_tests2/test20_d_CP_ise_wrt_vars/test20_d_CP_ise_wrt_vars.f90"])
+            "dev/unit_tests/super_gradient_tests/super_test7_supersonic_geom/super_test7_supersonic_geom.f90"])
 
     # Run
     sp.run(["a.exe"])

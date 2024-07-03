@@ -4932,11 +4932,17 @@ contains
         ! split the sparse_matrix to sparse vectors(3)
         x = d_P_transformed%split_into_sparse_vectors()
 
-        geom%d_P_ls = x(1:2)
-        geom%d_h = x(3)
+        ! geom%d_P_ls = x(1:2)
+        ! geom%d_h = x(3)
+        ! geom%d_h2 = x(3)
 
-        geom%d_h2 = x(3)
-        call geom%d_h2%broadcast_element_times_scalar(2.*geom%h)
+        call geom%d_P_ls(1)%init_from_sparse_vector(x(1))
+        call geom%d_P_ls(2)%init_from_sparse_vector(x(2))
+        
+        call geom%d_h%init_from_sparse_vector(x(3))
+
+        call geom%d_h2%init_from_sparse_vector(geom%d_h)
+        call geom%d_h2%broadcast_element_times_scalar(2*geom%h)
 
         ! MAY NOT NEED THESE BELOW 
         ! These are sometimes accessed when the DoD is not checked, so they need to be set to zero

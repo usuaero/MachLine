@@ -11,6 +11,7 @@
         "gfile" : "dev/meshes/other_meshes/naca_0010_AR_10_full_coarse.stl",
         "hfile" : "dev/meshes/adjoint/naca_2412_wing.stl",
         "ifile" : "dev/meshes/adjoint/a320_fine.stl",
+        "jfile"  : "dev/meshes/other_meshes/delta_wing_coarse.vtk",
         "singularity_order" : "lower",
 
         "wake_model" : {
@@ -22,7 +23,7 @@
     },
     "solver": {
         "formulation" : "dirichlet-source-free",
-        "control_point_offset" : 1.0e-2, 
+        "control_point_offset" : 1.0e-3, 
         "matrix_solver" : "GMRES", 
         "xsort_system" : false
     },

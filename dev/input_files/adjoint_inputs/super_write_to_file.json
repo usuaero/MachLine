@@ -7,11 +7,11 @@
         "afile" : "dev/meshes/adjoint/adjoint_octa_mesh.stl",
         "bfile" : "dev/meshes/adjoint/wedge_wing_coarse.stl",
         "cfile" : "dev/meshes/adjoint/sphere_coarse2.stl",
-        "dfile" : "dev/meshes/other_meshes/small_sphere.stl",
+        "file" : "dev/meshes/other_meshes/small_sphere.stl",
         "efile" : "dev/meshes/other_meshes/diamond_5_deg_full_coarse.stl",
         "gfile" : "dev/meshes/other_meshes/naca_0010_AR_10_full_coarse.stl",
         "hfile" : "dev/meshes/other_meshes/test_random_spindle.vtk",
-        "file" : "dev/meshes/adjoint/super_wing_medium.stl",
+        "ifile" : "dev/meshes/adjoint/super_wing_medium.stl",
         "singularity_order" : "lower",
 
         "wake_model" : {
@@ -39,11 +39,11 @@
         "abody_file" : "dev/results/adjoint/adjoint_octa_mesh.vtk",
         "bbody_file" : "dev/results/adjoint/adjoint_wedge_wing_coarse.vtk",
         "cbody_file" : "dev/results/adjoint/adjoint_sphere_coarse2.vtk",
-        "dbody_file" : "dev/results/adjoint/adjoint_small_sphere.vtk",
+        "body_file" : "dev/results/adjoint/adjoint_small_sphere.vtk",
         "ebody_file" : "dev/results/adjoint/adjoint_diamond_5_deg_full_coarse.vtk",
         "gbody_file" : "dev/results/adjoint/adjoint_naca_0010_AR_10_full_coarse.vtk",
         "hbody_file" : "dev/results/adjoint/test_random_spindle.vtk",
-        "body_file" : "dev/results/adjoint/super_wing_medium.vtk"
+        "ibody_file" : "dev/results/adjoint/super_wing_medium.vtk"
 
         }
     

@@ -76,7 +76,7 @@ program dirichlet_test26
 
 
     
-    step = 0.00001
+    
     index = 1
     cp_ind = 1
 
@@ -201,7 +201,7 @@ program dirichlet_test26
     
     !!!!!!!!!!!! END ADJOINT TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!
 
-
+    step = 0.000001
     error_allowed = 1.0e-6
     
     N_verts = test_mesh%N_verts

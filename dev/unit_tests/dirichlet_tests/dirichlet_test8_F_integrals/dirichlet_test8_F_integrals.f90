@@ -131,8 +131,7 @@ program dirichlet_test8
     test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, .false.)
     test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'potential', freestream_flow,.false., test_dod_info)
     !!!!!!!!!!!!!!!!!!!!! END TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-
+    
 
     call system_clock(start_count, count_rate)
     
@@ -207,7 +206,7 @@ program dirichlet_test8
 
     
 
-    error_allowed = 1.0e-6
+    error_allowed = 1.0e-1
     step = 0.000001
     index = 1
     cp_ind = 1

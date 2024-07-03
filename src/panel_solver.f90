@@ -376,9 +376,10 @@ contains
                     " offset ratio of ", offset, "..."
             end if
         end if
+
         ! Place control points inside the body
         call body%place_internal_vertex_control_points(offset, offset_type, this%freestream)
-
+        
         ! Set needed sources
         call this%set_panel_sources(body)
 

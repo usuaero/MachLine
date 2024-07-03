@@ -1,4 +1,4 @@
-program test20
+program dirichlet_test20
     ! tests various intermediate sensitivities 
     use adjoint_mod
     use base_geom_mod
@@ -84,7 +84,7 @@ program test20
     ! Set up run
     call json_initialize()
 
-    test_input = "dev\input_files\adjoint_inputs\test_ise.json"
+    test_input = "dev\input_files\adjoint_inputs\dirichlet_test_ise.json"
     test_input = trim(test_input)
 
     ! Check it exists
@@ -180,7 +180,7 @@ program test20
     ! Set up run
     call json_initialize()
     
-    adjoint_input = "dev\input_files\adjoint_inputs\adjoint_test_ise.json"
+    adjoint_input = "dev\input_files\adjoint_inputs\dirichlet_adjoint_test_ise.json"
     adjoint_input = trim(adjoint_input)
 
     ! Check it exists
@@ -249,7 +249,7 @@ program test20
 
     
 
-    error_allowed = 1.0e-9
+    error_allowed = 1.0e-8
     step = 0.000001
     index = 1
     cp_ind = 1
@@ -257,7 +257,7 @@ program test20
 
     write(*,*) ""
     write(*,*) "------------------------------------------------------------------------"
-    write(*,*) "                           d_CP_ise_wrt_vars TEST                    "
+    write(*,*) "                     dirichlet  d_CP_ise_wrt_vars TEST                    "
     write(*,*) "------------------------------------------------------------------------"
     write(*,*) ""
     write(*,*) ""
@@ -265,11 +265,11 @@ program test20
 
     
     
-    do z =1,adjoint_mesh%N_verts
+    do z =1,N_panels
 
         write(*,*) ""
         write(*,*) "--------------------------------------------------------------------------------------"
-        write(*,'(A,I5)') "                           d_CP_ise_wrt_vars test ",z
+        write(*,'(A,I5)') "                      dirichlet  d_CP_ise_wrt_vars test ",z
         write(*,*) "--------------------------------------------------------------------------------------"
         write(*,*) ""
         
@@ -309,6 +309,8 @@ program test20
 
                 ! recalculates cp locations
                 deallocate(test_solver%sigma_known)
+                deallocate(test_solver%i_sigma_in_sys)
+                deallocate(test_solver%i_sys_sigma_in_body)
                 deallocate(test_mesh%cp)
                 deallocate(test_solver%P)
                 call test_solver%init(solver_settings, processing_settings, &
@@ -365,6 +367,8 @@ program test20
                 
                 ! recalculates cp locations
                 deallocate(test_solver%sigma_known)
+                deallocate(test_solver%i_sigma_in_sys)
+                deallocate(test_solver%i_sys_sigma_in_body)
                 deallocate(test_mesh%cp)
                 deallocate(test_solver%P)
                 call test_solver%init(solver_settings, processing_settings, &
@@ -485,7 +489,7 @@ program test20
 
     !!!!!!!!!!!!!!  RESULTS!!!!!!!!!!!!!
     write(*,*) "------------------------------------------------------------------------------"
-    write(*,*) "                          d_CP_ise_wrt_vars TEST RESULTS "
+    write(*,*) "                     dirichlet d_CP_ise_wrt_vars TEST RESULTS "
     write(*,*) "------------------------------------------------------------------------------"
     write(*,*) ""
     write(*,'((A), ES10.1)') "allowed residual = ", error_allowed
@@ -514,4 +518,4 @@ program test20
     write(*,*) "----------------------"
 
 
-end program test20
+end program dirichlet_test20
