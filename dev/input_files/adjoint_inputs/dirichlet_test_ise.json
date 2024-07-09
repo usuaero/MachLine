@@ -4,14 +4,15 @@
         "freestream_mach_number" : 0.4
     },
     "geometry": {
-        "afile" : "dev/meshes/adjoint/adjoint_octa_mesh.stl",
-        "file" : "dev/meshes/adjoint/wedge_wing_coarse.stl",
-        "cfile" : "dev/meshes/adjoint/sphere_coarse2.stl",
-        "dfile" : "dev/meshes/other_meshes/small_sphere.stl",
-        "efile" : "dev/meshes/other_meshes/diamond_5_deg_full_coarse.stl",
-        "gfile" : "dev/meshes/other_meshes/naca_0010_AR_10_full_coarse.stl",
-        "hfile" : "dev/meshes/adjoint/naca_2412_wing.stl",
-        "ifile" : "dev/meshes/adjoint/a320_fine.stl",
+        "afile" : "dev/meshes/adjoint/sphere_coarse2.stl",
+        "bfile" : "dev/meshes/other_meshes/small_sphere.stl",
+        "cfile" : "dev/meshes/adjoint/adjoint_octa_mesh.stl",
+        "dfile" : "dev/meshes/adjoint/wedge_wing_coarse.stl",
+        "efile" : "dev/meshes/other_meshes/delta_wing_coarse.vtk",
+        "gfile" : "dev/meshes/other_meshes/diamond_5_deg_full_coarse.stl",
+        "hfile" : "dev/meshes/other_meshes/naca_0010_AR_10_full_coarse.stl",
+        "ifile" : "dev/meshes/adjoint/naca_2412_wing.stl",
+        "jfile" : "dev/meshes/adjoint/a320_fine.stl",
         "singularity_order" : "lower",
 
         "wake_model" : {

@@ -1,4 +1,4 @@
-program test28
+program dirichlet_test28
 
     ! tests various intermediate sensitivities 
     use adjoint_mod
@@ -93,7 +93,7 @@ program test28
     ! Set up run
     call json_initialize()
 
-    test_input = "dev/input_files/adjoint_inputs/central_difference_test.json"
+    test_input = "dev/input_files/adjoint_inputs/dirichlet_central_difference_test.json"
     test_input = trim(test_input)
 
     ! Check it exists
@@ -237,7 +237,7 @@ program test28
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! d_CF_wrt_vars_test !!!!!!!!!!!!!!!!!!!!!!!!!!!!
     write(*,*) ""
     write(*,*) ""
-    write(*,*) "------------------------------ d_CF_sensitivities_Central_Difference ---&
+    write(*,*) "-----------------dirichlet d_CF_sensitivities_Central_Difference ---&
     ------------------------------"
     write(*,*) ""
     write(*,*) ""
@@ -252,7 +252,7 @@ program test28
     !!!!!!!!! CENTRAL DIFFERENCE (panel 1, cp 1) d_CF_wrt_vars_test column ", k, !!!!!!!!!
     write(*,*) ""
     write(*,*) "--------------------------------------------------------------------------------------"
-    write(*,*) "                   d_CF_sensitivities_Central_Difference "
+    write(*,*) "                   dirichlet d_CF_sensitivities_Central_Difference "
     write(*,*) "--------------------------------------------------------------------------------------"
     write(*,*) ""
 
@@ -262,9 +262,7 @@ program test28
 
             ! perturb up the current design variable
             ! before perturbation:
-            write(*,('(A,f16.10)')) "Before perturbation up: ", test_mesh%vertices(j)%loc(i)
             test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
-            write(*,('(A,f16.10)')) "AFTER perturbation up: ", test_mesh%vertices(j)%loc(i)
 
             
             !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
@@ -295,6 +293,8 @@ program test28
 
             ! recalculates cp locations
             deallocate(test_solver%sigma_known)
+            deallocate(test_solver%i_sigma_in_sys)
+            deallocate(test_solver%i_sys_sigma_in_body)
             deallocate(test_mesh%cp)
             deallocate(test_solver%P)
             call test_solver%init(solver_settings, processing_settings, &
@@ -313,7 +313,6 @@ program test28
             ! deallocate(test_solver%A, test_solver%b)
             
             call test_solver%solve(test_mesh, test_solver_stat, formulation,freestream_flow)
-            write(*,*) "success1"
             
             !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
             
@@ -323,9 +322,7 @@ program test28
             
             ! perturb down the current design variable
             ! write(*,*) " perturb down"
-            write(*,('(A,f16.10)')) "Before perturbation down: ", test_mesh%vertices(j)%loc(i)
             test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - 2.*step
-            write(*,('(A,f16.10)')) "AFTER perturbation down: ", test_mesh%vertices(j)%loc(i)
             !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
             ! update vertex normal
             do m =1,N_panels
@@ -353,6 +350,8 @@ program test28
 
             ! recalculates cp locations
             deallocate(test_solver%sigma_known)
+            deallocate(test_solver%i_sigma_in_sys)
+            deallocate(test_solver%i_sys_sigma_in_body)
             deallocate(test_mesh%cp)
             deallocate(test_solver%P)
             call test_solver%init(solver_settings, processing_settings, &
@@ -369,7 +368,6 @@ program test28
             ! deallocate(test_solver%A, test_solver%b)
             
             call test_solver%solve(test_mesh, test_solver_stat, formulation,freestream_flow)
-            write(*,*) "success2"
             !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
             
             ! get the needed info
@@ -391,7 +389,7 @@ program test28
         
     ! write results
     write(*,*) ""
-    write(*,'(A)') "              CF sensitiviites Central Difference "
+    write(*,'(A)') "            dirichlet CF sensitiviites Central Difference "
     write(*,*) "       d_CFx_FD                d_CFy_FD             d_CFz_FD "
     
 
@@ -443,7 +441,7 @@ program test28
 
     !!!!!!!!!!!!!!  RESULTS!!!!!!!!!!!!!
     write(*,*) "------------------------------------------------------------------------------"
-    write(*,*) "                          d_CF Central Difference TEST RESULTS "
+    write(*,*) "                       dirichlet d_CF Central Difference TEST RESULTS "
     write(*,*) "------------------------------------------------------------------------------"
     write(*,*) ""
     write(*,*) ""
@@ -459,4 +457,4 @@ program test28
     write(*,*) "----------------------"
 
 
-end program test28
+end program dirichlet_test28

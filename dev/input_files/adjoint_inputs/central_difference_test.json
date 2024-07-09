@@ -3,14 +3,15 @@
         "freestream_velocity" : [ 1.0, 0.0, 0.0 ]
     },
     "geometry": {
-        "afile" : "dev/meshes/adjoint/adjoint_octa_mesh.stl",
-        "bfile" : "dev/meshes/adjoint/wedge_wing_coarse.stl",
-        "cfile" : "dev/meshes/adjoint/sphere_coarse2.stl",
-        "dfile" : "dev/meshes/other_meshes/small_sphere.stl",
-        "efile" : "dev/meshes/other_meshes/diamond_5_deg_full_coarse.stl",
-        "gfile" : "dev/meshes/other_meshes/naca_0010_AR_10_full_coarse.stl",
-        "hfile" : "dev/meshes/adjoint/naca_2412_wing.stl",
-        "file" : "dev/meshes/adjoint/super_wing_medium.stl",
+        "afile" : "dev/meshes/adjoint/sphere_coarse2.stl",
+        "bfile" : "dev/meshes/other_meshes/small_sphere.stl",
+        "cfile" : "dev/meshes/adjoint/adjoint_octa_mesh.stl",
+        "dfile" : "dev/meshes/adjoint/wedge_wing_coarse.stl",
+        "efile" : "dev/meshes/other_meshes/delta_wing_coarse.vtk",
+        "gfile" : "dev/meshes/other_meshes/diamond_5_deg_full_coarse.stl",
+        "hfile" : "dev/meshes/other_meshes/naca_0010_AR_10_full_coarse.stl",
+        "ifile" : "dev/meshes/adjoint/naca_2412_wing.stl",
+        "jfile" : "dev/meshes/adjoint/a320_fine.stl",
         "singularity_order" : "lower",
 
         "wake_model" : {
@@ -22,7 +23,7 @@
     },
     "solver": {
         "formulation" : "neumann-mass-flux-VCP",
-        "xcontrol_point_offset" : 1.0e-3, 
+        "control_point_offset" : 1.0e-3, 
         "matrix_solver" : "GMRES", 
         "sort_system" : false
     },
@@ -32,15 +33,15 @@
 
     "output": {
         "verbose" : true,
-        "abody_file" : "dev/results/adjoint/central_diff_octa_mesh.vtk",
-        "bbody_file" : "dev/results/adjoint/central_diff_wedge_wing_coarse.vtk",
-        "cbody_file" : "dev/results/adjoint/central_diff_sphere_coarse2.vtk",
-        "xbody_file" : "dev/results/adjoint/central_diff_small_sphere.vtk",
-        "dbody_file" : "dev/results/adjoint/central_diff_step_10_small_sphere.vtk",
-        "ebody_file" : "dev/results/adjoint/central_diff_diamond_5_deg_full_coarse.vtk",
-        "gbody_file" : "dev/results/adjoint/central_diff_naca_0010_AR_10_full_coarse.vtk",
-        "hbody_file" : "dev/results/adjoint/central_diff_naca_2412_wing.vtk",
-        "ibody_file" : "dev/results/adjoint/central_diff_super_wing_medium.vtk"
+        "abody_file" : "dev/results/adjoint/central_diff_small_sphere.vtk",
+        "bbody_file" : "dev/results/adjoint/central_diff_sphere_coarse2.vtk",
+        "cbody_file" : "dev/results/adjoint/central_diff_octa_mesh.vtk",
+        "dbody_file" : "dev/results/adjoint/central_diff_wedge_wing_coarse.vtk",
+        "ebody_file" : "dev/results/adjoint/central_diff_delta_wing_coarse.vtk",
+        "gbody_file" : "dev/results/adjoint/central_diff_diamond_5_deg_full_coarse.vtk",
+        "hbody_file" : "dev/results/adjoint/central_diff_naca_0010_AR_10_full_coarse.vtk",
+        "ibody_file" : "dev/results/adjoint/central_diff_naca_2412_wing.vtk",
+        "jbody_file" : "dev/results/adjoint/central_diff_super_wing_medium.vtk"
         }
     
 }

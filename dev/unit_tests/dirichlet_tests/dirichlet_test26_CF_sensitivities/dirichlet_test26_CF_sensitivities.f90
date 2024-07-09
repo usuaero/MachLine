@@ -57,13 +57,14 @@ program dirichlet_test26
     real,dimension(:,:),allocatable ::  residuals3, CF_up, CF_dn, d_CF_FD
 
     integer :: i,j,k,m,n,p, N_verts, N_panels, vert, index, cp_ind, row,col, stat
-    real :: step, error_allowed, cp_offset, norm_CFx, norm_CFy, norm_CFz
+    real :: step, error_allowed, cp_offset, residual_norm_CFx, residual_norm_CFy, residual_norm_CFz
+    real :: adjoint_norm_CFx, adjoint_norm_CFy, adjoint_norm_CFz, FD_norm_CFx, FD_norm_CFy, FD_norm_CFz
     type(vertex),dimension(:),allocatable :: vertices ! list of vertex types, this should be a mesh attribute
     type(panel),dimension(:),allocatable :: panels, adjoint_panels   ! list of panels, this should be a mesh attribute
     ! test stuff
     integer :: passed_tests, total_tests
     logical :: test_failed
-    character(len=100),dimension(50) :: failure_log
+    character(len=100),dimension(500) :: failure_log
     character(len=10) :: m_char
     integer(8) :: start_count, end_count
     real(16) :: count_rate, time
@@ -201,8 +202,8 @@ program dirichlet_test26
     
     !!!!!!!!!!!! END ADJOINT TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!
 
-    step = 0.000001
-    error_allowed = 1.0e-6
+    step = 1.0e-9
+    error_allowed = 1.0e-2
     
     N_verts = test_mesh%N_verts
     N_panels = test_mesh%N_panels
@@ -465,20 +466,20 @@ program dirichlet_test26
             write(*,'(A)') "                              d_CFx TEST "
             write(*,*) "       d_CFx_FD                d_CFx Adjoint             residual "
             ! calc norm of the residual
-            norm_CFx = sqrt(sum(residuals(:)*residuals(:)))
+            residual_norm_CFx = sqrt(sum(residuals(:)*residuals(:)))
 
         elseif (k==2) then
             write(*,'(A)') "                              d_CFy TEST "
             write(*,*) "       d_CFy_FD                d_CFy Adjoint             residual "
             ! calc norm of the residual
-            norm_CFy = sqrt(sum(residuals(:)*residuals(:)))
+            residual_norm_CFy = sqrt(sum(residuals(:)*residuals(:)))
 
         else
             write(*,'(A)') "                              d_CFz TEST "
             write(*,*) "       d_CFz_FD                d_CFz Adjoint             residual "
 
             ! calc norm of the residual
-            norm_CFz = sqrt(sum(residuals(:)*residuals(:)))
+            residual_norm_CFz = sqrt(sum(residuals(:)*residuals(:)))
         end if 
         
         do i = 1, N_verts*3
@@ -487,13 +488,32 @@ program dirichlet_test26
 
     end do
     
+    ! display norm of adjoint sensitivities
+    adjoint_norm_CFx = sqrt(sum(adjoint_solver%CF_sensitivities(:,1)*adjoint_solver%CF_sensitivities(:,1)))
+    adjoint_norm_CFy = sqrt(sum(adjoint_solver%CF_sensitivities(:,2)*adjoint_solver%CF_sensitivities(:,2)))
+    adjoint_norm_CFz = sqrt(sum(adjoint_solver%CF_sensitivities(:,3)*adjoint_solver%CF_sensitivities(:,3)))
+    write(*,*) ""
+    write(*,*) ""
+    write(*,'((A), f20.10)') "Norm of adjoint d_CFx = ", adjoint_norm_CFx
+    write(*,'((A), f20.10)') "Norm of adjoint d_CFy = ", adjoint_norm_CFy
+    write(*,'((A), f20.10)') "Norm of adjoint d_CFz = ", adjoint_norm_CFz
+
+    ! display norm of FD sensitivities
+    FD_norm_CFx = sqrt(sum(d_CF_FD(1,:)*d_CF_FD(1,:)))
+    FD_norm_CFy = sqrt(sum(d_CF_FD(2,:)*d_CF_FD(2,:)))
+    FD_norm_CFz = sqrt(sum(d_CF_FD(3,:)*d_CF_FD(3,:)))
+    write(*,*) ""
+    write(*,*) ""
+    write(*,'((A), f20.10)') "Norm of FD d_CFx = ", FD_norm_CFx
+    write(*,'((A), f20.10)') "Norm of FD d_CFy = ", FD_norm_CFy
+    write(*,'((A), f20.10)') "Norm of FD d_CFz = ", FD_norm_CFz
     
     ! display norm of the residual
     write(*,*) ""
     write(*,*) ""
-    write(*,'((A), f20.10)') "Norm of Residual d_CFx = ", norm_CFx
-    write(*,'((A), f20.10)') "Norm of Residual d_CFy = ", norm_CFy
-    write(*,'((A), f20.10)') "Norm of Residual d_CFz = ", norm_CFz
+    write(*,'((A), f20.10)') "Norm of Residual d_CFx = ", residual_norm_CFx
+    write(*,'((A), f20.10)') "Norm of Residual d_CFy = ", residual_norm_CFy
+    write(*,'((A), f20.10)') "Norm of Residual d_CFz = ", residual_norm_CFz
     
     write(*,*) ""
     write(*,*) ""

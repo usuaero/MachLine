@@ -262,10 +262,7 @@ program test28
 
             ! perturb up the current design variable
             ! before perturbation:
-            write(*,('(A,f16.10)')) "Before perturbation up: ", test_mesh%vertices(j)%loc(i)
             test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
-            write(*,('(A,f16.10)')) "AFTER perturbation up: ", test_mesh%vertices(j)%loc(i)
-
             
             !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
         
@@ -313,7 +310,6 @@ program test28
             ! deallocate(test_solver%A, test_solver%b)
             
             call test_solver%solve(test_mesh, test_solver_stat, formulation,freestream_flow)
-            write(*,*) "success1"
             
             !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
             
@@ -323,9 +319,7 @@ program test28
             
             ! perturb down the current design variable
             ! write(*,*) " perturb down"
-            write(*,('(A,f16.10)')) "Before perturbation down: ", test_mesh%vertices(j)%loc(i)
             test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - 2.*step
-            write(*,('(A,f16.10)')) "AFTER perturbation down: ", test_mesh%vertices(j)%loc(i)
             !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
             ! update vertex normal
             do m =1,N_panels
@@ -369,7 +363,6 @@ program test28
             ! deallocate(test_solver%A, test_solver%b)
             
             call test_solver%solve(test_mesh, test_solver_stat, formulation,freestream_flow)
-            write(*,*) "success2"
             !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
             
             ! get the needed info

@@ -57,7 +57,8 @@ program test26
     real,dimension(:,:),allocatable ::  residuals3, CF_up, CF_dn, d_CF_FD
 
     integer :: i,j,k,m,n,p, N_verts, N_panels, vert, index, cp_ind, row,col, stat
-    real :: step, error_allowed, cp_offset
+    real :: step, error_allowed, cp_offset, residual_norm_CFx, residual_norm_CFy, residual_norm_CFz
+    real :: adjoint_norm_CFx, adjoint_norm_CFy, adjoint_norm_CFz, FD_norm_CFx, FD_norm_CFy, FD_norm_CFz
     type(vertex),dimension(:),allocatable :: vertices ! list of vertex types, this should be a mesh attribute
     type(panel),dimension(:),allocatable :: panels, adjoint_panels   ! list of panels, this should be a mesh attribute
     ! test stuff
@@ -77,7 +78,7 @@ program test26
 
     error_allowed = 1.0e-1
     
-    step = 0.000001
+    step = 1.0e-9
     index = 1
     cp_ind = 1
 
@@ -453,6 +454,34 @@ program test26
 
     write(*,*) ""
         
+    ! ! DISPLAY SENSITIVITIES
+    ! do k=1,3
+
+    !     do i=1,N_verts*3
+    !         residuals(i) = adjoint_solver%CF_sensitivities(i,k) - d_CF_FD(k,i)
+    !     end do
+        
+    !     ! write results
+    !     write(*,*) ""
+    !     if (k ==1)then
+    !         write(*,'(A)') "                              d_CFx TEST "
+    !         write(*,*) "       d_CFx_FD                d_CFx Adjoint             residual "
+    !     elseif (k==2) then
+    !         write(*,'(A)') "                              d_CFy TEST "
+    !         write(*,*) "       d_CFy_FD                d_CFy Adjoint             residual "
+    !     else
+    !         write(*,'(A)') "                              d_CFz TEST "
+    !         write(*,*) "       d_CFz_FD                d_CFz Adjoint             residual "
+    !     end if 
+
+    !     do i = 1, N_verts*3
+    !         write(*, '(3(f20.10, 4x))') d_CF_FD(k,i), adjoint_solver%CF_sensitivities(i,k), residuals(i)
+    !     end do 
+
+    ! end do
+
+    write(*,*) ""
+        
     ! DISPLAY SENSITIVITIES
     do k=1,3
 
@@ -465,19 +494,62 @@ program test26
         if (k ==1)then
             write(*,'(A)') "                              d_CFx TEST "
             write(*,*) "       d_CFx_FD                d_CFx Adjoint             residual "
+            ! calc norm of the residual
+            residual_norm_CFx = sqrt(sum(residuals(:)*residuals(:)))
+
         elseif (k==2) then
             write(*,'(A)') "                              d_CFy TEST "
             write(*,*) "       d_CFy_FD                d_CFy Adjoint             residual "
+            ! calc norm of the residual
+            residual_norm_CFy = sqrt(sum(residuals(:)*residuals(:)))
+
         else
             write(*,'(A)') "                              d_CFz TEST "
             write(*,*) "       d_CFz_FD                d_CFz Adjoint             residual "
-        end if 
 
+            ! calc norm of the residual
+            residual_norm_CFz = sqrt(sum(residuals(:)*residuals(:)))
+        end if 
+        
         do i = 1, N_verts*3
             write(*, '(3(f20.10, 4x))') d_CF_FD(k,i), adjoint_solver%CF_sensitivities(i,k), residuals(i)
         end do 
 
     end do
+    
+    ! display norm of adjoint sensitivities
+    adjoint_norm_CFx = sqrt(sum(adjoint_solver%CF_sensitivities(:,1)*adjoint_solver%CF_sensitivities(:,1)))
+    adjoint_norm_CFy = sqrt(sum(adjoint_solver%CF_sensitivities(:,2)*adjoint_solver%CF_sensitivities(:,2)))
+    adjoint_norm_CFz = sqrt(sum(adjoint_solver%CF_sensitivities(:,3)*adjoint_solver%CF_sensitivities(:,3)))
+    write(*,*) ""
+    write(*,*) ""
+    write(*,'((A), f20.10)') "Norm of adjoint d_CFx = ", adjoint_norm_CFx
+    write(*,'((A), f20.10)') "Norm of adjoint d_CFy = ", adjoint_norm_CFy
+    write(*,'((A), f20.10)') "Norm of adjoint d_CFz = ", adjoint_norm_CFz
+
+    ! display norm of FD sensitivities
+    FD_norm_CFx = sqrt(sum(d_CF_FD(1,:)*d_CF_FD(1,:)))
+    FD_norm_CFy = sqrt(sum(d_CF_FD(2,:)*d_CF_FD(2,:)))
+    FD_norm_CFz = sqrt(sum(d_CF_FD(3,:)*d_CF_FD(3,:)))
+    write(*,*) ""
+    write(*,*) ""
+    write(*,'((A), f20.10)') "Norm of FD d_CFx = ", FD_norm_CFx
+    write(*,'((A), f20.10)') "Norm of FD d_CFy = ", FD_norm_CFy
+    write(*,'((A), f20.10)') "Norm of FD d_CFz = ", FD_norm_CFz
+    
+    ! display norm of the residual
+    write(*,*) ""
+    write(*,*) ""
+    write(*,'((A), f20.10)') "Norm of Residual d_CFx = ", residual_norm_CFx
+    write(*,'((A), f20.10)') "Norm of Residual d_CFy = ", residual_norm_CFy
+    write(*,'((A), f20.10)') "Norm of Residual d_CFz = ", residual_norm_CFz
+    
+    write(*,*) ""
+    write(*,*) ""
+    call json_xtnsn_get(solver_settings, 'control_point_offset', cp_offset, 1.e-7)
+    write(*,'((A), ES10.1)') "control point offset = ", cp_offset
+    write(*,*) ""
+    write(*,*) ""
 
 
     !!!!!!!!!!!!!!  RESULTS!!!!!!!!!!!!!
