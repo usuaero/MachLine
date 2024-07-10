@@ -1,4 +1,4 @@
-program super8
+program dirichlet_super_test9
     ! tests various intermediate sensitivities 
     use adjoint_mod
     use base_geom_mod
@@ -46,8 +46,9 @@ program super8
     !!!!!!!!!!!!!!!!!!!!! END STUFF FROM MAIN !!!!!!!!!!!!!!!!!!!!!!!!!
 
     !!!!!!!!!!!!!!!!!!!!!! TESTING STUFF  !!!!!!!!!!!!!!!!!!!!!!!!!!
-    real,dimension(:),allocatable :: residuals
-    real,dimension(:,:),allocatable ::  residuals3 , F111_up, F111_dn, d_F111_FD
+    real,dimension(:),allocatable :: residuals, hH113_up, hH113_dn, d_hH113_FD, &
+    H213_up, H213_dn, d_H213_FD, H123_up, H123_dn, d_H123_FD
+    real,dimension(:,:),allocatable ::  residuals3 
 
     integer :: i,j,k,m,n,y,z, N_verts, N_panels, vert, index, cp_ind
     real :: step,error_allowed, cp_offset
@@ -61,6 +62,7 @@ program super8
     character(len=10) :: m_char
     integer(8) :: start_count, end_count
     real(16) :: count_rate, time
+
 
     !!!!!!!!!!!!!!!!!!! END TESTING STUFF !!!!!!!!!!!!!!!!!!!!!11
 
@@ -77,7 +79,7 @@ program super8
     ! Set up run
     call json_initialize()
 
-    test_input = "dev\input_files\adjoint_inputs\supersonic_test.json"
+    test_input = "dev\input_files\adjoint_inputs\dirichlet_supersonic_test.json"
     test_input = trim(test_input)
 
     ! Check it exists
@@ -129,7 +131,7 @@ program super8
     ! calc CALC BASIC GEOM geom of relation between cp1 and panel1 
     test_geom = test_mesh%panels(index)%calc_subsonic_geom(test_mesh%cp(cp_ind)%loc,freestream_flow,.false.)
     test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, .false.)
-    test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,.false., test_dod_info)
+    test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'potential', freestream_flow,.false., test_dod_info)
     !!!!!!!!!!!!!!!!!!!!! END TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
@@ -141,7 +143,7 @@ program super8
     ! Set up run
     call json_initialize()
 
-    adjoint_input = "dev\input_files\adjoint_inputs\supersonic_adjoint_test.json"
+    adjoint_input = "dev\input_files\adjoint_inputs\dirichlet_supersonic_adjoint_test.json"
     adjoint_input = trim(adjoint_input)
 
     ! Check it exists
@@ -201,13 +203,19 @@ program super8
     allocate(residuals3(3,N_verts*3))
     allocate(residuals(N_verts*3))
 
-    allocate(F111_up(3,N_verts*3))
-    allocate(F111_dn(3,N_verts*3))
-    allocate(d_F111_FD(3,N_verts*3))
+    allocate(hH113_up(N_verts*3))
+    allocate(hH113_dn(N_verts*3))
+    allocate(d_hH113_FD(N_verts*3))
+    allocate(H213_up(N_verts*3))
+    allocate(H213_dn(N_verts*3))
+    allocate(d_H213_FD(N_verts*3))
+    allocate(H123_up(N_verts*3))
+    allocate(H123_dn(N_verts*3))
+    allocate(d_H123_FD(N_verts*3))
 
+    
     mirror_panel = .false.
-
-    error_allowed = 1.0e-6
+    error_allowed = 1.0e-5
     step = 0.000001
     index = 1
     cp_ind = 1
@@ -215,7 +223,7 @@ program super8
 
     write(*,*) ""
     write(*,*) "------------------------------------------------------------------------"
-    write(*,*) "               SUPERSONIC F Integrals SENSITIVITIES TEST                    "
+    write(*,*) "       Dirichlet Supersonic H Integrals SENSITIVITIES TEST                    "
     write(*,*) "------------------------------------------------------------------------"
     write(*,*) ""
     write(*,*) ""
@@ -229,14 +237,11 @@ program super8
         do z = 1,N_verts
             cp_ind = z
             
-            ! write(*,'(A,I5,A,I5)') "F integral test Panel ",y," cp ",z
-
-
             test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, mirror_panel)
             if (test_dod_info%in_dod .and. test_mesh%panels(index)%A > 0.) then
 
                 ! panel is in domain of dependence of point    
-                write(*,'(A,I5,A,I5)') "Supersonic Subinc F integrals test: Panel ",y," cp ",z
+                write(*,'(A,I5,A,I5)') "Supersonic Subinc H integrals test: Panel ",y," cp ",z
 
                 ! Calculate geometric parameters
                 if (freestream_flow%supersonic) then
@@ -249,7 +254,7 @@ program super8
                         ! supersonic subinclined
                         adjoint_geom = adjoint_mesh%panels(index)%calc_supersonic_subinc_geom_adjoint(&
                                                     adjoint_mesh%cp(cp_ind)%loc,adjoint_mesh%cp(cp_ind)%d_loc,&
-                                                     adjoint_freestream_flow, mirror_panel, test_dod_info)
+                                                    adjoint_freestream_flow, mirror_panel, test_dod_info)
                     end if
                 else
                     !geom = this%calc_subsonic_geom(P, freestream, mirror_panel)
@@ -258,12 +263,13 @@ program super8
                 end if ! end supersonic if statement
 
                 ! Get integrals
-                adjoint_int = adjoint_mesh%panels(index)%calc_integrals(adjoint_geom, 'velocity', &
+                adjoint_int = adjoint_mesh%panels(index)%calc_integrals(adjoint_geom, 'potential', &
                                             adjoint_freestream_flow, mirror_panel, test_dod_info)
 
                 ! ! integral adjoint
                 call adjoint_mesh%panels(index)%calc_integrals_adjoint(&
-                            adjoint_geom, 'velocity', adjoint_int, adjoint_freestream_flow, mirror_panel, test_dod_info)
+                adjoint_geom,"potential", adjoint_int,adjoint_freestream_flow, .false., adjoint_dod_info)
+        
                 do i=1,3
                     do j=1,N_verts
 
@@ -291,23 +297,25 @@ program super8
                         
                         ! recalculates cp locations
                         deallocate(test_solver%sigma_known)
+                        deallocate(test_solver%i_sigma_in_sys)
+                        deallocate(test_solver%i_sys_sigma_in_body)
                         deallocate(test_mesh%cp)
                         deallocate(test_solver%P)
                         call test_solver%init(solver_settings, processing_settings, &
                         test_mesh, freestream_flow, control_point_file)
 
-                        ! update F111 cp1 and panel1 
+                        ! update hH113
                         deallocate(test_int%F111)
-                        deallocate(test_int%F121)
-                        deallocate(test_int%F211)
                         test_geom = test_mesh%panels(index)%calc_supersonic_subinc_geom(&
                                                 test_mesh%cp(cp_ind)%loc,freestream_flow,mirror_panel,test_dod_info)
-                        test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,&
+                        test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'potential', freestream_flow,&
                                                 .false., test_dod_info)
                         !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
                         
                         ! get desired info
-                        F111_up(:,j + (i-1)*N_verts) = test_int%F111(:)
+                        hH113_up(j + (i-1)*N_verts) = test_int%hH113
+                        H213_up(j + (i-1)*N_verts) = test_int%H213
+                        H123_up(j + (i-1)*N_verts) = test_int%H123
 
                         ! perturb down the current design variable
                         test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - 2.*step
@@ -332,24 +340,28 @@ program super8
 
                         ! recalculates cp locations
                         deallocate(test_solver%sigma_known)
+                        deallocate(test_solver%i_sigma_in_sys)
+                        deallocate(test_solver%i_sys_sigma_in_body)
                         deallocate(test_mesh%cp)
                         deallocate(test_solver%P)
                         call test_solver%init(solver_settings, processing_settings, &
                         test_mesh, freestream_flow, control_point_file)
 
 
-                        ! update F111 cp1 and panel1 
+                        ! update hH113
                         deallocate(test_int%F111)
                         deallocate(test_int%F121)
                         deallocate(test_int%F211)
                         test_geom = test_mesh%panels(index)%calc_supersonic_subinc_geom(&
                                                 test_mesh%cp(cp_ind)%loc,freestream_flow,mirror_panel,test_dod_info)
-                        test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,&
+                        test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'potential', freestream_flow,&
                                                 .false., test_dod_info)
                         !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
 
-                        ! put the x y or z component of the vertex of interest (index) in a list
-                        F111_dn(:,j + (i-1)*N_verts) = test_int%F111(:)
+                        ! get desired info
+                        hH113_dn(j + (i-1)*N_verts) = test_int%hH113
+                        H213_dn(j + (i-1)*N_verts) = test_int%H213
+                        H123_dn(j + (i-1)*N_verts) = test_int%H123
                         
                         ! restore geometry
                         test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
@@ -357,33 +369,31 @@ program super8
                 end do 
                 
                 ! central difference 
-                d_F111_FD = (F111_up - F111_dn)/(2.*step)
+                d_hH113_FD = (hH113_up - hH113_dn)/(2.*step)
+                d_H213_FD = (H213_up - H213_dn)/(2.*step)
+                d_H123_FD = (H123_up - H123_dn)/(2.*step)
                 
             
-                !!!!!!!!!!!!!!!!!!!!!!!!!!!!!  d_F111 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                !!!!!!!!!!!!!!!!!!!!!!!!!!!!!  d_hH113 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             
 
-                ! calculate residuals3
+                ! calculate residuals
                 do i =1, N_verts*3
-                    residuals3(:,i) = (/adjoint_int%d_F111(1)%get_value(i),&
-                                        adjoint_int%d_F111(2)%get_value(i),&
-                                        adjoint_int%d_F111(3)%get_value(i)/) - d_F111_FD(:,i)
+                    residuals(i) = adjoint_int%d_hH113%get_value(i) - d_hH113_FD(i)
                 end do
 
-                if (maxval(abs(residuals3(:,:)))>error_allowed) then
+                if (maxval(abs(residuals(:)))>error_allowed) then
                     write(*,*) ""
                     write(*,*) "     FLAGGED VALUES :"
                     do i = 1, N_verts*3
-                        if (any(abs(residuals3(:,i))>error_allowed)) then
+                        if (abs(residuals(i))>error_allowed) then
                             write(*,*) ""
-                            write(*,*) "                  ------------d_F111 edges---------------     "
-                            write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_F111_FD(:,i)
+                            write(*,*) "                                                d_hH113 "
+                            write(*, '(A25,8x,(f25.10, 4x))') "    Central Difference", d_hH113_FD(i)
                         
-                            write(*, '(A25,8x,3(f25.10, 4x))') "          adjoint",   &
-                            adjoint_int%d_F111(1)%get_value(i),&
-                            adjoint_int%d_F111(2)%get_value(i),&
-                            adjoint_int%d_F111(3)%get_value(i)
-                            write(*, '(A25,8x,3(f25.10, 4x))') "             residuals", residuals3(:,i)
+                            write(*, '(A25,8x,(f25.10, 4x))') "          adjoint",   &
+                            adjoint_int%d_hH113%get_value(i)
+                            write(*, '(A25,8x,(f25.10, 4x))') "              residual", residuals(i)
                         end if
                     end do
                 end if
@@ -392,54 +402,53 @@ program super8
                 
                 ! check if test failed
                 do i=1,N_verts*3
-                    if (any(abs(residuals3(:,i)) > error_allowed)) then 
-                        do j = 1,3
-                            if (abs(d_F111_FD(j,i))>1000.0) then
-                                if (abs(residuals3(j,i)) > error_allowed*10000.0) then
-                                    test_failed = .true.
-                                    exit
-                                else
-                                    test_failed = .false.
-                                end if
-                            elseif (1000.0>abs(d_F111_FD(j,i)) .and. abs(d_F111_FD(j,i))>100.0) then
-                                if (abs(residuals3(j,i)) > error_allowed*1000.0) then
-                                    test_failed = .true.
-                                    exit
-                                else
-                                    test_failed = .false.
-                                end if
-                            elseif (100.0>abs(d_F111_FD(j,i)) .and. abs(d_F111_FD(j,i))>10.0) then
-                                if (abs(residuals3(j,i)) > error_allowed*100.0) then
-                                    test_failed = .true.
-                                    exit
-                                else
-                                    test_failed = .false.
-                                end if
-                            elseif (10.0>abs(d_F111_FD(j,i)) .and. abs(d_F111_FD(j,i))>1.0) then
-                                if (abs(residuals3(j,i)) > error_allowed*10.0) then
-                                    test_failed = .true.
-                                    exit
-                                else
-                                    test_failed = .false.
-                                end if
+                    if (abs(residuals(i)) > error_allowed) then 
+                        
+                        if (abs(d_hH113_FD(i))>1000.0) then
+                            if (abs(residuals(i)) > error_allowed*10000.0) then
+                                test_failed = .true.
+                                exit
                             else
-                                if (abs(residuals3(j,i)) > error_allowed) then
-                                    test_failed = .true.
-                                    exit
-                                else
-                                    test_failed = .false.
-                                end if
+                                test_failed = .false.
                             end if
-                        end do
+                        elseif (1000.0>abs(d_hH113_FD(i)) .and. abs(d_hH113_FD(i))>100.0) then
+                            if (abs(residuals(i)) > error_allowed*1000.0) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                        elseif (100.0>abs(d_hH113_FD(i)) .and. abs(d_hH113_FD(i))>10.0) then
+                            if (abs(residuals(i)) > error_allowed*100.0) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                        elseif (10.0>abs(d_hH113_FD(i)) .and. abs(d_hH113_FD(i))>1.0) then
+                            if (abs(residuals(i)) > error_allowed*10.0) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                        else
+                            if (abs(residuals(i)) > error_allowed) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                        end if
                     end if
                 end do
                 if (test_failed) then
                     total_tests = total_tests + 1
                     write(*,'(A,I5,A,I5,A)')"                                               &
-                                    d_F111 edges panel ",y," cp ",z," test FAILED"
-                    failure_log(total_tests-passed_tests) = "d_F111 test FAILED"
+                                    d_hH113 panel ",y," cp ",z," test FAILED"
+                    failure_log(total_tests-passed_tests) = "d_hH113 test FAILED"
                 else
-                    ! write(*,*) "        CALC d_F111 test PASSED"
+                    ! write(*,*) "        CALC d_hH113 test PASSED"
                     ! write(*,*) "" 
                     ! write(*,*) ""
                     passed_tests = passed_tests + 1
@@ -448,7 +457,177 @@ program super8
                 end if
                 test_failed = .false.
 
-                   
+
+
+                !!!!!!!!!!!!!!!!!!!!!!!!!!!!!  d_H213 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            
+
+                ! calculate residuals
+                do i =1, N_verts*3
+                    residuals(i) = adjoint_int%d_H213%get_value(i) - d_H213_FD(i)
+                end do
+
+                if (maxval(abs(residuals(:)))>error_allowed) then
+                    write(*,*) ""
+                    write(*,*) "     FLAGGED VALUES :"
+                    do i = 1, N_verts*3
+                        if (abs(residuals(i))>error_allowed) then
+                            write(*,*) ""
+                            write(*,*) "                                             d_H213"
+                            write(*, '(A25,8x,(f25.10, 4x))') "    Central Difference", d_H213_FD(i)
+                        
+                            write(*, '(A25,8x,(f25.10, 4x))') "          adjoint",   &
+                            adjoint_int%d_H213%get_value(i)
+                            write(*, '(A25,8x,(f25.10, 4x))') "              residual", residuals(i)
+                        end if
+                    end do
+                end if
+        
+                
+                
+                ! check if test failed
+                do i=1,N_verts*3
+                    if (abs(residuals(i)) > error_allowed) then 
+                        
+                        if (abs(d_H213_FD(i))>1000.0) then
+                            if (abs(residuals(i)) > error_allowed*10000.0) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                        elseif (1000.0>abs(d_H213_FD(i)) .and. abs(d_H213_FD(i))>100.0) then
+                            if (abs(residuals(i)) > error_allowed*1000.0) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                        elseif (100.0>abs(d_H213_FD(i)) .and. abs(d_H213_FD(i))>10.0) then
+                            if (abs(residuals(i)) > error_allowed*100.0) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                        elseif (10.0>abs(d_H213_FD(i)) .and. abs(d_H213_FD(i))>1.0) then
+                            if (abs(residuals(i)) > error_allowed*10.0) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                        else
+                            if (abs(residuals(i)) > error_allowed) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                        end if
+                    end if
+                end do
+                if (test_failed) then
+                    total_tests = total_tests + 1
+                    write(*,'(A,I5,A,I5,A)')"                                               &
+                                    d_H213 panel ",y," cp ",z," test FAILED"
+                    failure_log(total_tests-passed_tests) = "d_H213 test FAILED"
+                else
+                    ! write(*,*) "        CALC d_H213 test PASSED"
+                    ! write(*,*) "" 
+                    ! write(*,*) ""
+                    passed_tests = passed_tests + 1
+                    total_tests = total_tests + 1
+                    
+                end if
+                test_failed = .false.
+
+
+
+
+                !!!!!!!!!!!!!!!!!!!!!!!!!!!!!  d_H123 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            
+
+                ! calculate residuals
+                do i =1, N_verts*3
+                    residuals(i) = adjoint_int%d_H123%get_value(i) - d_H123_FD(i)
+                end do
+
+                if (maxval(abs(residuals(:)))>error_allowed) then
+                    write(*,*) ""
+                    write(*,*) "     FLAGGED VALUES :"
+                    do i = 1, N_verts*3
+                        if (abs(residuals(i))>error_allowed) then
+                            write(*,*) ""
+                            write(*,*) "                                            d_H123 "
+                            write(*, '(A25,8x,(f25.10, 4x))') "    Central Difference", d_H123_FD(i)
+                        
+                            write(*, '(A25,8x,(f25.10, 4x))') "          adjoint",   &
+                            adjoint_int%d_H123%get_value(i)
+                            write(*, '(A25,8x,(f25.10, 4x))') "              residual", residuals(i)
+                        end if
+                    end do
+                end if
+        
+                
+                
+                ! check if test failed
+                do i=1,N_verts*3
+                    if (abs(residuals(i)) > error_allowed) then 
+                        
+                        if (abs(d_H123_FD(i))>1000.0) then
+                            if (abs(residuals(i)) > error_allowed*10000.0) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                        elseif (1000.0>abs(d_H123_FD(i)) .and. abs(d_H123_FD(i))>100.0) then
+                            if (abs(residuals(i)) > error_allowed*1000.0) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                        elseif (100.0>abs(d_H123_FD(i)) .and. abs(d_H123_FD(i))>10.0) then
+                            if (abs(residuals(i)) > error_allowed*100.0) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                        elseif (10.0>abs(d_H123_FD(i)) .and. abs(d_H123_FD(i))>1.0) then
+                            if (abs(residuals(i)) > error_allowed*10.0) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                        else
+                            if (abs(residuals(i)) > error_allowed) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                        end if
+                    end if
+                end do
+                if (test_failed) then
+                    total_tests = total_tests + 1
+                    write(*,'(A,I5,A,I5,A)')"                                               &
+                                    d_H123 panel ",y," cp ",z," test FAILED"
+                    failure_log(total_tests-passed_tests) = "d_H123 test FAILED"
+                else
+                    ! write(*,*) "        CALC d_H123 test PASSED"
+                    ! write(*,*) "" 
+                    ! write(*,*) ""
+                    passed_tests = passed_tests + 1
+                    total_tests = total_tests + 1
+                    
+                end if
+                test_failed = .false.
+
             else ! end check dod if statement    
                 write(*,'(A,I5,A,I5)') "Panel ",y," not in dod of cp ",z
             end if
@@ -460,9 +639,9 @@ program super8
     end do
 
 
-    !!!!!!!!!!!!!! CALC_BASIC_F_INTEGRAL SENSITIVITIES RESULTS!!!!!!!!!!!!!
+    !!!!!!!!!!!!!!  RESULTS!!!!!!!!!!!!!
     write(*,*) "------------------------------------------------------------------------------"
-    write(*,*) "                    SUPERSONIC F INTEGRALS TEST RESULTS "
+    write(*,*) "      Dirichlet SUPERSONIC H INTEGRAL SENSITIVITIES TEST RESULTS "
     write(*,*) "------------------------------------------------------------------------------"
     write(*,*) ""
     write(*,'((A), ES10.1)') "allowed residual = ", error_allowed
@@ -490,4 +669,4 @@ program super8
     write(*,*) "Program Complete"
     write(*,*) "----------------------"
 
-end program super8
+end program dirichlet_super_test9

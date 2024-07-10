@@ -1,4 +1,4 @@
-program dirichlet_test12
+program dirichlet_super_test20
     ! tests various intermediate sensitivities 
     use adjoint_mod
     use base_geom_mod
@@ -42,15 +42,21 @@ program dirichlet_test12
     type(sparse_matrix),dimension(3) :: d_v_d
     integer :: i_unit
     logical :: exists, found
+    integer :: adjoint_solver_stat, test_solver_stat, stat
     type(sparse_vector) :: zeros
+
+    real,dimension(3) :: adjoint_P, test_P, test_v_d, test_v_s
+    type(sparse_matrix) :: adjoint_d_P_term2
+    type(sparse_matrix) :: adjoint_d_P
+    type(sparse_matrix) :: adjoint_d_v_d_panel
 
     !!!!!!!!!!!!!!!!!!!!! END STUFF FROM MAIN !!!!!!!!!!!!!!!!!!!!!!!!!
 
     !!!!!!!!!!!!!!!!!!!!!! TESTING STUFF  !!!!!!!!!!!!!!!!!!!!!!!!!!
-    real,dimension(:),allocatable :: residuals, b_up, b_dn, d_b_FD
+    real,dimension(:),allocatable :: residuals, C_P_ise_up, C_P_ise_dn, d_C_P_ise_FD
     real,dimension(:,:),allocatable ::  residuals3
 
-    integer :: i,j,k,m,n,y,z, N_verts, N_panels, vert, index, cp_ind, stat, ind
+    integer :: i,j,k,m,n,y,z,N_verts, N_panels, vert, index, cp_ind
     real :: step,error_allowed, cp_offset
     type(vertex),dimension(:),allocatable :: vertices ! list of vertex types, this should be a mesh attribute
     type(panel),dimension(:),allocatable :: panels, adjoint_panels   ! list of panels, this should be a mesh attribute
@@ -71,16 +77,14 @@ program dirichlet_test12
     
     index = 1
     cp_ind = 1
-
-
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !                             FROM MAIN
-
+    
     !!!!!!!!!!!!!!! TEST INPUT (calc_adjoint = false) !!!!!!!!!!!!!!!!!!!!!!!
     ! Set up run
     call json_initialize()
 
-    test_input = "dev\input_files\adjoint_inputs\dirichlet_test.json"
+    test_input = "dev\input_files\adjoint_inputs\dirichlet_supersonic_test.json"
     test_input = trim(test_input)
 
     ! Check it exists
@@ -129,31 +133,54 @@ program dirichlet_test12
     ! pull out the cp offset
     call json_xtnsn_get(solver_settings, 'control_point_offset', cp_offset, 1.e-7)
     
-    ! ! Allocate known influence storage
+    ! Set default status
+    test_solver_stat = 0
+
+    ! Allocate known influence storage
     allocate(test_solver%I_known(test_mesh%N_cp), source=0., stat=stat)
+    write(*,*) "N_cp = ",test_mesh%N_cp
+    write(*,*) "stat = ",stat
     call check_allocation(stat, "known influence vector")
+
+    ! Allocate AIC matrix
+    allocate(test_solver%A(test_mesh%N_cp, test_solver%N_unknown), source=0., stat=stat)
+    ! call check_allocation(stat, "AIC matrix")
 
     ! Allocate b vector
     allocate(test_solver%b(test_mesh%N_cp), source=0., stat=stat)
     call check_allocation(stat, "b vector")
 
-    ! assemble BC vector
+    ! Calculate source strengths
+    call test_solver%calc_source_strengths(test_mesh)
+
+    ! Calculate body influences
+    call test_solver%calc_body_influences(test_mesh)
+
     call test_solver%assemble_BC_vector(test_mesh)
 
-    ! Set b vector
-    test_solver%b = test_solver%BC - test_solver%I_known
+    ! Solve the linear system
+    call test_solver%solve_system(test_mesh, test_solver_stat)
+    
+    ! Check for errors
+    if (test_solver_stat /= 0) return
+
+    ! Calculate velocities
+    call test_solver%calc_cell_velocities(test_mesh)
+
+    ! Calculate pressures
+    call test_solver%calc_pressures(test_mesh)
+    
     
     !!!!!!!!!!!!!!!!!!!!! END TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-
     call system_clock(start_count, count_rate)
-    
+
 
     !!!!!!!!!!!!!!!!!!!!!!ADJOINT TEST MESH !!!!!!!!!!!!!!!!!!!!!
     ! Set up run
     call json_initialize()
-
-    adjoint_input = "dev\input_files\adjoint_inputs\dirichlet_adjoint_test.json"
+    
+    adjoint_input = "dev\input_files\adjoint_inputs\dirichlet_supersonic_adjoint_test.json"
     adjoint_input = trim(adjoint_input)
 
     ! Check it exists
@@ -171,7 +198,7 @@ program dirichlet_test12
     call adjoint_input_json%get('solver', adjoint_solver_settings, found)
     call adjoint_input_json%get('post_processing', adjoint_processing_settings, found)
     call adjoint_input_json%get('output', adjoint_output_settings, found)
-
+    
     ! Initialize surface mesh
     call adjoint_mesh%init(adjoint_geom_settings)
     !call adjoint_mesh%init_adjoint()
@@ -187,30 +214,27 @@ program dirichlet_test12
     call json_xtnsn_get(adjoint_output_settings, 'mirrored_body_file', adjoint_mirrored_body_file, 'none')
     call json_xtnsn_get(adjoint_output_settings, 'offbody_points.points_file', adjoint_points_file, 'none')
     call json_xtnsn_get(adjoint_output_settings, 'offbody_points.output_file', adjoint_points_output_file, 'none')
-
+    
     !!!!!!!!!!!!!!!!!!!!!! WAKE_DEV !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! Get formulation type                                                  !
     call json_xtnsn_get(adjoint_solver_settings, 'formulation', adjoint_formulation, 'none')!
     !!!!!!!!!!!!!!!!!!!!!!! END_WAKE_DEV !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
+    
     ! Perform flow-dependent initialization on the surface mesh
     call adjoint_mesh%init_with_flow(adjoint_freestream_flow, adjoint_body_file, adjoint_wake_file, adjoint_formulation)
-
+    
     ! Initialize panel solver
     call adjoint_solver%init(adjoint_solver_settings, adjoint_processing_settings, adjoint_mesh, &
     adjoint_freestream_flow, adjoint_control_point_file)
+    
+    ! solve
+    call adjoint_solver%solve(adjoint_mesh, adjoint_solver_stat, adjoint_formulation,adjoint_freestream_flow)
+    
 
-    ! allocate  d_b_vector
-    call zeros%init(adjoint_mesh%adjoint_size)
-    allocate(adjoint_solver%d_b_vector(adjoint_mesh%N_cp), source=zeros, stat=stat)
-    call check_allocation(stat, "Adjoint b sensitivity vector")
-
-    ! if adjoint, assemble b sensitivity vector
-    call adjoint_solver%assemble_adjoint_b_vector(adjoint_mesh)
-
+    
     !!!!!!!!!!!! END ADJOINT TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!
 
-
+    
     N_verts = test_mesh%N_verts
     N_panels = test_mesh%N_panels
     
@@ -218,12 +242,14 @@ program dirichlet_test12
     allocate(residuals3(3,N_verts*3))
     allocate(residuals(N_verts*3))
 
-    allocate(b_up(N_verts*3))
-    allocate(b_dn(N_verts*3))
-    allocate(d_b_FD(N_verts*3))
+    ! allocate data holders
+    allocate(C_P_ise_up(N_verts*3))
+    allocate(C_P_ise_dn(N_verts*3))
+    allocate(d_C_P_ise_FD(N_verts*3))
+
     
 
-    error_allowed = 1.0e-9
+    error_allowed = 1.0e-7
     step = 0.000001
     index = 1
     cp_ind = 1
@@ -231,7 +257,7 @@ program dirichlet_test12
 
     write(*,*) ""
     write(*,*) "------------------------------------------------------------------------"
-    write(*,*) "                           d_b vector TEST                    "
+    write(*,*) "           Dirichlet Supersonic d_CP_ise_wrt_vars TEST                    "
     write(*,*) "------------------------------------------------------------------------"
     write(*,*) ""
     write(*,*) ""
@@ -239,23 +265,15 @@ program dirichlet_test12
 
     
     
+    do z =1,adjoint_mesh%N_verts
+
+        write(*,*) ""
+        write(*,*) "--------------------------------------------------------------------------------------"
+        write(*,'(A,I5)') "      Dirichlet Supersonic d_CP_ise_wrt_vars test ",z
+        write(*,*) "--------------------------------------------------------------------------------------"
+        write(*,*) ""
         
-    do z = 1,test_mesh%N_cp
-        ! this logic ensures the current d_b_FD vector corresponds to the correct adjoint_solver%d_b_vector
-        ! (the adjoint_solver%d_b_vector is a collection of N_cp sensitivity vectors. For example, if 
-        !  there are 6 control points, the b vector has lenght of 6. In the adjoint run, there are 6 sensitivity
-        !  vectors. When use_sort_for_cp is true, the order of the elements of the original b vector are rearranged
-        !  for a more efficient solve. The adjoint run must also rearrange the 6 d_b sensitivity vectors to match.
-        !  In this central difference run, the logic below is needed to ensure the resulting central difference values
-        !  will be in the same order as the sorted adjoint values)
-        if (test_solver%use_sort_for_cp) then
-            cp_ind = test_solver%P(z)
-        else
-            cp_ind = z
-        end if
         
-        write(*,'(A,I5)') "d_b vector test: BC at CP ", cp_ind
-            
         do i=1,3
             do j=1,N_verts
 
@@ -288,7 +306,7 @@ program dirichlet_test12
                     call test_mesh%panels(m)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
                     test_mesh%vertices,.false.)
                 end do
-                
+
                 ! recalculates cp locations
                 deallocate(test_solver%sigma_known)
                 deallocate(test_solver%i_sigma_in_sys)
@@ -298,37 +316,23 @@ program dirichlet_test12
                 call test_solver%init(solver_settings, processing_settings, &
                 test_mesh, freestream_flow, control_point_file)
                 
-                ! deallocate stuff
-                deallocate(test_solver%I_known)
-                deallocate(test_solver%BC)
-                deallocate(test_solver%b)
+                ! Check for errors
+                if (test_solver_stat /= 0) return
 
-                ! Allocate known influence storage
-                allocate(test_solver%I_known(test_mesh%N_cp), source=0., stat=stat)
-                call check_allocation(stat, "known influence vector")
-                ! ! Allocate known influence storage
+                deallocate(test_mesh%V_cells_inner, test_mesh%V_cells)
 
-                ! Allocate b vector
-                allocate(test_solver%b(test_mesh%N_cp), source=0., stat=stat)
-                call check_allocation(stat, "b vector")
+                ! Calculate velocities
+                call test_solver%calc_cell_velocities(test_mesh)
 
-                ! assemble BC vector
-                call test_solver%assemble_BC_vector(test_mesh)
+                deallocate(test_mesh%C_P_ise)
 
-                ! Set b vector
-                test_solver%b = test_solver%BC - test_solver%I_known
+                ! Calculate velocities
+                call test_solver%calc_pressures(test_mesh)
                                 
                 !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
                 
-                ! This sorting logic is again needed to make sure the up and down perturbations of central
-                ! difference are ordered correctly.
-                if (test_solver%use_sort_for_cp) then
-                    ind = test_solver%P(z)
-                else
-                    ind = z
-                end if
                 ! get the needed info
-                b_up(j + (i-1)*N_verts) = test_solver%b(ind)
+                C_P_ise_up(j + (i-1)*N_verts) = test_mesh%C_P_ise(z)
                 
                 
                 ! perturb down the current design variable
@@ -336,7 +340,7 @@ program dirichlet_test12
                 test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - 2.*step
                 
                 !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
-            
+        
                 ! update vertex normal
                 do m =1,N_panels
                     deallocate(test_mesh%panels(m)%n_hat_g)
@@ -369,96 +373,89 @@ program dirichlet_test12
                 deallocate(test_solver%P)
                 call test_solver%init(solver_settings, processing_settings, &
                 test_mesh, freestream_flow, control_point_file)
-                
-                ! deallocate stuff
-                deallocate(test_solver%I_known)
-                deallocate(test_solver%BC)
-                deallocate(test_solver%b)
 
-                ! Allocate known influence storage
-                allocate(test_solver%I_known(test_mesh%N_cp), source=0., stat=stat)
-                call check_allocation(stat, "known influence vector")
-                ! ! Allocate known influence storage
+                ! Check for errors
+                if (test_solver_stat /= 0) return
 
-                ! Allocate b vector
-                allocate(test_solver%b(test_mesh%N_cp), source=0., stat=stat)
-                call check_allocation(stat, "b vector")
+                deallocate(test_mesh%V_cells_inner, test_mesh%V_cells)
 
-                ! assemble BC vector
-                call test_solver%assemble_BC_vector(test_mesh)
+                ! Calculate velocities
+                call test_solver%calc_cell_velocities(test_mesh)
 
-                ! Set b vector
-                test_solver%b = test_solver%BC - test_solver%I_known
+                deallocate(test_mesh%C_P_ise)
+
+                ! Calculate velocities
+                call test_solver%calc_pressures(test_mesh)
                                 
                 !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
                 
-                ! This sorting logic is again needed to make sure the up and down perturbations of central
-                ! difference are ordered correctly.
-                if (test_solver%use_sort_for_cp) then
-                    ind = test_solver%P(z)
-                else
-                    ind = z
-                end if
-
                 ! get the needed info
-                b_dn(j + (i-1)*N_verts) = test_solver%b(ind)
+                C_P_ise_dn(j + (i-1)*N_verts) = test_mesh%C_P_ise(z)
 
-                
                 ! restore geometry
                 test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
+            
             end do 
         end do 
+
         
         ! central difference 
-        d_b_FD = (b_up - b_dn)/(2.*step)
+        d_C_P_ise_FD = (C_P_ise_up - C_P_ise_dn)/(2.*step)
                 
-        write(*,*) ""
         
-        ! calculate residuals3
-        do i =1, N_verts*3
-            residuals(i) = adjoint_solver%d_b_vector(cp_ind)%get_value(i) - d_b_FD(i)
+        
+        do i=1,N_verts*3
+            residuals(i) = adjoint_mesh%d_C_P_ise_wrt_vars(z)%get_value(i) - d_C_P_ise_FD(i)
         end do
+     
+        ! if (maxval(abs(residuals))>error_allowed) then
+        !     write(*,*) ""
+        !     write(*,*) "     FLAGGED VALUES :"
+        !     write(*,'(A,I5,A)') "        d_C_P_ise_wrt_vars ",z,"   FD            &
+        !     d_C_P_ise_wrt_vars adjoint        residuals             residual"
+        !     do i = 1, N_verts*3
+        !         if (abs(residuals(i))>error_allowed) then
+        !             write(*, '(8x,(f25.10, 4x),3x, (f25.10, 4x),3x, (f25.10, 4x))') &
+        !             d_C_P_ise_FD(i), adjoint_mesh%d_C_P_ise_wrt_vars(z)%get_value(i), residuals(i)
+        !         end if
+        !     end do
+        ! end if
 
-
-        
-        if (maxval(abs(residuals))>error_allowed) then
-            write(*,*) ""
-            write(*,*) "     FLAGGED VALUES :"
-            write(*,'(A,I5,A)') "        d_b ",cp_ind,"   FD             adjoint d_b             residual"
-            do i = 1, N_verts*3
-                if (abs(residuals(i))>error_allowed) then
-                    write(*, '(8x,(f25.10, 4x),3x, (f25.10, 4x),3x, (f25.10, 4x))') &
-                    d_b_FD(i), adjoint_solver%d_b_vector(cp_ind)%get_value(i), residuals(i)
-                end if
-            end do
-        end if
+        write(*,*) ""
+        write(*,*) "      VALUES :"
+        write(*,'(A,I5,A)') "        d_C_P_ise_wrt_vars ",z,"   FD            &
+        d_C_P_ise_wrt_vars adjoint        residuals             residual"
+        do i = 1, N_verts*3
+                write(*, '(8x,(f25.10, 4x),3x, (f25.10, 4x),3x, (f25.10, 4x))') &
+                d_C_P_ise_FD(i), adjoint_mesh%d_C_P_ise_wrt_vars(z)%get_value(i), residuals(i)
+        end do
         
         
         ! check if test failed
         do i=1,N_verts*3
             if (any(abs(residuals) > error_allowed)) then 
-                if (abs(d_b_FD(i))>1000.0) then
+                if (abs(d_C_P_ise_FD(i))>1000.0) then
                     if (abs(residuals(i)) > error_allowed*10000.0) then
                         test_failed = .true.
                         exit
                     else
                         test_failed = .false.
                     end if
-                elseif (1000.0>abs(d_b_FD(i)) .and. abs(d_b_FD(i))>100.0) then
+                elseif (1000.0>abs(d_C_P_ise_FD(i)) .and. abs(d_C_P_ise_FD(i))>100.0) then
                     if (abs(residuals(i)) > error_allowed*1000.0) then
                         test_failed = .true.
                         exit
                     else
                         test_failed = .false.
                     end if
-                elseif (100.0>abs(d_b_FD(i)) .and. abs(d_b_FD(i))>10.0) then
+                elseif (100.0>abs(d_C_P_ise_FD(i)) .and. abs(d_C_P_ise_FD(i))>10.0) then
                     if (abs(residuals(i)) > error_allowed*100.0) then
                         test_failed = .true.
                         exit
                     else
                         test_failed = .false.
                     end if
-                elseif (10.0>abs(d_b_FD(i)) .and. abs(d_b_FD(i))>1.0) then
+                elseif (10.0>abs(d_C_P_ise_FD(i)) .and. abs(d_C_P_ise_FD(i))>1.0) then
                     if (abs(residuals(i)) > error_allowed*10.0) then
                         test_failed = .true.
                         exit
@@ -480,28 +477,28 @@ program dirichlet_test12
         if (test_failed) then
             total_tests = total_tests + 1
             write(*,'(A,I5,A)')"                                     &
-                                        d_b ",cp_ind," test FAILED"
-            failure_log(total_tests-passed_tests) = "d_b test FAILED"
+            d_C_P_ise_wrt_vars ",z," test FAILED"
+            failure_log(total_tests-passed_tests) = "d_C_P_ise_wrt_vars test FAILED"
         else
-            ! write(*,*) "        d_b test PASSED"
+            ! write(*,*) "        d_C_P_ise_wrt_vars test PASSED"
             ! write(*,*) "" 
             ! write(*,*) ""
             passed_tests = passed_tests + 1
             total_tests = total_tests + 1
             
         end if
-        ! reset test failed for the next z loop
         test_failed = .false.
 
+        
+        
 
     ! z loop
     end do
 
 
-
     !!!!!!!!!!!!!!  RESULTS!!!!!!!!!!!!!
     write(*,*) "------------------------------------------------------------------------------"
-    write(*,*) "                          d_b VECTOR TEST RESULTS "
+    write(*,*) "            Dirichlet Supersonic d_CP_ise_wrt_vars TEST RESULTS "
     write(*,*) "------------------------------------------------------------------------------"
     write(*,*) ""
     write(*,'((A), ES10.1)') "allowed residual = ", error_allowed
@@ -523,10 +520,11 @@ program dirichlet_test12
     write(*,*) ""
     call system_clock(end_count)
     time = real(end_count - start_count)/(count_rate*60.0)
-    write(*,'(A,f16.4, A)') " Total test time = ", time, " minutes"
+    write(*,'(A,f16.10, A)') " Total test time = ", time, " minutes"
     write(*,*) ""
     write(*,*) "----------------------"
     write(*,*) "Program Complete"
     write(*,*) "----------------------"
 
-end program dirichlet_test12
+
+end program dirichlet_super_test20

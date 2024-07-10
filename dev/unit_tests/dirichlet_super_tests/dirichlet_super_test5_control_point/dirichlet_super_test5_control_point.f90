@@ -1,5 +1,4 @@
-program control_point_sensitivities
-
+program dirichlet_super_test5
     ! tests various intermediate sensitivities 
     use adjoint_mod
     use base_geom_mod
@@ -71,7 +70,7 @@ program control_point_sensitivities
     ! Set up run
     call json_initialize()
 
-    test_input = "dev\input_files\adjoint_inputs\supersonic_test.json"
+    test_input = "dev\input_files\adjoint_inputs\dirichlet_supersonic_test.json"
     test_input = trim(test_input)
 
     ! Check it exists
@@ -129,7 +128,7 @@ program control_point_sensitivities
     ! Set up run
     call json_initialize()
 
-    adjoint_input = "dev\input_files\adjoint_inputs\supersonic_adjoint_test.json"
+    adjoint_input = "dev\input_files\adjoint_inputs\dirichlet_supersonic_adjoint_test.json"
     adjoint_input = trim(adjoint_input)
 
     ! Check it exists
@@ -197,7 +196,7 @@ program control_point_sensitivities
 
     write(*,*) ""
     write(*,*) "------------------------------------------------------------------------"
-    write(*,*) "               SUPERSONIC CONTROL POINT SENSITIVITIES TEST                    "
+    write(*,*) "    Dirichlet SUPERSONIC CONTROL POINT SENSITIVITIES TEST                    "
     write(*,*) "------------------------------------------------------------------------"
     write(*,*) ""
     write(*,*) ""
@@ -223,6 +222,8 @@ program control_point_sensitivities
                 call test_mesh%calc_vertex_geometry()
                 
                 deallocate(test_solver%sigma_known)
+                deallocate(test_solver%i_sigma_in_sys)
+                deallocate(test_solver%i_sys_sigma_in_body)
                 deallocate(test_mesh%cp)
                 deallocate(test_solver%P)
                 call test_solver%init(solver_settings, processing_settings, &
@@ -244,6 +245,8 @@ program control_point_sensitivities
                 end do
                 call test_mesh%calc_vertex_geometry()
                 deallocate(test_solver%sigma_known)
+                deallocate(test_solver%i_sigma_in_sys)
+                deallocate(test_solver%i_sys_sigma_in_body)
                 deallocate(test_mesh%cp)
                 deallocate(test_solver%P)    
                 call test_solver%init(solver_settings, processing_settings, &
@@ -349,9 +352,10 @@ end do ! z control points
 
 ! write(*,*) adjoint_mesh%cp(1)%loc
 
+
 !!!!!!!!!!!!!!   SENSITIVITIES RESULTS!!!!!!!!!!!!!
     write(*,*) "------------------------------------------------------------------------------"
-    write(*,*) "            SUPERSONIC CONTROL POINT SENSITIVITIES TEST RESULTS "
+    write(*,*) "    Dirichlet SUPERSONIC CONTROL POINT SENSITIVITIES TEST RESULTS "
     write(*,*) "------------------------------------------------------------------------------"
     write(*,*) ""
     write(*,'((A), ES10.1)') "allowed residual = ", error_allowed
@@ -379,4 +383,4 @@ end do ! z control points
     write(*,*) "Program Complete"
     write(*,*) "----------------------"
 
-end program control_point_sensitivities
+end program dirichlet_super_test5

@@ -758,7 +758,7 @@ program dirichlet_super_test1
 
     !!!!!!!!!!!!!! PANEL GEOMETRY  RESULTS!!!!!!!!!!!!!
         write(*,*) "------------------------------------------------------------------------------"
-        write(*,*) "                    Dirichlet Dirichlet SupersonicSupersonic PANEL GEOMETRY TEST RESULTS "
+        write(*,*) "                    Dirichlet Supersonic PANEL GEOMETRY TEST RESULTS "
         write(*,*) "------------------------------------------------------------------------------"
         write(*,*) ""
         write(*,'((A), ES10.1)') "allowed residual = ", error_allowed

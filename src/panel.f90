@@ -7788,9 +7788,6 @@ contains
 
             ! assemble doublet potential space 
 
-            ! create a zero sparse object
-            call zeros%init(this%adjoint_size)
-
             !!!!!!!!!!!!!!!!!!!!!! this may be duplicate work but we need the values again
                                                 ! find a way to leverage previous work? !!!!!!!!
             ! Johnson Eq. (D.30)
@@ -7901,9 +7898,9 @@ contains
             end if
 
             ! not in DoD, influence is zero, influence sensitivites are zeros
-            inf_adjoint(1) = zeros
-            inf_adjoint(2) = zeros
-            inf_adjoint(3) = zeros
+            call inf_adjoint(1)%init(this%adjoint_size)
+            call inf_adjoint(2)%init(this%adjoint_size)
+            call inf_adjoint(3)%init(this%adjoint_size)
 
         end if
 

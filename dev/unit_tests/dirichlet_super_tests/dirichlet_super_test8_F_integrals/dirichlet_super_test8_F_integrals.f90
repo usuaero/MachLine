@@ -1,4 +1,4 @@
-program super8
+program dirichlet_super_test8
     ! tests various intermediate sensitivities 
     use adjoint_mod
     use base_geom_mod
@@ -77,7 +77,7 @@ program super8
     ! Set up run
     call json_initialize()
 
-    test_input = "dev\input_files\adjoint_inputs\supersonic_test.json"
+    test_input = "dev\input_files\adjoint_inputs\dirichlet_supersonic_test.json"
     test_input = trim(test_input)
 
     ! Check it exists
@@ -129,7 +129,7 @@ program super8
     ! calc CALC BASIC GEOM geom of relation between cp1 and panel1 
     test_geom = test_mesh%panels(index)%calc_subsonic_geom(test_mesh%cp(cp_ind)%loc,freestream_flow,.false.)
     test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, .false.)
-    test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,.false., test_dod_info)
+    test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'potential', freestream_flow,.false., test_dod_info)
     !!!!!!!!!!!!!!!!!!!!! END TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
@@ -141,7 +141,7 @@ program super8
     ! Set up run
     call json_initialize()
 
-    adjoint_input = "dev\input_files\adjoint_inputs\supersonic_adjoint_test.json"
+    adjoint_input = "dev\input_files\adjoint_inputs\dirichlet_supersonic_adjoint_test.json"
     adjoint_input = trim(adjoint_input)
 
     ! Check it exists
@@ -215,7 +215,7 @@ program super8
 
     write(*,*) ""
     write(*,*) "------------------------------------------------------------------------"
-    write(*,*) "               SUPERSONIC F Integrals SENSITIVITIES TEST                    "
+    write(*,*) "       Dirichlet SUPERSONIC F Integrals SENSITIVITIES TEST                    "
     write(*,*) "------------------------------------------------------------------------"
     write(*,*) ""
     write(*,*) ""
@@ -258,12 +258,13 @@ program super8
                 end if ! end supersonic if statement
 
                 ! Get integrals
-                adjoint_int = adjoint_mesh%panels(index)%calc_integrals(adjoint_geom, 'velocity', &
+                adjoint_int = adjoint_mesh%panels(index)%calc_integrals(adjoint_geom, 'potential', &
                                             adjoint_freestream_flow, mirror_panel, test_dod_info)
 
                 ! ! integral adjoint
                 call adjoint_mesh%panels(index)%calc_integrals_adjoint(&
-                            adjoint_geom, 'velocity', adjoint_int, adjoint_freestream_flow, mirror_panel, test_dod_info)
+                adjoint_geom,"potential", adjoint_int,adjoint_freestream_flow, .false., adjoint_dod_info)
+
                 do i=1,3
                     do j=1,N_verts
 
@@ -291,6 +292,8 @@ program super8
                         
                         ! recalculates cp locations
                         deallocate(test_solver%sigma_known)
+                        deallocate(test_solver%i_sigma_in_sys)
+                        deallocate(test_solver%i_sys_sigma_in_body)
                         deallocate(test_mesh%cp)
                         deallocate(test_solver%P)
                         call test_solver%init(solver_settings, processing_settings, &
@@ -302,7 +305,7 @@ program super8
                         deallocate(test_int%F211)
                         test_geom = test_mesh%panels(index)%calc_supersonic_subinc_geom(&
                                                 test_mesh%cp(cp_ind)%loc,freestream_flow,mirror_panel,test_dod_info)
-                        test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,&
+                        test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'potential', freestream_flow,&
                                                 .false., test_dod_info)
                         !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
                         
@@ -332,6 +335,8 @@ program super8
 
                         ! recalculates cp locations
                         deallocate(test_solver%sigma_known)
+                        deallocate(test_solver%i_sigma_in_sys)
+                        deallocate(test_solver%i_sys_sigma_in_body)
                         deallocate(test_mesh%cp)
                         deallocate(test_solver%P)
                         call test_solver%init(solver_settings, processing_settings, &
@@ -344,7 +349,7 @@ program super8
                         deallocate(test_int%F211)
                         test_geom = test_mesh%panels(index)%calc_supersonic_subinc_geom(&
                                                 test_mesh%cp(cp_ind)%loc,freestream_flow,mirror_panel,test_dod_info)
-                        test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,&
+                        test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'potential', freestream_flow,&
                                                 .false., test_dod_info)
                         !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
 
@@ -462,7 +467,7 @@ program super8
 
     !!!!!!!!!!!!!! CALC_BASIC_F_INTEGRAL SENSITIVITIES RESULTS!!!!!!!!!!!!!
     write(*,*) "------------------------------------------------------------------------------"
-    write(*,*) "                    SUPERSONIC F INTEGRALS TEST RESULTS "
+    write(*,*) "         Dirichlet SUPERSONIC F INTEGRALS TEST RESULTS "
     write(*,*) "------------------------------------------------------------------------------"
     write(*,*) ""
     write(*,'((A), ES10.1)') "allowed residual = ", error_allowed
@@ -490,4 +495,4 @@ program super8
     write(*,*) "Program Complete"
     write(*,*) "----------------------"
 
-end program super8
+end program dirichlet_super_test8

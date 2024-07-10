@@ -1,4 +1,4 @@
-program dirichlet_test13
+program dirichlet_super_test13
     ! tests various intermediate sensitivities 
     use adjoint_mod
     use base_geom_mod
@@ -63,7 +63,7 @@ program dirichlet_test13
     ! test stuff
     integer :: passed_tests, total_tests
     logical :: test_failed
-    character(len=100),dimension(1000) :: failure_log
+    character(len=100),dimension(100) :: failure_log
     character(len=10) :: m_char
     integer(8) :: start_count, end_count
     real(16) :: count_rate, time
@@ -83,7 +83,7 @@ program dirichlet_test13
     ! Set up run
     call json_initialize()
 
-    test_input = "dev\input_files\adjoint_inputs\dirichlet_test.json"
+    test_input = "dev\input_files\adjoint_inputs\dirichlet_supersonic_test.json"
     test_input = trim(test_input)
 
     ! Check it exists
@@ -145,8 +145,7 @@ program dirichlet_test13
     
     !!!!!!!!!!!!!!!!!!!!! END TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!!!!!
   
-
-
+    
     call system_clock(start_count, count_rate)
 
 
@@ -154,7 +153,7 @@ program dirichlet_test13
     ! Set up run
     call json_initialize()
     
-    adjoint_input = "dev\input_files\adjoint_inputs\dirichlet_adjoint_test.json"
+    adjoint_input = "dev\input_files\adjoint_inputs\dirichlet_supersonic_adjoint_test.json"
     adjoint_input = trim(adjoint_input)
     
     ! Check it exists
@@ -217,7 +216,7 @@ program dirichlet_test13
     ! calc body influences adjoint
     call adjoint_solver%calc_body_influences(adjoint_mesh)
     
-    
+      
     !!!!!!!!!!!! END ADJOINT TEST MESH !!!!!!!!!!!!!!!!!!!!!!!
     
     N_verts = test_mesh%N_verts
@@ -232,7 +231,7 @@ program dirichlet_test13
     allocate(d_A_FD(N_verts*3))
     
 
-    error_allowed = 1.0e-2
+    error_allowed = 1.0e-4
     step = 0.000001
     index = 1
     cp_ind = 1
@@ -240,16 +239,16 @@ program dirichlet_test13
 
     write(*,*) ""
     write(*,*) "------------------------------------------------------------------------"
-    write(*,*) "                           dA MATRIX TEST                    "
+    write(*,*) "              Dirichlet Supersonic dA MATRIX TEST                    "
     write(*,*) "------------------------------------------------------------------------"
     write(*,*) ""
     write(*,*) ""
 
 
-    
+
     
     do row=1,adjoint_mesh%N_verts
-    
+      
 
 
         do col = 1,adjoint_mesh%N_verts
@@ -264,10 +263,9 @@ program dirichlet_test13
                 A_col_index = col 
             end if
 
-
             write(*,*) ""
             write(*,*) "--------------------------------------------------------------------------------------"
-            write(*,'(A,I4,A,I4)') "                   d_A_matrix test Row ",A_row_index," col ",A_col_index
+            write(*,'(A,I4,A,I4)') "      Dirichlet Supersonic d_A_matrix test Row ",A_row_index," col ",A_col_index
             write(*,*) "--------------------------------------------------------------------------------------"
             write(*,*) ""
             
@@ -327,9 +325,11 @@ program dirichlet_test13
 
                     ! Calculate body influences
                     call test_solver%calc_body_influences(test_mesh)
-
-                    !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
                     
+                    
+                    !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
+                    ! This sorting logic is again needed to make sure the up and down perturbations of central
+                    ! difference are ordered correctly.
                     if (test_solver%use_sort_for_cp) then
                         row_ind = test_solver%P(row)
                         col_ind = test_solver%P(col)
@@ -337,6 +337,7 @@ program dirichlet_test13
                         row_ind = row
                         col_ind = col
                     end if
+
                     ! get the needed info
                     A_up(j + (i-1)*N_verts) = test_solver%A(row_ind,col_ind)
                     
@@ -397,6 +398,8 @@ program dirichlet_test13
 
                     !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
                     
+                    ! This sorting logic is again needed to make sure the up and down perturbations of central
+                    ! difference are ordered correctly.
                     if (test_solver%use_sort_for_cp) then
                         row_ind = test_solver%P(row)
                         col_ind = test_solver%P(col)
@@ -404,13 +407,13 @@ program dirichlet_test13
                         row_ind = row
                         col_ind = col
                     end if
+
                     ! get the needed info
                     A_dn(j + (i-1)*N_verts) = test_solver%A(row_ind,col_ind)
 
                     
                     ! restore geometry
                     test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
-
                 end do 
             end do 
             
@@ -429,8 +432,8 @@ program dirichlet_test13
             if (maxval(abs(residuals))>error_allowed) then
                 write(*,*) ""
                 write(*,*) "     FLAGGED VALUES :"
-                write(*,'(A,I5,A,I5,A)') "        d_A row ",A_row_index," col ",A_col_index,"  &
-                FD             adjoint d_A             residual"
+                write(*,'(A,I5,A,I5,A)') "             d_A row ",A_row_index," col ",A_col_index,"  &
+                FD             adjoint d_A                     residual"
                 do i = 1, N_verts*3
                     if (abs(residuals(i))>error_allowed) then
                         write(*, '(8x,(f25.10, 4x),3x, (f25.10, 4x),3x, (f25.10, 4x))') &
@@ -496,10 +499,9 @@ program dirichlet_test13
                 total_tests = total_tests + 1
                 
             end if
-            ! reset test failed for the next loop
             test_failed = .false.
 
-           
+
         ! col loop
         end do
 
@@ -509,7 +511,7 @@ program dirichlet_test13
 
     !!!!!!!!!!!!!!  RESULTS!!!!!!!!!!!!!
     write(*,*) "------------------------------------------------------------------------------"
-    write(*,*) "                          dA MATRIX TEST RESULTS "
+    write(*,*) "         Dirichlet Supersonic dA MATRIX TEST RESULTS "
     write(*,*) "------------------------------------------------------------------------------"
     write(*,*) ""
     write(*,'((A), ES10.1)') "allowed residual = ", error_allowed
@@ -537,4 +539,4 @@ program dirichlet_test13
     write(*,*) "Program Complete"
     write(*,*) "----------------------"
 
-end program dirichlet_test13
+end program dirichlet_super_test13

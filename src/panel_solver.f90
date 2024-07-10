@@ -1194,7 +1194,6 @@ contains
             ! Source-free formulation
             case (SF_POTENTIAL)
                 this%BC(ind) = -inner(x, body%cp(i)%loc)
-
             ! Neumann (mass flux)
             case (ZERO_NORMAL_MF)
                 this%BC(ind) = -inner(body%cp(i)%n_g,this%freestream%c_hat_g)
@@ -1355,7 +1354,7 @@ contains
         class(panel_solver),intent(inout) :: this
         type(surface_mesh),intent(inout) :: body
 
-        integer :: i, j
+        integer :: i, j, k
         real,dimension(:),allocatable :: source_inf, doublet_inf
         real,dimension(:,:),allocatable :: v_s, v_d
         real,dimension(this%N_unknown) :: A_i
@@ -1378,7 +1377,7 @@ contains
         end if
 
         ! Calculate source and doublet influences from body on each control point
-        ! $OMP parallel do private(j, source_inf, doublet_inf, v_s, v_d, A_i, I_known_i, inf_adjoint,d_AIC_row) schedule(dynamic)
+        !$OMP parallel do private(j, source_inf, doublet_inf, v_s, v_d, A_i, I_known_i, inf_adjoint,d_AIC_row) schedule(dynamic)
         do i=1,body%N_cp
 
             ! Initialize
@@ -3232,12 +3231,11 @@ contains
             ! Neumann (mass flux)
             case (ZERO_NORMAL_MF)
                 this%d_b_vector(ind) = body%cp(i)%d_n_g%broadcast_vector_dot_element(this%freestream%c_hat_g)
-                call this%d_b_vector(i)%broadcast_element_times_scalar(-1.)
+                call this%d_b_vector(ind)%broadcast_element_times_scalar(-1.)
             ! Source-free formulation
             case (SF_POTENTIAL)
                 !this%BC(ind) = -inner(x, body%cp(i)%loc)
-                this%d_b_vector(ind) = body%cp(i)%d_loc%broadcast_vector_dot_element(x)
-                call this%d_b_vector(i)%broadcast_element_times_scalar(-1.)
+                this%d_b_vector(ind) = body%cp(i)%d_loc%broadcast_vector_dot_element(-x)
 
             case default
                 write(*,*) "!!! '", body%cp(i)%bc, "' is not a valid boundary condition for &

@@ -1,4 +1,4 @@
-program dirichlet_test13
+program dirichlet_super_test11
     ! tests various intermediate sensitivities 
     use adjoint_mod
     use base_geom_mod
@@ -42,20 +42,17 @@ program dirichlet_test13
     type(sparse_matrix),dimension(3) :: d_v_d
     integer :: i_unit
     logical :: exists, found
-    real,dimension(:),allocatable :: doublet_inf
-    real,dimension(:,:),allocatable :: v_s, v_d
-    type(sparse_vector),dimension(3) :: inf_adjoint, inf_adjoint2
-    type(sparse_vector) :: zeros
-
+    real,dimension(:),allocatable :: doublet_inf, v_s
+    real,dimension(:,:),allocatable ::  v_d
+    type(sparse_vector),dimension(3) :: inf_adjoint
 
     !!!!!!!!!!!!!!!!!!!!! END STUFF FROM MAIN !!!!!!!!!!!!!!!!!!!!!!!!!
 
     !!!!!!!!!!!!!!!!!!!!!! TESTING STUFF  !!!!!!!!!!!!!!!!!!!!!!!!!!
-    real,dimension(:),allocatable :: residuals, A_up, A_dn, d_A_FD
-    real,dimension(:,:),allocatable ::  residuals3
+    real,dimension(:),allocatable :: residuals
+    real,dimension(:,:),allocatable ::  residuals3, inf_up, inf_dn, d_inf_FD
 
-    integer :: i,j,k,m,n,y,z, row,col,N_verts, N_panels, vert, index, cp_ind, stat
-    integer :: row_ind, col_ind, A_row_index, A_col_index
+    integer :: i,j,k,m,n,y,z, N_verts, N_panels, vert, index, cp_ind
     real :: step,error_allowed, cp_offset
     type(vertex),dimension(:),allocatable :: vertices ! list of vertex types, this should be a mesh attribute
     type(panel),dimension(:),allocatable :: panels, adjoint_panels   ! list of panels, this should be a mesh attribute
@@ -63,7 +60,7 @@ program dirichlet_test13
     ! test stuff
     integer :: passed_tests, total_tests
     logical :: test_failed
-    character(len=100),dimension(1000) :: failure_log
+    character(len=100),dimension(400) :: failure_log
     character(len=10) :: m_char
     integer(8) :: start_count, end_count
     real(16) :: count_rate, time
@@ -82,8 +79,8 @@ program dirichlet_test13
     !!!!!!!!!!!!!!! TEST INPUT (calc_adjoint = false) !!!!!!!!!!!!!!!!!!!!!!!
     ! Set up run
     call json_initialize()
-
-    test_input = "dev\input_files\adjoint_inputs\dirichlet_test.json"
+    
+    test_input = "dev\input_files\adjoint_inputs\dirichlet_supersonic_test.json"
     test_input = trim(test_input)
 
     ! Check it exists
@@ -92,7 +89,7 @@ program dirichlet_test13
         write(*,*) "!!! The file ", test_input, " does not exist. Quitting..."
         stop
     end if
-
+    
     ! Load settings from input file
     call input_json%load_file(filename=test_input)
     call json_check()
@@ -101,11 +98,11 @@ program dirichlet_test13
     call input_json%get('solver', solver_settings, found)
     call input_json%get('post_processing', processing_settings, found)
     call input_json%get('output', output_settings, found)
-
+    
     ! Initialize surface mesh
     call test_mesh%init(geom_settings)
-
-
+    
+    
     ! Initialize flow
     call json_xtnsn_get(geom_settings, 'spanwise_axis', spanwise_axis, '+y')
     call freestream_flow%init(flow_settings, spanwise_axis)
@@ -117,32 +114,24 @@ program dirichlet_test13
     call json_xtnsn_get(output_settings, 'mirrored_body_file', mirrored_body_file, 'none')
     call json_xtnsn_get(output_settings, 'offbody_points.points_file', points_file, 'none')
     call json_xtnsn_get(output_settings, 'offbody_points.output_file', points_output_file, 'none')
-
+    
     !!!!!!!!!!!!!!!!!!!!!! WAKE_DEV !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! Get formulation type                                                  !
     call json_xtnsn_get(solver_settings, 'formulation', formulation, 'none')!
     !!!!!!!!!!!!!!!!!!!!!!! END_WAKE_DEV !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
+    
     ! Perform flow-dependent initialization on the surface mesh
     call test_mesh%init_with_flow(freestream_flow, body_file, wake_file, formulation)
-
+    
     ! Initialize panel solver
     call test_solver%init(solver_settings, processing_settings, test_mesh, freestream_flow, control_point_file)
     
     ! pull out the cp offset
     call json_xtnsn_get(solver_settings, 'control_point_offset', cp_offset, 1.e-7)
     
-    ! Allocate known influence storage
-    allocate(test_solver%I_known(test_mesh%N_cp), source=0., stat=stat)
-    call check_allocation(stat, "known influence vector")
-
-    ! allocate A_matrix
-    allocate(test_solver%A(test_mesh%N_cp, test_solver%N_unknown), source=0., stat=stat)
-    call check_allocation(stat, "AIC matrix")
-
-    ! Calculate body influences
-    call test_solver%calc_body_influences(test_mesh)
-    
+    call test_mesh%panels(index)%calc_potential_influences(test_mesh%cp(cp_ind)%loc, freestream_flow, &
+                    .false., v_s, doublet_inf)
+   
     !!!!!!!!!!!!!!!!!!!!! END TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!!!!!
   
 
@@ -154,7 +143,7 @@ program dirichlet_test13
     ! Set up run
     call json_initialize()
     
-    adjoint_input = "dev\input_files\adjoint_inputs\dirichlet_adjoint_test.json"
+    adjoint_input = "dev\input_files\adjoint_inputs\dirichlet_supersonic_adjoint_test.json"
     adjoint_input = trim(adjoint_input)
     
     ! Check it exists
@@ -201,23 +190,8 @@ program dirichlet_test13
     ! Initialize panel solver
     call adjoint_solver%init(adjoint_solver_settings, adjoint_processing_settings, adjoint_mesh, &
     adjoint_freestream_flow, adjoint_control_point_file)
-
-    ! Allocate known influence storage (have to do it, but its not used. all zeros)
-    allocate(adjoint_solver%I_known(adjoint_mesh%N_cp), source=0., stat=stat)
-    call check_allocation(stat, "known influence vector")
     
-    ! allocate A_matrix
-    allocate(adjoint_solver%A(adjoint_mesh%N_cp, adjoint_solver%N_unknown), source=0., stat=stat)
-    call check_allocation(stat, "AIC matrix")
-    
-    ! allocate d_A_matrix
-    call zeros%init(adjoint_mesh%adjoint_size)
-    allocate(adjoint_solver%d_A_matrix(adjoint_mesh%N_cp, adjoint_solver%N_unknown), source=zeros, stat=stat)
-    
-    ! calc body influences adjoint
-    call adjoint_solver%calc_body_influences(adjoint_mesh)
-    
-    
+      
     !!!!!!!!!!!! END ADJOINT TEST MESH !!!!!!!!!!!!!!!!!!!!!!!
     
     N_verts = test_mesh%N_verts
@@ -227,12 +201,12 @@ program dirichlet_test13
     allocate(residuals3(3,N_verts*3))
     allocate(residuals(N_verts*3))
 
-    allocate(A_up(N_verts*3))
-    allocate(A_dn(N_verts*3))
-    allocate(d_A_FD(N_verts*3))
+    allocate(inf_up(3,N_verts*3))
+    allocate(inf_dn(3,N_verts*3))
+    allocate(d_inf_FD(3,N_verts*3))
     
 
-    error_allowed = 1.0e-2
+    error_allowed = 1.0e-4
     step = 0.000001
     index = 1
     cp_ind = 1
@@ -240,7 +214,7 @@ program dirichlet_test13
 
     write(*,*) ""
     write(*,*) "------------------------------------------------------------------------"
-    write(*,*) "                           dA MATRIX TEST                    "
+    write(*,*) "          Dirichlet Supersonic Potential inf TEST                    "
     write(*,*) "------------------------------------------------------------------------"
     write(*,*) ""
     write(*,*) ""
@@ -248,29 +222,19 @@ program dirichlet_test13
 
     
     
-    do row=1,adjoint_mesh%N_verts
-    
-
-
-        do col = 1,adjoint_mesh%N_verts
-
-            ! This sorting logic is again needed to make sure the up and down perturbations of central
-            ! difference are ordered correctly.
-            if (test_solver%use_sort_for_cp) then
-                A_row_index = test_solver%P(row)
-                A_col_index = test_solver%P(col)
-            else
-                A_row_index = row
-                A_col_index = col 
-            end if
-
-
-            write(*,*) ""
-            write(*,*) "--------------------------------------------------------------------------------------"
-            write(*,'(A,I4,A,I4)') "                   d_A_matrix test Row ",A_row_index," col ",A_col_index
-            write(*,*) "--------------------------------------------------------------------------------------"
-            write(*,*) ""
+    do y =1,N_panels
+        index = y
+        
+        do z = 1,N_verts
+            cp_ind = z
             
+            write(*,'(A,I5,A,I5)') "inf adjoint test: Panel ",y," cp ",z
+
+            ! inf adjoint method 
+            inf_adjoint = adjoint_mesh%panels(index)%calc_adjoint_potential_influences&
+            (adjoint_mesh%cp(cp_ind),adjoint_freestream_flow, .false.)
+
+                
             do i=1,3
                 do j=1,N_verts
 
@@ -289,20 +253,18 @@ program dirichlet_test13
                     call test_mesh%calc_vertex_geometry()
                     
                     ! update with flow
-                    do m =1,N_panels
-                        deallocate(test_mesh%panels(m)%vertices_ls)
-                        deallocate(test_mesh%panels(m)%n_hat_ls)
-                        deallocate(test_mesh%panels(m)%b)
-                        deallocate(test_mesh%panels(m)%b_mir)  
-                        deallocate(test_mesh%panels(m)%sqrt_b)
-                        deallocate(test_mesh%panels(m)%i_vert_d)
-                        deallocate(test_mesh%panels(m)%S_mu_inv)
-                        deallocate(test_mesh%panels(m)%T_mu)
-                        ! deallocate(test_mesh%panels(m)%i_panel_s)
-                        call test_mesh%panels(m)%init_with_flow(freestream_flow, .false., 0)
-                        call test_mesh%panels(m)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
-                        test_mesh%vertices,.false.)
-                    end do
+                    deallocate(test_mesh%panels(index)%vertices_ls)
+                    deallocate(test_mesh%panels(index)%n_hat_ls)
+                    deallocate(test_mesh%panels(index)%b)
+                    deallocate(test_mesh%panels(index)%b_mir)  
+                    deallocate(test_mesh%panels(index)%sqrt_b)
+                    deallocate(test_mesh%panels(index)%i_vert_d)
+                    deallocate(test_mesh%panels(index)%S_mu_inv)
+                    deallocate(test_mesh%panels(index)%T_mu)
+                    ! deallocate(test_mesh%panels(index)%i_panel_s)
+                    call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
+                    call test_mesh%panels(index)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
+                    test_mesh%vertices,.false.)
                     
                     ! recalculates cp locations
                     deallocate(test_solver%sigma_known)
@@ -313,32 +275,14 @@ program dirichlet_test13
                     call test_solver%init(solver_settings, processing_settings, &
                     test_mesh, freestream_flow, control_point_file)
                     
-                    ! deallocate stuff
-                    deallocate(test_solver%A)
-                    deallocate(test_solver%I_known)
-
-                    ! Allocate known influence storage
-                    allocate(test_solver%I_known(test_mesh%N_cp), source=0., stat=stat)
-                    call check_allocation(stat, "known influence vector")
+                    ! update v_d and doublet inf
+                    call test_mesh%panels(index)%calc_potential_influences(test_mesh%cp(cp_ind)%loc, freestream_flow, &
+                    .false., v_s, doublet_inf)
                     
-                    ! allocate A matrix
-                    allocate(test_solver%A(test_mesh%N_cp, test_solver%N_unknown), source=0., stat=stat)
-                    call check_allocation(stat, "AIC matrix")
-
-                    ! Calculate body influences
-                    call test_solver%calc_body_influences(test_mesh)
-
                     !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
                     
-                    if (test_solver%use_sort_for_cp) then
-                        row_ind = test_solver%P(row)
-                        col_ind = test_solver%P(col)
-                    else
-                        row_ind = row
-                        col_ind = col
-                    end if
                     ! get the needed info
-                    A_up(j + (i-1)*N_verts) = test_solver%A(row_ind,col_ind)
+                    inf_up(:, j + (i-1)*N_verts) = doublet_inf(:)
                     
                     
                     ! perturb down the current design variable
@@ -356,20 +300,18 @@ program dirichlet_test13
                     call test_mesh%calc_vertex_geometry()
                     
                     ! update with flow
-                    do m =1,N_panels
-                        deallocate(test_mesh%panels(m)%vertices_ls)
-                        deallocate(test_mesh%panels(m)%n_hat_ls)
-                        deallocate(test_mesh%panels(m)%b)
-                        deallocate(test_mesh%panels(m)%b_mir)  
-                        deallocate(test_mesh%panels(m)%sqrt_b)
-                        deallocate(test_mesh%panels(m)%i_vert_d)
-                        deallocate(test_mesh%panels(m)%S_mu_inv)
-                        deallocate(test_mesh%panels(m)%T_mu)
-                        ! deallocate(test_mesh%panels(m)%i_panel_s)
-                        call test_mesh%panels(m)%init_with_flow(freestream_flow, .false., 0)
-                        call test_mesh%panels(m)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
-                        test_mesh%vertices,.false.)
-                    end do
+                    deallocate(test_mesh%panels(index)%vertices_ls)
+                    deallocate(test_mesh%panels(index)%n_hat_ls)
+                    deallocate(test_mesh%panels(index)%b)
+                    deallocate(test_mesh%panels(index)%b_mir)  
+                    deallocate(test_mesh%panels(index)%sqrt_b)
+                    deallocate(test_mesh%panels(index)%i_vert_d)
+                    deallocate(test_mesh%panels(index)%S_mu_inv)
+                    deallocate(test_mesh%panels(index)%T_mu)
+                    ! deallocate(test_mesh%panels(index)%i_panel_s)
+                    call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
+                    call test_mesh%panels(index)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
+                    test_mesh%vertices,.false.)
                     
                     ! recalculates cp locations
                     deallocate(test_solver%sigma_known)
@@ -380,136 +322,124 @@ program dirichlet_test13
                     call test_solver%init(solver_settings, processing_settings, &
                     test_mesh, freestream_flow, control_point_file)
                     
-                    ! deallocate stuff
-                    deallocate(test_solver%A)
-                    deallocate(test_solver%I_known)
-
-                    ! Allocate known influence storage
-                    allocate(test_solver%I_known(test_mesh%N_cp), source=0., stat=stat)
-                    call check_allocation(stat, "known influence vector")
-                    
-                    ! allocate A matrix
-                    allocate(test_solver%A(test_mesh%N_cp, test_solver%N_unknown), source=0., stat=stat)
-                    call check_allocation(stat, "AIC matrix")
-
-                    ! Calculate body influences
-                    call test_solver%calc_body_influences(test_mesh)
-
+                    ! update v_d and doublet inf
+                    call test_mesh%panels(index)%calc_potential_influences(test_mesh%cp(cp_ind)%loc, freestream_flow, &
+                    .false., v_s, doublet_inf)
                     !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
                     
-                    if (test_solver%use_sort_for_cp) then
-                        row_ind = test_solver%P(row)
-                        col_ind = test_solver%P(col)
-                    else
-                        row_ind = row
-                        col_ind = col
-                    end if
                     ! get the needed info
-                    A_dn(j + (i-1)*N_verts) = test_solver%A(row_ind,col_ind)
+                    inf_dn(:, j + (i-1)*N_verts) = doublet_inf(:)
 
                     
                     ! restore geometry
                     test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
-
                 end do 
             end do 
             
             ! central difference 
-            d_A_FD = (A_up - A_dn)/(2.*step)
-                    
-            write(*,*) ""
-            
+            d_inf_FD(:,:) = (inf_up(:,:) - inf_dn(:,:))/(2.*step)
+
             ! calculate residuals3
             do i =1, N_verts*3
-                residuals(i) = adjoint_solver%d_A_matrix(A_row_index,A_col_index)%get_value(i) - d_A_FD(i)
+                residuals3(:,i) = (/inf_adjoint(1)%get_value(i),&
+                                  inf_adjoint(2)%get_value(i),&
+                                  inf_adjoint(3)%get_value(i)/) - d_inf_FD(:,i)
             end do
 
 
             
-            if (maxval(abs(residuals))>error_allowed) then
+            if (maxval(abs(residuals3(:,:)))>error_allowed) then
                 write(*,*) ""
                 write(*,*) "     FLAGGED VALUES :"
-                write(*,'(A,I5,A,I5,A)') "        d_A row ",A_row_index," col ",A_col_index,"  &
-                FD             adjoint d_A             residual"
                 do i = 1, N_verts*3
-                    if (abs(residuals(i))>error_allowed) then
-                        write(*, '(8x,(f25.10, 4x),3x, (f25.10, 4x),3x, (f25.10, 4x))') &
-                        d_A_FD(i), adjoint_solver%d_A_matrix(A_row_index,A_col_index)%get_value(i), residuals(i)
+                    if (any(abs(residuals3(:,i))>error_allowed)) then
+                        write(*,*) ""
+                        write(*,'(A,I5,A,I5,A)') "                                       inf_adjoint &
+                        panel ", y," on cp ",z
+                        write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_inf_FD(:,i)
+                    
+                        write(*, '(A25,8x,3(f25.10, 4x))') "               adjoint",   &
+                                inf_adjoint(1)%get_value(i),&
+                                inf_adjoint(2)%get_value(i),&
+                                inf_adjoint(3)%get_value(i)
+                        write(*, '(A25,8x,3(f25.10, 4x))') "             residuals", residuals3(:,i)
                     end if
                 end do
             end if
+
             
             
             ! check if test failed
             do i=1,N_verts*3
-                if (any(abs(residuals) > error_allowed)) then 
-                    if (abs(d_A_FD(i))>1000.0) then
-                        if (abs(residuals(i)) > error_allowed*10000.0) then
-                            test_failed = .true.
-                            exit
+                if (any(abs(residuals3(:,i)) > error_allowed)) then 
+                    do j = 1,3
+                        if (abs(d_inf_FD(j,i))>1000.0) then
+                            if (abs(residuals3(j,i)) > error_allowed*10000.0) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                        elseif (1000.0>abs(d_inf_FD(j,i)) .and. abs(d_inf_FD(j,i))>100.0) then
+                            if (abs(residuals3(j,i)) > error_allowed*1000.0) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                        elseif (100.0>abs(d_inf_FD(j,i)) .and. abs(d_inf_FD(j,i))>10.0) then
+                            if (abs(residuals3(j,i)) > error_allowed*100.0) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
+                        elseif (10.0>abs(d_inf_FD(j,i)) .and. abs(d_inf_FD(j,i))>1.0) then
+                            if (abs(residuals3(j,i)) > error_allowed*10.0) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
                         else
-                            test_failed = .false.
+                            if (abs(residuals3(j,i)) > error_allowed) then
+                                test_failed = .true.
+                                exit
+                            else
+                                test_failed = .false.
+                            end if
                         end if
-                    elseif (1000.0>abs(d_A_FD(i)) .and. abs(d_A_FD(i))>100.0) then
-                        if (abs(residuals(i)) > error_allowed*1000.0) then
-                            test_failed = .true.
-                            exit
-                        else
-                            test_failed = .false.
-                        end if
-                    elseif (100.0>abs(d_A_FD(i)) .and. abs(d_A_FD(i))>10.0) then
-                        if (abs(residuals(i)) > error_allowed*100.0) then
-                            test_failed = .true.
-                            exit
-                        else
-                            test_failed = .false.
-                        end if
-                    elseif (10.0>abs(d_A_FD(i)) .and. abs(d_A_FD(i))>1.0) then
-                        if (abs(residuals(i)) > error_allowed*10.0) then
-                            test_failed = .true.
-                            exit
-                        else
-                            test_failed = .false.
-                        end if
-                    else
-                        if (abs(residuals(i)) > error_allowed) then
-                            test_failed = .true.
-                            exit
-                        else
-                            test_failed = .false.
-                        end if
-                    end if
+                    end do
                 end if
-                
-            
             end do
             if (test_failed) then
                 total_tests = total_tests + 1
-                write(*,'(A,I5,A,I5,A)')"                                     &
-                                            d_A row ",A_row_index," col ",A_col_index," test FAILED"
-                failure_log(total_tests-passed_tests) = "d_A test FAILED"
+                write(*,'(A,I5,A,I5,A)')"                                               &
+                inf_adjoint of panel ",y," on cp ",z," test FAILED"
+                failure_log(total_tests-passed_tests) = "inf_adjoint test FAILED"
             else
-                ! write(*,*) "        d_A test PASSED"
+                ! write(*,*) "        inf_adjoint test PASSED"
                 ! write(*,*) "" 
                 ! write(*,*) ""
                 passed_tests = passed_tests + 1
                 total_tests = total_tests + 1
                 
             end if
-            ! reset test failed for the next loop
+
+            ! reset test failed for the next z loop
             test_failed = .false.
 
-           
-        ! col loop
+
+        ! z loop
         end do
 
-    ! row loop
+    ! y loop
     end do
 
 
     !!!!!!!!!!!!!!  RESULTS!!!!!!!!!!!!!
     write(*,*) "------------------------------------------------------------------------------"
-    write(*,*) "                          dA MATRIX TEST RESULTS "
+    write(*,*) "            Dirichlet Supersonic Potential inf TEST RESULTS "
     write(*,*) "------------------------------------------------------------------------------"
     write(*,*) ""
     write(*,'((A), ES10.1)') "allowed residual = ", error_allowed
@@ -537,4 +467,4 @@ program dirichlet_test13
     write(*,*) "Program Complete"
     write(*,*) "----------------------"
 
-end program dirichlet_test13
+end program dirichlet_super_test11

@@ -268,7 +268,7 @@ program super9
 
                 ! ! integral adjoint
                 call adjoint_mesh%panels(index)%calc_integrals_adjoint(&
-                            adjoint_geom, adjoint_int, adjoint_freestream_flow, mirror_panel, test_dod_info)
+                            adjoint_geom, 'velocity', adjoint_int, adjoint_freestream_flow, mirror_panel, test_dod_info)
         
                 do i=1,3
                     do j=1,N_verts
