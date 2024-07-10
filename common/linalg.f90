@@ -920,13 +920,7 @@ subroutine QR_givens_solve_UP(N, A, b, x)
 
     end do
   end do
-  !!!! adding the handling of last row here
-  ! If R is rank-deficient, choose a value for x(N)
-  if (abs(A(N,N)) < 1.e-10) then
-      x(N) = 0.
-  else
-      x(N) = b(N) / A(N,N)
-  end if
+
 
   ! Back substitution 
   call upper_triangular_back_sub(N, A, b, x)
@@ -1849,10 +1843,25 @@ subroutine householder_ls_solve(M, N, A, b, x)
     real,dimension(M),intent(inout) :: b
     real,dimension(:),allocatable,intent(out) :: x
 
-    integer :: i, j, k
+    integer :: i, j, k, counter
     real,dimension(:),allocatable :: w, v
     real :: alpha, beta, bTv, beta_w
 
+    !!!! check to see if there are any cps that are only infuenced by one vertex 
+    counter = 0
+    do i=1,M
+        do j = 1,N
+            if (A(i,j) /= 0.) then
+                counter = counter + 1
+            end if
+        end do
+        if (counter == 2) then
+            write(*,*) "double influence cp found. at row ", i
+            counter = 0
+        else
+            counter = 0
+        end if
+    end do
     ! ************************************************************************
     ! ** Loop through columns performing Householder transformations *********
     ! ************************************************************************
@@ -1892,14 +1901,12 @@ subroutine householder_ls_solve(M, N, A, b, x)
     ! ************************************************************************
     allocate(x(N), source=0.)
 
-    write(*,*) "before", x(N)
     ! If R is rank-deficient, choose a value for x(N)
     if (abs(A(N,N)) < 1.e-10) then
         x(N) = 0.
     else
         x(N) = b(N) / A(N,N)
     end if
-    write(*,*) "after", x(N)
     ! Back substitution
     do i=N-1,1,-1
         x(i) = b(i) - sum(A(i,i+1:) * x(i+1:))

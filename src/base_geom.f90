@@ -42,6 +42,7 @@ module base_geom_mod
         logical :: mirrored_is_unique ! Whether this vertice's mirror image will be the same for an asymmetric freestream condition
         logical :: convex ! Whether the mesh is convex at this vertex
         integer :: N_needed_clones
+        integer :: N_leading_edges
 
         contains
 
@@ -80,6 +81,7 @@ module base_geom_mod
         logical :: on_mirror_plane ! Whether this edge lies on the mirror plane
         logical :: sheds_wake ! Whether this edge sheds a wake
         logical :: discontinuous ! Whether this edge is discontinuous in a geometric sense
+        logical :: leading_edge ! Whether this edge is a leading edge
 
         contains
 
@@ -269,6 +271,9 @@ contains
 
                 end if
 
+            end if
+            if (mesh_edges(i_edge)%leading_edge) then
+                this%N_leading_edges = this%N_leading_edges + 1
             end if
         end do
 

@@ -141,8 +141,8 @@ if __name__=="__main__":
     wake_present = True
     wake_type = "panel"
     # wake_type = "filaments"
-    # formulation = "neumann-mass-flux"
-    formulation = "neumann-mass-flux-VCP"
+    formulation = "neumann-mass-flux"
+    # formulation = "neumann-mass-flux-VCP"
     # formulation = "dirichlet-morino"
 
 

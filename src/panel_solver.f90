@@ -595,6 +595,7 @@ contains
         integer, dimension(:), allocatable :: points
 
         ! wake_normal = cross(freestream%c_hat_g, body%vertices(cp%tied_to_index)%edge) !!!! changed here 
+        !!!! This sets the normal vector for the control point boundary condition
         ! Get vertex normal
         if (cp%tied_to_type == TT_VERTEX .and. cp%cp_type == SURFACE) then
             if (body%vertices(cp%tied_to_index)%N_wake_edges>0) then
@@ -644,7 +645,15 @@ contains
                 ! end if
                 if (body%vertices(cp%tied_to_index)%N_wake_edges==1) then
                     ! if a vertex is the endpoint of a wake sheading edge then use the vertex normal vector
-                    n_g_new = body%vertices(cp%tied_to_index)%n_g
+                    ! n_g_new = body%vertices(cp%tied_to_index)%n_g
+                    write(*,*) "Single wake edge normal vector", body%vertices(cp%tied_to_index)%n_g_wake
+                    ! if (body%vertices(cp%tied_to_index)%n_g(2)>0) then
+                    !     n_g_new = (/0,1,0/)
+                    ! else
+                    !     n_g_new = (/0,-1,0/)
+                    ! end if
+                    ! n_g_new = (/0,1,0/)
+                    n_g_new = body%vertices(cp%tied_to_index)%n_g_wake
                 else
                     ! if a vertex is part of a wake sheading edge use the wake's normal vector
                     ! n_g_new = body%vertices(cp%tied_to_index)%n_g_wake - freestream%c_hat_g&
