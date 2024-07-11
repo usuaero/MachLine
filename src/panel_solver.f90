@@ -3630,14 +3630,34 @@ contains
         integer(8) :: start_count, end_count
         real(16) :: count_rate, norm_res, max_res
 
-        real,dimension(:,:),allocatable :: d_forces_wrt_mu, vT_forces, d_moments_wrt_mu
+        real,dimension(:,:),allocatable :: d_forces_wrt_mu, vT_forces, d_moments_wrt_mu, expanded
+        logical :: tall
 
         !!!!!!!!!!!!!!!!!!!!!!!!!!!! Forces v^T terms !!!!!!!!!!!!!!!!!!!!!!!!!!!
         
         ! expand sparse matrix to a full matrix N by 3
-        d_forces_wrt_mu = this%d_C_F_wrt_mu%expand(.true.)
+        tall = .true.
+        expanded = this%d_C_F_wrt_mu%expand(tall)
 
+        
         N = this%N_unknown
+
+        ! allocate d_forces_wrt_mu 
+        allocate(d_forces_wrt_mu(N,3))
+
+        ! if use_sort_for_cp, need to re-order the values of d_forces_wrt_mu
+        if (this%use_sort_for_cp) then
+            do j = 1,N 
+                ! the sensitivities of CFx, CFy, and CFz wrt to mu need to be re-ordered to 
+                ! the sorted order because the mu values were solved for in a sorted order 
+                ! with a sorted A matrix
+                d_forces_wrt_mu(this%P(j),:) = expanded(j,:)
+
+            end do
+
+        else
+            d_forces_wrt_mu = expanded
+        end if
 
         ! allocate vT_forces (N by 3)
         allocate(vT_forces(N,3))
@@ -3693,7 +3713,18 @@ contains
             end if
 
 
-            ! store forces v^T term
+            ! ! store forces v^T term:if use_sort_for_cp, need to re-order the values of vT_forces
+            ! if (this%use_sort_for_cp) then
+            !     do j = 1,N 
+            !         ! undo the sorting that was needed to solve for x
+            !         vT_forces(j,i) = x(this%P(j))
+
+            !     end do
+
+            ! else
+            !     vT_forces(:,i) = x
+            ! end if
+
             vT_forces(:,i) = x
 
             deallocate(b_p, x)
@@ -3715,27 +3746,36 @@ contains
         real,dimension(:,:),allocatable,intent(inout) :: vT_forces
 
         real,dimension(:,:),allocatable :: d_AIC_i, d_CF_wrt_vars, adjoint_CF
-        real,dimension(:),allocatable :: f_i, d_b_i, vT_n , d_AIC_times_mu
+        real,dimension(:),allocatable :: f_i, d_b_i, vT_n , d_AIC_times_mu, mu_vector
         integer :: i,j,k,m, N ,p
-
-        N = body%N_verts
         
+        N = this%N_unknown
+        
+        ! allocations
         allocate(d_AIC_i(N,N))
         allocate(d_b_i(N))
+        allocate(mu_vector(N))
         allocate(this%CF_sensitivities(3*N,3))
 
         ! expand d_C_F_wrt_vars into a full matrix. tall = true (N by 3)
         d_CF_wrt_vars = this%d_C_F_wrt_vars%expand(.true.)
 
-        ! write(*,*) "dCF_WRT_VARS" 
+        ! if use_sort_for_cp, need to use the sorted values of mu
+        if (this%use_sort_for_cp) then
+
+            ! get the sorted values of mu
+            do i = 1,N
+                mu_vector(this%P(i)) = body%mu(i)
+            end do
+
+        else
+            mu_vector = body%mu
+        end if
 
         
         ! for CF_x, CF_y, and CF_z
         do m=1,3
-            ! write(*,*) " vT forces m"
-            ! do i=1,N
-            !     write(*,*) vT_forces(i,m)
-            ! end do
+           
             ! for each design variable
             do i=1,3*N
 
@@ -3755,16 +3795,13 @@ contains
                 end do
                 ! for each design variable, multiply d_A_matrix i^th slice by mu
                 
-                d_AIC_times_mu = matmul(-d_AIC_i, body%mu)
+                d_AIC_times_mu = matmul(-d_AIC_i, mu_vector)
 
                 ! add d_b_vector i^th slice
                 f_i = d_AIC_times_mu + d_b_i
-                ! write(*,*) " vTf   i m",   dot_product(vT_forces(:,m),f_i)
-                ! write(*,*) " d_CF_wrt_vars   i m",   d_CF_wrt_vars(i,m)
                 
-                
-                ! this%CF_sensitivities(i,m) = d_CF_wrt_vars(i,m) ! dot_product(vT_forces(:,m),f_i) + d_CF_wrt_vars(i,m)
-                ! this%CF_sensitivities(i,m) = dot_product(vT_forces(:,m),f_i) !+ d_CF_wrt_vars(i,m)
+                ! NOTE: the result of the dot product below doesn't depend on order as long as the inputs
+                ! are ordered the same. 
                 this%CF_sensitivities(i,m) = dot_product(vT_forces(:,m),f_i) + d_CF_wrt_vars(i,m)
                 
             end do ! end i loop

@@ -23,7 +23,7 @@
     },
     "solver": {
         "formulation" : "dirichlet-source-free",
-        "control_point_offset" : 1.0e-3, 
+        "control_point_offset" : 1.008e-5, 
         "matrix_solver" : "GMRES", 
         "xsort_system" : false
     },

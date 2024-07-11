@@ -1,4 +1,4 @@
-program super26
+program dirichlet_super_test26
 
     ! tests various intermediate sensitivities 
     use adjoint_mod
@@ -57,7 +57,8 @@ program super26
     real,dimension(:,:),allocatable ::  residuals3, CF_up, CF_dn, d_CF_FD
 
     integer :: i,j,k,m,n,p, N_verts, N_panels, vert, index, cp_ind, row,col, stat
-    real :: step, error_allowed, cp_offset
+    real :: step, error_allowed, cp_offset, residual_norm_CFx, residual_norm_CFy, residual_norm_CFz
+    real :: adjoint_norm_CFx, adjoint_norm_CFy, adjoint_norm_CFz, FD_norm_CFx, FD_norm_CFy, FD_norm_CFz
     type(vertex),dimension(:),allocatable :: vertices ! list of vertex types, this should be a mesh attribute
     type(panel),dimension(:),allocatable :: panels, adjoint_panels   ! list of panels, this should be a mesh attribute
     ! test stuff
@@ -75,7 +76,7 @@ program super26
     passed_tests = 0
     total_tests = 0
 
-    error_allowed = 1.0e-1
+    error_allowed = 1.0e-2
     
     step = 0.005
     index = 1
@@ -88,7 +89,7 @@ program super26
     ! Set up run
     call json_initialize()
 
-    test_input = "dev\input_files\adjoint_inputs\supersonic_test.json"
+    test_input = "dev\input_files\adjoint_inputs\dirichlet_supersonic_test.json"
     test_input = trim(test_input)
 
     ! Check it exists
@@ -146,7 +147,7 @@ program super26
     ! Set up run
     call json_initialize()
     
-    adjoint_input = "dev\input_files\adjoint_inputs\supersonic_adjoint_test.json"
+    adjoint_input = "dev\input_files\adjoint_inputs\dirichlet_supersonic_adjoint_test.json"
     adjoint_input = trim(adjoint_input)
     
     ! Check it exists
@@ -218,7 +219,7 @@ program super26
     write(*,*) ""
     write(*,*) ""
     write(*,*) "----------------------------------------------------------------------" 
-    write(*,*) "                 Supersonic d_CF_sensitivities_test"
+    write(*,*) "         Dirichlet Supersonic d_CF_sensitivities_test"
     write(*,*) "----------------------------------------------------------------------"
     write(*,*) ""
     write(*,*) ""
@@ -233,7 +234,7 @@ program super26
     !!!!!!!!! CENTRAL DIFFERENCE (panel 1, cp 1) d_CF_wrt_vars_test column ", k, !!!!!!!!!
     write(*,*) ""
     write(*,*) "--------------------------------------------------------------------------------------"
-    write(*,*) "                         Supersonic d_CF_sensitivities_test "
+    write(*,*) "                Dirichlet Supersonic d_CF_sensitivities_test "
     write(*,*) "--------------------------------------------------------------------------------------"
     write(*,*) ""
 
@@ -243,9 +244,7 @@ program super26
 
             ! perturb up the current design variable
             ! before perturbation:
-            write(*,('(A,f16.10)')) "Before perturbation up: ", test_mesh%vertices(j)%loc(i)
             test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
-            write(*,('(A,f16.10)')) "AFTER perturbation up: ", test_mesh%vertices(j)%loc(i)
 
             
             !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
@@ -276,6 +275,8 @@ program super26
 
             ! recalculates cp locations
             deallocate(test_solver%sigma_known)
+            deallocate(test_solver%i_sigma_in_sys)
+            deallocate(test_solver%i_sys_sigma_in_body)
             deallocate(test_mesh%cp)
             deallocate(test_solver%P)
             call test_solver%init(solver_settings, processing_settings, &
@@ -292,7 +293,6 @@ program super26
             ! deallocate(test_solver%A, test_solver%b)
             
             call test_solver%solve(test_mesh, test_solver_stat, formulation,freestream_flow)
-            write(*,*) "success1"
             
             !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
             
@@ -301,10 +301,7 @@ program super26
             
             
             ! perturb down the current design variable
-            ! write(*,*) " perturb down"
-            write(*,('(A,f16.10)')) "Before perturbation down: ", test_mesh%vertices(j)%loc(i)
             test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - 2.*step
-            write(*,('(A,f16.10)')) "AFTER perturbation down: ", test_mesh%vertices(j)%loc(i)
             !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
             ! update vertex normal
             do m =1,N_panels
@@ -332,6 +329,8 @@ program super26
 
             ! recalculates cp locations
             deallocate(test_solver%sigma_known)
+            deallocate(test_solver%i_sigma_in_sys)
+            deallocate(test_solver%i_sys_sigma_in_body)
             deallocate(test_mesh%cp)
             deallocate(test_solver%P)
             call test_solver%init(solver_settings, processing_settings, &
@@ -348,7 +347,6 @@ program super26
             ! deallocate(test_solver%A, test_solver%b)
             
             call test_solver%solve(test_mesh, test_solver_stat, formulation,freestream_flow)
-            write(*,*) "success2"
             !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
             
             ! get the needed info
@@ -466,24 +464,67 @@ program super26
         if (k ==1)then
             write(*,'(A)') "                              d_CFx TEST "
             write(*,*) "       d_CFx_FD                d_CFx Adjoint             residual "
+            ! calc norm of the residual
+            residual_norm_CFx = sqrt(sum(residuals(:)*residuals(:)))
+
         elseif (k==2) then
             write(*,'(A)') "                              d_CFy TEST "
             write(*,*) "       d_CFy_FD                d_CFy Adjoint             residual "
+            ! calc norm of the residual
+            residual_norm_CFy = sqrt(sum(residuals(:)*residuals(:)))
+
         else
             write(*,'(A)') "                              d_CFz TEST "
             write(*,*) "       d_CFz_FD                d_CFz Adjoint             residual "
-        end if 
 
+            ! calc norm of the residual
+            residual_norm_CFz = sqrt(sum(residuals(:)*residuals(:)))
+        end if 
+        
         do i = 1, N_verts*3
             write(*, '(3(f20.10, 4x))') d_CF_FD(k,i), adjoint_solver%CF_sensitivities(i,k), residuals(i)
         end do 
 
     end do
+    
+    ! display norm of adjoint sensitivities
+    adjoint_norm_CFx = sqrt(sum(adjoint_solver%CF_sensitivities(:,1)*adjoint_solver%CF_sensitivities(:,1)))
+    adjoint_norm_CFy = sqrt(sum(adjoint_solver%CF_sensitivities(:,2)*adjoint_solver%CF_sensitivities(:,2)))
+    adjoint_norm_CFz = sqrt(sum(adjoint_solver%CF_sensitivities(:,3)*adjoint_solver%CF_sensitivities(:,3)))
+    write(*,*) ""
+    write(*,*) ""
+    write(*,'((A), f20.10)') "Norm of adjoint d_CFx = ", adjoint_norm_CFx
+    write(*,'((A), f20.10)') "Norm of adjoint d_CFy = ", adjoint_norm_CFy
+    write(*,'((A), f20.10)') "Norm of adjoint d_CFz = ", adjoint_norm_CFz
+
+    ! display norm of FD sensitivities
+    FD_norm_CFx = sqrt(sum(d_CF_FD(1,:)*d_CF_FD(1,:)))
+    FD_norm_CFy = sqrt(sum(d_CF_FD(2,:)*d_CF_FD(2,:)))
+    FD_norm_CFz = sqrt(sum(d_CF_FD(3,:)*d_CF_FD(3,:)))
+    write(*,*) ""
+    write(*,*) ""
+    write(*,'((A), f20.10)') "Norm of FD d_CFx = ", FD_norm_CFx
+    write(*,'((A), f20.10)') "Norm of FD d_CFy = ", FD_norm_CFy
+    write(*,'((A), f20.10)') "Norm of FD d_CFz = ", FD_norm_CFz
+    
+    ! display norm of the residual
+    write(*,*) ""
+    write(*,*) ""
+    write(*,'((A), f20.10)') "Norm of Residual d_CFx = ", residual_norm_CFx
+    write(*,'((A), f20.10)') "Norm of Residual d_CFy = ", residual_norm_CFy
+    write(*,'((A), f20.10)') "Norm of Residual d_CFz = ", residual_norm_CFz
+    
+    write(*,*) ""
+    write(*,*) ""
+    call json_xtnsn_get(solver_settings, 'control_point_offset', cp_offset, 1.e-7)
+    write(*,'((A), ES10.1)') "control point offset = ", cp_offset
+    write(*,*) ""
+    write(*,*) ""
 
 
     !!!!!!!!!!!!!!  RESULTS!!!!!!!!!!!!!
     write(*,*) "------------------------------------------------------------------------------"
-    write(*,*) "                     Supersonic d_CF_wrt_vars TEST RESULTS "
+    write(*,*) "           Dirichlet Supersonic d_CF_wrt_vars TEST RESULTS "
     write(*,*) "------------------------------------------------------------------------------"
     write(*,*) ""
     write(*,'((A), ES10.1)') "allowed residual = ", error_allowed
@@ -512,4 +553,4 @@ program super26
     write(*,*) "----------------------"
 
 
-end program super26
+end program dirichlet_super_test26

@@ -248,7 +248,7 @@ program dirichlet_super_test23
     allocate(d_cells_CF_wrt_mu_FD(3,N_verts))
     
 
-    error_allowed = 1.0e-8
+    error_allowed = 1.0e-9
     step = 0.000001
     index = 1
     cp_ind = 1
