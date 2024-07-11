@@ -52,6 +52,7 @@ module panel_solver_mod
         type(sparse_matrix) :: d_C_F_wrt_vars, d_C_F_wrt_mu
         ! real,dimension(:),allocatable :: CFx_sensitivities, CFy_sensitivities, CFz_sensitivities
         real,dimension(:,:),allocatable :: CF_sensitivities
+        real,dimension(3) :: norms_of_CF_sensitivities
 
         !!!!! END ADJOINT variables !!!
 
@@ -2949,6 +2950,26 @@ contains
             call json_value_add(p_parent, 'CMz', this%C_M(3))
             nullify(p_parent)
 
+            if (body%calc_adjoint) then
+                ! Write CF sensitivities
+                call json_value_create(p_parent)
+                call to_object(p_parent, 'CF_sensitivities')
+                call json_value_add(p_json, p_parent)
+                call json_value_add(p_parent, 'd_CFx', this%CF_sensitivities(:,1))
+                call json_value_add(p_parent, 'd_CFy', this%CF_sensitivities(:,2))
+                call json_value_add(p_parent, 'd_CFz', this%CF_sensitivities(:,3))
+                nullify(p_parent)
+
+                ! Write norms of CF sensitivities
+                call json_value_create(p_parent)
+                call to_object(p_parent, 'Norms of CF_sensitivities')
+                call json_value_add(p_json, p_parent)
+                call json_value_add(p_parent, 'Norms of d_CFx', this%norms_of_CF_sensitivities(1))
+                call json_value_add(p_parent, 'Norms of d_CFy', this%norms_of_CF_sensitivities(2))
+                call json_value_add(p_parent, 'Norms of d_CFz', this%norms_of_CF_sensitivities(3))
+                nullify(p_parent)
+            end if
+
 
         end if
 
@@ -3805,7 +3826,9 @@ contains
                 this%CF_sensitivities(i,m) = dot_product(vT_forces(:,m),f_i) + d_CF_wrt_vars(i,m)
                 
             end do ! end i loop
-
+                
+            ! calc and store L2 norms
+            this%norms_of_CF_sensitivities(m) = sqrt(sum(this%CF_sensitivities(:,m)*this%CF_sensitivities(:,m)))
             
 
         end do
@@ -3815,7 +3838,14 @@ contains
             write(*,*) "       d_Cx:                   d_Cy:                   d_Cz:"
             do i=1,body%adjoint_size
                 write(*, '(3(f20.10, 4x))') this%CF_sensitivities(i,:)
-            end do
+                end do
+            write(*,*) ""
+            write(*,*) ""
+            write(*,'((A), f20.10)') "Norm of adjoint d_CFx = ", this%norms_of_CF_sensitivities(1)
+            write(*,'((A), f20.10)') "Norm of adjoint d_CFy = ", this%norms_of_CF_sensitivities(2)
+            write(*,'((A), f20.10)') "Norm of adjoint d_CFz = ", this%norms_of_CF_sensitivities(3)
+            
+            write(*,*) ""
         end if
 
     

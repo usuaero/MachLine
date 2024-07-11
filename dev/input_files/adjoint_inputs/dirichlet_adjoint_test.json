@@ -23,14 +23,15 @@
     },
     "solver": {
         "formulation" : "dirichlet-source-free",
-        "control_point_offset" : 3.0e-1, 
+        "control_point_offset" : 1.0e-3, 
         "matrix_solver" : "GMRES"
     },
     "post_processing" : {
     },
 
     "output": {
-        "verbose" : true
+        "verbose" : true,
+        "report_file": "dev/results/adjoint/dirichlet_adjoint_coarse_sphere_report.json"
     }
     
 }
