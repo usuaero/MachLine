@@ -139,7 +139,7 @@ if __name__=="__main__":
 
 
 
-    study_directory = "dev/adjoint_studies/"
+    study_directory = "studies/adjoint_studies/adjoint_cp_offset/"
     N_sys = list(range(num_cases))
     l_avg =list(range(num_cases))
     C_F = list(range(num_cases))
