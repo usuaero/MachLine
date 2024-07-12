@@ -10,17 +10,19 @@ import time
 RERUN_MACHLINE = True
 
 
-def run_machline_for_cp_offset(cp_offset,study_directory,alpha=0, wake_present=False, wake_type="panel", formulation="neumann-mass-flux-VCP", mach=2.0):
+def run_machline_for_cp_offset(cp_offset,study_directory,alpha=0, wake_present=False, formulation="dirichlet-source-free"):
     
+    print(cp_offset)
     print("Running MachLine for cp_offset = {0}".format(cp_offset))
     # Storage locations
-    cp_offset_string = str(cp_offset).replace(".","_") + formulation
-    case_name = "cp_offset_{0}".format(cp_offset_string)
+    cp_offset_string = str(cp_offset).replace(".","_") + formulation.replace("-","_")
+    case_name = "cp_offset_{0}_".format(cp_offset_string)
     mesh_file = study_directory+"/meshes/sphere_coarse2.stl"
     results_file = study_directory+"/results/"+case_name+".vtk"
-    wake_file = study_directory+"/results/"+case_name+"_wake.vtk"
+    # wake_file = study_directory+"/results/"+case_name+"_wake.vtk"
     report_file = study_directory+"/reports/"+case_name+".json"
     control_point_file = study_directory+"/results/"+case_name+"_control_points.vtk"
+    
 
     # create input file
     input_dict = {
@@ -39,7 +41,7 @@ def run_machline_for_cp_offset(cp_offset,study_directory,alpha=0, wake_present=F
     
         "solver": {
             "formulation" : formulation,
-            "control_point_offset": cp_offset,
+            "control_point_offset": float("{:.1e}".format(cp_offset)),
             "matrix_solver" : "GMRES"
         },
         "post_processing" : {
@@ -53,6 +55,8 @@ def run_machline_for_cp_offset(cp_offset,study_directory,alpha=0, wake_present=F
             "control_point_file" : control_point_file
         }
     }
+
+    print(input_dict["solver"]["control_point_offset"])
     # Dump
     input_file = study_directory+"/input.json"
     write_input_file(input_dict, input_file)
@@ -60,23 +64,23 @@ def run_machline_for_cp_offset(cp_offset,study_directory,alpha=0, wake_present=F
     # Run MachLine
     report = run_machline(input_file, run=RERUN_MACHLINE)
 
-    # Pull out forces
-    C_F = np.zeros(3)
-    C_F[0] = report["total_forces"]["Cx"]
-    C_F[1] = report["total_forces"]["Cy"]
-    C_F[2] = report["total_forces"]["Cz"]
+    # # Pull out forces
+    # C_F = np.zeros(3)
+    # C_F[0] = report["total_forces"]["Cx"]
+    # C_F[1] = report["total_forces"]["Cy"]
+    # C_F[2] = report["total_forces"]["Cz"]
 
-    # Pull out forces
-    C_F = np.zeros(3)
-    C_F[0] = report["total_forces"]["Cx"]
-    C_F[1] = report["total_forces"]["Cy"]
-    C_F[2] = report["total_forces"]["Cz"]
+    # Pull norm of force sensitivities
+    norms_d_CF = np.zeros(3)
+    norms_d_CF[0] = report["norms_of_CF_sensitivities"]["norm_of_d_CFx"]
+    norms_d_CF[1] = report["norms_of_CF_sensitivities"]["norm_of_d_CFynorms_"]
+    norms_d_CF[2] = report["norms_of_CF_sensitivities"]["norm_of_d_CFz"]
 
     # Get system dimension and average characteristic length
     N_sys = report["solver_results"]["system_dimension"]
     l_avg = report["mesh_info"]["average_characteristic_length"]
 
-    return N_sys, l_avg, C_F
+    return N_sys, l_avg, norms_d_CF
 
     
 
@@ -118,8 +122,8 @@ def run_machline(input_filename, delete_input=True, run=True):
         report = None
 
     # Delete input
-    if delete_input:
-        os.remove(input_filename)
+    # if delete_input:
+    #     os.remove(input_filename)
 
     return report
 
@@ -128,10 +132,10 @@ if __name__=="__main__":
     # declare varaibles and inputs
     tStart = time.time()
     alpha = 0
-    num_cases = 10
+    num_cases = 25
     # mach = 2.0
     wake_present = False
-    wake_type = "panel"
+    # wake_type = "panel"
     # wake_type = "filaments"
     # formulation = "neumann-mass-flux-VCP"
     formulation = "dirichlet-source-free"
@@ -139,46 +143,56 @@ if __name__=="__main__":
 
 
 
-    study_directory = "studies/adjoint_studies/adjoint_cp_offset/"
+    study_directory = "studies/adjoint_studies/adjoint_cp_offset"
     N_sys = list(range(num_cases))
     l_avg =list(range(num_cases))
-    C_F = list(range(num_cases))
-    C_x = list(range(num_cases))
-    C_y = list(range(num_cases))
-    C_z = list(range(num_cases))
+    norms_d_CF = list(range(num_cases))
+    norms_d_CFx = list(range(num_cases))
+    norms_d_CFy = list(range(num_cases))
+    norms_d_CFz = list(range(num_cases))
 
     # Run cases
-    # cp_offsets = np.linspace(1e-12,1e-3,num_cases)
-    cp_offsets = np.logspace(-12,-3,num_cases)
+    powers_of_10 = np.logspace(-12,0,13)
+    print( powers_of_10)
+    times_5 = 5.*np.logspace(-12,0,13)
+    cp_offsets = np.sort(np.concatenate((powers_of_10, times_5)))
+    
+    # get rid of any duplicate numbers
+    cp_offsets = np.unique(cp_offsets)
+
+    # remove the last number because I don't want it
+    cp_offsets = cp_offsets[:-1]
+    print(cp_offsets)
+    
+    
     for i in range(num_cases):
-        N_sys[i], l_avg[i], C_F[i] = run_machline_for_cp_offset(cp_offsets[i],study_directory,alpha=alpha, mach=mach, wake_present=wake_present, wake_type=wake_type, formulation=formulation)
+        N_sys[i], l_avg[i], norms_d_CF[i] = run_machline_for_cp_offset(cp_offsets[i],study_directory,alpha=alpha, wake_present=wake_present, formulation=formulation)
 
 
     # get data
     for i in range(num_cases):
-        C_x[i] = C_F[i][0]
-        C_y[i] = C_F[i][1]
-        C_z[i] = C_F[i][2]
+        norms_d_CFx[i] = norms_d_CF[i][0]
+        norms_d_CFy[i] = norms_d_CF[i][1]
+        norms_d_CFz[i] = norms_d_CF[i][2]
         
     tEnd = time.time()
     print("Elapsed time is {0} seconds".format(tEnd-tStart))
     #  plot
     plt.figure()
-    plt.plot(cp_offsets,C_x, label="C_x")
-    plt.plot(cp_offsets,C_y,label="C_y")
-    plt.plot(cp_offsets,C_z,label="C_z")
+    plt.plot(cp_offsets,norms_d_CFx, label="norm of CFx sensitivities")
+    plt.plot(cp_offsets,norms_d_CFy,label="norm of CFy sensitivities")
+    plt.plot(cp_offsets,norms_d_CFz,label="norm of CFz sensitivities")
     plt.xscale("log")
     plt.xlabel("Control Point Offset")
-    plt.ylabel("$C_F$")
+    plt.ylabel("Norm of sensitivities")
     plt.legend()
 
     # set axis limits
-    # plt.ylim(-0.001,0.035)    # Mach 2
-    plt.ylim(-0.001,0.08)    # Mach 0.5 
+    plt.ylim(0.0,5.0)    
     
 
     # get figure file name
-    fig_file = "/cp_offset - double wedge wing - wake {0} - wake type {1} - {2} - Mach {3}.png".format(wake_present,wake_type, formulation, mach)
+    fig_file = "/adjoint_cp_offset - coarse sphere - {0}.png".format(formulation)
     plt.savefig(study_directory+fig_file)
     plt.show()
 

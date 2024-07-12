@@ -1,0 +1,33 @@
+{
+    "flow": {
+        "freestream_velocity": [
+            1.0,
+            0.0,
+            0.0
+        ]
+    },
+    "geometry": {
+        "file": "studies/adjoint_studies/adjoint_cp_offset/meshes/sphere_coarse2.stl",
+        "wake_model": {
+            "wake_present": false
+        },
+        "adjoint": {
+            "calc_adjoint": true
+        }
+    },
+    "solver": {
+        "formulation": "dirichlet-source-free",
+        "control_point_offset": 1e-12,
+        "matrix_solver": "GMRES"
+    },
+    "post_processing": {
+        "pressure_rules": {
+            "incompressible": true
+        }
+    },
+    "output": {
+        "body_file": "studies/adjoint_studies/adjoint_cp_offset/results/cp_offset_1e-12dirichlet_source_free_.vtk",
+        "report_file": "studies/adjoint_studies/adjoint_cp_offset/reports/cp_offset_1e-12dirichlet_source_free_.json",
+        "control_point_file": "studies/adjoint_studies/adjoint_cp_offset/results/cp_offset_1e-12dirichlet_source_free__control_points.vtk"
+    }
+}

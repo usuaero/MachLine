@@ -361,12 +361,14 @@ contains
 
 
         ! Get offset
-        call json_xtnsn_get(solver_settings, 'control_point_offset', offset, 1.e-7)
+        call json_xtnsn_get(solver_settings, 'control_point_offset', offset, 1.0e-7)
+        write(*,*) " control point offset read in =  ", offset
         call json_xtnsn_get(solver_settings, 'control_point_offset_type', offset_type, 'direct')
         if (offset <= 0.) then
             write(*,*) "!!! Control point offset must be greater than 0. Defaulting to 1e-7."
             offset = 1.e-7
         end if
+        write(*,*) " check offset again =  ", offset
         
         ! Place control points
         if (verbose) then
@@ -2962,11 +2964,11 @@ contains
 
                 ! Write norms of CF sensitivities
                 call json_value_create(p_parent)
-                call to_object(p_parent, 'Norms of CF_sensitivities')
+                call to_object(p_parent, 'norms_of_CF_sensitivities')
                 call json_value_add(p_json, p_parent)
-                call json_value_add(p_parent, 'Norms of d_CFx', this%norms_of_CF_sensitivities(1))
-                call json_value_add(p_parent, 'Norms of d_CFy', this%norms_of_CF_sensitivities(2))
-                call json_value_add(p_parent, 'Norms of d_CFz', this%norms_of_CF_sensitivities(3))
+                call json_value_add(p_parent, 'norm_of_d_CFx', this%norms_of_CF_sensitivities(1))
+                call json_value_add(p_parent, 'norm_of_d_CFy', this%norms_of_CF_sensitivities(2))
+                call json_value_add(p_parent, 'norm_of_d_CFz', this%norms_of_CF_sensitivities(3))
                 nullify(p_parent)
             end if
 
