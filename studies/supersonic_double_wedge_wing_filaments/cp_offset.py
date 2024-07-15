@@ -131,13 +131,14 @@ def run_machline(input_filename, delete_input=True, run=True):
 if __name__=="__main__":
     # declare varaibles and inputs
     tStart = time.time()
-    num_cases = 10
-    mach = 2
+    num_cases = 1
+    mach = 0.5
+    alpha = 5
     wake_present = True
     wake_type = "panel"
     # wake_type = "filaments"
-    formulation = "neumann-mass-flux"
-    # formulation = "neumann-mass-flux-VCP"
+    # formulation = "neumann-mass-flux"
+    formulation = "neumann-mass-flux-VCP"
     # formulation = "dirichlet-morino"
 
 
@@ -154,7 +155,7 @@ if __name__=="__main__":
     # cp_offsets = np.linspace(1e-12,1e-3,num_cases)
     cp_offsets = np.logspace(-6,-3,num_cases)
     for i in range(num_cases):
-        N_sys[i], l_avg[i], C_F[i] = run_machline_for_cp_offset(cp_offsets[i],study_directory, mach=mach, wake_present=wake_present, wake_type=wake_type, formulation=formulation)
+        N_sys[i], l_avg[i], C_F[i] = run_machline_for_cp_offset(cp_offsets[i],study_directory,alpha=alpha, mach=mach, wake_present=wake_present, wake_type=wake_type, formulation=formulation)
 
 
     # get data

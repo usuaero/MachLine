@@ -1,0 +1,46 @@
+{
+    "flow": {
+        "freestream_velocity": [
+            0.9961946980917455,
+            0.0,
+            0.08715574274765817
+        ],
+        "freestream_mach_number": 2.0
+    },
+    "geometry": {
+        "file": "default.vtk",
+        "spanwise_axis": "+y",
+        "reference": {
+            "area": 1.0
+        },
+        "wake_model": {
+            "wake_present": true,
+            "append_wake": true,
+            "trefftz_distance": 20.0,
+            "wake_type": "panels",
+            "N_panels": 1
+        }
+    },
+    "solver": {
+        "formulation": "dirichlet-morino",
+        "control_point_offset": 1e-07,
+        "matrix_solver": "HHLS",
+        "write_A_and_b": false,
+        "run_checks": true
+    },
+    "post_processing": {
+        "pressure_rules": {
+            "incompressible": false,
+            "isentropic": true,
+            "second-order": false,
+            "slender-body": false,
+            "linear": false
+        }
+    },
+    "output": {
+        "body_file": "C:/Users/Josh/Documents/AeroLab_Projects/MachLine_stable/MachLine/results.vtk",
+        "wake_file": "C:/Users/Josh/Documents/AeroLab_Projects/MachLine_stable/MachLine/wake_results.vtk",
+        "report_file": "C:/Users/Josh/Documents/AeroLab_Projects/MachLine_stable/MachLine/report.json",
+        "control_point_file": "C:/Users/Josh/Documents/AeroLab_Projects/MachLine_stable/MachLine/control_points.vtk"
+    }
+}
