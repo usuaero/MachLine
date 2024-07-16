@@ -96,6 +96,8 @@ module surface_mesh_mod
             procedure :: get_cp_locs_vertex_based_interior => surface_mesh_get_cp_locs_vertex_based_interior
             procedure :: get_cp_locs_centroid_based => surface_mesh_get_cp_locs_centroid_based
             procedure :: get_clone_control_point_dir => surface_mesh_get_clone_control_point_dir
+            procedure ::  get_edge_tangent_vector => surface_mesh_get_edge_tangent_vector
+        
 
             ! Control point placement
             procedure :: place_vertex_control_points => surface_mesh_place_vertex_control_points !!!! VCP
@@ -930,8 +932,12 @@ contains
                         !$OMP critical
                         N_wake_edges = N_wake_edges + 1
                         !$OMP end critical
-
+                    
                     end if
+                else
+                    !$OMP critical
+                    this%edges(k)%leading_edge = .true.
+                    !$OMP end critical
                 end if
             end if
 
@@ -1737,6 +1743,96 @@ contains
 
     end subroutine surface_mesh_get_minimum_angle_vectors
 
+    function surface_mesh_get_edge_tangent_vector(this, i_vert) result(t_avg)
+        
+        implicit none
+        
+        class(surface_mesh),intent(in) :: this
+        integer,intent(in) :: i_vert
+
+        integer :: j, k, i_edge_1, i_edge_2, i_edge, panel1, panel2
+        real,dimension(3) :: t1, t2, t_avg
+        logical :: found_first
+        
+        ! Get the two edges defining the split for this vertex
+        found_first = .false.
+        i_edge_2 = 0
+        do j=1,this%vertices(i_vert)%adjacent_edges%len()
+
+            ! Get index
+            call this%vertices(i_vert)%adjacent_edges%get(j, i_edge)
+
+            ! Make sure it's a wake-shedding edge (we don't need to check other edges)
+            if (this%edges(i_edge)%sheds_wake) then
+
+                ! See if only one of this edge's panels belongs to the panels not across a wake edge for this vertex
+                panel1 = this%edges(i_edge)%panels(1)
+                panel2 = this%edges(i_edge)%panels(2)
+                if ((this%vertices(i_vert)%panels_not_across_wake_edge%is_in(panel1) &
+                     .and. .not. this%vertices(i_vert)%panels_not_across_wake_edge%is_in(panel2)) .or. &
+                    (this%vertices(i_vert)%panels_not_across_wake_edge%is_in(panel2) &
+                     .and. .not. this%vertices(i_vert)%panels_not_across_wake_edge%is_in(panel1))) then
+
+                    ! Store
+                    if (found_first) then
+                        i_edge_2 = i_edge
+                    else
+                        i_edge_1 = i_edge
+                        found_first = .true.
+                    end if
+                else
+                    if (found_first) then
+                        i_edge_2 = i_edge
+                    else
+                        i_edge_1 = i_edge
+                        found_first = .true.
+                    end if
+                    write(*,*) "Edge ", i_edge, " does not belong to the panels not across a wake edge for vertex ", i_vert
+                end if
+            
+            end if
+
+        end do
+
+        ! Get average tangent vector for the edge
+        ! If we've found both, then we can use both
+        if (i_edge_2 /= 0) then
+
+            ! First edge
+            t1 = this%vertices(i_vert)%loc - &
+                    this%vertices(this%edges(i_edge_1)%get_opposite_endpoint(i_vert, this%vertices))%loc
+            t1 = t1/norm2(t1)
+
+            ! Second edge
+            t2 = this%vertices(this%edges(i_edge_2)%get_opposite_endpoint(i_vert, this%vertices))%loc - &
+                    this%vertices(i_vert)%loc
+            t2 = t2/norm2(t2)
+            write(*,*) "t1", t1, i_vert
+            write(*,*) "t2", t2, i_vert
+            ! Get average
+            t_avg = t1 + t2
+            t_avg = t_avg/norm2(t_avg)
+            write(*,*) "t_avg", t_avg, i_vert
+
+        ! If we've only found one, then the other edge is either mirrored or it is a wingtip
+        else
+            ! check if the vertex is on the mirror plane
+            if (this%vertices(i_vert)%on_mirror_plane) then
+                t_avg = 0.
+                t_avg(this%mirror_plane) = 1.
+            else
+                if (found_first) then
+                    t_avg = this%vertices(i_vert)%loc - &
+                            this%vertices(this%edges(i_edge_1)%get_opposite_endpoint(i_vert, this%vertices))%loc
+                    t_avg = t_avg/norm2(t_avg)
+                    write(*,*) "t_avg", t_avg, i_vert
+                else
+                    write(*,*) "Error: Could not find a second edge for vertex ", i_vert
+                end if
+            end if
+        end if
+
+    end function surface_mesh_get_edge_tangent_vector
 
     function surface_mesh_get_clone_control_point_dir(this, i_vert) result(dir)
         ! Calculates the offset direction for the control point associated with the cloned vertex
@@ -1924,27 +2020,77 @@ contains
     function surface_mesh_get_cp_locs_vertex_based(this,offset, freestream) result(cp_locs)
         ! Returns the locations of coincident vertex-based control points !!!! only used for NMF-VCP formulation
         implicit none
-        class(surface_mesh),intent(in) :: this
+        class(surface_mesh):: this
         type(flow),intent(in) :: freestream
         real,intent(in) :: offset
         real,dimension(:,:),allocatable :: cp_locs
         integer :: i
         
-        real, dimension(3) :: dir
+        real, dimension(3) :: dir, t_avg, wake_norm
 
         ! Allocate memory
         allocate(cp_locs(3,this%N_verts))
 
         !!!! this can be paralellized
+        !!!! This is where the control points are placed 
         do i=1,this%N_verts
 
             ! if the cp is on a wake shedding edge, then the cp is placed on the wake shedding edge with the normal vector of the wake
             if (this%vertices(i)%N_wake_edges >= 1) then
-                dir = this%vertices(i)%n_g_wake    !!!! wake shedding edge will be outside the mesh
+
+                !!!! vertex will follow old normal vector (straignt back)
+                ! dir = this%vertices(i)%n_g 
+
+                !!!! vertex will follow new normal vector (out and back)
+                ! dir = this%vertices(i)%n_g_wake    
+
+                !!!! This one only works for zero aoa
+                ! if (this%vertices(i)%n_g_wake(2)>0) then
+                !     dir = (/1.,0.01,0./)
+                ! else
+                !     dir = (/1.,-0.01,0./)
+                ! end if
+
+                !!!! vertex will follow freestream normal vector
+                ! dir = freestream%c_hat_g 
+
+
+                !!!! follow reverse of original direction
+                ! dir = - this%get_clone_control_point_dir(i)
+                
+                !!! follow the vector slighly offset the downstream direction
+                ! get the average tangent vector of the edge
+                t_avg = this%get_edge_tangent_vector(i)
+                
+                wake_norm = cross(t_avg, freestream%c_hat_g)
+                write(*,*) "wake_norm", wake_norm, i
+                write(*,*) "is top", (inner(this%vertices(i)%n_g_wake,wake_norm)>0)
+                if (inner(this%vertices(i)%n_g_wake,wake_norm)<0) then
+                    wake_norm = -wake_norm
+                end if
+                !!!! save wake norm
+                wake_norm = wake_norm/norm2(wake_norm)
+                this%vertices(i)%n_g_wake = wake_norm
+                dir = freestream%c_hat_g + wake_norm*0.01
+                
+        
+                ! if (this%vertices(i)%clone) then
+                !     dir = this%get_clone_control_point_dir(i)
+                ! else
+                !     dir = -this%vertices(i)%n_g  !!!! inside the mesh
+                ! end if
+
+                ! normalize the vector
+                dir = 2*dir/norm2(dir)
+               
+
+            ! else if (this%vertices(i)%N_wake_edges == 1) then
+            !     dir = -this%vertices(i)%n_g
+            !     ! dir= (/1,0,0/)
             else  
                 dir = -this%vertices(i)%n_g  !!!! inside the mesh
+                ! dir = (/1.,0.,0./)
             end if
-
             cp_locs(:,i) = this%vertices(i)%loc + dir * offset
 
             ! set location
@@ -2843,7 +2989,7 @@ contains
 
         type(vtk_out) :: body_vtk
         integer :: i, N_cells
-        real,dimension(:),allocatable :: panel_inclinations, orders, N_discont_edges, convex
+        real,dimension(:),allocatable :: panel_inclinations, orders, N_discont_edges, convex, N_lead_edges
         real,dimension(:,:),allocatable :: cents
 
         ! Clear old file
@@ -2858,14 +3004,17 @@ contains
         allocate(N_discont_edges(this%N_panels))
         allocate(cents(3,this%N_panels))
         allocate(convex(this%N_verts), source=0.)
+        allocate(N_lead_edges(this%N_verts), source=0.)
         do i=1,this%N_panels
             panel_inclinations(i) = this%panels(i)%r
             orders(i) = this%panels(i)%order
             N_discont_edges(i) = this%panels(i)%N_discont_edges
+            
             cents(:,i) = this%panels(i)%centr
         end do
         do i=1,this%N_verts
             if (this%vertices(i)%convex) convex(i) = 1.
+            N_lead_edges(i) = this%vertices(i)%N_leading_edges
         end do
 
         ! Write geometry
@@ -2922,6 +3071,7 @@ contains
 
         end if
         call body_vtk%write_point_scalars(convex, "convex")
+        call body_vtk%write_point_scalars(N_lead_edges, "N_leading_edges")
 
         ! Finalize
         call body_vtk%finish()

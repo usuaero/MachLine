@@ -921,7 +921,8 @@ subroutine QR_givens_solve_UP(N, A, b, x)
     end do
   end do
 
-  ! Back substitution
+
+  ! Back substitution 
   call upper_triangular_back_sub(N, A, b, x)
   
 end subroutine QR_givens_solve_UP
@@ -1812,8 +1813,9 @@ subroutine diagonal_preconditioner(N, A, b, A_p, b_p)
 
     ! Get preconditioning matrix
     do i=1,N
-        A_ii_inv = 1./A(i,i)
+        A_ii_inv(i) = 1./A(i,i)
     end do
+
 
     ! Allocate
     allocate(A_p(N,N))
@@ -1841,10 +1843,25 @@ subroutine householder_ls_solve(M, N, A, b, x)
     real,dimension(M),intent(inout) :: b
     real,dimension(:),allocatable,intent(out) :: x
 
-    integer :: i, j, k
+    integer :: i, j, k, counter
     real,dimension(:),allocatable :: w, v
     real :: alpha, beta, bTv, beta_w
 
+    !!!! check to see if there are any cps that are only infuenced by one vertex 
+    counter = 0
+    do i=1,M
+        do j = 1,N
+            if (A(i,j) /= 0.) then
+                counter = counter + 1
+            end if
+        end do
+        if (counter == 2) then
+            write(*,*) "double influence cp found. at row ", i
+            counter = 0
+        else
+            counter = 0
+        end if
+    end do
     ! ************************************************************************
     ! ** Loop through columns performing Householder transformations *********
     ! ************************************************************************
@@ -1890,7 +1907,6 @@ subroutine householder_ls_solve(M, N, A, b, x)
     else
         x(N) = b(N) / A(N,N)
     end if
-
     ! Back substitution
     do i=N-1,1,-1
         x(i) = b(i) - sum(A(i,i+1:) * x(i+1:))
