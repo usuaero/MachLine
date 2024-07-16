@@ -362,13 +362,11 @@ contains
 
         ! Get offset
         call json_xtnsn_get(solver_settings, 'control_point_offset', offset, 1.0e-7)
-        write(*,*) " control point offset read in =  ", offset
         call json_xtnsn_get(solver_settings, 'control_point_offset_type', offset_type, 'direct')
         if (offset <= 0.) then
             write(*,*) "!!! Control point offset must be greater than 0. Defaulting to 1e-7."
             offset = 1.e-7
         end if
-        write(*,*) " check offset again =  ", offset
         
         ! Place control points
         if (verbose) then

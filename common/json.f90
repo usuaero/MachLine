@@ -2226,7 +2226,7 @@
 
     if (.not. exception_thrown) then
 
-        read(str,fmt=real_fmt,iostat=ierr) rval    !string to double
+        read(str,fmt=*,iostat=ierr) rval    !string to double
 
         if (ierr/=0) then    !if there was an error
             rval = 0.0

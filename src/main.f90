@@ -110,19 +110,19 @@ program main
     call body_mesh%init(geom_settings)
 
     !!!!!!!!!   ADJOINT DEV   !!!!!!!!!
-    ! check to see if perturb point option in geom settings is true
-    call json_xtnsn_get(geom_settings, 'perturb_point', perturb_point, .false.)
-    if (perturb_point) then
-        ! get the step size and indices for which point and which component x y or z of that point to perturb
-        call json_xtnsn_get(geom_settings, "perturbation.step", step)
-        call json_xtnsn_get(geom_settings, "perturbation.point_index", point_index) ! index of the mesh point to be perturbed
-        call json_xtnsn_get(geom_settings, "perturbation.component_index", component_index) ! 1 = x component, 2 = y component, 3 = z component
-        ! perturb the point
-    write(*,*) "Perturbing Vertex", point_index, "component", component_index, "by", step
-    write(*,*) "Original Value:  ", body_mesh%vertices(point_index)%loc(component_index)
-        body_mesh%vertices(point_index)%loc(component_index) = body_mesh%vertices(point_index)%loc(component_index) + step
-        write(*,*) "Perturbed Value: ", body_mesh%vertices(point_index)%loc(component_index)
-    end if
+    ! ! check to see if perturb point option in geom settings is true
+    ! call json_xtnsn_get(geom_settings, 'perturb_point', perturb_point, .false.)
+    ! if (perturb_point) then
+    !     ! get the step size and indices for which point and which component x y or z of that point to perturb
+    !     call json_xtnsn_get(geom_settings, "perturbation.step", step)
+    !     call json_xtnsn_get(geom_settings, "perturbation.point_index", point_index) ! index of the mesh point to be perturbed
+    !     call json_xtnsn_get(geom_settings, "perturbation.xyz_index", xyz_index) ! 1 = x cooordinate, 2 = y cooordinate, 3 = z cooordinate
+    !     ! perturb the point
+    !     write(*,*) "Perturbing vertex", point_index, "coordinate", xyz_index, "by", step
+    !     write(*,*) "Original Value:  ", body_mesh%vertices(point_index)%loc(xyz_index)
+    !     body_mesh%vertices(point_index)%loc(xyz_index) = body_mesh%vertices(point_index)%loc(xyz_index) + step
+    !     write(*,*) "Perturbed Value: ", body_mesh%vertices(point_index)%loc(xyz_index)
+    ! end if
     !!!!!!!!! END ADJOINT DEV !!!!!!!!!
 
     ! Initialize flow
@@ -180,7 +180,6 @@ program main
             write(*,*) "Writing results to file"
         end if
 
-        
         ! if calculating adjoints, write to file
         if (body_mesh%calc_adjoint) then
 

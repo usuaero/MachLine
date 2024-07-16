@@ -49,6 +49,7 @@ module surface_mesh_mod
         character(len=:),allocatable :: formulation !!!! could we use this instead, go to surface_mesh_parse_wake_settings to see  
 
         ! adjoint
+        logical :: perturb_point ! used for central diff scripts to validate adjoint calcs (shouldnt be true if calc_adjoint is true)
         logical :: calc_adjoint  ! whether or not adjoint sensitivities should be calculated
         integer :: adjoint_size ! number of adjoint design variables 
         type(sparse_matrix),dimension(:),allocatable :: d_V_cells_inner_wrt_vars, d_V_cells_wrt_vars
@@ -128,6 +129,8 @@ module surface_mesh_mod
             procedure :: write_control_points => surface_mesh_write_control_points
             
             !!!!!!!!!!!!!!!!!!!!!!!!!! adjoint procedures !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            procedure :: perturb_vertex => surface_mesh_perturb_vertex
+
             procedure :: init_adjoint => surface_mesh_init_adjoint
             procedure :: calc_d_vertex_geometry => surface_mesh_calc_d_vertex_geometry
             procedure :: init_with_flow_adjoint => surface_mesh_init_with_flow_adjoint
@@ -180,6 +183,13 @@ contains
         ! Load adjoint settings
         call this%parse_adjoint_settings(settings)
 
+        ! Perturb a vertex if perturb_point is true
+        if (this%perturb_point) then
+
+            call this%perturb_vertex(settings)
+
+        end if
+
         ! Store references
         call json_xtnsn_get(settings, 'reference.area', this%S_ref, 1.)
         call json_xtnsn_get(settings, 'reference.length', this%l_ref, 1.)
@@ -199,7 +209,9 @@ contains
         
         ! if calc_adjoint was specified, init the adjoint calculations
         if (this%calc_adjoint) then
+
             call this%init_adjoint()
+
         end if
 
     end subroutine surface_mesh_init
@@ -387,7 +399,17 @@ contains
         ! Check if the user wants to calculate adjoint
         call json_xtnsn_get(settings, 'adjoint_sensitivities.calc_adjoint', this%calc_adjoint, .false.)
 
-        
+        ! Check if user wants to run Machline with a perturbed point (for central difference validating
+        !  the adjoint calcs)
+        call json_xtnsn_get(settings, 'perturbation.perturb_point', this%perturb_point, .false.)
+
+        ! check to see if calc_adjoint and perturb_point are both true. If they are both true, 
+        ! warn user and quit
+        if (this%calc_adjoint .and. this%perturb_point) then
+            write(*,*) "ERROR: calc_adjoints and perturb_point are both set to true, only one should be selected at a time."
+            write(*,*) "Quitting.... "
+            stop
+        end if  
     end subroutine surface_mesh_parse_adjoint_settings
 
 
@@ -2063,6 +2085,7 @@ contains
 
             ! Check if the control point is outside the mesh
             get_back_in_loop: do while (this%control_point_outside_mesh(cp_locs(:,i), i))
+                
 
                 ! Loop through neighboring panels to find ones the control point is outside
                 n_avg = 0.
@@ -2168,10 +2191,6 @@ contains
         ! The point is outside if there was an even number of crossings
         outside = mod(N_crosses, 2) == 0
 
-        ! if (outside) then
-        !     write(*,*) "!!!!!!!!!!!!!!!!!!!!  vertex outside of loop !!!!!!!!!!!!!!!!!!!!!!!!!!!"
-        ! end if
-        
     end function surface_mesh_control_point_outside_mesh
 
 
@@ -3203,6 +3222,60 @@ contains
     end subroutine surface_mesh_write_control_points
 
 
+
+    !!!!!!!!!!!!!!!!!!!!!!!!!!! Adjoint subroutines !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+    subroutine surface_mesh_perturb_vertex(this, settings) 
+
+        implicit none
+
+        class(surface_mesh),intent(inout) :: this
+        type(json_value),pointer,intent(in) :: settings
+
+        integer :: point_index, xyz_index, i
+        real :: step
+        character(10) :: xyz_char, step_char
+
+        ! get point and xyz index that will be perturbed, and step size
+        if (this%perturb_point) then
+            call json_xtnsn_get(settings, 'perturbation.point_index', point_index)
+            call json_xtnsn_get(settings, 'perturbation.xyz_index', xyz_index)
+            call json_xtnsn_get(settings, 'perturbation.step', step)
+        end if
+
+        ! determine x, y, or z character
+        if (xyz_index == 1) then
+            xyz_char = "x"
+        elseif (xyz_index == 2) then
+            xyz_char = "y"
+        elseif (xyz_index == 3) then
+            xyz_char = "z"
+        end if
+
+        ! determine step direction
+        if (step > 0.0) then
+            step_char = " up"
+        else
+            step_char = " down"
+        end if
+
+        ! perturb the vertex
+        write(*,*) "     Input specified a vertex perturbation"
+        write(*,'(A, A1, A, I3, A5, A, ES10.4)') "          Perturbing the ", xyz_char, " coordinate of vertex ",&
+         point_index, step_char, " by ", abs(step)
+        write(*,'(A, F12.10)') "          Original Value:  ", this%vertices(point_index)%loc(xyz_index)
+        this%vertices(point_index)%loc(xyz_index) = this%vertices(point_index)%loc(xyz_index) + step
+        write(*,'(A, F12.10)') "          Perturbed Value: ", this%vertices(point_index)%loc(xyz_index)
+
+        ! now we need to update the panel geometry dependent on vertex location
+        do i =1,this%N_panels
+            deallocate(this%panels(i)%n_hat_g)
+            call this%panels(i)%calc_derived_geom()
+        end do
+
+    end subroutine surface_mesh_perturb_vertex
+
+
     subroutine surface_mesh_init_adjoint(this)
         ! if adjoint calculation is true, this will calculate panel sensitivities
     
@@ -3557,32 +3630,32 @@ contains
             ! Check if the control point is outside the mesh
             get_back_in_loop: do while (this%control_point_outside_mesh(cp_locs(:,i), i))
             
-            ! Loop through neighboring panels to find ones the control point is outside
-            n_avg = 0.
-            
-            
-            do j=1,this%vertices(i)%panels%len()
+                ! Loop through neighboring panels to find ones the control point is outside
+                n_avg = 0.
                 
-                ! Get panel index
-                call this%vertices(i)%panels%get(j, i_panel)
                 
-                ! Check if it's above the original panel
-                if (this%panels(i_panel)%point_above(cp_locs(:,i), .false.)) then
-                    n_avg = n_avg + this%panels(i_panel)%get_weighted_normal_at_corner(this%vertices(i)%loc)
+                do j=1,this%vertices(i)%panels%len()
                     
-                end if
+                    ! Get panel index
+                    call this%vertices(i)%panels%get(j, i_panel)
+                    
+                    ! Check if it's above the original panel
+                    if (this%panels(i_panel)%point_above(cp_locs(:,i), .false.)) then
+                        n_avg = n_avg + this%panels(i_panel)%get_weighted_normal_at_corner(this%vertices(i)%loc)
+                        
+                    end if
+                    
+                end do
                 
-            end do
+                ! A control point on the mirror plane should stay there
+                if (this%vertices(i)%on_mirror_plane) then
+                    write(*,*)"Warning: calc_adjoint can't handle mirrored yet. &
+                    check surface_mesh_get_cp_locs_vertex_interior_adjoint. Quitting..."
+                    stop
+                    n_avg(this%mirror_plane) = 0.
+                end if
             
-            ! A control point on the mirror plane should stay there
-            if (this%vertices(i)%on_mirror_plane) then
-                write(*,*)"Warning: calc_adjoint can't handle mirrored yet. &
-                check surface_mesh_get_cp_locs_vertex_interior_adjoint. Quitting..."
-                stop
-                n_avg(this%mirror_plane) = 0.
-            end if
-            
-            ! If there were no panels this control point was above, then exit
+                ! If there were no panels this control point was above, then exit
                 if (norm2(n_avg) < 1.e-16) exit get_back_in_loop
                 
                 ! calc norm of n_avg
@@ -3646,7 +3719,6 @@ contains
             end if
             ! If there were panels this control point was above, then calc a new cp offset and derivative
             if (.not. (norm2(n_avg) < 1.e-16)) then
-                write(*,*) "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!Check inside if statement, i =",i
                 ! calc norm of n_avg
                 norm_of_n_avg = norm2(n_avg)
                 
