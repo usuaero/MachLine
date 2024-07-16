@@ -3,6 +3,9 @@ from tkinter import ttk
 from tkinter import filedialog
 import numpy as np
 import json
+import subprocess as sp
+
+
 def check_inputs():
     # declare global variables
     global mach, alpha, beta, trefftz_distance, N_panels, cp_offset, reference_area,errorList
@@ -32,10 +35,6 @@ def check_inputs():
         errorList.append("Reference area must be specified")
     if not wake_type.get():
         errorList.append("Wake type must be specified")
-    if not wake_present.get():
-        errorList.append("Wake present must be specified")
-    if not run_checks.get():
-        errorList.append("Run checks must be specified")
     if not pressure_rules.get():
         errorList.append("Pressure rules must be specified")
     # if not study_directory.get():
@@ -168,9 +167,6 @@ def get_freestream_velocity(alpha_L, beta_L, spanwise_axis, chordwise_axis):
     forward = forward * freestream_velocity[0]
     span = span * freestream_velocity[1]
     down = down * freestream_velocity[2]
-    print(forward)
-    print(span)
-    print(down)
 
     freestream_velocity = forward + span + down
     return freestream_velocity
@@ -178,6 +174,8 @@ def get_freestream_velocity(alpha_L, beta_L, spanwise_axis, chordwise_axis):
 
 
 def generate_machline_input(*args):
+    global progressGenerate
+    progressGenerate['value'] = 1
     global errorList
     errorList = []
     # check inputs
@@ -192,7 +190,7 @@ def generate_machline_input(*args):
 
     # get velocity
     velocity = get_freestream_velocity(alpha,beta,spanwise_axis.get(),chordwise_axis.get())
-
+    progressGenerate['value'] = 2
     # create input file
     input_dict = {
         "flow": {
@@ -234,24 +232,87 @@ def generate_machline_input(*args):
             "body_file" : results_file,
             "wake_file" : wake_file,
             "report_file" : report_file,
-            "control_point_file" : control_point_file
+            "control_point_file" : control_point_file,
+            "verbose" : False,
+
         }
     }
     # Dump
+    global input_file
     input_file = rootDir+"/input.json"
+    progressGenerate['value'] = 3
     write_input_file(input_dict, input_file)
+    progressGenerate['value'] = 5
+    if len(errorList) != 0:
+        errorList.append("Input file not generated")
+        errorText.set(errorList)
+        progressGenerate['value'] = 0
 
 
-def browse_study_directory():
+def button_run_machline():
+    # Run MachLine
+    try:
+        report = run_machline(input_file)
+    except:
+        errorList.append("Invalid Directory")
+        errorText.set(errorList)
+        return
+
+    # check run status
+    status = report["solver_results"]["solver_status_code"]
+
+    if status == 0:
+        # Pull out forces
+        C_F = np.zeros(3)
+        C_M = np.zeros(3)
+        C_F[0] = report["total_forces"]["Cx"]
+        C_F[1] = report["total_forces"]["Cy"]
+        C_F[2] = report["total_forces"]["Cz"]
+        C_M[0] = report["total_moments"]["CMx"]
+        C_M[1] = report["total_moments"]["CMy"]
+        C_M[2] = report["total_moments"]["CMz"]
+
+        # Get system dimension and average characteristic length
+        N_sys = report["solver_results"]["system_dimension"]
+        l_avg = report["mesh_info"]["average_characteristic_length"]
+        C_xS.set(C_F[0])
+        C_yS.set(C_F[1])
+        C_zS.set(C_F[2])
+        C_MxS.set(C_M[0])
+        C_MyS.set(C_M[1])
+        C_MzS.set(C_M[2])
+        N_sysS.set(N_sys)
+        l_avgS.set(l_avg)
+        
+    else: 
+        errorList.append("Solver failed with code: "+str(status))
+        errorText.set(errorList)
     
-    study_directory = filedialog.askdirectory()
-    study_directory_entry.delete(0, END)
-    study_directory_entry.insert(0, study_directory)
 
-def browse_input_filename():
-    input_filename = filedialog.askopenfilename(filetypes=[("JSON files", "*.json")])
-    input_filename_entry.delete(0, END)
-    input_filename_entry.insert(0, input_filename)
+    return N_sys, l_avg, C_F
+
+def run_machline(input_filename, run=True):
+    """Runs MachLine with the given input and returns the report if MachLine generated one."""
+
+    # Run
+    if run:
+        sp.run(["./machline.exe", input_filename])
+
+    # Get report
+    with open(input_filename, 'r') as input_handle:
+        input_dict = json.load(input_handle)
+    report_file = input_dict["output"].get("report_file")
+    if report_file is not None:
+        try:
+            with open(report_file) as report_handle:
+                report = json.load(report_handle)
+        except:
+            report = None
+    else:
+        report = None
+
+    return report
+
 
 def browse_mesh_filename():
     mesh_filename = filedialog.askopenfilename(filetypes=[(".vtk", "*.vtk"),(".stl", "*.stl"),(".tri", "*.tri"),("All files", "*.*")])
@@ -275,11 +336,11 @@ def write_input_file(input_dict, input_filename):
         
 root = Tk()
 root.title("MachLine")
-small = PhotoImage(file="32Logo.png")
-big = PhotoImage(file="64Logo.png")
-smaller = PhotoImage(file="16Logo.png")
-root.iconphoto(False, smaller, smaller)
-# root.iconbitmap("AeroLabLogo.ico")
+# small = PhotoImage(file="32Logo.png")
+# big = PhotoImage(file="64Logo.png")
+# smaller = PhotoImage(file="16Logo.png")
+# root.iconphoto(False, smaller, smaller)
+root.iconbitmap("AeroLabLogo.ico")
 # root.iconphoto(False, PhotoImage(file="AeroLabLogo.png"))
 
 mainframe = ttk.Frame(root, padding="3 3 12 12")
@@ -470,7 +531,7 @@ elif pressure_rules_entry.selection_includes(2):
 elif pressure_rules_entry.selection_includes(3):
     slender_body = True
 elif pressure_rules_entry.selection_includes(4):
-    linear
+    linear = True
 else:
     incompressible = False
     isentropic = True
@@ -496,23 +557,60 @@ ttk.Button(outputFrame, text="Browse", command=browse_output_directory).grid(col
 
 
 
-
-
-
-
-
-
-
-
-
-
-
+# control panel
 sectionRow += 1
-ttk.Button(mainframe, text="Generate Input", command=generate_machline_input).grid(column=0, row=sectionRow, sticky=W)
-
-
+controlFrame = ttk.Frame(mainframe)
+controlFrame.grid(column=0, row=sectionRow, sticky=(W,E))
+controlFrame.columnconfigure(0, weight=1)
+controlFrame.rowconfigure(0, weight=1)
+row = 0
+ttk.Button(controlFrame, text="Generate Input", command=generate_machline_input).grid(column=0, row=row, sticky=(W,E))
+row +=1
+progressGenerate = ttk.Progressbar(controlFrame, orient=HORIZONTAL, length=100, mode='determinate',maximum=5)
+progressGenerate.grid(column=0, row=row, sticky=(W,E))
+row +=1
+ttk.Button(controlFrame, text="Run MachLine", command=button_run_machline).grid(column=0, row=row, sticky=(W,E))
+row +=1
 errorText = StringVar()
 ttk.Label(mainframe,textvariable=errorText)
+
+
+# results table
+resultsFrame = ttk.Frame(mainframe)
+resultsFrame.grid(column=1, row=0,rowspan=sectionRow, sticky=(W,E,N,S))
+C_xS = StringVar(value="0.0")
+C_yS = StringVar(value="0.0")
+C_zS = StringVar(value="0.0")
+C_MxS = StringVar(value="0.0")
+C_MyS = StringVar(value="0.0")
+C_MzS = StringVar(value="0.0")
+N_sysS = StringVar(value="0.0")
+l_avgS = StringVar(value="0.0")
+row = 0
+ttk.Label(resultsFrame, text="N_sys").grid(column=0, row=row, sticky=(W,E))
+ttk.Label(resultsFrame, textvariable=N_sysS).grid(column=1, row=row, sticky=(W,E))
+row += 1
+ttk.Label(resultsFrame, text="l_avg").grid(column=0, row=row, sticky=(W,E))
+ttk.Label(resultsFrame, textvariable=l_avgS).grid(column=1, row=row, sticky=(W,E))
+row += 1
+ttk.Label(resultsFrame, text="C_x").grid(column=0, row=row, sticky=(W,E))
+ttk.Label(resultsFrame, textvariable=C_xS).grid(column=1, row=row, sticky=(W,E))
+row += 1
+ttk.Label(resultsFrame, text="C_y").grid(column=0, row=row, sticky=(W,E))
+ttk.Label(resultsFrame, textvariable=C_yS).grid(column=1, row=row, sticky=(W,E))
+row += 1
+ttk.Label(resultsFrame, text="C_z").grid(column=0, row=row, sticky=(W,E))
+ttk.Label(resultsFrame, textvariable=C_zS).grid(column=1, row=row, sticky=(W,E))
+row += 1
+ttk.Label(resultsFrame, text="C_Mx").grid(column=0, row=row, sticky=(W,E))
+ttk.Label(resultsFrame, textvariable=C_MxS).grid(column=1, row=row, sticky=(W,E))
+row += 1
+ttk.Label(resultsFrame, text="C_My").grid(column=0, row=row, sticky=(W,E))
+ttk.Label(resultsFrame, textvariable=C_MyS).grid(column=1, row=row, sticky=(W,E))
+row += 1
+ttk.Label(resultsFrame, text="C_Mz").grid(column=0, row=row, sticky=(W,E))
+ttk.Label(resultsFrame, textvariable=C_MzS).grid(column=1, row=row, sticky=(W,E))
+
 
 
 
