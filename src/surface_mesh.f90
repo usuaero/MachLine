@@ -4017,7 +4017,7 @@ contains
             
             ! deallocate stuff that wasn't actually used
             deallocate(sum_d_n_avg%columns)
-            
+
             ! clean up i loop variables
             deallocate(d_dir%columns)
         end do
