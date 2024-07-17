@@ -148,7 +148,7 @@ if __name__=="__main__":
     # declare varaibles and inputs
     tStart = time.time()
     alpha = 0
-    num_cases = 500
+    num_cases = 1000
     # mach = 2.0
     wake_present = False
     # wake_type = "panel"
