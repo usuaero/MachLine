@@ -3571,7 +3571,259 @@ contains
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Dirichlet adjoint procedures!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
+    !!!!!!!!! archived subroutine while I mess around with it
+    ! subroutine surface_mesh_get_cp_locs_vertex_based_interior_adjoint(this, offset, offset_type, freestream, cp_locs, d_cp_locs)
+    !     ! Returns the locations of interior vertex-based control points
+    !     ! Takes vertex clones into account
 
+    !     implicit none
+        
+    !     class(surface_mesh),intent(inout) :: this
+    !     real,intent(in) :: offset
+    !     character(len=:),allocatable,intent(in) :: offset_type
+    !     type(flow),intent(in) :: freestream
+    !     real,dimension(:,:),allocatable,intent(inout) :: cp_locs
+    !     type(sparse_3D),intent(inout):: d_cp_locs
+
+    !     integer :: i, j, i_panel
+    !     real,dimension(3) :: dir, new_dir, n_avg, disp, new_dir_final
+    !     real :: this_offset, norm_of_n_avg, norm_of_new_dir
+    !     type(sparse_vector) ::  d_norm_of_n_avg, d_norm_of_new_dir, d_new_dir_term2, d_new_dir_term3
+    !     type(sparse_matrix) :: d_dir, sum_d_n_avg, d_n_avg, d_n_avg_final, hi_d_low, d_disp
+    !     type(sparse_matrix) :: d_new_dir, d_new_dir_term1, d_new_dir_final
+
+    
+    !     ! Loop through vertices
+    !     !$OMP parallel do private(j, i_panel, dir, new_dir, n_avg, disp, new_dir_final, d_new_dir_term2, &
+    !     !$OMP this_offset, norm_of_n_avg, norm_of_new_dir, d_norm_of_n_avg, d_norm_of_new_dir, &
+    !     !$OMP d_new_dir_term3, d_dir, sum_d_n_avg, d_n_avg, d_n_avg_final, hi_d_low, d_disp, &
+    !     !$OMP d_new_dir, d_new_dir_term1, d_new_dir_final) &
+    !     !$OMP & schedule(dynamic) shared(this, offset, freestream, offset_type)
+    !     do i=1,this%N_verts
+
+    !         ! If the vertex is a clone, it needs to be shifted off the normal slightly so that it is unique from its counterpart
+    !         if (this%vertices(i)%clone) then
+
+    !             dir = this%get_clone_control_point_dir(i)
+    !             d_dir = this%get_clone_control_point_dir_adjoint(i)
+                
+    !         ! If it has no clone, then placement simply follows the average normal vector
+    !         else
+
+    !             ! Set direction simply off of the average normal vector
+    !             dir = -this%vertices(i)%n_g
+    !             call d_dir%init_from_sparse_matrix(this%vertices(i)%d_n_g)
+    !             call d_dir%broadcast_element_times_scalar(-1.)
+
+    !         end if
+
+    !         ! Determine offset
+    !         select case (offset_type)
+
+    !         case ('local')
+    !             write(*,*) "Adjoint calc doesn't allow for local offset at this time. Quitting..."
+    !             stop
+    !             this_offset = offset*this%vertices(i)%l_avg
+
+    !         case default ! Direct
+    !             this_offset = offset
+
+    !         end select
+    !         ! Initialize control point
+    !         cp_locs(:,i) = this%vertices(i)%loc + this_offset*dir
+            
+    !         ! initialize d_cp_locs
+    !         call d_cp_locs%rows(i)%init_from_sparse_matrix(d_dir)
+    !         call d_cp_locs%rows(i)%broadcast_element_times_scalar(this_offset)
+            
+    !         call d_cp_locs%rows(i)%sparse_add(this%vertices(i)%d_loc)
+            
+    !         ! Check if the control point is outside the mesh
+    !         get_back_in_loop: do while (this%control_point_outside_mesh(cp_locs(:,i), i))
+            
+    !             ! Loop through neighboring panels to find ones the control point is outside
+    !             n_avg = 0.
+                
+                
+    !             do j=1,this%vertices(i)%panels%len()
+                    
+    !                 ! Get panel index
+    !                 call this%vertices(i)%panels%get(j, i_panel)
+                    
+    !                 ! Check if it's above the original panel
+    !                 if (this%panels(i_panel)%point_above(cp_locs(:,i), .false.)) then
+    !                     n_avg = n_avg + this%panels(i_panel)%get_weighted_normal_at_corner(this%vertices(i)%loc)
+                        
+    !                 end if
+                    
+    !             end do
+                
+    !             ! A control point on the mirror plane should stay there
+    !             if (this%vertices(i)%on_mirror_plane) then
+    !                 write(*,*)"Warning: calc_adjoint can't handle mirrored yet. &
+    !                 check surface_mesh_get_cp_locs_vertex_interior_adjoint. Quitting..."
+    !                 stop
+    !                 n_avg(this%mirror_plane) = 0.
+    !             end if
+            
+    !             ! If there were no panels this control point was above, then exit
+    !             if (norm2(n_avg) < 1.e-16) exit get_back_in_loop
+                
+    !             ! calc norm of n_avg
+    !             norm_of_n_avg = norm2(n_avg)
+                
+    !             ! normalize average normal vector 
+    !             n_avg = n_avg/norm_of_n_avg
+                
+    !             disp = cp_locs(:,i)- this%vertices(i)%loc
+                
+    !             new_dir = disp - 1.1*n_avg*inner(disp, n_avg)
+                
+    !             ! calc norm of n_avg
+    !             norm_of_new_dir = norm2(new_dir)
+                
+    !             ! calculate the norm of new_dir
+    !             new_dir_final = new_dir/norm_of_new_dir
+                
+    !             ! new cp_loc
+    !             cp_locs(:,i)= this%vertices(i)%loc + this_offset*new_dir_final
+                
+                
+    !         end do get_back_in_loop
+            
+    !         ! now that we are inside the mesh, calc the d_cp_loc (this avoids calculating d_cp_loc until 
+    !         ! we are at an inside cp_loc) there are some repeat calcs here.
+            
+    !         ! Loop through neighboring panels to find ones the control point is outside
+    !         n_avg = 0.
+            
+    !         ! init adjoint terms
+    !         call sum_d_n_avg%init(this%adjoint_size)
+            
+    !         do j=1,this%vertices(i)%panels%len()
+                
+    !             ! Get panel index
+    !             call this%vertices(i)%panels%get(j, i_panel)
+                
+    !             ! Check if it's above the original panel
+    !             if (this%panels(i_panel)%point_above(cp_locs(:,i), .false.)) then
+    !                 n_avg = n_avg + this%panels(i_panel)%get_weighted_normal_at_corner(this%vertices(i)%loc)
+                    
+    !                 ! get d_n_avg 
+    !                 d_n_avg = this%panels(i_panel)%calc_d_weighted_normal(this%vertices(i)%loc)
+                    
+    !                 ! add the d_n_avg_j
+    !                 call sum_d_n_avg%sparse_add(d_n_avg)
+                    
+    !                 deallocate(d_n_avg%columns)
+                    
+    !             end if
+                
+    !         end do
+            
+    !         ! A control point on the mirror plane should stay there
+    !         if (this%vertices(i)%on_mirror_plane) then
+    !             write(*,*)"Warning: calc_adjoint can't handle mirrored yet. &
+    !             check surface_mesh_get_cp_locs_vertex_interior_adjoint. Quitting..."
+    !             stop
+    !             n_avg(this%mirror_plane) = 0.
+    !         end if
+    !         ! If there were panels this control point was above, then calc a new cp offset and derivative
+    !         if (.not. (norm2(n_avg) < 1.e-16)) then
+    !             ! calc norm of n_avg
+    !             norm_of_n_avg = norm2(n_avg)
+                
+    !             ! calc d_norm_of_n_avg
+    !             d_norm_of_n_avg = sum_d_n_avg%broadcast_vector_dot_element(n_avg)
+    !             call d_norm_of_n_avg%broadcast_element_times_scalar(1./norm_of_n_avg)
+                
+    !             ! adjoint Normalized n_avg 
+    !             call d_n_avg_final%init_from_sparse_matrix(sum_d_n_avg)
+    !             call d_n_avg_final%broadcast_element_times_scalar(norm_of_n_avg)
+                
+    !             hi_d_low = d_norm_of_n_avg%broadcast_element_times_vector(n_avg)
+                
+    !             call d_n_avg_final%sparse_subtract(hi_d_low)
+    !             call d_n_avg_final%broadcast_element_times_scalar(1./(inner(n_avg,n_avg)))
+                
+    !             ! deallocate stuff
+    !             deallocate(sum_d_n_avg%columns, hi_d_low%columns, d_norm_of_n_avg%elements)
+
+    !             !!!! end calc derivative of normalized average normal vector !!!!!!!
+                
+    !             ! normalize average normal vector 
+    !             n_avg = n_avg/norm_of_n_avg
+                
+    !             disp = cp_locs(:,i)- this%vertices(i)%loc
+                
+    !             ! derivative of disp
+                
+    !             call d_disp%init_from_sparse_matrix(d_cp_locs%rows(i))
+    !             call d_disp%sparse_subtract(this%vertices(i)%d_loc)
+                
+    !             new_dir = disp - 1.1*n_avg*inner(disp, n_avg)
+
+    !             ! derivative of new_dir
+    !             call d_new_dir_term1%init_from_sparse_matrix(d_n_avg_final)
+    !             call d_new_dir_term1%broadcast_element_times_scalar(-1.1*inner(disp,n_avg))
+                
+    !             d_new_dir_term2 = d_disp%broadcast_vector_dot_element(n_avg)
+    !             d_new_dir_term3 = d_n_avg_final%broadcast_vector_dot_element(disp)
+    !             call d_new_dir_term2%sparse_add(d_new_dir_term3)
+                
+    !             d_new_dir =  d_new_dir_term2%broadcast_element_times_vector(-1.1*n_avg)
+                
+    !             call d_new_dir%sparse_add(d_disp)
+    !             call d_new_dir%sparse_add(d_new_dir_term1)
+                
+                
+    !             ! calc norm of n_avg
+    !             norm_of_new_dir = norm2(new_dir)
+                
+    !             ! calc derivative of the norm of new_dir
+    !             d_norm_of_new_dir = d_new_dir%broadcast_vector_dot_element(new_dir)
+    !             call d_norm_of_new_dir%broadcast_element_times_scalar(1./norm_of_new_dir)
+                
+                
+    !             !!!! adjoint Normalized new_dir_final !!!
+    !             call d_new_dir_final%init_from_sparse_matrix(d_new_dir)
+    !             call d_new_dir_final%broadcast_element_times_scalar(norm_of_new_dir)
+                
+    !             hi_d_low = d_norm_of_new_dir%broadcast_element_times_vector(new_dir)
+                
+    !             call d_new_dir_final%sparse_subtract(hi_d_low)
+    !             call d_new_dir_final%broadcast_element_times_scalar(1./(inner(new_dir,new_dir)))
+                
+    !             ! deallocate stuff
+    !             deallocate(d_n_avg_final%columns, d_disp%columns)
+    !             deallocate(d_new_dir%columns, hi_d_low%columns, d_norm_of_new_dir%elements)
+    !             !!!! end adjoint Normalized new_dir_final !!!
+                
+                
+    !             ! calculate the norm of new_dir
+    !             new_dir_final = new_dir/norm_of_new_dir
+                
+    !             ! new cp_loc
+    !             cp_locs(:,i)= this%vertices(i)%loc + this_offset*new_dir_final
+                
+    !             ! new d_cp_loc
+    !             call d_cp_locs%rows(i)%init_from_sparse_matrix(d_new_dir)
+    !             call d_cp_locs%rows(i)%broadcast_element_times_scalar(this_offset)
+                
+    !             call d_cp_locs%rows(i)%sparse_add(this%vertices(i)%d_loc)
+    !         else
+    !             ! deallocate stuff that wasn't actually used
+    !             deallocate(sum_d_n_avg%columns)
+    !         end if
+        
+    !         ! clean up loop variables
+    !         deallocate(d_dir%columns)
+    !     end do
+    
+    ! end subroutine surface_mesh_get_cp_locs_vertex_based_interior_adjoint
+    
+    
+    !!!!!!!! begin trial subroutine !!!!!!!!!!!
     subroutine surface_mesh_get_cp_locs_vertex_based_interior_adjoint(this, offset, offset_type, freestream, cp_locs, d_cp_locs)
         ! Returns the locations of interior vertex-based control points
         ! Takes vertex clones into account
@@ -3644,6 +3896,8 @@ contains
                 ! Loop through neighboring panels to find ones the control point is outside
                 n_avg = 0.
                 
+                ! init adjoint terms
+                call sum_d_n_avg%init(this%adjoint_size)
                 
                 do j=1,this%vertices(i)%panels%len()
                     
@@ -3654,6 +3908,13 @@ contains
                     if (this%panels(i_panel)%point_above(cp_locs(:,i), .false.)) then
                         n_avg = n_avg + this%panels(i_panel)%get_weighted_normal_at_corner(this%vertices(i)%loc)
                         
+                        ! get d_n_avg 
+                        d_n_avg = this%panels(i_panel)%calc_d_weighted_normal(this%vertices(i)%loc)
+                        
+                        ! add the d_n_avg_j
+                        call sum_d_n_avg%sparse_add(d_n_avg)
+                        
+                        deallocate(d_n_avg%columns)
                     end if
                     
                 end do
@@ -3669,67 +3930,6 @@ contains
                 ! If there were no panels this control point was above, then exit
                 if (norm2(n_avg) < 1.e-16) exit get_back_in_loop
                 
-                ! calc norm of n_avg
-                norm_of_n_avg = norm2(n_avg)
-                
-                ! normalize average normal vector 
-                n_avg = n_avg/norm_of_n_avg
-                
-                disp = cp_locs(:,i)- this%vertices(i)%loc
-                
-                new_dir = disp - 1.1*n_avg*inner(disp, n_avg)
-                
-                ! calc norm of n_avg
-                norm_of_new_dir = norm2(new_dir)
-                
-                ! calculate the norm of new_dir
-                new_dir_final = new_dir/norm_of_new_dir
-                
-                ! new cp_loc
-                cp_locs(:,i)= this%vertices(i)%loc + this_offset*new_dir_final
-                
-                
-            end do get_back_in_loop
-            
-            ! now that we are inside the mesh, calc the d_cp_loc (this avoids calculating d_cp_loc until 
-            ! we are at an inside cp_loc) there are some repeat calcs here.
-            
-            ! Loop through neighboring panels to find ones the control point is outside
-            n_avg = 0.
-            
-            ! init adjoint terms
-            call sum_d_n_avg%init(this%adjoint_size)
-            
-            do j=1,this%vertices(i)%panels%len()
-                
-                ! Get panel index
-                call this%vertices(i)%panels%get(j, i_panel)
-                
-                ! Check if it's above the original panel
-                if (this%panels(i_panel)%point_above(cp_locs(:,i), .false.)) then
-                    n_avg = n_avg + this%panels(i_panel)%get_weighted_normal_at_corner(this%vertices(i)%loc)
-                    
-                    ! get d_n_avg 
-                    d_n_avg = this%panels(i_panel)%calc_d_weighted_normal(this%vertices(i)%loc)
-                    
-                    ! add the d_n_avg_j
-                    call sum_d_n_avg%sparse_add(d_n_avg)
-                    
-                    deallocate(d_n_avg%columns)
-                    
-                end if
-                
-            end do
-            
-            ! A control point on the mirror plane should stay there
-            if (this%vertices(i)%on_mirror_plane) then
-                write(*,*)"Warning: calc_adjoint can't handle mirrored yet. &
-                check surface_mesh_get_cp_locs_vertex_interior_adjoint. Quitting..."
-                stop
-                n_avg(this%mirror_plane) = 0.
-            end if
-            ! If there were panels this control point was above, then calc a new cp offset and derivative
-            if (.not. (norm2(n_avg) < 1.e-16)) then
                 ! calc norm of n_avg
                 norm_of_n_avg = norm2(n_avg)
                 
@@ -3811,17 +4011,23 @@ contains
                 call d_cp_locs%rows(i)%broadcast_element_times_scalar(this_offset)
                 
                 call d_cp_locs%rows(i)%sparse_add(this%vertices(i)%d_loc)
-            else
-                ! deallocate stuff that wasn't actually used
-                deallocate(sum_d_n_avg%columns)
-            end if
-        
-            ! clean up loop variables
+                
+                
+            end do get_back_in_loop
+            
+            ! deallocate stuff that wasn't actually used
+            deallocate(sum_d_n_avg%columns)
+            
+            ! clean up i loop variables
             deallocate(d_dir%columns)
         end do
     
     end subroutine surface_mesh_get_cp_locs_vertex_based_interior_adjoint
 
+    !!!!!!!! end trial subroutine !!!!!!!!!!!
+
+
+    
     function surface_mesh_get_clone_control_point_dir_adjoint(this, i_vert) result(d_dir_final)
         ! Calculates the offset direction for the control point associated with the cloned vertex
 

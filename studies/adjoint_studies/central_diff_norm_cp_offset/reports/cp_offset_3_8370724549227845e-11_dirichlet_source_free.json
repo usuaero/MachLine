@@ -1,0 +1,82 @@
+{
+    "info" : {
+        "generated_by" : "MachLine (c) 2023 USU Aerolab",
+        "executed" : "Wed Jul 17 16:10:32 2024"
+    },
+    "mesh_info" : {
+        "N_body_panels" : 48,
+        "N_body_vertices" : 26,
+        "N_wake_panels" : 0,
+        "N_wake_filaments" : 0,
+        "average_characteristic_length" : 4.76931461379173E-001,
+        "max_flow_turning_angle" : 9.00000000000000E+001
+    },
+    "solver_results" : {
+        "solver_status_code" : 0,
+        "system_dimension" : 26,
+        "timing" : {
+            "system_sorting" : 2.10000000000000E-006,
+            "preconditioner" : 9.50000000000000E-006,
+            "matrix_solver" : 1.86000000000000E-005
+        },
+        "iterations" : 6,
+        "residual" : {
+            "max" : 4.08562073062058E-014,
+            "norm" : 7.67382323884243E-014
+        }
+    },
+    "pressure_calculations" : {
+        "incompressible_rule" : {
+            "max" : 6.44570439813239E-001,
+            "min" : -6.48264523792388E-001
+        }
+    },
+    "total_forces" : {
+        "Cx" : -3.13235658373767E-006,
+        "Cy" : -8.29231861336488E-007,
+        "Cz" : -3.66290978993586E-006
+    },
+    "total_moments" : {
+        "CMx" : 1.43599179422416E-010,
+        "CMy" : 1.33685224546626E-007,
+        "CMz" : 2.64699431539589E-006
+    },
+    "input" : {
+        "flow" : {
+            "freestream_velocity" : [
+                    1.00000000000000E+000,
+                    0.00000000000000E+000,
+                    0.00000000000000E+000
+                ]
+        },
+        "geometry" : {
+            "file" : "studies/adjoint_studies/central_diff_norm_cp_offset/meshes/sphere_coarse2.stl",
+            "wake_model" : {
+                "wake_present" : false
+            },
+            "adjoint_sensitivities" : {
+                "calc_adjoint" : false
+            },
+            "perturbation" : {
+                "perturb_point" : true,
+                "point_index" : 25,
+                "xyz_index" : 1,
+                "step" : 1.00000000000000E-005
+            }
+        },
+        "solver" : {
+            "formulation" : "dirichlet-source-free",
+            "control_point_offset" : 3.83707245492278E-011,
+            "matrix_solver" : "GMRES"
+        },
+        "post_processing" : {
+            "pressure_rules" : {
+                "incompressible" : true
+            }
+        },
+        "output" : {
+            "report_file" : "studies/adjoint_studies/central_diff_norm_cp_offset/reports/cp_offset_3_8370724549227845e-11_dirichlet_source_free.json"
+        }
+    },
+    "total_runtime" : 1.60000000000000E-002
+}
