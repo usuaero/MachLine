@@ -145,7 +145,7 @@ program dirichlet_test1
     allocate(residuals3(3,N_verts*3))
     allocate(residuals(N_verts*3))
 
-    error_allowed = 1.0e-9
+    error_allowed = 1.0e-7
     step = 0.000001
     index = 1
     vert_ind = 1

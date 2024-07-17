@@ -2047,6 +2047,8 @@ contains
         real,dimension(3) :: dir, new_dir, n_avg, disp
         real :: this_offset
 
+        logical :: outside
+
       
         ! Allocate memory
         allocate(cp_locs(3,this%N_verts))
@@ -2083,10 +2085,19 @@ contains
             ! Initialize control point
             cp_locs(:,i) = this%vertices(i)%loc + this_offset*dir
 
+            
             ! Check if the control point is outside the mesh
             get_back_in_loop: do while (this%control_point_outside_mesh(cp_locs(:,i), i))
-                
-
+            
+                outside = this%control_point_outside_mesh(cp_locs(:,i), i)
+                if (outside) then
+                    write(*,*) "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                    write(*,*) "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                    write(*,*) "!!!!!!!!!!!!!!!  CP is  Outside  !!!!!!!!!!!!!!!!!!!!!!"
+                    write(*,*) "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                    write(*,*) "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+                end if
+            
                 ! Loop through neighboring panels to find ones the control point is outside
                 n_avg = 0.
                 do j=1,this%vertices(i)%panels%len()
@@ -3260,12 +3271,12 @@ contains
         end if
 
         ! perturb the vertex
-        write(*,*) "     Input specified a vertex perturbation"
-        write(*,'(A, A1, A, I3, A5, A, ES10.4)') "          Perturbing the ", xyz_char, " coordinate of vertex ",&
+        write(*,*) "    Input specified a vertex perturbation"
+        write(*,'(A, A1, A, I3, A5, A, ES10.4)') "         Perturbing the ", xyz_char, " coordinate of vertex ",&
          point_index, step_char, " by ", abs(step)
-        write(*,'(A, F12.10)') "          Original Value:  ", this%vertices(point_index)%loc(xyz_index)
+        write(*,'(A, F12.10)') "         Original Value:  ", this%vertices(point_index)%loc(xyz_index)
         this%vertices(point_index)%loc(xyz_index) = this%vertices(point_index)%loc(xyz_index) + step
-        write(*,'(A, F12.10)') "          Perturbed Value: ", this%vertices(point_index)%loc(xyz_index)
+        write(*,'(A, F12.10)') "         Perturbed Value: ", this%vertices(point_index)%loc(xyz_index)
 
         ! now we need to update the panel geometry dependent on vertex location
         do i =1,this%N_panels

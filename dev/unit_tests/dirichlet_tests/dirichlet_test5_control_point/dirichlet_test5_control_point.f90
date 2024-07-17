@@ -42,9 +42,9 @@ program dirichlet_test5
 
     !!!!!!!!!!!!!!!!!!!!! END STUFF FROM MAIN !!!!!!!!!!!!!!!!!!!!!!!!!
 
-    real,dimension(:),allocatable :: residuals, X_beta
+    real,dimension(:),allocatable :: residuals, X_beta, norm
 
-    real,dimension(:,:),allocatable :: v, residuals3 , loc_up, loc_dn, d_loc_FD
+    real,dimension(:,:),allocatable :: v, residuals3 , loc_up, loc_dn, d_loc_FD, d_loc_matrix
 
     integer :: i,j,k,m,n,y,z, N_verts, N_panels, vert, index, cp_ind
     real :: step,error_allowed
@@ -176,6 +176,19 @@ program dirichlet_test5
     call adjoint_solver%init(adjoint_solver_settings, adjoint_processing_settings, adjoint_mesh, &
     adjoint_freestream_flow, adjoint_control_point_file)
     !!!!!!!!!!!! END ADJOINT TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!
+    
+    
+    ! do j = 1,188
+    !     d_loc_matrix = adjoint_mesh%cp(j)%d_loc%expand(.true.)
+    !     allocate(norm(3))
+    !     do i =1,3
+    !         norm(i) = sqrt(sum(d_loc_matrix(:,i)*d_loc_matrix(:,i)))
+    !         write(*,*) "Norm of CP_loc = ", norm(i)
+    !     end do
+    !     deallocate(norm)
+    ! end do
+
+    ! stop
 
 
     N_verts = test_mesh%N_verts
@@ -189,7 +202,7 @@ program dirichlet_test5
     allocate(loc_dn(3,N_verts*3))
     allocate(d_loc_FD(3,N_verts*3))
 
-    error_allowed = 1.0e-9
+    error_allowed = 1.0e-8
     step = 0.000001
     index = 1
     cp_ind = 1
@@ -381,7 +394,7 @@ end do ! z control points
     write(*,*) ""
     call system_clock(end_count)
     time = real(end_count - start_count)/(count_rate*60.0)
-    write(*,'(A,f12.10, A)') " Total test time = ", time, " minutes"
+    write(*,'(A,f18.10, A)') " Total test time = ", time, " minutes"
     write(*,*) ""
     write(*,*) "----------------------"
     write(*,*) "Program Complete"

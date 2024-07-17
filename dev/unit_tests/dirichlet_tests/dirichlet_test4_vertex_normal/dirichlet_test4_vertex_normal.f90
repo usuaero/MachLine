@@ -147,7 +147,6 @@ program dirichlet_test4
     ! call adjoint_mesh%init_with_flow(adjoint_freestream_flow, adjoint_body_file, adjoint_wake_file, adjoint_formulation)
     !!!!!!!!!!! END ADJOINT TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!
 
-
     
     
     N_verts = test_mesh%N_verts

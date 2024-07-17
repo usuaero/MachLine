@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import json
 import subprocess as sp
 import time
+import sys
 
 
 
@@ -147,7 +148,7 @@ if __name__=="__main__":
     # declare varaibles and inputs
     tStart = time.time()
     alpha = 0
-    num_cases = 100
+    num_cases = 500
     # mach = 2.0
     wake_present = False
     # wake_type = "panel"
@@ -188,8 +189,10 @@ if __name__=="__main__":
         d_CFz[i] = np.zeros(points*3)
 
     # get spread of cp offsets
-    cp_offsets = np.logspace(-12,-1, num_cases)
-
+    cp_offsets = np.logspace(-12,0, num_cases+1)
+    cp_offsets = cp_offsets[:-1]
+    print(cp_offsets)
+    # sys.exit()
 
     # init plots for values of d_CFx, d_CFy, d_CFz
     figx, ax1 = plt.subplots(figsize=(10,6))
@@ -331,7 +334,6 @@ if __name__=="__main__":
     figz.savefig(study_directory + fig_file_fz)
     
     
-    plt.show()
 
 
     tEnd = time.time()
@@ -339,6 +341,7 @@ if __name__=="__main__":
 
     print("Machline ran " + str(run_count) + " times")
     
+    plt.show()
     
     
     
