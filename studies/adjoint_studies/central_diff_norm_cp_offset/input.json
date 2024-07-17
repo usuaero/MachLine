@@ -16,14 +16,14 @@
         },
         "perturbation": {
             "perturb_point": true,
-            "point_index": 25,
-            "xyz_index": 1,
+            "point_index": 11,
+            "xyz_index": 3,
             "step": -9.999999999999999e-06
         }
     },
     "solver": {
         "formulation": "dirichlet-source-free",
-        "control_point_offset": 3.872576449216165e-12,
+        "control_point_offset": 3.250872973854347e-08,
         "matrix_solver": "GMRES"
     },
     "post_processing": {
@@ -32,6 +32,6 @@
         }
     },
     "output": {
-        "report_file": "studies/adjoint_studies/central_diff_norm_cp_offset/reports/cp_offset_3_872576449216165e-12_dirichlet_source_free.json"
+        "report_file": "studies/adjoint_studies/central_diff_norm_cp_offset/reports/cp_offset_3_250872973854347e-08_dirichlet_source_free.json"
     }
 }

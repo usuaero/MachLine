@@ -4262,19 +4262,19 @@ contains
         real :: W
 
         type(sparse_vector) :: d_W
-        type(sparse_matrix) :: a,d_n_weighted
+        type(sparse_matrix) :: term1, d_n_weighted
 
         ! Get weight (angle)
         W = this%get_corner_angle(vert_loc)
 
         ! get weight sensitivity (d_angle)
         d_W = this%calc_d_corner_angle(vert_loc)
-        a = d_W%broadcast_element_times_vector(this%n_g)
+        term1 = d_W%broadcast_element_times_vector(this%n_g)
 
         ! calc d_n_weighted
         call d_n_weighted%init_from_sparse_matrix(this%d_n_g)
         call d_n_weighted%broadcast_element_times_scalar(W)
-        call d_n_weighted%sparse_add(a)
+        call d_n_weighted%sparse_add(term1)
 
     end function panel_calc_d_weighted_normal
 
@@ -4330,7 +4330,7 @@ contains
                 end if
 
                 ! divide by partial of inverse cos
-                call d_angle%broadcast_element_times_scalar(-1.0/sin(angle))
+                call d_angle%broadcast_element_times_scalar(-1.0/sqrt(1-x*x))
                 return
 
             end if
