@@ -1,0 +1,10 @@
+# VSP Tag Key File
+C:/Users/Josh/Documents/Codes/AeroLab/MachLine/studies/supersonic_double_wedge_wing_filaments/meshes/fullAircraft.tri
+6
+
+1,FuselageGeom_S_Surf0
+2,WingGeom_S_Surf0
+3,WingGeom_S_Surf1
+4,WingGeom_S_Surf0
+5,WingGeom_S_Surf1
+6,WingGeom_S_Surf0

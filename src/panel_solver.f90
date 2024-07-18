@@ -654,6 +654,13 @@ contains
                     ! end if
                     ! n_g_new = (/0,1,0/)
                     n_g_new = body%vertices(cp%tied_to_index)%n_g_wake
+                    ! if (body%vertices(cp%tied_to_index)%loc(2)>0) then
+                    !     ! n_g_new = (/-0.708956,-2.6415e-7,0.705253/)
+                    !     n_g_new = (/0.0,1.0,0.0/)
+                    ! else
+                    !     ! n_g_new = (/-0.708956,-2.6415e-7,-0.705253/)
+                    !     n_g_new = (/0.0,-1.0,0.0/)
+                    ! end if
                 else
                     ! if a vertex is part of a wake sheading edge use the wake's normal vector
                     ! n_g_new = body%vertices(cp%tied_to_index)%n_g_wake - freestream%c_hat_g&

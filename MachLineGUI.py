@@ -4,6 +4,11 @@ from tkinter import filedialog
 import numpy as np
 import json
 import subprocess as sp
+from stl import mesh
+from mpl_toolkits import mplot3d
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg, NavigationToolbar2Tk)
+from matplotlib import pyplot as plt
 
 
 def check_inputs():
@@ -233,7 +238,7 @@ def generate_machline_input(*args):
             "wake_file" : wake_file,
             "report_file" : report_file,
             "control_point_file" : control_point_file,
-            "verbose" : False,
+            "verbose" : verbose.get(),
 
         }
     }
@@ -333,14 +338,112 @@ def write_input_file(input_dict, input_filename):
     except:
         errorList.append("Invalid Directory")
         errorText.set(errorList)
-        
+
+
+def plot():
+    
+    if mesh_filename.get().endswith(".stl"):
+        fig = Figure()
+        axes = fig.add_subplot(projection='3d')
+        meshdata = mesh.Mesh.from_file(mesh_filename.get())
+        polyCollection = mplot3d.art3d.Poly3DCollection(meshdata.vectors)
+        polyCollection.set_edgecolor('k')
+        polyCollection.set_facecolor('red')
+        axes.add_collection3d(polyCollection)
+        scale = meshdata.points.flatten("F")
+        axes.auto_scale_xyz(scale, scale, scale)
+        axes.set_xlabel("X")
+        axes.set_ylabel("Y")
+        axes.set_zlabel("Z")
+    else:
+        global errorList
+        errorList.append("Invalid mesh file for plotting must be .stl")
+        errorText.set(errorList)
+
+    canvas = FigureCanvasTkAgg(fig, master=figureFrame)
+    canvas.draw()
+    toolbar = NavigationToolbar2Tk(canvas, figureFrame)
+    toolbar.update()
+    canvas.get_tk_widget().pack(side=TOP, fill=BOTH, expand=1)
+
+
+def get_json(file_path):
+    # import json file from file path
+    json_string = open(file_path).read()
+
+    # save to vals dictionary
+    input_dict = json.loads(json_string)
+    
+    return input_dict
+
+
+def load_json():
+    json_filename = filedialog.askopenfilename(filetypes=[(".json", "*.json"),("All files", "*.*")])
+    input_dict = get_json(json_filename)
+    V = np.zeros(3)
+    # set values
+    machS.set(input_dict["flow"]["freestream_mach_number"])
+    V[0] = input_dict["flow"]["freestream_velocity"][0]
+    V[1] = input_dict["flow"]["freestream_velocity"][1]
+    V[2] = input_dict["flow"]["freestream_velocity"][2]
+    trefftz_distanceS.set(input_dict["geometry"]["wake_model"].get("trefftz_distance", "20"))
+    N_panelsS.set(input_dict["geometry"]["wake_model"].get("N_panels", "1"))
+    cp_offsetS.set(input_dict["solver"].get("control_point_offset", "1e-7"))
+    reference_areaS.set(input_dict["geometry"]["reference"]["area"])
+    mesh_filename.set(input_dict["geometry"]["file"])
+    formulation.set(input_dict["solver"]["formulation"])
+    matrix_solver.set(input_dict["solver"]["matrix_solver"])
+    output_directory.set(input_dict["output"]["body_file"])
+    spanwise_axis.set(input_dict["geometry"]["spanwise_axis"])
+    wake_present.set(input_dict["geometry"]["wake_model"]["wake_present"])
+    wake_type.set(input_dict["geometry"]["wake_model"]["wake_type"])
+    run_checks.set(input_dict["solver"]["run_checks"])
+    write_A_and_b.set(input_dict["solver"]["write_A_and_b"])
+    verbose.set(input_dict["output"]["verbose"])
+    pressure_rules.set(input_dict["post_processing"]["pressure_rules"])
+    
+
+
+
+
+
+
+# test plot
+# name  = "C:/Users/Josh/Documents/Codes/AeroLab/MachLine/studies/supersonic_double_wedge_wing_filaments/meshes/fullAircraft.stl"
+# meshdata = mesh.Mesh.from_file(name)
+# print(meshdata)
+# fig = plt.figure()
+
+# polyCollection = mplot3d.art3d.Poly3DCollection(meshdata.vectors)
+# polyCollection.set_color((0.7,0.7,0.7))  
+# axes.add_collection3d(polyCollection)
+# scale = meshdata.points.flatten()
+# axes.auto_scale_xyz(scale, scale, scale)
+# plt.show()
+
+
 root = Tk()
+root.iconbitmap("AeroLabLogo.ico")
 root.title("MachLine")
+
+# menu bar
+root.option_add('*tearOff', FALSE)
+window = Toplevel(root)
+menubar = Menu(window)
+window['menu'] = menubar
+filemenu = Menu(menubar)
+menubar.add_cascade(menu=filemenu, label='File')
+
+# filemenu.add_command(label='New', command=new_json)
+filemenu.add_command(label='Open', command=load_json)
+# filemenu.add_command(label='Save', command=save_json)
+
+
 # small = PhotoImage(file="32Logo.png")
 # big = PhotoImage(file="64Logo.png")
 # smaller = PhotoImage(file="16Logo.png")
 # root.iconphoto(False, smaller, smaller)
-root.iconbitmap("AeroLabLogo.ico")
+
 # root.iconphoto(False, PhotoImage(file="AeroLabLogo.png"))
 
 mainframe = ttk.Frame(root, padding="3 3 12 12")
@@ -509,6 +612,13 @@ write_A_and_b = BooleanVar(value=False)
 write_A_and_b_entry = ttk.Checkbutton(solverFrame, variable=write_A_and_b)
 write_A_and_b_entry.grid(column=1, row=row, sticky=(W, E))
 
+# verbose
+row += 1
+ttk.Label(solverFrame, text="Verbose").grid(column=0, row=row, sticky=E)
+verbose = BooleanVar(value=False)
+verbose_entry = ttk.Checkbutton(solverFrame, variable=verbose)
+verbose_entry.grid(column=1, row=row, sticky=(W, E))
+
 # post processing
 sectionRow += 1
 postProcessingFrame = ttk.Labelframe(mainframe, text="Post Processing")
@@ -575,9 +685,26 @@ errorText = StringVar()
 ttk.Label(mainframe,textvariable=errorText)
 
 
-# results table
-resultsFrame = ttk.Frame(mainframe)
+# results section
+resultsFrame = ttk.Labelframe(mainframe, text="Results")
 resultsFrame.grid(column=1, row=0,rowspan=sectionRow, sticky=(W,E,N,S))
+resultsFrame.columnconfigure(0, weight=1)
+resultsFrame.rowconfigure(0, weight=1)
+row = 0
+plot_button = ttk.Button(resultsFrame, text="Plot", command=plot, width=100)
+figureFrame = ttk.Frame(resultsFrame)
+figureFrame.columnconfigure(0, weight=1)
+figureFrame.rowconfigure(0, weight=1)
+figureFrame.grid(column=0, row=1, sticky=(W,E))
+plot_button.grid(column=0, row=0, sticky=(W,E))
+
+row = 2
+
+
+
+
+
+
 C_xS = StringVar(value="0.0")
 C_yS = StringVar(value="0.0")
 C_zS = StringVar(value="0.0")
@@ -586,7 +713,7 @@ C_MyS = StringVar(value="0.0")
 C_MzS = StringVar(value="0.0")
 N_sysS = StringVar(value="0.0")
 l_avgS = StringVar(value="0.0")
-row = 0
+row += 1
 ttk.Label(resultsFrame, text="N_sys").grid(column=0, row=row, sticky=(W,E))
 ttk.Label(resultsFrame, textvariable=N_sysS).grid(column=1, row=row, sticky=(W,E))
 row += 1

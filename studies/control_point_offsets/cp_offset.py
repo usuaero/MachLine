@@ -16,7 +16,8 @@ def run_machline_for_cp_offset(cp_offset,study_directory,alpha=0, wake_present=F
     # Storage locations
     cp_offset_string = str(cp_offset).replace(".","_") + formulation
     case_name = "cp_offset_{0}".format(cp_offset_string)
-    mesh_file = study_directory+"/meshes/delta_wing_clustered_mesh_coarse.vtk"
+    # mesh_file = study_directory+"/meshes/delta_wing_clustered_mesh_coarse.vtk"
+    mesh_file = study_directory+"/meshes/delta_wing.tri"
     results_file = study_directory+"/results/"+case_name+".vtk"
     wake_file = study_directory+"/results/"+case_name+"_wake.vtk"
     report_file = study_directory+"/reports/"+case_name+".json"
@@ -37,7 +38,7 @@ def run_machline_for_cp_offset(cp_offset,study_directory,alpha=0, wake_present=F
             "wake_model" : {
                 "wake_present" : wake_present,
                 "append_wake" : True,
-                "trefftz_distance" : 20,
+                "trefftz_distance" : 100,
                 "wake_type": wake_type,
                 "N_panels" : 1
             }
@@ -136,18 +137,18 @@ if __name__=="__main__":
     # declare varaibles and inputs
     tStart = time.time()
     alpha = 5
-    num_cases = 10
+    num_cases = 1
     mach = 2.0
     wake_present = True
     wake_type = "panel"
     # wake_type = "filaments"
-    formulation = "neumann-mass-flux"
-    # formulation = "neumann-mass-flux-VCP"
+    # formulation = "neumann-mass-flux"
+    formulation = "neumann-mass-flux-VCP"
     # formulation = "dirichlet-morino"
 
 
 
-    study_directory = "studies/supersonic_double_wedge_wing_filaments"
+    study_directory = "studies/control_point_offsets"
     N_sys = list(range(num_cases))
     l_avg =list(range(num_cases))
     C_F = list(range(num_cases))

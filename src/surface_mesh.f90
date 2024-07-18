@@ -1807,12 +1807,12 @@ contains
             t2 = this%vertices(this%edges(i_edge_2)%get_opposite_endpoint(i_vert, this%vertices))%loc - &
                     this%vertices(i_vert)%loc
             t2 = t2/norm2(t2)
-            write(*,*) "t1", t1, i_vert
-            write(*,*) "t2", t2, i_vert
+            ! write(*,*) "t1", t1, i_vert
+            ! write(*,*) "t2", t2, i_vert
             ! Get average
             t_avg = t1 + t2
             t_avg = t_avg/norm2(t_avg)
-            write(*,*) "t_avg", t_avg, i_vert
+            ! write(*,*) "t_avg", t_avg, i_vert
 
         ! If we've only found one, then the other edge is either mirrored or it is a wingtip
         else
@@ -1825,7 +1825,7 @@ contains
                     t_avg = this%vertices(i_vert)%loc - &
                             this%vertices(this%edges(i_edge_1)%get_opposite_endpoint(i_vert, this%vertices))%loc
                     t_avg = t_avg/norm2(t_avg)
-                    write(*,*) "t_avg", t_avg, i_vert
+                    ! write(*,*) "t_avg", t_avg, i_vert
                 else
                     write(*,*) "Error: Could not find a second edge for vertex ", i_vert
                 end if
@@ -2063,16 +2063,31 @@ contains
                 t_avg = this%get_edge_tangent_vector(i)
                 
                 wake_norm = cross(t_avg, freestream%c_hat_g)
-                write(*,*) "wake_norm", wake_norm, i
-                write(*,*) "is top", (inner(this%vertices(i)%n_g_wake,wake_norm)>0)
-                if (inner(this%vertices(i)%n_g_wake,wake_norm)<0) then
+                ! write(*,*) "wake_norm", wake_norm, i
+                ! write(*,*) "is top", (inner(this%vertices(i)%n_g_wake,wake_norm)>0)
+                if (inner(this%vertices(i)%n_g_wake,wake_norm)>0) then
                     wake_norm = -wake_norm
                 end if
-                !!!! save wake norm
-                wake_norm = wake_norm/norm2(wake_norm)
-                this%vertices(i)%n_g_wake = wake_norm
-                dir = freestream%c_hat_g + wake_norm*0.01
                 
+                wake_norm = wake_norm/norm2(wake_norm)
+                
+                if (this%vertices(i)%N_wake_edges == 1) then
+                    dir = -this%vertices(i)%n_g
+                    ! dir = this%vertices(i)%n_g_wake
+                    ! dir = freestream%c_hat_g + wake_norm*1.0
+                    ! if (wake_norm(2)<0) wake_norm = -wake_norm
+                    ! dir = freestream%c_hat_g
+                    this%vertices(i)%n_g_wake = wake_norm
+
+                else
+                    ! dir = this%vertices(i)%n_g_wake
+                    ! dir = freestream%c_hat_g + wake_norm*0.25
+                    dir = wake_norm-0.25*freestream%c_hat_g
+                    ! this%vertices(i)%n_g_wake = wake_norm
+                end if
+
+                !!!! save wake norm
+                ! this%vertices(i)%n_g_wake = wake_norm
         
                 ! if (this%vertices(i)%clone) then
                 !     dir = this%get_clone_control_point_dir(i)
@@ -2081,7 +2096,7 @@ contains
                 ! end if
 
                 ! normalize the vector
-                dir = 2*dir/norm2(dir)
+                dir = dir/norm2(dir)
                
 
             ! else if (this%vertices(i)%N_wake_edges == 1) then
