@@ -15,7 +15,8 @@
         "singularity_order" : "lower",
 
         "wake_model" : {
-            "wake_present" : false
+            "wake_present" : true,
+            "append_wake" : false
         },
         "adjoint_sensitivities" : {
             "calc_adjoint" : true

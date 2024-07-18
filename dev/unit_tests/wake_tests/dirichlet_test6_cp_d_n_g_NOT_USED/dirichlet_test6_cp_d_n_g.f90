@@ -1,5 +1,4 @@
-program dirichlet_test5
-
+program dirichlet_test6
     ! tests various intermediate sensitivities 
     use adjoint_mod
     use base_geom_mod
@@ -37,29 +36,34 @@ program dirichlet_test5
     type(surface_mesh) :: test_mesh, adjoint_mesh
     type(flow) :: freestream_flow, adjoint_freestream_flow
     type(panel_solver) :: test_solver, adjoint_solver
+    type(eval_point_geom) :: test_geom, adjoint_geom
+    type(dod) :: test_dod_info, adjoint_dod_info
+    type(integrals) :: test_int, adjoint_int
+    type(sparse_matrix),dimension(3) :: d_v_d
     integer :: i_unit
     logical :: exists, found
 
     !!!!!!!!!!!!!!!!!!!!! END STUFF FROM MAIN !!!!!!!!!!!!!!!!!!!!!!!!!
 
-    real,dimension(:),allocatable :: residuals, X_beta, norm
+    !!!!!!!!!!!!!!!!!!!!!! TESTING STUFF  !!!!!!!!!!!!!!!!!!!!!!!!!!
+    real,dimension(:),allocatable :: residuals
+    real,dimension(:,:),allocatable ::  residuals3, cp_n_g_up, cp_n_g_dn, d_cp_n_g_FD
 
-    real,dimension(:,:),allocatable :: v, residuals3 , loc_up, loc_dn, d_loc_FD, d_loc_matrix
+    type(sparse_vector),dimension(3,3) :: d_v_d_M_adjoint
 
-    integer :: i,j,k,m,n,y,z, N_verts, N_panels, vert, index, cp_ind
-    real :: step,error_allowed
+    integer :: i,j,k,m,n,p,z, N_verts, N_panels, vert, index, cp_ind
+    real,dimension(:,:), allocatable :: v_s, v_d
+    real :: step, error_allowed, cp_offset
     type(vertex),dimension(:),allocatable :: vertices ! list of vertex types, this should be a mesh attribute
     type(panel),dimension(:),allocatable :: panels, adjoint_panels   ! list of panels, this should be a mesh attribute
 
     ! test stuff
     integer :: passed_tests, total_tests
     logical :: test_failed
-    character(len=100),dimension(100) :: failure_log
+    character(len=100),dimension(20) :: failure_log
     character(len=10) :: m_char
     integer(8) :: start_count, end_count
     real(16) :: count_rate, time
-    
-    
 
     !!!!!!!!!!!!!!!!!!! END TESTING STUFF !!!!!!!!!!!!!!!!!!!!!11
 
@@ -67,7 +71,9 @@ program dirichlet_test5
     passed_tests = 0
     total_tests = 0
 
+    
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !                             FROM MAIN
 
     !!!!!!!!!!!!!!! TEST INPUT (calc_adjoint = false) !!!!!!!!!!!!!!!!!!!!!!!
     ! Set up run
@@ -115,15 +121,17 @@ program dirichlet_test5
 
     ! Perform flow-dependent initialization on the surface mesh
     call test_mesh%init_with_flow(freestream_flow, body_file, wake_file, formulation)
-    
+
     ! Initialize panel solver
     call test_solver%init(solver_settings, processing_settings, test_mesh, freestream_flow, control_point_file)
     
     !!!!!!!!!!!!!!!!!!!!! END TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
+
+
     call system_clock(start_count, count_rate)
     
-
+    
 
     !!!!!!!!!!!!!!!!!!!!!!ADJOINT TEST MESH !!!!!!!!!!!!!!!!!!!!!
     ! Set up run
@@ -175,22 +183,12 @@ program dirichlet_test5
     ! Initialize panel solver
     call adjoint_solver%init(adjoint_solver_settings, adjoint_processing_settings, adjoint_mesh, &
     adjoint_freestream_flow, adjoint_control_point_file)
+
     !!!!!!!!!!!! END ADJOINT TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!
+
+
     
     
-    ! do j = 1,188
-    !     d_loc_matrix = adjoint_mesh%cp(j)%d_loc%expand(.true.)
-    !     allocate(norm(3))
-    !     do i =1,3
-    !         norm(i) = sqrt(sum(d_loc_matrix(:,i)*d_loc_matrix(:,i)))
-    !         write(*,*) "Norm of CP_loc = ", norm(i)
-    !     end do
-    !     deallocate(norm)
-    ! end do
-
-    ! stop
-
-
     N_verts = test_mesh%N_verts
     N_panels = test_mesh%N_panels
     
@@ -198,9 +196,9 @@ program dirichlet_test5
     allocate(residuals3(3,N_verts*3))
     allocate(residuals(N_verts*3))
 
-    allocate(loc_up(3,N_verts*3))
-    allocate(loc_dn(3,N_verts*3))
-    allocate(d_loc_FD(3,N_verts*3))
+    allocate(cp_n_g_up(3,N_verts*3))
+    allocate(cp_n_g_dn(3,N_verts*3))
+    allocate(d_cp_n_g_FD(3,N_verts*3))
 
     error_allowed = 1.0e-9
     step = 0.000001
@@ -210,31 +208,38 @@ program dirichlet_test5
 
     write(*,*) ""
     write(*,*) "------------------------------------------------------------------------"
-    write(*,*) "                    CONTROL POINT SENSITIVITIES TEST                    "
+    write(*,*) "                    CP NORMAL SENSITIVITIES TEST                    "
     write(*,*) "------------------------------------------------------------------------"
     write(*,*) ""
     write(*,*) ""
+    
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST CALC cp d_n_g  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST CP_d_loc !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    do z =1,N_verts
+    do z = 1,N_verts ! for each control point
         cp_ind = z
-        write(*,'(A,I5)') "CONTROL POINT LOCATION TEST ", z
 
-        ! do for each design variable
+        write(*,'(A,I5)') "CP TEST ", z
+
         do i=1,3
             do j=1,N_verts
 
                 ! perturb up the current design variable
                 test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
-                !!!!!!!!!!! update !!!!!!!!!!!!!
-                ! update panel geometry and calc
+                ! write(*,*) " perturb up"
+                
+                !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
+            
+                ! update vertex normal
                 do m =1,N_panels
                     deallocate(test_mesh%panels(m)%n_hat_g)
                     call test_mesh%panels(m)%calc_derived_geom()
                 end do
+                
                 call test_mesh%calc_vertex_geometry()
                 
+                
+                ! recalculates cp locations
                 deallocate(test_solver%sigma_known)
                 deallocate(test_solver%i_sigma_in_sys)
                 deallocate(test_solver%i_sys_sigma_in_body)
@@ -242,66 +247,69 @@ program dirichlet_test5
                 deallocate(test_solver%P)
                 call test_solver%init(solver_settings, processing_settings, &
                 test_mesh, freestream_flow, control_point_file)
-
-                !!!!!!!!!!!!! end update !!!!!!!!!!!!!!!!
                 
-                ! put the x y or z component of the vertex of interest (index) in a list
-                loc_up(:,j + (i-1)*N_verts) = test_mesh%cp(cp_ind)%loc(:)
-
+                !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
+                
+                ! get the needed info
+                cp_n_g_up(:,j + (i-1)*N_verts) = test_mesh%cp(cp_ind)%n_g
+                
+                
                 ! perturb down the current design variable
                 test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - 2.*step
-                    
-                !!!!!!!!!!! update !!!!!!!!!!!!!!!
-                ! update panel geometry and calc
+                
+                !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
+            
                 do m =1,N_panels
                     deallocate(test_mesh%panels(m)%n_hat_g)
                     call test_mesh%panels(m)%calc_derived_geom()
                 end do
-
+                
+                ! update vertex normal
                 call test_mesh%calc_vertex_geometry()
-
+                
+                
+                ! recalculates cp locations
                 deallocate(test_solver%sigma_known)
                 deallocate(test_solver%i_sigma_in_sys)
                 deallocate(test_solver%i_sys_sigma_in_body)
                 deallocate(test_mesh%cp)
-                deallocate(test_solver%P)    
+                deallocate(test_solver%P)
                 call test_solver%init(solver_settings, processing_settings, &
                 test_mesh, freestream_flow, control_point_file)
-                !!!!!!!!!!!!!!!! end update !!!!!!!!!!!!!!!!!!!!!
-
-                ! put the x y or z component of the vertex of interest (cp_ind) in a list
-                loc_dn(:,j + (i-1)*N_verts) = test_mesh%cp(cp_ind)%loc(:)
+            
+                !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
+                
+                ! get the needed info
+                cp_n_g_dn(:,j + (i-1)*N_verts) = test_mesh%cp(cp_ind)%n_g
+                
                 
                 ! restore geometry
                 test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
             end do 
-        end do 
-        
+        end do
+
         ! central difference 
-        d_loc_FD(:,:) = (loc_up(:,:) - loc_dn(:,:))/(2.*step)
+        d_cp_n_g_FD = (cp_n_g_up - cp_n_g_dn)/(2.*step)
 
 
         ! calculate residuals3
         do i =1, N_verts*3
-            residuals3(:,i) = adjoint_mesh%cp(cp_ind)%d_loc%get_values(i) - d_loc_FD(:,i)
+            residuals3(:,i) = adjoint_mesh%cp(cp_ind)%d_n_g%get_values(i) - d_cp_n_g_FD(:,i)
         end do
 
-        
-        if (maxval(abs(residuals3(:,:)))>error_allowed) then
+        ! if (maxval(abs(residuals3(:,:)))>error_allowed) then
             write(*,*) ""
             write(*,*) "     FLAGGED VALUES :"
             do i = 1, N_verts*3
-                if (any(abs(residuals3(:,i))>error_allowed)) then
+                ! if (any(abs(residuals3(:,i))>error_allowed)) then
                     write(*,*) ""
-                    write(*,*) "                    d_loc_g "
-                    write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_loc_FD(:,i)
-                
-                    write(*, '(A25,8x,3(f25.10, 4x))') "               adjoint",   &
-                    adjoint_mesh%cp(cp_ind)%d_loc%get_values(i)
+                    write(*,*) "                                    d_cp_n_g "
+                    write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_cp_n_g_FD(:,i)
+                    write(*, '(A25,8x,3(f25.10, 4x))') "               adjoint", adjoint_mesh%vertices(cp_ind)%d_n_g%get_values(i)
                     write(*, '(A25,8x,3(f25.10, 4x))') "             residuals", residuals3(:,i)
-                end if
+                ! end if
             end do
-        end if
+        ! end if
 
         
         
@@ -309,28 +317,28 @@ program dirichlet_test5
         do i=1,N_verts*3
             if (any(abs(residuals3(:,i)) > error_allowed)) then 
                 do j = 1,3
-                    if (abs(d_loc_FD(j,i))>1000.0) then
+                    if (abs(d_cp_n_g_FD(j,i))>1000.0) then
                         if (abs(residuals3(j,i)) > error_allowed*10000.0) then
                             test_failed = .true.
                             exit
                         else
                             test_failed = .false.
                         end if
-                    elseif (1000.0>abs(d_loc_FD(j,i)) .and. abs(d_loc_FD(j,i))>100.0) then
+                    elseif (1000.0>abs(d_cp_n_g_FD(j,i)) .and. abs(d_cp_n_g_FD(j,i))>100.0) then
                         if (abs(residuals3(j,i)) > error_allowed*1000.0) then
                             test_failed = .true.
                             exit
                         else
                             test_failed = .false.
                         end if
-                    elseif (100.0>abs(d_loc_FD(j,i)) .and. abs(d_loc_FD(j,i))>10.0) then
+                    elseif (100.0>abs(d_cp_n_g_FD(j,i)) .and. abs(d_cp_n_g_FD(j,i))>10.0) then
                         if (abs(residuals3(j,i)) > error_allowed*100.0) then
                             test_failed = .true.
                             exit
                         else
                             test_failed = .false.
                         end if
-                    elseif (10.0>abs(d_loc_FD(j,i)) .and. abs(d_loc_FD(j,i))>1.0) then
+                    elseif (10.0>abs(d_cp_n_g_FD(j,i)) .and. abs(d_cp_n_g_FD(j,i))>1.0) then
                         if (abs(residuals3(j,i)) > error_allowed*10.0) then
                             test_failed = .true.
                             exit
@@ -351,10 +359,10 @@ program dirichlet_test5
         if (test_failed) then
             total_tests = total_tests + 1
             write(*,'(A,I5,A,I5,A)')"                                               &
-                            d_loc_g vertex ",z," test FAILED"
-            failure_log(total_tests-passed_tests) = "d_loc_g test FAILED"
+                               d_cp_n_g vertex ",z," test FAILED"
+            failure_log(total_tests-passed_tests) = "d_cp_n_g test FAILED"
         else
-            ! write(*,*) "        CALC d_loc_g test PASSED"
+            ! write(*,*) "        CALC d_cp_n_g test PASSED"
             ! write(*,*) "" 
             ! write(*,*) ""
             passed_tests = passed_tests + 1
@@ -366,13 +374,17 @@ program dirichlet_test5
         test_failed = .false.
 
 
-end do ! z control points
+    end do ! z control points
+
+    
 
 
 
-!!!!!!!!!!!!!!   SENSITIVITIES RESULTS!!!!!!!!!!!!!
+
+
+!!!!!!!!!!!!!! CP normal  SENSITIVITIES RESULTS!!!!!!!!!!!!!
     write(*,*) "------------------------------------------------------------------------------"
-    write(*,*) "     CONTROL POINT SENSITIVITIES TEST RESULTS "
+    write(*,*) "     CP NORMAL SENSITIVITIES TEST RESULTS "
     write(*,*) "------------------------------------------------------------------------------"
     write(*,*) ""
     write(*,'((A), ES10.1)') "allowed residual = ", error_allowed
@@ -394,10 +406,11 @@ end do ! z control points
     write(*,*) ""
     call system_clock(end_count)
     time = real(end_count - start_count)/(count_rate*60.0)
-    write(*,'(A,f18.10, A)') " Total test time = ", time, " minutes"
+    write(*,'(A,f12.10, A)') " Total test time = ", time, " minutes"
     write(*,*) ""
     write(*,*) "----------------------"
     write(*,*) "Program Complete"
     write(*,*) "----------------------"
 
-end program dirichlet_test5
+
+end program dirichlet_test6

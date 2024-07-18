@@ -12,18 +12,18 @@
             "wake_present": false
         },
         "adjoint_sensitivities": {
-            "calc_adjoint": false
+            "calc_adjoint": true
         },
         "perturbation": {
-            "perturb_point": true,
-            "point_index": 11,
-            "xyz_index": 3,
-            "step": -9.999999999999999e-06
+            "perturb_point": false,
+            "point_index": 0,
+            "xyz_index": 0,
+            "step": -1e-09
         }
     },
     "solver": {
         "formulation": "dirichlet-source-free",
-        "control_point_offset": 3.250872973854347e-08,
+        "control_point_offset": 1.4723125024327164e-12,
         "matrix_solver": "GMRES"
     },
     "post_processing": {
@@ -32,6 +32,6 @@
         }
     },
     "output": {
-        "report_file": "studies/adjoint_studies/central_diff_norm_cp_offset/reports/cp_offset_3_250872973854347e-08_dirichlet_source_free.json"
+        "report_file": "studies/adjoint_studies/central_diff_norm_cp_offset/reports/cp_offset_1_4723125024327164e-12_dirichlet_source_free.json"
     }
 }

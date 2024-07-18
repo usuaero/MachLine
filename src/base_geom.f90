@@ -385,13 +385,13 @@ contains
     end subroutine vertex_copy_to
 
 
-    subroutine vertex_init_adjoint(this, N_verts, wake_vertex)
+    subroutine vertex_init_adjoint(this, N_original_verts, wake_vertex)
     ! if adjoint calculation is true, this will initialize the vertex associated components
 
         implicit none 
 
         class(vertex),intent(inout) :: this
-        integer,intent(in) :: N_verts
+        integer,intent(in) :: N_original_verts
         logical,optional :: wake_vertex
 
         logical :: wake_vert
@@ -410,19 +410,19 @@ contains
         values2 = (/0.0, 1.0, 0.0/)
         values3 = (/0.0, 0.0, 1.0/)
         ! init vertex attribute d_loc
-        call this%d_loc%init(N_verts*3)
+        call this%d_loc%init(N_original_verts*3)
 
         ! if wake vertex, use this%top_parent instead of this%index
         if (wake_vert)then
             ! populate sparse elements
             call this%d_loc%set_values(values1, this%top_parent)
-            call this%d_loc%set_values(values2, this%top_parent + N_verts)
-            call this%d_loc%set_values(values3, this%top_parent + 2*N_verts)
+            call this%d_loc%set_values(values2, this%top_parent + N_original_verts)
+            call this%d_loc%set_values(values3, this%top_parent + 2*N_original_verts)
         else
             ! populate sparse elements
             call this%d_loc%set_values(values1, this%index)
-            call this%d_loc%set_values(values2, this%index + N_verts)
-            call this%d_loc%set_values(values3, this%index + 2*N_verts)
+            call this%d_loc%set_values(values2, this%index + N_original_verts)
+            call this%d_loc%set_values(values3, this%index + 2*N_original_verts)
 
         end if
     

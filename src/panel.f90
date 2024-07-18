@@ -4255,7 +4255,7 @@ contains
     ! calculates and returns the weighted normal sensitivity
         implicit none
         
-        class(panel),intent(in) :: this
+        class(panel),intent(inout) :: this
         real,dimension(3),intent(in) :: vert_loc
 
         real,dimension(3) :: n_weighted
@@ -4284,7 +4284,7 @@ contains
 
         implicit none
         
-        class(panel),intent(in) :: this
+        class(panel),intent(inout) :: this
         real,dimension(3),intent(in) :: vert_loc
 
         real :: angle, x
@@ -4313,8 +4313,7 @@ contains
                 d_angle = a%broadcast_vector_dot_element(this%n_hat_g(:,i_prev))
 
                 ! Calculate -n_hat_g(i) dot d_n_hat_g(i_prev)
-                call b%init_from_sparse_matrix(this%d_n_hat_g(i_prev))
-                c = b%broadcast_vector_dot_element(-this%n_hat_g(:,i))
+                c = this%d_n_hat_g(i_prev)%broadcast_vector_dot_element(-this%n_hat_g(:,i))
                 
                 ! add them
                 call d_angle%sparse_add(c)
@@ -4330,7 +4329,7 @@ contains
                 end if
 
                 ! divide by partial of inverse cos
-                call d_angle%broadcast_element_times_scalar(-1.0/sqrt(1-x*x))
+                call d_angle%broadcast_element_times_scalar(-1.0/sqrt(1.0-(x*x)))
                 return
 
             end if
@@ -4352,16 +4351,16 @@ contains
 
         ! calc sensitivity of A_g_to_ls WRT design variables X(beta) 
         call this%calc_d_A_g_to_ls(freestream)
-
+        
         ! calc sensitivity of A_ls_to_g WRT design variables
         call this%calc_d_A_ls_to_g(freestream)
         
         ! calc sensitivity of local scaled panel vertices
         call this%calc_d_vertices_ls()
-
+        
         ! calc sensitivities of local scaled n_hat (outward normal edge vectors)
         call this%calc_ls_edge_vectors_adjoint(freestream)
-
+        
         ! calc sensitivities of transformation matrix of strength space M to parameter space mu transformation
         call this%calc_d_M_mu_transform()
     

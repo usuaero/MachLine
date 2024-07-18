@@ -1,5 +1,4 @@
-program dirichlet_test5
-
+program dirichlet_test25
     ! tests various intermediate sensitivities 
     use adjoint_mod
     use base_geom_mod
@@ -37,20 +36,31 @@ program dirichlet_test5
     type(surface_mesh) :: test_mesh, adjoint_mesh
     type(flow) :: freestream_flow, adjoint_freestream_flow
     type(panel_solver) :: test_solver, adjoint_solver
+    type(eval_point_geom) :: test_geom, adjoint_geom
+    type(dod) :: test_dod_info, adjoint_dod_info
+    type(integrals) :: test_int, adjoint_int
+    type(sparse_matrix),dimension(3) :: d_v_d
     integer :: i_unit
     logical :: exists, found
+    integer :: adjoint_solver_stat, test_solver_stat, stat
+    type(sparse_vector) :: zeros
+
+    real,dimension(3) :: adjoint_P, test_P, test_v_d, test_v_s
+    type(sparse_matrix) :: adjoint_d_P_term2
+    type(sparse_matrix) :: adjoint_d_P
+    type(sparse_matrix) :: adjoint_d_v_d_panel
 
     !!!!!!!!!!!!!!!!!!!!! END STUFF FROM MAIN !!!!!!!!!!!!!!!!!!!!!!!!!
 
-    real,dimension(:),allocatable :: residuals, X_beta, norm
+    !!!!!!!!!!!!!!!!!!!!!! TESTING STUFF  !!!!!!!!!!!!!!!!!!!!!!!!!!
+    real,dimension(:),allocatable :: residuals
+    real,dimension(:,:),allocatable ::  residuals3, CF_wrt_mu_up, CF_wrt_mu_dn, d_CF_wrt_mu_FD
 
-    real,dimension(:,:),allocatable :: v, residuals3 , loc_up, loc_dn, d_loc_FD, d_loc_matrix
-
-    integer :: i,j,k,m,n,y,z, N_verts, N_panels, vert, index, cp_ind
-    real :: step,error_allowed
+    integer :: i,j,k,m,n,y,z,N_verts, N_panels, vert, index, cp_ind
+    real :: step,error_allowed, cp_offset
     type(vertex),dimension(:),allocatable :: vertices ! list of vertex types, this should be a mesh attribute
     type(panel),dimension(:),allocatable :: panels, adjoint_panels   ! list of panels, this should be a mesh attribute
-
+    
     ! test stuff
     integer :: passed_tests, total_tests
     logical :: test_failed
@@ -59,16 +69,17 @@ program dirichlet_test5
     integer(8) :: start_count, end_count
     real(16) :: count_rate, time
     
-    
-
     !!!!!!!!!!!!!!!!!!! END TESTING STUFF !!!!!!!!!!!!!!!!!!!!!11
-
+    
     test_failed = .false. 
     passed_tests = 0
     total_tests = 0
-
+    
+    index = 1
+    cp_ind = 1
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
+    !                             FROM MAIN
+    
     !!!!!!!!!!!!!!! TEST INPUT (calc_adjoint = false) !!!!!!!!!!!!!!!!!!!!!!!
     ! Set up run
     call json_initialize()
@@ -115,20 +126,59 @@ program dirichlet_test5
 
     ! Perform flow-dependent initialization on the surface mesh
     call test_mesh%init_with_flow(freestream_flow, body_file, wake_file, formulation)
-    
+
     ! Initialize panel solver
     call test_solver%init(solver_settings, processing_settings, test_mesh, freestream_flow, control_point_file)
     
-    !!!!!!!!!!!!!!!!!!!!! END TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-    call system_clock(start_count, count_rate)
+    ! pull out the cp offset
+    call json_xtnsn_get(solver_settings, 'control_point_offset', cp_offset, 1.e-7)
     
+    ! Set default status
+    test_solver_stat = 0
+
+    ! Allocate known influence storage
+    allocate(test_solver%I_known(test_mesh%N_cp), source=0., stat=stat)
+    call check_allocation(stat, "known influence vector")
+
+    ! Allocate AIC matrix
+    allocate(test_solver%A(test_mesh%N_cp, test_solver%N_unknown), source=0., stat=stat)
+    ! call check_allocation(stat, "AIC matrix")
+
+    ! Allocate b vector
+    allocate(test_solver%b(test_mesh%N_cp), source=0., stat=stat)
+    call check_allocation(stat, "b vector")
+
+    ! Calculate source strengths
+    call test_solver%calc_source_strengths(test_mesh)
+
+    ! Calculate body influences
+    call test_solver%calc_body_influences(test_mesh)
+
+    call test_solver%assemble_BC_vector(test_mesh)
+
+    ! Solve the linear system
+    call test_solver%solve_system(test_mesh, test_solver_stat)
+    
+    ! Check for errors
+    if (test_solver_stat /= 0) return
+
+    ! Calculate velocities
+    call test_solver%calc_cell_velocities(test_mesh)
+
+    ! Calculate velocities
+    call test_solver%calc_pressures(test_mesh)
+
+    call test_solver%calc_forces(test_mesh)
+    
+    
+    !!!!!!!!!!!!!!!!!!!!! END TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    call system_clock(start_count, count_rate)
 
 
-    !!!!!!!!!!!!!!!!!!!!!!ADJOINT TEST MESH !!!!!!!!!!!!!!!!!!!!!
+   !!!!!!!!!!!!!!!!!!!!!!ADJOINT TEST MESH !!!!!!!!!!!!!!!!!!!!!
     ! Set up run
     call json_initialize()
-
+    
     adjoint_input = "dev\input_files\adjoint_inputs\dirichlet_adjoint_test.json"
     adjoint_input = trim(adjoint_input)
 
@@ -147,7 +197,7 @@ program dirichlet_test5
     call adjoint_input_json%get('solver', adjoint_solver_settings, found)
     call adjoint_input_json%get('post_processing', adjoint_processing_settings, found)
     call adjoint_input_json%get('output', adjoint_output_settings, found)
-
+    
     ! Initialize surface mesh
     call adjoint_mesh%init(adjoint_geom_settings)
     !call adjoint_mesh%init_adjoint()
@@ -163,46 +213,40 @@ program dirichlet_test5
     call json_xtnsn_get(adjoint_output_settings, 'mirrored_body_file', adjoint_mirrored_body_file, 'none')
     call json_xtnsn_get(adjoint_output_settings, 'offbody_points.points_file', adjoint_points_file, 'none')
     call json_xtnsn_get(adjoint_output_settings, 'offbody_points.output_file', adjoint_points_output_file, 'none')
-
+    
     !!!!!!!!!!!!!!!!!!!!!! WAKE_DEV !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! Get formulation type                                                  !
     call json_xtnsn_get(adjoint_solver_settings, 'formulation', adjoint_formulation, 'none')!
     !!!!!!!!!!!!!!!!!!!!!!! END_WAKE_DEV !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
+    
     ! Perform flow-dependent initialization on the surface mesh
     call adjoint_mesh%init_with_flow(adjoint_freestream_flow, adjoint_body_file, adjoint_wake_file, adjoint_formulation)
-
+    
     ! Initialize panel solver
     call adjoint_solver%init(adjoint_solver_settings, adjoint_processing_settings, adjoint_mesh, &
     adjoint_freestream_flow, adjoint_control_point_file)
+    ! solve
+    call adjoint_solver%solve(adjoint_mesh, adjoint_solver_stat, adjoint_formulation,adjoint_freestream_flow)
+    
+
+    
     !!!!!!!!!!!! END ADJOINT TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!
     
-    
-    ! do j = 1,188
-    !     d_loc_matrix = adjoint_mesh%cp(j)%d_loc%expand(.true.)
-    !     allocate(norm(3))
-    !     do i =1,3
-    !         norm(i) = sqrt(sum(d_loc_matrix(:,i)*d_loc_matrix(:,i)))
-    !         write(*,*) "Norm of CP_loc = ", norm(i)
-    !     end do
-    !     deallocate(norm)
-    ! end do
-
-    ! stop
-
 
     N_verts = test_mesh%N_verts
     N_panels = test_mesh%N_panels
     
     
-    allocate(residuals3(3,N_verts*3))
-    allocate(residuals(N_verts*3))
+    allocate(residuals3(3,N_verts))
+    allocate(residuals(N_verts))
 
-    allocate(loc_up(3,N_verts*3))
-    allocate(loc_dn(3,N_verts*3))
-    allocate(d_loc_FD(3,N_verts*3))
+    ! allocate data holders
+    allocate(CF_wrt_mu_up(3,N_verts))
+    allocate(CF_wrt_mu_dn(3,N_verts))
+    allocate(d_CF_wrt_mu_FD(3,N_verts))
+    
 
-    error_allowed = 1.0e-9
+    error_allowed = 1.0e-8
     step = 0.000001
     index = 1
     cp_ind = 1
@@ -210,169 +254,168 @@ program dirichlet_test5
 
     write(*,*) ""
     write(*,*) "------------------------------------------------------------------------"
-    write(*,*) "                    CONTROL POINT SENSITIVITIES TEST                    "
+    write(*,*) "                      dirichlet d_CF_wrt_mu TEST                    "
     write(*,*) "------------------------------------------------------------------------"
     write(*,*) ""
     write(*,*) ""
 
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST CP_d_loc !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    do z =1,N_verts
-        cp_ind = z
-        write(*,'(A,I5)') "CONTROL POINT LOCATION TEST ", z
+    
 
-        ! do for each design variable
-        do i=1,3
-            do j=1,N_verts
+    do i=1,test_mesh%N_verts  !!!!!!!!!! THIS IS DIFFERENT because its wrt mu
 
-                ! perturb up the current design variable
-                test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
-                !!!!!!!!!!! update !!!!!!!!!!!!!
-                ! update panel geometry and calc
-                do m =1,N_panels
-                    deallocate(test_mesh%panels(m)%n_hat_g)
-                    call test_mesh%panels(m)%calc_derived_geom()
-                end do
-                call test_mesh%calc_vertex_geometry()
-                
-                deallocate(test_solver%sigma_known)
-                deallocate(test_solver%i_sigma_in_sys)
-                deallocate(test_solver%i_sys_sigma_in_body)
-                deallocate(test_mesh%cp)
-                deallocate(test_solver%P)
-                call test_solver%init(solver_settings, processing_settings, &
-                test_mesh, freestream_flow, control_point_file)
+        ! perturb up the current mu
+        test_mesh%mu(i) = test_mesh%mu(i) + step
+        ! write(*,*) " perturb up"
+        
+        !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
+        ! deallocate stuff
+        deallocate(test_mesh%V_cells_inner)
+        deallocate(test_mesh%V_cells)
+    
+        ! Calculate velocities
+        call test_solver%calc_cell_velocities(test_mesh)
+        
+        deallocate(test_mesh%C_P_inc)
 
-                !!!!!!!!!!!!! end update !!!!!!!!!!!!!!!!
-                
-                ! put the x y or z component of the vertex of interest (index) in a list
-                loc_up(:,j + (i-1)*N_verts) = test_mesh%cp(cp_ind)%loc(:)
+        ! Calculate velocities
+        call test_solver%calc_pressures(test_mesh)
 
-                ! perturb down the current design variable
-                test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - 2.*step
+        deallocate(test_mesh%dC_f)
+
+        call test_solver%calc_forces(test_mesh)
                     
-                !!!!!!!!!!! update !!!!!!!!!!!!!!!
-                ! update panel geometry and calc
-                do m =1,N_panels
-                    deallocate(test_mesh%panels(m)%n_hat_g)
-                    call test_mesh%panels(m)%calc_derived_geom()
-                end do
+        !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
+        
+        ! get the needed info
+        CF_wrt_mu_up(:, i) = test_solver%C_F(:)
+        
+        
+        ! perturb down the current design variable
+        ! write(*,*) " perturb down"
+        test_mesh%mu(i) = test_mesh%mu(i) - 2.*step
 
-                call test_mesh%calc_vertex_geometry()
+        !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
+        ! deallocate stuff
+        deallocate(test_mesh%V_cells_inner)
+        deallocate(test_mesh%V_cells)
+    
+        ! Calculate velocities
+        call test_solver%calc_cell_velocities(test_mesh)
+        
+        deallocate(test_mesh%C_P_inc)
 
-                deallocate(test_solver%sigma_known)
-                deallocate(test_solver%i_sigma_in_sys)
-                deallocate(test_solver%i_sys_sigma_in_body)
-                deallocate(test_mesh%cp)
-                deallocate(test_solver%P)    
-                call test_solver%init(solver_settings, processing_settings, &
-                test_mesh, freestream_flow, control_point_file)
-                !!!!!!!!!!!!!!!! end update !!!!!!!!!!!!!!!!!!!!!
+        ! Calculate velocities
+        call test_solver%calc_pressures(test_mesh)
 
-                ! put the x y or z component of the vertex of interest (cp_ind) in a list
-                loc_dn(:,j + (i-1)*N_verts) = test_mesh%cp(cp_ind)%loc(:)
-                
-                ! restore geometry
-                test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
-            end do 
-        end do 
+        deallocate(test_mesh%dC_f)
+
+        call test_solver%calc_forces(test_mesh)
+                    
+                        
+        !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
+        
+        ! get the needed info
+        CF_wrt_mu_dn(:, i) = test_solver%C_F(:)
+
+        ! restore geometry
+        test_mesh%mu(i) = test_mesh%mu(i) + step
+        
+    end do
+
         
         ! central difference 
-        d_loc_FD(:,:) = (loc_up(:,:) - loc_dn(:,:))/(2.*step)
+    d_CF_wrt_mu_FD = (CF_wrt_mu_up - CF_wrt_mu_dn)/(2.*step)
+            
+    
+    do i=1,N_verts
+        residuals3(:,i) = adjoint_solver%d_C_F_wrt_mu%get_values(i) - d_CF_wrt_mu_FD(:,i)
+    end do
 
 
-        ! calculate residuals3
-        do i =1, N_verts*3
-            residuals3(:,i) = adjoint_mesh%cp(cp_ind)%d_loc%get_values(i) - d_loc_FD(:,i)
+    if (maxval(abs(residuals3(:,:)))>error_allowed) then
+        write(*,*) ""
+        write(*,*) "     FLAGGED VALUES :"
+        do i = 1, N_verts
+            if (any(abs(residuals3(:,i))>error_allowed)) then
+                write(*,*) ""
+                write(*,'(A,I5,A)') "                                       d_CF_wrt_mu &
+                    ",z,"                                             residuals"
+                write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_CF_wrt_mu_FD(:,i)
+            
+                write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",   &
+                adjoint_solver%d_C_F_wrt_mu%get_values(i), residuals3(:,i)
+            end if
         end do
+    end if
 
-        
-        if (maxval(abs(residuals3(:,:)))>error_allowed) then
-            write(*,*) ""
-            write(*,*) "     FLAGGED VALUES :"
-            do i = 1, N_verts*3
-                if (any(abs(residuals3(:,i))>error_allowed)) then
-                    write(*,*) ""
-                    write(*,*) "                    d_loc_g "
-                    write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_loc_FD(:,i)
-                
-                    write(*, '(A25,8x,3(f25.10, 4x))') "               adjoint",   &
-                    adjoint_mesh%cp(cp_ind)%d_loc%get_values(i)
-                    write(*, '(A25,8x,3(f25.10, 4x))') "             residuals", residuals3(:,i)
+    
+    
+    ! check if test failed
+    do i=1,N_verts
+        if (any(abs(residuals3(:,i)) > error_allowed)) then 
+            do j = 1,3
+                if (abs(d_CF_wrt_mu_FD(j,i))>1000.0) then
+                    if (abs(residuals3(j,i)) > error_allowed*10000.0) then
+                        test_failed = .true.
+                        exit
+                    else
+                        test_failed = .false.
+                    end if
+                elseif (1000.0>abs(d_CF_wrt_mu_FD(j,i)) .and. abs(d_CF_wrt_mu_FD(j,i))>100.0) then
+                    if (abs(residuals3(j,i)) > error_allowed*1000.0) then
+                        test_failed = .true.
+                        exit
+                    else
+                        test_failed = .false.
+                    end if
+                elseif (100.0>abs(d_CF_wrt_mu_FD(j,i)) .and. abs(d_CF_wrt_mu_FD(j,i))>10.0) then
+                    if (abs(residuals3(j,i)) > error_allowed*100.0) then
+                        test_failed = .true.
+                        exit
+                    else
+                        test_failed = .false.
+                    end if
+                elseif (10.0>abs(d_CF_wrt_mu_FD(j,i)) .and. abs(d_CF_wrt_mu_FD(j,i))>1.0) then
+                    if (abs(residuals3(j,i)) > error_allowed*10.0) then
+                        test_failed = .true.
+                        exit
+                    else
+                        test_failed = .false.
+                    end if
+                else
+                    if (abs(residuals3(j,i)) > error_allowed) then
+                        test_failed = .true.
+                        exit
+                    else
+                        test_failed = .false.
+                    end if
                 end if
             end do
         end if
+    end do
+    if (test_failed) then
+        total_tests = total_tests + 1
+        write(*,'(A)')"                                               &
+        d_CF_wrt_mu  test FAILED"
+        failure_log(total_tests-passed_tests) = "d_CF_wrt_mu test FAILED"
+    else
+        ! write(*,*) "        d_CF_wrt_mu test PASSED"
+        ! write(*,*) "" 
+        ! write(*,*) ""
+        passed_tests = passed_tests + 1
+        total_tests = total_tests + 1
+        
+    end if
+    test_failed = .false.
 
         
-        
-        ! check if test failed
-        do i=1,N_verts*3
-            if (any(abs(residuals3(:,i)) > error_allowed)) then 
-                do j = 1,3
-                    if (abs(d_loc_FD(j,i))>1000.0) then
-                        if (abs(residuals3(j,i)) > error_allowed*10000.0) then
-                            test_failed = .true.
-                            exit
-                        else
-                            test_failed = .false.
-                        end if
-                    elseif (1000.0>abs(d_loc_FD(j,i)) .and. abs(d_loc_FD(j,i))>100.0) then
-                        if (abs(residuals3(j,i)) > error_allowed*1000.0) then
-                            test_failed = .true.
-                            exit
-                        else
-                            test_failed = .false.
-                        end if
-                    elseif (100.0>abs(d_loc_FD(j,i)) .and. abs(d_loc_FD(j,i))>10.0) then
-                        if (abs(residuals3(j,i)) > error_allowed*100.0) then
-                            test_failed = .true.
-                            exit
-                        else
-                            test_failed = .false.
-                        end if
-                    elseif (10.0>abs(d_loc_FD(j,i)) .and. abs(d_loc_FD(j,i))>1.0) then
-                        if (abs(residuals3(j,i)) > error_allowed*10.0) then
-                            test_failed = .true.
-                            exit
-                        else
-                            test_failed = .false.
-                        end if
-                    else
-                        if (abs(residuals3(j,i)) > error_allowed) then
-                            test_failed = .true.
-                            exit
-                        else
-                            test_failed = .false.
-                        end if
-                    end if
-                end do
-            end if
-        end do
-        if (test_failed) then
-            total_tests = total_tests + 1
-            write(*,'(A,I5,A,I5,A)')"                                               &
-                            d_loc_g vertex ",z," test FAILED"
-            failure_log(total_tests-passed_tests) = "d_loc_g test FAILED"
-        else
-            ! write(*,*) "        CALC d_loc_g test PASSED"
-            ! write(*,*) "" 
-            ! write(*,*) ""
-            passed_tests = passed_tests + 1
-            total_tests = total_tests + 1
-            
-        end if
-
-        ! reset test failed for the next z loop
-        test_failed = .false.
-
-
-end do ! z control points
 
 
 
-!!!!!!!!!!!!!!   SENSITIVITIES RESULTS!!!!!!!!!!!!!
+    !!!!!!!!!!!!!!  RESULTS!!!!!!!!!!!!!
     write(*,*) "------------------------------------------------------------------------------"
-    write(*,*) "     CONTROL POINT SENSITIVITIES TEST RESULTS "
+    write(*,*) "                         dirichlet d_CF_wrt_mu TEST RESULTS "
     write(*,*) "------------------------------------------------------------------------------"
     write(*,*) ""
     write(*,'((A), ES10.1)') "allowed residual = ", error_allowed
@@ -394,10 +437,10 @@ end do ! z control points
     write(*,*) ""
     call system_clock(end_count)
     time = real(end_count - start_count)/(count_rate*60.0)
-    write(*,'(A,f18.10, A)') " Total test time = ", time, " minutes"
+    write(*,'(A,f16.10, A)') " Total test time = ", time, " minutes"
     write(*,*) ""
     write(*,*) "----------------------"
     write(*,*) "Program Complete"
     write(*,*) "----------------------"
 
-end program dirichlet_test5
+end program dirichlet_test25
