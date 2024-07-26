@@ -169,14 +169,14 @@ contains
             this%dirichlet = .true.
             call this%init_dirichlet(solver_settings, body)
         else if (this%formulation == N_MF_D_LS .or. this%formulation == N_MF_D .or. this%formulation == N_MF_DS_LS &
-                 .or. this%formulation == N_V_D_LS .or. this%formulation == N_MF_D_IF .or. this%formulation == N_MF_D_VCP) then
-            this%dirichlet = .false.
-            call this%init_neumann(solver_settings, body)
+            .or. this%formulation == N_V_D_LS .or. this%formulation == N_MF_D_IF .or. this%formulation == N_MF_D_VCP) then
+                this%dirichlet = .false.
+                call this%init_neumann(solver_settings, body)
         else
             write(*,*) "!!! '", this%formulation, "' is not a valid formulation. Quitting..."
             stop
         end if
-
+            
         ! Set boundary conditions
         call this%init_control_point_boundary_conditions(body,freestream)
         

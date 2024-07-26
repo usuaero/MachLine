@@ -5,8 +5,8 @@
     "geometry": {
         "_afile" : "dev/meshes/adjoint/sphere_coarse2.stl",
         "_bfile" : "dev/meshes/other_meshes/small_sphere.stl",
-        "file" : "dev/meshes/adjoint/adjoint_octa_mesh.stl",
-        "_dfile" : "dev/meshes/adjoint/wedge_wing_coarse.stl",
+        "_cfile" : "dev/meshes/adjoint/adjoint_octa_mesh.stl",
+        "file" : "dev/meshes/adjoint/wedge_wing_coarse.stl",
         "_efile" : "dev/meshes/other_meshes/delta_wing_coarse.vtk",
         "_gfile" : "dev/meshes/other_meshes/diamond_5_deg_full_coarse.stl",
         "_hfile" : "dev/meshes/other_meshes/naca_0010_AR_10_full_coarse.stl",
@@ -19,7 +19,7 @@
             "append_wake" : false
         },
         "adjoint_sensitivities" : {
-            "calc_adjoint" : true
+            "calc_adjoint" : true 
         }
     },
     "solver": {

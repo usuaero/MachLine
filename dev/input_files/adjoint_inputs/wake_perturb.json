@@ -1,0 +1,44 @@
+{
+    "flow": {
+        "freestream_velocity" : [ 1.0, 0.0, 0.0 ]
+    },
+    "geometry": {
+        "_afile" : "dev/meshes/adjoint/sphere_coarse2.stl",
+        "_bfile" : "dev/meshes/other_meshes/small_sphere.stl",
+        "file" : "dev/meshes/adjoint/adjoint_octa_mesh.stl",
+        "_dfile" : "dev/meshes/adjoint/wedge_wing_coarse.stl",
+        "_efile" : "dev/meshes/other_meshes/delta_wing_coarse.vtk",
+        "_gfile" : "dev/meshes/other_meshes/diamond_5_deg_full_coarse.stl",
+        "_hfile" : "dev/meshes/other_meshes/naca_0010_AR_10_full_coarse.stl",
+        "_ifile" : "dev/meshes/adjoint/naca_2412_wing.stl",
+        "_jfile" : "dev/meshes/adjoint/a320_fine.stl",
+        "singularity_order" : "lower",
+
+        "wake_model" : {
+            "wake_present" : true,
+            "append_wake" : false
+        },
+        "adjoint_sensitivities" : {
+            "calc_adjoint" : false
+        },
+        "perturbation" : {
+                "perturb_point" : false,
+                "point_index" : 1,
+                "xyz_index" : 1,
+                "step" : -0.000001
+            }
+    },
+    "solver": {
+        "formulation" : "dirichlet-source-free",
+        "control_point_offset" : 1.0e-3, 
+        "matrix_solver" : "GMRES", 
+        "xsort_system" : false
+    },
+    "post_processing" : {
+    },
+
+    "output": {
+        "verbose" : true
+    }
+    
+}

@@ -175,6 +175,9 @@ contains
         ! Load mesh from file
         call this%load_mesh_file(mesh_file)
 
+        ! Perturb a vertex if perturb_point is true
+        call this%perturb_vertex(settings)
+
         ! Determine mirroring
         call this%parse_mirror_settings(settings)
 
@@ -184,12 +187,6 @@ contains
         ! Load adjoint settings
         call this%parse_adjoint_settings(settings)
 
-        ! Perturb a vertex if perturb_point is true
-        if (this%perturb_point) then
-
-            call this%perturb_vertex(settings)
-
-        end if
 
         ! Store references
         call json_xtnsn_get(settings, 'reference.area', this%S_ref, 1.)
@@ -404,10 +401,6 @@ contains
         ! Check if the user wants to calculate adjoint
         call json_xtnsn_get(settings, 'adjoint_sensitivities.calc_adjoint', this%calc_adjoint, .false.)
 
-        ! Check if user wants to run Machline with a perturbed point (for central difference validating
-        !  the adjoint calcs)
-        call json_xtnsn_get(settings, 'perturbation.perturb_point', this%perturb_point, .false.)
-
         ! check to see if calc_adjoint and perturb_point are both true. If they are both true, 
         ! warn user and quit
         if (this%calc_adjoint .and. this%perturb_point) then
@@ -455,7 +448,9 @@ contains
         ! Loop through each panel
         this%N_edges = 0
 
-        !$OMP parallel do schedule(dynamic) private(j, i_endpoints, i_edge, edge_index_i, edge_index_j)
+        !!!!!!! turned off parallel here because it was messing up solution when a point was perturbed.
+        !!!!!!! when I turned off the parallel here, the problem went away -NH
+        ! $OMP parallel do schedule(dynamic) private(j, i_endpoints, i_edge, edge_index_i, edge_index_j)
         do i=1,this%N_panels
 
             ! Loop through each potential neighbor
@@ -467,7 +462,7 @@ contains
                 ! Check if these are abutting
                 if (this%check_panels_adjacent(i, j, i_endpoints, edge_index_i, edge_index_j)) then
 
-                    !$OMP critical
+                    ! $OMP critical
                     
                     ! Update number of edges
                     this%N_edges = this%N_edges + 1
@@ -486,7 +481,7 @@ contains
                     vertex1(i_edge) = i_endpoints(1)
                     vertex2(i_edge) = i_endpoints(2)
 
-                    !$OMP end critical
+                    ! $OMP end critical
 
                 end if
 
@@ -1196,7 +1191,7 @@ contains
                             !!!! I am not sure what calc_normal will look like though
                             
                             ! Loop through neighboring panels and compute the average of their normal vectors for jango
-                            n_avg = 0
+                            n_avg = (/0,0,0/)
                             N_panels = this%vertices(i_jango)%panels_not_across_wake_edge%len()
                             ! Get panel index
                             do j=1,N_panels
@@ -1229,6 +1224,39 @@ contains
                             ! Normalize and store
                             this%vertices(i_boba)%n_g_wake = n_avg/norm2(n_avg)
                         end if 
+                        if (formulation == "neumann-mass-flux-VCP") then
+                            !!!! I think we are going to add the new normal calculation here.
+                            !!!! will probably look like
+                            !!!! call this%verticies(i_jango)%calc_normal
+                            !!!! call this%verticies(i_boba)%calc_normal
+                            !!!! I am not sure what calc_normal will look like though
+                            ! Loop through neighboring panels and compute the average of their normal vectors for jango
+                            n_avg = (/0,0,0/)
+                            N_panels = this%vertices(i_jango)%panels_not_across_wake_edge%len()
+                            ! Get panel index
+                            do l=1,N_panels
+                                ! Get panel index
+                                call this%vertices(i_jango)%panels_not_across_wake_edge%get(l, jango_panel)
+                                ! Update using weighted normal
+                                n_avg = n_avg + this%panels(jango_panel)%get_weighted_normal_at_corner(&
+                                    this%vertices(i_jango)%loc)
+                            end do
+                            ! Normalize and store
+                            this%vertices(i_jango)%n_g_wake = n_avg/norm2(n_avg) !!!! this is where the normal vectors are caclulated
+                            ! Loop through neighboring panels and compute the average of their normal vectors for boba
+                            n_avg = 0
+                            N_panels = this%vertices(i_boba)%panels_not_across_wake_edge%len()
+                            ! Get panel index
+                            do l =1,N_panels
+                                ! Get panel index
+                                call this%vertices(i_boba)%panels_not_across_wake_edge%get(l, boba_panel)
+                                ! Update using weighted normal
+                                n_avg = n_avg + this%panels(boba_panel)%get_weighted_normal_at_corner(&
+                                this%vertices(i_boba)%loc)
+                            end do
+                            ! Normalize and store
+                            this%vertices(i_boba)%n_g_wake = n_avg/norm2(n_avg)
+                        end if
                     end do
 
                     ! Clean up memory for next iteration
@@ -1847,7 +1875,7 @@ contains
         integer,intent(in) :: i_vert
         real,dimension(3) :: dir
 
-        integer :: j, k, i_panel, i_edge_1, i_edge_2, i_edge, panel1, panel2
+        integer :: j, k, i_panel, i_edge_1, i_edge_2, i_edge, panel1, panel2, iplus1_panel
         real,dimension(3) :: t1, t2, t_avg, tp, n_avg
         real :: C_min_panel_angle, offset_ratio, x
         logical :: found_first, tp_found
@@ -1914,29 +1942,46 @@ contains
 
             ! Get index of panel
             call this%vertices(i_vert)%panels_not_across_wake_edge%get(j, i_panel)
+           
+            ! write(*,*) "vert i = ", i_vert
+            ! write(*,*) "Panels not across wake = ", i_panel, iplus1_panel
+            ! write(*,*) "panel verts indices",this%panels(i_panel)%get_vertex_index(1),&
+            ! this%panels(i_panel)%get_vertex_index(2),&
+            ! this%panels(i_panel)%get_vertex_index(3)
+            ! write(*,*) "panel verts indices",this%panels(iplus1_panel)%get_vertex_index(1),&
+            ! this%panels(iplus1_panel)%get_vertex_index(2),&
+            ! this%panels(iplus1_panel)%get_vertex_index(3)
 
-            ! Loop through vertices of panel j
-            vertex_loop: do k=1,this%panels(i_panel)%N
+            ! write(*,*) ""
+            ! write(*,*) "this perturb point = ", this%perturb_point
+            ! write(*,*) "this calc adjoint = ", this%calc_adjoint
+            if (.not. (this%calc_adjoint .or.  this%perturb_point)) then
+                ! Loop through vertices of panel j
+                vertex_loop: do k=1,this%panels(i_panel)%N
+                    ! write(*,*)"j = ", j, " k = ", k
+                    write(*,*)" !!!!!!!!!!!!!! VERTEX LOOP !!!!!!!!!!!!!!!!"
 
-                ! Check we've got a different vertex than the one we're trying to place a control point for
-                if (i_vert == this%panels(i_panel)%get_vertex_index(k)) cycle vertex_loop
+                    ! Check we've got a different vertex than the one we're trying to place a control point for
+                    if (i_vert == this%panels(i_panel)%get_vertex_index(k)) cycle vertex_loop
 
-                ! Get vector to vertex
-                tp = this%panels(i_panel)%get_vertex_loc(k) - this%vertices(i_vert)%loc
+                    ! Get vector to vertex
+                    tp = this%panels(i_panel)%get_vertex_loc(k) - this%vertices(i_vert)%loc
 
-                ! Project the vector so it is perpendicular to t_avg
-                tp = tp - t_avg*inner(t_avg, tp)
+                    ! Project the vector so it is perpendicular to t_avg
+                    tp = tp - t_avg*inner(t_avg, tp)
 
-                ! Check tp isn't perfectly aligned with t_avg
-                if (norm2(tp) < 1.e-12) cycle vertex_loop
+                    ! Check tp isn't perfectly aligned with t_avg
+                    if (norm2(tp) < 1.e-12) cycle vertex_loop
 
-                ! If it's still inside the panel, we've found our vector
-                if (this%panels(i_panel)%projection_inside(0.1*tp + this%vertices(i_vert)%loc, .false.)) then
-                    tp_found = .true.
-                    exit tp_loop
-                end if
+                    ! If it's still inside the panel, we've found our vector
+                    if (this%panels(i_panel)%projection_inside(0.1*tp + this%vertices(i_vert)%loc, .false.)) then
+                        tp_found = .true.
+                        ! write(*,*)"found at end of vertex loop, j = ", j, " k = ", k
+                        exit tp_loop
+                    end if
 
-            end do vertex_loop
+                end do vertex_loop
+            end if
 
             ! If none of the vertices worked, try the centroid
             tp = this%panels(i_panel)%centr - this%vertices(i_vert)%loc
@@ -1945,12 +1990,18 @@ contains
             tp = tp - t_avg*inner(t_avg, tp)
 
             ! Check tp isn't perfectly aligned with t_avg
-            if (norm2(tp) < 1.e-12) cycle tp_loop
+            if (norm2(tp) < 1.e-12) then
+                ! write(*,*) "TESTING: norm2 failed didnt place control point dir on the first panel. Quitting..."
+                cycle tp_loop
+            end if
 
             ! If it's still inside the panel, we've found our vector
             if (this%panels(i_panel)%projection_inside(0.1*tp + this%vertices(i_vert)%loc, .false.)) then
                 tp_found = .true.
+                ! write(*,*) "found at end of tp loop, j = ", j
                 exit tp_loop
+            else
+                ! write(*,*) "TESTING: projection failed didnt place control point dir on the first panel. Quitting..."
             end if
 
         end do tp_loop
@@ -2005,6 +2056,7 @@ contains
 
         end do
         n_avg = n_avg/norm2(n_avg)
+        ! write(*,*)"n_avg = ", n_avg
 
         ! Determine direction
         offset_ratio = 0.5*sqrt(0.5*(1. + C_min_panel_angle))
@@ -2017,6 +2069,7 @@ contains
 
         ! Normalize
         dir = dir/norm2(dir)
+        ! write(*,*)" dir = ", dir
     
     end function surface_mesh_get_clone_control_point_dir
 
@@ -2067,15 +2120,14 @@ contains
         allocate(cp_locs(3,this%N_verts))
 
         ! Loop through vertices
-        !$OMP parallel do private(j, i_panel, dir, new_dir, n_avg, this_offset, disp) &
-        !$OMP & schedule(dynamic) shared(this, offset, freestream, offset_type)
+        ! $OMP parallel do private(j, i_panel, dir, new_dir, n_avg, this_offset, disp) &
+        ! $OMP & schedule(dynamic) shared(this, offset, freestream, offset_type)
         do i=1,this%N_verts
 
             ! If the vertex is a clone, it needs to be shifted off the normal slightly so that it is unique from its counterpart
             if (this%vertices(i)%clone) then
 
                 dir = this%get_clone_control_point_dir(i)
-
             ! If it has no clone, then placement simply follows the average normal vector
             else
 
@@ -2307,7 +2359,6 @@ contains
         else
             cp_locs = this%get_cp_locs_vertex_based_interior(offset, offset_type, freestream)
         end if 
-
         
         
         ! Initialize control points
@@ -3260,42 +3311,56 @@ contains
         real :: step
         character(10) :: xyz_char, step_char
 
+        ! Check if user wants to run Machline with a perturbed point (for central difference validating
+        !  the adjoint calcs)
+        call json_xtnsn_get(settings, 'perturbation.perturb_point', this%perturb_point, .false.)
+
+        
         ! get point and xyz index that will be perturbed, and step size
         if (this%perturb_point) then
             call json_xtnsn_get(settings, 'perturbation.point_index', point_index)
             call json_xtnsn_get(settings, 'perturbation.xyz_index', xyz_index)
             call json_xtnsn_get(settings, 'perturbation.step', step)
+        
+
+            ! determine x, y, or z character
+            if (xyz_index == 1) then
+                xyz_char = "x"
+            elseif (xyz_index == 2) then
+                xyz_char = "y"
+            elseif (xyz_index == 3) then
+                xyz_char = "z"
+            end if
+
+            ! determine step direction
+            if (step > 0.0) then
+                step_char = " up"
+            else
+                step_char = " down"
+            end if
+
+            ! perturb the vertex
+            write(*,*) "    Input specified a vertex perturbation"
+            write(*,'(A, A1, A, I3, A5, A, ES10.4)') "         Perturbing the ", xyz_char, " coordinate of vertex ",&
+            point_index, step_char, " by ", abs(step)
+            
+            write(*,'(A, F12.10)') "         Original Value:  ", this%vertices(point_index)%loc(xyz_index)
+            
+            this%vertices(point_index)%loc(xyz_index) = this%vertices(point_index)%loc(xyz_index) + step
+            
+            write(*,'(A, F12.10)') "         Perturbed Value: ", this%vertices(point_index)%loc(xyz_index)
+            
+            
+            write(*,*) "         check Perturbed Value: ", this%panels(1)%get_vertex_loc(1)
+            write(*,*) "         check Perturbed Value: ", this%panels(1)%get_vertex_loc(2)
+            write(*,*) "         check Perturbed Value: ", this%panels(1)%get_vertex_loc(3)
+
+            ! now we need to update the panel geometry dependent on vertex location
+            do i =1,this%N_panels
+                deallocate(this%panels(i)%n_hat_g)
+                call this%panels(i)%calc_derived_geom()
+            end do
         end if
-
-        ! determine x, y, or z character
-        if (xyz_index == 1) then
-            xyz_char = "x"
-        elseif (xyz_index == 2) then
-            xyz_char = "y"
-        elseif (xyz_index == 3) then
-            xyz_char = "z"
-        end if
-
-        ! determine step direction
-        if (step > 0.0) then
-            step_char = " up"
-        else
-            step_char = " down"
-        end if
-
-        ! perturb the vertex
-        write(*,*) "    Input specified a vertex perturbation"
-        write(*,'(A, A1, A, I3, A5, A, ES10.4)') "         Perturbing the ", xyz_char, " coordinate of vertex ",&
-         point_index, step_char, " by ", abs(step)
-        write(*,'(A, F12.10)') "         Original Value:  ", this%vertices(point_index)%loc(xyz_index)
-        this%vertices(point_index)%loc(xyz_index) = this%vertices(point_index)%loc(xyz_index) + step
-        write(*,'(A, F12.10)') "         Perturbed Value: ", this%vertices(point_index)%loc(xyz_index)
-
-        ! now we need to update the panel geometry dependent on vertex location
-        do i =1,this%N_panels
-            deallocate(this%panels(i)%n_hat_g)
-            call this%panels(i)%calc_derived_geom()
-        end do
 
     end subroutine surface_mesh_perturb_vertex
 
@@ -3850,7 +3915,7 @@ contains
         real,dimension(:,:),allocatable,intent(inout) :: cp_locs
         type(sparse_3D),intent(inout):: d_cp_locs
 
-        integer :: i, j, i_panel
+        integer :: i, j, i_panel, m
         real,dimension(3) :: dir, new_dir, n_avg, disp, new_dir_final
         real :: this_offset, norm_of_n_avg, norm_of_new_dir
         type(sparse_vector) ::  d_norm_of_n_avg, d_norm_of_new_dir, d_new_dir_term2, d_new_dir_term3
@@ -3868,23 +3933,24 @@ contains
 
             ! If the vertex is a clone, it needs to be shifted off the normal slightly so that it is unique from its counterpart
             if (this%vertices(i)%clone) then
-
+                
                 dir = this%get_clone_control_point_dir(i)
                 d_dir = this%get_clone_control_point_dir_adjoint(i)
                 
-            ! If it has no clone, then placement simply follows the average normal vector
+                ! If it has no clone, then placement simply follows the average normal vector
             else
-
+                
                 ! Set direction simply off of the average normal vector
                 dir = -this%vertices(i)%n_g
                 call d_dir%init_from_sparse_matrix(this%vertices(i)%d_n_g)
                 call d_dir%broadcast_element_times_scalar(-1.)
-
+                
             end if
-
+            
             ! Determine offset
             select case (offset_type)
-
+                        
+            
             case ('local')
                 write(*,*) "Adjoint calc doesn't allow for local offset at this time. Quitting..."
                 stop
@@ -3894,6 +3960,8 @@ contains
                 this_offset = offset
 
             end select
+
+            
             ! Initialize control point
             cp_locs(:,i) = this%vertices(i)%loc + this_offset*dir
             
@@ -3962,7 +4030,7 @@ contains
                     hi_d_low = d_norm_of_n_avg%broadcast_element_times_vector(n_avg)
                     
                     call d_n_avg_final%sparse_subtract(hi_d_low)
-                    call d_n_avg_final%broadcast_element_times_scalar(1./(inner(n_avg,n_avg)))
+                    call d_n_avg_final%broadcast_element_times_scalar(1./(norm_of_n_avg*norm_of_n_avg))
                     
                     ! deallocate stuff
                     deallocate(sum_d_n_avg%columns, hi_d_low%columns, d_norm_of_n_avg%elements)
@@ -4055,13 +4123,13 @@ contains
         type(sparse_matrix) :: d_dir_final
 
         integer :: j, k, i_panel, i_edge_1, i_edge_2, i_edge, panel1, panel2
-        real,dimension(3) :: t1, t2, t_avg, tp, tp_norm, n_avg, x, dir, new_dir, new_dir_final
+        real,dimension(3) :: t1, t2, t_avg, tp, tp_normed, n_avg, x, dir, new_dir, new_dir_final
         real :: C_min_panel_angle, offset_ratio, norm_of_n_avg, norm_of_dir, y
         logical :: found_first, tp_found
         type(sparse_vector) :: dummy
         type(sparse_vector) :: d_norm, d_inner, d_inner1, d_C_min, d_norm_of_n_avg, d_offset_ratio, d_norm_of_dir
         type(sparse_matrix) :: d_x, hi_d_low, d_t1, d_t2, d_t_avg
-        type(sparse_matrix) :: d_tp, d_tp_term1, d_tp_term2, d_tp_norm, d_n_avg, sum_d_n_avg, d_n_avg_final
+        type(sparse_matrix) :: d_tp, d_tp_term1, d_tp_term2, d_tp_normed, d_n_avg, sum_d_n_avg, d_n_avg_final
         type(sparse_matrix) :: d_dir_term2, d_dir_term3, d_dir
 
         ! Get the two edges defining the split for this vertex
@@ -4175,7 +4243,6 @@ contains
 
             deallocate(d_x%columns, d_norm%elements, hi_d_low%columns)
 
-
         ! If we've only found one, then the other edge must be mirrored
         else
             write(*,*)"Warning: adjoint can't do mirrored mesh. check surface_mesh_get_clone_control_point_dir_adjoint"
@@ -4191,47 +4258,58 @@ contains
             ! Get index of panel
             call this%vertices(i_vert)%panels_not_across_wake_edge%get(j, i_panel)
 
-            ! Loop through vertices of panel j
-            vertex_loop: do k=1,this%panels(i_panel)%N
 
-                ! Check we've got a different vertex than the one we're trying to place a control point for
-                if (i_vert == this%panels(i_panel)%get_vertex_index(k)) cycle vertex_loop
+            ! ! Loop through vertices of panel j
+            ! vertex_loop: do k=1,this%panels(i_panel)%N
 
-                ! Get vector to vertex
-                x = this%panels(i_panel)%get_vertex_loc(k) - this%vertices(i_vert)%loc
+            !     ! Check we've got a different vertex than the one we're trying to place a control point for
+            !     if (i_vert == this%panels(i_panel)%get_vertex_index(k)) cycle vertex_loop
 
-                ! Project the vector so it is perpendicular to t_avg
-                tp = x - t_avg*inner(t_avg, x)
+            !     ! Get vector to vertex
+            !     x = this%panels(i_panel)%get_vertex_loc(k) - this%vertices(i_vert)%loc
+            
+            !     ! Project the vector so it is perpendicular to t_avg
+            !     tp = x - t_avg*inner(t_avg, x)
                 
-                ! Check tp isn't perfectly aligned with t_avg
-                if (norm2(tp) < 1.e-12) cycle vertex_loop
+            !     ! Check tp isn't perfectly aligned with t_avg
+            !     if (norm2(tp) < 1.e-12) cycle vertex_loop
 
-                ! If it's still inside the panel, we've found our vector
-                if (this%panels(i_panel)%projection_inside(0.1*tp + this%vertices(i_vert)%loc, .false.)) then
-                    tp_found = .true.
-
-                    ! since tp_found is true, calc d_tp
-                    ! product rule the second term
-                    call d_tp_term1%init_from_sparse_matrix(d_t_avg)
-                    call d_tp_term1%broadcast_element_times_scalar(inner(t_avg,x))
+            !     ! If it's still inside the panel, we've found our vector
+            !     if (this%panels(i_panel)%projection_inside(0.1*tp + this%vertices(i_vert)%loc, .false.)) then
+            !         tp_found = .true.
                     
-                    d_inner = d_t_avg%broadcast_vector_dot_element(x)
-                    d_inner1 = d_x%broadcast_vector_dot_element(t_avg)
-                    call d_inner%sparse_add(d_inner1)
-                    d_tp_term2 = d_inner%broadcast_element_times_vector(t_avg)
+            !         ! since tp_found is true, calc d_tp
+                    
+            !         ! product rule of t_avg*inner(t_avg, x): first term is (d_t_avg times inner(t_avg, x))
+            !         call d_tp_term1%init_from_sparse_matrix(d_t_avg)
+            !         call d_tp_term1%broadcast_element_times_scalar(inner(t_avg,x))
+                    
+            !         ! calculate d_x 
+            !         ! where x = this%panels(i_panel)%get_vertex_loc(k) - this%vertices(i_vert)%loc
+            !         d_x = this%panels(i_panel)%get_vertex_d_loc(k)
+            !         call d_x%sparse_subtract(this%vertices(i_vert)%d_loc)
 
-                    ! assemble d_tp
-                    d_tp = this%panels(i_panel)%get_vertex_d_loc(k)
-                    call d_tp%sparse_subtract(this%vertices(i_vert)%d_loc)
-                    call d_tp%sparse_subtract(d_tp_term1)
-                    call d_tp%sparse_subtract(d_tp_term2)
+            !         ! partial of inner(t_avg, x)
+            !         d_inner = d_t_avg%broadcast_vector_dot_element(x)
+            !         d_inner1 = d_x%broadcast_vector_dot_element(t_avg)
+            !         call d_inner%sparse_add(d_inner1)
 
-                    deallocate(d_tp_term1%columns, d_tp_term2%columns, d_inner%elements, d_inner1%elements)
+            !         ! put together second term:   t_avg* d_inner(t_avg, x)
+            !         d_tp_term2 = d_inner%broadcast_element_times_vector(t_avg)
+                    
 
-                    exit tp_loop
-                end if
+            !         ! assemble d_tp terms
+            !         call d_tp%init_from_sparse_matrix(d_x)
+            !         call d_tp%sparse_subtract(d_tp_term1)
+            !         call d_tp%sparse_subtract(d_tp_term2)
 
-            end do vertex_loop
+            !         deallocate(d_tp_term1%columns, d_tp_term2%columns, d_inner%elements, d_inner1%elements,&
+            !         d_x%columns)
+
+            !         exit tp_loop
+            !     end if
+
+            ! end do vertex_loop
 
             ! If none of the vertices worked, try the centroid
             x = this%panels(i_panel)%centr - this%vertices(i_vert)%loc
@@ -4240,31 +4318,48 @@ contains
             tp = x - t_avg*inner(t_avg, x)
 
             ! Check tp isn't perfectly aligned with t_avg
-            if (norm2(tp) < 1.e-12) cycle tp_loop
+            if (norm2(tp) < 1.e-12) then
+                ! write(*,*) "TESTING: adjoint norm2 didnt place control point dir on the first panel."
+                cycle tp_loop
+            end if
 
             ! If it's still inside the panel, we've found our vector
             if (this%panels(i_panel)%projection_inside(0.1*tp + this%vertices(i_vert)%loc, .false.)) then
+                
                 tp_found = .true.
-
-                ! since tp is found, calc d_tp for centroid case
-                ! product rule the second term
+                    
+                ! since tp_found is true, calc d_tp
+                
+                ! product rule of t_avg*inner(t_avg, x): 
+                ! first term is (d_t_avg times inner(t_avg, x))
                 call d_tp_term1%init_from_sparse_matrix(d_t_avg)
                 call d_tp_term1%broadcast_element_times_scalar(inner(t_avg,x))
                 
+                ! calculate d_x using the centroid:
+                ! where x = this%panels(i_panel)%centr - this%vertices(i_vert)%loc
+                call d_x%init_from_sparse_matrix(this%panels(i_panel)%d_centr)
+                call d_x%sparse_subtract(this%vertices(i_vert)%d_loc)
+
+                ! partial of inner(t_avg, x)
                 d_inner = d_t_avg%broadcast_vector_dot_element(x)
                 d_inner1 = d_x%broadcast_vector_dot_element(t_avg)
                 call d_inner%sparse_add(d_inner1)
-                d_tp_term2 = d_inner%broadcast_element_times_vector(t_avg)
 
-                ! assemble d_tp
-                call d_tp%init_from_sparse_matrix(this%panels(i_panel)%d_centr)
-                call d_tp%sparse_subtract(this%vertices(i_vert)%d_loc)
+                ! put together second term:   t_avg* d_inner(t_avg, x)
+                d_tp_term2 = d_inner%broadcast_element_times_vector(t_avg)
+                
+
+                ! assemble d_tp terms
+                call d_tp%init_from_sparse_matrix(d_x)
                 call d_tp%sparse_subtract(d_tp_term1)
                 call d_tp%sparse_subtract(d_tp_term2)
 
-                deallocate(d_tp_term1%columns, d_tp_term2%columns, d_inner%elements, d_inner1%elements)
+                deallocate(d_tp_term1%columns, d_tp_term2%columns, d_inner%elements, &
+                d_inner1%elements, d_x%columns)
 
                 exit tp_loop
+            else
+                ! write(*,*) "TESTING: adjoint projection didnt place control point dir on the first panel"
             end if
 
         end do tp_loop
@@ -4277,12 +4372,12 @@ contains
         end if
 
         ! Normalize
-        tp_norm = tp/norm2(tp)
+        tp_normed = tp/norm2(tp)
 
-        ! adjoint tp_norm
+        ! adjoint tp_normed
         ! low d hi
-        call d_tp_norm%init_from_sparse_matrix(d_tp)
-        call d_tp_norm%broadcast_element_times_scalar(norm2(tp))
+        call d_tp_normed%init_from_sparse_matrix(d_tp)
+        call d_tp_normed%broadcast_element_times_scalar(norm2(tp))
 
         ! hi d low
         d_norm = d_tp%broadcast_vector_dot_element(tp)
@@ -4291,10 +4386,11 @@ contains
         hi_d_low = d_norm%broadcast_element_times_vector(tp)
 
         ! finish quotient rule
-        call d_tp_norm%sparse_subtract(hi_d_low)
-        call d_tp_norm%broadcast_element_times_scalar(1./(norm2(tp)*norm2(tp)))
+        call d_tp_normed%sparse_subtract(hi_d_low)
+        call d_tp_normed%broadcast_element_times_scalar(1./(norm2(tp)*norm2(tp)))
 
         deallocate(d_tp%columns, d_norm%elements, hi_d_low%columns)
+
 
         ! Find minimum angle between panels
         C_min_panel_angle = 1.
@@ -4316,8 +4412,9 @@ contains
                 ! Get minimum angle
                 y = inner(this%panels(panel1)%n_g, this%panels(panel2)%n_g)
                 C_min_panel_angle = min(C_min_panel_angle, y)
+
                 ! if the minimum angel is updated, calculate the derivative
-                if (C_min_panel_angle == y)then
+                if (abs(C_min_panel_angle - y) < 1.0e-12) then
                     deallocate(d_C_min%elements, dummy%elements)
                     d_C_min = this%panels(panel1)%d_n_g%broadcast_vector_dot_element(this%panels(panel2)%n_g)
                     dummy = this%panels(panel2)%d_n_g%broadcast_vector_dot_element(this%panels(panel1)%n_g)
@@ -4378,7 +4475,7 @@ contains
         hi_d_low = d_norm_of_n_avg%broadcast_element_times_vector(n_avg)
         
         call d_n_avg_final%sparse_subtract(hi_d_low)
-        call d_n_avg_final%broadcast_element_times_scalar(1./(inner(n_avg,n_avg)))
+        call d_n_avg_final%broadcast_element_times_scalar(1./(norm_of_n_avg*norm_of_n_avg))
 
         ! deallocate stuff
         deallocate(sum_d_n_avg%columns, hi_d_low%columns, d_norm_of_n_avg%elements)
@@ -4397,10 +4494,10 @@ contains
         !!! end calc derivative of offset ratio !!!
 
         ! Determine direction
-        dir = tp_norm - offset_ratio*n_avg
+        dir = tp_normed - offset_ratio*n_avg
 
         !!! calc derivative of dir !!!
-        call d_dir%init_from_sparse_matrix(d_tp_norm)
+        call d_dir%init_from_sparse_matrix(d_tp_normed)
 
         d_dir_term2 = d_offset_ratio%broadcast_element_times_vector(n_avg)
         
@@ -4409,6 +4506,8 @@ contains
 
         call d_dir%sparse_subtract(d_dir_term2)
         call d_dir%sparse_subtract(d_dir_term3)
+
+        deallocate(d_dir_term2%columns, d_dir_term3%columns)
         !!! end calc derivative of dir !!!
 
 
@@ -4434,14 +4533,14 @@ contains
         hi_d_low = d_norm_of_dir%broadcast_element_times_vector(dir)
         
         call d_dir_final%sparse_subtract(hi_d_low)
-        call d_dir_final%broadcast_element_times_scalar(1./(inner(dir,dir)))
+        call d_dir_final%broadcast_element_times_scalar(1./(norm_of_dir*norm_of_dir))
 
         ! deallocate stuff
         deallocate(d_dir%columns, hi_d_low%columns, d_norm_of_dir%elements)
 
         !!! end calc derivative of normalized dir !!!
 
-        ! Normalize dir
+        ! Normalize dir (isn't used again)
         dir = dir/norm2(dir)
     
     end function surface_mesh_get_clone_control_point_dir_adjoint

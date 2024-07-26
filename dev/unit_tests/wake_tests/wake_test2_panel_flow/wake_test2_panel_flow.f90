@@ -53,7 +53,7 @@ program wake_test2
     ! real,dimension(:,:,:),allocatable ::  d_A_g_to_ls_FD, d_A_ls_to_g_FD, d_T_mu_FD,&
     ! d_vertices_ls_FD
 
-    integer :: i,j,k,m,n,y, N_verts, N_panels, vert, index
+    integer :: i,j,k,m,n,y, N_original_verts, N_panels, vert, index
     real :: step, error_allowed
     type(vertex),dimension(:),allocatable :: vertices ! list of vertex types, this should be a mesh attribute
     type(panel),dimension(:),allocatable :: panels, adjoint_panels   ! list of panels, this should be a mesh attribute
@@ -101,7 +101,7 @@ program wake_test2
     ! Initialize surface mesh
     call test_mesh%init(geom_settings)
     
-    N_verts = test_mesh%N_verts
+    N_original_verts = test_mesh%N_verts
 
     ! Initialize flow
     call json_xtnsn_get(geom_settings, 'spanwise_axis', spanwise_axis, '+y')
@@ -175,7 +175,6 @@ program wake_test2
     
     ! Perform flow-dependent initialization on the surface mesh
     call adjoint_mesh%init_with_flow(adjoint_freestream_flow, adjoint_body_file, adjoint_wake_file, adjoint_formulation)
-    write(*,*)" after init_with flow"
     !!!!!!!!!!!! END ADJOINT TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!
 
 
@@ -184,26 +183,26 @@ program wake_test2
     N_panels = test_mesh%N_panels
     
     
-    allocate(residuals3(3,N_verts*3))
-    allocate(residuals2(2,N_verts*3))
-    allocate(residuals(N_verts*3))
-    allocate(A_g_to_ls_up(3,N_verts*3))
-    allocate(A_g_to_ls_dn(3,N_verts*3))
-    allocate(d_A_g_to_ls_FD(3,N_verts*3))
-    allocate(A_ls_to_g_up(3,N_verts*3))
-    allocate(A_ls_to_g_dn(3,N_verts*3))
-    allocate(d_A_ls_to_g_FD(3,N_verts*3))
-    allocate(vertices_ls_up(2,N_verts*3))
-    allocate(vertices_ls_dn(2,N_verts*3))
-    allocate(d_vertices_ls_FD(2,N_verts*3))
-    allocate(n_hat_ls_up(2,N_verts*3))
-    allocate(n_hat_ls_dn(2,N_verts*3))
-    allocate(d_n_hat_ls_FD(2,N_verts*3))
-    allocate(T_mu_up(3,N_verts*3))
-    allocate(T_mu_dn(3,N_verts*3))
-    allocate(d_T_mu_FD(3,N_verts*3))
+    allocate(residuals3(3,N_original_verts*3))
+    allocate(residuals2(2,N_original_verts*3))
+    allocate(residuals(N_original_verts*3))
+    allocate(A_g_to_ls_up(3,N_original_verts*3))
+    allocate(A_g_to_ls_dn(3,N_original_verts*3))
+    allocate(d_A_g_to_ls_FD(3,N_original_verts*3))
+    allocate(A_ls_to_g_up(3,N_original_verts*3))
+    allocate(A_ls_to_g_dn(3,N_original_verts*3))
+    allocate(d_A_ls_to_g_FD(3,N_original_verts*3))
+    allocate(vertices_ls_up(2,N_original_verts*3))
+    allocate(vertices_ls_dn(2,N_original_verts*3))
+    allocate(d_vertices_ls_FD(2,N_original_verts*3))
+    allocate(n_hat_ls_up(2,N_original_verts*3))
+    allocate(n_hat_ls_dn(2,N_original_verts*3))
+    allocate(d_n_hat_ls_FD(2,N_original_verts*3))
+    allocate(T_mu_up(3,N_original_verts*3))
+    allocate(T_mu_dn(3,N_original_verts*3))
+    allocate(d_T_mu_FD(3,N_original_verts*3))
     
-    error_allowed = 1.0e-7
+    error_allowed = 1.0e-9
     step = 0.000001
     index = 1
     
@@ -232,7 +231,11 @@ program wake_test2
             ! do k=1,3
             ! do for each design variable
             do i=1,3
-                do j=1,N_verts
+                do j=1,N_original_verts
+
+                    deallocate(test_mesh%vertices, test_mesh%edges, test_mesh%panels)
+                    call test_mesh%init(geom_settings)
+
                     ! perturb up the current design variable
                     test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
                     
@@ -247,34 +250,44 @@ program wake_test2
                     ! update vertex normal
                     call test_mesh%calc_vertex_geometry()
 
-                    deallocate(test_mesh%panels(index)%vertices_ls)
-                    deallocate(test_mesh%panels(index)%n_hat_ls)
-                    deallocate(test_mesh%panels(index)%b)
-                    deallocate(test_mesh%panels(index)%b_mir)  
-                    deallocate(test_mesh%panels(index)%sqrt_b)
-                    deallocate(test_mesh%panels(index)%i_vert_d)
-                    deallocate(test_mesh%panels(index)%S_mu_inv)
-                    deallocate(test_mesh%panels(index)%T_mu)
-                    deallocate(test_mesh%panels(index)%i_panel_s)
-                    call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
+                    call test_mesh%init_panels_with_flow(freestream_flow)
+
+                    call test_mesh%characterize_edges(freestream_flow) 
+        
+                    if (test_mesh%wake_present) then
+
+                        ! Determine how cloning needs to be done
+                        call test_mesh%set_needed_vertex_clones()
+                        
+                        ! Clone necessary vertices
+                        call test_mesh%clone_vertices(formulation)
+                        
+                    end if
+
+                    call test_mesh%init_wake(freestream_flow, wake_file, formulation) 
 
                     call test_mesh%panels(index)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
                     test_mesh%vertices,.false.)
                     !!!!!!!!!!!! end update !!!!!!!!!!!!!!
                     
                     ! get desired info
-                    A_g_to_ls_up(:,j + (i-1)*N_verts) = test_mesh%panels(index)%A_g_to_ls(m,:)
-                    A_ls_to_g_up(:,j + (i-1)*N_verts) = test_mesh%panels(index)%A_ls_to_g(m,:)
+                    A_g_to_ls_up(:,j + (i-1)*N_original_verts) = test_mesh%panels(index)%A_g_to_ls(m,:)
+                    A_ls_to_g_up(:,j + (i-1)*N_original_verts) = test_mesh%panels(index)%A_ls_to_g(m,:)
 
-                    vertices_ls_up(:,j + (i-1)*N_verts) = test_mesh%panels(index)%vertices_ls(:,m)
-                    n_hat_ls_up(:,j + (i-1)*N_verts) = test_mesh%panels(index)%n_hat_ls(:,m)
+                    vertices_ls_up(:,j + (i-1)*N_original_verts) = test_mesh%panels(index)%vertices_ls(:,m)
+                    n_hat_ls_up(:,j + (i-1)*N_original_verts) = test_mesh%panels(index)%n_hat_ls(:,m)
 
-                    T_mu_up(:,j + (i-1)*N_verts) = test_mesh%panels(index)%S_mu_inv(m,:)
+                    T_mu_up(:,j + (i-1)*N_original_verts) = test_mesh%panels(index)%S_mu_inv(m,:)
                     
+
+                    !!!! PERTURB Down !!!!
+
+                    deallocate(test_mesh%vertices, test_mesh%edges, test_mesh%panels)
+                    call test_mesh%init(geom_settings)
+
                     ! perturb down the current design variable
-                    test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - 2.*step
+                    test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - step
                     
-                    stop
                     !!!!!!!!!!!!  update !!!!!!!!!!!!!!
 
                     ! update panel geometry and calc
@@ -286,31 +299,36 @@ program wake_test2
                     ! update vertex normal
                     call test_mesh%calc_vertex_geometry()
                     
-                    deallocate(test_mesh%panels(index)%vertices_ls)
-                    deallocate(test_mesh%panels(index)%n_hat_ls)
-                    deallocate(test_mesh%panels(index)%b)
-                    deallocate(test_mesh%panels(index)%b_mir)  
-                    deallocate(test_mesh%panels(index)%sqrt_b)
-                    deallocate(test_mesh%panels(index)%i_vert_d)
-                    deallocate(test_mesh%panels(index)%S_mu_inv)
-                    deallocate(test_mesh%panels(index)%T_mu)
-                    deallocate(test_mesh%panels(index)%i_panel_s)
-                    call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
+                    call test_mesh%init_panels_with_flow(freestream_flow)
+        
+                    call test_mesh%characterize_edges(freestream_flow) 
+        
+                    if (test_mesh%wake_present) then
+
+                        ! Determine how cloning needs to be done
+                        call test_mesh%set_needed_vertex_clones()
+                        
+                        ! Clone necessary vertices
+                        call test_mesh%clone_vertices(formulation)
+                        
+                    end if
+
+
+                    call test_mesh%init_wake(freestream_flow, wake_file, formulation)
+
                     call test_mesh%panels(index)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
                     test_mesh%vertices,.false.)
                     !!!!!!!!!!!!  end update !!!!!!!!!!!!!!
                     
                     ! get desired info
-                    A_g_to_ls_dn(:,j + (i-1)*N_verts) = test_mesh%panels(index)%A_g_to_ls(m,:)
-                    A_ls_to_g_dn(:,j + (i-1)*N_verts) = test_mesh%panels(index)%A_ls_to_g(m,:)
+                    A_g_to_ls_dn(:,j + (i-1)*N_original_verts) = test_mesh%panels(index)%A_g_to_ls(m,:)
+                    A_ls_to_g_dn(:,j + (i-1)*N_original_verts) = test_mesh%panels(index)%A_ls_to_g(m,:)
 
-                    vertices_ls_dn( :,j + (i-1)*N_verts) = test_mesh%panels(index)%vertices_ls(:,m)
-                    n_hat_ls_dn(:,j + (i-1)*N_verts) = test_mesh%panels(index)%n_hat_ls(:,m)
+                    vertices_ls_dn( :,j + (i-1)*N_original_verts) = test_mesh%panels(index)%vertices_ls(:,m)
+                    n_hat_ls_dn(:,j + (i-1)*N_original_verts) = test_mesh%panels(index)%n_hat_ls(:,m)
 
-                    T_mu_dn(:,j + (i-1)*N_verts) = test_mesh%panels(index)%S_mu_inv(m,:)
+                    T_mu_dn(:,j + (i-1)*N_original_verts) = test_mesh%panels(index)%S_mu_inv(m,:)
                     
-                    ! restore geometry
-                    test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
                     
                 end do 
             end do 
@@ -329,14 +347,14 @@ program wake_test2
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST d_A_g_to_ls  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!       
             
             ! calculate residuals3
-            do i =1, N_verts*3
+            do i =1, N_original_verts*3
                 residuals3(:,i) = adjoint_mesh%panels(index)%d_A_g_to_ls(m)%get_values(i) - d_A_g_to_ls_FD(:,i)
             end do
 
             if (maxval(abs(residuals3(:,:)))>error_allowed) then
                 write(*,*) ""
                 write(*,*) "     FLAGGED VALUES :"
-                do i = 1, N_verts*3
+                do i = 1, N_original_verts*3
                     if (any(abs(residuals3(:,i))>error_allowed)) then
                         write(*,*) ""
                         write(*,'(A,I5,A)') "                        d_A_g_to_ls row ",m,"              & 
@@ -352,7 +370,7 @@ program wake_test2
             
             
             ! check if test failed
-            do i=1,N_verts*3
+            do i=1,N_original_verts*3
                 if (any(abs(residuals3(:,i)) > error_allowed)) then 
                     do j = 1,3
                         if (abs(d_A_g_to_ls_FD(j,i))>1000.0) then
@@ -413,14 +431,14 @@ program wake_test2
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST d_A_ls_to_g  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!       
             
             ! calculate residuals3
-            do i =1, N_verts*3
+            do i =1, N_original_verts*3
                 residuals3(:,i) = adjoint_mesh%panels(index)%d_A_ls_to_g(m)%get_values(i) - d_A_ls_to_g_FD(:,i)
             end do
 
             if (maxval(abs(residuals3(:,:)))>error_allowed) then
                 write(*,*) ""
                 write(*,*) "     FLAGGED VALUES :"
-                do i = 1, N_verts*3
+                do i = 1, N_original_verts*3
                     if (any(abs(residuals3(:,i))>error_allowed)) then
                         write(*,*) ""
                         write(*,'(A,I5,A)') "                      d_A_ls_to_g row  ",m,"              & 
@@ -436,7 +454,7 @@ program wake_test2
            
             
             ! check if test failed
-            do i=1,N_verts*3
+            do i=1,N_original_verts*3
                 if (any(abs(residuals3(:,i)) > error_allowed)) then 
                     do j = 1,3
                         if (abs(d_A_ls_to_g_FD(j,i))>1000.0) then
@@ -499,7 +517,7 @@ program wake_test2
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST d_vertices_ls !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
             ! calculate residuals2
-            do i =1, N_verts*3
+            do i =1, N_original_verts*3
                 residuals2(:,i) = (/adjoint_mesh%panels(index)%d_vertices_ls(1,m)%get_value(i),&
                 adjoint_mesh%panels(index)%d_vertices_ls(2,m)%get_value(i)/)- d_vertices_ls_FD(:,i)
             end do
@@ -507,7 +525,7 @@ program wake_test2
             if (maxval(abs(residuals2(:,:)))>error_allowed) then
                 write(*,*) ""
                 write(*,*) "     FLAGGED VALUES :"
-                do i = 1, N_verts*3
+                do i = 1, N_original_verts*3
                     if (any(abs(residuals2(:,i))>error_allowed)) then
                         write(*,*) ""
                         write(*,'(A,I5,A)') "                      d_vertices_ls vert ",m,"              & 
@@ -524,7 +542,7 @@ program wake_test2
             
             
             ! check if test failed
-            do i=1,N_verts*3
+            do i=1,N_original_verts*3
                 if (any(abs(residuals2(:,i)) > error_allowed)) then 
                     do j = 1,2
                         if (abs(d_A_ls_to_g_FD(j,i))>1000.0) then
@@ -586,7 +604,7 @@ program wake_test2
             
             
             ! calculate residuals2
-            do i =1, N_verts*3
+            do i =1, N_original_verts*3
                 residuals2(:,i) = (/adjoint_mesh%panels(index)%d_n_hat_ls(1,m)%get_value(i),&
                 adjoint_mesh%panels(index)%d_n_hat_ls(2,m)%get_value(i)/) - d_n_hat_ls_FD(:,i)
             end do
@@ -594,7 +612,7 @@ program wake_test2
             if (maxval(abs(residuals2(:,:)))>error_allowed) then
                 write(*,*) ""
                 write(*,*) "     FLAGGED VALUES :"
-                do i = 1, N_verts*3
+                do i = 1, N_original_verts*3
                     if (any(abs(residuals2(:,i))>error_allowed)) then
                         write(*,*) ""
                         write(*,'(A,I5,A)') "                       d_n_hat_ls edge ",m,"              & 
@@ -610,7 +628,7 @@ program wake_test2
             
             
             ! check if test failed
-            do i=1,N_verts*3
+            do i=1,N_original_verts*3
                 if (any(abs(residuals2(:,i)) > error_allowed)) then 
                     do j = 1,2
                         if (abs(d_n_hat_ls_FD(j,i))>1000.0) then
@@ -673,14 +691,14 @@ program wake_test2
 
 
             ! calculate residuals3
-            do i =1, N_verts*3
+            do i =1, N_original_verts*3
                 residuals3(:,i) = adjoint_mesh%panels(index)%d_T_mu_rows(m)%get_values(i) - d_T_mu_FD(:,i)
             end do
 
             if (maxval(abs(residuals3(:,:)))>error_allowed) then
                 write(*,*) ""
                 write(*,*) "     FLAGGED VALUES :"
-                do i = 1, N_verts*3
+                do i = 1, N_original_verts*3
                     if (any(abs(residuals3(:,i))>error_allowed)) then
                         write(*,*) ""
                         write(*,'(A,I5,A)') "                          d_T_mu row ",m,"              & 
@@ -695,7 +713,7 @@ program wake_test2
             
             
             ! check if test failed
-            do i=1,N_verts*3
+            do i=1,N_original_verts*3
                 if (any(abs(residuals3(:,i)) > error_allowed)) then 
                     do j = 1,3
                         if (abs(d_T_mu_FD(j,i))>1000.0) then
