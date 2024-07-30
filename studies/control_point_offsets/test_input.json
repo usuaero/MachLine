@@ -1,0 +1,62 @@
+{
+    "flow": {
+        "xfreestream_velocity": [
+            0.9961946980917455,
+            0.0,
+            0.08715574274765817
+        ],
+        "freestream_velocity": [
+            1.0,
+            0.0,
+            0.0
+        ],
+        "freestream_mach_number": 2.0
+    },
+    "geometry": {
+        "xfile": "studies/control_point_offsets/meshes/delta_wing_clustered_mesh_coarse.vtk",
+        "yfile": "studies/control_point_offsets/meshes/wedgeWing.stl",
+        "file": "studies/control_point_offsets/meshes/delta_wing.tri",
+
+        "xspanwise_axis": "+z",
+        "spanwise_axis": "+y",
+        "reference": {
+            "area": 4.0
+        },
+        "wake_model": {
+            "wake_present": true,
+            "append_wake": true,
+            "trefftz_distance": 40,
+            "xwake_type": "filaments",
+            "wake_type": "panels",
+            "N_panels": 1
+        }
+    },
+    "solver": {
+        "run_checks": true,
+        "formulation": "neumann-mass-flux-VCP",
+        "xformulation": "dirichlet-morino",
+        "control_point_offset": 1.0e-5,
+        "matrix_solver": "HHLS",
+        "zmatrix_solver": "LU",
+        "ymatrix_solver": "GMRES",
+        "xmatrix_solver": "QRUP",
+        "preconditioner": "NONE",
+        "write_A_and_b": false,
+        "sort_system" : true
+    },
+    "post_processing": {
+        "pressure_rules": {
+            "incompressible": true
+        }
+    },
+    "output": {
+        "body_file": "studies/control_point_offsets/results/cp_offset_test.vtk",
+        "wake_file": "studies/control_point_offsets/results/cp_offset_test_wake.vtk",
+        "report_file": "studies/control_point_offsets/reports/cp_offset_test.json",
+        "control_point_file": "studies/control_point_offsets/results/cp_offset_test_control_points.vtk",
+        "xoffbody_points": {
+            "points_file": "studies/control_point_offsets/grid_points.csv",
+            "output_file": "studies/control_point_offsets/results/grid_points.csv"
+        }
+    }
+}

@@ -154,6 +154,7 @@ contains
 
         ! Default cases
         this%mirrored_is_unique = .true.
+        this%N_leading_edges = 0
         this%clone = .false.
         this%N_needed_clones = 0
         this%on_mirror_plane = .false.
@@ -273,12 +274,12 @@ contains
 
             end if
             if (mesh_edges(i_edge)%leading_edge) then
-                this%N_leading_edges = this%N_leading_edges + 1
+                this%N_leading_edges = this%N_leading_edges + 1 !!!! count how many leading edges are touching this vertex
             end if
         end do
 
-        ! Set number of needed clones for vertices which have at least one wake edge
-        if (this%N_wake_edges > 0) then
+        ! Set number of needed clones for vertices which have at least one wake edge !!!! will need to update this for leading edges 
+        if (this%N_wake_edges > 0 .or. this%N_leading_edges > 0) then
 
             ! This depends on how many wake edges it has
             ! If the vertex is on the mirror plane, then how many clones is dependent upon how many wake edges are on the mirror plane
@@ -287,6 +288,10 @@ contains
 
             ! If the vertex is not on the mirror plane, then we need one fewer clones than edges
             else
+                ! if (this%N_wake_edges > 0) this%N_needed_clones = this%N_needed_clones + this%N_wake_edges - 1
+                ! if (this%N_leading_edges > 0) this%N_needed_clones = this%N_needed_clones + this%N_leading_edges - 1 !!!! test at cloning leading edges
+                ! if (this%N_wake_edges == 1 .and. this%N_leading_edges == 1) this%N_needed_clones = 1
+                ! this%N_needed_clones = this%N_wake_edges + this%N_leading_edges - 1 !!!! test at cloning leading edges
                 this%N_needed_clones = this%N_wake_edges - 1
             end if
             
@@ -321,6 +326,7 @@ contains
 
         ! Store number of adjacent wake-shedding and discontinuous edges (probably unecessary at this point, but let's be consistent)
         new_vert%N_wake_edges = this%N_wake_edges
+        new_vert%N_leading_edges = this%N_leading_edges
 
         ! Mirroring properties
         new_vert%on_mirror_plane = this%on_mirror_plane

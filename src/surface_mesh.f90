@@ -1035,8 +1035,8 @@ contains
                             exit starting_edge_loop
                         end if
 
-                        ! Check if it's a wake-shedding edge
-                        if (this%edges(i_edge)%sheds_wake) then
+                        ! Check if it's a wake-shedding edge !!!! or if it's a leading edge
+                        if (this%edges(i_edge)%sheds_wake .or. this%edges(i_edge)%leading_edge) then
                             i_start_edge(1) = i_edge ! We don't exit here because we may find a better edge
                         end if
 
@@ -1126,8 +1126,11 @@ contains
 
                             ! Normalize and store
                             this%vertices(i_jango)%n_g_wake = n_avg/norm2(n_avg) !!!! this is where the normal vectors are caclulated
+                            write(*,*) "jango LE",this%vertices(i_jango)%N_leading_edges,&
+                                 "n_g_wake:",this%vertices(i_jango)%n_g_wake
+                           
                             ! Loop through neighboring panels and compute the average of their normal vectors for boba
-                            n_avg = 0
+                            n_avg = (/0,0,0/)
                             N_panels = this%vertices(i_boba)%panels_not_across_wake_edge%len()
                             ! Get panel index
                             do l =1,N_panels
@@ -1137,11 +1140,12 @@ contains
                 
                                 ! Update using weighted normal
                                 n_avg = n_avg + this%panels(boba_panel)%get_weighted_normal_at_corner(&
-                                this%vertices(i_boba)%loc)
+                                    this%vertices(i_boba)%loc)
                 
                             end do
                             ! Normalize and store
                             this%vertices(i_boba)%n_g_wake = n_avg/norm2(n_avg)
+                            write(*,*) "boba LE ",this%vertices(i_boba)%N_leading_edges, "n_g_wake:",this%vertices(i_boba)%n_g_wake
                         end if 
                     end do
 
@@ -1231,8 +1235,8 @@ contains
 
             end do neighbor_loop
 
-            ! See if the edge we have reached is a wake edge; if so, we're done
-            if (this%edges(i_end_edge)%sheds_wake) then
+            ! See if the edge we have reached is a wake edge; if so, we're done or leading edge
+            if (this%edges(i_end_edge)%sheds_wake .or. this%edges(i_end_edge)%leading_edge) then
                 exit step_loop
             end if
 
@@ -1254,6 +1258,7 @@ contains
         end do
         
     end subroutine surface_mesh_find_next_wake_edge
+
 
 
     subroutine surface_mesh_init_vertex_clone(this, i_jango, i_boba, mirrored_is_unique, panels_for_this_clone)
@@ -1310,7 +1315,7 @@ contains
             call this%vertices(i_boba)%adjacent_edges%get(k, i_edge)
 
             ! If this is a wake-shedding edge, just skip it, because the vertex reassignment has already been handled
-            if (this%edges(i_edge)%sheds_wake) cycle edge_loop
+            if (this%edges(i_edge)%sheds_wake .or. this%edges(i_edge)%leading_edge) cycle edge_loop
 
             ! Loop through the panels being assigned to this clone to see if this edge touches any of them
             found_edge = .false.
@@ -2024,9 +2029,9 @@ contains
         type(flow),intent(in) :: freestream
         real,intent(in) :: offset
         real,dimension(:,:),allocatable :: cp_locs
-        integer :: i
+        integer :: i, j, i_panel
         
-        real, dimension(3) :: dir, t_avg, wake_norm
+        real, dimension(3) :: dir, t_avg, wake_norm, new_dir, n_avg, disp
 
         ! Allocate memory
         allocate(cp_locs(3,this%N_verts))
@@ -2036,7 +2041,7 @@ contains
         do i=1,this%N_verts
 
             ! if the cp is on a wake shedding edge, then the cp is placed on the wake shedding edge with the normal vector of the wake
-            if (this%vertices(i)%N_wake_edges >= 1) then
+            if (this%vertices(i)%clone) then
 
                 !!!! vertex will follow old normal vector (straignt back)
                 ! dir = this%vertices(i)%n_g 
@@ -2060,31 +2065,33 @@ contains
                 
                 !!! follow the vector slighly offset the downstream direction
                 ! get the average tangent vector of the edge
-                t_avg = this%get_edge_tangent_vector(i)
+                ! t_avg = this%get_edge_tangent_vector(i)
                 
-                wake_norm = cross(t_avg, freestream%c_hat_g)
-                ! write(*,*) "wake_norm", wake_norm, i
-                ! write(*,*) "is top", (inner(this%vertices(i)%n_g_wake,wake_norm)>0)
-                if (inner(this%vertices(i)%n_g_wake,wake_norm)>0) then
-                    wake_norm = -wake_norm
-                end if
+                ! wake_norm = cross(t_avg, freestream%c_hat_g)
+                ! ! write(*,*) "wake_norm", wake_norm, i
+                ! ! write(*,*) "is top", (inner(this%vertices(i)%n_g_wake,wake_norm)>0)
+                ! if (inner(this%vertices(i)%n_g_wake,wake_norm)>0) then
+                !     wake_norm = -wake_norm
+                ! end if
                 
-                wake_norm = wake_norm/norm2(wake_norm)
+                ! wake_norm = wake_norm/norm2(wake_norm)
                 
-                if (this%vertices(i)%N_wake_edges == 1) then
-                    dir = -this%vertices(i)%n_g
-                    ! dir = this%vertices(i)%n_g_wake
-                    ! dir = freestream%c_hat_g + wake_norm*1.0
-                    ! if (wake_norm(2)<0) wake_norm = -wake_norm
-                    ! dir = freestream%c_hat_g
-                    this%vertices(i)%n_g_wake = wake_norm
+                ! if (this%vertices(i)%N_wake_edges == 1) then
+                !     dir = -this%vertices(i)%n_g
+                !     ! dir = this%vertices(i)%n_g_wake
+                !     ! dir = freestream%c_hat_g + wake_norm*1.0
+                !     ! if (wake_norm(2)<0) wake_norm = -wake_norm
+                !     ! dir = freestream%c_hat_g
+                !     this%vertices(i)%n_g_wake = wake_norm
 
-                else
-                    ! dir = this%vertices(i)%n_g_wake
-                    ! dir = freestream%c_hat_g + wake_norm*0.25
-                    dir = wake_norm-0.25*freestream%c_hat_g
-                    ! this%vertices(i)%n_g_wake = wake_norm
-                end if
+                ! else
+                !     ! dir = this%vertices(i)%n_g_wake
+                !     ! dir = freestream%c_hat_g + wake_norm*0.25
+                !     dir = wake_norm-0.25*freestream%c_hat_g
+                !     ! this%vertices(i)%n_g_wake = wake_norm
+                ! end if
+
+               
 
                 !!!! save wake norm
                 ! this%vertices(i)%n_g_wake = wake_norm
@@ -2095,8 +2102,14 @@ contains
                 !     dir = -this%vertices(i)%n_g  !!!! inside the mesh
                 ! end if
 
+                dir = -this%vertices(i)%n_g + this%vertices(i)%n_g_wake * 0.10
+
+
+
+
                 ! normalize the vector
                 dir = dir/norm2(dir)
+                dir = 2*dir
                
 
             ! else if (this%vertices(i)%N_wake_edges == 1) then
@@ -2104,11 +2117,50 @@ contains
             !     ! dir= (/1,0,0/)
             else  
                 dir = -this%vertices(i)%n_g  !!!! inside the mesh
+                
                 ! dir = (/1.,0.,0./)
             end if
+
+
+            ! set the control point location
             cp_locs(:,i) = this%vertices(i)%loc + dir * offset
 
-            ! set location
+            
+            ! Check if the control point is outside the mesh
+            get_back_in_loop: do while (this%control_point_outside_mesh(cp_locs(:,i), i))
+
+                ! Loop through neighboring panels to find ones the control point is outside
+                n_avg = 0.
+                do j=1,this%vertices(i)%panels%len()
+                    
+                    ! Get panel index
+                    call this%vertices(i)%panels%get(j, i_panel)
+
+                    ! Check if it's above the original panel
+                    if (this%panels(i_panel)%point_above(cp_locs(:,i), .false.)) then
+                        n_avg = n_avg + this%panels(i_panel)%get_weighted_normal_at_corner(this%vertices(i)%loc)
+                    end if
+
+                end do
+
+                ! A control point on the mirror plane should stay there
+                if (this%vertices(i)%on_mirror_plane) n_avg(this%mirror_plane) = 0.
+
+                ! If there were no panels this control point was above, then exit
+                if (norm2(n_avg) < 1.e-16) exit get_back_in_loop
+
+                ! Reflect (partially, length-preserving) across plane defined by n_avg
+                n_avg = n_avg/norm2(n_avg)
+                disp = cp_locs(:,i)- this%vertices(i)%loc
+                new_dir = disp - 1.1*n_avg*inner(disp, n_avg)
+                new_dir = new_dir/norm2(new_dir)
+                cp_locs(:,i)= this%vertices(i)%loc + offset*new_dir
+
+            end do get_back_in_loop
+
+
+
+
         end do
 
     end function surface_mesh_get_cp_locs_vertex_based
@@ -2140,7 +2192,7 @@ contains
 
             ! If the vertex is a clone, it needs to be shifted off the normal slightly so that it is unique from its counterpart
             if (this%vertices(i)%clone) then
-
+                
                 dir = this%get_clone_control_point_dir(i)
 
             ! If it has no clone, then placement simply follows the average normal vector

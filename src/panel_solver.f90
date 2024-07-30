@@ -201,7 +201,7 @@ contains
         else if (this%formulation == N_MF_D_VCP) then
             ! this%sort_system = .true.
             ! this%use_sort_for_cp = .false.
-            this%overdetermined_ls = .false.
+            this%overdetermined_ls = .false. !!!! changing this temp
             this%underdetermined_ls = .false.
         else 
             this%use_sort_for_cp = .true.
@@ -590,7 +590,7 @@ contains
         type(flow),intent(inout) :: freestream !!!! changed here 
         integer,intent(in) :: bc_type
         type(surface_mesh),intent(inout) :: body
-        real, dimension(3) :: average_edge, n_g_new
+        real, dimension(3) :: average_edge, n_g_new, test
         integer :: i, i_edge,vert1,vert2,counter,num_edges
         integer, dimension(:), allocatable :: points
 
@@ -598,7 +598,7 @@ contains
         !!!! This sets the normal vector for the control point boundary condition
         ! Get vertex normal
         if (cp%tied_to_type == TT_VERTEX .and. cp%cp_type == SURFACE) then
-            if (body%vertices(cp%tied_to_index)%N_wake_edges>0) then
+            if (body%vertices(cp%tied_to_index)%clone) then !N_wake_edges > 0 .or. body%vertices(cp%tied_to_index)%N_leading_edges > 0) then
                 ! num_edges = body%vertices(cp%tied_to_index)%adjacent_edges%len()
                 ! allocate(points(num_edges))
                 ! counter = 0
@@ -643,7 +643,7 @@ contains
                 ! else 
                 !     write(*,*) "!!!! ERROR wake contains a triple point. These are currently not allowed by this formulation"
                 ! end if
-                if (body%vertices(cp%tied_to_index)%N_wake_edges==1) then
+                if (body%vertices(cp%tied_to_index)%N_wake_edges==1 .or. body%vertices(cp%tied_to_index)%N_leading_edges==1) then
                     ! if a vertex is the endpoint of a wake sheading edge then use the vertex normal vector
                     ! n_g_new = body%vertices(cp%tied_to_index)%n_g
                     write(*,*) "Single wake edge normal vector", body%vertices(cp%tied_to_index)%n_g_wake
@@ -654,6 +654,7 @@ contains
                     ! end if
                     ! n_g_new = (/0,1,0/)
                     n_g_new = body%vertices(cp%tied_to_index)%n_g_wake
+                    ! n_g_new = body%vertices(cp%tied_to_index)%n_g_wake
                     ! if (body%vertices(cp%tied_to_index)%loc(2)>0) then
                     !     ! n_g_new = (/-0.708956,-2.6415e-7,0.705253/)
                     !     n_g_new = (/0.0,1.0,0.0/)
@@ -673,10 +674,9 @@ contains
                     ! else
                     !     n_g_new = (/0,-1,0/)
                     ! end if
-
+                    write(*,*) "Multiple wake/leading edge normal vector", body%vertices(cp%tied_to_index)%n_g_wake
                     n_g_new = body%vertices(cp%tied_to_index)%n_g_wake
                 end if 
-
 
                 n_g_new = n_g_new / norm2(n_g_new) 
                 
@@ -692,7 +692,19 @@ contains
                 if (cp%is_mirror) then
                     call cp%set_bc(bc_type, body%vertices(cp%tied_to_index)%n_g_mir)
                 else
+                    ! n_g_new = body%vertices(cp%tied_to_index)%n_g
+                    ! if (body%vertices(cp%tied_to_index)%N_leading_edges>0) then
+                    !     test = freestream%c_hat_g + body%vertices(cp%tied_to_index)%n_g
+                    !     write(*,*) "vertex normal", body%vertices(cp%tied_to_index)%n_g
+                    !     if (norm2(test)<1.e-1) then
+                    !         write(*,*) "Nose found"
+                    !         n_g_new = (/0,0,-1/)
+                    !     end if
+                    ! end if
+                    ! n_g_new = n_g_new / norm2(n_g_new)
                     call cp%set_bc(bc_type, body%vertices(cp%tied_to_index)%n_g)
+                    ! call cp%set_bc(bc_type, n_g_new)
+
                 end if
             end if
         else if (cp%tied_to_type == TT_VERTEX) then
