@@ -234,6 +234,67 @@ program dirichlet_test5
                     call test_mesh%panels(m)%calc_derived_geom()
                 end do
                 call test_mesh%calc_vertex_geometry()
+
+                ! Check flow symmetry condition
+                this%asym_flow = .false.
+                if (this%mirrored) then
+                    if (.not. freestream%sym_about(this%mirror_plane)) then
+                        this%asym_flow = .true.
+                    end if
+                end if
+
+                ! Initialize properties of panels dependent upon the flow
+                call this%init_panels_with_flow(freestream)
+                
+                ! Figure out wake-shedding edges, discontinuous edges, etc.
+                ! According to Davis, sharp, subsonic, leading edges in supersonic flow must have discontinuous doublet strength.
+                ! I don't know why this would be, except in the case of leading-edge vortex separation. But Davis doesn't
+                ! model leading-edge vortices. Wake-shedding trailing edges are still discontinuous in supersonic flow. Supersonic
+                ! leading edges should have continuous doublet strength.
+                call this%characterize_edges(freestream) !!!! not an option!
+                
+                if (this%wake_present) then
+
+                    ! Determine how cloning needs to be done
+                    call this%set_needed_vertex_clones()
+                    
+                    ! Clone necessary vertices
+                    call this%clone_vertices(formulation)
+                    
+                end if
+                
+                ! Initialize vertex ordering (normally happens during vertex cloning)
+                if (.not. this%found_wake_edges) then
+                    
+                    allocate(this%vertex_ordering(this%N_verts))
+                    do i=1,this%N_verts
+                        this%vertex_ordering(i) = i
+                    end do
+                    
+                end if
+                
+                ! Determine surface convexity at each vertex
+                !$OMP parallel do schedule(static)
+                do i=1,this%N_verts
+                    this%vertices(i)%convex = this%is_convex_at_vertex(i)
+                end do
+                
+                ! Initialize wake !!!! 
+                if (this%calc_adjoint)then
+                    call this%init_wake_adjoint(freestream, wake_file, formulation)
+                else
+                    call this%init_wake(freestream, wake_file, formulation)
+                end if
+                
+                ! Set up panel distributions
+                if (verbose) write(*,"(a)",advance='no') "     Setting up panel singularity distributions..."
+                
+                !$OMP parallel do schedule(static)
+                do i=1,this%N_panels
+                    call this%panels(i)%set_distribution(this%initial_panel_order, this%panels, &
+                    this%vertices, this%mirrored)
+                end do
+        
                 
                 deallocate(test_solver%sigma_known)
                 deallocate(test_solver%i_sigma_in_sys)

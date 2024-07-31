@@ -91,9 +91,9 @@ program wake_test5
     call input_json%get('solver', solver_settings, found)
     call input_json%get('post_processing', processing_settings, found)
     call input_json%get('output', output_settings, found)
-    
     ! Initialize surface mesh
     call test_mesh%init(geom_settings)
+    test_mesh%perturb_point = .true.
     
     N_original_verts = test_mesh%N_verts
     
@@ -118,7 +118,6 @@ program wake_test5
     call test_mesh%init_with_flow(freestream_flow, body_file, wake_file, formulation)
     
     ! set perturb point to true so the clone dir is based on centroid information
-    test_mesh%perturb_point = .true.
     
     ! Initialize panel solver
     call test_solver%init(solver_settings, processing_settings, test_mesh, freestream_flow, control_point_file)
@@ -205,7 +204,7 @@ program wake_test5
     allocate(loc_dn(3,N_original_verts*3))
     allocate(d_loc_FD(3,N_original_verts*3))
 
-    error_allowed = 1.0e-5
+    error_allowed = 1.0e-9
     step = 0.000001
     index = 1
     cp_ind = 1
@@ -233,11 +232,9 @@ program wake_test5
         do i=1,3
             do j=1,N_original_verts
 
-
-                deallocate(test_mesh%vertices, test_mesh%edges, test_mesh%panels)
+                deallocate(test_mesh%vertices, test_mesh%edges, test_mesh%panels, test_mesh%vertex_ordering)
                 call test_mesh%init(geom_settings)
                 test_mesh%perturb_point = .true.
-
 
                 ! perturb up the current design variable
                 test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
@@ -281,7 +278,7 @@ program wake_test5
 
                 !!!! Perturb Down !!!!
 
-                deallocate(test_mesh%vertices, test_mesh%edges, test_mesh%panels)
+                deallocate(test_mesh%vertices, test_mesh%edges, test_mesh%panels, test_mesh%vertex_ordering)
                 call test_mesh%init(geom_settings)
                 test_mesh%perturb_point = .true.
 

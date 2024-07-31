@@ -1063,11 +1063,15 @@ contains
 
         class(surface_mesh),intent(inout) :: this
         character(len=:),allocatable,intent(in) :: formulation
-        real(16),dimension(3) :: n_avg
-        integer :: i, j, k, N_clones, i_jango, i_boba, N_boba, i_edge, i_start_panel, jango_panel, boba_panel,N_panels
+        real,dimension(3) :: n_avg
+        real :: norm_n_avg
+        integer :: i, j, k, l, N_clones, i_jango, i_boba, N_boba, i_edge, i_start_panel, jango_panel, boba_panel,N_panels
         integer,dimension(:),allocatable :: i_panels_between, i_rearrange_inv, i_start_edge, i_end_edge
         integer,dimension(:,:),allocatable :: i_panels_between_all
         logical,dimension(:),allocatable :: mirrored_is_unique
+
+        type(sparse_vector) :: d_norm_n_avg
+        type(sparse_matrix) :: sum_d_n_avg, d_n_avg, x
 
 
         ! Check whether any wake edges exist
@@ -1191,7 +1195,7 @@ contains
                             !!!! I am not sure what calc_normal will look like though
                             
                             ! Loop through neighboring panels and compute the average of their normal vectors for jango
-                            n_avg = (/0,0,0/)
+                            n_avg = 0
                             N_panels = this%vertices(i_jango)%panels_not_across_wake_edge%len()
                             ! Get panel index
                             do j=1,N_panels
@@ -1224,38 +1228,129 @@ contains
                             ! Normalize and store
                             this%vertices(i_boba)%n_g_wake = n_avg/norm2(n_avg)
                         end if 
-                        if (formulation == "neumann-mass-flux-VCP") then
+
+                        if (formulation == "dirichlet-source-free" .and. (this%perturb_point .or. this%calc_adjoint)) then
                             !!!! I think we are going to add the new normal calculation here.
                             !!!! will probably look like
                             !!!! call this%verticies(i_jango)%calc_normal
                             !!!! call this%verticies(i_boba)%calc_normal
                             !!!! I am not sure what calc_normal will look like though
+                            
+                            if (this%calc_adjoint) then
+                                call sum_d_n_avg%init(this%adjoint_size)
+                            end if
+                            
                             ! Loop through neighboring panels and compute the average of their normal vectors for jango
                             n_avg = (/0,0,0/)
                             N_panels = this%vertices(i_jango)%panels_not_across_wake_edge%len()
                             ! Get panel index
                             do l=1,N_panels
+                                
                                 ! Get panel index
                                 call this%vertices(i_jango)%panels_not_across_wake_edge%get(l, jango_panel)
+                                
                                 ! Update using weighted normal
                                 n_avg = n_avg + this%panels(jango_panel)%get_weighted_normal_at_corner(&
                                     this%vertices(i_jango)%loc)
+
+                                ! if adjoint, calc the derivative of sum of n_avg vectors
+                                if (this%calc_adjoint) then
+                                    d_n_avg = this%panels(jango_panel)%calc_d_weighted_normal(this%vertices(i_jango)%loc)
+
+                                    call sum_d_n_avg%sparse_add(d_n_avg)
+
+                                    deallocate(d_n_avg%columns)
+
+                                end if
+
                             end do
+
+                            ! normal of average normal vector
+                            norm_n_avg = norm2(n_avg)
+
+                            if (this%calc_adjoint) then
+                                d_norm_n_avg = sum_d_n_avg%broadcast_vector_dot_element(n_avg)
+                                call d_norm_n_avg%broadcast_element_times_scalar(1./norm_n_avg)
+                                
+                                
+                                ! Normalize and store
+                                call this%vertices(i_jango)%d_n_g_wake%init_from_sparse_matrix(sum_d_n_avg)
+                                call this%vertices(i_jango)%d_n_g_wake%broadcast_element_times_scalar(norm_n_avg)
+                                
+                                x = d_norm_n_avg%broadcast_element_times_vector(n_avg)
+                                
+                                call this%vertices(i_jango)%d_n_g_wake%sparse_subtract(x)
+                                call this%vertices(i_jango)%d_n_g_wake%broadcast_element_times_scalar(1./(inner(n_avg,n_avg)))
+
+                                ! deallocate stuff
+                                deallocate(sum_d_n_avg%columns)
+                                deallocate(x%columns)
+                                deallocate(d_norm_n_avg%elements)
+
+                            end if
+
                             ! Normalize and store
-                            this%vertices(i_jango)%n_g_wake = n_avg/norm2(n_avg) !!!! this is where the normal vectors are caclulated
+                            this%vertices(i_jango)%n_g_wake = n_avg/norm_n_avg !!!! this is where the normal vectors are caclulated
+                            
+
                             ! Loop through neighboring panels and compute the average of their normal vectors for boba
-                            n_avg = 0
+                            if (this%calc_adjoint) then
+                                call sum_d_n_avg%init(this%adjoint_size)
+                            end if
+                            
+                            n_avg = (/0,0,0/)
                             N_panels = this%vertices(i_boba)%panels_not_across_wake_edge%len()
                             ! Get panel index
                             do l =1,N_panels
+                                
                                 ! Get panel index
                                 call this%vertices(i_boba)%panels_not_across_wake_edge%get(l, boba_panel)
+                                
                                 ! Update using weighted normal
                                 n_avg = n_avg + this%panels(boba_panel)%get_weighted_normal_at_corner(&
                                 this%vertices(i_boba)%loc)
+
+                                
+                                ! if adjoint, calc the derivative of sum of n_avg vectors
+                                if (this%calc_adjoint) then
+                                    d_n_avg = this%panels(boba_panel)%calc_d_weighted_normal(this%vertices(i_boba)%loc)
+
+                                    call sum_d_n_avg%sparse_add(d_n_avg)
+
+                                    deallocate(d_n_avg%columns)
+
+                                end if
+
                             end do
+
+                            ! normal of average normal vector
+                            norm_n_avg = norm2(n_avg)
+
+                            if (this%calc_adjoint) then
+
+                                d_norm_n_avg = sum_d_n_avg%broadcast_vector_dot_element(n_avg)
+                                call d_norm_n_avg%broadcast_element_times_scalar(1./norm_n_avg)
+                                
+                                
+                                ! Normalize and store
+                                call this%vertices(i_boba)%d_n_g_wake%init_from_sparse_matrix(sum_d_n_avg)
+                                call this%vertices(i_boba)%d_n_g_wake%broadcast_element_times_scalar(norm_n_avg)
+                                
+                                x = d_norm_n_avg%broadcast_element_times_vector(n_avg)
+                                
+                                call this%vertices(i_boba)%d_n_g_wake%sparse_subtract(x)
+                                call this%vertices(i_boba)%d_n_g_wake%broadcast_element_times_scalar(1./(inner(n_avg,n_avg)))
+
+                                ! deallocate stuff
+                                deallocate(sum_d_n_avg%columns)
+                                deallocate(x%columns)
+                                deallocate(d_norm_n_avg%elements)
+
+                            end if
+
                             ! Normalize and store
-                            this%vertices(i_boba)%n_g_wake = n_avg/norm2(n_avg)
+                            this%vertices(i_boba)%n_g_wake = n_avg/norm_n_avg !!!! this is where the normal vectors are caclulated
+                            
                         end if
                     end do
 
@@ -2126,8 +2221,15 @@ contains
 
             ! If the vertex is a clone, it needs to be shifted off the normal slightly so that it is unique from its counterpart
             if (this%vertices(i)%clone) then
+                
+                ! calculate dir differently for finite difference
+                if (this%perturb_point) then
+                    dir = -this%vertices(i)%n_g + 0.05*this%vertices(i)%n_g_wake
+                else
+                    dir = this%get_clone_control_point_dir(i)
+                    write(*,*) " not perturb point"
+                end if
 
-                dir = this%get_clone_control_point_dir(i)
             ! If it has no clone, then placement simply follows the average normal vector
             else
 
@@ -2150,18 +2252,13 @@ contains
             ! Initialize control point
             cp_locs(:,i) = this%vertices(i)%loc + this_offset*dir
 
+            ! if (this%control_point_outside_mesh(cp_locs(:,i),i)) then
+            !     write(*,*) "!!!!!!!! CP OUTSIDE MESH (get_cp_locs_vertex_based_interior) !!!!!!!!!"
+            ! end if
+
             
             ! Check if the control point is outside the mesh
             get_back_in_loop: do while (this%control_point_outside_mesh(cp_locs(:,i), i))
-            
-                ! outside = this%control_point_outside_mesh(cp_locs(:,i), i)
-                ! if (outside) then
-                !     write(*,*) "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-                !     write(*,*) "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-                !     write(*,*) "!!!!!!!!!!!!!!!  CP is  Outside  !!!!!!!!!!!!!!!!!!!!!!"
-                !     write(*,*) "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-                !     write(*,*) "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
-                ! end if
             
                 ! Loop through neighboring panels to find ones the control point is outside
                 n_avg = 0.
@@ -3902,6 +3999,219 @@ contains
     
     
     !!!!!!!! begin trial subroutine !!!!!!!!!!!
+    ! subroutine surface_mesh_get_cp_locs_vertex_based_interior_adjoint(this, offset, offset_type, freestream, cp_locs, d_cp_locs)
+    !     ! Returns the locations of interior vertex-based control points
+    !     ! Takes vertex clones into account
+
+    !     implicit none
+        
+    !     class(surface_mesh),intent(inout) :: this
+    !     real,intent(in) :: offset
+    !     character(len=:),allocatable,intent(in) :: offset_type
+    !     type(flow),intent(in) :: freestream
+    !     real,dimension(:,:),allocatable,intent(inout) :: cp_locs
+    !     type(sparse_3D),intent(inout):: d_cp_locs
+
+    !     integer :: i, j, i_panel, m
+    !     real,dimension(3) :: dir, new_dir, n_avg, disp, new_dir_final
+    !     real :: this_offset, norm_of_n_avg, norm_of_new_dir
+    !     type(sparse_vector) ::  d_norm_of_n_avg, d_norm_of_new_dir, d_new_dir_term2, d_new_dir_term3
+    !     type(sparse_matrix) :: d_dir, sum_d_n_avg, d_n_avg, d_n_avg_final, hi_d_low, d_disp
+    !     type(sparse_matrix) :: d_new_dir, d_new_dir_term1, d_new_dir_final
+
+    
+    !     ! Loop through vertices
+    !     !$OMP parallel do private(j, i_panel, dir, new_dir, n_avg, disp, new_dir_final, d_new_dir_term2, &
+    !     !$OMP this_offset, norm_of_n_avg, norm_of_new_dir, d_norm_of_n_avg, d_norm_of_new_dir, &
+    !     !$OMP d_new_dir_term3, d_dir, sum_d_n_avg, d_n_avg, d_n_avg_final, hi_d_low, d_disp, &
+    !     !$OMP d_new_dir, d_new_dir_term1, d_new_dir_final) &
+    !     !$OMP & schedule(dynamic) shared(this, offset, freestream, offset_type)
+    !     do i=1,this%N_verts
+
+    !         ! If the vertex is a clone, it needs to be shifted off the normal slightly so that it is unique from its counterpart
+    !         if (this%vertices(i)%clone) then
+                
+    !             dir = this%get_clone_control_point_dir(i)
+    !             d_dir = this%get_clone_control_point_dir_adjoint(i)
+
+    !             if (this%d_dir)
+                
+    !             ! If it has no clone, then placement simply follows the average normal vector
+    !         else
+                
+    !             ! Set direction simply off of the average normal vector
+    !             dir = -this%vertices(i)%n_g
+    !             call d_dir%init_from_sparse_matrix(this%vertices(i)%d_n_g)
+    !             call d_dir%broadcast_element_times_scalar(-1.)
+                
+    !         end if
+            
+    !         ! Determine offset
+    !         select case (offset_type)
+                        
+            
+    !         case ('local')
+    !             write(*,*) "Adjoint calc doesn't allow for local offset at this time. Quitting..."
+    !             stop
+    !             this_offset = offset*this%vertices(i)%l_avg
+
+    !         case default ! Direct
+    !             this_offset = offset
+
+    !         end select
+
+            
+    !         ! Initialize control point
+    !         cp_locs(:,i) = this%vertices(i)%loc + this_offset*dir
+            
+    !         ! initialize d_cp_locs
+    !         call d_cp_locs%rows(i)%init_from_sparse_matrix(d_dir)
+    !         call d_cp_locs%rows(i)%broadcast_element_times_scalar(this_offset)
+            
+    !         call d_cp_locs%rows(i)%sparse_add(this%vertices(i)%d_loc)
+            
+    !         ! Check if the control point is outside the mesh
+    !         get_back_in_loop: do while (this%control_point_outside_mesh(cp_locs(:,i), i))
+            
+    !             ! Loop through neighboring panels to find ones the control point is outside
+    !             n_avg = 0.
+                
+    !             ! init adjoint terms
+    !             call sum_d_n_avg%init(this%adjoint_size)
+                
+    !             do j=1,this%vertices(i)%panels%len()
+                    
+    !                 ! Get panel index
+    !                 call this%vertices(i)%panels%get(j, i_panel)
+                    
+    !                 ! Check if it's above the original panel
+    !                 if (this%panels(i_panel)%point_above(cp_locs(:,i), .false.)) then
+    !                     n_avg = n_avg + this%panels(i_panel)%get_weighted_normal_at_corner(this%vertices(i)%loc)
+                        
+    !                     ! get d_n_avg 
+    !                     d_n_avg = this%panels(i_panel)%calc_d_weighted_normal(this%vertices(i)%loc)
+                        
+    !                     ! add the d_n_avg_j
+    !                     call sum_d_n_avg%sparse_add(d_n_avg)
+                        
+    !                     deallocate(d_n_avg%columns)
+    !                 end if
+                    
+    !             end do
+                
+    !             ! A control point on the mirror plane should stay there
+    !             if (this%vertices(i)%on_mirror_plane) then
+    !                 write(*,*)"Warning: calc_adjoint can't handle mirrored yet. &
+    !                 check surface_mesh_get_cp_locs_vertex_interior_adjoint. Quitting..."
+    !                 stop
+    !                 n_avg(this%mirror_plane) = 0.
+    !             end if
+            
+    !             ! If there were no panels this control point was above, then exit
+    !             if (norm2(n_avg) < 1.e-16) then
+                    
+    !                 ! deallocate stuff 
+    !                 deallocate(sum_d_n_avg%columns)
+
+    !                 exit get_back_in_loop
+    !             else
+    !                 ! calc norm of n_avg
+    !                 norm_of_n_avg = norm2(n_avg)
+                    
+    !                 ! calc d_norm_of_n_avg
+    !                 d_norm_of_n_avg = sum_d_n_avg%broadcast_vector_dot_element(n_avg)
+    !                 call d_norm_of_n_avg%broadcast_element_times_scalar(1./norm_of_n_avg)
+                    
+    !                 ! adjoint Normalized n_avg 
+    !                 call d_n_avg_final%init_from_sparse_matrix(sum_d_n_avg)
+    !                 call d_n_avg_final%broadcast_element_times_scalar(norm_of_n_avg)
+                    
+    !                 hi_d_low = d_norm_of_n_avg%broadcast_element_times_vector(n_avg)
+                    
+    !                 call d_n_avg_final%sparse_subtract(hi_d_low)
+    !                 call d_n_avg_final%broadcast_element_times_scalar(1./(norm_of_n_avg*norm_of_n_avg))
+                    
+    !                 ! deallocate stuff
+    !                 deallocate(sum_d_n_avg%columns, hi_d_low%columns, d_norm_of_n_avg%elements)
+
+    !                 !!!! end calc derivative of normalized average normal vector !!!!!!!
+                    
+    !                 ! normalize average normal vector 
+    !                 n_avg = n_avg/norm_of_n_avg
+                    
+    !                 disp = cp_locs(:,i)- this%vertices(i)%loc
+                    
+    !                 ! derivative of disp
+                    
+    !                 call d_disp%init_from_sparse_matrix(d_cp_locs%rows(i))
+    !                 call d_disp%sparse_subtract(this%vertices(i)%d_loc)
+                    
+    !                 new_dir = disp - 1.1*n_avg*inner(disp, n_avg)
+
+    !                 ! derivative of new_dir
+    !                 call d_new_dir_term1%init_from_sparse_matrix(d_n_avg_final)
+    !                 call d_new_dir_term1%broadcast_element_times_scalar(-1.1*inner(disp,n_avg))
+                    
+    !                 d_new_dir_term2 = d_disp%broadcast_vector_dot_element(n_avg)
+    !                 d_new_dir_term3 = d_n_avg_final%broadcast_vector_dot_element(disp)
+    !                 call d_new_dir_term2%sparse_add(d_new_dir_term3)
+                    
+    !                 d_new_dir =  d_new_dir_term2%broadcast_element_times_vector(-1.1*n_avg)
+                    
+    !                 call d_new_dir%sparse_add(d_disp)
+    !                 call d_new_dir%sparse_add(d_new_dir_term1)
+                    
+                    
+    !                 ! calc norm of n_avg
+    !                 norm_of_new_dir = norm2(new_dir)
+                    
+    !                 ! calc derivative of the norm of new_dir
+    !                 d_norm_of_new_dir = d_new_dir%broadcast_vector_dot_element(new_dir)
+    !                 call d_norm_of_new_dir%broadcast_element_times_scalar(1./norm_of_new_dir)
+                    
+                    
+    !                 !!!! adjoint Normalized new_dir_final !!!
+    !                 call d_new_dir_final%init_from_sparse_matrix(d_new_dir)
+    !                 call d_new_dir_final%broadcast_element_times_scalar(norm_of_new_dir)
+                    
+    !                 hi_d_low = d_norm_of_new_dir%broadcast_element_times_vector(new_dir)
+                    
+    !                 call d_new_dir_final%sparse_subtract(hi_d_low)
+    !                 call d_new_dir_final%broadcast_element_times_scalar(1./(inner(new_dir,new_dir)))
+                    
+    !                 ! deallocate stuff
+    !                 deallocate(d_n_avg_final%columns, d_disp%columns)
+    !                 deallocate(d_new_dir%columns, hi_d_low%columns, d_norm_of_new_dir%elements)
+    !                 !!!! end adjoint Normalized new_dir_final !!!
+                    
+                    
+    !                 ! calculate the norm of new_dir
+    !                 new_dir_final = new_dir/norm_of_new_dir
+                    
+    !                 ! new cp_loc
+    !                 cp_locs(:,i)= this%vertices(i)%loc + this_offset*new_dir_final
+                    
+    !                 ! new d_cp_loc
+    !                 call d_cp_locs%rows(i)%init_from_sparse_matrix(d_new_dir)
+    !                 call d_cp_locs%rows(i)%broadcast_element_times_scalar(this_offset)
+                    
+    !                 call d_cp_locs%rows(i)%sparse_add(this%vertices(i)%d_loc)
+                    
+    !             end if
+
+    !         end do get_back_in_loop
+            
+
+    !         ! clean up i loop variables
+    !         deallocate(d_dir%columns)
+    !     end do
+    
+    ! end subroutine surface_mesh_get_cp_locs_vertex_based_interior_adjoint
+
+    !!!!!!!! end trial subroutine !!!!!!!!!!!
+
+
+    !!!!!!!! begin another trial subroutine !!!!!!!!!!!
     subroutine surface_mesh_get_cp_locs_vertex_based_interior_adjoint(this, offset, offset_type, freestream, cp_locs, d_cp_locs)
         ! Returns the locations of interior vertex-based control points
         ! Takes vertex clones into account
@@ -3924,23 +4234,38 @@ contains
 
     
         ! Loop through vertices
-        !$OMP parallel do private(j, i_panel, dir, new_dir, n_avg, disp, new_dir_final, d_new_dir_term2, &
-        !$OMP this_offset, norm_of_n_avg, norm_of_new_dir, d_norm_of_n_avg, d_norm_of_new_dir, &
-        !$OMP d_new_dir_term3, d_dir, sum_d_n_avg, d_n_avg, d_n_avg_final, hi_d_low, d_disp, &
-        !$OMP d_new_dir, d_new_dir_term1, d_new_dir_final) &
-        !$OMP & schedule(dynamic) shared(this, offset, freestream, offset_type)
+        ! $OMP parallel do private(j, i_panel, dir, new_dir, n_avg, disp, new_dir_final, d_new_dir_term2, &
+        ! $OMP this_offset, norm_of_n_avg, norm_of_new_dir, d_norm_of_n_avg, d_norm_of_new_dir, &
+        ! $OMP d_new_dir_term3, d_dir, sum_d_n_avg, d_n_avg, d_n_avg_final, hi_d_low, d_disp, &
+        ! $OMP d_new_dir, d_new_dir_term1, d_new_dir_final) &
+        ! $OMP & schedule(dynamic) shared(this, offset, freestream, offset_type)
         do i=1,this%N_verts
 
             ! If the vertex is a clone, it needs to be shifted off the normal slightly so that it is unique from its counterpart
             if (this%vertices(i)%clone) then
                 
-                dir = this%get_clone_control_point_dir(i)
-                d_dir = this%get_clone_control_point_dir_adjoint(i)
+                ! if doing calc adjoint or central diff validation
+                ! use the negative of the original vertex and some of the wake normal
+                dir = -this%vertices(i)%n_g + 0.05*this%vertices(i)%n_g_wake
                 
-                ! If it has no clone, then placement simply follows the average normal vector
-            else
+                ! calc the derivative of dir
+                call d_dir%init_from_sparse_matrix(this%vertices(i)%d_n_g_wake)
+                call d_dir%broadcast_element_times_scalar(0.05)
+                call d_dir%sparse_subtract(this%vertices(i)%d_n_g)
                 
-                ! Set direction simply off of the average normal vector
+                !!!!!!!!!!!!!!!!!!!!!!!! NOT IN USE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
+                ! "get control point dir adjoint" not working (central diff breaks down) 
+                
+                !  use get_clone_control point direction for regular dirichlet formulation
+                ! dir = this%get_clone_control_point_dir(i)
+                ! d_dir = this%get_clone_control_point_dir_adjoint(i)
+                
+                !!!!!!!!!!!!!!!!!!!!!!!!! END NOT IN USE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+               
+                
+            else ! If it has no clone, then placement simply follows the average normal vector
+                
+                ! For non-clone vertices, set direction simply off of the average normal vector
                 dir = -this%vertices(i)%n_g
                 call d_dir%init_from_sparse_matrix(this%vertices(i)%d_n_g)
                 call d_dir%broadcast_element_times_scalar(-1.)
@@ -3964,13 +4289,17 @@ contains
             
             ! Initialize control point
             cp_locs(:,i) = this%vertices(i)%loc + this_offset*dir
+
             
             ! initialize d_cp_locs
             call d_cp_locs%rows(i)%init_from_sparse_matrix(d_dir)
             call d_cp_locs%rows(i)%broadcast_element_times_scalar(this_offset)
-            
             call d_cp_locs%rows(i)%sparse_add(this%vertices(i)%d_loc)
             
+            if (this%control_point_outside_mesh(cp_locs(:,i),i)) then
+                write(*,*) "!!!!!!!! CP OUTSIDE MESH (adjoint) !!!!!!!!!"
+            end if
+
             ! Check if the control point is outside the mesh
             get_back_in_loop: do while (this%control_point_outside_mesh(cp_locs(:,i), i))
             
@@ -4043,7 +4372,6 @@ contains
                     disp = cp_locs(:,i)- this%vertices(i)%loc
                     
                     ! derivative of disp
-                    
                     call d_disp%init_from_sparse_matrix(d_cp_locs%rows(i))
                     call d_disp%sparse_subtract(this%vertices(i)%d_loc)
                     
@@ -4062,6 +4390,8 @@ contains
                     call d_new_dir%sparse_add(d_disp)
                     call d_new_dir%sparse_add(d_new_dir_term1)
                     
+                    deallocate(d_new_dir_term1%columns, d_new_dir_term2%elements, d_new_dir_term3%elements)
+                    
                     
                     ! calc norm of n_avg
                     norm_of_new_dir = norm2(new_dir)
@@ -4074,7 +4404,6 @@ contains
                     !!!! adjoint Normalized new_dir_final !!!
                     call d_new_dir_final%init_from_sparse_matrix(d_new_dir)
                     call d_new_dir_final%broadcast_element_times_scalar(norm_of_new_dir)
-                    
                     hi_d_low = d_norm_of_new_dir%broadcast_element_times_vector(new_dir)
                     
                     call d_new_dir_final%sparse_subtract(hi_d_low)
@@ -4093,10 +4422,13 @@ contains
                     cp_locs(:,i)= this%vertices(i)%loc + this_offset*new_dir_final
                     
                     ! new d_cp_loc
-                    call d_cp_locs%rows(i)%init_from_sparse_matrix(d_new_dir)
+                    deallocate(d_cp_locs%rows(i)%columns)
+                    call d_cp_locs%rows(i)%init_from_sparse_matrix(d_new_dir_final)
                     call d_cp_locs%rows(i)%broadcast_element_times_scalar(this_offset)
                     
                     call d_cp_locs%rows(i)%sparse_add(this%vertices(i)%d_loc)
+
+                    deallocate(d_new_dir_final%columns)
                     
                 end if
 
@@ -4109,7 +4441,9 @@ contains
     
     end subroutine surface_mesh_get_cp_locs_vertex_based_interior_adjoint
 
-    !!!!!!!! end trial subroutine !!!!!!!!!!!
+    !!!!!!! end another trial subroutine !!!!!!!!!!!
+
+
 
 
     

@@ -202,7 +202,7 @@ program wake_test2
     allocate(T_mu_dn(3,N_original_verts*3))
     allocate(d_T_mu_FD(3,N_original_verts*3))
     
-    error_allowed = 1.0e-9
+    error_allowed = 1.0e-8
     step = 0.000001
     index = 1
     

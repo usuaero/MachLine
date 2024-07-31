@@ -3768,15 +3768,18 @@ contains
 
         real,dimension(:,:),allocatable :: d_AIC_i, d_CF_wrt_vars, adjoint_CF
         real,dimension(:),allocatable :: f_i, d_b_i, vT_n , d_AIC_times_mu, mu_vector
-        integer :: i,j,k,m, N ,p
+        integer :: i,j,k,m, N_original_verts, N_unknown, p
         
-        N = this%N_unknown
+        N_original_verts = body%N_original_verts
+        
+        ! this may need to be adjusted for appended wakes
+        N_unknown = this%N_unknown
         
         ! allocations
-        allocate(d_AIC_i(N,N))
-        allocate(d_b_i(N))
-        allocate(mu_vector(N))
-        allocate(this%CF_sensitivities(3*N,3))
+        allocate(d_AIC_i(N_unknown,N_unknown))
+        allocate(d_b_i(N_unknown))
+        allocate(mu_vector(N_unknown))
+        allocate(this%CF_sensitivities(3*N_original_verts,3))
 
         ! expand d_C_F_wrt_vars into a full matrix. tall = true (N by 3)
         d_CF_wrt_vars = this%d_C_F_wrt_vars%expand(.true.)
@@ -3785,7 +3788,7 @@ contains
         if (this%use_sort_for_cp) then
 
             ! get the sorted values of mu
-            do i = 1,N
+            do i = 1,N_unknown
                 mu_vector(this%P(i)) = body%mu(i)
             end do
 
@@ -3798,16 +3801,16 @@ contains
         do m=1,3
            
             ! for each design variable
-            do i=1,3*N
+            do i=1,3*N_original_verts
 
-                ! k = N columns
-                do k=1,N 
+                ! k = Number of columns of A matrix
+                do k=1,N_unknown 
 
                     ! populate i^th slice of d_b_vector
                     d_b_i(k) = this%d_b_vector(k)%get_value(i)
 
-                    ! j = N rows
-                    do j=1,N
+                    ! j = Number of rows of A matrix
+                    do j=1,N_unknown
                         ! populate i^th slice of the d_A tensor
                         d_AIC_i(j,k) = this%d_A_matrix(j,k)%get_value(i)
 

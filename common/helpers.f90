@@ -123,8 +123,9 @@ contains
         integer :: stat
 
         open(unit=13, iostat=stat, file=filename)
+
         if (stat == 0) close(13, status='delete')
-    
+        
     end subroutine delete_file
 
 !!! NOT USING ANYMORE -NATHAN

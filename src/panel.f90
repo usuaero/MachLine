@@ -3187,6 +3187,7 @@ contains
         real,dimension(:),allocatable :: phi_d_mu_space
 
         ! Allocate space
+        ! write(*,*) " mu dim", this%mu_dim
         allocate(phi_d_mu_space(this%mu_dim), source=0.)
         if (this%in_wake) then
             allocate(phi_d_M_space(this%M_dim*2), source=0.)

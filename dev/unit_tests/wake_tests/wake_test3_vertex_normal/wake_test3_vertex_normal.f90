@@ -183,7 +183,7 @@ program wake_test3
 
     
     
-    error_allowed = 1.0e-6
+    error_allowed = 1.0e-8
     step = 0.000001
     ! index = 1
     cp_ind = 1

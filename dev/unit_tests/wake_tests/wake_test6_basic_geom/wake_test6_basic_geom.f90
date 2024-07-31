@@ -97,7 +97,9 @@ program wake_test6
     call input_json%get('output', output_settings, found)
 
     ! Initialize surface mesh
+    test_mesh%perturb_point = .true.
     call test_mesh%init(geom_settings)
+    test_mesh%perturb_point = .true.
     
     N_original_verts = test_mesh%N_verts
     
@@ -254,8 +256,9 @@ program wake_test6
             do i=1,3
                 do j=1,N_original_verts
 
-                    deallocate(test_mesh%vertices, test_mesh%edges, test_mesh%panels)
+                    deallocate(test_mesh%vertices, test_mesh%edges, test_mesh%panels, test_mesh%vertex_ordering)
                     call test_mesh%init(geom_settings)
+                    test_mesh%perturb_point = .true.
 
 
                     ! perturb up the current design variable
@@ -270,19 +273,7 @@ program wake_test6
 
                     call test_mesh%calc_vertex_geometry()
                     
-                    call test_mesh%init_panels_with_flow(freestream_flow)
-                    
-                    call test_mesh%characterize_edges(freestream_flow) 
-                    
-                    if (test_mesh%wake_present) then
-                        
-                        ! Determine how cloning needs to be done
-                        call test_mesh%set_needed_vertex_clones()
-                        
-                        ! Clone necessary vertices
-                        call test_mesh%clone_vertices(formulation)
-                        
-                    end if
+                    call test_mesh%init_with_flow(freestream_flow, body_file, wake_file, formulation)
                     
                     deallocate(test_solver%sigma_known)
                     deallocate(test_solver%i_sigma_in_sys)
@@ -307,10 +298,15 @@ program wake_test6
                     
                     P_ls_up(:,j + (i-1)*N_original_verts) = test_geom%P_ls(:)
                     
-                    !!!! Perturb Down !!!!
 
-                    deallocate(test_mesh%vertices, test_mesh%edges, test_mesh%panels)
+
+
+                    !!!!!!!!!!!!!!!!!!!!!!!!! Perturb Down !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+                    deallocate(test_mesh%vertices, test_mesh%edges, test_mesh%panels, test_mesh%vertex_ordering)
+                    test_mesh%perturb_point = .true.
                     call test_mesh%init(geom_settings)
+                    test_mesh%perturb_point = .true.
 
                     ! perturb down the current design variable
                     test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - step
@@ -324,19 +320,7 @@ program wake_test6
 
                     call test_mesh%calc_vertex_geometry()
                     
-                    call test_mesh%init_panels_with_flow(freestream_flow)
-
-                    call test_mesh%characterize_edges(freestream_flow) 
-            
-                    if (test_mesh%wake_present) then
-
-                        ! Determine how cloning needs to be done
-                        call test_mesh%set_needed_vertex_clones()
-                        
-                        ! Clone necessary vertices
-                        call test_mesh%clone_vertices(formulation)
-                        
-                    end if
+                    call test_mesh%init_with_flow(freestream_flow, body_file, wake_file, formulation)
 
                     deallocate(test_solver%sigma_known)
                     deallocate(test_solver%i_sigma_in_sys)
@@ -906,8 +890,9 @@ program wake_test6
                 do i=1,3
                     do j=1,N_original_verts
 
-                        deallocate(test_mesh%vertices, test_mesh%edges, test_mesh%panels)
+                        deallocate(test_mesh%vertices, test_mesh%edges, test_mesh%panels, test_mesh%vertex_ordering)
                         call test_mesh%init(geom_settings)
+                        test_mesh%perturb_point = .true.
 
 
                         ! perturb up the current design variable
@@ -922,19 +907,7 @@ program wake_test6
 
                         call test_mesh%calc_vertex_geometry()
                         
-                        call test_mesh%init_panels_with_flow(freestream_flow)
-                        
-                        call test_mesh%characterize_edges(freestream_flow) 
-                        
-                        if (test_mesh%wake_present) then
-                            
-                            ! Determine how cloning needs to be done
-                            call test_mesh%set_needed_vertex_clones()
-                            
-                            ! Clone necessary vertices
-                            call test_mesh%clone_vertices(formulation)
-                            
-                        end if
+                        call test_mesh%init_with_flow(freestream_flow, body_file, wake_file, formulation)
                         
                         deallocate(test_solver%sigma_known)
                         deallocate(test_solver%i_sigma_in_sys)
@@ -952,13 +925,16 @@ program wake_test6
 
                         !!!! Perturb Down !!!!
 
-                        deallocate(test_mesh%vertices, test_mesh%edges, test_mesh%panels)
+                        deallocate(test_mesh%vertices, test_mesh%edges, test_mesh%panels, test_mesh%vertex_ordering)
+                        
                         call test_mesh%init(geom_settings)
+                        test_mesh%perturb_point = .true.
 
-                        ! perturb down the current design variable
+
+                        ! perturb up the current design variable
                         test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - step
-                            
-                        !!!!!!!!!!! update !!!!!!!!!!!!!!!
+                        ! write(*,*) "this vertex is clone? ", test_mesh%vertices(j)%clone 
+                        !!!!!!!!!!! update !!!!!!!!!!!!!
                         ! update panel geometry and calc
                         do m =1,N_panels
                             deallocate(test_mesh%panels(m)%n_hat_g)
@@ -967,25 +943,13 @@ program wake_test6
 
                         call test_mesh%calc_vertex_geometry()
                         
-                        call test_mesh%init_panels_with_flow(freestream_flow)
-
-                        call test_mesh%characterize_edges(freestream_flow) 
-                
-                        if (test_mesh%wake_present) then
-
-                            ! Determine how cloning needs to be done
-                            call test_mesh%set_needed_vertex_clones()
-                            
-                            ! Clone necessary vertices
-                            call test_mesh%clone_vertices(formulation)
-                            
-                        end if
-
+                        call test_mesh%init_with_flow(freestream_flow, body_file, wake_file, formulation)
+                        
                         deallocate(test_solver%sigma_known)
                         deallocate(test_solver%i_sigma_in_sys)
                         deallocate(test_solver%i_sys_sigma_in_body)
                         deallocate(test_mesh%cp)
-                        deallocate(test_solver%P)    
+                        deallocate(test_solver%P)
                         call test_solver%init(solver_settings, processing_settings, &
                         test_mesh, freestream_flow, control_point_file)
 
@@ -1122,9 +1086,9 @@ program wake_test6
     end do !y loop (panels)
 
     !!!!!!!!!!!!!! CALC_BASIC_GEOM (CONTROL POINTS) SENSITIVITIES RESULTS!!!!!!!!!!!!!
-    write(*,*) "------------------------------------------------------------------------------"
+    write(*,*) "-----------------------------------------------------------------------------------------"
     write(*,*) "   DIRICHLET CALC_BASIC_GEOM (CONTROL POINTS) SENSITIVITIES TEST RESULTS (WAKE PRESENT) "
-    write(*,*) "------------------------------------------------------------------------------"
+    write(*,*) "-----------------------------------------------------------------------------------------"
     write(*,*) ""
     write(*,'((A), ES10.1)') "allowed residual = ", error_allowed
     write(*,*) ""

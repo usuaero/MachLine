@@ -45,7 +45,7 @@ module base_geom_mod
         integer :: N_needed_clones
 
         !!!! ADJOINT DEV !!!!
-        type(sparse_matrix) :: d_loc, d_n_g! sensitivy WRT a mesh point's x, y, and z components (full of 1's and 0's)
+        type(sparse_matrix) :: d_loc, d_n_g, d_n_g_wake ! sensitivy WRT a mesh point's x, y, and z components (full of 1's and 0's)
     
 
         contains
