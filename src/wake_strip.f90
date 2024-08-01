@@ -123,13 +123,17 @@ contains
 
         real,dimension(3) :: loc
         real :: d1, d2, sep_1, sep_2
-        integer :: i, N_body_verts
+        integer :: i, N_original_verts
 
         if (.not. present(calc_adjoint)) calc_adjoint = .false.
 
         ! Allocate memory
         this%N_verts = N_panels_streamwise*2 + 2
-        N_body_verts = size(body_verts)
+        
+        ! Get number of original vertices of mesh that was read in (before vertex cloning)
+        ! this is used to initialize the adjoint size
+        N_original_verts = body_verts(1)%d_loc%full_num_cols/3
+
         allocate(this%vertices(this%N_verts))
 
         ! Initialize starting vertices in wake strip
@@ -143,8 +147,9 @@ contains
         this%vertices(2)%bot_parent = this%i_bot_parent_2
 
         if (calc_adjoint) then
-            call this%vertices(1)%init_adjoint(size(body_verts), wake_vertex = .true.)
-            call this%vertices(2)%init_adjoint(size(body_verts), wake_vertex = .true.)
+            ! I think this should be set to N_o
+            call this%vertices(1)%init_adjoint(N_original_verts, wake_vertex = .true.)
+            call this%vertices(2)%init_adjoint(N_original_verts, wake_vertex = .true.)
         end if
 
         ! Calculate distances to Trefftz plane
