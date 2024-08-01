@@ -1,5 +1,5 @@
 import subprocess as sp
-# this script tests sensitivities of supersonic subinclined geometry (dirichlet supersonic wake present)
+# this script tests senstivities of V_cells (supersonic dirichlet wake present) wrt mu
 
 if __name__=="__main__":
 
@@ -13,7 +13,7 @@ if __name__=="__main__":
             "src/wake_strip.f90", "src/wake_mesh.f90", "src/surface_mesh.f90", 
             "src/panel_solver.f90", 
             
-            "dev/unit_tests/wake_super_tests/wake_super_test7_supersonic_geom/wake_super_test7_supersonic_geom.f90"])
+            "dev/unit_tests/wake_super_tests/wake_super_test17_V_cells_mu/wake_super_test17_V_cells_mu.f90"])
 
     # Run
     sp.run(["a.exe"])

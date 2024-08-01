@@ -1,6 +1,5 @@
 import subprocess as sp
-# this script tests  sensitivities in the adjoint gradient calculation, compares them to FD
-# to all design variables X(beta)
+# this script tests senstivities of cell CF wrt mu (dirichlet_supersonic wake present)
 
 if __name__=="__main__":
 
@@ -14,7 +13,7 @@ if __name__=="__main__":
             "src/wake_strip.f90", "src/wake_mesh.f90", "src/surface_mesh.f90", 
             "src/panel_solver.f90", 
             
-            "dev/unit_tests/wake_tests/wake_test5_cp_d_n_g/wake_test5_cp_d_n_g.f90"])
+            "dev/unit_tests/wake_super_tests/wake_super_test23_d_cells_CF_mu/wake_super_test23_d_cells_CF_mu.f90"])
 
     # Run
     sp.run(["a.exe"])

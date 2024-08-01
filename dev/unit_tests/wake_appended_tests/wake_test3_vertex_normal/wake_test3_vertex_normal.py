@@ -1,9 +1,10 @@
 import subprocess as sp
-# this script tests sensitivities of supersonic subinclined geometry (dirichlet supersonic wake present)
+# this script tests vertex sensitivities in the adjoint gradient calculation, compares them to FD
+# to all design variables X(beta)
 
 if __name__=="__main__":
 
-     # Compile
+      # Compile
     sp.run(["gfortran", "-fdefault-real-8", "-fbounds-check", "common/json.f90", 
             "common/json_xtnsn.f90", "common/linalg.f90", "common/helpers.f90", 
             "common/math.f90", "common/sort.f90","common/linked_list.f90", 
@@ -13,7 +14,7 @@ if __name__=="__main__":
             "src/wake_strip.f90", "src/wake_mesh.f90", "src/surface_mesh.f90", 
             "src/panel_solver.f90", 
             
-            "dev/unit_tests/wake_super_tests/wake_super_test7_supersonic_geom/wake_super_test7_supersonic_geom.f90"])
+            "dev/unit_tests/wake_tests/wake_test3_vertex_normal/wake_test3_vertex_normal.f90"])
 
     # Run
     sp.run(["a.exe"])

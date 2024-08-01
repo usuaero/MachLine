@@ -1,4 +1,4 @@
-program dirichlet_super_test8
+program wake_super_test8
     ! tests various intermediate sensitivities 
     use adjoint_mod
     use base_geom_mod
@@ -41,7 +41,7 @@ program dirichlet_super_test8
     type(integrals) :: test_int, adjoint_int
     type(sparse_matrix),dimension(3) :: d_v_d
     integer :: i_unit
-    logical :: exists, found
+    logical :: exists, found, mirror_panel
 
     !!!!!!!!!!!!!!!!!!!!! END STUFF FROM MAIN !!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -49,15 +49,15 @@ program dirichlet_super_test8
     real,dimension(:),allocatable :: residuals
     real,dimension(:,:),allocatable ::  residuals3 , F111_up, F111_dn, d_F111_FD
 
-    integer :: i,j,k,m,n,y,z, N_verts, N_panels, vert, index, cp_ind
+    integer :: i,j,k,m,n,y,z, N_original_verts, N_total_verts, N_panels, vert, index, cp_ind
     real :: step,error_allowed, cp_offset
     type(vertex),dimension(:),allocatable :: vertices ! list of vertex types, this should be a mesh attribute
     type(panel),dimension(:),allocatable :: panels, adjoint_panels   ! list of panels, this should be a mesh attribute
 
     ! test stuff
     integer :: passed_tests, total_tests
-    logical :: test_failed, mirror_panel
-    character(len=100),dimension(100) :: failure_log
+    logical :: test_failed
+    character(len=100),dimension(300) :: failure_log
     character(len=10) :: m_char
     integer(8) :: start_count, end_count
     real(16) :: count_rate, time
@@ -77,7 +77,7 @@ program dirichlet_super_test8
     ! Set up run
     call json_initialize()
 
-    test_input = "dev\input_files\adjoint_inputs\dirichlet_supersonic_test.json"
+    test_input = "dev\input_files\adjoint_inputs\wake_super_test.json"
     test_input = trim(test_input)
 
     ! Check it exists
@@ -98,6 +98,9 @@ program dirichlet_super_test8
 
     ! Initialize surface mesh
     call test_mesh%init(geom_settings)
+    test_mesh%perturb_point = .true.
+
+    N_original_verts = test_mesh%N_verts
 
 
     ! Initialize flow
@@ -128,11 +131,10 @@ program dirichlet_super_test8
     
     ! calc CALC BASIC GEOM geom of relation between cp1 and panel1 
     test_geom = test_mesh%panels(index)%calc_subsonic_geom(test_mesh%cp(cp_ind)%loc,freestream_flow,.false.)
-    dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, .false.)
-    test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'potential', freestream_flow,.false., dod_info)
+    test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, .false.)
+    test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'potential', freestream_flow,.false., test_dod_info)
     !!!!!!!!!!!!!!!!!!!!! END TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-
+    
 
     call system_clock(start_count, count_rate)
     
@@ -141,7 +143,7 @@ program dirichlet_super_test8
     ! Set up run
     call json_initialize()
 
-    adjoint_input = "dev\input_files\adjoint_inputs\dirichlet_supersonic_adjoint_test.json"
+    adjoint_input = "dev\input_files\adjoint_inputs\wake_super_adjoint_test.json"
     adjoint_input = trim(adjoint_input)
 
     ! Check it exists
@@ -162,7 +164,6 @@ program dirichlet_super_test8
 
     ! Initialize surface mesh
     call adjoint_mesh%init(adjoint_geom_settings)
-    !call adjoint_mesh%init_adjoint()
 
     ! Initialize flow
     call json_xtnsn_get(adjoint_geom_settings, 'spanwise_axis', adjoint_spanwise_axis, '+y')
@@ -191,21 +192,20 @@ program dirichlet_super_test8
     
     !!!!!!!!!!!! END ADJOINT TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!
 
-
     
-    
-    N_verts = test_mesh%N_verts
+    N_total_verts = test_mesh%N_verts
     N_panels = test_mesh%N_panels
     
     
-    allocate(residuals3(3,N_verts*3))
-    allocate(residuals(N_verts*3))
+    allocate(residuals3(3,N_original_verts*3))
+    allocate(residuals(N_original_verts*3))
 
-    allocate(F111_up(3,N_verts*3))
-    allocate(F111_dn(3,N_verts*3))
-    allocate(d_F111_FD(3,N_verts*3))
+    allocate(F111_up(3,N_original_verts*3))
+    allocate(F111_dn(3,N_original_verts*3))
+    allocate(d_F111_FD(3,N_original_verts*3))
 
     mirror_panel = .false.
+    
 
     error_allowed = 1.0e-6
     step = 0.000001
@@ -215,7 +215,7 @@ program dirichlet_super_test8
 
     write(*,*) ""
     write(*,*) "------------------------------------------------------------------------"
-    write(*,*) "       Dirichlet SUPERSONIC F Integrals SENSITIVITIES TEST                    "
+    write(*,*) "         SUPERSONIC F Integrals SENSITIVITIES TEST (WAKE PRESENT)                   "
     write(*,*) "------------------------------------------------------------------------"
     write(*,*) ""
     write(*,*) ""
@@ -226,12 +226,11 @@ program dirichlet_super_test8
     do y =1,N_panels
         index = y
         
-        do z = 1,N_verts
+        do z = 1,N_total_verts
             cp_ind = z
             
-            ! write(*,'(A,I5,A,I5)') "F integral test Panel ",y," cp ",z
+            write(*,'(A,I5,A,I5)') "F integral test Panel ",y," cp ",z
 
-            ! dod info from original mesh
             dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, mirror_panel)
             if (dod_info%in_dod .and. test_mesh%panels(index)%A > 0.) then
 
@@ -263,34 +262,30 @@ program dirichlet_super_test8
 
                 ! ! integral adjoint
                 call adjoint_mesh%panels(index)%calc_integrals_adjoint(&
-                adjoint_geom,"potential", adjoint_int,adjoint_freestream_flow, .false., dod_info)
-
+                adjoint_geom,"potential", adjoint_int,adjoint_freestream_flow, mirror_panel, dod_info)
+            
                 do i=1,3
-                    do j=1,N_verts
+                    do j=1,N_original_verts
+
+                        deallocate(test_mesh%vertices, test_mesh%edges, test_mesh%panels, test_mesh%vertex_ordering)
+                        call test_mesh%init(geom_settings)
+                        test_mesh%perturb_point = .true.
 
                         ! perturb up the current design variable
                         test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
-
-                        !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
-
+                        ! write(*,*) "this vertex is clone? ", test_mesh%vertices(j)%clone 
+                        !!!!!!!!!!! update !!!!!!!!!!!!!
                         ! update panel geometry and calc
                         do m =1,N_panels
                             deallocate(test_mesh%panels(m)%n_hat_g)
                             call test_mesh%panels(m)%calc_derived_geom()
                         end do
 
-                        ! update vertex normal
                         call test_mesh%calc_vertex_geometry()
                         
-                        ! update with flow
-                        deallocate(test_mesh%panels(index)%vertices_ls)
-                        deallocate(test_mesh%panels(index)%n_hat_ls)
-                        deallocate(test_mesh%panels(index)%b)
-                        deallocate(test_mesh%panels(index)%b_mir)  
-                        deallocate(test_mesh%panels(index)%sqrt_b)
-                        call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
+                        call test_mesh%init_with_flow(freestream_flow, body_file, wake_file, formulation)
                         
-                        ! recalculates cp locations
+                        ! update solver init
                         deallocate(test_solver%sigma_known)
                         deallocate(test_solver%i_sigma_in_sys)
                         deallocate(test_solver%i_sys_sigma_in_body)
@@ -303,38 +298,39 @@ program dirichlet_super_test8
                         deallocate(test_int%F111)
                         deallocate(test_int%F121)
                         deallocate(test_int%F211)
-                        test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, .false.)
-                        test_geom = test_mesh%panels(index)%calc_supersonic_subinc_geom(&
-                                                test_mesh%cp(cp_ind)%loc,freestream_flow,mirror_panel, test_dod_info)
-                        test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'potential', freestream_flow,&
-                                                .false., test_dod_info)
+                        test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, mirror_panel)
+                        test_geom = test_mesh%panels(index)%calc_supersonic_subinc_geom(test_mesh%cp(cp_ind)%loc,&
+                        freestream_flow,mirror_panel, test_dod_info)
+                        test_int = test_mesh%panels(index)%calc_integrals&
+                        (test_geom, 'potential', freestream_flow,mirror_panel, test_dod_info)
                         !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
                         
                         ! get desired info
-                        F111_up(:,j + (i-1)*N_verts) = test_int%F111(:)
+                        F111_up(:,j + (i-1)*N_original_verts) = test_int%F111(:)
 
-                        ! perturb down the current design variable
-                        test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - 2.*step
 
-                        !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
+
+
+                        !!!!!!!!!!!!!!!!!!!!!!!! update down step!!!!!!!!!!!!!!!!!!!!!!!!
+
+                        deallocate(test_mesh%vertices, test_mesh%edges, test_mesh%panels, test_mesh%vertex_ordering)
+                        call test_mesh%init(geom_settings)
+                        test_mesh%perturb_point = .true.
+
+                        ! perturb up the current design variable
+                        test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - step
+                        ! write(*,*) "this vertex is clone? ", test_mesh%vertices(j)%clone 
                         ! update panel geometry and calc
                         do m =1,N_panels
                             deallocate(test_mesh%panels(m)%n_hat_g)
                             call test_mesh%panels(m)%calc_derived_geom()
                         end do
-                        
-                        ! update vertex normal
+
                         call test_mesh%calc_vertex_geometry()
-
-                        ! update with flow
-                        deallocate(test_mesh%panels(index)%vertices_ls)
-                        deallocate(test_mesh%panels(index)%n_hat_ls)
-                        deallocate(test_mesh%panels(index)%b)
-                        deallocate(test_mesh%panels(index)%b_mir)  
-                        deallocate(test_mesh%panels(index)%sqrt_b)
-                        call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
-
-                        ! recalculates cp locations
+                        
+                        call test_mesh%init_with_flow(freestream_flow, body_file, wake_file, formulation)
+                        
+                        ! update solver init
                         deallocate(test_solver%sigma_known)
                         deallocate(test_solver%i_sigma_in_sys)
                         deallocate(test_solver%i_sys_sigma_in_body)
@@ -343,23 +339,20 @@ program dirichlet_super_test8
                         call test_solver%init(solver_settings, processing_settings, &
                         test_mesh, freestream_flow, control_point_file)
 
-
                         ! update F111 cp1 and panel1 
                         deallocate(test_int%F111)
                         deallocate(test_int%F121)
                         deallocate(test_int%F211)
-                        test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, .false.)
-                        test_geom = test_mesh%panels(index)%calc_supersonic_subinc_geom(&
-                                                test_mesh%cp(cp_ind)%loc,freestream_flow,mirror_panel,test_dod_info)
-                        test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'potential', freestream_flow,&
-                                                .false., test_dod_info)
+                        test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, mirror_panel)
+                        test_geom = test_mesh%panels(index)%calc_supersonic_subinc_geom(test_mesh%cp(cp_ind)%loc,&
+                        freestream_flow,.false., test_dod_info)
+                        test_int = test_mesh%panels(index)%calc_integrals&
+                        (test_geom, 'potential', freestream_flow,mirror_panel, test_dod_info)
                         !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
 
                         ! put the x y or z component of the vertex of interest (index) in a list
-                        F111_dn(:,j + (i-1)*N_verts) = test_int%F111(:)
+                        F111_dn(:,j + (i-1)*N_original_verts) = test_int%F111(:)
                         
-                        ! restore geometry
-                        test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
                     end do 
                 end do 
                 
@@ -371,7 +364,7 @@ program dirichlet_super_test8
             
 
                 ! calculate residuals3
-                do i =1, N_verts*3
+                do i =1, N_original_verts*3
                     residuals3(:,i) = (/adjoint_int%d_F111(1)%get_value(i),&
                                         adjoint_int%d_F111(2)%get_value(i),&
                                         adjoint_int%d_F111(3)%get_value(i)/) - d_F111_FD(:,i)
@@ -380,13 +373,13 @@ program dirichlet_super_test8
                 if (maxval(abs(residuals3(:,:)))>error_allowed) then
                     write(*,*) ""
                     write(*,*) "     FLAGGED VALUES :"
-                    do i = 1, N_verts*3
+                    do i = 1, N_original_verts*3
                         if (any(abs(residuals3(:,i))>error_allowed)) then
                             write(*,*) ""
-                            write(*,*) "                  ------------d_F111 edges---------------     "
+                            write(*,*) "                           d_F111 edges "
                             write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_F111_FD(:,i)
                         
-                            write(*, '(A25,8x,3(f25.10, 4x))') "          adjoint",   &
+                            write(*, '(A25,8x,3(f25.10, 4x))') "               adjoint",   &
                             adjoint_int%d_F111(1)%get_value(i),&
                             adjoint_int%d_F111(2)%get_value(i),&
                             adjoint_int%d_F111(3)%get_value(i)
@@ -398,7 +391,7 @@ program dirichlet_super_test8
                 
                 
                 ! check if test failed
-                do i=1,N_verts*3
+                do i=1,N_original_verts*3
                     if (any(abs(residuals3(:,i)) > error_allowed)) then 
                         do j = 1,3
                             if (abs(d_F111_FD(j,i))>1000.0) then
@@ -453,13 +446,15 @@ program dirichlet_super_test8
                     total_tests = total_tests + 1
                     
                 end if
+
+                ! reset test failed for the next loop
                 test_failed = .false.
 
-                   
             else ! end check dod if statement    
                 write(*,'(A,I5,A,I5)') "Panel ",y," not in dod of cp ",z
             end if
 
+            
         ! z loop
         end do
 
@@ -469,7 +464,7 @@ program dirichlet_super_test8
 
     !!!!!!!!!!!!!! CALC_BASIC_F_INTEGRAL SENSITIVITIES RESULTS!!!!!!!!!!!!!
     write(*,*) "------------------------------------------------------------------------------"
-    write(*,*) "         Dirichlet SUPERSONIC F INTEGRALS TEST RESULTS "
+    write(*,*) "                 SUPERSONIC F INTEGRALS TEST RESULTS (WAKE PRESENT)"
     write(*,*) "------------------------------------------------------------------------------"
     write(*,*) ""
     write(*,'((A), ES10.1)') "allowed residual = ", error_allowed
@@ -497,4 +492,4 @@ program dirichlet_super_test8
     write(*,*) "Program Complete"
     write(*,*) "----------------------"
 
-end program dirichlet_super_test8
+end program wake_super_test8

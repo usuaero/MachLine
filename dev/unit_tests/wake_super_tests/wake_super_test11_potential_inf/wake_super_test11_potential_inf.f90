@@ -1,4 +1,4 @@
-program dirichlet_super_test11
+program wake_super_test11
     ! tests various intermediate sensitivities 
     use adjoint_mod
     use base_geom_mod
@@ -37,7 +37,7 @@ program dirichlet_super_test11
     type(flow) :: freestream_flow, adjoint_freestream_flow
     type(panel_solver) :: test_solver, adjoint_solver
     type(eval_point_geom) :: test_geom, adjoint_geom
-    type(dod) :: dod_info
+    type(dod) :: test_dod_info, adjoint_dod_info
     type(integrals) :: test_int, adjoint_int
     type(sparse_matrix),dimension(3) :: d_v_d
     integer :: i_unit
@@ -52,7 +52,7 @@ program dirichlet_super_test11
     real,dimension(:),allocatable :: residuals
     real,dimension(:,:),allocatable ::  residuals3, inf_up, inf_dn, d_inf_FD
 
-    integer :: i,j,k,m,n,y,z, N_verts, N_panels, vert, index, cp_ind
+    integer :: i,j,k,m,n,y,z, N_original_verts, N_total_verts, N_panels, vert, index, cp_ind
     real :: step,error_allowed, cp_offset
     type(vertex),dimension(:),allocatable :: vertices ! list of vertex types, this should be a mesh attribute
     type(panel),dimension(:),allocatable :: panels, adjoint_panels   ! list of panels, this should be a mesh attribute
@@ -80,7 +80,7 @@ program dirichlet_super_test11
     ! Set up run
     call json_initialize()
     
-    test_input = "dev\input_files\adjoint_inputs\dirichlet_supersonic_test.json"
+    test_input = "dev\input_files\adjoint_inputs\wake_super_test.json"
     test_input = trim(test_input)
 
     ! Check it exists
@@ -101,7 +101,9 @@ program dirichlet_super_test11
     
     ! Initialize surface mesh
     call test_mesh%init(geom_settings)
-    
+    test_mesh%perturb_point = .true.
+
+    N_original_verts = test_mesh%N_verts
     
     ! Initialize flow
     call json_xtnsn_get(geom_settings, 'spanwise_axis', spanwise_axis, '+y')
@@ -143,7 +145,7 @@ program dirichlet_super_test11
     ! Set up run
     call json_initialize()
     
-    adjoint_input = "dev\input_files\adjoint_inputs\dirichlet_supersonic_adjoint_test.json"
+    adjoint_input = "dev\input_files\adjoint_inputs\wake_super_adjoint_test.json"
     adjoint_input = trim(adjoint_input)
     
     ! Check it exists
@@ -194,16 +196,16 @@ program dirichlet_super_test11
       
     !!!!!!!!!!!! END ADJOINT TEST MESH !!!!!!!!!!!!!!!!!!!!!!!
     
-    N_verts = test_mesh%N_verts
+    N_total_verts = test_mesh%N_verts
     N_panels = test_mesh%N_panels
     
     
-    allocate(residuals3(3,N_verts*3))
-    allocate(residuals(N_verts*3))
+    allocate(residuals3(3,N_original_verts*3))
+    allocate(residuals(N_original_verts*3))
 
-    allocate(inf_up(3,N_verts*3))
-    allocate(inf_dn(3,N_verts*3))
-    allocate(d_inf_FD(3,N_verts*3))
+    allocate(inf_up(3,N_original_verts*3))
+    allocate(inf_dn(3,N_original_verts*3))
+    allocate(d_inf_FD(3,N_original_verts*3))
     
 
     error_allowed = 1.0e-4
@@ -214,7 +216,7 @@ program dirichlet_super_test11
 
     write(*,*) ""
     write(*,*) "------------------------------------------------------------------------"
-    write(*,*) "          Dirichlet Supersonic Potential inf TEST                    "
+    write(*,*) "             SUPERSONIC POTENTIAL INF TEST (WAKE PRESENT)                    "
     write(*,*) "------------------------------------------------------------------------"
     write(*,*) ""
     write(*,*) ""
@@ -225,7 +227,7 @@ program dirichlet_super_test11
     do y =1,N_panels
         index = y
         
-        do z = 1,N_verts
+        do z = 1,N_total_verts
             cp_ind = z
             
             write(*,'(A,I5,A,I5)') "inf adjoint test: Panel ",y," cp ",z
@@ -236,103 +238,83 @@ program dirichlet_super_test11
 
                 
             do i=1,3
-                do j=1,N_verts
+                do j=1,N_original_verts
+
+                    deallocate(test_mesh%vertices, test_mesh%edges, test_mesh%panels, test_mesh%vertex_ordering)
+                    call test_mesh%init(geom_settings)
+                    test_mesh%perturb_point = .true.
 
                     ! perturb up the current design variable
                     test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
-                    ! write(*,*) " perturb up"
-                    
-                    !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
-                
-                    ! update vertex normal
+                    ! write(*,*) "this vertex is clone? ", test_mesh%vertices(j)%clone 
+                    !!!!!!!!!!! update !!!!!!!!!!!!!
+                    ! update panel geometry and calc
                     do m =1,N_panels
                         deallocate(test_mesh%panels(m)%n_hat_g)
                         call test_mesh%panels(m)%calc_derived_geom()
                     end do
-                    
-                    call test_mesh%calc_vertex_geometry()
-                    
-                    ! update with flow
-                    deallocate(test_mesh%panels(index)%vertices_ls)
-                    deallocate(test_mesh%panels(index)%n_hat_ls)
-                    deallocate(test_mesh%panels(index)%b)
-                    deallocate(test_mesh%panels(index)%b_mir)  
-                    deallocate(test_mesh%panels(index)%sqrt_b)
-                    deallocate(test_mesh%panels(index)%i_vert_d)
-                    deallocate(test_mesh%panels(index)%S_mu_inv)
-                    deallocate(test_mesh%panels(index)%T_mu)
-                    ! deallocate(test_mesh%panels(index)%i_panel_s)
-                    call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
-                    call test_mesh%panels(index)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
-                    test_mesh%vertices,.false.)
-                    
-                    ! recalculates cp locations
-                    deallocate(test_solver%sigma_known)
-                    deallocate(test_solver%i_sigma_in_sys)
-                    deallocate(test_solver%i_sys_sigma_in_body)
-                    deallocate(test_mesh%cp)
-                    deallocate(test_solver%P)
-                    call test_solver%init(solver_settings, processing_settings, &
-                    test_mesh, freestream_flow, control_point_file)
-                    
-                    ! update v_d and doublet inf
-                    call test_mesh%panels(index)%calc_potential_influences(test_mesh%cp(cp_ind)%loc, freestream_flow, &
-                    .false., v_s, doublet_inf)
-                    
-                    !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
-                    
-                    ! get the needed info
-                    inf_up(:, j + (i-1)*N_verts) = doublet_inf(:)
-                    
-                    
-                    ! perturb down the current design variable
-                    ! write(*,*) " perturb down"
-                    test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - 2.*step
-                    
-                    !!!!!!!!!!!! UPDATE !!!!!!!!!!!!!!!
-                
-                    ! update vertex normal
-                    do m =1,N_panels
-                        deallocate(test_mesh%panels(m)%n_hat_g)
-                        call test_mesh%panels(m)%calc_derived_geom()
-                    end do
-                    
-                    call test_mesh%calc_vertex_geometry()
-                    
-                    ! update with flow
-                    deallocate(test_mesh%panels(index)%vertices_ls)
-                    deallocate(test_mesh%panels(index)%n_hat_ls)
-                    deallocate(test_mesh%panels(index)%b)
-                    deallocate(test_mesh%panels(index)%b_mir)  
-                    deallocate(test_mesh%panels(index)%sqrt_b)
-                    deallocate(test_mesh%panels(index)%i_vert_d)
-                    deallocate(test_mesh%panels(index)%S_mu_inv)
-                    deallocate(test_mesh%panels(index)%T_mu)
-                    ! deallocate(test_mesh%panels(index)%i_panel_s)
-                    call test_mesh%panels(index)%init_with_flow(freestream_flow, .false., 0)
-                    call test_mesh%panels(index)%set_distribution(test_mesh%initial_panel_order,test_mesh%panels,&
-                    test_mesh%vertices,.false.)
-                    
-                    ! recalculates cp locations
-                    deallocate(test_solver%sigma_known)
-                    deallocate(test_solver%i_sigma_in_sys)
-                    deallocate(test_solver%i_sys_sigma_in_body)
-                    deallocate(test_mesh%cp)
-                    deallocate(test_solver%P)
-                    call test_solver%init(solver_settings, processing_settings, &
-                    test_mesh, freestream_flow, control_point_file)
-                    
-                    ! update v_d and doublet inf
-                    call test_mesh%panels(index)%calc_potential_influences(test_mesh%cp(cp_ind)%loc, freestream_flow, &
-                    .false., v_s, doublet_inf)
-                    !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
-                    
-                    ! get the needed info
-                    inf_dn(:, j + (i-1)*N_verts) = doublet_inf(:)
 
+                    call test_mesh%calc_vertex_geometry()
                     
-                    ! restore geometry
-                    test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
+                    call test_mesh%init_with_flow(freestream_flow, body_file, wake_file, formulation)
+                    
+                    ! update solver init
+                    deallocate(test_solver%sigma_known)
+                    deallocate(test_solver%i_sigma_in_sys)
+                    deallocate(test_solver%i_sys_sigma_in_body)
+                    deallocate(test_mesh%cp)
+                    deallocate(test_solver%P)
+                    call test_solver%init(solver_settings, processing_settings, &
+                    test_mesh, freestream_flow, control_point_file)
+                    
+                    ! update v_d and doublet inf
+                    call test_mesh%panels(index)%calc_potential_influences(test_mesh%cp(cp_ind)%loc, freestream_flow, &
+                    .false., v_s, doublet_inf)
+                    
+                    !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
+                    
+                    ! get the needed info
+                    inf_up(:, j + (i-1)*N_original_verts) = doublet_inf(:)
+                    
+                    
+                    !!!!!!!!!!!!!!!!!!!!!!!!!!!!! UPDATE STEP DOWN !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                    
+                    deallocate(test_mesh%vertices, test_mesh%edges, test_mesh%panels, test_mesh%vertex_ordering)
+                    call test_mesh%init(geom_settings)
+                    test_mesh%perturb_point = .true.
+
+                    ! perturb up the current design variable
+                    test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - step
+                    ! write(*,*) "this vertex is clone? ", test_mesh%vertices(j)%clone 
+                    !!!!!!!!!!! update !!!!!!!!!!!!!
+                    ! update panel geometry and calc
+                    do m =1,N_panels
+                        deallocate(test_mesh%panels(m)%n_hat_g)
+                        call test_mesh%panels(m)%calc_derived_geom()
+                    end do
+
+                    call test_mesh%calc_vertex_geometry()
+                    
+                    call test_mesh%init_with_flow(freestream_flow, body_file, wake_file, formulation)
+                    
+                    ! update solver init
+                    deallocate(test_solver%sigma_known)
+                    deallocate(test_solver%i_sigma_in_sys)
+                    deallocate(test_solver%i_sys_sigma_in_body)
+                    deallocate(test_mesh%cp)
+                    deallocate(test_solver%P)
+                    call test_solver%init(solver_settings, processing_settings, &
+                    test_mesh, freestream_flow, control_point_file)
+                    
+                    ! update v_d and doublet inf
+                    call test_mesh%panels(index)%calc_potential_influences(test_mesh%cp(cp_ind)%loc, freestream_flow, &
+                    .false., v_s, doublet_inf)
+                    !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
+                    
+                    ! get the needed info
+                    inf_dn(:, j + (i-1)*N_original_verts) = doublet_inf(:)
+
+    
                 end do 
             end do 
             
@@ -340,7 +322,7 @@ program dirichlet_super_test11
             d_inf_FD(:,:) = (inf_up(:,:) - inf_dn(:,:))/(2.*step)
 
             ! calculate residuals3
-            do i =1, N_verts*3
+            do i =1, N_original_verts*3
                 residuals3(:,i) = (/inf_adjoint(1)%get_value(i),&
                                   inf_adjoint(2)%get_value(i),&
                                   inf_adjoint(3)%get_value(i)/) - d_inf_FD(:,i)
@@ -351,7 +333,7 @@ program dirichlet_super_test11
             if (maxval(abs(residuals3(:,:)))>error_allowed) then
                 write(*,*) ""
                 write(*,*) "     FLAGGED VALUES :"
-                do i = 1, N_verts*3
+                do i = 1, N_original_verts*3
                     if (any(abs(residuals3(:,i))>error_allowed)) then
                         write(*,*) ""
                         write(*,'(A,I5,A,I5,A)') "                                       inf_adjoint &
@@ -370,7 +352,7 @@ program dirichlet_super_test11
             
             
             ! check if test failed
-            do i=1,N_verts*3
+            do i=1,N_original_verts*3
                 if (any(abs(residuals3(:,i)) > error_allowed)) then 
                     do j = 1,3
                         if (abs(d_inf_FD(j,i))>1000.0) then
@@ -439,7 +421,7 @@ program dirichlet_super_test11
 
     !!!!!!!!!!!!!!  RESULTS!!!!!!!!!!!!!
     write(*,*) "------------------------------------------------------------------------------"
-    write(*,*) "            Dirichlet Supersonic Potential inf TEST RESULTS "
+    write(*,*) "           SUPERSONIC POTENTIAL INF TEST RESULTS (WAKE PRESENT)"
     write(*,*) "------------------------------------------------------------------------------"
     write(*,*) ""
     write(*,'((A), ES10.1)') "allowed residual = ", error_allowed
@@ -467,4 +449,4 @@ program dirichlet_super_test11
     write(*,*) "Program Complete"
     write(*,*) "----------------------"
 
-end program dirichlet_super_test11
+end program wake_super_test11

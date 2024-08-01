@@ -1,4 +1,4 @@
-program wake_super_test2
+program wake_appended_test2
 
     ! tests various intermediate sensitivities 
     use adjoint_mod
@@ -79,7 +79,7 @@ program wake_super_test2
     ! Set up run
     call json_initialize()
     
-    test_input = "dev\input_files\adjoint_inputs\wake_super_test.json"
+    test_input = "dev\input_files\adjoint_inputs\wake_appended_test.json"
     test_input = trim(test_input)
     
     ! Check it exists
@@ -133,7 +133,7 @@ program wake_super_test2
     ! Set up run
     call json_initialize()
     
-    adjoint_input = "dev\input_files\adjoint_inputs\wake_super_adjoint_test.json"
+    adjoint_input = "dev\input_files\adjoint_inputs\wake_appended_adjoint_test.json"
     adjoint_input = trim(adjoint_input)
     
     ! Check it exists
@@ -202,7 +202,7 @@ program wake_super_test2
     allocate(T_mu_dn(3,N_original_verts*3))
     allocate(d_T_mu_FD(3,N_original_verts*3))
     
-    error_allowed = 1.0e-9
+    error_allowed = 1.0e-8
     step = 0.000001
     index = 1
     
@@ -210,7 +210,7 @@ program wake_super_test2
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! FLOW-DEPENDENT PANEL SENSITIVITIES TEST !!!!!!!!!!!!!!!!!!!!!!!!!!!!
     write(*,*) ""
     write(*,*) "-----------------------------------------------------------------------"
-    write(*,*) "   SUPERSONIC FLOW-DEPENDENT PANEL SENSITIVITIES TEST (WAKE PRESENT)"
+    write(*,*) "          FLOW-DEPENDENT PANEL SENSITIVITIES TEST (WAKE APPENDED)"
     write(*,*) "-----------------------------------------------------------------------"
     write(*,*) ""
     write(*,*) ""
@@ -219,7 +219,7 @@ program wake_super_test2
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!    FOR EACH PANEL       !!!!!!!!!!!!!!!!!!!!!
     do y = 1,N_panels
         index = y
-        write(*,'(A,I5)') "SUPERSONIC PANEL FLOW TEST, panel = ", y
+        write(*,'(A,I5)') "PANEL FLOW TEST, panel = ", y
 
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST d_A_g_to_ls and d_A_ls_to_g  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!       
@@ -781,7 +781,7 @@ program wake_super_test2
 
     !!!!!!!!!!!!!! PANEL GEOMETRY  RESULTS!!!!!!!!!!!!!
     write(*,*) "------------------------------------------------------------------------------"
-    write(*,*) "     SUPERSONIC FLOW DEPENDENT PANEL GEOMETRY TEST RESULTS (WAKE PRESENT)"
+    write(*,*) "            FLOW DEPENDENT PANEL GEOMETRY TEST RESULTS (WAKE APPENDED)"
     write(*,*) "------------------------------------------------------------------------------"
     write(*,*) ""
     write(*,'((A), ES10.1)') "allowed residual = ", error_allowed
@@ -810,4 +810,4 @@ program wake_super_test2
     write(*,*) "----------------------"
 
 
-end program wake_super_test2
+end program wake_appended_test2

@@ -37,7 +37,7 @@ program super10
     type(flow) :: freestream_flow, adjoint_freestream_flow
     type(panel_solver) :: test_solver, adjoint_solver
     type(eval_point_geom) :: test_geom, adjoint_geom
-    type(dod) :: test_dod_info, adjoint_dod_info
+    type(dod) :: dod_info
     type(integrals) :: test_int, adjoint_int
     type(sparse_matrix),dimension(3) :: d_v_d
     integer :: i_unit
@@ -132,8 +132,8 @@ program super10
     
     ! calc CALC BASIC GEOM geom of relation between cp1 and panel1 
     test_geom = test_mesh%panels(index)%calc_subsonic_geom(test_mesh%cp(cp_ind)%loc,freestream_flow,.false.)
-    test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, .false.)
-    test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,.false., test_dod_info)
+    dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, .false.)
+    test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,.false., dod_info)
     v_d = test_mesh%panels(index)%assemble_v_d_M_space(test_int, test_geom, freestream_flow, .false.)
     !!!!!!!!!!!!!!!!!!!!! END TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -240,8 +240,8 @@ program super10
         do z = 1,N_verts
             cp_ind = z
             
-            test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, mirror_panel)
-            if (test_dod_info%in_dod .and. test_mesh%panels(index)%A > 0.) then
+            dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, mirror_panel)
+            if (dod_info%in_dod .and. test_mesh%panels(index)%A > 0.) then
 
                 ! panel is in domain of dependence of point    
                 write(*,'(A,I5,A,I5)') "Supersonic d_v_d_m space test Panel ",y," cp ",z
@@ -257,7 +257,7 @@ program super10
                         ! supersonic subinclined
                         adjoint_geom = adjoint_mesh%panels(index)%calc_supersonic_subinc_geom_adjoint(&
                                                     adjoint_mesh%cp(cp_ind)%loc,adjoint_mesh%cp(cp_ind)%d_loc,&
-                                                    adjoint_freestream_flow, mirror_panel, test_dod_info)
+                                                    adjoint_freestream_flow, mirror_panel, dod_info)
                     end if
                 else
                     !geom = this%calc_subsonic_geom(P, freestream, mirror_panel)
@@ -267,11 +267,11 @@ program super10
 
                 ! Get integrals
                 adjoint_int = adjoint_mesh%panels(index)%calc_integrals(adjoint_geom, 'velocity', &
-                                            adjoint_freestream_flow, mirror_panel, test_dod_info)
+                                            adjoint_freestream_flow, mirror_panel, dod_info)
 
                 ! ! integral adjoint
                 call adjoint_mesh%panels(index)%calc_integrals_adjoint(&
-                            adjoint_geom, adjoint_int, adjoint_freestream_flow, mirror_panel, test_dod_info)
+                            adjoint_geom, adjoint_int, adjoint_freestream_flow, mirror_panel, dod_info)
             
                 d_v_d_M_adjoint = adjoint_mesh%panels(index)%assemble_v_d_M_space_adjoint(adjoint_int, adjoint_geom, &
                 adjoint_freestream_flow, mirror_panel)
@@ -317,9 +317,9 @@ program super10
                         ! call test_mesh%panels(index)%calc_velocity_influences(test_mesh%cp(cp_ind)%loc, freestream_flow,.false.,v_s, v_d)
                         deallocate(test_int%F111)
                         test_geom = test_mesh%panels(index)%calc_supersonic_subinc_geom(test_mesh%cp(cp_ind)%loc,freestream_flow,&
-                                    mirror_panel, test_dod_info)
+                                    mirror_panel, dod_info)
                         test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,mirror_panel,&
-                                     test_dod_info)
+                                     dod_info)
                         v_d = test_mesh%panels(index)%assemble_v_d_M_space(test_int, test_geom, freestream_flow, mirror_panel)
                         !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
                         
@@ -367,9 +367,9 @@ program super10
                         ! call test_mesh%panels(index)%calc_velocity_influences(test_mesh%cp(cp_ind)%loc, freestream_flow,.false.,v_s, v_d)
                         deallocate(test_int%F111)
                         test_geom = test_mesh%panels(index)%calc_supersonic_subinc_geom(test_mesh%cp(cp_ind)%loc,freestream_flow,&
-                                    mirror_panel, test_dod_info)
+                                    mirror_panel, dod_info)
                         test_int = test_mesh%panels(index)%calc_integrals(test_geom, 'velocity', freestream_flow,mirror_panel,&
-                                     test_dod_info)
+                                     dod_info)
                         v_d = test_mesh%panels(index)%assemble_v_d_M_space(test_int, test_geom, freestream_flow, mirror_panel)
                         !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
                         

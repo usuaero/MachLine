@@ -1,4 +1,4 @@
-program wake_super_test3
+program wake_test3
 
     ! tests various intermediate sensitivities 
     use adjoint_mod
@@ -73,7 +73,7 @@ program wake_super_test3
     ! Set up run
     call json_initialize()
     
-    test_input = "dev\input_files\adjoint_inputs\wake_super_test.json"
+    test_input = "dev\input_files\adjoint_inputs\wake_test.json"
     test_input = trim(test_input)
     
     ! Check it exists
@@ -128,7 +128,7 @@ program wake_super_test3
     ! Set up run
     call json_initialize()
 
-    adjoint_input = "dev\input_files\adjoint_inputs\wake_super_adjoint_test.json"
+    adjoint_input = "dev\input_files\adjoint_inputs\wake_adjoint_test.json"
     adjoint_input = trim(adjoint_input)
 
     ! Check it exists
@@ -183,7 +183,7 @@ program wake_super_test3
 
     
     
-    error_allowed = 1.0e-6
+    error_allowed = 1.0e-8
     step = 0.000001
     ! index = 1
     cp_ind = 1
@@ -192,7 +192,7 @@ program wake_super_test3
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! VERTEX NORMAL SENSITIVITIES TEST !!!!!!!!!!!!!!!!!!!!!!!!!!!!
     write(*,*) ""
     write(*,*) "------------------------------------------------------------------------"
-    write(*,*) "        SUPERSONIC VERTEX NORMAL SENSITIVITIES TEST (WAKE PRESENT)                   "
+    write(*,*) "                    VERTEX NORMAL SENSITIVITIES TEST (WAKE PRESENT)                   "
     write(*,*) "------------------------------------------------------------------------"
     write(*,*) ""
     write(*,*) ""
@@ -375,7 +375,7 @@ program wake_super_test3
 
     !!!!!!!!!!!!!! Vertex normal  SENSITIVITIES RESULTS!!!!!!!!!!!!!
     write(*,*) "------------------------------------------------------------------------------"
-    write(*,*) "     SUPERSONIC VERTEX NORMAL SENSITIVITIES TEST RESULTS (WAKE PRESENT)"
+    write(*,*) "         VERTEX NORMAL SENSITIVITIES TEST RESULTS (WAKE PRESENT)"
     write(*,*) "------------------------------------------------------------------------------"
     write(*,*) ""
     write(*,'((A), ES10.1)') "allowed residual = ", error_allowed
@@ -405,4 +405,4 @@ program wake_super_test3
 
 
 
-end program wake_super_test3
+end program wake_test3

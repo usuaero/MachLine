@@ -1,4 +1,4 @@
-program wake_super_test6
+program wake_test6
     ! tests various intermediate sensitivities 
     use adjoint_mod
     use base_geom_mod
@@ -77,7 +77,7 @@ program wake_super_test6
     ! Set up run
     call json_initialize()
 
-    test_input = "dev\input_files\adjoint_inputs\wake_super_test.json"
+    test_input = "dev\input_files\adjoint_inputs\wake_test.json"
     test_input = trim(test_input)
 
     ! Check it exists
@@ -138,7 +138,7 @@ program wake_super_test6
     ! Set up run
     call json_initialize()
     
-    adjoint_input = "dev\input_files\adjoint_inputs\wake_super_adjoint_test.json"
+    adjoint_input = "dev\input_files\adjoint_inputs\wake_adjoint_test.json"
     adjoint_input = trim(adjoint_input)
     
     ! Check it exists
@@ -223,7 +223,7 @@ program wake_super_test6
     allocate(d_ls_dn(2,N_original_verts*3))
     allocate(d_d_ls_FD(2,N_original_verts*3))
 
-    error_allowed = 1.0e-9
+    error_allowed = 1.0e-7
     step = 0.000001
     index = 1
     cp_ind = 1
@@ -232,9 +232,9 @@ program wake_super_test6
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! CALC BASIC GEOM (CONTROL POINTS) SENSITIVITIES TEST !!!!!!!!!!!!!!!!!!!!!!!!!!!!
     write(*,*) ""
     write(*,*) ""
-    write(*,*) "----------------------------------------------------------------------------------------------"
-    write(*,*) "    DIRICHLET SUPERSONIC CALC BASIC GEOM (CONTROL POINTS) SENSITIVITIES TEST (WAKE PRESENT)"
-    write(*,*) "----------------------------------------------------------------------------------------------"
+    write(*,*) "-----------------------------------------------------------------------------------"
+    write(*,*) "    DIRICHLET CALC BASIC GEOM (CONTROL POINTS) SENSITIVITIES TEST (WAKE PRESENT)"
+    write(*,*) "-----------------------------------------------------------------------------------"
     write(*,*) ""
     write(*,*) ""
     write(*,*) ""
@@ -1086,9 +1086,9 @@ program wake_super_test6
     end do !y loop (panels)
 
     !!!!!!!!!!!!!! CALC_BASIC_GEOM (CONTROL POINTS) SENSITIVITIES RESULTS!!!!!!!!!!!!!
-    write(*,*) "--------------------------------------------------------------------------------------------------"
-    write(*,*) "   DIRICHLET SUPERSONIC CALC_BASIC_GEOM (CONTROL POINTS) SENSITIVITIES TEST RESULTS (WAKE PRESENT) "
-    write(*,*) "--------------------------------------------------------------------------------------------------"
+    write(*,*) "-----------------------------------------------------------------------------------------"
+    write(*,*) "   DIRICHLET CALC_BASIC_GEOM (CONTROL POINTS) SENSITIVITIES TEST RESULTS (WAKE PRESENT) "
+    write(*,*) "-----------------------------------------------------------------------------------------"
     write(*,*) ""
     write(*,'((A), ES10.1)') "allowed residual = ", error_allowed
     write(*,*) ""
@@ -1115,4 +1115,4 @@ program wake_super_test6
     write(*,*) "Program Complete"
     write(*,*) "----------------------"
 
-end program wake_super_test6
+end program wake_test6

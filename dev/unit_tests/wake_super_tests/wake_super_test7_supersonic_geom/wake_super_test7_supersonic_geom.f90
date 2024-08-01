@@ -1,4 +1,4 @@
-program wake_test7
+program wake_super_test7
     ! tests various intermediate sensitivities 
     use adjoint_mod
     use base_geom_mod
@@ -38,7 +38,8 @@ program wake_test7
     type(panel_solver) :: test_solver, adjoint_solver
     type(eval_point_geom) :: test_geom, adjoint_geom
     integer :: i_unit
-    logical :: exists, found
+    logical :: exists, found, mirror_panel
+    type(dod) :: dod_info, test_dod_info
 
     !!!!!!!!!!!!!!!!!!!!! END STUFF FROM MAIN !!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -75,7 +76,7 @@ program wake_test7
     ! Set up run
     call json_initialize()
 
-    test_input = "dev\input_files\adjoint_inputs\wake_test.json"
+    test_input = "dev\input_files\adjoint_inputs\wake_super_test.json"
     test_input = trim(test_input)
 
     ! Check it exists
@@ -138,7 +139,7 @@ program wake_test7
     ! Set up run
     call json_initialize()
 
-    adjoint_input = "dev\input_files\adjoint_inputs\wake_adjoint_test.json"
+    adjoint_input = "dev\input_files\adjoint_inputs\wake_super_adjoint_test.json"
     adjoint_input = trim(adjoint_input)
 
     ! Check it exists
@@ -218,15 +219,16 @@ program wake_test7
     allocate(d_dR_FD(3,N_original_verts*3))
 
 
-    error_allowed = 1.0e-8
+    error_allowed = 1.0e-9
     step = 0.000001
     index = 1
     cp_ind = 1
     
+    mirror_panel = .false.
 
     write(*,*) ""
     write(*,*) "--------------------------------------------------------------------------"
-    write(*,*) "       DIRICHLET SUBSONIC GEOMETRY SENSITIVITIES TEST (WAKE PRESENT)                   "
+    write(*,*) "      DIRICHLET SUPERSONIC GEOMETRY SENSITIVITIES TEST (WAKE PRESENT)                   "
     write(*,*) "--------------------------------------------------------------------------"
     write(*,*) ""
     write(*,*) ""
@@ -240,751 +242,772 @@ program wake_test7
         do z = 1,N_total_verts
             cp_ind = z
             
-            write(*,'(A,I5,A,I5)') "Subsonic Geom test Panel ",y," cp ",z
-            
-            
-            ! calc CALC BASIC GEOM geom sensitivity of relation between cp1 and panel1 
-            adjoint_geom = adjoint_mesh%panels(index)%calc_subsonic_geom_adjoint(adjoint_mesh%cp(cp_ind)%loc,&
-            adjoint_mesh%cp(cp_ind)%d_loc, adjoint_freestream_flow)
-            
-            
-        
-            do i=1,3
-                do j=1,N_original_verts
+            dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, mirror_panel)
+            if (dod_info%in_dod .and. test_mesh%panels(index)%A > 0.) then
 
-                    deallocate(test_mesh%vertices, test_mesh%edges, test_mesh%panels, test_mesh%vertex_ordering)
-                    call test_mesh%init(geom_settings)
-                    test_mesh%perturb_point = .true.
+                ! panel is in domain of dependence of point    
+                write(*,'(A,I5,A,I5)') "Supersonic Subinc Geom test Panel ",y," cp ",z
 
-                    ! perturb up the current design variable
-                    test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
-                    ! write(*,*) "this vertex is clone? ", test_mesh%vertices(j)%clone 
-                    !!!!!!!!!!! update !!!!!!!!!!!!!
-                    ! update panel geometry and calc
-                    do m =1,N_panels
-                        deallocate(test_mesh%panels(m)%n_hat_g)
-                        call test_mesh%panels(m)%calc_derived_geom()
-                    end do
-
-                    call test_mesh%calc_vertex_geometry()
-                    
-                    call test_mesh%init_with_flow(freestream_flow, body_file, wake_file, formulation)
-                    
-                    ! update solver
-                    deallocate(test_solver%sigma_known)
-                    deallocate(test_solver%i_sigma_in_sys)
-                    deallocate(test_solver%i_sys_sigma_in_body)
-                    deallocate(test_mesh%cp)
-                    deallocate(test_solver%P)
-                    call test_solver%init(solver_settings, processing_settings, &
-                    test_mesh, freestream_flow, control_point_file)
-
-                    ! update subsonic geom
-                    test_geom = test_mesh%panels(index)%calc_subsonic_geom(test_mesh%cp(cp_ind)%loc,freestream_flow,.false.)
-        
-                    !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
-                    
-                    ! get desired info
-                    l1_up(:,j + (i-1)*N_original_verts) = test_geom%l1(:)
-                    l2_up(:,j + (i-1)*N_original_verts) = test_geom%l2(:)
-                    a_up(:,j + (i-1)*N_original_verts) = test_geom%a(:)
-                    g2_up(:,j + (i-1)*N_original_verts) = test_geom%g2(:)
-                    R1_up(:,j + (i-1)*N_original_verts) = test_geom%R1(:)
-                    R2_up(:,j + (i-1)*N_original_verts) = test_geom%R2(:)
-                    dR_up(:,j + (i-1)*N_original_verts) = test_geom%dR(:)
-                    
-
-
-
-
-                    !!!!!!!!!!!!!!!!!!!!!!! Perturb Down !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-                    deallocate(test_mesh%vertices, test_mesh%edges, test_mesh%panels, test_mesh%vertex_ordering)
-                    call test_mesh%init(geom_settings)
-                    test_mesh%perturb_point = .true.
-
-                    ! perturb down the current design variable
-                    test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - step
+                ! Calculate geometric parameters
+                if (freestream_flow%supersonic) then
+                    if ((mirror_panel .and. test_mesh%panels(index)%r_mir < 0.) .or. &
+                                    (.not. mirror_panel .and. test_mesh%panels(index)%r < 0.)) then
+                        !geom = this%calc_supersonic_supinc_geom(P, freestream, mirror_panel, dod_info)
+                        write(*,*) " can't do super inclined yet"
+                        stop
+                    else
+                        ! supersonic subinclined
+                        adjoint_geom = adjoint_mesh%panels(index)%calc_supersonic_subinc_geom_adjoint(&
+                                                    adjoint_mesh%cp(cp_ind)%loc,adjoint_mesh%cp(cp_ind)%d_loc,&
+                                                     adjoint_freestream_flow, mirror_panel, dod_info)
                         
-                    !!!!!!!!!!! update !!!!!!!!!!!!!!!
-                    ! update panel geometry and calc
-                    do m =1,N_panels
-                        deallocate(test_mesh%panels(m)%n_hat_g)
-                        call test_mesh%panels(m)%calc_derived_geom()
-                    end do
+                        do i=1,3
+                            do j=1,N_original_verts
 
-                    call test_mesh%calc_vertex_geometry()
-                    
-                    call test_mesh%init_with_flow(freestream_flow, body_file, wake_file, formulation)
+                                deallocate(test_mesh%vertices, test_mesh%edges, test_mesh%panels, test_mesh%vertex_ordering)
+                                call test_mesh%init(geom_settings)
+                                test_mesh%perturb_point = .true.
 
-                    ! update solver
-                    deallocate(test_solver%sigma_known)
-                    deallocate(test_solver%i_sigma_in_sys)
-                    deallocate(test_solver%i_sys_sigma_in_body)
-                    deallocate(test_mesh%cp)
-                    deallocate(test_solver%P)    
-                    call test_solver%init(solver_settings, processing_settings, &
-                    test_mesh, freestream_flow, control_point_file)
+                                ! perturb up the current design variable
+                                test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
+                                ! write(*,*) "this vertex is clone? ", test_mesh%vertices(j)%clone 
+                                !!!!!!!!!!! update !!!!!!!!!!!!!
+                                ! update panel geometry and calc
+                                do m =1,N_panels
+                                    deallocate(test_mesh%panels(m)%n_hat_g)
+                                    call test_mesh%panels(m)%calc_derived_geom()
+                                end do
+
+                                call test_mesh%calc_vertex_geometry()
+                                
+                                call test_mesh%init_with_flow(freestream_flow, body_file, wake_file, formulation)
+                                
+                                ! update solver
+                                deallocate(test_solver%sigma_known)
+                                deallocate(test_solver%i_sigma_in_sys)
+                                deallocate(test_solver%i_sys_sigma_in_body)
+                                deallocate(test_mesh%cp)
+                                deallocate(test_solver%P)
+                                call test_solver%init(solver_settings, processing_settings, &
+                                test_mesh, freestream_flow, control_point_file)
+
+                                ! update subsonic geom
+                                test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, &
+                                freestream_flow, mirror_panel)
+                                test_geom = test_mesh%panels(index)%calc_supersonic_subinc_geom(test_mesh%cp(cp_ind)%loc,&
+                                freestream_flow,mirror_panel, test_dod_info)
                     
-                    ! update subsonic geom
-                    test_geom = test_mesh%panels(index)%calc_subsonic_geom(test_mesh%cp(cp_ind)%loc,freestream_flow,.false.)
-                    
-                    !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
-                    
-                    ! get desired info
-                    l1_dn(:,j + (i-1)*N_original_verts) = test_geom%l1(:)
-                    l2_dn(:,j + (i-1)*N_original_verts) = test_geom%l2(:)
-                    a_dn(:,j + (i-1)*N_original_verts) = test_geom%a(:)
-                    g2_dn(:,j + (i-1)*N_original_verts) = test_geom%g2(:)
-                    R1_dn(:,j + (i-1)*N_original_verts) = test_geom%R1(:)
-                    R2_dn(:,j + (i-1)*N_original_verts) = test_geom%R2(:)
-                    dR_dn(:,j + (i-1)*N_original_verts) = test_geom%dR(:)
-                    
-                    
-                end do 
-            end do 
+                                !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
+                                
+                                ! get desired info
+                                l1_up(:,j + (i-1)*N_original_verts) = test_geom%l1(:)
+                                l2_up(:,j + (i-1)*N_original_verts) = test_geom%l2(:)
+                                a_up(:,j + (i-1)*N_original_verts) = test_geom%a(:)
+                                g2_up(:,j + (i-1)*N_original_verts) = test_geom%g2(:)
+                                R1_up(:,j + (i-1)*N_original_verts) = test_geom%R1(:)
+                                R2_up(:,j + (i-1)*N_original_verts) = test_geom%R2(:)
+                                dR_up(:,j + (i-1)*N_original_verts) = test_geom%dR(:)
+                                
+
+
+
+
+                                !!!!!!!!!!!!!!!!!!!!!!! Perturb Down !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+                                deallocate(test_mesh%vertices, test_mesh%edges, test_mesh%panels, test_mesh%vertex_ordering)
+                                call test_mesh%init(geom_settings)
+                                test_mesh%perturb_point = .true.
+
+                                ! perturb down the current design variable
+                                test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) - step
+                                    
+                                !!!!!!!!!!! update !!!!!!!!!!!!!!!
+                                ! update panel geometry and calc
+                                do m =1,N_panels
+                                    deallocate(test_mesh%panels(m)%n_hat_g)
+                                    call test_mesh%panels(m)%calc_derived_geom()
+                                end do
+
+                                call test_mesh%calc_vertex_geometry()
+                                
+                                call test_mesh%init_with_flow(freestream_flow, body_file, wake_file, formulation)
+
+                                ! update solver
+                                deallocate(test_solver%sigma_known)
+                                deallocate(test_solver%i_sigma_in_sys)
+                                deallocate(test_solver%i_sys_sigma_in_body)
+                                deallocate(test_mesh%cp)
+                                deallocate(test_solver%P)    
+                                call test_solver%init(solver_settings, processing_settings, &
+                                test_mesh, freestream_flow, control_point_file)
+                                
+                                ! update subsonic geom
+                                test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, &
+                                freestream_flow, mirror_panel)
+                                test_geom = test_mesh%panels(index)%calc_supersonic_subinc_geom(test_mesh%cp(cp_ind)%loc,&
+                                freestream_flow,mirror_panel, test_dod_info)
+                                
+                                !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
+                                
+                                ! get desired info
+                                l1_dn(:,j + (i-1)*N_original_verts) = test_geom%l1(:)
+                                l2_dn(:,j + (i-1)*N_original_verts) = test_geom%l2(:)
+                                a_dn(:,j + (i-1)*N_original_verts) = test_geom%a(:)
+                                g2_dn(:,j + (i-1)*N_original_verts) = test_geom%g2(:)
+                                R1_dn(:,j + (i-1)*N_original_verts) = test_geom%R1(:)
+                                R2_dn(:,j + (i-1)*N_original_verts) = test_geom%R2(:)
+                                dR_dn(:,j + (i-1)*N_original_verts) = test_geom%dR(:)
+                                
+                                
+                            end do 
+                        end do 
+                        
+                        ! central difference 
+                        d_l1_FD = (l1_up - l1_dn)/(2.*step)
+                        d_l2_FD = (l2_up - l2_dn)/(2.*step)
+                        d_a_FD = (a_up - a_dn)/(2.*step)
+                        d_g2_FD = (g2_up - g2_dn)/(2.*step)
+                        d_R1_FD = (R1_up - R1_dn)/(2.*step)
+                        d_R2_FD = (R2_up - R2_dn)/(2.*step)
+                        d_dR_FD = (dR_up - dR_dn)/(2.*step)
             
-            ! central difference 
-            d_l1_FD = (l1_up - l1_dn)/(2.*step)
-            d_l2_FD = (l2_up - l2_dn)/(2.*step)
-            d_a_FD = (a_up - a_dn)/(2.*step)
-            d_g2_FD = (g2_up - g2_dn)/(2.*step)
-            d_R1_FD = (R1_up - R1_dn)/(2.*step)
-            d_R2_FD = (R2_up - R2_dn)/(2.*step)
-            d_dR_FD = (dR_up - dR_dn)/(2.*step)
             
-            
-        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! d_l1 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            
-            ! calculate residuals3
-            do i =1, N_original_verts*3
-                residuals3(:,i) = (/adjoint_geom%d_l1(1)%get_value(i),&
+                    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! d_l1 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                        
+                        ! calculate residuals3
+                        do i =1, N_original_verts*3
+                            residuals3(:,i) = (/adjoint_geom%d_l1(1)%get_value(i),&
+                                                adjoint_geom%d_l1(2)%get_value(i),&
+                                                adjoint_geom%d_l1(3)%get_value(i)/) - d_l1_FD(:,i)
+                        end do
+
+                        if (maxval(abs(residuals3(:,:)))>error_allowed) then
+                            write(*,*) ""
+                            write(*,*) "     FLAGGED VALUES :"
+                            do i = 1, N_original_verts*3
+                                if (any(abs(residuals3(:,i))>error_allowed)) then
+                                    write(*,*) ""
+                                    write(*,*) "                    d_l1   values  "
+                                    write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_l1_FD(:,i)
+                                    write(*, '(A25,8x,3(f25.10, 4x))') "               adjoint",   &
+                                    adjoint_geom%d_l1(1)%get_value(i),&
                                     adjoint_geom%d_l1(2)%get_value(i),&
-                                    adjoint_geom%d_l1(3)%get_value(i)/) - d_l1_FD(:,i)
-            end do
-
-            if (maxval(abs(residuals3(:,:)))>error_allowed) then
-                write(*,*) ""
-                write(*,*) "     FLAGGED VALUES :"
-                do i = 1, N_original_verts*3
-                    if (any(abs(residuals3(:,i))>error_allowed)) then
-                        write(*,*) ""
-                        write(*,*) "                    d_l1   values  "
-                        write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_l1_FD(:,i)
-                        write(*, '(A25,8x,3(f25.10, 4x))') "               adjoint",   &
-                        adjoint_geom%d_l1(1)%get_value(i),&
-                        adjoint_geom%d_l1(2)%get_value(i),&
-                        adjoint_geom%d_l1(3)%get_value(i)
-                        write(*, '(A25,8x,3(f25.10, 4x))') "             residuals", residuals3(:,i)
-                    end if
-                end do
-            end if
-    
-            
-            
-            ! check if test failed
-            do i=1,N_original_verts*3
-                if (any(abs(residuals3(:,i)) > error_allowed)) then 
-                    do j = 1,3
-                        if (abs(d_l1_FD(j,i))>1000.0) then
-                            if (abs(residuals3(j,i)) > error_allowed*10000.0) then
-                                test_failed = .true.
-                                exit
-                            else
-                                test_failed = .false.
-                            end if
-                        elseif (1000.0>abs(d_l1_FD(j,i)) .and. abs(d_l1_FD(j,i))>100.0) then
-                            if (abs(residuals3(j,i)) > error_allowed*1000.0) then
-                                test_failed = .true.
-                                exit
-                            else
-                                test_failed = .false.
-                            end if
-                        elseif (100.0>abs(d_l1_FD(j,i)) .and. abs(d_l1_FD(j,i))>10.0) then
-                            if (abs(residuals3(j,i)) > error_allowed*100.0) then
-                                test_failed = .true.
-                                exit
-                            else
-                                test_failed = .false.
-                            end if
-                        elseif (10.0>abs(d_l1_FD(j,i)) .and. abs(d_l1_FD(j,i))>1.0) then
-                            if (abs(residuals3(j,i)) > error_allowed*10.0) then
-                                test_failed = .true.
-                                exit
-                            else
-                                test_failed = .false.
-                            end if
-                        else
-                            if (abs(residuals3(j,i)) > error_allowed) then
-                                test_failed = .true.
-                                exit
-                            else
-                                test_failed = .false.
-                            end if
+                                    adjoint_geom%d_l1(3)%get_value(i)
+                                    write(*, '(A25,8x,3(f25.10, 4x))') "             residuals", residuals3(:,i)
+                                end if
+                            end do
                         end if
-                    end do
-                end if
-            end do
-            if (test_failed) then
-                total_tests = total_tests + 1
-                write(*,'(A,I5,A,I5,A)')"                                               &
-                                d_l1 vales panel ",y," cp ",z," test FAILED"
-                failure_log(total_tests-passed_tests) = "d_l1 test FAILED"
-            else
-                ! write(*,*) "        CALC d_l1 test PASSED"
-                ! write(*,*) "" 
-                ! write(*,*) ""
-                passed_tests = passed_tests + 1
-                total_tests = total_tests + 1
                 
-            end if
-            test_failed = .false.
+                        
+                        
+                        ! check if test failed
+                        do i=1,N_original_verts*3
+                            if (any(abs(residuals3(:,i)) > error_allowed)) then 
+                                do j = 1,3
+                                    if (abs(d_l1_FD(j,i))>1000.0) then
+                                        if (abs(residuals3(j,i)) > error_allowed*10000.0) then
+                                            test_failed = .true.
+                                            exit
+                                        else
+                                            test_failed = .false.
+                                        end if
+                                    elseif (1000.0>abs(d_l1_FD(j,i)) .and. abs(d_l1_FD(j,i))>100.0) then
+                                        if (abs(residuals3(j,i)) > error_allowed*1000.0) then
+                                            test_failed = .true.
+                                            exit
+                                        else
+                                            test_failed = .false.
+                                        end if
+                                    elseif (100.0>abs(d_l1_FD(j,i)) .and. abs(d_l1_FD(j,i))>10.0) then
+                                        if (abs(residuals3(j,i)) > error_allowed*100.0) then
+                                            test_failed = .true.
+                                            exit
+                                        else
+                                            test_failed = .false.
+                                        end if
+                                    elseif (10.0>abs(d_l1_FD(j,i)) .and. abs(d_l1_FD(j,i))>1.0) then
+                                        if (abs(residuals3(j,i)) > error_allowed*10.0) then
+                                            test_failed = .true.
+                                            exit
+                                        else
+                                            test_failed = .false.
+                                        end if
+                                    else
+                                        if (abs(residuals3(j,i)) > error_allowed) then
+                                            test_failed = .true.
+                                            exit
+                                        else
+                                            test_failed = .false.
+                                        end if
+                                    end if
+                                end do
+                            end if
+                        end do
+                        if (test_failed) then
+                            total_tests = total_tests + 1
+                            write(*,'(A,I5,A,I5,A)')"                                               &
+                                            d_l1 vales panel ",y," cp ",z," test FAILED"
+                            failure_log(total_tests-passed_tests) = "d_l1 test FAILED"
+                        else
+                            ! write(*,*) "        CALC d_l1 test PASSED"
+                            ! write(*,*) "" 
+                            ! write(*,*) ""
+                            passed_tests = passed_tests + 1
+                            total_tests = total_tests + 1
+                            
+                        end if
+                        test_failed = .false.
 
-            
-        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!  d_l2 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        
+                        
+                    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!  d_l2 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                    
 
-            ! calculate residuals3
-            do i =1, N_original_verts*3
-                residuals3(:,i) = (/adjoint_geom%d_l2(1)%get_value(i),&
+                        ! calculate residuals3
+                        do i =1, N_original_verts*3
+                            residuals3(:,i) = (/adjoint_geom%d_l2(1)%get_value(i),&
+                                                adjoint_geom%d_l2(2)%get_value(i),&
+                                                adjoint_geom%d_l2(3)%get_value(i)/) - d_l2_FD(:,i)
+                        end do
+
+                        if (maxval(abs(residuals3(:,:)))>error_allowed) then
+                            write(*,*) ""
+                            write(*,*) "     FLAGGED VALUES :"
+                            do i = 1, N_original_verts*3
+                                if (any(abs(residuals3(:,i))>error_allowed)) then
+                                    write(*,*) ""
+                                    write(*,*) "                                  d_l2  values            & 
+                                                                            residuals"
+                                    write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_l2_FD(:,i)
+                                
+                                    write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",   &
+                                    adjoint_geom%d_l2(1)%get_value(i),&
                                     adjoint_geom%d_l2(2)%get_value(i),&
-                                    adjoint_geom%d_l2(3)%get_value(i)/) - d_l2_FD(:,i)
-            end do
-
-            if (maxval(abs(residuals3(:,:)))>error_allowed) then
-                write(*,*) ""
-                write(*,*) "     FLAGGED VALUES :"
-                do i = 1, N_original_verts*3
-                    if (any(abs(residuals3(:,i))>error_allowed)) then
-                        write(*,*) ""
-                        write(*,*) "                                  d_l2  values            & 
-                                                                   residuals"
-                        write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_l2_FD(:,i)
-                    
-                        write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",   &
-                        adjoint_geom%d_l2(1)%get_value(i),&
-                        adjoint_geom%d_l2(2)%get_value(i),&
-                        adjoint_geom%d_l2(3)%get_value(i), residuals3(:,i)
-                    end if
-                end do
-            end if
-    
-            
-            
-            ! check if test failed
-            do i=1,N_original_verts*3
-                if (any(abs(residuals3(:,i)) > error_allowed)) then 
-                    do j = 1,3
-                        if (abs(d_l2_FD(j,i))>1000.0) then
-                            if (abs(residuals3(j,i)) > error_allowed*10000.0) then
-                                test_failed = .true.
-                                exit
-                            else
-                                test_failed = .false.
-                            end if
-                        elseif (1000.0>abs(d_l2_FD(j,i)) .and. abs(d_l2_FD(j,i))>100.0) then
-                            if (abs(residuals3(j,i)) > error_allowed*1000.0) then
-                                test_failed = .true.
-                                exit
-                            else
-                                test_failed = .false.
-                            end if
-                        elseif (100.0>abs(d_l2_FD(j,i)) .and. abs(d_l2_FD(j,i))>10.0) then
-                            if (abs(residuals3(j,i)) > error_allowed*100.0) then
-                                test_failed = .true.
-                                exit
-                            else
-                                test_failed = .false.
-                            end if
-                        elseif (10.0>abs(d_l2_FD(j,i)) .and. abs(d_l2_FD(j,i))>1.0) then
-                            if (abs(residuals3(j,i)) > error_allowed*10.0) then
-                                test_failed = .true.
-                                exit
-                            else
-                                test_failed = .false.
-                            end if
-                        else
-                            if (abs(residuals3(j,i)) > error_allowed) then
-                                test_failed = .true.
-                                exit
-                            else
-                                test_failed = .false.
-                            end if
+                                    adjoint_geom%d_l2(3)%get_value(i), residuals3(:,i)
+                                end if
+                            end do
                         end if
-                    end do
-                end if
-            end do
-            if (test_failed) then
-                total_tests = total_tests + 1
-                write(*,'(A,I5,A,I5,A)')"                                               &
-                                d_l2 vales panel ",y," cp ",z," test FAILED"
-                failure_log(total_tests-passed_tests) = "d_l2 test FAILED"
-            else
-                ! write(*,*) "        CALC d_l2 test PASSED"
-                ! write(*,*) "" 
-                ! write(*,*) ""
-                passed_tests = passed_tests + 1
-                total_tests = total_tests + 1
                 
-            end if
-            test_failed = .false.
+                        
+                        
+                        ! check if test failed
+                        do i=1,N_original_verts*3
+                            if (any(abs(residuals3(:,i)) > error_allowed)) then 
+                                do j = 1,3
+                                    if (abs(d_l2_FD(j,i))>1000.0) then
+                                        if (abs(residuals3(j,i)) > error_allowed*10000.0) then
+                                            test_failed = .true.
+                                            exit
+                                        else
+                                            test_failed = .false.
+                                        end if
+                                    elseif (1000.0>abs(d_l2_FD(j,i)) .and. abs(d_l2_FD(j,i))>100.0) then
+                                        if (abs(residuals3(j,i)) > error_allowed*1000.0) then
+                                            test_failed = .true.
+                                            exit
+                                        else
+                                            test_failed = .false.
+                                        end if
+                                    elseif (100.0>abs(d_l2_FD(j,i)) .and. abs(d_l2_FD(j,i))>10.0) then
+                                        if (abs(residuals3(j,i)) > error_allowed*100.0) then
+                                            test_failed = .true.
+                                            exit
+                                        else
+                                            test_failed = .false.
+                                        end if
+                                    elseif (10.0>abs(d_l2_FD(j,i)) .and. abs(d_l2_FD(j,i))>1.0) then
+                                        if (abs(residuals3(j,i)) > error_allowed*10.0) then
+                                            test_failed = .true.
+                                            exit
+                                        else
+                                            test_failed = .false.
+                                        end if
+                                    else
+                                        if (abs(residuals3(j,i)) > error_allowed) then
+                                            test_failed = .true.
+                                            exit
+                                        else
+                                            test_failed = .false.
+                                        end if
+                                    end if
+                                end do
+                            end if
+                        end do
+                        if (test_failed) then
+                            total_tests = total_tests + 1
+                            write(*,'(A,I5,A,I5,A)')"                                               &
+                                            d_l2 vales panel ",y," cp ",z," test FAILED"
+                            failure_log(total_tests-passed_tests) = "d_l2 test FAILED"
+                        else
+                            ! write(*,*) "        CALC d_l2 test PASSED"
+                            ! write(*,*) "" 
+                            ! write(*,*) ""
+                            passed_tests = passed_tests + 1
+                            total_tests = total_tests + 1
+                            
+                        end if
+                        test_failed = .false.
 
 
-        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!  d_a !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        
+                    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!  d_a !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                    
 
-            ! calculate residuals3
-            do i =1, N_original_verts*3
-                residuals3(:,i) = (/adjoint_geom%d_a(1)%get_value(i),&
+                        ! calculate residuals3
+                        do i =1, N_original_verts*3
+                            residuals3(:,i) = (/adjoint_geom%d_a(1)%get_value(i),&
+                                                adjoint_geom%d_a(2)%get_value(i),&
+                                                adjoint_geom%d_a(3)%get_value(i)/) - d_a_FD(:,i)
+                        end do
+
+                        if (maxval(abs(residuals3(:,:)))>error_allowed) then
+                            write(*,*) ""
+                            write(*,*) "     FLAGGED VALUES :"
+                            do i = 1, N_original_verts*3
+                                if (any(abs(residuals3(:,i))>error_allowed)) then
+                                    write(*,*) ""
+                                    write(*,*) "                                  d_a values             & 
+                                                                            residuals"
+                                    write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_a_FD(:,i)
+                                
+                                    write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",   &
+                                    adjoint_geom%d_a(1)%get_value(i),&
                                     adjoint_geom%d_a(2)%get_value(i),&
-                                    adjoint_geom%d_a(3)%get_value(i)/) - d_a_FD(:,i)
-            end do
-
-            if (maxval(abs(residuals3(:,:)))>error_allowed) then
-                write(*,*) ""
-                write(*,*) "     FLAGGED VALUES :"
-                do i = 1, N_original_verts*3
-                    if (any(abs(residuals3(:,i))>error_allowed)) then
-                        write(*,*) ""
-                        write(*,*) "                                  d_a values             & 
-                                                                   residuals"
-                        write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_a_FD(:,i)
-                    
-                        write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",   &
-                        adjoint_geom%d_a(1)%get_value(i),&
-                        adjoint_geom%d_a(2)%get_value(i),&
-                        adjoint_geom%d_a(3)%get_value(i), residuals3(:,i)
-                    end if
-                end do
-            end if
-    
-            
-            
-            ! check if test failed
-            do i=1,N_original_verts*3
-                if (any(abs(residuals3(:,i)) > error_allowed)) then 
-                    do j = 1,3
-                        if (abs(d_a_FD(j,i))>1000.0) then
-                            if (abs(residuals3(j,i)) > error_allowed*10000.0) then
-                                test_failed = .true.
-                                exit
-                            else
-                                test_failed = .false.
-                            end if
-                        elseif (1000.0>abs(d_a_FD(j,i)) .and. abs(d_a_FD(j,i))>100.0) then
-                            if (abs(residuals3(j,i)) > error_allowed*1000.0) then
-                                test_failed = .true.
-                                exit
-                            else
-                                test_failed = .false.
-                            end if
-                        elseif (100.0>abs(d_a_FD(j,i)) .and. abs(d_a_FD(j,i))>10.0) then
-                            if (abs(residuals3(j,i)) > error_allowed*100.0) then
-                                test_failed = .true.
-                                exit
-                            else
-                                test_failed = .false.
-                            end if
-                        elseif (10.0>abs(d_a_FD(j,i)) .and. abs(d_a_FD(j,i))>1.0) then
-                            if (abs(residuals3(j,i)) > error_allowed*10.0) then
-                                test_failed = .true.
-                                exit
-                            else
-                                test_failed = .false.
-                            end if
-                        else
-                            if (abs(residuals3(j,i)) > error_allowed) then
-                                test_failed = .true.
-                                exit
-                            else
-                                test_failed = .false.
-                            end if
+                                    adjoint_geom%d_a(3)%get_value(i), residuals3(:,i)
+                                end if
+                            end do
                         end if
-                    end do
-                end if
-            end do
-            if (test_failed) then
-                total_tests = total_tests + 1
-                write(*,'(A,I5,A,I5,A)')"                                               &
-                                d_a vales panel ",y," cp ",z," test FAILED"
-                failure_log(total_tests-passed_tests) = "d_a test FAILED"
-            else
-                ! write(*,*) "        CALC d_a test PASSED"
-                ! write(*,*) "" 
-                ! write(*,*) ""
-                passed_tests = passed_tests + 1
-                total_tests = total_tests + 1
                 
-            end if
-            test_failed = .false.
+                        
+                        
+                        ! check if test failed
+                        do i=1,N_original_verts*3
+                            if (any(abs(residuals3(:,i)) > error_allowed)) then 
+                                do j = 1,3
+                                    if (abs(d_a_FD(j,i))>1000.0) then
+                                        if (abs(residuals3(j,i)) > error_allowed*10000.0) then
+                                            test_failed = .true.
+                                            exit
+                                        else
+                                            test_failed = .false.
+                                        end if
+                                    elseif (1000.0>abs(d_a_FD(j,i)) .and. abs(d_a_FD(j,i))>100.0) then
+                                        if (abs(residuals3(j,i)) > error_allowed*1000.0) then
+                                            test_failed = .true.
+                                            exit
+                                        else
+                                            test_failed = .false.
+                                        end if
+                                    elseif (100.0>abs(d_a_FD(j,i)) .and. abs(d_a_FD(j,i))>10.0) then
+                                        if (abs(residuals3(j,i)) > error_allowed*100.0) then
+                                            test_failed = .true.
+                                            exit
+                                        else
+                                            test_failed = .false.
+                                        end if
+                                    elseif (10.0>abs(d_a_FD(j,i)) .and. abs(d_a_FD(j,i))>1.0) then
+                                        if (abs(residuals3(j,i)) > error_allowed*10.0) then
+                                            test_failed = .true.
+                                            exit
+                                        else
+                                            test_failed = .false.
+                                        end if
+                                    else
+                                        if (abs(residuals3(j,i)) > error_allowed) then
+                                            test_failed = .true.
+                                            exit
+                                        else
+                                            test_failed = .false.
+                                        end if
+                                    end if
+                                end do
+                            end if
+                        end do
+                        if (test_failed) then
+                            total_tests = total_tests + 1
+                            write(*,'(A,I5,A,I5,A)')"                                               &
+                                            d_a vales panel ",y," cp ",z," test FAILED"
+                            failure_log(total_tests-passed_tests) = "d_a test FAILED"
+                        else
+                            ! write(*,*) "        CALC d_a test PASSED"
+                            ! write(*,*) "" 
+                            ! write(*,*) ""
+                            passed_tests = passed_tests + 1
+                            total_tests = total_tests + 1
+                            
+                        end if
+                        test_failed = .false.
 
 
 
-        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!  d_g2 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        
-            ! calculate residuals3
-            do i =1, N_original_verts*3
-                residuals3(:,i) = (/adjoint_geom%d_g2(1)%get_value(i),&
+                    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!  d_g2 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                    
+                        ! calculate residuals3
+                        do i =1, N_original_verts*3
+                            residuals3(:,i) = (/adjoint_geom%d_g2(1)%get_value(i),&
+                                                adjoint_geom%d_g2(2)%get_value(i),&
+                                                adjoint_geom%d_g2(3)%get_value(i)/) - d_g2_FD(:,i)
+                        end do
+
+                        if (maxval(abs(residuals3(:,:)))>error_allowed) then
+                            write(*,*) ""
+                            write(*,*) "     FLAGGED VALUES :"
+                            do i = 1, N_original_verts*3
+                                if (any(abs(residuals3(:,i))>error_allowed)) then
+                                    write(*,*) ""
+                                    write(*,*) "                                                        d_g2 values        "
+                                    write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_g2_FD(:,i)
+                                
+                                    write(*, '(A25,8x,3(f25.10, 4x))') "          adjoint",   &
+                                    adjoint_geom%d_g2(1)%get_value(i),&
                                     adjoint_geom%d_g2(2)%get_value(i),&
-                                    adjoint_geom%d_g2(3)%get_value(i)/) - d_g2_FD(:,i)
-            end do
-
-            if (maxval(abs(residuals3(:,:)))>error_allowed) then
-                write(*,*) ""
-                write(*,*) "     FLAGGED VALUES :"
-                do i = 1, N_original_verts*3
-                    if (any(abs(residuals3(:,i))>error_allowed)) then
-                        write(*,*) ""
-                        write(*,*) "                                  d_g2 values             & 
-                                                                   residuals"
-                        write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_g2_FD(:,i)
-                    
-                        write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",   &
-                        adjoint_geom%d_g2(1)%get_value(i),&
-                        adjoint_geom%d_g2(2)%get_value(i),&
-                        adjoint_geom%d_g2(3)%get_value(i), residuals3(:,i)
-                    end if
-                end do
-            end if
-    
-            
-            
-            ! check if test failed
-            do i=1,N_original_verts*3
-                if (any(abs(residuals3(:,i)) > error_allowed)) then 
-                    do j = 1,3
-                        if (abs(d_g2_FD(j,i))>1000.0) then
-                            if (abs(residuals3(j,i)) > error_allowed*10000.0) then
-                                test_failed = .true.
-                                exit
-                            else
-                                test_failed = .false.
-                            end if
-                        elseif (1000.0>abs(d_g2_FD(j,i)) .and. abs(d_g2_FD(j,i))>100.0) then
-                            if (abs(residuals3(j,i)) > error_allowed*1000.0) then
-                                test_failed = .true.
-                                exit
-                            else
-                                test_failed = .false.
-                            end if
-                        elseif (100.0>abs(d_g2_FD(j,i)) .and. abs(d_g2_FD(j,i))>10.0) then
-                            if (abs(residuals3(j,i)) > error_allowed*100.0) then
-                                test_failed = .true.
-                                exit
-                            else
-                                test_failed = .false.
-                            end if
-                        elseif (10.0>abs(d_g2_FD(j,i)) .and. abs(d_g2_FD(j,i))>1.0) then
-                            if (abs(residuals3(j,i)) > error_allowed*10.0) then
-                                test_failed = .true.
-                                exit
-                            else
-                                test_failed = .false.
-                            end if
-                        else
-                            if (abs(residuals3(j,i)) > error_allowed) then
-                                test_failed = .true.
-                                exit
-                            else
-                                test_failed = .false.
-                            end if
+                                    adjoint_geom%d_g2(3)%get_value(i)
+                                    write(*, '(A25,8x,3(f25.10, 4x))') "        residual", residuals3(:,i)
+                                end if
+                            end do
                         end if
-                    end do
-                end if
-            end do
-            if (test_failed) then
-                total_tests = total_tests + 1
-                write(*,'(A,I5,A,I5,A)')"                                               &
-                                d_g2 vales panel ",y," cp ",z," test FAILED"
-                failure_log(total_tests-passed_tests) = "d_g2 test FAILED"
-            else
-                ! write(*,*) "        CALC d_g2 test PASSED"
-                ! write(*,*) "" 
-                ! write(*,*) ""
-                passed_tests = passed_tests + 1
-                total_tests = total_tests + 1
                 
-            end if
-            test_failed = .false.
+                        
+                        
+                        ! check if test failed
+                        do i=1,N_original_verts*3
+                            if (any(abs(residuals3(:,i)) > error_allowed)) then 
+                                do j = 1,3
+                                    if (abs(d_g2_FD(j,i))>1000.0) then
+                                        if (abs(residuals3(j,i)) > error_allowed*10000.0) then
+                                            test_failed = .true.
+                                            exit
+                                        else
+                                            test_failed = .false.
+                                        end if
+                                    elseif (1000.0>abs(d_g2_FD(j,i)) .and. abs(d_g2_FD(j,i))>100.0) then
+                                        if (abs(residuals3(j,i)) > error_allowed*1000.0) then
+                                            test_failed = .true.
+                                            exit
+                                        else
+                                            test_failed = .false.
+                                        end if
+                                    elseif (100.0>abs(d_g2_FD(j,i)) .and. abs(d_g2_FD(j,i))>10.0) then
+                                        if (abs(residuals3(j,i)) > error_allowed*100.0) then
+                                            test_failed = .true.
+                                            exit
+                                        else
+                                            test_failed = .false.
+                                        end if
+                                    elseif (10.0>abs(d_g2_FD(j,i)) .and. abs(d_g2_FD(j,i))>1.0) then
+                                        if (abs(residuals3(j,i)) > error_allowed*10.0) then
+                                            test_failed = .true.
+                                            exit
+                                        else
+                                            test_failed = .false.
+                                        end if
+                                    else
+                                        if (abs(residuals3(j,i)) > error_allowed) then
+                                            test_failed = .true.
+                                            exit
+                                        else
+                                            test_failed = .false.
+                                        end if
+                                    end if
+                                end do
+                            end if
+                        end do
+                        if (test_failed) then
+                            total_tests = total_tests + 1
+                            write(*,'(A,I5,A,I5,A)')"                                               &
+                                            d_g2 vales panel ",y," cp ",z," test FAILED"
+                            failure_log(total_tests-passed_tests) = "d_g2 test FAILED"
+                        else
+                            ! write(*,*) "        CALC d_g2 test PASSED"
+                            ! write(*,*) "" 
+                            ! write(*,*) ""
+                            passed_tests = passed_tests + 1
+                            total_tests = total_tests + 1
+                            
+                        end if
+                        test_failed = .false.
 
 
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!! d_R1 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                !!!!!!!!!!!!!!!!!!!!!!!!!!!!! d_R1 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
-            ! calculate residuals3
-            do i =1, N_original_verts*3
-                residuals3(:,i) = (/adjoint_geom%d_R1(1)%get_value(i),&
+                        ! calculate residuals3
+                        do i =1, N_original_verts*3
+                            residuals3(:,i) = (/adjoint_geom%d_R1(1)%get_value(i),&
+                                                adjoint_geom%d_R1(2)%get_value(i),&
+                                                adjoint_geom%d_R1(3)%get_value(i)/) - d_R1_FD(:,i)
+                        end do
+
+                        if (maxval(abs(residuals3(:,:)))>error_allowed) then
+                            write(*,*) ""
+                            write(*,*) "     FLAGGED VALUES :"
+                            do i = 1, N_original_verts*3
+                                if (any(abs(residuals3(:,i))>error_allowed)) then
+                                    write(*,*) ""
+                                    write(*,*) "                                  d_R1 values             & 
+                                                                            residuals"
+                                    write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_R1_FD(:,i)
+                                
+                                    write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",   &
+                                    adjoint_geom%d_R1(1)%get_value(i),&
                                     adjoint_geom%d_R1(2)%get_value(i),&
-                                    adjoint_geom%d_R1(3)%get_value(i)/) - d_R1_FD(:,i)
-            end do
-
-            if (maxval(abs(residuals3(:,:)))>error_allowed) then
-                write(*,*) ""
-                write(*,*) "     FLAGGED VALUES :"
-                do i = 1, N_original_verts*3
-                    if (any(abs(residuals3(:,i))>error_allowed)) then
-                        write(*,*) ""
-                        write(*,*) "                                  d_R1 values             & 
-                                                                   residuals"
-                        write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_R1_FD(:,i)
-                    
-                        write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",   &
-                        adjoint_geom%d_R1(1)%get_value(i),&
-                        adjoint_geom%d_R1(2)%get_value(i),&
-                        adjoint_geom%d_R1(3)%get_value(i), residuals3(:,i)
-                    end if
-                end do
-            end if
-    
-            
-            
-            ! check if test failed
-            do i=1,N_original_verts*3
-                if (any(abs(residuals3(:,i)) > error_allowed)) then 
-                    do j = 1,3
-                        if (abs(d_R1_FD(j,i))>1000.0) then
-                            if (abs(residuals3(j,i)) > error_allowed*10000.0) then
-                                test_failed = .true.
-                                exit
-                            else
-                                test_failed = .false.
-                            end if
-                        elseif (1000.0>abs(d_R1_FD(j,i)) .and. abs(d_R1_FD(j,i))>100.0) then
-                            if (abs(residuals3(j,i)) > error_allowed*1000.0) then
-                                test_failed = .true.
-                                exit
-                            else
-                                test_failed = .false.
-                            end if
-                        elseif (100.0>abs(d_R1_FD(j,i)) .and. abs(d_R1_FD(j,i))>10.0) then
-                            if (abs(residuals3(j,i)) > error_allowed*100.0) then
-                                test_failed = .true.
-                                exit
-                            else
-                                test_failed = .false.
-                            end if
-                        elseif (10.0>abs(d_R1_FD(j,i)) .and. abs(d_R1_FD(j,i))>1.0) then
-                            if (abs(residuals3(j,i)) > error_allowed*10.0) then
-                                test_failed = .true.
-                                exit
-                            else
-                                test_failed = .false.
-                            end if
-                        else
-                            if (abs(residuals3(j,i)) > error_allowed) then
-                                test_failed = .true.
-                                exit
-                            else
-                                test_failed = .false.
-                            end if
+                                    adjoint_geom%d_R1(3)%get_value(i), residuals3(:,i)
+                                end if
+                            end do
                         end if
-                    end do
-                end if
-            end do
-            if (test_failed) then
-                total_tests = total_tests + 1
-                write(*,'(A,I5,A,I5,A)')"                                               &
-                                d_R1 vales panel ",y," cp ",z," test FAILED"
-                failure_log(total_tests-passed_tests) = "d_R1 test FAILED"
-            else
-                ! write(*,*) "        CALC d_R1 test PASSED"
-                ! write(*,*) "" 
-                ! write(*,*) ""
-                passed_tests = passed_tests + 1
-                total_tests = total_tests + 1
                 
-            end if
-            test_failed = .false.
+                        
+                        
+                        ! check if test failed
+                        do i=1,N_original_verts*3
+                            if (any(abs(residuals3(:,i)) > error_allowed)) then 
+                                do j = 1,3
+                                    if (abs(d_R1_FD(j,i))>1000.0) then
+                                        if (abs(residuals3(j,i)) > error_allowed*10000.0) then
+                                            test_failed = .true.
+                                            exit
+                                        else
+                                            test_failed = .false.
+                                        end if
+                                    elseif (1000.0>abs(d_R1_FD(j,i)) .and. abs(d_R1_FD(j,i))>100.0) then
+                                        if (abs(residuals3(j,i)) > error_allowed*1000.0) then
+                                            test_failed = .true.
+                                            exit
+                                        else
+                                            test_failed = .false.
+                                        end if
+                                    elseif (100.0>abs(d_R1_FD(j,i)) .and. abs(d_R1_FD(j,i))>10.0) then
+                                        if (abs(residuals3(j,i)) > error_allowed*100.0) then
+                                            test_failed = .true.
+                                            exit
+                                        else
+                                            test_failed = .false.
+                                        end if
+                                    elseif (10.0>abs(d_R1_FD(j,i)) .and. abs(d_R1_FD(j,i))>1.0) then
+                                        if (abs(residuals3(j,i)) > error_allowed*10.0) then
+                                            test_failed = .true.
+                                            exit
+                                        else
+                                            test_failed = .false.
+                                        end if
+                                    else
+                                        if (abs(residuals3(j,i)) > error_allowed) then
+                                            test_failed = .true.
+                                            exit
+                                        else
+                                            test_failed = .false.
+                                        end if
+                                    end if
+                                end do
+                            end if
+                        end do
+                        if (test_failed) then
+                            total_tests = total_tests + 1
+                            write(*,'(A,I5,A,I5,A)')"                                               &
+                                            d_R1 vales panel ",y," cp ",z," test FAILED"
+                            failure_log(total_tests-passed_tests) = "d_R1 test FAILED"
+                        else
+                            ! write(*,*) "        CALC d_R1 test PASSED"
+                            ! write(*,*) "" 
+                            ! write(*,*) ""
+                            passed_tests = passed_tests + 1
+                            total_tests = total_tests + 1
+                            
+                        end if
+                        test_failed = .false.
 
 
 
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!  d_R2 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        
+                !!!!!!!!!!!!!!!!!!!!!!!!!!!!!  d_R2 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                    
 
 
-            ! calculate residuals3
-            do i =1, N_original_verts*3
-                residuals3(:,i) = (/adjoint_geom%d_R2(1)%get_value(i),&
+                        ! calculate residuals3
+                        do i =1, N_original_verts*3
+                            residuals3(:,i) = (/adjoint_geom%d_R2(1)%get_value(i),&
+                                                adjoint_geom%d_R2(2)%get_value(i),&
+                                                adjoint_geom%d_R2(3)%get_value(i)/) - d_R2_FD(:,i)
+                        end do
+
+                        if (maxval(abs(residuals3(:,:)))>error_allowed) then
+                            write(*,*) ""
+                            write(*,*) "     FLAGGED VALUES :"
+                            do i = 1, N_original_verts*3
+                                if (any(abs(residuals3(:,i))>error_allowed)) then
+                                    write(*,*) ""
+                                    write(*,*) "                                  d_R2 values             & 
+                                                                            residuals"
+                                    write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_R2_FD(:,i)
+                                
+                                    write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",   &
+                                    adjoint_geom%d_R2(1)%get_value(i),&
                                     adjoint_geom%d_R2(2)%get_value(i),&
-                                    adjoint_geom%d_R2(3)%get_value(i)/) - d_R2_FD(:,i)
-            end do
-
-            if (maxval(abs(residuals3(:,:)))>error_allowed) then
-                write(*,*) ""
-                write(*,*) "     FLAGGED VALUES :"
-                do i = 1, N_original_verts*3
-                    if (any(abs(residuals3(:,i))>error_allowed)) then
-                        write(*,*) ""
-                        write(*,*) "                                  d_R2 values             & 
-                                                                   residuals"
-                        write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_R2_FD(:,i)
-                    
-                        write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",   &
-                        adjoint_geom%d_R2(1)%get_value(i),&
-                        adjoint_geom%d_R2(2)%get_value(i),&
-                        adjoint_geom%d_R2(3)%get_value(i), residuals3(:,i)
-                    end if
-                end do
-            end if
-    
-            
-            
-            ! check if test failed
-            do i=1,N_original_verts*3
-                if (any(abs(residuals3(:,i)) > error_allowed)) then 
-                    do j = 1,3
-                        if (abs(d_R2_FD(j,i))>1000.0) then
-                            if (abs(residuals3(j,i)) > error_allowed*10000.0) then
-                                test_failed = .true.
-                                exit
-                            else
-                                test_failed = .false.
-                            end if
-                        elseif (1000.0>abs(d_R2_FD(j,i)) .and. abs(d_R2_FD(j,i))>100.0) then
-                            if (abs(residuals3(j,i)) > error_allowed*1000.0) then
-                                test_failed = .true.
-                                exit
-                            else
-                                test_failed = .false.
-                            end if
-                        elseif (100.0>abs(d_R2_FD(j,i)) .and. abs(d_R2_FD(j,i))>10.0) then
-                            if (abs(residuals3(j,i)) > error_allowed*100.0) then
-                                test_failed = .true.
-                                exit
-                            else
-                                test_failed = .false.
-                            end if
-                        elseif (10.0>abs(d_R2_FD(j,i)) .and. abs(d_R2_FD(j,i))>1.0) then
-                            if (abs(residuals3(j,i)) > error_allowed*10.0) then
-                                test_failed = .true.
-                                exit
-                            else
-                                test_failed = .false.
-                            end if
-                        else
-                            if (abs(residuals3(j,i)) > error_allowed) then
-                                test_failed = .true.
-                                exit
-                            else
-                                test_failed = .false.
-                            end if
+                                    adjoint_geom%d_R2(3)%get_value(i), residuals3(:,i)
+                                end if
+                            end do
                         end if
-                    end do
-                end if
-            end do
-            if (test_failed) then
-                total_tests = total_tests + 1
-                write(*,'(A,I5,A,I5,A)')"                                               &
-                                d_R2 vales panel ",y," cp ",z," test FAILED"
-                failure_log(total_tests-passed_tests) = "d_R2 test FAILED"
-            else
-                ! write(*,*) "        CALC d_R2 test PASSED"
-                ! write(*,*) "" 
-                ! write(*,*) ""
-                passed_tests = passed_tests + 1
-                total_tests = total_tests + 1
                 
-            end if
-            test_failed = .false.
+                        
+                        
+                        ! check if test failed
+                        do i=1,N_original_verts*3
+                            if (any(abs(residuals3(:,i)) > error_allowed)) then 
+                                do j = 1,3
+                                    if (abs(d_R2_FD(j,i))>1000.0) then
+                                        if (abs(residuals3(j,i)) > error_allowed*10000.0) then
+                                            test_failed = .true.
+                                            exit
+                                        else
+                                            test_failed = .false.
+                                        end if
+                                    elseif (1000.0>abs(d_R2_FD(j,i)) .and. abs(d_R2_FD(j,i))>100.0) then
+                                        if (abs(residuals3(j,i)) > error_allowed*1000.0) then
+                                            test_failed = .true.
+                                            exit
+                                        else
+                                            test_failed = .false.
+                                        end if
+                                    elseif (100.0>abs(d_R2_FD(j,i)) .and. abs(d_R2_FD(j,i))>10.0) then
+                                        if (abs(residuals3(j,i)) > error_allowed*100.0) then
+                                            test_failed = .true.
+                                            exit
+                                        else
+                                            test_failed = .false.
+                                        end if
+                                    elseif (10.0>abs(d_R2_FD(j,i)) .and. abs(d_R2_FD(j,i))>1.0) then
+                                        if (abs(residuals3(j,i)) > error_allowed*10.0) then
+                                            test_failed = .true.
+                                            exit
+                                        else
+                                            test_failed = .false.
+                                        end if
+                                    else
+                                        if (abs(residuals3(j,i)) > error_allowed) then
+                                            test_failed = .true.
+                                            exit
+                                        else
+                                            test_failed = .false.
+                                        end if
+                                    end if
+                                end do
+                            end if
+                        end do
+                        if (test_failed) then
+                            total_tests = total_tests + 1
+                            write(*,'(A,I5,A,I5,A)')"                                               &
+                                            d_R2 vales panel ",y," cp ",z," test FAILED"
+                            failure_log(total_tests-passed_tests) = "d_R2 test FAILED"
+                        else
+                            ! write(*,*) "        CALC d_R2 test PASSED"
+                            ! write(*,*) "" 
+                            ! write(*,*) ""
+                            passed_tests = passed_tests + 1
+                            total_tests = total_tests + 1
+                            
+                        end if
+                        test_failed = .false.
 
 
 
 
 
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!  d_dR !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                !!!!!!!!!!!!!!!!!!!!!!!!!!!!!  d_dR !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
-            ! calculate residuals3
-            do i =1, N_original_verts*3
-                residuals3(:,i) = (/adjoint_geom%d_dR(1)%get_value(i),&
+                        ! calculate residuals3
+                        do i =1, N_original_verts*3
+                            residuals3(:,i) = (/adjoint_geom%d_dR(1)%get_value(i),&
+                                                adjoint_geom%d_dR(2)%get_value(i),&
+                                                adjoint_geom%d_dR(3)%get_value(i)/) - d_dR_FD(:,i)
+                        end do
+
+                        if (maxval(abs(residuals3(:,:)))>error_allowed) then
+                            write(*,*) ""
+                            write(*,*) "     FLAGGED VALUES :"
+                            do i = 1, N_original_verts*3
+                                if (any(abs(residuals3(:,i))>error_allowed)) then
+                                    write(*,*) ""
+                                    write(*,*) "                                  d_dR values             & 
+                                                                            residuals"
+                                    write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_dR_FD(:,i)
+                                
+                                    write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",   &
+                                    adjoint_geom%d_dR(1)%get_value(i),&
                                     adjoint_geom%d_dR(2)%get_value(i),&
-                                    adjoint_geom%d_dR(3)%get_value(i)/) - d_dR_FD(:,i)
-            end do
-
-            if (maxval(abs(residuals3(:,:)))>error_allowed) then
-                write(*,*) ""
-                write(*,*) "     FLAGGED VALUES :"
-                do i = 1, N_original_verts*3
-                    if (any(abs(residuals3(:,i))>error_allowed)) then
-                        write(*,*) ""
-                        write(*,*) "                                  d_dR values             & 
-                                                                   residuals"
-                        write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_dR_FD(:,i)
-                    
-                        write(*, '(A25,8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') "          adjoint",   &
-                        adjoint_geom%d_dR(1)%get_value(i),&
-                        adjoint_geom%d_dR(2)%get_value(i),&
-                        adjoint_geom%d_dR(3)%get_value(i), residuals3(:,i)
-                    end if
-                end do
-            end if
-    
-            
-            
-            ! check if test failed
-            do i=1,N_original_verts*3
-                if (any(abs(residuals3(:,i)) > error_allowed)) then 
-                    do j = 1,3
-                        if (abs(d_dR_FD(j,i))>1000.0) then
-                            if (abs(residuals3(j,i)) > error_allowed*10000.0) then
-                                test_failed = .true.
-                                exit
-                            else
-                                test_failed = .false.
-                            end if
-                        elseif (1000.0>abs(d_dR_FD(j,i)) .and. abs(d_dR_FD(j,i))>100.0) then
-                            if (abs(residuals3(j,i)) > error_allowed*1000.0) then
-                                test_failed = .true.
-                                exit
-                            else
-                                test_failed = .false.
-                            end if
-                        elseif (100.0>abs(d_dR_FD(j,i)) .and. abs(d_dR_FD(j,i))>10.0) then
-                            if (abs(residuals3(j,i)) > error_allowed*100.0) then
-                                test_failed = .true.
-                                exit
-                            else
-                                test_failed = .false.
-                            end if
-                        elseif (10.0>abs(d_dR_FD(j,i)) .and. abs(d_dR_FD(j,i))>1.0) then
-                            if (abs(residuals3(j,i)) > error_allowed*10.0) then
-                                test_failed = .true.
-                                exit
-                            else
-                                test_failed = .false.
-                            end if
-                        else
-                            if (abs(residuals3(j,i)) > error_allowed) then
-                                test_failed = .true.
-                                exit
-                            else
-                                test_failed = .false.
-                            end if
+                                    adjoint_geom%d_dR(3)%get_value(i), residuals3(:,i)
+                                end if
+                            end do
                         end if
-                    end do
-                end if
-            end do
-            if (test_failed) then
-                total_tests = total_tests + 1
-                write(*,'(A,I5,A,I5,A)')"                                               &
-                                d_dR vales panel ",y," cp ",z," test FAILED"
-                failure_log(total_tests-passed_tests) = "d_dR test FAILED"
-            else
-                ! write(*,*) "        CALC d_dR test PASSED"
-                ! write(*,*) "" 
-                ! write(*,*) ""
-                passed_tests = passed_tests + 1
-                total_tests = total_tests + 1
                 
+                        
+                        
+                        ! check if test failed
+                        do i=1,N_original_verts*3
+                            if (any(abs(residuals3(:,i)) > error_allowed)) then 
+                                do j = 1,3
+                                    if (abs(d_dR_FD(j,i))>1000.0) then
+                                        if (abs(residuals3(j,i)) > error_allowed*10000.0) then
+                                            test_failed = .true.
+                                            exit
+                                        else
+                                            test_failed = .false.
+                                        end if
+                                    elseif (1000.0>abs(d_dR_FD(j,i)) .and. abs(d_dR_FD(j,i))>100.0) then
+                                        if (abs(residuals3(j,i)) > error_allowed*1000.0) then
+                                            test_failed = .true.
+                                            exit
+                                        else
+                                            test_failed = .false.
+                                        end if
+                                    elseif (100.0>abs(d_dR_FD(j,i)) .and. abs(d_dR_FD(j,i))>10.0) then
+                                        if (abs(residuals3(j,i)) > error_allowed*100.0) then
+                                            test_failed = .true.
+                                            exit
+                                        else
+                                            test_failed = .false.
+                                        end if
+                                    elseif (10.0>abs(d_dR_FD(j,i)) .and. abs(d_dR_FD(j,i))>1.0) then
+                                        if (abs(residuals3(j,i)) > error_allowed*10.0) then
+                                            test_failed = .true.
+                                            exit
+                                        else
+                                            test_failed = .false.
+                                        end if
+                                    else
+                                        if (abs(residuals3(j,i)) > error_allowed) then
+                                            test_failed = .true.
+                                            exit
+                                        else
+                                            test_failed = .false.
+                                        end if
+                                    end if
+                                end do
+                            end if
+                        end do
+                        if (test_failed) then
+                            total_tests = total_tests + 1
+                            write(*,'(A,I5,A,I5,A)')"                                               &
+                                            d_dR vales panel ",y," cp ",z," test FAILED"
+                            failure_log(total_tests-passed_tests) = "d_dR test FAILED"
+                        else
+                            ! write(*,*) "        CALC d_dR test PASSED"
+                            ! write(*,*) "" 
+                            ! write(*,*) ""
+                            passed_tests = passed_tests + 1
+                            total_tests = total_tests + 1
+                            
+                        end if
+
+                        ! reset test failed for the next loop
+                        test_failed = .false.
+
+                    end if
+                else
+                    !geom = this%calc_subsonic_geom(P, freestream, mirror_panel)
+                    write(*,*) " something went wrong, shouldn't be at calc subsonic geom"
+                end if
+            else    
+                write(*,'(A,I5,A,I5)') "Panel ",y," not in dod of cp ",z
             end if
 
-            ! reset test failed for the next loop
-            test_failed = .false.
-
-
-
-            ! deallocate (adjoint_geom)
-    
     
         ! z loop
         end do
@@ -994,7 +1017,7 @@ program wake_test7
 
 !!!!!!!!!!!!!! SENSITIVITIES RESULTS!!!!!!!!!!!!!
     write(*,*) "------------------------------------------------------------------------------"
-    write(*,*) "      DIRICLET SUBSONIC GEOM SENSITIVITIES TEST RESULTS (WAKE PRESENT) "
+    write(*,*) "      DIRICLET SUPERSONIC GEOM SENSITIVITIES TEST RESULTS (WAKE PRESENT) "
     write(*,*) "------------------------------------------------------------------------------"
     write(*,*) ""
     write(*,'((A), ES10.1)') "allowed residual = ", error_allowed
@@ -1022,4 +1045,4 @@ program wake_test7
     write(*,*) "  Program Complete"
     write(*,*) "----------------------"
 
-end program wake_test7
+end program wake_super_test7

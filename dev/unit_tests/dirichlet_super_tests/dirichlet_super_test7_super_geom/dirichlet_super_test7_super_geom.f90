@@ -39,7 +39,7 @@ program dirichlet_super_test7
     type(eval_point_geom) :: test_geom, adjoint_geom
     integer :: i_unit
     logical :: exists, found
-    type(dod) :: dod_info
+    type(dod) :: dod_info, test_dod_info
 
     !!!!!!!!!!!!!!!!!!!!! END STUFF FROM MAIN !!!!!!!!!!!!!!!!!!!!!!!!!
 
@@ -241,6 +241,7 @@ program dirichlet_super_test7
         do z = 1,N_verts
             cp_ind = z
             
+            ! dod info from original mesh
             dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, freestream_flow, mirror_panel)
             if (dod_info%in_dod .and. test_mesh%panels(index)%A > 0.) then
 
@@ -295,8 +296,10 @@ program dirichlet_super_test7
                                 test_mesh, freestream_flow, control_point_file)
 
                                 ! update supersonic geom
+                                test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, &
+                                freestream_flow, .false.)
                                 test_geom = test_mesh%panels(index)%calc_supersonic_subinc_geom(&
-                                                test_mesh%cp(cp_ind)%loc,freestream_flow,mirror_panel,dod_info)
+                                                test_mesh%cp(cp_ind)%loc,freestream_flow,mirror_panel, test_dod_info)
                     
                                 !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
                                 
@@ -340,8 +343,10 @@ program dirichlet_super_test7
                                 test_mesh, freestream_flow, control_point_file)
                                 
                                 ! update supersonic geom
+                                test_dod_info = test_mesh%panels(index)%check_dod(test_mesh%cp(cp_ind)%loc, &
+                                freestream_flow, .false.)
                                 test_geom = test_mesh%panels(index)%calc_supersonic_subinc_geom(&
-                                                test_mesh%cp(cp_ind)%loc,freestream_flow,mirror_panel,dod_info)
+                                                test_mesh%cp(cp_ind)%loc,freestream_flow,mirror_panel,test_dod_info)
                                 
                                 !!!!!!!!!!!! END UPDATE !!!!!!!!!!!!!!!
                                 

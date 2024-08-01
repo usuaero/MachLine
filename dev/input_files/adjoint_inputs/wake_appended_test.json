@@ -16,23 +16,23 @@
 
         "wake_model" : {
             "wake_present" : true,
-            "append_wake" : false
+            "append_wake" : true
         },
         "adjoint_sensitivities" : {
-            "calc_adjoint" : true 
+            "calc_adjoint" : false
         }
     },
     "solver": {
         "formulation" : "dirichlet-source-free",
         "control_point_offset" : 1.0e-3, 
-        "matrix_solver" : "GMRES"
+        "matrix_solver" : "GMRES", 
+        "xsort_system" : false
     },
     "post_processing" : {
     },
 
     "output": {
-        "verbose" : true,
-        "report_file": "dev/results/adjoint/dirichlet_adjoint_coarse_sphere_report.json"
+        "verbose" : true
     }
     
 }
