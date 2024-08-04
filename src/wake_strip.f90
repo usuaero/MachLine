@@ -13,6 +13,8 @@ module wake_strip_mod
         integer :: i_top_parent, i_bot_parent
         logical :: on_mirror_plane
 
+        logical :: calc_adjoint
+
         contains
 
             procedure :: init => wake_strip_init
@@ -40,10 +42,16 @@ contains
         real,intent(in) :: trefftz_dist
         type(vertex),dimension(:),allocatable,intent(in) :: body_verts
         logical,intent(in) :: wake_mirrored
-        logical,intent(in),optional :: calc_adjoint
+        logical,intent(inout),optional :: calc_adjoint
 
         real,dimension(3) :: start_1, start_2
         integer :: N_body_verts, i
+
+        logical :: adjoint
+        type(sparse_matrix) :: d_start_1, d_start_2
+
+        ! see if calc_adjoint
+        this%calc_adjoint = calc_adjoint
 
         ! Get number of vertices on the body
         N_body_verts = size(body_verts)
@@ -77,8 +85,10 @@ contains
             start_1 = body_verts(starting_edge%top_verts(1))%loc
             start_2 = body_verts(starting_edge%top_verts(2))%loc
 
-            ! d_start_1 = body_verts(starting_edge%top_verts(1))%d_loc
-            ! d_start_2 = body_verts(starting_edge%top_verts(2))%d_loc
+            if (this%calc_adjoint) then
+                d_start_1 = body_verts(starting_edge%top_verts(1))%d_loc
+                d_start_2 = body_verts(starting_edge%top_verts(2))%d_loc
+            end if
 
             ! Get parent vertices
             this%i_top_parent_1 = starting_edge%top_verts(1)
@@ -93,22 +103,33 @@ contains
         end if
 
         ! Initialize vertices
-        call this%init_vertices(freestream, N_panels_streamwise, trefftz_dist, start_1, start_2, body_verts, calc_adjoint)
+        if (this%calc_adjoint) then
+            call this%init_vertices(freestream, N_panels_streamwise, trefftz_dist, start_1, start_2,&
+            body_verts, d_start_1, d_start_2)
+        else
+            call this%init_vertices(freestream, N_panels_streamwise, trefftz_dist, start_1, start_2,&
+            body_verts)
+        end if
 
+        
         ! Intialize panels
         call this%init_panels(N_panels_streamwise)
-
+        
         ! Initialize other panel properties
         do i=1,this%N_panels
             call this%panels(i)%init_with_flow(freestream, this%mirrored, mirror_plane)
+            
             call this%panels(i)%set_distribution(1, this%panels, this%vertices, this%mirrored) ! With the current formulation, wake panels are always linear
+            
+            if (this%calc_adjoint) write(*,*) "made it here adjoint strips"
+            if (this%calc_adjoint) call this%panels(i)%init_with_flow_adjoint(freestream)
         end do
-
+        
     end subroutine wake_strip_init
 
 
     subroutine wake_strip_init_vertices(this, freestream, N_panels_streamwise, trefftz_dist, &
-                                        start_1, start_2, body_verts, calc_adjoint)
+                                start_1, start_2, body_verts, d_start_1, d_start_2)
         ! Initializes this wake strip's vertices based on the provided info
 
         implicit none
@@ -119,13 +140,16 @@ contains
         real,intent(in) :: trefftz_dist
         real,dimension(3),intent(in) :: start_1, start_2
         type(vertex),dimension(:),allocatable,intent(in) :: body_verts
-        logical,optional :: calc_adjoint
+        
+        type(sparse_matrix),intent(inout),optional :: d_start_1, d_start_2
 
         real,dimension(3) :: loc
         real :: d1, d2, sep_1, sep_2
         integer :: i, N_original_verts
 
-        if (.not. present(calc_adjoint)) calc_adjoint = .false.
+        type(sparse_vector) :: d_d1, d_d2, d_sep_1, d_sep_2
+        type(sparse_matrix) :: d_loc
+
 
         ! Allocate memory
         this%N_verts = N_panels_streamwise*2 + 2
@@ -146,8 +170,8 @@ contains
         this%vertices(2)%top_parent = this%i_top_parent_2
         this%vertices(2)%bot_parent = this%i_bot_parent_2
 
-        if (calc_adjoint) then
-            ! I think this should be set to N_o
+        if (this%calc_adjoint) then
+            ! I think this should be set to N_original verts
             call this%vertices(1)%init_adjoint(N_original_verts, wake_vertex = .true.)
             call this%vertices(2)%init_adjoint(N_original_verts, wake_vertex = .true.)
         end if
@@ -156,18 +180,48 @@ contains
         d1 = trefftz_dist - inner(start_1, freestream%c_hat_g)
         d2 = trefftz_dist - inner(start_2, freestream%c_hat_g)
 
+        
         ! Calculate spacing between vertices
         sep_1 = d1 / N_panels_streamwise
         sep_2 = d2 / N_panels_streamwise
+        
+        if (this%calc_adjoint) then
+            d_d1 = d_start_1%broadcast_vector_dot_element(-freestream%c_hat_g)
+            d_d2 = d_start_2%broadcast_vector_dot_element(-freestream%c_hat_g)
+
+            call d_sep_1%init_from_sparse_vector(d_d1)
+            call d_sep_1%broadcast_element_times_scalar(1./N_panels_streamwise)
+
+            call d_sep_2%init_from_sparse_vector(d_d2)
+            call d_sep_2%broadcast_element_times_scalar(1./N_panels_streamwise)
+        end if
 
         ! Loop through following vertices
         do i=3,this%N_verts
 
             ! Calculate location of vertices
             if (modulo(i, 2) == 0) then
+
+                ! put the location of the vertex evenly spaced along the panel edge (i think)
                 loc = start_2 + sep_2*(i-2)/2*freestream%c_hat_g
+                
+                ! if calc_adjoint, then calc d_loc
+                if (this%calc_adjoint) then
+                    d_loc = d_sep_2%broadcast_element_times_vector((i-2)/(2.*freestream%c_hat_g))
+                    call d_loc%sparse_add(d_start_2)
+                end if
+
             else
+
+                ! put the location of the vertex evenly spaced along the panel edge (i think)
                 loc = start_1 + sep_1*(i-1)/2*freestream%c_hat_g
+
+                ! if calc_adjoint, then calc d_loc
+                if (this%calc_adjoint) then
+                    d_loc = d_sep_1%broadcast_element_times_vector((i-1)/(2.*freestream%c_hat_g))
+                    call d_loc%sparse_add(d_start_1)
+                end if
+
             end if
 
             ! Initialize vertices
@@ -180,6 +234,14 @@ contains
             else
                 this%vertices(i)%top_parent = this%i_top_parent_1
                 this%vertices(i)%bot_parent = this%i_bot_parent_1
+            end if
+
+            ! if calc_adjoint, set vertex attribute d_loc as the d_loc calculated in this do loop
+            if (this%calc_adjoint) then
+                call this%vertices(i)%d_loc%init_from_sparse_matrix(d_loc)
+                
+                ! deallocate d_loc columns for next loop iteration
+                deallocate(d_loc%columns)
             end if
 
         end do
@@ -200,6 +262,7 @@ contains
         logical,dimension(:),allocatable :: skipped_panels
         type(panel),dimension(:),allocatable :: temp_panels
 
+        
         ! Determine number of panels
         this%N_panels = N_panels_streamwise*2
         allocate(this%panels(this%N_panels))
@@ -220,7 +283,7 @@ contains
                 advance = 1
             else
 
-                ! Check lengths of hypotenuses
+                ! Check lengths of hypotenuses (dist = norm2(a-b))
                 d1 = dist(this%vertices(i1+2)%loc, this%vertices(i2)%loc)
                 d2 = dist(this%vertices(i1)%loc, this%vertices(i2+2)%loc)
 
@@ -289,12 +352,19 @@ contains
         class(wake_strip),intent(inout) :: this
         integer,intent(in) :: i_panel, i1, i2, i3
         logical,dimension(:),allocatable,intent(inout) :: skipped_panels
+    
 
         ! Check for zero area
         if (this%has_zero_area(i1, i2, i3)) then
             skipped_panels(i_panel) = .true.
         else
             call this%panels(i_panel)%init(this%vertices(i1), this%vertices(i2), this%vertices(i3), i_panel, in_wake=.true.)
+        
+            ! if calc adjoint, init panel adjoint
+            if (this%calc_adjoint) then
+                call this%panels(i_panel)%init_adjoint()
+            end if
+
         end if
 
     end subroutine wake_strip_init_panel

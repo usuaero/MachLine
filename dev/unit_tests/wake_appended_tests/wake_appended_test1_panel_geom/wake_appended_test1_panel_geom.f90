@@ -164,7 +164,7 @@ program wake_appended_test1
         write(*,'(A,I5)') "MESH VERTEX TEST ", z
         
         
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST d_loc !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST d_loc !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         ! for each x, y, z of each vertex
         do k=1,3
             ! do for each design variable
@@ -281,7 +281,7 @@ program wake_appended_test1
         index = y
         write(*,'(A,I5)') "PANEL TEST ", y
 
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST d_normal and d_centr !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST d_normal and d_centr !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
         ! for each x y z coord of centroid or normal
         do k=1,3
@@ -500,7 +500,7 @@ program wake_appended_test1
         test_failed = .false.
 
 
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST d_area !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST d_area !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         
 
         ! do for each design variable 
@@ -623,7 +623,7 @@ program wake_appended_test1
 
     
 
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST d_n_hat_g !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST d_n_hat_g !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     
     
         ! do for each edge

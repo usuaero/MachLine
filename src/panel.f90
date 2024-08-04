@@ -4352,18 +4352,22 @@ contains
 
         ! calc sensitivity of A_g_to_ls WRT design variables X(beta) 
         call this%calc_d_A_g_to_ls(freestream)
-        
+        write(*,*) "after d A g to ls"
         ! calc sensitivity of A_ls_to_g WRT design variables
         call this%calc_d_A_ls_to_g(freestream)
+        write(*,*) "after d A ls to g"
         
         ! calc sensitivity of local scaled panel vertices
         call this%calc_d_vertices_ls()
+        write(*,*) "calc d vertices ls"
         
         ! calc sensitivities of local scaled n_hat (outward normal edge vectors)
         call this%calc_ls_edge_vectors_adjoint(freestream)
         
+        write(*,*) "calc ls edge vectors adjoint"
         ! calc sensitivities of transformation matrix of strength space M to parameter space mu transformation
         call this%calc_d_M_mu_transform()
+        write(*,*) "calc d M mu transform"
     
     end subroutine panel_init_with_flow_adjoint
 
@@ -4771,21 +4775,21 @@ contains
 
         ! make a sparse vector of zeros with the correct full size
         call zeros%init(this%adjoint_size)
-
+        
         ! build the d_S sparse_vector 3x3
         do i = 1,3
-
+            
             call d_S(i)%init_from_sparse_vectors(zeros, this%d_vertices_ls(1,i), this%d_vertices_ls(2,i))
-
+            
         end do
         !                Build the d_S_mu_inv sparse vector 3x3
         !-------------------------------------------------------------------
         !     S = S_mu                      d_S     = derivative of S_mu
         !     S_inv = this%S_mu_inv      d_S_mu_inv = derivative of this%S_mu_inv
-
+        
         !     d_S_mu_inv = -[this%S_mu_inv][d_S_mu][this%S_mu_inv]
         !-------------------------------------------------------------------
-
+        
         ! calc d_S_mu_inv
         do i= 1,3
             do j = 1,3

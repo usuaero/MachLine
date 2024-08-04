@@ -141,7 +141,6 @@ module surface_mesh_mod
             ! procedure :: write_adjoint => surface_mesh_write_adjoint
 
             ! wake adjoint procedures
-            procedure :: init_wake_adjoint => surface_mesh_init_wake_adjoint
             procedure :: update_supersonic_trefftz_distance_adjoint => surface_mesh_update_supersonic_trefftz_distance_adjoint
             procedure :: update_subsonic_trefftz_distance_adjoint => surface_mesh_update_subsonic_trefftz_distance_adjoint
             
@@ -826,11 +825,7 @@ contains
         end do
         
         ! Initialize wake !!!! 
-        if (this%calc_adjoint)then
-            call this%init_wake_adjoint(freestream, wake_file, formulation)
-        else
-            call this%init_wake(freestream, wake_file, formulation)
-        end if
+        call this%init_wake(freestream, wake_file, formulation)
         
         ! Set up panel distributions
         if (verbose) write(*,"(a)",advance='no') "     Setting up panel singularity distributions..."
@@ -1599,6 +1594,10 @@ contains
             ! Update default Trefftz distance
             if (this%trefftz_distance < 0.) then
 
+                ! if (this%calc_adjoint) then
+                !     write(*,*) "Trefft distance"
+                ! end do
+
                 ! Supersonic
                 if (freestream%supersonic) then
                     call this%update_supersonic_trefftz_distance(freestream)
@@ -1614,7 +1613,7 @@ contains
             if (this%wake_type == "panels") then 
                 call this%wake%init(this%edges, this%vertices, freestream, this%asym_flow, this%mirror_plane, & ! wake is referring to wake_mesh type in the wake_mesh mod.
                                     this%N_wake_panels_streamwise, this%trefftz_distance, this%mirrored, this%initial_panel_order, &
-                                    this%N_panels)
+                                    this%N_panels, this%calc_adjoint)
             else if (this%wake_has_filaments(formulation))  then                                                                           !
                 call this%filament_wake%init(this%edges, this%vertices, freestream, this%asym_flow, this%mirror_plane, &                       !
                                     this%N_wake_panels_streamwise, this%trefftz_distance, this%mirrored, this%initial_panel_order, &  !
@@ -1628,7 +1627,7 @@ contains
                 write(*,*)                                                                                                            !
                 call this%wake%init(this%edges, this%vertices, freestream, this%asym_flow, this%mirror_plane, &                       !
                                     this%N_wake_panels_streamwise, this%trefftz_distance, this%mirrored, this%initial_panel_order, &  !
-                                    this%N_panels)                                                                                    !
+                                    this%N_panels, this%calc_adjoint)                                                                                    !
             end if                                                                                                                    !
 
             ! Export wake geometry
@@ -4885,92 +4884,6 @@ contains
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Wake adjoint procedures !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     
-
-    subroutine surface_mesh_init_wake_adjoint(this, freestream, wake_file, formulation)
-        ! Handles wake initialization with adjoint calculation
-
-        implicit none
-
-        class(surface_mesh),intent(inout) :: this
-        type(flow),intent(in) :: freestream
-        character(len=:),allocatable,intent(in) :: wake_file
-        character(len=:),allocatable,intent(in) :: formulation
-
-        logical :: dummy
-        !!!! update this to include if verbose
-        ! write(*,*) 
-        ! write(*,*) "Wake Type:", this%wake_type
-        ! write(*,*) 
-
-        ! write(*,*) 
-        ! write(*,*) "Formulation:", formulation
-        ! write(*,*) 
-        !!!!
-        if (this%append_wake .and. this%found_wake_edges) then
-
-
-            ! Update default Trefftz distance
-            if (this%trefftz_distance < 0.) then
-
-                ! Supersonic
-                if (freestream%supersonic) then
-                    call this%update_supersonic_trefftz_distance_adjoint(freestream)
-
-                ! Subsonic
-                else
-                    call this%update_subsonic_trefftz_distance_adjoint(freestream)
-
-                end if
-            end if
-
-            ! Initialize wake  
-            if (this%wake_type == "panels") then 
-                call this%wake%init_adjoint(this%edges, this%vertices, freestream, this%asym_flow, this%mirror_plane, & ! wake is referring to wake_mesh type in the wake_mesh mod.
-                                    this%N_wake_panels_streamwise, this%trefftz_distance, this%mirrored, this%initial_panel_order, &
-                                    this%N_panels)
-
-            else if (this%wake_has_filaments(formulation))  then                                                                           !
-                ! call this%filament_wake%init(this%edges, this%vertices, freestream, this%asym_flow, this%mirror_plane, &                       !
-                !                     this%N_wake_panels_streamwise, this%trefftz_distance, this%mirrored, this%initial_panel_order, &  !
-                !                     this%N_panels)       
-                write(*,*) "Can't calc adjonts with filament wakes yet. Defaulting to Panel Wakes..." 
-                call this%wake%init_adjoint(this%edges, this%vertices, freestream, this%asym_flow, this%mirror_plane, &                       !
-                                    this%N_wake_panels_streamwise, this%trefftz_distance, this%mirrored, this%initial_panel_order, &  !
-                                    this%N_panels) 
-
-            else                                                                                                                      !
-                write(*,*)                                                                                                            !
-                write(*,*) "wake_type needs to be panels or filaments, and if wake_type", &                                           !
-                            "is filaments", & 
-                            "formulation has to be neumann-mass-flux or neumann-velocity.", &
-                            "Running a panel wake by default"                               !
-                write(*,*)                                                                                                            !
-                call this%wake%init_adjoint(this%edges, this%vertices, freestream, this%asym_flow, this%mirror_plane, &                       !
-                                    this%N_wake_panels_streamwise, this%trefftz_distance, this%mirrored, this%initial_panel_order, &  !
-                                    this%N_panels)   
-                                                                                                                     !
-            end if                                                                                                                    !
-
-            ! Export wake geometry
-            if (wake_file /= 'none') then
-                if (this%wake_has_filaments(formulation)) then
-                    call this%filament_wake%write_filaments(wake_file, dummy)
-                else
-                    call this%wake%write_strips(wake_file, dummy)
-                end if
-            end if
-        else
-            
-            ! Set parameters to let later code know the wake is not being modeled
-            this%wake%N_panels = 0
-            this%wake%N_verts = 0
-            this%wake%N_strips = 0
-
-        end if
-
-    
-    end subroutine surface_mesh_init_wake_adjoint
-
 
     subroutine surface_mesh_update_supersonic_trefftz_distance_adjoint(this, freestream)
         ! Determines the appropriate Trefftz distance (and its derivative for adjoints) based on the mesh geometry
