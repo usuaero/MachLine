@@ -16,7 +16,8 @@
 
         "wake_model" : {
             "wake_present" : true,
-            "append_wake" : true
+            "append_wake" : true,
+            "trefftz_distance" : 5.0
         },
         "adjoint_sensitivities" : {
             "calc_adjoint" : false
@@ -26,7 +27,7 @@
         "formulation" : "dirichlet-source-free",
         "control_point_offset" : 1.0e-3, 
         "matrix_solver" : "GMRES", 
-        "xsort_system" : false
+        "sort_system" : false
     },
     "post_processing" : {
     },

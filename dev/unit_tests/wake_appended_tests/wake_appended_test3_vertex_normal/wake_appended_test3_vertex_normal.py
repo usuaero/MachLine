@@ -1,6 +1,5 @@
 import subprocess as sp
-# this script tests vertex sensitivities in the adjoint gradient calculation, compares them to FD
-# to all design variables X(beta)
+# this script tests vertex normal sensitivities (dirichlet, subsonic, wakes appended)
 
 if __name__=="__main__":
 
@@ -14,7 +13,7 @@ if __name__=="__main__":
             "src/wake_strip.f90", "src/wake_mesh.f90", "src/surface_mesh.f90", 
             "src/panel_solver.f90", 
             
-            "dev/unit_tests/wake_tests/wake_test4_cloned_vertex_loc/wake_test4_cloned_vertex_loc.f90"])
+            "dev/unit_tests/wake_appended_tests/wake_appended_test3_vertex_normal/wake_appended_test3_vertex_normal.f90"])
 
     # Run
     sp.run(["a.exe"])

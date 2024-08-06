@@ -1,4 +1,4 @@
-program wake_test4
+program wake_appended_test3
 
     ! tests various intermediate sensitivities 
     use adjoint_mod
@@ -41,9 +41,9 @@ program wake_test4
 
     !!!!!!!!!!!!!!!!!!!!! END STUFF FROM MAIN !!!!!!!!!!!!!!!!!!!!!!!!!
 
-    real,dimension(:),allocatable :: residuals, X_beta, loc_up, loc_dn
+    real,dimension(:),allocatable :: residuals, X_beta, n_g_up, n_g_dn, sum_up, sum_dn
 
-    real,dimension(:,:),allocatable :: v, vertex_locs, residuals3,  d_loc_FD
+    real,dimension(:,:),allocatable :: v, vertex_locs, residuals3,  d_n_g_FD, d_sum_FD
 
     ! real,dimension(:,:,:),allocatable ::  d_n_g_FD
 
@@ -73,7 +73,7 @@ program wake_test4
     ! Set up run
     call json_initialize()
     
-    test_input = "dev\input_files\adjoint_inputs\wake_test.json"
+    test_input = "dev\input_files\adjoint_inputs\wake_appended_test.json"
     test_input = trim(test_input)
     
     ! Check it exists
@@ -128,7 +128,7 @@ program wake_test4
     ! Set up run
     call json_initialize()
 
-    adjoint_input = "dev\input_files\adjoint_inputs\wake_adjoint_test.json"
+    adjoint_input = "dev\input_files\adjoint_inputs\wake_appended_adjoint_test.json"
     adjoint_input = trim(adjoint_input)
 
     ! Check it exists
@@ -177,24 +177,22 @@ program wake_test4
     
     allocate(residuals3(3,N_original_verts*3))
     allocate(residuals(N_original_verts*3))
-    
-    allocate(loc_up(N_original_verts*3))
-    allocate(loc_dn(N_original_verts*3))
-    allocate(d_loc_FD(3,N_original_verts*3))
-
+    allocate(n_g_up(N_original_verts*3))
+    allocate(n_g_dn(N_original_verts*3))
+    allocate(d_n_g_FD(3,N_original_verts*3))
 
     
     
-    error_allowed = 1.0e-9
+    error_allowed = 1.0e-6
     step = 0.000001
     ! index = 1
     cp_ind = 1
     
 
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! CLONED VERTEX LOCATION SENSITIVITIES TEST !!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! VERTEX NORMAL SENSITIVITIES TEST !!!!!!!!!!!!!!!!!!!!!!!!!!!!
     write(*,*) ""
     write(*,*) "------------------------------------------------------------------------"
-    write(*,*) "         CLONED VERTEX LOCATION SENSITIVITIES TEST (WAKE PRESENT)                   "
+    write(*,*) "                    VERTEX NORMAL SENSITIVITIES TEST (WAKE APPENDED)                   "
     write(*,*) "------------------------------------------------------------------------"
     write(*,*) ""
     write(*,*) ""
@@ -202,7 +200,7 @@ program wake_test4
     do z = 1,N_total_verts ! for each control point
         cp_ind = z
 
-        write(*,'(A,I5)') "CLONED VERTEX LOCATION TEST ", z
+        write(*,'(A,I5)') "VERTEX NORMAL TEST ", z
 
         ! for each x, y, z of centr 1 
         do k=1,3
@@ -241,7 +239,7 @@ program wake_test4
         
                     
                     ! get desired info
-                    loc_up(j + (i-1)*N_original_verts) = test_mesh%vertices(cp_ind)%loc(k)
+                    n_g_up(j + (i-1)*N_original_verts) = test_mesh%vertices(cp_ind)%n_g(k)
 
 
                     !!!! Perturb Down !!!!
@@ -275,21 +273,20 @@ program wake_test4
                     end if
                     
                     ! get desired info
-                    loc_dn(j + (i-1)*N_original_verts) = test_mesh%vertices(cp_ind)%loc(k)
+                    n_g_dn(j + (i-1)*N_original_verts) = test_mesh%vertices(cp_ind)%n_g(k)
                     
                 end do 
             end do 
             
             ! central difference 
-            d_loc_FD(k,:) = (loc_up - loc_dn)/(2.*step)
+            d_n_g_FD(k,:) = (n_g_up - n_g_dn)/(2.*step)
                 
         end do
 
 
-
         ! calculate residuals3
         do i =1, N_original_verts*3
-            residuals3(:,i) = adjoint_mesh%vertices(cp_ind)%d_loc%get_values(i) - d_loc_FD(:,i)
+            residuals3(:,i) = adjoint_mesh%vertices(cp_ind)%d_n_g%get_values(i) - d_n_g_FD(:,i)
         end do
 
         if (maxval(abs(residuals3(:,:)))>error_allowed) then
@@ -298,10 +295,10 @@ program wake_test4
             do i = 1, N_original_verts*3
                 if (any(abs(residuals3(:,i))>error_allowed)) then
                     write(*,*) ""
-                    write(*,*) "                                      d_loc     "
-                    write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_loc_FD(:,i)
+                    write(*,*) "                                      d_n_g     "
+                    write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_n_g_FD(:,i)
                     write(*, '(A25,8x,3(f25.10, 4x))') "               adjoint",   &
-                    adjoint_mesh%vertices(cp_ind)%d_loc%get_values(i)
+                    adjoint_mesh%vertices(cp_ind)%d_n_g%get_values(i)
                     write(*, '(A25,8x,3(f25.10, 4x))') "    residuals", residuals3(:,i)
                 end if
             end do
@@ -313,28 +310,28 @@ program wake_test4
         do i=1,N_original_verts*3
             if (any(abs(residuals3(:,i)) > error_allowed)) then 
                 do j = 1,3
-                    if (abs(d_loc_FD(j,i))>1000.0) then
+                    if (abs(d_n_g_FD(j,i))>1000.0) then
                         if (abs(residuals3(j,i)) > error_allowed*10000.0) then
                             test_failed = .true.
                             exit
                         else
                             test_failed = .false.
                         end if
-                    elseif (1000.0>abs(d_loc_FD(j,i)) .and. abs(d_loc_FD(j,i))>100.0) then
+                    elseif (1000.0>abs(d_n_g_FD(j,i)) .and. abs(d_n_g_FD(j,i))>100.0) then
                         if (abs(residuals3(j,i)) > error_allowed*1000.0) then
                             test_failed = .true.
                             exit
                         else
                             test_failed = .false.
                         end if
-                    elseif (100.0>abs(d_loc_FD(j,i)) .and. abs(d_loc_FD(j,i))>10.0) then
+                    elseif (100.0>abs(d_n_g_FD(j,i)) .and. abs(d_n_g_FD(j,i))>10.0) then
                         if (abs(residuals3(j,i)) > error_allowed*100.0) then
                             test_failed = .true.
                             exit
                         else
                             test_failed = .false.
                         end if
-                    elseif (10.0>abs(d_loc_FD(j,i)) .and. abs(d_loc_FD(j,i))>1.0) then
+                    elseif (10.0>abs(d_n_g_FD(j,i)) .and. abs(d_n_g_FD(j,i))>1.0) then
                         if (abs(residuals3(j,i)) > error_allowed*10.0) then
                             test_failed = .true.
                             exit
@@ -355,10 +352,10 @@ program wake_test4
         if (test_failed) then
             total_tests = total_tests + 1
             write(*,'(A,I5,A,I5,A)')"                                               &
-                               d_loc vertex ",z," test FAILED"
-            failure_log(total_tests-passed_tests) = "d_loc test FAILED"
+                               d_n_g vertex ",z," test FAILED"
+            failure_log(total_tests-passed_tests) = "d_n_g test FAILED"
         else
-            ! write(*,*) "        CALC d_loc test PASSED"
+            ! write(*,*) "        CALC d_n_g test PASSED"
             ! write(*,*) "" 
             ! write(*,*) ""
             passed_tests = passed_tests + 1
@@ -370,12 +367,15 @@ program wake_test4
         test_failed = .false.
 
 
+        
+
+
     end do ! z control points
 
 
-    !!!!!!!!!!!!!! CLONED VERTEX LOCATION  SENSITIVITIES RESULTS!!!!!!!!!!!!!
+    !!!!!!!!!!!!!! Vertex normal  SENSITIVITIES RESULTS!!!!!!!!!!!!!
     write(*,*) "------------------------------------------------------------------------------"
-    write(*,*) "         CLONED VERTEX LOCATION SENSITIVITIES TEST RESULTS (WAKE PRESENT)"
+    write(*,*) "         VERTEX NORMAL SENSITIVITIES TEST RESULTS (WAKE APPENDED)"
     write(*,*) "------------------------------------------------------------------------------"
     write(*,*) ""
     write(*,'((A), ES10.1)') "allowed residual = ", error_allowed
@@ -400,9 +400,9 @@ program wake_test4
     write(*,'(A,f16.12, A)') " Total test time = ", time, " minutes"
     write(*,*) ""
     write(*,*) "----------------------"
-    write(*,*) "Program Complete"
+    write(*,*) " Program Complete"
     write(*,*) "----------------------"
 
 
 
-end program wake_test4
+end program wake_appended_test3

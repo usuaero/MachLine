@@ -121,7 +121,6 @@ contains
             
             call this%panels(i)%set_distribution(1, this%panels, this%vertices, this%mirrored) ! With the current formulation, wake panels are always linear
             
-            if (this%calc_adjoint) write(*,*) "made it here adjoint strips"
             if (this%calc_adjoint) call this%panels(i)%init_with_flow_adjoint(freestream)
         end do
         
@@ -194,6 +193,7 @@ contains
 
             call d_sep_2%init_from_sparse_vector(d_d2)
             call d_sep_2%broadcast_element_times_scalar(1./N_panels_streamwise)
+
         end if
 
         ! Loop through following vertices
@@ -204,11 +204,14 @@ contains
 
                 ! put the location of the vertex evenly spaced along the panel edge (i think)
                 loc = start_2 + sep_2*(i-2)/2*freestream%c_hat_g
-                
+
                 ! if calc_adjoint, then calc d_loc
                 if (this%calc_adjoint) then
-                    d_loc = d_sep_2%broadcast_element_times_vector((i-2)/(2.*freestream%c_hat_g))
+
+                    d_loc = d_sep_2%broadcast_element_times_vector((i-2)/2*freestream%c_hat_g)
+                    
                     call d_loc%sparse_add(d_start_2)
+
                 end if
 
             else
@@ -218,7 +221,7 @@ contains
 
                 ! if calc_adjoint, then calc d_loc
                 if (this%calc_adjoint) then
-                    d_loc = d_sep_1%broadcast_element_times_vector((i-1)/(2.*freestream%c_hat_g))
+                    d_loc = d_sep_1%broadcast_element_times_vector((i-1)/2*freestream%c_hat_g)
                     call d_loc%sparse_add(d_start_1)
                 end if
 

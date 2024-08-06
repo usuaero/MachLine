@@ -2224,6 +2224,7 @@ contains
                 ! calculate dir differently for finite difference
                 if (this%perturb_point) then
                     dir = -this%vertices(i)%n_g + 0.05*this%vertices(i)%n_g_wake
+                    
                 else
                     dir = this%get_clone_control_point_dir(i)
                     write(*,*) " not perturb point"

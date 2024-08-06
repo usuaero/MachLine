@@ -1,4 +1,4 @@
-program wake_appended_test5_1
+program wake_appended_test5_2
 
     ! tests various intermediate sensitivities 
     use adjoint_mod
@@ -222,7 +222,7 @@ program wake_appended_test5_1
 
     write(*,*) ""
     write(*,*) "------------------------------------------------------------------------"
-    write(*,*) "       SUBsonic Wake Strip init Sensitivities Test (WAKE APPENDED)                   "
+    write(*,*) "       SUBsonic Wake Panel Geom Test (WAKE APPENDED)                   "
     write(*,*) "------------------------------------------------------------------------"
     write(*,*) ""
     write(*,*) ""
@@ -232,13 +232,13 @@ program wake_appended_test5_1
     ! do for each wake strip
     do strip = 1, num_wake_strips
 
+        write(*,'(A,I5)') "Test Wake Strip ", strip
         num_panels_in_strip = test_mesh%wake%strips(strip)%N_panels
 
         ! do for each panel in the wake strip
         do p = 1, num_panels_in_strip
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST CP_d_loc !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            write(*,'(A,I5)') "Test Wake Strip ", strip
             write(*,'(A,I5)') "    Test Panel", p
             write(*,*) ""
         
@@ -264,6 +264,8 @@ program wake_appended_test5_1
                         call test_mesh%panels(m)%calc_derived_geom()
                     end do
 
+                    call test_mesh%calc_vertex_geometry()
+                        
                     call test_mesh%init_with_flow(freestream_flow, body_file, wake_file, formulation)
                     
 
@@ -293,6 +295,8 @@ program wake_appended_test5_1
                         call test_mesh%panels(m)%calc_derived_geom()
                     end do
 
+                    call test_mesh%calc_vertex_geometry()
+                        
                     call test_mesh%init_with_flow(freestream_flow, body_file, wake_file, formulation)
                         
                     !!!!!!!!!!!!!!!! end update !!!!!!!!!!!!!!!!!!!!!
@@ -323,12 +327,14 @@ program wake_appended_test5_1
                 write(*,*) "     FLAGGED VALUES :"
                 do i = 1, N_original_verts*3
                     if (any(abs(residuals3(:,i))>error_allowed)) then
-                        write(*,*) "         Central Difference    d_n_g      x, y, and z"
-                        write(*, '(8x,3(f25.10, 4x))') d_n_g_FD(:,i)
-                        write(*,*) "        adjoint       d_n_g      x, y, and z                  &
-                        residuals"
-                        write(*, '(8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') &
-                        adjoint_mesh%wake%strips(strip)%panels(index)%d_n_g%get_values(i), residuals3(:,i)
+                        write(*,*) ""
+                        write(*,*) "                          d_n_g      x, y, and z "
+                        write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_n_g_FD(:,i)
+                    
+                        write(*, '(A25,8x,3(f25.10, 4x))') "               adjoint",   &
+                        adjoint_mesh%wake%strips(strip)%panels(index)%d_n_g%get_values(i)
+                        write(*, '(A25,8x,3(f25.10, 4x))') "             residuals", residuals3(:,i)
+                        
                     end if
                 end do
             end if
@@ -405,12 +411,13 @@ program wake_appended_test5_1
                 write(*,*) "     FLAGGED VALUES :"
                 do i = 1, N_original_verts*3
                     if (any(abs(residuals3(:,i))>error_allowed)) then
-                        write(*,*) "         Central Difference    d_centr     x, y, and z"
-                        write(*, '(8x,3(f25.10, 4x))') d_centr_FD(:,i)
-                        write(*,*) "        adjoint       d_centr      x, y, and z                  &
-                        residuals"
-                        write(*, '(8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') &
-                        adjoint_mesh%wake%strips(strip)%panels(p)%d_centr%get_values(i), residuals3(:,i)
+                        write(*,*) ""
+                        write(*,*) "                          d_centr      x, y, and z "
+                        write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_centr_FD(:,i)
+                    
+                        write(*, '(A25,8x,3(f25.10, 4x))') "               adjoint",   &
+                        adjoint_mesh%wake%strips(strip)%panels(p)%d_centr%get_values(i)
+                        write(*, '(A25,8x,3(f25.10, 4x))') "             residuals", residuals3(:,i)
                     end if
                 end do
             end if
@@ -627,12 +634,13 @@ program wake_appended_test5_1
                     write(*,*) "     FLAGGED VALUES :"
                     do i = 1, N_original_verts*3
                         if (any(abs(residuals3(:,i))>error_allowed)) then
-                            write(*,'(A,I5,A)') "         Central Difference    d_n_hat_g edge ",k,"      x, y, and z"
-                            write(*, '(8x,3(f25.10, 4x))') d_n_hat_g_FD(:,i)
-                            write(*,'(A,I5,A)') "        adjoint       d_n_hat_g edge ",k,"      x, y, and z                  &
-                            residuals"
-                            write(*, '(8x,3(f25.10, 4x),3x, 3(f25.10, 4x))') &
-                            adjoint_mesh%wake%strips(strip)%panels(p)%d_n_hat_g(k)%get_values(i), residuals3(:,i)
+                            write(*,*) ""
+                            write(*,'(A,I5,A)') "                d_n_hat_g edge ",k,"     x, y, and z "
+                            write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_n_hat_g_FD(:,i)
+                        
+                            write(*, '(A25,8x,3(f25.10, 4x))') "               adjoint",   &
+                            adjoint_mesh%wake%strips(strip)%panels(p)%d_n_hat_g(k)%get_values(i)
+                            write(*, '(A25,8x,3(f25.10, 4x))') "             residuals", residuals3(:,i)
                         end if
                     end do
                 end if
@@ -710,7 +718,7 @@ program wake_appended_test5_1
 
 !   !!!!!!!!!!!!!   SENSITIVITIES RESULTS!!!!!!!!!!!!!
     write(*,*) "------------------------------------------------------------------------------"
-    write(*,*) "       SUBsonic Wake Strip init SENSITIVITIES TEST RESULTS (WAKE APPENDED)"
+    write(*,*) "       SUBsonic Wake PANEL GEOM TEST RESULTS (WAKE APPENDED)"
     write(*,*) "------------------------------------------------------------------------------"
     write(*,*) ""
     write(*,'((A), ES10.1)') "allowed residual = ", error_allowed
@@ -738,4 +746,4 @@ program wake_appended_test5_1
     write(*,*) "Program Complete"
     write(*,*) "----------------------"
 
-end program wake_appended_test5_1
+end program wake_appended_test5_2

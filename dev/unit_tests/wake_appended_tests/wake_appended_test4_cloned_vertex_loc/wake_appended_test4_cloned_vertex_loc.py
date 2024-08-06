@@ -1,9 +1,10 @@
 import subprocess as sp
-# this script tests initialization of wake strip sensitivities (dirichlet subsonic wake appended)
+# this script tests vertex sensitivities in the adjoint gradient calculation, compares them to FD
+# to all design variables X(beta)
 
 if __name__=="__main__":
 
-     # Compile
+      # Compile
     sp.run(["gfortran", "-fdefault-real-8", "-fbounds-check", "common/json.f90", 
             "common/json_xtnsn.f90", "common/linalg.f90", "common/helpers.f90", 
             "common/math.f90", "common/sort.f90","common/linked_list.f90", 
@@ -13,7 +14,7 @@ if __name__=="__main__":
             "src/wake_strip.f90", "src/wake_mesh.f90", "src/surface_mesh.f90", 
             "src/panel_solver.f90", 
             
-            "dev/unit_tests/wake_appended_tests/wake_appended_test5.1_wake_strips/wake_appended_test5.1_wake_strips.f90"])
+            "dev/unit_tests/wake_appended_tests/wake_appended_test4_cloned_vertex_loc/wake_appended_test4_cloned_vertex_loc.f90"])
 
     # Run
     sp.run(["a.exe"])

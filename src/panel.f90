@@ -4352,19 +4352,16 @@ contains
 
         ! calc sensitivity of A_g_to_ls WRT design variables X(beta) 
         call this%calc_d_A_g_to_ls(freestream)
-        write(*,*) "after d A g to ls"
+
         ! calc sensitivity of A_ls_to_g WRT design variables
         call this%calc_d_A_ls_to_g(freestream)
-        write(*,*) "after d A ls to g"
         
         ! calc sensitivity of local scaled panel vertices
         call this%calc_d_vertices_ls()
-        write(*,*) "calc d vertices ls"
         
         ! calc sensitivities of local scaled n_hat (outward normal edge vectors)
         call this%calc_ls_edge_vectors_adjoint(freestream)
         
-        write(*,*) "calc ls edge vectors adjoint"
         ! calc sensitivities of transformation matrix of strength space M to parameter space mu transformation
         call this%calc_d_M_mu_transform()
         write(*,*) "calc d M mu transform"

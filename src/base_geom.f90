@@ -401,7 +401,6 @@ contains
         if (.not. present(wake_vertex))then
             wake_vert = .false.
         else
-            write(*,*) "passed in wake vert true"
             wake_vert = .true.
         end if
 

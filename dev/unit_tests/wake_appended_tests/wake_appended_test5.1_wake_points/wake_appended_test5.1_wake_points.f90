@@ -1,4 +1,4 @@
-program wake_test5
+program wake_appended_test5_1
 
     ! tests various intermediate sensitivities 
     use adjoint_mod
@@ -42,11 +42,12 @@ program wake_test5
 
     !!!!!!!!!!!!!!!!!!!!! END STUFF FROM MAIN !!!!!!!!!!!!!!!!!!!!!!!!!
 
-    real,dimension(:),allocatable :: residuals, X_beta, norm
+    real,dimension(:),allocatable :: residuals, X_beta, area_up, area_dn, d_area_FD
 
-    real,dimension(:,:),allocatable :: v, residuals3 , loc_up, loc_dn, d_loc_FD, d_loc_matrix
+    real,dimension(:,:),allocatable :: v, residuals3 , loc_up, loc_dn, d_loc_FD
 
-    integer :: i,j,k,m,n,y,z, N_original_verts, N_total_verts, N_panels, vert, index, cp_ind, clones, vert_ind
+    integer :: i,j,k,m,n,p,strip,vert,y,z, N_original_verts, N_total_verts, N_panels, &
+    num_wake_strips, num_panels_in_strip, index, cp_ind, clones, vert_ind
     real :: step,error_allowed
     type(vertex),dimension(:),allocatable :: vertices ! list of vertex types, this should be a mesh attribute
     type(panel),dimension(:),allocatable :: panels, adjoint_panels   ! list of panels, this should be a mesh attribute
@@ -73,7 +74,7 @@ program wake_test5
     ! Set up run
     call json_initialize()
     
-    test_input = "dev\input_files\adjoint_inputs\wake_test.json"
+    test_input = "dev\input_files\adjoint_inputs\wake_appended_test.json"
     test_input = trim(test_input)
     
     ! Check it exists
@@ -119,9 +120,6 @@ program wake_test5
     
     ! set perturb point to true so the clone dir is based on centroid information
     
-    ! Initialize panel solver
-    call test_solver%init(solver_settings, processing_settings, test_mesh, freestream_flow, control_point_file)
-    
     !!!!!!!!!!!!!!!!!!!!! END TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!!!!!
     
     call system_clock(start_count, count_rate)
@@ -132,7 +130,7 @@ program wake_test5
     ! Set up run
     call json_initialize()
     
-    adjoint_input = "dev\input_files\adjoint_inputs\wake_adjoint_test.json"
+    adjoint_input = "dev\input_files\adjoint_inputs\wake_appended_adjoint_test.json"
     adjoint_input = trim(adjoint_input)
     
     ! Check it exists
@@ -173,11 +171,12 @@ program wake_test5
     !!!!!!!!!!!!!!!!!!!!!!! END_WAKE_DEV !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     
     ! Perform flow-dependent initialization on the surface mesh
+    write(*,*) "made it here"
     call adjoint_mesh%init_with_flow(adjoint_freestream_flow, adjoint_body_file, adjoint_wake_file, adjoint_formulation)
     
     ! Initialize panel solver
-    call adjoint_solver%init(adjoint_solver_settings, adjoint_processing_settings, adjoint_mesh, &
-    adjoint_freestream_flow, adjoint_control_point_file)
+    ! call adjoint_solver%init(adjoint_solver_settings, adjoint_processing_settings, adjoint_mesh, &
+    ! adjoint_freestream_flow, adjoint_control_point_file)
     !!!!!!!!!!!! END ADJOINT TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!
     
     
@@ -197,12 +196,14 @@ program wake_test5
     N_panels = test_mesh%N_panels
     
     
-    allocate(residuals3(3,N_original_verts*3))
-    allocate(residuals(N_original_verts*3))
-
+    
     allocate(loc_up(3,N_original_verts*3))
     allocate(loc_dn(3,N_original_verts*3))
     allocate(d_loc_FD(3,N_original_verts*3))
+    
+
+    allocate(residuals3(3,N_original_verts*3))
+    allocate(residuals(N_original_verts*3))
 
     error_allowed = 1.0e-9
     step = 0.000001
@@ -212,215 +213,200 @@ program wake_test5
 
     write(*,*) ""
     write(*,*) "------------------------------------------------------------------------"
-    write(*,*) "             CONTROL POINT SENSITIVITIES TEST (WAKE PRESENT)                   "
+    write(*,*) "       SUBsonic Wake Strip Vertices Test (WAKE APPENDED)                   "
     write(*,*) "------------------------------------------------------------------------"
     write(*,*) ""
     write(*,*) ""
 
+    num_wake_strips = test_mesh%wake%N_strips
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TEST CP_d_loc !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    do z =1,N_total_verts
-        cp_ind = z
-        write(*,'(A,I5)') "CONTROL POINT LOCATION TEST ", z
-        write(*,'(A,I5)') "   This CP associated with vertex", z
-        write(*,'(A,I5,A,L1)') "   Vertex ", z, " is clone?     ", test_mesh%vertices(z)%clone
-        write(*,*) ""
+    ! do for each wake strip
+    do strip = 1, num_wake_strips
+        write(*,'(A,I5)') "Test Wake Strip ", strip
+
+        num_panels_in_strip = test_mesh%wake%strips(strip)%N_panels
+
+        ! do for each panel in the wake strip
+        do p = 1, num_panels_in_strip
+            write(*,'(A,I5)') "    Test Panel", p
+
+            ! do for each panel's 3 vertices
+            do vert = 1,3
+            
+                
+                write(*,'(A,I5)') "      Vertex", vert
+
+                write(*,*) ""
         
     
 
-        ! do for each design variable
-        do i=1,3
-            do j=1,N_original_verts
+                ! do for each design variable
+                do i=1,3
+                    do j=1,N_original_verts
 
-                deallocate(test_mesh%vertices, test_mesh%edges, test_mesh%panels, test_mesh%vertex_ordering)
-                call test_mesh%init(geom_settings)
-                test_mesh%perturb_point = .true.
+                        deallocate(test_mesh%vertices, test_mesh%edges, test_mesh%panels, test_mesh%vertex_ordering, &
+                        test_mesh%wake%strips)
+                        call test_mesh%init(geom_settings)
+                        test_mesh%perturb_point = .true.
 
-                ! perturb up the current design variable
-                test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
-                ! write(*,*) "this vertex is clone? ", test_mesh%vertices(j)%clone 
-                !!!!!!!!!!! update !!!!!!!!!!!!!
-                ! update panel geometry and calc
-                do m =1,N_panels
-                    deallocate(test_mesh%panels(m)%n_hat_g)
-                    call test_mesh%panels(m)%calc_derived_geom()
+                        ! perturb up the current design variable
+                        test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) + step
+                        ! write(*,*) "this vertex is clone? ", test_mesh%vertices(j)%clone 
+                        
+                        !!!!!!!!!!! update !!!!!!!!!!!!!
+                        ! update panel geometry and calc
+                        do m =1,N_panels
+                            deallocate(test_mesh%panels(m)%n_hat_g)
+                            call test_mesh%panels(m)%calc_derived_geom()
+                        end do
+
+                        call test_mesh%calc_vertex_geometry()
+                        
+                        call test_mesh%init_with_flow(freestream_flow, body_file, wake_file, formulation)
+                        
+
+                        !!!!!!!!!!!!! end update !!!!!!!!!!!!!!!!
+                        
+                        !!!!!!!!!!!!!!!!!!!!!!! GET INFO !!!!!!!!!!!!!!!!!!!!!!!!     
+                        ! put the x y or z component of the vertex of interest (index) in a list
+                        loc_up(:,j + (i-1)*N_original_verts) = test_mesh%wake%strips(strip)%panels(p)&
+                        %vertices(vert)%ptr%loc(:)
+
+
+                        !!!! Perturb Down !!!!
+
+                        deallocate(test_mesh%vertices, test_mesh%edges, test_mesh%panels, test_mesh%vertex_ordering, &
+                        test_mesh%wake%strips)
+                        call test_mesh%init(geom_settings)
+                        test_mesh%perturb_point = .true.
+
+                        ! perturb down the current design variable
+                        test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) -step
+                            
+                        !!!!!!!!!!! update !!!!!!!!!!!!!!!
+                        ! update panel geometry and calc
+                        do m =1,N_panels
+                            deallocate(test_mesh%panels(m)%n_hat_g)
+                            call test_mesh%panels(m)%calc_derived_geom()
+                        end do
+
+                        call test_mesh%calc_vertex_geometry()
+                        
+                        call test_mesh%init_with_flow(freestream_flow, body_file, wake_file, formulation)
+                            
+                        !!!!!!!!!!!!!!!! end update !!!!!!!!!!!!!!!!!!!!!
+
+                        ! put the x y or z component of the vertex of interest (cp_ind) in a list
+                        loc_dn(:,j + (i-1)*N_original_verts) = test_mesh%wake%strips(strip)%panels(p)&
+                        %vertices(vert)%ptr%loc(:)
+
+                    end do 
+                end do 
+                
+                ! central difference 
+
+                d_loc_FD = (loc_up - loc_dn)/(2.*step)
+
+
+                ! calculate residuals3
+                do i =1, N_original_verts*3
+                    residuals3(:,i) = adjoint_mesh%wake%strips(strip)%panels(p)%vertices(vert)%ptr%d_loc%get_values(i)&
+                     - d_loc_FD(:,i)
                 end do
 
-                call test_mesh%calc_vertex_geometry()
                 
-                call test_mesh%init_panels_with_flow(freestream_flow)
-                
-                call test_mesh%characterize_edges(freestream_flow) 
-                
-                if (test_mesh%wake_present) then
-                    
-                    ! Determine how cloning needs to be done
-                    call test_mesh%set_needed_vertex_clones()
-                    
-                    ! Clone necessary vertices
-                    call test_mesh%clone_vertices(formulation)
-                    
-                end if
-                
-                deallocate(test_solver%sigma_known)
-                deallocate(test_solver%i_sigma_in_sys)
-                deallocate(test_solver%i_sys_sigma_in_body)
-                deallocate(test_mesh%cp)
-                deallocate(test_solver%P)
-                call test_solver%init(solver_settings, processing_settings, &
-                test_mesh, freestream_flow, control_point_file)
-
-                !!!!!!!!!!!!! end update !!!!!!!!!!!!!!!!
-                
-                ! put the x y or z component of the vertex of interest (index) in a list
-                loc_up(:,j + (i-1)*N_original_verts) = test_mesh%cp(cp_ind)%loc(:)
-              
-
-                !!!! Perturb Down !!!!
-
-                deallocate(test_mesh%vertices, test_mesh%edges, test_mesh%panels, test_mesh%vertex_ordering)
-                call test_mesh%init(geom_settings)
-                test_mesh%perturb_point = .true.
-
-                ! perturb down the current design variable
-                test_mesh%vertices(j)%loc(i) = test_mesh%vertices(j)%loc(i) -step
-                    
-                !!!!!!!!!!! update !!!!!!!!!!!!!!!
-                ! update panel geometry and calc
-                do m =1,N_panels
-                    deallocate(test_mesh%panels(m)%n_hat_g)
-                    call test_mesh%panels(m)%calc_derived_geom()
-                end do
-
-                call test_mesh%calc_vertex_geometry()
-                
-                call test_mesh%init_panels_with_flow(freestream_flow)
-
-                call test_mesh%characterize_edges(freestream_flow) 
-        
-                if (test_mesh%wake_present) then
-
-                    ! Determine how cloning needs to be done
-                    call test_mesh%set_needed_vertex_clones()
-                    
-                    ! Clone necessary vertices
-                    call test_mesh%clone_vertices(formulation)
-                    
-                end if
-
-                deallocate(test_solver%sigma_known)
-                deallocate(test_solver%i_sigma_in_sys)
-                deallocate(test_solver%i_sys_sigma_in_body)
-                deallocate(test_mesh%cp)
-                deallocate(test_solver%P)    
-                call test_solver%init(solver_settings, processing_settings, &
-                test_mesh, freestream_flow, control_point_file)
-                !!!!!!!!!!!!!!!! end update !!!!!!!!!!!!!!!!!!!!!
-
-                ! put the x y or z component of the vertex of interest (cp_ind) in a list
-                loc_dn(:,j + (i-1)*N_original_verts) = test_mesh%cp(cp_ind)%loc(:)
-                
-            end do 
-        end do 
-        
-        ! central difference 
-        d_loc_FD(:,:) = (loc_up(:,:) - loc_dn(:,:))/(2*step)
-
-
-        ! calculate residuals3
-        do i =1, N_original_verts*3
-            residuals3(:,i) = adjoint_mesh%cp(cp_ind)%d_loc%get_values(i) - d_loc_FD(:,i)
-        end do
-
-        
-        if (maxval(abs(residuals3(:,:)))>error_allowed) then
-            write(*,*) ""
-            write(*,*) "     FLAGGED VALUES :"
-            do i = 1, N_original_verts*3
-                if (any(abs(residuals3(:,i))>error_allowed)) then
+                if (maxval(abs(residuals3(:,:)))>error_allowed) then
                     write(*,*) ""
-                    write(*,*) "i = ", i
-                    write(*,*) ""
-                    write(*,*) "                    d_loc_g "
-                    write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_loc_FD(:,i)
-                
-                    write(*, '(A25,8x,3(f25.10, 4x))') "               adjoint",   &
-                    adjoint_mesh%cp(cp_ind)%d_loc%get_values(i)
-                    write(*, '(A25,8x,3(f25.10, 4x))') "             residuals", residuals3(:,i)
+                    write(*,*) "     FLAGGED VALUES :"
+                    do i = 1, N_original_verts*3
+                        if (any(abs(residuals3(:,i))>error_allowed)) then
+                            write(*,*) ""
+                            write(*,*) "                          d_loc      x, y, and z "
+                            write(*, '(A25,8x,3(f25.10, 4x))') "    Central Difference", d_loc_FD(:,i)
+                        
+                            write(*, '(A25,8x,3(f25.10, 4x))') "               adjoint",   &
+                            adjoint_mesh%wake%strips(strip)%panels(index)%vertices(vert)%ptr%d_loc%get_values(i)
+                            write(*, '(A25,8x,3(f25.10, 4x))') "             residuals", residuals3(:,i)
+                            
+                        end if
+                    end do
                 end if
-            end do
-        end if
 
-        
-        
-        ! check if test failed
-        do i=1,N_original_verts*3
-            if (any(abs(residuals3(:,i)) > error_allowed)) then 
-                do j = 1,3
-                    if (abs(d_loc_FD(j,i))>1000.0) then
-                        if (abs(residuals3(j,i)) > error_allowed*10000.0) then
-                            test_failed = .true.
-                            exit
-                        else
-                            test_failed = .false.
-                        end if
-                    elseif (1000.0>abs(d_loc_FD(j,i)) .and. abs(d_loc_FD(j,i))>100.0) then
-                        if (abs(residuals3(j,i)) > error_allowed*1000.0) then
-                            test_failed = .true.
-                            exit
-                        else
-                            test_failed = .false.
-                        end if
-                    elseif (100.0>abs(d_loc_FD(j,i)) .and. abs(d_loc_FD(j,i))>10.0) then
-                        if (abs(residuals3(j,i)) > error_allowed*100.0) then
-                            test_failed = .true.
-                            exit
-                        else
-                            test_failed = .false.
-                        end if
-                    elseif (10.0>abs(d_loc_FD(j,i)) .and. abs(d_loc_FD(j,i))>1.0) then
-                        if (abs(residuals3(j,i)) > error_allowed*10.0) then
-                            test_failed = .true.
-                            exit
-                        else
-                            test_failed = .false.
-                        end if
-                    else
-                        if (abs(residuals3(j,i)) > error_allowed) then
-                            test_failed = .true.
-                            exit
-                        else
-                            test_failed = .false.
-                        end if
+
+                ! check if test failed
+                do i=1,N_original_verts*3
+                    ! if (any(abs(residuals3(:,i)) > error_allowed) .and. any(abs(d_n_g_FD(:,i))<10.0) .and. &
+                    ! any(abs(residuals3(:,i)) > error_allowed*10.0)) then
+                    !     test_failed = .true.
+                    !     exit
+                    ! else 
+                    !     test_failed = .false.
+                    ! end if
+                    if (any(abs(residuals3(:,i)) > error_allowed)) then 
+                        do j = 1,3
+                            if (abs(d_loc_FD(j,i))>100.0) then
+                                if (abs(residuals3(j,i)) > error_allowed*1000.0) then
+                                    test_failed = .true.
+                                    exit
+                                else
+                                    test_failed = .false.
+                                end if
+                            elseif (100.0>abs(d_loc_FD(j,i)).and. abs(d_loc_FD(j,i))>10.0) then
+                                if (abs(residuals3(j,i)) > error_allowed*100.0) then
+                                    test_failed = .true.
+                                    exit
+                                else
+                                    test_failed = .false.
+                                end if
+                            elseif (10.0>abs(d_loc_FD(j,i)).and. abs(d_loc_FD(j,i))>1.0) then
+                                if (abs(residuals3(j,i)) > error_allowed*10.0) then
+                                    test_failed = .true.
+                                    exit
+                                else
+                                    test_failed = .false.
+                                end if
+                            else
+                                if (abs(residuals3(j,i)) > error_allowed) then
+                                    test_failed = .true.
+                                    exit
+                                else
+                                    test_failed = .false.
+                                end if
+                            end if
+                        end do
                     end if
                 end do
-            end if
-        end do
-        if (test_failed) then
-            total_tests = total_tests + 1
-            write(*,'(A,I5,A,I5,A)')"                                               &
-                            d_loc_g vertex ",z," test FAILED"
-            failure_log(total_tests-passed_tests) = "d_loc_g test FAILED"
-        else
-            ! write(*,*) "        CALC d_loc_g test PASSED"
-            ! write(*,*) "" 
-            ! write(*,*) ""
-            passed_tests = passed_tests + 1
-            total_tests = total_tests + 1
-            
-        end if
-
-        ! reset test failed for the next z loop
-        test_failed = .false.
+                if (test_failed) then
+                    total_tests = total_tests + 1
+                    write(*,*)"                              d_loc panel ",p," vert ",vert," test FAILED"
+                    failure_log(total_tests-passed_tests) = "d_loc test FAILED" 
+                else
+                    ! write(*,*) "        CALC d_loc test PASSED"
+                    ! write(*,*) "" 
+                    ! write(*,*) ""
+                    passed_tests = passed_tests + 1
+                    total_tests = total_tests + 1
+                    
+                end if
+                test_failed = .false.
 
 
-end do ! z control points
+                
+                
+
+            end do ! end v loop
+
+
+        end do ! end p loop
+
+    end do ! end strip loop
 
 
 
-!!!!!!!!!!!!!!   SENSITIVITIES RESULTS!!!!!!!!!!!!!
+
+!   !!!!!!!!!!!!!   SENSITIVITIES RESULTS!!!!!!!!!!!!!
     write(*,*) "------------------------------------------------------------------------------"
-    write(*,*) "          CONTROL POINT SENSITIVITIES TEST RESULTS (WAKE PRESENT)"
+    write(*,*) "       SUBsonic Wake Strip Vertices TEST RESULTS (WAKE APPENDED)"
     write(*,*) "------------------------------------------------------------------------------"
     write(*,*) ""
     write(*,'((A), ES10.1)') "allowed residual = ", error_allowed
@@ -448,4 +434,4 @@ end do ! z control points
     write(*,*) "Program Complete"
     write(*,*) "----------------------"
 
-end program wake_test5
+end program wake_appended_test5_1
