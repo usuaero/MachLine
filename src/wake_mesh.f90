@@ -72,7 +72,6 @@ contains
         this%N_panels, " wake panels distributed between ", &
         this%N_strips, " strips."
         
-        if (this%calc_adjoint) write(*,*) "made it here adjoint"
     end subroutine wake_mesh_init
 
 

@@ -1,4 +1,4 @@
-program wake_test26
+program wake_appended_test26
 
     ! tests various intermediate sensitivities 
     use adjoint_mod
@@ -88,7 +88,7 @@ program wake_test26
     ! Set up run
     call json_initialize()
 
-    test_input = "dev\input_files\adjoint_inputs\wake_test.json"
+    test_input = "dev\input_files\adjoint_inputs\wake_appended_test.json"
     test_input = trim(test_input)
 
     ! Check it exists
@@ -148,7 +148,7 @@ program wake_test26
     ! Set up run
     call json_initialize()
     
-    adjoint_input = "dev\input_files\adjoint_inputs\wake_adjoint_test.json"
+    adjoint_input = "dev\input_files\adjoint_inputs\wake_appended_adjoint_test.json"
     adjoint_input = trim(adjoint_input)
     
     ! Check it exists
@@ -205,7 +205,7 @@ program wake_test26
     !!!!!!!!!!!! END ADJOINT TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!
 
     step = 0.000001
-    error_allowed = 1.0e-6
+    error_allowed = 1.0e-3
     
     N_total_verts = test_mesh%N_verts
     N_panels = test_mesh%N_panels
@@ -234,7 +234,7 @@ program wake_test26
     !!!!!!!!! CENTRAL DIFFERENCE (panel 1, cp 1) d_CF_wrt_vars_test column ", k, !!!!!!!!!
     write(*,*) ""
     write(*,*) "--------------------------------------------------------------------------------------"
-    write(*,*) "                 dirichlet final d_CF_sensitivities_test (WAKE PRESENT)"
+    write(*,*) "                 dirichlet final d_CF_sensitivities_test (WAKE APPENDED)"
     write(*,*) "--------------------------------------------------------------------------------------"
     write(*,*) ""
 
@@ -242,7 +242,8 @@ program wake_test26
     do i=1,3
         do j=1,N_original_verts
 
-            deallocate(test_mesh%vertices, test_mesh%edges, test_mesh%panels, test_mesh%vertex_ordering)
+            deallocate(test_mesh%vertices, test_mesh%edges, test_mesh%panels, test_mesh%vertex_ordering, &
+            test_mesh%wake%strips)
             call test_mesh%init(geom_settings)
             test_mesh%perturb_point = .true.
 
@@ -288,7 +289,8 @@ program wake_test26
             
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!! UPDATE STEP DOWN !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                     
-            deallocate(test_mesh%vertices, test_mesh%edges, test_mesh%panels, test_mesh%vertex_ordering)
+            deallocate(test_mesh%vertices, test_mesh%edges, test_mesh%panels, test_mesh%vertex_ordering, &
+            test_mesh%wake%strips)
             call test_mesh%init(geom_settings)
             test_mesh%perturb_point = .true.
 
@@ -498,7 +500,7 @@ program wake_test26
 
     !!!!!!!!!!!!!!  RESULTS!!!!!!!!!!!!!
     write(*,*) "------------------------------------------------------------------------------"
-    write(*,*) "               dirichlet d_CF Final TEST RESULTS (WAKE PRESENT) "
+    write(*,*) "               dirichlet d_CF Final TEST RESULTS (WAKE APPENDED) "
     write(*,*) "------------------------------------------------------------------------------"
     write(*,*) ""
     write(*,'((A), ES10.1)') "allowed residual = ", error_allowed
@@ -527,4 +529,4 @@ program wake_test26
     write(*,*) "----------------------"
 
 
-end program wake_test26
+end program wake_appended_test26

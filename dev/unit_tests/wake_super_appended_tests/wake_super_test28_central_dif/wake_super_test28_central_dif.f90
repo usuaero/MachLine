@@ -1,4 +1,4 @@
-program wake_test28
+program wake_super_test28
 
     ! tests various intermediate sensitivities 
     use adjoint_mod
@@ -93,7 +93,7 @@ program wake_test28
     ! Set up run
     call json_initialize()
 
-    test_input = "dev/input_files/adjoint_inputs/wake_central_difference_test.json"
+    test_input = "dev/input_files/adjoint_inputs/wake_super_central_difference_test.json"
     test_input = trim(test_input)
 
     ! Check it exists
@@ -253,7 +253,7 @@ program wake_test28
     !!!!!!!!! CENTRAL DIFFERENCE (panel 1, cp 1) d_CF_wrt_vars_test column ", k, !!!!!!!!!
     write(*,*) ""
     write(*,*) "--------------------------------------------------------------------------------------"
-    write(*,*) "            dirichlet d_CF_sensitivities_Central_Difference (WAKE PRESENT)"
+    write(*,*) "    SUPERSONIC dirichlet d_CF_sensitivities_Central_Difference (WAKE PRESENT)"
     write(*,*) "--------------------------------------------------------------------------------------"
     write(*,*) ""
     do i=1,3
@@ -292,7 +292,7 @@ program wake_test28
             deallocate(test_solver%I_known, test_solver%BC)
             deallocate(test_mesh%sigma, test_mesh%mu)
             deallocate(test_mesh%Phi_u)
-            deallocate(test_mesh%C_p_inc, test_mesh%dC_f)
+            deallocate(test_mesh%C_p_ise, test_mesh%dC_f)
             deallocate(test_mesh%V_cells_inner, test_mesh%V_cells)
     
 
@@ -340,7 +340,7 @@ program wake_test28
             deallocate(test_solver%I_known, test_solver%BC)
             deallocate(test_mesh%sigma, test_mesh%mu)
             deallocate(test_mesh%Phi_u)
-            deallocate(test_mesh%C_p_inc, test_mesh%dC_f)
+            deallocate(test_mesh%C_p_ise, test_mesh%dC_f)
             deallocate(test_mesh%V_cells_inner, test_mesh%V_cells)
             ! deallocate(test_solver%A, test_solver%b)
             
@@ -418,7 +418,7 @@ program wake_test28
 
     !!!!!!!!!!!!!!  RESULTS!!!!!!!!!!!!!
     write(*,*) "------------------------------------------------------------------------------"
-    write(*,*) "            dirichlet d_CF Central Difference TEST RESULTS (WAKE PRESENT) "
+    write(*,*) "   SUPERSONIC dirichlet d_CF Central Difference TEST RESULTS (WAKE PRESENT) "
     write(*,*) "------------------------------------------------------------------------------"
     write(*,*) ""
     write(*,*) ""
@@ -434,4 +434,4 @@ program wake_test28
     write(*,*) "----------------------"
 
 
-end program wake_test28
+end program wake_super_test28

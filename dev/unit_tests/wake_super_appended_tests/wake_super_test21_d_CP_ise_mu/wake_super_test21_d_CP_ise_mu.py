@@ -1,5 +1,5 @@
 import subprocess as sp
-# this script tests just central difference approximations of CF (dirichlet subsonic wake present)
+# this script tests sensitivities of CP_isentropic wrt mu (dirichlet supersonic wake present)
 
 if __name__=="__main__":
 
@@ -13,7 +13,7 @@ if __name__=="__main__":
             "src/wake_strip.f90", "src/wake_mesh.f90", "src/surface_mesh.f90", 
             "src/panel_solver.f90", 
             
-            "dev/unit_tests/wake_tests/wake_test28_central_dif/wake_test28_central_dif.f90"])
+            "dev/unit_tests/wake_super_tests/wake_super_test21_d_CP_ise_mu/wake_super_test21_d_CP_ise_mu.f90"])
 
     # Run
     sp.run(["a.exe"])

@@ -1362,7 +1362,7 @@ contains
         real :: I_known_i
 
         type(sparse_vector), dimension(3,3) ::  d_v_d
-        type(sparse_vector), dimension(3) :: inf_adjoint
+        type(sparse_vector), dimension(:),allocatable :: inf_adjoint
         type(sparse_vector) :: zeros
         type(sparse_vector), dimension(this%N_unknown) :: d_AIC_row
 
@@ -1571,7 +1571,7 @@ contains
         type(surface_mesh),intent(inout) :: body
         type(flow),intent(inout)::freestream
         character(len=:),allocatable,intent(in) :: formulation
-        integer :: i, j, k, l
+        integer :: i, j, k, l, m
         real,dimension(:),allocatable ::  doublet_inf, source_inf
         real,dimension(this%N_unknown) :: A_i
         real,dimension(:,:),allocatable :: v_s, v_d
@@ -1579,13 +1579,31 @@ contains
         real,dimension(3) :: d_from_te
         logical :: downstream,passes_through
 
+        type(sparse_vector), dimension(:),allocatable :: inf_adjoint
+        type(sparse_vector) :: zeros
+        type(sparse_vector), dimension(this%N_unknown) :: d_AIC_row
+
+        ! if adjoint, set up zero sparse vector for initialization
+        if (body%calc_adjoint) then
+            call zeros%init(body%adjoint_size)
+        end if
+        
+        if (body%calc_adjoint) then
+            if (verbose) write(*,'(a)',advance='no') "     Calculating wake influences and adjoint wake influences..."
+        else 
+            if (verbose) write(*,'(a)',advance='no') "     Calculating wake influences..."
+        end if
         ! Calculate influence of wake
-        if (verbose) write(*,'(a)',advance='no') "     Calculating wake influences..."
 
         ! Loop through control points
         !$OMP parallel do private(j, k, l, source_inf, doublet_inf, v_d, v_s, A_i, s_star)&
         !$OMP & private(passes_through,downstream,d_from_te,x) schedule(dynamic)
         do i=1,body%N_cp
+
+            ! if adjoint, set d_AIC_row elements to zero vectors
+            if (body%calc_adjoint) then
+                d_AIC_row = zeros
+            end if
 
             ! Check boundary condition
             select case (body%cp(i)%bc)
@@ -1797,10 +1815,26 @@ contains
                         call body%wake%strips(j)%panels(l)%calc_potential_influences(body%cp(i)%loc, this%freestream, &
                                                                                      .false., source_inf, doublet_inf)
 
+                        !!!!!!!!!!!! ADJOINT CALCS HAPPEN HERE !!!!!!!!!!!!!!!!!!!!
+                        ! if calc_adjoint is specified, do adjoint calcs (METHOD 2)
+                        if (body%calc_adjoint) then
+                            inf_adjoint = body%wake%strips(j)%panels(l)%calc_adjoint_potential_influences(body%cp(i),&
+                            this%freestream, .false.)
+                            ! call this%update_adjoint_A_row(body, body%cp(i), d_AIC_row, j, inf_adjoint, .false.)
+                        end if
+                        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                        
                         ! Add influence
                         do k=1,size(body%wake%strips(j)%panels(l)%i_vert_d)
                             A_i(this%P(body%wake%strips(j)%panels(l)%i_vert_d(k))) = &
-                                A_i(this%P(body%wake%strips(j)%panels(l)%i_vert_d(k))) + doublet_inf(k)
+                            A_i(this%P(body%wake%strips(j)%panels(l)%i_vert_d(k))) + doublet_inf(k)
+                            
+                            ! add inf_adjoint(k) to the appropriate sparse_vector in d_AIC_row
+                            if (body%calc_adjoint) then
+                                call d_AIC_row(this%P(body%wake%strips(j)%panels(l)%i_vert_d(k)))%sparse_add(&
+                                inf_adjoint(k))
+                            end if
+
                         end do
 
                         ! Get influence of mirrored panel
@@ -1826,8 +1860,24 @@ contains
             !$OMP critical
             if (this%use_sort_for_cp) then !!!! is this the same in filaments as it is in panels? 
                 this%A(this%P(i),:) = this%A(this%P(i),:) + A_i
+
+                ! if adjoint, assemble d_A_matrix (sort used for Dirichlet adjoint)
+                if (body%calc_adjoint) then
+                    do m = 1, body%N_cp
+                        call this%d_A_matrix(this%P(i),m)%sparse_add(d_AIC_row(m))
+                    end do
+                end if
+
             else
                 this%A(i,:) = this%A(i,:) + A_i
+
+                ! if adjoint, assemble d_A_matrix (sort not used for Neumann adjoint)
+                if (body%calc_adjoint) then
+                    do m = 1, body%N_cp
+                        call this%d_A_matrix(i,m)%sparse_add(d_AIC_row(m))
+                    end do
+                end if
+
             end if
             !$OMP end critical
 

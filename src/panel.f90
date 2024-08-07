@@ -4364,7 +4364,6 @@ contains
         
         ! calc sensitivities of transformation matrix of strength space M to parameter space mu transformation
         call this%calc_d_M_mu_transform()
-        write(*,*) "calc d M mu transform"
     
     end subroutine panel_init_with_flow_adjoint
 
@@ -7751,9 +7750,11 @@ contains
         type(integrals) :: int
 
         real,dimension(:),allocatable :: phi_s_S_space, phi_d_mu_space, phi_d_M_space
+        integer :: i
 
         type(sparse_vector) :: zeros, term1, term2, term3
-        type(sparse_vector),dimension(3) :: d_phi_d_mu_space, d_phi_d_M_space, inf_adjoint
+        type(sparse_vector),dimension(:),allocatable :: inf_adjoint
+        type(sparse_vector),dimension(3) :: d_phi_d_mu_space, inf_adjoint_first_3
         type(sparse_matrix) :: sparse_matrix1, inf_adjoint_matrix, inf_adjoint_term1
         type(sparse_3D) :: d_T_mu_3D
 
@@ -7772,12 +7773,13 @@ contains
                 geom = this%calc_subsonic_geom_adjoint(cp%loc, cp%d_loc, freestream)
             end if
 
+            
             ! Get integrals
             int = this%calc_integrals(geom, 'potential', freestream, mirror_panel, dod_info)
-
+            
             ! get adjoint integrals
             call this%calc_integrals_adjoint(geom, 'potential', int, freestream, mirror_panel, dod_info)
-
+            
             ! Source potential (adjont formulations don't use sources, so these are zero)
             if (this%has_sources) then
                 !phi_s_S_space = this%assemble_phi_s_S_space(int, geom, freestream, mirror_panel)
@@ -7795,10 +7797,13 @@ contains
             ! Equivalent to Ehlers Eq. (5.17))
 
             allocate(phi_d_mu_space(this%mu_dim), source=0.)
+
             if (this%in_wake) then
                 allocate(phi_d_M_space(this%M_dim*2), source=0.)
+                allocate(inf_adjoint(this%M_dim*2))
             else
                 allocate(phi_d_M_space(this%M_dim), source=0.)
+                allocate(inf_adjoint(this%M_dim))
             end if
 
 
@@ -7820,9 +7825,9 @@ contains
 
             ! Wake bottom influence is opposite the top influence
             if (this%in_wake) then
-                !phi_d_M_space(this%M_dim+1:) = -phi_d_M_space(1:this%M_dim)
-                write(*,*) "wakes not yet supported for calc_adjoint_potential_influences, quitting..."
-                stop
+                phi_d_M_space(this%M_dim+1:) = -phi_d_M_space(1:this%M_dim)
+                ! write(*,*) "wakes not yet supported for calc_adjoint_potential_influences, quitting..."
+                ! stop
             end if
 
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!! end duplicate work !!!!!!!!!!!!!!!!!!!!!
@@ -7880,28 +7885,52 @@ contains
             call inf_adjoint_matrix%sparse_add(inf_adjoint_term1)
             call inf_adjoint_matrix%broadcast_element_times_scalar(int%s*freestream%K_inv)
 
-            inf_adjoint = inf_adjoint_matrix%split_into_sparse_vectors()
+            inf_adjoint_first_3 = inf_adjoint_matrix%split_into_sparse_vectors()
+
+            do i = 1,this%M_dim
+                call inf_adjoint(i)%init_from_sparse_vector(inf_adjoint_first_3(i))
+            end do
 
             
+            ! Wake bottom influence is opposite the top influence
+            if (this%in_wake) then
+                
+                do i = 1,this%M_dim
+                    call inf_adjoint(this%M_dim+i)%init_from_sparse_vector(inf_adjoint_first_3(i))
+                    call inf_adjoint(this%M_dim+i)%broadcast_element_times_scalar(-1.)
+                end do
+                
+            end if
 
+            deallocate(inf_adjoint_matrix%columns, inf_adjoint_first_3(1)%elements,inf_adjoint_first_3(2)%elements,&
+            inf_adjoint_first_3(3)%elements,d_T_mu_3D%rows, sparse_matrix1%columns)
+
+            
         else ! (if panel not in dod or has a negative/zero area)
-
+            
             ! Allocate placeholders (adjoint formulations don't use sources, but we need to pass the zeros along)
             allocate(phi_s_S_space(this%S_dim), source=0.)
 
             ! do wake stuff
             if (this%in_wake) then
-                !allocate(phi_d_M_space(this%M_dim*2), source=0.)
-                write(*,*) "wakes not yet supported for calc_adjoint_potential_influences, quitting..."
-                stop
+                allocate(phi_d_M_space(this%M_dim*2), source=0.)
+                allocate(inf_adjoint(this%M_dim*2))
+                call inf_adjoint(1)%init(this%adjoint_size)
+                call inf_adjoint(2)%init(this%adjoint_size)
+                call inf_adjoint(3)%init(this%adjoint_size)
+                call inf_adjoint(4)%init(this%adjoint_size)
+                call inf_adjoint(5)%init(this%adjoint_size)
+                call inf_adjoint(6)%init(this%adjoint_size)
             else
                 allocate(phi_d_M_space(this%M_dim), source=0.)
+                allocate(inf_adjoint(this%M_dim*2))
+
+                ! not in DoD, influence is zero, influence sensitivites are zeros
+                call inf_adjoint(1)%init(this%adjoint_size)
+                call inf_adjoint(2)%init(this%adjoint_size)
+                call inf_adjoint(3)%init(this%adjoint_size)
             end if
 
-            ! not in DoD, influence is zero, influence sensitivites are zeros
-            call inf_adjoint(1)%init(this%adjoint_size)
-            call inf_adjoint(2)%init(this%adjoint_size)
-            call inf_adjoint(3)%init(this%adjoint_size)
 
         end if
 

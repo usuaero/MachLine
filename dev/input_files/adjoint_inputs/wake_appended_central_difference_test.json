@@ -1,0 +1,49 @@
+{
+    "flow": {
+        "freestream_velocity" : [ 1.0, 0.0, 0.0 ]
+    },
+    "geometry": {
+        "_afile" : "dev/meshes/adjoint/sphere_coarse2.stl",
+        "_bfile" : "dev/meshes/other_meshes/small_sphere.stl",
+        "file" : "dev/meshes/adjoint/adjoint_octa_mesh.stl",
+        "_dfile" : "dev/meshes/adjoint/wedge_wing_coarse.stl",
+        "_efile" : "dev/meshes/other_meshes/delta_wing_coarse.vtk",
+        "_gfile" : "dev/meshes/other_meshes/diamond_5_deg_full_coarse.stl",
+        "_hfile" : "dev/meshes/other_meshes/naca_0010_AR_10_full_coarse.stl",
+        "_ifile" : "dev/meshes/adjoint/naca_2412_wing.stl",
+        "_jfile" : "dev/meshes/adjoint/a320_fine.stl",
+        "singularity_order" : "lower",
+
+        "wake_model" : {
+            "wake_present" : true,
+            "append_wake" : true,
+            "trefftz_distance" : 5.0
+        },
+        "adjoint_sensitivities" : {
+            "calc_adjoint" : false
+        }
+    },
+    "solver": {
+        "formulation" : "dirichlet-source-free",
+        "control_point_offset" : 1.0e-3, 
+        "matrix_solver" : "GMRES", 
+        "xsort_system" : false
+    },
+    "post_processing" : {
+        
+    },
+
+    "output": {
+        "verbose" : true,
+        "_abody_file" : "dev/results/adjoint/wake_appended_central_diff_sphere_coarse2.vtk",
+        "_bbody_file" : "dev/results/adjoint/wake_appended_central_diff_small_sphere.vtk",
+        "body_file" : "dev/results/adjoint/wake_appended_central_diff_octa_mesh.vtk",
+        "_dbody_file" : "dev/results/adjoint/wake_appended_central_diff_wedge_wing_coarse.vtk",
+        "_ebody_file" : "dev/results/adjoint/wake_appended_central_diff_delta_wing_coarse.vtk",
+        "_gbody_file" : "dev/results/adjoint/wake_appended_central_diff_diamond_5_deg_full_coarse.vtk",
+        "_hbody_file" : "dev/results/adjoint/wake_appended_central_diff_naca_0010_AR_10_full_coarse.vtk",
+        "_ibody_file" : "dev/results/adjoint/wake_appended_central_diff_naca_2412_wing.vtk",
+        "_jbody_file" : "dev/results/adjoint/wake_appended_central_diff_a320_fine.vtk"
+        }
+    
+}
