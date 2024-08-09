@@ -53,7 +53,7 @@ def run_machline_for_cp_offset(cp_offset,study_directory,alpha=0, wake_present=F
             "write_A_and_b" : False,
             "tolerance" : 1.0e-10,
             "preconditioner": "NONE",
-            "sort_system" : True
+            "sort_system" : False
         },
         "post_processing" : {
             "pressure_rules" : {
@@ -75,10 +75,13 @@ def run_machline_for_cp_offset(cp_offset,study_directory,alpha=0, wake_present=F
     report = run_machline(input_file, run=RERUN_MACHLINE)
 
     # Pull out forces
-    C_F = np.zeros(3)
-    C_F[0] = report["total_forces"]["Cx"]
-    C_F[1] = report["total_forces"]["Cy"]
-    C_F[2] = report["total_forces"]["Cz"]
+    try:
+        C_F = np.zeros(3)
+        C_F[0] = report["total_forces"]["Cx"]
+        C_F[1] = report["total_forces"]["Cy"]
+        C_F[2] = report["total_forces"]["Cz"]
+    except:
+        C_F = [0,0,0]
 
     # Get system dimension and average characteristic length
     N_sys = report["solver_results"]["system_dimension"]

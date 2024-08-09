@@ -29,7 +29,7 @@ module surface_mesh_mod
         ! type(filament_wake_mesh) :: filament_wake !!!!!!!!!!!!!!!!!! could change nomenclature !!!!!!!!!!!!!!!!
         real :: C_wake_shedding_angle, trefftz_distance, C_min_panel_angle, C_max_cont_angle
         real,dimension(:),allocatable :: CG
-        integer :: N_wake_panels_streamwise
+        integer :: N_wake_panels_streamwise, N_total_leading_edges,N_total_wake_edges
         logical :: wake_present, append_wake
         type(control_point),dimension(:),allocatable :: cp, cp_mir ! Control points
         real,dimension(:),allocatable :: R_cp ! System residuals at each control point
@@ -72,6 +72,7 @@ module surface_mesh_mod
 
             ! Cloning vertices
             procedure :: find_next_wake_edge =>surface_mesh_find_next_wake_edge
+            procedure :: find_next_leading_edge => surface_mesh_find_next_leading_edge
             procedure :: clone_vertices => surface_mesh_clone_vertices
             procedure :: init_vertex_clone => surface_mesh_init_vertex_clone
 
@@ -826,7 +827,7 @@ contains
         class(surface_mesh),intent(inout) :: this
         type(flow),intent(in) :: freestream
 
-        integer :: i, j, k, i_vert_1, i_vert_2, N_wake_edges
+        integer :: i, j, k, i_vert_1, i_vert_2, N_wake_edges, N_leading_edges
         real :: C_angle, C_min_angle
         real,dimension(3) :: second_normal, cross_result
         real,dimension(3) :: t_hat_g, d
@@ -835,6 +836,7 @@ contains
 
         ! Initialize
         N_wake_edges = 0
+        N_leading_edges = 0
         this%found_wake_edges = .false.
 
         !$OMP parallel private(i, j, second_normal, C_angle, i_vert_1, i_vert_2) &
@@ -928,16 +930,35 @@ contains
                         this%edges(k)%sheds_wake = .true. !!!! make sheds 
                         this%edges(k)%discontinuous = .true. 
 
-                        ! Update number of wake-shedding edges
-                        !$OMP critical
+                        ! Update number of wake-shedding edges                        
+                        !$OMP critical(update_edge)
                         N_wake_edges = N_wake_edges + 1
-                        !$OMP end critical
+                        ! Update panel 1
+                        this%panels(this%edges(k)%panels(1))%N_wake_edges = this%panels(this%edges(k)%panels(1))%N_wake_edges + 1
+
+                        ! Update panel 2
+                        if (.not. this%edges(k)%on_mirror_plane) then
+                            this%panels(this%edges(k)%panels(2))%N_wake_edges &
+                                = this%panels(this%edges(k)%panels(2))%N_wake_edges + 1
+                        end if
+                        !$OMP end critical(update_edge)
                     
                     end if
                 else
-                    !$OMP critical
+                    
+                    
+                    !$OMP critical(update_edge)
                     this%edges(k)%leading_edge = .true.
-                    !$OMP end critical
+                    N_leading_edges = N_leading_edges + 1
+                    ! Update panel 1
+                    this%panels(this%edges(k)%panels(1))%N_leading_edges = this%panels(this%edges(k)%panels(1))%N_leading_edges + 1
+
+                    ! Update panel 2
+                    if (.not. this%edges(k)%on_mirror_plane) then
+                        this%panels(this%edges(k)%panels(2))%N_leading_edges &
+                                = this%panels(this%edges(k)%panels(2))%N_leading_edges + 1
+                    end if
+                    !$OMP end critical(update_edge)
                 end if
             end if
 
@@ -947,8 +968,11 @@ contains
 
         ! Store minimum angle
         this%C_min_panel_angle = C_min_angle
+        this%N_total_leading_edges = N_leading_edges
+        this%N_total_wake_edges = N_wake_edges
 
-        if (verbose) write(*,'(a, i3, a, i3, a)') "Done. Found ", N_wake_edges, " wake-shedding edges."
+        if (verbose) write(*,'(a, i3, a, i3, a)') "Done. Found ", N_wake_edges, " wake-shedding edges. and ", N_leading_edges, &
+        " leading edges."
 
     end subroutine surface_mesh_characterize_edges
 
@@ -1254,6 +1278,76 @@ contains
         end do
         
     end subroutine surface_mesh_find_next_wake_edge
+
+    subroutine surface_mesh_find_next_leading_edge(this, i_start_edge, i_shared_vert, i_start_panel, i_end_edge, i_panels_between,&
+        N_panels_between)
+        ! Locates the next wake edge starting from i_start_edge and i_start_panel which is also tied to i_shared_vert
+        ! i_end_edge will be the index of the next wake edge
+        ! i_panels_between will be a list of panel indices for the panels traversed between the two edges
+        ! If the set of panels ends on the mirror plane and that edge does not shed a wake, the i_end_edge will be 0
+
+        implicit none
+        
+        class(surface_mesh),intent(in) :: this
+        integer,intent(in) :: i_start_edge, i_shared_vert, i_start_panel
+        integer,intent(out) :: i_end_edge
+        integer,dimension(:),allocatable,intent(out) :: i_panels_between
+        integer,intent(out) :: N_panels_between
+        integer :: i_curr_panel, i_next_panel, i_prev_panel, i
+        type(list) :: i_panels_between_list
+    
+        ! Initialize the panel stepping
+        i_curr_panel = i_start_panel
+        i_prev_panel = this%edges(i_start_edge)%get_opposing_panel(i_start_panel)
+        
+        ! Step through panels to the next edge
+        step_loop: do
+
+            ! Add the current panel to the list
+            call i_panels_between_list%append(i_curr_panel)
+
+            ! Find the neighboring panel that touches the relevant vertex but isn't going backwards
+            neighbor_loop: do i=1,3
+                
+                ! Get potential next panel and edge
+                i_next_panel = this%panels(i_curr_panel)%abutting_panels(i)
+                i_end_edge = this%panels(i_curr_panel)%edges(i)
+
+                ! Check we're not going backwards
+                if (i_next_panel == i_prev_panel .or. i_end_edge == i_start_edge) cycle neighbor_loop
+
+                ! See if the edge touches the vertex
+                if (this%edges(i_end_edge)%touches_vertex(i_shared_vert)) then
+                    exit neighbor_loop
+                end if
+
+            end do neighbor_loop
+
+            ! See if the edge we have reached is a wake edge; if so, we're done
+            if (this%edges(i_end_edge)%leading_edge .or. this%edges(i_end_edge)%sheds_wake) then
+                exit step_loop
+            end if
+
+            ! See if the next panel exists; if it doesn't, we're done
+            if (i_next_panel <= 0 .or. i_next_panel > this%N_panels) then
+                exit step_loop
+            end if
+
+            ! Update for next iteration
+            i_prev_panel = i_curr_panel
+            i_curr_panel = i_next_panel
+            
+        end do step_loop
+
+        ! Convert list to array
+        N_panels_between = i_panels_between_list%len()
+        allocate(i_panels_between(i_panels_between_list%len()))
+        do i=1,i_panels_between_list%len()
+            call i_panels_between_list%get(i, i_panels_between(i))
+        end do
+        
+    end subroutine surface_mesh_find_next_leading_edge
+
 
 
     subroutine surface_mesh_init_vertex_clone(this, i_jango, i_boba, mirrored_is_unique, panels_for_this_clone)
@@ -2017,101 +2111,40 @@ contains
     end function surface_mesh_get_clone_control_point_dir
 
 
-    function surface_mesh_get_cp_locs_vertex_based(this,offset, freestream) result(cp_locs)
+    subroutine surface_mesh_get_cp_locs_vertex_based(this,offset, freestream)
         ! Returns the locations of coincident vertex-based control points !!!! only used for NMF-VCP formulation
         implicit none
         class(surface_mesh):: this
         type(flow),intent(in) :: freestream
         real,intent(in) :: offset
-        real,dimension(:,:),allocatable :: cp_locs
-        integer :: i
-        
-        real, dimension(3) :: dir, t_avg, wake_norm
+        real,dimension(3):: cp_loc
+        integer:: i, cp_index,vertex_count
 
-        ! Allocate memory
-        allocate(cp_locs(3,this%N_verts))
-
+       
         !!!! this can be paralellized
         !!!! This is where the control points are placed 
-        do i=1,this%N_verts
-
-            ! if the cp is on a wake shedding edge, then the cp is placed on the wake shedding edge with the normal vector of the wake
-            if (this%vertices(i)%N_wake_edges >= 1) then
-
-                !!!! vertex will follow old normal vector (straignt back)
-                ! dir = this%vertices(i)%n_g 
-
-                !!!! vertex will follow new normal vector (out and back)
-                ! dir = this%vertices(i)%n_g_wake    
-
-                !!!! This one only works for zero aoa
-                ! if (this%vertices(i)%n_g_wake(2)>0) then
-                !     dir = (/1.,0.01,0./)
-                ! else
-                !     dir = (/1.,-0.01,0./)
-                ! end if
-
-                !!!! vertex will follow freestream normal vector
-                ! dir = freestream%c_hat_g 
-
-
-                !!!! follow reverse of original direction
-                ! dir = - this%get_clone_control_point_dir(i)
-                
-                !!! follow the vector slighly offset the downstream direction
-                ! get the average tangent vector of the edge
-                t_avg = this%get_edge_tangent_vector(i)
-                
-                wake_norm = cross(t_avg, freestream%c_hat_g)
-                ! write(*,*) "wake_norm", wake_norm, i
-                ! write(*,*) "is top", (inner(this%vertices(i)%n_g_wake,wake_norm)>0)
-                if (inner(this%vertices(i)%n_g_wake,wake_norm)>0) then
-                    wake_norm = -wake_norm
-                end if
-                
-                wake_norm = wake_norm/norm2(wake_norm)
-                
-                if (this%vertices(i)%N_wake_edges == 1) then
-                    dir = -this%vertices(i)%n_g
-                    ! dir = this%vertices(i)%n_g_wake
-                    ! dir = freestream%c_hat_g + wake_norm*1.0
-                    ! if (wake_norm(2)<0) wake_norm = -wake_norm
-                    ! dir = freestream%c_hat_g
-                    this%vertices(i)%n_g_wake = wake_norm
-
-                else
-                    ! dir = this%vertices(i)%n_g_wake
-                    ! dir = freestream%c_hat_g + wake_norm*0.25
-                    dir = wake_norm-0.25*freestream%c_hat_g
-                    ! this%vertices(i)%n_g_wake = wake_norm
-                end if
-
-                !!!! save wake norm
-                ! this%vertices(i)%n_g_wake = wake_norm
-        
-                ! if (this%vertices(i)%clone) then
-                !     dir = this%get_clone_control_point_dir(i)
-                ! else
-                !     dir = -this%vertices(i)%n_g  !!!! inside the mesh
-                ! end if
-
-                ! normalize the vector
-                dir = dir/norm2(dir)
-               
-
-            ! else if (this%vertices(i)%N_wake_edges == 1) then
-            !     dir = -this%vertices(i)%n_g
-            !     ! dir= (/1,0,0/)
-            else  
-                dir = -this%vertices(i)%n_g  !!!! inside the mesh
-                ! dir = (/1.,0.,0./)
+        write(*,'(a a a ES10.4 a)',advance='no') "      Placing control points at vertices..."
+        cp_index = 1
+        do i = 1, this%N_verts
+            if (this%vertices(i)%N_leading_edges == 0 .and. this%vertices(i)%N_wake_edges == 0) then
+                cp_loc = this%vertices(i)%loc + offset * this%vertices(i)%n_g
+                call this%cp(cp_index)%init(cp_loc, SURFACE, TT_VERTEX, i)  
+                cp_index = cp_index + 1             
             end if
-            cp_locs(:,i) = this%vertices(i)%loc + dir * offset
-
-            ! set location
         end do
+        vertex_count = cp_index
+        if (verbose) write(*,'(a, i6, a)') "Done. Placed", cp_index-1, " vertex control points."
+        write(*,'(a a a ES10.4 a)',advance='no') "      Placing control points at panels..."
+        do i = 1, this%N_panels
+            if (this%panels(i)%N_leading_edges > 0 .or. this%panels(i)%N_wake_edges > 0) then
+                cp_loc = this%panels(i)%centr
+                call this%cp(cp_index)%init(cp_loc, SURFACE, TT_PANEL, i) 
+                cp_index = cp_index + 1               
+            end if
+        end do
+        if (verbose) write(*,'(a, i6, a)') "Done. Placed", cp_index-vertex_count-1, " panel control points."
 
-    end function surface_mesh_get_cp_locs_vertex_based
+    end subroutine surface_mesh_get_cp_locs_vertex_based
 
 
     function surface_mesh_get_cp_locs_vertex_based_interior(this, offset, offset_type, freestream) result(cp_locs)
@@ -2284,43 +2317,45 @@ contains
         character(len=:),allocatable,intent(in) :: offset_type
 
 
-        integer :: i
+        integer :: i, n_aditional_cps
         real,dimension(:,:),allocatable :: cp_locs
+        write(*,*) " "
+        if (verbose) write(*,'(a a a ES10.4 a)',advance='no') "      Finding number of control points ..."
+        ! find number of control points
+        n_aditional_cps = 0
+        ! find number of verticies that don't need comptrol points
+        do i=1,this%N_verts
+            if (this%vertices(i)%N_wake_edges > 0 .or. this%vertices(i)%N_leading_edges > 0) then
+                n_aditional_cps = n_aditional_cps - 1
+            end if
+        end do
+        ! find number of panels that do need comptrol points
+        do i=1,this%N_panels
+            if (this%panels(i)%N_wake_edges > 0 .or. this%panels(i)%N_leading_edges > 0) then
+                n_aditional_cps = n_aditional_cps + 1
+            end if
+        end do
+
+        
+
 
         ! Specify number of control points
         if (this%asym_flow) then
-            this%N_cp = this%N_verts*2
+            this%N_cp = this%N_verts*2 + n_aditional_cps * 2
         else
-            this%N_cp = this%N_verts
+            this%N_cp = this%N_verts + n_aditional_cps
         end if
+
+        if (verbose) write(*,'(a, i6, a)') "Done. Found", this%N_cp, " control points."
+
+
 
         ! Allocate memory
         allocate(this%cp(this%N_cp))
 
-        ! Get control point locations
-        cp_locs = this%get_cp_locs_vertex_based(offset, freestream)
+        ! Get and place  control point locations
+        call this%get_cp_locs_vertex_based(offset, freestream)
 
-        ! Initialize control points
-        do i=1,this%N_verts
-            call this%cp(i)%init(cp_locs(:,i), SURFACE, TT_VERTEX, i)
-        end do
-
-        ! Initialize mirrored control points, if necessary
-        if (this%asym_flow) then
-
-            
-            do i=1,this%N_cp/2
-
-                ! Initialize
-                call this%cp(i+this%N_cp/2)%init(mirror_across_plane(this%cp(i)%loc, this%mirror_plane), &
-                                                 this%cp(i)%cp_type, this%cp(i)%tied_to_type, this%cp(i)%tied_to_index)
-
-                ! Specify that this is a mirror
-                this%cp(i+this%N_cp/2)%is_mirror = .true.
-
-            end do
-
-        end if
 
     end subroutine surface_mesh_place_vertex_control_points
 

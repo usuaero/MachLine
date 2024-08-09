@@ -201,7 +201,7 @@ contains
         else if (this%formulation == N_MF_D_VCP) then
             ! this%sort_system = .true.
             ! this%use_sort_for_cp = .false.
-            this%overdetermined_ls = .false.
+            this%overdetermined_ls = .true.
             this%underdetermined_ls = .false.
         else 
             this%use_sort_for_cp = .true.
@@ -427,7 +427,7 @@ contains
         ! Determine unknowns
         call this%determine_neumann_unknowns(body)
 
-        if (verbose) write(*,'(a, i6, a)') "Done. Placed", body%N_cp, " control points."
+        ! if (verbose) write(*,'(a, i6, a)') "Done. Placed", body%N_cp, " control points."
         
     end subroutine panel_solver_init_neumann
 
@@ -594,108 +594,9 @@ contains
         integer :: i, i_edge,vert1,vert2,counter,num_edges
         integer, dimension(:), allocatable :: points
 
-        ! wake_normal = cross(freestream%c_hat_g, body%vertices(cp%tied_to_index)%edge) !!!! changed here 
         !!!! This sets the normal vector for the control point boundary condition
         ! Get vertex normal
-        if (cp%tied_to_type == TT_VERTEX .and. cp%cp_type == SURFACE) then
-            if (body%vertices(cp%tied_to_index)%N_wake_edges>0) then
-                ! num_edges = body%vertices(cp%tied_to_index)%adjacent_edges%len()
-                ! allocate(points(num_edges))
-                ! counter = 0
-                ! do i=1,num_edges
-                !     ! Check if it's a wake-shedding edge
-                !     call body%vertices(cp%tied_to_index)%adjacent_edges%get(i, i_edge)
-                !     if (body%edges(i_edge)%sheds_wake) then
-                !         !!!! make the average vector here, and then do the cross product
-                !         ! get the index of the two points attacehd to the edge 
-                !         vert1 = body%edges(i_edge)%top_verts(1)
-                !         vert2 = body%edges(i_edge)%top_verts(2)
-                !         ! pick which one isn't the current point
-                !         if (vert1 == cp%tied_to_index) then
-                !             counter = counter + 1
-                !             points(counter) = vert2
-                !         else
-                !             counter = counter + 1
-                !             points(counter) = vert1
-                !         end if
-                !     end if
-                ! end do
-                ! if (counter == 1) then
-                !     ! only use the single wake sheading edge as the vector
-                !     average_edge = body%vertices(points(1))%loc - body%vertices(cp%tied_to_index)%loc
-                !     ! get the new normal vector
-                !     n_g_new = cross(freestream%c_hat_g, average_edge)
-                !     ! check to see if this should be an upper or lower normal vector
-                !     if (inner(n_g_new,body%vertices(cp%tied_to_index)%n_g_wake) < 0) then
-                !         n_g_new = cross(average_edge,freestream%c_hat_g)
-                !     end if
-                ! else if (counter == 2) then
-                !     ! make a vector using the two points
-                !     average_edge = body%vertices(points(1))%loc - body%vertices(points(2))%loc
-                !     ! get the new normal vector
-                !     n_g_new = cross(freestream%c_hat_g, average_edge)
-                !     ! check to see if this should be an upper or lower normal vector
-                !     if (inner(n_g_new,body%vertices(cp%tied_to_index)%n_g_wake) < 0) then
-                !         n_g_new = cross(average_edge,freestream%c_hat_g)
-                !     end if
-                    
-                
-                ! else 
-                !     write(*,*) "!!!! ERROR wake contains a triple point. These are currently not allowed by this formulation"
-                ! end if
-                if (body%vertices(cp%tied_to_index)%N_wake_edges==1) then
-                    ! if a vertex is the endpoint of a wake sheading edge then use the vertex normal vector
-                    ! n_g_new = body%vertices(cp%tied_to_index)%n_g
-                    write(*,*) "Single wake edge normal vector", body%vertices(cp%tied_to_index)%n_g_wake
-                    ! if (body%vertices(cp%tied_to_index)%n_g(2)>0) then
-                    !     n_g_new = (/0,1,0/)
-                    ! else
-                    !     n_g_new = (/0,-1,0/)
-                    ! end if
-                    ! n_g_new = (/0,1,0/)
-                    n_g_new = body%vertices(cp%tied_to_index)%n_g_wake
-                    ! if (body%vertices(cp%tied_to_index)%loc(2)>0) then
-                    !     ! n_g_new = (/-0.708956,-2.6415e-7,0.705253/)
-                    !     n_g_new = (/0.0,1.0,0.0/)
-                    ! else
-                    !     ! n_g_new = (/-0.708956,-2.6415e-7,-0.705253/)
-                    !     n_g_new = (/0.0,-1.0,0.0/)
-                    ! end if
-                else
-                    ! if a vertex is part of a wake sheading edge use the wake's normal vector
-                    ! n_g_new = body%vertices(cp%tied_to_index)%n_g_wake - freestream%c_hat_g&
-                    !          * inner(freestream%c_hat_g,body%vertices(cp%tied_to_index)%n_g_wake)
-                    ! n_g_new = freestream%c_hat_g&
-                    !           * inner(freestream%c_hat_g,body%vertices(cp%tied_to_index)%n_g)
-                    ! n_g_new = body%vertices(cp%tied_to_index)%n_g_wake
-                    ! if (body%vertices(cp%tied_to_index)%n_g_wake(2)>0) then
-                    !     n_g_new = (/0,1,0/)
-                    ! else
-                    !     n_g_new = (/0,-1,0/)
-                    ! end if
-
-                    n_g_new = body%vertices(cp%tied_to_index)%n_g_wake
-                end if 
-
-
-                n_g_new = n_g_new / norm2(n_g_new) 
-                
-                if (cp%is_mirror) then
-                    call cp%set_bc(bc_type, n_g_new) !!!! this will need to be fixed the rest of the way before mirroring will work
-                else
-                    call cp%set_bc(bc_type, n_g_new)
-                end if
-
-
-
-            else 
-                if (cp%is_mirror) then
-                    call cp%set_bc(bc_type, body%vertices(cp%tied_to_index)%n_g_mir)
-                else
-                    call cp%set_bc(bc_type, body%vertices(cp%tied_to_index)%n_g)
-                end if
-            end if
-        else if (cp%tied_to_type == TT_VERTEX) then
+       if (cp%tied_to_type == TT_VERTEX) then
         ! Get panel normal
             if (cp%is_mirror) then
                 call cp%set_bc(bc_type, body%vertices(cp%tied_to_index)%n_g_mir)
@@ -723,7 +624,8 @@ contains
         type(flow), intent(inout) :: freestream
 
         integer :: i
-    
+        
+        if (verbose) write(*,'(a a a ES10.4 a)',advance='no') "Setting Boundary Conditions ..."
         ! Loop through control points
         !$OMP parallel do
         do i=1,body%N_cp
@@ -761,6 +663,7 @@ contains
             end select
 
         end do
+        if (verbose) write(*,'(a a a ES10.4 a)') "Done."
         
     end subroutine panel_solver_init_control_point_boundary_conditions
 
@@ -797,13 +700,13 @@ contains
 
                 ! Get location
                 if (body%cp(i)%is_mirror) then
-                    if (body%cp(i)%tied_to_type == 1) then
+                    if (body%cp(i)%tied_to_type == TT_VERTEX) then
                         loc = mirror_across_plane(body%vertices(body%cp(i)%tied_to_index)%loc, body%mirror_plane)
                     else
                         loc = body%panels(body%cp(i)%tied_to_index)%centr_mir
                     end if
                 else
-                    if (body%cp(i)%tied_to_type == 1) then
+                    if (body%cp(i)%tied_to_type == TT_VERTEX) then
                         loc = body%vertices(body%cp(i)%tied_to_index)%loc
                     else
                         loc = body%panels(body%cp(i)%tied_to_index)%centr
@@ -814,6 +717,8 @@ contains
                 x(i) = -inner(this%freestream%c_hat_g, loc)
 
             end do
+            write(*,*) " "
+            write(*,*) "added compressiblilty distance of each vertex/panel centroid"
 
             ! Get inverse permutation based on vertex location
             call insertion_arg_sort(x, P_inv_1)
@@ -829,7 +734,7 @@ contains
                 if (body%cp(i_cp)%is_mirror) then
 
                     ! Tied to vertex
-                    if (body%cp(i_cp)%tied_to_type == 1) then
+                    if (body%cp(i_cp)%tied_to_type == TT_VERTEX) then
 
                         ! Initialize
                         i_vert = body%cp(i_cp)%tied_to_index ! Index of original, not mirrored, vertex
@@ -901,7 +806,7 @@ contains
                 else
 
                     ! Tied to vertex
-                    if (body%cp(i_cp)%tied_to_type == 1) then
+                    if (body%cp(i_cp)%tied_to_type == TT_VERTEX) then
 
                         ! Initialize
                         i_vert = body%cp(i_cp)%tied_to_index

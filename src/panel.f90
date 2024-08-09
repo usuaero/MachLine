@@ -64,7 +64,7 @@ module panel_mod
         integer :: r, r_mir ! Panel inclination indicator; r=-1 -> superinclined, r=1 -> subinclined
         real :: J, J_mir ! Local scaled transformation Jacobian
         integer,dimension(:),allocatable :: i_vert_d, i_panel_s
-        integer :: order, N_discont_edges
+        integer :: order, N_discont_edges, N_leading_edges, N_wake_edges
         logical,dimension(:),allocatable :: edge_is_discontinuous
         logical :: has_sources ! Whether this panel has a source distribution
         integer :: mu_dim, M_dim, sigma_dim, S_dim ! Dimensions of doublet and source parameter and strength spaces

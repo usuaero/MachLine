@@ -321,6 +321,7 @@ contains
 
         ! Store number of adjacent wake-shedding and discontinuous edges (probably unecessary at this point, but let's be consistent)
         new_vert%N_wake_edges = this%N_wake_edges
+        new_vert%N_leading_edges = this%N_leading_edges
 
         ! Mirroring properties
         new_vert%on_mirror_plane = this%on_mirror_plane
