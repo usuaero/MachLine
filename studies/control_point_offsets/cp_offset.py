@@ -26,12 +26,12 @@ def run_machline_for_cp_offset(cp_offset,study_directory,alpha=0, wake_present=F
     # create input file
     input_dict = {
         "flow": {
-            "freestream_velocity": [np.cos(np.radians(alpha)),0.0, np.sin(np.radians(alpha)) ],
+            "freestream_velocity": [np.cos(np.radians(alpha)),np.sin(np.radians(alpha)), 0.0 ],
             "freestream_mach_number": mach
         },
         "geometry": {
             "file": mesh_file,
-            "spanwise_axis" : "+y",
+            "spanwise_axis" : "+z",
             "reference" : {
                 "area" : 4.0
             },
@@ -137,10 +137,10 @@ if __name__=="__main__":
     # declare varaibles and inputs
     tStart = time.time()
     alpha = 5
-    num_cases = 10
+    num_cases = 1
     mach = 2.0
     wake_present = True
-    wake_type = "panels"
+    wake_type = "panel"
     # wake_type = "filaments"
     # formulation = "neumann-mass-flux"
     formulation = "neumann-mass-flux-VCP"
