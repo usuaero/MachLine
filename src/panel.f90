@@ -3448,7 +3448,8 @@ contains
         v_s = matmul(source_inf, source_strengths)
 
         if (this%in_wake) then
-            v_d = matmul((doublet_inf(:,1:this%M_dim)+doublet_inf(:,this%M_dim+1:)), doublet_strengths)
+            ! v_d = matmul((doublet_inf(:,1:this%M_dim)+doublet_inf(:,this%M_dim+1:)), doublet_strengths)
+            v_d = matmul(doublet_inf, doublet_strengths)
         else
             v_d = matmul(doublet_inf, doublet_strengths)
         end if
