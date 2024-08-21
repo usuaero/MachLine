@@ -1,0 +1,59 @@
+{
+    "flow": {
+        "freestream_velocity": [
+            0.9961946980917455,
+            0.0,
+            0.08715574274765817
+        ],
+        "xfreestream_velocity": [
+            1.0,
+            0.0,
+            0.0
+        ],
+        "freestream_mach_number" : 2.0
+    },
+    "geometry": {
+        "xfile": "dev/meshes/wake/swept_biplane_wedge.stl",
+        "yfile": "dev/meshes/wake/trailing_delta.stl",
+        "file": "dev/meshes/wake/bothWings.stl",
+
+        "spanwise_axis" : "+y",
+        "wake_model": {
+            "wake_present": true,
+            "append_wake": true,
+            "trefftz_distance": 40,
+            "wake_type": "filaments",
+            "xwake_type": "panels",
+            "N_panels": 500
+        }
+    },
+    "solver": {
+        "run_checks": true,
+        "formulation": "neumann-mass-flux",
+        "xformulation": "dirichlet-morino",
+        "control_point_offset": 1.0e-6,
+        "matrix_solver": "HHLS",
+        "zmatrix_solver": "LU",
+        "ymatrix_solver": "GMRES",
+        "xmatrix_solver": "QRUP",
+        "preconditioner": "NONE",
+        "write_A_and_b": false,
+        "sort_system" : true
+    },
+    "post_processing" : {
+        "isentropic" : true,
+        "second-order": true,
+        "slender-body":false,
+        "linear":true
+    },
+    "output": {
+        "body_file" :          "dev/results/wake/swept_biplane_test.vtk",
+        "wake_file" :          "dev/results/wake/swept_biplane_test_wake.vtk",
+        "control_point_file" : "dev/results/wake/swept_biplane_test_control_points.vtk",
+        "report_file" :        "dev/results/wake/swept_biplane_test_report.json",
+        "offbody_points" : {
+            "points_file" : "dev/input_files/bi_wing_slice_sample_points.csv",
+            "output_file" : "dev/results/bi_wing_slice_sample_points.csv"
+        }
+    }
+}

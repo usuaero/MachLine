@@ -2,39 +2,40 @@
     "flow": {
         "freestream_velocity": [
             0.9961946980917455,
-            0.0,
-            0.08715574274765817
+            0.08715574274765817,
+            0.0
         ],
         "xfreestream_velocity": [
             1.0,
             0.0,
             0.0
         ],
-        "freestream_mach_number": 1.5
+        "freestream_mach_number": 2.0
     },
     "geometry": {
-        "xfile": "studies/supersonic_double_wedge_wing_filaments/meshes/delta_wing_clustered_mesh_coarse.vtk",
+        "file": "studies/supersonic_double_wedge_wing_filaments/meshes/delta_wing_clustered_mesh_coarse.vtk",
         "yfile": "studies/supersonic_double_wedge_wing_filaments/meshes/wedgeWing.stl",
-        "file": "studies/supersonic_double_wedge_wing_filaments/meshes/fullAircraft.tri",
+        "xfile": "studies/supersonic_double_wedge_wing_filaments/meshes/fullAircraft.tri",
 
-        "spanwise_axis": "+z",
-        "yspanwise_axis": "+y",
+        "xspanwise_axis": "+z",
+        "spanwise_axis": "+y",
         "reference": {
-            "area": 4.0
+            "area": 1.0
         },
         "wake_model": {
             "wake_present": true,
             "append_wake": true,
             "trefftz_distance": 40,
             "wake_type": "filaments",
+            "xwake_type": "panels",
             "N_panels": 1
         }
     },
     "solver": {
         "run_checks": true,
-        "formulation": "neumann-mass-flux-VCP",
+        "formulation": "neumann-mass-flux",
         "xformulation": "dirichlet-morino",
-        "control_point_offset": 1.0e-10,
+        "control_point_offset": 1.0e-6,
         "matrix_solver": "HHLS",
         "zmatrix_solver": "LU",
         "ymatrix_solver": "GMRES",

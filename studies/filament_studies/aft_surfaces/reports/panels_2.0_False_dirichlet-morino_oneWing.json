@@ -1,0 +1,87 @@
+{
+    "info" : {
+        "generated_by" : "MachLine (c) 2023 USU Aerolab",
+        "executed" : "Mon Aug 12 14:39:15 2024"
+    },
+    "mesh_info" : {
+        "N_body_panels" : 4928,
+        "N_body_vertices" : 2543,
+        "N_wake_panels" : 0,
+        "N_wake_filaments" : 0,
+        "average_characteristic_length" : 1.79176549288676E-002,
+        "max_flow_turning_angle" : 1.72371850351228E+002
+    },
+    "solver_results" : {
+        "solver_status_code" : 0,
+        "system_dimension" : 2543,
+        "timing" : {
+            "system_sorting" : 6.00450000000000E-003,
+            "preconditioner" : 7.66220000000000E-003,
+            "matrix_solver" : 2.05242550000000E+000
+        },
+        "iterations" : 527,
+        "system_lower_bandwidth" : 309,
+        "residual" : {
+            "max" : 9.47806286580311E-014,
+            "norm" : 4.76049383646955E-013
+        }
+    },
+    "pressure_calculations" : {
+        "isentropic_rule" : {
+            "max" : 2.56673535225223E-001,
+            "min" : -1.92460601500381E-001
+        }
+    },
+    "total_forces" : {
+        "Cx" : 2.64918010639870E-002,
+        "Cy" : -7.52955614434406E-015,
+        "Cz" : 1.32593612297807E-001
+    },
+    "total_moments" : {
+        "CMx" : 5.57621976128550E-010,
+        "CMy" : -9.33093401521879E-002,
+        "CMz" : 6.12700883880631E-012
+    },
+    "input" : {
+        "flow" : {
+            "freestream_velocity" : [
+                    9.96194698091746E-001,
+                    0.00000000000000E+000,
+                    8.71557427476582E-002
+                ],
+            "freestream_mach_number" : 2.00000000000000E+000
+        },
+        "geometry" : {
+            "file" : "studies/filament_studies/aft_surfaces/meshes/oneWing.stl",
+            "spanwise_axis" : "+y",
+            "reference" : {
+                "area" : 1
+            },
+            "wake_model" : {
+                "wake_present" : true,
+                "append_wake" : false,
+                "trefftz_distance" : 60,
+                "wake_type" : "panels"
+            }
+        },
+        "solver" : {
+            "ormulation" : "neumann-mass-flux",
+            "formulation" : "dirichlet-morino",
+            "matrix_solver" : "GMRES",
+            "xmatrix_solver" : "HHLS",
+            "write_A_and_b" : false
+        },
+        "post_processing" : {
+            "pressure_rules" : {
+                "ncompressible" : true
+            }
+        },
+        "output" : {
+            "body_file" : "studies/filament_studies/aft_surfaces/results/panels_2.0_False_dirichlet-morino_oneWing.vtk",
+            "wake_file" : "studies/filament_studies/aft_surfaces/results/panels_2.0_False_dirichlet-morino_oneWing_wake.vtk",
+            "control_point_file" : "studies/filament_studies/aft_surfaces/results/panels_2.0_False_dirichlet-morino_oneWing_control_pts.vtk",
+            "report_file" : "studies/filament_studies/aft_surfaces/reports/panels_2.0_False_dirichlet-morino_oneWing.json"
+        }
+    },
+    "total_runtime" : 2.54700000000000E+000
+}
