@@ -362,7 +362,7 @@ contains
 
         ! Get doublet strengths based on parents
         
-        do i=1,4
+        ! do i=1,4
             i_top1 = this%parents(1) + shift
             i_bot1 = this%parents(2) + shift
             i_top2 = this%parents(3) + shift
@@ -371,9 +371,9 @@ contains
             if (i_bot1 > size(mu)) i_bot1 = i_bot1 - size(mu)
             if (i_top2 > size(mu)) i_top2 = i_top2 - size(mu)
             if (i_bot2 > size(mu)) i_bot2 = i_bot2 - size(mu)
-            mu_strengths = [mu(i_top2),mu(i_bot2),mu(i_top1),mu(i_bot1)]
+            mu_strengths = [mu(i_top1),mu(i_bot1),mu(i_top2),mu(i_bot2)]
             ! mu_strengths(i) = (mu(i_top1) - mu(i_bot1)) - (mu(i_top2) - mu(i_bot2))
-        end do
+        ! end do
     
     end function filament_segment_get_doublet_strengths
 
