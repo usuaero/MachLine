@@ -1,0 +1,15 @@
+...Comp Geom...
+4 Num Comps
+6 Total Num Meshes
+8496 Total Num Tris
+
+Theo_Area   Wet_Area   Theo_Vol    Wet_Vol  Name
+  290.668    273.706    168.161    163.508  Fuselage       
+  255.140    181.104     36.473     26.733  MainWing       
+   31.765     29.344      1.317      1.256  HStab          
+   42.707     31.497      5.400      4.112  VStab          
+-------------------------------------------------
+  620.280    515.651    211.351    195.610  Totals         
+WARNING: 2 open meshes merged
+     Merged: MainWing
+     Merged: HStab

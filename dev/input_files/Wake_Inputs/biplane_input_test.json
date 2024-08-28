@@ -16,6 +16,7 @@
         "xfile": "dev/meshes/wake/swept_biplane_wedge.stl",
         "yfile": "dev/meshes/wake/trailing_delta.stl",
         "file": "dev/meshes/wake/bothWings.stl",
+        
 
         "spanwise_axis" : "+y",
         "wake_model": {

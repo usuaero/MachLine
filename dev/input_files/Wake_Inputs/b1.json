@@ -1,0 +1,63 @@
+{
+    "flow": {
+        "freestream_velocity": [
+            0.9961946980917455,
+            0.0,
+            0.08715574274765817
+        ],
+        "xfreestream_velocity": [
+            1.0,
+            0.0,
+            0.0
+        ],
+        "freestream_mach_number" : 2.0
+    },
+    "geometry": {
+        "xfile": "dev/meshes/wake/b1.stl",
+        "file": "dev/meshes/wake/b1_med2.stl",
+        "yfile": "dev/meshes/wake/b1_fine.stl",
+
+
+        
+
+        "spanwise_axis" : "+y",
+        "wake_model": {
+            "wake_present": true,
+            "append_wake": true,
+            "trefftz_distance": 40,
+            "wake_type": "filaments",
+            "xwake_type": "panels",
+            "N_panels": 1
+        }
+    },
+
+    "solver": {
+        "run_checks": true,
+        "formulation": "neumann-mass-flux",
+        "xformulation": "dirichlet-morino",
+        "control_point_offset": 1.0e-6,
+        "matrix_solver": "HHLS",
+        "zmatrix_solver": "LU",
+        "ymatrix_solver": "GMRES",
+        "xmatrix_solver": "QRUP",
+        "preconditioner": "NONE",
+        "write_A_and_b": false,
+        "sort_system" : true
+    },
+    "post_processing" : {
+        "isentropic" : true,
+        "second-order": true,
+        "slender-body":false,
+        "linear":true
+    },
+    "output": {
+        "body_file" :          "dev/results/wake/b1.vtk",
+        "wake_file" :          "dev/results/wake/b1_wake.vtk",
+        "control_point_file" : "dev/results/wake/b1_control_points.vtk",
+        "report_file" :        "dev/results/wake/b1_report.json",
+        "ffbody_points" : {
+            "points_file" : "dev/input_files/bi_wing_slice_sample_points.csv",
+            "output_file" : "dev/results/b1_slice_sample_points.csv"
+        }
+    }
+}
