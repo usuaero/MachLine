@@ -20,14 +20,14 @@
             "append_wake" : true
         },
         "adjoint_sensitivities" : {
-            "calc_adjoint" : true 
+            "calc_adjoint" : true
         }
     },
     "solver": {
         "formulation" : "dirichlet-source-free",
-        "control_point_offset" : 1.0e-2, 
-        "matrix_solver" : "GMRES",
-        "sort_system" : false
+        "control_point_offset" : 1.0e-3, 
+        "matrix_solver" : "GMRES", 
+        "xsort_system" : false
     },
     "post_processing" : {
         "pressure_rules": {
@@ -38,7 +38,8 @@
 
     "output": {
         "verbose" : true,
-        "report_file": "dev/results/adjoint/dirichlet_adjoint_coarse_sphere_report.json"
+        "body_file" : "dev/results/adjoint/subsonic_delta_wing_adjoint.vtk",
+        "wake_file" : "dev/results/adjoint/subsonic_delta_wing_wake.vtk"
     }
     
 }

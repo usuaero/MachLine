@@ -205,7 +205,7 @@ program wake_appended_test27
     !!!!!!!!!!!! END ADJOINT TEST MESH !!!!!!!!!!!!!!!!!!!!!!!!
 
     step = 0.000001
-    error_allowed = 1.0e-2
+    error_allowed = 1.0e-3
     
     N_total_verts = test_mesh%N_verts
     N_panels = test_mesh%N_panels

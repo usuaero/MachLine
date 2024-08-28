@@ -2037,19 +2037,8 @@ contains
             ! Get index of panel
             call this%vertices(i_vert)%panels_not_across_wake_edge%get(j, i_panel)
            
-            ! write(*,*) "vert i = ", i_vert
-            ! write(*,*) "Panels not across wake = ", i_panel, iplus1_panel
-            ! write(*,*) "panel verts indices",this%panels(i_panel)%get_vertex_index(1),&
-            ! this%panels(i_panel)%get_vertex_index(2),&
-            ! this%panels(i_panel)%get_vertex_index(3)
-            ! write(*,*) "panel verts indices",this%panels(iplus1_panel)%get_vertex_index(1),&
-            ! this%panels(iplus1_panel)%get_vertex_index(2),&
-            ! this%panels(iplus1_panel)%get_vertex_index(3)
-
-            ! write(*,*) ""
-            ! write(*,*) "this perturb point = ", this%perturb_point
-            ! write(*,*) "this calc adjoint = ", this%calc_adjoint
-            if (.not. (this%calc_adjoint .or.  this%perturb_point)) then
+            ! this if statement forces adjoint and central diff to use the centroid tp
+            ! if (.not. (this%calc_adjoint .or.  this%perturb_point)) then
                 ! Loop through vertices of panel j
                 vertex_loop: do k=1,this%panels(i_panel)%N
                     ! write(*,*)"j = ", j, " k = ", k
@@ -2075,7 +2064,7 @@ contains
                     end if
 
                 end do vertex_loop
-            end if
+            ! end if
 
             ! If none of the vertices worked, try the centroid
             tp = this%panels(i_panel)%centr - this%vertices(i_vert)%loc
@@ -2223,7 +2212,7 @@ contains
                 
                 ! calculate dir differently for finite difference
                 if (this%perturb_point) then
-                    dir = -this%vertices(i)%n_g + 0.05*this%vertices(i)%n_g_wake
+                    dir = -this%vertices(i)%n_g + 0.20*this%vertices(i)%n_g_wake
                     
                 else
                     dir = this%get_clone_control_point_dir(i)
@@ -4246,11 +4235,11 @@ contains
                 
                 ! if doing calc adjoint or central diff validation
                 ! use the negative of the original vertex and some of the wake normal
-                dir = -this%vertices(i)%n_g + 0.05*this%vertices(i)%n_g_wake
+                dir = -this%vertices(i)%n_g + 0.20*this%vertices(i)%n_g_wake
                 
                 ! calc the derivative of dir
                 call d_dir%init_from_sparse_matrix(this%vertices(i)%d_n_g_wake)
-                call d_dir%broadcast_element_times_scalar(0.05)
+                call d_dir%broadcast_element_times_scalar(0.20)
                 call d_dir%sparse_subtract(this%vertices(i)%d_n_g)
                 
                 !!!!!!!!!!!!!!!!!!!!!!!! NOT IN USE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
@@ -4593,57 +4582,57 @@ contains
             call this%vertices(i_vert)%panels_not_across_wake_edge%get(j, i_panel)
 
 
-            ! ! Loop through vertices of panel j
-            ! vertex_loop: do k=1,this%panels(i_panel)%N
+            ! Loop through vertices of panel j
+            vertex_loop: do k=1,this%panels(i_panel)%N
 
-            !     ! Check we've got a different vertex than the one we're trying to place a control point for
-            !     if (i_vert == this%panels(i_panel)%get_vertex_index(k)) cycle vertex_loop
+                ! Check we've got a different vertex than the one we're trying to place a control point for
+                if (i_vert == this%panels(i_panel)%get_vertex_index(k)) cycle vertex_loop
 
-            !     ! Get vector to vertex
-            !     x = this%panels(i_panel)%get_vertex_loc(k) - this%vertices(i_vert)%loc
+                ! Get vector to vertex
+                x = this%panels(i_panel)%get_vertex_loc(k) - this%vertices(i_vert)%loc
             
-            !     ! Project the vector so it is perpendicular to t_avg
-            !     tp = x - t_avg*inner(t_avg, x)
+                ! Project the vector so it is perpendicular to t_avg
+                tp = x - t_avg*inner(t_avg, x)
                 
-            !     ! Check tp isn't perfectly aligned with t_avg
-            !     if (norm2(tp) < 1.e-12) cycle vertex_loop
+                ! Check tp isn't perfectly aligned with t_avg
+                if (norm2(tp) < 1.e-12) cycle vertex_loop
 
-            !     ! If it's still inside the panel, we've found our vector
-            !     if (this%panels(i_panel)%projection_inside(0.1*tp + this%vertices(i_vert)%loc, .false.)) then
-            !         tp_found = .true.
+                ! If it's still inside the panel, we've found our vector
+                if (this%panels(i_panel)%projection_inside(0.1*tp + this%vertices(i_vert)%loc, .false.)) then
+                    tp_found = .true.
                     
-            !         ! since tp_found is true, calc d_tp
+                    ! since tp_found is true, calc d_tp
                     
-            !         ! product rule of t_avg*inner(t_avg, x): first term is (d_t_avg times inner(t_avg, x))
-            !         call d_tp_term1%init_from_sparse_matrix(d_t_avg)
-            !         call d_tp_term1%broadcast_element_times_scalar(inner(t_avg,x))
+                    ! product rule of t_avg*inner(t_avg, x): first term is (d_t_avg times inner(t_avg, x))
+                    call d_tp_term1%init_from_sparse_matrix(d_t_avg)
+                    call d_tp_term1%broadcast_element_times_scalar(inner(t_avg,x))
                     
-            !         ! calculate d_x 
-            !         ! where x = this%panels(i_panel)%get_vertex_loc(k) - this%vertices(i_vert)%loc
-            !         d_x = this%panels(i_panel)%get_vertex_d_loc(k)
-            !         call d_x%sparse_subtract(this%vertices(i_vert)%d_loc)
+                    ! calculate d_x 
+                    ! where x = this%panels(i_panel)%get_vertex_loc(k) - this%vertices(i_vert)%loc
+                    d_x = this%panels(i_panel)%get_vertex_d_loc(k)
+                    call d_x%sparse_subtract(this%vertices(i_vert)%d_loc)
 
-            !         ! partial of inner(t_avg, x)
-            !         d_inner = d_t_avg%broadcast_vector_dot_element(x)
-            !         d_inner1 = d_x%broadcast_vector_dot_element(t_avg)
-            !         call d_inner%sparse_add(d_inner1)
+                    ! partial of inner(t_avg, x)
+                    d_inner = d_t_avg%broadcast_vector_dot_element(x)
+                    d_inner1 = d_x%broadcast_vector_dot_element(t_avg)
+                    call d_inner%sparse_add(d_inner1)
 
-            !         ! put together second term:   t_avg* d_inner(t_avg, x)
-            !         d_tp_term2 = d_inner%broadcast_element_times_vector(t_avg)
+                    ! put together second term:   t_avg* d_inner(t_avg, x)
+                    d_tp_term2 = d_inner%broadcast_element_times_vector(t_avg)
                     
 
-            !         ! assemble d_tp terms
-            !         call d_tp%init_from_sparse_matrix(d_x)
-            !         call d_tp%sparse_subtract(d_tp_term1)
-            !         call d_tp%sparse_subtract(d_tp_term2)
+                    ! assemble d_tp terms
+                    call d_tp%init_from_sparse_matrix(d_x)
+                    call d_tp%sparse_subtract(d_tp_term1)
+                    call d_tp%sparse_subtract(d_tp_term2)
 
-            !         deallocate(d_tp_term1%columns, d_tp_term2%columns, d_inner%elements, d_inner1%elements,&
-            !         d_x%columns)
+                    deallocate(d_tp_term1%columns, d_tp_term2%columns, d_inner%elements, d_inner1%elements,&
+                    d_x%columns)
 
-            !         exit tp_loop
-            !     end if
+                    exit tp_loop
+                end if
 
-            ! end do vertex_loop
+            end do vertex_loop
 
             ! If none of the vertices worked, try the centroid
             x = this%panels(i_panel)%centr - this%vertices(i_vert)%loc

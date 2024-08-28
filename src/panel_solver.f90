@@ -1059,8 +1059,8 @@ contains
         integer :: stat
         type(sparse_vector) :: zeros
         real,dimension(:,:),allocatable :: vT_terms
-        integer(8) :: start_count, end_count
-        real(16) :: count_rate, adjoint_solver_time
+        integer(8) :: start_count, end_count, start_wake, end_wake, start_body, end_body
+        real(16) :: count_rate, time, count_wake, wake_time, count_body, body_time
 
         ! Set default status
         solver_stat = 0
@@ -1098,16 +1098,43 @@ contains
 
         ! Calculate source strengths
         call this%calc_source_strengths(body)
+
+
+        ! CALCULATE BODY INFLUENCES
         
-        ! Calculate body influences
+        ! start timing adjoint body influence calcs
+        if (body%calc_adjoint) call system_clock(start_body, count_body)
+
         call this%calc_body_influences(body)
+
+        ! get total adjoint calc body influences time
+        if (body%calc_adjoint) then
+
+            call system_clock(end_body)
+
+            body_time = real(end_body-start_body)/count_body
+            
+        end if
+
+
+        ! CALCULATE WAKE INFLUENCES
+        if (body%wake%N_panels > 0 .or. body%filament_wake%N_filaments > 0)then
+
+            ! start timing adjoint wake influence calcs
+            if (body%calc_adjoint) call system_clock(start_wake, count_wake)
+            
+            ! calc wake influences
+            call this%calc_wake_influences(body, formulation,freestream) 
+
+            ! get total adjoint calc wake influences time
+            if (body%calc_adjoint) then
+                call system_clock(end_wake)
+                wake_time = real(end_wake-start_wake)/count_wake
+            end if
+        end if
         
-        ! Calculate wake influences
-        if (body%wake%N_panels > 0 .or. body%filament_wake%N_filaments > 0)&
-        call this%calc_wake_influences(body, formulation,freestream) !!!! formulation part is a change
-        !write(*,*) "ROCK YOU LIKE A HURRICANE"
+
         ! Assemble boundary condition vector
-        
         call this%assemble_BC_vector(body)
         
         ! Solve the linear system
@@ -1155,8 +1182,11 @@ contains
 
             call system_clock(end_count)
 
-            adjoint_solver_time = real(end_count-start_count)/count_rate
-            write(*,'(A, f10.5, A)') "adjoint solver time = ", adjoint_solver_time, " seconds"
+            if (body%calc_adjoint) then
+                write(*,'(A, f10.5, A)') " Adjoint Body Influences time:  = ", body_time, " seconds"
+                write(*,'(A, f10.5, A)') " Adjoint Wake Influences time:  = ", wake_time, " seconds"
+                write(*,'(A, f10.5, A)') " Adjoint solver time:           = ", time, " seconds"
+            end if
         end if
 
     end subroutine panel_solver_solve
@@ -1557,7 +1587,7 @@ contains
             !$OMP end critical
 
         end do
-        if (verbose) write(*,*) "Done."
+        if (verbose) write(*,*) " Done"
     
     end subroutine panel_solver_calc_body_influences
 
@@ -1596,7 +1626,7 @@ contains
         ! Calculate influence of wake
 
         ! Loop through control points
-        !$OMP parallel do private(j, k, l, source_inf, doublet_inf, v_d, v_s, A_i, s_star)&
+        !$OMP parallel do private(j, k, l, source_inf, doublet_inf, v_d, v_s, A_i, s_star, d_AIC_row,inf_adjoint)&
         !$OMP & private(passes_through,downstream,d_from_te,x) schedule(dynamic)
         do i=1,body%N_cp
 
@@ -1856,6 +1886,7 @@ contains
 
             end select
 
+
             ! Update row of A
             !$OMP critical
             if (this%use_sort_for_cp) then !!!! is this the same in filaments as it is in panels? 
@@ -1882,8 +1913,7 @@ contains
             !$OMP end critical
 
         end do
-
-        if (verbose) write(*,*) "Done."
+        if (verbose) write(*,*) " Done  "
 
     end subroutine panel_solver_calc_wake_influences
 

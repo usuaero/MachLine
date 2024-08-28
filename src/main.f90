@@ -204,7 +204,10 @@ program main
     runtime = real(end_count - start_count)/count_rate
     
     if (body_mesh%calc_adjoint) then
-        write(*,'(A,f16.12,A)') "Total Runtime (with adjoints calculated)= ", runtime, " seconds"
+        write(*,*) ""
+        write(*,*) "---------------------------------------------------------------------------------------"
+        write(*,'(A,f10.4,A)') " Total Runtime (with adjoints calculated)= ", runtime, " seconds"
+        write(*,*) "---------------------------------------------------------------------------------------"
     end if
 
     call json_value_add(report_json, "total_runtime", runtime)

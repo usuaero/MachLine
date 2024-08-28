@@ -88,7 +88,7 @@ program wake_super_appended_test26
     ! Set up run
     call json_initialize()
 
-    test_input = "dev\input_files\adjoint_inputs\wake_super_appended_test.json"
+    test_input = "dev\input_files\adjoint_inputs\test_11_FD.json"
     test_input = trim(test_input)
 
     ! Check it exists
@@ -148,7 +148,7 @@ program wake_super_appended_test26
     ! Set up run
     call json_initialize()
     
-    adjoint_input = "dev\input_files\adjoint_inputs\wake_super_appended_adjoint_test.json"
+    adjoint_input = "dev\input_files\adjoint_inputs\test_11.json"
     adjoint_input = trim(adjoint_input)
     
     ! Check it exists
