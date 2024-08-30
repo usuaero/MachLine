@@ -14,7 +14,7 @@
     },
     "geometry": {
         "xfile": "dev/meshes/wake/b1.stl",
-        "file": "dev/meshes/wake/b1_med2.stl",
+        "file": "dev/meshes/wake/b1_medS2.stl",
         "yfile": "dev/meshes/wake/b1_fine.stl",
 
 
@@ -55,8 +55,8 @@
         "wake_file" :          "dev/results/wake/b1_wake.vtk",
         "control_point_file" : "dev/results/wake/b1_control_points.vtk",
         "report_file" :        "dev/results/wake/b1_report.json",
-        "ffbody_points" : {
-            "points_file" : "dev/input_files/bi_wing_slice_sample_points.csv",
+        "offbody_points" : {
+            "points_file" : "dev/input_files/b1_slice_sample_points.csv",
             "output_file" : "dev/results/b1_slice_sample_points.csv"
         }
     }
