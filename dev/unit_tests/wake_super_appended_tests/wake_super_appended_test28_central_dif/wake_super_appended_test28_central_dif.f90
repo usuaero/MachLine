@@ -253,13 +253,14 @@ program wake_super_appended_test28
     !!!!!!!!! CENTRAL DIFFERENCE (panel 1, cp 1) d_CF_wrt_vars_test column ", k, !!!!!!!!!
     write(*,*) ""
     write(*,*) "--------------------------------------------------------------------------------------"
-    write(*,*) "    SUPERSONIC dirichlet d_CF_sensitivities_Central_Difference (WAKE APPENDED)"
+    write(*,*) "   dirichlet supersonic d_CF_sensitivities_Central_Difference (WAKE APPENDED)"
     write(*,*) "--------------------------------------------------------------------------------------"
     write(*,*) ""
     do i=1,3
         do j=1,N_original_verts
 
-            deallocate(test_mesh%vertices, test_mesh%edges, test_mesh%panels, test_mesh%vertex_ordering)
+            deallocate(test_mesh%vertices, test_mesh%edges, test_mesh%panels, test_mesh%vertex_ordering,&
+            test_mesh%wake%strips)
             call test_mesh%init(geom_settings)
             test_mesh%perturb_point = .true.
             
@@ -307,7 +308,8 @@ program wake_super_appended_test28
             
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!! UPDATE STEP DOWN !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                     
-            deallocate(test_mesh%vertices, test_mesh%edges, test_mesh%panels, test_mesh%vertex_ordering)
+            deallocate(test_mesh%vertices, test_mesh%edges, test_mesh%panels, test_mesh%vertex_ordering,&
+            test_mesh%wake%strips)
             call test_mesh%init(geom_settings)
             test_mesh%perturb_point = .true.
 
@@ -418,7 +420,7 @@ program wake_super_appended_test28
 
     !!!!!!!!!!!!!!  RESULTS!!!!!!!!!!!!!
     write(*,*) "------------------------------------------------------------------------------"
-    write(*,*) "   SUPERSONIC dirichlet d_CF Central Difference TEST RESULTS (WAKE APPENDED) "
+    write(*,*) "   dirichlet Supersonic d_CF Central Difference TEST RESULTS (WAKE APPENDED) "
     write(*,*) "------------------------------------------------------------------------------"
     write(*,*) ""
     write(*,*) ""

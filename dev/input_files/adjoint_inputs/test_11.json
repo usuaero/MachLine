@@ -20,14 +20,16 @@
             "wake_present" : true,
             "append_wake" : true,
             "xtrefftz_distance": 19.0
+            
         },
         "adjoint_sensitivities" : {
-            "calc_adjoint" : true
+            "calc_adjoint" : true,
+            "robust_cp_dir" : true
         }
     },
     "solver": {
         "formulation" : "dirichlet-source-free",
-        "control_point_offset" : 1.0e-4, 
+        "control_point_offset" : 1.0e-3, 
         "matrix_solver" : "GMRES", 
         "xsort_system" : false
     },
@@ -42,7 +44,7 @@
         "verbose" : true,
         "_abody_file" : "dev/results/adjoint/supersonic_delta_wing_adjoint.vtk",
         "_awake_file" : "dev/results/adjoint/supersonic_delta_wing_wake.vtk",
-        "body_file" : "dev/results/adjoint/test_11_adjoint.vtk"
+        "body_file" : "dev/results/adjoint/test_11_adjoint_robust_1e-3.vtk"
     }
     
 }

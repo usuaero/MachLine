@@ -1,7 +1,7 @@
 {
     "flow": {
         "freestream_velocity" : [ 1.0, 0.0, 0.1 ],
-        "freestream_mach_number" : 2.0
+        "freestream_mach_number" : 0.4
     },
     "geometry": {
         "_afile" : "dev/meshes/adjoint/sphere_coarse2.stl",
@@ -27,7 +27,7 @@
     },
     "solver": {
         "formulation" : "dirichlet-source-free",
-        "control_point_offset" : 1.0e-4, 
+        "control_point_offset" : 5.0e-4, 
         "matrix_solver" : "GMRES", 
         "xsort_system" : false
     },
@@ -42,7 +42,7 @@
         "verbose" : true,
         "_abody_file" : "dev/results/adjoint/supersonic_delta_wing_adjoint.vtk",
         "_awake_file" : "dev/results/adjoint/supersonic_delta_wing_wake.vtk",
-        "body_file" : "dev/results/adjoint/test_11_FD_1e-4.vtk"
+        "body_file" : "dev/results/adjoint/test_12_FD_5e-4.vtk"
     }
     
 }

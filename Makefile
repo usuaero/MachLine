@@ -23,7 +23,7 @@ MAIN_PATH = src/main.f90
 COMPILER = gfortran
 
 # Flags
-FLAGS = -O2 -fdefault-real-8
+FLAGS = -O2 -fdefault-real-8 -pg
 OMP_FLAG = -fopenmp
 DEBUG_FLAGS = -fbounds-check -fbacktrace -g
 

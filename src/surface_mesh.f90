@@ -51,6 +51,8 @@ module surface_mesh_mod
         ! adjoint
         logical :: perturb_point ! used for central diff scripts to validate adjoint calcs (shouldnt be true if calc_adjoint is true)
         logical :: calc_adjoint  ! whether or not adjoint sensitivities should be calculated
+        logical :: robust_cp_dir ! for testing, if true this places cloned vertex cp's using "get_clone_control_point_dir_adjoint"
+        ! (but central diff doesnt work) 
         integer :: N_original_verts    ! number of vertices before vertices are cloned. design variables are based on OG verts
         integer :: adjoint_size ! number of adjoint design variables 
         type(sparse_matrix),dimension(:),allocatable :: d_V_cells_inner_wrt_vars, d_V_cells_wrt_vars
@@ -379,7 +381,6 @@ contains
             call json_xtnsn_get(settings, 'wake_model.wake_shedding_angle', wake_shedding_angle, 90.) ! Maximum allowable angle between panel normals without having separation
             this%C_wake_shedding_angle = cos(wake_shedding_angle*pi/180.) !!!! possible thing we could use to define new normal vector
             
-
             if (this%append_wake) then
                 call json_xtnsn_get(settings, 'wake_model.trefftz_distance', this%trefftz_distance, -1.) ! Distance from origin to wake termination
                 call json_xtnsn_get(settings, 'wake_model.N_panels', this%N_wake_panels_streamwise, 1)
@@ -399,6 +400,7 @@ contains
 
         ! Check if the user wants to calculate adjoint
         call json_xtnsn_get(settings, 'adjoint_sensitivities.calc_adjoint', this%calc_adjoint, .false.)
+        call json_xtnsn_get(settings, 'adjoint_sensitivities.robust_cp_dir', this%robust_cp_dir, .false.)
 
         ! check to see if calc_adjoint and perturb_point are both true. If they are both true, 
         ! warn user and quit
@@ -3116,7 +3118,7 @@ contains
         real,dimension(3), intent(in), optional :: freestream_vec
 
         type(vtk_out) :: body_vtk
-        integer :: i, j, N_verts, N_cells
+        integer :: i, j, N_verts, N_cells, N_orig_verts
         real,dimension(:),allocatable :: panel_inclinations, orders, N_discont_edges, convex
         real,dimension(:,:),allocatable :: cents
         real,dimension(:,:),allocatable :: vertex_normals, d_CF_x, d_CF_y, d_CF_z, freestream_vector
@@ -3127,6 +3129,7 @@ contains
         ! Determine number of cells and verts to export
         N_cells = this%N_panels
         N_verts = this%N_verts
+        N_orig_verts = this%N_original_verts
         
         ! Get panel inclinations, centroids, and distribution orders
         allocate(panel_inclinations(this%N_panels))
@@ -3207,20 +3210,20 @@ contains
                 end do
 
                 ! organize sensitivitiy values
-                allocate(d_CF_x(3,N_verts))
-                allocate(d_CF_y(3,N_verts))
-                allocate(d_CF_z(3,N_verts))
+                allocate(d_CF_x(3,N_orig_verts))
+                allocate(d_CF_y(3,N_orig_verts))
+                allocate(d_CF_z(3,N_orig_verts))
                 allocate(freestream_vector(3,1))
 
                 
                 ! reshape arrays
                 do i=1,3
                     freestream_vector(i,:) = freestream_vec(i)
-                    do j=1,N_verts
+                    do j=1,N_orig_verts
                         
-                        d_CF_x(i,j) = sensitivities(j + (i-1)*N_verts,1)
-                        d_CF_y(i,j) = sensitivities(j + (i-1)*N_verts,2)
-                        d_CF_z(i,j) = sensitivities(j + (i-1)*N_verts,3)
+                        d_CF_x(i,j) = sensitivities(j + (i-1)*N_orig_verts,1)
+                        d_CF_y(i,j) = sensitivities(j + (i-1)*N_orig_verts,2)
+                        d_CF_z(i,j) = sensitivities(j + (i-1)*N_orig_verts,3)
                         
                     end do
                 end do
@@ -4233,24 +4236,23 @@ contains
             ! If the vertex is a clone, it needs to be shifted off the normal slightly so that it is unique from its counterpart
             if (this%vertices(i)%clone) then
                 
-                ! if doing calc adjoint or central diff validation
-                ! use the negative of the original vertex and some of the wake normal
-                dir = -this%vertices(i)%n_g + 0.20*this%vertices(i)%n_g_wake
+                if (this%robust_cp_dir) then
+                    ! central diff breaks down "get control point dir adjoint" 
+                    
+                    dir = this%get_clone_control_point_dir(i)
+                    d_dir = this%get_clone_control_point_dir_adjoint(i)
+                else 
+
+                    ! if doing calc adjoint or central diff validation
+                    ! use the negative of the original vertex and some of the wake normal
+                    dir = -this%vertices(i)%n_g + 0.20*this%vertices(i)%n_g_wake
+                    
+                    ! calc the derivative of dir
+                    call d_dir%init_from_sparse_matrix(this%vertices(i)%d_n_g_wake)
+                    call d_dir%broadcast_element_times_scalar(0.20)
+                    call d_dir%sparse_subtract(this%vertices(i)%d_n_g)
                 
-                ! calc the derivative of dir
-                call d_dir%init_from_sparse_matrix(this%vertices(i)%d_n_g_wake)
-                call d_dir%broadcast_element_times_scalar(0.20)
-                call d_dir%sparse_subtract(this%vertices(i)%d_n_g)
-                
-                !!!!!!!!!!!!!!!!!!!!!!!! NOT IN USE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 
-                ! "get control point dir adjoint" not working (central diff breaks down) 
-                
-                !  use get_clone_control point direction for regular dirichlet formulation
-                ! dir = this%get_clone_control_point_dir(i)
-                ! d_dir = this%get_clone_control_point_dir_adjoint(i)
-                
-                !!!!!!!!!!!!!!!!!!!!!!!!! END NOT IN USE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-               
+                end if
                 
             else ! If it has no clone, then placement simply follows the average normal vector
                 

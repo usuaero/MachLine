@@ -3630,6 +3630,8 @@ contains
             stop
         end if
 
+        if (verbose) write(*,'(a)',advance='no') " Done."
+
        
     
     end subroutine panel_solver_calc_forces_adjoint
@@ -3849,6 +3851,9 @@ contains
         real,dimension(:,:),allocatable :: d_AIC_i, d_CF_wrt_vars, adjoint_CF
         real,dimension(:),allocatable :: f_i, d_b_i, vT_n , d_AIC_times_mu, mu_vector
         integer :: i,j,k,m, N_original_verts, N_unknown, p
+
+
+        if (verbose) write(*,'(a)',advance='no') "    Calculating the Total Derivative..."
         
         N_original_verts = body%N_original_verts
         
@@ -3915,6 +3920,8 @@ contains
             
 
         end do
+
+        if (verbose) write(*,'(a)',advance='no') " Done."
 
         if (verbose) then
             write(*,*) ""

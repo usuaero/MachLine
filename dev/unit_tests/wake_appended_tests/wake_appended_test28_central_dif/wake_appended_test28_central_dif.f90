@@ -93,7 +93,7 @@ program wake_appended_test28
     ! Set up run
     call json_initialize()
 
-    test_input = "dev/input_files/adjoint_inputs/wake_appended_central_difference_test.json"
+    test_input = "dev/input_files/adjoint_inputs/test_12_FD.json"
     test_input = trim(test_input)
 
     ! Check it exists
@@ -293,7 +293,7 @@ program wake_appended_test28
             deallocate(test_solver%I_known, test_solver%BC)
             deallocate(test_mesh%sigma, test_mesh%mu)
             deallocate(test_mesh%Phi_u)
-            deallocate(test_mesh%C_p_inc, test_mesh%dC_f)
+            deallocate(test_mesh%C_p_ise, test_mesh%dC_f)
             deallocate(test_mesh%V_cells_inner, test_mesh%V_cells)
     
 
@@ -342,7 +342,7 @@ program wake_appended_test28
             deallocate(test_solver%I_known, test_solver%BC)
             deallocate(test_mesh%sigma, test_mesh%mu)
             deallocate(test_mesh%Phi_u)
-            deallocate(test_mesh%C_p_inc, test_mesh%dC_f)
+            deallocate(test_mesh%C_p_ise, test_mesh%dC_f)
             deallocate(test_mesh%V_cells_inner, test_mesh%V_cells)
             ! deallocate(test_solver%A, test_solver%b)
             
