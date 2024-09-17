@@ -23,13 +23,13 @@
             
         },
         "adjoint_sensitivities" : {
-            "calc_adjoint" : false,
-            "robust_cp_dir" : false
+            "calc_adjoint" : true,
+            "robust_cp_dir" : true
         }
     },
     "solver": {
         "formulation" : "dirichlet-source-free",
-        "control_point_offset" : 0.5, 
+        "control_point_offset" : 1.0e-5, 
         "matrix_solver" : "GMRES", 
         "xsort_system" : false
     },
@@ -42,9 +42,9 @@
 
     "output": {
         "verbose" : true,
-        "body_file" : "dev/results/adjoint/test_11_cp_test.vtk",
-        "_report_file" : "dev/results/adjoint_reports/test_11_adjoint_robust_1e-5JUNK",
-        "control_point_file" : "dev/results/adjoint_reports/test_11_cp_test_points.vtk"
+        "_body_file" : "dev/results/adjoint/test_11_cp_test.vtk",
+        "report_file" : "dev/results/adjoint_reports/test_11_adjoint_robust_1e-5_new_add",
+        "_control_point_file" : "dev/results/adjoint_reports/test_11_cp_test_points.vtk"
     }
     
 }
