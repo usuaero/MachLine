@@ -1,0 +1,162 @@
+{
+    "info" : {
+        "generated_by" : "MachLine (c) 2023 USU Aerolab",
+        "executed" : "Wed Sep 11 15:19:31 2024"
+    },
+    "mesh_info" : {
+        "N_body_panels" : 8,
+        "N_body_vertices" : 7,
+        "N_wake_panels" : 2,
+        "N_wake_filaments" : 0,
+        "average_characteristic_length" : 5.01350611545320E-001,
+        "max_flow_turning_angle" : 1.68107331513994E+002
+    },
+    "solver_results" : {
+        "solver_status_code" : 0,
+        "system_dimension" : 7,
+        "timing" : {
+            "system_sorting" : 4.06000000000000E-005,
+            "preconditioner" : 5.20000000000000E-006,
+            "matrix_solver" : 1.48000000000000E-005
+        },
+        "iterations" : 6,
+        "system_lower_bandwidth" : 6,
+        "residual" : {
+            "max" : 5.55111512312578E-017,
+            "norm" : 9.51421903630328E-017
+        }
+    },
+    "pressure_calculations" : {
+        "isentropic_rule" : {
+            "max" : 2.67767158106622E-001,
+            "min" : -1.19132979735224E-001
+        }
+    },
+    "total_forces" : {
+        "Cx" : 2.41941141893522E-002,
+        "Cy" : -1.30104260698261E-018,
+        "Cz" : 1.51633234353952E-001
+    },
+    "total_moments" : {
+        "CMx" : -4.51028103753970E-017,
+        "CMy" : -3.32891367725495E-002,
+        "CMz" : -5.42101086242752E-018
+    },
+    "CF_sensitivities" : {
+        "d_CFx" : [
+                -2.93908648845974E-002,
+                6.49276445043018E-003,
+                -2.21543954096721E-003,
+                4.39017633323239E-002,
+                -1.65727957760370E-002,
+                -2.21541016378975E-003,
+                3.43167011189490E-008,
+                4.51088064321923E-007,
+                6.87109584055120E-003,
+                -6.86814527826647E-012,
+                -4.74175972189626E-007,
+                -6.87109512332148E-003,
+                -1.63124370667277E-002,
+                -9.95110569308033E-001,
+                -3.08824846304778E-003,
+                4.71048814007406E-001,
+                5.46550725481337E-001,
+                -3.08823212612718E-003
+            ],
+        "d_CFy" : [
+                -3.33847818108539E-017,
+                7.06650355659731E-017,
+                -6.84473404788270E-003,
+                4.80112579620154E-017,
+                8.24603640749148E-017,
+                6.84473404788282E-003,
+                -7.54658726426834E-004,
+                -2.08300124007282E-004,
+                -3.84810333012447E-006,
+                1.14664238191810E-003,
+                -1.75987324823147E-004,
+                -3.84810333012692E-006,
+                1.02817608855530E-016,
+                1.52591440091735E-016,
+                -4.29737851520189E-002,
+                7.12952768709262E-017,
+                1.01780307861475E-017,
+                4.29737851520192E-002
+            ],
+        "d_CFz" : [
+                7.90900635541381E-002,
+                8.86090542979064E-002,
+                -4.80594868483404E-002,
+                -2.21800609156740E-001,
+                1.50223802976181E-001,
+                -4.80677360255395E-002,
+                -9.64090869669643E-006,
+                -1.26638956141249E-004,
+                6.16658557300477E-002,
+                -7.87730218609951E-012,
+                1.33115180408721E-004,
+                -6.16660648719649E-002,
+                -2.75731451703103E+000,
+                3.90229309493500E-001,
+                1.07775081491734E-001,
+                1.90432346351076E+000,
+                2.47201392063473E-001,
+                1.07770495703488E-001
+            ]
+    },
+    "norms_of_CF_sensitivities" : {
+        "norm_of_d_CFx" : 1.23058812660590E+000,
+        "norm_of_d_CFy" : 6.15560872505524E-002,
+        "norm_of_d_CFz" : 3.40057991087113E+000
+    },
+    "input" : {
+        "flow" : {
+            "freestream_velocity" : [
+                    1.00000000000000E+000,
+                    0.00000000000000E+000,
+                    1.00000000000000E-001
+                ],
+            "freestream_mach_number" : 2.00000000000000E+000
+        },
+        "geometry" : {
+            "_afile" : "dev/meshes/adjoint/sphere_coarse2.stl",
+            "_bfile" : "dev/meshes/other_meshes/small_sphere.stl",
+            "file" : "dev/meshes/adjoint/adjoint_octa_mesh.stl",
+            "_dfile" : "dev/meshes/adjoint/wedge_wing_coarse.stl",
+            "_efile" : "dev/meshes/other_meshes/delta_wing_coarse.vtk",
+            "_gfile" : "dev/meshes/other_meshes/diamond_5_deg_full_coarse.stl",
+            "_hfile" : "dev/meshes/other_meshes/naca_0010_AR_10_full_coarse.stl",
+            "_ifile" : "dev/meshes/adjoint/naca_2412_wing.stl",
+            "_jfile" : "dev/meshes/adjoint/a320_fine.stl",
+            "_file" : "dev/meshes/adjoint/test_mesh_11.stl",
+            "singularity_order" : "lower",
+            "wake_model" : {
+                "wake_present" : true,
+                "append_wake" : true,
+                "xtrefftz_distance" : 1.90000000000000E+001
+            },
+            "adjoint_sensitivities" : {
+                "calc_adjoint" : true,
+                "robust_cp_dir" : true
+            }
+        },
+        "solver" : {
+            "formulation" : "dirichlet-source-free",
+            "control_point_offset" : 1.00000000000000E-005,
+            "matrix_solver" : "GMRES",
+            "xsort_system" : false
+        },
+        "post_processing" : {
+            "pressure_rules" : {
+                "incompressible" : false,
+                "isentropic" : true
+            }
+        },
+        "output" : {
+            "verbose" : true,
+            "body_file" : "dev/results/adjoint/test_11_adjoint_robust_1e-5JUNK.vtk",
+            "report_file" : "dev/results/adjoint_reports/test_11_adjoint_robust_1e-5JUNK"
+        }
+    },
+    "total_runtime" : 4.70000000000000E-002
+}

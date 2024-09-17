@@ -3067,8 +3067,8 @@ contains
         ! Write out data for body
         if (body_file /= 'none') then
             if (this%calc_adjoint) then
-                call this%write_body(body_file, solved=.true., sensitivities = CF_sensitivities,&
-                                                    freestream_vec = freestream_vector)
+                call this%write_body(body_file, solved=.true., sensitivities = CF_sensitivities, &
+                freestream_vec = freestream_vector)
             else
                 call this%write_body(body_file, solved=.true.)
             end if
@@ -3122,7 +3122,7 @@ contains
         real,dimension(:),allocatable :: panel_inclinations, orders, N_discont_edges, convex
         real,dimension(:,:),allocatable :: cents
         real,dimension(:,:),allocatable :: vertex_normals, d_CF_x, d_CF_y, d_CF_z, freestream_vector
-        
+        real, dimension(1) :: norm_d_CF_x, norm_d_CF_y, norm_d_CF_z
         ! Clear old file
         call delete_file(body_file)
         
@@ -3234,6 +3234,8 @@ contains
                 call body_vtk%write_point_vectors(d_CF_x, "CFx_sensitivity_adjoint")
                 call body_vtk%write_point_vectors(d_CF_y, "CFy_sensitivity_adjoint")
                 call body_vtk%write_point_vectors(d_CF_z, "CFz_sensitivity_adjoint")
+                
+
                 
             end if ! end adjoint if statement
 

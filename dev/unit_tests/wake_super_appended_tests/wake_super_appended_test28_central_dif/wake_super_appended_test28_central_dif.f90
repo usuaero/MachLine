@@ -409,6 +409,9 @@ program wake_super_appended_test28
     call body_vtk%write_point_vectors(d_CF_x, "CFx_sensitivities_central_diff")
     call body_vtk%write_point_vectors(d_CF_y, "CFy_sensitivities_central_diff")
     call body_vtk%write_point_vectors(d_CF_z, "CFz_sensitivities_central_diff")
+    call body_vtk%write_point_scalars(sqrt(sum(d_CF_x*d_CF_x)), "Norm of d_CF_x")
+    call body_vtk%write_point_scalars(sqrt(sum(d_CF_y*d_CF_y)), "Norm of d_CF_y")
+    call body_vtk%write_point_scalars(sqrt(sum(d_CF_z*d_CF_z)), "Norm of d_CF_z")
     
     call body_vtk%write_point_scalars(convex, "convex")
     
@@ -416,6 +419,21 @@ program wake_super_appended_test28
     call body_vtk%finish()
 
     !!!!! end writing to vtk
+
+
+
+    !!!!!!!!!!!!!!!!!!!!!   WRITE A REPORT    !!!!!!!!!!!!!!!!!!
+    
+    ! type(json_value),pointer :: p_parent, p_child
+    ! call json_value_create(p_parent)
+    ! call to_object(p_parent, 'norms_of_CF_sensitivities')
+    ! call json_value_add(p_json, p_parent)
+    ! call json_value_add(p_parent, 'norm_of_d_CFx', this%norms_of_CF_sensitivities(1))
+    ! call json_value_add(p_parent, 'norm_of_d_CFy', this%norms_of_CF_sensitivities(2))
+    ! call json_value_add(p_parent, 'norm_of_d_CFz', this%norms_of_CF_sensitivities(3))
+    ! nullify(p_parent)
+
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     
 
     !!!!!!!!!!!!!!  RESULTS!!!!!!!!!!!!!

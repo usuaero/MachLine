@@ -324,9 +324,9 @@ contains
         real :: value 
 
         
-        value = 1.0e-16
+        value = 0.0
               
-        ! if the sparse vector element has the same full index as the given full index value is set to
+        ! if the sparse vector element has the same full index as the given full index, value is set to
         ! that element's value, if not, the value stays zero 
         do i=1,this%sparse_size
             if (this%elements(i)%full_index == full_index) then
@@ -454,8 +454,8 @@ contains
         class(sparse_vector),intent(inout) :: this
         type(sparse_vector) :: sparse_input
 
-        integer :: i
-        real :: this_i, sparse_input_i, added
+        integer :: i, j
+        ! real :: this_i, sparse_input_i, added
         
         ! make sure the input vector has the same full size as this
         if (this%full_size /= sparse_input%full_size) then
@@ -464,22 +464,90 @@ contains
         end if
 
         
-        ! loop through full index
-        do i=1, this%full_size
+        ! ! loop through full index
+        ! do i=1, this%full_size
             
-            ! get vector values at full index i
-            sparse_input_i = sparse_input%get_value(i)
+        !     ! get vector values at full index i
+        !     sparse_input_i = sparse_input%get_value(i)
             
-            ! if sparse_input_i is populated, add them
-            if (abs(sparse_input_i) > 1.0e-16) then
+        !     ! if sparse_input_i is populated, add them
+        !     if (abs(sparse_input_i) > 0.0) then
                 
-                this_i = this%get_value(i)
-                added = this_i + sparse_input_i
-                call this%set_value(added, i)
+        !         this_i = this%get_value(i)
+        !         added = this_i + sparse_input_i
+        !         call this%set_value(added, i)
                 
-            end if
+        !     end if
             
-        end do 
+        ! end do 
+        i = 1
+        j = 1
+
+        ! do while there is still an input_sparse element to add
+        do while (j < sparse_input%sparse_size + 1)
+
+
+            ! for every input element j with a full_index LESS THAN this element i full_index
+            do while (sparse_input%elements(j)%full_index < this%elements(i)%full_index)
+
+                ! sparse_input element's full index is less than 
+                call this%set_value(sparse_input%elements(j)%value, sparse_input%elements(j)%full_index)
+
+                ! by adding 1 to i, we stay at the current element of this
+                i = i + 1
+
+                ! adding 1 to j shows we have added one of the input elements
+                j = j + 1
+
+            end do 
+
+            
+            ! for every input element j full index EQUAL TO this element i full index
+            do while (sparse_input%elements(j)%full_index == this%element(i)%full_index)
+                
+                ! this and input elements have same full index, add sparse element j to this i
+                this%elements(i)%value = this%elements(i)%value + sparse_input%elements(j)%value
+
+                
+                ! by adding 1 to i, we move to the next element of this
+                i = i + 1
+                
+                ! adding 1 to j shows we have added one of the input elements
+                j = j + 1
+
+            end do
+
+
+            ! for every input element j full GREATER THAN this element i full index
+            do while (sparse_input%elements(j)%full_index > this%element(i)%full_index)
+
+                ! check if i is less than this%sparse_size
+                if (i < this%sparse_size) then
+
+                    ! increment i until this element i full index is equal >= input element j full index
+                    i = i + 1
+
+                else ! else, we know we are at the last sparse_element
+
+                    ! do for remaining sparse elements
+                    do while (j < sparse_input%sparse_size + 1) 
+
+                        ! call this%set_value for remaining input elements
+                        call this%set_value(sparse_input%elements(j)%value, sparse_input%elements(j)%full_index)
+                        
+                        ! increment j to show we have added a sparse element
+                        j = j + 1
+
+                    end do 
+
+                end if
+
+            end do
+
+
+        end do
+
+         
         
     end subroutine sparse_vector_sparse_add
 

@@ -184,7 +184,8 @@ program main
         if (body_mesh%calc_adjoint) then
 
             call body_mesh%output_results(body_file, wake_file, control_point_file, mirrored_body_file,&
-                            CF_sensitivities=linear_solver%CF_sensitivities,freestream_vector=freestream_flow%v_inf)
+                            CF_sensitivities=linear_solver%CF_sensitivities,&
+                            freestream_vector=freestream_flow%v_inf)
         else
             ! otherwise, output mesh results
             call body_mesh%output_results(body_file, wake_file, control_point_file, mirrored_body_file)
@@ -231,5 +232,7 @@ program main
     else
         write(*,'(a, f10.4, a)') " MachLine encountered an error. Execution time: ", runtime, " s"
     end if
+
+    call exit(0)
 
 end program main

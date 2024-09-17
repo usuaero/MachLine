@@ -1,0 +1,50 @@
+{
+    "flow": {
+        "freestream_velocity" : [ 1.0, 0.0, 0.1 ],
+        "freestream_mach_number" : 0.4
+    },
+    "geometry": {
+        "_afile" : "dev/meshes/adjoint/sphere_coarse2.stl",
+        "_bfile" : "dev/meshes/other_meshes/small_sphere.stl",
+        "_cfile" : "dev/meshes/adjoint/adjoint_octa_mesh.stl",
+        "_dfile" : "dev/meshes/adjoint/wedge_wing_coarse.stl",
+        "_efile" : "dev/meshes/other_meshes/delta_wing_coarse.vtk",
+        "_gfile" : "dev/meshes/other_meshes/diamond_5_deg_full_coarse.stl",
+        "_hfile" : "dev/meshes/other_meshes/naca_0010_AR_10_full_coarse.stl",
+        "_ifile" : "dev/meshes/adjoint/naca_2412_wing.stl",
+        "_jfile" : "dev/meshes/adjoint/a320_fine.stl",
+        "file" : "dev/meshes/adjoint/test_mesh_50.stl",
+        "singularity_order" : "lower",
+
+        "wake_model" : {
+            "wake_present" : true,
+            "append_wake" : true,
+            "xtrefftz_distance": 19.0
+            
+        },
+        "adjoint_sensitivities" : {
+            "calc_adjoint" : true,
+            "robust_cp_dir" : true
+        }
+    },
+    "solver": {
+        "formulation" : "dirichlet-source-free",
+        "control_point_offset" : 1.0e-3, 
+        "matrix_solver" : "GMRES", 
+        "xsort_system" : false
+    },
+    "post_processing" : {
+        "pressure_rules": {
+            "incompressible": false,
+            "isentropic": true
+        }
+    },
+
+    "output": {
+        "verbose" : true,
+        "_abody_file" : "dev/results/adjoint/supersonic_delta_wing_adjoint.vtk",
+        "_awake_file" : "dev/results/adjoint/supersonic_delta_wing_wake.vtk",
+        "body_file" : "dev/results/adjoint/test_50_adjoint_robust_1e-3.vtk"
+    }
+    
+}

@@ -23,7 +23,7 @@ MAIN_PATH = src/main.f90
 COMPILER = gfortran
 
 # Flags
-FLAGS = -O2 -fdefault-real-8 -pg
+FLAGS = -O2 -fdefault-real-8
 OMP_FLAG = -fopenmp
 DEBUG_FLAGS = -fbounds-check -fbacktrace -g
 
@@ -49,6 +49,10 @@ debug-serial:
 # Serial compilation (without OpenMP)
 serial:
 	$(COMPILER) $(FLAGS) -o $(PROGRAM) $(COMMON_PATHS) $(SRC_PATHS) $(MAIN_PATH)
+
+# profile serially
+# profile-serial:
+# 	$(COMPILER) $(FLAGS) -pg -o $(PROGRAM) $(COMMON_PATHS) $(SRC_PATHS) $(MAIN_PATH)
 
 # Cleanup
 clean:
