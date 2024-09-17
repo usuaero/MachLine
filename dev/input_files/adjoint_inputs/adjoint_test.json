@@ -3,7 +3,7 @@
         "freestream_velocity" : [ 1.0, 0.0, 0.0 ]
     },
     "geometry": {
-        "afile" : "dev/meshes/adjoint/sphere_coarse2.stl",
+        "file" : "dev/meshes/adjoint/sphere_coarse2.stl",
         "bfile" : "dev/meshes/other_meshes/small_sphere.stl",
         "cfile" : "dev/meshes/adjoint/adjoint_octa_mesh.stl",
         "dfile" : "dev/meshes/adjoint/wedge_wing_coarse.stl",
@@ -23,7 +23,7 @@
     },
     "solver": {
         "formulation" : "neumann-mass-flux-VCP",
-        "control_point_offset" : 1.0e0, 
+        "control_point_offset" : 1., 
         "matrix_solver" : "HHLS", 
         "sort_system" : false
     },

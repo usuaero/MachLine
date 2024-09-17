@@ -503,7 +503,7 @@ contains
 
             
             ! for every input element j full index EQUAL TO this element i full index
-            do while (sparse_input%elements(j)%full_index == this%element(i)%full_index)
+            do while (sparse_input%elements(j)%full_index == this%elements(i)%full_index)
                 
                 ! this and input elements have same full index, add sparse element j to this i
                 this%elements(i)%value = this%elements(i)%value + sparse_input%elements(j)%value
@@ -519,7 +519,7 @@ contains
 
 
             ! for every input element j full GREATER THAN this element i full index
-            do while (sparse_input%elements(j)%full_index > this%element(i)%full_index)
+            do while (sparse_input%elements(j)%full_index > this%elements(i)%full_index)
 
                 ! check if i is less than this%sparse_size
                 if (i < this%sparse_size) then
