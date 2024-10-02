@@ -1481,7 +1481,7 @@ contains
 
         integer :: j, k, i_panel, i_edge_1, i_edge_2, i_edge, panel1, panel2
         real,dimension(3) :: t1, t2, t_avg, tp, n_avg
-        real :: C_min_panel_angle, offset_ratio, x
+        real :: C_min_panel_angle, offset_ratio, x, l_to_cent
         logical :: found_first, tp_found
 
         ! Get the two edges defining the split for this vertex
