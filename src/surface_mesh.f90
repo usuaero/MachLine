@@ -1973,7 +1973,7 @@ contains
 
         integer :: j, k, i_panel, i_edge_1, i_edge_2, i_edge, panel1, panel2, iplus1_panel
         real,dimension(3) :: t1, t2, t_avg, tp, n_avg
-        real :: C_min_panel_angle, offset_ratio, x
+        real :: C_min_panel_angle, offset_ratio, x, l_to_cent
         logical :: found_first, tp_found
 
         ! Get the two edges defining the split for this vertex
@@ -2038,56 +2038,63 @@ contains
 
             ! Get index of panel
             call this%vertices(i_vert)%panels_not_across_wake_edge%get(j, i_panel)
-           
-            ! this if statement forces adjoint and central diff to use the centroid tp
-            ! if (.not. (this%calc_adjoint .or.  this%perturb_point)) then
-                ! Loop through vertices of panel j
-                vertex_loop: do k=1,this%panels(i_panel)%N
-                    ! write(*,*)"j = ", j, " k = ", k
-                    ! write(*,*)" !!!!!!!!!!!!!! VERTEX LOOP !!!!!!!!!!!!!!!!"
 
-                    ! Check we've got a different vertex than the one we're trying to place a control point for
-                    if (i_vert == this%panels(i_panel)%get_vertex_index(k)) cycle vertex_loop
+            ! Get length from this vertex to the centroid of the panel
+            l_to_cent = norm2(this%panels(i_panel)%centr - this%vertices(i_vert)%loc)
 
-                    ! Get vector to vertex
-                    tp = this%panels(i_panel)%get_vertex_loc(k) - this%vertices(i_vert)%loc
+            ! Get vector perpendicular to the panel normal and ta
+            tp = cross(t_avg, this%panels(i_panel)%n_g)
+            tp = tp / norm2(tp)
 
-                    ! Project the vector so it is perpendicular to t_avg
-                    tp = tp - t_avg*inner(t_avg, tp)
-
-                    ! Check tp isn't perfectly aligned with t_avg
-                    if (norm2(tp) < 1.e-12) cycle vertex_loop
-
-                    ! If it's still inside the panel, we've found our vector
-                    if (this%panels(i_panel)%projection_inside(0.1*tp + this%vertices(i_vert)%loc, .false.)) then
-                        tp_found = .true.
-                        ! write(*,*)"found at end of vertex loop, j = ", j, " k = ", k
-                        exit tp_loop
-                    end if
-
-                end do vertex_loop
-            ! end if
-
-            ! If none of the vertices worked, try the centroid
-            tp = this%panels(i_panel)%centr - this%vertices(i_vert)%loc
-
-            ! Project the vector so it is perpendicular to t_avg
-            tp = tp - t_avg*inner(t_avg, tp)
-
-            ! Check tp isn't perfectly aligned with t_avg
-            if (norm2(tp) < 1.e-12) then
-                ! write(*,*) "TESTING: norm2 failed didnt place control point dir on the first panel. Quitting..."
-                cycle tp_loop
-            end if
-
-            ! If it's still inside the panel, we've found our vector
-            if (this%panels(i_panel)%projection_inside(0.1*tp + this%vertices(i_vert)%loc, .false.)) then
+            ! Check which direction to go
+            if (this%panels(i_panel)%projection_inside(0.01*l_to_cent*tp + this%vertices(i_vert)%loc, .false., 0)) then
                 tp_found = .true.
-                ! write(*,*) "found at end of tp loop, j = ", j
                 exit tp_loop
-            else
-                ! write(*,*) "TESTING: projection failed didnt place control point dir on the first panel. Quitting..."
-            end if
+            elseif (this%panels(i_panel)%projection_inside(-0.01*l_to_cent*tp + this%vertices(i_vert)%loc, .false., 0)) then
+                tp_found = .true.
+                tp = -tp
+                exit tp_loop
+            endif
+
+            !! Loop through vertices of panel j
+            !vertex_loop: do k=1,this%panels(i_panel)%N
+
+            !    ! Check we've got a different vertex than the one we're trying to place a control point for
+            !    if (i_vert == this%panels(i_panel)%get_vertex_index(k)) cycle vertex_loop
+
+            !    ! Get vector to vertex
+            !    tp = this%panels(i_panel)%get_vertex_loc(k) - this%vertices(i_vert)%loc
+
+            !    ! Project the vector so it is perpendicular to t_avg
+            !    tp = tp - t_avg*inner(t_avg, tp)
+            !    if (i_vert==1208) write(*,*) tp
+
+            !    ! Check tp isn't perfectly aligned with t_avg
+            !    if (norm2(tp) < 1.e-12) cycle vertex_loop
+
+            !    ! If it's still inside the panel, we've found our vector
+            !    if (this%panels(i_panel)%projection_inside(0.1*tp + this%vertices(i_vert)%loc, .false., 0)) then
+            !        tp_found = .true.
+            !        exit tp_loop
+            !    end if
+
+            !end do vertex_loop
+
+            !! If none of the vertices worked, try the centroid
+            !tp = this%panels(i_panel)%centr - this%vertices(i_vert)%loc
+
+            !! Project the vector so it is perpendicular to t_avg
+            !tp = tp - t_avg*inner(t_avg, tp)
+
+            !! Check tp isn't perfectly aligned with t_avg
+            !if (norm2(tp) < 1.e-12) cycle tp_loop
+
+            !! If it's still inside the panel, we've found our vector
+            !if (this%panels(i_panel)%projection_inside(0.1*tp + this%vertices(i_vert)%loc, .false., 0)) then
+            !    tp_found = .true.
+            !    exit tp_loop
+            !end if
+
 
         end do tp_loop
 
