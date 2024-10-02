@@ -7,13 +7,13 @@
         "_afile" : "dev/meshes/adjoint/sphere_coarse2.stl",
         "_bfile" : "dev/meshes/other_meshes/small_sphere.stl",
         "_cfile" : "dev/meshes/adjoint/adjoint_octa_mesh.stl",
-        "_dfile" : "dev/meshes/adjoint/wedge_wing_coarse.stl",
+        "file" : "dev/meshes/adjoint/wedge_wing_coarse.stl",
         "_efile" : "dev/meshes/other_meshes/delta_wing_coarse.vtk",
         "_gfile" : "dev/meshes/other_meshes/diamond_5_deg_full_coarse.stl",
         "_hfile" : "dev/meshes/other_meshes/naca_0010_AR_10_full_coarse.stl",
         "_ifile" : "dev/meshes/adjoint/naca_2412_wing.stl",
         "_jfile" : "dev/meshes/adjoint/a320_fine.stl",
-        "file" : "dev/meshes/adjoint/test_mesh_11.stl",
+        "_kfile" : "dev/meshes/adjoint/test_mesh_11.stl",
         "singularity_order" : "lower",
 
         "wake_model" : {
@@ -29,7 +29,7 @@
     },
     "solver": {
         "formulation" : "dirichlet-source-free",
-        "control_point_offset" : 1.0e-5, 
+        "control_point_offset" : 1.0e-4, 
         "matrix_solver" : "GMRES", 
         "xsort_system" : false
     },
@@ -42,8 +42,8 @@
 
     "output": {
         "verbose" : true,
-        "_body_file" : "dev/results/adjoint/test_11_cp_test.vtk",
-        "report_file" : "dev/results/adjoint_reports/test_11_adjoint_robust_1e-5_new_add",
+        "body_file" : "dev/results/adjoint/test_11_adjoint_custom_1e-4.vtk",
+        "body_report_file" : "dev/results/adjoint_reports/test_11_adjoint_custom_1e-4.json",
         "_control_point_file" : "dev/results/adjoint_reports/test_11_cp_test_points.vtk"
     }
     

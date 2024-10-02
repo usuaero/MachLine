@@ -2044,7 +2044,7 @@ contains
                 ! Loop through vertices of panel j
                 vertex_loop: do k=1,this%panels(i_panel)%N
                     ! write(*,*)"j = ", j, " k = ", k
-                    write(*,*)" !!!!!!!!!!!!!! VERTEX LOOP !!!!!!!!!!!!!!!!"
+                    ! write(*,*)" !!!!!!!!!!!!!! VERTEX LOOP !!!!!!!!!!!!!!!!"
 
                     ! Check we've got a different vertex than the one we're trying to place a control point for
                     if (i_vert == this%panels(i_panel)%get_vertex_index(k)) cycle vertex_loop
@@ -3118,7 +3118,7 @@ contains
         real,dimension(3), intent(in), optional :: freestream_vec
 
         type(vtk_out) :: body_vtk
-        integer :: i, j, N_verts, N_cells, N_orig_verts
+        integer :: i, j, N_verts, N_cells, N_orig_verts, found_clones
         real,dimension(:),allocatable :: panel_inclinations, orders, N_discont_edges, convex
         real,dimension(:,:),allocatable :: cents
         real,dimension(:,:),allocatable :: vertex_normals, d_CF_x, d_CF_y, d_CF_z, freestream_vector
@@ -3199,49 +3199,62 @@ contains
             call body_vtk%write_point_scalars(this%mu(1:this%N_verts), "mu")
             call body_vtk%write_point_scalars(this%Phi_u(1:this%N_verts), "Phi_u")
 
-            
-            ! if calculating adjoint, write adjoint stuff
-            if (this%calc_adjoint) then
-            ! Get vertex normals
-                allocate(vertex_normals(3,N_verts))
-                
-                do i=1,N_verts
-                    vertex_normals(:,i) = this%vertices(i)%n_g
-                end do
-
-                ! organize sensitivitiy values
-                allocate(d_CF_x(3,N_orig_verts))
-                allocate(d_CF_y(3,N_orig_verts))
-                allocate(d_CF_z(3,N_orig_verts))
-                allocate(freestream_vector(3,1))
-
-                
-                ! reshape arrays
-                do i=1,3
-                    freestream_vector(i,:) = freestream_vec(i)
-                    do j=1,N_orig_verts
-                        
-                        d_CF_x(i,j) = sensitivities(j + (i-1)*N_orig_verts,1)
-                        d_CF_y(i,j) = sensitivities(j + (i-1)*N_orig_verts,2)
-                        d_CF_z(i,j) = sensitivities(j + (i-1)*N_orig_verts,3)
-                        
-                    end do
-                end do
-
-                ! Write geometry
-                ! call body_vtk%write_point_vectors(freestream_vector, "freestream")
-                call body_vtk%write_point_vectors(vertex_normals, "vertex_outward_normal_vectors")
-                call body_vtk%write_point_vectors(d_CF_x, "CFx_sensitivity_adjoint")
-                call body_vtk%write_point_vectors(d_CF_y, "CFy_sensitivity_adjoint")
-                call body_vtk%write_point_vectors(d_CF_z, "CFz_sensitivity_adjoint")
-                
-
-                
-            end if ! end adjoint if statement
 
         end if ! end solved if statement
 
         call body_vtk%write_point_scalars(convex, "convex")
+
+
+        ! if calculating adjoint, write adjoint stuff
+        if (solved .and. this%calc_adjoint) then
+        ! Get vertex normals
+            allocate(vertex_normals(3,N_verts))
+            
+            do i=1,N_verts
+                vertex_normals(:,i) = this%vertices(i)%n_g
+            end do
+
+            ! organize sensitivitiy values
+            allocate(d_CF_x(3,N_verts))
+            allocate(d_CF_y(3,N_verts))
+            allocate(d_CF_z(3,N_verts))
+
+            ! initialize counter
+            found_clones = 0
+
+            ! write sensitivity data (and copy it for cloned vertices so Paraview Plays nice)
+            do j=1,N_orig_verts
+                
+                ! fill in array for vtk
+                do i=1,3
+                    d_CF_x(i,j) = sensitivities(j + (i-1)*N_orig_verts,1)
+                    d_CF_y(i,j) = sensitivities(j + (i-1)*N_orig_verts,2)
+                    d_CF_z(i,j) = sensitivities(j + (i-1)*N_orig_verts,3)
+                end do
+                
+                ! if j vertex is a clone, copy sensitivity in corresponding spot
+                if (this%vertices(j)%clone .and. (found_clones < N_verts - N_orig_verts)) then
+                    
+                    found_clones = found_clones + 1
+
+                    do i = 1,3
+                        d_CF_x(i,found_clones + N_orig_verts) = sensitivities(j + (i-1)*N_orig_verts,1)
+                        d_CF_y(i,found_clones + N_orig_verts) = sensitivities(j + (i-1)*N_orig_verts,2)
+                        d_CF_z(i,found_clones + N_orig_verts) = sensitivities(j + (i-1)*N_orig_verts,3)
+                    
+                    end do
+                end if
+                    
+            end do
+        
+
+            ! Write geometry
+            call body_vtk%write_point_vectors(d_CF_x, "CFx_sensitivity_adjoint")
+            call body_vtk%write_point_vectors(d_CF_y, "CFy_sensitivity_adjoint")
+            call body_vtk%write_point_vectors(d_CF_z, "CFz_sensitivity_adjoint")
+
+            
+        end if ! end adjoint if statement
 
         ! Finalize
         call body_vtk%finish()

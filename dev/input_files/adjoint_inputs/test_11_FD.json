@@ -7,13 +7,13 @@
         "_afile" : "dev/meshes/adjoint/sphere_coarse2.stl",
         "_bfile" : "dev/meshes/other_meshes/small_sphere.stl",
         "_cfile" : "dev/meshes/adjoint/adjoint_octa_mesh.stl",
-        "_dfile" : "dev/meshes/adjoint/wedge_wing_coarse.stl",
+        "file" : "dev/meshes/adjoint/wedge_wing_coarse.stl",
         "_efile" : "dev/meshes/other_meshes/delta_wing_coarse.vtk",
         "_gfile" : "dev/meshes/other_meshes/diamond_5_deg_full_coarse.stl",
         "_hfile" : "dev/meshes/other_meshes/naca_0010_AR_10_full_coarse.stl",
         "_ifile" : "dev/meshes/adjoint/naca_2412_wing.stl",
         "_jfile" : "dev/meshes/adjoint/a320_fine.stl",
-        "file" : "dev/meshes/adjoint/test_mesh_11.stl",
+        "_kfile" : "dev/meshes/adjoint/test_mesh_11.stl",
         "singularity_order" : "lower",
 
         "wake_model" : {
@@ -27,7 +27,7 @@
     },
     "solver": {
         "formulation" : "dirichlet-source-free",
-        "control_point_offset" : 5.0e-3, 
+        "control_point_offset" : 1.0e-4, 
         "matrix_solver" : "GMRES", 
         "xsort_system" : false
     },
@@ -42,7 +42,7 @@
         "verbose" : true,
         "_abody_file" : "dev/results/adjoint/supersonic_delta_wing_adjoint.vtk",
         "_awake_file" : "dev/results/adjoint/supersonic_delta_wing_wake.vtk",
-        "body_file" : "dev/results/adjoint/test_11_FD_5e-3.vtk"
+        "body_file" : "dev/results/adjoint/test_11_FD__wedge_1e-4.vtk"
     }
     
 }

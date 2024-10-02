@@ -3848,9 +3848,12 @@ contains
         type(surface_mesh),intent(inout) :: body
         real,dimension(:,:),allocatable,intent(inout) :: vT_forces
 
-        real,dimension(:,:),allocatable :: d_AIC_i, d_CF_wrt_vars, adjoint_CF
+        real,dimension(:,:,:),allocatable :: d_AIC
+        real,dimension(:,:),allocatable :: d_AIC_i, d_CF_wrt_vars, adjoint_CF, d_b_vecs, d_AIC_column
         real,dimension(:),allocatable :: f_i, d_b_i, vT_n , d_AIC_times_mu, mu_vector
-        integer :: i,j,k,m, N_original_verts, N_unknown, p
+        integer :: i,j,k,m, N_original_verts, N_unknown, p, stat, n
+
+        type(sparse_vector), dimension(:,:), allocatable :: d_AIC_rearranged
 
 
         if (verbose) write(*,'(a)',advance='no') "    Calculating the Total Derivative..."
@@ -3861,8 +3864,8 @@ contains
         N_unknown = this%N_unknown
         
         ! allocations
-        allocate(d_AIC_i(N_unknown,N_unknown))
-        allocate(d_b_i(N_unknown))
+        ! allocate(d_AIC_i(N_unknown,N_unknown))
+        ! allocate(d_b_i(N_unknown))
         allocate(mu_vector(N_unknown))
         allocate(this%CF_sensitivities(3*N_original_verts,3))
 
@@ -3881,33 +3884,82 @@ contains
             mu_vector = body%mu
         end if
 
+        ! allocate a full_size_array
+        allocate(d_b_vecs(N_unknown, 3*N_original_verts), stat=stat)
+        call check_allocation(stat, "d_b_vecs expanded array")     
+        
+        allocate(d_AIC_rearranged( N_unknown, 3*N_original_verts), stat=stat)
+        call check_allocation(stat, "d_AIC_rearranged sparse matrix")
+        
+        ! allocate a 3d array
+        allocate(d_AIC_column( N_unknown, 3*N_original_verts), stat=stat)
+        call check_allocation(stat, "d_AIC_column expanded array")
+        
+        ! $OMP parallel do private(j, d_b_vecs)schedule(dynamic)
+        ! do for each column of d_AIC matrix
+        do j=1,N_unknown
+            
+            ! populate the d_b_vecs array and d_AIC in a clever way
+            d_b_vecs(j,:) = this%d_b_vector(j)%expand()
+
+            ! expand column j, all rows
+            do k=1,N_unknown
+                d_AIC_column(k,:) = this%d_A_matrix(k,j)%expand()
+            end do
+
+            ! init sparse column objects for all slices of column j, 
+            do n=1,3*N_original_verts
+                call d_AIC_rearranged(j,n)%init_from_full_vector(d_AIC_column(:,n)) 
+            end do
+            
+        end do
+
+        ! deallocate
+        deallocate(d_AIC_column)
+        
+        ! allocate a slice of d_AIC matrix 
+        allocate(d_AIC_i(N_unknown, N_unknown), stat=stat)
+        call check_allocation(stat, "d_AIC slice array")
+
         
         ! for CF_x, CF_y, and CF_z
         do m=1,3
            
+            
             ! for each design variable
             do i=1,3*N_original_verts
 
                 ! k = Number of columns of A matrix
-                do k=1,N_unknown 
+                ! do k=1,N_unknown 
 
-                    ! populate i^th slice of d_b_vector
-                    d_b_i(k) = this%d_b_vector(k)%get_value(i)
+                !     ! populate i^th slice of d_b_vector
+                !     d_b_i(k) = this%d_b_vector(k)%get_value(i)
 
-                    ! j = Number of rows of A matrix
-                    do j=1,N_unknown
-                        ! populate i^th slice of the d_A tensor
-                        d_AIC_i(j,k) = this%d_A_matrix(j,k)%get_value(i)
+                !     ! j = Number of rows of A matrix
+                !     do j=1,N_unknown
+                !         ! populate i^th slice of the d_A tensor
+                !         d_AIC_i(j,k) = this%d_A_matrix(j,k)%get_value(i)
 
-                    end do
+                !     end do
 
+                ! end do
+
+
+                ! expand the ith slice of the d_AIC
+                do k=1,N_unknown
+                    d_AIC_i(:,k) = d_AIC_rearranged(k,i)%expand()
                 end do
+
+
                 ! for each design variable, multiply d_A_matrix i^th slice by mu
                 
+                ! d_AIC_times_mu = matmul(-d_AIC_i, mu_vector)
+                ! d_AIC_times_mu = matmul(-d_AIC(:,:,i), mu_vector)
                 d_AIC_times_mu = matmul(-d_AIC_i, mu_vector)
 
                 ! add d_b_vector i^th slice
-                f_i = d_AIC_times_mu + d_b_i
+                ! f_i = d_AIC_times_mu + d_b_i
+                f_i = d_AIC_times_mu + d_b_vecs(:, i) 
                 
                 ! NOTE: the result of the dot product below doesn't depend on order as long as the inputs
                 ! are ordered the same. 
@@ -3920,6 +3972,8 @@ contains
             
 
         end do
+
+    
 
         if (verbose) write(*,'(a)',advance='no') " Done."
 
@@ -3938,6 +3992,8 @@ contains
             write(*,*) ""
         end if
 
+        ! clean up 
+        deallocate(d_AIC_rearranged, d_AIC_i, d_b_vecs)
     
 
     end subroutine panel_solver_calc_total_derivative

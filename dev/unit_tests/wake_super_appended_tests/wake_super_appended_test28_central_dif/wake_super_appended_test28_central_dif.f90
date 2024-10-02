@@ -39,7 +39,7 @@ program wake_super_appended_test28
     type(eval_point_geom) :: test_geom, adjoint_geom
     type(dod) :: test_dod_info, adjoint_dod_info
     type(integrals) :: test_int, adjoint_int
-    integer :: i_unit
+    integer :: i_unit, found_clones
     logical :: exists, found 
     integer :: adjoint_solver_stat, test_solver_stat
     type(sparse_vector) :: zeros
@@ -378,42 +378,60 @@ program wake_super_appended_test28
 
 
     !!!!!!!!!!!1 write sensitivities to vtk !!!!!!!!!!!1
-    allocate(vertex_normals(3,N_original_verts))
-            
-    do i=1,N_original_verts
-        vertex_normals(:,i) = test_mesh%vertices(i)%n_g
-    end do
 
     ! organize sensitivitiy values
-    allocate(d_CF_x(3,N_original_verts))
-    allocate(d_CF_y(3,N_original_verts))
-    allocate(d_CF_z(3,N_original_verts))
-    allocate(freestream_vector(3,1))
+    allocate(d_CF_x(3,N_verts))
+    allocate(d_CF_y(3,N_verts))
+    allocate(d_CF_z(3,N_verts))
 
     
-    ! reshape arrays
-    do i=1,3
-        freestream_vector(i,:) = freestream_flow%v_inf(i)
-        do j=1,N_original_verts
+    ! ! reshape arrays
+    ! do i=1,3
+    !     freestream_vector(i,:) = freestream_flow%v_inf(i)
+    !     do j=1,N_original_verts
             
+    !         d_CF_x(i,j) = d_CF_FD(1, j + (i-1)*N_original_verts)
+    !         d_CF_y(i,j) = d_CF_FD(2, j + (i-1)*N_original_verts)
+    !         d_CF_z(i,j) = d_CF_FD(3, j + (i-1)*N_original_verts)
+            
+    !     end do
+    ! end do
+    
+    ! write sensitivity data (and copy it for cloned vertices so Paraview Plays nice)
+    found_clones = 0
+    do j=1,N_original_verts
+        
+        ! fill in array for vtk
+        do i=1,3
             d_CF_x(i,j) = d_CF_FD(1, j + (i-1)*N_original_verts)
             d_CF_y(i,j) = d_CF_FD(2, j + (i-1)*N_original_verts)
             d_CF_z(i,j) = d_CF_FD(3, j + (i-1)*N_original_verts)
-            
         end do
+        
+        ! if j vertex is a clone, copy sensitivity in corresponding spot
+        if (test_mesh%vertices(j)%clone .and. (found_clones < N_verts - N_original_verts)) then
+            
+            found_clones = found_clones + 1
+            
+            do i = 1,3
+                d_CF_x(i,found_clones + N_original_verts) = d_CF_FD(1, j + (i-1)*N_original_verts)
+                d_CF_y(i,found_clones + N_original_verts) = d_CF_FD(2, j + (i-1)*N_original_verts)
+                d_CF_z(i,found_clones + N_original_verts) = d_CF_FD(3, j + (i-1)*N_original_verts)
+                
+            end do
+        end if
+        
     end do
-
+    
     ! Write geometry
-    ! call body_vtk%write_point_vectors(freestream_vector, "freestream")
-    call body_vtk%write_point_vectors(vertex_normals, "vertex_outward_normal_vectors")
+    call body_vtk%write_points(test_mesh%vertices)
     call body_vtk%write_point_vectors(d_CF_x, "CFx_sensitivities_central_diff")
     call body_vtk%write_point_vectors(d_CF_y, "CFy_sensitivities_central_diff")
     call body_vtk%write_point_vectors(d_CF_z, "CFz_sensitivities_central_diff")
-    call body_vtk%write_point_scalars(sqrt(sum(d_CF_x*d_CF_x)), "Norm of d_CF_x")
-    call body_vtk%write_point_scalars(sqrt(sum(d_CF_y*d_CF_y)), "Norm of d_CF_y")
-    call body_vtk%write_point_scalars(sqrt(sum(d_CF_z*d_CF_z)), "Norm of d_CF_z")
+    ! call body_vtk%write_point_scalars(sqrt(sum(d_CF_x(:,1:N_original_verts)*d_CF_x(:,1:N_original_verts))), "Norm of d_CF_x")
+    ! call body_vtk%write_point_scalars(sqrt(sum(d_CF_y(:,1:N_original_verts)*d_CF_y(:,1:N_original_verts))), "Norm of d_CF_y")
+    ! call body_vtk%write_point_scalars(sqrt(sum(d_CF_z(:,1:N_original_verts)*d_CF_z(:,1:N_original_verts))), "Norm of d_CF_z")
     
-    call body_vtk%write_point_scalars(convex, "convex")
     
     ! Finalize
     call body_vtk%finish()
@@ -424,7 +442,8 @@ program wake_super_appended_test28
 
     !!!!!!!!!!!!!!!!!!!!!   WRITE A REPORT    !!!!!!!!!!!!!!!!!!
     
-    ! type(json_value),pointer :: p_parent, p_child
+
+    ! ! Write norms of CF sensitivities
     ! call json_value_create(p_parent)
     ! call to_object(p_parent, 'norms_of_CF_sensitivities')
     ! call json_value_add(p_json, p_parent)

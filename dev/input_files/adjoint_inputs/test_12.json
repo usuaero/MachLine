@@ -29,7 +29,7 @@
     },
     "solver": {
         "formulation" : "dirichlet-source-free",
-        "control_point_offset" : 1.0e-3, 
+        "control_point_offset" : 1.0e-5, 
         "matrix_solver" : "GMRES", 
         "xsort_system" : false
     },
@@ -44,7 +44,8 @@
         "verbose" : true,
         "_abody_file" : "dev/results/adjoint/supersonic_delta_wing_adjoint.vtk",
         "_awake_file" : "dev/results/adjoint/supersonic_delta_wing_wake.vtk",
-        "body_file" : "dev/results/adjoint/test_12_adjoint_robust_1e-3.vtk"
+        "body_file" : "dev/results/adjoint/test_12_adjoint_robust_1e-5.vtk", 
+        "report_file" : "dev/results/adjoint_reports/test_12_adjoint_robust_1e-5"
     }
     
 }

@@ -1,0 +1,3 @@
+160 [18536] INFO mrtehelpers.mrteenv <> - Product libs directory: C:\Program Files (x86)\Intel\oneAPI\vtune\latest\bin64
+161 [18536] INFO mrtehelpers.mrteenv <> - File mask: amplxe_samplingmrte_clrprof*
+204 [18536] INFO mrtehelpers.mrteenv <> - File name: amplxe_samplingmrte_clrprof_1.0.dll

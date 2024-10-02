@@ -455,7 +455,7 @@ contains
         type(sparse_vector) :: sparse_input
 
         integer :: i, j
-        ! real :: this_i, sparse_input_i, added
+        real :: this_i, sparse_input_i, added
         
         ! make sure the input vector has the same full size as this
         if (this%full_size /= sparse_input%full_size) then
@@ -483,10 +483,12 @@ contains
         i = 1
         j = 1
 
+        ! write(*,*) "START OF j_loop---------------------------------------"
+
         ! do while there is still an input_sparse element to add
         j_loop: do while(j < sparse_input%sparse_size + 1)
 
-
+            ! write(*,*) "START OF first_while_loop"
             ! for every input element j with a full_index LESS THAN this element i full_index
             do while (sparse_input%elements(j)%full_index < this%elements(i)%full_index)
 
@@ -501,12 +503,19 @@ contains
 
                 ! if j is equal to sparse_input_size + 1, exit j_loop                
                 if (j == sparse_input%sparse_size + 1) exit j_loop
+
+                ! write(*,*) " i = ", i 
+                ! write(*,*) " this sparse size = ", this%sparse_size
+                ! write(*,*) " j = ", j
+                ! write(*,*) " input sparse size = ", sparse_input%sparse_size
+                
+
                 
             end do 
 
-            
+            ! write(*,*) "START OF EQUAL Loop"
             ! for every input element j full index EQUAL TO this element i full index
-            do while (sparse_input%elements(j)%full_index == this%elements(i)%full_index)
+            equal_loop: do while (sparse_input%elements(j)%full_index == this%elements(i)%full_index)
                 
                 ! this and input elements have same full index, add sparse element j to this i
                 this%elements(i)%value = this%elements(i)%value + sparse_input%elements(j)%value
@@ -518,12 +527,22 @@ contains
                 ! adding 1 to j shows we have added one of the input elements
                 j = j + 1
 
+                ! write(*,*) " i = ", i 
+                ! write(*,*) " this sparse size = ", this%sparse_size
+                ! write(*,*) " j = ", j
+                ! write(*,*) " input sparse size = ", sparse_input%sparse_size
+
                 ! if j is equal to sparse_input_size + 1, exit j_loop                
                 if (j == sparse_input%sparse_size + 1) exit j_loop
 
-            end do
+                if (i > this%sparse_size) then
+                    i = i - 1
+                    exit equal_loop
+                end if
 
+            end do equal_loop
 
+            ! write(*,*) "START OF THIRD WHILE LOOP"
             ! for every input element j full GREATER THAN this element i full index
             do while (sparse_input%elements(j)%full_index > this%elements(i)%full_index)
 
@@ -550,6 +569,10 @@ contains
                     end do 
 
                 end if
+                ! write(*,*) " i = ", i 
+                ! write(*,*) " this sparse size = ", this%sparse_size
+                ! write(*,*) " j = ", j
+                ! write(*,*) " input sparse size = ", sparse_input%sparse_size
 
             end do
 
@@ -571,7 +594,7 @@ contains
         type(sparse_vector) :: sparse_input
 
         integer :: i, j
-        ! real :: this_i, sparse_input_i, subtracted
+        real :: this_i, sparse_input_i, subtracted
 
         ! make sure the input vector has the same full size as this
         if (this%full_size /= sparse_input%full_size) then
@@ -587,7 +610,7 @@ contains
         !     sparse_input_i = sparse_input%get_value(i)
         
         !     ! if sparse_input_i is populated, subtract them
-        !     if (abs(sparse_input_i) > 1.0e-16) then
+        !     if (abs(sparse_input_i) > 0.0) then ! 1.0e-16) then
                                 
         !         this_i = this%get_value(i)
         !         subtracted = this_i - sparse_input_i
@@ -597,7 +620,7 @@ contains
             
         ! end do 
 
-        ! end do 
+        ! initialize
         i = 1
         j = 1
 
@@ -619,12 +642,13 @@ contains
 
                 ! if j is equal to sparse_input_size + 1, exit j_loop                
                 if (j == sparse_input%sparse_size + 1) exit j_loop
-                
+
+               
             end do 
 
             
             ! for every input element j full index EQUAL TO this element i full index
-            do while (sparse_input%elements(j)%full_index == this%elements(i)%full_index)
+            equal_loop: do while (sparse_input%elements(j)%full_index == this%elements(i)%full_index)
                 
                 ! this and input elements have same full index, add sparse element j to this i
                 this%elements(i)%value = this%elements(i)%value - sparse_input%elements(j)%value
@@ -639,7 +663,13 @@ contains
                 ! if j is equal to sparse_input_size + 1, exit j_loop                
                 if (j == sparse_input%sparse_size + 1) exit j_loop
 
-            end do
+                if (i > this%sparse_size) then
+                    i = i - 1
+                    exit equal_loop
+                end if
+                
+
+            end do equal_loop 
 
 
             ! for every input element j full GREATER THAN this element i full index
