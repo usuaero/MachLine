@@ -2047,10 +2047,10 @@ contains
             tp = tp / norm2(tp)
 
             ! Check which direction to go
-            if (this%panels(i_panel)%projection_inside(0.01*l_to_cent*tp + this%vertices(i_vert)%loc, .false., 0)) then
+            if (this%panels(i_panel)%projection_inside(0.01*l_to_cent*tp + this%vertices(i_vert)%loc, .false.)) then
                 tp_found = .true.
                 exit tp_loop
-            elseif (this%panels(i_panel)%projection_inside(-0.01*l_to_cent*tp + this%vertices(i_vert)%loc, .false., 0)) then
+            elseif (this%panels(i_panel)%projection_inside(-0.01*l_to_cent*tp + this%vertices(i_vert)%loc, .false.)) then
                 tp_found = .true.
                 tp = -tp
                 exit tp_loop
