@@ -49,11 +49,12 @@ def run_machline_for_cp_offset(cp_offset,study_directory,mach = 0.0,alpha=0.0, w
         },
         "post_processing" : {
             "pressure_rules" : {
-                "incompressible" : True
+                "incompressible" : False,
+                "isentropic" : True
             }
         },
         "output" : {
-            "verbose" : True,
+            "verbose" : False,
             # "body_file" : results_file,
             "report_file" : report_file,
             # "control_point_file" : control_point_file
@@ -136,7 +137,7 @@ if __name__=="__main__":
     # declare varaibles and inputs
     tStart = time.time()
     alpha = 5.0
-    num_cases = 5
+    num_cases = 20
     mach = 2.0
     wake_present = True
     # wake_type = "panel"
@@ -169,7 +170,7 @@ if __name__=="__main__":
     # cp_offsets = cp_offsets[:-1]
     ################################################################
 
-    cp_offsets = np.logspace(-8,-6, num_cases)
+    cp_offsets = np.logspace(-12,-1, num_cases)
     
     
     for i in range(num_cases):

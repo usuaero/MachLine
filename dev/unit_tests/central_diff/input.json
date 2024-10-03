@@ -1,0 +1,37 @@
+{
+    "flow": {
+        "freestream_velocity": [
+            1.0,
+            0.0,
+            0.1
+        ],
+        "freestream_mach_number": 2.0
+    },
+    "geometry": {
+        "file": "dev/unit_tests/central_diff/meshes/test_mesh_11.stl",
+        "wake_model": {
+            "wake_present": true,
+            "wake_appended": true
+        },
+        "perturbation": {
+            "perturb_point": true,
+            "point_index": 34,
+            "xyz_index": 1,
+            "step": 1e-06
+        }
+    },
+    "solver": {
+        "formulation": "dirichlet-source-free",
+        "control_point_offset": 0.0001,
+        "matrix_solver": "GMRES"
+    },
+    "post_processing": {
+        "pressure_rules": {
+            "isentropic": true
+        }
+    },
+    "output": {
+        "verbose": false,
+        "report_file": "dev/unit_tests/central_diff/reports/one_run_in_central_diff.json"
+    }
+}

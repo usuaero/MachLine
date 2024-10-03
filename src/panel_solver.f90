@@ -2259,11 +2259,6 @@ contains
             if (this%sort_system) write(*,*) "        Lower bandwidth of A matrix:", this%B_l_system
         end if
         
-        !!! TESTING !!! 
-        write(*,*) "        Maximum residual:", this%max_res
-        write(*,*) "        Norm of residual:", this%norm_res
-        !!!!!!!
-
         ! Check
         if (isnan(this%norm_res)) then
             write(*,*) "!!! Linear system failed to produce a valid solution."
