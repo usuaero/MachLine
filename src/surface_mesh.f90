@@ -3454,7 +3454,7 @@ contains
             ! perturb the vertex
             ! write(*,*) "    Input specified a vertex perturbation"
             write(*,*)""
-            write(*,'(A, A1, A, I3, A5, A, ES10.4)') "         Perturbing the ", xyz_char, " coordinate of vertex ",&
+            write(*,'(A, A1, A, I5, A5, A, ES10.4)') "         Perturbing the ", xyz_char, " coordinate of vertex ",&
             point_index, step_char, " by ", abs(step)
             
             ! write(*,'(A, F12.10)') "         Original Value:  ", this%vertices(point_index)%loc(xyz_index)

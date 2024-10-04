@@ -17,25 +17,28 @@ def run_machline_for_cp_offset(cp_offset,study_directory, calc_adjoint, perturb_
     # Storage locations
     cp_offset_string = str(cp_offset).replace(".","_") + "_" + formulation.replace("-","_")
     case_name = "cp_offset_{0}".format(cp_offset_string)
-    mesh_file = study_directory+"/meshes/sphere_coarse2.stl"
+    mesh_file = study_directory+"/meshes/test_mesh_11.stl"
     results_file = study_directory+"/results/"+case_name+".vtk"
     # wake_file = study_directory+"/results/"+case_name+"_wake.vtk"
-    report_file = study_directory+"/reports/"+case_name+".json"
+    report_file = study_directory+"/reports/1.json"
     control_point_file = study_directory+"/results/"+case_name+"_control_points.vtk"
     
 
     # create input file
     input_dict = {
         "flow": {
-            "freestream_velocity": [np.cos(np.radians(alpha)),np.sin(np.radians(alpha)), 0.0 ]
+            "freestream_velocity": [1.0, 0.0, 0.1],
+            "freestream_mach_number" : 2.0
         },
         "geometry": {
             "file": mesh_file,
             "wake_model" : {
-                "wake_present" : wake_present
+                "wake_present" : wake_present,
+                "wake_appended" : True
             },
             "adjoint_sensitivities" : {
-                "calc_adjoint" : calc_adjoint
+                "calc_adjoint" : calc_adjoint,
+                "robust_cp_dir" : True
             },
             "perturbation" : {
                 "perturb_point" : perturb_point,
@@ -52,13 +55,12 @@ def run_machline_for_cp_offset(cp_offset,study_directory, calc_adjoint, perturb_
         },
         "post_processing" : {
             "pressure_rules" : {
-                "incompressible" : True
+                "isentropic" : True
             }
         },
         "output" : {
-            # "body_file" : results_file,
-            "report_file" : report_file,
-            # "control_point_file" : control_point_file
+            "verbose" : False,
+            "report_file" : report_file
         }
     }
     # Dump
@@ -93,7 +95,7 @@ def run_machline_for_cp_offset(cp_offset,study_directory, calc_adjoint, perturb_
     l_avg = report["mesh_info"]["average_characteristic_length"]
 
     # delete report
-    # os.remove(report)  doesnt work
+    os.remove(report_file)
 
     return N_sys, l_avg, CF
 
@@ -148,7 +150,7 @@ if __name__=="__main__":
     # declare varaibles and inputs
     tStart = time.time()
     alpha = 0
-    num_cases = 1000
+    num_cases = 10
     # mach = 2.0
     wake_present = False
     # wake_type = "panel"
@@ -179,7 +181,7 @@ if __name__=="__main__":
     run_count = 0
 
     # number of mesh points/vertices
-    points = 26
+    points = 1190
     step = 1.0e-9
     
     # final sensitivity vectors for each num_case cp_offset
@@ -189,9 +191,9 @@ if __name__=="__main__":
         d_CFz[i] = np.zeros(points*3)
 
     # get spread of cp offsets
-    cp_offsets = np.logspace(-12,0, num_cases+1)
+    cp_offsets = np.logspace(-11,0, num_cases+1)
     cp_offsets = cp_offsets[:-1]
-    print(cp_offsets)
+    # print(cp_offsets)
     # sys.exit()
 
     # init plots for values of d_CFx, d_CFy, d_CFz

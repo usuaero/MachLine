@@ -8,21 +8,25 @@
         "freestream_mach_number": 2.0
     },
     "geometry": {
-        "file": "dev/unit_tests/central_diff/meshes/test_mesh_11.stl",
+        "file": "studies/adjoint_studies/central_diff_norm_cp_offset/meshes/test_mesh_11.stl",
         "wake_model": {
-            "wake_present": true,
+            "wake_present": false,
             "wake_appended": true
+        },
+        "adjoint_sensitivities": {
+            "calc_adjoint": false,
+            "robust_cp_dir": true
         },
         "perturbation": {
             "perturb_point": true,
-            "point_index": 1190,
-            "xyz_index": 3,
-            "step": -1e-06
+            "point_index": 1154,
+            "xyz_index": 1,
+            "step": -1e-09
         }
     },
     "solver": {
         "formulation": "dirichlet-source-free",
-        "control_point_offset": 0.0001,
+        "control_point_offset": 1e-11,
         "matrix_solver": "GMRES"
     },
     "post_processing": {
@@ -32,6 +36,6 @@
     },
     "output": {
         "verbose": false,
-        "report_file": "dev/unit_tests/central_diff/reports/one_run_in_central_diff.json"
+        "report_file": "studies/adjoint_studies/central_diff_norm_cp_offset/reports/1.json"
     }
 }
