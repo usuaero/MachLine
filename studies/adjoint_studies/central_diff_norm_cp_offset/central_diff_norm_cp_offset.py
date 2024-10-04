@@ -17,7 +17,7 @@ def run_machline_for_cp_offset(cp_offset,study_directory, calc_adjoint, perturb_
     # Storage locations
     cp_offset_string = str(cp_offset).replace(".","_") + "_" + formulation.replace("-","_")
     case_name = "cp_offset_{0}".format(cp_offset_string)
-    mesh_file = study_directory+"/meshes/test_mesh_11.stl"
+    mesh_file = study_directory+"/meshes/adjoint_octa_mesh.stl"
     results_file = study_directory+"/results/"+case_name+".vtk"
     # wake_file = study_directory+"/results/"+case_name+"_wake.vtk"
     report_file = study_directory+"/reports/1.json"
@@ -150,8 +150,15 @@ if __name__=="__main__":
     # declare varaibles and inputs
     tStart = time.time()
     alpha = 0
-    num_cases = 10
-    # mach = 2.0
+
+    ####################################
+    num_mesh_points = 6
+    num_cp_offsets = 10
+    step = 1.0e-10   # initial step size
+    num_step_size_runs = 10
+
+    ###################################
+    
     wake_present = False
     # wake_type = "panel"
     # wake_type = "filaments"
@@ -160,38 +167,34 @@ if __name__=="__main__":
     calc_adjoint = False
 
     study_directory = "studies/adjoint_studies/central_diff_norm_cp_offset"
-    N_sys = list(range(num_cases))
-    l_avg =list(range(num_cases))
-    CF = list(range(num_cases))
-    CFx_up = list(range(num_cases))
-    CFy_up = list(range(num_cases))
-    CFz_up = list(range(num_cases))
-    CFx_down = list(range(num_cases))
-    CFy_down = list(range(num_cases))
-    CFz_down = list(range(num_cases))
-    d_CFx = list(range(num_cases))
-    d_CFy = list(range(num_cases)) 
-    d_CFz = list(range(num_cases))
-    d_CF_norm = list(range(num_cases))
-    d_CFx_norm = list(range(num_cases))
-    d_CFy_norm = list(range(num_cases))
-    d_CFz_norm = list(range(num_cases))
+    N_sys = list(range(num_cp_offsets))
+    l_avg =list(range(num_cp_offsets))
+    CF = list(range(num_cp_offsets))
+    CFx_up = list(range(num_cp_offsets))
+    CFy_up = list(range(num_cp_offsets))
+    CFz_up = list(range(num_cp_offsets))
+    CFx_down = list(range(num_cp_offsets))
+    CFy_down = list(range(num_cp_offsets))
+    CFz_down = list(range(num_cp_offsets))
+    d_CFx = list(range(num_cp_offsets))
+    d_CFy = list(range(num_cp_offsets)) 
+    d_CFz = list(range(num_cp_offsets))
+    d_CF_norm = list(range(num_cp_offsets))
+    d_CFx_norm = list(range(num_cp_offsets))
+    d_CFy_norm = list(range(num_cp_offsets))
+    d_CFz_norm = list(range(num_cp_offsets))
     
     # counter for number of times machline is run
     run_count = 0
-
-    # number of mesh points/vertices
-    points = 1190
-    step = 1.0e-9
     
     # final sensitivity vectors for each num_case cp_offset
-    for i in range(num_cases):
-        d_CFx[i] = np.zeros(points*3)
-        d_CFy[i] = np.zeros(points*3)
-        d_CFz[i] = np.zeros(points*3)
+    for i in range(num_cp_offsets):
+        d_CFx[i] = np.zeros(num_mesh_points*3)
+        d_CFy[i] = np.zeros(num_mesh_points*3)
+        d_CFz[i] = np.zeros(num_mesh_points*3)
 
     # get spread of cp offsets
-    cp_offsets = np.logspace(-11,0, num_cases+1)
+    cp_offsets = np.logspace(-11,0, num_cp_offsets+1)
     cp_offsets = cp_offsets[:-1]
     # print(cp_offsets)
     # sys.exit()
@@ -207,12 +210,12 @@ if __name__=="__main__":
     point_index = 0
     xyz_index = 0
 
-    for i in range(num_cases):
+    for i in range(num_cp_offsets):
         N_sys[i], l_avg[i], d_CF_norm[i] = run_machline_for_cp_offset(cp_offsets[i],study_directory, calc_adjoint, perturb_point, point_index, xyz_index, -step, formulation)
         run_count += 1
 
     # get data
-    for i in range(num_cases):
+    for i in range(num_cp_offsets):
         d_CFx_norm[i] = d_CF_norm[i][0]
         d_CFy_norm[i] = d_CF_norm[i][1]
         d_CFz_norm[i] = d_CF_norm[i][2]
@@ -232,7 +235,7 @@ if __name__=="__main__":
     perturb_point = True
 
     # step size loop
-    for m in range (9):
+    for m in range (num_step_size_runs):
 
         if m == 0:
             step = step
@@ -243,47 +246,47 @@ if __name__=="__main__":
         for j in range(1,4):
             
             # vertex loop
-            for k in range(1, points + 1):
+            for k in range(1, num_mesh_points + 1):
 
                 point_index = k
                 xyz_index = j
 
                 # perturb up
-                for i in range(num_cases):
+                for i in range(num_cp_offsets):
                     N_sys[i], l_avg[i], CF[i] = run_machline_for_cp_offset(cp_offsets[i],study_directory, calc_adjoint, perturb_point, point_index, xyz_index, step, formulation)
                     run_count += 1
 
 
                 # get up data
-                for i in range(num_cases):
+                for i in range(num_cp_offsets):
                     CFx_up[i] = CF[i][0]
                     CFy_up[i] = CF[i][1]
                     CFz_up[i] = CF[i][2]
 
 
                 # perturb down
-                for i in range(num_cases):
+                for i in range(num_cp_offsets):
                     N_sys[i], l_avg[i], CF[i] = run_machline_for_cp_offset(cp_offsets[i],study_directory, calc_adjoint, perturb_point, point_index, xyz_index, -step, formulation)
                     run_count += 1
 
 
                 # get up data
-                for i in range(num_cases):
+                for i in range(num_cp_offsets):
                     CFx_down[i] = CF[i][0]
                     CFy_down[i] = CF[i][1]
                     CFz_down[i] = CF[i][2]
 
                 # calculate sensitivity wrt this design variable and store
-                for i in range(num_cases):
-                    d_CFx[i][(k + (j-1)*points) -1] = (CFx_up[i] - CFx_down[i]) / (2.*step)  
-                    d_CFy[i][(k + (j-1)*points) -1] = (CFy_up[i] - CFy_down[i]) / (2.*step)  
-                    d_CFz[i][(k + (j-1)*points) -1] = (CFz_up[i] - CFz_down[i]) / (2.*step)  
+                for i in range(num_cp_offsets):
+                    d_CFx[i][(k + (j-1)*num_mesh_points) -1] = (CFx_up[i] - CFx_down[i]) / (2.*step)  
+                    d_CFy[i][(k + (j-1)*num_mesh_points) -1] = (CFy_up[i] - CFy_down[i]) / (2.*step)  
+                    d_CFz[i][(k + (j-1)*num_mesh_points) -1] = (CFz_up[i] - CFz_down[i]) / (2.*step)  
 
             
         # for each central diff step size, do the following: 
 
         # calc norms
-        for i in range(num_cases):
+        for i in range(num_cp_offsets):
             d_CFx_norm[i] = np.sqrt(np.sum(d_CFx[i][:] * d_CFx[i][:]))
             d_CFy_norm[i] = np.sqrt(np.sum(d_CFy[i][:] * d_CFy[i][:]))
             d_CFz_norm[i] = np.sqrt(np.sum(d_CFz[i][:] * d_CFz[i][:]))
@@ -344,6 +347,6 @@ if __name__=="__main__":
     print("Machline ran " + str(run_count) + " times")
     
     plt.show()
-    
+    sys.exit()
     
     
