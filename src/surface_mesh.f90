@@ -1163,7 +1163,6 @@ contains
                         ! Get index for the clone
                         j = j + 1
                         i_boba = this%N_verts - N_clones + j ! Will be at position N_verts-N_clones+j in the new vertex array
-
                         ! Get rearranged indices
                         i_rearrange_inv(i_boba) = i_jango + j
 
@@ -3155,6 +3154,7 @@ contains
             if (this%vertices(i)%convex) convex(i) = 1.
         end do
 
+    
         ! Write geometry
         call body_vtk%begin(body_file)
         call body_vtk%write_points(this%vertices)
@@ -3229,7 +3229,7 @@ contains
 
             ! initialize counter
             found_clones = 0
-
+            write(*,*) "clones:"
             ! write sensitivity data (and copy it for cloned vertices so Paraview Plays nice)
             do j=1,N_orig_verts
                 
@@ -3242,6 +3242,8 @@ contains
                 
                 ! if j vertex is a clone, copy sensitivity in corresponding spot
                 if (this%vertices(j)%clone .and. (found_clones < N_verts - N_orig_verts)) then
+
+                    write(*,*)this%vertices(j)%index
                     
                     found_clones = found_clones + 1
 
@@ -3263,6 +3265,7 @@ contains
 
             
         end if ! end adjoint if statement
+
 
         ! Finalize
         call body_vtk%finish()
@@ -3433,6 +3436,8 @@ contains
             call json_xtnsn_get(settings, 'perturbation.point_index', point_index)
             call json_xtnsn_get(settings, 'perturbation.xyz_index', xyz_index)
             call json_xtnsn_get(settings, 'perturbation.step', step)
+
+            ! before perturbing the point, write the original points to a file
         
 
             ! determine x, y, or z character
@@ -3473,6 +3478,7 @@ contains
                 deallocate(this%panels(i)%n_hat_g)
                 call this%panels(i)%calc_derived_geom()
             end do
+
         end if
 
     end subroutine surface_mesh_perturb_vertex

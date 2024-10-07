@@ -5,23 +5,33 @@ import json
 import subprocess as sp
 import time
 import sys
+import csv
+import pandas as pd
+from write_vtk import read_vtk_file, write_vtk_file, add_vector_data_to_vtk
 
 
 
 RERUN_MACHLINE = True
 
 
-def run_machline_for_cp_offset(cp_offset,study_directory, calc_adjoint, perturb_point, point_index, xyz_index, step, formulation, alpha=0, wake_present=False):
+def run_machline_for_cp_offset(cp_offset,study_directory, calc_adjoint, perturb_point, point_index, xyz_index, step, formulation, mesh_name, alpha=0, wake_present=False):
     
     print("Running MachLine for cp_offset = {0}".format(cp_offset))
     # Storage locations
     cp_offset_string = str(cp_offset).replace(".","_") + "_" + formulation.replace("-","_")
     case_name = "cp_offset_{0}".format(cp_offset_string)
-    mesh_file = study_directory+"/meshes/adjoint_octa_mesh.stl"
+    mesh_file = study_directory+"/meshes/"+mesh_name+".stl"
     results_file = study_directory+"/results/"+case_name+".vtk"
     # wake_file = study_directory+"/results/"+case_name+"_wake.vtk"
     report_file = study_directory+"/reports/1.json"
     control_point_file = study_directory+"/results/"+case_name+"_control_points.vtk"
+
+    if (calc_adjoint):
+        write_body_file = "body_file"
+        body_file = study_directory + "/vtk_files/adjoint_"+mesh_name+"_cp_"+f'{cp_offset:.2e}'+".vtk"
+    else:
+        write_body_file = "xbody_file"
+        body_file = "none"
     
 
     # create input file
@@ -33,7 +43,7 @@ def run_machline_for_cp_offset(cp_offset,study_directory, calc_adjoint, perturb_
         "geometry": {
             "file": mesh_file,
             "wake_model" : {
-                "wake_present" : wake_present,
+                "wake_present" : True,
                 "wake_appended" : True
             },
             "adjoint_sensitivities" : {
@@ -60,7 +70,8 @@ def run_machline_for_cp_offset(cp_offset,study_directory, calc_adjoint, perturb_
         },
         "output" : {
             "verbose" : False,
-            "report_file" : report_file
+            "report_file" : report_file,
+            write_body_file : body_file 
         }
     }
     # Dump
@@ -90,14 +101,11 @@ def run_machline_for_cp_offset(cp_offset,study_directory, calc_adjoint, perturb_
         CF[2] = report["norms_of_CF_sensitivities"]["norm_of_d_CFz"]
 
 
-    # Get system dimension and average characteristic length
-    N_sys = report["solver_results"]["system_dimension"]
-    l_avg = report["mesh_info"]["average_characteristic_length"]
 
     # delete report
     os.remove(report_file)
 
-    return N_sys, l_avg, CF
+    return CF
 
     
 
@@ -152,14 +160,38 @@ if __name__=="__main__":
     alpha = 0
 
     ####################################
-    num_mesh_points = 6
-    num_cp_offsets = 10
-    step = 1.0e-10   # initial step size
-    num_step_size_runs = 10
+    mesh_name = "test_11"
+    sonic = "Supersonic"
+    num_mesh_points = 1190
+    num_cp_offsets = 1
+    step = 1.0e-6   # initial step size (gets smaller)
+    initial_step_exp = 6
+    num_step_size_runs = 1
 
+    # get spread of cp offsets
+    cp_offsets = np.logspace(-6,0, num_cp_offsets+1)
+    cp_offsets = cp_offsets[:-1]
+    cp_offsets = [1.0e-4] #, 7.5e-12, 1.0e-10, 1.0e-9, 1.0e-8, 1.0e-7, 1.0e-6]
+ 
+    # clones 
+    clones = [1,3,74,110,146,182,218,254,290,326,362,398,434,470,506,542,578,614,650,686,722,758,794,830,866,902,938,974,1010,1046,1082,1118,1154]
+    # clones = [1]
+
+    # set_path to a vtk containg just the points
+    just_points_vtk = "studies/adjoint_studies/central_diff_norm_cp_offset/vtk_files/just_points_"+mesh_name+".vtk"
+    vtk_lines = read_vtk_file(just_points_vtk)
+    
+    #### THINGS TO CHANGE FORA A NEW RUN #####
+    #   - mesh_file 
+    #   - just_points_vtk 
+    #   - clones
+    #   - num_mesh_points
+    #   - step size, initial exp
+    #   - number of cells in write_vtk.py
+    #   - polygon stuff in write_vtk.py
     ###################################
     
-    wake_present = False
+    wake_present = True
     # wake_type = "panel"
     # wake_type = "filaments"
     # formulation = "neumann-mass-flux-VCP"
@@ -167,8 +199,6 @@ if __name__=="__main__":
     calc_adjoint = False
 
     study_directory = "studies/adjoint_studies/central_diff_norm_cp_offset"
-    N_sys = list(range(num_cp_offsets))
-    l_avg =list(range(num_cp_offsets))
     CF = list(range(num_cp_offsets))
     CFx_up = list(range(num_cp_offsets))
     CFy_up = list(range(num_cp_offsets))
@@ -183,6 +213,10 @@ if __name__=="__main__":
     d_CFx_norm = list(range(num_cp_offsets))
     d_CFy_norm = list(range(num_cp_offsets))
     d_CFz_norm = list(range(num_cp_offsets))
+    d_CFx_norm_adjoint = list(range(num_cp_offsets))
+    d_CFy_norm_adjoint = list(range(num_cp_offsets))
+    d_CFz_norm_adjoint = list(range(num_cp_offsets))
+    
     
     # counter for number of times machline is run
     run_count = 0
@@ -193,11 +227,11 @@ if __name__=="__main__":
         d_CFy[i] = np.zeros(num_mesh_points*3)
         d_CFz[i] = np.zeros(num_mesh_points*3)
 
-    # get spread of cp offsets
-    cp_offsets = np.logspace(-11,0, num_cp_offsets+1)
-    cp_offsets = cp_offsets[:-1]
     # print(cp_offsets)
     # sys.exit()
+
+    # Set Times New Roman as the default font
+    plt.rcParams["font.family"] = "Times New Roman"
 
     # init plots for values of d_CFx, d_CFy, d_CFz
     figx, ax1 = plt.subplots(figsize=(10,6))
@@ -211,28 +245,31 @@ if __name__=="__main__":
     xyz_index = 0
 
     for i in range(num_cp_offsets):
-        N_sys[i], l_avg[i], d_CF_norm[i] = run_machline_for_cp_offset(cp_offsets[i],study_directory, calc_adjoint, perturb_point, point_index, xyz_index, -step, formulation)
+        d_CF_norm[i] = run_machline_for_cp_offset(cp_offsets[i],study_directory, calc_adjoint, perturb_point, point_index, xyz_index, -step, formulation, mesh_name)
         run_count += 1
 
     # get data
     for i in range(num_cp_offsets):
-        d_CFx_norm[i] = d_CF_norm[i][0]
-        d_CFy_norm[i] = d_CF_norm[i][1]
-        d_CFz_norm[i] = d_CF_norm[i][2]
-
+        d_CFx_norm_adjoint[i] = d_CF_norm[i][0]
+        d_CFy_norm_adjoint[i] = d_CF_norm[i][1]
+        d_CFz_norm_adjoint[i] = d_CF_norm[i][2]
+        
+        
     # Plot for norms_d_CFx (adjoint)
-    ax1.plot(cp_offsets, d_CFx_norm, linestyle='--', label= "Adjoint")
+    ax1.plot(cp_offsets, d_CFx_norm_adjoint, linestyle='--', label= "Adjoint")
     
     # Plot for norms_d_CFy (adjoint)
-    ax2.plot(cp_offsets, d_CFy_norm, linestyle='--', label= "Adjoint")
+    ax2.plot(cp_offsets, d_CFy_norm_adjoint, linestyle='--', label= "Adjoint")
     
     # Plot for norms_d_CFz (adjoint)
-    ax3.plot(cp_offsets, d_CFz_norm, linestyle='--', label= "Adjoint")
-    
+    ax3.plot(cp_offsets, d_CFz_norm_adjoint, linestyle='--', label= "Adjoint")
+
 
     # perturb_point
     calc_adjoint = False
     perturb_point = True
+
+    norms_data = []
 
     # step size loop
     for m in range (num_step_size_runs):
@@ -240,7 +277,7 @@ if __name__=="__main__":
         if m == 0:
             step = step
         else:
-            step = step*10
+            step = step/10
 
         # xyz loop
         for j in range(1,4):
@@ -253,7 +290,7 @@ if __name__=="__main__":
 
                 # perturb up
                 for i in range(num_cp_offsets):
-                    N_sys[i], l_avg[i], CF[i] = run_machline_for_cp_offset(cp_offsets[i],study_directory, calc_adjoint, perturb_point, point_index, xyz_index, step, formulation)
+                    CF[i] = run_machline_for_cp_offset(cp_offsets[i],study_directory, calc_adjoint, perturb_point, point_index, xyz_index, step, formulation, mesh_name)
                     run_count += 1
 
 
@@ -266,7 +303,7 @@ if __name__=="__main__":
 
                 # perturb down
                 for i in range(num_cp_offsets):
-                    N_sys[i], l_avg[i], CF[i] = run_machline_for_cp_offset(cp_offsets[i],study_directory, calc_adjoint, perturb_point, point_index, xyz_index, -step, formulation)
+                    CF[i] = run_machline_for_cp_offset(cp_offsets[i],study_directory, calc_adjoint, perturb_point, point_index, xyz_index, -step, formulation, mesh_name)
                     run_count += 1
 
 
@@ -283,62 +320,202 @@ if __name__=="__main__":
                     d_CFz[i][(k + (j-1)*num_mesh_points) -1] = (CFz_up[i] - CFz_down[i]) / (2.*step)  
 
             
-        # for each central diff step size, do the following: 
+        # for each step size, do the following: 
 
         # calc norms
         for i in range(num_cp_offsets):
             d_CFx_norm[i] = np.sqrt(np.sum(d_CFx[i][:] * d_CFx[i][:]))
             d_CFy_norm[i] = np.sqrt(np.sum(d_CFy[i][:] * d_CFy[i][:]))
             d_CFz_norm[i] = np.sqrt(np.sum(d_CFz[i][:] * d_CFz[i][:]))
+
+            processed_d_CFx = []
+            processed_d_CFy = []
+            processed_d_CFz = []
+
+            cloned_d_CFx = []
+            cloned_d_CFy = []
+            cloned_d_CFz = []
+
+            print("len ", len(d_CFx))
+
+            for j in range(num_mesh_points):
+                x_index = j
+                print("x = ", x_index)
+                y_index = num_mesh_points + j
+                z_index = 2 * num_mesh_points + j
+                processed_d_CFx.append((d_CFx[i][x_index], d_CFx[i][y_index], d_CFx[i][z_index]))
+                processed_d_CFy.append((d_CFy[i][x_index], d_CFy[i][y_index], d_CFy[i][z_index]))
+                processed_d_CFz.append((d_CFz[i][x_index], d_CFz[i][y_index], d_CFz[i][z_index]))
+
+                excel_file = "studies/adjoint_studies/central_diff_norm_cp_offset/excel_files/"+mesh_name + "_"+sonic+"_cp_"+f'{cp_offsets[i]:.2e}' + "__step_1e-" + str(initial_step_exp+ m) + ".xlsx"
+
+                if os.path.exists(excel_file):
+                    os.remove(excel_file)
+
+                # Create a DataFrame for vector components (without norms)
+                data_dict = {
+                    'd_CFx_x': [item[0] for item in processed_d_CFx],
+                    'd_CFx_y': [item[1] for item in processed_d_CFx],
+                    'd_CFx_z': [item[2] for item in processed_d_CFx],
+                    'd_CFy_x': [item[0] for item in processed_d_CFy],
+                    'd_CFy_y': [item[1] for item in processed_d_CFy],
+                    'd_CFy_z': [item[2] for item in processed_d_CFy],
+                    'd_CFz_x': [item[0] for item in processed_d_CFz],
+                    'd_CFz_y': [item[1] for item in processed_d_CFz],
+                    'd_CFz_z': [item[2] for item in processed_d_CFz],
+                }
+
+                # Convert to DataFrame and write to Excel
+                df_vectors = pd.DataFrame(data_dict)
+                df_vectors.to_excel(excel_file, index=False)
+
+
+                # Now add the norms to the same file
+                df_vectors['CFx_norm'] = d_CFx_norm[i]
+                df_vectors['CFy_norm'] = d_CFy_norm[i]
+                df_vectors['CFz_norm'] = d_CFz_norm[i]
+
+                # Save updated DataFrame with norms back to the same Excel file
+                df_vectors.to_excel(excel_file, index=False)
+
+                # Check if the current index (1-based) is in clone indices
+                if (j + 1) in clones:
+                    # Store cloned points
+                    cloned_d_CFx.append((d_CFx[i][x_index], d_CFx[i][y_index], d_CFx[i][z_index]))
+                    cloned_d_CFy.append((d_CFy[i][x_index], d_CFy[i][y_index], d_CFy[i][z_index]))
+                    cloned_d_CFz.append((d_CFz[i][x_index], d_CFz[i][y_index], d_CFz[i][z_index]))
+
+            processed_d_CFx.extend(cloned_d_CFx)
+            processed_d_CFy.extend(cloned_d_CFy)
+            processed_d_CFz.extend(cloned_d_CFz)
+
+            new_data = [processed_d_CFx, processed_d_CFy, processed_d_CFz]
+
+            # processed_d_CFx = np.array(processed_d_CFx)
+            # processed_d_CFy = np.array(processed_d_CFy)
+            # processed_d_CFz = np.array(processed_d_CFz)
+
+            # write central diff sensitivities to a vtk file file
+            new_vtk = "studies/adjoint_studies/central_diff_norm_cp_offset/vtk_files/"+mesh_name+"_"+sonic+"_cp_"+f'{cp_offsets[i]:.2e}' + "__step_1e-" + str(initial_step_exp+ m) + ".vtk"
+            if os.path.exists(new_vtk):
+                    os.remove(new_vtk)
+            updated_vtk_content = add_vector_data_to_vtk(vtk_lines, new_data)
+            write_vtk_file(new_vtk, updated_vtk_content)
+
+
         
         # Plot for norms_d_CFx
-        ax1.plot(cp_offsets, d_CFx_norm, label= "Step size = 1.0e-" + str(9 - m))
+        ax1.plot(cp_offsets, d_CFx_norm, label= "Step size = 10^-" + str(initial_step_exp + m))
         
         # Plot for norms_d_CFy
-        ax2.plot(cp_offsets, d_CFy_norm, label= "Step size = 1.0e-" + str(9 - m))
+        ax2.plot(cp_offsets, d_CFy_norm, label= "Step size = 10^-" + str(initial_step_exp + m))
         
         # Plot for norms_d_CFz
-        ax3.plot(cp_offsets, d_CFz_norm, label= "Step size = 1.0e-" + str(9 - m))
+        ax3.plot(cp_offsets, d_CFz_norm, label= "Step size = 10^-" + str(initial_step_exp + m))
         
-    
+
+        # save data in result excel
+        # Append data for this step to the norms_data list
+        norms_data.append({
+            "Step Size": f"10^-{initial_step_exp + m}",
+            "CP Offset": cp_offsets,
+            "d_CFx Norm": d_CFx_norm,
+            "d_CFy Norm": d_CFy_norm,
+            "d_CFz Norm": d_CFz_norm,
+        })
     
     # finish CFx figure
     ax1.set_xscale("log")
-    ax1.set_xlabel("Control Point Offset")
-    ax1.set_ylabel("Norm of Sensitivity Vector")
-    ax1.set_title("Norm of CFx Sensitivities vs CP Offset (Central Diff)")
-    ax1.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    ax1.set_xlabel("Control Point Offset", fontsize = 14)
+    ax1.set_ylabel("Norm of Sensitivity Vector", fontsize = 14)
+    ax1.set_title("Norm of CFx Sensitivities vs CP Offset ("+sonic+")", fontsize = 14)
+    ax1.legend(loc='center left', bbox_to_anchor=(1, 0.5), fontsize = 12)
     ax1.set_ylim(0.0, 5.0)
+    ax1.tick_params(axis='both', labelsize=12)  # For CFx
     figx.subplots_adjust(right = 0.8)
 
-    fig_file_fx = "/figures/central_diff_norm_cp_offset_coarse_sphere_CFx_sensitivities.png"
+
+    fig_file_fx = "/figures/central_diff_cp_offset_study_"+mesh_name+"_CFx_sensitivities.png"
     figx.savefig(study_directory + fig_file_fx)
 
     # finish CFy figure
     ax2.set_xscale("log")
-    ax2.set_xlabel("Control Point Offset")
-    ax2.set_ylabel("Norm of Sensitivity Vector")
-    ax2.set_title("Norm of CFy Sensitivities vs CP Offset (Central Diff)")
-    ax2.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    ax2.set_xlabel("Control Point Offset", fontsize = 14)
+    ax2.set_ylabel("Norm of Sensitivity Vector", fontsize = 14)
+    ax2.set_title("Norm of CFy Sensitivities vs CP Offset ("+sonic+")", fontsize = 14)
+    ax2.legend(loc='center left', bbox_to_anchor=(1, 0.5), fontsize = 12)
     ax2.set_ylim(0.0, 5.0)
+    ax2.tick_params(axis='both', labelsize=12)  # For CFy
     figy.subplots_adjust(right = 0.8)
 
-    fig_file_fy = "/figures/central_diff_norm_cp_offset_coarse_sphere_CFy_sensitivities.png"
+    fig_file_fy = "/figures/central_diff_cp_offset_study_"+mesh_name+"_CFy_sensitivities.png"
     figy.savefig(study_directory + fig_file_fy)
 
     # finish CFy figure
     ax3.set_xscale("log")
-    ax3.set_xlabel("Control Point Offset")
-    ax3.set_ylabel("Norm of Sensitivity Vector")
-    ax3.set_title("Norm of CFz Sensitivities vs CP Offset (Central Diff)")
-    ax3.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    ax3.set_xlabel("Control Point Offset", fontsize = 14)
+    ax3.set_ylabel("Norm of Sensitivity Vector", fontsize = 14)
+    ax3.set_title("Norm of CFz Sensitivities vs CP Offset ("+sonic+")", fontsize = 14)
+    ax3.legend(loc='center left', bbox_to_anchor=(1, 0.5), fontsize = 12)
     ax3.set_ylim(0.0, 5.0)
+    ax3.tick_params(axis='both', labelsize=12)  # For CFz
     figz.subplots_adjust(right = 0.8)
 
-    fig_file_fz = "/figures/central_diff_norm_cp_offset_coarse_sphere_CFz_sensitivities.png"
+    fig_file_fz = "/figures/central_diff_cp_offset_study_"+mesh_name+"_"+sonic+"_CFz_sensitivities.png"
     figz.savefig(study_directory + fig_file_fz)
     
     
+    # write norms results to excel file in results
+    # Create a DataFrame from the norms_data
+    df_norms = pd.DataFrame(norms_data)
+
+    # Convert the list of dictionaries to a suitable format
+    # Here we expand the DataFrame for CP Offset and norms
+    expanded_data = {
+        "Step Size": [],
+        "CP Offset": [],
+        "d_CFx Norm": [],
+        "d_CFy Norm": [],
+        "d_CFz Norm": [],
+        "d_CFx Norm Adjoint": [],
+        "d_CFy Norm Adjoint": [],
+        "d_CFz Norm Adjoint": []
+    }
+
+    # Populate the expanded_data for central difference norms
+    for data in norms_data:
+        for offset, cf_x, cf_y, cf_z in zip(data["CP Offset"], data["d_CFx Norm"], data["d_CFy Norm"], data["d_CFz Norm"]):
+            expanded_data["Step Size"].append(data["Step Size"])
+            expanded_data["CP Offset"].append(offset)
+            expanded_data["d_CFx Norm"].append(cf_x)
+            expanded_data["d_CFy Norm"].append(cf_y)
+            expanded_data["d_CFz Norm"].append(cf_z)
+            expanded_data["d_CFx Norm Adjoint"].append(None)  # Add adjoint norms
+            expanded_data["d_CFy Norm Adjoint"].append(None)
+            expanded_data["d_CFz Norm Adjoint"].append(None)
+
+    # Now add the adjoint data without step size
+    adjoint_size = len(d_CFx_norm_adjoint)
+    offset_size = len(cp_offsets)
+    print("adjoint_size = ", adjoint_size)
+    print("cp_offset size = ", offset_size)
+    print("adjoint", d_CFx_norm_adjoint[0])
+    for offset, adj_cf_x, adj_cf_y, adj_cf_z in zip(cp_offsets, d_CFx_norm_adjoint, d_CFy_norm_adjoint, d_CFz_norm_adjoint):
+        expanded_data["Step Size"].append("Adjoint")  # Mark the row as "Adjoint" since no step size applies
+        expanded_data["CP Offset"].append(offset)
+        expanded_data["d_CFx Norm"].append(None)  # No central difference data in this row
+        expanded_data["d_CFy Norm"].append(None)  # Fill central difference norms with None
+        expanded_data["d_CFz Norm"].append(None)
+        expanded_data["d_CFx Norm Adjoint"].append(adj_cf_x)  # Add adjoint norms
+        expanded_data["d_CFy Norm Adjoint"].append(adj_cf_y)
+        expanded_data["d_CFz Norm Adjoint"].append(adj_cf_z)
+
+    # Convert to DataFrame
+    df_expanded = pd.DataFrame(expanded_data)
+
+    # Save to Excel file
+    excel_file = "studies/adjoint_studies/central_diff_norm_cp_offset/results/" + mesh_name + "_" + sonic + "_norms_vs_cp_offset_data.xlsx"
+    df_expanded.to_excel(excel_file, index=False)
 
 
     tEnd = time.time()
