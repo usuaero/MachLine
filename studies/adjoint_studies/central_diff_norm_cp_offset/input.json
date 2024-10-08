@@ -21,12 +21,12 @@
             "perturb_point": false,
             "point_index": 0,
             "xyz_index": 0,
-            "step": -1e-06
+            "step": -0.0001
         }
     },
     "solver": {
         "formulation": "dirichlet-source-free",
-        "control_point_offset": 0.0001,
+        "control_point_offset": 1e-11,
         "matrix_solver": "GMRES"
     },
     "post_processing": {
@@ -37,6 +37,6 @@
     "output": {
         "verbose": false,
         "report_file": "studies/adjoint_studies/central_diff_norm_cp_offset/reports/1.json",
-        "body_file": "studies/adjoint_studies/central_diff_norm_cp_offset/vtk_files/adjoint_test_11_cp_1.00e-04.vtk"
+        "body_file": "studies/adjoint_studies/central_diff_norm_cp_offset/vtk_files/adjoint_test_11_cp_1.00e-11.vtk"
     }
 }

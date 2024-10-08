@@ -7,6 +7,7 @@ import time
 import sys
 import csv
 import pandas as pd
+import pickle
 from write_vtk import read_vtk_file, write_vtk_file, add_vector_data_to_vtk
 
 
@@ -161,21 +162,37 @@ if __name__=="__main__":
 
     ####################################
     mesh_name = "test_11"
-    sonic = "Supersonic"
+    sonic = "supersonic"
     num_mesh_points = 1190
-    num_cp_offsets = 1
-    step = 1.0e-6   # initial step size (gets smaller)
-    initial_step_exp = 6
-    num_step_size_runs = 1
+    num_cp_offsets = 10
+    step = 1.0e-4   # initial step size (gets smaller)
+    initial_step_exp = 4
+    num_step_size_runs = 5
 
-    # get spread of cp offsets
-    cp_offsets = np.logspace(-6,0, num_cp_offsets+1)
-    cp_offsets = cp_offsets[:-1]
-    cp_offsets = [1.0e-4] #, 7.5e-12, 1.0e-10, 1.0e-9, 1.0e-8, 1.0e-7, 1.0e-6]
- 
     # clones 
     clones = [1,3,74,110,146,182,218,254,290,326,362,398,434,470,506,542,578,614,650,686,722,758,794,830,866,902,938,974,1010,1046,1082,1118,1154]
     # clones = [1]
+
+    # get spread of cp offsets
+    cp_offsets = np.logspace(-11,-1, num_cp_offsets+1)
+    cp_offsets = cp_offsets[:-1]
+    # cp_offsets = [1.0e-4] #, 7.5e-12, 1.0e-10, 1.0e-9, 1.0e-8, 1.0e-7, 1.0e-6]
+
+    # Function to generate dash styles based on the number of step sizes
+    def generate_dash_styles(num_steps):
+        max_dash = 10  # Max dash length
+        min_dash = 1   # Min dash length
+        dash_step = (max_dash - min_dash) / (num_steps - 1)
+        # Create dashes starting from max_dash to min_dash
+        dash_styles = [(max_dash - i * dash_step, 2) for i in range(num_steps)]
+        return dash_styles
+
+    # Generate dash styles based on the number of step sizes
+    dash_styles = generate_dash_styles(num_step_size_runs)
+
+    # Generate colors from gray scale (lightening as step size decreases)
+    colors = [(0.3 + 0.4 * (i / (num_step_size_runs - 1)),) * 3 for i in range(num_step_size_runs)]
+
 
     # set_path to a vtk containg just the points
     just_points_vtk = "studies/adjoint_studies/central_diff_norm_cp_offset/vtk_files/just_points_"+mesh_name+".vtk"
@@ -256,13 +273,13 @@ if __name__=="__main__":
         
         
     # Plot for norms_d_CFx (adjoint)
-    ax1.plot(cp_offsets, d_CFx_norm_adjoint, linestyle='--', label= "Adjoint")
+    ax1.plot(cp_offsets, d_CFx_norm_adjoint, linestyle='-', color='black', label= "Adjoint")
     
     # Plot for norms_d_CFy (adjoint)
-    ax2.plot(cp_offsets, d_CFy_norm_adjoint, linestyle='--', label= "Adjoint")
+    ax2.plot(cp_offsets, d_CFy_norm_adjoint, linestyle='-', color='black', label= "Adjoint")
     
     # Plot for norms_d_CFz (adjoint)
-    ax3.plot(cp_offsets, d_CFz_norm_adjoint, linestyle='--', label= "Adjoint")
+    ax3.plot(cp_offsets, d_CFz_norm_adjoint, linestyle='-', color='black', label= "Adjoint")
 
 
     # perturb_point
@@ -347,7 +364,7 @@ if __name__=="__main__":
                 processed_d_CFy.append((d_CFy[i][x_index], d_CFy[i][y_index], d_CFy[i][z_index]))
                 processed_d_CFz.append((d_CFz[i][x_index], d_CFz[i][y_index], d_CFz[i][z_index]))
 
-                excel_file = "studies/adjoint_studies/central_diff_norm_cp_offset/excel_files/"+mesh_name + "_"+sonic+"_cp_"+f'{cp_offsets[i]:.2e}' + "__step_1e-" + str(initial_step_exp+ m) + ".xlsx"
+                excel_file = "studies/adjoint_studies/central_diff_norm_cp_offset/excel_files/central_diff_"+mesh_name + "_cp_"+f'{cp_offsets[i]:.2e}' + "_step_1e-" + str(initial_step_exp+ m) + ".xlsx"
 
                 if os.path.exists(excel_file):
                     os.remove(excel_file)
@@ -396,7 +413,7 @@ if __name__=="__main__":
             # processed_d_CFz = np.array(processed_d_CFz)
 
             # write central diff sensitivities to a vtk file file
-            new_vtk = "studies/adjoint_studies/central_diff_norm_cp_offset/vtk_files/"+mesh_name+"_"+sonic+"_cp_"+f'{cp_offsets[i]:.2e}' + "__step_1e-" + str(initial_step_exp+ m) + ".vtk"
+            new_vtk = "studies/adjoint_studies/central_diff_norm_cp_offset/vtk_files/cental_diff_"+mesh_name+"_cp_"+f'{cp_offsets[i]:.2e}' + "_step_1e-" + str(initial_step_exp+ m) + ".vtk"
             if os.path.exists(new_vtk):
                     os.remove(new_vtk)
             updated_vtk_content = add_vector_data_to_vtk(vtk_lines, new_data)
@@ -405,13 +422,13 @@ if __name__=="__main__":
 
         
         # Plot for norms_d_CFx
-        ax1.plot(cp_offsets, d_CFx_norm, label= "Step size = 10^-" + str(initial_step_exp + m))
+        ax1.plot(cp_offsets, d_CFx_norm, linestyle=(0, dash_styles[m]), color="black", label= "Step size = 10^-" + str(initial_step_exp + m))
         
         # Plot for norms_d_CFy
-        ax2.plot(cp_offsets, d_CFy_norm, label= "Step size = 10^-" + str(initial_step_exp + m))
+        ax2.plot(cp_offsets, d_CFy_norm, linestyle=(0, dash_styles[m]), color="black", label= "Step size = 10^-" + str(initial_step_exp + m))
         
         # Plot for norms_d_CFz
-        ax3.plot(cp_offsets, d_CFz_norm, label= "Step size = 10^-" + str(initial_step_exp + m))
+        ax3.plot(cp_offsets, d_CFz_norm, linestyle=(0, dash_styles[m]), color="black", label= "Step size = 10^-" + str(initial_step_exp + m))
         
 
         # save data in result excel
@@ -428,42 +445,73 @@ if __name__=="__main__":
     ax1.set_xscale("log")
     ax1.set_xlabel("Control Point Offset", fontsize = 14)
     ax1.set_ylabel("Norm of Sensitivity Vector", fontsize = 14)
-    ax1.set_title("Norm of CFx Sensitivities vs CP Offset ("+sonic+")", fontsize = 14)
+    # ax1.set_title("Norm of CFx Sensitivities vs CP Offset ("+mesh_name + ", " +sonic+")", fontsize = 14)
+    ax1.set_title("Norm of CFx Sensitivities vs CP Offset ("+mesh_name+", " +sonic+")", fontsize = 14)
     ax1.legend(loc='center left', bbox_to_anchor=(1, 0.5), fontsize = 12)
-    ax1.set_ylim(0.0, 5.0)
+    # ax1.set_ylim(0.0, 5.0)
+    ax1.set_yscale("log")
     ax1.tick_params(axis='both', labelsize=12)  # For CFx
     figx.subplots_adjust(right = 0.8)
 
 
-    fig_file_fx = "/figures/central_diff_cp_offset_study_"+mesh_name+"_CFx_sensitivities.png"
+    fig_file_fx = "/figures/central_diff_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFx.png"
     figx.savefig(study_directory + fig_file_fx)
 
     # finish CFy figure
     ax2.set_xscale("log")
     ax2.set_xlabel("Control Point Offset", fontsize = 14)
     ax2.set_ylabel("Norm of Sensitivity Vector", fontsize = 14)
-    ax2.set_title("Norm of CFy Sensitivities vs CP Offset ("+sonic+")", fontsize = 14)
+    # ax2.set_title("Norm of CFy Sensitivities vs CP Offset ("+mesh_name + ", " +sonic+")", fontsize = 14)
+    ax2.set_title("Norm of CFy Sensitivities vs CP Offset ("+mesh_name+", " +sonic+")", fontsize = 14)
     ax2.legend(loc='center left', bbox_to_anchor=(1, 0.5), fontsize = 12)
-    ax2.set_ylim(0.0, 5.0)
+    # ax2.set_ylim(0.0, 5.0)
+    ax2.set_yscale("log")
     ax2.tick_params(axis='both', labelsize=12)  # For CFy
-    figy.subplots_adjust(right = 0.8)
-
-    fig_file_fy = "/figures/central_diff_cp_offset_study_"+mesh_name+"_CFy_sensitivities.png"
+    figy.subplots_adjust
+    fig_file_fy = "/figures/central_diff_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFy.png"
     figy.savefig(study_directory + fig_file_fy)
 
     # finish CFy figure
     ax3.set_xscale("log")
     ax3.set_xlabel("Control Point Offset", fontsize = 14)
     ax3.set_ylabel("Norm of Sensitivity Vector", fontsize = 14)
-    ax3.set_title("Norm of CFz Sensitivities vs CP Offset ("+sonic+")", fontsize = 14)
+    # ax3.set_title("Norm of CFz Sensitivities vs CP Offset ("+mesh_name + ", " +sonic+")", fontsize = 14)
+    ax3.set_title("Norm of CFz Sensitivities vs CP Offset ("+mesh_name+", " +sonic+")", fontsize = 14)
     ax3.legend(loc='center left', bbox_to_anchor=(1, 0.5), fontsize = 12)
-    ax3.set_ylim(0.0, 5.0)
+    # ax3.set_ylim(0.0, 5.0)
+    ax3.set_yscale("log")
     ax3.tick_params(axis='both', labelsize=12)  # For CFz
     figz.subplots_adjust(right = 0.8)
 
-    fig_file_fz = "/figures/central_diff_cp_offset_study_"+mesh_name+"_"+sonic+"_CFz_sensitivities.png"
+    fig_file_fz = "/figures/central_diff_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFz.png"
     figz.savefig(study_directory + fig_file_fz)
-    
+
+    with open("studies/adjoint_studies/central_diff_norm_cp_offset/pickle_jar/central_diff_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFx.pkl", 'wb') as f:
+        pickle.dump(figx, f)
+
+
+    with open("studies/adjoint_studies/central_diff_norm_cp_offset/pickle_jar/central_diff_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFy.pkl", 'wb') as f:
+        pickle.dump(figy, f)
+
+
+    with open("studies/adjoint_studies/central_diff_norm_cp_offset/pickle_jar/central_diff_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFz.pkl", 'wb') as f:
+        pickle.dump(figz, f)
+
+
+    # loading in the pickle
+    #####################################################
+    # Load figure from the file
+    # with open("studies/adjoint_studies/central_diff_norm_cp_offset/pickle_jar/central_diff_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFz.pkl", 'rb') as f:
+    #     loaded_fig = pickle.load(f)
+
+    # #Access the axes and modify the title
+    # ax = loaded_fig.gca()  # Get current axes
+    # ax.set_title("Silly Pickles")
+
+    # # Display the modified figure
+    # loaded_fig.show()
+    #####################################################
+        
     
     # write norms results to excel file in results
     # Create a DataFrame from the norms_data
@@ -514,7 +562,7 @@ if __name__=="__main__":
     df_expanded = pd.DataFrame(expanded_data)
 
     # Save to Excel file
-    excel_file = "studies/adjoint_studies/central_diff_norm_cp_offset/results/" + mesh_name + "_" + sonic + "_norms_vs_cp_offset_data.xlsx"
+    excel_file = "studies/adjoint_studies/central_diff_norm_cp_offset/results/" + mesh_name + "_" + str(num_cp_offsets) + "_cp_offsets_norms_vs_cp_offset_data.xlsx"
     df_expanded.to_excel(excel_file, index=False)
 
 
