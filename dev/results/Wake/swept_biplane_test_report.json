@@ -1,44 +1,44 @@
 {
     "info" : {
         "generated_by" : "MachLine (c) 2023 USU Aerolab",
-        "executed" : "Tue Aug 20 14:50:05 2024"
+        "executed" : "Tue Oct  8 19:48:43 2024"
     },
     "mesh_info" : {
-        "N_body_panels" : 9856,
-        "N_body_vertices" : 5086,
+        "N_body_panels" : 39680,
+        "N_body_vertices" : 20154,
         "N_wake_panels" : 0,
-        "N_wake_filaments" : 156,
-        "average_characteristic_length" : 1.79176549287745E-002,
-        "max_flow_turning_angle" : 1.72371850853384E+002
+        "N_wake_filaments" : 312,
+        "average_characteristic_length" : 8.90405926119030E-003,
+        "max_flow_turning_angle" : 1.72371850906620E+002
     },
     "solver_results" : {
         "solver_status_code" : 0,
-        "system_dimension" : 5086,
+        "system_dimension" : 20154,
         "timing" : {
-            "system_sorting" : 4.30000000000000E-006,
-            "preconditioner" : 5.86381000000000E-002,
-            "matrix_solver" : 3.73089549000000E+001
+            "system_sorting" : 2.03000000000000E-005,
+            "preconditioner" : 8.30013000000000E-001,
+            "matrix_solver" : 2.42393890140000E+003
         },
         "residual" : {
-            "max" : 1.39236713239630E-002,
-            "norm" : 1.47604198783526E-001
+            "max" : 4.74766783780889E-002,
+            "norm" : 3.97153275337229E-001
         }
     },
     "pressure_calculations" : {
         "isentropic_rule" : {
-            "max" : 2.54186543369377E-001,
-            "min" : -1.88512933403995E-001
+            "max" : 3.08874527924951E-001,
+            "min" : -1.88565321980870E-001
         }
     },
     "total_forces" : {
-        "Cx" : 5.51869990534554E-002,
-        "Cy" : -3.94814370296558E-008,
-        "Cz" : 2.39264626816785E-001
+        "Cx" : 5.36948705210464E-002,
+        "Cy" : 1.71624767263886E-008,
+        "Cz" : 2.67426237357709E-001
     },
     "total_moments" : {
-        "CMx" : 5.25361549597444E-007,
-        "CMy" : -5.70029172147679E-001,
-        "CMz" : 6.96515487752380E-008
+        "CMx" : 6.78551666734971E-008,
+        "CMy" : -4.35789249474250E-001,
+        "CMz" : 4.76288195944074E-008
     },
     "input" : {
         "flow" : {
@@ -57,7 +57,8 @@
         "geometry" : {
             "xfile" : "dev/meshes/wake/swept_biplane_wedge.stl",
             "yfile" : "dev/meshes/wake/trailing_delta.stl",
-            "file" : "dev/meshes/wake/bothWings.stl",
+            "zfile" : "dev/meshes/wake/bothWings4.stl",
+            "file" : "dev/meshes/wake/bothwings2_400.stl",
             "spanwise_axis" : "+y",
             "wake_model" : {
                 "wake_present" : true,
@@ -65,7 +66,7 @@
                 "trefftz_distance" : 40,
                 "wake_type" : "filaments",
                 "xwake_type" : "panels",
-                "N_panels" : 500
+                "N_panels" : 30
             }
         },
         "solver" : {
@@ -92,11 +93,13 @@
             "wake_file" : "dev/results/wake/swept_biplane_test_wake.vtk",
             "control_point_file" : "dev/results/wake/swept_biplane_test_control_points.vtk",
             "report_file" : "dev/results/wake/swept_biplane_test_report.json",
-            "offbody_points" : {
-                "points_file" : "dev/input_files/bi_wing_slice_sample_points.csv",
-                "output_file" : "dev/results/bi_wing_slice_sample_points.csv"
+            "xoffbody_points" : {
+                "xpoints_file" : "dev/input_files/bi_wing_slice_sample_pointsSpanwise.csv",
+                "xoutput_file" : "dev/results/bi_wing_slice_sample_pointsSpanwise.csv",
+                "points_file" : "dev/input_files/bi_wing_slice_sample_pointsStreamwise.csv",
+                "output_file" : "dev/results/bi_wing_slice_sample_pointsStreamwise.csv"
             }
         }
     },
-    "total_runtime" : 8.63120000000000E+001
+    "total_runtime" : 2.62045400000000E+003
 }

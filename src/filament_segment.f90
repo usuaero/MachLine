@@ -239,6 +239,7 @@ contains
         real :: bsq  
         real,dimension(3) :: loc_1, loc_2,r
         integer :: k 
+        real :: fac = 1
 
         loc_1 = this%get_vertex_loc(1) !!!! put in appropriate input and get 
         loc_2 = this%get_vertex_loc(2) !!!! put in appropriate input and get 
@@ -263,15 +264,29 @@ contains
         bsq = 1 - (freestream%M_inf**2)
 
         ! write out the integrals here based on the different dod stuff. 
-        unrel_v_numer_one = (zo-zf)*(xo-xf)
-        unrel_v_denom_one = ((yo-yf)**2+(zo-zf)**2)*((xo-xf)**2+bsq*((yo-yf)**2+(zo-zf)**2))**0.5
-        unrel_v_numer_two = (zo-zi)*(xo-xi)
-        unrel_v_denom_two = ((yo-yi)**2+(zo-zi)**2)*((xo-xi)**2+bsq*((yo-yi)**2+(zo-zi)**2))**0.5
+        if (-bsq*((yo-yf)**2+(zo-zf)**2)>fac*(xo-xf)**2) then
+            unrel_v_numer_one = 0
+            unrel_v_denom_one = 1
+            unrel_w_numer_one = 0
+            unrel_w_denom_one = 1
+        else
+            unrel_v_numer_one = (zo-zf)*(xo-xf)
+            unrel_v_denom_one = ((yo-yf)**2+(zo-zf)**2)*((xo-xf)**2+bsq*((yo-yf)**2+(zo-zf)**2))**0.5
+            unrel_w_numer_one = (yo-yf)*(xo-xf)
+            unrel_w_denom_one = ((yo-yf)**2+(zo-zf)**2)*((xo-xf)**2+bsq*((yo-yf)**2+(zo-zf)**2))**0.5
+        end if
 
-        unrel_w_numer_one = (yo-yf)*(xo-xf)
-        unrel_w_denom_one = ((yo-yf)**2+(zo-zf)**2)*((xo-xf)**2+bsq*((yo-yf)**2+(zo-zf)**2))**0.5
-        unrel_w_numer_two = (yo-yi)*(xo-xi)
-        unrel_w_denom_two = ((yo-yi)**2+(zo-zi)**2)*((xo-xi)**2+bsq*((yo-yi)**2+(zo-zi)**2))**0.5
+        if (-bsq*((yo-yi)**2+(zo-zi)**2)>fac*(xo-xi)**2) then
+            unrel_v_numer_two = 0
+            unrel_v_denom_two = 1
+            unrel_w_numer_two = 0
+            unrel_w_denom_two = 1
+        else
+            unrel_v_numer_two = (zo-zi)*(xo-xi)
+            unrel_v_denom_two = ((yo-yi)**2+(zo-zi)**2)*((xo-xi)**2+bsq*((yo-yi)**2+(zo-zi)**2))**0.5
+            unrel_w_numer_two = (yo-yi)*(xo-xi)
+            unrel_w_denom_two = ((yo-yi)**2+(zo-zi)**2)*((xo-xi)**2+bsq*((yo-yi)**2+(zo-zi)**2))**0.5
+        end if
 
         if (dod_info%both_in_dod) then 
             int%u = 0

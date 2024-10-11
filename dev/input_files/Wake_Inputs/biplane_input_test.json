@@ -15,7 +15,8 @@
     "geometry": {
         "xfile": "dev/meshes/wake/swept_biplane_wedge.stl",
         "yfile": "dev/meshes/wake/trailing_delta.stl",
-        "file": "dev/meshes/wake/bothWings.stl",
+        "zfile": "dev/meshes/wake/bothWings4.stl",
+        "file": "dev/meshes/wake/bothwings2_400.stl",
         
 
         "spanwise_axis" : "+y",
@@ -25,7 +26,7 @@
             "trefftz_distance": 40,
             "wake_type": "filaments",
             "xwake_type": "panels",
-            "N_panels": 500
+            "N_panels": 30
         }
     },
     "solver": {
@@ -52,9 +53,11 @@
         "wake_file" :          "dev/results/wake/swept_biplane_test_wake.vtk",
         "control_point_file" : "dev/results/wake/swept_biplane_test_control_points.vtk",
         "report_file" :        "dev/results/wake/swept_biplane_test_report.json",
-        "offbody_points" : {
-            "points_file" : "dev/input_files/bi_wing_slice_sample_points.csv",
-            "output_file" : "dev/results/bi_wing_slice_sample_points.csv"
+        "xoffbody_points" : {
+            "xpoints_file" : "dev/input_files/bi_wing_slice_sample_pointsSpanwise.csv",
+            "xoutput_file" : "dev/results/bi_wing_slice_sample_pointsSpanwise.csv",
+            "points_file" : "dev/input_files/bi_wing_slice_sample_pointsStreamwise.csv",
+            "output_file" : "dev/results/bi_wing_slice_sample_pointsStreamwise.csv"
         }
     }
 }

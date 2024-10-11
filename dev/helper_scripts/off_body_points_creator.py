@@ -71,7 +71,8 @@ def write_points(filename,points):
 
 
 if __name__ =="__main__":
-    points = point_block(x_min=35,x_max=35,y_min=-12.5,y_max=12.5,z_min=-7,z_max=10,Nx=1,Ny=50,Nz=50)
+    points = point_block(x_min=2,x_max=2,y_min=-2,y_max=2,z_min=-1.5,z_max=1.5,Nx=1,Ny=50,Nz=50)
+    # write_points("dev/input_files/b1_slice_sample_points.csv",points)
+    write_points("dev/input_files/bi_wing_slice_sample_pointsSpanwise.csv",points)
 
-    write_points("dev/input_files/b1_slice_sample_points.csv",points)
 
