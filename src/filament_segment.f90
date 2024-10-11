@@ -245,9 +245,9 @@ contains
         real :: x0, y0, z0
         real :: y, z
         real,dimension(3,3) :: A_c_to_f
-        real :: term1, term2, denominator, v_numerator, w_numerator, tx, ty, tz,t
+        real :: term1, term2, denominator, v_numerator, w_numerator, tx, ty, tz,t, R_bf, R_bi,f_c
         real :: tol = 1e-4
-
+        f_c = 0.2
         bsq = 1 - (freestream%M_inf**2)
 
         if (dod_info%both_in_dod .or. dod_info%first_in_dod) then 
@@ -348,7 +348,15 @@ contains
             C3 = (bsq * s_a**2 * s_b**2 + bsq * c_b**2 + c_a**2 * s_b**2) * (y-y0)**2 + (1 - bsq) * 2 * c_a * s_a * s_b * (y - y0) &
             * (z - z0) + (bsq * c_a**2 + s_a**2) * (z - z0)**2
 
+            R_bf = C1 * (xf - x0)**2 + C2 * (xf - x0) + C3
+            R_bi = C1 * (xi - x0)**2 + C2 * (xi - x0) + C3
 
+            if (R_bf < f_c .and. R_bi < f_c) then
+                int%u = 0
+                int%v = 0
+                int%w = 0
+                return
+            end if
 
             ! get terms for influence coefficients
             
@@ -361,18 +369,24 @@ contains
             w_numerator = - bsq * (y - y0)
             
 
-            if (dod_info%both_in_dod) then 
+            if (dod_info%both_in_dod .and. (R_bf > f_c .and. R_bi > f_c)) then 
                 term1 = (2 * C1 * (xf - x0) + C2) / ((C1 * (xf - x0)**2 + C2 * (xf - x0) + C3)**0.5)
                 term2 = (2 * C1 * (xi - x0) + C2) / ((C1 * (xi - x0)**2 + C2 * (xi - x0) + C3)**0.5)
                 V_local(1) = 0
                 V_local(2) = (v_numerator / denominator) * (term1 - term2)
                 V_local(3) =  (w_numerator / denominator) * (term1 - term2)
-            else if (dod_info%first_in_dod) then 
+            else if (dod_info%first_in_dod .and. (R_bi > f_c .and. R_bf < f_c)) then 
                 term2 = (2 * C1 * (xi - x0) + C2) / ((C1 * (xi - x0)**2 + C2 * (xi - x0) + C3)**0.5)
                 V_local(1) = 0
                 V_local(2) = (v_numerator / denominator) * (- term2)
                 V_local(3) = (w_numerator / denominator) * (- term2)
-            else 
+            else if (R_bi < f_c .and. R_bf > f_c) then
+                ! write(*,*) "This should not happen"
+                term1 = (2 * C1 * (xf - x0) + C2) / ((C1 * (xf - x0)**2 + C2 * (xf - x0) + C3)**0.5)
+                V_local(1) = 0
+                V_local(2) = (v_numerator / denominator) * (term1)
+                V_local(3) = (w_numerator / denominator) * (term1)
+            else
                 V_local(1) = 0
                 V_local(2) = 0
                 V_local(3) = 0

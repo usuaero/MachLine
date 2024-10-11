@@ -35,14 +35,14 @@ module panel_solver_mod
         logical :: write_A_and_b, sort_system, use_sort_for_cp, overdetermined_ls, underdetermined_ls, dirichlet
         logical :: compressible_correction, prandtl_glauert, karman_tsien, laitone, relaxed_wake
         type(flow) :: freestream
-        real :: norm_res, max_res, tol, rel
+        real :: norm_res, max_res, tol, rel, streamline_step_size
         real :: sort_time, prec_time, solver_time
         real,dimension(3) :: C_F, C_M, inner_flow
         real,dimension(:,:),allocatable :: A
         real,dimension(:),allocatable :: b, I_known, BC
         integer,dimension(:),allocatable :: P
         integer :: N_cells, block_size, max_iterations, N_unknown, N_d_unknown, N_s_unknown, solver_iterations, N_sigma
-        integer :: restart_iterations, B_l_system, max_relaxation_iterations
+        integer :: restart_iterations, B_l_system, max_relaxation_iterations,max_streamline_iterations
         logical,dimension(:),allocatable :: sigma_known
         integer,dimension(:),allocatable :: i_sigma_in_sys, i_sys_sigma_in_body
 
@@ -189,7 +189,9 @@ contains
         call json_xtnsn_get(solver_settings, 'iterative_solver_output', this%iteration_file, 'none')
         call json_xtnsn_get(solver_settings, 'sort_system', this%sort_system, this%freestream%supersonic)
         call json_xtnsn_get(solver_settings, 'relax_wake', this%relaxed_wake, .false.)
+        call json_xtnsn_get(solver_settings, 'streamline_step_size', this%streamline_step_size, 0.3)
         call json_xtnsn_get(solver_settings, 'max_relaxation_iterations', this%max_relaxation_iterations, 4)
+        call json_xtnsn_get(solver_settings, 'max_streamline_iterations', this%max_streamline_iterations, 5000)
         this%solver_iterations = -1
 
         ! Special settings for the Neumann formulation
@@ -1025,7 +1027,7 @@ contains
     end subroutine panel_solver_set_permutation
 
 
-    subroutine panel_solver_solve(this, body, solver_stat, formulation,freestream) !!!! changed so formulation is in solve
+    subroutine panel_solver_solve(this, body, solver_stat, formulation,freestream,wake_file) !!!! changed so formulation is in solve
         ! Calls the relevant subroutine to solve the case based on the selected formulation
         ! We are solving the equation
         !
@@ -1042,6 +1044,7 @@ contains
         class(panel_solver),intent(inout) :: this
         type(surface_mesh),intent(inout) :: body
         type(flow),intent(inout)::freestream
+        character(len=:),allocatable,intent(in) :: wake_file
         integer,intent(out) :: solver_stat
         character(len=:),allocatable,intent(in) :: formulation !!!! changed to get wake influence working 
 
@@ -1089,7 +1092,7 @@ contains
         if (solver_stat /= 0) return
 
         if (this%relaxed_wake) then
-            call this%relax_wake(body, formulation, freestream, solver_stat)
+            call this%relax_wake(body, formulation, freestream, solver_stat,wake_file)
         end if
 
 
@@ -1475,7 +1478,7 @@ contains
         if (verbose) write(*,'(a)',advance='no') "     Calculating wake influences..."
 
         ! Loop through control points
-        !$OMP parallel do private(j, k, l, source_inf, doublet_inf, v_d, v_s, A_i, s_star)&
+        !$OMP parallel do private(i,j, k, l, source_inf, doublet_inf, v_d, v_s, A_i, s_star)&
         !$OMP & private(passes_through,downstream,d_from_te,x) schedule(dynamic)
         do i=1,body%N_cp
 
@@ -1520,6 +1523,12 @@ contains
                                 call body%filament_wake%filaments(j)%segments(l)%calc_velocity_influences(& 
                                 body%cp(i)%loc, this%freestream,.false., v_d) 
                                 doublet_inf = matmul(body%cp(i)%n_g, matmul(this%freestream%B_mat_g, v_d))
+                            end if
+
+                            if (doublet_inf(1) /= doublet_inf(1) .or. doublet_inf(2) /= doublet_inf(2) .or.&
+                                                                     doublet_inf(3) /= doublet_inf(3)) then
+                                write(*,*) "doublet_inf", doublet_inf
+                                write(*,*) ""
                             end if
 
                             !write(*,*) "doublet_inf", doublet_inf
@@ -1732,7 +1741,7 @@ contains
             !$OMP end critical
 
         end do
-
+        !$OMP end parallel do
         if (verbose) write(*,*) "Done."
 
     end subroutine panel_solver_calc_wake_influences
@@ -2088,16 +2097,18 @@ contains
     end subroutine panel_solver_solve_system
 
 
-    subroutine panel_solver_relax_wake(this, body, formulation, freestream, solver_stat)
+    subroutine panel_solver_relax_wake(this, body, formulation, freestream, solver_stat,wake_file)
         ! Relaxes the wake and resolves the system
         implicit none
 
         class(panel_solver),intent(inout) :: this
         type(surface_mesh),intent(inout) :: body
         type(flow),intent(inout)::freestream
+        character(len=:),allocatable,intent(in) :: wake_file
         integer,intent(out) :: solver_stat
         real,dimension(:,:,:),allocatable :: streamlines
         character(len=:),allocatable,intent(in) :: formulation !!!! changed to get wake influence working 
+        logical :: wake_exported
 
         integer :: i
 
@@ -2112,6 +2123,9 @@ contains
             call this%calc_wake_influences(body, formulation,freestream,.false.) 
             ! update the wake location
             call this%update_wake_loc(body, streamlines)
+            deallocate(streamlines)
+            ! update the wake file
+            call body%filament_wake%write_filaments(wake_file, wake_exported, body%mu)
             ! calculate the new wake influence
             call this%calc_wake_influences(body, formulation,freestream,.true.)
             ! solve the system again
@@ -2128,54 +2142,74 @@ contains
         class(panel_solver),intent(inout) :: this
         type(surface_mesh),intent(inout) :: body
         real :: delta_s, d1
-        real, dimension(3) :: start,v_d,v_s,point,k1,k2,k3,k4
+        real, dimension(3) :: start,v_d,v_s,point,new_point, k1,k2,k3,k4
         real,dimension(:,:,:),allocatable,intent(inout) :: streamlines
         integer :: i,j, max_iterations_rk4
         logical :: first
 
         ! set these temporarily
-        delta_s = 0.1
-        max_iterations_rk4 = 5000
+        delta_s = this%streamline_step_size
+        max_iterations_rk4 = this%max_streamline_iterations
 
         
         write(*,'(a)',advance='no') "Calculating streamlines... "
         allocate(streamlines(3,body%filament_wake%N_filaments,max_iterations_rk4),source=0.0)
         ! loop through all the filaments in the wake
-        !!$OMP parallel do private(j, k1,k2,k3,k4,point, v_s, v_d,delta_s) schedule(dynamic)
+        ! write(*,*) "ag2c", this%freestream%A_g_to_c
+        !$OMP parallel do private(i,j, k1,k2,k3,k4,point, new_point, v_s, v_d,d1,start) schedule(dynamic)
         do i=1,body%filament_wake%N_filaments
-            start = body%filament_wake%filaments(i)%vertices(1)%loc + this%freestream%A_g_to_c(:,3)*(-1.e-3)
+            start = body%filament_wake%filaments(i)%vertices(1)%loc + this%freestream%A_g_to_c(1,:)*(-1.e-3)
+            ! write(*,*) "start: ", start
             streamlines(:,i,1) = start
             do j=2,max_iterations_rk4
                 ! do RK4 step
+                !$OMP critical
                 point = streamlines(:,i,j-1)
+                !$OMP end critical
                 ! write(*,*) "point: ", point
                 call body%get_induced_velocities_at_point(point, this%freestream, v_d, v_s)
                 ! write(*,*) "v_d: ", v_d
                 
                 k1 = this%freestream%v_inf + this%freestream%U*(v_d + v_s)
+                k1 = k1/norm2(k1)
                 ! write(*,*) "k1: ", k1
                 call body%get_induced_velocities_at_point(point + 0.5*delta_s*k1, this%freestream, v_d, v_s)
                 
                 k2 = this%freestream%v_inf + this%freestream%U*(v_d + v_s)
+                k2 = k2/norm2(k2)
                 ! write(*,*) "k2: ", k2
                 call body%get_induced_velocities_at_point(point + 0.5*delta_s*k2, this%freestream, v_d, v_s)
                 
                 k3 = this%freestream%v_inf + this%freestream%U*(v_d + v_s)
+                k3 = k3/norm2(k3)
                 ! write(*,*) "k3: ", k3
                 call body%get_induced_velocities_at_point(point + delta_s*k3, this%freestream, v_d, v_s)
                 
                 k4 = this%freestream%v_inf + this%freestream%U*(v_d + v_s)
+                k4 = k4/norm2(k4)
                 ! write(*,*) "k4: ", k4
-                !!$OMP critical
-                streamlines(:,i,j) = point + delta_s*(k1 + 2*k2 + 2*k3 + k4)/6
-                ! write(*,*) "newpoint: ", streamlines(:,i,j)
-                !!$OMP end critical
+                
                 ! check if the streamline has converged or if it has reached the treffitz plane
-                d1 = body%trefftz_distance - inner(streamlines(:,i,j), this%freestream%c_hat_g)
-                if (norm2(streamlines(:,i,j) - streamlines(:,i,j-1)) < 1.e-6 .or. d1<0) exit
+                new_point = point + delta_s*(k1 + 2*k2 + 2*k3 + k4)/6
+                if ((new_point(1) /= new_point(1)) .or. (new_point(2) /= new_point(2)) .or. (new_point(3) /= new_point(3)) ) then
+                    write(*,*) "Streamline has diverged. Exiting"
+                    exit
+                end if
+                !$OMP critical
+                streamlines(:,i,j) = new_point
+                !$OMP end critical
+                ! write(*,*) "newpoint: ", streamlines(:,i,j)
+                d1 = body%trefftz_distance - inner(new_point, this%freestream%c_hat_g)
+                
+                if (norm2(new_point - point) < 1.e-6 .or. d1<0) then
+                    if (j < body%filament_wake%filaments(i)%N_segments) write(*,*) "Step size too big, not enough points"
+                    exit
+                end if
             end do
         end do
+        !$OMP end parallel do
         write(*,*) "Done."
+        
                 
             
 
@@ -2197,8 +2231,8 @@ contains
         
         ! loop through all the filaments in the wake
         do i=1,body%filament_wake%N_filaments
-            k_old = 1
-            do j = 1,body%filament_wake%filaments(i)%N_verts
+            k_old = 2
+            do j = 2,body%filament_wake%filaments(i)%N_verts
                 x = body%filament_wake%filaments(i)%vertices(j)%loc(1)
                 do k = k_old,size(streamlines,3)
                     if (streamlines(1,i,k) > x) then
@@ -2209,6 +2243,7 @@ contains
                 end do
             end do
         end do 
+        
     end subroutine panel_solver_update_wake_loc
 
     
