@@ -245,7 +245,8 @@ contains
         real :: x0, y0, z0
         real :: y, z
         real,dimension(3,3) :: A_c_to_f
-        real :: term1, term2, denominator, v_numerator, w_numerator
+        real :: term1, term2, denominator, v_numerator, w_numerator, tx, ty, tz,t
+        real :: tol = 1e-4
 
         bsq = 1 - (freestream%M_inf**2)
 
@@ -266,6 +267,30 @@ contains
 
             zf = loc_2(3)
             zi = loc_1(3)
+
+            x0 = r(1)
+            y0 = r(2)
+            z0 = r(3)
+
+            ! check to see if cp is on the line
+            if ((xf - xi)>tol) tx = (x0 - xi) / (xf - xi) 
+            if ((yf - yi)>tol) ty = (y0 - yi) / (yf - yi) 
+            if ((zf - zi) >tol) tz = (z0 - zi) / (zf - zi) 
+
+            ! Check if tx, ty, and tz are approximately equal
+            if (abs(tx - ty) < tol .and. abs(ty - tz) < tol) then
+                t = tx  ! All t values are approximately the same
+                if (t >= -tol .and. t <= 1.0 + tol) then
+                    write(*,*) "Point is on the line"
+                    int%u = 0
+                    int%v = 0
+                    int%w = 0
+                    return
+                endif
+            endif
+
+            ! Check if t is within the segment range [0, 1] with tolerance
+            
 
         ! compute trig functions
             L = ((xf-xi)**2 + (yf-yi)**2 + (zf-zi)**2)**0.5

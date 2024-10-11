@@ -19,6 +19,7 @@ module filament_mod
         integer :: i_top_parent, i_bot_parent
         logical :: on_mirror_plane
         integer :: N_segments = 0
+        real :: seperation
         type(filament_segment),allocatable,dimension(:) :: segments
 
         contains
@@ -130,11 +131,11 @@ contains
         type(vertex),dimension(:),allocatable,intent(in) :: body_verts
 
         real,dimension(3) :: loc
-        real :: d1, sep
+        real :: d1
         integer :: i, N_body_verts
 
         ! Allocate memory
-        this%N_verts = N_segments_streamwise*2
+        this%N_verts = N_segments_streamwise+1
         N_body_verts = size(body_verts)
         allocate(this%vertices(this%N_verts))
 
@@ -147,14 +148,14 @@ contains
         
 
         ! Calculate spacing between vertices
-        sep = d1 / N_segments_streamwise
+        this%seperation = d1 / N_segments_streamwise
         
 
         ! Loop through following vertices
         do i=2,this%N_verts
 
             ! Calculate location of vertex
-            loc = start_c + sep*(i-1)*freestream%c_hat_g
+            loc = start_c + this%seperation*(i-1)*freestream%c_hat_g
            
             ! Initialize vertex
             call this%vertices(i)%init(loc, i)

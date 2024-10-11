@@ -33,7 +33,7 @@ module panel_solver_mod
         character(len=:),allocatable :: formulation, pressure_for_forces, matrix_solver, preconditioner, iteration_file
         logical :: incompressible_rule, isentropic_rule, second_order_rule, slender_rule, linear_rule
         logical :: write_A_and_b, sort_system, use_sort_for_cp, overdetermined_ls, underdetermined_ls, dirichlet
-        logical :: compressible_correction, prandtl_glauert, karman_tsien, laitone
+        logical :: compressible_correction, prandtl_glauert, karman_tsien, laitone, relaxed_wake
         type(flow) :: freestream
         real :: norm_res, max_res, tol, rel
         real :: sort_time, prec_time, solver_time
@@ -42,7 +42,7 @@ module panel_solver_mod
         real,dimension(:),allocatable :: b, I_known, BC
         integer,dimension(:),allocatable :: P
         integer :: N_cells, block_size, max_iterations, N_unknown, N_d_unknown, N_s_unknown, solver_iterations, N_sigma
-        integer :: restart_iterations, B_l_system
+        integer :: restart_iterations, B_l_system, max_relaxation_iterations
         logical,dimension(:),allocatable :: sigma_known
         integer,dimension(:),allocatable :: i_sigma_in_sys, i_sys_sigma_in_body
 
@@ -81,6 +81,9 @@ module panel_solver_mod
             procedure :: check_system => panel_solver_check_system
             procedure :: write_system => panel_solver_write_system
             procedure :: solve_system => panel_solver_solve_system
+            procedure :: relax_wake => panel_solver_relax_wake
+            procedure :: calc_streamlines => panel_solver_calc_streamlines
+            procedure :: update_wake_loc => panel_solver_update_wake_loc
 
             ! Surface properties
             procedure :: calc_cell_velocities => panel_solver_calc_cell_velocities
@@ -185,6 +188,8 @@ contains
         call json_xtnsn_get(solver_settings, 'preconditioner', this%preconditioner, 'DIAG')
         call json_xtnsn_get(solver_settings, 'iterative_solver_output', this%iteration_file, 'none')
         call json_xtnsn_get(solver_settings, 'sort_system', this%sort_system, this%freestream%supersonic)
+        call json_xtnsn_get(solver_settings, 'relax_wake', this%relaxed_wake, .false.)
+        call json_xtnsn_get(solver_settings, 'max_relaxation_iterations', this%max_relaxation_iterations, 4)
         this%solver_iterations = -1
 
         ! Special settings for the Neumann formulation
@@ -1040,7 +1045,7 @@ contains
         integer,intent(out) :: solver_stat
         character(len=:),allocatable,intent(in) :: formulation !!!! changed to get wake influence working 
 
-        integer :: stat
+        integer :: stat,i
 
         ! Set default status
         solver_stat = 0
@@ -1065,15 +1070,28 @@ contains
 
         ! Calculate wake influences
         if (body%wake%N_panels > 0 .or. body%filament_wake%N_filaments > 0)&
-        call this%calc_wake_influences(body, formulation,freestream) !!!! formulation part is a change
+        call this%calc_wake_influences(body, formulation,freestream,.true.) !!!! formulation part is a change !!!! adding a +/- for removing old wake
         ! Assemble boundary condition vector
         call this%assemble_BC_vector(body)
 
         ! Solve the linear system
+
+        !!!! moved this here since I need to have this allocated outside of the solve routine
+        if (body%asym_flow) then
+            allocate(body%mu(body%N_verts*2))
+        else
+            allocate(body%mu(body%N_verts))
+        end if
+
         call this%solve_system(body, solver_stat)
         
         ! Check for errors
         if (solver_stat /= 0) return
+
+        if (this%relaxed_wake) then
+            call this%relax_wake(body, formulation, freestream, solver_stat)
+        end if
+
 
         ! Calculate velocities
         call this%calc_cell_velocities(body)
@@ -1106,6 +1124,7 @@ contains
 
         ! Allocate
         allocate(this%BC(body%N_cp))
+
 
         ! Vector for source-free target potential calculation
         x = matmul(this%freestream%B_mat_g_inv, this%freestream%c_hat_g)
@@ -1435,7 +1454,7 @@ contains
     end subroutine panel_solver_calc_body_influences
 
 
-    subroutine panel_solver_calc_wake_influences(this, body, formulation,freestream)
+    subroutine panel_solver_calc_wake_influences(this, body, formulation,freestream,addWake)
         ! Calculates the influence of the wake on the control points
 
         implicit none
@@ -1450,7 +1469,7 @@ contains
         real,dimension(:,:),allocatable :: v_s, v_d
         real :: s_star,x !!!! might remove
         real,dimension(3) :: d_from_te
-        logical :: downstream,passes_through
+        logical :: downstream,passes_through,addWake
 
         ! Calculate influence of wake
         if (verbose) write(*,'(a)',advance='no') "     Calculating wake influences..."
@@ -1698,9 +1717,17 @@ contains
             ! Update row of A
             !$OMP critical
             if (this%use_sort_for_cp) then !!!! is this the same in filaments as it is in panels? 
-                this%A(this%P(i),:) = this%A(this%P(i),:) + A_i
+                if (addWake) then
+                    this%A(this%P(i),:) = this%A(this%P(i),:) + A_i
+                else
+                    this%A(this%P(i),:) = this%A(this%P(i),:) - A_i
+                end if
             else
-                this%A(i,:) = this%A(i,:) + A_i
+                if (addWake) then
+                    this%A(i,:) = this%A(i,:) + A_i
+                else
+                    this%A(i,:) = this%A(i,:) - A_i
+                end if 
             end if
             !$OMP end critical
 
@@ -2026,8 +2053,10 @@ contains
 
         ! Get residual vector
         body%R_cp = matmul(this%A, x) - this%b
-        deallocate(this%A)
-        deallocate(this%b)
+        if (.not. this%relaxed_wake) then
+            deallocate(this%A)
+            deallocate(this%b)
+        end if
 
         ! Calculate residual parameters
         this%max_res = maxval(abs(body%R_cp))
@@ -2046,11 +2075,7 @@ contains
         end if
 
         ! Transfer solved doublet strengths to body storage
-        if (body%asym_flow) then
-            allocate(body%mu(body%N_verts*2))
-        else
-            allocate(body%mu(body%N_verts))
-        end if
+        
         do i=1,this%N_d_unknown
             body%mu(i) = x(this%P(i))
         end do
@@ -2062,6 +2087,131 @@ contains
 
     end subroutine panel_solver_solve_system
 
+
+    subroutine panel_solver_relax_wake(this, body, formulation, freestream, solver_stat)
+        ! Relaxes the wake and resolves the system
+        implicit none
+
+        class(panel_solver),intent(inout) :: this
+        type(surface_mesh),intent(inout) :: body
+        type(flow),intent(inout)::freestream
+        integer,intent(out) :: solver_stat
+        real,dimension(:,:,:),allocatable :: streamlines
+        character(len=:),allocatable,intent(in) :: formulation !!!! changed to get wake influence working 
+
+        integer :: i
+
+        ! this%max_relaxation_iterations = 2
+        write(*,*) "Relaxing wake"
+        ! loop through relaxation routine until converged or max iterations reached
+        do i=1, this%max_relaxation_iterations
+            write(*,*) "Relaxation iteration: ", i
+            ! find streamlines
+            call this%calc_streamlines(body,streamlines)
+            ! remove the old wake influence
+            call this%calc_wake_influences(body, formulation,freestream,.false.) 
+            ! update the wake location
+            call this%update_wake_loc(body, streamlines)
+            ! calculate the new wake influence
+            call this%calc_wake_influences(body, formulation,freestream,.true.)
+            ! solve the system again
+            call this%solve_system(body, solver_stat)
+            ! Check for errors
+            if (solver_stat /= 0) return
+        end do
+
+    end subroutine panel_solver_relax_wake
+
+    subroutine panel_solver_calc_streamlines(this,body,streamlines)
+        implicit none
+
+        class(panel_solver),intent(inout) :: this
+        type(surface_mesh),intent(inout) :: body
+        real :: delta_s, d1
+        real, dimension(3) :: start,v_d,v_s,point,k1,k2,k3,k4
+        real,dimension(:,:,:),allocatable,intent(inout) :: streamlines
+        integer :: i,j, max_iterations_rk4
+        logical :: first
+
+        ! set these temporarily
+        delta_s = 0.1
+        max_iterations_rk4 = 5000
+
+        
+        write(*,'(a)',advance='no') "Calculating streamlines... "
+        allocate(streamlines(3,body%filament_wake%N_filaments,max_iterations_rk4),source=0.0)
+        ! loop through all the filaments in the wake
+        !!$OMP parallel do private(j, k1,k2,k3,k4,point, v_s, v_d,delta_s) schedule(dynamic)
+        do i=1,body%filament_wake%N_filaments
+            start = body%filament_wake%filaments(i)%vertices(1)%loc + this%freestream%A_g_to_c(:,3)*(-1.e-3)
+            streamlines(:,i,1) = start
+            do j=2,max_iterations_rk4
+                ! do RK4 step
+                point = streamlines(:,i,j-1)
+                ! write(*,*) "point: ", point
+                call body%get_induced_velocities_at_point(point, this%freestream, v_d, v_s)
+                ! write(*,*) "v_d: ", v_d
+                
+                k1 = this%freestream%v_inf + this%freestream%U*(v_d + v_s)
+                ! write(*,*) "k1: ", k1
+                call body%get_induced_velocities_at_point(point + 0.5*delta_s*k1, this%freestream, v_d, v_s)
+                
+                k2 = this%freestream%v_inf + this%freestream%U*(v_d + v_s)
+                ! write(*,*) "k2: ", k2
+                call body%get_induced_velocities_at_point(point + 0.5*delta_s*k2, this%freestream, v_d, v_s)
+                
+                k3 = this%freestream%v_inf + this%freestream%U*(v_d + v_s)
+                ! write(*,*) "k3: ", k3
+                call body%get_induced_velocities_at_point(point + delta_s*k3, this%freestream, v_d, v_s)
+                
+                k4 = this%freestream%v_inf + this%freestream%U*(v_d + v_s)
+                ! write(*,*) "k4: ", k4
+                !!$OMP critical
+                streamlines(:,i,j) = point + delta_s*(k1 + 2*k2 + 2*k3 + k4)/6
+                ! write(*,*) "newpoint: ", streamlines(:,i,j)
+                !!$OMP end critical
+                ! check if the streamline has converged or if it has reached the treffitz plane
+                d1 = body%trefftz_distance - inner(streamlines(:,i,j), this%freestream%c_hat_g)
+                if (norm2(streamlines(:,i,j) - streamlines(:,i,j-1)) < 1.e-6 .or. d1<0) exit
+            end do
+        end do
+        write(*,*) "Done."
+                
+            
+
+        
+        ! call body%get_induced_velocities_at_point(P, this%freestream, v_d, v_s)
+        ! body%V_cells_inner(:,i) = this%freestream%v_inf + this%freestream%U*(v_d + v_s)
+        
+
+    end subroutine panel_solver_calc_streamlines
+
+    subroutine panel_solver_update_wake_loc(this,body, streamlines)
+        implicit none
+
+        class(panel_solver),intent(inout) :: this
+        type(surface_mesh),intent(inout) :: body
+        real,dimension(:,:,:),intent(in) :: streamlines
+        real :: x
+        integer :: i,j,k_old,k
+        
+        ! loop through all the filaments in the wake
+        do i=1,body%filament_wake%N_filaments
+            k_old = 1
+            do j = 1,body%filament_wake%filaments(i)%N_verts
+                x = body%filament_wake%filaments(i)%vertices(j)%loc(1)
+                do k = k_old,size(streamlines,3)
+                    if (streamlines(1,i,k) > x) then
+                        body%filament_wake%filaments(i)%vertices(j)%loc = streamlines(:,i,k)
+                        k_old = k
+                        exit
+                    end if
+                end do
+            end do
+        end do 
+    end subroutine panel_solver_update_wake_loc
+
+    
 
     subroutine panel_solver_calc_cell_velocities(this, body)
         ! Calculates the surface velocities on the mesh panels
