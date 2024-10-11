@@ -237,71 +237,191 @@ contains
         real :: xf, xi, yf, yi, zf, zi
         real :: xo, yo, zo
         real :: bsq  
-        real,dimension(3) :: loc_1, loc_2,r
+        real,dimension(3) :: loc_1, loc_2,r,V_local,V_global
         integer :: k 
         real :: fac = 1
-
-        loc_1 = this%get_vertex_loc(1) !!!! put in appropriate input and get 
-        loc_2 = this%get_vertex_loc(2) !!!! put in appropriate input and get 
-
-        loc_1 = matmul(freestream%A_g_to_c, loc_1) !!!! Did we do this right? 
-        loc_2 = matmul(freestream%A_g_to_c, loc_2)
-        r = matmul(freestream%A_g_to_c, eval_point)
-        
-        xf = loc_2(1)
-        xi = loc_1(1)
-        
-        yf = loc_2(2)
-        yi = loc_1(2)
-
-        zf = loc_2(3)
-        zi = loc_1(3)
-
-        xo = r(1)
-        yo = r(2)
-        zo = r(3)
+        real :: c_a, c_b, s_a, s_b, a,b,L
+        real :: C1, C2, C3
+        real :: x0, y0, z0
+        real :: y, z
+        real,dimension(3,3) :: A_c_to_f
+        real :: term1, term2, denominator, v_numerator, w_numerator
 
         bsq = 1 - (freestream%M_inf**2)
 
-        ! write out the integrals here based on the different dod stuff. 
-        if (-bsq*((yo-yf)**2+(zo-zf)**2)>fac*(xo-xf)**2) then
-            unrel_v_numer_one = 0
-            unrel_v_denom_one = 1
-            unrel_w_numer_one = 0
-            unrel_w_denom_one = 1
-        else
-            unrel_v_numer_one = (zo-zf)*(xo-xf)
-            unrel_v_denom_one = ((yo-yf)**2+(zo-zf)**2)*((xo-xf)**2+bsq*((yo-yf)**2+(zo-zf)**2))**0.5
-            unrel_w_numer_one = (yo-yf)*(xo-xf)
-            unrel_w_denom_one = ((yo-yf)**2+(zo-zf)**2)*((xo-xf)**2+bsq*((yo-yf)**2+(zo-zf)**2))**0.5
-        end if
+        if (dod_info%both_in_dod .or. dod_info%first_in_dod) then 
+            loc_1 = this%get_vertex_loc(1) !!!! put in appropriate input and get 
+            loc_2 = this%get_vertex_loc(2) !!!! put in appropriate input and get 
 
-        if (-bsq*((yo-yi)**2+(zo-zi)**2)>fac*(xo-xi)**2) then
-            unrel_v_numer_two = 0
-            unrel_v_denom_two = 1
-            unrel_w_numer_two = 0
-            unrel_w_denom_two = 1
-        else
-            unrel_v_numer_two = (zo-zi)*(xo-xi)
-            unrel_v_denom_two = ((yo-yi)**2+(zo-zi)**2)*((xo-xi)**2+bsq*((yo-yi)**2+(zo-zi)**2))**0.5
-            unrel_w_numer_two = (yo-yi)*(xo-xi)
-            unrel_w_denom_two = ((yo-yi)**2+(zo-zi)**2)*((xo-xi)**2+bsq*((yo-yi)**2+(zo-zi)**2))**0.5
-        end if
+            loc_1 = matmul(freestream%A_g_to_c, loc_1) !!!! Did we do this right? 
+            loc_2 = matmul(freestream%A_g_to_c, loc_2)
+            r = matmul(freestream%A_g_to_c, eval_point)
+            
+            xf = loc_2(1)
+            xi = loc_1(1)
+            
+            yf = loc_2(2)
+            yi = loc_1(2)
+            
 
-        if (dod_info%both_in_dod) then 
-            int%u = 0
-            int%v = (freestream%k_inv)*((unrel_v_numer_one/unrel_v_denom_one)-(unrel_v_numer_two/unrel_v_denom_two)) !!!! declare all of these variables and stuff - SA
-            int%w = (-freestream%k_inv)*((unrel_w_numer_one/unrel_w_denom_one)-(unrel_w_numer_two/unrel_w_denom_two)) !!!! declare all of these variables and stuff - SA
-        else if (dod_info%first_in_dod) then 
-            int%u = 0
-            int%v = (-freestream%k_inv)*((unrel_v_numer_two/unrel_v_denom_two)) !!!! declare all of these variables and stuff - SA
-            int%w = (freestream%k_inv)*((unrel_w_numer_two/unrel_w_denom_two)) !!!! declare all of these variables and stuff - SA
+            zf = loc_2(3)
+            zi = loc_1(3)
+
+        ! compute trig functions
+            L = ((xf-xi)**2 + (yf-yi)**2 + (zf-zi)**2)**0.5
+            a = asin((zf-zi)/L)
+            b = asin((yf-yi)/L)
+            
+            c_a = cos(a)
+            c_b = cos(b)
+            s_a = sin(a)
+            s_b = sin(b)
+            ! transform to filament frame
+            ! A_c_to_f = [[c_a * c_b, -s_a, c_a * s_b],[s_a * c_b, c_a, s_a * s_b],[-s_b, 0., c_b]]
+            A_c_to_f(1,1) = c_a * c_b
+            A_c_to_f(1,2) = -s_a
+            A_c_to_f(1,3) = c_a * s_b
+            A_c_to_f(2,1) = s_a * c_b
+            A_c_to_f(2,2) = c_a
+            A_c_to_f(2,3) = s_a * s_b
+            A_c_to_f(3,1) = -s_b
+            A_c_to_f(3,2) = 0.
+            A_c_to_f(3,3) = c_b
+
+            A_c_to_f = transpose(A_c_to_f)
+            
+            ! write(*,*) "before", loc_1, loc_2, r
+            loc_1 = matmul(A_c_to_f, loc_1)
+            loc_2 = matmul(A_c_to_f, loc_2)
+            r = matmul(A_c_to_f, r)
+            ! write(*,*) "after", loc_1, loc_2, r
+
+            xf = loc_2(1)
+            xi = loc_1(1)
+            
+            yf = loc_2(2)
+            yi = loc_1(2)
+            
+
+            zf = loc_2(3)
+            zi = loc_1(3)
+
+            y = yi
+            z = zi
+            x0 = r(1)
+            y0 = r(2)
+            z0 = r(3)
+
+        
+            
+
+        
+            ! compute C coefs
+            C1 = bsq * s_b**2 + c_a**2 * c_b**2 + bsq * s_a**2 * c_b**2
+            C2 = ((bsq - 1) * 2 * s_a * c_a * c_b * (z - z0) - 2 * bsq * c_b * s_a**2 * s_b * (y - y0) + 2 * bsq * s_b * c_b &
+            * (y - y0) - 2 * c_a**2 * c_b * s_b * (y - y0))
+            C3 = (bsq * s_a**2 * s_b**2 + bsq * c_b**2 + c_a**2 * s_b**2) * (y-y0)**2 + (1 - bsq) * 2 * c_a * s_a * s_b * (y - y0) &
+            * (z - z0) + (bsq * c_a**2 + s_a**2) * (z - z0)**2
+
+
+
+            ! get terms for influence coefficients
+            
+            ! v local
+            v_numerator =  bsq * (z - z0)
+            denominator = freestream%K/2 * (4 * C1 * C3 - C2**2) ! k is 2 k pi   Needed pi k)
+            
+            
+            ! w local
+            w_numerator = - bsq * (y - y0)
+            
+
+            if (dod_info%both_in_dod) then 
+                term1 = (2 * C1 * (xf - x0) + C2) / ((C1 * (xf - x0)**2 + C2 * (xf - x0) + C3)**0.5)
+                term2 = (2 * C1 * (xi - x0) + C2) / ((C1 * (xi - x0)**2 + C2 * (xi - x0) + C3)**0.5)
+                V_local(1) = 0
+                V_local(2) = (v_numerator / denominator) * (term1 - term2)
+                V_local(3) =  (w_numerator / denominator) * (term1 - term2)
+            else if (dod_info%first_in_dod) then 
+                term2 = (2 * C1 * (xi - x0) + C2) / ((C1 * (xi - x0)**2 + C2 * (xi - x0) + C3)**0.5)
+                V_local(1) = 0
+                V_local(2) = (v_numerator / denominator) * (- term2)
+                V_local(3) = (w_numerator / denominator) * (- term2)
+            else 
+                V_local(1) = 0
+                V_local(2) = 0
+                V_local(3) = 0
+            end if  
+
+            V_global = matmul(transpose(A_c_to_f), V_local)
+            
+            int%u = V_global(1)
+            int%v = V_global(2)
+            int%w = V_global(3)
         else 
             int%u = 0
             int%v = 0
             int%w = 0
+        end if
 
-        end if 
+        ! ! Miranda straight filament
+
+        ! xf = loc_2(1)
+        ! xi = loc_1(1)
+        
+        ! yf = loc_2(2)
+        ! yi = loc_1(2)
+        
+
+        ! zf = loc_2(3)
+        ! zi = loc_1(3)
+        ! xo = r(1)
+        ! yo = r(2)
+        ! zo = r(3)
+        ! ! write out the integrals here based on the different dod stuff. 
+        ! if (-bsq*((yo-yf)**2+(zo-zf)**2)>fac*(xo-xf)**2) then
+        !     unrel_v_numer_one = 0
+        !     unrel_v_denom_one = 1
+        !     unrel_w_numer_one = 0
+        !     unrel_w_denom_one = 1
+        ! else
+        !     unrel_v_numer_one = (zo-zf)*(xo-xf)
+        !     unrel_v_denom_one = ((yo-yf)**2+(zo-zf)**2)*((xo-xf)**2+bsq*((yo-yf)**2+(zo-zf)**2))**0.5
+        !     unrel_w_numer_one = (yo-yf)*(xo-xf)
+        !     unrel_w_denom_one = ((yo-yf)**2+(zo-zf)**2)*((xo-xf)**2+bsq*((yo-yf)**2+(zo-zf)**2))**0.5
+        ! end if
+
+        ! if (-bsq*((yo-yi)**2+(zo-zi)**2)>fac*(xo-xi)**2) then
+        !     unrel_v_numer_two = 0
+        !     unrel_v_denom_two = 1
+        !     unrel_w_numer_two = 0
+        !     unrel_w_denom_two = 1
+        ! else
+        !     unrel_v_numer_two = (zo-zi)*(xo-xi)
+        !     unrel_v_denom_two = ((yo-yi)**2+(zo-zi)**2)*((xo-xi)**2+bsq*((yo-yi)**2+(zo-zi)**2))**0.5
+        !     unrel_w_numer_two = (yo-yi)*(xo-xi)
+        !     unrel_w_denom_two = ((yo-yi)**2+(zo-zi)**2)*((xo-xi)**2+bsq*((yo-yi)**2+(zo-zi)**2))**0.5
+        ! end if
+
+        ! if (dod_info%both_in_dod) then 
+        !     int%u = 0
+        !     int%v = (freestream%k_inv)*((unrel_v_numer_one/unrel_v_denom_one)-(unrel_v_numer_two/unrel_v_denom_two)) !!!! declare all of these variables and stuff - SA
+        !     int%w = (-freestream%k_inv)*((unrel_w_numer_one/unrel_w_denom_one)-(unrel_w_numer_two/unrel_w_denom_two)) !!!! declare all of these variables and stuff - SA
+        ! else if (dod_info%first_in_dod) then 
+        !     int%u = 0
+        !     int%v = (-freestream%k_inv)*((unrel_v_numer_two/unrel_v_denom_two)) !!!! declare all of these variables and stuff - SA
+        !     int%w = (freestream%k_inv)*((unrel_w_numer_two/unrel_w_denom_two)) !!!! declare all of these variables and stuff - SA
+        ! else 
+        !     int%u = 0
+        !     int%v = 0
+        !     int%w = 0
+
+        ! end if 
+
+
+
+
+        
 
     end subroutine filament_segment_calc_influence_integrals
 
