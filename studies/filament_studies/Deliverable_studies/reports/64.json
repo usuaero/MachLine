@@ -1,0 +1,84 @@
+{
+    "info" : {
+        "generated_by" : "MachLine (c) 2023 USU Aerolab",
+        "executed" : "Tue Oct 17 04:58:57 2023"
+    },
+    "mesh_info" : {
+        "N_body_panels" : 1888,
+        "N_body_vertices" : 998,
+        "N_wake_panels" : 0,
+        "N_wake_filaments" : 52,
+        "average_characteristic_length" : 3.00568095761089E-001,
+        "max_flow_turning_angle" : 1.72084793129033E+002
+    },
+    "solver_results" : {
+        "solver_status_code" : 0,
+        "system_dimension" : 998,
+        "timing" : {
+            "system_sorting" : 7.40000000000000E-006,
+            "preconditioner" : 9.75633100000000E-001,
+            "matrix_solver" : 1.29572920000000E+000
+        },
+        "iterations" : 933,
+        "residual" : {
+            "max" : 1.66571425634181E-001,
+            "norm" : 1.36560464557946E+000
+        }
+    },
+    "pressure_calculations" : {
+        "isentropic_rule" : {
+            "max" : 9.41530138102257E-001,
+            "min" : -2.79905770589314E-001
+        }
+    },
+    "total_forces" : {
+        "Cx" : 5.72650456168034E-002,
+        "Cy" : 4.91811550252380E-014,
+        "Cz" : 2.36685640242482E-001
+    },
+    "total_moments" : {
+        "CMx" : -3.00259795759511E-010,
+        "CMy" : -4.87582391361070E+001,
+        "CMz" : 3.98281906587028E-012
+    },
+    "input" : {
+        "flow" : {
+            "freestream_velocity" : [
+                    9.96194698091746E-001,
+                    0.00000000000000E+000,
+                    8.71557427476582E-002
+                ],
+            "freestream_mach_number" : 1.70000000000000E+000
+        },
+        "geometry" : {
+            "file" : "studies/filament_studies/Grid_convergence/meshes/bi_plane_grid_convergence_64.stl",
+            "spanwise_axis" : "+y",
+            "reference" : {
+                "area" : 5.00000000000000E+001
+            },
+            "wake_model" : {
+                "wake_present" : true,
+                "append_wake" : true,
+                "trefftz_distance" : 60,
+                "wake_type" : "filaments"
+            }
+        },
+        "solver" : {
+            "formulation" : "neumann-mass-flux",
+            "ormulation" : "dirichlet-morino",
+            "matrix_solver" : "GMRES",
+            "write_A_and_b" : false
+        },
+        "post_processing" : {
+            "pressure_rules" : {
+                "ncompressible" : true
+            }
+        },
+        "output" : {
+            "body_file" : "studies/filament_studies/Grid_convergence/results/64.vtk",
+            "wake_file" : "studies/filament_studies/Grid_convergence/results/64_wake.vtk",
+            "report_file" : "studies/filament_studies/Grid_convergence/reports/64.json"
+        }
+    },
+    "total_runtime" : 3.76500000000000E+000
+}

@@ -135,7 +135,7 @@ program main
     end if
 
     ! Run solver
-    call linear_solver%solve(body_mesh, solver_stat, formulation,freestream_flow)
+    call linear_solver%solve(body_mesh, solver_stat, formulation,freestream_flow,wake_file)
 
     ! Update report
     call linear_solver%update_report(report_json, body_mesh, solver_stat)
