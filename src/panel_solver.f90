@@ -1457,7 +1457,7 @@ contains
     end subroutine panel_solver_calc_body_influences
 
 
-    subroutine panel_solver_calc_wake_influences(this, body, formulation,freestream,addWake)
+    subroutine panel_solver_calc_wake_influences(this, body, formulation,freestream,add_wake)
         ! Calculates the influence of the wake on the control points
 
         implicit none
@@ -1472,7 +1472,7 @@ contains
         real,dimension(:,:),allocatable :: v_s, v_d
         real :: s_star,x !!!! might remove
         real,dimension(3) :: d_from_te
-        logical :: downstream,passes_through,addWake
+        logical :: downstream,passes_through,add_wake
 
         ! Calculate influence of wake
         if (verbose) write(*,'(a)',advance='no') "     Calculating wake influences..."
@@ -1516,7 +1516,7 @@ contains
                             .false., s_star)
                             if (passes_through.and.downstream .and. body%cp(i)%tied_to_type==2)  then !!!! tied to type=2 means the cp is on a panel
                                 doublet_inf = (/0.0, 0.0, 0.0, 0.0/) !!!! is this actually a scalar? 
-                                write(*,*) "Panel:", body%cp(i)%tied_to_index-1,"ignores filament segment", &
+                                if (add_wake) write(*,*) "Panel:", body%cp(i)%tied_to_index-1,"ignores filament segment", &
                                 ((j-1)*body%filament_wake%filaments(j)%N_segments)+&
                                 body%filament_wake%filaments(j)%segments(l)%index-1, "due to impingement"
                             else
@@ -1726,13 +1726,13 @@ contains
             ! Update row of A
             !$OMP critical
             if (this%use_sort_for_cp) then !!!! is this the same in filaments as it is in panels? 
-                if (addWake) then
+                if (add_wake) then
                     this%A(this%P(i),:) = this%A(this%P(i),:) + A_i
                 else
                     this%A(this%P(i),:) = this%A(this%P(i),:) - A_i
                 end if
             else
-                if (addWake) then
+                if (add_wake) then
                     this%A(i,:) = this%A(i,:) + A_i
                 else
                     this%A(i,:) = this%A(i,:) - A_i

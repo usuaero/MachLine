@@ -247,7 +247,7 @@ contains
         real,dimension(3,3) :: A_c_to_f
         real :: term1, term2, denominator, v_numerator, w_numerator, tx, ty, tz,t, R_bf, R_bi,f_c
         real :: tol = 1e-4
-        f_c = 0.2
+        f_c = 0.0
         bsq = 1 - (freestream%M_inf**2)
 
         if (dod_info%both_in_dod .or. dod_info%first_in_dod) then 

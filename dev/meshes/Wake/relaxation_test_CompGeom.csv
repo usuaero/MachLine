@@ -1,0 +1,12 @@
+Name, Theo_Area, Wet_Area, Theo_Vol, Wet_Vol
+WingGeom,2.020544,1.554079,0.032851,0.025471
+WingGeom,0.505369,0.360564,0.004025,0.002895
+FuselageGeom,1.900010,1.806235,0.093623,0.089722
+Totals,4.425923,3.720878,0.130498,0.118088
+
+Tag_Name, Tag_Theo_Area, Tag_Wet_Area
+WingGeom_S_Surf0,1.010272,0.777040
+WingGeom_S_Surf1,1.010272,0.777040
+WingGeom_S_Surf0,0.252685,0.180282
+WingGeom_S_Surf1,0.252685,0.180282
+FuselageGeom_S_Surf0,1.900010,1.806235

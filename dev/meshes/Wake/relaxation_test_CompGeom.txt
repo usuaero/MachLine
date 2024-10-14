@@ -1,0 +1,21 @@
+...Comp Geom...
+3 Num Comps
+5 Total Num Meshes
+6880 Total Num Tris
+
+Theo_Area   Wet_Area   Theo_Vol    Wet_Vol  Name
+    2.021      1.554      0.033      0.025  WingGeom       
+    0.505      0.361      0.004      0.003  WingGeom       
+    1.900      1.806      0.094      0.090  FuselageGeom   
+-------------------------------------------------
+    4.426      3.721      0.130      0.118  Totals         
+
+Tag_Theo_Area   Tag_Wet_Area    Tag_Name
+        1.010          0.777    WingGeom_S_Surf0
+        1.010          0.777    WingGeom_S_Surf1
+        0.253          0.180    WingGeom_S_Surf0
+        0.253          0.180    WingGeom_S_Surf1
+        1.900          1.806    FuselageGeom_S_Surf0
+WARNING: 2 open meshes merged
+     Merged: WingGeom
+     Merged: WingGeom
