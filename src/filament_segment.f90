@@ -34,10 +34,14 @@ module filament_segment_mod
         type(vertex_pointer), dimension(:),allocatable :: vertices 
         integer :: index ! index of this filament in the filament mesh array
         integer :: N = 2 ! number of vertices
-        real,dimension(3,3) :: A_g_to_c, A_c_to_g ! Coordinate transformation matrices
+        real :: xf, xi, yf, yi, zf, zi ! coordinates of the vertices in the local frame
+        real :: c_a, c_b, s_a, s_b ! cosines and sines of angles
+        real,dimension(3,3) :: A_g_to_c, A_c_to_g, A_c_to_f, A_f_to_c ! Coordinate transformation matrices
         real,dimension(3,3) :: A_g_to_c_mir, A_c_to_g_mir
         integer, dimension(4) :: parents ! stores index for parent vertices.  Order is top1 bot1 top2 bot2
         integer :: M_dim
+        
+        
 
 
 
@@ -53,6 +57,7 @@ module filament_segment_mod
             procedure :: get_vertex_loc => filament_segment_get_vertex_loc
             procedure :: get_doublet_strengths => filament_segment_get_doublet_strengths
             procedure :: calc_velocities => filament_segment_calc_velocities
+            procedure :: update => filament_segment_update
             ! DOD stuff
             procedure :: check_dod => filament_segment_check_dod
     end type filament_segment 
@@ -90,6 +95,72 @@ contains
         ! still need to calculated derived geometry (based on what is needed in solver)
     end subroutine filament_segment_init
 
+    subroutine filament_segment_update(this, freestream)
+        ! updates the angles of the filament segment
+
+        implicit none
+
+        class(filament_segment), intent(inout) :: this
+        type(flow),intent(in) :: freestream
+        
+        real :: xf, xi, yf, yi, zf, zi, a, b, L
+        real,dimension(3) :: loc_1, loc_2
+
+        loc_1 = this%get_vertex_loc(1) !!!! put in appropriate input and get 
+        loc_2 = this%get_vertex_loc(2) !!!! put in appropriate input and get 
+        loc_1 = matmul(freestream%A_g_to_c, loc_1) !!!! Did we do this right? 
+        loc_2 = matmul(freestream%A_g_to_c, loc_2)
+
+        xf = loc_2(1)
+        xi = loc_1(1)
+        
+        yf = loc_2(2)
+        yi = loc_1(2)
+        
+
+        zf = loc_2(3)
+        zi = loc_1(3)
+
+        ! calculate angles
+        L = ((xf-xi)**2 + (yf-yi)**2 + (zf-zi)**2)**0.5
+        a = asin((zf-zi)/L)
+        b = asin((yf-yi)/L)
+       
+        
+        this%c_a = cos(a)
+        this%c_b = cos(b)
+        this%s_a = sin(a)
+        this%s_b = sin(b)
+        ! transform to filament frame
+        ! A_c_to_f = [[c_a * c_b, -s_a, c_a * s_b],[s_a * c_b, c_a, s_a * s_b],[-s_b, 0., c_b]]
+        this%A_f_to_c(1,1) = this%c_a * this%c_b
+        this%A_f_to_c(1,2) = -this%s_a
+        this%A_f_to_c(1,3) = this%c_a * this%s_b
+        this%A_f_to_c(2,1) = this%s_a * this%c_b
+        this%A_f_to_c(2,2) = this%c_a
+        this%A_f_to_c(2,3) = this%s_a * this%s_b
+        this%A_f_to_c(3,1) = -this%s_b
+        this%A_f_to_c(3,2) = 0.
+        this%A_f_to_c(3,3) = this%c_b
+
+        this%A_c_to_f = transpose(this%A_f_to_c)
+
+        loc_1 = matmul(this%A_c_to_f, loc_1)
+        loc_2 = matmul(this%A_c_to_f, loc_2)
+
+        this%xf = loc_2(1)
+        this%xi = loc_1(1)
+        
+        this%yf = loc_2(2)
+        this%yi = loc_1(2)
+        
+
+        this%zf = loc_2(3)
+        this%zi = loc_1(3)
+
+
+
+    end subroutine filament_segment_update
 
     ! likely need filament_segment_init_with_flow?
 
@@ -250,21 +321,24 @@ contains
         f_c = 0.0
         bsq = 1 - (freestream%M_inf**2)
 
-        if (dod_info%both_in_dod .or. dod_info%first_in_dod) then 
-            loc_1 = this%get_vertex_loc(1) !!!! put in appropriate input and get 
-            loc_2 = this%get_vertex_loc(2) !!!! put in appropriate input and get 
 
-            loc_1 = matmul(freestream%A_g_to_c, loc_1) !!!! Did we do this right? 
-            loc_2 = matmul(freestream%A_g_to_c, loc_2)
+
+
+        if (dod_info%both_in_dod .or. dod_info%first_in_dod) then 
+
+
+
+            ! check to see if the point is on the line
             r = matmul(freestream%A_g_to_c, eval_point)
-            
+            loc_1 = this%get_vertex_loc(1) 
+            loc_2 = this%get_vertex_loc(2)  
             xf = loc_2(1)
             xi = loc_1(1)
             
             yf = loc_2(2)
             yi = loc_1(2)
             
-
+    
             zf = loc_2(3)
             zi = loc_1(3)
 
@@ -272,7 +346,7 @@ contains
             y0 = r(2)
             z0 = r(3)
 
-            ! check to see if cp is on the line
+            ! compute t values
             if ((xf - xi)>tol) tx = (x0 - xi) / (xf - xi) 
             if ((yf - yi)>tol) ty = (y0 - yi) / (yf - yi) 
             if ((zf - zi) >tol) tz = (z0 - zi) / (zf - zi) 
@@ -280,6 +354,7 @@ contains
             ! Check if tx, ty, and tz are approximately equal
             if (abs(tx - ty) < tol .and. abs(ty - tz) < tol) then
                 t = tx  ! All t values are approximately the same
+                ! Check if t is within the segment range [0, 1] with tolerance
                 if (t >= -tol .and. t <= 1.0 + tol) then
                     write(*,*) "Point is on the line"
                     int%u = 0
@@ -289,57 +364,39 @@ contains
                 endif
             endif
 
-            ! Check if t is within the segment range [0, 1] with tolerance
+            
             
 
-        ! compute trig functions
-            L = ((xf-xi)**2 + (yf-yi)**2 + (zf-zi)**2)**0.5
-            a = asin((zf-zi)/L)
-            b = asin((yf-yi)/L)
+        
             
-            c_a = cos(a)
-            c_b = cos(b)
-            s_a = sin(a)
-            s_b = sin(b)
-            ! transform to filament frame
-            ! A_c_to_f = [[c_a * c_b, -s_a, c_a * s_b],[s_a * c_b, c_a, s_a * s_b],[-s_b, 0., c_b]]
-            A_c_to_f(1,1) = c_a * c_b
-            A_c_to_f(1,2) = -s_a
-            A_c_to_f(1,3) = c_a * s_b
-            A_c_to_f(2,1) = s_a * c_b
-            A_c_to_f(2,2) = c_a
-            A_c_to_f(2,3) = s_a * s_b
-            A_c_to_f(3,1) = -s_b
-            A_c_to_f(3,2) = 0.
-            A_c_to_f(3,3) = c_b
-
-            A_c_to_f = transpose(A_c_to_f)
-            
-            ! write(*,*) "before", loc_1, loc_2, r
-            loc_1 = matmul(A_c_to_f, loc_1)
-            loc_2 = matmul(A_c_to_f, loc_2)
-            r = matmul(A_c_to_f, r)
-            ! write(*,*) "after", loc_1, loc_2, r
-
-            xf = loc_2(1)
-            xi = loc_1(1)
-            
-            yf = loc_2(2)
-            yi = loc_1(2)
-            
-
-            zf = loc_2(3)
-            zi = loc_1(3)
-
-            y = yi
-            z = zi
+            ! tranform cp to filament frame
+            r = matmul(this%A_c_to_f, r)
             x0 = r(1)
             y0 = r(2)
             z0 = r(3)
 
-        
+            ! get locations of filament vertices in filament frame
+            xf = this%xf
+            xi = this%xi
+           
+            yf = this%yf
+            yi = this%yi
             
+            zf = this%zf
+            zi = this%zi
+            
+            y = yi
+            z = zi
 
+            s_a = this%s_a
+            c_a = this%c_a
+            s_b = this%s_b
+            c_b = this%c_b
+            
+            
+        
+
+        
         
             ! compute C coefs
             C1 = bsq * s_b**2 + c_a**2 * c_b**2 + bsq * s_a**2 * c_b**2
@@ -392,7 +449,7 @@ contains
                 V_local(3) = 0
             end if  
 
-            V_global = matmul(transpose(A_c_to_f), V_local)
+            V_global = matmul(this%A_f_to_c, V_local)
             
             int%u = V_global(1)
             int%v = V_global(2)

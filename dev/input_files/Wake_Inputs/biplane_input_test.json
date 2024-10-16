@@ -27,15 +27,15 @@
             "wake_present": true,
             "append_wake": true,
             "trefftz_distance": 4.5,
-            "xwake_type": "filaments",
-            "wake_type": "panels",
+            "wake_type": "filaments",
+            "xwake_type": "panels",
             "N_panels": 60
         }
     },
     "solver": {
         "run_checks": true,
-        "xformulation": "neumann-mass-flux",
-        "formulation": "dirichlet-morino",
+        "formulation": "neumann-mass-flux",
+        "xformulation": "dirichlet-morino",
         "control_point_offset": 1.0e-6,
         "matrix_solver": "HHLS",
         "zmatrix_solver": "LU",
@@ -44,8 +44,8 @@
         "preconditioner": "NONE",
         "write_A_and_b": false,
         "sort_system" : true,
-        "relax_wake": false,
-        "max_relaxation_iterations": 1,
+        "relax_wake": true,
+        "max_relaxation_iterations": 4,
         "streamline_step_size": 0.01,
         "max_streamline_iterations": 3000
     },

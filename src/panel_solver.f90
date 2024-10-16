@@ -2242,6 +2242,7 @@ contains
                     end if
                 end do
             end do
+            call body%filament_wake%filaments(i)%update_segments(this%freestream)
         end do 
         
     end subroutine panel_solver_update_wake_loc

@@ -27,6 +27,7 @@ module filament_mod
             procedure :: init_segment => filament_init_segment !!!! how to differentiate between segment and mesh
             procedure :: init_vertices => filament_init_vertices  !!!! comment out all type bound procedure statements until they are used or MachLine won't compile. -SA
             procedure :: init_segments => filament_init_segments 
+            procedure :: update_segments => filament_update_segments
         !     procedure :: init_panel => wake_strip_init_panel !!!!
 
     end type filament 
@@ -103,7 +104,7 @@ contains
         call this%init_vertices(freestream, N_segments_streamwise, trefftz_dist, start_c, body_verts)
 
         ! Intialize segments
-        call this%init_segments(N_segments_streamwise)
+        call this%init_segments(freestream, N_segments_streamwise)
 
 
         ! initalize properties
@@ -164,12 +165,13 @@ contains
 
     end subroutine filament_init_vertices
 
-    subroutine filament_init_segments(this, N_segments_streamwise)
+    subroutine filament_init_segments(this,freestream,  N_segments_streamwise)
         ! Initializes this wake strip's segments based on the provided info
 
         implicit none
 
         class(filament),intent(inout) :: this
+        type(flow),intent(in) :: freestream
         integer,intent(in) :: N_segments_streamwise
 
         real :: d1, d2
@@ -183,7 +185,7 @@ contains
         do i=1,this%N_segments
 
             ! initialize
-            call this%init_segment(i,i1,i2)
+            call this%init_segment(i,i1,i2, freestream)
             ! increment index
             i1 = i1 + 1
             i2 = i2 + 1
@@ -192,20 +194,38 @@ contains
 
     end subroutine filament_init_segments
 
-    subroutine filament_init_segment(this, i_segment, i1, i2)
+    subroutine filament_init_segment(this, i_segment, i1, i2, freestream)
         ! Initializes the specified panel
 
         implicit none
         
         class(filament),intent(inout) :: this
+        type(flow),intent(in) :: freestream
         integer,intent(in) :: i_segment, i1, i2
         integer, dimension(4) :: parents
 
         parents = [this%i_top_parent_1, this%i_bot_parent_1, this%i_top_parent_2, this%i_bot_parent_2]
     
-    
         call this%segments(i_segment)%init(this%vertices(i1), this%vertices(i2), i_segment,parents)
+        call this%segments(i_segment)%update(freestream)
 
     end subroutine filament_init_segment
+
+    subroutine filament_update_segments(this, freestream)
+        ! Updates the wake strip's segments based on the provided info
+
+        implicit none
+
+        class(filament),intent(inout) :: this
+        type(flow),intent(in) :: freestream
+
+        integer :: i
+
+        ! Update each segment
+        do i=1,this%N_segments
+            call this%segments(i)%update(freestream)
+        end do
+
+    end subroutine filament_update_segments
 
 end module filament_mod
