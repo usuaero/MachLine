@@ -9,6 +9,8 @@ import csv
 import pandas as pd
 import pickle
 from write_vtk import read_vtk_file, write_vtk_file, add_vector_data_to_vtk
+from tqdm import tqdm
+from tqdm.contrib.concurrent import process_map
 
 
 
@@ -364,7 +366,7 @@ if __name__=="__main__":
                 processed_d_CFy.append((d_CFy[i][x_index], d_CFy[i][y_index], d_CFy[i][z_index]))
                 processed_d_CFz.append((d_CFz[i][x_index], d_CFz[i][y_index], d_CFz[i][z_index]))
 
-                excel_file = "studies/adjoint_studies/central_diff_norm_cp_offset/excel_files/extra_central_diff_"+mesh_name + "_cp_"+f'{cp_offsets[i]:.2e}' + "_step_1e-" + str(initial_step_exp+ m) + ".xlsx"
+                excel_file = "studies/adjoint_studies/central_diff_norm_cp_offset/excel_files/central_diff_"+mesh_name + "_cp_"+f'{cp_offsets[i]:.2e}' + "_step_1e-" + str(initial_step_exp+ m) + ".xlsx"
 
                 if os.path.exists(excel_file):
                     os.remove(excel_file)
@@ -413,7 +415,7 @@ if __name__=="__main__":
             # processed_d_CFz = np.array(processed_d_CFz)
 
             # write central diff sensitivities to a vtk file file
-            new_vtk = "studies/adjoint_studies/central_diff_norm_cp_offset/vtk_files/extra_cental_diff_"+mesh_name+"_cp_"+f'{cp_offsets[i]:.2e}' + "_step_1e-" + str(initial_step_exp+ m) + ".vtk"
+            new_vtk = "studies/adjoint_studies/central_diff_norm_cp_offset/vtk_files/cental_diff_"+mesh_name+"_cp_"+f'{cp_offsets[i]:.2e}' + "_step_1e-" + str(initial_step_exp+ m) + ".vtk"
             if os.path.exists(new_vtk):
                     os.remove(new_vtk)
             updated_vtk_content = add_vector_data_to_vtk(vtk_lines, new_data)
