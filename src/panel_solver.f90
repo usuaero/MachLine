@@ -3335,7 +3335,7 @@ contains
 
             case default
                 write(*,*) "!!! '", body%cp(i)%bc, "' is not a valid boundary condition for &
-                adjoint calculation. Must use Neumann Zero Normal Mass Flux with control &
+                adjoint calculation. Must use Dirichlet Source Free with control &
                 points at vertices. Quitting..."
                 stop
 
