@@ -40,7 +40,7 @@ def run_machline_for_cp_offset(cp_offset,study_directory, calc_adjoint, perturb_
     input_dict = {
         "flow": {
             "freestream_velocity": [1.0, 0.0, 0.1],
-            "freestream_mach_number" : 2.0
+            "freestream_mach_number" : 0.5
         },
         "geometry": {
             "file": mesh_file,
@@ -177,13 +177,13 @@ if __name__=="__main__":
     ##########################################
     #### THINGS TO CHANGE FORA A NEW RUN #####
     mesh_name = "test_11"
-    sonic = "supersonic"
+    sonic = "subsonic"
     num_mesh_points = 1190
     num_cp_offsets = 10
     step = 1.0e-9   # initial step size (gets smaller)
     initial_step_exp = 9
-    num_step_size_runs = 2
-    adjoint_cp_study = True
+    num_step_size_runs = 7
+    adjoint_cp_study = False
     
     #   - mesh_file 
     #   - just_points_vtk 
@@ -476,7 +476,7 @@ if __name__=="__main__":
     figx.subplots_adjust(right = 0.8)
 
 
-    fig_file_fx = "/figures/extra_central_diff_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFx.pdf"
+    fig_file_fx = "/figures/sub_central_diff_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFx.pdf"
     figx.savefig(study_directory + fig_file_fx)
 
     # finish CFy figure
@@ -490,7 +490,7 @@ if __name__=="__main__":
     ax2.set_yscale("log")
     ax2.tick_params(axis='both', labelsize=12)  # For CFy
     figy.subplots_adjust
-    fig_file_fy = "/figures/extra_central_diff_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFy.pdf"
+    fig_file_fy = "/figures/sub_central_diff_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFy.pdf"
     figy.savefig(study_directory + fig_file_fy)
 
     # finish CFy figure
@@ -505,18 +505,18 @@ if __name__=="__main__":
     ax3.tick_params(axis='both', labelsize=12)  # For CFz
     figz.subplots_adjust(right = 0.8)
 
-    fig_file_fz = "/figures/extra_central_diff_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFz.pdf"
+    fig_file_fz = "/figures/sub_central_diff_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFz.pdf"
     figz.savefig(study_directory + fig_file_fz)
 
-    with open("studies/adjoint_studies/central_diff_norm_cp_offset/pickle_jar/extra_central_diff_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFx.pkl", 'wb') as f:
+    with open("studies/adjoint_studies/central_diff_norm_cp_offset/pickle_jar/sub_central_diff_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFx.pkl", 'wb') as f:
         pickle.dump(figx, f)
 
 
-    with open("studies/adjoint_studies/central_diff_norm_cp_offset/pickle_jar/extra_central_diff_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFy.pkl", 'wb') as f:
+    with open("studies/adjoint_studies/central_diff_norm_cp_offset/pickle_jar/sub_central_diff_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFy.pkl", 'wb') as f:
         pickle.dump(figy, f)
 
 
-    with open("studies/adjoint_studies/central_diff_norm_cp_offset/pickle_jar/extra_central_diff_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFz.pkl", 'wb') as f:
+    with open("studies/adjoint_studies/central_diff_norm_cp_offset/pickle_jar/sub_central_diff_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFz.pkl", 'wb') as f:
         pickle.dump(figz, f)
 
 
@@ -584,7 +584,7 @@ if __name__=="__main__":
     df_expanded = pd.DataFrame(expanded_data)
 
     # Save to Excel file
-    excel_file = "studies/adjoint_studies/central_diff_norm_cp_offset/results/extra_" + mesh_name + "_" + str(num_cp_offsets) + "_cp_offsets_norms_vs_cp_offset_data.xlsx"
+    excel_file = "studies/adjoint_studies/central_diff_norm_cp_offset/results/sub_" + mesh_name + "_" + str(num_cp_offsets) + "_cp_offsets_norms_vs_cp_offset_data.xlsx"
     df_expanded.to_excel(excel_file, index=False)
 
 
