@@ -166,6 +166,8 @@ def run_machline(input_filename, delete_input=True, run=True):
 
 #     return CF_up, CF_down
 
+
+
 def k_loop(k, j, num_cp_offsets, step, study_directory, calc_adjoint, cp_offsets, perturb_point, formulation, mesh_name):
     CF = [None]*num_cp_offsets
     CFx_up = [None]*num_cp_offsets
@@ -209,6 +211,24 @@ def k_loop(k, j, num_cp_offsets, step, study_directory, calc_adjoint, cp_offsets
     d_CFz = [(CFz_up[i] - CFz_down[i]) / (2. * step) for i in range(num_cp_offsets)]
     
     return (k, j, d_CFx, d_CFy, d_CFz, run_count_local)
+
+
+def process_in_batches(num_mesh_points, num_workers=10):
+    run_count = 0
+    with concurrent.futures.ProcessPoolExecutor(max_workers=num_workers) as executor:
+        futures = []
+        for j in range(1, 4):  # Loop over xyz axes
+            for k in range(1, num_mesh_points + 1):
+                # Submit jobs to the executor
+                futures.append(executor.submit(k_loop), k, j, num_cp_offsets, step, study_directory, calc_adjoint, cp_offsets, perturb_point, formulation, mesh_name))
+
+        # Collect results as they are completed
+        for future in concurrent.futures.as_completed(futures):
+            result = future.result()  # This will block until the future is complete
+            k, j, d_CFx, d_CFy, d_CFz, run_count_local = result
+            run_count += run_count_local
+            print(f"Completed mesh point {k} for axis {j}, run count: {run_count_local}")
+
 
 
 if __name__=="__main__":
@@ -364,23 +384,25 @@ if __name__=="__main__":
         # xyz loop
         for j in range(1,4):
             
+            # Call process_in_batches 
+            process_in_batches(num_mesh_points, num_workers=10)
 
-            # parallelize k loop
-            with concurrent.futures.ProcessPoolExecutor() as executor:
-                futures = [executor.submit(k_loop, k, j, num_cp_offsets, step, study_directory, calc_adjoint, cp_offsets, perturb_point, formulation, mesh_name)
-                           for k in range(1, num_mesh_points + 1)]
+            # # parallelize k loop
+            # with concurrent.futures.ProcessPoolExecutor() as executor:
+            #     futures = [executor.submit(k_loop, k, j, num_cp_offsets, step, study_directory, calc_adjoint, cp_offsets, perturb_point, formulation, mesh_name)
+            #                for k in range(1, num_mesh_points + 1)]
 
-                # collect results
-                for future in concurrent.futures.as_completed(futures):
-                    k, j, d_CFx_result, d_CFy_result, d_CFz_result, run_count_local = future.result()
+            #     # collect results
+            #     for future in concurrent.futures.as_completed(futures):
+            #         k, j, d_CFx_result, d_CFy_result, d_CFz_result, run_count_local = future.result()
 
-                    run_count += run_count_local
+            #         run_count += run_count_local
 
-                    # store results
-                    for i in range(num_cp_offsets):
-                        d_CFx[i][(k + (j-1)*num_mesh_points) - 1] = d_CFx_result[i]
-                        d_CFy[i][(k + (j-1)*num_mesh_points) - 1] = d_CFy_result[i]
-                        d_CFz[i][(k + (j-1)*num_mesh_points) - 1] = d_CFz_result[i]
+            #         # store results
+            #         for i in range(num_cp_offsets):
+            #             d_CFx[i][(k + (j-1)*num_mesh_points) - 1] = d_CFx_result[i]
+            #             d_CFy[i][(k + (j-1)*num_mesh_points) - 1] = d_CFy_result[i]
+            #             d_CFz[i][(k + (j-1)*num_mesh_points) - 1] = d_CFz_result[i]
             
             # # 
             # vertex loop
