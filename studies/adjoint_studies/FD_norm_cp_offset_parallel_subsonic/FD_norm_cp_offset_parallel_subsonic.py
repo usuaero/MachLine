@@ -17,7 +17,7 @@ import concurrent.futures
 RERUN_MACHLINE = True
 
 
-def run_machline_for_cp_offset(cp_offset,study_directory, calc_adjoint, perturb_point, point_index, xyz_index, step, formulation, mesh_name, alpha=0, wake_present=False):
+def run_machline_for_cp_offset(cp_offset,study_directory, calc_adjoint, perturb_point, point_index, xyz_index, step, formulation, mesh_name):
     
     print("Running MachLine for cp_offset = {0}".format(cp_offset))
     # Storage locations
@@ -77,7 +77,7 @@ def run_machline_for_cp_offset(cp_offset,study_directory, calc_adjoint, perturb_
         }
     }
     # Dump
-    input_file = study_directory+"/input.json"
+    input_file = study_directory+"/input" + str(int(time.time()))+".json"
     write_input_file(input_dict, input_file)
 
     # Run MachLine
@@ -154,19 +154,16 @@ def run_machline(input_filename, delete_input=True, run=True):
 
     return report
 
+def run_up_task(i, cp_offsets, study_directory, calc_adjoint, perturb_point, point_index, xyz_index, step, formulation, mesh_name):
+    CF_up = run_machline_for_cp_offset(cp_offsets[i], study_directory, calc_adjoint, perturb_point, point_index, xyz_index, step, formulation, mesh_name)
+    return CF_up
 
-# task to be done in parallel
-# def run_up_down_task(i,cp_offsets, study_directory, calc_adjoint, perturb_point, point_index, xyz_index, step, formulation, mesh_name):
-    
-#     # run "up" peruturbations
-#     CF_up = run_machline_for_cp_offset(cp_offsets[i], study_directory, calc_adjoint, perturb_point, point_index, xyz_index, step, formulation, mesh_name)
+# Task to run "down" perturbations
+def run_down_task(i, cp_offsets, study_directory, calc_adjoint, perturb_point, point_index, xyz_index, step, formulation, mesh_name):
+    CF_down = run_machline_for_cp_offset(cp_offsets[i], study_directory, calc_adjoint, perturb_point, point_index, xyz_index, -step, formulation, mesh_name)
+    return CF_down
 
-#     # run "down" perturbations
-#     CF_down = run_machline_for_cp_offset(cp_offsets[i], study_directory, calc_adjoint, perturb_point, point_index, xyz_index, -step, formulation, mesh_name)
-
-#     return CF_up, CF_down
-
-
+# i think the issue is the different runs are reading the same input file
 
 def k_loop(k, j, num_cp_offsets, step, study_directory, calc_adjoint, cp_offsets, perturb_point, formulation, mesh_name):
     CF = [None]*num_cp_offsets
@@ -183,44 +180,43 @@ def k_loop(k, j, num_cp_offsets, step, study_directory, calc_adjoint, cp_offsets
     xyz_index = j
 
     # perturb up
-    for i in range(num_cp_offsets):
-        CF[i] = run_machline_for_cp_offset(cp_offsets[i], study_directory, calc_adjoint, perturb_point, point_index, xyz_index, step, formulation, mesh_name)
+    for m in range(num_cp_offsets):
+        CF[m] = run_machline_for_cp_offset(cp_offsets[m], study_directory, calc_adjoint, perturb_point, point_index, xyz_index, step, formulation, mesh_name)
         run_count_local += 1
 
     # get up data
-    for i in range(num_cp_offsets):
-        CFx_up[i] = CF[i][0]
-        CFy_up[i] = CF[i][1]
-        CFz_up[i] = CF[i][2]
+    for q in range(num_cp_offsets):
+        CFx_up[q] = CF[q][0]
+        CFy_up[q] = CF[q][1]
+        CFz_up[q] = CF[q][2]
 
 
      # perturb down
-    for i in range(num_cp_offsets):
-        CF[i] = run_machline_for_cp_offset(cp_offsets[i], study_directory, calc_adjoint, perturb_point, point_index, xyz_index, -step, formulation, mesh_name)
+    for t in range(num_cp_offsets):
+        CF[t] = run_machline_for_cp_offset(cp_offsets[t], study_directory, calc_adjoint, perturb_point, point_index, xyz_index, -step, formulation, mesh_name)
         run_count_local += 1
 
     # get down data
-    for i in range(num_cp_offsets):
-        CFx_down[i] = CF[i][0]
-        CFy_down[i] = CF[i][1]
-        CFz_down[i] = CF[i][2]
+    for b in range(num_cp_offsets):
+        CFx_down[b] = CF[b][0]
+        CFy_down[b] = CF[b][1]
+        CFz_down[b] = CF[b][2]
 
     # calculate sensitivity
-    d_CFx = [(CFx_up[i] - CFx_down[i]) / (2. * step) for i in range(num_cp_offsets)]
-    d_CFy = [(CFy_up[i] - CFy_down[i]) / (2. * step) for i in range(num_cp_offsets)]
-    d_CFz = [(CFz_up[i] - CFz_down[i]) / (2. * step) for i in range(num_cp_offsets)]
+    d_CFx = [(CFx_up[s] - CFx_down[s]) / (2. * step) for s in range(num_cp_offsets)]
+    d_CFy = [(CFy_up[s] - CFy_down[s]) / (2. * step) for s in range(num_cp_offsets)]
+    d_CFz = [(CFz_up[s] - CFz_down[s]) / (2. * step) for s in range(num_cp_offsets)]
     
     return (k, j, d_CFx, d_CFy, d_CFz, run_count_local)
 
 
-def process_in_batches(num_mesh_points, num_workers=10):
+def process_in_batches(num_mesh_points, num_workers=10, j=1):
     run_count = 0
     with concurrent.futures.ProcessPoolExecutor(max_workers=num_workers) as executor:
         futures = []
-        for j in range(1, 4):  # Loop over xyz axes
-            for k in range(1, num_mesh_points + 1):
-                # Submit jobs to the executor
-                futures.append(executor.submit(k_loop, k, j, num_cp_offsets, step, study_directory, calc_adjoint, cp_offsets, perturb_point, formulation, mesh_name))
+        for k in range(1, num_mesh_points + 1):
+            # Submit jobs to the executor for the given axis (j)
+            futures.append(executor.submit(k_loop, k, j, num_cp_offsets, step, study_directory, calc_adjoint, cp_offsets, perturb_point, formulation, mesh_name))
 
         # Collect results as they are completed
         for future in concurrent.futures.as_completed(futures):
@@ -228,7 +224,6 @@ def process_in_batches(num_mesh_points, num_workers=10):
             k, j, d_CFx, d_CFy, d_CFz, run_count_local = result
             run_count += run_count_local
             print(f"Completed mesh point {k} for axis {j}, run count: {run_count_local}")
-
 
 
 if __name__=="__main__":
@@ -381,11 +376,10 @@ if __name__=="__main__":
         else:
             step = step/10
 
-        # xyz loop
-        for j in range(1,4):
-            
-            # Call process_in_batches 
-            process_in_batches(num_mesh_points, 20)
+        # xyz loop - iterate over axes outside of the process_in_batches function
+        for j in range(1, 4):  # Loop over xyz axes
+            # print(f"Processing axis {j} (1=x, 2=y, 3=z)")
+            # process_in_batches(num_mesh_points, num_workers=20, j=j)
 
             # # parallelize k loop
             # with concurrent.futures.ProcessPoolExecutor() as executor:
@@ -406,49 +400,63 @@ if __name__=="__main__":
             
             # # 
             # vertex loop
-            # for k in range(1, num_mesh_points + 1):
+            for k in range(1, num_mesh_points + 1):
 
-            #     point_index = k
-            #     xyz_index = j
+                CF_up_results = [None] * num_cp_offsets
+                CF_down_results = [None] * num_cp_offsets
 
-            #     # perturb up
-            #     with ProcessPoolExecutor() as executor:
-            #         # submit tasks for each cp offset
-            #         futures = [executor.submit(run_up_down_task, i, cp_offsets, study_directory, calc_adjoint, perturb_point, point_index, xyz_index, step, formulation, mesh_name)
-            #                    for i in range(num_cp_offsets)]
+                point_index = k
+                xyz_index = j
+            # Run "up" perturbations in parallel
+                with concurrent.futures.ProcessPoolExecutor() as executor:
+                    futures_up = [executor.submit(run_up_task, i, cp_offsets, study_directory, calc_adjoint, perturb_point, point_index, xyz_index, step, formulation, mesh_name) for i in range(num_cp_offsets)]
                     
-            #         # collect data
-            #         for i, future in enumerate(futures):
+                    # Collect results for up perturbations
+                    for i, future in enumerate(concurrent.futures.as_completed(futures_up)):
+                        CF_up_results[i] = future.result()
 
-            #     # for i in range(num_cp_offsets):
-            #     #     CF[i] = run_machline_for_cp_offset(cp_offsets[i],study_directory, calc_adjoint, perturb_point, point_index, xyz_index, step, formulation, mesh_name)
-            #     #     run_count += 1
+                # Run "down" perturbations in parallel
+                with concurrent.futures.ProcessPoolExecutor() as executor:
+                    futures_down = [executor.submit(run_down_task, i, cp_offsets, study_directory, calc_adjoint, perturb_point, point_index, xyz_index, step, formulation, mesh_name) for i in range(num_cp_offsets)]
+                    
+                    # Collect results for down perturbations
+                    for i, future in enumerate(concurrent.futures.as_completed(futures_down)):
+                        CF_down_results[i] = future.result()
+
+                # Calculate sensitivities
+                d_CFx = [(CF_up_results[i][0] - CF_down_results[i][0]) / (2. * step) for i in range(num_cp_offsets)]
+                d_CFy = [(CF_up_results[i][1] - CF_down_results[i][1]) / (2. * step) for i in range(num_cp_offsets)]
+                d_CFz = [(CF_up_results[i][2] - CF_down_results[i][2]) / (2. * step) for i in range(num_cp_offsets)]
+
+                # for i in range(num_cp_offsets):
+                #     CF[i] = run_machline_for_cp_offset(cp_offsets[i],study_directory, calc_adjoint, perturb_point, point_index, xyz_index, step, formulation, mesh_name)
+                #     run_count += 1
 
 
-            #     # get up data
-            #     for i in range(num_cp_offsets):
-            #         CFx_up[i] = CF[i][0]
-            #         CFy_up[i] = CF[i][1]
-            #         CFz_up[i] = CF[i][2]
+                # # get up data
+                # for i in range(num_cp_offsets):
+                #     CFx_up[i] = CF[i][0]
+                #     CFy_up[i] = CF[i][1]
+                #     CFz_up[i] = CF[i][2]
 
 
-            #     # perturb down
-            #     for i in range(num_cp_offsets):
-            #         CF[i] = run_machline_for_cp_offset(cp_offsets[i],study_directory, calc_adjoint, perturb_point, point_index, xyz_index, -step, formulation, mesh_name)
-            #         run_count += 1
+                # # perturb down
+                # for i in range(num_cp_offsets):
+                #     CF[i] = run_machline_for_cp_offset(cp_offsets[i],study_directory, calc_adjoint, perturb_point, point_index, xyz_index, -step, formulation, mesh_name)
+                #     run_count += 1
 
 
-            #     # get up data
-            #     for i in range(num_cp_offsets):
-            #         CFx_down[i] = CF[i][0]
-            #         CFy_down[i] = CF[i][1]
-            #         CFz_down[i] = CF[i][2]
+                # # get up data
+                # for i in range(num_cp_offsets):
+                #     CFx_down[i] = CF[i][0]
+                #     CFy_down[i] = CF[i][1]
+                #     CFz_down[i] = CF[i][2]
 
-            #     # calculate sensitivity wrt this design variable and store
-            #     for i in range(num_cp_offsets):
-            #         d_CFx[i][(k + (j-1)*num_mesh_points) -1] = (CFx_up[i] - CFx_down[i]) / (2.*step)  
-            #         d_CFy[i][(k + (j-1)*num_mesh_points) -1] = (CFy_up[i] - CFy_down[i]) / (2.*step)  
-            #         d_CFz[i][(k + (j-1)*num_mesh_points) -1] = (CFz_up[i] - CFz_down[i]) / (2.*step)  
+                # # calculate sensitivity wrt this design variable and store
+                # for i in range(num_cp_offsets):
+                #     d_CFx[i][(k + (j-1)*num_mesh_points) -1] = (CFx_up[i] - CFx_down[i]) / (2.*step)  
+                #     d_CFy[i][(k + (j-1)*num_mesh_points) -1] = (CFy_up[i] - CFy_down[i]) / (2.*step)  
+                #     d_CFz[i][(k + (j-1)*num_mesh_points) -1] = (CFz_up[i] - CFz_down[i]) / (2.*step)  
 
             
         # for each step size, do the following: 
