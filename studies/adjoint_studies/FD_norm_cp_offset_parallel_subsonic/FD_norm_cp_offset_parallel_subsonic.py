@@ -243,8 +243,8 @@ if __name__=="__main__":
     sonic = "supersonic"
     num_mesh_points = 1190
     num_cp_offsets = 10
-    step = 1.0e-9   # initial step size (gets smaller)
-    initial_step_exp = 9
+    step = 1.0e-4   # initial step size (gets smaller)
+    initial_step_exp = 4
     num_step_size_runs = 7
     adjoint_cp_study = False
     
@@ -385,7 +385,7 @@ if __name__=="__main__":
         for j in range(1,4):
             
             # Call process_in_batches 
-            process_in_batches(num_mesh_points, num_workers=10)
+            process_in_batches(num_mesh_points, 20)
 
             # # parallelize k loop
             # with concurrent.futures.ProcessPoolExecutor() as executor:

@@ -1,0 +1,41 @@
+{
+    "flow": {
+        "freestream_velocity": [
+            1.0,
+            0.0,
+            0.1
+        ],
+        "freestream_mach_number": 0.5
+    },
+    "geometry": {
+        "file": "studies/adjoint_studies/FD_norm_cp_offset_parallel_subsonic/meshes/test_11.stl",
+        "wake_model": {
+            "wake_present": true,
+            "wake_appended": true
+        },
+        "adjoint_sensitivities": {
+            "calc_adjoint": false
+        },
+        "perturbation": {
+            "perturb_point": true,
+            "point_index": 100,
+            "xyz_index": 1,
+            "step": -1e-09
+        }
+    },
+    "solver": {
+        "formulation": "dirichlet-source-free",
+        "control_point_offset": 1e-08,
+        "matrix_solver": "GMRES"
+    },
+    "post_processing": {
+        "pressure_rules": {
+            "isentropic": true
+        }
+    },
+    "output": {
+        "verbose": false,
+        "report_file": "studies/adjoint_studies/FD_norm_cp_offset_parallel_subsonic/reports/1.json",
+        "xbody_file": "none"
+    }
+}
