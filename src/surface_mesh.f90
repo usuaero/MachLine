@@ -451,7 +451,7 @@ contains
 
         !!!!!!! turned off parallel here because it was messing up solution when a point was perturbed.
         !!!!!!! when I turned off the parallel here, the problem went away -NH
-        ! $OMP parallel do schedule(dynamic) private(j, i_endpoints, i_edge, edge_index_i, edge_index_j)
+        !$OMP parallel do schedule(dynamic) private(j, i_endpoints, i_edge, edge_index_i, edge_index_j)
         do i=1,this%N_panels
 
             ! Loop through each potential neighbor
@@ -463,7 +463,7 @@ contains
                 ! Check if these are abutting
                 if (this%check_panels_adjacent(i, j, i_endpoints, edge_index_i, edge_index_j)) then
 
-                    ! $OMP critical
+                    !$OMP critical
                     
                     ! Update number of edges
                     this%N_edges = this%N_edges + 1
@@ -482,7 +482,7 @@ contains
                     vertex1(i_edge) = i_endpoints(1)
                     vertex2(i_edge) = i_endpoints(2)
 
-                    ! $OMP end critical
+                    !$OMP end critical
 
                 end if
 
@@ -2211,8 +2211,8 @@ contains
         allocate(cp_locs(3,this%N_verts))
 
         ! Loop through vertices
-        ! $OMP parallel do private(j, i_panel, dir, new_dir, n_avg, this_offset, disp) &
-        ! $OMP & schedule(dynamic) shared(this, offset, freestream, offset_type)
+        !$OMP parallel do private(j, i_panel, dir, new_dir, n_avg, this_offset, disp) &
+        !$OMP & schedule(dynamic) shared(this, offset, freestream, offset_type)
         do i=1,this%N_verts
 
             ! If the vertex is a clone, it needs to be shifted off the normal slightly so that it is unique from its counterpart
