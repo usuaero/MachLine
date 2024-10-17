@@ -220,7 +220,7 @@ def process_in_batches(num_mesh_points, num_workers=10):
         for j in range(1, 4):  # Loop over xyz axes
             for k in range(1, num_mesh_points + 1):
                 # Submit jobs to the executor
-                futures.append(executor.submit(k_loop), k, j, num_cp_offsets, step, study_directory, calc_adjoint, cp_offsets, perturb_point, formulation, mesh_name)
+                futures.append(executor.submit(k_loop, k, j, num_cp_offsets, step, study_directory, calc_adjoint, cp_offsets, perturb_point, formulation, mesh_name))
 
         # Collect results as they are completed
         for future in concurrent.futures.as_completed(futures):
