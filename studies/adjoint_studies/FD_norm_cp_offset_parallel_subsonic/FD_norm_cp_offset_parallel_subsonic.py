@@ -245,8 +245,8 @@ if __name__=="__main__":
     num_cp_offsets = 10
     step = 1.0e-9   # initial step size (gets smaller)
     initial_step_exp = 9
-    num_step_size_runs = 2
-    adjoint_cp_study = True
+    num_step_size_runs = 7
+    adjoint_cp_study = False
     
     #   - mesh_file 
     #   - just_points_vtk 
