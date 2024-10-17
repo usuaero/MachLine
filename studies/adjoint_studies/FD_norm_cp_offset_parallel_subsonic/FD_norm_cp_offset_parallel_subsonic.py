@@ -77,7 +77,7 @@ def run_machline_for_cp_offset(cp_offset,study_directory, calc_adjoint, perturb_
         }
     }
     # Dump
-    input_file = study_directory+"/input" + str(int(time.time()))+".json"
+    input_file = study_directory+"/input.json"# + str(int(time.time()))+".json"
     write_input_file(input_dict, input_file)
 
     # Run MachLine
@@ -212,7 +212,7 @@ def k_loop(k, j, num_cp_offsets, step, study_directory, calc_adjoint, cp_offsets
 
 def process_in_batches(num_mesh_points, num_workers=10, j=1):
     run_count = 0
-    with concurrent.futures.ProcessPoolExecutor(max_workers=num_workers) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
         futures = []
         for k in range(1, num_mesh_points + 1):
             # Submit jobs to the executor for the given axis (j)
@@ -407,17 +407,20 @@ if __name__=="__main__":
 
                 point_index = k
                 xyz_index = j
-            # Run "up" perturbations in parallel
-                with concurrent.futures.ProcessPoolExecutor() as executor:
-                    futures_up = [executor.submit(run_up_task, i, cp_offsets, study_directory, calc_adjoint, perturb_point, point_index, xyz_index, step, formulation, mesh_name) for i in range(num_cp_offsets)]
+                # Create a single executor for both "up" and "down" runs
+                with concurrent.futures.ThreadPoolExecutor() as executor:  # Use ThreadPoolExecutor instead of ProcessPoolExecutor
+                    futures_up = [
+                        executor.submit(run_up_task, i, cp_offsets, study_directory, calc_adjoint, perturb_point, point_index, xyz_index, step, formulation, mesh_name) 
+                        for i in range(num_cp_offsets)
+                    ]
+                    futures_down = [
+                        executor.submit(run_down_task, i, cp_offsets, study_directory, calc_adjoint, perturb_point, point_index, xyz_index, step, formulation, mesh_name) 
+                        for i in range(num_cp_offsets)
+                    ]
                     
                     # Collect results for up perturbations
                     for i, future in enumerate(concurrent.futures.as_completed(futures_up)):
                         CF_up_results[i] = future.result()
-
-                # Run "down" perturbations in parallel
-                with concurrent.futures.ProcessPoolExecutor() as executor:
-                    futures_down = [executor.submit(run_down_task, i, cp_offsets, study_directory, calc_adjoint, perturb_point, point_index, xyz_index, step, formulation, mesh_name) for i in range(num_cp_offsets)]
                     
                     # Collect results for down perturbations
                     for i, future in enumerate(concurrent.futures.as_completed(futures_down)):
@@ -427,7 +430,6 @@ if __name__=="__main__":
                 d_CFx = [(CF_up_results[i][0] - CF_down_results[i][0]) / (2. * step) for i in range(num_cp_offsets)]
                 d_CFy = [(CF_up_results[i][1] - CF_down_results[i][1]) / (2. * step) for i in range(num_cp_offsets)]
                 d_CFz = [(CF_up_results[i][2] - CF_down_results[i][2]) / (2. * step) for i in range(num_cp_offsets)]
-
                 # for i in range(num_cp_offsets):
                 #     CF[i] = run_machline_for_cp_offset(cp_offsets[i],study_directory, calc_adjoint, perturb_point, point_index, xyz_index, step, formulation, mesh_name)
                 #     run_count += 1
