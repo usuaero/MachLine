@@ -10793,7 +10793,7 @@
             },
             "adjoint_sensitivities" : {
                 "calc_adjoint" : true,
-                "robust_cp_dir" : true
+                "custom_cp_dir" : false
             }
         },
         "solver" : {

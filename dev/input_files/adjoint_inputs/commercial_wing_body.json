@@ -1,0 +1,42 @@
+{
+"flow": {
+    "freestream_velocity" : [ 1.0, 0.0, 0.0],
+    "freestream_mach_number" : 0.75
+},
+"geometry": {
+    "file" : "dev/meshes/other_meshes/commercial_wing_body.vtk",
+    "mirror_about" : "xz",
+    "singularity_order" : "lower",
+
+    "wake_model" : {
+        "wake_present" : true,
+        "append_wake" : true,
+        "xtrefftz_distance": 19.0
+        
+    },
+    "adjoint_sensitivities" : {
+        "calc_adjoint" : false
+    }
+},
+"solver": {
+    "formulation" : "dirichlet-source-free",
+    "control_point_offset" : 1.0e-7, 
+    "matrix_solver" : "GMRES", 
+    "xsort_system" : false
+},
+"post_processing" : {
+    "pressure_rules": {
+        "incompressible": false,
+        "isentropic": true
+    }
+},
+
+"output": {
+    "verbose" : true,
+    "mirrored_body_file" : "dev/results/adjoint/commercial_wing_body_full.vtk",
+    "_awake_file" : "dev/results/adjoint/supersonic_delta_wing_wake.vtk",
+    "_body_file" : "dev/results/adjoint/test_12_adjoint_robust_1e-5.vtk", 
+    "_report_file" : "dev/results/adjoint_reports/test_12_adjoint_robust_1e-5"
+}
+
+}

@@ -51,7 +51,7 @@ module surface_mesh_mod
         ! adjoint
         logical :: perturb_point ! used for central diff scripts to validate adjoint calcs (shouldnt be true if calc_adjoint is true)
         logical :: calc_adjoint  ! whether or not adjoint sensitivities should be calculated
-        logical :: robust_cp_dir ! for testing, if true this places cloned vertex cp's using "get_clone_control_point_dir_adjoint"
+        logical :: custom_cp_dir ! for testing, if true this places cloned vertex cp's using "get_clone_control_point_dir_adjoint"
         ! (but central diff doesnt work) 
         integer :: N_original_verts    ! number of vertices before vertices are cloned. design variables are based on OG verts
         integer :: adjoint_size ! number of adjoint design variables 
@@ -400,7 +400,7 @@ contains
 
         ! Check if the user wants to calculate adjoint
         call json_xtnsn_get(settings, 'adjoint_sensitivities.calc_adjoint', this%calc_adjoint, .false.)
-        call json_xtnsn_get(settings, 'adjoint_sensitivities.robust_cp_dir', this%robust_cp_dir, .false.)
+        call json_xtnsn_get(settings, 'adjoint_sensitivities.custom_cp_dir', this%custom_cp_dir, .false.)
 
         ! check to see if calc_adjoint and perturb_point are both true. If they are both true, 
         ! warn user and quit
@@ -4266,13 +4266,7 @@ contains
             ! If the vertex is a clone, it needs to be shifted off the normal slightly so that it is unique from its counterpart
             if (this%vertices(i)%clone) then
                 
-                if (this%robust_cp_dir) then
-                    ! central diff breaks down "get control point dir adjoint" 
-                    
-                    dir = this%get_clone_control_point_dir(i)
-                    d_dir = this%get_clone_control_point_dir_adjoint(i)
-                else 
-
+                if (this%custom_cp_dir) then
                     ! if doing calc adjoint or central diff validation
                     ! use the negative of the original vertex and some of the wake normal
                     dir = -this%vertices(i)%n_g + 0.20*this%vertices(i)%n_g_wake
@@ -4281,6 +4275,12 @@ contains
                     call d_dir%init_from_sparse_matrix(this%vertices(i)%d_n_g_wake)
                     call d_dir%broadcast_element_times_scalar(0.20)
                     call d_dir%sparse_subtract(this%vertices(i)%d_n_g)
+                else 
+                    ! central diff breaks down "get control point dir adjoint" 
+                    
+                    dir = this%get_clone_control_point_dir(i)
+                    d_dir = this%get_clone_control_point_dir_adjoint(i)
+                    
                 
                 end if
                 

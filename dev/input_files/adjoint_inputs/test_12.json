@@ -24,7 +24,7 @@
         },
         "adjoint_sensitivities" : {
             "calc_adjoint" : false,
-            "robust_cp_dir" : true
+            "custom_cp_dir" : false
         }
     },
     "solver": {
