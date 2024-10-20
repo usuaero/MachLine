@@ -4,8 +4,7 @@
     "freestream_mach_number" : 0.75
 },
 "geometry": {
-    "file" : "dev/meshes/other_meshes/commercial_wing_body.vtk",
-    "mirror_about" : "xz",
+    "file" : "dev/results/adjoint/commercial_wing_body_full.vtk",
     "singularity_order" : "lower",
 
     "wake_model" : {
@@ -15,7 +14,7 @@
         
     },
     "adjoint_sensitivities" : {
-        "calc_adjoint" : false
+        "calc_adjoint" : true
     }
 },
 "solver": {
@@ -33,10 +32,10 @@
 
 "output": {
     "verbose" : true,
-    "mirrored_body_file" : "dev/results/adjoint/commercial_wing_body_full.vtk",
+    "body_file" : "dev/results/adjoint/commercial_wing_body_full_adjoint.vtk",
     "_awake_file" : "dev/results/adjoint/supersonic_delta_wing_wake.vtk",
     "_body_file" : "dev/results/adjoint/test_12_adjoint_robust_1e-5.vtk", 
-    "_report_file" : "dev/results/adjoint_reports/test_12_adjoint_robust_1e-5"
+    "report_file" : "dev/results/adjoint_reports/wing_body"
 }
 
 }
