@@ -10,7 +10,13 @@ import pandas as pd
 import pickle
 from write_vtk import read_vtk_file, write_vtk_file, add_vector_data_to_vtk
 import concurrent.futures 
+from threading import Lock, local
 # from tqdm import tqdm 
+
+# Create a lock object (this should be defined outside of the function)
+file_lock = Lock()
+    # Thread-local storage for input file path
+thread_local_storage = local()
 
 
 
@@ -26,7 +32,7 @@ def run_machline_for_cp_offset(cp_offset,study_directory, calc_adjoint, perturb_
     mesh_file = study_directory+"/meshes/"+mesh_name+".stl"
     results_file = study_directory+"/results/"+case_name+".vtk"
     # wake_file = study_directory+"/results/"+case_name+"_wake.vtk"
-    report_file = study_directory+"/reports/1.json"
+    report_file = study_directory+"/reports/" + str(point_index)  + "_" + str(xyz_index) + "_" + f'{step: .2e}' + f'{cp_offset:.2e}' + ".json"
     control_point_file = study_directory+"/results/"+case_name+"_control_points.vtk"
 
     if (calc_adjoint):
@@ -57,7 +63,7 @@ def run_machline_for_cp_offset(cp_offset,study_directory, calc_adjoint, perturb_
                 "point_index" : point_index,
                 "xyz_index" : xyz_index,
                 "step" : step
-            },
+            }
         },
     
         "solver": {
@@ -73,14 +79,24 @@ def run_machline_for_cp_offset(cp_offset,study_directory, calc_adjoint, perturb_
         "output" : {
             "verbose" : False,
             "report_file" : report_file,
-            write_body_file : body_file 
+            "write_body_file" : body_file 
         }
     }
-    # Dump
-    input_file = study_directory+"/input.json"# + str(int(time.time()))+".json"
-    write_input_file(input_dict, input_file)
 
-    # Run MachLine
+    # with file_lock:
+    # Create a unique input file name
+    input_file = study_directory+ "/input_" + str(point_index)  + "_" + str(xyz_index) + "_" + f'{step: .2e}' + f'{cp_offset:.2e}' + ".json"
+    write_input_file(input_dict, input_file)
+    # Store the input file path in thread-local storage
+    # thread_local_storage.input_file = input_file
+
+    # Ensure the input file exists before running MachLine
+    # if os.path.exists(thread_local_storage.input_file):
+    #     # Run MachLine without locking
+    #     report = run_machline(thread_local_storage.input_file, run=RERUN_MACHLINE)
+    # else:
+    #     raise FileNotFoundError(f"Input file not found: {thread_local_storage.input_file}")
+
     report = run_machline(input_file, run=RERUN_MACHLINE)
 
     # # Pull out forces
@@ -212,6 +228,7 @@ def k_loop(k, j, num_cp_offsets, step, study_directory, calc_adjoint, cp_offsets
 
 def process_in_batches(num_mesh_points, num_workers=10, j=1):
     run_count = 0
+    results = []  # Store results for norms calculation
     with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
         futures = []
         for k in range(1, num_mesh_points + 1):
@@ -221,9 +238,19 @@ def process_in_batches(num_mesh_points, num_workers=10, j=1):
         # Collect results as they are completed
         for future in concurrent.futures.as_completed(futures):
             result = future.result()  # This will block until the future is complete
-            k, j, d_CFx, d_CFy, d_CFz, run_count_local = result
+            results.append(result)  # Store the result
+            k, j, d_CFx_result, d_CFy_result, d_CFz_result, run_count_local = result
             run_count += run_count_local
+
+            for i in range(num_cp_offsets):
+                d_CFx[i][(k + (j-1)*num_mesh_points) -1] = d_CFx_result[i]  
+                d_CFy[i][(k + (j-1)*num_mesh_points) -1] = d_CFy_result[i]  
+                d_CFz[i][(k + (j-1)*num_mesh_points) -1] = d_CFz_result[i]  
             print(f"Completed mesh point {k} for axis {j}, run count: {run_count_local}")
+
+    return d_CFx, d_CFy, d_CFz  # Return the accumulated results
+
+    
 
 
 if __name__=="__main__":
@@ -235,27 +262,28 @@ if __name__=="__main__":
     ##########################################
     #### THINGS TO CHANGE FORA A NEW RUN #####
     mesh_name = "test_11"
-    sonic = "supersonic"
+    sonic = "subsonic"
     num_mesh_points = 1190
     num_cp_offsets = 10
     step = 1.0e-4   # initial step size (gets smaller)
     initial_step_exp = 4
     num_step_size_runs = 7
     adjoint_cp_study = False
+
+     # clones 
+    clones = [1,3,74,110,146,182,218,254,290,326,362,398,434,470,506,542,578,614,650,686,722,758,794,830,866,902,938,974,1010,1046,1082,1118,1154]
+    # clones = [1]
     
     #   - mesh_file 
     #   - just_points_vtk 
     #   - clones
     #   - num_mesh_points
     #   - step size, initial exp
-
+    
     ########################################
-    # clones 
-    clones = [1,3,74,110,146,182,218,254,290,326,362,398,434,470,506,542,578,614,650,686,722,758,794,830,866,902,938,974,1010,1046,1082,1118,1154]
-    # clones = [1]
 
     # get spread of cp offsets
-    cp_offsets = np.logspace(-11,-1, num_cp_offsets+1)
+    cp_offsets = np.logspace(-11,-5, num_cp_offsets+1)
     cp_offsets = cp_offsets[:-1]
     # cp_offsets = [1.0e-4] #, 7.5e-12, 1.0e-10, 1.0e-9, 1.0e-8, 1.0e-7, 1.0e-6]
 
@@ -275,9 +303,6 @@ if __name__=="__main__":
     colors = [(0.3 + 0.4 * (i / (num_step_size_runs - 1)),) * 3 for i in range(num_step_size_runs)]
 
 
-    # set_path to a vtk containg just the points
-    just_points_vtk = "studies/adjoint_studies/FD_norm_cp_offset_parallel_subsonic/vtk_files/just_points_"+mesh_name+".vtk"
-    vtk_lines = read_vtk_file(just_points_vtk)
 
     
     wake_present = True
@@ -378,8 +403,17 @@ if __name__=="__main__":
 
         # xyz loop - iterate over axes outside of the process_in_batches function
         for j in range(1, 4):  # Loop over xyz axes
-            # print(f"Processing axis {j} (1=x, 2=y, 3=z)")
-            # process_in_batches(num_mesh_points, num_workers=20, j=j)
+
+
+            d_CFx, d_CFy, d_CFz = process_in_batches(num_mesh_points, num_workers=60, j=j)
+            print("size of d_CFx", len(d_CFx))
+
+            # # Calculate norms
+            # for result in results:
+            #     _, _, d_CFx, d_CFy, d_CFz, _ = result  # Unpack the result
+            #     d_CFx_norm.append(np.sqrt(np.sum(np.square(d_CFx))))
+            #     d_CFy_norm.append(np.sqrt(np.sum(np.square(d_CFy))))
+            #     d_CFz_norm.append(np.sqrt(np.sum(np.square(d_CFz))))
 
             # # parallelize k loop
             # with concurrent.futures.ProcessPoolExecutor() as executor:
@@ -400,69 +434,72 @@ if __name__=="__main__":
             
             # # 
             # vertex loop
-            for k in range(1, num_mesh_points + 1):
+            # for k in range(1, num_mesh_points + 1):
 
-                CF_up_results = [None] * num_cp_offsets
-                CF_down_results = [None] * num_cp_offsets
+            #     CF_up_results = [None] * num_cp_offsets
+            #     CF_down_results = [None] * num_cp_offsets
 
-                point_index = k
-                xyz_index = j
-                # Create a single executor for both "up" and "down" runs
-                with concurrent.futures.ThreadPoolExecutor() as executor:  # Use ThreadPoolExecutor instead of ProcessPoolExecutor
-                    futures_up = [
-                        executor.submit(run_up_task, i, cp_offsets, study_directory, calc_adjoint, perturb_point, point_index, xyz_index, step, formulation, mesh_name) 
-                        for i in range(num_cp_offsets)
-                    ]
-                    futures_down = [
-                        executor.submit(run_down_task, i, cp_offsets, study_directory, calc_adjoint, perturb_point, point_index, xyz_index, step, formulation, mesh_name) 
-                        for i in range(num_cp_offsets)
-                    ]
+            #     point_index = k
+            #     xyz_index = j
+            #     # Create a single executor for both "up" and "down" runs
+            #     with concurrent.futures.ThreadPoolExecutor() as executor:  # Use ThreadPoolExecutor instead of ProcessPoolExecutor
+            #         futures_up = [
+            #             executor.submit(run_up_task, i, cp_offsets, study_directory, calc_adjoint, perturb_point, point_index, xyz_index, step, formulation, mesh_name) 
+            #             for i in range(num_cp_offsets)
+            #         ]
+            #         futures_down = [
+            #             executor.submit(run_down_task, i, cp_offsets, study_directory, calc_adjoint, perturb_point, point_index, xyz_index, step, formulation, mesh_name) 
+            #             for i in range(num_cp_offsets)
+            #         ]
                     
-                    # Collect results for up perturbations
-                    for i, future in enumerate(concurrent.futures.as_completed(futures_up)):
-                        CF_up_results[i] = future.result()
+            #         # Collect results for up perturbations
+            #         for i, future in enumerate(concurrent.futures.as_completed(futures_up)):
+            #             CF_up_results[i] = future.result()
                     
-                    # Collect results for down perturbations
-                    for i, future in enumerate(concurrent.futures.as_completed(futures_down)):
-                        CF_down_results[i] = future.result()
+            #         # Collect results for down perturbations
+            #         for i, future in enumerate(concurrent.futures.as_completed(futures_down)):
+            #             CF_down_results[i] = future.result()
 
-                # Calculate sensitivities
-                d_CFx = [(CF_up_results[i][0] - CF_down_results[i][0]) / (2. * step) for i in range(num_cp_offsets)]
-                d_CFy = [(CF_up_results[i][1] - CF_down_results[i][1]) / (2. * step) for i in range(num_cp_offsets)]
-                d_CFz = [(CF_up_results[i][2] - CF_down_results[i][2]) / (2. * step) for i in range(num_cp_offsets)]
-                # for i in range(num_cp_offsets):
-                #     CF[i] = run_machline_for_cp_offset(cp_offsets[i],study_directory, calc_adjoint, perturb_point, point_index, xyz_index, step, formulation, mesh_name)
-                #     run_count += 1
+            #     # Calculate sensitivities
+            #     d_CFx = [(CF_up_results[i][0] - CF_down_results[i][0]) / (2. * step) for i in range(num_cp_offsets)]
+            #     d_CFy = [(CF_up_results[i][1] - CF_down_results[i][1]) / (2. * step) for i in range(num_cp_offsets)]
+            #     d_CFz = [(CF_up_results[i][2] - CF_down_results[i][2]) / (2. * step) for i in range(num_cp_offsets)]
 
 
-                # # get up data
-                # for i in range(num_cp_offsets):
-                #     CFx_up[i] = CF[i][0]
-                #     CFy_up[i] = CF[i][1]
-                #     CFz_up[i] = CF[i][2]
+            # for i in range(num_cp_offsets):
+            #     CF[i] = run_machline_for_cp_offset(cp_offsets[i],study_directory, calc_adjoint, perturb_point, point_index, xyz_index, step, formulation, mesh_name)
+            #     run_count += 1
 
 
-                # # perturb down
-                # for i in range(num_cp_offsets):
-                #     CF[i] = run_machline_for_cp_offset(cp_offsets[i],study_directory, calc_adjoint, perturb_point, point_index, xyz_index, -step, formulation, mesh_name)
-                #     run_count += 1
+            # # get up data
+            # for i in range(num_cp_offsets):
+            #     CFx_up[i] = CF[i][0]
+            #     CFy_up[i] = CF[i][1]
+            #     CFz_up[i] = CF[i][2]
 
 
-                # # get up data
-                # for i in range(num_cp_offsets):
-                #     CFx_down[i] = CF[i][0]
-                #     CFy_down[i] = CF[i][1]
-                #     CFz_down[i] = CF[i][2]
+            # # perturb down
+            # for i in range(num_cp_offsets):
+            #     CF[i] = run_machline_for_cp_offset(cp_offsets[i],study_directory, calc_adjoint, perturb_point, point_index, xyz_index, -step, formulation, mesh_name)
+            #     run_count += 1
 
-                # # calculate sensitivity wrt this design variable and store
-                # for i in range(num_cp_offsets):
-                #     d_CFx[i][(k + (j-1)*num_mesh_points) -1] = (CFx_up[i] - CFx_down[i]) / (2.*step)  
-                #     d_CFy[i][(k + (j-1)*num_mesh_points) -1] = (CFy_up[i] - CFy_down[i]) / (2.*step)  
-                #     d_CFz[i][(k + (j-1)*num_mesh_points) -1] = (CFz_up[i] - CFz_down[i]) / (2.*step)  
+
+            # # get up data
+            # for i in range(num_cp_offsets):
+            #     CFx_down[i] = CF[i][0]
+            #     CFy_down[i] = CF[i][1]
+            #     CFz_down[i] = CF[i][2]
+
+            # # calculate sensitivity wrt this design variable and store
+            # for i in range(num_cp_offsets):
+            #     d_CFx[i][(k + (j-1)*num_mesh_points) -1] = (CFx_up[i] - CFx_down[i]) / (2.*step)  
+            #     d_CFy[i][(k + (j-1)*num_mesh_points) -1] = (CFy_up[i] - CFy_down[i]) / (2.*step)  
+            #     d_CFz[i][(k + (j-1)*num_mesh_points) -1] = (CFz_up[i] - CFz_down[i]) / (2.*step)  
 
             
         # for each step size, do the following: 
-
+        print("d_CF_x = ",d_CFx)
+        
         # calc norms
         for i in range(num_cp_offsets):
             d_CFx_norm[i] = np.sqrt(np.sum(d_CFx[i][:] * d_CFx[i][:]))
@@ -529,12 +566,17 @@ if __name__=="__main__":
             processed_d_CFx.extend(cloned_d_CFx)
             processed_d_CFy.extend(cloned_d_CFy)
             processed_d_CFz.extend(cloned_d_CFz)
+            print("                                                             length of processed = ", len(processed_d_CFx))
 
             new_data = [processed_d_CFx, processed_d_CFy, processed_d_CFz]
 
             # processed_d_CFx = np.array(processed_d_CFx)
             # processed_d_CFy = np.array(processed_d_CFy)
             # processed_d_CFz = np.array(processed_d_CFz)
+
+            # set_path to a vtk containg just the points
+            just_points_vtk = "studies/adjoint_studies/FD_norm_cp_offset_parallel_subsonic/vtk_files/just_points_"+mesh_name+".vtk"
+            vtk_lines = read_vtk_file(just_points_vtk)
 
             # write central diff sensitivities to a vtk file file
             new_vtk = "studies/adjoint_studies/FD_norm_cp_offset_parallel_subsonic/vtk_files/subsonic_FD_"+mesh_name+"_cp_"+f'{cp_offsets[i]:.2e}' + "_step_1e-" + str(initial_step_exp+ m) + ".vtk"
@@ -544,7 +586,7 @@ if __name__=="__main__":
             write_vtk_file(new_vtk, updated_vtk_content)
 
 
-        
+        print(d_CFx_norm, d_CFy_norm, d_CFz_norm)
         # Plot for norms_d_CFx
         ax1.plot(cp_offsets, d_CFx_norm, linestyle=(0, dash_styles[m]), color="black", label= "Step size = 10^-" + str(initial_step_exp + m))
         
@@ -686,7 +728,7 @@ if __name__=="__main__":
     df_expanded = pd.DataFrame(expanded_data)
 
     # Save to Excel file
-    excel_file = "studies/adjoint_studies/FD_norm_cp_offset_parallel_subsonic/results/subsonic_FD" + mesh_name + "_" + str(num_cp_offsets) + "_cp_offsets_norms_vs_cp_offset_data.xlsx"
+    excel_file = "studies/adjoint_studies/FD_norm_cp_offset_parallel_subsonic/results/subsonic_FD_" + mesh_name + "_" + str(num_cp_offsets) + "_cp_offsets_norms_vs_cp_offset_data.xlsx"
     df_expanded.to_excel(excel_file, index=False)
 
 
