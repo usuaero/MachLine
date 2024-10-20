@@ -1,0 +1,115 @@
+{
+    "info" : {
+        "generated_by" : "MachLine (c) 2023 USU Aerolab",
+        "executed" : "Sat Oct 19 19:11:17 2024"
+    },
+    "mesh_info" : {
+        "N_body_panels" : 5280,
+        "N_body_vertices" : 2754,
+        "N_wake_panels" : 0,
+        "N_wake_filaments" : 112,
+        "average_characteristic_length" : 2.45351386519896E-002,
+        "max_flow_turning_angle" : 1.72371850463042E+002
+    },
+    "solver_results" : {
+        "solver_status_code" : 0,
+        "system_dimension" : 2754,
+        "timing" : {
+            "system_sorting" : 3.20000000000000E-006,
+            "preconditioner" : 1.91109000000000E-002,
+            "matrix_solver" : 3.80863390000000E+000
+        },
+        "residual" : {
+            "max" : 3.88826130404834E-002,
+            "norm" : 2.56550592117565E-001
+        }
+    },
+    "pressure_calculations" : {
+        "isentropic_rule" : {
+            "max" : 2.89152634338662E-001,
+            "min" : -1.91934640047668E-001
+        }
+    },
+    "total_forces" : {
+        "Cx" : 5.38004939045802E-002,
+        "Cy" : 2.28427173662824E-008,
+        "Cz" : 2.67983388048817E-001
+    },
+    "total_moments" : {
+        "CMx" : -3.78938597117637E-007,
+        "CMy" : -4.37273062305212E-001,
+        "CMz" : -6.02675872003774E-008
+    },
+    "input" : {
+        "flow" : {
+            "freestream_velocity" : [
+                    9.96194698091746E-001,
+                    0.00000000000000E+000,
+                    8.71557427476582E-002
+                ],
+            "yfreestream_velocity" : [
+                    9.97564050259825E-001,
+                    0.00000000000000E+000,
+                    6.97564737441250E-002
+                ],
+            "xfreestream_velocity" : [
+                    1.00000000000000E+000,
+                    0.00000000000000E+000,
+                    0.00000000000000E+000
+                ],
+            "freestream_mach_number" : 2.00000000000000E+000
+        },
+        "geometry" : {
+            "xfile" : "dev/meshes/wake/swept_biplane_wedge.stl",
+            "yfile" : "dev/meshes/wake/trailing_delta.stl",
+            "file" : "dev/meshes/wake/bothWings2_050.stl",
+            "afile" : "dev/meshes/wake/onewing050.stl",
+            "zfile" : "dev/meshes/wake/imp_test_full.stl",
+            "spanwise_axis" : "+y",
+            "wake_model" : {
+                "wake_present" : true,
+                "append_wake" : true,
+                "trefftz_distance" : 6.50000000000000E+000,
+                "wake_type" : "filaments",
+                "xwake_type" : "panels",
+                "N_panels" : 50
+            }
+        },
+        "solver" : {
+            "run_checks" : true,
+            "formulation" : "neumann-mass-flux",
+            "xformulation" : "dirichlet-morino",
+            "control_point_offset" : 1.00000000000000E-006,
+            "matrix_solver" : "HHLS",
+            "zmatrix_solver" : "LU",
+            "ymatrix_solver" : "GMRES",
+            "xmatrix_solver" : "QRUP",
+            "preconditioner" : "NONE",
+            "write_A_and_b" : false,
+            "sort_system" : true,
+            "relax_wake" : false,
+            "max_relaxation_iterations" : 1,
+            "streamline_step_size" : 1.00000000000000E-002,
+            "max_streamline_iterations" : 3000
+        },
+        "post_processing" : {
+            "isentropic" : true,
+            "second-order" : true,
+            "slender-body" : false,
+            "linear" : false
+        },
+        "output" : {
+            "body_file" : "dev/results/wake/swept_biplane_test.vtk",
+            "wake_file" : "dev/results/wake/swept_biplane_test_wake.vtk",
+            "control_point_file" : "dev/results/wake/swept_biplane_test_control_points.vtk",
+            "report_file" : "dev/results/wake/swept_biplane_test_report.json",
+            "offbody_points" : {
+                "xpoints_file" : "dev/input_files/bi_wing_slice_sample_pointsSpanwise.csv",
+                "xoutput_file" : "dev/results/bi_wing_slice_sample_pointsSpanwise.csv",
+                "points_file" : "dev/input_files/bi_wing_slice_sample_pointsStreamwise_WT.csv",
+                "output_file" : "dev/results/bi_wing_slice_sample_pointsStreamwise_WT.csv"
+            }
+        }
+    },
+    "total_runtime" : 2.07810000000000E+001
+}

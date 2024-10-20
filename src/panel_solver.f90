@@ -132,6 +132,14 @@ contains
         ! Get post-processing settings
         call this%parse_processing_settings(processing_settings)
 
+        ! check to make sure the formulation is valid
+        if (body%wake_type == 'filaments') then
+            if (this%formulation /= N_MF_D_LS) then
+                write(*,*) "!!! '", this%formulation, "' is not a valid formulation for a filament wake. Quitting..."
+                stop
+            end if
+        end if
+
         ! Initialize based on formulation
         if (this%formulation == D_MORINO .or. this%formulation == D_SOURCE_FREE) then
             this%dirichlet = .true.
@@ -1027,7 +1035,7 @@ contains
     end subroutine panel_solver_set_permutation
 
 
-    subroutine panel_solver_solve(this, body, solver_stat, formulation,freestream,wake_file) !!!! changed so formulation is in solve
+    subroutine panel_solver_solve(this, body, solver_stat,freestream,wake_file) 
         ! Calls the relevant subroutine to solve the case based on the selected formulation
         ! We are solving the equation
         !
@@ -1046,7 +1054,6 @@ contains
         type(flow),intent(inout)::freestream
         character(len=:),allocatable,intent(in) :: wake_file
         integer,intent(out) :: solver_stat
-        character(len=:),allocatable,intent(in) :: formulation !!!! changed to get wake influence working 
 
         integer :: stat,i
 
@@ -1073,7 +1080,7 @@ contains
 
         ! Calculate wake influences
         if (body%wake%N_panels > 0 .or. body%filament_wake%N_filaments > 0)&
-        call this%calc_wake_influences(body, formulation,freestream,.true.) !!!! formulation part is a change !!!! adding a +/- for removing old wake
+        call this%calc_wake_influences(body,freestream,.true.) !!!! adding a +/- for removing old wake
         ! Assemble boundary condition vector
         call this%assemble_BC_vector(body)
 
@@ -1092,7 +1099,7 @@ contains
         if (solver_stat /= 0) return
 
         if (this%relaxed_wake) then
-            call this%relax_wake(body, formulation, freestream, solver_stat,wake_file)
+            call this%relax_wake(body, freestream, solver_stat,wake_file)
         end if
 
 
@@ -1457,7 +1464,7 @@ contains
     end subroutine panel_solver_calc_body_influences
 
 
-    subroutine panel_solver_calc_wake_influences(this, body, formulation,freestream,add_wake)
+    subroutine panel_solver_calc_wake_influences(this, body, freestream,add_wake)
         ! Calculates the influence of the wake on the control points
 
         implicit none
@@ -1465,7 +1472,6 @@ contains
         class(panel_solver),intent(inout) :: this
         type(surface_mesh),intent(inout) :: body
         type(flow),intent(inout)::freestream
-        character(len=:),allocatable,intent(in) :: formulation
         integer :: i, j, k, l
         real,dimension(:),allocatable ::  doublet_inf, source_inf
         real,dimension(this%N_unknown) :: A_i
@@ -1489,7 +1495,7 @@ contains
                 cycle
 
             case (ZERO_NORMAL_MF) ! Calculate normal mass flux influences !!!! add our stuff with logic to choose filaments or panels
-                if (body%wake_has_filaments(formulation)) then !!!! start wake_dev, might need to adjust cases instead of doing an if statement like this - SA
+                if (body%wake_type == "filaments") then !!!! start wake_dev, might need to adjust cases instead of doing an if statement like this - SA
                     ! Initialize
                     !!!! need to see if we need to ignore a vertex here -jjh
                     A_i = 0.
@@ -2097,7 +2103,7 @@ contains
     end subroutine panel_solver_solve_system
 
 
-    subroutine panel_solver_relax_wake(this, body, formulation, freestream, solver_stat,wake_file)
+    subroutine panel_solver_relax_wake(this, body, freestream, solver_stat,wake_file)
         ! Relaxes the wake and resolves the system
         implicit none
 
@@ -2107,7 +2113,6 @@ contains
         character(len=:),allocatable,intent(in) :: wake_file
         integer,intent(out) :: solver_stat
         real,dimension(:,:,:),allocatable :: streamlines
-        character(len=:),allocatable,intent(in) :: formulation !!!! changed to get wake influence working 
         logical :: wake_exported
 
         integer :: i
@@ -2120,14 +2125,14 @@ contains
             ! find streamlines
             call this%calc_streamlines(body,streamlines)
             ! remove the old wake influence
-            call this%calc_wake_influences(body, formulation,freestream,.false.) 
+            call this%calc_wake_influences(body, freestream,.false.) 
             ! update the wake location
             call this%update_wake_loc(body, streamlines)
             deallocate(streamlines)
             ! update the wake file
             call body%filament_wake%write_filaments(wake_file, wake_exported, body%mu)
             ! calculate the new wake influence
-            call this%calc_wake_influences(body, formulation,freestream,.true.)
+            call this%calc_wake_influences(body, freestream,.true.)
             ! solve the system again
             call this%solve_system(body, solver_stat)
             ! Check for errors
@@ -2229,6 +2234,7 @@ contains
         real :: x
         integer :: i,j,k_old,k
         
+
         ! loop through all the filaments in the wake
         do i=1,body%filament_wake%N_filaments
             k_old = 2

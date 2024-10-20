@@ -50,7 +50,8 @@ contains
         real,intent(in) :: trefftz_dist
         logical,intent(in) :: body_mirrored
 
-        if (verbose) write(*,'(a ES10.4 a)',advance='no') "     Initializing wake with a Trefftz distance of ", trefftz_dist, "..."
+        if (verbose) write(*,'(a ES10.4 a)',advance='no') "     Initializing panel wake with a Trefftz distance of "&
+           , trefftz_dist, "..."
 
         ! Set whether the wake will be mirrored
         this%mirrored = body_mirrored .and. .not. asym_flow

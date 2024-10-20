@@ -11,10 +11,16 @@ def point_block(x_min=0.25,x_max=0.25,y_min=-0.2,y_max=0.2,z_min=-0.4,z_max=0.4,
     #z_max = 0.001
 
     points = []
-
+    alpha = np.deg2rad(5)
     x = np.linspace(x_min,x_max,Nx)
     y = np.linspace(y_min,y_max,Ny)
     z = np.linspace(z_min,z_max,Nz)
+    xnew = x * np.cos(alpha) - z * np.sin(alpha)
+    znew = x * np.sin(alpha) + z * np.cos(alpha)
+    x = xnew
+    z = znew
+   
+
     
     X,Y,Z = np.meshgrid(x,y,z)
 
@@ -71,8 +77,8 @@ def write_points(filename,points):
 
 
 if __name__ =="__main__":
-    points = point_block(x_min=2,x_max=2,y_min=-2,y_max=2,z_min=-1.5,z_max=1.5,Nx=1,Ny=50,Nz=50)
+    points = point_block(x_min=-0.5,x_max=5,y_min=-1,y_max=1,z_min=-2,z_max=1.5,Nx=70,Ny=3,Nz=70)
     # write_points("dev/input_files/b1_slice_sample_points.csv",points)
-    write_points("dev/input_files/bi_wing_slice_sample_pointsSpanwise.csv",points)
+    write_points("dev/input_files/bi_wing_slice_sample_pointsStreamwise_WT.csv",points)
 
 

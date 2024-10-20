@@ -46,7 +46,6 @@ module surface_mesh_mod
         integer :: initial_panel_order ! Distribution order for the panels (initially)
         character(len=:),allocatable :: singularity_order
         character(len=:),allocatable :: wake_type 
-        character(len=:),allocatable :: formulation !!!! could we use this instead, go to surface_mesh_parse_wake_settings to see  
 
 
         contains
@@ -87,7 +86,6 @@ module surface_mesh_mod
 
             ! Wake stuff
             procedure :: init_wake => surface_mesh_init_wake
-            procedure :: wake_has_filaments => surface_mesh_wake_has_filaments
             procedure :: update_supersonic_trefftz_distance => surface_mesh_update_supersonic_trefftz_distance
             procedure :: update_subsonic_trefftz_distance => surface_mesh_update_subsonic_trefftz_distance
 
@@ -328,7 +326,6 @@ contains
         if (this%wake_present) then
             call json_xtnsn_get(settings, 'wake_model.wake_shedding_angle', wake_shedding_angle, 90.) ! Maximum allowable angle between panel normals without having separation
             this%C_wake_shedding_angle = cos(wake_shedding_angle*pi/180.) !!!! possible thing we could use to define new normal vector
-            
 
             if (this%append_wake) then
                 call json_xtnsn_get(settings, 'wake_model.trefftz_distance', this%trefftz_distance, -1.) ! Distance from origin to wake termination
@@ -697,13 +694,12 @@ contains
     end function surface_mesh_get_avg_characteristic_panel_length
 
 
-    subroutine surface_mesh_init_with_flow(this, freestream, body_file, wake_file, formulation)
+    subroutine surface_mesh_init_with_flow(this, freestream, body_file, wake_file)
         implicit none
 
         class(surface_mesh),intent(inout) :: this
         type(flow),intent(in) :: freestream
         character(len=:),allocatable,intent(in) :: body_file, wake_file
-        character(len=:),allocatable,intent(in) :: formulation
 
         integer :: i
 
@@ -731,7 +727,7 @@ contains
             call this%set_needed_vertex_clones()
 
             ! Clone necessary vertices
-            call this%clone_vertices(formulation)
+            call this%clone_vertices()
 
         end if
 
@@ -752,7 +748,7 @@ contains
         end do
 
         ! Initialize wake !!!! 
-        call this%init_wake(freestream, wake_file, formulation)
+        call this%init_wake(freestream, wake_file)
 
         ! Set up panel distributions
         if (verbose) write(*,"(a)",advance='no') "     Setting up panel singularity distributions..."
@@ -974,14 +970,14 @@ contains
     end subroutine surface_mesh_set_needed_vertex_clones
 
 
-    subroutine surface_mesh_clone_vertices(this,formulation)
+    subroutine surface_mesh_clone_vertices(this)
         ! Takes vertices which lie within wake-shedding edges and splits them into two vertices.
         ! Handles rearranging of necessary dependencies.
 
         implicit none
 
         class(surface_mesh),intent(inout) :: this
-        character(len=:),allocatable,intent(in) :: formulation
+        character(len=:),allocatable :: formulation
         real(16),dimension(3) :: n_avg
         integer :: i, j, k, l, N_clones, i_jango, i_boba, N_boba, i_edge, i_start_panel, jango_panel, boba_panel,N_panels
         integer,dimension(:),allocatable :: i_panels_between, i_rearrange_inv, i_start_edge, i_end_edge
@@ -1102,7 +1098,7 @@ contains
                             call this%edges(i_end_edge(i+1))%point_bottom_to_new_vert(i_jango, i_boba)
                         end if
 
-                        if (formulation == "neumann-mass-flux-VCP") then
+                        if (formulation == "neumann-mass-flux-VCP") then ! this is depreciated.  Should probably move
                             !!!! I think we are going to add the new normal calculation here. 
                             !!!! will probably look like 
                             !!!! call this%verticies(i_jango)%calc_normal
@@ -1339,24 +1335,8 @@ contains
     end subroutine surface_mesh_init_vertex_clone
 
 
-    function surface_mesh_wake_has_filaments(this, formulation) result(has)
-        ! Returns true or false based on user wake type input.
-        implicit none
 
-        class(surface_mesh),intent(in) :: this
-        character(len=:),allocatable,intent(in) :: formulation
-        logical :: has 
-        if (this%wake_type == "filaments" .and. (formulation == "neumann-mass-flux" &
-         .or. formulation == "neumann-velocity" .or. formulation == "neumann-mass-flux-VCP") &
-         .and. this%wake_present .and. this%append_wake )  then
-            has = .true. 
-        else
-            has = .false.
-        end if 
-    end function surface_mesh_wake_has_filaments
-
-
-    subroutine surface_mesh_init_wake(this, freestream, wake_file, formulation)
+    subroutine surface_mesh_init_wake(this, freestream, wake_file)
         ! Handles wake initialization
 
         implicit none
@@ -1364,18 +1344,9 @@ contains
         class(surface_mesh),intent(inout) :: this
         type(flow),intent(in) :: freestream
         character(len=:),allocatable,intent(in) :: wake_file
-        character(len=:),allocatable,intent(in) :: formulation
 
         logical :: dummy
-        !!!! update this to include if verbose
-        write(*,*) 
-        write(*,*) "Wake Type:", this%wake_type
-        write(*,*) 
 
-        write(*,*) 
-        write(*,*) "Formulation:", formulation
-        write(*,*) 
-        !!!!
         if (this%append_wake .and. this%found_wake_edges) then
 
 
@@ -1398,7 +1369,7 @@ contains
                 call this%wake%init(this%edges, this%vertices, freestream, this%asym_flow, this%mirror_plane, & ! wake is referring to wake_mesh type in the wake_mesh mod.
                                     this%N_wake_panels_streamwise, this%trefftz_distance, this%mirrored, this%initial_panel_order, &
                                     this%N_panels)
-            else if (this%wake_has_filaments(formulation))  then                                                                           !
+            else if (this%wake_type == "filaments")  then                                                                           !
                 call this%filament_wake%init(this%edges, this%vertices, freestream, this%asym_flow, this%mirror_plane, &                       !
                                     this%N_wake_panels_streamwise, this%trefftz_distance, this%mirrored, this%initial_panel_order, &  !
                                     this%N_panels)                                                                                    !
@@ -1416,7 +1387,7 @@ contains
 
             ! Export wake geometry
             if (wake_file /= 'none') then
-                if (this%wake_has_filaments(formulation)) then
+                if (this%wake_type == "filaments") then
                     call this%filament_wake%write_filaments(wake_file, dummy)
                 else
                     call this%wake%write_strips(wake_file, dummy)

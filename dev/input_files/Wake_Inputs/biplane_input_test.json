@@ -1,11 +1,16 @@
 {
     "flow": {
-        "xfreestream_velocity": [
+        "freestream_velocity": [
             0.9961946980917455,
             0.0,
             0.08715574274765817
         ],
-        "freestream_velocity": [
+        "yfreestream_velocity": [
+            0.99756405025982455,
+            0.0,
+            0.069756473744125
+        ],
+        "xfreestream_velocity": [
             1.0,
             0.0,
             0.0
@@ -15,9 +20,9 @@
     "geometry": {
         "xfile": "dev/meshes/wake/swept_biplane_wedge.stl",
         "yfile": "dev/meshes/wake/trailing_delta.stl",
-        "afile": "dev/meshes/wake/bothWings2_050.stl",
-        "zfile": "dev/meshes/wake/onewing025.stl",
-        "file": "dev/meshes/wake/imp_test_full.stl",
+        "file": "dev/meshes/wake/bothWings2_050.stl",
+        "afile": "dev/meshes/wake/onewing050.stl",
+        "zfile": "dev/meshes/wake/imp_test_full.stl",
 
 
         
@@ -26,10 +31,10 @@
         "wake_model": {
             "wake_present": true,
             "append_wake": true,
-            "trefftz_distance": 4.5,
+            "trefftz_distance": 6.5,
             "wake_type": "filaments",
             "xwake_type": "panels",
-            "N_panels": 60
+            "N_panels": 50
         }
     },
     "solver": {
@@ -44,8 +49,8 @@
         "preconditioner": "NONE",
         "write_A_and_b": false,
         "sort_system" : true,
-        "relax_wake": true,
-        "max_relaxation_iterations": 4,
+        "relax_wake": false,
+        "max_relaxation_iterations": 1,
         "streamline_step_size": 0.01,
         "max_streamline_iterations": 3000
     },
@@ -60,11 +65,11 @@
         "wake_file" :          "dev/results/wake/swept_biplane_test_wake.vtk",
         "control_point_file" : "dev/results/wake/swept_biplane_test_control_points.vtk",
         "report_file" :        "dev/results/wake/swept_biplane_test_report.json",
-        "xoffbody_points" : {
+        "offbody_points" : {
             "xpoints_file" : "dev/input_files/bi_wing_slice_sample_pointsSpanwise.csv",
             "xoutput_file" : "dev/results/bi_wing_slice_sample_pointsSpanwise.csv",
-            "points_file" : "dev/input_files/bi_wing_slice_sample_pointsStreamwise.csv",
-            "output_file" : "dev/results/bi_wing_slice_sample_pointsStreamwise.csv"
+            "points_file" : "dev/input_files/bi_wing_slice_sample_pointsStreamwise_WT.csv",
+            "output_file" : "dev/results/bi_wing_slice_sample_pointsStreamwise_WT.csv"
         }
     }
 }
