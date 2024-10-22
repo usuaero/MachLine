@@ -870,7 +870,7 @@ contains
         call matinv(this%mu_dim, S_mu, S_mu_inv)
 
         ! CHANGE NEEDED FOR ADJOINT
-        ! allocate(this%S_mu_inv, source=S_mu_inv)
+        allocate(this%S_mu_inv, source=S_mu_inv)
         
         ! Store inverse of S_mu
         if (this%order == 2) then

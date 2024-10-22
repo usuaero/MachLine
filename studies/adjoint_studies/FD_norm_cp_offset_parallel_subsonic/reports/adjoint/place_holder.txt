@@ -1,0 +1,1 @@
+this makes it so the empty reports folder gets saved in commits
