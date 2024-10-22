@@ -264,7 +264,7 @@ if __name__=="__main__":
     mesh_name = "test_11"
     sonic = "subsonic"
     num_mesh_points = 1190
-    num_cp_offsets = 10
+    num_cp_offsets = 5
     step = 1.0e-4   # initial step size (gets smaller)
     initial_step_exp = 4
     num_step_size_runs = 7
@@ -283,7 +283,7 @@ if __name__=="__main__":
     ########################################
 
     # get spread of cp offsets
-    cp_offsets = np.logspace(-11,-5, num_cp_offsets+1)
+    cp_offsets = np.logspace(-5,-1, num_cp_offsets+1)
     cp_offsets = cp_offsets[:-1]
     # cp_offsets = [1.0e-4] #, 7.5e-12, 1.0e-10, 1.0e-9, 1.0e-8, 1.0e-7, 1.0e-6]
 
@@ -525,7 +525,7 @@ if __name__=="__main__":
                 processed_d_CFy.append((d_CFy[i][x_index], d_CFy[i][y_index], d_CFy[i][z_index]))
                 processed_d_CFz.append((d_CFz[i][x_index], d_CFz[i][y_index], d_CFz[i][z_index]))
 
-                excel_file = "studies/adjoint_studies/FD_norm_cp_offset_parallel_subsonic/excel_files/subsonic_FD_"+mesh_name + "_cp_"+f'{cp_offsets[i]:.2e}' + "_step_1e-" + str(initial_step_exp+ m) + ".xlsx"
+                excel_file = "studies/adjoint_studies/FD_norm_cp_offset_parallel_subsonic/excel_files/subsonic_FD2_"+mesh_name + "_cp_"+f'{cp_offsets[i]:.2e}' + "_step_1e-" + str(initial_step_exp+ m) + ".xlsx"
 
                 if os.path.exists(excel_file):
                     os.remove(excel_file)
@@ -579,7 +579,7 @@ if __name__=="__main__":
             vtk_lines = read_vtk_file(just_points_vtk)
 
             # write central diff sensitivities to a vtk file file
-            new_vtk = "studies/adjoint_studies/FD_norm_cp_offset_parallel_subsonic/vtk_files/subsonic_FD_"+mesh_name+"_cp_"+f'{cp_offsets[i]:.2e}' + "_step_1e-" + str(initial_step_exp+ m) + ".vtk"
+            new_vtk = "studies/adjoint_studies/FD_norm_cp_offset_parallel_subsonic/vtk_files/subsonic_FD2_"+mesh_name+"_cp_"+f'{cp_offsets[i]:.2e}' + "_step_1e-" + str(initial_step_exp+ m) + ".vtk"
             if os.path.exists(new_vtk):
                     os.remove(new_vtk)
             updated_vtk_content = add_vector_data_to_vtk(vtk_lines, new_data)
@@ -620,7 +620,7 @@ if __name__=="__main__":
     figx.subplots_adjust(right = 0.8)
 
 
-    fig_file_fx = "/figures/subsonic_FD_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFx.pdf"
+    fig_file_fx = "/figures/subsonic_FD2_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFx.pdf"
     figx.savefig(study_directory + fig_file_fx)
 
     # finish CFy figure
@@ -634,7 +634,7 @@ if __name__=="__main__":
     ax2.set_yscale("log")
     ax2.tick_params(axis='both', labelsize=12)  # For CFy
     figy.subplots_adjust
-    fig_file_fy = "/figures/subsonic_FD_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFy.pdf"
+    fig_file_fy = "/figures/subsonic_FD2_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFy.pdf"
     figy.savefig(study_directory + fig_file_fy)
 
     # finish CFy figure
@@ -649,18 +649,18 @@ if __name__=="__main__":
     ax3.tick_params(axis='both', labelsize=12)  # For CFz
     figz.subplots_adjust(right = 0.8)
 
-    fig_file_fz = "/figures/subsonic_FD_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFz.pdf"
+    fig_file_fz = "/figures/subsonic_FD2_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFz.pdf"
     figz.savefig(study_directory + fig_file_fz)
 
-    with open("studies/adjoint_studies/FD_norm_cp_offset_parallel_subsonic/pickle_jar/subsonic_FD_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFx.pkl", 'wb') as f:
+    with open("studies/adjoint_studies/FD_norm_cp_offset_parallel_subsonic/pickle_jar/subsonic_FD2_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFx.pkl", 'wb') as f:
         pickle.dump(figx, f)
 
 
-    with open("studies/adjoint_studies/FD_norm_cp_offset_parallel_subsonic/pickle_jar/subsonic_FD_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFy.pkl", 'wb') as f:
+    with open("studies/adjoint_studies/FD_norm_cp_offset_parallel_subsonic/pickle_jar/subsonic_FD2_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFy.pkl", 'wb') as f:
         pickle.dump(figy, f)
 
 
-    with open("studies/adjoint_studies/FD_norm_cp_offset_parallel_subsonic/pickle_jar/subsonic_FD_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFz.pkl", 'wb') as f:
+    with open("studies/adjoint_studies/FD_norm_cp_offset_parallel_subsonic/pickle_jar/subsonic_FD2_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFz.pkl", 'wb') as f:
         pickle.dump(figz, f)
 
 
@@ -728,7 +728,7 @@ if __name__=="__main__":
     df_expanded = pd.DataFrame(expanded_data)
 
     # Save to Excel file
-    excel_file = "studies/adjoint_studies/FD_norm_cp_offset_parallel_subsonic/results/subsonic_FD_" + mesh_name + "_" + str(num_cp_offsets) + "_cp_offsets_norms_vs_cp_offset_data.xlsx"
+    excel_file = "studies/adjoint_studies/FD_norm_cp_offset_parallel_subsonic/results/subsonic_FD2_" + mesh_name + "_" + str(num_cp_offsets) + "_cp_offsets_norms_vs_cp_offset_data.xlsx"
     df_expanded.to_excel(excel_file, index=False)
 
 
