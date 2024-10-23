@@ -458,9 +458,9 @@ if __name__=="__main__":
         norms_data.append({
             "Step Size": f"10^-{initial_step_exp + m}",
             "CP Offset": cp_offsets,
-            "d_CFx Norm": d_CFx_norm,
-            "d_CFy Norm": d_CFy_norm,
-            "d_CFz Norm": d_CFz_norm,
+            "d_CFx Norm": np.copy(d_CFx_norm),
+            "d_CFy Norm": np.copy(d_CFy_norm),
+            "d_CFz Norm": np.copy(d_CFz_norm)
         })
     
     # finish CFx figure
