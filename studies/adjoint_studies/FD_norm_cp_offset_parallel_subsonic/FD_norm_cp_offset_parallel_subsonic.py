@@ -263,7 +263,7 @@ if __name__=="__main__":
     mesh_name = "test_11"
     sonic = "subsonic"
     num_mesh_points = 1190
-    num_cp_offsets = 12
+    num_cp_offsets = 10
     step = 1.0e-4   # initial step size (gets smaller)
     initial_step_exp = 4
     num_step_size_runs = 7
@@ -368,7 +368,24 @@ if __name__=="__main__":
             d_CFx_norm_adjoint[i] = d_CF_norm[i][0]
             d_CFy_norm_adjoint[i] = d_CF_norm[i][1]
             d_CFz_norm_adjoint[i] = d_CF_norm[i][2]
-    
+            
+        adjoint_excel_file = "studies/adjoint_studies/FD_norm_cp_offset_parallel_subsonic/excel_files/adj_subsonic_FD_"+mesh_name + "_cp_"+f'{cp_offsets[i]:.2e}'+".xlsx"
+
+        if os.path.exists(adjoint_excel_file):
+            os.remove(adjoint_excel_file)
+
+        # Create a DataFrame for vector components (without norms)
+        data_dict = {
+            'cp_offset' : [item for item in cp_offsets],
+            'norm_d_CFx': [item for item in d_CFx_norm_adjoint],
+            'norm_d_CFy': [item for item in d_CFy_norm_adjoint],
+            'norm_d_CFz': [item for item in d_CFz_norm_adjoint],
+        }
+
+        # Convert to DataFrame and write to Excel
+        adjoint_excel = pd.DataFrame(data_dict)
+        adjoint_excel.to_excel(adjoint_excel_file, index=False)
+        sys.exit()
         
         
         # Plot for norms_d_CFx (adjoint)
@@ -524,7 +541,7 @@ if __name__=="__main__":
                 processed_d_CFy.append((d_CFy[i][x_index], d_CFy[i][y_index], d_CFy[i][z_index]))
                 processed_d_CFz.append((d_CFz[i][x_index], d_CFz[i][y_index], d_CFz[i][z_index]))
 
-                excel_file = "studies/adjoint_studies/FD_norm_cp_offset_parallel_subsonic/excel_files/subsonic_FD_adj_"+mesh_name + "_cp_"+f'{cp_offsets[i]:.2e}' + "_step_1e-" + str(initial_step_exp+ m) + ".xlsx"
+                excel_file = "studies/adjoint_studies/FD_norm_cp_offset_parallel_subsonic/excel_files/subsonic_FD_"+mesh_name + "_cp_"+f'{cp_offsets[i]:.2e}' + "_step_1e-" + str(initial_step_exp+ m) + ".xlsx"
 
                 if os.path.exists(excel_file):
                     os.remove(excel_file)
