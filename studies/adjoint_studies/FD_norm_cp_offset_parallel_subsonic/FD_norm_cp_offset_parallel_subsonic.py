@@ -267,7 +267,7 @@ if __name__=="__main__":
     step = 1.0e-4   # initial step size (gets smaller)
     initial_step_exp = 4
     num_step_size_runs = 7
-    adjoint_cp_study = True
+    adjoint_cp_study = False
 
      # clones 
     clones = [1,3,74,110,146,182,218,254,290,326,362,398,434,470,506,542,578,614,650,686,722,758,794,830,866,902,938,974,1010,1046,1082,1118,1154]
@@ -385,7 +385,6 @@ if __name__=="__main__":
         # Convert to DataFrame and write to Excel
         adjoint_excel = pd.DataFrame(data_dict)
         adjoint_excel.to_excel(adjoint_excel_file, index=False)
-        sys.exit()
         
         
         # Plot for norms_d_CFx (adjoint)
@@ -514,7 +513,6 @@ if __name__=="__main__":
 
             
         # for each step size, do the following: 
-        print("d_CF_x = ",d_CFx)
         
         # calc norms
         for i in range(num_cp_offsets):
@@ -530,7 +528,6 @@ if __name__=="__main__":
             cloned_d_CFy = []
             cloned_d_CFz = []
 
-            print("len ", len(d_CFx))
 
             for j in range(num_mesh_points):
                 x_index = j
@@ -595,7 +592,7 @@ if __name__=="__main__":
             vtk_lines = read_vtk_file(just_points_vtk)
 
             # write central diff sensitivities to a vtk file file
-            new_vtk = "studies/adjoint_studies/FD_norm_cp_offset_parallel_subsonic/vtk_files/subsonic_FD_adj_"+mesh_name+"_cp_"+f'{cp_offsets[i]:.2e}' + "_step_1e-" + str(initial_step_exp+ m) + ".vtk"
+            new_vtk = "studies/adjoint_studies/FD_norm_cp_offset_parallel_subsonic/vtk_files/CD_subsonic_corrected_"+mesh_name+"_cp_"+f'{cp_offsets[i]:.2e}' + "_step_1e-" + str(initial_step_exp+ m) + ".vtk"
             if os.path.exists(new_vtk):
                     os.remove(new_vtk)
             updated_vtk_content = add_vector_data_to_vtk(vtk_lines, new_data)
@@ -615,12 +612,13 @@ if __name__=="__main__":
 
         # save data in result excel
         # Append data for this step to the norms_data list
+
         norms_data.append({
             "Step Size": f"10^-{initial_step_exp + m}",
             "CP Offset": cp_offsets,
-            "d_CFx Norm": d_CFx_norm,
-            "d_CFy Norm": d_CFy_norm,
-            "d_CFz Norm": d_CFz_norm,
+            "d_CFx Norm": np.copy(d_CFx_norm),
+            "d_CFy Norm": np.copy(d_CFy_norm),
+            "d_CFz Norm": np.copy(d_CFz_norm)
         })
     
     # finish CFx figure
@@ -668,15 +666,15 @@ if __name__=="__main__":
     fig_file_fz = "/figures/subsonic_FD_adj_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFz.pdf"
     figz.savefig(study_directory + fig_file_fz)
 
-    with open("studies/adjoint_studies/FD_norm_cp_offset_parallel_subsonic/pickle_jar/subsonic_FD_adj_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFx.pkl", 'wb') as f:
+    with open("studies/adjoint_studies/FD_norm_cp_offset_parallel_subsonic/pickle_jar/CD_subsonic_corrected_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFx.pkl", 'wb') as f:
         pickle.dump(figx, f)
 
 
-    with open("studies/adjoint_studies/FD_norm_cp_offset_parallel_subsonic/pickle_jar/subsonic_FD_adj_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFy.pkl", 'wb') as f:
+    with open("studies/adjoint_studies/FD_norm_cp_offset_parallel_subsonic/pickle_jar/CD_subsonic_corrected_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFy.pkl", 'wb') as f:
         pickle.dump(figy, f)
 
 
-    with open("studies/adjoint_studies/FD_norm_cp_offset_parallel_subsonic/pickle_jar/subsonic_FD_adj_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFz.pkl", 'wb') as f:
+    with open("studies/adjoint_studies/FD_norm_cp_offset_parallel_subsonic/pickle_jar/CD_subsonic_corrected_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFz.pkl", 'wb') as f:
         pickle.dump(figz, f)
 
 
@@ -744,7 +742,7 @@ if __name__=="__main__":
     df_expanded = pd.DataFrame(expanded_data)
 
     # Save to Excel file
-    excel_file = "studies/adjoint_studies/FD_norm_cp_offset_parallel_subsonic/results/subsonic_FD_adj_" + mesh_name + "_" + str(num_cp_offsets) + "_cp_offsets_norms_vs_cp_offset_data.xlsx"
+    excel_file = "studies/adjoint_studies/FD_norm_cp_offset_parallel_subsonic/results/CD_subsonic_corrected_" + mesh_name + "_" + str(num_cp_offsets) + "_cp_offsets_norms_vs_cp_offset_data.xlsx"
     df_expanded.to_excel(excel_file, index=False)
 
 
