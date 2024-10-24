@@ -23,13 +23,12 @@
             
         },
         "adjoint_sensitivities" : {
-            "calc_adjoint" : false,
-            "custom_cp_dir" : false
+            "calc_adjoint" : true
         }
     },
     "solver": {
         "formulation" : "dirichlet-source-free",
-        "control_point_offset" : 1.0e-8, 
+        "control_point_offset" : 1.0e-7, 
         "matrix_solver" : "GMRES", 
         "xsort_system" : false
     },
@@ -41,11 +40,11 @@
     },
 
     "output": {
-        "verbose" : false,
+        "verbose" : true,
         "_abody_file" : "dev/results/adjoint/supersonic_delta_wing_adjoint.vtk",
         "_awake_file" : "dev/results/adjoint/supersonic_delta_wing_wake.vtk",
         "_body_file" : "dev/results/adjoint/test_12_adjoint_robust_1e-5.vtk", 
-        "report_file" : "dev/results/adjoint_reports/test_12_adjoint_robust_1e-5"
+        "_report_file" : "dev/results/adjoint_reports/test_12_adjoint_robust_1e-5"
     }
     
 }

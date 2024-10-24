@@ -3890,7 +3890,7 @@ contains
         allocate(d_AIC_column( N_unknown, 3*N_original_verts), stat=stat)
         call check_allocation(stat, "d_AIC_column expanded array")
         
-        ! $OMP parallel do private(j, d_b_vecs)schedule(dynamic)
+        ! $OMP parallel do private(j, d_AIC_column)schedule(dynamic)
         ! do for each column of d_AIC matrix
         do j=1,N_unknown
             
@@ -3898,16 +3898,24 @@ contains
             d_b_vecs(j,:) = this%d_b_vector(j)%expand()
 
             ! expand column j, all rows
+            !$OMP parallel do private(k)schedule(dynamic)
             do k=1,N_unknown
                 d_AIC_column(k,:) = this%d_A_matrix(k,j)%expand()
             end do
+            !$OMP end parallel do
+
 
             ! init sparse column objects for all slices of column j, 
+            !$OMP parallel do private(n)schedule(dynamic)
             do n=1,3*N_original_verts
                 call d_AIC_rearranged(j,n)%init_from_full_vector(d_AIC_column(:,n)) 
             end do
+            !$OMP end parallel do
             
         end do
+        ! $OMP end parallel do
+
+        write(*,*) " finished with the d_AIC rearrangement"
 
         ! deallocate
         deallocate(d_AIC_column)
@@ -3916,11 +3924,10 @@ contains
         allocate(d_AIC_i(N_unknown, N_unknown), stat=stat)
         call check_allocation(stat, "d_AIC slice array")
 
-        
         ! for CF_x, CF_y, and CF_z
         do m=1,3
            
-            
+            !$OMP parallel do private(i, d_AIC_i, d_AIC_times_mu, f_i) schedule(dynamic)
             ! for each design variable
             do i=1,3*N_original_verts
 
@@ -3941,10 +3948,11 @@ contains
 
 
                 ! expand the ith slice of the d_AIC
+                ! $OMP parallel do private(k) schedule(dynamic)
                 do k=1,N_unknown
                     d_AIC_i(:,k) = d_AIC_rearranged(k,i)%expand()
                 end do
-
+                ! $OMP end parallel do
 
                 ! for each design variable, multiply d_A_matrix i^th slice by mu
                 
@@ -3961,6 +3969,7 @@ contains
                 this%CF_sensitivities(i,m) = dot_product(vT_forces(:,m),f_i) + d_CF_wrt_vars(i,m)
                 
             end do ! end i loop
+            !$OMP end parallel do
                 
             ! calc and store L2 norms
             this%norms_of_CF_sensitivities(m) = sqrt(sum(this%CF_sensitivities(:,m)*this%CF_sensitivities(:,m)))
