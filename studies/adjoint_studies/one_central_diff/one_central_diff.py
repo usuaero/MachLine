@@ -260,13 +260,20 @@ if __name__=="__main__":
     # print(cp_offsets)
     # sys.exit()
 
-   
+    original_directory = os.getcwd()
+
+    makefile_directory = 'C:/Users/nathan/git-repos/MachLine'  # Adjust this path as needed
+
+    # Change the working directory to the location of the Makefile
+    os.chdir(makefile_directory)
 
     try:
         sp.run(['make', 'serial'])
         print("Machline make serial successful")
     except sp.CalledProcessError as e:
         print(f"Error during make: {e}")
+
+    os.chdir(original_directory)
 
 ######################################### Central Diff Starts Here #############################################
     # perturb_point
