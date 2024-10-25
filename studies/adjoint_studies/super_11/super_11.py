@@ -252,15 +252,17 @@ if __name__=="__main__":
     clones = [1,3,74,110,146,182,218,254,290,326,362,398,434,470,506,542,578,614,650,686,722,758,794,830,866,902,938,974,1010,1046,1082,1118,1154]
     # clones = [1]
 
+    makefile_directory = 'C:/Users/nathan/git-repos/MachLine'  # Adjust this path as needed
+    
     adjoint_cp_study = True
 
     num_cp_offsets = 15
     step = 1.0e-3   # initial step size (gets smaller)
     initial_step_exp = 3
-    num_step_size_runs = 8
+    num_step_size_runs =8
     
     # get spread of cp offsets
-    cp_offsets = np.logspace(-10,-1, num_cp_offsets)
+    cp_offsets = np.logspace(-10,-1, num_cp_offsets+1)
     cp_offsets = cp_offsets[:-1]
 
     ###################################################################################
@@ -325,16 +327,19 @@ if __name__=="__main__":
     if (adjoint_cp_study):
 
         # make machline parallel 
+        original_directory = os.getcwd()
+
+
+        # Change the working directory to the location of the Makefile
+        os.chdir(makefile_directory)
+
         try:
-            makefile_directory = 'C:/Users/nathan/git-repos/MachLine'  # Adjust this path as needed
-
-            # Change the working directory to the location of the Makefile
-            os.chdir(makefile_directory)
-
             sp.run(['make'])
-            print("Machline make parallel successful")
+            print("Machline make serial successful")
         except sp.CalledProcessError as e:
             print(f"Error during make: {e}")
+
+        os.chdir(original_directory)
 
         calc_adjoint = True
 
@@ -375,19 +380,39 @@ if __name__=="__main__":
         # Plot for norms_d_CFz (adjoint)
         ax3.plot(cp_offsets, d_CFz_norm_adjoint, linestyle='-', color='black', label= "Adjoint")
 
+        # Change the working directory to the location of the Makefile
+        os.chdir(makefile_directory)
+
+        original_directory = os.getcwd()
+
+        # Change the working directory to the location of the Makefile
+        os.chdir(makefile_directory)
+
         try:
             sp.run(['make', 'serial'])
             print("Machline make serial successful")
         except sp.CalledProcessError as e:
             print(f"Error during make: {e}")
+
+        os.chdir(original_directory)
 
     else:
 
+        # Change the working directory to the location of the Makefile
+        
+        original_directory = os.getcwd()
+
+        # Change the working directory to the location of the Makefile
+        os.chdir(makefile_directory)
+
         try:
             sp.run(['make', 'serial'])
             print("Machline make serial successful")
         except sp.CalledProcessError as e:
             print(f"Error during make: {e}")
+
+        os.chdir(original_directory)
+
 
         # set to zero
         for i in range(num_cp_offsets):
