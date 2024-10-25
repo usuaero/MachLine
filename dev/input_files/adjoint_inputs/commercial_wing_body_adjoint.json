@@ -33,7 +33,8 @@
 "output": {
     "verbose" : true,
     "body_file" : "dev/meshes/adjoint/commercial_wing_body_FULL_adjoint.vtk",
-    "report_file" : "dev/results/adjoint_reports/commercial_wing_body_FULL_adjoint"
+    "report_file" : "dev/results/adjoint_reports/commercial_wing_body_FULL_adjoint",
+    "wake_file" : "dev/results/adjoint_reports/commercial_wing_body_FULL_wake_adjoint"
 }
 
 }
