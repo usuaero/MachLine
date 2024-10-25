@@ -31,11 +31,13 @@ def run_machline_for_cp_offset(cp_offset,study_directory, calc_adjoint, perturb_
         report_file = study_directory+"/reports/" + str(point_index)  + "_" + str(xyz_index) + "_" + f'{step: .2e}' + f'{cp_offset:.2e}' + ".json"
         body_file = "none"
     
+    # hard code alpha of 4 degrees
+    alpha = np.tan(4.*np.pi/180.0)
 
     # create input file
     input_dict = {
         "flow": {
-            "freestream_velocity": [1.0, 0.0, 0.1],
+            "freestream_velocity": [1.0, 0.0, alpha],
             "freestream_mach_number" : 2.0
         },
         "geometry": {
@@ -243,23 +245,23 @@ if __name__=="__main__":
     #####################################################################################
     #### THINGS TO CHANGE FORA A NEW RUN #####
 
-    mesh_name = "octa"
+    mesh_name = "test_11"
     sonic = "super"
-    num_mesh_points = 6
+    num_mesh_points = 1190
 
-    # clones = [1,3,74,110,146,182,218,254,290,326,362,398,434,470,506,542,578,614,650,686,722,758,794,830,866,902,938,974,1010,1046,1082,1118,1154]
-    clones = [1]
+    clones = [1,3,74,110,146,182,218,254,290,326,362,398,434,470,506,542,578,614,650,686,722,758,794,830,866,902,938,974,1010,1046,1082,1118,1154]
+    # clones = [1]
 
     adjoint_cp_study = True
 
-    num_cp_offsets = 5
+    num_cp_offsets = 15
     step = 1.0e-3   # initial step size (gets smaller)
     initial_step_exp = 3
-    num_step_size_runs = 3
+    num_step_size_runs = 8
     
     # get spread of cp offsets
-    cp_offsets = np.logspace(-6,-3, num_cp_offsets)
-    # cp_offsets = cp_offsets[:-1]
+    cp_offsets = np.logspace(-10,-1, num_cp_offsets)
+    cp_offsets = cp_offsets[:-1]
 
     ###################################################################################
     ###################################################################################
@@ -414,7 +416,6 @@ if __name__=="__main__":
 
 
             d_CFx, d_CFy, d_CFz = process_in_batches(num_mesh_points, num_workers=60, j=j)
-            print("size of d_CFx", len(d_CFx))
 
             
         
@@ -436,7 +437,7 @@ if __name__=="__main__":
 
             for j in range(num_mesh_points):
                 x_index = j
-                print("x = ", x_index)
+                # print("x = ", x_index)
                 y_index = num_mesh_points + j
                 z_index = 2 * num_mesh_points + j
                 processed_d_CFx.append((d_CFx[i][x_index], d_CFx[i][y_index], d_CFx[i][z_index]))
@@ -484,7 +485,7 @@ if __name__=="__main__":
             processed_d_CFx.extend(cloned_d_CFx)
             processed_d_CFy.extend(cloned_d_CFy)
             processed_d_CFz.extend(cloned_d_CFz)
-            print("                                                             length of processed = ", len(processed_d_CFx))
+            # print("                                                             length of processed = ", len(processed_d_CFx))
 
             new_data = [processed_d_CFx, processed_d_CFy, processed_d_CFz]
 

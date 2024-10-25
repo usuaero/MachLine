@@ -1087,7 +1087,7 @@ contains
 
             ! Allocate rearranged indices array; we use this to place clones next to clones in the linear system
             allocate(i_rearrange_inv(this%N_verts), source=0)
-            write(*,*) " made it to before i jango loop"
+            ! write(*,*) " made it to before i jango loop"
 
             ! do i = 1,this%N_verts- N_clones
             !     write(*,*)" i vertex index =", i
@@ -1161,7 +1161,7 @@ contains
                     ! Set whether Jango has a unique mirror
                     this%vertices(i_jango)%mirrored_is_unique = mirrored_is_unique(1)
 
-                    write(*,*)" N_boba = ", N_boba
+                    ! write(*,*)" N_boba = ", N_boba
                     ! Create all the clones
                     do i=1,N_boba
 
@@ -1279,10 +1279,10 @@ contains
                                 
                                 
                                 ! Normalize and store
-                                write(*,*)"before i jango dng wake"
-                                write(*,*)" i jango = ", i_jango
+                                ! write(*,*)"before i jango dng wake"
+                                ! write(*,*)" i jango = ", i_jango
                                 call this%vertices(i_jango)%d_n_g_wake%init_from_sparse_matrix(sum_d_n_avg)
-                                write(*,*)"after i jango dng wake"
+                                ! write(*,*)"after i jango dng wake"
                                 call this%vertices(i_jango)%d_n_g_wake%broadcast_element_times_scalar(norm_n_avg)
                                 
                                 x = d_norm_n_avg%broadcast_element_times_vector(n_avg)
@@ -1298,7 +1298,7 @@ contains
                             end if
 
                             ! Normalize and store
-                            write(*,*)"i_jango before verte i jango ng wake"
+                            ! write(*,*)"i_jango before verte i jango ng wake"
                             this%vertices(i_jango)%n_g_wake = n_avg/norm_n_avg !!!! this is where the normal vectors are caclulated
                             
                             
@@ -1342,9 +1342,9 @@ contains
                                 
                                 
                                 ! Normalize and store
-                                write(*,*)"before i_boba d_n_g wake init"
+                                ! write(*,*)"before i_boba d_n_g wake init"
                                 call this%vertices(i_boba)%d_n_g_wake%init_from_sparse_matrix(sum_d_n_avg)
-                                write(*,*)"after i_boba d_n_g wake init"
+                                ! write(*,*)"after i_boba d_n_g wake init"
                                 call this%vertices(i_boba)%d_n_g_wake%broadcast_element_times_scalar(norm_n_avg)
                                 
                                 x = d_norm_n_avg%broadcast_element_times_vector(n_avg)
