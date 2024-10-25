@@ -869,17 +869,16 @@ contains
         allocate(S_mu_inv(this%mu_dim, this%mu_dim))
         call matinv(this%mu_dim, S_mu, S_mu_inv)
 
-        ! CHANGE NEEDED FOR ADJOINT
-        allocate(this%S_mu_inv, source=S_mu_inv)
+
         
         ! Store inverse of S_mu
-        if (this%order == 2) then
+        ! if (this%order == 2) then
             if (calc_mirror) then
                 allocate(this%S_mu_inv_mir, source=S_mu_inv)
-            ! else
-            !     allocate(this%S_mu_inv, source=S_mu_inv)    ! this was moved up out of the if order==2 statement by adjoint
+            else
+                allocate(this%S_mu_inv, source=S_mu_inv)    ! this was moved up out of the if order==2 statement by adjoint
             end if
-        end if
+        ! end if
 
         ! Allocate transformation matrix
         allocate(T_mu(this%mu_dim, this%M_dim))

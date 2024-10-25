@@ -322,17 +322,20 @@ if __name__=="__main__":
     ####################################### Adjoint Starts Here #################################################
     if (adjoint_cp_study):
 
-        # make machline parallel 
+        original_directory = os.getcwd()
+
+        makefile_directory = 'C:/Users/nathan/git-repos/MachLine'  # Adjust this path as needed
+
+        # Change the working directory to the location of the Makefile
+        os.chdir(makefile_directory)
+
         try:
-            makefile_directory = 'C:/Users/nathan/git-repos/MachLine'  # Adjust this path as needed
-
-            # Change the working directory to the location of the Makefile
-            os.chdir(makefile_directory)
-
             sp.run(['make'])
-            print("Machline make parallel successful")
+            print("Machline make serial successful")
         except sp.CalledProcessError as e:
             print(f"Error during make: {e}")
+
+        os.chdir(original_directory)
 
         calc_adjoint = True
 
@@ -373,19 +376,37 @@ if __name__=="__main__":
         # Plot for norms_d_CFz (adjoint)
         ax3.plot(cp_offsets, d_CFz_norm_adjoint, linestyle='-', color='black', label= "Adjoint")
 
+        original_directory = os.getcwd()
+
+        makefile_directory = 'C:/Users/nathan/git-repos/MachLine'  # Adjust this path as needed
+
+        # Change the working directory to the location of the Makefile
+        os.chdir(makefile_directory)
+
         try:
             sp.run(['make', 'serial'])
             print("Machline make serial successful")
         except sp.CalledProcessError as e:
             print(f"Error during make: {e}")
+
+        os.chdir(original_directory)
 
     else:
 
+        original_directory = os.getcwd()
+
+        makefile_directory = 'C:/Users/nathan/git-repos/MachLine'  # Adjust this path as needed
+
+        # Change the working directory to the location of the Makefile
+        os.chdir(makefile_directory)
+
         try:
             sp.run(['make', 'serial'])
             print("Machline make serial successful")
         except sp.CalledProcessError as e:
             print(f"Error during make: {e}")
+
+        os.chdir(original_directory)
 
         # set to zero
         for i in range(num_cp_offsets):

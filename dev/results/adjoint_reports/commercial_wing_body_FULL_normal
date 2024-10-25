@@ -1,0 +1,84 @@
+{
+    "info" : {
+        "generated_by" : "MachLine (c) 2023 USU Aerolab",
+        "executed" : "Thu Oct 24 18:22:12 2024"
+    },
+    "mesh_info" : {
+        "N_body_panels" : 16000,
+        "N_body_vertices" : 8125,
+        "N_wake_panels" : 172,
+        "N_wake_filaments" : 0,
+        "average_characteristic_length" : 5.87963129667147E-001,
+        "max_flow_turning_angle" : 1.19492486684402E+002
+    },
+    "solver_results" : {
+        "solver_status_code" : 0,
+        "system_dimension" : 8125,
+        "timing" : {
+            "system_sorting" : 1.02000000000000E-005,
+            "preconditioner" : 1.75824100000000E-001,
+            "matrix_solver" : 6.15938218000000E+001
+        },
+        "iterations" : 999,
+        "residual" : {
+            "max" : 3.97903932025656E-012,
+            "norm" : 4.97202991206079E-011
+        }
+    },
+    "pressure_calculations" : {
+        "isentropic_rule" : {
+            "max" : 1.12327563382406E+000,
+            "min" : -2.53968253968254E+000
+        }
+    },
+    "total_forces" : {
+        "Cx" : -2.13728962795200E+001,
+        "Cy" : -4.54470250917866E+001,
+        "Cz" : -2.68443775511336E+002
+    },
+    "total_moments" : {
+        "CMx" : 3.43636854335268E+002,
+        "CMy" : 1.45547501092155E+004,
+        "CMz" : -3.51461613731190E+003
+    },
+    "input" : {
+        "flow" : {
+            "freestream_velocity" : [
+                    1.00000000000000E+000,
+                    0.00000000000000E+000,
+                    0.00000000000000E+000
+                ],
+            "freestream_mach_number" : 7.50000000000000E-001
+        },
+        "geometry" : {
+            "file" : "dev/meshes/adjoint/franken_mesh.stl",
+            "singularity_order" : "lower",
+            "wake_model" : {
+                "wake_present" : true,
+                "append_wake" : true,
+                "xtrefftz_distance" : 1.90000000000000E+001
+            },
+            "adjoint_sensitivities" : {
+                "calc_adjoint" : false
+            }
+        },
+        "solver" : {
+            "formulation" : "dirichlet-source-free",
+            "control_point_offset" : 1.00000000000000E-007,
+            "matrix_solver" : "GMRES",
+            "xsort_system" : false
+        },
+        "post_processing" : {
+            "pressure_rules" : {
+                "incompressible" : false,
+                "isentropic" : true
+            }
+        },
+        "output" : {
+            "verbose" : true,
+            "body_file" : "dev/meshes/adjoint/commercial_wing_body_FULL_adjoint.vtk",
+            "report_file" : "dev/results/adjoint_reports/commercial_wing_body_FULL_adjoint"
+        }
+    },
+    "total_runtime" : 1.37125000000000E+002
+}

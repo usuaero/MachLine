@@ -36,7 +36,7 @@ def run_machline_for_cp_offset(cp_offset,study_directory, calc_adjoint, perturb_
     input_dict = {
         "flow": {
             "freestream_velocity": [1.0, 0.0, 0.1],
-            "freestream_mach_number" : 2.0
+            "freestream_mach_number" : 0.5
         },
         "geometry": {
             "file": mesh_file,
@@ -231,7 +231,7 @@ if __name__=="__main__":
     #### THINGS TO CHANGE FORA A NEW RUN #####
 
     mesh_name = "test_11"
-    sonic = "super"
+    sonic = "sub"
     num_mesh_points = 1190
 
     clones = [1,3,74,110,146,182,218,254,290,326,362,398,434,470,506,542,578,614,650,686,722,758,794,830,866,902,938,974,1010,1046,1082,1118,1154]
@@ -365,7 +365,7 @@ if __name__=="__main__":
     vtk_lines = read_vtk_file(just_points_vtk)
 
     # write central diff sensitivities to a vtk file file
-    new_vtk = "studies/adjoint_studies/one_central_diff/vtk_files/super_"+mesh_name+"_cp_"+f'{cp_offset:.2e}' + "_step_1e-" + str(step) + ".vtk"
+    new_vtk = "studies/adjoint_studies/one_central_diff/vtk_files/"+sonic+"_"+mesh_name+"_cp_"+f'{cp_offset:.2e}' + "_step_1e-" + str(step) + ".vtk"
     if os.path.exists(new_vtk):
             os.remove(new_vtk)
     updated_vtk_content = add_vector_data_to_vtk(vtk_lines, new_data)
