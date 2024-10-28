@@ -31,11 +31,13 @@ def run_machline_for_cp_offset(cp_offset,study_directory, calc_adjoint, perturb_
         report_file = study_directory+"/reports/" + str(point_index)  + "_" + str(xyz_index) + "_" + f'{step: .2e}' + f'{cp_offset:.2e}' + ".json"
         body_file = "none"
     
+    # hard code alpha of 4 degrees
+    alpha = np.tan(4.*np.pi/180.0)
 
     # create input file
     input_dict = {
         "flow": {
-            "freestream_velocity": [1.0, 0.0, 0.1],
+            "freestream_velocity": [1.0, 0.0, alpha],
             "freestream_mach_number" : 0.5
         },
         "geometry": {
@@ -243,22 +245,24 @@ if __name__=="__main__":
     #####################################################################################
     #### THINGS TO CHANGE FORA A NEW RUN #####
 
-    mesh_name = "octa"
+    mesh_name = "test_11"
     sonic = "subsonic"
-    num_mesh_points = 6
+    num_mesh_points = 1190
 
-    # clones = [1,3,74,110,146,182,218,254,290,326,362,398,434,470,506,542,578,614,650,686,722,758,794,830,866,902,938,974,1010,1046,1082,1118,1154]
-    clones = [1]
+    clones = [1,3,74,110,146,182,218,254,290,326,362,398,434,470,506,542,578,614,650,686,722,758,794,830,866,902,938,974,1010,1046,1082,1118,1154]
+    # clones = [1]
+
+    makefile_directory = 'C:/Users/aerolab/Desktop/Nate/MachLine-1'  # Adjust this path as needed
 
     adjoint_cp_study = True
 
-    num_cp_offsets = 5
+    num_cp_offsets = 10
     step = 1.0e-3   # initial step size (gets smaller)
     initial_step_exp = 3
-    num_step_size_runs = 3
+    num_step_size_runs = 1
     
     # get spread of cp offsets
-    cp_offsets = np.logspace(-10,-2, num_cp_offsets)
+    cp_offsets = np.logspace(-10,-1, num_cp_offsets)
     # cp_offsets = cp_offsets[:-1]
 
     ###################################################################################
@@ -270,6 +274,7 @@ if __name__=="__main__":
     dash_styles = generate_dash_styles(num_step_size_runs)
 
     # Generate colors from gray scale (lightening as step size decreases)
+    # colors = [(0.3 + 0.4 * (i / (num_step_size_runs - 1)),) * 3 for i in range(num_step_size_runs)]
     colors = [(0.3 + 0.4 * (i / (num_step_size_runs - 1)),) * 3 for i in range(num_step_size_runs)]
 
 
@@ -324,8 +329,6 @@ if __name__=="__main__":
 
         original_directory = os.getcwd()
 
-        makefile_directory = 'C:/Users/nathan/git-repos/MachLine'  # Adjust this path as needed
-
         # Change the working directory to the location of the Makefile
         os.chdir(makefile_directory)
 
@@ -349,7 +352,7 @@ if __name__=="__main__":
             d_CFy_norm_adjoint[i] = d_CF_norm[i][1]
             d_CFz_norm_adjoint[i] = d_CF_norm[i][2]
             
-        adjoint_excel_file = "studies/adjoint_studies/subsonic_11/excel_files/adj_subsonic_"+mesh_name + "_cp_"+f'{cp_offsets[i]:.2e}'+".xlsx"
+        adjoint_excel_file = "studies/adjoint_studies/subsonic_11/excel_files/adj_subsonic_"+mesh_name + "_cp_"+str(num_cp_offsets)+".xlsx"
 
         if os.path.exists(adjoint_excel_file):
             os.remove(adjoint_excel_file)
@@ -378,7 +381,6 @@ if __name__=="__main__":
 
         original_directory = os.getcwd()
 
-        makefile_directory = 'C:/Users/nathan/git-repos/MachLine'  # Adjust this path as needed
 
         # Change the working directory to the location of the Makefile
         os.chdir(makefile_directory)
@@ -395,7 +397,6 @@ if __name__=="__main__":
 
         original_directory = os.getcwd()
 
-        makefile_directory = 'C:/Users/nathan/git-repos/MachLine'  # Adjust this path as needed
 
         # Change the working directory to the location of the Makefile
         os.chdir(makefile_directory)
