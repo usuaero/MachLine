@@ -256,10 +256,10 @@ if __name__=="__main__":
 
     adjoint_cp_study = True
 
-    num_cp_offsets = 10
+    num_cp_offsets = 7
     step = 1.0e-3   # initial step size (gets smaller)
     initial_step_exp = 3
-    num_step_size_runs = 1
+    num_step_size_runs = 2
     
     # get spread of cp offsets
     cp_offsets = np.logspace(-10,-1, num_cp_offsets)
@@ -274,8 +274,8 @@ if __name__=="__main__":
     dash_styles = generate_dash_styles(num_step_size_runs)
 
     # Generate colors from gray scale (lightening as step size decreases)
-    # colors = [(0.3 + 0.4 * (i / (num_step_size_runs - 1)),) * 3 for i in range(num_step_size_runs)]
     colors = [(0.3 + 0.4 * (i / (num_step_size_runs - 1)),) * 3 for i in range(num_step_size_runs)]
+    # colors = [(0.3 + 0.4 * (i / (num_step_size_runs - 1)),) * 3 for i in range(num_step_size_runs)]
 
 
     study_directory = "studies/adjoint_studies/subsonic_11"
