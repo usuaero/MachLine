@@ -245,21 +245,21 @@ if __name__=="__main__":
     #####################################################################################
     #### THINGS TO CHANGE FORA A NEW RUN #####
 
-    mesh_name = "test_11"
+    mesh_name = "octa"
     sonic = "super"
-    num_mesh_points = 1190
+    num_mesh_points = 6
 
-    clones = [1,3,74,110,146,182,218,254,290,326,362,398,434,470,506,542,578,614,650,686,722,758,794,830,866,902,938,974,1010,1046,1082,1118,1154]
-    # clones = [1]
+    # clones = [1,3,74,110,146,182,218,254,290,326,362,398,434,470,506,542,578,614,650,686,722,758,794,830,866,902,938,974,1010,1046,1082,1118,1154]
+    clones = [1]
 
-    makefile_directory = 'C:/Users/nathan/git-repos/MachLine'  # Adjust this path as needed
+    makefile_directory = 'C:/Users/aerolab/Desktop/Nate/MachLine-1'  # Adjust this path as needed
     
     adjoint_cp_study = True
 
-    num_cp_offsets = 15
-    step = 1.0e-3   # initial step size (gets smaller)
-    initial_step_exp = 3
-    num_step_size_runs =8
+    num_cp_offsets = 2
+    step = 1.0e-5   # initial step size (gets smaller)
+    initial_step_exp = 5
+    num_step_size_runs =2
     
     # get spread of cp offsets
     cp_offsets = np.logspace(-10,-1, num_cp_offsets+1)
@@ -353,7 +353,7 @@ if __name__=="__main__":
             d_CFy_norm_adjoint[i] = d_CF_norm[i][1]
             d_CFz_norm_adjoint[i] = d_CF_norm[i][2]
             
-        adjoint_excel_file = "studies/adjoint_studies/super_11/excel_files/adj_super_"+mesh_name + "_cp_"+f'{cp_offsets[i]:.2e}'+".xlsx"
+        adjoint_excel_file = "studies/adjoint_studies/super_11/excel_files/adj_super_"+mesh_name + "_cp_"+str(num_cp_offsets)+".xlsx"
 
         if os.path.exists(adjoint_excel_file):
             os.remove(adjoint_excel_file)
