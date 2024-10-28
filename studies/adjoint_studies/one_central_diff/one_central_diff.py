@@ -31,11 +31,11 @@ def run_machline_for_cp_offset(cp_offset,study_directory, calc_adjoint, perturb_
         report_file = study_directory+"/reports/" + str(point_index)  + "_" + str(xyz_index) + "_" + f'{step: .2e}' + f'{cp_offset:.2e}' + ".json"
         body_file = "none"
     
-
+    alpha_4 = np.tan(4.*np.pi/180.)
     # create input file
     input_dict = {
         "flow": {
-            "freestream_velocity": [1.0, 0.0, 0.1],
+            "freestream_velocity": [1.0, 0.0, alpha_4],
             "freestream_mach_number" : 0.5
         },
         "geometry": {
@@ -237,10 +237,12 @@ if __name__=="__main__":
     clones = [1,3,74,110,146,182,218,254,290,326,362,398,434,470,506,542,578,614,650,686,722,758,794,830,866,902,938,974,1010,1046,1082,1118,1154]
     # clones = [1]
 
+    makefile_directory = 'C:/Users/nathan/git-repos/MachLine'  # Adjust this path as needed
+
     adjoint_cp_study = True
 
-    cp_offset = 1.0e-5
-    step = 1.0e-4 
+    cp_offset = 1.0e-6
+    step = 1.0e-3
 
     ###################################################################################
     ###################################################################################
@@ -262,7 +264,6 @@ if __name__=="__main__":
 
     original_directory = os.getcwd()
 
-    makefile_directory = 'C:/Users/nathan/git-repos/MachLine'  # Adjust this path as needed
 
     # Change the working directory to the location of the Makefile
     os.chdir(makefile_directory)
@@ -314,7 +315,7 @@ if __name__=="__main__":
         processed_d_CFy.append((d_CFy[x_index], d_CFy[y_index], d_CFy[z_index]))
         processed_d_CFz.append((d_CFz[x_index], d_CFz[y_index], d_CFz[z_index]))
 
-        excel_file = "studies/adjoint_studies/one_central_diff/excel_files/"+sonic+"_"+mesh_name + "_cp_"+f'{cp_offset:.2e}' + "_step_1e-" + str(step) + ".xlsx"
+        excel_file = "studies/adjoint_studies/one_central_diff/excel_files/4_deg_"+sonic+"_"+mesh_name + "_cp_"+f'{cp_offset:.2e}' + "_step_1e-" + str(step) + ".xlsx"
 
         if os.path.exists(excel_file):
             os.remove(excel_file)
@@ -365,7 +366,7 @@ if __name__=="__main__":
     vtk_lines = read_vtk_file(just_points_vtk)
 
     # write central diff sensitivities to a vtk file file
-    new_vtk = "studies/adjoint_studies/one_central_diff/vtk_files/"+sonic+"_"+mesh_name+"_cp_"+f'{cp_offset:.2e}' + "_step_1e-" + str(step) + ".vtk"
+    new_vtk = "studies/adjoint_studies/one_central_diff/vtk_files/4_deg_"+sonic+"_"+mesh_name+"_cp_"+f'{cp_offset:.2e}' + "_step_1e-" + str(step) + ".vtk"
     if os.path.exists(new_vtk):
             os.remove(new_vtk)
     updated_vtk_content = add_vector_data_to_vtk(vtk_lines, new_data)
