@@ -1,6 +1,6 @@
 {
     "flow": {
-        "freestream_velocity" : [ 1.0, 0.0, 0.1 ],
+        "freestream_velocity" : [ 1.0, 0.0, 0.069926812],
         "freestream_mach_number" : 2.0
     },
     "geometry": {
@@ -28,7 +28,7 @@
     },
     "solver": {
         "formulation" : "dirichlet-source-free",
-        "control_point_offset" : 1.0e-7, 
+        "control_point_offset" : 1.0e-6, 
         "matrix_solver" : "GMRES", 
         "xsort_system" : false
     },
@@ -41,8 +41,8 @@
 
     "output": {
         "verbose" : true,
-        "_body_file" : "dev/results/adjoint/test_11_adjoint_robuts_1e-4.vtk",
-        "_body_report_file" : "dev/results/adjoint_reports/test_11_adjoint_robuts_TEST.json",
+        "body_file" : "dev/results/adjoint/test_11_adjoint_4_deg.vtk",
+        "report_file" : "dev/results/adjoint_reports/test_11_adjoint_4_deg.json",
         "_control_point_file" : "dev/results/adjoint_reports/test_11_cp_test_points.vtk"
     }
     
