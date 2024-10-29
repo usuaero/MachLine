@@ -237,12 +237,14 @@ if __name__=="__main__":
     clones = [1,3,74,110,146,182,218,254,290,326,362,398,434,470,506,542,578,614,650,686,722,758,794,830,866,902,938,974,1010,1046,1082,1118,1154]
     # clones = [1]
 
-    makefile_directory = 'C:/Users/nathan/git-repos/MachLine'  # Adjust this path as needed
+    makefile_directory = 'C:/Users/natha/git-repos/MachLine'  # Adjust this path as needed
 
     adjoint_cp_study = False
 
     cp_offset = 1.0e-4
-    step = 1.0e-5
+    step = 1.0e-6
+
+    num_workers = 8
 
     ###################################################################################
     ###################################################################################
@@ -287,7 +289,7 @@ if __name__=="__main__":
     for j in range(1, 4):  # Loop over xyz axes
 
 
-        d_CFx, d_CFy, d_CFz = process_in_batches(num_mesh_points, num_workers=60, j=j)
+        d_CFx, d_CFy, d_CFz = process_in_batches(num_mesh_points, num_workers, j=j)
         print("size of d_CFx", len(d_CFx))
 
         
