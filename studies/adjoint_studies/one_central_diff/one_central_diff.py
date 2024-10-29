@@ -239,10 +239,10 @@ if __name__=="__main__":
 
     makefile_directory = 'C:/Users/nathan/git-repos/MachLine'  # Adjust this path as needed
 
-    adjoint_cp_study = True
+    adjoint_cp_study = False
 
-    cp_offset = 1.0e-6
-    step = 1.0e-3
+    cp_offset = 1.0e-4
+    step = 1.0e-5
 
     ###################################################################################
     ###################################################################################
