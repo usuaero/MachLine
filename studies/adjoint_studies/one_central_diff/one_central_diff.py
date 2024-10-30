@@ -237,12 +237,12 @@ if __name__=="__main__":
     clones = [1,3,74,110,146,182,218,254,290,326,362,398,434,470,506,542,578,614,650,686,722,758,794,830,866,902,938,974,1010,1046,1082,1118,1154]
     # clones = [1]
 
-    makefile_directory = 'C:/Users/natha/git-repos/MachLine'  # Adjust this path as needed
+    makefile_directory = 'C:/Users/nathan/git-repos/MachLine'  # Adjust this path as needed
 
     adjoint_cp_study = False
 
     cp_offset = 1.0e-4
-    step = 1.0e-6
+    step = 1.0e-7
 
     num_workers = 8
 
