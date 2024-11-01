@@ -1385,7 +1385,7 @@ contains
         class(panel_solver),intent(inout) :: this
         type(surface_mesh),intent(inout) :: body
 
-        integer :: i, j, k
+        integer :: i, j, k, batch_size
         real,dimension(:),allocatable :: source_inf, doublet_inf
         real,dimension(:,:),allocatable :: v_s, v_d
         real,dimension(this%N_unknown) :: A_i
@@ -1407,8 +1407,10 @@ contains
             if (verbose) write(*,'(a)',advance='no') "     Calculating body influences..."
         end if
 
+        batch_size = body%N_cp / 64
+
         ! Calculate source and doublet influences from body on each control point
-        !$OMP parallel do private(j, source_inf, doublet_inf, v_s, v_d, A_i, I_known_i, inf_adjoint,d_AIC_row) schedule(dynamic)
+        !$OMP parallel do private(j, source_inf, doublet_inf, v_s, v_d, A_i, I_known_i, inf_adjoint,d_AIC_row) schedule(dynamic, batch_size)
         do i=1,body%N_cp
             write(*,*) " CP = ",i
 
