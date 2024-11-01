@@ -1407,10 +1407,10 @@ contains
             if (verbose) write(*,'(a)',advance='no') "     Calculating body influences..."
         end if
 
-        batch_size = body%N_cp / 64
+        ! batch_size = body%N_cp / 64
 
         ! Calculate source and doublet influences from body on each control point
-        !$OMP parallel do private(j, source_inf, doublet_inf, v_s, v_d, A_i, I_known_i, inf_adjoint,d_AIC_row) schedule(dynamic, batch_size)
+        !$OMP parallel do private(j, source_inf, doublet_inf, v_s, v_d, A_i, I_known_i, inf_adjoint,d_AIC_row) schedule(dynamic)
         do i=1,body%N_cp
             write(*,*) " CP = ",i
 
@@ -1535,7 +1535,7 @@ contains
 
                 ! Loop through panels
                 do j=1,body%N_panels
-                    Write(*,*) " CP ", i, ",  panel ",j
+                    ! Write(*,*) " CP ", i, ",  panel ",j
 
                     ! Influence of existing panel on control point
                     call body%panels(j)%calc_potential_influences(body%cp(i)%loc, this%freestream, &
@@ -1566,7 +1566,7 @@ contains
                     end if
 
                 end do
-                Write(*,*) "                                                     cp ",i, ",  panels done"
+                ! Write(*,*) "                                                     cp ",i, ",  panels done"
 
             end select
 
