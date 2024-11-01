@@ -19,7 +19,7 @@
 },
 "solver": {
     "formulation" : "dirichlet-source-free",
-    "control_point_offset" : 1.0e-7, 
+    "control_point_offset" : 1.0e-6, 
     "matrix_solver" : "GMRES", 
     "xsort_system" : false
 },
@@ -32,9 +32,9 @@
 
 "output": {
     "verbose" : true,
-    "body_file" : "dev/meshes/adjoint/commercial_wing_body_FULL_adjoint.vtk",
-    "report_file" : "dev/results/adjoint_reports/commercial_wing_body_FULL_adjoint",
-    "wake_file" : "dev/results/adjoint_reports/commercial_wing_body_FULL_wake_adjoint.vtk"
+    "body_file" : "dev/meshes/adjoint/commercial_wing_body_FULL_adjoint_ryzen.vtk",
+    "report_file" : "dev/results/adjoint_reports/commercial_wing_body_FULL_adjoint_ryzen",
+    "wake_file" : "dev/results/adjoint_reports/commercial_wing_body_FULL_wake_adjoint_ryzen.vtk"
 }
 
 }

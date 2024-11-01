@@ -1410,6 +1410,7 @@ contains
         ! Calculate source and doublet influences from body on each control point
         !$OMP parallel do private(j, source_inf, doublet_inf, v_s, v_d, A_i, I_known_i, inf_adjoint,d_AIC_row) schedule(dynamic)
         do i=1,body%N_cp
+            write(*,*) " CP = ",i
 
             ! Initialize
             A_i = 0.
@@ -1432,6 +1433,7 @@ contains
                 ! Loop through panels
                 
                 do j=1,body%N_panels
+                
                     ! Influence of existing panel on control point
                     call body%panels(j)%calc_velocity_influences(body%cp(i)%loc, this%freestream,.false.,v_s, v_d)
                     
@@ -1472,7 +1474,8 @@ contains
                     end if
 
                 end do
-                !Write(*,*) body%cp(i)%n_g , body%cp(i)%loc
+                
+                
             case (MF_INNER_FLOW) ! Calculate inner flow influences
 
                 ! Loop through panels
@@ -1527,8 +1530,10 @@ contains
                 end do
 
             case default ! Calculate potential influences
+
                 ! Loop through panels
                 do j=1,body%N_panels
+                    Write(*,*) " CP ", i, ",  panel ",j
 
                     ! Influence of existing panel on control point
                     call body%panels(j)%calc_potential_influences(body%cp(i)%loc, this%freestream, &
@@ -1559,6 +1564,7 @@ contains
                     end if
 
                 end do
+                Write(*,*) "                                                     cp ",i, ",  panels done"
 
             end select
 
