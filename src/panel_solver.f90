@@ -1412,7 +1412,7 @@ contains
         ! Calculate source and doublet influences from body on each control point
         !$OMP parallel do private(j, source_inf, doublet_inf, v_s, v_d, A_i, I_known_i, inf_adjoint,d_AIC_row) schedule(dynamic)
         do i=1,body%N_cp
-            write(*,*) " CP = ",i
+            
 
             ! Initialize
             A_i = 0.
@@ -1533,6 +1533,9 @@ contains
 
             case default ! Calculate potential influences
 
+                if (this%calc_adjoint) then
+                    write(*,*) " CP = ",i
+                end if
                 ! Loop through panels
                 do j=1,body%N_panels
                     ! Write(*,*) " CP ", i, ",  panel ",j
