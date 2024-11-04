@@ -41,8 +41,8 @@
 
     "output": {
         "verbose" : true,
-        "body_file" : "dev/results/adjoint/test_11_adjoint_4_deg_serial.vtk",
-        "report_file" : "dev/results/adjoint_reports/test_11_adjoint_4_deg_serial.json",
+        "body_file" : "dev/results/adjoint/test_11_adjoint_4_deg_Test.vtk",
+        "report_file" : "dev/results/adjoint_reports/test_11_adjoint_4_deg_Test.json",
         "_control_point_file" : "dev/results/adjoint_reports/test_11_cp_test_points.vtk"
     }
     
