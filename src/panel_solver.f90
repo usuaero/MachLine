@@ -1533,7 +1533,7 @@ contains
 
             case default ! Calculate potential influences
 
-                if (this%calc_adjoint) then
+                if (body%calc_adjoint) then
                     write(*,*) " CP = ",i
                 end if
                 ! Loop through panels

@@ -1,46 +1,46 @@
 {
     "info" : {
         "generated_by" : "MachLine (c) 2023 USU Aerolab",
-        "executed" : "Sat Nov  2 13:17:17 2024"
+        "executed" : "Sat Nov  2 13:25:24 2024"
     },
     "mesh_info" : {
-        "N_body_panels" : 1080,
-        "N_body_vertices" : 569,
-        "N_wake_panels" : 54,
+        "N_body_panels" : 3608,
+        "N_body_vertices" : 1847,
+        "N_wake_panels" : 82,
         "N_wake_filaments" : 0,
-        "average_characteristic_length" : 2.51730695617368E-001,
-        "max_flow_turning_angle" : 1.71740033000887E+002
+        "average_characteristic_length" : 1.37159829072705E-001,
+        "max_flow_turning_angle" : 1.71740032994407E+002
     },
     "solver_results" : {
         "solver_status_code" : 0,
-        "system_dimension" : 569,
+        "system_dimension" : 1847,
         "timing" : {
-            "system_sorting" : 2.89540000000000E-003,
-            "preconditioner" : 6.85700000000000E-004,
-            "matrix_solver" : 5.91190000000000E-002
+            "system_sorting" : 1.07441000000000E-002,
+            "preconditioner" : 1.00409000000000E-002,
+            "matrix_solver" : 8.65007500000000E-001
         },
-        "iterations" : 199,
-        "system_lower_bandwidth" : 86,
+        "iterations" : 293,
+        "system_lower_bandwidth" : 174,
         "residual" : {
-            "max" : 2.16271445196980E-013,
-            "norm" : 9.27097037600237E-013
+            "max" : 3.81028542051354E-013,
+            "norm" : 9.42888776317512E-013
         }
     },
     "pressure_calculations" : {
         "isentropic_rule" : {
-            "max" : 3.20870210901536E-001,
-            "min" : -1.81601313303705E-001
+            "max" : 3.25620661615825E-001,
+            "min" : -1.77411009942668E-001
         }
     },
     "total_forces" : {
-        "Cx" : 1.15569720742492E+000,
-        "Cy" : -1.65996115550365E-009,
-        "Cz" : 5.07666266883605E+000
+        "Cx" : 1.15599101604401E+000,
+        "Cy" : -2.27350963303759E-009,
+        "Cz" : 5.22410199010622E+000
     },
     "total_moments" : {
-        "CMx" : -3.69996308984422E-006,
-        "CMy" : -2.06960402056121E+001,
-        "CMz" : -2.51045975537770E-008
+        "CMx" : -3.94848760123818E-006,
+        "CMy" : -2.15170540847089E+001,
+        "CMz" : -3.86676905753163E-008
     },
     "input" : {
         "flow" : {
@@ -61,7 +61,7 @@
             "_hfile" : "dev/meshes/other_meshes/naca_0010_AR_10_full_coarse.stl",
             "_ifile" : "dev/meshes/adjoint/naca_2412_wing.stl",
             "_jfile" : "dev/meshes/adjoint/a320_fine.stl",
-            "file" : "dev/meshes/adjoint/test_11_500.stl",
+            "file" : "dev/meshes/adjoint/test_11_1800.stl",
             "singularity_order" : "lower",
             "wake_model" : {
                 "wake_present" : true,
@@ -86,10 +86,10 @@
         },
         "output" : {
             "verbose" : true,
-            "body_file" : "dev/results/adjoint/test_11_500.vtk",
-            "report_file" : "dev/results/adjoint_reports/test_11_500.json",
+            "body_file" : "dev/results/adjoint/test_11_1800_serial.vtk",
+            "report_file" : "dev/results/adjoint_reports/test_11_1800_serial.json",
             "_control_point_file" : "dev/results/adjoint_reports/test_11_cp_test_points.vtk"
         }
     },
-    "total_runtime" : 8.13000000000000E-001
+    "total_runtime" : 7.40600000000000E+000
 }

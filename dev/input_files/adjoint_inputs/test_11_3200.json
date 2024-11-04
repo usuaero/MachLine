@@ -23,7 +23,7 @@
             
         },
         "adjoint_sensitivities" : {
-            "calc_adjoint" : true
+            "calc_adjoint" : false
         }
     },
     "solver": {
@@ -41,8 +41,8 @@
 
     "output": {
         "verbose" : true,
-        "body_file" : "dev/results/adjoint/test_11_3200.vtk",
-        "report_file" : "dev/results/adjoint_reports/test_11_3200.json",
+        "body_file" : "dev/results/adjoint/test_11_3200_serial.vtk",
+        "report_file" : "dev/results/adjoint_reports/test_11_3200_serial.json",
         "_control_point_file" : "dev/results/adjoint_reports/test_11_cp_test_points.vtk"
     }
     
