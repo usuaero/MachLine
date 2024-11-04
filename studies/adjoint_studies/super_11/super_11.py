@@ -245,20 +245,20 @@ if __name__=="__main__":
     #####################################################################################
     #### THINGS TO CHANGE FORA A NEW RUN #####
 
-    mesh_name = "octa"
+    mesh_name = "test_11"
     sonic = "super"
-    num_mesh_points = 6
+    num_mesh_points = 1190
 
-    # clones = [1,3,74,110,146,182,218,254,290,326,362,398,434,470,506,542,578,614,650,686,722,758,794,830,866,902,938,974,1010,1046,1082,1118,1154]
-    clones = [1]
+    clones = [1,3,74,110,146,182,218,254,290,326,362,398,434,470,506,542,578,614,650,686,722,758,794,830,866,902,938,974,1010,1046,1082,1118,1154]
+    # clones = [1]
 
     makefile_directory = 'C:/Users/aerolab/Desktop/Nate/MachLine-1'  # Adjust this path as needed
     
-    adjoint_cp_study = True
+    adjoint_cp_study = False
 
-    num_cp_offsets = 2
-    step = 1.0e-5   # initial step size (gets smaller)
-    initial_step_exp = 5
+    num_cp_offsets = 15
+    step = 1.0e-7   # initial step size (gets smaller)
+    initial_step_exp = 7
     num_step_size_runs =2
     
     # get spread of cp offsets
@@ -469,7 +469,7 @@ if __name__=="__main__":
                 processed_d_CFy.append((d_CFy[i][x_index], d_CFy[i][y_index], d_CFy[i][z_index]))
                 processed_d_CFz.append((d_CFz[i][x_index], d_CFz[i][y_index], d_CFz[i][z_index]))
 
-                excel_file = "studies/adjoint_studies/super_11/excel_files/super_"+mesh_name + "_cp_"+f'{cp_offsets[i]:.2e}' + "_step_1e-" + str(initial_step_exp+ m) + ".xlsx"
+                excel_file = "studies/adjoint_studies/super_11/excel_files/superMORE_"+mesh_name + "_cp_"+f'{cp_offsets[i]:.2e}' + "_step_1e-" + str(initial_step_exp+ m) + ".xlsx"
 
                 if os.path.exists(excel_file):
                     os.remove(excel_file)
@@ -520,7 +520,7 @@ if __name__=="__main__":
             vtk_lines = read_vtk_file(just_points_vtk)
 
             # write central diff sensitivities to a vtk file file
-            new_vtk = "studies/adjoint_studies/super_11/vtk_files/super_"+mesh_name+"_cp_"+f'{cp_offsets[i]:.2e}' + "_step_1e-" + str(initial_step_exp+ m) + ".vtk"
+            new_vtk = "studies/adjoint_studies/super_11/vtk_files/superMORE_"+mesh_name+"_cp_"+f'{cp_offsets[i]:.2e}' + "_step_1e-" + str(initial_step_exp+ m) + ".vtk"
             if os.path.exists(new_vtk):
                     os.remove(new_vtk)
             updated_vtk_content = add_vector_data_to_vtk(vtk_lines, new_data)
@@ -565,7 +565,7 @@ if __name__=="__main__":
 
     figx.subplots_adjust(right = 0.8)
 
-    fig_file_fx = "/figures/super_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFx.pdf"
+    fig_file_fx = "/figures/superMORE_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFx.pdf"
     figx.savefig(study_directory + fig_file_fx)
 
 
@@ -586,7 +586,7 @@ if __name__=="__main__":
 
     figy.subplots_adjust(right = 0.8)
 
-    fig_file_fy = "/figures/super_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFy.pdf"
+    fig_file_fy = "/figures/superMORE_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFy.pdf"
     figy.savefig(study_directory + fig_file_fy)
 
     ##################### finish CFy figure ####################
@@ -606,18 +606,18 @@ if __name__=="__main__":
 
     figz.subplots_adjust(right = 0.8)
 
-    fig_file_fz = "/figures/super_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFz.pdf"
+    fig_file_fz = "/figures/superMORE_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFz.pdf"
     figz.savefig(study_directory + fig_file_fz)
 
-    with open("studies/adjoint_studies/super_11/pickle_jar/super_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFx.pkl", 'wb') as f:
+    with open("studies/adjoint_studies/super_11/pickle_jar/superMORE_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFx.pkl", 'wb') as f:
         pickle.dump(figx, f)
 
 
-    with open("studies/adjoint_studies/super_11/pickle_jar/super_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFy.pkl", 'wb') as f:
+    with open("studies/adjoint_studies/super_11/pickle_jar/superMORE_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFy.pkl", 'wb') as f:
         pickle.dump(figy, f)
 
 
-    with open("studies/adjoint_studies/super_11/pickle_jar/super_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFz.pkl", 'wb') as f:
+    with open("studies/adjoint_studies/super_11/pickle_jar/superMORE_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFz.pkl", 'wb') as f:
         pickle.dump(figz, f)
 
 
@@ -672,7 +672,7 @@ if __name__=="__main__":
     df_expanded = pd.DataFrame(expanded_data)
 
     # Save to Excel file
-    excel_file = "studies/adjoint_studies/super_11/results/super_" + mesh_name + "_" + str(num_cp_offsets) + "_offsets_final.xlsx"
+    excel_file = "studies/adjoint_studies/super_11/results/superMORE_" + mesh_name + "_" + str(num_cp_offsets) + "_offsets_final.xlsx"
     df_expanded.to_excel(excel_file, index=False)
 
 
