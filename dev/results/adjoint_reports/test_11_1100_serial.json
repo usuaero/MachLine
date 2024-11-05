@@ -1,0 +1,95 @@
+{
+    "info" : {
+        "generated_by" : "MachLine (c) 2023 USU Aerolab",
+        "executed" : "Mon Nov  4 08:45:49 2024"
+    },
+    "mesh_info" : {
+        "N_body_panels" : 2240,
+        "N_body_vertices" : 1157,
+        "N_wake_panels" : 70,
+        "N_wake_filaments" : 0,
+        "average_characteristic_length" : 1.74320991065168E-001,
+        "max_flow_turning_angle" : 1.71740033023827E+002
+    },
+    "solver_results" : {
+        "solver_status_code" : 0,
+        "system_dimension" : 1157,
+        "timing" : {
+            "system_sorting" : 6.79040000000000E-003,
+            "preconditioner" : 5.31330000000000E-003,
+            "matrix_solver" : 4.23223500000000E-001
+        },
+        "iterations" : 254,
+        "system_lower_bandwidth" : 124,
+        "residual" : {
+            "max" : 1.50990331349021E-013,
+            "norm" : 6.94203081980786E-013
+        }
+    },
+    "pressure_calculations" : {
+        "isentropic_rule" : {
+            "max" : 3.24675167757557E-001,
+            "min" : -1.74859922566340E-001
+        }
+    },
+    "total_forces" : {
+        "Cx" : 1.15651115177208E+000,
+        "Cy" : -9.72643738694515E-010,
+        "Cz" : 5.17866455205415E+000
+    },
+    "total_moments" : {
+        "CMx" : -5.04107909235843E-006,
+        "CMy" : -2.12761400915211E+001,
+        "CMz" : -2.45672787540260E-008
+    },
+    "input" : {
+        "flow" : {
+            "freestream_velocity" : [
+                    1.00000000000000E+000,
+                    0.00000000000000E+000,
+                    6.99268120000000E-002
+                ],
+            "freestream_mach_number" : 2.00000000000000E+000
+        },
+        "geometry" : {
+            "_afile" : "dev/meshes/adjoint/sphere_coarse2.stl",
+            "_bfile" : "dev/meshes/other_meshes/small_sphere.stl",
+            "_cfile" : "dev/meshes/adjoint/adjoint_octa_mesh.stl",
+            "_dfile" : "dev/meshes/adjoint/wedge_wing_coarse.stl",
+            "_efile" : "dev/meshes/other_meshes/delta_wing_coarse.vtk",
+            "_gfile" : "dev/meshes/other_meshes/diamond_5_deg_full_coarse.stl",
+            "_hfile" : "dev/meshes/other_meshes/naca_0010_AR_10_full_coarse.stl",
+            "_ifile" : "dev/meshes/adjoint/naca_2412_wing.stl",
+            "_jfile" : "dev/meshes/adjoint/a320_fine.stl",
+            "file" : "dev/meshes/adjoint/test_11_1100.stl",
+            "singularity_order" : "lower",
+            "wake_model" : {
+                "wake_present" : true,
+                "append_wake" : true,
+                "xtrefftz_distance" : 1.90000000000000E+001
+            },
+            "adjoint_sensitivities" : {
+                "calc_adjoint" : false
+            }
+        },
+        "solver" : {
+            "formulation" : "dirichlet-source-free",
+            "control_point_offset" : 1.00000000000000E-005,
+            "matrix_solver" : "GMRES",
+            "xsort_system" : false
+        },
+        "post_processing" : {
+            "pressure_rules" : {
+                "incompressible" : false,
+                "isentropic" : true
+            }
+        },
+        "output" : {
+            "verbose" : true,
+            "body_file" : "dev/results/adjoint/test_11_1100_serial.vtk",
+            "report_file" : "dev/results/adjoint_reports/test_11_1100_serial.json",
+            "_control_point_file" : "dev/results/adjoint_reports/test_11_cp_test_points.vtk"
+        }
+    },
+    "total_runtime" : 4.53100000000000E+000
+}

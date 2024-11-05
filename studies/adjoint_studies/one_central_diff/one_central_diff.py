@@ -241,8 +241,8 @@ if __name__=="__main__":
 
     adjoint_cp_study = False
 
-    cp_offset = 1.0e-4
-    step = 1.0e-8
+    cp_offset = 0.00316227766016838
+    step = 1.0e-3
 
     num_workers = 8
 

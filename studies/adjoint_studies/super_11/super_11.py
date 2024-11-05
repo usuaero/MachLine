@@ -252,14 +252,14 @@ if __name__=="__main__":
     clones = [1,3,74,110,146,182,218,254,290,326,362,398,434,470,506,542,578,614,650,686,722,758,794,830,866,902,938,974,1010,1046,1082,1118,1154]
     # clones = [1]
 
-    makefile_directory = 'C:/Users/aerolab/Desktop/Nate/MachLine-1'  # Adjust this path as needed
+    makefile_directory = "C:/Users/nathan/git-repos/MachLine"  # Adjust this path as needed
     
     adjoint_cp_study = False
 
     num_cp_offsets = 15
-    step = 1.0e-7   # initial step size (gets smaller)
-    initial_step_exp = 7
-    num_step_size_runs =2
+    step = 1.0e-6   # initial step size (gets smaller)
+    initial_step_exp = 6
+    num_step_size_runs =1
     
     # get spread of cp offsets
     cp_offsets = np.logspace(-10,-1, num_cp_offsets+1)
@@ -270,11 +270,29 @@ if __name__=="__main__":
     formulation = "dirichlet-source-free"
 
 
-    # Generate dash styles based on the number of step sizes
-    dash_styles = generate_dash_styles(num_step_size_runs)
+    ####################  multiple step runs ##########################
 
-    # Generate colors from gray scale (lightening as step size decreases)
-    colors = [(0.3 + 0.4 * (i / (num_step_size_runs - 1)),) * 3 for i in range(num_step_size_runs)]
+    # # Generate dash styles based on the number of step sizes
+    # dash_styles = generate_dash_styles(num_step_size_runs)
+
+    # # Generate colors from gray scale (lightening as step size decreases)
+    # colors = [(0.3 + 0.4 * (i / (num_step_size_runs - 1)),) * 3 for i in range(num_step_size_runs)]
+
+    ####################  multiple step runs ##########################
+
+
+
+    ####################  1 step run ##########################
+
+
+    max_dash = 10  # Max dash length
+    min_dash = 1   # Min dash length
+    dash_step = (max_dash - min_dash) / (2)
+    # Create dashes starting from max_dash to min_dash
+    dash_styles = [(max_dash - i * dash_step, 2) for i in range(2)]
+    colors = [(0.3 + 0.4 * (i / (2 )),) * 3 for i in range(2)]
+
+    ####################  1 step run ##########################
 
 
     study_directory = "studies/adjoint_studies/super_11"
