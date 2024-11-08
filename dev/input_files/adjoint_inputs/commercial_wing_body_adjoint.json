@@ -14,7 +14,7 @@
         
     },
     "adjoint_sensitivities" : {
-        "calc_adjoint" : true
+        "calc_adjoint" : false
     }
 },
 "solver": {
@@ -32,9 +32,9 @@
 
 "output": {
     "verbose" : true,
-    "body_file" : "dev/meshes/adjoint/commercial_wing_body_FULL_adjoint.vtk",
-    "report_file" : "dev/results/adjoint_reports/commercial_wing_body_FULL_adjoint",
-    "wake_file" : "dev/results/adjoint_reports/commercial_wing_body_FULL_wake_adjoint.vtk"
+    "body_file" : "dev/meshes/adjoint/commercial_wing_body_FULL_not_adjoint.vtk",
+    "report_file" : "dev/results/adjoint_reports/commercial_wing_body_FULL_not_adjoint",
+    "wake_file" : "dev/results/adjoint_reports/commercial_wing_body_FULL_wake_not_adjoint.vtk"
 }
 
 }

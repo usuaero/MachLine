@@ -13,7 +13,7 @@
         "_hfile" : "dev/meshes/other_meshes/naca_0010_AR_10_full_coarse.stl",
         "_ifile" : "dev/meshes/adjoint/naca_2412_wing.stl",
         "_jfile" : "dev/meshes/adjoint/a320_fine.stl",
-        "file" : "dev/meshes/adjoint/test_11_4000.stl",
+        "file" : "dev/meshes/adjoint/test_11_7600.stl",
         "singularity_order" : "lower",
 
         "wake_model" : {
@@ -23,7 +23,7 @@
             
         },
         "adjoint_sensitivities" : {
-            "calc_adjoint" : true
+            "calc_adjoint" : false
         }
     },
     "solver": {
@@ -41,8 +41,8 @@
 
     "output": {
         "verbose" : true,
-        "body_file" : "dev/results/adjoint/test_11_4000.vtk",
-        "report_file" : "dev/results/adjoint_reports/test_11_4000.json",
+        "body_file" : "dev/results/adjoint/test_11_7600_serial.vtk",
+        "report_file" : "dev/results/adjoint_reports/test_11_7600_serial.json",
         "_control_point_file" : "dev/results/adjoint_reports/test_11_cp_test_points.vtk"
     }
     

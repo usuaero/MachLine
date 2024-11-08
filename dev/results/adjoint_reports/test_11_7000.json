@@ -1,7 +1,7 @@
 {
     "info" : {
         "generated_by" : "MachLine (c) 2023 USU Aerolab",
-        "executed" : "Sun Nov  3 08:51:14 2024"
+        "executed" : "Tue Nov  5 16:40:19 2024"
     },
     "mesh_info" : {
         "N_body_panels" : 14008,
@@ -15,9 +15,9 @@
         "solver_status_code" : 0,
         "system_dimension" : 7109,
         "timing" : {
-            "system_sorting" : 5.41009000000000E-002,
-            "preconditioner" : 1.39106900000000E-001,
-            "matrix_solver" : 2.37066090000000E+001
+            "system_sorting" : 5.41772000000000E-002,
+            "preconditioner" : 1.46833900000000E-001,
+            "matrix_solver" : 2.30148038000000E+001
         },
         "iterations" : 999,
         "system_lower_bandwidth" : 266,
@@ -63158,5 +63158,5 @@
             "_control_point_file" : "dev/results/adjoint_reports/test_11_cp_test_points.vtk"
         }
     },
-    "total_runtime" : 2.36161560000000E+004
+    "total_runtime" : 2.33158750000000E+004
 }
