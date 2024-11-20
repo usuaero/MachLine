@@ -1,0 +1,39 @@
+{
+"flow": {
+    "freestream_velocity" : [ 1.0, 0.0, 0.0],
+    "freestream_mach_number" : 2.0
+},
+"geometry": {
+    "file" : "dev/meshes/adjoint/n2.stl",
+    "singularity_order" : "lower",
+
+    "wake_model" : {
+        "wake_present" : true,
+        "append_wake" : true,
+        "xtrefftz_distance": 19.0
+        
+    },
+    "adjoint_sensitivities" : {
+        "calc_adjoint" : false
+    }
+},
+"solver": {
+    "formulation" : "dirichlet-source-free",
+    "control_point_offset" : 1.0e-7, 
+    "matrix_solver" : "GMRES", 
+    "xsort_system" : false
+},
+"post_processing" : {
+    "pressure_rules": {
+        "incompressible": false,
+        "isentropic": true
+    }
+},
+
+"output": {
+    "verbose" : true,
+    "body_file" : "dev/results/adjoint/n2.vtk",
+    "report_file" : "dev/results/adjoint_reports/n2.txt"
+}
+
+}

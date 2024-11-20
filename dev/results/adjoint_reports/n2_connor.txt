@@ -1,0 +1,85 @@
+{
+    "info" : {
+        "generated_by" : "MachLine (c) 2023 USU Aerolab",
+        "executed" : "Tue Nov 19 11:45:25 2024"
+    },
+    "mesh_info" : {
+        "N_body_panels" : 16852,
+        "N_body_vertices" : 8513,
+        "N_wake_panels" : 184,
+        "N_wake_filaments" : 0,
+        "average_characteristic_length" : 5.79529242502298E-001,
+        "max_flow_turning_angle" : 1.78245929443928E+002
+    },
+    "solver_results" : {
+        "solver_status_code" : 0,
+        "system_dimension" : 8513,
+        "timing" : {
+            "system_sorting" : 8.59763000000000E-002,
+            "preconditioner" : 2.23656300000000E-001,
+            "matrix_solver" : 6.38798157000000E+001
+        },
+        "iterations" : 999,
+        "system_lower_bandwidth" : 1076,
+        "residual" : {
+            "max" : 2.81145133840255E-008,
+            "norm" : 8.76055952462051E-008
+        }
+    },
+    "pressure_calculations" : {
+        "isentropic_rule" : {
+            "max" : 1.73050452321498E+000,
+            "min" : -5.58035714285714E-001
+        }
+    },
+    "total_forces" : {
+        "Cx" : 1.33560834996631E+001,
+        "Cy" : 1.23289087106898E+001,
+        "Cz" : 3.25268322810519E+001
+    },
+    "total_moments" : {
+        "CMx" : -2.90212723821298E+002,
+        "CMy" : -2.27227917378919E+003,
+        "CMz" : 1.75890875437755E+003
+    },
+    "input" : {
+        "flow" : {
+            "freestream_velocity" : [
+                    1.00000000000000E+000,
+                    0.00000000000000E+000,
+                    0.00000000000000E+000
+                ],
+            "freestream_mach_number" : 1.60000000000000E+000
+        },
+        "geometry" : {
+            "file" : "dev/meshes/adjoint/n2_connor.stl",
+            "singularity_order" : "lower",
+            "wake_model" : {
+                "wake_present" : true,
+                "append_wake" : true,
+                "xtrefftz_distance" : 1.90000000000000E+001
+            },
+            "adjoint_sensitivities" : {
+                "calc_adjoint" : false
+            }
+        },
+        "solver" : {
+            "formulation" : "dirichlet-source-free",
+            "control_point_offset" : 1.00000000000000E-007,
+            "matrix_solver" : "GMRES",
+            "xsort_system" : false
+        },
+        "post_processing" : {
+            "pressure_rules" : {
+                "incompressible" : false,
+                "isentropic" : true
+            }
+        },
+        "output" : {
+            "verbose" : true,
+            "body_file" : "dev/results/adjoint/n2_connor.vtk",
+            "report_file" : "dev/results/adjoint_reports/n2_connor.txt"
+        }
+    },
+    "total_runtime" : 1.71203000000000E+002
+}
