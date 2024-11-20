@@ -1534,7 +1534,8 @@ contains
             case default ! Calculate potential influences
 
                 if (body%calc_adjoint) then
-                    write(*,*) " CP = ",i
+                    ! adjoint progress
+                    ! write(*,*) " CP = ",i 
                 end if
                 ! Loop through panels
                 do j=1,body%N_panels
@@ -3904,7 +3905,8 @@ contains
         ! $OMP parallel do private(j, d_AIC_column)schedule(dynamic)
         ! do for each column of d_AIC matrix
         do j=1,N_unknown
-            write(*,*)" d_AIC rearrangement loop ", j, " of ", N_unknown
+            ! adjoint progress
+            ! write(*,*)" d_AIC rearrangement loop ", j, " of ", N_unknown 
             
             ! populate the d_b_vecs array and d_AIC in a clever way
             d_b_vecs(j,:) = this%d_b_vector(j)%expand()
@@ -3942,7 +3944,8 @@ contains
             !$OMP parallel do private(i, d_AIC_i, d_AIC_times_mu, f_i) schedule(dynamic)
             ! for each design variable
             do i=1,3*N_original_verts
-                write(*,*)" m = ",m, " loop ", i, " of ", N_original_verts*3
+                ! adjoint progress
+                ! write(*,*)" m = ",m, " loop ", i, " of ", N_original_verts*3 
 
                 ! k = Number of columns of A matrix
                 ! do k=1,N_unknown 

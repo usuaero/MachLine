@@ -1279,14 +1279,14 @@ contains
                                 
                                 
                                 ! Normalize and store
-                                write(*,*)" i jango = ", i_jango
-                                write(*,*)"i jango n_avg = ", n_avg
+                                ! write(*,*)" i jango = ", i_jango
+                                ! write(*,*)"i jango n_avg = ", n_avg
                                 if (i /= 1) then
                                     deallocate(this%vertices(i_jango)%d_n_g_wake%columns)
                                 end if
                                 
                                 call this%vertices(i_jango)%d_n_g_wake%init_from_sparse_matrix(sum_d_n_avg)
-                                write(*,*)"after i jango dng wake"
+                                ! write(*,*)"after i jango dng wake"
                                 call this%vertices(i_jango)%d_n_g_wake%broadcast_element_times_scalar(norm_n_avg)
                                 
                                 x = d_norm_n_avg%broadcast_element_times_vector(n_avg)
@@ -1348,8 +1348,8 @@ contains
                                 
                                 
                                 ! Normalize and store
-                                write(*,*)" i boba = ", i_boba
-                                write(*,*)"i boba n_avg = ", n_avg
+                                ! write(*,*)" i boba = ", i_boba
+                                ! write(*,*)"i boba n_avg = ", n_avg
                                 ! write(*,*)"before i_boba d_n_g wake init"
                                 call this%vertices(i_boba)%d_n_g_wake%init_from_sparse_matrix(sum_d_n_avg)
                                 ! write(*,*)"after i_boba d_n_g wake init"
@@ -3252,7 +3252,8 @@ contains
 
             ! initialize counter
             found_clones = 0
-            write(*,*) "clones:"
+            ! adjoint progress
+            ! write(*,*) "clones:"  
             ! write sensitivity data (and copy it for cloned vertices so Paraview Plays nice)
             do j=1,N_orig_verts
                 
@@ -3265,8 +3266,9 @@ contains
                 
                 ! if j vertex is a clone, copy sensitivity in corresponding spot
                 if (this%vertices(j)%clone .and. (found_clones < N_verts - N_orig_verts)) then
-
-                    write(*,*)this%vertices(j)%index
+                    
+                    ! adjoint progress
+                    ! write(*,*)this%vertices(j)%index
                     
                     found_clones = found_clones + 1
 

@@ -1,7 +1,7 @@
 {
     "info" : {
         "generated_by" : "MachLine (c) 2023 USU Aerolab",
-        "executed" : "Tue Nov  5 12:50:36 2024"
+        "executed" : "Tue Nov 12 13:33:27 2024"
     },
     "mesh_info" : {
         "N_body_panels" : 1080,
@@ -15,9 +15,9 @@
         "solver_status_code" : 0,
         "system_dimension" : 569,
         "timing" : {
-            "system_sorting" : 3.12040000000000E-003,
-            "preconditioner" : 8.07700000000000E-004,
-            "matrix_solver" : 6.03123000000000E-002
+            "system_sorting" : 3.52410000000000E-003,
+            "preconditioner" : 1.02930000000000E-003,
+            "matrix_solver" : 7.73969000000000E-002
         },
         "iterations" : 568,
         "system_lower_bandwidth" : 86,
@@ -4943,15 +4943,6 @@
             "freestream_mach_number" : 2.00000000000000E+000
         },
         "geometry" : {
-            "_afile" : "dev/meshes/adjoint/sphere_coarse2.stl",
-            "_bfile" : "dev/meshes/other_meshes/small_sphere.stl",
-            "_cfile" : "dev/meshes/adjoint/adjoint_octa_mesh.stl",
-            "_dfile" : "dev/meshes/adjoint/wedge_wing_coarse.stl",
-            "_efile" : "dev/meshes/other_meshes/delta_wing_coarse.vtk",
-            "_gfile" : "dev/meshes/other_meshes/diamond_5_deg_full_coarse.stl",
-            "_hfile" : "dev/meshes/other_meshes/naca_0010_AR_10_full_coarse.stl",
-            "_ifile" : "dev/meshes/adjoint/naca_2412_wing.stl",
-            "_jfile" : "dev/meshes/adjoint/a320_fine.stl",
             "file" : "dev/meshes/adjoint/test_11_500.stl",
             "singularity_order" : "lower",
             "wake_model" : {
@@ -4982,5 +4973,5 @@
             "_control_point_file" : "dev/results/adjoint_reports/test_11_cp_test_points.vtk"
         }
     },
-    "total_runtime" : 1.45780000000000E+001
+    "total_runtime" : 1.92970000000000E+001
 }
