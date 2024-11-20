@@ -1,0 +1,85 @@
+{
+    "info" : {
+        "generated_by" : "MachLine (c) 2023 USU Aerolab",
+        "executed" : "Tue Nov 19 19:53:39 2024"
+    },
+    "mesh_info" : {
+        "N_body_panels" : 0,
+        "N_body_vertices" : 0,
+        "N_wake_panels" : 0,
+        "N_wake_filaments" : 0,
+        "average_characteristic_length" : NaN,
+        "max_flow_turning_angle" : 9.00000000000000E+001
+    },
+    "solver_results" : {
+        "solver_status_code" : 0,
+        "system_dimension" : 0,
+        "timing" : {
+            "system_sorting" : 2.71000000000000E-005,
+            "preconditioner" : 1.47000000000000E-005,
+            "matrix_solver" : 3.34000000000000E-005
+        },
+        "iterations" : 0,
+        "system_lower_bandwidth" : 0,
+        "residual" : {
+            "max" : -1.79769313486232E+308,
+            "norm" : 0.00000000000000E+000
+        }
+    },
+    "pressure_calculations" : {
+        "isentropic_rule" : {
+            "max" : -1.79769313486232E+308,
+            "min" : 1.79769313486232E+308
+        }
+    },
+    "total_forces" : {
+        "Cx" : 0.00000000000000E+000,
+        "Cy" : 0.00000000000000E+000,
+        "Cz" : 0.00000000000000E+000
+    },
+    "total_moments" : {
+        "CMx" : 0.00000000000000E+000,
+        "CMy" : 0.00000000000000E+000,
+        "CMz" : 0.00000000000000E+000
+    },
+    "input" : {
+        "flow" : {
+            "freestream_velocity" : [
+                    1.00000000000000E+000,
+                    0.00000000000000E+000,
+                    3.49100000000000E-002
+                ],
+            "freestream_mach_number" : 1.60000000000000E+000
+        },
+        "geometry" : {
+            "file" : "dev/meshes/adjoint/LM1021.stl",
+            "singularity_order" : "lower",
+            "wake_model" : {
+                "wake_present" : true,
+                "append_wake" : true,
+                "xtrefftz_distance" : 1.90000000000000E+001
+            },
+            "adjoint_sensitivities" : {
+                "calc_adjoint" : false
+            }
+        },
+        "solver" : {
+            "formulation" : "dirichlet-source-free",
+            "control_point_offset" : 1.00000000000000E-007,
+            "matrix_solver" : "GMRES",
+            "xsort_system" : false
+        },
+        "post_processing" : {
+            "pressure_rules" : {
+                "incompressible" : false,
+                "isentropic" : true
+            }
+        },
+        "output" : {
+            "verbose" : true,
+            "body_file" : "dev/results/adjoint/LM1021.vtk",
+            "report_file" : "dev/results/adjoint_reports/LM1021.txt"
+        }
+    },
+    "total_runtime" : 1.25000000000000E-001
+}
