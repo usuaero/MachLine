@@ -433,9 +433,10 @@ contains
         class(sparse_vector),intent(inout) :: this
 
         real,dimension(:),allocatable :: full_vector
-        integer :: i
+        integer :: i, stat
 
-        allocate(full_vector(this%full_size), source=0.)
+        allocate(full_vector(this%full_size), source=0., stat = stat)
+        call check_allocation(stat, "sparse vector expand")
         
         ! put nonzero values in their corresponding full_index location
         do i=1,this%sparse_size
@@ -1113,9 +1114,10 @@ contains
         logical,intent(in) :: tall
 
         real,dimension(:,:),allocatable :: full_matrix
-        integer :: i
+        integer :: i, stat
 
-        allocate(full_matrix(3,this%full_num_cols), source=0.)
+        allocate(full_matrix(3,this%full_num_cols), source=0., stat = stat)
+        call check_allocation(stat, "sparse matrix_expand")
         
         ! put nonzero values in their corresponding full_index location (column major)
         do i=1,this%sparse_num_cols
