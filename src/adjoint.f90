@@ -148,12 +148,15 @@ contains
 
         class(sparse_vector), intent(inout) :: this
         integer,intent(in) :: N
+        integer :: stat
 
         ! specify number of design variables N (if WRT to X(beta), N = N_verts*3)
         this%full_size = N
 
         ! allocate and populate an initial sparse vector element
-        allocate(this%elements(1))
+        allocate(this%elements(1), stat=stat)
+        call check_allocation(stat, "sparse vector init")
+
         this%elements(1)%value = 0.0
         this%elements(1)%full_index = 1
         this%sparse_size = 1
@@ -169,12 +172,13 @@ contains
 
         class(sparse_vector),intent(inout) :: this
         real,dimension(:),intent(inout) :: full_vector
-        integer :: i,count,full_size, sparse_iter
+        integer :: i,count,full_size, sparse_iter, stat
         integer,dimension(:),allocatable :: indices 
 
         ! get size of vector
         full_size = size(full_vector)
-        allocate(indices(full_size))
+        allocate(indices(full_size), stat = stat)
+        call check_allocation(stat, "sparse vector init from full vector, indices")
 
         ! count how many nonzero elements there are
         count = 0
@@ -189,7 +193,8 @@ contains
             ! make an empty element
             this%sparse_size = 1
             this%full_size = full_size
-            allocate(this%elements(1))
+            allocate(this%elements(1), stat = stat)
+            call check_allocation(stat, "sparse vector init from full vector, elements1")
 
             this%elements(1)%value = 0.
             this%elements(1)%full_index = 1
@@ -198,7 +203,8 @@ contains
             ! now that we have the number of non zero numbers, we can allocate the space for the sparse_vector
             this%sparse_size = count
             this%full_size = full_size
-            allocate(this%elements(count))
+            allocate(this%elements(count), stat = stat)
+            call check_allocation(stat, "sparse vector init from full vector, elements count")
 
             ! populate the sparse_vector elements
             do i=1,count
@@ -220,14 +226,15 @@ contains
         class(sparse_vector),intent(inout) :: this
         type(sparse_vector) :: sparse_input
 
-        integer :: i
+        integer :: i, stat
 
         ! copy info over
         this%sparse_size = sparse_input%sparse_size
         this%full_size = sparse_input%full_size
         
         ! allocate the same number of sparse vector elements
-        allocate(this%elements(sparse_input%sparse_size))
+        allocate(this%elements(sparse_input%sparse_size), stat = stat)
+        call check_allocation(stat, "sparse vector init from sparse vector")
         
         do i=1,this%sparse_size
             
@@ -246,12 +253,13 @@ contains
         class(sparse_vector),intent(inout) :: this
 
         type(sparse_vector) :: temp_vector
-        integer :: new_size
+        integer :: new_size, stat
 
         new_size = size(this%elements) + 1
 
         ! allocate a temporary array
-        allocate(temp_vector%elements(new_size))
+        allocate(temp_vector%elements(new_size), stat = stat)
+        call check_allocation(stat, "sparse vector increase size")
 
         ! copy array info
         temp_vector%elements(1:new_size-1) = this%elements(:)
@@ -387,7 +395,7 @@ contains
         class(sparse_vector),intent(inout) :: this
         
         type(sparse_vector) :: temp_vector
-        integer :: i,count
+        integer :: i,count, stat
         integer, dimension(this%sparse_size) :: indices
         
         ! count how many nonzero elements there are
@@ -406,7 +414,8 @@ contains
              
             ! now that we have the number of non zero elements, allocate temp array
             temp_vector%sparse_size = count
-            allocate(temp_vector%elements(count))
+            allocate(temp_vector%elements(count), stat = stat)
+            call check_allocation(stat, "sparse vector compress")
 
             ! store the nonzero sparse elemnets in a temp array
             do i=1,count
@@ -718,10 +727,11 @@ contains
         real,dimension(3), intent(in) :: vec
 
         type(sparse_matrix) :: result_matrix
-        integer :: i
+        integer :: i, stat
 
         ! allocate sparse_matrix elements
-        allocate(result_matrix%columns(this%sparse_size))
+        allocate(result_matrix%columns(this%sparse_size), stat = stat)
+        call check_allocation(stat, "sparse vector broadcast_element_times_vector")
 
         ! perform scalar multiplication of vec by each sparse vector scalar
         do i=1,this%sparse_size
@@ -768,6 +778,7 @@ contains
 
         class(sparse_matrix), intent(inout) :: this
         integer,intent(in) :: N
+        integer :: stat
 
         real,dimension(3) :: zeros
 
@@ -775,7 +786,9 @@ contains
         this%full_num_cols = N
 
         ! allocate and populate an initial sparse matrix element
-        allocate(this%columns(1))
+        allocate(this%columns(1), stat = stat)
+        call check_allocation(stat, "sparse matrix init")
+
         zeros = (/0.0, 0.0, 0.0/)
         this%columns(1)%vector_values = zeros
         this%columns(1)%full_index = 1
@@ -791,7 +804,7 @@ contains
         class(sparse_matrix),intent(inout) :: this
         type(sparse_vector),intent(inout) :: sparse_v1,sparse_v2,sparse_v3
         
-        integer :: i, count
+        integer :: i, count, stat
         real,dimension(3) :: values
 
         ! check to see if the given sparse vectors are the same full size
@@ -818,7 +831,8 @@ contains
                 ! the first element needs to be initialized 
                 if (count == 1) then
                     ! allocate the first sparse matrix element
-                    allocate(this%columns(1))
+                    allocate(this%columns(1), stat = stat)
+                    call check_allocation(stat, "sparse matrix init from sparse vectors")
                     
                     ! populate the first sparse matrix element
                     this%columns(1)%vector_values = values
@@ -836,7 +850,8 @@ contains
         
         ! if no elements had nonzero elements, make a sparse column element of zeros
         if (count == 0) then
-            allocate(this%columns(1))
+            allocate(this%columns(1), stat = stat)
+            call check_allocation(stat, "sparse matrix init from sparse vectors, columns1")
 
             ! populate the first sparse matrix element
             this%columns(1)%vector_values = (/0.0,0.0,0.0/)
@@ -854,12 +869,13 @@ contains
 
         class(sparse_matrix),intent(inout) :: this
         real,dimension(:,:),intent(inout) :: full_matrix
-        integer :: i, full_size,count
+        integer :: i, full_size,count, stat
         integer, dimension(:),allocatable :: indices
 
         ! get size of vector
         full_size = size(full_matrix,2)
-        allocate(indices(full_size))
+        allocate(indices(full_size), stat = stat)
+        call check_allocation(stat, "sparse matrix init from full matrix")
 
         ! count how many nonzero elements there are
         count = 0
@@ -874,7 +890,8 @@ contains
             ! if count is zero, set a zero element
             this%sparse_num_cols = 1
             this%full_num_cols = full_size
-            allocate(this%columns(1))
+            allocate(this%columns(1), stat = stat)
+            call check_allocation(stat, "sparse matrix init from full matirx, column1")
             this%columns(1)%vector_values = (/0., 0., 0./)
             this%columns(1)%full_index = 1
 
@@ -883,7 +900,8 @@ contains
             ! now that we have the number of non zero numbers, we can allocate the space for the sparse_vector
             this%sparse_num_cols = count
             this%full_num_cols = full_size
-            allocate(this%columns(count))
+            allocate(this%columns(count), stat = stat)
+            call check_allocation(stat, "sparse matrix init from full matirx, columncount")
 
             ! populate the sparse_vector elements
             do i=1,count
@@ -906,14 +924,16 @@ contains
         class(sparse_matrix),intent(inout) :: this
         type(sparse_matrix) :: sparse_input
 
-        integer :: i
+        integer :: i, stat
 
         ! copy info over
         this%sparse_num_cols = sparse_input%sparse_num_cols
         this%full_num_cols = sparse_input%full_num_cols
         
         ! allocate the same number of sparse matrix elements
-        allocate(this%columns(this%sparse_num_cols))
+        allocate(this%columns(this%sparse_num_cols), stat = stat)
+        call check_allocation(stat, "sparse matrix init from sparse_matrix")
+
         
         do i=1,this%sparse_num_cols
             ! copy each element
@@ -931,12 +951,13 @@ contains
         class(sparse_matrix),intent(inout) :: this
         
         type(sparse_matrix) :: temp_matrix
-        integer :: new_size
+        integer :: new_size, stat
         
         new_size = size(this%columns) + 1
 
         ! allocate a temporary array
-        allocate(temp_matrix%columns(new_size))
+        allocate(temp_matrix%columns(new_size), stat = stat)
+        call check_allocation(stat, "sparse matrix increase size")
         
         ! copy array info
         temp_matrix%columns(1:new_size-1) = this%columns(:)
@@ -1065,10 +1086,11 @@ contains
         class(sparse_matrix),intent(inout) :: this
         
         type(sparse_matrix) :: temp_matrix
-        integer :: i,count
+        integer :: i,count, stat
         integer, dimension(:), allocatable :: indices
         
-        allocate(indices(this%sparse_num_cols))
+        allocate(indices(this%sparse_num_cols), stat = stat)
+        call check_allocation(stat, "sparse matrix compress")
 
         ! count and store indices of NONZERO elements
         count = 0
@@ -1087,7 +1109,8 @@ contains
              
             ! now that we have the number of NON ZERO elements, allocate temp sparse matrix
             temp_matrix%sparse_num_cols = count
-            allocate(temp_matrix%columns(count))
+            allocate(temp_matrix%columns(count), stat = stat)
+            call check_allocation(stat, "sparse matrix compress, count")
 
             ! store the nonzero sparse elemnets in a temp array
             do i=1,count
@@ -1220,14 +1243,15 @@ contains
         type(sparse_matrix) :: result_matrix
         real,dimension(3) :: temp_vec
         
-        integer :: i
+        integer :: i, stat
 
         ! set full and sparse column numbers/size
         result_matrix%full_num_cols = this%full_num_cols
         result_matrix%sparse_num_cols = this%sparse_num_cols
         
         ! allocate result matrix elements
-        allocate(result_matrix%columns(size(this%columns)))
+        allocate(result_matrix%columns(size(this%columns)), stat = stat)
+        call check_allocation(stat, "sparse matrix broadcast vector cross element")
         
         ! go through each sparse column index
         do i=1,this%sparse_num_cols
@@ -1258,14 +1282,15 @@ contains
         type(sparse_matrix) :: result_matrix
         real,dimension(3) :: temp_vec
         
-        integer :: i
+        integer :: i, stat
         
         ! set full and sparse column numbers/size
         result_matrix%full_num_cols = this%full_num_cols
         result_matrix%sparse_num_cols = this%sparse_num_cols
         
         ! allocate result matrix elements
-        allocate(result_matrix%columns(size(this%columns)))
+        allocate(result_matrix%columns(size(this%columns)), stat = stat)
+        call check_allocation(stat, "sparse matrix broadcast element cross vector")
         
         ! go through each sparse column index
         do i=1,this%sparse_num_cols
@@ -1295,13 +1320,14 @@ contains
         real :: temp_val
         real,dimension(3) :: temp_vec
         
-        integer :: i
+        integer :: i, stat
         
         ! set full and sparse column numbers/size
         result_vector%full_size = this%full_num_cols
         result_vector%sparse_size = this%sparse_num_cols
         ! allocate result matrix elements
-        allocate(result_vector%elements(result_vector%sparse_size))
+        allocate(result_vector%elements(result_vector%sparse_size), stat = stat)
+        call check_allocation(stat, "sparse matrix broadcast vector dot element")
         
         ! go through each sparse column index
         do i=1,this%sparse_num_cols
@@ -1349,14 +1375,15 @@ contains
         type(sparse_matrix) :: result_matrix
         real,dimension(3) :: temp_vec
         
-        integer :: i
+        integer :: i, stat
         
         ! set full and sparse column numbers/size
         result_matrix%full_num_cols = this%full_num_cols
         result_matrix%sparse_num_cols = this%sparse_num_cols
         
         ! allocate result matrix elements
-        allocate(result_matrix%columns(size(this%columns)))
+        allocate(result_matrix%columns(size(this%columns)), stat = stat)
+        call check_allocation(stat, "sparse matrix broadcast matmul 3x3 times element")
         
         ! go through each sparse column index
         do i=1,this%sparse_num_cols
@@ -1385,14 +1412,15 @@ contains
         type(sparse_matrix) :: result_matrix
         real,dimension(3) :: temp_vec
         
-        integer :: i
+        integer :: i, stat
         
         ! set full and sparse column numbers/size
         result_matrix%full_num_cols = this%full_num_cols
         result_matrix%sparse_num_cols = this%sparse_num_cols
         
         ! allocate result matrix elements
-        allocate(result_matrix%columns(size(this%columns)))
+        allocate(result_matrix%columns(size(this%columns)), stat = stat)
+        call check_allocation(stat, "sparse matrix broadcast_matmul_element_times_3x3")
         
         ! go through each sparse column index
         do i=1,this%sparse_num_cols
@@ -1444,10 +1472,11 @@ contains
         class(sparse_3D), intent(inout) :: this
         type(sparse_matrix), dimension(:), intent(in) :: sparse_matrices
 
-        integer :: i
+        integer :: i, stat
 
         this%num_rows = size(sparse_matrices)
-        allocate(this%rows(this%num_rows))
+        allocate(this%rows(this%num_rows), stat = stat)
+        call check_allocation(stat, "sparse_3D_init_from_sparse_matrices")
 
         do i=1,this%num_rows
             call this%rows(i)%init_from_sparse_matrix(sparse_matrices(i))
@@ -1502,11 +1531,13 @@ contains
         
         class(sparse_3D),intent(inout) :: this
         
-        integer :: i
+        integer :: i, stat
         type(sparse_vector),dimension(3) :: row1, row2, row3
         type(sparse_3D) :: transposed
         
-        allocate(transposed%rows(3))
+        allocate(transposed%rows(3), stat = stat)
+        call check_allocation(stat, "sparse_3D_transpose_3")
+
         
         row1 = this%rows(1)%split_into_sparse_vectors()
         row2 = this%rows(2)%split_into_sparse_vectors()
@@ -1527,11 +1558,11 @@ contains
         class(sparse_3D),intent(inout) :: this
         real,dimension(3,3),intent(in) :: matrix3 
     
-        integer :: i
+        integer :: i, stat
         type(sparse_3D):: result_rows
 
-        allocate(result_rows%rows(3))
-    
+        allocate(result_rows%rows(3), stat = stat)
+        call check_allocation(stat, "sparse_3D_broadcast matmul 3row times 3x3")
         do i=1,3
             result_rows%rows(i) = this%rows(i)%broadcast_matmul_element_times_3x3(matrix3)
         end do
@@ -1547,12 +1578,15 @@ contains
         class(sparse_3D),intent(inout) :: this
         real,dimension(3,3),intent(in) :: matrix3 
     
-        integer :: i
+        integer :: i, stat
         type(sparse_3D) :: this_cols, temp_cols, result_rows
 
-        allocate(this_cols%rows(3))
-        allocate(temp_cols%rows(3))
-        allocate(result_rows%rows(3))
+        allocate(this_cols%rows(3), stat = stat)
+        call check_allocation(stat, "sparse_3D_broadcast_matmul_3x3_times_3row, 1")
+        allocate(temp_cols%rows(3), stat = stat)
+        call check_allocation(stat, "sparse_3D_broadcast_matmul_3x3_times_3row, 2")
+        allocate(result_rows%rows(3), stat = stat)
+        call check_allocation(stat, "sparse_3D_broadcast_matmul_3x3_times_3row, 3")
 
         this_cols = this%transpose_3()
     
@@ -1595,12 +1629,13 @@ contains
         class(sparse_3D),intent(inout) :: this
         real,dimension(3),intent(in) :: vector3 
 
-        integer :: i
+        integer :: i,stat
         type(sparse_3D) :: this_cols
         type(sparse_vector), dimension(3) :: temp
         type(sparse_matrix):: sparse_mat
 
-        allocate(this_cols%rows(3))
+        allocate(this_cols%rows(3), stat = stat)
+        call check_allocation(stat, "sparse_3D_broadcast matmul 1x3 times 3row")
 
         this_cols = this%transpose_3()
     

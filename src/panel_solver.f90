@@ -1088,7 +1088,7 @@ contains
             
             ! allocate b vector 
             allocate(this%d_b_vector(body%N_cp), source=zeros, stat=stat)
-            ! call check_allocation(stat, "Adjoint b sensitivity vector")
+            call check_allocation(stat, "Adjoint b sensitivity vector")
             
             ! assemble b sensitivity vector
             call this%assemble_adjoint_b_vector(body)
@@ -3876,8 +3876,10 @@ contains
         ! allocations
         ! allocate(d_AIC_i(N_unknown,N_unknown))
         ! allocate(d_b_i(N_unknown))
-        allocate(mu_vector(N_unknown))
-        allocate(this%CF_sensitivities(3*N_original_verts,3))
+        allocate(mu_vector(N_unknown), stat = stat)
+        call check_allocation(stat, "mu_vector")
+        allocate(this%CF_sensitivities(3*N_original_verts,3), stat = stat)
+        call check_allocation(stat, "CF_sensitivities")
 
         ! expand d_C_F_wrt_vars into a full matrix. tall = true (N by 3)
         d_CF_wrt_vars = this%d_C_F_wrt_vars%expand(.true.)
