@@ -1413,6 +1413,9 @@ contains
         !$OMP parallel do private(j, source_inf, doublet_inf, v_s, v_d, A_i, I_known_i, inf_adjoint,d_AIC_row) schedule(dynamic)
         do i=1,body%N_cp
             
+            if (body%calc_adjoint) then 
+                write(*,*) " working on d_AIC row ", i, " of ", body%N_cp
+            end if
 
             ! Initialize
             A_i = 0.
