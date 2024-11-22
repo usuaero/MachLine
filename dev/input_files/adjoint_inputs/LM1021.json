@@ -4,7 +4,7 @@
     "freestream_mach_number" : 1.6
 },
 "geometry": {
-    "file" : "dev/meshes/adjoint/LM1021_30k.stl",
+    "file" : "dev/meshes/adjoint/LM1021_30k_vsp.stl",
     "singularity_order" : "lower",
 
     "wake_model" : {
@@ -32,8 +32,8 @@
 
 "output": {
     "verbose" : true,
-    "body_file" : "dev/results/adjoint/LM1021_30k_nate.vtk",
-    "report_file" : "dev/results/adjoint_reports/LM1021_30k_nate.txt"
+    "body_file" : "dev/results/adjoint/LM1021_30k_josh.vtk",
+    "report_file" : "dev/results/adjoint_reports/LM1021_30k_josh.txt"
 }
 
 }
