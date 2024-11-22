@@ -212,7 +212,7 @@ contains
             ! store number of original vertices read in from the mesh, 
             ! design variables come from only original vertices, not cloned
             this%N_original_verts = this%N_verts
-
+        
             call this%init_adjoint()
 
         end if
@@ -3517,6 +3517,8 @@ contains
         class(surface_mesh),intent(inout) :: this
 
         integer :: i
+
+        if (verbose) write(*,'(a)',advance='no') "     Initializing Adjoint geometric parameters..."
         
 
         ! init vertex attribute d_loc
@@ -3538,6 +3540,8 @@ contains
         
         ! calc  d_vertex_geometries
         call this%calc_d_vertex_geometry()
+
+        if (verbose) write(*,*) "Done."
         
         
     end subroutine surface_mesh_init_adjoint
