@@ -3906,7 +3906,7 @@ contains
         ! do for each column of d_AIC matrix
         do j=1,N_unknown
             ! adjoint progress
-            ! write(*,*)" d_AIC rearrangement loop ", j, " of ", N_unknown 
+            write(*,*)" d_AIC rearrangement loop ", j, " of ", N_unknown 
             
             ! populate the d_b_vecs array and d_AIC in a clever way
             d_b_vecs(j,:) = this%d_b_vector(j)%expand()
@@ -3945,7 +3945,7 @@ contains
             ! for each design variable
             do i=1,3*N_original_verts
                 ! adjoint progress
-                ! write(*,*)" m = ",m, " loop ", i, " of ", N_original_verts*3 
+                write(*,*)" m = ",m, " loop ", i, " of ", N_original_verts*3 
 
                 ! k = Number of columns of A matrix
                 ! do k=1,N_unknown 

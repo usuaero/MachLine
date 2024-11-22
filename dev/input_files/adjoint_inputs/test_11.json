@@ -23,7 +23,7 @@
             
         },
         "adjoint_sensitivities" : {
-            "calc_adjoint" : false
+            "calc_adjoint" : true
         }
     },
     "solver": {

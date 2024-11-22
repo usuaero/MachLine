@@ -1,0 +1,85 @@
+{
+    "info" : {
+        "generated_by" : "MachLine (c) 2023 USU Aerolab",
+        "executed" : "Thu Nov 21 16:14:46 2024"
+    },
+    "mesh_info" : {
+        "N_body_panels" : 31846,
+        "N_body_vertices" : 16368,
+        "N_wake_panels" : 916,
+        "N_wake_filaments" : 0,
+        "average_characteristic_length" : 1.49927174185405E-003,
+        "max_flow_turning_angle" : 1.76265438944060E+002
+    },
+    "solver_results" : {
+        "solver_status_code" : 0,
+        "system_dimension" : 16368,
+        "timing" : {
+            "system_sorting" : 1.67121500000000E-001,
+            "preconditioner" : 8.30052500000000E-001,
+            "matrix_solver" : 2.38368553000000E+002
+        },
+        "iterations" : 999,
+        "system_lower_bandwidth" : 6847,
+        "residual" : {
+            "max" : 6.54869979366257E-006,
+            "norm" : 1.42392831174585E-005
+        }
+    },
+    "pressure_calculations" : {
+        "isentropic_rule" : {
+            "max" : 1.80697165259059E+000,
+            "min" : -5.58035714285714E-001
+        }
+    },
+    "total_forces" : {
+        "Cx" : 1.60956663841238E-004,
+        "Cy" : -3.24219654151506E-008,
+        "Cz" : 3.39464427938812E-003
+    },
+    "total_moments" : {
+        "CMx" : 3.04005996408668E-009,
+        "CMy" : -1.44176541960688E-003,
+        "CMz" : -1.79241107874094E-008
+    },
+    "input" : {
+        "flow" : {
+            "freestream_velocity" : [
+                    9.99230000000000E-001,
+                    0.00000000000000E+000,
+                    3.66800000000000E-002
+                ],
+            "freestream_mach_number" : 1.60000000000000E+000
+        },
+        "geometry" : {
+            "file" : "dev/meshes/adjoint/LM1021_30k_vsp.stl",
+            "singularity_order" : "lower",
+            "wake_model" : {
+                "wake_present" : true,
+                "append_wake" : true,
+                "xtrefftz_distance" : 1.90000000000000E+001
+            },
+            "adjoint_sensitivities" : {
+                "calc_adjoint" : false
+            }
+        },
+        "solver" : {
+            "formulation" : "dirichlet-source-free",
+            "control_point_offset" : 1.00000000000000E-007,
+            "matrix_solver" : "GMRES",
+            "xsort_system" : false
+        },
+        "post_processing" : {
+            "pressure_rules" : {
+                "incompressible" : false,
+                "isentropic" : true
+            }
+        },
+        "output" : {
+            "verbose" : true,
+            "body_file" : "dev/results/adjoint/LM1021_30k.vtk",
+            "report_file" : "dev/results/adjoint_reports/LM1021_30k.txt"
+        }
+    },
+    "total_runtime" : 6.31688000000000E+002
+}

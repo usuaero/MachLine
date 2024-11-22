@@ -1,10 +1,10 @@
 {
 "flow": {
-    "freestream_velocity" : [ 1.0, 0.0, 0.03491],
+    "freestream_velocity" : [0.99923,0.0,0.03668],
     "freestream_mach_number" : 1.6
 },
 "geometry": {
-    "file" : "dev/meshes/adjoint/LM1021_30k_vsp.stl",
+    "file" : "dev/meshes/adjoint/LM1021_30k.stl",
     "singularity_order" : "lower",
 
     "wake_model" : {
@@ -32,8 +32,8 @@
 
 "output": {
     "verbose" : true,
-    "body_file" : "dev/results/adjoint/LM1021.vtk",
-    "report_file" : "dev/results/adjoint_reports/LM1021.txt"
+    "body_file" : "dev/results/adjoint/LM1021_30k_nate.vtk",
+    "report_file" : "dev/results/adjoint_reports/LM1021_30k_nate.txt"
 }
 
 }
