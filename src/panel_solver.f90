@@ -2113,7 +2113,7 @@ contains
         character(len=:),allocatable,intent(in) :: wake_file
         integer,intent(out) :: solver_stat
         real,dimension(:,:,:),allocatable :: streamlines
-        logical :: wake_exported
+        logical :: wake_exported = .true.
 
         integer :: i
 
@@ -2130,7 +2130,12 @@ contains
             call this%update_wake_loc(body, streamlines)
             deallocate(streamlines)
             ! update the wake file
-            call body%filament_wake%write_filaments(wake_file, wake_exported, body%mu)
+            if (body%wake_type == "filaments") then
+                call body%filament_wake%write_filaments(wake_file, wake_exported, body%mu)
+            else
+                call body%wake%write_strips(wake_file, wake_exported, body%mu)
+            end if
+            
             ! calculate the new wake influence
             call this%calc_wake_influences(body, freestream,.true.)
             ! solve the system again
@@ -2149,8 +2154,7 @@ contains
         real :: delta_s, d1
         real, dimension(3) :: start,v_d,v_s,point,new_point, k1,k2,k3,k4
         real,dimension(:,:,:),allocatable,intent(inout) :: streamlines
-        integer :: i,j, max_iterations_rk4
-        logical :: first
+        integer :: i,j, max_iterations_rk4, n_elements,i_strip
 
         ! set these temporarily
         delta_s = this%streamline_step_size
@@ -2158,12 +2162,29 @@ contains
 
         
         write(*,'(a)',advance='no') "Calculating streamlines... "
-        allocate(streamlines(3,body%filament_wake%N_filaments,max_iterations_rk4),source=0.0)
+        if (body%wake_type == "filaments") then
+            n_elements = body%filament_wake%N_filaments
+        else
+            n_elements = body%wake%N_strips*2
+        end if
+        allocate(streamlines(3,n_elements,max_iterations_rk4),source=0.0)
         ! loop through all the filaments in the wake
         ! write(*,*) "ag2c", this%freestream%A_g_to_c
-        !$OMP parallel do private(i,j, k1,k2,k3,k4,point, new_point, v_s, v_d,d1,start) schedule(dynamic)
-        do i=1,body%filament_wake%N_filaments
-            start = body%filament_wake%filaments(i)%vertices(1)%loc + this%freestream%A_g_to_c(1,:)*(-1.e-3)
+
+        !$OMP parallel do private(i,j, k1,k2,k3,k4,point, new_point, v_s, v_d,d1,start,i_strip) schedule(dynamic)
+        do i=1,n_elements
+
+            if (body%wake_type == "filaments") then
+                start = body%filament_wake%filaments(i)%vertices(1)%loc
+            else
+                if (i>body%wake%N_strips) then
+                    i_strip = i-body%wake%N_strips
+                    start = body%wake%strips(i_strip)%vertices(2)%loc
+                else
+                    start = body%wake%strips(i)%vertices(1)%loc
+                end if
+            end if
+            start = start + this%freestream%A_g_to_c(1,:)*(-1.e-3)
             ! write(*,*) "start: ", start
             streamlines(:,i,1) = start
             do j=2,max_iterations_rk4
@@ -2204,17 +2225,17 @@ contains
                 streamlines(:,i,j) = new_point
                 !$OMP end critical
                 ! write(*,*) "newpoint: ", streamlines(:,i,j)
-                d1 = body%trefftz_distance - inner(new_point, this%freestream%c_hat_g)
+                d1 = body%trefftz_distance+body%trefftz_distance*0.01 - inner(new_point, this%freestream%c_hat_g)
                 
                 if (norm2(new_point - point) < 1.e-6 .or. d1<0) then
-                    if (j < body%filament_wake%filaments(i)%N_segments) write(*,*) "Step size too big, not enough points"
+                    if (j < n_elements) write(*,*) "Step size too big, not enough points"
                     exit
                 end if
             end do
+            ! write(*,*) "Streamline ", i, " converged"
         end do
         !$OMP end parallel do
         write(*,*) "Done."
-        
                 
             
 
@@ -2234,23 +2255,52 @@ contains
         real :: x
         integer :: i,j,k_old,k
         
-
-        ! loop through all the filaments in the wake
-        do i=1,body%filament_wake%N_filaments
-            k_old = 2
-            do j = 2,body%filament_wake%filaments(i)%N_verts
-                x = body%filament_wake%filaments(i)%vertices(j)%loc(1)
-                do k = k_old,size(streamlines,3)
-                    if (streamlines(1,i,k) > x) then
-                        body%filament_wake%filaments(i)%vertices(j)%loc = streamlines(:,i,k)
-                        k_old = k
-                        exit
-                    end if
+        write(*,'(a)',advance='no') "Updating wake location... "
+        if (body%wake_type == "filaments") then
+            ! loop through all the filaments in the wake
+            do i=1,body%filament_wake%N_filaments
+                k_old = 2
+                do j = 2,body%filament_wake%filaments(i)%N_verts
+                    x = body%filament_wake%filaments(i)%vertices(j)%loc(1)
+                    do k = k_old,size(streamlines,3)
+                        if (streamlines(1,i,k) > x) then
+                            body%filament_wake%filaments(i)%vertices(j)%loc = streamlines(:,i,k)
+                            k_old = k
+                            exit
+                        end if
+                    end do
                 end do
-            end do
-            call body%filament_wake%filaments(i)%update_segments(this%freestream)
-        end do 
-        
+                call body%filament_wake%filaments(i)%update_segments(this%freestream)
+            end do 
+        else
+            ! loop through all the filaments in the wake
+            do i=1,body%wake%N_strips
+                do j = 3, body%wake%strips(i)%N_verts
+                    x = body%wake%strips(i)%vertices(j)%loc(1)
+                    if (modulo(j, 2) == 0) then
+                        do k = 2,size(streamlines,3)
+                            if (streamlines(1,i+body%wake%N_strips,k) > x) then
+                                ! write(*,*) "moving vertex ", j, " of strip ", i, " to streamline ", k
+                                body%wake%strips(i)%vertices(j)%loc = streamlines(:,i+body%wake%N_strips,k)
+                                exit
+                            end if
+                        end do
+                    else
+                        do k = 2,size(streamlines,3)
+                            if (streamlines(1,i,k) > x) then
+                                ! write(*,*) "moving vertex ", j, " of strip ", i, " to streamline ", k
+                                body%wake%strips(i)%vertices(j)%loc = streamlines(:,i,k)
+                                exit
+                            end if
+                        end do
+                    end if 
+                end do
+                do j = 1, body%wake%strips(i)%N_panels
+                    call body%wake%strips(i)%panels(j)%update_panel(this%freestream, body%mirrored, body%mirror_plane)
+                end do
+            end do 
+        end if
+
     end subroutine panel_solver_update_wake_loc
 
     

@@ -132,16 +132,27 @@ contains
         this%s_a = sin(a)
         this%s_b = sin(b)
         ! transform to filament frame
-        ! A_c_to_f = [[c_a * c_b, -s_a, c_a * s_b],[s_a * c_b, c_a, s_a * s_b],[-s_b, 0., c_b]]
+        ! A_c_to_f = [[c_a * c_b,    -s_a    ,c_a * s_b],[s_a * c_b, c_a , s_a * s_b],[   -s_b    ,   0.   , c_b]]
+        ! this%A_f_to_c(1,1) = this%c_a * this%c_b
+        ! this%A_f_to_c(1,2) = -this%s_a
+        ! this%A_f_to_c(1,3) = this%c_a * this%s_b
+        ! this%A_f_to_c(2,1) = this%s_a * this%c_b
+        ! this%A_f_to_c(2,2) = this%c_a
+        ! this%A_f_to_c(2,3) = this%s_a * this%s_b
+        ! this%A_f_to_c(3,1) = -this%s_b
+        ! this%A_f_to_c(3,2) = 0.
+        ! this%A_f_to_c(3,3) = this%c_b
+        ! A_c_to_f = [[c_a * c_b ,-c_a * s_b ,   s_a   ],[   s_b   , c_b ,     0    ],[-s_a * c_b ,s_a*s_b , c_a]]
         this%A_f_to_c(1,1) = this%c_a * this%c_b
-        this%A_f_to_c(1,2) = -this%s_a
-        this%A_f_to_c(1,3) = this%c_a * this%s_b
-        this%A_f_to_c(2,1) = this%s_a * this%c_b
-        this%A_f_to_c(2,2) = this%c_a
-        this%A_f_to_c(2,3) = this%s_a * this%s_b
-        this%A_f_to_c(3,1) = -this%s_b
-        this%A_f_to_c(3,2) = 0.
-        this%A_f_to_c(3,3) = this%c_b
+        this%A_f_to_c(1,2) = -this%c_a * this%s_b
+        this%A_f_to_c(1,3) = this%s_a
+        this%A_f_to_c(2,1) = this%s_b
+        this%A_f_to_c(2,2) = this%c_b
+        this%A_f_to_c(2,3) = 0.
+        this%A_f_to_c(3,1) = -this%s_a * this%c_b
+        this%A_f_to_c(3,2) = this%s_a * this%s_b
+        this%A_f_to_c(3,3) = this%c_a
+
 
         this%A_c_to_f = transpose(this%A_f_to_c)
 

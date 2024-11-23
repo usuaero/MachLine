@@ -81,6 +81,7 @@ module panel_mod
             procedure :: calc_radius => panel_calc_radius
             procedure :: calc_g_edge_vectors => panel_calc_g_edge_vectors
             procedure :: get_characteristic_length => panel_get_characteristic_length
+            procedure :: update_panel => panel_update_panel
 
             ! Flow-dependent initialization procedures
             procedure :: init_with_flow => panel_init_with_flow
@@ -370,7 +371,9 @@ contains
         integer :: i, i_next
 
         ! Allocate memory
-        allocate(this%n_hat_g(3,this%N))
+        if (.not. allocated(this%n_hat_g)) then
+            allocate(this%n_hat_g(3,this%N))
+        end if
 
         ! Loop through edges
         do i=1,this%N
@@ -562,6 +565,194 @@ contains
     
     end subroutine panel_calc_ls_edge_vectors
 
+    subroutine panel_update_panel(this, freestream, mirrored, mirror_plane)
+        implicit none
+
+        class(panel),intent(inout) :: this
+        type(flow),intent(in) :: freestream
+        integer,intent(in) :: mirror_plane
+        logical,intent(in) :: mirrored
+        real,dimension(3) :: u0, v0
+        real,dimension(3,3) :: B_mat_ls
+        real :: x, y
+        integer :: i, rs
+        real,dimension(2) :: d_ls
+        real,dimension(:,:),allocatable :: t_hat_ls
+        integer ::  i_next
+        real,dimension(:,:),allocatable :: t_hat_ls_mir
+       
+    
+
+        call this%calc_derived_geom()
+
+        ! init with flow
+         ! Calculate transforms
+         ! Calculates the necessary transformations to move from global to local, scaled coordinates (Eq. (E.0.1) in Epton and Magnus)
+
+       
+        ! Get in-panel basis vectors
+        if (abs(abs(inner(this%n_g, freestream%c_hat_g)) - 1.) < 1e-12) then ! Check the freestream isn't aligned with the normal vector
+            v0 = this%get_vertex_loc(2)-this%get_vertex_loc(1)
+        else
+            v0 = cross(this%n_g, freestream%c_hat_g)
+        end if
+        v0 = v0/norm2(v0)
+        u0 = cross(v0, this%n_g)
+        u0 = u0/norm2(u0)
+
+        ! Calculate compressible parameters
+        this%nu_g = matmul(freestream%B_mat_g, this%n_g)
+        x = inner(this%n_g, this%nu_g)
+
+        ! Check for Mach-inclined panels
+        if (freestream%supersonic .and. abs(x) < 1.e-12) then
+            write(*,*) "!!! Panel", this%index, "is Mach-inclined, which is not allowed. Quitting..."
+            stop
+        end if
+
+        ! Calculate panel inclination indicator (E&M Eq. (E.3.16b))
+        this%r = int(sign(1., x)) ! r = -1 -> superinclined, r = 1 -> subinclined
+
+        ! Other inclination parameters
+        rs = int(this%r*freestream%s)
+
+        ! Calculate transformation
+        y = 1./sqrt(abs(x))
+        this%A_g_to_ls(1,:) = y*matmul(freestream%C_mat_g, u0)
+        this%A_g_to_ls(2,:) = rs/freestream%B*matmul(freestream%C_mat_g, v0)
+        this%A_g_to_ls(3,:) = freestream%B*y*this%n_g
+
+        ! Check determinant
+        x = det3(this%A_g_to_ls)
+        if (abs(x - freestream%B*freestream%B) > 1.e-12) then
+            write(*,*) "!!! Calculation of local scaled coordinate transform failed at point 1. Quitting..."
+            stop
+        end if
+
+        ! Calculate inverse
+        if (freestream%M_inf == 0.) then
+            this%A_ls_to_g = transpose(this%A_g_to_ls)
+        else
+            call matinv(3, this%A_g_to_ls, this%A_ls_to_g)
+        end if
+
+        ! Calculate Jacobian
+        this%J = 1./(freestream%B*sqrt(abs(1.-freestream%M_inf**2*inner(freestream%c_hat_g, this%n_g)**2)))
+
+        ! Transform vertex coords to ls
+        do i=1,this%N
+            this%vertices_ls(:,i) = matmul(this%A_g_to_ls(1:2,:), this%get_vertex_loc(i)-this%centr)
+        end do
+
+        ! Calculate local scaled metric matrices
+        B_mat_ls = 0.
+        B_mat_ls(1,1) = freestream%B**2*rs
+        B_mat_ls(2,2) = freestream%B**2
+        B_mat_ls(3,3) = freestream%B**2*this%r
+
+        ! Check calculation (E&M Eq. (E.2.19))
+        if (any(abs(B_mat_ls - matmul(this%A_g_to_ls, matmul(freestream%B_mat_g, transpose(this%A_g_to_ls)))) > 1e-12)) then
+            write(*,*) "!!! Calculation of local scaled coordinate transform failed at point 2. Quitting..."
+            stop
+        end if
+
+        ! Calculate properties dependent on the transforms
+        
+       
+
+        allocate(t_hat_ls(2,this%N))
+        ! Loop through edges
+        do i=1,this%N
+
+            i_next = mod(i, this%N)+1
+
+            ! Calculate tangent in local scaled coords 
+            d_ls = this%vertices_ls(:,i_next) - this%vertices_ls(:,i)
+            t_hat_ls(:,i) = d_ls/norm2(d_ls)
+
+        end do
+
+        ! Calculate edge normal in local scaled coords E&M Eq. (J.6.45)
+        this%n_hat_ls(1,:) = t_hat_ls(2,:)
+        this%n_hat_ls(2,:) = -t_hat_ls(1,:)
+
+        ! Calculate edge parameter (Ehlers Eq. (E14))
+        ! This really only matters for subinclined, supersonic panels
+        ! But we set defaults for the other cases to make unified calcs work
+        if (freestream%supersonic) then
+            if (this%r > 0) then
+                this%b = (this%n_hat_ls(1,:) - this%n_hat_ls(2,:))*(this%n_hat_ls(1,:) + this%n_hat_ls(2,:))
+                this%sqrt_b = sqrt(abs(this%b))
+            else
+                this%b = 1.
+                this%sqrt_b = 1.
+            end if
+        else
+            this%b = -1.
+            this%sqrt_b = 1.
+        end if
+
+        ! Calculate mirrored properties
+        if (mirrored) then
+            
+
+            
+    
+            ! Store mirror plane
+            this%mirror_plane = mirror_plane
+    
+            ! Calculate mirrored normal vector
+            this%n_g_mir = mirror_across_plane(this%n_g, mirror_plane)
+    
+            ! Calculate mirrored centroid
+            this%centr_mir = mirror_across_plane(this%centr, mirror_plane)
+    
+            ! Calculate mirrored g to ls transform
+            call this%calc_mirrored_g_to_ls_transform(freestream)
+    
+            ! Calculate mirrored edge vectors
+            ! Global
+            do i=1,this%N
+                this%n_hat_g_mir(:,i) = mirror_across_plane(this%n_hat_g(:,i), mirror_plane)
+            end do
+    
+            ! Local-scaled
+            allocate(t_hat_ls_mir(2,this%N))
+            ! Loop through edges
+            do i=1,this%N
+
+                i_next = mod(i, this%N)+1
+
+                ! Calculate tangent in local scaled coords 
+                ! Direction is flipped so that we're still going counter-clockwise about the panel
+                d_ls = this%vertices_ls_mir(:,i) - this%vertices_ls_mir(:,i_next)
+                t_hat_ls_mir(:,i) = d_ls/norm2(d_ls)
+
+            end do
+
+            ! Calculate edge normal in local scaled coords E&M Eq. (J.6.45)
+            this%n_hat_ls_mir(1,:) = t_hat_ls_mir(2,:)
+            this%n_hat_ls_mir(2,:) = -t_hat_ls_mir(1,:)
+
+            ! Calculate edge parameter (Ehlers Eq. (E14))
+            if (freestream%supersonic) then
+                if (this%r_mir > 0) then
+                    this%b_mir = (this%n_hat_ls_mir(1,:) - this%n_hat_ls_mir(2,:))*(this%n_hat_ls_mir(1,:) + this%n_hat_ls_mir(2,:))
+                    this%sqrt_b_mir = sqrt(abs(this%b_mir))
+                else
+                    this%b_mir = 1.
+                    this%sqrt_b_mir = 1.
+                end if
+            else
+                this%b_mir = -1.
+                this%sqrt_b_mir = 1.
+            end if
+        end if
+
+
+
+
+    end subroutine panel_update_panel
 
     subroutine panel_set_distribution(this, order, body_panels, body_verts, mirror_needed)
         ! Sets up the singularity distribution for this panel
