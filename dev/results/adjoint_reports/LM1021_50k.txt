@@ -1,0 +1,88 @@
+{
+    "info" : {
+        "generated_by" : "MachLine (c) 2023 USU Aerolab",
+        "executed" : "Sun Dec  1 20:33:29 2024"
+    },
+    "mesh_info" : {
+        "N_body_panels" : 46932,
+        "N_body_vertices" : 23859,
+        "N_wake_panels" : 820,
+        "N_wake_filaments" : 0,
+        "average_characteristic_length" : 1.29825612546415E-003,
+        "max_flow_turning_angle" : 1.79754258792485E+002
+    },
+    "solver_results" : {
+        "solver_status_code" : 0,
+        "system_dimension" : 23859,
+        "timing" : {
+            "system_sorting" : 2.96012500000000E-001,
+            "preconditioner" : 2.45990760000000E+000,
+            "matrix_solver" : 7.35723678900000E+002
+        },
+        "iterations" : 999,
+        "system_lower_bandwidth" : 1827,
+        "residual" : {
+            "max" : 2.55240445556915E-007,
+            "norm" : 2.24073755019832E-006
+        }
+    },
+    "pressure_calculations" : {
+        "isentropic_rule" : {
+            "max" : 1.80891205543799E+000,
+            "min" : -5.58035714285714E-001
+        }
+    },
+    "total_forces" : {
+        "Cx" : 7.51762417194127E-005,
+        "Cy" : 1.64382358190484E-008,
+        "Cz" : 2.85082580640721E-003
+    },
+    "total_moments" : {
+        "CMx" : -2.12469584244575E-009,
+        "CMy" : -1.18461198635923E-003,
+        "CMz" : 9.59240816595072E-009
+    },
+    "input" : {
+        "flow" : {
+            "freestream_velocity" : [
+                    9.99230000000000E-001,
+                    0.00000000000000E+000,
+                    3.66800000000000E-002
+                ],
+            "freestream_mach_number" : 1.60000000000000E+000
+        },
+        "geometry" : {
+            "file" : "dev/meshes/adjoint/LM1021_50k_vsp.stl",
+            "xfile" : "dev/meshes/adjoint/LM1021.tri",
+            "singularity_order" : "lower",
+            "xmirror_about" : "xz",
+            "wake_model" : {
+                "wake_present" : true,
+                "append_wake" : true,
+                "xtrefftz_distance" : 1.90000000000000E+001
+            },
+            "adjoint_sensitivities" : {
+                "calc_adjoint" : false
+            }
+        },
+        "solver" : {
+            "formulation" : "dirichlet-source-free",
+            "control_point_offset" : 1.00000000000000E-007,
+            "matrix_solver" : "GMRES",
+            "xsort_system" : false
+        },
+        "post_processing" : {
+            "pressure_rules" : {
+                "incompressible" : false,
+                "isentropic" : true
+            }
+        },
+        "output" : {
+            "verbose" : true,
+            "body_file" : "dev/results/adjoint/LM1021_50k.vtk",
+            "xmirrored_body_file" : "dev/results/adjoint/LM1021_tri_mirrored.vtk",
+            "report_file" : "dev/results/adjoint_reports/LM1021_50k.txt"
+        }
+    },
+    "total_runtime" : 1.61650000000000E+003
+}

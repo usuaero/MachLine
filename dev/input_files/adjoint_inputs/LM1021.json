@@ -4,8 +4,10 @@
     "freestream_mach_number" : 1.6
 },
 "geometry": {
-    "file" : "dev/meshes/adjoint/LM1021_30k_vsp.stl",
+    "file" : "dev/meshes/adjoint/LM1021_50k_vsp.stl",
+    "xfile" : "dev/meshes/adjoint/LM1021.tri",
     "singularity_order" : "lower",
+    "xmirror_about" : "xz",
 
     "wake_model" : {
         "wake_present" : true,
@@ -14,7 +16,7 @@
         
     },
     "adjoint_sensitivities" : {
-        "calc_adjoint" : true
+        "calc_adjoint" : false
     }
 },
 "solver": {
@@ -32,8 +34,9 @@
 
 "output": {
     "verbose" : true,
-    "body_file" : "dev/results/adjoint/LM1021_30k_josh.vtk",
-    "report_file" : "dev/results/adjoint_reports/LM1021_30k_josh.txt"
+    "body_file" : "dev/results/adjoint/LM1021_50k.vtk",
+    "xmirrored_body_file" : "dev/results/adjoint/LM1021_tri_mirrored.vtk",
+    "report_file" : "dev/results/adjoint_reports/LM1021_50k.txt"
 }
 
 }
