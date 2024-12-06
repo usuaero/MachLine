@@ -23,7 +23,7 @@
             
         },
         "adjoint_sensitivities" : {
-            "calc_adjoint" : false
+            "calc_adjoint" : true
         }
     },
     "solver": {
@@ -41,8 +41,9 @@
 
     "output": {
         "verbose" : true,
-        "body_file" : "dev/results/adjoint/test_11_1800_serial.vtk",
-        "report_file" : "dev/results/adjoint_reports/test_11_1800_serial.json",
+        "body_file" : "dev/results/adjoint/test_11_1800_body.vtk",
+        "wake_file" : "dev/results/adjoint/test_11_1800_wake.vtk",
+        "xreport_file" : "dev/results/adjoint_reports/test_11_1800_serial.json",
         "_control_point_file" : "dev/results/adjoint_reports/test_11_cp_test_points.vtk"
     }
     
