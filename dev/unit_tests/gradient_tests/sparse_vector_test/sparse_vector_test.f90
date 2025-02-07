@@ -1,7 +1,7 @@
 program sparse_vector_test
     ! tests sparse vector and sparse matrix operations
     
-    use adjoint_mod
+    use sparse_mod
     
     implicit none
 

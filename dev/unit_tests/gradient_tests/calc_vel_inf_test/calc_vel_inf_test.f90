@@ -1,7 +1,7 @@
 program calc_vel_inf_test
 
     ! tests various intermediate sensitivities 
-    use adjoint_mod
+    use sparse_mod
     use base_geom_mod
     use panel_mod
     use flow_mod

@@ -5,7 +5,8 @@ module flow_mod
     use math_mod
     use linalg_mod
     use helpers_mod
-    use adjoint_mod
+    ! use sparse_mod
+    use sparse_mod
 
     implicit none
     

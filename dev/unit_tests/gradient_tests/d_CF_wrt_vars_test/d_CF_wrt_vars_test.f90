@@ -1,7 +1,7 @@
 program d_CF_wrt_vars_test
 
     ! tests various intermediate sensitivities 
-    use adjoint_mod
+    use sparse_mod
     use base_geom_mod
     use panel_mod
     use flow_mod

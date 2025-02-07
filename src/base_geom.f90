@@ -4,7 +4,8 @@ module base_geom_mod
     use linked_list_mod
     use math_mod
     use helpers_mod
-    use adjoint_mod
+    ! use sparse_mod
+    use sparse_mod
 
     implicit none
 

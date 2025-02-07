@@ -1,7 +1,7 @@
 program dirichlet_super_test1
 
     ! tests various intermediate sensitivities 
-    use adjoint_mod
+    use sparse_mod
     use base_geom_mod
     use panel_mod
     use flow_mod
