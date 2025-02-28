@@ -3253,7 +3253,7 @@ contains
             ! initialize counter
             found_clones = 0
             ! adjoint progress
-            ! write(*,*) "clones:"  
+            write(*,*) "clones:"  
             ! write sensitivity data (and copy it for cloned vertices so Paraview Plays nice)
             do j=1,N_orig_verts
                 
@@ -3268,7 +3268,7 @@ contains
                 if (this%vertices(j)%clone .and. (found_clones < N_verts - N_orig_verts)) then
                     
                     ! adjoint progress
-                    ! write(*,*)this%vertices(j)%index
+                    write(*,*)this%vertices(j)%index
                     
                     found_clones = found_clones + 1
 

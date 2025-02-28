@@ -17,7 +17,7 @@ def run_machline_central_diff(study_directory, cp_offset, perturb_point, point_i
     # Storage locations
     cp_offset_string = str(cp_offset).replace(".","_") + "_" + formulation.replace("-","_")
     case_name = "one_run_in_central_diff".format(cp_offset_string)
-    mesh_file = study_directory+"/meshes/test_mesh_11.stl"
+    mesh_file = study_directory+"/meshes/test_11_1100.stl"
     results_file = study_directory+"/results/"+case_name+".vtk"
     # wake_file = study_directory+"/results/"+case_name+"_wake.vtk"
     report_file = study_directory+"/reports/"+case_name+".json"
@@ -27,7 +27,7 @@ def run_machline_central_diff(study_directory, cp_offset, perturb_point, point_i
     # create input file
     input_dict = {
         "flow": {
-            "freestream_velocity": [1.0, 0.0, 0.1],
+            "freestream_velocity": [ 1.0, 0.0, 0.069926812],
             "freestream_mach_number" : 2.0
         },
         "geometry": {
@@ -136,11 +136,11 @@ if __name__=="__main__":
     # wake_appended = True
     formulation = "dirichlet-source-free"
     calc_adjoint = False
-    cp_offset = 1.0e-4
+    cp_offset = 1.0e-5
 
     # number of mesh points/vertices
-    points = 1190
-    step = 1.0e-6
+    points = 1122
+    step = 1.0e-4
 
     study_directory = "dev/unit_tests/central_diff"
     

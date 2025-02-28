@@ -229,7 +229,7 @@ def process_in_batches(num_mesh_points, num_workers=10, j=1):
                 d_CFx[i][(k + (j-1)*num_mesh_points) -1] = d_CFx_result[i]  
                 d_CFy[i][(k + (j-1)*num_mesh_points) -1] = d_CFy_result[i]  
                 d_CFz[i][(k + (j-1)*num_mesh_points) -1] = d_CFz_result[i]  
-            print(f"Completed mesh point {k} for axis {j}, run count: {run_count_local}")
+            # print(f"Completed mesh point {k} for axis {j}, run count: {run_count_local}")
 
     return d_CFx, d_CFy, d_CFz  # Return the accumulated results
 
@@ -245,27 +245,30 @@ if __name__=="__main__":
     #####################################################################################
     #### THINGS TO CHANGE FORA A NEW RUN #####
 
-    mesh_name = "test_11_500"
+    mesh_name = "test_11_3200"
     sonic = "super"
-    num_mesh_points = 542
+    num_mesh_points = 3218
 
     # clones = [1,3,74,110,146,182,218,254,290,326,362,398,434,470,506,542,578,614,650,686,722,758,794,830,866,902,938,974,1010,1046,1082,1118,1154] # 1190
-    clones =  [] # 542
-
+    # clones =  [1,3,42,62,82,102,122,142,162,182,202,222,242,262,282,302,322,342,362,382,402,422,442,462,482,502,522] # 542
+    # clones =  [1,3,66,98,130,162,194,226,258,290,322,354,386,418,450,482,514,546,578,610,642,674,706,738,770,802,834,866,898,930,962,994,1026,1058,109] # 1122
+    # clones =  [1,3,90,134,178,222,266,310,354,398,442,486,530,574,618,662,706,750,794,838,882,926,970,1014,1058,1102,1146,1190,1234,1278,1322,1366,1410,1454,1498,1542,1586,1630,1674,1718,1762] # 1806
+    # clones =  [1,3,106,158,210,262,314,366,418,470,522,574,626,678,730,782,834,886,938,990,1042,1094,1146,1198,1250,1302,1354,1406,1458,1510,1562,1614,1666,1718,1770,1822,1874,1926,1978,2030,2082,2134,2186,2238,2290,2342,2394] # 2446
+    clones = [1,3,98,146,194,242,290,338,386,434,482,530,578,626,674,722,770,818,866,914,962,1010,1058,1106,1154,1202,1250,1298,1346,1394,1442,1490,1538,1586,1634,1682,1730,1778,1826,1874,1922,1970,2018,2066,2114,2162,2210,2258,2306,2354,2402,2450,2498,2546,2594,2642,2690,2738,2786,2834,2882,2930,2978,3026,3074,3122,3170]  # 3218
 
     makefile_directory = "C:/Users/nathan/git-repos/MachLine"  # Adjust this path as needed
     # makefile_directory = "C:/Users/aerolab/Desktop/Nate/MachLine-1"
     
     adjoint_cp_study = False
 
-    num_cp_offsets = 15
-    step = 1.0e-6   # initial step size (gets smaller)
-    initial_step_exp = 6
+    num_cp_offsets = 1
+
+    step = 1.0e-4   # initial step size (gets smaller)
+    initial_step_exp = 4
     num_step_size_runs =1
     
     # get spread of cp offsets
-    cp_offsets = np.logspace(-10,-1, num_cp_offsets+1)
-    cp_offsets = cp_offsets[:-1]
+    cp_offsets = [1.0e-5]
 
     ###################################################################################
     ###################################################################################
@@ -460,9 +463,11 @@ if __name__=="__main__":
         for j in range(1, 4):  # Loop over xyz axes
 
 
-            d_CFx, d_CFy, d_CFz = process_in_batches(num_mesh_points, num_workers=60, j=j)
+            d_CFx, d_CFy, d_CFz = process_in_batches(num_mesh_points, num_workers=8, j=j)
 
             
+        cd_runs = time.time()
+        print("Central Diff Runs complete {0} seconds".format(cd_runs-tStart))
         
         # for each step size, do the following: 
         # calc norms
@@ -470,6 +475,9 @@ if __name__=="__main__":
             d_CFx_norm[i] = np.sqrt(np.sum(d_CFx[i][:] * d_CFx[i][:]))
             d_CFy_norm[i] = np.sqrt(np.sum(d_CFy[i][:] * d_CFy[i][:]))
             d_CFz_norm[i] = np.sqrt(np.sum(d_CFz[i][:] * d_CFz[i][:]))
+
+            cd_time = time.time()
+            print("Central Diff Runtime {0} seconds".format(cd_time-tStart))
 
             processed_d_CFx = []
             processed_d_CFy = []
@@ -489,36 +497,36 @@ if __name__=="__main__":
                 processed_d_CFy.append((d_CFy[i][x_index], d_CFy[i][y_index], d_CFy[i][z_index]))
                 processed_d_CFz.append((d_CFz[i][x_index], d_CFz[i][y_index], d_CFz[i][z_index]))
 
-                excel_file = "studies/adjoint_studies/super_11/excel_files/superMORE_"+mesh_name + "_cp_"+f'{cp_offsets[i]:.2e}' + "_step_1e-" + str(initial_step_exp+ m) + ".xlsx"
+                # excel_file = "studies/adjoint_studies/super_11/excel_files/super_"+mesh_name + "_cp_"+f'{cp_offsets[i]:.2e}' + "_step_1e-" + str(initial_step_exp+ m) + ".xlsx"
 
-                if os.path.exists(excel_file):
-                    os.remove(excel_file)
+                # if os.path.exists(excel_file):
+                #     os.remove(excel_file)
 
-                # Create a DataFrame for vector components (without norms)
-                data_dict = {
-                    'd_CFx_x': [item[0] for item in processed_d_CFx],
-                    'd_CFx_y': [item[1] for item in processed_d_CFx],
-                    'd_CFx_z': [item[2] for item in processed_d_CFx],
-                    'd_CFy_x': [item[0] for item in processed_d_CFy],
-                    'd_CFy_y': [item[1] for item in processed_d_CFy],
-                    'd_CFy_z': [item[2] for item in processed_d_CFy],
-                    'd_CFz_x': [item[0] for item in processed_d_CFz],
-                    'd_CFz_y': [item[1] for item in processed_d_CFz],
-                    'd_CFz_z': [item[2] for item in processed_d_CFz],
-                }
+                # # Create a DataFrame for vector components (without norms)
+                # data_dict = {
+                #     'd_CFx_x': [item[0] for item in processed_d_CFx],
+                #     'd_CFx_y': [item[1] for item in processed_d_CFx],
+                #     'd_CFx_z': [item[2] for item in processed_d_CFx],
+                #     'd_CFy_x': [item[0] for item in processed_d_CFy],
+                #     'd_CFy_y': [item[1] for item in processed_d_CFy],
+                #     'd_CFy_z': [item[2] for item in processed_d_CFy],
+                #     'd_CFz_x': [item[0] for item in processed_d_CFz],
+                #     'd_CFz_y': [item[1] for item in processed_d_CFz],
+                #     'd_CFz_z': [item[2] for item in processed_d_CFz],
+                # }
 
-                # Convert to DataFrame and write to Excel
-                df_vectors = pd.DataFrame(data_dict)
-                df_vectors.to_excel(excel_file, index=False)
+                # # Convert to DataFrame and write to Excel
+                # df_vectors = pd.DataFrame(data_dict)
+                # df_vectors.to_excel(excel_file, index=False)
 
 
-                # Now add the norms to the same file
-                df_vectors['CFx_norm'] = d_CFx_norm[i]
-                df_vectors['CFy_norm'] = d_CFy_norm[i]
-                df_vectors['CFz_norm'] = d_CFz_norm[i]
+                # # Now add the norms to the same file
+                # df_vectors['CFx_norm'] = d_CFx_norm[i]
+                # df_vectors['CFy_norm'] = d_CFy_norm[i]
+                # df_vectors['CFz_norm'] = d_CFz_norm[i]
 
-                # Save updated DataFrame with norms back to the same Excel file
-                df_vectors.to_excel(excel_file, index=False)
+                # # Save updated DataFrame with norms back to the same Excel file
+                # df_vectors.to_excel(excel_file, index=False)
 
                 # Check if the current index (1-based) is in clone indices
                 if (j + 1) in clones:
@@ -540,12 +548,18 @@ if __name__=="__main__":
             vtk_lines = read_vtk_file(just_points_vtk)
 
             # write central diff sensitivities to a vtk file file
-            new_vtk = "studies/adjoint_studies/super_11/vtk_files/superMORE_"+mesh_name+"_cp_"+f'{cp_offsets[i]:.2e}' + "_step_1e-" + str(initial_step_exp+ m) + ".vtk"
+            start_write = time.time()
+            new_vtk = "studies/adjoint_studies/super_11/vtk_files/super_"+mesh_name+"_cp_"+f'{cp_offsets[i]:.2e}' + "_step_1e-" + str(initial_step_exp+ m) + ".vtk"
             if os.path.exists(new_vtk):
                     os.remove(new_vtk)
             updated_vtk_content = add_vector_data_to_vtk(vtk_lines, new_data)
             write_vtk_file(new_vtk, updated_vtk_content)
 
+            end_write = time.time()
+            print("Process time {0} seconds".format(start_write-cd_time))
+            print("Write to VTK time {0} seconds".format(end_write-start_write))
+            print("Total CD time {0} seconds".format(end_write-tStart))
+        
 
         print(d_CFx_norm, d_CFy_norm, d_CFz_norm)
         # Plot for norms_d_CFx
@@ -585,7 +599,7 @@ if __name__=="__main__":
 
     figx.subplots_adjust(right = 0.8)
 
-    fig_file_fx = "/figures/superMORE_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFx.pdf"
+    fig_file_fx = "/figures/super_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFx.pdf"
     figx.savefig(study_directory + fig_file_fx)
 
 
@@ -606,7 +620,7 @@ if __name__=="__main__":
 
     figy.subplots_adjust(right = 0.8)
 
-    fig_file_fy = "/figures/superMORE_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFy.pdf"
+    fig_file_fy = "/figures/super_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFy.pdf"
     figy.savefig(study_directory + fig_file_fy)
 
     ##################### finish CFy figure ####################
@@ -626,18 +640,18 @@ if __name__=="__main__":
 
     figz.subplots_adjust(right = 0.8)
 
-    fig_file_fz = "/figures/superMORE_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFz.pdf"
+    fig_file_fz = "/figures/super_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFz.pdf"
     figz.savefig(study_directory + fig_file_fz)
 
-    with open("studies/adjoint_studies/super_11/pickle_jar/superMORE_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFx.pkl", 'wb') as f:
+    with open("studies/adjoint_studies/super_11/pickle_jar/super_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFx.pkl", 'wb') as f:
         pickle.dump(figx, f)
 
 
-    with open("studies/adjoint_studies/super_11/pickle_jar/superMORE_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFy.pkl", 'wb') as f:
+    with open("studies/adjoint_studies/super_11/pickle_jar/super_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFy.pkl", 'wb') as f:
         pickle.dump(figy, f)
 
 
-    with open("studies/adjoint_studies/super_11/pickle_jar/superMORE_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFz.pkl", 'wb') as f:
+    with open("studies/adjoint_studies/super_11/pickle_jar/super_"+mesh_name+"_"+str(num_cp_offsets) + "_cp_offsets_dCFz.pkl", 'wb') as f:
         pickle.dump(figz, f)
 
 
@@ -692,7 +706,7 @@ if __name__=="__main__":
     df_expanded = pd.DataFrame(expanded_data)
 
     # Save to Excel file
-    excel_file = "studies/adjoint_studies/super_11/results/superMORE_" + mesh_name + "_" + str(num_cp_offsets) + "_offsets_final.xlsx"
+    excel_file = "studies/adjoint_studies/super_11/results/super_" + mesh_name + "_" + str(num_cp_offsets) + "_offsets_final.xlsx"
     df_expanded.to_excel(excel_file, index=False)
 
 

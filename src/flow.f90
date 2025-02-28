@@ -811,8 +811,11 @@ contains
         CP_inc = this%get_C_P_inc(v)
         d_C_P_ise_wrt_vars = this%get_d_C_P_inc_wrt_vars(v, d_v)
         
-        call d_C_P_ise_wrt_vars%broadcast_element_times_scalar &
-        (this%a_ise*this%b_ise*this%c_ise*(1. + this%b_ise*CP_inc)**(this%c_ise -1.))
+        ! call d_C_P_ise_wrt_vars%broadcast_element_times_scalar &
+        ! (this%a_ise*this%b_ise*this%c_ise*(1. + this%b_ise*CP_inc)**(this%c_ise -1.))
+
+        ! a_ise*b_ise*c_ise = 1   
+        call d_C_P_ise_wrt_vars%broadcast_element_times_scalar((1. + this%b_ise*CP_inc)**(this%c_ise -1.))
 
         ! Check for NaN
         check = d_C_P_ise_wrt_vars%expand()
@@ -841,8 +844,11 @@ contains
         CP_inc = this%get_C_P_inc(v)
         d_C_P_ise_wrt_mu = this%get_d_C_P_inc_wrt_mu(v, d_v)
         
-        call d_C_P_ise_wrt_mu%broadcast_element_times_scalar &
-        (this%a_ise*this%b_ise*this%c_ise*(1. + this%b_ise*CP_inc)**(this%c_ise -1.))
+        ! call d_C_P_ise_wrt_mu%broadcast_element_times_scalar &
+        ! (this%a_ise*this%b_ise*this%c_ise*(1. + this%b_ise*CP_inc)**(this%c_ise -1.))
+
+        ! a_ise*b_ise*c_ise = 1
+        call d_C_P_ise_wrt_mu%broadcast_element_times_scalar((1. + this%b_ise*CP_inc)**(this%c_ise -1.))
 
         ! Check for NaN
         check = d_C_P_ise_wrt_mu%expand()

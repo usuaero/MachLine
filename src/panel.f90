@@ -7468,6 +7468,7 @@ contains
         integer,intent(in) :: N_body_panels, N_body_verts
         type(flow),intent(in) :: freestream
         type(sparse_matrix),intent(in) :: d_inner_flow
+        
 
         ! real,dimension(3) :: v
 
@@ -7481,6 +7482,7 @@ contains
         ! Get total velocity
         ! v = freestream%U*(inner_flow + dv)
         call d_V%init_from_sparse_matrix(d_inner_flow)
+
         call d_V%sparse_add(d_dv)
         call d_V%broadcast_element_times_scalar(freestream%U)
 
